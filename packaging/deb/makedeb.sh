@@ -26,6 +26,7 @@ cd ${pkg_dir}
 
 # create install dir 
 install_home_path="/usr/local/taos"
+mkdir -p ${pkg_dir}${install_home_path}
 mkdir -p ${pkg_dir}${install_home_path}/bin
 mkdir -p ${pkg_dir}${install_home_path}/cfg
 mkdir -p ${pkg_dir}${install_home_path}/connector
@@ -39,6 +40,7 @@ cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_path}/script
+cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/libtaos.so              ${pkg_dir}${install_home_path}/driver 

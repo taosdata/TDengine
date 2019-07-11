@@ -61,14 +61,14 @@ function clean_lib() {
 
 function clean_header() {
     # Remove link
-    sudo rm -f ${inc_link_dir}/taos.h      || :
+    sudo rm -f ${inc_link_dir}/taos.h       || :
     
     #sudo rm -rf ${header_dir}
 }
 
 function clean_config() {
     # Remove link
-    sudo rm -f ${cfg_link_dir}/taos.cfg    || :    
+    sudo rm -f ${cfg_link_dir}/*            || :    
     #sudo rm -rf ${cfg_link_dir}            || :
 }
 

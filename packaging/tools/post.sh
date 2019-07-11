@@ -68,7 +68,7 @@ function install_bin() {
     #Make link
     [ -x ${bin_dir}/taos ] && sudo ln -s ${bin_dir}/taos ${bin_link_dir}/taos             || :
     [ -x ${bin_dir}/taosd ] && sudo ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd          || :
-#   [ -x ${bin_dir}/taosdump ] && sudo ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
+    [ -x ${bin_dir}/taosdump ] && sudo ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
 #   [ -x ${bin_dir}/remove.sh ] && sudo ln -s ${bin_dir}/remove.sh ${bin_link_dir}/rmtaos || :
 }
 
