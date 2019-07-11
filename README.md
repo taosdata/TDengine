@@ -2,19 +2,19 @@
 
 # What is TDengine？
 
-TDengine is an open-sourced big data platform under [GNU AGPL v3.0](http://www.gnu.org/licenses/agpl-3.0.html), designed and optimized for the Internet of Things (IoT), Connected Cars, Industrial IoT, and IT infrastructure and Application Monitoring. Besides the 10x faster time-series database, it provides caching, stream computing, message queuing and other functionalities to reduce the complexity and cost of development and operation.
+TDengine is an open-sourced big data platform under [GNU AGPL v3.0](http://www.gnu.org/licenses/agpl-3.0.html), designed and optimized for the Internet of Things (IoT), Connected Cars, Industrial IoT, and IT Infrastructure and Application Monitoring. Besides the 10x faster time-series database, it provides caching, stream computing, message queuing and other functionalities to reduce the complexity and cost of development and operation.
 
-- **10X Faster on Insert/Query Speeds**: Through the innovated design on storage, on a single-core, over 20K requests can be processed, millions of data points can be ingested, and over 10 million data points can be retrieved in a second. It is 10 times faster than other databases.
+- **10x Faster on Insert/Query Speeds**: Through the innovative design on storage, on a single-core machine, over 20K requests can be processed, millions of data points can be ingested, and over 10 million data points can be retrieved in a second. It is 10 times faster than other databases.
 
 - **1/5 Hardware/Cloud Service Costs**: Compared with typical big data solutions, less than 1/5 of computing resources are required. Via column-based storage and tuned compression algorithms for different data types, less than 1/10 of storage space is needed. 
 
-- **Full Stack for Time-Series Data**: By integrating a database with message queuing, caching, and stream computing features together, it is no longer necessary to integrate Kafka/Redis/HBase/Spark or other software. It makes system architecture simpler and more robust.
+- **Full Stack for Time-Series Data**: By integrating a database with message queuing, caching, and stream computing features together, it is no longer necessary to integrate Kafka/Redis/HBase/Spark or other software. It makes the system architecture much simpler and more robust..
 
 - **Powerful Data Analysis**: Whether it is 10 years or one minute ago, data can be queried just by specifying the time range. Data can be aggregated over time, multiple time streams or both. Ad Hoc queries or analyses can be executed via TDengine shell, Python, R or Matlab. 
 
 - **Seamless Integration with Other Tools**: Telegraf, Grafana, Matlab, R, and other tools can be integrated with TDengine without a line of code. MQTT, OPC, Hadoop, Spark, and many others will be integrated soon. 
 
-- **Zero Management, No Learning Curve**: It takes only seconds from download to install and run it successfully, there are not any dependencies. Automatic partitioning on tables or DBs. Standard SQL is used, with C/C++, Python, JDBC, Go and RESTful connectors.
+- **Zero Management, No Learning Curve**: It takes only seconds to download, install, and run it successfully; there are no other dependencies. Automatic partitioning on tables or DBs. Standard SQL is used, with C/C++, Python, JDBC, Go and RESTful connectors.
 
 # Documentation
 Refer to [TDengine Documentation](https://www.taosdata.com/en/documentation/)
@@ -44,11 +44,11 @@ Then fill the configuration file _test/cfg/taos.cfg_:
 ```
 echo -e "dataDir $(pwd)/test/data\nlogDir $(pwd)/test/log" > test/cfg/taos.cfg
 ``` -->
-To start TDengine server, run command below in terminal:
+To start the TDengine server, run the command below in terminal:
 ```cmd
 ./build/bin/taosd -c test/cfg
 ```
-In another terminal, use TDengine shell to connect the server:
+In another terminal, use the TDengine shell to connect the server:
 ```
 ./build/bin/taos -c test/cfg
 ```
@@ -86,7 +86,7 @@ drop database db;
 ```
 
 # Developing with TDengine
-TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find different TDengine language supports.
+TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors.
 
 - [Java](https://www.taosdata.com/en/documentation/connector/#Java-Connector)
 - [C/C++](https://www.taosdata.com/en/documentation/connector/#C/C++-Connector)
