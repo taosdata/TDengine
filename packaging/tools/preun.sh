@@ -69,7 +69,8 @@ clean_service
 # Remove all links
 sudo rm -f ${bin_link_dir}/taos       || :
 sudo rm -f ${bin_link_dir}/taosd      || :
-sudo rm -f ${cfg_link_dir}/taos.cfg   || :
+sudo rm -f ${bin_link_dir}/taosdump   || :
+sudo rm -f ${cfg_link_dir}/*          || :
 sudo rm -f ${inc_link_dir}/taos.h     || :
 sudo rm -f ${lib_link_dir}/libtaos.so || :
 
