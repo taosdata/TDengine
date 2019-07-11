@@ -503,6 +503,10 @@ int taosGetRpcConn(int chann, int sid, char *meterId, STaosRpc *pServer, SRpcCon
   }
 
   pConn = pChann->connList + sid;
+  if (pChann == NULL || pChann->connList == NULL) {
+    tTrace("%s cid:%d sid:%d, connlist is null, received:%s", pServer->label, chann, sid, meterId);
+    return TSDB_CODE_MISMATCHED_METER_ID;
+  }
 
   if (pConn->signature == NULL) {
     memset(pConn, 0, sizeof(SRpcConn));
