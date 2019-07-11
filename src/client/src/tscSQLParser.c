@@ -110,6 +110,7 @@ static bool hasTimestampForPointInterpQuery(SSqlCmd* pCmd);
 static void updateTagColumnIndex(SSqlCmd* pCmd);
 static int32_t setLimitOffsetValueInfo(SSqlObj* pSql, SQuerySQL* pQuerySql);
 static void addRequiredTagColumn(SSqlCmd* pCmd, int32_t tagColIndex);
+static int32_t parseCreateDBOptions(SCreateDBInfo* pCreateDbSql, SSqlCmd* pCmd);
 
 static int32_t tscQueryOnlyMetricTags(SSqlCmd* pCmd, bool* queryOnMetricTags) {
   assert(pCmd->metricQuery == 1);
@@ -240,8 +241,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     case CREATE_DATABASE: {
       char    msg2[] = "name too long";
       char    msg3[] = "invalid db name";
-      char    msg4[] = "invalid time precision";
-      int32_t STORAGE_LEVEL = 3;
 
       if (pInfo->sqlType == ALTER_DATABASE) {
         pCmd->command = TSDB_SQL_ALTER_DB;
@@ -250,7 +249,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         pCmd->existsCheck = (pInfo->pDCLInfo->a[0].n == 1);
       }
 
-      SCreateDBSQL* pCreateDB = &(pInfo->pDCLInfo->dbOpt);
+      SCreateDBInfo* pCreateDB = &(pInfo->pDCLInfo->dbOpt);
       if (tscValidateName(&pCreateDB->dbname) != TSDB_CODE_SUCCESS) {
         setErrMsg(pCmd, msg3, tListLen(msg3));
         return TSDB_CODE_INVALID_SQL;
@@ -262,57 +261,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return ret;
       }
 
-      /* in case of TSDB_SQL_ALTER_DB, other parameters will be ignore by mnode.*/
-      pCmd->defaultVal[0] = pCreateDB->nReplica;
-      pCmd->defaultVal[1] = pCreateDB->nDays;
-
-      pCmd->defaultVal[3] = pCreateDB->nRowsInFileBlock;
-      pCmd->defaultVal[4] = pCreateDB->nCacheBlockSize;
-      pCmd->defaultVal[5] = pCreateDB->numOfBlocksPerTable;
-
-      pCmd->defaultVal[6] = pCreateDB->nTablesPerVnode;
-      pCmd->defaultVal[7] = pCreateDB->commitTime;
-      pCmd->defaultVal[8] = pCreateDB->commitLog;
-      pCmd->defaultVal[9] = pCreateDB->compressionLevel;
-
-      *(double*)&(pCmd->defaultVal[10]) = pCreateDB->nCacheNumOfBlocks;
-
-      if (pCreateDB->keep != NULL) {
-        pCmd->defaultVal[11] = pCreateDB->keep->nExpr;
-
-        for (int32_t i = 0; i < STORAGE_LEVEL; ++i) {
-          if (i < pCreateDB->keep->nExpr) {
-            pCmd->defaultVal[12 + i] = pCreateDB->keep->a[i].pVar.i64Key;
-          } else {
-            pCmd->defaultVal[12 + i] = pCreateDB->keep->a[0].pVar.i64Key;
-          }
-        }
-
-      } else {
-        for (int32_t i = 0; i < STORAGE_LEVEL; ++i) {
-          pCmd->defaultVal[12 + i] = -1;
-        }
+      if (parseCreateDBOptions(pCreateDB, pCmd) != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_INVALID_SQL;
       }
 
-      /* force to set 3 */
-      pCmd->defaultVal[11] = 3;
-      const int32_t TIME_PRECISION_INDEX = 15;
-
-      if (pCreateDB->precision.n > 0) {
-        if (strncmp(pCreateDB->precision.z, TSDB_TIME_PRECISION_MILLI_STR, pCreateDB->precision.n) == 0 &&
-            strlen(TSDB_TIME_PRECISION_MILLI_STR) == pCreateDB->precision.n) {
-          /*time precision for this db: million second */
-          pCmd->defaultVal[TIME_PRECISION_INDEX] = TSDB_TIME_PRECISION_MILLI;
-        } else if (strncmp(pCreateDB->precision.z, TSDB_TIME_PRECISION_MICRO_STR, pCreateDB->precision.n) == 0 &&
-                   strlen(TSDB_TIME_PRECISION_MICRO_STR) == pCreateDB->precision.n) {
-          pCmd->defaultVal[TIME_PRECISION_INDEX] = TSDB_TIME_PRECISION_MICRO;
-        } else {
-          setErrMsg(pCmd, msg4, tListLen(msg4));
-          return TSDB_CODE_INVALID_SQL;
-        }
-      } else {  // millisecond by default
-        pCmd->defaultVal[TIME_PRECISION_INDEX] = TSDB_TIME_PRECISION_MILLI;
-      }
       break;
     }
 
@@ -3960,6 +3912,75 @@ int32_t setLimitOffsetValueInfo(SSqlObj* pSql, SQuerySQL* pQuerySql) {
     }
 
     if (pCmd->limit.offset < 0) {
+      setErrMsg(pCmd, msg1, tListLen(msg1));
+      return TSDB_CODE_INVALID_SQL;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void setCreateDBOption(SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
+  pMsg->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond by default
+
+  pMsg->daysToKeep = htonl(-1);
+  pMsg->daysToKeep1 = htonl(-1);
+  pMsg->daysToKeep2 = htonl(-1);
+
+  pMsg->blocksPerMeter = (pCreateDb->numOfBlocksPerTable == 0) ? htons(-1) : htons(pCreateDb->numOfBlocksPerTable);
+  pMsg->compression = (pCreateDb->compressionLevel == 0) ? -1 : pCreateDb->numOfAvgCacheBlocks;
+
+  pMsg->commitLog = (pCreateDb->commitLog == 0) ? -1 : pCreateDb->numOfAvgCacheBlocks;
+  pMsg->commitTime = (pCreateDb->commitTime == 0) ? htonl(-1) : htonl(pCreateDb->commitTime);
+  pMsg->maxSessions = (pCreateDb->tablesPerVnode == 0) ? htonl(-1) : htonl(pCreateDb->tablesPerVnode);
+  pMsg->cacheNumOfBlocks.fraction = (pCreateDb->numOfAvgCacheBlocks == 0) ? -1 : pCreateDb->numOfAvgCacheBlocks;
+  pMsg->cacheBlockSize = (pCreateDb->cacheBlockSize == 0) ? htonl(-1) : htonl(pCreateDb->cacheBlockSize);
+  pMsg->rowsInFileBlock = (pCreateDb->rowPerFileBlock == 0) ? htonl(-1) : htonl(pCreateDb->rowPerFileBlock);
+  pMsg->daysPerFile = (pCreateDb->daysPerFile == 0) ? htonl(-1) : htonl(pCreateDb->daysPerFile);
+  pMsg->replications = (pCreateDb->replica == 0) ? -1 : pCreateDb->replica;
+}
+
+int32_t parseCreateDBOptions(SCreateDBInfo* pCreateDbSql, SSqlCmd* pCmd) {
+  char msg0[] = "invalid number of options";
+  char msg1[] = "invalid time precision";
+
+  SCreateDbMsg *pMsg = (SCreateDbMsg *) (pCmd->payload + tsRpcHeadSize + sizeof(SMgmtHead));
+  setCreateDBOption(pMsg, pCreateDbSql);
+
+  if (pCreateDbSql->keep != NULL) {
+    switch (pCreateDbSql->keep->nExpr) {
+      case 1:pMsg->daysToKeep = htonl(pCreateDbSql->keep->a[0].pVar.i64Key);
+        break;
+      case 2: {
+        pMsg->daysToKeep = htonl(pCreateDbSql->keep->a[0].pVar.i64Key);
+        pMsg->daysToKeep1 = htonl(pCreateDbSql->keep->a[1].pVar.i64Key);
+        break;
+      }
+      case 3: {
+        pMsg->daysToKeep = htonl(pCreateDbSql->keep->a[0].pVar.i64Key);
+        pMsg->daysToKeep1 = htonl(pCreateDbSql->keep->a[1].pVar.i64Key);
+        pMsg->daysToKeep2 = htonl(pCreateDbSql->keep->a[2].pVar.i64Key);
+        break;
+      }
+      default: {
+        setErrMsg(pCmd, msg0, tListLen(msg0));
+        return TSDB_CODE_INVALID_SQL;
+      }
+    }
+  }
+
+  SSQLToken *pToken = &pCreateDbSql->precision;
+  if (pToken->n > 0) {
+    pToken->n = strdequote(pToken->z);
+
+    if (strncmp(pToken->z, TSDB_TIME_PRECISION_MILLI_STR, pToken->n) == 0 &&
+        strlen(TSDB_TIME_PRECISION_MILLI_STR) == pToken->n) {
+      // time precision for this db: million second
+      pMsg->precision = TSDB_TIME_PRECISION_MILLI;
+    } else if (strncmp(pToken->z, TSDB_TIME_PRECISION_MICRO_STR, pToken->n) == 0 &&
+        strlen(TSDB_TIME_PRECISION_MICRO_STR) == pToken->n) {
+      pMsg->precision = TSDB_TIME_PRECISION_MICRO;
+    } else {
       setErrMsg(pCmd, msg1, tListLen(msg1));
       return TSDB_CODE_INVALID_SQL;
     }

@@ -369,6 +369,26 @@ void tVariantListDestroy(tVariantList *pList) {
   free(pList);
 }
 
+tVariantList *tVariantListAppendToken(tVariantList *pList, SSQLToken *pAliasToken, uint8_t sortOrder) {
+  if (pList == NULL) {
+    pList = calloc(1, sizeof(tVariantList));
+  }
+
+  if (tVariantListExpand(pList) == NULL) {
+    return pList;
+  }
+
+  if (pAliasToken) {
+    tVariant t = {0};
+    tVariantCreate(&t, pAliasToken);
+
+    tVariantListItem *pItem = &pList->a[pList->nExpr++];
+    memcpy(pItem, &t, sizeof(tVariant));
+    pItem->sortOrder = sortOrder;
+  }
+  return pList;
+}
+
 tFieldList *tFieldListAppend(tFieldList *pList, TAOS_FIELD *pField) {
   if (pList == NULL) pList = calloc(1, sizeof(tFieldList));
 
@@ -650,7 +670,7 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   va_end(va);
 }
 
-void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBSQL *pDB, SSQLToken *pIgExists) {
+void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBInfo *pDB, SSQLToken *pIgExists) {
   pInfo->sqlType = type;
   if (pInfo->pDCLInfo == NULL) {
     pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));

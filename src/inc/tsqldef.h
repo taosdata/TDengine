@@ -91,10 +91,10 @@
 #define TK_EXISTS                          73
 #define TK_CREATE                          74
 #define TK_KEEP                            75
-#define TK_REPLICA                         76
-#define TK_DAYS                            77
-#define TK_ROWS                            78
-#define TK_CACHE                           79
+#define TK_CACHE                           76
+#define TK_REPLICA                         77
+#define TK_DAYS                            78
+#define TK_ROWS                            79
 #define TK_ABLOCKS                         80
 #define TK_TBLOCKS                         81
 #define TK_CTIME                           82

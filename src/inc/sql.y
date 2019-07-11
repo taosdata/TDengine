@@ -152,56 +152,39 @@ cmd ::= CREATE USER ids(X) PASS ids(Y).     { setDCLSQLElems(pInfo, CREATE_USER,
 
 %type keep {tVariantList*}
 %destructor keep {tVariantListDestroy($$);}
-keep(Y) ::= .                               {Y = 0;     }
-keep(Y) ::= KEEP tagitemlist(X).            {Y = X;     }
+keep(Y)    ::= KEEP tagitemlist(X).           { Y = X; }
 
-replica(Y) ::= .                            {Y.n = 0;   }
-replica(Y) ::= REPLICA INTEGER(X).          {Y = X;     }
+tables(Y)  ::= TABLES INTEGER(X).             { Y = X; }
+cache(Y)   ::= CACHE INTEGER(X).              { Y = X; }
+replica(Y) ::= REPLICA INTEGER(X).            { Y = X; }
+days(Y)    ::= DAYS INTEGER(X).               { Y = X; }
+rows(Y)    ::= ROWS INTEGER(X).               { Y = X; }
 
-day(Y) ::= .                                {Y.n = 0;   }
-day(Y) ::= DAYS INTEGER(X).                 {Y = X;     }
+ablocks(Y) ::= ABLOCKS ID(X).                 { Y = X; }
+tblocks(Y) ::= TBLOCKS INTEGER(X).            { Y = X; }
+ctime(Y)   ::= CTIME INTEGER(X).              { Y = X; }
+clog(Y)    ::= CLOG INTEGER(X).               { Y = X; }
+comp(Y)    ::= COMP INTEGER(X).               { Y = X; }
+prec(Y)    ::= PRECISION STRING(X).           { Y = X; }
 
-rows(Y) ::= ROWS INTEGER(X).                {Y = X;     }
-rows(Y) ::= .                               {Y.n = 0;   }
+%type db_optr {SCreateDBInfo}
+db_optr    ::= . {}
+db_optr(Y) ::= db_optr(Z) tables(X).         { Y = Z; Y.tablesPerVnode = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) cache(X).          { Y = Z; Y.cacheBlockSize = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) replica(X).        { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) days(X).           { Y = Z; Y.daysPerFile = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) rows(X).           { Y = Z; Y.rowPerFileBlock = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) ablocks(X).        { Y = Z; Y.numOfAvgCacheBlocks = strtod(X.z, NULL); }
+db_optr(Y) ::= db_optr(Z) tblocks(X).        { Y = Z; Y.numOfBlocksPerTable = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) ctime(X).          { Y = Z; Y.commitTime = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) clog(X).           { Y = Z; Y.commitLog = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) comp(X).           { Y = Z; Y.compressionLevel = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) prec(X).           { Y = Z; Y.precision = X; }
+db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
 
-cache(Y) ::= CACHE INTEGER(X).              {Y = X;     }
-cache(Y) ::= .                              {Y.n = 0;   }
-ablocks(Y) ::= ABLOCKS ID(X).               {Y = X;     }
-ablocks(Y) ::= .                            {Y.n = 0;   }
-tblocks(Y) ::= TBLOCKS INTEGER(X).          {Y = X;     }
-tblocks(Y) ::= .                            {Y.n = 0;   }
-tables(Y) ::= TABLES INTEGER(X).            {Y = X;     }
-tables(Y) ::= .                             {Y.n = 0;   }
-ctime(Y) ::= CTIME INTEGER(X).              {Y = X;     }
-ctime(Y) ::= .                              {Y.n = 0;   }
-clog(Y) ::= CLOG INTEGER(X).                {Y = X;     }
-clog(Y) ::= .                               {Y.n = 0;   }
-comp(Y) ::= COMP INTEGER(X).                {Y = X;     }
-comp(Y) ::= .                               {Y.n = 0;   }
-prec(Y) ::= PRECISION ids(X).               {Y = X;     }
-prec(Y) ::= .                               {Y.n = 0;   }
-
-%type db_optr {SCreateDBSQL}
-db_optr(Y) ::= replica(A) day(B) keep(C) rows(D) cache(E) ablocks(F) tblocks(K) tables(G) ctime(H) clog(I) comp(J) prec(L).     {
-    Y.nReplica          = (A.n > 0)? atoi(A.z):-1;
-    Y.nDays             = (B.n > 0)? atoi(B.z):-1;
-    Y.nRowsInFileBlock  = (D.n > 0)? atoi(D.z):-1;
-
-    Y.nCacheBlockSize   = (E.n > 0)? atoi(E.z):-1;
-    Y.nCacheNumOfBlocks = (F.n > 0)? strtod(F.z, NULL):-1;
-    Y.numOfBlocksPerTable = (K.n > 0)? atoi(K.z):-1;
-    Y.nTablesPerVnode   = (G.n > 0)? atoi(G.z):-1;
-    Y.commitTime        = (H.n > 0)? atoi(H.z):-1;
-    Y.commitLog         = (I.n > 0)? atoi(I.z):-1;
-    Y.compressionLevel  = (J.n > 0)? atoi(J.z):-1;
-
-    Y.keep              = C;
-    Y.precision         = L;
-}
-
-%type alter_db_optr {SCreateDBSQL}
-alter_db_optr(Y) ::= replica(A).     {
-    Y.nReplica = (A.n > 0)? atoi(A.z):0;
+%type alter_db_optr {SCreateDBInfo}
+alter_db_optr(Y) ::= REPLICA tagitem(A).     {
+    Y.replica = A.i64Key;
 }
 
 %type typename {TAOS_FIELD}
@@ -359,11 +342,8 @@ fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
 }
 
 fill_opt(N) ::= FILL LP ID(Y) RP.               {
-    tVariant A = {0};
     toTSDBType(Y.type);
-    tVariantCreate(&A, &Y);
-
-    N = tVariantListAppend(NULL, &A, -1);
+    N = tVariantListAppendToken(NULL, &Y, -1);
 }
 
 %type sliding_opt {SSQLToken}
@@ -386,13 +366,15 @@ sortlist(A) ::= sortlist(X) COMMA item(Y) sortorder(Z). {
     A = tVariantListAppend(X, &Y, Z);
 }
 
-%type item {tVariant}
 sortlist(A) ::= item(Y) sortorder(Z). {
   A = tVariantListAppend(NULL, &Y, Z);
 }
 
-item(A) ::= ids(X).   {
+%type item {tVariant}
+item(A) ::= ids(X) cpxName(Y).   {
   toTSDBType(X.type);
+  X.n += Y.n;
+
   tVariantCreate(&A, &X);
 }
 
@@ -456,6 +438,7 @@ expr(A) ::= LP expr(X) RP.   {A = X; }
 
 expr(A) ::= ID(X).           {A = tSQLExprIdValueCreate(&X, TK_ID);}
 expr(A) ::= ID(X) DOT ID(Y). {X.n += (1+Y.n); A = tSQLExprIdValueCreate(&X, TK_ID);}
+expr(A) ::= ID(X) DOT STAR(Y). {X.n += (1+Y.n); A = tSQLExprIdValueCreate(&X, TK_ALL);}
 
 expr(A) ::= INTEGER(X).      {A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
 expr(A) ::= MINUS(X) INTEGER(Y). {X.n += Y.n; X.type = TK_INTEGER; A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
@@ -547,11 +530,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     X.n += F.n;
 
     toTSDBType(A.type);
-
-    tVariant V;
-    tVariantCreate(&V, &A);
-
-    tVariantList* K = tVariantListAppend(NULL, &V, -1);
+    tVariantList* K = tVariantListAppendToken(NULL, &A, -1);
 
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, K, ALTER_TABLE_DROP_COLUMN);
     setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_DROP_COLUMN);
@@ -567,11 +546,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
     X.n += Z.n;
 
     toTSDBType(Y.type);
-
-    tVariant V;
-    tVariantCreate(&V, &Y);
-
-    tVariantList* A = tVariantListAppend(NULL, &V, -1);
+    tVariantList* A = tVariantListAppendToken(NULL, &Y, -1);
 
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, A, ALTER_TABLE_TAGS_DROP);
     setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_DROP);
@@ -580,15 +555,11 @@ cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
 cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     X.n += F.n;
 
-    tVariant V;
     toTSDBType(Y.type);
-    tVariantCreate(&V, &Y);
-
-    tVariantList* A = tVariantListAppend(NULL, &V, -1);
+    tVariantList* A = tVariantListAppendToken(NULL, &Y, -1);
 
     toTSDBType(Z.type);
-    tVariantCreate(&V, &Z);
-    A = tVariantListAppend(A, &V, -1);
+    A = tVariantListAppendToken(A, &Z, -1);
 
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, A, ALTER_TABLE_TAGS_CHG);
     setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_CHG);
@@ -597,11 +568,8 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
 cmd ::= ALTER TABLE ids(X) cpxName(F) SET ids(Y) EQ tagitem(Z).     {
     X.n += F.n;
 
-    tVariant V;
     toTSDBType(Y.type);
-    tVariantCreate(&V, &Y);
-
-    tVariantList* A = tVariantListAppend(NULL, &V, -1);
+    tVariantList* A = tVariantListAppendToken(NULL, &Y, -1);
     A = tVariantListAppend(A, &Z, -1);
 
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&X, NULL, A, ALTER_TABLE_TAGS_SET);

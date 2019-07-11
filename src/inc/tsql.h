@@ -197,23 +197,24 @@ typedef struct SInsertSQL {
   struct tSQLExprListList *pValue;
 } SInsertSQL;
 
-typedef struct SCreateDBSQL {
+typedef struct SCreateDBInfo {
   SSQLToken dbname;
-  int32_t   nReplica;
-  int32_t   nDays;
+  int32_t   replica;
+  int32_t   cacheBlockSize;
+  int32_t   tablesPerVnode;
+  int32_t   daysPerFile;
+  int32_t   rowPerFileBlock;
 
-  tVariantList *keep;
-  int32_t       nRowsInFileBlock;
-  int32_t       nCacheBlockSize;
-  float         nCacheNumOfBlocks;
-  int32_t       numOfBlocksPerTable;
+  float   numOfAvgCacheBlocks;
+  int32_t numOfBlocksPerTable;
 
-  int32_t   nTablesPerVnode;
   int64_t   commitTime;
   int32_t   commitLog;
   int32_t   compressionLevel;
-  SSQLToken precision;  // time precision[ms by default/us]
-} SCreateDBSQL;
+  SSQLToken precision;
+
+  tVariantList *keep;
+} SCreateDBInfo;
 
 typedef struct SCreateAcctSQL {
   int32_t   users;
@@ -233,7 +234,7 @@ typedef struct tDCLSQL {
   SSQLToken *a;       /* one entry for element */
 
   union {
-    SCreateDBSQL   dbOpt;
+    SCreateDBInfo   dbOpt;
     SCreateAcctSQL acctOpt;
   };
 } tDCLSQL;
@@ -326,6 +327,7 @@ void Parse(void *yyp, int yymajor, ParseTOKENTYPE yyminor, SSqlInfo *);
  */
 void ParseFree(void *p, void (*freeProc)(void *));
 
+tVariantList *tVariantListAppendToken(tVariantList *pList, SSQLToken *pAliasToken, uint8_t sortOrder);
 tVariantList *tVariantListAppend(tVariantList *pList, tVariant *pVar, uint8_t sortOrder);
 
 tVariantList *tVariantListInsert(tVariantList *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
@@ -371,7 +373,7 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParams, ...);
 
 tDCLSQL *tTokenListAppend(tDCLSQL *pTokenList, SSQLToken *pToken);
 
-void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBSQL *pDB, SSQLToken *pIgExists);
+void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBInfo *pDB, SSQLToken *pIgExists);
 
 void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken *pPwd, SCreateAcctSQL *pAcctInfo);
 

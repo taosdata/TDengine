@@ -1362,39 +1362,6 @@ int tscBuildCreateDbMsg(SSqlObj *pSql) {
 
   pCreateDbMsg = (SCreateDbMsg *)pMsg;
   strcpy(pCreateDbMsg->db, pCmd->name);
-
-  pCreateDbMsg->replications = pCmd->defaultVal[0];
-  pCreateDbMsg->daysPerFile = htonl(pCmd->defaultVal[1]);
-
-  pCreateDbMsg->rowsInFileBlock = htonl(pCmd->defaultVal[3]);
-  pCreateDbMsg->cacheBlockSize = htonl(pCmd->defaultVal[4]);
-  pCreateDbMsg->blocksPerMeter = htons(pCmd->defaultVal[5]);
-  pCreateDbMsg->maxSessions = htonl(pCmd->defaultVal[6]);
-
-  pCreateDbMsg->commitTime = htonl(pCmd->defaultVal[7]);
-  pCreateDbMsg->commitLog = pCmd->defaultVal[8];
-  pCreateDbMsg->compression = pCmd->defaultVal[9];
-  pCreateDbMsg->cacheNumOfBlocks.fraction = *(double *)&(pCmd->defaultVal[10]);
-
-  int32_t n = pCmd->defaultVal[11];
-  switch (n) {
-    case 1:
-      pCreateDbMsg->daysToKeep = htonl(pCmd->defaultVal[12]);
-      break;
-    case 2: {
-      pCreateDbMsg->daysToKeep = htonl(pCmd->defaultVal[12]);
-      pCreateDbMsg->daysToKeep1 = htonl(pCmd->defaultVal[13]);
-      break;
-    }
-    case 3: {
-      pCreateDbMsg->daysToKeep = htonl(pCmd->defaultVal[12]);
-      pCreateDbMsg->daysToKeep1 = htonl(pCmd->defaultVal[13]);
-      pCreateDbMsg->daysToKeep2 = htonl(pCmd->defaultVal[14]);
-      break;
-    }
-  }
-  pCreateDbMsg->precision = pCmd->defaultVal[15];
-
   pMsg += sizeof(SCreateDbMsg);
 
   msgLen = pMsg - pStart;

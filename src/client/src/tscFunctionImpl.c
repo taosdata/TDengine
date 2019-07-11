@@ -2331,7 +2331,8 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
   tMemBucketDestroy((tMemBucket **)&(pCtx->intermediateBuf[1].pz));
   tOrderDescDestroy(pCtx->intermediateBuf[2].pz);
 
-  assert(pCtx->intermediateBuf[1].pz == NULL);
+  pCtx->intermediateBuf[1].pz = NULL;
+  pCtx->intermediateBuf[2].pz = NULL;
 }
 
 static bool apercentile_function(SQLFunctionCtx *pCtx) {
