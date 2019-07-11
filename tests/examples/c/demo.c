@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <taos/taos.h>  // TAOS header file
+#include <taos.h>  // TAOS header file
 
 void taosMsleep(int mseconds);
 

@@ -16,7 +16,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <taos/taos.h>  // include TDengine header file
+#include <pthread.h>
+#include <unistd.h>
+#include <taos.h>  // include TDengine header file
 
 typedef struct {
 	char  server_ip[64];
@@ -25,7 +27,7 @@ typedef struct {
 } param;
 
 int g_thread_exit_flag = 0;
-int insert_rows(void *sarg);
+void* insert_rows(void *sarg);
 
 void streamCallBack(void *param, TAOS_RES *res, TAOS_ROW row)
 {
@@ -46,7 +48,6 @@ int main(int argc, char *argv[])
   char        db_name[64];
   char        tbl_name[64];
   char        sql[1024] = { 0 };
-  char        command[1024] = { 0 };
 
   if (argc != 4) {
     printf("usage: %s server-ip dbname tblname\n", argv[0]);
@@ -72,7 +73,7 @@ int main(int argc, char *argv[])
   strcpy(t_param->tbl_name, tbl_name);
 
   pthread_t pid;
-  pthread_create(&pid, NULL, insert_rows, t_param);
+  pthread_create(&pid, NULL, (void * (*)(void *))insert_rows, t_param);
 
   sleep(3); // waiting for database is created.
   // open connection to database
@@ -118,7 +119,7 @@ int main(int argc, char *argv[])
 }
 
 
-int insert_rows(void *sarg) 
+void* insert_rows(void *sarg)
 {
   TAOS  *taos;
   char    command[1024] = { 0 };
