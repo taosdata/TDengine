@@ -126,7 +126,11 @@ int mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   if (pCreate->replications < 0) pCreate->replications = 1;                                               //
   if (pCreate->rowsInFileBlock < 0) pCreate->rowsInFileBlock = tsRowsInFileBlock;                         //
   if (pCreate->cacheNumOfBlocks.fraction < 0) pCreate->cacheNumOfBlocks.fraction = tsAverageCacheBlocks;  //
-  pCreate->replications = 1;
+
+  if (pCreate->replications != 1) {
+    mTrace("invalid db option replications: %d", pCreate->replications);
+    return TSDB_CODE_INVALID_OPTION;
+  }
 
   if (pCreate->commitLog < 0 || pCreate->commitLog > 1) {
     mTrace("invalid db option commitLog: %d", pCreate->commitLog);
