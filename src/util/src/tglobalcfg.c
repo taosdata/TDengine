@@ -392,6 +392,8 @@ void tsInitGlobalConfig() {
                      TSDB_CFG_UTYPE_NONE);
 
   // directory
+  tsInitConfigOption(cfg++, "configDir", configDir, TSDB_CFG_VTYPE_DIRECTORY, TSDB_CFG_CTYPE_B_CLIENT, 0, 0,
+                       TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "dataDir", dataDir, TSDB_CFG_VTYPE_DIRECTORY, TSDB_CFG_CTYPE_B_CONFIG, 0, 0,
                      TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "logDir", logDir, TSDB_CFG_VTYPE_DIRECTORY,
