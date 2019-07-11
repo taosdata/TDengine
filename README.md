@@ -21,7 +21,7 @@ Refer to [TDengine Documentation](https://www.taosdata.com/en/documentation/)
  for details.
 
 # Building
-Build TDengine with [CMake](https://cmake.org/) in the project directory:
+Build TDengine with [CMake](https://cmake.org/) 3.5 or higher versions in the project directory:
 
 ```cmd
 mkdir build && cd build
