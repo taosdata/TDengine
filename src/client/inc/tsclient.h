@@ -334,6 +334,7 @@ typedef struct _sstream {
                      // stream will be closed
   int64_t interval;
   int64_t slidingTime;
+  int16_t precision;
   void *  pTimer;
 
   void (*fp)();
