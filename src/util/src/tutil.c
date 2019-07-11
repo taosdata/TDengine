@@ -396,7 +396,7 @@ bool taosCheckDbName(char *db, char *monitordb) {
   char *pos = strchr(db, '.');
   if (pos == NULL) return false;
 
-  return strcmp(pos + 1, monitordb) == 0;
+  return strncasecmp(pos + 1, monitordb, strlen(monitordb)) == 0;
 }
 
 bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {

@@ -126,7 +126,7 @@ void dnodeBuildMonitorSql(char *sql, int cmd) {
   if (cmd == MONITOR_CMD_CREATE_DB) {
     snprintf(sql, SQL_LENGTH,
              "create database if not exists %s replica 1 days 10 keep 30 rows 1024 cache 2048 "
-             "ablocks 2 tblocks 32 tables 32 precision us",
+             "ablocks 2 tblocks 32 tables 32 precision 'us'",
              tsMonitorDbName);
   } else if (cmd == MONITOR_CMD_CREATE_MT_DN) {
     snprintf(sql, SQL_LENGTH,
