@@ -1,0 +1,14 @@
+Package: tdengine
+Version: 1.0.0
+Section: utils
+Priority: optional
+#Essential: no
+#Depends: no
+#Suggests: no
+Architecture: amd64
+Installed-Size: 66666
+Maintainer: support@taosdata.com
+Provides: taosdata
+Homepage: http://taosdata.com
+Description: Big Data Platform Designed and Optimized for IoT.
+

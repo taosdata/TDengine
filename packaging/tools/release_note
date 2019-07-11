@@ -1,0 +1,125 @@
+taos-1.5.2.6 (Release on 2019-05-13)
+Bug fixed:
+    - Nchar strings sometimes were wrongly truncated on Window
+    - Importing data from file throws an error of "invalid SQL"
+
+taos-1.5.2.5 (Release on 2019-05-13)
+Bug fixed:
+    - Long timespan data import sometimes affects query result
+    - Synchronzation of cluster dnodes worked incorrectly when importing
+
+taos-1.5.2.4 (Release on 2019-05-10)
+New Features:
+    - Optimized Windows client installation: now users don't need to copy taos.dll manually
+    - Changed the priority of taos.cfg and JDBC URL: parameters in JDCB URL now has a higher priority than parameters in taos.cfg
+Bug fixed:
+    - Expired data files were not deleted corrected
+    - Occasionally importing returned "affected rows" which larger than 0, but 0 row was actually written into db
+    - Commit log is occupied by too many import-to-file requests, which blocked further data importing
+    - Cloud service shows a wrong number of available days with current balance
+    - Other minor issues
+
+taos-1.5.1 (Release on 2019-04-09)
+New Features:
+    - Maximum number of rows returned by "top/bottom" methods increased from 20 to 100
+    - Improved the performance of "first/last" methods
+    - Increased system stability
+Bug fixed:
+    - Connection failure when query on huge STables through TPC
+    - The primary timestamp is occasionally returned as NULL  in some queries
+    - Operation failure when updating a tag value to NULL
+    - Stream calculation couldn't start at certain occasions
+
+taos-1.5.0 (Release on 2019-03-11)
+New Features:
+    - New syntax to automatically create tables when inserting values into non-existing tables
+    - New syntax "slimit/soffset" to pagenate groups in a query result set
+    - Support "top/bottom" queries on a supertable 
+    - High performance statistic aggregation function "apercentile"
+    - Remove "first_t/last_t" functions; improve the performance of "first/last" function 
+    - Add pre-aggregation for bool type values
+    - Supports fixed-length streaming computation, i.e. users may define an end time for a stream
+    - New JAVA API for SQL subscription, supports table/supertable/SQL query subscription
+Bug fixed:
+    - Data file broken issue when frequently using "import"
+    - Using "spread" on a super table may return negative values
+    - RPC bug that random network packets might cause the RPC module to crush
+
+taos-1.4.15 (Released on 2019-01-23)
+New Features:
+    - JDBC Driver now supports configuring timezone, locale, cfgdir in JDBC url
+    - A new API is added to validate if a table creation sql statement is correct in syntax without actually creating that table
+Bugs Fixed:
+    - "select last(*) from STable" sometimest returned incorrect number of rows
+    - JDBC driver method ResultSetMetaData.getColumnClassName() returned wrong values.
+    - Web shell automatically changed query string to lower case
+
+taos-1.4.14 (Released on 2018-12-22)
+New Features:
+    - C Driver support for integration with Python
+    - JDBC Driver support for integration with R and MATLAB
+ 
+taos-1.4.13 (Released on 2018-12-14)
+Bugs Fixed:
+    - Clients failed to connect to server due to unexpected and invalid packets recieved by the server.
+Features Added:
+    - Add support to HikariCP in TSDB JDBC driver.
+
+taos-1.4.12 (Released on 2018-12-08)
+Bugs Fixed:
+    - Querying data while inserting into the database might return incomplete resultsets.
+Features Added:
+    - A new python driver is added.
+    - Increased system stability.
+     - Changed meaning of database configuration paramerter 'ablocks'. 'ablocks' used to refer to the number of total cache blocks in memory, now it refers to average number of cache blocks for each table in memory.
+
+taos-1.4.11 (Released on 2018-11-23)
+Bugs Fixed:
+    - Thread memory leaking during high-frequency committing.
+    - Master dnode selection failure caused by accidental network issues.
+Features Added:
+    - Change keyword "metrics" to "stables", i.e. supertables; the previous query "show metrics" is now changed to "show stables".
+    - Add an error message mechanism in C# driver. An error with message "Failed to connect to server" is thrown when fetching data experienced a network connection interruption during data transmitting.
+
+taos-1.4.10 (Released on 2018-11-13)
+Bugs Fixed:
+    - Taosdump failed while exporting extremely large datasets to a .sql file.
+    - Commit status did not change correctly if the last commit was triggered by commit threshold time (ctime) and no more new data was written to DB during the next ctime period.
+Features Added:
+    - Support importing historical data from Telegraf interface. 
+    - Support MyBatis framework in TSDB JDBC Driver.
+    - Change result set row indexing in JDBC Driver. Result set row indexes now starts from 1 instead of 0.
+
+taos-1.4.9 (Released on 2018-11-02)
+Bugs Fixed:
+    - Dumping data using UTF-8 format in client shell failed.
+    - Tag query failed using C# Driver.
+    - Committing data to disk failed if DB files were corrupted.
+    - Continuously pressing Ctrl+c in client shell for multiple times produced a segmentation fault.
+Features Added:
+    - Changed the display pattern in shell for taosdump.
+    - Add a check to the status of an existing resultset before firing a new query in a single JDBC connection. A connection can only have a single open resultset, and the resultset must be closed before one can execute new queries.
+
+
+taos-1.4.7 (Released on 2018-10-25)
+Bug Fixed:
+    - UTF-8 encoding in JDBC Driver did not give the correct Chinese characters.
+    - Fix crash error when where clause is too long.
+Features Added:
+    - Add check on database properties, force ablocks to be at least (4 * tables) in a vnode.
+    - Check if pVgroup is empty in sdb.
+
+taos-1.4.6 (Released on 2018-10-21)
+Bug Fixed:
+    - Fix wrong symbol addition while export csv file.
+Features Added:
+    - Update grafana plugins.
+    - Update python drivers.
+    - Add error code explanation in JDBC Driver.
+    - Prohibit login while the version of server and client are not match.
+	
+taos-1.4.5 (Released on 2018-10-17)
+Bug Fixed:
+    - Fix HTTP request truncation bug in Telegraf interface.
+Features Added:
+    - Support nchar and null object in JDBC Driver.

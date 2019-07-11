@@ -1,0 +1,13 @@
+build/
+.vscode/
+.idea/
+cmake-build-debug/
+cscope.out
+.DS_Store
+debug/
+release/
+target/
+debs/
+rpms/
+*.pyc
+*.tmp
