@@ -345,6 +345,18 @@ int mgmtProcessAlterDbMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   return 0;
 }
 
+int mgmtProcessCfgDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
+  SCfgMsg *pCfg = (SCfgMsg *)pMsg;
+
+  int code = tsCfgDynamicOptions(pCfg->config);
+
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CFG_PNODE_RSP, code);
+
+  if (code == 0) mTrace("dnode is configured by %s", pConn->pUser->user);
+
+  return 0;
+}
+
 int mgmtProcessKillQueryMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   int         code = 0;
   SKillQuery *pKill = (SKillQuery *)pMsg;
@@ -972,6 +984,7 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_SHOW] = mgmtProcessShowMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_CONNECT] = mgmtProcessConnectMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_HEARTBEAT] = mgmtProcessHeartBeatMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_CFG_PNODE] = mgmtProcessCfgDnodeMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_QUERY] = mgmtProcessKillQueryMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_STREAM] = mgmtProcessKillStreamMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_CONNECTION] = mgmtProcessKillConnectionMsg;
