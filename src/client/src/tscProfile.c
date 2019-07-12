@@ -201,6 +201,15 @@ char *tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj) {
   pMsg += sizeof(SQList);
   SSqlObj *pSql = pObj->sqlList;
   while (pSql) {
+    /*
+     * avoid sqlobj may not be correctly removed from sql list
+     * e.g., forgetting to free the sql result may cause the sql object still in sql list
+     */
+    if (pSql->sqlstr == NULL) {
+      pSql = pSql->next;
+      continue;
+    }
+
     strncpy(pQdesc->sql, pSql->sqlstr, TSDB_SHOW_SQL_LEN - 1);
     pQdesc->sql[TSDB_SHOW_SQL_LEN - 1] = 0;
     pQdesc->stime = pSql->stime;
