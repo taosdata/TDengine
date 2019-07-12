@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
 SET(CMAKE_C_STANDARD 11)
@@ -20,7 +20,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR UNIX)
 ENDIF ()
 
 #set debug & release related options
-SET(COMMON_FLAGS "-Wall -fPIC -malign-double -Wno-char-subscripts -malign-stringops -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
+SET(COMMON_FLAGS "-std=gnu99 -Wall -fPIC -malign-double -Wno-char-subscripts -malign-stringops -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
 SET(COMMON_CXX_FLAGS "${COMMON_FLAGS} -std=c++11")
 SET(DEBUG_FLAGS "-O0 -DDEBUG")
 
@@ -43,7 +43,7 @@ ENDIF ()
 #set output directory
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/bin)
-SET(TESTS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/build/test)
+SET(TESTS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/test)
 
 MESSAGE(STATUS "Project binary output path: " ${PROJECT_BINARY_DIR})
 MESSAGE(STATUS "Executable files output path: " ${EXECUTABLE_OUTPUT_PATH})
