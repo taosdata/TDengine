@@ -21,7 +21,9 @@ Refer to [TDengine Documentation](https://www.taosdata.com/en/documentation/)
  for details.
 
 # Building
-At the moment, TDengine only supports building and running on Linux systems. To build TDengine, use [CMake](https://cmake.org/) 3.5 or higher versions in the project directory:
+At the moment, TDengine only supports building and running on Linux systems. You can choose to install from [packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
+
+To build TDengine, use [CMake](https://cmake.org/) 3.5 or higher versions in the project directory:
 
 ```cmd
 mkdir build && cd build
