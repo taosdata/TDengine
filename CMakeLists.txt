@@ -15,8 +15,11 @@ SET(CMAKE_VERBOSE_MAKEFILE ON)
 ADD_DEFINITIONS(-D_REENTRANT -D_M_X64 -D__USE_POSIX -D_LIBC_REENTRANT)
 
 #set macro definitions according to os platform
-IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR UNIX)
+IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   ADD_DEFINITIONS(-DLINUX -D_LINUX)
+ELSE ()
+  MESSAGE(FATAL_ERROR "The current system is not linux, stop compile")
+  EXIT ()
 ENDIF ()
 
 #set debug & release related options
