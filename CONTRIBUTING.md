@@ -1,6 +1,6 @@
 # Contributing
 
-We appreciate contributions from all developers. Feel free to follow us, fork the repository, report bugs and even submit your code on GibHub. However, we would like developers to follow our guides to contribute for better corporation. 
+We appreciate contributions from all developers. Feel free to follow us, fork the repository, report bugs and even submit your code on GitHub. However, we would like developers to follow our guides to contribute for better corporation. 
 
 ## Report bugs
 
