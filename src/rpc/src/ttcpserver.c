@@ -199,6 +199,7 @@ static void taosProcessTcpData(void *param) {
       if (headLen != sizeof(STaosHeader)) {
         tError("%s read error, headLen:%d", pThreadObj->label, headLen);
         taosCleanUpFdObj(pFdObj);
+        free(buffer);
         continue;
       }
 
@@ -214,6 +215,7 @@ static void taosProcessTcpData(void *param) {
       if (leftLen != retLen) {
         tError("%s read error, leftLen:%d retLen:%d", pThreadObj->label, leftLen, retLen);
         taosCleanUpFdObj(pFdObj);
+        free(buffer);
         continue;
       }
 
