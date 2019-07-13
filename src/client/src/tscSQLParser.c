@@ -3949,7 +3949,8 @@ int32_t parseCreateDBOptions(SCreateDBInfo* pCreateDbSql, SSqlCmd* pCmd) {
 
   if (pCreateDbSql->keep != NULL) {
     switch (pCreateDbSql->keep->nExpr) {
-      case 1:pMsg->daysToKeep = htonl(pCreateDbSql->keep->a[0].pVar.i64Key);
+      case 1:
+        pMsg->daysToKeep = htonl(pCreateDbSql->keep->a[0].pVar.i64Key);
         break;
       case 2: {
         pMsg->daysToKeep = htonl(pCreateDbSql->keep->a[0].pVar.i64Key);

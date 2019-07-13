@@ -33,7 +33,6 @@
 #include <math.h>
 #include <string.h>
 #include <time.h>
-#include <tsclient.h>
 #include <unistd.h>
 #include <wchar.h>
 #include <wordexp.h>

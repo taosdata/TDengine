@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "taosmsg.h"
 #include "textbuffer.h"
 #include "tinterpolation.h"
 #include "tlosertree.h"
