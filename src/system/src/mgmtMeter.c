@@ -516,7 +516,6 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
   STabObj * pMetric = NULL;
   SVgObj *  pVgroup = NULL;
   int       size = 0;
-  SAcctObj *pAcct = NULL;
 
   int numOfTables = sdbGetNumOfRows(meterSdb);
   if (numOfTables >= tsMaxTables) {

@@ -25,6 +25,8 @@
 #include "vnodeMgmt.h"
 #include "vnodeShell.h"
 #include "vnodeUtil.h"
+#pragma GCC diagnostic ignored "-Wpointer-sign"
+#pragma GCC diagnostic ignored "-Wint-conversion"
 
 typedef struct {
   SCompHeader *headList;
@@ -61,7 +63,6 @@ typedef struct {
   int     rows;
 } SImportInfo;
 
-#define EXTRA_BYTES 8
 int vnodeImportData(SMeterObj *pObj, SImportInfo *pImport);
 
 int vnodeGetImportStartPart(SMeterObj *pObj, char *payload, int rows, TSKEY key1) {

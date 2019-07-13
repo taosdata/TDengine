@@ -25,6 +25,7 @@
 #include "vnode.h"
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
+#pragma GCC diagnostic ignored "-Wint-conversion"
 
 int (*pQueryFunc[])(SMeterObj *, SQuery *) = {vnodeQueryFromCache, vnodeQueryFromFile};
 

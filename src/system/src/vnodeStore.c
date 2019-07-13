@@ -26,6 +26,8 @@
 #include "vnodeStore.h"
 #include "vnodeUtil.h"
 
+#pragma GCC diagnostic ignored "-Wformat-overflow="
+
 int vnodeCreateMeterObjFile(int vnode);
 
 int        tsMaxVnode = -1;

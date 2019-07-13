@@ -503,6 +503,8 @@ void vnodeRemoveVnode(int vnode);
 
 int vnodeCreateVnode(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc);
 
+void vnodeOpenStreams(void *param, void *tmrId);
+
 void vnodeCreateStream(SMeterObj *pObj);
 
 void vnodeRemoveStream(SMeterObj *pObj);

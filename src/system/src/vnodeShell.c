@@ -28,6 +28,7 @@
 #include "vnode.h"
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
+#pragma GCC diagnostic ignored "-Wint-conversion"
 
 void *      pShellServer = NULL;
 SShellObj **shellList = NULL;
@@ -216,7 +217,6 @@ int vnodeSendShellSubmitRspMsg(SShellObj *pObj, int code, int numOfPoints) {
 
 int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   int                ret, code = 0;
-  SMeterObj *        pMeterObj = NULL;
   SQueryMeterMsg *   pQueryMsg;
   SMeterSidExtInfo **pSids = NULL;
   int32_t            incNumber = 0;

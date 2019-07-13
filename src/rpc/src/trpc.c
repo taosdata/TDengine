@@ -50,6 +50,8 @@
 #include "tudp.h"
 #include "tutil.h"
 
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
+
 typedef struct _msg_node {
   struct _msg_node *next;
   void *            ahandle;

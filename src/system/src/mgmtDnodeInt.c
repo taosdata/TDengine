@@ -21,6 +21,7 @@
 #include "mgmt.h"
 #include "tsched.h"
 #include "tutil.h"
+#pragma GCC diagnostic ignored "-Wpointer-sign"
 
 int mgmtSendVPeersMsg(SVgObj *pVgroup, SDbObj *pDb);
 char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, SDbObj *pDb);

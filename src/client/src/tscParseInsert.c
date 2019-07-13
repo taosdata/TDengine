@@ -19,6 +19,7 @@
 #define _XOPEN_SOURCE
 
 #pragma GCC diagnostic ignored "-Woverflow"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 #include <stdio.h>
 #include <stdlib.h>

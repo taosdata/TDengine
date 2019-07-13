@@ -17,6 +17,7 @@
 
 #include "mgmt.h"
 #include "tschemautil.h"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 void *       vgSdb = NULL;
 int          tsVgUpdateSize;

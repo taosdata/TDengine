@@ -14,7 +14,7 @@
  */
 
 #define _XOPEN_SOURCE
-#define _BSD_SOURCE
+#define _DEFAULT_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +35,7 @@
 #include "tschemautil.h"
 #include "tsclient.h"
 #include "tsql.h"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 typedef struct SColumnIdList {
   SSchema* pSchema;

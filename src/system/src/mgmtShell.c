@@ -22,6 +22,8 @@
 #include "mgmt.h"
 #include "mgmtProfile.h"
 #include "tlog.h"
+#pragma GCC diagnostic ignored  "-Wint-conversion"
+#pragma GCC diagnostic ignored  "-Wpointer-sign"
 
 void *    pShellConn = NULL;
 SConnObj *connList;

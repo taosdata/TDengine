@@ -23,6 +23,7 @@
 #include "mgmt.h"
 #include "tschemautil.h"
 #include "tstatus.h"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 SDnodeObj dnodeObj;
 

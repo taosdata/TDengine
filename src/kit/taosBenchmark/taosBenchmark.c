@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* #define _GNU_SOURCE */
+#define _GNU_SOURCE
 
 #include <argp.h>
 #include <assert.h>
@@ -30,6 +30,7 @@
 #include <wordexp.h>
 
 #include "taos.h"
+#pragma GCC diagnostic ignored "-Wmissing-braces"
 
 #define BUFFER_SIZE      65536
 #define MAX_DB_NAME_SIZE 64
@@ -567,7 +568,7 @@ void *readTable(void *sarg) {
     }
 
     fprintf(fp, "|%10s  |   %10d   |  %12.2f   |   %10.2f  |\n",
-            aggreFunc[j] == "*" ? "   *   " : aggreFunc[j], totalData,
+            aggreFunc[j][0] == '*' ? "   *   " : aggreFunc[j], totalData,
             (double)(num_of_tables * num_of_DPT) / totalT, totalT * 1000);
     printf("select %10s took %.6f second(s)\n", aggreFunc[j], totalT);
   }
