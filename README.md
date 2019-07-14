@@ -1,4 +1,4 @@
-[![TDengine](TDenginelogo.png)](https://www.taosdata.com/en)
+[![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
 # What is TDengine？
 
@@ -17,7 +17,7 @@ TDengine is an open-sourced big data platform under [GNU AGPL v3.0](http://www.g
 - **Zero Management, No Learning Curve**: It takes only seconds to download, install, and run it successfully; there are no other dependencies. Automatic partitioning on tables or DBs. Standard SQL is used, with C/C++, Python, JDBC, Go and RESTful connectors.
 
 # Documentation
-Refer to [TDengine Documentation](https://www.taosdata.com/en/documentation/)
+For user manual, system design and architecture, engineering blogs, refer to [TDengine Documentation](https://www.taosdata.com/en/documentation/)
  for details.
 
 # Building
