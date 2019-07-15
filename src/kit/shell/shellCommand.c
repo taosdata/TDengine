@@ -57,7 +57,8 @@ void getPrevCharSize(const char *str, int pos, int *size, int *width) {
     if (str[pos] > 0 || countPrefixOnes(str[pos]) > 1) break;
   }
 
-  assert(mbtowc(&wc, str + pos, MB_CUR_MAX) == *size);
+  int rc = mbtowc(&wc, str + pos, MB_CUR_MAX);
+  assert(rc == *size);
 
   *width = wcwidth(wc);
 }
