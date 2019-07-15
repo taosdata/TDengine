@@ -110,7 +110,7 @@ void taosStopLog() {
 void taosCloseLogger() {
   taosStopLog();
   sem_post(&(logHandle->buffNotEmpty));
-  pthread_join(logHandle->asyncThread, NULL);
+  if (logHandle->asyncThread) pthread_join(logHandle->asyncThread, NULL);
   // In case that other threads still use log resources causing invalid write in
   // valgrind, we comment two lines below.
   // taosLogBuffDestroy(logHandle);
