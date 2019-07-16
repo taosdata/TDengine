@@ -42,6 +42,10 @@
 #include "httpHandle.h"
 #include "httpResp.h"
 
+#ifndef EPOLLWAKEUP
+ #define EPOLLWAKEUP (1u << 29)
+#endif
+
 void httpFreeContext(HttpServer *pServer, HttpContext *pContext);
 
 /**
@@ -441,12 +445,7 @@ void httpAcceptHttpConnection(void *arg) {
     pContext->pThread = pThread;
 
     struct epoll_event event;
-// add this new FD into epoll
-#ifndef _NINGSI_VERSION
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-#else
-    event.events = EPOLLIN | EPOLLPRI | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-#endif
 
     event.data.ptr = pContext;
     if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {

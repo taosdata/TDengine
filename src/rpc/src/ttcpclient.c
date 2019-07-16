@@ -37,6 +37,10 @@
 #include "ttcpclient.h"
 #include "tutil.h"
 
+#ifndef EPOLLWAKEUP
+  #define EPOLLWAKEUP (1u << 29)
+#endif
+
 typedef struct _tcp_fd {
   int                 fd;  // TCP socket FD
   void *              thandle;
@@ -271,12 +275,7 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, short 
   pFdObj->pTcp = pTcp;
   pFdObj->thandle = thandle;
 
-// add this new FD into epoll
-#ifndef _NINGSI_VERSION
   event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP;
-#else
-  event.events = EPOLLIN | EPOLLPRI;
-#endif
   event.data.ptr = pFdObj;
   if (epoll_ctl(pTcp->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
     tError("%s failed to add TCP FD for epoll, error:%s", pTcp->label, strerror(errno));
