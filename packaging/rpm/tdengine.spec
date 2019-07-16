@@ -38,6 +38,9 @@ echo topdir: %{_topdir}
 echo version: %{_version}
 echo buildroot: %{buildroot}
 
+versioninfo=$(%{_compiledir}/../packaging/tools/get_version.sh)
+libfile="libtaos.so.${versioninfo}"
+
 # create install path, and cp file
 mkdir -p %{buildroot}%{homepath}/bin
 mkdir -p %{buildroot}%{homepath}/cfg
@@ -55,7 +58,7 @@ cp %{_compiledir}/../packaging/tools/preun.sh       %{buildroot}%{homepath}/scri
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
-cp %{_compiledir}/build/lib/libtaos.so              %{buildroot}%{homepath}/driver
+cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
 cp -r %{_compiledir}/../src/connector/grafana       %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
