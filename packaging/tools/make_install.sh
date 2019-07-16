@@ -207,7 +207,7 @@ function install_service_on_systemd() {
 function install_service() {
     if is_using_systemd; then
         install_service_on_systemd
-    else
+    elif $(which update-rc.d &> /dev/null); then
         install_service_on_sysvinit
     fi
 }
