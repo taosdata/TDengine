@@ -96,6 +96,6 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 - [Go](https://www.taosdata.com/en/documentation/connector/#Go-Connector)
 - [RESTful API](https://www.taosdata.com/en/documentation/connector/#RESTful-Connector)
 
-# Contribute TDengine
+# Contribute to TDengine
 
 Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to the project.
