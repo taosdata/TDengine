@@ -24,6 +24,9 @@ fi
 mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
+versioninfo=$(${script_dir}/../tools/get_version.sh)
+libfile="libtaos.so.${versioninfo}"
+
 # create install dir 
 install_home_path="/usr/local/taos"
 mkdir -p ${pkg_dir}${install_home_path}
@@ -43,7 +46,7 @@ cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_pat
 cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/lib/libtaos.so              ${pkg_dir}${install_home_path}/driver 
+cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver 
 cp ${compile_dir}/../src/inc/taos.h                 ${pkg_dir}${install_home_path}/include
 cp -r ${top_dir}/tests/examples/*                   ${pkg_dir}${install_home_path}/examples
 cp -r ${top_dir}/src/connector/grafana              ${pkg_dir}${install_home_path}/connector

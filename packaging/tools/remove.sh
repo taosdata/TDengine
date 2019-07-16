@@ -53,7 +53,7 @@ function clean_bin() {
 }
 function clean_lib() {
     # Remove link
-    sudo rm -f ${lib_link_dir}/libtaos.so      || :
+    sudo rm -f ${lib_link_dir}/libtaos.*      || :
     
     #sudo rm -f /usr/lib/libtaos.so || :
     #sudo rm -rf ${lib_dir}         || :
