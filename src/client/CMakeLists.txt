@@ -22,6 +22,7 @@ SET_TARGET_PROPERTIES(taos_static PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 #VERSION    so version
 #SOVERSION  api version
 
+execute_process(COMMAND chmod 777 ${PROJECT_SOURCE_DIR}/../../packaging/tools/get_version.sh)
 execute_process(COMMAND ${PROJECT_SOURCE_DIR}/../../packaging/tools/get_version.sh
   OUTPUT_VARIABLE
   VERSION_INFO)
