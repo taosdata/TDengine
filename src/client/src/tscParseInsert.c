@@ -1036,7 +1036,8 @@ static int tscInsertDataFromFile(SSqlObj* pSql, FILE* fp) {
   // TODO : import data from file
   int                readLen = 0;
   char*              line = NULL;
-  size_t             len = 0;
+  size_t             n = 0;
+  int                len = 0;
   uint32_t           maxRows = 0;
   SSqlCmd*           pCmd = &pSql->cmd;
   char*              pStart = pCmd->payload + tsInsertHeadSize;
@@ -1059,9 +1060,11 @@ static int tscInsertDataFromFile(SSqlObj* pSql, FILE* fp) {
 
   tscSetAllColumnsHasValue(&spd, pSchema, pCmd->pMeterMeta->numOfColumns);
 
-  while ((readLen = getline(&line, &len, fp)) != -1) {
+  while ((readLen = getline(&line, &n, fp)) != -1) {
     // line[--readLen] = '\0';
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) line[--readLen] = 0;
+    if (readLen <= 0 ) continue;
+
     char* lineptr = line;
     strtolower(line, line);
     len = tsParseOneRowData(&lineptr, pStart, pSchema, &spd, error, pCmd->pMeterMeta->precision);
@@ -1074,6 +1077,7 @@ static int tscInsertDataFromFile(SSqlObj* pSql, FILE* fp) {
       pCmd->payloadLen = (pStart - pCmd->payload);
       pBlock->sid = htonl(pMeterMeta->sid);
       pBlock->numOfRows = htons(count);
+      pSql->res.numOfRows = 0;
       if (tscProcessSql(pSql) != 0) {
         return -1;
       }
@@ -1090,6 +1094,7 @@ static int tscInsertDataFromFile(SSqlObj* pSql, FILE* fp) {
     pCmd->payloadLen = (pStart - pCmd->payload);
     pBlock->sid = htonl(pMeterMeta->sid);
     pBlock->numOfRows = htons(count);
+    pSql->res.numOfRows = 0;
     if (tscProcessSql(pSql) != 0) {
       return -1;
     }
