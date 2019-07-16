@@ -593,10 +593,8 @@ void *vnodeQueryInTimeRange(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExp
   pQuery = &(pQInfo->query);
   dTrace("qmsg:%p create QInfo:%p, QInfo created", pQueryMsg, pQInfo);
 
-  pQuery->order.order = pQueryMsg->order;
   pQuery->skey = pQueryMsg->skey;
   pQuery->ekey = pQueryMsg->ekey;
-
   pQuery->lastKey = pQuery->skey;
 
   pQInfo->fp = pQueryFunc[pQueryMsg->order];
@@ -680,7 +678,6 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   pQuery = &(pQInfo->query);
   dTrace("qmsg:%p create QInfo:%p, QInfo created", pQueryMsg, pQInfo);
 
-  pQuery->order.order = pQueryMsg->order;
   pQuery->skey = pQueryMsg->skey;
   pQuery->ekey = pQueryMsg->ekey;
 
