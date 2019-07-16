@@ -614,7 +614,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp) {
 
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
-  fd = open(".table.tmp", O_RDWR | O_CREAT);
+  fd = open(".table.tmp", O_RDWR | O_CREAT, 0755);
   if (fd == -1) {
     fprintf(stderr, "failed to open temp file\n");
     taos_free_result(result);
@@ -819,7 +819,7 @@ int32_t taosDumpMetric(char *metric, struct arguments *arguments, FILE *fp) {
     return -1;
   }
 
-  fd = open(".table.tmp", O_RDWR | O_CREAT);
+  fd = open(".table.tmp", O_RDWR | O_CREAT, 0755);
   if (fd < 0) {
     fprintf(stderr, "failed to open temp file");
     return -1;
