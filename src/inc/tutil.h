@@ -16,6 +16,8 @@
 #ifndef TDENGINE_TUTIL_H
 #define TDENGINE_TUTIL_H
 
+#include "tmd5.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -198,6 +200,14 @@ bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len)
 bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
 
 bool taosValidateEncodec(char *encodec);
+
+static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, char *target) {
+  MD5_CTX context;
+  MD5Init(&context);
+  MD5Update(&context, inBuf, inLen);
+  MD5Final(&context);
+  memcpy(target, context.digest, TSDB_KEY_LEN);
+}
 
 #define __sync_val_compare_and_swap_64 __sync_val_compare_and_swap
 #define __sync_val_compare_and_swap_32 __sync_val_compare_and_swap
