@@ -89,8 +89,8 @@ function install_lib() {
     
     versioninfo=$(${script_dir}/get_version.sh)
     sudo cp ${binary_dir}/build/lib/libtaos.so.${versioninfo} ${install_main_dir}/driver && sudo chmod 777 ${install_main_dir}/driver/*
-    sudo ln -sf ${install_main_dir}/driver/libtaos.so.${versioninfo} ${install_main_dir}/driver/libtaos.so.1
-    sudo ln -sf ${install_main_dir}/driver/libtaos.so.1 ${lib_link_dir}/libtaos.so
+    sudo ln -sf ${install_main_dir}/driver/libtaos.so.${versioninfo} ${lib_link_dir}/libtaos.so.1
+    sudo ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 }
 
 function install_header() {
@@ -223,14 +223,14 @@ function update_TDengine() {
         fi
         sleep 1
     fi
-    
+
     install_main_path
 
     install_log
     install_header
     install_lib
     install_bin
-    install_service
+    # install_service
     install_config
     install_connector
     install_examples
@@ -239,14 +239,14 @@ function update_TDengine() {
     echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
     echo
     echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-    if is_using_systemd; then
-        echo -e "${GREEN_DARK}To start TDengine     ${NC}: sudo systemctl start taosd${NC}"
-    else
-        echo -e "${GREEN_DARK}To start TDengine     ${NC}: sudo update-rc.d taosd default  ${RED} for the first time${NC}"
-        echo -e "                      : sudo service taosd start ${RED} after${NC}"
-    fi
+    # if is_using_systemd; then
+    #     echo -e "${GREEN_DARK}To start TDengine     ${NC}: sudo systemctl start taosd${NC}"
+    # else
+    #     echo -e "${GREEN_DARK}To start TDengine     ${NC}: sudo update-rc.d taosd default  ${RED} for the first time${NC}"
+    #     echo -e "                      : sudo service taosd start ${RED} after${NC}"
+    # fi
 
-    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+    # echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
     echo
     echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
 }
@@ -255,13 +255,13 @@ function install_TDengine() {
     # Start to install
     echo -e "${GREEN}Start to install TDEngine...${NC}"
 	
-	  install_main_path
+	install_main_path
     install_data
     install_log 
     install_header
     install_bin
     install_lib
-    install_service
+    # install_service
     install_config	    
     install_connector
     install_examples
@@ -271,14 +271,14 @@ function install_TDengine() {
     echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
     echo
     echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-    if is_using_systemd; then
-        echo -e "${GREEN_DARK}To start TDengine     ${NC}: sudo systemctl start taosd${NC}"
-    else
-        echo -e "${GREEN_DARK}To start TDengine     ${NC}: sudo update-rc.d taosd default  ${RED} for the first time${NC}"
-        echo -e "                      : sudo service taosd start ${RED} after${NC}"
-    fi
+    # if is_using_systemd; then
+    #    echo -e "${GREEN_DARK}To start TDengine     ${NC}: sudo systemctl start taosd${NC}"
+    # else
+    #    echo -e "${GREEN_DARK}To start TDengine     ${NC}: sudo update-rc.d taosd default  ${RED} for the first time${NC}"
+    #    echo -e "                      : sudo service taosd start ${RED} after${NC}"
+    #3 fi
 
-    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+    # echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
     echo
     echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
 }
