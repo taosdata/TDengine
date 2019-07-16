@@ -72,7 +72,7 @@ int tsCacheBlockSize = 16384;  // 256 columns
 int tsAverageCacheBlocks = 4;
 
 int   tsRowsInFileBlock = 4096;
-float tsFileBlockMinPercent = 0.25;
+float tsFileBlockMinPercent = 0.05;
 
 short tsNumOfBlocksPerMeter = 100;
 int   tsCommitTime = 3600;  // seconds
