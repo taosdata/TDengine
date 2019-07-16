@@ -79,12 +79,12 @@ function install_bin() {
 
 function install_lib() {
     # Remove links
-    sudo rm -f ${lib_link_dir}/libtaos.so     || :    
+    sudo rm -f ${lib_link_dir}/libtaos.*     || :    
 
     sudo cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && sudo chmod 777 ${install_main_dir}/driver/*  
     
-    sudo ln -s ${install_main_dir}/driver/libtaos.* ${install_main_dir}/driver/libtaos.so.1
-    sudo ln -s ${install_main_dir}/driver/libtaos.so.1 ${lib_link_dir}/libtaos.so
+    sudo ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
+    sudo ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 }
 
 function install_header() {
