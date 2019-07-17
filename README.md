@@ -96,6 +96,14 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 - [Go](https://www.taosdata.com/en/documentation/connector/#Go-Connector)
 - [RESTful API](https://www.taosdata.com/en/documentation/connector/#RESTful-Connector)
 
+# TDengine Roadmap
+- Support event-driven stream computing 
+- Support user defined functions
+- Support MQTT connection
+- Support OPC connection
+- Support Hadoop, Spark connections 
+- Support Tableau and other BI tools
+
 # Contribute to TDengine
 
 Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to the project.
