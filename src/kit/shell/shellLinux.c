@@ -72,10 +72,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       arguments->host = arg;
       break;
     case 'p':
-      if (arg)
-        arguments->password = arg;
-      else
-        arguments->is_use_passwd = true;
+      arguments->is_use_passwd = true;
+      if (arg) arguments->password = arg;
       break;
     case 'P':
       tsMgmtShellPort = atoi(arg);
