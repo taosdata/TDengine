@@ -1345,7 +1345,7 @@ int32_t buildSelectionClause(SSqlCmd* pCmd, tSQLExprList* pSelection, bool isMet
   char msg1[] = "invalid column name/illegal column type in arithmetic expression";
   char msg2[] = "functions can not be mixed up";
   char msg3[] = "not support query expression";
-  char msg4[] = "function not support in stable query";
+  char msg4[] = "function not support in STable query";
 
   SSchema* pSchema = tsGetSchema(pCmd->pMeterMeta);
 
@@ -2285,7 +2285,7 @@ int32_t setGroupByClause(SSqlCmd* pCmd, tVariantList* pList) {
   char msg1[] = "too many columns in group by clause";
   char msg2[] = "invalid column name in group by clause";
   char msg3[] = "functions are not available in group by query";
-  char msg4[] = "group by only available for stable query";
+  char msg4[] = "group by only available for STable query";
 
   if (UTIL_METER_IS_NOMRAL_METER(pCmd)) {
     if (pList == NULL) {
@@ -3870,7 +3870,7 @@ int32_t setLimitOffsetValueInfo(SSqlObj* pSql, SQuerySQL* pQuerySql) {
 
   char msg0[] = "soffset can not be less than 0";
   char msg1[] = "offset can not be less than 0";
-  char msg2[] = "slimit/soffset only available for stable query";
+  char msg2[] = "slimit/soffset only available for STable query";
   char msg3[] = "function not supported on table";
 
   // handle the limit offset value, validate the limit
