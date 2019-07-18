@@ -526,8 +526,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
     /*
      * NOTE:
      * transfer the sql function for metric query before get meter/metric meta,
-     * since in callback functions,
-     * only tscProcessSql(pStream->pSql) is executed!
+     * since in callback functions, only tscProcessSql(pStream->pSql) is executed!
      */
     tscTansformSQLFunctionForMetricQuery(&pSql->cmd);
     tscIncStreamExecutionCount(pSql->pStream);

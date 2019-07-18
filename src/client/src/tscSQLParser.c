@@ -1586,7 +1586,7 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SSchema* pSchema, int32_t 
   int16_t type = 0;
   int16_t bytes = 0;
 
-  char columnName[TSDB_COL_NAME_LEN + 1] = {0};
+  char columnName[TSDB_COL_NAME_LEN] = {0};
   char msg1[] = "not support column types";
 
   if (functionID == TSDB_FUNC_SPREAD) {
@@ -3570,20 +3570,27 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     pCmd->numOfCols = 1;  // only one column
 
   } else if (pInfo->sqlType == ALTER_TABLE_TAGS_CHG) {
+    char msg1[] = "tag name too long";
+    char msg2[] = "invalid tag name";
+
     pCmd->count = TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN;
     tVariantList* pVarList = pAlterSQL->varList;
     if (pVarList->nExpr > 2) {
       return TSDB_CODE_INVALID_SQL;
     }
 
-    if (pVarList->a[0].pVar.nLen > TSDB_COL_NAME_LEN || pVarList->a[1].pVar.nLen > TSDB_COL_NAME_LEN) {
-      char msg[] = "tag name too long";
-      setErrMsg(pCmd, msg, tListLen(msg));
+    tVariantListItem* pSrcItem = &pAlterSQL->varList->a[0];
+    tVariantListItem* pDstItem = &pAlterSQL->varList->a[1];
+
+    if (pSrcItem->pVar.nLen >= TSDB_COL_NAME_LEN || pDstItem->pVar.nLen >= TSDB_COL_NAME_LEN) {
+      setErrMsg(pCmd, msg1, tListLen(msg1));
       return TSDB_CODE_INVALID_SQL;
     }
 
-    tVariantListItem* pSrcItem = &pAlterSQL->varList->a[0];
-    tVariantListItem* pDstItem = &pAlterSQL->varList->a[1];
+    if (pSrcItem->pVar.nType != TSDB_DATA_TYPE_BINARY || pDstItem->pVar.nType != TSDB_DATA_TYPE_BINARY) {
+      setErrMsg(pCmd, msg2, tListLen(msg2));
+      return TSDB_CODE_INVALID_SQL;
+    }
 
     bool srcFound = false;
     bool dstFound = false;
@@ -3592,11 +3599,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       char*   tagName = pSchema[tagIdx].name;
 
       size_t nameLen = strlen(tagName);
-      if ((!srcFound) && strncasecmp(tagName, pSrcItem->pVar.pz, nameLen) == 0) {
+      if ((!srcFound) && (strncasecmp(tagName, pSrcItem->pVar.pz, nameLen) == 0 && (pSrcItem->pVar.nLen == nameLen))) {
         srcFound = true;
       }
 
-      if ((!dstFound) && strncasecmp(tagName, pDstItem->pVar.pz, nameLen) == 0) {
+      //todo extract method
+      if ((!dstFound) && (strncasecmp(tagName, pDstItem->pVar.pz, nameLen) == 0 && (pDstItem->pVar.nLen == nameLen))) {
         dstFound = true;
       }
     }
