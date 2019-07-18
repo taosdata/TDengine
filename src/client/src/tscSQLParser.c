@@ -395,6 +395,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return TSDB_CODE_INVALID_SQL;
       }
 
+      strdequote(pToken->z);
+      strtrim(pToken->z);
+      pToken->n = strlen(pToken->z);
+
       if (setMeterID(pSql, pToken) != TSDB_CODE_SUCCESS) {
         setErrMsg(pCmd, msg, tListLen(msg));
         return TSDB_CODE_INVALID_SQL;
