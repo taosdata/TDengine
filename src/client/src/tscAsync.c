@@ -112,19 +112,19 @@ static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOf
   // sequentially retrieve data from remain vnodes first, query vnode specified by vnodeIdx
   if (numOfRows == 0 && tscProjectionQueryOnMetric(pSql)) {
     // vnode is denoted by vnodeIdx, continue to query vnode specified by vnodeIdx
-    assert(pSql->cmd.vnodeIdx >= 1);
+    assert(pCmd->vnodeIdx >= 1);
 
     /* reach the maximum number of output rows, abort */
-    if (pSql->cmd.defaultVal[0] > 0 && pRes->numOfTotal >= pCmd->defaultVal[0]) {
+    if (pCmd->globalLimit > 0 && pRes->numOfTotal >= pCmd->globalLimit) {
       (*pSql->fetchFp)(param, tres, 0);
       return;
     }
 
     /* update the limit value according to current retrieval results */
-    pCmd->limit.limit = pSql->cmd.defaultVal[0] - pRes->numOfTotal;
+    pCmd->limit.limit = pCmd->globalLimit - pRes->numOfTotal;
 
-    if ((++(pSql->cmd.vnodeIdx)) <= pSql->cmd.pMetricMeta->numOfVnodes) {
-      pSql->cmd.command = TSDB_SQL_SELECT;  // reset flag to launch query first.
+    if ((++(pSql->cmd.vnodeIdx)) <= pCmd->pMetricMeta->numOfVnodes) {
+      pCmd->command = TSDB_SQL_SELECT;  // reset flag to launch query first.
 
       pRes->row = 0;
       pRes->numOfRows = 0;
@@ -134,8 +134,7 @@ static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOf
       tscProcessSql(pSql);
       return;
     }
-  } else {
-    /* localreducer has handle this situation */
+  } else { // localreducer has handle this situation
     if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC) {
       pRes->numOfTotal += pRes->numOfRows;
     }
@@ -268,19 +267,19 @@ void tscProcessAsyncRetrieve(void *param, TAOS_RES *tres, int numOfRows) {
       /*
        * vnode is denoted by vnodeIdx, continue to query vnode specified by vnodeIdx till all vnode have been retrieved
        */
-      assert(pSql->cmd.vnodeIdx >= 1);
+      assert(pCmd->vnodeIdx >= 1);
 
       /* reach the maximum number of output rows, abort */
-      if (pSql->cmd.defaultVal[0] > 0 && pRes->numOfTotal >= pCmd->defaultVal[0]) {
+      if (pCmd->globalLimit > 0 && pRes->numOfTotal >= pCmd->globalLimit) {
         (*pSql->fetchFp)(pSql->param, pSql, NULL);
         return;
       }
 
       /* update the limit value according to current retrieval results */
-      pCmd->limit.limit = pSql->cmd.defaultVal[0] - pRes->numOfTotal;
+      pCmd->limit.limit = pCmd->globalLimit - pRes->numOfTotal;
 
-      if ((++pSql->cmd.vnodeIdx) <= pSql->cmd.pMetricMeta->numOfVnodes) {
-        pSql->cmd.command = TSDB_SQL_SELECT;  // reset flag to launch query first.
+      if ((++pCmd->vnodeIdx) <= pCmd->pMetricMeta->numOfVnodes) {
+        pCmd->command = TSDB_SQL_SELECT;  // reset flag to launch query first.
 
         pRes->row = 0;
         pRes->numOfRows = 0;
