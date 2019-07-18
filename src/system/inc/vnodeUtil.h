@@ -63,7 +63,7 @@ void vnodeFreeFields(SQuery *pQuery);
 void vnodeUpdateFilterColumnIndex(SQuery* pQuery);
 void vnodeUpdateQueryColumnIndex(SQuery* pQuery, SMeterObj* pMeterObj);
 
-int32_t vnodeCreateFilterInfo(SQuery *pQuery);
+int32_t vnodeCreateFilterInfo(void* pQInfo, SQuery *pQuery);
 
 bool vnodeFilterData(SQuery* pQuery, int32_t* numOfActualRead, int32_t index);
 bool vnodeDoFilterData(SQuery* pQuery, int32_t elemPos);

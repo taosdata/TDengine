@@ -3055,6 +3055,29 @@ static int32_t setMetersIDForMetricQuery(SSqlObj* pSql, char* tmpTagCondBuf) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool validateFilterExpr(SSqlCmd* pCmd) {
+  for (int32_t i = 0; i < pCmd->colList.numOfCols; ++i) {
+    SColumnBase* pColBase = &pCmd->colList.pColList[i];
+
+    if (pColBase->filterOn > 0) {
+      int32_t lowerOptr = pColBase->lowerRelOptr;
+      int32_t upperOptr = pColBase->upperRelOptr;
+
+      if ((lowerOptr == TSDB_RELATION_LARGE_EQUAL || lowerOptr == TSDB_RELATION_LARGE) &&
+          (upperOptr == TSDB_RELATION_LESS_EQUAL || upperOptr == TSDB_RELATION_LESS)) {
+        continue;
+      }
+
+      // there must be at least two range, not support yet.
+      if (lowerOptr * upperOptr != TSDB_RELATION_INVALID) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 int32_t buildQueryCond(SSqlObj* pSql, tSQLExpr* pExpr) {
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -3064,6 +3087,7 @@ int32_t buildQueryCond(SSqlObj* pSql, tSQLExpr* pExpr) {
 
   char msg1[] = "invalid expression";
   char msg2[] = "meter is not allowed";
+  char msg3[] = "invalid filter expression";
 
   tSQLExpr* pLeft = pExpr->pLeft;
   tSQLExpr* pRight = pExpr->pRight;
@@ -3110,6 +3134,11 @@ int32_t buildQueryCond(SSqlObj* pSql, tSQLExpr* pExpr) {
     }
 
     pCmd->tagCond.pData[pCmd->tagCond.len] = 0;
+  }
+
+  if (!validateFilterExpr(pCmd)) {
+    setErrMsg(pCmd, msg3, tListLen(msg3));
+    return TSDB_CODE_INVALID_SQL;
   }
 
   return ret;

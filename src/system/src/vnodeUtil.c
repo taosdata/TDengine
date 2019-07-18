@@ -246,7 +246,11 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
 
     // tag column schema is kept in pQueryMsg->pTagSchema
     if (pColumnIndexExInfo->isTag) {
-      assert(pColumnIndexExInfo->colIdx < pQueryMsg->numOfTagsCols);
+      if (pColumnIndexExInfo->colIdx >= pQueryMsg->numOfTagsCols) {
+        *code = TSDB_CODE_INVALID_QUERY_MSG;
+        tfree(pExprs);
+        break;
+      }
 
       type = pTagSchema[pColumnIndexExInfo->colIdx].type;
       bytes = pTagSchema[pColumnIndexExInfo->colIdx].bytes;
@@ -356,7 +360,7 @@ void vnodeUpdateFilterColumnIndex(SQuery* pQuery) {
 }
 
 // TODO support k<12 and k<>9
-int32_t vnodeCreateFilterInfo(SQuery* pQuery) {
+int32_t vnodeCreateFilterInfo(void* pQInfo, SQuery* pQuery) {
   for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
     if (pQuery->colList[i].data.filterOn > 0) {
       pQuery->numOfFilterCols++;
@@ -384,8 +388,8 @@ int32_t vnodeCreateFilterInfo(SQuery* pQuery) {
       __filter_func_t* filterArray = vnodeGetValueFilterFuncArray(type);
 
       if (rangeFilterArray == NULL && filterArray == NULL) {
-        dError("QInfo:%p failed to get filter function, invalid data type:%d", type);
-        return TSDB_CODE_APP_ERROR;
+        dError("QInfo:%p failed to get filter function, invalid data type:%d", pQInfo, type);
+        return TSDB_CODE_INVALID_QUERY_MSG;
       }
 
       if ((lower == TSDB_RELATION_LARGE_EQUAL || lower == TSDB_RELATION_LARGE) &&
@@ -406,9 +410,13 @@ int32_t vnodeCreateFilterInfo(SQuery* pQuery) {
           }
         }
       } else {  // set callback filter function
-        if (lower != 0) {
+        if (lower != TSDB_RELATION_INVALID) {
           pFilterInfo->fp = filterArray[lower];
-          assert(upper == 0);
+
+          if (upper != TSDB_RELATION_INVALID) {
+            dError("pQInfo:%p failed to get filter function, invalid filter condition", pQInfo, type);
+            return TSDB_CODE_INVALID_QUERY_MSG;
+          }
         } else {
           pFilterInfo->fp = filterArray[upper];
         }

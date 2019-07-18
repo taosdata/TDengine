@@ -216,7 +216,7 @@ static SQInfo *vnodeAllocateQInfoCommon(SQueryMeterMsg *pQueryMsg, SMeterObj *pM
 
   pQuery->pSelectExpr = pExprs;
 
-  int32_t ret = vnodeCreateFilterInfo(pQuery);
+  int32_t ret = vnodeCreateFilterInfo(pQInfo, pQuery);
   if (ret != TSDB_CODE_SUCCESS) {
     goto _clean_memory;
   }

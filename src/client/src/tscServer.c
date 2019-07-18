@@ -869,9 +869,7 @@ void tscKillMetricQuery(SSqlObj *pSql) {
   tscTrace("%p metric query is cancelled", pSql);
 }
 
-static SSqlObj* tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport,
-                                           SSqlObj* prevSqlObj) {
-
+static SSqlObj* tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj* prevSqlObj) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   SSqlObj *pNew = (SSqlObj *)calloc(1, sizeof(SSqlObj));
@@ -916,7 +914,6 @@ static SSqlObj* tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsu
 
   assert(pNew->cmd.pMeterMeta != NULL && pNew->cmd.pMetricMeta != NULL);
   return pNew;
-
 }
 
 void tscRetrieveDataRes(void *param, TAOS_RES *tres, int retCode) {
