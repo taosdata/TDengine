@@ -148,9 +148,23 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
     httpJsonToken(jsonBuf, JsonArrEnd);
   }
 
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, total rows:%lld retrieved", pContext, pContext->fd, pContext->ipstr,
-            pContext->user, cmd->numOfRows);
-  return true;
+  if (cmd->numOfRows >= tsRestRowLimit) {
+    httpTrace("context:%p, fd:%d, ip:%s, user:%s, retrieve rows:%lld larger than limit:%d, abort retrieve", pContext,
+              pContext->fd, pContext->ipstr, pContext->user, cmd->numOfRows, tsRestRowLimit);
+    return false;
+  }
+  else {
+    if (pContext->fd <= 0) {
+      httpError("context:%p, fd:%d, ip:%s, user:%s, connection is closed, abort retrieve", pContext, pContext->fd,
+                pContext->ipstr, pContext->user);
+      return false;
+    }
+    else {
+      httpTrace("context:%p, fd:%d, ip:%s, user:%s, total rows:%lld retrieved", pContext, pContext->fd, pContext->ipstr,
+                pContext->user, cmd->numOfRows);
+      return true;
+    }
+  }
 }
 
 bool restBuildSqlTimeJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) {

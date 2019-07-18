@@ -110,6 +110,7 @@ extern int tsMgmtEqualVnodeNum;
 
 extern int tsEnableHttpModule;
 extern int tsEnableMonitorModule;
+extern int tsRestRowLimit;
 
 extern int tsTimePrecision;
 extern int tsMinSlidingTime;

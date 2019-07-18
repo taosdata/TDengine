@@ -98,6 +98,7 @@ int  tsMaxVnodeConnections = 10000;
 
 int tsEnableHttpModule = 1;
 int tsEnableMonitorModule = 1;
+int tsRestRowLimit = 10240;
 
 int tsTimePrecision = TSDB_TIME_PRECISION_MILLI;  // time precision, millisecond by default
 int tsMinSlidingTime = 10;                        // 10 ms for sliding time, the value will changed in
