@@ -98,7 +98,8 @@ int tsParseTime(char* value, int32_t valuelen, int64_t* time, char** next, char*
 
   char* pTokenEnd = *next;
   tscGetToken(pTokenEnd, &token, &tokenlen);
-  if (tokenlen == 0) {
+
+  if (tokenlen == 0 && strlen(value) == 0) {
     INVALID_SQL_RET_MSG(error, "missing time stamp");
   }
 
