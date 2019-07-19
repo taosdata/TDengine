@@ -76,12 +76,17 @@ function is_using_systemd() {
     fi
 }
 
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo"
+fi
+
 # Stop the service if running
 if pidof taosd &> /dev/null; then
     if is_using_systemd; then
-        sudo systemctl stop taosd || :
+        ${csudo} systemctl stop taosd || :
     else
-        sudo service taosd stop || :
+        ${csudo} service taosd stop || :
     fi
     echo "Stop taosd service success!"
     sleep 1
@@ -89,20 +94,28 @@ fi
 
 # if taos.cfg already softlink, remove it
 if [ -f %{cfg_install_dir}/taos.cfg ]; then
-    sudo rm -f %{homepath}/cfg/taos.cfg   || :
+    ${csudo} rm -f %{homepath}/cfg/taos.cfg   || :
 fi 
 
 #Scripts executed after installation
 %post
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo"
+fi
 cd %{homepath}/script
-sudo ./post.sh
+${csudo} ./post.sh
  
 # Scripts executed before uninstall
 %preun
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo"
+fi
 # only remove package to call preun.sh, not but update(2) 
 if [ $1 -eq 0 ];then
   cd %{homepath}/script
-  sudo ./preun.sh
+  ${csudo} ./preun.sh
 fi
  
 # Scripts executed after uninstall
@@ -110,13 +123,16 @@ fi
  
 # clean build dir
 %clean
-rm -rf %{buildroot}
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo"
+fi
+${csudo} rm -rf %{buildroot}
 
 #Specify the files to be packaged
 %files
 /*
 #%doc
-
 
 #Setting default permissions
 %defattr  (-,root,root,0755)
