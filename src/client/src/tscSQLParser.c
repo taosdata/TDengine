@@ -206,6 +206,9 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       pCmd->command = TSDB_SQL_USE_DB;
 
       SSQLToken* pToken = &pInfo->pDCLInfo->a[0];
+	  
+	  tscValidateName(pToken);
+	  
       if (pToken->n > TSDB_DB_NAME_LEN) {
         setErrMsg(pCmd, msg, tListLen(msg));
         return TSDB_CODE_INVALID_SQL;
@@ -390,14 +393,12 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       SSQLToken* pToken = &pInfo->pDCLInfo->a[0];
       char       msg[] = "table name is too long";
 
+	  tscValidateName(pToken);
+	  
       if (pToken->n > TSDB_METER_NAME_LEN) {
         setErrMsg(pCmd, msg, tListLen(msg));
         return TSDB_CODE_INVALID_SQL;
       }
-
-      strdequote(pToken->z);
-      strtrim(pToken->z);
-      pToken->n = strlen(pToken->z);
 
       if (setMeterID(pSql, pToken) != TSDB_CODE_SUCCESS) {
         setErrMsg(pCmd, msg, tListLen(msg));
@@ -569,6 +570,9 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // table name
       // metric name, create table by using dst
       SSQLToken* pToken = &(pInfo->pCreateTableInfo->usingInfo.metricName);
+
+      tscValidateName(pToken);
+
       int32_t    ret = setMeterID(pSql, pToken);
       if (ret != TSDB_CODE_SUCCESS) {
         return ret;
@@ -735,7 +739,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return TSDB_CODE_INVALID_SQL;
       }
 
-      strdequote(pQuerySql->from.z);
+	  tscValidateName(&(pQuerySql->from));
+	  
       if (setMeterID(pSql, &pQuerySql->from) != TSDB_CODE_SUCCESS) {
         char msg[] = "table name too long";
         setErrMsg(pCmd, msg, tListLen(msg));
@@ -3471,6 +3476,8 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
   SAlterTableSQL* pAlterSQL = pInfo->pAlterInfo;
   pCmd->command = TSDB_SQL_ALTER_TABLE;
+
+  tscValidateName(&(pAlterSQL->name));
 
   if (setMeterID(pSql, &(pAlterSQL->name)) != TSDB_CODE_SUCCESS) {
     char msg[] = "table name too long";
