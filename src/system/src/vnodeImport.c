@@ -93,8 +93,7 @@ int vnodeCloseFileForImport(SMeterObj *pObj, SHeadInfo *pHinfo) {
   SVnodeCfg *pCfg = &pVnode->cfg;
   TSCKSUM    chksum = 0;
 
-  assert(pHinfo->newBlocks);
-  assert(pHinfo->compInfoOffset);
+  if (pHinfo->newBlocks == 0 || pHinfo->compInfoOffset == 0) return 0;
 
   if (pHinfo->oldNumOfBlocks == 0) write(pVnode->nfd, &chksum, sizeof(TSCKSUM));
 
