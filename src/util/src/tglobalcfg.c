@@ -668,10 +668,6 @@ bool tsReadGlobalConfig() {
     taosGetPrivateIp(tsInternalIp);
   }
 
-  if (tsLocalIp[0] == 0) {
-    strcpy(tsLocalIp, tsInternalIp);
-  }
-
   taosGetSystemInfo();
 
   tsSetLocale();
@@ -683,10 +679,6 @@ bool tsReadGlobalConfig() {
 
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
-  }
-
-  if (tscEmbedded) {
-    strcpy(tsLocalIp, tsInternalIp);
   }
 
   tsVersion = 0;

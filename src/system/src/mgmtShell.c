@@ -56,7 +56,7 @@ int mgmtInitShell() {
   if (numOfThreads < 1) numOfThreads = 1;
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp = tsInternalIp;
+  rpcInit.localIp = "0.0.0.0";
   rpcInit.localPort = tsMgmtShellPort;
   rpcInit.label = "MND-shell";
   rpcInit.numOfThreads = numOfThreads;
