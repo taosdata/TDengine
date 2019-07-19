@@ -560,7 +560,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_CHG);
 }
 
-cmd ::= ALTER TABLE ids(X) cpxName(F) SET ids(Y) EQ tagitem(Z).     {
+cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
     X.n += F.n;
 
     toTSDBType(Y.type);
