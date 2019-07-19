@@ -2,6 +2,12 @@
 #set -x
 #path=`pwd`
 insmetaPath="/usr/local/taos/script"
-sudo chmod -R 744 ${insmetaPath}
+
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo"
+fi
+
+${csudo} chmod -R 744 ${insmetaPath}
 cd ${insmetaPath}
-sudo ./post.sh
+${csudo} ./post.sh
