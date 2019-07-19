@@ -780,6 +780,7 @@ void tsPrintGlobalConfig() {
     }
   }
 
+  pPrint(" dataDir:                %s", dataDir);
   tsPrintOsInfo();
 
   pPrint("==================================");
