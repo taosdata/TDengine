@@ -40,7 +40,7 @@ mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 mkdir -p ${install_dir}/cfg && cp ${cfg_files} ${install_dir}/cfg
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/*
-mkdir -p ${install_dir}/init.d     && cp ${init_files} ${install_dir}/init.d
+mkdir -p ${install_dir}/init.d    && cp ${init_files} ${install_dir}/init.d
 
 cd ${install_dir}
 tar -zcv -f taos.tar.gz * --remove-files || : 
