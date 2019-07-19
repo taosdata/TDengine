@@ -52,7 +52,7 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
     if (pObj) {
       pObj->thandle = NULL;
       dTrace("QInfo:%p %s free qhandle", pObj->qhandle, __FUNCTION__);
-      vnodeFreeQInfo(pObj->qhandle, true);
+      vnodeFreeQInfoInQueue(pObj->qhandle);
       pObj->qhandle = NULL;
       vnodeList[pObj->vnode].shellConns--;
       dTrace("vid:%d, shell connection:%d is gone, shellConns:%d", pObj->vnode, pObj->sid,
