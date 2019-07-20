@@ -140,6 +140,7 @@ typedef struct HttpContext {
   void *       signature;
   int          fd;
   uint32_t     accessTimes;
+  uint32_t     lastAccessTime;
   uint8_t      httpVersion : 1;
   uint8_t      httpChunked : 1;
   uint8_t      httpKeepAlive : 2;  // http1.0 and not keep-alive, close connection immediately
