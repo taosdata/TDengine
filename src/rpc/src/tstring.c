@@ -230,5 +230,7 @@ char *tsError[] = {"success",
                    "session not ready",
                    "batch size too big",
                    "timestamp out of range",
-                   "invalid query message"
+                   "invalid query message",
+                   "timestamp disordered in cache block",
+                   "timestamp disordered in file block"
 };

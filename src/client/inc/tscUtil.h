@@ -41,10 +41,12 @@ typedef struct SParsedColElem {
 } SParsedColElem;
 
 typedef struct SParsedDataColInfo {
-  int32_t        numOfCols;
-  int32_t        numOfParsedCols;
+  bool           ordered;                  // denote if the timestamp in one data block ordered or not
+  int16_t        numOfCols;
+  int16_t        numOfAssignedCols;
   SParsedColElem elems[TSDB_MAX_COLUMNS];
   bool           hasVal[TSDB_MAX_COLUMNS];
+  int64_t        prevTimestamp;
 } SParsedDataColInfo;
 
 SInsertedDataBlocks* tscCreateDataBlock(int32_t size);

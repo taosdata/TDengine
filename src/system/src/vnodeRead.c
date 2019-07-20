@@ -507,7 +507,6 @@ void vnodeQueryData(SSchedMsg *pMsg) {
   pQuery->pointsToRead = vnodeList[pObj->vnode].cfg.rowsInFileBlock;
   pQuery->pointsOffset = pQInfo->bufIndex * pQuery->pointsToRead;
 
-  // dTrace("id:%s, start to query data", pQInfo->pObj->meterId);
   int64_t st = taosGetTimestampUs();
 
   while (1) {

@@ -1517,10 +1517,11 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
    * we allocate tsData buffer with twice size of the other ordinary pQuery->sdata.
    * Otherwise, the query function may over-write buffer area while retrieve function has not packed the results into
    * message to send to client yet.
+   *
    * So the startPositionFactor is needed to denote which half part is used to store the result, and which
    * part is available for keep data during query process.
-   * Note: the startPositionFactor must be used in conjunction with
-   * pQuery->pointsOffset
+   *
+   * Note: the startPositionFactor must be used in conjunction with pQuery->pointsOffset
    */
   int32_t startPositionFactor = 1;
   if (pQuery->colList[0].colIdx == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
@@ -1537,8 +1538,10 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
 
   int maxReads = QUERY_IS_ASC_QUERY(pQuery) ? pBlock->numOfPoints - pQuery->pos : pQuery->pos + 1;
 
+  TSKEY startKey = vnodeGetTSInDataBlock(pQuery, 0, startPositionFactor);
+  TSKEY endKey = vnodeGetTSInDataBlock(pQuery, pBlock->numOfPoints - 1, startPositionFactor);
+
   if (QUERY_IS_ASC_QUERY(pQuery)) {
-    TSKEY endKey = vnodeGetTSInDataBlock(pQuery, pBlock->numOfPoints - 1, startPositionFactor);
     if (endKey < pQuery->ekey) {
       numOfReads = maxReads;
     } else {
@@ -1548,7 +1551,6 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
       numOfReads = (lastPos >= 0) ? lastPos + 1 : 0;
     }
   } else {
-    TSKEY startKey = vnodeGetTSInDataBlock(pQuery, 0, startPositionFactor);
     if (startKey > pQuery->ekey) {
       numOfReads = maxReads;
     } else {
@@ -1601,7 +1603,12 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
     if (QUERY_IS_ASC_QUERY(pQuery)) {
       for (int32_t j = startPos; j < pBlock->numOfPoints; j -= step) {
         TSKEY key = vnodeGetTSInDataBlock(pQuery, j, startPositionFactor);
-        assert(key >= pQuery->skey);
+        if (key < startKey || key > endKey) {
+          dError("vid:%d sid:%d id:%s, timestamp in file block disordered. slot:%d, pos:%d, ts:%lld, block "
+                 "range:%lld-%lld", pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startKey, endKey);
+          tfree(ids);
+          return -TSDB_CODE_FILE_BLOCK_TS_DISORDERED;
+        }
 
         // out of query range, quit
         if (key > pQuery->ekey) {
@@ -1621,7 +1628,12 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
     } else {
       for (int32_t j = pQuery->pos; j >= 0; --j) {
         TSKEY key = vnodeGetTSInDataBlock(pQuery, j, startPositionFactor);
-        assert(key <= pQuery->skey);
+        if (key < startKey || key > endKey) {
+          dError("vid:%d sid:%d id:%s, timestamp in file block disordered. slot:%d, pos:%d, ts:%lld, block "
+                 "range:%lld-%lld", pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startKey, endKey);
+          tfree(ids);
+          return -TSDB_CODE_FILE_BLOCK_TS_DISORDERED;
+        }
 
         // out of query range, quit
         if (key < pQuery->ekey) {

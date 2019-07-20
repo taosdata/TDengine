@@ -553,8 +553,10 @@ int vnodeQueryFromCache(SMeterObj *pObj, SQuery *pQuery) {
     return 0;
   }
 
+  TSKEY startkey = vnodeGetTSInCacheBlock(pCacheBlock, 0);
+  TSKEY endkey   = vnodeGetTSInCacheBlock(pCacheBlock, numOfPoints - 1);
+
   if (QUERY_IS_ASC_QUERY(pQuery)) {
-    TSKEY endkey = vnodeGetTSInCacheBlock(pCacheBlock, numOfPoints - 1);
     if (endkey < pQuery->ekey) {
       numOfReads = maxReads;
     } else {
@@ -563,7 +565,6 @@ int vnodeQueryFromCache(SMeterObj *pObj, SQuery *pQuery) {
       numOfReads = (lastPos >= 0) ? lastPos + 1 : 0;
     }
   } else {
-    TSKEY startkey = vnodeGetTSInCacheBlock(pCacheBlock, 0);
     if (startkey > pQuery->ekey) {
       numOfReads = maxReads;
     } else {
@@ -595,8 +596,7 @@ int vnodeQueryFromCache(SMeterObj *pObj, SQuery *pQuery) {
       int16_t type = GET_COLUMN_TYPE(pQuery, col);
 
       pData = pQuery->sdata[col]->data + pQuery->pointsOffset * bytes;
-      /* this column is absent from current block, fill this block with null
-       * value */
+      /* this column is absent from current block, fill this block with null value */
       if (colIdx < 0 || colIdx >= pObj->numOfColumns ||
           pObj->schema[colIdx].colId != pQuery->pSelectExpr[col].pBase.colInfo.colId) {  // set null
         setNullN(pData, type, bytes, pCacheBlock->numOfPoints);
@@ -611,8 +611,7 @@ int vnodeQueryFromCache(SMeterObj *pObj, SQuery *pQuery) {
     for (int32_t k = 0; k < pQuery->numOfFilterCols; ++k) {
       int16_t colIdx = pQuery->pFilterInfo[k].pFilter.colIdx;
 
-      if (colIdx < 0) {
-        /* current data has not specified column */
+      if (colIdx < 0) { // current data has not specified column
         pQuery->pFilterInfo[k].pData = NULL;
       } else {
         pQuery->pFilterInfo[k].pData = pCacheBlock->offset[colIdx];
@@ -625,7 +624,12 @@ int vnodeQueryFromCache(SMeterObj *pObj, SQuery *pQuery) {
     if (QUERY_IS_ASC_QUERY(pQuery)) {
       for (int32_t j = startPos; j < pCacheBlock->numOfPoints; ++j) {
         TSKEY key = vnodeGetTSInCacheBlock(pCacheBlock, j);
-        assert(key >= pQuery->skey);
+        if (key < startkey || key > endkey) {
+          dError("vid:%d sid:%d id:%s, timestamp in cache slot is disordered. slot:%d, pos:%d, ts:%lld, block "
+                 "range:%lld-%lld", pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startkey, endkey);
+          tfree(ids);
+          return -TSDB_CODE_FILE_BLOCK_TS_DISORDERED;
+        }
 
         if (key > pQuery->ekey) {
           break;
@@ -645,7 +649,12 @@ int vnodeQueryFromCache(SMeterObj *pObj, SQuery *pQuery) {
       startPos = pQuery->pos;
       for (int32_t j = startPos; j >= 0; --j) {
         TSKEY key = vnodeGetTSInCacheBlock(pCacheBlock, j);
-        assert(key <= pQuery->skey);
+        if (key < startkey || key > endkey) {
+          dError("vid:%d sid:%d id:%s, timestamp in cache slot is disordered. slot:%d, pos:%d, ts:%lld, block "
+                 "range:%lld-%lld", pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startkey, endkey);
+          tfree(ids);
+          return -TSDB_CODE_FILE_BLOCK_TS_DISORDERED;
+        }
 
         if (key < pQuery->ekey) {
           break;

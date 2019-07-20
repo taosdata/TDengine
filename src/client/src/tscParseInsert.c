@@ -98,7 +98,6 @@ int tsParseTime(char* value, int32_t valuelen, int64_t* time, char** next, char*
 
   char* pTokenEnd = *next;
   tscGetToken(pTokenEnd, &token, &tokenlen);
-
   if (tokenlen == 0 && strlen(value) == 0) {
     INVALID_SQL_RET_MSG(error, "missing time stamp");
   }
@@ -171,7 +170,7 @@ int tsParseTime(char* value, int32_t valuelen, int64_t* time, char** next, char*
 }
 
 int32_t tsParseOneColumnData(SSchema* pSchema, char* value, int valuelen, char* payload, char* msg, char** str,
-                        bool primaryKey, int16_t timePrec) {
+                             bool primaryKey, int16_t timePrec) {
   int64_t temp;
   int32_t nullInt = *(int32_t*)TSDB_DATA_NULL_STR_L;
   char*   endptr = NULL;
@@ -359,13 +358,13 @@ static void setErrMsg(char* msg, char* sql) {
 }
 
 int tsParseOneRowData(char** str, char* payload, SSchema schema[], SParsedDataColInfo* spd, char* error,
-                               int16_t timePrec) {
+                      int16_t timePrec) {
   char* value = NULL;
   int   valuelen = 0;
 
   /* 1. set the parsed value from sql string */
   int32_t rowSize = 0;
-  for (int i = 0; i < spd->numOfParsedCols; ++i) {
+  for (int i = 0; i < spd->numOfAssignedCols; ++i) {
     /* the start position in data block buffer of current value in sql */
     char*   start = payload + spd->elems[i].offset;
     int16_t colIndex = spd->elems[i].colIndex;
@@ -392,14 +391,24 @@ int tsParseOneRowData(char** str, char* payload, SSchema schema[], SParsedDataCo
     }
 
     int32_t ret = tsParseOneColumnData(&schema[colIndex], value, valuelen, start, error, str,
-                                  colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX, timePrec);
+                                       colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX, timePrec);
     if (ret != 0) {
       return -1;  // NOTE: here 0 mean error!
+    }
+
+    // once the data block is disordered, we do NOT keep previous timestamp any more
+    if (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX && spd->ordered) {
+      TSKEY k = *(TSKEY*)start;
+      if (k < spd->prevTimestamp) {
+        spd->ordered = false;
+      }
+
+      spd->prevTimestamp = k;
     }
   }
 
   /*2. set the null value for the rest columns */
-  if (spd->numOfParsedCols < spd->numOfCols) {
+  if (spd->numOfAssignedCols < spd->numOfCols) {
     char* ptr = payload;
 
     for (int32_t i = 0; i < spd->numOfCols; ++i) {
@@ -417,6 +426,12 @@ int tsParseOneRowData(char** str, char* payload, SSchema schema[], SParsedDataCo
   return rowSize;
 }
 
+static int32_t rowDataCompar(const void* lhs, const void* rhs) {
+  TSKEY left = GET_INT64_VAL(lhs);
+  TSKEY right = GET_INT64_VAL(rhs);
+  DEFAULT_COMP(left, right);
+}
+
 int tsParseValues(char** str, SInsertedDataBlocks* pDataBlock, SMeterMeta* pMeterMeta, int maxRows,
                   SParsedDataColInfo* spd, char* error) {
   char* token;
@@ -427,7 +442,7 @@ int tsParseValues(char** str, SInsertedDataBlocks* pDataBlock, SMeterMeta* pMete
   int16_t numOfRows = 0;
   pDataBlock->size += sizeof(SShellSubmitBlock);
 
-  if (spd->hasVal[0] == false) {
+  if (!spd->hasVal[0]) {
     sprintf(error, "primary timestamp column can not be null");
     return -1;
   }
@@ -442,8 +457,8 @@ int tsParseValues(char** str, SInsertedDataBlocks* pDataBlock, SMeterMeta* pMete
       maxRows += tscAllocateMemIfNeed(pDataBlock, pMeterMeta->rowSize);
     }
 
-    int32_t len = tsParseOneRowData(str, pDataBlock->pData + pDataBlock->size, pSchema, spd, error,
-                                             pMeterMeta->precision);
+    int32_t len =
+        tsParseOneRowData(str, pDataBlock->pData + pDataBlock->size, pSchema, spd, error, pMeterMeta->precision);
     if (len <= 0) {
       setErrMsg(error, *str);
       return -1;
@@ -462,10 +477,9 @@ int tsParseValues(char** str, SInsertedDataBlocks* pDataBlock, SMeterMeta* pMete
 
   if (numOfRows <= 0) {
     strcpy(error, "no any data points");
-    return -1;
-  } else {
-    return numOfRows;
   }
+
+  return numOfRows;
 }
 
 static void appendDataBlock(SDataBlockList* pList, SInsertedDataBlocks* pBlocks) {
@@ -480,9 +494,11 @@ static void appendDataBlock(SDataBlockList* pList, SInsertedDataBlocks* pBlocks)
   pList->pData[pList->nSize++] = pBlocks;
 }
 
-static void tscSetAllColumnsHasValue(SParsedDataColInfo* spd, SSchema* pSchema, int32_t numOfCols) {
+static void tscSetAssignedColumnInfo(SParsedDataColInfo* spd, SSchema* pSchema, int16_t numOfCols) {
+  spd->ordered = true;
+  spd->prevTimestamp = INT64_MIN;
   spd->numOfCols = numOfCols;
-  spd->numOfParsedCols = numOfCols;
+  spd->numOfAssignedCols = numOfCols;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     spd->hasVal[i] = true;
@@ -522,7 +538,7 @@ void tsSetBlockInfo(SShellSubmitBlock* pBlocks, const SMeterMeta* pMeterMeta, in
 }
 
 static int32_t doParseInsertStatement(SSqlCmd* pCmd, SSqlRes* pRes, void* pDataBlockHashList, char** str,
-                                SParsedDataColInfo* spd) {
+                                      SParsedDataColInfo* spd) {
   SMeterMeta* pMeterMeta = pCmd->pMeterMeta;
   int32_t     numOfRows = 0;
 
@@ -551,6 +567,13 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, SSqlRes* pRes, void* pDataB
     return TSDB_CODE_INVALID_SQL;
   }
 
+  // data block is disordered, sort it in ascending order
+  if (!spd->ordered) {
+    char* pBlockData = dataBuf->pData + startPos + sizeof(SShellSubmitBlock);
+    qsort(pBlockData, numOfRows, pMeterMeta->rowSize, rowDataCompar);
+    spd->ordered = true;
+  }
+
   SShellSubmitBlock* pBlocks = (SShellSubmitBlock*)(dataBuf->pData + startPos);
   tsSetBlockInfo(pBlocks, pMeterMeta, numOfRows);
   dataBuf->numOfMeters += 1;
@@ -559,7 +582,7 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, SSqlRes* pRes, void* pDataB
    * the value of pRes->numOfRows does not affect the true result of AFFECTED ROWS, which is
    * actually returned from server.
    *
-   * * NOTE:
+   *  NOTE:
    * The better way is to use a local variable to store the number of rows that
    * has been extracted from sql expression string, and avoid to do the invalid write check
    */
@@ -654,7 +677,7 @@ static int32_t tscParseSqlForCreateTableOnDemand(char** sqlstr, SSqlObj* pSql) {
       }
 
       code = tsParseOneColumnData(&pTagSchema[numOfTagValues], id, idlen, tagVal, pCmd->payload, &sql, false,
-                             pCmd->pMeterMeta->precision);
+                                  pCmd->pMeterMeta->precision);
       if (code != TSDB_CODE_SUCCESS) {
         setErrMsg(pCmd->payload, sql);
         return TSDB_CODE_INVALID_SQL;
@@ -712,8 +735,6 @@ static int32_t tscParseSqlForCreateTableOnDemand(char** sqlstr, SSqlObj* pSql) {
  * @return
  */
 int tsParseInsertStatement(SSqlCmd* pCmd, char* str, char* acct, char* db, SSqlObj* pSql) {
-  const int32_t RESERVED_SIZE = 1024;
-
   pCmd->command = TSDB_SQL_INSERT;
   pCmd->isInsertFromFile = -1;
   pCmd->count = 0;
@@ -789,7 +810,7 @@ int tsParseInsertStatement(SSqlCmd* pCmd, char* str, char* acct, char* db, SSqlO
       SParsedDataColInfo spd = {0};
       SSchema*           pSchema = tsGetSchema(pCmd->pMeterMeta);
 
-      tscSetAllColumnsHasValue(&spd, pSchema, pCmd->pMeterMeta->numOfColumns);
+      tscSetAssignedColumnInfo(&spd, pSchema, pCmd->pMeterMeta->numOfColumns);
 
       if (pCmd->isInsertFromFile == -1) {
         pCmd->isInsertFromFile = 0;
@@ -828,10 +849,9 @@ int tsParseInsertStatement(SSqlCmd* pCmd, char* str, char* acct, char* db, SSqlO
         goto _error_clean;
       }
 
-      // char fname[TSDB_FILENAME_LEN] = "\0";
-      char* fname = malloc(idlen + 1);
-      memset(fname, 0, idlen + 1);
+      char* fname = calloc(1, idlen + 1);
       memcpy(fname, id, idlen);
+
       wordexp_t full_path;
       if (wordexp(fname, &full_path, 0) != 0) {
         code = TSDB_CODE_INVALID_SQL;
@@ -886,7 +906,7 @@ int tsParseInsertStatement(SSqlCmd* pCmd, char* str, char* acct, char* db, SSqlO
         // todo speedup by using hash list
         for (int32_t t = 0; t < pMeterMeta->numOfColumns; ++t) {
           if (strncmp(id, pSchema[t].name, idlen) == 0 && strlen(pSchema[t].name) == idlen) {
-            SParsedColElem* pElem = &spd.elems[spd.numOfParsedCols++];
+            SParsedColElem* pElem = &spd.elems[spd.numOfAssignedCols++];
             pElem->offset = offset[t];
             pElem->colIndex = t;
 
@@ -909,7 +929,7 @@ int tsParseInsertStatement(SSqlCmd* pCmd, char* str, char* acct, char* db, SSqlO
         }
       }
 
-      if (spd.numOfParsedCols == 0 || spd.numOfParsedCols > pMeterMeta->numOfColumns) {
+      if (spd.numOfAssignedCols == 0 || spd.numOfAssignedCols > pMeterMeta->numOfColumns) {
         code = TSDB_CODE_INVALID_SQL;
         sprintf(pCmd->payload, "column name expected");
         goto _error_clean;
@@ -1059,12 +1079,12 @@ static int tscInsertDataFromFile(SSqlObj* pSql, FILE* fp) {
   SParsedDataColInfo spd = {0};
   SSchema*           pSchema = tsGetSchema(pCmd->pMeterMeta);
 
-  tscSetAllColumnsHasValue(&spd, pSchema, pCmd->pMeterMeta->numOfColumns);
+  tscSetAssignedColumnInfo(&spd, pSchema, pCmd->pMeterMeta->numOfColumns);
 
   while ((readLen = getline(&line, &n, fp)) != -1) {
     // line[--readLen] = '\0';
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) line[--readLen] = 0;
-    if (readLen <= 0 ) continue;
+    if (readLen <= 0) continue;
 
     char* lineptr = line;
     strtolower(line, line);
