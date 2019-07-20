@@ -522,7 +522,7 @@ void *taosGetDataFromCache(void *handle, char *key) {
   pthread_rwlock_rdlock(&pObj->lock);
   SDataNode *ptNode = taosGetNodeFromHashTable(handle, key, keyLen);
   if (ptNode != NULL) {
-    ptNode->refCount += 1;
+    __sync_add_and_fetch_32(&ptNode->refCount, 1);
   }
   pthread_rwlock_unlock(&pObj->lock);
 
