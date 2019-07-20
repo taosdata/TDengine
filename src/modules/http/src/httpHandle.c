@@ -214,6 +214,7 @@ bool httpParseHead(HttpContext* pContext) {
       }
     } else if (strncasecmp(pParser->pLast + 15, "Taosd ", 6) == 0) {
       httpSendErrorResp(pContext, HTTP_INVALID_TAOSD_AUTH_TOKEN);
+      return false;
     } else {
       httpSendErrorResp(pContext, HTTP_INVALID_AUTH_TOKEN);
       return false;
