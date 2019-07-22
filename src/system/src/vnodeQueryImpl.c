@@ -1384,23 +1384,40 @@ int32_t vnodeGetVnodeHeaderFileIdx(int32_t *fid, SQueryRuntimeEnv *pRuntimeEnv, 
   }
 
   int32_t numOfFiles = pRuntimeEnv->numOfFiles;
-  int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (order == TSQL_SO_DESC && *fid > pRuntimeEnv->pHeaderFiles[numOfFiles - 1].fileID) {
     *fid = pRuntimeEnv->pHeaderFiles[numOfFiles - 1].fileID;
     return numOfFiles - 1;
   }
 
-  int32_t i = (order == TSQL_SO_ASC) ? 0 : numOfFiles - 1;
-  while ((i < numOfFiles) && (i >= 0) && (*fid != pRuntimeEnv->pHeaderFiles[i].fileID)) {
-    i += step;
-  }
+  if (order == TSQL_SO_ASC) {
+    int32_t i = 0;
+    int32_t step = 1;
 
-  if (i == numOfFiles || i < 0) {
-    return -1;
+    while(i < numOfFiles && *fid > pRuntimeEnv->pHeaderFiles[i].fileID) {
+      i += step;
+    }
+
+    if (i < numOfFiles && *fid <= pRuntimeEnv->pHeaderFiles[i].fileID) {
+      *fid = pRuntimeEnv->pHeaderFiles[i].fileID;
+      return i;
+    } else {
+      return -1;
+    }
   } else {
-    *fid = pRuntimeEnv->pHeaderFiles[i].fileID;
-    return i;
+    int32_t i = numOfFiles - 1;
+    int32_t step = -1;
+
+    while(i >= 0 && *fid < pRuntimeEnv->pHeaderFiles[i].fileID) {
+      i += step;
+    }
+
+    if (i >= 0 && *fid >= pRuntimeEnv->pHeaderFiles[i].fileID) {
+      *fid = pRuntimeEnv->pHeaderFiles[i].fileID;
+      return i;
+    } else {
+      return -1;
+    }
   }
 }
 
@@ -2585,7 +2602,7 @@ _clean:
   return -1;
 }
 
-static void vnodeGetFilesSnapshot(SQInfo *pQInfo, int32_t vnodeId) {
+static void vnodeOpenAllFiles(SQInfo *pQInfo, int32_t vnodeId) {
   char dbFilePathPrefix[TSDB_FILENAME_LEN] = {0};
 
   sprintf(dbFilePathPrefix, "%s/vnode%d/db/", tsDirectory, vnodeId);
@@ -2626,8 +2643,10 @@ static void vnodeGetFilesSnapshot(SQInfo *pQInfo, int32_t vnodeId) {
       continue;
     }
 
-    if (fid > pVnode->fileId || (fid < pVnode->fileId - pVnode->numOfFiles + 1)) {
-      dError("QInfo:%p error data file:%s in vid:%d, ignore", pQInfo, pEntry->d_name, vnodeId);
+    int32_t firstFid = pVnode->fileId - pVnode->numOfFiles + 1;
+    if (fid > pVnode->fileId || fid < firstFid) {
+      dError("QInfo:%p error data file:%s in vid:%d, fid:%d, fid range:%d-%d", pQInfo, pEntry->d_name, vnodeId,
+             firstFid, pVnode->fileId);
       continue;
     }
 
@@ -3145,7 +3164,7 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
     return ret;
   }
 
-  vnodeGetFilesSnapshot(pQInfo, pMeterObj->vnode);
+  vnodeOpenAllFiles(pQInfo, pMeterObj->vnode);
 
   // in case of last_row query, we set the query timestamp to pMeterObj->lastKey;
   if (isFirstLastRowQuery(pQuery)) {
@@ -3297,7 +3316,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery) {
 
   tSidSetSort(pSupporter->pSidSet);
 
-  vnodeGetFilesSnapshot(pQInfo, pMeter->vnode);
+  vnodeOpenAllFiles(pQInfo, pMeter->vnode);
   pSupporter->pResult = calloc(1, sizeof(SOutputRes) * pSupporter->pSidSet->numOfSubSet);
   if (pSupporter->pResult == NULL) {
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
