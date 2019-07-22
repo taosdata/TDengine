@@ -886,9 +886,10 @@ int tsParseInsertStatement(SSqlCmd* pCmd, char* str, char* acct, char* db, SSqlO
         goto _error_clean;
       }
 
-      SParsedDataColInfo spd = {
-          pMeterMeta->numOfColumns, 0, {{0}}, {0},
-      };
+      SParsedDataColInfo spd = {0};
+      spd.ordered = true;
+      spd.prevTimestamp = INT64_MIN;
+      spd.numOfCols = pMeterMeta->numOfColumns;
 
       int16_t offset[TSDB_MAX_COLUMNS] = {0};
       for (int32_t t = 1; t < pMeterMeta->numOfColumns; ++t) {
