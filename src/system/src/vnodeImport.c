@@ -623,6 +623,9 @@ int vnodeFindKeyInFile(SImportInfo *pImport, int order) {
 
   for (int16_t i = 0; i < pObj->numOfColumns; ++i) {
     colList[i].data.colId = pObj->schema[i].colId;
+    colList[i].data.bytes = pObj->schema[i].bytes;
+    colList[i].data.type = pObj->schema[i].type;
+
     colList[i].colIdx = i;
     colList[i].colIdxInBuf = i;
   }
