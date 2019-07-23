@@ -22,7 +22,7 @@ PATH="/bin:/usr/bin:/sbin:/usr/sbin"
 NAME="TDEngine"
 USER="root"
 GROUP="root"
-DAEMON="/usr/local/bin/taos/taosd"
+DAEMON="/usr/local/taos/bin/taosd"
 DAEMON_OPTS=""
 PID_FILE="/var/run/$NAME.pid"
 APPARGS=""
@@ -81,7 +81,6 @@ case "$1" in
         status_of_proc -p "$PID_FILE" "$DAEMON" "$NAME"
         ;;
     *)
-        # echo "Usage: /etc/init.d/opentsdb {start|stop|restart|status}"
         exit 1
         ;;
 esac
