@@ -155,6 +155,7 @@ int32_t strdequote(char *src);
 void strtrim(char *src);
 
 char *strnchr(char *haystack, char needle, int32_t len);
+char *strnchrNoquote(char *haystack, char needle, int32_t len);  
 
 char **strsplit(char *src, const char *delim, int32_t *num);
 

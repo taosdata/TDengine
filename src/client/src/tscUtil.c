@@ -800,8 +800,15 @@ static int32_t validateQuoteToken(SSQLToken* pToken) {
   pToken->n = (uint32_t)strlen(pToken->z);
 
   int32_t k = tSQLGetToken(pToken->z, &pToken->type);
-  if (k != pToken->n || pToken->type != TK_ID) {
-    return TSDB_CODE_INVALID_SQL;
+
+  if (k != pToken->n) {
+  	if (pToken->type == TK_STRING) {
+		return tscValidateName(pToken);
+  	}
+  } else {
+    if (pToken->type != TK_ID) {
+		return TSDB_CODE_INVALID_SQL;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -812,7 +819,7 @@ int32_t tscValidateName(SSQLToken* pToken) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n);
+  char* sep = strnchrNoquote(pToken->z, TS_PATH_DELIMITER[0], pToken->n);
   if (sep == NULL) {  // single part
     if (pToken->type == TK_STRING) {
       return validateQuoteToken(pToken);

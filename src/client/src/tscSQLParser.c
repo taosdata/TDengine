@@ -207,7 +207,11 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       SSQLToken* pToken = &pInfo->pDCLInfo->a[0];
 	  
-	  tscValidateName(pToken);
+	  if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
+	  	char msg1[] = "invalid db name";
+        setErrMsg(pCmd, msg1, tListLen(msg1));
+        return TSDB_CODE_INVALID_SQL;
+      }
 	  
       if (pToken->n > TSDB_DB_NAME_LEN) {
         setErrMsg(pCmd, msg, tListLen(msg));
@@ -393,7 +397,11 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       SSQLToken* pToken = &pInfo->pDCLInfo->a[0];
       char       msg[] = "table name is too long";
 
-	  tscValidateName(pToken);
+	  if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
+	  	char msg1[] = "invalid table name";
+        setErrMsg(pCmd, msg1, tListLen(msg1));
+        return TSDB_CODE_INVALID_SQL;
+      }
 	  
       if (pToken->n > TSDB_METER_NAME_LEN) {
         setErrMsg(pCmd, msg, tListLen(msg));
@@ -571,7 +579,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // metric name, create table by using dst
       SSQLToken* pToken = &(pInfo->pCreateTableInfo->usingInfo.metricName);
 
-      tscValidateName(pToken);
+	  if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
+        setErrMsg(pCmd, msg, tListLen(msg));
+        return TSDB_CODE_INVALID_SQL;
+      }
 
       int32_t    ret = setMeterID(pSql, pToken);
       if (ret != TSDB_CODE_SUCCESS) {
@@ -738,8 +749,12 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         setErrMsg(pCmd, msg, tListLen(msg));
         return TSDB_CODE_INVALID_SQL;
       }
-
-	  tscValidateName(&(pQuerySql->from));
+ 
+	  if (tscValidateName(&(pQuerySql->from)) != TSDB_CODE_SUCCESS) {
+	  	char msg[] = "invalid table name";
+        setErrMsg(pCmd, msg, tListLen(msg));
+        return TSDB_CODE_INVALID_SQL;
+      }
 	  
       if (setMeterID(pSql, &pQuerySql->from) != TSDB_CODE_SUCCESS) {
         char msg[] = "table name too long";
@@ -3477,7 +3492,11 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SAlterTableSQL* pAlterSQL = pInfo->pAlterInfo;
   pCmd->command = TSDB_SQL_ALTER_TABLE;
 
-  tscValidateName(&(pAlterSQL->name));
+  if (tscValidateName(&(pAlterSQL->name)) != TSDB_CODE_SUCCESS) {
+  	char msg[] = "invalid table name";
+    setErrMsg(pCmd, msg, tListLen(msg));
+    return TSDB_CODE_INVALID_SQL;
+  }
 
   if (setMeterID(pSql, &(pAlterSQL->name)) != TSDB_CODE_SUCCESS) {
     char msg[] = "table name too long";
