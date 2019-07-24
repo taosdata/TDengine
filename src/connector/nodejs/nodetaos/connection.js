@@ -2,11 +2,14 @@ const TDengineCursor = require('./cursor')
 const CTaosInterface = require('./cinterface')
 module.exports = TDengineConnection;
 
-/*
- * TDengine Connection object
- * @param {Object.<string, string>} options - Options for configuring the connection with TDengine
+/**
+ * TDengine Connection Class
+ * @param {object} options - Options for configuring the connection with TDengine
  * @return {TDengineConnection}
- *
+ * @class TDengineConnection
+ * @constructor
+ * @example
+ * var conn = new TDengineConnection({host:"127.0.0.1", user:"root", password:"taosdata", config:"/etc/taos",port:0})
  *
  */
 function TDengineConnection(options) {
@@ -18,11 +21,15 @@ function TDengineConnection(options) {
   this._port = 0;
   this._config = null;
   this._chandle = null;
-  this.config(options)
+  this._configConn(options)
   return this;
 }
-
-TDengineConnection.prototype.config = function config(options) {
+/**
+ * Configure the connection to TDengine
+ * @private
+ * @memberof TDengineConnection
+ */
+TDengineConnection.prototype._configConn = function _configConn(options) {
   if (options['host']) {
     this._host = options['host'];
   }
@@ -44,10 +51,14 @@ TDengineConnection.prototype.config = function config(options) {
   this._chandle = new CTaosInterface(this._config);
   this._conn = this._chandle.connect(this._host, this._user, this._password, this._database, this._port);
 }
-
+/** Close the connection to TDengine */
 TDengineConnection.prototype.close = function close() {
-  return this._chandle.close(this._conn);
+  this._chandle.close(this._conn);
 }
+/**
+ * Initialize a new cursor to interact with TDengine with
+ * @return {TDengineCursor}
+ */
 TDengineConnection.prototype.cursor = function cursor() {
   //Pass the connection object to the cursor
   return new TDengineCursor(this);
@@ -58,7 +69,11 @@ TDengineConnection.prototype.commit = function commit() {
 TDengineConnection.prototype.rollback = function rollback() {
   return this;
 }
-TDengineConnection.prototype.clear_result_set = function clear_result_set() {
+/**
+ * Clear the results from connector
+ * @private
+ */
+TDengineConnection.prototype._clearResultSet = function _clearResultSet() {
   var result = this._chandle.useResult(this._conn).result;
   if (result) {
     this._chandle.freeResult(result)

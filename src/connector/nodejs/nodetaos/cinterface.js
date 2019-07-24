@@ -1,8 +1,13 @@
+/**
+ * C Interface with TDengine Module
+ * @module CTaosInterface
+ */
+
 const ref = require('ref');
 const ffi = require('ffi');
 const ArrayType = require('ref-array');
 const Struct = require('ref-struct');
-const fieldTypes = require('./constants');
+const FieldTypes = require('./constants');
 const errors = require ('./error')
 
 module.exports = CTaosInterface;
@@ -145,18 +150,18 @@ function convertNchar(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   return res;
 }
 
-//Object with all the relevant converters from pblock data to javascript data
+// Object with all the relevant converters from pblock data to javascript readable data
 let convertFunctions = {
-    [fieldTypes.C_BOOL] : convertBool,
-    [fieldTypes.C_TINYINT] : convertTinyint,
-    [fieldTypes.C_SMALLINT] : convertSmallint,
-    [fieldTypes.C_INT] : convertInt,
-    [fieldTypes.C_BIGINT] : convertBigint,
-    [fieldTypes.C_FLOAT] : convertFloat,
-    [fieldTypes.C_DOUBLE] : convertDouble,
-    [fieldTypes.C_BINARY] : convertBinary,
-    [fieldTypes.C_TIMESTAMP] : convertTimestamp,
-    [fieldTypes.C_NCHAR] : convertNchar
+    [FieldTypes.C_BOOL] : convertBool,
+    [FieldTypes.C_TINYINT] : convertTinyint,
+    [FieldTypes.C_SMALLINT] : convertSmallint,
+    [FieldTypes.C_INT] : convertInt,
+    [FieldTypes.C_BIGINT] : convertBigint,
+    [FieldTypes.C_FLOAT] : convertFloat,
+    [FieldTypes.C_DOUBLE] : convertDouble,
+    [FieldTypes.C_BINARY] : convertBinary,
+    [FieldTypes.C_TIMESTAMP] : convertTimestamp,
+    [FieldTypes.C_NCHAR] : convertNchar
 }
 
 // Define TaosField structure
@@ -168,7 +173,12 @@ TaosField.fields.name.type.size = 64;
 TaosField.defineProperty('bytes', ref.types.short);
 TaosField.defineProperty('type', ref.types.char);
 
-//The C interface with the Taos TSDB
+/**
+ * Constructor for the C interface with TDengine
+ * @constructor
+ * @param {Object} config - Configuration options for the interface
+ * @return {CTaosInterface}
+ */
 function CTaosInterface (config = null, pass = false) {
   ref.types.char_ptr = ref.refType(ref.types.char);
   ref.types.void_ptr = ref.refType(ref.types.void);
@@ -208,7 +218,7 @@ function CTaosInterface (config = null, pass = false) {
     }
     else {
       try {
-        this._config = ref.allocCString(config);;
+        this._config = ref.allocCString(config);
       }
       catch(err){
         throw "Attribute Error: config is expected as a str";
@@ -219,6 +229,7 @@ function CTaosInterface (config = null, pass = false) {
     }
     this.libtaos.taos_init();
   }
+  return this;
 }
 CTaosInterface.prototype.config = function config() {
     return this._config;
@@ -298,7 +309,7 @@ CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   if (num_of_rows == 0) {
     return {block:null, num_of_rows:0};
   }
-  let isMicro = (this.libtaos.taos_result_precision(result) == fieldTypes.C_TIMESTAMP_MICRO)
+  let isMicro = (this.libtaos.taos_result_precision(result) == FieldTypes.C_TIMESTAMP_MICRO)
   let blocks = new Array(fields.length);
   blocks.fill(null);
   num_of_rows = Math.abs(num_of_rows);
