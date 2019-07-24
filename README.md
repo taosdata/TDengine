@@ -6,13 +6,13 @@ TDengine is an open-sourced big data platform under [GNU AGPL v3.0](http://www.g
 
 - **10x Faster on Insert/Query Speeds**: Through the innovative design on storage, on a single-core machine, over 20K requests can be processed, millions of data points can be ingested, and over 10 million data points can be retrieved in a second. It is 10 times faster than other databases.
 
-- **1/5 Hardware/Cloud Service Costs**: Compared with typical big data solutions, less than 1/5 of computing resources are required. Via column-based storage and tuned compression algorithms for different data types, less than 1/10 of storage space is needed. 
+- **1/5 Hardware/Cloud Service Costs**: Compared with typical big data solutions, less than 1/5 of computing resources are required. Via column-based storage and tuned compression algorithms for different data types, less than 1/10 of storage space is needed.
 
 - **Full Stack for Time-Series Data**: By integrating a database with message queuing, caching, and stream computing features together, it is no longer necessary to integrate Kafka/Redis/HBase/Spark or other software. It makes the system architecture much simpler and more robust..
 
-- **Powerful Data Analysis**: Whether it is 10 years or one minute ago, data can be queried just by specifying the time range. Data can be aggregated over time, multiple time streams or both. Ad Hoc queries or analyses can be executed via TDengine shell, Python, R or Matlab. 
+- **Powerful Data Analysis**: Whether it is 10 years or one minute ago, data can be queried just by specifying the time range. Data can be aggregated over time, multiple time streams or both. Ad Hoc queries or analyses can be executed via TDengine shell, Python, R or Matlab.
 
-- **Seamless Integration with Other Tools**: Telegraf, Grafana, Matlab, R, and other tools can be integrated with TDengine without a line of code. MQTT, OPC, Hadoop, Spark, and many others will be integrated soon. 
+- **Seamless Integration with Other Tools**: Telegraf, Grafana, Matlab, R, and other tools can be integrated with TDengine without a line of code. MQTT, OPC, Hadoop, Spark, and many others will be integrated soon.
 
 - **Zero Management, No Learning Curve**: It takes only seconds to download, install, and run it successfully; there are no other dependencies. Automatic partitioning on tables or DBs. Standard SQL is used, with C/C++, Python, JDBC, Go and RESTful connectors.
 
@@ -30,7 +30,7 @@ mkdir build && cd build
 cmake .. && cmake --build .
 ```
 
-# Running 
+# Running
 <!-- TDengine uses _/etc/taos/taos.cfg_ as the default configuration file. This behavior can be changed with _-c_ option. For a quick start, we will make directories structured as:
 ```
 test/
@@ -55,7 +55,7 @@ In another terminal, use the TDengine shell to connect the server:
 ./build/bin/taos -c test/cfg
 ```
 
-# Installing 
+# Installing
 After building successfully, TDengine can be installed by:
 ```cmd
 make install
@@ -95,13 +95,14 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 - [Python](https://www.taosdata.com/en/documentation/connector/#Python-Connector)
 - [Go](https://www.taosdata.com/en/documentation/connector/#Go-Connector)
 - [RESTful API](https://www.taosdata.com/en/documentation/connector/#RESTful-Connector)
+- [Node.js](https://www.taosdata.com/en/documentation/connector/#Node.js-Connector)
 
 # TDengine Roadmap
-- Support event-driven stream computing 
+- Support event-driven stream computing
 - Support user defined functions
 - Support MQTT connection
 - Support OPC connection
-- Support Hadoop, Spark connections 
+- Support Hadoop, Spark connections
 - Support Tableau and other BI tools
 
 # Contribute to TDengine
