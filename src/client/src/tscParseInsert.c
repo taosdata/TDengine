@@ -715,7 +715,7 @@ static int32_t tscParseSqlForCreateTableOnDemand(char** sqlstr, SSqlObj* pSql) {
   int32_t len = cend - cstart + 1;
   if (cstart != NULL && createTable == true) {
     /* move the column list to start position of the next accessed points */
-    memcpy(sql - len, cstart, len);
+    memmove(sql - len, cstart, len);
     *sqlstr = sql - len;
   } else {
     *sqlstr = sql;
