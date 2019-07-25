@@ -634,6 +634,7 @@ static int32_t tscParseSqlForCreateTableOnDemand(char** sqlstr, SSqlObj* pSql) {
     /* create table if not exists */
     sql = tscGetToken(sql, &id, &idlen);
     STagData* pTag = (STagData*)pCmd->payload;
+    memset(pTag, 0, sizeof(STagData));
 
     SSQLToken token1 = {idlen, TK_ID, id};
     setMeterID(pSql, &token1);
