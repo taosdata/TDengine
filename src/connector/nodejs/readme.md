@@ -1,4 +1,6 @@
 # TDengine Node.js connector
+[![minzip](https://img.shields.io/bundlephobia/minzip/td-connector.svg)](https://github.com/taosdata/TDengine/tree/master/src/connector/nodejs) [![NPM](https://img.shields.io/npm/l/td-connector.svg)](https://github.com/taosdata/TDengine/#what-is-tdengine)
+
 This is the Node.js library that lets you connect to [TDengine](https://www.github.com/taosdata/tdengine).
 
 ## Installation
@@ -9,7 +11,7 @@ To get started, just type in the following to install the connector through [npm
 npm install td-connector
 ```
 
-To interact with TDengine, we make use of the [node-gyp[(https://github.com/nodejs/node-gyp)] library. To install, you will need to install the following depending on platform (the following instructions are quoted from node-gyp)
+To interact with TDengine, we make use of the [node-gyp](https://github.com/nodejs/node-gyp) library. To install, you will need to install the following depending on platform (the following instructions are quoted from node-gyp)
 
 ### On Unix
 
@@ -23,25 +25,25 @@ To interact with TDengine, we make use of the [node-gyp[(https://github.com/node
 
 - Xcode
 
-  - You also need to install the 
+  - You also need to install the
 
     ```
     Command Line Tools
     ```
 
-     via Xcode. You can find this under the menu 
+     via Xcode. You can find this under the menu
 
     ```
     Xcode -> Preferences -> Locations
     ```
 
-     (or by running 
+     (or by running
 
     ```
     xcode-select --install
     ```
 
-     in your Terminal) 
+     in your Terminal)
 
     - This step will install `gcc` and the related toolchain containing `make`
 
