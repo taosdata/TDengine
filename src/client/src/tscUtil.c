@@ -795,22 +795,19 @@ void tscColumnInfoReserve(SSqlCmd* pCmd, int32_t size) { _cf_ensureSpace(&pCmd->
  */
 
 static int32_t validateQuoteToken(SSQLToken* pToken) {
-  strdequote(pToken->z);
+  pToken->n = strdequote(pToken->z);
   strtrim(pToken->z);
   pToken->n = (uint32_t)strlen(pToken->z);
 
   int32_t k = tSQLGetToken(pToken->z, &pToken->type);
 
-  if (k != pToken->n) {
-  	if (pToken->type == TK_STRING) {
-		return tscValidateName(pToken);
-  	}
-  } else {
-    if (pToken->type != TK_ID) {
-		return TSDB_CODE_INVALID_SQL;
-    }
-  }
+  if (pToken->type == TK_STRING) {
+    return tscValidateName(pToken);
+  } 
 
+  if (k != pToken->n || pToken->type != TK_ID) {
+    return TSDB_CODE_INVALID_SQL;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -822,7 +819,20 @@ int32_t tscValidateName(SSQLToken* pToken) {
   char* sep = strnchrNoquote(pToken->z, TS_PATH_DELIMITER[0], pToken->n);
   if (sep == NULL) {  // single part
     if (pToken->type == TK_STRING) {
-      return validateQuoteToken(pToken);
+      pToken->n = strdequote(pToken->z);
+      strtrim(pToken->z);
+      pToken->n = (uint32_t)strlen(pToken->z);
+      int len = tSQLGetToken(pToken->z, &pToken->type);      
+      if (len == pToken->n){
+        return validateQuoteToken(pToken);
+      }
+	  else {
+		sep = strnchrNoquote(pToken->z, TS_PATH_DELIMITER[0], pToken->n);
+		if (sep == NULL) {
+		  return TSDB_CODE_INVALID_SQL;
+		}
+        return tscValidateName(pToken);
+	  }      
     } else {
       if (isNumber(pToken)) {
         return TSDB_CODE_INVALID_SQL;
@@ -831,6 +841,11 @@ int32_t tscValidateName(SSQLToken* pToken) {
   } else {  // two part
     int32_t oldLen = pToken->n;
     char*   pStr = pToken->z;
+
+    if (pToken->type == TK_SPACE) {
+      strtrim(pToken->z);
+      pToken->n = (uint32_t)strlen(pToken->z);	  	
+    }
 
     pToken->n = tSQLGetToken(pToken->z, &pToken->type);
     if (pToken->z[pToken->n] != TS_PATH_DELIMITER[0]) {
