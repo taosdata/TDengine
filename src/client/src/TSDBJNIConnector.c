@@ -14,8 +14,8 @@
  */
 
 #include <stdbool.h>
-#include <sys/time.h>
 
+#include "os.h"
 #include "com_taosdata_jdbc_TSDBJNIConnector.h"
 #include "taos.h"
 #include "tlog.h"

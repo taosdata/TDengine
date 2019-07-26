@@ -13,24 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/udp.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/time.h>
 #include <sys/types.h>
-#include <sys/uio.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "shash.h"
 #include "taosmsg.h"
 #include "tidpool.h"
@@ -170,8 +162,8 @@ char *taosBuildReqHeader(void *param, char type, char *msg) {
   pHeader->spi = 0;
   pHeader->tcp = 0;
   pHeader->encrypt = 0;
-  if (pConn->tranId == 0) __sync_fetch_and_add(&pConn->tranId, 1);
-  pHeader->tranId = __sync_fetch_and_add(&pConn->tranId, 1);
+  if (pConn->tranId == 0) __sync_add_and_fetch_32(&pConn->tranId, 1);
+  pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
 
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
@@ -202,8 +194,8 @@ char *taosBuildReqMsgWithSize(void *param, char type, int size) {
   pHeader->spi = 0;
   pHeader->tcp = 0;
   pHeader->encrypt = 0;
-  if (pConn->tranId == 0) __sync_fetch_and_add(&pConn->tranId, 1);
-  pHeader->tranId = __sync_fetch_and_add(&pConn->tranId, 1);
+  if (pConn->tranId == 0) __sync_add_and_fetch_32(&pConn->tranId, 1);
+  pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
 
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;

@@ -19,6 +19,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#include "os.h"
 #include "taosmsg.h"
 #include "tast.h"
 #include "tlog.h"
@@ -79,7 +80,7 @@ static void reviseBinaryExprIfNecessary(tSQLSyntaxNode **pLeft, tSQLSyntaxNode *
 
   // switch left and left and right hand side in expr
   if ((*pLeft)->nodeType == TSQL_NODE_VALUE && (*pRight)->nodeType == TSQL_NODE_COL) {
-    SWAP(*pLeft, *pRight);
+    SWAP(*pLeft, *pRight, tSQLSyntaxNode*);
 
     switch (*optr) {
       case TSDB_RELATION_LARGE:

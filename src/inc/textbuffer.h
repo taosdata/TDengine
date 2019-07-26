@@ -19,13 +19,12 @@
 extern "C" {
 #endif
 
-// TODO REFACTOR
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "tutil.h"
+#include "taosmsg.h"
 
 #define DEFAULT_PAGE_SIZE 16384  // 16k larger than the SHistoInfo
 #define MIN_BUFFER_SIZE (1 << 19)

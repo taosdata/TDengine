@@ -18,11 +18,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <limits.h>
-#include <netinet/in.h>
-#include <sys/time.h>
-#include <unistd.h>
+
+#include "os.h"
 
 #ifdef USE_LIBICONV
 #include "iconv.h"

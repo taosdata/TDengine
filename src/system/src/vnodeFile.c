@@ -141,9 +141,7 @@ int vnodeCreateHeadDataFile(int vnode, int fileId, char *headName, char *dataNam
   if (symlink(dDataName, dataName) != 0) return -1;
   if (symlink(dLastName, lastName) != 0) return -1;
 
-  dTrace(
-      "vid:%d, fileId:%d, empty header file:%s dataFile:%s lastFile:%s on "
-      "disk:%s is created ",
+  dTrace("vid:%d, fileId:%d, empty header file:%s dataFile:%s lastFile:%s on disk:%s is created ",
       vnode, fileId, headName, dataName, lastName, tsDirectory);
 
   return 0;
@@ -218,9 +216,7 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
   numOfFiles = (pVnode->lastKeyOnFile - pVnode->commitFirstKey) / tsMsPerDay[pVnode->cfg.precision] / pCfg->daysPerFile;
   if (pVnode->commitFirstKey > pVnode->lastKeyOnFile) numOfFiles = -1;
 
-  dTrace(
-      "vid:%d, commitFirstKey:%ld lastKeyOnFile:%ld numOfFiles:%d fileId:%d "
-      "vnodeNumOfFiles:%d",
+  dTrace("vid:%d, commitFirstKey:%ld lastKeyOnFile:%ld numOfFiles:%d fileId:%d vnodeNumOfFiles:%d",
       vnode, pVnode->commitFirstKey, pVnode->lastKeyOnFile, numOfFiles, pVnode->fileId, pVnode->numOfFiles);
 
   if (numOfFiles >= pVnode->numOfFiles) {
@@ -246,9 +242,7 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
   pVnode->commitFileId = fileId;
   pVnode->numOfFiles = pVnode->numOfFiles + filesAdded;
 
-  dTrace(
-      "vid:%d, commit fileId:%d, commitLastKey:%ld, vnodeLastKey:%ld, "
-      "lastKeyOnFile:%ld numOfFiles:%d",
+  dTrace("vid:%d, commit fileId:%d, commitLastKey:%ld, vnodeLastKey:%ld, lastKeyOnFile:%ld numOfFiles:%d",
       vnode, fileId, pVnode->commitLastKey, pVnode->lastKey, pVnode->lastKeyOnFile, pVnode->numOfFiles);
 
   int minSize = sizeof(SCompHeader) * pVnode->cfg.maxSessions + sizeof(TSCKSUM) + TSDB_FILE_HEADER_LEN;
@@ -573,8 +567,7 @@ _again:
       goto _over;
     } else {
       if (!taosCheckChecksumWhole((uint8_t *)tmem, tmsize)) {
-        dError("vid:%d, failed to read old header file:%s since comp header offset is broken",
-               vnode, pVnode->cfn);
+        dError("vid:%d, failed to read old header file:%s since comp header offset is broken", vnode, pVnode->cfn);
         taosLogError("vid:%d, failed to read old header file:%s since comp header offset is broken",
                      vnode, pVnode->cfn);
         goto _over;
@@ -1790,10 +1783,7 @@ int vnodeInitFile(int vnode) {
 
 int vnodeRecoverCompHeader(int vnode, int fileId) {
   // TODO: try to recover SCompHeader part
-  dTrace(
-      "starting to recover vnode head file comp header part, vnode: %d fileId: "
-      "%d",
-      vnode, fileId);
+  dTrace("starting to recover vnode head file comp header part, vnode: %d fileId: %d", vnode, fileId);
   assert(0);
   return 0;
 }

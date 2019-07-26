@@ -20,17 +20,15 @@
 extern "C" {
 #endif
 
-#include <endian.h>
 #include <errno.h>
-#include <netinet/in.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
 #include <time.h>
 
+#include "os.h"
 #include "taos.h"
 #include "taosmsg.h"
 #include "tglobalcfg.h"
@@ -440,7 +438,6 @@ extern void *   tscQhandle;
 extern int      tscKeepConn[];
 extern int      tsInsertHeadSize;
 extern int      tscNumOfThreads;
-extern char     tsServerIpStr[128];
 extern uint32_t tsServerIp;
 
 #ifdef __cplusplus

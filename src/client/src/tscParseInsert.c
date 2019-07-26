@@ -24,8 +24,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <endian.h>
-#include <netinet/in.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -34,11 +32,10 @@
 #include <math.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 #include <wchar.h>
-#include <wordexp.h>
 
 #include "ihash.h"
+#include "os.h"
 #include "tscSecondaryMerge.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
@@ -725,16 +722,13 @@ static int32_t tscParseSqlForCreateTableOnDemand(char** sqlstr, SSqlObj* pSql) {
   return code;
 }
 
-
-
-int validateTableName(char* tblName, int len)
-{
+int validateTableName(char* tblName, int len) {
   char buf[TSDB_METER_ID_LEN] = {0};
   memcpy(buf, tblName, len);
-	
+
   SSQLToken token = {len, TK_ID, buf};
   tSQLGetToken(buf, &token.type);
-	
+
   return tscValidateName(&token);
 }
 
@@ -789,7 +783,7 @@ int tsParseInsertStatement(SSqlCmd* pCmd, char* str, char* acct, char* db, SSqlO
     }
 
     /*
-     * Check the validity of the table name 
+     * Check the validity of the table name
      *
      */
     if (validateTableName(id, idlen) != TSDB_CODE_SUCCESS) {

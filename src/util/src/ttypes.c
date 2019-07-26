@@ -21,8 +21,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "taos.h"
 #include "tsdb.h"
 #include "tsqldef.h"
@@ -817,32 +817,32 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size) {
 
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
-      SWAP(*(int32_t *)(pLeft), *(int32_t *)(pRight));
+      SWAP(*(int32_t *)(pLeft), *(int32_t *)(pRight), int32_t);
       break;
     }
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      SWAP(*(int64_t *)(pLeft), *(int64_t *)(pRight));
+      SWAP(*(int64_t *)(pLeft), *(int64_t *)(pRight), int64_t);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      SWAP(*(double *)(pLeft), *(double *)(pRight));
+      SWAP(*(double *)(pLeft), *(double *)(pRight), double);
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
-      SWAP(*(int16_t *)(pLeft), *(int16_t *)(pRight));
+      SWAP(*(int16_t *)(pLeft), *(int16_t *)(pRight), int16_t);
       break;
     }
 
     case TSDB_DATA_TYPE_FLOAT: {
-      SWAP(*(float *)(pLeft), *(float *)(pRight));
+      SWAP(*(float *)(pLeft), *(float *)(pRight), float);
       break;
     }
 
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
-      SWAP(*(int8_t *)(pLeft), *(int8_t *)(pRight));
+      SWAP(*(int8_t *)(pLeft), *(int8_t *)(pRight), int8_t);
       break;
     }
 

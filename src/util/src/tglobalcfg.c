@@ -13,17 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <locale.h>
-#include <pwd.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
-#include <wordexp.h>
 
+#include "os.h"
 #include "tglobalcfg.h"
 #include "tkey.h"
 #include "tlog.h"
@@ -64,6 +61,7 @@ int tsMetricMetaKeepTimer = 600;  // second
 float tsNumOfThreadsPerCore = 1.0;
 float tsRatioOfQueryThreads = 0.5;
 char  tsInternalIp[TSDB_IPv4ADDR_LEN] = {0};
+char  tsServerIpStr[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
 int   tsNumOfVnodesPerCore = 8;
 int   tsNumOfTotalVnodes = 0;
 
@@ -376,6 +374,8 @@ void tsInitGlobalConfig() {
 
   // ip address
   tsInitConfigOption(cfg++, "internalIp", tsInternalIp, TSDB_CFG_VTYPE_IPSTR,
+                     TSDB_CFG_CTYPE_B_CONFIG, 0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "serverIp", tsServerIpStr, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "localIp", tsLocalIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
@@ -395,8 +395,10 @@ void tsInitGlobalConfig() {
   // directory
   tsInitConfigOption(cfg++, "configDir", configDir, TSDB_CFG_VTYPE_DIRECTORY, TSDB_CFG_CTYPE_B_CLIENT, 0, 0,
                        TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
+#ifdef LINUX
   tsInitConfigOption(cfg++, "dataDir", dataDir, TSDB_CFG_VTYPE_DIRECTORY, TSDB_CFG_CTYPE_B_CONFIG, 0, 0,
                      TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
+#endif
   tsInitConfigOption(cfg++, "logDir", logDir, TSDB_CFG_VTYPE_DIRECTORY,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_FILENAME_LEN,
                      TSDB_CFG_UTYPE_NONE);
@@ -779,8 +781,10 @@ void tsPrintGlobalConfig() {
         break;
     }
   }
-
+#ifdef LINUX
   pPrint(" dataDir:                %s", dataDir);
+#endif
+
   tsPrintOsInfo();
 
   pPrint("==================================");
@@ -831,7 +835,13 @@ void tsSetTimeZone() {
   SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");
   pPrint("timezone is set to %s by %s", tsTimezone, tsCfgStatusStr[cfg_timezone->cfgStatus]);
 
+#ifdef WINDOWS
+  char winStr[TSDB_LOCALE_LEN * 2];
+  sprintf(winStr, "TZ=%s", tsTimezone);
+  putenv(winStr);
+#else
   setenv("TZ", tsTimezone, 1);
+#endif
   tzset();
 
   /*

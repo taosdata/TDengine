@@ -18,15 +18,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#if defined(LINUX)
+#ifdef LINUX
 #include <strings.h>
 #endif
-#include <arpa/inet.h>
 #include <float.h>
 #include <math.h>
 #include <string.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "taos.h"
 #include "tstoken.h"
 #include "ttime.h"

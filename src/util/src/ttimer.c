@@ -21,10 +21,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/syscall.h>
-#include <sys/time.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "tidpool.h"
 #include "tlog.h"
 #include "tsched.h"
@@ -126,6 +124,7 @@ void *taosTimerLoopFunc(int signo) {
   return NULL;
 }
 
+#ifndef WINDOWS
 void *taosProcessAlarmSignal(void *tharg) {
   // Block the signal
   sigset_t sigset;
@@ -168,11 +167,13 @@ void *taosProcessAlarmSignal(void *tharg) {
   assert(0);
   return NULL;
 }
+#endif
 
 void taosTmrModuleInit(void) {
   tmrIdPool = taosInitIdPool(maxNumOfTmrCtrl);
   memset(tmrCtrl, 0, sizeof(tmrCtrl));
 
+#ifdef LINUX
   pthread_t      thread;
   pthread_attr_t tattr;
   pthread_attr_init(&tattr);
@@ -183,6 +184,9 @@ void taosTmrModuleInit(void) {
   }
 
   pthread_attr_destroy(&tattr);
+#else
+  taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK);
+#endif
 
   tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr");
   tmrTrace("timer module is initialized, thread:%d", taosTmrThreads);
