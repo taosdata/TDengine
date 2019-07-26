@@ -1,7 +1,7 @@
 # TDengine Node.js connector
 [![minzip](https://img.shields.io/bundlephobia/minzip/td-connector.svg)](https://github.com/taosdata/TDengine/tree/master/src/connector/nodejs) [![NPM](https://img.shields.io/npm/l/td-connector.svg)](https://github.com/taosdata/TDengine/#what-is-tdengine)
 
-This is the Node.js library that lets you connect to [TDengine](https://www.github.com/taosdata/tdengine).
+This is the Node.js library that lets you connect to [TDengine](https://www.github.com/taosdata/tdengine). It is built so that you can use as much of it as you want or as little of it as you want through providing an extensive API. If you want the raw data in the form of an array of arrays for the row data retrieved from a table, you can do that. If you want to wrap that data with objects that allow you easily manipulate and display data such as using a prettifier function, you can do that!
 
 ## Installation
 
@@ -67,164 +67,73 @@ To target native ARM64 Node.js on Windows 10 on ARM, add the  components "Visual
 
 ## Usage
 
-To use the connector, first request the library ```td-connector```. Running the function ```taos.connect``` with the connection options passed in as an object will return a TDengine connection object. A cursor needs to be intialized in order to interact with TDengine from node.
+### Connection
+
+To use the connector, first require the library ```td-connector```. Running the function ```taos.connect``` with the connection options passed in as an object will return a TDengine connection object. A cursor needs to be initialized in order to interact with TDengine from Node.js.
 
 ```javascript
 const taos = require('td-connector');
 var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", config:"/etc/taos",port:0})
-var c1 = conn.cursor(); // Initializing a new cursor
+var cursor = conn.cursor(); // Initializing a new cursor
 ```
 
-We can now start executing queries through the ```cursor.execute``` function.
+Close a connection
 
 ```javascript
-c1.execute('show databases;')
+conn.close();
 ```
 
-We can get the results of the queries by doing the following
+### Queries
+
+We can now start executing simple queries through the ```cursor.query``` function, which returns a TaosQuery object.
 
 ```javascript
-var data = c1.fetchall();
-console.log(c1.fieldNames); // Returns the names of the columns/fields
-console.log(data); // Logs all the data from the query as an array of arrays, each of which represents a row and data[row_number] is sorted in order of the fields
+var query = cursor.query('show databases;')
 ```
+
+We can get the results of the queries through the ```query.execute()``` function, which returns a promise that resolves with a TaosResult object, which contains the raw data and additional functionalities such as pretty printing the results.
+
+```javascript
+var promise = query.execute();
+promise.then(function(result) {
+  result.pretty(); //logs the results to the console as if you were in the taos shell
+});
+```
+
+You can also query by binding parameters to a query by filling in the question marks in a string as so. The query will automatically parse what was binded and convert it to the proper format for use with TDengine
+```javascript
+var query = cursor.query('select * from meterinfo.meters where ts <= ? and areaid = ?').bind(new Date(), 5);
+query.execute().then(function(result) {
+  result.pretty();
+})
+```
+
+The TaosQuery object can also be immediately executed upon creation by passing true as the second argument, returning a promise instead of a TaosQuery.
+```javascript
+var promise = cursor.query('select * from meterinfo.meters where v1 = 30', true)
+query.execute().then(function(result) {
+  result.pretty();
+})
+```
+
+If you want to execute queries without objects being wrapped around the data, use ```cursor.execute()``` directly and ```cursor.fetchall()``` to retrieve data if there is any.
+```javascript
+cursor.execute('select count(*), avg(v1), min(v2) from meterinfo.meters where ts >= \"2019-07-20 00:00:00.000\"');
+var data = cursor.fetchall();
+console.log(cursor.fields); // Latest query's Field metadata is stored in cursor.fields
+console.log(cursor.data); // Latest query's result data is stored in cursor.data, also returned by fetchall.
+```
+
+### Async functionality
+
+Coming soon
+
 
 ## Example
 
-The following is an example use of the connector showing how to make a table with weather data, insert random data, and then retrieve it.
+An example of using the NodeJS connector to create a table with weather data and create and execute queries can be found [here](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js) (The preferred method for using the connector)
 
-```javascript
-// Get the td-connector package
-const taos = require('td-connector');
-
-/* We will connect to TDengine by passing an object comprised of connection options to taos.connect and store the
- * connection to the variable conn
- */
-/*
- * Connection Options
- * host: the host to connect to
- * user: the use to login as
- * password: the password for the above user to login
- * config: the location of the taos.cfg file, by default it is in /etc/taos
- * port: the port we connect through
- */
-var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", config:"/etc/taos",port:0});
-
-// Initialize our TDengineCursor, which we use to interact with TDengine
-var c1 = conn.cursor();
-
-// c1.execute(query) will execute the query
-// Let's create a database named db
-try {
-  c1.execute('create database db;');
-}
-catch(err) {
-  conn.close();
-  throw err;
-}
-
-// Now we will use database db
-try {
-  c1.execute('use db;');
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// Let's create a table called weather
-// which stores some weather data like humidity, AQI (air quality index), temperature, and some notes as text
-try {
-  c1.execute('create table if not exists weather (ts timestamp, humidity smallint, aqi int, temperature float, notes binary(30));');
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// Let's get the description of the table weather
-try {
-  c1.execute('describe db.weather');
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// To get results, we run the function c1.fetchall()
-// It only returns the query results as an array of result rows, but also stores the latest results in c1.data
-try {
-  var tableDesc = c1.fetchall(); // The description variable here is equal to c1.data;
-  console.log(tableDesc);
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// Let's try to insert some random generated data to test with
-
-let stime = new Date();
-let interval = 1000;
-
-// Timestamps must be in the form of "YYYY-MM-DD HH:MM:SS.MMM" if they are in milliseconds
-//                                   "YYYY-MM-DD HH:MM:SS.MMMMMM" if they are in microseconds
-// Thus, we create the following function to convert a javascript Date object to the correct formatting
-function convertDateToTS(date) {
-  let tsArr = date.toISOString().split("T")
-  return "\"" + tsArr[0] + " " + tsArr[1].substring(0, tsArr[1].length-1) + "\"";
-}
-
-try {
-  for (let i = 0; i < 10000; i++) {
-    stime.setMilliseconds(stime.getMilliseconds() + interval);
-    let insertData = [convertDateToTS(stime),
-                      parseInt(Math.random()*100),
-                      parseInt(Math.random()*300),
-                      parseFloat(Math.random()*10 + 30),
-                      "\"random note!\""];
-    c1.execute('insert into db.weather values(' + insertData.join(',') + ' );');
-  }
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// Now let's look at our newly inserted data
-var retrievedData;
-try {
-  c1.execute('select * from db.weather;')
-  retrievedData = c1.fetchall();
-
-  // c1.fieldNames stores the names of each column retrieved
-  console.log(c1.fieldNames);
-  console.log(retrievedData);
-  // timestamps retrieved are always JS Date Objects
-  // Numbers are numbers, big ints are big ints, and strings are strings
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// Let's try running some basic functions
-try {
-  c1.execute('select count(*), avg(temperature), max(temperature), min(temperature), stddev(temperature) from db.weather;')
-  c1.fetchall();
-  console.log(c1.fieldNames);
-  console.log(c1.data);
-}
-catch(err) {
-  conn.close();
-  throw err;
-}
-
-conn.close();
-
-// Feel free to fork this repository or copy this code and start developing your own apps and backends with NodeJS and TDengine!
-
-```
+An example of using the NodeJS connector to achieve the same things but without all the object wrappers that wrap around the data returned to achieve higher functionality can be found [here](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)
 
 ## Contributing to TDengine
 

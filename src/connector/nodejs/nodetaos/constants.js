@@ -1,6 +1,11 @@
 /**
+ * Contains the the definitions/values assigned to various field types
+ * @module FieldTypes
+ */
+/**
  * TDengine Field Types and their type codes
  * @typedef {Object} FieldTypes
+ * @global
  * @property {number} C_NULL - Null
  * @property {number} C_BOOL - Boolean. Note, 0x02 is the C_BOOL_NULL value.
  * @property {number} C_TINYINT - Tiny Int, values in the range [-2^7+1, 2^7-1]. Note, -2^7 has been used as the C_TINYINT_NULL value
@@ -44,4 +49,28 @@ module.exports = {
     C_BINARY_NULL : 255,
     C_TIMESTAMP_MILLI : 0,
     C_TIMESTAMP_MICRO : 1,
+    getType,
+}
+
+const typeCodesToName = {
+  0 : 'Null',
+  1 : 'Boolean',
+  2 : 'Tiny Int',
+  3 : 'Small Int',
+  4 : 'Int',
+  5 : 'Big Int',
+  6 : 'Float',
+  7 : 'Double',
+  8 : 'Binary',
+  9 : 'Timestamp',
+  10 : 'Nchar',
+}
+
+/**
+ * @function
+ * @param {number} typecode - The code to get the name of the type for
+ * @return {string} Name of the field type
+ */
+function getType(typecode) {
+  return typeCodesToName[typecode];
 }

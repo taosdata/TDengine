@@ -1,3 +1,5 @@
+/* This example is to show the preferred way to use the td-connector */
+/* To run, enter node path/to/node-example.js */
 // Get the td-connector package
 const taos = require('td-connector');
 
@@ -17,17 +19,19 @@ var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", con
 // Initialize our TDengineCursor, which we use to interact with TDengine
 var c1 = conn.cursor();
 
-// c1.execute(query) will execute the query
+// c1.query(query) will return a TaosQuery object, of which then we can execute. The execute function then returns a promise
 // Let's create a database named db
 try {
-  c1.execute('create database db;');
+  var query = c1.query('create database db;');
+  query.execute();
 }
 catch(err) {
   conn.close();
   throw err;
 }
 
-// Now we will use database db
+// Now we will use database db. As this query won't return any results,
+// we can simplify the code and directly use the c1.execute() function. No need for a TaosQuery object to wrap around the query
 try {
   c1.execute('use db;');
 }
@@ -38,8 +42,15 @@ catch (err) {
 
 // Let's create a table called weather
 // which stores some weather data like humidity, AQI (air quality index), temperature, and some notes as text
+// We can also immedietely execute a TaosQuery object by passing true as the secodn argument
+// This will then return a promise that we can then attach a callback function to
 try {
-  c1.execute('create table if not exists weather (ts timestamp, humidity smallint, aqi int, temperature float, notes binary(30));');
+  var promise = c1.query('create table if not exists weather (ts timestamp, humidity smallint, aqi int, temperature float, notes binary(30));', true);
+  promise.then(function(){
+    console.log("Table created!");
+  }).catch(function() {
+    console.log("Table couldn't be created.")
+  });
 }
 catch (err) {
   conn.close();
@@ -47,19 +58,13 @@ catch (err) {
 }
 
 // Let's get the description of the table weather
+// When using a TaosQuery object and then executing it, upon success it returns a TaosResult object, which is a wrapper around the
+// retrieved data and allows us to easily access data and manipulate or display it.
 try {
-  c1.execute('describe db.weather');
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// To get results, we run the function c1.fetchall()
-// It only returns the query results as an array of result rows, but also stores the latest results in c1.data
-try {
-  var tableDesc = c1.fetchall(); // The description variable here is equal to c1.data;
-  console.log(tableDesc);
+  c1.query('describe db.weather;').execute().then(function(result){
+    // Result is an instance of TaosResult and has the function pretty() which instantly logs a prettified version to the console
+    result.pretty();
+  });
 }
 catch (err) {
   conn.close();
@@ -67,27 +72,21 @@ catch (err) {
 }
 
 // Let's try to insert some random generated data to test with
-
+// We will use the bind function of the TaosQuery object to easily bind values to question marks in the query
+// For Timestamps, a normal Datetime object or TaosTimestamp or milliseconds can be passed in through the bind function
 let stime = new Date();
 let interval = 1000;
-
-// Timestamps must be in the form of "YYYY-MM-DD HH:MM:SS.MMM" if they are in milliseconds
-//                                   "YYYY-MM-DD HH:MM:SS.MMMMMM" if they are in microseconds
-// Thus, we create the following function to convert a javascript Date object to the correct formatting
-function convertDateToTS(date) {
-  let tsArr = date.toISOString().split("T")
-  return "\"" + tsArr[0] + " " + tsArr[1].substring(0, tsArr[1].length-1) + "\"";
-}
-
 try {
-  for (let i = 0; i < 10000; i++) {
+  for (let i = 0; i < 1000; i++) {
     stime.setMilliseconds(stime.getMilliseconds() + interval);
-    let insertData = [convertDateToTS(stime),
+    let insertData = [stime,
                       parseInt(Math.random()*100),
                       parseInt(Math.random()*300),
                       parseFloat(Math.random()*10 + 30),
                       "\"random note!\""];
-    c1.execute('insert into db.weather values(' + insertData.join(',') + ' );');
+    //c1.execute('insert into db.weather values(' + insertData.join(',') + ' );');
+    var query = c1.query('insert into db.weather values(?, ?, ?, ?, ?);').bind(insertData);
+    query.execute();
   }
 }
 catch (err) {
@@ -98,14 +97,11 @@ catch (err) {
 // Now let's look at our newly inserted data
 var retrievedData;
 try {
-  c1.execute('select * from db.weather;')
-  retrievedData = c1.fetchall();
+  c1.query('select * from db.weather limit 5 offset 100;', true).then(function(result){
+    result.pretty();
+    // Neat!
+  });
 
-  // c1.fieldNames stores the names of each column retrieved
-  console.log(c1.fieldNames);
-  console.log(retrievedData);
-  // timestamps retrieved are always JS Date Objects
-  // Numbers are numbers, big ints are big ints, and strings are strings
 }
 catch (err) {
   conn.close();
@@ -114,10 +110,10 @@ catch (err) {
 
 // Let's try running some basic functions
 try {
-  c1.execute('select count(*), avg(temperature), max(temperature), min(temperature), stddev(temperature) from db.weather;')
-  c1.fetchall();
-  console.log(c1.fieldNames);
-  console.log(c1.data);
+  c1.query('select count(*), avg(temperature), max(temperature), min(temperature), stddev(temperature) from db.weather;', true)
+  .then(function(result) {
+    result.pretty();
+  })
 }
 catch(err) {
   conn.close();
