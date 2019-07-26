@@ -8,15 +8,16 @@ const ffi = require('ffi');
 const ArrayType = require('ref-array');
 const Struct = require('ref-struct');
 const FieldTypes = require('./constants');
-const errors = require ('./error')
+const errors = require ('./error');
+const TaosObjects = require('./taosobjects');
 
 module.exports = CTaosInterface;
 
 function convertMillisecondsToDatetime(time) {
-  return new Date(time);
+  return new TaosObjects.TaosTimestamp(time);
 }
 function convertMicrosecondsToDatetime(time) {
-  return new Date(time * 0.001);
+  return new TaosObjects.TaosTimestamp(time * 0.001);
 }
 
 function convertTimestamp(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
@@ -174,10 +175,12 @@ TaosField.defineProperty('bytes', ref.types.short);
 TaosField.defineProperty('type', ref.types.char);
 
 /**
- * Constructor for the C interface with TDengine
- * @constructor
+ *
  * @param {Object} config - Configuration options for the interface
  * @return {CTaosInterface}
+ * @class CTaosInterface
+ * @classdesc The CTaosInterface is the interface through which Node.JS communicates data back and forth with TDengine. It is not advised to
+ * access this class directly and use it unless you understand what these functions do.
  */
 function CTaosInterface (config = null, pass = false) {
   ref.types.char_ptr = ref.refType(ref.types.char);
@@ -280,8 +283,7 @@ CTaosInterface.prototype.close = function close(connection) {
   console.log("Connection is closed");
 }
 CTaosInterface.prototype.query = function query(connection, sql) {
-    let res = this.libtaos.taos_query(connection, ref.allocCString(sql));
-    return res;
+    return this.libtaos.taos_query(connection, ref.allocCString(sql));
 }
 CTaosInterface.prototype.affectedRows = function affectedRows(connection) {
   return this.libtaos.taos_affected_rows(connection);
