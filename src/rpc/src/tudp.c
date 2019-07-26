@@ -13,21 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <syslog.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "taosmsg.h"
 #include "thash.h"
 #include "thaship.h"
@@ -523,8 +518,7 @@ void *taosInitUdpServer(char *ip, short port, char *label, int threads, void *fp
 
   // not support by windows
   // pthread_t thread;
-  // pSet->tcpThread = pthread_create(&(thread), &thattr, taosUdpTcpConnection,
-  // pSet);
+  // pSet->tcpThread = pthread_create(&(thread), &thattr, taosUdpTcpConnection, pSet);
   pthread_create(&(pSet->tcpThread), &thattr, taosUdpTcpConnection, pSet);
 
   return pSet;

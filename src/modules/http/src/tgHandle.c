@@ -374,7 +374,7 @@ ParseEnd:
 int tgReadSchema(const char *fileName) {
   FILE *fp = fopen(fileName, "r");
   if (fp == NULL) {
-    httpPrint("failed to open telegraf schema config file:%s, use default schema", fileName);
+    //httpTrace("failed to open telegraf schema config file:%s, use default schema", fileName);
     return -1;
   }
   httpPrint("open telegraf schema config file:%s successfully", fileName);

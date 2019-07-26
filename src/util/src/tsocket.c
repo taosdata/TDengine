@@ -17,31 +17,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
-#include <arpa/inet.h>
 #include <ctype.h>
 #include <fcntl.h>
-#include <ifaddrs.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
 #include <pthread.h>
 #include <stdarg.h>
-#include <sys/socket.h>
-#include <sys/time.h>
 #include <sys/types.h>
-#include <sys/un.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "tglobalcfg.h"
 #include "tlog.h"
 #include "tsocket.h"
 #include "tutil.h"
 
 unsigned int ip2uint(const char *const ip_addr);
-int taosSetNonblocking(int sock, int on);
-int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen);
 
 /*
  * Function to get the public ip address of current machine. If get IP

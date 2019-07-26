@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <sys/time.h>
 #include <time.h>
 
 //@return timestamp in second

@@ -85,7 +85,17 @@ typedef struct {
 
   SCacheStatis statistics;
   _hashFunc    hashFp;
+
+  /*
+   * pthread_rwlock_t have bugs on the windows platform 
+   * so use pthread_mutex_t as an alternative
+   */
+#if defined LINUX
   pthread_rwlock_t lock;
+#else
+  pthread_mutex_t  mutex;
+#endif
+
 } SCacheObj;
 
 static FORCE_INLINE int32_t taosNormalHashTableLength(int32_t length) {
@@ -198,14 +208,22 @@ static void taosRemoveFromTrash(SCacheObj *pObj, SDataNode *pNode) {
  *                may cause corruption. So, forece model only applys before cache is closed
  */
 static void taosClearCacheTrash(SCacheObj *pObj, _Bool force) {
+#if defined LINUX
   pthread_rwlock_wrlock(&pObj->lock);
+#else
+  pthread_mutex_lock(&pObj->mutex);
+#endif
 
   if (pObj->numOfElemsInTrash == 0) {
     if (pObj->pTrash != NULL) {
       pError("key:inconsistency data in cache, numOfElem in trash:%d", pObj->numOfElemsInTrash);
     }
     pObj->pTrash = NULL;
+#if defined LINUX
     pthread_rwlock_unlock(&pObj->lock);
+#else
+    pthread_mutex_unlock(&pObj->mutex);
+#endif    
     return;
   }
 
@@ -232,7 +250,11 @@ static void taosClearCacheTrash(SCacheObj *pObj, _Bool force) {
   }
 
   assert(pObj->numOfElemsInTrash >= 0);
+#if defined LINUX
   pthread_rwlock_unlock(&pObj->lock);
+#else
+  pthread_mutex_unlock(&pObj->mutex);
+#endif
 }
 
 /**
@@ -453,7 +475,12 @@ void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, i
 
   uint32_t keyLen = (uint32_t)strlen(key) + 1;
 
+#if defined LINUX
   pthread_rwlock_wrlock(&pObj->lock);
+#else
+  pthread_mutex_lock(&pObj->mutex);
+#endif
+
   SDataNode *pOldNode = taosGetNodeFromHashTable(pObj, key, keyLen - 1);
 
   if (pOldNode == NULL) {  // do add to cache
@@ -465,7 +492,12 @@ void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, i
     // pWarn("key:%s %p exist in cache,updated", key, pNode);
   }
 
+#if defined LINUX
   pthread_rwlock_unlock(&pObj->lock);
+#else
+  pthread_mutex_unlock(&pObj->mutex);
+#endif
+
   return (pNode != NULL) ? pNode->data : NULL;
 }
 
@@ -499,11 +531,20 @@ void taosRemoveDataFromCache(void *handle, void **data, _Bool isForce) {
   }
 
   *data = NULL;
-
+  
   if (isForce) {
+#if defined LINUX
     pthread_rwlock_wrlock(&pObj->lock);
+#else
+    pthread_mutex_lock(&pObj->mutex);
+#endif
+
     taosCacheMoveNodeToTrash(pObj, pNode);
+#if defined LINUX
     pthread_rwlock_unlock(&pObj->lock);
+#else
+    pthread_mutex_unlock(&pObj->mutex);
+#endif
   }
 }
 
@@ -519,23 +560,32 @@ void *taosGetDataFromCache(void *handle, char *key) {
 
   uint32_t keyLen = (uint32_t)strlen(key);
 
+#if defined LINUX
   pthread_rwlock_rdlock(&pObj->lock);
+#else
+  pthread_mutex_lock(&pObj->mutex);
+#endif
+
   SDataNode *ptNode = taosGetNodeFromHashTable(handle, key, keyLen);
   if (ptNode != NULL) {
     __sync_add_and_fetch_32(&ptNode->refCount, 1);
   }
+
+#if defined LINUX
   pthread_rwlock_unlock(&pObj->lock);
+#else
+  pthread_mutex_unlock(&pObj->mutex);
+#endif
 
   if (ptNode != NULL) {
-    __sync_add_and_fetch_32(&pObj->statistics.hitCount, 1);
+    __sync_add_and_fetch_64(&pObj->statistics.hitCount, 1);
 
     pTrace("key:%s is retrieved from cache,refcnt:%d", key, ptNode->refCount);
   } else {
-    __sync_add_and_fetch_32(&pObj->statistics.missCount, 1);
+    __sync_add_and_fetch_64(&pObj->statistics.missCount, 1);
     pTrace("key:%s not in cache,retrieved failed", key);
   }
-
-  __sync_add_and_fetch_32(&pObj->statistics.totalAccess, 1);
+  __sync_add_and_fetch_64(&pObj->statistics.totalAccess, 1);
   return (ptNode != NULL) ? ptNode->data : NULL;
 }
 
@@ -555,7 +605,11 @@ void *taosUpdateDataFromCache(void *handle, char *key, char *pData, int size, in
 
   uint32_t keyLen = strlen(key) + 1;
 
+#if defined LINUX
   pthread_rwlock_wrlock(&pObj->lock);
+#else
+  pthread_mutex_lock(&pObj->mutex);
+#endif
 
   SDataNode *pNode = taosGetNodeFromHashTable(handle, key, keyLen - 1);
   if (pNode == NULL) {  // object has been released, do add operation
@@ -567,7 +621,11 @@ void *taosUpdateDataFromCache(void *handle, char *key, char *pData, int size, in
     pTrace("key:%s updated.expireTime:%lld.refCnt:%d", key, pNode->time, pNode->refCount);
   }
 
+#if defined LINUX
   pthread_rwlock_unlock(&pObj->lock);
+#else
+  pthread_mutex_unlock(&pObj->mutex);
+#endif
 
   return (pNew != NULL) ? pNew->data : NULL;
 }
@@ -590,9 +648,13 @@ void taosRefreshDataCache(void *handle, void *tmrId) {
   pObj->statistics.refreshCount++;
 
   int32_t num = pObj->total;
-
   for (int hash = 0; hash < pObj->maxSessions; ++hash) {
+#if defined LINUX
     pthread_rwlock_wrlock(&pObj->lock);
+#else
+    pthread_mutex_lock(&pObj->mutex);
+#endif
+
     pNode = pObj->hashList[hash];
 
     while (pNode) {
@@ -607,11 +669,19 @@ void taosRefreshDataCache(void *handle, void *tmrId) {
 
     /* all data have been checked, not need to iterate further */
     if (numOfCheck == num || pObj->total <= 0) {
+#if defined LINUX
       pthread_rwlock_unlock(&pObj->lock);
+#else
+      pthread_mutex_unlock(&pObj->mutex);
+#endif
       break;
     }
 
+#if defined LINUX
     pthread_rwlock_unlock(&pObj->lock);
+#else
+    pthread_mutex_unlock(&pObj->mutex);
+#endif
   }
 
   taosClearCacheTrash(pObj, false);
@@ -628,7 +698,12 @@ void taosClearDataCache(void *handle) {
   SCacheObj *pObj = (SCacheObj *)handle;
 
   for (int hash = 0; hash < pObj->maxSessions; ++hash) {
+#if defined LINUX
     pthread_rwlock_wrlock(&pObj->lock);
+#else
+    pthread_mutex_lock(&pObj->mutex);
+#endif
+
     pNode = pObj->hashList[hash];
 
     while (pNode) {
@@ -636,7 +711,11 @@ void taosClearDataCache(void *handle) {
       taosCacheMoveNodeToTrash(pObj, pNode);
       pNode = pNext;
     }
+#if defined LINUX
     pthread_rwlock_unlock(&pObj->lock);
+#else
+    pthread_mutex_unlock(&pObj->mutex);
+#endif
   }
 
   taosClearCacheTrash(pObj, false);
@@ -676,7 +755,11 @@ void *taosInitDataCache(int maxSessions, void *tmrCtrl, int64_t refreshTime) {
   pObj->tmrCtrl = tmrCtrl;
   taosTmrReset(taosRefreshDataCache, pObj->refreshTime, pObj, pObj->tmrCtrl, &pObj->pTimer);
 
+#if defined LINUX
   if (pthread_rwlock_init(&pObj->lock, NULL) != 0) {
+#else
+  if (pthread_mutex_init(&pObj->mutex, NULL) != 0) {
+#endif
     taosTmrStopA(&pObj->pTimer);
     free(pObj->hashList);
     free(pObj);
@@ -699,14 +782,22 @@ void taosCleanUpDataCache(void *handle) {
 
   pObj = (SCacheObj *)handle;
   if (pObj == NULL || pObj->maxSessions <= 0) {
+#if defined LINUX
     pthread_rwlock_destroy(&pObj->lock);
+#else
+    pthread_mutex_destroy(&pObj->mutex);
+#endif
     free(pObj);
     return;
   }
 
   taosTmrStopA(&pObj->pTimer);
 
+#if defined LINUX
   pthread_rwlock_wrlock(&pObj->lock);
+#else
+  pthread_mutex_lock(&pObj->mutex);
+#endif
 
   if (pObj->hashList && pObj->total > 0) {
     for (int i = 0; i < pObj->maxSessions; ++i) {
@@ -721,11 +812,19 @@ void taosCleanUpDataCache(void *handle) {
     free(pObj->hashList);
   }
 
+#if defined LINUX
   pthread_rwlock_unlock(&pObj->lock);
+#else
+  pthread_mutex_unlock(&pObj->mutex);
+#endif
 
   taosClearCacheTrash(pObj, true);
 
+#if defined LINUX
   pthread_rwlock_destroy(&pObj->lock);
+#else
+  pthread_mutex_destroy(&pObj->mutex);
+#endif
   memset(pObj, 0, sizeof(SCacheObj));
 
   free(pObj);

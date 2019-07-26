@@ -23,8 +23,8 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdarg.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "tglobalcfg.h"
 #include "tsql.h"
 #include "tstoken.h"
