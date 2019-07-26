@@ -67,40 +67,31 @@ INTERVAL(10M)</code></pre>
 <a class='anchor' id='Management-of-STables'></a><h2>Management of STables</h2>
 <p>After you can create a STable, you can describe, delete, change STables. This section lists all the supported operations.</p>
 <a class='anchor' id='Show-STables-in-current-DB'></a><h3>Show STables in current DB</h3>
-<pre><code class='language-mysql' lang='mysql'>show stables;
-</code></pre>
+<pre><code class='language-mysql' lang='mysql'>show stables;</code></pre>
 <p>It lists all STables in current DB, including the name, created time, number of fileds, number of tags, and number of tables which are created via this STable. </p>
 <a class='anchor' id='Describe-a-STable'></a><h3>Describe a STable</h3>
-<pre><code class='language-mysql' lang='mysql'>DESCRIBE &lt;stable_name&gt;
-</code></pre>
+<pre><code class='language-mysql' lang='mysql'>DESCRIBE &lt;stable_name&gt;</code></pre>
 <p>It lists the STable&#39;s schema and tags</p>
 <a class='anchor' id='Drop-a-STable'></a><h3>Drop a STable</h3>
-<pre><code class='language-mysql' lang='mysql'>DROP TABLE &lt;stable_name&gt;
-</code></pre>
+<pre><code class='language-mysql' lang='mysql'>DROP TABLE &lt;stable_name&gt;</code></pre>
 <p>To delete a STable, all the tables created via this STable shall be deleted first, otherwise, it will fail.</p>
 <a class='anchor' id='List-the-Associated-Tables-of-a-STable'></a><h3>List the Associated Tables of a STable</h3>
-<pre><code class='language-mysql' lang='mysql'>SELECT TBNAME,[TAG_NAME,…] FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)
-</code></pre>
+<pre><code class='language-mysql' lang='mysql'>SELECT TBNAME,[TAG_NAME,…] FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)</code></pre>
 <p>It will list all the tables which satisfy the tag filter conditions. The tables are all created from this specific STable. TBNAME is a new keyword introduced, it is the table name associated with the STable. </p>
-<pre><code class='language-mysql' lang='mysql'>SELECT COUNT(TBNAME) FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)
-</code></pre>
+<pre><code class='language-mysql' lang='mysql'>SELECT COUNT(TBNAME) FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)</code></pre>
 <p>The above SQL statement will list the number of tables in a STable, which satisfy the filter condition.</p>
 <a class='anchor' id='Management-of-Tags'></a><h2>Management of Tags</h2>
 <p>You can add, delete and change the tags for a STable, and you can change the tag value of a table. The SQL commands are listed below.  </p>
 <a class='anchor' id='Add-a-Tag'></a><h3>Add a Tag</h3>
-<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;stable_name&gt; ADD TAG &lt;new_tag_name&gt; &lt;TYPE&gt;
-</code></pre>
+<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;stable_name&gt; ADD TAG &lt;new_tag_name&gt; &lt;TYPE&gt;</code></pre>
 <p>It adds a new tag to the STable with a data type. The maximum number of tags is 6. </p>
 <a class='anchor' id='Drop-a-Tag'></a><h3>Drop a Tag</h3>
-<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;stable_name&gt; DROP TAG &lt;tag_name&gt;
-</code></pre>
+<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;stable_name&gt; DROP TAG &lt;tag_name&gt;</code></pre>
 <p>It drops a tag from a STable. The first tag could not be deleted, and there must be at least one tag.</p>
 <a class='anchor' id='Change-a-Tag&#39;s-Name'></a><h3>Change a Tag&#39;s Name</h3>
-<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;stable_name&gt; CHANGE TAG &lt;old_tag_name&gt; &lt;new_tag_name&gt;
-</code></pre>
+<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;stable_name&gt; CHANGE TAG &lt;old_tag_name&gt; &lt;new_tag_name&gt;</code></pre>
 <p>It changes the name of a tag from old to new. </p>
 <a class='anchor' id='Change-the-Tag&#39;s-Value'></a><h3>Change the Tag&#39;s Value</h3>
-<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;table_name&gt; SET &lt;tag_name&gt;=&lt;new_tag_value&gt;
-</code></pre>
+<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;table_name&gt; SET TAG &lt;tag_name&gt;=&lt;new_tag_value&gt;</code></pre>
 <p>It changes a table&#39;s tag value to a new one. </p>
 <a href='../index.html'>Back</a></section></main></div><?php include($s.'/footer.php'); ?><script>$('pre').addClass('prettyprint linenums');PR.prettyPrint()</script><script src='lib/docs/liner.js'></script></body></html>
