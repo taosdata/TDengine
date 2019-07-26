@@ -20,14 +20,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <string.h>
 #include <sys/types.h>
 
 #include "os.h"
 #include "shash.h"
 #include "taosmsg.h"
 #include "tidpool.h"
-#include "tlog.h"
 #include "tlog.h"
 #include "tmd5.h"
 #include "tmempool.h"
@@ -37,7 +35,6 @@
 #include "ttcpclient.h"
 #include "ttcpserver.h"
 #include "ttime.h"
-#include "ttimer.h"
 #include "ttimer.h"
 #include "tudp.h"
 #include "tutil.h"
