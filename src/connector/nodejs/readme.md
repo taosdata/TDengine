@@ -67,9 +67,13 @@ To target native ARM64 Node.js on Windows 10 on ARM, add the  components "Visual
 
 ## Usage
 
+The following is a short summary of the basic usage of the connector, the  full api and documentation can be found [here](http://docs.taosdata.com/node)
+
 ### Connection
 
-To use the connector, first require the library ```td-connector```. Running the function ```taos.connect``` with the connection options passed in as an object will return a TDengine connection object. A cursor needs to be initialized in order to interact with TDengine from Node.js.
+To use the connector, first require the library ```td-connector```. Running the function ```taos.connect``` with the connection options passed in as an object will return a TDengine connection object. The required connection option is ```host```, other options if not set, will be the default values as shown below.
+
+A cursor also needs to be initialized in order to interact with TDengine from Node.js.
 
 ```javascript
 const taos = require('td-connector');
@@ -111,7 +115,7 @@ query.execute().then(function(result) {
 The TaosQuery object can also be immediately executed upon creation by passing true as the second argument, returning a promise instead of a TaosQuery.
 ```javascript
 var promise = cursor.query('select * from meterinfo.meters where v1 = 30', true)
-query.execute().then(function(result) {
+promise.then(function(result) {
   result.pretty();
 })
 ```

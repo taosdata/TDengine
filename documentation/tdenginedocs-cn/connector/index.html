@@ -40,10 +40,10 @@
 <p>异步API对于使用者的要求相对较高，用户可根据具体应用场景选择性使用。下面是三个重要的异步API： </p>
 <ul>
 <li><p><code>void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *param, TAOS_RES *, int code), void *param);</code></p>
-<p>异步执行SQL语句。taos是调用taos_connect返回的数据库连接结构体。sqlstr是需要执行的SQL语句。fp是用户定义的回调函数。param是应用提供一个用于回调的参数。回调函数fp的第三个参数code用于指示操作是否成功，0表示成功，-1表示失败。应用在定义回调函数的时候，主要处理第二个参数TAOS_RES *，该参数是查询返回的结果集。 </p></li>
+<p>异步执行SQL语句。taos是调用taos_connect返回的数据库连接结构体。sqlstr是需要执行的SQL语句。fp是用户定义的回调函数。param是应用提供一个用于回调的参数。回调函数fp的第三个参数code用于指示操作是否成功，0表示成功，负数表示失败(调用taos_errstr获取失败原因)。应用在定义回调函数的时候，主要处理第二个参数TAOS_RES *，该参数是查询返回的结果集。 </p></li>
 <li><p><code>void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);</code></p>
 <p>批量获取异步查询的结果集，只能与taos_query_a配合使用。其中<em>res</em>是_taos_query_a回调时返回的结果集结构体指针，fp为回调函数。回调函数中的param是用户可定义的传递给回调函数的参数结构体。numOfRows表明有fetch数据返回的行数（numOfRows并不是本次查询满足查询条件的全部元组数量）。在回调函数中，应用可以通过调用taos_fetch_row前向迭代获取批量记录中每一行记录。读完一块内的所有记录后，应用需要在回调函数中继续调用taos_fetch_rows_a获取下一批记录进行处理，直到返回的记录数（numOfRows）为零（结果返回完成）或记录数为负值（查询出错）。</p></li>
-<li><p><code>void taos_fetch_row_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, TAOS_ROW), void *param);</code></p>
+<li><p><code>void taos_fetch_row_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), void *param);</code></p>
 <p>异步获取一条记录。其中res是taos_query_a回调时返回的结果集结构体指针。fp为回调函数。param是应用提供的一个用于回调的参数。回调时，第三个参数TAOS_ROW指向一行记录。不同于taos_fetch_rows_a，应用无需调用同步API taos_fetch_row来获取一个元组，更加简单。数据提取性能不及批量获取的API。</p></li>
 </ul>
 <p>TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，<strong>客户端应用必须确保对同一张表的操作完全串行化</strong>，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。</p>
