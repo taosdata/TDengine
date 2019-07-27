@@ -177,7 +177,7 @@ public Connection getConn() throws Exception{
 <li><em>data</em>: the returned data array. If no data is returned, only an <em>affected_rows</em> field is listed</li>
 <li><em>rows</em>: the number of rows returned</li>
 </ul>
-<a class='anchor' id='Example'></a><h3>Example</h3>
+<a class='anchor' id='Example'></a><a class='anchor' id='Example'></a><h3>Example</h3>
 <ul>
 <li><p>Use <em>curl</em> command to query all the data in table <em>t1</em> of database <em>demo</em>:</p>
 <p><code>curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sql</code></p></li>
@@ -249,9 +249,9 @@ public Connection getConn() throws Exception{
 </ul>
 <p>If the above steps didn't work for you, please visit <a href="https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules">Microsoft's Node.js Guidelines for Windows</a> for additional tips.</p>
 <p>To target native ARM64 Node.js on Windows 10 on ARM, add the  components "Visual C++ compilers and libraries for ARM64" and "Visual  C++ ATL for ARM64".</p>
-<a class='anchor' id='Usage'></a><h2>Usage</h2>
+<a class='anchor' id='Usage'></a><h3>Usage</h3>
 <p>The following is a short summary of the basic usage of the connector, the  full api and documentation can be found <a href="http://docs.taosdata.com/node">here</a></p>
-<a class='anchor' id='Connection'></a><h3>Connection</h3>
+<h4>Connection</h4>
 <p>To use the connector, first require the library <code>td-connector</code>. Running the function <code>taos.connect</code> with the connection options passed in as an object will return a TDengine connection object. The required connection option is <code>host</code>, other options if not set, will be the default values as shown below.</p>
 <p>A cursor also needs to be initialized in order to interact with TDengine from Node.js.</p>
 <pre><code class="javascript language-javascript">const taos = require('td-connector');
@@ -259,7 +259,7 @@ var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", con
 var cursor = conn.cursor(); // Initializing a new cursor</code></pre>
 <p>To close a connection, run</p>
 <pre><code class="javascript language-javascript">conn.close();</code></pre>
-<a class='anchor' id='Queries'></a><h3>Queries</h3>
+<h4>Queries</h4>
 <p>We can now start executing simple queries through the <code>cursor.query</code> function, which returns a TaosQuery object.</p>
 <pre><code class="javascript language-javascript">var query = cursor.query('show databases;')</code></pre>
 <p>We can get the results of the queries through the <code>query.execute()</code> function, which returns a promise that resolves with a TaosResult object, which contains the raw data and additional functionalities such as pretty printing the results.</p>
@@ -277,8 +277,8 @@ query.execute().then(function(result) {
 promise.then(function(result) {
   result.pretty();
 })</code></pre>
-<a class='anchor' id='Async-functionality'></a><h3>Async functionality</h3>
+<h4>Async functionality</h4>
 <p>Coming soon</p>
-<a class='anchor' id='Example'></a><h2>Example</h2>
+<h3>Example</h3>
 <p>An example of using the NodeJS connector to create a table with weather data and create and execute queries can be found <a href="https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js">here</a> (The preferred method for using the connector)</p>
 <p>An example of using the NodeJS connector to achieve the same things but without all the object wrappers that wrap around the data returned to achieve higher functionality can be found <a href="https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js">here</a></p><a href='../index.html'>Back</a></section></main></div><?php include($s.'/footer.php'); ?><script>$('pre').addClass('prettyprint linenums');PR.prettyPrint()</script><script src='lib/docs/liner.js'></script></body></html>
