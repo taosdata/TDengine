@@ -82,9 +82,9 @@ def _crow_binary_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C binary row to python row
     """
     if num_of_rows > 0:
-        return [ None if ele.value == FieldType.C_BINARY_NULL else ele.value.decode('utf-8') for ele in (ctypes.cast(data,  ctypes.POINTER(ctypes.c_char * nbytes)))[:abs(num_of_rows)][::-1]]
+        return [ None if ele.value[0:1] == FieldType.C_BINARY_NULL else ele.value.decode('utf-8') for ele in (ctypes.cast(data,  ctypes.POINTER(ctypes.c_char * nbytes)))[:abs(num_of_rows)][::-1]]
     else:
-        return [ None if ele.value == FieldType.C_BINARY_NULL else ele.value.decode('utf-8') for ele in (ctypes.cast(data,  ctypes.POINTER(ctypes.c_char * nbytes)))[:abs(num_of_rows)]]
+        return [ None if ele.value[0:1] == FieldType.C_BINARY_NULL else ele.value.decode('utf-8') for ele in (ctypes.cast(data,  ctypes.POINTER(ctypes.c_char * nbytes)))[:abs(num_of_rows)]]
 
 def _crow_nchar_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C nchar row to python row
