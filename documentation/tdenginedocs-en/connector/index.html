@@ -1,9 +1,9 @@
 <!DOCTYPE html><html lang='en'><head><title>Documentation | Taos Data</title><meta name='description' content='TDengine is an open-source big data platform for IoT. Along with a 10x faster time-series database, it provides caching, stream computing, message queuing, and other functionalities. It is designed and optimized for Internet of Things, Connected Cars, and Industrial IoT. Read the documentation for TDengine here to get started right away.'><meta name='keywords' content='TDengine, Big Data, Open Source, IoT, Connected Cars, Industrial IoT, time-series database, caching, stream computing, message queuing, IT infrastructure monitoring, application performance monitoring, Internet of Things,TAOS Data, Documentation, programming, coding, syntax, frequently asked questions, questions, faq'><meta name='title' content='Documentation | Taos Data'><meta property='og:site_name' content='Taos Data'/><meta property='og:title' content='Documentation | Taos Data'/><meta property='og:type' content='article'/><meta property='og:url' content='https://www.taosdata.com/en/documentation/connector/index.php'/><meta property='og:description' content='TDengine is an open-source big data platform for IoT. Along with a 10x faster time-series database, it provides caching, stream computing, message queuing, and other functionalities. It is designed and optimized for Internet of Things, Connected Cars, and Industrial IoT. Read the documentation for TDengine here to get started right away.' /><link rel='canonical' href='https://www.taosdata.com/en/documentation/connector/index.php'/><script src='../lib/jquery-3.4.1.min.js' type='application/javascript'></script><link href='../lib/bootstrap.min.css' rel='stylesheet'><link href='../styles/base.min.css' rel='stylesheet'><link rel='stylesheet' href='../lib/docs/taosdataprettify.css'><link rel='stylesheet' href='../lib/docs/docs.css'><script src='../lib/docs/prettify.js'></script><script src='../lib/docs/prettyprint-sql.js'></script></head><body><script>$('#documentation-href').addClass('active')</script><div class='container-fluid'><main class='content-wrapper'><section class='documentation'><a href='../index.html'>Back</a><h1>TDengine connectors</h1>
-<p>TDengine provides many connectors for development, including C/C++, JAVA, Python, RESTful, Go, etc.</p>
+<p>TDengine provides many connectors for development, including C/C++, JAVA, Python, RESTful, Go, Node.JS, etc.</p>
 <a class='anchor' id='C/C++-API'></a><h2>C/C++ API</h2>
 <p>C/C++ APIs are similar to the MySQL APIs. Applications should include TDengine head file <em>taos.h</em> to use C/C++ APIs by adding the following line in code:</p>
 <pre><code class="C language-C">#include &lt;taos.h&gt;</code></pre>
-<p>Make sure TDengine library <em>libtaos.so</em> is installed and use <em>-ltaos</em> option to link the library when compile. The return values of all APIs are <em>-1</em> or <em>NULL</em> for failure.</p>
+<p>Make sure TDengine library <em>libtaos.so</em> is installed and use <em>-ltaos</em> option to link the library when compiling. The return values of all APIs are <em>-1</em> or <em>NULL</em> for failure.</p>
 <a class='anchor' id='C/C++-sync-API'></a><h3>C/C++ sync API</h3>
 <p>Sync APIs are those APIs waiting for responses from the server after sending a request. TDengine has the following sync APIs:</p>
 <ul>
@@ -35,21 +35,21 @@
 <p>The 12 APIs are the most important APIs frequently used. Users can check <em>taos.h</em> file for more API information.</p>
 <p><strong>Note</strong>: The connection to a TDengine server is not multi-thread safe. So a connection can only be used by one thread.</p>
 <a class='anchor' id='C/C++-async-API'></a><h3>C/C++ async API</h3>
-<p>In addition to sync APIs, TDengine also provides async APIs, which are more efficient. Async APIs are returned right away without waiting for the response from ther server, so the application can continute with other tasks without blocking. So async APIs are more efficient, especially in a poor network.</p>
+<p>In addition to sync APIs, TDengine also provides async APIs, which are more efficient. Async APIs are returned right away without waiting for a response from the server, allowing the application to continute with other tasks without blocking. So async APIs are more efficient, especially useful when in a poor network.</p>
 <p>All async APIs require callback functions. The callback functions have the format:</p>
 <pre><code class="C language-C">void fp(void *param, TAOS_RES * res, TYPE param3)</code></pre>
 <p>The first two parameters of the callback function are the same for all async APIs. The third parameter is different for different APIs. Generally, the first parameter is the handle provided to the API for action. The second parameter is a result handle.</p>
 <ul>
 <li><p><code>void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *param, TAOS_RES *, int code), void *param);</code></p>
-<p>The async query interface. <em>taos</em> is the handle returned by <em>taos_connect</em> interface. <em>sqlstr</em> is the SQL command to run. <em>fp</em> is the callback function. <em>param</em> is the parameter required by the callback function. The third parameter of the callback function <em>code</em> is <em>0</em> (for success) or <em>-1</em> (for failure). Applications mainly handle with the second parameter, the returned result set.</p></li>
+<p>The async query interface. <em>taos</em> is the handle returned by <em>taos_connect</em> interface. <em>sqlstr</em> is the SQL command to run. <em>fp</em> is the callback function. <em>param</em> is the parameter required by the callback function. The third parameter of the callback function <em>code</em> is <em>0</em> (for success) or a negative number (for failure, call taos_errstr to get the error as a string).  Applications mainly handle with the second parameter, the returned result set.</p></li>
 <li><p><code>void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);</code></p>
 <p>The async API to fetch a batch of rows, which should only be used with a <em>taos_query_a</em> call. The parameter <em>res</em> is the result handle returned by <em>taos_query_a</em>. <em>fp</em> is the callback function. <em>param</em> is a user-defined structure to pass to <em>fp</em>. The parameter <em>numOfRows</em> is the number of result rows in the current fetch cycle. In the callback function, applications should call <em>taos_fetch_row</em> to get records from the result handle. After getting a batch of results, applications should continue to call <em>taos_fetch_rows_a</em> API to handle the next batch, until the <em>numOfRows</em> is <em>0</em> (for no more data to fetch) or <em>-1</em> (for failure).</p></li>
-<li><p><code>void taos_fetch_row_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, TAOS_ROW), void *param);</code></p>
+<li><p><code>void taos_fetch_row_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), void *param);</code></p>
 <p>The async API to fetch a result row. <em>res</em> is the result handle. <em>fp</em> is the callback function. <em>param</em> is a user-defined structure to pass to <em>fp</em>. The third parameter of the callback function is a single result row, which is different from that of <em>taos_fetch_rows_a</em> API. With this API, it is not necessary to call <em>taos_fetch_row</em> to retrieve each result row, which is handier than <em>taos_fetch_rows_a</em> but less efficient.</p></li>
 </ul>
 <p>Applications may apply operations on multiple tables. However, <strong>it is important to make sure the operations on the same table are serialized</strong>. That means after sending an insert request in a table to the server, no operations on the table are allowed before a request is received.</p>
 <a class='anchor' id='C/C++-continuous-query-interface'></a><h3>C/C++ continuous query interface</h3>
-<p>TDengine provides APIs for continuous query driven by time, which run query periodically in the background. There are only two APIs:</p>
+<p>TDengine provides APIs for continuous query driven by time, which run queries periodically in the background. There are only two APIs:</p>
 <ul>
 <li><p><code>TAOS_STREAM *taos_open_stream(TAOS *taos, char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), int64_t stime, void *param, void (*callback)(void *));</code></p>
 <p>The API is used to create a continuous query.</p></li>
@@ -80,8 +80,8 @@ The API used to get the description of each column.</p></li>
 <a class='anchor' id='Java-Connector'></a><h2>Java Connector</h2>
 <a class='anchor' id='JDBC-Interface'></a><h3>JDBC Interface</h3>
 <p>TDengine provides a JDBC driver <code>taos-jdbcdriver-x.x.x.jar</code> for Enterprise Java developers. TDengine's JDBC Driver is implemented as a subset of the standard JDBC 3.0 Specification and supports the most common Java development frameworks. The driver is currently not published to the online dependency repositories such as Maven Center Repository, and users should manually add the <code>.jar</code> file to their local dependency repository.</p>
-<p>Please note the JDBC driver itself relies on a native library written in C. On a Linux OS, the driver relies on a <code>libtaos.so</code> native library, where .so stands for "Shared Object". After the successful installation of the TDengine on Linux, <code>libtaos.so</code> should be automatically copied to <code>/usr/local/lib/taos</code> and added to the system's default searching path. On a Windows OS, the driver relies on a <code>taos.dll</code> native library, where .dll stands for "Dynamic Link Library". After the successful installation of TDengine client on Windows, the <code>taos-jdbcdriver.jar</code> file can be found in <code>C:/TDengine/driver/JDBC</code>; the <code>taos.dll</code> file can be found in <code>C:/TDengine/driver/C</code> and should have been automatically copied to the system's searching path <code>C:/Windows/System32</code>. </p>
-<p>Developers can refer to the Oracle's official JDBC API documentation for detailed usage on classes and methods. There do exist differences of connection configurations and supported methods in the driver implementation between TDengine and traditional relational databases. </p>
+<p>Please note the JDBC driver itself relies on a native library written in C. On a Linux OS, the driver relies on a <code>libtaos.so</code> native library, where .so stands for "Shared Object". After the successful installation of TDengine on Linux, <code>libtaos.so</code> should be automatically copied to <code>/usr/local/lib/taos</code> and added to the system's default search path. On a Windows OS, the driver relies on a <code>taos.dll</code> native library, where .dll stands for "Dynamic Link Library". After the successful installation of the TDengine client on Windows, the <code>taos-jdbcdriver.jar</code> file can be found in <code>C:/TDengine/driver/JDBC</code>; the <code>taos.dll</code> file can be found in <code>C:/TDengine/driver/C</code> and should have been automatically copied to the system's searching path <code>C:/Windows/System32</code>. </p>
+<p>Developers can refer to the Oracle's official JDBC API documentation for detailed usage on classes and methods. However, there are some differences of connection configurations and supported methods in the driver implementation between TDengine and traditional relational databases. </p>
 <p>For database connections, TDengine's JDBC driver has the following configurable parameters in the JDBC URL. The standard format of a TDengine JDBC URL is:</p>
 <p><code>jdbc:TSDB://{host_ip}:{port}/{database_name}?[user={user}|&amp;password={password}|&amp;charset={charset}|&amp;cfgdir={config_dir}|&amp;locale={locale}|&amp;timezone={timezone}]</code></p>
 <p>where <code>{}</code> marks the required parameters and <code>[]</code> marks the optional. The usage of each parameter is pretty straightforward:</p>
@@ -177,7 +177,7 @@ public Connection getConn() throws Exception{
 <li><em>data</em>: the returned data array. If no data is returned, only an <em>affected_rows</em> field is listed</li>
 <li><em>rows</em>: the number of rows returned</li>
 </ul>
-<a class='anchor' id='Example'></a><h3>Example</h3>
+<a class='anchor' id='Example'></a><a class='anchor' id='Example'></a><h3>Example</h3>
 <ul>
 <li><p>Use <em>curl</em> command to query all the data in table <em>t1</em> of database <em>demo</em>:</p>
 <p><code>curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sql</code></p></li>
@@ -216,7 +216,7 @@ public Connection getConn() throws Exception{
 <p>To get started, just type in the following to install the connector through <a href="https://www.npmjs.com/">npm</a>.</p>
 <pre><code class="cmd language-cmd">npm install td-connector</code></pre>
 <p>It is highly suggested you use npm. If you don't have it installed, you can also just copy the nodejs folder from <em>src/connector/nodejs/</em> into your node project folder.</p>
-<p>To interact with TDengine, we make use of the [node-gyp[(https://github.com/nodejs/node-gyp)] library. To install, you will need to install the following depending on platform (the following instructions are quoted from node-gyp)</p>
+<p>To interact with TDengine, we make use of the <a href="https://github.com/nodejs/node-gyp">node-gyp</a> library. To install, you will need to install the following depending on platform (the following instructions are quoted from node-gyp)</p>
 <a class='anchor' id='On-Unix'></a><h3>On Unix</h3>
 <ul>
 <li><code>python</code> (<code>v2.7</code> recommended, <code>v3.x.x</code> is <strong>not</strong> supported)</li>
@@ -249,143 +249,36 @@ public Connection getConn() throws Exception{
 </ul>
 <p>If the above steps didn't work for you, please visit <a href="https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules">Microsoft's Node.js Guidelines for Windows</a> for additional tips.</p>
 <p>To target native ARM64 Node.js on Windows 10 on ARM, add the  components "Visual C++ compilers and libraries for ARM64" and "Visual  C++ ATL for ARM64".</p>
-<a class='anchor' id='Usage'></a><h2>Usage</h2>
-<p>To use the connector, first request the <code>td-connector</code> package. Running the function <code>taos.connect</code> with the connection options passed in as an object will return a TDengine connection object. A cursor needs to be intialized in order to interact with TDengine from node.</p>
+<a class='anchor' id='Usage'></a><h3>Usage</h3>
+<p>The following is a short summary of the basic usage of the connector, the  full api and documentation can be found <a href="http://docs.taosdata.com/node">here</a></p>
+<h4>Connection</h4>
+<p>To use the connector, first require the library <code>td-connector</code>. Running the function <code>taos.connect</code> with the connection options passed in as an object will return a TDengine connection object. The required connection option is <code>host</code>, other options if not set, will be the default values as shown below.</p>
+<p>A cursor also needs to be initialized in order to interact with TDengine from Node.js.</p>
 <pre><code class="javascript language-javascript">const taos = require('td-connector');
 var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", config:"/etc/taos",port:0})
-var c1 = conn.cursor(); // Initializing a new cursor</code></pre>
-<p>We can now start executing queries through the <code>cursor.execute</code> function.</p>
-<pre><code class="javascript language-javascript">c1.execute('show databases;')</code></pre>
-<p>We can get the results of the queries by doing the following</p>
-<pre><code class="javascript language-javascript">var data = c1.fetchall();
-console.log(c1.fieldNames); // Returns the names of the columns/fields
-console.log(data); // Logs all the data from the query as an array of arrays, each of which represents a row and data[row_number] is sorted in order of the fields</code></pre>
-<a class='anchor' id='Example'></a><h2>Example</h2>
-<p>The following is an example use of the connector showing how to make a table with weather data, insert random data, and then retrieve it.</p>
-<pre><code class="javascript language-javascript">// Get the td-connector package
-const taos = require('td-connector');
-
-/* We will connect to TDengine by passing an object comprised of connection options to taos.connect and store the
- * connection to the variable conn
- */
-/*
- * Connection Options
- * host: the host to connect to
- * user: the use to login as
- * password: the password for the above user to login
- * config: the location of the taos.cfg file, by default it is in /etc/taos
- * port: the port we connect through
- */
-var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", config:"/etc/taos",port:0});
-
-// Initialize our TDengineCursor, which we use to interact with TDengine
-var c1 = conn.cursor();
-
-// c1.execute(query) will execute the query
-// Let's create a database named db
-try {
-  c1.execute('create database db;');
-}
-catch(err) {
-  conn.close();
-  throw err;
-}
-
-// Now we will use database db
-try {
-  c1.execute('use db;');
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// Let's create a table called weather
-// which stores some weather data like humidity, AQI (air quality index), temperature, and some notes as text
-try {
-  c1.execute('create table if not exists weather (ts timestamp, humidity smallint, aqi int, temperature float, notes binary(30));');
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// Let's get the description of the table weather
-try {
-  c1.execute('describe db.weather');
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// To get results, we run the function c1.fetchall()
-// It only returns the query results as an array of result rows, but also stores the latest results in c1.data
-try {
-  var tableDesc = c1.fetchall(); // The description variable here is equal to c1.data;
-  console.log(tableDesc);
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// Let's try to insert some random generated data to test with
-
-let stime = new Date();
-let interval = 1000;
-
-// Timestamps must be in the form of "YYYY-MM-DD HH:MM:SS.MMM" if they are in milliseconds
-//                                   "YYYY-MM-DD HH:MM:SS.MMMMMM" if they are in microseconds
-// Thus, we create the following function to convert a javascript Date object to the correct formatting
-function convertDateToTS(date) {
-  let tsArr = date.toISOString().split("T")
-  return "\"" + tsArr[0] + " " + tsArr[1].substring(0, tsArr[1].length-1) + "\"";
-}
-
-try {
-  for (let i = 0; i &lt; 10000; i++) {
-    stime.setMilliseconds(stime.getMilliseconds() + interval);
-    let insertData = [convertDateToTS(stime),
-                      parseInt(Math.random()*100),
-                      parseInt(Math.random()*300),
-                      parseFloat(Math.random()*10 + 30),
-                      "\"random note!\""];
-    c1.execute('insert into db.weather values(' + insertData.join(',') + ' );');
-  }
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// Now let's look at our newly inserted data
-var retrievedData;
-try {
-  c1.execute('select * from db.weather;')
-  retrievedData = c1.fetchall();
-
-  // c1.fieldNames stores the names of each column retrieved
-  console.log(c1.fieldNames);
-  console.log(retrievedData);
-  // timestamps retrieved are always JS Date Objects
-  // Numbers are numbers, big ints are big ints, and strings are strings
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
-
-// Let's try running some basic functions
-try {
-  c1.execute('select count(*), avg(temperature), max(temperature), min(temperature), stddev(temperature) from db.weather;')
-  c1.fetchall();
-  console.log(c1.fieldNames);
-  console.log(c1.data);
-}
-catch(err) {
-  conn.close();
-  throw err;
-}
-
-conn.close();</code></pre><a href='../index.html'>Back</a></section></main></div><?php include($s.'/footer.php'); ?><script>$('pre').addClass('prettyprint linenums');PR.prettyPrint()</script><script src='lib/docs/liner.js'></script></body></html>
+var cursor = conn.cursor(); // Initializing a new cursor</code></pre>
+<p>To close a connection, run</p>
+<pre><code class="javascript language-javascript">conn.close();</code></pre>
+<h4>Queries</h4>
+<p>We can now start executing simple queries through the <code>cursor.query</code> function, which returns a TaosQuery object.</p>
+<pre><code class="javascript language-javascript">var query = cursor.query('show databases;')</code></pre>
+<p>We can get the results of the queries through the <code>query.execute()</code> function, which returns a promise that resolves with a TaosResult object, which contains the raw data and additional functionalities such as pretty printing the results.</p>
+<pre><code class="javascript language-javascript">var promise = query.execute();
+promise.then(function(result) {
+  result.pretty(); //logs the results to the console as if you were in the taos shell
+});</code></pre>
+<p>You can also query by binding parameters to a query by filling in the question marks in a string as so. The query will automatically parse what was binded and convert it to the proper format for use with TDengine</p>
+<pre><code class="javascript language-javascript">var query = cursor.query('select * from meterinfo.meters where ts &lt;= ? and areaid = ?').bind(new Date(), 5);
+query.execute().then(function(result) {
+  result.pretty();
+})</code></pre>
+<p>The TaosQuery object can also be immediately executed upon creation by passing true as the second argument, returning a promise instead of a TaosQuery.</p>
+<pre><code class="javascript language-javascript">var promise = cursor.query('select * from meterinfo.meters where v1 = 30', true)
+promise.then(function(result) {
+  result.pretty();
+})</code></pre>
+<h4>Async functionality</h4>
+<p>Coming soon</p>
+<h3>Example</h3>
+<p>An example of using the NodeJS connector to create a table with weather data and create and execute queries can be found <a href="https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js">here</a> (The preferred method for using the connector)</p>
+<p>An example of using the NodeJS connector to achieve the same things but without all the object wrappers that wrap around the data returned to achieve higher functionality can be found <a href="https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js">here</a></p><a href='../index.html'>Back</a></section></main></div><?php include($s.'/footer.php'); ?><script>$('pre').addClass('prettyprint linenums');PR.prettyPrint()</script><script src='lib/docs/liner.js'></script></body></html>
