@@ -2,8 +2,9 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 PROJECT(TDengine)
 
-AUX_SOURCE_DIRECTORY(. SRC)
-INCLUDE_DIRECTORIES(${PRJ_HEADER_PATH} ../../client/inc)
-
-ADD_EXECUTABLE(taosdump ${SRC})
-TARGET_LINK_LIBRARIES(taosdump taos_static trpc tutil pthread)
+IF (TD_LINUX)
+  AUX_SOURCE_DIRECTORY(. SRC)
+  INCLUDE_DIRECTORIES(${TD_ROOT_DIR}/src/inc ${TD_ROOT_DIR}/src/client/inc ${TD_OS_DIR}/inc)
+  ADD_EXECUTABLE(taosdump ${SRC})
+  TARGET_LINK_LIBRARIES(taosdump taos_static)
+ENDIF ()

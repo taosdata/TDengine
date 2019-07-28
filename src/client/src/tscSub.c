@@ -14,7 +14,6 @@
  */
 
 #include <signal.h>
-#include <unistd.h>
 
 #include "shash.h"
 #include "taos.h"
@@ -100,7 +99,7 @@ TAOS_ROW taos_consume(TAOS_SUB *tsub) {
       taos_free_result(pSub->result);
       pSub->result = NULL;
       uint64_t etime = taosGetTimestampMs();
-      time_t   mseconds = pSub->mseconds - etime + pSub->stime;
+      int64_t  mseconds = pSub->mseconds - etime + pSub->stime;
       if (mseconds < 0) mseconds = 0;
       taosMsleep((int)mseconds);
     }

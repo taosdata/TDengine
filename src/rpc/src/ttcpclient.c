@@ -13,11 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
 #include <pthread.h>
 #include <pthread.h>
 #include <semaphore.h>
@@ -25,11 +22,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <syslog.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "taosmsg.h"
 #include "tlog.h"
 #include "tlog.h"

@@ -2732,7 +2732,7 @@ static void rewriteExecOrder(SQuery *pQuery, bool metricQuery) {
     if (!QUERY_IS_ASC_QUERY(pQuery)) {
       dTrace(msg, GET_QINFO_ADDR(pQuery), "interp", pQuery->order.order, TSQL_SO_ASC, pQuery->skey, pQuery->ekey,
              pQuery->ekey, pQuery->skey);
-      SWAP(pQuery->skey, pQuery->ekey);
+      SWAP(pQuery->skey, pQuery->ekey, TSKEY);
     }
 
     pQuery->order.order = TSQL_SO_ASC;
@@ -2745,7 +2745,7 @@ static void rewriteExecOrder(SQuery *pQuery, bool metricQuery) {
         dTrace(msg, GET_QINFO_ADDR(pQuery), "only-first", pQuery->order.order, TSQL_SO_ASC, pQuery->skey, pQuery->ekey,
                pQuery->ekey, pQuery->skey);
 
-        SWAP(pQuery->skey, pQuery->ekey);
+        SWAP(pQuery->skey, pQuery->ekey, TSKEY);
       }
 
       pQuery->order.order = TSQL_SO_ASC;
@@ -2754,7 +2754,7 @@ static void rewriteExecOrder(SQuery *pQuery, bool metricQuery) {
         dTrace(msg, GET_QINFO_ADDR(pQuery), "only-last", pQuery->order.order, TSQL_SO_DESC, pQuery->skey, pQuery->ekey,
                pQuery->ekey, pQuery->skey);
 
-        SWAP(pQuery->skey, pQuery->ekey);
+        SWAP(pQuery->skey, pQuery->ekey, TSKEY);
       }
 
       pQuery->order.order = TSQL_SO_DESC;
@@ -2767,7 +2767,7 @@ static void rewriteExecOrder(SQuery *pQuery, bool metricQuery) {
           dTrace(msg, GET_QINFO_ADDR(pQuery), "only-first stable", pQuery->order.order, TSQL_SO_ASC, pQuery->skey,
                  pQuery->ekey, pQuery->ekey, pQuery->skey);
 
-          SWAP(pQuery->skey, pQuery->ekey);
+          SWAP(pQuery->skey, pQuery->ekey, TSKEY);
         }
 
         pQuery->order.order = TSQL_SO_ASC;
@@ -2776,7 +2776,7 @@ static void rewriteExecOrder(SQuery *pQuery, bool metricQuery) {
           dTrace(msg, GET_QINFO_ADDR(pQuery), "only-last stable", pQuery->order.order, TSQL_SO_DESC, pQuery->skey,
                  pQuery->ekey, pQuery->ekey, pQuery->skey);
 
-          SWAP(pQuery->skey, pQuery->ekey);
+          SWAP(pQuery->skey, pQuery->ekey, TSKEY);
         }
 
         pQuery->order.order = TSQL_SO_DESC;
@@ -4567,14 +4567,14 @@ static void queryStatusSave(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatus *pStatus
 
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
 
-  SWAP(pQuery->skey, pQuery->ekey);
+  SWAP(pQuery->skey, pQuery->ekey, TSKEY);
   pQuery->lastKey = pQuery->skey;
   pRuntimeEnv->startPos = pRuntimeEnv->endPos;
 }
 
 static void queryStatusRestore(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatus *pStatus) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
-  SWAP(pQuery->skey, pQuery->ekey);
+  SWAP(pQuery->skey, pQuery->ekey, TSKEY);
 
   pQuery->lastKey = pStatus->lastKey;
 

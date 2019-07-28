@@ -19,7 +19,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+
+#include "os.h"
 
 typedef struct _str_node_t {
   int32_t             key;

@@ -23,9 +23,8 @@
 #include <math.h>
 
 #include <errno.h>
-#include <sys/time.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "taos.h"
 #include "taosmsg.h"
 #include "textbuffer.h"
@@ -45,7 +44,11 @@ void getExtTmpfilePath(const char *fileNamePattern, int64_t serialNumber, int32_
 
   char *tmpDir = NULL;
 
+#ifdef WINDOWS
+  tmpDir = getenv("tmp");
+#else
   tmpDir = "/tmp/";
+#endif
 
   strcat(tmpPath, tmpDir);
   strcat(tmpPath, fileNamePattern);

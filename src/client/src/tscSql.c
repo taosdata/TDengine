@@ -13,12 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "tcache.h"
 #include "tlog.h"
 #include "trpc.h"
@@ -128,10 +126,10 @@ TAOS *taos_connect_imp(char *ip, char *user, char *pass, char *db, int port, voi
 
 TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port) {
   if (ip != NULL && (strcmp("127.0.0.1", ip) == 0 || strcasecmp("localhost", ip) == 0)) {
-    ip = tsInternalIp;
+    ip = tsServerIpStr;
   }
 
-  if (ip == NULL) ip = tsInternalIp;
+  if (ip == NULL) ip = tsServerIpStr;
   tscTrace("try to create a connection to %s", ip);
 
   void *taos = taos_connect_imp(ip, user, pass, db, port, NULL, NULL, NULL);
@@ -152,7 +150,7 @@ TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port) {
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, int port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
   if (ip == NULL) {
-    ip = tsInternalIp;
+    ip = tsServerIpStr;
   }
   return taos_connect_imp(ip, user, pass, db, port, fp, param, taos);
 }

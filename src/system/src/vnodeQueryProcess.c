@@ -650,7 +650,7 @@ static void doMultiMeterSupplementaryScan(SQInfo *pQInfo) {
   SET_SUPPLEMENT_SCAN_FLAG(pRuntimeEnv);
   disableFunctForSuppleScanAndSetSortOrder(pRuntimeEnv, pQuery->order.order);
 
-  SWAP(pSupporter->rawSKey, pSupporter->rawEKey);
+  SWAP(pSupporter->rawSKey, pSupporter->rawEKey, TSKEY);
 
   for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
     SMeterQueryInfo *pMeterQInfo = pSupporter->pMeterDataInfo[i].pMeterQInfo;
@@ -679,7 +679,7 @@ static void doMultiMeterSupplementaryScan(SQInfo *pQInfo) {
     pSupporter->pMeterDataInfo = queryOnMultiDataFiles(pQInfo, pSupporter, pSupporter->pMeterDataInfo);
   }
 
-  SWAP(pSupporter->rawSKey, pSupporter->rawEKey);
+  SWAP(pSupporter->rawSKey, pSupporter->rawEKey, TSKEY);
   enableFunctForMasterScan(pRuntimeEnv, pQuery->order.order);
   SET_MASTER_SCAN_FLAG(pRuntimeEnv);
 

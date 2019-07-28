@@ -13,13 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <wchar.h>
 
+#include "os.h"
 #include "tcache.h"
 #include "trpc.h"
 #include "tscProfile.h"
@@ -37,7 +36,6 @@
 
 int      tsMasterIndex = 0;
 int      tsSlaveIndex = 1;
-char     tsServerIpStr[128] = "127.0.0.1";
 uint32_t tsServerIp;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql);
@@ -619,9 +617,19 @@ static void tscFreeSubSqlObj(SRetrieveSupport *trsupport, SSqlObj *pSql) {
 }
 
 static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES *tres, int32_t errCode) {
+// set no disk space error info
+#ifdef WINDOWS
+  LPVOID lpMsgBuf;
+  FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
+                GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  // Default language
+                (LPTSTR)&lpMsgBuf, 0, NULL);
+  tscError("sub:%p failed to flush data to disk:reason:%s", tres, lpMsgBuf);
+  LocalFree(lpMsgBuf);
+#else
   char buf[256] = {0};
   strerror_r(errno, buf, 256);
   tscError("sub:%p failed to flush data to disk:reason:%s", tres, buf);
+#endif
 
   *(trsupport->code) = -errCode;
   trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
