@@ -345,7 +345,7 @@ int32_t tsParseOneColumnData(SSchema* pSchema, char* value, int valuelen, char* 
 
 // todo merge the error msg function with tSQLParser
 static void setErrMsg(char* msg, char* sql) {
-  char          msgFormat[] = "near \"%s\" syntax error";
+  const char*   msgFormat = "near \"%s\" syntax error";
   const int32_t BACKWARD_CHAR_STEP = 15;
 
   // only extract part of sql string,avoid too long sql string cause stack over flow
