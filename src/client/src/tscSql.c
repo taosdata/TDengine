@@ -314,6 +314,11 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
     return 0;
   }
 
+  // secondary merge has handle this situation
+  if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC) {
+    pRes->numOfTotal += pRes->numOfRows;
+  }
+
   for (int i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
     pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pCmd, i, pCmd->order) +
                      pRes->bytes[i] * (1 - pCmd->order.order) * (pRes->numOfRows - 1);
@@ -348,7 +353,7 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
       return NULL;
     }
 
-    /* localreducer has handle this situation */
+    // secondary merge has handle this situation
     if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC) {
       pRes->numOfTotal += pRes->numOfRows;
     }

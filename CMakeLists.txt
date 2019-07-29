@@ -56,7 +56,7 @@ ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
   SET(TD_WINDOWS TRUE)
   ADD_DEFINITIONS(-DWINDOWS)
   
-  SET(COMMON_FLAGS "/nologo /WX- /sdl /Oi /Oy- /Gm- /EHsc /MT /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Gd /errorReport:prompt /analyze-")
+  SET(COMMON_FLAGS "/nologo /WX- /Oi /Oy- /Gm- /EHsc /MT /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Gd /errorReport:prompt /analyze-")
   SET(DEBUG_FLAGS "/Zi /W3 /GL")
   SET(RELEASE_FLAGS "/W0 /GL")	
   
