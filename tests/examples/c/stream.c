@@ -167,7 +167,7 @@ void* insert_rows(void *sarg)
     if (g_thread_exit_flag) break;
 	
     index++;
-    sprintf(command, "insert into %s values (now, %d)", winfo->tbl_name, index);
+    sprintf(command, "insert into %s values (%ld, %d)", winfo->tbl_name, 1546300800000+index*1000, index);
     if (taos_query(taos, command)) {
       printf("failed to insert row [%s], reason:%s\n", command, taos_errstr(taos));
     }
