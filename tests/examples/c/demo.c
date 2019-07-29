@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
   // insert 10 records
   int i = 0;
   for (i = 0; i < 10; ++i) {
-    sprintf(qstr, "insert into m1 values (now+%ds, %d)", i, i * 10);
+    sprintf(qstr, "insert into m1 values (%ld, %d)", 1546300800000 + i * 1000, i * 10);
     if (taos_query(taos, qstr)) {
       printf("failed to insert row: %i, reason:%s\n", i, taos_errstr(taos));
     }
