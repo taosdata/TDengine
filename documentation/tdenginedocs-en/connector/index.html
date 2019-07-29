@@ -47,7 +47,7 @@
 <li><p><code>void taos_fetch_row_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), void *param);</code></p>
 <p>The async API to fetch a result row. <em>res</em> is the result handle. <em>fp</em> is the callback function. <em>param</em> is a user-defined structure to pass to <em>fp</em>. The third parameter of the callback function is a single result row, which is different from that of <em>taos_fetch_rows_a</em> API. With this API, it is not necessary to call <em>taos_fetch_row</em> to retrieve each result row, which is handier than <em>taos_fetch_rows_a</em> but less efficient.</p></li>
 </ul>
-<p>Applications may apply operations on multiple tables. However, <strong>it is important to make sure the operations on the same table are serialized</strong>. That means after sending an insert request in a table to the server, no operations on the table are allowed before a request is received.</p>
+<p>Applications may apply operations on multiple tables. However, <strong>it is important to make sure the operations on the same table are serialized</strong>. That means after sending an insert request in a table to the server, no operations on the table are allowed before a response is received.</p>
 <a class='anchor' id='C/C++-continuous-query-interface'></a><h3>C/C++ continuous query interface</h3>
 <p>TDengine provides APIs for continuous query driven by time, which run queries periodically in the background. There are only two APIs:</p>
 <ul>
@@ -268,17 +268,26 @@ promise.then(function(result) {
   result.pretty(); //logs the results to the console as if you were in the taos shell
 });</code></pre>
 <p>You can also query by binding parameters to a query by filling in the question marks in a string as so. The query will automatically parse what was binded and convert it to the proper format for use with TDengine</p>
-<pre><code class="javascript language-javascript">var query = cursor.query('select * from meterinfo.meters where ts &lt;= ? and areaid = ?').bind(new Date(), 5);
+<pre><code class="javascript language-javascript">var query = cursor.query('select * from meterinfo.meters where ts &lt;= ? and areaid = ?;').bind(new Date(), 5);
 query.execute().then(function(result) {
   result.pretty();
 })</code></pre>
 <p>The TaosQuery object can also be immediately executed upon creation by passing true as the second argument, returning a promise instead of a TaosQuery.</p>
-<pre><code class="javascript language-javascript">var promise = cursor.query('select * from meterinfo.meters where v1 = 30', true)
+<pre><code class="javascript language-javascript">var promise = cursor.query('select * from meterinfo.meters where v1 = 30;', true)
 promise.then(function(result) {
   result.pretty();
 })</code></pre>
 <h4>Async functionality</h4>
-<p>Coming soon</p>
+<p>Async queries can be performed using the same functions such as <code>cursor.execute</code>, <code>cursor.query</code>, but now with <code>_a</code> appended to them.</p>
+<p>Say you want to execute an two async query on two seperate tables, using <code>cursor.query_a</code>, you can do that and get a TaosQuery object, which upon executing with the <code>execute_a</code> function, returns a promise that resolves with a TaosResult object.</p>
+<pre><code class="javascript language-javascript">var promise1 = cursor.query_a('select count(*), avg(v1), avg(v2) from meter1;').execute_a()
+var promise2 = cursor.query_a('select count(*), avg(v1), avg(v2) from meter2;').execute_a();
+promise1.then(function(result) {
+  result.pretty();
+})
+promise2.then(function(result) {
+  result.pretty();
+})</code></pre>
 <h3>Example</h3>
 <p>An example of using the NodeJS connector to create a table with weather data and create and execute queries can be found <a href="https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js">here</a> (The preferred method for using the connector)</p>
 <p>An example of using the NodeJS connector to achieve the same things but without all the object wrappers that wrap around the data returned to achieve higher functionality can be found <a href="https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js">here</a></p><a href='../index.html'>Back</a></section></main></div><?php include($s.'/footer.php'); ?><script>$('pre').addClass('prettyprint linenums');PR.prettyPrint()</script><script src='lib/docs/liner.js'></script></body></html>

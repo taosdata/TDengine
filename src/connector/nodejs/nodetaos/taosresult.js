@@ -42,7 +42,7 @@ TaosResult.prototype.pretty = function pretty() {
     else {
       sizing.push(Math.max(field.name.length, suggestedMinWidths[field._field.type]));
     }
-    fieldsStr +=fillEmpty(Math.floor(sizing[i]/2 - field.name.length / 2)) + field.name + fillEmpty(Math.ceil(sizing[i]/2 - field.name.length / 2)) + " | ";
+    fieldsStr += fillEmpty(Math.floor(sizing[i]/2 - field.name.length / 2)) + field.name + fillEmpty(Math.ceil(sizing[i]/2 - field.name.length / 2)) + " | ";
   });
   var sumLengths = sizing.reduce((a,b)=> a+=b,(0)) + sizing.length * 3;
 

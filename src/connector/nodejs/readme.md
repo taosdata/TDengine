@@ -106,7 +106,7 @@ promise.then(function(result) {
 
 You can also query by binding parameters to a query by filling in the question marks in a string as so. The query will automatically parse what was binded and convert it to the proper format for use with TDengine
 ```javascript
-var query = cursor.query('select * from meterinfo.meters where ts <= ? and areaid = ?').bind(new Date(), 5);
+var query = cursor.query('select * from meterinfo.meters where ts <= ? and areaid = ?;').bind(new Date(), 5);
 query.execute().then(function(result) {
   result.pretty();
 })
@@ -114,7 +114,7 @@ query.execute().then(function(result) {
 
 The TaosQuery object can also be immediately executed upon creation by passing true as the second argument, returning a promise instead of a TaosQuery.
 ```javascript
-var promise = cursor.query('select * from meterinfo.meters where v1 = 30', true)
+var promise = cursor.query('select * from meterinfo.meters where v1 = 30;', true)
 promise.then(function(result) {
   result.pretty();
 })
@@ -122,7 +122,7 @@ promise.then(function(result) {
 
 If you want to execute queries without objects being wrapped around the data, use ```cursor.execute()``` directly and ```cursor.fetchall()``` to retrieve data if there is any.
 ```javascript
-cursor.execute('select count(*), avg(v1), min(v2) from meterinfo.meters where ts >= \"2019-07-20 00:00:00.000\"');
+cursor.execute('select count(*), avg(v1), min(v2) from meterinfo.meters where ts >= \"2019-07-20 00:00:00.000\";');
 var data = cursor.fetchall();
 console.log(cursor.fields); // Latest query's Field metadata is stored in cursor.fields
 console.log(cursor.data); // Latest query's result data is stored in cursor.data, also returned by fetchall.
@@ -130,7 +130,20 @@ console.log(cursor.data); // Latest query's result data is stored in cursor.data
 
 ### Async functionality
 
-Coming soon
+Async queries can be performed using the same functions such as `cursor.execute`, `cursor.query`, but now with `_a` appended to them.
+
+Say you want to execute an two async query on two seperate tables, using `cursor.query_a`, you can do that and get a TaosQuery object, which upon executing with the `execute_a` function, returns a promise that resolves with a TaosResult object.
+
+```javascript
+var promise1 = cursor.query_a('select count(*), avg(v1), avg(v2) from meter1;').execute_a()
+var promise2 = cursor.query_a('select count(*), avg(v1), avg(v2) from meter2;').execute_a();
+promise1.then(function(result) {
+  result.pretty();
+})
+promise2.then(function(result) {
+  result.pretty();
+})
+```
 
 
 ## Example
