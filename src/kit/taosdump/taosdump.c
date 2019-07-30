@@ -470,7 +470,7 @@ int taosDumpOut(struct arguments *arguments) {
 
     if (arguments->databases) {
       for (int i = 0; arguments->arg_list[i]; i++) {
-        if (strncasecmp(arguments->arg_list[i], (char *)row[TSDB_SHOW_DB_NAME_INDEX],
+        if (strncasecmp(arguments->arg_list[i], (char *)row[TSDB_SHOW_DB_NAME_INDEX],
                         fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
           goto _dump_db_point;
       }
