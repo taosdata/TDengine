@@ -135,8 +135,8 @@ Async queries can be performed using the same functions such as `cursor.execute`
 Say you want to execute an two async query on two seperate tables, using `cursor.query_a`, you can do that and get a TaosQuery object, which upon executing with the `execute_a` function, returns a promise that resolves with a TaosResult object.
 
 ```javascript
-var promise1 = cursor.query_a('select count(*), avg(v1), avg(v2) from meter1;').execute_a()
-var promise2 = cursor.query_a('select count(*), avg(v1), avg(v2) from meter2;').execute_a();
+var promise1 = cursor.query('select count(*), avg(v1), avg(v2) from meter1;').execute_a()
+var promise2 = cursor.query('select count(*), avg(v1), avg(v2) from meter2;').execute_a();
 promise1.then(function(result) {
   result.pretty();
 })
