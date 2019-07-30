@@ -56,10 +56,10 @@ void tscSaveSlowQueryFp(void *handle, void *tmrId) {
 
   static void *taos = NULL;
   if (taos == NULL) {
-    taos = taos_connect(NULL, "sys", tsInternalPass, NULL, 0);
+    taos = taos_connect(NULL, "monitor", tsInternalPass, NULL, 0);
     if (taos == NULL) {
       tscError("failed to save slow query, can't connect to server");
-      free(sql);
+      free(sql);
       return;
     }
   }
