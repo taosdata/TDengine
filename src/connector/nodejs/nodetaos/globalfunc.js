@@ -1,5 +1,5 @@
 /* Wrap a callback, reduce code amount */
-function wrapCB(callback,input) {
+function wrapCB(callback, input) {
   if (typeof callback === 'function') {
     callback(input);
   }

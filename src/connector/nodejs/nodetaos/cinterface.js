@@ -25,7 +25,7 @@ function convertTimestamp(data, num_of_rows, nbytes = 0, offset = 0, micro=false
   if (micro == true) {
     timestampConverter = convertMicrosecondsToDatetime;
   }
-  data = ref.reinterpret(data.deref().deref(), nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -46,7 +46,7 @@ function convertTimestamp(data, num_of_rows, nbytes = 0, offset = 0, micro=false
   return res;
 }
 function convertBool(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data.deref().deref(), nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = new Array(data.length);
   for (let i = 0; i < data.length; i++) {
     if (data[i] == 0) {
@@ -59,7 +59,7 @@ function convertBool(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   return res;
 }
 function convertTinyint(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data.deref().deref(), nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -69,7 +69,7 @@ function convertTinyint(data, num_of_rows, nbytes = 0, offset = 0, micro=false) 
   return res;
 }
 function convertSmallint(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data.deref().deref(), nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -79,7 +79,7 @@ function convertSmallint(data, num_of_rows, nbytes = 0, offset = 0, micro=false)
   return res;
 }
 function convertInt(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data.deref().deref(), nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -98,7 +98,7 @@ function readBigInt64LE(buffer, offset = 0) {
   return ((BigInt(val) << 32n) + BigInt(first + buffer[++offset] * 2 ** 8 + buffer[++offset] * 2 ** 16 + buffer[++offset] * 2 ** 24));
 }
 function convertBigint(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data.deref().deref(), nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -108,7 +108,7 @@ function convertBigint(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   return res;
 }
 function convertFloat(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data.deref().deref(), nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -118,7 +118,7 @@ function convertFloat(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   return res;
 }
 function convertDouble(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data.deref().deref(), nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -128,7 +128,7 @@ function convertDouble(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   return res;
 }
 function convertBinary(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data.deref().deref(), nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   while (currOffset < data.length) {
@@ -139,7 +139,7 @@ function convertBinary(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   return res;
 }
 function convertNchar(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
-  data = ref.reinterpret(data.deref().deref(), nbytes * num_of_rows, offset);
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
   let currOffset = 0;
   //every 4;
@@ -185,7 +185,9 @@ TaosField.defineProperty('type', ref.types.char);
 function CTaosInterface (config = null, pass = false) {
   ref.types.char_ptr = ref.refType(ref.types.char);
   ref.types.void_ptr = ref.refType(ref.types.void);
+  ref.types.void_ptr2 = ref.refType(ref.types.void_ptr);
   /*Declare a bunch of functions first*/
+  /* Note, pointers to TAOS_RES, TAOS, are ref.types.void_ptr. The connection._conn buffer is supplied for pointers to TAOS  */
   this.libtaos = ffi.Library('libtaos', {
     'taos_options': [ ref.types.int, [ ref.types.int , ref.types.void_ptr ] ],
     'taos_init': [ ref.types.void, [ ] ],
@@ -201,6 +203,11 @@ function CTaosInterface (config = null, pass = false) {
     'taos_affected_rows': [ ref.types.int, [ ref.types.void_ptr] ],
     //int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows)
     'taos_fetch_block': [ ref.types.int, [ ref.types.void_ptr, ref.types.void_ptr] ],
+    //int taos_num_fields(TAOS_RES *res);
+    'taos_num_fields': [ ref.types.int, [ ref.types.void_ptr] ],
+    //TAOS_ROW taos_fetch_row(TAOS_RES *res)
+    //TAOS_ROW is void **, but we set the return type as a reference instead to get the row
+    'taos_fetch_row': [ ref.refType(ref.types.void_ptr2), [ ref.types.void_ptr ] ],
     //int taos_result_precision(TAOS_RES *res)
     'taos_result_precision': [ ref.types.int, [ ref.types.void_ptr ] ],
     //void taos_free_result(TAOS_RES *res)
@@ -212,7 +219,13 @@ function CTaosInterface (config = null, pass = false) {
     //int taos_errno(TAOS *taos)
     'taos_errno': [ ref.types.int, [ ref.types.void_ptr] ],
     //char *taos_errstr(TAOS *taos)
-    'taos_errstr': [ ref.types.char, [ ref.types.void_ptr] ]
+    'taos_errstr': [ ref.types.char, [ ref.types.void_ptr] ],
+
+    // ASYNC
+    // void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *, TAOS_RES *, int), void *param)
+    'taos_query_a': [ ref.types.void, [ ref.types.void_ptr, ref.types.char_ptr, ref.types.void_ptr, ref.types.void_ptr ] ],
+    // void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);
+    'taos_fetch_rows_a': [ ref.types.void, [ ref.types.void_ptr, ref.types.void_ptr, ref.types.void_ptr ]]
   });
   if (pass == false) {
     if (config == null) {
@@ -293,20 +306,20 @@ CTaosInterface.prototype.useResult = function useResult(connection) {
   let fields = [];
   let pfields = this.fetchFields(result);
   if (ref.isNull(pfields) == false) {
-    let fullpfields = ref.reinterpret(pfields, this.fieldsCount(connection) * 68, 0);
-    for (let i = 0; i < fullpfields.length; i += 68) {
+    pfields = ref.reinterpret(pfields, this.fieldsCount(connection) * 68, 0);
+    for (let i = 0; i < pfields.length; i += 68) {
       //0 - 63 = name //64 - 65 = bytes, 66 - 67 = type
       fields.push( {
-        name: ref.readCString(ref.reinterpret(fullpfields,64,i)),
-        bytes: fullpfields[i + 64],
-        type: fullpfields[i + 66]
+        name: ref.readCString(ref.reinterpret(pfields,64,i)),
+        bytes: pfields[i + 64],
+        type: pfields[i + 66]
       })
     }
   }
   return {result:result, fields:fields}
 }
 CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
-  let pblock = ref.ref(ref.ref(ref.NULL));
+  let pblock = ref.ref(ref.ref(ref.NULL)); // equal to our raw data
   let num_of_rows = this.libtaos.taos_fetch_block(result, pblock)
   if (num_of_rows == 0) {
     return {block:null, num_of_rows:0};
@@ -316,21 +329,30 @@ CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   blocks.fill(null);
   num_of_rows = Math.abs(num_of_rows);
   let offset = 0;
+  pblock = pblock.deref()
   for (let i = 0; i < fields.length; i++) {
 
     if (!convertFunctions[fields[i]['type']] ) {
       throw new errors.DatabaseError("Invalid data type returned from database");
     }
-    let data = ref.reinterpret(pblock.deref().deref(), fields[i]['bytes'], offset);
     blocks[i] = convertFunctions[fields[i]['type']](pblock, num_of_rows, fields[i]['bytes'], offset, isMicro);
     offset += fields[i]['bytes'] * num_of_rows;
   }
   return {blocks: blocks, num_of_rows:Math.abs(num_of_rows)}
 }
+CTaosInterface.prototype.fetchRow = function fetchRow(result, fields) {
+  let row = this.libtaos.taos_fetch_row(result);
+  return row;
+}
 CTaosInterface.prototype.freeResult = function freeResult(result) {
   this.libtaos.taos_free_result(result);
   result = null;
 }
+/** Number of fields returned in this result handle, must use with async */
+CTaosInterface.prototype.numFields = function numFields(result) {
+  return this.libtaos.taos_num_fields(result);
+}
+/** @deprecated */
 CTaosInterface.prototype.fieldsCount = function fieldsCount(connection) {
   return this.libtaos.taos_field_count(connection);
 }
@@ -341,5 +363,63 @@ CTaosInterface.prototype.errno = function errno(connection) {
   return this.libtaos.taos_errno(connection);
 }
 CTaosInterface.prototype.errStr = function errStr(connection) {
-  return (this.libtaos.taos_errstr(connection));
+  return this.libtaos.taos_errstr(connection);
+}
+// Async
+CTaosInterface.prototype.query_a = function query_a(connection, sql, callback, param = ref.ref(ref.NULL)) {
+  // void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *param, TAOS_RES *, int), void *param)
+  callback = ffi.Callback(ref.types.void, [ ref.types.void_ptr, ref.types.void_ptr, ref.types.int ], callback);
+  this.libtaos.taos_query_a(connection, ref.allocCString(sql), callback, param);
+  return param;
+}
+/** Asynchrnously fetches the next block of rows. Wraps callback and transfers a 4th argument to the cursor, the row data as blocks in javascript form
+ * Note: This isn't a recursive function, in order to fetch all data either use the TDengine cursor object, TaosQuery object, or implement a recrusive
+ * function yourself using the libtaos.taos_fetch_rows_a function
+ */
+CTaosInterface.prototype.fetch_rows_a = function fetch_rows_a(result, callback, param = ref.ref(ref.NULL)) {
+  // void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);
+  var cti = this;
+  // wrap callback with a function so interface can access the numOfRows value, needed in order to properly process the binary data
+  let asyncCallbackWrapper = function (param2, result2, numOfRows2) {
+    // Data preparation to pass to cursor. Could be bottleneck in query execution callback times.
+    let row = cti.libtaos.taos_fetch_row(result2);
+    let fields = cti.fetchFields_a(result2);
+    let isMicro = (cti.libtaos.taos_result_precision(result) == FieldTypes.C_TIMESTAMP_MICRO);
+    let blocks = new Array(fields.length);
+    blocks.fill(null);
+    numOfRows2 = Math.abs(numOfRows2);
+    let offset = 0;
+    if (numOfRows2 > 0){
+      for (let i = 0; i < fields.length; i++) {
+        if (!convertFunctions[fields[i]['type']] ) {
+          throw new errors.DatabaseError("Invalid data type returned from database");
+        }
+        blocks[i] = convertFunctions[fields[i]['type']](row, numOfRows2, fields[i]['bytes'], offset, isMicro);
+        offset += fields[i]['bytes'] * numOfRows2;
+      }
+    }
+    callback(param2, result2, numOfRows2, blocks);
+  }
+  asyncCallbackWrapper = ffi.Callback(ref.types.void, [ ref.types.void_ptr, ref.types.void_ptr, ref.types.int], asyncCallbackWrapper);
+  this.libtaos.taos_fetch_rows_a(result, asyncCallbackWrapper, param);
+  return param;
+}
+// Fetch field meta data by result handle
+CTaosInterface.prototype.fetchFields_a = function fetchFields_a (result) {
+  //
+  let pfields = this.fetchFields(result);
+  let pfieldscount = this.numFields(result);
+  let fields = [];
+  if (ref.isNull(pfields) == false) {
+    pfields = ref.reinterpret(pfields, 68 * pfieldscount , 0);
+    for (let i = 0; i < pfields.length; i += 68) {
+      //0 - 63 = name //64 - 65 = bytes, 66 - 67 = type
+      fields.push( {
+        name: ref.readCString(ref.reinterpret(pfields,64,i)),
+        bytes: pfields[i + 64],
+        type: pfields[i + 66]
+      })
+    }
+  }
+  return fields;
 }

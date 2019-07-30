@@ -2,364 +2,367 @@
 <p>TDengine provides a SQL like query language to insert or query data. You can execute the SQL statements through TDengine Shell, or through C/C++, Java(JDBC), Python, Restful, Go APIs to interact with the <code>taosd</code> service.</p>
 <p>Before reading through, please have a look at the conventions used for syntax descriptions here in this documentation.</p>
 <ul>
-<li>Squared brackets (&quot;[]&quot;) indicate optional arguments or clauses</li>
-<li>Curly braces (&quot;{}&quot;) indicate that one member from a set of choices in the braces must be chosen</li>
-<li>A single verticle line (&quot;|&quot;) works a separator for multiple optional args or clauses</li>
-<li>Dots (&quot;…&quot;) means repeating for as many times</li>
-
+<li>Squared brackets ("[]") indicate optional arguments or clauses</li>
+<li>Curly braces ("{}") indicate that one member from a set of choices in the braces must be chosen</li>
+<li>A single verticle line ("|") works a separator for multiple optional args or clauses</li>
+<li>Dots ("…") means repeating for as many times</li>
 </ul>
 <a class='anchor' id='Data-Types'></a><h2>Data Types</h2>
 <a class='anchor' id='Timestamp'></a><h3>Timestamp</h3>
 <p>The timestamp is the most important data type in TDengine. The first column of each table must be  <strong><code>TIMESTAMP</code></strong> type, but other columns can also be  <strong><code>TIMESTAMP</code></strong> type. The following rules for timestamp: </p>
 <ul>
-<li>String Format: <code>&#39;YYYY-MM-DD HH:mm:ss.MS&#39;</code>, which represents the year, month, day, hour, minute and second and milliseconds. For example,<code>&#39;2017-08-12 18:52:58.128&#39;</code> is a valid timestamp string. Note: timestamp string must be quoted by either single quote or double quote. </li>
-<li>Epoch Time:  a timestamp value can also be a long integer representing milliseconds since the epoch. For example, the values in the above example can be represented as an epoch <code>1502535178128</code> in milliseconds. Please note the epoch time doesn&#39;t need any quotes.</li>
-<li>Internal Function<strong><code>NOW</code></strong> : this is the current time of the server</li>
-<li>If timestamp is 0 when inserting a record, timestamp will be set to the current time of the server</li>
-<li>Arithmetic operations can be applied to timestamp. For example: <code>now-2h</code> represents a timestamp which is 2 hours ago from the current server time. Units include <code>a</code> (milliseconds),  <code>s</code> (seconds),  <code>m</code> (minutes),  <code>h</code> (hours),  <code>d</code> (days),  <code>w</code> (weeks), <code>n</code> (months), <code>y</code> (years). <strong><code>NOW</code></strong> can be used in either insertions or queries. </li>
-
+<li><p>String Format: <code>'YYYY-MM-DD HH:mm:ss.MS'</code>, which represents the year, month, day, hour, minute and second and milliseconds. For example,<code>'2017-08-12 18:52:58.128'</code> is a valid timestamp string. Note: timestamp string must be quoted by either single quote or double quote. </p></li>
+<li><p>Epoch Time:  a timestamp value can also be a long integer representing milliseconds since the epoch. For example, the values in the above example can be represented as an epoch <code>1502535178128</code> in milliseconds. Please note the epoch time doesn't need any quotes.</p></li>
+<li><p>Internal Function<strong><code>NOW</code></strong> : this is the current time of the server</p></li>
+<li><p>If timestamp is 0 when inserting a record, timestamp will be set to the current time of the server</p></li>
+<li><p>Arithmetic operations can be applied to timestamp. For example: <code>now-2h</code> represents a timestamp which is 2 hours ago from the current server time. Units include <code>a</code> (milliseconds),  <code>s</code> (seconds),  <code>m</code> (minutes),  <code>h</code> (hours),  <code>d</code> (days),  <code>w</code> (weeks), <code>n</code> (months), <code>y</code> (years). <strong><code>NOW</code></strong> can be used in either insertions or queries. </p></li>
 </ul>
-<p>Default time precision is millisecond, you can change it to microseocnd by setting parameter enableMicrosecond in <a href=''>system configuration</a>. For epoch time, the long integer shall be microseconds since the epoch. For the above string format, MS shall be six digits. </p>
+<p>Default time precision is millisecond, you can change it to microseocnd by setting parameter enableMicrosecond in <a href="../administrator/#Configuration-on-Server">system configuration</a>. For epoch time, the long integer shall be microseconds since the epoch. For the above string format, MS shall be six digits. </p>
 <a class='anchor' id='Data-Types'></a><h3>Data Types</h3>
 <p>The full list of data types is listed below.  For string types of data, we will use <strong><em>M</em></strong> to indicate the maximum length of that type.</p>
-<figure><figure><table>
+<figure><table>
 <thead>
-<tr><th>&nbsp;</th><th style='text-align:center;' >Data Type</th><th style='text-align:center;' >Bytes</th><th>Note</th></tr></thead>
-<tbody><tr><td>1</td><td style='text-align:center;' >TINYINT</td><td style='text-align:center;' >1</td><td>A nullable integer type with a range of [-127, 127]</td></tr><tr><td>2</td><td style='text-align:center;' >SMALLINT</td><td style='text-align:center;' >2</td><td>A nullable integer type with a range of [-32767, 32767]</td></tr><tr><td>3</td><td style='text-align:center;' >INT</td><td style='text-align:center;' >4</td><td>A nullable integer type with a range of [-2^{31}+1, 2^{31}-1 ]</td></tr><tr><td>4</td><td style='text-align:center;' >BIGINT</td><td style='text-align:center;' >8</td><td>A nullable integer type with a range of [-2^{59}, 2^{59} ]</td></tr><tr><td>5</td><td style='text-align:center;' >FLOAT</td><td style='text-align:center;' >4</td><td>A standard nullable float type with 6 -7 significant digits and a range of [-3.4 e 38, 3.4 e 38]</td></tr><tr><td>6</td><td style='text-align:center;' >DOUBLE</td><td style='text-align:center;' >8</td><td>A standard nullable double float type with 15-16 significant digits and a range of [-1.7e308, 1.7e308]</td></tr><tr><td>7</td><td style='text-align:center;' >BOOL</td><td style='text-align:center;' >1</td><td>A nullable boolean type, [<strong><code>true</code></strong>, <strong><code>false</code></strong>]</td></tr><tr><td>8</td><td style='text-align:center;' >TIMESTAMP</td><td style='text-align:center;' >8</td><td>A nullable timestamp type with the same usage as the primary column timestamp</td></tr><tr><td>9</td><td style='text-align:center;' >BINARY(<em>M</em>)</td><td style='text-align:center;' ><em>M</em></td><td>A nullable string type whose length is <em>M</em>, any exceeded chars will be automatically truncated. This type of string only supports ASCii encoded chars.</td></tr><tr><td>10</td><td style='text-align:center;' >NCHAR(<em>M</em>)</td><td style='text-align:center;' >4 * <em>M</em></td><td>A nullable string type whose length is <em>M</em>, any exceeded chars will be truncated. The <strong><code>NCHAR</code></strong> type supports Unicode encoded chars.</td></tr></tbody>
-</table></figure></figure>
-<p>All the keywords in a SQL statement are case-insensitive, but strings values are case-sensitive and must be quoted by a pair of <code>&#39;</code> or <code>&quot;</code>. To quote a <code>&#39;</code> or a <code>&quot;</code> , you can use the escape character <code>\</code>.</p>
+<tr>
+<th></th>
+<th style="text-align:center;">Data Type</th>
+<th style="text-align:center;">Bytes</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td style="text-align:center;">TINYINT</td>
+<td style="text-align:center;">1</td>
+<td>A nullable integer type with a range of [-127, 127]​</td>
+</tr>
+<tr>
+<td>2</td>
+<td style="text-align:center;">SMALLINT</td>
+<td style="text-align:center;">2</td>
+<td>A nullable integer type with a range of [-32767, 32767]​</td>
+</tr>
+<tr>
+<td>3</td>
+<td style="text-align:center;">INT</td>
+<td style="text-align:center;">4</td>
+<td>A nullable integer type with a range of [-2^31+1, 2^31-1 ]</td>
+</tr>
+<tr>
+<td>4</td>
+<td style="text-align:center;">BIGINT</td>
+<td style="text-align:center;">8</td>
+<td>A nullable integer type with a range of [-2^59, 2^59 ]​</td>
+</tr>
+<tr>
+<td>5</td>
+<td style="text-align:center;">FLOAT</td>
+<td style="text-align:center;">4</td>
+<td>A standard nullable float type with 6 -7 significant digits and a range of [-3.4E38, 3.4E38]</td>
+</tr>
+<tr>
+<td>6</td>
+<td style="text-align:center;">DOUBLE</td>
+<td style="text-align:center;">8</td>
+<td>A standard nullable double float type with 15-16 significant digits and a range of [-1.7E308, 1.7E308]​</td>
+</tr>
+<tr>
+<td>7</td>
+<td style="text-align:center;">BOOL</td>
+<td style="text-align:center;">1</td>
+<td>A nullable boolean type, [<strong><code>true</code></strong>, <strong><code>false</code></strong>]</td>
+</tr>
+<tr>
+<td>8</td>
+<td style="text-align:center;">TIMESTAMP</td>
+<td style="text-align:center;">8</td>
+<td>A nullable timestamp type with the same usage as the primary column timestamp</td>
+</tr>
+<tr>
+<td>9</td>
+<td style="text-align:center;">BINARY(<em>M</em>)</td>
+<td style="text-align:center;"><em>M</em></td>
+<td>A nullable string type whose length is <em>M</em>, any exceeded chars will be automatically truncated. This type of string only supports ASCii encoded chars.</td>
+</tr>
+<tr>
+<td>10</td>
+<td style="text-align:center;">NCHAR(<em>M</em>)</td>
+<td style="text-align:center;">4 * <em>M</em></td>
+<td>A nullable string type whose length is <em>M</em>, any exceeded chars will be truncated. The <strong><code>NCHAR</code></strong> type supports Unicode encoded chars.</td>
+</tr>
+</tbody>
+</table></figure>
+<p>All the keywords in a SQL statement are case-insensitive, but strings values are case-sensitive and must be quoted by a pair of <code>'</code> or <code>"</code>. To quote a <code>'</code> or a <code>"</code> , you can use the escape character <code>\</code>.</p>
 <a class='anchor' id='Database-Management'></a><h2>Database Management</h2>
 <ul>
 <li><p><strong>Create a Database</strong></p>
-<pre><code class='language-mysql' lang='mysql'>CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep]</code></pre>
-<p>Option: <code>KEEP</code> is used for data retention policy. The data records will be removed once keep-days are passed. There are more parameters related to DB storage, please check <a href=''>system configuration</a>.</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep]</code></pre>
+<p>Option: <code>KEEP</code> is used for data retention policy. The data records will be removed once keep-days are passed. There are more parameters related to DB storage, please check <a href="../administrator/#Configuration-on-Server">system configuration</a>.</p></li>
 <li><p><strong>Use a Database</strong></p>
-<pre><code class='language-mysql' lang='mysql'>USE db_name</code></pre>
-<p>Use or switch the current database.</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">USE db_name</code></pre>
+<p>Use or switch the current database.</p></li>
 <li><p><strong>Drop a Database</strong></p>
-<pre><code class='language-mysql' lang='mysql'>DROP DATABASE [IF EXISTS] db_name</code></pre>
-<p>Remove a database, all the tables inside the DB will be removed too, be careful.</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">DROP DATABASE [IF EXISTS] db_name</code></pre>
+<p>Remove a database, all the tables inside the DB will be removed too, be careful.</p></li>
 <li><p><strong>List all Databases</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SHOW DATABASES</code></pre>
-</li>
-
+<pre><code class="mysql language-mysql">SHOW DATABASES</code></pre></li>
 </ul>
 <a class='anchor' id='Table-Management'></a><h2>Table Management</h2>
 <ul>
 <li><p><strong>Create a Table</strong></p>
-<pre><code class='language-mysql' lang='mysql'>CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...])</code></pre>
-<p>Note: 1) the first column must be timstamp, and system will set it as the primary key; 2) the record size is limited to 4096 bytes; 3) for binary or nachr data type, the length shall be specified, for example, binary(20), it means 20 bytes.</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...])</code></pre>
+<p>Note: 1) the first column must be timstamp, and system will set it as the primary key; 2) the record size is limited to 4096 bytes; 3) for binary or nachr data type, the length shall be specified, for example, binary(20), it means 20 bytes.</p></li>
 <li><p><strong>Drop a Table</strong></p>
-<pre><code class='language-mysql' lang='mysql'>DROP TABLE [IF EXISTS] tb_name</code></pre>
-</li>
-
-</ul>
-<ul>
-<li><p><strong>List all Tables </strong></p>
-<pre><code class='language-mysql' lang='mysql'>SHOW TABLES [LIKE tb_name_wildcar]</code></pre>
-<p>It shows all tables in the current DB. Note: wildcard character can be used in the table name to filter tables. Wildcard character: 1) ’%’ means 0 to any number of characters;  2）’_’ underscore means exactly one character.</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">DROP TABLE [IF EXISTS] tb_name</code></pre></li>
+<li><p>**List all Tables **</p>
+<pre><code class="mysql language-mysql">SHOW TABLES [LIKE tb_name_wildcar]</code></pre>
+<p>It shows all tables in the current DB. Note: wildcard character can be used in the table name to filter tables. Wildcard character: 1) ’%’ means 0 to any number of characters;  2）’_’ underscore means exactly one character.</p></li>
 <li><p><strong>Print Table Schema</strong></p>
-<pre><code class='language-mysql' lang='mysql'>DESCRIBE tb_name</code></pre>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">DESCRIBE tb_name</code></pre></li>
 <li><p><strong>Add a Column</strong></p>
-<pre><code class='language-mysql' lang='mysql'>ALTER TABLE tb_name ADD COLUMN field_name data_type
-</code></pre>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">ALTER TABLE tb_name ADD COLUMN field_name data_type</code></pre></li>
 <li><p><strong>Drop a Column</strong></p>
-<pre><code class='language-mysql' lang='mysql'>ALTER TABLE tb_name DROP COLUMN field_name 
-</code></pre>
-<p>If the table is created via <a href=''>Super Table</a>, the schema can only be changed via STable. But for tables not created from STable, you can change their schema directly.</p>
-</li>
-
+<pre><code class="mysql language-mysql">ALTER TABLE tb_name DROP COLUMN field_name </code></pre>
+<p>If the table is created via [Super Table](), the schema can only be changed via STable. But for tables not created from STable, you can change their schema directly.</p></li>
 </ul>
-<p><strong>Tips</strong>: You can apply an operation on a table not in the current DB by concatenating DB name with the character &#39;.&#39;, then with table name. For example, &#39;demo.tb1&#39; means the operation is applied to table <code>tb1</code> in DB <code>demo</code> although <code>demo</code> is not the current selected DB.   </p>
+<p><strong>Tips</strong>: You can apply an operation on a table not in the current DB by concatenating DB name with the character '.', then with table name. For example, 'demo.tb1' means the operation is applied to table <code>tb1</code> in DB <code>demo</code> although <code>demo</code> is not the current selected DB.   </p>
 <a class='anchor' id='Inserting-Records'></a><h2>Inserting Records</h2>
 <ul>
 <li><p><strong>Insert a Record</strong></p>
-<pre><code class='language-mysql' lang='mysql'>INSERT INTO tb_name VALUES (field_value, ...);
-</code></pre>
-<p>Insert a data record into table tb_name</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">INSERT INTO tb_name VALUES (field_value, ...);</code></pre>
+<p>Insert a data record into table tb_name</p></li>
 <li><p><strong>Insert a Record with Selected Columns</strong></p>
-<pre><code class='language-mysql' lang='mysql'>INSERT INTO tb_name (field1_name, ...) VALUES(field1_value, ...)
-</code></pre>
-<p>Insert a data record into table tb_name, with data in selected columns. If a column is not selected, the system will put NULL there. First column (time stamp ) could not be null, it must be there.</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">INSERT INTO tb_name (field1_name, ...) VALUES(field1_value, ...)</code></pre>
+<p>Insert a data record into table tb_name, with data in selected columns. If a column is not selected, the system will put NULL there. First column (time stamp ) cant not be null, it must be inserted.</p></li>
 <li><p><strong>Insert a Batch of Records</strong></p>
-<pre><code class='language-mysql' lang='mysql'>INSERT INTO tb_name VALUES (field1_value1, ...) (field1_value2, ...)...;
-</code></pre>
-<p>Insert multiple data records to the table</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">INSERT INTO tb_name VALUES (field1_value1, ...) (field1_value2, ...)...;</code></pre>
+<p>Insert multiple data records to the table</p></li>
 <li><p><strong>Insert a Batch of Records with Selected Columns</strong></p>
-<pre><code class='language-mysql' lang='mysql'>INSERT INTO tb_name (field1_name, ...) VALUES(field1_value1, ...) (field1_value2, ...)
-</code></pre>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">INSERT INTO tb_name (field1_name, ...) VALUES(field1_value1, ...) (field1_value2, ...)</code></pre></li>
 <li><p><strong>Insert Records into Multiple Tables</strong></p>
-<pre><code class='language-mysql' lang='mysql'>INSERT INTO tb1_name VALUES (field1_value1, ...)(field1_value2, ...)... 
-            tb2_name VALUES (field1_value1, ...)(field1_value2, ...)...;
-</code></pre>
-<p>Insert data records into table tb1_name and tb2_name</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">INSERT INTO tb1_name VALUES (field1_value1, ...)(field1_value2, ...)... 
+            tb2_name VALUES (field1_value1, ...)(field1_value2, ...)...;</code></pre>
+<p>Insert data records into table tb1_name and tb2_name</p></li>
 <li><p><strong>Insert Records into Multiple Tables with Selected Columns</strong></p>
-<pre><code class='language-mysql' lang='mysql'>INSERT INTO tb1_name (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value1, ...)
-            tb2_name (tb2_field1_name, ...) VALUES(field1_value1, ...) (field1_value2, ...)
-</code></pre>
-</li>
-
+<pre><code class="mysql language-mysql">INSERT INTO tb1_name (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value1, ...)
+            tb2_name (tb2_field1_name, ...) VALUES(field1_value1, ...) (field1_value2, ...)</code></pre></li>
 </ul>
 <p>Note: For a table, the new record must have timestamp bigger than the last data record, otherwise, it will be thrown away. If timestamp is 0, the time stamp will be set to the system time on server.</p>
-<p><strong>IMPORT</strong>: If you do want to insert a historical data record into a table, use IMPORT command instead of INSERT. IMPORT has the same syntax as INSERT. If you want to import a batch of historical records, the records shall be ordered in the timestamp, otherwise, TDengine won&#39;t handle it in the right way.</p>
+<p><strong>IMPORT</strong>: If you do want to insert a historical data record into a table, use IMPORT command instead of INSERT. IMPORT has the same syntax as INSERT. If you want to import a batch of historical records, the records shall be ordered in the timestamp, otherwise, TDengine won't handle it in the right way.</p>
 <a class='anchor' id='Data-Query'></a><h2>Data Query</h2>
 <a class='anchor' id='Query-Syntax:'></a><h3>Query Syntax:</h3>
-<pre><code class='language-mysql' lang='mysql'>SELECT {* | expr_list} FROM tb_name
+<pre><code class="mysql language-mysql">SELECT {* | expr_list} FROM tb_name
     [WHERE where_condition]
     [ORDER BY _c0 { DESC | ASC }]
     [LIMIT limit [, OFFSET offset]]
     [&gt;&gt; export_file]
-    
+
 SELECT function_list FROM tb_name
     [WHERE where_condition]
     [LIMIT limit [, OFFSET offset]]
-    [&gt;&gt; export_file]
-</code></pre>
+    [&gt;&gt; export_file]</code></pre>
 <ul>
 <li>To query a table, use <code>*</code> to select all data from a table; or a specified list of expressions <code>expr_list</code> of columns. The SQL expression can contain alias and arithmetic operations between numeric typed columns.</li>
 <li>For the <code>WHERE</code> conditions, use logical operations to filter the timestamp column and all numeric columns, and wild cards to filter the two string typed columns. </li>
-<li>Sort the result set by the first column timestamp <code>_c0</code> (or directly use the timestamp column name) in either descending or ascending order (by default). &quot;Order by&quot; could not be applied to other columns.</li>
-<li>Use <code>LIMIT</code> and <code>OFFSET</code> to control the number of rows returned and the starting position of the retrieved rows. LIMIT/OFFSET is applied after &quot;order by&quot; operations.</li>
-<li>Export the retrieved result set into a CSV file using <code>&gt;&gt;</code>. The target file&#39;s full path should be explicitly specified in the statement.</li>
-
+<li>Sort the result set by the first column timestamp <code>_c0</code> (or directly use the timestamp column name) in either descending or ascending order (by default). "Order by" could not be applied to other columns.</li>
+<li>Use <code>LIMIT</code> and <code>OFFSET</code> to control the number of rows returned and the starting position of the retrieved rows. LIMIT/OFFSET is applied after "order by" operations.</li>
+<li>Export the retrieved result set into a CSV file using <code>&gt;&gt;</code>. The target file's full path should be explicitly specified in the statement.</li>
 </ul>
 <a class='anchor' id='Supported-Operations-of-Data-Filtering:'></a><h3>Supported Operations of Data Filtering:</h3>
-<figure><figure><table>
+<figure><table>
 <thead>
-<tr><th>Operation</th><th>Note</th><th>Applicable Data Types</th></tr></thead>
-<tbody><tr><td>&gt;</td><td>larger than</td><td><strong><code>timestamp</code></strong> and all numeric types</td></tr><tr><td>&lt;</td><td>smaller than</td><td><strong><code>timestamp</code></strong> and all numeric types</td></tr><tr><td>&gt;=</td><td>larger than or equal to</td><td><strong><code>timestamp</code></strong> and all numeric types</td></tr><tr><td>&lt;=</td><td>smaller than or equal to</td><td><strong><code>timestamp</code></strong> and all numeric types</td></tr><tr><td>=</td><td>equal to</td><td>all types</td></tr><tr><td>&lt;&gt;</td><td>not equal to</td><td>all types</td></tr><tr><td>%</td><td>match with any char sequences</td><td><strong><code>binary</code></strong> <strong><code>nchar</code></strong></td></tr><tr><td>_</td><td>match with a single char</td><td><strong><code>binary</code></strong> <strong><code>nchar</code></strong></td></tr></tbody>
-</table></figure></figure>
+<tr>
+<th>Operation</th>
+<th>Note</th>
+<th>Applicable Data Types</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&gt;</td>
+<td>larger than</td>
+<td><strong><code>timestamp</code></strong> and all numeric types</td>
+</tr>
+<tr>
+<td>&lt;</td>
+<td>smaller than</td>
+<td><strong><code>timestamp</code></strong> and all numeric types</td>
+</tr>
+<tr>
+<td>&gt;=</td>
+<td>larger than or equal to</td>
+<td><strong><code>timestamp</code></strong> and all numeric types</td>
+</tr>
+<tr>
+<td>&lt;=</td>
+<td>smaller than or equal to</td>
+<td><strong><code>timestamp</code></strong> and all numeric types</td>
+</tr>
+<tr>
+<td>=</td>
+<td>equal to</td>
+<td>all types</td>
+</tr>
+<tr>
+<td>&lt;&gt;</td>
+<td>not equal to</td>
+<td>all types</td>
+</tr>
+<tr>
+<td>%</td>
+<td>match with any char sequences</td>
+<td><strong><code>binary</code></strong> <strong><code>nchar</code></strong></td>
+</tr>
+<tr>
+<td>_</td>
+<td>match with a single char</td>
+<td><strong><code>binary</code></strong> <strong><code>nchar</code></strong></td>
+</tr>
+</tbody>
+</table></figure>
 <ol>
 <li>For two or more conditions, only AND is supported, OR is not supported yet.</li>
 <li>For filtering, only a single range is supported. For example, <code>value&gt;20 and value&lt;30</code> is valid condition, but <code>value&lt;20 AND value&lt;&gt;5</code> is invalid condition</li>
-
 </ol>
-<a class='anchor' id='Some-Examples-'></a><h3>Some Examples </h3>
+<a class='anchor' id='Some-Examples'></a><h3>Some Examples</h3>
 <ul>
 <li><p>For the examples below, table tb1 is created via the following statements</p>
-<pre><code class='language-mysql' lang='mysql'>CREATE TABLE tb1 (ts timestamp, col1 int, col2 float, col3 binary(50))
-</code></pre>
-</li>
+<pre><code class="mysql language-mysql">CREATE TABLE tb1 (ts timestamp, col1 int, col2 float, col3 binary(50))</code></pre></li>
 <li><p>Query all the records in tb1 in the last hour:</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT * FROM tb1 WHERE ts &gt;= NOW - 1h
-</code></pre>
-</li>
-
-</ul>
-<ul>
-<li><p>Query all the records in tb1 between 2018-06-01 08:00:00.000 and 2018-06-02 08:00:00.000, and filter out only the records whose col3 value ends with &#39;nny&#39;, and sort the records by their timestamp in a descending order:</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT * FROM tb1 WHERE ts &gt; &#39;2018-06-01 08:00:00.000&#39; AND ts &lt;= &#39;2018-06-02 08:00:00.000&#39; AND col3 LIKE &#39;%nny&#39; ORDER BY ts DESC
-</code></pre>
-</li>
-
-</ul>
-<ul>
-<li><p>Query the sum of col1 and col2 as alias &#39;complex_metric&#39;, and filter on the timestamp and col2 values. Limit the number of returned rows to 10, and offset the result by 5.</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT (col1 + col2) AS &#39;complex_metric&#39; FROM tb1 WHERE ts &gt; &#39;2018-06-01 08:00:00.000&#39; and col2 &gt; 1.2 LIMIT 10 OFFSET 5
-</code></pre>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT * FROM tb1 WHERE ts &gt;= NOW - 1h</code></pre></li>
+<li><p>Query all the records in tb1 between 2018-06-01 08:00:00.000 and 2018-06-02 08:00:00.000, and filter out only the records whose col3 value ends with 'nny', and sort the records by their timestamp in a descending order:</p>
+<pre><code class="mysql language-mysql">SELECT * FROM tb1 WHERE ts &gt; '2018-06-01 08:00:00.000' AND ts &lt;= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC</code></pre></li>
+<li><p>Query the sum of col1 and col2 as alias 'complex_metric', and filter on the timestamp and col2 values. Limit the number of returned rows to 10, and offset the result by 5.</p>
+<pre><code class="mysql language-mysql">SELECT (col1 + col2) AS 'complex_metric' FROM tb1 WHERE ts &gt; '2018-06-01 08:00:00.000' and col2 &gt; 1.2 LIMIT 10 OFFSET 5</code></pre></li>
 <li><p>Query the number of records in tb1 in the last 10 minutes, whose col2 value is larger than 3.14, and export the result to file <code>/home/testoutpu.csv</code>.</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT COUNT(*) FROM tb1 WHERE ts &gt;= NOW - 10m AND col2 &gt; 3.14 &gt;&gt; /home/testoutpu.csv
-</code></pre>
-</li>
-
+<pre><code class="mysql language-mysql">SELECT COUNT(*) FROM tb1 WHERE ts &gt;= NOW - 10m AND col2 &gt; 3.14 &gt;&gt; /home/testoutpu.csv</code></pre></li>
 </ul>
 <a class='anchor' id='SQL-Functions'></a><h2>SQL Functions</h2>
 <a class='anchor' id='Aggregation-Functions'></a><h3>Aggregation Functions</h3>
 <p>TDengine supports aggregations over numerical values, they are listed below:</p>
 <ul>
 <li><p><strong>COUNT</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause]
-</code></pre>
-<p>Function: return the number of rows.<br/>Return Data Type: integer.<br/>Applicable Data Types: all.<br/>Applied to: table/STable.<br/>Note: 1) * can be used for all columns, as long as a column has non-NULL value, it will be counted; 2) If it is on a specific column, only rows with non-NULL value will be counted </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause]</code></pre>
+<p>Function: return the number of rows.<br />
+Return Data Type: integer.<br />
+Applicable Data Types: all.<br />
+Applied to: table/STable.<br />
+Note: 1) * can be used for all columns, as long as a column has non-NULL value, it will be counted; 2) If it is on a specific column, only rows with non-NULL value will be counted </p></li>
 <li><p><strong>AVG</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT AVG(field_name) FROM tb_name [WHERE clause]
-</code></pre>
-<p>Function: return the average value of a specific column.<br/>Return Data Type: double.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table/STable. </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT AVG(field_name) FROM tb_name [WHERE clause]</code></pre>
+<p>Function: return the average value of a specific column.<br />
+Return Data Type: double.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table/STable. </p></li>
 <li><p><strong>WAVG</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT WAVG(field_name) FROM tb_name WHERE clause
-</code></pre>
-<p>Function: return the time-weighted average value of a specific column<br/>Return Data Type: double<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool<br/>Applied to: table/STable</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT WAVG(field_name) FROM tb_name WHERE clause</code></pre>
+<p>Function: return the time-weighted average value of a specific column<br />
+Return Data Type: double<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool<br />
+Applied to: table/STable</p></li>
 <li><p><strong>SUM</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT SUM(field_name) FROM tb_name [WHERE clause]
-</code></pre>
-<p>Function: return the sum of a specific column.<br/>Return Data Type: long integer or double.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table/STable. </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT SUM(field_name) FROM tb_name [WHERE clause]</code></pre>
+<p>Function: return the sum of a specific column.<br />
+Return Data Type: long integer or double.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table/STable. </p></li>
 <li><p><strong>STDDEV</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT STDDEV(field_name) FROM tb_name [WHERE clause]
-</code></pre>
-<p>Function: return the standard deviation of a specific column.<br/>Return Data Type: double.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table. </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT STDDEV(field_name) FROM tb_name [WHERE clause]</code></pre>
+<p>Function: return the standard deviation of a specific column.<br />
+Return Data Type: double.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table. </p></li>
 <li><p><strong>LEASTSQUARES</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT LEASTSQUARES(field_name) FROM tb_name [WHERE clause]
-</code></pre>
+<pre><code class="mysql language-mysql">SELECT LEASTSQUARES(field_name) FROM tb_name [WHERE clause]</code></pre>
 <p>Function: performs a linear fit to the primary timestamp and the specified column. 
-Return Data Type: return a string of the coefficient and the interception of the fitted line.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table.<br/>Note: The timestmap is taken as the independent variable while the specified column value is taken as the dependent variables.</p>
-</li>
-
+Return Data Type: return a string of the coefficient and the interception of the fitted line.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table.<br />
+Note: The timestmap is taken as the independent variable while the specified column value is taken as the dependent variables.</p></li>
 </ul>
 <a class='anchor' id='Selector-Functions'></a><h3>Selector Functions</h3>
 <ul>
 <li><p><strong>MIN</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause]
-</code></pre>
-<p>Function: return the minimum value of a specific column.<br/>Return Data Type: the same data type.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table/STable.  </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause]</code></pre>
+<p>Function: return the minimum value of a specific column.<br />
+Return Data Type: the same data type.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table/STable.  </p></li>
 <li><p><strong>MAX</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause]
-</code></pre>
-<p>Function: return the maximum value of a specific column.<br/>Return Data Type: the same data type.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table/STable.    </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause]</code></pre>
+<p>Function: return the maximum value of a specific column.<br />
+Return Data Type: the same data type.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table/STable.    </p></li>
 <li><p><strong>FIRST</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause]
-</code></pre>
-<p>Function: return the first non-NULL value.<br/>Return Data Type: the same data type.<br/>Applicable Data Types: all types.<br/>Applied to: table/STable.<br/>Note: To return all columns, use first(*). </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause]</code></pre>
+<p>Function: return the first non-NULL value.<br />
+Return Data Type: the same data type.<br />
+Applicable Data Types: all types.<br />
+Applied to: table/STable.<br />
+Note: To return all columns, use first(*). </p></li>
 <li><p><strong>LAST</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause]
-</code></pre>
-<p>Function: return the last non-NULL value.<br/>Return Data Type: the same data type.<br/>Applicable Data Types: all types.<br/>Applied to: table/STable.<br/>Note: To return all columns, use last(*). </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause]</code></pre>
+<p>Function: return the last non-NULL value.<br />
+Return Data Type: the same data type.<br />
+Applicable Data Types: all types.<br />
+Applied to: table/STable.<br />
+Note: To return all columns, use last(*). </p></li>
 <li><p><strong>TOP</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
-</code></pre>
-<p>Function: return the <code>k</code> largest values.<br/>Return Data Type: the same data type.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table/STable.<br/>Note: 1) valid range of K: 1≤<em>k</em>≤100; 2) the associated time stamp will be returned too.  </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause]</code></pre>
+<p>Function: return the <code>k</code> largest values.<br />
+Return Data Type: the same data type.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table/STable.<br />
+Note: 1) valid range of K: 1≤<em>k</em>≤100; 2) the associated time stamp will be returned too.  </p></li>
 <li><p><strong>BOTTOM</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
-</code></pre>
-<p>Function: return the <code>k</code> smallest values.<br/>Return Data Type: the same data type.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table/STable.<br/>Note: 1) valid range of K: 1≤<em>k</em>≤100; 2) the associated timestamp will be returned too. </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause]</code></pre>
+<p>Function: return the <code>k</code> smallest values.<br />
+Return Data Type: the same data type.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table/STable.<br />
+Note: 1) valid range of K: 1≤<em>k</em>≤100; 2) the associated timestamp will be returned too. </p></li>
 <li><p><strong>PERCENTILE</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT PERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause]
-</code></pre>
-<p>Function: the value of the specified column below which <code>P</code> percent of the data points fall.<br/>Return Data Type: the same data type.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table/STable.<br/>Note: The range of <code>P</code> is <code>[0, 100]</code>. When <code>P=0</code> , <code>PERCENTILE</code> returns the equal value as <code>MIN</code>; when <code>P=100</code>, <code>PERCENTILE</code> returns the equal value as <code>MAX</code>. </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT PERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause]</code></pre>
+<p>Function: the value of the specified column below which <code>P</code> percent of the data points fall.<br />
+Return Data Type: the same data type.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table/STable.<br />
+Note: The range of <code>P</code> is <code>[0, 100]</code>. When <code>P=0</code> , <code>PERCENTILE</code> returns the equal value as <code>MIN</code>; when <code>P=100</code>, <code>PERCENTILE</code> returns the equal value as <code>MAX</code>. </p></li>
 <li><p><strong>LAST_ROW</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT LAST_ROW(field_name) FROM { tb_name | stb_name } 
-</code></pre>
-<p>Function: return the last row.<br/>Return Data Type: the same data type.<br/>Applicable Data Types: all types.<br/>Applied to: table/STable.<br/>Note: different from last, last_row returns the last row even it has NULL value. </p>
-</li>
-
+<pre><code class="mysql language-mysql">SELECT LAST_ROW(field_name) FROM { tb_name | stb_name } </code></pre>
+<p>Function: return the last row.<br />
+Return Data Type: the same data type.<br />
+Applicable Data Types: all types.<br />
+Applied to: table/STable.<br />
+Note: different from last, last_row returns the last row even it has NULL value. </p></li>
 </ul>
 <a class='anchor' id='Transformation-Functions'></a><h3>Transformation Functions</h3>
 <ul>
 <li><p><strong>DIFF</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT DIFF(field_name) FROM tb_name [WHERE clause]
-</code></pre>
-<p>Function: return the difference between successive values of the specified column.<br/>Return Data Type: the same data type.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table. </p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT DIFF(field_name) FROM tb_name [WHERE clause]</code></pre>
+<p>Function: return the difference between successive values of the specified column.<br />
+Return Data Type: the same data type.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table. </p></li>
 <li><p><strong>SPREAD</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause]
-</code></pre>
-<p>Function: return the difference between the maximum and the mimimum value.<br/>Return Data Type: the same data type.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table/STable.<br/>Note: spread gives the range of data variation in a table/supertable; it is equivalent to <code>MAX()</code> - <code>MIN()</code></p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause]</code></pre>
+<p>Function: return the difference between the maximum and the mimimum value.<br />
+Return Data Type: the same data type.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table/STable.<br />
+Note: spread gives the range of data variation in a table/supertable; it is equivalent to <code>MAX()</code> - <code>MIN()</code></p></li>
 <li><p><strong>Arithmetic Operations</strong></p>
-<pre><code class='language-mysql' lang='mysql'>SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WHERE clause]
-</code></pre>
-<p>Function: arithmetic operations on the selected columns.<br/>Return Data Type: double.<br/>Applicable Data Types: all types except timestamp, binary, nchar, bool.<br/>Applied to: table/STable.<br/>Note: 1) bracket can be used for operation priority; 2) If a column has NULL value, the result is NULL. </p>
-</li>
-
+<pre><code class="mysql language-mysql">SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WHERE clause]</code></pre>
+<p>Function: arithmetic operations on the selected columns.<br />
+Return Data Type: double.<br />
+Applicable Data Types: all types except timestamp, binary, nchar, bool.<br />
+Applied to: table/STable.<br />
+Note: 1) bracket can be used for operation priority; 2) If a column has NULL value, the result is NULL. </p></li>
 </ul>
 <a class='anchor' id='Downsampling'></a><h2>Downsampling</h2>
 <p>Time-series data are usually sampled by sensors at a very high frequency, but more often we are only interested in the downsampled, aggregated data of each timeline. TDengine provides a convenient way to downsample the highly frequently sampled data points as well as filling the missing data with a variety of interpolation choices.</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT function_list FROM tb_name 
+<pre><code class="mysql language-mysql">SELECT function_list FROM tb_name 
   [WHERE where_condition]
   INTERVAL (interval)
   [FILL ({NONE | VALUE | PREV | NULL | LINEAR})]
@@ -368,54 +371,53 @@ SELECT function_list FROM stb_name
   [WHERE where_condition]
   [GROUP BY tags]
   INTERVAL (interval)
-  [FILL ({ VALUE | PREV | NULL | LINEAR})]
-</code></pre>
+  [FILL ({ VALUE | PREV | NULL | LINEAR})]</code></pre>
 <p>The downsampling time window is defined by <code>interval</code>, which is at least 10 milliseconds. The query returns a new series of downsampled data that has a series of fixed timestamps with an increment of <code>interval</code>. </p>
 <p>For the time being, only function count, avg, sum, stddev, leastsquares, percentile, min, max, first, last are supported. Functions that may return multiple rows are not supported. </p>
-<p>You can also use <code>FILL</code> to interpolate the intervals that don&#39;t contain any data.<code>FILL</code> currently supports four different interpolation strategies which are listed below:</p>
-<figure><figure><table>
+<p>You can also use <code>FILL</code> to interpolate the intervals that don't contain any data.<code>FILL</code> currently supports four different interpolation strategies which are listed below:</p>
+<figure><table>
 <thead>
-<tr><th>Interpolation</th><th>Usage</th></tr></thead>
-<tbody><tr><td><code>FILL(VALUE, val1 [, val2, ...])</code></td><td>Interpolate with specified constants</td></tr><tr><td><code>FILL(PREV)</code></td><td>Interpolate with the value at the previous timestamp</td></tr><tr><td><code>FILL(LINEAR)</code></td><td>Linear interpolation with the non-null values at the previous timestamp and at the next timestamp</td></tr><tr><td><code>FILL(NULL)</code></td><td>Interpolate with <strong><code>NULL</code></strong> value</td></tr></tbody>
-</table></figure></figure>
-<p> A few downsampling examples:</p>
+<tr>
+<th>Interpolation</th>
+<th>Usage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>FILL(VALUE, val1 [, val2, ...])</code></td>
+<td>Interpolate with specified constants</td>
+</tr>
+<tr>
+<td><code>FILL(PREV)</code></td>
+<td>Interpolate with the value at the previous timestamp</td>
+</tr>
+<tr>
+<td><code>FILL(LINEAR)</code></td>
+<td>Linear interpolation with the non-null values at the previous timestamp and at the next timestamp</td>
+</tr>
+<tr>
+<td><code>FILL(NULL)</code></td>
+<td>Interpolate with <strong><code>NULL</code></strong> value</td>
+</tr>
+</tbody>
+</table></figure>
+<p>A few downsampling examples:</p>
 <ul>
 <li><p>Find the number of data points, the maximum value of <code>col1</code> and minimum value of <code>col2</code> in a tb1 for every 10 minutes in the last 5 hours:</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT COUNT(*), MAX(col1), MIN(col2) FROM tb1 WHERE ts &gt; NOW - 5h INTERVAL (10m)
-</code></pre>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT COUNT(*), MAX(col1), MIN(col2) FROM tb1 WHERE ts &gt; NOW - 5h INTERVAL (10m)</code></pre></li>
 <li><p>Fill the above downsampling results using constant-value interpolation:</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT COUNT(*), MAX(col1), MIN(col2) FROM tb1 WHERE ts &gt; NOW - 5h INTERVAL(10m) FILL(VALUE, 0, 1, -1)
-</code></pre>
-<p>Note that the number of constant values in <code>FILL()</code> should be equal or fewer than the number of functions in the <code>SELECT</code> clause. Exceeding fill constants will be ignored.</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT COUNT(*), MAX(col1), MIN(col2) FROM tb1 WHERE ts &gt; NOW - 5h INTERVAL(10m) FILL(VALUE, 0, 1, -1)</code></pre>
+<p>Note that the number of constant values in <code>FILL()</code> should be equal or fewer than the number of functions in the <code>SELECT</code> clause. Exceeding fill constants will be ignored.</p></li>
 <li><p>Fill the above downsampling results using <code>PREV</code> interpolation:</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT COUNT(*), MAX(col1), MIN(col2) FROM tb1 WHERE ts &gt; NOW - 5h INTERVAL(10m) FILL(PREV)
-</code></pre>
-<p>This will interpolate missing data points with the value at the previous timestamp.</p>
-</li>
-
-</ul>
-<ul>
+<pre><code class="mysql language-mysql">SELECT COUNT(*), MAX(col1), MIN(col2) FROM tb1 WHERE ts &gt; NOW - 5h INTERVAL(10m) FILL(PREV)</code></pre>
+<p>This will interpolate missing data points with the value at the previous timestamp.</p></li>
 <li><p>Fill the above downsampling results using <code>NULL</code> interpolation:</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT COUNT(*), MAX(col1), MIN(col2) FROM tb1 WHERE ts &gt; NOW - 5h INTERVAL(10m) FILL(NULL)
-</code></pre>
-<p>Fill <strong><code>NULL</code></strong> to the interpolated data points.</p>
-</li>
-
+<pre><code class="mysql language-mysql">SELECT COUNT(*), MAX(col1), MIN(col2) FROM tb1 WHERE ts &gt; NOW - 5h INTERVAL(10m) FILL(NULL)</code></pre>
+<p>Fill <strong><code>NULL</code></strong> to the interpolated data points.</p></li>
 </ul>
 <p>Notes:</p>
 <ol>
 <li><code>FILL</code> can generate tons of interpolated data points if the interval is small and the queried time range is large. So always remember to specify a time range when using interpolation. For each query with interpolation, the result set can not exceed 10,000,000 records.</li>
 <li>The result set will always be sorted by time in ascending order.</li>
 <li>If the query object is a supertable, then all the functions will be applied to all the tables that qualify the <code>WHERE</code> conditions. If the <code>GROUP BY</code> clause is also applied, the result set will be sorted ascendingly by time in each single group, otherwise, the result set will be sorted ascendingly by time as a whole.</li>
-
-</ol>
-<p>&nbsp;</p>
-<a href='../index.html'>Back</a></section></main></div><?php include($s.'/footer.php'); ?><script>$('pre').addClass('prettyprint linenums');PR.prettyPrint()</script><script src='lib/docs/liner.js'></script></body></html>
+</ol><a href='../index.html'>Back</a></section></main></div><?php include($s.'/footer.php'); ?><script>$('pre').addClass('prettyprint linenums');PR.prettyPrint()</script><script src='lib/docs/liner.js'></script></body></html>

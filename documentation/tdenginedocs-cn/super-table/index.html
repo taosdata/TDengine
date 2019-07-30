@@ -3,15 +3,15 @@
 <a class='anchor' id='什么是超级表'></a><h2>什么是超级表</h2>
 <p>STable是同一类型数据采集点的抽象，是同类型采集实例的集合，包含多张数据结构一样的子表。每个STable为其子表定义了表结构和一组标签：表结构即表中记录的数据列及其数据类型；标签名和数据类型由STable定义，标签值记录着每个子表的静态信息，用以对子表进行分组过滤。子表本质上就是普通的表，由一个时间戳主键和若干个数据列组成，每行记录着具体的数据，数据查询操作与普通表完全相同；但子表与普通表的区别在于每个子表从属于一张超级表，并带有一组由STable定义的标签值。每种类型的采集设备可以定义一个STable。数据模型定义表的每列数据的类型，如温度、压力、电压、电流、GPS实时位置等，而标签信息属于Meta Data，如采集设备的序列号、型号、位置等，是静态的，是表的元数据。用户在创建表（数据采集点）时指定STable(采集类型)外，还可以指定标签的值，也可事后增加或修改。</p>
 <p>TDengine扩展标准SQL语法用于定义STable，使用关键词tags指定标签信息。语法如下：</p>
-<pre><code class='language-mysql' lang='mysql'>CREATE TABLE &lt;stable_name&gt; (&lt;field_name&gt; TIMESTAMP, field_name1 field_type,…)   TAGS(tag_name tag_type, …) </code></pre>
+<pre><code class="mysql language-mysql">CREATE TABLE &lt;stable_name&gt; (&lt;field_name&gt; TIMESTAMP, field_name1 field_type,…)   TAGS(tag_name tag_type, …) </code></pre>
 <p>其中tag_name是标签名，tag_type是标签的数据类型。标签可以使用时间戳之外的其他TDengine支持的数据类型，标签的个数最多为6个，名字不能与系统关键词相同，也不能与其他列名相同。如：</p>
-<pre><code class='language-mysql' lang='mysql'>create table thermometer (ts timestamp, degree float) 
+<pre><code class="mysql language-mysql">create table thermometer (ts timestamp, degree float) 
 tags (location binary(20), type int)</code></pre>
 <p>上述SQL创建了一个名为thermometer的STable，带有标签location和标签type。</p>
 <p>为某个采集点创建表时，可以指定其所属的STable以及标签的值，语法如下：</p>
-<pre><code class='language-mysql' lang='mysql'>CREATE TABLE &lt;tb_name&gt; USING &lt;stb_name&gt; TAGS (tag_value1,...)</code></pre>
+<pre><code class="mysql language-mysql">CREATE TABLE &lt;tb_name&gt; USING &lt;stb_name&gt; TAGS (tag_value1,...)</code></pre>
 <p>沿用上面温度计的例子，使用超级表thermometer建立单个温度计数据表的语句如下：</p>
-<pre><code class='language-mysql' lang='mysql'>create table t1 using thermometer tags (‘beijing’, 10)</code></pre>
+<pre><code class="mysql language-mysql">create table t1 using thermometer tags (‘beijing’, 10)</code></pre>
 <p>上述SQL以thermometer为模板，创建了名为t1的表，这张表的Schema就是thermometer的Schema，但标签location值为‘beijing’，标签type值为10。</p>
 <p>用户可以使用一个STable创建数量无上限的具有不同标签的表，从这个意义上理解，STable就是若干具有相同数据模型，不同标签的表的集合。与普通表一样，用户可以创建、删除、查看超级表STable，大部分适用于普通表的查询操作都可运用到STable上，包括各种聚合和投影选择函数。除此之外，可以设置标签的过滤条件，仅对STbale中部分表进行聚合查询，大大简化应用的开发。</p>
 <p>TDengine对表的主键（时间戳）建立索引，暂时不提供针对数据模型中其他采集量（比如温度、压力值）的索引。每个数据采集点会采集若干数据记录，但每个采集点的标签仅仅是一条记录，因此数据标签在存储上没有冗余，且整体数据规模有限。TDengine将标签数据与采集的动态数据完全分离存储，而且针对STable的标签建立了高性能内存索引结构，为标签提供全方位的快速操作支持。用户可按照需求对其进行增删改查（Create，Retrieve，Update，Delete，CRUD）操作。</p>
@@ -19,69 +19,51 @@ tags (location binary(20), type int)</code></pre>
 <a class='anchor' id='超级表管理'></a><h2>超级表管理</h2>
 <ul>
 <li><p>创建超级表</p>
-<pre><code class='language-mysql' lang='mysql'>CREATE TABLE &lt;stable_name&gt; (&lt;field_name&gt; TIMESTAMP, field_name1 field_type,…) TAGS(tag_name tag_type, …)</code></pre>
+<pre><code class="mysql language-mysql">CREATE TABLE &lt;stable_name&gt; (&lt;field_name&gt; TIMESTAMP, field_name1 field_type,…) TAGS(tag_name tag_type, …)</code></pre>
 <p>与创建表的SQL语法相似。但需指定TAGS字段的名称和类型。 </p>
 <p>说明：</p>
 <ol>
 <li>TAGS列总长度不能超过512 bytes；</li>
 <li>TAGS列的数据类型不能是timestamp和nchar类型；</li>
 <li>TAGS列名不能与其他列名相同;</li>
-<li>TAGS列名不能为预留关键字. </li>
-
-</ol>
-</li>
+<li>TAGS列名不能为预留关键字. </li></ol></li>
 <li><p>显示已创建的超级表</p>
-<pre><code class='language-mysql' lang='mysql'>show stables;</code></pre>
-<p>查看数据库内全部STable，及其相关信息，包括STable的名称、创建时间、列数量、标签（TAG）数量、通过该STable建表的数量。 </p>
-</li>
+<pre><code class="mysql language-mysql">show stables;</code></pre>
+<p>查看数据库内全部STable，及其相关信息，包括STable的名称、创建时间、列数量、标签（TAG）数量、通过该STable建表的数量。 </p></li>
 <li><p>删除超级表</p>
-<pre><code class='language-mysql' lang='mysql'>DROP TABLE &lt;stable_name&gt;</code></pre>
-<p>Note: 删除STable不会级联删除通过STable创建的表；相反删除STable时要求通过该STable创建的表都已经被删除。</p>
-</li>
+<pre><code class="mysql language-mysql">DROP TABLE &lt;stable_name&gt;</code></pre>
+<p>Note: 删除STable不会级联删除通过STable创建的表；相反删除STable时要求通过该STable创建的表都已经被删除。</p></li>
 <li><p>查看属于某STable并满足查询条件的表</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT TBNAME,[TAG_NAME,…] FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)</code></pre>
+<pre><code class="mysql language-mysql">SELECT TBNAME,[TAG_NAME,…] FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)</code></pre>
 <p>查看属于某STable并满足查询条件的表。说明：TBNAME为关键词，显示通过STable建立的子表表名，查询过程中可以使用针对标签的条件。</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT COUNT(TBNAME) FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)</code></pre>
-<p>统计属于某个STable并满足查询条件的子表的数量</p>
-</li>
-
+<pre><code class="mysql language-mysql">SELECT COUNT(TBNAME) FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)</code></pre>
+<p>统计属于某个STable并满足查询条件的子表的数量</p></li>
 </ul>
 <a class='anchor' id='写数据时自动建子表'></a><h2>写数据时自动建子表</h2>
 <p>在某些特殊场景中，用户在写数据时并不确定某个设备的表是否存在，此时可使用自动建表语法来实现写入数据时里用超级表定义的表结构自动创建不存在的子表，若该表已存在则不会建立新表。注意：自动建表语句只能自动建立子表而不能建立超级表，这就要求超级表已经被事先定义好。自动建表语法跟insert/import语法非常相似，唯一区别是语句中增加了超级表和标签信息。具体语法如下：</p>
-<pre><code class='language-mysql' lang='mysql'>INSERT INTO &lt;tb_name&gt; USING &lt;stb_name&gt; TAGS (&lt;tag1_value&gt;, ...) VALUES (field_value, ...) (field_value, ...) ...;
-</code></pre>
+<pre><code class="mysql language-mysql">INSERT INTO &lt;tb_name&gt; USING &lt;stb_name&gt; TAGS (&lt;tag1_value&gt;, ...) VALUES (field_value, ...) (field_value, ...) ...;</code></pre>
 <p>向表tb_name中插入一条或多条记录，如果tb_name这张表不存在，则会用超级表stb_name定义的表结构以及用户指定的标签值(即tag1_value…)来创建名为tb_name新表，并将用户指定的值写入表中。如果tb_name已经存在，则建表过程会被忽略，系统也不会检查tb_name的标签是否与用户指定的标签值一致，也即不会更新已存在表的标签。</p>
-<pre><code class='language-mysql' lang='mysql'>INSERT INTO &lt;tb1_name&gt; USING &lt;stb1_name&gt; TAGS (&lt;tag1_value1&gt;, ...) VALUES (&lt;field1_value1&gt;, ...) (&lt;field1_value2&gt;, ...) ... &lt;tb_name2&gt; USING &lt;stb_name2&gt; TAGS(&lt;tag1_value2&gt;, ...) VALUES (&lt;field1_value1&gt;, ...) ...;
-</code></pre>
+<pre><code class="mysql language-mysql">INSERT INTO &lt;tb1_name&gt; USING &lt;stb1_name&gt; TAGS (&lt;tag1_value1&gt;, ...) VALUES (&lt;field1_value1&gt;, ...) (&lt;field1_value2&gt;, ...) ... &lt;tb_name2&gt; USING &lt;stb_name2&gt; TAGS(&lt;tag1_value2&gt;, ...) VALUES (&lt;field1_value1&gt;, ...) ...;</code></pre>
 <p>向多张表tb1_name，tb2_name等插入一条或多条记录，并分别指定各自的超级表进行自动建表。</p>
 <a class='anchor' id='STable中TAG管理'></a><h2>STable中TAG管理</h2>
 <p>除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于STable，不能对单个子表操作。对STable添加标签以后，依托于该STable建立的所有表将自动增加了一个标签，对于数值型的标签，新增加的标签的默认值是0.</p>
 <ul>
 <li><p>添加新的标签</p>
-<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;stable_name&gt; ADD TAG &lt;new_tag_name&gt; &lt;TYPE&gt;
-</code></pre>
-<p>为STable增加一个新的标签，并指定新标签的类型。标签总数不能超过6个。</p>
-</li>
+<pre><code class="mysql language-mysql">ALTER TABLE &lt;stable_name&gt; ADD TAG &lt;new_tag_name&gt; &lt;TYPE&gt;</code></pre>
+<p>为STable增加一个新的标签，并指定新标签的类型。标签总数不能超过6个。</p></li>
 <li><p>删除标签</p>
-<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;stable_name&gt; DROP TAG &lt;tag_name&gt;
-</code></pre>
+<pre><code class="mysql language-mysql">ALTER TABLE &lt;stable_name&gt; DROP TAG &lt;tag_name&gt;</code></pre>
 <p>删除超级表的一个标签，从超级表删除某个标签后，该超级表下的所有子表也会自动删除该标签。</p>
-<p>说明：第一列标签不能删除，至少需要为STable保留一个标签。</p>
-</li>
+<p>说明：第一列标签不能删除，至少需要为STable保留一个标签。</p></li>
 <li><p>修改标签名</p>
-<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;stable_name&gt; CHANGE TAG &lt;old_tag_name&gt; &lt;new_tag_name&gt;
-</code></pre>
-<p>修改超级表的标签名，从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。</p>
-</li>
+<pre><code class="mysql language-mysql">ALTER TABLE &lt;stable_name&gt; CHANGE TAG &lt;old_tag_name&gt; &lt;new_tag_name&gt;</code></pre>
+<p>修改超级表的标签名，从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。</p></li>
 <li><p>修改子表的标签值</p>
-<pre><code class='language-mysql' lang='mysql'>ALTER TABLE &lt;table_name&gt; SET TAG &lt;tag_name&gt;=&lt;new_tag_value&gt;
-</code></pre>
-</li>
-
+<pre><code class="mysql language-mysql">ALTER TABLE &lt;table_name&gt; SET TAG &lt;tag_name&gt;=&lt;new_tag_value&gt;</code></pre></li>
 </ul>
 <a class='anchor' id='STable多表聚合'></a><h2>STable多表聚合</h2>
 <p>针对所有的通过STable创建的子表进行多表聚合查询，支持按照全部的TAG值进行条件过滤，并可将结果按照TAGS中的值进行聚合，暂不支持针对binary类型的模糊匹配过滤。语法如下：</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT function&lt;field_name&gt;,… 
+<pre><code class="mysql language-mysql">SELECT function&lt;field_name&gt;,… 
  FROM &lt;stable_name&gt; 
  WHERE &lt;tag_name&gt; &lt;[=|&lt;=|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)
  INTERVAL (&lt;time range&gt;)
@@ -90,41 +72,39 @@ tags (location binary(20), type int)</code></pre>
  SLIMIT &lt;group_limit&gt;
  SOFFSET &lt;group_offset&gt;
  LIMIT &lt;record_limit&gt;
- OFFSET &lt;record_offset&gt;
-</code></pre>
+ OFFSET &lt;record_offset&gt;</code></pre>
 <p><strong>说明</strong>：</p>
 <p>超级表聚合查询，TDengine目前支持以下聚合\选择函数：sum、count、avg、first、last、min、max、top、bottom，以及针对全部或部分列的投影操作，使用方式与单表查询的计算过程相同。暂不支持其他类型的聚合计算和四则运算。当前所有的函数及计算过程均不支持嵌套的方式进行执行。</p>
-<p> 不使用GROUP BY的查询将会对超级表下所有满足筛选条件的表按时间进行聚合，结果输出默认是按照时间戳单调递增输出，用户可以使用ORDER BY _c0 ASC|DESC选择查询结果时间戳的升降排序；使用GROUP BY &lt;tag_name&gt; 的聚合查询会按照tags进行分组，并对每个组内的数据分别进行聚合，输出结果为各个组的聚合结果，组间的排序可以由ORDER BY &lt;tag_name&gt; 语句指定，每个分组内部，时间序列是单调递增的。 </p>
+<p>不使用GROUP BY的查询将会对超级表下所有满足筛选条件的表按时间进行聚合，结果输出默认是按照时间戳单调递增输出，用户可以使用ORDER BY _c0 ASC|DESC选择查询结果时间戳的升降排序；使用GROUP BY <tag_name> 的聚合查询会按照tags进行分组，并对每个组内的数据分别进行聚合，输出结果为各个组的聚合结果，组间的排序可以由ORDER BY <tag_name> 语句指定，每个分组内部，时间序列是单调递增的。 </p>
 <p>使用SLIMIT/SOFFSET语句指定组间分页，即指定结果集中输出的最大组数以及对组起始的位置。使用LIMIT/OFFSET语句指定组内分页，即指定结果集中每个组内最多输出多少条记录以及记录起始的位置。</p>
 <a class='anchor' id='STable使用示例'></a><h2>STable使用示例</h2>
 <p>以温度传感器采集时序数据作为例，示范STable的使用。 在这个例子中，对每个温度计都会建立一张表，表名为温度计的ID，温度计读数的时刻记为ts，采集的值记为degree。通过tags给每个采集器打上不同的标签，其中记录温度计的地区和类型，以方便我们后面的查询。所有温度计的采集量都一样，因此我们用STable来定义表结构。</p>
 <a class='anchor' id='定义STable表结构并使用它创建子表'></a><h3>定义STable表结构并使用它创建子表</h3>
 <p>创建STable语句如下：</p>
-<pre><code class='language-mysql' lang='mysql'>CREATE TABLE thermometer (ts timestamp, degree double) 
+<pre><code class="mysql language-mysql">CREATE TABLE thermometer (ts timestamp, degree double) 
 TAGS(location binary(20), type int)</code></pre>
 <p>假设有北京，天津和上海三个地区的采集器共4个，温度采集器有3种类型，我们就可以对每个采集器建表如下： </p>
-<pre><code class='language-mysql' lang='mysql'>CREATE TABLE therm1 USING thermometer TAGS (’beijing’, 1);
+<pre><code class="mysql language-mysql">CREATE TABLE therm1 USING thermometer TAGS (’beijing’, 1);
 CREATE TABLE therm2 USING thermometer TAGS (’beijing’, 2);
 CREATE TABLE therm3 USING thermometer TAGS (’tianjin’, 1);
 CREATE TABLE therm4 USING thermometer TAGS (’shanghai’, 3);</code></pre>
 <p>其中therm1，therm2，therm3，therm4是超级表thermometer四个具体的子表，也即普通的Table。以therm1为例，它表示采集器therm1的数据，表结构完全由thermometer定义，标签location=”beijing”, type=1表示therm1的地区是北京，类型是第1类的温度计。</p>
 <a class='anchor' id='写入数据'></a><h3>写入数据</h3>
 <p>注意，写入数据时不能直接对STable操作，而是要对每张子表进行操作。我们分别向四张表therm1，therm2， therm3， therm4写入一条数据，写入语句如下：</p>
-<pre><code class='language-mysql' lang='mysql'>INSERT INTO therm1 VALUES (’2018-01-01 00:00:00.000’, 20);
+<pre><code class="mysql language-mysql">INSERT INTO therm1 VALUES (’2018-01-01 00:00:00.000’, 20);
 INSERT INTO therm2 VALUES (’2018-01-01 00:00:00.000’, 21);
 INSERT INTO therm3 VALUES (’2018-01-01 00:00:00.000’, 24);
 INSERT INTO therm4 VALUES (’2018-01-01 00:00:00.000’, 23);</code></pre>
 <a class='anchor' id='按标签聚合查询'></a><h3>按标签聚合查询</h3>
 <p>查询位于北京(beijing)和天津(tianjing)两个地区的温度传感器采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)、最低温度min(degree)，并将结果按所处地域(location)和传感器类型(type)进行聚合。</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
+<pre><code class="mysql language-mysql">SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
 WHERE location=’beijing’ or location=’tianjing’
 GROUP BY location, type </code></pre>
 <a class='anchor' id='按时间周期聚合查询'></a><h3>按时间周期聚合查询</h3>
 <p>查询仅位于北京以外地区的温度传感器最近24小时(24h)采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)和最低温度min(degree)，将采集结果按照10分钟为周期进行聚合，并将结果按所处地域(location)和传感器类型(type)再次进行聚合。</p>
-<pre><code class='language-mysql' lang='mysql'>SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
+<pre><code class="mysql language-mysql">SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
 WHERE name&lt;&gt;’beijing’ and ts&gt;=now-1d
 INTERVAL(10M)
-GROUP BY location, type</code></pre>
-<a href='../index.html'>回去</a></section></main></div><?php include($s.'/footer.php'); ?><script>$('pre').addClass('prettyprint linenums');PR.prettyPrint()</script><script src='lib/docs/liner.js'></script></body></html>
+GROUP BY location, type</code></pre><a href='../index.html'>回去</a></section></main></div><?php include($s.'/footer.php'); ?><script>$('pre').addClass('prettyprint linenums');PR.prettyPrint()</script><script src='lib/docs/liner.js'></script></body></html>

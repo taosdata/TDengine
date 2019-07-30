@@ -45,9 +45,9 @@ test/
 Then fill the configuration file _test/cfg/taos.cfg_:
 ```
 echo -e "dataDir $(pwd)/test/data\nlogDir $(pwd)/test/log" > test/cfg/taos.cfg
-``` -->
+​``` -->
 To start the TDengine server, run the command below in terminal:
-```cmd
+​```cmd
 ./build/bin/taosd -c test/cfg
 ```
 In another terminal, use the TDengine shell to connect the server:
@@ -88,7 +88,9 @@ drop database db;
 ```
 
 # Developing with TDengine
-TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors.
+### Official Connectors
+
+TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors and relevant documentation.
 
 - [Java](https://www.taosdata.com/en/documentation/connector/#Java-Connector)
 - [C/C++](https://www.taosdata.com/en/documentation/connector/#C/C++-Connector)
@@ -96,6 +98,13 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 - [Go](https://www.taosdata.com/en/documentation/connector/#Go-Connector)
 - [RESTful API](https://www.taosdata.com/en/documentation/connector/#RESTful-Connector)
 - [Node.js](https://www.taosdata.com/en/documentation/connector/#Node.js-Connector)
+
+### Third Party Connectors
+
+The TDengine community has also kindly built some of their own connectors! Follow the links below to find the source code for them.
+
+- [Rust Connector](https://github.com/taosdata/TDengine/tree/master/tests/examples/rust)
+- [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
 
 # TDengine Roadmap
 - Support event-driven stream computing
