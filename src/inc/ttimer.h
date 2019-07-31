@@ -29,8 +29,6 @@ void *taosTmrInit(int maxTmr, int resoultion, int longest, char *label);
 
 tmr_h taosTmrStart(void (*fp)(void *, void *), int mseconds, void *param1, void *handle);
 
-void taosTmrStop(tmr_h tmrId);
-
 void taosTmrStopA(tmr_h *timerId);
 
 void taosTmrReset(void (*fp)(void *, void *), int mseconds, void *param1, void *handle, tmr_h *pTmrId);

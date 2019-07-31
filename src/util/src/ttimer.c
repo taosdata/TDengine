@@ -368,44 +368,6 @@ tmr_h taosTmrStart(void (*fp)(void *, void *), int mseconds, void *param1, void 
   return (tmr_h)pObj;
 }
 
-void taosTmrStop(tmr_h timerId) {
-  tmr_obj_t * pObj;
-  tmr_list_t *pList;
-  tmr_ctrl_t *pCtrl;
-
-  pObj = (tmr_obj_t *)timerId;
-  if (pObj == NULL) return;
-
-  pCtrl = pObj->pCtrl;
-  if (pCtrl == NULL) return;
-
-  if (pthread_mutex_lock(&pCtrl->mutex) != 0)
-    tmrError("%s mutex lock failed, reason:%s", pCtrl->label, strerror(errno));
-
-  if (pObj->timerId == timerId) {
-    pList = &(pCtrl->tmrList[pObj->index]);
-    if (pObj->prev) {
-      pObj->prev->next = pObj->next;
-    } else {
-      pList->head = pObj->next;
-    }
-
-    if (pObj->next) {
-      pObj->next->prev = pObj->prev;
-    }
-
-    pList->count--;
-    pObj->timerId = NULL;
-    pCtrl->numOfTmrs--;
-
-    tmrTrace("%s %p, timer stopped, fp:%p, tmr_h:%p, total:%d", pCtrl->label, pObj->param1, pObj->fp, pObj,
-             pCtrl->numOfTmrs);
-    tmrMemPoolFree(pCtrl->poolHandle, (char *)(pObj));
-  }
-
-  pthread_mutex_unlock(&pCtrl->mutex);
-}
-
 void taosTmrStopA(tmr_h *timerId) {
   tmr_obj_t * pObj;
   tmr_list_t *pList;
