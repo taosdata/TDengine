@@ -29,6 +29,14 @@ To build TDengine, use [CMake](https://cmake.org/) 2.8 or higher versions in the
 mkdir build && cd build
 cmake .. && cmake --build .
 ```
+# Installing
+After building successfully, TDengine can be installed by:
+```cmd
+make install
+```
+Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. It should be noted that installing from source code does not configure service management for TDengine.
+Users can also choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) for it.
+
 
 # Running
 <!-- TDengine uses _/etc/taos/taos.cfg_ as the default configuration file. This behavior can be changed with _-c_ option. For a quick start, we will make directories structured as:
@@ -47,7 +55,7 @@ Then fill the configuration file _test/cfg/taos.cfg_:
 echo -e "dataDir $(pwd)/test/data\nlogDir $(pwd)/test/log" > test/cfg/taos.cfg
 ​``` -->
 To start the TDengine server, run the command below in terminal:
-​```cmd
+```cmd
 ./build/bin/taosd -c test/cfg
 ```
 In another terminal, use the TDengine shell to connect the server:
@@ -55,13 +63,6 @@ In another terminal, use the TDengine shell to connect the server:
 ./build/bin/taos -c test/cfg
 ```
 
-# Installing
-After building successfully, TDengine can be installed by:
-```cmd
-make install
-```
-Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. It should be noted that installing from source code does not configure service management for TDengine.
-Users can also choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) for it.
 
 Start the service in the terminal.
 ```cmd
