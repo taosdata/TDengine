@@ -243,8 +243,8 @@ class CTaosInterface(object):
             return CTaosInterface.libtaos.taos_query(connection, ctypes.c_char_p(sql.encode('utf-8')))
         except AttributeError:
            raise AttributeError("sql is expected as a string")
-        finally:
-            CTaosInterface.libtaos.close(connection)
+        # finally:
+        #     CTaosInterface.libtaos.close(connection)
 
     @staticmethod
     def affectedRows(connection):
