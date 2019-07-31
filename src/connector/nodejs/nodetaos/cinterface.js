@@ -88,15 +88,6 @@ function convertInt(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   }
   return res;
 }
-function readBigInt64LE(buffer, offset = 0) {
-  const first = buffer[offset];
-  const last = buffer[offset + 7];
-  if (first === undefined || last === undefined)
-    boundsError(offset, buffer.length - 8);
-
-  const val = buffer[offset + 4] + buffer[offset + 5] * 2 ** 8 + buffer[offset + 6] * 2 ** 16 + (last << 24); // Overflow
-  return ((BigInt(val) << 32n) + BigInt(first + buffer[++offset] * 2 ** 8 + buffer[++offset] * 2 ** 16 + buffer[++offset] * 2 ** 24));
-}
 function convertBigint(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
