@@ -26,7 +26,7 @@ static HttpEncodeMethod gcQueryMethod = {
 void gcInitHandle(HttpServer* pServer) { httpAddMethod(pServer, &gcDecodeMethod); }
 
 bool gcGetUserFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->pThread->parser;
+  HttpParser* pParser = &pContext->parser;
   if (pParser->path[GC_USER_URL_POS].len > TSDB_USER_LEN - 1 || pParser->path[GC_USER_URL_POS].len <= 0) {
     return false;
   }
@@ -36,7 +36,7 @@ bool gcGetUserFromUrl(HttpContext* pContext) {
 }
 
 bool gcGetPassFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->pThread->parser;
+  HttpParser* pParser = &pContext->parser;
   if (pParser->path[GC_PASS_URL_POS].len > TSDB_PASSWORD_LEN - 1 || pParser->path[GC_PASS_URL_POS].len <= 0) {
     return false;
   }
@@ -126,7 +126,7 @@ bool gcProcessLoginRequest(HttpContext* pContext) {
 bool gcProcessQueryRequest(HttpContext* pContext) {
   httpTrace("context:%p, fd:%d, ip:%s, process grafana query msg", pContext, pContext->fd, pContext->ipstr);
 
-  HttpParser* pParser = &pContext->pThread->parser;
+  HttpParser* pParser = &pContext->parser;
   char*       filter = pParser->data.pos;
   if (filter == NULL) {
     httpSendErrorResp(pContext, HTTP_NO_MSG_INPUT);

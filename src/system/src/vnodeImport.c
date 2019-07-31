@@ -773,7 +773,7 @@ int vnodeImportStartToFile(SImportInfo *pImport, char *payload, int rows) {
     pImport->importedRows = pImport->rows;
     code = vnodeImportToFile(pImport);
   } else {
-    dError("vid:%d sid:%d id:%s, data is already imported to file", pObj->vnode, pObj->sid, pObj->meterId);
+    dTrace("vid:%d sid:%d id:%s, data is already imported to file", pObj->vnode, pObj->sid, pObj->meterId);
   }
 
   return code;
@@ -817,7 +817,7 @@ int vnodeImportWholeToCache(SImportInfo *pImport, char *payload, int rows) {
     } else if (pImport->firstKey < pObj->lastKeyOnFile) {
       code = vnodeImportStartToFile(pImport, payload, rows);
     } else {  // firstKey == pObj->lastKeyOnFile
-      dError("vid:%d sid:%d id:%s, data is already there", pObj->vnode, pObj->sid, pObj->meterId);
+      dTrace("vid:%d sid:%d id:%s, data is already there", pObj->vnode, pObj->sid, pObj->meterId);
     }
   }
 

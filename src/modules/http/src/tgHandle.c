@@ -447,7 +447,7 @@ void tgInitHandle(HttpServer *pServer) {
 }
 
 bool tgGetUserFromUrl(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->pThread->parser;
+  HttpParser *pParser = &pContext->parser;
   if (pParser->path[TG_USER_URL_POS].len > TSDB_USER_LEN - 1 || pParser->path[TG_USER_URL_POS].len <= 0) {
     return false;
   }
@@ -457,7 +457,7 @@ bool tgGetUserFromUrl(HttpContext *pContext) {
 }
 
 bool tgGetPassFromUrl(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->pThread->parser;
+  HttpParser *pParser = &pContext->parser;
   if (pParser->path[TG_PASS_URL_POS].len > TSDB_PASSWORD_LEN - 1 || pParser->path[TG_PASS_URL_POS].len <= 0) {
     return false;
   }
@@ -467,7 +467,7 @@ bool tgGetPassFromUrl(HttpContext *pContext) {
 }
 
 char *tgGetDbFromUrl(HttpContext *pContext) {
-  HttpParser *pParser = &pContext->pThread->parser;
+  HttpParser *pParser = &pContext->parser;
   if (pParser->path[TG_DB_URL_POS].len <= 0) {
     httpSendErrorResp(pContext, HTTP_TG_DB_NOT_INPUT);
     return NULL;
@@ -1158,7 +1158,7 @@ bool tgProcessSingleMetricUseConfigSchema(HttpContext *pContext, cJSON *metric, 
 bool tgProcessQueryRequest(HttpContext *pContext, char *db) {
   httpTrace("context:%p, fd:%d, ip:%s, process telegraf query msg", pContext, pContext->fd, pContext->ipstr);
 
-  HttpParser *pParser = &pContext->pThread->parser;
+  HttpParser *pParser = &pContext->parser;
   char *      filter = pParser->data.pos;
   if (filter == NULL) {
     httpSendErrorResp(pContext, HTTP_NO_MSG_INPUT);
