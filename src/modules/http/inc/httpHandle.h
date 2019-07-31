@@ -64,7 +64,7 @@
 #define HTTP_PARSE_BODY_CONTINUE    0
 #define HTTP_PARSE_BODY_SUCCESS     1
 
-#define HTTP_RETRY_TIMES            10
+#define HTTP_RETRY_TIMES            2
 #define HTTP_EXPIRED_TIME           60000
 
 struct HttpContext;

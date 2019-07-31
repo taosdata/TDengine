@@ -96,7 +96,9 @@ void httpFreeContext(HttpServer *pServer, HttpContext *pContext) {
 
 void httpCleanUpContext(HttpThread *pThread, HttpContext *pContext) {
   // for not keep-alive
-  taosTmrStopA(pContext->readTimer);
+  if (pContext->readTimer != NULL) {
+    taosTmrStopA(pContext->readTimer);
+  }
 
   if (pContext->fd >= 0) {
     epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
@@ -109,8 +111,7 @@ void httpCleanUpContext(HttpThread *pThread, HttpContext *pContext) {
   pthread_mutex_lock(&pThread->threadMutex);
 
   pThread->numOfFds--;
-  httpTrace("context:%p, ip:%s, fd is cleaned up, thread:%s, numOfFds:%d", pContext, pContext->ipstr, pThread->label,
-            pThread->numOfFds);
+  httpTrace("context:%p, ip:%s, thread:%s, numOfFds:%d, fd is cleaned up", pContext, pContext->ipstr, pThread->label, pThread->numOfFds);
   if (pThread->numOfFds < 0) {
     httpError("context:%p, ip:%s, thread:%s, number of FDs:%d shall never be negative",
               pContext, pContext->ipstr, pThread->label, pThread->numOfFds);
@@ -160,7 +161,8 @@ bool httpInitContext(HttpContext *pContext) {
   memset(pParser, 0, sizeof(HttpParser));
   pParser->pCur = pParser->pLast = pParser->buffer;
 
-  httpTrace("context:%p, fd:%d, ip:%s, accessTimes:%d", pContext, pContext->fd, pContext->ipstr, pContext->accessTimes);
+  httpTrace("context:%p, fd:%d, ip:%s, thread:%s, accessTimes:%d, parsed:%d",
+          pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->accessTimes, pContext->parsed);
   return true;
 }
 
@@ -345,8 +347,8 @@ bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
     taosTmrReset(httpCloseContextByServerFromTimer, HTTP_EXPIRED_TIME, pContext, pThread->pServer->timerHandle, &pContext->readTimer);
     return false;
   } else if (ret == HTTP_PARSE_BODY_SUCCESS){
-    httpDump("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, content:\n%s",
-             pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->pThread->numOfFds, pContext->parser->data.pos);
+    httpDump("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, body:\n%s",
+             pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->pThread->numOfFds, pContext->parser.data.pos);
     return true;
   } else {
     httpError("context:%p, fd:%d, ip:%s, failed to read http body, close connect", pContext, pContext->fd, pContext->ipstr);
