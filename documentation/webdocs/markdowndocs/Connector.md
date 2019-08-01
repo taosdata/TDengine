@@ -132,7 +132,7 @@ TDengine provides APIs for continuous query driven by time, which run queries pe
 
 For the time being, TDengine supports subscription on one table. It is implemented through periodic pulling from a TDengine server. 
 
-- `TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char      *db, char *table, long time, int mseconds)`
+- `TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char      *db, char *table, int64_t time, int mseconds)`
   The API is used to start a subscription session by given a handle. The parameters required are _host_ (IP address of a TDenginer server), _user_ (username), _pass_ (password), _db_ (database to use), _table_ (table name to subscribe), _time_ (start time to subscribe, 0 for now), _mseconds_ (pulling period). If failed to open a subscription session, a _NULL_ pointer is returned.
 
 
