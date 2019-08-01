@@ -66,7 +66,7 @@
 
 #define HTTP_READ_RETRY_TIMES       3
 #define HTTP_READ_WAIT_TIME_MS      3
-#define HTTP_WRITE_RETRY_TIMES      100
+#define HTTP_WRITE_RETRY_TIMES      400
 #define HTTP_WRITE_WAIT_TIME_MS     5
 #define HTTP_EXPIRED_TIME           60000
 
