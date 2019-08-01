@@ -10,7 +10,11 @@ curl https://sh.rustup.rs -sSf | sh
 
 ## Run with Sample
 
-Build and run:
+Build and run basic sample:
 ```
 cargo run --example demo
+```
+Build and run subscribe sample:
+```
+cargo run --example subscribe
 ```
