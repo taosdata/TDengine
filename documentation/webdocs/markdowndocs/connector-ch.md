@@ -137,7 +137,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 
   该API用来获取返回的一排数据中数据的列数
 
-- `TAOS_FIELD *taos_fetch_subfields(TAOS_RES *res)`
+- `TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub)`
 
   该API用来获取每列数据的属性（数据类型、名字、字节数），与taos_num_subfileds配合使用，可用来解析返回的一排数据。
 
