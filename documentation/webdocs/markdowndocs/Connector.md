@@ -148,7 +148,7 @@ For the time being, TDengine supports subscription on one table. It is implement
   The API used to get the number of fields in a row.
 
 
-- `TAOS_FIELD *taos_fetch_subfields(TAOS_RES *res)`
+- `TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub)`
   The API used to get the description of each column.
 
 ##  Java Connector
