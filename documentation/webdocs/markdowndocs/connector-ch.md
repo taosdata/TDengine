@@ -121,7 +121,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 
 订阅API目前支持订阅一张表，并通过定期轮询的方式不断获取写入表中的最新数据。 
 
-- `TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char *db, char *table, long time, int mseconds)`
+- `TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char *db, char *table, int64_t time, int mseconds)`
 
   该API用来启动订阅，需要提供的参数包含：TDengine管理主节点的IP地址、用户名、密码、数据库、数据库表的名字；time是开始订阅消息的时间，是从1970年1月1日起计算的毫秒数，为长整型, 如果设为0，表示从当前时间开始订阅；mseconds为查询数据库更新的时间间隔，单位为毫秒，建议设为1000毫秒。返回值为一指向TDengine_SUB结构的指针，如果返回为空，表示失败。
 
@@ -139,7 +139,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 
 - `TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub)`
 
-  该API用来获取每列数据的属性（数据类型、名字、字节数），与taos_num_subfileds配合使用，可用来解析返回的一排数据。
+  该API用来获取每列数据的属性（数据类型、名字、字节数），与taos_num_subfields配合使用，可用来解析返回的一排数据。
 
 ##  Java Connector
 
