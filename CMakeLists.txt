@@ -36,7 +36,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   SET(TD_LINUX TRUE)
   ADD_DEFINITIONS(-DLINUX)
   
-  SET(COMMON_FLAGS "-std=gnu99 -Wall -fPIC -malign-double -Wno-char-subscripts -malign-stringops -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
+  SET(COMMON_FLAGS "-std=gnu99 -Wall -fPIC -malign-double -g -Wno-char-subscripts -malign-stringops -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
   SET(DEBUG_FLAGS "-O0 -DDEBUG")
   SET(RELEASE_FLAGS "-O0")
   
