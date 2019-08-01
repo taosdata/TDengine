@@ -131,7 +131,7 @@ int vnodeCloseFileForImport(SMeterObj *pObj, SHeadInfo *pHinfo) {
   lseek(pVnode->nfd, pHinfo->compInfoOffset, SEEK_SET);
   write(pVnode->nfd, &pHinfo->compInfo, sizeof(SCompInfo));
 
-  chksum = taosCalcChecksum(0, buffer, size);
+  chksum = taosCalcChecksum(0, (uint8_t *)buffer, size);
   lseek(pVnode->nfd, pHinfo->compInfoOffset + sizeof(SCompInfo) + size, SEEK_SET);
   write(pVnode->nfd, &chksum, sizeof(TSCKSUM));
   free(buffer);
@@ -395,7 +395,7 @@ int vnodeImportToFile(SImportInfo *pImport) {
         if (*((TSKEY *)payload) > pVnode->commitLastKey) break;
 
         for (col = 0; col < pObj->numOfColumns; ++col) {
-          memcpy(offset[col], payload, pObj->schema[col].bytes);
+          memcpy((void *)offset[col], payload, pObj->schema[col].bytes);
           payload += pObj->schema[col].bytes;
           offset[col] += pObj->schema[col].bytes;
         }
