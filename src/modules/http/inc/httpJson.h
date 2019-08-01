@@ -47,7 +47,7 @@ typedef struct {
 
 // http response
 int httpWriteBuf(struct HttpContext* pContext, const char* buf, int sz);
-int httpWriteBufByFd(int fd, const char* buf, int sz);
+int httpWriteBufByFd(struct HttpContext* pContext, const char* buf, int sz);
 
 // builder callback
 typedef void (*httpJsonBuilder)(JsonBuf* buf, void* jsnHandle);

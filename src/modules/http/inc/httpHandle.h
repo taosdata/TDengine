@@ -60,11 +60,14 @@
 #define HTTP_PROCESS_ERROR          0
 #define HTTP_PROCESS_SUCCESS        1
 
-#define HTTP_PARSE_BODY_ERROR      -1
-#define HTTP_PARSE_BODY_CONTINUE    0
-#define HTTP_PARSE_BODY_SUCCESS     1
+#define HTTP_CHECK_BODY_ERROR      -1
+#define HTTP_CHECK_BODY_CONTINUE    0
+#define HTTP_CHECK_BODY_SUCCESS     1
 
-#define HTTP_RETRY_TIMES            2
+#define HTTP_READ_RETRY_TIMES       3
+#define HTTP_READ_WAIT_TIME_MS      3
+#define HTTP_WRITE_RETRY_TIMES      100
+#define HTTP_WRITE_WAIT_TIME_MS     5
 #define HTTP_EXPIRED_TIME           60000
 
 struct HttpContext;

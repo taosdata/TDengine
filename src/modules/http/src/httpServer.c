@@ -217,7 +217,8 @@ void httpCloseContextByServer(HttpThread *pThread, HttpContext *pContext) {
   }
 }
 
-void httpCloseContextByServerFromTimer(HttpContext *pContext) {
+void httpCloseContextByServerFromTimer(void *param, void *tmrId) {
+  HttpContext *pContext = (HttpContext *)param;
   httpError("context:%p, fd:%d, ip:%s, read http body error, time expired", pContext, pContext->fd, pContext->ipstr);
   httpSendErrorResp(pContext, HTTP_PARSE_BODY_ERROR);
   httpCloseContextByServer(pContext->pThread, pContext);
@@ -283,18 +284,10 @@ bool httpReadDataImp(HttpContext *pContext) {
       pParser->bufsize += nread;
       break;
     } else if (nread < 0) {
-      if (errno == EINTR) {
-        if (blocktimes++ > HTTP_RETRY_TIMES) {
-          taosMsleep(1);
-          httpTrace("context:%p, fd:%d, ip:%s, read from socket error:%d, EINTER times:%d",
-                    pContext, pContext->fd, pContext->ipstr, errno, blocktimes);
-          break;
-        }
-        continue;
-      } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        if (blocktimes++ > HTTP_RETRY_TIMES) {
-          taosMsleep(1);
-          httpTrace("context:%p, fd:%d, ip:%s, read from socket error:%d, EAGAIN times:%d",
+      if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+        if (blocktimes++ > HTTP_READ_RETRY_TIMES) {
+          taosMsleep(HTTP_READ_WAIT_TIME_MS);
+          httpTrace("context:%p, fd:%d, ip:%s, read from socket error:%d, error times:%d",
                     pContext, pContext->fd, pContext->ipstr, errno, blocktimes);
           break;
         }
@@ -342,11 +335,11 @@ bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
   }
 
   int ret = httpCheckReadCompleted(pContext);
-  if (ret == HTTP_PARSE_BODY_CONTINUE) {
+  if (ret == HTTP_CHECK_BODY_CONTINUE) {
     httpTrace("context:%p, fd:%d, ip:%s, not finished yet, try another times", pContext, pContext->fd, pContext->ipstr);
     taosTmrReset(httpCloseContextByServerFromTimer, HTTP_EXPIRED_TIME, pContext, pThread->pServer->timerHandle, &pContext->readTimer);
     return false;
-  } else if (ret == HTTP_PARSE_BODY_SUCCESS){
+  } else if (ret == HTTP_CHECK_BODY_SUCCESS){
     httpDump("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, body:\n%s",
              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->pThread->numOfFds, pContext->parser.data.pos);
     return true;
