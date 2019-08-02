@@ -160,7 +160,7 @@ int vnodeOpenShellVnode(int vnode) {
   return 0;
 }
 
-void vnodeDelayedFreeResource(void *param, void *tmrId) {
+static void vnodeDelayedFreeResource(void *param, void *tmrId) {
   int32_t vnode = *(int32_t*) param;
   taosCloseRpcChann(pShellServer, vnode); // close connection
   tfree (shellList[vnode]);  //free SShellObj
@@ -179,8 +179,9 @@ void vnodeCloseShellVnode(int vnode) {
   *v = vnode;
 
   /*
-   * free the connection related resource after 5sec, since the msg may be in
-   * the task queue, free it immediate will cause crash
+   * free the connection related resource after 5sec.
+   * 1. The msg, as well as SRpcConn may be in the task queue, free it immediate will cause crash
+   * 2. Free connection may cause *(SRpcConn*)pObj->thandle to be invalid to access.
    */
   dTrace("vid:%d, delay 5sec to free resources", vnode);
   taosTmrStart(vnodeDelayedFreeResource, 5000, v, vnodeTmrCtrl);
@@ -517,6 +518,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
       if (pSubmit->import) {
         code = vnodeImportPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
                                  sversion, &numOfPoints);
+        vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
       } else {
         code = vnodeInsertPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, NULL,
                                  sversion, &numOfPoints);

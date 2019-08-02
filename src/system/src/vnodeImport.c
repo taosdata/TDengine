@@ -915,9 +915,6 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     if (((commitInProcess = pPool->commitInProcess) == 1) || num > 0) {
       pthread_mutex_unlock(&pPool->vmutex);
 
-      //restore meter state
-      vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
-
       pNew = (SImportInfo *)malloc(sizeof(SImportInfo));
       memcpy(pNew, &import, sizeof(SImportInfo));
       pNew->signature = pNew;
@@ -939,8 +936,6 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
         pShell->numOfTotalPoints += import.importedRows;
       }
     }
-
-    vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
   }
 
   pVnode->version++;
