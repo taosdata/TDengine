@@ -181,7 +181,7 @@ public Connection getConn() throws Exception{
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR, "/etc/taos");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIMEZONE, "UTC-8");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
   Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
   return conn;
 }
