@@ -95,10 +95,10 @@ TDengine分配固定大小的内存空间作为缓存空间，缓存空间可根
 
 一个缓存池了有很多个缓存块，缓存的大小由缓存块的个数以及缓存块的大小决定。参数cacheBlockSize决定每个缓存块的大小，参数cacheNumOfBlocks决定每个虚拟节点可用缓存块数量。因此单个虚拟节点总缓存开销为cacheBlockSize x cacheNumOfBlocks。参数numOfBlocksPerMeter决定每张表可用缓存块的数量，TDengine要求每张表至少有2个缓存块可供使用，因此cacheNumOfBlocks的数值不应该小于虚拟节点中所包含的表数量的两倍，即cacheNumOfBlocks ≤ sessionsPerVnode x 2。一般情况下cacheBlockSize可以不用调整，使用系统默认值即可，缓存块需要存储至少几十条记录才能确保TDengine更有效率地进行数据写入。
 
-你可以通过函数last快速获取一张表或一张超级表的最后一条记录，这样很便于在大屏显示各设备的实时状态或采集值。例如：
+你可以通过函数last_row快速获取一张表或一张超级表的最后一条记录，这样很便于在大屏显示各设备的实时状态或采集值。例如：
 
 ```mysql
-select degree from thermometer where location='beijing';
+select last_row(degree) from thermometer where location='beijing';
 ```
 
 该SQL语句将获取所有位于北京的传感器最后记录的温度值。
