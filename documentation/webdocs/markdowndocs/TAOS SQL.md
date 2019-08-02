@@ -1,4 +1,4 @@
-#TAOS SQL
+# TAOS SQL
 
 TDengine provides a SQL like query language to insert or query data. You can execute the SQL statements through the TDengine Shell, or through C/C++, Java(JDBC), Python, Restful, Go, and Node.js APIs to interact with the `taosd` service.
 
@@ -9,9 +9,9 @@ Before reading through, please have a look at the conventions used for syntax de
 * A single verticle line ("|") works a separator for multiple optional args or clauses
 * Dots ("…") means repeating for as many times
 
-##Data Types
+## Data Types
 
-###Timestamp
+### Timestamp
 
 The timestamp is the most important data type in TDengine. The first column of each table must be  **`TIMESTAMP`** type, but other columns can also be  **`TIMESTAMP`** type. The following rules for timestamp: 
 
@@ -25,7 +25,7 @@ The timestamp is the most important data type in TDengine. The first column of e
 
 Default time precision is millisecond, you can change it to microseocnd by setting parameter enableMicrosecond in [system configuration](../administrator/#Configuration-on-Server). For epoch time, the long integer shall be microseconds since the epoch. For the above string format, MS shall be six digits. 
 
-###Data Types
+### Data Types
 
 The full list of data types is listed below.  For string types of data, we will use ***M*** to indicate the maximum length of that type.
 
@@ -44,7 +44,7 @@ The full list of data types is listed below.  For string types of data, we will 
 
 All the keywords in a SQL statement are case-insensitive, but strings values are case-sensitive and must be quoted by a pair of `'` or `"`. To quote a `'` or a `"` , you can use the escape character `\`.
 
-##Database Management
+## Database Management
 
 - **Create a Database**
     ```mysql

@@ -1,13 +1,13 @@
-#Advanced Features
+# Advanced Features
 
-##Continuous Query
+## Continuous Query
 Continuous Query is a query executed by TDengine periodically with a sliding window, it is a simplified stream computing driven by timers, not by events. Continuous query can be applied to a table or a STable, and the result set can be passed to the application directly via call back function, or written into a new table in TDengine. The query is always executed on a specified time window (window size is specified by parameter interval), and this window slides forward while time flows (the sliding period is specified by parameter sliding).    
 
 Continuous query is defined by TAOS SQL, there is nothing special. One of the best applications is downsampling. Once it is defined, at the end of each cycle, the system will execute the query, pass the result to the application or write it to a database. 
 
 If historical data pints are inserted into the stream, the query won't be re-executed, and the result set won't be updated. If the result set is passed to the application, the application needs to keep the status of continuous query, the server won't maintain it. If application re-starts, it needs to decide the time where the stream computing shall be started.
 
-####How to use continuous query
+#### How to use continuous query
 
  
 
@@ -73,8 +73,8 @@ By this design, the application can retrieve the latest data from each device su
 select last(*) from thermometers where location=’beijing’
 ```
 
-By this design, caching tool, like Redis, is not needed in the system. It will reduce the complexity of the system. 
+Through this design, caching tools like Redis are no longer needed in the system, helping reduce the complexity of the system. 
 
 TDengine creates one or more virtual nodes(vnode) in each data node. Each vnode contains data for multiple tables and has its own buffer. The buffer of a vnode is fully separated from the buffer of another vnode, not shared. But the tables in a vnode share the same buffer.  
 
-System configuration parameter cacheBlockSize configures the cache block size in bytes, and another parameter cacheNumOfBlocks configures the number of cache blocks. The total memory for the buffer of a vnode is $cacheBlockSize \times cacheNumOfBlocks$. Another system parameter numOfBlocksPerMeter configures the maximum number of cache blocks a table can use. When you create a database, you can specify these parameters. 
+System configuration parameter cacheBlockSize configures the cache block size in bytes, and another parameter cacheNumOfBlocks configures the number of cache blocks. The total memory for the buffer of a vnode is `cacheBlockSize * cacheNumOfBlocks`​. Another system parameter `numOfBlocksPerMeter` configures the maximum number of cache blocks a table can use. When you create a database, you can specify these parameters. 

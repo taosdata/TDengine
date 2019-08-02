@@ -10,7 +10,7 @@ TDengine does not save tags as a part of the data points collected. Instead, tag
 
 Like a table, you can create, show, delete and describe STables. Most query operations on tables can be applied to STable too, including the aggregation and selector functions. For queries on a STable, if no tags filter, the operations are applied to all the tables created via this STable. If there is a tag filter, the operations are applied only to a subset of the tables which satisfy the tag filter conditions. It will be very convenient to use tags to put devices into different groups for aggregation.
 
-##Create a STable
+## Create a STable
 
 Similiar to creating a standard table, syntax is: 
 
@@ -37,7 +37,7 @@ tags (location binary(20), type int)
 
 The above statement creates a STable thermometer with two tag "location" and "type"
 
-##Create a Table via STable
+## Create a Table via STable
 
 To create a table for a device, you can use a STable as its template and assign the tag values. The syntax is:
 
@@ -162,7 +162,7 @@ The above SQL statement will list the number of tables in a STable, which satisf
 
 You can add, delete and change the tags for a STable, and you can change the tag value of a table. The SQL commands are listed below.  
 
-###Add a Tag
+### Add a Tag
 
 ```mysql
 ALTER TABLE <stable_name> ADD TAG <new_tag_name> <TYPE>
@@ -170,7 +170,7 @@ ALTER TABLE <stable_name> ADD TAG <new_tag_name> <TYPE>
 
 It adds a new tag to the STable with a data type. The maximum number of tags is 6. 
 
-###Drop a Tag
+### Drop a Tag
 
 ```mysql
 ALTER TABLE <stable_name> DROP TAG <tag_name>
@@ -178,7 +178,7 @@ ALTER TABLE <stable_name> DROP TAG <tag_name>
 
 It drops a tag from a STable. The first tag could not be deleted, and there must be at least one tag.
 
-###Change a Tag's Name
+### Change a Tag's Name
 
 ```mysql
 ALTER TABLE <stable_name> CHANGE TAG <old_tag_name> <new_tag_name>
@@ -186,7 +186,7 @@ ALTER TABLE <stable_name> CHANGE TAG <old_tag_name> <new_tag_name>
 
 It changes the name of a tag from old to new. 
 
-###Change the Tag's Value
+### Change the Tag's Value
 
 ```mysql
 ALTER TABLE <table_name> SET TAG <tag_name>=<new_tag_value>

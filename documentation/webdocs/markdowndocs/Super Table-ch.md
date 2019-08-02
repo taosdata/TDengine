@@ -200,7 +200,7 @@ INSERT INTO therm3 VALUES (’2018-01-01 00:00:00.000’, 24);
 INSERT INTO therm4 VALUES (’2018-01-01 00:00:00.000’, 23);
 ```
 
-###按标签聚合查询
+### 按标签聚合查询
 
 查询位于北京(beijing)和天津(tianjing)两个地区的温度传感器采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)、最低温度min(degree)，并将结果按所处地域(location)和传感器类型(type)进行聚合。
 
@@ -211,7 +211,7 @@ WHERE location=’beijing’ or location=’tianjing’
 GROUP BY location, type 
 ```
 
-###按时间周期聚合查询
+### 按时间周期聚合查询
 
 查询仅位于北京以外地区的温度传感器最近24小时(24h)采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)和最低温度min(degree)，将采集结果按照10分钟为周期进行聚合，并将结果按所处地域(location)和传感器类型(type)再次进行聚合。
 
