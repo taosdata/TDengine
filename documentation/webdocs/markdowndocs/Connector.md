@@ -191,7 +191,7 @@ public Connection getConn() throws Exception{
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR, "/etc/taos");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIMEZONE, "UTC-8");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
   Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
   return conn;
 }
@@ -484,13 +484,13 @@ promise.then(function(result) {
 ```
 #### Async functionality
 
-Async queries can be performed using the same functions such as `cursor.execute`, `cursor.query`, but now with `_a` appended to them.
+Async queries can be performed using the same functions such as `cursor.execute`, `TaosQuery.execute`, but now with `_a` appended to them.
 
-Say you want to execute an two async query on two seperate tables, using `cursor.query_a`, you can do that and get a TaosQuery object, which upon executing with the `execute_a` function, returns a promise that resolves with a TaosResult object.
+Say you want to execute an two async query on two seperate tables, using `cursor.query`, you can do that and get a TaosQuery object, which upon executing with the `execute_a` function, returns a promise that resolves with a TaosResult object.
 
 ```javascript
-var promise1 = cursor.query_a('select count(*), avg(v1), avg(v2) from meter1;').execute_a()
-var promise2 = cursor.query_a('select count(*), avg(v1), avg(v2) from meter2;').execute_a();
+var promise1 = cursor.query('select count(*), avg(v1), avg(v2) from meter1;').execute_a()
+var promise2 = cursor.query('select count(*), avg(v1), avg(v2) from meter2;').execute_a();
 promise1.then(function(result) {
   result.pretty();
 })
