@@ -1730,6 +1730,17 @@ static int64_t getOldestKey(int32_t numOfFiles, int64_t fileId, SVnodeCfg *pCfg)
 
 bool isQueryKilled(SQuery *pQuery) {
   SQInfo *pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);
+
+  /*
+   * check if the queried meter is going to be deleted.
+   * if it will be deleted soon, stop current query ASAP.
+   */
+  SMeterObj* pMeterObj = pQInfo->pObj;
+  if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DELETING)) {
+    pQInfo->killed = 1;
+    return true;
+  }
+
   return (pQInfo->killed == 1);
 }
 

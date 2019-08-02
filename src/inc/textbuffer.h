@@ -184,7 +184,7 @@ void tColModelDisplayEx(tColModel *pModel, void *pData, int32_t numOfRows, int32
 /*
  * compress data into consecutive block without hole in data
  */
-void tColModelCompress(tColModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity);
+void tColModelCompact(tColModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity);
 
 void tColModelErase(tColModel *pModel, tFilePage *inputBuffer, int32_t maxCapacity, int32_t s, int32_t e);
 

@@ -445,7 +445,8 @@ int vnodeProcessFreeVnodeRequest(char *pMsg) {
   }
 
   dTrace("vid:%d receive free vnode message", pFree->vnode);
-  vnodeRemoveVnode(pFree->vnode);
+  int32_t code = vnodeRemoveVnode(pFree->vnode);
+  assert(code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS);
 
   pStart = (char *)malloc(128);
   if (pStart == NULL) return 0;
@@ -453,7 +454,7 @@ int vnodeProcessFreeVnodeRequest(char *pMsg) {
   *pStart = TSDB_MSG_TYPE_FREE_VNODE_RSP;
   pMsg = pStart + 1;
 
-  *pMsg = 0;
+  *pMsg = code;
   vnodeSendMsgToMgmt(pStart);
 
   return 0;

@@ -17,6 +17,7 @@
 #include <math.h>
 #include <time.h>
 
+#include "ihash.h"
 #include "taosmsg.h"
 #include "tcache.h"
 #include "tkey.h"
@@ -31,9 +32,10 @@
 
 /*
  * the detailed information regarding metric meta key is:
- * fullmetername + '.' + querycond  + '.' + [tagId1, tagId2,...] + '.' + group_orderType + '.' + limit + '.' + offset
+ * fullmetername + '.' + querycond  + '.' + [tagId1, tagId2,...] + '.' + group_orderType
+ *
  * if querycond is null, its format is:
- * fullmetername + '.' + '(nil)' + '.' + [tagId1, tagId2,...] + '.' + group_orderType + '.' + limit + '.' + offset
+ * fullmetername + '.' + '(nil)' + '.' + [tagId1, tagId2,...] + '.' + group_orderType
  */
 void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, char* keyStr) {
   char*         pTagCondStr = NULL;
@@ -60,8 +62,7 @@ void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, char* keyStr) {
     pTagCondStr = strdup(tsGetMetricQueryCondPos(&pCmd->tagCond));
   }
 
-  int32_t keyLen = sprintf(keyStr, "%s.%s.[%s].%d.%lld.%lld", pCmd->name, pTagCondStr, tagIdBuf,
-                           pCmd->groupbyExpr.orderType, pCmd->glimit.limit, pCmd->glimit.offset);
+  int32_t keyLen = sprintf(keyStr, "%s.%s.[%s].%d", pCmd->name, pTagCondStr, tagIdBuf, pCmd->groupbyExpr.orderType);
 
   free(pTagCondStr);
   assert(keyLen <= TSDB_MAX_TAGS_LEN);
@@ -142,8 +143,7 @@ bool tscProjectionQueryOnMetric(SSqlObj* pSql) {
 
   /*
    * In following cases, return false for project query on metric
-   * 1. failed to get metermeta from server; 2. not a metric; 3. limit 0; 4.
-   * show query, instead of a select query
+   * 1. failed to get metermeta from server; 2. not a metric; 3. limit 0; 4. show query, instead of a select query
    */
   if (pCmd->pMeterMeta == NULL || !UTIL_METER_IS_METRIC(pCmd) || pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       pCmd->exprsInfo.numOfExprs == 0) {
@@ -252,7 +252,7 @@ void tscDestroyResPointerInfo(SSqlRes* pRes) {
 }
 
 void tscfreeSqlCmdData(SSqlCmd* pCmd) {
-  tscDestroyBlockArrayList(&pCmd->pDataBlocks);
+  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
   tscTagCondRelease(&pCmd->tagCond);
   tscClearFieldInfo(pCmd);
@@ -334,20 +334,22 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   free(pSql);
 }
 
-SInsertedDataBlocks* tscCreateDataBlock(int32_t size) {
-  SInsertedDataBlocks* dataBuf = (SInsertedDataBlocks*)calloc(1, sizeof(SInsertedDataBlocks));
-  dataBuf->nAllocSize = (uint32_t) size;
+STableDataBlocks* tscCreateDataBlock(int32_t size) {
+  STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
+  dataBuf->nAllocSize = (uint32_t)size;
   dataBuf->pData = calloc(1, dataBuf->nAllocSize);
+  dataBuf->ordered = true;
+  dataBuf->prevTS = INT64_MIN;
   return dataBuf;
 }
 
-void tscDestroyDataBlock(SInsertedDataBlocks** pDataBlock) {
-  if (*pDataBlock == NULL) {
+void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
+  if (pDataBlock == NULL) {
     return;
   }
 
-  tfree((*pDataBlock)->pData);
-  tfree(*pDataBlock);
+  tfree(pDataBlock->pData);
+  tfree(pDataBlock);
 }
 
 SDataBlockList* tscCreateBlockArrayList() {
@@ -360,29 +362,31 @@ SDataBlockList* tscCreateBlockArrayList() {
   return pDataBlockArrayList;
 }
 
-void tscDestroyBlockArrayList(SDataBlockList** pList) {
-  if (*pList == NULL) {
-    return;
+void* tscDestroyBlockArrayList(SDataBlockList* pList) {
+  if (pList == NULL) {
+    return NULL;
   }
 
-  for (int32_t i = 0; i < (*pList)->nSize; i++) {
-    tscDestroyDataBlock(&(*pList)->pData[i]);
+  for (int32_t i = 0; i < pList->nSize; i++) {
+    tscDestroyDataBlock(pList->pData[i]);
   }
 
-  tfree((*pList)->pData);
-  tfree(*pList);
+  tfree(pList->pData);
+  tfree(pList);
+
+  return NULL;
 }
 
-int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, SInsertedDataBlocks* pDataBlock) {
+int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   pCmd->count = pDataBlock->numOfMeters;
-  strcpy(pCmd->name, pDataBlock->meterId);
+  strncpy(pCmd->name, pDataBlock->meterId, TSDB_METER_ID_LEN);
 
   tscAllocPayloadWithSize(pCmd, pDataBlock->nAllocSize);
   memcpy(pCmd->payload, pDataBlock->pData, pDataBlock->nAllocSize);
 
-  /* set the message length */
+  // set the message length
   pCmd->payloadLen = pDataBlock->nAllocSize;
   return tscGetMeterMeta(pSql, pCmd->name);
 }
@@ -390,10 +394,87 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, SInsertedDataBlocks* pDataBlock
 void tscFreeUnusedDataBlocks(SDataBlockList* pList) {
   /* release additional memory consumption */
   for (int32_t i = 0; i < pList->nSize; ++i) {
-    SInsertedDataBlocks* pDataBlock = pList->pData[i];
-    pDataBlock->pData = realloc(pDataBlock->pData, (size_t) pDataBlock->size);
-    pDataBlock->nAllocSize = (uint32_t) pDataBlock->size;
+    STableDataBlocks* pDataBlock = pList->pData[i];
+    pDataBlock->pData = realloc(pDataBlock->pData, pDataBlock->size);
+    pDataBlock->nAllocSize = (uint32_t)pDataBlock->size;
   }
+}
+
+STableDataBlocks* tscCreateDataBlockEx(size_t size, int32_t rowSize, int32_t startOffset, char* name) {
+  STableDataBlocks *dataBuf = tscCreateDataBlock(size);
+
+  dataBuf->rowSize = rowSize;
+  dataBuf->size = startOffset;
+  strncpy(dataBuf->meterId, name, TSDB_METER_ID_LEN);
+  return dataBuf;
+}
+
+STableDataBlocks* tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
+                                          int32_t startOffset, int32_t rowSize, char* tableId) {
+  STableDataBlocks* dataBuf = NULL;
+
+  STableDataBlocks** t1 = (STableDataBlocks**)taosGetIntHashData(pHashList, id);
+  if (t1 != NULL) {
+    dataBuf = *t1;
+  }
+
+  if (dataBuf == NULL) {
+    dataBuf = tscCreateDataBlockEx((size_t) size, rowSize, startOffset, tableId);
+    dataBuf = *(STableDataBlocks**)taosAddIntHash(pHashList, id, (char*)&dataBuf);
+    tscAppendDataBlock(pDataBlockList, dataBuf);
+  }
+
+  return dataBuf;
+}
+
+void tscMergeTableDataBlocks(SSqlCmd* pCmd, SDataBlockList* pTableDataBlockList) {
+  void*           pVnodeDataBlockHashList = taosInitIntHash(8, sizeof(void*), taosHashInt);
+  SDataBlockList* pVnodeDataBlockList = tscCreateBlockArrayList();
+
+  for (int32_t i = 0; i < pTableDataBlockList->nSize; ++i) {
+    STableDataBlocks* pOneTableBlock = pTableDataBlockList->pData[i];
+    STableDataBlocks* dataBuf =
+        tscGetDataBlockFromList(pVnodeDataBlockHashList, pVnodeDataBlockList, pOneTableBlock->vgid, TSDB_PAYLOAD_SIZE,
+                                tsInsertHeadSize, 0, pOneTableBlock->meterId);
+
+    int64_t destSize = dataBuf->size + pOneTableBlock->size;
+    if (dataBuf->nAllocSize < destSize) {
+      while (dataBuf->nAllocSize < destSize) {
+        dataBuf->nAllocSize = dataBuf->nAllocSize * 1.5;
+      }
+
+      char* tmp = realloc(dataBuf->pData, dataBuf->nAllocSize);
+      if (tmp != NULL) {
+        dataBuf->pData = tmp;
+        memset(dataBuf->pData + dataBuf->size, 0, dataBuf->nAllocSize - dataBuf->size);
+      } else {
+        // to do handle error
+      }
+    }
+
+    SShellSubmitBlock* pBlocks = (SShellSubmitBlock*)pOneTableBlock->pData;
+    assert(pBlocks->numOfRows * pOneTableBlock->rowSize + sizeof(SShellSubmitBlock) == pOneTableBlock->size);
+
+    pBlocks->numOfRows = (int16_t)sortRemoveDuplicates(pOneTableBlock, pBlocks->numOfRows);
+
+    pBlocks->sid = htonl(pBlocks->sid);
+    pBlocks->uid = htobe64(pBlocks->uid);
+    pBlocks->sversion = htonl(pBlocks->sversion);
+    pBlocks->numOfRows = htons(pBlocks->numOfRows);
+
+    memcpy(dataBuf->pData + dataBuf->size, pOneTableBlock->pData, pOneTableBlock->size);
+
+    dataBuf->size += pOneTableBlock->size;
+    dataBuf->numOfMeters += 1;
+  }
+
+  tscDestroyBlockArrayList(pTableDataBlockList);
+
+  // free the table data blocks;
+  pCmd->pDataBlocks = pVnodeDataBlockList;
+
+  tscFreeUnusedDataBlocks(pCmd->pDataBlocks);
+  taosCleanUpIntHash(pVnodeDataBlockHashList);
 }
 
 void tscCloseTscObj(STscObj* pObj) {
@@ -821,15 +902,18 @@ int32_t tscValidateName(SSQLToken* pToken) {
       pToken->n = strdequote(pToken->z);
       strtrim(pToken->z);
       pToken->n = (uint32_t)strlen(pToken->z);
-      int len = tSQLGetToken(pToken->z, &pToken->type);      
+
+      int len = tSQLGetToken(pToken->z, &pToken->type);
+
+      // single token, validate it
       if (len == pToken->n){
         return validateQuoteToken(pToken);
-      }
-	  else {
+      } else {
 		sep = strnchrNoquote(pToken->z, TS_PATH_DELIMITER[0], pToken->n);
 		if (sep == NULL) {
 		  return TSDB_CODE_INVALID_SQL;
 		}
+
         return tscValidateName(pToken);
 	  }      
     } else {
@@ -965,8 +1049,7 @@ void tscSetFreeHeatBeat(STscObj* pObj) {
   SSqlObj* pHeatBeat = pObj->pHb;
   assert(pHeatBeat == pHeatBeat->signature);
 
-  pHeatBeat->cmd.type = 1;  // to denote the heart-beat timer close connection
-                            // and free all allocated resources
+  pHeatBeat->cmd.type = 1;  // to denote the heart-beat timer close connection and free all allocated resources
 }
 
 bool tscShouldFreeHeatBeat(SSqlObj* pHb) {
@@ -1052,7 +1135,6 @@ void tscDoQuery(SSqlObj* pSql) {
   if (pCmd->command > TSDB_SQL_LOCAL) {
     tscProcessLocalCmd(pSql);
   } else {
-    // add to sql list, so that the show queries could get the query info
     if (pCmd->command == TSDB_SQL_SELECT) {
       tscAddIntoSqlList(pSql);
     }
@@ -1061,18 +1143,19 @@ void tscDoQuery(SSqlObj* pSql) {
       pSql->cmd.vnodeIdx += 1;
     }
 
-    if (pSql->fp == NULL) {
-      if (0 == pCmd->isInsertFromFile) {
-        tscProcessSql(pSql);
-        tscProcessMultiVnodesInsert(pSql); // handle the multi-vnode insertion
-      } else if (1 == pCmd->isInsertFromFile) {
-        tscProcessMultiVnodesInsertForFile(pSql);
-      } else {
-        assert(false);
-      }
-    } else {
-      tscProcessSql(pSql);
-    }
+    void* fp = pSql->fp;
 
+    if (pCmd->isInsertFromFile == 1) {
+      tscProcessMultiVnodesInsertForFile(pSql);
+    } else {
+      // pSql may be released in this function if it is a async insertion.
+      tscProcessSql(pSql);
+
+      // handle the multi-vnode insertion for sync model
+      if (fp == NULL) {
+        assert(pSql->signature == pSql);
+        tscProcessMultiVnodesInsert(pSql);
+      }
+    }
   }
 }

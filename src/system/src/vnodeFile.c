@@ -577,8 +577,20 @@ _again:
 
   // read compInfo
   for (sid = 0; sid < pCfg->maxSessions; ++sid) {
+    if (pVnode->meterList == NULL) {  // vnode is being freed, abort
+      goto _over;
+    }
+
     pObj = (SMeterObj *)(pVnode->meterList[sid]);
-    if (pObj == NULL) continue;
+    if (pObj == NULL) {
+      continue;
+    }
+
+    // meter is going to be deleted, abort
+    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+      dWarn("vid:%d sid:%d is dropped, ignore this meter", vnode, sid);
+      continue;
+    }
 
     pMeter = meterInfo + sid;
     pHeader = ((SCompHeader *)tmem) + sid;
@@ -672,8 +684,9 @@ _again:
         pointsReadLast = pMeter->lastBlock.numOfPoints;
         query.over = 0;
         headInfo.totalStorage -= (pointsReadLast * pObj->bytesPerPoint);
+
         dTrace("vid:%d sid:%d id:%s, points:%d in last block will be merged to new block",
-               pObj->vnode, pObj->sid, pObj->meterId, pointsReadLast);
+            pObj->vnode, pObj->sid, pObj->meterId, pointsReadLast);
       }
 
       pMeter->changed = 1;
@@ -717,8 +730,8 @@ _again:
     }
 
     dTrace("vid:%d sid:%d id:%s, %d points are committed, lastKey:%lld slot:%d pos:%d newNumOfBlocks:%d",
-           pObj->vnode, pObj->sid, pObj->meterId, pMeter->committedPoints, pObj->lastKeyOnFile, query.slot, query.pos,
-           pMeter->newNumOfBlocks);
+        pObj->vnode, pObj->sid, pObj->meterId, pMeter->committedPoints, pObj->lastKeyOnFile, query.slot, query.pos,
+        pMeter->newNumOfBlocks);
 
     if (pMeter->committedPoints > 0) {
       pMeter->commitSlot = query.slot;
