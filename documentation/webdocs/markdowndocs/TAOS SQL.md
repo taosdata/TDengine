@@ -1,6 +1,6 @@
 #TAOS SQL
 
-TDengine provides a SQL like query language to insert or query data. You can execute the SQL statements through TDengine Shell, or through C/C++, Java(JDBC), Python, Restful, Go APIs to interact with the `taosd` service.
+TDengine provides a SQL like query language to insert or query data. You can execute the SQL statements through the TDengine Shell, or through C/C++, Java(JDBC), Python, Restful, Go, and Node.js APIs to interact with the `taosd` service.
 
 Before reading through, please have a look at the conventions used for syntax descriptions here in this documentation.
 
@@ -19,7 +19,7 @@ The timestamp is the most important data type in TDengine. The first column of e
 
 * Epoch Time:  a timestamp value can also be a long integer representing milliseconds since the epoch. For example, the values in the above example can be represented as an epoch `1502535178128` in milliseconds. Please note the epoch time doesn't need any quotes.
 
-* Internal Function**`NOW`** : this is the current time of the server
+* Internal Function **`NOW`** : this is the current time of the server
 * If timestamp is 0 when inserting a record, timestamp will be set to the current time of the server
 * Arithmetic operations can be applied to timestamp. For example: `now-2h` represents a timestamp which is 2 hours ago from the current server time. Units include `a` (milliseconds),  `s` (seconds),  `m` (minutes),  `h` (hours),  `d` (days),  `w` (weeks), `n` (months), `y` (years). **`NOW`** can be used in either insertions or queries. 
 
@@ -82,7 +82,13 @@ All the keywords in a SQL statement are case-insensitive, but strings values are
     ```mysql
     CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...])
     ```
-    Note: 1) the first column must be timstamp, and system will set it as the primary key; 2) the record size is limited to 4096 bytes; 3) for binary or nachr data type, the length shall be specified, for example, binary(20), it means 20 bytes.
+    Note: 
+    
+    1) The first column must be a `timestamp`, and the system will set it as the primary key.
+    
+    2) The record size is limited to 4096 bytes
+    
+    3) For `binary` or `nchar` data types, the length must be specified. For example, binary(20) means a binary data type with 20 bytes.
 
 
 - **Drop a Table**
@@ -96,7 +102,12 @@ All the keywords in a SQL statement are case-insensitive, but strings values are
     ```mysql
     SHOW TABLES [LIKE tb_name_wildcar]
     ```
-    It shows all tables in the current DB. Note: wildcard character can be used in the table name to filter tables. Wildcard character: 1) ’%’ means 0 to any number of characters;  2）’_’ underscore means exactly one character.
+    It shows all tables in the current DB. 
+    
+    Note: Wildcard characters can be used in the table name to filter tables. 
+    Wildcard characters: 
+    1) ’%’ means 0 to any number of characters. 
+    2）’_’ underscore means exactly one character.
 
 
 - **Print Table Schema**
@@ -120,7 +131,7 @@ All the keywords in a SQL statement are case-insensitive, but strings values are
     ```
     If the table is created via [Super Table](), the schema can only be changed via STable. But for tables not created from STable, you can change their schema directly.
 
-**Tips**: You can apply an operation on a table not in the current DB by concatenating DB name with the character '.', then with table name. For example, 'demo.tb1' means the operation is applied to table `tb1` in DB `demo` although `demo` is not the current selected DB.   
+**Tips**: You can apply an operation on a table not in the current DB by concatenating DB name with the character '.', then with the table name. For example, 'demo.tb1' means the operation is applied to table `tb1` in DB `demo` even though `demo` is not the currently selected DB.   
 
 ## Inserting Records
 
@@ -144,7 +155,7 @@ All the keywords in a SQL statement are case-insensitive, but strings values are
     ```mysql
     INSERT INTO tb_name VALUES (field1_value1, ...) (field1_value2, ...)...;
     ```
-    Insert multiple data records to the table
+    Insert multiple data records into the table
 
 
 - **Insert a Batch of Records with Selected Columns**
@@ -170,9 +181,9 @@ All the keywords in a SQL statement are case-insensitive, but strings values are
                 tb2_name (tb2_field1_name, ...) VALUES(field1_value1, ...) (field1_value2, ...)
     ```
 
-Note: For a table, the new record must have timestamp bigger than the last data record, otherwise, it will be thrown away. If timestamp is 0, the time stamp will be set to the system time on server.
+Note: For a table, the new record must have a timestamp bigger than the last data record, otherwise, it will be discarded and not inserted. If the timestamp is 0, the time stamp will be set to the system time on the server.
 
-**IMPORT**: If you do want to insert a historical data record into a table, use IMPORT command instead of INSERT. IMPORT has the same syntax as INSERT. If you want to import a batch of historical records, the records shall be ordered in the timestamp, otherwise, TDengine won't handle it in the right way.
+**IMPORT**: If you do want to insert a historical data record into a table, use IMPORT command instead of INSERT. IMPORT has the same syntax as INSERT. If you want to import a batch of historical records, the records must be ordered by the timestamp, otherwise, TDengine won't handle it in the right way.
 
 ## Data Query
 
@@ -211,9 +222,9 @@ SELECT function_list FROM tb_name
 | _         | match with a single char      | **`binary`** **`nchar`**              |
 
 1. For two or more conditions, only AND is supported, OR is not supported yet.
-2. For filtering, only a single range is supported. For example, `value>20 and value<30` is valid condition, but `value<20 AND value<>5` is invalid condition
+2. For filtering, only a single range is supported. For example, `value>20 and value<30` is a valid condition, but `value<20 AND value<>5` is an invalid condition
 
-###Some Examples 
+### Some Examples 
 
 - For the examples below, table tb1 is created via the following statements
 
@@ -256,10 +267,14 @@ TDengine supports aggregations over numerical values, they are listed below:
     SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause]
     ```
     Function: return the number of rows.  
-    Return Data Type: integer.  
+    Return Data Type: `integer`.  
     Applicable Data Types: all.  
     Applied to: table/STable.  
-    Note: 1) * can be used for all columns, as long as a column has non-NULL value, it will be counted; 2) If it is on a specific column, only rows with non-NULL value will be counted 
+    Note: 
+    
+    1) `*` can be used for all columns, as long as a column has non-NULL values, it will be counted.
+    
+    2) If it is on a specific column, only rows with non-NULL values will be counted 
 
 
 - **AVG**
@@ -268,8 +283,8 @@ TDengine supports aggregations over numerical values, they are listed below:
     SELECT AVG(field_name) FROM tb_name [WHERE clause]
     ```
     Function: return the average value of a specific column.  
-    Return Data Type: double.  
-    Applicable Data Types: all types except timestamp, binary, nchar, bool.  
+    Return Data Type: `double`.  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`.  
     Applied to: table/STable. 
 
 
@@ -279,8 +294,8 @@ TDengine supports aggregations over numerical values, they are listed below:
     SELECT WAVG(field_name) FROM tb_name WHERE clause
     ```
     Function: return the time-weighted average value of a specific column  
-    Return Data Type: double  
-    Applicable Data Types: all types except timestamp, binary, nchar, bool  
+    Return Data Type: `double`  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`  
     Applied to: table/STable
 
 
@@ -290,8 +305,8 @@ TDengine supports aggregations over numerical values, they are listed below:
     SELECT SUM(field_name) FROM tb_name [WHERE clause]
     ```
     Function: return the sum of a specific column.  
-    Return Data Type: long integer or double.  
-    Applicable Data Types: all types except timestamp, binary, nchar, bool.  
+    Return Data Type: `long integer` or `double`.  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`.  
     Applied to: table/STable. 
 
 
@@ -300,9 +315,9 @@ TDengine supports aggregations over numerical values, they are listed below:
     ```mysql
     SELECT STDDEV(field_name) FROM tb_name [WHERE clause]
     ```
-    Function: return the standard deviation of a specific column.  
+    Function: returns the standard deviation of a specific column.  
     Return Data Type: double.  
-    Applicable Data Types: all types except timestamp, binary, nchar, bool.  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`.  
     Applied to: table. 
 
 
@@ -370,9 +385,11 @@ TDengine supports aggregations over numerical values, they are listed below:
     ```
     Function: return the `k` largest values.  
     Return Data Type: the same data type.  
-    Applicable Data Types: all types except timestamp, binary, nchar, bool.  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`.  
     Applied to: table/STable.  
-    Note: 1) valid range of K: 1≤*k*≤100; 2) the associated time stamp will be returned too.  
+    Note: 
+    1) Valid range of `k`: 1≤*k*≤100
+    2) The associated `timestamp` will be returned too.  
 
 
 - **BOTTOM**
@@ -382,9 +399,11 @@ TDengine supports aggregations over numerical values, they are listed below:
     ```
     Function: return the `k` smallest values.  
     Return Data Type: the same data type.  
-    Applicable Data Types: all types except timestamp, binary, nchar, bool.  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`.  
     Applied to: table/STable.  
-    Note: 1) valid range of K: 1≤*k*≤100; 2) the associated timestamp will be returned too. 
+    Note: 
+    1) valid range of `k`: 1≤*k*≤100; 
+    2) The associated `timestamp` will be returned too. 
 
 
 - **PERCENTILE**
@@ -393,7 +412,7 @@ TDengine supports aggregations over numerical values, they are listed below:
     ```
     Function: the value of the specified column below which `P` percent of the data points fall.  
     Return Data Type: the same data type.  
-    Applicable Data Types: all types except timestamp, binary, nchar, bool.  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`. 
     Applied to: table/STable.  
     Note: The range of `P` is `[0, 100]`. When `P=0` , `PERCENTILE` returns the equal value as `MIN`; when `P=100`, `PERCENTILE` returns the equal value as `MAX`. 
 
@@ -406,7 +425,7 @@ TDengine supports aggregations over numerical values, they are listed below:
     Return Data Type: the same data type.  
     Applicable Data Types: all types.  
     Applied to: table/STable.  
-    Note: different from last, last_row returns the last row even it has NULL value. 
+    Note: different from last, last_row returns the last row even if it has NULL values. 
 
 
 ### Transformation Functions
@@ -417,7 +436,7 @@ TDengine supports aggregations over numerical values, they are listed below:
     ```
     Function: return the difference between successive values of the specified column.  
     Return Data Type: the same data type.  
-    Applicable Data Types: all types except timestamp, binary, nchar, bool.  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`.  
     Applied to: table. 
 
 
@@ -427,7 +446,7 @@ TDengine supports aggregations over numerical values, they are listed below:
     ```
     Function: return the difference between the maximum and the mimimum value.  
     Return Data Type: the same data type.  
-    Applicable Data Types: all types except timestamp, binary, nchar, bool.  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`.  
     Applied to: table/STable.  
     Note: spread gives the range of data variation in a table/supertable; it is equivalent to `MAX()` - `MIN()`
 
@@ -438,7 +457,7 @@ TDengine supports aggregations over numerical values, they are listed below:
     ```
     Function: arithmetic operations on the selected columns.  
     Return Data Type: double.  
-    Applicable Data Types: all types except timestamp, binary, nchar, bool.  
+    Applicable Data Types: all types except `timestamp`, `binary`, `nchar`, `bool`.
     Applied to: table/STable.  
     Note: 1) bracket can be used for operation priority; 2) If a column has NULL value, the result is NULL. 
 
