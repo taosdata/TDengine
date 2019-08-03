@@ -24,6 +24,8 @@ public abstract class TSDBConstants {
 	public static final String INVALID_VARIABLES = "invalid variables";
 	public static Map<Integer, String> DATATYPE_MAP = null;
 
+	public static final long JNI_NULL_POINTER = 0L;
+
 	public static final int JNI_SUCCESS = 0;
 	public static final int JNI_TDENGINE_ERROR = -1;
 	public static final int JNI_CONNECTION_NULL = -2;
