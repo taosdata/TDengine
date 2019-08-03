@@ -7,7 +7,7 @@ const { PerformanceObserver, performance } = require('perf_hooks');
 module.exports = TDengineCursor;
 
 /**
- * @typedef {Object} Buffer - A Node.JS buffer. Please refer to {@link https://nodejs.org/api/buffer.html} for more details
+ * @typedef {Object} Buffer - A Node.js buffer. Please refer to {@link https://nodejs.org/api/buffer.html} for more details
  * @global
  */
 
@@ -24,26 +24,20 @@ module.exports = TDengineCursor;
  */
 function TDengineCursor(connection=null) {
   //All parameters are store for sync queries only.
-  this._description = null;
   this._rowcount = -1;
   this._connection = null;
   this._result = null;
   this._fields = null;
   this.data = [];
   this.fields = null;
-  this._chandle = new CTaosInterface(null, true); //pass through, just need library loaded.
   if (connection != null) {
     this._connection = connection
+    this._chandle = connection._chandle //pass through, just need library loaded.
+  }
+  else {
+    throw new errors.ProgrammingError("A TDengineConnection object is required to be passed to the TDengineCursor");
   }
 
-}
-/**
- * Get the description of the latest query
- * @since 1.0.0
- * @return {string} Description
- */
-TDengineCursor.prototype.description = function description() {
-  return this._description;
 }
 /**
  * Get the row counts of the latest query
@@ -52,9 +46,6 @@ TDengineCursor.prototype.description = function description() {
  */
 TDengineCursor.prototype.rowcount = function rowcount() {
   return this._rowcount;
-}
-TDengineCursor.prototype.callproc = function callproc() {
-  return;
 }
 /**
  * Close the cursor by setting its connection to null and freeing results from the connection and resetting the results it has stored
@@ -112,15 +103,21 @@ TDengineCursor.prototype.execute = function execute(operation, options, callback
 
   let stmt = operation;
   let time = 0;
-  const obs = new PerformanceObserver((items) => {
-    time = items.getEntries()[0].duration;
-    performance.clearMarks();
-  });
-  obs.observe({ entryTypes: ['measure'] });
-  performance.mark('A');
-  res = this._chandle.query(this._connection._conn, stmt);
-  performance.mark('B');
-  performance.measure('query', 'A', 'B');
+  let res;
+  if (options['quiet'] != true) {
+    const obs = new PerformanceObserver((items) => {
+      time = items.getEntries()[0].duration;
+      performance.clearMarks();
+    });
+    obs.observe({ entryTypes: ['measure'] });
+    performance.mark('A');
+    res = this._chandle.query(this._connection._conn, stmt);
+    performance.mark('B');
+    performance.measure('query', 'A', 'B');
+  }
+  else {
+    res = this._chandle.query(this._connection._conn, stmt);
+  }
 
   if (res == 0) {
     let fieldCount = this._chandle.fieldsCount(this._connection._conn);
@@ -139,7 +136,7 @@ TDengineCursor.prototype.execute = function execute(operation, options, callback
       this._fields = resAndField.fields;
       this.fields = resAndField.fields;
       wrapCB(callback);
-      return this._handle_result(); //return a pointer to the result
+      return this._result; //return a pointer to the result
     }
   }
   else {
@@ -271,7 +268,6 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
     if (resCode >= 0) {
       let fieldCount = cr._chandle.numFields(res2);
       if (fieldCount == 0) {
-        //get affect fields count
         cr._chandle.freeResult(res2); //result will no longer be needed
       }
       else {
@@ -280,8 +276,6 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
 
     }
     else {
-      //new errors.ProgrammingError(this._chandle.errStr(this._connection._conn))
-      //how to get error by result handle?
       throw new errors.ProgrammingError("Error occuring with use of execute_a async function. Status code was returned with failure");
     }
   }
@@ -313,7 +307,7 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
  * @param {function} callback - callback function that is callbacked on the COMPLETE fetched data (it is calledback only once!).
  * Must be of form function (param, result, rowCount, rowData)
  * @param {Object} param - A parameter that is also passed to the main callback function. Important! Param must be an object, and the key "data" cannot be used
- * @return {{param:Object, result:buffer}} An object with the passed parameters object and the buffer instance that is a pointer to the result handle.
+ * @return {{param:Object, result:Buffer}} An object with the passed parameters object and the buffer instance that is a pointer to the result handle.
  * @since 1.2.0
  * @example
  * cursor.execute('select * from db.table');
@@ -377,27 +371,117 @@ TDengineCursor.prototype.fetchall_a = function fetchall_a(result, options, callb
   param = this._chandle.fetch_rows_a(result, asyncCallbackWrapper, buf); //returned param
   return {param:param,result:result};
 }
-TDengineCursor.prototype.nextset = function nextset() {
-  return;
-}
-TDengineCursor.prototype.setinputsize = function setinputsize() {
-  return;
-}
-TDengineCursor.prototype.setoutputsize = function setoutputsize(size, column=null) {
-  return;
+/**
+ * Stop a query given the result handle.
+ * @param {Buffer} result - The buffer that acts as the result handle
+ * @since 1.3.0
+ */
+TDengineCursor.prototype.stopQuery = function stopQuery(result) {
+  this._chandle.stopQuery(result);
 }
 TDengineCursor.prototype._reset_result = function _reset_result() {
-  this._description = null;
   this._rowcount = -1;
   this._result = null;
   this._fields = null;
   this.data = [];
   this.fields = null;
 }
-TDengineCursor.prototype._handle_result = function _handle_result() {
-  this._description = [];
-  for (let field of this._fields) {
-    this._description.push([field.name, field.type]);
-  }
-  return this._result;
+/**
+ * Get server info such as version number
+ * @return {string}
+ * @since 1.3.0
+ */
+TDengineCursor.prototype.getServerInfo = function getServerInfo() {
+  return this._chandle.getServerInfo(this._connection._conn);
 }
+/**
+ * Get client info such as version number
+ * @return {string}
+ * @since 1.3.0
+ */
+TDengineCursor.prototype.getClientInfo = function getClientInfo() {
+  return this._chandle.getClientInfo();
+}
+/**
+ * Subscribe to a table from a database in TDengine.
+ * @param {Object} config - A configuration object containing the configuration options for the subscription
+ * @param {string} config.host - The host to subscribe to
+ * @param {string} config.user - The user to subscribe as
+ * @param {string} config.password - The password for the said user
+ * @param {string} config.db - The db containing the table to subscribe to
+ * @param {string} config.table - The name of the table to subscribe to
+ * @param {number} config.time - The start time to start a subscription session
+ * @param {number} config.mseconds - The pulling period of the subscription session
+ * @return {Buffer} A buffer pointing to the subscription session handle
+ * @since 1.3.0
+ */
+TDengineCursor.prototype.subscribe = function subscribe(config) {
+  return this._chandle.subscribe(config.host, config.user, config.password, config.db, config.table, config.time, config.mseconds);
+};
+/**
+ * An infinite loop that consumes the latest data and calls a callback function that is provided.
+ * @param {Buffer} subscription - A buffer object pointing to the subscription session handle
+ * @param {function} callback - The callback function that takes the row data, field/column meta data, and the subscription session handle as input
+ * @since 1.3.0
+ */
+TDengineCursor.prototype.consumeData = async function consumeData(subscription, callback) {
+  while (true) {
+    let res = this._chandle.consume(subscription);
+    let data = [];
+    let num_of_rows = res.blocks[0].length;
+    for (let j = 0; j < num_of_rows; j++) {
+      data.push([]);
+      let rowBlock = new Array(res.fields.length);
+      for (let k = 0; k < res.fields.length; k++) {
+        rowBlock[k] = res.blocks[k][j];
+      }
+      data[data.length-1] = rowBlock;
+    }
+    callback(data, res.fields, subscription);
+  }
+}
+/**
+ * Unsubscribe the provided buffer object pointing to the subscription session handle
+ * @param {Buffer} subscription - A buffer object pointing to the subscription session handle that is to be unsubscribed
+ * @since 1.3.0
+ */
+TDengineCursor.prototype.unsubscribe = function unsubscribe(subscription) {
+  this._chandle.unsubscribe(subscription);
+}
+/**
+ * Open a stream with TDengine to run the sql query periodically in the background
+ * @param {string} sql - The query to run
+ * @param {function} callback - The callback function to run after each query, accepting inputs as param, result handle, data, fields meta data
+ * @param {number} stime - The time of the stream starts in the form of epoch milliseconds. If 0 is given, the start time is set as the current time.
+ * @param {function} stoppingCallback - The callback function to run when the continuous query stops. It takes no inputs
+ * @param {object} param - A parameter that is passed to the main callback function
+ * @return {Buffer} A buffer pointing to the stream handle
+ * @since 1.3.0
+ */
+ TDengineCursor.prototype.openStream = function openStream(sql, callback, stime = 0, stoppingCallback, param = {}) {
+   let buf = ref.alloc('Object');
+   ref.writeObject(buf, 0, param);
+
+   let asyncCallbackWrapper = function (param2, result2, blocks, fields) {
+     let data = [];
+     let num_of_rows = blocks[0].length;
+     for (let j = 0; j < num_of_rows; j++) {
+       data.push([]);
+       let rowBlock = new Array(fields.length);
+       for (let k = 0; k < fields.length; k++) {
+         rowBlock[k] = blocks[k][j];
+       }
+       data[data.length-1] = rowBlock;
+     }
+     callback(param2, result2, blocks, fields);
+   }
+   return this._chandle.openStream(this._connection._conn, sql, asyncCallbackWrapper, stime, stoppingCallback, buf);
+ }
+ /**
+  * Close a stream
+  * @param {Buffer} - A buffer pointing to the handle of the stream to be closed
+  * @since 1.3.0
+  */
+ TDengineCursor.prototype.closeStream = function closeStream(stream) {
+   this._chandle.closeStream(stream);
+ }
