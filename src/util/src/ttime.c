@@ -184,8 +184,12 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
     return -1;
   }
 
-  /* mktime will be affected by TZ, set by using taos_options */
+/* mktime will be affected by TZ, set by using taos_options */
+#ifdef WINDOWS
+  int64_t seconds = gmtime(&tm); 
+#else
   int64_t seconds = timegm(&tm);
+#endif
 
   int64_t fraction = 0;
   str = forwardToTimeStringEnd(timestr);

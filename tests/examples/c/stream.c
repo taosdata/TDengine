@@ -80,28 +80,25 @@ int main(int argc, char *argv[])
   taos = taos_connect(argv[1], "root", "taosdata", db_name, 0);
   if (taos == NULL) {
     printf("failed to connet to server:%s\n", argv[1]);
-	free(t_param);
+	  free(t_param);
     exit(1);
   }
 
   // starting stream calc, 
-  printf("please input stream SQL:[e.g., select count(*) from tblname interval(10s);]\n");
-  #if 0
+  printf("please input stream SQL:[e.g., select count(*) from tblname interval(5s) sliding(2s);]\n");
   fgets(sql, sizeof(sql), stdin);
   if (sql[0] == 0) {
     printf("input NULL stream SQL, so exit!\n");	
-	free(t_param);
-  	exit(1);
+    free(t_param);
+    exit(1);
   }
-  #endif
-  strcpy(sql, "select count(*) from tblname interval(3s);");
 
   // param is set to NULL in this demo, it shall be set to the pointer to app context 
   TAOS_STREAM *pStream = taos_open_stream(taos, sql, streamCallBack, 0, NULL, NULL);
   if (NULL == pStream) {
-    printf("failed to create stream: %s\n", taos_errstr(taos));	
-	free(t_param);
-  	exit(1);
+    printf("failed to create stream\n");	
+    free(t_param);
+    exit(1);
   }
   
   printf("presss any key to exit\n");
@@ -132,8 +129,8 @@ void* insert_rows(void *sarg)
 
   taos = taos_connect(winfo->server_ip, "root", "taosdata", NULL, 0);
   if (taos == NULL) {
-	  printf("failed to connet to server:%s\n", winfo->server_ip);
-	  exit(1);
+    printf("failed to connet to server:%s\n", winfo->server_ip);
+    exit(1);
   }
   
   // drop database
@@ -167,136 +164,17 @@ void* insert_rows(void *sarg)
   // insert data
   int index = 0;  
   while (1) {
-  	if (g_thread_exit_flag) break;
+    if (g_thread_exit_flag) break;
 	
-  	index++;
-    sprintf(command, "insert into %s values (now, %d)", winfo->tbl_name, index);
+    index++;
+    sprintf(command, "insert into %s values (%ld, %d)", winfo->tbl_name, 1546300800000+index*1000, index);
     if (taos_query(taos, command)) {
-  	  printf("failed to insert row [%s], reason:%s\n", command, taos_errstr(taos));
+      printf("failed to insert row [%s], reason:%s\n", command, taos_errstr(taos));
     }
-	sleep(1);
+    sleep(1);
   }  
 
   taos_close(taos);
   return 0;
 }
 
-
-
-#if 0
-int bak_main(int argc, char *argv[]) 
-{
-  TAOS       *taos;
-  char        db_name[64];
-  char        tbl_name[64];
-  char        sql[1024] = { 0 };
-  char        command[1024] = { 0 };
-
-  if (argc != 4) {
-    printf("usage: %s server-ip dbname tblname\n", argv[0]);
-    exit(0);
-  } 
-
-  // init TAOS
-  taos_init();
-
-  // open connection to database
-  taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
-  if (taos == NULL) {
-    printf("failed to connet to server:%s\n", argv[1]);
-    exit(1);
-  }
-
-  strcpy(db_name, argv[2]);
-  strcpy(tbl_name, argv[3]);
-  
-  // drop database
-  sprintf(command, "drop database %s;", db_name);
-  if (taos_query(taos, command) != 0) {
-    printf("failed to drop database, reason:%s\n", taos_errstr(taos));
-    exit(1);
-  }
-  
-  sprintf(command, "create database %s;", db_name);
-  if (taos_query(taos, command) != 0) {
-    printf("failed to create database, reason:%s\n", taos_errstr(taos));
-    exit(1);
-  }
-  else {
-	printf("create database[%s] success!\n", db_name);
-  }  	
-
-  // create table
-  sprintf(command, "create table %s.%s (ts timestamp, speed int);", db_name, tbl_name);
-  if (taos_query(taos, command) != 0) {
-    printf("failed to create table, reason:%s\n", taos_errstr(taos));
-    exit(1);
-  }
-  else {
-	printf("create table[%s] success!\n", tbl_name);
-  }
-
-  // create pthread to insert into row per second for stream calc
-  param *t_param = (param *)malloc(sizeof(param));
-  if (NULL == t_param)
-  {
-    printf("failed to malloc\n");
-    exit(1);
-  }
-  memset(t_param, 0, sizeof(param));
-  
-  strcpy(t_param->db_name, db_name);
-  strcpy(t_param->tbl_name, tbl_name);
-  t_param->taos = taos_connect(argv[1], "root", "taosdata", db_name, 0);
-  if (t_param->taos == NULL) {
-	  printf("failed to connet to server:%s\n", argv[1]);
-	  free(t_param);
-	  exit(1);
-  }
-
-  pthread_t pid;
-  pthread_create(&pid, NULL, insertRow, t_param);
-
-  printf("start inserting records into the m1 table ......\n");
-  sleep(5);
-
-  // starting stream calc, 
-  printf("please input stream SQL:[e.g., select count(*) from streamdb.m1 interval(10s) sliding(2s);]\n");
-  fgets(sql, sizeof(sql), stdin);
-  if (sql[0] == 0) {
-    printf("input NULL stream SQL, so exit!\n");	
-	free(t_param);
-  	exit(1);
-  }
-
-  sprintf(command, "use %s", db_name);
-  if (taos_query(taos, command) != 0) {
-    printf("failed to use %s, reason:%s\n", db_name, taos_errstr(taos));
-    exit(1);
-  }
-  // param is set to NULL in this demo, it shall be set to the pointer to app context 
-  TAOS_STREAM *pStream = taos_open_stream(taos, sql, streamCallBack, 0, NULL, NULL);
-  if (NULL == pStream) {
-    printf("failed to create stream: %s\n", taos_errstr(taos));	
-	free(t_param);
-  	exit(1);
-  }
-  else {
-  	printf("success to create stream\n");
-  }
-  
-  printf("presss any key to exit\n");
-  getchar();
-
-  taos_close_stream(pStream);
-  
-  g_thread_exit_flag = 1;  
-  pthread_join(pid, NULL);
-
-  taos_close(taos);
-  taos_close(t_param->taos);
-  free(t_param); 
-
-  return 0;
-}
-#endif

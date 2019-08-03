@@ -10,6 +10,11 @@ script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -m ${script_dir}/..)"
 versioninfo="${top_dir}/src/util/src/version.c"
 
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo"
+fi
+
 function is_valid_version() {
     [ -z $1 ] && return 1 || :
 
@@ -113,13 +118,13 @@ fi
 
 compile_dir="${top_dir}/${compile_mode}"
 if [ -d ${compile_dir} ]; then
-	 rm -rf ${compile_dir}
+	 ${csudo} rm -rf ${compile_dir}
 fi
 
-mkdir -p ${compile_dir}
+${csudo} mkdir -p ${compile_dir}
 cd ${compile_dir}
-cmake -DCMAKE_BUILD_TYPE=${compile_mode} ${top_dir}
-make
+${csudo} cmake -DCMAKE_BUILD_TYPE=${compile_mode} ${top_dir}
+${csudo} make
 
 cd ${curr_dir}
 
@@ -132,29 +137,29 @@ if echo $osinfo | grep -qwi "ubuntu" ; then
   echo "this is ubuntu system"
   output_dir="${top_dir}/debs"
   if [ -d ${output_dir} ]; then
-	 rm -rf ${output_dir}
+	 ${csudo} rm -rf ${output_dir}
   fi  
-  mkdir -p ${output_dir} 
+  ${csudo} mkdir -p ${output_dir} 
   cd ${script_dir}/deb
-  ./makedeb.sh ${compile_dir} ${output_dir} ${version}
+  ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${version}
   
 elif  echo $osinfo | grep -qwi "centos" ; then
   echo "this is centos system"
   output_dir="${top_dir}/rpms"
   if [ -d ${output_dir} ]; then
-	 rm -rf ${output_dir}
+	 ${csudo} rm -rf ${output_dir}
   fi
-  mkdir -p ${output_dir}  
+  ${csudo} mkdir -p ${output_dir}  
   cd ${script_dir}/rpm
-  ./makerpm.sh ${compile_dir} ${output_dir} ${version}
+  ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version}
   
 else
   echo "this is other linux system"  
 fi
 
 cd ${script_dir}/tools
-./makepkg.sh ${compile_dir} ${version} "${build_time}" 
+${csudo} ./makepkg.sh ${compile_dir} ${version} "${build_time}" 
 
 # 4. Clean up temporary compile directories
-#rm -rf ${compile_dir}
+#${csudo} rm -rf ${compile_dir}
  

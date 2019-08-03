@@ -18,11 +18,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <limits.h>
-#include <netinet/in.h>
-#include <sys/time.h>
-#include <unistd.h>
+
+#include "os.h"
 
 #ifdef USE_LIBICONV
 #include "iconv.h"
@@ -130,6 +128,26 @@ char *strnchr(char *haystack, char needle, int32_t len) {
 
   return NULL;
 }
+
+char *strnchrNoquote(char *haystack, char needle, int32_t len) {  
+  for (int32_t i = 0; i < len; ++i) {
+  	if (haystack[i] == '\'' || haystack[i] == '"') {
+	  char quote = haystack[i++];
+	  while(i < len && haystack[i] != quote){++i;}
+
+	  if (++i >= len) {
+	  	return NULL;
+	  }
+  	}
+	
+    if (haystack[i] == needle) {
+      return &haystack[i];
+    }
+  }
+
+  return NULL;
+}
+
 
 void strtolower(char *z, char *dst) {
   int   quote = 0;

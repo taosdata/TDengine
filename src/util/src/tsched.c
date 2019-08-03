@@ -20,8 +20,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "tlog.h"
 #include "tsched.h"
 
@@ -42,14 +42,15 @@ void (*taosSchedFp[128])(SSchedMsg *msg) = {0};
 void *taosProcessSchedQueue(void *param);
 void taosCleanUpScheduler(void *param);
 
-void *taosInitScheduler(int queueSize, int numOfThreads, char *label) {
+void *taosInitScheduler(int queueSize, int numOfThreads, const char *label) {
   pthread_attr_t attr;
   SSchedQueue *  pSched = (SSchedQueue *)malloc(sizeof(SSchedQueue));
 
   memset(pSched, 0, sizeof(SSchedQueue));
   pSched->queueSize = queueSize;
   pSched->numOfThreads = numOfThreads;
-  strcpy(pSched->label, label);
+  strncpy(pSched->label, label, sizeof(pSched->label)); // fix buffer overflow
+  pSched->label[sizeof(pSched->label)-1] = '\0';
 
   if (pthread_mutex_init(&pSched->queueMutex, NULL) < 0) {
     pError("init %s:queueMutex failed, reason:%s", pSched->label, strerror(errno));
@@ -167,4 +168,5 @@ void taosCleanUpScheduler(void *param) {
 
   free(pSched->queue);
   free(pSched->qthread);
+  free(pSched); // fix memory leak
 }

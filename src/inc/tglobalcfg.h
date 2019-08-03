@@ -63,6 +63,7 @@ extern int tsMetricMetaKeepTimer;
 extern float tsNumOfThreadsPerCore;
 extern float tsRatioOfQueryThreads;
 extern char  tsInternalIp[];
+extern char  tsServerIpStr[];
 extern int   tsNumOfVnodesPerCore;
 extern int   tsNumOfTotalVnodes;
 extern int   tsShellsPerVnode;
@@ -110,6 +111,7 @@ extern int tsMgmtEqualVnodeNum;
 
 extern int tsEnableHttpModule;
 extern int tsEnableMonitorModule;
+extern int tsRestRowLimit;
 
 extern int tsTimePrecision;
 extern int tsMinSlidingTime;
@@ -165,7 +167,6 @@ void tsReadGlobalLogConfig();
 bool tsReadGlobalConfig();
 int tsCfgDynamicOptions(char *msg);
 void tsPrintGlobalConfig();
-void tsPrintOsInfo();
 void tsSetAllDebugFlag();
 void tsSetTimeZone();
 void tsSetLocale();

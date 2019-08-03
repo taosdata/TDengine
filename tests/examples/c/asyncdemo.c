@@ -108,11 +108,11 @@ int main(int argc, char *argv[])
 
   printf("start to insert...\n");
   gettimeofday(&systemTime, NULL);
-  //st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
+  st = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
   for (i = 0; i<numOfTables; ++i) {
     // insert records in asynchronous API
-    sprintf(sql, "insert into %s values(now, 0)", tableList[i].name);
+    sprintf(sql, "insert into %s values(%ld, 0)", tableList[i].name, 1546300800000 + i);
     taos_query_a(taos, sql, taos_insert_call_back, (void *)(tableList + i));
   }
 
@@ -174,7 +174,7 @@ void taos_insert_call_back(void *param, TAOS_RES *tres, int code)
 
   if (pTable->rowsTried < points) {
     // for this demo, insert another record
-    sprintf(sql, "insert into %s values(now+%da, %d)", pTable->name, pTable->rowsTried, pTable->rowsTried);
+    sprintf(sql, "insert into %s values(%ld, %d)", pTable->name, 1546300800000+pTable->rowsTried*1000, pTable->rowsTried);
     taos_query_a(pTable->taos, sql, taos_insert_call_back, (void *)pTable);
   }
   else {

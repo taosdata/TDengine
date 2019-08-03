@@ -16,8 +16,8 @@
 #include <ctype.h>
 #include <pthread.h>
 #include <string.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "shash.h"
 #include "tsql.h"
 #include "tutil.h"
@@ -272,6 +272,10 @@ int tSQLKeywordCode(const char* z, int n) {
   }
 }
 
+/*
+** Return the length of the token that begins at z[0].
+** Store the token type in *type before returning.
+*/
 uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
   int i;
   switch (*z) {
@@ -398,18 +402,25 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
     case '\'':
     case '"': {
       int delim = z[0];
+	  bool strEnd = false;
       for (i = 1; z[i]; i++) {
         if (z[i] == delim) {
           if (z[i + 1] == delim) {
             i++;
           } else {
+            strEnd = true;
             break;
           }
         }
       }
       if (z[i]) i++;
-      *tokenType = TK_STRING;
-      return i;
+
+	  if (strEnd){
+      	*tokenType = TK_STRING;
+      	return i;
+	  }
+
+	  break;
     }
     case '.': {
       *tokenType = TK_DOT;

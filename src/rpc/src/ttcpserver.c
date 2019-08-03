@@ -13,11 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
 #include <pthread.h>
 #include <pthread.h>
 #include <semaphore.h>
@@ -25,11 +22,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <syslog.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "taosmsg.h"
 #include "tlog.h"
 #include "tlog.h"
@@ -38,6 +32,9 @@
 #include "tutil.h"
 
 #define TAOS_IPv4ADDR_LEN 16
+#ifndef EPOLLWAKEUP
+  #define EPOLLWAKEUP (1u << 29)
+#endif
 
 typedef struct _fd_obj {
   int                 fd;       // TCP socket FD
@@ -278,12 +275,7 @@ void taosAcceptTcpConnection(void *arg) {
     pFdObj->port = htons(clientAddr.sin_port);
     pFdObj->pThreadObj = pThreadObj;
 
-// add this new FD into epoll
-#ifndef _NINGSI_VERSION
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP;
-#else
-    event.events = EPOLLIN | EPOLLPRI;
-#endif
     event.data.ptr = pFdObj;
     if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
       tError("%s failed to add TCP FD for epoll, error:%s", pServerObj->label, strerror(errno));
@@ -356,12 +348,7 @@ void taosAcceptUDConnection(void *arg) {
     pFdObj->fd = connFd;
     pFdObj->pThreadObj = pThreadObj;
 
-// add this new FD into epoll
-#ifndef _NINGSI_VERSION
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP;
-#else
-    event.events = EPOLLIN | EPOLLPRI;
-#endif
     event.data.ptr = pFdObj;
     if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
       tError("%s failed to add UD FD for epoll, error:%s", pServerObj->label, strerror(errno));

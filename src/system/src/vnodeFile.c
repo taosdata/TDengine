@@ -141,9 +141,7 @@ int vnodeCreateHeadDataFile(int vnode, int fileId, char *headName, char *dataNam
   if (symlink(dDataName, dataName) != 0) return -1;
   if (symlink(dLastName, lastName) != 0) return -1;
 
-  dTrace(
-      "vid:%d, fileId:%d, empty header file:%s dataFile:%s lastFile:%s on "
-      "disk:%s is created ",
+  dTrace("vid:%d, fileId:%d, empty header file:%s dataFile:%s lastFile:%s on disk:%s is created ",
       vnode, fileId, headName, dataName, lastName, tsDirectory);
 
   return 0;
@@ -218,9 +216,7 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
   numOfFiles = (pVnode->lastKeyOnFile - pVnode->commitFirstKey) / tsMsPerDay[pVnode->cfg.precision] / pCfg->daysPerFile;
   if (pVnode->commitFirstKey > pVnode->lastKeyOnFile) numOfFiles = -1;
 
-  dTrace(
-      "vid:%d, commitFirstKey:%ld lastKeyOnFile:%ld numOfFiles:%d fileId:%d "
-      "vnodeNumOfFiles:%d",
+  dTrace("vid:%d, commitFirstKey:%ld lastKeyOnFile:%ld numOfFiles:%d fileId:%d vnodeNumOfFiles:%d",
       vnode, pVnode->commitFirstKey, pVnode->lastKeyOnFile, numOfFiles, pVnode->fileId, pVnode->numOfFiles);
 
   if (numOfFiles >= pVnode->numOfFiles) {
@@ -246,9 +242,7 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
   pVnode->commitFileId = fileId;
   pVnode->numOfFiles = pVnode->numOfFiles + filesAdded;
 
-  dTrace(
-      "vid:%d, commit fileId:%d, commitLastKey:%ld, vnodeLastKey:%ld, "
-      "lastKeyOnFile:%ld numOfFiles:%d",
+  dTrace("vid:%d, commit fileId:%d, commitLastKey:%ld, vnodeLastKey:%ld, lastKeyOnFile:%ld numOfFiles:%d",
       vnode, fileId, pVnode->commitLastKey, pVnode->lastKey, pVnode->lastKeyOnFile, pVnode->numOfFiles);
 
   int minSize = sizeof(SCompHeader) * pVnode->cfg.maxSessions + sizeof(TSCKSUM) + TSDB_FILE_HEADER_LEN;
@@ -573,8 +567,7 @@ _again:
       goto _over;
     } else {
       if (!taosCheckChecksumWhole((uint8_t *)tmem, tmsize)) {
-        dError("vid:%d, failed to read old header file:%s since comp header offset is broken",
-               vnode, pVnode->cfn);
+        dError("vid:%d, failed to read old header file:%s since comp header offset is broken", vnode, pVnode->cfn);
         taosLogError("vid:%d, failed to read old header file:%s since comp header offset is broken",
                      vnode, pVnode->cfn);
         goto _over;
@@ -584,8 +577,20 @@ _again:
 
   // read compInfo
   for (sid = 0; sid < pCfg->maxSessions; ++sid) {
+    if (pVnode->meterList == NULL) {  // vnode is being freed, abort
+      goto _over;
+    }
+
     pObj = (SMeterObj *)(pVnode->meterList[sid]);
-    if (pObj == NULL) continue;
+    if (pObj == NULL) {
+      continue;
+    }
+
+    // meter is going to be deleted, abort
+    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+      dWarn("vid:%d sid:%d is dropped, ignore this meter", vnode, sid);
+      continue;
+    }
 
     pMeter = meterInfo + sid;
     pHeader = ((SCompHeader *)tmem) + sid;
@@ -679,8 +684,9 @@ _again:
         pointsReadLast = pMeter->lastBlock.numOfPoints;
         query.over = 0;
         headInfo.totalStorage -= (pointsReadLast * pObj->bytesPerPoint);
+
         dTrace("vid:%d sid:%d id:%s, points:%d in last block will be merged to new block",
-               pObj->vnode, pObj->sid, pObj->meterId, pointsReadLast);
+            pObj->vnode, pObj->sid, pObj->meterId, pointsReadLast);
       }
 
       pMeter->changed = 1;
@@ -724,8 +730,8 @@ _again:
     }
 
     dTrace("vid:%d sid:%d id:%s, %d points are committed, lastKey:%lld slot:%d pos:%d newNumOfBlocks:%d",
-           pObj->vnode, pObj->sid, pObj->meterId, pMeter->committedPoints, pObj->lastKeyOnFile, query.slot, query.pos,
-           pMeter->newNumOfBlocks);
+        pObj->vnode, pObj->sid, pObj->meterId, pMeter->committedPoints, pObj->lastKeyOnFile, query.slot, query.pos,
+        pMeter->newNumOfBlocks);
 
     if (pMeter->committedPoints > 0) {
       pMeter->commitSlot = query.slot;
@@ -1517,10 +1523,11 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
    * we allocate tsData buffer with twice size of the other ordinary pQuery->sdata.
    * Otherwise, the query function may over-write buffer area while retrieve function has not packed the results into
    * message to send to client yet.
+   *
    * So the startPositionFactor is needed to denote which half part is used to store the result, and which
    * part is available for keep data during query process.
-   * Note: the startPositionFactor must be used in conjunction with
-   * pQuery->pointsOffset
+   *
+   * Note: the startPositionFactor must be used in conjunction with pQuery->pointsOffset
    */
   int32_t startPositionFactor = 1;
   if (pQuery->colList[0].colIdx == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
@@ -1537,8 +1544,10 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
 
   int maxReads = QUERY_IS_ASC_QUERY(pQuery) ? pBlock->numOfPoints - pQuery->pos : pQuery->pos + 1;
 
+  TSKEY startKey = vnodeGetTSInDataBlock(pQuery, 0, startPositionFactor);
+  TSKEY endKey = vnodeGetTSInDataBlock(pQuery, pBlock->numOfPoints - 1, startPositionFactor);
+
   if (QUERY_IS_ASC_QUERY(pQuery)) {
-    TSKEY endKey = vnodeGetTSInDataBlock(pQuery, pBlock->numOfPoints - 1, startPositionFactor);
     if (endKey < pQuery->ekey) {
       numOfReads = maxReads;
     } else {
@@ -1548,7 +1557,6 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
       numOfReads = (lastPos >= 0) ? lastPos + 1 : 0;
     }
   } else {
-    TSKEY startKey = vnodeGetTSInDataBlock(pQuery, 0, startPositionFactor);
     if (startKey > pQuery->ekey) {
       numOfReads = maxReads;
     } else {
@@ -1601,7 +1609,12 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
     if (QUERY_IS_ASC_QUERY(pQuery)) {
       for (int32_t j = startPos; j < pBlock->numOfPoints; j -= step) {
         TSKEY key = vnodeGetTSInDataBlock(pQuery, j, startPositionFactor);
-        assert(key >= pQuery->skey);
+        if (key < startKey || key > endKey) {
+          dError("vid:%d sid:%d id:%s, timestamp in file block disordered. slot:%d, pos:%d, ts:%lld, block "
+                 "range:%lld-%lld", pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startKey, endKey);
+          tfree(ids);
+          return -TSDB_CODE_FILE_BLOCK_TS_DISORDERED;
+        }
 
         // out of query range, quit
         if (key > pQuery->ekey) {
@@ -1621,7 +1634,12 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
     } else {
       for (int32_t j = pQuery->pos; j >= 0; --j) {
         TSKEY key = vnodeGetTSInDataBlock(pQuery, j, startPositionFactor);
-        assert(key <= pQuery->skey);
+        if (key < startKey || key > endKey) {
+          dError("vid:%d sid:%d id:%s, timestamp in file block disordered. slot:%d, pos:%d, ts:%lld, block "
+                 "range:%lld-%lld", pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startKey, endKey);
+          tfree(ids);
+          return -TSDB_CODE_FILE_BLOCK_TS_DISORDERED;
+        }
 
         // out of query range, quit
         if (key < pQuery->ekey) {
@@ -1778,10 +1796,7 @@ int vnodeInitFile(int vnode) {
 
 int vnodeRecoverCompHeader(int vnode, int fileId) {
   // TODO: try to recover SCompHeader part
-  dTrace(
-      "starting to recover vnode head file comp header part, vnode: %d fileId: "
-      "%d",
-      vnode, fileId);
+  dTrace("starting to recover vnode head file comp header part, vnode: %d fileId: %d", vnode, fileId);
   assert(0);
   return 0;
 }

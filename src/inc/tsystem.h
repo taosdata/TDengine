@@ -35,19 +35,6 @@ bool taosGetBandSpeed(float *bandSpeedKb);
 
 bool taosGetProcIO(float *readKB, float *writeKB);
 
-void taosGetSystemInfo();
-
-void taosKillSystem();
-
-/*
- * transfer charset from non-standard format to standard format, in line with
- * requirements
- * of library of libiconv
- *
- * NOTE: user need to free the string
- */
-char *taosCharsetReplace(char *charsetstr);
-
 #ifdef __cplusplus
 }
 #endif

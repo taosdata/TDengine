@@ -13,12 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "tcache.h"
 #include "tlog.h"
 #include "trpc.h"
@@ -74,7 +72,7 @@ TAOS *taos_connect_imp(char *ip, char *user, char *pass, char *db, int port, voi
   pObj->signature = pObj;
 
   strncpy(pObj->user, user, TSDB_USER_LEN);
-  strncpy(pObj->pass, pass, TSDB_KEY_LEN);
+  taosEncryptPass(pass, strlen(pass), pObj->pass);
   pObj->mgmtPort = port ? port : tsMgmtShellPort;
 
   if (db) {
@@ -128,10 +126,10 @@ TAOS *taos_connect_imp(char *ip, char *user, char *pass, char *db, int port, voi
 
 TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port) {
   if (ip != NULL && (strcmp("127.0.0.1", ip) == 0 || strcasecmp("localhost", ip) == 0)) {
-    ip = tsInternalIp;
+    ip = tsServerIpStr;
   }
 
-  if (ip == NULL) ip = tsInternalIp;
+  if (ip == NULL) ip = tsServerIpStr;
   tscTrace("try to create a connection to %s", ip);
 
   void *taos = taos_connect_imp(ip, user, pass, db, port, NULL, NULL, NULL);
@@ -152,7 +150,7 @@ TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port) {
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, int port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
   if (ip == NULL) {
-    ip = tsInternalIp;
+    ip = tsServerIpStr;
   }
   return taos_connect_imp(ip, user, pass, db, port, fp, param, taos);
 }
@@ -316,6 +314,11 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
     return 0;
   }
 
+  // secondary merge has handle this situation
+  if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC) {
+    pRes->numOfTotal += pRes->numOfRows;
+  }
+
   for (int i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
     pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pCmd, i, pCmd->order) +
                      pRes->bytes[i] * (1 - pCmd->order.order) * (pRes->numOfRows - 1);
@@ -350,7 +353,7 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
       return NULL;
     }
 
-    /* localreducer has handle this situation */
+    // secondary merge has handle this situation
     if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC) {
       pRes->numOfTotal += pRes->numOfRows;
     }

@@ -1,0 +1,127 @@
+/* Copyright (C) 2001-2002 Free Software Foundation, Inc.
+   This file is part of the GNU LIBICONV Library.
+
+   The GNU LIBICONV Library is free software; you can redistribute it
+   and/or modify it under the terms of the GNU Library General Public
+   License as published by the Free Software Foundation; either version 2
+   of the License, or (at your option) any later version.
+
+   The GNU LIBICONV Library is distributed in the hope that it will be
+   useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Library General Public License for more details.
+
+   You should have received a copy of the GNU Library General Public
+   License along with the GNU LIBICONV Library; see the file COPYING.LIB.
+   If not, write to the Free Software Foundation, Inc., 51 Franklin Street,
+   Fifth Floor, Boston, MA 02110-1301, USA.  */
+
+/* Encodings used by system dependent locales on MSDOS. */
+
+DEFENCODING(( "CP437",                  /* IANA, JDK 1.1 */
+              "IBM437",                 /* IANA */
+              "437",                    /* IANA */
+              "csPC8CodePage437",       /* IANA */
+            ),
+            cp437,
+            { cp437_mbtowc, NULL },       { cp437_wctomb, NULL })
+
+DEFENCODING(( "CP737",                  /* JDK 1.1 */
+            ),
+            cp737,
+            { cp737_mbtowc, NULL },       { cp737_wctomb, NULL })
+
+DEFENCODING(( "CP775",                  /* IANA, JDK 1.1 */
+              "IBM775",                 /* IANA */
+              "csPC775Baltic",          /* IANA */
+            ),
+            cp775,
+            { cp775_mbtowc, NULL },       { cp775_wctomb, NULL })
+
+DEFENCODING(( "CP852",                  /* IANA, JDK 1.1 */
+              "IBM852",                 /* IANA */
+              "852",                    /* IANA */
+              "csPCp852",               /* IANA */
+            ),
+            cp852,
+            { cp852_mbtowc, NULL },       { cp852_wctomb, NULL })
+
+DEFENCODING(( "CP853",
+            ),
+            cp853,
+            { cp853_mbtowc, NULL },       { cp853_wctomb, NULL })
+
+DEFENCODING(( "CP855",                  /* IANA, JDK 1.1 */
+              "IBM855",                 /* IANA */
+              "855",                    /* IANA */
+              "csIBM855",               /* IANA */
+            ),
+            cp855,
+            { cp855_mbtowc, NULL },       { cp855_wctomb, NULL })
+
+DEFENCODING(( "CP857",                  /* IANA, JDK 1.1 */
+              "IBM857",                 /* IANA */
+              "857",                    /* IANA */
+              "csIBM857",               /* IANA */
+            ),
+            cp857,
+            { cp857_mbtowc, NULL },       { cp857_wctomb, NULL })
+
+DEFENCODING(( "CP858",                  /* JDK 1.1.7 */
+            ),
+            cp858,
+            { cp858_mbtowc, NULL },       { cp858_wctomb, NULL })
+
+DEFENCODING(( "CP860",                  /* IANA, JDK 1.1 */
+              "IBM860",                 /* IANA */
+              "860",                    /* IANA */
+              "csIBM860",               /* IANA */
+            ),
+            cp860,
+            { cp860_mbtowc, NULL },       { cp860_wctomb, NULL })
+
+DEFENCODING(( "CP861",                  /* IANA, JDK 1.1 */
+              "IBM861",                 /* IANA */
+              "861",                    /* IANA */
+              "CP-IS",                  /* IANA */
+              "csIBM861",               /* IANA */
+            ),
+            cp861,
+            { cp861_mbtowc, NULL },       { cp861_wctomb, NULL })
+
+DEFENCODING(( "CP863",                  /* IANA, JDK 1.1 */
+              "IBM863",                 /* IANA */
+              "863",                    /* IANA */
+              "csIBM863",               /* IANA */
+            ),
+            cp863,
+            { cp863_mbtowc, NULL },       { cp863_wctomb, NULL })
+
+DEFENCODING(( "CP864",                  /* IANA, JDK 1.1 */
+              "IBM864",                 /* IANA */
+              "csIBM864",               /* IANA */
+            ),
+            cp864,
+            { cp864_mbtowc, NULL },       { cp864_wctomb, NULL })
+
+DEFENCODING(( "CP865",                  /* IANA, JDK 1.1 */
+              "IBM865",                 /* IANA */
+              "865",                    /* IANA */
+              "csIBM865",               /* IANA */
+            ),
+            cp865,
+            { cp865_mbtowc, NULL },       { cp865_wctomb, NULL })
+
+DEFENCODING(( "CP869",                  /* IANA, JDK 1.1 */
+              "IBM869",                 /* IANA */
+              "869",                    /* IANA */
+              "CP-GR",                  /* IANA */
+              "csIBM869",               /* IANA */
+            ),
+            cp869,
+            { cp869_mbtowc, NULL },       { cp869_wctomb, NULL })
+
+DEFENCODING(( "CP1125",                 /* ICU */
+            ),
+            cp1125,
+            { cp1125_mbtowc, NULL },      { cp1125_wctomb, NULL })

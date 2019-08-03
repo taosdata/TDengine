@@ -24,14 +24,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/file.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/types.h>
 #include <time.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "tlog.h"
 #include "tutil.h"
 
@@ -110,7 +108,9 @@ void taosStopLog() {
 void taosCloseLogger() {
   taosStopLog();
   sem_post(&(logHandle->buffNotEmpty));
-  pthread_join(logHandle->asyncThread, NULL);
+  if (taosCheckPthreadValid(logHandle->asyncThread)) {
+    pthread_join(logHandle->asyncThread, NULL);
+  }
   // In case that other threads still use log resources causing invalid write in
   // valgrind, we comment two lines below.
   // taosLogBuffDestroy(logHandle);
@@ -241,6 +241,14 @@ void taosGetLogFileName(char *fn) {
 }
 
 int taosOpenLogFileWithMaxLines(char *fn, int maxLines, int maxFileNum) {
+#ifdef WINDOWS
+  /*
+  * always set maxFileNum to 1
+  * means client log filename is unique in windows
+  */
+  maxFileNum = 1;
+#endif
+
   char        name[LOG_FILE_NAME_LEN] = "\0";
   struct stat logstat0, logstat1;
   int         size;
@@ -304,8 +312,13 @@ char *tprefix(char *prefix) {
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
 
+#ifdef WINDOWS
+  sprintf(prefix, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
+          ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
+#else
   sprintf(prefix, "%02d/%02d %02d:%02d:%02d.%06d 0x%lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
           ptm->tm_sec, (int)timeSecs.tv_usec, pthread_self());
+#endif
   return prefix;
 }
 
@@ -320,8 +333,13 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
   gettimeofday(&timeSecs, NULL);
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
+#ifdef WINDOWS
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
+                ptm->tm_min, ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
+#else
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
                 ptm->tm_sec, (int)timeSecs.tv_usec, pthread_self());
+#endif
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
@@ -341,7 +359,7 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
     }
 
     if (taosLogMaxLines > 0) {
-      __sync_fetch_and_add(&taosLogLines, 1);
+      __sync_add_and_fetch_32(&taosLogLines, 1);
 
       if ((taosLogLines > taosLogMaxLines) && (openInProgress == 0)) taosOpenNewLogFile();
     }
@@ -384,8 +402,13 @@ void taosPrintLongString(const char *const flags, int dflag, const char *const f
   gettimeofday(&timeSecs, NULL);
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
+#ifdef WINDOWS
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
+                ptm->tm_min, ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
+#else
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
                 ptm->tm_sec, (int)timeSecs.tv_usec, pthread_self());
+#endif
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
@@ -401,7 +424,7 @@ void taosPrintLongString(const char *const flags, int dflag, const char *const f
     taosPushLogBuffer(logHandle, buffer, len);
 
     if (taosLogMaxLines > 0) {
-      __sync_fetch_and_add(&taosLogLines, 1);
+      __sync_add_and_fetch_32(&taosLogLines, 1);
 
       if ((taosLogLines > taosLogMaxLines) && (openInProgress == 0)) taosOpenNewLogFile();
     }

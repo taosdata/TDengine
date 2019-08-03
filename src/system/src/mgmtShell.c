@@ -56,7 +56,7 @@ int mgmtInitShell() {
   if (numOfThreads < 1) numOfThreads = 1;
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp = tsInternalIp;
+  rpcInit.localIp = "0.0.0.0";
   rpcInit.localPort = tsMgmtShellPort;
   rpcInit.label = "MND-shell";
   rpcInit.numOfThreads = numOfThreads;
@@ -433,14 +433,14 @@ int mgmtProcessAlterUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     return 0;
   }
 
-  if (strcmp(pUser->user, "sys") == 0 || strcmp(pUser->user, "stream") == 0) {
+  if (strcmp(pUser->user, "monitor") == 0 || strcmp(pUser->user, "stream") == 0) {
     code = TSDB_CODE_NO_RIGHTS;
   } else if ((strcmp(pUser->user, pConn->pUser->user) == 0) ||
              ((strcmp(pUser->acct, acctObj.user) == 0) && pConn->superAuth) ||
              (strcmp(pConn->pUser->user, "root") == 0)) {
     if ((pAlter->flag & TSDB_ALTER_USER_PASSWD) != 0) {
       memset(pUser->pass, 0, sizeof(pUser->pass));
-      strcpy(pUser->pass, pAlter->pass);
+      taosEncryptPass((uint8_t *)(pAlter->pass), strlen(pAlter->pass), pUser->pass);
     }
     if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
       if (pAlter->privilege == 1) {  // super
@@ -474,7 +474,7 @@ int mgmtProcessDropUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   if (strcmp(pConn->pUser->user, pDrop->user) == 0) {
     code = TSDB_CODE_NO_RIGHTS;
-  } else if (strcmp(pDrop->user, "sys") == 0 || strcmp(pDrop->user, "stream") == 0) {
+  } else if (strcmp(pDrop->user, "monitor") == 0 || strcmp(pDrop->user, "stream") == 0) {
     code = TSDB_CODE_NO_RIGHTS;
   } else {
     if (pConn->superAuth) {

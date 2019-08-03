@@ -109,7 +109,7 @@ int mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   pUser = malloc(sizeof(SUserObj));
   memset(pUser, 0, sizeof(SUserObj));
   strcpy(pUser->user, name);
-  strcpy(pUser->pass, pass);
+  taosEncryptPass((uint8_t *)pass, strlen(pass), pUser->pass);
   strcpy(pUser->acct, pAcct->user);
   pUser->createdTime = taosGetTimestampMs();
   pUser->superAuth = 0;

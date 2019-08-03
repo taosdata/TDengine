@@ -17,6 +17,11 @@ cfg_link_dir="/usr/local/taos/cfg"
 service_config_dir="/etc/systemd/system"
 taos_service_name="taosd"
 
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo"
+fi
+
 function is_using_systemd() {
     if pidof systemd &> /dev/null; then
         return 0
@@ -34,11 +39,11 @@ function clean_service_on_systemd() {
 
     if systemctl is-active --quiet ${taos_service_name}; then
         echo "TDengine taosd is running, stopping it..."
-        sudo systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
+        ${csudo} systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
     fi
-    sudo systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
+    ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
 
-    sudo rm -f ${taosd_service_config}	
+    ${csudo} rm -f ${taosd_service_config}	
 }
 
 function clean_service_on_sysvinit() {
@@ -46,13 +51,13 @@ function clean_service_on_sysvinit() {
 
     if pidof taosd &> /dev/null; then
         echo "TDengine taosd is running, stopping it..."
-        sudo service taosd stop || :
+        ${csudo} service taosd stop || :
     fi
 
-    sudo sed -i "\|${restart_config_str}|d" /etc/inittab || :
-    sudo rm -f ${service_config_dir}/taosd || :
-    sudo update-rc.d -f taosd remove || :
-    sudo init q || :
+    ${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
+    ${csudo} rm -f ${service_config_dir}/taosd || :
+    ${csudo} update-rc.d -f taosd remove || :
+    ${csudo} init q || :
 }
 
 function clean_service() {
@@ -67,14 +72,14 @@ function clean_service() {
 clean_service
 
 # Remove all links
-sudo rm -f ${bin_link_dir}/taos       || :
-sudo rm -f ${bin_link_dir}/taosd      || :
-sudo rm -f ${bin_link_dir}/taosdump   || :
-sudo rm -f ${cfg_link_dir}/*          || :
-sudo rm -f ${inc_link_dir}/taos.h     || :
-sudo rm -f ${lib_link_dir}/libtaos.so || :
+${csudo} rm -f ${bin_link_dir}/taos       || :
+${csudo} rm -f ${bin_link_dir}/taosd      || :
+${csudo} rm -f ${bin_link_dir}/taosdump   || :
+${csudo} rm -f ${cfg_link_dir}/*          || :
+${csudo} rm -f ${inc_link_dir}/taos.h     || :
+${csudo} rm -f ${lib_link_dir}/libtaos.*  || :
 
-sudo rm -f ${log_link_dir}            || :
-sudo rm -f ${data_link_dir}           || :
+${csudo} rm -f ${log_link_dir}            || :
+${csudo} rm -f ${data_link_dir}           || :
 
 echo -e "${GREEN}TDEngine is removed successfully!${NC}"

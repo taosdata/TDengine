@@ -127,6 +127,8 @@ extern "C" {
 #define TSDB_CODE_BATCH_SIZE_TOO_BIG         104
 #define TSDB_CODE_TIMESTAMP_OUT_OF_RANGE     105
 #define TSDB_CODE_INVALID_QUERY_MSG          106      // failed to validate the sql expression msg by vnode
+#define TSDB_CODE_CACHE_BLOCK_TS_DISORDERED  107      // time stamp in cache block is disordered
+#define TSDB_CODE_FILE_BLOCK_TS_DISORDERED   108      // time stamp in file block is disordered
 
 // message type
 #define TSDB_MSG_TYPE_REG              1

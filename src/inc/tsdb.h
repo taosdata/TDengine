@@ -72,8 +72,13 @@ enum _syncstatus {
 #define TSDB_DATA_TYPE_NCHAR      10      // wide string
 
 #define TSDB_KEYSIZE              sizeof(TSKEY)
-#define TSDB_NCHAR_SIZE           sizeof(wchar_t)
+#if LINUX
+  #define TSDB_NCHAR_SIZE         sizeof(wchar_t)
+#else
+  #define TSDB_NCHAR_SIZE         4
+#endif
 
+#define TSDB_RELATION_INVALID     0
 #define TSDB_RELATION_LESS        1
 #define TSDB_RELATION_LARGE       2
 #define TSDB_RELATION_EQUAL       3

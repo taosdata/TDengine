@@ -21,10 +21,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/syscall.h>
-#include <sys/time.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "tidpool.h"
 #include "tlog.h"
 #include "tsched.h"
@@ -126,6 +124,7 @@ void *taosTimerLoopFunc(int signo) {
   return NULL;
 }
 
+#ifndef WINDOWS
 void *taosProcessAlarmSignal(void *tharg) {
   // Block the signal
   sigset_t sigset;
@@ -168,11 +167,13 @@ void *taosProcessAlarmSignal(void *tharg) {
   assert(0);
   return NULL;
 }
+#endif
 
 void taosTmrModuleInit(void) {
   tmrIdPool = taosInitIdPool(maxNumOfTmrCtrl);
   memset(tmrCtrl, 0, sizeof(tmrCtrl));
 
+#ifdef LINUX
   pthread_t      thread;
   pthread_attr_t tattr;
   pthread_attr_init(&tattr);
@@ -183,6 +184,9 @@ void taosTmrModuleInit(void) {
   }
 
   pthread_attr_destroy(&tattr);
+#else
+  taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK);
+#endif
 
   tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr");
   tmrTrace("timer module is initialized, thread:%d", taosTmrThreads);
@@ -362,44 +366,6 @@ tmr_h taosTmrStart(void (*fp)(void *, void *), int mseconds, void *param1, void 
            pCtrl->numOfTmrs, cindex);
 
   return (tmr_h)pObj;
-}
-
-void taosTmrStop(tmr_h timerId) {
-  tmr_obj_t * pObj;
-  tmr_list_t *pList;
-  tmr_ctrl_t *pCtrl;
-
-  pObj = (tmr_obj_t *)timerId;
-  if (pObj == NULL) return;
-
-  pCtrl = pObj->pCtrl;
-  if (pCtrl == NULL) return;
-
-  if (pthread_mutex_lock(&pCtrl->mutex) != 0)
-    tmrError("%s mutex lock failed, reason:%s", pCtrl->label, strerror(errno));
-
-  if (pObj->timerId == timerId) {
-    pList = &(pCtrl->tmrList[pObj->index]);
-    if (pObj->prev) {
-      pObj->prev->next = pObj->next;
-    } else {
-      pList->head = pObj->next;
-    }
-
-    if (pObj->next) {
-      pObj->next->prev = pObj->prev;
-    }
-
-    pList->count--;
-    pObj->timerId = NULL;
-    pCtrl->numOfTmrs--;
-
-    tmrTrace("%s %p, timer stopped, fp:%p, tmr_h:%p, total:%d", pCtrl->label, pObj->param1, pObj->fp, pObj,
-             pCtrl->numOfTmrs);
-    tmrMemPoolFree(pCtrl->poolHandle, (char *)(pObj));
-  }
-
-  pthread_mutex_unlock(&pCtrl->mutex);
 }
 
 void taosTmrStopA(tmr_h *timerId) {

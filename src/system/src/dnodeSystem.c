@@ -107,6 +107,10 @@ int dnodeInitSystem() {
   }
 
   strcpy(tsDirectory, dataDir);
+  if (stat(dataDir, &dirstat) < 0) {
+    mkdir(dataDir, 0755);
+  }
+
   taosCreateTierDirectory();
 
   sprintf(mgmtDirectory, "%s/mgmt", tsDirectory);

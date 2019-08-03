@@ -13,11 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
 #include <pthread.h>
 #include <pthread.h>
 #include <semaphore.h>
@@ -25,17 +22,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <syslog.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "taosmsg.h"
 #include "tlog.h"
 #include "tlog.h"
 #include "tsocket.h"
 #include "ttcpclient.h"
 #include "tutil.h"
+
+#ifndef EPOLLWAKEUP
+  #define EPOLLWAKEUP (1u << 29)
+#endif
 
 typedef struct _tcp_fd {
   int                 fd;  // TCP socket FD
@@ -271,12 +269,7 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, short 
   pFdObj->pTcp = pTcp;
   pFdObj->thandle = thandle;
 
-// add this new FD into epoll
-#ifndef _NINGSI_VERSION
   event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP;
-#else
-  event.events = EPOLLIN | EPOLLPRI;
-#endif
   event.data.ptr = pFdObj;
   if (epoll_ctl(pTcp->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
     tError("%s failed to add TCP FD for epoll, error:%s", pTcp->label, strerror(errno));

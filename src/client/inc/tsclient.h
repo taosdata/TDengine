@@ -20,17 +20,15 @@
 extern "C" {
 #endif
 
-#include <endian.h>
 #include <errno.h>
-#include <netinet/in.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
 #include <time.h>
 
+#include "os.h"
 #include "taos.h"
 #include "taosmsg.h"
 #include "tglobalcfg.h"
@@ -171,16 +169,22 @@ typedef struct STagCond {
   char *  pData;
 } STagCond;
 
-typedef struct SInsertedDataBlocks {
-  char     meterId[TSDB_METER_ID_LEN];
-  int64_t  size;
-  uint32_t nAllocSize;
-  uint32_t numOfMeters;
+typedef struct STableDataBlocks {
+  char        meterId[TSDB_METER_ID_LEN];
+  int64_t     vgid;
+  int64_t     size;
+
+  int64_t     prevTS;
+  bool        ordered;
+
+  int32_t     numOfMeters;
+  int32_t     rowSize;
+  uint32_t    nAllocSize;
   union {
     char *filename;
     char *pData;
   };
-} SInsertedDataBlocks;
+} STableDataBlocks;
 
 typedef struct SDataBlockList {
   int32_t               idx;
@@ -188,7 +192,7 @@ typedef struct SDataBlockList {
   int32_t               nAlloc;
   char *                userParam; /* user assigned parameters for async query */
   void *                udfp;      /* user defined function pointer, used in async model */
-  SInsertedDataBlocks **pData;
+  STableDataBlocks **pData;
 } SDataBlockList;
 
 typedef struct {
@@ -440,7 +444,6 @@ extern void *   tscQhandle;
 extern int      tscKeepConn[];
 extern int      tsInsertHeadSize;
 extern int      tscNumOfThreads;
-extern char     tsServerIpStr[128];
 extern uint32_t tsServerIp;
 
 #ifdef __cplusplus

@@ -30,7 +30,7 @@ typedef struct _sched_msg {
   void *thandle;
 } SSchedMsg;
 
-void *taosInitScheduler(int queueSize, int numOfThreads, char *label);
+void *taosInitScheduler(int queueSize, int numOfThreads, const char *label);
 
 int taosScheduleTask(void *qhandle, SSchedMsg *pMsg);
 

@@ -196,8 +196,8 @@ typename(A) ::= ids(X) LP signed(Y) RP.    {
     tSQLSetColumnType(&A, &X);
 }
 
-%type signed {int}
-signed(A) ::= INTEGER(X).         { A = atoi(X.z); }
+%type signed {int64_t}
+signed(A) ::= INTEGER(X).         { A = strtol(X.z, NULL, 10); }
 signed(A) ::= PLUS INTEGER(X).    { A = strtol(X.z, NULL, 10); }
 signed(A) ::= MINUS INTEGER(X).   { A = -strtol(X.z, NULL, 10);}
 
@@ -299,11 +299,6 @@ selcollist(A) ::= sclp(P) expr(X) as(Y).     {
 }
 
 selcollist(A) ::= sclp(P) STAR. {
-   tSQLExpr *pNode = tSQLExprIdValueCreate(NULL, TK_ALL);
-   A = tSQLExprListAppend(P, pNode, 0);
-}
-
-selcollist(A) ::= sclp(P) ID(X) DOT STAR. {
    tSQLExpr *pNode = tSQLExprIdValueCreate(NULL, TK_ALL);
    A = tSQLExprListAppend(P, pNode, 0);
 }
@@ -413,7 +408,7 @@ limit_opt(A) ::= LIMIT signed(X).      {A.limit = X;  A.offset = 0;}
 limit_opt(A) ::= LIMIT signed(X) OFFSET signed(Y).
                                        {A.limit = X;  A.offset = Y;}
 limit_opt(A) ::= LIMIT signed(X) COMMA signed(Y).
-                                       {A.limit = Y;  A.offset = X;}
+                                       {A.limit = X;  A.offset = Y;}
 
 %type slimit_opt {SLimitVal}
 slimit_opt(A) ::= .                    {A.limit = -1; A.offset = 0;}
@@ -421,7 +416,7 @@ slimit_opt(A) ::= SLIMIT signed(X).    {A.limit = X;  A.offset = 0;}
 slimit_opt(A) ::= SLIMIT signed(X) SOFFSET signed(Y).
                                        {A.limit = X;  A.offset = Y;}
 slimit_opt(A) ::= SLIMIT signed(X) COMMA  signed(Y).
-                                       {A.limit = Y;  A.offset = X;}
+                                       {A.limit = X;  A.offset = Y;}
 
 %type where_opt {tSQLExpr*}
 %destructor where_opt {tSQLExprDestroy($$);}
@@ -565,7 +560,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_CHG);
 }
 
-cmd ::= ALTER TABLE ids(X) cpxName(F) SET ids(Y) EQ tagitem(Z).     {
+cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
     X.n += F.n;
 
     toTSDBType(Y.type);

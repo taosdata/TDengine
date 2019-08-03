@@ -13,13 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <wchar.h>
 
+#include "os.h"
 #include "tcache.h"
 #include "trpc.h"
 #include "tscProfile.h"
@@ -37,7 +36,6 @@
 
 int      tsMasterIndex = 0;
 int      tsSlaveIndex = 1;
-char     tsServerIpStr[128] = "127.0.0.1";
 uint32_t tsServerIp;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql);
@@ -360,14 +358,17 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       pRes->code = TSDB_CODE_SUCCESS;
     }
 
-    tscTrace("%p cmd:%d code:%d rsp len:%d", pSql, pCmd->command, pRes->code, pRes->rspLen);
-
     /*
      * There is not response callback function for submit response.
      * The actual inserted number of points is the first number.
      */
     if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT_RSP) {
       pRes->numOfRows += *(int32_t *)pRes->pRsp;
+
+      tscTrace("%p cmd:%d code:%d, inserted rows:%d, rsp len:%d", pSql, pCmd->command, pRes->code,
+               *(int32_t *)pRes->pRsp, pRes->rspLen);
+    } else {
+      tscTrace("%p cmd:%d code:%d rsp len:%d", pSql, pCmd->command, pRes->code, pRes->rspLen);
     }
   }
 
@@ -423,7 +424,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
   return ahandle;
 }
 
-static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport);
+static SSqlObj* tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj* prevSqlObj);
 static int tscLaunchMetricSubQueries(SSqlObj *pSql);
 
 int tscProcessSql(SSqlObj *pSql) {
@@ -431,12 +432,6 @@ int tscProcessSql(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   tscTrace("%p SQL cmd:%d will be processed, name:%s", pSql, pSql->cmd.command, pSql->cmd.name);
-
-  // whether don't judge 'isInsertFromFile' ?
-  if (pSql->cmd.command == TSDB_SQL_INSERT && pCmd->isInsertFromFile == 1) {
-    // pCmd->isInsertFromFile = 0;   // lihui: can not clear the flag
-    return 0;
-  }
 
   pSql->retry = 0;
   if (pSql->cmd.command < TSDB_SQL_MGMT) {
@@ -595,7 +590,7 @@ int tscLaunchMetricSubQueries(SSqlObj *pSql) {
     pthread_mutex_init(&trs->queryMutex, &mutexattr);
     pthread_mutexattr_destroy(&mutexattr);
 
-    SSqlObj *pNew = tscCreateSqlObjForSubquery(pSql, trs);
+    SSqlObj *pNew = tscCreateSqlObjForSubquery(pSql, trs, NULL);
     tscTrace("%p sub:%p launch subquery.orderOfSub:%d", pSql, pNew, pNew->cmd.vnodeIdx);
     tscProcessSql(pNew);
   }
@@ -618,9 +613,19 @@ static void tscFreeSubSqlObj(SRetrieveSupport *trsupport, SSqlObj *pSql) {
 }
 
 static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES *tres, int32_t errCode) {
+// set no disk space error info
+#ifdef WINDOWS
+  LPVOID lpMsgBuf;
+  FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
+                GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  // Default language
+                (LPTSTR)&lpMsgBuf, 0, NULL);
+  tscError("sub:%p failed to flush data to disk:reason:%s", tres, lpMsgBuf);
+  LocalFree(lpMsgBuf);
+#else
   char buf[256] = {0};
   strerror_r(errno, buf, 256);
   tscError("sub:%p failed to flush data to disk:reason:%s", tres, buf);
+#endif
 
   *(trsupport->code) = -errCode;
   trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
@@ -668,7 +673,7 @@ static void tscHandleSubRetrievalError(SRetrieveSupport *trsupport, SSqlObj *pSq
 
       pthread_mutex_unlock(&trsupport->queryMutex);
 
-      SSqlObj *pNew = tscCreateSqlObjForSubquery(trsupport->pParentSqlObj, trsupport);
+      SSqlObj *pNew = tscCreateSqlObjForSubquery(trsupport->pParentSqlObj, trsupport, pSql);
       tscTrace("%p sub:%p retrieve failed, code:%d, orderOfSub:%d, retry:%d, new SqlObj:%p",
           trsupport->pParentSqlObj, pSql, numOfRows, idx, trsupport->numOfRetry, pNew);
 
@@ -768,7 +773,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     tscTrace("%p sub:%p all data retrieved from ip:%u,vid:%d, numOfRows:%d, orderOfSub:%d",
              pPObj, pSql, pSvd->ip, pSvd->vnode, numOfRowsFromVnode, idx);
 
-    tColModelCompress(pDesc->pSchema, trsupport->localBuffer, pDesc->pSchema->maxCapacity);
+    tColModelCompact(pDesc->pSchema, trsupport->localBuffer, pDesc->pSchema->maxCapacity);
 
 #ifdef _DEBUG_VIEW
     printf("%ld rows data flushed to disk:\n", trsupport->localBuffer->numOfElems);
@@ -867,10 +872,13 @@ void tscKillMetricQuery(SSqlObj *pSql) {
   tscTrace("%p metric query is cancelled", pSql);
 }
 
-static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport) {
+SSqlObj* tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj* prevSqlObj) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   SSqlObj *pNew = (SSqlObj *)calloc(1, sizeof(SSqlObj));
+  if (pNew == NULL) {
+    return NULL;
+  }
 
   pSql->pSubs[trsupport->vnodeIdx - 1] = pNew;
   pNew->pTscObj = pSql->pTscObj;
@@ -894,13 +902,20 @@ static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsu
   pNew->param = trsupport;
   pNew->cmd.vnodeIdx = trsupport->vnodeIdx;
 
-  char key[TSDB_MAX_TAGS_LEN + 1] = {0};
-  tscGetMetricMetaCacheKey(&pNew->cmd, key);
-  pNew->cmd.pMetricMeta = taosGetDataFromCache(tscCacheHandle, key);
-  pNew->cmd.pMeterMeta = taosGetDataFromCache(tscCacheHandle, pCmd->name);
+  if (prevSqlObj == NULL) {
+    char key[TSDB_MAX_TAGS_LEN + 1] = {0};
+    tscGetMetricMetaCacheKey(&pNew->cmd, key);
+    pNew->cmd.pMetricMeta = taosGetDataFromCache(tscCacheHandle, key);
+    pNew->cmd.pMeterMeta = taosGetDataFromCache(tscCacheHandle, pCmd->name);
+  } else {
+    pNew->cmd.pMeterMeta = prevSqlObj->cmd.pMeterMeta;
+    pNew->cmd.pMetricMeta = prevSqlObj->cmd.pMetricMeta;
+
+    prevSqlObj->cmd.pMetricMeta = NULL;
+    prevSqlObj->cmd.pMeterMeta = NULL;
+  }
 
   assert(pNew->cmd.pMeterMeta != NULL && pNew->cmd.pMetricMeta != NULL);
-
   return pNew;
 }
 
@@ -938,7 +953,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int retCode) {
       tscTrace("%p sub:%p reach the max retry count,set global code:%d", trsupport->pParentSqlObj, pSql, retCode);
       __sync_val_compare_and_swap_32(trsupport->code, 0, retCode);
     } else {  // does not reach the maximum retry count, go on
-      SSqlObj *pNew = tscCreateSqlObjForSubquery(trsupport->pParentSqlObj, trsupport);
+      SSqlObj *pNew = tscCreateSqlObjForSubquery(trsupport->pParentSqlObj, trsupport, pSql);
       tscTrace("%p sub:%p failed code:%d, retry:%d, new SqlObj:%p", trsupport->pParentSqlObj, pSql, retCode,
                trsupport->numOfRetry, pNew);
 
@@ -2244,8 +2259,6 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql) {
 
   SSqlGroupbyExpr *pGroupby = &pCmd->groupbyExpr;
 
-  pMetaMsg->limit = htobe64(pCmd->glimit.limit);
-  pMetaMsg->offset = htobe64(pCmd->glimit.offset);
   pMetaMsg->numOfTags = htons(pCmd->numOfReqTags);
   pMetaMsg->numOfGroupbyCols = htons(pGroupby->numOfGroupbyCols);
 
@@ -2730,11 +2743,7 @@ static int32_t tscDoGetMeterMeta(SSqlObj *pSql, char *meterId) {
   } else {
     pNew->fp = tscMeterMetaCallBack;
     pNew->param = pSql;
-
-    int32_t len = strlen(pSql->sqlstr);
-    pNew->sqlstr = malloc(len + 1);
-    strcpy(pNew->sqlstr, pSql->sqlstr);
-    pNew->sqlstr[len] = 0;
+    pNew->sqlstr = strdup(pSql->sqlstr);
 
     code = tscProcessSql(pNew);
     if (code == TSDB_CODE_SUCCESS) {

@@ -15,8 +15,8 @@
 package taosSql
 
 /*
-#cgo CFLAGS : -I/usr/local/include/taos/
-#cgo LDFLAGS: -L/usr/local/lib/taos -ltaos
+#cgo CFLAGS : -I/usr/include
+#cgo LDFLAGS: -L/usr/lib -ltaos
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,9 +32,8 @@ import (
 func (mc *taosConn) taosConnect(ip, user, pass, db string, port int) (taos unsafe.Pointer, err error){
 	cuser := C.CString(user)
 	cpass := C.CString(pass)
-	cip   := C.CString(ip) // TODO: Addr : x.x.x.x:port, must process to ip and port format
+	cip   := C.CString(ip)
 	cdb   := C.CString("")
-	port   = 0
 	defer C.free(unsafe.Pointer(cip))
 	defer C.free(unsafe.Pointer(cuser))
 	defer C.free(unsafe.Pointer(cpass))

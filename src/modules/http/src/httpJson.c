@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "http.h"
 #include "httpCode.h"
@@ -39,40 +40,47 @@ char JsonNulTkn[] = "null";
 char JsonTrueTkn[] = "true";
 char JsonFalseTkn[] = "false";
 
-int httpWriteBufByFd(int fd, const char* buf, int sz) {
-  const int countTimes = 3;
-  const int waitTime = 5;  // 5ms
+int httpWriteBufByFd(struct HttpContext* pContext, const char* buf, int sz) {
   int       len;
   int       countWait = 0;
+  int       writeLen = 0;
 
   do {
-    if (fd > 2)
-      len = (int)send(fd, buf, (size_t)sz, MSG_NOSIGNAL);
-    else
-      len = sz;
+    if (pContext->fd > 2){
+      len = (int)send(pContext->fd, buf + writeLen, (size_t)(sz - writeLen), MSG_NOSIGNAL);
+    }
+    else {
+      return sz;
+    }
+
     if (len < 0) {
-      break;
+      httpTrace("context:%p, fd:%d, ip:%s, socket write errno:%d, times:%d",
+                pContext, pContext->fd, pContext->ipstr, errno, countWait);
+      if (++countWait > HTTP_WRITE_RETRY_TIMES) break;
+      taosMsleep(HTTP_WRITE_WAIT_TIME_MS);
+      continue;
     } else if (len == 0) {
-      // wait & count
-      if (++countWait > countTimes) return -1;
-      sleep((uint32_t)waitTime);
+      httpTrace("context:%p, fd:%d, ip:%s, socket write errno:%d, connect already closed",
+                pContext, pContext->fd, pContext->ipstr, errno);
+      break;
     } else {
       countWait = 0;
+      writeLen += len;
     }
-    buf += len;
-  } while (len < (sz -= len));
+  } while (writeLen < sz);
 
-  return sz;
+  return writeLen;
 }
 
 int httpWriteBuf(struct HttpContext* pContext, const char* buf, int sz) {
-  int writeSz = httpWriteBufByFd(pContext->fd, buf, sz);
+  int writeSz = httpWriteBufByFd(pContext, buf, sz);
 
-  if (writeSz == -1) {
-    httpError("context:%p, fd:%d, ip:%s, size:%d, response failed:\n%s", pContext, pContext->fd, pContext->ipstr, sz,
-              buf);
+  if (writeSz != sz) {
+    httpError("context:%p, fd:%d, ip:%s, size:%d, write size:%d, failed to send response:\n%s",
+              pContext, pContext->fd, pContext->ipstr, sz, writeSz, buf);
   } else {
-    httpTrace("context:%p, fd:%d, ip:%s, size:%d, response:\n%s", pContext, pContext->fd, pContext->ipstr, sz, buf);
+    httpTrace("context:%p, fd:%d, ip:%s, size:%d, write size:%d, response:\n%s",
+              pContext, pContext->fd, pContext->ipstr, sz, writeSz, buf);
   }
 
   return writeSz;
@@ -231,7 +239,7 @@ void httpJsonStringForTransMean(JsonBuf* buf, char* sVal, int maxLen) {
 void httpJsonInt64(JsonBuf* buf, int64_t num) {
   httpJsonItemToken(buf);
   httpJsonTestBuf(buf, MAX_NUM_STR_SZ);
-  buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%lld", num);
+  buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%ld", num);
 }
 
 void httpJsonTimestamp(JsonBuf* buf, int64_t t) {

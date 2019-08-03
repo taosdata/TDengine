@@ -11,3 +11,5 @@ debs/
 rpms/
 *.pyc
 *.tmp
+src/connector/nodejs/node_modules/
+src/connector/nodejs/out/

@@ -63,7 +63,7 @@ void vnodeFreeFields(SQuery *pQuery);
 void vnodeUpdateFilterColumnIndex(SQuery* pQuery);
 void vnodeUpdateQueryColumnIndex(SQuery* pQuery, SMeterObj* pMeterObj);
 
-int32_t vnodeCreateFilterInfo(SQuery *pQuery);
+int32_t vnodeCreateFilterInfo(void* pQInfo, SQuery *pQuery);
 
 bool vnodeFilterData(SQuery* pQuery, int32_t* numOfActualRead, int32_t index);
 bool vnodeDoFilterData(SQuery* pQuery, int32_t elemPos);
@@ -74,6 +74,12 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg *pQueryMsg, SMeterSidExtInfo **pSid
                               int32_t *numOfInc);
 
 void vnodeDecQueryRefCount(SQueryMeterMsg *pQueryMsg, SMeterObj **pMeterObjList, int32_t numOfInc);
+
+int32_t vnodeTransferMeterState(SMeterObj* pMeterObj, int32_t state);
+void vnodeClearMeterState(SMeterObj* pMeterObj, int32_t state);
+bool vnodeIsMeterState(SMeterObj* pMeterObj, int32_t state);
+void vnodeSetMeterDeleting(SMeterObj* pMeterObj);
+bool vnodeIsSafeToDeleteMeter(SVnodeObj* pVnode, int32_t sid);
 
 #ifdef __cplusplus
 }

@@ -29,7 +29,7 @@ void restInitHandle(HttpServer* pServer) {
 }
 
 bool restGetUserFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->pThread->parser;
+  HttpParser* pParser = &pContext->parser;
   if (pParser->path[REST_USER_URL_POS].len > TSDB_USER_LEN - 1 || pParser->path[REST_USER_URL_POS].len <= 0) {
     return false;
   }
@@ -39,7 +39,7 @@ bool restGetUserFromUrl(HttpContext* pContext) {
 }
 
 bool restGetPassFromUrl(HttpContext* pContext) {
-  HttpParser* pParser = &pContext->pThread->parser;
+  HttpParser* pParser = &pContext->parser;
   if (pParser->path[REST_PASS_URL_POS].len > TSDB_PASSWORD_LEN - 1 || pParser->path[REST_PASS_URL_POS].len <= 0) {
     return false;
   }
@@ -59,7 +59,7 @@ bool restProcessSqlRequest(HttpContext* pContext, int isSqlT) {
   httpTrace("context:%p, fd:%d, ip:%s, user:%s, process restful sql msg", pContext, pContext->fd, pContext->ipstr,
             pContext->user);
 
-  char* sql = pContext->pThread->parser.data.pos;
+  char* sql = pContext->parser.data.pos;
   if (sql == NULL) {
     httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
     return false;
