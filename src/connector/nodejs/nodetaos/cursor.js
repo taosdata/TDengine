@@ -268,7 +268,7 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
     if (resCode >= 0) {
       let fieldCount = cr._chandle.numFields(res2);
       if (fieldCount == 0) {
-
+        cr._chandle.freeResult(res2);
       }
       else {
         return res2;
@@ -279,7 +279,7 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
       throw new errors.ProgrammingError("Error occuring with use of execute_a async function. Status code was returned with failure");
     }
   }
-  this._connection._clearResultSet();
+
   let stmt = operation;
   let time = 0;
 
