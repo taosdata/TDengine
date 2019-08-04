@@ -45,7 +45,7 @@ mkdir build && cd build
 cmake .. && cmake --build .
 ```
 
-# Quick run
+# Quick Run
 To quickly start a TDengine server after building, run the command below in terminal:
 ```cmd
 ./build/bin/taosd -c test/cfg
@@ -68,12 +68,12 @@ To start the service after installation, in a terminal, use:
 taosd
 ```
 
-Then users can use the [TDengine shell](https://www.taosdata.com/en/getting-started/#TDengine-Shell) to connect the TDengine server.
+Then users can use the [TDengine shell](https://www.taosdata.com/en/getting-started/#TDengine-Shell) to connect the TDengine server. In a terminal, use:
 ```cmd
 taos
 ```
 
-If the terminal connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
 # Try TDengine
 It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.
