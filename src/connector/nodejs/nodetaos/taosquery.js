@@ -69,11 +69,9 @@ TaosQuery.prototype.execute_a = async function execute_a(options = {}) {
     frej = reject;
   });
   let asyncCallbackFetchall = async function(param, res, numOfRows, blocks) {
-    //param is expected to be the fetchPromise variable;
-
-    //keep fetching until completion, possibly an issue though
     if (numOfRows > 0) {
-      frej("cursor.fetchall_a didn't fetch all data properly");
+      // Likely a query like insert
+      fres();
     }
     else {
       fres(new TaosResult(blocks.data, blocks.fields));

@@ -268,7 +268,7 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
     if (resCode >= 0) {
       let fieldCount = cr._chandle.numFields(res2);
       if (fieldCount == 0) {
-        cr._chandle.freeResult(res2); //result will no longer be needed
+
       }
       else {
         return res2;
@@ -339,15 +339,14 @@ TDengineCursor.prototype.fetchall_a = function fetchall_a(result, options, callb
   // object which holds accumulated data in the data key.
   let asyncCallbackWrapper = function asyncCallbackWrapper(param2, result2, numOfRows2, rowData) {
     param2 = ref.readObject(param2); //return the object back from the pointer
-    // Keep fetching until now rows left.
-    if (numOfRows2 > 0) {
+    if (numOfRows2 > 0 && rowData.length != 0) {
+      // Keep fetching until now rows left.
       let buf2 = ref.alloc('Object');
       param2.data.push(rowData);
       ref.writeObject(buf2, 0, param2);
       cr._chandle.fetch_rows_a(result2, asyncCallbackWrapper, buf2);
     }
     else {
-
       let finalData = param2.data;
       let fields = cr._chandle.fetchFields_a(result2);
       let data = [];
@@ -365,6 +364,7 @@ TDengineCursor.prototype.fetchall_a = function fetchall_a(result, options, callb
       }
       cr._chandle.freeResult(result2); // free result, avoid seg faults and mem leaks!
       callback(param2, result2, numOfRows2, {data:data,fields:fields});
+
     }
   }
   ref.writeObject(buf, 0, param);
