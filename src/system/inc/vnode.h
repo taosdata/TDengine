@@ -419,10 +419,6 @@ void vnodeCommitOver(SVnodeObj *pVnode);
 
 TSKEY vnodeGetFirstKey(int vnode);
 
-int vnodeSyncRetrieveCache(int vnode, int fd);
-
-int vnodeSyncRestoreCache(int vnode, int fd);
-
 pthread_t vnodeCreateCommitThread(SVnodeObj *pVnode);
 
 void vnodeCancelCommit(SVnodeObj *pVnode);
@@ -447,10 +443,6 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery);
 void *vnodeCommitToFile(void *param);
 
 void *vnodeCommitMultiToFile(SVnodeObj *pVnode, int ssid, int esid);
-
-int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t fileId, uint64_t *fmagic);
-
-int vnodeSyncRestoreFile(int vnode, int sfd);
 
 int vnodeWriteBlockToFile(SMeterObj *pObj, SCompBlock *pBlock, SData *data[], SData *cdata[], int pointsRead);
 
@@ -477,13 +469,7 @@ void *vnodeGetMeterPeerConnection(SMeterObj *pObj, int index);
 
 int vnodeForwardToPeer(SMeterObj *pObj, char *msg, int msgLen, char action, int sversion);
 
-void vnodeCloseAllSyncFds(int vnode);
-
 void vnodeConfigVPeers(int vnode, int numOfPeers, SVPeerDesc peerDesc[]);
-
-void vnodeStartSyncProcess(SVnodeObj *pVnode);
-
-void vnodeCancelSync(int vnode);
 
 void vnodeListPeerStatus(char *buffer);
 

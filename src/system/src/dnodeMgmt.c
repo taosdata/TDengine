@@ -113,7 +113,7 @@ int vnodeProcessCreateMeterRequest(char *pMsg) {
   pVnode = vnodeList + vid;
   if (pVnode->cfg.maxSessions <= 0) {
     dError("vid:%d, not activated", vid);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_SESSION;
     goto _over;
   }
 
@@ -215,7 +215,7 @@ int vnodeProcessCreateMeterMsg(char *pMsg) {
   if (pVnode->pCachePool == NULL) {
     dError("vid:%d is not activated yet", pCreate->vnode);
     vnodeSendVpeerCfgMsg(pCreate->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_SESSION;
     goto _create_over;
   }
 

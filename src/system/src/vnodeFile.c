@@ -408,7 +408,6 @@ void vnodeCloseCommitFiles(SVnodeObj *pVnode) {
   char dpath[TSDB_FILENAME_LEN] = "\0";
   int  fileId;
   int  ret;
-  int  file_removed = 0;
 
   close(pVnode->nfd);
   pVnode->nfd = 0;
@@ -449,14 +448,15 @@ void vnodeCloseCommitFiles(SVnodeObj *pVnode) {
 
   dTrace("vid:%d, %s and %s is saved", pVnode->vnode, pVnode->cfn, pVnode->lfn);
 
-  if (pVnode->numOfFiles > pVnode->maxFiles) {
-    fileId = pVnode->fileId - pVnode->numOfFiles + 1;
+  // Retention policy here
+  fileId = pVnode->fileId - pVnode->numOfFiles + 1;
+  int cfile = taosGetTimestamp(pVnode->cfg.precision)/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  while (fileId <= cfile - pVnode->maxFiles) {
     vnodeRemoveFile(pVnode->vnode, fileId);
     pVnode->numOfFiles--;
-    file_removed = 1;
+    fileId++;
   }
 
-  if (!file_removed) vnodeUpdateFileMagic(pVnode->vnode, pVnode->commitFileId);
   vnodeSaveAllMeterObjToFile(pVnode->vnode);
 
   return;
