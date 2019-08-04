@@ -23,9 +23,7 @@ For user manual, system design and architecture, engineering blogs, refer to [TD
 # Building
 At the moment, TDengine only supports building and running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
 
-To build TDengine, use [CMake](https://cmake.org/) 2.8 or higher versions in the project directory.
-
-Install CMake for example on Ubuntu:
+To build TDengine, use [CMake](https://cmake.org/) 2.8 or higher versions in the project directory. Install CMake for example on Ubuntu:
 ```
 sudo apt-get install -y cmake build-essential
 ```
@@ -78,7 +76,7 @@ taos
 If the terminal connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
 # Try TDengine
-It is easy to run SQL commands in the terminal which is the same as other SQL databases.
+It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.
 ```sql
 create database db;
 use db;
