@@ -54,6 +54,7 @@ In another terminal, use the TDengine shell to connect the server:
 ```
 ./build/bin/taos -c test/cfg
 ```
+option "-c test/cfg" specifies the system configuration file directory. 
 
 # Installing
 After building successfully, TDengine can be installed by:
