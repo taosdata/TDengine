@@ -512,6 +512,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   SSubmitMsg *pSubmit = (SSubmitMsg *)cont;
   char *      pData;
   TSKEY       tsKey;
+  int         cfile;
   int         points = 0;
   int         code = TSDB_CODE_SUCCESS;
   SVnodeObj * pVnode = vnodeList + pObj->vnode;
@@ -528,6 +529,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   // to guarantee time stamp is the same for all vnodes
   pData = pSubmit->payLoad;
   tsKey = taosGetTimestamp(pVnode->cfg.precision);
+  cfile = tsKey/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
   if (*((TSKEY *)pData) == 0) {
     for (i = 0; i < numOfPoints; ++i) {
       *((TSKEY *)pData) = tsKey++;
@@ -570,9 +572,11 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   code = 0;
 
   TSKEY firstKey = *((TSKEY *)pData);
-  if (pVnode->lastKeyOnFile > pVnode->cfg.daysToKeep * tsMsPerDay[pVnode->cfg.precision] + firstKey) {
-    dError("vid:%d sid:%d id:%s, vnode lastKeyOnFile:%lld, data is too old to insert, key:%lld", pObj->vnode, pObj->sid,
-           pObj->meterId, pVnode->lastKeyOnFile, firstKey);
+  int firstId = firstKey/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  int lastId  = (*(TSKEY *)(pData + pObj->bytesPerPoint * (numOfPoints - 1)))/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  if ((firstId <= cfile - pVnode->maxFiles) || (firstId > cfile + 1) || (lastId <= cfile - pVnode->maxFiles) || (lastId > cfile + 1)) {
+    dError("vid:%d sid:%d id:%s, invalid timestamp to insert, firstKey: %ld lastKey: %ld ", pObj->vnode, pObj->sid,
+           pObj->meterId, firstKey, (*(TSKEY *)(pData + pObj->bytesPerPoint * (numOfPoints - 1))));
     return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
   }
 
@@ -582,7 +586,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
       dWarn("vid:%d sid:%d id:%s, meter is dropped, abort insert, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
             pObj->state);
 
-      code = TSDB_CODE_INVALID_SESSION_ID;
+      code = TSDB_CODE_NOT_ACTIVE_SESSION;
       break;
     }
 

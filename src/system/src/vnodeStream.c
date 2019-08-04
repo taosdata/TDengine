@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "taosmsg.h"
 #include "vnode.h"
-#include <taosmsg.h>
+#include "vnodeUtil.h"
 
 /* static TAOS *dbConn = NULL; */
 void vnodeCloseStreamCallback(void *param);

@@ -248,7 +248,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   }
 
   if (pQueryMsg->numOfSids <= 0) {
-    code = TSDB_CODE_APP_ERROR;
+    code = TSDB_CODE_INVALID_QUERY_MSG;
     goto _query_over;
   }
 
@@ -263,7 +263,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (pVnode->cfg.maxSessions == 0) {
     dError("qmsg:%p,vid:%d is not activated yet", pQueryMsg, pQueryMsg->vnode);
     vnodeSendVpeerCfgMsg(pQueryMsg->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_SESSION;
     goto _query_over;
   }
 
@@ -274,13 +274,13 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pQueryMsg->pSidExtInfo == 0) {
     dTrace("qmsg:%p,SQueryMeterMsg wrong format", pQueryMsg);
-    code = TSDB_CODE_APP_ERROR;
+    code = TSDB_CODE_INVALID_QUERY_MSG;
     goto _query_over;
   }
 
   if (pVnode->meterList == NULL) {
     dError("qmsg:%p,vid:%d has been closed", pQueryMsg, pQueryMsg->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_SESSION;
     goto _query_over;
   }
 
@@ -448,7 +448,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pSubmit->numOfSid <= 0) {
     dError("invalid num of meters:%d", pSubmit->numOfSid);
-    code = TSDB_CODE_APP_ERROR;
+    code = TSDB_CODE_INVALID_QUERY_MSG;
     goto _submit_over;
   }
 
@@ -462,7 +462,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (pVnode->cfg.maxSessions == 0 || pVnode->meterList == NULL) {
     dError("vid:%d is not activated for submit", pSubmit->vnode);
     vnodeSendVpeerCfgMsg(pSubmit->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_SESSION;
     goto _submit_over;
   }
 

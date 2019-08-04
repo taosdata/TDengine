@@ -287,14 +287,20 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       pSql->thandle = NULL;
       taosAddConnIntoCache(tscConnCache, thandle, pSql->ip, pSql->vnode, pObj->user);
 
-      if (UTIL_METER_IS_METRIC(pCmd) &&
-          (pMsg->content[0] == TSDB_CODE_INVALID_SESSION_ID || pMsg->content[0] == TSDB_CODE_NOT_ACTIVE_SESSION)) {
+      if (UTIL_METER_IS_METRIC(pCmd) && pMsg->content[0] == TSDB_CODE_NOT_ACTIVE_SESSION) {
         /*
          * for metric query, in case of any meter missing during query, sub-query of metric query will failed,
          * causing metric query failed, and return TSDB_CODE_METRICMETA_EXPIRED code to app
          */
         tscTrace("%p invalid meters id cause metric query failed, code:%d", pSql, pMsg->content[0]);
         code = TSDB_CODE_METRICMETA_EXPIRED;
+      } else if ((pCmd->command == TSDB_SQL_INSERT || pCmd->command == TSDB_SQL_SELECT) &&
+          pMsg->content[0] == TSDB_CODE_INVALID_SESSION_ID) {
+        /*
+         * session id is invalid(e.g., less than 0 or larger than maximum session per
+         * vnode) in submit/query msg, no retry
+         */
+         code = TSDB_CODE_INVALID_QUERY_MSG;
       } else if (pCmd->command == TSDB_SQL_CONNECT) {
         code = TSDB_CODE_NETWORK_UNAVAIL;
       } else if (pCmd->command == TSDB_SQL_HB) {
@@ -1026,8 +1032,6 @@ int tscBuildSubmitMsg(SSqlObj *pSql) {
   pShellMsg->import = pSql->cmd.order.order;
   pShellMsg->vnode = htons(pMeterMeta->vpeerDesc[pMeterMeta->index].vnode);
   pShellMsg->numOfSid = htonl(pSql->cmd.count); /* number of meters to be inserted */
-
-  pMsg += sizeof(SShellSubmitMsg);
 
   /*
    * pSql->cmd.payloadLen is set during parse sql routine, so we do not use it here

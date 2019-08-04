@@ -518,18 +518,20 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize) {
   const int factor = 5;
 
   // expand the allocated size
-  while (remain < rowSize * factor) {
-    pDataBlock->nAllocSize = (uint32_t) (pDataBlock->nAllocSize * 1.5);
-    remain = pDataBlock->nAllocSize - pDataBlock->size;
-  }
+  if (remain < rowSize * factor) {
+    while (remain < rowSize * factor) {
+      pDataBlock->nAllocSize = (uint32_t) (pDataBlock->nAllocSize * 1.5);
+      remain = pDataBlock->nAllocSize - pDataBlock->size;
+    }
 
-  char *tmp = realloc(pDataBlock->pData, (size_t)pDataBlock->nAllocSize);
-  if (tmp != NULL) {
-    pDataBlock->pData = tmp;
-    memset(pDataBlock->pData + pDataBlock->size, 0, pDataBlock->nAllocSize - pDataBlock->size);
-  } else {
-    assert(false);
-    // do nothing
+    char *tmp = realloc(pDataBlock->pData, (size_t)pDataBlock->nAllocSize);
+    if (tmp != NULL) {
+      pDataBlock->pData = tmp;
+      memset(pDataBlock->pData + pDataBlock->size, 0, pDataBlock->nAllocSize - pDataBlock->size);
+    } else {
+      assert(false);
+      // do nothing
+    }
   }
 
   return (int32_t)(pDataBlock->nAllocSize - pDataBlock->size) / rowSize;
@@ -542,16 +544,21 @@ static void tsSetBlockInfo(SShellSubmitBlock *pBlocks, const SMeterMeta *pMeterM
   pBlocks->numOfRows += numOfRows;
 }
 
-int32_t sortRemoveDuplicates(STableDataBlocks *dataBuf, int32_t numOfRows) {
-  // data block is disordered, sort it in ascending order
+// data block is disordered, sort it in ascending order
+void sortRemoveDuplicates(STableDataBlocks *dataBuf) {
+  SShellSubmitBlock* pBlocks = (SShellSubmitBlock*)dataBuf->pData;
+
+  // size is less than the total size, since duplicated rows may be removed yet.
+  assert(pBlocks->numOfRows * dataBuf->rowSize + sizeof(SShellSubmitBlock) == dataBuf->size);
+
   if (!dataBuf->ordered) {
-    char *pBlockData = dataBuf->pData + sizeof(SShellSubmitBlock);
-    qsort(pBlockData, numOfRows, dataBuf->rowSize, rowDataCompar);
+    char *pBlockData = pBlocks->payLoad;
+    qsort(pBlockData, pBlocks->numOfRows, dataBuf->rowSize, rowDataCompar);
 
     int32_t i = 0;
     int32_t j = 1;
 
-    while (j < numOfRows) {
+    while (j < pBlocks->numOfRows) {
       TSKEY ti = *(TSKEY *)(pBlockData + dataBuf->rowSize * i);
       TSKEY tj = *(TSKEY *)(pBlockData + dataBuf->rowSize * j);
 
@@ -568,11 +575,11 @@ int32_t sortRemoveDuplicates(STableDataBlocks *dataBuf, int32_t numOfRows) {
       ++j;
     }
 
-    numOfRows = i + 1;
     dataBuf->ordered = true;
-  }
 
-  return numOfRows;
+    pBlocks->numOfRows = i + 1;
+    dataBuf->size = sizeof(SShellSubmitBlock) + dataBuf->rowSize*pBlocks->numOfRows;
+  }
 }
 
 static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char **str, SParsedDataColInfo *spd,
@@ -998,7 +1005,7 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
   // submit to more than one vnode
   if (pCmd->pDataBlocks->nSize > 0) {
     // merge according to vgid
-    tscMergeTableDataBlocks(pCmd, pCmd->pDataBlocks);
+    tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks);
 
     STableDataBlocks *pDataBlock = pCmd->pDataBlocks->pData[0];
     if ((code = tscCopyDataBlockToPayload(pSql, pDataBlock)) != TSDB_CODE_SUCCESS) {
@@ -1033,8 +1040,6 @@ int tsParseInsertSql(SSqlObj *pSql, char *sql, char *acct, char *db) {
   int   code = TSDB_CODE_INVALID_SQL;
 
   SSqlCmd *pCmd = &pSql->cmd;
-  tscCleanSqlCmd(pCmd);
-
   sql = tscGetToken(sql, &verb, &verblen);
 
   if (verblen) {
@@ -1055,6 +1060,7 @@ int tsParseInsertSql(SSqlObj *pSql, char *sql, char *acct, char *db) {
 
 int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion) {
   int32_t ret = TSDB_CODE_SUCCESS;
+  tscCleanSqlCmd(&pSql->cmd);
 
   if (tscIsInsertOrImportData(pSql->sqlstr)) {
     /*
@@ -1074,6 +1080,9 @@ int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion) {
   } else {
     SSqlInfo SQLInfo = {0};
     tSQLParse(&SQLInfo, pSql->sqlstr);
+
+    tscAllocPayloadWithSize(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
+
     ret = tscToSQLCmd(pSql, &SQLInfo);
     SQLInfoDestroy(&SQLInfo);
   }
@@ -1098,7 +1107,7 @@ static int doPackSendDataBlock(SSqlObj* pSql, int32_t numOfRows, STableDataBlock
   SShellSubmitBlock *pBlocks = (SShellSubmitBlock *)(pTableDataBlocks->pData);
   tsSetBlockInfo(pBlocks, pMeterMeta, numOfRows);
 
-  tscMergeTableDataBlocks(pCmd, pCmd->pDataBlocks);
+  tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks);
 
   // the pDataBlock is different from the pTableDataBlocks
   STableDataBlocks *pDataBlock = pCmd->pDataBlocks->pData[0];

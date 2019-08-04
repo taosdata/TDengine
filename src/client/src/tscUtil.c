@@ -401,7 +401,7 @@ void tscFreeUnusedDataBlocks(SDataBlockList* pList) {
 }
 
 STableDataBlocks* tscCreateDataBlockEx(size_t size, int32_t rowSize, int32_t startOffset, char* name) {
-  STableDataBlocks *dataBuf = tscCreateDataBlock(size);
+  STableDataBlocks* dataBuf = tscCreateDataBlock(size);
 
   dataBuf->rowSize = rowSize;
   dataBuf->size = startOffset;
@@ -419,7 +419,7 @@ STableDataBlocks* tscGetDataBlockFromList(void* pHashList, SDataBlockList* pData
   }
 
   if (dataBuf == NULL) {
-    dataBuf = tscCreateDataBlockEx((size_t) size, rowSize, startOffset, tableId);
+    dataBuf = tscCreateDataBlockEx((size_t)size, rowSize, startOffset, tableId);
     dataBuf = *(STableDataBlocks**)taosAddIntHash(pHashList, id, (char*)&dataBuf);
     tscAppendDataBlock(pDataBlockList, dataBuf);
   }
@@ -427,7 +427,8 @@ STableDataBlocks* tscGetDataBlockFromList(void* pHashList, SDataBlockList* pData
   return dataBuf;
 }
 
-void tscMergeTableDataBlocks(SSqlCmd* pCmd, SDataBlockList* pTableDataBlockList) {
+void tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockList) {
+  SSqlCmd*        pCmd = &pSql->cmd;
   void*           pVnodeDataBlockHashList = taosInitIntHash(8, sizeof(void*), taosHashInt);
   SDataBlockList* pVnodeDataBlockList = tscCreateBlockArrayList();
 
@@ -453,9 +454,10 @@ void tscMergeTableDataBlocks(SSqlCmd* pCmd, SDataBlockList* pTableDataBlockList)
     }
 
     SShellSubmitBlock* pBlocks = (SShellSubmitBlock*)pOneTableBlock->pData;
-    assert(pBlocks->numOfRows * pOneTableBlock->rowSize + sizeof(SShellSubmitBlock) == pOneTableBlock->size);
+    sortRemoveDuplicates(pOneTableBlock);
 
-    pBlocks->numOfRows = (int16_t)sortRemoveDuplicates(pOneTableBlock, pBlocks->numOfRows);
+    tscTrace("%p meterId:%s, sid:%d, rows:%d, sversion:%d", pSql, pOneTableBlock->meterId, pBlocks->sid,
+             pBlocks->numOfRows, pBlocks->sversion);
 
     pBlocks->sid = htonl(pBlocks->sid);
     pBlocks->uid = htobe64(pBlocks->uid);
@@ -883,7 +885,7 @@ static int32_t validateQuoteToken(SSQLToken* pToken) {
 
   if (pToken->type == TK_STRING) {
     return tscValidateName(pToken);
-  } 
+  }
 
   if (k != pToken->n || pToken->type != TK_ID) {
     return TSDB_CODE_INVALID_SQL;
@@ -906,16 +908,16 @@ int32_t tscValidateName(SSQLToken* pToken) {
       int len = tSQLGetToken(pToken->z, &pToken->type);
 
       // single token, validate it
-      if (len == pToken->n){
+      if (len == pToken->n) {
         return validateQuoteToken(pToken);
       } else {
-		sep = strnchrNoquote(pToken->z, TS_PATH_DELIMITER[0], pToken->n);
-		if (sep == NULL) {
-		  return TSDB_CODE_INVALID_SQL;
-		}
+        sep = strnchrNoquote(pToken->z, TS_PATH_DELIMITER[0], pToken->n);
+        if (sep == NULL) {
+          return TSDB_CODE_INVALID_SQL;
+        }
 
         return tscValidateName(pToken);
-	  }      
+      }
     } else {
       if (isNumber(pToken)) {
         return TSDB_CODE_INVALID_SQL;
@@ -927,7 +929,7 @@ int32_t tscValidateName(SSQLToken* pToken) {
 
     if (pToken->type == TK_SPACE) {
       strtrim(pToken->z);
-      pToken->n = (uint32_t)strlen(pToken->z);	  	
+      pToken->n = (uint32_t)strlen(pToken->z);
     }
 
     pToken->n = tSQLGetToken(pToken->z, &pToken->type);

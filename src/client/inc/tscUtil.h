@@ -55,7 +55,7 @@ SDataBlockList* tscCreateBlockArrayList();
 void* tscDestroyBlockArrayList(SDataBlockList* pList);
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
 void tscFreeUnusedDataBlocks(SDataBlockList* pList);
-void tscMergeTableDataBlocks(SSqlCmd* pCmd, SDataBlockList* pDataList);
+void tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pDataList);
 STableDataBlocks* tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
                                           int32_t startOffset, int32_t rowSize, char* tableId);
 STableDataBlocks* tscCreateDataBlockEx(size_t size, int32_t rowSize, int32_t startOffset, char* name);
@@ -140,7 +140,7 @@ void tscCleanSqlCmd(SSqlCmd* pCmd);
 bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql);
 void tscDoQuery(SSqlObj* pSql);
 
-int32_t sortRemoveDuplicates(STableDataBlocks* dataBuf, int32_t numOfRows);
+void sortRemoveDuplicates(STableDataBlocks* dataBuf);
 #ifdef __cplusplus
 }
 #endif
