@@ -30,6 +30,16 @@ Install CMake for example on Ubuntu:
 sudo apt-get install -y cmake build-essential
 ```
 
+To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed. 
+To install openjdk-8 on Ubuntu:
+```
+sudo apt-get install openjdk-8-jdk
+```
+To install Apache Maven on Ubuntu:
+```
+sudo apt-get install maven
+```
+
 Build TDengine:
 ```cmd
 
