@@ -96,9 +96,9 @@ void httpFreeContext(HttpServer *pServer, HttpContext *pContext) {
 
 void httpCleanUpContextTimer(HttpContext *pContext) {
   if (pContext->readTimer != NULL) {
-    taosTmrStopA(pContext->readTimer);
+    taosTmrStopA(&pContext->readTimer);
     pContext->readTimer = NULL;
-    httpTrace("context:%p, fd:%d, ip:%s, close read timer", pContext, pContext->fd, pContext->ipstr);
+    httpTrace("context:%p, fd:%d, ip:%s, close readTimer:%p", pContext, pContext->fd, pContext->ipstr, pContext->readTimer);
   }
 }
 
@@ -228,7 +228,7 @@ void httpCloseContextByServer(HttpThread *pThread, HttpContext *pContext) {
 
 void httpCloseContextByServerFromTimer(void *param, void *tmrId) {
   HttpContext *pContext = (HttpContext *)param;
-  httpError("context:%p, fd:%d, ip:%s, read http body error, time expired", pContext, pContext->fd, pContext->ipstr);
+  httpError("context:%p, fd:%d, ip:%s, read http body error, time expired, readTimer:%p", pContext, pContext->fd, pContext->ipstr, tmrId);
   httpSendErrorResp(pContext, HTTP_PARSE_BODY_ERROR);
   httpCloseContextByServer(pContext->pThread, pContext);
 }
@@ -345,8 +345,8 @@ bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
 
   int ret = httpCheckReadCompleted(pContext);
   if (ret == HTTP_CHECK_BODY_CONTINUE) {
-    httpTrace("context:%p, fd:%d, ip:%s, not finished yet, try another times", pContext, pContext->fd, pContext->ipstr);
     taosTmrReset(httpCloseContextByServerFromTimer, HTTP_EXPIRED_TIME, pContext, pThread->pServer->timerHandle, &pContext->readTimer);
+    httpTrace("context:%p, fd:%d, ip:%s, not finished yet, try another times, readTimer:%p", pContext, pContext->fd, pContext->ipstr, pContext->readTimer);
     return false;
   } else if (ret == HTTP_CHECK_BODY_SUCCESS){
     httpCleanUpContextTimer(pContext);
