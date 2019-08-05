@@ -94,11 +94,17 @@ void httpFreeContext(HttpServer *pServer, HttpContext *pContext) {
   }
 }
 
-void httpCleanUpContext(HttpThread *pThread, HttpContext *pContext) {
-  // for not keep-alive
+void httpCleanUpContextTimer(HttpContext *pContext) {
   if (pContext->readTimer != NULL) {
     taosTmrStopA(pContext->readTimer);
+    pContext->readTimer = NULL;
+    httpTrace("context:%p, fd:%d, ip:%s, close read timer", pContext, pContext->fd, pContext->ipstr);
   }
+}
+
+void httpCleanUpContext(HttpThread *pThread, HttpContext *pContext) {
+  // for not keep-alive
+  httpCleanUpContextTimer(pContext);
 
   if (pContext->fd >= 0) {
     epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
@@ -157,6 +163,7 @@ bool httpInitContext(HttpContext *pContext) {
   pContext->usedByApp = 0;
   pContext->reqType = HTTP_REQTYPE_OTHERS;
   pContext->encodeMethod = NULL;
+  pContext->readTimer = NULL;
   memset(&pContext->singleCmd, 0, sizeof(HttpSqlCmd));
 
   HttpParser *pParser = &pContext->parser;
@@ -342,10 +349,12 @@ bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
     taosTmrReset(httpCloseContextByServerFromTimer, HTTP_EXPIRED_TIME, pContext, pThread->pServer->timerHandle, &pContext->readTimer);
     return false;
   } else if (ret == HTTP_CHECK_BODY_SUCCESS){
+    httpCleanUpContextTimer(pContext);
     httpDump("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, body:\n%s",
              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->pThread->numOfFds, pContext->parser.data.pos);
     return true;
   } else {
+    httpCleanUpContextTimer(pContext);
     httpError("context:%p, fd:%d, ip:%s, failed to read http body, close connect", pContext, pContext->fd, pContext->ipstr);
     httpCloseContextByServer(pThread, pContext);
     return false;
