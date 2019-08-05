@@ -44,7 +44,7 @@ void dnodeInitModules() {
   tsModule[TSDB_MOD_HTTP].cleanUpFp = httpCleanUpSystem;
   tsModule[TSDB_MOD_HTTP].startFp = httpStartSystem;
   tsModule[TSDB_MOD_HTTP].stopFp = httpStopSystem;
-  tsModule[TSDB_MOD_HTTP].num = tsEnableHttpModule ? -1 : 0;
+  tsModule[TSDB_MOD_HTTP].num = (tsEnableHttpModule == 1) ? -1 : 0;
   tsModule[TSDB_MOD_HTTP].curNum = 0;
   tsModule[TSDB_MOD_HTTP].equalVnodeNum = 0;
 
@@ -53,7 +53,7 @@ void dnodeInitModules() {
   tsModule[TSDB_MOD_MONITOR].cleanUpFp = monitorCleanUpSystem;
   tsModule[TSDB_MOD_MONITOR].startFp = monitorStartSystem;
   tsModule[TSDB_MOD_MONITOR].stopFp = monitorStopSystem;
-  tsModule[TSDB_MOD_MONITOR].num = tsEnableMonitorModule ? -1 : 0;
+  tsModule[TSDB_MOD_MONITOR].num = (tsEnableMonitorModule == 1) ? -1 : 0;
   tsModule[TSDB_MOD_MONITOR].curNum = 0;
   tsModule[TSDB_MOD_MONITOR].equalVnodeNum = 0;
 }

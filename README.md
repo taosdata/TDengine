@@ -23,11 +23,19 @@ For user manual, system design and architecture, engineering blogs, refer to [TD
 # Building
 At the moment, TDengine only supports building and running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
 
-To build TDengine, use [CMake](https://cmake.org/) 2.8 or higher versions in the project directory.
-
-Install CMake for example on Ubuntu:
+To build TDengine, use [CMake](https://cmake.org/) 2.8 or higher versions in the project directory. Install CMake for example on Ubuntu:
 ```
 sudo apt-get install -y cmake build-essential
+```
+
+To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed. 
+To install openjdk-8 on Ubuntu:
+```
+sudo apt-get install openjdk-8-jdk
+```
+To install Apache Maven on Ubuntu:
+```
+sudo apt-get install maven
 ```
 
 Build TDengine:
@@ -36,6 +44,18 @@ Build TDengine:
 mkdir build && cd build
 cmake .. && cmake --build .
 ```
+
+# Quick Run
+To quickly start a TDengine server after building, run the command below in terminal:
+```cmd
+./build/bin/taosd -c test/cfg
+```
+In another terminal, use the TDengine shell to connect the server:
+```
+./build/bin/taos -c test/cfg
+```
+option "-c test/cfg" specifies the system configuration file directory. 
+
 # Installing
 After building successfully, TDengine can be installed by:
 ```cmd
@@ -44,47 +64,20 @@ make install
 Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. It should be noted that installing from source code does not configure service management for TDengine.
 Users can also choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) for it.
 
-
-# Running
-<!-- TDengine uses _/etc/taos/taos.cfg_ as the default configuration file. This behavior can be changed with _-c_ option. For a quick start, we will make directories structured as:
-```
-test/
-  +--data/
-  |
-  +--log/
-  |
-  +--cfg/
-      |
-      +--taos.cfg
-```
-Then fill the configuration file _test/cfg/taos.cfg_:
-```
-echo -e "dataDir $(pwd)/test/data\nlogDir $(pwd)/test/log" > test/cfg/taos.cfg
-​``` -->
-To start the TDengine server, run the command below in terminal:
-```cmd
-./build/bin/taosd -c test/cfg
-```
-In another terminal, use the TDengine shell to connect the server:
-```
-./build/bin/taos -c test/cfg
-```
-
-
-Start the service in the terminal.
+To start the service after installation, in a terminal, use:
 ```cmd
 taosd
 ```
 
-Then users can use the [TDengine shell](https://www.taosdata.com/en/getting-started/#TDengine-Shell) to connect the TDengine server.
+Then users can use the [TDengine shell](https://www.taosdata.com/en/getting-started/#TDengine-Shell) to connect the TDengine server. In a terminal, use:
 ```cmd
 taos
 ```
 
-If the terminal connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
 # Try TDengine
-It is easy to run SQL commands in the terminal which is the same as other SQL databases.
+It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.
 ```sql
 create database db;
 use db;

@@ -140,12 +140,10 @@ tSQLExpr *tSQLExprIdValueCreate(SSQLToken *pToken, int32_t optrType) {
     nodePtr->val.nType = TSDB_DATA_TYPE_BIGINT;
     nodePtr->nSQLOptr = TK_TIMESTAMP;
   } else {  // must be field id if not numbers
-    if (pToken != NULL) {
-      assert(optrType == TK_ID);
-      /* it must be the column name (tk_id) */
+    assert(optrType == TK_ALL || optrType == TK_ID);
+
+    if (pToken != NULL) { // it must be the column name (tk_id)
       nodePtr->colInfo = *pToken;
-    } else {
-      assert(optrType == TK_ALL);
     }
 
     nodePtr->nSQLOptr = optrType;

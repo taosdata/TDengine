@@ -85,13 +85,42 @@ int vnodeOpenVnode(int vnode) {
   return 0;
 }
 
-void vnodeCloseVnode(int vnode) {
-  if (vnodeList == NULL) return;
+static int32_t vnodeMarkAllMetersDropped(SVnodeObj* pVnode) {
+  if (pVnode->meterList == NULL) {
+    assert(pVnode->cfg.maxSessions == 0);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool ready = true;
+  for (int sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
+    if (!vnodeIsSafeToDeleteMeter(pVnode, sid)) {
+      ready = false;
+    } else { // set the meter is to be deleted
+      SMeterObj* pObj = pVnode->meterList[sid];
+      if (pObj != NULL) {
+        pObj->state = TSDB_METER_STATE_DELETED;
+      }
+    }
+  }
+
+  return ready? TSDB_CODE_SUCCESS:TSDB_CODE_ACTION_IN_PROGRESS;
+}
+
+int vnodeCloseVnode(int vnode) {
+  if (vnodeList == NULL) return TSDB_CODE_SUCCESS;
+
+  SVnodeObj* pVnode = &vnodeList[vnode];
 
   pthread_mutex_lock(&dmutex);
-  if (vnodeList[vnode].cfg.maxSessions == 0) {
+  if (pVnode->cfg.maxSessions == 0) {
     pthread_mutex_unlock(&dmutex);
-    return;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // set the meter is dropped flag 
+  if (vnodeMarkAllMetersDropped(pVnode) != TSDB_CODE_SUCCESS) {
+    pthread_mutex_unlock(&dmutex);
+    return TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
   vnodeCloseStream(vnodeList + vnode);
@@ -111,6 +140,7 @@ void vnodeCloseVnode(int vnode) {
   vnodeCalcOpenVnodes();
 
   pthread_mutex_unlock(&dmutex);
+  return TSDB_CODE_SUCCESS;
 }
 
 int vnodeCreateVnode(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc) {
@@ -182,25 +212,23 @@ void vnodeRemoveDataFiles(int vnode) {
   dTrace("vnode %d is removed!", vnode);
 }
 
-void vnodeRemoveVnode(int vnode) {
-  if (vnodeList == NULL) return;
+int vnodeRemoveVnode(int vnode) {
+  if (vnodeList == NULL) return TSDB_CODE_SUCCESS;
 
   if (vnodeList[vnode].cfg.maxSessions > 0) {
-    vnodeCloseVnode(vnode);
+    int32_t ret = vnodeCloseVnode(vnode);
+    if (ret != TSDB_CODE_SUCCESS) {
+      return ret;
+    }
 
     vnodeRemoveDataFiles(vnode);
-
-    // sprintf(cmd, "rm -rf %s/vnode%d", tsDirectory, vnode);
-    // if ( system(cmd) < 0 ) {
-    //   dError("vid:%d, failed to run command %s vnode, reason:%s", vnode, cmd, strerror(errno));
-    // } else {
-    //   dTrace("vid:%d, this vnode is deleted!!!", vnode);
-    // }
   } else {
     dTrace("vid:%d, max sessions:%d, this vnode already dropped!!!", vnode, vnodeList[vnode].cfg.maxSessions);
-    vnodeList[vnode].cfg.maxSessions = 0;
+    vnodeList[vnode].cfg.maxSessions = 0;  //reset value
     vnodeCalcOpenVnodes();
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int vnodeInitStore() {

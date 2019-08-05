@@ -143,9 +143,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  tscCleanSqlCmd(pCmd);
-  tscAllocPayloadWithSize(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
-
   // transfer pInfo into select operation
   switch (pInfo->sqlType) {
     case DROP_TABLE:
@@ -785,7 +782,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // set sliding value
       SSQLToken* pSliding = &pQuerySql->sliding;
       if (pSliding->n != 0) {
-        if (!tscEmbedded) {
+        // pCmd->count == 1 means sql in stream function
+        if (!tscEmbedded && pCmd->count == 0) {
           const char* msg = "not support sliding in query";
           setErrMsg(pCmd, msg);
           return TSDB_CODE_INVALID_SQL;

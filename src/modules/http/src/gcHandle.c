@@ -64,14 +64,12 @@ bool gcProcessLoginRequest(HttpContext* pContext) {
 //[{
 //  "refId": "A",
 //  "alias" : "taosd",
-//  "sql" : "select first(taosd) from sys.mem where ts > now-6h and ts < now
-//  interval(20000a)"
+//  "sql" : "select first(taosd) from sys.mem where ts > now-6h and ts < now interval(20000a)"
 //},
 //{
 //  "refId": "B",
 //  "alias" : "system",
-//  "sql" : "select first(taosd) from sys.mem where ts > now-6h and ts < now
-//  interval(20000a)"
+//  "sql" : "select first(taosd) from sys.mem where ts > now-6h and ts < now interval(20000a)"
 //}]
 // output
 //[{

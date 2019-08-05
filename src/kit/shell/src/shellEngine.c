@@ -626,6 +626,7 @@ void source_file(TAOS *con, char *fptr) {
   }
 
   while ((read_len = getline(&line, &line_len, f)) != -1) {
+    if (read_len >= MAX_COMMAND_SIZE) continue;
     line[--read_len] = '\0';
 
     if (read_len == 0 || isCommentLine(line)) {  // line starts with #

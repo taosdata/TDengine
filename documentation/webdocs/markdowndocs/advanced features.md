@@ -62,7 +62,7 @@ Time series data is a sequence of data points over time. Inside a table, the dat
 
 To reduce the development complexity and improve data consistency, TDengine provides the pub/sub functionality. To publish a message, you simply insert a record into a table. Compared with popular messaging tool Kafka, you subscribe to a table or a SQL query statement, instead of a topic. Once new data points arrive, TDengine will notify the application. The process is just like Kafka.  
 
-The detailed API will be introduced in the [connectors](https://www.taosdata.com/en/documentation/advanced-features/) section. 
+The detailed API will be introduced in the [connectors](https://www.taosdata.com/en/documentation/connector/) section. 
 
 ##Caching
 TDengine allocates a fixed-size buffer in memory, the newly arrived data will be written into the buffer first. Every device or table gets one or more memory blocks. For typical IoT scenarios, the hot data shall always be newly arrived data, they are more important for timely analysis. Based on this observation, TDengine manages the cache blocks in First-In-First-Out strategy. If no enough space in the buffer, the oldest data will be saved into hard disk first, then be overwritten by newly arrived data. TDengine also guarantees every device can keep at least one block of data in the buffer. 

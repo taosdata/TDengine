@@ -408,7 +408,6 @@ void vnodeCloseCommitFiles(SVnodeObj *pVnode) {
   char dpath[TSDB_FILENAME_LEN] = "\0";
   int  fileId;
   int  ret;
-  int  file_removed = 0;
 
   close(pVnode->nfd);
   pVnode->nfd = 0;
@@ -449,14 +448,15 @@ void vnodeCloseCommitFiles(SVnodeObj *pVnode) {
 
   dTrace("vid:%d, %s and %s is saved", pVnode->vnode, pVnode->cfn, pVnode->lfn);
 
-  if (pVnode->numOfFiles > pVnode->maxFiles) {
-    fileId = pVnode->fileId - pVnode->numOfFiles + 1;
+  // Retention policy here
+  fileId = pVnode->fileId - pVnode->numOfFiles + 1;
+  int cfile = taosGetTimestamp(pVnode->cfg.precision)/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  while (fileId <= cfile - pVnode->maxFiles) {
     vnodeRemoveFile(pVnode->vnode, fileId);
     pVnode->numOfFiles--;
-    file_removed = 1;
+    fileId++;
   }
 
-  if (!file_removed) vnodeUpdateFileMagic(pVnode->vnode, pVnode->commitFileId);
   vnodeSaveAllMeterObjToFile(pVnode->vnode);
 
   return;
@@ -577,8 +577,20 @@ _again:
 
   // read compInfo
   for (sid = 0; sid < pCfg->maxSessions; ++sid) {
+    if (pVnode->meterList == NULL) {  // vnode is being freed, abort
+      goto _over;
+    }
+
     pObj = (SMeterObj *)(pVnode->meterList[sid]);
-    if (pObj == NULL) continue;
+    if (pObj == NULL) {
+      continue;
+    }
+
+    // meter is going to be deleted, abort
+    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+      dWarn("vid:%d sid:%d is dropped, ignore this meter", vnode, sid);
+      continue;
+    }
 
     pMeter = meterInfo + sid;
     pHeader = ((SCompHeader *)tmem) + sid;
@@ -672,8 +684,9 @@ _again:
         pointsReadLast = pMeter->lastBlock.numOfPoints;
         query.over = 0;
         headInfo.totalStorage -= (pointsReadLast * pObj->bytesPerPoint);
+
         dTrace("vid:%d sid:%d id:%s, points:%d in last block will be merged to new block",
-               pObj->vnode, pObj->sid, pObj->meterId, pointsReadLast);
+            pObj->vnode, pObj->sid, pObj->meterId, pointsReadLast);
       }
 
       pMeter->changed = 1;
@@ -717,8 +730,8 @@ _again:
     }
 
     dTrace("vid:%d sid:%d id:%s, %d points are committed, lastKey:%lld slot:%d pos:%d newNumOfBlocks:%d",
-           pObj->vnode, pObj->sid, pObj->meterId, pMeter->committedPoints, pObj->lastKeyOnFile, query.slot, query.pos,
-           pMeter->newNumOfBlocks);
+        pObj->vnode, pObj->sid, pObj->meterId, pMeter->committedPoints, pObj->lastKeyOnFile, query.slot, query.pos,
+        pMeter->newNumOfBlocks);
 
     if (pMeter->committedPoints > 0) {
       pMeter->commitSlot = query.slot;

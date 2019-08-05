@@ -26,6 +26,7 @@
 
 #include "tsdb.h"
 #include "vnode.h"
+#include "vnodeUtil.h"
 
 typedef struct {
   int  sversion;
@@ -160,10 +161,14 @@ size_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
         if (*(int *)(cont+head.contLen) != simpleCheck) break;
         SMeterObj *pObj = pVnode->meterList[head.sid];
         if (pObj == NULL) {
-          dError(
-              "vid:%d, sid:%d not exists, ignore data in commit log, "
-              "contLen:%d action:%d",
+          dError("vid:%d, sid:%d not exists, ignore data in commit log, contLen:%d action:%d",
               vnode, head.sid, head.contLen, head.action);
+          continue;
+        }
+
+        if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+          dWarn("vid:%d sid:%d id:%s, meter is dropped, ignore data in commit log, contLen:%d action:%d",
+                 vnode, head.sid, head.contLen, head.action);
           continue;
         }
 

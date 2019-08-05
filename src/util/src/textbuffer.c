@@ -1532,7 +1532,7 @@ void tColModelDisplayEx(tColModel *pModel, void *pData, int32_t numOfRows, int32
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
-void tColModelCompress(tColModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity) {
+void tColModelCompact(tColModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity) {
   if (inputBuffer->numOfElems == 0 || maxElemsCapacity == inputBuffer->numOfElems) {
     return;
   }

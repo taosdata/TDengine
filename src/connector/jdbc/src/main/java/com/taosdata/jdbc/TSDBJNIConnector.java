@@ -19,7 +19,6 @@ import java.sql.SQLWarning;
 import java.util.List;
 
 public class TSDBJNIConnector {
-	static final long INVALID_CONNECTION_POINTER_VALUE = 0l;
 	static volatile Boolean isInitialized = false;
 
 	static {
@@ -29,7 +28,12 @@ public class TSDBJNIConnector {
 	/**
 	 * Connection pointer used in C
 	 */
-	private long taos = INVALID_CONNECTION_POINTER_VALUE;
+	private long taos = TSDBConstants.JNI_NULL_POINTER;
+
+	/**
+	 * Result set pointer for the current connection
+	 */
+	private long taosResultSetPointer = TSDBConstants.JNI_NULL_POINTER;
 
 	/**
 	 * result set status in current connection
@@ -41,7 +45,7 @@ public class TSDBJNIConnector {
 	 * Whether the connection is closed
 	 */
 	public boolean isClosed() {
-		return this.taos == INVALID_CONNECTION_POINTER_VALUE;
+		return this.taos == TSDBConstants.JNI_NULL_POINTER;
 	}
 
 	/**
@@ -86,13 +90,13 @@ public class TSDBJNIConnector {
 	 * @throws SQLException
 	 */
 	public boolean connect(String host, int port, String dbName, String user, String password) throws SQLException {
-		if (this.taos != INVALID_CONNECTION_POINTER_VALUE) {
+		if (this.taos != TSDBConstants.JNI_NULL_POINTER) {
 			this.closeConnectionImp(this.taos);
-			this.taos = INVALID_CONNECTION_POINTER_VALUE;
+			this.taos = TSDBConstants.JNI_NULL_POINTER;
 		}
 
 		this.taos = this.connectImp(host, port, dbName, user, password);
-		if (this.taos == INVALID_CONNECTION_POINTER_VALUE) {
+		if (this.taos == TSDBConstants.JNI_NULL_POINTER) {
 			throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg()), "", this.getErrCode());
 		}
 
@@ -108,13 +112,7 @@ public class TSDBJNIConnector {
 	 */
 	public int executeQuery(String sql) throws SQLException {
         if (!this.isResultsetClosed) {
-            //throw new RuntimeException(TSDBConstants.WrapErrMsg("Connection already has an open result set"));
-        	long resultSetPointer = this.getResultSet();
-        	if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
-        		//do nothing
-        	} else {
-        		this.freeResultSet(resultSetPointer);
-        	}
+        	freeResultSet(taosResultSetPointer);
         }
         
         int code;
@@ -133,7 +131,14 @@ public class TSDBJNIConnector {
                 throw new SQLException(TSDBConstants.FixErrMsg(code), "", this.getErrCode());
             }
         }
-        
+
+        // Try retrieving result set for the executed SQLusing the current connection pointer. If the executed
+        // SQL is a DML/DDL which doesn't return a result set, then taosResultSetPointer should be 0L. Otherwise,
+        // taosResultSetPointer should be a non-zero value.
+        taosResultSetPointer = this.getResultSetImp(this.taos);
+        if (taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
+            isResultsetClosed = false;
+        }
         return code;
 	}
 
@@ -162,8 +167,7 @@ public class TSDBJNIConnector {
      * Each connection should have a single open result set at a time
 	 */
 	public long getResultSet() {
-		long res = this.getResultSetImp(this.taos);
-        return res;
+        return taosResultSetPointer;
 	}
 
 	private native long getResultSetImp(long connection);
@@ -172,10 +176,30 @@ public class TSDBJNIConnector {
 	 * Free resultset operation from C to release resultset pointer by JNI
 	 */
 	public int freeResultSet(long result) {
-		int res = this.freeResultSetImp(this.taos, result);
-		this.isResultsetClosed = true; // reset resultSetPointer to 0 after freeResultSetImp() return
-		return res;
+        int res = TSDBConstants.JNI_SUCCESS;
+        if (result != taosResultSetPointer && taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
+            throw new RuntimeException("Invalid result set pointer");
+        } else if (taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER){
+            res = this.freeResultSetImp(this.taos, result);
+            isResultsetClosed = true; // reset resultSetPointer to 0 after freeResultSetImp() return
+            taosResultSetPointer = TSDBConstants.JNI_NULL_POINTER;
+        }
+        return res;
 	}
+
+    /**
+     * Close the open result set which is associated to the current connection. If the result set is already
+     * closed, return 0 for success.
+     * @return
+     */
+	public int freeResultSet() {
+	    int resCode = TSDBConstants.JNI_SUCCESS;
+        if (!isResultsetClosed) {
+            resCode = this.freeResultSetImp(this.taos, this.taosResultSetPointer);
+            taosResultSetPointer = TSDBConstants.JNI_NULL_POINTER;
+        }
+        return resCode;
+    }
 
 	private native int freeResultSetImp(long connection, long result);
 
@@ -220,7 +244,7 @@ public class TSDBJNIConnector {
 		if (code < 0) {
 			throw new SQLException(TSDBConstants.FixErrMsg(code), "", this.getErrCode());
 		} else if (code == 0){
-			this.taos = INVALID_CONNECTION_POINTER_VALUE;
+			this.taos = TSDBConstants.JNI_NULL_POINTER;
 		} else {
 		    throw new SQLException("Undefined error code returned by TDengine when closing a connection");
         }

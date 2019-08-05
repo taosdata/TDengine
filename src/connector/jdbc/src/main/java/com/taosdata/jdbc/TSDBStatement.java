@@ -27,8 +27,14 @@ public class TSDBStatement implements Statement {
 	/** Timeout for a query */
 	protected int queryTimeout = 0;
 
+    /**
+     * Status of current statement
+     */
+	private boolean isClosed = true;
+
 	TSDBStatement(TSDBJNIConnector connecter) {
 		this.connecter = connecter;
+		this.isClosed = false;
 	}
 
 	public <T> T unwrap(Class<T> iface) throws SQLException {
@@ -40,13 +46,16 @@ public class TSDBStatement implements Statement {
 	}
 
 	public ResultSet executeQuery(String sql) throws SQLException {
+        if (isClosed) {
+            throw new SQLException("Invalid method call on a closed statement.");
+        }
 		this.connecter.executeQuery(sql);
 
 		long resultSetPointer = this.connecter.getResultSet();
 
 		if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
 			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
-		} else if (resultSetPointer == 0) {
+		} else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
 			return null;
 		} else {
 			return new TSDBResultSet(this.connecter, resultSetPointer);
@@ -54,7 +63,20 @@ public class TSDBStatement implements Statement {
 	}
 
 	public int executeUpdate(String sql) throws SQLException {
-		return this.connecter.executeQuery(sql);
+        if (isClosed) {
+            throw new SQLException("Invalid method call on a closed statement.");
+        }
+		int res = this.connecter.executeQuery(sql);
+		long resultSetPointer = this.connecter.getResultSet();
+
+		if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
+			throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+		} else if (resultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
+			this.connecter.freeResultSet();
+			throw new SQLException("The executed SQL is not a DML or a DDL");
+		} else {
+			return res;
+		}
 	}
 
 	public String getErrorMsg() {
@@ -62,6 +84,12 @@ public class TSDBStatement implements Statement {
 	}
 
 	public void close() throws SQLException {
+        if (!isClosed) {
+            if (!this.connecter.isResultsetClosed()) {
+                this.connecter.freeResultSet();
+            }
+            isClosed = true;
+        }
 	}
 
 	public int getMaxFieldSize() throws SQLException {
@@ -110,19 +138,38 @@ public class TSDBStatement implements Statement {
 	}
 
 	public boolean execute(String sql) throws SQLException {
-		return executeUpdate(sql) == 0;
+        if (isClosed) {
+            throw new SQLException("Invalid method call on a closed statement.");
+        }
+	    boolean res = true;
+	    this.connecter.executeQuery(sql);
+	    long resultSetPointer = this.connecter.getResultSet();
+
+        if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
+            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+        } else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
+            // no result set is retrieved
+            res = false;
+        }
+        return res;
 	}
 
 	public ResultSet getResultSet() throws SQLException {
+        if (isClosed) {
+            throw new SQLException("Invalid method call on a closed statement.");
+        }
 		long resultSetPointer = connecter.getResultSet();
 		TSDBResultSet resSet = null;
-        if (resultSetPointer != 0l) {
+        if (resultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
             resSet = new TSDBResultSet(connecter, resultSetPointer);
         }
 		return resSet;
 	}
 
 	public int getUpdateCount() throws SQLException {
+        if (isClosed) {
+            throw new SQLException("Invalid method call on a closed statement.");
+        }
 		return this.connecter.getAffectedRows();
 	}
 
@@ -171,6 +218,9 @@ public class TSDBStatement implements Statement {
 	}
 
 	public int[] executeBatch() throws SQLException {
+        if (isClosed) {
+            throw new SQLException("Invalid method call on a closed statement.");
+        }
 		if (batchedArgs == null) {
 			throw new SQLException(TSDBConstants.WrapErrMsg("Batch is empty!"));
 		} else {
@@ -223,7 +273,7 @@ public class TSDBStatement implements Statement {
 	}
 
 	public boolean isClosed() throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+	    return isClosed;
 	}
 
 	public void setPoolable(boolean poolable) throws SQLException {

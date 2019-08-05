@@ -1140,54 +1140,13 @@ static void mgmtReorganizeMetersInMetricMeta(STabObj *pMetric, SMetricMetaMsg *p
     startPos[1] = (int32_t)pRes->num;
   }
 
-  /* if pInfo->limit == 0, the query will be intercepted by sdk, and wont be
-   * sent to mnode */
-  assert(pInfo->limit == -1 || pInfo->limit > 0);
-
-  int32_t numOfTotal = 0;
-  if (pInfo->offset >= numOfSubset) {
-    numOfTotal = 0;
-  } else if (numOfSubset == 1) {
-    // no 'groupBy' clause, all tables returned
-    numOfTotal = pRes->num;
-  } else {
-    /* there is a offset value of group */
-    int32_t start = 0;
-    int32_t end = 0;
-
-    if (pInfo->orderType == TSQL_SO_ASC) {
-      start = startPos[pInfo->offset];
-
-      if (pInfo->limit + pInfo->offset >= numOfSubset || pInfo->limit == -1) {
-        /* all results are required */
-        end = startPos[numOfSubset];
-      } else {
-        end = startPos[pInfo->limit + pInfo->offset];
-      }
-    } else {
-      end = startPos[numOfSubset - pInfo->offset];
-
-      if (pInfo->limit + pInfo->offset >= numOfSubset || pInfo->limit == -1) {
-        start = startPos[0];
-      } else {
-        start = startPos[numOfSubset - pInfo->limit - pInfo->offset];
-      }
-    }
-
-    numOfTotal = end - start;
-    assert(numOfTotal > 0);
-
-    memmove(pRes->pRes, pRes->pRes + start, numOfTotal * POINTER_BYTES);
-  }
-
   /*
    * sort the result according to vgid to ensure meters with the same vgid is
    * continuous in the result list
    */
   __compar_fn_t functor = (pRes->nodeType == TAST_NODE_TYPE_METER_PTR) ? tabObjVGIDComparator : nodeVGIDComparator;
-  qsort(pRes->pRes, numOfTotal, POINTER_BYTES, functor);
+  qsort(pRes->pRes, (size_t) pRes->num, POINTER_BYTES, functor);
 
-  pRes->num = numOfTotal;
   free(descriptor->pTagSchema);
   free(descriptor);
   free(startPos);

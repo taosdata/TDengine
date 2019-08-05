@@ -340,19 +340,33 @@ void vnodeCommitOver(SVnodeObj *pVnode) {
   pthread_mutex_unlock(&pPool->vmutex);
 }
 
+static void vnodeWaitForCommitComplete(SVnodeObj *pVnode) {
+  SCachePool *pPool = (SCachePool *)(pVnode->pCachePool);
+
+  // wait for 100s at most
+  const int32_t totalCount = 1000;
+  int32_t count = 0;
+
+  // all meter is marked as dropped, so the commit will abort very quickly
+  while(count++ < totalCount) {
+    int32_t commitInProcess = 0;
+
+    pthread_mutex_lock(&pPool->vmutex);
+    commitInProcess = pPool->commitInProcess;
+    pthread_mutex_unlock(&pPool->vmutex);
+
+    if (commitInProcess) {
+      dWarn("vid:%d still in commit, wait for completed", pVnode->vnode);
+      taosMsleep(10);
+    }
+  }
+}
+
 void vnodeCancelCommit(SVnodeObj *pVnode) {
   SCachePool *pPool = (SCachePool *)(pVnode->pCachePool);
   if (pPool == NULL) return;
 
-  pthread_mutex_lock(&pPool->vmutex);
-
-  if (pPool->commitInProcess) {
-    pPool->commitInProcess = 0;
-    pthread_cancel(pVnode->commitThread);
-  }
-
-  pthread_mutex_unlock(&pPool->vmutex);
-
+  vnodeWaitForCommitComplete(pVnode);
   taosTmrReset(vnodeProcessCommitTimer, pVnode->cfg.commitTime * 1000, pVnode, vnodeTmrCtrl, &pVnode->commitTimer);
 }
 

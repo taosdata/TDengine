@@ -69,11 +69,12 @@ enum _sync_cmd {
 };
 
 enum _meter_state {
-  TSDB_METER_STATE_READY,
-  TSDB_METER_STATE_IMPORTING,
-  TSDB_METER_STATE_UPDATING,
-  TSDB_METER_STATE_DELETING,
-  TSDB_METER_STATE_DELETED,
+  TSDB_METER_STATE_READY       = 0x00,
+  TSDB_METER_STATE_INSERT      = 0x01,
+  TSDB_METER_STATE_IMPORTING   = 0x02,
+  TSDB_METER_STATE_UPDATING    = 0x04,
+  TSDB_METER_STATE_DELETING    = 0x10,
+  TSDB_METER_STATE_DELETED     = 0x18,
 };
 
 typedef struct {
@@ -184,10 +185,10 @@ typedef struct _meter_obj {
   short    sqlLen;
   char     searchAlgorithm : 4;
   char     compAlgorithm : 4;
-  char     state : 5;   // deleted or added, 1: added
-  char     status : 3;  // 0: ok, 1: stop stream computing
+  char     status;  // 0: ok, 1: stop stream computing
 
   char     reserved[16];
+  int      state;
   int      numOfQueries;
   char *   pSql;
   void *   pStream;
@@ -418,10 +419,6 @@ void vnodeCommitOver(SVnodeObj *pVnode);
 
 TSKEY vnodeGetFirstKey(int vnode);
 
-int vnodeSyncRetrieveCache(int vnode, int fd);
-
-int vnodeSyncRestoreCache(int vnode, int fd);
-
 pthread_t vnodeCreateCommitThread(SVnodeObj *pVnode);
 
 void vnodeCancelCommit(SVnodeObj *pVnode);
@@ -446,10 +443,6 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery);
 void *vnodeCommitToFile(void *param);
 
 void *vnodeCommitMultiToFile(SVnodeObj *pVnode, int ssid, int esid);
-
-int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t fileId, uint64_t *fmagic);
-
-int vnodeSyncRestoreFile(int vnode, int sfd);
 
 int vnodeWriteBlockToFile(SMeterObj *pObj, SCompBlock *pBlock, SData *data[], SData *cdata[], int pointsRead);
 
@@ -476,13 +469,7 @@ void *vnodeGetMeterPeerConnection(SMeterObj *pObj, int index);
 
 int vnodeForwardToPeer(SMeterObj *pObj, char *msg, int msgLen, char action, int sversion);
 
-void vnodeCloseAllSyncFds(int vnode);
-
 void vnodeConfigVPeers(int vnode, int numOfPeers, SVPeerDesc peerDesc[]);
-
-void vnodeStartSyncProcess(SVnodeObj *pVnode);
-
-void vnodeCancelSync(int vnode);
 
 void vnodeListPeerStatus(char *buffer);
 
@@ -499,7 +486,7 @@ int vnodeInitStore();
 
 void vnodeCleanUpVnodes();
 
-void vnodeRemoveVnode(int vnode);
+int vnodeRemoveVnode(int vnode);
 
 int vnodeCreateVnode(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc);
 

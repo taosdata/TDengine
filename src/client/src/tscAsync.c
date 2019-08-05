@@ -410,7 +410,7 @@ void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows) 
     tscTrace("%p Async insertion completed, destroy data block list", pSql);
 
     // release data block data
-    tscDestroyBlockArrayList(&pCmd->pDataBlocks);
+    pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
     // all data has been sent to vnode, call user function
     (*pSql->fp)(pSql->param, tres, numOfRows);
