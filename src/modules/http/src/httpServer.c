@@ -137,6 +137,8 @@ void httpCleanUpContext(HttpThread *pThread, HttpContext *pContext) {
   pContext->signature = 0;
   pContext->fd = -1;
   pContext->pThread = 0;
+  pContext->prev = 0;
+  pContext->next = 0;
 
   // avoid double free
   httpFreeJsonBuf(pContext);
