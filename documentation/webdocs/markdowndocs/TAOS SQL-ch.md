@@ -1,4 +1,4 @@
-#TAOS SQL
+# TAOS SQL
 
 TDengine提供类似SQL语法，用户可以在TDengine Shell中使用SQL语句操纵数据库，也可以通过C/C++, Java(JDBC), Python, Go等各种程序来执行SQL语句。 
 

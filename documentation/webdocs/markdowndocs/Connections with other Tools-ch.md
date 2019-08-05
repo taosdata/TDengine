@@ -1,14 +1,14 @@
-#与其他工具的连接
+# 与其他工具的连接
 
 ## Telegraf
 
 TDengine能够与开源数据采集系统[Telegraf](https://www.influxdata.com/time-series-platform/telegraf/)快速集成，整个过程无需任何代码开发。
 
-###安装Telegraf
+### 安装Telegraf
 
 目前TDengine支持Telegraf 1.7.4以上的版本。用户可以根据当前的操作系统，到Telegraf官网下载安装包，并执行安装。下载地址如下：https://portal.influxdata.com/downloads
 
-###配置Telegraf
+### 配置Telegraf
 
 修改Telegraf配置文件/etc/telegraf/telegraf.conf中与TDengine有关的配置项。 
 
@@ -32,17 +32,17 @@ TDengine能够与开源数据采集系统[Telegraf](https://www.influxdata.com/t
 
 TDengine能够与开源数据可视化系统[Grafana](https://www.grafana.com/)快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine中数据表中内容可以在仪表盘(DashBoard)上进行可视化展现。
 
-###安装Grafana
+### 安装Grafana
 
 目前TDengine支持Grafana 5.2.4以上的版本。用户可以根据当前的操作系统，到Grafana官网下载安装包，并执行安装。下载地址如下：https://grafana.com/grafana/download
 
-###配置Grafana
+### 配置Grafana
 
 TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafana目录下。
 
 以CentOS 7.2操作系统为例，将tdengine目录拷贝到/var/lib/grafana/plugins目录下，重新启动grafana即可。
 
-###使用Grafana
+### 使用Grafana
 
 用户可以直接通过localhost:3000的网址，登录Grafana服务器(用户名/密码:admin/admin)，配置TDengine数据源，如下图所示，此时可以在下拉列表中看到TDengine数据源。 
 
@@ -84,7 +84,7 @@ ALIAS BY输入框为查询的别名，点击GENERATE SQL 按钮可以获取发�
 
 MatLab可以通过安装包内提供的JDBC Driver直接连接到TDengine获取数据到本地工作空间。
 
-###MatLab的JDBC接口适配
+### MatLab的JDBC接口适配
 
 MatLab的适配有下面几个步骤，下面以Windows10上适配MatLab2017a为例：
 
@@ -98,7 +98,7 @@ MatLab的适配有下面几个步骤，下面以Windows10上适配MatLab2017a为
 
 ​          `C:\Windows\System32`
 
-###在MatLab中连接TDengine获取数据
+### 在MatLab中连接TDengine获取数据
 
 在成功进行了上述配置后，打开MatLab。
 
