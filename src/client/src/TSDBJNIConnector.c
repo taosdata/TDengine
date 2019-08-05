@@ -643,6 +643,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_validateCreateTab
   int code = taos_validate_sql(tscon, dst);
   jniTrace("jobj:%p, conn:%p, code is %d", jobj, tscon, code);
 
+  free(dst);
   return code;
 }
 
