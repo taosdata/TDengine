@@ -676,7 +676,7 @@ void vnodeUpdateMeter(void *param, void *tmrId) {
     return;
   }
 
-  int32_t state = vnodeTransferMeterState(pObj, TSDB_METER_STATE_UPDATING);
+  int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_UPDATING);
   if (state >= TSDB_METER_STATE_DELETING) {
     dError("vid:%d sid:%d id:%s, meter is deleted, failed to update, state:%d",
            pObj->vnode, pObj->sid, pObj->meterId, state);

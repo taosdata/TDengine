@@ -183,8 +183,8 @@ void vnodeCloseShellVnode(int vnode) {
    * 1. The msg, as well as SRpcConn may be in the task queue, free it immediate will cause crash
    * 2. Free connection may cause *(SRpcConn*)pObj->thandle to be invalid to access.
    */
-  dTrace("vid:%d, delay 5sec to free resources", vnode);
-  taosTmrStart(vnodeDelayedFreeResource, 5000, v, vnodeTmrCtrl);
+  dTrace("vid:%d, delay 500ms to free resources", vnode);
+  taosTmrStart(vnodeDelayedFreeResource, 500, v, vnodeTmrCtrl);
 }
 
 void vnodeCleanUpShell() {
@@ -508,9 +508,9 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
     int32_t state = TSDB_METER_STATE_READY;
     if (pSubmit->import) {
-      state = vnodeTransferMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
+      state = vnodeSetMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
     } else {
-      state = vnodeTransferMeterState(pMeterObj, TSDB_METER_STATE_INSERT);
+      state = vnodeSetMeterState(pMeterObj, TSDB_METER_STATE_INSERT);
     }
 
     if (state == TSDB_METER_STATE_READY) {

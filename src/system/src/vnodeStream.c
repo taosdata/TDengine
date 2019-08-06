@@ -55,7 +55,7 @@ void vnodeProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
 
   int32_t numOfPoints = 0;
 
-  int32_t state = vnodeTransferMeterState(pObj, TSDB_METER_STATE_INSERT);
+  int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_INSERT);
   if (state == TSDB_METER_STATE_READY) {
     vnodeInsertPoints(pObj, (char *)pMsg, contLen, TSDB_DATA_SOURCE_SHELL, NULL, pObj->sversion, &numOfPoints);
     vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);

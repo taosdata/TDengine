@@ -75,7 +75,7 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg *pQueryMsg, SMeterSidExtInfo **pSid
 
 void vnodeDecQueryRefCount(SQueryMeterMsg *pQueryMsg, SMeterObj **pMeterObjList, int32_t numOfInc);
 
-int32_t vnodeTransferMeterState(SMeterObj* pMeterObj, int32_t state);
+int32_t vnodeSetMeterState(SMeterObj* pMeterObj, int32_t state);
 void vnodeClearMeterState(SMeterObj* pMeterObj, int32_t state);
 bool vnodeIsMeterState(SMeterObj* pMeterObj, int32_t state);
 void vnodeSetMeterDeleting(SMeterObj* pMeterObj);

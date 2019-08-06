@@ -586,7 +586,7 @@ void vnodeUpdateQueryColumnIndex(SQuery* pQuery, SMeterObj* pMeterObj) {
   }
 }
 
-int32_t vnodeTransferMeterState(SMeterObj* pMeterObj, int32_t state) {
+int32_t vnodeSetMeterState(SMeterObj* pMeterObj, int32_t state) {
   return __sync_val_compare_and_swap(&pMeterObj->state, TSDB_METER_STATE_READY, state);
 }
 
@@ -619,7 +619,7 @@ bool vnodeIsSafeToDeleteMeter(SVnodeObj* pVnode, int32_t sid) {
     return true;
   }
 
-  int32_t prev = vnodeTransferMeterState(pObj, TSDB_METER_STATE_DELETING);
+  int32_t prev = vnodeSetMeterState(pObj, TSDB_METER_STATE_DELETING);
 
   /*
    * if the meter is not in ready/deleting state, it must be in insert/import/update,

@@ -40,7 +40,7 @@ uint32_t tsServerIp;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql);
 int (*tscProcessMsgRsp[TSDB_SQL_MAX])(SSqlObj *pSql);
-void (*tscUpdateVnodeMsg[TSDB_SQL_MAX])(SSqlObj *pSql);
+void (*tscUpdateVnodeMsg[TSDB_SQL_MAX])(SSqlObj *pSql, char* buf);
 void tscProcessActivityTimer(void *handle, void *tmrId);
 int tscKeepConn[TSDB_SQL_MAX] = {0};
 
@@ -206,10 +206,24 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   }
 
   if (pSql->thandle) {
+    /*
+     * the total length of message
+     * rpc header + actual message body + digest
+     *
+     * the pSql object may be released automatically during insert procedure, in which the access of
+     * message body by using "if (pHeader->msgType & 1)" may cause the segment fault.
+     *
+     */
+    int32_t totalMsgLen = pSql->cmd.payloadLen + tsRpcHeadSize + sizeof(STaosDigest);
+
+    // the memory will be released by taosProcessResponse, so no memory leak here
+    char* buf = malloc(totalMsgLen);
+    memcpy(buf, pSql->cmd.payload, totalMsgLen);
+
     tscTrace("%p msg:%s is sent to server", pSql, taosMsg[pSql->cmd.msgType]);
-    char *pStart = taosBuildReqHeader(pSql->thandle, pSql->cmd.msgType, pSql->cmd.payload);
+    char *pStart = taosBuildReqHeader(pSql->thandle, pSql->cmd.msgType, buf);
     if (pStart) {
-      if (tscUpdateVnodeMsg[pSql->cmd.command]) (*tscUpdateVnodeMsg[pSql->cmd.command])(pSql);
+      if (tscUpdateVnodeMsg[pSql->cmd.command]) (*tscUpdateVnodeMsg[pSql->cmd.command])(pSql, buf);
       int ret = taosSendMsgToPeerH(pSql->thandle, pStart, pSql->cmd.payloadLen, pSql);
       if (ret >= 0) code = 0;
       tscTrace("%p send msg ret:%d code:%d sig:%p", pSql, ret, code, pSql->signature);
@@ -1007,12 +1021,12 @@ int tscBuildRetrieveMsg(SSqlObj *pSql) {
   return msgLen;
 }
 
-void tscUpdateVnodeInSubmitMsg(SSqlObj *pSql) {
+void tscUpdateVnodeInSubmitMsg(SSqlObj *pSql, char* buf) {
   SShellSubmitMsg *pShellMsg;
   char *           pMsg;
   SMeterMeta *     pMeterMeta = pSql->cmd.pMeterMeta;
 
-  pMsg = pSql->cmd.payload + tsRpcHeadSize;
+  pMsg = buf + tsRpcHeadSize;
 
   pShellMsg = (SShellSubmitMsg *)pMsg;
   pShellMsg->vnode = htons(pMeterMeta->vpeerDesc[pSql->index].vnode);
@@ -1042,9 +1056,9 @@ int tscBuildSubmitMsg(SSqlObj *pSql) {
   return msgLen;
 }
 
-void tscUpdateVnodeInQueryMsg(SSqlObj *pSql) {
+void tscUpdateVnodeInQueryMsg(SSqlObj *pSql, char* buf) {
   SSqlCmd *pCmd = &pSql->cmd;
-  char *   pStart = pCmd->payload + tsRpcHeadSize;
+  char *   pStart = buf + tsRpcHeadSize;
 
   SQueryMeterMsg *pQueryMsg = (SQueryMeterMsg *)pStart;
 

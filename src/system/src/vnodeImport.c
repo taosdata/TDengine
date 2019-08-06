@@ -285,7 +285,7 @@ void vnodeProcessImportTimer(void *param, void *tmrId) {
   pImport->retry++;
 
   //slow query will block the import operation
-  int32_t state = vnodeTransferMeterState(pObj, TSDB_METER_STATE_IMPORTING);
+  int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_IMPORTING);
   if (state >= TSDB_METER_STATE_DELETING) {
     dError("vid:%d sid:%d id:%s, meter is deleted, failed to import, state:%d",
            pObj->vnode, pObj->sid, pObj->meterId, state);
@@ -887,7 +887,7 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
 
   if (*((TSKEY *)(pSubmit->payLoad + (rows - 1) * pObj->bytesPerPoint)) > pObj->lastKey) {
     vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
-    vnodeTransferMeterState(pObj, TSDB_METER_STATE_INSERT);
+    vnodeSetMeterState(pObj, TSDB_METER_STATE_INSERT);
     code = vnodeInsertPoints(pObj, cont, contLen, TSDB_DATA_SOURCE_LOG, NULL, pObj->sversion, &pointsImported);
 
     if (pShell) {
