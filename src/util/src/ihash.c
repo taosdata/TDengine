@@ -54,9 +54,12 @@ char *taosAddIntHash(void *handle, int32_t key, char *pData) {
 
   hash = (*pObj->hashFp)(pObj, key);
 
+  pNode = (IHashNode *)malloc(sizeof(IHashNode) + (size_t)pObj->dataSize);
+  if (pNode == NULL)
+    return NULL;
+  
   pthread_mutex_lock(&pObj->mutex);
 
-  pNode = (IHashNode *)malloc(sizeof(IHashNode) + (size_t)pObj->dataSize);
   pNode->key = key;
   if (pData != NULL) {
     memcpy(pNode->data, pData, (size_t)pObj->dataSize);
