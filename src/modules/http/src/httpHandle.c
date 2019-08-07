@@ -186,12 +186,22 @@ bool httpParseHead(HttpContext* pContext) {
     pParser->data.len = (int32_t)atoi(pParser->pLast + 16);
     httpTrace("context:%p, fd:%d, ip:%s, Content-Length:%d", pContext, pContext->fd, pContext->ipstr,
               pParser->data.len);
-  } else if (tsHttpEnableCompress && strncasecmp(pParser->pLast, "Accept-Encoding: ", 17) == 0) {
-    if (strstr(pParser->pLast + 17, "deflate") != NULL) {
-      pContext->compress = JsonCompress;
+  } else if (strncasecmp(pParser->pLast, "Accept-Encoding: ", 17) == 0) {
+    if (tsHttpEnableCompress && strstr(pParser->pLast + 17, "gzip") != NULL) {
+      pContext->acceptEncoding = HTTP_COMPRESS_GZIP;
+      httpTrace("context:%p, fd:%d, ip:%s, Accept-Encoding:gzip", pContext, pContext->fd, pContext->ipstr);
+    } else {
+      pContext->acceptEncoding = HTTP_COMPRESS_IDENTITY;
+      httpTrace("context:%p, fd:%d, ip:%s, Accept-Encoding:identity", pContext, pContext->fd, pContext->ipstr);
     }
-    httpTrace("context:%p, fd:%d, ip:%s, Accept-Encoding:%s", pContext, pContext->fd, pContext->ipstr,
-              pContext->compress == JsonCompress ? "deflate" : "identity");
+  } else if (strncasecmp(pParser->pLast, "Content-Encoding: ", 18) == 0) {
+    if (strstr(pParser->pLast + 18, "gzip") != NULL) {
+      pContext->contentEncoding = HTTP_COMPRESS_GZIP;
+      httpTrace("context:%p, fd:%d, ip:%s, Content-Encoding:gzip", pContext, pContext->fd, pContext->ipstr);
+    } else {
+      pContext->contentEncoding = HTTP_COMPRESS_IDENTITY;
+      httpTrace("context:%p, fd:%d, ip:%s, Content-Encoding:identity", pContext, pContext->fd, pContext->ipstr);
+    }
   } else if (strncasecmp(pParser->pLast, "Connection: ", 12) == 0) {
     if (strncasecmp(pParser->pLast + 12, "Keep-Alive", 10) == 0) {
       pContext->httpKeepAlive = HTTP_KEEPALIVE_ENABLE;
@@ -312,7 +322,7 @@ bool httpParseRequest(HttpContext* pContext) {
     return true;
   }
 
-  httpDump("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, read size:%d, raw data:\n%s",
+  httpTrace("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, read size:%d, raw data:\n%s",
            pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->pThread->numOfFds,
            pContext->parser.bufsize, pContext->parser.buffer);
 

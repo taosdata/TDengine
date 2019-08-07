@@ -42,7 +42,7 @@ char* httpMsg[] = {
     "database name too long",
     "invalid telegraf json fromat",
     "metrics size is 0",
-    "metrics size can not more than 20K",      // 26
+    "metrics size can not more than 1K",       // 26
     "metric name not find",
     "metric name type should be string",
     "metric name length is 0",

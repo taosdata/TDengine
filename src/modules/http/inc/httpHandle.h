@@ -22,16 +22,18 @@
 #include "tmempool.h"
 #include "tsdb.h"
 #include "tutil.h"
+#include "zlib.h"
 
 #include "http.h"
 #include "httpJson.h"
 
-#define HTTP_MAX_CMD_SIZE           1024*20
-#define HTTP_MAX_BUFFER_SIZE        1024*1024*10
+#define HTTP_MAX_CMD_SIZE           1024
+#define HTTP_MAX_BUFFER_SIZE        1024*1024
 
 #define HTTP_LABEL_SIZE             8
 #define HTTP_MAX_EVENTS             10
-#define HTTP_BUFFER_SIZE            1024*70 //70k
+#define HTTP_BUFFER_SIZE            1024*65 //65k
+#define HTTP_DECOMPRESS_BUF_SIZE    1024*64
 #define HTTP_STEP_SIZE              1024    //http message get process step by step
 #define HTTP_MAX_URL                5       //http url stack size
 #define HTTP_METHOD_SCANNER_SIZE    7       //http method fp size
@@ -64,11 +66,14 @@
 #define HTTP_CHECK_BODY_CONTINUE    0
 #define HTTP_CHECK_BODY_SUCCESS     1
 
-#define HTTP_READ_RETRY_TIMES       3
-#define HTTP_READ_WAIT_TIME_MS      3
-#define HTTP_WRITE_RETRY_TIMES      400
+#define HTTP_READ_RETRY_TIMES       5
+#define HTTP_READ_WAIT_TIME_MS      5
+#define HTTP_WRITE_RETRY_TIMES      500
 #define HTTP_WRITE_WAIT_TIME_MS     5
 #define HTTP_EXPIRED_TIME           60000
+
+#define HTTP_COMPRESS_IDENTITY      0
+#define HTTP_COMPRESS_GZIP          2
 
 struct HttpContext;
 struct HttpThread;
@@ -147,7 +152,7 @@ typedef struct {
 } HttpBuf;
 
 typedef struct {
-  char              buffer[HTTP_MAX_BUFFER_SIZE];
+  char              buffer[HTTP_BUFFER_SIZE];
   int               bufsize;
   char             *pLast;
   char             *pCur;
@@ -167,7 +172,8 @@ typedef struct HttpContext {
   uint8_t      httpChunked;
   uint8_t      httpKeepAlive;  // http1.0 and not keep-alive, close connection immediately
   uint8_t      fromMemPool;
-  uint8_t      compress;
+  uint8_t      acceptEncoding;
+  uint8_t      contentEncoding;
   uint8_t      usedByEpoll;
   uint8_t      usedByApp;
   uint8_t      reqType;
@@ -177,6 +183,7 @@ typedef struct HttpContext {
   char         pass[TSDB_PASSWORD_LEN];
   void        *taos;
   HttpSession *session;
+  z_stream     gzipStream;
   HttpEncodeMethod   *encodeMethod;
   HttpSqlCmd          singleCmd;
   HttpSqlCmds        *multiCmds;
@@ -292,6 +299,11 @@ int httpCurSqlCmdPos(HttpContext *pContext);
 void httpTrimTableName(char *name);
 int httpShrinkTableName(HttpContext *pContext, int pos, char *name);
 char *httpGetCmdsString(HttpContext *pContext, int pos);
+
+int httpGzipDeCompress(char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData);
+int httpGzipCompressInit(HttpContext *pContext);
+int httpGzipCompress(HttpContext *pContext, char *inSrcData, int32_t inSrcDataLen,
+                     char *outDestData, int32_t *outDestDataLen, bool isTheLast);
 
 extern const char *httpKeepAliveStr[];
 extern const char *httpVersionStr[];

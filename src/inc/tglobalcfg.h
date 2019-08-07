@@ -129,6 +129,7 @@ extern int   tsHttpCacheSessions;
 extern int   tsHttpSessionExpire;
 extern int   tsHttpMaxThreads;
 extern int   tsHttpEnableCompress;
+extern int   tsTelegrafUseFieldNum;
 extern int   tsAdminRowLimit;
 
 extern char tsMonitorDbName[];

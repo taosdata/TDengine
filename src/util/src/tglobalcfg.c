@@ -116,11 +116,11 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 char  tsHttpIp[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
 short tsHttpPort = 6020;                 // only tcp, range tcp[6020]
 // short tsNginxPort = 6060;             //only tcp, range tcp[6060]
-int tsHttpCacheSessions = 30;
+int tsHttpCacheSessions = 100;
 int tsHttpSessionExpire = 36000;
 int tsHttpMaxThreads = 2;
 int tsHttpEnableCompress = 0;
-int tsAdminRowLimit = 10240;
+int tsTelegrafUseFieldNum = 0;
 
 char tsMonitorDbName[] = "log";
 int  tsMonitorInterval = 30;  // seconds
@@ -513,8 +513,12 @@ void tsInitGlobalConfig() {
   // http configs
   tsInitConfigOption(cfg++, "httpCacheSessions", &tsHttpCacheSessions, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 1,
                      100000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "telegrafUseFieldNum", &tsTelegrafUseFieldNum, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0,
+                     1, 1, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "httpMaxThreads", &tsHttpMaxThreads, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 1,
                      1000000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "httpEnableCompress", &tsHttpEnableCompress, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 0,
+                     1, 1, TSDB_CFG_UTYPE_NONE);
 
   // debug flag
   tsInitConfigOption(cfg++, "numOfLogLines", &tsNumOfLogLines, TSDB_CFG_VTYPE_INT,

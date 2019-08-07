@@ -158,7 +158,8 @@ bool httpInitContext(HttpContext *pContext) {
   pContext->httpVersion = HTTP_VERSION_10;
   pContext->httpKeepAlive = HTTP_KEEPALIVE_NO_INPUT;
   pContext->httpChunked = HTTP_UNCUNKED;
-  pContext->compress = JsonUnCompress;
+  pContext->acceptEncoding = HTTP_COMPRESS_IDENTITY;
+  pContext->contentEncoding = HTTP_COMPRESS_IDENTITY;
   pContext->usedByEpoll = 1;
   pContext->usedByApp = 0;
   pContext->reqType = HTTP_REQTYPE_OTHERS;
@@ -326,6 +327,30 @@ bool httpReadDataImp(HttpContext *pContext) {
   return true;
 }
 
+bool httpUnCompressData(HttpContext *pContext) {
+  if (pContext->contentEncoding == HTTP_COMPRESS_GZIP) {
+    char   *decompressBuf = calloc(HTTP_DECOMPRESS_BUF_SIZE, 1);
+    int32_t decompressBufLen = pContext->parser.bufsize;
+
+    int ret = httpGzipDeCompress(pContext->parser.data.pos, pContext->parser.data.len, decompressBuf, &decompressBufLen);
+
+    if (ret == 0) {
+      memcpy(pContext->parser.data.pos, decompressBuf, decompressBufLen);
+      pContext->parser.data.pos[decompressBufLen] = 0;
+      httpDump("context:%p, fd:%d, ip:%s, rawSize:%d, decompressSize:%d, content:%s",
+                pContext, pContext->fd, pContext->ipstr, pContext->parser.data.len, decompressBufLen,  decompressBuf);
+    } else {
+      httpError("context:%p, fd:%d, ip:%s, failed to decompress data, rawSize:%d, error:%d",
+                pContext, pContext->fd, pContext->ipstr, pContext->parser.data.len, ret);
+      return false;
+    }
+  } else {
+    httpDump("context:%p, fd:%d, ip:%s, content:%s", pContext, pContext->fd, pContext->ipstr, pContext->parser.data.pos);
+  }
+
+  return true;
+}
+
 bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
   if (!pContext->parsed) {
     httpInitContext(pContext);
@@ -350,9 +375,12 @@ bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
     return false;
   } else if (ret == HTTP_CHECK_BODY_SUCCESS){
     httpCleanUpContextTimer(pContext);
-    httpDump("context:%p, fd:%d, ip:%s, thread:%s, numOfFds:%d, body:\n%s",
-             pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->pThread->numOfFds, pContext->parser.data.pos);
-    return true;
+    if (httpUnCompressData(pContext)) {
+      return true;
+    } else {
+      httpCloseContextByServer(pThread, pContext);
+      return false;
+    }
   } else {
     httpCleanUpContextTimer(pContext);
     httpError("context:%p, fd:%d, ip:%s, failed to read http body, close connect", pContext, pContext->fd, pContext->ipstr);
@@ -568,7 +596,7 @@ bool httpInitConnect(HttpServer *pServer) {
     }
 
     if (pthread_cond_init(&(pThread->fdReady), NULL) != 0) {
-      httpError("http thread:%s, init HTTP condition variable failed, reason:%s\n", pThread->label, strerror(errno));
+      httpError("http thread:%s, init HTTP condition variable failed, reason:%s", pThread->label, strerror(errno));
       return false;
     }
 

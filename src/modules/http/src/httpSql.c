@@ -289,7 +289,7 @@ void httpProcessSingleSqlCmd(HttpContext *pContext) {
     return;
   }
 
-  httpDump("context:%p, fd:%d, ip:%s, user:%s, sql:%s, start query", pContext, pContext->fd, pContext->ipstr,
+  httpDump("context:%p, fd:%d, ip:%s, user:%s, start query, sql:%s", pContext, pContext->fd, pContext->ipstr,
            pContext->user, sql);
   taos_query_a(pSession->taos, sql, httpProcessSingleSqlCallBack, (void *)pContext);
 }

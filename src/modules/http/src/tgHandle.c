@@ -700,8 +700,11 @@ bool tgProcessSingleMetricUseDefaultSchema(HttpContext *pContext, cJSON *metric,
   // stable name
   char *stname = name->valuestring;
   table_cmd->metric = stable_cmd->metric = httpAddToSqlCmdBuffer(pContext, "%s", stname);
-  table_cmd->stable = stable_cmd->stable = httpAddToSqlCmdBuffer(pContext, "%s", stname);
-      //httpAddToSqlCmdBuffer(pContext, "%s_%d_%d", stname, fieldsSize, orderTagsLen);
+  if (tsTelegrafUseFieldNum == 0) {
+    table_cmd->stable = stable_cmd->stable = httpAddToSqlCmdBuffer(pContext, "%s", stname);
+  } else {
+    table_cmd->stable = stable_cmd->stable = httpAddToSqlCmdBuffer(pContext, "%s_%d_%d", stname, fieldsSize, orderTagsLen);
+  }
   table_cmd->stable = stable_cmd->stable =
       httpShrinkTableName(pContext, table_cmd->stable, httpGetCmdsString(pContext, table_cmd->stable));
 
@@ -723,9 +726,11 @@ bool tgProcessSingleMetricUseDefaultSchema(HttpContext *pContext, cJSON *metric,
   }
 
   // table name
-  table_cmd->table = stable_cmd->table = httpAddToSqlCmdBufferNoTerminal(pContext, "%s_%s", stname, host->valuestring);
-      //httpAddToSqlCmdBufferNoTerminal(pContext, "%s_%d_%d_%s", stname, fieldsSize, orderTagsLen, host->valuestring);
-
+  if (tsTelegrafUseFieldNum == 0) {
+    table_cmd->table = stable_cmd->table = httpAddToSqlCmdBufferNoTerminal(pContext, "%s_%s", stname, host->valuestring);
+  } else {
+    table_cmd->table = stable_cmd->table = httpAddToSqlCmdBufferNoTerminal(pContext, "%s_%d_%d_%s", stname, fieldsSize, orderTagsLen, host->valuestring);
+  }
   for (int i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];
     if (tag == host) continue;

@@ -105,7 +105,7 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
       httpJsonItemToken(jsonBuf);
 
       if (row[i] == NULL) {
-        httpJsonString(jsonBuf, "NULL", 4);
+        httpJsonOriginString(jsonBuf, "null", 4);
         continue;
       }
 
@@ -187,7 +187,7 @@ bool restBuildSqlTimeJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *resu
       httpJsonItemToken(jsonBuf);
 
       if (row[i] == NULL) {
-        httpJsonString(jsonBuf, "NULL", 4);
+        httpJsonOriginString(jsonBuf, "null", 4);
         continue;
       }
 
