@@ -2807,8 +2807,7 @@ int tscGetMeterMetaEx(SSqlObj *pSql, char *meterId, bool createIfNotExists) {
  * successfully created the corresponding table.
  */
 static void tscWaitingForCreateTable(SSqlCmd *pCmd) {
-  int32_t CREATE_METER_ON_DEMAND = 1;
-  if (pCmd->command == TSDB_SQL_INSERT && pCmd->defaultVal[0] == CREATE_METER_ON_DEMAND) {
+  if (pCmd->command == TSDB_SQL_INSERT) {
     taosMsleep(50);  // todo: global config
   }
 }

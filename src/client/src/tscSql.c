@@ -88,7 +88,7 @@ TAOS *taos_connect_imp(char *ip, char *user, char *pass, char *db, int port, voi
     strcpy(tmp, db);
 
     strdequote(tmp);
-    strtolower(tmp, pObj->db);
+    strtolower(pObj->db, tmp);
   }
 
   pthread_mutex_init(&pObj->mutex, NULL);
@@ -198,8 +198,7 @@ int taos_query(TAOS *taos, char *sqlstr) {
     return pRes->code;
   }
 
-  strtolower(sqlstr, pSql->sqlstr);
-  pSql->sqlstr[sqlLen] = 0;
+  strtolower(pSql->sqlstr, sqlstr);
 
   pRes->code = (uint8_t)tsParseSql(pSql, pObj->acctId, pObj->db, false);
 
@@ -728,8 +727,7 @@ int taos_validate_sql(TAOS *taos, char *sql) {
     return pRes->code;
   }
 
-  strtolower(sql, pSql->sqlstr);
-  pSql->sqlstr[sqlLen] = 0;
+  strtolower(pSql->sqlstr, sql);
 
   pRes->code = (uint8_t)tsParseSql(pSql, pObj->acctId, pObj->db, false);
   int code = pRes->code;

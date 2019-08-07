@@ -180,12 +180,11 @@ int32_t strdequote(char *src);
 
 void strtrim(char *src);
 
-char *strnchr(char *haystack, char needle, int32_t len);
-char *strnchrNoquote(char *haystack, char needle, int32_t len);  
+char *strnchr(char *haystack, char needle, int32_t len, bool skipquote);
 
 char **strsplit(char *src, const char *delim, int32_t *num);
 
-void strtolower(char *src, char *dst);
+void strtolower(char *dst, const char *src);
 
 int64_t strnatoi(char *num, int32_t len);
 

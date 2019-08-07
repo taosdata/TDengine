@@ -898,7 +898,7 @@ int32_t tscValidateName(SSQLToken* pToken) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  char* sep = strnchrNoquote(pToken->z, TS_PATH_DELIMITER[0], pToken->n);
+  char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
   if (sep == NULL) {  // single part
     if (pToken->type == TK_STRING) {
       pToken->n = strdequote(pToken->z);
@@ -911,7 +911,7 @@ int32_t tscValidateName(SSQLToken* pToken) {
       if (len == pToken->n) {
         return validateQuoteToken(pToken);
       } else {
-        sep = strnchrNoquote(pToken->z, TS_PATH_DELIMITER[0], pToken->n);
+        sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
         if (sep == NULL) {
           return TSDB_CODE_INVALID_SQL;
         }

@@ -48,9 +48,9 @@ int vnodeOpenCommitLog(int vnode, uint64_t firstV) {
 
   dTrace("vid:%d, logfd:%d, open file:%s success", vnode, pVnode->logFd, fileName);
   if (posix_fallocate64(pVnode->logFd, 0, pVnode->mappingSize) != 0) {
-    dError("vid:%d, logfd:%d, failed to alloc file size:%d", vnode, pVnode->logFd, pVnode->mappingSize);
+    dError("vid:%d, logfd:%d, failed to alloc file size:%d reason:%s", vnode, pVnode->logFd, pVnode->mappingSize, strerror(errno));
     perror("fallocate failed");
-    return -1;
+    goto _err_log_open;
   }
 
   struct stat statbuf;
@@ -60,13 +60,13 @@ int vnodeOpenCommitLog(int vnode, uint64_t firstV) {
   if (length != pVnode->mappingSize) {
     dError("vid:%d, logfd:%d, alloc file size:%ld not equal to mapping size:%ld", vnode, pVnode->logFd, length,
            pVnode->mappingSize);
-    return -1;
+    goto _err_log_open;
   }
 
   pVnode->pMem = mmap(0, pVnode->mappingSize, PROT_WRITE | PROT_READ, MAP_SHARED, pVnode->logFd, 0);
   if (pVnode->pMem == MAP_FAILED) {
     dError("vid:%d, logfd:%d, failed to map file, reason:%s", vnode, pVnode->logFd, strerror(errno));
-    return -1;
+    goto _err_log_open;
   }
 
   pVnode->pWrite = pVnode->pMem;
@@ -74,6 +74,12 @@ int vnodeOpenCommitLog(int vnode, uint64_t firstV) {
   pVnode->pWrite += sizeof(firstV);
 
   return pVnode->logFd;
+
+  _err_log_open:
+  close(pVnode->logFd);
+  remove(fileName);
+  pVnode->logFd = -1;
+  return -1;
 }
 
 int vnodeRenewCommitLog(int vnode) {
@@ -244,9 +250,9 @@ int vnodeInitCommit(int vnode) {
 void vnodeCleanUpCommit(int vnode) {
   SVnodeObj *pVnode = vnodeList + vnode;
 
-  if (pVnode->logFd) tclose(pVnode->logFd);
+  if (VALIDFD(pVnode->logFd)) tclose(pVnode->logFd);
 
-  if (pVnode->cfg.commitLog && remove(pVnode->logFn) < 0) {
+  if (pVnode->cfg.commitLog && (pVnode->logFd > 0 && remove(pVnode->logFn) < 0)) {
     dError("vid:%d, failed to remove:%s", vnode, pVnode->logFn);
     taosLogError("vid:%d, failed to remove:%s", vnode, pVnode->logFn);
   }

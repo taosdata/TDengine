@@ -1949,7 +1949,7 @@ int32_t getColumnIndexByName(SSQLToken* pToken, SSchema* pSchema, int32_t numOfC
     return -1;
   }
 
-  char* r = strnchr(pToken->z, '.', pToken->n);
+  char* r = strnchr(pToken->z, '.', pToken->n, false);
   if (r != NULL) {
     r += 1;
 
@@ -3172,7 +3172,7 @@ int32_t getTimeRange(int64_t* stime, int64_t* etime, tSQLExpr* pRight, int32_t o
   bool    parsed = false;
   if (pRight->val.nType == TSDB_DATA_TYPE_BINARY) {
     strdequote(pRight->val.pz);
-    char* seg = strnchr(pRight->val.pz, '-', pRight->val.nLen);
+    char* seg = strnchr(pRight->val.pz, '-', pRight->val.nLen, false);
     if (seg != NULL) {
       if (taosParseTime(pRight->val.pz, &val, pRight->val.nLen, TSDB_TIME_PRECISION_MICRO) == TSDB_CODE_SUCCESS) {
         parsed = true;

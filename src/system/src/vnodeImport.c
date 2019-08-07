@@ -881,6 +881,7 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   }
 
   if ( pVnode->cfg.commitLog && source != TSDB_DATA_SOURCE_LOG) {
+    if (pVnode->logFd < 0) return TSDB_CODE_INVALID_COMMIT_LOG;
     code = vnodeWriteToCommitLog(pObj, TSDB_ACTION_IMPORT, cont, contLen, sversion);
     if (code != 0) return code;
   }

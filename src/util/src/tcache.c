@@ -46,7 +46,8 @@ typedef struct _cache_node_t {
   char *                key; /* null-terminated string */
   struct _cache_node_t *prev;
   struct _cache_node_t *next;
-  uint64_t              time;
+  uint64_t              addTime;  // the time when this element is added or updated into cache
+  uint64_t              time;     // end time when this element should be remove from cache
   uint64_t              signature;
 
   /*
@@ -78,7 +79,7 @@ typedef struct {
    * when the node in pTrash does not be referenced, it will be release at the expired time
    */
   SDataNode *pTrash;
-  int        numOfElemsInTrash; /* number of element in trash */
+  int        numOfElemsInTrash; // number of element in trash
 
   void *tmrCtrl;
   void *pTimer;
@@ -87,7 +88,7 @@ typedef struct {
   _hashFunc    hashFp;
 
   /*
-   * pthread_rwlock_t have bugs on the windows platform 
+   * pthread_rwlock_t will block ops on the windows platform, when refresh is called.
    * so use pthread_mutex_t as an alternative
    */
 #if defined LINUX
@@ -125,7 +126,8 @@ static SDataNode *taosCreateHashNode(const char *key, uint32_t keyLen, const cha
 
   memcpy(pNewNode->data, pData, dataSize);
 
-  pNewNode->time = taosGetTimestampMs() + lifespan;
+  pNewNode->addTime = (uint64_t) taosGetTimestampMs();
+  pNewNode->time = pNewNode->addTime + lifespan;
 
   pNewNode->key = pNewNode->data + dataSize;
   strcpy(pNewNode->key, key);
@@ -146,7 +148,7 @@ static SDataNode *taosCreateHashNode(const char *key, uint32_t keyLen, const cha
 static FORCE_INLINE int taosHashKey(int maxSessions, char *key, uint32_t len) {
   uint32_t hash = MurmurHash3_32(key, len);
 
-  /* avoid the costly remainder operation */
+  // avoid the costly remainder operation
   assert((maxSessions & (maxSessions - 1)) == 0);
   hash = hash & (maxSessions - 1);
 
@@ -485,11 +487,12 @@ void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, i
 
   if (pOldNode == NULL) {  // do add to cache
     pNode = taosAddToCacheImpl(pObj, key, keyLen, pData, dataSize, keepTime * 1000L);
-    pTrace("key:%s %p added into cache,slot:%d,expireTime:%lld,cache total:%d,size:%ldbytes,collision:%d", pNode->key,
-           pNode, pNode->hashVal, pNode->time, pObj->total, pObj->totalSize, pObj->statistics.numOfCollision);
+    pTrace("key:%s %p added into cache, slot:%d, addTime:%lld, expireTime:%lld, cache total:%d, "
+           "size:%lldbytes, collision:%d", pNode->key, pNode, pNode->hashVal, pNode->addTime, pNode->time, pObj->total,
+           pObj->totalSize, pObj->statistics.numOfCollision);
   } else {  // old data exists, update the node
     pNode = taosUpdateCacheImpl(pObj, pOldNode, key, keyLen, pData, dataSize, keepTime * 1000L);
-    // pWarn("key:%s %p exist in cache,updated", key, pNode);
+    pTrace("key:%s %p exist in cache, updated", key, pNode);
   }
 
 #if defined LINUX
@@ -507,7 +510,7 @@ void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, i
  * @param handle
  * @param data
  */
-void taosRemoveDataFromCache(void *handle, void **data, _Bool isForce) {
+void taosRemoveDataFromCache(void *handle, void **data, bool remove) {
   SCacheObj *pObj = (SCacheObj *)handle;
   if (pObj == NULL || pObj->maxSessions == 0 || (*data) == NULL || (pObj->total + pObj->numOfElemsInTrash == 0)) return;
 
@@ -532,7 +535,7 @@ void taosRemoveDataFromCache(void *handle, void **data, _Bool isForce) {
 
   *data = NULL;
   
-  if (isForce) {
+  if (remove) {
 #if defined LINUX
     pthread_rwlock_wrlock(&pObj->lock);
 #else
@@ -540,6 +543,7 @@ void taosRemoveDataFromCache(void *handle, void **data, _Bool isForce) {
 #endif
 
     taosCacheMoveNodeToTrash(pObj, pNode);
+
 #if defined LINUX
     pthread_rwlock_unlock(&pObj->lock);
 #else

@@ -56,7 +56,7 @@ int64_t taosGetTimestamp(int32_t precision) {
 
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec) {
   /* parse datatime string in with tz */
-  if (strnchr(timestr, 'T', len) != NULL) {
+  if (strnchr(timestr, 'T', len, false) != NULL) {
     return parseTimeWithTz(timestr, time, timePrec);
   } else {
     return parseLocaltime(timestr, time, timePrec);
