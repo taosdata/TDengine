@@ -91,7 +91,7 @@ int vnodeRenewCommitLog(int vnode) {
 
   if (VALIDFD(pVnode->logFd)) {
     munmap(pVnode->pMem, pVnode->mappingSize);
-    tclose(pVnode->logFd);
+    close(pVnode->logFd);
     rename(fileName, oldName);
   }
 
