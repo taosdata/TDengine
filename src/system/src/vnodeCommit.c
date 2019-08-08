@@ -250,7 +250,7 @@ int vnodeInitCommit(int vnode) {
 void vnodeCleanUpCommit(int vnode) {
   SVnodeObj *pVnode = vnodeList + vnode;
 
-  if (VALIDFD(pVnode->logFd)) tclose(pVnode->logFd);
+  if (VALIDFD(pVnode->logFd)) close(pVnode->logFd);
 
   if (pVnode->cfg.commitLog && (pVnode->logFd > 0 && remove(pVnode->logFn) < 0)) {
     dError("vid:%d, failed to remove:%s", vnode, pVnode->logFn);

@@ -299,7 +299,7 @@ int main(int argc, char *argv[]) {
   arguments.num_of_RPR = 1000;
   arguments.use_metric = true;
   arguments.insert_only = true;
- // end change
+  // end change
 
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
