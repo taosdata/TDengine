@@ -39,6 +39,7 @@ function clean_bin() {
     # Remove link
     ${csudo} rm -f ${bin_link_dir}/taos      || :
     ${csudo} rm -f ${bin_link_dir}/taosd     || :
+    ${csudo} rm -f ${bin_link_dir}/taosdemo  || :
     ${csudo} rm -f ${bin_link_dir}/taosdump  || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos    || :
 }
