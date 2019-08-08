@@ -1217,6 +1217,7 @@ int taosReSendRspToPeer(SRpcConn *pConn) {
 void taosProcessTaosTimer(void *param, void *tmrId) {
   STaosHeader *pHeader = NULL;
   SRpcConn *   pConn = (SRpcConn *)param;
+  int          msgLen;
 
   if (pConn->signature != param) {
     tError("pConn Signature:0x%x, pConn:0x%x not matched", pConn->signature, param);
@@ -1252,6 +1253,7 @@ void taosProcessTaosTimer(void *param, void *tmrId) {
       if (pConn->pMsgNode && pConn->pMsgNode->msgLen > 0) {
         pHeader = (STaosHeader *)((char *)pConn->pMsgNode + sizeof(SMsgNode));
         pHeader->destId = pConn->peerId;
+        msgLen = pConn->pMsgNode->msgLen;
         if (pConn->spi) {
           STaosDigest *pDigest = (STaosDigest *)(((char *)pHeader) + pConn->pMsgNode->msgLen - sizeof(STaosDigest));
           pDigest->timeStamp = htonl(taosGetTimestampSec());
@@ -1279,8 +1281,7 @@ void taosProcessTaosTimer(void *param, void *tmrId) {
   pthread_mutex_unlock(&pChann->mutex);
 
   if (pHeader) {
-    (*taosSendData[pServer->type])(pConn->peerIp, pConn->peerPort, (char *)pHeader, pConn->pMsgNode->msgLen,
-                                   pConn->chandle);
+    (*taosSendData[pServer->type])(pConn->peerIp, pConn->peerPort, (char *)pHeader, msgLen, pConn->chandle);
     taosTmrReset(taosProcessTaosTimer, tsRpcTimer, pConn, pChann->tmrCtrl, &pConn->pTimer);
   }
 }
