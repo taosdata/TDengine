@@ -291,10 +291,20 @@ int main(int argc, char *argv[]) {
 
   /* Parse our arguments; every option seen by parse_opt will be
      reflected in arguments. */
+  // For demo use, change default values for some parameters;
+  arguments.num_of_tables = 10000;
+  arguments.num_of_CPR = 3; 
+  arguments.num_of_connections = 10;
+  arguments.num_of_DPT = 100000;
+  arguments.num_of_RPR = 1000;
+  arguments.use_metric = true;
+  arguments.insert_only = true;
+ // end change
+
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
   if (arguments.abort) error(10, 0, "ABORTED");
-
+  
   enum MODE query_mode = arguments.mode;
   char *ip_addr = arguments.host;
   int port = arguments.port;
@@ -399,10 +409,10 @@ int main(int argc, char *argv[]) {
 
   } else {
     /* Create metric table */
-    printf("Creating metric table...\n");
-    sprintf(command, "create table %s.m1 (ts timestamp%s tags (index int)", db_name, cols);
+    printf("Creating meters super table...\n");
+    sprintf(command, "create table %s.meters (ts timestamp%s tags (areaid int, loc binary(10))", db_name, cols);
     queryDB(taos, command);
-    printf("Metric created!\n");
+    printf("meters created!\n");
 
     /* Create all the tables; */
     printf("Creating %d table(s)......\n", ntables);
@@ -413,7 +423,11 @@ int main(int argc, char *argv[]) {
       } else {
         j = i % 10;
       }
-      sprintf(command, "create table %s.%s%d using %s.m1 tags(%d);", db_name, tb_prefix, i, db_name, j);
+    if (j % 2 == 0) {
+       sprintf(command, "create table %s.%s%d using %s.meters tags (%d,\"%s\");", db_name, tb_prefix, i, db_name, j,"shanghai");
+      } else {
+       sprintf(command, "create table %s.%s%d using %s.meters tags (%d,\"%s\");", db_name, tb_prefix, i, db_name, j,"beijing");
+      }
       queryDB(taos, command);
     }
 
