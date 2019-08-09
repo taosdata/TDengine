@@ -808,7 +808,7 @@ void generateData(char *res, char **data_type, int num_of_cols, long timestamp, 
     } else if (strcasecmp(data_type[i % c], "smallint") == 0) {
       pstr += sprintf(pstr, ", %d", (int)(rand() % 32767));
     } else if (strcasecmp(data_type[i % c], "int") == 0) {
-      pstr += sprintf(pstr, ", %d", (int)(rand() % 2147483648));
+      pstr += sprintf(pstr, ", %d", (int)(rand() % 50)); 
     } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
       pstr += sprintf(pstr, ", %ld", rand() % 2147483648);
     } else if (strcasecmp(data_type[i % c], "float") == 0) {
