@@ -68,7 +68,7 @@ static const char DEFAULT_TELEGRAF_CFG[] =
         "{\"name\":\"system\",\"tbname\":\"system_uptime\",\"fields\":[\"uptime\"]},"
         "{\"name\":\"system\",\"tbname\":\"system_uptime_format\",\"fields\":[\"uptime_format\"]},"
         "{\"name\":\"swap\",\"tbname\":\"swap_in\",\"fields\":[\"in\"]},"
-        "{\"name\":\"cpu\",\"tbname\":\"cpu_time\",\"fields\":[\"time_active\",\"time_guest\"]}"
+        "{\"name\":\"cpu\",\"tbname\":\"cpu_usage\",\"fields\":[\"usage_active\",\"usage_guest\"]}"
         "]}";
 
 typedef struct {
