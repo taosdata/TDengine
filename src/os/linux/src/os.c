@@ -223,28 +223,30 @@ int taosOpenUDServerSocket(char *ip, short port) {
   return sockFd;
 }
 
+// The callback functions MUST free the param pass to it after finishing use it.
 int taosInitTimer(void *(*callback)(void *), int ms) {
   /********************************************************
    * Create SIGALRM loop thread
    ********************************************************/
-  pthread_t      thread;
+  pthread_t thread;
   pthread_attr_t tattr;
   if (pthread_attr_init(&tattr)) {
-    return -1;
+      return -1;
   }
 
   if (pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED)) {
-    return -1;
+      return -1;
   }
 
-  int *tms = (int *)malloc(sizeof(int));
+  int *tms = (int *) malloc(sizeof(int));
   *tms = ms;
-  if (pthread_create(&thread, &tattr, callback, (void *)tms)) {
-    return -1;
+  if (pthread_create(&thread, &tattr, callback, (void *) tms)) {
+      free(tms);
+      return -1;
   }
 
   if (pthread_attr_destroy(&tattr)) {
-    return -1;
+      return -1;
   }
 
   return 0;
