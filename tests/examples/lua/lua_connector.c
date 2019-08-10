@@ -22,7 +22,7 @@ static int l_connect(lua_State *L)
 
   taos = taos_connect(host, user,password,database, port);
   if (taos == NULL) {
-    printf("failed to connect to server, reason:%s\n", taos_errstr(taos));
+    printf("failed to connect server, reason:%s\n", taos_errstr(taos));
     
     lua_pushnumber(L, -1);
     lua_setfield(L, table_index, "code");
@@ -30,7 +30,7 @@ static int l_connect(lua_State *L)
     lua_setfield(L, table_index, "error");    
     lua_pushlightuserdata(L,NULL);
   }else{
-    printf("success to connect to server\n");
+    printf("success to connect server\n");
     lua_pushnumber(L, 0);
     lua_setfield(L, table_index, "code");
     lua_pushstring(L, taos_errstr(taos));
@@ -60,6 +60,7 @@ static int l_query(lua_State *L){
     return 1;
     
   }else{
+    //printf("success to query.\n");
     result = taos_use_result(taos);
 
     if (result == NULL) {
@@ -82,17 +83,61 @@ static int l_query(lua_State *L){
     lua_newtable(L);
     
     while ((row = taos_fetch_row(result))) {
+      //printf("row index:%d\n",rows);
       rows++;
-      taos_print_row(temp, row, fields, num_fields);
-      printf("%s\n", temp);
+
       lua_pushnumber(L,rows);
-      lua_pushstring(L,temp);
+      lua_newtable(L);
+
+      for (int i = 0; i < num_fields; ++i) {
+	if (row[i] == NULL) {
+	  continue;
+	}
+
+	lua_pushstring(L,fields[i].name);
+	//printf("field name:%s,type:%d\n",fields[i].name,fields[i].type);
+	switch (fields[i].type) {
+	case TSDB_DATA_TYPE_TINYINT:
+	  lua_pushinteger(L,*((char *)row[i]));
+	  break;
+	case TSDB_DATA_TYPE_SMALLINT:
+	  lua_pushinteger(L,*((short *)row[i]));
+	  break;
+	case TSDB_DATA_TYPE_INT:
+	  lua_pushinteger(L,*((int *)row[i]));
+	  break;
+	case TSDB_DATA_TYPE_BIGINT:
+	  lua_pushinteger(L,*((int64_t *)row[i]));
+	  break;
+	case TSDB_DATA_TYPE_FLOAT:
+	  lua_pushnumber(L,*((float *)row[i]));
+	  break;
+	case TSDB_DATA_TYPE_DOUBLE:
+	  lua_pushnumber(L,*((double *)row[i]));
+	  break;
+	case TSDB_DATA_TYPE_BINARY:
+	case TSDB_DATA_TYPE_NCHAR:
+	  lua_pushstring(L,(char *)row[i]);
+	  break;
+	case TSDB_DATA_TYPE_TIMESTAMP:
+	  lua_pushinteger(L,*((int64_t *)row[i]));
+	  break;
+	case TSDB_DATA_TYPE_BOOL:
+	  lua_pushinteger(L,*((char *)row[i]));
+	  break;
+	default:
+	  lua_pushnil(L);
+	  break;
+	}
+
+	lua_settable(L,-3);
+      }
+
       lua_settable(L,-3);
     }
-    
     taos_free_result(result);    
   }
-  
+
   lua_setfield(L, table_index, "item");
   return 1;
 }
