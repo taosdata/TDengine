@@ -64,6 +64,7 @@ void httpJsonOriginString(JsonBuf* buf, char* sVal, int len);
 void httpJsonStringForTransMean(JsonBuf* buf, char* SVal, int maxLen);
 void httpJsonInt64(JsonBuf* buf, int64_t num);
 void httpJsonTimestamp(JsonBuf* buf, int64_t t);
+void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t);
 void httpJsonInt(JsonBuf* buf, int num);
 void httpJsonFloat(JsonBuf* buf, float num);
 void httpJsonDouble(JsonBuf* buf, double num);

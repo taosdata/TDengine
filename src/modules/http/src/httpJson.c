@@ -266,11 +266,24 @@ void httpJsonTimestamp(JsonBuf* buf, int64_t t) {
   struct tm* ptm;
   time_t     tt = t / 1000;
   ptm = localtime(&tt);
-  int length = (int)strftime(ts, 30, "%Y-%m-%dT%H:%M:%S", ptm);
+  int length = (int)strftime(ts, 30, "%Y-%m-%d %H:%M:%S", ptm);
 
-  snprintf(ts+length, MAX_NUM_STR_SZ, ".%03ldZ", t % 1000);
+  snprintf(ts+length, MAX_NUM_STR_SZ, ".%03ld", t % 1000);
 
-  httpJsonString(buf, ts, length + 5);
+  httpJsonString(buf, ts, length + 4);
+}
+
+void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t) {
+  char ts[35] = {0};
+
+  struct tm *ptm;
+  time_t tt = t / 1000;
+  ptm = localtime(&tt);
+  int length = (int) strftime(ts, 35, "%Y-%m-%dT%H:%M:%S", ptm);
+  length += snprintf(ts + length, MAX_NUM_STR_SZ, ".%03ld", t % 1000);
+  length += (int) strftime(ts + length, 35 - length, "%z", ptm);
+
+  httpJsonString(buf, ts, length + 4);
 }
 
 void httpJsonInt(JsonBuf* buf, int num) {
