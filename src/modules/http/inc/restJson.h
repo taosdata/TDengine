@@ -40,8 +40,8 @@
 #define REST_JSON_AFFECT_ROWS_LEN 13
 
 #define REST_TIMESTAMP_FMT_LOCAL_STRING 0
-#define REST_TIMESTAMP_FMT_TIMESTAMP 1
-#define REST_TIMESTAMP_FMT_UTC_STRING 2
+#define REST_TIMESTAMP_FMT_TIMESTAMP    1
+#define REST_TIMESTAMP_FMT_UTC_STRING   2
 
 void restBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int affect_rows);
 

@@ -260,30 +260,45 @@ void httpJsonInt64(JsonBuf* buf, int64_t num) {
   buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%ld", num);
 }
 
-void httpJsonTimestamp(JsonBuf* buf, int64_t t) {
-  char ts[30] = {0};
+void httpJsonTimestamp(JsonBuf* buf, int64_t t, bool us) {
+  char ts[35] = {0};
+  struct tm *ptm;
+  int precision = 1000;
+  if (us) {
+    precision = 1000000;
+  }
 
-  struct tm* ptm;
-  time_t     tt = t / 1000;
+  time_t tt = t / precision;
   ptm = localtime(&tt);
-  int length = (int)strftime(ts, 30, "%Y-%m-%d %H:%M:%S", ptm);
+  int length = (int) strftime(ts, 35, "%Y-%m-%d %H:%M:%S", ptm);
+  if (us) {
+    length += snprintf(ts + length, 8, ".%06ld", t % precision);
+  } else {
+    length += snprintf(ts + length, 5, ".%03ld", t % precision);
+  }
 
-  snprintf(ts+length, MAX_NUM_STR_SZ, ".%03ld", t % 1000);
-
-  httpJsonString(buf, ts, length + 4);
+  httpJsonString(buf, ts, length);
 }
 
-void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t) {
-  char ts[35] = {0};
-
+void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, bool us) {
+  char ts[40] = {0};
   struct tm *ptm;
-  time_t tt = t / 1000;
-  ptm = localtime(&tt);
-  int length = (int) strftime(ts, 35, "%Y-%m-%dT%H:%M:%S", ptm);
-  length += snprintf(ts + length, MAX_NUM_STR_SZ, ".%03ld", t % 1000);
-  length += (int) strftime(ts + length, 35 - length, "%z", ptm);
+  int precision = 1000;
+  if (us) {
+    precision = 1000000;
+  }
 
-  httpJsonString(buf, ts, length + 4);
+  time_t tt = t / precision;
+  ptm = localtime(&tt);
+  int length = (int) strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", ptm);
+  if (us) {
+    length += snprintf(ts + length, 8, ".%06ld", t % precision);
+  } else {
+    length += snprintf(ts + length, 5, ".%03ld", t % precision);
+  }
+  length += (int) strftime(ts + length, 40 - length, "%z", ptm);
+
+  httpJsonString(buf, ts, length);
 }
 
 void httpJsonInt(JsonBuf* buf, int num) {
