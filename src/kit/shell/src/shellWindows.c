@@ -207,13 +207,10 @@ void *shellLoopQuery(void *arg) {
     shellPrintPrompt();
 
     // Read command from shell.
-    char command[MAX_COMMAND_SIZE];
     shellReadCommand(con, command);
 
     // Run the command
-    if (command != NULL) {
-      shellRunCommand(con, command);
-    }
+    shellRunCommand(con, command);
   }
 
   return NULL;
