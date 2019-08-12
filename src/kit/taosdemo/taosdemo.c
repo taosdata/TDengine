@@ -52,11 +52,11 @@ static struct argp_option options[] = {
   {0, 'q', "query_mode",               0, "Query mode--0: SYNC, 1: ASYNC. Default is SYNC.",                                                                  6},
   {0, 'b', "type_of_cols",             0, "The data_type of columns: 'INT', 'TINYINT', 'SMALLINT', 'BIGINT', 'FLOAT', 'DOUBLE', 'BINARY'. Default is 'INT'.", 7},
   {0, 'w', "length_of_binary",         0, "The length of data_type 'BINARY'. Only applicable when type of cols is 'BINARY'. Default is 8",                    8},
-  {0, 'l', "num_of_cols_per_record",   0, "The number of columns per record. Default is 1.",                                                                  8},
-  {0, 'c', "num_of_conns",             0, "The number of connections. Default is 1.",                                                                         9},
-  {0, 'r', "num_of_records_per_req",   0, "The number of records per request. Default is 1.",                                                                 10},
-  {0, 't', "num_of_tables",            0, "The number of tables. Default is 1.",                                                                              11},
-  {0, 'n', "num_of_records_per_table", 0, "The number of records per table. Default is 50000.",                                                               12},
+  {0, 'l', "num_of_cols_per_record",   0, "The number of columns per record. Default is 3.",                                                                  8},
+  {0, 'c', "num_of_conns",             0, "The number of connections. Default is 10.",                                                                         9},
+  {0, 'r', "num_of_records_per_req",   0, "The number of records per request. Default is 1000.",                                                                 10},
+  {0, 't', "num_of_tables",            0, "The number of tables. Default is 10000.",                                                                              11},
+  {0, 'n', "num_of_records_per_table", 0, "The number of records per table. Default is 100000.",                                                               12},
   {0, 'f', "config_directory",         0, "Configuration directory. Default is '/etc/taos/'.",                                                                14},
   {0, 'x', 0,                          0, "Insert only flag.",                                                                                                13},
   {0}};
@@ -808,7 +808,7 @@ void generateData(char *res, char **data_type, int num_of_cols, long timestamp, 
     } else if (strcasecmp(data_type[i % c], "smallint") == 0) {
       pstr += sprintf(pstr, ", %d", (int)(rand() % 32767));
     } else if (strcasecmp(data_type[i % c], "int") == 0) {
-      pstr += sprintf(pstr, ", %d", (int)(rand() % 50)); 
+      pstr += sprintf(pstr, ", %d", (int)(rand() % 10)); 
     } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
       pstr += sprintf(pstr, ", %ld", rand() % 2147483648);
     } else if (strcasecmp(data_type[i % c], "float") == 0) {
