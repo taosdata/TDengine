@@ -2408,7 +2408,31 @@ void setColumnOffsetValueInResultset(SSqlCmd* pCmd) {
   }
 }
 
-static void setColumnFilterInfo(SSqlCmd* pCmd, SColumnBase* pColFilter, int32_t colIdx, tSQLExpr* pExpr) {
+static int setColumnFilterInfoForTimestamp(SSqlCmd* pCmd, tVariant* pVar) {
+  int64_t     time = 0;
+  const char* msg = "invalid timestamp";
+
+  strdequote(pVar->pz);
+  char* seg = strnchr(pVar->pz, '-', pVar->nLen, false);
+  if (seg != NULL) {
+    if (taosParseTime(pVar->pz, &time, pVar->nLen, pCmd->pMeterMeta->precision) != TSDB_CODE_SUCCESS) {
+      setErrMsg(pCmd, msg);
+      return TSDB_CODE_INVALID_SQL;
+    }
+  } else {
+    if (tVariantDump(pVar, (char*)&time, TSDB_DATA_TYPE_BIGINT)) {
+      setErrMsg(pCmd, msg);
+      return TSDB_CODE_INVALID_SQL;
+    }
+  }
+
+  tVariantDestroy(pVar);
+  tVariantCreateB(pVar, &time, 0, TSDB_DATA_TYPE_BIGINT);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int setColumnFilterInfo(SSqlCmd* pCmd, SColumnBase* pColFilter, int32_t colIdx, tSQLExpr* pExpr) {
   tSQLExpr* pRight = pExpr->pRight;
   SSchema*  pSchema = tsGetSchema(pCmd->pMeterMeta);
 
@@ -2417,10 +2441,15 @@ static void setColumnFilterInfo(SSqlCmd* pCmd, SColumnBase* pColFilter, int32_t 
   pColFilter->colIndex = colIdx;
 
   int16_t colType = pSchema[colIdx].type;
-  if ((colType >= TSDB_DATA_TYPE_TINYINT && colType <= TSDB_DATA_TYPE_BIGINT) || colType == TSDB_DATA_TYPE_TIMESTAMP) {
+  if (colType >= TSDB_DATA_TYPE_TINYINT && colType <= TSDB_DATA_TYPE_BIGINT) {
     colType = TSDB_DATA_TYPE_BIGINT;
   } else if (colType == TSDB_DATA_TYPE_FLOAT || colType == TSDB_DATA_TYPE_DOUBLE) {
     colType = TSDB_DATA_TYPE_DOUBLE;
+  } else if ((colType == TSDB_DATA_TYPE_TIMESTAMP) && (TSDB_DATA_TYPE_BINARY == pRight->val.nType)) {
+    int retVal = setColumnFilterInfoForTimestamp(pCmd, &pRight->val);
+    if (TSDB_CODE_SUCCESS != retVal) {
+      return retVal;
+    }
   }
 
   if (pExpr->nSQLOptr == TK_LE || pExpr->nSQLOptr == TK_LT) {
@@ -2460,6 +2489,7 @@ static void setColumnFilterInfo(SSqlCmd* pCmd, SColumnBase* pColFilter, int32_t 
       pColFilter->lowerRelOptr = TSDB_RELATION_LIKE;
       break;
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t getTimeRange(int64_t* stime, int64_t* etime, tSQLExpr* pRight, int32_t optr, int16_t precision);
@@ -2808,8 +2838,7 @@ static int32_t getColumnFilterInfo(SSqlCmd* pCmd, int32_t colIdx, tSQLExpr* pExp
     }
   }
 
-  setColumnFilterInfo(pCmd, pColFilter, colIdx, pExpr);
-  return TSDB_CODE_SUCCESS;
+  return setColumnFilterInfo(pCmd, pColFilter, colIdx, pExpr);
 }
 
 static int32_t handleExprInQueryCond(SSqlCmd* pCmd, bool* queryTimeRangeIsSet, char** queryStr, int64_t* stime,
