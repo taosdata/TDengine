@@ -23,14 +23,17 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 
 #include "os.h"
 #include "tglobalcfg.h"
 #include "tlog.h"
 #include "tsocket.h"
 #include "tutil.h"
+#include "tsystem.h"
 
 unsigned int ip2uint(const char *const ip_addr);
+bool isRunningWSLv1();
 
 /*
  * Function to get the public ip address of current machine. If get IP
@@ -301,9 +304,15 @@ int taosOpenUdpSocket(char *ip, short port) {
 
   nocheck = 1;
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_NO_CHECK, (void *)&nocheck, sizeof(nocheck)) < 0) {
-    pError("setsockopt SO_NO_CHECK failed: %d (%s)", errno, strerror(errno));
-    close(sockFd);
-    return -1;
+    // no_check is not implemented in WSL
+    // skip the following check if system running WSLv1
+    if (!isRunningWSLv1()) {
+      pError("setsockopt SO_NO_CHECK failed: %d (%s)", errno, strerror(errno));
+      close(sockFd);
+      return -1;
+    } else {
+      pError("Skipping: setsockopt SO_NO_CHECK failed: %d (%s)", errno, strerror(errno));
+    }
   }
 
   ttl = 128;
@@ -546,4 +555,20 @@ int taosCopyFds(int sfd, int dfd, int64_t len) {
   }
 
   return 0;
+}
+
+// check if the linux running is WSL
+bool isRunningWSLv1() {
+  struct utsname buf;
+  if (uname(&buf)) {
+    pPrint(" can't fetch os info");
+    return false;
+  }
+
+  if (strstr(buf.release, "Microsoft") != 0) {
+    pPrint(" using WSLv1");
+    return true;
+  }
+
+  return false;
 }
