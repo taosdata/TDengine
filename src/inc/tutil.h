@@ -234,6 +234,7 @@ int32_t __sync_val_compare_and_swap_32(int32_t *ptr, int32_t oldval, int32_t new
 int32_t __sync_add_and_fetch_32(int32_t *ptr, int32_t val);
 int64_t __sync_val_compare_and_swap_64(int64_t *ptr, int64_t oldval, int64_t newval);
 int64_t __sync_add_and_fetch_64(int64_t *ptr, int64_t val);
+#define twrite write
 #ifndef PATH_MAX
 #define PATH_MAX 256
 #endif
