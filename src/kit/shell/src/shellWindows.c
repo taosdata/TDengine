@@ -200,20 +200,17 @@ void shellReadCommand(TAOS *con, char command[]) {
 
 void *shellLoopQuery(void *arg) {
   TAOS *con = (TAOS *)arg;
-  char *command = malloc(MAX_COMMAND_SIZE);
+  char command[MAX_COMMAND_SIZE];
 
   while (1) {
     memset(command, 0, MAX_COMMAND_SIZE);
     shellPrintPrompt();
 
     // Read command from shell.
-    char command[MAX_COMMAND_SIZE];
     shellReadCommand(con, command);
 
     // Run the command
-    if (command != NULL) {
-      shellRunCommand(con, command);
-    }
+    shellRunCommand(con, command);
   }
 
   return NULL;
