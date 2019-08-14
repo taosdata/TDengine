@@ -242,6 +242,8 @@ int64_t __sync_add_and_fetch_64(int64_t *ptr, int64_t val);
 #define __sync_val_compare_and_swap_32 __sync_val_compare_and_swap
 #define __sync_add_and_fetch_64 __sync_add_and_fetch
 #define __sync_add_and_fetch_32 __sync_add_and_fetch
+ssize_t tsendfile(int dfd, int sfd, off_t *offset, size_t size);
+ssize_t twrite(int fd, void *buf, size_t n);
 #endif
 
 #ifdef __cplusplus

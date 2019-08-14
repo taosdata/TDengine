@@ -62,7 +62,7 @@ void sdbFinishCommit(void *handle) {
 
   off_t offset = lseek(pTable->fd, 0, SEEK_END);
   assert(offset == pTable->size);
-  write(pTable->fd, &sdbEcommit, sizeof(sdbEcommit));
+  twrite(pTable->fd, &sdbEcommit, sizeof(sdbEcommit));
   pTable->size += sizeof(sdbEcommit);
 }
 
@@ -112,7 +112,7 @@ int sdbOpenSdbFile(SSdbTable *pTable) {
       tclose(pTable->fd);
       return -1;
     }
-    write(pTable->fd, &(pTable->header), size);
+    twrite(pTable->fd, &(pTable->header), size);
     pTable->size += size;
     sdbFinishCommit(pTable);
   } else {
@@ -401,7 +401,7 @@ int64_t sdbInsertRow(void *handle, void *row, int rowSize) {
   /* Update the disk content */
   /* write(pTable->fd, &action, sizeof(action)); */
   /* pTable->size += sizeof(action); */
-  write(pTable->fd, rowHead, real_size);
+  twrite(pTable->fd, rowHead, real_size);
   pTable->size += real_size;
   sdbFinishCommit(pTable);
 
@@ -497,7 +497,7 @@ int sdbDeleteRow(void *handle, void *row) {
   }
   /* write(pTable->fd, &action, sizeof(action)); */
   /* pTable->size += sizeof(action); */
-  write(pTable->fd, rowHead, total_size);
+  twrite(pTable->fd, rowHead, total_size);
   pTable->size += total_size;
   sdbFinishCommit(pTable);
 
@@ -592,7 +592,7 @@ int sdbUpdateRow(void *handle, void *row, int updateSize, char isUpdated) {
   }
   /* write(pTable->fd, &action, sizeof(action)); */
   /* pTable->size += sizeof(action); */
-  write(pTable->fd, rowHead, real_size);
+  twrite(pTable->fd, rowHead, real_size);
 
   pMeta->id = pTable->id;
   pMeta->offset = pTable->size;
@@ -675,7 +675,7 @@ int sdbBatchUpdateRow(void *handle, void *row, int rowSize) {
     taosCalcChecksumAppend(0, (uint8_t *)rowHead, sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM));
     pMeta->rowSize = rowHead->rowSize;
     lseek(pTable->fd, pTable->size, SEEK_SET);
-    write(pTable->fd, rowHead, sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM));
+    twrite(pTable->fd, rowHead, sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM));
     pTable->size += (sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM));
 
     sdbAddIntoUpdateList(pTable, SDB_TYPE_UPDATE, last_row);
@@ -855,9 +855,9 @@ void sdbSaveSnapShot(void *handle) {
   memset(rowHead, 0, size);
 
   // Write the header
-  write(fd, &(pTable->header), sizeof(SSdbHeader));
+  twrite(fd, &(pTable->header), sizeof(SSdbHeader));
   size += sizeof(SSdbHeader);
-  write(fd, &sdbEcommit, sizeof(sdbEcommit));
+  twrite(fd, &sdbEcommit, sizeof(sdbEcommit));
   size += sizeof(sdbEcommit);
 
   while (1) {
@@ -876,9 +876,9 @@ void sdbSaveSnapShot(void *handle) {
 
     /* write(fd, &action, sizeof(action)); */
     /* size += sizeof(action); */
-    write(fd, rowHead, real_size);
+    twrite(fd, rowHead, real_size);
     size += real_size;
-    write(fd, &sdbEcommit, sizeof(sdbEcommit));
+    twrite(fd, &sdbEcommit, sizeof(sdbEcommit));
     size += sizeof(sdbEcommit);
     numOfRows++;
   }

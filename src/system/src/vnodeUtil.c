@@ -64,16 +64,16 @@ void vnodeCreateFileHeaderFd(int fd) {
   sprintf(temp + sizeof(int16_t), "tsdb version: %s\n", version);
   /* *((int16_t *)(temp + TSDB_FILE_HEADER_LEN/8)) = vnodeFileVersion; */
   lseek(fd, 0, SEEK_SET);
-  write(fd, temp, lineLen);
+  twrite(fd, temp, lineLen);
 
   // second line
   memset(temp, 0, lineLen);
-  write(fd, temp, lineLen);
+  twrite(fd, temp, lineLen);
 
   // the third/forth line is the dynamic info
   memset(temp, 0, lineLen);
-  write(fd, temp, lineLen);
-  write(fd, temp, lineLen);
+  twrite(fd, temp, lineLen);
+  twrite(fd, temp, lineLen);
 }
 
 void vnodeGetHeadFileHeaderInfo(int fd, SVnodeHeadInfo* pHeadInfo) {
@@ -83,7 +83,7 @@ void vnodeGetHeadFileHeaderInfo(int fd, SVnodeHeadInfo* pHeadInfo) {
 
 void vnodeUpdateHeadFileHeader(int fd, SVnodeHeadInfo* pHeadInfo) {
   lseek(fd, TSDB_FILE_HEADER_LEN / 4, SEEK_SET);
-  write(fd, pHeadInfo, sizeof(SVnodeHeadInfo));
+  twrite(fd, pHeadInfo, sizeof(SVnodeHeadInfo));
 }
 
 void vnodeCreateFileHeader(FILE* fp) {

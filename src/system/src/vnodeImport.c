@@ -14,7 +14,6 @@
  */
 
 #include <arpa/inet.h>
-#include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -97,12 +96,12 @@ int vnodeCloseFileForImport(SMeterObj *pObj, SHeadInfo *pHinfo) {
 
   if (pHinfo->newBlocks == 0 || pHinfo->compInfoOffset == 0) return 0;
 
-  if (pHinfo->oldNumOfBlocks == 0) write(pVnode->nfd, &chksum, sizeof(TSCKSUM));
+  if (pHinfo->oldNumOfBlocks == 0) twrite(pVnode->nfd, &chksum, sizeof(TSCKSUM));
 
   int leftSize = pHinfo->hfdSize - pHinfo->leftOffset;
   if (leftSize > 0) {
     lseek(pVnode->hfd, pHinfo->leftOffset, SEEK_SET);
-    sendfile(pVnode->nfd, pVnode->hfd, NULL, leftSize);
+    tsendfile(pVnode->nfd, pVnode->hfd, NULL, leftSize);
   }
 
   pHinfo->compInfo.numOfBlocks += pHinfo->newBlocks;
@@ -117,7 +116,7 @@ int vnodeCloseFileForImport(SMeterObj *pObj, SHeadInfo *pHinfo) {
   lseek(pVnode->nfd, TSDB_FILE_HEADER_LEN, SEEK_SET);
   int tmsize = sizeof(SCompHeader) * pCfg->maxSessions + sizeof(TSCKSUM);
   taosCalcChecksumAppend(0, (uint8_t *)pHinfo->headList, tmsize);
-  write(pVnode->nfd, pHinfo->headList, tmsize);
+  twrite(pVnode->nfd, pHinfo->headList, tmsize);
 
   int   size = pHinfo->compInfo.numOfBlocks * sizeof(SCompBlock);
   char *buffer = malloc(size);
@@ -131,11 +130,11 @@ int vnodeCloseFileForImport(SMeterObj *pObj, SHeadInfo *pHinfo) {
 
   taosCalcChecksumAppend(0, (uint8_t *)(&pHinfo->compInfo), sizeof(SCompInfo));
   lseek(pVnode->nfd, pHinfo->compInfoOffset, SEEK_SET);
-  write(pVnode->nfd, &pHinfo->compInfo, sizeof(SCompInfo));
+  twrite(pVnode->nfd, &pHinfo->compInfo, sizeof(SCompInfo));
 
   chksum = taosCalcChecksum(0, (uint8_t *)buffer, size);
   lseek(pVnode->nfd, pHinfo->compInfoOffset + sizeof(SCompInfo) + size, SEEK_SET);
-  write(pVnode->nfd, &chksum, sizeof(TSCKSUM));
+  twrite(pVnode->nfd, &chksum, sizeof(TSCKSUM));
   free(buffer);
 
   vnodeCloseCommitFiles(pVnode);
@@ -161,11 +160,11 @@ int vnodeProcessLastBlock(SImportInfo *pImport, SHeadInfo *pHinfo, SData *data[]
   if (lastBlock.sversion != pObj->sversion) {
     lseek(pVnode->lfd, lastBlock.offset, SEEK_SET);
     lastBlock.offset = lseek(pVnode->dfd, 0, SEEK_END);
-    sendfile(pVnode->dfd, pVnode->lfd, NULL, lastBlock.len);
+    tsendfile(pVnode->dfd, pVnode->lfd, NULL, lastBlock.len);
 
     lastBlock.last = 0;
     lseek(pVnode->hfd, offset, SEEK_SET);
-    write(pVnode->hfd, &lastBlock, sizeof(SCompBlock));
+    twrite(pVnode->hfd, &lastBlock, sizeof(SCompBlock));
   } else {
     vnodeReadLastBlockToMem(pObj, &lastBlock, data);
     pHinfo->compInfo.numOfBlocks--;
@@ -221,8 +220,8 @@ int vnodeOpenFileForImport(SImportInfo *pImport, char *payload, SHeadInfo *pHinf
     pHinfo->oldNumOfBlocks = pHinfo->compInfo.numOfBlocks;
     lseek(pVnode->hfd, 0, SEEK_SET);
     lseek(pVnode->nfd, 0, SEEK_SET);
-    sendfile(pVnode->nfd, pVnode->hfd, NULL, pHinfo->compInfoOffset);
-    write(pVnode->nfd, &pHinfo->compInfo, sizeof(SCompInfo));
+    tsendfile(pVnode->nfd, pVnode->hfd, NULL, pHinfo->compInfoOffset);
+    twrite(pVnode->nfd, &pHinfo->compInfo, sizeof(SCompInfo));
     if (pHinfo->headList[pObj->sid].compInfoOffset > 0) lseek(pVnode->hfd, sizeof(SCompInfo), SEEK_CUR);
 
     if (pVnode->commitFileId < pImport->fileId) {
@@ -234,7 +233,7 @@ int vnodeOpenFileForImport(SImportInfo *pImport, char *payload, SHeadInfo *pHinf
       // copy all existing compBlockInfo
       lseek(pVnode->hfd, pHinfo->compInfoOffset + sizeof(SCompInfo), SEEK_SET);
       if (pHinfo->compInfo.numOfBlocks > 0)
-        sendfile(pVnode->nfd, pVnode->hfd, NULL, pHinfo->compInfo.numOfBlocks * sizeof(SCompBlock));
+        tsendfile(pVnode->nfd, pVnode->hfd, NULL, pHinfo->compInfo.numOfBlocks * sizeof(SCompBlock));
 
     } else if (pVnode->commitFileId == pImport->fileId) {
       int slots = pImport->pos ? pImport->slot + 1 : pImport->slot;
@@ -251,7 +250,7 @@ int vnodeOpenFileForImport(SImportInfo *pImport, char *payload, SHeadInfo *pHinf
 
       if (pImport->slot > 0) {
         lseek(pVnode->hfd, pHinfo->compInfoOffset + sizeof(SCompInfo), SEEK_SET);
-        sendfile(pVnode->nfd, pVnode->hfd, NULL, pImport->slot * sizeof(SCompBlock));
+        tsendfile(pVnode->nfd, pVnode->hfd, NULL, pImport->slot * sizeof(SCompBlock));
       }
 
       if (pImport->slot < pHinfo->compInfo.numOfBlocks)
@@ -448,7 +447,7 @@ int vnodeImportToFile(SImportInfo *pImport) {
 
     compBlock.last = headInfo.last;
     vnodeWriteBlockToFile(pObj, &compBlock, data, cdata, rowsToWrite);
-    write(pVnode->nfd, &compBlock, sizeof(SCompBlock));
+    twrite(pVnode->nfd, &compBlock, sizeof(SCompBlock));
 
     rowsToWrite = 0;
     headInfo.newBlocks++;

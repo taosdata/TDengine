@@ -17,7 +17,6 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <libgen.h>
-#include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -65,26 +64,7 @@ int vnodeRecoverCompHeader(int vnode, int fileId);
 int vnodeRecoverHeadFile(int vnode, int fileId);
 int vnodeRecoverDataFile(int vnode, int fileId);
 int vnodeForwardStartPosition(SQuery *pQuery, SCompBlock *pBlock, int32_t slotIdx, SVnodeObj *pVnode, SMeterObj *pObj);
-
-int64_t tsendfile(int dfd, int sfd, int64_t bytes) {
-  int64_t leftbytes = bytes;
-  off_t   offset = 0;
-  int64_t sentbytes;
-
-  while (leftbytes > 0) {
-    sentbytes = (leftbytes > 1000000000) ? 1000000000 : leftbytes;
-    sentbytes = sendfile(dfd, sfd, &offset, sentbytes);
-    if (sentbytes < 0) {
-      dError("send file failed,reason:%s", strerror(errno));
-      return -1;
-    }
-
-    leftbytes -= sentbytes;
-    // dTrace("sentbytes:%ld leftbytes:%ld", sentbytes, leftbytes);
-  }
-
-  return bytes;
-}
+int vnodeCheckNewHeaderFile(int fd, SVnodeObj *pVnode);
 
 void vnodeGetHeadDataLname(char *headName, char *dataName, char *lastName, int vnode, int fileId) {
   if (headName != NULL) sprintf(headName, "%s/vnode%d/db/v%df%d.head", tsDirectory, vnode, vnode, fileId);
@@ -172,7 +152,7 @@ int vnodeCreateEmptyCompFile(int vnode, int fileId) {
   taosCalcChecksumAppend(0, (uint8_t *)temp, size);
 
   lseek(tfd, TSDB_FILE_HEADER_LEN, SEEK_SET);
-  write(tfd, temp, size);
+  twrite(tfd, temp, size);
   free(temp);
   close(tfd);
 
@@ -345,7 +325,7 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
   char *temp = malloc(size);
   memset(temp, 0, size);
   taosCalcChecksumAppend(0, (uint8_t *)temp, size);
-  write(pVnode->nfd, temp, size);
+  twrite(pVnode->nfd, temp, size);
   free(temp);
 
   pVnode->dfSize = lseek(pVnode->dfd, 0, SEEK_END);
@@ -408,6 +388,11 @@ void vnodeCloseCommitFiles(SVnodeObj *pVnode) {
   char dpath[TSDB_FILENAME_LEN] = "\0";
   int  fileId;
   int  ret;
+
+  // Check new if new header file is correct
+#ifdef _CHECK_HEADER_FILE_
+  assert(vnodeCheckNewHeaderFile(pVnode->nfd, pVnode) == 0);
+#endif
 
   close(pVnode->nfd);
   pVnode->nfd = 0;
@@ -673,7 +658,7 @@ _again:
         pCompBlock->last = 0;
         pCompBlock->offset = lseek(pVnode->dfd, 0, SEEK_END);
         lseek(pVnode->lfd, pMeter->lastBlock.offset, SEEK_SET);
-        sendfile(pVnode->dfd, pVnode->lfd, NULL, pMeter->lastBlock.len);
+        tsendfile(pVnode->dfd, pVnode->lfd, NULL, pMeter->lastBlock.len);
         pVnode->dfSize = pCompBlock->offset + pMeter->lastBlock.len;
 
         headLen += sizeof(SCompBlock);
@@ -779,7 +764,7 @@ _again:
   vnodeUpdateHeadFileHeader(pVnode->nfd, &headInfo);
   lseek(pVnode->nfd, TSDB_FILE_HEADER_LEN, SEEK_SET);
   taosCalcChecksumAppend(0, (uint8_t *)tmem, tmsize);
-  if (write(pVnode->nfd, tmem, tmsize) <= 0) {
+  if (twrite(pVnode->nfd, tmem, tmsize) <= 0) {
     dError("vid:%d sid:%d id:%s, failed to write:%s, error:%s", vnode, sid, pObj->meterId, pVnode->nfn,
            strerror(errno));
     goto _over;
@@ -802,7 +787,7 @@ _again:
     compInfo.delimiter = TSDB_VNODE_DELIMITER;
     taosCalcChecksumAppend(0, (uint8_t *)(&compInfo), sizeof(SCompInfo));
     lseek(pVnode->nfd, pMeter->compInfoOffset, SEEK_SET);
-    if (write(pVnode->nfd, &compInfo, sizeof(compInfo)) <= 0) {
+    if (twrite(pVnode->nfd, &compInfo, sizeof(compInfo)) <= 0) {
       dError("vid:%d sid:%d id:%s, failed to write:%s, reason:%s", vnode, sid, pObj->meterId, pVnode->nfn,
              strerror(errno));
       goto _over;
@@ -815,10 +800,10 @@ _again:
       if (pMeter->changed) {
         int compBlockLen = pMeter->oldNumOfBlocks * sizeof(SCompBlock);
         read(pVnode->hfd, pOldCompBlocks, compBlockLen);
-        write(pVnode->nfd, pOldCompBlocks, compBlockLen);
+        twrite(pVnode->nfd, pOldCompBlocks, compBlockLen);
         chksum = taosCalcChecksum(0, pOldCompBlocks, compBlockLen);
       } else {
-        sendfile(pVnode->nfd, pVnode->hfd, NULL, pMeter->oldNumOfBlocks * sizeof(SCompBlock));
+        tsendfile(pVnode->nfd, pVnode->hfd, NULL, pMeter->oldNumOfBlocks * sizeof(SCompBlock));
         read(pVnode->hfd, &chksum, sizeof(TSCKSUM));
       }
     }
@@ -826,13 +811,13 @@ _again:
     if (pMeter->newNumOfBlocks) {
       chksum = taosCalcChecksum(chksum, (uint8_t *)(hmem + pMeter->tempHeadOffset),
                                 pMeter->newNumOfBlocks * sizeof(SCompBlock));
-      if (write(pVnode->nfd, hmem + pMeter->tempHeadOffset, pMeter->newNumOfBlocks * sizeof(SCompBlock)) <= 0) {
+      if (twrite(pVnode->nfd, hmem + pMeter->tempHeadOffset, pMeter->newNumOfBlocks * sizeof(SCompBlock)) <= 0) {
         dError("vid:%d sid:%d id:%s, failed to write:%s, reason:%s", vnode, sid, pObj->meterId, pVnode->nfn,
                strerror(errno));
         goto _over;
       }
     }
-    write(pVnode->nfd, &chksum, sizeof(TSCKSUM));
+    twrite(pVnode->nfd, &chksum, sizeof(TSCKSUM));
   }
 
   tfree(pOldCompBlocks);
@@ -1221,7 +1206,7 @@ int vnodeWriteBlockToFile(SMeterObj *pObj, SCompBlock *pCompBlock, SData *data[]
 
   // Write SField part
   taosCalcChecksumAppend(0, (uint8_t *)fields, size);
-  wlen = write(dfd, fields, size);
+  wlen = twrite(dfd, fields, size);
   if (wlen <= 0) {
     tfree(fields);
     dError("vid:%d sid:%d id:%s, failed to write block, wlen:%d reason:%s", pObj->vnode, pObj->sid, pObj->meterId, wlen,
@@ -1236,9 +1221,9 @@ int vnodeWriteBlockToFile(SMeterObj *pObj, SCompBlock *pCompBlock, SData *data[]
   // Write data part
   for (int i = 0; i < pObj->numOfColumns; ++i) {
     if (pCfg->compression) {
-      wlen = write(dfd, cdata[i]->data, cdata[i]->len + sizeof(TSCKSUM));
+      wlen = twrite(dfd, cdata[i]->data, cdata[i]->len + sizeof(TSCKSUM));
     } else {
-      wlen = write(dfd, data[i]->data, data[i]->len + sizeof(TSCKSUM));
+      wlen = twrite(dfd, data[i]->data, data[i]->len + sizeof(TSCKSUM));
     }
 
     if (wlen <= 0) {
@@ -1813,4 +1798,72 @@ int vnodeRecoverDataFile(int vnode, int fileId) {
   dTrace("starting to recover vnode data file, vnode: %d, fileId: %d", vnode, fileId);
   assert(0);
   return 0;
+}
+
+int vnodeCheckNewHeaderFile(int fd, SVnodeObj *pVnode) {
+  SCompHeader *pHeader = NULL;
+  SCompBlock  *pBlocks = NULL;
+  int          blockSize = 0;
+  SCompInfo    compInfo;
+  int          tmsize = 0;
+
+  tmsize = sizeof(SCompHeader) * pVnode->cfg.maxSessions + sizeof(TSCKSUM);
+
+  pHeader = (SCompHeader *)malloc(tmsize);
+  if (pHeader == NULL) return 0;
+
+  lseek(fd, TSDB_FILE_HEADER_LEN, SEEK_SET);
+  if (read(fd, (void *)pHeader, tmsize) != tmsize) {
+    goto _broken_exit;
+  }
+
+  if (!taosCheckChecksumWhole((uint8_t *)pHeader, tmsize)) {
+    goto _broken_exit;
+  }
+
+  for (int sid = 0; sid < pVnode->cfg.maxSessions; sid++) {
+    if (pVnode->meterList == NULL) goto _correct_exit;
+    if (pVnode->meterList[sid] == NULL || pHeader[sid].compInfoOffset == 0) continue;
+    lseek(fd, pHeader[sid].compInfoOffset, SEEK_SET);
+
+    if (read(fd, (void *)(&compInfo), sizeof(SCompInfo)) != sizeof(SCompInfo)) {
+      goto _broken_exit;
+    }
+
+    if (!taosCheckChecksumWhole((uint8_t *)(&compInfo), sizeof(SCompInfo))) {
+      goto _broken_exit;
+    }
+
+    if (compInfo.uid != ((SMeterObj *)pVnode->meterList[sid])->uid) continue;
+
+    int expectedSize = sizeof(SCompBlock) * compInfo.numOfBlocks + sizeof(TSCKSUM);
+    if (blockSize < expectedSize) {
+      pBlocks = (SCompBlock *)realloc(pBlocks, expectedSize);
+      if (pBlocks == NULL) {
+        tfree(pHeader);
+        return 0;
+      }
+
+      blockSize = expectedSize;
+    }
+
+    if (read(fd, (void *)pBlocks, expectedSize) != expectedSize) {
+      goto _broken_exit;
+    }
+    if (!taosCheckChecksumWhole((uint8_t *)pBlocks, expectedSize)) {
+      goto _broken_exit;
+    }
+  }
+
+_correct_exit:
+  dTrace("vid: %d new header file %s is correct", pVnode->vnode, pVnode->nfn);
+  tfree(pBlocks);
+  tfree(pHeader);
+  return 0;
+
+_broken_exit:
+  dError("vid: %d new header file %s is broken", pVnode->vnode, pVnode->nfn);
+  tfree(pBlocks);
+  tfree(pHeader);
+  return -1;
 }
