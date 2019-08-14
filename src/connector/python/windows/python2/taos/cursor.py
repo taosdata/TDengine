@@ -31,6 +31,7 @@ class TDengineCursor(object):
         self._block = None
         self._block_rows = -1
         self._block_iter = 0
+        self._affected_rows = 0
 
         if connection is not None:
             self._connection = connection
@@ -65,6 +66,12 @@ class TDengineCursor(object):
         """Return the rowcount of the object
         """
         return self._rowcount
+
+    @property
+    def affected_rows(self):
+        """Return the affected_rows of the object
+        """
+        return self._affected_rows
 
     def callproc(self, procname, *args):
         """Call a stored database procedure with the given name.
@@ -105,6 +112,7 @@ class TDengineCursor(object):
         res = CTaosInterface.query(self._connection._conn, stmt)
         if res == 0:
             if CTaosInterface.fieldsCount(self._connection._conn) == 0:
+                self._affected_rows += CTaosInterface.affectedRows(self._connection._conn)
                 return CTaosInterface.affectedRows(self._connection._conn)
             else:
                 self._result, self._fields = CTaosInterface.useResult(self._connection._conn)
@@ -167,7 +175,8 @@ class TDengineCursor(object):
         self._block = None
         self._block_rows = -1
         self._block_iter = 0
-    
+        self._affected_rows = 0
+
     def _handle_result(self):
         """Handle the return result from query.
         """
