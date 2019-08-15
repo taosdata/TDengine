@@ -183,6 +183,10 @@ void httpCloseContextByApp(HttpContext *pContext) {
   }
 
   pthread_mutex_lock(&pContext->mutex);
+  if (pContext->signature != pContext || pContext->fd <= 0) {
+    return;
+  }
+  
   pContext->parsed = false;
 
   httpTrace("context:%p, fd:%d, ip:%s, app use finished, usedByEpoll:%d, usedByApp:%d, httpVersion:1.%d, keepAlive:%d",
@@ -208,6 +212,10 @@ void httpCloseContextByServer(HttpThread *pThread, HttpContext *pContext) {
     return;
   }
   pthread_mutex_lock(&pContext->mutex);
+  if (pContext->signature != pContext || pContext->fd <= 0) {
+    return;
+  }
+
   pContext->usedByEpoll = 0;
   pContext->parsed = false;
 
