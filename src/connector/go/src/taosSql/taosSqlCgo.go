@@ -33,7 +33,7 @@ func (mc *taosConn) taosConnect(ip, user, pass, db string, port int) (taos unsaf
 	cuser := C.CString(user)
 	cpass := C.CString(pass)
 	cip   := C.CString(ip)
-	cdb   := C.CString("")
+	cdb   := C.CString(db)
 	defer C.free(unsafe.Pointer(cip))
 	defer C.free(unsafe.Pointer(cuser))
 	defer C.free(unsafe.Pointer(cpass))
