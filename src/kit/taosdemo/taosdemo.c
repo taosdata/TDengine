@@ -660,7 +660,12 @@ void *readMetric(void *sarg) {
 }
 
 void queryDB(TAOS *taos, char *command) {
-  if (taos_query(taos, command) != 0) {
+  int i = 5;
+  while (i > 0) {
+    if (taos_query(taos, command) == 0) break;
+    i--; 
+  }
+  if (i == 0) {
     fprintf(stderr, "Failed to run %s, reason: %s\n", command, taos_errstr(taos));
     taos_close(taos);
     exit(EXIT_FAILURE);
