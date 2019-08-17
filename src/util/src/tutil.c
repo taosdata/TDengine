@@ -227,7 +227,7 @@ int64_t strnatoi(char *num, int32_t len) {
       } else {
         return 0;
       }
-      ret = dig * base;
+      ret += dig * base;
     }
   } else {
     for (i = len - 1; i >= 0; --i, base *= 10) {

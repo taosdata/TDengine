@@ -142,21 +142,15 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
     i += 2;
   }
 
-  if (hour > 12) {
+  int64_t minute = strnatoi(&str[i], 2);
+  if (minute > 59) {
     return -1;
   }
-
-  int64_t sec = strnatoi(&str[i], 2);
-  if (sec > 70) {
-    return -1;
-  }
-
-  sec += (hour * 3600);
 
   if (str[0] == '+') {
-    *tzOffset = -sec;
+    *tzOffset = -(hour * 3600 + minute * 60);
   } else {
-    *tzOffset = sec;
+    *tzOffset = hour * 3600 + minute * 60;
   }
 
   return 0;
