@@ -140,6 +140,7 @@ int mgmtInitSystem() {
 
   dnodeObj.lastReboot = tsRebootTime;
   dnodeObj.numOfCores = (uint16_t)tsNumOfCores;
+  dnodeObj.status = TSDB_STATUS_READY;
   if (dnodeObj.numOfVnodes == TSDB_INVALID_VNODE_NUM) {
     mgmtSetDnodeMaxVnodes(&dnodeObj);
     mPrint("first access, set total vnodes:%d", dnodeObj.numOfVnodes);
