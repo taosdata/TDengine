@@ -538,7 +538,6 @@ mpool_h tmrMemPoolInit(int numOfBlock, int blockSize) {
   pool_p->blockSize = blockSize;
   pool_p->numOfBlock = numOfBlock;
   pool_p->pool = (char *)malloc(blockSize * numOfBlock);
-  memset(pool_p->pool, 0, blockSize * numOfBlock);
   pool_p->freeList = (int *)malloc(sizeof(int) * numOfBlock);
 
   if (pool_p->pool == NULL || pool_p->freeList == NULL) {
@@ -596,6 +595,6 @@ void tmrMemPoolCleanUp(mpool_h handle) {
 
   if (pool_p->pool) free(pool_p->pool);
   if (pool_p->freeList) free(pool_p->freeList);
-  memset(&pool_p, 0, sizeof(pool_p));
+  memset(pool_p, 0, sizeof(*pool_p));
   free(pool_p);
 }
