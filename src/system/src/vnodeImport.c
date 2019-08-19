@@ -226,7 +226,7 @@ int vnodeOpenFileForImport(SImportInfo *pImport, char *payload, SHeadInfo *pHinf
 
     if (pVnode->commitFileId < pImport->fileId) {
       if (pHinfo->compInfo.numOfBlocks > 0)
-        pHinfo->leftOffset += pHinfo->compInfo.numOfBlocks * sizeof(SCompBlock) + sizeof(TSCKSUM);
+        pHinfo->leftOffset += pHinfo->compInfo.numOfBlocks * sizeof(SCompBlock);
 
       rowsBefore = vnodeProcessLastBlock(pImport, pHinfo, data);
 

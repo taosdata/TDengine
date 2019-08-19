@@ -590,8 +590,8 @@ void tsReadGlobalLogConfig() {
   if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
     strcpy(configDir, full_path.we_wordv[0]);
   } else {
-    strcpy(configDir, "/etc/taos");
     printf("configDir:%s not there, use default value: /etc/taos", configDir);
+    strcpy(configDir, "/etc/taos");
   }
   wordfree(&full_path);
 
