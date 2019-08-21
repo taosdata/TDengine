@@ -83,6 +83,17 @@ void taosCreateTierDirectory() {
   mkdir(fileName, 0755);
 }
 
+void dnodeCheckDbRunning(const char* dir) {
+  char filepath[256] = {0};
+  sprintf(filepath, "%s/.running", dir);
+  int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  int ret = flock(fd, LOCK_EX | LOCK_NB);
+  if (ret != 0) {
+    dError("failed to lock file:%s ret:%d, database may be running, quit", ret, filepath);
+    exit(0);
+  }
+}
+
 int dnodeInitSystem() {
   char        temp[128];
   struct stat dirstat;
@@ -115,6 +126,7 @@ int dnodeInitSystem() {
 
   sprintf(mgmtDirectory, "%s/mgmt", tsDirectory);
   sprintf(tsDirectory, "%s/tsdb", dataDir);
+  dnodeCheckDbRunning(dataDir);
 
   tsPrintGlobalConfig();
   dPrint("Server IP address is:%s", tsInternalIp);
