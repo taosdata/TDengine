@@ -269,20 +269,6 @@ void httpCleanUpConnect(HttpServer *pServer) {
   httpTrace("http server:%s is cleaned up", pServer->label);
 }
 
-void httpCloseDeadConnects(HttpThread *pThread) {
-  int32_t thresholdSec = taosGetTimestampSec() - 3600;
-  HttpContext *pContext = (HttpContext*)pThread->pHead;
-  while (pContext != NULL && pContext == pContext->signature) {
-    HttpContext *pContextNext = pContext->next;
-    if (pContext->lastAccessTime < thresholdSec) {
-      httpPrint("context:%p, fd:%d, ip:%s, lastAccessTime:%d smaller then threshold:%d, so close it",
-              pContext, pContext->fd, pContext->ipstr, pContext->lastAccessTime, thresholdSec);
-      httpCloseContextByServer(pThread, pContext);
-    }
-    pContext = pContextNext;
-  }
-}
-
 // read all the data, then just discard it
 void httpReadDirtyData(int fd) {
   char data[1024] = {0};
@@ -486,7 +472,6 @@ void httpAcceptHttpConnection(void *arg) {
   struct sockaddr_in clientAddr;
   int                sockFd;
   int                threadId = 0;
-  const int          connThreshold = 2 * tsHttpCacheSessions / tsHttpMaxThreads;
   HttpThread *       pThread;
   HttpServer *       pServer;
   HttpContext *      pContext;
@@ -570,9 +555,6 @@ void httpAcceptHttpConnection(void *arg) {
               pContext, connFd, inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port), pThread->label,
               pThread->numOfFds);
 
-    if (pThread->numOfFds > connThreshold) {
-      httpCloseDeadConnects(pThread);
-    }
     // pick up next thread for next connection
     threadId++;
     threadId = threadId % pServer->numOfThreads;

@@ -178,6 +178,7 @@ void tsInitGlobalConfig();
 #define TSDB_CFG_CTYPE_B_LOG 4      // is a log type configuration
 #define TSDB_CFG_CTYPE_B_CLIENT 8   // can be displayed in the client log
 #define TSDB_CFG_CTYPE_B_OPTION 16  // can be configured by taos_options function
+#define TSDB_CFG_CTYPE_B_NOT_PRINT 32
 
 #define TSDB_CFG_CSTATUS_NONE 0     // not configured
 #define TSDB_CFG_CSTATUS_DEFAULT 1  // use system default value

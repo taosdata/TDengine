@@ -483,7 +483,7 @@ void tsInitGlobalConfig() {
   tsInitConfigOption(cfg++, "defaultUser", tsDefaultUser, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_USER_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "defaultPass", tsDefaultPass, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_PASSWORD_LEN, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT, 0, 0, TSDB_PASSWORD_LEN, TSDB_CFG_UTYPE_NONE);
 
   // locale & charset
   tsInitConfigOption(cfg++, "timezone", tsTimezone, TSDB_CFG_VTYPE_STRING,
@@ -754,6 +754,7 @@ void tsPrintGlobalConfig() {
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
     if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
+    if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
 
     int optionLen = (int)strlen(cfg->option);
     int blankLen = TSDB_CFG_PRINT_LEN - optionLen;
