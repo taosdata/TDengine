@@ -13,29 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/udp.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/time.h>
 #include <sys/types.h>
-#include <sys/uio.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "shash.h"
 #include "taosmsg.h"
 #include "tidpool.h"
-#include "tlog.h"
 #include "tlog.h"
 #include "tmd5.h"
 #include "tmempool.h"
@@ -45,7 +35,6 @@
 #include "ttcpclient.h"
 #include "ttcpserver.h"
 #include "ttime.h"
-#include "ttimer.h"
 #include "ttimer.h"
 #include "tudp.h"
 #include "tutil.h"
@@ -173,8 +162,8 @@ char *taosBuildReqHeader(void *param, char type, char *msg) {
   pHeader->spi = 0;
   pHeader->tcp = 0;
   pHeader->encrypt = 0;
-  if (pConn->tranId == 0) __sync_fetch_and_add(&pConn->tranId, 1);
-  pHeader->tranId = __sync_fetch_and_add(&pConn->tranId, 1);
+  if (pConn->tranId == 0) __sync_add_and_fetch_32(&pConn->tranId, 1);
+  pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
 
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
@@ -205,8 +194,8 @@ char *taosBuildReqMsgWithSize(void *param, char type, int size) {
   pHeader->spi = 0;
   pHeader->tcp = 0;
   pHeader->encrypt = 0;
-  if (pConn->tranId == 0) __sync_fetch_and_add(&pConn->tranId, 1);
-  pHeader->tranId = __sync_fetch_and_add(&pConn->tranId, 1);
+  if (pConn->tranId == 0) __sync_add_and_fetch_32(&pConn->tranId, 1);
+  pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
 
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
@@ -1228,6 +1217,7 @@ int taosReSendRspToPeer(SRpcConn *pConn) {
 void taosProcessTaosTimer(void *param, void *tmrId) {
   STaosHeader *pHeader = NULL;
   SRpcConn *   pConn = (SRpcConn *)param;
+  int          msgLen;
 
   if (pConn->signature != param) {
     tError("pConn Signature:0x%x, pConn:0x%x not matched", pConn->signature, param);
@@ -1263,6 +1253,7 @@ void taosProcessTaosTimer(void *param, void *tmrId) {
       if (pConn->pMsgNode && pConn->pMsgNode->msgLen > 0) {
         pHeader = (STaosHeader *)((char *)pConn->pMsgNode + sizeof(SMsgNode));
         pHeader->destId = pConn->peerId;
+        msgLen = pConn->pMsgNode->msgLen;
         if (pConn->spi) {
           STaosDigest *pDigest = (STaosDigest *)(((char *)pHeader) + pConn->pMsgNode->msgLen - sizeof(STaosDigest));
           pDigest->timeStamp = htonl(taosGetTimestampSec());
@@ -1290,8 +1281,7 @@ void taosProcessTaosTimer(void *param, void *tmrId) {
   pthread_mutex_unlock(&pChann->mutex);
 
   if (pHeader) {
-    (*taosSendData[pServer->type])(pConn->peerIp, pConn->peerPort, (char *)pHeader, pConn->pMsgNode->msgLen,
-                                   pConn->chandle);
+    (*taosSendData[pServer->type])(pConn->peerIp, pConn->peerPort, (char *)pHeader, msgLen, pConn->chandle);
     taosTmrReset(taosProcessTaosTimer, tsRpcTimer, pConn, pChann->tmrCtrl, &pConn->pTimer);
   }
 }

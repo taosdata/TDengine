@@ -38,7 +38,7 @@ module.exports = {
     C_NCHAR : 10,
     // NULL value definition
     // NOTE: These values should change according to C definition in tsdb.h
-    C_BOOL_NULL : 0x02,
+    C_BOOL_NULL : 2,
     C_TINYINT_NULL : -128,
     C_SMALLINT_NULL : -32768,
     C_INT_NULL : -2147483648,

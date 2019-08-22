@@ -63,6 +63,7 @@ extern int tsMetricMetaKeepTimer;
 extern float tsNumOfThreadsPerCore;
 extern float tsRatioOfQueryThreads;
 extern char  tsInternalIp[];
+extern char  tsServerIpStr[];
 extern int   tsNumOfVnodesPerCore;
 extern int   tsNumOfTotalVnodes;
 extern int   tsShellsPerVnode;
@@ -128,6 +129,7 @@ extern int   tsHttpCacheSessions;
 extern int   tsHttpSessionExpire;
 extern int   tsHttpMaxThreads;
 extern int   tsHttpEnableCompress;
+extern int   tsTelegrafUseFieldNum;
 extern int   tsAdminRowLimit;
 
 extern char tsMonitorDbName[];
@@ -166,7 +168,6 @@ void tsReadGlobalLogConfig();
 bool tsReadGlobalConfig();
 int tsCfgDynamicOptions(char *msg);
 void tsPrintGlobalConfig();
-void tsPrintOsInfo();
 void tsSetAllDebugFlag();
 void tsSetTimeZone();
 void tsSetLocale();
@@ -177,6 +178,7 @@ void tsInitGlobalConfig();
 #define TSDB_CFG_CTYPE_B_LOG 4      // is a log type configuration
 #define TSDB_CFG_CTYPE_B_CLIENT 8   // can be displayed in the client log
 #define TSDB_CFG_CTYPE_B_OPTION 16  // can be configured by taos_options function
+#define TSDB_CFG_CTYPE_B_NOT_PRINT 32
 
 #define TSDB_CFG_CSTATUS_NONE 0     // not configured
 #define TSDB_CFG_CSTATUS_DEFAULT 1  // use system default value

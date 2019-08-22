@@ -20,7 +20,8 @@ char* httpMsg[] = {
     "http method parse error",                 // 3
     "http version should be 1.0, 1.1 or 1.2",  // 4
     "http head parse error",                   // 5
-    "request size is too big", "http body size invalid",
+    "request size is too big",
+    "http body size invalid",
     "http chunked body parse error",           // 8
     "http url parse error",                    // 9
     "invalid type of Authorization",
@@ -41,7 +42,7 @@ char* httpMsg[] = {
     "database name too long",
     "invalid telegraf json fromat",
     "metrics size is 0",
-    "metrics size can not more than 20K",      // 26
+    "metrics size can not more than 1K",       // 26
     "metric name not find",
     "metric name type should be string",
     "metric name length is 0",
@@ -52,7 +53,8 @@ char* httpMsg[] = {
     "tags not find",
     "tags size is 0",
     "tags size too long",                      // 36
-    "tag is null", "tag name is null",
+    "tag is null",
+    "tag name is null",
     "tag name length too long",                // 39
     "tag value type should be number or string",
     "tag value is null",

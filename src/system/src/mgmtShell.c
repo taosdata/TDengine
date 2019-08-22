@@ -433,7 +433,7 @@ int mgmtProcessAlterUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     return 0;
   }
 
-  if (strcmp(pUser->user, "sys") == 0 || strcmp(pUser->user, "stream") == 0) {
+  if (strcmp(pUser->user, "monitor") == 0 || strcmp(pUser->user, "stream") == 0) {
     code = TSDB_CODE_NO_RIGHTS;
   } else if ((strcmp(pUser->user, pConn->pUser->user) == 0) ||
              ((strcmp(pUser->acct, acctObj.user) == 0) && pConn->superAuth) ||
@@ -474,7 +474,7 @@ int mgmtProcessDropUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   if (strcmp(pConn->pUser->user, pDrop->user) == 0) {
     code = TSDB_CODE_NO_RIGHTS;
-  } else if (strcmp(pDrop->user, "sys") == 0 || strcmp(pDrop->user, "stream") == 0) {
+  } else if (strcmp(pDrop->user, "monitor") == 0 || strcmp(pDrop->user, "stream") == 0) {
     code = TSDB_CODE_NO_RIGHTS;
   } else {
     if (pConn->superAuth) {

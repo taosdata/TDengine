@@ -145,13 +145,14 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
 
 static void tscSetTimestampForRes(SSqlStream *pStream, SSqlObj *pSql, int32_t numOfRows) {
   SSqlRes *pRes = &pSql->res;
-  int64_t  timestamp = *(int64_t *)pRes->data;
 
-  if (timestamp != pStream->stime) {
+  int64_t  timestamp = *(int64_t *)pRes->data;
+  int64_t actualTimestamp = pStream->stime - pStream->interval;
+
+  if (timestamp != actualTimestamp) {
     // reset the timestamp of each agg point by using start time of each interval
-    *((int64_t *)pRes->data) = pStream->stime - pStream->interval;
-    tscWarn("%p stream:%p, timestamp of points is:%lld, reset to %lld", pSql, pStream, timestamp,
-            pStream->stime - pStream->interval);
+    *((int64_t *)pRes->data) = actualTimestamp;
+    tscWarn("%p stream:%p, timestamp of points is:%lld, reset to %lld", pSql, pStream, timestamp, actualTimestamp);
   }
 }
 
@@ -397,7 +398,7 @@ static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, in
   } else {             // timewindow based aggregation stream
     if (stime == 0) {  // no data in meter till now
       stime = ((int64_t)taosGetTimestamp(pStream->precision) / pStream->interval) * pStream->interval;
-      tscWarn("%p stream:%p, last timestamp:0, reset to:%lld", pSql, pStream, stime, stime);
+      tscWarn("%p stream:%p, last timestamp:0, reset to:%lld", pSql, pStream, stime);
     } else {
       int64_t newStime = (stime / pStream->interval) * pStream->interval;
       if (newStime != stime) {
@@ -435,13 +436,25 @@ static int64_t tscGetLaunchTimestamp(const SSqlStream *pStream) {
   return (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? timer / 1000L : timer;
 }
 
+static void setErrorInfo(STscObj* pObj, int32_t code, char* info) {
+  if (pObj == NULL) {
+    return;
+  }
+
+  SSqlCmd* pCmd = &pObj->pSql->cmd;
+
+  pObj->pSql->res.code = code;
+  strncpy(pCmd->payload, info, pCmd->payloadLen);
+}
+
 TAOS_STREAM *taos_open_stream(TAOS *taos, char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *)) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) return NULL;
 
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
-  if (pSql == NULL) {  // todo set corect error msg
+  if (pSql == NULL) {
+    setErrorInfo(pObj, TSDB_CODE_CLI_OUT_OF_MEMORY, NULL);
     return NULL;
   }
 
@@ -451,22 +464,31 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, char *sqlstr, void (*fp)(void *param, 
   SSqlRes *pRes = &pSql->res;
   tscAllocPayloadWithSize(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
 
-  pSql->sqlstr = calloc(1, strlen(sqlstr) + 1);
-  if (pSql->sqlstr == NULL) {  // todo set corect error msg
+  pSql->sqlstr = strdup(sqlstr);
+  if (pSql->sqlstr == NULL) {
+    setErrorInfo(pObj, TSDB_CODE_CLI_OUT_OF_MEMORY, NULL);
+
     tfree(pSql);
     return NULL;
   }
-  strcpy(pSql->sqlstr, sqlstr);
 
   sem_init(&pSql->rspSem, 0, 0);
   sem_init(&pSql->emptyRspSem, 0, 1);
 
   SSqlInfo SQLInfo = {0};
   tSQLParse(&SQLInfo, pSql->sqlstr);
+
+  tscCleanSqlCmd(&pSql->cmd);
+  tscAllocPayloadWithSize(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
+
+  //todo refactor later
+  pSql->cmd.count = 1;
   pRes->code = tscToSQLCmd(pSql, &SQLInfo);
   SQLInfoDestroy(&SQLInfo);
 
   if (pRes->code != TSDB_CODE_SUCCESS) {
+    setErrorInfo(pObj, pRes->code, pCmd->payload);
+
     tscError("%p open stream failed, sql:%s, reason:%s, code:%d", pSql, sqlstr, pCmd->payload, pRes->code);
     tscFreeSqlObj(pSql);
     return NULL;
@@ -474,6 +496,8 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, char *sqlstr, void (*fp)(void *param, 
 
   SSqlStream *pStream = (SSqlStream *)calloc(1, sizeof(SSqlStream));
   if (pStream == NULL) {
+    setErrorInfo(pObj, TSDB_CODE_CLI_OUT_OF_MEMORY, NULL);
+
     tscError("%p open stream failed, sql:%s, reason:%s, code:%d", pSql, sqlstr, pCmd->payload, pRes->code);
     tscFreeSqlObj(pSql);
     return NULL;

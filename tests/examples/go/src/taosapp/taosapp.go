@@ -29,7 +29,7 @@ func main() {
 
     fmt.Printf("\n======== start demo test ========\n")
     // open connect to taos server
-    db, err := sql.Open(taosDriverName, "root:taosdata@/tcp(127.0.0.1)/demodb")
+    db, err := sql.Open(taosDriverName, "root:taosdata@/tcp(127.0.0.1:0)/demodb")
     if err != nil {
         log.Fatalf("Open database error: %s\n", err)
     }

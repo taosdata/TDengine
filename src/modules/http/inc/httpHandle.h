@@ -22,16 +22,18 @@
 #include "tmempool.h"
 #include "tsdb.h"
 #include "tutil.h"
+#include "zlib.h"
 
 #include "http.h"
 #include "httpJson.h"
 
-#define HTTP_MAX_CMD_SIZE           1024*20
-#define HTTP_MAX_BUFFER_SIZE        1024*1024*10
+#define HTTP_MAX_CMD_SIZE           1024
+#define HTTP_MAX_BUFFER_SIZE        1024*1024
 
 #define HTTP_LABEL_SIZE             8
 #define HTTP_MAX_EVENTS             10
-#define HTTP_BUFFER_SIZE            1024*100//100k
+#define HTTP_BUFFER_SIZE            1024*65 //65k
+#define HTTP_DECOMPRESS_BUF_SIZE    1024*64
 #define HTTP_STEP_SIZE              1024    //http message get process step by step
 #define HTTP_MAX_URL                5       //http url stack size
 #define HTTP_METHOD_SCANNER_SIZE    7       //http method fp size
@@ -60,6 +62,19 @@
 #define HTTP_PROCESS_ERROR          0
 #define HTTP_PROCESS_SUCCESS        1
 
+#define HTTP_CHECK_BODY_ERROR      -1
+#define HTTP_CHECK_BODY_CONTINUE    0
+#define HTTP_CHECK_BODY_SUCCESS     1
+
+#define HTTP_READ_RETRY_TIMES       5
+#define HTTP_READ_WAIT_TIME_MS      5
+#define HTTP_WRITE_RETRY_TIMES      500
+#define HTTP_WRITE_WAIT_TIME_MS     5
+#define HTTP_EXPIRED_TIME           60000
+
+#define HTTP_COMPRESS_IDENTITY      0
+#define HTTP_COMPRESS_GZIP          2
+
 struct HttpContext;
 struct HttpThread;
 
@@ -84,7 +99,7 @@ typedef enum { HTTP_CMD_RETURN_TYPE_WITH_RETURN, HTTP_CMD_RETURN_TYPE_NO_RETURN 
 
 typedef struct {
   // used by single cmd
-  char *  nativSql;
+  char   *nativSql;
   int32_t numOfRows;
   int32_t code;
 
@@ -132,42 +147,15 @@ typedef struct {
 } HttpEncodeMethod;
 
 typedef struct {
-  char *  pos;
+  char   *pos;
   int32_t len;
 } HttpBuf;
 
-typedef struct HttpContext {
-  void *       signature;
-  int          fd;
-  uint32_t     accessTimes;
-  uint32_t     lastAccessTime;
-  uint8_t      httpVersion : 1;
-  uint8_t      httpChunked : 1;
-  uint8_t      httpKeepAlive : 2;  // http1.0 and not keep-alive, close connection immediately
-  uint8_t      fromMemPool : 1;
-  uint8_t      compress : 1;
-  uint8_t      usedByEpoll : 1;
-  uint8_t      usedByApp : 1;
-  uint8_t      reqType;
-  char         ipstr[22];
-  char         user[TSDB_USER_LEN];  // parsed from auth token or login message
-  char         pass[TSDB_PASSWORD_LEN];
-  void *       taos;
-  HttpSession *session;
-  HttpEncodeMethod *  encodeMethod;
-  HttpSqlCmd          singleCmd;
-  HttpSqlCmds *       multiCmds;
-  JsonBuf *           jsonBuf;
-  pthread_mutex_t     mutex;
-  struct HttpThread * pThread;
-  struct HttpContext *prev, *next;
-} HttpContext;
-
 typedef struct {
-  char *            buffer;
+  char              buffer[HTTP_BUFFER_SIZE];
   int               bufsize;
-  char *            pLast;
-  char *            pCur;
+  char             *pLast;
+  char             *pCur;
   HttpBuf           method;
   HttpBuf           path[HTTP_MAX_URL];  // url: dbname/meter/query
   HttpBuf           data;                // body content
@@ -175,7 +163,38 @@ typedef struct {
   HttpDecodeMethod *pMethod;
 } HttpParser;
 
-#define HTTP_MAX_FDS_LEN 65536
+typedef struct HttpContext {
+  void *       signature;
+  int          fd;
+  uint32_t     accessTimes;
+  uint32_t     lastAccessTime;
+  uint8_t      httpVersion;
+  uint8_t      httpChunked;
+  uint8_t      httpKeepAlive;  // http1.0 and not keep-alive, close connection immediately
+  uint8_t      fromMemPool;
+  uint8_t      acceptEncoding;
+  uint8_t      contentEncoding;
+  uint8_t      usedByEpoll;
+  uint8_t      usedByApp;
+  uint8_t      reqType;
+  uint8_t      parsed;
+  char         ipstr[22];
+  char         user[TSDB_USER_LEN];  // parsed from auth token or login message
+  char         pass[TSDB_PASSWORD_LEN];
+  void        *taos;
+  HttpSession *session;
+  z_stream     gzipStream;
+  HttpEncodeMethod   *encodeMethod;
+  HttpSqlCmd          singleCmd;
+  HttpSqlCmds        *multiCmds;
+  JsonBuf            *jsonBuf;
+  pthread_mutex_t     mutex;
+  HttpParser          parser;
+  void               *readTimer;
+  struct HttpThread  *pThread;
+  struct HttpContext *prev;
+  struct HttpContext *next;
+} HttpContext;
 
 typedef struct HttpThread {
   pthread_t       thread;
@@ -186,8 +205,6 @@ typedef struct HttpThread {
   int             numOfFds;
   int             threadId;
   char            label[HTTP_LABEL_SIZE];
-  char            buffer[HTTP_BUFFER_SIZE];  // buffer to receive data
-  HttpParser      parser;                    // parse from buffer
   bool (*processData)(HttpContext *pContext);
   struct _http_server_obj_ *pServer;  // handle passed by upper layer during pServer initialization
 } HttpThread;
@@ -202,15 +219,15 @@ typedef struct _http_server_obj_ {
   HttpDecodeMethod *methodScanner[HTTP_METHOD_SCANNER_SIZE];
   int               methodScannerLen;
   pthread_mutex_t   serverMutex;
-  void *            pSessionHash;
-  void *            pContextPool;
-  void *            expireTimer;
-  HttpThread *      pThreads;
+  void             *pSessionHash;
+  void             *pContextPool;
+  void             *expireTimer;
+  HttpThread       *pThreads;
   pthread_t         thread;
-  bool (*processData)(HttpContext *pContext);
-  int   requestNum;
-  void *timerHandle;
-  bool  online;
+  bool            (*processData)(HttpContext *pContext);
+  int               requestNum;
+  void             *timerHandle;
+  bool              online;
 } HttpServer;
 
 // http util method
@@ -253,6 +270,8 @@ bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int maxLen);
 bool httpUrlMatch(HttpContext *pContext, int pos, char *cmp);
 bool httpProcessData(HttpContext *pContext);
 bool httpReadDataImp(HttpContext *pContext);
+bool httpParseRequest(HttpContext* pContext);
+int  httpCheckReadCompleted(HttpContext* pContext);
 
 // http request handler
 void httpProcessRequest(HttpContext *pContext);
@@ -280,6 +299,11 @@ int httpCurSqlCmdPos(HttpContext *pContext);
 void httpTrimTableName(char *name);
 int httpShrinkTableName(HttpContext *pContext, int pos, char *name);
 char *httpGetCmdsString(HttpContext *pContext, int pos);
+
+int httpGzipDeCompress(char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData);
+int httpGzipCompressInit(HttpContext *pContext);
+int httpGzipCompress(HttpContext *pContext, char *inSrcData, int32_t inSrcDataLen,
+                     char *outDestData, int32_t *outDestDataLen, bool isTheLast);
 
 extern const char *httpKeepAliveStr[];
 extern const char *httpVersionStr[];

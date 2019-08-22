@@ -84,8 +84,7 @@ void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *, TAOS_RES *, int),
   pRes->qhandle = 0;
   pRes->numOfRows = 1;
 
-  strtolower(sqlstr, pSql->sqlstr);
-  pSql->sqlstr[sqlLen] = 0;
+  strtolower(pSql->sqlstr, sqlstr);
   tscTrace("%p Async SQL: %s, pObj:%p", pSql, pSql->sqlstr, pObj);
 
   int32_t code = tsParseSql(pSql, pObj->acctId, pObj->db, true);
@@ -410,7 +409,7 @@ void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows) 
     tscTrace("%p Async insertion completed, destroy data block list", pSql);
 
     // release data block data
-    tscDestroyBlockArrayList(&pCmd->pDataBlocks);
+    pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
     // all data has been sent to vnode, call user function
     (*pSql->fp)(pSql->param, tres, numOfRows);

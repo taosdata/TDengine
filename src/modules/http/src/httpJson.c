@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "http.h"
 #include "httpCode.h"
@@ -39,96 +40,118 @@ char JsonNulTkn[] = "null";
 char JsonTrueTkn[] = "true";
 char JsonFalseTkn[] = "false";
 
-int httpWriteBufByFd(int fd, const char* buf, int sz) {
-  const int countTimes = 3;
-  const int waitTime = 5;  // 5ms
+int httpWriteBufByFd(struct HttpContext* pContext, const char* buf, int sz) {
   int       len;
   int       countWait = 0;
+  int       writeLen = 0;
 
   do {
-    if (fd > 2)
-      len = (int)send(fd, buf, (size_t)sz, MSG_NOSIGNAL);
-    else
-      len = sz;
+    if (pContext->fd > 2){
+      len = (int)send(pContext->fd, buf + writeLen, (size_t)(sz - writeLen), MSG_NOSIGNAL);
+    }
+    else {
+      return sz;
+    }
+
     if (len < 0) {
-      break;
+      httpTrace("context:%p, fd:%d, ip:%s, socket write errno:%d, times:%d",
+                pContext, pContext->fd, pContext->ipstr, errno, countWait);
+      if (++countWait > HTTP_WRITE_RETRY_TIMES) break;
+      taosMsleep(HTTP_WRITE_WAIT_TIME_MS);
+      continue;
     } else if (len == 0) {
-      // wait & count
-      if (++countWait > countTimes) return -1;
-      sleep((uint32_t)waitTime);
+      httpTrace("context:%p, fd:%d, ip:%s, socket write errno:%d, connect already closed",
+                pContext, pContext->fd, pContext->ipstr, errno);
+      break;
     } else {
       countWait = 0;
+      writeLen += len;
     }
-    buf += len;
-  } while (len < (sz -= len));
+  } while (writeLen < sz);
 
-  return sz;
+  return writeLen;
 }
 
-int httpWriteBuf(struct HttpContext* pContext, const char* buf, int sz) {
-  int writeSz = httpWriteBufByFd(pContext->fd, buf, sz);
-
-  if (writeSz == -1) {
-    httpError("context:%p, fd:%d, ip:%s, size:%d, response failed:\n%s", pContext, pContext->fd, pContext->ipstr, sz,
-              buf);
+int httpWriteBuf(struct HttpContext *pContext, const char *buf, int sz) {
+  int writeSz = httpWriteBufByFd(pContext, buf, sz);
+  if (writeSz != sz) {
+    httpError("context:%p, fd:%d, ip:%s, dataSize:%d, writeSize:%d, failed to send response:\n%s",
+              pContext, pContext->fd, pContext->ipstr, sz, writeSz, buf);
   } else {
-    httpTrace("context:%p, fd:%d, ip:%s, size:%d, response:\n%s", pContext, pContext->fd, pContext->ipstr, sz, buf);
+    httpTrace("context:%p, fd:%d, ip:%s, dataSize:%d, writeSize:%d, response:\n%s",
+              pContext, pContext->fd, pContext->ipstr, sz, writeSz, buf);
   }
 
   return writeSz;
 }
 
-int httpWriteJsonBufBody(JsonBuf* buf) {
+int httpWriteBufNoTrace(struct HttpContext *pContext, const char *buf, int sz) {
+  int writeSz = httpWriteBufByFd(pContext, buf, sz);
+  if (writeSz != sz) {
+    httpError("context:%p, fd:%d, ip:%s, dataSize:%d, writeSize:%d, failed to send response",
+              pContext, pContext->fd, pContext->ipstr, sz, writeSz);
+  }
+
+  return writeSz;
+}
+
+int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
   int remain = 0;
+  char sLen[24];
+  uint64_t srcLen = (uint64_t) (buf->lst - buf->buf);
+
   if (buf->pContext->fd <= 0) {
-    httpTrace("context:%p, fd:%d, ip:%s, write json body error", buf->pContext, buf->pContext->fd,
-              buf->pContext->ipstr);
+    httpTrace("context:%p, fd:%d, ip:%s, write json body error", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
     buf->pContext->fd = -1;
   }
 
-  if (buf->lst == buf->buf) {
-    httpTrace("context:%p, fd:%d, ip:%s, no data need dump", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
-    return 0;  // there is no data to dump.
-  }
+  /*
+   * HTTP servers often use compression to optimize transmission, for example
+   * with Content-Encoding: gzip or Content-Encoding: deflate.
+   * If both compression and chunked encoding are enabled, then the content stream is first compressed, then chunked;
+   * so the chunk encoding itself is not compressed, and the data in each chunk is not compressed individually.
+   * The remote endpoint then decodes the stream by concatenating the chunks and uncompressing the result.
+   */
 
-  char     sLen[24];
-  uint64_t srcLen = (uint64_t)(buf->lst - buf->buf);
-
-  /*HTTP servers often use compression to optimize transmission, for example
-   * with Content-Encoding: gzip or Content-Encoding: deflate. If both
-   * compression and chunked encoding are enabled, then the content stream is
-   * first compressed, then chunked; so the chunk encoding itself is not
-   * compressed, and the data in each chunk is not compressed individually. The
-   * remote endpoint then decodes the stream by concatenating the chunks and
-   * uncompressing the result.*/
-  if (buf->pContext->compress == JsonUnCompress) {
-    int len = sprintf(sLen, "%lx\r\n", srcLen);
-    httpTrace("context:%p, fd:%d, ip:%s, write json body, chunk size:%lld", buf->pContext, buf->pContext->fd,
-              buf->pContext->ipstr, srcLen);
-    httpWriteBuf(buf->pContext, sLen, len);  // dump chunk size
-    remain = httpWriteBuf(buf->pContext, buf->buf, (int)srcLen);
-  } else if (buf->pContext->compress == JsonCompress) {
-    // unsigned char compressBuf[JSON_BUFFER_SIZE] = { 0 };
-    // uint64_t compressBufLen = sizeof(compressBuf);
-    // compress(compressBuf, &compressBufLen, (const unsigned char*)buf->buf,
-    // srcLen);
-    // int len = sprintf(sLen, "%lx\r\n", compressBufLen);
-    //
-    // httpTrace("context:%p, fd:%d, ip:%s, write json body, chunk size:%lld,
-    // compress:%ld", buf->pContext, buf->pContext->fd, buf->pContext->ipstr,
-    // srcLen, compressBufLen);
-    // httpWriteBuf(buf->pContext, sLen, len);//dump chunk size
-    // remain = httpWriteBuf(buf->pContext, (const char*)compressBuf,
-    // (int)compressBufLen);
+  if (buf->pContext->acceptEncoding == HTTP_COMPRESS_IDENTITY) {
+    if (buf->lst == buf->buf) {
+      httpTrace("context:%p, fd:%d, ip:%s, no data need dump", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
+      return 0;  // there is no data to dump.
+    } else {
+      int len = sprintf(sLen, "%lx\r\n", srcLen);
+      httpTrace("context:%p, fd:%d, ip:%s, write body, chunkSize:%ld, response:\n%s",
+                buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, buf->buf);
+      httpWriteBufNoTrace(buf->pContext, sLen, len);
+      remain = httpWriteBufNoTrace(buf->pContext, buf->buf, (int) srcLen);
+    }
   } else {
+    char compressBuf[JSON_BUFFER_SIZE] = {0};
+    int32_t compressBufLen = JSON_BUFFER_SIZE;
+    int ret = httpGzipCompress(buf->pContext, buf->buf, srcLen, compressBuf, &compressBufLen, isTheLast);
+    if (ret == 0) {
+      if (compressBufLen > 0) {
+        int len = sprintf(sLen, "%x\r\n", compressBufLen);
+        httpTrace("context:%p, fd:%d, ip:%s, write body, chunkSize:%ld, compressSize:%d, last:%d, response:\n%s",
+                  buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, compressBufLen, isTheLast, buf->buf);
+        httpWriteBufNoTrace(buf->pContext, sLen, len);
+        remain = httpWriteBufNoTrace(buf->pContext, (const char *) compressBuf, (int) compressBufLen);
+      } else {
+        httpTrace("context:%p, fd:%d, ip:%s, last:%d, compress already dumped, response:\n%s",
+                buf->pContext, buf->pContext->fd, buf->pContext->ipstr, isTheLast, buf->buf);
+        return 0;  // there is no data to dump.
+      }
+    } else {
+      httpError("context:%p, fd:%d, ip:%s, failed to compress data, chunkSize:%d, last:%d, error:%d, response:\n%s",
+                buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, isTheLast, ret, buf->buf);
+      return 0;
+    }
   }
 
-  httpWriteBuf(buf->pContext, "\r\n", 2);
-  buf->total += (int)(buf->lst - buf->buf);
+  httpWriteBufNoTrace(buf->pContext, "\r\n", 2);
+  buf->total += (int) (buf->lst - buf->buf);
   buf->lst = buf->buf;
-  memset(buf->buf, 0, (size_t)buf->size);
-
-  return remain;  // remain>0 is system error
+  memset(buf->buf, 0, (size_t) buf->size);
+  return remain;
 }
 
 void httpWriteJsonBufHead(JsonBuf* buf) {
@@ -139,7 +162,7 @@ void httpWriteJsonBufHead(JsonBuf* buf) {
   char msg[1024] = {0};
   int  len = -1;
 
-  if (buf->pContext->compress == JsonUnCompress) {
+  if (buf->pContext->acceptEncoding == HTTP_COMPRESS_IDENTITY) {
     len = sprintf(msg, httpRespTemplate[HTTP_RESPONSE_CHUNKED_UN_COMPRESS], httpVersionStr[buf->pContext->httpVersion],
                   httpKeepAliveStr[buf->pContext->httpKeepAlive]);
   } else {
@@ -156,8 +179,8 @@ void httpWriteJsonBufEnd(JsonBuf* buf) {
     buf->pContext->fd = -1;
   }
 
-  httpWriteJsonBufBody(buf);
-  httpWriteBuf(buf->pContext, "0\r\n\r\n", 5);  // end of chunked resp
+  httpWriteJsonBufBody(buf, true);
+  httpWriteBufNoTrace(buf->pContext, "0\r\n\r\n", 5);  // end of chunked resp
 }
 
 void httpInitJsonBuf(JsonBuf* buf, struct HttpContext* pContext) {
@@ -167,8 +190,11 @@ void httpInitJsonBuf(JsonBuf* buf, struct HttpContext* pContext) {
   buf->pContext = pContext;
   memset(buf->lst, 0, JSON_BUFFER_SIZE);
 
-  httpTrace("context:%p, fd:%d, ip:%s, json buffer initialized", buf->pContext, buf->pContext->fd,
-            buf->pContext->ipstr);
+  if (pContext->acceptEncoding == HTTP_COMPRESS_GZIP) {
+    httpGzipCompressInit(buf->pContext);
+  }
+
+  httpTrace("context:%p, fd:%d, ip:%s, json buffer initialized", buf->pContext, buf->pContext->fd, buf->pContext->ipstr);
 }
 
 void httpJsonItemToken(JsonBuf* buf) {
@@ -231,20 +257,48 @@ void httpJsonStringForTransMean(JsonBuf* buf, char* sVal, int maxLen) {
 void httpJsonInt64(JsonBuf* buf, int64_t num) {
   httpJsonItemToken(buf);
   httpJsonTestBuf(buf, MAX_NUM_STR_SZ);
-  buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%lld", num);
+  buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%ld", num);
 }
 
-void httpJsonTimestamp(JsonBuf* buf, int64_t t) {
-  char ts[30] = {0};
+void httpJsonTimestamp(JsonBuf* buf, int64_t t, bool us) {
+  char ts[35] = {0};
+  struct tm *ptm;
+  int precision = 1000;
+  if (us) {
+    precision = 1000000;
+  }
 
-  struct tm* ptm;
-  time_t     tt = t / 1000;
+  time_t tt = t / precision;
   ptm = localtime(&tt);
-  int length = (int)strftime(ts, 30, "%Y-%m-%d %H:%M:%S", ptm);
+  int length = (int) strftime(ts, 35, "%Y-%m-%d %H:%M:%S", ptm);
+  if (us) {
+    length += snprintf(ts + length, 8, ".%06ld", t % precision);
+  } else {
+    length += snprintf(ts + length, 5, ".%03ld", t % precision);
+  }
 
-  snprintf(ts+length, MAX_NUM_STR_SZ, ".%03ld", t % 1000);
+  httpJsonString(buf, ts, length);
+}
 
-  httpJsonString(buf, ts, length + 4);
+void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, bool us) {
+  char ts[40] = {0};
+  struct tm *ptm;
+  int precision = 1000;
+  if (us) {
+    precision = 1000000;
+  }
+
+  time_t tt = t / precision;
+  ptm = localtime(&tt);
+  int length = (int) strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", ptm);
+  if (us) {
+    length += snprintf(ts + length, 8, ".%06ld", t % precision);
+  } else {
+    length += snprintf(ts + length, 5, ".%03ld", t % precision);
+  }
+  length += (int) strftime(ts + length, 40 - length, "%z", ptm);
+
+  httpJsonString(buf, ts, length);
 }
 
 void httpJsonInt(JsonBuf* buf, int num) {
@@ -355,7 +409,7 @@ void httpJsonArray(JsonBuf* buf, httpJsonBuilder fnBuilder, void* jsonHandle) {
 void httpJsonTestBuf(JsonBuf* buf, int safety) {
   if ((buf->lst - buf->buf + safety) < buf->size) return;
   // buf->slot = *buf->lst;
-  httpWriteJsonBufBody(buf);
+  httpWriteJsonBufBody(buf, false);
 }
 
 void httpJsonToken(JsonBuf* buf, char c) {
@@ -369,7 +423,7 @@ void httpJsonPrint(JsonBuf* buf, const char* json, int len) {
   }
 
   if (len > buf->size) {
-    httpWriteJsonBufBody(buf);
+    httpWriteJsonBufBody(buf, false);
     httpJsonPrint(buf, json, len);
     // buf->slot = json[len - 1];
     return;

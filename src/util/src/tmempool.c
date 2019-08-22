@@ -79,8 +79,7 @@ char *taosMemPoolMalloc(mpool_h handle) {
   pthread_mutex_lock(&(pool_p->mutex));
 
   if (pool_p->numOfFree <= 0) {
-    pError("mempool: out of memory");
-
+    pTrace("mempool: out of memory");
   } else {
     pos = pool_p->pool + pool_p->blockSize * (pool_p->freeList[pool_p->first]);
     pool_p->first++;

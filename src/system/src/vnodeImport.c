@@ -14,7 +14,6 @@
  */
 
 #include <arpa/inet.h>
-#include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -23,6 +22,7 @@
 #include "ttimer.h"
 #include "vnode.h"
 #include "vnodeMgmt.h"
+#include "vnodeShell.h"
 #include "vnodeShell.h"
 #include "vnodeUtil.h"
 #pragma GCC diagnostic ignored "-Wpointer-sign"
@@ -40,7 +40,7 @@ typedef struct {
 } SHeadInfo;
 
 typedef struct {
-  void *     signature;
+  void      *signature;
   SShellObj *pShell;
   SMeterObj *pObj;
   int        retry;
@@ -57,9 +57,10 @@ typedef struct {
   int     numOfPoints;
   int     fileId;
   int64_t offset;  // offset in data file
-  SData * sdata[TSDB_MAX_COLUMNS];
-  char *  buffer;
-  char *  payload;
+  SData  *sdata[TSDB_MAX_COLUMNS];
+  char   *buffer;
+  char   *payload;
+  char   *opayload;  // allocated space for payload from client
   int     rows;
 } SImportInfo;
 
@@ -95,12 +96,12 @@ int vnodeCloseFileForImport(SMeterObj *pObj, SHeadInfo *pHinfo) {
 
   if (pHinfo->newBlocks == 0 || pHinfo->compInfoOffset == 0) return 0;
 
-  if (pHinfo->oldNumOfBlocks == 0) write(pVnode->nfd, &chksum, sizeof(TSCKSUM));
+  if (pHinfo->oldNumOfBlocks == 0) twrite(pVnode->nfd, &chksum, sizeof(TSCKSUM));
 
   int leftSize = pHinfo->hfdSize - pHinfo->leftOffset;
   if (leftSize > 0) {
     lseek(pVnode->hfd, pHinfo->leftOffset, SEEK_SET);
-    sendfile(pVnode->nfd, pVnode->hfd, NULL, leftSize);
+    tsendfile(pVnode->nfd, pVnode->hfd, NULL, leftSize);
   }
 
   pHinfo->compInfo.numOfBlocks += pHinfo->newBlocks;
@@ -115,7 +116,7 @@ int vnodeCloseFileForImport(SMeterObj *pObj, SHeadInfo *pHinfo) {
   lseek(pVnode->nfd, TSDB_FILE_HEADER_LEN, SEEK_SET);
   int tmsize = sizeof(SCompHeader) * pCfg->maxSessions + sizeof(TSCKSUM);
   taosCalcChecksumAppend(0, (uint8_t *)pHinfo->headList, tmsize);
-  write(pVnode->nfd, pHinfo->headList, tmsize);
+  twrite(pVnode->nfd, pHinfo->headList, tmsize);
 
   int   size = pHinfo->compInfo.numOfBlocks * sizeof(SCompBlock);
   char *buffer = malloc(size);
@@ -129,11 +130,11 @@ int vnodeCloseFileForImport(SMeterObj *pObj, SHeadInfo *pHinfo) {
 
   taosCalcChecksumAppend(0, (uint8_t *)(&pHinfo->compInfo), sizeof(SCompInfo));
   lseek(pVnode->nfd, pHinfo->compInfoOffset, SEEK_SET);
-  write(pVnode->nfd, &pHinfo->compInfo, sizeof(SCompInfo));
+  twrite(pVnode->nfd, &pHinfo->compInfo, sizeof(SCompInfo));
 
-  chksum = taosCalcChecksum(0, buffer, size);
+  chksum = taosCalcChecksum(0, (uint8_t *)buffer, size);
   lseek(pVnode->nfd, pHinfo->compInfoOffset + sizeof(SCompInfo) + size, SEEK_SET);
-  write(pVnode->nfd, &chksum, sizeof(TSCKSUM));
+  twrite(pVnode->nfd, &chksum, sizeof(TSCKSUM));
   free(buffer);
 
   vnodeCloseCommitFiles(pVnode);
@@ -159,11 +160,11 @@ int vnodeProcessLastBlock(SImportInfo *pImport, SHeadInfo *pHinfo, SData *data[]
   if (lastBlock.sversion != pObj->sversion) {
     lseek(pVnode->lfd, lastBlock.offset, SEEK_SET);
     lastBlock.offset = lseek(pVnode->dfd, 0, SEEK_END);
-    sendfile(pVnode->dfd, pVnode->lfd, NULL, lastBlock.len);
+    tsendfile(pVnode->dfd, pVnode->lfd, NULL, lastBlock.len);
 
     lastBlock.last = 0;
     lseek(pVnode->hfd, offset, SEEK_SET);
-    write(pVnode->hfd, &lastBlock, sizeof(SCompBlock));
+    twrite(pVnode->hfd, &lastBlock, sizeof(SCompBlock));
   } else {
     vnodeReadLastBlockToMem(pObj, &lastBlock, data);
     pHinfo->compInfo.numOfBlocks--;
@@ -175,9 +176,9 @@ int vnodeProcessLastBlock(SImportInfo *pImport, SHeadInfo *pHinfo, SData *data[]
 }
 
 int vnodeOpenFileForImport(SImportInfo *pImport, char *payload, SHeadInfo *pHinfo, SData *data[]) {
-  SMeterObj * pObj = pImport->pObj;
-  SVnodeObj * pVnode = &vnodeList[pObj->vnode];
-  SVnodeCfg * pCfg = &pVnode->cfg;
+  SMeterObj  *pObj = pImport->pObj;
+  SVnodeObj  *pVnode = &vnodeList[pObj->vnode];
+  SVnodeCfg  *pCfg = &pVnode->cfg;
   TSKEY       firstKey = *((TSKEY *)payload);
   struct stat filestat;
   int         sid, rowsBefore = 0;
@@ -219,20 +220,20 @@ int vnodeOpenFileForImport(SImportInfo *pImport, char *payload, SHeadInfo *pHinf
     pHinfo->oldNumOfBlocks = pHinfo->compInfo.numOfBlocks;
     lseek(pVnode->hfd, 0, SEEK_SET);
     lseek(pVnode->nfd, 0, SEEK_SET);
-    sendfile(pVnode->nfd, pVnode->hfd, NULL, pHinfo->compInfoOffset);
-    write(pVnode->nfd, &pHinfo->compInfo, sizeof(SCompInfo));
+    tsendfile(pVnode->nfd, pVnode->hfd, NULL, pHinfo->compInfoOffset);
+    twrite(pVnode->nfd, &pHinfo->compInfo, sizeof(SCompInfo));
     if (pHinfo->headList[pObj->sid].compInfoOffset > 0) lseek(pVnode->hfd, sizeof(SCompInfo), SEEK_CUR);
 
     if (pVnode->commitFileId < pImport->fileId) {
       if (pHinfo->compInfo.numOfBlocks > 0)
-        pHinfo->leftOffset += pHinfo->compInfo.numOfBlocks * sizeof(SCompBlock) + sizeof(TSCKSUM);
+        pHinfo->leftOffset += pHinfo->compInfo.numOfBlocks * sizeof(SCompBlock);
 
       rowsBefore = vnodeProcessLastBlock(pImport, pHinfo, data);
 
       // copy all existing compBlockInfo
       lseek(pVnode->hfd, pHinfo->compInfoOffset + sizeof(SCompInfo), SEEK_SET);
       if (pHinfo->compInfo.numOfBlocks > 0)
-        sendfile(pVnode->nfd, pVnode->hfd, NULL, pHinfo->compInfo.numOfBlocks * sizeof(SCompBlock));
+        tsendfile(pVnode->nfd, pVnode->hfd, NULL, pHinfo->compInfo.numOfBlocks * sizeof(SCompBlock));
 
     } else if (pVnode->commitFileId == pImport->fileId) {
       int slots = pImport->pos ? pImport->slot + 1 : pImport->slot;
@@ -249,7 +250,7 @@ int vnodeOpenFileForImport(SImportInfo *pImport, char *payload, SHeadInfo *pHinf
 
       if (pImport->slot > 0) {
         lseek(pVnode->hfd, pHinfo->compInfoOffset + sizeof(SCompInfo), SEEK_SET);
-        sendfile(pVnode->nfd, pVnode->hfd, NULL, pImport->slot * sizeof(SCompBlock));
+        tsendfile(pVnode->nfd, pVnode->hfd, NULL, pImport->slot * sizeof(SCompBlock));
       }
 
       if (pImport->slot < pHinfo->compInfo.numOfBlocks)
@@ -275,20 +276,38 @@ void vnodeProcessImportTimer(void *param, void *tmrId) {
     return;
   }
 
-  SMeterObj * pObj = pImport->pObj;
-  SVnodeObj * pVnode = &vnodeList[pObj->vnode];
+  SMeterObj  *pObj = pImport->pObj;
+  SVnodeObj  *pVnode = &vnodeList[pObj->vnode];
   SCachePool *pPool = (SCachePool *)pVnode->pCachePool;
-  SShellObj * pShell = pImport->pShell;
+  SShellObj  *pShell = pImport->pShell;
 
   pImport->retry++;
-  pObj->state = TSDB_METER_STATE_IMPORTING;
 
+  //slow query will block the import operation
+  int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_IMPORTING);
+  if (state >= TSDB_METER_STATE_DELETING) {
+    dError("vid:%d sid:%d id:%s, meter is deleted, failed to import, state:%d",
+           pObj->vnode, pObj->sid, pObj->meterId, state);
+    return;
+  }
+
+  int32_t num = 0;
+  pthread_mutex_lock(&pVnode->vmutex);
+  num = pObj->numOfQueries;
+  pthread_mutex_unlock(&pVnode->vmutex);
+
+  //if the num == 0, it will never be increased before state is set to TSDB_METER_STATE_READY
+  int32_t commitInProcess = 0;
   pthread_mutex_lock(&pPool->vmutex);
-  if (pPool->commitInProcess || pObj->numOfQueries > 0) {
+  if (((commitInProcess = pPool->commitInProcess) == 1) || num > 0 || state != TSDB_METER_STATE_READY) {
     pthread_mutex_unlock(&pPool->vmutex);
-    pObj->state = TSDB_METER_STATE_READY;
+    vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
+
     if (pImport->retry < 1000) {
-      dTrace("vid:%d sid:%d id:%s, commit in process, try to import later", pObj->vnode, pObj->sid, pObj->meterId);
+      dTrace("vid:%d sid:%d id:%s, import failed, retry later. commit in process or queries on it, or not ready."
+             "commitInProcess:%d, numOfQueries:%d, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
+             commitInProcess, num, state);
+
       taosTmrStart(vnodeProcessImportTimer, 10, pImport, vnodeTmrCtrl);
       return;
     } else {
@@ -304,7 +323,8 @@ void vnodeProcessImportTimer(void *param, void *tmrId) {
     }
   }
 
-  pObj->state = TSDB_METER_STATE_READY;
+  vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
+
   pVnode->version++;
 
   // send response back to shell
@@ -314,18 +334,18 @@ void vnodeProcessImportTimer(void *param, void *tmrId) {
   }
 
   pImport->signature = NULL;
-  free(pImport->payload);
+  free(pImport->opayload);
   free(pImport);
 }
 
 int vnodeImportToFile(SImportInfo *pImport) {
-  SMeterObj * pObj = pImport->pObj;
-  SVnodeObj * pVnode = &vnodeList[pObj->vnode];
-  SVnodeCfg * pCfg = &pVnode->cfg;
+  SMeterObj  *pObj = pImport->pObj;
+  SVnodeObj  *pVnode = &vnodeList[pObj->vnode];
+  SVnodeCfg  *pCfg = &pVnode->cfg;
   SHeadInfo   headInfo;
   int         code = 0, col;
   SCompBlock  compBlock;
-  char *      payload = pImport->payload;
+  char       *payload = pImport->payload;
   int         rows = pImport->rows;
   SCachePool *pPool = (SCachePool *)pVnode->pCachePool;
 
@@ -395,7 +415,7 @@ int vnodeImportToFile(SImportInfo *pImport) {
         if (*((TSKEY *)payload) > pVnode->commitLastKey) break;
 
         for (col = 0; col < pObj->numOfColumns; ++col) {
-          memcpy(offset[col], payload, pObj->schema[col].bytes);
+          memcpy((void *)offset[col], payload, pObj->schema[col].bytes);
           payload += pObj->schema[col].bytes;
           offset[col] += pObj->schema[col].bytes;
         }
@@ -427,7 +447,7 @@ int vnodeImportToFile(SImportInfo *pImport) {
 
     compBlock.last = headInfo.last;
     vnodeWriteBlockToFile(pObj, &compBlock, data, cdata, rowsToWrite);
-    write(pVnode->nfd, &compBlock, sizeof(SCompBlock));
+    twrite(pVnode->nfd, &compBlock, sizeof(SCompBlock));
 
     rowsToWrite = 0;
     headInfo.newBlocks++;
@@ -496,9 +516,9 @@ _exit:
 }
 
 int vnodeImportToCache(SImportInfo *pImport, char *payload, int rows) {
-  SMeterObj * pObj = pImport->pObj;
-  SVnodeObj * pVnode = &vnodeList[pObj->vnode];
-  SVnodeCfg * pCfg = &pVnode->cfg;
+  SMeterObj  *pObj = pImport->pObj;
+  SVnodeObj  *pVnode = &vnodeList[pObj->vnode];
+  SVnodeCfg  *pCfg = &pVnode->cfg;
   int         code = -1;
   SCacheInfo *pInfo = (SCacheInfo *)pObj->pCache;
   int         slot, pos, row, col, points, tpoints;
@@ -607,8 +627,8 @@ _exit:
 }
 
 int vnodeFindKeyInFile(SImportInfo *pImport, int order) {
-  SMeterObj *   pObj = pImport->pObj;
-  SVnodeObj *   pVnode = &vnodeList[pObj->vnode];
+  SMeterObj    *pObj = pImport->pObj;
+  SVnodeObj    *pVnode = &vnodeList[pObj->vnode];
   int           code = -1;
   SQuery        query;
   SColumnFilter colList[TSDB_MAX_COLUMNS] = {0};
@@ -700,7 +720,7 @@ int vnodeFindKeyInFile(SImportInfo *pImport, int order) {
 }
 
 int vnodeFindKeyInCache(SImportInfo *pImport, int order) {
-  SMeterObj * pObj = pImport->pObj;
+  SMeterObj  *pObj = pImport->pObj;
   int         code = 0;
   SQuery      query;
   SCacheInfo *pInfo = (SCacheInfo *)pObj->pCache;
@@ -754,7 +774,7 @@ int vnodeImportStartToCache(SImportInfo *pImport, char *payload, int rows) {
     pImport->importedRows = rows;
     code = vnodeImportToCache(pImport, payload, rows);
   } else {
-    dError("vid:%d sid:%d id:%s, data is already imported to cache", pObj->vnode, pObj->sid, pObj->meterId);
+    dTrace("vid:%d sid:%d id:%s, data is already imported to cache", pObj->vnode, pObj->sid, pObj->meterId);
   }
 
   return code;
@@ -773,7 +793,7 @@ int vnodeImportStartToFile(SImportInfo *pImport, char *payload, int rows) {
     pImport->importedRows = pImport->rows;
     code = vnodeImportToFile(pImport);
   } else {
-    dError("vid:%d sid:%d id:%s, data is already imported to file", pObj->vnode, pObj->sid, pObj->meterId);
+    dTrace("vid:%d sid:%d id:%s, data is already imported to file", pObj->vnode, pObj->sid, pObj->meterId);
   }
 
   return code;
@@ -817,7 +837,7 @@ int vnodeImportWholeToCache(SImportInfo *pImport, char *payload, int rows) {
     } else if (pImport->firstKey < pObj->lastKeyOnFile) {
       code = vnodeImportStartToFile(pImport, payload, rows);
     } else {  // firstKey == pObj->lastKeyOnFile
-      dError("vid:%d sid:%d id:%s, data is already there", pObj->vnode, pObj->sid, pObj->meterId);
+      dTrace("vid:%d sid:%d id:%s, data is already there", pObj->vnode, pObj->sid, pObj->meterId);
     }
   }
 
@@ -827,12 +847,12 @@ int vnodeImportWholeToCache(SImportInfo *pImport, char *payload, int rows) {
 int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, void *param, int sversion,
                       int *pNumOfPoints) {
   SSubmitMsg *pSubmit = (SSubmitMsg *)cont;
-  SVnodeObj * pVnode = &vnodeList[pObj->vnode];
+  SVnodeObj  *pVnode = &vnodeList[pObj->vnode];
   int         rows;
-  char *      payload;
+  char       *payload;
   int         code = TSDB_CODE_ACTION_IN_PROGRESS;
   SCachePool *pPool = (SCachePool *)pVnode->pCachePool;
-  SShellObj * pShell = (SShellObj *)param;
+  SShellObj  *pShell = (SShellObj *)param;
   int         pointsImported = 0;
 
   rows = htons(pSubmit->numOfRows);
@@ -850,27 +870,35 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   }
 
   payload = pSubmit->payLoad;
-  if (pVnode->lastKeyOnFile > pVnode->cfg.daysToKeep * tsMsPerDay[pVnode->cfg.precision] + *((TSKEY *)(payload))) {
-    dError("vid:%d sid:%d id:%s, vnode lastKeyOnFile:%lld, data is too old to import, key:%lld",
-        pObj->vnode, pObj->sid, pObj->meterId, pVnode->lastKeyOnFile, *(TSKEY *)(payload));
-    return TSDB_CODE_OTHERS;
+  int firstId = (*(TSKEY *)payload)/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  int lastId  = (*(TSKEY *)(payload+pObj->bytesPerPoint*(rows-1)))/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  int cfile = taosGetTimestamp(pVnode->cfg.precision)/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  if ((firstId <= cfile - pVnode->maxFiles) || (firstId > cfile + 1) || (lastId <= cfile - pVnode->maxFiles) || (lastId > cfile + 1)) {
+    dError("vid:%d sid:%d id:%s, invalid timestamp to import, firstKey: %ld lastKey: %ld",
+        pObj->vnode, pObj->sid, pObj->meterId, *(TSKEY *)(payload), *(TSKEY *)(payload+pObj->bytesPerPoint*(rows-1)));
+    return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
   }
 
   if ( pVnode->cfg.commitLog && source != TSDB_DATA_SOURCE_LOG) {
+    if (pVnode->logFd < 0) return TSDB_CODE_INVALID_COMMIT_LOG;
     code = vnodeWriteToCommitLog(pObj, TSDB_ACTION_IMPORT, cont, contLen, sversion);
     if (code != 0) return code;
   }
 
   if (*((TSKEY *)(pSubmit->payLoad + (rows - 1) * pObj->bytesPerPoint)) > pObj->lastKey) {
+    vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
+    vnodeSetMeterState(pObj, TSDB_METER_STATE_INSERT);
     code = vnodeInsertPoints(pObj, cont, contLen, TSDB_DATA_SOURCE_LOG, NULL, pObj->sversion, &pointsImported);
+
     if (pShell) {
       pShell->code = code;
       pShell->numOfTotalPoints += pointsImported;
     }
+
+    vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);
   } else {
     SImportInfo *pNew, import;
 
-    pObj->state = TSDB_METER_STATE_IMPORTING;
     dTrace("vid:%d sid:%d id:%s, import %d rows data", pObj->vnode, pObj->sid, pObj->meterId, rows);
     memset(&import, 0, sizeof(import));
     import.firstKey = *((TSKEY *)(payload));
@@ -880,20 +908,28 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     import.payload = payload;
     import.rows = rows;
 
+    int32_t num = 0;
+    pthread_mutex_lock(&pVnode->vmutex);
+    num = pObj->numOfQueries;
+    pthread_mutex_unlock(&pVnode->vmutex);
+
+    int32_t commitInProcess = 0;
+
     pthread_mutex_lock(&pPool->vmutex);
-    if (pPool->commitInProcess || pObj->numOfQueries > 0) {
+    if (((commitInProcess = pPool->commitInProcess) == 1) || num > 0) {
       pthread_mutex_unlock(&pPool->vmutex);
-      pObj->state = TSDB_METER_STATE_READY;
 
       pNew = (SImportInfo *)malloc(sizeof(SImportInfo));
       memcpy(pNew, &import, sizeof(SImportInfo));
       pNew->signature = pNew;
       int payloadLen = contLen - sizeof(SSubmitMsg);
       pNew->payload = malloc(payloadLen);
+      pNew->opayload = pNew->payload;
       memcpy(pNew->payload, payload, payloadLen);
 
-      dTrace("vid:%d sid:%d id:%s, commit/query:%d in process, import later, ", pObj->vnode, pObj->sid, pObj->meterId,
-             pObj->numOfQueries);
+      dTrace("vid:%d sid:%d id:%s, import later, commit in process:%d, numOfQueries:%d", pObj->vnode, pObj->sid,
+             pObj->meterId, commitInProcess, pObj->numOfQueries);
+
       taosTmrStart(vnodeProcessImportTimer, 10, pNew, vnodeTmrCtrl);
       return 0;
     } else {
@@ -907,7 +943,6 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     }
   }
 
-  pObj->state = TSDB_METER_STATE_READY;
   pVnode->version++;
 
   if (pShell) {
@@ -918,6 +953,7 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   return 0;
 }
 
+//todo abort from the procedure if the meter is going to be dropped
 int vnodeImportData(SMeterObj *pObj, SImportInfo *pImport) {
   int code = 0;
 
@@ -929,7 +965,7 @@ int vnodeImportData(SMeterObj *pObj, SImportInfo *pImport) {
     code = vnodeImportStartToFile(pImport, pImport->payload, pImport->rows);
   }
 
-  SVnodeObj * pVnode = &vnodeList[pObj->vnode];
+  SVnodeObj  *pVnode = &vnodeList[pObj->vnode];
   SCachePool *pPool = (SCachePool *)pVnode->pCachePool;
   pPool->commitInProcess = 0;
 

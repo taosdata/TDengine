@@ -13,17 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <locale.h>
-#include <pwd.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
-#include <wordexp.h>
 
+#include "os.h"
 #include "tglobalcfg.h"
 #include "tkey.h"
 #include "tlog.h"
@@ -64,6 +61,7 @@ int tsMetricMetaKeepTimer = 600;  // second
 float tsNumOfThreadsPerCore = 1.0;
 float tsRatioOfQueryThreads = 0.5;
 char  tsInternalIp[TSDB_IPv4ADDR_LEN] = {0};
+char  tsServerIpStr[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
 int   tsNumOfVnodesPerCore = 8;
 int   tsNumOfTotalVnodes = 0;
 
@@ -118,11 +116,11 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 char  tsHttpIp[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
 short tsHttpPort = 6020;                 // only tcp, range tcp[6020]
 // short tsNginxPort = 6060;             //only tcp, range tcp[6060]
-int tsHttpCacheSessions = 2000;
+int tsHttpCacheSessions = 100;
 int tsHttpSessionExpire = 36000;
 int tsHttpMaxThreads = 2;
 int tsHttpEnableCompress = 0;
-int tsAdminRowLimit = 10240;
+int tsTelegrafUseFieldNum = 0;
 
 char tsMonitorDbName[] = "log";
 int  tsMonitorInterval = 30;  // seconds
@@ -376,6 +374,8 @@ void tsInitGlobalConfig() {
 
   // ip address
   tsInitConfigOption(cfg++, "internalIp", tsInternalIp, TSDB_CFG_VTYPE_IPSTR,
+                     TSDB_CFG_CTYPE_B_CONFIG, 0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "serverIp", tsServerIpStr, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "localIp", tsLocalIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
@@ -395,8 +395,10 @@ void tsInitGlobalConfig() {
   // directory
   tsInitConfigOption(cfg++, "configDir", configDir, TSDB_CFG_VTYPE_DIRECTORY, TSDB_CFG_CTYPE_B_CLIENT, 0, 0,
                        TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
+#ifdef LINUX
   tsInitConfigOption(cfg++, "dataDir", dataDir, TSDB_CFG_VTYPE_DIRECTORY, TSDB_CFG_CTYPE_B_CONFIG, 0, 0,
                      TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
+#endif
   tsInitConfigOption(cfg++, "logDir", logDir, TSDB_CFG_VTYPE_DIRECTORY,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_FILENAME_LEN,
                      TSDB_CFG_UTYPE_NONE);
@@ -481,7 +483,7 @@ void tsInitGlobalConfig() {
   tsInitConfigOption(cfg++, "defaultUser", tsDefaultUser, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_USER_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "defaultPass", tsDefaultPass, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_PASSWORD_LEN, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT, 0, 0, TSDB_PASSWORD_LEN, TSDB_CFG_UTYPE_NONE);
 
   // locale & charset
   tsInitConfigOption(cfg++, "timezone", tsTimezone, TSDB_CFG_VTYPE_STRING,
@@ -511,8 +513,12 @@ void tsInitGlobalConfig() {
   // http configs
   tsInitConfigOption(cfg++, "httpCacheSessions", &tsHttpCacheSessions, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 1,
                      100000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "telegrafUseFieldNum", &tsTelegrafUseFieldNum, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0,
+                     1, 1, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "httpMaxThreads", &tsHttpMaxThreads, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 1,
                      1000000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "httpEnableCompress", &tsHttpEnableCompress, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 0,
+                     1, 1, TSDB_CFG_UTYPE_NONE);
 
   // debug flag
   tsInitConfigOption(cfg++, "numOfLogLines", &tsNumOfLogLines, TSDB_CFG_VTYPE_INT,
@@ -584,8 +590,8 @@ void tsReadGlobalLogConfig() {
   if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
     strcpy(configDir, full_path.we_wordv[0]);
   } else {
-    strcpy(configDir, "/etc/taos");
     printf("configDir:%s not there, use default value: /etc/taos", configDir);
+    strcpy(configDir, "/etc/taos");
   }
   wordfree(&full_path);
 
@@ -748,6 +754,7 @@ void tsPrintGlobalConfig() {
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
     if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
+    if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
 
     int optionLen = (int)strlen(cfg->option);
     int blankLen = TSDB_CFG_PRINT_LEN - optionLen;
@@ -779,8 +786,10 @@ void tsPrintGlobalConfig() {
         break;
     }
   }
-
+#ifdef LINUX
   pPrint(" dataDir:                %s", dataDir);
+#endif
+
   tsPrintOsInfo();
 
   pPrint("==================================");
@@ -831,7 +840,13 @@ void tsSetTimeZone() {
   SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");
   pPrint("timezone is set to %s by %s", tsTimezone, tsCfgStatusStr[cfg_timezone->cfgStatus]);
 
+#ifdef WINDOWS
+  char winStr[TSDB_LOCALE_LEN * 2];
+  sprintf(winStr, "TZ=%s", tsTimezone);
+  putenv(winStr);
+#else
   setenv("TZ", tsTimezone, 1);
+#endif
   tzset();
 
   /*

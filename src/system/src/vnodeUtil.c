@@ -64,16 +64,16 @@ void vnodeCreateFileHeaderFd(int fd) {
   sprintf(temp + sizeof(int16_t), "tsdb version: %s\n", version);
   /* *((int16_t *)(temp + TSDB_FILE_HEADER_LEN/8)) = vnodeFileVersion; */
   lseek(fd, 0, SEEK_SET);
-  write(fd, temp, lineLen);
+  twrite(fd, temp, lineLen);
 
   // second line
   memset(temp, 0, lineLen);
-  write(fd, temp, lineLen);
+  twrite(fd, temp, lineLen);
 
   // the third/forth line is the dynamic info
   memset(temp, 0, lineLen);
-  write(fd, temp, lineLen);
-  write(fd, temp, lineLen);
+  twrite(fd, temp, lineLen);
+  twrite(fd, temp, lineLen);
 }
 
 void vnodeGetHeadFileHeaderInfo(int fd, SVnodeHeadInfo* pHeadInfo) {
@@ -83,7 +83,7 @@ void vnodeGetHeadFileHeaderInfo(int fd, SVnodeHeadInfo* pHeadInfo) {
 
 void vnodeUpdateHeadFileHeader(int fd, SVnodeHeadInfo* pHeadInfo) {
   lseek(fd, TSDB_FILE_HEADER_LEN / 4, SEEK_SET);
-  write(fd, pHeadInfo, sizeof(SVnodeHeadInfo));
+  twrite(fd, pHeadInfo, sizeof(SVnodeHeadInfo));
 }
 
 void vnodeCreateFileHeader(FILE* fp) {
@@ -361,6 +361,7 @@ void vnodeUpdateFilterColumnIndex(SQuery* pQuery) {
 
 // TODO support k<12 and k<>9
 int32_t vnodeCreateFilterInfo(void* pQInfo, SQuery* pQuery) {
+
   for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
     if (pQuery->colList[i].data.filterOn > 0) {
       pQuery->numOfFilterCols++;
@@ -401,8 +402,6 @@ int32_t vnodeCreateFilterInfo(void* pQInfo, SQuery* pQuery) {
             pFilterInfo->fp = rangeFilterArray[2];
           }
         } else {
-          assert(lower == TSDB_RELATION_LARGE);
-
           if (upper == TSDB_RELATION_LESS_EQUAL) {
             pFilterInfo->fp = rangeFilterArray[3];
           } else {
@@ -421,6 +420,7 @@ int32_t vnodeCreateFilterInfo(void* pQInfo, SQuery* pQuery) {
           pFilterInfo->fp = filterArray[upper];
         }
       }
+
       pFilterInfo->elemSize = bytes;
       j++;
     }
@@ -470,6 +470,18 @@ bool vnodeIsProjectionQuery(SSqlFunctionExpr* pExpr, int32_t numOfOutput) {
   return true;
 }
 
+/*
+ * the pMeter->state may be changed by vnodeIsSafeToDeleteMeter and import/update processor, the check of
+ * the state will not always be correct.
+ *
+ * The import/update/deleting is actually blocked by current query processing if the check of meter state is
+ * passed, but later queries are denied.
+ *
+ * 1. vnodeIsSafeToDelete will wait for this complete, since it also use the vmutex to check the numOfQueries
+ * 2. import will check the numOfQueries again after setting state to be TSDB_METER_STATE_IMPORTING, while the
+ *    vmutex is also used.
+ * 3. insert has nothing to do with the query processing.
+ */
 int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSids, SMeterObj** pMeterObjList,
                               int32_t* numOfInc) {
   SVnodeObj* pVnode = &vnodeList[pQueryMsg->vnode];
@@ -477,21 +489,24 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSid
   int32_t num = 0;
   int32_t code = TSDB_CODE_SUCCESS;
 
-  // check all meter metadata to ensure all metadata are identical.
   for (int32_t i = 0; i < pQueryMsg->numOfSids; ++i) {
     SMeterObj* pMeter = pVnode->meterList[pSids[i]->sid];
 
-    if (pMeter == NULL || pMeter->state != TSDB_METER_STATE_READY) {
-      if (pMeter == NULL) {
+    if (pMeter == NULL || (pMeter->state > TSDB_METER_STATE_INSERT)) {
+      if (pMeter == NULL || vnodeIsMeterState(pMeter, TSDB_METER_STATE_DELETING)) {
         code = TSDB_CODE_NOT_ACTIVE_SESSION;
-        dError("qmsg:%p, vid:%d sid:%d, not there", pQueryMsg, pQueryMsg->vnode, pSids[i]->sid);
+        dError("qmsg:%p, vid:%d sid:%d, not there or will be dropped", pQueryMsg, pQueryMsg->vnode, pSids[i]->sid);
         vnodeSendMeterCfgMsg(pQueryMsg->vnode, pSids[i]->sid);
-      } else {
+      } else {//update or import
         code = TSDB_CODE_ACTION_IN_PROGRESS;
         dTrace("qmsg:%p, vid:%d sid:%d id:%s, it is in state:%d, wait!", pQueryMsg, pQueryMsg->vnode, pSids[i]->sid,
                pMeter->meterId, pMeter->state);
       }
     } else {
+      /*
+       * vnodeIsSafeToDeleteMeter will wait for this function complete, and then it can
+       * check if the numOfQueries is 0 or not.
+       */
       pMeterObjList[(*numOfInc)++] = pMeter;
       __sync_fetch_and_add(&pMeter->numOfQueries, 1);
 
@@ -517,7 +532,6 @@ void vnodeDecQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterObj** pMeterObjList,
     SMeterObj* pMeter = pMeterObjList[i];
 
     if (pMeter != NULL) {  // here, do not need to lock to perform operations
-      assert(pMeter->state != TSDB_METER_STATE_DELETING && pMeter->state != TSDB_METER_STATE_DELETED);
       __sync_fetch_and_sub(&pMeter->numOfQueries, 1);
 
       if (pMeter->numOfQueries > 0) {
@@ -570,4 +584,67 @@ void vnodeUpdateQueryColumnIndex(SQuery* pQuery, SMeterObj* pMeterObj) {
       }
     }
   }
+}
+
+int32_t vnodeSetMeterState(SMeterObj* pMeterObj, int32_t state) {
+  return __sync_val_compare_and_swap(&pMeterObj->state, TSDB_METER_STATE_READY, state);
+}
+
+void vnodeClearMeterState(SMeterObj* pMeterObj, int32_t state) {
+  pMeterObj->state &= (~state);
+}
+
+bool vnodeIsMeterState(SMeterObj* pMeterObj, int32_t state) {
+  if (state == TSDB_METER_STATE_READY) {
+    return pMeterObj->state == TSDB_METER_STATE_READY;
+  } else if (state == TSDB_METER_STATE_DELETING) {
+    return pMeterObj->state >= state;
+  } else {
+    return (((pMeterObj->state) & state) == state);
+  }
+}
+
+void vnodeSetMeterDeleting(SMeterObj* pMeterObj) {
+  if (pMeterObj == NULL) {
+    return;
+  }
+
+  pMeterObj->state |= TSDB_METER_STATE_DELETING;
+}
+
+bool vnodeIsSafeToDeleteMeter(SVnodeObj* pVnode, int32_t sid) {
+  SMeterObj* pObj = pVnode->meterList[sid];
+
+  if (pObj == NULL || vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETED)) {
+    return true;
+  }
+
+  int32_t prev = vnodeSetMeterState(pObj, TSDB_METER_STATE_DELETING);
+
+  /*
+   * if the meter is not in ready/deleting state, it must be in insert/import/update,
+   * set the deleting state and wait the procedure to be completed
+   */
+  if (prev != TSDB_METER_STATE_READY && prev < TSDB_METER_STATE_DELETING) {
+    vnodeSetMeterDeleting(pObj);
+
+    dWarn("vid:%d sid:%d id:%s, can not be deleted, state:%d, wait", pObj->vnode, pObj->sid, pObj->meterId, prev);
+    return false;
+  }
+
+  bool ready = true;
+
+  /*
+   * the query will be stopped ASAP, since the state of meter is set to TSDB_METER_STATE_DELETING,
+   * and new query will abort since the meter is deleted.
+   */
+  pthread_mutex_lock(&pVnode->vmutex);
+  if (pObj->numOfQueries > 0) {
+    dWarn("vid:%d sid:%d id:%s %d queries executing on it, wait query to be finished",
+          pObj->vnode, pObj->sid, pObj->meterId, pObj->numOfQueries);
+    ready = false;
+  }
+  pthread_mutex_unlock(&pVnode->vmutex);
+
+  return ready;
 }

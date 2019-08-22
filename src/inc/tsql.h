@@ -234,7 +234,7 @@ typedef struct tDCLSQL {
   SSQLToken *a;       /* one entry for element */
 
   union {
-    SCreateDBInfo   dbOpt;
+    SCreateDBInfo  dbOpt;
     SCreateAcctSQL acctOpt;
   };
 } tDCLSQL;

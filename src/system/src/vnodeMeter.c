@@ -47,6 +47,8 @@ void vnodeFreeMeterObj(SMeterObj *pObj) {
   if (vnodeList[pObj->vnode].meterList != NULL) {
     vnodeList[pObj->vnode].meterList[pObj->sid] = NULL;
   }
+
+  memset(pObj->meterId, 0, tListLen(pObj->meterId));
   tfree(pObj);
 }
 
@@ -143,7 +145,7 @@ int vnodeSaveMeterObjToFile(SMeterObj *pObj) {
   memcpy(buffer, pObj, offsetof(SMeterObj, reserved));
   memcpy(buffer + offsetof(SMeterObj, reserved), pObj->schema, pObj->numOfColumns * sizeof(SColumn));
   memcpy(buffer + offsetof(SMeterObj, reserved) + pObj->numOfColumns * sizeof(SColumn), pObj->pSql, pObj->sqlLen);
-  taosCalcChecksumAppend(0, buffer, new_length);
+  taosCalcChecksumAppend(0, (uint8_t *)buffer, new_length);
 
   if (offset == 0 || length < new_length) {  // New, append to file end
     fseek(fp, 0, SEEK_END);
@@ -208,7 +210,7 @@ int vnodeSaveAllMeterObjToFile(int vnode) {
     memcpy(buffer, pObj, offsetof(SMeterObj, reserved));
     memcpy(buffer + offsetof(SMeterObj, reserved), pObj->schema, pObj->numOfColumns * sizeof(SColumn));
     memcpy(buffer + offsetof(SMeterObj, reserved) + pObj->numOfColumns * sizeof(SColumn), pObj->pSql, pObj->sqlLen);
-    taosCalcChecksumAppend(0, buffer, new_length);
+    taosCalcChecksumAppend(0, (uint8_t *)buffer, new_length);
 
     if (offset == 0 || length > new_length) {  // New, append to file end
       new_offset = fseek(fp, 0, SEEK_END);
@@ -391,7 +393,7 @@ int vnodeOpenMetersVnode(int vnode) {
 
     fseek(fp, offset, SEEK_SET);
     if (fread(buffer, length, 1, fp) <= 0) break;
-    if (taosCheckChecksumWhole(buffer, length)) {
+    if (taosCheckChecksumWhole((uint8_t *)buffer, length)) {
       vnodeRestoreMeterObj(buffer, length - sizeof(TSCKSUM));
     } else {
       dError("meter object file is broken since checksum mismatch, vnode: %d sid: %d, try to recover", vnode, sid);
@@ -440,7 +442,7 @@ int vnodeCreateMeterObj(SMeterObj *pNew, SConnSec *pSec) {
     }
 
     dTrace("vid:%d sid:%d id:%s, update schema", pNew->vnode, pNew->sid, pNew->meterId);
-    if (pObj->state != TSDB_METER_STATE_UPDATING) vnodeUpdateMeter(pNew, NULL);
+    if (!vnodeIsMeterState(pObj, TSDB_METER_STATE_UPDATING)) vnodeUpdateMeter(pNew, NULL);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -483,27 +485,20 @@ int vnodeRemoveMeterObj(int vnode, int sid) {
   if (vnodeList[vnode].meterList == NULL) return 0;
 
   pObj = vnodeList[vnode].meterList[sid];
-  if ((pObj == NULL) || (pObj->state == TSDB_METER_STATE_DELETED)) return 0;
-  if (pObj->state == TSDB_METER_STATE_IMPORTING) return TSDB_CODE_ACTION_IN_PROGRESS;
-
-  int32_t retFlag = 0;
-  pthread_mutex_lock(&vnodeList[vnode].vmutex);
-  pObj->state = TSDB_METER_STATE_DELETING;
-  if (pObj->numOfQueries > 0) {
-    retFlag = TSDB_CODE_ACTION_IN_PROGRESS;
-    dWarn("vid:%d sid:%d id:%s %d queries executing on it, wait query to be finished",
-          vnode, pObj->sid, pObj->meterId, pObj->numOfQueries);
+  if (pObj == NULL) {
+    return TSDB_CODE_SUCCESS;
   }
-  pthread_mutex_unlock(&vnodeList[vnode].vmutex);
-  if (retFlag != 0) return retFlag;
 
-  // after remove this meter, change its stat to DELETED
+  if (!vnodeIsSafeToDeleteMeter(&vnodeList[vnode], sid)) {
+    return TSDB_CODE_ACTION_IN_PROGRESS;
+  }
+
+  // after remove this meter, change its state to DELETED
   pObj->state = TSDB_METER_STATE_DELETED;
   pObj->timeStamp = taosGetTimestampMs();
   vnodeList[vnode].lastRemove = pObj->timeStamp;
 
   vnodeRemoveStream(pObj);
-  pObj->meterId[0] = 0;
   vnodeSaveMeterObjToFile(pObj);
   vnodeFreeMeterObj(pObj);
 
@@ -517,6 +512,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   SSubmitMsg *pSubmit = (SSubmitMsg *)cont;
   char *      pData;
   TSKEY       tsKey;
+  int         cfile;
   int         points = 0;
   int         code = TSDB_CODE_SUCCESS;
   SVnodeObj * pVnode = vnodeList + pObj->vnode;
@@ -533,6 +529,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   // to guarantee time stamp is the same for all vnodes
   pData = pSubmit->payLoad;
   tsKey = taosGetTimestamp(pVnode->cfg.precision);
+  cfile = tsKey/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
   if (*((TSKEY *)pData) == 0) {
     for (i = 0; i < numOfPoints; ++i) {
       *((TSKEY *)pData) = tsKey++;
@@ -559,6 +556,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
 
   // FIXME: Here should be after the comparison of sversions.
   if (pVnode->cfg.commitLog && source != TSDB_DATA_SOURCE_LOG) {
+    if (pVnode->logFd < 0) return TSDB_CODE_INVALID_COMMIT_LOG;
     code = vnodeWriteToCommitLog(pObj, TSDB_ACTION_INSERT, cont, contLen, sversion);
     if (code != 0) return code;
   }
@@ -575,13 +573,24 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   code = 0;
 
   TSKEY firstKey = *((TSKEY *)pData);
-  if (pVnode->lastKeyOnFile > pVnode->cfg.daysToKeep * tsMsPerDay[pVnode->cfg.precision] + firstKey) {
-    dError("vid:%d sid:%d id:%s, vnode lastKeyOnFile:%lld, data is too old to insert, key:%lld", pObj->vnode, pObj->sid,
-           pObj->meterId, pVnode->lastKeyOnFile, firstKey);
-    return TSDB_CODE_OTHERS;
+  int firstId = firstKey/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  int lastId  = (*(TSKEY *)(pData + pObj->bytesPerPoint * (numOfPoints - 1)))/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  if ((firstId <= cfile - pVnode->maxFiles) || (firstId > cfile + 1) || (lastId <= cfile - pVnode->maxFiles) || (lastId > cfile + 1)) {
+    dError("vid:%d sid:%d id:%s, invalid timestamp to insert, firstKey: %ld lastKey: %ld ", pObj->vnode, pObj->sid,
+           pObj->meterId, firstKey, (*(TSKEY *)(pData + pObj->bytesPerPoint * (numOfPoints - 1))));
+    return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
   }
 
   for (i = 0; i < numOfPoints; ++i) {
+    // meter will be dropped, abort current insertion
+    if (pObj->state >= TSDB_METER_STATE_DELETING) {
+      dWarn("vid:%d sid:%d id:%s, meter is dropped, abort insert, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
+            pObj->state);
+
+      code = TSDB_CODE_NOT_ACTIVE_SESSION;
+      break;
+    }
+
     if (*((TSKEY *)pData) <= pObj->lastKey) {
       dWarn("vid:%d sid:%d id:%s, received key:%ld not larger than lastKey:%ld", pObj->vnode, pObj->sid, pObj->meterId,
             *((TSKEY *)pData), pObj->lastKey);
@@ -632,9 +641,11 @@ void vnodeProcessUpdateSchemaTimer(void *param, void *tmrId) {
 
   pthread_mutex_lock(&pPool->vmutex);
   if (pPool->commitInProcess) {
-    dTrace("vid:%d sid:%d mid:%s, commiting in process, commit later", pObj->vnode, pObj->sid, pObj->meterId);
-    if (taosTmrStart(vnodeProcessUpdateSchemaTimer, 10, pObj, vnodeTmrCtrl) == NULL)
-      pObj->state = TSDB_METER_STATE_READY;
+    dTrace("vid:%d sid:%d mid:%s, committing in process, commit later", pObj->vnode, pObj->sid, pObj->meterId);
+    if (taosTmrStart(vnodeProcessUpdateSchemaTimer, 10, pObj, vnodeTmrCtrl) == NULL) {
+      vnodeClearMeterState(pObj, TSDB_METER_STATE_UPDATING);
+    }
+
     pthread_mutex_unlock(&pPool->vmutex);
     return;
   }
@@ -649,41 +660,54 @@ void vnodeUpdateMeter(void *param, void *tmrId) {
   SMeterObj *pNew = (SMeterObj *)param;
   if (pNew == NULL || pNew->vnode < 0 || pNew->sid < 0) return;
 
-  if (vnodeList[pNew->vnode].meterList == NULL) {
+  SVnodeObj* pVnode = &vnodeList[pNew->vnode];
+
+  if (pVnode->meterList == NULL) {
     dTrace("vid:%d sid:%d id:%s, vnode is deleted, abort update schema", pNew->vnode, pNew->sid, pNew->meterId);
     free(pNew->schema);
     free(pNew);
     return;
   }
 
-  SMeterObj *pObj = vnodeList[pNew->vnode].meterList[pNew->sid];
-  if (pObj == NULL) {
+  SMeterObj *pObj = pVnode->meterList[pNew->sid];
+  if (pObj == NULL || vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
     dTrace("vid:%d sid:%d id:%s, meter is deleted, abort update schema", pNew->vnode, pNew->sid, pNew->meterId);
     free(pNew->schema);
     free(pNew);
     return;
   }
 
-  pObj->state = TSDB_METER_STATE_UPDATING;
+  int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_UPDATING);
+  if (state >= TSDB_METER_STATE_DELETING) {
+    dError("vid:%d sid:%d id:%s, meter is deleted, failed to update, state:%d",
+           pObj->vnode, pObj->sid, pObj->meterId, state);
+    return;
+  }
 
-  if (pObj->numOfQueries > 0) {
+  int32_t num = 0;
+  pthread_mutex_lock(&pVnode->vmutex);
+  num = pObj->numOfQueries;
+  pthread_mutex_unlock(&pVnode->vmutex);
+
+  if (num > 0 || state != TSDB_METER_STATE_READY) {
+    dTrace("vid:%d sid:%d id:%s, update failed, retry later, numOfQueries:%d, state:%d",
+           pNew->vnode, pNew->sid, pNew->meterId, num, state);
+
+    // retry update meter in 50ms
     if (taosTmrStart(vnodeUpdateMeter, 50, pNew, vnodeTmrCtrl) == NULL) {
-      dError("vid:%d sid:%d id:%s, failed to start update timer", pNew->vnode, pNew->sid, pNew->meterId);
-      pObj->state = TSDB_METER_STATE_READY;
+      dError("vid:%d sid:%d id:%s, failed to start update timer, no retry", pNew->vnode, pNew->sid, pNew->meterId);
       free(pNew->schema);
       free(pNew);
     }
-
-    dTrace("vid:%d sid:%d id:%s, there are ongoing queries, update later", pNew->vnode, pNew->sid, pNew->meterId);
     return;
   }
 
   // commit first
   if (!vnodeIsCacheCommitted(pObj)) {
-    // commit
+    // commit data first
     if (taosTmrStart(vnodeProcessUpdateSchemaTimer, 0, pObj, vnodeTmrCtrl) == NULL) {
       dError("vid:%d sid:%d id:%s, failed to start commit timer", pObj->vnode, pObj->sid, pObj->meterId);
-      pObj->state = TSDB_METER_STATE_READY;
+      vnodeClearMeterState(pObj, TSDB_METER_STATE_UPDATING);
       free(pNew->schema);
       free(pNew);
       return;
@@ -691,13 +715,14 @@ void vnodeUpdateMeter(void *param, void *tmrId) {
 
     if (taosTmrStart(vnodeUpdateMeter, 50, pNew, vnodeTmrCtrl) == NULL) {
       dError("vid:%d sid:%d id:%s, failed to start update timer", pNew->vnode, pNew->sid, pNew->meterId);
-      pObj->state = TSDB_METER_STATE_READY;
+      vnodeClearMeterState(pObj, TSDB_METER_STATE_UPDATING);
       free(pNew->schema);
       free(pNew);
     }
 
     dTrace("vid:%d sid:%d meterId:%s, there are data in cache, commit first, update later",
            pNew->vnode, pNew->sid, pNew->meterId);
+    vnodeClearMeterState(pObj, TSDB_METER_STATE_UPDATING);
     return;
   }
 
@@ -716,7 +741,7 @@ void vnodeUpdateMeter(void *param, void *tmrId) {
 
   pObj->sversion = pNew->sversion;
   vnodeSaveMeterObjToFile(pObj);
-  pObj->state = TSDB_METER_STATE_READY;
+  vnodeClearMeterState(pObj, TSDB_METER_STATE_UPDATING);
 
   dTrace("vid:%d sid:%d id:%s, schema is updated", pNew->vnode, pNew->sid, pNew->meterId);
   free(pNew);

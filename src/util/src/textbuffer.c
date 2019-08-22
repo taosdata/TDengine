@@ -23,9 +23,8 @@
 #include <math.h>
 
 #include <errno.h>
-#include <sys/time.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "taos.h"
 #include "taosmsg.h"
 #include "textbuffer.h"
@@ -45,7 +44,11 @@ void getExtTmpfilePath(const char *fileNamePattern, int64_t serialNumber, int32_
 
   char *tmpDir = NULL;
 
+#ifdef WINDOWS
+  tmpDir = getenv("tmp");
+#else
   tmpDir = "/tmp/";
+#endif
 
   strcat(tmpPath, tmpDir);
   strcat(tmpPath, fileNamePattern);
@@ -1529,7 +1532,7 @@ void tColModelDisplayEx(tColModel *pModel, void *pData, int32_t numOfRows, int32
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
-void tColModelCompress(tColModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity) {
+void tColModelCompact(tColModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity) {
   if (inputBuffer->numOfElems == 0 || maxElemsCapacity == inputBuffer->numOfElems) {
     return;
   }

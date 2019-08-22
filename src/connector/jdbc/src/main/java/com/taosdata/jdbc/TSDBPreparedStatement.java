@@ -244,7 +244,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
 	@Override
 	public boolean execute() throws SQLException {
-		return executeUpdate(getNativeSql()) == 0;
+	    return super.execute(getNativeSql());
 	}
 
 	@Override

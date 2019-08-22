@@ -19,7 +19,7 @@ package_name='linux'
 install_dir="${release_dir}/taos-${version}-${package_name}-$(echo ${build_time}| tr ': ' -)"
 
 # Directories and files.
-bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdump ${script_dir}/remove.sh"
+bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdemo ${build_dir}/bin/taosdump ${script_dir}/remove.sh"
 versioninfo=$(${script_dir}/get_version.sh)
 lib_files="${build_dir}/lib/libtaos.so.${versioninfo}"
 header_files="${code_dir}/inc/taos.h"
@@ -66,8 +66,8 @@ connector_dir="${code_dir}/connector"
 mkdir -p ${install_dir}/connector
 cp -r ${connector_dir}/grafana ${install_dir}/connector/
 cp -r ${connector_dir}/python  ${install_dir}/connector/
-cp -r ${connector_dir}/go ${install_dir}/connector
-cp ${build_dir}/lib/*.jar ${install_dir}/connector
+cp -r ${connector_dir}/go      ${install_dir}/connector
+cp ${build_dir}/lib/*.jar      ${install_dir}/connector
 
 
 # Copy release note

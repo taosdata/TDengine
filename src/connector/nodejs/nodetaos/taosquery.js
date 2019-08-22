@@ -10,12 +10,13 @@ module.exports = TaosQuery;
  * functionality and save time whilst also making it easier to debug and enter less problems with the use of promises.
  * @param {string} query - Query to construct object from
  * @param {TDengineCursor} cursor - The cursor from which this query will execute from
- * @param {boolean} execute - Whether or not to immedietely execute the query and fetch all results. Default is false.
+ * @param {boolean} execute - Whether or not to immedietely execute the query synchronously and fetch all results. Default is false.
+ * @property {string} query - The current query in string format the TaosQuery object represents
  * @return {TaosQuery}
  * @since 1.0.6
  */
 function TaosQuery(query = "", cursor = null, execute = false) {
-  this._query = query;
+  this.query = query;
   this._cursor = cursor;
   if (execute == true) {
     return this.execute();
@@ -36,7 +37,7 @@ TaosQuery.prototype.execute = async function execute() {
     let fields = [];
     let result;
     try {
-      taosQuery._cursor.execute(taosQuery._query);
+      taosQuery._cursor.execute(taosQuery.query);
       if (taosQuery._cursor._fields) fields = taosQuery._cursor._fields;
       if (taosQuery._cursor._result != null) data = taosQuery._cursor.fetchall();
       result = new TaosResult(data, fields)
@@ -48,6 +49,40 @@ TaosQuery.prototype.execute = async function execute() {
 
   });
   return executionPromise;
+}
+
+/**
+ * Executes the query object asynchronously and returns a Promise. Completes query to completion.
+ * @memberof TaosQuery
+ * @param {Object} options - Execution options
+ * @return {Promise<TaosResult>} A promise that resolves with a TaosResult object, or rejects with an error
+ * @since 1.2.0
+ */
+TaosQuery.prototype.execute_a = async function execute_a(options = {}) {
+  var executionPromise =  new Promise( (resolve, reject) => {
+
+  });
+  var fres;
+  var frej;
+  var fetchPromise =  new Promise( (resolve, reject) => {
+    fres = resolve;
+    frej = reject;
+  });
+  let asyncCallbackFetchall = async function(param, res, numOfRows, blocks) {
+    if (numOfRows > 0) {
+      // Likely a query like insert
+      fres();
+    }
+    else {
+      fres(new TaosResult(blocks.data, blocks.fields));
+    }
+  }
+  let asyncCallback = async function(param, res, code) {
+    //upon success, we fetchall results
+    this._cursor.fetchall_a(res, options, asyncCallbackFetchall, {});
+  }
+  this._cursor.execute_a(this.query, asyncCallback.bind(this), {});
+  return fetchPromise;
 }
 
 /**
@@ -71,7 +106,7 @@ TaosQuery.prototype.bind = function bind(f, ...args) {
     if (arg.constructor.name == 'TaosTimestamp') arg = "\"" + arg.toTaosString() + "\"";
     else if (arg.constructor.name == 'Date') arg = "\"" + toTaosTSString(arg) + "\"";
     else if (typeof arg == 'string') arg = "\"" + arg + "\"";
-    this._query = this._query.replace(/\?/,arg);
+    this.query = this.query.replace(/\?/,arg);
   }, this);
   return this;
 }

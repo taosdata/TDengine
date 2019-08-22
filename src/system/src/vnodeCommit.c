@@ -26,12 +26,14 @@
 
 #include "tsdb.h"
 #include "vnode.h"
+#include "vnodeUtil.h"
 
 typedef struct {
-  char action;
   int  sversion;
   int  sid;
   int  contLen;
+  int  action:8;
+  int  simpleCheck:24;
 } SCommitHead;
 
 int vnodeOpenCommitLog(int vnode, uint64_t firstV) {
@@ -46,9 +48,9 @@ int vnodeOpenCommitLog(int vnode, uint64_t firstV) {
 
   dTrace("vid:%d, logfd:%d, open file:%s success", vnode, pVnode->logFd, fileName);
   if (posix_fallocate64(pVnode->logFd, 0, pVnode->mappingSize) != 0) {
-    dError("vid:%d, logfd:%d, failed to alloc file size:%d", vnode, pVnode->logFd, pVnode->mappingSize);
+    dError("vid:%d, logfd:%d, failed to alloc file size:%d reason:%s", vnode, pVnode->logFd, pVnode->mappingSize, strerror(errno));
     perror("fallocate failed");
-    return -1;
+    goto _err_log_open;
   }
 
   struct stat statbuf;
@@ -58,13 +60,13 @@ int vnodeOpenCommitLog(int vnode, uint64_t firstV) {
   if (length != pVnode->mappingSize) {
     dError("vid:%d, logfd:%d, alloc file size:%ld not equal to mapping size:%ld", vnode, pVnode->logFd, length,
            pVnode->mappingSize);
-    return -1;
+    goto _err_log_open;
   }
 
   pVnode->pMem = mmap(0, pVnode->mappingSize, PROT_WRITE | PROT_READ, MAP_SHARED, pVnode->logFd, 0);
   if (pVnode->pMem == MAP_FAILED) {
     dError("vid:%d, logfd:%d, failed to map file, reason:%s", vnode, pVnode->logFd, strerror(errno));
-    return -1;
+    goto _err_log_open;
   }
 
   pVnode->pWrite = pVnode->pMem;
@@ -72,6 +74,12 @@ int vnodeOpenCommitLog(int vnode, uint64_t firstV) {
   pVnode->pWrite += sizeof(firstV);
 
   return pVnode->logFd;
+
+  _err_log_open:
+  close(pVnode->logFd);
+  remove(fileName);
+  pVnode->logFd = -1;
+  return -1;
 }
 
 int vnodeRenewCommitLog(int vnode) {
@@ -83,7 +91,7 @@ int vnodeRenewCommitLog(int vnode) {
 
   if (VALIDFD(pVnode->logFd)) {
     munmap(pVnode->pMem, pVnode->mappingSize);
-    tclose(pVnode->logFd);
+    close(pVnode->logFd);
     rename(fileName, oldName);
   }
 
@@ -118,7 +126,7 @@ size_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
 
   fd = open(fileName, O_RDWR);
   if (fd < 0) {
-    dError("vid:%d, failed to open:%s, reason:%s", vnode, fileName);
+    dError("vid:%d, failed to open:%s, reason:%s", vnode, fileName, strerror(errno));
     goto _error;
   }
 
@@ -137,28 +145,36 @@ size_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
   }
 
   SCommitHead head;
+  int simpleCheck = 0;
   while (1) {
     ret = read(fd, &head, sizeof(head));
     if (ret < 0) goto _error;
     if (ret == 0) break;
+    if (((head.sversion+head.sid+head.contLen+head.action) & 0xFFFFFF) != head.simpleCheck) break;
+    simpleCheck = head.simpleCheck;
 
     // head.contLen validation is removed
     if (head.sid >= pVnode->cfg.maxSessions || head.sid < 0 || head.action >= TSDB_ACTION_MAX) {
       dError("vid, invalid commit head, sid:%d contLen:%d action:%d", head.sid, head.contLen, head.action);
     } else {
       if (head.contLen > 0) {
-        if (bufLen < head.contLen) {  // pre-allocated buffer is not enough
-          cont = realloc(cont, head.contLen);
-          bufLen = head.contLen;
+        if (bufLen < head.contLen+sizeof(simpleCheck)) {  // pre-allocated buffer is not enough
+          cont = realloc(cont, head.contLen+sizeof(simpleCheck));
+          bufLen = head.contLen+sizeof(simpleCheck);
         }
 
-        if (read(fd, cont, head.contLen) < 0) goto _error;
+        if (read(fd, cont, head.contLen+sizeof(simpleCheck)) < 0) goto _error;
+        if (*(int *)(cont+head.contLen) != simpleCheck) break;
         SMeterObj *pObj = pVnode->meterList[head.sid];
         if (pObj == NULL) {
-          dError(
-              "vid:%d, sid:%d not exists, ignore data in commit log, "
-              "contLen:%d action:%d",
+          dError("vid:%d, sid:%d not exists, ignore data in commit log, contLen:%d action:%d",
               vnode, head.sid, head.contLen, head.action);
+          continue;
+        }
+
+        if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+          dWarn("vid:%d sid:%d id:%s, meter is dropped, ignore data in commit log, contLen:%d action:%d",
+                 vnode, head.sid, head.contLen, head.action);
           continue;
         }
 
@@ -171,7 +187,7 @@ size_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
       }
     }
 
-    totalLen += sizeof(head) + head.contLen;
+    totalLen += sizeof(head) + head.contLen + sizeof(simpleCheck);
   }
 
   tclose(fd);
@@ -234,9 +250,9 @@ int vnodeInitCommit(int vnode) {
 void vnodeCleanUpCommit(int vnode) {
   SVnodeObj *pVnode = vnodeList + vnode;
 
-  if (pVnode->logFd) tclose(pVnode->logFd);
+  if (VALIDFD(pVnode->logFd)) close(pVnode->logFd);
 
-  if (pVnode->cfg.commitLog && remove(pVnode->logFn) < 0) {
+  if (pVnode->cfg.commitLog && (pVnode->logFd > 0 && remove(pVnode->logFn) < 0)) {
     dError("vid:%d, failed to remove:%s", vnode, pVnode->logFn);
     taosLogError("vid:%d, failed to remove:%s", vnode, pVnode->logFn);
   }
@@ -253,19 +269,22 @@ int vnodeWriteToCommitLog(SMeterObj *pObj, char action, char *cont, int contLen,
   head.action = action;
   head.sversion = pObj->sversion;
   head.contLen = contLen;
+  head.simpleCheck = (head.sversion+head.sid+head.contLen+head.action) & 0xFFFFFF;
+  int simpleCheck = head.simpleCheck;
 
   pthread_mutex_lock(&(pVnode->logMutex));
   // 100 bytes redundant mem space
-  if (pVnode->mappingSize - (pVnode->pWrite - pVnode->pMem) < contLen + sizeof(SCommitHead) + 100) {
+  if (pVnode->mappingSize - (pVnode->pWrite - pVnode->pMem) < contLen + sizeof(SCommitHead) + sizeof(simpleCheck) + 100) {
     pthread_mutex_unlock(&(pVnode->logMutex));
     dTrace("vid:%d, mem mapping space is not enough, wait for commit", pObj->vnode);
     vnodeProcessCommitTimer(pVnode, NULL);
     return TSDB_CODE_ACTION_IN_PROGRESS;
   }
   char *pWrite = pVnode->pWrite;
-  pVnode->pWrite += sizeof(head) + contLen;
+  pVnode->pWrite += sizeof(head) + contLen + sizeof(simpleCheck);
   memcpy(pWrite, (char *)&head, sizeof(head));
   memcpy(pWrite + sizeof(head), cont, contLen);
+  memcpy(pWrite + sizeof(head) + contLen, &simpleCheck, sizeof(simpleCheck));
   pthread_mutex_unlock(&(pVnode->logMutex));
 
   if (pVnode->pWrite - pVnode->pMem > pVnode->mappingThreshold) {

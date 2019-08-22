@@ -15,24 +15,17 @@ module.exports = TaosResult;
  * @since 1.0.6
  */
 function TaosResult(data, fields) {
-
   this.data = data.map(row => new TaosRow(row));
   this.rowcount = this.data.length;
   this.fields = fields.map(field => new TaosField(field));
-}
-
-TaosResult.prototype.parseFields = function parseFields(fields) {
-  return fields.map(function(field) {
-    return field;
-  });
 }
 /**
  * Pretty print data and the fields meta data as if you were using the taos shell
  * @memberof TaosResult
  * @function pretty
+ * @since 1.0.6
  */
 TaosResult.prototype.pretty = function pretty() {
-  // Pretty print of the fields and the data;
   let fieldsStr = "";
   let sizing = [];
   this.fields.forEach((field,i) => {
@@ -42,7 +35,7 @@ TaosResult.prototype.pretty = function pretty() {
     else {
       sizing.push(Math.max(field.name.length, suggestedMinWidths[field._field.type]));
     }
-    fieldsStr +=fillEmpty(Math.floor(sizing[i]/2 - field.name.length / 2)) + field.name + fillEmpty(Math.ceil(sizing[i]/2 - field.name.length / 2)) + " | ";
+    fieldsStr += fillEmpty(Math.floor(sizing[i]/2 - field.name.length / 2)) + field.name + fillEmpty(Math.ceil(sizing[i]/2 - field.name.length / 2)) + " | ";
   });
   var sumLengths = sizing.reduce((a,b)=> a+=b,(0)) + sizing.length * 3;
 
@@ -55,10 +48,9 @@ TaosResult.prototype.pretty = function pretty() {
         entry = entry.toTaosString();
       }
       else {
-        entry = entry.toString();
+        entry = entry == null ? 'null' : entry.toString();
       }
       rowStr += entry
-      //console.log(this.fields[i]._field.bytes, suggestedWidths[this.fields[i]._field.type]);
       rowStr += fillEmpty(sizing[i] - entry.length) + " | ";
     });
     console.log(rowStr);

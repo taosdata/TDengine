@@ -18,11 +18,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <limits.h>
-#include <netinet/in.h>
-#include <sys/time.h>
-#include <unistd.h>
+#include <errno.h>
+
+#include "os.h"
 
 #ifdef USE_LIBICONV
 #include "iconv.h"
@@ -121,8 +120,18 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
   return split;
 }
 
-char *strnchr(char *haystack, char needle, int32_t len) {
+char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
   for (int32_t i = 0; i < len; ++i) {
+
+    // skip the needle in quote, jump to the end of quoted string
+    if (skipquote && (haystack[i] == '\'' || haystack[i] == '"')) {
+      char quote = haystack[i++];
+      while(i < len && haystack[i++] != quote);
+      if (i >= len) {
+        return NULL;
+      }
+    }
+
     if (haystack[i] == needle) {
       return &haystack[i];
     }
@@ -131,27 +140,7 @@ char *strnchr(char *haystack, char needle, int32_t len) {
   return NULL;
 }
 
-char *strnchrNoquote(char *haystack, char needle, int32_t len) {  
-  for (int32_t i = 0; i < len; ++i) {
-  	if (haystack[i] == '\'' || haystack[i] == '"') {
-	  char quote = haystack[i++];
-	  while(i < len && haystack[i] != quote){++i;}
-
-	  if (++i >= len) {
-	  	return NULL;
-	  }
-  	}
-	
-    if (haystack[i] == needle) {
-      return &haystack[i];
-    }
-  }
-
-  return NULL;
-}
-
-
-void strtolower(char *z, char *dst) {
+void strtolower(char *dst, const char *z) {
   int   quote = 0;
   char *str = z;
   if (dst == NULL) {
@@ -171,6 +160,8 @@ void strtolower(char *z, char *dst) {
 
     str++;
   }
+
+  *dst = 0;
 }
 
 char *paGetToken(char *string, char **token, int32_t *tokenLen) {
@@ -236,7 +227,7 @@ int64_t strnatoi(char *num, int32_t len) {
       } else {
         return 0;
       }
-      ret = dig * base;
+      ret += dig * base;
     }
   } else {
     for (i = len - 1; i >= 0; --i, base *= 10) {

@@ -113,7 +113,7 @@ int vnodeProcessCreateMeterRequest(char *pMsg) {
   pVnode = vnodeList + vid;
   if (pVnode->cfg.maxSessions <= 0) {
     dError("vid:%d, not activated", vid);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_SESSION;
     goto _over;
   }
 
@@ -215,7 +215,7 @@ int vnodeProcessCreateMeterMsg(char *pMsg) {
   if (pVnode->pCachePool == NULL) {
     dError("vid:%d is not activated yet", pCreate->vnode);
     vnodeSendVpeerCfgMsg(pCreate->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_SESSION;
     goto _create_over;
   }
 
@@ -445,7 +445,8 @@ int vnodeProcessFreeVnodeRequest(char *pMsg) {
   }
 
   dTrace("vid:%d receive free vnode message", pFree->vnode);
-  vnodeRemoveVnode(pFree->vnode);
+  int32_t code = vnodeRemoveVnode(pFree->vnode);
+  assert(code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS);
 
   pStart = (char *)malloc(128);
   if (pStart == NULL) return 0;
@@ -453,7 +454,7 @@ int vnodeProcessFreeVnodeRequest(char *pMsg) {
   *pStart = TSDB_MSG_TYPE_FREE_VNODE_RSP;
   pMsg = pStart + 1;
 
-  *pMsg = 0;
+  *pMsg = code;
   vnodeSendMsgToMgmt(pStart);
 
   return 0;

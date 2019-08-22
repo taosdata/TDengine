@@ -13,12 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "tlog.h"
 #include "tsclient.h"
 #include "ttime.h"
@@ -58,7 +56,7 @@ void tscSaveSlowQueryFp(void *handle, void *tmrId) {
 
   static void *taos = NULL;
   if (taos == NULL) {
-    taos = taos_connect(NULL, "sys", tsInternalPass, NULL, 0);
+    taos = taos_connect(NULL, "monitor", tsInternalPass, NULL, 0);
     if (taos == NULL) {
       tscError("failed to save slow query, can't connect to server");
       free(sql);

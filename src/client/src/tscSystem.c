@@ -13,20 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <locale.h>
-#include <netinet/in.h>
 #include <pthread.h>
-#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "taosmsg.h"
 #include "tcache.h"
 #include "tlog.h"
@@ -114,7 +110,7 @@ void taos_init_imp() {
   rpcInit.numOfChanns = tscNumOfThreads;
   rpcInit.sessionsPerChann = tsMaxVnodeConnections / tscNumOfThreads;
   rpcInit.idMgmt = TAOS_ID_FREE;
-  rpcInit.noFree = 1;
+  rpcInit.noFree = 0;
   rpcInit.connType = TAOS_CONN_UDP;
   rpcInit.qhandle = tscQhandle;
   pVnodeConn = taosOpenRpc(&rpcInit);
@@ -135,7 +131,7 @@ void taos_init_imp() {
   rpcInit.numOfChanns = 1;
   rpcInit.sessionsPerChann = tsMaxMgmtConnections;
   rpcInit.idMgmt = TAOS_ID_FREE;
-  rpcInit.noFree = 1;
+  rpcInit.noFree = 0;
   rpcInit.connType = TAOS_CONN_UDP;
   rpcInit.qhandle = tscQhandle;
   pTscMgmtConn = taosOpenRpc(&rpcInit);

@@ -1,9 +1,0 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
-PROJECT(TDengine)
-
-AUX_SOURCE_DIRECTORY(. SRC)
-INCLUDE_DIRECTORIES(${PRJ_HEADER_PATH} ../../client/inc)
-
-ADD_EXECUTABLE(taosBenchmark ${SRC})
-TARGET_LINK_LIBRARIES(taosBenchmark taos_static trpc tutil pthread)

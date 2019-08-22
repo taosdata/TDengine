@@ -15,12 +15,13 @@
 
 #define _DEFAULT_SOURCE
 
-#include "vnodeShell.h"
 #include <arpa/inet.h>
 #include <assert.h>
 #include <endian.h>
 #include <stdint.h>
 #include "taosmsg.h"
+#include "vnode.h"
+#include "vnodeShell.h"
 #include "tschemautil.h"
 
 #include "textbuffer.h"
@@ -28,6 +29,7 @@
 #include "vnode.h"
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
+
 #pragma GCC diagnostic ignored "-Wint-conversion"
 
 void *      pShellServer = NULL;
@@ -87,6 +89,7 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
 
   dTrace("vid:%d sid:%d, msg:%s is received pConn:%p", vnode, sid, taosMsg[pMsg->msgType], thandle);
 
+  // set in query processing flag
   if (pMsg->msgType == TSDB_MSG_TYPE_QUERY) {
     vnodeProcessQueryRequest((char *)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pObj);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE) {
@@ -96,7 +99,7 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   } else {
     dError("%s is not processed", taosMsg[pMsg->msgType]);
   }
-
+  
   return pObj;
 }
 
@@ -157,16 +160,31 @@ int vnodeOpenShellVnode(int vnode) {
   return 0;
 }
 
-void vnodeCloseShellVnode(int vnode) {
-  taosCloseRpcChann(pShellServer, vnode);
+static void vnodeDelayedFreeResource(void *param, void *tmrId) {
+  int32_t vnode = *(int32_t*) param;
+  taosCloseRpcChann(pShellServer, vnode); // close connection
+  tfree (shellList[vnode]);  //free SShellObj
 
+  tfree(param);
+}
+
+void vnodeCloseShellVnode(int vnode) {
   if (shellList[vnode] == NULL) return;
 
   for (int i = 0; i < vnodeList[vnode].cfg.maxSessions; ++i) {
     vnodeFreeQInfo(shellList[vnode][i].qhandle, true);
   }
 
-  tfree(shellList[vnode]);
+  int32_t* v = malloc(sizeof(int32_t));
+  *v = vnode;
+
+  /*
+   * free the connection related resource after 5sec.
+   * 1. The msg, as well as SRpcConn may be in the task queue, free it immediate will cause crash
+   * 2. Free connection may cause *(SRpcConn*)pObj->thandle to be invalid to access.
+   */
+  dTrace("vid:%d, delay 500ms to free resources", vnode);
+  taosTmrStart(vnodeDelayedFreeResource, 500, v, vnodeTmrCtrl);
 }
 
 void vnodeCleanUpShell() {
@@ -230,7 +248,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   }
 
   if (pQueryMsg->numOfSids <= 0) {
-    code = TSDB_CODE_APP_ERROR;
+    code = TSDB_CODE_INVALID_QUERY_MSG;
     goto _query_over;
   }
 
@@ -245,7 +263,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (pVnode->cfg.maxSessions == 0) {
     dError("qmsg:%p,vid:%d is not activated yet", pQueryMsg, pQueryMsg->vnode);
     vnodeSendVpeerCfgMsg(pQueryMsg->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_SESSION;
     goto _query_over;
   }
 
@@ -256,13 +274,13 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pQueryMsg->pSidExtInfo == 0) {
     dTrace("qmsg:%p,SQueryMeterMsg wrong format", pQueryMsg);
-    code = TSDB_CODE_APP_ERROR;
+    code = TSDB_CODE_INVALID_QUERY_MSG;
     goto _query_over;
   }
 
   if (pVnode->meterList == NULL) {
     dError("qmsg:%p,vid:%d has been closed", pQueryMsg, pQueryMsg->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_SESSION;
     goto _query_over;
   }
 
@@ -430,7 +448,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pSubmit->numOfSid <= 0) {
     dError("invalid num of meters:%d", pSubmit->numOfSid);
-    code = TSDB_CODE_APP_ERROR;
+    code = TSDB_CODE_INVALID_QUERY_MSG;
     goto _submit_over;
   }
 
@@ -444,7 +462,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (pVnode->cfg.maxSessions == 0 || pVnode->meterList == NULL) {
     dError("vid:%d is not activated for submit", pSubmit->vnode);
     vnodeSendVpeerCfgMsg(pSubmit->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_SESSION;
     goto _submit_over;
   }
 
@@ -488,24 +506,39 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
     int subMsgLen = sizeof(pBlocks->numOfRows) + htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint;
     int sversion = htonl(pBlocks->sversion);
 
-    if (pMeterObj->state == TSDB_METER_STATE_READY) {
-      if (pSubmit->import)
-        code = vnodeImportPoints(pMeterObj, (char *)&(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
+    int32_t state = TSDB_METER_STATE_READY;
+    if (pSubmit->import) {
+      state = vnodeSetMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
+    } else {
+      state = vnodeSetMeterState(pMeterObj, TSDB_METER_STATE_INSERT);
+    }
+
+    if (state == TSDB_METER_STATE_READY) {
+      // meter status is ready for insert/import
+      if (pSubmit->import) {
+        code = vnodeImportPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
                                  sversion, &numOfPoints);
-      else
-        code = vnodeInsertPoints(pMeterObj, (char *)&(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, NULL,
+        vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
+      } else {
+        code = vnodeInsertPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, NULL,
                                  sversion, &numOfPoints);
-      if (code != 0) break;
-    } else if (pMeterObj->state >= TSDB_METER_STATE_DELETING) {
-      dTrace("vid:%d sid:%d id:%s, is is removed, state:", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId,
-             pMeterObj->state);
-      code = TSDB_CODE_NOT_ACTIVE_SESSION;
-      break;
-    } else {  // importing state or others
-      dTrace("vid:%d sid:%d id:%s, try again since in state:%d", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId,
-             pMeterObj->state);
-      code = TSDB_CODE_ACTION_IN_PROGRESS;
-      break;
+        vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_INSERT);
+      }
+
+      if (code != TSDB_CODE_SUCCESS) {break;}
+    } else {
+      if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DELETING)) {
+        dTrace("vid:%d sid:%d id:%s, it is removed, state:%d", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId,
+               pMeterObj->state);
+        code = TSDB_CODE_NOT_ACTIVE_SESSION;
+        break;
+      } else {// waiting for 300ms by default and try again
+        dTrace("vid:%d sid:%d id:%s, try submit again since in state:%d", pMeterObj->vnode, pMeterObj->sid,
+               pMeterObj->meterId, pMeterObj->state);
+
+        code = TSDB_CODE_ACTION_IN_PROGRESS;
+        break;
+      }
     }
 
     numOfTotalPoints += numOfPoints;

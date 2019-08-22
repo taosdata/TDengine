@@ -69,7 +69,7 @@ int32_t taosGetNumOfResWithoutLimit(SInterpolationInfo *pInterpoInfo, int64_t *p
  * @param pInterpoInfo
  * @return
  */
-bool taosHasNoneInterpoPoints(SInterpolationInfo *pInterpoInfo);
+bool taosHasRemainsDataForInterpolation(SInterpolationInfo *pInterpoInfo);
 
 int32_t taosNumOfRemainPoints(SInterpolationInfo *pInterpoInfo);
 

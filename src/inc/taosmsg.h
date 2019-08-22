@@ -129,6 +129,7 @@ extern "C" {
 #define TSDB_CODE_INVALID_QUERY_MSG          106      // failed to validate the sql expression msg by vnode
 #define TSDB_CODE_CACHE_BLOCK_TS_DISORDERED  107      // time stamp in cache block is disordered
 #define TSDB_CODE_FILE_BLOCK_TS_DISORDERED   108      // time stamp in file block is disordered
+#define TSDB_CODE_INVALID_COMMIT_LOG         109      // invalid commit log may be caused by insufficient sotrage
 
 // message type
 #define TSDB_MSG_TYPE_REG              1

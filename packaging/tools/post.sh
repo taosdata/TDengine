@@ -77,6 +77,7 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
+    ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
 
     ${csudo} chmod 0555 ${bin_dir}/*
@@ -85,6 +86,7 @@ function install_bin() {
     [ -x ${bin_dir}/taos ] && ${csudo} ln -s ${bin_dir}/taos ${bin_link_dir}/taos             || :
     [ -x ${bin_dir}/taosd ] && ${csudo} ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd          || :
     [ -x ${bin_dir}/taosdump ] && ${csudo} ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
+    [ -x ${bin_dir}/taosdemo ] && ${csudo} ln -s ${bin_dir}/taosdemo ${bin_link_dir}/taosdemo || :
 #   [ -x ${bin_dir}/remove.sh ] && ${csudo} ln -s ${bin_dir}/remove.sh ${bin_link_dir}/rmtaos || :
 }
 

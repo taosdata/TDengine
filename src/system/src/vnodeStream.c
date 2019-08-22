@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "taosmsg.h"
 #include "vnode.h"
-#include <taosmsg.h>
+#include "vnodeUtil.h"
 
 /* static TAOS *dbConn = NULL; */
 void vnodeCloseStreamCallback(void *param);
@@ -51,8 +52,17 @@ void vnodeProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   }
 
   contLen += sizeof(SSubmitMsg);
+
   int32_t numOfPoints = 0;
-  vnodeInsertPoints(pObj, (char *)pMsg, contLen, TSDB_DATA_SOURCE_SHELL, NULL, pObj->sversion, &numOfPoints);
+
+  int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_INSERT);
+  if (state == TSDB_METER_STATE_READY) {
+    vnodeInsertPoints(pObj, (char *)pMsg, contLen, TSDB_DATA_SOURCE_SHELL, NULL, pObj->sversion, &numOfPoints);
+    vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);
+  } else {
+    dError("vid:%d sid:%d id:%s, failed to insert continuous query results, state:%d", pObj->vnode, pObj->sid,
+           pObj->meterId, state);
+  }
 
   assert(numOfPoints >= 0 && numOfPoints <= 1);
   tfree(pTemp);
@@ -76,7 +86,7 @@ void vnodeOpenStreams(void *param, void *tmrId) {
 
   for (int sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
     pObj = pVnode->meterList[sid];
-    if (pObj == NULL || pObj->sqlLen == 0 || pObj->status == 1 || pObj->state == TSDB_METER_STATE_DELETED) continue;
+    if (pObj == NULL || pObj->sqlLen == 0 || vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) continue;
 
     dTrace("vid:%d sid:%d id:%s, open stream:%s", pObj->vnode, sid, pObj->meterId, pObj->pSql);
 
