@@ -731,7 +731,9 @@ int tsCfgDynamicOptions(char *msg) {
   if (strncasecmp(option, "resetlog", 8) == 0) {
     taosResetLogFile();
     tsPrintGlobalConfig();
+    return code;
   }
+  
   if (strncasecmp(option, "resetQueryCache", 15) == 0) {
     if (taosLogSqlFp) {
       pPrint("the query cache of internal client will reset");
