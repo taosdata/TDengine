@@ -172,7 +172,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     char *target = pRes->data + tscFieldInfoGetOffset(pCmd, 3) * totalNumOfRows + pField->bytes * i;
 
     if (isNull(pTagValue, pSchema[i].type)) {
-      sprintf(target, "%s ", TSDB_DATA_NULL_STR);
+      sprintf(target, "%s", TSDB_DATA_NULL_STR);
     } else {
       switch (pSchema[i].type) {
         case TSDB_DATA_TYPE_BINARY:
