@@ -858,6 +858,15 @@ void tsSetTimeZone() {
   * e.g., the local time zone of London in DST is GMT+01:00,
   * otherwise is GMT+00:00
   */
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+  // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
+  int64_t timezone = _timezone;
+  int32_t daylight = _daylight;
+  char **tzname = _tzname;
+#endif
+#endif
+
   int32_t tz = (-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR;
   tz += daylight;
 

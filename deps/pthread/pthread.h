@@ -189,6 +189,19 @@
  * -------------------------------------------------------------
  */
 
+/*
+ _MSC_VER 1910 vs2019
+ _MSC_VER 1910 vs2017
+ _MSC_VER 1900 vs2015
+ _MSC_VER 1800 vs2013
+ */
+
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+#define HAVE_STRUCT_TIMESPEC
+#endif
+#endif
+
 /* Try to avoid including windows.h */
 #if (defined(__MINGW64__) || defined(__MINGW32__)) && defined(__cplusplus)
 #define PTW32_INCLUDE_WINDOWS_H
