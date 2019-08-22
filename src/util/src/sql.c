@@ -1892,10 +1892,12 @@ static void yy_reduce(
 {yygotominor.yy294.limit = yymsp[0].minor.yy189;  yygotominor.yy294.offset = 0;}
         break;
       case 122: /* limit_opt ::= LIMIT signed OFFSET signed */
-      case 123: /* limit_opt ::= LIMIT signed COMMA signed */ yytestcase(yyruleno==123);
       case 126: /* slimit_opt ::= SLIMIT signed SOFFSET signed */ yytestcase(yyruleno==126);
-      case 127: /* slimit_opt ::= SLIMIT signed COMMA signed */ yytestcase(yyruleno==127);
 {yygotominor.yy294.limit = yymsp[-2].minor.yy189;  yygotominor.yy294.offset = yymsp[0].minor.yy189;}
+        break;
+      case 123: /* limit_opt ::= LIMIT signed COMMA signed */
+      case 127: /* slimit_opt ::= SLIMIT signed COMMA signed */ yytestcase(yyruleno==127);
+{yygotominor.yy294.limit = yymsp[0].minor.yy189;  yygotominor.yy294.offset = yymsp[-2].minor.yy189;}
         break;
       case 130: /* expr ::= LP expr RP */
 {yygotominor.yy370 = yymsp[-1].minor.yy370; }
