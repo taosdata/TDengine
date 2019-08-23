@@ -24,11 +24,11 @@ tags (location binary(20), type int)</code></pre>
 <p>To create a table for a device, you can use a STable as its template and assign the tag values. The syntax is:</p>
 <pre><code class="mysql language-mysql">CREATE TABLE &lt;tb_name&gt; USING &lt;stb_name&gt; TAGS (tag_value1,...)</code></pre>
 <p>You can create any number of tables via a STable, and each table may have different tag values. For example, you create five tables via STable thermometer below:</p>
-<pre><code class="mysql language-mysql"> create table t1 using thermometer tags (‘beijing’, 10);
- create table t2 using thermometer tags (‘beijing’, 20);
- create table t3 using thermometer tags (‘shanghai’, 10);
- create table t4 using thermometer tags (‘shanghai’, 20);
- create table t5 using thermometer tags (‘new york’, 10);</code></pre>
+<pre><code class="mysql language-mysql"> create table t1 using thermometer tags ('beijing', 10);
+ create table t2 using thermometer tags ('beijing', 20);
+ create table t3 using thermometer tags ('shanghai', 10);
+ create table t4 using thermometer tags ('shanghai', 20);
+ create table t5 using thermometer tags ('new york', 10);</code></pre>
 <a class='anchor' id='Aggregate-Tables-via-STable'></a><h2>Aggregate Tables via STable</h2>
 <p>You can group a set of tables together by specifying the tags filter condition, then apply the aggregation operations. The result set can be grouped and ordered based on tag value. Syntax is：</p>
 <pre><code class="mysql language-mysql">SELECT function&lt;field_name&gt;,… 
@@ -51,13 +51,13 @@ tags (location binary(20), type int)</code></pre>
 <p>Check the average, maximum, and minimum temperatures of Beijing and Shanghai, and group the result set by location and type. The SQL statement shall be:</p>
 <pre><code class="mysql language-mysql">SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
-WHERE location=’beijing’ or location=’tianjing’
+WHERE location='beijing' or location='tianjin'
 GROUP BY location, type </code></pre>
 <a class='anchor' id='Example-2:'></a><h3>Example 2:</h3>
 <p>List the number of records, average, maximum, and minimum temperature every 10 minutes for the past 24 hours for all the thermometers located in Beijing with type 10. The SQL statement shall be:</p>
 <pre><code class="mysql language-mysql">SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
-WHERE name=’beijing’ and type=10 and ts&gt;=now-1d
+WHERE name='beijing' and type=10 and ts&gt;=now-1d
 INTERVAL(10M)</code></pre>
 <a class='anchor' id='Create-Table-Automatically'></a><h2>Create Table Automatically</h2>
 <p>Insert operation will fail if the table is not created yet. But for STable, TDengine can create the table automatically if the application provides the STable name, table name and tags' value when inserting data points. The syntax is:</p>

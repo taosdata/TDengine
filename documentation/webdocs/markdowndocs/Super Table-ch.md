@@ -30,10 +30,10 @@ CREATE TABLE <tb_name> USING <stb_name> TAGS (tag_value1,...)
 沿用上面温度计的例子，使用超级表thermometer建立单个温度计数据表的语句如下：
 
 ```mysql
-create table t1 using thermometer tags (‘beijing’, 10)
+create table t1 using thermometer tags (‘beijing', 10)
 ```
 
-上述SQL以thermometer为模板，创建了名为t1的表，这张表的Schema就是thermometer的Schema，但标签location值为‘beijing’，标签type值为10。
+上述SQL以thermometer为模板，创建了名为t1的表，这张表的Schema就是thermometer的Schema，但标签location值为'beijing'，标签type值为10。
 
 用户可以使用一个STable创建数量无上限的具有不同标签的表，从这个意义上理解，STable就是若干具有相同数据模型，不同标签的表的集合。与普通表一样，用户可以创建、删除、查看超级表STable，大部分适用于普通表的查询操作都可运用到STable上，包括各种聚合和投影选择函数。除此之外，可以设置标签的过滤条件，仅对STbale中部分表进行聚合查询，大大简化应用的开发。
 
@@ -181,10 +181,10 @@ TAGS(location binary(20), type int)
 假设有北京，天津和上海三个地区的采集器共4个，温度采集器有3种类型，我们就可以对每个采集器建表如下： 
 
 ```mysql
-CREATE TABLE therm1 USING thermometer TAGS (’beijing’, 1);
-CREATE TABLE therm2 USING thermometer TAGS (’beijing’, 2);
-CREATE TABLE therm3 USING thermometer TAGS (’tianjin’, 1);
-CREATE TABLE therm4 USING thermometer TAGS (’shanghai’, 3);
+CREATE TABLE therm1 USING thermometer TAGS ('beijing', 1);
+CREATE TABLE therm2 USING thermometer TAGS ('beijing', 2);
+CREATE TABLE therm3 USING thermometer TAGS ('tianjin', 1);
+CREATE TABLE therm4 USING thermometer TAGS ('shanghai', 3);
 ```
 
 其中therm1，therm2，therm3，therm4是超级表thermometer四个具体的子表，也即普通的Table。以therm1为例，它表示采集器therm1的数据，表结构完全由thermometer定义，标签location=”beijing”, type=1表示therm1的地区是北京，类型是第1类的温度计。
@@ -194,10 +194,10 @@ CREATE TABLE therm4 USING thermometer TAGS (’shanghai’, 3);
 注意，写入数据时不能直接对STable操作，而是要对每张子表进行操作。我们分别向四张表therm1，therm2， therm3， therm4写入一条数据，写入语句如下：
 
 ```mysql
-INSERT INTO therm1 VALUES (’2018-01-01 00:00:00.000’, 20);
-INSERT INTO therm2 VALUES (’2018-01-01 00:00:00.000’, 21);
-INSERT INTO therm3 VALUES (’2018-01-01 00:00:00.000’, 24);
-INSERT INTO therm4 VALUES (’2018-01-01 00:00:00.000’, 23);
+INSERT INTO therm1 VALUES ('2018-01-01 00:00:00.000', 20);
+INSERT INTO therm2 VALUES ('2018-01-01 00:00:00.000', 21);
+INSERT INTO therm3 VALUES ('2018-01-01 00:00:00.000', 24);
+INSERT INTO therm4 VALUES ('2018-01-01 00:00:00.000', 23);
 ```
 
 ### 按标签聚合查询
@@ -207,7 +207,7 @@ INSERT INTO therm4 VALUES (’2018-01-01 00:00:00.000’, 23);
 ```mysql
 SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
-WHERE location=’beijing’ or location=’tianjing’
+WHERE location='beijing' or location='tianjin'
 GROUP BY location, type 
 ```
 
@@ -218,7 +218,7 @@ GROUP BY location, type
 ```mysql
 SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
-WHERE name<>’beijing’ and ts>=now-1d
+WHERE name<>'beijing' and ts>=now-1d
 INTERVAL(10M)
 GROUP BY location, type
 ```
