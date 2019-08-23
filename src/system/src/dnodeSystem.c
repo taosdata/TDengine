@@ -89,7 +89,7 @@ void dnodeCheckDbRunning(const char* dir) {
   int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
   int ret = flock(fd, LOCK_EX | LOCK_NB);
   if (ret != 0) {
-    dError("failed to lock file:%s ret:%d, database may be running, quit", ret, filepath);
+    dError("failed to lock file:%s ret:%d, database may be running, quit", filepath, ret);
     exit(0);
   }
 }
