@@ -323,6 +323,10 @@ char *tprefix(char *prefix) {
 }
 
 void tprintf(const char *const flags, int dflag, const char *const format, ...) {
+  if (tsTotalDiskGB != 0 && tsDiskAvailGB < (tsDiskMinimalGB/2)) {
+    printf("server disk space remain %.3f GB, stop write log\n", tsDiskAvailGB);
+  }
+
   va_list        argpointer;
   char           buffer[MAX_LOGLINE_SIZE + 10] = {0};
   int            len;
@@ -369,6 +373,11 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
 }
 
 void taosDumpData(unsigned char *msg, int len) {
+  if (tsTotalDiskGB != 0 && tsDiskAvailGB < (tsDiskMinimalGB/2)) {
+    printf("server disk space remain %.3f GB, stop write log\n", tsDiskAvailGB);
+    return;
+  }
+
   char temp[256];
   int  i, pos = 0, c = 0;
 
@@ -392,6 +401,11 @@ void taosDumpData(unsigned char *msg, int len) {
 }
 
 void taosPrintLongString(const char *const flags, int dflag, const char *const format, ...) {
+  if (tsTotalDiskGB != 0 && tsDiskAvailGB < (tsDiskMinimalGB/2)) {
+    printf("server disk space remain %.3f GB, stop write log\n", tsDiskAvailGB);
+    return;
+  }
+
   va_list        argpointer;
   char           buffer[65 * 1024 + 10];
   int            len;

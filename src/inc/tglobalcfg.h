@@ -30,6 +30,9 @@ extern int64_t tsOpenMax;
 extern int64_t tsStreamMax;
 extern int32_t tsNumOfCores;
 extern int32_t tsTotalDiskGB;
+extern float   tsDiskAvailGB;
+extern float   tsDiskUsedGB;
+extern float   tsDiskMinimalGB;
 extern int32_t tsTotalMemoryMB;
 extern int32_t tsVersion;
 

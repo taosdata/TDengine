@@ -322,19 +322,19 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   return true;
 }
 
-bool taosGetDisk(float *diskUsedGB) {
+bool taosGetDisk() {
   struct statvfs info;
   const double   unit = 1024 * 1024 * 1024;
 
   if (statvfs(tsDirectory, &info)) {
-    *diskUsedGB = 0;
+    tsDiskUsedGB = 0;
     tsTotalDiskGB = 0;
     return false;
   }
 
-  float diskAvail = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
+  tsDiskAvailGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
   tsTotalDiskGB = (int32_t)((double)info.f_blocks * (double)info.f_frsize / unit);
-  *diskUsedGB = (float)tsTotalDiskGB - diskAvail;
+  tsDiskUsedGB = (float)tsTotalDiskGB - tsDiskAvailGB;
 
   return true;
 }
@@ -549,7 +549,7 @@ void taosGetSystemInfo() {
   float tmp1, tmp2;
   taosGetSysMemory(&tmp1);
   taosGetProcMemory(&tmp2);
-  taosGetDisk(&tmp1);
+  taosGetDisk();
   taosGetBandSpeed(&tmp1);
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);

@@ -33,9 +33,12 @@
 int64_t tsPageSize;
 int64_t tsOpenMax;
 int64_t tsStreamMax;
-int32_t tsNumOfCores;
-int32_t tsTotalDiskGB;
-int32_t tsTotalMemoryMB;
+int32_t tsNumOfCores = 1;
+int32_t tsTotalDiskGB = 0;
+float   tsDiskAvailGB = 0;
+float   tsDiskUsedGB = 0;
+float   tsDiskMinimalGB = 0.5;
+int32_t tsTotalMemoryMB = 0;
 int32_t tsVersion = 0;
 
 // global, not configurable
@@ -733,7 +736,7 @@ int tsCfgDynamicOptions(char *msg) {
     tsPrintGlobalConfig();
     return code;
   }
-  
+
   if (strncasecmp(option, "resetQueryCache", 15) == 0) {
     if (taosLogSqlFp) {
       pPrint("the query cache of internal client will reset");

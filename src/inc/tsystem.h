@@ -27,7 +27,7 @@ bool taosGetSysMemory(float *memoryUsedMB);
 
 bool taosGetProcMemory(float *memoryUsedMB);
 
-bool taosGetDisk(float *diskUsedGB);
+bool taosGetDisk();
 
 bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage);
 
