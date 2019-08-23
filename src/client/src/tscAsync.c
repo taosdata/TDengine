@@ -49,6 +49,13 @@ void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *, TAOS_RES *, int),
     return;
   }
 
+  int32_t sqlLen = strlen(sqlstr);
+  if (sqlLen > TSDB_MAX_SQL_LEN) {
+    tscError("sql string too long");
+    tscQueueAsyncError(fp, param);
+    return;
+  }
+
   SSqlObj *pSql = (SSqlObj *)malloc(sizeof(SSqlObj));
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
@@ -65,12 +72,10 @@ void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *, TAOS_RES *, int),
   pSql->fp = fp;
   pSql->param = param;
 
-  tscAllocPayloadWithSize(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
-
-  int32_t sqlLen = strlen(sqlstr);
-  if (sqlLen > TSDB_MAX_SQL_LEN) {
-    tscError("%p sql string too long", pSql);
+  if (tscAllocPayloadWithSize(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE) != TSDB_CODE_SUCCESS) {
+    tscError("%p failed to alloc payload", pSql);
     tscQueueAsyncError(fp, param);
+    free(pSql);
     return;
   }
 
@@ -78,6 +83,8 @@ void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *, TAOS_RES *, int),
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     tscQueueAsyncError(fp, param);
+    free(pCmd->payload);
+    free(pSql);
     return;
   }
 
