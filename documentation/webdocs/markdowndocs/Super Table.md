@@ -48,11 +48,11 @@ CREATE TABLE <tb_name> USING <stb_name> TAGS (tag_value1,...)
 You can create any number of tables via a STable, and each table may have different tag values. For example, you create five tables via STable thermometer below:
 
 ```mysql
- create table t1 using thermometer tags (‘beijing’, 10);
- create table t2 using thermometer tags (‘beijing’, 20);
- create table t3 using thermometer tags (‘shanghai’, 10);
- create table t4 using thermometer tags (‘shanghai’, 20);
- create table t5 using thermometer tags (‘new york’, 10);
+ create table t1 using thermometer tags ('beijing', 10);
+ create table t2 using thermometer tags ('beijing', 20);
+ create table t3 using thermometer tags ('shanghai', 10);
+ create table t4 using thermometer tags ('shanghai', 20);
+ create table t5 using thermometer tags ('new york', 10);
 ```
 
 ## Aggregate Tables via STable
@@ -91,7 +91,7 @@ Check the average, maximum, and minimum temperatures of Beijing and Shanghai, an
 ```mysql
 SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
-WHERE location=’beijing’ or location=’tianjing’
+WHERE location='beijing' or location='tianjin'
 GROUP BY location, type 
 ```
 
@@ -102,7 +102,7 @@ List the number of records, average, maximum, and minimum temperature every 10 m
 ```mysql
 SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
-WHERE name=’beijing’ and type=10 and ts>=now-1d
+WHERE name='beijing' and type=10 and ts>=now-1d
 INTERVAL(10M)
 ```
 
