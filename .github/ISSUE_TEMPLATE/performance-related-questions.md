@@ -2,7 +2,7 @@
 name: Performance-related Questions
 about: Any questions related to TDengine's performance.
 title: ''
-labels: ''
+labels: performance
 assignees: ''
 
 ---
