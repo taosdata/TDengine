@@ -94,16 +94,12 @@ int tsParseTime(char *value, int32_t valuelen, int64_t *time, char **next, char 
   int64_t useconds = 0;
 
   char *pTokenEnd = *next;
-  tscGetToken(pTokenEnd, &token, &tokenlen);
-  if (tokenlen == 0 && strlen(value) == 0) {
-    INVALID_SQL_RET_MSG(error, "missing time stamp");
-  }
 
-  if (strncmp(value, "now", 3) == 0 && valuelen == 3) {
+  if (valuelen == 3 && (strncmp(value, "now", 3) == 0)) {
     useconds = taosGetTimestamp(timePrec);
-  } else if (strncmp(value, "0", 1) == 0 && valuelen == 1) {
+  } else if (valuelen == 1 && value[0] == '0') {
     // do nothing
-  } else if (value[4] != '-') {
+  } else if (valuelen <= 4 || value[4] != '-') {
     for (int32_t i = 0; i < valuelen; ++i) {
       /*
        * filter illegal input.
@@ -126,7 +122,6 @@ int tsParseTime(char *value, int32_t valuelen, int64_t *time, char **next, char 
   for (int k = valuelen; value[k] != '\0'; k++) {
     if (value[k] == ' ' || value[k] == '\t') continue;
     if (value[k] == ',') {
-      *next = pTokenEnd;
       *time = useconds;
       return 0;
     }
