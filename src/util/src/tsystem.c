@@ -326,13 +326,15 @@ bool taosGetDisk() {
   struct statvfs info;
   const double   unit = 1024 * 1024 * 1024;
 
-  if (statvfs(dataDir, &info)) {
-    tsTotalDataDirGB = 0;
-    tsAvailDataDirGB = 0;
-    return false;
-  } else {
-    tsTotalDataDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
-    tsAvailDataDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
+  if (tscEmbedded) {
+    if (statvfs(tsDirectory, &info)) {
+      tsTotalDataDirGB = 0;
+      tsAvailDataDirGB = 0;
+      return false;
+    } else {
+      tsTotalDataDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
+      tsAvailDataDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
+    }
   }
 
   if (statvfs(logDir, &info)) {
