@@ -184,7 +184,7 @@ char *strnchr(char *haystack, char needle, int32_t len, bool skipquote);
 
 char **strsplit(char *src, const char *delim, int32_t *num);
 
-void strtolower(char *dst, const char *src);
+char* strtolower(char *dst, const char *src);
 
 int64_t strnatoi(char *num, int32_t len);
 
