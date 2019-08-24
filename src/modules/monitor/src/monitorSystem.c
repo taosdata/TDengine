@@ -273,7 +273,7 @@ int monitorBuildCpuSql(char *sql) {
 
 // unit is GB
 int monitorBuildDiskSql(char *sql) {
-  return sprintf(sql, ", %f, %d", tsDiskUsedGB, tsTotalDiskGB);
+  return sprintf(sql, ", %f, %d", (tsTotalDataDirGB - tsAvailDataDirGB), (int32_t)tsTotalDataDirGB);
 }
 
 // unit is Kb

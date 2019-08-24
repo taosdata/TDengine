@@ -64,7 +64,7 @@ void mgmtProcessDnodeStatus(void *handle, void *tmrId) {
   float memoryUsedMB = 0;
   taosGetSysMemory(&memoryUsedMB);
   pObj->memoryAvailable = tsTotalMemoryMB - memoryUsedMB;
-  pObj->diskAvailable = tsDiskAvailGB;
+  pObj->diskAvailable = tsAvailDataDirGB;
 
   for (int vnode = 0; vnode < pObj->numOfVnodes; ++vnode) {
     SVnodeLoad *pVload = &(pObj->vload[vnode]);

@@ -34,10 +34,15 @@ int64_t tsPageSize;
 int64_t tsOpenMax;
 int64_t tsStreamMax;
 int32_t tsNumOfCores = 1;
-int32_t tsTotalDiskGB = 0;
-float   tsDiskAvailGB = 0;
-float   tsDiskUsedGB = 0;
-float   tsDiskMinimalGB = 0.5;
+float tsTotalLogDirGB = 0;
+float tsTotalTmpDirGB = 0;
+float tsTotalDataDirGB = 0;
+float tsAvailLogDirGB = 0;
+float tsAvailTmpDirGB = 0;
+float tsAvailDataDirGB = 0;
+float tsMinimalLogDirGB = 0.1;
+float tsMinimalTmpDirGB = 0.1;
+float tsMinimalDataDirGB = 0.5;
 int32_t tsTotalMemoryMB = 0;
 int32_t tsVersion = 0;
 
@@ -506,6 +511,13 @@ void tsInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 50000000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "maxVnodeConnections", &tsMaxVnodeConnections, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 50000000, 0, TSDB_CFG_UTYPE_NONE);
+
+  tsInitConfigOption(cfg++, "minimalLogDirGB", &tsMinimalLogDirGB, TSDB_CFG_VTYPE_FLOAT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0.001, 10000000, 0, TSDB_CFG_UTYPE_GB);
+  tsInitConfigOption(cfg++, "minimalTmpDirGB", &tsMinimalTmpDirGB, TSDB_CFG_VTYPE_FLOAT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0.001, 10000000, 0, TSDB_CFG_UTYPE_GB);
+  tsInitConfigOption(cfg++, "minimalDataDirGB", &tsMinimalDataDirGB, TSDB_CFG_VTYPE_FLOAT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0.001, 10000000, 0, TSDB_CFG_UTYPE_GB);
 
   // module configs
   tsInitConfigOption(cfg++, "enableHttp", &tsEnableHttpModule, TSDB_CFG_VTYPE_INT,

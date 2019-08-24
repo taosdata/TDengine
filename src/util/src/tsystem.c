@@ -326,15 +326,29 @@ bool taosGetDisk() {
   struct statvfs info;
   const double   unit = 1024 * 1024 * 1024;
 
-  if (statvfs(tsDirectory, &info)) {
-    tsDiskUsedGB = 0;
-    tsTotalDiskGB = 0;
+  if (statvfs(dataDir, &info)) {
+    tsTotalDataDirGB = 0;
+    tsAvailDataDirGB = 0;
     return false;
+  } else {
+    tsTotalDataDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
+    tsAvailDataDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
   }
 
-  tsDiskAvailGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
-  tsTotalDiskGB = (int32_t)((double)info.f_blocks * (double)info.f_frsize / unit);
-  tsDiskUsedGB = (float)tsTotalDiskGB - tsDiskAvailGB;
+  if (statvfs(logDir, &info)) {
+    tsAvailLogDirGB = 0;
+    return false;
+  } else { tsTotalLogDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
+    tsAvailLogDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
+  }
+
+  if (statvfs("/tmp", &info)) {
+    tsAvailTmpDirGB = 0;
+    return false;
+  } else {
+    tsTotalTmpDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
+    tsAvailTmpDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
+  }
 
   return true;
 }
@@ -563,7 +577,7 @@ void tsPrintOsInfo() {
   pPrint(" os openMax:             %ld", tsOpenMax);
   pPrint(" os streamMax:           %ld", tsStreamMax);
   pPrint(" os numOfCores:          %d", tsNumOfCores);
-  pPrint(" os totalDisk:           %d(GB)", tsTotalDiskGB);
+  pPrint(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
   pPrint(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
 
   struct utsname buf;

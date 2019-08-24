@@ -777,6 +777,13 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     tscGetSrcColumnInfo(colInfo, &pPObj->cmd);
     tColModelDisplayEx(pDesc->pSchema, pRes->data, pRes->numOfRows, pRes->numOfRows, colInfo);
 #endif
+    if (tsAvailTmpDirGB < tsMinimalTmpDirGB) {
+      tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query",
+               pPObj, pSql, tsAvailTmpDirGB, tsMinimalTmpDirGB);
+      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
+      return;
+    }
+
     int32_t ret = saveToBuffer(trsupport->pExtMemBuffer[idx - 1], pDesc, trsupport->localBuffer, pRes->data,
                                pRes->numOfRows, pCmd->groupbyExpr.orderType);
     if (ret < 0) {
@@ -802,6 +809,12 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     tColModelDisplayEx(pDesc->pSchema, trsupport->localBuffer->data, trsupport->localBuffer->numOfElems,
                        trsupport->localBuffer->numOfElems, colInfo);
 #endif
+    if (tsAvailTmpDirGB < tsMinimalTmpDirGB) {
+      tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query",
+               pPObj, pSql, tsAvailTmpDirGB, tsMinimalTmpDirGB);
+      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
+      return;
+    }
 
     // each result for a vnode is ordered as an independant list,
     // then used as an input of loser tree for disk-based merge routine

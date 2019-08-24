@@ -471,8 +471,8 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
     goto _submit_over;
   }
 
-  if (tsDiskAvailGB < tsDiskMinimalGB) {
-    dError("server disk space remain %.3f GB, need at least %.2f GB, stop writing", tsDiskAvailGB, tsDiskMinimalGB);
+  if (tsAvailDataDirGB < tsMinimalDataDirGB) {
+    dError("server disk space remain %.3f GB, need at least %.3f GB, stop writing", tsAvailDataDirGB, tsMinimalDataDirGB);
     code = TSDB_CODE_SERVER_NO_SPACE;
     goto _submit_over;
   }

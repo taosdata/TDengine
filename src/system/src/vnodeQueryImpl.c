@@ -2656,7 +2656,7 @@ static void vnodeOpenAllFiles(SQInfo *pQInfo, int32_t vnodeId) {
 
     int32_t firstFid = pVnode->fileId - pVnode->numOfFiles + 1;
     if (fid > pVnode->fileId || fid < firstFid) {
-      dError("QInfo:%p error data file:%s in vid:%d, fid:%d, fid range:%d-%d", pQInfo, pEntry->d_name, vnodeId,
+      dError("QInfo:%p error data file:%s in vid:%d, fid:%d, fid range:%d-%d", pQInfo, pEntry->d_name, vnodeId, fid,
              firstFid, pVnode->fileId);
       continue;
     }
