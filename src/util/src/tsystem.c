@@ -336,13 +336,16 @@ bool taosGetDisk() {
   }
 
   if (statvfs(logDir, &info)) {
+    tsTotalLogDirGB = 0;
     tsAvailLogDirGB = 0;
     return false;
-  } else { tsTotalLogDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
+  } else {
+    tsTotalLogDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
     tsAvailLogDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
   }
 
   if (statvfs("/tmp", &info)) {
+    tsTotalTmpDirGB = 0;
     tsAvailTmpDirGB = 0;
     return false;
   } else {
