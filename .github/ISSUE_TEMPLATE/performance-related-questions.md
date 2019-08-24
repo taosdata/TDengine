@@ -1,5 +1,5 @@
 ---
-name: Performance-related Questions
+name: Performance-related questions
 about: Any questions related to TDengine's performance
 title: ''
 labels: ''
@@ -7,27 +7,12 @@ assignees: ''
 
 ---
 
-**Performance Issue**
-Any questions related to TDengine's performance can be discussed here.
+**General Questions**
+A general question should be related to TDengine's user's manual, user experience, milestones, business cooperations etc. 
+Before you ask a question, please:
+1. Try searching for answers in the official documentation
+2. Try searching in the existing issues on GitHub
+3. Try searching on tech forums such as Stack Overflow, Quora, CSDN, v2ex etc.
+4. Try using online searching engines such as Google, Bing, Baidu
 
-**Problem Description**
-A clear and concise description of what the problem is.
-
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Database parameters used: 
-```show databases```
-2. Verbs used: Insert/Import/Select?
-3. Describe the total amount of data
-4. Observed performance vs. expected performance
-
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
-
-**Environment (please complete the following information):**
- - OS: [e.g. CentOS 7.0]
- - Memory, CPU, current Disk Space
- - TDengine Version [e.g. 1.6.1.7]
-
-**Additional Context**
-Add any other context about the problem here.
+If all the ways above couldn't help, please clearly and concisely describe what the question is.
