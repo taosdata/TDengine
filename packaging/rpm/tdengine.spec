@@ -1,5 +1,6 @@
 %define homepath         /usr/local/taos
 %define cfg_install_dir  /etc/taos
+%define __strip /bin/true
 
 Name:		  tdengine
 Version:	%{_version}
@@ -97,6 +98,9 @@ fi
 if [ -f %{cfg_install_dir}/taos.cfg ]; then
     ${csudo} rm -f %{homepath}/cfg/taos.cfg   || :
 fi 
+
+${csudo} rpm -e  tdengine || :
+${csudo} rpm -e --noscripts tdengine || :
 
 #Scripts executed after installation
 %post

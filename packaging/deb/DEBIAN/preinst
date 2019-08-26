@@ -31,3 +31,6 @@ if [ -f ${cfg_install_dir}/taos.cfg ]; then
     ${csudo} rm -f ${install_main_dir}/cfg/taos.cfg   || :
 fi    
 
+${csudo} dpkg -P tdengine   || :
+${csudo} rm -f /var/lib/dpkg/info/tdengine*   || :
+
