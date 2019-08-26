@@ -29,8 +29,8 @@ cfg_install_dir="/etc/taos"
 install_main_dir="/usr/local/taos"
 if [ -f ${cfg_install_dir}/taos.cfg ]; then
     ${csudo} rm -f ${install_main_dir}/cfg/taos.cfg   || :
-fi    
+fi
 
-${csudo} dpkg -P tdengine   || :
-${csudo} rm -f /var/lib/dpkg/info/tdengine*   || :
+# there can not libtaos.so*, otherwise ln -s  error
+${csudo} rm -f ${install_main_dir}/driver/libtaos*   || :    
 

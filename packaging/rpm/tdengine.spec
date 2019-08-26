@@ -99,8 +99,8 @@ if [ -f %{cfg_install_dir}/taos.cfg ]; then
     ${csudo} rm -f %{homepath}/cfg/taos.cfg   || :
 fi 
 
-${csudo} rpm -e  tdengine || :
-${csudo} rpm -e --noscripts tdengine || :
+# there can not libtaos.so*, otherwise ln -s  error
+${csudo} rm -f %{homepath}/driver/libtaos*   || :
 
 #Scripts executed after installation
 %post
