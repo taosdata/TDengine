@@ -67,6 +67,8 @@ int main(int argc, char *argv[]) {
       }
     } else if (strcmp(argv[i], "-V") == 0) {
       printf("%s %s\n", version, compatible_version);
+      printf("gitinfo: %s\n", gitinfo);
+      printf("buildinfo: %s\n", buildinfo);
       return 0;
     }
   }
