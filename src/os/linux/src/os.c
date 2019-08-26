@@ -276,12 +276,12 @@ ssize_t tsendfile(int dfd, int sfd, off_t *offset, size_t size) {
 }
 
 ssize_t twrite(int fd, void *buf, size_t n) {
-  size_t nleft, nwritten;
-
-  nleft = n;
+  size_t nleft = n; 
+  ssize_t nwritten = 0;
+  char *tbuf = (char *)buf
 
   while (nleft > 0) {
-    nwritten = write(fd, buf, nleft);
+    nwritten = write(fd, (void *)tbuf, nleft);
     if (nwritten < 0) {
       if (errno == EINTR) {
         continue;
@@ -289,7 +289,7 @@ ssize_t twrite(int fd, void *buf, size_t n) {
       return -1;
     }
     nleft -= nwritten;
-    buf += nwritten;
+    tbuf += nwritten;
   }
 
   return n;
