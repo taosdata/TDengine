@@ -118,6 +118,7 @@ typedef struct rpc_server {
 int taosDebugFlag = 131;
 int tsRpcTimer = 300;
 int tsRpcMaxTime = 600;  // seconds;
+int tsRpcProgressTime = 10;  // milliseocnds
 
 // not configurable
 int tsRpcMaxRetry;
@@ -294,7 +295,7 @@ int taosSendQuickRsp(void *thandle, char rsptype, char code) {
 void *taosOpenRpc(SRpcInit *pRpc) {
   STaosRpc *pServer;
 
-  tsRpcMaxRetry = tsRpcMaxTime * 1000 / tsRpcTimer;
+  tsRpcMaxRetry = tsRpcMaxTime * 1000 / tsRpcProgressTime;
   tsRpcHeadSize = sizeof(STaosHeader) + sizeof(SMsgNode);
 
   pServer = (STaosRpc *)malloc(sizeof(STaosRpc));
@@ -896,7 +897,7 @@ int taosProcessMsgHeader(STaosHeader *pHeader, SRpcConn **ppConn, STaosRpc *pSer
         tTrace("%s cid:%d sid:%d id:%s, peer is still processing the transaction, pConn:%p",
                pServer->label, chann, sid, pHeader->meterId, pConn);
         pConn->tretry++;
-        taosTmrReset(taosProcessTaosTimer, tsRpcTimer, pConn, pChann->tmrCtrl, &pConn->pTimer);
+        taosTmrReset(taosProcessTaosTimer, tsRpcProgressTime, pConn, pChann->tmrCtrl, &pConn->pTimer);
         code = TSDB_CODE_ALREADY_PROCESSED;
         goto _exit;
       } else {

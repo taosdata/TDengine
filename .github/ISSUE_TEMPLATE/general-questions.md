@@ -2,7 +2,7 @@
 name: General Questions
 about: General questions about TDengine's usage, user experiences, milestones etc.
 title: ''
-labels: ''
+labels: help wanted, question
 assignees: ''
 
 ---
