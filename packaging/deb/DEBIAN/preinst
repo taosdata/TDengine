@@ -11,6 +11,8 @@ if pidof taosd &> /dev/null; then
         ${csudo} systemctl stop taosd || :
     elif $(which insserv &> /dev/null); then
         ${csudo} service taosd stop || :
+    elif $(which update-rc.d &> /dev/null); then
+        ${csudo} service taosd stop || :
     else
         pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
         ${csudo} kill -9 ${pid}   || :
