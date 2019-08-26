@@ -61,7 +61,7 @@ fi
 
 function kill_taosd() {
   pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
-  ${csudo} kill -9 pid   || :
+  ${csudo} kill -9 ${pid}   || :
 }
 
 function install_main_path() {
