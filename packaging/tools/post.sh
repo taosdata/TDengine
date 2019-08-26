@@ -66,7 +66,7 @@ function install_include() {
 }
 
 function install_lib() {
-    ${csudo} rm -f ${lib_link_dir}/libtaos.so || :
+    ${csudo} rm -f ${lib_link_dir}/libtaos* || :
     
     ${csudo} ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
