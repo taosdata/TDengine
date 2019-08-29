@@ -338,7 +338,8 @@ STableDataBlocks* tscCreateDataBlock(int32_t size) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
   dataBuf->nAllocSize = (uint32_t)size;
   dataBuf->pData = calloc(1, dataBuf->nAllocSize);
-  dataBuf->ordered = true;
+
+  dataBuf->tsSource = -1;
   dataBuf->prevTS = INT64_MIN;
   return dataBuf;
 }

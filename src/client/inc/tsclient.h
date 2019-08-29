@@ -171,6 +171,8 @@ typedef struct STagCond {
 
 typedef struct STableDataBlocks {
   char        meterId[TSDB_METER_ID_LEN];
+  int8_t      tsSource;
+
   int64_t     vgid;
   int64_t     size;
 

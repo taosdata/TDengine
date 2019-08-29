@@ -53,6 +53,11 @@
     return TSDB_CODE_INVALID_SQL;   \
   } while (0)
 
+static enum {
+  TSDB_USE_SERVER_TS = 0,
+  TSDB_USE_CLI_TS = 1,
+};
+
 static void setErrMsg(char *msg, char *sql);
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize);
 
@@ -163,6 +168,40 @@ int tsParseTime(char *value, int32_t valuelen, int64_t *time, char **next, char 
   }
 
   *time = useconds;
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * The server time/client time should not be mixed up in one sql string
+ * Do not employ sort operation is not involved if server time is used.
+ */
+static int32_t tsCheckTimestamp(STableDataBlocks* pDataBlocks, const char* start) {
+  // once the data block is disordered, we do NOT keep previous timestamp any more
+  if (!pDataBlocks->ordered) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  TSKEY k = *(TSKEY *) start;
+
+  if (k == 0) {
+    if (pDataBlocks->tsSource == TSDB_USE_CLI_TS) {
+      return -1;
+    } else if (pDataBlocks->tsSource == -1) {
+      pDataBlocks->tsSource = TSDB_USE_SERVER_TS ;
+    }
+  } else {
+    if (pDataBlocks->tsSource == TSDB_USE_SERVER_TS) {
+      return -1;
+    } else if (pDataBlocks->tsSource == -1) {
+      pDataBlocks->tsSource = TSDB_USE_CLI_TS;
+    }
+  }
+
+  if (k <= pDataBlocks->prevTS && (pDataBlocks->tsSource == TSDB_USE_CLI_TS)) {
+    pDataBlocks->ordered = false;
+  }
+
+  pDataBlocks->prevTS = k;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -391,20 +430,15 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
       valuelen++;
     }
 
+    bool isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
     int32_t ret = tsParseOneColumnData(&schema[colIndex], value, valuelen, start, error, str,
                                        colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX, timePrec);
-    if (ret != 0) {
+    if (ret != TSDB_CODE_SUCCESS) {
       return -1;  // NOTE: here 0 mean error!
     }
 
-    // once the data block is disordered, we do NOT keep previous timestamp any more
-    if (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX && pDataBlocks->ordered) {
-      TSKEY k = *(TSKEY *)start;
-      if (k <= pDataBlocks->prevTS) {
-        pDataBlocks->ordered = false;
-      }
-
-      pDataBlocks->prevTS = k;
+    if (isPrimaryKey && tsCheckTimestamp(pDataBlocks, start) != TSDB_CODE_SUCCESS) {
+      return -1;
     }
   }
 
@@ -550,6 +584,11 @@ void sortRemoveDuplicates(STableDataBlocks *dataBuf) {
 
   // size is less than the total size, since duplicated rows may be removed yet.
   assert(pBlocks->numOfRows * dataBuf->rowSize + sizeof(SShellSubmitBlock) == dataBuf->size);
+
+  // if use server time, this block must be ordered
+  if (dataBuf->tsSource == TSDB_USE_SERVER_TS) {
+    assert(dataBuf->ordered);
+  }
 
   if (!dataBuf->ordered) {
     char *pBlockData = pBlocks->payLoad;
