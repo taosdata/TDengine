@@ -366,6 +366,8 @@ int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
   if (pAlter->daysToKeep > 0) {
     mTrace("db:%s daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, pAlter->daysToKeep);
     pDb->cfg.daysToKeep = pAlter->daysToKeep;
+  } else {
+    return TSDB_CODE_INVALID_OPTION;
   }
 
   if (sdbUpdateRow(dbSdb, pDb, tsDbUpdateSize, 1) < 0) {

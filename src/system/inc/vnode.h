@@ -382,9 +382,9 @@ int vnodeCreateMeterObj(SMeterObj *pNew, SConnSec *pSec);
 
 int vnodeRemoveMeterObj(int vnode, int sid);
 
-int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, void *, int sversion, int *numOfPoints);
+int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, void *, int sversion, int *numOfPoints, TSKEY now);
 
-int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, void *, int sversion, int *numOfPoints);
+int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, void *, int sversion, int *numOfPoints, TSKEY now);
 
 int vnodeInsertBufferedPoints(int vnode);
 
@@ -537,7 +537,7 @@ void vnodeRemoveCommitLog(int vnode);
 
 int vnodeWriteToCommitLog(SMeterObj *pObj, char action, char *cont, int contLen, int sversion);
 
-extern int (*vnodeProcessAction[])(SMeterObj *, char *, int, char, void *, int, int *);
+extern int (*vnodeProcessAction[])(SMeterObj *, char *, int, char, void *, int, int *, TSKEY);
 
 extern int (*pCompFunc[])(const char *const input, int inputSize, const int elements, char *const output,
                           int outputSize, char algorithm, char *const buffer, int bufferSize);

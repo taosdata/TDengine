@@ -1052,7 +1052,8 @@ static void mgmtRetrieveMetersFromIDs(tQueryResultset *pRes, char *queryStr, cha
       }
 
       /* queried meter not belongs to this metric, ignore */
-      if (mgmtGetMeter(pMeterObj->pTagData)->uid != pMetric->uid) {
+      if (mgmtGetMeter(pMeterObj->pTagData)->uid != pMetric->uid ||
+          strncmp(pMetric->meterId, pMeterObj->pTagData, TSDB_METER_ID_LEN) != 0) {
         continue;
       }
 

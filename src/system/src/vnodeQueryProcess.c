@@ -404,7 +404,8 @@ static bool multimeterMultioutputHelper(SQInfo *pQInfo, bool *dataInDisk, bool *
 
   vnodeCheckIfDataExists(pRuntimeEnv, pMeterObj, dataInDisk, dataInCache);
 
-  if (pQuery->lastKey > pMeterObj->lastKey && QUERY_IS_ASC_QUERY(pQuery)) {
+  // data in file or cache is not qualified for the query. abort
+  if (!(dataInCache || dataInDisk)) {
     dTrace("QInfo:%p vid:%d sid:%d meterId:%s, qrange:%lld-%lld, nores, %p", pQInfo, pMeterObj->vnode, pMeterObj->sid,
            pMeterObj->meterId, pQuery->skey, pQuery->ekey, pQuery);
     return false;
@@ -578,7 +579,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
       if (pQuery->numOfFilterCols == 0 && pQuery->limit.offset > 0) {
         forwardQueryStartPosition(pRuntimeEnv);
 
-        if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
+        if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK|QUERY_COMPLETED)) {
           pQuery->skey = pSupporter->rawSKey;
           pQuery->ekey = pSupporter->rawEKey;
           continue;
