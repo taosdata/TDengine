@@ -70,14 +70,6 @@ cp -r %{_compiledir}/../tests/examples/*            %{buildroot}%{homepath}/exam
 
 #Scripts executed before installation
 %pre
-function is_using_systemd() {
-    if pidof systemd &> /dev/null; then
-        return 0
-    else
-        return 1
-    fi
-}
-
 csudo=""
 if command -v sudo > /dev/null; then
     csudo="sudo"
@@ -85,10 +77,15 @@ fi
 
 # Stop the service if running
 if pidof taosd &> /dev/null; then
-    if is_using_systemd; then
+    if pidof systemd &> /dev/null; then
         ${csudo} systemctl stop taosd || :
-    else
+    elif $(which insserv &> /dev/null); then
         ${csudo} service taosd stop || :
+    elif $(which update-rc.d &> /dev/null); then
+        ${csudo} service taosd stop || :
+    else
+        pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+        ${csudo} kill -9 ${pid}   || :
     fi
     echo "Stop taosd service success!"
     sleep 1
