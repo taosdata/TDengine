@@ -29,6 +29,7 @@ char *mgmtBuildCreateMeterIe(STabObj *pMeter, char *pMsg, int vnode);
 
 void vnodeProcessMsgFromMgmt(SSchedMsg *smsg);
 void *rpcQhandle;
+extern void *dmQhandle;
 
 int mgmtSendMsgToDnode(char *msg) {
   mTrace("msg:%s is sent to dnode", taosMsg[*msg]);
@@ -38,7 +39,7 @@ int mgmtSendMsgToDnode(char *msg) {
   schedMsg.msg = msg;
   schedMsg.ahandle = NULL;
   schedMsg.thandle = NULL;
-  taosScheduleTask(rpcQhandle, &schedMsg);
+  taosScheduleTask(dmQhandle, &schedMsg);
 
   return 0;
 }

@@ -57,7 +57,7 @@ void vnodeProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
 
   int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_INSERT);
   if (state == TSDB_METER_STATE_READY) {
-    vnodeInsertPoints(pObj, (char *)pMsg, contLen, TSDB_DATA_SOURCE_SHELL, NULL, pObj->sversion, &numOfPoints);
+    vnodeInsertPoints(pObj, (char *)pMsg, contLen, TSDB_DATA_SOURCE_SHELL, NULL, pObj->sversion, &numOfPoints, taosGetTimestamp(vnodeList[pObj->vnode].cfg.precision));
     vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);
   } else {
     dError("vid:%d sid:%d id:%s, failed to insert continuous query results, state:%d", pObj->vnode, pObj->sid,

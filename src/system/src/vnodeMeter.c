@@ -35,7 +35,7 @@ int  tsMeterSizeOnFile;
 void vnodeUpdateMeter(void *param, void *tmdId);
 void vnodeRecoverMeterObjectFile(int vnode);
 
-int (*vnodeProcessAction[])(SMeterObj *, char *, int, char, void *, int, int *) = {vnodeInsertPoints,
+int (*vnodeProcessAction[])(SMeterObj *, char *, int, char, void *, int, int *, TSKEY) = {vnodeInsertPoints,
                                                                                    vnodeImportPoints};
 
 void vnodeFreeMeterObj(SMeterObj *pObj) {
@@ -506,7 +506,7 @@ int vnodeRemoveMeterObj(int vnode, int sid) {
 }
 
 int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, void *param, int sversion,
-                      int *numOfInsertPoints) {
+                      int *numOfInsertPoints, TSKEY now) {
   int         expectedLen, i;
   short       numOfPoints;
   SSubmitMsg *pSubmit = (SSubmitMsg *)cont;
@@ -528,7 +528,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
 
   // to guarantee time stamp is the same for all vnodes
   pData = pSubmit->payLoad;
-  tsKey = taosGetTimestamp(pVnode->cfg.precision);
+  tsKey = now;
   cfile = tsKey/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
   if (*((TSKEY *)pData) == 0) {
     for (i = 0; i < numOfPoints; ++i) {

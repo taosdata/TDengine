@@ -484,6 +484,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   int32_t numOfPoints = 0;
   int32_t numOfTotalPoints = 0;
+  TSKEY   now = taosGetTimestamp(pVnode->cfg.precision);
 
   for (int32_t i = 0; i < pSubmit->numOfSid; ++i) {
     numOfPoints = 0;
@@ -523,11 +524,11 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
       // meter status is ready for insert/import
       if (pSubmit->import) {
         code = vnodeImportPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
-                                 sversion, &numOfPoints);
+                                 sversion, &numOfPoints, now);
         vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
       } else {
         code = vnodeInsertPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, NULL,
-                                 sversion, &numOfPoints);
+                                 sversion, &numOfPoints, now);
         vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_INSERT);
       }
 

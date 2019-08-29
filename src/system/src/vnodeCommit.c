@@ -144,6 +144,7 @@ size_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
     goto _error;
   }
 
+  TSKEY now = taosGetTimestamp(pVnode->cfg.precision);
   SCommitHead head;
   int simpleCheck = 0;
   while (1) {
@@ -180,7 +181,7 @@ size_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
 
         int32_t numOfPoints = 0;
         (*vnodeProcessAction[head.action])(pObj, cont, head.contLen, TSDB_DATA_SOURCE_LOG, NULL, head.sversion,
-                                           &numOfPoints);
+                                           &numOfPoints, now);
         actions++;
       } else {
         break;
