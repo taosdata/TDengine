@@ -140,28 +140,31 @@ char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
   return NULL;
 }
 
-void strtolower(char *dst, const char *z) {
-  int   quote = 0;
-  char *str = z;
-  if (dst == NULL) {
-    return;
+char* strtolower(char *dst, const char *src) {
+  int esc = 0;
+  char quote = 0, *p = dst, c;
+
+  assert(dst != NULL);
+
+  for (c = *src++; c; c = *src++) {
+    if (esc) {
+      esc = 0;
+    } else if (quote) {
+      if (c == '\\') {
+        esc = 1;
+      } else if (c == quote) {
+        quote = 0;
+      }
+    } else if (c >= 'A' && c <= 'Z') {
+      c -= 'A' - 'a';
+    } else if (c == '\'' || c == '"') {
+      quote = c;
+    }
+    *p++ = c;
   }
 
-  while (*str) {
-    if (*str == '\'' || *str == '"') {
-      quote = quote ^ 1;
-    }
-
-    if ((!quote) && (*str >= 'A' && *str <= 'Z')) {
-      *dst++ = *str | 0x20;
-    } else {
-      *dst++ = *str;
-    }
-
-    str++;
-  }
-
-  *dst = 0;
+  *p = 0;
+  return dst;
 }
 
 char *paGetToken(char *string, char **token, int32_t *tokenLen) {
