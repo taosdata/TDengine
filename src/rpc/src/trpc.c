@@ -169,7 +169,7 @@ char *taosBuildReqHeader(void *param, char type, char *msg) {
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
   pHeader->port = 0;
-  pHeader->uid = (uint32_t)pConn;
+  pHeader->uid = (uint32_t)pConn + (uint32_t)getpid();
 
   memcpy(pHeader->meterId, pConn->meterId, tListLen(pHeader->meterId));
 
@@ -200,7 +200,7 @@ char *taosBuildReqMsgWithSize(void *param, char type, int size) {
 
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
-  pHeader->uid = (uint32_t)pConn;
+  pHeader->uid = (uint32_t)pConn + (uint32_t)getpid();
   memcpy(pHeader->meterId, pConn->meterId, tListLen(pHeader->meterId));
 
   return (char *)pHeader->content;
