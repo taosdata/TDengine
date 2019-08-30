@@ -1,4 +1,4 @@
-# STable: Super Table
+# STable: Super Table 
 
 "One Table for One Device" design can improve the insert/query performance significantly for a single device. But it has a side effect, the aggregation of multiple tables becomes hard. To reduce the complexity and improve the efficiency, TDengine introduced a new concept: STable (Super Table).  
 
