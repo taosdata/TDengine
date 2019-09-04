@@ -550,7 +550,9 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
     assert(pSids->numOfSubSet == 1 && start == 0 && end == pSids->numOfSids - 1 && pSupporter->meterIdx >= start &&
            pSupporter->meterIdx <= end);
 
-    for (int32_t k = pSupporter->meterIdx; k <= end; ++k, ++pSupporter->meterIdx) {
+    while(pSupporter->meterIdx < pSupporter->numOfMeters) {
+      int32_t k = pSupporter->meterIdx;
+
       if (isQueryKilled(pQuery)) {
         setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
         return;
@@ -561,6 +563,8 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
       if (!multimeterMultioutputHelper(pQInfo, &dataInDisk, &dataInCache, k, start)) {
         pQuery->skey = pSupporter->rawSKey;
         pQuery->ekey = pSupporter->rawEKey;
+
+        pSupporter->meterIdx++;
         continue;
       }
 
@@ -573,6 +577,8 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
       if (normalizedFirstQueryRange(dataInDisk, dataInCache, pSupporter, &pointInterpSupporter) == false) {
         pQuery->skey = pSupporter->rawSKey;
         pQuery->ekey = pSupporter->rawEKey;
+
+        pSupporter->meterIdx++;
         continue;
       }
 
@@ -582,6 +588,8 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
         if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK|QUERY_COMPLETED)) {
           pQuery->skey = pSupporter->rawSKey;
           pQuery->ekey = pSupporter->rawEKey;
+
+          pSupporter->meterIdx++;
           continue;
         }
       }
@@ -595,7 +603,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
       pQuery->pointsRead = getNumOfResult(pRuntimeEnv);
       doSkipResults(pRuntimeEnv);
 
-      // set query completed
+      // the limitation of output result is reached, set the query completed
       if (doRevisedResultsByLimit(pQInfo)) {
         pSupporter->meterIdx = pSupporter->pSidSet->numOfSids;
         break;
@@ -610,17 +618,24 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
          */
         pQuery->skey = pSupporter->rawSKey;
         pQuery->ekey = pSupporter->rawEKey;
+        pSupporter->meterIdx++;
 
         if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL)) {
-          pSupporter->meterIdx++;
           break;
         }
       } else {
-        assert(Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL));
-
         // forward query range
         pQuery->skey = pQuery->lastKey;
-        break;
+
+        // all data in the result buffer are skipped due to the offset, continue to retrieve data from current meter
+        if (pQuery->pointsRead == 0) {
+          assert(!Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL));
+          continue;
+        } else {
+          //buffer is full, wait for the next round to retrieve data from current meter
+          assert(Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL));
+          break;
+        }
       }
     }
   }

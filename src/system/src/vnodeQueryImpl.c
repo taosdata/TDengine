@@ -2694,35 +2694,17 @@ static void vnodeOpenAllFiles(SQInfo *pQInfo, int32_t vnodeId) {
 static void updateOffsetVal(SQueryRuntimeEnv *pRuntimeEnv, SBlockInfo* pBlockInfo, void *pBlock) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
-  int32_t newPos = pQuery->pos;
-  if (QUERY_IS_ASC_QUERY(pQuery)) {
-    if (newPos + pQuery->limit.offset > pBlockInfo->size) {
-      newPos = pBlockInfo->size - 1;
-    } else {
-      newPos += pQuery->limit.offset;
-    }
-  } else {
-    if (newPos < pQuery->limit.offset) {
-      newPos = 0;
-    } else {
-      newPos -= pQuery->limit.offset;
-    }
-  }
-
-  TSKEY newKey = 0;
-  if (IS_DISK_DATA_BLOCK(pQuery)) {
-    newKey = getTimestampInDiskBlock(pRuntimeEnv, newPos);
-  } else {
-    newKey = getTimestampInCacheBlock(pBlock, newPos);
-  }
-
   /*
    *  The actually qualified points that can be skipped needs to be calculated if query is
    *  done in current data block
    */
-  if ((newKey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-      (newKey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
-    setQueryStatus(pQuery, QUERY_COMPLETED);
+  if ((pQuery->ekey <= pBlockInfo->keyLast && QUERY_IS_ASC_QUERY(pQuery)) ||
+      (pQuery->ekey >= pBlockInfo->keyFirst && !QUERY_IS_ASC_QUERY(pQuery))) {
+
+    // force load timestamp data blocks
+    if (IS_DISK_DATA_BLOCK(pQuery)) {
+      getTimestampInDiskBlock(pRuntimeEnv, 0);
+    }
 
     // update the pQuery->limit.offset value, and pQuery->pos value
     TSKEY* keys = NULL;
@@ -2741,6 +2723,7 @@ static void updateOffsetVal(SQueryRuntimeEnv *pRuntimeEnv, SBlockInfo* pBlockInf
           break;
         }
       }
+
     } else {
       for(i = pQuery->pos; i >= 0 && pQuery->limit.offset > 0; --i) {
         if (keys[i] >= pQuery->ekey) {
@@ -2751,14 +2734,31 @@ static void updateOffsetVal(SQueryRuntimeEnv *pRuntimeEnv, SBlockInfo* pBlockInf
       }
     }
 
-    pQuery->pos = i;
+    if (((i == pBlockInfo->size || keys[i] > pQuery->ekey) && QUERY_IS_ASC_QUERY(pQuery)) ||
+        ((i < 0 || keys[i] < pQuery->ekey) && !QUERY_IS_ASC_QUERY(pQuery))) {
+      setQueryStatus(pQuery, QUERY_COMPLETED);
+      pQuery->pos = -1;
+    } else {
+      pQuery->pos = i;
+    }
   } else {
-    pQuery->skey = newKey;
-    pQuery->lastKey = pQuery->skey;
+    if (QUERY_IS_ASC_QUERY(pQuery)) {
+      pQuery->pos += pQuery->limit.offset;
+    } else {
+      pQuery->pos -= pQuery->limit.offset;
+    }
+
+    assert(pQuery->pos >= 0 && pQuery->pos <= pBlockInfo->size - 1);
+
+    if (IS_DISK_DATA_BLOCK(pQuery)) {
+      pQuery->skey = getTimestampInDiskBlock(pRuntimeEnv, pQuery->pos);
+    } else {
+      pQuery->skey = getTimestampInCacheBlock(pBlock, pQuery->pos);
+    }
 
     // update the offset value
-    pQuery->limit.offset -= abs(newPos - pQuery->pos);
-    pQuery->pos = newPos;
+    pQuery->lastKey = pQuery->skey;
+    pQuery->limit.offset = 0;
   }
 }
 
@@ -4565,6 +4565,9 @@ void doSkipResults(SQueryRuntimeEnv *pRuntimeEnv) {
     pQuery->pointsOffset = pQuery->pointsToRead;  // clear all data in result buffer
 
     resetCtxOutputBuf(pRuntimeEnv);
+
+    // clear the buffer is full flag if exists
+    pQuery->over &= (~QUERY_RESBUF_FULL);
   } else {
     int32_t numOfSkip = (int32_t)pQuery->limit.offset;
     int32_t size = pQuery->pointsRead;
