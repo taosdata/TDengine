@@ -351,13 +351,11 @@ bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
   }
 
   if (!httpReadDataImp(pContext)) {
-    httpTrace("context:%p, fd:%d, ip:%s, read data error, close connect", pContext, pContext->fd, pContext->ipstr);
     httpCloseContextByServer(pThread, pContext);
     return false;
   }
 
   if (!httpParseRequest(pContext)) {
-    httpTrace("context:%p, fd:%d, ip:%s, failed to parse http head, close connect", pContext, pContext->fd, pContext->ipstr);
     httpCloseContextByServer(pThread, pContext);
     return false;
   }
@@ -450,8 +448,8 @@ void httpProcessHttpData(void *param) {
       }
 
       if (!pContext->pThread->pServer->online) {
-        httpSendErrorResp(pContext, HTTP_SERVER_OFFLINE);
         httpTrace("context:%p, fd:%d, ip:%s, server is not online", pContext, pContext->fd, pContext->ipstr);
+        httpSendErrorResp(pContext, HTTP_SERVER_OFFLINE);
         httpCloseContextByServer(pThread, pContext);
         continue;
       }
@@ -459,8 +457,6 @@ void httpProcessHttpData(void *param) {
       __sync_fetch_and_add(&pThread->pServer->requestNum, 1);
 
       if (!(*(pThread->processData))(pContext)) {
-        httpError("context:%p, fd:%d, ip:%s, app force closed", pContext, pContext->fd, pContext->ipstr,
-                  pContext->accessTimes);
         httpCloseContextByServer(pThread, pContext);
       }
     }
