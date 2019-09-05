@@ -124,6 +124,8 @@ int sigaction(int, struct sigaction *, void *);
 
 void sleep(int mseconds);
 
+bool taosIsRunningWSLv1();
+
 #ifdef __cplusplus
 }
 #endif

@@ -63,4 +63,6 @@ void taosGetSystemInfo();
 
 void taosKillSystem();
 
+bool taosIsRunningWSLv1();
+
 #endif

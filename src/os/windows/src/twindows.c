@@ -196,4 +196,7 @@ int wordexp(const char *words, wordexp_t *pwordexp, int flags) {
 
 void wordfree(wordexp_t *pwordexp) {}
 void taosGetDisk() {}
+bool taosIsRunningWSLv1() {
+  return false;
+}
 

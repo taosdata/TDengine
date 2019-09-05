@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <sys/utsname.h>
 
 #include "tglobalcfg.h"
 #include "tlog.h"
@@ -293,4 +294,20 @@ ssize_t twrite(int fd, void *buf, size_t n) {
   }
 
   return n;
+}
+
+// check if the linux running is WSL
+bool taosIsRunningWSLv1() {
+  struct utsname buf;
+  if (uname(&buf)) {
+    pPrint(" can't fetch os info");
+    return false;
+  }
+
+  if (strstr(buf.release, "Microsoft") != 0) {
+    pPrint(" using WSLv1");
+    return true;
+  }
+
+  return false;
 }
