@@ -23,77 +23,68 @@
 #include "shash.h"
 #include "tstoken.h"
 
-static char operator[] = {0, 0,   0, 0,   0, 0,   0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0,   0,   0,   0,   0,   0,
+static const char operator[] = {0, 0,   0, 0,   0, 0,   0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0,   0,   0,   0,   0,   0,
                           0, 0,   0, 0,   0, 0,   0, 0, 0, 0, 0, 0, 0, 0, '$', '%', '&', 0,   '(', ')', '*', '+',
                           0, '-', 0, '/', 0, 0,   0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   '<', '=', '>', 0,   0,   0,
                           0, 0,   0, 0,   0, 0,   0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0,   0,   0,   0,   0,   0,
                           0, 0,   0, '[', 0, ']', 0, 0, 0, 0, 0, 0, 0, 0, 0,   0,   0,   0,   0,   0,   0,   0,
                           0, 0,   0, 0,   0, 0,   0, 0, 0, 0, 0, 0, 0, 0, '|', 0,   0,   0};
 
-static char delimiter[] = {
+static const char delimiter[] = {
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,   1, 1, 1, 1,
     1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ',', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ';', 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0,
 };
 
-bool isCharInDelimiter(char c, char *delimiter) {
-  for (int i = 0; i < strlen(delimiter); i++) {
-    if (delimiter[i] == c) return true;
-  }
-  return false;
-}
-
-char *tscGetTokenDelimiter(char *string, char **token, int *tokenLen, char *delimiters) {
-  while (*string != 0) {
-    if (isCharInDelimiter(*string, delimiters)) {
-      ++string;
-    } else {
-      break;
-    }
+char *tscGetTokenDelimiter(char *string, char **token, int *tokenLen, const char *delimiters) {
+  while ((*string != 0) && strchr(delimiters, *string)) {
+    ++string;
   }
 
   *token = string;
 
   char *str = string;
-  *tokenLen = 0;
-  while (*str != 0) {
-    if (!isCharInDelimiter(*str, delimiters)) {
-      *tokenLen = *tokenLen + 1;
-      str++;
-    } else {
-      break;
-    }
+  while ((*str != 0) && (strchr(delimiters, *str) == NULL)) {
+    ++str;
   }
 
+  *tokenLen = str - string;
+
   return string;
+}
+
+static bool isOperator(char c) {
+  return (c < 0) ? false : (operator[c] != 0);
+}
+
+static bool isDelimiter(char c) {
+  return (c < 0) ? false : (delimiter[c] != 0);
 }
 
 char *tscGetToken(char *string, char **token, int *tokenLen) {
   char quote = 0;
 
   while (*string != 0) {
-    if (delimiter[*string]) {
+    if (isDelimiter(*string)) {
       ++string;
     } else {
       break;
     }
   }
 
-  char quotaChar = 0;
   if (*string == '\'' || *string == '\"') {
-    quote = 1;
-    quotaChar = *string;
+    quote = *string;
     string++;
   }
 
   *token = string;
   /* not in string, return token */
-  if (*string > 0 && operator[*string] && quote == 0) {
+  if (quote == 0 && isOperator(*string)) {
     string++;
     /* handle the case: insert into tabx using stable1 tags(-1)/tags(+1)
      * values(....) */
-    if (operator[*string] &&(*string != '(' && *string != ')' && *string != '-' && *string != '+'))
+    if (isOperator(*string) &&(*string != '(' && *string != ')' && *string != '-' && *string != '+'))
       *tokenLen = 2;
     else
       *tokenLen = 1;
@@ -102,28 +93,24 @@ char *tscGetToken(char *string, char **token, int *tokenLen) {
 
   while (*string != 0) {
     if (quote) {
-      // handle escape situation: '\"', the " should not be eliminated
-      if (*string == quotaChar) {
-        if (*(string - 1) != '\\') {
-          break;
-        } else {
+      if (*string == '\'' || *string == '"') {
+        // handle escape situation, " and ' should not be eliminated
+        if (*(string - 1) == '\\') {
           shiftStr(string - 1, string);
+          continue;
+        } else if (*string == quote) {
+          break;
         }
-      } else {
-        ++string;
       }
-    } else {
-      if (delimiter[*string]) break;
-
-      if (operator[*string]) break;
-
-      ++string;
+    } else if (isDelimiter(*string) || isOperator(*string)) {
+      break;
     }
+    ++string;
   }
 
   *tokenLen = (int)(string - *token);
 
-  if (quotaChar != 0 && *string != 0 && *(string + 1) != 0) {
+  if (quote && *string != 0) {
     return string + 1;
   } else {
     return string;
@@ -135,7 +122,7 @@ void shiftStr(char *dst, char *src) {
   do {
     dst[i] = src[i];
     i++;
-  } while (delimiter[src[i]] == 0);
+  } while (!isDelimiter(src[i]));
 
   src[i - 1] = ' ';
 }

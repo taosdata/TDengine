@@ -111,6 +111,7 @@ TAOS *shellInit(struct arguments *args) {
 void shellReplaceCtrlChar(char *str) {
   _Bool ctrlOn = false;
   char *pstr = NULL;
+  char quote = 0;
 
   for (pstr = str; *str != '\0'; ++str) {
     if (ctrlOn) {
@@ -131,6 +132,13 @@ void shellReplaceCtrlChar(char *str) {
           *pstr = '\\';
           pstr++;
           break;
+        case '\'':
+        case '"':
+          if (quote) {
+            *pstr++ = '\\';
+            *pstr++ = *str;
+          }
+          break;
         default:
           break;
       }
@@ -139,6 +147,11 @@ void shellReplaceCtrlChar(char *str) {
       if (*str == '\\') {
         ctrlOn = true;
       } else {
+        if (quote == *str) {
+          quote = 0;
+        } else if (*str == '\'' || *str == '"') {
+          quote = *str;
+        }
         *pstr = *str;
         pstr++;
       }
