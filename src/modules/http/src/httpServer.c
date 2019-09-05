@@ -321,28 +321,34 @@ bool httpReadDataImp(HttpContext *pContext) {
   return true;
 }
 
-bool httpUnCompressData(HttpContext *pContext) {
-  if (pContext->contentEncoding == HTTP_COMPRESS_GZIP) {
-    char   *decompressBuf = calloc(HTTP_DECOMPRESS_BUF_SIZE, 1);
-    int32_t decompressBufLen = pContext->parser.bufsize;
-
-    int ret = httpGzipDeCompress(pContext->parser.data.pos, pContext->parser.data.len, decompressBuf, &decompressBufLen);
-
-    if (ret == 0) {
-      memcpy(pContext->parser.data.pos, decompressBuf, decompressBufLen);
-      pContext->parser.data.pos[decompressBufLen] = 0;
-      httpDump("context:%p, fd:%d, ip:%s, rawSize:%d, decompressSize:%d, content:%s",
-                pContext, pContext->fd, pContext->ipstr, pContext->parser.data.len, decompressBufLen,  decompressBuf);
-    } else {
-      httpError("context:%p, fd:%d, ip:%s, failed to decompress data, rawSize:%d, error:%d",
-                pContext, pContext->fd, pContext->ipstr, pContext->parser.data.len, ret);
-      return false;
-    }
-  } else {
+bool httpDecompressData(HttpContext *pContext) {
+  if (pContext->contentEncoding != HTTP_COMPRESS_GZIP) {
     httpDump("context:%p, fd:%d, ip:%s, content:%s", pContext, pContext->fd, pContext->ipstr, pContext->parser.data.pos);
+    return true;
   }
 
-  return true;
+  char   *decompressBuf = calloc(HTTP_DECOMPRESS_BUF_SIZE, 1);
+  int32_t decompressBufLen = HTTP_DECOMPRESS_BUF_SIZE;
+  size_t  bufsize = sizeof(pContext->parser.buffer) - (pContext->parser.data.pos - pContext->parser.buffer) - 1;
+  if (decompressBufLen > (int)bufsize) {
+    decompressBufLen = (int)bufsize;
+  }
+
+  int ret = httpGzipDeCompress(pContext->parser.data.pos, pContext->parser.data.len, decompressBuf, &decompressBufLen);
+
+  if (ret == 0) {
+    memcpy(pContext->parser.data.pos, decompressBuf, decompressBufLen);
+    pContext->parser.data.pos[decompressBufLen] = 0;
+    httpDump("context:%p, fd:%d, ip:%s, rawSize:%d, decompressSize:%d, content:%s",
+              pContext, pContext->fd, pContext->ipstr, pContext->parser.data.len, decompressBufLen,  decompressBuf);
+    pContext->parser.data.len = decompressBufLen;
+  } else {
+    httpError("context:%p, fd:%d, ip:%s, failed to decompress data, rawSize:%d, error:%d",
+              pContext, pContext->fd, pContext->ipstr, pContext->parser.data.len, ret);
+  }
+
+  free(decompressBuf);
+  return ret == 0;
 }
 
 bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
@@ -367,7 +373,7 @@ bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
     return false;
   } else if (ret == HTTP_CHECK_BODY_SUCCESS){
     httpCleanUpContextTimer(pContext);
-    if (httpUnCompressData(pContext)) {
+    if (httpDecompressData(pContext)) {
       return true;
     } else {
       httpCloseContextByServer(pThread, pContext);
