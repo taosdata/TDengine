@@ -87,7 +87,7 @@ void taos_init_imp() {
 
     tsReadGlobalConfig();
     tsPrintGlobalConfig();
-    taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);
+    
 
     tscTrace("starting to initialize TAOS client ...");
     tscTrace("Local IP address is:%s", tsLocalIp);
@@ -148,7 +148,10 @@ void taos_init_imp() {
   }
 
   tscTmr = taosTmrInit(tsMaxMgmtConnections * 2, 200, 60000, "TSC");
-
+  if (tscEmbedded == 0) {
+    taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);
+  }
+  
   int64_t refreshTime = tsMetricMetaKeepTimer < tsMeterMetaKeepTimer ? tsMetricMetaKeepTimer : tsMeterMetaKeepTimer;
   refreshTime = refreshTime > 2 ? 2 : refreshTime;
   refreshTime = refreshTime < 1 ? 1 : refreshTime;
