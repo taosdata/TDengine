@@ -78,13 +78,8 @@ typedef struct {
   int        count;
 } tmr_list_t;
 
-
-#define TMR_CTRL_STAGE_UNUSED       0
-#define TMR_CTRL_STAGE_IN_USE       1
-#define TMR_CTRL_STAGE_CLEANNING_UP 2
-
 typedef struct _tmr_ctrl_t {
-  int             stage;            /* life cycle stage of this tmr ctrl */
+  void *          signature;
   pthread_mutex_t mutex;            /* mutex to protect critical resource */
   int             resolution;       /* resolution in mseconds */
   int             numOfPeriods;     /* total number of periods */
@@ -115,37 +110,15 @@ void *taosTimerLoopFunc(int signo) {
 
   for (int i = 1; i < maxNumOfTmrCtrl; ++i) {
     pCtrl = tmrCtrl + i;
-    // save 'stage' to a local variable so that all later code can
-    // use the same 'stage'. acquire semantic is required to ensure
-    // 'stage' is load before other 'pCtrl' fields.
-    int stage = __atomic_load_n(&pCtrl->stage, __ATOMIC_ACQUIRE);
-
-    if (stage == TMR_CTRL_STAGE_IN_USE) {
+    if (pCtrl->signature) {
+      count++;
       pCtrl->ticks++;
       if (pCtrl->ticks >= pCtrl->maxTicks) {
         taosTmrProcessList(pCtrl);
         pCtrl->ticks = 0;
       }
-    } else if (stage == TMR_CTRL_STAGE_CLEANNING_UP) {
-      __atomic_store_n(&pCtrl->stage, TMR_CTRL_STAGE_UNUSED, __ATOMIC_RELEASE);
-      pthread_mutex_destroy(&pCtrl->mutex);
-      tfree(pCtrl->tmrList);
-      tmrMemPoolCleanUp(pCtrl->poolHandle);
-
-      // decrease 'numOfTmrCtrl', need to be atomic but relaxed semantic is fine
-      // because we don't need (unable to guarantee either) an accurate counter.
-      int num = __atomic_add_fetch(&numOfTmrCtrl, -1, __ATOMIC_RELAXED);
-      tmrTrace("%s is cleaned up, numOfTmrCtrls:%d", pCtrl->label, num);
-
-      // return 'id' to the poool and then this timer controller can be reused,
-      // this must be the last step.
-      taosFreeId(tmrIdPool, pCtrl->tmrCtrlId);
-    } else {
-      continue;
+      if (count >= numOfTmrCtrl) break;
     }
-
-    if (++count >= __atomic_load_n(&numOfTmrCtrl, __ATOMIC_RELAXED))
-      break;
   }
 
   return NULL;
@@ -233,6 +206,9 @@ void *taosTmrInit(int maxNumOfTmrs, int resolution, int longest, char *label) {
   }
 
   pCtrl = tmrCtrl + tmrCtrlId;
+  tfree(pCtrl->tmrList);
+  tmrMemPoolCleanUp(pCtrl->poolHandle);
+
   memset(pCtrl, 0, sizeof(tmr_ctrl_t));
 
   pCtrl->tmrCtrlId = tmrCtrlId;
@@ -241,25 +217,18 @@ void *taosTmrInit(int maxNumOfTmrs, int resolution, int longest, char *label) {
 
   if ((pCtrl->poolHandle = tmrMemPoolInit(maxNumOfTmrs + 10, sizeof(tmr_obj_t))) == NULL) {
     tmrError("%s failed to allocate mem pool", label);
-    taosFreeId(tmrIdPool, tmrCtrlId);
+    tmrMemPoolCleanUp(pCtrl->poolHandle);
     return NULL;
   }
 
   if (resolution < MSECONDS_PER_TICK) resolution = MSECONDS_PER_TICK;
   pCtrl->resolution = resolution;
   pCtrl->maxTicks = resolution / MSECONDS_PER_TICK;
-  pCtrl->ticks = rand() % pCtrl->maxTicks;
+  pCtrl->ticks = rand() / pCtrl->maxTicks;
   pCtrl->numOfPeriods = longest / resolution;
   if (pCtrl->numOfPeriods < 10) pCtrl->numOfPeriods = 10;
 
   pCtrl->tmrList = (tmr_list_t *)malloc(sizeof(tmr_list_t) * pCtrl->numOfPeriods);
-  if (pCtrl->tmrList == NULL) {
-    tmrError("%s failed to allocate tmrList", label);
-    tmrMemPoolCleanUp(pCtrl->poolHandle);
-    taosFreeId(tmrIdPool, tmrCtrlId);
-    return NULL;
-  }
-
   for (int i = 0; i < pCtrl->numOfPeriods; i++) {
     pCtrl->tmrList[i].head = NULL;
     pCtrl->tmrList[i].count = 0;
@@ -267,20 +236,12 @@ void *taosTmrInit(int maxNumOfTmrs, int resolution, int longest, char *label) {
 
   if (pthread_mutex_init(&pCtrl->mutex, NULL) < 0) {
     tmrError("%s failed to create the mutex, reason:%s", label, strerror(errno));
-    free(pCtrl->tmrList);
-    tmrMemPoolCleanUp(pCtrl->poolHandle);
-    taosFreeId(tmrIdPool, tmrCtrlId);
+    taosTmrCleanUp(pCtrl);
     return NULL;
   }
 
-  // set 'stage' to 'in use' to mark the completion of initialization,
-  // release semantic is required to ensure all operations prior this
-  // are visible to other threads first.
-  __atomic_store_n(&pCtrl->stage, TMR_CTRL_STAGE_IN_USE, __ATOMIC_RELEASE);
-
-  // increase 'numOfTmrCtrl', need to be atomic but relaxed semantic is fine
-  __atomic_add_fetch(&numOfTmrCtrl, 1, __ATOMIC_RELAXED);
-
+  pCtrl->signature = pCtrl;
+  numOfTmrCtrl++;
   tmrTrace("%s timer ctrl is initialized, index:%d", label, tmrCtrlId);
   return pCtrl;
 }
@@ -332,14 +293,12 @@ void taosTmrProcessList(tmr_ctrl_t *pCtrl) {
 
 void taosTmrCleanUp(void *handle) {
   tmr_ctrl_t *pCtrl = (tmr_ctrl_t *)handle;
-  if (pCtrl == NULL)
-    return;
+  if (pCtrl == NULL || pCtrl->signature != pCtrl) return;
 
-  // set 'stage' to 'cleanning up' if it is 'in use' atomically,
-  // actual cleanning up will be done in 'taosTimerLoopFunc'.
-  int oldStage = TMR_CTRL_STAGE_IN_USE;
-  __atomic_compare_exchange_n(&pCtrl->stage, &oldStage, TMR_CTRL_STAGE_CLEANNING_UP,
-          false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+  pCtrl->signature = NULL;
+  taosFreeId(tmrIdPool, pCtrl->tmrCtrlId);
+  numOfTmrCtrl--;
+  tmrTrace("%s is cleaned up, numOfTmrs:%d", pCtrl->label, numOfTmrCtrl);
 }
 
 tmr_h taosTmrStart(void (*fp)(void *, void *), int mseconds, void *param1, void *handle) {
@@ -579,6 +538,7 @@ mpool_h tmrMemPoolInit(int numOfBlock, int blockSize) {
   pool_p->blockSize = blockSize;
   pool_p->numOfBlock = numOfBlock;
   pool_p->pool = (char *)malloc(blockSize * numOfBlock);
+  memset(pool_p->pool, 0, blockSize * numOfBlock);
   pool_p->freeList = (int *)malloc(sizeof(int) * numOfBlock);
 
   if (pool_p->pool == NULL || pool_p->freeList == NULL) {
@@ -636,6 +596,6 @@ void tmrMemPoolCleanUp(mpool_h handle) {
 
   if (pool_p->pool) free(pool_p->pool);
   if (pool_p->freeList) free(pool_p->freeList);
-  memset(pool_p, 0, sizeof(*pool_p));
+  memset(&pool_p, 0, sizeof(pool_p));
   free(pool_p);
 }
