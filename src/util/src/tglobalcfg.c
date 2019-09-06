@@ -70,8 +70,9 @@ float tsNumOfThreadsPerCore = 1.0;
 float tsRatioOfQueryThreads = 0.5;
 char  tsInternalIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsServerIpStr[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
-int   tsNumOfVnodesPerCore = 8;
-int   tsNumOfTotalVnodes = 0;
+short tsNumOfVnodesPerCore = 8;
+short tsNumOfTotalVnodes = 0;
+short tsCheckHeaderFile = 0;
 
 int tsSessionsPerVnode = 1000;
 int tsCacheBlockSize = 16384;  // 256 columns
@@ -81,10 +82,10 @@ int   tsRowsInFileBlock = 4096;
 float tsFileBlockMinPercent = 0.05;
 
 short tsNumOfBlocksPerMeter = 100;
-int   tsCommitTime = 3600;  // seconds
-int   tsCommitLog = 1;
-int   tsCompression = 2;
-int   tsDaysPerFile = 10;
+short tsCommitTime = 3600;  // seconds
+short tsCommitLog = 1;
+short tsCompression = 2;
+short tsDaysPerFile = 10;
 int   tsDaysToKeep = 3650;
 
 int  tsMaxShellConns = 2000;
@@ -418,10 +419,12 @@ void tsInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 10, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "ratioOfQueryThreads", &tsRatioOfQueryThreads, TSDB_CFG_VTYPE_FLOAT,
                      TSDB_CFG_CTYPE_B_CONFIG, 0.1, 0.9, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "numOfVnodesPerCore", &tsNumOfVnodesPerCore, TSDB_CFG_VTYPE_INT,
+  tsInitConfigOption(cfg++, "numOfVnodesPerCore", &tsNumOfVnodesPerCore, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 64, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "numOfTotalVnodes", &tsNumOfTotalVnodes, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 0,
+  tsInitConfigOption(cfg++, "numOfTotalVnodes", &tsNumOfTotalVnodes, TSDB_CFG_VTYPE_SHORT, TSDB_CFG_CTYPE_B_CONFIG, 0,
                      TSDB_MAX_VNODES, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "checkHeaderFile", &tsCheckHeaderFile, TSDB_CFG_VTYPE_SHORT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0, 1, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "tables", &tsSessionsPerVnode, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 4, 220000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "cache", &tsCacheBlockSize, TSDB_CFG_VTYPE_INT,
@@ -442,7 +445,7 @@ void tsInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 100, 3000, 0, TSDB_CFG_UTYPE_MS);
   tsInitConfigOption(cfg++, "rpcMaxTime", &tsRpcMaxTime, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 100, 7200, 0, TSDB_CFG_UTYPE_SECOND);
-  tsInitConfigOption(cfg++, "ctime", &tsCommitTime, TSDB_CFG_VTYPE_INT,
+  tsInitConfigOption(cfg++, "ctime", &tsCommitTime, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 30, 40960, 0, TSDB_CFG_UTYPE_SECOND);
   tsInitConfigOption(cfg++, "statusInterval", &tsStatusInterval, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 10, 0, TSDB_CFG_UTYPE_SECOND);
@@ -474,13 +477,13 @@ void tsInitGlobalConfig() {
   tsInitConfigOption(cfg++, "retryStreamCompDelay", &tsStreamCompRetryDelay, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 1000000000, 0, TSDB_CFG_UTYPE_MS);
 
-  tsInitConfigOption(cfg++, "clog", &tsCommitLog, TSDB_CFG_VTYPE_INT,
+  tsInitConfigOption(cfg++, "clog", &tsCommitLog, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0, 1, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "comp", &tsCompression, TSDB_CFG_VTYPE_INT,
+  tsInitConfigOption(cfg++, "comp", &tsCompression, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0, 2, 0, TSDB_CFG_UTYPE_NONE);
 
   // database configs
-  tsInitConfigOption(cfg++, "days", &tsDaysPerFile, TSDB_CFG_VTYPE_INT,
+  tsInitConfigOption(cfg++, "days", &tsDaysPerFile, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 365, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "keep", &tsDaysToKeep, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 365000, 0, TSDB_CFG_UTYPE_NONE);
@@ -539,7 +542,7 @@ void tsInitGlobalConfig() {
   tsInitConfigOption(cfg++, "numOfLogLines", &tsNumOfLogLines, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 10000, 2000000000, 0,
                      TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "asyncLog", &tsAsyncLog, TSDB_CFG_VTYPE_INT,
+  tsInitConfigOption(cfg++, "asyncLog", &tsAsyncLog, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 1, 0,
                      TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "debugFlag", &debugFlag, TSDB_CFG_VTYPE_INT,

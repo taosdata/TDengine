@@ -390,10 +390,10 @@ void vnodeCloseCommitFiles(SVnodeObj *pVnode) {
   int  ret;
 
   // Check new if new header file is correct
-#ifdef _CHECK_HEADER_FILE_
-  assert(vnodeCheckNewHeaderFile(pVnode->nfd, pVnode) == 0);
-#endif
-
+  if (tsCheckHeaderFile != 0) {
+    assert(vnodeCheckNewHeaderFile(pVnode->nfd, pVnode) == 0);
+  }
+  
   close(pVnode->nfd);
   pVnode->nfd = 0;
 

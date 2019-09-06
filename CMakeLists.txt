@@ -36,7 +36,6 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   SET(TD_LINUX TRUE)
   ADD_DEFINITIONS(-DLINUX)
   
-  
   IF (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")			
 	SET(COMMON_FLAGS "-std=gnu99 -Wall -fPIC -malign-double -g -Wno-char-subscripts -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
   ELSE ()

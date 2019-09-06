@@ -72,9 +72,10 @@ extern float tsNumOfThreadsPerCore;
 extern float tsRatioOfQueryThreads;
 extern char  tsInternalIp[];
 extern char  tsServerIpStr[];
-extern int   tsNumOfVnodesPerCore;
-extern int   tsNumOfTotalVnodes;
+extern short tsNumOfVnodesPerCore;
+extern short tsNumOfTotalVnodes;
 extern int   tsShellsPerVnode;
+extern short tsCheckHeaderFile;
 
 extern int tsSessionsPerVnode;
 extern int tsAverageCacheBlocks;
@@ -84,11 +85,11 @@ extern int   tsRowsInFileBlock;
 extern float tsFileBlockMinPercent;
 
 extern short tsNumOfBlocksPerMeter;
-extern int   tsCommitTime;  // seconds
-extern int   tsCommitLog;
-extern int   tsAsyncLog;
-extern int   tsCompression;
-extern int   tsDaysPerFile;
+extern short tsCommitTime;  // seconds
+extern short tsCommitLog;
+extern short tsAsyncLog;
+extern short tsCompression;
+extern short tsDaysPerFile;
 extern int   tsDaysToKeep;
 extern int   tsReplications;
 

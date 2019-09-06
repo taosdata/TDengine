@@ -53,7 +53,7 @@ typedef struct {
 } SLogBuff;
 
 int uDebugFlag = 131;  // all the messages
-int tsAsyncLog = 1;
+short tsAsyncLog = 1;
 
 static SLogBuff *logHandle;
 static int       taosLogFileNum = 1;
