@@ -225,7 +225,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
       return sprintf(dst, "%d", (int32_t)pVar->i64Key);
 
     case TSDB_DATA_TYPE_BIGINT:
-      return sprintf(dst, "%ld", pVar->i64Key);
+      return sprintf(dst, "%lld", pVar->i64Key);
 
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
@@ -385,7 +385,7 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
 
   } else {
     if (pVariant->nType >= TSDB_DATA_TYPE_TINYINT && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-      sprintf(pBuf == NULL ? *pDest : pBuf, "%ld", pVariant->i64Key);
+      sprintf(pBuf == NULL ? *pDest : pBuf, "%lld", pVariant->i64Key);
     } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
       sprintf(pBuf == NULL ? *pDest : pBuf, "%lf", pVariant->dKey);
     } else if (pVariant->nType == TSDB_DATA_TYPE_BOOL) {
@@ -407,7 +407,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   int32_t nLen = 0;
 
   if (pVariant->nType >= TSDB_DATA_TYPE_TINYINT && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-    nLen = sprintf(pDst, "%ld", pVariant->i64Key);
+    nLen = sprintf(pDst, "%lld", pVariant->i64Key);
   } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
     nLen = sprintf(pDst, "%lf", pVariant->dKey);
   } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {

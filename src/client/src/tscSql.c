@@ -665,7 +665,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         break;
 
       case TSDB_DATA_TYPE_BIGINT:
-        len += sprintf(str + len, "%ld ", *((int64_t *)row[i]));
+        len += sprintf(str + len, "%lld ", *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_FLOAT:
@@ -684,7 +684,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
-        len += sprintf(str + len, "%ld ", *((int64_t *)row[i]));
+        len += sprintf(str + len, "%lld ", *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BOOL:

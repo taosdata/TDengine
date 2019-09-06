@@ -449,9 +449,9 @@ void tsInitGlobalConfig() {
   tsInitConfigOption(cfg++, "shellActivityTimer", &tsShellActivityTimer, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 1, 120, 0, TSDB_CFG_UTYPE_SECOND);
   tsInitConfigOption(cfg++, "meterMetaKeepTimer", &tsMeterMetaKeepTimer, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 1, 36000, 0, TSDB_CFG_UTYPE_SECOND);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 1, 8640000, 0, TSDB_CFG_UTYPE_SECOND);
   tsInitConfigOption(cfg++, "metricMetaKeepTimer", &tsMetricMetaKeepTimer, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 1, 36000, 0, TSDB_CFG_UTYPE_SECOND);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 1, 8640000, 0, TSDB_CFG_UTYPE_SECOND);
 
   // mgmt configs
   tsInitConfigOption(cfg++, "maxUsers", &tsMaxUsers, TSDB_CFG_VTYPE_INT,

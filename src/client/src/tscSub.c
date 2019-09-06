@@ -106,7 +106,7 @@ TAOS_ROW taos_consume(TAOS_SUB *tsub) {
 
     pSub->stime = taosGetTimestampMs();
 
-    sprintf(qstr, "select * from %s where _c0 > %ld order by _c0 asc", pSub->name, pSub->lastKey);
+    sprintf(qstr, "select * from %s where _c0 > %lld order by _c0 asc", pSub->name, pSub->lastKey);
     if (taos_query(pSub->taos, qstr)) {
       tscTrace("failed to select, reason:%s", taos_errstr(pSub->taos));
       return NULL;

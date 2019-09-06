@@ -713,7 +713,7 @@ void tSkipListPrint(tSkipList *pSkipList, int16_t nlevel) {
       case TSDB_DATA_TYPE_SMALLINT:
       case TSDB_DATA_TYPE_TINYINT:
       case TSDB_DATA_TYPE_BIGINT:
-        fprintf(stdout, "%d: %ld \n", id++, p->key.i64Key);
+        fprintf(stdout, "%d: %lld \n", id++, p->key.i64Key);
         break;
       case TSDB_DATA_TYPE_BINARY:
         fprintf(stdout, "%d: %s \n", id++, p->key.pz);

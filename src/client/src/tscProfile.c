@@ -76,7 +76,7 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
   tscTrace("%p query time:%ld sql:%s", pSql, pSql->res.useconds, pSql->sqlstr);
 
   char *sql = malloc(200);
-  int   len = snprintf(sql, 200, "insert into sys.slowquery values(now, '%s', %ld, %ld, '", pSql->pTscObj->user,
+  int   len = snprintf(sql, 200, "insert into sys.slowquery values(now, '%s', %lld, %lld, '", pSql->pTscObj->user,
                      pSql->stime, pSql->res.useconds);
   int sqlLen = snprintf(sql + len, TSDB_SHOW_SQL_LEN, "%s", pSql->sqlstr);
   if (sqlLen > TSDB_SHOW_SQL_LEN - 1) {
