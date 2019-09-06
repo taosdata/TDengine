@@ -504,6 +504,23 @@ void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, i
   return (pNode != NULL) ? pNode->data : NULL;
 }
 
+static FORCE_INLINE void taosDecRef(SDataNode* pNode) {
+  if (pNode == NULL) {
+    return;
+  }
+
+  if (pNode->refCount > 0) {
+    __sync_add_and_fetch_32(&pNode->refCount, -1);
+    pTrace("key:%s is released by app.refcnt:%d", pNode->key, pNode->refCount);
+  } else {
+    /*
+     * safety check.
+     * app may false releases cached object twice, to decrease the refcount more than acquired
+     */
+    pError("key:%s is released by app more than referenced.refcnt:%d", pNode->key, pNode->refCount);
+  }
+}
+
 /**
  * remove data in cache, the data will not be removed immediately.
  * if it is referenced by other object, it will be remain in cache
@@ -522,17 +539,6 @@ void taosRemoveDataFromCache(void *handle, void **data, bool remove) {
     return;
   }
 
-  if (pNode->refCount > 0) {
-    __sync_add_and_fetch_32(&pNode->refCount, -1);
-    pTrace("key:%s is released by app.refcnt:%d", pNode->key, pNode->refCount);
-  } else {
-    /*
-     * safety check.
-     * app may false releases cached object twice, to decrease the refcount more than acquired
-     */
-    pError("key:%s is released by app more than referenced.refcnt:%d", pNode->key, pNode->refCount);
-  }
-
   *data = NULL;
   
   if (remove) {
@@ -541,7 +547,9 @@ void taosRemoveDataFromCache(void *handle, void **data, bool remove) {
 #else
     pthread_mutex_lock(&pObj->mutex);
 #endif
-
+    // pNode may be released immediately by other thread after the reference count of pNode is set to 0,
+    // So we need to lock it in the first place.
+    taosDecRef(pNode);
     taosCacheMoveNodeToTrash(pObj, pNode);
 
 #if defined LINUX
@@ -549,6 +557,8 @@ void taosRemoveDataFromCache(void *handle, void **data, bool remove) {
 #else
     pthread_mutex_unlock(&pObj->mutex);
 #endif
+  } else {
+    taosDecRef(pNode);
   }
 }
 
