@@ -76,8 +76,8 @@ void source_file(TAOS* con, char* fptr);
 void get_history_path(char* history);
 void cleanup_handler(void* arg);
 void exitShell();
-int shellDumpResult(TAOS* con, char* fname, int* error_no);
-void shellPrintNChar(char* str, int width);
+int shellDumpResult(TAOS* con, char* fname, int* error_no, bool printMode);
+void shellPrintNChar(char* str, int width, bool printMode);
 #define max(a, b) ((int)(a) < (int)(b) ? (int)(b) : (int)(a))
 
 /**************** Global variable declarations ****************/
