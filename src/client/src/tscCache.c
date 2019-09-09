@@ -21,8 +21,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
-#include <unistd.h>
 
 #include "tglobalcfg.h"
 #include "tlog.h"
@@ -104,8 +102,8 @@ void *taosAddConnIntoCache(void *handle, void *data, uint32_t ip, short port, ch
 
   pObj = (SConnCache *)handle;
   if (pObj == NULL || pObj->maxSessions == 0) return NULL;
-  if (data == NULL || ip == 0) {
-    tscTrace("data:%p ip:0x%x:%d not valid, not added in cache", data, ip, port);
+  if (data == NULL) {
+    tscTrace("data:%p ip:%p:%d not valid, not added in cache", data, ip, port);
     return NULL;
   }
 

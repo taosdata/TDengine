@@ -322,19 +322,38 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   return true;
 }
 
-bool taosGetDisk(float *diskUsedGB) {
+bool taosGetDisk() {
   struct statvfs info;
   const double   unit = 1024 * 1024 * 1024;
 
-  if (statvfs(tsDirectory, &info)) {
-    *diskUsedGB = 0;
-    tsTotalDiskGB = 0;
-    return false;
+  if (tscEmbedded) {
+    if (statvfs(tsDirectory, &info)) {
+      tsTotalDataDirGB = 0;
+      tsAvailDataDirGB = 0;
+      return false;
+    } else {
+      tsTotalDataDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
+      tsAvailDataDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
+    }
   }
 
-  float diskAvail = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
-  tsTotalDiskGB = (int32_t)((double)info.f_blocks * (double)info.f_frsize / unit);
-  *diskUsedGB = (float)tsTotalDiskGB - diskAvail;
+  if (statvfs(logDir, &info)) {
+    tsTotalLogDirGB = 0;
+    tsAvailLogDirGB = 0;
+    return false;
+  } else {
+    tsTotalLogDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
+    tsAvailLogDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
+  }
+
+  if (statvfs("/tmp", &info)) {
+    tsTotalTmpDirGB = 0;
+    tsAvailTmpDirGB = 0;
+    return false;
+  } else {
+    tsTotalTmpDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
+    tsAvailTmpDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
+  }
 
   return true;
 }
@@ -549,7 +568,7 @@ void taosGetSystemInfo() {
   float tmp1, tmp2;
   taosGetSysMemory(&tmp1);
   taosGetProcMemory(&tmp2);
-  taosGetDisk(&tmp1);
+  taosGetDisk();
   taosGetBandSpeed(&tmp1);
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
@@ -563,7 +582,7 @@ void tsPrintOsInfo() {
   pPrint(" os openMax:             %ld", tsOpenMax);
   pPrint(" os streamMax:           %ld", tsStreamMax);
   pPrint(" os numOfCores:          %d", tsNumOfCores);
-  pPrint(" os totalDisk:           %d(GB)", tsTotalDiskGB);
+  pPrint(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
   pPrint(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
 
   struct utsname buf;

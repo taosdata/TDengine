@@ -464,7 +464,7 @@ int taosDumpOut(struct arguments *arguments) {
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
   while ((row = taos_fetch_row(result)) != NULL) {
-    if (strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "sys", fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0 &&
+    if (strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "monitor", fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0 &&
         (!arguments->allow_sys))
       continue;
 
@@ -626,7 +626,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp) {
     strncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
     strncpy(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
 
-    write(fd, &tableRecord, sizeof(STableRecord));
+    twrite(fd, &tableRecord, sizeof(STableRecord));
   }
 
   taos_free_result(result);
@@ -831,7 +831,7 @@ int32_t taosDumpMetric(char *metric, struct arguments *arguments, FILE *fp) {
     memset(&tableRecord, 0, sizeof(STableRecord));
     strncpy(tableRecord.name, (char *)row[0], fields[0].bytes);
     strcpy(tableRecord.metric, metric);
-    write(fd, &tableRecord, sizeof(STableRecord));
+    twrite(fd, &tableRecord, sizeof(STableRecord));
   }
 
   taos_free_result(result);

@@ -30,7 +30,7 @@ typedef struct SSQLToken {
 } SSQLToken;
 
 char *tscGetToken(char *string, char **token, int *tokenLen);
-char *tscGetTokenDelimiter(char *string, char **token, int *tokenLen, char *delimiters);
+char *tscGetTokenDelimiter(char *string, char **token, int *tokenLen, const char *delimiters);
 
 /**
  * tokenizer for sql string

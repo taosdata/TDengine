@@ -37,13 +37,13 @@ extern "C" {
 
 struct SQLFunctionCtx;
 
-typedef struct SLocalDataSrc {
+typedef struct SLocalDataSource {
   tExtMemBuffer *pMemBuffer;
   int32_t        flushoutIdx;
   int32_t        pageId;
   int32_t        rowIdx;
   tFilePage      filePage;
-} SLocalDataSrc;
+} SLocalDataSource;
 
 enum {
   TSC_LOCALREDUCE_READY = 0x0,
@@ -52,7 +52,7 @@ enum {
 };
 
 typedef struct SLocalReducer {
-  SLocalDataSrc **pLocalDataSrc;
+  SLocalDataSource **pLocalDataSrc;
   int32_t         numOfBuffer;
   int32_t         numOfCompleted;
 

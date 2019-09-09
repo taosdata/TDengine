@@ -44,7 +44,7 @@ void dnodeInitModules() {
   tsModule[TSDB_MOD_HTTP].cleanUpFp = httpCleanUpSystem;
   tsModule[TSDB_MOD_HTTP].startFp = httpStartSystem;
   tsModule[TSDB_MOD_HTTP].stopFp = httpStopSystem;
-  tsModule[TSDB_MOD_HTTP].num = tsEnableHttpModule ? -1 : 0;
+  tsModule[TSDB_MOD_HTTP].num = (tsEnableHttpModule == 1) ? -1 : 0;
   tsModule[TSDB_MOD_HTTP].curNum = 0;
   tsModule[TSDB_MOD_HTTP].equalVnodeNum = 0;
 
@@ -53,7 +53,7 @@ void dnodeInitModules() {
   tsModule[TSDB_MOD_MONITOR].cleanUpFp = monitorCleanUpSystem;
   tsModule[TSDB_MOD_MONITOR].startFp = monitorStartSystem;
   tsModule[TSDB_MOD_MONITOR].stopFp = monitorStopSystem;
-  tsModule[TSDB_MOD_MONITOR].num = tsEnableMonitorModule ? -1 : 0;
+  tsModule[TSDB_MOD_MONITOR].num = (tsEnableMonitorModule == 1) ? -1 : 0;
   tsModule[TSDB_MOD_MONITOR].curNum = 0;
   tsModule[TSDB_MOD_MONITOR].equalVnodeNum = 0;
 }
@@ -83,6 +83,17 @@ void taosCreateTierDirectory() {
   mkdir(fileName, 0755);
 }
 
+void dnodeCheckDbRunning(const char* dir) {
+  char filepath[256] = {0};
+  sprintf(filepath, "%s/.running", dir);
+  int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  int ret = flock(fd, LOCK_EX | LOCK_NB);
+  if (ret != 0) {
+    dError("failed to lock file:%s ret:%d, database may be running, quit", filepath, ret);
+    exit(0);
+  }
+}
+
 int dnodeInitSystem() {
   char        temp[128];
   struct stat dirstat;
@@ -107,10 +118,15 @@ int dnodeInitSystem() {
   }
 
   strcpy(tsDirectory, dataDir);
+  if (stat(dataDir, &dirstat) < 0) {
+    mkdir(dataDir, 0755);
+  }
+
   taosCreateTierDirectory();
 
   sprintf(mgmtDirectory, "%s/mgmt", tsDirectory);
   sprintf(tsDirectory, "%s/tsdb", dataDir);
+  dnodeCheckDbRunning(dataDir);
 
   tsPrintGlobalConfig();
   dPrint("Server IP address is:%s", tsInternalIp);

@@ -17,13 +17,12 @@
 #define TDENGINE_HTTP_JSON_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
-#define JSON_BUFFER_SIZE 4096
+#define JSON_BUFFER_SIZE 10240
 struct HttpContext;
 
 enum { JsonNumber, JsonString, JsonBoolean, JsonArray, JsonObject, JsonNull };
-
-typedef enum { JsonCompress, JsonUnCompress } JsonCompressFlag;
 
 extern char JsonItmTkn;
 extern char JsonObjStt;
@@ -47,7 +46,8 @@ typedef struct {
 
 // http response
 int httpWriteBuf(struct HttpContext* pContext, const char* buf, int sz);
-int httpWriteBufByFd(int fd, const char* buf, int sz);
+int httpWriteBufNoTrace(struct HttpContext* pContext, const char* buf, int sz);
+int httpWriteBufByFd(struct HttpContext* pContext, const char* buf, int sz);
 
 // builder callback
 typedef void (*httpJsonBuilder)(JsonBuf* buf, void* jsnHandle);
@@ -55,14 +55,16 @@ typedef void (*httpJsonBuilder)(JsonBuf* buf, void* jsnHandle);
 // buffer
 void httpInitJsonBuf(JsonBuf* buf, struct HttpContext* pContext);
 void httpWriteJsonBufHead(JsonBuf* buf);
-int httpWriteJsonBufBody(JsonBuf* buf);
+int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast);
 void httpWriteJsonBufEnd(JsonBuf* buf);
 
 // value
 void httpJsonString(JsonBuf* buf, char* sVal, int len);
+void httpJsonOriginString(JsonBuf* buf, char* sVal, int len);
 void httpJsonStringForTransMean(JsonBuf* buf, char* SVal, int maxLen);
 void httpJsonInt64(JsonBuf* buf, int64_t num);
-void httpJsonTimestamp(JsonBuf* buf, int64_t t);
+void httpJsonTimestamp(JsonBuf* buf, int64_t t, bool us);
+void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, bool us);
 void httpJsonInt(JsonBuf* buf, int num);
 void httpJsonFloat(JsonBuf* buf, float num);
 void httpJsonDouble(JsonBuf* buf, double num);

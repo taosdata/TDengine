@@ -17,31 +17,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
-#include <arpa/inet.h>
 #include <ctype.h>
 #include <fcntl.h>
-#include <ifaddrs.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
 #include <pthread.h>
 #include <stdarg.h>
-#include <sys/socket.h>
-#include <sys/time.h>
 #include <sys/types.h>
-#include <sys/un.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "tglobalcfg.h"
 #include "tlog.h"
 #include "tsocket.h"
 #include "tutil.h"
 
 unsigned int ip2uint(const char *const ip_addr);
-int taosSetNonblocking(int sock, int on);
-int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen);
 
 /*
  * Function to get the public ip address of current machine. If get IP
@@ -312,9 +301,15 @@ int taosOpenUdpSocket(char *ip, short port) {
 
   nocheck = 1;
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_NO_CHECK, (void *)&nocheck, sizeof(nocheck)) < 0) {
-    pError("setsockopt SO_NO_CHECK failed: %d (%s)", errno, strerror(errno));
-    close(sockFd);
-    return -1;
+    // no_check is not implemented in WSL
+    // skip the following check if system running WSLv1
+    if (!taosIsRunningWSLv1()) {
+      pError("setsockopt SO_NO_CHECK failed: %d (%s)", errno, strerror(errno));
+      close(sockFd);
+      return -1;
+    } else {
+      pError("Skipping: setsockopt SO_NO_CHECK failed: %d (%s)", errno, strerror(errno));
+    }
   }
 
   ttl = 128;

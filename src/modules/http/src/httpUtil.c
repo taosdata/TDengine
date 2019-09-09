@@ -357,3 +357,94 @@ char *httpGetCmdsString(HttpContext *pContext, int pos) {
 
   return multiCmds->buffer + pos;
 }
+
+int httpGzipDeCompress(char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData) {
+  int err = 0;
+  z_stream gzipStream = {0};
+
+  static char dummyHead[2] = {
+          0x8 + 0x7 * 0x10,
+          (((0x8 + 0x7 * 0x10) * 0x100 + 30) / 31 * 31) & 0xFF,
+  };
+
+  gzipStream.zalloc = (alloc_func) 0;
+  gzipStream.zfree = (free_func) 0;
+  gzipStream.opaque = (voidpf) 0;
+  gzipStream.next_in = (Bytef *) srcData;
+  gzipStream.avail_in = 0;
+  gzipStream.next_out = (Bytef *) destData;
+  if (inflateInit2(&gzipStream, 47) != Z_OK) {
+    return -1;
+  }
+
+  while (gzipStream.total_out < *nDestData && gzipStream.total_in < nSrcData) {
+    gzipStream.avail_in = gzipStream.avail_out = nSrcData;  //1
+    if ((err = inflate(&gzipStream, Z_NO_FLUSH)) == Z_STREAM_END) {
+      break;
+    }
+
+    if (err != Z_OK) {
+      if (err == Z_DATA_ERROR) {
+        gzipStream.next_in = (Bytef *) dummyHead;
+        gzipStream.avail_in = sizeof(dummyHead);
+        if ((err = inflate(&gzipStream, Z_NO_FLUSH)) != Z_OK) {
+          return -2;
+        }
+      } else return -3;
+    }
+  }
+
+  if (inflateEnd(&gzipStream) != Z_OK) {
+    return -4;
+  }
+  *nDestData = gzipStream.total_out;
+
+  return 0;
+}
+
+int httpGzipCompressInit(HttpContext *pContext) {
+  pContext->gzipStream.zalloc = (alloc_func) 0;
+  pContext->gzipStream.zfree = (free_func) 0;
+  pContext->gzipStream.opaque = (voidpf) 0;
+  if (deflateInit2(&pContext->gzipStream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, MAX_WBITS + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+    return -1;
+  }
+
+  return 0;
+}
+
+int httpGzipCompress(HttpContext *pContext, char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData, bool isTheLast) {
+  int err = 0;
+  pContext->gzipStream.next_in = (Bytef *) srcData;
+  pContext->gzipStream.avail_in = (uLong) nSrcData;
+  pContext->gzipStream.next_out = (Bytef *) destData;
+  pContext->gzipStream.avail_out = (uLong) (*nDestData);
+
+  while (pContext->gzipStream.avail_in != 0 && pContext->gzipStream.total_out < (uLong) (*nDestData)) {
+    if (deflate(&pContext->gzipStream, Z_FULL_FLUSH) != Z_OK) {
+      return -1;
+    }
+  }
+
+  if (pContext->gzipStream.avail_in != 0) {
+    return pContext->gzipStream.avail_in;
+  }
+
+  if (isTheLast) {
+    for (;;) {
+      if ((err = deflate(&pContext->gzipStream, Z_FINISH)) == Z_STREAM_END) {
+        break;
+      }
+      if (err != Z_OK) {
+        return -2;
+      }
+    }
+
+    if (deflateEnd(&pContext->gzipStream) != Z_OK) {
+      return -3;
+    }
+  }
+
+  *nDestData = (int32_t) (pContext->gzipStream.total_out);
+  return 0;
+}

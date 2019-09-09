@@ -49,10 +49,10 @@ void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, i
  * if it is referenced by other object, it will be remain in cache
  * @param handle    cache object
  * @param data      not the key, actually referenced data
- * @param isForce   force model, reduce the ref count and move the data into
+ * @param remove   force model, reduce the ref count and move the data into
  * pTrash
  */
-void taosRemoveDataFromCache(void *handle, void **data, bool isForce);
+void taosRemoveDataFromCache(void *handle, void **data, bool remove);
 
 /**
  * update data in cache

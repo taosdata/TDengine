@@ -16,6 +16,7 @@
 #ifndef TDENGINE_TUTIL_H
 #define TDENGINE_TUTIL_H
 
+#include "os.h"
 #include "tmd5.h"
 
 #ifdef __cplusplus
@@ -45,6 +46,11 @@ extern "C" {
     }            \
   }
 
+#ifdef WINDOWS
+#define taosCloseSocket(fd) closesocket(fd)
+#define taosWriteSocket(fd, buf, len) send(fd, buf, len, 0)
+#define taosReadSocket(fd, buf, len) recv(fd, buf, len, 0)
+#else
 #define taosCloseSocket(x) \
   {                        \
     if (VALIDFD(x)) {      \
@@ -54,6 +60,7 @@ extern "C" {
   }
 #define taosWriteSocket(fd, buf, len) write(fd, buf, len)
 #define taosReadSocket(fd, buf, len) read(fd, buf, len)
+#endif
 
 #define tclose(x) taosCloseSocket(x)
 
@@ -96,8 +103,9 @@ extern "C" {
 #endif
 
 #define DEFAULT_UNICODE_ENCODEC "UCS-4LE"
-
-#define SWAP(a, b)         \
+  
+#ifdef LINUX
+#define SWAP(a, b, c)      \
   do {                     \
     typeof(a) __tmp = (a); \
     (a) = (b);             \
@@ -117,6 +125,20 @@ extern "C" {
     typeof(b) __b = (b);     \
     (__a < __b) ? __a : __b; \
   })
+
+#else
+
+#define SWAP(a, b, c)      \
+  do {                     \
+    c __tmp = (c)(a);      \
+    (a) = (c)(b);          \
+    (b) = __tmp;           \
+  } while (0)
+
+#define MAX(a,b)  (((a)>(b))?(a):(b))
+#define MIN(a,b)  (((a)<(b))?(a):(b))
+
+#endif
 
 #define DEFAULT_COMP(x, y)       \
   do {                           \
@@ -139,7 +161,11 @@ extern "C" {
 // align to 8bytes
 #define ALIGN8(n) ALIGN_NUM(n, 8)
 
+#ifdef WINDOWS
+#define MILLISECOND_PER_SECOND (1000i64)
+#else
 #define MILLISECOND_PER_SECOND (1000L)
+#endif
 
 #define MILLISECOND_PER_MINUTE (MILLISECOND_PER_SECOND * 60)
 #define MILLISECOND_PER_HOUR   (MILLISECOND_PER_MINUTE * 60)
@@ -154,12 +180,11 @@ int32_t strdequote(char *src);
 
 void strtrim(char *src);
 
-char *strnchr(char *haystack, char needle, int32_t len);
-char *strnchrNoquote(char *haystack, char needle, int32_t len);  
+char *strnchr(char *haystack, char needle, int32_t len, bool skipquote);
 
 char **strsplit(char *src, const char *delim, int32_t *num);
 
-void strtolower(char *src, char *dst);
+char* strtolower(char *dst, const char *src);
 
 int64_t strnatoi(char *num, int32_t len);
 
@@ -176,12 +201,6 @@ int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
 int64_t str2int64(char *str);
 
 int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath);
-
-bool taosCheckPthreadValid(pthread_t thread);
-
-void taosResetPthread(pthread_t *thread);
-
-int64_t taosGetPthreadId();
 
 int32_t taosInitTimer(void *(*callback)(void *), int32_t ms);
 
@@ -210,10 +229,23 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, cha
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
 
+#ifdef WINDOWS
+int32_t __sync_val_compare_and_swap_32(int32_t *ptr, int32_t oldval, int32_t newval);
+int32_t __sync_add_and_fetch_32(int32_t *ptr, int32_t val);
+int64_t __sync_val_compare_and_swap_64(int64_t *ptr, int64_t oldval, int64_t newval);
+int64_t __sync_add_and_fetch_64(int64_t *ptr, int64_t val);
+#define twrite write
+#ifndef PATH_MAX
+#define PATH_MAX 256
+#endif
+#else
 #define __sync_val_compare_and_swap_64 __sync_val_compare_and_swap
 #define __sync_val_compare_and_swap_32 __sync_val_compare_and_swap
 #define __sync_add_and_fetch_64 __sync_add_and_fetch
 #define __sync_add_and_fetch_32 __sync_add_and_fetch
+ssize_t tsendfile(int dfd, int sfd, off_t *offset, size_t size);
+ssize_t twrite(int fd, void *buf, size_t n);
+#endif
 
 #ifdef __cplusplus
 }

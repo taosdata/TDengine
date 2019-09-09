@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <stdint.h>
 
+#include "os.h"
 #include "taosmsg.h"
 #include "textbuffer.h"
 #include "tinterpolation.h"
@@ -38,6 +39,15 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char
      *
      * TODO dynmaically decide the start time of a day
      */
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+    // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
+    int64_t timezone = _timezone;
+    int32_t daylight = _daylight;
+    char**  tzname = _tzname;
+#endif
+#endif
+
     int64_t revStartime = (startTime / timeRange) * timeRange + timezone * MILLISECOND_PER_SECOND;
     int64_t revEndtime = revStartime + timeRange - 1;
     if (revEndtime < startTime) {
@@ -117,7 +127,7 @@ int32_t taosGetNumOfResWithoutLimit(SInterpolationInfo* pInterpoInfo, int64_t* p
   }
 }
 
-bool taosHasNoneInterpoPoints(SInterpolationInfo* pInterpoInfo) { return taosNumOfRemainPoints(pInterpoInfo) > 0; }
+bool taosHasRemainsDataForInterpolation(SInterpolationInfo* pInterpoInfo) { return taosNumOfRemainPoints(pInterpoInfo) > 0; }
 
 int32_t taosNumOfRemainPoints(SInterpolationInfo* pInterpoInfo) {
   if (pInterpoInfo->rowIdx == -1 || pInterpoInfo->numOfRawDataInRows == 0) {

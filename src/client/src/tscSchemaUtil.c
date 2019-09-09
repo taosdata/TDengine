@@ -16,8 +16,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "taosmsg.h"
 #include "tschemautil.h"
 #include "ttypes.h"

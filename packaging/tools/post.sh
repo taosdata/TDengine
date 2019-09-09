@@ -38,26 +38,26 @@ if command -v sudo > /dev/null; then
     csudo="sudo"
 fi
 
+initd_mod=0
 service_mod=2
 if pidof systemd &> /dev/null; then
     service_mod=0
+elif $(which insserv &> /dev/null); then
+    service_mod=1
+    initd_mod=1
+    service_config_dir="/etc/init.d"
 elif $(which update-rc.d &> /dev/null); then
     service_mod=1
+    initd_mod=2
     service_config_dir="/etc/init.d"
 else 
     service_mod=2
 fi
 
 function kill_taosd() {
-  ${csudo} pkill -f taosd || :
-}
-
-function is_using_systemd() {
-    if pidof systemd &> /dev/null; then
-        return 0
-    else
-        return 1
-    fi
+#  ${csudo} pkill -f taosd || :
+  pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+  ${csudo} kill -9 ${pid}   || :
 }
 
 function install_include() {
@@ -66,7 +66,7 @@ function install_include() {
 }
 
 function install_lib() {
-    ${csudo} rm -f ${lib_link_dir}/libtaos.so || :
+    ${csudo} rm -f ${lib_link_dir}/libtaos* || :
     
     ${csudo} ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
@@ -77,6 +77,7 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
+    ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
 
     ${csudo} chmod 0555 ${bin_dir}/*
@@ -85,6 +86,7 @@ function install_bin() {
     [ -x ${bin_dir}/taos ] && ${csudo} ln -s ${bin_dir}/taos ${bin_link_dir}/taos             || :
     [ -x ${bin_dir}/taosd ] && ${csudo} ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd          || :
     [ -x ${bin_dir}/taosdump ] && ${csudo} ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
+    [ -x ${bin_dir}/taosdemo ] && ${csudo} ln -s ${bin_dir}/taosdemo ${bin_link_dir}/taosdemo || :
 #   [ -x ${bin_dir}/remove.sh ] && ${csudo} ln -s ${bin_dir}/remove.sh ${bin_link_dir}/rmtaos || :
 }
 
@@ -101,12 +103,18 @@ function install_config() {
 
 function clean_service_on_sysvinit() {
     restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-    #if pidof taosd &> /dev/null; then
-    #    ${csudo} service taosd stop || :
-    #fi
+    if pidof taosd &> /dev/null; then
+        ${csudo} service taosd stop || :
+    fi
     ${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
     ${csudo} rm -f ${service_config_dir}/taosd || :
-    ${csudo} update-rc.d -f taosd remove || :
+
+    if ((${initd_mod}==1)); then
+        ${csudo} grep -q -F "taos" /etc/inittab && ${csudo} insserv -r taosd || :
+    elif ((${initd_mod}==2)); then
+        ${csudo} grep -q -F "taos" /etc/inittab && ${csudo} update-rc.d -f taosd remove || :
+    fi
+#    ${csudo} update-rc.d -f taosd remove || :
     ${csudo} init q || :
 }
 

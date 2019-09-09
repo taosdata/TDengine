@@ -87,8 +87,8 @@ void httpRestoreSession(HttpContext *pContext) {
 
   pthread_mutex_lock(&server->serverMutex);
   session->access--;
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, restore session:%p:%s:%p, access:%d, expire:%d",
-            pContext, pContext->fd, pContext->ipstr, pContext->user, session, session->id, session->taos,
+  httpTrace("context:%p, ip:%s, user:%s, restore session:%p:%s:%p, access:%d, expire:%d",
+            pContext, pContext->ipstr, pContext->user, session, session->id, session->taos,
             session->access, pContext->session->expire);
   pthread_mutex_unlock(&server->serverMutex);
 }

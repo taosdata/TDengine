@@ -25,9 +25,10 @@
 #include "ttimer.h"
 #include "tutil.h"
 
-#define SQL_LENGTH    1024
-#define LOG_LEN_STR   80
-#define IP_LEN_STR    15
+#define SQL_LENGTH     1024
+#define LOG_LEN_STR    80
+#define IP_LEN_STR     15
+#define CHECK_INTERVAL 1000
 
 typedef enum {
   MONITOR_CMD_CREATE_DB,
@@ -53,6 +54,7 @@ typedef struct {
   int8_t state;
   char   sql[SQL_LENGTH];
   void * initTimer;
+  void * diskTimer;
 } MonitorConn;
 
 MonitorConn *monitor = NULL;
@@ -69,9 +71,15 @@ void monitorSaveLog(int level, const char *const format, ...);
 void (*monitorCountReqFp)(SCountInfo *info) = NULL;
 void monitorExecuteSQL(char *sql);
 
+void monitorCheckDiskUsage(void *para, void *unused) {
+  taosGetDisk();
+  taosTmrReset(monitorCheckDiskUsage, CHECK_INTERVAL, NULL, tscTmr, &monitor->diskTimer);
+}
+
 int monitorInitSystem() {
   monitor = (MonitorConn *)malloc(sizeof(MonitorConn));
   memset(monitor, 0, sizeof(MonitorConn));
+  taosTmrReset(monitorCheckDiskUsage, CHECK_INTERVAL, NULL, tscTmr, &monitor->diskTimer);
   return 0;
 }
 
@@ -265,13 +273,7 @@ int monitorBuildCpuSql(char *sql) {
 
 // unit is GB
 int monitorBuildDiskSql(char *sql) {
-  float diskUsedGB = 0;
-  bool  suc = taosGetDisk(&diskUsedGB);
-  if (!suc) {
-    monitorError("monitor:%p, get disk info failed.", monitor->conn);
-  }
-
-  return sprintf(sql, ", %f, %d", diskUsedGB, tsTotalDiskGB);
+  return sprintf(sql, ", %f, %d", (tsTotalDataDirGB - tsAvailDataDirGB), (int32_t)tsTotalDataDirGB);
 }
 
 // unit is Kb

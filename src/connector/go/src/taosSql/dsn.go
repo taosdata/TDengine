@@ -18,39 +18,41 @@ package taosSql
 import (
 	"errors"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
 
 var (
-	errInvalidDSNUnescaped       = errors.New("invalid DSN: did you forget to escape a param value?")
-	errInvalidDSNAddr            = errors.New("invalid DSN: network address not terminated (missing closing brace)")
-	errInvalidDSNNoSlash         = errors.New("invalid DSN: missing the slash separating the database name")
+	errInvalidDSNUnescaped = errors.New("invalid DSN: did you forget to escape a param value?")
+	errInvalidDSNAddr      = errors.New("invalid DSN: network address not terminated (missing closing brace)")
+	errInvalidDSNPort      = errors.New("invalid DSN: network port is not a valid number")
+	errInvalidDSNNoSlash   = errors.New("invalid DSN: missing the slash separating the database name")
 )
 
 // Config is a configuration parsed from a DSN string.
 // If a new Config is created instead of being parsed from a DSN string,
 // the NewConfig function should be used, which sets default values.
 type config struct {
-	user             string            // Username
-	passwd           string            // Password (requires User)
-	net              string            // Network type
-	addr             string            // Network address (requires Net)
-	port             int
-	dbName           string            // Database name
-	params           map[string]string // Connection parameters
-	loc              *time.Location    // Location for time.Time values
-	columnsWithAlias        bool // Prepend table alias to column names
-	interpolateParams       bool // Interpolate placeholders into query string
-	parseTime               bool // Parse time values to time.Time
+	user              string // Username
+	passwd            string // Password (requires User)
+	net               string // Network type
+	addr              string // Network address (requires Net)
+	port              int
+	dbName            string            // Database name
+	params            map[string]string // Connection parameters
+	loc               *time.Location    // Location for time.Time values
+	columnsWithAlias  bool              // Prepend table alias to column names
+	interpolateParams bool              // Interpolate placeholders into query string
+	parseTime         bool              // Parse time values to time.Time
 }
 
 // NewConfig creates a new Config and sets default values.
 func newConfig() *config {
 	return &config{
-		loc:                  time.UTC,
-		interpolateParams:    true,
-		parseTime:            true,
+		loc:               time.UTC,
+		interpolateParams: true,
+		parseTime:         true,
 	}
 }
 
@@ -100,7 +102,15 @@ func parseDSN(dsn string) (cfg *config, err error) {
 							}
 							return nil, errInvalidDSNAddr
 						}
-						cfg.addr = dsn[k+1 : i-1]
+						strs := strings.Split(dsn[k+1:i-1], ":")
+						if len(strs) == 1 {
+							return nil, errInvalidDSNAddr
+						}
+						cfg.addr = strs[0]
+						cfg.port, err = strconv.Atoi(strs[1])
+						if err != nil {
+							return nil, errInvalidDSNPort
+						}
 						break
 					}
 				}
@@ -190,4 +200,3 @@ func parseDSNParams(cfg *config, params string) (err error) {
 
 	return
 }
-

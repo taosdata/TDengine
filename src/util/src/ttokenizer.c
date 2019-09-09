@@ -16,8 +16,8 @@
 #include <ctype.h>
 #include <pthread.h>
 #include <string.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "shash.h"
 #include "tsql.h"
 #include "tutil.h"

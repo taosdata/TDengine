@@ -26,7 +26,7 @@ inc_link_dir="/usr/include"
 #install main path
 install_main_dir="/usr/local/taos"
 
-# old bin
+# old bin dir
 bin_dir="/usr/local/taos/bin"
 
 service_config_dir="/etc/systemd/system"
@@ -43,17 +43,26 @@ if command -v sudo > /dev/null; then
     csudo="sudo"
 fi
 
-function is_using_systemd() {
-    if pidof systemd &> /dev/null; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-if ! is_using_systemd; then
+initd_mod=0
+service_mod=2
+if pidof systemd &> /dev/null; then
+    service_mod=0
+elif $(which insserv &> /dev/null); then
+    service_mod=1
+    initd_mod=1
     service_config_dir="/etc/init.d"
+elif $(which update-rc.d &> /dev/null); then
+    service_mod=1
+    initd_mod=2
+    service_config_dir="/etc/init.d"
+else 
+    service_mod=2
 fi
+
+function kill_taosd() {
+  pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+  ${csudo} kill -9 ${pid}   || :
+}
 
 function install_main_path() {
     #create install main dir and all sub dir
@@ -65,32 +74,32 @@ function install_main_path() {
     ${csudo} mkdir -p ${install_main_dir}/driver
     ${csudo} mkdir -p ${install_main_dir}/examples
     ${csudo} mkdir -p ${install_main_dir}/include
-    ${csudo} mkdir -p ${install_main_dir}/init.d     
+    ${csudo} mkdir -p ${install_main_dir}/init.d
 }
 
 function install_bin() {
     # Remove links
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
+    ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
 
-    ${csudo} cp -r ${binary_dir}/build/bin/taos ${install_main_dir}/bin 
-    ${csudo} cp -r ${binary_dir}/build/bin/taosd ${install_main_dir}/bin
-    ${csudo} cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin
-    ${csudo} cp -r ${script_dir}/remove.sh ${install_main_dir}/bin       
+    ${csudo} cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin 
+    ${csudo} cp -r ${script_dir}/remove.sh   ${install_main_dir}/bin       
     ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
-    [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos             || :
-    [ -x ${install_main_dir}/bin/taosd ] && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd          || :   
-    [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
-    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos || :
+    [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos         || :
+    [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd       || : 
+    [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+    [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || : 
+    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
 }
 
 function install_lib() {
     # Remove links
-    ${csudo} rm -f ${lib_link_dir}/libtaos.so     || :
+    ${csudo} rm -f ${lib_link_dir}/libtaos.*     || :    
     
     versioninfo=$(${script_dir}/get_version.sh)
     ${csudo} cp ${binary_dir}/build/lib/libtaos.so.${versioninfo} ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
@@ -149,7 +158,13 @@ function clean_service_on_sysvinit() {
     fi
     ${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
     ${csudo} rm -f ${service_config_dir}/taosd || :
-    ${csudo} update-rc.d -f taosd remove || :
+
+    if ((${initd_mod}==1)); then
+        ${csudo} grep -q -F "taos" /etc/inittab && ${csudo} insserv -r taosd || :
+    elif ((${initd_mod}==2)); then
+        ${csudo} grep -q -F "taos" /etc/inittab && ${csudo} update-rc.d -f taosd remove || :
+    fi
+#    ${csudo} update-rc.d -f taosd remove || :
     ${csudo} init q || :
 }
 
@@ -159,12 +174,18 @@ function install_service_on_sysvinit() {
     sleep 1
 
     # Install taosd service
-    ${csudo} cp ${script_dir}/../rpm/init.d/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
+    ${csudo} cp -f ${script_dir}/../deb/init.d/taosd ${install_main_dir}/init.d
+    ${csudo} cp    ${script_dir}/../deb/init.d/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
     restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
 
     ${csudo} grep -q -F "$restart_config_str" /etc/inittab || ${csudo} bash -c "echo '${restart_config_str}' >> /etc/inittab"
     # TODO: for centos, change here
-    ${csudo} update-rc.d taosd defaults
+    if ((${initd_mod}==1)); then
+        ${csudo} insserv taosd || :
+    elif ((${initd_mod}==2)); then
+        ${csudo} update-rc.d taosd defaults || :
+    fi
+#    ${csudo} update-rc.d taosd defaults
     # chkconfig mysqld on
 }
 
@@ -210,10 +231,13 @@ function install_service_on_systemd() {
 }
 
 function install_service() {
-    if is_using_systemd; then
+    if ((${service_mod}==0)); then
         install_service_on_systemd
-    elif $(which update-rc.d &> /dev/null); then
+    elif ((${service_mod}==1)); then
         install_service_on_sysvinit
+    else
+        # must manual start taosd
+        kill_taosd
     fi
 }
 
@@ -221,37 +245,40 @@ function update_TDengine() {
     echo -e "${GREEN}Start to update TDEngine...${NC}"
     # Stop the service if running
     if pidof taosd &> /dev/null; then
-        if is_using_systemd; then
+        if ((${service_mod}==0)); then
             ${csudo} systemctl stop taosd || :
-        else
+        elif ((${service_mod}==1)); then
             ${csudo} service taosd stop || :
+        else
+            kill_taosd
         fi
         sleep 1
     fi
-
+    
     install_main_path
 
     install_log
     install_header
     install_lib
-    install_bin
-    # install_service
-    install_config
     install_connector
     install_examples
+    install_bin
+    install_service
+    install_config
 
-    echo
-    echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
-    echo
-    echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-    # if is_using_systemd; then
-    #     echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
-    # else
-    #     echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} update-rc.d taosd default  ${RED} for the first time${NC}"
-    #     echo -e "                      : ${csudo} service taosd start ${RED} after${NC}"
-    # fi
+     echo
+     echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+     echo
+     echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+     if ((${service_mod}==0)); then
+         echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+     elif ((${service_mod}==1)); then
+            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
+      else
+          echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
+      fi
 
-    # echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
     echo
     echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
 }
@@ -264,26 +291,27 @@ function install_TDengine() {
     install_data
     install_log 
     install_header
-    install_bin
     install_lib
-    # install_service
-    install_config	    
     install_connector
     install_examples
 
+    install_bin
+    install_service
+    install_config	
     # Ask if to start the service
     echo
     echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
     echo
     echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-    # if is_using_systemd; then
-    #    echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
-    # else
-    #    echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} update-rc.d taosd default  ${RED} for the first time${NC}"
-    #    echo -e "                      : ${csudo} service taosd start ${RED} after${NC}"
-    #3 fi
+    if ((${service_mod}==0)); then
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+    elif ((${service_mod}==1)); then
+            echo -e "${GREEN_DARK}To start TDengine    ${NC}: ${csudo} service taosd start${NC}"
+    else
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
+    fi
 
-    # echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
     echo
     echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
 }

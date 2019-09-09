@@ -13,20 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
 #include <locale.h>
-#include <netinet/in.h>
 #include <pthread.h>
-#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "taosmsg.h"
 #include "tcache.h"
 #include "tlog.h"
@@ -51,11 +47,17 @@ int     slaveIndex;
 void *  tscTmr;
 void *  tscQhandle;
 void *  tscConnCache;
+void *  tscCheckDiskUsageTmr;
 int     tsInsertHeadSize;
 
 extern int            tscEmbedded;
 int                   tscNumOfThreads;
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
+
+void tscCheckDiskUsage(void *para, void *unused) {
+  taosGetDisk();
+  taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
+}
 
 void taos_init_imp() {
   char        temp[128];
@@ -85,6 +87,7 @@ void taos_init_imp() {
 
     tsReadGlobalConfig();
     tsPrintGlobalConfig();
+    
 
     tscTrace("starting to initialize TAOS client ...");
     tscTrace("Local IP address is:%s", tsLocalIp);
@@ -114,7 +117,7 @@ void taos_init_imp() {
   rpcInit.numOfChanns = tscNumOfThreads;
   rpcInit.sessionsPerChann = tsMaxVnodeConnections / tscNumOfThreads;
   rpcInit.idMgmt = TAOS_ID_FREE;
-  rpcInit.noFree = 1;
+  rpcInit.noFree = 0;
   rpcInit.connType = TAOS_CONN_UDP;
   rpcInit.qhandle = tscQhandle;
   pVnodeConn = taosOpenRpc(&rpcInit);
@@ -135,7 +138,7 @@ void taos_init_imp() {
   rpcInit.numOfChanns = 1;
   rpcInit.sessionsPerChann = tsMaxMgmtConnections;
   rpcInit.idMgmt = TAOS_ID_FREE;
-  rpcInit.noFree = 1;
+  rpcInit.noFree = 0;
   rpcInit.connType = TAOS_CONN_UDP;
   rpcInit.qhandle = tscQhandle;
   pTscMgmtConn = taosOpenRpc(&rpcInit);
@@ -145,7 +148,10 @@ void taos_init_imp() {
   }
 
   tscTmr = taosTmrInit(tsMaxMgmtConnections * 2, 200, 60000, "TSC");
-
+  if (tscEmbedded == 0) {
+    taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);
+  }
+  
   int64_t refreshTime = tsMetricMetaKeepTimer < tsMeterMetaKeepTimer ? tsMetricMetaKeepTimer : tsMeterMetaKeepTimer;
   refreshTime = refreshTime > 2 ? 2 : refreshTime;
   refreshTime = refreshTime < 1 ? 1 : refreshTime;

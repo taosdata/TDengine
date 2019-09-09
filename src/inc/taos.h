@@ -49,7 +49,7 @@ typedef enum {
   TSDB_MAX_OPTIONS
 } TSDB_OPTION;
 
-typedef struct taosField{
+typedef struct taosField {
   char  name[64];
   short bytes;
   char  type;

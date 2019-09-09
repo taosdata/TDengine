@@ -9,6 +9,7 @@ module.exports = TDengineConnection;
  * @class TDengineConnection
  * @constructor
  * @example
+ * //Initialize a new connection
  * var conn = new TDengineConnection({host:"127.0.0.1", user:"root", password:"taosdata", config:"/etc/taos",port:0})
  *
  */

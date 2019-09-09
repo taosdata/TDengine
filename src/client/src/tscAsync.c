@@ -49,6 +49,13 @@ void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *, TAOS_RES *, int),
     return;
   }
 
+  int32_t sqlLen = strlen(sqlstr);
+  if (sqlLen > TSDB_MAX_SQL_LEN) {
+    tscError("sql string too long");
+    tscQueueAsyncError(fp, param);
+    return;
+  }
+
   SSqlObj *pSql = (SSqlObj *)malloc(sizeof(SSqlObj));
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
@@ -65,12 +72,10 @@ void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *, TAOS_RES *, int),
   pSql->fp = fp;
   pSql->param = param;
 
-  tscAllocPayloadWithSize(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
-
-  int32_t sqlLen = strlen(sqlstr);
-  if (sqlLen > TSDB_MAX_SQL_LEN) {
-    tscError("%p sql string too long", pSql);
+  if (tscAllocPayloadWithSize(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE) != TSDB_CODE_SUCCESS) {
+    tscError("%p failed to alloc payload", pSql);
     tscQueueAsyncError(fp, param);
+    free(pSql);
     return;
   }
 
@@ -78,14 +83,15 @@ void taos_query_a(TAOS *taos, char *sqlstr, void (*fp)(void *, TAOS_RES *, int),
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     tscQueueAsyncError(fp, param);
+    free(pCmd->payload);
+    free(pSql);
     return;
   }
 
   pRes->qhandle = 0;
   pRes->numOfRows = 1;
 
-  strtolower(sqlstr, pSql->sqlstr);
-  pSql->sqlstr[sqlLen] = 0;
+  strtolower(pSql->sqlstr, sqlstr);
   tscTrace("%p Async SQL: %s, pObj:%p", pSql, pSql->sqlstr, pObj);
 
   int32_t code = tsParseSql(pSql, pObj->acctId, pObj->db, true);
@@ -410,7 +416,7 @@ void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows) 
     tscTrace("%p Async insertion completed, destroy data block list", pSql);
 
     // release data block data
-    tscDestroyBlockArrayList(&pCmd->pDataBlocks);
+    pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
     // all data has been sent to vnode, call user function
     (*pSql->fp)(pSql->param, tres, numOfRows);

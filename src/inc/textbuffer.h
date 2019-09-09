@@ -19,13 +19,12 @@
 extern "C" {
 #endif
 
-// TODO REFACTOR
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "tutil.h"
+#include "taosmsg.h"
 
 #define DEFAULT_PAGE_SIZE 16384  // 16k larger than the SHistoInfo
 #define MIN_BUFFER_SIZE (1 << 19)
@@ -185,7 +184,7 @@ void tColModelDisplayEx(tColModel *pModel, void *pData, int32_t numOfRows, int32
 /*
  * compress data into consecutive block without hole in data
  */
-void tColModelCompress(tColModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity);
+void tColModelCompact(tColModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity);
 
 void tColModelErase(tColModel *pModel, tFilePage *inputBuffer, int32_t maxCapacity, int32_t s, int32_t e);
 

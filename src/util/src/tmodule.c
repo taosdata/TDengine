@@ -18,8 +18,8 @@
 #include <semaphore.h>
 #include <signal.h>
 #include <stdio.h>
-#include <unistd.h>
 
+#include "os.h"
 #include "tmodule.h"
 #include "tutil.h"
 

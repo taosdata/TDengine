@@ -41,21 +41,24 @@ typedef struct SParsedColElem {
 } SParsedColElem;
 
 typedef struct SParsedDataColInfo {
-  bool           ordered;                  // denote if the timestamp in one data block ordered or not
   int16_t        numOfCols;
   int16_t        numOfAssignedCols;
   SParsedColElem elems[TSDB_MAX_COLUMNS];
   bool           hasVal[TSDB_MAX_COLUMNS];
-  int64_t        prevTimestamp;
 } SParsedDataColInfo;
 
-SInsertedDataBlocks* tscCreateDataBlock(int32_t size);
-void tscDestroyDataBlock(SInsertedDataBlocks** pDataBlock);
+STableDataBlocks* tscCreateDataBlock(int32_t size);
+void tscDestroyDataBlock(STableDataBlocks* pDataBlock);
+void tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks);
 
 SDataBlockList* tscCreateBlockArrayList();
-void tscDestroyBlockArrayList(SDataBlockList** pList);
-int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, SInsertedDataBlocks* pDataBlock);
+void* tscDestroyBlockArrayList(SDataBlockList* pList);
+int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
 void tscFreeUnusedDataBlocks(SDataBlockList* pList);
+void tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pDataList);
+STableDataBlocks* tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
+                                          int32_t startOffset, int32_t rowSize, char* tableId);
+STableDataBlocks* tscCreateDataBlockEx(size_t size, int32_t rowSize, int32_t startOffset, char* name);
 
 SVnodeSidList* tscGetVnodeSidList(SMetricMeta* pMetricmeta, int32_t vnodeIdx);
 SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
@@ -66,8 +69,7 @@ bool tscIsTwoStageMergeMetricQuery(SSqlObj* pSql);
 /**
  *
  * for the projection query on metric or point interpolation query on metric,
- * we iterate all the meters, instead of invoke query on all qualified meters
- * simultaneously.
+ * we iterate all the meters, instead of invoke query on all qualified meters simultaneously.
  *
  * @param pSql  sql object
  * @return
@@ -124,8 +126,7 @@ void tscIncStreamExecutionCount(void* pStream);
 
 bool tscValidateColumnId(SSqlCmd* pCmd, int32_t colId);
 
-// get starter position of metric query condition (query on tags) in
-// SSqlCmd.payload
+// get starter position of metric query condition (query on tags) in SSqlCmd.payload
 char* tsGetMetricQueryCondPos(STagCond* pCond);
 void tscTagCondAssign(STagCond* pDst, STagCond* pSrc);
 void tscTagCondRelease(STagCond* pCond);
@@ -139,6 +140,7 @@ void tscCleanSqlCmd(SSqlCmd* pCmd);
 bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql);
 void tscDoQuery(SSqlObj* pSql);
 
+void sortRemoveDuplicates(STableDataBlocks* dataBuf);
 #ifdef __cplusplus
 }
 #endif
