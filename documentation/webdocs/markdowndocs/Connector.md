@@ -221,7 +221,7 @@ pip install src/connector/python/[linux|Windows]/python2/
 or
 
 ```
-pip install src/connector/python/[linux|Windows]python3/
+pip install src/connector/python/[linux|Windows]/python3/
 ```
 
 If _pip_ command is not installed on the system, users can choose to install pip or just copy the _taos_ directory in the python client directory to the application directory to use.
