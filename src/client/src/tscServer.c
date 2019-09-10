@@ -35,7 +35,7 @@
 #define TSC_MGMT_VNODE 999
 
 int      tsMasterIndex = 0;
-int      tsSlaveIndex = 1;
+int      tsSlaveIndex = 0;  // slave == master for single node edition
 uint32_t tsServerIp;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql);
