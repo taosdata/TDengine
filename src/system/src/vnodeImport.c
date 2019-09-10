@@ -877,8 +877,8 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   int lastId  = (*(TSKEY *)(payload+pObj->bytesPerPoint*(rows-1)))/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
   int cfile = now/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
   if ((firstId <= cfile - pVnode->maxFiles) || (firstId > cfile + 1) || (lastId <= cfile - pVnode->maxFiles) || (lastId > cfile + 1)) {
-    dError("vid:%d sid:%d id:%s, invalid timestamp to import, firstKey: %ld lastKey: %ld",
-        pObj->vnode, pObj->sid, pObj->meterId, *(TSKEY *)(payload), *(TSKEY *)(payload+pObj->bytesPerPoint*(rows-1)));
+    dError("vid:%d sid:%d id:%s, invalid timestamp to import, rows:%d firstKey: %ld lastKey: %ld",
+        pObj->vnode, pObj->sid, pObj->meterId, rows, *(TSKEY *)(payload), *(TSKEY *)(payload+pObj->bytesPerPoint*(rows-1)));
     return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
   }
 
