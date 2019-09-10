@@ -512,7 +512,7 @@ int taosGetRpcConn(int chann, int sid, char *meterId, STaosRpc *pServer, SRpcCon
     if (pServer->afp) {
       int ret = (*pServer->afp)(meterId, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
       if (ret != 0) {
-        tTrace("%s cid:%d sid:%d id:%s, meterId not there pConn:%p", pServer->label, chann, sid, pConn->meterId,
+        tTrace("%s cid:%d sid:%d id:%s, meterId not there, localPort:%d pConn:%p", pServer->label, chann, sid, pConn->meterId,
                pConn->localPort, pConn);
         return ret;
       }

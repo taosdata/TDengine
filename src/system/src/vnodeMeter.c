@@ -576,8 +576,8 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   int firstId = firstKey/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
   int lastId  = (*(TSKEY *)(pData + pObj->bytesPerPoint * (numOfPoints - 1)))/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
   if ((firstId <= cfile - pVnode->maxFiles) || (firstId > cfile + 1) || (lastId <= cfile - pVnode->maxFiles) || (lastId > cfile + 1)) {
-    dError("vid:%d sid:%d id:%s, invalid timestamp to insert, firstKey: %ld lastKey: %ld ", pObj->vnode, pObj->sid,
-           pObj->meterId, firstKey, (*(TSKEY *)(pData + pObj->bytesPerPoint * (numOfPoints - 1))));
+    dError("vid:%d sid:%d id:%s, invalid timestamp to insert, numOfPoints:%d firstKey: %ld lastKey: %ld ", pObj->vnode, pObj->sid,
+           pObj->meterId, numOfPoints, firstKey, (*(TSKEY *)(pData + pObj->bytesPerPoint * (numOfPoints - 1))));
     return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
   }
 
