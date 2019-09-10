@@ -267,8 +267,6 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
     tscTrace("%p no response from ip:0x%x", pSql, pSql->ip);
 
     // for single node situation, do NOT try next index
-    assert(pSql->index == 0);
-
     pSql->thandle = NULL;
 
     // todo taos_stop_query() in async model
