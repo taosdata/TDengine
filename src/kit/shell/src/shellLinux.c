@@ -305,7 +305,7 @@ void *shellLoopQuery(void *arg) {
   return NULL;
 }
 
-void shellPrintNChar(char *str, int width) {
+void shellPrintNChar(char *str, int width, bool printMode) {
   int col_left = width;
   wchar_t wc;
   while (col_left > 0) {
@@ -323,7 +323,12 @@ void shellPrintNChar(char *str, int width) {
     printf(" ");
     col_left--;
   }
-  printf("|");
+
+  if (!printMode) {
+    printf("|");
+  } else {
+    printf("\n");
+  }
 }
 
 int get_old_terminal_mode(struct termios *tio) {
