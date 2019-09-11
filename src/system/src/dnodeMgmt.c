@@ -232,6 +232,12 @@ int vnodeProcessCreateMeterMsg(char *pMsg) {
     goto _create_over;
   }
 
+  if (pCreate->schema[0].type != TSDB_DATA_TYPE_TIMESTAMP || htons(pCreate->schema[0].bytes) != sizeof(TSKEY)) {
+    dError("key type or length is not matched, required key type:timestamp, length:%d", sizeof(TSKEY));
+    code = TSDB_CODE_OTHERS;
+    goto _create_over;
+  }
+
   pCreate->sqlLen = htons(pCreate->sqlLen);
   pObj = (SMeterObj *)calloc(1, sizeof(SMeterObj) + pCreate->sqlLen + 1);
   if (pObj == NULL) {
@@ -246,6 +252,11 @@ int vnodeProcessCreateMeterMsg(char *pMsg) {
    * So, we need to set the memory to 0 when allocating memory.
    */
   pObj->schema = (SColumn *)calloc(1, pCreate->numOfColumns * sizeof(SColumn));
+  if (pObj->schema == NULL) {
+    dError("vid:%d sid:%d id:%s, no memory to allocate schema", pCreate->vnode, pCreate->sid, pCreate->meterId);
+    code = TSDB_CODE_NO_RESOURCE;
+    goto _create_over;
+  }
 
   pObj->vnode = pCreate->vnode;
   pObj->sid = pCreate->sid;
@@ -273,12 +284,6 @@ int vnodeProcessCreateMeterMsg(char *pMsg) {
 
   pObj->pointsPerFileBlock = pVnode->cfg.rowsInFileBlock;
 
-  if (sizeof(TSKEY) != pObj->schema[0].bytes) {
-    dError("key length is not matched, required key length:%d", sizeof(TSKEY));
-    code = TSDB_CODE_OTHERS;
-    goto _create_over;
-  }
-
   // security info shall be saved here
   connSec.spi = pCreate->spi;
   connSec.encrypt = pCreate->encrypt;
@@ -290,6 +295,9 @@ int vnodeProcessCreateMeterMsg(char *pMsg) {
 _create_over:
   if (code != TSDB_CODE_SUCCESS) {
     dTrace("vid:%d sid:%d id:%s, failed to create meterObj", pCreate->vnode, pCreate->sid, pCreate->meterId);
+    if (pObj) {
+      free(pObj->schema);
+    }
     tfree(pObj);
   }
 

@@ -133,6 +133,7 @@ void *vnodeAllocateCacheInfo(SMeterObj *pObj) {
   pInfo->cacheBlocks = (SCacheBlock **)malloc(size);
   if (pInfo->cacheBlocks == NULL) {
     dError("id:%s, no memory for cacheBlocks", pObj->meterId);
+    free(pInfo);
     return NULL;
   }
   memset(pInfo->cacheBlocks, 0, size);
