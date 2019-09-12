@@ -637,6 +637,10 @@ _over:
 void vnodeProcessUpdateSchemaTimer(void *param, void *tmrId) {
   SMeterObj * pObj = (SMeterObj *)param;
   SVnodeObj * pVnode = vnodeList + pObj->vnode;
+  if (pVnode->meterList == NULL) {
+    dTrace("vnode is deleted, abort update schema");
+    return;
+  }
   SCachePool *pPool = (SCachePool *)pVnode->pCachePool;
 
   pthread_mutex_lock(&pPool->vmutex);
