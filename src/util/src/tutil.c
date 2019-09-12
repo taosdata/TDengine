@@ -470,3 +470,32 @@ bool taosValidateEncodec(char *encodec) {
   return true;
 #endif
 }
+
+bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
+  if (versionStr == NULL || versionNubmer == NULL) {
+    return false;
+  }
+
+  int versionNumberPos[4] = {0};
+  int len = strlen(versionStr);
+  int dot = 0;
+  for (int pos = 0; pos < len && dot < 4; ++pos) {
+    if (versionStr[pos] == '.') {
+      versionStr[pos] = 0;
+      versionNumberPos[++dot] = pos + 1;
+    }
+  }
+
+  if (dot != 3) {
+    return false;
+  }
+
+  for (int pos = 0; pos < 4; ++pos) {
+    versionNubmer[pos] = atoi(versionStr + versionNumberPos[pos]);
+  }
+  versionStr[versionNumberPos[1] - 1] = '.';
+  versionStr[versionNumberPos[2] - 1] = '.';
+  versionStr[versionNumberPos[3] - 1] = '.';
+
+  return true;
+}

@@ -134,11 +134,38 @@ TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port) {
 
   void *taos = taos_connect_imp(ip, user, pass, db, port, NULL, NULL, NULL);
   if (taos != NULL) {
+    int clientVersionNumber[4] = {0};
+    if (!taosGetVersionNumber(version, clientVersionNumber)) {
+      tscError("taos:%p, invalid client version:%s", taos, version);
+      globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
+      return NULL;
+    }
+
     char *server_version = taos_get_server_info(taos);
-    if (server_version && strcmp(server_version, version) != 0) {
-      tscError("taos:%p, server version:%s not equal with client version:%s, close connection",
+    int serverVersionNumber[4] = {0};
+    if (!taosGetVersionNumber(server_version, serverVersionNumber)) {
+      tscError("taos:%p, invalid server version:%s", taos, server_version);
+      globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
+      return NULL;
+    }
+
+    if (clientVersionNumber[0] != serverVersionNumber[0]) {
+      tscError("taos:%p, the 1st number of server version:%s not matched with client version:%s, close connection",
                taos, server_version, version);
-      taos_close(taos);
+      globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
+      return NULL;
+    }
+
+    if (clientVersionNumber[1] != serverVersionNumber[1]) {
+      tscError("taos:%p, the 2nd number of server version:%s not matched with client version:%s, close connection",
+               taos, server_version, version);
+      globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
+      return NULL;
+    }
+
+    if (clientVersionNumber[2] != serverVersionNumber[2]) {
+      tscError("taos:%p, the 3rd number of server version:%s not matched with client version:%s, close connection",
+               taos, server_version, version);
       globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
       return NULL;
     }

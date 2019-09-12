@@ -221,6 +221,8 @@ bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
 
 bool taosValidateEncodec(char *encodec);
 
+bool taosGetVersionNumber(char *versionStr, int *versionNubmer);
+
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, char *target) {
   MD5_CTX context;
   MD5Init(&context);
