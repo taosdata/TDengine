@@ -312,7 +312,12 @@ void shellPrintNChar(char *str, int width, bool printMode) {
     if (*str == '\0') break;
     char *tstr = str;
     int byte_width = mbtowc(&wc, tstr, MB_CUR_MAX);
+    if (byte_width <= 0 ) break;
     int col_width = wcwidth(wc);
+    if (col_width <= 0) {
+      str += byte_width;
+      continue;
+    }
     if (col_left < col_width) break;
     printf("%lc", wc);
     str += byte_width;
