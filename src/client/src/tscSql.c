@@ -457,7 +457,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   // projection query on metric, pipeline retrieve data from vnode list, instead
   // of two-stage mergevnodeProcessMsgFromShell free qhandle
   nRows = taos_fetch_block_impl(res, rows);
-  if (*rows == NULL && tscProjectionQueryOnMetric(pSql)) {
+  while (*rows == NULL && tscProjectionQueryOnMetric(pSql)) {
     /* reach the maximum number of output rows, abort */
     if (pCmd->globalLimit > 0 && pRes->numOfTotal >= pCmd->globalLimit) {
       return 0;
@@ -465,12 +465,18 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 
     /* update the limit value according to current retrieval results */
     pCmd->limit.limit = pSql->cmd.globalLimit - pRes->numOfTotal;
+    pCmd->limit.offset = pRes->offset;
 
     if ((++pSql->cmd.vnodeIdx) <= pSql->cmd.pMetricMeta->numOfVnodes) {
       pSql->cmd.command = TSDB_SQL_SELECT;
       assert(pSql->fp == NULL);
       tscProcessSql(pSql);
       nRows = taos_fetch_block_impl(res, rows);
+    }
+
+    // check!!!
+    if (*rows != NULL || pCmd->vnodeIdx >= pCmd->pMetricMeta->numOfVnodes) {
+      break;
     }
   }
 
