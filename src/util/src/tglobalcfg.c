@@ -535,6 +535,8 @@ void tsInitGlobalConfig() {
                      1, 1, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "httpMaxThreads", &tsHttpMaxThreads, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 1,
                      1000000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "restfulRowLimit", &tsRestRowLimit, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 1,
+                     10000000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "httpEnableCompress", &tsHttpEnableCompress, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 0,
                      1, 1, TSDB_CFG_UTYPE_NONE);
 
