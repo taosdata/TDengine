@@ -393,7 +393,7 @@ void vnodeCloseCommitFiles(SVnodeObj *pVnode) {
   if (tsCheckHeaderFile != 0) {
     assert(vnodeCheckNewHeaderFile(pVnode->nfd, pVnode) == 0);
   }
-  
+
   close(pVnode->nfd);
   pVnode->nfd = 0;
 
@@ -649,23 +649,39 @@ _again:
 
     // last block is at last file
     if (pMeter->last) {
-      if (pMeter->lastBlock.sversion != pObj->sversion) {
+      if ((pMeter->lastBlock.sversion != pObj->sversion) || (query.over)) {
         // TODO : Check the correctness of this code. write the last block to
         // .data file
         pCompBlock = (SCompBlock *)(hmem + headLen);
         assert(dmem - (char *)pCompBlock >= sizeof(SCompBlock));
         *pCompBlock = pMeter->lastBlock;
-        pCompBlock->last = 0;
-        pCompBlock->offset = lseek(pVnode->dfd, 0, SEEK_END);
-        lseek(pVnode->lfd, pMeter->lastBlock.offset, SEEK_SET);
-        tsendfile(pVnode->dfd, pVnode->lfd, NULL, pMeter->lastBlock.len);
-        pVnode->dfSize = pCompBlock->offset + pMeter->lastBlock.len;
+        if (pMeter->lastBlock.sversion != pObj->sversion) {
+          pCompBlock->last = 0;
+          pCompBlock->offset = lseek(pVnode->dfd, 0, SEEK_END);
+          pMeter->last = 0;
+          lseek(pVnode->lfd, pMeter->lastBlock.offset, SEEK_SET);
+          tsendfile(pVnode->dfd, pVnode->lfd, NULL, pMeter->lastBlock.len);
+          pVnode->dfSize = pCompBlock->offset + pMeter->lastBlock.len;
+        } else {
+          if (ssid == 0) {
+            // Here, pVnode->tfd != -1
+            assert(pVnode->tfd != -1);
+            pCompBlock->offset = lseek(pVnode->tfd, 0, SEEK_END);
+            lseek(pVnode->lfd, pMeter->lastBlock.offset, SEEK_SET);
+            tsendfile(pVnode->tfd, pVnode->lfd, NULL, pMeter->lastBlock.len);
+            pVnode->lfSize = pCompBlock->offset + pMeter->lastBlock.len;
+          } else {
+            // Here, pVnode->tfd = -1
+            assert(pVnode->tfd == -1);
+          }
+        }
 
         headLen += sizeof(SCompBlock);
         pMeter->newNumOfBlocks++;
       } else {
         // read last block into memory
         if (vnodeReadLastBlockToMem(pObj, &pMeter->lastBlock, data) < 0) goto _over;
+        pMeter->last = 0;
         pointsReadLast = pMeter->lastBlock.numOfPoints;
         query.over = 0;
         headInfo.totalStorage -= (pointsReadLast * pObj->bytesPerPoint);
@@ -675,7 +691,6 @@ _again:
       }
 
       pMeter->changed = 1;
-      pMeter->last = 0;
       pMeter->oldNumOfBlocks--;
     }
 
