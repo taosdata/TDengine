@@ -183,7 +183,7 @@ void httpCloseContextByApp(HttpContext *pContext) {
   }
 
   pthread_mutex_lock(&pContext->mutex);
-  if (pContext->signature != pContext || pContext->fd <= 0) {
+  if (pContext->signature != pContext) {
     return;
   }
   
@@ -212,7 +212,7 @@ void httpCloseContextByServer(HttpThread *pThread, HttpContext *pContext) {
     return;
   }
   pthread_mutex_lock(&pContext->mutex);
-  if (pContext->signature != pContext || pContext->fd <= 0) {
+  if (pContext->signature != pContext) {
     return;
   }
 
