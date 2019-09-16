@@ -3646,8 +3646,8 @@ static int32_t moveToNextBlockInCache(SQueryRuntimeEnv *pRuntimeEnv, int32_t ste
         setQueryStatus(pQuery, QUERY_COMPLETED);
       }
 
-      assert(pRuntimeEnv->startPos.fileId < 0);
-
+      //the skip operation does NOT set the start position
+      //assert(pRuntimeEnv->startPos.fileId < 0);
     } else {
       setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
     }
