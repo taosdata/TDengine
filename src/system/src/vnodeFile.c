@@ -1863,10 +1863,19 @@ int vnodeCheckNewHeaderFile(int fd, SVnodeObj *pVnode) {
     }
 
     if (read(fd, (void *)pBlocks, expectedSize) != expectedSize) {
+      dError("failed to read block part");
       goto _broken_exit;
     }
     if (!taosCheckChecksumWhole((uint8_t *)pBlocks, expectedSize)) {
+      dError("block part is broken");
       goto _broken_exit;
+    }
+
+    for (int i = 0; i < compInfo.numOfBlocks; i++) {
+      if (pBlocks[i].last && i != compInfo.numOfBlocks-1) {
+        dError("last block in middle, block:%d", i);
+        goto  _broken_exit;
+      }
     }
   }
 

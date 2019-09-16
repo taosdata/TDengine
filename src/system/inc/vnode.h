@@ -324,11 +324,12 @@ typedef struct {
 // internal globals
 extern int        tsMeterSizeOnFile;
 extern uint32_t   tsRebootTime;
-extern void *     rpcQhandle;
+extern void **    rpcQhandle;
 extern void *     dmQhandle;
 extern void *     queryQhandle;
 extern int        tsMaxVnode;
 extern int        tsOpenVnodes;
+extern int        tsMaxVnode;
 extern SVnodeObj *vnodeList;
 extern void *     vnodeTmrCtrl;
 

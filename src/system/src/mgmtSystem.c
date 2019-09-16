@@ -39,7 +39,6 @@ void *       mgmtStatisticTimer = NULL;
 void *       mgmtStatusTimer = NULL;
 int          mgmtShellConns = 0;
 extern void *pShellConn;
-extern void *rpcQhandle;
 
 void mgmtCleanUpSystem() {
   mTrace("mgmt is running, clean it up");

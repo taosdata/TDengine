@@ -35,6 +35,7 @@ extern "C" {
 #define TAOS_ID_REALLOCATE 2
 
 #define taosSendMsgToPeer(x, y, z) taosSendMsgToPeerH(x, y, z, NULL)
+#define taosOpenRpcChann(x, y, z) taosOpenRpcChannWithQ(x, y, z, NULL)
 #define taosBuildReqMsg(x, y) taosBuildReqMsgWithSize(x, y, 512)
 #define taosBuildRspMsg(x, y) taosBuildRspMsgWithSize(x, y, 512)
 
@@ -79,7 +80,7 @@ void *taosOpenRpc(SRpcInit *pRpc);
 
 void taosCloseRpc(void *);
 
-int taosOpenRpcChann(void *handle, int cid, int sessions);
+int taosOpenRpcChannWithQ(void *handle, int cid, int sessions, void *qhandle);
 
 void taosCloseRpcChann(void *handle, int cid);
 

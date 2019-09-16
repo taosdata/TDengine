@@ -87,6 +87,7 @@ typedef struct {
 
 typedef struct {
   int             sessions;
+  void *          qhandle; // for scheduler
   SRpcConn *      connList;
   void *          idPool;
   void *          tmrCtrl;
@@ -340,7 +341,7 @@ void *taosOpenRpc(SRpcInit *pRpc) {
   return pServer;
 }
 
-int taosOpenRpcChann(void *handle, int cid, int sessions) {
+int taosOpenRpcChannWithQ(void *handle, int cid, int sessions, void *qhandle) {
   STaosRpc * pServer = (STaosRpc *)handle;
   SRpcChann *pChann;
 
@@ -383,6 +384,8 @@ int taosOpenRpcChann(void *handle, int cid, int sessions) {
 
   pthread_mutex_init(&pChann->mutex, NULL);
   pChann->sessions = sessions;
+
+  pChann->qhandle = qhandle ? qhandle : pServer->qhandle;
 
   return 0;
 }
@@ -986,7 +989,7 @@ void taosProcessIdleTimer(void *param, void *tmrId) {
     schedMsg.msg = NULL;
     schedMsg.ahandle = pConn->ahandle;
     schedMsg.thandle = pConn;
-    taosScheduleTask(pServer->qhandle, &schedMsg);
+    taosScheduleTask(pChann->qhandle, &schedMsg);
   }
 
   pthread_mutex_unlock(&pChann->mutex);
@@ -1002,12 +1005,14 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
   char         pReply[128];
   SSchedMsg    schedMsg;
   int          chann, sid;
+  SRpcChann *  pChann = NULL;
 
   tDump(data, dataLen);
 
   if (ip == 0 && taosCloseConn[pServer->type]) {
     // it means the connection is broken
     if (pConn) {
+      pChann = pServer->channList + pConn->chann;
       tTrace("%s cid:%d sid:%d id:%s, underlying link is gone pConn:%p", pServer->label, pConn->chann, pConn->sid,
              pConn->meterId, pConn);
       pConn->rspReceived = 1;
@@ -1016,7 +1021,7 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
       schedMsg.msg = NULL;
       schedMsg.ahandle = pConn->ahandle;
       schedMsg.thandle = pConn;
-      taosScheduleTask(pServer->qhandle, &schedMsg);
+      taosScheduleTask(pChann->qhandle, &schedMsg);
     }
     tfree(data);
     return NULL;
@@ -1070,6 +1075,7 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
 
     // internal communication is based on TAOS protocol, a trick here to make it efficient
     pHeader->msgLen = msgLen - (int)sizeof(STaosHeader) + (int)sizeof(SIntMsg);
+    if (pHeader->spi) pHeader->msgLen -= sizeof(STaosDigest);
 
     if ((pHeader->msgType & 1) == 0 && (pHeader->content[0] == TSDB_CODE_SESSION_ALREADY_EXIST)) {
       schedMsg.msg = NULL;  // connection shall be closed
@@ -1084,10 +1090,11 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
              pConn->pTimer);
     }
 
+    pChann = pServer->channList + pConn->chann;
     schedMsg.fp = taosProcessSchedMsg;
     schedMsg.ahandle = pConn->ahandle;
     schedMsg.thandle = pConn;
-    taosScheduleTask(pServer->qhandle, &schedMsg);
+    taosScheduleTask(pChann->qhandle, &schedMsg);
   }
 
   return pConn;
@@ -1274,7 +1281,7 @@ void taosProcessTaosTimer(void *param, void *tmrId) {
         schedMsg.msg = NULL;
         schedMsg.ahandle = pConn->ahandle;
         schedMsg.thandle = pConn;
-        taosScheduleTask(pServer->qhandle, &schedMsg);
+        taosScheduleTask(pChann->qhandle, &schedMsg);
       }
     }
   }
@@ -1342,7 +1349,7 @@ void taosStopRpcConn(void *thandle) {
     schedMsg.thandle = pConn;
     pthread_mutex_unlock(&pChann->mutex);
 
-    taosScheduleTask(pServer->qhandle, &schedMsg);
+    taosScheduleTask(pChann->qhandle, &schedMsg);
   } else {
     pthread_mutex_unlock(&pChann->mutex);
     taosCloseRpcConn(pConn);

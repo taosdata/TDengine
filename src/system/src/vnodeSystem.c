@@ -29,9 +29,10 @@
 
 // internal global, not configurable
 void *   vnodeTmrCtrl;
-void *   rpcQhandle;
+void **  rpcQhandle;
 void *   dmQhandle;
 void *   queryQhandle;
+int      tsMaxQueues;
 uint32_t tsRebootTime;
 
 int vnodeInitSystem() {
@@ -41,9 +42,12 @@ int vnodeInitSystem() {
   if (numOfThreads < 1) numOfThreads = 1;
   queryQhandle = taosInitScheduler(tsNumOfVnodesPerCore * tsNumOfCores * tsSessionsPerVnode, numOfThreads, "query");
 
-  numOfThreads = (1.0 - tsRatioOfQueryThreads) * tsNumOfCores * tsNumOfThreadsPerCore / 2.0;
-  if (numOfThreads < 1) numOfThreads = 1;
-  rpcQhandle = taosInitScheduler(tsNumOfVnodesPerCore * tsNumOfCores * tsSessionsPerVnode, numOfThreads, "dnode");
+  tsMaxQueues = (1.0 - tsRatioOfQueryThreads) * tsNumOfCores * tsNumOfThreadsPerCore / 2.0;
+  if (tsMaxQueues < 1) tsMaxQueues = 1;
+
+  rpcQhandle = malloc(tsMaxQueues*sizeof(void *));
+  for (int i = 0; i < tsMaxQueues; i++)
+    rpcQhandle[i] = taosInitScheduler(tsSessionsPerVnode, 1, "dnode");
 
   dmQhandle = taosInitScheduler(tsSessionsPerVnode, 1, "mgmt");
 

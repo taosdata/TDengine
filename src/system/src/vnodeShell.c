@@ -31,6 +31,7 @@
 #include "vnodeUtil.h"
 
 #pragma GCC diagnostic ignored "-Wint-conversion"
+extern int tsMaxQueues;
 
 void *      pShellServer = NULL;
 SShellObj **shellList = NULL;
@@ -128,7 +129,7 @@ int vnodeInitShell() {
   rpcInit.idMgmt = TAOS_ID_FREE;
   rpcInit.connType = TAOS_CONN_UDPS;
   rpcInit.idleTime = tsShellActivityTimer * 1200;
-  rpcInit.qhandle = rpcQhandle;
+  rpcInit.qhandle = rpcQhandle[0];
   rpcInit.efp = vnodeSendVpeerCfgMsg;
 
   pShellServer = taosOpenRpc(&rpcInit);
@@ -155,7 +156,7 @@ int vnodeOpenShellVnode(int vnode) {
 
   memset(shellList[vnode], 0, size);
 
-  taosOpenRpcChann(pShellServer, vnode, sessions);
+  taosOpenRpcChannWithQ(pShellServer, vnode, sessions, rpcQhandle[(vnode+1)%tsMaxQueues]);
 
   return 0;
 }
