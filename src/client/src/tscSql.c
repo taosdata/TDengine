@@ -138,6 +138,7 @@ TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port) {
     if (!taosGetVersionNumber(version, clientVersionNumber)) {
       tscError("taos:%p, invalid client version:%s", taos, version);
       globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
+      taos_close(taos);
       return NULL;
     }
 
@@ -146,6 +147,7 @@ TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port) {
     if (!taosGetVersionNumber(server_version, serverVersionNumber)) {
       tscError("taos:%p, invalid server version:%s", taos, server_version);
       globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
+      taos_close(taos);
       return NULL;
     }
 
@@ -153,6 +155,7 @@ TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port) {
       tscError("taos:%p, the 1st number of server version:%s not matched with client version:%s, close connection",
                taos, server_version, version);
       globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
+      taos_close(taos);
       return NULL;
     }
 
@@ -160,6 +163,7 @@ TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port) {
       tscError("taos:%p, the 2nd number of server version:%s not matched with client version:%s, close connection",
                taos, server_version, version);
       globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
+      taos_close(taos);
       return NULL;
     }
 
@@ -167,6 +171,7 @@ TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port) {
       tscError("taos:%p, the 3rd number of server version:%s not matched with client version:%s, close connection",
                taos, server_version, version);
       globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
+      taos_close(taos);
       return NULL;
     }
   }
