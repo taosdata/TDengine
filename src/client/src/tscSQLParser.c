@@ -3197,8 +3197,14 @@ int32_t buildQueryCond(SSqlObj* pSql, tSQLExpr* pExpr) {
 }
 
 int32_t getTimeRange(int64_t* stime, int64_t* etime, tSQLExpr* pRight, int32_t optr, int16_t timePrecision) {
-  assert(pRight->nSQLOptr == TK_INTEGER || pRight->nSQLOptr == TK_FLOAT || pRight->nSQLOptr == TK_STRING ||
-         pRight->nSQLOptr == TK_TIMESTAMP);
+  /*
+   * filter primary ts filter expression like:
+   *     "where ts in ('2015-12-12 4:8:12')"
+   * is not supported.
+   */
+  if (pRight->nSQLOptr == TK_SET || optr == TK_IN) {
+    return TSDB_CODE_INVALID_SQL;
+  }
 
   int64_t val = 0;
   bool    parsed = false;
