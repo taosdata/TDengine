@@ -129,34 +129,29 @@ ${csudo} make
 cd ${curr_dir}
 
 # 3. judge the operating system type, then Call the corresponding script for packaging
-osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
+#osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
 #osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
 #echo "osinfo: ${osinfo}"
 
-if echo $osinfo | grep -qwi "ubuntu" ; then
-  echo "this is ubuntu system"
-  output_dir="${top_dir}/debs"
-  if [ -d ${output_dir} ]; then
-	 ${csudo} rm -rf ${output_dir}
-  fi  
-  ${csudo} mkdir -p ${output_dir} 
-  cd ${script_dir}/deb
-  ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${version}
-  
-elif  echo $osinfo | grep -qwi "centos" ; then
-  echo "this is centos system"
-  output_dir="${top_dir}/rpms"
-  if [ -d ${output_dir} ]; then
-	 ${csudo} rm -rf ${output_dir}
-  fi
-  ${csudo} mkdir -p ${output_dir}  
-  cd ${script_dir}/rpm
-  ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version}
-  
-else
-  echo "this is other linux system"  
+echo "do deb package for the ubuntu system"
+output_dir="${top_dir}/debs"
+if [ -d ${output_dir} ]; then
+  ${csudo} rm -rf ${output_dir}
+fi  
+${csudo} mkdir -p ${output_dir} 
+cd ${script_dir}/deb
+${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${version}
+ 
+echo "do rpms package for the centos system"
+output_dir="${top_dir}/rpms"
+if [ -d ${output_dir} ]; then
+  ${csudo} rm -rf ${output_dir}
 fi
-
+${csudo} mkdir -p ${output_dir}  
+cd ${script_dir}/rpm
+${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version}
+  
+echo "do tar.gz package for all systems"
 cd ${script_dir}/tools
 ${csudo} ./makepkg.sh ${compile_dir} ${version} "${build_time}" 
 
