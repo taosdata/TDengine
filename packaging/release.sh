@@ -141,8 +141,8 @@ fi
 ${csudo} mkdir -p ${output_dir} 
 cd ${script_dir}/deb
 ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${version}
- 
-echo "do rpms package for the centos system"
+  
+echo "do rpm package for the centos system"
 output_dir="${top_dir}/rpms"
 if [ -d ${output_dir} ]; then
   ${csudo} rm -rf ${output_dir}
@@ -150,8 +150,8 @@ fi
 ${csudo} mkdir -p ${output_dir}  
 cd ${script_dir}/rpm
 ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version}
-  
-echo "do tar.gz package for all systems"
+
+echo "do tar.gz package for all systems"  
 cd ${script_dir}/tools
 ${csudo} ./makepkg.sh ${compile_dir} ${version} "${build_time}" 
 
