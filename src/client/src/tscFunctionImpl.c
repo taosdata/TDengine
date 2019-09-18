@@ -3293,7 +3293,13 @@ bool spread_function(SQLFunctionCtx *pCtx) {
         }
       }
     } else {
-      // do nothing
+      if (pCtx->intermediateBuf[0].dKey > pCtx->intermediateBuf[1].dKey) {
+        pCtx->intermediateBuf[0].dKey = pCtx->intermediateBuf[1].dKey;
+      }
+
+      if (pCtx->intermediateBuf[3].dKey < pCtx->intermediateBuf[2].dKey) {
+        pCtx->intermediateBuf[3].dKey = pCtx->intermediateBuf[2].dKey;
+      }
     }
 
     goto _spread_over;
