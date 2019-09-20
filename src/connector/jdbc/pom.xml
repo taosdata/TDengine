@@ -37,9 +37,9 @@
 				<artifactId>maven-compiler-plugin</artifactId>
 				<version>2.3.2</version>
 				<configuration>
-					<encoding>GBK</encoding>
-					<source>8</source>
-					<target>8</target>
+					<encoding>UTF-8</encoding>
+					<source>1.8</source>
+					<target>1.8</target>
 					<debug>true</debug>
 				</configuration>
 			</plugin>
