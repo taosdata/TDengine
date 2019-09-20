@@ -2428,7 +2428,7 @@ static int setColumnFilterInfoForTimestamp(SSqlCmd* pCmd, tVariant* pVar) {
   }
 
   tVariantDestroy(pVar);
-  tVariantCreateB(pVar, &time, 0, TSDB_DATA_TYPE_BIGINT);
+  tVariantCreateB(pVar, (char*)&time, 0, TSDB_DATA_TYPE_BIGINT);
 
   return TSDB_CODE_SUCCESS;
 }

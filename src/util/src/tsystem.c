@@ -229,30 +229,24 @@ char *taosCharsetReplace(char *charsetstr) {
   return strdup(charsetstr);
 }
 
+/*
+ * POSIX format locale string:
+ * (Language Strings)_(Country/Region Strings).(code_page)
+ *
+ * example: en_US.UTF-8, zh_CN.GB18030, zh_CN.UTF-8,
+ *
+ * if user does not specify the locale in taos.cfg the program use default LC_CTYPE as system locale.
+ *
+ * In case of some CentOS systems, their default locale is "en_US.utf8", which is not valid code_page
+ * for libiconv that is employed to convert string in this system. This program will automatically use
+ * UTF-8 instead as the charset.
+ *
+ * In case of windows client, the locale string is not valid POSIX format, user needs to set the
+ * correct code_page for libiconv. Usually, the code_page of windows system with simple chinese is
+ * CP936, CP437 for English charset.
+ *
+ */
 void taosGetSystemLocale() {  // get and set default locale
-                              /*
-                               * POSIX format locale string:
-                               * (Language Strings)_(Country/Region Strings).(code_page)
-                               *
-                               * example: en_US.UTF-8, zh_CN.GB18030, zh_CN.UTF-8,
-                               *
-                               * if user does not specify the locale in taos.cfg
-                               * the program use default LC_CTYPE as system locale.
-                               *
-                               * In case of some CentOS systems, their default locale is "en_US.utf8", which
-                               * is not
-                               * valid code_page for libiconv that is employed to convert string in this
-                               * system.
-                               * User needs to specify the locale explicitly
-                               * in config file in the correct format: en_US.UTF-8
-                               *
-                               * In case of windows client, the locale string is not legal POSIX format,
-                               * user needs to
-                               * set the correct code_page for libiconv. Usually, the code_page of windows
-                               * system
-                               * with simple chinese is CP936, CP437 for English locale.
-                               *
-                               */
   char  sep = '.';
   char *locale = NULL;
 
@@ -262,7 +256,7 @@ void taosGetSystemLocale() {  // get and set default locale
     if (locale == NULL) {
       pError("can't get locale from system");
     } else {
-      strncpy(tsLocale, locale, sizeof(tsLocale) / sizeof(tsLocale[0]));
+      strncpy(tsLocale, locale, tListLen(tsLocale));
       pPrint("locale not configured, set to system default:%s", tsLocale);
     }
   }
@@ -275,7 +269,7 @@ void taosGetSystemLocale() {  // get and set default locale
       str++;
 
       char *revisedCharset = taosCharsetReplace(str);
-      strncpy(tsCharset, revisedCharset, sizeof(tsCharset) / sizeof(tsCharset[0]));
+      strncpy(tsCharset, revisedCharset, tListLen(tsCharset));
 
       free(revisedCharset);
       pPrint("charset not configured, set to system default:%s", tsCharset);

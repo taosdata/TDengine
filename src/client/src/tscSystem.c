@@ -210,22 +210,25 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 
       if (cfg_locale && cfg_charset && cfg_locale->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
         char sep = '.';
-        char oldLocale[64] = {0};
-        strncpy(oldLocale, tsLocale, sizeof(oldLocale) / sizeof(oldLocale[0]));
 
+        if (strlen(tsLocale) == 0) { // locale does not set yet
+          char* defaultLocale = setlocale(LC_CTYPE, "");
+          strcpy(tsLocale, defaultLocale);
+        }
+
+        // set the user specified locale
         char *locale = setlocale(LC_CTYPE, pStr);
 
         if (locale != NULL) {
-          tscPrint("locale set, prev locale:%s, new locale:%s", oldLocale, locale);
+          tscPrint("locale set, prev locale:%s, new locale:%s", tsLocale, locale);
           cfg_locale->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
         } else {
-          /* set the user-specified localed failed, use default LC_CTYPE as
-           * current locale */
-          locale = setlocale(LC_CTYPE, oldLocale);
-          tscPrint("failed to set locale:%s, restore locale:%s", pStr, oldLocale);
+          /* set the user-specified localed failed, use default LC_CTYPE as current locale */
+          locale = setlocale(LC_CTYPE, tsLocale);
+          tscPrint("failed to set locale:%s, current locale:%s", pStr, tsLocale);
         }
 
-        strncpy(tsLocale, locale, sizeof(tsLocale) / sizeof(tsLocale[0]));
+        strncpy(tsLocale, locale, tListLen(tsLocale));
 
         char *charset = strrchr(tsLocale, sep);
         if (charset != NULL) {
@@ -234,15 +237,21 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
           charset = taosCharsetReplace(charset);
 
           if (taosValidateEncodec(charset)) {
-            tscPrint("charset changed from %s to %s", tsCharset, charset);
+            if (strlen(tsCharset) == 0) {
+              tscPrint("charset set:%s", charset);
+            } else {
+              tscPrint("charset changed from %s to %s", tsCharset, charset);
+            }
+
             strncpy(tsCharset, charset, tListLen(tsCharset));
             cfg_charset->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
-            ;
+
           } else {
             tscPrint("charset:%s is not valid in locale, charset remains:%s", charset, tsCharset);
           }
+
           free(charset);
-        } else {
+        } else { // it may be windows system
           tscPrint("charset remains:%s", tsCharset);
         }
       } else {
@@ -256,22 +265,24 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
       /* set charset will override the value of charset, assigned during system locale changed */
       pStr = (char *)arg;
 
-      char oldCharset[64] = {0};
-      strncpy(oldCharset, tsCharset, tListLen(oldCharset));
-
       size_t len = strlen(pStr);
       if (len == 0 || len > TSDB_LOCALE_LEN) {
-        tscPrint("Invalid charset:%s, failed to set charset, current charset:%s", pStr, oldCharset);
+        tscPrint("failed to set charset:%s", pStr);
         return -1;
       }
 
       if (cfg_charset && cfg_charset->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
         if (taosValidateEncodec(pStr)) {
-          tscPrint("charset changed from %s to %s", tsCharset, pStr);
+          if (strlen(tsCharset) == 0) {
+            tscPrint("charset is set:%s", pStr);
+          } else {
+            tscPrint("charset changed from %s to %s", tsCharset, pStr);
+          }
+
           strncpy(tsCharset, pStr, tListLen(tsCharset));
           cfg_charset->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
         } else {
-          tscPrint("charset:%s is not valid, charset remains:%s", pStr, tsCharset);
+          tscPrint("charset:%s not valid", pStr);
         }
       } else {
         tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg_charset->option, pStr,
