@@ -62,8 +62,15 @@ jmethodID g_rowdataSetByteArrayFp;
 
 void jniGetGlobalMethod(JNIEnv *env) {
   // make sure init function executed once
-  if (__sync_val_compare_and_swap_32(&__init, 0, 1) == 1) {
-    return;
+  switch (__sync_val_compare_and_swap_32(&__init, 0, 1)) {
+    case 0:
+      break;
+    case 1:
+      do {
+        taosMsleep(0);
+      } while (__atomic_load_n(&__init, __ATOMIC_ACQUIRE) == 1);
+    case 2:
+      return;
   }
 
   if (g_vm == NULL) {
@@ -101,6 +108,7 @@ void jniGetGlobalMethod(JNIEnv *env) {
   g_rowdataSetByteArrayFp = (*env)->GetMethodID(env, g_rowdataClass, "setByteArray", "(I[B)V");
   (*env)->DeleteLocalRef(env, rowdataClass);
 
+  __atomic_store_n(&__init, 2, __ATOMIC_RELEASE);
   jniTrace("native method register finished");
 }
 
