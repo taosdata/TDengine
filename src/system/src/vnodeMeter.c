@@ -636,7 +636,9 @@ _over:
 
 void vnodeProcessUpdateSchemaTimer(void *param, void *tmrId) {
   SMeterObj * pObj = (SMeterObj *)param;
+  if (pObj->vnode >= TSDB_MAX_VNODES) return;
   SVnodeObj * pVnode = vnodeList + pObj->vnode;
+  if (pVnode == NULL) return;
   if (pVnode->meterList == NULL) {
     dTrace("vnode is deleted, abort update schema");
     return;
