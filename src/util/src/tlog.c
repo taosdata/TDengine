@@ -33,7 +33,13 @@
 #include "tlog.h"
 #include "tutil.h"
 
-#define MAX_LOGLINE_SIZE           1000
+#define MAX_LOGLINE_SIZE              (1000)
+#define MAX_LOGLINE_BUFFER_SIZE       (MAX_LOGLINE_SIZE + 10)
+#define MAX_LOGLINE_CONTENT_SIZE      (MAX_LOGLINE_SIZE - 100)
+#define MAX_LOGLINE_DUMP_SIZE         (65 * 1024)
+#define MAX_LOGLINE_DUMP_BUFFER_SIZE  (MAX_LOGLINE_DUMP_SIZE + 10)
+#define MAX_LOGLINE_DUMP_CONTENT_SIZE (MAX_LOGLINE_DUMP_SIZE - 100)
+
 #define LOG_FILE_NAME_LEN          300
 #define TSDB_DEFAULT_LOG_BUF_SIZE (64 * 1024)   // 10K
 #define TSDB_MIN_LOG_BUF_SIZE      1024         // 1K
@@ -330,7 +336,7 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
   }
 
   va_list        argpointer;
-  char           buffer[MAX_LOGLINE_SIZE + 10] = {0};
+  char           buffer[MAX_LOGLINE_BUFFER_SIZE] = { 0 };
   int            len;
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
@@ -349,7 +355,17 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
-  len += vsnprintf(buffer + len, 900, format, argpointer);
+  int writeLen = vsnprintf(buffer + len, MAX_LOGLINE_CONTENT_SIZE, format, argpointer);
+  if (writeLen <= 0) {
+    char tmp[MAX_LOGLINE_DUMP_BUFFER_SIZE];
+    writeLen = vsnprintf(tmp, MAX_LOGLINE_DUMP_CONTENT_SIZE, format, argpointer);
+    strncpy(buffer + len, tmp, MAX_LOGLINE_CONTENT_SIZE);
+    len += MAX_LOGLINE_CONTENT_SIZE;
+  } else if (writeLen >= MAX_LOGLINE_CONTENT_SIZE) {
+    len += MAX_LOGLINE_CONTENT_SIZE;
+  } else {
+    len += writeLen;
+  }
   va_end(argpointer);
 
   if (len > MAX_LOGLINE_SIZE) len = MAX_LOGLINE_SIZE;
@@ -411,7 +427,7 @@ void taosPrintLongString(const char *const flags, int dflag, const char *const f
   }
 
   va_list        argpointer;
-  char           buffer[65 * 1024 + 10];
+  char           buffer[MAX_LOGLINE_DUMP_BUFFER_SIZE];
   int            len;
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
@@ -430,10 +446,10 @@ void taosPrintLongString(const char *const flags, int dflag, const char *const f
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
-  len += vsnprintf(buffer + len, 64 * 1024, format, argpointer);
+  len += vsnprintf(buffer + len, MAX_LOGLINE_DUMP_CONTENT_SIZE, format, argpointer);
   va_end(argpointer);
 
-  if (len > 64 * 1024) len = 64 * 1024;
+  if (len > MAX_LOGLINE_DUMP_SIZE) len = MAX_LOGLINE_DUMP_SIZE;
 
   buffer[len++] = '\n';
   buffer[len] = 0;
