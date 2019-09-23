@@ -778,7 +778,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     tscGetSrcColumnInfo(colInfo, &pPObj->cmd);
     tColModelDisplayEx(pDesc->pSchema, pRes->data, pRes->numOfRows, pRes->numOfRows, colInfo);
 #endif
-    if (tsAvailTmpDirGB < tsMinimalTmpDirGB) {
+    if (tsTotalTmpDirGB != 0 && tsAvailTmpDirGB < tsMinimalTmpDirGB) {
       tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query",
                pPObj, pSql, tsAvailTmpDirGB, tsMinimalTmpDirGB);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
@@ -810,7 +810,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     tColModelDisplayEx(pDesc->pSchema, trsupport->localBuffer->data, trsupport->localBuffer->numOfElems,
                        trsupport->localBuffer->numOfElems, colInfo);
 #endif
-    if (tsAvailTmpDirGB < tsMinimalTmpDirGB) {
+    if (tsTotalTmpDirGB != 0 && tsAvailTmpDirGB < tsMinimalTmpDirGB) {
       tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query",
                pPObj, pSql, tsAvailTmpDirGB, tsMinimalTmpDirGB);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
