@@ -321,7 +321,7 @@ bool taosGetDisk() {
   const double   unit = 1024 * 1024 * 1024;
 
   if (tscEmbedded) {
-    if (statvfs(tsDirectory, &info)) {
+    if (statvfs(dataDir, &info)) {
       tsTotalDataDirGB = 0;
       tsAvailDataDirGB = 0;
       return false;

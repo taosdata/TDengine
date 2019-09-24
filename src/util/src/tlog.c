@@ -330,7 +330,7 @@ char *tprefix(char *prefix) {
 
 void tprintf(const char *const flags, int dflag, const char *const format, ...) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
-    printf("server disk space remain %.3f GB, stop write log\n", tsAvailLogDirGB);
+    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop print log.\n", logDir, tsAvailLogDirGB, tsTotalLogDirGB);
     fflush(stdout);
     return;
   }
@@ -392,7 +392,7 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
 
 void taosDumpData(unsigned char *msg, int len) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
-    printf("server disk space remain %.3f GB, stop write log\n", tsAvailLogDirGB);
+    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop dump log.\n", logDir, tsAvailLogDirGB, tsTotalLogDirGB);
     fflush(stdout);
     return;
   }
@@ -421,7 +421,7 @@ void taosDumpData(unsigned char *msg, int len) {
 
 void taosPrintLongString(const char *const flags, int dflag, const char *const format, ...) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
-    printf("server disk space remain %.3f GB, stop write log\n", tsAvailLogDirGB);
+    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop write log.\n", logDir, tsAvailLogDirGB, tsTotalLogDirGB);
     fflush(stdout);
     return;
   }
