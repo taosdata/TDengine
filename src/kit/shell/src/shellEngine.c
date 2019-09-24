@@ -33,7 +33,11 @@
 #include "tutil.h"
 
 /**************** Global variables ****************/
-char      CLIENT_VERSION[] = "Welcome to the TDengine shell, client version:%s  ";
+#ifdef WINDOWS
+  char    CLIENT_VERSION[] = "Welcome to the TDengine shell from windows, client version:%s, ";
+#else
+  char    CLIENT_VERSION[] = "Welcome to the TDengine shell from linux, client version:%s, ";
+#endif
 char      SERVER_VERSION[] = "server version:%s\nCopyright (c) 2017 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
 char      CONTINUE_PROMPT[] = "   -> ";
