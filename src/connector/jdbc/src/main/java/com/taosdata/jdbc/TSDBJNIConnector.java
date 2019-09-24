@@ -184,7 +184,7 @@ public class TSDBJNIConnector {
             isResultsetClosed = true; // reset resultSetPointer to 0 after freeResultSetImp() return
             taosResultSetPointer = TSDBConstants.JNI_NULL_POINTER;
         } else {
-			isResultsetClosed = true;
+            isResultsetClosed = true;
 		}
         return res;
 	}
