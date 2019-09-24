@@ -5810,15 +5810,21 @@ int32_t LoadDatablockOnDemand(SCompBlock *pBlock, SField **pFields, int8_t *blkS
 
     /* find first qualified record position in this block */
     if (loadTS) {
-      /* find first qualified record position in this block */
       pQuery->pos =
           searchFn(pRuntimeEnv->primaryColBuffer->data, pBlock->numOfPoints, pQuery->lastKey, pQuery->order.order);
       /* boundary timestamp check */
       assert(pBlock->keyFirst == primaryKeys[0] && pBlock->keyLast == primaryKeys[pBlock->numOfPoints - 1]);
     }
 
-    assert((pQuery->skey <= pQuery->lastKey && QUERY_IS_ASC_QUERY(pQuery)) ||
-           (pQuery->ekey <= pQuery->lastKey && !QUERY_IS_ASC_QUERY(pQuery)));
+    /*
+     * NOTE:
+     * if the query of current timestamp window is COMPLETED, the query range condition may not be satisfied
+     * such as:
+     * pQuery->lastKey + 1 == pQuery->ekey for descending order interval query
+     * pQuery->lastKey - 1 == pQuery->ekey for ascending query
+     */
+    assert(((pQuery->ekey >= pQuery->lastKey || pQuery->ekey == pQuery->lastKey - 1) && QUERY_IS_ASC_QUERY(pQuery)) ||
+           ((pQuery->ekey <= pQuery->lastKey || pQuery->ekey == pQuery->lastKey + 1) && !QUERY_IS_ASC_QUERY(pQuery)));
   }
 
   return DISK_DATA_LOADED;
