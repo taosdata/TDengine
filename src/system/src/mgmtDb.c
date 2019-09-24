@@ -313,7 +313,17 @@ void mgmtDropDbFromSdb(SDbObj *pDb) {
 int mgmtDropDb(SDbObj *pDb) {
   if (pDb->dropStatus == TSDB_DB_STATUS_DROPPING) {
     bool finished = mgmtCheckDropDbFinished(pDb);
-    if (!finished) return TSDB_CODE_ACTION_IN_PROGRESS;
+    if (!finished) {
+      SVgObj *pVgroup = pDb->pHead;
+      while (pVgroup != NULL) {
+        SDnodeObj *pDnode = &dnodeObj;
+        if (pDnode == NULL) continue;
+        SVnodeLoad *pVload = &pDnode->vload[pVgroup->vnodeGid[0].vnode];
+        mgmtSendFreeVnodeMsg(pVgroup->vnodeGid[0].vnode);
+        pVgroup = pVgroup->next;
+      }
+      return TSDB_CODE_ACTION_IN_PROGRESS;
+    }
 
     // don't sync this action
     pDb->dropStatus = TSDB_DB_STATUS_DROP_FROM_SDB;
