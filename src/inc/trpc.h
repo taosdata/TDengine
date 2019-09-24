@@ -73,7 +73,7 @@ typedef struct {
   char *   ckey;      // ciphering key
 } SRpcConnInit;
 
-extern int taosDebugFlag;
+extern int rpcDebugFlag;
 extern int tsRpcHeadSize;
 
 void *taosOpenRpc(SRpcInit *pRpc);

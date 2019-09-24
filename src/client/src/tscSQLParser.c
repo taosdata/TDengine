@@ -3856,7 +3856,7 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
   }
 
   SDNodeDynConfOption DNODE_DYNAMIC_CFG_OPTIONS[13] = {
-      {"resetLog", 8},      {"resetQueryCache", 15}, {"dDebugFlag", 10},       {"taosDebugFlag", 13},
+      {"resetLog", 8},      {"resetQueryCache", 15}, {"dDebugFlag", 10},       {"rpcDebugFlag", 12},
       {"tmrDebugFlag", 12}, {"cDebugFlag", 10},      {"uDebugFlag", 10},       {"mDebugFlag", 10},
       {"sdbDebugFlag", 12}, {"httpDebugFlag", 13},   {"monitorDebugFlag", 16}, {"qDebugflag", 10},
       {"debugFlag", 9}};

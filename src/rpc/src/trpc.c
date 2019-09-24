@@ -116,7 +116,7 @@ typedef struct rpc_server {
 } STaosRpc;
 
 // configurable
-int taosDebugFlag = 131;
+int rpcDebugFlag = 131;
 int tsRpcTimer = 300;
 int tsRpcMaxTime = 600;  // seconds;
 int tsRpcProgressTime = 10;  // milliseocnds
@@ -628,14 +628,14 @@ int taosSendDataToPeer(SRpcConn *pConn, char *data, int dataLen) {
   if (pConn->signature != pConn || pServer == NULL) return -1;
 
   if (pHeader->msgType & 1) {
-    if (pHeader->msgType < TSDB_MSG_TYPE_HEARTBEAT || (taosDebugFlag & 16))
+    if (pHeader->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16))
       tTrace(
           "%s cid:%d sid:%d id:%s, %s is sent to %s:%hu, len:%d tranId:%d "
           "pConn:%p",
           pServer->label, pConn->chann, pConn->sid, pConn->meterId, taosMsg[pHeader->msgType], pConn->peerIpstr,
           pConn->peerPort, dataLen, pHeader->tranId, pConn);
   } else {
-    if (pHeader->msgType < TSDB_MSG_TYPE_HEARTBEAT || (taosDebugFlag & 16))
+    if (pHeader->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16))
       tTrace(
           "%s cid:%d sid:%d id:%s, %s is sent to %s:%hu, code:%u len:%d "
           "tranId:%d pConn:%p",
@@ -1050,7 +1050,7 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
     return pConn;
   }
 
-  if (pHeader->msgType < TSDB_MSG_TYPE_HEARTBEAT || (taosDebugFlag & 16)) {
+  if (pHeader->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16)) {
     tTrace("%s cid:%d sid:%d id:%s, %s received from 0x%x:%hu, parse code:%u, first:%u len:%d tranId:%d pConn:%p",
            pServer->label, chann, sid, pHeader->meterId, taosMsg[pHeader->msgType], ip, port, code, pHeader->content[0],
            dataLen, pHeader->tranId, pConn);
@@ -1084,7 +1084,7 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
       // memcpy(schedMsg.msg, (char *)(&(pHeader->destId)), pHeader->msgLen);
     }
 
-    if (pHeader->msgType < TSDB_MSG_TYPE_HEARTBEAT || (taosDebugFlag & 16)) {
+    if (pHeader->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16)) {
       tTrace("%s cid:%d sid:%d id:%s, %s is put into queue, msgLen:%d pConn:%p pTimer:%p",
              pServer->label, chann, sid, pHeader->meterId, taosMsg[pHeader->msgType], pHeader->msgLen, pConn,
              pConn->pTimer);

@@ -556,7 +556,7 @@ void tsInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG, 0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "sdbDebugFlag", &sdbDebugFlag, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG, 0, 255, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "taosDebugFlag", &taosDebugFlag, TSDB_CFG_VTYPE_INT,
+  tsInitConfigOption(cfg++, "rpcDebugFlag", &rpcDebugFlag, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 255, 0,
                      TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "tmrDebugFlag", &tmrDebugFlag, TSDB_CFG_VTYPE_INT,
@@ -821,7 +821,7 @@ void tsSetAllDebugFlag() {
   if (mdebugFlag != debugFlag) mdebugFlag = debugFlag;
   if (ddebugFlag != debugFlag) ddebugFlag = debugFlag;
   if (sdbDebugFlag != debugFlag) sdbDebugFlag = debugFlag;
-  if (taosDebugFlag != debugFlag) taosDebugFlag = debugFlag;
+  if (rpcDebugFlag != debugFlag) rpcDebugFlag = debugFlag;
   if (cdebugFlag != debugFlag) cdebugFlag = debugFlag;
   if (jnidebugFlag != debugFlag) jnidebugFlag = debugFlag;
   if (uDebugFlag != debugFlag) uDebugFlag = debugFlag;

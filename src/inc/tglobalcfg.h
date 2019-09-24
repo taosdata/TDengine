@@ -155,7 +155,7 @@ extern int sdbDebugFlag;
 extern int httpDebugFlag;
 extern int monitorDebugFlag;
 extern int uDebugFlag;
-extern int taosDebugFlag;
+extern int rpcDebugFlag;
 extern int debugFlag;
 extern int odbcdebugFlag;
 extern int qdebugFlag;

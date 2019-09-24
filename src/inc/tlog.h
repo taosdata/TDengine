@@ -132,23 +132,23 @@ extern int cdebugFlag;
   { tprintf("JNI ", 255, __VA_ARGS__); }
 
 // rpc log function
-extern int taosDebugFlag;
+extern int rpcDebugFlag;
 #define tError(...)                                    \
-  if (taosDebugFlag & DEBUG_ERROR) {                   \
-    tprintf("ERROR RPC ", taosDebugFlag, __VA_ARGS__); \
+  if (rpcDebugFlag & DEBUG_ERROR) {                   \
+    tprintf("ERROR RPC ", rpcDebugFlag, __VA_ARGS__); \
   }
 #define tWarn(...)                                     \
-  if (taosDebugFlag & DEBUG_WARN) {                    \
-    tprintf("WARN  RPC ", taosDebugFlag, __VA_ARGS__); \
+  if (rpcDebugFlag & DEBUG_WARN) {                    \
+    tprintf("WARN  RPC ", rpcDebugFlag, __VA_ARGS__); \
   }
 #define tTrace(...)                              \
-  if (taosDebugFlag & DEBUG_TRACE) {             \
-    tprintf("RPC ", taosDebugFlag, __VA_ARGS__); \
+  if (rpcDebugFlag & DEBUG_TRACE) {             \
+    tprintf("RPC ", rpcDebugFlag, __VA_ARGS__); \
   }
 #define tPrint(...) \
   { tprintf("RPC ", 255, __VA_ARGS__); }
 #define tDump(x, y)                      \
-  if (taosDebugFlag & DEBUG_DUMP) {      \
+  if (rpcDebugFlag & DEBUG_DUMP) {      \
     taosDumpData((unsigned char *)x, y); \
   }
 
