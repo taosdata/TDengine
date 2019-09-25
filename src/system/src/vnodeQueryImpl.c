@@ -5862,25 +5862,54 @@ static void validateResultBuf(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo
   }
 }
 
-void saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *sqinfo, int32_t numOfResult) {
+void saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryInfo, int32_t numOfResult) {
   SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
   if (numOfResult <= 0) {
-    return;
+    if (IS_MASTER_SCAN(pRuntimeEnv)) {
+      return;
+    } else {
+      /*
+       * There is a case that no result generated during the the supplement scan, and during the main
+       * scan also no result generated. The index can be backwards moved.
+       *
+       * However, if during the main scan, there is a result generated, such as applies count to timestamp, which
+       * always generates a result, but applies last query to a NULL column may fail to generate no results during the
+       * supplement scan.
+       *
+       * NOTE:
+       * nStartQueryTimestamp is the actually timestamp of current interval, if the actually interval timestamp
+       * equals to the recorded timestamp that is acquired during the master scan, backwards one step even
+       * there is no results during the supplementary scan.
+       */
+      TSKEY ts = *(TSKEY *)pRuntimeEnv->pCtx[0].aOutputBuf;
+
+      if (ts == pRuntimeEnv->pCtx[0].nStartQueryTimestamp && pMeterQueryInfo->reverseIndex > 0) {
+        assert(pMeterQueryInfo->numOfRes >= 0 && pMeterQueryInfo->reverseIndex > 0 &&
+            pMeterQueryInfo->reverseIndex <= pMeterQueryInfo->numOfRes);
+
+        // backward one step from the previous position, the start position is (pMeterQueryInfo->numOfRows-1);
+        pMeterQueryInfo->reverseIndex -= 1;
+        setCtxOutputPointerForSupplementScan(pSupporter, pMeterQueryInfo);
+      }
+
+      return;
+    }
   }
 
-  assert(sqinfo->lastResRows == 1);
+  assert(pMeterQueryInfo->lastResRows == 1);
   numOfResult = 1;
-  sqinfo->lastResRows = 0;
+  pMeterQueryInfo->lastResRows = 0;
 
-  if (IS_SUPPLEMENT_SCAN(pRuntimeEnv) && sqinfo->reverseFillRes == 1) {
-    assert(sqinfo->numOfRes > 0 && sqinfo->reverseIndex > 0 && sqinfo->reverseIndex <= sqinfo->numOfRes);
-    // backward one step from the previous position, the start position is (sqinfo->numOfRows-1);
-    sqinfo->reverseIndex -= 1;
-    setCtxOutputPointerForSupplementScan(pSupporter, sqinfo);
+  if (IS_SUPPLEMENT_SCAN(pRuntimeEnv) && pMeterQueryInfo->reverseFillRes == 1) {
+    assert(pMeterQueryInfo->numOfRes > 0 && pMeterQueryInfo->reverseIndex > 0 &&
+        pMeterQueryInfo->reverseIndex <= pMeterQueryInfo->numOfRes);
+    // backward one step from the previous position, the start position is (pMeterQueryInfo->numOfRows-1);
+    pMeterQueryInfo->reverseIndex -= 1;
+    setCtxOutputPointerForSupplementScan(pSupporter, pMeterQueryInfo);
   } else {
-    int32_t    pageId = sqinfo->pageList[sqinfo->numOfPages - 1];
+    int32_t    pageId = pMeterQueryInfo->pageList[pMeterQueryInfo->numOfPages - 1];
     tFilePage *pData = getFilePage(pSupporter, pageId);
 
     // in handling records occuring around '1970-01-01', the aligned start
@@ -5890,15 +5919,15 @@ void saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *sqinfo, int3
 
     SMeterObj *pMeterObj = pRuntimeEnv->pMeterObj;
     qTrace("QInfo:%p vid:%d sid:%d id:%s, save results, ts:%lld, total:%d", GET_QINFO_ADDR(pQuery), pMeterObj->vnode,
-           pMeterObj->sid, pMeterObj->meterId, ts, sqinfo->numOfRes + 1);
+           pMeterObj->sid, pMeterObj->meterId, ts, pMeterQueryInfo->numOfRes + 1);
 
     pData->numOfElems += numOfResult;
-    sqinfo->numOfRes += numOfResult;
+    pMeterQueryInfo->numOfRes += numOfResult;
     assert(pData->numOfElems <= pRuntimeEnv->numOfRowsPerPage);
 
-    setOutputBufferForIntervalQuery(pSupporter, sqinfo);
+    setOutputBufferForIntervalQuery(pSupporter, pMeterQueryInfo);
 
-    validateResultBuf(pSupporter, sqinfo);
+    validateResultBuf(pSupporter, pMeterQueryInfo);
     initCtxOutputBuf(pRuntimeEnv);
 #if 0
         SSchema sc[TSDB_MAX_COLUMNS] = {0};
