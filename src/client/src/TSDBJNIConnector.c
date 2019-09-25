@@ -401,12 +401,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
       jniTrace("jobj:%p, taos:%p, resultset:%p, fields size is %d, fetch row to the end", jobj, tscon, res, num_fields);
       return JNI_FETCH_END;
     } else {
-      jclass cls;
-      cls = (*env)->FindClass(env,"com/taosdata/jdbc/TSDBError");
-      if(cls == NULL){
-        return JNI_TDENGINE_ERROR;
-      }
-      (*env)->ThrowNew(env,cls,"Interruppted query");
+      jniTrace("jobj:%p, taos:%p, interruptted query", jobj, tscon);
+      return JNI_RESULT_SET_NULL;
     }
   }
 
