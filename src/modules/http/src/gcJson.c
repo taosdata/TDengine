@@ -92,6 +92,8 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
     return false;
   }
 
+  bool us = taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO;
+
   // such as select count(*) from sys.cpu
   // such as select count(*) from sys.cpu group by ipaddr
   // such as select count(*) from sys.cpu interval(1d)
@@ -149,7 +151,11 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           snprintf(target, HTTP_GC_TARGET_SIZE, "%s%s", aliasBuffer, (char *)row[groupFields]);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          snprintf(target, HTTP_GC_TARGET_SIZE, "%s%ld", aliasBuffer, *((int64_t *)row[groupFields]));
+          if (us) {
+            snprintf(target, HTTP_GC_TARGET_SIZE, "%s%ld", aliasBuffer, *((int64_t *) row[groupFields]));
+          } else {
+            snprintf(target, HTTP_GC_TARGET_SIZE, "%s%ld", aliasBuffer, *((int64_t *) row[groupFields]) / 1000);
+          }
           break;
         default:
           snprintf(target, HTTP_GC_TARGET_SIZE, "%s%s", aliasBuffer, "invalidcol");
