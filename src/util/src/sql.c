@@ -1006,6 +1006,11 @@ static void yy_destructor(
 tVariantListDestroy((yypminor->yy216));
 }
       break;
+    case 213: /* columnlist */
+{
+tFieldListDestroy((yypminor->yy151));
+}
+      break;
     case 214: /* select */
 {
 destroyQuerySql((yypminor->yy24));

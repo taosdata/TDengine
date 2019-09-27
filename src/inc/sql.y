@@ -236,6 +236,7 @@ create_table_args(A) ::= AS select(S). {
 
 %type column{TAOS_FIELD}
 %type columnlist{tFieldList*}
+%destructor columnlist {tFieldListDestroy($$);}
 columnlist(A) ::= columnlist(X) COMMA column(Y).  {A = tFieldListAppend(X, &Y);   }
 columnlist(A) ::= column(X).                      {A = tFieldListAppend(NULL, &X);}
 
