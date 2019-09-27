@@ -127,6 +127,7 @@ MESSAGE(STATUS "Project library files output path: " ${LIBRARY_OUTPUT_PATH})
 
 ADD_SUBDIRECTORY(deps)
 ADD_SUBDIRECTORY(src)
+ADD_SUBDIRECTORY(tests)
 
 IF (TD_LINUX)
   SET(TD_MAKE_INSTALL_SH "${TD_ROOT_DIR}/packaging/tools/make_install.sh")
