@@ -631,7 +631,7 @@ char *taos_errstr(TAOS *taos) {
     code = pObj->pSql->res.code;
 
   if (code == TSDB_CODE_INVALID_SQL) {
-    sprintf(temp, "invalid SQL: %s", pObj->pSql->cmd.payload);
+    snprintf(temp, tListLen(temp), "invalid SQL: %s", pObj->pSql->cmd.payload);
     strcpy(pObj->pSql->cmd.payload, temp);
     return pObj->pSql->cmd.payload;
   } else {
