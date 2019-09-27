@@ -300,10 +300,14 @@ void httpProcessSingleSqlCmd(HttpContext *pContext) {
 }
 
 void httpProcessLoginCmd(HttpContext *pContext) {
-  char token[128] = "current version only supports basic authorization, no token returned";
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, login via http, return token:%s",
+  char token[128] = {0};
+  if (!httpGenTaosdAuthToken(pContext, token, 128)) {
+    httpSendErrorResp(pContext, HTTP_GEN_TAOSD_TOKEN_ERR);
+  } else {
+    httpTrace("context:%p, fd:%d, ip:%s, user:%s, login via http, return token:%s",
               pContext, pContext->fd, pContext->ipstr, pContext->user, token);
-  httpSendSuccResp(pContext, token);
+    httpSendSuccResp(pContext, token);
+  }
 }
 
 void httpProcessHeartBeatCmd(HttpContext *pContext) {

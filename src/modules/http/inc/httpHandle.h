@@ -188,7 +188,6 @@ typedef struct HttpContext {
   HttpSqlCmd          singleCmd;
   HttpSqlCmds        *multiCmds;
   JsonBuf            *jsonBuf;
-  pthread_mutex_t     mutex;
   HttpParser          parser;
   void               *readTimer;
   struct HttpThread  *pThread;

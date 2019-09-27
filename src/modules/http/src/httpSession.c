@@ -28,8 +28,12 @@
 #include "ttimer.h"
 
 void httpAccessSession(HttpContext *pContext) {
-  if (pContext->session == pContext->session->signature)
-    pContext->session->expire = (int)taosGetTimestampSec() + pContext->pThread->pServer->sessionExpire;
+  HttpServer *server = pContext->pThread->pServer;
+  pthread_mutex_lock(&server->serverMutex);
+  if (pContext->session == pContext->session->signature) {
+    pContext->session->expire = (int) taosGetTimestampSec() + pContext->pThread->pServer->sessionExpire;
+  }
+  pthread_mutex_unlock(&server->serverMutex);
 }
 
 void httpCreateSession(HttpContext *pContext, void *taos) {
@@ -53,6 +57,8 @@ void httpCreateSession(HttpContext *pContext, void *taos) {
     httpError("context:%p, fd:%d, ip:%s, user:%s, error:%s", pContext, pContext->fd, pContext->ipstr, pContext->user,
               httpMsg[HTTP_SESSION_FULL]);
     taos_close(taos);
+    pthread_mutex_unlock(&server->serverMutex);
+    return;
   }
 
   pContext->session->signature = pContext->session;
@@ -82,10 +88,14 @@ void httpFetchSession(HttpContext *pContext) {
 
 void httpRestoreSession(HttpContext *pContext) {
   HttpServer * server = pContext->pThread->pServer;
-  HttpSession *session = pContext->session;
-  if (session == NULL || session != session->signature) return;
 
+  // all access to the session is via serverMutex
   pthread_mutex_lock(&server->serverMutex);
+  HttpSession *session = pContext->session;
+  if (session == NULL || session != session->signature) {
+    pthread_mutex_unlock(&server->serverMutex);
+    return;
+  }
   session->access--;
   httpTrace("context:%p, ip:%s, user:%s, restore session:%p:%s:%p, access:%d, expire:%d",
             pContext, pContext->ipstr, pContext->user, session, session->id, session->taos,
@@ -127,7 +137,7 @@ bool httpInitAllSessions(HttpServer *pServer) {
 
 int httpSessionExpired(char *session) {
   HttpSession *pSession = (HttpSession *)session;
-  time_t       cur = time(NULL);
+  time_t       cur = taosGetTimestampSec();
 
   if (pSession->taos != NULL) {
     if (pSession->expire > cur) {
