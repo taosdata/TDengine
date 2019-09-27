@@ -13,3 +13,12 @@ rpms/
 *.tmp
 src/connector/nodejs/node_modules/
 src/connector/nodejs/out/
+tests/test/
+tests/taoshebei/
+tests/taoscsv/
+tests/taosdalipu/
+tests/sim/
+tests/script/
+tests/pytest/
+tests/jenkins/
+tests/hdfs/
