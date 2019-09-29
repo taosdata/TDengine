@@ -611,7 +611,7 @@ void taosRemoveDataFromCache(void *handle, void **data, bool _remove) {
 
   *data = NULL;
 
-  if (remove) {
+  if (_remove) {
 #if defined LINUX
     pthread_rwlock_wrlock(&pObj->lock);
 #else
