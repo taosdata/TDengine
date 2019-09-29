@@ -407,8 +407,14 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
 
   TAOS_ROW row = taos_fetch_row(result);
   if (row == NULL) {
-    jniTrace("jobj:%p, taos:%p, resultset:%p, fields size is %d, fetch row to the end", jobj, tscon, res, num_fields);
-    return JNI_FETCH_END;
+    int tserrno = taos_errno(tscon);
+    if (tserrno == 0) {
+      jniTrace("jobj:%p, taos:%p, resultset:%p, fields size is %d, fetch row to the end", jobj, tscon, res, num_fields);
+      return JNI_FETCH_END;
+    } else {
+      jniTrace("jobj:%p, taos:%p, interruptted query", jobj, tscon);
+      return JNI_RESULT_SET_NULL;
+    }
   }
 
   char tmp[TSDB_MAX_BYTES_PER_ROW] = {0};
