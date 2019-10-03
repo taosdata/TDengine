@@ -52,7 +52,7 @@ In different scenarios, data characteristics are different. For example, the ret
 - tables: maximum number of tables allowed in a vnode
 - cache: cache block size (bytes)
 - tblocks: maximum number of cache blocks for a table
-- abloks: average number of cache blocks for a table 
+- ablocks: average number of cache blocks for a table 
 - precision: timestamp precision, us: microsecond ms: millisecond, default is ms
 
 For an application, there may be multiple data scenarios. The best design is to put all data with the same characteristics into one database. One application may have multiple databases, and every database has its own configuration to maximize the system performance. You can specify the above configurations related to storage when you create a database. For example:  
