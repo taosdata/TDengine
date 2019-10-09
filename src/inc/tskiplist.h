@@ -30,15 +30,6 @@ extern "C" {
 #include "ttypes.h"
 
 /*
- * generate random data with uniform&skewed distribution, extracted from levelDB
- */
-typedef struct SRandom {
-  uint32_t s;
-
-  uint32_t (*rand)(struct SRandom *, int32_t n);
-} SRandom;
-
-/*
  * key of each node
  * todo move to as the global structure in all search codes...
  */
@@ -54,10 +45,11 @@ typedef enum tSkipListPointQueryType {
 typedef struct tSkipListNode {
   uint16_t     nLevel;
   char *       pData;
-  tSkipListKey key;
 
   struct tSkipListNode **pForward;
   struct tSkipListNode **pBackward;
+
+  tSkipListKey key;
 } tSkipListNode;
 
 /*
@@ -133,9 +125,6 @@ typedef struct tSkipList {
   __compar_fn_t    comparator;
   pthread_rwlock_t lock;  // will be removed soon
 
-  // random generator
-  SRandom r;
-
   // skiplist state
   tSkipListState state;
 } tSkipList;
@@ -150,14 +139,14 @@ typedef struct tSKipListQueryCond {
   tSkipListKey upperBnd;
 
   int32_t lowerBndRelOptr;  // relation operator to denote if lower bound is
+
   // included or not
   int32_t upperBndRelOptr;
 } tSKipListQueryCond;
 
-int32_t tSkipListCreate(tSkipList **pSkipList, int16_t nMaxLevel, int16_t keyType, int16_t nMaxKeyLen,
-                        int32_t (*funcp)());
+tSkipList* tSkipListCreate(int16_t nMaxLevel, int16_t keyType, int16_t nMaxKeyLen);
 
-void tSkipListDestroy(tSkipList **pSkipList);
+void* tSkipListDestroy(tSkipList *pSkipList);
 
 // create skip list key
 tSkipListKey tSkipListCreateKey(int32_t type, char *val, size_t keyLength);
@@ -170,8 +159,7 @@ tSkipListNode *tSkipListPut(tSkipList *pSkipList, void *pData, tSkipListKey *pKe
 
 /*
  * get only *one* node of which key is equalled to pKey, even there are more
- * than
- * one nodes are of the same key
+ * than one nodes are of the same key
  */
 tSkipListNode *tSkipListGetOne(tSkipList *pSkipList, tSkipListKey *pKey);
 
@@ -215,12 +203,6 @@ int32_t tSkipListPointQuery(tSkipList *pSkipList, tSkipListKey *pKey, int32_t nu
                             tSkipListNode ***pResult);
 
 void removeNodeEachLevel(tSkipList *pSkipList, int32_t nLevel);
-
-// todo move to utility
-void tInitMatrix(double *x, double *y, int32_t length, double p[2][3]);
-
-int32_t tCompute(double p[2][3]);
-
 #ifdef __cplusplus
 }
 #endif

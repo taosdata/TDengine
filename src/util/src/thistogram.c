@@ -133,7 +133,7 @@ SHistogramInfo* tHistogramCreate(int32_t numOfEntries) {
   SHistogramInfo* pHisto = malloc(sizeof(SHistogramInfo) + sizeof(SHistBin) * (numOfEntries + 1));
 
 #if !defined(USE_ARRAYLIST)
-  tSkipListCreate(&pHisto->pList, MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_DOUBLE, sizeof(double), NULL);
+  pHisto->pList = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
   SInsertSupporter* pss = malloc(sizeof(SInsertSupporter));
   pss->numOfEntries = pHisto->maxEntries;
   pss->pSkipList = pHisto->pList;
@@ -623,11 +623,14 @@ double* tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num) {
 SHistogramInfo* tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2, int32_t numOfEntries) {
   SHistogramInfo* pResHistogram = tHistogramCreate(numOfEntries);
 
-  SHistBin* pHistoBins = calloc(1, sizeof(SHistBin) * (pHisto1->numOfEntries + pHisto2->numOfEntries));
+  // error in histogram info
+  if (pHisto1->numOfEntries > MAX_HISTOGRAM_BIN || pHisto2->numOfEntries > MAX_HISTOGRAM_BIN) {
+    return pResHistogram;
+  }
 
-  int32_t i = 0;
-  int32_t j = 0;
-  int32_t k = 0;
+  SHistBin* pHistoBins = calloc(1, sizeof(SHistBin) * (pHisto1->numOfEntries + pHisto2->numOfEntries));
+  int32_t i = 0, j = 0, k = 0;
+
   while (i < pHisto1->numOfEntries && j < pHisto2->numOfEntries) {
     if (pHisto1->elems[i].val < pHisto2->elems[j].val) {
       pHistoBins[k++] = pHisto1->elems[i++];
@@ -660,8 +663,8 @@ SHistogramInfo* tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2
     histogramMergeImpl(pHistoBins, &k);
   }
 
-  memcpy(pResHistogram->elems, pHistoBins, sizeof(SHistBin) * numOfEntries);
   pResHistogram->numOfEntries = k;
+  memcpy(pResHistogram->elems, pHistoBins, sizeof(SHistBin) * k);
 
   free(pHistoBins);
   return pResHistogram;

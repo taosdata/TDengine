@@ -478,7 +478,7 @@ int mgmtRemoveMetricFromDb(SDbObj *pDb, STabObj *pMetric) {
   pDb->numOfMetrics--;
 
   if (pMetric->pSkipList != NULL) {
-    tSkipListDestroy(&pMetric->pSkipList);
+    pMetric->pSkipList = tSkipListDestroy(pMetric->pSkipList);
   }
   return 0;
 }

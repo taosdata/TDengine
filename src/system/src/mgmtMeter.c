@@ -34,7 +34,7 @@ extern int64_t sdbVersion;
 #define mgmtDestroyMeter(pMeter) \
   do {                           \
     tfree(pMeter->schema);       \
-    tSkipListDestroy(&(pMeter->pSkipList));\
+    pMeter->pSkipList = tSkipListDestroy((pMeter)->pSkipList);\
     tfree(pMeter);               \
   } while (0)
 
@@ -781,8 +781,8 @@ static void addMeterIntoMetricIndex(STabObj *pMetric, STabObj *pMeter) {
   SSchema *     pTagSchema = (SSchema *)(pMetric->schema + pMetric->numOfColumns * sizeof(SSchema));
 
   if (pMetric->pSkipList == NULL) {
-    tSkipListCreate(&pMetric->pSkipList, MAX_SKIP_LIST_LEVEL, pTagSchema[KEY_COLUMN_OF_TAGS].type,
-                    pTagSchema[KEY_COLUMN_OF_TAGS].bytes, tSkipListDefaultCompare);
+    pMetric->pSkipList = tSkipListCreate(MAX_SKIP_LIST_LEVEL, pTagSchema[KEY_COLUMN_OF_TAGS].type,
+                    pTagSchema[KEY_COLUMN_OF_TAGS].bytes);
   }
 
   if (pMetric->pSkipList) {

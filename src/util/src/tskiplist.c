@@ -23,28 +23,6 @@
 #include "tskiplist.h"
 #include "tutil.h"
 
-static uint32_t doGetRand(SRandom *pRand, int32_t n) {
-  const uint32_t val = 2147483647L;
-  uint64_t       p = pRand->s * 16807;
-
-  pRand->s = (uint32_t)((p >> 31) + (p & val));
-  if (pRand->s > val) {
-    pRand->s -= val;
-  }
-
-  return (pRand->s % n);
-}
-
-static SRandom getRand(uint32_t s) {
-  uint32_t seed = s & 0x7FFFFFFF;
-  if (seed == 0 || seed == INT32_MAX) {
-    seed = 1;
-  }
-
-  struct SRandom r = {seed, doGetRand};
-  return r;
-}
-
 void recordNodeEachLevel(tSkipList *pSkipList, int32_t nLevel);
 
 int32_t getSkipListNodeLevel(tSkipList *pSkipList);
@@ -55,14 +33,14 @@ static int32_t getSkipListNodeRandomHeight(tSkipList *pSkipList) {
   const uint32_t factor = 4;
 
   int32_t n = 1;
-  while ((pSkipList->r.rand(&pSkipList->r, MAX_SKIP_LIST_LEVEL) % factor) == 0 && n <= MAX_SKIP_LIST_LEVEL) {
+  while ((rand() % factor) == 0 && n <= pSkipList->nMaxLevel) {
     n++;
   }
 
   return n;
 }
 
-void tSkipListDoRecordPutNode(tSkipList *pSkipList) {
+void tSkipListDoRecordPut(tSkipList *pSkipList) {
   const int32_t MAX_RECORD_NUM = 1000;
 
   if (pSkipList->state.nInsertObjs == MAX_RECORD_NUM) {
@@ -239,33 +217,33 @@ static __compar_fn_t getKeyComparator(int32_t keyType) {
   return comparator;
 }
 
-int32_t tSkipListCreate(tSkipList **pSkipList, int16_t nMaxLevel, int16_t keyType, int16_t nMaxKeyLen,
-                        int32_t (*funcp)()) {
-  (*pSkipList) = (tSkipList *)calloc(1, sizeof(tSkipList));
-  if ((*pSkipList) == NULL) {
-    return -1;
+tSkipList* tSkipListCreate(int16_t nMaxLevel, int16_t keyType, int16_t nMaxKeyLen) {
+  tSkipList *pSkipList = (tSkipList *)calloc(1, sizeof(tSkipList));
+  if (pSkipList == NULL) {
+    return NULL;
   }
 
-  (*pSkipList)->keyType = keyType;
+  pSkipList->keyType = keyType;
 
-  (*pSkipList)->comparator = getKeyComparator(keyType);
-  (*pSkipList)->pHead.pForward = (tSkipListNode **)calloc(1, POINTER_BYTES * MAX_SKIP_LIST_LEVEL);
+  pSkipList->comparator = getKeyComparator(keyType);
+  pSkipList->pHead.pForward = (tSkipListNode **)calloc(1, POINTER_BYTES * MAX_SKIP_LIST_LEVEL);
 
-  (*pSkipList)->nMaxLevel = MAX_SKIP_LIST_LEVEL;
-  (*pSkipList)->nLevel = 1;
+  pSkipList->nMaxLevel = MAX_SKIP_LIST_LEVEL;
+  pSkipList->nLevel = 1;
 
-  (*pSkipList)->nMaxKeyLen = nMaxKeyLen;
-  (*pSkipList)->nMaxLevel = nMaxLevel;
+  pSkipList->nMaxKeyLen = nMaxKeyLen;
+  pSkipList->nMaxLevel = nMaxLevel;
 
-  if (pthread_rwlock_init(&(*pSkipList)->lock, NULL) != 0) {
-    return -1;
+  if (pthread_rwlock_init(&pSkipList->lock, NULL) != 0) {
+    tfree(pSkipList->pHead.pForward);
+    tfree(pSkipList);
+    return NULL;
   }
 
   srand(time(NULL));
-  (*pSkipList)->r = getRand(time(NULL));
+  pSkipList->state.nTotalMemSize += sizeof(tSkipList);
 
-  (*pSkipList)->state.nTotalMemSize += sizeof(tSkipList);
-  return 0;
+  return pSkipList;
 }
 
 static void doRemove(tSkipList *pSkipList, tSkipListNode *pNode, tSkipListNode *forward[]) {
@@ -324,77 +302,33 @@ static tSkipListNode *tSkipListCreateNode(void *pData, const tSkipListKey *pKey,
 }
 
 tSkipListKey tSkipListCreateKey(int32_t type, char *val, size_t keyLength) {
-  tSkipListKey k;
-  k.nType = (uint8_t)type;
-
-  switch (type) {
-    case TSDB_DATA_TYPE_INT: {
-      k.i64Key = *(int32_t *)val;
-      return k;
-    }
-    case TSDB_DATA_TYPE_BIGINT: {
-      k.i64Key = *(int64_t *)val;
-      return k;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      k.dKey = *(double *)val;
-      return k;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      k.dKey = *(float *)val;
-      return k;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      k.i64Key = *(int16_t *)val;
-      return k;
-    }
-    case TSDB_DATA_TYPE_TINYINT: {
-      k.i64Key = *(int8_t *)val;
-      return k;
-    }
-    case TSDB_DATA_TYPE_BOOL: {
-      k.i64Key = *(int8_t *)val;
-      return k;
-    }
-    case TSDB_DATA_TYPE_BINARY: {
-      k.pz = malloc(keyLength + 1);
-      k.nLen = keyLength;
-      memcpy(k.pz, val, keyLength);
-      k.pz[keyLength] = 0;
-      return k;
-    }
-    case TSDB_DATA_TYPE_NCHAR: {
-      k.pz = malloc(keyLength + TSDB_NCHAR_SIZE);
-      k.nLen = keyLength / TSDB_NCHAR_SIZE;
-
-      wcsncpy(k.wpz, (wchar_t *)val, k.nLen);
-      k.wpz[k.nLen] = 0;
-
-      return k;
-    }
-    default:
-      return k;
-  }
+  tSkipListKey k = {0};
+  tVariantCreateB(&k, val, (uint32_t) keyLength, (uint32_t) type);
+  return k;
 }
 
 void tSkipListDestroyKey(tSkipListKey *pKey) { tVariantDestroy(pKey); }
 
-void tSkipListDestroy(tSkipList **pSkipList) {
-  if ((*pSkipList) == NULL) {
-    return;
+void* tSkipListDestroy(tSkipList *pSkipList) {
+  if (pSkipList == NULL) {
+    return NULL;
   }
 
-  pthread_rwlock_wrlock(&(*pSkipList)->lock);
-  tSkipListNode *pNode = (*pSkipList)->pHead.pForward[0];
+  pthread_rwlock_wrlock(&pSkipList->lock);
+  tSkipListNode *pNode = pSkipList->pHead.pForward[0];
   while (pNode) {
     tSkipListNode *pTemp = pNode;
     pNode = pNode->pForward[0];
     tfree(pTemp);
   }
 
-  tfree((*pSkipList)->pHead.pForward);
-  pthread_rwlock_unlock(&(*pSkipList)->lock);
-  tfree(*pSkipList);
+  tfree(pSkipList->pHead.pForward);
+  pthread_rwlock_unlock(&pSkipList->lock);
+
+  pthread_rwlock_destroy(&pSkipList->lock);
+  tfree(pSkipList);
+
+  return NULL;
 }
 
 tSkipListNode *tSkipListPut(tSkipList *pSkipList, void *pData, tSkipListKey *pKey, int32_t insertIdenticalKey) {
@@ -405,7 +339,7 @@ tSkipListNode *tSkipListPut(tSkipList *pSkipList, void *pData, tSkipListKey *pKe
   pthread_rwlock_wrlock(&pSkipList->lock);
 
   // record one node is put into skiplist
-  tSkipListDoRecordPutNode(pSkipList);
+  tSkipListDoRecordPut(pSkipList);
 
   tSkipListNode *px = &pSkipList->pHead;
 
@@ -419,9 +353,9 @@ tSkipListNode *tSkipListPut(tSkipList *pSkipList, void *pData, tSkipListKey *pKe
     forward[i] = px;
   }
 
+  // if the skiplist does not allowed identical key inserted, the new data will be discarded.
   if ((insertIdenticalKey == 0) && forward[0] != &pSkipList->pHead &&
       (pSkipList->comparator(&forward[0]->key, pKey) == 0)) {
-    /* ignore identical key*/
     pthread_rwlock_unlock(&pSkipList->lock);
     return forward[0];
   }

@@ -48,7 +48,7 @@ enum {
   TSQL_NODE_TYPE_VALUE = 0x4,
 };
 
-extern char tTokenTypeSwitcher[12];
+extern char tTokenTypeSwitcher[13];
 
 #define toTSDBType(x)                          \
   do {                                         \
