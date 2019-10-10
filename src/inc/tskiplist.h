@@ -186,8 +186,6 @@ bool tSkipListRemove(tSkipList *pSkipList, tSkipListKey *pKey);
  */
 void tSkipListRemoveNode(tSkipList *pSkipList, tSkipListNode *pNode);
 
-int32_t tSkipListDefaultCompare(tSkipList *pSkipList, tSkipListKey *a, tSkipListKey *b);
-
 // for debug purpose only
 void tSkipListPrint(tSkipList *pSkipList, int16_t nlevel);
 
