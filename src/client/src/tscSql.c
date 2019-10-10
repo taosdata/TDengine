@@ -706,10 +706,17 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         break;
 
       case TSDB_DATA_TYPE_BINARY:
-      case TSDB_DATA_TYPE_NCHAR:
+      case TSDB_DATA_TYPE_NCHAR:{
         /* limit the max length of string to no greater than the maximum length,
          * in case of not null-terminated string */
-        len += snprintf(str + len, (size_t)fields[i].bytes + 1, "%s ", (char *)row[i]);
+        size_t xlen = strlen(row[i]);
+        size_t trueLen = MIN(xlen, fields[i].bytes);
+
+        memcpy(str + len, (char*) row[i], trueLen);
+
+        str[len + trueLen] = ' ';
+        len += (trueLen + 1);
+      }
         break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
