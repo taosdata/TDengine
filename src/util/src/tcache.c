@@ -89,7 +89,6 @@ typedef struct {
   _hashFunc    hashFp;
   int          numOfElemsInTrash;  // number of element in trash
   int16_t      deleting;           // set the deleting flag to stop refreshing asap.
-  int16_t      refreshing;         // if refreshing is invoked, it will be set 1
 
 #if defined        LINUX
   pthread_rwlock_t lock;
@@ -500,7 +499,7 @@ static SDataNode *taosUpdateCacheImpl(SCacheObj *pObj, SDataNode *pNode, char *k
 
   // only a node is not referenced by any other object, in-place update it
   if (pNode->refCount == 0) {
-    size_t newSize = sizeof(SDataNode) + dataSize + (keyLen + 1);
+    size_t newSize = sizeof(SDataNode) + dataSize + keyLen;
 
     pNewNode = (SDataNode *)realloc(pNode, newSize);
     if (pNewNode == NULL) {
@@ -725,6 +724,34 @@ void *taosUpdateDataFromCache(void *handle, char *key, char *pData, int size, in
   return (pNew != NULL) ? pNew->data : NULL;
 }
 
+static void doCleanUpDataCache(SCacheObj* pObj) {
+  SDataNode *pNode, *pNext;
+
+  __cache_wr_lock(pObj);
+
+  if (pObj->hashList && pObj->size > 0) {
+    for (int i = 0; i < pObj->capacity; ++i) {
+      pNode = pObj->hashList[i];
+      while (pNode) {
+        pNext = pNode->next;
+        free(pNode);
+        pNode = pNext;
+      }
+    }
+
+    tfree(pObj->hashList);
+  }
+
+  __cache_unlock(pObj);
+
+  taosClearCacheTrash(pObj, true);
+  __cache_lock_destroy(pObj);
+
+  memset(pObj, 0, sizeof(SCacheObj));
+
+  free(pObj);
+}
+
 /**
  * refresh cache to remove data in both hash list and trash, if any nodes' refcount == 0, every pObj->refreshTime
  * @param handle   Cache object handle
@@ -733,21 +760,13 @@ void taosRefreshDataCache(void *handle, void *tmrId) {
   SDataNode *pNode, *pNext;
   SCacheObj *pObj = (SCacheObj *)handle;
 
-  if (pObj == NULL || pObj->capacity <= 0 || pObj->deleting == 1) {
+  if (pObj == NULL || pObj->capacity <= 0) {
     pTrace("object is destroyed. no refresh retry");
     return;
   }
 
-  pObj->refreshing = 1;
-
-#if defined LINUX
-  __sync_synchronize();
-#else
-  MemoryBarrier();
-#endif
-
   if (pObj->deleting == 1) {
-    pObj->refreshing = 0;
+    doCleanUpDataCache(pObj);
     return;
   }
 
@@ -760,8 +779,7 @@ void taosRefreshDataCache(void *handle, void *tmrId) {
   for (int i = 0; i < pObj->capacity; ++i) {
     // in deleting process, quit refreshing immediately
     if (pObj->deleting == 1) {
-      pObj->refreshing = 0;
-      return;
+      break;
     }
 
     __cache_wr_lock(pObj);
@@ -786,12 +804,8 @@ void taosRefreshDataCache(void *handle, void *tmrId) {
     __cache_unlock(pObj);
   }
 
-  int16_t isDeleting = pObj->deleting;
-  pObj->refreshing = 0;
-
-  // the SCacheObj may have been released now.
-  if (isDeleting == 1) {
-    return;
+  if (pObj->deleting == 1) { // clean up resources and abort
+    doCleanUpDataCache(pObj);
   } else {
     taosClearCacheTrash(pObj, false);
     taosTmrReset(taosRefreshDataCache, pObj->refreshTime, pObj, pObj->tmrCtrl, &pObj->pTimer);
@@ -829,8 +843,7 @@ void taosClearDataCache(void *handle) {
 }
 
 /**
- *
- * @param capacity       maximum slots available for hash elements
+ * @param capacity          maximum slots available for hash elements
  * @param tmrCtrl           timer ctrl
  * @param refreshTime       refresh operation interval time, the maximum survival time when one element is expired and
  *                          not referenced by other objects
@@ -877,61 +890,22 @@ void *taosInitDataCache(int capacity, void *tmrCtrl, int64_t refreshTime) {
 }
 
 /**
- * release all allocated memory and destroy the cache object
+ * release all allocated memory and destroy the cache object.
+ *
+ * This function only set the deleting flag, and the specific work of clean up cache is delegated to
+ * taosRefreshDataCache function, which will executed every SCacheObj->refreshTime sec.
+ *
+ * If the value of SCacheObj->refreshTime is too large, the taosRefreshDataCache function may not be invoked
+ * before the main thread terminated, in which case all allocated resources are simply recycled by OS.
  *
  * @param handle
  */
 void taosCleanUpDataCache(void *handle) {
-  SCacheObj *pObj;
-  SDataNode *pNode, *pNext;
-  pObj = (SCacheObj *)handle;
-
+  SCacheObj *pObj = (SCacheObj *)handle;
   if (pObj == NULL) {
     return;
   }
 
-  if (pObj->capacity <= 0) {
-    __cache_lock_destroy(pObj);
-
-    free(pObj);
-    return;
-  }
-
-  taosTmrStopA(&pObj->pTimer);
-
   pObj->deleting = 1;
-
-#if defined LINUX
-  __sync_synchronize();
-#else
-  MemoryBarrier();
-#endif
-
-  while (pObj->refreshing == 1) {
-    taosMsleep(0);
-  }
-
-  __cache_wr_lock(pObj);
-
-  if (pObj->hashList && pObj->size > 0) {
-    for (int i = 0; i < pObj->capacity; ++i) {
-      pNode = pObj->hashList[i];
-      while (pNode) {
-        pNext = pNode->next;
-        free(pNode);
-        pNode = pNext;
-      }
-    }
-
-    tfree(pObj->hashList);
-  }
-
-  __cache_unlock(pObj);
-
-  taosClearCacheTrash(pObj, true);
-  __cache_lock_destroy(pObj);
-
-  memset(pObj, 0, sizeof(SCacheObj));
-
-  free(pObj);
+  return;
 }
