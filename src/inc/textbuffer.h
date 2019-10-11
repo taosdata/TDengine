@@ -26,10 +26,10 @@ extern "C" {
 #include "tutil.h"
 #include "taosmsg.h"
 
-#define DEFAULT_PAGE_SIZE 16384  // 16k larger than the SHistoInfo
-#define MIN_BUFFER_SIZE (1 << 19)
-#define MAX_TMPFILE_PATH_LENGTH 512
-#define INITIAL_ALLOCATION_BUFFER_SIZE 64
+#define DEFAULT_PAGE_SIZE               16384  // 16k larger than the SHistoInfo
+#define MIN_BUFFER_SIZE                 (1 << 19)
+#define MAX_TMPFILE_PATH_LENGTH         PATH_MAX
+#define INITIAL_ALLOCATION_BUFFER_SIZE  64
 
 // forward declare
 struct tTagSchema;

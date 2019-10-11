@@ -53,8 +53,7 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
 void assignVal(char *val, char *src, int32_t len, int32_t type);
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
-// variant, each number/string/field_id has a corresponding struct during
-// parsing sql
+// variant, each number/string/field_id has a corresponding struct during parsing sql
 typedef struct tVariant {
   uint32_t nType;
   int32_t  nLen;  // only used for string, for number, it is useless

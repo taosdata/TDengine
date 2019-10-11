@@ -23,7 +23,6 @@ extern "C" {
 #include "taosmsg.h"
 #include "tsdb.h"
 
-extern uint32_t      sdbDebugFlag;
 extern short    sdbPeerPort;
 extern short    sdbSyncPort;
 extern int      sdbMaxNodes;
