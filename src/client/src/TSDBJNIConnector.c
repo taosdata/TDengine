@@ -454,14 +454,14 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
       case TSDB_DATA_TYPE_DOUBLE:
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetDoubleFp, i, (jdouble) * ((double *)row[i]));
         break;
-      case TSDB_DATA_TYPE_BINARY:{
+      case TSDB_DATA_TYPE_BINARY: {
         strncpy(tmp, row[i], (size_t) fields[i].bytes);  // handle the case that terminated does not exist
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetStringFp, i, (*env)->NewStringUTF(env, tmp));
 
         memset(tmp, 0, (size_t) fields[i].bytes);
         break;
       }
-      case TSDB_DATA_TYPE_NCHAR:{
+      case TSDB_DATA_TYPE_NCHAR: {
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetByteArrayFp, i,
                                jniFromNCharToByteArray(env, (char*)row[i], fields[i].bytes));
         break;
@@ -605,18 +605,15 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNI
         break;
       case TSDB_DATA_TYPE_BINARY: {
         strncpy(tmp, row[i], (size_t) fields[i].bytes);  // handle the case that terminated does not exist
+        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetStringFp, i, (*env)->NewStringUTF(env, tmp));
 
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetStringFp, i, (*env)->NewStringUTF(env, (char *)row[i]));
         memset(tmp, 0, (size_t) fields[i].bytes);
         break;
       }
-
-      case TSDB_DATA_TYPE_NCHAR: {
+      case TSDB_DATA_TYPE_NCHAR:
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetByteArrayFp, i,
-                               jniFromNCharToByteArray(env, (char *)row[i], fields[i].bytes));
+                               jniFromNCharToByteArray(env, (char*)row[i], fields[i].bytes));
         break;
-      }
-
       case TSDB_DATA_TYPE_TIMESTAMP:
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetTimestampFp, i, (jlong) * ((int64_t *)row[i]));
         break;
