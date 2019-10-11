@@ -25,17 +25,17 @@ SET(TD_ROOT_DIR ${PROJECT_SOURCE_DIR})
 #
 
 # Set macro definitions according to os platform
-SET(TD_OS_WINDOWS FALSE)
-SET(TD_OS_LINUX FALSE)
-SET(TD_OS_ARM FALSE)
-SET(TD_OS_MAC FALSE)
+SET(TD_WINDOWS FALSE)
+SET(TD_LINUX FALSE)
+SET(TD_ARM FALSE)
+SET(TD_DARWIN FALSE)
 
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   
   SET(TD_OS_DIR ${PROJECT_SOURCE_DIR}/src/os/linux)
   SET(TD_LINUX TRUE)
   ADD_DEFINITIONS(-DLINUX)
-  
+
   IF (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")			
 	SET(COMMON_FLAGS "-std=gnu99 -Wall -fPIC -malign-double -g -Wno-char-subscripts -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
   ELSE ()
@@ -77,9 +77,28 @@ ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     EXIT ()
   ENDIF ()
 
-ELSE ()
+ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
-  MESSAGE(FATAL_ERROR "The current platform is not Linux or Windows, stop compile")
+  SET(TD_OS_DIR ${PROJECT_SOURCE_DIR}/src/os/darwin)
+  SET(TD_DARWIN TRUE)
+  ADD_DEFINITIONS(-DDARWIN)
+
+  SET(COMMON_FLAGS "-std=gnu99 -Wall -fPIC -malign-double -g -Wno-char-subscripts -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE -Wno-unused-variable -Wno-bitfield-constant-conversion")
+  SET(DEBUG_FLAGS "-O0 -DDEBUG")
+  SET(RELEASE_FLAGS "-O0")
+
+  ADD_DEFINITIONS(-D_REENTRANT -D__USE_POSIX -D_LIBC_REENTRANT)
+
+  IF (${CMAKE_SIZEOF_VOID_P} MATCHES 8)
+    MESSAGE(STATUS "The current platform is Darwin 64-bit")
+    ADD_DEFINITIONS(-D_M_X64)
+  ELSE ()
+    MESSAGE(FATAL_ERROR "The current platform is Darwin 32-bit, not supported yet")
+    EXIT ()
+  ENDIF ()
+
+ELSE ()
+  MESSAGE(FATAL_ERROR "The current platform is not Linux/MAC/Windows, stop compile")
   EXIT ()
   
 ENDIF ()

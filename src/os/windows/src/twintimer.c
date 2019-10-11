@@ -20,7 +20,7 @@
 
 #pragma warning( disable : 4244 )
 
-typedef void(*win_timer_f)(int signo);
+typedef void (*win_timer_f)(int signo);
 
 void WINAPI taosWinOnTimer(UINT wTimerID, UINT msg, DWORD_PTR dwUser, DWORD_PTR dwl, DWORD_PTR dw2)
 {

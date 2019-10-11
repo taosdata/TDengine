@@ -357,7 +357,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
     }
   }
 
-  if (pSql->fp == NULL) sem_wait(&pSql->emptyRspSem);
+  if (pSql->fp == NULL) tsem_wait(&pSql->emptyRspSem);
 
   pRes->rspLen = 0;
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED) {
@@ -402,7 +402,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
   }
 
   if (pSql->fp == NULL) {
-    sem_post(&pSql->rspSem);
+    tsem_post(&pSql->rspSem);
   } else {
     if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command])
       code = (*tscProcessMsgRsp[pCmd->command])(pSql);
@@ -493,11 +493,11 @@ int tscProcessSql(SSqlObj *pSql) {
     }
 
     if (fp == NULL) {
-      sem_post(&pSql->emptyRspSem);
-      sem_wait(&pSql->rspSem);
+      tsem_post(&pSql->emptyRspSem);
+      tsem_wait(&pSql->rspSem);
 
       assert(pSql->cmd.vnodeIdx == 0);
-      sem_post(&pSql->emptyRspSem);
+      tsem_post(&pSql->emptyRspSem);
 
       // set the command flag must be after the semaphore been correctly set.
       pSql->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
@@ -525,11 +525,11 @@ int tscProcessSql(SSqlObj *pSql) {
     return code;
   }
 
-  sem_wait(&pSql->rspSem);
+  tsem_wait(&pSql->rspSem);
 
   if (pRes->code == 0 && tscProcessMsgRsp[pCmd->command]) (*tscProcessMsgRsp[pCmd->command])(pSql);
 
-  sem_post(&pSql->emptyRspSem);
+  tsem_post(&pSql->emptyRspSem);
 
   return pRes->code;
 }
@@ -725,10 +725,10 @@ static void tscHandleSubRetrievalError(SRetrieveSupport *trsupport, SSqlObj *pSq
 
   if (pPObj->fp == NULL) {
     // sync query, wait for the master SSqlObj to proceed
-    sem_wait(&pPObj->emptyRspSem);
-    sem_wait(&pPObj->emptyRspSem);
+    tsem_wait(&pPObj->emptyRspSem);
+    tsem_wait(&pPObj->emptyRspSem);
 
-    sem_post(&pPObj->rspSem);
+    tsem_post(&pPObj->rspSem);
 
     pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
   } else {
@@ -850,10 +850,10 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     tscFreeSubSqlObj(trsupport, pSql);
 
     if (pPObj->fp == NULL) {
-      sem_wait(&pPObj->emptyRspSem);
-      sem_wait(&pPObj->emptyRspSem);
+      tsem_wait(&pPObj->emptyRspSem);
+      tsem_wait(&pPObj->emptyRspSem);
 
-      sem_post(&pPObj->rspSem);
+      tsem_post(&pPObj->rspSem);
     } else {
       // set the command flag must be after the semaphore been correctly set.
       pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
@@ -2759,8 +2759,8 @@ static int32_t tscDoGetMeterMeta(SSqlObj *pSql, char *meterId) {
   tscTrace("%p new pSqlObj:%p to get meterMeta", pSql, pNew);
 
   if (pSql->fp == NULL) {
-    sem_init(&pNew->rspSem, 0, 0);
-    sem_init(&pNew->emptyRspSem, 0, 1);
+    tsem_init(&pNew->rspSem, 0, 0);
+    tsem_init(&pNew->emptyRspSem, 0, 1);
 
     code = tscProcessSql(pNew);
     if (code == TSDB_CODE_SUCCESS) {
@@ -2911,8 +2911,8 @@ int tscGetMetricMeta(SSqlObj *pSql, char *meterId) {
 
   tscTrace("%p allocate new pSqlObj:%p to get metricMeta", pSql, pNew);
   if (pSql->fp == NULL) {
-    sem_init(&pNew->rspSem, 0, 0);
-    sem_init(&pNew->emptyRspSem, 0, 1);
+    tsem_init(&pNew->rspSem, 0, 0);
+    tsem_init(&pNew->emptyRspSem, 0, 1);
 
     code = tscProcessSql(pNew);
     pSql->cmd.pMetricMeta = taosGetDataFromCache(tscCacheHandle, tagstr);

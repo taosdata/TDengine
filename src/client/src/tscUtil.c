@@ -327,8 +327,8 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   }
 
   if (pSql->fp == NULL) {
-    sem_destroy(&pSql->rspSem);
-    sem_destroy(&pSql->emptyRspSem);
+    tsem_destroy(&pSql->rspSem);
+    tsem_destroy(&pSql->emptyRspSem);
   }
 
   free(pSql);

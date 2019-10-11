@@ -34,7 +34,6 @@ struct Command {
   unsigned endOffset;
 };
 
-extern void insertChar(Command *cmd, char *c, int size);
 extern void backspaceChar(Command *cmd);
 extern void deleteChar(Command *cmd);
 extern void moveCursorLeft(Command *cmd);

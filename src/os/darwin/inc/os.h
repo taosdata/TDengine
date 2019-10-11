@@ -14,10 +14,9 @@
 */
 
 
-#ifndef TDENGINE_PLATFORM_LINUX_H
-#define TDENGINE_PLATFORM_LINUX_H
+#ifndef TDENGINE_PLATFORM_DARWIN_H
+#define TDENGINE_PLATFORM_DARWIN_H
 
-#include <endian.h>
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <pwd.h>
@@ -30,10 +29,8 @@
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
-#include <sys/epoll.h>
 #include <sys/file.h>
 #include <sys/ioctl.h>
-#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
@@ -43,7 +40,10 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <limits.h>
-#include <sys/sendfile.h>
+#include <locale.h>
+#include <dispatch/dispatch.h>
+
+#define htobe64 htonll
 
 #define taosCloseSocket(x) \
   {                        \
@@ -83,15 +83,16 @@
 
 #define MILLISECOND_PER_SECOND (1000L)
 
-#define tsem_t sem_t
-#define tsem_init sem_init
-#define tsem_wait sem_wait
-#define tsem_post sem_post
-#define tsem_destroy sem_destroy
+#define tsem_t dispatch_semaphore_t
 
-ssize_t tsendfile(int dfd, int sfd, off_t *offset, size_t size);
+int tsem_init(dispatch_semaphore_t *sem, int pshared, unsigned int value);
+int tsem_wait(dispatch_semaphore_t *sem);
+int tsem_post(dispatch_semaphore_t *sem);
+int tsem_destroy(dispatch_semaphore_t *sem);
 
 ssize_t twrite(int fd, void *buf, size_t n);
+
+char *taosCharsetReplace(char *charsetstr);
 
 bool taosCheckPthreadValid(pthread_t thread);
 
@@ -107,10 +108,26 @@ void tsPrintOsInfo();
 
 char *taosCharsetReplace(char *charsetstr);
 
+void tsPrintOsInfo();
+
 void taosGetSystemInfo();
 
 void taosKillSystem();
 
 bool taosSkipSocketCheck();
+
+bool taosGetDisk();
+
+typedef int(*__compar_fn_t)(const void *, const void *);
+
+// for send function in tsocket.c
+#define MSG_NOSIGNAL             0
+#define SO_NO_CHECK              0x1234
+#define SOL_TCP                  0x1234
+#define TCP_KEEPIDLE             0x1234
+
+#ifndef PTHREAD_MUTEX_RECURSIVE_NP
+  #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
+#endif
 
 #endif

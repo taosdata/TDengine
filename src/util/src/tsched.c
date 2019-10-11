@@ -27,8 +27,8 @@
 
 typedef struct {
   char            label[16];
-  sem_t           emptySem;
-  sem_t           fullSem;
+  tsem_t          emptySem;
+  tsem_t          fullSem;
   pthread_mutex_t queueMutex;
   int             fullSlot;
   int             emptySlot;
@@ -59,12 +59,12 @@ void *taosInitScheduler(int queueSize, int numOfThreads, const char *label) {
     goto _error;
   }
 
-  if (sem_init(&pSched->emptySem, 0, (unsigned int)pSched->queueSize) != 0) {
+  if (tsem_init(&pSched->emptySem, 0, (unsigned int)pSched->queueSize) != 0) {
     pError("init %s:empty semaphore failed, reason:%s", pSched->label, strerror(errno));
     goto _error;
   }
 
-  if (sem_init(&pSched->fullSem, 0, 0) != 0) {
+  if (tsem_init(&pSched->fullSem, 0, 0) != 0) {
     pError("init %s:full semaphore failed, reason:%s", pSched->label, strerror(errno));
     goto _error;
   }
@@ -109,7 +109,7 @@ void *taosProcessSchedQueue(void *param) {
   SSchedQueue *pSched = (SSchedQueue *)param;
 
   while (1) {
-    if (sem_wait(&pSched->fullSem) != 0) {
+    if (tsem_wait(&pSched->fullSem) != 0) {
       if (errno == EINTR) {
         /* sem_wait is interrupted by interrupt, ignore and continue */
         pTrace("wait %s fullSem was interrupted", pSched->label);
@@ -128,7 +128,7 @@ void *taosProcessSchedQueue(void *param) {
     if (pthread_mutex_unlock(&pSched->queueMutex) != 0)
       pError("unlock %s queueMutex failed, reason:%s\n", pSched->label, strerror(errno));
 
-    if (sem_post(&pSched->emptySem) != 0)
+    if (tsem_post(&pSched->emptySem) != 0)
       pError("post %s emptySem failed, reason:%s\n", pSched->label, strerror(errno));
 
     if (msg.fp)
@@ -145,7 +145,7 @@ int taosScheduleTask(void *qhandle, SSchedMsg *pMsg) {
     return 0;
   }
 
-  while (sem_wait(&pSched->emptySem) != 0) {
+  while (tsem_wait(&pSched->emptySem) != 0) {
     if (errno != EINTR) {
       pError("wait %s emptySem failed, reason:%s", pSched->label, strerror(errno));
       break;
@@ -162,7 +162,7 @@ int taosScheduleTask(void *qhandle, SSchedMsg *pMsg) {
   if (pthread_mutex_unlock(&pSched->queueMutex) != 0)
     pError("unlock %s queueMutex failed, reason:%s", pSched->label, strerror(errno));
 
-  if (sem_post(&pSched->fullSem) != 0) pError("post %s fullSem failed, reason:%s", pSched->label, strerror(errno));
+  if (tsem_post(&pSched->fullSem) != 0) pError("post %s fullSem failed, reason:%s", pSched->label, strerror(errno));
 
   return 0;
 }
@@ -178,8 +178,8 @@ void taosCleanUpScheduler(void *param) {
     pthread_join(pSched->qthread[i], NULL);
   }
 
-  sem_destroy(&pSched->emptySem);
-  sem_destroy(&pSched->fullSem);
+  tsem_destroy(&pSched->emptySem);
+  tsem_destroy(&pSched->fullSem);
   pthread_mutex_destroy(&pSched->queueMutex);
 
   free(pSched->queue);

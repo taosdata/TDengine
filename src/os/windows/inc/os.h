@@ -64,6 +64,38 @@ extern "C" {
 #define in_addr_t unsigned long
 #define socklen_t int
 #define htobe64 htonll
+#define twrite write
+
+#ifndef PATH_MAX
+  #define PATH_MAX 256
+#endif
+
+#define taosCloseSocket(fd) closesocket(fd)
+#define taosWriteSocket(fd, buf, len) send(fd, buf, len, 0)
+#define taosReadSocket(fd, buf, len) recv(fd, buf, len, 0)
+
+int32_t __sync_val_compare_and_swap_32(int32_t *ptr, int32_t oldval, int32_t newval);
+int32_t __sync_add_and_fetch_32(int32_t *ptr, int32_t val);
+int64_t __sync_val_compare_and_swap_64(int64_t *ptr, int64_t oldval, int64_t newval);
+int64_t __sync_add_and_fetch_64(int64_t *ptr, int64_t val);
+
+#define SWAP(a, b, c)      \
+  do {                     \
+    c __tmp = (c)(a);      \
+    (a) = (c)(b);          \
+    (b) = __tmp;           \
+  } while (0)
+
+#define MAX(a,b)  (((a)>(b))?(a):(b))
+#define MIN(a,b)  (((a)<(b))?(a):(b))
+
+#define MILLISECOND_PER_SECOND (1000i64)
+
+#define tsem_t sem_t
+#define tsem_init sem_init
+#define tsem_wait sem_wait
+#define tsem_post sem_post
+#define tsem_destroy sem_destroy
 
 int getline(char **lineptr, size_t *n, FILE *stream);
 
@@ -124,7 +156,7 @@ int sigaction(int, struct sigaction *, void *);
 
 void sleep(int mseconds);
 
-bool taosIsRunningWSLv1();
+bool taosSkipSocketCheck();
 
 #ifdef __cplusplus
 }

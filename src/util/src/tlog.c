@@ -55,7 +55,7 @@ typedef struct {
   int             stop;
   pthread_t       asyncThread;
   pthread_mutex_t buffMutex;
-  sem_t           buffNotEmpty;
+  tsem_t           buffNotEmpty;
 } SLogBuff;
 
 int uDebugFlag = 131;  // all the messages
@@ -113,7 +113,7 @@ void taosStopLog() {
 
 void taosCloseLogger() {
   taosStopLog();
-  sem_post(&(logHandle->buffNotEmpty));
+  tsem_post(&(logHandle->buffNotEmpty));
   if (taosCheckPthreadValid(logHandle->asyncThread)) {
     pthread_join(logHandle->asyncThread, NULL);
   }
@@ -211,7 +211,7 @@ bool taosCheckFileIsOpen(char *logFileName) {
 
   int fd = open(logFileName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
-    printf("failed to open log file:%s, reason:%s\n", logFileName, strerror(errno));
+    printf("\nfailed to open log file:%s, reason:%s\n", logFileName, strerror(errno));
     return true;
   }
 
@@ -286,7 +286,7 @@ int taosOpenLogFileWithMaxLines(char *fn, int maxLines, int maxFileNum) {
   logHandle->fd = open(name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 
   if (logHandle->fd < 0) {
-    printf("failed to open log file:%s, reason:%s\n", name, strerror(errno));
+    printf("\nfailed to open log file:%s, reason:%s\n", name, strerror(errno));
     return -1;
   }
   taosLockFile(logHandle->fd);
@@ -318,7 +318,7 @@ char *tprefix(char *prefix) {
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
 
-#ifdef WINDOWS
+#ifndef LINUX
   sprintf(prefix, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
           ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
 #else
@@ -345,7 +345,7 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
   gettimeofday(&timeSecs, NULL);
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
-#ifdef WINDOWS
+#ifndef LINUX
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
 #else
@@ -436,7 +436,7 @@ void taosPrintLongString(const char *const flags, int dflag, const char *const f
   gettimeofday(&timeSecs, NULL);
   curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
-#ifdef WINDOWS
+#ifndef LINUX
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
 #else
@@ -498,7 +498,7 @@ SLogBuff *taosLogBuffNew(int bufSize) {
   tLogBuff->stop = 0;
 
   if (pthread_mutex_init(&LOG_BUF_MUTEX(tLogBuff), NULL) < 0) goto _err;
-  sem_init(&(tLogBuff->buffNotEmpty), 0, 0);
+  tsem_init(&(tLogBuff->buffNotEmpty), 0, 0);
 
   return tLogBuff;
 
@@ -509,7 +509,7 @@ _err:
 }
 
 void taosLogBuffDestroy(SLogBuff *tLogBuff) {
-  sem_destroy(&(tLogBuff->buffNotEmpty));
+  tsem_destroy(&(tLogBuff->buffNotEmpty));
   pthread_mutex_destroy(&(tLogBuff->buffMutex));
   free(tLogBuff->buffer);
   tfree(tLogBuff);
@@ -547,7 +547,7 @@ int taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int msgLen) {
 
   // TODO : put string in the buffer
 
-  sem_post(&(tLogBuff->buffNotEmpty));
+  tsem_post(&(tLogBuff->buffNotEmpty));
 
   pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
 
@@ -587,7 +587,7 @@ void *taosAsyncOutputLog(void *param) {
   char tempBuffer[TSDB_DEFAULT_LOG_BUF_UNIT];
 
   while (1) {
-    sem_wait(&(tLogBuff->buffNotEmpty));
+    tsem_wait(&(tLogBuff->buffNotEmpty));
 
     // Polling the buffer
     while (1) {
