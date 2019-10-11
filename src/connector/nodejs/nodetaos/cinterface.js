@@ -229,7 +229,7 @@ function CTaosInterface (config = null, pass = false) {
     //int taos_errno(TAOS *taos)
     'taos_errno': [ ref.types.int, [ ref.types.void_ptr] ],
     //char *taos_errstr(TAOS *taos)
-    'taos_errstr': [ ref.types.char, [ ref.types.void_ptr] ],
+    'taos_errstr': [ ref.types.char_ptr, [ ref.types.void_ptr] ],
     //void taos_stop_query(TAOS_RES *res);
     'taos_stop_query': [ ref.types.void, [ ref.types.void_ptr] ],
     //char *taos_get_server_info(TAOS *taos);
@@ -399,7 +399,7 @@ CTaosInterface.prototype.errno = function errno(connection) {
   return this.libtaos.taos_errno(connection);
 }
 CTaosInterface.prototype.errStr = function errStr(connection) {
-  return this.libtaos.taos_errstr(connection);
+  return ref.readCString(this.libtaos.taos_errstr(connection));
 }
 // Async
 CTaosInterface.prototype.query_a = function query_a(connection, sql, callback, param = ref.ref(ref.NULL)) {
