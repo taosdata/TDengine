@@ -198,3 +198,64 @@ bool taosSkipSocketCheck() {
   return false;
 }
 
+#define _SEND_FILE_STEP_ 1000
+
+int fsendfile(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count) {
+  fseek(in_file, (int32_t)(*offset), 0);
+  int writeLen = 0;
+  uint8_t buffer[_SEND_FILE_STEP_] = { 0 };
+  
+  for (int len = 0; len < (count - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
+    size_t rlen = fread(buffer, 1, _SEND_FILE_STEP_, in_file);
+    if (rlen <= 0) {
+      return writeLen;
+    }
+    else if (rlen < _SEND_FILE_STEP_) {
+      fwrite(buffer, 1, rlen, out_file);
+      return (int)(writeLen + rlen);
+    }
+    else {
+      fwrite(buffer, 1, _SEND_FILE_STEP_, in_file);
+      writeLen += _SEND_FILE_STEP_;
+    }
+  }
+
+  int remain = count - writeLen;
+  if (remain > 0) {
+    size_t rlen = fread(buffer, 1, remain, in_file);
+    if (rlen <= 0) {
+      return writeLen;
+    }
+    else {
+      fwrite(buffer, 1, remain, out_file);
+      writeLen += remain;
+    }
+  }
+
+  return writeLen;
+}
+
+int32_t BUILDIN_CLZL(uint64_t val) {
+  unsigned long r = 0;
+  _BitScanReverse64(&r, val);
+  return (int)(r >> 3);
+}
+
+int32_t BUILDIN_CLZ(uint32_t val) {
+  unsigned long r = 0;
+  _BitScanReverse(&r, val);
+  return (int)(r >> 3);
+}
+
+int32_t BUILDIN_CTZL(uint64_t val) {
+  unsigned long r = 0;
+  _BitScanForward64(&r, val);
+  return (int)(r >> 3);
+}
+
+int32_t BUILDIN_CTZ(uint32_t val) {
+  unsigned long r = 0;
+  _BitScanForward(&r, val);
+  return (int)(r >> 3);
+}
+

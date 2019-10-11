@@ -125,6 +125,11 @@ void taosGetSystemInfo();
 
 void taosKillSystem();
 
+int32_t BUILDIN_CLZL(uint64_t val);
+int32_t BUILDIN_CLZ(uint32_t val);
+int32_t BUILDIN_CTZL(uint64_t val);
+int32_t BUILDIN_CTZ(uint32_t val);
+
 //for signal, not dispose
 #define SIGALRM 1234
 typedef int sigset_t;
@@ -157,6 +162,10 @@ int sigaction(int, struct sigaction *, void *);
 void sleep(int mseconds);
 
 bool taosSkipSocketCheck();
+
+int fsendfile(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count);
+
+#define ssize_t int
 
 #ifdef __cplusplus
 }
