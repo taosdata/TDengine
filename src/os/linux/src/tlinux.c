@@ -32,6 +32,7 @@
 #include "tlog.h"
 #include "tsdb.h"
 #include "tutil.h"
+#include "ttimer.h"
 
 char configDir[TSDB_FILENAME_LEN] = "/etc/taos";
 char tsDirectory[TSDB_FILENAME_LEN] = "/var/lib/taos";
@@ -224,32 +225,61 @@ int taosOpenUDServerSocket(char *ip, short port) {
   return sockFd;
 }
 
-// The callback functions MUST free the param pass to it after finishing use it.
-int taosInitTimer(void *(*callback)(void *), int ms) {
-  /********************************************************
-   * Create SIGALRM loop thread
-   ********************************************************/
-  pthread_t thread;
+void *taosProcessAlarmSignal(void *tharg) {
+  // Block the signal
+  sigset_t sigset;
+  sigemptyset(&sigset);
+  sigaddset(&sigset, SIGALRM);
+  sigprocmask(SIG_BLOCK, &sigset, NULL);
+  void (*callback)(int) = tharg;
+
+  timer_t         timerId;
+  struct sigevent sevent;
+  sevent.sigev_notify = SIGEV_THREAD_ID;
+  sevent._sigev_un._tid = syscall(__NR_gettid);
+  sevent.sigev_signo = SIGALRM;
+
+  if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
+    tmrError("Failed to create timer");
+  }
+
+  struct itimerspec ts;
+  ts.it_value.tv_sec = 0;
+  ts.it_value.tv_nsec = 1000000 * MSECONDS_PER_TICK;
+  ts.it_interval.tv_sec = 0;
+  ts.it_interval.tv_nsec = 1000000 * MSECONDS_PER_TICK;
+
+  if (timer_settime(timerId, 0, &ts, NULL)) {
+    tmrError("Failed to init timer");
+    return NULL;
+  }
+
+  int signo;
+  while (1) {
+    if (sigwait(&sigset, &signo)) {
+      tmrError("Failed to wait signal: number %d", signo);
+      continue;
+    }
+    /* printf("Signal handling: number %d ......\n", signo); */
+
+    callback(0);
+  }
+
+  assert(0);
+  return NULL;
+}
+
+int taosInitTimer(void (*callback)(int), int ms) {
+  pthread_t      thread;
   pthread_attr_t tattr;
-  if (pthread_attr_init(&tattr)) {
-      return -1;
+  pthread_attr_init(&tattr);
+  pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED);
+  if (pthread_create(&thread, &tattr, taosProcessAlarmSignal, callback) != 0) {
+    tmrError("failed to create timer thread");
+    return -1;
   }
 
-  if (pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED)) {
-      return -1;
-  }
-
-  int *tms = (int *) malloc(sizeof(int));
-  *tms = ms;
-  if (pthread_create(&thread, &tattr, callback, (void *) tms)) {
-      free(tms);
-      return -1;
-  }
-
-  if (pthread_attr_destroy(&tattr)) {
-      return -1;
-  }
-
+  pthread_attr_destroy(&tattr);
   return 0;
 }
 
@@ -296,16 +326,15 @@ ssize_t twrite(int fd, void *buf, size_t n) {
   return n;
 }
 
-// check if the linux running is WSL
-bool taosIsRunningWSLv1() {
+bool taosSkipSocketCheck() {
   struct utsname buf;
   if (uname(&buf)) {
-    pPrint(" can't fetch os info");
+    pPrint("can't fetch os info");
     return false;
   }
 
   if (strstr(buf.release, "Microsoft") != 0) {
-    pPrint(" using WSLv1");
+    pPrint("using WSLv1");
     return true;
   }
 

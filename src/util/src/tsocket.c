@@ -301,14 +301,12 @@ int taosOpenUdpSocket(char *ip, short port) {
 
   nocheck = 1;
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_NO_CHECK, (void *)&nocheck, sizeof(nocheck)) < 0) {
-    // no_check is not implemented in WSL
-    // skip the following check if system running WSLv1
-    if (!taosIsRunningWSLv1()) {
+    if (!taosSkipSocketCheck()) {
       pError("setsockopt SO_NO_CHECK failed: %d (%s)", errno, strerror(errno));
       close(sockFd);
       return -1;
     } else {
-      pError("Skipping: setsockopt SO_NO_CHECK failed: %d (%s)", errno, strerror(errno));
+      pPrint("Skipping setsockopt SO_NO_CHECK error: %d (%s)", errno, strerror(errno));
     }
   }
 

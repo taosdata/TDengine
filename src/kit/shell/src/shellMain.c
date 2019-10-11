@@ -31,6 +31,7 @@ int32_t   TIMESTAMP_OUTPUT_LENGTH = 22;
 
 // TODO: IMPLEMENT INTERRUPT HANDLER.
 void interruptHandler(int signum) {
+#ifdef LINUX
   TAOS_RES* res = taos_use_result(con);
   taos_stop_query(res);
   if (res != NULL) {
@@ -41,6 +42,10 @@ void interruptHandler(int signum) {
     tscQueueAsyncFreeResult(res);
   }
   result = NULL;
+#else
+  printf("\nReceive ctrl+c or other signal, quit shell.\n");
+  exit(0);
+#endif
 }
 
 int checkVersion() {

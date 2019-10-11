@@ -615,11 +615,11 @@ void tsReadGlobalLogConfig() {
   }
   wordfree(&full_path);
 
+  tsReadLogOption("logDir", logDir);
   sprintf(fileName, "%s/taos.cfg", configDir);
   fp = fopen(fileName, "r");
   if (fp == NULL) {
-    printf("option file:%s not found, all options are set to system default\n", fileName);
-    tsReadLogOption("logDir", logDir);
+    printf("\noption file:%s not found, all options are set to system default\n", fileName);
     return;
   }
 

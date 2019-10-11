@@ -53,7 +53,7 @@
     return TSDB_CODE_INVALID_SQL;   \
   } while (0)
 
-static enum {
+enum {
   TSDB_USE_SERVER_TS = 0,
   TSDB_USE_CLI_TS = 1,
 };

@@ -82,7 +82,7 @@ void taos_init_imp() {
 
     sprintf(temp, "%s/taoslog", logDir);
     if (taosInitLog(temp, tsNumOfLogLines, 10) < 0) {
-      printf("failed to open log file:%s", temp);
+      printf("failed to open log file in directory:%s\n", logDir);
     }
 
     tsReadGlobalConfig();

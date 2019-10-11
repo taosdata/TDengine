@@ -63,7 +63,9 @@ TAOS *taos_connect_imp(char *ip, char *user, char *pass, char *db, int port, voi
   }
 
   if (ip && ip[0]) {
-    strcpy(tsServerIpStr, ip);
+    if (ip != tsServerIpStr) {
+      strcpy(tsServerIpStr, ip);
+    }
     tsServerIp = inet_addr(ip);
   }
 
@@ -97,8 +99,8 @@ TAOS *taos_connect_imp(char *ip, char *user, char *pass, char *db, int port, voi
   memset(pSql, 0, sizeof(SSqlObj));
   pSql->pTscObj = pObj;
   pSql->signature = pSql;
-  sem_init(&pSql->rspSem, 0, 0);
-  sem_init(&pSql->emptyRspSem, 0, 1);
+  tsem_init(&pSql->rspSem, 0, 0);
+  tsem_init(&pSql->emptyRspSem, 0, 1);
   pObj->pSql = pSql;
   pSql->fp = fp;
   pSql->param = param;
@@ -601,7 +603,7 @@ int taos_errno(TAOS *taos) {
 
   if (pObj == NULL || pObj->signature != pObj) return globalCode;
 
-  if (pObj->pSql->res.code == -1)
+  if ((int8_t)(pObj->pSql->res.code) == -1)
     code = TSDB_CODE_OTHERS;
   else
     code = pObj->pSql->res.code;
@@ -616,7 +618,7 @@ char *taos_errstr(TAOS *taos) {
 
   if (pObj == NULL || pObj->signature != pObj) return tsError[globalCode];
 
-  if (pObj->pSql->res.code == -1)
+  if ((int8_t)(pObj->pSql->res.code) == -1)
     code = TSDB_CODE_OTHERS;
   else
     code = pObj->pSql->res.code;

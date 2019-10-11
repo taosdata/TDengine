@@ -9,6 +9,7 @@ release/
 target/
 debs/
 rpms/
+mac/
 *.pyc
 *.tmp
 src/connector/nodejs/node_modules/

@@ -460,7 +460,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
       code = abs(code);
       pRes->code = code;
       tscTrace("%p failed to renew meterMeta", pSql);
-      sem_post(&pSql->rspSem);
+      tsem_post(&pSql->rspSem);
     } else {
       tscTrace("%p renew meterMeta successfully, command:%d, code:%d, thandle:%p, retry:%d",
                pSql, pSql->cmd.command, pSql->res.code, pSql->thandle, pSql->retry);
@@ -471,7 +471,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
       code = tscSendMsgToServer(pSql);
       if (code != 0) {
         pRes->code = code;
-        sem_post(&pSql->rspSem);
+        tsem_post(&pSql->rspSem);
       }
     }
 

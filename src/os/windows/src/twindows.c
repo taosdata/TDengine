@@ -47,10 +47,6 @@ int64_t taosGetPthreadId() {
 }
 
 int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen) {
-  if (level == SOL_SOCKET && optname == SO_NO_CHECK) {
-    return 0;
-  }
-
   if (level == SOL_TCP && optname == TCP_KEEPCNT) {
     return 0;
   }
@@ -195,8 +191,10 @@ int wordexp(const char *words, wordexp_t *pwordexp, int flags) {
 }
 
 void wordfree(wordexp_t *pwordexp) {}
+
 void taosGetDisk() {}
-bool taosIsRunningWSLv1() {
+
+bool taosSkipSocketCheck() {
   return false;
 }
 

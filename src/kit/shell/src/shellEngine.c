@@ -34,9 +34,11 @@
 
 /**************** Global variables ****************/
 #ifdef WINDOWS
-  char    CLIENT_VERSION[] = "Welcome to the TDengine shell from windows, client version:%s, ";
+  char    CLIENT_VERSION[] = "Welcome to the TDengine shell from windows, client version:%s ";
+#elif defined(DARWIN)
+  char    CLIENT_VERSION[] = "Welcome to the TDengine shell from mac, client version:%s ";
 #else
-  char    CLIENT_VERSION[] = "Welcome to the TDengine shell from linux, client version:%s, ";
+  char    CLIENT_VERSION[] = "Welcome to the TDengine shell from linux, client version:%s ";
 #endif
 char      SERVER_VERSION[] = "server version:%s\nCopyright (c) 2017 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
@@ -441,10 +443,10 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 printf("%*d|", l[i], *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-#ifdef WINDOWS
-                printf("%*lld|", l[i], *((int64_t *)row[i]));
-#else
+#ifdef LINUX
                 printf("%*ld|", l[i], *((int64_t *)row[i]));
+#else
+                printf("%*lld|", l[i], *((int64_t *)row[i]));
 #endif
                 break;
               case TSDB_DATA_TYPE_FLOAT:
@@ -464,10 +466,10 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
                 if (args.is_raw_time) {
-#ifdef WINDOWS
-                  printf(" %lld|", *(int64_t *)row[i]);
-#else
+#ifdef LINUX
                   printf(" %ld|", *(int64_t *)row[i]);
+#else
+                  printf(" %lld|", *(int64_t *)row[i]);
 #endif
                 } else {
                   if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
@@ -518,10 +520,10 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 printf("%d\n", *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-#ifdef WINDOWS
-                printf("%lld\n", *((int64_t *)row[i]));
-#else
+#ifdef LINUX
                 printf("%ld\n", *((int64_t *)row[i]));
+#else
+                printf("%lld\n", *((int64_t *)row[i]));
 #endif
                 break;
               case TSDB_DATA_TYPE_FLOAT:
@@ -539,10 +541,10 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
                 if (args.is_raw_time) {
-#ifdef WINDOWS
-                  printf("%lld\n", *(int64_t *)row[i]);
-#else
+#ifdef LINUX
                   printf("%ld\n", *(int64_t *)row[i]);
+#else
+                  printf("%lld\n", *(int64_t *)row[i]);
 #endif
                 } else {
                   if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
@@ -588,10 +590,10 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 fprintf(fp, "%d", *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-#ifdef WINDOWS
-                fprintf(fp, "%lld", *((int64_t *)row[i]));
-#else
+#ifdef LINUX
                 fprintf(fp, "%ld", *((int64_t *)row[i]));
+#else
+                fprintf(fp, "%lld", *((int64_t *)row[i]));
 #endif
                 break;
               case TSDB_DATA_TYPE_FLOAT:
@@ -607,10 +609,10 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 fprintf(fp, "\'%s\'", t_str);
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
-#ifdef WINDOWS
-                fprintf(fp, "%lld", *(int64_t *)row[i]);
-#else
+#ifdef LINUX
                 fprintf(fp, "%ld", *(int64_t *)row[i]);
+#else
+                fprintf(fp, "%lld", *(int64_t *)row[i]);
 #endif
                 break;
               default:

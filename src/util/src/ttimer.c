@@ -46,22 +46,6 @@ char *tmrMemPoolMalloc(mpool_h handle);
 void tmrMemPoolFree(mpool_h handle, char *p);
 void tmrMemPoolCleanUp(mpool_h handle);
 
-#define tmrError(...)                                 \
-  if (tmrDebugFlag & DEBUG_ERROR) {                   \
-    tprintf("ERROR TMR ", tmrDebugFlag, __VA_ARGS__); \
-  }
-#define tmrWarn(...)                                  \
-  if (tmrDebugFlag & DEBUG_WARN) {                    \
-    tprintf("WARN  TMR ", tmrDebugFlag, __VA_ARGS__); \
-  }
-#define tmrTrace(...)                           \
-  if (tmrDebugFlag & DEBUG_TRACE) {             \
-    tprintf("TMR ", tmrDebugFlag, __VA_ARGS__); \
-  }
-
-#define maxNumOfTmrCtrl 512
-#define MSECONDS_PER_TICK 5
-
 typedef struct _tmr_obj {
   void *param1;
   void (*fp)(void *, void *);
@@ -98,17 +82,17 @@ typedef struct _tmr_ctrl_t {
 uint32_t  tmrDebugFlag = DEBUG_ERROR | DEBUG_WARN | DEBUG_FILE;
 void taosTmrProcessList(tmr_ctrl_t *);
 
-tmr_ctrl_t tmrCtrl[maxNumOfTmrCtrl];
+tmr_ctrl_t tmrCtrl[MAX_NUM_OF_TMRCTL];
 int        numOfTmrCtrl = 0;
 void *     tmrIdPool = NULL;
 void *     tmrQhandle;
 int        taosTmrThreads = 1;
 
-void *taosTimerLoopFunc(int signo) {
+void taosTimerLoopFunc(int signo) {
   tmr_ctrl_t *pCtrl;
   int         count = 0;
 
-  for (int i = 1; i < maxNumOfTmrCtrl; ++i) {
+  for (int i = 1; i < MAX_NUM_OF_TMRCTL; ++i) {
     pCtrl = tmrCtrl + i;
     if (pCtrl->signature) {
       count++;
@@ -120,73 +104,13 @@ void *taosTimerLoopFunc(int signo) {
       if (count >= numOfTmrCtrl) break;
     }
   }
-
-  return NULL;
 }
-
-#ifndef WINDOWS
-void *taosProcessAlarmSignal(void *tharg) {
-  // Block the signal
-  sigset_t sigset;
-  sigemptyset(&sigset);
-  sigaddset(&sigset, SIGALRM);
-  sigprocmask(SIG_BLOCK, &sigset, NULL);
-
-  timer_t         timerId = {0};
-  struct sigevent sevent = {0};
-  sevent.sigev_notify = SIGEV_THREAD_ID;
-  sevent._sigev_un._tid = syscall(__NR_gettid);
-  sevent.sigev_signo = SIGALRM;
-
-  if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
-    tmrError("Failed to create timer");
-  }
-
-  struct itimerspec ts;
-  ts.it_value.tv_sec = 0;
-  ts.it_value.tv_nsec = 1000000 * MSECONDS_PER_TICK;
-  ts.it_interval.tv_sec = 0;
-  ts.it_interval.tv_nsec = 1000000 * MSECONDS_PER_TICK;
-
-  if (timer_settime(timerId, 0, &ts, NULL)) {
-    tmrError("Failed to init timer");
-    return NULL;
-  }
-
-  int signo;
-  while (1) {
-    if (sigwait(&sigset, &signo)) {
-      tmrError("Failed to wait signal: number %d", signo);
-      continue;
-    }
-    /* printf("Signal handling: number %d ......\n", signo); */
-
-    taosTimerLoopFunc(0);
-  }
-
-  assert(0);
-  return NULL;
-}
-#endif
 
 void taosTmrModuleInit(void) {
-  tmrIdPool = taosInitIdPool(maxNumOfTmrCtrl);
+  tmrIdPool = taosInitIdPool(MAX_NUM_OF_TMRCTL);
   memset(tmrCtrl, 0, sizeof(tmrCtrl));
 
-#ifdef LINUX
-  pthread_t      thread;
-  pthread_attr_t tattr;
-  pthread_attr_init(&tattr);
-  pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED);
-  if (pthread_create(&thread, &tattr, taosProcessAlarmSignal, NULL) != 0) {
-    tmrError("failed to create timer thread");
-    return;
-  }
-
-  pthread_attr_destroy(&tattr);
-#else
   taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK);
-#endif
 
   tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr");
   tmrTrace("timer module is initialized, thread:%d", taosTmrThreads);
