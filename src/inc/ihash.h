@@ -22,17 +22,17 @@ extern "C" {
 
 #include <stdint.h>
 
-void *taosInitIntHash(int32_t maxSessions, int32_t dataSize, int32_t (*fp)(void *, int32_t));
+void *taosInitIntHash(int32_t maxSessions, int32_t dataSize, int32_t (*fp)(void *, uint64_t));
 
 void taosCleanUpIntHash(void *handle);
 
-char *taosGetIntHashData(void *handle, int32_t key);
+char *taosGetIntHashData(void *handle, uint64_t key);
 
-void taosDeleteIntHash(void *handle, int32_t key);
+void taosDeleteIntHash(void *handle, uint64_t key);
 
-char *taosAddIntHash(void *handle, int32_t key, char *pData);
+char *taosAddIntHash(void *handle, uint64_t key, char *pData);
 
-int32_t taosHashInt(void *handle, int32_t key);
+int32_t taosHashInt(void *handle, uint64_t key);
 
 #ifdef __cplusplus
 }
