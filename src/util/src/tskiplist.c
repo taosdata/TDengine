@@ -242,7 +242,6 @@ tSkipList* tSkipListCreate(int16_t nMaxLevel, int16_t keyType, int16_t nMaxKeyLe
 
   srand(time(NULL));
   pSkipList->state.nTotalMemSize += sizeof(tSkipList);
-
   return pSkipList;
 }
 

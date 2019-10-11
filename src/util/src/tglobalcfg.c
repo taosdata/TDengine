@@ -140,16 +140,16 @@ char tsLocale[TSDB_LOCALE_LEN] = {0};
 char tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 
 int tsNumOfLogLines = 10000000;
-int ddebugFlag = 131;
-int mdebugFlag = 135;
-int sdbDebugFlag = 135;
-int cdebugFlag = 131;
-int jnidebugFlag = 131;
-int httpDebugFlag = 131;
-int monitorDebugFlag = 131;
-int debugFlag = 131;
-int odbcdebugFlag = 131;
-int qdebugFlag = 131;
+uint32_t ddebugFlag = 131;
+uint32_t mdebugFlag = 135;
+uint32_t sdbDebugFlag = 135;
+uint32_t cdebugFlag = 131;
+uint32_t jnidebugFlag = 131;
+uint32_t httpDebugFlag = 131;
+uint32_t monitorDebugFlag = 131;
+uint32_t debugFlag = 131;
+uint32_t odbcdebugFlag = 131;
+uint32_t qdebugFlag = 131;
 
 SGlobalConfig *tsGlobalConfig = NULL;
 int            tsGlobalConfigNum = 0;

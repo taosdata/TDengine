@@ -58,7 +58,7 @@ typedef struct {
   sem_t           buffNotEmpty;
 } SLogBuff;
 
-int uDebugFlag = 131;  // all the messages
+uint32_t uDebugFlag = 131;  // all the messages
 short tsAsyncLog = 1;
 
 static SLogBuff *logHandle;

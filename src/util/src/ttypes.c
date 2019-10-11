@@ -25,6 +25,7 @@
 #include "os.h"
 #include "taos.h"
 #include "tsdb.h"
+#include "tsql.h"
 #include "tsqldef.h"
 #include "ttypes.h"
 #include "tutil.h"
@@ -43,7 +44,7 @@ tDataDescriptor tDataTypeDesc[11] = {
   {TSDB_DATA_TYPE_NCHAR,     5, 8,            "NCHAR"},
 };
 
-char tTokenTypeSwitcher[] = {
+char tTokenTypeSwitcher[13] = {
     TSDB_DATA_TYPE_NULL,    // no type
     TSDB_DATA_TYPE_BINARY,  // TK_ID
     TSDB_DATA_TYPE_BOOL,    // TK_BOOL
@@ -65,7 +66,7 @@ bool isValidDataType(int32_t type, int32_t length) {
   }
 
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    return length >= 0 && length <= TSDB_MAX_BINARY_LEN;
+//    return length >= 0 && length <= TSDB_MAX_BINARY_LEN;
   }
 
   return true;
@@ -105,8 +106,10 @@ void tVariantCreateN(tVariant *pVar, char *pz, uint32_t len, uint32_t type) {
       pVar->nLen = strdequote(pVar->pz);
       break;
     }
-    default:
-      assert(false);
+
+    default: {  // nType == 0 means the null value
+      type = TSDB_DATA_TYPE_NULL;
+    }
   }
 
   pVar->nType = type;
@@ -123,56 +126,58 @@ void tVariantCreateB(tVariant *pVar, char *pz, uint32_t len, uint32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
-      pVar->i64Key = *(int8_t *)pz;
+      pVar->i64Key = GET_INT8_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
-      pVar->i64Key = *(int16_t *)pz;
+      pVar->i64Key = GET_INT16_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_INT: {
-      pVar->i64Key = *(int32_t *)pz;
+      pVar->i64Key = GET_INT32_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      pVar->i64Key = *(int64_t *)pz;
+      pVar->i64Key = GET_INT64_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      pVar->dKey = *(double *)pz;
+      pVar->dKey = GET_DOUBLE_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      pVar->dKey = *(float *)pz;
+      pVar->dKey = GET_FLOAT_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: {
       /* here we get the nchar length from raw binary bits length */
-      int32_t wlen = len / TSDB_NCHAR_SIZE;
-      pVar->wpz = malloc((len + 1) * wlen);
+      pVar->nLen = len / TSDB_NCHAR_SIZE;
+      pVar->wpz = malloc((pVar->nLen + 1) * TSDB_NCHAR_SIZE);
 
-      wcsncpy(pVar->wpz, (wchar_t *)pz, wlen);
-      pVar->nLen = wlen;
-      pVar->wpz[wlen] = 0;
+      wcsncpy(pVar->wpz, (wchar_t *)pz, pVar->nLen);
+      pVar->wpz[pVar->nLen] = 0;
 
       break;
     }
     case TSDB_DATA_TYPE_BINARY: {
       pVar->pz = malloc(len + 1);
       strncpy(pVar->pz, pz, len);
+
       pVar->nLen = len;
       pVar->pz[len] = 0;
 
-      strdequote(pVar->pz);
-      pVar->nLen = strlen(pVar->pz);
+      pVar->nLen = strdequote(pVar->pz);
 
       break;
     }
+    default:
+      pVar->i64Key = GET_INT32_VAL(pVar);
   }
 
   pVar->nType = type;
 }
+
 void tVariantDestroy(tVariant *pVar) {
   if (pVar == NULL) return;
 
@@ -780,29 +785,29 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
 void assignVal(char *val, char *src, int32_t len, int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
-      *((int32_t *)val) = *(int32_t *)src;
+      *((int32_t *)val) = GET_INT32_VAL(src);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      *((float *)val) = *(float *)src;
+      *((float *)val) = GET_FLOAT_VAL(src);
       break;
     };
     case TSDB_DATA_TYPE_DOUBLE: {
-      *((double *)val) = *(double *)src;
+      *((double *)val) = GET_DOUBLE_VAL(src);
       break;
     };
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT: {
-      *((int64_t *)val) = *(int64_t *)src;
+      *((int64_t *)val) = GET_INT64_VAL(src);
       break;
     };
     case TSDB_DATA_TYPE_SMALLINT: {
-      *((int16_t *)val) = *(int16_t *)src;
+      *((int16_t *)val) = GET_INT16_VAL(src);
       break;
     };
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
-      *((int8_t *)val) = *(int8_t *)src;
+      *((int8_t *)val) = GET_INT8_VAL(src);
       break;
     };
     default: {

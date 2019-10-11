@@ -1178,7 +1178,9 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
     while (right > end_same && left <= end_same) {
       swap(pDescriptor, numOfRows, left++, data, right--);
     }
-    rightx += (end - end_same);  // (pivotal+1) + steps of number that are identical pivotal
+
+    // (pivotal+1) + steps of number that are identical pivotal
+    rightx += (end - end_same);
 
 #ifdef _DEBUG_VIEW
     tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
@@ -1193,7 +1195,9 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
     while (left < start_same && right >= start_same) {
       swap(pDescriptor, numOfRows, left++, data, right--);
     }
-    leftx -= (start_same - start);  // (pivotal-1) - steps of number that are identical pivotal
+
+    // (pivotal-1) - steps of number that are identical pivotal
+    leftx -= (start_same - start);
 
 #ifdef _DEBUG_VIEW
     tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);

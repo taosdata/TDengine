@@ -116,7 +116,7 @@ typedef struct rpc_server {
 } STaosRpc;
 
 // configurable
-int rpcDebugFlag = 131;
+uint32_t rpcDebugFlag = 131;
 int tsRpcTimer = 300;
 int tsRpcMaxTime = 600;  // seconds;
 int tsRpcProgressTime = 10;  // milliseocnds

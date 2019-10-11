@@ -499,3 +499,12 @@ bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
 
   return true;
 }
+
+char *taosIpStr(int ipInt) {
+  static char ipStrArray[3][30];
+  static int ipStrIndex = 0;
+
+  char *ipStr = ipStrArray[(ipStrIndex++) % 3];
+  sprintf(ipStr, "0x%x:%d.%d.%d.%d", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, ipInt >> 24);
+  return ipStr;
+}

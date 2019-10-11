@@ -95,7 +95,7 @@ typedef struct _tmr_ctrl_t {
   int             tmrCtrlId;
 } tmr_ctrl_t;
 
-int  tmrDebugFlag = DEBUG_ERROR | DEBUG_WARN | DEBUG_FILE;
+uint32_t  tmrDebugFlag = DEBUG_ERROR | DEBUG_WARN | DEBUG_FILE;
 void taosTmrProcessList(tmr_ctrl_t *);
 
 tmr_ctrl_t tmrCtrl[maxNumOfTmrCtrl];
@@ -132,8 +132,8 @@ void *taosProcessAlarmSignal(void *tharg) {
   sigaddset(&sigset, SIGALRM);
   sigprocmask(SIG_BLOCK, &sigset, NULL);
 
-  timer_t         timerId;
-  struct sigevent sevent;
+  timer_t         timerId = {0};
+  struct sigevent sevent = {0};
   sevent.sigev_notify = SIGEV_THREAD_ID;
   sevent._sigev_un._tid = syscall(__NR_gettid);
   sevent.sigev_signo = SIGALRM;

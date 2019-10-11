@@ -39,10 +39,13 @@
 #include <sys/time.h>
 #include <sys/uio.h>
 #include <sys/un.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <limits.h>
+#include <linux/limits.h>
+#include <strings.h>
 #include <sys/sendfile.h>
 
 bool taosCheckPthreadValid(pthread_t thread);
@@ -64,5 +67,12 @@ void taosGetSystemInfo();
 void taosKillSystem();
 
 bool taosIsRunningWSLv1();
+
+int64_t str2int64(char *str);
+
+#define BUILDIN_CLZL(val) __builtin_clzl(val)
+#define BUILDIN_CLZ(val)  __builtin_clz(val)
+#define BUILDIN_CTZL(val) __builtin_ctzl(val)
+#define BUILDIN_CTZ(val)  __builtin_ctz(val)
 
 #endif

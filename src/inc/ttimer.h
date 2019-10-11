@@ -22,7 +22,7 @@ extern "C" {
 
 typedef void *tmr_h;
 
-extern int tmrDebugFlag;
+extern uint32_t tmrDebugFlag;
 extern int taosTmrThreads;
 
 void *taosTmrInit(int maxTmr, int resoultion, int longest, char *label);

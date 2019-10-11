@@ -218,6 +218,7 @@ static SKeyword keywordTable[] = {
     {"STABLE",      TK_STABLE}
 };
 
+/* This is the hash table */
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static const char isIdChar[] = {
@@ -273,11 +274,11 @@ int tSQLKeywordCode(const char* z, int n) {
 }
 
 /*
-** Return the length of the token that begins at z[0].
-** Store the token type in *type before returning.
-*/
+ * Return the length of the token that begins at z[0].
+ * Store the token type in *type before returning.
+ */
 uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
-  int i;
+  uint32_t i;
   switch (*z) {
     case ' ':
     case '\t':
