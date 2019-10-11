@@ -510,6 +510,13 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
       goto _submit_over;
     }
 
+    if (pMeterObj->uid != pBlocks->uid) {
+      dError("vid:%d sid:%d, meterId:%s, uid:%lld, uid in msg:%lld, uid mismatch", vnode, sid, pMeterObj->meterId,
+             pMeterObj->uid, pBlocks->uid);
+      code = TSDB_CODE_INVALID_SUBMIT_MSG;
+      goto _submit_over;
+    }
+
     // dont include sid, vid
     int subMsgLen = sizeof(pBlocks->numOfRows) + htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint;
     int sversion = htonl(pBlocks->sversion);

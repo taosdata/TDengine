@@ -131,6 +131,7 @@ extern "C" {
 #define TSDB_CODE_FILE_BLOCK_TS_DISORDERED   108      // time stamp in file block is disordered
 #define TSDB_CODE_INVALID_COMMIT_LOG         109      // invalid commit log may be caused by insufficient sotrage
 #define TSDB_CODE_SERVER_NO_SPACE            110
+#define TSDB_CODE_INVALID_SUBMIT_MSG         111
 
 // message type
 #define TSDB_MSG_TYPE_REG              1

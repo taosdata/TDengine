@@ -235,4 +235,5 @@ char *tsError[] = {"success",
                    "timestamp disordered in file block",
                    "invalid commit log",
                    "server no disk space",
+                   "invalid submit message",
 };
