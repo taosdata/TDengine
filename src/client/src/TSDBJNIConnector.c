@@ -297,7 +297,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(
     return ret;
   }
 
-  jniError("jobj:%p, taos:%p, no resultset", jobj, tscon);
+  jniTrace("jobj:%p, taos:%p, no resultset", jobj, tscon);
   return 0;
 }
 
