@@ -1192,6 +1192,10 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp) {
     char *lineptr = line;
     strtolower(line, line);
 
+    if (numOfRows >= maxRows || pTableDataBlock->size + pMeterMeta->rowSize >= pTableDataBlock->nAllocSize) {
+      maxRows += tscAllocateMemIfNeed(pTableDataBlock, pMeterMeta->rowSize);
+    }
+
     len = tsParseOneRowData(&lineptr, pTableDataBlock, pSchema, &spd, pCmd->payload, pMeterMeta->precision);
     if (len <= 0) return -1;
 
