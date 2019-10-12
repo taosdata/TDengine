@@ -62,6 +62,8 @@
 #define __sync_val_compare_and_swap_32 __sync_val_compare_and_swap
 #define __sync_add_and_fetch_64 __sync_add_and_fetch
 #define __sync_add_and_fetch_32 __sync_add_and_fetch
+int32_t __sync_val_load_32(int32_t *ptr);
+void __sync_val_restore_32(int32_t *ptr, int32_t newval);
 
 #define SWAP(a, b, c)      \
   do {                     \

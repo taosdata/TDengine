@@ -68,7 +68,7 @@ void jniGetGlobalMethod(JNIEnv *env) {
     case 1:
       do {
         taosMsleep(0);
-      } while (__atomic_load_n(&__init, __ATOMIC_ACQUIRE) == 1);
+      } while (__sync_val_load_32(&__init) == 1);
     case 2:
       return;
   }
@@ -108,7 +108,7 @@ void jniGetGlobalMethod(JNIEnv *env) {
   g_rowdataSetByteArrayFp = (*env)->GetMethodID(env, g_rowdataClass, "setByteArray", "(I[B)V");
   (*env)->DeleteLocalRef(env, rowdataClass);
 
-  __atomic_store_n(&__init, 2, __ATOMIC_RELEASE);
+  __sync_val_restore_32(&__init, 2);
   jniTrace("native method register finished");
 }
 

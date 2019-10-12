@@ -47,7 +47,7 @@ int64_t taosGetPthreadId() {
 }
 
 int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen) {
-  if (level == SOL_TCP && optname == TCP_KEEPCNT) {
+  if (level == SOL_SOCKET && optname == TCP_KEEPCNT) {
     return 0;
   }
 
@@ -76,6 +76,14 @@ int64_t __sync_val_compare_and_swap_64(int64_t *ptr, int64_t oldval, int64_t new
 
 int64_t __sync_add_and_fetch_64(int64_t *ptr, int64_t val) {
   return InterlockedAdd64(ptr, val);
+}
+
+int32_t __sync_val_load_32(int32_t *ptr) {
+  return InterlockedOr(ptr, 0);
+}
+
+void __sync_val_restore_32(int32_t *ptr, int32_t newval) {
+  InterlockedCompareExchange(ptr, *ptr, newval);
 }
 
 void tsPrintOsInfo() {}
@@ -175,6 +183,10 @@ char *getpass(const char *prefix) {
 }
 
 int flock(int fd, int option) {
+  return 0;
+}
+
+int fsync(int filedes) {
   return 0;
 }
 
