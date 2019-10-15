@@ -42,17 +42,38 @@ function TaosField(field) {
  * @param {Date} date - A Javascript date time object or the time in milliseconds past 1970-1-1 00:00:00.000
  */
 class TaosTimestamp extends Date {
-  constructor(date) {
+  constructor(date, micro = false) {
     super(date);
     this._type = 'TaosTimestamp';
+    if (micro) {
+      this.microTime = date - Math.floor(date);
+    }
   }
   /**
    * @function Returns the date into a string usable by TDengine
    * @return {string} A Taos Timestamp String
    */
   toTaosString(){
-    let tsArr = this.toISOString().split("T")
-    return tsArr[0] + " " + tsArr[1].substring(0, tsArr[1].length-1);
+    var tzo = -this.getTimezoneOffset(),
+        dif = tzo >= 0 ? '+' : '-',
+        pad = function(num) {
+            var norm = Math.floor(Math.abs(num));
+            return (norm < 10 ? '0' : '') + norm;
+        },
+        pad2 = function(num) {
+            var norm = Math.floor(Math.abs(num));
+            if (norm < 10) return '00' + norm;
+            if (norm < 100) return '0' + norm;
+            if (norm < 1000) return norm;
+        };
+    return this.getFullYear() +
+        '-' + pad(this.getMonth() + 1) +
+        '-' + pad(this.getDate()) +
+        ' ' + pad(this.getHours()) +
+        ':' + pad(this.getMinutes()) +
+        ':' + pad(this.getSeconds()) +
+        '.' + pad2(this.getMilliseconds()) +
+        ''  + (this.microTime ? pad2(Math.round(this.microTime * 1000)) : '');
   }
 }
 
