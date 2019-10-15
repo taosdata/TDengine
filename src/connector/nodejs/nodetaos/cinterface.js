@@ -17,7 +17,7 @@ function convertMillisecondsToDatetime(time) {
   return new TaosObjects.TaosTimestamp(time);
 }
 function convertMicrosecondsToDatetime(time) {
-  return new TaosObjects.TaosTimestamp(time * 0.001);
+  return new TaosObjects.TaosTimestamp(time * 0.001, true);
 }
 
 function convertTimestamp(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
