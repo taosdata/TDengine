@@ -59,6 +59,12 @@ class TaosTimestamp extends Date {
         pad = function(num) {
             var norm = Math.floor(Math.abs(num));
             return (norm < 10 ? '0' : '') + norm;
+        },
+        pad2 = function(num) {
+            var norm = Math.floor(Math.abs(num));
+            if (norm < 10) return '00' + norm;
+            if (norm < 100) return '0' + norm;
+            if (norm < 1000) return norm;
         };
     return this.getFullYear() +
         '-' + pad(this.getMonth() + 1) +
@@ -66,8 +72,8 @@ class TaosTimestamp extends Date {
         ' ' + pad(this.getHours()) +
         ':' + pad(this.getMinutes()) +
         ':' + pad(this.getSeconds()) +
-        '.' + pad(this.getMilliseconds()) +
-        ''  + (this.microTime ? this.microTime.toFixed(3) : '').substr(2);
+        '.' + pad2(this.getMilliseconds()) +
+        ''  + (this.microTime ? pad2(Math.round(this.microTime * 1000)) : '');
   }
 }
 

@@ -33,9 +33,6 @@ function convertTimestamp(data, num_of_rows, nbytes = 0, offset = 0, micro=false
     let time = 0;
     for (let i = currOffset; i < currOffset + nbytes; i++) {
       queue.push(data[i]);
-      if (data[i] == 0) {
-        break;
-      }
     }
     for (let i = queue.length - 1; i >= 0; i--) {
       time += queue[i] * Math.pow(16, i * 2);
