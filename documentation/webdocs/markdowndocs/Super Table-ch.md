@@ -30,7 +30,7 @@ CREATE TABLE <tb_name> USING <stb_name> TAGS (tag_value1,...)
 沿用上面温度计的例子，使用超级表thermometer建立单个温度计数据表的语句如下：
 
 ```mysql
-create table t1 using thermometer tags (‘beijing', 10)
+create table t1 using thermometer tags ('beijing', 10)
 ```
 
 上述SQL以thermometer为模板，创建了名为t1的表，这张表的Schema就是thermometer的Schema，但标签location值为'beijing'，标签type值为10。
@@ -77,13 +77,13 @@ STable从属于库，一个STable只属于一个库，但一个库可以有一�
 - 查看属于某STable并满足查询条件的表
 
     ```mysql
-    SELECT TBNAME,[TAG_NAME,…] FROM <stable_name> WHERE <tag_name> <[=|=<|>=|<>] values..> ([AND|OR] …)
+    SELECT TBNAME,[TAG_NAME,…] FROM <stable_name> WHERE <tag_name> <[=|<=|>=|<>] values..> ([AND|OR] …)
     ```
 
     查看属于某STable并满足查询条件的表。说明：TBNAME为关键词，显示通过STable建立的子表表名，查询过程中可以使用针对标签的条件。
 
     ```mysql
-    SELECT COUNT(TBNAME) FROM <stable_name> WHERE <tag_name> <[=|=<|>=|<>] values..> ([AND|OR] …)
+    SELECT COUNT(TBNAME) FROM <stable_name> WHERE <tag_name> <[=|<=|>=|<>] values..> ([AND|OR] …)
     ```
 
     统计属于某个STable并满足查询条件的子表的数量
