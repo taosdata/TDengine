@@ -145,7 +145,27 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 
 ### JDBC接口
 
-如果用户使用Java开发企业级应用，可选用TDengine提供的JDBC Driver来调用服务。TDengine提供的JDBC Driver是标准JDBC规范的子集，遵循JDBC 标准(3.0)API规范，支持现有的各种Java开发框架。目前TDengine的JDBC driver并未发布到在线依赖仓库比如maven的中心仓库。因此用户开发时，需要手动把驱动包`taos-jdbcdriver-x.x.x-dist.jar`安装到开发环境的依赖仓库中。
+如果用户使用Java开发企业级应用，可选用 TDengine 提供的 JDBC Driver 来调用服务。TDengine 提供的 JDBC Driver 是标准 JDBC 规范的子集，遵循 JDBC 标准 (3.0)API 规范，支持现有的各种 Java 开发框架。目前 TDengine 的 JDBC driver 已经发布到 Sonatype Maven Repository。因此用户开发时，需要在 pom.xml 文件中进行如下配置：
+
+```xml
+
+<repositories>
+    <repository>
+      <id>oss-sonatype</id>
+      <name>oss-sonatype</name>
+      <url>https://oss.sonatype.org/content/groups/public</url>
+    </repository>
+</repositories>
+ 
+<dependencies>
+    <dependency>
+        <groupId>com.taosdata.jdbc</groupId>
+        <artifactId>taos-jdbcdriver</artifactId>
+        <version>1.0.1</version>
+    </dependency>
+</dependencies>
+
+```
 
 TDengine 的驱动程序包的在不同操作系统上依赖不同的本地函数库（均由C语言编写）。Linux系统上，依赖一个名为`libtaos.so` 的本地库，.so即"Shared Object"缩写。成功安装TDengine后，`libtaos.so` 文件会被自动拷贝至`/usr/local/lib/taos`目录下，该目录也包含在Linux上自动扫描路径上。Windows系统上，JDBC驱动程序依赖于一个名为`taos.dll` 的本地库，.dll是动态链接库"Dynamic Link Library"的缩写。Windows上成功安装客户端后，JDBC驱动程序包默认位于`C:/TDengine/driver/JDBC/`目录下;其依赖的动态链接库`taos.dll`文件位于`C:/TDengine/driver/C`目录下，`taos.dll` 会被自动拷贝至系统默认搜索路径`C:/Windows/System32`下。
 
