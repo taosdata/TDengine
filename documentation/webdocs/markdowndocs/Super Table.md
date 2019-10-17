@@ -147,13 +147,13 @@ To delete a STable, all the tables created via this STable shall be deleted firs
 ### List the Associated Tables of a STable
 
 ```mysql
-SELECT TBNAME,[TAG_NAME,…] FROM <stable_name> WHERE <tag_name> <[=|=<|>=|<>] values..> ([AND|OR] …)
+SELECT TBNAME,[TAG_NAME,…] FROM <stable_name> WHERE <tag_name> <[=|<=|>=|<>] values..> ([AND|OR] …)
 ```
 
 It will list all the tables which satisfy the tag filter conditions. The tables are all created from this specific STable. TBNAME is a new keyword introduced, it is the table name associated with the STable. 
 
 ```mysql
-SELECT COUNT(TBNAME) FROM <stable_name> WHERE <tag_name> <[=|=<|>=|<>] values..> ([AND|OR] …)
+SELECT COUNT(TBNAME) FROM <stable_name> WHERE <tag_name> <[=|<=|>=|<>] values..> ([AND|OR] …)
 ```
 
 The above SQL statement will list the number of tables in a STable, which satisfy the filter condition.
