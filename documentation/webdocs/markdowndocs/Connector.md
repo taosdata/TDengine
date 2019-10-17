@@ -155,7 +155,25 @@ For the time being, TDengine supports subscription on one table. It is implement
 
 ### JDBC Interface
 
-TDengine provides a JDBC driver `taos-jdbcdriver-x.x.x.jar` for Enterprise Java developers. TDengine's JDBC Driver is implemented as a subset of the standard JDBC 3.0 Specification and supports the most common Java development frameworks. The driver is currently not published to the online dependency repositories such as Maven Center Repository, and users should manually add the `.jar` file to their local dependency repository.
+TDengine provides a JDBC driver `taos-jdbcdriver-x.x.x.jar` for Enterprise Java developers. TDengine's JDBC Driver is implemented as a subset of the standard JDBC 3.0 Specification and supports the most common Java development frameworks. The driver have been published to dependency repositories such as Sonatype Maven Repository, and users could refer to the following `pom.xml` configuration file.
+
+```xml
+<repositories>
+    <repository>
+      <id>oss-sonatype</id>
+      <name>oss-sonatype</name>
+      <url>https://oss.sonatype.org/content/groups/public</url>
+    </repository>
+</repositories>
+ 
+<dependencies>
+    <dependency>
+        <groupId>com.taosdata.jdbc</groupId>
+        <artifactId>taos-jdbcdriver</artifactId>
+        <version>1.0.1</version>
+    </dependency>
+</dependencies>
+```
 
 Please note the JDBC driver itself relies on a native library written in C. On a Linux OS, the driver relies on a `libtaos.so` native library, where .so stands for "Shared Object". After the successful installation of TDengine on Linux, `libtaos.so` should be automatically copied to `/usr/local/lib/taos` and added to the system's default search path. On a Windows OS, the driver relies on a `taos.dll` native library, where .dll stands for "Dynamic Link Library". After the successful installation of the TDengine client on Windows, the `taos-jdbcdriver.jar` file can be found in `C:/TDengine/driver/JDBC`; the `taos.dll` file can be found in `C:/TDengine/driver/C` and should have been automatically copied to the system's searching path `C:/Windows/System32`. 
 
