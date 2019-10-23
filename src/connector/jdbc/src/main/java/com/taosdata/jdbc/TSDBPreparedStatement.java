@@ -34,13 +34,54 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 	protected String sql;
 	protected ArrayList<Object> parameters = new ArrayList<Object>();
 
+	//start with insert or import and is case-insensitive
+	private static Pattern savePattern = Pattern.compile("(?i)^\\s*(insert|import)");
+
+	// is insert or import
+	private boolean isSaved;
+
+	private SavedPreparedStatement savedPreparedStatement;
+
 	TSDBPreparedStatement(TSDBJNIConnector connecter, String sql) {
         super(connecter);
-        this.rawSql = sql;
-        preprocessSql();
+		init(sql);
     }
 
-    public ArrayList<Object> getParameters() {
+	private void init(String sql){
+		this.rawSql = sql;
+		preprocessSql();
+
+		this.isSaved = isSavedSql(this.rawSql);
+		if (this.isSaved){
+
+			try {
+				this.savedPreparedStatement = new SavedPreparedStatement(this.rawSql, this);
+			} catch (SQLException e){
+				e.printStackTrace();
+			}
+		}
+	}
+
+	/**
+	 * if the precompiled sql is insert or import
+	 * @param sql
+	 * @return
+	 */
+	private boolean isSavedSql(String sql){
+		Matcher matcher = savePattern.matcher(sql);
+		return matcher.find();
+	}
+
+	@Override
+	public int[] executeBatch() throws SQLException {
+		if (isSaved){
+			return this.savedPreparedStatement.executeBatch();
+		} else {
+			return super.executeBatch();
+		}
+	}
+
+	public ArrayList<Object> getParameters() {
         return parameters;
     }
 
@@ -134,12 +175,21 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
 	@Override
 	public ResultSet executeQuery() throws SQLException {
-		return super.executeQuery(getNativeSql());
+		if (isSaved){
+			this.savedPreparedStatement.executeBatchInternal();
+			return null;
+		}else {
+			return super.executeQuery(getNativeSql());
+		}
 	}
 
 	@Override
 	public int executeUpdate() throws SQLException {
-		return super.executeUpdate(getNativeSql());
+		if (isSaved){
+			return this.savedPreparedStatement.executeBatchInternal();
+		} else {
+			return super.executeUpdate(getNativeSql());
+		}
 	}
 
 	@Override
@@ -239,20 +289,34 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
 	@Override
 	public void setObject(int parameterIndex, Object x) throws SQLException {
-        parameters.add(x);
+		if (isSaved){
+			this.savedPreparedStatement.setParam(parameterIndex, x);
+		}else{
+			parameters.add(x);
+		}
 	}
 
 	@Override
 	public boolean execute() throws SQLException {
-	    return super.execute(getNativeSql());
+		if (isSaved){
+			int result = this.savedPreparedStatement.executeBatchInternal();
+			return result > 0;
+		} else {
+			return super.execute(getNativeSql());
+		}
 	}
 
 	@Override
 	public void addBatch() throws SQLException {
-        if (this.batchedArgs == null) {
-            batchedArgs = new ArrayList<String>();
-        }
-        super.addBatch(getNativeSql());
+		if (isSaved){
+			this.savedPreparedStatement.addBatch();
+		}else {
+
+			if (this.batchedArgs == null) {
+				batchedArgs = new ArrayList<String>();
+			}
+			super.addBatch(getNativeSql());
+		}
 	}
 
 	@Override
