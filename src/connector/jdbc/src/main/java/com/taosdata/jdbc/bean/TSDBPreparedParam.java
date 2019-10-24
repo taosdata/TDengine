@@ -42,7 +42,7 @@ public class TSDBPreparedParam {
         this.middleParamList = middleParamList;
     }
 
-    public void setMiddleParam(int parameterIndex, Object x){
+    public void setMiddleParam(int parameterIndex, Object x) {
         this.middleParamList.set(parameterIndex, x);
     }
 
@@ -55,7 +55,7 @@ public class TSDBPreparedParam {
     }
 
 
-    public void setValueParam(int parameterIndex, Object x){
+    public void setValueParam(int parameterIndex, Object x) {
         this.valueList.set(parameterIndex, x);
     }
 
