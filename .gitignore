@@ -23,3 +23,5 @@ tests/script/
 tests/pytest/
 tests/jenkins/
 tests/hdfs/
+
+*.iml
