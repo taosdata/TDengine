@@ -655,6 +655,9 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
     pMeter->gid.vgId = pVgroup->vgId;
     pMeter->uid = (((uint64_t)pMeter->gid.vgId) << 40) + ((((uint64_t)pMeter->gid.sid) & ((1ul << 24) - 1ul)) << 16) +
                   ((uint64_t)sdbVersion & ((1ul << 16) - 1ul));
+
+    mTrace("meter:%s, create meter in vgroup, vgId:%d, sid:%d, vnode:%d, uid:%d",
+           pMeter->meterId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pMeter->uid);
   } else {
     pMeter->uid = (((uint64_t)pMeter->createdTime) << 16) + ((uint64_t)sdbVersion & ((1ul << 16) - 1ul));
   }
@@ -665,6 +668,8 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
 
   // send create message to the selected vnode servers
   if (pCreate->numOfTags == 0) {
+    mTrace("meter:%s, send msg to dnode, vgId:%d, sid:%d, vnode:%d, dbname:%s",
+           pMeter->meterId, pMeter->gid.vgId, pMeter->gid.sid, pVgroup->vnodeGid[0].vnode, pDb->name);
     mgmtSendCreateMsgToVnode(pMeter, pVgroup->vnodeGid[0].vnode);
   }
 

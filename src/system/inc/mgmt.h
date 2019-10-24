@@ -228,7 +228,6 @@ typedef struct _connObj {
   SDbObj *         pDb;
   SUserObj *       pUser;
   char             user[TSDB_USER_LEN];
-  char             db[TSDB_METER_ID_LEN];
   uint64_t         stime;               // login time
   char             superAuth : 1;       // super user flag
   char             writeAuth : 1;       // write flag

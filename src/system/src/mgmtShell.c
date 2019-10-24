@@ -177,6 +177,11 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     memcpy(pCreateMsg->schema, pInfo->tags, sizeof(STagData));
     strcpy(pCreateMsg->meterId, pInfo->meterId);
 
+    SDbObj* pMeterDb = mgmtGetDbByMeterId(pCreateMsg->meterId);
+    mTrace("meter:%s, pConnDb:%p, pConnDbName:%s, pMeterDb:%p, pMeterDbName:%s",
+           pCreateMsg->meterId, pConn->pDb, pConn->pDb->name, pMeterDb, pMeterDb->name);
+    assert(pConn->pDb == pMeterDb);
+
     int32_t code = mgmtCreateMeter(pConn->pDb, pCreateMsg);
 
     char stableName[TSDB_METER_ID_LEN] = {0};
@@ -877,7 +882,6 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
       code = TSDB_CODE_INVALID_DB;
       goto _rsp;
     }
-    strcpy(pConn->db, dbName);
   }
 
   if (pConn->pAcct) {
@@ -962,7 +966,10 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
     }
 
     if (pConn->pAcct) {
-      if (strcmp(pConn->db, pHead->db) != 0) pConn->pDb = mgmtGetDb(pHead->db);
+      if (pConn->pDb == NULL ||
+          strncmp(pConn->pDb->name, pHead->db, tListLen(pConn->pDb->name)) != 0) {
+        pConn->pDb = mgmtGetDb(pHead->db);
+      }
 
       char *cont = (char *)pMsg->content + sizeof(SMgmtHead);
       int   contLen = pMsg->msgLen - sizeof(SIntMsg) - sizeof(SMgmtHead);
