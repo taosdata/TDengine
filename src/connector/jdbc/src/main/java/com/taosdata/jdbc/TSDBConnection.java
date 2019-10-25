@@ -170,8 +170,13 @@ public class TSDBConnection implements Connection {
 	public void setTransactionIsolation(int level) throws SQLException {
 	}
 
+	/**
+	 * The transaction isolation level option is not supported by TDengine.
+	 * @return
+	 * @throws SQLException
+	 */
 	public int getTransactionIsolation() throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		return Connection.TRANSACTION_NONE;
 	}
 
 	public SQLWarning getWarnings() throws SQLException {
@@ -214,11 +219,17 @@ public class TSDBConnection implements Connection {
 	}
 
 	public void setHoldability(int holdability) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		// intentionally left empty to support druid connection pool.
 	}
 
+	/**
+	 * the transaction is not supported by TDengine, so the opened ResultSet Objects will remain open
+	 * @return
+	 * @throws SQLException
+	 */
 	public int getHoldability() throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		//intentionally left empty to support HikariCP connection.
+		return ResultSet.HOLD_CURSORS_OVER_COMMIT;
 	}
 
 	public Savepoint setSavepoint() throws SQLException {
