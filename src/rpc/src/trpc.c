@@ -1108,6 +1108,7 @@ int taosSendMsgToPeerH(void *thandle, char *pCont, int contLen, void *ahandle) {
   SRpcConn *   pConn = (SRpcConn *)thandle;
   STaosRpc *   pServer;
   SRpcChann *  pChann;
+  uint8_t      msgType;
 
   if (pConn == NULL) return -1;
   if (pConn->signature != pConn) return -1;
@@ -1133,8 +1134,9 @@ int taosSendMsgToPeerH(void *thandle, char *pCont, int contLen, void *ahandle) {
   }
 
   pthread_mutex_lock(&pChann->mutex);
+  msgType = pHeader->msgType;
 
-  if ((pHeader->msgType & 1) == 0) {
+  if ((msgType & 1) == 0) {
     // response
     pConn->inType = 0;
     tfree(pConn->pRspMsg);
@@ -1160,7 +1162,7 @@ int taosSendMsgToPeerH(void *thandle, char *pCont, int contLen, void *ahandle) {
       }
 
       tTrace("%s cid:%d sid:%d id:%s, msg:%s is put into queue pConn:%p", pServer->label, pConn->chann, pConn->sid,
-             pConn->meterId, taosMsg[pHeader->msgType], pConn);
+             pConn->meterId, taosMsg[msgType], pConn);
       msgLen = 0;
 
     } else {
@@ -1170,7 +1172,7 @@ int taosSendMsgToPeerH(void *thandle, char *pCont, int contLen, void *ahandle) {
                pServer->label, pConn->chann, pConn->sid, pConn->meterId, pConn);
       }
 
-      pConn->outType = pHeader->msgType;
+      pConn->outType = msgType;
       pConn->outTranId = pHeader->tranId;
       pConn->pMsgNode = pMsgNode;
       pConn->rspReceived = 0;
@@ -1182,7 +1184,7 @@ int taosSendMsgToPeerH(void *thandle, char *pCont, int contLen, void *ahandle) {
 
   if (msgLen) {
     taosSendDataToPeer(pConn, (char *)pHeader, msgLen);
-    if (pHeader->msgType & 1) {
+    if (msgType & 1U) {
       taosTmrReset(taosProcessTaosTimer, tsRpcTimer, pConn, pChann->tmrCtrl, &pConn->pTimer);
     }
   }
