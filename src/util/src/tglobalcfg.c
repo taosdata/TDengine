@@ -831,6 +831,12 @@ void tsSetAllDebugFlag() {
   pPrint("all debug flag are set to %d", debugFlag);
 }
 
+/**
+ * In some Linux systems, setLocale(LC_CTYPE, "") may return NULL, in which case the launch of
+ * both the TDengine Server and the Client may be interrupted.
+ *
+ * In case that the setLocale failed to be executed, the right charset needs to be set.
+ */
 void tsSetLocale() {
   char msgLocale[] = "Invalid locale:%s, please set the valid locale in config file";
   char msgCharset[] = "Invalid charset:%s, please set the valid charset in config file";
@@ -838,11 +844,10 @@ void tsSetLocale() {
 
   char *locale = setlocale(LC_CTYPE, tsLocale);
 
-  /* default locale or user specified locale is not valid, abort launch */
+  // default locale or user specified locale is not valid, abort launch
   if (locale == NULL) {
     printf(msgLocale, tsLocale);
     pPrint(msgLocale, tsLocale);
-    exit(-1);
   }
 
   if (strlen(tsCharset) == 0) {
