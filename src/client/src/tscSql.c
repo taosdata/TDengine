@@ -183,6 +183,8 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, int port, void 
 void taos_close(TAOS *taos) {
   STscObj *pObj = (STscObj *)taos;
 
+  tscTrace("%p start to close connection, pSql:%p, HB:%p", pObj, pObj->pSql, pObj->pHb);
+
   if (pObj == NULL) return;
   if (pObj->signature != pObj) return;
 

@@ -89,7 +89,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     pSql->pTscObj = pObj;
     pSql->signature = pSql;
     pObj->pHb = pSql;
-    tscTrace("%p pHb is allocated, pObj:%p", pObj->pHb, pObj);
+    tscTrace("%p pHb is allocated, pObj:%p, pSql:%p", pObj->pHb, pObj, pObj->pSql);
   }
 
   if (tscShouldFreeHeatBeat(pObj->pHb)) {
