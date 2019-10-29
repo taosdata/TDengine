@@ -770,7 +770,10 @@ _again:
     if (pMeter->finalNumOfBlocks > 0) {
       pHeader->compInfoOffset = pMeter->compInfoOffset;
       compInfoOffset += sizeof(SCompInfo) + pMeter->finalNumOfBlocks * sizeof(SCompBlock) + sizeof(TSCKSUM);
+    } else {
+      pHeader->compInfoOffset = 0;
     }
+
     dTrace("vid:%d sid:%d id:%s, oldBlocks:%d numOfBlocks:%d compInfoOffset:%d", pObj->vnode, pObj->sid, pObj->meterId,
            pMeter->oldNumOfBlocks, pMeter->finalNumOfBlocks, compInfoOffset);
   }
