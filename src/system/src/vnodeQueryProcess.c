@@ -27,6 +27,12 @@
 
 #include "vnodeQueryImpl.h"
 
+#define ALL_CACHE_BLOCKS_CHECKED(q) \
+  ((q)->slot == (q)->currentSlot && QUERY_IS_ASC_QUERY(q) || (q)->slot == (q)->firstSlot && (!QUERY_IS_ASC_QUERY(q)))
+
+#define FORWARD_CACHE_BLOCK_CHECK_SLOT(slot, step, maxblocks) (slot) = ((slot) + (step) + (maxblocks)) % (maxblocks);
+
+
 static bool doCheckWithPrevQueryRange(SQInfo *pQInfo, TSKEY nextKey, SMeterDataInfo *pMeterInfo) {
   SMeterQuerySupportObj *pSupporter = pQInfo->pMeterQuerySupporter;
   SQuery *               pQuery = &pQInfo->query;
@@ -47,6 +53,22 @@ static bool doCheckWithPrevQueryRange(SQInfo *pQInfo, TSKEY nextKey, SMeterDataI
   }
 
   return true;
+}
+
+/**
+ * The start position of the first check cache block is located before starting the loop.
+ * And the start position for next cache blocks needs to be decided before checking each cache block.
+ */
+static void setStartPositionForCacheBlock(SQuery *pQuery, SCacheBlock *pBlock, bool *firstCheckSlot) {
+  if (!(*firstCheckSlot)) {
+    if (QUERY_IS_ASC_QUERY(pQuery)) {
+      pQuery->pos = 0;
+    } else {
+      pQuery->pos = pBlock->numOfPoints - 1;
+    }
+  } else {
+    (*firstCheckSlot) = false;
+  }
 }
 
 static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMeterInfo) {
@@ -147,24 +169,39 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
         continue;
       }
 
+      bool        firstCheckSlot = true;
       SCacheInfo *pCacheInfo = (SCacheInfo *)pMeterObj->pCache;
+
       for (int32_t i = 0; i < pCacheInfo->maxBlocks; ++i) {
         pBlock = getCacheDataBlock(pMeterObj, pQuery, pQuery->slot);
 
-        // cache block may be flushed to disk, so it is not available, ignore it and try next
-        if (pBlock == NULL) {
-          pQuery->slot = (pQuery->slot + step + pCacheInfo->maxBlocks) % pCacheInfo->maxBlocks;
+        /*
+         * 1. pBlock == NULL. The cache block may be flushed to disk, so it is not available, skip and try next
+         *
+         * 2. pBlock->numOfPoints == 0. There is a empty block, which is caused by allocate-and-write data into cache
+         *    procedure. The block has been allocated but data has not been put into yet. If the block is the last
+         *    block(newly allocated block), abort query. Otherwise, skip it and go on.
+         */
+        if ((pBlock == NULL) || (pBlock->numOfPoints == 0)) {
+          if (ALL_CACHE_BLOCKS_CHECKED(pQuery)) {
+            break;
+          }
+
+          FORWARD_CACHE_BLOCK_CHECK_SLOT(pQuery->slot, step, pCacheInfo->maxBlocks);
           continue;
         }
 
+        setStartPositionForCacheBlock(pQuery, pBlock, &firstCheckSlot);
+
         TSKEY *primaryKeys = (TSKEY *)pBlock->offset[0];
-        // in handling file data block, this query condition is checked during fetching candidate file blocks
+
+        // in handling file data block, the timestamp range validation is done during fetching candidate file blocks
         if ((primaryKeys[pQuery->pos] > pSupporter->rawEKey && QUERY_IS_ASC_QUERY(pQuery)) ||
             (primaryKeys[pQuery->pos] < pSupporter->rawEKey && !QUERY_IS_ASC_QUERY(pQuery))) {
           break;
         }
 
-        /* only record the key on last block */
+        // only record the key on last block
         SET_CACHE_BLOCK_FLAG(pRuntimeEnv->blockStatus);
         SBlockInfo binfo = getBlockBasicInfo(pBlock, BLK_CACHE_BLOCK);
 
@@ -176,24 +213,11 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
         queryOnBlock(pSupporter, primaryKeys, pRuntimeEnv->blockStatus, (char *)pBlock, &binfo, &pMeterInfo[k], NULL,
                      searchFn);
 
-        // todo refactor
-        if ((pQuery->slot == pQuery->currentSlot && QUERY_IS_ASC_QUERY(pQuery)) ||
-            (pQuery->slot == pQuery->firstSlot && !QUERY_IS_ASC_QUERY(pQuery))) {
+        if (ALL_CACHE_BLOCKS_CHECKED(pQuery)) {
           break;
         }
 
-        // try next cache block
-        pQuery->slot = (pQuery->slot + step + pCacheInfo->maxBlocks) % pCacheInfo->maxBlocks;
-        if (QUERY_IS_ASC_QUERY(pQuery)) {
-          pQuery->pos = 0;
-        } else {  // backwards traverse encounter the cache invalid, abort scan cache.
-          SCacheBlock *pNextBlock = getCacheDataBlock(pMeterObj, pQuery, pQuery->slot);
-          if (pNextBlock == NULL) {
-            break;  // todo fix
-          } else {
-            pQuery->pos = pNextBlock->numOfPoints - 1;
-          }
-        }
+        FORWARD_CACHE_BLOCK_CHECK_SLOT(pQuery->slot, step, pCacheInfo->maxBlocks);
       }
     }
   }

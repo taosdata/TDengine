@@ -614,7 +614,7 @@ static FORCE_INLINE void taosDecRef(SDataNode *pNode) {
   }
 
   if (pNode->refCount > 0) {
-    __sync_add_and_fetch_32(&pNode->refCount, -1);
+    __sync_sub_and_fetch_32(&pNode->refCount, 1);
     pTrace("key:%s is released by app.refcnt:%d", pNode->key, pNode->refCount);
   } else {
     /*
