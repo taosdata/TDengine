@@ -203,9 +203,15 @@ int vnodeOpenFileForImport(SImportInfo *pImport, char *payload, SHeadInfo *pHinf
         return -1;
       }
 
-      pHinfo->compInfoOffset = pHinfo->headList[pObj->sid].compInfoOffset;
-      pHinfo->leftOffset = pHinfo->headList[pObj->sid].compInfoOffset + sizeof(SCompInfo);
-    } else {
+      if (pHinfo->compInfo.uid == pObj->uid) { 
+        pHinfo->compInfoOffset = pHinfo->headList[pObj->sid].compInfoOffset;
+        pHinfo->leftOffset = pHinfo->headList[pObj->sid].compInfoOffset + sizeof(SCompInfo);
+      } else {
+        pHinfo->headList[pObj->sid].compInfoOffset = 0;
+      }
+    } 
+
+    if ( pHinfo->headList[pObj->sid].compInfoOffset == 0 ) {
       memset(&pHinfo->compInfo, 0, sizeof(SCompInfo));
       pHinfo->compInfo.uid = pObj->uid;
 
