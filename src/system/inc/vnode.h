@@ -278,14 +278,14 @@ typedef struct {
   TSKEY       ekey;
   int64_t     nAggTimeInterval;
   char        intervalTimeUnit;  // interval data type, used for daytime revise
+  char        precision;
+  int16_t     numOfOutputCols;
+  int16_t     interpoType;
+  int16_t     checkBufferInLoop;  // check if the buffer is full during scan each block
 
-  int16_t numOfOutputCols;
-  int16_t interpoType;
-  int16_t checkBufferInLoop;  // check if the buffer is full during scan each block
-
-  SLimitVal limit;
-  int32_t   rowSize;
-  int32_t   dataRowSize;  // row size of each loaded data from disk, the value is
+  SLimitVal   limit;
+  int32_t     rowSize;
+  int32_t     dataRowSize;  // row size of each loaded data from disk, the value is
   // used for prepare buffer
   SSqlGroupbyExpr * pGroupbyExpr;
   SSqlFunctionExpr *pSelectExpr;

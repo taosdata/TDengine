@@ -279,8 +279,9 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pRes->pLocalReducer = pReducer;
   pRes->numOfGroups = 0;
 
+  int16_t prec = pCmd->pMeterMeta->precision;
   int64_t stime = (pCmd->stime < pCmd->etime) ? pCmd->stime : pCmd->etime;
-  int64_t revisedSTime = taosGetIntervalStartTimestamp(stime, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit);
+  int64_t revisedSTime = taosGetIntervalStartTimestamp(stime, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit, prec);
 
   SInterpolationInfo *pInterpoInfo = &pReducer->interpolationInfo;
   taosInitInterpoInfo(pInterpoInfo, pCmd->order.order, revisedSTime, pCmd->groupbyExpr.numOfGroupbyCols,
@@ -664,12 +665,11 @@ void adjustLoserTreeFromNewData(SLocalReducer *pLocalReducer, SLocalDataSource *
   }
 }
 
-void savePrevRecordAndSetupInterpoInfo(
-    SLocalReducer *pLocalReducer, SSqlCmd *pCmd,
-    SInterpolationInfo
-        *pInterpoInfo) {  // discard following dataset in the same group and reset the interpolation information
+void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SSqlCmd *pCmd, SInterpolationInfo *pInterpoInfo) {
+  // discard following dataset in the same group and reset the interpolation information
+  int16_t prec = pCmd->pMeterMeta->precision;
   int64_t stime = (pCmd->stime < pCmd->etime) ? pCmd->stime : pCmd->etime;
-  int64_t revisedSTime = taosGetIntervalStartTimestamp(stime, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit);
+  int64_t revisedSTime = taosGetIntervalStartTimestamp(stime, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit, prec);
 
   taosInitInterpoInfo(pInterpoInfo, pCmd->order.order, revisedSTime, pCmd->groupbyExpr.numOfGroupbyCols,
                       pLocalReducer->rowSize);
@@ -811,9 +811,12 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
     functions[i] = tscSqlExprGet(pCmd, i)->sqlFuncId;
   }
 
+  int8_t precision = pCmd->pMeterMeta->precision;
+
   while (1) {
     int32_t remains = taosNumOfRemainPoints(pInterpoInfo);
-    TSKEY etime = taosGetRevisedEndKey(actualETime, pCmd->order.order, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit);
+    TSKEY etime = taosGetRevisedEndKey(actualETime, pCmd->order.order, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit,
+                                       precision);
     int32_t nrows = taosGetNumOfResultWithInterpo(pInterpoInfo, pPrimaryKeys, remains, pCmd->nAggTimeInterval, etime,
                                                   pLocalReducer->resColModel->maxCapacity);
 
@@ -1115,10 +1118,12 @@ static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalReducer 
   pRes->numOfTotal = 0;
   pCmd->limit.offset = pLocalReducer->offset;
 
+  int16_t precision = pCmd->pMeterMeta->precision;
+
   if (pCmd->interpoType != TSDB_INTERPO_NONE) {
     /* for group result interpolation, do not return if not data is generated */
     int64_t stime = (pCmd->stime < pCmd->etime) ? pCmd->stime : pCmd->etime;
-    int64_t newTime = taosGetIntervalStartTimestamp(stime, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit);
+    int64_t newTime = taosGetIntervalStartTimestamp(stime, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit, precision);
 
     taosInitInterpoInfo(&pLocalReducer->interpolationInfo, pCmd->order.order, newTime,
                         pCmd->groupbyExpr.numOfGroupbyCols, pLocalReducer->rowSize);
@@ -1135,6 +1140,7 @@ static bool doInterpolationForCurrentGroup(SSqlObj *pSql) {
 
   SLocalReducer *     pLocalReducer = pRes->pLocalReducer;
   SInterpolationInfo *pInterpoInfo = &pLocalReducer->interpolationInfo;
+  int8_t p = pCmd->pMeterMeta->precision;
 
   if (taosHasRemainsDataForInterpolation(pInterpoInfo)) {
     assert(pCmd->interpoType != TSDB_INTERPO_NONE);
@@ -1143,7 +1149,7 @@ static bool doInterpolationForCurrentGroup(SSqlObj *pSql) {
     int64_t    etime = *(int64_t *)(pFinalDataBuf->data + TSDB_KEYSIZE * (pInterpoInfo->numOfRawDataInRows - 1));
 
     int32_t remain = taosNumOfRemainPoints(pInterpoInfo);
-    TSKEY   ekey = taosGetRevisedEndKey(etime, pCmd->order.order, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit);
+    TSKEY   ekey = taosGetRevisedEndKey(etime, pCmd->order.order, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit, p);
     int32_t rows = taosGetNumOfResultWithInterpo(pInterpoInfo, (TSKEY *)pLocalReducer->pBufForInterpo, remain,
                                                  pCmd->nAggTimeInterval, ekey, pLocalReducer->resColModel->maxCapacity);
     if (rows > 0) {  // do interpo
@@ -1164,6 +1170,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
   SInterpolationInfo *pInterpoInfo = &pLocalReducer->interpolationInfo;
 
   bool prevGroupCompleted = (!pLocalReducer->discard) && pLocalReducer->hasUnprocessedRow;
+  int8_t precision = pCmd->pMeterMeta->precision;
 
   if ((isAllSourcesCompleted(pLocalReducer) && !pLocalReducer->hasPrevRow) || pLocalReducer->pLocalDataSrc[0] == NULL ||
       prevGroupCompleted) {
@@ -1171,7 +1178,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
     if (pCmd->interpoType != TSDB_INTERPO_NONE) {
       int64_t etime = (pCmd->stime < pCmd->etime) ? pCmd->etime : pCmd->stime;
 
-      etime = taosGetRevisedEndKey(etime, pCmd->order.order, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit);
+      etime = taosGetRevisedEndKey(etime, pCmd->order.order, pCmd->nAggTimeInterval, pCmd->intervalTimeUnit, precision);
       int32_t rows = taosGetNumOfResultWithInterpo(pInterpoInfo, NULL, 0, pCmd->nAggTimeInterval, etime,
                                                    pLocalReducer->resColModel->maxCapacity);
       if (rows > 0) {  // do interpo
