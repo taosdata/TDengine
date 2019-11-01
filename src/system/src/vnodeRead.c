@@ -222,6 +222,8 @@ static SQInfo *vnodeAllocateQInfoCommon(SQueryMeterMsg *pQueryMsg, SMeterObj *pM
   }
 
   vnodeUpdateFilterColumnIndex(pQuery);
+  pQuery->precision = vnodeList[pMeterObj->vnode].cfg.precision;
+
   return pQInfo;
 
 _clean_memory:

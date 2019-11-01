@@ -128,7 +128,7 @@ int vnodeInitShell() {
   rpcInit.sessionsPerChann = 16;
   rpcInit.idMgmt = TAOS_ID_FREE;
   rpcInit.connType = TAOS_CONN_UDPS;
-  rpcInit.idleTime = tsShellActivityTimer * 1200;
+  rpcInit.idleTime = tsShellActivityTimer * 2000;
   rpcInit.qhandle = rpcQhandle[0];
   rpcInit.efp = vnodeSendVpeerCfgMsg;
 
