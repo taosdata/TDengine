@@ -186,7 +186,7 @@ public class SavedPreparedStatement {
 
         int paramSize = this.middleParamSize + this.valueListSize;
 
-        String errorMsg = String.format("the parameterIndex %s out of the range [1, %s]", parameterIndex, this.middleParamSize + this.valueListSize);
+        String errorMsg = String.format("the parameterIndex %s out of the range [1, %s]", parameterIndex, paramSize);
 
         if (parameterIndex < 1 || parameterIndex > paramSize) {
             throw new SQLException(TSDBConstants.WrapErrMsg(errorMsg));
@@ -200,13 +200,13 @@ public class SavedPreparedStatement {
 
         parameterIndex = parameterIndex - 1; // start from 0 in param list
 
-        if (this.middleParamSize != 0 && parameterIndex >= 0 && parameterIndex < this.middleParamSize) {
+        if (this.middleParamSize > 0 && parameterIndex >= 0 && parameterIndex < this.middleParamSize) {
 
             this.initPreparedParam.setMiddleParam(parameterIndex, x);
             return;
         }
 
-        if (this.valueListSize != 0 && parameterIndex >= this.middleParamSize && parameterIndex < paramSize) {
+        if (this.valueListSize > 0 && parameterIndex >= this.middleParamSize && parameterIndex < paramSize) {
 
             this.initPreparedParam.setValueParam(parameterIndex - this.middleParamSize, x);
             return;
@@ -255,7 +255,6 @@ public class SavedPreparedStatement {
 
         //1. generate batch sql
         String sql = generateExecuteSql();
-
         //2. execute batch sql
         int result = executeSql(sql);
 
@@ -279,7 +278,8 @@ public class SavedPreparedStatement {
 
         if (!isTableNameDynamic) {
             // tablename will not need to be replaced
-            stringBuilder.append(middle);
+            String middleValue = replaceMiddleListParam(middle, sqlParamList);
+            stringBuilder.append(middleValue);
             stringBuilder.append(" values");
 
             stringBuilder.append(replaceValueListParam(valueList, sqlParamList));
@@ -352,6 +352,26 @@ public class SavedPreparedStatement {
 
         return stringBuilder.toString();
     }
+
+    /**
+     * replace the placeholder of the middle part of sql template with TSDBPreparedParam list
+     *
+     * @param template
+     * @param sqlParamList
+     * @return
+     */
+    private String replaceMiddleListParam(String template, List<TSDBPreparedParam> sqlParamList) {
+
+        if (sqlParamList.size() > 0) {
+
+            //becase once the subTableName is static then  will be ignore the tag which after the first setTag
+            return replaceTemplateParam(template, sqlParamList.get(0).getMiddleParamList());
+
+        }
+
+        return template;
+    }
+
 
     /**
      * replace the placeholder of the template with TSDBPreparedParam list
