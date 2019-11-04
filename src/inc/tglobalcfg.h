@@ -132,7 +132,7 @@ extern int tsStreamCompRetryDelay;
 extern int     tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
 
-extern int tsUDPSocket;
+extern char tsSocketType[4];
 
 extern char  tsHttpIp[];
 extern short tsHttpPort;

@@ -174,6 +174,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   SGlobalConfig *cfg_locale = tsGetConfigOption("locale");
   SGlobalConfig *cfg_charset = tsGetConfigOption("charset");
   SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");
+  SGlobalConfig *cfg_socket = tsGetConfigOption("sockettype");
 
   switch (option) {
     case TSDB_OPTION_CONFIGDIR:
@@ -304,6 +305,20 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
                 tsCfgStatusStr[cfg_timezone->cfgStatus], (char *)cfg_timezone->ptr);
       }
       break;
+
+    case TSDB_OPTION_SOCKET_TYPE:
+      if (cfg_socket && cfg_socket->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
+        if (strcasecmp(arg, TAOS_SOCKET_TYPE_NAME_UDP) != 0 && strcasecmp(arg, TAOS_SOCKET_TYPE_NAME_TCP) != 0) {
+          tscError("only 'tcp' or 'udp' allowed for configuring the socket type");
+          return -1;
+        }
+
+        strncpy(tsSocketType, arg, tListLen(tsSocketType));
+        cfg_socket->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
+        tscPrint("socket type is set:%s", tsSocketType);
+      }
+      break;
+
     default:
       tscError("Invalid option %d", option);
       return -1;

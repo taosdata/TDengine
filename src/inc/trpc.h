@@ -30,12 +30,15 @@ extern "C" {
 #define TAOS_CONN_HTTPS    4
 #define TAOS_CONN_HTTPC    5
 
+#define TAOS_SOCKET_TYPE_NAME_TCP  "tcp"
+#define TAOS_SOCKET_TYPE_NAME_UDP  "udp"
+
 #define TAOS_ID_ASSIGNED   0
 #define TAOS_ID_FREE       1
 #define TAOS_ID_REALLOCATE 2
 
-#define TAOS_CONN_SOCKET_TYPE_S()  ((tsUDPSocket == 1)? TAOS_CONN_UDPS:TAOS_CONN_TCPS)
-#define TAOS_CONN_SOCKET_TYPE_C()  ((tsUDPSocket == 1)? TAOS_CONN_UDP:TAOS_CONN_TCPC)
+#define TAOS_CONN_SOCKET_TYPE_S()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDPS:TAOS_CONN_TCPS)
+#define TAOS_CONN_SOCKET_TYPE_C()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDP:TAOS_CONN_TCPC)
 
 #define taosSendMsgToPeer(x, y, z) taosSendMsgToPeerH(x, y, z, NULL)
 #define taosOpenRpcChann(x, y, z) taosOpenRpcChannWithQ(x, y, z, NULL)
