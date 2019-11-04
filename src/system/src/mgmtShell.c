@@ -64,7 +64,7 @@ int mgmtInitShell() {
   rpcInit.numOfChanns = 1;
   rpcInit.sessionsPerChann = tsMaxShellConns;
   rpcInit.idMgmt = TAOS_ID_FREE;
-  rpcInit.connType = TAOS_CONN_UDPS;
+  rpcInit.connType = TAOS_CONN_SOCKET_TYPE_S();
   rpcInit.idleTime = tsShellActivityTimer * 2000;
   rpcInit.qhandle = mgmtQhandle;
   rpcInit.afp = mgmtRetriveUserAuthInfo;
