@@ -118,7 +118,7 @@ void taos_init_imp() {
   rpcInit.sessionsPerChann = tsMaxVnodeConnections / tscNumOfThreads;
   rpcInit.idMgmt = TAOS_ID_FREE;
   rpcInit.noFree = 0;
-  rpcInit.connType = TAOS_CONN_UDP;
+  rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
   rpcInit.qhandle = tscQhandle;
   pVnodeConn = taosOpenRpc(&rpcInit);
   if (pVnodeConn == NULL) {
@@ -139,7 +139,7 @@ void taos_init_imp() {
   rpcInit.sessionsPerChann = tsMaxMgmtConnections;
   rpcInit.idMgmt = TAOS_ID_FREE;
   rpcInit.noFree = 0;
-  rpcInit.connType = TAOS_CONN_UDP;
+  rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
   rpcInit.qhandle = tscQhandle;
   pTscMgmtConn = taosOpenRpc(&rpcInit);
   if (pTscMgmtConn == NULL) {

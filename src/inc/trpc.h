@@ -34,6 +34,9 @@ extern "C" {
 #define TAOS_ID_FREE       1
 #define TAOS_ID_REALLOCATE 2
 
+#define TAOS_CONN_SOCKET_TYPE_S()  ((tsUDPSocket == 1)? TAOS_CONN_UDPS:TAOS_CONN_TCPS)
+#define TAOS_CONN_SOCKET_TYPE_C()  ((tsUDPSocket == 1)? TAOS_CONN_UDP:TAOS_CONN_TCPC)
+
 #define taosSendMsgToPeer(x, y, z) taosSendMsgToPeerH(x, y, z, NULL)
 #define taosOpenRpcChann(x, y, z) taosOpenRpcChannWithQ(x, y, z, NULL)
 #define taosBuildReqMsg(x, y) taosBuildReqMsgWithSize(x, y, 512)

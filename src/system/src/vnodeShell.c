@@ -127,7 +127,7 @@ int vnodeInitShell() {
   rpcInit.numOfChanns = TSDB_MAX_VNODES;
   rpcInit.sessionsPerChann = 16;
   rpcInit.idMgmt = TAOS_ID_FREE;
-  rpcInit.connType = TAOS_CONN_UDPS;
+  rpcInit.connType = TAOS_CONN_SOCKET_TYPE_S();
   rpcInit.idleTime = tsShellActivityTimer * 2000;
   rpcInit.qhandle = rpcQhandle[0];
   rpcInit.efp = vnodeSendVpeerCfgMsg;

@@ -132,6 +132,8 @@ extern int tsStreamCompRetryDelay;
 extern int     tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
 
+extern int tsUDPSocket;
+
 extern char  tsHttpIp[];
 extern short tsHttpPort;
 extern int   tsHttpCacheSessions;
@@ -182,12 +184,12 @@ void tsSetTimeZone();
 void tsSetLocale();
 void tsInitGlobalConfig();
 
-#define TSDB_CFG_CTYPE_B_CONFIG 1   // can be configured from file
-#define TSDB_CFG_CTYPE_B_SHOW 2     // can displayed by "show configs" commands
-#define TSDB_CFG_CTYPE_B_LOG 4      // is a log type configuration
-#define TSDB_CFG_CTYPE_B_CLIENT 8   // can be displayed in the client log
-#define TSDB_CFG_CTYPE_B_OPTION 16  // can be configured by taos_options function
-#define TSDB_CFG_CTYPE_B_NOT_PRINT 32
+#define TSDB_CFG_CTYPE_B_CONFIG     1U   // can be configured from file
+#define TSDB_CFG_CTYPE_B_SHOW       2U   // can displayed by "show configs" commands
+#define TSDB_CFG_CTYPE_B_LOG        4U   // is a log type configuration
+#define TSDB_CFG_CTYPE_B_CLIENT     8U   // can be displayed in the client log
+#define TSDB_CFG_CTYPE_B_OPTION     16U  // can be configured by taos_options function
+#define TSDB_CFG_CTYPE_B_NOT_PRINT  32U
 
 #define TSDB_CFG_CSTATUS_NONE 0     // not configured
 #define TSDB_CFG_CSTATUS_DEFAULT 1  // use system default value

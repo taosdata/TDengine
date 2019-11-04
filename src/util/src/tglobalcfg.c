@@ -122,6 +122,8 @@ int tsStreamCompRetryDelay = 10;                  // the stream computing delay 
 int     tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
+int tsUDPSocket = 1;               // use UDP by default, if tsUDPSocket equals to 0, all connection use TCP socket
+
 char  tsHttpIp[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
 short tsHttpPort = 6020;                 // only tcp, range tcp[6020]
 // short tsNginxPort = 6060;             //only tcp, range tcp[6060]
@@ -494,7 +496,12 @@ void tsInitGlobalConfig() {
   tsInitConfigOption(cfg++, "defaultUser", tsDefaultUser, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_USER_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "defaultPass", tsDefaultPass, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT, 0, 0, TSDB_PASSWORD_LEN, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT, 0, 0,
+                     TSDB_PASSWORD_LEN, TSDB_CFG_UTYPE_NONE);
+
+  // socket type, udp by default
+  tsInitConfigOption(cfg++, "udpsocket", &tsUDPSocket, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW, 0, 1, 1, TSDB_CFG_UTYPE_NONE);
 
   // locale & charset
   tsInitConfigOption(cfg++, "timezone", tsTimezone, TSDB_CFG_VTYPE_STRING,
