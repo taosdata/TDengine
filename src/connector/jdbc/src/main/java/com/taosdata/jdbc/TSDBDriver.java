@@ -14,6 +14,7 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.enumeration.SocketTypeEnum;
 import org.apache.commons.lang3.StringUtils;
 
 import java.sql.*;
@@ -98,6 +99,8 @@ public class TSDBDriver implements java.sql.Driver {
 
     public static final String PROPERTY_KEY_PROTOCOL = "protocol";
 
+    public static final String PROPERTY_KEY_SOCKETTYPE = "sockettype";
+
 	/**
 	 * Index for port coming out of parseHostPortPair().
 	 */
@@ -131,7 +134,7 @@ public class TSDBDriver implements java.sql.Driver {
 
 		try {
 			TSDBJNIConnector.init((String) props.get(PROPERTY_KEY_CONFIG_DIR), (String) props.get(PROPERTY_KEY_LOCALE), (String) props.get(PROPERTY_KEY_CHARSET),
-					(String) props.get(PROPERTY_KEY_TIME_ZONE));
+					(String) props.get(PROPERTY_KEY_TIME_ZONE), (String) props.get(PROPERTY_KEY_SOCKETTYPE));
 			Connection newConn = new TSDBConnection(props, this.dbMetaData);
 			return newConn;
 		} catch (SQLWarning sqlWarning) {
@@ -233,6 +236,9 @@ public class TSDBDriver implements java.sql.Driver {
 	 */
 
 	public Properties parseURL(String url, Properties defaults) throws java.sql.SQLException {
+
+		prepareProperties(defaults);
+
 		Properties urlProps = (defaults != null) ? defaults : new Properties();
 		if (url == null) {
 			return null;
@@ -257,10 +263,17 @@ public class TSDBDriver implements java.sql.Driver {
 		urlProps.setProperty(PROPERTY_KEY_PORT, port);
 		url = url.substring(url.indexOf("/") + 1);
 
-		if (url.indexOf("?") != -1) {
-			String dbName = url.substring(0, url.indexOf("?"));
+		int paramIndex = url.indexOf("?");
+		if (paramIndex != -1) {
+			String dbName = url.substring(0, paramIndex);
 			urlProps.setProperty(PROPERTY_KEY_DBNAME, dbName);
-			url = url.trim().substring(1);
+
+			if (paramIndex == url.length()-1){
+				url = "";
+			}else {
+				url = url.substring(paramIndex + 1);
+			}
+
 		} else {
 			// without user & password so return
 			String dbName = url.trim();
@@ -293,12 +306,39 @@ public class TSDBDriver implements java.sql.Driver {
                 case PROPERTY_KEY_CONFIG_DIR:
                     urlProps.setProperty(PROPERTY_KEY_CONFIG_DIR, kvPair[1]);
                     break;
+				case PROPERTY_KEY_SOCKETTYPE:
+					urlProps.setProperty(PROPERTY_KEY_SOCKETTYPE, getSocketType(kvPair[1]));
+					break;
 			}
 		}
 
 		this.dbMetaData = new TSDBDatabaseMetaData(dbProductName, urlForMeta, user);
 
 		return urlProps;
+	}
+
+	private void prepareProperties(Properties info){
+		if (info == null){
+			return;
+		}
+
+		for (Object key : info.keySet()){
+			if (key.toString().toLowerCase().equals(PROPERTY_KEY_SOCKETTYPE)){
+				String socketTypeValue = getSocketType(info.getProperty(key.toString()));
+				info.setProperty(PROPERTY_KEY_SOCKETTYPE, socketTypeValue);
+			}
+		}
+
+	}
+
+	public String getSocketType(String socketTypeCode){
+		SocketTypeEnum socketTypeEnum = SocketTypeEnum.getSockeTypeEnumByCode(socketTypeCode);
+
+		if (socketTypeEnum == null){
+			return SocketTypeEnum.UDP.getValue();//default udp
+		}
+
+		return socketTypeEnum.getValue();
 	}
 
 	public int getMajorVersion() {

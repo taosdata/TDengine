@@ -61,7 +61,7 @@ public class TSDBJNIConnector {
     /**
      * Initialize static variables in JNI to optimize performance
      */
-    public static void init(String configDir, String locale, String charset, String timezone) throws SQLWarning {
+    public static void init(String configDir, String locale, String charset, String timezone, String socketType) throws SQLWarning {
         synchronized (isInitialized) {
             if (!isInitialized) {
                 initImp(configDir);
@@ -73,6 +73,10 @@ public class TSDBJNIConnector {
                 }
                 if (setOptions(2, timezone) < 0) {
                     throw new SQLWarning(TSDBConstants.WrapErrMsg("Failed to set timezone: " + timezone + ". System default will be used."));
+                }
+
+                if (setOptions(3, socketType) < 0) {
+                    throw new SQLWarning(TSDBConstants.WrapErrMsg("Failed to set socketType: " + socketType + ". System default will be used."));
                 }
                 isInitialized = true;
                 TaosGlobalConfig.setCharset(getTsCharset());
