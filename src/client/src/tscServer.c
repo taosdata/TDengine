@@ -217,14 +217,19 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     int32_t totalMsgLen = pSql->cmd.payloadLen + tsRpcHeadSize + sizeof(STaosDigest);
 
     // the memory will be released by taosProcessResponse, so no memory leak here
-    char* buf = malloc(totalMsgLen);
-    memcpy(buf, pSql->cmd.payload, totalMsgLen);
+    char *buf = malloc(totalMsgLen);
+    if (NULL == buf) {
+      tscError("%p msg:%s malloc fail", pSql, taosMsg[pSql->cmd.msgType]);
+      return TSDB_CODE_CLI_OUT_OF_MEMORY;
+    }
 
+    memcpy(buf, pSql->cmd.payload, (size_t) totalMsgLen);
     tscTrace("%p msg:%s is sent to server", pSql, taosMsg[pSql->cmd.msgType]);
     char *pStart = taosBuildReqHeader(pSql->thandle, pSql->cmd.msgType, buf);
     if (pStart) {
       if (tscUpdateVnodeMsg[pSql->cmd.command]) (*tscUpdateVnodeMsg[pSql->cmd.command])(pSql, buf);
       int ret = taosSendMsgToPeerH(pSql->thandle, pStart, pSql->cmd.payloadLen, pSql);
+
       if (ret >= 0) code = 0;
       tscTrace("%p send msg ret:%d code:%d sig:%p", pSql, ret, code, pSql->signature);
     }

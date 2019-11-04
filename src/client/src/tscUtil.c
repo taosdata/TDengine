@@ -384,11 +384,22 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   pCmd->count = pDataBlock->numOfMeters;
   strncpy(pCmd->name, pDataBlock->meterId, TSDB_METER_ID_LEN);
 
-  tscAllocPayloadWithSize(pCmd, pDataBlock->nAllocSize);
+  /*
+   * the submit message consists of : [RPC header|message body|digest]
+   * the dataBlock only includes the RPC Header buffer and actual submit messsage body, space for digest needs
+   * additional space.
+   */
+  int ret = tscAllocPayloadWithSize(pCmd, pDataBlock->nAllocSize + sizeof(STaosDigest));
+  if (TSDB_CODE_SUCCESS != ret) return ret;
   memcpy(pCmd->payload, pDataBlock->pData, pDataBlock->nAllocSize);
 
-  // set the message length
-  pCmd->payloadLen = pDataBlock->nAllocSize;
+  /*
+   * the payloadLen should be actual message body size
+   * the old value of payloadLen is the allocated payload size
+   */
+  pCmd->payloadLen = pDataBlock->nAllocSize - tsRpcHeadSize;
+
+  assert(pCmd->allocSize >= pCmd->payloadLen + tsRpcHeadSize + sizeof(STaosDigest));
   return tscGetMeterMeta(pSql, pCmd->name);
 }
 
