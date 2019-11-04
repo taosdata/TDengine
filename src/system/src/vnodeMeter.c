@@ -752,7 +752,7 @@ void vnodeUpdateMeter(void *param, void *tmrId) {
   vnodeSaveMeterObjToFile(pObj);
   vnodeClearMeterState(pObj, TSDB_METER_STATE_UPDATING);
 
-  dTrace("vid:%d sid:%d id:%s, schema is updated", pNew->vnode, pNew->sid, pNew->meterId);
+  dTrace("vid:%d sid:%d id:%s, schema is updated, state:%d", pObj->vnode, pObj->sid, pObj->meterId, pObj->state);
   free(pNew);
 }
 
