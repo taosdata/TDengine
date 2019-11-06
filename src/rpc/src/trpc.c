@@ -536,7 +536,9 @@ int taosGetRpcConn(int chann, int sid, char *meterId, STaosRpc *pServer, SRpcCon
     if (pServer->afp) {
       int ret = (*pServer->afp)(meterId, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
       if (ret != 0) {
-        tTrace("%s cid:%d sid:%d id:%s, meterId not there pConn:%p", pServer->label, chann, sid, pConn->meterId, pConn);
+        tWarn("%s cid:%d sid:%d id:%s, meterId not there pConn:%p", pServer->label, chann, sid, pConn->meterId, pConn);
+        taosFreeId(pChann->idPool, sid);   // sid shall be released
+        memset(pConn, 0, sizeof(SRpcConn));
         return ret;
       }
     }
