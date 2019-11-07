@@ -70,12 +70,20 @@ int32_t __sync_add_and_fetch_32(int32_t *ptr, int32_t val) {
   return InterlockedAdd(ptr, val);
 }
 
+int32_t __sync_sub_and_fetch_32(int32_t *ptr, int32_t val) {
+  return InterlockedAdd(ptr, -val);
+}
+
 int64_t __sync_val_compare_and_swap_64(int64_t *ptr, int64_t oldval, int64_t newval) {
   return InterlockedCompareExchange64(ptr, newval, oldval);
 }
 
 int64_t __sync_add_and_fetch_64(int64_t *ptr, int64_t val) {
   return InterlockedAdd64(ptr, val);
+}
+
+int64_t __sync_sub_and_fetch_64(int64_t *ptr, int64_t val) {
+  return InterlockedAdd64(ptr, -val);
 }
 
 int32_t __sync_val_load_32(int32_t *ptr) {
