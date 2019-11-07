@@ -32,7 +32,7 @@ IF (TD_LINUX_64)
     MESSAGE(STATUS "build lite version ${VERSION_INFO}")
   ELSE ()
     execute_process(COMMAND chmod 777 ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh)
-    execute_process(COMMAND ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh ${TD_ENTERPRISE_DIR}/src/util/src/version.c
+    execute_process(COMMAND ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh ${TD_COMMUNITY_DIR}/src/util/src/version.c
             OUTPUT_VARIABLE
             VERSION_INFO)
     MESSAGE(STATUS "build cluster version ${VERSION_INFO}")
