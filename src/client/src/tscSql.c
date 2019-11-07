@@ -262,15 +262,15 @@ int taos_query_imp(STscObj* pObj, SSqlObj* pSql) {
 
 int taos_query(TAOS *taos, const char *sqlstr) {
   STscObj *pObj = (STscObj *)taos;
-  SSqlObj *pSql = pObj->pSql;
-  SSqlRes *pRes = &pSql->res;
-
   if (pObj == NULL || pObj->signature != pObj) {
     globalCode = TSDB_CODE_DISCONNECTED;
     return TSDB_CODE_DISCONNECTED;
   }
 
-  int32_t sqlLen = strlen(sqlstr);
+  SSqlObj *pSql = pObj->pSql;
+  SSqlRes *pRes = &pSql->res;
+
+  size_t sqlLen = strlen(sqlstr);
   if (sqlLen > TSDB_MAX_SQL_LEN) {
     tscError("%p sql too long", pSql);
     pRes->code = TSDB_CODE_INVALID_SQL;

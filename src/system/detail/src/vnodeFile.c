@@ -1522,7 +1522,6 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
   int         lastPos = -1, startPos;
   int         col, step, code = 0;
   char *      pRead, *pData;
-  char *      buffer;
   SData *     sdata[TSDB_MAX_COLUMNS];
   SCompBlock *pBlock = NULL;
   SVnodeObj * pVnode = &vnodeList[pObj->vnode];
@@ -1556,12 +1555,10 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
 
   if (pQuery->over) return 0;
 
-  // allocate memory more efficiently
-  buffer = calloc(1, pQuery->dataRowSize * pBlock->numOfPoints + sizeof(SData) * pQuery->numOfCols);
-  sdata[0] = (SData *)buffer;
-  for (col = 1; col < pQuery->numOfCols; ++col)
-    sdata[col] =
-        (SData *)(((char *)sdata[col - 1]) + sizeof(SData) + pBlock->numOfPoints * pQuery->colList[col - 1].data.bytes);
+  // To make sure the start position of each buffer is aligned to 4bytes in 32-bit ARM system.
+  for(col = 0; col < pQuery->numOfCols; ++col) {
+    sdata[col] = calloc(1, sizeof(SData) + pBlock->numOfPoints * pQuery->colList[col].data.bytes + EXTRA_BYTES);
+  }
 
   /*
    * timestamp column is fetched in any cases. Therefore, if the query does not fetch primary column,
@@ -1768,7 +1765,9 @@ _next:
     pQuery->slot = QUERY_IS_ASC_QUERY(pQuery) ? 0 : pQuery->numOfBlocks - 1;
   }
 
-  tfree(buffer);
+  for(int32_t i = 0; i < pQuery->numOfCols; ++i) {
+    tfree(sdata[i]);
+  }
 
   return code;
 }

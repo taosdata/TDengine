@@ -122,7 +122,6 @@ typedef struct RuntimeEnvironment {
   SQuery*                 pQuery;
   SMeterObj*              pMeterObj;
   SQLFunctionCtx*         pCtx;
-  char*                   buffer;            /* column data load buffer, colDataBuffer is point to this value */
   SQueryLoadBlockInfo     loadBlockInfo;     /* record current block load information */
   SQueryLoadCompBlockInfo loadCompBlockInfo; /* record current compblock information in SQuery */
 

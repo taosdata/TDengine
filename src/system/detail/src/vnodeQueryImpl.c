@@ -1931,19 +1931,13 @@ static int32_t setupQueryRuntimeEnv(SMeterObj *pMeterObj, SQuery *pQuery, SQuery
   // for loading block data in memory
   assert(vnodeList[pMeterObj->vnode].cfg.rowsInFileBlock == pMeterObj->pointsPerFileBlock);
 
-  size_t loadDataBlockBufferSize =
-      pQuery->dataRowSize * (pMeterObj->pointsPerFileBlock) + (sizeof(SData) + EXTRA_BYTES) * pQuery->numOfCols;
-  pRuntimeEnv->buffer = (char *)malloc(loadDataBlockBufferSize);
-
-  if (pRuntimeEnv->buffer == NULL) {
-    goto _error_clean;
-  }
-
-  pRuntimeEnv->colDataBuffer[0] = (SData *)pRuntimeEnv->buffer;
-  for (int32_t i = 1; i < pQuery->numOfCols; ++i) {
-    int32_t bytes = pQuery->colList[i - 1].data.bytes;
-    pRuntimeEnv->colDataBuffer[i] = (SData *)(((void *)pRuntimeEnv->colDataBuffer[i - 1]) + sizeof(SData) +
-                                              EXTRA_BYTES + pMeterObj->pointsPerFileBlock * bytes);
+  // To make sure the start position of each buffer is aligned to 4bytes in 32-bit ARM system.
+  for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
+    int32_t bytes = pQuery->colList[i].data.bytes;
+    pRuntimeEnv->colDataBuffer[i] = calloc(1, sizeof(SData) + EXTRA_BYTES + pMeterObj->pointsPerFileBlock * bytes);
+    if (pRuntimeEnv->colDataBuffer[i] == NULL) {
+      goto _error_clean;
+    }
   }
 
   // record the maximum column width among columns of this meter/metric
@@ -1978,7 +1972,11 @@ static int32_t setupQueryRuntimeEnv(SMeterObj *pMeterObj, SQuery *pQuery, SQuery
 _error_clean:
   tfree(pRuntimeEnv->resultInfo);
   tfree(pRuntimeEnv->pCtx);
-  tfree(pRuntimeEnv->buffer);
+
+  for(int32_t i = 0; i < pRuntimeEnv->pQuery->numOfCols; ++i) {
+    tfree(pRuntimeEnv->colDataBuffer[i]);
+  }
+
   tfree(pRuntimeEnv->unzipBuffer);
   tfree(pRuntimeEnv->secondaryUnzipBuffer);
 
@@ -1995,7 +1993,10 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   }
 
   dTrace("QInfo:%p teardown runtime env", GET_QINFO_ADDR(pRuntimeEnv->pQuery));
-  tfree(pRuntimeEnv->buffer);
+  for(int32_t i = 0; i < pRuntimeEnv->pQuery->numOfCols; ++i) {
+    tfree(pRuntimeEnv->colDataBuffer[i]);
+  }
+
   tfree(pRuntimeEnv->secondaryUnzipBuffer);
 
   taosCleanUpIntHash(pRuntimeEnv->hashList);
