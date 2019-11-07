@@ -1,0 +1,3 @@
+[submodule "community"]
+	path = community
+	url = https://github.com/taosdata/TDengine.git
