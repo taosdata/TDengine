@@ -39,7 +39,7 @@ echo topdir: %{_topdir}
 echo version: %{_version}
 echo buildroot: %{buildroot}
 
-versioninfo=$(%{_compiledir}/../packaging/tools/get_version.sh ../../src/util/lite/src/version.c)
+versioninfo=$(%{_compiledir}/../packaging/tools/get_version.sh ../../src/util/src/version.c)
 libfile="libtaos.so.${versioninfo}"
 
 # create install path, and cp file

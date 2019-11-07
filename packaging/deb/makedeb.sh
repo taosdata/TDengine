@@ -24,7 +24,7 @@ fi
 mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
-versioninfo=$(${script_dir}/../tools/get_version.sh ${script_dir}/../../src/util/lite/src/version.c)
+versioninfo=$(${script_dir}/../tools/get_version.sh ${script_dir}/../../src/util/src/version.c)
 libfile="libtaos.so.${versioninfo}"
 
 # create install dir 

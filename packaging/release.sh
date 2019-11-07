@@ -8,7 +8,7 @@ set -e
 curr_dir=$(pwd)
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -m ${script_dir}/..)"
-versioninfo="${top_dir}/src/util/lite/src/version.c"
+versioninfo="${top_dir}/src/util/src/version.c"
 
 csudo=""
 if command -v sudo > /dev/null; then
