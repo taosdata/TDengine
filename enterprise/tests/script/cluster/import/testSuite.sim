@@ -1,0 +1,2 @@
+run cluster/import/replica2.sim
+run cluster/import/replica3.sim

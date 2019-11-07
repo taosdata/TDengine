@@ -1,0 +1,5 @@
+run lite/account/pass_alter.sim
+run lite/account/pass_len.sim
+run lite/account/user_create.sim
+run lite/account/user_len.sim
+run lite/account/monitor.sim

@@ -1,0 +1,6 @@
+# Schema setting
+v1 int, v2 int, v3 int, v4 int, v5 int
+
+# Tag setting 
+# color binary(50) : 'red' 0.3, 'blue' 0.4, 'yellow' 0.3
+# id int           :  1    0.1,  2     0.3,  4       0.5, 5     0.1

@@ -1,0 +1,14 @@
+env COMPRESSION=NONE HBASE_HOME=/home/taos/local/hbase-1.4.8/ /usr/share/opentsdb/tools/create_table.sh
+
+# To install libcurl
+sudo apt-get install libcurl4-openssl-dev
+
+# To install c-json
+sudo apt-get install libjson0 libjson0-dev
+
+# Send http request to OPENTSDB via curl
+curl -XPOST -H "Content-Type: application/json" http://localhost:4242/api/put -d '{ "metric": "sys.cpu.nice", "timestamp": 1346846400, "value": 18, "tags": { "host": "web01", "dc": "lga" } }'
+
+set tsd.core.auto_create_metrics = true
+
+curl -XPOST -H "Content-Type: application/json"  http://localhost:4242/api/query -d '{ "start": 1544565500, "end": 1544865500, "queries": [ { "aggregator": "first", "metric": "v1", "rate": "true", "tags": { "monitor": "monitor1"} }]}'

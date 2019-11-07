@@ -1,0 +1,2 @@
+run lite/agg/fill.sim
+run lite/agg/stream.sim

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<title>Config</title>
+	<link rel="icon" href="images/db.png">
+	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
+	<link type="text/css" href="css/info.css" rel="stylesheet">
+	<link type="text/css" href="css/edit.css" rel="stylesheet">
+	<link type="text/css" href="css/dlg.css" rel="stylesheet">
+	<script type="text/javascript" src="js/dbEcharts.js"></script>
+	<script type="text/javascript" src="js/dbUtil.js"></script>
+	<script type="text/javascript" src="js/dbCache.js"></script>
+	<script type="text/javascript" src="js/dbSession.js"></script>
+</head>
+<body class="graph">
+	<!-- navbar begin -->
+	<nav class="navbar navbar-inverse navbar-static-top">
+		<div class="container graph-fluid ">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+					<span class="sr-only">Toggle navigation</span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+				</button>
+				<a class="navbar-brand graph-brand" href="home.html">TDengine</a>
+			</div>
+			<!--/.nav-collapse -->
+			<div id="navbar" class="navbar-collapse collapse">
+				<ul class="nav navbar-nav">
+					<li><a href="dbs.html">DBs</a></li>
+					<li><a href="tables.html">Tables</a></li>
+					<li><a href="users.html">Users</a></li>
+					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
+					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
+					<li><a href="query.html">Queries</a></li>
+					<li><a href="shell.html">Shell</a></li>
+				</ul>
+				<ul class="nav navbar-nav navbar-right">
+					<li><a href="userInfo.html" id="user"></a></li>
+					<li><a href="login.html">Logout</a></li>
+				</ul>
+			</div>
+			<!--/.nav-label -->
+		</div>
+	</nav>
+	<!-- navbar end -->
+	<!-- content begin -->
+	<div class="container">
+		<div class="panel panel-default dbpanel">
+			<div class="panel-body dbheadforbody" style="border-bottom:1px solid #ddd; padding-right:5px">
+				<label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Input Parameters</label>
+			</div>
+			
+			<div class="row" style="margin-top:10px;margin-bottom:5px;margin-right:5px;margin-left:5px" id="dbShowGraphDiv">
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
+					<div class="form-group input-group-sm">
+						<label for="c3" style="font-weight:normal;font-size:12px">Number of Columns</label>
+						<input type="number" id="C3" class="form-control" style="height:30px;font-size:12px" placeholder="3">
+					</div>
+				</div>
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
+					<div class="form-group input-group-sm">
+						<label for="c4" style="font-weight:normal;font-size:12px">Row Size (bytes)</label>
+						<input type="number" id="C4" class="form-control" style="height:30px;font-size:12px" placeholder="32">
+					</div>
+				</div>
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol" >
+					<div class="form-group input-group-sm">
+						<label for="c5" style="font-weight:normal;font-size:12px">Average Cache Blocks a Table</label>
+						<input type="number" id="C5" class="form-control" style="height:30px;font-size:12px" placeholder="4">
+					</div>
+				</div>
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
+					<div class="form-group input-group-sm">
+						<label for="c6" style="font-weight:normal;font-size:12px">Cache Block Size (bytes)</label>
+						<input type="number" id="C6" class="form-control" style="height:30px;font-size:12px" placeholder="16000">
+					</div>
+				</div>
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
+					<div class="form-group input-group-sm">
+						<label for="c7" style="font-weight:normal;font-size:12px">Number of Tables</label>
+						<input type="number" id="C7" class="form-control" style="height:30px;font-size:12px" placeholder="100000">
+					</div>
+				</div>
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
+					<div class="form-group input-group-sm">
+						<label for="c8" style="font-weight:normal;font-size:12px">Sampling Period (seconds)</label>
+						<input type="number" id="C8" class="form-control" style="height:30px;font-size:12px" placeholder="10">
+					</div>
+				</div>
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol" >
+					<div class="form-group input-group-sm">
+						<label for="c9" style="font-weight:normal;font-size:12px">Number of Rows a Batch</label>
+						<input type="number" id="C9" class="form-control" style="height:30px;font-size:12px" placeholder="100">
+					</div>
+				</div>
+				<div class="col-sm-offset-0  col-sm-3 col-xs-offset-0  col-xs-12 dbcol">
+					<div class="form-group input-group-sm">
+						<label for="c10" style="font-weight:normal;font-size:12px">Compression Ratio</label>
+						<input type="number" id="C10" class="form-control" style="height:30px;font-size:12px" placeholder="0.5">
+					</div>
+				</div>
+			</div>
+		</div>
+		
+		<div class="panel panel-default dbpanel">
+			<div class="panel-heading dbhead">
+				<label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Output Parameters</label>
+				<button type="button" class="btn btn-default btn-sm" style="float:right;margin-right:4px" onclick="dbCalculate()">
+					<span class="glyphicon glyphicon-calendar"></span> 
+					Calculate
+				</button>	
+			</div>			
+			<table class="table table-striped table-bordered table-hover dbtable " id="dbTable" style="font-size:12px">
+				<thead id="dbTableHead">
+					<tr>
+						<th style="font-weight: normal">No</th>
+						<th style="font-weight: normal">Parameter Name</th>
+						<th style="font-weight: normal">Value</th>
+						<th style="font-weight: normal">Unit</th>
+					</tr>
+				</thead>
+				<tbody id="dbTableBody">
+					<tr><td>1</td><td>Raw Data per Day</td><td id="C15">-</td><td>GB</td></tr>
+					<tr><td>2</td><td>Disk Increase per Day</td><td id="C16">-</td><td>GB</td></tr>
+					<tr><td>3</td><td>Rows per Day</td><td id="CXX">-</td><td>rows</td></tr>
+					<tr><td>4</td><td>Points per Second</td><td id="CYY">-</td><td>points</td></tr>
+					<tr><td>5</td><td>Bandwidth</td><td id="C17">-</td><td>Mbits</td></tr>
+					<tr><td>6</td><td>Outbound Data per Month</td><td id="C18">-</td><td>GB</td></tr>
+					<tr><td>7</td><td>Average Rows in Cache per Table</td><td id="C27">-</td><td>rows</td></tr>
+					<tr><td>8</td><td>Total Memory Size</td><td id="C28">-</td><td>GB</td></tr>
+					<tr><td>9</td><td>Number of CPU Cores Required</td><td id="C31">-</td><td>cores</td></tr>
+				</tbody>
+			</table>
+		</div>
+		
+		<!-- 		
+		<div class="panel panel-default dbpanel">
+			<div class="panel-body dbbody">
+				<div class="btn-group btn-group-sm">
+					<button type="button" class="btn btn-default btn-sm" onclick="dbShowGraph(true)">
+						<span class="glyphicon glyphicon-hd-video"></span> 
+						Recommand Machine
+					</button>
+					<button type="button" class="btn btn-default btn-sm" onclick="dbShowGraph(true)">
+						<span class="glyphicon glyphicon-sd-video"></span> 
+						Recommand Parameters
+					</button>
+				</div>
+			</div>
+		</div>		
+		-->
+		
+		<div class="dbcopyright"><a href= "http://www.taosdata.com">© 2017, TAOS Data</a></div>
+	</div>
+
+	<!-- content end -->
+	<div class="modal modalstyle" id="infoDialog" tabindex="-1" role="dialog" aria-labelledby="infoModalLabel" aria-hidden="true">
+		<div class="modal-dialog" style="width: 350px;">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h4 class="modal-title" id="infoType"></h4>
+				</div>
+				<div class="modal-body">
+					<p id="infoContent"></p> 
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				</div>
+			</div><!-- /.modal-content -->
+		</div><!-- /.modal -->
+	</div>
+	
+	<div class="modal modalstyle" id="confirmDialog" tabindex="-1" role="dialog" aria-labelledby="confirmModalLabel" aria-hidden="true">
+		<div class="modal-dialog" style="width: 350px;">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h4 class="modal-title" id="confirmType">Confirm</h4>
+				</div>
+				<div class="modal-body">
+					<p id="confirmContent"></p> 
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" onclick="dbExecuteDelete()" data-dismiss="modal">Confirm</button>
+					<button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+				</div>
+			</div><!-- /.modal-content -->
+		</div><!-- /.modal -->
+	</div>
+	
+	<script type="text/javascript">
+	
+	function dbGetNumber(val, def)
+	{
+		if (val == null || val == undefined || val == "") {
+			return def;
+		}
+		return val * 1;
+	}
+	
+	// 返回数字
+	function removeFormatMoney(s) {
+		return parseFloat(s.replace(/[^\d\.-]/g, ""));
+	}
+
+	function formatMoney(s, type) {
+		if (/[^0-9\.]/.test(s))
+			return "0.00";
+		if (s == null || s == "null" || s == "")
+			return "0.00";
+		s = s.toString().replace(/^(\d*)$/, "$1.");
+		s = (s + "00").replace(/(\d*\.\d\d)\d*/, "$1");
+		s = s.replace(".", ",");
+		var re = /(\d)(\d{3},)/;
+		while (re.test(s))
+			s = s.replace(re, "$1,$2");
+		s = s.replace(/,(\d\d)$/, ".$1");
+		if (type == 0) {
+			var a = s.split(".");
+			if (a[1] == "00") {
+				s = a[0];
+			}
+		}
+		return s;
+	}
+	
+	function dbCalculate()
+	{
+		var C3 = dbGetNumber($('#C3').val(), 3);
+		var C4 = dbGetNumber($('#C4').val(), 32);
+		var C5 = dbGetNumber($('#C5').val(), 4);
+		var C6 = dbGetNumber($('#C6').val(), 16000);
+		var C7 = dbGetNumber($('#C7').val(), 100000);
+		var C8 = dbGetNumber($('#C8').val(), 10);
+		var C9 = dbGetNumber($('#C9').val(), 100);
+		var C10 = dbGetNumber($('#C10').val(), 0.5);
+
+		var C13 = C7/C8;
+		var C14 = C13*C4/1000000;
+		var C15 = C14*24*3600/1000;
+		var C16 = C15*C10;
+		var C17 = (C4*C9+60+28)*C13/C9*8/1000000;
+		var C18 = (60+28)*C13*3600*24*30/C9/1000000/1000;
+		var CXX = C7 *24 * 3600 / C8;
+		var CYY = CXX * C3 / 86400;
+
+		var C21 = 288+C3*69;
+		var C22 = 256+C3*6;
+		var C23 = C21*C7/1000000000;
+		var C24 = C6*C5*C7/1000000000;
+		var C25 = C22*C7/1000000000;
+		var C26 = 512*C7/1000000000;
+		var C27 = C5*(C6-32-8*C3)/C4;
+		var C28 = C23+C24+C25+C26;
+
+		var C31 =C13/20000/C9;
+		
+		//var cpuRequiredOfAServer = Math.ceil((vnodes + 1) / vnodePerCore);
+		//diskIncreasePerDay = diskIncreasePerDay.toFixed(3);
+
+		$('#C15').text(formatMoney(C15));
+		$('#C16').text(formatMoney(C16));
+		$('#CXX').text(formatMoney(CXX));
+		$('#CYY').text(formatMoney(CYY));
+		$('#C17').text(formatMoney(C17));
+		$('#C18').text(formatMoney(C18));
+		$('#C27').text(formatMoney(C27));
+		$('#C28').text(formatMoney(C28));
+		$('#C31').text(formatMoney(C31));
+
+		if (C27 <= 1024) {
+			$('#C27').css("color","red");
+		}
+		else{
+			$('#C27').css("color","black");
+		}
+
+	}
+	
+
+	</script>
+	
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+	<script src="js/echarts.common.min.js"></script>
+	<script src="js/jquery-2.0.2.min.js"></script>
+	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+</body>
+</html>

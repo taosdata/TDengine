@@ -1,0 +1,43 @@
+{
+  "__CONNECTION_INFO": "",
+  "host": "192.168.0.1",
+  "user": "root",
+  "password": "taosdata",
+
+  "__SCHEMA_PARAMS": "",
+  "db": "db",
+  "stb": "stb",
+  "tbPrefix": "tb",
+  "cols": "ts timestamp, c1 int, c2 double, c3 bigint",
+  "tags": "t1 bigint, t2 binary(20), t3 binary(20)",
+
+  "__DATA_SCALE_PARAMS": "",
+  "timestep": 10000,
+  "tbNum": 10,
+  "dataStartTime": "2019-03-01 00:00:00.000",
+  "dataEndTime":   "2019-03-02 00:00:00.000",
+  "dataTimeRange": 1,
+
+  "__RETENTION_PARAMS": "",
+  "replica": 1,
+  "days": 10,
+  "keep": 3650,
+  "tables": 1000,
+  "rows": 4096,
+  "cache": 16384,
+  "ablocks": 4.0,
+  "tblocks": 1000,
+  "ctime": 3600,
+  "clog": 1,
+  "comp": 2,
+  "precision": "ms",
+
+  "__INSERT_OPTION_PARAMS": "",
+  "__insertOptions": ["HISTORICAL", "REALTIME"],
+  "insertOption": "HISTORICAL",
+  "insertThreadNum": 2,
+  "insertBatchSize": 100,
+  "insertBatchNum": 10,
+  "sleepBetweenInserts": 0
+
+}

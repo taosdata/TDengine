@@ -1,0 +1,279 @@
+/*******************************************************************
+ *           Copyright (c) 2017 by TAOS Technologies, Inc.
+ *                     All rights reserved.
+ *
+ *  This file is proprietary and confidential to TAOS Technologies.
+ *  No part of this file may be reproduced, stored, transmitted,
+ *  disclosed or used in any form or by any means other than as
+ *  expressly provided by the written permission from Jianhui Tao
+ *
+ * ****************************************************************/
+
+#include "adminHandle.h"
+#include "adminJson.h"
+#include "tglobalcfg.h"
+#include "tlog.h"
+
+static HttpDecodeMethod adminDecodeMethod = {"admin", adminProcessRequest};
+static HttpEncodeMethod adminEncodeSqlMethod = {
+    adminStartSqlJson, adminStopSqlJson, adminBuildSqlJson, adminBuildSqlAffectRowJson, NULL, NULL, NULL, NULL};
+static HttpEncodeMethod adminEncodeSqlAllMethod = {
+    adminStartSqlJson, adminStopSqlJson, adminBuildSqlAllJson, adminBuildSqlAffectRowJson, NULL, NULL, NULL, NULL};
+static HttpEncodeMethod adminEncodeInfoMethod = {
+    NULL, adminStopInfoJson, adminBuildInfoJson, NULL, adminInitInfoJson, adminCleanInfoJson, NULL, NULL};
+static HttpEncodeMethod adminEncodeMetaMethod = {
+    adminStartMetaJson, adminStopMetaJson, adminBuildMetaJson, NULL, NULL, NULL, NULL, NULL};
+static HttpEncodeMethod adminEncodeSqlsMethod = {adminStartSqlsJson,
+                                                 adminStopSqlsJson,
+                                                 adminBuildSqlAllJson,
+                                                 NULL,
+                                                 adminInitSqlsJson,
+                                                 adminCleanSqlsJson,
+                                                 NULL,
+                                                 NULL};
+
+void adminInitHandle(HttpServer* pServer) { httpAddMethod(pServer, &adminDecodeMethod); }
+
+bool adminGetUserFromUrl(HttpContext* pContext) {
+  HttpParser* pParser = &pContext->parser;
+  if (pParser->path[ADMIN_USER_URL_POS].len > TSDB_USER_LEN - 1 || pParser->path[ADMIN_USER_URL_POS].len <= 0) {
+    return false;
+  }
+
+  strcpy(pContext->user, pParser->path[ADMIN_USER_URL_POS].pos);
+  return true;
+}
+
+bool adminGetPassFromUrl(HttpContext* pContext) {
+  HttpParser* pParser = &pContext->parser;
+  if (pParser->path[ADMIN_PASS_URL_POS].len > TSDB_PASSWORD_LEN - 1 || pParser->path[ADMIN_PASS_URL_POS].len <= 0) {
+    return false;
+  }
+
+  strcpy(pContext->pass, pParser->path[ADMIN_PASS_URL_POS].pos);
+  return true;
+}
+
+bool adminProcessLoginRequest(HttpContext* pContext) {
+  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin login msg", pContext, pContext->fd, pContext->ipstr,
+            pContext->user);
+  pContext->reqType = HTTP_REQTYPE_LOGIN;
+  return true;
+}
+
+bool adminProcessLogoutRequest(HttpContext* pContext) {
+  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin logout msg", pContext, pContext->fd, pContext->ipstr,
+            pContext->user);
+  httpSendSuccResp(pContext, "logout success");
+  pContext->reqType = HTTP_REQTYPE_OTHERS;
+  return false;
+}
+
+bool adminProcessSqlRequest(HttpContext* pContext) {
+  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin query part msg", pContext, pContext->fd, pContext->ipstr,
+            pContext->user);
+
+  char* sql = pContext->parser.data.pos;
+  if (sql == NULL) {
+    httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
+    return false;
+  }
+
+  if (httpCheckUsedbSql(sql)) {
+    httpSendErrorResp(pContext, HTTP_NO_EXEC_USEDB);
+    return false;
+  }
+
+  HttpSqlCmd* cmd = &(pContext->singleCmd);
+  cmd->nativSql = sql;
+
+  pContext->reqType = HTTP_REQTYPE_SINGLE_SQL;
+  pContext->encodeMethod = &adminEncodeSqlMethod;
+
+  return true;
+}
+
+bool adminProcessSqlAllRequest(HttpContext* pContext) {
+  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin query all msg", pContext, pContext->fd, pContext->ipstr,
+            pContext->user);
+
+  char* sql = pContext->parser.data.pos;
+  if (sql == NULL) {
+    httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
+    return false;
+  }
+
+  if (httpCheckUsedbSql(sql)) {
+    httpSendErrorResp(pContext, HTTP_NO_EXEC_USEDB);
+    return false;
+  }
+
+  HttpSqlCmd* cmd = &(pContext->singleCmd);
+  cmd->nativSql = sql;
+
+  pContext->reqType = HTTP_REQTYPE_SINGLE_SQL;
+  pContext->encodeMethod = &adminEncodeSqlAllMethod;
+
+  return true;
+}
+
+bool adminProcessSqlsRequest(HttpContext* pContext) {
+  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process multi-sqls msg", pContext, pContext->fd, pContext->ipstr,
+            pContext->user);
+
+  char* sql = pContext->parser.data.pos;
+  if (sql == NULL) {
+    httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
+    return false;
+  }
+
+  int cmdSize = 0;
+
+  for (int i = 0; sql[i] != 0; ++i) {
+    if (sql[i] == ';') cmdSize++;
+  }
+
+  if (!httpMallocMultiCmds(pContext, cmdSize + 1, HTTP_BUFFER_SIZE)) {
+    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    return false;
+  }
+
+  while (true) {
+    char* dot = strstr(sql, ";");
+    if (dot == NULL) break;
+
+    HttpSqlCmd* cmd = httpNewSqlCmd(pContext);
+    if (cmd == NULL) {
+      httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+      return false;
+    }
+
+    *dot = 0;
+    cmd->sql = httpAddToSqlCmdBuffer(pContext, sql);
+
+    sql = dot + 1;
+  }
+
+  pContext->reqType = HTTP_REQTYPE_MULTI_SQL;
+  pContext->encodeMethod = &adminEncodeSqlsMethod;
+
+  return true;
+}
+
+bool adminProcessInfoRequest(HttpContext* pContext) {
+  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin info msg", pContext, pContext->fd, pContext->ipstr,
+            pContext->user);
+
+  if (!httpMallocMultiCmds(pContext, 10, HTTP_BUFFER_SIZE)) {
+    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    return false;
+  }
+
+  if (!httpMallocMultiCmds(pContext, 6, HTTP_BUFFER_SIZE)) {
+    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    return false;
+  }
+
+  HttpSqlCmd* cmd;
+
+  cmd = httpNewSqlCmd(pContext);
+  if (cmd == NULL) {
+    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    return false;
+  }
+  cmd->sql = httpAddToSqlCmdBuffer(pContext, "show databases");
+  cmd->values = ADMIN_JSON_DBS_TYPE;  // hack way
+
+  cmd = httpNewSqlCmd(pContext);
+  if (cmd == NULL) {
+    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    return false;
+  }
+  cmd->sql = httpAddToSqlCmdBuffer(pContext, "show databases");
+  cmd->values = ADMIN_JSON_TABLES_TYPE;  // hack way
+
+  cmd = httpNewSqlCmd(pContext);
+  if (cmd == NULL) {
+    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    return false;
+  }
+  cmd->sql = httpAddToSqlCmdBuffer(pContext, "show users");
+  cmd->values = ADMIN_JSON_USERS_TYPE;  // hack way
+
+  cmd = httpNewSqlCmd(pContext);
+  if (cmd == NULL) {
+    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    return false;
+  }
+  cmd->sql = httpAddToSqlCmdBuffer(pContext, "show mnodes");
+  cmd->values = ADMIN_JSON_MNODES_TYPE;  // hack way
+
+  cmd = httpNewSqlCmd(pContext);
+  if (cmd == NULL) {
+    httpSendErrorResp(pContext, HTTP_NO_ENOUGH_MEMORY);
+    return false;
+  }
+  cmd->sql = httpAddToSqlCmdBuffer(pContext, "show dnodes");
+  cmd->values = ADMIN_JSON_DNODES_TYPE;  // hack way
+
+  pContext->reqType = HTTP_REQTYPE_MULTI_SQL;
+  pContext->encodeMethod = &adminEncodeInfoMethod;
+
+  return true;
+}
+
+bool adminProcessMetaRequest(HttpContext* pContext) {
+  httpTrace("context:%p, fd:%d, ip:%s, user:%s, process admin table meta msg", pContext, pContext->fd, pContext->ipstr,
+            pContext->user);
+
+  char* sql = pContext->parser.data.pos;
+  if (sql == NULL) {
+    httpSendErrorResp(pContext, HTTP_NO_SQL_INPUT);
+    return false;
+  }
+
+  if (httpCheckUsedbSql(sql)) {
+    httpSendErrorResp(pContext, HTTP_NO_EXEC_USEDB);
+    return false;
+  }
+
+  HttpSqlCmd* cmd = &(pContext->singleCmd);
+  cmd->nativSql = sql;
+
+  pContext->reqType = HTTP_REQTYPE_SINGLE_SQL;
+  pContext->encodeMethod = &adminEncodeMetaMethod;
+
+  return true;
+}
+
+bool adminProcessRequest(struct HttpContext* pContext) {
+  if (httpUrlMatch(pContext, ADMIN_ACTION_URL_POS, "login")) {
+    adminGetUserFromUrl(pContext);
+    adminGetPassFromUrl(pContext);
+  }
+
+  if (strlen(pContext->user) == 0 || strlen(pContext->pass) == 0) {
+    httpSendErrorResp(pContext, HTTP_PARSE_USR_ERROR);
+    return false;
+  }
+
+  if (httpUrlMatch(pContext, ADMIN_ACTION_URL_POS, "sql")) {
+    return adminProcessSqlRequest(pContext);
+  } else if (httpUrlMatch(pContext, ADMIN_ACTION_URL_POS, "sqls")) {
+    return adminProcessSqlsRequest(pContext);
+  } else if (httpUrlMatch(pContext, ADMIN_ACTION_URL_POS, "meta")) {
+    return adminProcessMetaRequest(pContext);
+  } else if (httpUrlMatch(pContext, ADMIN_ACTION_URL_POS, "info")) {
+    return adminProcessInfoRequest(pContext);
+  } else if (httpUrlMatch(pContext, ADMIN_ACTION_URL_POS, "login")) {
+    return adminProcessLoginRequest(pContext);
+  } else if (httpUrlMatch(pContext, ADMIN_ACTION_URL_POS, "logout")) {
+    return adminProcessLogoutRequest(pContext);
+  } else if (httpUrlMatch(pContext, ADMIN_ACTION_URL_POS, "all")) {
+    return adminProcessSqlAllRequest(pContext);
+  } else {
+  }
+
+  httpSendErrorResp(pContext, HTTP_PARSE_URL_ERROR);
+  return false;
+}

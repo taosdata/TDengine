@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.taosdata.iot.mybatisTest.mappers.RecordMapper">
+    <select id="getRecordByDeviceIdAndTs" resultType="Record">
+        select * from device#{deviceId} where ts = #{ts}
+    </select>
+    <select id="getAllRecords" resultType="Record">
+        select * from devices
+    </select>
+    <select id="getRecordsByC1C3" resultType="Record">
+        select * from devices where c1 = #{c1} and c3 = #{c3}
+    </select>
+    <select id="getRecordsByTags" resultType="Record">
+        select * from devices where deviceId = #{deviceId} and t2 = #{t2}
+    </select>
+    <select id="getRecordsByTag1" resultType="Record">
+        select * from devices where deviceId = #{deviceId}
+    </select>
+    <select id="getRecordsByDeviceId" resultType="Record">
+        select * from device#{deviceId}
+    </select>
+    <select id="showTables" resultType="Record">
+        show tables
+    </select>
+    <select id="showMetrics" resultType="Record">
+        show metrics
+    </select>
+    <insert id="insertRecordByDeviceId" parameterType="Record">
+        insert into device#{deviceId}
+        values(#{ts}, #{c1}, #{c2}, #{c3}, #{c4}, #{c5}, #{c6}, #{c7}, #{c8}, #{c9})
+    </insert>
+    <insert id="insertRecordBatch" parameterType="list">
+        insert into
+        <foreach collection="list" item="record">
+            device#{record.deviceId} values (#{record.ts}, #{record.c1}, #{record.c2}, #{record.c3}, #{record.c4}, #{record.c5}, #{record.c6}, #{record.c7}, #{record.c8}, #{record.c9})
+        </foreach>
+
+    </insert>
+    <update id="addDevice" parameterType="Record">
+        create table device#{deviceId} using devices tags(#{deviceId}, #{t2})
+    </update>
+</mapper>

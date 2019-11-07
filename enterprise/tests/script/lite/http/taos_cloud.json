@@ -1,0 +1,21 @@
+{
+    "hostIp": "192.168.100.128",
+    "connNum": 10,
+	"insertModel": "insertTable",
+    "waitTime": 0,
+	"tableDesc": "ts timestamp, i int",
+	"tablePrefix": "t",
+	"tablePerConn": 1,
+	"tableCreate": true,
+	"tableStart": 1,
+	"dbName": "db",
+	"dbKeep": 3650,
+	"metricsName": "mt",
+	"tagNum": 10,
+	"dataNum": 1000,
+	"dataBegin": 1517414400000,
+	"dataInterval": 1000,
+	"dataBatch": 1000,
+	"dataInsert": true,
+	"dataRandom": false
+}

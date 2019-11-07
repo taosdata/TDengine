@@ -1,0 +1,25 @@
+The main test script is test.sh. Users can get help by running ./test.sh -?
+
+    -F is used to assign the data setting
+    -f is used to set database specific setting
+    -a is used to set action to take. 0 for insert, 1 for query
+
+Example:
+    ./test.sh -F cases/config_case1.sh -f cases/tdengine_case1.sh
+    case 1:
+      100 tables 100000000 records
+
+    ./test.sh -F cases/config_case2.sh -f cases/tdengine_case2.sh
+    case 2:
+      1 table 100000000 records
+
+    ./test.sh -F cases/config_case3.sh -f cases/tdengine_case3.sh
+    case 3:
+      100 table 10000000 records
+
+    ./test.sh -F cases/config_case4.sh -f cases/tdengine_case4.sh
+    case 4:
+      1 table 10000000000 records
+
+  To query:
+    ./test.sh -f cases/config_case1.sh -a 1

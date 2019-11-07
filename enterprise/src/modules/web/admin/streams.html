@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<title>Streams</title>
+	<link rel="icon" href="images/db.png">
+	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
+	<link type="text/css" href="css/info.css" rel="stylesheet">
+	<link type="text/css" href="css/edit.css" rel="stylesheet">
+	<link type="text/css" href="css/dlg.css" rel="stylesheet">
+	<script type="text/javascript" src="js/dbUtil.js"></script>
+	<script type="text/javascript" src="js/dbCache.js"></script>
+	<script type="text/javascript" src="js/dbSession.js"></script>
+</head>
+<body class="graph" onload="dbOnLoad()">
+	<!-- navbar begin -->
+	<nav class="navbar navbar-inverse navbar-static-top">
+		<div class="container graph-fluid ">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+					<span class="sr-only">Toggle navigation</span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+				</button>
+				<a class="navbar-brand graph-brand" href="home.html">TDengine</a>
+			</div>
+			<!--/.nav-collapse -->
+			<div id="navbar" class="navbar-collapse collapse">
+				<ul class="nav navbar-nav">					
+					<li><a href="dbs.html">DBs</a></li>
+					<li><a href="tables.html">Tables</a></li>
+					<li><a href="users.html">Users</a></li>
+					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
+					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
+					<li class="active"><a href="query.html">Queries</a></li>
+					<li><a href="shell.html">Shell</a></li>
+				</ul>
+				<ul class="nav navbar-nav navbar-right">
+					<li><a href="userInfo.html" id="user"></a></li>
+					<li><a href="login.html">Logout</a></li>
+				</ul>
+			</div>
+			<!--/.nav-label -->
+		</div>
+	</nav>
+	<!-- navbar end -->
+	<!-- content begin -->
+	<div class="container">
+		<div class="panel panel-default dbpanel">
+			<div class="panel-body dbheadforbody">
+				<label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Streams</label>				
+				<a id="download" style="display:none" download="streams.csv" href="#">download</a>
+				<button type="button" class="btn btn-default btn-sm" style="float:right;margin-right:4px" onclick="dbGotoStream()">
+					<span class="glyphicon glyphicon-refresh"></span> 
+					Refresh
+				</button>
+			</div>
+			<div class="table-responsive" id="dbShowListDiv">
+				<table class="table table-striped table-bordered table-hover dbtable" id="dbTable" style="font-size:12px">
+					<thead id="dbTableHead">
+						<tr>
+							<th style="font-weight: normal">No</th>
+							<th style="font-weight: normal">user</th>
+							<th style="font-weight: normal">ip:port:id</th>
+							<th style="font-weight: normal">created time</th>
+							<th style="font-weight: normal">exec time</th>
+							<th style="font-weight: normal">time(usecond)</th>
+							<th style="font-weight: normal">sql</th>
+							<th style="font-weight: normal">cycles</th>
+							<th style="font-weight: normal">operation</th>
+						</tr>
+					</thead>
+					<tbody id="dbTableBody">
+					</tbody>
+				</table>
+			</div>
+			<div class="panel-body dbbody">
+				<div class="btn-group btn-group-sm">
+					<button type="button" class="btn btn-default btn-sm" onclick="DbCache.CacheToCsv()">
+						<span class="glyphicon glyphicon-export"></span> 
+						Export
+					</button>
+					<button type="button" class="btn btn-default btn-sm" onclick="dbGotoQuery()">
+						<span class="glyphicon glyphicon-sunglasses"></span> 
+						Queries
+					</button>
+					<button type="button" class="btn btn-default btn-sm" onclick="dbGotoConn()">
+						<span class="glyphicon glyphicon-random"></span> 
+						Connections
+					</button>
+					<button type="button" class="btn btn-default btn-sm" onclick="dbGotoStream()">
+						<span class="glyphicon glyphicon-dashboard"></span> 
+						Streams
+					</button>
+				</div>
+				<div class="btn-group btn-group-sm"  style="float:right;" id='dbPageDivId'>
+					<button class="btn btn-default" type="button" onclick="DbCache.First()">
+						<span><<</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.Prev()">
+						<span>&nbsp<&nbsp</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.Next()">
+						<span>&nbsp>&nbsp</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.End()">
+						<span>>></span> 
+					</button>
+				</div>
+			</div>
+		</div>		
+		<div class="dbcopyright"><a href= "http://www.taosdata.com">© 2017, TAOS Data</a></div>
+	</div>
+
+	<!-- content end -->
+	<div class="modal modalstyle" id="infoDialog" tabindex="-1" role="dialog" aria-labelledby="infoModalLabel" aria-hidden="true">
+		<div class="modal-dialog" style="width: 350px;">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h4 class="modal-title" id="infoType"></h4>
+				</div>
+				<div class="modal-body">
+					<p id="infoContent"></p> 
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				</div>
+			</div><!-- /.modal-content -->
+		</div><!-- /.modal -->
+	</div>
+	
+	<div class="modal modalstyle" id="confirmDialog" tabindex="-1" role="dialog" aria-labelledby="confirmModalLabel" aria-hidden="true">
+		<div class="modal-dialog" style="width: 350px;">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h4 class="modal-title" id="confirmType">Confirm</h4>
+				</div>
+				<div class="modal-body">
+					<p id="confirmContent"></p> 
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" onclick="dbExecuteKill()" data-dismiss="modal">Confirm</button>
+					<button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+				</div>
+			</div><!-- /.modal-content -->
+		</div><!-- /.modal -->
+	</div>
+	
+	<script type="text/javascript">
+	
+	var dbStreamIdArray = [];
+	
+	function dbOnLoad()
+	{
+		DbSession.ValidSession();
+		DbCache.Clear();
+		DbCache.Init(null, dbFillTableBody);
+		dbQuery();
+	}
+	
+	function dbQuery() {
+		$.ajax({
+			type: "post",
+			url: "admin/sql",
+			headers: {
+				'Authorization' : "Taosd " + DbSession.GetToken()
+			},
+			data: "show streams",
+			dataType: "json",
+			success: dbQueryCb,
+			error: function(msg) { 
+				if (msg != null && msg.responseJSON != null) {
+					dbQueryCb(msg.responseJSON);
+				}
+				else {
+					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+				}
+			}		
+		});	
+	}
+	
+	function dbQueryCb(d)
+	{
+		if (d == null || d.status == null) {
+			DbUtil.Error(DB_CODE_INVALID_FORMAT);
+			return;
+		} 
+		if (d.status == "error") {
+			DbUtil.HandleError(d);
+		}
+		else if (d.status == "succ") {
+			DbCache.OnData(d);
+		}	
+		else{
+			DbUtil.Error(DB_CODE_UNKNOWN);
+		}
+	}
+	
+	function dbFillTableBody(d)
+	{
+		var rowNum = d.data.length;
+		var rowBegin = "<tr>";
+		var rowEnd = "</tr>";
+		var colNum = d.head.length;		
+		var colBegin = "<td>";
+		var colEnd = "</td>";
+		
+		var oper1Begin = '<a class="dboper" onclick="dbKill(\'';
+		var oper1End = '\')">Kill Stream</a>';
+		
+		var oper2 = '<a class="dboper">Already Killed</a>';
+		
+		var rowIndex = 0;
+		var bodyContent = "";
+		for (rowIndex = 0; rowIndex < rowNum; ++rowIndex) {
+			var row = rowBegin + colBegin + DbCache.GetRowIndex(rowIndex) + colEnd;
+			var data = d.data[rowIndex]; 	
+			for (colIndex = 0; colIndex < colNum; colIndex++) {
+				row = row + colBegin + data[colIndex] + colEnd;
+			}
+			
+			var id = data[1];
+			if (dbStreamIdArray[id] == true) {
+				row = row + colBegin + oper2 + colEnd + rowEnd;	
+			}
+			else {
+				var oper = oper1Begin + data[1] + oper1End;
+				row = row + colBegin + oper + colEnd + rowEnd;	
+			}
+			
+			bodyContent += row;
+		}
+		for (; rowIndex < DbCache.RowsPerPage(); ++rowIndex) {
+			var row = rowBegin + colBegin + '-' + colEnd;
+			for (colIndex = 0; colIndex < colNum; colIndex++) {
+				row = row + colBegin + colEnd;
+			}
+			
+			row = row + colBegin + colEnd + rowEnd;	
+			bodyContent += row;
+		}
+		
+		$('#dbTableBody').html(bodyContent);
+	}	
+	
+	//while push delete button
+	var dbQueryId = "";
+	function dbKill(id)
+	{		
+		dbQueryId = id;
+		DbUtil.ConfirmDialog(DB_CODE_CONFIRM, "kill stream: " + dbQueryId);
+	}
+	
+	//while confirm kill
+	function dbExecuteKill()
+	{
+		$.ajax({
+			type: "post",
+			url: "admin/sql",
+			headers: {
+				'Authorization' : "Taosd " + DbSession.GetToken()
+			},
+			data: "kill stream " + dbQueryId,
+			dataType: "json",
+			success: dbExecuteKillCb,
+			error: function(msg) { 
+				if (msg != null && msg.responseJSON != null) {
+					dbExecuteKillCb(msg.responseJSON);
+				}
+				else {
+					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+				}
+			}		
+		});		
+	}
+	
+	function dbExecuteKillCb(d)
+	{
+		if (d == null || d.status == null) {
+			DbUtil.Error(DB_CODE_INVALID_FORMAT);
+			return;
+		} 
+		if (d.status == "error") {
+			DbUtil.HandleError(d);
+		}
+		else if (d.status == "succ") {
+			dbStreamIdArray[dbQueryId] = true;
+			DbCache.Refresh();
+		}	
+		else{
+			DbUtil.Error(DB_CODE_UNKNOWN);
+		}
+	}
+	
+	function dbGotoQuery()
+	{
+		DbUtil.GotoPage("query.html");
+	}
+	
+	function dbGotoStream()
+	{
+		DbUtil.GotoPage("streams.html");
+	}
+	
+	function dbGotoConn()
+	{
+		DbUtil.GotoPage("conns.html");
+	}
+	
+	</script>
+	
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+	<script src="js/echarts.common.min.js"></script>
+	<script src="js/jquery-2.0.2.min.js"></script>
+	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+</body>
+</html>

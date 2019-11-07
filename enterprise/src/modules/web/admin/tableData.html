@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<title>TableQuery</title>
+	<link rel="icon" href="images/db.png">
+	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
+	<link type="text/css" href="css/info.css" rel="stylesheet">
+	<link type="text/css" href="css/edit.css" rel="stylesheet">
+	<link type="text/css" href="css/dlg.css" rel="stylesheet">
+	<script type="text/javascript" src="js/dbSession.js"></script>
+	<script type="text/javascript" src="js/dbUtil.js"></script>
+	<script type="text/javascript" src="js/dbCache.js"></script>
+</head>
+<body class="graph" onload="dbOnLoad()">
+	<!-- navbar begin -->
+	<nav class="navbar navbar-inverse navbar-static-top">
+		<div class="container graph-fluid ">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+					<span class="sr-only">Toggle navigation</span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+				</button>
+				<a class="navbar-brand graph-brand" href="home.html">TDengine</a>
+			</div>
+			<!--/.nav-collapse -->
+			<div id="navbar" class="navbar-collapse collapse">
+				<ul class="nav navbar-nav">					
+					<li><a href="dbs.html">DBs</a></li>
+					<li class="active"><a href="tables.html">Tables</a></li>
+					<li><a href="users.html">Users</a></li>
+					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
+					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
+					<li><a href="query.html">Queries</a></li>
+					<li><a href="shell.html">Shell</a></li>
+				</ul>
+				<ul class="nav navbar-nav navbar-right">
+					<li><a href="userInfo.html" id="user"></a></li>
+					<li><a href="login.html">Logout</a></li>
+				</ul>
+			</div>
+			<!--/.nav-label -->
+		</div>
+	</nav>
+	<!-- navbar end -->
+	<!-- content begin -->
+	<div class="container">
+		<div class="panel panel-default dbpanel">
+			<div class="panel-heading dbhead">
+				<label class="control-label" id="dbTableName" style="font-weight:bold;padding-top:4px;height:1px">Data</label>
+				<div class="nav navbar-nav navbar-right dbtop" style="padding-left:16px;padding-right:14px">
+					<form class="form-inline">
+						<div class="form-group">
+							<input type="text" class="form-control" id="dbBeginTime" style="font-size:12px;width:155px;height:28px;" placeholder="1970-01-01 00:00:00">
+						</div>
+						<div class="form-group">
+							<input type="text" class="form-control" id="dbEndTime" style="font-size:12px;width:155px;height:28px;" placeholder="2050-01-01 12:34:56">
+						</div>
+						<a id="download" style="display:none" download="tableData.csv" href="#">download</a>
+						<button type="button" class="btn btn-default btn-sm" onclick="dbFilter()">
+							<span class="glyphicon glyphicon-plus-sign"></span> 
+							Query
+						</button>	
+					</form>
+				</div>
+			</div>
+			<div class="table-responsive">
+			<table class="table table-striped table-bordered table-hover dbtable" id="dbTable" style="font-size:12px">
+				<thead id="dbTableHead">
+					<tr>
+					</tr>
+				</thead>
+				<tbody id="dbTableBody">
+				</tbody>
+			</table>
+			</div>
+			<div class="panel-body dbbody">
+				<button type="button" class="btn btn-default btn-sm" onclick="DbCache.CacheToCsv()">
+					<span class="glyphicon glyphicon-export"></span> 
+					Export
+				</button>
+				<div class="btn-group btn-group-sm" style="float:right">
+					<button class="btn btn-default" type="button" onclick="DbCache.First()">
+						<span><<</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.Prev()">
+						<span>&nbsp<&nbsp</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.Next()">
+						<span>&nbsp>&nbsp</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.End()">
+						<span>>></span> 
+					</button>
+				</div>
+			</div>
+		</div>		
+		<div class="dbcopyright"><a href= "http://www.taosdata.com">© 2017, TAOS Data</a></div>
+	</div>
+
+	<!-- content end -->
+	<div class="modal modalstyle" id="infoDialog"  tabindex="-1" role="dialog" aria-labelledby="infoModalLabel" aria-hidden="true">
+		<div class="modal-dialog" style="width: 350px;">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h4 class="modal-title" id="infoType"></h4>
+				</div>
+				<div class="modal-body">
+					<p id="infoContent"></p> 
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				</div>
+			</div><!-- /.modal-content -->
+		</div><!-- /.modal -->
+	</div>
+	
+	<script type="text/javascript">
+
+	var dbTableName = "";
+	var dbTableFirstCol = "";
+	function dbOnLoad()
+	{
+		DbSession.ValidSession();
+		DbCache.Clear();
+		DbCache.Init(dbFillTableHead, dbFillTableBody);
+		
+		dbTableName = DbUtil.GetUrlFirstPara();
+		if (dbTableName == null || dbTableName == "") {
+			DbUtil.Error(DB_CODE_TABLE_NAME_NULL);
+			return;
+		}
+		dbShowTableName(dbTableName);
+		
+		dbQuery("sql");
+	}
+	
+	//file the head of dbTableHead
+	function dbFillTableHead(data)
+	{
+		var rowBegin = "<tr>";
+		var rowEnd = "</tr>";
+		var colNum = data.head.length;		
+		var colBegin = "<th style='font-weight: normal'>";
+		var colEnd = "</th>";
+		
+		row = rowBegin + colBegin + "No" + colEnd;
+		for (colIndex = 0; colIndex < colNum; colIndex++) {
+			if (colIndex == 0) {
+				dbTableFirstCol = data.head[colIndex];
+			}
+			row = row + colBegin + data.head[colIndex] + colEnd;
+		}
+		row = row + rowEnd;
+		
+		$('#dbTableHead').html(row);
+	}
+	
+	//file the body of dbTableBody
+	function dbFillTableBody(d)
+	{
+		var rowNum = d.data.length;
+		var rowBegin = "<tr>";
+		var rowEnd = "</tr>";
+		var colNum = d.head.length;		
+		var colBegin = "<td>";
+		var colEnd = "</td>";
+		
+		var rowIndex = 0;
+		var bodyContent = "";
+		for (rowIndex = 0; rowIndex < rowNum; ++rowIndex) {
+			var row = rowBegin + colBegin + DbCache.GetRowIndex(rowIndex) + colEnd;
+			var data = d.data[rowIndex]; 	
+			for (colIndex = 0; colIndex < colNum; colIndex++) {
+				row = row + colBegin + data[colIndex] + colEnd;
+			}
+			bodyContent += row;
+		}
+		for (; rowIndex < DbCache.RowsPerPage(); ++rowIndex) {
+			var row = rowBegin + colBegin + '-' + colEnd;
+			for (colIndex = 0; colIndex < colNum; colIndex++) {
+				row = row + colBegin + colEnd;
+			}
+			bodyContent += row;
+		}
+		
+		$('#dbTableBody').html(bodyContent);
+	}
+	
+	function dbFilter()
+	{
+		DbCache.Clear();
+		dbQuery("sql");
+	}
+	
+	function dbQuery(path)
+	{
+		var sql = "select * from " + DbSession.GetDb() + "." + dbTableName;
+		
+		if (dbTableFirstCol != "") {
+			var begin = $.trim($('#dbBeginTime').val());
+			var end = $.trim($('#dbEndTime').val());
+			
+			if (begin != "" && end != ""){
+				sql = sql + " where " + dbTableFirstCol + " >= '" + begin + "' and " + dbTableFirstCol + " <= '" + end + "'";
+			}
+			else if (begin != "") {
+				sql = sql + " where " + dbTableFirstCol + " >= '" + begin + "'";
+			}
+			else if  (end != "") {
+				sql = sql + " where " + dbTableFirstCol + " <= '" + end + "'";
+			}
+			else {}
+		}
+		
+		if (path == "sql") {
+			DbCache.Clear();
+		}
+
+		$.ajax({
+			type: "post",
+			url: "admin/" + path,
+			headers: {
+				'Authorization' : "Taosd " + DbSession.GetToken()
+			},
+			data: sql,
+			dataType: "json",
+			success: dbQueryCb,
+			error: function(msg) { 
+				if (msg != null && msg.responseJSON != null) {
+					dbQueryCb(msg.responseJSON);
+				}
+				else {
+					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+				}
+			}		
+		});	
+	}
+	
+	function dbQueryCb(d) {
+		if (d == null || d.status == null) {
+			DbUtil.Error(DB_CODE_INVALID_FORMAT);
+			return;
+		} 
+		if (d.status == "error") {
+			DbUtil.HandleError(d);
+		}
+		else if (d.status == "succ") {
+			DbCache.OnData(d);
+		}	
+		else{
+			DbUtil.Error(DB_CODE_UNKNOWN);
+		}
+	}
+			
+	function dbShowTableName()
+	{
+		var db = DbSession.GetDb();
+		$('#dbTableName').html("<a href='#' onclick='dbGotoDatabase()'>DB</a>: " + db + "/<a href='#' onclick='dbGotoTable()'>Table</a>: " + dbTableName + "/<a href='#' onclick='dbGotoTableInfo()'>Info</a>/Data");
+	}
+	
+	function dbGotoDatabase()
+	{
+		DbSession.SetCacheFlag();
+		DbUtil.GotoPage("dbs.html");
+	}
+	
+	function dbGotoTable()
+	{
+		DbSession.SetCacheFlag();
+		DbUtil.GotoPage("tables.html");
+	}
+	
+	function dbGotoTableInfo()
+	{
+		DbUtil.GotoPage("tableInfo.html?table=" + dbTableName);
+	}
+	
+	</script>
+	
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+	<script src="js/jquery-2.0.2.min.js"></script>
+	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+#!/bin/bash
+#set -x
+#path=`pwd`
+insmetaPath="/usr/local/taos/script"
+sudo chmod -R 744 ${insmetaPath}
+cd ${insmetaPath}
+sudo ./post.sh

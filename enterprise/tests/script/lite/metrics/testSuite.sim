@@ -1,0 +1,4 @@
+run metrics/disk.sim
+run metrics/metrics.sim
+run metrics/values.sim
+run metrics/vnode3.sim

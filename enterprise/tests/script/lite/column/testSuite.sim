@@ -1,0 +1,4 @@
+run lite/column/table.sim
+run lite/column/metrics.sim
+run lite/column/stream.sim
+run lite/column/commit.sim

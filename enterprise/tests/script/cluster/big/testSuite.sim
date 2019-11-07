@@ -1,0 +1,3 @@
+#run cluster/big/balance.sim
+#run cluster/big/maxvnodes.sim
+run cluster/big/tcp.sim

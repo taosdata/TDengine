@@ -1,0 +1,30 @@
+system sh/stop_dnodes.sh
+system sh/ip.sh -i 1 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c commitLog       -v 0
+
+system sh/cfg.sh -n dnode1 -c httpCacheSessions  -v 100
+system sh/cfg.sh -n dnode1 -c httpMaxThreads     -v 10
+system sh/cfg.sh -n dnode1 -c httpEnableCompress -v 0
+
+system sh/cfg.sh -n dnode1 -c maxVnodeConnections -v 30000
+system sh/cfg.sh -n dnode1 -c maxMgmtConnections -v 30000
+system sh/cfg.sh -n dnode1 -c maxMeterConnections -v 30000
+system sh/cfg.sh -n dnode1 -c maxShellConns       -v 30000
+#system sh/cfg.sh -n dnode1 -c activeCode          -v SjlULerppjUs5CjDp9gw6f4O
+
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database db
+sql use db
+sql create table tb (ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, v6 float, v7 double, v8 binary(10), v9 nchar(10))
+
+$x = 0
+$v = 100
+while $x < 100
+    $x = $x + 1
+    $ts = $x 
+    sql insert into tb values ( $ts , $x ,  $x ,  $x ,  $x ,  $x ,  $x ,  $x ,  $x ,  $x , ) 
+	
+endw 

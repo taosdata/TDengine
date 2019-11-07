@@ -1,0 +1,31 @@
+body {
+  background-color: #eee;
+  font-family: "Hiragino Sans GB","Microsoft Yahei",Arial,sans-serif;
+}
+
+.form-signin {
+  max-width: 400px;
+/*   padding: 15px; */
+  margin: 0 auto;
+}
+
+.input-group.input-width {
+  max-width: 400px;
+}
+
+.form-signin .form-signin-heading,
+{
+
+}
+
+.form-signin .form-control {
+  position: relative;
+  height: auto;
+  -webkit-box-sizing: border-box;
+     -moz-box-sizing: border-box;
+          box-sizing: border-box;
+  font-size: 16px;
+}
+.form-signin .form-control:focus {
+  z-index: 2;
+}

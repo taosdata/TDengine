@@ -1,0 +1,380 @@
+cd ../../debug; cmake -DCMAKE_BUILD_TYPE=Debug ..
+cd ../../debug; make clean
+cd ../../debug; make
+sudo rm -rf /usr/lib/libtaos.so*
+sudo cp ../../debug/build/lib/libtaos.so* /usr/lib
+
+../script/test.sh -f account/account_create.sim
+../script/test.sh -f account/account_len.sim
+../script/test.sh -f account/pass_alter.sim
+../script/test.sh -f account/pass_len.sim
+../script/test.sh -f account/authority.sim
+../script/test.sh -f account/account_delete.sim
+../script/test.sh -f account/user_create.sim
+../script/test.sh -f account/user_len.sim
+../script/test.sh -f account/monitor.sim
+
+../script/test.sh -f agg/fill.sim
+../script/test.sh -f agg/stream.sim
+
+../script/test.sh -f alter/count.sim
+../script/test.sh -f alter/cached_schema_after_alter.sim
+../script/test.sh -f alter/import.sim
+../script/test.sh -f alter/insert1.sim
+../script/test.sh -f alter/insert2.sim
+../script/test.sh -f alter/metrics.sim
+../script/test.sh -f alter/table.sim
+
+../script/test.sh -f big/tcp.sim
+#../script/test.sh -f big/balance.sim
+#../script/test.sh -f big/maxvnodes.sim
+
+../script/test.sh -f cache/restart_table.sim
+../script/test.sh -f cache/restart_metrics.sim
+../script/test.sh -f cache/restart_stream.sim
+../script/test.sh -f cache/new_metrics.sim
+../script/test.sh -f cache/new_stream.sim
+
+../script/test.sh -f cluster/balance1.sim
+../script/test.sh -f cluster/balance2.sim
+../script/test.sh -f cluster/balance3.sim
+../script/test.sh -f cluster/balance1_bug.sim
+../script/test.sh -f cluster/balance1_single.sim
+
+../script/test.sh -f column/table.sim 
+../script/test.sh -f column/metrics.sim
+../script/test.sh -f column/stream.sim 
+../script/test.sh -f column/commit.sim
+../script/test.sh -f column/replica3.sim
+
+../script/test.sh -f compress/compress.sim 
+../script/test.sh -f compress/uncompress.sim 
+../script/test.sh -f compress/commitlog.sim
+../script/test.sh -f compress/compress2.sim
+
+../script/test.sh -f compute/count.sim       
+../script/test.sh -f compute/avg.sim         
+../script/test.sh -f compute/sum.sim  
+../script/test.sh -f compute/min.sim         
+../script/test.sh -f compute/max.sim           
+../script/test.sh -f compute/first.sim        
+../script/test.sh -f compute/last.sim    
+../script/test.sh -f compute/stddev.sim      
+../script/test.sh -f compute/leastsquare.sim 
+../script/test.sh -f compute/top.sim 
+../script/test.sh -f compute/bottom.sim 
+../script/test.sh -f compute/percentile.sim   
+../script/test.sh -f compute/diff.sim       
+../script/test.sh -f compute/interval.sim   
+../script/test.sh -f compute/null.sim   
+../script/test.sh -f compute/diff2.sim   
+
+../script/test.sh -f db/basic.sim
+../script/test.sh -f db/len.sim
+#../script/test.sh -f db/commit.sim
+../script/test.sh -f db/delete.sim
+../script/test.sh -f db/delete_reuse1.sim
+../script/test.sh -f db/delete_reuse2.sim
+../script/test.sh -f db/replica_add12.sim
+../script/test.sh -f db/replica_add13.sim
+../script/test.sh -f db/replica_add23.sim
+../script/test.sh -f db/replica_reduce21.sim
+../script/test.sh -f db/replica_reduce32.sim
+../script/test.sh -f db/replica_reduce31.sim
+../script/test.sh -f db/replica_part.sim
+../script/test.sh -f db/delete_writing1.sim
+../script/test.sh -f db/delete_writing2.sim
+#../script/test.sh -f db/delete_part.sim
+
+../script/test.sh -f dnode/balance1.sim
+../script/test.sh -f dnode/balance2.sim
+../script/test.sh -f dnode/balance3.sim
+../script/test.sh -f dnode/balancex.sim 
+../script/test.sh -f dnode/offline1.sim 
+../script/test.sh -f dnode/offline2.sim 
+../script/test.sh -f dnode/remove1.sim 
+../script/test.sh -f dnode/remove2.sim 
+#../script/test.sh -f dnode/unremove.sim
+../script/test.sh -f dnode/vnode_clean.sim 
+
+../script/test.sh -f field/single.sim
+../script/test.sh -f field/bool.sim
+../script/test.sh -f field/smallint.sim
+../script/test.sh -f field/tinyint.sim
+../script/test.sh -f field/int.sim
+../script/test.sh -f field/bigint.sim
+../script/test.sh -f field/float.sim
+../script/test.sh -f field/double.sim
+../script/test.sh -f field/binary.sim
+../script/test.sh -f field/2.sim
+../script/test.sh -f field/3.sim
+../script/test.sh -f field/4.sim
+../script/test.sh -f field/5.sim
+../script/test.sh -f field/6.sim
+
+../script/test.sh -f http/admin.sim  
+../script/test.sh -f http/grafana.sim 
+../script/test.sh -f http/restful.sim 
+../script/test.sh -f http/restful_full.sim
+../script/test.sh -f http/telegraf.sim
+../script/test.sh -f http/prepare.sim
+#../script/test.sh -f http/opentsdb.sim
+
+../script/test.sh -f import/basic.sim      
+#../script/test.sh -f import/commit.sim
+../script/test.sh -f import/large.sim     
+../script/test.sh -f import/replica1.sim   
+../script/test.sh -f import/replica2.sim   
+../script/test.sh -f import/replica3.sim   
+
+../script/test.sh -f insert/basic.sim
+../script/test.sh -f insert/insert_drop.sim
+../script/test.sh -f insert/query_block1_memory.sim 
+../script/test.sh -f insert/query_block2_memory.sim 
+../script/test.sh -f insert/query_block1_file.sim   
+../script/test.sh -f insert/query_block2_file.sim   
+../script/test.sh -f insert/query_file_memory.sim   
+../script/test.sh -f insert/query_multi_file.sim    
+
+../script/test.sh -f metrics/disk.sim
+../script/test.sh -f metrics/metrics.sim
+../script/test.sh -f metrics/values.sim
+../script/test.sh -f metrics/vnode3.sim
+../script/test.sh -f metrics/dnode2.sim
+../script/test.sh -f metrics/dnode3.sim
+../script/test.sh -f metrics/replica2_vnode3.sim
+../script/test.sh -f metrics/replica2_dnode4.sim
+../script/test.sh -f metrics/replica3_vnode3.sim
+../script/test.sh -f metrics/replica3_dnode6.sim
+../script/test.sh -f metrics/dnode2_stop.sim
+../script/test.sh -f metrics/balance_replica1.sim
+
+../script/test.sh -f mnode/secondIp.sim   
+../script/test.sh -f mnode/drop.sim
+../script/test.sh -f mnode/reuse.sim   
+../script/test.sh -f mnode/mgmt22.sim             
+../script/test.sh -f mnode/mgmt23.sim             
+../script/test.sh -f mnode/mgmt24.sim             
+../script/test.sh -f mnode/mgmt25.sim             
+../script/test.sh -f mnode/mgmt26.sim   
+../script/test.sh -f mnode/mgmt33.sim             
+../script/test.sh -f mnode/mgmt34.sim    
+../script/test.sh -f mnode/mgmtr1.sim    
+../script/test.sh -f mnode/mgmtr2.sim             
+
+../script/test.sh -f parser/alter.sim
+../script/test.sh -f parser/alter1.sim
+../script/test.sh -f parser/auto_create_tb.sim
+../script/test.sh -f parser/auto_create_tb_drop_tb.sim
+../script/test.sh -f parser/col_arithmetic_operation.sim
+../script/test.sh -f parser/commit.sim
+../script/test.sh -f parser/create_db.sim
+../script/test.sh -f parser/create_mt.sim
+../script/test.sh -f parser/create_tb.sim
+../script/test.sh -f parser/fill.sim
+../script/test.sh -f parser/fill_stb.sim
+../script/test.sh -f parser/first_last.sim
+../script/test.sh -f parser/import_commit1.sim
+../script/test.sh -f parser/import_commit2.sim
+../script/test.sh -f parser/import_commit3.sim
+../script/test.sh -f parser/insert_tb.sim
+../script/test.sh -f parser/interp.sim
+../script/test.sh -f parser/lastrow.sim
+../script/test.sh -f parser/limit.sim
+../script/test.sh -f parser/limit1.sim
+../script/test.sh -f parser/limit1_tblocks100.sim
+../script/test.sh -f parser/limit2.sim
+../script/test.sh -f parser/mixed_blocks.sim
+../script/test.sh -f parser/nchar.sim
+../script/test.sh -f parser/selectResNum.sim
+../script/test.sh -f parser/select_across_vnodes.sim
+../script/test.sh -f parser/select_from_cache_disk.sim
+../script/test.sh -f parser/set_tag_vals.sim
+../script/test.sh -f parser/single_row_in_tb.sim
+../script/test.sh -f parser/slimit.sim
+../script/test.sh -f parser/slimit1.sim
+../script/test.sh -f parser/slimit_alter_tags.sim
+../script/test.sh -f parser/stream_on_sys.sim
+../script/test.sh -f parser/stream.sim
+../script/test.sh -f parser/tbnameIn.sim
+../script/test.sh -f parser/where.sim
+../script/test.sh -f parser/repeatAlter.sim
+../script/test.sh -f parser/repeatStream.sim
+
+../script/test.sh -f stream/stream_1.sim  
+../script/test.sh -f stream/stream_2.sim 
+../script/test.sh -f stream/stream_3.sim 
+../script/test.sh -f stream/stream_restart.sim 
+../script/test.sh -f stream/table_1.sim 
+../script/test.sh -f stream/metrics_1.sim 
+../script/test.sh -f stream/table_n.sim
+../script/test.sh -f stream/metrics_n.sim 
+../script/test.sh -f stream/table_del.sim
+../script/test.sh -f stream/metrics_del.sim 
+../script/test.sh -f stream/table_replica1_vnoden.sim 
+../script/test.sh -f stream/metrics_replica1_vnoden.sim 
+../script/test.sh -f stream/table_replica1_dnode2.sim 
+../script/test.sh -f stream/metrics_replica1_dnode2.sim 
+../script/test.sh -f stream/table_replica2_dnode2.sim 
+../script/test.sh -f stream/metrics_replica2_dnode2.sim 
+../script/test.sh -f stream/table_replica2_dnode2_vnoden.sim 
+../script/test.sh -f stream/metrics_replica2_dnode2_vnoden.sim 
+../script/test.sh -f stream/table_replica2_dnode3.sim 
+../script/test.sh -f stream/metrics_replica2_dnode3.sim 
+../script/test.sh -f stream/table_replica3_dnode4.sim 
+../script/test.sh -f stream/metrics_replica3_dnode4.sim 
+../script/test.sh -f stream/table_vnode_stop.sim 
+../script/test.sh -f stream/metrics_vnode_stop.sim 
+#../script/test.sh -f stream/table_balance.sim
+#../script/test.sh -f stream/metrics_balance.sim
+#../script/test.sh -f stream/table_move.sim
+
+../script/test.sh -f table/table.sim 
+../script/test.sh -f table/vgroup.sim
+../script/test.sh -f table/limit.sim 
+../script/test.sh -f table/table_len.sim 
+../script/test.sh -f table/column_num.sim 
+../script/test.sh -f table/column2.sim 
+../script/test.sh -f table/column_name.sim
+../script/test.sh -f table/column_value.sim 
+../script/test.sh -f table/describe.sim 
+../script/test.sh -f table/date.sim 
+../script/test.sh -f table/bigint.sim 
+../script/test.sh -f table/binary.sim 
+../script/test.sh -f table/bool.sim 
+../script/test.sh -f table/double.sim 
+../script/test.sh -f table/float.sim 
+../script/test.sh -f table/int.sim 
+../script/test.sh -f table/smallint.sim 
+../script/test.sh -f table/tinyint.sim 
+../script/test.sh -f table/db.table.sim 
+../script/test.sh -f table/delete_reuse1.sim
+../script/test.sh -f table/delete_reuse2.sim
+../script/test.sh -f table/delete_writing.sim
+#../script/test.sh -f table/delete_part.sim
+
+../script/test.sh -f tag/filter.sim
+../script/test.sh -f tag/column.sim
+../script/test.sh -f tag/bool.sim
+../script/test.sh -f tag/smallint.sim
+../script/test.sh -f tag/tinyint.sim
+../script/test.sh -f tag/int.sim
+../script/test.sh -f tag/bigint.sim
+../script/test.sh -f tag/float.sim
+../script/test.sh -f tag/double.sim
+../script/test.sh -f tag/binary.sim
+../script/test.sh -f tag/bool_int.sim
+../script/test.sh -f tag/bool_binary.sim
+../script/test.sh -f tag/int_float.sim
+../script/test.sh -f tag/int_binary.sim
+../script/test.sh -f tag/binary_binary.sim
+../script/test.sh -f tag/3.sim
+../script/test.sh -f tag/4.sim
+../script/test.sh -f tag/5.sim
+../script/test.sh -f tag/6.sim
+../script/test.sh -f tag/create.sim
+../script/test.sh -f tag/delete.sim
+../script/test.sh -f tag/change.sim
+../script/test.sh -f tag/set.sim
+../script/test.sh -f tag/add.sim
+../script/test.sh -f tag/commit.sim
+
+../script/test.sh -f vector/single.sim
+../script/test.sh -f vector/multi.sim 
+../script/test.sh -f vector/table_query.sim 
+../script/test.sh -f vector/table_time.sim
+../script/test.sh -f vector/table_field.sim
+../script/test.sh -f vector/table_mix.sim
+../script/test.sh -f vector/metrics_query.sim
+../script/test.sh -f vector/metrics_tag.sim
+../script/test.sh -f vector/metrics_time.sim
+../script/test.sh -f vector/metrics_field.sim
+../script/test.sh -f vector/metrics_mix.sim
+
+../script/test.sh -f vnode/replica2_basic2.sim
+../script/test.sh -f vnode/replica2_basic.sim 
+../script/test.sh -f vnode/replica2_repeat.sim 
+../script/test.sh -f vnode/replica3_basic.sim 
+../script/test.sh -f vnode/replica3_repeat.sim 
+#../script/test.sh -f vnode/commit.sim 
+../script/test.sh -f vnode/many.sim 
+
+#python2 ../pytest/test.py -f alter/alter_table.py
+#python2 ../pytest/test.py -f alter/alter_stable.py
+python2 ../pytest/test.py -f alter/file_corrupt.py
+
+python2 ../pytest/test.py -f importtest/basic.py
+#python2 ../pytest/test.py -f importtest/commit.py
+python2 ../pytest/test.py -f importtest/large.py
+python2 ../pytest/test.py -f importtest/replica1.py
+python2 ../pytest/test.py -f importtest/replica2.py -c
+python2 ../pytest/test.py -f importtest/replica3.py -c
+python2 ../pytest/test.py -f importtest/import_and_query.py -c
+#python2 ../pytest/test.py -f importtest/import_and_query_replica3.py -c
+
+python2 ../pytest/test.py -f insert/basic.py
+python2 ../pytest/test.py -f insert/query_block1_memory.py
+python2 ../pytest/test.py -f insert/query_block2_memory.py
+python2 ../pytest/test.py -f insert/query_block1_file.py
+python2 ../pytest/test.py -f insert/query_block2_file.py
+python2 ../pytest/test.py -f insert/query_file_memory.py
+python2 ../pytest/test.py -f insert/query_multi_file.py
+python2 ../pytest/test.py -f insert/longTimespanWrite.py -c
+
+python2 ../pytest/test.py -f dbmgmt/dropDB_memory_test.py
+
+python2 ../pytest/test.py -f affectrows/insertsql.py
+python2 ../pytest/test.py -f affectrows/insertsql_blocks.py
+python2 ../pytest/test.py -f affectrows/importsql.py
+python2 ../pytest/test.py -f affectrows/importsql_blocks.py
+
+#python2 ../pytest/test.py -f http/retrieve.py
+
+python2 ../pytest/test.py -f multithread/query_table.py
+python2 ../pytest/test.py -f multithread/query_stable.py
+python2 ../pytest/test.py -f multithread/insert_replica1.py
+python2 ../pytest/test.py -f multithread/insert_replica2.py -c
+python2 ../pytest/test.py -f multithread/insert_replica3.py -c
+python2 ../pytest/test.py -f multithread/import_replica1.py
+#python2 ../pytest/test.py -f multithread/import_replica2.py -c
+#python2 ../pytest/test.py -f multithread/import_replica3.py -c
+
+
+python2 ../pytest/test.py -f cluster/alter_replica.py -c
+python2 ../pytest/test.py -f cluster/create_droptb.py -c
+python2 ../pytest/test.py -f cluster/single_upgrade.py -c
+python2 ../pytest/test.py -f cluster/sync_createtb.py -c
+python2 ../pytest/test.py -f cluster/sync_droptb.py -c
+python2 ../pytest/test.py -f cluster/sync_altertb.py -c
+python2 ../pytest/test.py -f cluster/sync_dropdb.py -c
+python2 ../pytest/test.py -f cluster/offline_droptb_online.py -c
+python2 ../pytest/test.py -f cluster/offline_createtb_online.py -c
+python2 ../pytest/test.py -f cluster/offline_altertb_online.py -c
+python2 ../pytest/test.py -f cluster/offline_dropdb_online.py -c
+python2 ../pytest/test.py -f cluster/balance_adddnode.py -c
+python2 ../pytest/test.py -f cluster/balance_adddnode2.py -c
+python2 ../pytest/test.py -f cluster/balance_dropdnode.py -c
+python2 ../pytest/test.py -f cluster/balance_dropdnode2.py -c
+python2 ../pytest/test.py -f cluster/full_dropdnode.py -c
+python2 ../pytest/test.py -f cluster/full_createtb.py -c
+python2 ../pytest/test.py -f cluster/kill_timeout.py -c
+python2 ../pytest/test.py -f cluster/kill_timeout_restart.py -c
+python2 ../pytest/test.py -f cluster/nw_disable_timeout.py -c
+python2 ../pytest/test.py -f cluster/nw_disable_timeout_restart.py -c
+python2 ../pytest/test.py -f cluster/nw_disable_able.py -c
+python2 ../pytest/test.py -f cluster/kill_most.py -c
+python2 ../pytest/test.py -f cluster/kill_most_restart.py -c
+python2 ../pytest/test.py -f cluster/kill_corruptfile_restart.py -c
+python2 ../pytest/test.py -f cluster/corruptfile_restore.py -c
+python2 ../pytest/test.py -f cluster/corruptfile_restore2.py -c
+python2 ../pytest/test.py -f cluster/kill_restart.py -c
+python2 ../pytest/test.py -f cluster/kill_restart2.py -c
+python2 ../pytest/test.py -f cluster_mgmt/multi_alter.py -c
+python2 ../pytest/test.py -f cluster_mgmt/kill_alter_restart.py -c
+python2 ../pytest/test.py -f cluster_mgmt/kill_most.py -c
+python2 ../pytest/test.py -f cluster_mgmt/kill_most_restart.py -c
+python2 ../pytest/test.py -f cluster_mgmt/kill_all_restart.py -c
+python2 ../pytest/test.py -f cluster_mgmt/sync_altertb.py -c
+python2 ../pytest/test.py -f cluster_mgmt/sync_resync_altertb.py -c
+python2 ../pytest/test.py -f cluster_mgmt/kill_corruptmgmt_restart.py -c
+python2 ../pytest/test.py -f cluster/kill_allvnode_restart.py -c

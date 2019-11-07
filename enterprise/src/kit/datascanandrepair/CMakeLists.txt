@@ -1,0 +1,10 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+
+PROJECT(TDengine)
+
+IF (TD_LINUX)
+  AUX_SOURCE_DIRECTORY(. SRC)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/inc ${TD_COMMUNITY_DIR}/src/client/inc ${TD_COMMUNITY_DIR}/src/system/inc ${TD_COMMUNITY_DIR}/inc)
+  ADD_EXECUTABLE(taosscan ${SRC})
+  TARGET_LINK_LIBRARIES(taosscan taos_static os tutil trpc)
+ENDIF ()

@@ -1,0 +1,13 @@
+run cluster/dnode/balance1.sim
+run cluster/dnode/balance2.sim
+run cluster/dnode/balance3.sim
+run cluster/dnode/balancex.sim
+run cluster/dnode/offline1.sim
+run cluster/dnode/offline2.sim
+run cluster/dnode/remove1.sim
+run cluster/dnode/remove2.sim
+run cluster/dnode/vnode_clean.sim
+
+
+
+

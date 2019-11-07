@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<title>Shell</title>
+	<link rel="icon" href="images/db.png">
+	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
+	<link type="text/css" href="css/info.css" rel="stylesheet">
+	<link type="text/css" href="css/edit.css" rel="stylesheet">
+	<link type="text/css" href="css/dlg.css" rel="stylesheet">
+	<script type="text/javascript" src="js/dbSession.js"></script>
+	<script type="text/javascript" src="js/dbUtil.js"></script>
+	<script type="text/javascript" src="js/dbCache.js"></script>
+</head>
+<body class="graph" onload="dbOnLoad()">
+	<!-- navbar begin -->
+	<nav class="navbar navbar-inverse navbar-static-top">
+		<div class="container graph-fluid ">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+					<span class="sr-only">Toggle navigation</span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+				</button>
+				<a class="navbar-brand graph-brand" href="home.html">TDengine</a>
+			</div>
+			<!--/.nav-collapse -->
+			<div id="navbar" class="navbar-collapse collapse">
+				<ul class="nav navbar-nav">					
+					<li><a href="dbs.html">DBs</a></li>
+					<li><a href="tables.html">Tables</a></li>
+					<li><a href="users.html">Users</a></li>
+					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
+					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
+					<li><a href="query.html">Queries</a></li>
+					<li class="active"><a href="shell.html">Shell</a></li>
+				</ul>
+				<ul class="nav navbar-nav navbar-right">
+					<li><a href="userInfo.html" id="user"></a></li>
+					<li><a href="login.html">Logout</a></li>
+				</ul>
+			</div>
+			<!--/.nav-label -->
+		</div>
+	</nav>
+	<!-- navbar end -->
+	<!-- content begin -->
+	<div class="container">
+		<div style="padding-bottom:20px">
+				<a id="download" style="display:none" download="query.csv" href="#">download</a>  				
+				<div class="input-group input-group-sm">  
+					<input id="dbSql" type="text" class="form-control" style="font-size:12px" placeholder="">
+					 <span class="input-group-btn">
+						<button class="btn btn-default" type="button"  onclick="dbExec()">Go</button>
+					</span>					
+				</div>	
+		</div>
+		<div class="panel panel-default dbpanel" style="display:none"  id="resultPanel">
+			<div class="table-responsive">
+			<table class="table table-striped table-bordered table-hover dbtable" id="dbTable" style="font-size:12px">
+				<thead id="dbTableHead">
+					<tr>
+					</tr>
+				</thead>
+				<tbody id="dbTableBody">
+				</tbody>
+			</table>
+			</div>
+			<div class="panel-body dbbody">
+				<button type="button" class="btn btn-default btn-sm" onclick="DbCache.CacheToCsv()">
+					<span class="glyphicon glyphicon-export"></span> 
+					Export
+				</button>
+				<div class="btn-group btn-group-sm" style="float:right">
+					<button class="btn btn-default" type="button" onclick="DbCache.First()">
+						<span><<</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.Prev()">
+						<span>&nbsp<&nbsp</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.Next()">
+						<span>&nbsp>&nbsp</span> 
+					</button>
+					<button class="btn btn-default" type="button" onclick="DbCache.End()">
+						<span>>></span> 
+					</button>
+				</div>
+			</div>
+		</div>	
+		<div class="dbcopyright"><a href= "http://www.taosdata.com">© 2017, TAOS Data.</a><a href= "config.html">&nbspConfig</a></div>
+	</div>
+
+	<!-- content end -->
+	<div class="modal modalstyle" id="infoDialog" tabindex="-1" role="dialog" aria-labelledby="infoModalLabel" aria-hidden="true">
+		<div class="modal-dialog" style="width: 350px;">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h4 class="modal-title" id="infoType"></h4>
+				</div>
+				<div class="modal-body">
+					<p id="infoContent"></p> 
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				</div>
+			</div><!-- /.modal-content -->
+		</div><!-- /.modal -->
+	</div>
+	
+	<script type="text/javascript">
+	
+	var dbUseDbParseResult = "";
+	
+	function dbCheckUseDbCmd(sql)
+	{
+		arrays = sql.split(' ');
+		if (arrays.length != 2) {
+			return false;
+		}
+		if (arrays[0].length == 0) {
+			return false;
+		}
+		if (arrays[0].toLowerCase() != "use") {
+			return false;
+		}
+		if (arrays[1].length == 0) {
+			return false;
+		}
+		dbUseDbParseResult = arrays[1];
+		return true;
+	}	
+	
+	function dbRemoveFirstBlank(sql) {
+		for (var i = 0; i < sql.length; ++i) {
+			if (sql[i] != ' ') {
+				return sql.substring(i);
+			}
+		}
+		return "";
+	}
+	
+	function dbUpdateSqlWithUseDb(sql)
+	{
+		sql = dbRemoveFirstBlank(sql);
+		if (sql == "") return sql;
+		
+		var dbPrefix = "";
+		if (DbSession.GetDb() != "") {
+			dbPrefix = DbSession.GetDb() + ".";
+		}
+		
+		//show tables
+		//show stables
+		//show tables;
+		//show stables
+		// show   stables
+		// show  a.stables
+		if (sql.substring(0, 4).toLowerCase() == "show") {
+			var remain = dbRemoveFirstBlank(sql.substring(4));
+			if (remain.substring(0, 6).toLowerCase() == "tables" || remain.substring(0, 7).toLowerCase() == "stables" || remain.substring(0, 7).toLowerCase() == "vgroups") {
+				return sql.substring(0, 4) + " " + dbPrefix + remain;
+			}
+		}
+		if (sql.substring(0, 8).toLowerCase() == "describe") {
+			var remain = dbRemoveFirstBlank(sql.substring(8));
+			if (remain.indexOf(".") == -1) {
+				return sql.substring(0, 8) + " " + dbPrefix + remain;
+			}
+		}
+		//select * from
+		//select * from ab;
+		//select * * from from ab;
+		//select * count(*) a;
+		//select * c  from  where c;
+		//select c d  from  c  where a
+		//select c d  from  c.d  where a
+		else if (sql.substring(0, 6).toLowerCase() == "select") {
+			var from = sql.toLowerCase().indexOf("from");
+			if (from != -1) {
+				var remain = dbRemoveFirstBlank(sql.substring(from+4));
+				if (remain != "") {
+					var table = remain.split(' ')[0];
+					var dot = table.indexOf(".");
+					if (dot == -1) {
+						return sql.substring(0, from+4) + " " + dbPrefix + remain;
+					}
+				}
+			}
+		}
+		// insert into a
+		// insert into a values()
+		// import   into  dc values values()
+		//  import  xx into dc value 
+		// insert into cc dd values()
+		// insert into values values()
+		else if (sql.substring(0, 6).toLowerCase() == "insert" || sql.substring(0, 6).toLowerCase() == "import") {
+			var into = sql.toLowerCase().indexOf("into");
+			var values = sql.toLowerCase().indexOf("values");
+			if (into != -1 && values != -1) {
+				var table = dbRemoveFirstBlank(sql.substring(into+4, values));
+				if (table != "") {
+					table = table.split(' ')[0];
+					var dot = table.indexOf(".");
+					if (dot == -1) {
+						return sql.substring(0, into+4) + " " + dbPrefix + table + " " + sql.substring(values);
+					}
+					
+				}
+			}
+		}
+		else if (sql.toLowerCase().substring(0, 5) == "alter") {
+			var remain = dbRemoveFirstBlank(sql.substring(5));
+			if (remain.toLowerCase().substring(0, 5) == "table") {
+				var table = dbRemoveFirstBlank(remain.substring(5));
+				if (table != "") {
+					tableName = table.split(' ')[0];
+					var dot = tableName.indexOf(".");
+					if (dot == -1) {
+						return "alter table " + dbPrefix + table;
+					}
+					
+				}
+			}
+		}
+		else if (sql.toLowerCase().substring(0, 4) == "drop") {
+			var remain = dbRemoveFirstBlank(sql.substring(4));
+			if (remain.toLowerCase().substring(0, 5) == "table") {
+				var table = dbRemoveFirstBlank(remain.substring(5));
+				if (table != "") {
+					tableName = table.split(' ')[0];
+					var dot = tableName.indexOf(".");
+					if (dot == -1) {
+						return "drop table " + dbPrefix + table;
+					}
+					
+				}
+			}
+		}
+		else if (sql.toLowerCase().substring(0, 6) == "create") {
+			var remain = dbRemoveFirstBlank(sql.substring(6));
+			if (remain.toLowerCase().substring(0, 5) == "table") {
+				var table = dbRemoveFirstBlank(remain.substring(5));
+				if (table != "") {
+					tableName = table.split(' ')[0];
+					var dot = tableName.indexOf(".");
+					if (dot == -1) {
+						return "create table " + dbPrefix + table;
+					}
+					
+				}
+			}
+		}
+		return sql;
+	}
+	
+	function dbSetPlaceHolder(result)
+	{
+		var db = DbSession.GetDb();
+		if (db == "" || db == null || db == "invalid") {
+			db = "null";
+		}
+		
+		var placeholder = "database: " + db + " | ";
+		if (dbSql != "") {
+			placeholder = placeholder + dbSql +  " | ";
+		}
+		if (result != null && result != "") {
+			placeholder = placeholder + result;
+		}
+		
+		$('#dbSql').val("");
+		$('#dbSql').attr('placeholder', placeholder);
+	}
+	
+	function dbRemoveComma(sql) {
+		if (sql.length < 1) {
+			return sql;
+		}
+		var length = sql.length;
+		if (sql[length-1] == ";") {
+			return sql.substring(0, length-1);
+		}
+		return sql;
+	}
+	
+	function dbOnLoad()
+	{
+		DbSession.ValidSession();
+		DbCache.Clear();
+		DbCache.Init(dbFillTableHead, dbFillTableBody);
+		
+		$('#dbSql').bind('keypress', function(event) {
+			if (event.keyCode == "13")      
+			{  
+				dbExec();
+			}   
+		});		
+		
+		dbSetPlaceHolder('input sql ...');
+	}
+	
+	var dbSql = "";
+	
+	function dbClearTable()
+	{
+		DbCache.Clear();
+		$('#dbTableHead').html();
+		$('#dbTableBody').html();
+		dbSql = "";
+	}
+	
+	//file the head of dbTableHead
+	function dbFillTableHead(data)
+	{
+		var rowBegin = "<tr>";
+		var rowEnd = "</tr>";
+		var colNum = data.head.length;		
+		var colBegin = "<th style='font-weight: normal'>";
+		var colEnd = "</th>";
+		
+		row = rowBegin + colBegin + "No" + colEnd;
+		for (colIndex = 0; colIndex < colNum; colIndex++) {
+			row = row + colBegin + data.head[colIndex] + colEnd;
+		}
+		row = row + rowEnd;
+		
+		$('#dbTableHead').html(row);
+		
+		//this should be no select/show cmds
+		if (colNum == 1 && data.head[0] == "affect_rows") {
+			$('#resultPanel').hide();
+			if (data.data != null && data.data.length > 0 && data.data[0].length > 0)
+				dbSetPlaceHolder("query ok, " + data.data[0][0] + " row(s) affected");
+			else
+				dbSetPlaceHolder("query ok, unknown row(s) affected");
+		}
+		else {
+			$('#resultPanel').show();
+			dbSetPlaceHolder("query ok");
+		}
+	}
+	
+	//file the body of dbTableBody
+	function dbFillTableBody(d)
+	{
+		var rowNum = d.data.length;
+		var rowBegin = "<tr>";
+		var rowEnd = "</tr>";
+		var colNum = d.head.length;		
+		var colBegin = "<td>";
+		var colEnd = "</td>";
+		
+		var rowIndex = 0;
+		var bodyContent = "";
+		for (rowIndex = 0; rowIndex < rowNum; ++rowIndex) {
+			var row = rowBegin + colBegin + DbCache.GetRowIndex(rowIndex) + colEnd;
+			var data = d.data[rowIndex]; 	
+			for (colIndex = 0; colIndex < colNum; colIndex++) {
+				row = row + colBegin + data[colIndex] + colEnd;
+			}
+			bodyContent += row;
+		}
+		for (; rowIndex < DbCache.RowsPerPage(); ++rowIndex) {
+			var row = rowBegin + colBegin + '-' + colEnd;
+			for (colIndex = 0; colIndex < colNum; colIndex++) {
+				row = row + colBegin + colEnd;
+			}
+			bodyContent += row;
+		}
+		
+		$('#dbTableBody').html(bodyContent);
+	}
+	
+	var dbCallback;
+	
+	function dbQuery(sql, callback)
+	{
+		dbCallback = callback;
+	    $.ajax({
+			type: "post",
+			url: "admin/sql",
+			headers: {
+				'Authorization' : "Taosd " + DbSession.GetToken()
+			},
+			data: sql,
+			dataType: "json",
+			success: dbQueryCb,
+			error: function(msg) { 
+				if (msg != null && msg.responseJSON != null) {
+					dbQueryCb(msg.responseJSON);
+				}
+				else {
+					DbUtil.ErrorWithMsg(DB_CODE_EMPTY_DATA, msg);
+				}
+			}		
+		});	
+	}
+	
+	function dbQueryCb(d)
+	{
+		if (d == null || d.status == null) {
+			dbHidePanel(DB_CODE_INVALID_FORMAT);
+			return;
+		} 
+		if (d.status == "error") {
+			dbHidePanelWithDesc(d.desc);
+		}
+		else if (d.status == "succ") {
+			dbCallback(d);
+		}	
+		else{
+			dbHidePanel(DB_CODE_UNKNOWN);
+		}
+	}
+	
+	function dbExecSqlCallback(data)
+	{
+		//if (data.rows == 0) {
+		//	DbUtil.Success(DB_CODE_EMPTY_DATA);
+		//	$('#resultPanel').hide();
+		//}
+		DbCache.OnData(data);
+	}
+	
+	function dbUseDbCallback(d)
+	{		
+		for (i = 0; i < d.data.length; ++i) {
+			dbname = d.data[i][0];
+			if (dbUseDbParseResult == dbname) {
+				DbSession.SetDb(dbname);
+				dbSetPlaceHolder("query ok");
+				return
+			}
+		}
+		
+		dbHidePanel(DB_CODE_DB_NOT_EXIST);
+	}
+	
+	function dbHidePanelWithDesc(desc) {
+		$('#resultPanel').hide();
+		dbSetPlaceHolder(desc);
+		DbUtil.ErrorDialog(desc);
+	}
+	
+	function dbHidePanel(errno) {
+		$('#resultPanel').hide();
+		dbSetPlaceHolder(DbUtil.ErrorMsg[errno]);
+		DbUtil.Error(errno);
+	}
+	
+	function dbExec()
+	{
+		dbClearTable();
+		dbSql = $.trim($('#dbSql').val());
+		dbSql = dbRemoveComma(dbSql);
+		
+		if (dbSql == null || dbSql == "") {
+			dbHidePanel(DB_CODE_EMPTY_SQL);
+		}
+		else if (dbCheckUseDbCmd(dbSql)) {
+			dbQuery("show databases", dbUseDbCallback)
+		}
+		//else if (DbSession.GetDb() == "") {
+		//	dbSetPlaceHolder(DbUtil.ErrorMsg[DB_CODE_DB_NOT_SELECT]);
+		//}
+		else {
+			dbSql = dbUpdateSqlWithUseDb(dbSql);
+			dbQuery(dbSql, dbExecSqlCallback);
+		}
+	}
+	</script>
+	
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+	<script src="js/jquery-2.0.2.min.js"></script>
+	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+</body>
+</html>

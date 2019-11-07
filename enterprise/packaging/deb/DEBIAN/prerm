@@ -1,0 +1,9 @@
+#!/bin/bash
+
+#path=`pwd`
+insmetaPath="/usr/local/taos/script"
+cd ${insmetaPath}
+#sudo chmod -R 744 ${insmetaPath}
+sudo ./preun.sh
+
+

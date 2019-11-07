@@ -1,0 +1,10 @@
+#run cluster/db/commit.sim
+run cluster/db/delete.sim
+run cluster/db/replica_add12.sim
+run cluster/db/replica_add13.sim
+run cluster/db/replica_add23.sim
+run cluster/db/replica_reduce21.sim
+run cluster/db/replica_reduce32.sim
+run cluster/db/replica_reduce31.sim
+run cluster/db/replica_part.sim
+run cluster/db/delete_part.sim
