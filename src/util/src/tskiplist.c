@@ -23,13 +23,19 @@
 #include "tskiplist.h"
 #include "tutil.h"
 
-void recordNodeEachLevel(tSkipList *pSkipList, int32_t nLevel);
+static FORCE_INLINE void recordNodeEachLevel(tSkipList *pSkipList, int32_t nLevel) {  // record link count in each level
+  for (int32_t i = 0; i < nLevel; ++i) {
+    pSkipList->state.nLevelNodeCnt[i]++;
+  }
+}
 
-int32_t getSkipListNodeLevel(tSkipList *pSkipList);
+static FORCE_INLINE void removeNodeEachLevel(tSkipList *pSkipList, int32_t nLevel) {
+  for (int32_t i = 0; i < nLevel; ++i) {
+    pSkipList->state.nLevelNodeCnt[i]--;
+  }
+}
 
-void tSkipListDoInsert(tSkipList *pSkipList, tSkipListNode **forward, int32_t nLevel, tSkipListNode *pNode);
-
-static int32_t getSkipListNodeRandomHeight(tSkipList *pSkipList) {
+static FORCE_INLINE int32_t getSkipListNodeRandomHeight(tSkipList *pSkipList) {
   const uint32_t factor = 4;
 
   int32_t n = 1;
@@ -39,6 +45,21 @@ static int32_t getSkipListNodeRandomHeight(tSkipList *pSkipList) {
 
   return n;
 }
+
+static FORCE_INLINE int32_t getSkipListNodeLevel(tSkipList *pSkipList) {
+  int32_t nLevel = getSkipListNodeRandomHeight(pSkipList);
+  if (pSkipList->nSize == 0) {
+    nLevel = 1;
+    pSkipList->nLevel = 1;
+  } else {
+    if (nLevel > pSkipList->nLevel && pSkipList->nLevel < pSkipList->nMaxLevel) {
+      nLevel = (++pSkipList->nLevel);
+    }
+  }
+  return nLevel;
+}
+
+void tSkipListDoInsert(tSkipList *pSkipList, tSkipListNode **forward, int32_t nLevel, tSkipListNode *pNode);
 
 void tSkipListDoRecordPut(tSkipList *pSkipList) {
   const int32_t MAX_RECORD_NUM = 1000;
@@ -96,16 +117,11 @@ int32_t compareStrVal(const void *pLeft, const void *pRight) {
     return 0;
   }
 
-  /*
-   * handle only one-side bound compare situation, there is only lower bound or
-   * only
-   * upper bound
-   */
+  //handle only one-side bound compare situation, there is only lower bound or only upper bound
   if (pL->nLen == -1) {
     return 1;  // no lower bound, lower bound is minimum, always return -1;
   } else if (pR->nLen == -1) {
-    return -1;  // no upper bound, upper bound is maximum situation, always
-                // return 1;
+    return -1;  // no upper bound, upper bound is maximum situation, always return 1;
   }
 
   int32_t ret = strcmp(((tSkipListKey *)pLeft)->pz, ((tSkipListKey *)pRight)->pz);
@@ -125,15 +141,11 @@ int32_t compareWStrVal(const void *pLeft, const void *pRight) {
     return 0;
   }
 
-  /*
-   * handle only one-side bound compare situation,
-   * there is only lower bound or only upper bound
-   */
+  //handle only one-side bound compare situation, there is only lower bound or only upper bound
   if (pL->nLen == -1) {
     return 1;  // no lower bound, lower bound is minimum, always return -1;
   } else if (pR->nLen == -1) {
-    return -1;  // no upper bound, upper bound is maximum situation, always
-                // return 1;
+    return -1;  // no upper bound, upper bound is maximum situation, always return 1;
   }
 
   int32_t ret = wcscmp(((tSkipListKey *)pLeft)->wpz, ((tSkipListKey *)pRight)->wpz);
@@ -302,7 +314,7 @@ static tSkipListNode *tSkipListCreateNode(void *pData, const tSkipListKey *pKey,
 
 tSkipListKey tSkipListCreateKey(int32_t type, char *val, size_t keyLength) {
   tSkipListKey k = {0};
-  tVariantCreateB(&k, val, (uint32_t) keyLength, (uint32_t) type);
+  tVariantCreateFromBinary(&k, val, (uint32_t) keyLength, (uint32_t) type);
   return k;
 }
 
@@ -391,31 +403,6 @@ void tSkipListDoInsert(tSkipList *pSkipList, tSkipListNode **forward, int32_t nL
       pSkipList->pHead.pForward[i] = pNode;
       pNode->pBackward[i] = &(pSkipList->pHead);
     }
-  }
-}
-
-int32_t getSkipListNodeLevel(tSkipList *pSkipList) {
-  int32_t nLevel = getSkipListNodeRandomHeight(pSkipList);
-  if (pSkipList->nSize == 0) {
-    nLevel = 1;
-    pSkipList->nLevel = 1;
-  } else {
-    if (nLevel > pSkipList->nLevel && pSkipList->nLevel < pSkipList->nMaxLevel) {
-      nLevel = (++pSkipList->nLevel);
-    }
-  }
-  return nLevel;
-}
-
-void recordNodeEachLevel(tSkipList *pSkipList, int32_t nLevel) {  // record link count in each level
-  for (int32_t i = 0; i < nLevel; ++i) {
-    pSkipList->state.nLevelNodeCnt[i]++;
-  }
-}
-
-void removeNodeEachLevel(tSkipList *pSkipList, int32_t nLevel) {
-  for (int32_t i = 0; i < nLevel; ++i) {
-    pSkipList->state.nLevelNodeCnt[i]--;
   }
 }
 
@@ -548,11 +535,16 @@ static tSkipListNode *tSkipListParQuery(tSkipList *pSkipList, tSkipListKey *pKey
 
 int32_t tSkipListIterateList(tSkipList *pSkipList, tSkipListNode ***pRes, bool (*fp)(tSkipListNode *, void *),
                              void *param) {
+  (*pRes) = (tSkipListNode **)calloc(1, POINTER_BYTES * pSkipList->nSize);
+  if (NULL == *pRes) {
+    pError("error skiplist %p, malloc failed", pSkipList);
+    return -1;
+  }
+  
   pthread_rwlock_rdlock(&pSkipList->lock);
-
-  (*pRes) = (tSkipListNode **)malloc(POINTER_BYTES * pSkipList->nSize);
   tSkipListNode *pStartNode = pSkipList->pHead.pForward[0];
   int32_t        num = 0;
+
   for (int32_t i = 0; i < pSkipList->nSize; ++i) {
     if (pStartNode == NULL) {
       pError("error skiplist %p, required length:%d, actual length:%d", pSkipList, pSkipList->nSize, i - 1);
@@ -568,8 +560,58 @@ int32_t tSkipListIterateList(tSkipList *pSkipList, tSkipListNode ***pRes, bool (
 
     pStartNode = pStartNode->pForward[0];
   }
+
   pthread_rwlock_unlock(&pSkipList->lock);
+
+  if (num == 0) {
+    free(*pRes);
+    *pRes = NULL;
+  } else if (num < pSkipList->nSize) { // free unused memory
+    char* tmp = realloc((*pRes), num * POINTER_BYTES);
+    assert(tmp != NULL);
+
+    *pRes = tmp;
+  }
+
   return num;
+}
+
+int32_t tSkipListIteratorReset(tSkipList *pSkipList, SSkipListIterator* iter) {
+  if (pSkipList == NULL) {
+    return -1;
+  }
+
+  iter->pSkipList = pSkipList;
+
+  pthread_rwlock_rdlock(&pSkipList->lock);
+  iter->cur = NULL;//pSkipList->pHead.pForward[0];
+  iter->num = pSkipList->nSize;
+  pthread_rwlock_unlock(&pSkipList->lock);
+
+  return 0;
+}
+
+bool tSkipListIteratorNext(SSkipListIterator* iter) {
+  if (iter->num == 0 || iter->pSkipList == NULL) {
+    return false;
+  }
+
+  tSkipList* pSkipList = iter->pSkipList;
+
+  pthread_rwlock_rdlock(&pSkipList->lock);
+  if (iter->cur == NULL) {
+    iter->cur = pSkipList->pHead.pForward[0];
+  } else {
+    iter->cur = iter->cur->pForward[0];
+  }
+
+  pthread_rwlock_unlock(&pSkipList->lock);
+
+  return iter->cur != NULL;
+}
+
+tSkipListNode* tSkipListIteratorGet(SSkipListIterator* iter) {
+  return iter->cur;
 }
 
 int32_t tSkipListRangeQuery(tSkipList *pSkipList, tSKipListQueryCond *pCond, tSkipListNode ***pRes) {

@@ -20,6 +20,7 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "tschemautil.h"
+#include "tsqldef.h"
 #include "ttypes.h"
 #include "tutil.h"
 
@@ -71,7 +72,7 @@ struct SSchema* tsGetSchema(SMeterMeta* pMeta) {
   if (pMeta == NULL) {
     return NULL;
   }
-  return tsGetSchemaColIdx(pMeta, 0);
+  return tsGetColumnSchema(pMeta, 0);
 }
 
 struct SSchema* tsGetTagSchema(SMeterMeta* pMeta) {
@@ -79,24 +80,32 @@ struct SSchema* tsGetTagSchema(SMeterMeta* pMeta) {
     return NULL;
   }
 
-  return tsGetSchemaColIdx(pMeta, pMeta->numOfColumns);
+  return tsGetColumnSchema(pMeta, pMeta->numOfColumns);
 }
 
-struct SSchema* tsGetSchemaColIdx(SMeterMeta* pMeta, int32_t startCol) {
-  if (pMeta->pSchema == 0) {
-    pMeta->pSchema = sizeof(SMeterMeta);
-  }
-
-  return (SSchema*)(((char*)pMeta + pMeta->pSchema) + startCol * sizeof(SSchema));
+struct SSchema* tsGetColumnSchema(SMeterMeta* pMeta, int32_t startCol) {
+  return (SSchema*)(((char*)pMeta + sizeof(SMeterMeta)) + startCol * sizeof(SSchema));
 }
 
+/**
+ * the MeterMeta data format in memory is as follows:
+ *
+ * +--------------------+
+ * |SMeterMeta Body data|  sizeof(SMeterMeta)
+ * +--------------------+
+ * |Schema data         |  numOfTotalColumns * sizeof(SSchema)
+ * +--------------------+
+ * |Tags data           |  tag_col_1.bytes + tag_col_2.bytes + ....
+ * +--------------------+
+ *
+ * @param pMeta
+ * @return
+ */
 char* tsGetTagsValue(SMeterMeta* pMeta) {
-  if (pMeta->tags == 0) {
-    int32_t numOfTotalCols = pMeta->numOfColumns + pMeta->numOfTags;
-    pMeta->tags = sizeof(SMeterMeta) + numOfTotalCols * sizeof(SSchema);
-  }
+  int32_t  numOfTotalCols = pMeta->numOfColumns + pMeta->numOfTags;
+  uint32_t offset = sizeof(SMeterMeta) + numOfTotalCols * sizeof(SSchema);
 
-  return ((char*)pMeta + pMeta->tags);
+  return ((char*)pMeta + offset);
 }
 
 bool tsMeterMetaIdentical(SMeterMeta* p1, SMeterMeta* p2) {
@@ -111,7 +120,7 @@ bool tsMeterMetaIdentical(SMeterMeta* p1, SMeterMeta* p2) {
   size_t size = sizeof(SMeterMeta) + p1->numOfColumns * sizeof(SSchema);
 
   for (int32_t i = 0; i < p1->numOfTags; ++i) {
-    SSchema* pColSchema = tsGetSchemaColIdx(p1, i + p1->numOfColumns);
+    SSchema* pColSchema = tsGetColumnSchema(p1, i + p1->numOfColumns);
     size += pColSchema->bytes;
   }
 
@@ -142,7 +151,33 @@ void extractMeterName(char* meterId, char* name) {
   copySegment(name, r, TS_PATH_DELIMITER[0]);
 }
 
-void extractDBName(char* meterId, char* name) {
+SSQLToken extractDBName(char* meterId, char* name) {
   char* r = skipSegments(meterId, TS_PATH_DELIMITER[0], 1);
   copySegment(name, r, TS_PATH_DELIMITER[0]);
+
+  SSQLToken token = {.z = name, .n = strlen(name), .type = TK_STRING};
+  return token;
+}
+
+/*
+ * tablePrefix.columnName
+ * extract table name and save it in pTable, with only column name in pToken
+ */
+void extractTableNameFromToken(SSQLToken* pToken, SSQLToken* pTable) {
+  const char sep = TS_PATH_DELIMITER[0];
+
+  if (pToken == pTable || pToken == NULL || pTable == NULL) {
+    return;
+  }
+
+  char* r = strnchr(pToken->z, sep, pToken->n, false);
+
+  if (r != NULL) {  // record the table name token
+    pTable->n = r - pToken->z;
+    pTable->z = pToken->z;
+
+    r += 1;
+    pToken->n -= (r - pToken->z);
+    pToken->z = r;
+  }
 }

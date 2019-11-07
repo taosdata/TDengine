@@ -102,7 +102,12 @@ void *taosAddConnIntoCache(void *handle, void *data, uint32_t ip, short port, ch
 
   pObj = (SConnCache *)handle;
   if (pObj == NULL || pObj->maxSessions == 0) return NULL;
+
+#ifdef CLUSTER
+  if (data == NULL || ip == 0) {
+#else
   if (data == NULL) {
+#endif
     tscTrace("data:%p ip:%p:%d not valid, not added in cache", data, ip, port);
     return NULL;
   }

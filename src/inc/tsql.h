@@ -24,28 +24,27 @@ extern "C" {
 #include "tsqldef.h"
 #include "ttypes.h"
 
-#define TK_SPACE   200
-#define TK_COMMENT 201
-#define TK_ILLEGAL 202
-#define TK_HEX     203
-#define TK_OCT     204
+#define TK_SPACE      200
+#define TK_COMMENT    201
+#define TK_ILLEGAL    202
+#define TK_HEX        203   // hex number  0x123
+#define TK_OCT        204   // oct number
+#define TK_BIN        205   // bin format data 0b111
+#define TK_FILE       206
 
-#define TSQL_SO_ASC  1
-#define TSQL_SO_DESC 0
+#define TSQL_SO_ASC   1
+#define TSQL_SO_DESC  0
 
 #define MAX_TOKEN_LEN 30
 
-#define TSQL_TBNAME   "TBNAME"
+#define TSQL_TBNAME "TBNAME"
 #define TSQL_TBNAME_L "tbname"
-
-#define TSQL_STABLE_QTYPE_COND 1
-#define TSQL_STABLE_QTYPE_SET  2
 
 // token type
 enum {
-  TSQL_NODE_TYPE_EXPR = 0x1,
-  TSQL_NODE_TYPE_ID = 0x2,
-  TSQL_NODE_TYPE_VALUE = 0x4,
+  TSQL_NODE_TYPE_EXPR   = 0x1,
+  TSQL_NODE_TYPE_ID     = 0x2,
+  TSQL_NODE_TYPE_VALUE  = 0x4,
 };
 
 extern char tTokenTypeSwitcher[13];
@@ -155,14 +154,14 @@ enum TSQL_TYPE {
 
 typedef struct SQuerySQL {
   struct tSQLExprList *pSelection;   // select clause
-  struct SSQLToken     from;         // from clause
+  tVariantList *       from;         // from clause
   struct tSQLExpr *    pWhere;       // where clause [optional]
   tVariantList *       pGroupby;     // groupby clause, only for tags[optional]
   tVariantList *       pSortOrder;   // orderby [optional]
   SSQLToken            interval;     // interval [optional]
   SSQLToken            sliding;      // sliding window [optional]
   SLimitVal            limit;        // limit offset [optional]
-  SLimitVal            glimit;       // group limit offset [optional]
+  SLimitVal            slimit;       // group limit offset [optional]
   tVariantList *       fillType;     // fill type[optional]
   SSQLToken            selectToken;  // sql string
 } SQuerySQL;
@@ -327,12 +326,12 @@ void Parse(void *yyp, int yymajor, ParseTOKENTYPE yyminor, SSqlInfo *);
  */
 void ParseFree(void *p, void (*freeProc)(void *));
 
-tVariantList *tVariantListAppendToken(tVariantList *pList, SSQLToken *pAliasToken, uint8_t sortOrder);
 tVariantList *tVariantListAppend(tVariantList *pList, tVariant *pVar, uint8_t sortOrder);
 
 tVariantList *tVariantListInsert(tVariantList *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
 
-void tVariantListDestroy(tVariantList *pList);
+tVariantList *tVariantListAppendToken(tVariantList *pList, SSQLToken *pAliasToken, uint8_t sortOrder);
+void          tVariantListDestroy(tVariantList *pList);
 
 tFieldList *tFieldListAppend(tFieldList *pList, TAOS_FIELD *pField);
 
@@ -348,12 +347,15 @@ void tSQLExprListDestroy(tSQLExprList *pList);
 
 int32_t tSQLSyntaxNodeToString(tSQLExpr *pNode, char *dst);
 
-SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, SSQLToken *pFrom, tSQLExpr *pWhere,
+SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
                              tVariantList *pGroupby, tVariantList *pSortOrder, SSQLToken *pInterval,
                              SSQLToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit);
 
 SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLToken *pMetricName,
                                     tVariantList *pTagVals, SQuerySQL *pSelect, int32_t type);
+void tSQLExprDestroy(tSQLExpr *);
+void tSQLExprNodeDestroy(tSQLExpr *pExpr);
+tSQLExpr *tSQLExprNodeClone(tSQLExpr *pExpr);
 
 SAlterTableSQL *tAlterTableSQLElems(SSQLToken *pMeterName, tFieldList *pCols, tVariantList *pVals, int32_t type);
 

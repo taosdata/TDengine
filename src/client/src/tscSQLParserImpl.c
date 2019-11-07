@@ -15,13 +15,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-
-#include <assert.h>
-#include <errno.h>
 #include <stdarg.h>
 
 #include "os.h"
@@ -119,31 +115,29 @@ void tSQLExprListDestroy(tSQLExprList *pList) {
   free(pList);
 }
 
-tSQLExpr *tSQLExprIdValueCreate(SSQLToken *pToken, int32_t optrType) {
+tSQLExpr *tSQLExprIdValueCreate(SSQLToken *pAliasToken, int32_t optrType) {
   tSQLExpr *nodePtr = calloc(1, sizeof(tSQLExpr));
 
   if (optrType == TK_INTEGER || optrType == TK_STRING || optrType == TK_FLOAT || optrType == TK_BOOL) {
-    toTSDBType(pToken->type);
+    toTSDBType(pAliasToken->type);
 
-    tVariantCreate(&nodePtr->val, pToken);
+    tVariantCreate(&nodePtr->val, pAliasToken);
     nodePtr->nSQLOptr = optrType;
   } else if (optrType == TK_NOW) {
     // default use microsecond
     nodePtr->val.i64Key = taosGetTimestamp(TSDB_TIME_PRECISION_MICRO);
     nodePtr->val.nType = TSDB_DATA_TYPE_BIGINT;
-    nodePtr->nSQLOptr = TK_TIMESTAMP;
-    // TK_TIMESTAMP used to denote the time value is in microsecond
+    nodePtr->nSQLOptr = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
   } else if (optrType == TK_VARIABLE) {
-    int32_t ret = getTimestampInUsFromStr(pToken->z, pToken->n, &nodePtr->val.i64Key);
+    int32_t ret = getTimestampInUsFromStr(pAliasToken->z, pAliasToken->n, &nodePtr->val.i64Key);
     UNUSED(ret);
 
     nodePtr->val.nType = TSDB_DATA_TYPE_BIGINT;
     nodePtr->nSQLOptr = TK_TIMESTAMP;
-  } else {  // must be field id if not numbers
-    assert(optrType == TK_ALL || optrType == TK_ID);
-
-    if (pToken != NULL) { // it must be the column name (tk_id)
-      nodePtr->colInfo = *pToken;
+  } else {  // it must be the column name (tk_id) if it is not the number
+    assert(optrType == TK_ID || optrType == TK_ALL);
+    if (pAliasToken != NULL) {
+      nodePtr->colInfo = *pAliasToken;
     }
 
     nodePtr->nSQLOptr = optrType;
@@ -273,11 +267,10 @@ tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   return pExpr;
 }
 
-void tSQLExprDestroy(tSQLExpr *pExpr) {
-  if (pExpr == NULL) return;
-
-  tSQLExprDestroy(pExpr->pLeft);
-  tSQLExprDestroy(pExpr->pRight);
+void tSQLExprNodeDestroy(tSQLExpr *pExpr) {
+  if (pExpr == NULL) {
+    return;
+  }
 
   if (pExpr->nSQLOptr == TK_STRING) {
     tVariantDestroy(&pExpr->val);
@@ -286,6 +279,17 @@ void tSQLExprDestroy(tSQLExpr *pExpr) {
   tSQLExprListDestroy(pExpr->pParam);
 
   free(pExpr);
+}
+
+void tSQLExprDestroy(tSQLExpr *pExpr) {
+  if (pExpr == NULL) {
+    return;
+  }
+
+  tSQLExprDestroy(pExpr->pLeft);
+  tSQLExprDestroy(pExpr->pRight);
+
+  tSQLExprNodeDestroy(pExpr);
 }
 
 static void *tVariantListExpand(tVariantList *pList) {
@@ -420,6 +424,44 @@ void setDBName(SSQLToken *pCpxName, SSQLToken *pDB) {
   pCpxName->n = pDB->n;
 }
 
+int32_t getTimestampInUsFromStrImpl(int64_t val, char unit, int64_t *result) {
+  *result = val;
+
+  switch (unit) {
+    case 's':
+      (*result) *= MILLISECOND_PER_SECOND;
+      break;
+    case 'm':
+      (*result) *= MILLISECOND_PER_MINUTE;
+      break;
+    case 'h':
+      (*result) *= MILLISECOND_PER_HOUR;
+      break;
+    case 'd':
+      (*result) *= MILLISECOND_PER_DAY;
+      break;
+    case 'w':
+      (*result) *= MILLISECOND_PER_WEEK;
+      break;
+    case 'n':
+      (*result) *= MILLISECOND_PER_MONTH;
+      break;
+    case 'y':
+      (*result) *= MILLISECOND_PER_YEAR;
+      break;
+    case 'a':
+      break;
+    default: {
+      ;
+      return -1;
+    }
+  }
+
+  /* get the value in microsecond */
+  (*result) *= 1000L;
+  return 0;
+}
+
 void tSQLSetColumnInfo(TAOS_FIELD *pField, SSQLToken *pName, TAOS_FIELD *pType) {
   int32_t maxLen = sizeof(pField->name) / sizeof(pField->name[0]);
   /* truncate the column name */
@@ -462,7 +504,7 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SSQLToken *type) {
 /*
  * extract the select info out of sql string
  */
-SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, SSQLToken *pFrom, tSQLExpr *pWhere,
+SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
                              tVariantList *pGroupby, tVariantList *pSortOrder, SSQLToken *pInterval,
                              SSQLToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
   assert(pSelection != NULL && pFrom != NULL && pInterval != NULL && pLimit != NULL && pGLimit != NULL);
@@ -472,13 +514,13 @@ SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, 
   pQuery->selectToken.n = strlen(pQuery->selectToken.z);  // all later sql string are belonged to the stream sql
 
   pQuery->pSelection = pSelection;
-  pQuery->from = *pFrom;
+  pQuery->from = pFrom;
   pQuery->pGroupby = pGroupby;
   pQuery->pSortOrder = pSortOrder;
   pQuery->pWhere = pWhere;
 
   pQuery->limit = *pLimit;
-  pQuery->glimit = *pGLimit;
+  pQuery->slimit = *pGLimit;
 
   pQuery->interval = *pInterval;
   pQuery->sliding = *pSliding;
@@ -531,6 +573,9 @@ void destroyQuerySql(SQuerySQL *pSql) {
 
   tVariantListDestroy(pSql->pGroupby);
   pSql->pGroupby = NULL;
+
+  tVariantListDestroy(pSql->from);
+  pSql->from = NULL;
 
   tVariantListDestroy(pSql->fillType);
 

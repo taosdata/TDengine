@@ -13,40 +13,53 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-
 #ifndef TDENGINE_PLATFORM_LINUX_H
 #define TDENGINE_PLATFORM_LINUX_H
 
-#include <endian.h>
-#include <ifaddrs.h>
-#include <netdb.h>
-#include <pwd.h>
-#include <syslog.h>
-#include <termios.h>
-#include <wordexp.h>
-#include <unistd.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+
 #include <arpa/inet.h>
+#include <assert.h>
+#include <endian.h>
+#include <float.h>
+#include <ifaddrs.h>
+#include <limits.h>
+#include <math.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+#include <pthread.h>
+#include <pwd.h>
+#include <stdbool.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+#include <strings.h>
 #include <sys/epoll.h>
 #include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/sendfile.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/uio.h>
+#include <sys/mman.h>
 #include <sys/un.h>
-#include <sys/stat.h>
-#include <stdint.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include <limits.h>
-#include <linux/limits.h>
-#include <strings.h>
-#include <sys/sendfile.h>
+#include <syslog.h>
+#include <termios.h>
+#include <unistd.h>
+#include <wchar.h>
+#include <wordexp.h>
+#include <locale.h>
+#include <dirent.h>
 
 #define taosCloseSocket(x) \
   {                        \
@@ -91,7 +104,7 @@ void __sync_val_restore_32(int32_t *ptr, int32_t newval);
     (__a < __b) ? __a : __b; \
   })
 
-#define MILLISECOND_PER_SECOND (1000L)
+#define MILLISECOND_PER_SECOND ((int64_t)1000L)
 
 #define tsem_t sem_t
 #define tsem_init sem_init
@@ -129,5 +142,9 @@ int64_t str2int64(char *str);
 #define BUILDIN_CLZ(val)  __builtin_clz(val)
 #define BUILDIN_CTZL(val) __builtin_ctzl(val)
 #define BUILDIN_CTZ(val)  __builtin_ctz(val)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

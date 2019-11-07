@@ -16,3 +16,7 @@
 char* sdbDnodeStatusStr[] = {"offline", "creating", "unsynced", "slave", "master", "ready"};
 
 char* sdbDnodeBalanceStateStr[] = {"balanced", "balancing", "offline removing", "shell removing"};
+
+char* sdbVnodeSyncStatusStr[] = {"init", "syncing", "sync_cache", "sync_file"};
+
+char* sdbVnodeDropStateStr[] = {"ready", "dropping"};

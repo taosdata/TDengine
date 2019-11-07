@@ -16,19 +16,19 @@
 #include "tlog.h"
 
 void taosCloseTcpServerConnection(void *chandle) {
-  tError("taosCloseTcpServerConnection not support in windows");
+  tError("CloseTcpServerConnection not support in windows");
 }
 
 void taosCleanUpTcpServer(void *handle) {
-  tError("taosCleanUpTcpServer not support in windows");
+  tError("CleanUpTcpServer not support in windows");
 }
 
 void *taosInitTcpServer(char *ip, short port, char *label, int numOfThreads, void *fp, void *shandle) {
-  tError("taosInitTcpServer not support in windows");
+  tError("InitTcpServer not support in windows");
   return 0;
 }
 
 int taosSendTcpServerData(unsigned int ip, short port, char *data, int len, void *chandle) {
-  tError("taosSendTcpServerData not support in windows");
+  tError("SendTcpServerData not support in windows");
   return 0;
 }

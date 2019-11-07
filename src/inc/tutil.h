@@ -16,26 +16,20 @@
 #ifndef TDENGINE_TUTIL_H
 #define TDENGINE_TUTIL_H
 
-#include "os.h"
-#include "tmd5.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <assert.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <wchar.h>
-
+#include "os.h"
+#include "tmd5.h"
 #include "tcrc32c.h"
 #include "tsdb.h"
 
-#define VALIDFD(x) ((x) > 2)
+#ifndef STDERR_FILENO
+  #define VALIDFD(x) ((x) > 2)
+#else
+  #define VALIDFD(x) ((x) > STDERR_FILENO)
+#endif
 
 #define WCHAR wchar_t
 #define tfree(x) \
@@ -101,8 +95,24 @@ extern "C" {
 #define GET_INT16_VAL(x)  (*(int16_t *)(x))
 #define GET_INT32_VAL(x)  (*(int32_t *)(x))
 #define GET_INT64_VAL(x)  (*(int64_t *)(x))
-#define GET_FLOAT_VAL(x)  (*(float *)(x))
-#define GET_DOUBLE_VAL(x) (*(double *)(x))
+
+#ifdef _TD_ARM_32_
+  #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
+  #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
+
+  float  taos_align_get_float(char* pBuf);
+  double taos_align_get_double(char* pBuf);
+
+  //#define __float_align_declear()  float __underlyFloat = 0.0;
+  //#define __float_align_declear()
+  //#define GET_FLOAT_VAL_ALIGN(x) (*(int32_t*)&(__underlyFloat) = *(int32_t*)(x); __underlyFloat);
+  // notes: src must be float or double type variable !!!
+  #define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
+  #define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
+#else
+  #define GET_FLOAT_VAL(x)  (*(float *)(x))
+  #define GET_DOUBLE_VAL(x) (*(double *)(x))
+#endif
 
 #define ALIGN_NUM(n, align) (((n) + ((align)-1)) & (~((align)-1)))
 
@@ -131,6 +141,10 @@ char* strtolower(char *dst, const char *src);
 int64_t strnatoi(char *num, int32_t len);
 
 char* strreplace(const char* str, const char* pattern, const char* rep);
+
+#define POW2(x) ((x) * (x))
+
+int32_t strdequote(char *src);
 
 char *paGetToken(char *src, char **token, int32_t *tokenLen);
 
@@ -172,6 +186,21 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, cha
   MD5Final(&context);
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
+
+char *taosIpStr(uint32_t ipInt);
+
+#ifdef _TAOS_MEM_TEST_
+// Use during test to simulate the success and failure scenarios of memory allocation
+extern void* taos_malloc(unsigned int size, char* _func);
+extern void* taos_calloc(unsigned int num, unsigned int size, char* _func);
+extern void* taos_realloc(void* ptr, unsigned int size, char* _func);
+extern void  taos_free(void* ptr);
+#define malloc(size)        taos_malloc(size, __FUNCTION__)
+#define calloc(num, size)   taos_calloc(num, size, __FUNCTION__)
+#define realloc(ptr, size)  taos_realloc(ptr, size, __FUNCTION__)
+#define free(ptr)           taos_free(ptr)
+#endif
+
 
 #ifdef __cplusplus
 }

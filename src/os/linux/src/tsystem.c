@@ -32,6 +32,7 @@
 #include "tutil.h"
 
 #define PROCESS_ITEM 12
+extern char dataDir[TSDB_FILENAME_LEN];
 
 typedef struct {
   uint64_t user;
@@ -179,8 +180,7 @@ void taosGetSystemTimezone() {
     *lineEnd = 0;
   }
 
-  // for CentOS system, /etc/timezone does not exist. Ignore the TZ environment
-  // variables
+  // for CentOS system, /etc/timezone does not exist. Ignore the TZ environment variables
   if (strlen(buf) > 0) {
     setenv("TZ", buf, 1);
   }

@@ -41,7 +41,7 @@
 #define MAX_LOGLINE_DUMP_CONTENT_SIZE (MAX_LOGLINE_DUMP_SIZE - 100)
 
 #define LOG_FILE_NAME_LEN          300
-#define TSDB_DEFAULT_LOG_BUF_SIZE (64 * 1024)   // 10K
+#define TSDB_DEFAULT_LOG_BUF_SIZE (512 * 1024)   // 512K
 #define TSDB_MIN_LOG_BUF_SIZE      1024         // 1K
 #define TSDB_MAX_LOG_BUF_SIZE     (1024 * 1024) // 1M
 #define TSDB_DEFAULT_LOG_BUF_UNIT  1024         // 1K
@@ -61,7 +61,7 @@ typedef struct {
 uint32_t uDebugFlag = 131;  // all the messages
 short tsAsyncLog = 1;
 
-static SLogBuff *logHandle;
+static SLogBuff *logHandle = NULL;
 static int       taosLogFileNum = 1;
 static int       taosLogMaxLines = 0;
 static int       taosLogLines = 0;

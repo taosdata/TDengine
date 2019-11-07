@@ -33,7 +33,16 @@
 #include "restHandle.h"
 #include "tgHandle.h"
 
+#ifdef CLUSTER
+  void adminInitHandle(HttpServer* pServer);
+  void opInitHandle(HttpServer* pServer);
+#else
+  void adminInitHandle(HttpServer* pServer) {}
+  void opInitHandle(HttpServer* pServer) {}
+#endif
+
 static HttpServer *httpServer = NULL;
+void taosInitNote(int numOfNoteLines, int maxNotes);
 
 int httpInitSystem() {
   taos_init();
@@ -51,9 +60,14 @@ int httpInitSystem() {
 
   pthread_mutex_init(&httpServer->serverMutex, NULL);
 
+  if (tsHttpEnableRecordSql != 0) {
+    taosInitNote(tsNumOfLogLines / 10, 1);
+  }
   restInitHandle(httpServer);
+  adminInitHandle(httpServer);
   gcInitHandle(httpServer);
   tgInitHandle(httpServer);
+  opInitHandle(httpServer);
 
   return 0;
 }
@@ -75,7 +89,7 @@ int httpStartSystem() {
   }
 
   if (httpServer->timerHandle == NULL) {
-    httpServer->timerHandle = taosTmrInit(5, 1000, 60000, "http");
+    httpServer->timerHandle = taosTmrInit(tsHttpCacheSessions * 20 + 100, 1000, 60000, "http");
   }
   if (httpServer->timerHandle == NULL) {
     httpError("http init timer failed");

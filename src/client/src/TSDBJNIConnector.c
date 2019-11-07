@@ -19,6 +19,7 @@
 #include "com_taosdata_jdbc_TSDBJNIConnector.h"
 #include "taos.h"
 #include "tlog.h"
+#include "tscJoinProcess.h"
 #include "tsclient.h"
 #include "tscUtil.h"
 

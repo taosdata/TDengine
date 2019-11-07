@@ -500,11 +500,27 @@ bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
   return true;
 }
 
-char *taosIpStr(int ipInt) {
+char *taosIpStr(uint32_t ipInt) {
   static char ipStrArray[3][30];
   static int ipStrIndex = 0;
 
   char *ipStr = ipStrArray[(ipStrIndex++) % 3];
   sprintf(ipStr, "0x%x:%d.%d.%d.%d", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, ipInt >> 24);
   return ipStr;
+}
+
+#ifndef CLUSTER
+void taosCleanupTier() {}
+#endif
+
+FORCE_INLINE float taos_align_get_float(char* pBuf) {
+  float fv = 0; 
+  *(int32_t*)(&fv) = *(int32_t*)pBuf;
+  return fv; 
+}
+
+FORCE_INLINE double taos_align_get_double(char* pBuf) {
+  double dv = 0; 
+  *(int64_t*)(&dv) = *(int64_t*)pBuf;
+  return dv; 
 }

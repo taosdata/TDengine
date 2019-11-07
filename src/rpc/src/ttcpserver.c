@@ -37,6 +37,7 @@
 #endif
 
 typedef struct _fd_obj {
+  void               *signature;
   int                 fd;       // TCP socket FD
   void *              thandle;  // handle from upper layer, like TAOS
   char                ipstr[TAOS_IPv4ADDR_LEN];
@@ -75,6 +76,7 @@ static void taosCleanUpFdObj(SFdObj *pFdObj) {
   SThreadObj *pThreadObj;
 
   if (pFdObj == NULL) return;
+  if (pFdObj->signature != pFdObj) return;
 
   pThreadObj = pFdObj->pThreadObj;
   if (pThreadObj == NULL) {
@@ -274,6 +276,7 @@ void taosAcceptTcpConnection(void *arg) {
     pFdObj->ip = clientAddr.sin_addr.s_addr;
     pFdObj->port = htons(clientAddr.sin_port);
     pFdObj->pThreadObj = pThreadObj;
+    pFdObj->signature = pFdObj;
 
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP;
     event.data.ptr = pFdObj;

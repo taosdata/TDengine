@@ -24,11 +24,15 @@ extern "C" {
 #include <stdint.h>
 #include "tsdb.h"
 
+extern int  (*startMonitor)();
+extern void (*stopMonitor)();
+
 // system info
 extern int64_t tsPageSize;
 extern int64_t tsOpenMax;
 extern int64_t tsStreamMax;
 extern int32_t tsNumOfCores;
+extern int32_t tsAlternativeRole;
 extern float   tsTotalLogDirGB;
 extern float   tsTotalTmpDirGB;
 extern float   tsTotalDataDirGB;
@@ -58,7 +62,6 @@ extern short tsMgmtShellPort;
 extern short tsVnodeShellPort;
 extern short tsVnodeVnodePort;
 extern short tsMgmtMgmtPort;
-extern short tsVnodeSyncPort;
 extern short tsMgmtSyncPort;
 
 extern int tsStatusInterval;
@@ -70,12 +73,14 @@ extern int tsMetricMetaKeepTimer;
 
 extern float tsNumOfThreadsPerCore;
 extern float tsRatioOfQueryThreads;
+extern char  tsPublicIp[];
 extern char  tsInternalIp[];
+extern char  tsPrivateIp[];
 extern char  tsServerIpStr[];
 extern short tsNumOfVnodesPerCore;
 extern short tsNumOfTotalVnodes;
-extern int   tsShellsPerVnode;
 extern short tsCheckHeaderFile;
+extern uint32_t tsServerIp;
 
 extern int tsSessionsPerVnode;
 extern int tsAverageCacheBlocks;
@@ -121,6 +126,9 @@ extern int tsMgmtEqualVnodeNum;
 extern int tsEnableHttpModule;
 extern int tsEnableMonitorModule;
 extern int tsRestRowLimit;
+extern int tsCompressMsgSize;
+
+extern char tsSocketType[4];
 
 extern int tsTimePrecision;
 extern int tsMinSlidingTime;
@@ -132,14 +140,13 @@ extern int tsStreamCompRetryDelay;
 extern int     tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
 
-extern char tsSocketType[4];
-
 extern char  tsHttpIp[];
 extern short tsHttpPort;
 extern int   tsHttpCacheSessions;
 extern int   tsHttpSessionExpire;
 extern int   tsHttpMaxThreads;
 extern int   tsHttpEnableCompress;
+extern int   tsHttpEnableRecordSql;
 extern int   tsTelegrafUseFieldNum;
 extern int   tsAdminRowLimit;
 
@@ -177,25 +184,30 @@ extern char tsCharset[64];  // default encode string
 //
 void tsReadGlobalLogConfig();
 bool tsReadGlobalConfig();
+bool tsReadGlobalConfigSpec();
 int tsCfgDynamicOptions(char *msg);
 void tsPrintGlobalConfig();
+void tsPrintGlobalConfigSpec();
 void tsSetAllDebugFlag();
 void tsSetTimeZone();
 void tsSetLocale();
 void tsInitGlobalConfig();
+void tsExpandFilePath(char* option_name, char* input_value);
 
-#define TSDB_CFG_CTYPE_B_CONFIG     1U   // can be configured from file
-#define TSDB_CFG_CTYPE_B_SHOW       2U   // can displayed by "show configs" commands
-#define TSDB_CFG_CTYPE_B_LOG        4U   // is a log type configuration
-#define TSDB_CFG_CTYPE_B_CLIENT     8U   // can be displayed in the client log
-#define TSDB_CFG_CTYPE_B_OPTION     16U  // can be configured by taos_options function
-#define TSDB_CFG_CTYPE_B_NOT_PRINT  32U
+#define TSDB_CFG_CTYPE_B_CONFIG    1U   // can be configured from file
+#define TSDB_CFG_CTYPE_B_SHOW      2U   // can displayed by "show configs" commands
+#define TSDB_CFG_CTYPE_B_LOG       4U   // is a log type configuration
+#define TSDB_CFG_CTYPE_B_CLIENT    8U   // can be displayed in the client log
+#define TSDB_CFG_CTYPE_B_OPTION    16U  // can be configured by taos_options function
+#define TSDB_CFG_CTYPE_B_NOT_PRINT 32U  // such as password
+#define TSDB_CFG_CTYPE_B_LITE      64U  // is a lite type configuration
+#define TSDB_CFG_CTYPE_B_CLUSTER   128U // is a cluster type configuration
 
-#define TSDB_CFG_CSTATUS_NONE 0     // not configured
-#define TSDB_CFG_CSTATUS_DEFAULT 1  // use system default value
-#define TSDB_CFG_CSTATUS_FILE 2     // configured from file
-#define TSDB_CFG_CSTATUS_OPTION 3   // configured by taos_options function
-#define TSDB_CFG_CSTATUS_ARG 4      // configured by program argument
+#define TSDB_CFG_CSTATUS_NONE      0    // not configured
+#define TSDB_CFG_CSTATUS_DEFAULT   1    // use system default value
+#define TSDB_CFG_CSTATUS_FILE      2    // configured from file
+#define TSDB_CFG_CSTATUS_OPTION    3    // configured by taos_options function
+#define TSDB_CFG_CSTATUS_ARG       4    // configured by program argument
 
 enum {
   TSDB_CFG_VTYPE_SHORT,

@@ -87,11 +87,25 @@ void taos_init_imp() {
 
     tsReadGlobalConfig();
     tsPrintGlobalConfig();
-    
 
     tscTrace("starting to initialize TAOS client ...");
     tscTrace("Local IP address is:%s", tsLocalIp);
   }
+
+#ifdef CLUSTER
+  tscMgmtIpList.numOfIps = 2;
+  strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
+  tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
+
+  strcpy(tscMgmtIpList.ipstr[1], tsMasterIp);
+  tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
+
+  if (tsSecondIp[0]) {
+    tscMgmtIpList.numOfIps = 3;
+    strcpy(tscMgmtIpList.ipstr[2], tsSecondIp);
+    tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
+  }
+#endif
 
   tscInitMsgs();
   slaveIndex = rand();
@@ -106,6 +120,10 @@ void taos_init_imp() {
   if (tscNumOfThreads < 2) tscNumOfThreads = 2;
 
   tscQhandle = taosInitScheduler(queueSize, tscNumOfThreads, "tsc");
+  if (NULL == tscQhandle) {
+    tscError("failed to init scheduler");
+    return;
+  }
 
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp = tsLocalIp;
@@ -126,7 +144,14 @@ void taos_init_imp() {
     return;
   }
 
-  for (int i = 0; i < tscNumOfThreads; ++i) taosOpenRpcChann(pVnodeConn, i, rpcInit.sessionsPerChann);
+  for (int i = 0; i < tscNumOfThreads; ++i) {
+    int retVal = taosOpenRpcChann(pVnodeConn, i, rpcInit.sessionsPerChann);
+    if (0 != retVal) {
+      tError("TSC-vnode, failed to open rpc chann");
+      taosCloseRpc(pVnodeConn);
+      return;
+    }
+  }
 
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp = tsLocalIp;
@@ -148,10 +173,9 @@ void taos_init_imp() {
   }
 
   tscTmr = taosTmrInit(tsMaxMgmtConnections * 2, 200, 60000, "TSC");
-  if (tscEmbedded == 0) {
-    taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);
+  if(0 == tscEmbedded){
+    taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
-  
   int64_t refreshTime = tsMetricMetaKeepTimer < tsMeterMetaKeepTimer ? tsMetricMetaKeepTimer : tsMeterMetaKeepTimer;
   refreshTime = refreshTime > 2 ? 2 : refreshTime;
   refreshTime = refreshTime < 1 ? 1 : refreshTime;
@@ -188,6 +212,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
                 tsCfgStatusStr[cfg_configDir->cfgStatus], (char *)cfg_configDir->ptr);
       }
       break;
+
     case TSDB_OPTION_SHELL_ACTIVITY_TIMER:
       if (cfg_activetimer && cfg_activetimer->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
         tsShellActivityTimer = atoi((char *)arg);
@@ -200,6 +225,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
                 tsCfgStatusStr[cfg_activetimer->cfgStatus], (int32_t *)cfg_activetimer->ptr);
       }
       break;
+
     case TSDB_OPTION_LOCALE: {  // set locale
       pStr = (char *)arg;
 
@@ -223,8 +249,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
         if (locale != NULL) {
           tscPrint("locale set, prev locale:%s, new locale:%s", tsLocale, locale);
           cfg_locale->cfgStatus = TSDB_CFG_CSTATUS_OPTION;
-        } else {
-          /* set the user-specified localed failed, use default LC_CTYPE as current locale */
+        } else { // set the user-specified localed failed, use default LC_CTYPE as current locale
           locale = setlocale(LC_CTYPE, tsLocale);
           tscPrint("failed to set locale:%s, current locale:%s", pStr, tsLocale);
         }

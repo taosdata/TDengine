@@ -153,6 +153,13 @@ void *taosTmrInit(int maxNumOfTmrs, int resolution, int longest, char *label) {
   if (pCtrl->numOfPeriods < 10) pCtrl->numOfPeriods = 10;
 
   pCtrl->tmrList = (tmr_list_t *)malloc(sizeof(tmr_list_t) * pCtrl->numOfPeriods);
+  if (pCtrl->tmrList == NULL) {
+    tmrError("%s failed to allocate(size:%d) mem for tmrList", label, sizeof(tmr_list_t) * pCtrl->numOfPeriods);
+    tmrMemPoolCleanUp(pCtrl->poolHandle);
+    taosTmrCleanUp(pCtrl);
+    return NULL;
+  }
+  
   for (int i = 0; i < pCtrl->numOfPeriods; i++) {
     pCtrl->tmrList[i].head = NULL;
     pCtrl->tmrList[i].count = 0;
@@ -290,6 +297,44 @@ tmr_h taosTmrStart(void (*fp)(void *, void *), int mseconds, void *param1, void 
            pCtrl->numOfTmrs, cindex);
 
   return (tmr_h)pObj;
+}
+
+void taosTmrStop(tmr_h timerId) {
+  tmr_obj_t * pObj;
+  tmr_list_t *pList;
+  tmr_ctrl_t *pCtrl;
+
+  pObj = (tmr_obj_t *)timerId;
+  if (pObj == NULL) return;
+
+  pCtrl = pObj->pCtrl;
+  if (pCtrl == NULL) return;
+
+  if (pthread_mutex_lock(&pCtrl->mutex) != 0)
+    tmrError("%s mutex lock failed, reason:%s", pCtrl->label, strerror(errno));
+
+  if (pObj->timerId == timerId) {
+    pList = &(pCtrl->tmrList[pObj->index]);
+    if (pObj->prev) {
+      pObj->prev->next = pObj->next;
+    } else {
+      pList->head = pObj->next;
+    }
+
+    if (pObj->next) {
+      pObj->next->prev = pObj->prev;
+    }
+
+    pList->count--;
+    pObj->timerId = NULL;
+    pCtrl->numOfTmrs--;
+
+    tmrTrace("%s %p, timer stopped, fp:%p, tmr_h:%p, total:%d", pCtrl->label, pObj->param1, pObj->fp, pObj,
+             pCtrl->numOfTmrs);
+    tmrMemPoolFree(pCtrl->poolHandle, (char *)(pObj));
+  }
+
+  pthread_mutex_unlock(&pCtrl->mutex);
 }
 
 void taosTmrStopA(tmr_h *timerId) {
@@ -462,16 +507,16 @@ mpool_h tmrMemPoolInit(int numOfBlock, int blockSize) {
   pool_p->blockSize = blockSize;
   pool_p->numOfBlock = numOfBlock;
   pool_p->pool = (char *)malloc(blockSize * numOfBlock);
-  memset(pool_p->pool, 0, blockSize * numOfBlock);
   pool_p->freeList = (int *)malloc(sizeof(int) * numOfBlock);
 
   if (pool_p->pool == NULL || pool_p->freeList == NULL) {
     tmrError("failed to allocate memory\n");
-    free(pool_p->freeList);
-    free(pool_p->pool);
+    tfree(pool_p->freeList);
+    tfree(pool_p->pool);
     free(pool_p);
     return NULL;
   }
+  memset(pool_p->pool, 0, blockSize * numOfBlock);
 
   for (i = 0; i < pool_p->numOfBlock; ++i) pool_p->freeList[i] = i;
 

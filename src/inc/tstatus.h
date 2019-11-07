@@ -22,6 +22,8 @@ extern "C" {
 
 extern char *sdbDnodeStatusStr[];
 extern char *sdbDnodeBalanceStateStr[];
+extern char *sdbVnodeDropStateStr[];
+extern char *sdbVnodeSyncStatusStr[];
 
 #ifdef __cplusplus
 }

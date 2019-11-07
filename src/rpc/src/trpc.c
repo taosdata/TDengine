@@ -74,7 +74,7 @@ typedef struct {
   void *             chandle;  // handle passed by TCP/UDP connection layer
   void *             ahandle;  // handle returned by upper app layter
   int                retry;
-  int                tretry;   // total retry
+  int                tretry;  // total retry
   void *             pTimer;
   void *             pIdleTimer;
   char *             pRspMsg;
@@ -87,7 +87,7 @@ typedef struct {
 
 typedef struct {
   int             sessions;
-  void *          qhandle; // for scheduler
+  void *          qhandle;  // for scheduler
   SRpcConn *      connList;
   void *          idPool;
   void *          tmrCtrl;
@@ -102,11 +102,11 @@ typedef struct rpc_server {
   int   mask;
   int   numOfChanns;
   int   numOfThreads;
-  int   idMgmt;   // ID management method
+  int   idMgmt;  // ID management method
   int   type;
-  int   idleTime; // milliseconds;
-  int   noFree;   // do not free the request msg when rsp is received
-  int   index;    // for UDP server, next thread for new connection
+  int   idleTime;  // milliseconds;
+  int   noFree;    // do not free the request msg when rsp is received
+  int   index;     // for UDP server, next thread for new connection
   short localPort;
   char  label[12];
   void *(*fp)(char *, void *ahandle, void *thandle);
@@ -115,11 +115,8 @@ typedef struct rpc_server {
   SRpcChann *channList;
 } STaosRpc;
 
-// configurable
-uint32_t rpcDebugFlag = 131;
-int tsRpcTimer = 300;
-int tsRpcMaxTime = 600;  // seconds;
-int tsRpcProgressTime = 10;  // milliseocnds
+
+int      tsRpcProgressTime = 10;  // milliseocnds
 
 // not configurable
 int tsRpcMaxRetry;
@@ -135,19 +132,22 @@ int (*taosSendData[])(uint32_t ip, short port, char *data, int len, void *chandl
     taosSendUdpData, taosSendUdpData, taosSendTcpServerData, taosSendTcpClientData};
 
 void *(*taosOpenConn[])(void *shandle, void *thandle, char *ip, short port) = {
-    taosOpenUdpConnection, taosOpenUdpConnection, NULL, taosOpenTcpClientConnection,
+    taosOpenUdpConnection,
+    taosOpenUdpConnection,
+    NULL,
+    taosOpenTcpClientConnection,
 };
 
 void (*taosCloseConn[])(void *chandle) = {NULL, NULL, taosCloseTcpServerConnection, taosCloseTcpClientConnection};
 
-int taosReSendRspToPeer(SRpcConn *pConn);
+int   taosReSendRspToPeer(SRpcConn *pConn);
 void  taosProcessTaosTimer(void *, void *);
 void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, void *shandle, void *thandle,
                               void *chandle);
-int taosSendDataToPeer(SRpcConn *pConn, char *data, int dataLen);
-void taosProcessSchedMsg(SSchedMsg *pMsg);
-int taosAuthenticateMsg(uint8_t *pMsg, int msgLen, uint8_t *pAuth, uint8_t *pKey);
-int taosBuildAuthHeader(uint8_t *pMsg, int msgLen, uint8_t *pAuth, uint8_t *pKey);
+int   taosSendDataToPeer(SRpcConn *pConn, char *data, int dataLen);
+void  taosProcessSchedMsg(SSchedMsg *pMsg);
+int   taosAuthenticateMsg(uint8_t *pMsg, int msgLen, uint8_t *pAuth, uint8_t *pKey);
+int   taosBuildAuthHeader(uint8_t *pMsg, int msgLen, uint8_t *pAuth, uint8_t *pKey);
 
 char *taosBuildReqHeader(void *param, char type, char *msg) {
   STaosHeader *pHeader;
@@ -538,7 +538,7 @@ int taosGetRpcConn(int chann, int sid, char *meterId, STaosRpc *pServer, SRpcCon
       if (ret != 0) {
         tWarn("%s cid:%d sid:%d id:%s, meterId not there pConn:%p", pServer->label, chann, sid, pConn->meterId, pConn);
         taosFreeId(pChann->idPool, sid);   // sid shall be released
-        memset(pConn, 0, sizeof(SRpcConn));
+        memset(pConn, 0, sizeof(SRpcConn)); 
         return ret;
       }
     }
@@ -1096,7 +1096,7 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
     pHeader->msgLen = msgLen - (int)sizeof(STaosHeader) + (int)sizeof(SIntMsg);
     if (pHeader->spi) pHeader->msgLen -= sizeof(STaosDigest);
 
-    if ((pHeader->msgType & 1) == 0 && (pHeader->content[0] == TSDB_CODE_SESSION_ALREADY_EXIST)) {
+    if ((pHeader->msgType & 1) == 0 && (pHeader->content[0] == TSDB_CODE_INVALID_VALUE)) {
       schedMsg.msg = NULL;  // connection shall be closed
     } else {
       schedMsg.msg = (char *)(&(pHeader->destId));
@@ -1275,7 +1275,7 @@ void taosProcessTaosTimer(void *param, void *tmrId) {
     pConn->pTimer = NULL;
     pConn->retry++;
 
-    if (pConn->retry < 3) {
+    if (pConn->retry < 4) {
       tTrace("%s cid:%d sid:%d id:%s, re-send msg:%s to %s:%hu pConn:%p", pServer->label, pConn->chann, pConn->sid,
              pConn->meterId, taosMsg[pConn->outType], pConn->peerIpstr, pConn->peerPort, pConn);
       if (pConn->pMsgNode && pConn->pMsgNode->msgLen > 0) {
@@ -1308,7 +1308,7 @@ void taosProcessTaosTimer(void *param, void *tmrId) {
 
   if (pHeader) {
     (*taosSendData[pServer->type])(pConn->peerIp, pConn->peerPort, (char *)pHeader, msgLen, pConn->chandle);
-    taosTmrReset(taosProcessTaosTimer, tsRpcTimer, pConn, pChann->tmrCtrl, &pConn->pTimer);
+    taosTmrReset(taosProcessTaosTimer, tsRpcTimer<<pConn->retry, pConn, pChann->tmrCtrl, &pConn->pTimer);
   }
 
   pthread_mutex_unlock(&pChann->mutex);

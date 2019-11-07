@@ -39,22 +39,28 @@
 #define COLMODEL_GET_VAL(data, schema, allrow, rowId, colId) \
   (data + (schema)->colOffset[colId] * (allrow) + (rowId) * (schema)->pFields[colId].bytes)
 
-void getExtTmpfilePath(const char *fileNamePattern, int64_t serialNumber, int32_t seg, int32_t slot, char *dstPath) {
-  char tmpPath[512] = {0};
+int32_t tmpFileSerialNum = 0;
 
-  char *tmpDir = NULL;
+void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
+  const char* tdengineTmpFileNamePrefix = "tdengine-";
+
+  char tmpPath[MAX_TMPFILE_PATH_LENGTH] = {0};
 
 #ifdef WINDOWS
-  tmpDir = getenv("tmp");
+  char *tmpDir = getenv("tmp");
+  if (tmpDir == NULL) {
+    tmpDir = "";
+  }
 #else
-  tmpDir = "/tmp/";
+  char *tmpDir = "/tmp/";
 #endif
 
-  strcat(tmpPath, tmpDir);
-  strcat(tmpPath, fileNamePattern);
+  strcpy(tmpPath, tmpDir);
+  strcat(tmpPath, tdengineTmpFileNamePrefix);
+  strcat(tmpPath, fileNamePrefix);
+  strcat(tmpPath, "-%u-%u");
 
-  int32_t ret = sprintf(dstPath, tmpPath, taosGetTimestampUs(), serialNumber, seg, slot);
-  dstPath[ret] = 0;  // ensure null-terminated string
+  snprintf(dstPath, MAX_TMPFILE_PATH_LENGTH, tmpPath, taosGetPthreadId(), __sync_add_and_fetch_32(&tmpFileSerialNum, 1));
 }
 
 /*
@@ -471,95 +477,96 @@ void tBucketDoubleHash(tMemBucket *pBucket, void *value, int16_t *segIdx, int16_
   }
 }
 
-void tMemBucketCreate(tMemBucket **pBucket, int32_t totalSlots, int32_t nBufferSize, int16_t nElemSize,
-                      int16_t dataType, tOrderDescriptor *pDesc) {
-  *pBucket = (tMemBucket *)malloc(sizeof(tMemBucket));
+tMemBucket* tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nElemSize, int16_t dataType, tOrderDescriptor *pDesc) {
+  tMemBucket* pBucket = (tMemBucket *)malloc(sizeof(tMemBucket));
 
-  (*pBucket)->nTotalSlots = totalSlots;
-  (*pBucket)->nSlotsOfSeg = 1 << 6;  // 64 Segments, 16 slots each seg.
-  (*pBucket)->dataType = dataType;
-  (*pBucket)->nElemSize = nElemSize;
-  (*pBucket)->nPageSize = DEFAULT_PAGE_SIZE;
+  pBucket->nTotalSlots = totalSlots;
+  pBucket->nSlotsOfSeg = 1 << 6;  // 64 Segments, 16 slots each seg.
+  pBucket->dataType = dataType;
+  pBucket->nElemSize = nElemSize;
+  pBucket->nPageSize = DEFAULT_PAGE_SIZE;
 
-  (*pBucket)->numOfElems = 0;
-  (*pBucket)->numOfSegs = (*pBucket)->nTotalSlots / (*pBucket)->nSlotsOfSeg;
+  pBucket->numOfElems = 0;
+  pBucket->numOfSegs = pBucket->nTotalSlots / pBucket->nSlotsOfSeg;
 
-  (*pBucket)->nTotalBufferSize = nBufferSize;
+  pBucket->nTotalBufferSize = nBufferSize;
 
-  (*pBucket)->maxElemsCapacity = (*pBucket)->nTotalBufferSize / (*pBucket)->nElemSize;
+  pBucket->maxElemsCapacity = pBucket->nTotalBufferSize / pBucket->nElemSize;
 
-  (*pBucket)->numOfTotalPages = (*pBucket)->nTotalBufferSize / (*pBucket)->nPageSize;
-  (*pBucket)->numOfAvailPages = (*pBucket)->numOfTotalPages;
+  pBucket->numOfTotalPages = pBucket->nTotalBufferSize / pBucket->nPageSize;
+  pBucket->numOfAvailPages = pBucket->numOfTotalPages;
 
-  (*pBucket)->pOrderDesc = pDesc;
+  pBucket->pOrderDesc = pDesc;
 
-  switch ((*pBucket)->dataType) {
+  switch (pBucket->dataType) {
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_TINYINT: {
-      (*pBucket)->nRange.iMinVal = INT32_MAX;
-      (*pBucket)->nRange.iMaxVal = INT32_MIN;
-      (*pBucket)->HashFunc = tBucketIntHash;
+      pBucket->nRange.iMinVal = INT32_MAX;
+      pBucket->nRange.iMaxVal = INT32_MIN;
+      pBucket->HashFunc = tBucketIntHash;
       break;
     };
     case TSDB_DATA_TYPE_DOUBLE:
     case TSDB_DATA_TYPE_FLOAT: {
-      (*pBucket)->nRange.dMinVal = DBL_MAX;
-      (*pBucket)->nRange.dMaxVal = -DBL_MAX;
-      (*pBucket)->HashFunc = tBucketDoubleHash;
+      pBucket->nRange.dMinVal = DBL_MAX;
+      pBucket->nRange.dMaxVal = -DBL_MAX;
+      pBucket->HashFunc = tBucketDoubleHash;
       break;
     };
     case TSDB_DATA_TYPE_BIGINT: {
-      (*pBucket)->nRange.i64MinVal = INT64_MAX;
-      (*pBucket)->nRange.i64MaxVal = INT64_MIN;
-      (*pBucket)->HashFunc = tBucketBigIntHash;
+      pBucket->nRange.i64MinVal = INT64_MAX;
+      pBucket->nRange.i64MaxVal = INT64_MIN;
+      pBucket->HashFunc = tBucketBigIntHash;
       break;
     };
     default: {
-      pError("MemBucket:%p,not support data type %d,failed", *pBucket, (*pBucket)->dataType);
-      tfree(*pBucket);
-      return;
+      pError("MemBucket:%p,not support data type %d,failed", *pBucket, pBucket->dataType);
+      tfree(pBucket);
+      return NULL;
     }
   }
 
   if (pDesc->pSchema->numOfCols != 1 || pDesc->pSchema->colOffset[0] != 0) {
     pError("MemBucket:%p,only consecutive data is allowed,invalid numOfCols:%d or offset:%d",
            *pBucket, pDesc->pSchema->numOfCols, pDesc->pSchema->colOffset[0]);
-    tfree(*pBucket);
-    return;
+    tfree(pBucket);
+    return NULL;
   }
 
   if (pDesc->pSchema->pFields[0].type != dataType) {
     pError("MemBucket:%p,data type is not consistent,%d in schema, %d in param", *pBucket,
            pDesc->pSchema->pFields[0].type, dataType);
-    tfree(*pBucket);
-    return;
+    tfree(pBucket);
+    return NULL;
   }
 
-  if ((*pBucket)->numOfTotalPages < (*pBucket)->nTotalSlots) {
-    pWarn("MemBucket:%p,total buffer pages %d are not enough for all slots", *pBucket, (*pBucket)->numOfTotalPages);
+  if (pBucket->numOfTotalPages < pBucket->nTotalSlots) {
+    pWarn("MemBucket:%p,total buffer pages %d are not enough for all slots", *pBucket, pBucket->numOfTotalPages);
   }
 
-  (*pBucket)->pSegs = (tMemBucketSegment *)malloc((*pBucket)->numOfSegs * sizeof(tMemBucketSegment));
+  pBucket->pSegs = (tMemBucketSegment *)malloc(pBucket->numOfSegs * sizeof(tMemBucketSegment));
 
-  for (int32_t i = 0; i < (*pBucket)->numOfSegs; ++i) {
-    (*pBucket)->pSegs[i].numOfSlots = (*pBucket)->nSlotsOfSeg;
-    (*pBucket)->pSegs[i].pBuffer = NULL;
-    (*pBucket)->pSegs[i].pBoundingEntries = NULL;
+  for (int32_t i = 0; i < pBucket->numOfSegs; ++i) {
+    pBucket->pSegs[i].numOfSlots = pBucket->nSlotsOfSeg;
+    pBucket->pSegs[i].pBuffer = NULL;
+    pBucket->pSegs[i].pBoundingEntries = NULL;
   }
 
-  pTrace("MemBucket:%p,created,buffer size:%d,elem size:%d", *pBucket, (*pBucket)->numOfTotalPages * DEFAULT_PAGE_SIZE,
-         (*pBucket)->nElemSize);
+  pTrace("MemBucket:%p,created,buffer size:%d,elem size:%d", *pBucket, pBucket->numOfTotalPages * DEFAULT_PAGE_SIZE,
+         pBucket->nElemSize);
+
+  return pBucket;
 }
 
-void tMemBucketDestroy(tMemBucket **pBucket) {
-  if (*pBucket == NULL) {
+void tMemBucketDestroy(tMemBucket *pBucket) {
+  if (pBucket == NULL) {
     return;
   }
 
-  if ((*pBucket)->pSegs) {
-    for (int32_t i = 0; i < (*pBucket)->numOfSegs; ++i) {
-      tMemBucketSegment *pSeg = &((*pBucket)->pSegs[i]);
+  if (pBucket->pSegs) {
+    for (int32_t i = 0; i < pBucket->numOfSegs; ++i) {
+      tMemBucketSegment *pSeg = &(pBucket->pSegs[i]);
       tfree(pSeg->pBoundingEntries);
 
       if (pSeg->pBuffer == NULL || pSeg->numOfSlots == 0) {
@@ -575,8 +582,8 @@ void tMemBucketDestroy(tMemBucket **pBucket) {
     }
   }
 
-  tfree((*pBucket)->pSegs);
-  tfree(*pBucket);
+  tfree(pBucket->pSegs);
+  tfree(pBucket);
 }
 
 /*
@@ -761,9 +768,9 @@ void tMemBucketPut(tMemBucket *pBucket, void *data, int32_t numOfRows) {
     }
 
     if (pSeg->pBuffer[slotIdx] == NULL) {
-      int64_t pid = taosGetPthreadId();
-      char    name[512] = {0};
-      getExtTmpfilePath("/tb_ex_bk_%lld_%lld_%d_%d", pid, segIdx, slotIdx, name);
+      char    name[MAX_TMPFILE_PATH_LENGTH] = {0};
+      getTmpfilePath("tb_ex_bk_%lld_%lld_%d_%d", name);
+
       tExtMemBufferCreate(&pSeg->pBuffer[slotIdx], pBucket->numOfTotalPages * pBucket->nPageSize, pBucket->nElemSize,
                           name, pBucket->pOrderDesc->pSchema);
       pSeg->pBuffer[slotIdx]->flushModel = SINGLE_APPEND_MODEL;
@@ -833,6 +840,7 @@ static FORCE_INLINE int32_t primaryKeyComparator(int64_t f1, int64_t f2, int32_t
   }
 }
 
+// todo refactor
 static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
@@ -1378,31 +1386,26 @@ static void printBinaryData(char *data, int32_t len) {
 static void printBinaryDataEx(char *data, int32_t len, SSrcColumnInfo *param) {
   if (param->functionId == TSDB_FUNC_LAST_DST) {
     switch (param->type) {
-      case TSDB_DATA_TYPE_TINYINT:
-        printf("%lld,%d\t", *(int64_t *)data, *(int8_t *)(data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_TINYINT:printf("%lld,%d\t", *(int64_t *) data, *(int8_t *) (data + TSDB_KEYSIZE + 1));
         break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        printf("%lld,%d\t", *(int64_t *)data, *(int16_t *)(data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_SMALLINT:printf("%lld,%d\t", *(int64_t *) data, *(int16_t *) (data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_TIMESTAMP:
-      case TSDB_DATA_TYPE_BIGINT:
-        printf("%lld,%lld\t", *(int64_t *)data, *(int64_t *)(data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_BIGINT:printf("%lld,%lld\t", *(int64_t *) data, *(int64_t *) (data + TSDB_KEYSIZE + 1));
         break;
-      case TSDB_DATA_TYPE_FLOAT:
-        printf("%lld,%d\t", *(int64_t *)data, *(float *)(data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_FLOAT:printf("%lld,%d\t", *(int64_t *) data, *(float *) (data + TSDB_KEYSIZE + 1));
         break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        printf("%lld,%d\t", *(int64_t *)data, *(double *)(data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_DOUBLE:printf("%lld,%d\t", *(int64_t *) data, *(double *) (data + TSDB_KEYSIZE + 1));
         break;
-      case TSDB_DATA_TYPE_BINARY:
-        printf("%lld,%s\t", *(int64_t *)data, (data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_BINARY:printf("%lld,%s\t", *(int64_t *) data, (data + TSDB_KEYSIZE + 1));
         break;
 
       case TSDB_DATA_TYPE_INT:
-      default:
-        printf("%lld,%d\t", *(int64_t *)data, *(int32_t *)(data + TSDB_KEYSIZE + 1));
+      default:printf("%lld,%d\t", *(int64_t *) data, *(int32_t *) (data + TSDB_KEYSIZE + 1));
         break;
     }
+  } else if (param->functionId == TSDB_FUNC_AVG) {
+      printf("%f,%lld\t", *(double *) data, *(int64_t *) (data + sizeof(double) + 1));
   } else {
     // functionId == TSDB_FUNC_MAX_DST | TSDB_FUNC_TAG
     switch (param->type) {
@@ -1428,7 +1431,7 @@ static void printBinaryDataEx(char *data, int32_t len, SSrcColumnInfo *param) {
 
       case TSDB_DATA_TYPE_INT:
       default:
-        printf("%d\t", *(int32_t *)data);
+        printf("%d\t", *(double *)data);
         break;
     }
   }
@@ -1439,9 +1442,10 @@ void tColModelDisplay(tColModel *pModel, void *pData, int32_t numOfRows, int32_t
     for (int32_t j = 0; j < pModel->numOfCols; ++j) {
       char *val = COLMODEL_GET_VAL((char *)pData, pModel, totalCapacity, i, j);
 
-      printf("type:%d\t", pModel->pFields[j].type);
+      int type = pModel->pFields[j].type;
+      printf("type:%d ", type);
 
-      switch (pModel->pFields[j].type) {
+      switch (type) {
         case TSDB_DATA_TYPE_BIGINT:
           printf("%lld\t", *(int64_t *)val);
           break;
@@ -1542,10 +1546,10 @@ void tColModelCompact(tColModel *pModel, tFilePage *inputBuffer, int32_t maxElem
   }
 
   /* start from the second column */
-  for (int32_t m = 1; m < pModel->numOfCols; ++m) {
-    memmove(inputBuffer->data + pModel->colOffset[m] * inputBuffer->numOfElems,
-            inputBuffer->data + pModel->colOffset[m] * maxElemsCapacity,
-            pModel->pFields[m].bytes * inputBuffer->numOfElems);
+  for (int32_t i = 1; i < pModel->numOfCols; ++i) {
+    memmove(inputBuffer->data + pModel->colOffset[i] * inputBuffer->numOfElems,
+            inputBuffer->data + pModel->colOffset[i] * maxElemsCapacity,
+            pModel->pFields[i].bytes * inputBuffer->numOfElems);
   }
 }
 
@@ -1559,11 +1563,11 @@ void tColModelErase(tColModel *pModel, tFilePage *inputBuffer, int32_t maxCapaci
   int32_t secPart = inputBuffer->numOfElems - e - 1;
 
   /* start from the second column */
-  for (int32_t m = 0; m < pModel->numOfCols; ++m) {
-    char *startPos = inputBuffer->data + pModel->colOffset[m] * maxCapacity + s * pModel->pFields[m].bytes;
-    char *endPos = startPos + pModel->pFields[m].bytes * removed;
+  for (int32_t i = 0; i < pModel->numOfCols; ++i) {
+    char *startPos = inputBuffer->data + pModel->colOffset[i] * maxCapacity + s * pModel->pFields[i].bytes;
+    char *endPos = startPos + pModel->pFields[i].bytes * removed;
 
-    memmove(startPos, endPos, pModel->pFields[m].bytes * secPart);
+    memmove(startPos, endPos, pModel->pFields[i].bytes * secPart);
   }
 
   inputBuffer->numOfElems = remain;

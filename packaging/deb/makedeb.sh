@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Generate deb package for ubuntu
-#set -x
+# set -x
 
 #curr_dir=$(pwd)
 compile_dir=$1
@@ -24,7 +24,7 @@ fi
 mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
-versioninfo=$(${script_dir}/../tools/get_version.sh)
+versioninfo=$(${script_dir}/../tools/get_version.sh ${script_dir}/../../src/util/lite/src/version.c)
 libfile="libtaos.so.${versioninfo}"
 
 # create install dir 

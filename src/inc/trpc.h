@@ -21,6 +21,7 @@ extern "C" {
 
 #include "taosmsg.h"
 #include "tsched.h"
+#include "tglobalcfg.h"
 
 #define TAOS_CONN_UDPS     0
 #define TAOS_CONN_UDPC     1
@@ -41,7 +42,7 @@ extern "C" {
 #define TAOS_CONN_SOCKET_TYPE_C()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDP:TAOS_CONN_TCPC)
 
 #define taosSendMsgToPeer(x, y, z) taosSendMsgToPeerH(x, y, z, NULL)
-#define taosOpenRpcChann(x, y, z) taosOpenRpcChannWithQ(x, y, z, NULL)
+#define taosOpenRpcChann(x, y, z) taosOpenRpcChannWithQ(x,y,z,NULL)
 #define taosBuildReqMsg(x, y) taosBuildReqMsgWithSize(x, y, 512)
 #define taosBuildRspMsg(x, y) taosBuildRspMsgWithSize(x, y, 512)
 

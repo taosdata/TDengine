@@ -443,17 +443,27 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 printf("%*d|", l[i], *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-#ifdef LINUX
-                printf("%*ld|", l[i], *((int64_t *)row[i]));
-#else
                 printf("%*lld|", l[i], *((int64_t *)row[i]));
-#endif
                 break;
               case TSDB_DATA_TYPE_FLOAT:
+#ifdef _TD_ARM_32_
+                float fv = 0;
+                //memcpy(&fv, row[i], sizeof(float));
+                *(int32_t*)(&fv) = *(int32_t*)row[i];
+                printf("%*.5f|", l[i], fv);
+#else
                 printf("%*.5f|", l[i], *((float *)row[i]));
+#endif
                 break;
               case TSDB_DATA_TYPE_DOUBLE:
+#ifdef _TD_ARM_32_
+                double dv = 0;
+                //memcpy(&dv, row[i], sizeof(double));
+                *(int64_t*)(&dv) = *(int64_t*)row[i];
+                printf("%*.9f|", l[i], dv);
+#else
                 printf("%*.9f|", l[i], *((double *)row[i]));
+#endif
                 break;
               case TSDB_DATA_TYPE_BINARY:
               case TSDB_DATA_TYPE_NCHAR:
@@ -466,16 +476,12 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
                 if (args.is_raw_time) {
-#ifdef LINUX
-                  printf(" %ld|", *(int64_t *)row[i]);
-#else
                   printf(" %lld|", *(int64_t *)row[i]);
-#endif
                 } else {
                   if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
-                    tt = *(int64_t *)row[i] / 1000000;
+                    tt = (time_t)((*(int64_t *)row[i]) / 1000000);
                   } else {
-                    tt = *(int64_t *)row[i] / 1000;
+                    tt = (time_t)((*(int64_t *)row[i]) / 1000);
                   }
 
                   ptm = localtime(&tt);
@@ -520,18 +526,28 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 printf("%d\n", *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-#ifdef LINUX
-                printf("%ld\n", *((int64_t *)row[i]));
-#else
                 printf("%lld\n", *((int64_t *)row[i]));
-#endif
                 break;
               case TSDB_DATA_TYPE_FLOAT:
+#ifdef _TD_ARM_32_
+                float fv = 0;
+                //memcpy(&fv, row[i], sizeof(float));
+                *(int32_t*)(&fv) = *(int32_t*)row[i];
+                printf("%.5f\n", fv);
+#else
                 printf("%.5f\n", *((float *)row[i]));
+#endif
                 break;
               case TSDB_DATA_TYPE_DOUBLE:
+#ifdef _TD_ARM_32_
+                double dv = 0;
+		        //memcpy(&dv, row[i], sizeof(double));
+		        *(int64_t*)(&dv) = *(int64_t*)row[i];
+                printf("%.9f\n", dv);
+#else
                 printf("%.9f\n", *((double *)row[i]));
-                break;
+#endif
+              break;
               case TSDB_DATA_TYPE_BINARY:
               case TSDB_DATA_TYPE_NCHAR:
                 memset(t_str, 0, TSDB_MAX_BYTES_PER_ROW);
@@ -541,16 +557,12 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
                 if (args.is_raw_time) {
-#ifdef LINUX
-                  printf("%ld\n", *(int64_t *)row[i]);
-#else
                   printf("%lld\n", *(int64_t *)row[i]);
-#endif
                 } else {
                   if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
-                    tt = *(int64_t *)row[i] / 1000000;
+                    tt = (time_t)((*(int64_t *)row[i]) / 1000000);
                   } else {
-                    tt = *(int64_t *)row[i] / 1000;
+                    tt = (time_t)((*(int64_t *)row[i]) / 1000);
                   }
 
                   ptm = localtime(&tt);
@@ -573,6 +585,16 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
       } while ((row = taos_fetch_row(result)));
 
     } else {  // dump to file
+      // first write column
+      for (int col = 0; col < num_fields; col++) {
+        fprintf(fp, "%s", fields[col].name);
+        if (col < num_fields - 1) {
+          fprintf(fp, ",");
+        } else {
+          fprintf(fp, "\n");
+        }
+      }
+      
       do {
         for (int i = 0; i < num_fields; i++) {
           if (row[i]) {
@@ -590,17 +612,27 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 fprintf(fp, "%d", *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-#ifdef LINUX
-                fprintf(fp, "%ld", *((int64_t *)row[i]));
-#else
                 fprintf(fp, "%lld", *((int64_t *)row[i]));
-#endif
                 break;
               case TSDB_DATA_TYPE_FLOAT:
+#ifdef _TD_ARM_32_
+                float fv = 0;
+                //memcpy(&fv, row[i], sizeof(float));
+                *(int32_t*)(&fv) = *(int32_t*)row[i];
+                fprintf(fp, "%.5f", fv);
+#else
                 fprintf(fp, "%.5f", *((float *)row[i]));
+#endif
                 break;
               case TSDB_DATA_TYPE_DOUBLE:
+#ifdef _TD_ARM_32_
+                double dv = 0;
+		        //memcpy(&dv, row[i], sizeof(double));
+		        *(int64_t*)(&dv) = *(int64_t*)row[i];
+                fprintf(fp, "%.9f", dv);
+#else
                 fprintf(fp, "%.9f", *((double *)row[i]));
+#endif
                 break;
               case TSDB_DATA_TYPE_BINARY:
               case TSDB_DATA_TYPE_NCHAR:
@@ -609,11 +641,24 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 fprintf(fp, "\'%s\'", t_str);
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
-#ifdef LINUX
-                fprintf(fp, "%ld", *(int64_t *)row[i]);
-#else
-                fprintf(fp, "%lld", *(int64_t *)row[i]);
-#endif
+                if (args.is_raw_time) {
+                  fprintf(fp, "%lld", *(int64_t *)row[i]);
+                } else {
+                  if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
+                    tt = (time_t)((*(int64_t *)row[i]) / 1000000);
+                  } else {
+                    tt = (time_t)((*(int64_t *)row[i]) / 1000);
+                  }
+
+                  ptm = localtime(&tt);
+                  strftime(buf, 64, "%Y-%m-%d %H:%M:%S", ptm);
+
+                  if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
+                    fprintf(fp, "\'%s.%06d\'", buf, (int)(*(int64_t *)row[i] % 1000000));
+                  } else {
+                    fprintf(fp, "\'%s.%03d\'", buf, (int)(*(int64_t *)row[i] % 1000));
+                  }
+                }
                 break;
               default:
                 break;
@@ -703,7 +748,7 @@ void write_history() {
 }
 
 void taos_error(TAOS *con) {
-  fprintf(stderr, "\nTSDB error: %s\n\n", taos_errstr(con));
+  fprintf(stderr, "\nDB error: %s\n", taos_errstr(con));
 
   /* free local resouce: allocated memory/metric-meta refcnt */
   TAOS_RES *pRes = taos_use_result(con);
@@ -770,4 +815,53 @@ void source_file(TAOS *con, char *fptr) {
   if (line) free(line);
   wordfree(&full_path);
   fclose(f);
+}
+
+void shellGetGrantInfo(void *con) {
+#ifdef CLUSTER
+  char sql[] = "show grants";
+
+  if (taos_query(con, sql)) {
+    fprintf(stdout, "\n");
+    return;
+  }
+
+  int num_fields = taos_field_count(con);
+  if (num_fields == 0) {
+    fprintf(stderr, "\nInvalid grant information.\n");
+    exit(0);
+  } else {
+    result = taos_use_result(con);
+    if (result == NULL) {
+      fprintf(stderr, "\nGrant information is null.\n");
+      exit(0);
+    }
+
+    TAOS_FIELD *fields = taos_fetch_fields(result);
+    TAOS_ROW row = taos_fetch_row(result);
+    if (row == NULL) {
+      fprintf(stderr, "\nGrant information is empty.\n");
+      exit(0);
+    }
+
+    char version[32] = {0};
+    char expiretime[32] = {0};
+    char expired[32] = {0};
+
+    memcpy(version, row[0], fields[0].bytes);
+    memcpy(expiretime, row[1], fields[1].bytes);
+    memcpy(expired, row[2], fields[2].bytes);
+
+    if (strcmp(expiretime, "unlimited") == 0) {
+      fprintf(stdout, "This is the %s version and will never expire.\n", version);
+    } else {
+      fprintf(stdout, "This is the %s version and will expire at %s.\n", version, expiretime);
+    }
+
+    taos_free_result(result);
+    result = NULL;
+  }
+
+  fprintf(stdout, "\n");
+#endif
 }

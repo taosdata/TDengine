@@ -16,7 +16,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
-#include <pthread.h>
 #include <semaphore.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -26,16 +25,16 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "tlog.h"
-#include "tlog.h"
 #include "tsocket.h"
 #include "ttcpclient.h"
 #include "tutil.h"
 
 #ifndef EPOLLWAKEUP
-  #define EPOLLWAKEUP (1u << 29)
+#define EPOLLWAKEUP (1u << 29)
 #endif
 
 typedef struct _tcp_fd {
+  void               *signature;
   int                 fd;  // TCP socket FD
   void *              thandle;
   uint32_t            ip;
@@ -66,6 +65,7 @@ static void taosCleanUpTcpFdObj(STcpFd *pFdObj) {
   STcpClient *pTcp;
 
   if (pFdObj == NULL) return;
+  if (pFdObj->signature != pFdObj) return;
 
   pTcp = pFdObj->pTcp;
   if (pTcp == NULL) {
@@ -155,23 +155,40 @@ static void *taosReadTcpData(void *param) {
       }
 
       void *buffer = malloc(1024);
-      int   headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(STaosHeader));
+      if (NULL == buffer) {
+        tTrace("%s TCP malloc(size:1024) fail\n", pTcp->label);
+        taosCleanUpTcpFdObj(pFdObj);
+        continue;
+      }
+
+      int headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(STaosHeader));
       if (headLen != sizeof(STaosHeader)) {
         tError("%s read error, headLen:%d", pTcp->label, headLen);
+        tfree(buffer);
         taosCleanUpTcpFdObj(pFdObj);
         continue;
       }
 
       int dataLen = (int32_t)htonl((uint32_t)((STaosHeader *)buffer)->msgLen);
-      if (dataLen > 1024) buffer = realloc(buffer, (size_t)dataLen);
+      if (dataLen > 1024) {
+        void *b = realloc(buffer, (size_t)dataLen);
+        if (NULL == b) {
+          tTrace("%s TCP malloc(size:%d) fail\n", pTcp->label, dataLen);
+          tfree(buffer);
+          taosCleanUpTcpFdObj(pFdObj);
+          continue;
+        }
+        buffer = b;
+      }
 
       int leftLen = dataLen - headLen;
       int retLen = taosReadMsg(pFdObj->fd, buffer + headLen, leftLen);
 
-      //tTrace("%s TCP data is received, ip:%s port:%u len:%d", pTcp->label, pFdObj->ipstr, pFdObj->port, dataLen);
+      // tTrace("%s TCP data is received, ip:%s port:%u len:%d", pTcp->label, pFdObj->ipstr, pFdObj->port, dataLen);
 
       if (leftLen != retLen) {
         tError("%s read error, leftLen:%d retLen:%d", pTcp->label, leftLen, retLen);
+        tfree(buffer);
         taosCleanUpTcpFdObj(pFdObj);
         continue;
       }
@@ -268,6 +285,7 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, short 
   pFdObj->port = port;
   pFdObj->pTcp = pTcp;
   pFdObj->thandle = thandle;
+  pFdObj->signature = pFdObj;
 
   event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP;
   event.data.ptr = pFdObj;

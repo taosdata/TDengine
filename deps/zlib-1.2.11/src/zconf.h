@@ -238,16 +238,16 @@
 #endif
 
 #ifdef Z_SOLO
-   typedef unsigned long z_size_t;
+   typedef uint64_t z_size_t;
 #else
-#  define z_longlong long long
+#  define z_longlong int64_t
 #  if defined(NO_SIZE_T)
      typedef unsigned NO_SIZE_T z_size_t;
 #  elif defined(STDC)
 #    include <stddef.h>
      typedef size_t z_size_t;
 #  else
-     typedef unsigned long z_size_t;
+     typedef uint64_t z_size_t;
 #  endif
 #  undef z_longlong
 #endif
@@ -391,7 +391,7 @@
 typedef unsigned char  Byte;  /* 8 bits */
 #endif
 typedef unsigned int   uInt;  /* 16 bits or more */
-typedef unsigned long  uLong; /* 32 bits or more */
+typedef uint64_t  uLong; /* 32 bits or more */
 
 #ifdef SMALL_MEDIUM
    /* Borland C/C++ and some old MSC versions ignore FAR inside typedef */
@@ -419,7 +419,7 @@ typedef uLong FAR uLongf;
 #  if (UINT_MAX == 0xffffffffUL)
 #    define Z_U4 unsigned
 #  elif (ULONG_MAX == 0xffffffffUL)
-#    define Z_U4 unsigned long
+#    define Z_U4 uint64_t
 #  elif (USHRT_MAX == 0xffffffffUL)
 #    define Z_U4 unsigned short
 #  endif
@@ -428,7 +428,7 @@ typedef uLong FAR uLongf;
 #ifdef Z_U4
    typedef Z_U4 z_crc_t;
 #else
-   typedef unsigned long z_crc_t;
+   typedef uint64_t z_crc_t;
 #endif
 
 #if 1    /* was set to #if 1 by ./configure */
@@ -501,7 +501,7 @@ typedef uLong FAR uLongf;
 #endif
 
 #ifndef z_off_t
-#  define z_off_t long
+#  define z_off_t int64_t
 #endif
 
 #if !defined(_WIN32) && defined(Z_LARGE64)

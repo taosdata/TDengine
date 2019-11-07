@@ -39,8 +39,7 @@ typedef struct {
 
 int32_t taosHashInt(void *handle, uint64_t key) {
   IHashObj *pObj = (IHashObj *)handle;
-  int32_t   hash = 0;
-  hash = key % pObj->maxSessions;
+  int32_t   hash = key % pObj->maxSessions;
   return hash;
 }
 

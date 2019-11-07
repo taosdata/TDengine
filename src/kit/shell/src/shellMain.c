@@ -96,6 +96,9 @@ int main(int argc, char* argv[]) {
   sigaction(SIGTERM, &act, NULL);
   sigaction(SIGINT, &act, NULL);
 
+  /* Get grant information */
+  shellGetGrantInfo(con);
+
   /* Loop to query the input. */
   while (1) {
     pthread_create(&pid, NULL, shellLoopQuery, con);

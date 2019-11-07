@@ -35,6 +35,8 @@
 
 extern char   version[];
 const int16_t sdbFileVersion = 0;
+int           sdbExtConns = 0;
+int           sdbMaster = 1;
 
 void *(*sdbInitIndexFp[])(int maxRows, int dataSize) = {sdbOpenStrHash, sdbOpenIntHash, sdbOpenIntHash};
 
@@ -372,59 +374,64 @@ int64_t sdbInsertRow(void *handle, void *row, int rowSize) {
 
   pthread_mutex_lock(&pTable->mutex);
 
-  pTable->id++;
-  sdbVersion++;
-  if (pTable->keyType == SDB_KEYTYPE_AUTO) {
-    // TODO: here need to change
-    *((uint32_t *)pObj) = ++pTable->autoIndex;
-    (*(pTable->appTool))(SDB_TYPE_ENCODE, pObj, rowHead->data, pTable->maxRowSize, &(rowHead->rowSize));
+  if (sdbForwardDbReqToPeer(pTable, SDB_TYPE_INSERT, rowHead->data, rowHead->rowSize) == 0) {
+    pTable->id++;
+    sdbVersion++;
+    if (pTable->keyType == SDB_KEYTYPE_AUTO) {
+      // TODO: here need to change
+      *((uint32_t *)pObj) = ++pTable->autoIndex;
+      (*(pTable->appTool))(SDB_TYPE_ENCODE, pObj, rowHead->data, pTable->maxRowSize, &(rowHead->rowSize));
+    }
+
+    real_size = sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM);
+
+    rowHead->delimiter = SDB_DELIMITER;
+    rowHead->id = pTable->id;
+    if (taosCalcChecksumAppend(0, (uint8_t *)rowHead, real_size) < 0) {
+      sdbError("failed to get checksum while inserting, sdb: %s", pTable->name);
+      pthread_mutex_unlock(&pTable->mutex);
+      tfree(rowHead);
+      return -1;
+    }
+
+    // update in SDB layer
+    rowMeta.id = pTable->id;
+    rowMeta.offset = pTable->size;
+    rowMeta.rowSize = rowHead->rowSize;
+    rowMeta.row = pObj;
+    (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, pObj, &rowMeta);
+
+    /* Update the disk content */
+    /* write(pTable->fd, &action, sizeof(action)); */
+    /* pTable->size += sizeof(action); */
+    twrite(pTable->fd, rowHead, real_size);
+    pTable->size += real_size;
+    sdbFinishCommit(pTable);
+
+    sdbAddIntoUpdateList(pTable, SDB_TYPE_INSERT, rowMeta.row);
+
+    pTable->numOfRows++;
+    switch (pTable->keyType) {
+      case SDB_KEYTYPE_STRING:
+        sdbTrace(
+            "table:%s, a record is inserted:%s, sdbVersion:%ld id:%ld rowSize:%d numOfRows:%d fileSize:%ld",
+            pTable->name, (char *)row, sdbVersion, rowHead->id, rowHead->rowSize, pTable->numOfRows, pTable->size);
+        break;
+      case SDB_KEYTYPE_UINT32:
+      case SDB_KEYTYPE_AUTO:
+        sdbTrace(
+            "table:%s, a record is inserted:%d, sdbVersion:%ld id:%ld rowSize:%d numOfRows:%d fileSize:%ld",
+            pTable->name, *(int32_t *)row, sdbVersion, rowHead->id, rowHead->rowSize, pTable->numOfRows, pTable->size);
+        break;
+      default:
+        sdbTrace(
+            "table:%s, a record is inserted, sdbVersion:%ld id:%ld rowSize:%d numOfRows:%d fileSize:%ld",
+            pTable->name, sdbVersion, rowHead->id, rowHead->rowSize, pTable->numOfRows, pTable->size);
+        break;
+    }
+
+    id = rowMeta.id;
   }
-
-  real_size = sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM);
-
-  rowHead->delimiter = SDB_DELIMITER;
-  rowHead->id = pTable->id;
-  if (taosCalcChecksumAppend(0, (uint8_t *)rowHead, real_size) < 0) {
-    sdbError("failed to get checksum while inserting, sdb: %s", pTable->name);
-    pthread_mutex_unlock(&pTable->mutex);
-    tfree(rowHead);
-    return -1;
-  }
-
-  // update in SDB layer
-  rowMeta.id = pTable->id;
-  rowMeta.offset = pTable->size;
-  rowMeta.rowSize = rowHead->rowSize;
-  rowMeta.row = pObj;
-  (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, pObj, &rowMeta);
-
-  /* Update the disk content */
-  /* write(pTable->fd, &action, sizeof(action)); */
-  /* pTable->size += sizeof(action); */
-  twrite(pTable->fd, rowHead, real_size);
-  pTable->size += real_size;
-  sdbFinishCommit(pTable);
-
-  sdbAddIntoUpdateList(pTable, SDB_TYPE_INSERT, rowMeta.row);
-
-  pTable->numOfRows++;
-  switch (pTable->keyType) {
-    case SDB_KEYTYPE_STRING:
-      sdbTrace("table:%s, a record is inserted:%s, sdbVersion:%ld id:%ld rowSize:%d numOfRows:%d fileSize:%ld",
-               pTable->name, (char *)row, sdbVersion, rowHead->id, rowHead->rowSize, pTable->numOfRows, pTable->size);
-      break;
-    case SDB_KEYTYPE_UINT32:
-    case SDB_KEYTYPE_AUTO:
-      sdbTrace("table:%s, a record is inserted:%d, sdbVersion:%ld id:%ld rowSize:%d numOfRows:%d fileSize:%ld",
-               pTable->name, *(int32_t *)row, sdbVersion, rowHead->id, rowHead->rowSize, pTable->numOfRows, pTable->size);
-      break;
-    default:
-      sdbTrace("table:%s, a record is inserted, sdbVersion:%ld id:%ld rowSize:%d numOfRows:%d fileSize:%ld",
-               pTable->name, sdbVersion, rowHead->id, rowHead->rowSize, pTable->numOfRows, pTable->size);
-      break;
-  }
-
-  id = rowMeta.id;
 
   tfree(rowHead);
 
@@ -482,48 +489,52 @@ int sdbDeleteRow(void *handle, void *row) {
 
   pthread_mutex_lock(&pTable->mutex);
 
-  pTable->id++;
-  sdbVersion++;
+  if (sdbForwardDbReqToPeer(pTable, SDB_TYPE_DELETE, (char *)row, rowSize) == 0) {
+    pTable->id++;
+    sdbVersion++;
 
-  rowHead->delimiter = SDB_DELIMITER;
-  rowHead->rowSize = rowSize;
-  rowHead->id = -(pTable->id);
-  memcpy(rowHead->data, row, rowSize);
-  if (taosCalcChecksumAppend(0, (uint8_t *)rowHead, total_size) < 0) {
-    sdbError("failed to get checksum while inserting, sdb: %s", pTable->name);
-    pthread_mutex_unlock(&pTable->mutex);
-    tfree(rowHead);
-    return -1;
+    rowHead->delimiter = SDB_DELIMITER;
+    rowHead->rowSize = rowSize;
+    rowHead->id = -(pTable->id);
+    memcpy(rowHead->data, row, rowSize);
+    if (taosCalcChecksumAppend(0, (uint8_t *)rowHead, total_size) < 0) {
+      sdbError("failed to get checksum while inserting, sdb: %s", pTable->name);
+      pthread_mutex_unlock(&pTable->mutex);
+      tfree(rowHead);
+      return -1;
+    }
+    /* write(pTable->fd, &action, sizeof(action)); */
+    /* pTable->size += sizeof(action); */
+    twrite(pTable->fd, rowHead, total_size);
+    pTable->size += total_size;
+    sdbFinishCommit(pTable);
+
+    pTable->numOfRows--;
+    // TODO: Change the update list here
+    sdbAddIntoUpdateList(pTable, SDB_TYPE_DELETE, pMetaRow);
+    switch (pTable->keyType) {
+      case SDB_KEYTYPE_STRING:
+        sdbTrace(
+            "table:%s, a record is deleted:%s, sdbVersion:%ld id:%ld numOfRows:%d",
+            pTable->name, (char *)row, sdbVersion, pTable->id, pTable->numOfRows);
+        break;
+      case SDB_KEYTYPE_UINT32:
+      case SDB_KEYTYPE_AUTO:
+        sdbTrace(
+            "table:%s, a record is deleted:%d, sdbVersion:%ld id:%ld numOfRows:%d",
+            pTable->name, *(int32_t *)row, sdbVersion, pTable->id, pTable->numOfRows);
+        break;
+      default:
+        sdbTrace("table:%s, a record is deleted, sdbVersion:%ld id:%ld numOfRows:%d",
+                pTable->name, sdbVersion, pTable->id, pTable->numOfRows);
+        break;
+    }
+
+    // Delete from current layer
+    (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, row);
+
+    code = 0;
   }
-  /* write(pTable->fd, &action, sizeof(action)); */
-  /* pTable->size += sizeof(action); */
-  twrite(pTable->fd, rowHead, total_size);
-  pTable->size += total_size;
-  sdbFinishCommit(pTable);
-
-  pTable->numOfRows--;
-  // TODO: Change the update list here
-  sdbAddIntoUpdateList(pTable, SDB_TYPE_DELETE, pMetaRow);
-  switch (pTable->keyType) {
-    case SDB_KEYTYPE_STRING:
-      sdbTrace("table:%s, a record is deleted:%s, sdbVersion:%ld id:%ld numOfRows:%d",
-               pTable->name, (char *)row, sdbVersion, pTable->id, pTable->numOfRows);
-      break;
-    case SDB_KEYTYPE_UINT32:
-    case SDB_KEYTYPE_AUTO:
-      sdbTrace("table:%s, a record is deleted:%d, sdbVersion:%ld id:%ld numOfRows:%d",
-               pTable->name, *(int32_t *)row, sdbVersion, pTable->id, pTable->numOfRows);
-      break;
-    default:
-      sdbTrace("table:%s, a record is deleted, sdbVersion:%ld id:%ld numOfRows:%d", pTable->name, sdbVersion,
-               pTable->id, pTable->numOfRows);
-      break;
-  }
-
-  // Delete from current layer
-  (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, row);
-
-  code = 0;
 
   pthread_mutex_unlock(&pTable->mutex);
 
@@ -578,47 +589,51 @@ int sdbUpdateRow(void *handle, void *row, int updateSize, char isUpdated) {
 
   pthread_mutex_lock(&pTable->mutex);
 
-  pTable->id++;
-  sdbVersion++;
+  if (sdbForwardDbReqToPeer(pTable, SDB_TYPE_UPDATE, rowHead->data, rowHead->rowSize) == 0) {
+    pTable->id++;
+    sdbVersion++;
 
-  // write to the new position
-  rowHead->delimiter = SDB_DELIMITER;
-  rowHead->id = pTable->id;
-  if (taosCalcChecksumAppend(0, (uint8_t *)rowHead, real_size) < 0) {
-    sdbError("failed to get checksum, sdb: %s id: %d", pTable->name, rowHead->id);
-    pthread_mutex_unlock(&pTable->mutex);
-    tfree(rowHead);
-    return -1;
+    // write to the new position
+    rowHead->delimiter = SDB_DELIMITER;
+    rowHead->id = pTable->id;
+    if (taosCalcChecksumAppend(0, (uint8_t *)rowHead, real_size) < 0) {
+      sdbError("failed to get checksum, sdb: %s id: %d", pTable->name, rowHead->id);
+      pthread_mutex_unlock(&pTable->mutex);
+      tfree(rowHead);
+      return -1;
+    }
+    /* write(pTable->fd, &action, sizeof(action)); */
+    /* pTable->size += sizeof(action); */
+    twrite(pTable->fd, rowHead, real_size);
+
+    pMeta->id = pTable->id;
+    pMeta->offset = pTable->size;
+    pMeta->rowSize = rowHead->rowSize;
+    pTable->size += real_size;
+
+    sdbFinishCommit(pTable);
+
+    switch (pTable->keyType) {
+      case SDB_KEYTYPE_STRING:
+        sdbTrace(
+            "table:%s, a record is updated:%s, sdbVersion:%ld id:%ld numOfRows:%d",
+            pTable->name, (char *)row, sdbVersion, pTable->id, pTable->numOfRows);
+        break;
+      case SDB_KEYTYPE_UINT32:
+      case SDB_KEYTYPE_AUTO:
+        sdbTrace(
+            "table:%s, a record is updated:%d, sdbVersion:%ld id:%ld numOfRows:%d",
+            pTable->name, *(int32_t *)row, sdbVersion, pTable->id, pTable->numOfRows);
+        break;
+      default:
+        sdbTrace("table:%s, a record is updated, sdbVersion:%ld id:%ld numOfRows:%d", pTable->name, sdbVersion,
+                 pTable->id, pTable->numOfRows);
+        break;
+    }
+
+    sdbAddIntoUpdateList(pTable, SDB_TYPE_UPDATE, pMetaRow);
+    code = 0;
   }
-  /* write(pTable->fd, &action, sizeof(action)); */
-  /* pTable->size += sizeof(action); */
-  twrite(pTable->fd, rowHead, real_size);
-
-  pMeta->id = pTable->id;
-  pMeta->offset = pTable->size;
-  pMeta->rowSize = rowHead->rowSize;
-  pTable->size += real_size;
-
-  sdbFinishCommit(pTable);
-
-  switch (pTable->keyType) {
-    case SDB_KEYTYPE_STRING:
-      sdbTrace("table:%s, a record is updated:%s, sdbVersion:%ld id:%ld numOfRows:%d",
-               pTable->name, (char *)row, sdbVersion, pTable->id, pTable->numOfRows);
-      break;
-    case SDB_KEYTYPE_UINT32:
-    case SDB_KEYTYPE_AUTO:
-      sdbTrace("table:%s, a record is updated:%d, sdbVersion:%ld id:%ld numOfRows:%d",
-               pTable->name, *(int32_t *)row, sdbVersion, pTable->id, pTable->numOfRows);
-      break;
-    default:
-      sdbTrace("table:%s, a record is updated, sdbVersion:%ld id:%ld numOfRows:%d", pTable->name, sdbVersion,
-               pTable->id, pTable->numOfRows);
-      break;
-  }
-
-  sdbAddIntoUpdateList(pTable, SDB_TYPE_UPDATE, pMetaRow);
-  code = 0;
 
   pthread_mutex_unlock(&pTable->mutex);
 
@@ -652,43 +667,47 @@ int sdbBatchUpdateRow(void *handle, void *row, int rowSize) {
   }
 
   pthread_mutex_lock(&pTable->mutex);
+  if (sdbForwardDbReqToPeer(pTable, SDB_TYPE_BATCH_UPDATE, row, rowSize) == 0) {
+    /* // write action */
+    /* write(pTable->fd, &action, sizeof(action)); */
+    /* pTable->size += sizeof(action); */
 
-  (*(pTable->appTool))(SDB_TYPE_BEFORE_BATCH_UPDATE, pMetaRow, NULL, 0, NULL);
+    (*(pTable->appTool))(SDB_TYPE_BEFORE_BATCH_UPDATE, pMetaRow, NULL, 0, NULL);
 
-  void *next_row = pMetaRow;
-  while (next_row != NULL) {
-    pTable->id++;
-    sdbVersion++;
+    void *next_row = pMetaRow;
+    while (next_row != NULL) {
+      pTable->id++;
+      sdbVersion++;
 
-    void *last_row = next_row;
-    next_row = (*(pTable->appTool))(SDB_TYPE_BATCH_UPDATE, last_row, (char *)row, rowSize, 0);
-    memset(rowHead, 0, sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM));
+      void *last_row = next_row;
+      next_row = (*(pTable->appTool))(SDB_TYPE_BATCH_UPDATE, last_row, (char *)row, rowSize, 0);
+      memset(rowHead, 0, sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM));
 
-    // update in current layer
-    pMeta->id = pTable->id;
-    pMeta->offset = pTable->size;
+      // update in current layer
+      pMeta->id = pTable->id;
+      pMeta->offset = pTable->size;
 
-    // write to disk
-    rowHead->delimiter = SDB_DELIMITER;
-    rowHead->id = pMeta->id;
-    (*(pTable->appTool))(SDB_TYPE_ENCODE, last_row, rowHead->data, pTable->maxRowSize, &(rowHead->rowSize));
-    taosCalcChecksumAppend(0, (uint8_t *)rowHead, sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM));
-    pMeta->rowSize = rowHead->rowSize;
-    lseek(pTable->fd, pTable->size, SEEK_SET);
-    twrite(pTable->fd, rowHead, sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM));
-    pTable->size += (sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM));
+      // write to disk
+      rowHead->delimiter = SDB_DELIMITER;
+      rowHead->id = pMeta->id;
+      (*(pTable->appTool))(SDB_TYPE_ENCODE, last_row, rowHead->data, pTable->maxRowSize, &(rowHead->rowSize));
+      taosCalcChecksumAppend(0, (uint8_t *)rowHead, sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM));
+      pMeta->rowSize = rowHead->rowSize;
+      lseek(pTable->fd, pTable->size, SEEK_SET);
+      twrite(pTable->fd, rowHead, sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM));
+      pTable->size += (sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM));
 
-    sdbAddIntoUpdateList(pTable, SDB_TYPE_UPDATE, last_row);
+      sdbAddIntoUpdateList(pTable, SDB_TYPE_UPDATE, last_row);
 
-    if (next_row != NULL) {
-      pMeta = sdbGetRowMeta(handle, next_row);
+      if (next_row != NULL) {
+        pMeta = sdbGetRowMeta(handle, next_row);
+      }
     }
+
+    sdbFinishCommit(pTable);
+
+    (*(pTable->appTool))(SDB_TYPE_AFTER_BATCH_UPDATE, pMetaRow, NULL, 0, NULL);
   }
-
-  sdbFinishCommit(pTable);
-
-  (*(pTable->appTool))(SDB_TYPE_AFTER_BATCH_UPDATE, pMetaRow, NULL, 0, NULL);
-
   pthread_mutex_unlock(&pTable->mutex);
 
   tfree(rowHead);

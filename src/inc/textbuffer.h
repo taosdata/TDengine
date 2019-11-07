@@ -123,7 +123,7 @@ typedef struct tExtMemBuffer {
   EXT_BUFFER_FLUSH_MODEL flushModel;
 } tExtMemBuffer;
 
-void getExtTmpfilePath(const char *fileNamePattern, int64_t serialNumber, int32_t seg, int32_t slot, char *dstPath);
+void getTmpfilePath(const char *fileNamePattern, char *dstPath);
 
 /*
  * create ext-memory buffer
@@ -253,10 +253,10 @@ int32_t compare_a(tOrderDescriptor *, int32_t numOfRow1, int32_t s1, char *data1
 int32_t compare_d(tOrderDescriptor *, int32_t numOfRow1, int32_t s1, char *data1, int32_t numOfRow2, int32_t s2,
                   char *data2);
 
-void tMemBucketCreate(tMemBucket **pBucket, int32_t totalSlots, int32_t nBufferSize, int16_t nElemSize,
+tMemBucket* tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nElemSize,
                       int16_t dataType, tOrderDescriptor *pDesc);
 
-void tMemBucketDestroy(tMemBucket **pBucket);
+void tMemBucketDestroy(tMemBucket *pBucket);
 
 void tMemBucketPut(tMemBucket *pBucket, void *data, int32_t numOfRows);
 

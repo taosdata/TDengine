@@ -23,5 +23,14 @@ tests/script/
 tests/pytest/
 tests/jenkins/
 tests/hdfs/
-
 *.iml
+*.class
+nmake/
+sln/
+hdfs/
+c/
+taoshebei/
+taosdalipu/
+Target/
+*.failed
+*.sql

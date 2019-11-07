@@ -25,6 +25,10 @@
 #include <direct.h>
 #include "winsock2.h"
 #include <WS2tcpip.h>
+#include <assert.h>
+#include <math.h>
+#include <string.h>
+#include <assert.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -172,6 +176,10 @@ bool taosSkipSocketCheck();
 int fsendfile(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count);
 
 #define ssize_t int
+
+#define strdup _strdup
+
+char *strndup(const char *s, size_t n);
 
 #ifdef __cplusplus
 }

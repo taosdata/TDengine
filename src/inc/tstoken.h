@@ -29,8 +29,9 @@ typedef struct SSQLToken {
   char *   z;
 } SSQLToken;
 
+#if 0
 char *tscGetToken(char *string, char **token, int *tokenLen);
-char *tscGetTokenDelimiter(char *string, char **token, int *tokenLen, const char *delimiters);
+#endif
 
 /**
  * tokenizer for sql string
@@ -40,14 +41,39 @@ char *tscGetTokenDelimiter(char *string, char **token, int *tokenLen, const char
  */
 uint32_t tSQLGetToken(char *z, uint32_t *tokenType);
 
-void tStrGetToken(char *str, int32_t *i, SSQLToken *t0, bool isPrevOptr);
+/**
+ * enhanced tokenizer for sql string.
+ *
+ * @param str
+ * @param i
+ * @param isPrevOptr
+ * @param numOfIgnoreToken
+ * @param ignoreTokenTypes
+ * @return
+ */
+SSQLToken tStrGetToken(char *str, int32_t *i, bool isPrevOptr, uint32_t numOfIgnoreToken, uint32_t *ignoreTokenTypes);
 
+/**
+ * check if it is a keyword or not
+ * @param z
+ * @param len
+ * @return
+ */
 bool isKeyWord(const char *z, int32_t len);
+
+/**
+ * check if it is a number or not
+ * @param pToken
+ * @return
+ */
 bool isNumber(const SSQLToken *pToken);
 
-void shiftStr(char *dst, char *src);
-
-uint64_t changeToTimestampWithDynPrec(SSQLToken *pToken);
+/**
+ * check if it is a token or not
+ * @param pToken
+ * @return       token type, if it is not a number, TK_ILLEGAL will return
+ */
+int32_t isValidNumber(const SSQLToken* pToken);
 
 #ifdef __cplusplus
 }

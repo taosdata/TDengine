@@ -31,6 +31,7 @@
 char configDir[TSDB_FILENAME_LEN] = "C:/TDengine/cfg";
 char tsDirectory[TSDB_FILENAME_LEN] = "C:/TDengine/data";
 char logDir[TSDB_FILENAME_LEN] = "C:/TDengine/log";
+char dataDir[TSDB_FILENAME_LEN] = "C:/TDengine/data";
 char scriptDir[TSDB_FILENAME_LEN] = "C:/TDengine/script";
 
 bool taosCheckPthreadValid(pthread_t thread) {
@@ -279,3 +280,14 @@ int32_t BUILDIN_CTZ(uint32_t val) {
   return (int)(r >> 3);
 }
 
+char *strndup(const char *s, size_t n) {
+  int len = strlen(s);
+  if (len >= n) {
+    len = n;
+  }
+
+  char *r = calloc(len + 1, 1);
+  memcpy(r, s, len);
+  r[len] = 0;
+  return r;
+}
