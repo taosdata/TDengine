@@ -100,8 +100,8 @@ extern "C" {
 #define __sync_add_and_fetch_64 __sync_add_and_fetch
 #define __sync_add_and_fetch_32 __sync_add_and_fetch
 #define __sync_add_and_fetch_16 __sync_add_and_fetch
-#define __sync_add_and_fetch_ptr __sync_add_and_fetch
 #define __sync_add_and_fetch_8 __sync_add_and_fetch
+#define __sync_add_and_fetch_ptr __sync_add_and_fetch
 
 #define __sync_sub_and_fetch_64 __sync_sub_and_fetch
 #define __sync_sub_and_fetch_32 __sync_sub_and_fetch

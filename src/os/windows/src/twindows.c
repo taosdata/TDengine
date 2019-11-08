@@ -43,8 +43,11 @@ void taosResetPthread(pthread_t *thread) {
 }
 
 int64_t taosGetPthreadId() {
-  pthread_t id = pthread_self();
-  return (int64_t)id.p;
+#ifdef PTW32_VERSION
+  return pthread_getw32threadid_np(pthread_self());
+#else
+  return (int64_t)pthread_self();
+#endif
 }
 
 int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen) {
@@ -70,6 +73,14 @@ char interlocked_add_8(char volatile* ptr, char val) {
 
 short interlocked_add_16(short volatile* ptr, short val) {
   return _InterlockedExchangeAdd16(ptr, val) + val;
+}
+
+long interlocked_add_32(long volatile* ptr, long val) {
+  return _InterlockedExchangeAdd(ptr, val) + val;
+}
+
+__int64 interlocked_add_64(__int64 volatile* ptr, __int64 val) {
+  return _InterlockedExchangeAdd64(ptr, val) + val;
 }
 
 int32_t __sync_val_load_32(int32_t *ptr) {

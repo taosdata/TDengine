@@ -27,15 +27,6 @@
 #include "tutil.h"
 
 
-static uintptr_t pthreadGetId() {
-#ifdef PTW32_VERSION
-  return pthread_getw32threadid_np(pthread_self());
-#else
-  assert(sizeof(pthread_t) == sizeof(uintptr_t));
-  return (uintptr_t)pthread_self();
-#endif
-}
-
 #define TIMER_STATE_WAITING 0
 #define TIMER_STATE_EXPIRED 1
 #define TIMER_STATE_STOPPED 2
@@ -63,15 +54,15 @@ typedef struct tmr_obj_t {
   uint8_t           reserved1;
   uint16_t          reserved2;
   union {
-    int64_t   expireAt;
-    uintptr_t executedBy;
+    int64_t expireAt;
+    int64_t executedBy;
   };
   TAOS_TMR_CALLBACK fp;
   void*             param;
 } tmr_obj_t;
 
 typedef struct timer_list_t {
-  uintptr_t  lockedBy;
+  int64_t    lockedBy;
   tmr_obj_t* timers;
 } timer_list_t;
 
@@ -125,9 +116,9 @@ static void timerDecRef(tmr_obj_t* timer) {
 }
 
 static void lockTimerList(timer_list_t* list) {
-  uintptr_t tid = pthreadGetId();
+  int64_t tid = taosGetPthreadId();
   int       i = 0;
-  while (__sync_val_compare_and_swap_ptr(&(list->lockedBy), 0, tid) != 0) {
+  while (__sync_val_compare_and_swap_64(&(list->lockedBy), 0, tid) != 0) {
     if (++i % 1000 == 0) {
       sched_yield();
     }
@@ -135,8 +126,8 @@ static void lockTimerList(timer_list_t* list) {
 }
 
 static void unlockTimerList(timer_list_t* list) {
-  uintptr_t tid = pthreadGetId();
-  if (__sync_val_compare_and_swap_ptr(&(list->lockedBy), tid, 0) != tid) {
+  int64_t tid = taosGetPthreadId();
+  if (__sync_val_compare_and_swap_64(&(list->lockedBy), tid, 0) != tid) {
     assert(false);
     tmrError("trying to unlock a timer list not locked by current thread.");
   }
@@ -262,7 +253,7 @@ static bool removeFromWheel(tmr_obj_t* timer) {
 
 static void processExpiredTimer(void* handle, void* arg) {
   tmr_obj_t* timer = (tmr_obj_t*)handle;
-  timer->executedBy = pthreadGetId();
+  timer->executedBy = taosGetPthreadId();
   uint8_t state = __sync_val_compare_and_swap_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_EXPIRED);
   if (state == TIMER_STATE_WAITING) {
     const char* fmt = "timer[label=%s, id=%lld, fp=%p, param=%p] execution start.";
@@ -402,12 +393,12 @@ static bool doStopTimer(tmr_obj_t* timer, uint8_t state) {
     tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
   } else if (state != TIMER_STATE_EXPIRED) {
     // timer already stopped or cancelled, has nothing to do in this case
-  } else if (timer->executedBy == pthreadGetId()) {
+  } else if (timer->executedBy == taosGetPthreadId()) {
     // taosTmrReset is called in the timer callback, should do nothing in this
     // case to avoid dead lock. note taosTmrReset must be the last statement
     // of the callback funtion, will be a bug otherwise.
   } else {
-    assert(timer->executedBy != pthreadGetId());
+    assert(timer->executedBy != taosGetPthreadId());
 
     const char* fmt = "timer[label=%s, id=%lld, fp=%p, param=%p] fired, waiting...";
     tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);

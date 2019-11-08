@@ -127,16 +127,19 @@ extern "C" {
 #define __sync_val_compare_and_swap_64(ptr, oldval, newval) _InterlockedCompareExchange64((__int64 volatile*)(ptr), (__int64)(newval), (__int64)(oldval))
 #define __sync_val_compare_and_swap_ptr(ptr, oldval, newval) _InterlockedCompareExchangePointer((void* volatile*)(ptr), (void*)(newval), (void*)(oldval))
 
-char interlocked_add_8(char volatile* ptr, char val);
-short interlocked_add_16(short volatile* ptr, short val);
+char    interlocked_add_8(char volatile *ptr, char val);
+short   interlocked_add_16(short volatile *ptr, short val);
+long    interlocked_add_32(long volatile *ptr, long val);
+__int64 interlocked_add_64(__int64 volatile *ptr, __int64 val);
+
 #define __sync_add_and_fetch_8(ptr, val) interlocked_add_8((char volatile*)(ptr), (char)(val))
 #define __sync_add_and_fetch_16(ptr, val) interlocked_add_16((short volatile*)(ptr), (short)(val))
-#define __sync_add_and_fetch_32(ptr, val) _InterlockedAdd((long volatile*)(ptr), (long)(val))
-#define __sync_add_and_fetch_64(ptr, val) _InterlockedAdd64((__int64 volatile*)(ptr), (__int64)(val))
+#define __sync_add_and_fetch_32(ptr, val) interlocked_add_32((long volatile*)(ptr), (long)(val))
+#define __sync_add_and_fetch_64(ptr, val) interlocked_add_64((__int64 volatile*)(ptr), (__int64)(val))
 #ifdef _WIN64
-  #define __sync_add_and_fetch_ptr atomic_add_fetch_64
+  #define __sync_add_and_fetch_ptr __sync_add_and_fetch_64
 #else
-  #define __sync_add_and_fetch_ptr atomic_add_fetch_32
+  #define __sync_add_and_fetch_ptr __sync_add_and_fetch_32
 #endif
 
 #define __sync_sub_and_fetch_8(ptr, val) __sync_add_and_fetch_8((ptr), -(val))
