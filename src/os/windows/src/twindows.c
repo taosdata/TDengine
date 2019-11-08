@@ -43,8 +43,11 @@ void taosResetPthread(pthread_t *thread) {
 }
 
 int64_t taosGetPthreadId() {
-  pthread_t id = pthread_self();
-  return (int64_t)id.p;
+#ifdef PTW32_VERSION
+  return pthread_getw32threadid_np(pthread_self());
+#else
+  return (int64_t)pthread_self();
+#endif
 }
 
 int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen) {
@@ -63,28 +66,21 @@ int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optle
   return setsockopt(socketfd, level, optname, optval, optlen);
 }
 
-int32_t __sync_val_compare_and_swap_32(int32_t *ptr, int32_t oldval, int32_t newval) {
-  return InterlockedCompareExchange(ptr, newval, oldval);
+
+char interlocked_add_8(char volatile* ptr, char val) {
+  return _InterlockedExchangeAdd8(ptr, val) + val;
 }
 
-int32_t __sync_add_and_fetch_32(int32_t *ptr, int32_t val) {
-  return InterlockedAdd(ptr, val);
+short interlocked_add_16(short volatile* ptr, short val) {
+  return _InterlockedExchangeAdd16(ptr, val) + val;
 }
 
-int32_t __sync_sub_and_fetch_32(int32_t *ptr, int32_t val) {
-  return InterlockedAdd(ptr, -val);
+long interlocked_add_32(long volatile* ptr, long val) {
+  return _InterlockedExchangeAdd(ptr, val) + val;
 }
 
-int64_t __sync_val_compare_and_swap_64(int64_t *ptr, int64_t oldval, int64_t newval) {
-  return InterlockedCompareExchange64(ptr, newval, oldval);
-}
-
-int64_t __sync_add_and_fetch_64(int64_t *ptr, int64_t val) {
-  return InterlockedAdd64(ptr, val);
-}
-
-int64_t __sync_sub_and_fetch_64(int64_t *ptr, int64_t val) {
-  return InterlockedAdd64(ptr, -val);
+__int64 interlocked_add_64(__int64 volatile* ptr, __int64 val) {
+  return _InterlockedExchangeAdd64(ptr, val) + val;
 }
 
 int32_t __sync_val_load_32(int32_t *ptr) {
