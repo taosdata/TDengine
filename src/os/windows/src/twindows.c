@@ -63,28 +63,13 @@ int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optle
   return setsockopt(socketfd, level, optname, optval, optlen);
 }
 
-int32_t __sync_val_compare_and_swap_32(int32_t *ptr, int32_t oldval, int32_t newval) {
-  return InterlockedCompareExchange(ptr, newval, oldval);
+
+char interlocked_add_8(char volatile* ptr, char val) {
+  return _InterlockedExchangeAdd8(ptr, val) + val;
 }
 
-int32_t __sync_add_and_fetch_32(int32_t *ptr, int32_t val) {
-  return InterlockedAdd(ptr, val);
-}
-
-int32_t __sync_sub_and_fetch_32(int32_t *ptr, int32_t val) {
-  return InterlockedAdd(ptr, -val);
-}
-
-int64_t __sync_val_compare_and_swap_64(int64_t *ptr, int64_t oldval, int64_t newval) {
-  return InterlockedCompareExchange64(ptr, newval, oldval);
-}
-
-int64_t __sync_add_and_fetch_64(int64_t *ptr, int64_t val) {
-  return InterlockedAdd64(ptr, val);
-}
-
-int64_t __sync_sub_and_fetch_64(int64_t *ptr, int64_t val) {
-  return InterlockedAdd64(ptr, -val);
+short interlocked_add_16(short volatile* ptr, short val) {
+  return _InterlockedExchangeAdd16(ptr, val) + val;
 }
 
 int32_t __sync_val_load_32(int32_t *ptr) {

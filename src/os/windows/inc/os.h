@@ -29,6 +29,7 @@
 #include <math.h>
 #include <string.h>
 #include <assert.h>
+#include <intrin.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,12 +79,72 @@ extern "C" {
 #define taosWriteSocket(fd, buf, len) send(fd, buf, len, 0)
 #define taosReadSocket(fd, buf, len) recv(fd, buf, len, 0)
 
-int32_t __sync_val_compare_and_swap_32(int32_t *ptr, int32_t oldval, int32_t newval);
-int32_t __sync_add_and_fetch_32(int32_t *ptr, int32_t val);
-int32_t __sync_sub_and_fetch_32(int32_t *ptr, int32_t val);
-int64_t __sync_val_compare_and_swap_64(int64_t *ptr, int64_t oldval, int64_t newval);
-int64_t __sync_add_and_fetch_64(int64_t *ptr, int64_t val);
-int64_t __sync_sub_and_fetch_64(int64_t *ptr, int64_t val);
+#if defined(_M_ARM) || defined(_M_ARM64)
+
+#define atomic_load_8(ptr) __iso_volatile_load8((const volatile __int8*)(ptr))
+#define atomic_load_16(ptr) __iso_volatile_load16((const volatile __int16*)(ptr))
+#define atomic_load_32(ptr) __iso_volatile_load32((const volatile __int32*)(ptr))
+#define atomic_load_64(ptr) __iso_volatile_load64((const volatile __int64*)(ptr))
+
+#define atomic_store_8(ptr, val) __iso_volatile_store8((volatile __int8*)(ptr), (__int8)(val))
+#define atomic_store_16(ptr, val) __iso_volatile_store16((volatile __int16*)(ptr), (__int16)(val))
+#define atomic_store_32(ptr, val) __iso_volatile_store32((volatile __int32*)(ptr), (__int32)(val))
+#define atomic_store_64(ptr, val) __iso_volatile_store64((volatile __int64*)(ptr), (__int64)(val))
+
+#ifdef _M_ARM64
+#define atomic_load_ptr atomic_load_64
+#define atomic_store_ptr atomic_store_64
+#else
+#define atomic_load_ptr atomic_load_32
+#define atomic_store_ptr atomic_store_32
+#endif
+
+#else
+
+#define atomic_load_8(ptr) (*(char volatile*)(ptr))
+#define atomic_load_16(ptr) (*(short volatile*)(ptr))
+#define atomic_load_32(ptr) (*(long volatile*)(ptr))
+#define atomic_load_64(ptr) (*(__int64 volatile*)(ptr))
+#define atomic_load_ptr(ptr) (*(void* volatile*)(ptr))
+
+#define atomic_store_8(ptr, val) ((*(char volatile*)(ptr)) = (char)(val))
+#define atomic_store_16(ptr, val) ((*(short volatile*)(ptr)) = (short)(val))
+#define atomic_store_32(ptr, val) ((*(long volatile*)(ptr)) = (long)(val))
+#define atomic_store_64(ptr, val) ((*(__int64 volatile*)(ptr)) = (__int64)(val))
+#define atomic_store_ptr(ptr, val) ((*(void* volatile*)(ptr)) = (void*)(val))
+
+#endif
+
+#define atomic_exchange_8(ptr, val) _InterlockedExchange8((char volatile*)(ptr), (char)(val))
+#define atomic_exchange_16(ptr, val) _InterlockedExchange16((short volatile*)(ptr), (short)(val))
+#define atomic_exchange_32(ptr, val) _InterlockedExchange((long volatile*)(ptr), (long)(val))
+#define atomic_exchange_64(ptr, val) _InterlockedExchange64((__int64 volatile*)(ptr), (__int64)(val))
+#define atomic_exchange_ptr(ptr, val) _InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val))
+
+#define __sync_val_compare_and_swap_8(ptr, oldval, newval) _InterlockedCompareExchange8((char volatile*)(ptr), (char)(newval), (char)(oldval))
+#define __sync_val_compare_and_swap_16(ptr, oldval, newval) _InterlockedCompareExchange16((short volatile*)(ptr), (short)(newval), (short)(oldval))
+#define __sync_val_compare_and_swap_32(ptr, oldval, newval) _InterlockedCompareExchange((long volatile*)(ptr), (long)(newval), (long)(oldval))
+#define __sync_val_compare_and_swap_64(ptr, oldval, newval) _InterlockedCompareExchange64((__int64 volatile*)(ptr), (__int64)(newval), (__int64)(oldval))
+#define __sync_val_compare_and_swap_ptr(ptr, oldval, newval) _InterlockedCompareExchangePointer((void* volatile*)(ptr), (void*)(newval), (void*)(oldval))
+
+char interlocked_add_8(char volatile* ptr, char val);
+short interlocked_add_16(short volatile* ptr, short val);
+#define __sync_add_and_fetch_8(ptr, val) interlocked_add_8((char volatile*)(ptr), (char)(val))
+#define __sync_add_and_fetch_16(ptr, val) interlocked_add_16((short volatile*)(ptr), (short)(val))
+#define __sync_add_and_fetch_32(ptr, val) _InterlockedAdd((long volatile*)(ptr), (long)(val))
+#define __sync_add_and_fetch_64(ptr, val) _InterlockedAdd64((__int64 volatile*)(ptr), (__int64)(val))
+#ifdef _WIN64
+  #define __sync_add_and_fetch_ptr atomic_add_fetch_64
+#else
+  #define __sync_add_and_fetch_ptr atomic_add_fetch_32
+#endif
+
+#define __sync_sub_and_fetch_8(ptr, val) __sync_add_and_fetch_8((ptr), -(val))
+#define __sync_sub_and_fetch_16(ptr, val) __sync_add_and_fetch_16((ptr), -(val))
+#define __sync_sub_and_fetch_32(ptr, val) __sync_add_and_fetch_32((ptr), -(val))
+#define __sync_sub_and_fetch_64(ptr, val) __sync_add_and_fetch_64((ptr), -(val))
+#define __sync_sub_and_fetch_ptr(ptr, val) __sync_add_and_fetch_ptr((ptr), -(val))
+
 int32_t __sync_val_load_32(int32_t *ptr);
 void __sync_val_restore_32(int32_t *ptr, int32_t newval);
 

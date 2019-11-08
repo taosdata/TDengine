@@ -71,14 +71,43 @@ extern "C" {
 #define taosWriteSocket(fd, buf, len) write(fd, buf, len)
 #define taosReadSocket(fd, buf, len) read(fd, buf, len)
 
+#define atomic_load_8(ptr) __atomic_load_n((ptr), __ATOMIC_SEQ_CST)
+#define atomic_load_16(ptr) __atomic_load_n((ptr), __ATOMIC_SEQ_CST)
+#define atomic_load_32(ptr) __atomic_load_n((ptr), __ATOMIC_SEQ_CST)
+#define atomic_load_64(ptr) __atomic_load_n((ptr), __ATOMIC_SEQ_CST)
+#define atomic_load_ptr(ptr) __atomic_load_n((ptr), __ATOMIC_SEQ_CST)
+
+#define atomic_store_8(ptr, val) __atomic_store_n((ptr), (val), __ATOMIC_SEQ_CST)
+#define atomic_store_16(ptr, val) __atomic_store_n((ptr), (val), __ATOMIC_SEQ_CST)
+#define atomic_store_32(ptr, val) __atomic_store_n((ptr), (val), __ATOMIC_SEQ_CST)
+#define atomic_store_64(ptr, val) __atomic_store_n((ptr), (val), __ATOMIC_SEQ_CST)
+#define atomic_store_ptr(ptr, val) __atomic_store_n((ptr), (val), __ATOMIC_SEQ_CST)
+
+#define atomic_exchange_8(ptr, val) __atomic_exchange_n((ptr), (val), __ATOMIC_SEQ_CST)
+#define atomic_exchange_16(ptr, val) __atomic_exchange_n((ptr), (val), __ATOMIC_SEQ_CST)
+#define atomic_exchange_32(ptr, val) __atomic_exchange_n((ptr), (val), __ATOMIC_SEQ_CST)
+#define atomic_exchange_64(ptr, val) __atomic_exchange_n((ptr), (val), __ATOMIC_SEQ_CST)
+#define atomic_exchange_ptr(ptr, val) __atomic_exchange_n((ptr), (val), __ATOMIC_SEQ_CST)
+
+// TODO: update prefix of below macros to 'atomic' as '__' is reserved by compiler
+// and GCC suggest new code to use '__atomic' builtins to replace '__sync' builtins.
 #define __sync_val_compare_and_swap_64 __sync_val_compare_and_swap
 #define __sync_val_compare_and_swap_32 __sync_val_compare_and_swap
+#define __sync_val_compare_and_swap_16 __sync_val_compare_and_swap
+#define __sync_val_compare_and_swap_8 __sync_val_compare_and_swap
+#define __sync_val_compare_and_swap_ptr __sync_val_compare_and_swap
 
 #define __sync_add_and_fetch_64 __sync_add_and_fetch
 #define __sync_add_and_fetch_32 __sync_add_and_fetch
+#define __sync_add_and_fetch_16 __sync_add_and_fetch
+#define __sync_add_and_fetch_ptr __sync_add_and_fetch
+#define __sync_add_and_fetch_8 __sync_add_and_fetch
 
 #define __sync_sub_and_fetch_64 __sync_sub_and_fetch
 #define __sync_sub_and_fetch_32 __sync_sub_and_fetch
+#define __sync_sub_and_fetch_16 __sync_sub_and_fetch
+#define __sync_sub_and_fetch_8 __sync_sub_and_fetch
+#define __sync_sub_and_fetch_ptr __sync_sub_and_fetch
 
 int32_t __sync_val_load_32(int32_t *ptr);
 void __sync_val_restore_32(int32_t *ptr, int32_t newval);
