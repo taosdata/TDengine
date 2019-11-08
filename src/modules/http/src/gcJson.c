@@ -92,7 +92,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
     return false;
   }
 
-  bool us = taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO;
+  int precision = taos_result_precision(result);
 
   // such as select count(*) from sys.cpu
   // such as select count(*) from sys.cpu group by ipaddr
@@ -151,7 +151,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           snprintf(target, HTTP_GC_TARGET_SIZE, "%s%s", aliasBuffer, (char *)row[groupFields]);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          if (us) {
+          if (precision == TSDB_TIME_PRECISION_MILLI) {
             snprintf(target, HTTP_GC_TARGET_SIZE, "%s%ld", aliasBuffer, *((int64_t *) row[groupFields]));
           } else {
             snprintf(target, HTTP_GC_TARGET_SIZE, "%s%ld", aliasBuffer, *((int64_t *) row[groupFields]) / 1000);
@@ -210,7 +210,11 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           httpJsonStringForTransMean(jsonBuf, row[i], fields[i].bytes);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
+          if (precision == TSDB_TIME_PRECISION_MILLI) { //ms
+            httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
+          } else {
+            httpJsonInt64(jsonBuf, *((int64_t *)row[i]) / 1000);
+          }
           break;
         default:
           httpJsonString(jsonBuf, "invalidcol", 10);
