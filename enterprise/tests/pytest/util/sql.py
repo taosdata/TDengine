@@ -52,8 +52,6 @@ class TDSql:
 		self.cursor.execute(sql)
 		self.queryResult = self.cursor.fetchall()
 		self.queryRows = len(self.queryResult)
-		for i in range(self.queryRows):
-			print(self.queryResult[i])
 		self.queryCols = len(self.cursor.description)
 		#if self.queryRows == 1 and self.queryCols == 1:
 		#	tdLog.info("sql:%s, rows:%d cols:%d data:%s" % (self.sql, self.queryRows, self.queryCols, self.queryResult[0][0]))

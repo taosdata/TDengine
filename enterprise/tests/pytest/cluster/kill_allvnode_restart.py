@@ -68,8 +68,6 @@ class TDTestCase:
     self.startTime += self.rowsPerTable
     tdSql.query('select * from stb')
     tdSql.checkRows(self.ntables*self.rowsPerTable)
-    tdSql.query('select count(*) from stb')
-    tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
 
     tdLog.info("================= step2")
     tdLog.info("kill all dnodes where exist vgroupId %d" %(self.ntables/5))
@@ -90,8 +88,8 @@ class TDTestCase:
 
     tdLog.info("================= step5")
     tdDnodes.start(vgVnode2)
-    tdSql.query('select count(*) from stb')
-    tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
+    tdSql.query('select * from stb')
+    tdSql.checkRows(self.ntables*self.rowsPerTable)
 
   def stop(self):
     tdSql.close()

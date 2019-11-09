@@ -27,6 +27,7 @@ class TDTestCase:
     tdDnodes.deploy(1)
     tdDnodes.cfg(1, "numOfMPeers", "1")
     tdDnodes.cfg(1, "tables", "4")
+    tdDnodes.cfg(1, "monitor", "1")
     tdDnodes.start(1)
     
     self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
@@ -42,7 +43,6 @@ class TDTestCase:
     tdSql.execute('create database db')
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
-      print("tid: %d" %tid)
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
     tdLog.sleep(5)
     for tid in range(1,self.ntables+1):
@@ -64,26 +64,22 @@ class TDTestCase:
     tdDnodes.start(2)
     tdSql.query('show dnodes')
     tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
-    tdLog.info("%s:%s" %(tdSql.getData(1,0), tdSql.getData(1,5)))
     while(True):
       tdLog.sleep(20)
       tdSql.query('show dnodes')
-      stateRes1 = (tdSql.getData(0,5)=="balanced")
-      stateRes2 = (tdSql.getData(1,5)=="balanced")
-      if (stateRes1 and stateRes2): break
+      stateRes = tdSql.getData(0,5)
+      if (stateRes == "balanced"): break
 
     tdLog.info("================= step3")
     tdLog.info("alter database replica to 2")
     tdSql.execute('alter database db replica 2')
     tdSql.query('show dnodes')
     tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
-    tdLog.info("%s:%s" %(tdSql.getData(1,0), tdSql.getData(1,5)))
     while(True):
       tdLog.sleep(20)
       tdSql.query('show dnodes')
-      stateRes1 = (tdSql.getData(0,5)=="balanced")
-      stateRes2 = (tdSql.getData(1,5)=="balanced")
-      if (stateRes1 and stateRes2): break
+      stateRes = tdSql.getData(0,5)
+      if (stateRes == "balanced"): break
 
     tdLog.info("================= step4")
     tdLog.info("insert 10 records into %d tables" %self.ntables)
@@ -106,30 +102,22 @@ class TDTestCase:
     tdDnodes.start(3)
     tdSql.query('show dnodes')
     tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
-    tdLog.info("%s:%s" %(tdSql.getData(1,0), tdSql.getData(1,5)))
-    tdLog.info("%s:%s" %(tdSql.getData(2,0), tdSql.getData(2,5)))
     while(True):
       tdLog.sleep(20)
       tdSql.query('show dnodes')
-      stateRes1 = (tdSql.getData(0,5)=="balanced")
-      stateRes2 = (tdSql.getData(1,5)=="balanced")
-      stateRes3 = (tdSql.getData(2,5)=="balanced")
-      if (stateRes1 and stateRes2 and stateRes3): break
+      stateRes = tdSql.getData(0,5)
+      if (stateRes == "balanced"): break
 
     tdLog.info("================= step6")
     tdLog.info("alter database replica to 3")
     tdSql.execute('alter database db replica 3')
     tdSql.query('show dnodes')
     tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
-    tdLog.info("%s:%s" %(tdSql.getData(1,0), tdSql.getData(1,5)))
-    tdLog.info("%s:%s" %(tdSql.getData(2,0), tdSql.getData(2,5)))
     while(True):
       tdLog.sleep(20)
       tdSql.query('show dnodes')
-      stateRes1 = (tdSql.getData(0,5)=="balanced")
-      stateRes2 = (tdSql.getData(1,5)=="balanced")
-      stateRes3 = (tdSql.getData(2,5)=="balanced")
-      if (stateRes1 and stateRes2 and stateRes3): break
+      stateRes = tdSql.getData(0,5)
+      if (stateRes == "balanced"): break
 
     tdLog.info("================= step7")
     tdLog.info("insert 10 records into %d tables" %self.ntables)

@@ -152,13 +152,14 @@ class TDDnode:
 		
 	def start(self):
 		binPath = os.path.dirname(os.path.realpath(__file__))
-		binPath = binPath + "/../../../debug/"
+		binPath = binPath + "/../../../../debug/"
 		binPath = os.path.realpath(binPath)
 		binPath += "/build/bin/"
 		
 		if self.deployed == 0:
 			tdLog.exit("dnode:%d is not deployed" % (self.index))
 		cmd = "nohup %staosd -c %s > /dev/null 2>&1 & " % (binPath, self.cfgDir)
+		print(cmd)
 		if os.system(cmd) != 0 :
 			tdLog.exit(cmd)
 		self.running = 1
@@ -223,7 +224,7 @@ class TDDnodes:
 		os.system(cmd)	
 		
 		binPath = os.path.dirname(os.path.realpath(__file__))
-		binPath = binPath + "/../../../debug/"
+		binPath = binPath + "/../../../../debug/"
 		binPath = os.path.realpath(binPath)
 		
 		# cmd = "sudo cp %s/build/lib/libtaos.so /usr/local/lib/taos/" % (binPath)

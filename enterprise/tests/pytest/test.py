@@ -23,67 +23,67 @@ from util.dnodes import *
 from util.cases import *
 
 
-from alter.alter_table import *
-from alter.alter_stable import *
-from alter.file_corrupt import *
-
-from importtest.basic import *
-from importtest.commit import *
-from importtest.large import *
-from importtest.replica1 import *
-from importtest.replica2 import *
-from importtest.replica3 import *
-from importtest.import_and_query import *
-from importtest.import_and_query_replica3 import *
-
+##from alter.alter_table import *
+##from alter.alter_stable import *
+##from alter.file_corrupt import *
+##
+##from importtest.basic import *
+##from importtest.commit import *
+##from importtest.large import *
+##from importtest.replica1 import *
+##from importtest.replica2 import *
+##from importtest.replica3 import *
+##from importtest.import_and_query import *
+##from importtest.import_and_query_replica3 import *
+##
 from insert.basic import *
-from insert.query_block1_memory import *
-from insert.query_block2_memory import *
-from insert.query_block1_file import *
-from insert.query_block2_file import *
-from insert.query_file_memory import *
-from insert.query_multi_file import *
-from insert.longTimespanWrite import *
-
-from dbmgmt.dropDB_memory_test import *
-from dbmgmt.createTableAndKillDnodes import *
-from dbmgmt.createTableAndDropDnodes import *
-
-# These use cases have bugs.
-from affectrows.insertsql import * 
-from affectrows.insertsql_blocks import *
-from affectrows.importsql import * 
-from affectrows.importsql_blocks import *
-
-# It might take a long time to run.
-from http.retrieve import *
-
-from sdb.mnode2 import *
-from sdb.mnode3 import *
-from sdb.mnode2_delete import *
-
-from multithread.query_table import *
-
-from multithread.query_stable import *
-
-#from thread.insert_replica1 import *
-from multithread.insert_replica1 import *
-from multithread.insert_replica2 import *
-from multithread.insert_replica3 import *
-from multithread.import_replica1 import *
-from multithread.import_replica2 import *
-from multithread.import_replica3 import *
-from multithread.insertAndImport_dnode6_replica3 import *
-from multithread.insertAndImport_dnode1_replica1 import *
-
-from bug.ahx_query_from_stables import *
-from bug.async_query import *
-from bug.batch_import1 import *
-from bug.batch_import3 import *
-from bug.column64_replica1 import *
-from bug.column256_replica1 import *
-from bug.connect_repeat import *
-
+##from insert.query_block1_memory import *
+##from insert.query_block2_memory import *
+##from insert.query_block1_file import *
+##from insert.query_block2_file import *
+##from insert.query_file_memory import *
+##from insert.query_multi_file import *
+##from insert.longTimespanWrite import *
+##
+##from dbmgmt.dropDB_memory_test import *
+##from dbmgmt.createTableAndKillDnodes import *
+##from dbmgmt.createTableAndDropDnodes import *
+##
+### These use cases have bugs.
+##from affectrows.insertsql import * 
+##from affectrows.insertsql_blocks import *
+##from affectrows.importsql import * 
+##from affectrows.importsql_blocks import *
+##
+### It might take a long time to run.
+##from http.retrieve import *
+##
+##from sdb.mnode2 import *
+##from sdb.mnode3 import *
+##from sdb.mnode2_delete import *
+##
+##from multithread.query_table import *
+##
+##from multithread.query_stable import *
+##
+###from thread.insert_replica1 import *
+##from multithread.insert_replica1 import *
+##from multithread.insert_replica2 import *
+##from multithread.insert_replica3 import *
+##from multithread.import_replica1 import *
+##from multithread.import_replica2 import *
+##from multithread.import_replica3 import *
+##from multithread.insertAndImport_dnode6_replica3 import *
+##from multithread.insertAndImport_dnode1_replica1 import *
+##
+##from bug.ahx_query_from_stables import *
+##from bug.async_query import *
+##from bug.batch_import1 import *
+##from bug.batch_import3 import *
+##from bug.column64_replica1 import *
+##from bug.column256_replica1 import *
+##from bug.connect_repeat import *
+##
 from cluster.alter_replica import *
 from cluster.create_droptb import *
 from cluster.single_upgrade import *
@@ -113,15 +113,59 @@ from cluster.corruptfile_restore import *
 from cluster.corruptfile_restore2 import *
 from cluster.kill_restart import *
 from cluster.kill_restart2 import *
+from cluster.kill_allvnode_restart import *
+from cluster.query_speed import *
 from cluster_mgmt.multi_alter import *
 from cluster_mgmt.kill_alter_restart import *
 from cluster_mgmt.kill_most import *
 from cluster_mgmt.kill_most_restart import *
 from cluster_mgmt.kill_all_restart import *
 from cluster_mgmt.sync_altertb import *
+from cluster_mgmt.sync_createtb import *
+from cluster_mgmt.sync_droptb import *
 from cluster_mgmt.sync_resync_altertb import *
+from cluster_mgmt.sync_resync_createtb import *
+from cluster_mgmt.sync_resync_droptb import *
 from cluster_mgmt.kill_corruptmgmt_restart import *
-from cluster.kill_allvnode_restart import *
+
+from import_merge.importHead import *
+from import_merge.importTail import *
+from import_merge.importHeadOverlap import *
+from import_merge.importHeadPartOverlap import *
+from import_merge.importTailOverlap import *
+from import_merge.importTailPartOverlap import *
+from import_merge.importSpan import *
+from import_merge.importHRestart import *
+from import_merge.importTRestart import *
+from import_merge.importHORestart import *
+from import_merge.importHPORestart import *
+from import_merge.importTORestart import *
+from import_merge.importTPORestart import *
+from import_merge.importSRestart import *
+from import_merge.importBlock1H import *
+from import_merge.importBlock1T import *
+from import_merge.importBlock1HO import *
+from import_merge.importBlock1HPO import *
+from import_merge.importBlock1TO import *
+from import_merge.importBlock1TPO import *
+from import_merge.importBlock1S import *
+from import_merge.importBlock2H import *
+from import_merge.importBlock2T import *
+from import_merge.importBlock2HO import *
+from import_merge.importBlock2HPO import *
+from import_merge.importBlock2TO import *
+from import_merge.importBlock2TPO import *
+from import_merge.importBlock2S import *
+from import_merge.importBlockbetween import *
+from import_merge.importLastH import *
+from import_merge.importCacheFileH import *
+from import_merge.importCacheFileT import *
+from import_merge.importCacheFileHO import *
+from import_merge.importCacheFileHPO import *
+from import_merge.importCacheFileTO import *
+from import_merge.importCacheFileTPO import *
+from import_merge.importCacheFileS import *
+
 
 if __name__=="__main__":
 	fileName = "all"

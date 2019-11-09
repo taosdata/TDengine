@@ -47,7 +47,6 @@ class TDTestCase:
     tdDnodes.start(3)
     tdLog.sleep(5)
 
-
   def sync(self):
     tdDnodes.start(3)
 
@@ -64,11 +63,10 @@ class TDTestCase:
     cursor.execute('insert into tb1 values(%ld, %d, %f)' %(startTime, 3, 1.6))
 
   def run(self):
-
     self.ntables = 100
     self.startTime = 1520000010000L
     self.rowsPerTable = 100
-    self.replica = 3
+    self.replica = 2
     self.ctime = 30
 
     tdLog.info("================= step1")
@@ -113,8 +111,8 @@ class TDTestCase:
 
     tdLog.info("================= step3")
     tdSql.close()
-    conn = taos.connect(host='192.168.0.3', config=tdDnodes.getSimCfgPath())
-    tdSql.init(conn.cursor())
+    tdSql.init(self.conn.cursor())
+    tdSql.execute('use db')
     tdSql.query('select * from tb%d' %1)
     tdSql.checkRows(self.rowsPerTable + 3)
     

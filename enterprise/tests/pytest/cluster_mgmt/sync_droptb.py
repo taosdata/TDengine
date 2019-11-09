@@ -50,25 +50,18 @@ class TDTestCase:
 
   def sync(self):
     tdDnodes.start(3)
-    tdDnodes.forcestop(3)
-    tdLog.sleep(5)
-    tdDnodes.start(3)
-    
 
-  def alterTable(self):
-    tdLog.info("alter table columns") 
-    conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
+  def dropTables(self):
+    tdLog.info("drop %d tables" %5) 
+    conn = taos.connect(config=tdDnodes.getSimCfgPath())
     cursor = conn.cursor()
     cursor.execute('use db')
-    cursor.execute('alter table tb1 add column f float')
-    startTime = self.startTime
-    cursor.execute('insert into tb1 values(%ld, %d, %f)' %(startTime, 1, 1.2))
-    startTime += 1
-    cursor.execute('insert into tb1 values(%ld, %d, %f)' %(startTime, 2, 1.4))
-    startTime += 1
-    cursor.execute('insert into tb1 values(%ld, %d, %f)' %(startTime, 3, 1.6))
+    for tid in range(1, 6):
+      tdSql.execute('drop table tb%d' %tid)
+    tdLog.sleep(10)
 
   def run(self):
+
     self.ntables = 100
     self.startTime = 1520000010000L
     self.rowsPerTable = 100
@@ -103,12 +96,12 @@ class TDTestCase:
     tdLog.sleep(35)
 
     tdLog.info("================= step2")
-    tdLog.info("alter meter meta while syncing and resyncing")
+    tdLog.info("alter meter meta while syncing")
     threads = []
     thread = threading.Thread(target=self.sync, name="db is syncing") 
     thread.start()
     threads.append(thread)
-    thread = threading.Thread(target=self.alterTable, name="alter some tables in syncing") 
+    thread = threading.Thread(target=self.dropTables, name="drop some tables in syncing") 
     thread.start()
     threads.append(thread)  
     for t in range (2):
@@ -119,8 +112,8 @@ class TDTestCase:
     tdSql.close()
     tdSql.init(self.conn.cursor())
     tdSql.execute('use db')
-    tdSql.query('select * from tb%d' %1)
-    tdSql.checkRows(self.rowsPerTable + 3)
+    tdSql.query('show tables')
+    tdSql.checkRows(self.ntables - 5)
     
   def stop(self):
     tdSql.close()
