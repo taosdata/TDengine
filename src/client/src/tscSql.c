@@ -157,7 +157,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, int port) {
-  if (ip != NULL && (strcmp("127.0.0.1", ip) == 0 || strcasecmp("localhost", ip) == 0)) {
+  if (ip == NULL || (ip != NULL && (strcmp("127.0.0.1", ip) == 0 || strcasecmp("localhost", ip) == 0))) {
 #ifdef CLUSTER
     ip = tsPrivateIp;
 #else
