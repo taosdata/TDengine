@@ -138,34 +138,35 @@ TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port) {
   if (taos != NULL) {
     STscObj* pObj = (STscObj*) taos;
 
-    int clientVersionNumber[4] = {0};
-    if (!taosGetVersionNumber(version, clientVersionNumber)) {
-      tscError("taos:%p, invalid client version:%s", taos, version);
-      //pObj->pSql->res.code = TSDB_CODE_INVALID_CLIENT_VERSION;
-      globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
-      taos_close(taos);
-      return NULL;
-    }
-
-    char *server_version = taos_get_server_info(taos);
-    int serverVersionNumber[4] = {0};
-    if (!taosGetVersionNumber(server_version, serverVersionNumber)) {
-      tscError("taos:%p, invalid server version:%s", taos, server_version);
-      //pObj->pSql->res.code = TSDB_CODE_INVALID_CLIENT_VERSION;
-      globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
-      taos_close(taos);
-      return NULL;
-    }
-
     // version compare only requires the first 3 segments of the version string
     int32_t comparedSegments = 3;
+    char client_version[64] = {0};
+    char server_version[64] = {0};
+    int clientVersionNumber[4] = {0};
+    int serverVersionNumber[4] = {0};
+
+    strcpy(client_version, version);
+    strcpy(server_version, taos_get_server_info(taos));
+
+    if (!taosGetVersionNumber(client_version, clientVersionNumber)) {
+      tscError("taos:%p, invalid client version:%s", taos, client_version);
+      pObj->pSql->res.code = TSDB_CODE_INVALID_CLIENT_VERSION;
+      taos_close(taos);
+      return NULL;
+    }
+
+    if (!taosGetVersionNumber(server_version, serverVersionNumber)) {
+      tscError("taos:%p, invalid server version:%s", taos, server_version);
+      pObj->pSql->res.code = TSDB_CODE_INVALID_CLIENT_VERSION;
+      taos_close(taos);
+      return NULL;
+    }
 
     for(int32_t i = 0; i < comparedSegments; ++i) {
       if (clientVersionNumber[i] != serverVersionNumber[i]) {
         tscError("taos:%p, the %d-th number of server version:%s not matched with client version:%s, close connection",
                  taos, i, server_version, version);
-        //pObj->pSql->res.code = TSDB_CODE_INVALID_CLIENT_VERSION;
-        globalCode = TSDB_CODE_INVALID_CLIENT_VERSION;
+        pObj->pSql->res.code = TSDB_CODE_INVALID_CLIENT_VERSION;
         taos_close(taos);
         return NULL;
       }
