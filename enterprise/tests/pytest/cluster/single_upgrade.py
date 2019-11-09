@@ -42,7 +42,6 @@ class TDTestCase:
     tdSql.execute('create database db')
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
-      print("tid: %d" %tid)
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
     tdLog.sleep(5)
     for tid in range(1,self.ntables+1):
