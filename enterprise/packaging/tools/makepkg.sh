@@ -24,7 +24,7 @@ bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdum
 lib_files="${build_dir}/lib/libtaos.so.${version}"
 header_files="${community_dir}/inc/taos.h"
 cfg_dir="${top_dir}/packaging/cfg"
-install_files="${script_dir}/install.sh ${script_dir}/install_client.sh"
+install_files="${script_dir}/install.sh"
 nginx_dir="${code_dir}/modules/web"
 
 # Init file
