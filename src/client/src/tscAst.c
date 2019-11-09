@@ -13,12 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <float.h>
-#include <math.h>
-#include <stdbool.h>
-#include <stdlib.h>
-
 #include "os.h"
 #include "taosmsg.h"
 #include "tast.h"

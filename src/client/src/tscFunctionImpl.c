@@ -15,16 +15,6 @@
 
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 
-#include <assert.h>
-#include <ctype.h>
-#include <fcntl.h>
-#include <float.h>
-#include <math.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <wctype.h>
-
 #include "os.h"
 #include "taosmsg.h"
 #include "tast.h"
