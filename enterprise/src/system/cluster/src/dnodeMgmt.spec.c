@@ -47,7 +47,7 @@ char *taosBuildRspMsgToMnodeWithSize(SMgmtObj *pObj, char type, int size) {
 }
 
 char *taosBuildReqMsgToMnodeWithSize(SMgmtObj *pObj, char type, int size) {
-  return taosBuildReqMsgWithSize(pObj, type, size);
+  return taosBuildReqMsgWithSize(pObj->thandle, type, size);
 }
 
 char *taosBuildRspMsgToMnode(SMgmtObj *pObj, char type) {
