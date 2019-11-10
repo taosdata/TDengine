@@ -8,7 +8,7 @@ C/C++ APIs are similar to the MySQL APIs. Applications should include TDengine h
 ```C
 #include <taos.h>
 ```
-Make sure TDengine library _libtaos.so_ is installed and use _-ltaos_ option to link the library when compiling. The return values of all APIs are _-1_ or _NULL_ for failure.
+Make sure TDengine library _libtaos.so_ is installed and use _-ltaos_ option to link the library when compiling. In most cases, if the return value of an API is integer, it return _0_ for success and other values as an error code for failure; if the return value is pointer, then _NULL_ is used for failure.
 
 
 ### C/C++ sync API
@@ -77,6 +77,51 @@ Sync APIs are those APIs waiting for responses from the server after sending a r
 The 12 APIs are the most important APIs frequently used. Users can check _taos.h_ file for more API information.
 
 **Note**: The connection to a TDengine server is not multi-thread safe. So a connection can only be used by one thread.
+
+### C/C++ parameter binding API
+
+TDengine also provides parameter binding APIs, like MySQL, only question mark `?` can be used to represent a parameter in these APIs.
+
+- `TAOS_STMT* taos_stmt_init(TAOS *taos)`
+
+  Create a TAOS_STMT to represent the prepared statement for other APIs.
+
+- `int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)`
+
+  Parse SQL statement _sql_ and bind result to _stmt_ , if _length_ larger than 0, its value is used to determine the length of _sql_, the API auto detects the actual length of _sql_ otherwise.
+
+- `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind)`
+
+  Bind values to parameters. _bind_ points to an array, the element count and sequence of the array must be identical as the parameters of the SQL statement. The usage of _TAOS_BIND_ is same as _MYSQL_BIND_ in MySQL, its definition is as below:
+
+  ```c
+  typedef struct TAOS_BIND {
+    int            buffer_type;
+    void *         buffer;
+    unsigned long  buffer_length;  // not used in TDengine
+    unsigned long *length;
+    int *          is_null;
+    int            is_unsigned;    // not used in TDengine
+    int *          error;          // not used in TDengine
+  } TAOS_BIND;
+  ```
+
+- `int taos_stmt_add_batch(TAOS_STMT *stmt)`
+
+  Add bound parameters to batch, client can call `taos_stmt_bind_param` again after calling this API. Note this API only support _insert_ / _import_ statements, it returns an error in other cases.
+
+- `int taos_stmt_execute(TAOS_STMT *stmt)`
+
+  Execute the prepared statement. This API can only be called once for a statement at present.
+
+- `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
+
+  Acquire the result set of an executed statement. The usage of the result is same as `taos_use_result`, `taos_free_result` must be called after one you are done with the result set to release resources.
+
+- `int taos_stmt_close(TAOS_STMT *stmt)`
+
+  Close the statement, release all resources.
+
 
 ### C/C++ async API
 
