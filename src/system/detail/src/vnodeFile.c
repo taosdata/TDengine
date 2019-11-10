@@ -103,8 +103,8 @@ void vnodeGetDnameFromLname(char *lhead, char *ldata, char *llast, char *dhead, 
 }
 
 void vnodeGetHeadTname(char *nHeadName, char *nLastName, int vnode, int fileId) {
-  sprintf(nHeadName, "%s/vnode%d/db/v%df%d.t", tsDirectory, vnode, vnode, fileId);
-  sprintf(nLastName, "%s/vnode%d/db/v%df%d.l", tsDirectory, vnode, vnode, fileId);
+  if (nHeadName != NULL) sprintf(nHeadName, "%s/vnode%d/db/v%df%d.t", tsDirectory, vnode, vnode, fileId);
+  if (nLastName != NULL) sprintf(nLastName, "%s/vnode%d/db/v%df%d.l", tsDirectory, vnode, vnode, fileId);
 }
 
 void vnodeCreateDataDirIfNeeded(int vnode, char *path) {

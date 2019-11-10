@@ -372,13 +372,60 @@ void vnodeCancelCommit(SVnodeObj *pVnode) {
   taosTmrReset(vnodeProcessCommitTimer, pVnode->cfg.commitTime * 1000, pVnode, vnodeTmrCtrl, &pVnode->commitTimer);
 }
 
+/* The vnode cache lock should be hold before calling this interface
+ */
+SCacheBlock *vnodeGetFreeCacheBlock(SVnodeObj *pVnode) {
+  SCachePool  *pPool = (SCachePool *)(pVnode->pCachePool);
+  SVnodeCfg   *pCfg = &(pVnode->cfg);
+  SCacheBlock *pCacheBlock = NULL;
+  int skipped = 0;
+
+  while (1) {
+    pCacheBlock = (SCacheBlock *)(pPool->pMem[((int64_t)pPool->freeSlot)]);
+    if (pCacheBlock->blockId == 0) break;
+
+    if (pCacheBlock->notFree) {
+      pPool->freeSlot++;
+      pPool->freeSlot = pPool->freeSlot % pCfg->cacheNumOfBlocks.totalBlocks;
+      skipped++;
+      if (skipped > pPool->threshold) {
+        vnodeCreateCommitThread(pVnode);
+        pthread_mutex_unlock(&pPool->vmutex);
+        dError("vid:%d committing process is too slow, notFreeSlots:%d....", pVnode->vnode, pPool->notFreeSlots);
+        return NULL;
+      }
+    } else {
+      SMeterObj * pRelObj = pCacheBlock->pMeterObj;
+      SCacheInfo *pRelInfo = (SCacheInfo *)pRelObj->pCache;
+      int firstSlot = (pRelInfo->currentSlot - pRelInfo->numOfBlocks + 1 + pRelInfo->maxBlocks) % pRelInfo->maxBlocks;
+      pCacheBlock = pRelInfo->cacheBlocks[firstSlot];
+      if (pCacheBlock) {
+        pPool->freeSlot = pCacheBlock->index;
+        vnodeFreeCacheBlock(pCacheBlock);
+        break;
+      } else {
+        pPool->freeSlot = (pPool->freeSlot + 1) % pCfg->cacheNumOfBlocks.totalBlocks;
+        skipped++;
+      }
+    }
+  }
+
+  pCacheBlock = (SCacheBlock *)(pPool->pMem[pPool->freeSlot]);
+  pCacheBlock->index = pPool->freeSlot;
+  pCacheBlock->notFree = 1;
+  pPool->freeSlot = (pPool->freeSlot + 1) % pCfg->cacheNumOfBlocks.totalBlocks;
+  pPool->notFreeSlots++;
+
+  return pCacheBlock;
+}
+
 int vnodeAllocateCacheBlock(SMeterObj *pObj) {
   int          index;
   SCachePool * pPool;
   SCacheBlock *pCacheBlock;
   SCacheInfo * pInfo;
   SVnodeObj *  pVnode;
-  int          skipped = 0, commit = 0;
+  int          commit = 0;
 
   pVnode = vnodeList + pObj->vnode;
   pPool = (SCachePool *)pVnode->pCachePool;
@@ -406,45 +453,10 @@ int vnodeAllocateCacheBlock(SMeterObj *pObj) {
     return -1;
   }
 
-  while (1) {
-    pCacheBlock = (SCacheBlock *)(pPool->pMem[((int64_t)pPool->freeSlot)]);
-    if (pCacheBlock->blockId == 0) break;
+  if ((pCacheBlock = vnodeGetFreeCacheBlock(pVnode)) == NULL) return -1;
 
-    if (pCacheBlock->notFree) {
-      pPool->freeSlot++;
-      pPool->freeSlot = pPool->freeSlot % pCfg->cacheNumOfBlocks.totalBlocks;
-      skipped++;
-      if (skipped > pPool->threshold) {
-        vnodeCreateCommitThread(pVnode);
-        pthread_mutex_unlock(&pPool->vmutex);
-        dError("vid:%d sid:%d id:%s, committing process is too slow, notFreeSlots:%d....",
-               pObj->vnode, pObj->sid, pObj->meterId, pPool->notFreeSlots);
-        return -1;
-      }
-    } else {
-      SMeterObj  *pRelObj = pCacheBlock->pMeterObj;
-      SCacheInfo *pRelInfo = (SCacheInfo *)pRelObj->pCache;
-      int firstSlot = (pRelInfo->currentSlot - pRelInfo->numOfBlocks + 1 + pRelInfo->maxBlocks) % pRelInfo->maxBlocks;
-      pCacheBlock = pRelInfo->cacheBlocks[firstSlot];
-      if (pCacheBlock) {
-        pPool->freeSlot = pCacheBlock->index;
-        vnodeFreeCacheBlock(pCacheBlock);
-        break;
-      } else {
-        pPool->freeSlot = (pPool->freeSlot + 1) % pCfg->cacheNumOfBlocks.totalBlocks;
-        skipped++;
-      }
-    }
-  }
-
-  index = pPool->freeSlot;
-  pPool->freeSlot++;
-  pPool->freeSlot = pPool->freeSlot % pCfg->cacheNumOfBlocks.totalBlocks;
-  pPool->notFreeSlots++;
-
+  index = pCacheBlock->index;
   pCacheBlock->pMeterObj = pObj;
-  pCacheBlock->notFree = 1;
-  pCacheBlock->index = index;
 
   pCacheBlock->offset[0] = ((char *)(pCacheBlock)) + sizeof(SCacheBlock) + pObj->numOfColumns * sizeof(char *);
   for (int col = 1; col < pObj->numOfColumns; ++col)
