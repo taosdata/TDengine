@@ -61,6 +61,7 @@ class TDTestCase:
     tdDnodes.deploy(2)
     tdDnodes.cfg(2, "numOfMPeers", "1")
     tdDnodes.cfg(2, "tables", "4")
+    tdDnodes.cfg(2, "monitor", "0")
     tdDnodes.start(2)
     tdSql.query('show dnodes')
     tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
@@ -93,48 +94,10 @@ class TDTestCase:
     tdSql.checkRows(20)
     tdLog.sleep(5)
 
-    tdLog.info("================= step5")
-    tdLog.info("dnode 3 join the cluster")
-    tdSql.execute('create dnode 192.168.0.3')
-    tdDnodes.deploy(3)
-    tdDnodes.cfg(3, "numOfMPeers", "1")
-    tdDnodes.cfg(3, "tables", "4")
-    tdDnodes.start(3)
-    tdSql.query('show dnodes')
-    tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
-    while(True):
-      tdLog.sleep(20)
-      tdSql.query('show dnodes')
-      stateRes = tdSql.getData(0,5)
-      if (stateRes == "balanced"): break
-
-    tdLog.info("================= step6")
-    tdLog.info("alter database replica to 3")
-    tdSql.execute('alter database db replica 3')
-    tdSql.query('show dnodes')
-    tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
-    while(True):
-      tdLog.sleep(20)
-      tdSql.query('show dnodes')
-      stateRes = tdSql.getData(0,5)
-      if (stateRes == "balanced"): break
-
-    tdLog.info("================= step7")
-    tdLog.info("insert 10 records into %d tables" %self.ntables)
-    for tid in range(1,self.ntables+1):
-      startTime = self.startTime
-      for rid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-        startTime += 1
-    self.startTime += 10
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(30)
-    tdLog.sleep(5)
-
     tdLog.info("================= step6")
     tdLog.info("check database replica")
     tdSql.query('show databases')
-    tdSql.checkData(0, 4, 3)
+    tdSql.checkData(0, 4, 2)
 
   def stop(self):
     tdSql.close()

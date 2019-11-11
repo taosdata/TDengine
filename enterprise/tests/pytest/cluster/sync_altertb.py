@@ -62,7 +62,9 @@ class TDTestCase:
     self.rowsPerTable = 100
     self.startTime = 1520000010000L
     self.replica = 2
-
+    
+    tdLog.info("================= step1")
+    tdLog.info("insert into each %d tables %d records" %(self.ntables, self.rowsPerTable))
     tdSql.execute('create database db replica %d' %self.replica)
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
@@ -87,11 +89,12 @@ class TDTestCase:
     self.startTime += self.rowsPerTable
     tdLog.sleep(3)
 
-    tdLog.info("================= step1")
+    tdLog.info("================= step2")
     tdSql.query('select * from tb%d' %1)
     tdSql.checkRows(self.rowsPerTable)
 
-    tdLog.info("================= step2")
+    tdLog.info("================= step3")
+    tdLog.info("alter a table in syncing")
     threads = []
     thread = threading.Thread(target=self.sync, name="db is syncing") 
     thread.start()
@@ -103,7 +106,7 @@ class TDTestCase:
       threads[t].join()
     tdLog.sleep(10)
 
-    tdLog.info("================= step3")
+    tdLog.info("================= step4")
     tdSql.query('select * from tb%d' %1)
     tdSql.checkRows(self.rowsPerTable + 3)
     
