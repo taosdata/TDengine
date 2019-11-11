@@ -56,6 +56,7 @@ class TDTestCase:
     tdDnodes.stop(1)
     tdLog.sleep(5)
     tdDnodes.start(1)
+    tdLog.sleep(5)
 
     tdLog.info("================= step5")
     tdLog.info("import 20 data later with partly overlap")

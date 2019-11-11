@@ -40,13 +40,19 @@ class TDTestCase:
     tdDnodes.start(3)
     
   def run(self):
-    tdSql.execute('create database db replica 3 days 7')
+    self.ntables = 10
+    self.rowsPerTable = 10
+    self.replica = 3
+    self.startTime = 1520000010000L
+
+    tdSql.execute('create database db replica 3')
     tdSql.execute('use db')
     for tid in range(1,11):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
     tdLog.sleep(10)
 
     tdLog.info("================= step1")
+    tdLog.info("inert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
     startTime = 1520000010000L
     for rid in range(1,11):
       for tid in range(1,11):

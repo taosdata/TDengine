@@ -29,7 +29,7 @@ class TDTestCase:
     self.rows = 200
 
     tdSql.execute('reset query cache')
-    tdSql.execute('drop database db')
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db rows %d' %self.rows)
     tdSql.execute('use db')
 
@@ -58,7 +58,7 @@ class TDTestCase:
     tdLog.info("================= step5")
     tdLog.info("import 1 data later")
     startTime = self.startTime + 5
-    tdSql.execute('import into tb%d values(%ld, %d)' %(startTime + 1, 1))
+    tdSql.execute('import into tb1 values(%ld, %d)' %(startTime + 1, 1))
 
     tdLog.info("================= step6")
     tdSql.query('select * from tb1')

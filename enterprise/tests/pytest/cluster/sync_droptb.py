@@ -42,7 +42,7 @@ class TDTestCase:
     tdDnodes.cfg(3,"numOfMPeers", "1")
     tdDnodes.cfg(3,"tables", "100")
     tdDnodes.start(3)
-    tdLog.sleep(5)
+    tdLog.sleep(10)
 
 
   def sync(self):
@@ -54,7 +54,6 @@ class TDTestCase:
     cursor.execute('use db')
     for tid in range(1, 11):
       tdSql.execute('drop table tb%d' %tid)
-    tdLog.sleep(3)
 
   def run(self):
     self.ntables = 1000
@@ -68,7 +67,7 @@ class TDTestCase:
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
-    tdLog.sleep(3)
+    tdLog.sleep(5)
     for tid in range(1,2):
       startTime = self.startTime
       sqlcmd = ["insert into tb%d values" % (tid)]
@@ -77,7 +76,7 @@ class TDTestCase:
         startTime += 1
       tdSql.execute(" ".join(sqlcmd))
     tdDnodes.forcestop(3)
-    tdLog.sleep(2)
+    tdLog.sleep(5)
     for tid in range(2,self.ntables+1):
       startTime = self.startTime
       sqlcmd = ["insert into tb%d values" % (tid)]
@@ -86,7 +85,7 @@ class TDTestCase:
         startTime += 1
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
-    tdLog.sleep(3)
+    tdLog.sleep(5)
 
     tdLog.info("================= step2")
     tdSql.query('select * from tb%d' %1)

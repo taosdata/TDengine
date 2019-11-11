@@ -38,20 +38,28 @@ class TDTestCase:
     tdDnodes.deploy(3)
     tdDnodes.cfg(3,"numOfMPeers", "1")
     tdDnodes.start(3)
+    tdLog.sleep(10)
     
   def run(self):
-    tdSql.execute('create database db replica 3 days 7')
+    self.ntables = 10
+    self.rowsPerTable = 10
+    self.replica = 3
+    self.startTime = 1520000010000L
+
+    tdSql.execute('create database db replica %d' %self.replica)
     tdSql.execute('use db')
-    for tid in range(1,11):
+    for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
     tdLog.sleep(10)
 
     tdLog.info("================= step1")
-    startTime = 1520000010000L
-    for rid in range(1,11):
-      for tid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-      startTime += 1
+    tdLog.info("inert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
+    for tid in range(1,self.ntables+1):
+      startTime = self.startTime
+      sqlcmd = ['insert into tb%d values' %tid]
+      for rid in range(1,self.rowsPerTable+1):
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
     tdSql.query('select * from tb1')
     tdSql.checkRows(10)
 
@@ -60,10 +68,11 @@ class TDTestCase:
     tdLog.sleep(2)
 
     tdLog.info("================= step3")
+    tdLog.info("alter table tb%d" %1)
     tdSql.execute('alter table tb%d add column f float' %1)
+    startTime = self.startTime
     for rid in range(1,11):
-      tdSql.execute('insert into tb%d values(%ld, %d, %f)' %(1, startTime, rid, 1.2*rid))
-      startTime += 1
+      tdSql.execute('insert into tb%d values(%ld, %d, %f)' %(1, startTime+rid+self.rowsPerTable, rid, 1.2*rid))
 
     tdLog.info("================= step4")
     tdDnodes.start(3)

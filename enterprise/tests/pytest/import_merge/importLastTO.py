@@ -58,7 +58,10 @@ class TDTestCase:
     tdLog.info("================= step5")
     tdLog.info("import 4 data later with overlap")
     startTime = self.startTime + 3
-    tdSql.execute('import into tb1 values(%ld, %d)' %(startTime +1, rid+1))
+    sqlcmd = ['import into tb1 values']
+    for rid in range(1,5):
+      sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+    tdSql.execute(" ".join(sqlcmd))
 
     tdLog.info("================= step6")
     tdSql.query('select * from tb1')
