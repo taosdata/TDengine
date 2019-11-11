@@ -479,6 +479,7 @@ void tscProcessMultiVnodesInsertForFile(SSqlObj *pSql);
 void tscKillMetricQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 int32_t tscBuildResultsForEmptyRetrieval(SSqlObj *pSql);
+bool tscIsUpdateQuery(STscObj *pObj);
 
 // transfer SSqlInfo to SqlCmd struct
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);

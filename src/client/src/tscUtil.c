@@ -1817,3 +1817,17 @@ int16_t tscGetJoinTagColIndexByUid(SSqlCmd* pCmd, uint64_t uid) {
     return pTagCond->joinInfo.right.tagCol;
   }
 }
+
+bool tscIsUpdateQuery(STscObj* pObj) {
+  if (pObj == NULL || pObj->signature != pObj) {
+    globalCode = TSDB_CODE_DISCONNECTED;
+    return TSDB_CODE_DISCONNECTED;
+  }
+
+  SSqlCmd* pCmd = &(pObj->pSql->cmd);
+  if (pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) {
+    return 1;
+  }
+
+  return 0;
+}
