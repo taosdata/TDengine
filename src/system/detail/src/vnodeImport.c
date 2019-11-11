@@ -1479,6 +1479,7 @@ int vnodeImportDataToCache(SImportInfo *pImport, const char *payload, const int 
             payloadIter = rows;
             code = TSDB_CODE_ACTION_IN_PROGRESS;
             pImport->commit = 1;
+            // TODO: Fix here
             continue;
           }
 
@@ -1507,7 +1508,7 @@ int vnodeImportDataToCache(SImportInfo *pImport, const char *payload, const int 
             int pointsLeft = pInfo->cacheBlocks[cacheIter.slot]->numOfPoints - cacheIter.pos;
             if (pointsLeft > 0) {
               for (int col = 0; col < pObj->numOfColumns; col++) {
-                memcpy((void *)(pNewBlock->offset[col]),
+                memcpy((void *)(pNewBlock->offset[col] + pObj->schema[col].bytes*cacheIter.pos),
                        pInfo->cacheBlocks[cacheIter.slot]->offset[col] + pObj->schema[col].bytes * cacheIter.pos,
                        pObj->schema[col].bytes * pointsLeft);
               }
