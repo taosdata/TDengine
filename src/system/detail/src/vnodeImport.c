@@ -620,7 +620,7 @@ static int vnodeLoadNeededBlockData(SMeterObj *pObj, SImportHandle *pHandle, int
     }
 
     if (pHandle->tempBuffer == NULL) {
-      pHandle->tempBufferSize = pObj->maxBytes + EXTRA_BYTES;
+      pHandle->tempBufferSize = pObj->maxBytes * pObj->pointsPerFileBlock + EXTRA_BYTES;
       pHandle->tempBuffer = malloc(pHandle->tempBufferSize);
       if (pHandle->tempBuffer == NULL) {
         dError("vid: %d, sid: %d, meterId: %s, failed to allocate memory, size: %ul", pObj->vnode, pObj->sid,
