@@ -833,6 +833,7 @@ static void removeMeterFromMetricIndex(STabObj *pMetric, STabObj *pMeter) {
     }
   }
 
+  tSkipListDestroyKey(&key);
   if (num != 0) {
     free(pRes);
   }
