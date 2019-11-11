@@ -87,7 +87,7 @@ IF (TD_ARM)
     ADD_DEFINITIONS(-D_TD_ARM_64_)
   ELSE ()
     EXIT ()
-  ENDIF
+  ENDIF ()
 ENDIF ()
 
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
