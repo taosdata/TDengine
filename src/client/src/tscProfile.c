@@ -70,7 +70,7 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
   const static int64_t SLOW_QUERY_INTERVAL = 3000000L;
   if (pSql->res.useconds < SLOW_QUERY_INTERVAL) return;
 
-  tscTrace("%p query time:%ld sql:%s", pSql, pSql->res.useconds, pSql->sqlstr);
+  tscTrace("%p query time:%lld sql:%s", pSql, pSql->res.useconds, pSql->sqlstr);
 
   char *sql = malloc(200);
   int   len = snprintf(sql, 200, "insert into %s.slowquery values(now, '%s', %lld, %lld, '", tsMonitorDbName,
