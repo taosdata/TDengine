@@ -1,17 +1,17 @@
 /*
-* Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
-*
-* This program is free software: you can use, redistribute, and/or modify
-* it under the terms of the GNU Affero General Public License, version 3
-* or later ("AGPL"), as published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful, but WITHOUT
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-* FITNESS FOR A PARTICULAR PURPOSE.
-*
-* You should have received a copy of the GNU Affero General Public License
-* along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef TDENGINE_PLATFORM_LINUX_H
 #define TDENGINE_PLATFORM_LINUX_H
@@ -25,10 +25,12 @@ extern "C" {
 
 #include <arpa/inet.h>
 #include <assert.h>
+#include <dirent.h>
 #include <endian.h>
 #include <float.h>
 #include <ifaddrs.h>
 #include <limits.h>
+#include <locale.h>
 #include <math.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -37,7 +39,8 @@ extern "C" {
 #include <netinet/udp.h>
 #include <pthread.h>
 #include <pwd.h>
-#include <stdbool.h>
+#include <semaphore.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -45,21 +48,19 @@ extern "C" {
 #include <sys/epoll.h>
 #include <sys/file.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/uio.h>
-#include <sys/mman.h>
 #include <sys/un.h>
 #include <syslog.h>
 #include <termios.h>
 #include <unistd.h>
 #include <wchar.h>
 #include <wordexp.h>
-#include <locale.h>
-#include <dirent.h>
 
 #define taosCloseSocket(x) \
   {                        \
@@ -110,7 +111,7 @@ extern "C" {
 #define __sync_sub_and_fetch_ptr __sync_sub_and_fetch
 
 int32_t __sync_val_load_32(int32_t *ptr);
-void __sync_val_restore_32(int32_t *ptr, int32_t newval);
+void    __sync_val_restore_32(int32_t *ptr, int32_t newval);
 
 #define SWAP(a, b, c)      \
   do {                     \
@@ -168,9 +169,9 @@ bool taosSkipSocketCheck();
 int64_t str2int64(char *str);
 
 #define BUILDIN_CLZL(val) __builtin_clzl(val)
-#define BUILDIN_CLZ(val)  __builtin_clz(val)
+#define BUILDIN_CLZ(val) __builtin_clz(val)
 #define BUILDIN_CTZL(val) __builtin_ctzl(val)
-#define BUILDIN_CTZ(val)  __builtin_ctz(val)
+#define BUILDIN_CTZ(val) __builtin_ctz(val)
 
 #ifdef __cplusplus
 }

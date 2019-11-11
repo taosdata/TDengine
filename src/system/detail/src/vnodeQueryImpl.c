@@ -3436,9 +3436,18 @@ void pointInterpSupporterSetData(SQInfo *pQInfo, SPointInterpoSupporter *pPointI
     if (pQuery->interpoType == TSDB_INTERPO_SET_VALUE) {
       for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
         SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
+
+        // only the function of interp needs the corresponding information
+        if (pCtx->functionId != TSDB_FUNC_INTERP) {
+            continue;
+        }
+
+        pCtx->numOfParams = 4;
+
         SInterpInfo *   pInterpInfo = (SInterpInfo *)pRuntimeEnv->pCtx[i].aOutputBuf;
 
         pInterpInfo->pInterpDetail = calloc(1, sizeof(SInterpInfoDetail));
+
         SInterpInfoDetail *pInterpDetail = pInterpInfo->pInterpDetail;
 
         // for primary timestamp column, set the flag
