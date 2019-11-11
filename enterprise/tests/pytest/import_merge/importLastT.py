@@ -56,9 +56,9 @@ class TDTestCase:
     tdDnodes.start(1)
 
     tdLog.info("================= step5")
-    tdLog.info("import 1 data before")
-    startTime = self.startTime - 1
-    tdSql.execute('import into tb1 values(%ld, %d)' %(startTime + 1, 1))
+    tdLog.info("import 1 data later")
+    startTime = self.startTime + 5
+    tdSql.execute('import into tb%d values(%ld, %d)' %(startTime + 1, 1))
 
     tdLog.info("================= step6")
     tdSql.query('select * from tb1')

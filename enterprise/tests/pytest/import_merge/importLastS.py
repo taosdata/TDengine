@@ -56,13 +56,15 @@ class TDTestCase:
     tdDnodes.start(1)
 
     tdLog.info("================= step5")
-    tdLog.info("import 1 data before")
-    startTime = self.startTime - 1
-    tdSql.execute('import into tb1 values(%ld, %d)' %(startTime + 1, 1))
+    tdLog.info("import 20 data covering existing data")
+    startTime = self.startTime - 10
+    for rid in range(1,21):
+      sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+    tdSql.execute(" ".join(sqlcmd))
 
     tdLog.info("================= step6")
     tdSql.query('select * from tb1')
-    tdSql.checkRows(6)
+    tdSql.checkRows(20)
 
   def stop(self):
     tdSql.close()

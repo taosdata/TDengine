@@ -56,13 +56,13 @@ class TDTestCase:
     tdDnodes.start(1)
 
     tdLog.info("================= step5")
-    tdLog.info("import 1 data before")
-    startTime = self.startTime - 1
-    tdSql.execute('import into tb1 values(%ld, %d)' %(startTime + 1, 1))
+    tdLog.info("import 4 data later with overlap")
+    startTime = self.startTime + 3
+    tdSql.execute('import into tb1 values(%ld, %d)' %(startTime +1, rid+1))
 
     tdLog.info("================= step6")
     tdSql.query('select * from tb1')
-    tdSql.checkRows(6)
+    tdSql.checkRows(7)
 
   def stop(self):
     tdSql.close()

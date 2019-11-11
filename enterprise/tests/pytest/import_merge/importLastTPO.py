@@ -39,16 +39,18 @@ class TDTestCase:
     tdLog.info("less than 10 rows will go to last file")
 
     tdLog.info("================= step2")
-    tdLog.info("import 5 sequential data")
+    tdLog.info("import 6 sequential data")
     startTime = self.startTime
     sqlcmd = ['import into tb1 values']
-    for rid in range(1,6):
+    for rid in range(1,4):
+      sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+    for rid in range(6,9):
       sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
     tdSql.execute(" ".join(sqlcmd))
     
     tdLog.info("================= step3")
     tdSql.query('select * from tb1')
-    tdSql.checkRows(5)
+    tdSql.checkRows(6)
 
     tdLog.info("================= step4")
     tdDnodes.stop(1)
@@ -56,13 +58,15 @@ class TDTestCase:
     tdDnodes.start(1)
 
     tdLog.info("================= step5")
-    tdLog.info("import 1 data before")
-    startTime = self.startTime - 1
-    tdSql.execute('import into tb1 values(%ld, %d)' %(startTime + 1, 1))
+    tdLog.info("import 8 data later with partly overlap")
+    startTime = self.startTime + 2
+    for rid in range(1,9):
+      sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+    tdSql.execute(" ".join(sqlcmd))
 
     tdLog.info("================= step6")
     tdSql.query('select * from tb1')
-    tdSql.checkRows(6)
+    tdSql.checkRows(8)
 
   def stop(self):
     tdSql.close()
