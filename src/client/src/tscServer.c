@@ -562,7 +562,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       void *taosres = tscKeepConn[command] ? pSql : NULL;
       code = pRes->code ? -pRes->code : pRes->numOfRows;
 
-      tscTrace("%p Async SQL result:%d taosres:%p", pSql, code, taosres);
+      tscTrace("%p Async SQL result:%d res:%p", pSql, code, taosres);
 
       /*
        * Whether to free sqlObj or not should be decided before call the user defined function, since this SqlObj
