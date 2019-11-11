@@ -97,7 +97,7 @@ fi
 
 function kill_taosd() {
   pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
-  if [ $pid ]; then
+  if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
 }

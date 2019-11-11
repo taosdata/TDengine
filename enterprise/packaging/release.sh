@@ -8,7 +8,7 @@ set -e
 curr_dir=$(pwd)
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -m ${script_dir}/..)"
-versioninfo="${top_dir}/src/util/cluster/src/version.c"
+versioninfo="${top_dir}/../community/src/util/src/version.c"
 
 csudo=""
 if command -v sudo > /dev/null; then
@@ -154,7 +154,8 @@ cd ${curr_dir}
 #fi
 
 cd ${script_dir}/tools
-${csudo} ./makepkg.sh ${compile_dir} ${version} "${build_time}"
+${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}"
+${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}"
 
 # 4. Clean up temporary compile directories
 #${csudo} rm -rf ${compile_dir}
