@@ -1824,10 +1824,8 @@ bool tscIsUpdateQuery(STscObj* pObj) {
     return TSDB_CODE_DISCONNECTED;
   }
 
-  SSqlCmd* pCmd = &(pObj->pSql->cmd);
-  if (pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) {
-    return 1;
-  }
+  SSqlCmd* pCmd = &pObj->pSql->cmd;
+  return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) ||
+      TSDB_SQL_USE_DB == pCmd->command) ? 1 : 0;
 
-  return 0;
 }
