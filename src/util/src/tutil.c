@@ -406,13 +406,6 @@ int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstP
   return rename(fullPath, *dstPath);
 }
 
-bool taosCheckDbName(char *db, char *monitordb) {
-  char *pos = strchr(db, '.');
-  if (pos == NULL) return false;
-
-  return strncasecmp(pos + 1, monitordb, strlen(monitordb)) == 0;
-}
-
 bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
 #ifdef USE_LIBICONV
   iconv_t cd = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);

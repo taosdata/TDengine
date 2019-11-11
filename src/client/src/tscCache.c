@@ -13,14 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "os.h"
 
 #include "tglobalcfg.h"
 #include "tlog.h"

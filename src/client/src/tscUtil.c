@@ -13,10 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <math.h>
-#include <time.h>
-
 #include "os.h"
 #include "ihash.h"
 #include "taosmsg.h"

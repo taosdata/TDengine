@@ -536,6 +536,11 @@ void tsInitGlobalConfig() {
                      0, 2, 0, TSDB_CFG_UTYPE_NONE);
   // 0-any, 1-mgmt, 2-dnode
 
+  // timer
+  tsInitConfigOption(cfg++, "maxTmrCtrl", &taosMaxTmrCtrl, TSDB_CFG_VTYPE_INT,
+                    TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                    8, 2048, 0, TSDB_CFG_UTYPE_NONE);
+
   // time
   tsInitConfigOption(cfg++, "monitorInterval", &tsMonitorInterval, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG,

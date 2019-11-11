@@ -13,15 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "os.h"
 #include "tlog.h"
 #include "tsclient.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+
+void  tscSaveSlowQueryFp(void *handle, void *tmrId);
+void *tscSlowQueryConn = NULL;
+bool  tscSlowQueryConnInitialized = false;
+TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, int port, void (*fp)(void *, TAOS_RES *, int),
+                     void *param, void **taos);
+
+void tscInitConnCb(void *param, TAOS_RES *result, int code) {
+  char *sql = param;
+  if (code < 0) {
+    tscError("taos:%p, slow query connect failed, code:%d", tscSlowQueryConn, code);
+    taos_close(tscSlowQueryConn);
+    tscSlowQueryConn = NULL;
+    tscSlowQueryConnInitialized = false;
+    free(sql);
+  } else {
+    tscTrace("taos:%p, slow query connect success, code:%d", tscSlowQueryConn, code);
+    tscSlowQueryConnInitialized = true;
+    tscSaveSlowQueryFp(sql, NULL);
+  }
+}
 
 void tscAddIntoSqlList(SSqlObj *pSql) {
   static uint32_t queryId = 1;
@@ -47,26 +65,28 @@ void tscAddIntoSqlList(SSqlObj *pSql) {
 
 void tscSaveSlowQueryFpCb(void *param, TAOS_RES *result, int code) {
   if (code < 0) {
-    tscError("failed to save slowquery, code:%d", code);
+    tscError("failed to save slow query, code:%d", code);
+  } else {
+    tscTrace("success to save slow query, code:%d", code);
   }
 }
 
 void tscSaveSlowQueryFp(void *handle, void *tmrId) {
   char *sql = handle;
 
-  static void *taos = NULL;
-  if (taos == NULL) {
-    taos = taos_connect(NULL, "monitor", tsInternalPass, NULL, 0);
-    if (taos == NULL) {
-      tscError("failed to save slow query, can't connect to server");
+  if (!tscSlowQueryConnInitialized) {
+    if (tscSlowQueryConn == NULL) {
+      tscTrace("start to init slow query connect");
+      taos_connect_a(NULL, "monitor", tsInternalPass, "", 0, tscInitConnCb, sql, &tscSlowQueryConn);
+    } else {
+      tscError("taos:%p, slow query connect is already initialized", tscSlowQueryConn);
       free(sql);
-      return;
     }
+  } else {
+    tscTrace("taos:%p, save slow query:%s", tscSlowQueryConn, sql);
+    taos_query_a(tscSlowQueryConn, sql, tscSaveSlowQueryFpCb, NULL);
+    free(sql);
   }
-
-  tscTrace("save slow query:sql", sql);
-  taos_query_a(taos, sql, tscSaveSlowQueryFpCb, NULL);
-  free(sql);
 }
 
 void tscSaveSlowQuery(SSqlObj *pSql) {

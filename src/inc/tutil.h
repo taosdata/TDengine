@@ -169,8 +169,6 @@ int32_t taosInitTimer(void (*callback)(int), int32_t ms);
  */
 uint32_t MurmurHash3_32(const void *key, int32_t len);
 
-bool taosCheckDbName(char *db, char *monitordb);
-
 bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len);
 
 bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);

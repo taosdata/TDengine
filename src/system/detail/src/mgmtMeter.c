@@ -688,8 +688,10 @@ int mgmtDropMeter(SDbObj *pDb, char *meterId, int ignore) {
 
   pAcct = mgmtGetAcct(pDb->cfg.acct);
 
-  // 0.sys
-  if (taosCheckDbName(pDb->name, tsMonitorDbName)) return TSDB_CODE_MONITOR_DB_FORBEIDDEN;
+  // 0.log
+  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    return TSDB_CODE_MONITOR_DB_FORBEIDDEN;
+  }
 
   if (mgmtIsNormalMeter(pMeter)) {
     return dropMeterImp(pDb, pMeter, pAcct);
@@ -719,8 +721,8 @@ int mgmtAlterMeter(SDbObj *pDb, SAlterTableMsg *pAlter) {
     return TSDB_CODE_INVALID_TABLE;
   }
 
-  // 0.sys
-  if (taosCheckDbName(pDb->name, tsMonitorDbName)) return TSDB_CODE_MONITOR_DB_FORBEIDDEN;
+  // 0.log
+  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) return TSDB_CODE_MONITOR_DB_FORBEIDDEN;
 
   if (pAlter->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
     if (!mgmtIsNormalMeter(pMeter) || !mgmtMeterCreateFromMetric(pMeter)) {
@@ -833,6 +835,7 @@ static void removeMeterFromMetricIndex(STabObj *pMetric, STabObj *pMeter) {
     }
   }
 
+  tSkipListDestroyKey(&key);
   if (num != 0) {
     free(pRes);
   }

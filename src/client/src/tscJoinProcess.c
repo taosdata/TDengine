@@ -13,13 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <fcntl.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <tsclient.h>
-#include <sys/stat.h>
-
 #include "os.h"
 #include "tcache.h"
 #include "tscJoinProcess.h"

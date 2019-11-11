@@ -21,22 +21,8 @@
 #pragma GCC diagnostic ignored "-Woverflow"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <pthread.h>
-#include <sys/types.h>
-
-#include <assert.h>
-#include <float.h>
-#include <math.h>
-#include <string.h>
-#include <time.h>
-#include <wchar.h>
-
-#include "ihash.h"
 #include "os.h"
+#include "ihash.h"
 #include "tscSecondaryMerge.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
