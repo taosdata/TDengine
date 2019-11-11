@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdbool.h>
-
 #include "os.h"
 #include "com_taosdata_jdbc_TSDBJNIConnector.h"
 #include "taos.h"

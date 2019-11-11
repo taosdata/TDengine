@@ -41,7 +41,7 @@ extern int      taosTmrThreads;
     tprintf("TMR ", tmrDebugFlag, __VA_ARGS__); \
   } } while(0)
 
-#define MAX_NUM_OF_TMRCTL 32
+#define MAX_NUM_OF_TMRCTL 512
 #define MSECONDS_PER_TICK 5
 
 void *taosTmrInit(int maxTmr, int resoultion, int longest, const char *label);

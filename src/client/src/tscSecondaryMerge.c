@@ -13,13 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <tsclient.h>
 
-#include "tlosertree.h"
+#include "os.h"
 #include "tlosertree.h"
 #include "tscSecondaryMerge.h"
 #include "tscUtil.h"
