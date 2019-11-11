@@ -134,7 +134,7 @@ public class TSDBJNIConnector {
             }
         }
 
-        // Try retrieving result set for the executed SQLusing the current connection pointer. If the executed
+        // Try retrieving result set for the executed SQL using the current connection pointer. If the executed
         // SQL is a DML/DDL which doesn't return a result set, then taosResultSetPointer should be 0L. Otherwise,
         // taosResultSetPointer should be a non-zero value.
         taosResultSetPointer = this.getResultSetImp(this.taos);

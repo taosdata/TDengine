@@ -289,15 +289,17 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(
     return JNI_CONNECTION_NULL;
   }
 
-  int num_fields = taos_field_count(tscon);
-  if (num_fields != 0) {
-    jlong ret = (jlong)taos_use_result(tscon);
-    jniTrace("jobj:%p, taos:%p, get resultset:%p", jobj, tscon, (void *)ret);
-    return ret;
+  jlong ret = 0;
+
+  if (tscIsUpdateQuery(tscon)) {
+    ret = 0;  // for update query, no result pointer
+    jniTrace("jobj:%p, taos:%p, no result", jobj, tscon);
+  } else {
+    ret = (jlong) taos_use_result(tscon);
+    jniTrace("jobj:%p, taos:%p, get resultset:%p", jobj, tscon, (void *) ret);
   }
 
-  jniTrace("jobj:%p, taos:%p, no resultset", jobj, tscon);
-  return 0;
+  return ret;
 }
 
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_freeResultSetImp(JNIEnv *env, jobject jobj, jlong con,

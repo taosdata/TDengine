@@ -89,7 +89,7 @@ extern "C" {
     } else {                     \
       return (x) < (y) ? -1 : 1; \
     }                            \
-  } while (0);
+  } while (0)
 
 #define GET_INT8_VAL(x)   (*(int8_t *)(x))
 #define GET_INT16_VAL(x)  (*(int16_t *)(x))
