@@ -61,7 +61,7 @@ class TDTestCase:
 
     tdLog.info("================= step5")
     tdSql.query('select * from tb1')
-    tdSql.checkRows(43)
+    tdSql.checkRows(47)
 
   def stop(self):
     tdSql.close()
