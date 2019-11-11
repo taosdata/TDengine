@@ -1353,7 +1353,7 @@ uint32_t crc32c_hw(uint32_t crc, crc_stream buf, size_t len) {
 #endif // #ifndef _TD_ARM_
 
 void taosResolveCRC() {
-#ifndef _TD_ARM_32
+#ifndef _TD_ARM_
   int sse42;
   SSE42(sse42);
   crc32c = sse42 ? crc32c_hw : crc32c_sf;

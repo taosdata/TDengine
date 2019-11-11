@@ -169,6 +169,8 @@ extern uint32_t debugFlag;
 extern uint32_t odbcdebugFlag;
 extern uint32_t qdebugFlag;
 
+extern uint32_t taosMaxTmrCtrl;
+
 extern int  tsRpcTimer;
 extern int  tsRpcMaxTime;
 extern int  tsUdpDelay;

@@ -1140,7 +1140,7 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   SAcctObj *   pAcct = NULL;
   SUserObj *   pUser = NULL;
   SDbObj *     pDb = NULL;
-  char         dbName[TSDB_METER_ID_LEN];
+  char         dbName[256] = {0};
 
   pConnectMsg = (SConnectMsg *)pMsg;
 
@@ -1158,7 +1158,6 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   pAcct = mgmtGetAcct(pUser->acct);
 
   if (pConnectMsg->db[0]) {
-    memset(dbName, 0, sizeof(dbName));
     sprintf(dbName, "%x%s%s", pAcct->acctId, TS_PATH_DELIMITER, pConnectMsg->db);
     pDb = mgmtGetDb(dbName);
     if (pDb == NULL) {

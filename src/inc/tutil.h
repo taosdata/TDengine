@@ -89,7 +89,7 @@ extern "C" {
     } else {                     \
       return (x) < (y) ? -1 : 1; \
     }                            \
-  } while (0);
+  } while (0)
 
 #define GET_INT8_VAL(x)   (*(int8_t *)(x))
 #define GET_INT16_VAL(x)  (*(int16_t *)(x))
@@ -168,8 +168,6 @@ int32_t taosInitTimer(void (*callback)(int), int32_t ms);
  * @out  an int32 value
  */
 uint32_t MurmurHash3_32(const void *key, int32_t len);
-
-bool taosCheckDbName(char *db, char *monitordb);
 
 bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len);
 
