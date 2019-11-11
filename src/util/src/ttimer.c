@@ -82,13 +82,16 @@ typedef struct time_wheel_t {
 } time_wheel_t;
 
 uint32_t tmrDebugFlag = DEBUG_ERROR | DEBUG_WARN | DEBUG_FILE;
+uint32_t taosMaxTmrCtrl = 512;
 
 static pthread_once_t  tmrModuleInit = PTHREAD_ONCE_INIT;
 static pthread_mutex_t tmrCtrlMutex;
-static tmr_ctrl_t      tmrCtrls[MAX_NUM_OF_TMRCTL];
+static tmr_ctrl_t*     tmrCtrls;
 static tmr_ctrl_t*     unusedTmrCtrl = NULL;
-void*                  tmrQhandle;
-int                    taosTmrThreads = 1;
+static void*           tmrQhandle;
+static int             numOfTmrCtrl = 0;
+
+int taosTmrThreads = 1;
 
 static uintptr_t nextTimerId = 0;
 
@@ -481,7 +484,13 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle,
 }
 
 static void taosTmrModuleInit(void) {
-  for (int i = 0; i < tListLen(tmrCtrls) - 1; ++i) {
+  tmrCtrls = malloc(sizeof(tmr_ctrl_t) * taosMaxTmrCtrl);
+  if (tmrCtrls == NULL) {
+    tmrError("failed to allocate memory for timer controllers.");
+    return;
+  }
+
+  for (int i = 0; i < taosMaxTmrCtrl - 1; ++i) {
     tmr_ctrl_t* ctrl = tmrCtrls + i;
     ctrl->next = ctrl + 1;
   }
@@ -526,6 +535,7 @@ void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* lab
   tmr_ctrl_t* ctrl = unusedTmrCtrl;
   if (ctrl != NULL) {
     unusedTmrCtrl = ctrl->next;
+    numOfTmrCtrl++;
   }
   pthread_mutex_unlock(&tmrCtrlMutex);
 
@@ -536,7 +546,7 @@ void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* lab
 
   strncpy(ctrl->label, label, sizeof(ctrl->label));
   ctrl->label[sizeof(ctrl->label) - 1] = 0;
-  tmrTrace("timer controller[label=%s] is initialized.", label);
+  tmrTrace("timer controller[label=%s] is initialized, number of timer controllers: %d.", label, numOfTmrCtrl);
   return ctrl;
 }
 
@@ -549,6 +559,7 @@ void taosTmrCleanUp(void* handle) {
 
   pthread_mutex_lock(&tmrCtrlMutex);
   ctrl->next = unusedTmrCtrl;
+  numOfTmrCtrl--;
   unusedTmrCtrl = ctrl;
   pthread_mutex_unlock(&tmrCtrlMutex);
 }
