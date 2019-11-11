@@ -50,7 +50,7 @@ int httpInitSystem() {
   httpServer = (HttpServer *)malloc(sizeof(HttpServer));
   memset(httpServer, 0, sizeof(HttpServer));
 
-  strcpy(httpServer->label, "taosh");
+  strcpy(httpServer->label, "rest");
   strcpy(httpServer->serverIp, tsHttpIp);
   httpServer->serverPort = tsHttpPort;
   httpServer->cacheContext = tsHttpCacheSessions;

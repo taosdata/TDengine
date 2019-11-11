@@ -176,7 +176,7 @@ void taos_init_imp() {
   tscConnCache = taosOpenConnCache(tsMaxMeterConnections * 2, taosCloseRpcConn, tscTmr, tsShellActivityTimer * 1000);
 
   initialized = 1;
-  tscTrace("taos client is initialized successfully");
+  tscTrace("client is initialized successfully");
   tsInsertHeadSize = tsRpcHeadSize + sizeof(SShellSubmitMsg);
 }
 

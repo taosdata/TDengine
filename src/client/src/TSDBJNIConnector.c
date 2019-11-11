@@ -289,32 +289,14 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(
     return JNI_CONNECTION_NULL;
   }
 
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-  int num_fields = taos_field_count(tscon);
-  if (num_fields != 0) {
-    jlong ret = (jlong)taos_use_result(tscon);
-    jniTrace("jobj:%p, taos:%p, get resultset:%p", jobj, tscon, (void *)ret);
-    return ret;
-=======
-=======
->>>>>>> origin/develop
   jlong ret = 0;
 
   if (tscIsUpdateQuery(tscon)) {
     ret = 0;  // for update query, no result pointer
-<<<<<<< HEAD
     jniTrace("jobj:%p, conn:%p, no result", jobj, tscon);
   } else {
     ret = (jlong) taos_use_result(tscon);
     jniTrace("jobj:%p, conn:%p, get resultset:%p", jobj, tscon, (void *) ret);
->>>>>>> Stashed changes
-=======
-    jniTrace("jobj:%p, taos:%p, no result", jobj, tscon);
-  } else {
-    ret = (jlong) taos_use_result(tscon);
-    jniTrace("jobj:%p, taos:%p, get resultset:%p", jobj, tscon, (void *) ret);
->>>>>>> origin/develop
   }
 
   return ret;
