@@ -87,6 +87,7 @@ from insert.basic import *
 from cluster.alter_replica import *
 from cluster.create_droptb import *
 from cluster.single_upgrade import *
+from cluster.monitor_upgrade import *
 from cluster.sync_createtb import *
 from cluster.sync_droptb import *
 from cluster.sync_altertb import *
