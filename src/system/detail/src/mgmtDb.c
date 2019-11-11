@@ -14,9 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
+
 #include "mgmt.h"
-#include <arpa/inet.h>
 #include "mgmtBalance.h"
+#include "mgmtUtil.h"
 #include "tschemautil.h"
 
 void *dbSdb = NULL;
@@ -373,10 +375,12 @@ int mgmtDropDbByName(SAcctObj *pAcct, char *name) {
   if (pDb == NULL) {
     mWarn("db:%s is not there", name);
     // return TSDB_CODE_INVALID_DB;
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
-  if (taosCheckDbName(pDb->name, tsMonitorDbName)) return TSDB_CODE_MONITOR_DB_FORBEIDDEN;
+  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    return TSDB_CODE_MONITOR_DB_FORBEIDDEN;
+  }
 
   return mgmtDropDb(pDb);
 }
