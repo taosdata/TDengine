@@ -378,12 +378,6 @@ int mgmtDropDbByName(SAcctObj *pAcct, char *name) {
     return TSDB_CODE_SUCCESS;
   }
 
-//  char dbName[TSDB_DB_NAME_LEN + 1] = {0};
-//  extractDBName(pDb->name, dbName);
-//  if (strncasecmp(dbName, tsMonitorDbName, strlen(dbName)) == 0) {
-//    return TSDB_CODE_MONITOR_DB_FORBEIDDEN;
-//  }
-
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
     return TSDB_CODE_MONITOR_DB_FORBEIDDEN;
   }
