@@ -87,3 +87,10 @@ int32_t mgmtGetTagsLength(STabObj* pMetric, int32_t col) {  // length before col
 
   return len;
 }
+
+bool mgmtCheckIsMonitorDB(char *db, char *monitordb) {
+  char dbName[TSDB_DB_NAME_LEN + 1] = {0};
+  extractDBName(db, dbName);
+
+  return (strncasecmp(dbName, monitordb, strlen(dbName)) == 0);
+}
