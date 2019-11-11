@@ -64,7 +64,8 @@ settings
 *.so
 *.pyc
 ZZ/
-
+sim/
+bug.sql
 windows/vs2013/client/
 windows/vs2013/shell/
 windows/vs2013/taos/

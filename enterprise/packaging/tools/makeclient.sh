@@ -1,6 +1,8 @@
 #!/bin/bash
 #
-# Generate deb package for other os system (no unbutu or centos)
+# Generate tar.gz package for linux client
+set -e
+set -x
 
 curr_dir=$(pwd)
 compile_dir=$1
@@ -17,36 +19,20 @@ release_dir="${top_dir}/release"
 community_dir="${script_dir}/../../../community/src"
 
 package_name='linux'
-install_dir="${release_dir}/TDengine-enterprise-${version}-${package_name}-$(echo ${build_time}| tr ': ' -)"
+install_dir="${release_dir}/TDengine-client-enterprise-${version}-${package_name}-$(echo ${build_time}| tr ': ' -)"
 
 # Directories and files.
-bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdump ${script_dir}/remove.sh"
+bin_files="${build_dir}/bin/taos ${build_dir}/bin/taosdump ${script_dir}/remove_client.sh"
 lib_files="${build_dir}/lib/libtaos.so.${version}"
 header_files="${community_dir}/inc/taos.h"
 cfg_dir="${top_dir}/packaging/cfg"
-install_files="${script_dir}/install.sh"
-nginx_dir="${code_dir}/modules/web"
-
-# Init file
-#init_dir=${script_dir}/deb
-#if [ $package_type = "centos" ]; then
-#    init_dir=${script_dir}/rpm
-#fi
-#init_files=${init_dir}/taosd
-# temp use rpm's taosd. TODO: later modify according to os type
-init_file_deb=${script_dir}/../deb/taosd
-init_file_rpm=${script_dir}/../rpm/taosd
+install_files="${script_dir}/install_client.sh"
 
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc/taos.h
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/*
-mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taosd.deb
-mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/taosd.rpm
-mkdir -p ${install_dir}/nginxd && cp -r ${nginx_dir}/* ${install_dir}/nginxd
-cp ${code_dir}/modules/web/png/taos.png ${install_dir}/nginxd/admin/images/taos.png
-rm -rf ${install_dir}/nginxd/png
 
 cd ${install_dir}
 tar -zcv -f taos.tar.gz * --remove-files || :
@@ -56,13 +42,12 @@ cp ${install_files} ${install_dir} && chmod a+x ${install_dir}/install*
 
 # Copy example code
 mkdir -p ${install_dir}/examples
-examples_dir="${community_dir}/../"
-cp -r ${examples_dir}/tests/examples/c      ${install_dir}/examples
-cp -r ${examples_dir}/tests/examples/java   ${install_dir}/examples
-cp -r ${examples_dir}/tests/examples/matlab ${install_dir}/examples
-cp -r ${examples_dir}/tests/examples/python ${install_dir}/examples
-cp -r ${examples_dir}/tests/examples/R      ${install_dir}/examples
-cp -r ${examples_dir}/tests/examples/go     ${install_dir}/examples
+cp -r ${top_dir}/tests/examples/c      ${install_dir}/examples
+cp -r ${top_dir}/tests/examples/java   ${install_dir}/examples
+cp -r ${top_dir}/tests/examples/matlab ${install_dir}/examples
+cp -r ${top_dir}/tests/examples/python ${install_dir}/examples
+cp -r ${top_dir}/tests/examples/R      ${install_dir}/examples
+cp -r ${top_dir}/tests/examples/go     ${install_dir}/examples
 
 # Copy driver
 mkdir -p ${install_dir}/driver 

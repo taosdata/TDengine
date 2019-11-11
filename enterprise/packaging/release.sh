@@ -154,7 +154,8 @@ cd ${curr_dir}
 #fi
 
 cd ${script_dir}/tools
-${csudo} ./makepkg.sh ${compile_dir} ${version} "${build_time}"
+${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}"
+${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}"
 
 # 4. Clean up temporary compile directories
 #${csudo} rm -rf ${compile_dir}
