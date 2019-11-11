@@ -2842,7 +2842,7 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql) {
   return msgLen;
 }
 
-int tscEstimateBuildHeartBeatMsgLength(SSqlObj *pSql) {
+int tscEstimateHeartBeatMsgLength(SSqlObj *pSql) {
   int      size = 0;
   STscObj *pObj = pSql->pTscObj;
 
@@ -2875,7 +2875,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql) {
 
   pthread_mutex_lock(&pObj->mutex);
 
-  size = tscEstimateBuildHeartBeatMsgLength(pSql);
+  size = tscEstimateHeartBeatMsgLength(pSql);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for heartbeat msg", pSql);
     return -1;

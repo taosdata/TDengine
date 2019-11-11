@@ -419,7 +419,7 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
 
   if (code == TSDB_CODE_SUCCESS) {
     pRsp->offset = htobe64(vnodeGetOffsetVal(pRetrieve->qhandle));
-    pRsp->useconds = ((SQInfo *)(pRetrieve->qhandle))->useconds;
+    pRsp->useconds = htobe64(((SQInfo *)(pRetrieve->qhandle))->useconds);
   } else {
     pRsp->offset = 0;
     pRsp->useconds = 0;
