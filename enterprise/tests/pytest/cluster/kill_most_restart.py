@@ -50,6 +50,8 @@ class TDTestCase:
     self.startTime = 1520000010000L
     self.replica = 3
 
+    tdLog.info("================= step1")
+    tdLog.info("insert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
     tdSql.execute('create database db replica %d' %self.replica)
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
@@ -65,36 +67,36 @@ class TDTestCase:
     self.startTime += self.rowsPerTable
     tdLog.sleep(5)
 
-    tdLog.info("================= step1")
+    tdLog.info("================= step2")
     tdSql.query('select * from tb%d' %1)
     tdSql.checkRows(self.rowsPerTable)
 
-    tdLog.info("================= step2")
+    tdLog.info("================= step3")
     tdDnodes.forcestop(2)
     tdDnodes.forcestop(3)
     tdLog.sleep(10)
 
-    tdLog.info("================= step3")
+    tdLog.info("================= step4")
     tdSql.error('select * from tb%d' %1)
 
-    tdLog.info("================= step4")
+    tdLog.info("================= step5")
     tdSql.error('insert into tb%d values(%ld, %d)' %(1, self.startTime, 1))
 
-    tdLog.info("================= step5")
+    tdLog.info("================= step6")
     tdDnodes.start(2)
     tdLog.sleep(10)
 
-    tdLog.info("================= step6")
+    tdLog.info("================= step7")
     tdSql.error('select * from tb%d' %1)
 
-    tdLog.info("================= step7")
+    tdLog.info("================= step8")
     tdSql.error('insert into tb%d values(%ld, %d)' %(1, self.startTime, 1))
 
-    tdLog.info("================= step8")
+    tdLog.info("================= step9")
     tdDnodes.start(3)
     tdLog.sleep(10)
 
-    tdLog.info("================= step9")
+    tdLog.info("================= step10")
     tdSql.execute('insert into tb%d values(%ld, %d)' %(1, self.startTime, 1))
     tdLog.sleep(10)
     sqlcmd = 'select count(*) from tb%d' %1

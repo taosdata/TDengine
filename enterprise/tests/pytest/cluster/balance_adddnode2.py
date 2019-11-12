@@ -39,9 +39,12 @@ class TDTestCase:
     tdDnodes.cfg(2,"commitTime", "30")
     tdDnodes.cfg(2,"tables", "10")
     tdDnodes.start(2)
+    tdLog.sleep(10)
     
   def run(self):
     self.ntables = 100
+    self.startTime = 1520000010000L
+    self.rowsPerTable = 10
     self.replica = 2
 
     tdSql.execute('create database db replica %d ctime 30' %self.replica)
@@ -49,19 +52,22 @@ class TDTestCase:
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
-    tdLog.sleep(10)  
+    tdLog.sleep(5)  
 
     tdLog.info("================= step1")
-    startTime = 1520000010000L
-    for rid in range(1,11):
+    tdLog.info("insert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
+    startTime = self.startTime
+    for rid in range(1,self.rowsPerTable+1):
+      sqlcmd = ['insert into']
       for tid in range(1,self.ntables+1):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-      startTime += 1
+        sqlcmd.append('tb%d values(%ld, %d)'%(tid, startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
     tdSql.query('select * from tb1')
-    tdSql.checkRows(10)
+    tdSql.checkRows(self.rowsPerTable)
     tdLog.sleep(30)
 
     tdLog.info("================= step2")
+    tdLog.info("make sure dnode3 not exists")
     tdDnodes.deploy(3)
     tdDnodes.cfg(3,"numOfMPeers", "1")
     tdDnodes.cfg(3,"commitTime", "30")
@@ -74,6 +80,7 @@ class TDTestCase:
       dnode1SizeOld = 0 
 
     tdLog.info("================= step3")
+    tdLog.info("add dnode 3")
     tdSql.execute('create dnode 192.168.0.3')
     tdDnodes.start(3)
     tdLog.sleep(30)

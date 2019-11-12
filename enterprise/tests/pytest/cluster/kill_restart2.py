@@ -29,7 +29,7 @@ class TDTestCase:
     tdDnodes.cfg(1, "tables", "5")
     tdDnodes.start(1)
     
-    self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
+    self.conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     tdSql.init(self.conn.cursor())
     tdSql.execute('reset query cache')
     tdSql.execute('create dnode 192.168.0.2')
@@ -42,6 +42,7 @@ class TDTestCase:
     tdDnodes.cfg(3, "numOfMPeers", "1")
     tdDnodes.cfg(3, "tables", "5")
     tdDnodes.start(3)
+    tdLog.sleep(10)
 
   def run(self):
     self.ntables = 50
