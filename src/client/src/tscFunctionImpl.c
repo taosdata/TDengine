@@ -3812,10 +3812,11 @@ static void getStatics_i64(int64_t *primaryKey, int64_t *data, int32_t numOfRow,
 
 static void getStatics_f(int64_t *primaryKey, float *data, int32_t numOfRow, double *min, double *max, double *sum,
                          int16_t *minIndex, int16_t *maxIndex, int32_t *numOfNull) {
-  *min = DBL_MAX;
-  *max = -DBL_MAX;
-  *minIndex = 0;
-  *maxIndex = 0;
+  float fmin      = DBL_MAX;
+  float fmax      = -DBL_MAX;
+  float fminIndex = 0;
+  float fmaxIndex = 0;
+  double dsum     = 0;
 
   assert(numOfRow <= INT16_MAX);
 
@@ -3825,15 +3826,19 @@ static void getStatics_f(int64_t *primaryKey, float *data, int32_t numOfRow, dou
       continue;
     }
 
-    *sum += data[i];
-    if (*min > data[i]) {
-      *min = data[i];
-      *minIndex = i;
+    float fv = 0;
+    *(int32_t*)(&fv) = *(int32_t*)(&(data[i]));
+
+    //*sum += data[i];
+    dsum += fv;
+    if (fmin > fv) {
+      fmin = fv;
+      fminIndex = i;
     }
 
-    if (*max < data[i]) {
-      *max = data[i];
-      *maxIndex = i;
+    if (fmax < fv) {
+      fmax = fv;
+      fmaxIndex = i;
     }
 
     //    if (isNull(&lastVal, TSDB_DATA_TYPE_FLOAT)) {
@@ -3845,14 +3850,26 @@ static void getStatics_f(int64_t *primaryKey, float *data, int32_t numOfRow, dou
     //      lastVal = data[i];
     //    }
   }
+
+  double csum = 0;
+  *(int64_t*)(&csum) = *(int64_t*)sum;
+  csum += dsum;
+  *(int64_t*)(sum) = *(int64_t*)(&csum);
+
+  *(int32_t*)max = *(int32_t*)(&fmax);
+  *(int32_t*)min = *(int32_t*)(&fmin);
+  *(int32_t*)minIndex = *(int32_t*)(&fminIndex);
+  *(int32_t*)maxIndex = *(int32_t*)(&fmaxIndex);
+
 }
 
 static void getStatics_d(int64_t *primaryKey, double *data, int32_t numOfRow, double *min, double *max, double *sum,
                          int16_t *minIndex, int16_t *maxIndex, int32_t *numOfNull) {
-  *min = DBL_MAX;
-  *max = -DBL_MAX;
-  *minIndex = 0;
-  *maxIndex = 0;
+  double dmin      = DBL_MAX;
+  double dmax      = -DBL_MAX;
+  double dminIndex = 0;
+  double dmaxIndex = 0;
+  double dsum      = 0;
 
   assert(numOfRow <= INT16_MAX);
 
@@ -3865,15 +3882,19 @@ static void getStatics_d(int64_t *primaryKey, double *data, int32_t numOfRow, do
       continue;
     }
 
-    *sum += data[i];
-    if (*min > data[i]) {
-      *min = data[i];
-      *minIndex = i;
+    double dv = 0;
+    *(int64_t*)(&dv) = *(int64_t*)(&(data[i]));
+
+    //*sum += data[i];
+    dsum += dv;
+    if (dmin > dv) {
+      dmin = dv;
+      dminIndex = i;
     }
 
-    if (*max < data[i]) {
-      *max = data[i];
-      *maxIndex = i;
+    if (dmax < dv) {
+      dmax = dv;
+      dmaxIndex = i;
     }
 
     //    if (isNull(&lastVal, TSDB_DATA_TYPE_DOUBLE)) {
@@ -3885,6 +3906,16 @@ static void getStatics_d(int64_t *primaryKey, double *data, int32_t numOfRow, do
     //      lastVal = data[i];
     //    }
   }
+ 
+  double csum = 0;
+  *(int64_t*)(&csum) = *(int64_t*)sum;
+  csum += dsum;
+  *(int64_t*)(sum) = *(int64_t*)(&csum);
+
+  *(int64_t*)max = *(int64_t*)(&dmax);
+  *(int64_t*)min = *(int64_t*)(&dmin);
+  *(int64_t*)minIndex = *(int64_t*)(&dminIndex);
+  *(int64_t*)maxIndex = *(int64_t*)(&dmaxIndex);
 }
 
 void getStatistics(char *priData, char *data, int32_t size, int32_t numOfRow, int32_t type, int64_t *min, int64_t *max,

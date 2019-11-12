@@ -30,6 +30,9 @@
 #include <wordexp.h>
 
 #include "taos.h"
+
+extern char configDir[];
+
 #pragma GCC diagnostic ignored "-Wmissing-braces"
 
 #define BUFFER_SIZE      65536
