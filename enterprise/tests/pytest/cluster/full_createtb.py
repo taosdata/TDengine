@@ -45,25 +45,30 @@ class TDTestCase:
     tdDnodes.cfg(3, "tables", "5")
     tdDnodes.cfg(3, "numOfTotalVnodes", "2")
     tdDnodes.start(3)
+    tdLog.sleep(10)
     
   def run(self):
     self.ntables = 10
+    self.rowsPerTable = 10
     self.startTime = 1520000010000L
+    self.replica = 3
 
     tdLog.info("================= step1")
-    tdSql.execute('create database db replica 3')
+    tdLog.info("insert %d records into each %d tables" %(self.rowsPerTable, self.ntables))
+    tdSql.execute('create database db replica %d' %self.replica)
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
     tdLog.sleep(10)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
-      for rid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-        startTime += 1
+      sqlcmd = ['insert into tb%d values' %tid]
+      for rid in range(1,self.rowsPerTable+1):
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
     tdSql.query('select * from tb1')
-    tdSql.checkRows(10)
-    tdLog.sleep(3)
+    tdSql.checkRows(self.rowsPerTable)
+    tdLog.sleep(5)
 
     tdLog.info("================= step2")
     tdSql.error('create table tb%d(ts timestamp, i int)' %(self.ntables+1))

@@ -30,7 +30,7 @@ class TDTestCase:
     tdDnodes.cfg(1,"commitTime", "30")
     tdDnodes.start(1)
     
-    self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
+    self.conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     tdSql.init(self.conn.cursor())
     tdSql.execute('reset query cache')
     tdSql.execute('create dnode 192.168.0.2')
@@ -54,6 +54,8 @@ class TDTestCase:
     self.replica = 3
     self.ctime   = 30
 
+    tdLog.info("================= step1")
+    tdLog.info("insert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
     tdSql.execute('create database db replica %d ctime %d' %(self.replica, self.ctime))
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
@@ -61,19 +63,18 @@ class TDTestCase:
     tdLog.sleep(5)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
-      sqlcmd = ["insert into"]
+      sqlcmd = ["insert into tb%d values" %(tid)]
       for rid in range(1, self.rowsPerTable+1):
-        sqlcmd.append("tb%d values(%ld, %d)" %(tid, startTime, rid))
-        startTime += 1
+        sqlcmd.append("(%ld, %d)" %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
     tdLog.sleep(40)
 
-    tdLog.info("================= step1")
+    tdLog.info("================= step2")
     tdSql.query('select * from tb%d' %1)
     tdSql.checkRows(self.rowsPerTable)
 
-    tdLog.info("================= step2")
+    tdLog.info("================= step3")
     dnodesDir  = tdDnodes.getDnodesRootDir()
     dataDir    = dnodesDir + '/dnode3/data/data'
     vnodes     = os.listdir(dataDir)
@@ -85,12 +86,12 @@ class TDTestCase:
       tdLog.exit(cmd)
     tdLog.debug("%s" % (cmd))
 
-    tdLog.info("================= step3")
+    tdLog.info("================= step4")
     tdSql.query('select * from tb%d' %5)
     tdSql.checkRows(self.rowsPerTable)
     tdLog.sleep(40)
 
-    tdLog.info("================= step4")
+    tdLog.info("================= step5")
     fileToRes = fileToDel
     fileToRes0 = fileToDel[:-1] + '0'
     fileToRes1 = fileToDel[:-1] + '1'

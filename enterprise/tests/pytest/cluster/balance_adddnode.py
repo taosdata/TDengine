@@ -39,6 +39,7 @@ class TDTestCase:
     tdDnodes.cfg(2,"commitTime", "30")
     tdDnodes.cfg(2,"tables", "10")
     tdDnodes.start(2)
+    tdLog.sleep(10)
     
   def run(self):
     self.ntables = 100
@@ -51,15 +52,16 @@ class TDTestCase:
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
-    tdLog.sleep(3)
+    tdLog.sleep(5)
 
     tdLog.info("================= step1")
+    tdLog.info("insert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
       sqlcmd = ['insert into tb%d values' %(tid)]
       for rid in range(1,self.rowsPerTable+1):
         sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
+      tdSql.execute(" ".join(sqlcmd))
     tdSql.query('select * from tb1')
     tdSql.checkRows(self.rowsPerTable)
     tdLog.sleep(30)
