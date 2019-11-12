@@ -385,14 +385,21 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   pRetrieve = (SRetrieveMeterMsg *)pMsg;
   pRetrieve->free = htons(pRetrieve->free);
 
+  if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
+    dTrace("retrieve msg, handle:%p, free:%d", pRetrieve->qhandle, pRetrieve->free);
+  } else {
+    dTrace("retrieve msg to free resource from client, handle:%p, free:%d", pRetrieve->qhandle, pRetrieve->free);
+  }
+
   /*
    * in case of server restart, apps may hold qhandle created by server before restart,
    * which is actually invalid, therefore, signature check is required.
    */
   if (pRetrieve->qhandle == (uint64_t)pObj->qhandle) {
     // if free flag is set, client wants to clean the resources
-    if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE)
+    if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
       code = vnodeRetrieveQueryInfo((void *)(pRetrieve->qhandle), &numOfRows, &rowSize, &timePrec);
+    }
   } else {
     dError("QInfo:%p, qhandle:%p is not matched with saved:%p", pObj->qhandle, pRetrieve->qhandle, pObj->qhandle);
     code = TSDB_CODE_INVALID_QHANDLE;
