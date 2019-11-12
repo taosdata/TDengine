@@ -410,7 +410,7 @@ void vnodeRemoveFile(int vnode, int fileId) {
   int fd = open(headName, O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd > 0) {
     vnodeGetHeadFileHeaderInfo(fd, &headInfo);
-    __sync_fetch_and_add(&(pVnode->vnodeStatistic.totalStorage), -headInfo.totalStorage);
+    atomic_fetch_add_64(&(pVnode->vnodeStatistic.totalStorage), -headInfo.totalStorage);
     close(fd);
   }
 

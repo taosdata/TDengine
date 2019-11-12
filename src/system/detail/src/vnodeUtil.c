@@ -567,7 +567,7 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSid
        * check if the numOfQueries is 0 or not.
        */
       pMeterObjList[(*numOfInc)++] = pMeter;
-      __sync_fetch_and_add(&pMeter->numOfQueries, 1);
+      atomic_fetch_add_32(&pMeter->numOfQueries, 1);
 
       // output for meter more than one query executed
       if (pMeter->numOfQueries > 1) {
@@ -591,7 +591,7 @@ void vnodeDecQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterObj** pMeterObjList,
     SMeterObj* pMeter = pMeterObjList[i];
 
     if (pMeter != NULL) {  // here, do not need to lock to perform operations
-      __sync_fetch_and_sub(&pMeter->numOfQueries, 1);
+      atomic_fetch_sub_32(&pMeter->numOfQueries, 1);
 
       if (pMeter->numOfQueries > 0) {
         dTrace("qmsg:%p, vid:%d sid:%d id:%s dec query ref, numOfQueries:%d", pQueryMsg, pMeter->vnode, pMeter->sid,
@@ -646,7 +646,7 @@ void vnodeUpdateQueryColumnIndex(SQuery* pQuery, SMeterObj* pMeterObj) {
 }
 
 int32_t vnodeSetMeterState(SMeterObj* pMeterObj, int32_t state) {
-  return __sync_val_compare_and_swap(&pMeterObj->state, TSDB_METER_STATE_READY, state);
+  return atomic_val_compare_exchange_32(&pMeterObj->state, TSDB_METER_STATE_READY, state);
 }
 
 void vnodeClearMeterState(SMeterObj* pMeterObj, int32_t state) {

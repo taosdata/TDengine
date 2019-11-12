@@ -1023,13 +1023,13 @@ static void tscHandleSubRetrievalError(SRetrieveSupport *trsupport, SSqlObj *pSq
       tscProcessSql(pNew);
       return;
     } else {  // reach the maximum retry count, abort
-      __sync_val_compare_and_swap_32(&trsupport->pState->code, TSDB_CODE_SUCCESS, numOfRows);
+      atomic_val_compare_exchange_32(&trsupport->pState->code, TSDB_CODE_SUCCESS, numOfRows);
       tscError("%p sub:%p retrieve failed,code:%d,orderOfSub:%d failed.no more retry,set global code:%d", pPObj, pSql,
                numOfRows, idx, trsupport->pState->code);
     }
   }
 
-  if (__sync_add_and_fetch_32(&trsupport->pState->numOfCompleted, 1) < trsupport->pState->numOfTotal) {
+  if (atomic_add_fetch_32(&trsupport->pState->numOfCompleted, 1) < trsupport->pState->numOfTotal) {
     return tscFreeSubSqlObj(trsupport, pSql);
   }
 
@@ -1095,7 +1095,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
 
   if (numOfRows > 0) {
     assert(pRes->numOfRows == numOfRows);
-    __sync_add_and_fetch_64(&trsupport->pState->numOfRetrievedRows, numOfRows);
+    atomic_add_fetch_64(&trsupport->pState->numOfRetrievedRows, numOfRows);
 
     tscTrace("%p sub:%p retrieve numOfRows:%d totalNumOfRows:%d from ip:%u,vid:%d,orderOfSub:%d", pPObj, pSql,
              pRes->numOfRows, trsupport->pState->numOfRetrievedRows, pSvd->ip, pSvd->vnode, idx);
@@ -1154,7 +1154,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
       return tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
     }
 
-    if (__sync_add_and_fetch_32(&trsupport->pState->numOfCompleted, 1) < trsupport->pState->numOfTotal) {
+    if (atomic_add_fetch_32(&trsupport->pState->numOfCompleted, 1) < trsupport->pState->numOfTotal) {
       return tscFreeSubSqlObj(trsupport, pSql);
     }
 
@@ -1283,7 +1283,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   if (code != TSDB_CODE_SUCCESS) {
     if (trsupport->numOfRetry++ >= MAX_NUM_OF_SUBQUERY_RETRY) {
       tscTrace("%p sub:%p reach the max retry count,set global code:%d", trsupport->pParentSqlObj, pSql, code);
-      __sync_val_compare_and_swap_32(&trsupport->pState->code, 0, code);
+      atomic_val_compare_exchange_32(&trsupport->pState->code, 0, code);
     } else {  // does not reach the maximum retry count, go on
       tscTrace("%p sub:%p failed code:%d, retry:%d", trsupport->pParentSqlObj, pSql, code, trsupport->numOfRetry);
 

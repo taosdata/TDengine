@@ -216,8 +216,8 @@ void dnodeResetSystem() {
 
 void dnodeCountRequest(SCountInfo *info) {
   httpGetReqCount(&info->httpReqNum);
-  info->selectReqNum = __sync_fetch_and_and(&vnodeSelectReqNum, 0);
-  info->insertReqNum = __sync_fetch_and_and(&vnodeInsertReqNum, 0);
+  info->selectReqNum = atomic_exchange_32(&vnodeSelectReqNum, 0);
+  info->insertReqNum = atomic_exchange_32(&vnodeInsertReqNum, 0);
 }
 
 #pragma GCC diagnostic pop

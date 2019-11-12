@@ -353,7 +353,7 @@ static void doQuitSubquery(SSqlObj* pParentSql) {
 }
 
 static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSubquerySupporter* pSupporter) {
-  if (__sync_add_and_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
+  if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
     pSqlObj->res.code = abs(pSupporter->pState->code);
     tscError("%p all subquery return and query failed, global code:%d", pSqlObj, pSqlObj->res.code);
 
@@ -412,7 +412,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 
       taos_fetch_rows_a(tres, joinRetrieveCallback, param);
     } else if (numOfRows == 0) { // no data from this vnode anymore
-      if (__sync_add_and_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
+      if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
 
         if (pSupporter->pState->code != TSDB_CODE_SUCCESS) {
           tscTrace("%p sub:%p, numOfSub:%d, quit from further procedure due to other queries failure", pParentSql, tres,
@@ -451,7 +451,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       tscError("%p retrieve failed, code:%d, index:%d", pSql, numOfRows, pSupporter->subqueryIndex);
     }
 
-    if (__sync_add_and_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
+    if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
       tscTrace("%p secondary retrieve completed, global code:%d", tres, pParentSql->res.code);
       if (pSupporter->pState->code != TSDB_CODE_SUCCESS) {
         pParentSql->res.code = abs(pSupporter->pState->code);
@@ -560,7 +560,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
 
   SJoinSubquerySupporter* pSupporter = (SJoinSubquerySupporter*)param;
 
-  //  if (__sync_add_and_fetch_32(pSupporter->numOfComplete, 1) >=
+  //  if (atomic_add_fetch_32(pSupporter->numOfComplete, 1) >=
   //      pSupporter->numOfTotal) {
   //    SSqlObj *pParentObj = pSupporter->pObj;
   //
@@ -605,7 +605,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
 
       quitAllSubquery(pParentSql, pSupporter);
     } else {
-      if (__sync_add_and_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
+      if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
         tscSetupOutputColumnIndex(pParentSql);
 
         if (pParentSql->fp == NULL) {

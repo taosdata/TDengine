@@ -381,7 +381,7 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
     }
 
     if (taosLogMaxLines > 0) {
-      __sync_add_and_fetch_32(&taosLogLines, 1);
+      atomic_add_fetch_32(&taosLogLines, 1);
 
       if ((taosLogLines > taosLogMaxLines) && (openInProgress == 0)) taosOpenNewLogFile();
     }
@@ -458,7 +458,7 @@ void taosPrintLongString(const char *const flags, int dflag, const char *const f
     taosPushLogBuffer(logHandle, buffer, len);
 
     if (taosLogMaxLines > 0) {
-      __sync_add_and_fetch_32(&taosLogLines, 1);
+      atomic_add_fetch_32(&taosLogLines, 1);
 
       if ((taosLogLines > taosLogMaxLines) && (openInProgress == 0)) taosOpenNewLogFile();
     }

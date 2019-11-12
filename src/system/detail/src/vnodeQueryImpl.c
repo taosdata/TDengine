@@ -3889,14 +3889,14 @@ void vnodeDecMeterRefcnt(SQInfo *pQInfo) {
   SMeterQuerySupportObj *pSupporter = pQInfo->pMeterQuerySupporter;
 
   if (pSupporter == NULL || pSupporter->numOfMeters == 1) {
-    __sync_fetch_and_sub(&pQInfo->pObj->numOfQueries, 1);
+    atomic_fetch_sub_32(&pQInfo->pObj->numOfQueries, 1);
     dTrace("QInfo:%p vid:%d sid:%d meterId:%s, query is over, numOfQueries:%d", pQInfo, pQInfo->pObj->vnode,
            pQInfo->pObj->sid, pQInfo->pObj->meterId, pQInfo->pObj->numOfQueries);
   } else {
     int32_t num = 0;
     for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
       SMeterObj *pMeter = getMeterObj(pSupporter->pMeterObj, pSupporter->pSidSet->pSids[i]->sid);
-      __sync_fetch_and_sub(&(pMeter->numOfQueries), 1);
+      atomic_fetch_sub_32(&(pMeter->numOfQueries), 1);
 
       if (pMeter->numOfQueries > 0) {
         dTrace("QInfo:%p vid:%d sid:%d meterId:%s, query is over, numOfQueries:%d", pQInfo, pMeter->vnode, pMeter->sid,
