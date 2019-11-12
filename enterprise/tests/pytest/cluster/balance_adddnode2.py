@@ -42,8 +42,10 @@ class TDTestCase:
     
   def run(self):
     self.ntables = 100
+    self.replica = 2
 
-    tdSql.execute('create database db replica 2 ctime 30')
+    tdSql.execute('create database db replica %d ctime 30' %self.replica)
+    tdLog.sleep(10)
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)

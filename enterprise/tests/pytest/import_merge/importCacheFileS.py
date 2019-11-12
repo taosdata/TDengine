@@ -68,7 +68,10 @@ class TDTestCase:
     tdLog.info("================= step7")
     tdLog.info("import 30 data covering existing data")
     startTime = self.startTime - 5
-    tdSql.execute('import into tb1 values(%ld, %d)' %(startTime, rid))
+    sqlcmd = ['import into tb1 values']
+    for rid in range(1,31):
+      sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+    tdSql.execute(" ".join(sqlcmd))
 
     tdLog.info("================= step8")
     tdSql.query('select * from tb1')

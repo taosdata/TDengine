@@ -42,10 +42,11 @@ class TDTestCase:
   def run(self):
     self.ntables = 10
     self.rowsPerTable = 10
-    self.replica = 3
+    self.replica = 2
     self.startTime = 1520000010000L
 
-    tdSql.execute('create database db replica 3')
+    tdSql.execute('create database db replica %d' %self.replica)
+    tdLog.sleep(10)
     tdSql.execute('use db')
     for tid in range(1,11):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
@@ -53,11 +54,12 @@ class TDTestCase:
 
     tdLog.info("================= step1")
     tdLog.info("inert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
-    startTime = 1520000010000L
-    for rid in range(1,11):
-      for tid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-      startTime += 1
+    for tid in range(1,self.ntables+1):
+      startTime = self.startTime
+      sqlcmd = ['insert into tb%d values' %tid]
+      for rid in range(1,self.rowsPerTable+1):
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
     tdSql.query('select * from tb1')
     tdSql.checkRows(10)
 
@@ -66,6 +68,7 @@ class TDTestCase:
     tdLog.sleep(2)
 
     tdLog.info("================= step3")
+    tdLog.info("drop 3 tables")
     for tid in range(3,6):
       tdSql.execute('drop table tb%d' %tid)
       tdLog.sleep(2)
