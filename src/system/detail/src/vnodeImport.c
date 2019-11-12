@@ -1465,7 +1465,7 @@ int vnodeImportDataToCache(SImportInfo *pImport, const char *payload, const int 
           ((!isCacheIterEnd) &&
            (KEY_AT_INDEX(payload, pObj->bytesPerPoint, payloadIter) >
             KEY_AT_INDEX(pInfo->cacheBlocks[cacheIter.slot]->offset[0], sizeof(TSKEY),
-                         cacheIter.pos)))) {  // if (payload end || (cacheIter not end && payloadKey > blockKey))
+                         cacheIter.pos)))) {  // if (payload end || (cacheIter not end && payloadKey > blockKey)), consume cache
         for (int col = 0; col < pObj->numOfColumns; col++) {
           memcpy(pBuffer->offset[col] + pObj->schema[col].bytes * pBuffer->epos,
                  pInfo->cacheBlocks[cacheIter.slot]->offset[col] + pObj->schema[col].bytes * cacheIter.pos,
@@ -1477,17 +1477,22 @@ int vnodeImportDataToCache(SImportInfo *pImport, const char *payload, const int 
                  ((payloadIter < rows) &&
                   (KEY_AT_INDEX(payload, pObj->bytesPerPoint, payloadIter) <
                    KEY_AT_INDEX(pInfo->cacheBlocks[cacheIter.slot]->offset[0], sizeof(TSKEY),
-                                cacheIter.pos)))) {  // cacheIter end || (payloadIter not end && payloadKey < blockKey)
+                                cacheIter.pos)))) {  // cacheIter end || (payloadIter not end && payloadKey < blockKey), consume payload
         if (availPoints == 0) {                      // Need to allocate a new cache block
           pthread_mutex_lock(&(pPool->vmutex));
+          // TODO: Need to check if there are enough slots to hold a new one
           SCacheBlock *pNewBlock = vnodeGetFreeCacheBlock(pVnode);
-          if (pNewBlock == NULL) {  // Failed to allocate a new cache block
+          if (pNewBlock == NULL) {  // Failed to allocate a new cache block, need to commit and loop over the remaining cache records
             pthread_mutex_unlock(&(pPool->vmutex));
             payloadIter = rows;
             code = TSDB_CODE_ACTION_IN_PROGRESS;
             pImport->commit = 1;
-            // TODO: Fix here
             continue;
+          }
+          
+          assert(pInfo->numOfBlocks <= pInfo->maxBlocks);
+          if (pInfo->numOfBlocks == pInfo->maxBlocks) {
+            vnodeFreeCacheBlock(pInfo->cacheBlocks[(pInfo->currentSlot + 1) % pInfo->maxBlocks]);
           }
 
           pNewBlock->pMeterObj = pObj;
@@ -1593,6 +1598,7 @@ int vnodeImportDataToCache(SImportInfo *pImport, const char *payload, const int 
     }
   }
   pImport->importedRows += rowsImported;
+  __sync_fetch_and_sub(&(pObj->freePoints), rowsImported);
 
   code = 0;
 
