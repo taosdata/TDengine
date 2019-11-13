@@ -46,6 +46,7 @@ class TDTestCase:
           else:
             err = 'affected rows %d != expected %d' %(affrows, ninserted)
             print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
+            print "failed import sqlcmd: %s" %(sqlcmd[1])
             ##sys.exit(1) 
             ninserted = 0
             sqlcmd = ['import into']
@@ -56,10 +57,24 @@ class TDTestCase:
         else:
           err = 'affected rows %d != expected %d' %(affrows, ninserted)
           print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
+          print "failed import sqlcmd: %s" %(sqlcmd[1])
           ##sys.exit(1) 
           ninserted = 0
           sqlcmd = ['import into']
   
+  def selectImp(self):
+    conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
+    cursor = conn.cursor()
+    cursor.execute('use db')
+    count = 0
+    while(True):
+      cursor.execute('select * from tb')
+      for line in cursor:
+        continue
+      print("query %d finished" %count)
+      if (count == 100):break
+      count += 1
+
   def run(self):
     self.ntables = 2000
     self.nrows = 1000
@@ -86,9 +101,13 @@ class TDTestCase:
       thread = threading.Thread(target=self.importImp, name=threadName)
       thread.start()
       threads.append(thread)
+    thread = threading.Thread(target=self.selectImp, name="select query")
+    thread.start()
+    threads.append(thread)
     
     for tid in range (self.nthreads) :
       threads[tid].join()
+    threads[tid+1].join()
 
   def stop(self):
     tdSql.close()
