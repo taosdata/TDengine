@@ -247,7 +247,7 @@ typedef struct {
 extern SGlobalConfig *tsGlobalConfig;
 extern int            tsGlobalConfigNum;
 extern char *         tsCfgStatusStr[];
-SGlobalConfig *tsGetConfigOption(char *option);
+SGlobalConfig *tsGetConfigOption(const char *option);
 
 #define TSDB_CFG_MAX_NUM    110
 #define TSDB_CFG_PRINT_LEN  23
