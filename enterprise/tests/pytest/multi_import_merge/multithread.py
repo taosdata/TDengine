@@ -46,7 +46,9 @@ class TDTestCase:
           else:
             err = 'affected rows %d != expected %d' %(affrows, ninserted)
             print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
-            sys.exit(1) 
+            ##sys.exit(1) 
+            ninserted = 0
+            sqlcmd = ['import into']
       if (ninserted > 0):
         affrows = cursor.execute(" ".join(sqlcmd))
         if (affrows == ninserted):
@@ -54,11 +56,13 @@ class TDTestCase:
         else:
           err = 'affected rows %d != expected %d' %(affrows, ninserted)
           print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
-          sys.exit(1) 
+          ##sys.exit(1) 
+          ninserted = 0
+          sqlcmd = ['import into']
   
   def run(self):
     self.ntables = 2000
-    self.nrows = 100000
+    self.nrows = 1000
     self.nthreads = 5
 
     tdSql.execute('reset query cache')
@@ -69,8 +73,9 @@ class TDTestCase:
 
     tdLog.info("================= step1")
     tdLog.info("create %d table" %self.ntables)
+    tdSql.execute('create table tb (ts timestamp, i int) tags (id int)')
     for tid in range(1, self.ntables+1):
-      tdSql.execute('create table tb%d (ts timestamp, i int)' %tid)
+      tdSql.execute('create table tb%d using tb tags (%d)' %(tid,tid))
     tdLog.sleep(10)
 
     tdLog.info("================= step2")
