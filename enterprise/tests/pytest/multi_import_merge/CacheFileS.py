@@ -70,14 +70,14 @@ class TDTestCase:
     tdSql.checkRows(self.rowsPerTable+10)
 
     tdLog.info("================= step7")
-    tdLog.info("import 4 data later with partly overlap")
-    startTime = self.startTime + self.rowsPerTable - 2
+    tdLog.info("import 60 data covering the existing data")
+    startTime = self.startTime - 1
     for tid in range(1, self.ntables+1):
       sqlcmd = ['import into tb%d values' %tid]
-      for rid in range(1,5):
-        sqlcmd.append('(%ld+%dd, %d)' %(startTime+rid, self.rowsPerTable, rid))
+      for rid in range(1,61):
+        sqlcmd.append('(%ld+%dd, %d)' %(startTime+rid, rid, rid))
       tdSql.execute(" ".join(sqlcmd))
-    tdSql.checkAffectedRows(3)
+    tdSql.checkAffectedRows(60)
 
   def stop(self):
     tdSql.close()

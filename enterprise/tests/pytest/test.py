@@ -220,6 +220,23 @@ from multi_import_merge.CacheFileT import *
 from multi_import_merge.CacheFileHO import *
 from multi_import_merge.CacheFileTO import *
 from multi_import_merge.CacheFileHPO import *
+from multi_import_merge.CacheFileTPO import *
+from multi_import_merge.CacheFileS import *
+from multi_import_merge.Block1H import *
+from multi_import_merge.Block1T import *
+from multi_import_merge.Block1HO import *
+from multi_import_merge.Block1TO import *
+from multi_import_merge.Block1HPO import *
+from multi_import_merge.Block1TPO import *
+from multi_import_merge.Block1S import *
+from multi_import_merge.Block2H import *
+from multi_import_merge.Block2T import *
+from multi_import_merge.Block2HO import *
+from multi_import_merge.Block2TO import *
+from multi_import_merge.Block2HPO import *
+from multi_import_merge.Block2TPO import *
+from multi_import_merge.Block2S import *
+from multi_import_merge.Blockbetween import *
 
 
 if __name__=="__main__":

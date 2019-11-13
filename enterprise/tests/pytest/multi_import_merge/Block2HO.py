@@ -25,59 +25,41 @@ class TDTestCase:
     
   def run(self):
     self.ntables = 10
-    self.rowsPerTable = 40
     self.startTime = 1520000010000L
 
     tdSql.execute('reset query cache')
     tdSql.execute('drop database db')
-    tdSql.execute('create database db tables 5')
+    tdSql.execute('create database db cache 512 tables 5')
     tdSql.execute('use db')
 
     tdLog.info("================= step1")
     tdLog.info("create %d table" %self.ntables)
     for tid in range(1, self.ntables+1):
       tdSql.execute('create table tb%d (ts timestamp, i int)' %tid)
+    tdLog.info("one block can import 38 records")
 
     tdLog.info("================= step2")
-    tdLog.info("import %d data into each %d tables" %(self.rowsPerTable, self.ntables))
-    for tid in range(1, self.ntables+1):
+    tdLog.info("import 76 data in to each %d tables" %self.ntables)
+    for rid in range(1,77):
       startTime = self.startTime
-      sqlcmd = ['import into tb%d values' %tid]
-      for rid in range(1, self.rowsPerTable+1):
-        sqlcmd.append('(%ld+%dd, %d)' %(startTime+rid, rid, rid))
+      sqlcmd = ['import into']
+      for tid in range(1,self.ntables+1):
+        sqlcmd.append('tb%d values(%ld+%dd, %d)' %(tid, startTime+rid, rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     
     tdLog.info("================= step3")
     tdSql.query('select * from tb1')
-    tdSql.checkRows(self.rowsPerTable)
+    tdSql.checkRows(76)
 
     tdLog.info("================= step4")
-    tdDnodes.stop(1)
-    tdLog.sleep(5)
-    tdDnodes.start(1)
-
-    tdLog.info("================= step5")
-    tdLog.info("import 10 data again")
-    for tid in range(1, self.ntables+1):
-      startTime = self.startTime + self.rowsPerTable
-      sqlcmd = ['import into tb%d values' %tid]
-      for rid in range(1, 11):
+    tdLog.info("import 3 data before with overlap")
+    for tid in range(1,self.ntables+1):
+      startTime = self.startTime 
+      sqlcmd = ['import into tb%d values' %(tid)]
+      for rid in range(0,3):
         sqlcmd.append('(%ld+%dd, %d)' %(startTime+rid, rid, rid))
       tdSql.execute(" ".join(sqlcmd))
-
-    tdLog.info("================= step6")
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(self.rowsPerTable+10)
-
-    tdLog.info("================= step7")
-    tdLog.info("import 4 data later with partly overlap")
-    startTime = self.startTime + self.rowsPerTable - 2
-    for tid in range(1, self.ntables+1):
-      sqlcmd = ['import into tb%d values' %tid]
-      for rid in range(1,5):
-        sqlcmd.append('(%ld+%dd, %d)' %(startTime+rid, self.rowsPerTable, rid))
-      tdSql.execute(" ".join(sqlcmd))
-    tdSql.checkAffectedRows(3)
+    tdSql.checkAffectedRows(1)
 
   def stop(self):
     tdSql.close()
