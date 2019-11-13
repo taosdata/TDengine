@@ -95,6 +95,9 @@ int monitorInitSystem() {
 }
 
 int monitorStartSystem() {
+  if (monitor == NULL) {
+    monitorInitSystem();
+  }
   taosTmrReset(monitorInitConn, 10, NULL, tscTmr, &monitor->initTimer);
   return 0;
 }

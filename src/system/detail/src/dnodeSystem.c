@@ -33,8 +33,8 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Woverflow"
 
-SModule         tsModule[TSDB_MOD_MAX];
-uint32_t        tsModuleStatus;
+SModule         tsModule[TSDB_MOD_MAX] = {0};
+uint32_t        tsModuleStatus = 0;
 pthread_mutex_t dmutex;
 extern int      vnodeSelectReqNum;
 extern int      vnodeInsertReqNum;
