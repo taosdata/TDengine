@@ -77,7 +77,7 @@ int httpStartSystem() {
 
   if (httpServer == NULL) {
     httpError("http server is null");
-    return -1;
+    httpInitSystem();
   }
 
   if (httpServer->pContextPool == NULL) {
