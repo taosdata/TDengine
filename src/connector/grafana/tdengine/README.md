@@ -61,7 +61,7 @@ Example response
 
 Example request
 ``` javascript
-<null> get request
+ Get request /heartbeat
 ```
 
 Example response
@@ -70,3 +70,27 @@ Example response
 	"message": "Grafana server receive a quest from you!"
 }
 ```
+
+### Dev setup
+
+This plugin requires node 6.10.0
+
+``` javascript
+
+npm install -g yarn 
+yarn install
+npm run build
+
+```
+
+### Import Dashboard
+
+after login `http://localhost:3000 `, then you can import the tdengine demo dashboard to monitor the system metrics.
+
+you can import the  `dashboard/tdengine-grafana.json`:
+
+![import_dashboard](dashboard/import_dashboard.png)
+
+after finished import:
+
+![import_dashboard](dashboard/tdengine_dashboard.png)
