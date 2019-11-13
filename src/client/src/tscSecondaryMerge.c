@@ -432,11 +432,10 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   // there is no more result, so we release all allocated resource
-  SLocalReducer *pLocalReducer =
-      (SLocalReducer *)__sync_val_compare_and_swap_64(&pRes->pLocalReducer, pRes->pLocalReducer, 0);
+  SLocalReducer *pLocalReducer = (SLocalReducer*)atomic_exchange_ptr(&pRes->pLocalReducer, NULL);
   if (pLocalReducer != NULL) {
     int32_t status = 0;
-    while ((status = __sync_val_compare_and_swap_32(&pLocalReducer->status, TSC_LOCALREDUCE_READY,
+    while ((status = atomic_val_compare_exchange_32(&pLocalReducer->status, TSC_LOCALREDUCE_READY,
                                                     TSC_LOCALREDUCE_TOBE_FREED)) == TSC_LOCALREDUCE_IN_PROGRESS) {
       taosMsleep(100);
       tscTrace("%p waiting for delete procedure, status: %d", pSql, status);
@@ -1328,7 +1327,7 @@ int32_t tscLocalDoReduce(SSqlObj *pSql) {
 
   // set the data merge in progress
   int32_t prevStatus =
-      __sync_val_compare_and_swap_32(&pLocalReducer->status, TSC_LOCALREDUCE_READY, TSC_LOCALREDUCE_IN_PROGRESS);
+      atomic_val_compare_exchange_32(&pLocalReducer->status, TSC_LOCALREDUCE_READY, TSC_LOCALREDUCE_IN_PROGRESS);
   if (prevStatus != TSC_LOCALREDUCE_READY || pLocalReducer == NULL) {
     assert(prevStatus == TSC_LOCALREDUCE_TOBE_FREED); // it is in tscDestroyLocalReducer function already
     return TSDB_CODE_SUCCESS;

@@ -643,8 +643,8 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     pData += pObj->bytesPerPoint;
     points++;
   }
-  __sync_fetch_and_add(&(pVnode->vnodeStatistic.pointsWritten), points * (pObj->numOfColumns - 1));
-  __sync_fetch_and_add(&(pVnode->vnodeStatistic.totalStorage), points * pObj->bytesPerPoint);
+  atomic_fetch_add_64(&(pVnode->vnodeStatistic.pointsWritten), points * (pObj->numOfColumns - 1));
+  atomic_fetch_add_64(&(pVnode->vnodeStatistic.totalStorage), points * pObj->bytesPerPoint);
 
   pthread_mutex_lock(&(pVnode->vmutex));
 

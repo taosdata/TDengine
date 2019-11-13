@@ -105,15 +105,15 @@ static timer_map_t timerMap;
 static uintptr_t getNextTimerId() {
   uintptr_t id;
   do {
-    id = __sync_add_and_fetch_ptr(&nextTimerId, 1);
+    id = atomic_add_fetch_ptr(&nextTimerId, 1);
   } while (id == 0);
   return id;
 }
 
-static void timerAddRef(tmr_obj_t* timer) { __sync_add_and_fetch_8(&timer->refCount, 1); }
+static void timerAddRef(tmr_obj_t* timer) { atomic_add_fetch_8(&timer->refCount, 1); }
 
 static void timerDecRef(tmr_obj_t* timer) {
-  if (__sync_sub_and_fetch_8(&timer->refCount, 1) == 0) {
+  if (atomic_sub_fetch_8(&timer->refCount, 1) == 0) {
     free(timer);
   }
 }
@@ -121,7 +121,7 @@ static void timerDecRef(tmr_obj_t* timer) {
 static void lockTimerList(timer_list_t* list) {
   int64_t tid = taosGetPthreadId();
   int       i = 0;
-  while (__sync_val_compare_and_swap_64(&(list->lockedBy), 0, tid) != 0) {
+  while (atomic_val_compare_exchange_64(&(list->lockedBy), 0, tid) != 0) {
     if (++i % 1000 == 0) {
       sched_yield();
     }
@@ -130,7 +130,7 @@ static void lockTimerList(timer_list_t* list) {
 
 static void unlockTimerList(timer_list_t* list) {
   int64_t tid = taosGetPthreadId();
-  if (__sync_val_compare_and_swap_64(&(list->lockedBy), tid, 0) != tid) {
+  if (atomic_val_compare_exchange_64(&(list->lockedBy), tid, 0) != tid) {
     assert(false);
     tmrError("%d trying to unlock a timer list not locked by current thread.", tid);
   }
@@ -257,7 +257,7 @@ static bool removeFromWheel(tmr_obj_t* timer) {
 static void processExpiredTimer(void* handle, void* arg) {
   tmr_obj_t* timer = (tmr_obj_t*)handle;
   timer->executedBy = taosGetPthreadId();
-  uint8_t state = __sync_val_compare_and_swap_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_EXPIRED);
+  uint8_t state = atomic_val_compare_exchange_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_EXPIRED);
   if (state == TIMER_STATE_WAITING) {
     const char* fmt = "%s timer[id=%lld, fp=%p, param=%p] execution start.";
     tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
@@ -431,7 +431,7 @@ bool taosTmrStop(tmr_h timerId) {
     return false;
   }
 
-  uint8_t state = __sync_val_compare_and_swap_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_CANCELED);
+  uint8_t state = atomic_val_compare_exchange_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_CANCELED);
   doStopTimer(timer, state);
   timerDecRef(timer);
 
@@ -456,7 +456,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle,
   if (timer == NULL) {
     tmrTrace("%s timer[id=%lld] does not exist", ctrl->label, id);
   } else {
-    uint8_t state = __sync_val_compare_and_swap_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_CANCELED);
+    uint8_t state = atomic_val_compare_exchange_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_CANCELED);
     if (!doStopTimer(timer, state)) {
       timerDecRef(timer);
       timer = NULL;

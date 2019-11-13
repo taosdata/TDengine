@@ -148,7 +148,7 @@ void httpCleanUpSystem() {
 
 void httpGetReqCount(int32_t *httpReqestNum) {
   if (httpServer != NULL) {
-    *httpReqestNum = __sync_fetch_and_and(&httpServer->requestNum, 0);
+    *httpReqestNum = atomic_exchange_32(&httpServer->requestNum, 0);
   } else {
     *httpReqestNum = 0;
   }

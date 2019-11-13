@@ -497,7 +497,7 @@ int vnodeImportToFile(SImportInfo *pImport) {
         pInfo->commitPoint = 0;
         pCacheBlock->numOfPoints = points;
         if (slot == pInfo->currentSlot) {
-          __sync_fetch_and_add(&pObj->freePoints, pInfo->commitPoint);
+          atomic_fetch_add_32(&pObj->freePoints, pInfo->commitPoint);
         }
       } else {
         // if last block is full and committed
@@ -625,7 +625,7 @@ int vnodeImportToCache(SImportInfo *pImport, char *payload, int rows) {
   }
 
   code = 0;
-  __sync_fetch_and_sub(&pObj->freePoints, rows);
+  atomic_fetch_sub_32(&pObj->freePoints, rows);
   dTrace("vid:%d sid:%d id:%s, %d rows data are imported to cache", pObj->vnode, pObj->sid, pObj->meterId, rows);
 
 _exit:

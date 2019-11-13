@@ -256,7 +256,7 @@ void vnodeUpdateCommitInfo(SMeterObj *pObj, int slot, int pos, uint64_t count) {
     tslot = (tslot + 1) % pInfo->maxBlocks;
   }
 
-  __sync_fetch_and_add(&pObj->freePoints, pObj->pointsPerBlock * slots);
+  atomic_fetch_add_32(&pObj->freePoints, pObj->pointsPerBlock * slots);
   pInfo->commitSlot = slot;
   pInfo->commitPoint = pos;
   pObj->commitCount = count;
@@ -505,7 +505,7 @@ int vnodeInsertPointToCache(SMeterObj *pObj, char *pData) {
     pData += pObj->schema[col].bytes;
   }
 
-  __sync_fetch_and_sub(&pObj->freePoints, 1);
+  atomic_fetch_sub_32(&pObj->freePoints, 1);
   pCacheBlock->numOfPoints++;
   pPool->count++;
 
@@ -1114,7 +1114,7 @@ int vnodeSyncRestoreCache(int vnode, int fd) {
       for (int col = 0; col < pObj->numOfColumns; ++col)
         if (taosReadMsg(fd, pBlock->offset[col], pObj->schema[col].bytes * points) <= 0) return -1;
 
-      __sync_fetch_and_sub(&pObj->freePoints, points);
+      atomic_fetch_sub_32(&pObj->freePoints, points);
       blocksReceived++;
       pointsReceived += points;
       pObj->lastKey = *((TSKEY *)(pBlock->offset[0] + pObj->schema[0].bytes * (points - 1)));
