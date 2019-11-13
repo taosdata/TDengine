@@ -61,6 +61,7 @@ class TDTestCase:
           ##sys.exit(1) 
           ninserted = 0
           sqlcmd = ['import into']
+    conn.close()
   
   def selectImp(self):
     conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
@@ -72,8 +73,9 @@ class TDTestCase:
       for line in cursor:
         continue
       print("query %d finished" %count)
-      if (count == 100):break
+      if (count == 1000):break
       count += 1
+    conn.close()
 
   def run(self):
     self.ntables = 2000
