@@ -673,7 +673,7 @@ typedef struct {
 
 typedef struct {
   uint64_t qhandle;
-  int16_t  free;
+  uint16_t free;
 } SRetrieveMeterMsg;
 
 typedef struct {

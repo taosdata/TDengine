@@ -873,7 +873,7 @@ int mgmtProcessRetrieveMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, TSDB_CODE_MEMORY_CORRUPTED);
     return -1;
   } else {
-    if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) == 0) {
+    if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
       rowsToRead = pShow->numOfRows - pShow->numOfReads;
     }
 
@@ -905,7 +905,7 @@ int mgmtProcessRetrieveMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     pMsg = pRsp->data;
 
     // if free flag is set, client wants to clean the resources
-    if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) == 0)
+    if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE)
       rowsRead = (*mgmtRetrieveFp[pShow->type])(pShow, pRsp->data, rowsToRead, pConn);
 
     if (rowsRead < 0) {

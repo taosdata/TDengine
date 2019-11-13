@@ -2460,10 +2460,10 @@ int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql) {
 
   pMsg += sizeof(SMgmtHead);
 
-  *((uint64_t *)pMsg) = pSql->res.qhandle;
+  *((uint64_t *) pMsg) = pSql->res.qhandle;
   pMsg += sizeof(pSql->res.qhandle);
 
-  *pMsg = htons(pCmd->type);
+  *((uint16_t*) pMsg) = htons(pCmd->type);
   pMsg += sizeof(pCmd->type);
 
   msgLen = pMsg - pStart;
@@ -3451,11 +3451,12 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   pRes->row = 0;
 
   /**
-   * If the query result is exhausted, the connection will be recycled.
-   * If current query is to free resource at server side, the connection will be recycle.
+   * If the query result is exhausted, or current query is to free resource at server side,
+   * the connection will be recycled.
    */
   if ((pRes->numOfRows == 0 && !(tscProjectionQueryOnMetric(pCmd) && pRes->offset > 0)) ||
       ((pCmd->type & TSDB_QUERY_TYPE_FREE_RESOURCE) == TSDB_QUERY_TYPE_FREE_RESOURCE)) {
+    tscTrace("%p no result or free resource, recycle connection", pSql);
     taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pObj->user);
     pSql->thandle = NULL;
   } else {
