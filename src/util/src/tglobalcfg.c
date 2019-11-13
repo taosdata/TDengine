@@ -364,7 +364,7 @@ void tsReadLogOption(char *option, char *value) {
   }
 }
 
-SGlobalConfig *tsGetConfigOption(char *option) {
+SGlobalConfig *tsGetConfigOption(const char *option) {
   tsInitGlobalConfig();
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
@@ -374,7 +374,7 @@ SGlobalConfig *tsGetConfigOption(char *option) {
   return NULL;
 }
 
-void tsReadConfigOption(char *option, char *value) {
+void tsReadConfigOption(const char *option, char *value) {
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
     if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_CONFIG)) continue;
@@ -423,9 +423,7 @@ void tsInitConfigOption(SGlobalConfig *cfg, char *name, void *ptr, int8_t valTyp
   cfg->cfgStatus = TSDB_CFG_CSTATUS_NONE;
 }
 
-void tsInitGlobalConfig() {
-  if (tsGlobalConfig != NULL) return;
-
+static void doInitGlobalConfig() {
   tsGlobalConfig = (SGlobalConfig *) malloc(sizeof(SGlobalConfig) * TSDB_CFG_MAX_NUM);
   memset(tsGlobalConfig, 0, sizeof(SGlobalConfig) * TSDB_CFG_MAX_NUM);
 
@@ -781,6 +779,11 @@ void tsInitGlobalConfig() {
                      0, 0, 0, TSDB_CFG_UTYPE_NONE);
 
   tsGlobalConfigNum = (int)(cfg - tsGlobalConfig);
+}
+
+static pthread_once_t initGlobalConfig = PTHREAD_ONCE_INIT;
+void tsInitGlobalConfig() {
+  pthread_once(&initGlobalConfig, doInitGlobalConfig);
 }
 
 void tsReadGlobalLogConfig() {
