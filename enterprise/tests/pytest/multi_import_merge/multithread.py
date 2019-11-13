@@ -1,0 +1,109 @@
+###################################################################
+ #       Copyright (c) 2016 by TAOS Technologies, Inc.
+ #             All rights reserved.
+ #
+ #  This file is proprietary and confidential to TAOS Technologies.
+ #  No part of this file may be reproduced, stored, transmitted, 
+ #  disclosed or used in any form or by any means other than as 
+ #  expressly provided by the written permission from Jianhui Tao
+ #
+###################################################################
+
+# -*- coding: utf-8 -*-  
+
+import sys
+import time
+import datetime
+import taos
+from util.log import *
+from util.cases import *
+from util.sql import *
+from util.dnodes import *
+
+class TDTestCase:
+  def init(self, conn):
+    tdLog.debug("start to execute %s" % __file__)
+    tdSql.init(conn.cursor())
+  
+  def importImp(self):
+    err = 'affected rows incorrect!'
+    conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
+		cursor = conn.cursor()
+		threadIndex = threading.current_thread().name
+    ninserted = 0
+    startTime = 1520000010000L + threadIndex
+    for rid in range(self.nrows):
+      sqlcmd = ['import into']
+      for tid in range(1, self.ntables+1):
+        sqlcmd.append('tb%d values(%ld, %d)' %(tid, startTime+rid*self.nthreads,  rid))
+        ninserted += 1
+        if (ninserted == 1000):
+          if (cursor.execute(" ".join(sqlcmd)) == ninserted):
+            ninserted = 0
+            sqlcmd = ['import into']
+          else:
+            print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
+		        sys.exit(1)	
+      if (ninserted > 0):
+        if (cursor.execute(" ".join(sqlcmd)) == ninserted):
+          ninserted = 0
+        else:
+          print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
+          sys.exit(1)	
+  
+  def run(self):
+    self.ntables = 20000
+    self.nrows = 100000
+    self.nthreads = 5
+
+    tdSql.execute('reset query cache')
+    tdSql.execute('drop database db')
+    tdSql.execute('create database db ')
+    tdLog.sleep(5)
+    tdSql.execute('use db')
+
+    tdLog.info("================= step1")
+    tdLog.info("create %d table" %self.ntables)
+    for tid in range(1, self.ntables+1):
+      tdSql.execute('create table tb%d (ts timestamp, i int)' %tid)
+    tdLog.sleep(10)
+
+    tdLog.info("================= step2")
+    tdLog.info("%d threads begin to import data into all %d tables" %(self.nthreads, self.ntables))
+    threads = []
+		for tid in range (self.nthreads) :
+			threadName = "%d" % (tid)
+			thread = threading.Thread(target=self.importImp, name=threadName)
+			thread.start()
+			threads.append(thread)
+		
+		for tid in range (self.nthreads) :
+			threads[tid].join()
+
+    for rid in range(1,39):
+      startTime = self.startTime
+      sqlcmd = ['import into']
+      for tid in range(1,self.ntables+1):
+        sqlcmd.append('tb%d values(%ld+%dd, %d)' %(tid, startTime+rid, rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
+    
+    tdLog.info("================= step3")
+    tdSql.query('select * from tb1')
+    tdSql.checkRows(38)
+
+    tdLog.info("================= step4")
+    tdLog.info("import 1 data before")
+    startTime = self.startTime - 1
+    sqlcmd = ['import into']
+    rid = 1
+    for tid in range(1,self.ntables+1):
+      sqlcmd.append('tb%d values(%ld+%dd, %d)' %(tid, startTime+rid, rid, rid))
+    tdSql.execute(" ".join(sqlcmd))
+    tdSql.checkAffectedRows(self.ntables)
+
+  def stop(self):
+    tdSql.close()
+    tdLog.success("%s successfully executed" % __file__)
+  
+tdCases.addWindows(__file__, TDTestCase())
+tdCases.addLinux(__file__, TDTestCase())
