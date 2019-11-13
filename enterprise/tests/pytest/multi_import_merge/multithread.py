@@ -14,6 +14,7 @@
 import sys
 import time
 import datetime
+import threading
 import taos
 from util.log import *
 from util.cases import *
@@ -28,8 +29,9 @@ class TDTestCase:
   def importImp(self):
     err = 'affected rows incorrect!'
     conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
-		cursor = conn.cursor()
-		threadIndex = threading.current_thread().name
+    cursor = conn.cursor()
+    cursor.execute('use db')
+    threadIndex = int(threading.current_thread().name)
     ninserted = 0
     startTime = 1520000010000L + threadIndex
     for rid in range(self.nrows):
@@ -43,16 +45,16 @@ class TDTestCase:
             sqlcmd = ['import into']
           else:
             print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
-		        sys.exit(1)	
+            sys.exit(1) 
       if (ninserted > 0):
         if (cursor.execute(" ".join(sqlcmd)) == ninserted):
           ninserted = 0
         else:
           print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
-          sys.exit(1)	
+          sys.exit(1) 
   
   def run(self):
-    self.ntables = 20000
+    self.ntables = 2000
     self.nrows = 100000
     self.nthreads = 5
 
@@ -71,35 +73,14 @@ class TDTestCase:
     tdLog.info("================= step2")
     tdLog.info("%d threads begin to import data into all %d tables" %(self.nthreads, self.ntables))
     threads = []
-		for tid in range (self.nthreads) :
-			threadName = "%d" % (tid)
-			thread = threading.Thread(target=self.importImp, name=threadName)
-			thread.start()
-			threads.append(thread)
-		
-		for tid in range (self.nthreads) :
-			threads[tid].join()
-
-    for rid in range(1,39):
-      startTime = self.startTime
-      sqlcmd = ['import into']
-      for tid in range(1,self.ntables+1):
-        sqlcmd.append('tb%d values(%ld+%dd, %d)' %(tid, startTime+rid, rid, rid))
-      tdSql.execute(" ".join(sqlcmd))
+    for tid in range (self.nthreads) :
+      threadName = "%d" % (tid)
+      thread = threading.Thread(target=self.importImp, name=threadName)
+      thread.start()
+      threads.append(thread)
     
-    tdLog.info("================= step3")
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(38)
-
-    tdLog.info("================= step4")
-    tdLog.info("import 1 data before")
-    startTime = self.startTime - 1
-    sqlcmd = ['import into']
-    rid = 1
-    for tid in range(1,self.ntables+1):
-      sqlcmd.append('tb%d values(%ld+%dd, %d)' %(tid, startTime+rid, rid, rid))
-    tdSql.execute(" ".join(sqlcmd))
-    tdSql.checkAffectedRows(self.ntables)
+    for tid in range (self.nthreads) :
+      threads[tid].join()
 
   def stop(self):
     tdSql.close()

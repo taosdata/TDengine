@@ -237,6 +237,7 @@ from multi_import_merge.Block2HPO import *
 from multi_import_merge.Block2TPO import *
 from multi_import_merge.Block2S import *
 from multi_import_merge.Blockbetween import *
+from multi_import_merge.multithread import *
 
 
 if __name__=="__main__":
