@@ -355,6 +355,3 @@ endi
 #error sql
 sql_error select * from 1;
 
-print ===============================groupby_operation
-sql select count(*) from tm0 group by k;
-
