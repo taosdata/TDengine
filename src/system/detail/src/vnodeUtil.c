@@ -289,7 +289,7 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
       return NULL;
     }
 
-    if (pExprs[i].pBase.functionId == TSDB_FUNC_TAG_DUMMY) {
+    if (pExprs[i].pBase.functionId == TSDB_FUNC_TAG_DUMMY || pExprs[i].pBase.functionId == TSDB_FUNC_TS_DUMMY) {
       tagLen += pExprs[i].resBytes;
     }
     assert(isValidDataType(pExprs[i].resType, pExprs[i].resBytes));

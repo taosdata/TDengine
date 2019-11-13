@@ -3122,9 +3122,11 @@ static bool onlyOneQueryType(SQuery *pQuery, int32_t functId, int32_t functIdDst
   for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
     int32_t functionId = pQuery->pSelectExpr[i].pBase.functionId;
 
-    if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG) {
+    if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY ||
+      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAG_DUMMY) {
       continue;
     }
+
     if (functionId != functId && functionId != functIdDst) {
       return false;
     }
@@ -3137,10 +3139,9 @@ static bool onlyFirstQuery(SQuery *pQuery) { return onlyOneQueryType(pQuery, TSD
 
 static bool onlyLastQuery(SQuery *pQuery) { return onlyOneQueryType(pQuery, TSDB_FUNC_LAST, TSDB_FUNC_LAST_DST); }
 
-static void rewriteExecOrder(SQuery *pQuery, bool metricQuery) {
+static void changeExecuteScanOrder(SQuery *pQuery, bool metricQuery) {
   // in case of point-interpolation query, use asc order scan
-  char msg[] =
-      "QInfo:%p scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%lld-%lld, "
+  char msg[] = "QInfo:%p scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%lld-%lld, "
       "new qrange:%lld-%lld";
 
   // descending order query
@@ -3614,7 +3615,7 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
   }
 
   setScanLimitationByResultBuffer(pQuery);
-  rewriteExecOrder(pQuery, false);
+  changeExecuteScanOrder(pQuery, false);
 
   pQInfo->over = 0;
   pQInfo->pointsRead = 0;
@@ -3790,7 +3791,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
   pQInfo->pointsRead = 0;
   pQuery->pointsRead = 0;
 
-  rewriteExecOrder(pQuery, true);
+  changeExecuteScanOrder(pQuery, true);
 
   vnodeInitDataBlockInfo(&pSupporter->runtimeEnv.loadBlockInfo);
   vnodeInitLoadCompBlockInfo(&pSupporter->runtimeEnv.loadCompBlockInfo);

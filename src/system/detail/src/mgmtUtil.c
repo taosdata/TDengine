@@ -92,5 +92,6 @@ bool mgmtCheckIsMonitorDB(char *db, char *monitordb) {
   char dbName[TSDB_DB_NAME_LEN + 1] = {0};
   extractDBName(db, dbName);
 
-  return (strncasecmp(dbName, monitordb, strlen(dbName)) == 0);
+  size_t len = strlen(dbName);
+  return (strncasecmp(dbName, monitordb, len) == 0 && len == strlen(monitordb));
 }
