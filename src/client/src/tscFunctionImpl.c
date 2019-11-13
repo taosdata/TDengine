@@ -3779,9 +3779,6 @@ static void getStatics_i64(int64_t *primaryKey, int64_t *data, int32_t numOfRow,
 
   assert(numOfRow <= INT16_MAX);
 
-  int64_t lastKey = 0;
-  int64_t lastVal = TSDB_DATA_BIGINT_NULL;
-
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (isNull(&data[i], TSDB_DATA_TYPE_BIGINT)) {
       (*numOfNull) += 1;
@@ -3872,9 +3869,6 @@ static void getStatics_d(int64_t *primaryKey, double *data, int32_t numOfRow, do
   double dsum      = 0;
 
   assert(numOfRow <= INT16_MAX);
-
-  int64_t lastKey = 0;
-  double  lastVal = TSDB_DATA_DOUBLE_NULL;
 
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (isNull(&data[i], TSDB_DATA_TYPE_DOUBLE)) {

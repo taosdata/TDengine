@@ -723,9 +723,16 @@ int tscProcessSql(SSqlObj *pSql) {
 #else
     pSql->maxRetry = 2;
 #endif
+    
+    // the pMeterMetaInfo cannot be NULL
+    if (pMeterMetaInfo == NULL) {
+      pSql->res.code = TSDB_CODE_OTHERS;
+      return pSql->res.code;
+    }
+    
     if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
       pSql->index = pMeterMetaInfo->pMeterMeta->index;
-    } else {  // it must be the parent SSqlObj for metric query
+    } else {  // it must be the parent SSqlObj for super table query
       if ((pSql->cmd.type & TSDB_QUERY_TYPE_SUBQUERY) != 0) {
         int32_t        idx = pSql->cmd.vnodeIdx;
         SVnodeSidList *pSidList = tscGetVnodeSidList(pMeterMetaInfo->pMetricMeta, idx);
@@ -3770,7 +3777,7 @@ void tscInitMsgs() {
   tscProcessMsgRsp[TSDB_SQL_MULTI_META] = tscProcessMultiMeterMetaRsp;
 
   tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromMgmt;
+  tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromVnode;   // rsp handled by same function.
   tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_TAGS] = tscProcessTagRetrieveRsp;
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_EMPTY_RESULT] = tscProcessEmptyResultRsp;

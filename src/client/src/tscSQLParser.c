@@ -5668,8 +5668,7 @@ int32_t doFunctionsCompatibleCheck(SSqlObj* pSql) {
       }
 
       if (IS_MULTIOUTPUT(aAggs[functId].nStatus) && functId != TSDB_FUNC_TOP && functId != TSDB_FUNC_BOTTOM &&
-          functId != TSDB_FUNC_TAGPRJ &&
-          (functId == TSDB_FUNC_PRJ && pExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
+          functId != TSDB_FUNC_TAGPRJ && functId != TSDB_FUNC_PRJ) {
         setErrMsg(pCmd, msg1);
         return TSDB_CODE_INVALID_SQL;
       }
@@ -5697,6 +5696,8 @@ int32_t doFunctionsCompatibleCheck(SSqlObj* pSql) {
       setErrMsg(pCmd, msg3);
       return TSDB_CODE_INVALID_SQL;
     }
+    
+    return TSDB_CODE_SUCCESS;
   } else {
     return checkUpdateTagPrjFunctions(pCmd);
   }
