@@ -27,7 +27,6 @@ class TDTestCase:
     tdSql.init(conn.cursor())
   
   def importImp(self):
-    err = 'affected rows incorrect!'
     conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     cursor = conn.cursor()
     cursor.execute('use db')
@@ -40,16 +39,20 @@ class TDTestCase:
         sqlcmd.append('tb%d values(%ld, %d)' %(tid, startTime+rid*self.nthreads,  rid))
         ninserted += 1
         if (ninserted == 1000):
-          if (cursor.execute(" ".join(sqlcmd)) == ninserted):
+          affrows = cursor.execute(" ".join(sqlcmd))
+          if (affrows == ninserted):
             ninserted = 0
             sqlcmd = ['import into']
           else:
+            err = 'affected rows %d != expected %d' %(affrows, ninserted)
             print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
             sys.exit(1) 
       if (ninserted > 0):
-        if (cursor.execute(" ".join(sqlcmd)) == ninserted):
+        affrows = cursor.execute(" ".join(sqlcmd))
+        if (affrows == ninserted):
           ninserted = 0
         else:
+          err = 'affected rows %d != expected %d' %(affrows, ninserted)
           print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
           sys.exit(1) 
   
