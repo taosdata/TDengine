@@ -25,6 +25,7 @@ class TDTestCase:
     tdDnodes.stopAll()
     tdDnodes.deploy(1)
     tdDnodes.cfg(1,"numOfMPeers", "1")
+    tdDnodes.cfg(1,"tables", "10")
     tdDnodes.start(1)
     
     self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
@@ -33,35 +34,39 @@ class TDTestCase:
     tdSql.execute('create dnode 192.168.0.2')
     tdDnodes.deploy(2)
     tdDnodes.cfg(2,"numOfMPeers", "1")
+    tdDnodes.cfg(2,"tables", "10")
     tdDnodes.start(2)
     tdSql.execute('create dnode 192.168.0.3')
     tdDnodes.deploy(3)
     tdDnodes.cfg(3,"numOfMPeers", "1")
+    tdDnodes.cfg(3,"tables", "10")
     tdDnodes.start(3)
+    tdLog.sleep(10)
     
   def run(self):
-    self.ntables = 10
+    self.ntables = 50
     self.rowsPerTable = 10
     self.replica = 2
     self.startTime = 1520000010000L
 
-    tdSql.execute('create database db replica %d' %(self.replica))
-    tdLog.sleep(10)
-    tdSql.execute('use db')
-    for tid in range(1,self.ntables+1):
-      tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
-    tdLog.sleep(10)
-
     tdLog.info("================= step1")
     tdLog.info("inert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
+    tdSql.execute('create database db replica %d' %self.replica)
+    tdLog.sleep(5)
+    tdSql.execute('use db')
+    tdSql.execute('create table tb(ts timestamp, i int) tags(id int)')
+    for tid in range(1,self.ntables+1):
+      tdSql.execute('create table tb%d using tb tags (%d)' %(tid, tid))
+    tdLog.sleep(5)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
-      sqlcmd = ['insert into tb%d values' %tid]
-      for rid in range(1,self.rowsPerTable+1):
-        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      sqlcmd = ["insert into tb%d values" % (tid)]
+      for rid in range(1, self.rowsPerTable+1):
+        sqlcmd.append("(%ld, %d)" %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(10)
+    self.startTime += self.rowsPerTable
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
 
     tdLog.info("================= step2")
     tdDnodes.forcestop(3)

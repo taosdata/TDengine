@@ -40,19 +40,20 @@ class TDTestCase:
     tdLog.info("================= step1")
     tdLog.info("insert 10 records into %d tables in single dnode" %self.ntables)
     tdSql.execute('create database db')
+    tdLog.sleep(5)
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
     tdLog.sleep(5)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
+      sqlcmd = ['insert into tb%d values' %tid]
       for rid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-        startTime += 1
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
     self.startTime += 10
     tdSql.query('select * from tb1')
     tdSql.checkRows(10)
-    tdLog.sleep(5)
 
     tdLog.info("================= step2")
     tdLog.info("dnode 2 join the cluster")
@@ -88,9 +89,10 @@ class TDTestCase:
     tdLog.info("insert 10 records into %d tables" %self.ntables)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
+      sqlcmd = ['insert into tb%d values' %tid]
       for rid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-        startTime += 1
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
     self.startTime += 10
     tdSql.query('select * from tb1')
     tdSql.checkRows(20)
@@ -134,9 +136,10 @@ class TDTestCase:
     tdLog.info("insert 10 records into %d tables" %self.ntables)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
+      sqlcmd = ['insert into tb%d values' %tid]
       for rid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-        startTime += 1
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
     self.startTime += 10
     tdSql.query('select * from tb1')
     tdSql.checkRows(30)

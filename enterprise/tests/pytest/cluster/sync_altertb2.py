@@ -1,4 +1,4 @@
-﻿###################################################################
+###################################################################
  #       Copyright (c) 2016 by TAOS Technologies, Inc.
  #             All rights reserved.
  #
@@ -13,6 +13,7 @@
 
 import sys
 import taos
+import threading
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -42,15 +43,28 @@ class TDTestCase:
     tdDnodes.cfg(3,"tables", "10")
     tdDnodes.start(3)
     tdLog.sleep(10)
-    
-  def run(self):
-    self.ntables = 50
-    self.rowsPerTable = 10
-    self.replica = 2
-    self.startTime = 1520000010000L
 
+
+  def sync(self):
+    tdDnodes.start(3)
+
+  def alterTable(self):
+    conn = taos.connect(config=tdDnodes.getSimCfgPath())
+    cursor = conn.cursor()
+    cursor.execute('use db')
+    cursor.execute('alter table tb add column f float')
+    cursor.execute('insert into tb1 values(%ld, %d, %f)' %(self.startTime+self.rowsPerTable+10, 1, 1.2))
+    cursor.execute('insert into tb1 values(%ld, %d, %f)' %(self.startTime+self.rowsPerTable+20, 2, 1.4))
+    cursor.execute('insert into tb1 values(%ld, %d, %f)' %(self.startTime+self.rowsPerTable+30, 3, 1.6))
+
+  def run(self):
+    self.ntables = 100
+    self.rowsPerTable = 500
+    self.startTime = 1520000010000L
+    self.replica = 3
+    
     tdLog.info("================= step1")
-    tdLog.info("inert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
+    tdLog.info("insert into each %d tables %d records while killing dnode 3" %(self.ntables, self.rowsPerTable))
     tdSql.execute('create database db replica %d' %self.replica)
     tdLog.sleep(5)
     tdSql.execute('use db')
@@ -58,37 +72,44 @@ class TDTestCase:
     for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d using tb tags (%d)' %(tid, tid))
     tdLog.sleep(5)
-    for tid in range(1,self.ntables+1):
+    for tid in range(1,2):
+      startTime = self.startTime
+      sqlcmd = ["insert into tb%d values" % (tid)]
+      for rid in range(1, self.rowsPerTable+1):
+        sqlcmd.append("(%ld, %d)" %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
+    tdDnodes.forcestop(3)
+    tdLog.sleep(5)
+    for tid in range(2,self.ntables+1):
       startTime = self.startTime
       sqlcmd = ["insert into tb%d values" % (tid)]
       for rid in range(1, self.rowsPerTable+1):
         sqlcmd.append("(%ld, %d)" %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
+    tdLog.sleep(5)
+
+    tdLog.info("================= step2")
     tdSql.query('select count(*) from tb')
     tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
 
-    tdLog.info("================= step2")
-    tdDnodes.forcestop(3)
-    tdLog.sleep(2)
-
     tdLog.info("================= step3")
-    tdLog.info("alter super table tb")
-    tdSql.execute('alter table tb add column f float')
-    startTime = self.startTime
-    sqlcmd = ["insert into"]
-    for tid in range(1,self.ntables+1):
-      sqlcmd.append("tb%d values(%ld, %d, %f)" %(tid, startTime+rid, rid, rid*1.2))
-      tdSql.execute(" ".join(sqlcmd))
+    tdLog.info("alter a table in syncing")
+    threads = []
+    thread = threading.Thread(target=self.sync, name="db is syncing") 
+    thread.start()
+    threads.append(thread)
+    thread = threading.Thread(target=self.alterTable, name="alter some tables in syncing") 
+    thread.start()
+    threads.append(thread)  
+    for t in range (2):
+      threads[t].join()
+    tdLog.sleep(10)
 
     tdLog.info("================= step4")
-    tdDnodes.start(3)
-    tdLog.sleep(5)
-
-    tdLog.info("================= step5")
     tdSql.query('select count(*) from tb%d' %1)
-    tdSql.checkData(0, 0, self.rowsPerTable+1)
-  
+    tdSql.checkData(0, 0, self.rowsPerTable + 3)
+    
   def stop(self):
     tdSql.close()
     self.conn.close()

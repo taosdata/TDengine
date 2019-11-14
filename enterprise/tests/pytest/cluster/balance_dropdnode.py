@@ -27,20 +27,23 @@ class TDTestCase:
     tdDnodes.deploy(1)
     tdDnodes.cfg(1,"numOfMPeers", "1")
     tdDnodes.cfg(1,"commitTime", "30")
+    tdDnodes.cfg(1,"tables", "10")
     tdDnodes.start(1)
     
-    self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
+    self.conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     tdSql.init(self.conn.cursor())
     tdSql.execute('reset query cache')
     tdSql.execute('create dnode 192.168.0.2')
     tdDnodes.deploy(2)
     tdDnodes.cfg(2,"numOfMPeers", "1")
     tdDnodes.cfg(2,"commitTime", "30")
+    tdDnodes.cfg(2,"tables", "10")
     tdDnodes.start(2)
     tdSql.execute('create dnode 192.168.0.3')
     tdDnodes.deploy(3)
     tdDnodes.cfg(3,"numOfMPeers", "1")
     tdDnodes.cfg(3,"commitTime", "30")
+    tdDnodes.cfg(3,"tables", "10")
     tdDnodes.start(3)
     tdLog.sleep(10)
     
@@ -64,12 +67,12 @@ class TDTestCase:
       for rid in range(1,self.rowsPerTable+1):
         sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(self.rowsPerTable)
-    tdLog.sleep(30)
+    tdSql.query('select count(*) from tb1')
+    tdSql.checkData(0, 0, self.rowsPerTable)
+    tdLog.sleep(35)
 
     tdLog.info("================= step2")
-    tdLog.info("check old dnode3 data file size")
+    tdLog.info("check old dnode1 data file size")
     dnodesDir = tdDnodes.getDnodesRootDir()
     dataDir = dnodesDir + '/dnode1/data/data'
     dnode1SizeOld = 0
@@ -81,11 +84,11 @@ class TDTestCase:
     tdLog.info("================= step3")
     tdLog.info("drop dnode 3")
     tdSql.execute('drop dnode 192.168.0.3')
-    tdLog.sleep(30)
+    tdLog.sleep(35)
 
     tdLog.info("================= step4")
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(10)
+    tdSql.query('select count(*) from tb1')
+    tdSql.checkData(0, 0, self.rowsPerTable)
 
     tdLog.info("================= step5")
     dataDir = dnodesDir + '/dnode1/data/data'

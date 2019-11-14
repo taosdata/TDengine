@@ -11,7 +11,6 @@
 
 # -*- coding: utf-8 -*-  
 
-import os
 import sys
 import taos
 from util.log import *
@@ -25,63 +24,76 @@ class TDTestCase:
     tdLog.info("prepare cluster") 
     tdDnodes.stopAll()
     tdDnodes.deploy(1)
-    tdDnodes.cfg(1, "numOfMPeers", "1")
-    tdDnodes.cfg(1, "tables", "5")
-    tdDnodes.cfg(1, "numOfTotalVnodes", "2")
+    tdDnodes.cfg(1,"numOfMPeers", "1")
+    tdDnodes.cfg(1,"tables", "10")
     tdDnodes.start(1)
     
-    self.conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
+    self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
     tdSql.init(self.conn.cursor())
     tdSql.execute('reset query cache')
     tdSql.execute('create dnode 192.168.0.2')
     tdDnodes.deploy(2)
-    tdDnodes.cfg(2, "numOfMPeers", "1")
-    tdDnodes.cfg(2, "tables", "5")
-    tdDnodes.cfg(2, "numOfTotalVnodes", "2")
+    tdDnodes.cfg(2,"numOfMPeers", "1")
+    tdDnodes.cfg(2,"tables", "10")
     tdDnodes.start(2)
     tdSql.execute('create dnode 192.168.0.3')
     tdDnodes.deploy(3)
-    tdDnodes.cfg(3, "numOfMPeers", "1")
-    tdDnodes.cfg(3, "tables", "5")
-    tdDnodes.cfg(3, "numOfTotalVnodes", "2")
+    tdDnodes.cfg(3,"numOfMPeers", "1")
+    tdDnodes.cfg(3,"tables", "10")
     tdDnodes.start(3)
     tdLog.sleep(10)
     
   def run(self):
-    self.ntables = 10
-    self.rowsPerTable = 5
+    
+    self.ntables = 50
+    self.rowsPerTable = 10
+    self.replica = 2
     self.startTime = 1520000010000L
-    self.replica = 3
 
     tdLog.info("================= step1")
-    tdLog.info("insert %d records into each %d tables" %(self.rowsPerTable, self.ntables))
+    tdLog.info("inert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
     tdSql.execute('create database db replica %d' %self.replica)
+    tdLog.sleep(5)
     tdSql.execute('use db')
+    tdSql.execute('create table tb(ts timestamp, i int) tags(id int)')
     for tid in range(1,self.ntables+1):
-      tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
-    tdLog.sleep(10)
+      tdSql.execute('create table tb%d using tb tags (%d)' %(tid, tid))
+    tdLog.sleep(5)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
-      sqlcmd = ['insert into tb%d values' %tid]
-      for rid in range(1,self.rowsPerTable+1):
-        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      sqlcmd = ["insert into tb%d values" % (tid)]
+      for rid in range(1, self.rowsPerTable+1):
+        sqlcmd.append("(%ld, %d)" %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
-    tdSql.query('select count(*) from tb1')
-    tdSql.checkData(0, 0, self.rowsPerTable)
-    tdLog.sleep(5)
+    self.startTime += self.rowsPerTable
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
 
     tdLog.info("================= step2")
-    tdLog.info("drop dnode 3")
-    tdSql.error('drop dnode 192.168.0.3')
-    tdLog.sleep(10)
+    tdDnodes.forcestop(3)
+    tdLog.sleep(2)
 
     tdLog.info("================= step3")
-    tdLog.info("show dnodes")
-    queryRows = tdSql.query('show dnodes')
-    for i in range(queryRows):
-      tdLog.info("%s: %s" % (tdSql.getData(i,0), tdSql.getData(i,4)))
+    tdLog.info("create 11 more tables and insert 10 records to each of them")
+    for tid in range(self.ntables+1, self.ntables+12):
+      tdSql.execute('create table tb%d using tb tags (%d)' %(tid, tid))
+    tdLog.sleep(5)
+    for tid in range(self.ntables+1, self.ntables+12):
+      sqlcmd = ['insert into tb%d values' %tid]
+      for rid in range(1,11):
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))  
 
-    
+    tdLog.info("================= step4")
+    tdDnodes.start(3)
+
+    tdLog.info("================= step5")
+    tdLog.sleep(5)
+
+    tdLog.info("================= step6")
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables +11*10)
+  
   def stop(self):
     tdSql.close()
     self.conn.close()

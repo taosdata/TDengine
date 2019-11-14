@@ -45,6 +45,7 @@ class TDTestCase:
     tdLog.info("================= step1")
     tdLog.info("insert into each %d tables %d records" %(self.ntables, self.rowsPerTable))
     tdSql.execute('create database db replica %d' %self.replica)
+    tdLog.sleep(10)
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)

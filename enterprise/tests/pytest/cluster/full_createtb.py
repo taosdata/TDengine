@@ -66,8 +66,8 @@ class TDTestCase:
       for rid in range(1,self.rowsPerTable+1):
         sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(self.rowsPerTable)
+    tdSql.query('select count(*) from tb1')
+    tdSql.checkData(0, 0, self.rowsPerTable)
     tdLog.sleep(5)
 
     tdLog.info("================= step2")

@@ -86,8 +86,8 @@ class TDTestCase:
     tdLog.sleep(30)
 
     tdLog.info("================= step4")
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(self.rowsPerTable)
+    tdSql.query('select count(*) from tb1')
+    tdSql.checkData(0, 0, self.rowsPerTable)
 
     tdLog.info("================= step5")
     dataDir = dnodesDir + '/dnode3/data/data'
