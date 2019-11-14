@@ -111,13 +111,13 @@ void jniGetGlobalMethod(JNIEnv *env) {
   jniTrace("native method register finished");
 }
 
-JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_detectMemoryLeakImp(JNIEnv *env, jobject jobj, jstring jPath) {
+JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_detectMemoryLeakImp(JNIEnv *env, jobject jobj, jstring jPath, jboolean jAutoDump) {
   if (jPath != NULL) {
     const char *path = (*env)->GetStringUTFChars(env, jPath, NULL);
-    taos_detect_memory_leak(path);
+    taos_detect_memory_leak(path, !!jAutoDump);
     (*env)->ReleaseStringUTFChars(env, jPath, path);
   } else {
-    taos_detect_memory_leak(NULL);
+    taos_detect_memory_leak(NULL, !!jAutoDump);
   }
 
   jniGetGlobalMethod(env);

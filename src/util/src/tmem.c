@@ -307,13 +307,15 @@ void taos_dump_memory_leak() {
 
 static void dump_memory_leak_at_sig(int sig) {
   fprintf(fpMemLeak, "signal %d received, exiting...\n", sig);
-  taos_dump_memory_leak();
+
   struct sigaction act = {0};
   act.sa_handler = SIG_DFL;
   sigaction(sig, &act, NULL);
+
+  taos_dump_memory_leak();
 }
 
-void taos_detect_memory_leak(const char* path) {
+void taos_detect_memory_leak(const char* path, bool autoDump) {
   if (fpMemLeak != NULL) {
     printf("memory leak detection already enabled.\n");
     return;
@@ -326,13 +328,14 @@ void taos_detect_memory_leak(const char* path) {
     return;
   }
 
-  atexit(taos_dump_memory_leak);
-
-  struct sigaction act = {0};
-  act.sa_handler = dump_memory_leak_at_sig;
-  sigaction(SIGFPE, &act, NULL);
-  sigaction(SIGSEGV, &act, NULL);
-  sigaction(SIGILL, &act, NULL);
+  if (autoDump) {
+    atexit(taos_dump_memory_leak);
+    struct sigaction act = {0};
+    act.sa_handler = dump_memory_leak_at_sig;
+    sigaction(SIGFPE, &act, NULL);
+    sigaction(SIGSEGV, &act, NULL);
+    sigaction(SIGILL, &act, NULL);
+  }
 }
 
 #endif
@@ -342,7 +345,7 @@ void taos_dump_memory_leak() {
   // do nothing
 }
 
-void taos_detect_memory_leak(const char* path) {
+void taos_detect_memory_leak(const char* path, bool autoDump) {
   printf("memory leak detection not enabled, please set 'TAOS_MEM_CHECK' to 2.");
 }
 #endif

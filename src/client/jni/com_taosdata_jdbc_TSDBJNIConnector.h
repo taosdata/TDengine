@@ -15,7 +15,7 @@ extern "C" {
  * Signature: (Ljava/lang/String;)V
  */
 JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_detectMemoryLeakImp
-  (JNIEnv *, jclass, jstring);
+  (JNIEnv *, jclass, jstring, jboolean);
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector

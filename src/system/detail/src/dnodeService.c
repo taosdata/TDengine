@@ -64,9 +64,9 @@ int main(int argc, char *argv[]) {
 #if TAOS_MEM_CHECK == 2
     } else if (strcmp(argv[i], "--check-mem-leak") == 0) {
       if ((i < argc - 1) && (argv[i+1][0] != '-')) {
-        taos_detect_memory_leak(argv[++i]);
+        taos_detect_memory_leak(argv[++i], true);
       } else {
-        taos_detect_memory_leak(NULL);
+        taos_detect_memory_leak(NULL, true);
       }
 #endif
     }
