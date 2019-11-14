@@ -45,8 +45,8 @@ class TDTestCase:
             sqlcmd = ['import into']
           else:
             err = 'affected rows %d != expected %d' %(affrows, ninserted)
-            print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
-            print "failed import sqlcmd: %s" %(sqlcmd[1])
+            print("\033[1;31m%s %s\033[0m\nfailed sqlcmd: %s" \
+                         % (datetime.datetime.now(), err, sqlcmd[1])
             ##sys.exit(1) 
             ninserted = 0
             sqlcmd = ['import into']
@@ -56,8 +56,8 @@ class TDTestCase:
           ninserted = 0
         else:
           err = 'affected rows %d != expected %d' %(affrows, ninserted)
-          print "\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err)
-          print "failed import sqlcmd: %s" %(sqlcmd[1])
+          print("\033[1;31m%s %s\033[0m\nfailed sqlcmd: %s" \
+                         % (datetime.datetime.now(), err, sqlcmd[1])
           ##sys.exit(1) 
           ninserted = 0
           sqlcmd = ['import into']
@@ -79,7 +79,7 @@ class TDTestCase:
 
   def run(self):
     self.ntables = 2000
-    self.nrows = 1000
+    self.nrows = 200
     self.nthreads = 5
 
     tdSql.execute('reset query cache')
