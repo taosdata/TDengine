@@ -46,7 +46,7 @@ class TDTestCase:
           else:
             err = 'affected rows %d != expected %d' %(affrows, ninserted)
             print("\033[1;31m%s %s\033[0m\nfailed sqlcmd: %s" \
-                         % (datetime.datetime.now(), err, sqlcmd[1])
+                         % (datetime.datetime.now(), err, sqlcmd[1]))
             ##sys.exit(1) 
             ninserted = 0
             sqlcmd = ['import into']
@@ -57,7 +57,7 @@ class TDTestCase:
         else:
           err = 'affected rows %d != expected %d' %(affrows, ninserted)
           print("\033[1;31m%s %s\033[0m\nfailed sqlcmd: %s" \
-                         % (datetime.datetime.now(), err, sqlcmd[1])
+                         % (datetime.datetime.now(), err, sqlcmd[1]))
           ##sys.exit(1) 
           ninserted = 0
           sqlcmd = ['import into']
@@ -73,7 +73,7 @@ class TDTestCase:
       for line in cursor:
         continue
       print("query %d finished" %count)
-      if (count == 1000):break
+      if (count == 200):break
       count += 1
     conn.close()
 
