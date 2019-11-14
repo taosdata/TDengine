@@ -125,7 +125,11 @@ IF (NOT DEFINED TD_CLUSTER)
   # debug flag  
   #
   # ADD_DEFINITIONS(-D_CHECK_HEADER_FILE_)
-  # ADD_DEFINITIONS(-D_TAOS_MEM_TEST_)
+
+  # TAOS_MEM_CHECK
+  #  1 to test memory allocation failure
+  #  2 to check memory leak
+  ADD_DEFINITIONS(-DTAOS_MEM_CHECK=2)
 
   IF (TD_CLUSTER)
     ADD_DEFINITIONS(-DCLUSTER)
