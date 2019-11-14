@@ -19,6 +19,14 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_detectMemoryLeakI
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_dumpMemoryLeakImp
+  (JNIEnv *, jclass);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
  * Method:    initImp
  * Signature: (Ljava/lang/String;)V
  */

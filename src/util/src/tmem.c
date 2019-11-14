@@ -261,10 +261,14 @@ ssize_t taos_getline(char **lineptr, size_t *n, FILE *stream, const char* file, 
   return size;
 }
 
-static void dump_memory_leak() {
+void taos_dump_memory_leak() {
   const char* hex = "0123456789ABCDEF";
   const char* fmt = ":%d: addr=0x%p, size=%d, content(first 16 bytes)='";
   size_t numOfBlk = 0, totalSize = 0;
+
+  if (fpMemLeak == NULL) {
+    return;
+  }
 
   fputs("memory blocks allocated but not freed before exit:\n\n", fpMemLeak);
 
@@ -303,13 +307,13 @@ static void dump_memory_leak() {
 
 static void dump_memory_leak_at_sig(int sig) {
   fprintf(fpMemLeak, "signal %d received, exiting...\n", sig);
-  dump_memory_leak();
+  taos_dump_memory_leak();
   struct sigaction act = {0};
   act.sa_handler = SIG_DFL;
   sigaction(sig, &act, NULL);
 }
 
-void taos_dump_memory_leak_at_exit(const char* path) {
+void taos_detect_memory_leak(const char* path) {
   if (fpMemLeak != NULL) {
     printf("memory leak detection already enabled.\n");
     return;
@@ -322,7 +326,7 @@ void taos_dump_memory_leak_at_exit(const char* path) {
     return;
   }
 
-  atexit(dump_memory_leak);
+  atexit(taos_dump_memory_leak);
 
   struct sigaction act = {0};
   act.sa_handler = dump_memory_leak_at_sig;
@@ -334,7 +338,11 @@ void taos_dump_memory_leak_at_exit(const char* path) {
 #endif
 
 #if TAOS_MEM_CHECK != 2
-void taos_dump_memory_leak_at_exit(const char* path) {
-  printf("memory leak detection not enabled!")
+void taos_dump_memory_leak() {
+  // do nothing
+}
+
+void taos_detect_memory_leak(const char* path) {
+  printf("memory leak detection not enabled, please set 'TAOS_MEM_CHECK' to 2.");
 }
 #endif

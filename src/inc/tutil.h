@@ -187,7 +187,8 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, cha
 
 char *taosIpStr(uint32_t ipInt);
 
-extern void taos_dump_memory_leak_at_exit(const char* path);
+extern void taos_detect_memory_leak(const char* path);
+extern void taos_dump_memory_leak();
 
 #if TAOS_MEM_CHECK == 1
 
