@@ -28,6 +28,7 @@ extern "C" {
 #include <ctype.h>
 #include <dirent.h>
 #include <endian.h>
+#include <errno.h>
 #include <float.h>
 #include <ifaddrs.h>
 #include <limits.h>

@@ -1482,7 +1482,9 @@ static void first_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 
   SET_VAL(pCtx, 1, 1);
   memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
-  DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+  
+  TSKEY ts = pCtx->ptsList[index];
+  DO_UPDATE_TAG_COLUMNS(pCtx, ts);
 
   SResultInfo *pInfo = GET_RES_INFO(pCtx);
   pInfo->hasResult = DATA_SET_FLAG;
@@ -1575,7 +1577,7 @@ static void first_dist_func_merge(SQLFunctionCtx *pCtx) {
   SFirstLastInfo *pOutput = (SFirstLastInfo *)(pCtx->aOutputBuf + pCtx->inputBytes);
   if (pOutput->hasResult != DATA_SET_FLAG || pInput->ts < pOutput->ts) {
     memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes + sizeof(SFirstLastInfo));
-    DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+    DO_UPDATE_TAG_COLUMNS(pCtx, pInput->ts);
   }
 }
 
@@ -1623,7 +1625,9 @@ static void last_function(SQLFunctionCtx *pCtx) {
     }
 
     memcpy(pCtx->aOutputBuf, data, pCtx->inputBytes);
-    DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+  
+    TSKEY ts = pCtx->ptsList[i];
+    DO_UPDATE_TAG_COLUMNS(pCtx, ts);
 
     SResultInfo *pInfo = GET_RES_INFO(pCtx);
     pInfo->hasResult = DATA_SET_FLAG;
@@ -1648,7 +1652,9 @@ static void last_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 
   SET_VAL(pCtx, 1, 1);
   memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
-  DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+  
+  TSKEY ts = pCtx->ptsList[index];
+  DO_UPDATE_TAG_COLUMNS(pCtx, ts);
 
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
@@ -1745,7 +1751,7 @@ static void last_dist_func_merge(SQLFunctionCtx *pCtx) {
   if (pOutput->hasResult != DATA_SET_FLAG || pOutput->ts < pInput->ts) {
     memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes + sizeof(SFirstLastInfo));
 
-    DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+    DO_UPDATE_TAG_COLUMNS(pCtx, pInput->ts);
   }
 }
 
@@ -1800,7 +1806,7 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
     pInfo1->ts = pCtx->param[0].i64Key;
     pInfo1->hasResult = DATA_SET_FLAG;
 
-    DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+    DO_UPDATE_TAG_COLUMNS(pCtx, pInfo1->ts);
   }
 
   SET_VAL(pCtx, pCtx->size, 1);
