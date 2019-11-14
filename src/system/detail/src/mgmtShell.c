@@ -922,8 +922,8 @@ int mgmtProcessRetrieveMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   taosSendMsgToPeer(pConn->thandle, pStart, msgLen);
 
   if (rowsToRead == 0) {
-    int64_t oldSign = __sync_val_compare_and_swap(&pShow->signature, (uint64_t)pShow, 0);
-    if (oldSign != (uint64_t)pShow) {
+    uintptr_t oldSign = atomic_val_compare_exchange_ptr(&pShow->signature, pShow, 0);
+    if (oldSign != (uintptr_t)pShow) {
       return msgLen;
     }
     // pShow->signature = 0;
@@ -1093,8 +1093,8 @@ int mgmtProcessHeartBeatMsg(char *cont, int contLen, SConnObj *pConn) {
 }
 
 void mgmtEstablishConn(SConnObj *pConn) {
-  __sync_fetch_and_add(&mgmtShellConns, 1);
-  __sync_fetch_and_add(&sdbExtConns, 1);
+  atomic_fetch_add_32(&mgmtShellConns, 1);
+  atomic_fetch_add_32(&sdbExtConns, 1);
   pConn->stime = taosGetTimestampMs();
 
   if (strcmp(pConn->pUser->user, "root") == 0 || strcmp(pConn->pUser->user, pConn->pAcct->user) == 0) {
@@ -1168,8 +1168,8 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   if (pConn->pAcct) {
     mgmtRemoveConnFromAcct(pConn);
-    __sync_fetch_and_sub(&mgmtShellConns, 1);
-    __sync_fetch_and_sub(&sdbExtConns, 1);
+    atomic_fetch_sub_32(&mgmtShellConns, 1);
+    atomic_fetch_sub_32(&sdbExtConns, 1);
   }
 
   code = 0;
@@ -1227,8 +1227,8 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   if (msg == NULL) {
     if (pConn) {
       mgmtRemoveConnFromAcct(pConn);
-      __sync_fetch_and_sub(&mgmtShellConns, 1);
-      __sync_fetch_and_sub(&sdbExtConns, 1);
+      atomic_fetch_sub_32(&mgmtShellConns, 1);
+      atomic_fetch_sub_32(&sdbExtConns, 1);
       mTrace("connection from %s is closed", pConn->pUser->user);
       memset(pConn, 0, sizeof(SConnObj));
     }

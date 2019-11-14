@@ -365,7 +365,7 @@ _query_over:
     vnodeFreeColumnInfo(&pQueryMsg->colList[i]);
   }
 
-  __sync_fetch_and_add(&vnodeSelectReqNum, 1);
+  atomic_fetch_add_32(&vnodeSelectReqNum, 1);
   return ret;
 }
 
@@ -599,6 +599,6 @@ _submit_over:
   // for import, send the submit response only when return code is not zero
   if (pSubmit->import == 0 || code != 0) ret = vnodeSendShellSubmitRspMsg(pObj, code, numOfTotalPoints);
 
-  __sync_fetch_and_add(&vnodeInsertReqNum, 1);
+  atomic_fetch_add_32(&vnodeInsertReqNum, 1);
   return ret;
 }

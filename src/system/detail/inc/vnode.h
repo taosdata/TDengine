@@ -218,15 +218,15 @@ typedef struct {
  * Only the QInfo.signature == QInfo, this structure can be released safely.
  */
 #define TSDB_QINFO_QUERY_FLAG 0x1
-#define TSDB_QINFO_RESET_SIG(x) ((x)->signature = (uint64_t)(x))
+#define TSDB_QINFO_RESET_SIG(x) atomic_store_64(&((x)->signature), (uint64_t)(x))
 #define TSDB_QINFO_SET_QUERY_FLAG(x) \
-  __sync_val_compare_and_swap(&((x)->signature), (uint64_t)(x), TSDB_QINFO_QUERY_FLAG);
+  atomic_val_compare_exchange_64(&((x)->signature), (uint64_t)(x), TSDB_QINFO_QUERY_FLAG);
 
 // live lock: wait for query reaching a safe-point, release all resources
 // belongs to this query
 #define TSDB_WAIT_TO_SAFE_DROP_QINFO(x)                                                       \
   {                                                                                           \
-    while (__sync_val_compare_and_swap(&((x)->signature), (x), 0) == TSDB_QINFO_QUERY_FLAG) { \
+    while (atomic_val_compare_exchange_64(&((x)->signature), (x), 0) == TSDB_QINFO_QUERY_FLAG) { \
       taosMsleep(1);                                                                          \
     }                                                                                         \
   }

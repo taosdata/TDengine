@@ -351,7 +351,7 @@ void vnodeCalcOpenVnodes() {
     openVnodes++;
   }
 
-  __sync_val_compare_and_swap(&tsOpenVnodes, tsOpenVnodes, openVnodes);
+  atomic_store_32(&tsOpenVnodes, openVnodes);
 }
 
 void vnodeUpdateHeadFile(int vnode, int oldTables, int newTables) {
