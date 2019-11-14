@@ -310,6 +310,11 @@ static void dump_memory_leak_at_sig(int sig) {
 }
 
 void taos_dump_memory_leak_at_exit(const char* path) {
+  if (fpMemLeak != NULL) {
+    printf("memory leak detection already enabled.\n");
+    return;
+  }
+
   if (path == NULL || path[0] == 0) {
     fpMemLeak = stdout;
   } else if ((fpMemLeak = fopen(path, "w")) == NULL) {
