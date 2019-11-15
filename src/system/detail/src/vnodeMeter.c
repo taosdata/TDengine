@@ -618,7 +618,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
       dWarn("vid:%d sid:%d id:%s, meter is dropped, abort insert, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
             pObj->state);
 
-      code = TSDB_CODE_NOT_ACTIVE_SESSION;
+      code = TSDB_CODE_NOT_ACTIVE_TABLE;
       break;
     }
 
