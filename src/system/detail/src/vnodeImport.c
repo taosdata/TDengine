@@ -363,19 +363,19 @@ int vnodeImportToFile(SImportInfo *pImport) {
 
   SData *cdata[TSDB_MAX_COLUMNS];
   char  *buffer1 =
-      malloc(pObj->bytesPerPoint * pCfg->rowsInFileBlock + (sizeof(SData) + EXTRA_BYTES) * pObj->numOfColumns);
+      malloc(pObj->bytesPerPoint * pCfg->rowsInFileBlock + (sizeof(SData) + EXTRA_BYTES + sizeof(TSCKSUM)) * pObj->numOfColumns);
   cdata[0] = (SData *)buffer1;
 
   SData *data[TSDB_MAX_COLUMNS];
   char  *buffer2 =
-      malloc(pObj->bytesPerPoint * pCfg->rowsInFileBlock + (sizeof(SData) + EXTRA_BYTES) * pObj->numOfColumns);
+      malloc(pObj->bytesPerPoint * pCfg->rowsInFileBlock + (sizeof(SData) + EXTRA_BYTES + sizeof(TSCKSUM)) * pObj->numOfColumns);
   data[0] = (SData *)buffer2;
 
   for (col = 1; col < pObj->numOfColumns; ++col) {
     cdata[col] = (SData *)(((char *)cdata[col - 1]) + sizeof(SData) + EXTRA_BYTES +
-                           pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes);
+                           pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes + sizeof(TSCKSUM));
     data[col] = (SData *)(((char *)data[col - 1]) + sizeof(SData) + EXTRA_BYTES +
-                          pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes);
+                          pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes + sizeof(TSCKSUM));
   }
 
   int     rowsBefore = 0;
