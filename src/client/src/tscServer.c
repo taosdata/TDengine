@@ -224,7 +224,7 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
       (pSql->index) = (pSql->index + 1) % TSDB_VNODES_SUPPORT;
       continue;
     }
-    *pCode = 0;
+    *pCode = TSDB_CODE_SUCCESS;
 
     void *thandle =
         taosGetConnFromCache(tscConnCache, pVPeersDesc[pSql->index].ip, pVPeersDesc[pSql->index].vnode, pTscObj->user);
@@ -250,7 +250,7 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
     pSql->thandle = thandle;
     pSql->ip = pVPeersDesc[pSql->index].ip;
     pSql->vnode = pVPeersDesc[pSql->index].vnode;
-    tscTrace("%p vnode:%d ip:0x%x index:%d is picked up, pConn:%p", pSql, pVPeersDesc[pSql->index].vnode,
+    tscTrace("%p vnode:%d ip:%p index:%d is picked up, pConn:%p", pSql, pVPeersDesc[pSql->index].vnode,
              pVPeersDesc[pSql->index].ip, pSql->index, pSql->thandle);
 #else
     *pCode = 0;
@@ -283,7 +283,11 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
   
   // the pSql->res.code is the previous error code.
   if (pSql->thandle == NULL && pSql->retry >= pSql->maxRetry) {
-    *pCode = pSql->res.code;
+    if (pSql->res.code != TSDB_CODE_SUCCESS) {
+      *pCode = pSql->res.code;
+    }
+    
+    tscError("%p reach the max retry:%d, code:%d", pSql, pSql->retry, *pCode);
   }
 }
 
@@ -400,7 +404,6 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
     // for single node situation, do NOT try next index
 #endif
     pSql->thandle = NULL;
-
     // todo taos_stop_query() in async model
     /*
      * in case of

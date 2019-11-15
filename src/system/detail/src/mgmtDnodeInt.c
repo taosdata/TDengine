@@ -103,7 +103,7 @@ int mgmtProcessVpeerCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
     mTrace("dnode:%s, vnode:%d, vgroup:%d, send create meter msg, code:%d", taosIpStr(pObj->privateIp), vnode, pVgroup->vgId, *pMsg);
   } else {
     mTrace("dnode:%s, vnode:%d, no vgroup info, vgroup:%d", taosIpStr(pObj->privateIp), vnode, pObj->vload[vnode].vgId);
-    *pMsg = TSDB_CODE_INVALID_VALUE;
+    *pMsg = TSDB_CODE_NOT_ACTIVE_VNODE;
     pMsg++;
     *(int32_t *)pMsg = htonl(vnode);
     pMsg += sizeof(int32_t);
