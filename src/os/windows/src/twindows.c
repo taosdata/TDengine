@@ -96,10 +96,6 @@ void __sync_val_restore_32(int32_t *ptr, int32_t newval) {
 
 void tsPrintOsInfo() {}
 
-char *taosCharsetReplace(char *charsetstr) {
-  return charsetstr;
-}
-
 void taosGetSystemTimezone() {
   // get and set default timezone
   SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");

@@ -546,6 +546,7 @@ int vnodeImportToCache(SImportInfo *pImport, char *payload, int rows) {
     return code;
   }
 
+  assert(rows);
   dTrace("vid:%d sid:%d id:%s, %d rows data will be imported to cache, firstKey:%ld lastKey:%ld",
       pObj->vnode, pObj->sid, pObj->meterId, rows, firstKey, lastKey);
 
@@ -781,7 +782,7 @@ int vnodeImportStartToCache(SImportInfo *pImport, char *payload, int rows) {
     pImport->importedRows = rows;
     code = vnodeImportToCache(pImport, payload, rows);
   } else {
-    dTrace("vid:%d sid:%d id:%s, data is already imported to cache", pObj->vnode, pObj->sid, pObj->meterId);
+    dTrace("vid:%d sid:%d id:%s, data is already imported to cache, firstKey:%lld", pObj->vnode, pObj->sid, pObj->meterId, pImport->firstKey);
   }
 
   return code;

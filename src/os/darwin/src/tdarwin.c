@@ -243,10 +243,6 @@ int taosInitTimer(void (*callback)(int), int ms) {
   return setitimer(ITIMER_REAL, &tv, NULL);
 }
 
-char *taosCharsetReplace(char *charsetstr) {
-  return charsetstr;
-}
-
 void taosGetSystemTimezone() {
   // get and set default timezone
   SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");

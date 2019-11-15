@@ -508,3 +508,22 @@ char *taosIpStr(int ipInt) {
   sprintf(ipStr, "0x%x:%d.%d.%d.%d", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, ipInt >> 24);
   return ipStr;
 }
+
+typedef struct CharsetPair {
+  char *oldCharset;
+  char *newCharset;
+} CharsetPair;
+
+char *taosCharsetReplace(char *charsetstr) {
+  CharsetPair charsetRep[] = {
+      { "utf8", "UTF-8" }, { "936", "CP936" },
+  };
+
+  for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
+    if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
+      return strdup(charsetRep[i].newCharset);
+    }
+  }
+
+  return strdup(charsetstr);
+}
