@@ -105,6 +105,6 @@ GROUP BY location, type </code></pre>
 <p>查询仅位于北京以外地区的温度传感器最近24小时(24h)采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)和最低温度min(degree)，将采集结果按照10分钟为周期进行聚合，并将结果按所处地域(location)和传感器类型(type)再次进行聚合。</p>
 <pre><code class="mysql language-mysql">SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
-WHERE name&lt;&gt;'beijing' and ts&gt;=now-1d
+WHERE location&lt;&gt;'beijing' and ts&gt;=now-1d
 INTERVAL(10M)
 GROUP BY location, type</code></pre><a href='../index.html'>回去</a></section></main></div><?php include($s.'/footer.php'); ?><script>$('pre').addClass('prettyprint linenums');PR.prettyPrint()</script><script src='lib/docs/liner.js'></script></body></html>
