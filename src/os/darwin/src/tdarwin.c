@@ -243,10 +243,6 @@ int taosInitTimer(void (*callback)(int), int ms) {
   return setitimer(ITIMER_REAL, &tv, NULL);
 }
 
-char *taosCharsetReplace(char *charsetstr) {
-  return charsetstr;
-}
-
 void taosGetSystemTimezone() {
   // get and set default timezone
   SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");
@@ -415,4 +411,12 @@ int tsem_post(dispatch_semaphore_t *sem) {
 
 int tsem_destroy(dispatch_semaphore_t *sem) {
   return 0;
+}
+
+int32_t __sync_val_load_32(int32_t *ptr) {
+  return __atomic_load_n(ptr, __ATOMIC_ACQUIRE);
+}
+
+void __sync_val_restore_32(int32_t *ptr, int32_t newval) {
+  __atomic_store_n(ptr, newval, __ATOMIC_RELEASE);
 }

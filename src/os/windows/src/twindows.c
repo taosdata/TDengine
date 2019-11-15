@@ -205,10 +205,6 @@ __int64 interlocked_fetch_xor_64(__int64 volatile* ptr, __int64 val) {
 
 void tsPrintOsInfo() {}
 
-char *taosCharsetReplace(char *charsetstr) {
-  return charsetstr;
-}
-
 void taosGetSystemTimezone() {
   // get and set default timezone
   SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");
