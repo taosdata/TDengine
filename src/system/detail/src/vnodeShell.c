@@ -269,7 +269,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pQueryMsg->vnode >= TSDB_MAX_VNODES || pQueryMsg->vnode < 0) {
     dTrace("qmsg:%p,vid:%d is out of range", pQueryMsg, pQueryMsg->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_TABLE_ID;
     goto _query_over;
   }
 
@@ -278,7 +278,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (pVnode->cfg.maxSessions == 0) {
     dError("qmsg:%p,vid:%d is not activated yet", pQueryMsg, pQueryMsg->vnode);
     vnodeSendVpeerCfgMsg(pQueryMsg->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    code = TSDB_CODE_NOT_ACTIVE_TABLE;
     goto _query_over;
   }
 
@@ -295,7 +295,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pVnode->meterList == NULL) {
     dError("qmsg:%p,vid:%d has been closed", pQueryMsg, pQueryMsg->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _query_over;
   }
 
@@ -305,7 +305,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
       dTrace("qmsg:%p sid:%d is out of range, valid range:[%d,%d]", pQueryMsg, pSids[i]->sid, 0,
              pVnode->cfg.maxSessions);
 
-      code = TSDB_CODE_INVALID_SESSION_ID;
+      code = TSDB_CODE_INVALID_TABLE_ID;
       goto _query_over;
     }
   }
@@ -488,7 +488,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pSubmit->vnode >= TSDB_MAX_VNODES || pSubmit->vnode < 0) {
     dTrace("vnode:%d is out of range", pSubmit->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_VNODE_ID;
     goto _submit_over;
   }
 
@@ -496,7 +496,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (pVnode->cfg.maxSessions == 0 || pVnode->meterList == NULL) {
     dError("vid:%d is not activated for submit", pSubmit->vnode);
     vnodeSendVpeerCfgMsg(pSubmit->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _submit_over;
   }
 
@@ -529,7 +529,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
     if (pBlocks->sid >= pVnode->cfg.maxSessions || pBlocks->sid <= 0) {
       dTrace("sid:%d is out of range", pBlocks->sid);
-      code = TSDB_CODE_INVALID_SESSION_ID;
+      code = TSDB_CODE_INVALID_TABLE_ID;
       goto _submit_over;
     }
 
@@ -538,9 +538,9 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
     SMeterObj *pMeterObj = vnodeList[vnode].meterList[sid];
     if (pMeterObj == NULL) {
-      dError("vid:%d sid:%d, no active session", vnode, sid);
+      dError("vid:%d sid:%d, no active table", vnode, sid);
       vnodeSendMeterCfgMsg(vnode, sid);
-      code = TSDB_CODE_NOT_ACTIVE_SESSION;
+      code = TSDB_CODE_NOT_ACTIVE_TABLE;
       goto _submit_over;
     }
 
@@ -579,7 +579,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
       if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DELETING)) {
         dTrace("vid:%d sid:%d id:%s, it is removed, state:%d", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId,
                pMeterObj->state);
-        code = TSDB_CODE_NOT_ACTIVE_SESSION;
+        code = TSDB_CODE_NOT_ACTIVE_TABLE;
         break;
       } else {// waiting for 300ms by default and try again
         dTrace("vid:%d sid:%d id:%s, try submit again since in state:%d", pMeterObj->vnode, pMeterObj->sid,

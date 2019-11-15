@@ -2806,59 +2806,6 @@ static bool functionCompatibleCheck(SSqlCmd* pCmd) {
     }
   }
 
-  // additional check for select aggfuntion(column), column1 from table_name group by(column1);
-  if ((pCmd->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) == TSDB_QUERY_TYPE_PROJECTION_QUERY) {
-    bool isAggFunc = false;
-    for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
-      int16_t functionId = tscSqlExprGet(pCmd, i)->functionId;
-
-      if (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_TS ||
-          functionId == TSDB_FUNC_ARITHM) {
-        continue;
-      }
-
-      if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) == 0) {
-        isAggFunc = true;
-        break;
-      }
-    }
-
-    // TODO change the type, the type is not correct
-    if (isAggFunc) {
-      pCmd->type &= (~TSDB_QUERY_TYPE_PROJECTION_QUERY);
-
-      // agg function mixed up with project query without group by exists
-      if (pCmd->groupbyExpr.numOfGroupCols == 0) {
-        return false;
-      }
-
-      // get the project column
-      int32_t numOfPrjColumn = 0;
-      for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
-        SSqlExpr* pExpr = tscSqlExprGet(pCmd, i);
-        if (pExpr->functionId == TSDB_FUNC_PRJ) {
-          numOfPrjColumn += 1;
-
-          bool qualifiedCol = false;
-          for (int32_t j = 0; j < pCmd->groupbyExpr.numOfGroupCols; ++j) {
-            if (pExpr->colInfo.colId == pCmd->groupbyExpr.columnInfo[j].colId) {
-              qualifiedCol = true;
-
-              pExpr->param[0].i64Key = 1;  // limit the output to be 1 for each state value
-              pExpr->numOfParams = 1;
-              break;
-            }
-          }
-
-          if (!qualifiedCol) {
-            setErrMsg(pCmd, msg1);
-            return false;
-          }
-        }
-      }
-    }
-  }
-
   return true;
 }
 
@@ -5416,6 +5363,27 @@ static void doUpdateSqlFunctionForTagPrj(SSqlCmd* pCmd) {
   }
 }
 
+static void doUpdateSqlFunctionForColPrj(SSqlCmd* pCmd) {
+  for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
+    SSqlExpr *pExpr = tscSqlExprGet(pCmd, i);
+    if (pExpr->functionId == TSDB_FUNC_PRJ) {
+      
+      bool qualifiedCol = false;
+      for (int32_t j = 0; j < pCmd->groupbyExpr.numOfGroupCols; ++j) {
+        if (pExpr->colInfo.colId == pCmd->groupbyExpr.columnInfo[j].colId) {
+          qualifiedCol = true;
+          
+          pExpr->param[0].i64Key = 1;  // limit the output to be 1 for each state value
+          pExpr->numOfParams = 1;
+          break;
+        }
+      }
+      
+      assert(qualifiedCol);
+    }
+  }
+}
+
 static bool tagColumnInGroupby(SSqlGroupbyExpr* pGroupbyExpr, int16_t columnId) {
   for (int32_t j = 0; j < pGroupbyExpr->numOfGroupCols; ++j) {
     if (columnId == pGroupbyExpr->columnInfo[j].colId && pGroupbyExpr->columnInfo[j].flag == TSDB_COL_TAG) {
@@ -5480,7 +5448,8 @@ static void updateTagPrjFunction(SSqlCmd* pCmd) {
 static int32_t checkUpdateTagPrjFunctions(SSqlCmd* pCmd) {
   const char* msg1 = "only one selectivity function allowed in presence of tags function";
   const char* msg2 = "functions not allowed";
-
+  const char* msg3 = "aggregation function should not be mixed up with projection";
+  
   bool    tagColExists = false;
   int16_t numOfTimestamp = 0;  // primary timestamp column
   int16_t numOfSelectivity = 0;
@@ -5494,21 +5463,21 @@ static int32_t checkUpdateTagPrjFunctions(SSqlCmd* pCmd) {
       break;
     }
   }
-
-  if (tagColExists) {  // check if the selectivity function exists
-    for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
-      int16_t functionId = tscSqlExprGet(pCmd, i)->functionId;
-      if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS) {
-        continue;
-      }
-
-      if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
-        numOfSelectivity++;
-      } else {
-        numOfAggregation++;
-      }
+  
+  for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
+    int16_t functionId = tscSqlExprGet(pCmd, i)->functionId;
+    if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS) {
+      continue;
     }
-
+    
+    if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
+      numOfSelectivity++;
+    } else {
+      numOfAggregation++;
+    }
+  }
+  
+  if (tagColExists) {  // check if the selectivity function exists
     // When the tag projection function on tag column that is not in the group by clause, aggregation function and
     // selectivity function exist in select clause is not allowed.
     if (numOfAggregation > 0) {
@@ -5521,6 +5490,7 @@ static int32_t checkUpdateTagPrjFunctions(SSqlCmd* pCmd) {
      */
     if (numOfSelectivity == 1) {
       doUpdateSqlFunctionForTagPrj(pCmd);
+      doUpdateSqlFunctionForColPrj(pCmd);
     } else if (numOfSelectivity > 1) {
       /*
        * If more than one selectivity functions exist, all the selectivity functions must be last_row.
@@ -5539,6 +5509,20 @@ static int32_t checkUpdateTagPrjFunctions(SSqlCmd* pCmd) {
       }
 
       doUpdateSqlFunctionForTagPrj(pCmd);
+      doUpdateSqlFunctionForColPrj(pCmd);
+    }
+  } else {
+    if ((pCmd->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) == TSDB_QUERY_TYPE_PROJECTION_QUERY) {
+      if (numOfAggregation > 0 && pCmd->groupbyExpr.numOfGroupCols == 0) {
+        setErrMsg(pCmd, msg3);
+        return TSDB_CODE_INVALID_SQL;
+      }
+  
+      if (numOfAggregation > 0 || numOfSelectivity > 0) {
+        // clear the projection type flag
+        pCmd->type &= (~TSDB_QUERY_TYPE_PROJECTION_QUERY);
+        doUpdateSqlFunctionForColPrj(pCmd);
+      }
     }
   }
 
@@ -5668,8 +5652,7 @@ int32_t doFunctionsCompatibleCheck(SSqlObj* pSql) {
       }
 
       if (IS_MULTIOUTPUT(aAggs[functId].nStatus) && functId != TSDB_FUNC_TOP && functId != TSDB_FUNC_BOTTOM &&
-          functId != TSDB_FUNC_TAGPRJ &&
-          (functId == TSDB_FUNC_PRJ && pExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
+          functId != TSDB_FUNC_TAGPRJ && functId != TSDB_FUNC_PRJ) {
         setErrMsg(pCmd, msg1);
         return TSDB_CODE_INVALID_SQL;
       }
@@ -5697,6 +5680,8 @@ int32_t doFunctionsCompatibleCheck(SSqlObj* pSql) {
       setErrMsg(pCmd, msg3);
       return TSDB_CODE_INVALID_SQL;
     }
+    
+    return TSDB_CODE_SUCCESS;
   } else {
     return checkUpdateTagPrjFunctions(pCmd);
   }

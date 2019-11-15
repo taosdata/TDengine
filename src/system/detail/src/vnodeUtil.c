@@ -553,7 +553,7 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSid
 
     if (pMeter == NULL || (pMeter->state > TSDB_METER_STATE_INSERT)) {
       if (pMeter == NULL || vnodeIsMeterState(pMeter, TSDB_METER_STATE_DELETING)) {
-        code = TSDB_CODE_NOT_ACTIVE_SESSION;
+        code = TSDB_CODE_NOT_ACTIVE_TABLE;
         dError("qmsg:%p, vid:%d sid:%d, not there or will be dropped", pQueryMsg, pQueryMsg->vnode, pSids[i]->sid);
         vnodeSendMeterCfgMsg(pQueryMsg->vnode, pSids[i]->sid);
       } else {//update or import

@@ -1840,7 +1840,7 @@ static void setCtxTagColumnInfo(SQuery* pQuery, SQueryRuntimeEnv* pRuntimeEnv) {
         // ts may be the required primary timestamp column
         continue;
       } else {
-        assert(0);
+        // the column may be the normal column, group by normal_column, the functionId is TSDB_FUNC_PRJ
       }
     }
 

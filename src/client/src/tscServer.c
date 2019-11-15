@@ -134,6 +134,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
   tscProcessSql(pObj->pHb);
 }
 
+//TODO HANDLE error from mgmt
 void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
   STscObj *pTscObj = pSql->pTscObj;
 #ifdef CLUSTER
@@ -163,10 +164,11 @@ void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
       connInit.spi = 1;
       connInit.encrypt = 0;
       connInit.secret = pSql->pTscObj->pass;
+      
 #ifdef CLUSTER
       connInit.peerIp = tscMgmtIpList.ipstr[pSql->index];
 #else
-	  connInit.peerIp = tsServerIpStr; 
+	    connInit.peerIp = tsServerIpStr;
 #endif
       thandle = taosOpenRpcConn(&connInit, pCode);
     }
@@ -222,7 +224,7 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
       (pSql->index) = (pSql->index + 1) % TSDB_VNODES_SUPPORT;
       continue;
     }
-    *pCode = 0;
+    *pCode = TSDB_CODE_SUCCESS;
 
     void *thandle =
         taosGetConnFromCache(tscConnCache, pVPeersDesc[pSql->index].ip, pVPeersDesc[pSql->index].vnode, pTscObj->user);
@@ -248,7 +250,7 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
     pSql->thandle = thandle;
     pSql->ip = pVPeersDesc[pSql->index].ip;
     pSql->vnode = pVPeersDesc[pSql->index].vnode;
-    tscTrace("%p vnode:%d ip:0x%x index:%d is picked up, pConn:%p", pSql, pVPeersDesc[pSql->index].vnode,
+    tscTrace("%p vnode:%d ip:%p index:%d is picked up, pConn:%p", pSql, pVPeersDesc[pSql->index].vnode,
              pVPeersDesc[pSql->index].ip, pSql->index, pSql->thandle);
 #else
     *pCode = 0;
@@ -277,6 +279,15 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
 #endif
 
     break;
+  }
+  
+  // the pSql->res.code is the previous error code.
+  if (pSql->thandle == NULL && pSql->retry >= pSql->maxRetry) {
+    if (pSql->res.code != TSDB_CODE_SUCCESS) {
+      *pCode = pSql->res.code;
+    }
+    
+    tscError("%p reach the max retry:%d, code:%d", pSql, pSql->retry, *pCode);
   }
 }
 
@@ -313,11 +324,19 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
     char *pStart = taosBuildReqHeader(pSql->thandle, pSql->cmd.msgType, buf);
     if (pStart) {
+      /*
+       * this SQL object may be released by other thread due to the completion of this query even before the log
+       * is dumped to log file. So the signature needs to be kept in a local variable.
+       */
+      uint64_t signature = (uint64_t) pSql->signature;
       if (tscUpdateVnodeMsg[pSql->cmd.command]) (*tscUpdateVnodeMsg[pSql->cmd.command])(pSql, buf);
+      
       int ret = taosSendMsgToPeerH(pSql->thandle, pStart, pSql->cmd.payloadLen, pSql);
-
-      if (ret >= 0) code = 0;
-      tscTrace("%p send msg ret:%d code:%d sig:%p", pSql, ret, code, pSql->signature);
+      if (ret >= 0) {
+        code = 0;
+      }
+      
+      tscTrace("%p send msg ret:%d code:%d sig:%p", pSql, ret, code, signature);
     }
   }
 
@@ -385,14 +404,11 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
     // for single node situation, do NOT try next index
 #endif
     pSql->thandle = NULL;
-
     // todo taos_stop_query() in async model
     /*
      * in case of
-     * 1. query cancelled(pRes->code != TSDB_CODE_QUERY_CANCELLED), do NOT re-issue the
-     *    request to server.
-     * 2. retrieve, do NOT re-issue the retrieve request since the qhandle may
-     *    have been released by server
+     * 1. query cancelled(pRes->code != TSDB_CODE_QUERY_CANCELLED), do NOT re-issue the request to server.
+     * 2. retrieve, do NOT re-issue the retrieve request since the qhandle may have been released by server
      */
     if (pCmd->command != TSDB_SQL_FETCH && pCmd->command != TSDB_SQL_RETRIEVE && pCmd->command != TSDB_SQL_KILL_QUERY &&
         pRes->code != TSDB_CODE_QUERY_CANCELLED) {
@@ -418,8 +434,11 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       }
     }
   } else {
+    uint16_t rspCode = pMsg->content[0];
 #ifdef CLUSTER
-    if (pMsg->content[0] == TSDB_CODE_REDIRECT) {
+    
+    
+    if (rspCode == TSDB_CODE_REDIRECT) {
       tscTrace("%p it shall be redirected!", pSql);
       taosAddConnIntoCache(tscConnCache, thandle, pSql->ip, pSql->vnode, pObj->user);
       pSql->thandle = NULL;
@@ -433,28 +452,23 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       code = tscSendMsgToServer(pSql);
       if (code == 0) return pSql;
       msg = NULL;
-    } else if (pMsg->content[0] == TSDB_CODE_NOT_ACTIVE_SESSION || pMsg->content[0] == TSDB_CODE_NETWORK_UNAVAIL ||
-               pMsg->content[0] == TSDB_CODE_INVALID_SESSION_ID) {
+    } else if (rspCode == TSDB_CODE_NOT_ACTIVE_TABLE || rspCode == TSDB_CODE_INVALID_TABLE_ID ||
+        rspCode == TSDB_CODE_INVALID_VNODE_ID || rspCode == TSDB_CODE_NOT_ACTIVE_VNODE ||
+        rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
 #else
-     if (pMsg->content[0] == TSDB_CODE_NOT_ACTIVE_SESSION || pMsg->content[0] == TSDB_CODE_NETWORK_UNAVAIL ||
-        pMsg->content[0] == TSDB_CODE_INVALID_SESSION_ID) {
+     if (rspCode == TSDB_CODE_NOT_ACTIVE_TABLE || rspCode == TSDB_CODE_INVALID_TABLE_ID ||
+        rspCode == TSDB_CODE_INVALID_VNODE_ID || rspCode == TSDB_CODE_NOT_ACTIVE_VNODE ||
+        rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
 #endif
       pSql->thandle = NULL;
       taosAddConnIntoCache(tscConnCache, thandle, pSql->ip, pSql->vnode, pObj->user);
-
-      if (pMeterMetaInfo != NULL && UTIL_METER_IS_METRIC(pMeterMetaInfo) &&
-          pMsg->content[0] == TSDB_CODE_NOT_ACTIVE_SESSION) {
+      
+      if ((pCmd->command == TSDB_SQL_INSERT || pCmd->command == TSDB_SQL_SELECT) &&
+          (rspCode == TSDB_CODE_INVALID_TABLE_ID || rspCode == TSDB_CODE_INVALID_VNODE_ID)) {
         /*
-         * for metric query, in case of any meter missing during query, sub-query of metric query will failed,
-         * causing metric query failed, and return TSDB_CODE_METRICMETA_EXPIRED code to app
-         */
-        tscTrace("%p invalid meters id cause metric query failed, code:%d", pSql, pMsg->content[0]);
-        code = TSDB_CODE_METRICMETA_EXPIRED;
-      } else if ((pCmd->command == TSDB_SQL_INSERT || pCmd->command == TSDB_SQL_SELECT) &&
-                 pMsg->content[0] == TSDB_CODE_INVALID_SESSION_ID) {
-        /*
-         * session id is invalid(e.g., less than 0 or larger than maximum session per
-         * vnode) in submit/query msg, no retry
+         * In case of the insert/select operations, the invalid table(vnode) id means
+         * the submit/query msg is invalid, renew meter meta will not help to fix this problem,
+         * so return the invalid_query_msg to client directly.
          */
         code = TSDB_CODE_INVALID_QUERY_MSG;
       } else if (pCmd->command == TSDB_SQL_CONNECT) {
@@ -462,9 +476,11 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       } else if (pCmd->command == TSDB_SQL_HB) {
         code = TSDB_CODE_NOT_READY;
       } else {
-        tscTrace("%p it shall renew meter meta, code:%d", pSql, pMsg->content[0]);
+        tscTrace("%p it shall renew meter meta, code:%d", pSql, rspCode);
+        
         pSql->maxRetry = TSDB_VNODES_SUPPORT * 2;
-
+        pSql->res.code = (uint8_t) rspCode;  // keep the previous error code
+        
         code = tscRenewMeterMeta(pSql, pMeterMetaInfo->name);
         if (code == TSDB_CODE_ACTION_IN_PROGRESS) return pSql;
 
@@ -476,7 +492,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
 
       msg = NULL;
     } else {  // for other error set and return to invoker
-      code = pMsg->content[0];
+      code = rspCode;
     }
   }
 
@@ -723,9 +739,16 @@ int tscProcessSql(SSqlObj *pSql) {
 #else
     pSql->maxRetry = 2;
 #endif
+    
+    // the pMeterMetaInfo cannot be NULL
+    if (pMeterMetaInfo == NULL) {
+      pSql->res.code = TSDB_CODE_OTHERS;
+      return pSql->res.code;
+    }
+    
     if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
       pSql->index = pMeterMetaInfo->pMeterMeta->index;
-    } else {  // it must be the parent SSqlObj for metric query
+    } else {  // it must be the parent SSqlObj for super table query
       if ((pSql->cmd.type & TSDB_QUERY_TYPE_SUBQUERY) != 0) {
         int32_t        idx = pSql->cmd.vnodeIdx;
         SVnodeSidList *pSidList = tscGetVnodeSidList(pMeterMetaInfo->pMetricMeta, idx);
@@ -2460,10 +2483,10 @@ int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql) {
 
   pMsg += sizeof(SMgmtHead);
 
-  *((uint64_t *)pMsg) = pSql->res.qhandle;
+  *((uint64_t *) pMsg) = pSql->res.qhandle;
   pMsg += sizeof(pSql->res.qhandle);
 
-  *pMsg = htons(pCmd->type);
+  *((uint16_t*) pMsg) = htons(pCmd->type);
   pMsg += sizeof(pCmd->type);
 
   msgLen = pMsg - pStart;
@@ -3451,11 +3474,12 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   pRes->row = 0;
 
   /**
-   * If the query result is exhausted, the connection will be recycled.
-   * If current query is to free resource at server side, the connection will be recycle.
+   * If the query result is exhausted, or current query is to free resource at server side,
+   * the connection will be recycled.
    */
   if ((pRes->numOfRows == 0 && !(tscProjectionQueryOnMetric(pCmd) && pRes->offset > 0)) ||
       ((pCmd->type & TSDB_QUERY_TYPE_FREE_RESOURCE) == TSDB_QUERY_TYPE_FREE_RESOURCE)) {
+    tscTrace("%p no result or free resource, recycle connection", pSql);
     taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pObj->user);
     pSql->thandle = NULL;
   } else {
@@ -3769,7 +3793,7 @@ void tscInitMsgs() {
   tscProcessMsgRsp[TSDB_SQL_MULTI_META] = tscProcessMultiMeterMetaRsp;
 
   tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromMgmt;
+  tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromVnode;   // rsp handled by same function.
   tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_TAGS] = tscProcessTagRetrieveRsp;
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_EMPTY_RESULT] = tscProcessEmptyResultRsp;
