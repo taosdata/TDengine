@@ -10,9 +10,9 @@
 #include <time.h>
 #include <locale.h>
 
-#include "tutil.h"
-#include "testCommon.h"
 #include "taos.h"
+#include "testCommon.h"
+#include "tutil.h"
 
 static int32_t rid = 1;
 void sqlfullTest(TAOS*conn);
@@ -418,13 +418,9 @@ int main(int argc, char **argv) {
 //    taos_options(TSDB_OPTION_LOCALE,   "zh_cn.cp11936-8");
     taos_options(TSDB_OPTION_CHARSET,   "cp11936");
 
-    int64_t vgId = 1;
-    int64_t sid = 9;
-    int64_t uid = (vgId<<40) + ((sid & (1ul<<24 - 1))<<16) + (((uint64_t)230) & ((1ul << 16) - 1ul));
-
     taos_init();
 
-    TAOS *conn = taos_connect(tsMasterIp, tsDefaultUser, tsDefaultPass, "t1", 0);
+    TAOS *conn = taos_connect(tsMasterIp, tsDefaultUser, tsDefaultPass, 0, 0);
     if (conn == NULL) {
         printf("Failed to connect to DB, reason:%s", taos_errstr(conn));
         exit(-1);
@@ -452,11 +448,11 @@ int main(int argc, char **argv) {
     if (argc >= 5) {
         total = strtol(argv[4], NULL, 10);
     }
-
-    executeSQL(conn, "use select_tags_db0", NULL);
-    executeSQL(conn, "select sum(c2), tbname from select_tags_mt0;", NULL);
-//    executeSQL(conn, "use test", NULL);
-//    createEnvironment(conn, 50, 50, 100, 30);
+    
+    executeSQL(conn, "use ac_db", NULL);
+    // selectivity + tags/ts + group by normal columns
+    executeSQL(conn, "insert into t1 values(now, 1)", NULL);
+//    createEnvironment(conn, 5000, 5000, 100, 30);
 //    executeSQL(conn, "select last_row(ts) from m1 where tbname in ('tm0', 'tm1') group by tbname", NULL);
 //    executeSQL(conn, "select top(k, 5) from tm0", NULL);
 //    createEnvironment(conn, 50, 50, 100, 30);

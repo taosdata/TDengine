@@ -24,7 +24,7 @@ run lite/parser/limit1.sim
 run lite/parser/limit1_tblocks100.sim
 run lite/parser/limit2.sim
 run lite/parser/mixed_blocks.sim
-run lite/parser/nchar.sim
+#run lite/parser/nchar.sim
 run lite/parser/null_char.sim
 run lite/parser/selectResNum.sim
 run lite/parser/select_across_vnodes.sim
@@ -43,3 +43,4 @@ run lite/parser/where.sim
 run lite/parser/join.sim
 run lite/parser/projection_limit_offset.sim
 run lite/parser/select_with_tags.sim
+run lite/parser/groupby.sim
