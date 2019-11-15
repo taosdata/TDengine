@@ -597,7 +597,8 @@ static int vnodeLoadNeededBlockData(SMeterObj *pObj, SImportHandle *pHandle, int
   }
 
   {  // Allocate necessary buffer
-    size = pObj->bytesPerPoint * pObj->pointsPerFileBlock + (sizeof(SData) + EXTRA_BYTES) * pObj->numOfColumns;
+    size = pObj->bytesPerPoint * pObj->pointsPerFileBlock +
+           (sizeof(SData) + EXTRA_BYTES + sizeof(TSCKSUM)) * pObj->numOfColumns;
     if (pHandle->buffer == NULL) {
       pHandle->buffer = malloc(size);
       if (pHandle->buffer == NULL) {
@@ -610,7 +611,7 @@ static int vnodeLoadNeededBlockData(SMeterObj *pObj, SImportHandle *pHandle, int
       pHandle->data[0] = (SData *)(pHandle->buffer);
       for (int col = 1; col < pObj->numOfColumns; col++) {
         pHandle->data[col] = (SData *)((char *)(pHandle->data[col - 1]) + sizeof(SData) + EXTRA_BYTES +
-                                       pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes);
+                                       sizeof(TSCKSUM) + pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes);
       }
     }
 
