@@ -28,7 +28,6 @@ class TDTestCase:
     tdDnodes.cfg(1,"numOfMPeers", "1")
     tdDnodes.cfg(1,"tables", "5")
     tdDnodes.cfg(1,"offlineThreshold", "5")
-    tdDnodes.cfg(1,"commitTime", "30")
     tdDnodes.start(1)
     
     self.conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
@@ -39,24 +38,22 @@ class TDTestCase:
     tdDnodes.cfg(2,"numOfMPeers", "1")
     tdDnodes.cfg(2,"tables", "5")
     tdDnodes.cfg(2,"offlineThreshold", "5")
-    tdDnodes.cfg(2,"commitTime", "30")
     tdDnodes.start(2)
     tdSql.execute('create dnode 192.168.0.3')
     tdDnodes.deploy(3)
     tdDnodes.cfg(3,"numOfMPeers", "1")
     tdDnodes.cfg(3,"tables", "5")
     tdDnodes.cfg(3,"offlineThreshold", "5")
-    tdDnodes.cfg(3,"commitTime", "30")
     tdDnodes.start(3)
     tdLog.sleep(10)
     
   def run(self):
     self.ntables = 20
     self.rowsPerTable = 10
-    self.replica = 2
+    self.replica = 3
     self.startTime = 1520000010000L
 
-    tdSql.execute('create database db replica %d ctime 30' %self.replica)
+    tdSql.execute('create database db replica %d' %self.replica)
     tdLog.sleep(5)
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
@@ -75,25 +72,15 @@ class TDTestCase:
     tdSql.checkData(0, 0, self.rowsPerTable)
 
     tdLog.info("================= step2")
-    tdLog.info("offlineThreadhold is 5s")
     tdDnodes.forcestop(3)
     tdLog.sleep(10)
-    
+
     tdLog.info("================= step3")
-    tdDnodes.start(3)
-    tdLog.sleep(20)
-    tdSql.query('show dnodes')
+    tdLog.info("show dnodes")
     for i in range(tdSql.query('show dnodes')):
       tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
     tdSql.checkRows(2)
-
-    tdLog.info("================= step4")
-    tdLog.info("add dnode 3 from mgmt")
-    tdSql.execute("create dnode 192.168.0.3")
-    for i in range(tdSql.query('show dnodes')):
-      tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
-    tdSql.checkRows(3)
-    
+  
   def stop(self):
     tdSql.close()
     self.conn.close()

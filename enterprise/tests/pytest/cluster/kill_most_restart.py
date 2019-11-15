@@ -53,23 +53,23 @@ class TDTestCase:
     tdLog.info("================= step1")
     tdLog.info("insert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
     tdSql.execute('create database db replica %d' %self.replica)
+    tdLog.sleep(5)
     tdSql.execute('use db')
+    tdSql.execute('create table tb (ts timestamp, i int) tags(id int)')
     for tid in range(1,self.ntables+1):
-      tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
+      tdSql.execute('create table tb%d using tb tags (%d)' %(tid, tid))
     tdLog.sleep(5)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
       sqlcmd = ["insert into"]
       for rid in range(1, self.rowsPerTable+1):
-        sqlcmd.append("tb%d values(%ld, %d)" %(tid, startTime, rid))
-        startTime += 1
+        sqlcmd.append("tb%d values(%ld, %d)" %(tid, startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
-    tdLog.sleep(5)
 
     tdLog.info("================= step2")
-    tdSql.query('select * from tb%d' %1)
-    tdSql.checkRows(self.rowsPerTable)
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
 
     tdLog.info("================= step3")
     tdDnodes.forcestop(2)
@@ -97,11 +97,13 @@ class TDTestCase:
     tdLog.sleep(10)
 
     tdLog.info("================= step10")
-    tdSql.execute('insert into tb%d values(%ld, %d)' %(1, self.startTime, 1))
-    tdLog.sleep(10)
-    sqlcmd = 'select count(*) from tb%d' %1
-    tdSql.query(sqlcmd)
-    tdSql.checkData(0, 0, self.rowsPerTable+1)
+    tdLog.info("insert 1 data again")
+    sqlcmd = ['insert into']
+    for tid in range(1, self.ntables+1):
+      sqlcmd.append('tb%d values(%ld, %d)' %(tid,self.startTime+11, 11))
+    tdSql.execute(" ".join(sqlcmd))
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.ntables*(self.rowsPerTable+1))
       
   def stop(self):
     tdSql.close()

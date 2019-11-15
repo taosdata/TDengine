@@ -50,10 +50,11 @@ class TDTestCase:
   def run(self):
     self.ntables = 20
     self.rowsPerTable = 10
-    self.replica = 3
+    self.replica = 2
     self.startTime = 1520000010000L
 
     tdSql.execute('create database db replica %d' %self.replica)
+    tdLog.sleep(5)
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
@@ -67,14 +68,17 @@ class TDTestCase:
       for rid in range(1,self.rowsPerTable+1):
         sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(self.rowsPerTable)
-    tdLog.sleep(10)
+    tdSql.query('select count(*) from tb1')
+    tdSql.checkData(0, 0, self.rowsPerTable)
 
     tdLog.info("================= step2")
     tdDnodes.forcestop(3)
-    tdLog.sleep(20)
-    tdSql.query('show dnodes')
+    tdLog.sleep(10)
+
+    tdLog.info("================= step3")
+    tdLog.info("show dnodes")
+    for i in range(tdSql.query('show dnodes')):
+      tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
     tdSql.checkRows(2)
   
   def stop(self):

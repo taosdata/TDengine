@@ -53,7 +53,7 @@ class TDTestCase:
   def run(self):
     self.ntables = 20
     self.rowsPerTable = 10
-    self.replica = 2
+    self.replica = 3
     self.startTime = 1520000010000L
 
     tdSql.execute('create database db replica %d ctime 30' %self.replica)

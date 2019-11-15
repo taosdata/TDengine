@@ -101,7 +101,7 @@ class TDTestCase:
     threads.append(thread)  
     for t in range (2):
       threads[t].join()
-    tdLog.sleep(10)
+    tdLog.sleep(20)
 
     tdLog.info("================= step3")
     tdSql.query('select count(tbname) from tb')
