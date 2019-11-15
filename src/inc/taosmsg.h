@@ -41,7 +41,7 @@ extern "C" {
 #define TSDB_CODE_ACTION_NOT_ONLINE          18
 #define TSDB_CODE_ACTION_SEND_FAILD          19
 #define TSDB_CODE_NOT_ACTIVE_SESSION         20
-#define TSDB_CODE_INSERT_FAILED              21
+#define TSDB_CODE_INVALID_VNODE_ID           21
 #define TSDB_CODE_APP_ERROR                  22
 #define TSDB_CODE_INVALID_IE                 23
 #define TSDB_CODE_INVALID_VALUE              24
@@ -74,7 +74,7 @@ extern "C" {
 #define TSDB_CODE_OTHERS                     51
 #define TSDB_CODE_NO_REMOVE_MASTER           52
 #define TSDB_CODE_WRONG_SCHEMA               53
-#define TSDB_CODE_NO_RESULT                  54
+#define TSDB_CODE_NOT_ACTIVE_VNODE           54
 #define TSDB_CODE_TOO_MANY_USERS             55
 #define TSDB_CODE_TOO_MANY_DATABSES          56
 #define TSDB_CODE_TOO_MANY_TABLES            57
@@ -134,6 +134,8 @@ extern "C" {
 #define TSDB_CODE_NOT_SUPER_TABLE            111      //
 #define TSDB_CODE_DUPLICATE_TAGS             112      // tags value for join not unique
 #define TSDB_CODE_INVALID_SUBMIT_MSG         113
+#define TSDB_CODE_NOT_ACTIVE_TABLE           114
+#define TSDB_CODE_INVALID_TABLE_ID           115
 
 // message type
 #define TSDB_MSG_TYPE_REG              1
@@ -673,7 +675,7 @@ typedef struct {
 
 typedef struct {
   uint64_t qhandle;
-  int16_t  free;
+  uint16_t free;
 } SRetrieveMeterMsg;
 
 typedef struct {

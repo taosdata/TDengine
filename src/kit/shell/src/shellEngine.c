@@ -846,7 +846,7 @@ void shellGetGrantInfo(void *con) {
     TAOS_FIELD *fields = taos_fetch_fields(result);
     TAOS_ROW row = taos_fetch_row(result);
     if (row == NULL) {
-      fprintf(stderr, "\nGrant information is empty.\n");
+      fprintf(stderr, "\nFailed to get grant information from server. Abort.\n");
       exit(0);
     }
 

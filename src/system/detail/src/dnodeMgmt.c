@@ -105,14 +105,14 @@ int vnodeProcessCreateMeterRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
 
   if (vid >= TSDB_MAX_VNODES || vid < 0) {
     dError("vid:%d, vnode is out of range", vid);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_VNODE_ID;
     goto _over;
   }
 
   pVnode = vnodeList + vid;
   if (pVnode->cfg.maxSessions <= 0) {
     dError("vid:%d, not activated", vid);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _over;
   }
 
@@ -141,27 +141,27 @@ int vnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
 
   if (vid >= TSDB_MAX_VNODES || vid < 0) {
     dError("vid:%d, vnode is out of range", vid);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_VNODE_ID;
     goto _over;
   }
 
   pVnode = vnodeList + vid;
   if (pVnode->cfg.maxSessions <= 0 || pVnode->pCachePool == NULL) {
     dError("vid:%d is not activated yet", pAlter->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _over;
   }
 
   if (pAlter->sid >= pVnode->cfg.maxSessions || pAlter->sid < 0) {
     dError("vid:%d sid:%d uid:%ld, sid is out of range", pAlter->vnode, pAlter->sid, pAlter->uid);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_TABLE_ID;
     goto _over;
   }
 
   SMeterObj *pMeterObj = vnodeList[vid].meterList[sid];
   if (pMeterObj == NULL || sid != pMeterObj->sid || vid != pMeterObj->vnode) {
-    dError("vid:%d sid:%d, no active session", vid, sid);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    dError("vid:%d sid:%d, no active table", vid, sid);
+    code = TSDB_CODE_NOT_ACTIVE_TABLE;
     goto _over;
   }
 
@@ -195,7 +195,7 @@ int vnodeProcessCreateMeterMsg(char *pMsg, int msgLen) {
 
   if (pCreate->vnode >= TSDB_MAX_VNODES || pCreate->vnode < 0) {
     dError("vid:%d is out of range", pCreate->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_VNODE_ID;
     goto _create_over;
   }
 
@@ -203,13 +203,13 @@ int vnodeProcessCreateMeterMsg(char *pMsg, int msgLen) {
   if (pVnode->pCachePool == NULL) {
     dError("vid:%d is not activated yet", pCreate->vnode);
     vnodeSendVpeerCfgMsg(pCreate->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _create_over;
   }
 
   if (pCreate->sid >= pVnode->cfg.maxSessions || pCreate->sid < 0) {
     dError("vid:%d sid:%d id:%s, sid is out of range", pCreate->vnode, pCreate->sid, pCreate->meterId);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_TABLE_ID;
     goto _create_over;
   }
 
