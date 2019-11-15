@@ -320,11 +320,19 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
     char *pStart = taosBuildReqHeader(pSql->thandle, pSql->cmd.msgType, buf);
     if (pStart) {
+      /*
+       * this SQL object may be released by other thread due to the completion of this query even before the log
+       * is dumped to log file. So the signature needs to be kept in a local variable.
+       */
+      uint64_t signature = (uint64_t) pSql->signature;
       if (tscUpdateVnodeMsg[pSql->cmd.command]) (*tscUpdateVnodeMsg[pSql->cmd.command])(pSql, buf);
+      
       int ret = taosSendMsgToPeerH(pSql->thandle, pStart, pSql->cmd.payloadLen, pSql);
-
-      if (ret >= 0) code = 0;
-      tscTrace("%p send msg ret:%d code:%d sig:%p", pSql, ret, code, pSql->signature);
+      if (ret >= 0) {
+        code = 0;
+      }
+      
+      tscTrace("%p send msg ret:%d code:%d sig:%p", pSql, ret, code, signature);
     }
   }
 
