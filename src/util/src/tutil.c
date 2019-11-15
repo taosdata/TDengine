@@ -517,3 +517,22 @@ FORCE_INLINE double taos_align_get_double(char* pBuf) {
   *(int64_t*)(&dv) = *(int64_t*)pBuf;
   return dv; 
 }
+
+typedef struct CharsetPair {
+  char *oldCharset;
+  char *newCharset;
+} CharsetPair;
+
+char *taosCharsetReplace(char *charsetstr) {
+  CharsetPair charsetRep[] = {
+      { "utf8", "UTF-8" }, { "936", "CP936" },
+  };
+
+  for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
+    if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
+      return strdup(charsetRep[i].newCharset);
+    }
+  }
+
+  return strdup(charsetstr);
+}
