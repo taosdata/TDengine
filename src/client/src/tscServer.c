@@ -434,8 +434,9 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       }
     }
   } else {
-#ifdef CLUSTER
     uint16_t rspCode = pMsg->content[0];
+#ifdef CLUSTER
+    
     
     if (rspCode == TSDB_CODE_REDIRECT) {
       tscTrace("%p it shall be redirected!", pSql);

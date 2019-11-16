@@ -647,11 +647,8 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
     pCmd->limit.limit = pSql->cmd.globalLimit - pRes->numOfTotal;
     pCmd->limit.offset = pRes->offset;
 
-#ifdef CLUSTER
-    if ((++pSql->cmd.vnodeIdx) <= pMeterMetaInfo->pMetricMeta->numOfVnodes) {
-#else
+
     if ((++pSql->cmd.vnodeIdx) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
-#endif
       pSql->cmd.command = TSDB_SQL_SELECT;
       assert(pSql->fp == NULL);
       tscProcessSql(pSql);

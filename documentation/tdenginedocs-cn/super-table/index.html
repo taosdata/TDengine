@@ -24,7 +24,7 @@ tags (location binary(20), type int)</code></pre>
 <p>说明：</p>
 <ol>
 <li>TAGS列总长度不能超过512 bytes；</li>
-<li>TAGS列的数据类型不能是timestamp和nchar类型；</li>
+<li>TAGS列的数据类型不能是timestamp类型；</li>
 <li>TAGS列名不能与其他列名相同;</li>
 <li>TAGS列名不能为预留关键字. </li></ol></li>
 <li><p>显示已创建的超级表</p>
@@ -40,7 +40,7 @@ tags (location binary(20), type int)</code></pre>
 <p>统计属于某个STable并满足查询条件的子表的数量</p></li>
 </ul>
 <a class='anchor' id='写数据时自动建子表'></a><h2>写数据时自动建子表</h2>
-<p>在某些特殊场景中，用户在写数据时并不确定某个设备的表是否存在，此时可使用自动建表语法来实现写入数据时里用超级表定义的表结构自动创建不存在的子表，若该表已存在则不会建立新表。注意：自动建表语句只能自动建立子表而不能建立超级表，这就要求超级表已经被事先定义好。自动建表语法跟insert/import语法非常相似，唯一区别是语句中增加了超级表和标签信息。具体语法如下：</p>
+<p>在某些特殊场景中，用户在写数据时并不确定某个设备的表是否存在，此时可使用自动建表语法来实现写入数据时用超级表定义的表结构自动创建不存在的子表，若该表已存在则不会建立新表。注意：自动建表语句只能自动建立子表而不能建立超级表，这就要求超级表已经被事先定义好。自动建表语法跟insert/import语法非常相似，唯一区别是语句中增加了超级表和标签信息。具体语法如下：</p>
 <pre><code class="mysql language-mysql">INSERT INTO &lt;tb_name&gt; USING &lt;stb_name&gt; TAGS (&lt;tag1_value&gt;, ...) VALUES (field_value, ...) (field_value, ...) ...;</code></pre>
 <p>向表tb_name中插入一条或多条记录，如果tb_name这张表不存在，则会用超级表stb_name定义的表结构以及用户指定的标签值(即tag1_value…)来创建名为tb_name新表，并将用户指定的值写入表中。如果tb_name已经存在，则建表过程会被忽略，系统也不会检查tb_name的标签是否与用户指定的标签值一致，也即不会更新已存在表的标签。</p>
 <pre><code class="mysql language-mysql">INSERT INTO &lt;tb1_name&gt; USING &lt;stb1_name&gt; TAGS (&lt;tag1_value1&gt;, ...) VALUES (&lt;field1_value1&gt;, ...) (&lt;field1_value2&gt;, ...) ... &lt;tb_name2&gt; USING &lt;stb_name2&gt; TAGS(&lt;tag1_value2&gt;, ...) VALUES (&lt;field1_value1&gt;, ...) ...;</code></pre>
@@ -105,6 +105,6 @@ GROUP BY location, type </code></pre>
 <p>查询仅位于北京以外地区的温度传感器最近24小时(24h)采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)和最低温度min(degree)，将采集结果按照10分钟为周期进行聚合，并将结果按所处地域(location)和传感器类型(type)再次进行聚合。</p>
 <pre><code class="mysql language-mysql">SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
-WHERE name&lt;&gt;'beijing' and ts&gt;=now-1d
+WHERE location&lt;&gt;'beijing' and ts&gt;=now-1d
 INTERVAL(10M)
 GROUP BY location, type</code></pre><a href='../index.html'>回去</a></section></main></div><?php include($s.'/footer.php'); ?><script>$('pre').addClass('prettyprint linenums');PR.prettyPrint()</script><script src='lib/docs/liner.js'></script></body></html>
