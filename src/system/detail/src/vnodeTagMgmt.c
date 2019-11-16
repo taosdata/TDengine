@@ -14,9 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <assert.h>
-#include <stdbool.h>
-#include <stdlib.h>
+#include "os.h"
 
 #include "tsdb.h"
 #include "tlog.h"

@@ -14,15 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <pthread.h>
-#include <pwd.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <syslog.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "tsdb.h"
 #include "tsocket.h"

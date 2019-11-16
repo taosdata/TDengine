@@ -14,8 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
+
 #include "mgmt.h"
-#include <arpa/inet.h>
 #include "mgmtProfile.h"
 #include "taosmsg.h"
 #include "tschemautil.h"

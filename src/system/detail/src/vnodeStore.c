@@ -14,11 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <dirent.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "dnodeSystem.h"
 #include "trpc.h"

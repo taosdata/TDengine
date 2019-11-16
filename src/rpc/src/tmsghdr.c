@@ -13,10 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <netinet/in.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
+#include "os.h"
 
 void taosFreeMsgHdr(void *hdr) {
   struct msghdr *msgHdr = (struct msghdr *)hdr;

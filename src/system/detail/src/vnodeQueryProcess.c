@@ -14,10 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <assert.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "os.h"
 
 #include "taosmsg.h"
 #include "textbuffer.h"

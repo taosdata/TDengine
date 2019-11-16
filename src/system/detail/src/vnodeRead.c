@@ -14,12 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <fcntl.h>
-#include <limits.h>
-#include <time.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "ihash.h"
 #include "taosmsg.h"

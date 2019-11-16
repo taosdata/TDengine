@@ -16,8 +16,6 @@
 #ifndef TDENGINE_VNODESYSTEM_H
 #define TDENGINE_VNODESYSTEM_H
 
-#include <stdbool.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
