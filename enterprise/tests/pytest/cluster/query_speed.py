@@ -48,11 +48,12 @@ class TDTestCase:
     self.ntables = 20
     self.startTime = 1520000010000L
     self.rowsPerTable = 1
-    self.replica = 3
+    self.replica = 1
 
     tdLog.info("================= step1")
     tdLog.info("insert %d records into %d tables replica %d" % (self.rowsPerTable, self.ntables, self.replica))
     tdSql.execute('create database db replica %d ' % (self.replica))
+    tdLog.sleep(5)
     tdSql.execute('use db')
     tdSql.execute('create table stb (ts timestamp, i int) tags (id int)')
     for tid in range(1,self.ntables+1):
@@ -62,11 +63,10 @@ class TDTestCase:
       startTime = self.startTime
       sqlcmd = ['insert into tb%d values' % (tid)]
       for rid in range(1,self.rowsPerTable+1):
-        sqlcmd.append("(%ld, %d)" % (startTime, rid))
-        startTime += 1
+        sqlcmd.append("(%ld, %d)" % (startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
-    conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
+    conn = taos.connect(host='192.168.0.1')
     cur = conn.cursor()
     cur.execute('reset query cache')
     t0 = datetime.datetime.now()
@@ -80,9 +80,10 @@ class TDTestCase:
     conn.close()
 
     tdLog.info("================= step2")
-    self.replica = 1
+    self.replica = 3
     tdLog.info("insert %d records into %d tables replica %d" % (self.rowsPerTable, self.ntables, self.replica))
     tdSql.execute('create database db replica %d ' % (self.replica))
+    tdLog.sleep(5)
     tdSql.execute('use db')
     tdSql.execute('create table stb (ts timestamp, i int) tags (id int)')
     for tid in range(1,self.ntables+1):
@@ -92,11 +93,10 @@ class TDTestCase:
       startTime = self.startTime
       sqlcmd = ['insert into tb%d values' % (tid)]
       for rid in range(1,self.rowsPerTable+1):
-        sqlcmd.append("(%ld, %d)" % (startTime, rid))
-        startTime += 1
+        sqlcmd.append("(%ld, %d)" % (startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
-    conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
+    conn = taos.connect(host='192.168.0.1')
     cur = conn.cursor()
     cur.execute('reset query cache')
     t0 = datetime.datetime.now()
@@ -107,7 +107,7 @@ class TDTestCase:
     print("replica %d query spents %fms" % (self.replica, tt2))
     cur.close()
     conn.close()
-    if ( tt2/(tt1+0.1) <0.1):
+    if ( tt2/(tt1+0.1) > 10):
       tdLog.exit("query too slow with multiple replica")
     
   def stop(self):

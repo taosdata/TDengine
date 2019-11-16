@@ -53,22 +53,22 @@ class TDTestCase:
     tdSql.execute('create database db replica %d' %self.replica)
     tdLog.sleep(5)
     tdSql.execute('use db')
+    tdSql.execute('create table tb(ts timestamp, i int) tags (id int)')
     for tid in range(1,self.ntables+1):
-      tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
+      tdSql.execute('create table tb%d using tb tags (%d)' %(tid, tid))
     tdLog.sleep(5)
 
     tdLog.info("================= step1")
     tdLog.info("insert %d records into each %d tables" %(self.rowsPerTable, self.ntables))
+    startTime = self.startTime
     for tid in range(1,self.ntables+1):
-      startTime = self.startTime
       sqlcmd = ['insert into tb%d values' %tid]
       for rid in range(1,self.rowsPerTable+1):
         sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += 10
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(10)
-    tdLog.sleep(5)
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
 
     tdLog.info("================= step2")
     tdDnodes.forcestop(3)
@@ -77,17 +77,17 @@ class TDTestCase:
     tdLog.sleep(5)
 
     tdLog.info("================= step3")
-    tdLog.info("insert %d records again into each %d tables" %(self.rowsPerTable, self.ntables))
+    tdLog.info("insert %d records again into each %d tables" %(10, self.ntables))
+    startTime = self.startTime
     for tid in range(1,self.ntables+1):
-      startTime = self.startTime
       sqlcmd = ['insert into tb%d values' %tid]
-      for rid in range(1,self.rowsPerTable+1):
+      for rid in range(1,11):
         sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += 10
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(20)
-    tdLog.sleep(5)
+    self.rowsPerTable += 10
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
 
     tdLog.info("================= step4")
     tdDnodes.forcestop(2)
@@ -96,17 +96,17 @@ class TDTestCase:
     tdLog.sleep(5)
 
     tdLog.info("================= step5")
-    tdLog.info("insert %d records again into each %d tables" %(self.rowsPerTable, self.ntables))
+    tdLog.info("insert %d records again into each %d tables" %(10, self.ntables))
+    startTime = self.startTime
     for tid in range(1,self.ntables+1):
-      startTime = self.startTime
       sqlcmd = ['insert into tb%d values' %tid]
-      for rid in range(1,self.rowsPerTable+1):
+      for rid in range(1,11):
         sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += 10
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(30)
-    tdLog.sleep(5)
+    self.rowsPerTable += 10
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
 
     tdLog.info("================= step6")
     tdDnodes.forcestop(3)
@@ -115,17 +115,17 @@ class TDTestCase:
     tdLog.sleep(5)
 
     tdLog.info("================= step7")
-    tdLog.info("insert %d records again into each %d tables" %(self.rowsPerTable, self.ntables))
+    tdLog.info("insert %d records again into each %d tables" %(10, self.ntables))
+    startTime = self.startTime
     for tid in range(1,self.ntables+1):
-      startTime = self.startTime
       sqlcmd = ['insert into tb%d values' %tid]
-      for rid in range(1,self.rowsPerTable+1):
+      for rid in range(1,11):
         sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += 10
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(40)
-    tdLog.sleep(5)
+    self.rowsPerTable += 10
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
 
     tdLog.info("================= step8")
     tdDnodes.forcestop(2)
@@ -134,17 +134,17 @@ class TDTestCase:
     tdLog.sleep(5)
 
     tdLog.info("================= step9")
-    tdLog.info("insert %d records again into each %d tables" %(self.rowsPerTable, self.ntables))
+    tdLog.info("insert %d records again into each %d tables" %(10, self.ntables))
+    startTime = self.startTime
     for tid in range(1,self.ntables+1):
-      startTime = self.startTime
       sqlcmd = ['insert into tb%d values' %tid]
-      for rid in range(1,self.rowsPerTable+1):
+      for rid in range(1,11):
         sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += 10
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(50)
-    tdLog.sleep(5)
+    self.rowsPerTable += 10
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
 
   def stop(self):
     tdSql.close()

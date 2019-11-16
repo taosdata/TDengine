@@ -57,9 +57,11 @@ class TDTestCase:
     tdLog.info("================= step1")
     tdLog.info("insert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
     tdSql.execute('create database db replica %d ctime %d' %(self.replica, self.ctime))
+    tdLog.sleep(5)
     tdSql.execute('use db')
+    tdSql.execute('create table tb(ts timestamp, i int) tags (id int)')
     for tid in range(1,self.ntables+1):
-      tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
+      tdSql.execute('create table tb%d using tb tags(%d)' %(tid, tid))
     tdLog.sleep(5)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
@@ -71,8 +73,8 @@ class TDTestCase:
     tdLog.sleep(40)
 
     tdLog.info("================= step2")
-    tdSql.query('select * from tb%d' %1)
-    tdSql.checkRows(self.rowsPerTable)
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
 
     tdLog.info("================= step3")
     dnodesDir  = tdDnodes.getDnodesRootDir()
@@ -85,20 +87,28 @@ class TDTestCase:
     if os.system(cmd) != 0 :
       tdLog.exit(cmd)
     tdLog.debug("%s" % (cmd))
+    fileOldSize = os.path.getsize(fileToDel)
 
     tdLog.info("================= step4")
-    tdSql.query('select * from tb%d' %5)
-    tdSql.checkRows(self.rowsPerTable)
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
     tdLog.sleep(40)
 
     tdLog.info("================= step5")
-    fileToRes = fileToDel
-    fileToRes0 = fileToDel[:-1] + '0'
-    fileToRes1 = fileToDel[:-1] + '1'
-    if ((os.path.exists(fileToRes)) or (os.path.exists(fileToRes0)) or (os.path.exists(fileToRes1))):
-      tdLog.debug("%s has been restored" % (fileToDel))
+    fileNewSize = os.path.getsize(fileToDel)
+    if (fileNewSize == fileOldSize):
+      tdLog.exit('%s has not been restored' % (fileToDel))
     else:
-      tdLog.exit("%s has not been restored" % (fileToDel))
+      tdLog.info("%s has been restored" % (fileToDel))
+
+    tdLog.info("================= step6")
+    tdLog.info("insert 1 data again")
+    sqlcmd = ['insert into']
+    for tid in range(1, self.ntables+1):
+      sqlcmd.append('tb%d values(%ld, %d)' %(tid,self.startTime+11, 11))
+    tdSql.execute(" ".join(sqlcmd))
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.ntables*(self.rowsPerTable+1))
     
   def stop(self):
     tdSql.close()
