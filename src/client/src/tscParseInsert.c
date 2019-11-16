@@ -191,10 +191,10 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         *((int8_t *)payload) = TSDB_DATA_TINYINT_NULL;
       } else {
         numType = tscToInteger(pToken, &iv, &endptr);
-        if (errno == ERANGE || iv > INT8_MAX || iv <= INT8_MIN) {
-          INVALID_SQL_RET_MSG(msg, "data is overflow");
-        } else if (TK_ILLEGAL == numType) {
+        if (TK_ILLEGAL == numType) {
           INVALID_SQL_RET_MSG(msg, "data is illegal");
+        } else if (errno == ERANGE || iv > INT8_MAX || iv <= INT8_MIN) {
+          INVALID_SQL_RET_MSG(msg, "data is overflow");
         }
 
         *((int8_t *)payload) = (int8_t)iv;
@@ -210,10 +210,10 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         *((int16_t *)payload) = TSDB_DATA_SMALLINT_NULL;
       } else {
         numType = tscToInteger(pToken, &iv, &endptr);
-        if (errno == ERANGE || iv > INT16_MAX || iv <= INT16_MIN) {
-          INVALID_SQL_RET_MSG(msg, "data is overflow");
-        } else if (TK_ILLEGAL == numType) {
+        if (TK_ILLEGAL == numType) {
           INVALID_SQL_RET_MSG(msg, "data is illegal");
+        } else if (errno == ERANGE || iv > INT16_MAX || iv <= INT16_MIN) {
+          INVALID_SQL_RET_MSG(msg, "data is overflow");
         }
 
         *((int16_t *)payload) = (int16_t)iv;
@@ -228,10 +228,10 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         *((int32_t *)payload) = TSDB_DATA_INT_NULL;
       } else {
         numType = tscToInteger(pToken, &iv, &endptr);
-        if (errno == ERANGE || iv > INT32_MAX || iv <= INT32_MIN) {
-          INVALID_SQL_RET_MSG(msg, "data is overflow");
-        } else if (TK_ILLEGAL == numType) {
+        if (TK_ILLEGAL == numType) {
           INVALID_SQL_RET_MSG(msg, "data is illegal");
+        } else if (errno == ERANGE || iv > INT32_MAX || iv <= INT32_MIN) {
+          INVALID_SQL_RET_MSG(msg, "data is overflow");
         }
 
         *((int32_t *)payload) = (int32_t)iv;
@@ -247,10 +247,10 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         *((int64_t *)payload) = TSDB_DATA_BIGINT_NULL;
       } else {
         numType = tscToInteger(pToken, &iv, &endptr);
-        if (errno == ERANGE || iv > INT64_MAX || iv <= INT64_MIN) {
-          INVALID_SQL_RET_MSG(msg, "data is overflow");
-        } else if (TK_ILLEGAL == numType) {
+        if (TK_ILLEGAL == numType) {
           INVALID_SQL_RET_MSG(msg, "data is illegal");
+        } else if (errno == ERANGE || iv > INT64_MAX || iv <= INT64_MIN) {
+          INVALID_SQL_RET_MSG(msg, "data is overflow");
         }
 
         *((int64_t *)payload) = iv;
