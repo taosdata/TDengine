@@ -72,6 +72,7 @@ sudo rm -f ${bin_link_dir}/taosd      || :
 sudo rm -f ${bin_link_dir}/taosdump   || :
 sudo rm -f ${cfg_link_dir}/*          || :
 sudo rm -f ${inc_link_dir}/taos.h     || :
+sudo rm -f ${inc_link_dir}/taoserror.h     || :
 sudo rm -f ${lib_link_dir}/libtaos.so || :
 
 sudo rm -f ${log_link_dir}            || :

@@ -110,6 +110,7 @@ int         createDir(const char *dirName);
 ssize_t     tsendfile(int dfd, int sfd, off_t *offset, size_t size);
 ssize_t     twrite(int fd, void *buf, size_t n);
 void        scanDir(const char *dbDir, SVnodeInfo *pInfo);
+void        vnodeCreateFileHeaderFd(int fd);
 
 int checkParams() {
   if (gArg.reportOnly && gArg.inPlace) {
@@ -235,7 +236,7 @@ SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir) {  // Open meterOb
 
   SVnodeInfo *pInfo = (SVnodeInfo *)calloc(1, sizeof(SVnodeInfo));
   if (pInfo == NULL) {
-    fprintf(stderr, "ERROR! failed to allocate memory , size:%d\n", sizeof(SVnodeInfo));
+    fprintf(stderr, "ERROR! failed to allocate memory , size:%ld\n", sizeof(SVnodeInfo));
     return NULL;
   }
 
@@ -338,6 +339,15 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
   FILE *       reportFP = NULL;
   int          fileHasError = 0;
   SCompBlock * pBlocks = NULL;
+  SCompBlock * pRepairBlocks = NULL;
+  SField      *pFields = NULL;
+  size_t       fields_size = 0;
+  char        *pCol = NULL;
+  size_t       col_size = 0;
+  char         dataFile[128] = "\0";
+  char         lastFile[128] = "\0";
+  struct stat  tstat;
+  size_t       hfsize = 0, dfsize = 0, lfsize = 0;
 
   // REPAIR
   int  repairFd = -1;
@@ -346,28 +356,68 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
 
   sprintf(reportFname, "%s/%s/%s", REPORT_DIR, vnodeDirName, headName);
 
+  size_t tlen = strlen(headFile);
+  strcpy(dataFile, headFile);
+  sprintf(dataFile + tlen - strlen("head"), "%s", "data");
+  strcpy(lastFile, headFile);
+  sprintf(lastFile + tlen - strlen("head"), "%s", "last");
+
   int fd = open(headFile, O_RDONLY);
   if (fd < 0) {
-    fprintf(stderr, "failed to open file %s\n", headFile);
+    fprintf(stderr, "failed to open file %s, reason:%s\n", headFile, strerror(errno));
     return;
+  } else {
+    fstat(fd, &tstat);
+    hfsize = tstat.st_size;
+  }
+
+  int dfd = open(dataFile, O_RDONLY);
+  if (dfd < 0) {
+    fprintf(stderr, "failed to open data file %s, reason:%s, will not check data/last file\n", dataFile, strerror(errno));
+  } else {
+    fstat(dfd, &tstat);
+    dfsize = tstat.st_size;
+  }
+
+  int lfd = open(lastFile, O_RDONLY);
+  if (lfd < 0) {
+    fprintf(stderr, "failed to open last file %s, reason:%s, will not check data/last file\n", lastFile, strerror(errno));
+  } else {
+    fstat(lfd, &tstat);
+    lfsize = tstat.st_size;
   }
 
   reportFP = fopen(reportFname, "w");
-  if (reportFP == NULL) reportFP = stdout;
+  if (reportFP == NULL) {
+    fprintf(stderr, "failed to open report file %s, reason:%s, will report to stdout\n", reportFname, strerror(errno));
+    reportFP = stdout;
+  }
 
-  struct stat tstat;
-  fstat(fd, &tstat);
-  if (tstat.st_size < TSDB_FILE_HEADER_LEN) {
+  if (hfsize < TSDB_FILE_HEADER_LEN + sizeof(SCompHeader)*pCfg->maxSessions+sizeof(TSCKSUM)) {
     fileHasError = 1;
     *err =  1;
-    fprintf(reportFP, "ERROR header file %s size is too small, size:%ld\n", headFile, tstat.st_size);
+    fprintf(reportFP, "ERROR header file %s size is too small, size:%ld, expected minimum size:%ld\n", headFile, hfsize, TSDB_FILE_HEADER_LEN + sizeof(SCompHeader)*pCfg->maxSessions+sizeof(TSCKSUM));
+  }
+
+  if (dfsize < TSDB_FILE_HEADER_LEN) {
+    // fileHasError = 1;
+    // *err =  1;
+    fprintf(reportFP, "ERROR data file %s size is too small, size:%ld\n", dataFile, dfsize);
+    // TODO: deal with the error here
+  }
+
+  if (lfsize < TSDB_FILE_HEADER_LEN) {
+    // fileHasError = 1;
+    // *err =  1;
+    fprintf(reportFP, "ERROR last file %s size is too small, size:%ld\n", lastFile, lfsize);
+    // TODO: deal with the error here
   }
 
   // REPAIR
   if (!(gArg.reportOnly)) {
     repairFd = open(repairFname, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
     if (repairFd < 0) {
-      fprintf(stderr, "failed to open file: %s", repairFname);
+      fprintf(stderr, "failed to open file: %s, reason:%s\n", repairFname, strerror(errno));
     }
   }
 
@@ -394,8 +444,12 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
   } else {
     lseek(fd, TSDB_FILE_HEADER_LEN, SEEK_SET);
   }
-  read(fd, pHeader, offset_size);
+  if (read(fd, pHeader, offset_size) < offset_size) {
+    fprintf(stderr, "failed to read the SCompHeader part from header file:%s, reason:%s\n", headFile, strerror(errno));
+    goto __exit_error;
+  }
 
+  // 1. Check the SCompHeader part
   if (!taosCheckChecksumWhole((uint8_t *)pHeader, offset_size)) {
     fileHasError = 1;
     *err = 1;
@@ -415,10 +469,9 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
   // printHeader(pHeader, pCfg->maxSessions);
 
   size = 0;
-  for (int i = 0; i < pCfg->maxSessions; i++) {
-    if (pInfo->pMeter[i] == NULL) continue;
-    if (pHeader[i].compInfoOffset == 0) continue;
-    if (pHeader[i].compInfoOffset < 0) {
+  for (int i = 0; i < pCfg->maxSessions; i++) {// loop over table
+    if (pInfo->pMeter[i] == NULL || pHeader[i].compInfoOffset == 0) continue;
+    if (pHeader[i].compInfoOffset < 0 || pHeader[i].compInfoOffset > hfsize) {
       fprintf(reportFP, "ERROR!!! i:%d compInfoOffset:%ld\n", i, pHeader[i].compInfoOffset);
       fileHasError = 1;
       *err = 1;
@@ -429,10 +482,16 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
     }
     // Read the compInfo Block
     fprintf(reportFP, "------------------------\n");
-    fprintf(reportFP, "i: %d offset:%ld\n\n", i, pHeader[i].compInfoOffset + drift);
-    lseek(fd, pHeader[i].compInfoOffset + drift, SEEK_SET);
-    read(fd, &compInfo, sizeof(SCompInfo));
-    if (!printCompInfo(&compInfo, pInfo->pMeter[i]->uid, reportFP)) {
+    fprintf(reportFP, "meter sid: %d offset:%ld\n\n", i, pHeader[i].compInfoOffset + drift);
+    if (lseek(fd, pHeader[i].compInfoOffset + drift, SEEK_SET) < 0) {
+      fprintf(stderr, "failed to seek head file:%s, reason:%s\n", headFile, strerror(errno));
+      continue;
+    }
+    if (read(fd, &compInfo, sizeof(SCompInfo)) < sizeof(SCompInfo)) {
+      fprintf(stderr, "failed to read SCompInfo part of meter sid:%d from head file:%s, reason:%s\n", i, headFile, strerror(errno));
+      continue;
+    }
+    if (!printCompInfo(&compInfo, pInfo->pMeter[i]->uid, reportFP)) {// check the SCompInfo part
       fileHasError = 1;
       *err = 1;
       if (repairFd > 0) {
@@ -442,7 +501,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
     }
 
     int numOfBlocks = compInfo.numOfBlocks;
-    if (numOfBlocks == 0) {
+    if (numOfBlocks <= 0) {
       fprintf(reportFP, "Number of blocks is zero\n");
       fileHasError = 1;
       *err = 1;
@@ -456,15 +515,24 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
       size = tsize;
       if (pBlocks == NULL) {
         pBlocks = malloc(size);
+        if (pBlocks == NULL) {
+          fprintf(stderr, "failed to allocate memory\n");
+          abort();
+        }
       } else {
         pBlocks = realloc(pBlocks, size);
+        if(pBlocks == NULL) {
+          fprintf(stderr, "failed to allocate memory\n");
+          abort();
+        }
       }
+      if (repairFd > 0) pRepairBlocks = (SCompBlock *)realloc((void *)pRepairBlocks, size);
     }
 
     lseek(fd, pHeader[i].compInfoOffset + sizeof(SCompInfo) + drift, SEEK_SET);
     read(fd, pBlocks, tsize);
     if (!taosCheckChecksumWhole((uint8_t *)pBlocks, tsize)) {
-      fprintf(reportFP, "> ERROR in blocks\n\n");
+      fprintf(reportFP, "> ERROR in SCompBlocks\n\n");
       fileHasError = 1;
       *err = 1;
       if (repairFd > 0) {
@@ -476,7 +544,10 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
     }
 
     TSKEY keyLast = 0;
+    int   numOfCorrectBlocks = numOfBlocks;
+    int   blockCounter = 0;
     for (int j = 0; j < numOfBlocks; j++) {
+      // Check the SCompBlock context
       SCompBlock *pBlock = &pBlocks[j];
       if (pBlock->last != 0 && j < numOfBlocks - 1) {
         fprintf(reportFP, ">> ERROR in block %d: last block in middle\n", j);
@@ -499,7 +570,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
       }
 
       if (pBlock->offset < 512) {
-        fprintf(reportFP, ">> ERROR in block %d: offset %ld is smaller than 512\n", j, pBlock->offset);
+        fprintf(reportFP, ">> ERROR in block %d: offset %ld is smaller than 512\n", j, (long)(pBlock->offset));
         fileHasError = 1;
         *err = 1;
         if (repairFd > 0) {
@@ -518,19 +589,121 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
         break;
       }
       keyLast = pBlock->keyLast;
+
+      
+      if (dfd > 0 && lfd > 0) {// Check the data file
+        int tfd = -1;
+        size_t toffset = 0;
+        if (pBlock->last) {
+          tfd = lfd;
+          toffset = lfsize;
+        } else {
+          tfd = dfd;
+          toffset = dfsize;
+        }
+
+        if (pBlock->offset > toffset) {
+          fprintf(reportFP, ">> ERROR in block %d: offset %ld is larger than file size %ld", j, (long)(pBlock->offset), toffset);
+          numOfCorrectBlocks--;
+          continue;
+        }
+
+        // Read the SField part
+        if (lseek(tfd, pBlock->offset, SEEK_SET) < 0) {
+          fprintf(stderr, "failed to seek, reason:%s\n", strerror(errno));
+          continue;
+        }
+
+        // TODO: allocate the field part
+        size_t tfsize = sizeof(SField) * pBlock->numOfCols + sizeof(TSCKSUM);
+        if (fields_size < tfsize) {
+          pFields = (SField *)realloc((void *)pFields, tfsize);
+          if (pFields == NULL) {
+            fprintf(stderr, "Failed to allocate memory\n");
+            abort();
+          }
+          fields_size = tfsize;
+        }
+
+        if (read(tfd, pFields, tfsize) < tfsize) {
+          fprintf(stderr, "failed to read SField part, reason:%s\n", strerror(errno));
+          continue;
+        }
+
+        if (!taosCheckChecksumWhole((uint8_t *)pFields, tfsize)) {
+          fprintf(reportFP, ">> ERROR in block %d: SField part checksum is error\n", j);
+          fileHasError = 1;
+          *err = 1;
+          numOfCorrectBlocks--;
+          continue;
+        } else {
+          fprintf(reportFP, ">> block %d: SField part is correct\n", j);
+        }
+
+        int colHasError = 0;
+        for (int ti = 0; ti < pBlock->numOfCols; ti++) {
+          SField *pField = pFields + ti;
+          if (lseek(tfd, pBlock->offset+pField->offset, SEEK_SET) < 0) {
+            fprintf(stderr, "Failed to seek, reason:%s\n", strerror(errno));
+            continue;
+          }
+
+
+          int32_t ttlen = pField->len + sizeof(TSCKSUM);
+          if (col_size < ttlen) {
+            pCol = (char *)realloc((void *)pCol, ttlen);
+            col_size = ttlen;
+          }
+
+          if (read(tfd, pCol, ttlen) < ttlen) {
+            fprintf(stderr, "Failed read %d bytes, reason:%s\n", ttlen, strerror(errno));
+            continue;
+          }
+
+          if (!taosCheckChecksumWhole((uint8_t *)pCol, ttlen)) {
+            fprintf(reportFP, ">> ERROR in block %d, column %d data part is broken\n", j, ti);
+            fileHasError = 1;
+            *err = 1;
+            colHasError = 1;
+            continue;
+          }
+        }
+
+        if (colHasError) {
+          numOfCorrectBlocks--;
+          continue;
+        }
+
+      }
+
+      // Copy the correct block
+      if (repairFd > 0) {
+        memcpy((void *)(pRepairBlocks+blockCounter), (void *)pBlock, sizeof(SCompBlock));
+        blockCounter++;
+      }
+    }
+
+    if (numOfCorrectBlocks == 0) {
+      pHeader[i].compInfoOffset = 0;
     }
 
     if (repairFd > 0) {
       if (pHeader[i].compInfoOffset != 0) {
-        lseek(fd, pHeader[i].compInfoOffset, SEEK_SET);
         lseek(repairFd, pHeader[i].compInfoOffset, SEEK_SET);
-        tsendfile(repairFd, fd, NULL, sizeof(SCompInfo) + sizeof(SCompBlock) * compInfo.numOfBlocks + sizeof(TSCKSUM));
+        if (numOfCorrectBlocks == compInfo.numOfBlocks) {
+          lseek(fd, pHeader[i].compInfoOffset, SEEK_SET);
+          tsendfile(repairFd, fd, NULL,
+                    sizeof(SCompInfo) + sizeof(SCompBlock) * compInfo.numOfBlocks + sizeof(TSCKSUM));
+        } else {
+          taosCalcChecksumAppend(0, (uint8_t *)pRepairBlocks, sizeof(SCompBlock)*numOfCorrectBlocks+sizeof(TSCKSUM));
+          twrite(repairFd, (void *)pRepairBlocks, sizeof(SCompBlock)*numOfCorrectBlocks+sizeof(TSCKSUM));
+        }
       }
     }
   }
 
 __exit:
-  if (repairFd > 0) {
+  if (repairFd > 0) {// write the new compHeader part to the repair FD
     lseek(repairFd, TSDB_FILE_HEADER_LEN, SEEK_SET);
     taosCalcChecksumAppend(0, (uint8_t *)pHeader, offset_size);
     twrite(repairFd, (void *)pHeader, offset_size);
@@ -538,7 +711,11 @@ __exit:
 
   if (pBlocks != NULL) free(pBlocks);
   if (pHeader != NULL) free(pHeader);
+  if (pFields != NULL) free(pFields);
+  if (pCol != NULL) free(pCol);
   if (fd > 0) close(fd);
+  if (dfd > 0) close(dfd);
+  if (lfd > 0) close(lfd);
   // if (reportFP != stdout) fclose(reportFP);
   if (reportFP != stdout) {  // No error, remove it
     fclose(reportFP);
@@ -584,8 +761,13 @@ __exit:
 
 __exit_error:
   if (pBlocks != NULL) free(pBlocks);
+  if (pRepairBlocks != NULL) free(pBlocks);
   if (pHeader != NULL) free(pHeader);
+  if (pFields != NULL) free(pFields);
+  if (pCol != NULL) free(pCol);
   if (fd > 0) close(fd);
+  if (dfd > 0) close(dfd);
+  if (lfd > 0) close(lfd);
   // if (reportFP != stdout) fclose(reportFP);
   if (reportFP != stdout) {  // No error, remove it
     fclose(reportFP);
@@ -630,8 +812,8 @@ int printCompInfo(SCompInfo *pCompInfo, uint64_t uid, FILE *fp) {
   if (!taosCheckChecksumWhole((uint8_t *)pCompInfo, sizeof(SCompInfo))) isRight = 0;
   fprintf(fp, "CompInfo:\n");
   fprintf(fp, "uid:         %lu\n", pCompInfo->uid);
-  fprintf(fp, "last:        %ld\n", pCompInfo->last);
-  fprintf(fp, "numOfBlocks: %ld\n", pCompInfo->numOfBlocks);
+  fprintf(fp, "last:        %ld\n", (long)(pCompInfo->last));
+  fprintf(fp, "numOfBlocks: %ld\n", (long)(pCompInfo->numOfBlocks));
   fprintf(fp, "delimeter:   %u\n", pCompInfo->delimiter);
   fprintf(fp, "checksum:    %d\n", pCompInfo->checksum);
   if (isRight == 0) {
@@ -722,7 +904,7 @@ void scanDir(const char *dbDir, SVnodeInfo *pInfo) {
     return;
   }
 
-  printf(" > vnode:%d minFileId:%d maxFileId:%d, vnodeFileId:%ld numOfFiles:%d\n", vnode, minFileId, maxFileId,
+  printf(" > vnode:%d minFileId:%d maxFileId:%d, vnodeFileId:%d numOfFiles:%d\n", vnode, minFileId, maxFileId,
          pInfo->fileId, pInfo->numOfFiles);
   {
     for (int fid = pInfo->fileId - pInfo->numOfFiles + 1; fid <= pInfo->fileId; fid++) {

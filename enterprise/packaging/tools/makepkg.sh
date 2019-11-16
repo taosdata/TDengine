@@ -22,7 +22,7 @@ install_dir="${release_dir}/TDengine-enterprise-${version}-${package_name}-$(ech
 # Directories and files.
 bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdump ${script_dir}/remove.sh"
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-header_files="${community_dir}/inc/taos.h"
+header_files="${community_dir}/inc/taos.h ${community_dir}/inc/taoserror.h"
 cfg_dir="${top_dir}/packaging/cfg"
 install_files="${script_dir}/install.sh"
 nginx_dir="${code_dir}/modules/web"
@@ -39,7 +39,7 @@ init_file_rpm=${script_dir}/../rpm/taosd
 
 # make directories.
 mkdir -p ${install_dir}
-mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc/taos.h
+mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/*
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taosd.deb
