@@ -1,9 +1,4 @@
-#include <math.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+#include "os.h"
 #include "tkey.h"
 
 #define MAX_DIGITS 50
