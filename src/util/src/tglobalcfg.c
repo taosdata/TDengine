@@ -62,8 +62,8 @@ short tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
 short tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
 short tsMgmtVnodePort = 6040;   // udp[6040-6044] tcp[6040]
 short tsVnodeVnodePort = 6045;  // tcp[6045]
-short tsMgmtMgmtPort = 6050;    // sdbPeerPort only udp, numOfVnodes fixed to 1, range udp[6050]
-short tsMgmtSyncPort = 6050;    // sdbSyncPort only tcp, range tcp[6050]
+short tsMgmtMgmtPort = 6050;    // udp, numOfVnodes fixed to 1, range udp[6050]
+short tsMgmtSyncPort = 6050;    // tcp, range tcp[6050]
 
 int tsStatusInterval = 1;         // second
 int tsShellActivityTimer = 3;     // second
