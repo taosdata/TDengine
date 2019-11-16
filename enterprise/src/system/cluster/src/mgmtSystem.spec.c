@@ -71,9 +71,6 @@ int mgmtStartCheckMgmtRunning() {
 
   strcpy(sdbMasterIp, mgmtIpStr[0]);
   strcpy(sdbPrivateIp, tsPrivateIp);
-  sdbPeerPort = tsMgmtMgmtPort;
-  sdbSyncPort = tsMgmtSyncPort;
-  sdbHbTimer = tsMgmtPeerHBTimer;
   sdbPublicIp = inet_addr(tsPublicIp);
 
   return 0;
