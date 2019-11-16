@@ -23,6 +23,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>
 #include <ctype.h>
@@ -31,6 +32,7 @@ extern "C" {
 #include <errno.h>
 #include <float.h>
 #include <ifaddrs.h>
+#include <libgen.h>
 #include <limits.h>
 #include <locale.h>
 #include <math.h>
@@ -41,9 +43,12 @@ extern "C" {
 #include <netinet/udp.h>
 #include <pthread.h>
 #include <pwd.h>
+#include <regex.h>
 #include <semaphore.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 #include <strings.h>
@@ -55,7 +60,9 @@ extern "C" {
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/statvfs.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/un.h>
 #include <syslog.h>
@@ -64,6 +71,7 @@ extern "C" {
 #include <wchar.h>
 #include <wordexp.h>
 #include <wctype.h>
+
 
 #define taosCloseSocket(x) \
   {                        \

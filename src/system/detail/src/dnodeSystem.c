@@ -14,11 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <pthread.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
+#include "os.h"
 
 #include "mgmt.h"
 #include "vnode.h"

@@ -20,9 +20,7 @@
 extern "C" {
 #endif
 
-#include <pthread.h>
-#include <semaphore.h>
-#include <stdbool.h>
+#include "os.h"
 
 #include "dnodeSystem.h"
 #include "mgmt.h"

@@ -20,11 +20,7 @@
 extern "C" {
 #endif
 
-#include <errno.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <stdint.h>
-#include <syslog.h>
+#include "os.h"
 
 #include "tglobalcfg.h"
 #include "tidpool.h"
@@ -32,7 +28,6 @@ extern "C" {
 #include "tmempool.h"
 #include "trpc.h"
 #include "tsclient.h"
-#include "tsdb.h"
 #include "tsdb.h"
 #include "tsocket.h"
 #include "ttime.h"

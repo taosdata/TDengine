@@ -14,10 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include "os.h"
 
 #include "trpc.h"
 #include "tschemautil.h"

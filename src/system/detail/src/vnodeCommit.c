@@ -14,15 +14,7 @@
  */
 
 #define _GNU_SOURCE /* See feature_test_macros(7) */
-#include <fcntl.h>
-
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "tsdb.h"
 #include "vnode.h"

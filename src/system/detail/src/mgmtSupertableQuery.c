@@ -14,10 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <float.h>
-#include <math.h>
-#include <sys/time.h>
+#include "os.h"
 
 #include "mgmt.h"
 #include "mgmtUtil.h"

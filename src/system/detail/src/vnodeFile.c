@@ -14,15 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <fcntl.h>
-#include <libgen.h>
-#include <sys/stat.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "tscompression.h"
 #include "tutil.h"

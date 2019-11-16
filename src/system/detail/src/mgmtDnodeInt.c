@@ -14,8 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <endian.h>
+#include "os.h"
 
 #include "dnodeSystem.h"
 #include "mgmt.h"
