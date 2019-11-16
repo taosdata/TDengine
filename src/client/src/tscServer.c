@@ -281,9 +281,9 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
     break;
   }
   
-  // the pSql->res.code is the previous error code.
+  // the pSql->res.code is the previous error(status) code.
   if (pSql->thandle == NULL && pSql->retry >= pSql->maxRetry) {
-    if (pSql->res.code != TSDB_CODE_SUCCESS) {
+    if (pSql->res.code != TSDB_CODE_SUCCESS && pSql->res.code != TSDB_CODE_ACTION_IN_PROGRESS) {
       *pCode = pSql->res.code;
     }
     
