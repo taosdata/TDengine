@@ -61,8 +61,9 @@ function kill_taosd() {
 }
 
 function install_include() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h || :
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h|| :
     ${csudo} ln -s ${inc_dir}/taos.h ${inc_link_dir}/taos.h  
+    ${csudo} ln -s ${inc_dir}/taoserror.h ${inc_link_dir}/taoserror.h  
 }
 
 function install_lib() {
