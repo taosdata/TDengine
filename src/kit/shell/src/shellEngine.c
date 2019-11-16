@@ -16,16 +16,6 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 
-#include <assert.h>
-#include <pthread.h>
-#include <regex.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <time.h>
-
 #include "os.h"
 #include "shell.h"
 #include "shellCommand.h"

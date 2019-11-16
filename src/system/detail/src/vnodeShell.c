@@ -14,10 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <endian.h>
-#include <stdint.h>
+#include "os.h"
+
 #include "taosmsg.h"
 #include "vnode.h"
 #include "vnodeShell.h"

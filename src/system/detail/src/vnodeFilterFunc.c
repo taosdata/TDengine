@@ -14,11 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <float.h>
-#include <math.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include "os.h"
 
 #include "taosmsg.h"
 #include "tsqlfunction.h"

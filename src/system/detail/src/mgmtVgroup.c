@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
+#include "os.h"
 
 #include "mgmt.h"
 #include "tschemautil.h"

@@ -13,19 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <libgen.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "sdb.h"
 #include "sdbint.h"

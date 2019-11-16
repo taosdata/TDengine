@@ -13,15 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <errno.h>
-#include <pthread.h>
-#include <string.h>
+#include "os.h"
 
 #include "tcache.h"
 #include "tlog.h"

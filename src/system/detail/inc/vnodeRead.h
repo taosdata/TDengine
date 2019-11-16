@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
+#include "os.h"
 
 #include "tinterpolation.h"
 #include "vnodeTagMgmt.h"

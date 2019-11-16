@@ -13,14 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <locale.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <limits.h>
-#include <errno.h>
-
 #include "os.h"
 
 #ifdef USE_LIBICONV

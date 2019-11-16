@@ -14,9 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <sys/time.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "taosmsg.h"
 #include "vnode.h"

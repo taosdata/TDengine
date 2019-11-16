@@ -14,9 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <unistd.h>
+
+#include "os.h"
 
 #include "dnodeSystem.h"
 #include "taosmsg.h"

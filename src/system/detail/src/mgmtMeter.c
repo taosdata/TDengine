@@ -14,10 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <limits.h>
-#include <stdint.h>
+#include "os.h"
 
 #include "mgmt.h"
 #include "mgmtUtil.h"
