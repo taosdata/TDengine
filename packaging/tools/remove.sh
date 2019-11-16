@@ -61,6 +61,7 @@ function clean_lib() {
 function clean_header() {
     # Remove link
     ${csudo} rm -f ${inc_link_dir}/taos.h       || :
+    ${csudo} rm -f ${inc_link_dir}/taoserror.h       || :
 }
 
 function clean_config() {

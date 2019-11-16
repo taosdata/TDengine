@@ -109,9 +109,10 @@ function install_lib() {
 
 function install_header() {
 
-    ${csudo} rm -f ${inc_link_dir}/taos.h     || :    
-    ${csudo} cp -f ${source_dir}/src/inc/taos.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :    
+    ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function install_config() {
