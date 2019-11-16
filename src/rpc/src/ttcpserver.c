@@ -195,8 +195,9 @@ static void taosProcessTcpData(void *param) {
 
       void *buffer = malloc(1024);
       int   headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(STaosHeader));
+
       if (headLen != sizeof(STaosHeader)) {
-        tError("%s read error, headLen:%d", pThreadObj->label, headLen);
+        tError("%s read error, headLen:%d, errno:%d", pThreadObj->label, headLen, errno);
         taosCleanUpFdObj(pFdObj);
         tfree(buffer);
         continue;

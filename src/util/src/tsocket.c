@@ -280,7 +280,6 @@ int taosOpenUdpSocket(char *ip, short port) {
   int                bufSize = 8192000;
 
   pTrace("open udp socket:%s:%d", ip, port);
-  // if (tsAllowLocalhost) ip = "0.0.0.0";
 
   memset((char *)&localAddr, 0, sizeof(localAddr));
   localAddr.sin_family = AF_INET;
@@ -345,7 +344,6 @@ int taosOpenTcpClientSocket(char *destIp, short destPort, char *clientIp) {
   int                ret;
 
   pTrace("open tcp client socket:%s:%d", destIp, destPort);
-  // if (tsAllowLocalhost) destIp = "0.0.0.0";
 
   sockFd = (int)socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -441,7 +439,6 @@ int taosOpenTcpServerSocket(char *ip, short port) {
   int                reuse;
 
   pTrace("open tcp server socket:%s:%d", ip, port);
-  // if (tsAllowLocalhost) ip = "0.0.0.0";
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
   serverAdd.sin_family = AF_INET;
@@ -483,7 +480,6 @@ int taosOpenRawSocket(char *ip) {
   struct sockaddr_in rawAdd;
 
   pTrace("open udp raw socket:%s", ip);
-  // if (tsAllowLocalhost) ip = "0.0.0.0";
 
   fd = (int)socket(AF_INET, SOCK_RAW, IPPROTO_UDP);
   if (fd < 0) {
