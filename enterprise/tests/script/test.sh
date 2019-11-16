@@ -91,7 +91,7 @@ echo "udebugFlag       135"                  >> $TAOS_CFG
 echo "clog             0"                    >> $TAOS_CFG
 echo "asyncLog         0"                    >> $TAOS_CFG
 echo "locale           en_US.UTF-8"          >> $TAOS_CFG
-echo "sockettype       tcp"                  >> $TAOS_CFG
+#echo "sockettype      tcp"                  >> $TAOS_CFG
 echo "meterMetaKeepTimer      1"             >> $TAOS_CFG
 echo "metricMetaKeepTimer     1"             >> $TAOS_CFG
 #echo "meterMetaKeepTimer     3600"         >> $TAOS_CFG
