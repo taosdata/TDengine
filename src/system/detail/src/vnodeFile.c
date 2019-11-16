@@ -216,6 +216,7 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
   if (numOfFiles >= pVnode->numOfFiles) {
     // create empty header files backward
     filesAdded = numOfFiles - pVnode->numOfFiles + 1;
+    assert(filesAdded <= pVnode->maxFiles + 2);
     for (int i = 0; i < filesAdded; ++i) {
       fileId = pVnode->fileId - pVnode->numOfFiles - i;
       if (vnodeCreateEmptyCompFile(vnode, fileId) < 0) 
