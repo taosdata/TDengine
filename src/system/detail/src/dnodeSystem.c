@@ -139,6 +139,8 @@ int dnodeInitSystem() {
   tsPrintGlobalConfig();
   dPrint("Server IP address is:%s", tsInternalIp);
 
+  taosSetCoreDump();
+
   signal(SIGPIPE, SIG_IGN);
 
   dnodeInitModules();

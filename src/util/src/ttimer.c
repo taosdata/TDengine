@@ -549,7 +549,9 @@ void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* lab
 
 void taosTmrCleanUp(void* handle) {
   tmr_ctrl_t* ctrl = (tmr_ctrl_t*)handle;
-  assert(ctrl != NULL && ctrl->label[0] != 0);
+  if (ctrl == NULL || ctrl->label[0] == 0) {
+    return;
+  }
 
   tmrTrace("%s timer controller is cleaned up.", ctrl->label);
   ctrl->label[0] = 0;
