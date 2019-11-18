@@ -61,7 +61,7 @@ bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) { return pDnode->status == 
 bool mgmtCheckDnodeFree(SDnodeObj *pDnode) {
   mTrace("dnode:%s, try alloc vnode, state:%d %s, lbstate:%d %s, numOfFreeVnodes:%d",
           taosIpStr(pDnode->privateIp), pDnode->status, sdbDnodeStatusStr[pDnode->status],
-          pDnode->lbState, sdbDnodeBalanceStateStr[pDnode->lbState], pDnode->numOfFreeVnodes);
+          pDnode->lbState, taosGetDnodeBalanceStateStr(pDnode->lbState), pDnode->numOfFreeVnodes);
   for (int vnode = 0; vnode < pDnode->numOfVnodes; vnode++) {
     if (pDnode->vload[vnode].vgId != 0) {
       mTrace("dnode:%s, try alloc vnode, exist vnode:%d, vgroup:%d, state:%d %s, dropstate:%d %s, syncstatus:%d %s",
@@ -529,7 +529,7 @@ void mgmtMonitorDnodeBalanced(int type) {
     SDnodeObj *pDnode = mgmtOrderedDnodes[src];
     mTrace("dnode:%s, state:%d %s, lbState:%d %s, lbScore:%.1f, totalVnodes:%d, freeVnodes:%d, openVnodes:%d",
             taosIpStr(pDnode->privateIp), pDnode->status, sdbDnodeStatusStr[pDnode->status],
-            pDnode->lbState, sdbDnodeBalanceStateStr[pDnode->lbState],
+            pDnode->lbState, taosGetDnodeBalanceStateStr(pDnode->lbState),
             pDnode->lbScore, pDnode->numOfVnodes, pDnode->numOfFreeVnodes, pDnode->openVnodes
     );
   }

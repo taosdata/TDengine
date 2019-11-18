@@ -116,16 +116,17 @@ sql drop table mt
 
 ## ALTER TABLE WHILE STREAMING [TBASE271]
 sql create table tb1 (ts timestamp, c1 int, c2 nchar(5), c3 int)
-sql create table strm as select count(*), avg(c1), first(c2), sum(c3) from tb1 interval(2s) sliding(1s)
+sql create table strm as select count(*), avg(c1), first(c2), sum(c3) from tb1 interval(2s)
 sql select * from strm
 if $rows != 0 then
   return -1
 endi
-sleep 12000
+#sleep 12000
 sql insert into tb1 values (now, 1, 'taos', 1)
 sleep 20000
 sql select * from strm
-if $rows != 2 then
+print rows = $rows
+if $rows != 1 then
   return -1
 endi
 if $data04 != 1 then
@@ -136,7 +137,7 @@ sleep 6000
 sql insert into tb1 values (now, 2, 'taos')
 sleep 3000
 sql select * from strm
-if $rows != 2 then
+if $rows != 1 then
    return -1
 endi
 if $data04 != 1 then
@@ -147,7 +148,7 @@ sleep 6000
 sql insert into tb1 values (now, 3, 'taos', 3);
 sleep 3000
 sql select * from strm
-if $rows != 2 then
+if $rows != 1 then
    return -1
 endi
 if $data04 != 1 then
