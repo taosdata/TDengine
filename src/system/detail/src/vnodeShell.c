@@ -27,6 +27,7 @@
 #include "vnode.h"
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
+#include "vnodeStore.h"
 
 #pragma GCC diagnostic ignored "-Wint-conversion"
 extern int tsMaxQueues;
@@ -154,6 +155,11 @@ int vnodeInitShell() {
 }
 
 int vnodeOpenShellVnode(int vnode) {
+  if (shellList[vnode] != NULL) {
+    dError("vid:%d, shell is already opened", vnode);
+    return -1;
+  }
+
   const int32_t MIN_NUM_OF_SESSIONS = 300;
 
   SVnodeCfg *pCfg = &vnodeList[vnode].cfg;
@@ -162,23 +168,29 @@ int vnodeOpenShellVnode(int vnode) {
   size_t size = sessions * sizeof(SShellObj);
   shellList[vnode] = (SShellObj *)calloc(1, size);
   if (shellList[vnode] == NULL) {
-    dError("vid:%d failed to allocate shellObj, size:%d", vnode, size);
+    dError("vid:%d, sessions:%d, failed to allocate shellObj, size:%d", vnode, pCfg->maxSessions, size);
     return -1;
   }
 
   if(taosOpenRpcChannWithQ(pShellServer, vnode, sessions, rpcQhandle[(vnode+1)%tsMaxQueues]) != TSDB_CODE_SUCCESS) {
+    dError("vid:%d, sessions:%d, failed to open shell", vnode, pCfg->maxSessions);
     return -1;
   }
 
+  dTrace("vid:%d, sessions:%d, shell is opened", vnode, pCfg->maxSessions);
   return TSDB_CODE_SUCCESS;
 }
 
 static void vnodeDelayedFreeResource(void *param, void *tmrId) {
   int32_t vnode = *(int32_t*) param;
-  taosCloseRpcChann(pShellServer, vnode); // close connection
-  tfree (shellList[vnode]);  //free SShellObj
+  dTrace("vid:%d, start to free resources", vnode);
 
+  taosCloseRpcChann(pShellServer, vnode); // close connection
+  tfree(shellList[vnode]);  //free SShellObj
   tfree(param);
+
+  memset(vnodeList + vnode, 0, sizeof(SVnodeObj));
+  vnodeCalcOpenVnodes();
 }
 
 void vnodeCloseShellVnode(int vnode) {
@@ -197,7 +209,7 @@ void vnodeCloseShellVnode(int vnode) {
    * 2. Free connection may cause *(SRpcConn*)pObj->thandle to be invalid to access.
    */
   dTrace("vid:%d, free resources in 500ms", vnode);
-  taosTmrStart(vnodeDelayedFreeResource, 500, v, vnodeTmrCtrl);
+  taosTmrStart(vnodeDelayedFreeResource, 5000, v, vnodeTmrCtrl);
 }
 
 void vnodeCleanUpShell() {

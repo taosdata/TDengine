@@ -22,6 +22,7 @@
 #include "vnode.h"
 #include "vnodeStore.h"
 #include "vnodeUtil.h"
+#include "tstatus.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic warning "-Woverflow"
@@ -30,12 +31,14 @@ int        tsMaxVnode = -1;
 int        tsOpenVnodes = 0;
 SVnodeObj *vnodeList = NULL;
 
-int vnodeInitStoreVnode(int vnode) {
+static int vnodeInitStoreVnode(int vnode) {
   SVnodeObj *pVnode = vnodeList + vnode;
 
   pVnode->vnode = vnode;
   vnodeOpenMetersVnode(vnode);
-  if (pVnode->cfg.maxSessions == 0) return 0;
+  if (pVnode->cfg.maxSessions <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   pVnode->firstKey = taosGetTimestamp(pVnode->cfg.precision);
 
@@ -45,9 +48,10 @@ int vnodeInitStoreVnode(int vnode) {
     return -1;
   }
 
-  if (vnodeInitFile(vnode) < 0) return -1;
-
-  // vnodeOpenMeterMgmtStoreVnode(vnode);
+  if (vnodeInitFile(vnode) < 0) {
+    dError("vid:%d, files init failed.", pVnode->vnode);
+    return -1;
+  }
 
   if (vnodeInitCommit(vnode) < 0) {
     dError("vid:%d, commit init failed.", pVnode->vnode);
@@ -70,10 +74,17 @@ int vnodeOpenVnode(int vnode) {
   pVnode->accessState = TSDB_VN_ALL_ACCCESS;
 
   // vnode is empty
-  if (pVnode->cfg.maxSessions == 0) return 0;
+  if (pVnode->cfg.maxSessions <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
+  if (!(pVnode->vnodeStatus == TSDB_VNODE_STATUS_OFFLINE || pVnode->vnodeStatus == TSDB_VNODE_STATUS_CREATING)) {
+    dError("vid:%d, status:%s, cannot enter open operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
+    return TSDB_CODE_INVALID_VNODE_STATUS;
+  }
+
+  dTrace("vid:%d, status:%s, start to open", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
   pthread_mutex_lock(&dmutex);
-  // vnodeOpenMeterMgmtVnode(vnode);
 
   // not enough memory, abort
   if ((code = vnodeOpenShellVnode(vnode)) != TSDB_CODE_SUCCESS) {
@@ -93,14 +104,13 @@ int vnodeOpenVnode(int vnode) {
   vnodeOpenStreams(pVnode, NULL);
 #endif
 
-  dTrace("vid:%d, vnode is opened, openVnodes:%d", vnode, tsOpenVnodes);
+  dTrace("vid:%d, vnode is opened, openVnodes:%d, status:%s", vnode, tsOpenVnodes, taosGetVnodeStatusStr(pVnode->vnodeStatus));
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t vnodeMarkAllMetersDropped(SVnodeObj* pVnode) {
   if (pVnode->meterList == NULL) {
-    assert(pVnode->cfg.maxSessions == 0);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -119,7 +129,7 @@ static int32_t vnodeMarkAllMetersDropped(SVnodeObj* pVnode) {
   return ready? TSDB_CODE_SUCCESS:TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-int vnodeCloseVnode(int vnode) {
+static int vnodeCloseVnode(int vnode) {
   if (vnodeList == NULL) return TSDB_CODE_SUCCESS;
 
   SVnodeObj* pVnode = &vnodeList[vnode];
@@ -130,11 +140,22 @@ int vnodeCloseVnode(int vnode) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_DELETING) {
+    dTrace("vid:%d, status:%s, another performed delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
+    return TSDB_CODE_SUCCESS;
+  } else {
+    dTrace("vid:%d, status:%s, enter close operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
+    pVnode->vnodeStatus = TSDB_VNODE_STATUS_CLOSING;
+  }
+
   // set the meter is dropped flag 
   if (vnodeMarkAllMetersDropped(pVnode) != TSDB_CODE_SUCCESS) {
     pthread_mutex_unlock(&dmutex);
     return TSDB_CODE_ACTION_IN_PROGRESS;
   }
+
+  dTrace("vid:%d, status:%s, enter delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
+  pVnode->vnodeStatus = TSDB_VNODE_STATUS_DELETING;
 
   vnodeCloseStream(vnodeList + vnode);
   vnodeCancelCommit(vnodeList + vnode);
@@ -149,9 +170,6 @@ int vnodeCloseVnode(int vnode) {
   if (tsMaxVnode == vnode) tsMaxVnode = vnode - 1;
 
   tfree(vnodeList[vnode].meterIndex);
-  memset(vnodeList + vnode, 0, sizeof(SVnodeObj));
-
-  vnodeCalcOpenVnodes();
 
   pthread_mutex_unlock(&dmutex);
   return TSDB_CODE_SUCCESS;
@@ -160,7 +178,12 @@ int vnodeCloseVnode(int vnode) {
 int vnodeCreateVnode(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc) {
   char fileName[128];
 
-  vnodeList[vnode].status = TSDB_STATUS_CREATING;
+  if (vnodeList[vnode].vnodeStatus != TSDB_VNODE_STATUS_OFFLINE) {
+    dError("vid:%d, status:%s, cannot enter create operation", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+    return TSDB_CODE_INVALID_VNODE_STATUS;
+  }
+
+  vnodeList[vnode].vnodeStatus = TSDB_VNODE_STATUS_CREATING;
 
   sprintf(fileName, "%s/vnode%d", tsDirectory, vnode);
   mkdir(fileName, 0755);
@@ -177,14 +200,14 @@ int vnodeCreateVnode(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc) {
     return TSDB_CODE_VG_INIT_FAILED;
   }
 
-  if (vnodeInitStoreVnode(vnode) != 0) {
+  if (vnodeInitStoreVnode(vnode) < 0) {
     return TSDB_CODE_VG_COMMITLOG_INIT_FAILED;
   }
 
   return vnodeOpenVnode(vnode);
 }
 
-void vnodeRemoveDataFiles(int vnode) {
+static void vnodeRemoveDataFiles(int vnode) {
   char           vnodeDir[TSDB_FILENAME_LEN];
   char           dfilePath[TSDB_FILENAME_LEN];
   char           linkFile[TSDB_FILENAME_LEN];
@@ -234,12 +257,21 @@ int vnodeRemoveVnode(int vnode) {
   if (vnodeList == NULL) return TSDB_CODE_SUCCESS;
 
   if (vnodeList[vnode].cfg.maxSessions > 0) {
-    int32_t ret = vnodeCloseVnode(vnode);
-    if (ret != TSDB_CODE_SUCCESS) {
-      return ret;
+    SVnodeObj* pVnode = &vnodeList[vnode];
+    if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_CREATING
+        || pVnode->vnodeStatus == TSDB_VNODE_STATUS_OFFLINE
+        || pVnode->vnodeStatus == TSDB_VNODE_STATUS_DELETING) {
+      dError("vid:%d, status:%s, cannot enter close/delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
+      return TSDB_CODE_ACTION_IN_PROGRESS;
+    } else {
+      int32_t ret = vnodeCloseVnode(vnode);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return ret;
+      }
+
+      vnodeRemoveDataFiles(vnode);
     }
 
-    vnodeRemoveDataFiles(vnode);
   } else {
     dTrace("vid:%d, max sessions:%d, this vnode already dropped!!!", vnode, vnodeList[vnode].cfg.maxSessions);
     vnodeList[vnode].cfg.maxSessions = 0;  //reset value
@@ -293,7 +325,7 @@ void vnodeCleanUpOneVnode(int vnode) {
   again = 1;
 
   if (vnodeList[vnode].pCachePool) {
-    vnodeList[vnode].status = TSDB_STATUS_OFFLINE;
+    vnodeList[vnode].vnodeStatus = TSDB_VNODE_STATUS_OFFLINE;
     vnodeClosePeerVnode(vnode);
   }
 
@@ -322,7 +354,7 @@ void vnodeCleanUpVnodes() {
 
   for (int vnode = 0; vnode < TSDB_MAX_VNODES; ++vnode) {
     if (vnodeList[vnode].pCachePool) {
-      vnodeList[vnode].status = TSDB_STATUS_OFFLINE;
+      vnodeList[vnode].vnodeStatus = TSDB_VNODE_STATUS_OFFLINE;
       vnodeClosePeerVnode(vnode);
     }
   }

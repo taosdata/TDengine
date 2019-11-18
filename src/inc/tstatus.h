@@ -20,10 +20,11 @@
 extern "C" {
 #endif
 
-extern char *sdbDnodeStatusStr[];
-extern char *sdbDnodeBalanceStateStr[];
-extern char *sdbVnodeDropStateStr[];
-extern char *sdbVnodeSyncStatusStr[];
+const char* taosGetVnodeStatusStr(int vnodeStatus);
+const char* taosGetDnodeStatusStr(int dnodeStatus);
+const char* taosGetDnodeBalanceStateStr(int dnodeBalanceStatus);
+const char* taosGetVnodeSyncStatusStr(int vnodeSyncStatus);
+const char* taosGetVnodeDropStatusStr(int dropping);
 
 #ifdef __cplusplus
 }

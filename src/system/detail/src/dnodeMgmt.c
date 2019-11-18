@@ -26,6 +26,7 @@
 #include "vnodeMgmt.h"
 #include "vnodeSystem.h"
 #include "vnodeUtil.h"
+#include "tstatus.h"
 
 SMgmtObj mgmtObj;
 extern uint64_t tsCreatedTime;
@@ -330,7 +331,7 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
     return -1;
   }
 
-  if (vnodeList[vnode].status == TSDB_STATUS_CREATING) {
+  if (vnodeList[vnode].vnodeStatus == TSDB_VNODE_STATUS_CREATING) {
     dTrace("vid:%d, vnode is still under creating", vnode);
     return 0;
   }
@@ -359,13 +360,23 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   }
 
   if (vnodeList[vnode].cfg.maxSessions == 0) {
+    dTrace("vid:%d, vnode is empty", vnode);
     if (pCfg->maxSessions > 0) {
-      return vnodeCreateVnode(vnode, pCfg, pMsg->vpeerDesc);
+      if (vnodeList[vnode].vnodeStatus == TSDB_VNODE_STATUS_OFFLINE) {
+        dTrace("vid:%d, status:%s, start to create vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+        return vnodeCreateVnode(vnode, pCfg, pMsg->vpeerDesc);
+      } else {
+        dTrace("vid:%d, status:%s, cannot preform create vnode operation", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+        return TSDB_CODE_INVALID_VNODE_STATUS;
+      }
     }
   } else {
+    dTrace("vid:%d, vnode is not empty", vnode);
     if (pCfg->maxSessions > 0) {
+      dTrace("vid:%d, status:%s, start to update vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+      /*
       if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
-          vnodeCleanUpOneVnode(vnode);
+        vnodeCleanUpOneVnode(vnode);
       }
 
       vnodeConfigVPeers(vnode, pCfg->replications, pMsg->vpeerDesc);
@@ -376,7 +387,10 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
         vnodeList[vnode].cfg.maxSessions = pCfg->maxSessions;
         vnodeOpenVnode(vnode);
       }
+      */
+      return 0;
     } else {
+      dTrace("vid:%d, status:%s, start to delete vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
       vnodeRemoveVnode(vnode);
     }
   }
@@ -434,11 +448,11 @@ int vnodeProcessFreeVnodeRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj) {
   pFree->vnode = htons(pFree->vnode);
 
   if (pFree->vnode < 0 || pFree->vnode >= TSDB_MAX_VNODES) {
-    dWarn("vid:%d out of range", pFree->vnode);
+    dWarn("vid:%d, out of range", pFree->vnode);
     return -1;
   }
 
-  dTrace("vid:%d receive free vnode message", pFree->vnode);
+  dTrace("vid:%d, receive free vnode message", pFree->vnode);
   int32_t code = vnodeRemoveVnode(pFree->vnode);
   assert(code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS);
 

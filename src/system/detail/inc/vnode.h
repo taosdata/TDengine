@@ -92,7 +92,7 @@ typedef struct {
   SVPeerDesc          vpeers[TSDB_VNODES_SUPPORT];
   SVnodePeer *        peerInfo[TSDB_VNODES_SUPPORT];
   char                selfIndex;
-  char                status;
+  char                vnodeStatus;
   char                accessState;  // Vnode access state, Readable/Writable
   char                syncStatus;
   char                commitInProcess;

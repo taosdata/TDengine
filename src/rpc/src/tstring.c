@@ -240,4 +240,5 @@ char *tsError[] = {"success",
                    "invalid submit message",
                    "not active table(not created yet or deleted already)",  //114
                    "invalid table id",
+                   "invalid vnode status",    //116
 };
