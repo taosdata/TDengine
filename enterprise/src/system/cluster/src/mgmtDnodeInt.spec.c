@@ -313,13 +313,13 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
     }
   }
 
-  if (pObj->status != TSDB_STATUS_READY && pObj->openVnodes == 0) {
+  if (pObj->status != TSDB_DNODE_STATUS_READY && pObj->openVnodes == 0) {
     mTrace("dnode:%s, from offline to online", taosIpStr(pObj->privateIp));
     mgmtStartBalanceTimer(200);
   }
 
   pObj->lastAccess = mgmtAccessSquence;
-  pObj->status = TSDB_STATUS_READY;
+  pObj->status = TSDB_DNODE_STATUS_READY;
   mgmtSendStatusRspMsg(pObj, pVMsg, (((char *)pAccess) - pVMsg));
 
   tfree(pVMsg);
@@ -387,8 +387,8 @@ void *mgmtProcessMsgFromDnodeSpec(char *msg, void *ahandle, void *thandle) {
   if (msg == NULL) {
     if (pObj) {
       pObj->thandle = NULL;
-      if (pObj->status != TSDB_STATUS_OFFLINE) {
-        pObj->status = TSDB_STATUS_OFFLINE;
+      if (pObj->status != TSDB_DNODE_STATUS_OFFLINE) {
+        pObj->status = TSDB_DNODE_STATUS_OFFLINE;
         __sync_fetch_and_sub(&mgmtDnodeConns, 1);
         __sync_fetch_and_sub(&sdbExtConns, 1);
       }
