@@ -90,9 +90,9 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   // if ( vnodeList[vnode].status != TSDB_STATUS_MASTER && pMsg->msgType != TSDB_MSG_TYPE_RETRIEVE ) {
 
 #ifdef CLUSTER
-  if (vnodeList[vnode].status != TSDB_STATUS_MASTER) {
+  if (vnodeList[vnode].vnodeStatus != TSDB_VNODE_STATUS_MASTER) {
     taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_NOT_READY);
-    dTrace("vid:%d sid:%d, shell msg is ignored since in state:%d", vnode, sid, vnodeList[vnode].status);
+    dTrace("vid:%d sid:%d, shell msg is ignored since in state:%d", vnode, sid, vnodeList[vnode].vnodeStatus);
   } else {
 #endif
     dTrace("vid:%d sid:%d, msg:%s is received pConn:%p", vnode, sid, taosMsg[pMsg->msgType], thandle);
@@ -209,7 +209,7 @@ void vnodeCloseShellVnode(int vnode) {
    * 2. Free connection may cause *(SRpcConn*)pObj->thandle to be invalid to access.
    */
   dTrace("vid:%d, free resources in 500ms", vnode);
-  taosTmrStart(vnodeDelayedFreeResource, 5000, v, vnodeTmrCtrl);
+  taosTmrStart(vnodeDelayedFreeResource, 500, v, vnodeTmrCtrl);
 }
 
 void vnodeCleanUpShell() {
