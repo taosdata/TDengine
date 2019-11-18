@@ -214,6 +214,9 @@ bool taosSkipSocketCheck();
 
 int64_t str2int64(char *str);
 
+void taosSetCoreDump();
+
+
 #define BUILDIN_CLZL(val) __builtin_clzl(val)
 #define BUILDIN_CLZ(val) __builtin_clz(val)
 #define BUILDIN_CTZL(val) __builtin_ctzl(val)
