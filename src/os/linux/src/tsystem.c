@@ -610,8 +610,8 @@ void taosSetCoreDump() {
 
   // 2. set the path for saving core file
   struct __sysctl_args args;
-  int     old_usespid;
-  size_t  old_len;
+  int     old_usespid = 0;
+  size_t  old_len     = 0;
   int     new_usespid = 1;
   size_t  new_len     = sizeof(new_usespid);
   
@@ -628,11 +628,14 @@ void taosSetCoreDump() {
   old_len = sizeof(old_usespid);
   
   if (syscall(SYS__sysctl, &args) == -1) {
-      pPrint("_sysctl(kern_core_uses_pid) fail!");
+      pPrint("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
   }
   
   pPrint("The old core_uses_pid[%d]: %d", old_len, old_usespid);
-    
+
+
+  old_usespid = 0;
+  old_len     = 0;
   memset(&args, 0, sizeof(struct __sysctl_args));
   args.name    = name;
   args.nlen    = sizeof(name)/sizeof(name[0]);
@@ -642,7 +645,7 @@ void taosSetCoreDump() {
   old_len = sizeof(old_usespid);
   
   if (syscall(SYS__sysctl, &args) == -1) {
-      pPrint("_sysctl(kern_core_uses_pid) fail!");
+      pPrint("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
   }
   
   pPrint("The new core_uses_pid[%d]: %d", old_len, old_usespid);
@@ -678,7 +681,7 @@ void taosSetCoreDump() {
    old_len = sizeof(old_corefile);
 
    if (syscall(SYS__sysctl, &args) == -1) {
-       pPrint("_sysctl(kern_core_pattern) fail!");
+       pPrint("_sysctl(kern_core_pattern) set fail: %s", strerror(errno));
    }
    
    pPrint("The old kern_core_pattern: %*s\n", old_len, old_corefile);
@@ -693,7 +696,7 @@ void taosSetCoreDump() {
    old_len = sizeof(old_corefile);
 
    if (syscall(SYS__sysctl, &args) == -1) {
-       pPrint("_sysctl(kern_core_pattern) fail!");
+       pPrint("_sysctl(kern_core_pattern) get fail: %s", strerror(errno));
    }
    
    pPrint("The new kern_core_pattern: %*s\n", old_len, old_corefile);
