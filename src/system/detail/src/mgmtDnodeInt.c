@@ -128,7 +128,6 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
   }
 
   if (pDb->vgStatus != TSDB_VG_STATUS_IN_PROGRESS) {
-    mTrace("===> pDb:%s %p status:%d", pDb->name, pDb, pDb->vgStatus);
     mTrace("dnode:%s, db:%s vpeer rsp already disposed, vgroup status:%d code:%d", taosIpStr(pObj->privateIp), pRsp->more, pDb->vgStatus, pRsp->code);
     return 0;
   }

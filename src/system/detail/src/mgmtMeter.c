@@ -618,7 +618,6 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
     if (pDb->vgStatus == TSDB_VG_STATUS_IN_PROGRESS) {
       mgmtDestroyMeter(pMeter);
       mTrace("table:%s, vgroup in creating progress", pCreate->meterId);
-      mTrace("===> pDb:%s %p status:%d", pDb->name, pDb, pDb->vgStatus);
       return TSDB_CODE_ACTION_IN_PROGRESS;
     }
 
@@ -645,7 +644,6 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
       mgmtCreateVgroup(pDb);
       mgmtDestroyMeter(pMeter);
       mTrace("table:%s, vgroup malloced, wait for create progress finished", pCreate->meterId);
-      mTrace("===> pDb:%s %p status:%d", pDb->name, pDb, pDb->vgStatus);
       return TSDB_CODE_ACTION_IN_PROGRESS;
     }
 
