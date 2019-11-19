@@ -94,7 +94,7 @@ class TDTestCase:
     count = 0
     while(True):
       cursor.execute('select last(*) from tb ')
-      print('select last(*) from tb =========')
+      print('select last(*) from tb ===========')
       print(cursor.fetchall())
       time.sleep(5)
       if (count == 50):break
@@ -108,7 +108,7 @@ class TDTestCase:
     count = 0
     while(True):
       cursor.execute('select count(*) from tb')
-      print('select count(*) from tb =========')
+      print('select count(*) from tb ==========')
       print(cursor.fetchall())
       time.sleep(5)
       if (count == 50):break
