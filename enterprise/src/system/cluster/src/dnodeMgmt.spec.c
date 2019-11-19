@@ -269,7 +269,7 @@ void vnodeSendStatusMsgToMgmt(void *handle, void *tmrId) {
     pLoad->vgId = htonl(pVnode->cfg.vgId);
     //int status = vnodeList[vnode].status > TSDB_STATUS_UNSYNCED) ? TSDB_STATUS_READY : TSDB_STATUS_UNSYNCED;
     //pLoad->status = (uint8_t)status;
-    pLoad->status = (uint8_t)vnodeList[vnode].syncStatus;
+    pLoad->status = (uint8_t)vnodeList[vnode].status;
     pLoad->syncStatus =(uint8_t)vnodeList[vnode].syncStatus;
     pLoad->accessState = (uint8_t)(pVnode->accessState);
     pLoad->totalStorage = htobe64(pVnode->vnodeStatistic.totalStorage);
