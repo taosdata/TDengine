@@ -126,7 +126,7 @@ from cluster.kill_restart import *
 ##from cluster.kill_restart2 import *
 from cluster.query_speed import *
 from cluster_mgmt.multi_alter import *
-##from cluster_mgmt.kill_alter_restart import *
+from cluster_mgmt.kill_alter_restart import *
 ##from cluster_mgmt.kill_most import *
 ##from cluster_mgmt.kill_most_restart import *
 ##from cluster_mgmt.kill_all_restart import *

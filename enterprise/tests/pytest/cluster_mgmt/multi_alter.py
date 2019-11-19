@@ -112,6 +112,7 @@ class TDTestCase:
       sqlcmd.append("(%ld, %d)" % (startTime+rid, rid))
     tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
+    tdSql.execute("reset query cache")
     tdSql.query("select count(*) from tb")
     tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
 
