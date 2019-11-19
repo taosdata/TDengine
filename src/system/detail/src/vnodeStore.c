@@ -141,7 +141,7 @@ static int vnodeCloseVnode(int vnode) {
   }
 
   if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_DELETING) {
-    dTrace("vid:%d, status:%s, another performed delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
+    dTrace("vid:%d, status:%s, another thread performed delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
     return TSDB_CODE_SUCCESS;
   } else {
     dTrace("vid:%d, status:%s, enter close operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
@@ -250,7 +250,7 @@ static void vnodeRemoveDataFiles(int vnode) {
 
   sprintf(vnodeDir, "%s/vnode%d", tsDirectory, vnode);
   rmdir(vnodeDir);
-  dTrace("vnode %d is removed!", vnode);
+  dTrace("vid:%d, vnode is removed!", vnode);
 }
 
 int vnodeRemoveVnode(int vnode) {

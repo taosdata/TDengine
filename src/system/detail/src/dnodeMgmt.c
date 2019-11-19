@@ -373,7 +373,11 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   } else {
     dTrace("vid:%d, vnode is not empty", vnode);
     if (pCfg->maxSessions > 0) {
-      dTrace("vid:%d, status:%s, start to update vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+      if (vnodeList[vnode].vnodeStatus == TSDB_VNODE_STATUS_DELETING) {
+        dTrace("vid:%d, status:%s, wait vnode delete finished", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+      } else {
+        dTrace("vid:%d, status:%s, start to update vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+      }
       /*
       if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
         vnodeCleanUpOneVnode(vnode);

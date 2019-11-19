@@ -128,7 +128,8 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
   }
 
   if (pDb->vgStatus != TSDB_VG_STATUS_IN_PROGRESS) {
-    mTrace("dnode:%s, db:%s vpeer rsp already disposed, code:%d", taosIpStr(pObj->privateIp), pRsp->more, pRsp->code);
+    mTrace("===> pDb:%s %p status:%d", pDb->name, pDb, pDb->vgStatus);
+    mTrace("dnode:%s, db:%s vpeer rsp already disposed, vgroup status:%d code:%d", taosIpStr(pObj->privateIp), pRsp->more, pDb->vgStatus, pRsp->code);
     return 0;
   }
 
@@ -140,10 +141,11 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
 
   if (pRsp->code == TSDB_CODE_VG_COMMITLOG_INIT_FAILED) {
     pDb->vgStatus = TSDB_VG_STATUS_COMMITLOG_INIT_FAILED;
+    mError("dnode:%s, db:%s vgroup commit log init failed, code:%d", taosIpStr(pObj->privateIp), pRsp->more, pRsp->code);
   } else {
     pDb->vgStatus = TSDB_VG_STATUS_INIT_FAILED;
+    mError("dnode:%s, db:%s vgroup init failed, code:%d", taosIpStr(pObj->privateIp), pRsp->more, pRsp->code);
   }
-  mError("dnode:%s, db:%s vgroup create failed, code:%d", taosIpStr(pObj->privateIp), pRsp->more, pRsp->code);
 
   return 0;
 }
@@ -331,7 +333,6 @@ char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode) {
   pCfg->replications = (char)pVgroup->numOfVnodes;
   pCfg->rowsInFileBlock = htonl(pCfg->rowsInFileBlock);
 
-#ifdef CLUSTER
   SVPeerDesc *vpeerDesc = pVPeers->vpeerDesc;
 
   pMsg = (char *)(pVPeers->vpeerDesc);
@@ -341,7 +342,6 @@ char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode) {
     vpeerDesc[j].vnode = htonl(pVgroup->vnodeGid[j].vnode);
     pMsg += sizeof(SVPeerDesc);
   }
-#endif
 
   return pMsg;
 }

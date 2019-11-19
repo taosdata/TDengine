@@ -241,4 +241,5 @@ char *tsError[] = {"success",
                    "not active table(not created yet or deleted already)",  //114
                    "invalid table id",
                    "invalid vnode status",    //116
+                   "failed to lock resources",
 };
