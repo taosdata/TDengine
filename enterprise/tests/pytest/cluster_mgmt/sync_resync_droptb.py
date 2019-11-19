@@ -62,7 +62,6 @@ class TDTestCase:
     cursor.execute('use db')
     for tid in range(1, 6):
       tdSql.execute('drop table tb%d' %tid)
-    tdLog.sleep(10)
 
   def run(self):
     self.ntables = 100
@@ -74,28 +73,28 @@ class TDTestCase:
     tdLog.info("================= step1")
     tdLog.info("insert %d records into %d tables" % (self.rowsPerTable, self.ntables))
     tdSql.execute('create database db replica %d ctime %d' % (self.replica, self.ctime))
+    tdLog.sleep(5)
     tdSql.execute('use db')
+    tdSql.execute('create table tb (ts timestamp, i int) tags (id int)')
     for tid in range(1,self.ntables+1):
-      tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
-    tdLog.sleep(10)
+      tdSql.execute('create table tb%d using tb tags (%d)' %(tid,tid))
+    tdLog.sleep(5)
     for tid in range(1,2):
       startTime = self.startTime
       sqlcmd = ['insert into tb%d values' % (tid)]
       for rid in range(1,self.rowsPerTable+1):
-        sqlcmd.append("(%ld, %d)" % (startTime, rid))
-        startTime += 1
+        sqlcmd.append("(%ld, %d)" % (startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     tdDnodes.forcestop(3)
     for tid in range(2,self.ntables+1):
       startTime = self.startTime
       sqlcmd = ['insert into tb%d values' % (tid)]
       for rid in range(1,self.rowsPerTable+1):
-        sqlcmd.append("(%ld, %d)" % (startTime, rid))
-        startTime += 1
+        sqlcmd.append("(%ld, %d)" % (startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(self.rowsPerTable)
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
     tdLog.sleep(35)
 
     tdLog.info("================= step2")
@@ -114,9 +113,10 @@ class TDTestCase:
     tdLog.info("================= step3")
     tdSql.close()
     tdSql.init(self.conn.cursor())
+    tdSql.execute('reset query cache')
     tdSql.execute('use db')
-    tdSql.query('show tables')
-    tdSql.checkRows(self.ntables - 5)
+    tdSql.query('select count(tbname) from tb')
+    tdSql.checkData(0, 0, self.ntables - 5)
     
   def stop(self):
     tdSql.close()

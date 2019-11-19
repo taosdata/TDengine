@@ -127,16 +127,16 @@ from cluster.kill_restart import *
 from cluster.query_speed import *
 from cluster_mgmt.multi_alter import *
 from cluster_mgmt.kill_alter_restart import *
-##from cluster_mgmt.kill_most import *
-##from cluster_mgmt.kill_most_restart import *
-##from cluster_mgmt.kill_all_restart import *
-##from cluster_mgmt.sync_altertb import *
-##from cluster_mgmt.sync_createtb import *
-##from cluster_mgmt.sync_droptb import *
-##from cluster_mgmt.sync_resync_altertb import *
-##from cluster_mgmt.sync_resync_createtb import *
-##from cluster_mgmt.sync_resync_droptb import *
-##from cluster_mgmt.kill_corruptmgmt_restart import *
+from cluster_mgmt.kill_most import *
+from cluster_mgmt.kill_most_restart import *
+from cluster_mgmt.kill_all_restart import *
+from cluster_mgmt.sync_altertb import *
+from cluster_mgmt.sync_createtb import *
+from cluster_mgmt.sync_droptb import *
+from cluster_mgmt.sync_resync_altertb import *
+from cluster_mgmt.sync_resync_createtb import *
+from cluster_mgmt.sync_resync_droptb import *
+from cluster_mgmt.kill_corruptmgmt_restart import *
 ##
 ##from import_merge.importHead import *
 ##from import_merge.importTail import *
@@ -247,6 +247,7 @@ from multi_import_merge.Block2TPO import *
 from multi_import_merge.Block2S import *
 from multi_import_merge.Blockbetween import *
 from multi_import_merge.multithread import *  ## large data import
+from multi_import_merge.multithread2 import *  ## large data import
 
 
 if __name__=="__main__":

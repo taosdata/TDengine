@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-  
 
+# multiple threads process the same table 
 import sys
 import time
 import datetime
