@@ -185,7 +185,7 @@ void *mgmtDnodeActionInsert(void *row, char *str, int size, int *ssize) {
   SDnodeObj *pDnode = (SDnodeObj *)row;
 
   pDnode->thandle = NULL;
-  pDnode->status = TSDB_STATUS_OFFLINE;
+  pDnode->status = TSDB_DNODE_STATUS_OFFLINE;
   pDnode->numOfFreeVnodes = pDnode->numOfVnodes;
   for (int vnode = 0; vnode < pDnode->numOfVnodes; ++vnode) pDnode->vload[vnode].vgId = 0;
 
