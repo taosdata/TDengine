@@ -172,6 +172,7 @@ int vnodeFreeCacheBlock(SCacheBlock *pCacheBlock) {
     SCachePool *pPool = (SCachePool *)vnodeList[pObj->vnode].pCachePool;
     if (pCacheBlock->notFree) {
       pPool->notFreeSlots--;
+      pInfo->unCommittedBlocks--;
       dTrace("vid:%d sid:%d id:%s, cache block is not free, slot:%d, index:%d notFreeSlots:%d",
              pObj->vnode, pObj->sid, pObj->meterId, pCacheBlock->slot, pCacheBlock->index, pPool->notFreeSlots);
     }

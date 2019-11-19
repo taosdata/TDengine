@@ -479,7 +479,7 @@ int vnodeImportToFile(SImportInfo *pImport) {
         slot = (slot + 1 + pInfo->maxBlocks) % pInfo->maxBlocks;
       }
 
-      // last slot, the uncommitted slots shall be shifted
+      // last slot, the uncommitted slots shall be shifted, a cache block may have empty rows
       SCacheBlock *pCacheBlock = pInfo->cacheBlocks[slot];
       int          points = pCacheBlock->numOfPoints - pInfo->commitPoint;
       if (points > 0) {
@@ -568,7 +568,7 @@ int vnodeImportToCache(SImportInfo *pImport, char *payload, int rows) {
     }
   }
 
-  // copy the overwritten data into buffer
+  // copy the overwritten data into buffer, merge cache blocks
   tpoints = rows;
   pos = pImport->pos;
   slot = pImport->slot;
@@ -602,6 +602,19 @@ int vnodeImportToCache(SImportInfo *pImport, char *payload, int rows) {
     pCacheBlock->numOfPoints = points + pos;
     pos = 0;
     tpoints -= points;
+
+    if (tpoints == 0) {
+      // free the rest of cache blocks, since cache blocks are merged
+      int currentSlot = slot;
+      while (slot != pInfo->currentSlot) {
+        slot = (slot + 1) % pInfo->maxBlocks;
+        pCacheBlock = pInfo->cacheBlocks[slot];
+        vnodeFreeCacheBlock(pCacheBlock);
+      }
+
+      pInfo->currentSlot = currentSlot;
+      slot = currentSlot; // make sure to exit from the while loop
+    }
 
     if (slot == pInfo->currentSlot) break;
     slot = (slot + 1) % pInfo->maxBlocks;
