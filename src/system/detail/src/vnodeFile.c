@@ -1290,7 +1290,7 @@ int vnodeWriteBlockToFile(SMeterObj *pObj, SCompBlock *pCompBlock, SData *data[]
     pCompBlock->len += wlen;
   }
 
-  dTrace("vid: %d vnode compStorage size is: %ld", pObj->vnode, pVnode->vnodeStatistic.compStorage);
+  dTrace("vid:%d, vnode compStorage size is: %ld", pObj->vnode, pVnode->vnodeStatistic.compStorage);
 
   pCompBlock->algorithm = pCfg->compression;
   pCompBlock->numOfPoints = points;

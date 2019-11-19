@@ -354,6 +354,8 @@ int taosOpenRpcChannWithQ(void *handle, int cid, int sessions, void *qhandle) {
   STaosRpc * pServer = (STaosRpc *)handle;
   SRpcChann *pChann;
 
+  tTrace("cid:%d, handle:%p open rpc chann", cid, handle);
+
   if (pServer == NULL) return -1;
   if (cid >= pServer->numOfChanns || cid < 0) {
     tError("%s: cid:%d, chann is out of range, max:%d", pServer->label, cid, pServer->numOfChanns);
@@ -401,6 +403,8 @@ int taosOpenRpcChannWithQ(void *handle, int cid, int sessions, void *qhandle) {
 void taosCloseRpcChann(void *handle, int cid) {
   STaosRpc * pServer = (STaosRpc *)handle;
   SRpcChann *pChann;
+
+  tTrace("cid:%d, handle:%p close rpc chann", cid, handle);
 
   if (pServer == NULL) return;
   if (cid >= pServer->numOfChanns || cid < 0) {

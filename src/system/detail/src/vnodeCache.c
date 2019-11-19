@@ -297,7 +297,7 @@ pthread_t vnodeCreateCommitThread(SVnodeObj *pVnode) {
 
   taosTmrStopA(&pVnode->commitTimer);
 
-  if (pVnode->status == TSDB_STATUS_UNSYNCED) {
+  if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_UNSYNCED) {
     taosTmrReset(vnodeProcessCommitTimer, pVnode->cfg.commitTime * 1000, pVnode, vnodeTmrCtrl, &pVnode->commitTimer);
     dTrace("vid:%d, it is in unsyc state, commit later", pVnode->vnode);
     return pVnode->commitThread;

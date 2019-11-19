@@ -141,11 +141,10 @@ int mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   if (pCreate->cacheNumOfBlocks.fraction < 0) pCreate->cacheNumOfBlocks.fraction = tsAverageCacheBlocks;  //
   //-1 for balance
 
-#ifdef CLUSTER
-  if (pCreate->replications > TSDB_VNODES_SUPPORT - 1) pCreate->replications = TSDB_VNODES_SUPPORT - 1;
-#else
-  pCreate->replications = 1;
-#endif
+  if (pCreate->replications <= 0 || pCreate->replications > TSDB_REPLICA_MAX_NUM) {
+    mTrace("invalid db option replications: %d", pCreate->replications);
+    return TSDB_CODE_INVALID_OPTION;
+  }
 
   if (pCreate->commitLog < 0 || pCreate->commitLog > 1) {
     mTrace("invalid db option commitLog: %d", pCreate->commitLog);
@@ -316,7 +315,7 @@ bool mgmtCheckDropDbFinished(SDbObj *pDb) {
       SDnodeObj *pDnode = mgmtGetDnode(pVnodeGid->ip);
 
       if (pDnode == NULL) continue;
-      if (pDnode->status == TSDB_STATUS_OFFLINE) continue;
+      if (pDnode->status == TSDB_DNODE_STATUS_OFFLINE) continue;
 
       SVnodeLoad *pVload = &pDnode->vload[pVnodeGid->vnode];
       if (pVload->dropStatus == TSDB_VN_STATUS_DROPPING) {
