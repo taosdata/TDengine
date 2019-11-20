@@ -184,6 +184,15 @@ void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
     pSql->vnode = TSC_MGMT_VNODE;
 #endif
   }
+  
+  // the pSql->res.code is the previous error(status) code.
+  if (pSql->thandle == NULL && pSql->retry >= pSql->maxRetry) {
+    if (pSql->res.code != TSDB_CODE_SUCCESS && pSql->res.code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      *pCode = pSql->res.code;
+    }
+    
+    tscError("%p reach the max retry:%d, code:%d", pSql, pSql->retry, *pCode);
+  }
 }
 
 void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
@@ -442,6 +451,9 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       tscTrace("%p it shall be redirected!", pSql);
       taosAddConnIntoCache(tscConnCache, thandle, pSql->ip, pSql->vnode, pObj->user);
       pSql->thandle = NULL;
+      
+      // reset the retry times for a new mgmt node
+      pSql->retry = 0;
 
       if (pCmd->command > TSDB_SQL_MGMT) {
         tscProcessMgmtRedirect(pSql, pMsg->content + 1);

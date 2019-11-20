@@ -245,9 +245,9 @@ int taos_query_imp(STscObj* pObj, SSqlObj* pSql) {
   pRes->qhandle = 0;
   pSql->thandle = NULL;
 
-  if (pRes->code != TSDB_CODE_SUCCESS) return pRes->code;
-
-  tscDoQuery(pSql);
+  if (pRes->code == TSDB_CODE_SUCCESS) {
+    tscDoQuery(pSql);
+  }
 
   tscTrace("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pObj), pObj);
   if (pRes->code != TSDB_CODE_SUCCESS) {
