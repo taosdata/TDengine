@@ -4,264 +4,6 @@ cd ../../../debug; make
 sudo rm -rf /usr/lib/libtaos.so*
 sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 
-../script/test.sh -f detail/agg/fill.sim
-../script/test.sh -f detail/agg/stream.sim
-
-../script/test.sh -f detail/alter/count.sim
-../script/test.sh -f detail/alter/cached_schema_after_alter.sim
-../script/test.sh -f detail/alter/import.sim
-../script/test.sh -f detail/alter/insert1.sim
-../script/test.sh -f detail/alter/insert2.sim
-../script/test.sh -f detail/alter/metrics.sim
-../script/test.sh -f detail/alter/table.sim
-
-../script/test.sh -f detail/big/tcp.sim
-#../script/test.sh -f detail/big/balance.sim
-#../script/test.sh -f detail/big/maxvnodes.sim
-
-../script/test.sh -f detail/cache/restart_table.sim
-../script/test.sh -f detail/cache/restart_metrics.sim
-../script/test.sh -f detail/cache/restart_stream.sim
-../script/test.sh -f detail/cache/new_metrics.sim
-../script/test.sh -f detail/cache/new_stream.sim
-
-../script/test.sh -f detail/column/table.sim 
-../script/test.sh -f detail/column/metrics.sim
-../script/test.sh -f detail/column/stream.sim 
-../script/test.sh -f detail/column/commit.sim
-../script/test.sh -f detail/column/replica3.sim
-
-../script/test.sh -f detail/compress/compress.sim 
-../script/test.sh -f detail/compress/uncompress.sim 
-../script/test.sh -f detail/compress/commitlog.sim
-../script/test.sh -f detail/compress/compress2.sim
-
-../script/test.sh -f detail/compute/count.sim       
-../script/test.sh -f detail/compute/avg.sim         
-../script/test.sh -f detail/compute/sum.sim  
-../script/test.sh -f detail/compute/min.sim         
-../script/test.sh -f detail/compute/max.sim           
-../script/test.sh -f detail/compute/first.sim        
-../script/test.sh -f detail/compute/last.sim    
-../script/test.sh -f detail/compute/stddev.sim      
-../script/test.sh -f detail/compute/leastsquare.sim 
-../script/test.sh -f detail/compute/top.sim 
-../script/test.sh -f detail/compute/bottom.sim 
-../script/test.sh -f detail/compute/percentile.sim   
-../script/test.sh -f detail/compute/diff.sim       
-../script/test.sh -f detail/compute/interval.sim   
-../script/test.sh -f detail/compute/null.sim   
-../script/test.sh -f detail/compute/diff2.sim   
-
-../script/test.sh -f detail/db/basic.sim
-../script/test.sh -f detail/db/len.sim
-#../script/test.sh -f detail/db/commit.sim
-../script/test.sh -f detail/db/delete.sim
-../script/test.sh -f detail/db/delete_reuse1.sim
-../script/test.sh -f detail/db/delete_reuse2.sim
-../script/test.sh -f detail/db/replica_add12.sim
-../script/test.sh -f detail/db/replica_add13.sim
-../script/test.sh -f detail/db/replica_add23.sim
-../script/test.sh -f detail/db/replica_reduce21.sim
-../script/test.sh -f detail/db/replica_reduce32.sim
-../script/test.sh -f detail/db/replica_reduce31.sim
-../script/test.sh -f detail/db/replica_part.sim
-../script/test.sh -f detail/db/delete_writing1.sim
-../script/test.sh -f detail/db/delete_writing2.sim
-#../script/test.sh -f detail/db/delete_part.sim
-
-../script/test.sh -f detail/field/single.sim
-../script/test.sh -f detail/field/bool.sim
-../script/test.sh -f detail/field/smallint.sim
-../script/test.sh -f detail/field/tinyint.sim
-../script/test.sh -f detail/field/int.sim
-../script/test.sh -f detail/field/bigint.sim
-../script/test.sh -f detail/field/float.sim
-../script/test.sh -f detail/field/double.sim
-../script/test.sh -f detail/field/binary.sim
-../script/test.sh -f detail/field/2.sim
-../script/test.sh -f detail/field/3.sim
-../script/test.sh -f detail/field/4.sim
-../script/test.sh -f detail/field/5.sim
-../script/test.sh -f detail/field/6.sim
-
-../script/test.sh -f detail/http/admin.sim  
-../script/test.sh -f detail/http/grafana.sim 
-../script/test.sh -f detail/http/restful.sim 
-../script/test.sh -f detail/http/restful_full.sim
-../script/test.sh -f detail/http/telegraf.sim
-../script/test.sh -f detail/http/prepare.sim
-#../script/test.sh -f detail/http/opentsdb.sim
-
-../script/test.sh -f detail/import/basic.sim      
-#../script/test.sh -f detail/import/commit.sim
-../script/test.sh -f detail/import/large.sim     
-../script/test.sh -f detail/import/replica1.sim   
-../script/test.sh -f detail/import/replica2.sim   
-../script/test.sh -f detail/import/replica3.sim   
-
-../script/test.sh -f detail/insert/basic.sim
-../script/test.sh -f detail/insert/insert_drop.sim
-../script/test.sh -f detail/insert/query_block1_memory.sim 
-../script/test.sh -f detail/insert/query_block2_memory.sim 
-../script/test.sh -f detail/insert/query_block1_file.sim   
-../script/test.sh -f detail/insert/query_block2_file.sim   
-../script/test.sh -f detail/insert/query_file_memory.sim   
-../script/test.sh -f detail/insert/query_multi_file.sim    
-
-../script/test.sh -f detail/metrics/disk.sim
-../script/test.sh -f detail/metrics/metrics.sim
-../script/test.sh -f detail/metrics/values.sim
-../script/test.sh -f detail/metrics/vnode3.sim
-../script/test.sh -f detail/metrics/dnode2.sim
-../script/test.sh -f detail/metrics/dnode3.sim
-../script/test.sh -f detail/metrics/replica2_vnode3.sim
-../script/test.sh -f detail/metrics/replica2_dnode4.sim
-../script/test.sh -f detail/metrics/replica3_vnode3.sim
-../script/test.sh -f detail/metrics/replica3_dnode6.sim
-../script/test.sh -f detail/metrics/dnode2_stop.sim
-../script/test.sh -f detail/metrics/balance_replica1.sim
-
-../script/test.sh -f detail/parser/alter.sim
-../script/test.sh -f detail/parser/alter1.sim
-../script/test.sh -f detail/parser/auto_create_tb.sim
-../script/test.sh -f detail/parser/auto_create_tb_drop_tb.sim
-../script/test.sh -f detail/parser/col_arithmetic_operation.sim
-../script/test.sh -f detail/parser/commit.sim
-../script/test.sh -f detail/parser/create_db.sim
-../script/test.sh -f detail/parser/create_mt.sim
-../script/test.sh -f detail/parser/create_tb.sim
-../script/test.sh -f detail/parser/fill.sim
-../script/test.sh -f detail/parser/fill_stb.sim
-../script/test.sh -f detail/parser/first_last.sim
-../script/test.sh -f detail/parser/import_commit1.sim
-../script/test.sh -f detail/parser/import_commit2.sim
-../script/test.sh -f detail/parser/import_commit3.sim
-../script/test.sh -f detail/parser/insert_tb.sim
-../script/test.sh -f detail/parser/interp.sim
-../script/test.sh -f detail/parser/lastrow.sim
-../script/test.sh -f detail/parser/limit.sim
-../script/test.sh -f detail/parser/limit1.sim
-../script/test.sh -f detail/parser/limit1_tblocks100.sim
-../script/test.sh -f detail/parser/limit2.sim
-../script/test.sh -f detail/parser/mixed_blocks.sim
-../script/test.sh -f detail/parser/nchar.sim
-../script/test.sh -f detail/parser/selectResNum.sim
-../script/test.sh -f detail/parser/select_across_vnodes.sim
-../script/test.sh -f detail/parser/select_from_cache_disk.sim
-../script/test.sh -f detail/parser/set_tag_vals.sim
-../script/test.sh -f detail/parser/single_row_in_tb.sim
-../script/test.sh -f detail/parser/slimit.sim
-../script/test.sh -f detail/parser/slimit1.sim
-../script/test.sh -f detail/parser/slimit_alter_tags.sim
-../script/test.sh -f detail/parser/stream_on_sys.sim
-../script/test.sh -f detail/parser/stream.sim
-../script/test.sh -f detail/parser/tbnameIn.sim
-../script/test.sh -f detail/parser/where.sim
-../script/test.sh -f detail/parser/repeatAlter.sim
-../script/test.sh -f detail/parser/repeatStream.sim
-
-../script/test.sh -f detail/stream/stream_1.sim  
-../script/test.sh -f detail/stream/stream_2.sim 
-../script/test.sh -f detail/stream/stream_3.sim 
-../script/test.sh -f detail/stream/stream_restart.sim 
-../script/test.sh -f detail/stream/table_1.sim 
-../script/test.sh -f detail/stream/metrics_1.sim 
-../script/test.sh -f detail/stream/table_n.sim
-../script/test.sh -f detail/stream/metrics_n.sim 
-../script/test.sh -f detail/stream/table_del.sim
-../script/test.sh -f detail/stream/metrics_del.sim 
-../script/test.sh -f detail/stream/table_replica1_vnoden.sim 
-../script/test.sh -f detail/stream/metrics_replica1_vnoden.sim 
-../script/test.sh -f detail/stream/table_replica1_dnode2.sim 
-../script/test.sh -f detail/stream/metrics_replica1_dnode2.sim 
-../script/test.sh -f detail/stream/table_replica2_dnode2.sim 
-../script/test.sh -f detail/stream/metrics_replica2_dnode2.sim 
-../script/test.sh -f detail/stream/table_replica2_dnode2_vnoden.sim 
-../script/test.sh -f detail/stream/metrics_replica2_dnode2_vnoden.sim 
-../script/test.sh -f detail/stream/table_replica2_dnode3.sim 
-../script/test.sh -f detail/stream/metrics_replica2_dnode3.sim 
-../script/test.sh -f detail/stream/table_replica3_dnode4.sim 
-../script/test.sh -f detail/stream/metrics_replica3_dnode4.sim 
-../script/test.sh -f detail/stream/table_vnode_stop.sim 
-../script/test.sh -f detail/stream/metrics_vnode_stop.sim 
-#../script/test.sh -f detail/stream/table_balance.sim
-#../script/test.sh -f detail/stream/metrics_balance.sim
-#../script/test.sh -f detail/stream/table_move.sim
-
-../script/test.sh -f detail/table/table.sim 
-../script/test.sh -f detail/table/vgroup.sim
-../script/test.sh -f detail/table/limit.sim 
-../script/test.sh -f detail/table/table_len.sim 
-../script/test.sh -f detail/table/column_num.sim 
-../script/test.sh -f detail/table/column2.sim 
-../script/test.sh -f detail/table/column_name.sim
-../script/test.sh -f detail/table/column_value.sim 
-../script/test.sh -f detail/table/describe.sim 
-../script/test.sh -f detail/table/date.sim 
-../script/test.sh -f detail/table/bigint.sim 
-../script/test.sh -f detail/table/binary.sim 
-../script/test.sh -f detail/table/bool.sim 
-../script/test.sh -f detail/table/double.sim 
-../script/test.sh -f detail/table/float.sim 
-../script/test.sh -f detail/table/int.sim 
-../script/test.sh -f detail/table/smallint.sim 
-../script/test.sh -f detail/table/tinyint.sim 
-../script/test.sh -f detail/table/db.table.sim 
-../script/test.sh -f detail/table/delete_reuse1.sim
-../script/test.sh -f detail/table/delete_reuse2.sim
-../script/test.sh -f detail/table/delete_writing.sim
-#../script/test.sh -f detail/table/delete_part.sim
-
-../script/test.sh -f detail/tag/filter.sim
-../script/test.sh -f detail/tag/column.sim
-../script/test.sh -f detail/tag/bool.sim
-../script/test.sh -f detail/tag/smallint.sim
-../script/test.sh -f detail/tag/tinyint.sim
-../script/test.sh -f detail/tag/int.sim
-../script/test.sh -f detail/tag/bigint.sim
-../script/test.sh -f detail/tag/float.sim
-../script/test.sh -f detail/tag/double.sim
-../script/test.sh -f detail/tag/binary.sim
-../script/test.sh -f detail/tag/bool_int.sim
-../script/test.sh -f detail/tag/bool_binary.sim
-../script/test.sh -f detail/tag/int_float.sim
-../script/test.sh -f detail/tag/int_binary.sim
-../script/test.sh -f detail/tag/binary_binary.sim
-../script/test.sh -f detail/tag/3.sim
-../script/test.sh -f detail/tag/4.sim
-../script/test.sh -f detail/tag/5.sim
-../script/test.sh -f detail/tag/6.sim
-../script/test.sh -f detail/tag/create.sim
-../script/test.sh -f detail/tag/delete.sim
-../script/test.sh -f detail/tag/change.sim
-../script/test.sh -f detail/tag/set.sim
-../script/test.sh -f detail/tag/add.sim
-../script/test.sh -f detail/tag/commit.sim
-
-../script/test.sh -f detail/vector/single.sim
-../script/test.sh -f detail/vector/multi.sim 
-../script/test.sh -f detail/vector/table_query.sim 
-../script/test.sh -f detail/vector/table_time.sim
-../script/test.sh -f detail/vector/table_field.sim
-../script/test.sh -f detail/vector/table_mix.sim
-../script/test.sh -f detail/vector/metrics_query.sim
-../script/test.sh -f detail/vector/metrics_tag.sim
-../script/test.sh -f detail/vector/metrics_time.sim
-../script/test.sh -f detail/vector/metrics_field.sim
-../script/test.sh -f detail/vector/metrics_mix.sim
-
-../script/test.sh -f detail/vnode/replica2_basic2.sim
-../script/test.sh -f detail/vnode/replica2_basic.sim 
-../script/test.sh -f detail/vnode/replica2_repeat.sim 
-../script/test.sh -f detail/vnode/replica3_basic.sim 
-../script/test.sh -f detail/vnode/replica3_repeat.sim 
-#../script/test.sh -f detail/vnode/commit.sim 
-../script/test.sh -f detail/vnode/many.sim
-
-
-######### cluser section #############
-
 ../script/test.sh -f cluster/account/account_create.sim
 ../script/test.sh -f cluster/account/account_len.sim
 ../script/test.sh -f cluster/account/pass_alter.sim
@@ -272,18 +14,26 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 ../script/test.sh -f cluster/account/user_len.sim
 ../script/test.sh -f cluster/account/monitor.sim
 
-../script/test.sh -f cluster/mnode/secondIp.sim
-../script/test.sh -f cluster/mnode/drop.sim
-../script/test.sh -f cluster/mnode/reuse.sim
-../script/test.sh -f cluster/mnode/mgmt22.sim
-../script/test.sh -f cluster/mnode/mgmt23.sim
-../script/test.sh -f cluster/mnode/mgmt24.sim
-../script/test.sh -f cluster/mnode/mgmt25.sim
-../script/test.sh -f cluster/mnode/mgmt26.sim
-../script/test.sh -f cluster/mnode/mgmt33.sim
-../script/test.sh -f cluster/mnode/mgmt34.sim
-../script/test.sh -f cluster/mnode/mgmtr1.sim
-../script/test.sh -f cluster/mnode/mgmtr2.sim
+../script/test.sh -f cluster/big/tcp.sim
+
+../script/test.sh -f cluster/cluster/balance1.sim
+../script/test.sh -f cluster/cluster/balance2.sim
+../script/test.sh -f cluster/cluster/balance3.sim
+../script/test.sh -f cluster/cluster/balance1_bug.sim
+../script/test.sh -f cluster/cluster/balance1_single.sim
+
+../script/test.sh -f cluster/column/replica3.sim
+
+../script/test.sh -f cluster/db/commit.sim
+../script/test.sh -f cluster/db/delete.sim
+../script/test.sh -f cluster/db/delete_part.sim
+../script/test.sh -f cluster/db/replica_add12.sim
+../script/test.sh -f cluster/db/replica_add13.sim
+../script/test.sh -f cluster/db/replica_add23.sim
+../script/test.sh -f cluster/db/replica_part.sim
+../script/test.sh -f cluster/db/replica_reduce21.sim
+../script/test.sh -f cluster/db/replica_reduce32.sim
+../script/test.sh -f cluster/db/replica_reduce31.sim
 
 ../script/test.sh -f cluster/dnode/balance1.sim
 ../script/test.sh -f cluster/dnode/balance2.sim
@@ -293,55 +43,66 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 ../script/test.sh -f cluster/dnode/offline2.sim
 ../script/test.sh -f cluster/dnode/remove1.sim
 ../script/test.sh -f cluster/dnode/remove2.sim
-#../script/test.sh -f cluster/dnode/unremove.sim
 ../script/test.sh -f cluster/dnode/vnode_clean.sim
 
-../script/test.sh -f cluster/cluster/balance1.sim
-../script/test.sh -f cluster/cluster/balance2.sim
-../script/test.sh -f cluster/cluster/balance3.sim
-../script/test.sh -f cluster/cluster/balance1_bug.sim
-../script/test.sh -f cluster/cluster/balance1_single.sim
+../script/test.sh -f cluster/dnode/balance1.sim
+../script/test.sh -f cluster/dnode/balance2.sim
+../script/test.sh -f cluster/dnode/balance3.sim
+../script/test.sh -f cluster/dnode/balancex.sim
+../script/test.sh -f cluster/dnode/offline1.sim
+../script/test.sh -f cluster/dnode/offline2.sim
+../script/test.sh -f cluster/dnode/remove1.sim
+../script/test.sh -f cluster/dnode/remove2.sim
+../script/test.sh -f cluster/dnode/vnode_clean.sim
 
-######### python section #############
+../script/test.sh -f cluster/http/admin.sim
 
-#python2 ../pytest/test.py-f alter/alter_table.py
-#python2 ../pytest/test.py-f alter/alter_stable.py
-python2 ../pytest/test.py-f alter/file_corrupt.py
+../script/test.sh -f cluster/import/replica2.sim
+../script/test.sh -f cluster/import/replica3.sim
 
-python2 ../pytest/test.py-f importtest/basic.py
-#python2 ../pytest/test.py-f importtest/commit.py
-python2 ../pytest/test.py-f importtest/large.py
-python2 ../pytest/test.py-f importtest/replica1.py
-python2 ../pytest/test.py-f importtest/replica2.py -c
-python2 ../pytest/test.py-f importtest/replica3.py -c
-python2 ../pytest/test.py-f importtest/import_and_query.py -c
-#python2 ../pytest/test.py-f importtest/import_and_query_replica3.py -c
+../script/test.sh -f cluster/metrics/dnode2.sim
+../script/test.sh -f cluster/metrics/dnode2_stop.sim
+../script/test.sh -f cluster/metrics/dnode3.sim
+../script/test.sh -f cluster/metrics/replica2_dnode4.sim
+../script/test.sh -f cluster/metrics/replica2_vnode3.sim
+../script/test.sh -f cluster/metrics/replica3_dnode6.sim
+../script/test.sh -f cluster/metrics/replica3_vnode3.sim
 
-python2 ../pytest/test.py-f insert/basic.py
-python2 ../pytest/test.py-f insert/query_block1_memory.py
-python2 ../pytest/test.py-f insert/query_block2_memory.py
-python2 ../pytest/test.py-f insert/query_block1_file.py
-python2 ../pytest/test.py-f insert/query_block2_file.py
-python2 ../pytest/test.py-f insert/query_file_memory.py
-python2 ../pytest/test.py-f insert/query_multi_file.py
-python2 ../pytest/test.py-f insert/longTimespanWrite.py -c
+../script/test.sh -f cluster/mnode/drop.sim
+../script/test.sh -f cluster/mnode/mgmt22.sim
+../script/test.sh -f cluster/mnode/mgmt23.sim
+../script/test.sh -f cluster/mnode/mgmt24.sim
+../script/test.sh -f cluster/mnode/mgmt25.sim
+../script/test.sh -f cluster/mnode/mgmt26.sim
+../script/test.sh -f cluster/mnode/mgmt33.sim
+../script/test.sh -f cluster/mnode/mgmt34.sim
+../script/test.sh -f cluster/mnode/mgmtr1.sim
+../script/test.sh -f cluster/mnode/mgmtr2.sim
+../script/test.sh -f cluster/mnode/reuse.sim
+../script/test.sh -f cluster/mnode/secondIp.sim
+          
+../script/test.sh -f cluster/stream/metrics_balance.sim
+../script/test.sh -f cluster/stream/metrics_replica1_dnode2.sim
+../script/test.sh -f cluster/stream/metrics_replica2_dnode2.sim
+../script/test.sh -f cluster/stream/metrics_replica2_dnode2_vnoden.sim
+../script/test.sh -f cluster/stream/metrics_replica2_dnode3.sim
+../script/test.sh -f cluster/stream/metrics_replica3_dnode4.sim
+../script/test.sh -f cluster/stream/metrics_vnode_stop.sim
+../script/test.sh -f cluster/stream/table_balance.sim
+../script/test.sh -f cluster/stream/table_move.sim
+../script/test.sh -f cluster/stream/table_replica1_dnode2.sim
+../script/test.sh -f cluster/stream/table_replica2_dnode2.sim
+../script/test.sh -f cluster/stream/table_replica2_dnode2_vnoden.sim
+../script/test.sh -f cluster/stream/table_replica2_dnode3.sim
+../script/test.sh -f cluster/stream/table_replica3_dnode4.sim
+../script/test.sh -f cluster/stream/table_vnode_stop.sim
 
-python2 ../pytest/test.py-f dbmgmt/dropDB_memory_test.py
+../script/test.sh -f cluster/table/delete_part.sim
 
-python2 ../pytest/test.py-f affectrows/insertsql.py
-python2 ../pytest/test.py-f affectrows/insertsql_blocks.py
-python2 ../pytest/test.py-f affectrows/importsql.py
-python2 ../pytest/test.py-f affectrows/importsql_blocks.py
-
-#python2 ../pytest/test.py-f http/retrieve.py
-
-python2 ../pytest/test.py-f multithread/query_table.py
-python2 ../pytest/test.py-f multithread/query_stable.py
-python2 ../pytest/test.py-f multithread/insert_replica1.py
-python2 ../pytest/test.py-f multithread/insert_replica2.py -c
-python2 ../pytest/test.py-f multithread/insert_replica3.py -c
-python2 ../pytest/test.py-f multithread/import_replica1.py
-#python2 ../pytest/test.py-f multithread/import_replica2.py -c
-#python2 ../pytest/test.py-f multithread/import_replica3.py -c
-
-
+../script/test.sh -f cluster/vnode/commit.sim
+../script/test.sh -f cluster/vnode/many.sim
+../script/test.sh -f cluster/vnode/replica2_basic.sim
+../script/test.sh -f cluster/vnode/replica2_basic2.sim
+../script/test.sh -f cluster/vnode/replica2_repeat.sim
+../script/test.sh -f cluster/vnode/replica3_basic.sim
+../script/test.sh -f cluster/vnode/replica3_repeat.sim

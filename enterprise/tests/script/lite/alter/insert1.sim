@@ -933,7 +933,7 @@ endi
 if $data75 != 15 then
   return -1
 endi
-if $data76 != 10.000000000 then
+if $data76 != 14.0000 then
   return -1
 endi
 if $data77 != 13.000000000 then
