@@ -8,6 +8,7 @@ curr_dir=$(pwd)
 compile_dir=$1
 version=$2
 build_time=$3
+armver=$4
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -m ${script_dir}/../..)"
@@ -67,6 +68,12 @@ cp -r ${connector_dir}/go      ${install_dir}/connector
 # exit 1
 
 cd ${release_dir}  
-tar -zcv -f "$(basename ${install_dir}).tar.gz" $(basename ${install_dir}) --remove-files
+if [ -z "$armver" ]; then
+  tar -zcv -f "$(basename ${install_dir}).tar.gz" $(basename ${install_dir}) --remove-files
+elif [ "$armver" == "arm64" ]; then
+  tar -zcv -f "$(basename ${install_dir})-arm64.tar.gz" $(basename ${install_dir}) --remove-files
+elif [ "$armver" == "arm32" ]; then
+  tar -zcv -f "$(basename ${install_dir})-arm32.tar.gz" $(basename ${install_dir}) --remove-files
+fi
 
 cd ${curr_dir}
