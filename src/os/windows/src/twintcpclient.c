@@ -15,7 +15,7 @@
 
 #include "tlog.h"
 
-void *taosInitTcpClient(char *ip, short port, char *label, int num, void *fp, void *shandle) {
+void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp, void *shandle) {
   tError("InitTcpClient not support in windows");
   return 0;
 }
@@ -24,12 +24,12 @@ void taosCloseTcpClientConnection(void *chandle) {
   tError("CloseTcpClientConnection not support in windows");
 }
 
-void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, short port) {
+void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port) {
   tError("OpenTcpClientConnection not support in windows");
   return 0;
 }
 
-int taosSendTcpClientData(unsigned int ip, short port, char *data, int len, void *chandle) {
+int taosSendTcpClientData(unsigned int ip, uint16_t port, char *data, int len, void *chandle) {
   tError("SendTcpClientData not support in windows");
   return 0;
 }

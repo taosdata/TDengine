@@ -2669,7 +2669,7 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  int32_t port = strtol(portStr, NULL, 10);
+  uint16_t port = (uint16_t)strtol(portStr, NULL, 10);
   if (port <= 0 || port > 65535) {
     memset(pCmd->payload, 0, tListLen(pCmd->payload));
 

@@ -23,8 +23,8 @@ extern "C" {
 #include "taosmsg.h"
 #include "tsdb.h"
 
-extern short    tsMgmtMgmtPort;
-extern short    tsMgmtSyncPort;
+extern uint16_t    tsMgmtMgmtPort;
+extern uint16_t    tsMgmtSyncPort;
 extern int      sdbMaxNodes;
 extern int      tsMgmtPeerHBTimer;  // seconds
 extern char     sdbZone[];

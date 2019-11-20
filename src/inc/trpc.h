@@ -47,7 +47,7 @@ extern "C" {
 
 typedef struct {
   char *localIp;                        // local IP used
-  short localPort;                      // local port
+  uint16_t localPort;                      // local port
   char *label;                          // for debug purpose
   int   numOfThreads;                   // number of threads to handle connections
   void *(*fp)(char *, void *, void *);  // function to process the incoming msg
@@ -72,7 +72,7 @@ typedef struct {
   void *   shandle;   // pointer returned by taosOpenRpc
   void *   ahandle;   // handle provided by app
   char *   peerIp;    // peer IP string
-  short    peerPort;  // peer port
+  uint16_t    peerPort;  // peer port
   char     spi;       // security parameter index
   char     encrypt;   // encrypt algorithm
   char *   secret;    // key for authentication
@@ -107,7 +107,7 @@ int taosSendSimpleRsp(void *thandle, char rsptype, char code);
 
 int taosSetSecurityInfo(int cid, int sid, char *id, int spi, int encrypt, char *secret, char *ckey);
 
-void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, short *peerPort, int *cid, int *sid);
+void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, uint16_t *peerPort, int *cid, int *sid);
 
 int taosGetOutType(void *thandle);
 

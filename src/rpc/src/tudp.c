@@ -35,8 +35,8 @@ typedef struct {
   void *          signature;
   int             index;
   int             fd;
-  short           port;       // peer port
-  short           localPort;  // local port
+  uint16_t        port;       // peer port
+  uint16_t        localPort;  // local port
   char            label[12];  // copy from udpConnSet;
   pthread_t       thread;
   pthread_mutex_t mutex;
@@ -44,7 +44,7 @@ typedef struct {
   void *          hash;
   void *          shandle;  // handle passed by upper layer during server initialization
   void *          pSet;
-  void *(*processData)(char *data, int dataLen, unsigned int ip, short port, void *shandle, void *thandle,
+  void *(*processData)(char *data, int dataLen, unsigned int ip, uint16_t port, void *shandle, void *thandle,
                        void *chandle);
   char buffer[RPC_MAX_UDP_SIZE];  // buffer to receive data
 } SUdpConn;
@@ -53,21 +53,21 @@ typedef struct {
   int       index;
   int       server;
   char      ip[16];   // local IP
-  short     port;     // local Port
+  uint16_t  port;     // local Port
   void *    shandle;  // handle passed by upper layer during server initialization
   int       threads;
   char      label[12];
   void *    tmrCtrl;
   pthread_t tcpThread;
   int       tcpFd;
-  void *(*fp)(char *data, int dataLen, uint32_t ip, short port, void *shandle, void *thandle, void *chandle);
+  void *(*fp)(char *data, int dataLen, uint32_t ip, uint16_t port, void *shandle, void *thandle, void *chandle);
   SUdpConn udpConn[];
 } SUdpConnSet;
 
 typedef struct {
   void *             signature;
   uint32_t           ip;    // dest IP
-  short              port;  // dest Port
+  uint16_t           port;  // dest Port
   SUdpConn *         pConn;
   struct sockaddr_in destAdd;
   void *             msgHdr;
@@ -144,12 +144,12 @@ void *taosReadTcpData(void *argv) {
   pInfo->msgLen = (int32_t)htonl((uint32_t)pInfo->msgLen);
 
   tinet_ntoa(ipstr, pMonitor->ip);
-  tTrace("%s receive packet via TCP:%s:%d, msgLen:%d, handle:0x%x, source:0x%08x dest:0x%08x tranId:%d", pSet->label,
+  tTrace("%s receive packet via TCP:%s:%hu, msgLen:%d, handle:0x%x, source:0x%08x dest:0x%08x tranId:%d", pSet->label,
          ipstr, pInfo->port, pInfo->msgLen, pInfo->handle, pHead->sourceId, pHead->destId, pHead->tranId);
 
   fd = taosOpenTcpClientSocket(ipstr, (int16_t)pInfo->port, tsLocalIp);
   if (fd < 0) {
-    tError("%s failed to open TCP client socket ip:%s:%d", pSet->label, ipstr, pInfo->port);
+    tError("%s failed to open TCP client socket ip:%s:%hu", pSet->label, ipstr, pInfo->port);
     pMonitor->pSet = NULL;
     return NULL;
   }
@@ -180,7 +180,7 @@ void *taosReadTcpData(void *argv) {
       tError("%s failed to read data from server, msgLen:%d retLen:%d", pSet->label, pInfo->msgLen, retLen);
       tfree(buffer);
     } else {
-      (*pSet->fp)(buffer, pInfo->msgLen, pMonitor->ip, (int16_t)pInfo->port, pSet->shandle, NULL, pMonitor->pConn);
+      (*pSet->fp)(buffer, pInfo->msgLen, pMonitor->ip, pInfo->port, pSet->shandle, NULL, pMonitor->pConn);
     }
   }
 
@@ -224,7 +224,7 @@ void *taosRecvUdpData(void *param) {
   struct sockaddr_in sourceAdd;
   unsigned int       addLen, dataLen;
   SUdpConn *         pConn = (SUdpConn *)param;
-  short              port;
+  uint16_t           port;
   int                minSize = sizeof(STaosHeader);
 
   memset(&sourceAdd, 0, sizeof(sourceAdd));
@@ -242,7 +242,7 @@ void *taosRecvUdpData(void *param) {
       continue;
     }
 
-    port = (int16_t)ntohs(sourceAdd.sin_port);
+    port = ntohs(sourceAdd.sin_port);
 
     int   processedLen = 0, leftLen = 0;
     int   msgLen = 0;
@@ -307,7 +307,7 @@ void *taosTransferDataViaTcp(void *argv) {
 
   if (handle == 0) {
     // receive a packet from client
-    tTrace("%s data will be received via TCP from 0x%x:%d", pSet->label, pTransfer->ip, pTransfer->port);
+    tTrace("%s data will be received via TCP from 0x%x:%hu", pSet->label, pTransfer->ip, pTransfer->port);
     retLen = taosReadMsg(connFd, &head, sizeof(STaosHeader));
     if (retLen != (int)sizeof(STaosHeader)) {
       tError("%s failed to read msg header, retLen:%d", pSet->label, retLen);
@@ -345,7 +345,7 @@ void *taosTransferDataViaTcp(void *argv) {
         tError("%s failed to read data from client, leftLen:%d retLen:%d, error:%s", pSet->label, leftLen, retLen,
                strerror(errno));
       } else {
-        tTrace("%s data is received from client via TCP from 0x%x:%d, msgLen:%d", pSet->label, pTransfer->ip,
+        tTrace("%s data is received from client via TCP from 0x%x:%hu, msgLen:%d", pSet->label, pTransfer->ip,
                pTransfer->port, msgLen);
         pSet->index = (pSet->index + 1) % pSet->threads;
         SUdpConn *pConn = pSet->udpConn + pSet->index;
@@ -388,7 +388,7 @@ void *taosTransferDataViaTcp(void *argv) {
       if (retLen != msgLen) {
         tError("%s failed to send data to client, msgLen:%d retLen:%d", pSet->label, msgLen, retLen);
       } else {
-        tTrace("%s data is sent to client successfully via TCP to 0x%x:%d, size:%d", pSet->label, pTransfer->ip,
+        tTrace("%s data is sent to client successfully via TCP to 0x%x:%hu, size:%d", pSet->label, pTransfer->ip,
                pTransfer->port, msgLen);
       }
     }
@@ -413,13 +413,13 @@ void *taosUdpTcpConnection(void *argv) {
 
   pSet->tcpFd = taosOpenTcpServerSocket(pSet->ip, pSet->port);
   if (pSet->tcpFd < 0) {
-    tPrint("%s failed to create TCP socket %s:%d for UDP server, reason:%s", pSet->label, pSet->ip, pSet->port,
+    tPrint("%s failed to create TCP socket %s:%hu for UDP server, reason:%s", pSet->label, pSet->ip, pSet->port,
            strerror(errno));
     taosKillSystem();
     return NULL;
   }
 
-  tTrace("%s UDP server is created, ip:%s:%d", pSet->label, pSet->ip, pSet->port);
+  tTrace("%s UDP server is created, ip:%s:%hu", pSet->label, pSet->ip, pSet->port);
 
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED);
@@ -455,7 +455,7 @@ void *taosUdpTcpConnection(void *argv) {
   return NULL;
 }
 
-void *taosInitUdpConnection(char *ip, short port, char *label, int threads, void *fp, void *shandle) {
+void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, void *fp, void *shandle) {
   pthread_attr_t thAttr;
   SUdpConn *     pConn;
   SUdpConnSet *  pSet;
@@ -488,13 +488,13 @@ void *taosInitUdpConnection(char *ip, short port, char *label, int threads, void
   pthread_attr_init(&thAttr);
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-  short ownPort;
+  uint16_t ownPort;
   for (int i = 0; i < threads; ++i) {
     pConn = pSet->udpConn + i;
-    ownPort = (int16_t)(port ? port + i : 0);
+    ownPort = (port ? port + i : 0);
     pConn->fd = taosOpenUdpSocket(ip, ownPort);
     if (pConn->fd < 0) {
-      tError("%s failed to open UDP socket %s:%d", label, ip, port);
+      tError("%s failed to open UDP socket %s:%hu", label, ip, port);
       taosCleanUpUdpConnection(pSet);
       return NULL;
     }
@@ -528,12 +528,12 @@ void *taosInitUdpConnection(char *ip, short port, char *label, int threads, void
   }
 
   pthread_attr_destroy(&thAttr);
-  tTrace("%s UDP connection is initialized, ip:%s port:%u threads:%d", label, ip, port, threads);
+  tTrace("%s UDP connection is initialized, ip:%s port:%hu threads:%d", label, ip, port, threads);
 
   return pSet;
 }
 
-void *taosInitUdpServer(char *ip, short port, char *label, int threads, void *fp, void *shandle) {
+void *taosInitUdpServer(char *ip, uint16_t port, char *label, int threads, void *fp, void *shandle) {
   SUdpConnSet *pSet;
   pSet = taosInitUdpConnection(ip, port, label, threads, fp, shandle);
   if (pSet == NULL) return NULL;
@@ -554,7 +554,7 @@ void *taosInitUdpServer(char *ip, short port, char *label, int threads, void *fp
   return pSet;
 }
 
-void *taosInitUdpClient(char *ip, short port, char *label, int threads, void *fp, void *shandle) {
+void *taosInitUdpClient(char *ip, uint16_t port, char *label, int threads, void *fp, void *shandle) {
   return taosInitUdpConnection(ip, port, label, threads, fp, shandle);
 }
 
@@ -590,7 +590,7 @@ void taosCleanUpUdpConnection(void *handle) {
   tfree(pSet);
 }
 
-void *taosOpenUdpConnection(void *shandle, void *thandle, char *ip, short port) {
+void *taosOpenUdpConnection(void *shandle, void *thandle, char *ip, uint16_t port) {
   SUdpConnSet *pSet = (SUdpConnSet *)shandle;
 
   pSet->index = (pSet->index + 1) % pSet->threads;
@@ -598,7 +598,7 @@ void *taosOpenUdpConnection(void *shandle, void *thandle, char *ip, short port) 
   SUdpConn *pConn = pSet->udpConn + pSet->index;
   pConn->port = port;
 
-  tTrace("%s UDP connection is setup, ip: %s:%d, local: %s:%d", pConn->label, ip, port, pSet->ip,
+  tTrace("%s UDP connection is setup, ip: %s:%hu, local: %s:%d", pConn->label, ip, port, pSet->ip,
          ntohs((uint16_t)pConn->localPort));
 
   return pConn;
@@ -642,7 +642,7 @@ void taosProcessUdpBufTimer(void *param, void *tmrId) {
   if (pBuf) taosTmrReset(taosProcessUdpBufTimer, RPC_UDP_BUF_TIME, pBuf, pConn->tmrCtrl, &pBuf->timer);
 }
 
-SUdpBuf *taosCreateUdpBuf(SUdpConn *pConn, uint32_t ip, short port) {
+SUdpBuf *taosCreateUdpBuf(SUdpConn *pConn, uint32_t ip, uint16_t port) {
   SUdpBuf *pBuf = (SUdpBuf *)malloc(sizeof(SUdpBuf));
   memset(pBuf, 0, sizeof(SUdpBuf));
 
@@ -652,7 +652,7 @@ SUdpBuf *taosCreateUdpBuf(SUdpConn *pConn, uint32_t ip, short port) {
 
   pBuf->destAdd.sin_family = AF_INET;
   pBuf->destAdd.sin_addr.s_addr = ip;
-  pBuf->destAdd.sin_port = (uint16_t)htons((uint16_t)port);
+  pBuf->destAdd.sin_port = (uint16_t)htons(port);
   taosInitMsgHdr(&(pBuf->msgHdr), &(pBuf->destAdd), RPC_MAX_UDP_PKTS);
   pBuf->signature = pBuf;
   taosTmrReset(taosProcessUdpBufTimer, RPC_UDP_BUF_TIME, pBuf, pConn->tmrCtrl, &pBuf->timer);
@@ -663,7 +663,7 @@ SUdpBuf *taosCreateUdpBuf(SUdpConn *pConn, uint32_t ip, short port) {
   return pBuf;
 }
 
-int taosSendPacketViaTcp(uint32_t ip, short port, char *data, int dataLen, void *chandle) {
+int taosSendPacketViaTcp(uint32_t ip, uint16_t port, char *data, int dataLen, void *chandle) {
   SUdpConn *   pConn = (SUdpConn *)chandle;
   SUdpConnSet *pSet = (SUdpConnSet *)pConn->pSet;
   int          code = -1, retLen, msgLen;
@@ -680,13 +680,13 @@ int taosSendPacketViaTcp(uint32_t ip, short port, char *data, int dataLen, void 
 
     SPacketInfo *pInfo = (SPacketInfo *)pHead->content;
     pInfo->handle = (uint64_t)data;
-    pInfo->port = (uint16_t)pSet->port;
+    pInfo->port   = pSet->port;
     pInfo->msgLen = pHead->msgLen;
 
     msgLen = sizeof(STaosHeader) + sizeof(SPacketInfo);
     pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
     code = taosSendUdpData(ip, port, buffer, msgLen, chandle);
-    tTrace("%s data from server will be sent via TCP:%d, msgType:%d, length:%d, handle:0x%x", pSet->label, pInfo->port,
+    tTrace("%s data from server will be sent via TCP:%hu, msgType:%d, length:%d, handle:0x%x", pSet->label, pInfo->port,
            pHead->msgType, htonl((uint32_t)pInfo->msgLen), pInfo->handle);
     if (code > 0) code = dataLen;
   } else {
@@ -706,7 +706,7 @@ int taosSendPacketViaTcp(uint32_t ip, short port, char *data, int dataLen, void 
     tinet_ntoa(ipstr, ip);
     int fd = taosOpenTcpClientSocket(ipstr, pConn->port, tsLocalIp);
     if (fd < 0) {
-      tError("%s failed to open TCP socket to:%s:%u to send packet", pSet->label, ipstr, pConn->port);
+      tError("%s failed to open TCP socket to:%s:%hu to send packet", pSet->label, ipstr, pConn->port);
     } else {
       SHandleViaTcp handleViaTcp;
       taosInitHandleViaTcp(&handleViaTcp, 0);
@@ -734,7 +734,7 @@ int taosSendPacketViaTcp(uint32_t ip, short port, char *data, int dataLen, void 
   return code;
 }
 
-int taosSendUdpData(uint32_t ip, short port, char *data, int dataLen, void *chandle) {
+int taosSendUdpData(uint32_t ip, uint16_t port, char *data, int dataLen, void *chandle) {
   SUdpConn *pConn = (SUdpConn *)chandle;
   SUdpBuf * pBuf;
 
@@ -747,7 +747,7 @@ int taosSendUdpData(uint32_t ip, short port, char *data, int dataLen, void *chan
     memset(&destAdd, 0, sizeof(destAdd));
     destAdd.sin_family = AF_INET;
     destAdd.sin_addr.s_addr = ip;
-    destAdd.sin_port = htons((uint16_t)port);
+    destAdd.sin_port = htons(port);
 
     int ret = (int)sendto(pConn->fd, data, (size_t)dataLen, 0, (struct sockaddr *)&destAdd, sizeof(destAdd));
     tTrace("%s msg is sent to 0x%x:%hu len:%d ret:%d localPort:%hu chandle:0x%x", pConn->label, destAdd.sin_addr.s_addr,

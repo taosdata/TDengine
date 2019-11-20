@@ -23,7 +23,7 @@ New keyword "tags" is introduced, where tag_name is the tag name, and tag_type i
 Note：
 
 1. The bytes of all tags together shall be less than 512 
-2. Tag's data type can not be time stamp or nchar
+2. Tag's data type can not be time stamp
 3. Tag name shall be different from the field name
 4. Tag name shall not be the same as system keywords
 5. Maximum number of tags is 6 
@@ -102,7 +102,7 @@ List the number of records, average, maximum, and minimum temperature every 10 m
 ```mysql
 SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
-WHERE name='beijing' and type=10 and ts>=now-1d
+WHERE location='beijing' and type=10 and ts>=now-1d
 INTERVAL(10M)
 ```
 

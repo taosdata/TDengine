@@ -106,6 +106,8 @@ void tscAddSpecialColumnForSelect(SSqlCmd* pCmd, int32_t outputColIndex, int16_t
                                   SSchema* pColSchema, int16_t isTag);
 
 void addRequiredTagColumn(SSqlCmd* pCmd, int32_t tagColIndex, int32_t tableIndex);
+
+//TODO refactor, remove
 void SStringFree(SString* str);
 void SStringCopy(SString* pDest, const SString* pSrc);
 SString SStringCreate(const char* str);
@@ -224,7 +226,7 @@ void doAddGroupColumnForSubquery(SSqlCmd* pCmd, int32_t tagIndex);
 
 int16_t tscGetJoinTagColIndexByUid(SSqlCmd* pCmd, uint64_t uid);
 
-TAOS* taos_connect_a(char* ip, char* user, char* pass, char* db, int port, void (*fp)(void*, TAOS_RES*, int),
+TAOS* taos_connect_a(char* ip, char* user, char* pass, char* db, uint16_t port, void (*fp)(void*, TAOS_RES*, int),
                      void* param, void** taos);
 
 void sortRemoveDuplicates(STableDataBlocks* dataBuf);

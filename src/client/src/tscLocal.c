@@ -26,7 +26,7 @@
 #include "tschemautil.h"
 #include "tsocket.h"
 
-static int32_t getToStringLength(char *pData, int32_t length, int32_t type) {
+static int32_t getToStringLength(const char *pData, int32_t length, int32_t type) {
   char buf[512] = {0};
 
   int32_t len = 0;
