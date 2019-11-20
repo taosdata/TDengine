@@ -73,20 +73,3 @@ const char* taosGetVgroupLbStatusStr(int vglbStatus) {
     default:                        return "undefined";
   }
 }
-
-const char* taosGetBalanceTypeStr(int type) {
-  switch (type) {
-    case TSDB_LB_TYPE_SCHEDULE: return "schedule";
-    case TSDB_LB_TYPE_SOON:     return "soon";
-    default:                    return "undefined";
-  }
-}
-
-const char* taosBalanceReasonStr(int reason) {
-  switch (reason) {
-    case TSDB_LB_REASON_PERIOD: return "period";
-    case TSDB_LB_REASON_EVENT:  return "event";
-    default:                    return "undefined";
-  }
-}
-

@@ -287,8 +287,10 @@ ssize_t tsendfile(int dfd, int sfd, off_t *offset, size_t size) {
   ssize_t sentbytes;
 
   while (leftbytes > 0) {
-    // TODO : Think to check if file is larger than 1GB
-    if (leftbytes > 1000000000) leftbytes = 1000000000;
+    /*
+     * TODO : Think to check if file is larger than 1GB
+     */
+    //if (leftbytes > 1000000000) leftbytes = 1000000000;
     sentbytes = sendfile(dfd, sfd, offset, leftbytes);
     if (sentbytes == -1) {
       if (errno == EINTR) {

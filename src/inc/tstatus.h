@@ -73,23 +73,11 @@ enum _TSDB_VG_LB_STATUS {
   TSDB_VG_LB_STATUS_UPDATE
 };
 
-enum _TSDB_LB_TYPE {
-  TSDB_LB_TYPE_SCHEDULE,
-  TSDB_LB_TYPE_SOON,
-};
-
-enum _TSDB_LB_REASON {
-  TSDB_LB_REASON_PERIOD,
-  TSDB_LB_REASON_EVENT,
-};
-
 const char* taosGetVnodeStatusStr(int vnodeStatus);
 const char* taosGetVnodeSyncStatusStr(int vnodeSyncStatus);
 const char* taosGetVnodeDropStatusStr(int dropping);
 const char* taosGetDnodeStatusStr(int dnodeStatus);
 const char* taosGetDnodeLbStatusStr(int dnodeBalanceStatus);
-const char* taosGetBalanceTypeStr(int type);
-const char* taosBalanceReasonStr(int reason);
 const char* taosGetVgroupLbStatusStr(int vglbStatus);
 
 #ifdef __cplusplus
