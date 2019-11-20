@@ -67,7 +67,7 @@ static struct argp_option options[] = {
 /* Used by main to communicate with parse_opt. */
 struct arguments {
   char  *host;
-  int    port;
+  uint16_t    port;
   char  *user;
   char  *password;
   char  *database;
@@ -310,7 +310,7 @@ int main(int argc, char *argv[]) {
   
   enum MODE query_mode = arguments.mode;
   char *ip_addr = arguments.host;
-  int port = arguments.port;
+  uint16_t port = arguments.port;
   char *user = arguments.user;
   char *pass = arguments.password;
   char *db_name = arguments.database;
@@ -343,7 +343,7 @@ int main(int argc, char *argv[]) {
   struct tm tm = *localtime(&tTime);
 
   fprintf(fp, "###################################################################\n");
-  fprintf(fp, "# Server IP:                         %s:%d\n", ip_addr == NULL ? "localhost" : ip_addr, port);
+  fprintf(fp, "# Server IP:                         %s:%hu\n", ip_addr == NULL ? "localhost" : ip_addr, port);
   fprintf(fp, "# User:                              %s\n", user);
   fprintf(fp, "# Password:                          %s\n", pass);
   fprintf(fp, "# Use metric:                        %s\n", use_metric ? "true" : "false");

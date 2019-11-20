@@ -25,7 +25,7 @@ typedef struct {
   char     user[TSDB_METER_ID_LEN];
   uint64_t stime;
   uint32_t ip;
-  short    port;
+  uint16_t port;
 } SConnInfo;
 
 typedef struct {

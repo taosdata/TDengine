@@ -25,7 +25,7 @@
 #include "taos.h"
 #include "tsclient.h"
 
-void *taos_connect_a(char *ip, char *user, char *pass, char *db, int port, void (*fp)(void *, TAOS_RES *, int),
+void *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos);
 void httpProcessMultiSql(HttpContext *pContext);
 void taosNotePrint(const char * const format, ...);

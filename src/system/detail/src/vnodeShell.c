@@ -47,7 +47,7 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   SShellObj *pObj = (SShellObj *)ahandle;
   SIntMsg *  pMsg = (SIntMsg *)msg;
   uint32_t   peerId, peerIp;
-  short      peerPort;
+  uint16_t   peerPort;
   char       ipstr[20];
 
   if (msg == NULL) {

@@ -226,7 +226,7 @@ void doAddGroupColumnForSubquery(SSqlCmd* pCmd, int32_t tagIndex);
 
 int16_t tscGetJoinTagColIndexByUid(SSqlCmd* pCmd, uint64_t uid);
 
-TAOS* taos_connect_a(char* ip, char* user, char* pass, char* db, int port, void (*fp)(void*, TAOS_RES*, int),
+TAOS* taos_connect_a(char* ip, char* user, char* pass, char* db, uint16_t port, void (*fp)(void*, TAOS_RES*, int),
                      void* param, void** taos);
 
 void sortRemoveDuplicates(STableDataBlocks* dataBuf);

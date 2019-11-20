@@ -1276,7 +1276,7 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
       if (pConn->pUser) {
         pConn->pAcct = mgmtGetAcct(pConn->pUser->acct);
         mgmtEstablishConn(pConn);
-        mTrace("login from:%x:%d", pConn->ip, htons(pConn->port));
+        mTrace("login from:%x:%hu", pConn->ip, htons(pConn->port));
       }
     }
 
