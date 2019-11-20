@@ -20,6 +20,7 @@
 #include "vnode.h"
 #include "vnodeCache.h"
 #include "vnodeUtil.h"
+#include "tstatus.h"
 
 void vnodeSearchPointInCache(SMeterObj *pObj, SQuery *pQuery);
 void vnodeProcessCommitTimer(void *param, void *tmrId);
@@ -297,7 +298,7 @@ pthread_t vnodeCreateCommitThread(SVnodeObj *pVnode) {
 
   taosTmrStopA(&pVnode->commitTimer);
 
-  if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_UNSYNCED) {
+  if (pVnode->vnodeStatus == TSDB_VN_STATUS_UNSYNCED) {
     taosTmrReset(vnodeProcessCommitTimer, pVnode->cfg.commitTime * 1000, pVnode, vnodeTmrCtrl, &pVnode->commitTimer);
     dTrace("vid:%d, it is in unsyc state, commit later", pVnode->vnode);
     return pVnode->commitThread;

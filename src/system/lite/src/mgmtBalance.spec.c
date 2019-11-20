@@ -53,8 +53,8 @@ bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType) {
 
 bool mgmtCheckVnodeReady(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode) { return true; }
 
-void mgmtUpdateDnodeState(SDnodeObj *pDnode, int lbState) {}
+void mgmtUpdateDnodeState(SDnodeObj *pDnode, int lbStatus) {}
 
-void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbState, int srcIp) {}
+void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbStatus, int srcIp) {}
 
 bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) { return false; }

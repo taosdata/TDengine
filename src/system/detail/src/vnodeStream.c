@@ -17,6 +17,7 @@
 #include "taosmsg.h"
 #include "vnode.h"
 #include "vnodeUtil.h"
+#include "tstatus.h"
 
 /* static TAOS *dbConn = NULL; */
 void vnodeCloseStreamCallback(void *param);
@@ -171,7 +172,7 @@ void vnodeCloseStream(SVnodeObj *pVnode) {
 void vnodeUpdateStreamRole(SVnodeObj *pVnode) {
   /* SMeterObj *pObj; */
 
-  int newRole = (pVnode->vnodeStatus == TSDB_VNODE_STATUS_MASTER) ? 1 : 0;
+  int newRole = (pVnode->vnodeStatus == TSDB_VN_STATUS_MASTER) ? 1 : 0;
   if (newRole != pVnode->streamRole) {
     dTrace("vid:%d, stream role is changed to:%d", pVnode->vnode, newRole);
     pVnode->streamRole = newRole;

@@ -19,6 +19,7 @@
 #include "mgmt.h"
 #include "tschemautil.h"
 #include "tlog.h"
+#include "tstatus.h"
 
 void *       vgSdb = NULL;
 int          tsVgUpdateSize;
@@ -312,7 +313,7 @@ int mgmtRetrieveVgroups(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pVgroup->lbState ? "updating" : "ready");
+    strcpy(pWrite, taosGetVgroupLbStatusStr(pVgroup->lbStatus));
     cols++;
 
     for (int i = 0; i < maxReplica; ++i) {

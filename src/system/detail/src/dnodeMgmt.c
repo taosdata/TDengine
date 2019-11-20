@@ -116,7 +116,7 @@ int vnodeProcessCreateMeterRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
     goto _over;
   }
 
-  if (pVnode->syncStatus == TSDB_SSTATUS_SYNCING) {
+  if (pVnode->syncStatus == TSDB_VN_SYNC_STATUS_SYNCING) {
     code = vnodeSaveCreateMsgIntoQueue(pVnode, pMsg, msgLen);
     dTrace("vid:%d, create msg is saved into sync queue", vid);
   } else {
@@ -331,7 +331,7 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
     return -1;
   }
 
-  if (vnodeList[vnode].vnodeStatus == TSDB_VNODE_STATUS_CREATING) {
+  if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_CREATING) {
     dTrace("vid:%d, vnode is still under creating", vnode);
     return 0;
   }
@@ -362,7 +362,7 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   if (vnodeList[vnode].cfg.maxSessions == 0) {
     dTrace("vid:%d, vnode is empty", vnode);
     if (pCfg->maxSessions > 0) {
-      if (vnodeList[vnode].vnodeStatus == TSDB_VNODE_STATUS_OFFLINE) {
+      if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_OFFLINE) {
         dTrace("vid:%d, status:%s, start to create vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
         return vnodeCreateVnode(vnode, pCfg, pMsg->vpeerDesc);
       } else {
@@ -373,7 +373,7 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   } else {
     dTrace("vid:%d, vnode is not empty", vnode);
     if (pCfg->maxSessions > 0) {
-      if (vnodeList[vnode].vnodeStatus == TSDB_VNODE_STATUS_DELETING) {
+      if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_DELETING) {
         dTrace("vid:%d, status:%s, wait vnode delete finished", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
       } else {
         dTrace("vid:%d, status:%s, start to update vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));

@@ -20,11 +20,77 @@
 extern "C" {
 #endif
 
+enum _TSDB_VG_STATUS {
+  TSDB_VG_STATUS_READY,
+  TSDB_VG_STATUS_IN_PROGRESS,
+  TSDB_VG_STATUS_COMMITLOG_INIT_FAILED,
+  TSDB_VG_STATUS_INIT_FAILED,
+  TSDB_VG_STATUS_FULL
+};
+
+enum _TSDB_DB_STATUS {
+  TSDB_DB_STATUS_READY,
+  TSDB_DB_STATUS_DROPPING,
+  TSDB_DB_STATUS_DROP_FROM_SDB
+};
+
+enum _TSDB_VN_STATUS {
+  TSDB_VN_STATUS_OFFLINE,
+  TSDB_VN_STATUS_CREATING,
+  TSDB_VN_STATUS_UNSYNCED,
+  TSDB_VN_STATUS_SLAVE,
+  TSDB_VN_STATUS_MASTER,
+  TSDB_VN_STATUS_CLOSING,
+  TSDB_VN_STATUS_DELETING,
+};
+
+enum _TSDB_VN_SYNC_STATUS {
+  TSDB_VN_SYNC_STATUS_INIT,
+  TSDB_VN_SYNC_STATUS_SYNCING,
+  TSDB_VN_SYNC_STATUS_SYNC_CACHE,
+  TSDB_VN_SYNC_STATUS_SYNC_FILE
+};
+
+enum _TSDB_VN_DROP_STATUS {
+  TSDB_VN_DROP_STATUS_READY,
+  TSDB_VN_DROP_STATUS_DROPPING
+};
+
+enum _TSDB_DN_STATUS {
+  TSDB_DN_STATUS_OFFLINE,
+  TSDB_DN_STATUS_READY
+};
+
+enum _TSDB_DN_LB_STATUS {
+  TSDB_DN_LB_STATUS_BALANCED,
+  TSDB_DN_LB_STATUS_BALANCING,
+  TSDB_DN_LB_STATUS_OFFLINE_REMOVING,
+  TSDB_DN_LB_STATE_SHELL_REMOVING
+};
+
+enum _TSDB_VG_LB_STATUS {
+  TSDB_VG_LB_STATUS_READY,
+  TSDB_VG_LB_STATUS_UPDATE
+};
+
+enum _TSDB_LB_TYPE {
+  TSDB_LB_TYPE_SCHEDULE,
+  TSDB_LB_TYPE_SOON,
+};
+
+enum _TSDB_LB_REASON {
+  TSDB_LB_REASON_PERIOD,
+  TSDB_LB_REASON_EVENT,
+};
+
 const char* taosGetVnodeStatusStr(int vnodeStatus);
-const char* taosGetDnodeStatusStr(int dnodeStatus);
-const char* taosGetDnodeBalanceStateStr(int dnodeBalanceStatus);
 const char* taosGetVnodeSyncStatusStr(int vnodeSyncStatus);
 const char* taosGetVnodeDropStatusStr(int dropping);
+const char* taosGetDnodeStatusStr(int dnodeStatus);
+const char* taosGetDnodeLbStatusStr(int dnodeBalanceStatus);
+const char* taosGetBalanceTypeStr(int type);
+const char* taosBalanceReasonStr(int reason);
+const char* taosGetVgroupLbStatusStr(int vglbStatus);
 
 #ifdef __cplusplus
 }

@@ -21,6 +21,7 @@
 #include "mgmtProfile.h"
 #include "taosmsg.h"
 #include "tlog.h"
+#include "tstatus.h"
 
 #pragma GCC diagnostic push
 

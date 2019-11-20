@@ -78,7 +78,7 @@ int vnodeOpenVnode(int vnode) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!(pVnode->vnodeStatus == TSDB_VNODE_STATUS_OFFLINE || pVnode->vnodeStatus == TSDB_VNODE_STATUS_CREATING)) {
+  if (!(pVnode->vnodeStatus == TSDB_VN_STATUS_OFFLINE || pVnode->vnodeStatus == TSDB_VN_STATUS_CREATING)) {
     dError("vid:%d, status:%s, cannot enter open operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
     return TSDB_CODE_INVALID_VNODE_STATUS;
   }
@@ -140,12 +140,12 @@ static int vnodeCloseVnode(int vnode) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_DELETING) {
+  if (pVnode->vnodeStatus == TSDB_VN_STATUS_DELETING) {
     dTrace("vid:%d, status:%s, another thread performed delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
     return TSDB_CODE_SUCCESS;
   } else {
     dTrace("vid:%d, status:%s, enter close operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
-    pVnode->vnodeStatus = TSDB_VNODE_STATUS_CLOSING;
+    pVnode->vnodeStatus = TSDB_VN_STATUS_CLOSING;
   }
 
   // set the meter is dropped flag 
@@ -155,7 +155,7 @@ static int vnodeCloseVnode(int vnode) {
   }
 
   dTrace("vid:%d, status:%s, enter delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
-  pVnode->vnodeStatus = TSDB_VNODE_STATUS_DELETING;
+  pVnode->vnodeStatus = TSDB_VN_STATUS_DELETING;
 
   vnodeCloseStream(vnodeList + vnode);
   vnodeCancelCommit(vnodeList + vnode);
@@ -178,12 +178,12 @@ static int vnodeCloseVnode(int vnode) {
 int vnodeCreateVnode(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc) {
   char fileName[128];
 
-  if (vnodeList[vnode].vnodeStatus != TSDB_VNODE_STATUS_OFFLINE) {
+  if (vnodeList[vnode].vnodeStatus != TSDB_VN_STATUS_OFFLINE) {
     dError("vid:%d, status:%s, cannot enter create operation", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
     return TSDB_CODE_INVALID_VNODE_STATUS;
   }
 
-  vnodeList[vnode].vnodeStatus = TSDB_VNODE_STATUS_CREATING;
+  vnodeList[vnode].vnodeStatus = TSDB_VN_STATUS_CREATING;
 
   sprintf(fileName, "%s/vnode%d", tsDirectory, vnode);
   mkdir(fileName, 0755);
@@ -258,9 +258,9 @@ int vnodeRemoveVnode(int vnode) {
 
   if (vnodeList[vnode].cfg.maxSessions > 0) {
     SVnodeObj* pVnode = &vnodeList[vnode];
-    if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_CREATING
-        || pVnode->vnodeStatus == TSDB_VNODE_STATUS_OFFLINE
-        || pVnode->vnodeStatus == TSDB_VNODE_STATUS_DELETING) {
+    if (pVnode->vnodeStatus == TSDB_VN_STATUS_CREATING
+        || pVnode->vnodeStatus == TSDB_VN_STATUS_OFFLINE
+        || pVnode->vnodeStatus == TSDB_VN_STATUS_DELETING) {
       dError("vid:%d, status:%s, cannot enter close/delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
       return TSDB_CODE_ACTION_IN_PROGRESS;
     } else {
@@ -325,7 +325,7 @@ void vnodeCleanUpOneVnode(int vnode) {
   again = 1;
 
   if (vnodeList[vnode].pCachePool) {
-    vnodeList[vnode].vnodeStatus = TSDB_VNODE_STATUS_OFFLINE;
+    vnodeList[vnode].vnodeStatus = TSDB_VN_STATUS_OFFLINE;
     vnodeClosePeerVnode(vnode);
   }
 
@@ -354,7 +354,7 @@ void vnodeCleanUpVnodes() {
 
   for (int vnode = 0; vnode < TSDB_MAX_VNODES; ++vnode) {
     if (vnodeList[vnode].pCachePool) {
-      vnodeList[vnode].vnodeStatus = TSDB_VNODE_STATUS_OFFLINE;
+      vnodeList[vnode].vnodeStatus = TSDB_VN_STATUS_OFFLINE;
       vnodeClosePeerVnode(vnode);
     }
   }

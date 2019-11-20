@@ -484,7 +484,7 @@ int vnodeCreateMeterObj(SMeterObj *pNew, SConnSec *pSec) {
     vnodeSaveMeterObjToFile(pNew);
     // vnodeCreateMeterMgmt(pNew, pSec);
     vnodeCreateStream(pNew);
-    dTrace("vid:%d sid:%d id:%s, meterObj is created, uid:%ld", pNew->vnode, pNew->sid, pNew->meterId, pNew->uid);
+    dTrace("vid:%d, sid:%d id:%s, meterObj is created, uid:%ld", pNew->vnode, pNew->sid, pNew->meterId, pNew->uid);
   }
 
   return code;

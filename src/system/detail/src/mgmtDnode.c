@@ -44,9 +44,9 @@ void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
   pDnode->openVnodes = 0;
 
 #ifdef CLUSTER
-  pDnode->status = TSDB_DNODE_STATUS_OFFLINE;
+  pDnode->status = TSDB_DN_STATUS_OFFLINE;
 #else
-  pDnode->status = TSDB_DNODE_STATUS_READY;
+  pDnode->status = TSDB_DN_STATUS_READY;
 #endif
 }
 
@@ -201,7 +201,7 @@ int mgmtRetrieveDnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, taosGetDnodeBalanceStateStr(pDnode->lbState));
+    strcpy(pWrite, taosGetDnodeLbStatusStr(pDnode->lbStatus));
     cols++;
 
     tinet_ntoa(ipstr, pDnode->publicIp);

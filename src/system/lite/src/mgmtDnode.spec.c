@@ -30,7 +30,7 @@ int mgmtInitDnodes() {
   dnodeObj.createdTime = (int64_t)tsRebootTime * 1000;
   dnodeObj.lastReboot = tsRebootTime;
   dnodeObj.numOfCores = (uint16_t)tsNumOfCores;
-  dnodeObj.status = TSDB_DNODE_STATUS_READY;
+  dnodeObj.status = TSDB_DN_STATUS_READY;
   dnodeObj.alternativeRole = TSDB_DNODE_ROLE_ANY;
   dnodeObj.numOfTotalVnodes = tsNumOfTotalVnodes;
   dnodeObj.thandle = (void*)(1);  //hack way
