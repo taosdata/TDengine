@@ -1075,6 +1075,7 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
     // parsing error
 
     if (pHeader->msgType & 1) {
+      memset(pReply, 0, sizeof(pReply));
       msgLen = taosBuildErrorMsgToPeer(data, code, pReply);
       (*taosSendData[pServer->type])(ip, port, pReply, msgLen, chandle);
       tTrace("%s cid:%d sid:%d id:%s, %s is sent with error code:%u pConn:%p", pServer->label, chann, sid,
