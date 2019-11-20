@@ -23,7 +23,7 @@
 
 typedef struct {
   uint32_t ip;
-  short    port;
+  uint16_t port;
   char     user[TSDB_METER_ID_LEN];
 } SCDesc;
 
@@ -180,7 +180,7 @@ int mgmtKillQuery(char *qidstr, SConnObj *pConn) {
   chr = strchr(temp, ':');
   if (chr == NULL) goto _error;
   *chr = 0;
-  short port = htons(atoi(temp));
+  uint16_t port = htons(atoi(temp));
 
   temp = chr + 1;
   uint32_t queryId = atoi(temp);
@@ -448,7 +448,7 @@ int mgmtKillStream(char *qidstr, SConnObj *pConn) {
   chr = strchr(temp, ':');
   if (chr == NULL) goto _error;
   *chr = 0;
-  short port = htons(atoi(temp));
+  uint16_t port = htons(atoi(temp));
 
   temp = chr + 1;
   uint32_t streamId = atoi(temp);

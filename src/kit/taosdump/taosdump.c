@@ -172,7 +172,7 @@ struct arguments {
   char *host;
   char *user;
   char *password;
-  int port;
+  uint16_t port;
   // output file
   char output[TSDB_FILENAME_LEN + 1];
   char input[TSDB_FILENAME_LEN + 1];

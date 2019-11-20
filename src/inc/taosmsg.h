@@ -222,7 +222,7 @@ typedef struct {
   // internal part
   uint32_t destId;
   char     meterId[TSDB_UNI_LEN];
-  short    port;  // for UDP only
+  uint16_t port;  // for UDP only
   char     empty[1];
   char     msgType;
   int32_t  msgLen;

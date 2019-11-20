@@ -33,19 +33,19 @@ int taosWriteMsg(int fd, void *ptr, int nbytes);
 
 int taosReadMsg(int fd, void *ptr, int nbytes);
 
-int taosOpenUdpSocket(char *ip, short port);
+int taosOpenUdpSocket(char *ip, uint16_t port);
 
-int taosOpenTcpClientSocket(char *ip, short port, char *localIp);
+int taosOpenTcpClientSocket(char *ip, uint16_t port, char *localIp);
 
-int taosOpenTcpServerSocket(char *ip, short port);
+int taosOpenTcpServerSocket(char *ip, uint16_t port);
 
 int taosKeepTcpAlive(int sockFd);
 
 void taosCloseTcpSocket(int sockFd);
 
-int taosOpenUDServerSocket(char *ip, short port);
+int taosOpenUDServerSocket(char *ip, uint16_t port);
 
-int taosOpenUDClientSocket(char *ip, short port);
+int taosOpenUDClientSocket(char *ip, uint16_t port);
 
 int taosOpenRawSocket(char *ip);
 
