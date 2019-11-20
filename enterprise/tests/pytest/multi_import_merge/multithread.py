@@ -84,6 +84,10 @@ class TDTestCase:
     self.nthreads = 5
     self.queryFlag = True
 
+    tdLog.info("total importing thread number = %d" %self.nthreads)
+    tdLog.info("total table number = %d" %self.ntables)
+    tdLog.info("total records in each table = %ld" %self.nthreads*self.nrows)
+
     tdSql.execute('reset query cache')
     tdSql.execute('drop database db')
     tdSql.execute('create database db ')
