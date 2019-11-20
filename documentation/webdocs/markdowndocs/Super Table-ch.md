@@ -218,7 +218,7 @@ GROUP BY location, type
 ```mysql
 SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
-WHERE name<>'beijing' and ts>=now-1d
+WHERE location<>'beijing' and ts>=now-1d
 INTERVAL(10M)
 GROUP BY location, type
 ```
