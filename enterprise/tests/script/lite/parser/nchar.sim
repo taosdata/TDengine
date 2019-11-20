@@ -116,24 +116,24 @@ print returned: $data01
 $quote = '
 $ret1 = $quote . $data01
 $ret2 = $ret1 . $quote
-print $ret2 
-if $ret2 = 'NCHAR' then 
-  goto label1
-else
+print $ret2
+
+if $ret2 != 'NCHAR' then
   return -1
 endi
+
 label1:
 
 # insert nchar data with space and a pair of double quotes
 sql insert into $tb values (now, "NCHAR" )
 sql select * from $tb order by ts desc
-print expected: NCHAR
+print expected: N CHAR
 print returned: $data01
 $quote = "
 $ret1 = $quote . $data01
 $ret2 = $ret1 . $quote
 print $ret2 
-if $ret2 = "NCHAR" then 
+if $ret2 = "N CHAR" then 
   goto label2
 else
   return -1

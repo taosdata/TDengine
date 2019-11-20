@@ -46,8 +46,9 @@ if ! is_using_systemd; then
 fi
 
 function install_include() {
-    sudo rm -f ${inc_link_dir}/taos.h || :
+    sudo rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h|| :
     sudo ln -s ${inc_dir}/taos.h ${inc_link_dir}/taos.h  
+    sudo ln -s ${inc_dir}/taoserror.h ${inc_link_dir}/taoserror.h  
 }
 
 function install_lib() {

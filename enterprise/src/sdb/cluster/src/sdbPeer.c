@@ -55,10 +55,7 @@ void *          sdbQhandle;
 int             tsMnodeUpdateSize;
 
 // configurable
-short sdbPeerPort = 3110;
-short sdbSyncPort = 3120;
 int   sdbMaxNodes = 100;
-int   sdbHbTimer = 1;  // second
 char  sdbZone[24] = "sbdroot";
 char  sdbMasterIp[24];
 char  sdbPrivateIp[24];
@@ -118,7 +115,7 @@ void sdbStopWorkingAsMaster() {
   sdbLPrint("dnode:%s stop working as Master", tsPrivateIp);
 
   pSelf->role = SDB_ROLE_UNDECIDED;
-  taosTmrReset(sdbCheckRoleStatus, sdbHbTimer * 1000, NULL, sdbTmr, &sdbRoleTimer);
+  taosTmrReset(sdbCheckRoleStatus, tsMgmtPeerHBTimer * 1000, NULL, sdbTmr, &sdbRoleTimer);
   sdbMaster = 0;
 
   sdbUpdateIpList();
@@ -185,7 +182,7 @@ void sdbNewPeerAdded(SSdbPeer *pPeer) {
     for (i = 1; i < SDB_MAX_PEERS; ++i) {
       if (sdbPeer[i] == NULL || sdbPeer[i]->status == SDB_STATUS_DELETED) {
         sdbPeer[i] = pPeer;
-        taosTmrReset(sdbCheckPeerStatus, sdbHbTimer * 1000, pPeer, sdbTmr, &pPeer->hbTimer);
+        taosTmrReset(sdbCheckPeerStatus, tsMgmtPeerHBTimer * 1000, pPeer, sdbTmr, &pPeer->hbTimer);
         break;
       }
     }
@@ -377,7 +374,7 @@ int sdbInitPeers(char *directory) {
 
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp = sdbPrivateIp;
-  rpcInit.localPort = sdbPeerPort;
+  rpcInit.localPort = tsMgmtMgmtPort;
   rpcInit.label = "MND-SDB";
   rpcInit.numOfThreads = 1;
   rpcInit.fp = sdbProcessMsgFromPeer;
@@ -385,22 +382,22 @@ int sdbInitPeers(char *directory) {
   rpcInit.numOfChanns = 1;
   rpcInit.sessionsPerChann = SDB_MAX_PEERS + 1;
   rpcInit.idMgmt = TAOS_ID_FREE;
-  rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
+  rpcInit.connType = TAOS_CONN_UDPC;
   rpcInit.qhandle = sdbQhandle;
 
   pPeerConn = taosOpenRpc(&rpcInit);
   if (pPeerConn == NULL) {
-    sdbError("failed to init UDP connection between mnodes");
+    sdbError("failed to init %s connection between mnodes", tsSocketType);
     return -1;
   }
 
   for (int i = 1; i < SDB_MAX_PEERS; ++i) {
     pPeer = sdbPeer[i];
     if (pPeer && pPeer->hbTimer == NULL)
-      taosTmrReset(sdbCheckPeerStatus, sdbHbTimer * 1000, pPeer, sdbTmr, &pPeer->hbTimer);
+      taosTmrReset(sdbCheckPeerStatus, tsMgmtPeerHBTimer * 1000, pPeer, sdbTmr, &pPeer->hbTimer);
   }
 
-  if (pSelf->role != SDB_ROLE_MASTER) taosTmrReset(sdbCheckRoleStatus, sdbHbTimer * 3000, NULL, sdbTmr, &sdbRoleTimer);
+  if (pSelf->role != SDB_ROLE_MASTER) taosTmrReset(sdbCheckRoleStatus, tsMgmtPeerHBTimer * 3000, NULL, sdbTmr, &sdbRoleTimer);
 
   return 0;
 }
@@ -441,7 +438,7 @@ void sdbCleanUpPeers() {
 void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
   int       temp;
   uint32_t  peerIp, peerId;
-  short     peerPort;
+  uint16_t  peerPort;
   SSdbPeer *pPeer = (SSdbPeer *)ahandle;
   SIntMsg  *pMsg = (SIntMsg *)msg;
   int       ret = -1;
@@ -465,7 +462,7 @@ void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
         if (pSelf->role == SDB_ROLE_MASTER) sdbCheckSelfRole();
 
         if (pPeer->role == SDB_ROLE_MASTER) {
-          taosTmrReset(sdbCheckRoleStatus, sdbHbTimer * 2500, NULL, sdbTmr, &sdbRoleTimer);
+          taosTmrReset(sdbCheckRoleStatus, tsMgmtPeerHBTimer * 2500, NULL, sdbTmr, &sdbRoleTimer);
           sdbTrace("connection to master:%s is lost", pPeer->ipstr);
         }
 
@@ -473,7 +470,7 @@ void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
       }
 
       pPeer->thandle = NULL;
-      taosTmrReset(sdbCheckPeerStatus, sdbHbTimer * 10000, pPeer, sdbTmr, &pPeer->hbTimer);
+      taosTmrReset(sdbCheckPeerStatus, tsMgmtPeerHBTimer * 10000, pPeer, sdbTmr, &pPeer->hbTimer);
     }
 
     return NULL;
@@ -542,9 +539,9 @@ void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
   }
 
   if (pMsg->msgType == TSDB_MSG_TYPE_HEARTBEAT)
-    taosTmrReset(sdbCheckPeerStatus, sdbHbTimer * 1500, pPeer, sdbTmr, &pPeer->hbTimer);
+    taosTmrReset(sdbCheckPeerStatus, tsMgmtPeerHBTimer * 1500, pPeer, sdbTmr, &pPeer->hbTimer);
   else
-    taosTmrReset(sdbCheckPeerStatus, sdbHbTimer * 1000, pPeer, sdbTmr, &pPeer->hbTimer);
+    taosTmrReset(sdbCheckPeerStatus, tsMgmtPeerHBTimer * 1000, pPeer, sdbTmr, &pPeer->hbTimer);
 
   if (ret < 0) {
     taosCloseRpcConn(pPeer->thandle);
@@ -717,7 +714,7 @@ void sdbCheckSelfRole() {
 
   if (pSelf->role == SDB_ROLE_UNDECIDED) {
     sdbMaster = 0;
-    taosTmrReset(sdbCheckRoleStatus, sdbHbTimer * 1000, NULL, sdbTmr, &sdbRoleTimer);
+    taosTmrReset(sdbCheckRoleStatus, tsMgmtPeerHBTimer * 1000, NULL, sdbTmr, &sdbRoleTimer);
     return;
   }
 
@@ -735,7 +732,7 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
   uint64_t  dbVersion = 0;
 
   if (pSelf == NULL || pSelf->status == SDB_STATUS_DELETED) {
-    taosTmrReset(sdbCheckRoleStatus, sdbHbTimer * 1000, NULL, sdbTmr, &sdbRoleTimer);
+    taosTmrReset(sdbCheckRoleStatus, tsMgmtPeerHBTimer * 1000, NULL, sdbTmr, &sdbRoleTimer);
     return;
   }
 
@@ -793,7 +790,7 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
     sdbWorkAsMaster();
   }
 
-  taosTmrReset(sdbCheckRoleStatus, sdbHbTimer * 1000, NULL, sdbTmr, &sdbRoleTimer);
+  taosTmrReset(sdbCheckRoleStatus, tsMgmtPeerHBTimer * 1000, NULL, sdbTmr, &sdbRoleTimer);
 }
 
 void sdbCheckPeerStatus(void *param, void *tmrId) {
@@ -821,11 +818,11 @@ void sdbCheckPeerStatus(void *param, void *tmrId) {
     connInit.shandle = pPeerConn;
     connInit.ahandle = pPeer;
     connInit.peerIp = pPeer->ipstr;
-    connInit.peerPort = sdbPeerPort;
+    connInit.peerPort = tsMgmtMgmtPort;
     pPeer->thandle = taosOpenRpcConn(&connInit, &code);
 
     if (pPeer->thandle == NULL) {
-      taosTmrReset(sdbCheckPeerStatus, sdbHbTimer * 30000, pPeer, sdbTmr, &pPeer->hbTimer);
+      taosTmrReset(sdbCheckPeerStatus, tsMgmtPeerHBTimer * 30000, pPeer, sdbTmr, &pPeer->hbTimer);
       return;
     }
   }
@@ -956,9 +953,9 @@ int sdbProcessSyncRequest(char *msg, int msgLen, SSdbPeer *pPeer) {
   memcpy(pPeer->pSync, pSync, msgLen);
 
   // set up tcp socket
-  pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ipstr, sdbSyncPort, NULL);
+  pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ipstr, tsMgmtSyncPort, NULL);
   if (pPeer->syncFd <= 0) {
-    sdbError("ip:%s, faile to open sync TCP socket:%d", pPeer->ipstr, sdbSyncPort);
+    sdbError("ip:%s, faile to open sync TCP socket:%d", pPeer->ipstr, tsMgmtSyncPort);
     code = TSDB_CODE_APP_ERROR;
     goto _sync_req_over;
   }
@@ -1066,14 +1063,14 @@ void *sdbAcceptSyncTcpConnection(void *argv) {
   int64_t            connFd = -1;
   struct sockaddr_in clientAddr;
 
-  tcpFd = taosOpenTcpServerSocket(sdbPrivateIp, sdbSyncPort);
+  tcpFd = taosOpenTcpServerSocket(sdbPrivateIp, tsMgmtSyncPort);
   if (tcpFd <= 0) {
     sdbError("failed to create sync TCP socket, reason:%s", strerror(errno));
     pPeer->status = SDB_STATUS_UNSYNCED;
     goto _sync_over;
   }
 
-  sdbTrace("sync TCP server is created, ip:%s port:%d", sdbPrivateIp, sdbSyncPort);
+  sdbTrace("sync TCP server is created, ip:%s port:%hu", sdbPrivateIp, tsMgmtSyncPort);
 
   char *    pStart, *pMsg;
   SSdbSync *pSync;
@@ -1101,7 +1098,7 @@ void *sdbAcceptSyncTcpConnection(void *argv) {
     goto _sync_over;
   }
 
-  sdbTrace("sync TCP connection from ip:%s port:%u", inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
+  sdbTrace("sync TCP connection from ip:%s port:%hu", inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
 
   sdbRestoreDbReq(connFd);
 

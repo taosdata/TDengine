@@ -299,7 +299,7 @@ int mgmtRetrieveScores(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, sdbDnodeBalanceStateStr[pDnode->lbState]);
+    strcpy(pWrite, taosGetDnodeBalanceStateStr(pDnode->lbState));
     cols++;
 
     numOfRows++;
