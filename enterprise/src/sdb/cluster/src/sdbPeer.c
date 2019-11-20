@@ -784,7 +784,9 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
     }
   }
 
-  if (pos >= 0 && pos < SDB_MAX_PEERS) sdbTrace("%s shall work as master", sdbPeer[pos]->ipstr);
+  if (pos >= 0 && pos < SDB_MAX_PEERS) {
+    sdbTrace("%s shall work as master", sdbPeer[pos]->ipstr);
+  }
 
   if ((pos == 0) && ((pSelf->status == SDB_STATUS_SERVING) || (pSelf->numOfMnodes >= sdbNumOfPeers - 1))) {
     sdbWorkAsMaster();

@@ -167,7 +167,7 @@ void mgmtUpdateMnodePublicIp(uint32_t privateIp, uint32_t oldPublicIp, uint32_t 
     if (pMnode == NULL) break;
 
     if (pMnode->ip == privateIp) {
-      mPrint("mnode:%s change public ip from %s to %s",
+      mPrint("mnode:%s, change public ip from %s to %s",
               taosIpStr(pMnode->ip), taosIpStr(pMnode->publicIp), taosIpStr(newPublicIp));
       pMnode->publicIp = newPublicIp;
       sdbUpdateRow(mnodeSdb, pMnode, tsMnodeUpdateSize, 1);

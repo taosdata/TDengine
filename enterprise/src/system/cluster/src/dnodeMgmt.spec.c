@@ -640,10 +640,22 @@ void vnodeInitMgmtIp() {
     }
   }
 
-  for (int i = 0; i < pIpList->numOfIps; ++i) tinet_ntoa(mgmtIpStr[i], pIpList->ip[i]);
+  for (int i = 0; i < pIpList->numOfIps; ++i) {
+    tinet_ntoa(mgmtIpStr[i], pIpList->ip[i]);
+  }
 
   dTrace("%d mgmt IPs are configured:", pIpList->numOfIps);
-  for (int i = 0; i < pIpList->numOfIps; ++i) dTrace("index:%d ip:%s", i, mgmtIpStr[i]);
+  for (int i = 0; i < pIpList->numOfIps; ++i) {
+    dTrace("index:%d ip:%s", i, mgmtIpStr[i]);
+  }
+
+  if (pIpList->numOfIps >= 3) {
+    strcpy(tsSecondIp, mgmtIpStr[2]);
+  }
+
+  if (pIpList->numOfIps >= 2) {
+    strcpy(tsMasterIp, mgmtIpStr[1]);
+  }
 }
 
 void vnodeSaveMgmtIp() {
