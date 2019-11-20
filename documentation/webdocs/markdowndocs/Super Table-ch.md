@@ -54,7 +54,7 @@ STable从属于库，一个STable只属于一个库，但一个库可以有一�
     说明：
 
     1. TAGS列总长度不能超过512 bytes；
-    2. TAGS列的数据类型不能是timestamp和nchar类型；
+    2. TAGS列的数据类型不能是timestamp；
     3. TAGS列名不能与其他列名相同;
     4. TAGS列名不能为预留关键字. 
 
