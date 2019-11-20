@@ -62,8 +62,8 @@ short tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
 short tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
 short tsMgmtVnodePort = 6040;   // udp[6040-6044] tcp[6040]
 short tsVnodeVnodePort = 6045;  // tcp[6045]
-short tsMgmtMgmtPort = 6050;    // sdbPeerPort only udp, numOfVnodes fixed to 1, range udp[6050]
-short tsMgmtSyncPort = 6050;    // sdbSyncPort only tcp, range tcp[6050]
+short tsMgmtMgmtPort = 6050;    // udp, numOfVnodes fixed to 1, range udp[6050]
+short tsMgmtSyncPort = 6050;    // tcp, range tcp[6050]
 
 int tsStatusInterval = 1;         // second
 int tsShellActivityTimer = 3;     // second
@@ -77,7 +77,7 @@ float tsRatioOfQueryThreads = 0.5;
 char  tsPublicIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsInternalIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsPrivateIp[TSDB_IPv4ADDR_LEN] = {0};
-char  tsServerIpStr[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
+char  tsServerIpStr[TSDB_IPv4ADDR_LEN] = "127.0.0.1";
 short tsNumOfVnodesPerCore = 8;
 short tsNumOfTotalVnodes = 0;
 short tsCheckHeaderFile = 0;
@@ -364,7 +364,7 @@ void tsReadLogOption(char *option, char *value) {
   }
 }
 
-SGlobalConfig *tsGetConfigOption(char *option) {
+SGlobalConfig *tsGetConfigOption(const char *option) {
   tsInitGlobalConfig();
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
@@ -374,7 +374,7 @@ SGlobalConfig *tsGetConfigOption(char *option) {
   return NULL;
 }
 
-void tsReadConfigOption(char *option, char *value) {
+void tsReadConfigOption(const char *option, char *value) {
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
     if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_CONFIG)) continue;
@@ -423,9 +423,7 @@ void tsInitConfigOption(SGlobalConfig *cfg, char *name, void *ptr, int8_t valTyp
   cfg->cfgStatus = TSDB_CFG_CSTATUS_NONE;
 }
 
-void tsInitGlobalConfig() {
-  if (tsGlobalConfig != NULL) return;
-
+static void doInitGlobalConfig() {
   tsGlobalConfig = (SGlobalConfig *) malloc(sizeof(SGlobalConfig) * TSDB_CFG_MAX_NUM);
   memset(tsGlobalConfig, 0, sizeof(SGlobalConfig) * TSDB_CFG_MAX_NUM);
 
@@ -535,6 +533,11 @@ void tsInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
                      0, 2, 0, TSDB_CFG_UTYPE_NONE);
   // 0-any, 1-mgmt, 2-dnode
+
+  // timer
+  tsInitConfigOption(cfg++, "maxTmrCtrl", &taosMaxTmrCtrl, TSDB_CFG_VTYPE_INT,
+                    TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                    8, 2048, 0, TSDB_CFG_UTYPE_NONE);
 
   // time
   tsInitConfigOption(cfg++, "monitorInterval", &tsMonitorInterval, TSDB_CFG_VTYPE_INT,
@@ -776,6 +779,11 @@ void tsInitGlobalConfig() {
                      0, 0, 0, TSDB_CFG_UTYPE_NONE);
 
   tsGlobalConfigNum = (int)(cfg - tsGlobalConfig);
+}
+
+static pthread_once_t initGlobalConfig = PTHREAD_ONCE_INIT;
+void tsInitGlobalConfig() {
+  pthread_once(&initGlobalConfig, doInitGlobalConfig);
 }
 
 void tsReadGlobalLogConfig() {

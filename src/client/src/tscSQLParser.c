@@ -81,7 +81,7 @@ static bool validateIpAddress(char* ip);
 static bool hasUnsupportFunctionsForMetricQuery(SSqlCmd* pCmd);
 static bool functionCompatibleCheck(SSqlCmd* pCmd);
 
-static void setColumnOffsetValueInResultset(SSqlCmd* pCmd);
+static void    setColumnOffsetValueInResultset(SSqlCmd* pCmd);
 static int32_t parseGroupbyClause(SSqlCmd* pCmd, tVariantList* pList);
 
 static int32_t parseIntervalClause(SSqlCmd* pCmd, SQuerySQL* pQuerySql);
@@ -94,7 +94,7 @@ static int32_t parseFillClause(SSqlCmd* pCmd, SQuerySQL* pQuerySQL);
 static int32_t parseOrderbyClause(SSqlCmd* pCmd, SQuerySQL* pQuerySql, SSchema* pSchema, int32_t numOfCols);
 
 static int32_t tsRewriteFieldNameIfNecessary(SSqlCmd* pCmd);
-static bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField);
+static bool    validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField);
 static int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
 static int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd);
 static int32_t buildArithmeticExprString(tSQLExpr* pExpr, char** exprString);
@@ -105,8 +105,8 @@ static int32_t validateLocalConfig(tDCLSQL* pOptions);
 static int32_t validateColumnName(char* name);
 static int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
 
-static bool hasTimestampForPointInterpQuery(SSqlCmd* pCmd);
-static void updateTagColumnIndex(SSqlCmd* pCmd, int32_t tableIndex);
+static bool    hasTimestampForPointInterpQuery(SSqlCmd* pCmd);
+static void    updateTagColumnIndex(SSqlCmd* pCmd, int32_t tableIndex);
 static int32_t parseLimitClause(SSqlObj* pSql, SQuerySQL* pQuerySql);
 
 static int32_t parseCreateDBOptions(SCreateDBInfo* pCreateDbSql, SSqlCmd* pCmd);
@@ -115,13 +115,12 @@ static int32_t getTableIndexByName(SSQLToken* pToken, SSqlCmd* pCmd, SColumnInde
 static int32_t optrToString(tSQLExpr* pExpr, char** exprString);
 
 static SColumnList getColumnList(int32_t num, int16_t tableIndex, int32_t columnIndex);
-static int32_t getMeterIndex(SSQLToken* pTableToken, SSqlCmd* pCmd, SColumnIndex* pIndex);
-static int32_t doFunctionsCompatibleCheck(SSqlObj* pSql);
+static int32_t     getMeterIndex(SSQLToken* pTableToken, SSqlCmd* pCmd, SColumnIndex* pIndex);
+static int32_t     doFunctionsCompatibleCheck(SSqlObj* pSql);
 
 static int32_t tscQueryOnlyMetricTags(SSqlCmd* pCmd, bool* queryOnMetricTags) {
   assert(QUERY_IS_STABLE_QUERY(pCmd->type));
 
-  // here colIdx == -1 means the special column tbname that is the name of each table
   *queryOnMetricTags = true;
   for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pCmd, i);
@@ -1151,7 +1150,7 @@ int32_t parseIntervalClause(SSqlCmd* pCmd, SQuerySQL* pQuerySql) {
   }
 
   // check the invalid sql expresssion: select count(tbname)/count(tag1)/count(tag2) from super_table interval(1d);
-  for(int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pCmd, i);
     if (pExpr->functionId == TSDB_FUNC_COUNT && TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
       setErrMsg(pCmd, msg1);
@@ -2791,70 +2790,19 @@ static bool functionCompatibleCheck(SSqlCmd* pCmd) {
   // diff function cannot be executed with other function
   // arithmetic function can be executed with other arithmetic functions
   for (int32_t i = startIdx + 1; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
-    int16_t functionId = tscSqlExprGet(pCmd, i)->functionId;
-    if (functionId == TSDB_FUNC_TAGPRJ ||
-        functionId == TSDB_FUNC_TAG ||
-        functionId == TSDB_FUNC_TS) {
+    SSqlExpr* pExpr = tscSqlExprGet(pCmd, i);
+
+    int16_t functionId = pExpr->functionId;
+    if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS) {
+      continue;
+    }
+
+    if (functionId == TSDB_FUNC_PRJ && pExpr->colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
       continue;
     }
 
     if (funcCompatDefList[functionId] != factor) {
       return false;
-    }
-  }
-
-  // additional check for select aggfuntion(column), column1 from table_name group by(column1);
-  if ((pCmd->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) == TSDB_QUERY_TYPE_PROJECTION_QUERY) {
-    bool isAggFunc = false;
-    for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
-      int16_t functionId = tscSqlExprGet(pCmd, i)->functionId;
-
-      if (functionId == TSDB_FUNC_PRJ ||
-          functionId == TSDB_FUNC_TAGPRJ ||
-          functionId == TSDB_FUNC_TS ||
-          functionId == TSDB_FUNC_ARITHM) {
-        continue;
-      }
-
-      if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) == 0) {
-        isAggFunc = true;
-        break;
-      }
-    }
-
-    // TODO change the type, the type is not correct
-    if (isAggFunc) {
-      pCmd->type &= (~TSDB_QUERY_TYPE_PROJECTION_QUERY);
-
-      // agg function mixed up with project query without group by exists
-      if (pCmd->groupbyExpr.numOfGroupCols == 0) {
-        return false;
-      }
-
-      // get the project column
-      int32_t numOfPrjColumn = 0;
-      for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
-        SSqlExpr* pExpr = tscSqlExprGet(pCmd, i);
-        if (pExpr->functionId == TSDB_FUNC_PRJ) {
-          numOfPrjColumn += 1;
-
-          bool qualifiedCol = false;
-          for (int32_t j = 0; j < pCmd->groupbyExpr.numOfGroupCols; ++j) {
-            if (pExpr->colInfo.colId == pCmd->groupbyExpr.columnInfo[j].colId) {
-              qualifiedCol = true;
-
-              pExpr->param[0].i64Key = 1;  // limit the output to be 1 for each state value
-              pExpr->numOfParams = 1;
-              break;
-            }
-          }
-
-          if (!qualifiedCol) {
-            setErrMsg(pCmd, msg1);
-            return false;
-          }
-        }
-      }
     }
   }
 
@@ -4986,19 +4934,37 @@ int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd) {
 
 int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd) {
   bool        isProjectionFunction = false;
-  const char* msg = "column projection is not compatible with interval";
-
+  const char* msg1 = "column projection is not compatible with interval";
+  const char* msg2 = "interval not allowed for tag queries";
+  
   // multi-output set/ todo refactor
   for (int32_t k = 0; k < pCmd->fieldsInfo.numOfOutputCols; ++k) {
     SSqlExpr* pExpr = tscSqlExprGet(pCmd, k);
+    
+    // projection query on primary timestamp, the selectivity function needs to be present.
+    if (pExpr->functionId == TSDB_FUNC_PRJ && pExpr->colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      bool hasSelectivity = false;
+      for(int32_t j = 0; j < pCmd->fieldsInfo.numOfOutputCols; ++j) {
+        SSqlExpr* pEx = tscSqlExprGet(pCmd, j);
+        if ((aAggs[pEx->functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) == TSDB_FUNCSTATE_SELECTIVITY) {
+          hasSelectivity = true;
+          break;
+        }
+      }
+      
+      if (hasSelectivity) {
+        continue;
+      }
+    }
+    
     if (pExpr->functionId == TSDB_FUNC_PRJ || pExpr->functionId == TSDB_FUNC_DIFF ||
-        pExpr->functionId == TSDB_FUNC_ARITHM) {
+       pExpr->functionId == TSDB_FUNC_ARITHM) {
       isProjectionFunction = true;
     }
   }
 
   if (isProjectionFunction) {
-    setErrMsg(pCmd, msg);
+    setErrMsg(pCmd, msg1);
   }
 
   return isProjectionFunction == true ? TSDB_CODE_INVALID_SQL : TSDB_CODE_SUCCESS;
@@ -5164,8 +5130,7 @@ int32_t parseLimitClause(SSqlObj* pSql, SQuerySQL* pQuerySql) {
 
   if (UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
     bool    queryOnTags = false;
-    int32_t ret = tscQueryOnlyMetricTags(pCmd, &queryOnTags);
-    if (ret != TSDB_CODE_SUCCESS) {
+    if (tscQueryOnlyMetricTags(pCmd, &queryOnTags) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_INVALID_SQL;
     }
 
@@ -5382,8 +5347,8 @@ static void doUpdateSqlFunctionForTagPrj(SSqlCmd* pCmd) {
     }
   }
 
-  int16_t         resType = 0;
-  int16_t         resBytes = 0;
+  int16_t resType = 0;
+  int16_t resBytes = 0;
 
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
   SSchema*        pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
@@ -5394,6 +5359,27 @@ static void doUpdateSqlFunctionForTagPrj(SSqlCmd* pCmd) {
       SSchema* pColSchema = &pSchema[pExpr->colInfo.colIdx];
       getResultDataInfo(pColSchema->type, pColSchema->bytes, pExpr->functionId, pExpr->param[0].i64Key, &pExpr->resType,
                         &pExpr->resBytes, &pExpr->interResBytes, tagLength, true);
+    }
+  }
+}
+
+static void doUpdateSqlFunctionForColPrj(SSqlCmd* pCmd) {
+  for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
+    SSqlExpr *pExpr = tscSqlExprGet(pCmd, i);
+    if (pExpr->functionId == TSDB_FUNC_PRJ) {
+      
+      bool qualifiedCol = false;
+      for (int32_t j = 0; j < pCmd->groupbyExpr.numOfGroupCols; ++j) {
+        if (pExpr->colInfo.colId == pCmd->groupbyExpr.columnInfo[j].colId) {
+          qualifiedCol = true;
+          
+          pExpr->param[0].i64Key = 1;  // limit the output to be 1 for each state value
+          pExpr->numOfParams = 1;
+          break;
+        }
+      }
+      
+      assert(qualifiedCol);
     }
   }
 }
@@ -5462,9 +5448,10 @@ static void updateTagPrjFunction(SSqlCmd* pCmd) {
 static int32_t checkUpdateTagPrjFunctions(SSqlCmd* pCmd) {
   const char* msg1 = "only one selectivity function allowed in presence of tags function";
   const char* msg2 = "functions not allowed";
-
+  const char* msg3 = "aggregation function should not be mixed up with projection";
+  
   bool    tagColExists = false;
-  int16_t numOfTimestamp = 0;    // primary timestamp column
+  int16_t numOfTimestamp = 0;  // primary timestamp column
   int16_t numOfSelectivity = 0;
   int16_t numOfAggregation = 0;
 
@@ -5476,24 +5463,24 @@ static int32_t checkUpdateTagPrjFunctions(SSqlCmd* pCmd) {
       break;
     }
   }
-
-  if (tagColExists) {  // check if the selectivity function exists
-    for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
-      int16_t functionId = tscSqlExprGet(pCmd, i)->functionId;
-      if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS) {
-        continue;
-      }
-
-      if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
-        numOfSelectivity++;
-      } else {
-        numOfAggregation++;
-      }
+  
+  for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
+    int16_t functionId = tscSqlExprGet(pCmd, i)->functionId;
+    if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS) {
+      continue;
     }
-
+    
+    if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
+      numOfSelectivity++;
+    } else {
+      numOfAggregation++;
+    }
+  }
+  
+  if (tagColExists) {  // check if the selectivity function exists
     // When the tag projection function on tag column that is not in the group by clause, aggregation function and
     // selectivity function exist in select clause is not allowed.
-    if(numOfAggregation > 0) {
+    if (numOfAggregation > 0) {
       setErrMsg(pCmd, msg1);
       return TSDB_CODE_INVALID_SQL;
     }
@@ -5503,6 +5490,7 @@ static int32_t checkUpdateTagPrjFunctions(SSqlCmd* pCmd) {
      */
     if (numOfSelectivity == 1) {
       doUpdateSqlFunctionForTagPrj(pCmd);
+      doUpdateSqlFunctionForColPrj(pCmd);
     } else if (numOfSelectivity > 1) {
       /*
        * If more than one selectivity functions exist, all the selectivity functions must be last_row.
@@ -5521,6 +5509,20 @@ static int32_t checkUpdateTagPrjFunctions(SSqlCmd* pCmd) {
       }
 
       doUpdateSqlFunctionForTagPrj(pCmd);
+      doUpdateSqlFunctionForColPrj(pCmd);
+    }
+  } else {
+    if ((pCmd->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) == TSDB_QUERY_TYPE_PROJECTION_QUERY) {
+      if (numOfAggregation > 0 && pCmd->groupbyExpr.numOfGroupCols == 0) {
+        setErrMsg(pCmd, msg3);
+        return TSDB_CODE_INVALID_SQL;
+      }
+  
+      if (numOfAggregation > 0 || numOfSelectivity > 0) {
+        // clear the projection type flag
+        pCmd->type &= (~TSDB_QUERY_TYPE_PROJECTION_QUERY);
+        doUpdateSqlFunctionForColPrj(pCmd);
+      }
     }
   }
 
@@ -5598,14 +5600,14 @@ int32_t doFunctionsCompatibleCheck(SSqlObj* pSql) {
   const char* msg2 = "interval not allowed in group by normal column";
   const char* msg3 = "group by not allowed on projection query";
   const char* msg4 = "tags retrieve not compatible with group by";
-  const char* msg5 = "retrieve tags not compatible with group by ";
+  const char* msg5 = "retrieve tags not compatible with group by or interval query";
 
   SSqlCmd*        pCmd = &pSql->cmd;
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
 
   // only retrieve tags, group by is not supportted
   if (pCmd->command == TSDB_SQL_RETRIEVE_TAGS) {
-    if (pCmd->groupbyExpr.numOfGroupCols > 0) {
+    if (pCmd->groupbyExpr.numOfGroupCols > 0 || pCmd->nAggTimeInterval > 0) {
       setErrMsg(pCmd, msg5);
       return TSDB_CODE_INVALID_SQL;
     } else {
@@ -5634,7 +5636,7 @@ int32_t doFunctionsCompatibleCheck(SSqlObj* pSql) {
        * group by normal columns.
        * Check if the column projection is identical to the group by column or not
        */
-      if (functId == TSDB_FUNC_PRJ) {
+      if (functId == TSDB_FUNC_PRJ && pExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
         bool qualified = false;
         for (int32_t j = 0; j < pCmd->groupbyExpr.numOfGroupCols; ++j) {
           SColIndexEx* pColIndex = &pCmd->groupbyExpr.columnInfo[j];
@@ -5650,7 +5652,7 @@ int32_t doFunctionsCompatibleCheck(SSqlObj* pSql) {
       }
 
       if (IS_MULTIOUTPUT(aAggs[functId].nStatus) && functId != TSDB_FUNC_TOP && functId != TSDB_FUNC_BOTTOM &&
-          functId != TSDB_FUNC_TAGPRJ) {
+          functId != TSDB_FUNC_TAGPRJ && functId != TSDB_FUNC_PRJ) {
         setErrMsg(pCmd, msg1);
         return TSDB_CODE_INVALID_SQL;
       }
@@ -5678,6 +5680,8 @@ int32_t doFunctionsCompatibleCheck(SSqlObj* pSql) {
       setErrMsg(pCmd, msg3);
       return TSDB_CODE_INVALID_SQL;
     }
+    
+    return TSDB_CODE_SUCCESS;
   } else {
     return checkUpdateTagPrjFunctions(pCmd);
   }

@@ -14,10 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <endian.h>
-#include <stdint.h>
+#include "os.h"
+
 #include "taosmsg.h"
 #include "vnode.h"
 #include "vnodeShell.h"
@@ -29,6 +27,7 @@
 #include "vnode.h"
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
+#include "vnodeStore.h"
 
 #pragma GCC diagnostic ignored "-Wint-conversion"
 extern int tsMaxQueues;
@@ -91,9 +90,9 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   // if ( vnodeList[vnode].status != TSDB_STATUS_MASTER && pMsg->msgType != TSDB_MSG_TYPE_RETRIEVE ) {
 
 #ifdef CLUSTER
-  if (vnodeList[vnode].status != TSDB_STATUS_MASTER) {
+  if (vnodeList[vnode].vnodeStatus != TSDB_VNODE_STATUS_MASTER) {
     taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_NOT_READY);
-    dTrace("vid:%d sid:%d, shell msg is ignored since in state:%d", vnode, sid, vnodeList[vnode].status);
+    dTrace("vid:%d sid:%d, shell msg is ignored since in state:%d", vnode, sid, vnodeList[vnode].vnodeStatus);
   } else {
 #endif
     dTrace("vid:%d sid:%d, msg:%s is received pConn:%p", vnode, sid, taosMsg[pMsg->msgType], thandle);
@@ -156,6 +155,11 @@ int vnodeInitShell() {
 }
 
 int vnodeOpenShellVnode(int vnode) {
+  if (shellList[vnode] != NULL) {
+    dError("vid:%d, shell is already opened", vnode);
+    return -1;
+  }
+
   const int32_t MIN_NUM_OF_SESSIONS = 300;
 
   SVnodeCfg *pCfg = &vnodeList[vnode].cfg;
@@ -164,23 +168,29 @@ int vnodeOpenShellVnode(int vnode) {
   size_t size = sessions * sizeof(SShellObj);
   shellList[vnode] = (SShellObj *)calloc(1, size);
   if (shellList[vnode] == NULL) {
-    dError("vid:%d failed to allocate shellObj, size:%d", vnode, size);
+    dError("vid:%d, sessions:%d, failed to allocate shellObj, size:%d", vnode, pCfg->maxSessions, size);
     return -1;
   }
 
   if(taosOpenRpcChannWithQ(pShellServer, vnode, sessions, rpcQhandle[(vnode+1)%tsMaxQueues]) != TSDB_CODE_SUCCESS) {
+    dError("vid:%d, sessions:%d, failed to open shell", vnode, pCfg->maxSessions);
     return -1;
   }
 
+  dTrace("vid:%d, sessions:%d, shell is opened", vnode, pCfg->maxSessions);
   return TSDB_CODE_SUCCESS;
 }
 
 static void vnodeDelayedFreeResource(void *param, void *tmrId) {
   int32_t vnode = *(int32_t*) param;
-  taosCloseRpcChann(pShellServer, vnode); // close connection
-  tfree (shellList[vnode]);  //free SShellObj
+  dTrace("vid:%d, start to free resources", vnode);
 
+  taosCloseRpcChann(pShellServer, vnode); // close connection
+  tfree(shellList[vnode]);  //free SShellObj
   tfree(param);
+
+  memset(vnodeList + vnode, 0, sizeof(SVnodeObj));
+  vnodeCalcOpenVnodes();
 }
 
 void vnodeCloseShellVnode(int vnode) {
@@ -269,7 +279,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pQueryMsg->vnode >= TSDB_MAX_VNODES || pQueryMsg->vnode < 0) {
     dTrace("qmsg:%p,vid:%d is out of range", pQueryMsg, pQueryMsg->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_TABLE_ID;
     goto _query_over;
   }
 
@@ -278,7 +288,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (pVnode->cfg.maxSessions == 0) {
     dError("qmsg:%p,vid:%d is not activated yet", pQueryMsg, pQueryMsg->vnode);
     vnodeSendVpeerCfgMsg(pQueryMsg->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    code = TSDB_CODE_NOT_ACTIVE_TABLE;
     goto _query_over;
   }
 
@@ -295,7 +305,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pVnode->meterList == NULL) {
     dError("qmsg:%p,vid:%d has been closed", pQueryMsg, pQueryMsg->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _query_over;
   }
 
@@ -305,7 +315,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
       dTrace("qmsg:%p sid:%d is out of range, valid range:[%d,%d]", pQueryMsg, pSids[i]->sid, 0,
              pVnode->cfg.maxSessions);
 
-      code = TSDB_CODE_INVALID_SESSION_ID;
+      code = TSDB_CODE_INVALID_TABLE_ID;
       goto _query_over;
     }
   }
@@ -365,7 +375,7 @@ _query_over:
     vnodeFreeColumnInfo(&pQueryMsg->colList[i]);
   }
 
-  __sync_fetch_and_add(&vnodeSelectReqNum, 1);
+  atomic_fetch_add_32(&vnodeSelectReqNum, 1);
   return ret;
 }
 
@@ -385,14 +395,21 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   pRetrieve = (SRetrieveMeterMsg *)pMsg;
   pRetrieve->free = htons(pRetrieve->free);
 
+  if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
+    dTrace("retrieve msg, handle:%p, free:%d", pRetrieve->qhandle, pRetrieve->free);
+  } else {
+    dTrace("retrieve msg to free resource from client, handle:%p, free:%d", pRetrieve->qhandle, pRetrieve->free);
+  }
+
   /*
    * in case of server restart, apps may hold qhandle created by server before restart,
    * which is actually invalid, therefore, signature check is required.
    */
   if (pRetrieve->qhandle == (uint64_t)pObj->qhandle) {
     // if free flag is set, client wants to clean the resources
-    if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE)
+    if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
       code = vnodeRetrieveQueryInfo((void *)(pRetrieve->qhandle), &numOfRows, &rowSize, &timePrec);
+    }
   } else {
     dError("QInfo:%p, qhandle:%p is not matched with saved:%p", pObj->qhandle, pRetrieve->qhandle, pObj->qhandle);
     code = TSDB_CODE_INVALID_QHANDLE;
@@ -419,7 +436,7 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
 
   if (code == TSDB_CODE_SUCCESS) {
     pRsp->offset = htobe64(vnodeGetOffsetVal(pRetrieve->qhandle));
-    pRsp->useconds = ((SQInfo *)(pRetrieve->qhandle))->useconds;
+    pRsp->useconds = htobe64(((SQInfo *)(pRetrieve->qhandle))->useconds);
   } else {
     pRsp->offset = 0;
     pRsp->useconds = 0;
@@ -481,7 +498,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pSubmit->vnode >= TSDB_MAX_VNODES || pSubmit->vnode < 0) {
     dTrace("vnode:%d is out of range", pSubmit->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_VNODE_ID;
     goto _submit_over;
   }
 
@@ -489,7 +506,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (pVnode->cfg.maxSessions == 0 || pVnode->meterList == NULL) {
     dError("vid:%d is not activated for submit", pSubmit->vnode);
     vnodeSendVpeerCfgMsg(pSubmit->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _submit_over;
   }
 
@@ -522,7 +539,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
     if (pBlocks->sid >= pVnode->cfg.maxSessions || pBlocks->sid <= 0) {
       dTrace("sid:%d is out of range", pBlocks->sid);
-      code = TSDB_CODE_INVALID_SESSION_ID;
+      code = TSDB_CODE_INVALID_TABLE_ID;
       goto _submit_over;
     }
 
@@ -531,9 +548,9 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
     SMeterObj *pMeterObj = vnodeList[vnode].meterList[sid];
     if (pMeterObj == NULL) {
-      dError("vid:%d sid:%d, no active session", vnode, sid);
+      dError("vid:%d sid:%d, no active table", vnode, sid);
       vnodeSendMeterCfgMsg(vnode, sid);
-      code = TSDB_CODE_NOT_ACTIVE_SESSION;
+      code = TSDB_CODE_NOT_ACTIVE_TABLE;
       goto _submit_over;
     }
 
@@ -572,7 +589,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
       if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DELETING)) {
         dTrace("vid:%d sid:%d id:%s, it is removed, state:%d", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId,
                pMeterObj->state);
-        code = TSDB_CODE_NOT_ACTIVE_SESSION;
+        code = TSDB_CODE_NOT_ACTIVE_TABLE;
         break;
       } else {// waiting for 300ms by default and try again
         dTrace("vid:%d sid:%d id:%s, try submit again since in state:%d", pMeterObj->vnode, pMeterObj->sid,
@@ -592,6 +609,6 @@ _submit_over:
   // for import, send the submit response only when return code is not zero
   if (pSubmit->import == 0 || code != 0) ret = vnodeSendShellSubmitRspMsg(pObj, code, numOfTotalPoints);
 
-  __sync_fetch_and_add(&vnodeInsertReqNum, 1);
+  atomic_fetch_add_32(&vnodeInsertReqNum, 1);
   return ret;
 }

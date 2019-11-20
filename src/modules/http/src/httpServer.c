@@ -13,23 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <syslog.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "taosmsg.h"
 #include "tlog.h"
@@ -72,7 +56,7 @@ void httpRemoveContextFromEpoll(HttpThread *pThread, HttpContext *pContext) {
 }
 
 bool httpAlterContextState(HttpContext *pContext, HttpContextState srcState, HttpContextState destState) {
-  return (__sync_val_compare_and_swap_32(&pContext->state, srcState, destState) == srcState);
+  return (atomic_val_compare_exchange_32(&pContext->state, srcState, destState) == srcState);
 }
 
 void httpFreeContext(HttpServer *pServer, HttpContext *pContext);
@@ -124,7 +108,7 @@ void httpCleanUpContextTimer(HttpContext *pContext) {
 
 void httpCleanUpContext(HttpContext *pContext) {
   httpTrace("context:%p, start the clean up operation", pContext);
-  __sync_val_compare_and_swap_64(&pContext->signature, pContext, 0);
+  atomic_val_compare_exchange_ptr(&pContext->signature, pContext, 0);
   if (pContext->signature != NULL) {
     httpTrace("context:%p is freed by another thread.", pContext);
     return;
@@ -494,7 +478,7 @@ void httpProcessHttpData(void *param) {
       } else {
         if (httpReadData(pThread, pContext)) {
           (*(pThread->processData))(pContext);
-          __sync_fetch_and_add(&pThread->pServer->requestNum, 1);
+          atomic_fetch_add_32(&pThread->pServer->requestNum, 1);
         }
       }
     }

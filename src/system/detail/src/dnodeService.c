@@ -14,20 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <errno.h>
-#include <fcntl.h>
-#include <locale.h>
-#include <pthread.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <syslog.h>
-#include <unistd.h>
-#include <unistd.h>
-#include <wordexp.h>
+
+#include "os.h"
 
 #include "dnodeSystem.h"
 #include "tglobalcfg.h"

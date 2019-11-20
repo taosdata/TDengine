@@ -13,17 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <assert.h>
-#include <float.h>
-#include <math.h>
-
-#include <errno.h>
-
 #include "os.h"
 #include "taos.h"
 #include "taosmsg.h"
@@ -60,7 +49,7 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   strcat(tmpPath, fileNamePrefix);
   strcat(tmpPath, "-%u-%u");
 
-  snprintf(dstPath, MAX_TMPFILE_PATH_LENGTH, tmpPath, taosGetPthreadId(), __sync_add_and_fetch_32(&tmpFileSerialNum, 1));
+  snprintf(dstPath, MAX_TMPFILE_PATH_LENGTH, tmpPath, taosGetPthreadId(), atomic_add_fetch_32(&tmpFileSerialNum, 1));
 }
 
 /*

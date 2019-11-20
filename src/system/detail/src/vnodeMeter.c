@@ -14,10 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include "os.h"
 
 #include "trpc.h"
 #include "tschemautil.h"
@@ -618,7 +615,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
       dWarn("vid:%d sid:%d id:%s, meter is dropped, abort insert, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
             pObj->state);
 
-      code = TSDB_CODE_NOT_ACTIVE_SESSION;
+      code = TSDB_CODE_NOT_ACTIVE_TABLE;
       break;
     }
 
@@ -643,8 +640,8 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     pData += pObj->bytesPerPoint;
     points++;
   }
-  __sync_fetch_and_add(&(pVnode->vnodeStatistic.pointsWritten), points * (pObj->numOfColumns - 1));
-  __sync_fetch_and_add(&(pVnode->vnodeStatistic.totalStorage), points * pObj->bytesPerPoint);
+  atomic_fetch_add_64(&(pVnode->vnodeStatistic.pointsWritten), points * (pObj->numOfColumns - 1));
+  atomic_fetch_add_64(&(pVnode->vnodeStatistic.totalStorage), points * pObj->bytesPerPoint);
 
   pthread_mutex_lock(&(pVnode->vmutex));
 

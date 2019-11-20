@@ -30,6 +30,9 @@
 #include <wordexp.h>
 
 #include "taos.h"
+
+extern char configDir[];
+
 #pragma GCC diagnostic ignored "-Wmissing-braces"
 
 #define BUFFER_SIZE      65536
@@ -176,7 +179,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }
-      strcpy(configDir, full_path.we_wordv[0]);
+      taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
       wordfree(&full_path);
       break;
     case OPT_ABORT:

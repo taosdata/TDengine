@@ -15,13 +15,12 @@
 
 #define _DEFAULT_SOURCE
 
-#include <arpa/inet.h>
-#include <endian.h>
-#include <stdbool.h>
+#include "os.h"
 
 #include "dnodeSystem.h"
 #include "mgmt.h"
 #include "tschemautil.h"
+#include "tstatus.h"
 #include "tstatus.h"
 
 bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType);
@@ -45,9 +44,9 @@ void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
   pDnode->openVnodes = 0;
 
 #ifdef CLUSTER
-  pDnode->status = TSDB_STATUS_OFFLINE;
+  pDnode->status = TSDB_DNODE_STATUS_OFFLINE;
 #else
-  pDnode->status = TSDB_STATUS_READY;
+  pDnode->status = TSDB_DNODE_STATUS_READY;
 #endif
 }
 
@@ -59,9 +58,9 @@ void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode) {
     if (pVload->vgId != 0) {
       mTrace("dnode:%s, calc free vnodes, exist vnode:%d, vgroup:%d, state:%d %s, dropstate:%d %s, syncstatus:%d %s",
              taosIpStr(pDnode->privateIp), i, pVload->vgId,
-             pVload->status, sdbDnodeStatusStr[pVload->status],
-             pVload->dropStatus, sdbVnodeDropStateStr[pVload->dropStatus],
-             pVload->syncStatus, sdbVnodeSyncStatusStr[pVload->syncStatus]);
+             pVload->status, taosGetDnodeStatusStr(pVload->status),
+             pVload->dropStatus, taosGetVnodeDropStatusStr(pVload->dropStatus),
+             pVload->syncStatus, taosGetVnodeSyncStatusStr(pVload->syncStatus));
       totalVnodes++;
     }
   }
@@ -198,11 +197,11 @@ int mgmtRetrieveDnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, sdbDnodeStatusStr[pDnode->status]);
+    strcpy(pWrite, taosGetDnodeStatusStr(pDnode->status) );
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, sdbDnodeBalanceStateStr[pDnode->lbState]);
+    strcpy(pWrite, taosGetDnodeBalanceStateStr(pDnode->lbState));
     cols++;
 
     tinet_ntoa(ipstr, pDnode->publicIp);
@@ -294,7 +293,7 @@ int mgmtRetrieveModules(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, sdbDnodeStatusStr[pDnode->status]);
+      strcpy(pWrite, taosGetDnodeStatusStr(pDnode->status) );
       cols++;
 
       numOfRows++;

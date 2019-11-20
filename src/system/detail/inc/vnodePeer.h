@@ -16,7 +16,7 @@
 #ifndef TDENGINE_VNODEPEER_H
 #define TDENGINE_VNODEPEER_H
 
-#include <stdint.h>
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {

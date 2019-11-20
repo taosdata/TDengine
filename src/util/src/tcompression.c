@@ -46,12 +46,6 @@
  *   of the XORed value with informations. If not, record the first corresponding bytes.
  *
  */
-#include <assert.h>
-#include <limits.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "os.h"
 #include "lz4.h"

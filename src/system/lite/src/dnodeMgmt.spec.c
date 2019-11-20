@@ -50,7 +50,7 @@ char *taosBuildReqMsgToMnode(SMgmtObj *pObj, char type) {
 }
 
 int taosSendMsgToMnode(SMgmtObj *pObj, char *msg, int msgLen) {
-  mTrace("msg:%s is sent to mnode", taosMsg[*(msg-1)]);
+  dTrace("msg:%s is sent to mnode", taosMsg[*(msg-1)]);
 
   /*
    * Lite version has no message header, so minus one

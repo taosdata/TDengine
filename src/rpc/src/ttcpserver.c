@@ -13,16 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <errno.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "os.h"
 #include "taosmsg.h"
 #include "tlog.h"
@@ -195,8 +185,9 @@ static void taosProcessTcpData(void *param) {
 
       void *buffer = malloc(1024);
       int   headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(STaosHeader));
+
       if (headLen != sizeof(STaosHeader)) {
-        tError("%s read error, headLen:%d", pThreadObj->label, headLen);
+        tError("%s read error, headLen:%d, errno:%d", pThreadObj->label, headLen, errno);
         taosCleanUpFdObj(pFdObj);
         tfree(buffer);
         continue;

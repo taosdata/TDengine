@@ -82,7 +82,7 @@ void mgmtCleanUpDnodeInt() {}
 void mgmtProcessDnodeStatus(void *handle, void *tmrId) {
   SDnodeObj *pObj = &dnodeObj;
   pObj->openVnodes = tsOpenVnodes;
-  pObj->status = TSDB_STATUS_READY;
+  pObj->status = TSDB_DNODE_STATUS_READY;
 
   float memoryUsedMB = 0;
   taosGetSysMemory(&memoryUsedMB);
@@ -97,7 +97,7 @@ void mgmtProcessDnodeStatus(void *handle, void *tmrId) {
       if (vnodeList[vnode].cfg.maxSessions <= 0) {
         pVload->dropStatus = TSDB_VN_STATUS_READY;
         pVload->status = TSDB_VN_STATUS_READY;
-        mPrint("vid:%d, drop finished", pObj->privateIp, vnode);
+        mPrint("dnode:%s, vid:%d, drop finished", taosIpStr(pObj->privateIp), vnode);
         taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, mgmtTmr);
       }
     }

@@ -13,27 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <argp.h>
-#include <assert.h>
-#include <assert.h>
-#include <error.h>
-#include <pwd.h>
-#include <regex.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <termios.h>
-#include <time.h>
-#include <unistd.h>
-#include <wordexp.h>
-
 #define __USE_XOPEN
 
-#include <wchar.h>
+#include "os.h"
 
 #include "shell.h"
 #include "shellCommand.h"

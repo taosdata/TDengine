@@ -25,6 +25,14 @@
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/resource.h>
+#include <sys/sysctl.h>
+#include <sys/syscall.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <linux/sysctl.h>
 
 #include "tglobalcfg.h"
 #include "tlog.h"
@@ -208,25 +216,6 @@ void taosGetSystemTimezone() {
 
   cfg_timezone->cfgStatus = TSDB_CFG_CSTATUS_DEFAULT;
   pPrint("timezone not configured, set to system default:%s", tsTimezone);
-}
-
-typedef struct CharsetPair {
-  char *oldCharset;
-  char *newCharset;
-} CharsetPair;
-
-char *taosCharsetReplace(char *charsetstr) {
-  CharsetPair charsetRep[] = {
-      {"utf8", "UTF-8"}, {"936", "CP936"},
-  };
-
-  for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
-    if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
-      return strdup(charsetRep[i].newCharset);
-    }
-  }
-
-  return strdup(charsetstr);
 }
 
 /*
@@ -596,3 +585,122 @@ void taosKillSystem() {
   pPrint("taosd will shut down soon");
   kill(tsProcId, 2);
 }
+
+
+int _sysctl(struct __sysctl_args *args );
+void taosSetCoreDump() {
+  // 1. set ulimit -c unlimited
+  struct rlimit rlim;
+  struct rlimit rlim_new;
+  if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
+    pPrint("the old unlimited para: rlim_cur=%d, rlim_max=%d", rlim.rlim_cur, rlim.rlim_max);
+    rlim_new.rlim_cur = RLIM_INFINITY;
+    rlim_new.rlim_max = RLIM_INFINITY;
+    if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
+      pPrint("set unlimited fail, error: %s", strerror(errno));
+      rlim_new.rlim_cur = rlim.rlim_max;
+      rlim_new.rlim_max = rlim.rlim_max;
+      (void)setrlimit(RLIMIT_CORE, &rlim_new);
+    }
+  }
+
+  if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
+    pPrint("the new unlimited para: rlim_cur=%d, rlim_max=%d", rlim.rlim_cur, rlim.rlim_max);
+  }
+
+  // 2. set the path for saving core file
+  struct __sysctl_args args;
+  int     old_usespid = 0;
+  size_t  old_len     = 0;
+  int     new_usespid = 1;
+  size_t  new_len     = sizeof(new_usespid);
+  
+  int name[] = {CTL_KERN, KERN_CORE_USES_PID};
+  
+  memset(&args, 0, sizeof(struct __sysctl_args));
+  args.name    = name;
+  args.nlen    = sizeof(name)/sizeof(name[0]);
+  args.oldval  = &old_usespid;
+  args.oldlenp = &old_len;
+  args.newval  = &new_usespid;
+  args.newlen  = new_len;
+  
+  old_len = sizeof(old_usespid);
+  
+  if (syscall(SYS__sysctl, &args) == -1) {
+      pPrint("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
+  }
+  
+  pPrint("The old core_uses_pid[%d]: %d", old_len, old_usespid);
+
+
+  old_usespid = 0;
+  old_len     = 0;
+  memset(&args, 0, sizeof(struct __sysctl_args));
+  args.name    = name;
+  args.nlen    = sizeof(name)/sizeof(name[0]);
+  args.oldval  = &old_usespid;
+  args.oldlenp = &old_len;
+  
+  old_len = sizeof(old_usespid);
+  
+  if (syscall(SYS__sysctl, &args) == -1) {
+      pPrint("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
+  }
+  
+  pPrint("The new core_uses_pid[%d]: %d", old_len, old_usespid);
+  
+#if 0
+  // 3. set the path for saving core file
+  int status; 
+  char coredump_dir[32] = "/var/log/taosdump";
+  if (opendir(coredump_dir) == NULL) {
+    status = mkdir(coredump_dir, S_IRWXU | S_IRWXG | S_IRWXO); 
+    if (status) {
+      pPrint("mkdir fail, error: %s\n", strerror(errno));
+    }
+  }
+
+  // 4. set kernel.core_pattern
+   struct __sysctl_args args;
+   char    old_corefile[128];
+   size_t  old_len;
+   char    new_corefile[128] = "/var/log/taosdump/core-%e-%p";
+   size_t  new_len = sizeof(new_corefile);
+   
+   int name[] = {CTL_KERN, KERN_CORE_PATTERN};
+
+   memset(&args, 0, sizeof(struct __sysctl_args));
+   args.name    = name;
+   args.nlen    = sizeof(name)/sizeof(name[0]);
+   args.oldval  = old_corefile;
+   args.oldlenp = &old_len;
+   args.newval  = new_corefile;
+   args.newlen  = new_len;
+
+   old_len = sizeof(old_corefile);
+
+   if (syscall(SYS__sysctl, &args) == -1) {
+       pPrint("_sysctl(kern_core_pattern) set fail: %s", strerror(errno));
+   }
+   
+   pPrint("The old kern_core_pattern: %*s\n", old_len, old_corefile);
+
+
+   memset(&args, 0, sizeof(struct __sysctl_args));
+   args.name    = name;
+   args.nlen    = sizeof(name)/sizeof(name[0]);
+   args.oldval  = old_corefile;
+   args.oldlenp = &old_len;
+   
+   old_len = sizeof(old_corefile);
+
+   if (syscall(SYS__sysctl, &args) == -1) {
+       pPrint("_sysctl(kern_core_pattern) get fail: %s", strerror(errno));
+   }
+   
+   pPrint("The new kern_core_pattern: %*s\n", old_len, old_corefile);
+#endif
+  
+}
+

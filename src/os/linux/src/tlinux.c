@@ -197,7 +197,6 @@ int taosOpenUDServerSocket(char *ip, short port) {
   char               name[128];
 
   pTrace("open ud socket:%s", name);
-  // if (tsAllowLocalhost) ip = "0.0.0.0";
   sprintf(name, "%s.%d", ip, port);
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
@@ -339,12 +338,4 @@ bool taosSkipSocketCheck() {
   }
 
   return false;
-}
-
-int32_t __sync_val_load_32(int32_t *ptr) {
-  return __atomic_load_n(ptr, __ATOMIC_ACQUIRE);
-}
-
-void __sync_val_restore_32(int32_t *ptr, int32_t newval) {
-  __atomic_store_n(ptr, newval, __ATOMIC_RELEASE);
 }

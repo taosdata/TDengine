@@ -13,10 +13,54 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-char* sdbDnodeStatusStr[] = {"offline", "creating", "unsynced", "slave", "master", "ready"};
+#include "taosmsg.h"
+#include "tsdb.h"
 
-char* sdbDnodeBalanceStateStr[] = {"balanced", "balancing", "offline removing", "shell removing"};
+const char* taosGetVnodeStatusStr(int vnodeStatus) {
+  switch (vnodeStatus) {
+    case TSDB_VNODE_STATUS_OFFLINE:return "offline";
+    case TSDB_VNODE_STATUS_CREATING: return "creating";
+    case TSDB_VNODE_STATUS_UNSYNCED: return "unsynced";
+    case TSDB_VNODE_STATUS_SLAVE: return "slave";
+    case TSDB_VNODE_STATUS_MASTER: return "master";
+    case TSDB_VNODE_STATUS_CLOSING: return "closing";
+    case TSDB_VNODE_STATUS_DELETING: return "deleting";
+    default: return "undefined";
+  }
+}
 
-char* sdbVnodeSyncStatusStr[] = {"init", "syncing", "sync_cache", "sync_file"};
+const char* taosGetDnodeStatusStr(int dnodeStatus) {
+  switch (dnodeStatus) {
+    case TSDB_DNODE_STATUS_OFFLINE: return "offline";
+    case TSDB_DNODE_STATUS_READY: return "ready";
+    default: return "undefined";
+  }
+}
 
-char* sdbVnodeDropStateStr[] = {"ready", "dropping"};
+const char* taosGetDnodeBalanceStateStr(int dnodeBalanceStatus) {
+  switch (dnodeBalanceStatus) {
+    case LB_DNODE_STATE_BALANCED: return "balanced";
+    case LB_DNODE_STATE_BALANCING: return "balancing";
+    case LB_DNODE_STATE_OFFLINE_REMOVING: return "offline removing";
+    case LB_DNODE_STATE_SHELL_REMOVING: return "removing";
+    default: return "undefined";
+  }
+}
+
+const char* taosGetVnodeSyncStatusStr(int vnodeSyncStatus) {
+  switch (vnodeSyncStatus) {
+    case STDB_SSTATUS_INIT: return "init";
+    case TSDB_SSTATUS_SYNCING: return "syncing";
+    case TSDB_SSTATUS_SYNC_CACHE: return "sync_cache";
+    case TSDB_SSTATUS_SYNC_FILE: return "sync_file";
+    default: return "undefined";
+  }
+}
+
+const char* taosGetVnodeDropStatusStr(int dropping) {
+  switch (dropping) {
+    case 0: return "ready";
+    case 1: return "dropping";
+    default: return "undefined";
+  }
+}

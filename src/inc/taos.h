@@ -122,9 +122,6 @@ void taos_close_stream(TAOS_STREAM *tstr);
 
 int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
-// TODO: `configDir` should not be declared here
-extern char configDir[];  // the path to global configuration
-
 #ifdef __cplusplus
 }
 #endif

@@ -20,24 +20,13 @@
 extern "C" {
 #endif
 
-#include <pthread.h>
-#include <semaphore.h>
-#include <stdbool.h>
+#include "os.h"
 
 #include "dnodeSystem.h"
 #include "mgmt.h"
 #include "tglobalcfg.h"
 #include "tstatus.h"
 #include "ttime.h"
-
-enum {
-  LB_DNODE_STATE_BALANCED,
-  LB_DNODE_STATE_BALANCING,
-  LB_DNODE_STATE_OFFLINE_REMOVING,
-  LB_DNODE_STATE_SHELL_REMOVING
-};
-
-enum { LB_VGROUP_STATE_READY, LB_VGROUP_STATE_UPDATE };
 
 void mgmtCreateDnodeOrderList();
 

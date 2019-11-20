@@ -14,10 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <sys/time.h>
-#include <math.h>
-#include <float.h>
+#include "os.h"
 
 #include "mgmt.h"
 #include "mgmtUtil.h"
@@ -86,4 +83,12 @@ int32_t mgmtGetTagsLength(STabObj* pMetric, int32_t col) {  // length before col
   }
 
   return len;
+}
+
+bool mgmtCheckIsMonitorDB(char *db, char *monitordb) {
+  char dbName[TSDB_DB_NAME_LEN + 1] = {0};
+  extractDBName(db, dbName);
+
+  size_t len = strlen(dbName);
+  return (strncasecmp(dbName, monitordb, len) == 0 && len == strlen(monitordb));
 }

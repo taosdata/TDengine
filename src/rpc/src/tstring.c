@@ -145,7 +145,7 @@ char *tsError[] = {"success",
                    "not online",
                    "send failed",
                    "not active session",     // 20
-                   "insert failed",
+                   "invalid vnode id",
                    "App error",
                    "invalid IE",
                    "invalid value",
@@ -178,7 +178,7 @@ char *tsError[] = {"success",
                    "others",
                    "can't remove dnode which is master",
                    "wrong schema",
-                   "no results",
+                   "vnode not active(not created yet or dropped already)",
                    "num of users execeed maxUsers",   //55
                    "num of databases execeed maxDbs",
                    "num of tables execeed maxTables",
@@ -233,9 +233,13 @@ char *tsError[] = {"success",
                    "invalid query message",
                    "timestamp disordered in cache block",
                    "timestamp disordered in file block",
-                   "invalid commit log",    //110
-				   "server no disk space",
+                   "invalid commit log",
+                   "server no disk space",    //110
                    "only super table has metric meta info",
                    "tags value not unique for join",
                    "invalid submit message",
+                   "not active table(not created yet or deleted already)",  //114
+                   "invalid table id",
+                   "invalid vnode status",    //116
+                   "failed to lock resources",
 };

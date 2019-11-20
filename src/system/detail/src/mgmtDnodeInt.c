@@ -14,8 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <endian.h>
+#include "os.h"
 
 #include "dnodeSystem.h"
 #include "mgmt.h"
@@ -103,7 +102,7 @@ int mgmtProcessVpeerCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
     mTrace("dnode:%s, vnode:%d, vgroup:%d, send create meter msg, code:%d", taosIpStr(pObj->privateIp), vnode, pVgroup->vgId, *pMsg);
   } else {
     mTrace("dnode:%s, vnode:%d, no vgroup info, vgroup:%d", taosIpStr(pObj->privateIp), vnode, pObj->vload[vnode].vgId);
-    *pMsg = TSDB_CODE_INVALID_VALUE;
+    *pMsg = TSDB_CODE_NOT_ACTIVE_VNODE;
     pMsg++;
     *(int32_t *)pMsg = htonl(vnode);
     pMsg += sizeof(int32_t);
@@ -129,7 +128,7 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
   }
 
   if (pDb->vgStatus != TSDB_VG_STATUS_IN_PROGRESS) {
-    mTrace("dnode:%s, db:%s vpeer rsp already disposed, code:%d", taosIpStr(pObj->privateIp), pRsp->more, pRsp->code);
+    mTrace("dnode:%s, db:%s vpeer rsp already disposed, vgroup status:%d code:%d", taosIpStr(pObj->privateIp), pRsp->more, pDb->vgStatus, pRsp->code);
     return 0;
   }
 
@@ -141,10 +140,11 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
 
   if (pRsp->code == TSDB_CODE_VG_COMMITLOG_INIT_FAILED) {
     pDb->vgStatus = TSDB_VG_STATUS_COMMITLOG_INIT_FAILED;
+    mError("dnode:%s, db:%s vgroup commit log init failed, code:%d", taosIpStr(pObj->privateIp), pRsp->more, pRsp->code);
   } else {
     pDb->vgStatus = TSDB_VG_STATUS_INIT_FAILED;
+    mError("dnode:%s, db:%s vgroup init failed, code:%d", taosIpStr(pObj->privateIp), pRsp->more, pRsp->code);
   }
-  mError("dnode:%s, db:%s vgroup create failed, code:%d", taosIpStr(pObj->privateIp), pRsp->more, pRsp->code);
 
   return 0;
 }
@@ -332,7 +332,6 @@ char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode) {
   pCfg->replications = (char)pVgroup->numOfVnodes;
   pCfg->rowsInFileBlock = htonl(pCfg->rowsInFileBlock);
 
-#ifdef CLUSTER
   SVPeerDesc *vpeerDesc = pVPeers->vpeerDesc;
 
   pMsg = (char *)(pVPeers->vpeerDesc);
@@ -342,7 +341,6 @@ char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode) {
     vpeerDesc[j].vnode = htonl(pVgroup->vnodeGid[j].vnode);
     pMsg += sizeof(SVPeerDesc);
   }
-#endif
 
   return pMsg;
 }

@@ -30,10 +30,10 @@ extern "C" {
 #include "tsdb.h"
 #include "tscSecondaryMerge.h"
 
-#define UTIL_METER_IS_METRIC(cmd) (((cmd)->pMeterMeta != NULL) && ((cmd)->pMeterMeta->meterType == TSDB_METER_METRIC))
-#define UTIL_METER_IS_NOMRAL_METER(cmd) (!(UTIL_METER_IS_METRIC(cmd)))
-#define UTIL_METER_IS_CREATE_FROM_METRIC(cmd) \
-  (((cmd)->pMeterMeta != NULL) && ((cmd)->pMeterMeta->meterType == TSDB_METER_MTABLE))
+#define UTIL_METER_IS_METRIC(metaInfo) (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->meterType == TSDB_METER_METRIC))
+#define UTIL_METER_IS_NOMRAL_METER(metaInfo) (!(UTIL_METER_IS_METRIC(metaInfo)))
+#define UTIL_METER_IS_CREATE_FROM_METRIC(metaInfo) \
+  (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->meterType == TSDB_METER_MTABLE))
 
 #define TSDB_COL_IS_TAG(f) (((f)&TSDB_COL_TAG) != 0)
 

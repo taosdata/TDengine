@@ -13,16 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <errno.h>
-#include <pthread.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-
 #include "os.h"
+
 #include "shash.h"
 #include "taosmsg.h"
 #include "tidpool.h"
@@ -164,8 +156,8 @@ char *taosBuildReqHeader(void *param, char type, char *msg) {
   pHeader->spi = 0;
   pHeader->tcp = 0;
   pHeader->encrypt = 0;
-  pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
-  if (pHeader->tranId == 0) pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
+  pHeader->tranId = atomic_add_fetch_32(&pConn->tranId, 1);
+  if (pHeader->tranId == 0) pHeader->tranId = atomic_add_fetch_32(&pConn->tranId, 1);
 
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
@@ -196,8 +188,8 @@ char *taosBuildReqMsgWithSize(void *param, char type, int size) {
   pHeader->spi = 0;
   pHeader->tcp = 0;
   pHeader->encrypt = 0;
-  pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
-  if (pHeader->tranId == 0) pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
+  pHeader->tranId = atomic_add_fetch_32(&pConn->tranId, 1);
+  if (pHeader->tranId == 0) pHeader->tranId = atomic_add_fetch_32(&pConn->tranId, 1);
 
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
@@ -362,6 +354,8 @@ int taosOpenRpcChannWithQ(void *handle, int cid, int sessions, void *qhandle) {
   STaosRpc * pServer = (STaosRpc *)handle;
   SRpcChann *pChann;
 
+  tTrace("cid:%d, handle:%p open rpc chann", cid, handle);
+
   if (pServer == NULL) return -1;
   if (cid >= pServer->numOfChanns || cid < 0) {
     tError("%s: cid:%d, chann is out of range, max:%d", pServer->label, cid, pServer->numOfChanns);
@@ -409,6 +403,8 @@ int taosOpenRpcChannWithQ(void *handle, int cid, int sessions, void *qhandle) {
 void taosCloseRpcChann(void *handle, int cid) {
   STaosRpc * pServer = (STaosRpc *)handle;
   SRpcChann *pChann;
+
+  tTrace("cid:%d, handle:%p close rpc chann", cid, handle);
 
   if (pServer == NULL) return;
   if (cid >= pServer->numOfChanns || cid < 0) {

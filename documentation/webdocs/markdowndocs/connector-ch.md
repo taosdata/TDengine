@@ -269,13 +269,14 @@ public Connection getConn() throws Exception{
 
 用户可以在源代码的src/connector/python文件夹下找到python2和python3的安装包。用户可以通过pip命令安装： 
 
-​		`pip install src/connector/python/python2/`
+​		`pip install src/connector/python/[linux|windows]/python2/`
 
 或
 
-​		`pip install src/connector/python/python3/`
+​		`pip install src/connector/python/[linux|windows]/python3/`
 
 如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。
+对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。所有TDengine的连接器，均需依赖taos.dll。
 
 ### Python客户端接口
 

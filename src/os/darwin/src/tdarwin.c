@@ -204,7 +204,6 @@ int taosOpenUDServerSocket(char *ip, short port) {
   char               name[128];
 
   pTrace("open ud socket:%s", name);
-  // if (tsAllowLocalhost) ip = "0.0.0.0";
   sprintf(name, "%s.%d", ip, port);
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
@@ -241,10 +240,6 @@ int taosInitTimer(void (*callback)(int), int ms) {
   tv.it_value = tv.it_interval;
 
   return setitimer(ITIMER_REAL, &tv, NULL);
-}
-
-char *taosCharsetReplace(char *charsetstr) {
-  return charsetstr;
 }
 
 void taosGetSystemTimezone() {

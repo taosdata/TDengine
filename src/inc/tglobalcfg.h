@@ -169,6 +169,8 @@ extern uint32_t debugFlag;
 extern uint32_t odbcdebugFlag;
 extern uint32_t qdebugFlag;
 
+extern uint32_t taosMaxTmrCtrl;
+
 extern int  tsRpcTimer;
 extern int  tsRpcMaxTime;
 extern int  tsUdpDelay;
@@ -245,7 +247,7 @@ typedef struct {
 extern SGlobalConfig *tsGlobalConfig;
 extern int            tsGlobalConfigNum;
 extern char *         tsCfgStatusStr[];
-SGlobalConfig *tsGetConfigOption(char *option);
+SGlobalConfig *tsGetConfigOption(const char *option);
 
 #define TSDB_CFG_MAX_NUM    110
 #define TSDB_CFG_PRINT_LEN  23

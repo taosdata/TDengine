@@ -98,9 +98,10 @@ function install_lib() {
 }
 
 function install_header() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h     || :    
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :    
     ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function install_config() {
@@ -247,9 +248,9 @@ vercomp () {
 
 function is_version_compatible() {
 
-    curr_version=$(${bin_dir}/taosd -V | cut -d ' ' -f 1)
+    curr_version=$(${bin_dir}/taosd -V | cut -d ' ' -f 2)
 
-    min_compatible_version=$(${script_dir}/bin/taosd -V | cut -d ' ' -f 2)
+    min_compatible_version=$(${script_dir}/bin/taosd -V | cut -d ' ' -f 4)
 
     vercomp $curr_version $min_compatible_version
     case $? in

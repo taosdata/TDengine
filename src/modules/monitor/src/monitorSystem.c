@@ -95,6 +95,9 @@ int monitorInitSystem() {
 }
 
 int monitorStartSystem() {
+  if (monitor == NULL) {
+    monitorInitSystem();
+  }
   taosTmrReset(monitorInitConn, 10, NULL, tscTmr, &monitor->initTimer);
   return 0;
 }
@@ -131,7 +134,7 @@ void monitorInitConn(void *para, void *unused) {
 
 void monitorInitConnCb(void *param, TAOS_RES *result, int code) {
   if (code < 0) {
-    monitorError("monitor:%p, connect to taosd failed, code:%d", monitor->conn, code);
+    monitorError("monitor:%p, connect to database failed, code:%d", monitor->conn, code);
     taos_close(monitor->conn);
     monitor->conn = NULL;
     monitor->state = MONITOR_STATE_UN_INIT;
@@ -139,7 +142,7 @@ void monitorInitConnCb(void *param, TAOS_RES *result, int code) {
     return;
   }
 
-  monitorTrace("monitor:%p, connect to taosd success, code:%d", monitor->conn, code);
+  monitorTrace("monitor:%p, connect to database success, code:%d", monitor->conn, code);
   monitorInitDatabase();
 }
 

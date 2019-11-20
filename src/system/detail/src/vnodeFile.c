@@ -14,15 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <fcntl.h>
-#include <libgen.h>
-#include <sys/stat.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "tscompression.h"
 #include "tutil.h"
@@ -216,6 +208,7 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
   if (numOfFiles >= pVnode->numOfFiles) {
     // create empty header files backward
     filesAdded = numOfFiles - pVnode->numOfFiles + 1;
+    assert(filesAdded <= pVnode->maxFiles + 2);
     for (int i = 0; i < filesAdded; ++i) {
       fileId = pVnode->fileId - pVnode->numOfFiles - i;
       if (vnodeCreateEmptyCompFile(vnode, fileId) < 0) 
@@ -410,7 +403,7 @@ void vnodeRemoveFile(int vnode, int fileId) {
   int fd = open(headName, O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd > 0) {
     vnodeGetHeadFileHeaderInfo(fd, &headInfo);
-    __sync_fetch_and_add(&(pVnode->vnodeStatistic.totalStorage), -headInfo.totalStorage);
+    atomic_fetch_add_64(&(pVnode->vnodeStatistic.totalStorage), -headInfo.totalStorage);
     close(fd);
   }
 
@@ -1297,7 +1290,7 @@ int vnodeWriteBlockToFile(SMeterObj *pObj, SCompBlock *pCompBlock, SData *data[]
     pCompBlock->len += wlen;
   }
 
-  dTrace("vid: %d vnode compStorage size is: %ld", pObj->vnode, pVnode->vnodeStatistic.compStorage);
+  dTrace("vid:%d, vnode compStorage size is: %ld", pObj->vnode, pVnode->vnodeStatistic.compStorage);
 
   pCompBlock->algorithm = pCfg->compression;
   pCompBlock->numOfPoints = points;

@@ -14,10 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "tast.h"
 #include "tscUtil.h"
@@ -289,7 +286,7 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
       return NULL;
     }
 
-    if (pExprs[i].pBase.functionId == TSDB_FUNC_TAG_DUMMY) {
+    if (pExprs[i].pBase.functionId == TSDB_FUNC_TAG_DUMMY || pExprs[i].pBase.functionId == TSDB_FUNC_TS_DUMMY) {
       tagLen += pExprs[i].resBytes;
     }
     assert(isValidDataType(pExprs[i].resType, pExprs[i].resBytes));
@@ -553,7 +550,7 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSid
 
     if (pMeter == NULL || (pMeter->state > TSDB_METER_STATE_INSERT)) {
       if (pMeter == NULL || vnodeIsMeterState(pMeter, TSDB_METER_STATE_DELETING)) {
-        code = TSDB_CODE_NOT_ACTIVE_SESSION;
+        code = TSDB_CODE_NOT_ACTIVE_TABLE;
         dError("qmsg:%p, vid:%d sid:%d, not there or will be dropped", pQueryMsg, pQueryMsg->vnode, pSids[i]->sid);
         vnodeSendMeterCfgMsg(pQueryMsg->vnode, pSids[i]->sid);
       } else {//update or import
@@ -567,7 +564,7 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSid
        * check if the numOfQueries is 0 or not.
        */
       pMeterObjList[(*numOfInc)++] = pMeter;
-      __sync_fetch_and_add(&pMeter->numOfQueries, 1);
+      atomic_fetch_add_32(&pMeter->numOfQueries, 1);
 
       // output for meter more than one query executed
       if (pMeter->numOfQueries > 1) {
@@ -591,7 +588,7 @@ void vnodeDecQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterObj** pMeterObjList,
     SMeterObj* pMeter = pMeterObjList[i];
 
     if (pMeter != NULL) {  // here, do not need to lock to perform operations
-      __sync_fetch_and_sub(&pMeter->numOfQueries, 1);
+      atomic_fetch_sub_32(&pMeter->numOfQueries, 1);
 
       if (pMeter->numOfQueries > 0) {
         dTrace("qmsg:%p, vid:%d sid:%d id:%s dec query ref, numOfQueries:%d", pQueryMsg, pMeter->vnode, pMeter->sid,
@@ -646,7 +643,7 @@ void vnodeUpdateQueryColumnIndex(SQuery* pQuery, SMeterObj* pMeterObj) {
 }
 
 int32_t vnodeSetMeterState(SMeterObj* pMeterObj, int32_t state) {
-  return __sync_val_compare_and_swap(&pMeterObj->state, TSDB_METER_STATE_READY, state);
+  return atomic_val_compare_exchange_32(&pMeterObj->state, TSDB_METER_STATE_READY, state);
 }
 
 void vnodeClearMeterState(SMeterObj* pMeterObj, int32_t state) {

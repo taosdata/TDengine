@@ -16,16 +16,6 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 
-#include <assert.h>
-#include <pthread.h>
-#include <regex.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <time.h>
-
 #include "os.h"
 #include "shell.h"
 #include "shellCommand.h"
@@ -445,7 +435,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
               case TSDB_DATA_TYPE_BIGINT:
                 printf("%*lld|", l[i], *((int64_t *)row[i]));
                 break;
-              case TSDB_DATA_TYPE_FLOAT:
+              case TSDB_DATA_TYPE_FLOAT: {
 #ifdef _TD_ARM_32_
                 float fv = 0;
                 //memcpy(&fv, row[i], sizeof(float));
@@ -454,8 +444,9 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
 #else
                 printf("%*.5f|", l[i], *((float *)row[i]));
 #endif
+              }
                 break;
-              case TSDB_DATA_TYPE_DOUBLE:
+              case TSDB_DATA_TYPE_DOUBLE: {
 #ifdef _TD_ARM_32_
                 double dv = 0;
                 //memcpy(&dv, row[i], sizeof(double));
@@ -464,6 +455,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
 #else
                 printf("%*.9f|", l[i], *((double *)row[i]));
 #endif
+              }
                 break;
               case TSDB_DATA_TYPE_BINARY:
               case TSDB_DATA_TYPE_NCHAR:
@@ -528,7 +520,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
               case TSDB_DATA_TYPE_BIGINT:
                 printf("%lld\n", *((int64_t *)row[i]));
                 break;
-              case TSDB_DATA_TYPE_FLOAT:
+              case TSDB_DATA_TYPE_FLOAT: {
 #ifdef _TD_ARM_32_
                 float fv = 0;
                 //memcpy(&fv, row[i], sizeof(float));
@@ -537,8 +529,9 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
 #else
                 printf("%.5f\n", *((float *)row[i]));
 #endif
+              }
                 break;
-              case TSDB_DATA_TYPE_DOUBLE:
+              case TSDB_DATA_TYPE_DOUBLE: {
 #ifdef _TD_ARM_32_
                 double dv = 0;
 		        //memcpy(&dv, row[i], sizeof(double));
@@ -547,7 +540,8 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
 #else
                 printf("%.9f\n", *((double *)row[i]));
 #endif
-              break;
+              }
+                break;
               case TSDB_DATA_TYPE_BINARY:
               case TSDB_DATA_TYPE_NCHAR:
                 memset(t_str, 0, TSDB_MAX_BYTES_PER_ROW);
@@ -614,7 +608,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
               case TSDB_DATA_TYPE_BIGINT:
                 fprintf(fp, "%lld", *((int64_t *)row[i]));
                 break;
-              case TSDB_DATA_TYPE_FLOAT:
+              case TSDB_DATA_TYPE_FLOAT: {
 #ifdef _TD_ARM_32_
                 float fv = 0;
                 //memcpy(&fv, row[i], sizeof(float));
@@ -623,8 +617,9 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
 #else
                 fprintf(fp, "%.5f", *((float *)row[i]));
 #endif
+              }
                 break;
-              case TSDB_DATA_TYPE_DOUBLE:
+              case TSDB_DATA_TYPE_DOUBLE: {
 #ifdef _TD_ARM_32_
                 double dv = 0;
 		        //memcpy(&dv, row[i], sizeof(double));
@@ -633,6 +628,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
 #else
                 fprintf(fp, "%.9f", *((double *)row[i]));
 #endif
+              }
                 break;
               case TSDB_DATA_TYPE_BINARY:
               case TSDB_DATA_TYPE_NCHAR:
@@ -840,7 +836,7 @@ void shellGetGrantInfo(void *con) {
     TAOS_FIELD *fields = taos_fetch_fields(result);
     TAOS_ROW row = taos_fetch_row(result);
     if (row == NULL) {
-      fprintf(stderr, "\nGrant information is empty.\n");
+      fprintf(stderr, "\nFailed to get grant information from server. Abort.\n");
       exit(0);
     }
 

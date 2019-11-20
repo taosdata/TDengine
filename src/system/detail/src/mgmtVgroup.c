@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
+#include "os.h"
 
 #include "mgmt.h"
 #include "tschemautil.h"
@@ -123,7 +123,7 @@ void mgmtProcessVgTimer(void *handle, void *tmrId) {
   if (pDb == NULL) return;
 
   if (pDb->vgStatus > TSDB_VG_STATUS_IN_PROGRESS) {
-    mTrace("db:%s, set vgstatus from %d to %d", pDb->name, pDb->vgStatus, TSDB_VG_STATUS_READY);
+    mTrace("db:%s, set vgroup status from %d to ready", pDb->name, pDb->vgStatus);
     pDb->vgStatus = TSDB_VG_STATUS_READY;
   }
 
@@ -143,7 +143,7 @@ SVgObj *mgmtCreateVgroup(SDbObj *pDb) {
 
   // based on load balance, create a new one
   if (mgmtAllocVnodes(pVgroup) != 0) {
-    mError("no enough free dnode");
+    mError("db:%s, no enough free dnode to alloc %d vnodes", pDb->name, pVgroup->numOfVnodes);
     free(pVgroup);
     pDb->vgStatus = TSDB_VG_STATUS_FULL;
     taosTmrReset(mgmtProcessVgTimer, 5000, pDb, mgmtTmr, &pDb->vgTimer);
@@ -152,9 +152,9 @@ SVgObj *mgmtCreateVgroup(SDbObj *pDb) {
 
   sdbInsertRow(vgSdb, pVgroup, 0);
 
-  mTrace("vgroup:%d, db:%s replica:%d is created", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
+  mTrace("vgroup:%d, vgroup is created, db:%s replica:%d", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
   for (int i = 0; i < pVgroup->numOfVnodes; ++i)
-    mTrace("dnode:%s, vgroup:%d, vnode:%d is created", taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vgId, pVgroup->vnodeGid[i].vnode);
+    mTrace("vgroup:%d, dnode:%s vnode:%d is created", pVgroup->vgId, taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vnodeGid[i].vnode);
 
   mgmtSendVPeersMsg(pVgroup);
 
@@ -206,7 +206,10 @@ void mgmtCleanUpVgroups() { sdbCloseTable(vgSdb); }
 int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   int cols = 0;
 
-  if (pConn->pDb == NULL) return TSDB_CODE_DB_NOT_SELECTED;
+  SDbObj *pDb = NULL;
+  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+
+  if (pDb == NULL) return TSDB_CODE_DB_NOT_SELECTED;
 
   SSchema *pSchema = tsGetSchema(pMeta);
 
@@ -229,7 +232,7 @@ int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   cols++;
 
   int     maxReplica = 0;
-  SVgObj *pVgroup = pConn->pDb->pHead;
+  SVgObj *pVgroup = pDb->pHead;
   while (pVgroup != NULL) {
     maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
     pVgroup = pVgroup->next;
@@ -267,8 +270,8 @@ int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->offset[0] = 0;
   for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
-  pShow->numOfRows = pConn->pDb->numOfVgroups;
-  pShow->pNode = pConn->pDb->pHead;
+  pShow->numOfRows = pDb->numOfVgroups;
+  pShow->pNode = pDb->pHead;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   return 0;
@@ -282,7 +285,11 @@ int mgmtRetrieveVgroups(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
   char    ipstr[20];
 
   int maxReplica = 0;
-  pVgroup = pConn->pDb->pHead;
+
+  SDbObj *pDb = NULL;
+  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+
+  pVgroup = pDb->pHead;
   while (pVgroup != NULL) {
     maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
     pVgroup = pVgroup->next;

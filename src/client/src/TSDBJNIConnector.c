@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdbool.h>
-
 #include "os.h"
 #include "com_taosdata_jdbc_TSDBJNIConnector.h"
 #include "taos.h"
@@ -63,13 +61,13 @@ jmethodID g_rowdataSetByteArrayFp;
 
 void jniGetGlobalMethod(JNIEnv *env) {
   // make sure init function executed once
-  switch (__sync_val_compare_and_swap_32(&__init, 0, 1)) {
+  switch (atomic_val_compare_exchange_32(&__init, 0, 1)) {
     case 0:
       break;
     case 1:
       do {
         taosMsleep(0);
-      } while (__sync_val_load_32(&__init) == 1);
+      } while (atomic_load_32(&__init) == 1);
     case 2:
       return;
   }
@@ -109,7 +107,7 @@ void jniGetGlobalMethod(JNIEnv *env) {
   g_rowdataSetByteArrayFp = (*env)->GetMethodID(env, g_rowdataClass, "setByteArray", "(I[B)V");
   (*env)->DeleteLocalRef(env, rowdataClass);
 
-  __sync_val_restore_32(&__init, 2);
+  atomic_store_32(&__init, 2);
   jniTrace("native method register finished");
 }
 
@@ -208,10 +206,10 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEn
 
   ret = (jlong)taos_connect((char *)host, (char *)user, (char *)pass, (char *)dbname, jport);
   if (ret == 0) {
-    jniError("jobj:%p, taos:%p, connect to tdengine failed, host=%s, user=%s, dbname=%s, port=%d", jobj, (void *)ret,
+    jniError("jobj:%p, conn:%p, connect to database failed, host=%s, user=%s, dbname=%s, port=%d", jobj, (void *)ret,
              (char *)host, (char *)user, (char *)dbname, jport);
   } else {
-    jniTrace("jobj:%p, taos:%p, connect to tdengine succeed, host=%s, user=%s, dbname=%s, port=%d", jobj, (void *)ret,
+    jniTrace("jobj:%p, conn:%p, connect to database succeed, host=%s, user=%s, dbname=%s, port=%d", jobj, (void *)ret,
              (char *)host, (char *)user, (char *)dbname, jport);
   }
 
@@ -232,7 +230,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
   }
 
   if (jsql == NULL) {
-    jniError("jobj:%p, taos:%p, sql is null", jobj, tscon);
+    jniError("jobj:%p, conn:%p, sql is null", jobj, tscon);
     return JNI_SQL_NULL;
   }
 
@@ -250,7 +248,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
 
   int code = taos_query(tscon, dst);
   if (code != 0) {
-    jniError("jobj:%p, taos:%p, code:%d, msg:%s, sql:%s", jobj, tscon, code, taos_errstr(tscon), dst);
+    jniError("jobj:%p, conn:%p, code:%d, msg:%s, sql:%s", jobj, tscon, code, taos_errstr(tscon), dst);
     free(dst);
     return JNI_TDENGINE_ERROR;
   } else {
@@ -259,9 +257,9 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
 
     if (pSql->cmd.command == TSDB_SQL_INSERT) {
       affectRows = taos_affected_rows(tscon);
-      jniTrace("jobj:%p, taos:%p, code:%d, affect rows:%d, sql:%s", jobj, tscon, code, affectRows, dst);
+      jniTrace("jobj:%p, conn:%p, code:%d, affect rows:%d, sql:%s", jobj, tscon, code, affectRows, dst);
     } else {
-      jniTrace("jobj:%p, taos:%p, code:%d, sql:%s", jobj, tscon, code, dst);
+      jniTrace("jobj:%p, conn:%p, code:%d, sql:%s", jobj, tscon, code, dst);
     }
 
     free(dst);
@@ -291,15 +289,17 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(
     return JNI_CONNECTION_NULL;
   }
 
-  int num_fields = taos_field_count(tscon);
-  if (num_fields != 0) {
-    jlong ret = (jlong)taos_use_result(tscon);
-    jniTrace("jobj:%p, taos:%p, get resultset:%p", jobj, tscon, (void *)ret);
-    return ret;
+  jlong ret = 0;
+
+  if (tscIsUpdateQuery(tscon)) {
+    ret = 0;  // for update query, no result pointer
+    jniTrace("jobj:%p, conn:%p, no result", jobj, tscon);
+  } else {
+    ret = (jlong) taos_use_result(tscon);
+    jniTrace("jobj:%p, conn:%p, get resultset:%p", jobj, tscon, (void *) ret);
   }
 
-  jniTrace("jobj:%p, taos:%p, no resultset", jobj, tscon);
-  return 0;
+  return ret;
 }
 
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_freeResultSetImp(JNIEnv *env, jobject jobj, jlong con,
@@ -311,12 +311,12 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_freeResultSetImp(
   }
 
   if ((void *)res == NULL) {
-    jniError("jobj:%p, taos:%p, resultset is null", jobj, tscon);
+    jniError("jobj:%p, conn:%p, resultset is null", jobj, tscon);
     return JNI_RESULT_SET_NULL;
   }
 
   taos_free_result((void *)res);
-  jniTrace("jobj:%p, taos:%p, free resultset:%p", jobj, tscon, (void *)res);
+  jniTrace("jobj:%p, conn:%p, free resultset:%p", jobj, tscon, (void *)res);
   return JNI_SUCCESS;
 }
 
@@ -330,7 +330,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getAffectedRowsIm
 
   jint ret = taos_affected_rows(tscon);
 
-  jniTrace("jobj:%p, taos:%p, affect rows:%d", jobj, tscon, (void *)con, ret);
+  jniTrace("jobj:%p, conn:%p, affect rows:%d", jobj, tscon, (void *)con, ret);
 
   return ret;
 }
@@ -346,7 +346,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getSchemaMetaData
 
   TAOS_RES *result = (TAOS_RES *)res;
   if (result == NULL) {
-    jniError("jobj:%p, taos:%p, resultset is null", jobj, tscon);
+    jniError("jobj:%p, conn:%p, resultset is null", jobj, tscon);
     return JNI_RESULT_SET_NULL;
   }
 
@@ -356,10 +356,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getSchemaMetaData
   // jobject arrayListObj = (*env)->NewObject(env, g_arrayListClass, g_arrayListConstructFp, "");
 
   if (num_fields == 0) {
-    jniError("jobj:%p, taos:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
+    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
     return JNI_NUM_OF_FIELDS_0;
   } else {
-    jniTrace("jobj:%p, taos:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
+    jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
     for (int i = 0; i < num_fields; ++i) {
       jobject metadataObj = (*env)->NewObject(env, g_metadataClass, g_metadataConstructFp);
       (*env)->SetIntField(env, metadataObj, g_metadataColtypeField, fields[i].type);
@@ -402,7 +402,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
 
   TAOS_RES *result = (TAOS_RES *)res;
   if (result == NULL) {
-    jniError("jobj:%p, taos:%p, resultset is null", jobj, tscon);
+    jniError("jobj:%p, conn:%p, resultset is null", jobj, tscon);
     return JNI_RESULT_SET_NULL;
   }
 
@@ -410,7 +410,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
   int         num_fields = taos_num_fields(result);
 
   if (num_fields == 0) {
-    jniError("jobj:%p, taos:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
+    jniError("jobj:%p, conn:%p, resultset:%p, fields size is %d", jobj, tscon, res, num_fields);
     return JNI_NUM_OF_FIELDS_0;
   }
 
@@ -418,10 +418,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
   if (row == NULL) {
     int tserrno = taos_errno(tscon);
     if (tserrno == 0) {
-      jniTrace("jobj:%p, taos:%p, resultset:%p, fields size is %d, fetch row to the end", jobj, tscon, res, num_fields);
+      jniTrace("jobj:%p, conn:%p, resultset:%p, fields size is %d, fetch row to the end", jobj, tscon, res, num_fields);
       return JNI_FETCH_END;
     } else {
-      jniTrace("jobj:%p, taos:%p, interruptted query", jobj, tscon);
+      jniTrace("jobj:%p, conn:%p, interruptted query", jobj, tscon);
       return JNI_RESULT_SET_NULL;
     }
   }
@@ -485,7 +485,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeConnectionIm
     jniError("jobj:%p, connection is closed", jobj);
     return JNI_CONNECTION_NULL;
   } else {
-    jniTrace("jobj:%p, taos:%p, close connection success", jobj, tscon);
+    jniTrace("jobj:%p, conn:%p, close connection success", jobj, tscon);
     taos_close(tscon);
     return JNI_SUCCESS;
   }
@@ -640,7 +640,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_validateCreateTab
   }
 
   if (jsql == NULL) {
-    jniError("jobj:%p, taos:%p, sql is null", jobj, tscon);
+    jniError("jobj:%p, conn:%p, sql is null", jobj, tscon);
     return JNI_SQL_NULL;
   }
 

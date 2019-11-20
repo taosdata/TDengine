@@ -15,16 +15,6 @@
 
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 
-#include <assert.h>
-#include <ctype.h>
-#include <fcntl.h>
-#include <float.h>
-#include <math.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <wctype.h>
-
 #include "os.h"
 #include "taosmsg.h"
 #include "tast.h"
@@ -73,6 +63,14 @@
     }                                                                            \
   } while (0);
 
+#define DO_UPDATE_TAG_COLUMNS_WITHOUT_TS(ctx) \
+do {\
+for (int32_t i = 0; i < (ctx)->tagInfo.numOfTagCols; ++i) {                  \
+      SQLFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[i];                     \
+      aAggs[TSDB_FUNC_TAG].xFunction(__ctx);                                     \
+    }     \
+} while(0);
+
 void noop(SQLFunctionCtx *UNUSED_PARAM(pCtx)) {}
 
 typedef struct tValuePair {
@@ -114,7 +112,9 @@ typedef struct SFirstLastInfo {
 } SFirstLastInfo;
 
 typedef struct SFirstLastInfo SLastrowInfo;
-typedef struct SPercentileInfo { tMemBucket *pMemBucket; } SPercentileInfo;
+typedef struct SPercentileInfo {
+  tMemBucket *pMemBucket;
+} SPercentileInfo;
 
 typedef struct STopBotInfo {
   int32_t      num;
@@ -128,9 +128,13 @@ typedef struct SLeastsquareInfo {
   int64_t num;
 } SLeastsquareInfo;
 
-typedef struct SAPercentileInfo { SHistogramInfo *pHisto; } SAPercentileInfo;
+typedef struct SAPercentileInfo {
+  SHistogramInfo *pHisto;
+} SAPercentileInfo;
 
-typedef struct STSCompInfo { STSBuf *pTSBuf; } STSCompInfo;
+typedef struct STSCompInfo {
+  STSBuf *pTSBuf;
+} STSCompInfo;
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *bytes, int16_t *intermediateResBytes, int16_t extLength, bool isSuperTable) {
@@ -461,21 +465,32 @@ int32_t no_data_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId
     }                                                              \
   };
 
-#define UPDATE_DATA(ctx, left, right, num, sign) \
-  do {                                           \
-    if (((left) < (right)) ^ (sign)) {           \
-      (left) = right;                            \
-      DO_UPDATE_TAG_COLUMNS(ctx, 0);             \
-      (num) += 1;                                \
-    }                                            \
-  } while (0)
+#define UPDATE_DATA(ctx, left, right, num, sign, k) \
+  do {                                              \
+    if (((left) < (right)) ^ (sign)) {              \
+      (left) = (right);                             \
+      DO_UPDATE_TAG_COLUMNS(ctx, k);                \
+      (num) += 1;                                   \
+    }                                               \
+  } while (0);
+
+#define DUPATE_DATA_WITHOUT_TS(ctx, left, right, num, sign) \
+do {                                              \
+    if (((left) < (right)) ^ (sign)) {              \
+      (left) = (right);                             \
+      DO_UPDATE_TAG_COLUMNS_WITHOUT_TS(ctx);                \
+      (num) += 1;                                   \
+    }                                               \
+  } while (0);
+
 
 #define LOOPCHECK_N(val, list, ctx, tsdbType, sign, num)          \
   for (int32_t i = 0; i < ((ctx)->size); ++i) {                   \
     if ((ctx)->hasNull && isNull((char *)&(list)[i], tsdbType)) { \
       continue;                                                   \
     }                                                             \
-    UPDATE_DATA(ctx, val, (list)[i], num, sign);                  \
+    TSKEY key = (ctx)->ptsList[i];                                \
+    UPDATE_DATA(ctx, val, (list)[i], num, sign, key);             \
   }
 
 #define TYPED_LOOPCHECK_N(type, data, list, ctx, tsdbType, sign, notNullElems) \
@@ -896,16 +911,18 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
       index = pCtx->preAggVals.maxIndex;
     }
 
+    TSKEY key = pCtx->ptsList[index];
+
     if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
       int64_t val = GET_INT64_VAL(tval);
       if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
         int8_t *data = (int8_t *)pOutput;
 
-        UPDATE_DATA(pCtx, *data, val, notNullElems, isMin);
+        UPDATE_DATA(pCtx, *data, val, notNullElems, isMin, key);
       } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
         int16_t *data = (int16_t *)pOutput;
 
-        UPDATE_DATA(pCtx, *data, val, notNullElems, isMin);
+        UPDATE_DATA(pCtx, *data, val, notNullElems, isMin, key);
       } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
         int32_t *data = (int32_t *)pOutput;
 #if defined(_DEBUG_VIEW)
@@ -916,27 +933,27 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
           *data = val;
           for (int32_t i = 0; i < (pCtx)->tagInfo.numOfTagCols; ++i) {
             SQLFunctionCtx *__ctx = pCtx->tagInfo.pTagCtxList[i];
-            if (__ctx->functionId == TSDB_FUNC_TAG_DUMMY) {
-              aAggs[TSDB_FUNC_TAG].xFunction(__ctx);
-            } else if (__ctx->functionId == TSDB_FUNC_TS_DUMMY) {
-              *((int64_t *)__ctx->aOutputBuf) = pCtx->ptsList[index];
+            if (__ctx->functionId == TSDB_FUNC_TS_DUMMY) {
+              __ctx->tag = (tVariant){.i64Key = key, .nType = TSDB_DATA_TYPE_BIGINT};
             }
+
+            aAggs[TSDB_FUNC_TAG].xFunction(__ctx);
           }
         }
       } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
         int64_t *data = (int64_t *)pOutput;
-        UPDATE_DATA(pCtx, *data, val, notNullElems, isMin);
+        UPDATE_DATA(pCtx, *data, val, notNullElems, isMin, key);
       }
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
       double *data = (double *)pOutput;
       double  val = GET_DOUBLE_VAL(tval);
 
-      UPDATE_DATA(pCtx, *data, val, notNullElems, isMin);
+      UPDATE_DATA(pCtx, *data, val, notNullElems, isMin, key);
     } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
       float *data = (float *)pOutput;
       double val = GET_DOUBLE_VAL(tval);
 
-      UPDATE_DATA(pCtx, *data, val, notNullElems, isMin);
+      UPDATE_DATA(pCtx, *data, val, notNullElems, isMin, key);
     }
 
     return;
@@ -961,7 +978,9 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
 
         if ((*retVal < pData[i]) ^ isMin) {
           *retVal = pData[i];
-          DO_UPDATE_TAG_COLUMNS(pCtx, pCtx->ptsList[i]);
+          TSKEY k = pCtx->ptsList[i];
+
+          DO_UPDATE_TAG_COLUMNS(pCtx, k);
         }
 
         *notNullElems += 1;
@@ -1099,12 +1118,12 @@ static int32_t minmax_merge_impl(SQLFunctionCtx *pCtx, int32_t bytes, char *outp
     switch (type) {
       case TSDB_DATA_TYPE_TINYINT: {
         int8_t v = GET_INT8_VAL(input);
-        UPDATE_DATA(pCtx, *(int8_t *)output, v, notNullElems, isMin);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(int8_t *)output, v, notNullElems, isMin);
         break;
       };
       case TSDB_DATA_TYPE_SMALLINT: {
         int16_t v = GET_INT16_VAL(input);
-        UPDATE_DATA(pCtx, *(int16_t *)output, v, notNullElems, isMin);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(int16_t *)output, v, notNullElems, isMin);
         break;
       }
       case TSDB_DATA_TYPE_INT: {
@@ -1114,7 +1133,7 @@ static int32_t minmax_merge_impl(SQLFunctionCtx *pCtx, int32_t bytes, char *outp
 
           for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
             SQLFunctionCtx *__ctx = pCtx->tagInfo.pTagCtxList[i];
-              aAggs[TSDB_FUNC_TAG].xFunction(__ctx);
+            aAggs[TSDB_FUNC_TAG].xFunction(__ctx);
           }
 
           notNullElems++;
@@ -1123,17 +1142,17 @@ static int32_t minmax_merge_impl(SQLFunctionCtx *pCtx, int32_t bytes, char *outp
       }
       case TSDB_DATA_TYPE_FLOAT: {
         float v = GET_FLOAT_VAL(input);
-        UPDATE_DATA(pCtx, *(float *)output, v, notNullElems, isMin);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(float *)output, v, notNullElems, isMin);
         break;
       }
       case TSDB_DATA_TYPE_DOUBLE: {
         double v = GET_DOUBLE_VAL(input);
-        UPDATE_DATA(pCtx, *(double *)output, v, notNullElems, isMin);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(double *)output, v, notNullElems, isMin);
         break;
       }
       case TSDB_DATA_TYPE_BIGINT: {
         int64_t v = GET_INT64_VAL(input);
-        UPDATE_DATA(pCtx, *(int64_t *)output, v, notNullElems, isMin);
+        DUPATE_DATA_WITHOUT_TS(pCtx, *(int64_t *)output, v, notNullElems, isMin);
         break;
       };
       default:
@@ -1189,38 +1208,39 @@ static void max_func_second_merge(SQLFunctionCtx *pCtx) {
 
 static void minMax_function_f(SQLFunctionCtx *pCtx, int32_t index, int32_t isMin) {
   char *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
+  TSKEY key = pCtx->ptsList[index];
 
   int32_t num = 0;
   if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
     int8_t *output = (int8_t *)pCtx->aOutputBuf;
     int8_t  i = GET_INT8_VAL(pData);
 
-    UPDATE_DATA(pCtx, *output, i, num, isMin);
+    UPDATE_DATA(pCtx, *output, i, num, isMin, key);
   } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
     int16_t *output = pCtx->aOutputBuf;
     int16_t  i = GET_INT16_VAL(pData);
 
-    UPDATE_DATA(pCtx, *output, i, num, isMin);
+    UPDATE_DATA(pCtx, *output, i, num, isMin, key);
   } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
     int32_t *output = pCtx->aOutputBuf;
     int32_t  i = GET_INT32_VAL(pData);
 
-    UPDATE_DATA(pCtx, *output, i, num, isMin);
+    UPDATE_DATA(pCtx, *output, i, num, isMin, key);
   } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
     int64_t *output = pCtx->aOutputBuf;
     int64_t  i = GET_INT64_VAL(pData);
 
-    UPDATE_DATA(pCtx, *output, i, num, isMin);
+    UPDATE_DATA(pCtx, *output, i, num, isMin, key);
   } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
     float *output = pCtx->aOutputBuf;
     float  i = GET_FLOAT_VAL(pData);
 
-    UPDATE_DATA(pCtx, *output, i, num, isMin);
+    UPDATE_DATA(pCtx, *output, i, num, isMin, key);
   } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
     double *output = pCtx->aOutputBuf;
     double  i = GET_DOUBLE_VAL(pData);
 
-    UPDATE_DATA(pCtx, *output, i, num, isMin);
+    UPDATE_DATA(pCtx, *output, i, num, isMin, key);
   }
 
   GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
@@ -1462,7 +1482,9 @@ static void first_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 
   SET_VAL(pCtx, 1, 1);
   memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
-  DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+  
+  TSKEY ts = pCtx->ptsList[index];
+  DO_UPDATE_TAG_COLUMNS(pCtx, ts);
 
   SResultInfo *pInfo = GET_RES_INFO(pCtx);
   pInfo->hasResult = DATA_SET_FLAG;
@@ -1555,7 +1577,7 @@ static void first_dist_func_merge(SQLFunctionCtx *pCtx) {
   SFirstLastInfo *pOutput = (SFirstLastInfo *)(pCtx->aOutputBuf + pCtx->inputBytes);
   if (pOutput->hasResult != DATA_SET_FLAG || pInput->ts < pOutput->ts) {
     memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes + sizeof(SFirstLastInfo));
-    DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+    DO_UPDATE_TAG_COLUMNS(pCtx, pInput->ts);
   }
 }
 
@@ -1603,7 +1625,9 @@ static void last_function(SQLFunctionCtx *pCtx) {
     }
 
     memcpy(pCtx->aOutputBuf, data, pCtx->inputBytes);
-    DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+  
+    TSKEY ts = pCtx->ptsList[i];
+    DO_UPDATE_TAG_COLUMNS(pCtx, ts);
 
     SResultInfo *pInfo = GET_RES_INFO(pCtx);
     pInfo->hasResult = DATA_SET_FLAG;
@@ -1628,7 +1652,9 @@ static void last_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 
   SET_VAL(pCtx, 1, 1);
   memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
-  DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+  
+  TSKEY ts = pCtx->ptsList[index];
+  DO_UPDATE_TAG_COLUMNS(pCtx, ts);
 
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
@@ -1725,7 +1751,7 @@ static void last_dist_func_merge(SQLFunctionCtx *pCtx) {
   if (pOutput->hasResult != DATA_SET_FLAG || pOutput->ts < pInput->ts) {
     memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes + sizeof(SFirstLastInfo));
 
-    DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+    DO_UPDATE_TAG_COLUMNS(pCtx, pInput->ts);
   }
 }
 
@@ -1780,7 +1806,7 @@ static void last_row_function(SQLFunctionCtx *pCtx) {
     pInfo1->ts = pCtx->param[0].i64Key;
     pInfo1->hasResult = DATA_SET_FLAG;
 
-    DO_UPDATE_TAG_COLUMNS(pCtx, 0);
+    DO_UPDATE_TAG_COLUMNS(pCtx, pInfo1->ts);
   }
 
   SET_VAL(pCtx, pCtx->size, 1);
@@ -1814,6 +1840,11 @@ static void valuePairAssign(tValuePair *dst, int16_t type, const char *val, int6
     memcpy(dst->pTags, pTags, (size_t)pTagInfo->tagsLen);
   } else {  // the tags are dumped from the ctx tag fields
     for (int32_t i = 0; i < pTagInfo->numOfTagCols; ++i) {
+      SQLFunctionCtx* __ctx = pTagInfo->pTagCtxList[i];
+      if (__ctx->functionId == TSDB_FUNC_TS_DUMMY) {
+        __ctx->tag = (tVariant) {.nType = TSDB_DATA_TYPE_BIGINT, .i64Key = tsKey};
+      }
+      
       tVariantDump(&pTagInfo->pTagCtxList[i]->tag, dst->pTags + size, pTagInfo->pTagCtxList[i]->tag.nType);
       size += pTagInfo->pTagCtxList[i]->outputBytes;
     }
@@ -1835,8 +1866,9 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
   tValuePair **pList = pInfo->res;
 
   if (pInfo->num < maxLen) {
-    if (pInfo->num == 0 || ((type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) &&
-                            val.i64Key >= pList[pInfo->num - 1]->v.i64Key) ||
+    if (pInfo->num == 0 ||
+        ((type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) &&
+         val.i64Key >= pList[pInfo->num - 1]->v.i64Key) ||
         ((type >= TSDB_DATA_TYPE_FLOAT && type <= TSDB_DATA_TYPE_DOUBLE) &&
          val.dKey >= pList[pInfo->num - 1]->v.dKey)) {
       valuePairAssign(pList[pInfo->num], type, &val.i64Key, ts, pTags, pTagInfo, stage);
@@ -3753,9 +3785,6 @@ static void getStatics_i64(int64_t *primaryKey, int64_t *data, int32_t numOfRow,
 
   assert(numOfRow <= INT16_MAX);
 
-  int64_t lastKey = 0;
-  int64_t lastVal = TSDB_DATA_BIGINT_NULL;
-
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (isNull(&data[i], TSDB_DATA_TYPE_BIGINT)) {
       (*numOfNull) += 1;
@@ -3786,10 +3815,11 @@ static void getStatics_i64(int64_t *primaryKey, int64_t *data, int32_t numOfRow,
 
 static void getStatics_f(int64_t *primaryKey, float *data, int32_t numOfRow, double *min, double *max, double *sum,
                          int16_t *minIndex, int16_t *maxIndex, int32_t *numOfNull) {
-  *min = DBL_MAX;
-  *max = -DBL_MAX;
-  *minIndex = 0;
-  *maxIndex = 0;
+  float fmin      = DBL_MAX;
+  float fmax      = -DBL_MAX;
+  float fminIndex = 0;
+  float fmaxIndex = 0;
+  double dsum     = 0;
 
   assert(numOfRow <= INT16_MAX);
 
@@ -3799,15 +3829,19 @@ static void getStatics_f(int64_t *primaryKey, float *data, int32_t numOfRow, dou
       continue;
     }
 
-    *sum += data[i];
-    if (*min > data[i]) {
-      *min = data[i];
-      *minIndex = i;
+    float fv = 0;
+    *(int32_t*)(&fv) = *(int32_t*)(&(data[i]));
+
+    //*sum += data[i];
+    dsum += fv;
+    if (fmin > fv) {
+      fmin = fv;
+      fminIndex = i;
     }
 
-    if (*max < data[i]) {
-      *max = data[i];
-      *maxIndex = i;
+    if (fmax < fv) {
+      fmax = fv;
+      fmaxIndex = i;
     }
 
     //    if (isNull(&lastVal, TSDB_DATA_TYPE_FLOAT)) {
@@ -3819,19 +3853,28 @@ static void getStatics_f(int64_t *primaryKey, float *data, int32_t numOfRow, dou
     //      lastVal = data[i];
     //    }
   }
+
+  double csum = 0;
+  *(int64_t*)(&csum) = *(int64_t*)sum;
+  csum += dsum;
+  *(int64_t*)(sum) = *(int64_t*)(&csum);
+
+  *(int32_t*)max = *(int32_t*)(&fmax);
+  *(int32_t*)min = *(int32_t*)(&fmin);
+  *(int32_t*)minIndex = *(int32_t*)(&fminIndex);
+  *(int32_t*)maxIndex = *(int32_t*)(&fmaxIndex);
+
 }
 
 static void getStatics_d(int64_t *primaryKey, double *data, int32_t numOfRow, double *min, double *max, double *sum,
                          int16_t *minIndex, int16_t *maxIndex, int32_t *numOfNull) {
-  *min = DBL_MAX;
-  *max = -DBL_MAX;
-  *minIndex = 0;
-  *maxIndex = 0;
+  double dmin      = DBL_MAX;
+  double dmax      = -DBL_MAX;
+  double dminIndex = 0;
+  double dmaxIndex = 0;
+  double dsum      = 0;
 
   assert(numOfRow <= INT16_MAX);
-
-  int64_t lastKey = 0;
-  double  lastVal = TSDB_DATA_DOUBLE_NULL;
 
   for (int32_t i = 0; i < numOfRow; ++i) {
     if (isNull(&data[i], TSDB_DATA_TYPE_DOUBLE)) {
@@ -3839,15 +3882,19 @@ static void getStatics_d(int64_t *primaryKey, double *data, int32_t numOfRow, do
       continue;
     }
 
-    *sum += data[i];
-    if (*min > data[i]) {
-      *min = data[i];
-      *minIndex = i;
+    double dv = 0;
+    *(int64_t*)(&dv) = *(int64_t*)(&(data[i]));
+
+    //*sum += data[i];
+    dsum += dv;
+    if (dmin > dv) {
+      dmin = dv;
+      dminIndex = i;
     }
 
-    if (*max < data[i]) {
-      *max = data[i];
-      *maxIndex = i;
+    if (dmax < dv) {
+      dmax = dv;
+      dmaxIndex = i;
     }
 
     //    if (isNull(&lastVal, TSDB_DATA_TYPE_DOUBLE)) {
@@ -3859,6 +3906,16 @@ static void getStatics_d(int64_t *primaryKey, double *data, int32_t numOfRow, do
     //      lastVal = data[i];
     //    }
   }
+ 
+  double csum = 0;
+  *(int64_t*)(&csum) = *(int64_t*)sum;
+  csum += dsum;
+  *(int64_t*)(sum) = *(int64_t*)(&csum);
+
+  *(int64_t*)max = *(int64_t*)(&dmax);
+  *(int64_t*)min = *(int64_t*)(&dmin);
+  *(int64_t*)minIndex = *(int64_t*)(&dminIndex);
+  *(int64_t*)maxIndex = *(int64_t*)(&dmaxIndex);
 }
 
 void getStatistics(char *priData, char *data, int32_t size, int32_t numOfRow, int32_t type, int64_t *min, int64_t *max,
@@ -4303,173 +4360,427 @@ int32_t funcCompatDefList[28] = {
      */
     1, 1, 1, -1, 1, 1, 5};
 
-SQLAggFuncElem aAggs[28] = {
-    {
-        // 0, count function does not invoke the finalize function
-        "count", TSDB_FUNC_COUNT, TSDB_FUNC_COUNT, TSDB_BASE_FUNC_SO, function_setup, count_function, count_function_f,
-        no_next_step, noop, count_func_merge, count_func_merge, count_load_data_info,
-    },
-    {
-        // 1
-        "sum", TSDB_FUNC_SUM, TSDB_FUNC_SUM, TSDB_BASE_FUNC_SO, function_setup, sum_function, sum_function_f,
-        no_next_step, function_finalizer, sum_func_merge, sum_func_second_merge, precal_req_load_info,
-    },
-    {
-        // 2
-        "avg", TSDB_FUNC_AVG, TSDB_FUNC_AVG, TSDB_BASE_FUNC_SO, function_setup, avg_function, avg_function_f,
-        no_next_step, avg_finalizer, avg_func_merge, avg_func_second_merge, precal_req_load_info,
-    },
-    {
-        // 3
-        "min", TSDB_FUNC_MIN, TSDB_FUNC_MIN, TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY, min_func_setup,
-        min_function, min_function_f, no_next_step, function_finalizer, min_func_merge, min_func_second_merge,
-        precal_req_load_info,
-    },
-    {
-        // 4
-        "max", TSDB_FUNC_MAX, TSDB_FUNC_MAX, TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY, max_func_setup,
-        max_function, max_function_f, no_next_step, function_finalizer, max_func_merge, max_func_second_merge,
-        precal_req_load_info,
-    },
-    {
-        // 5
-        "stddev", TSDB_FUNC_STDDEV, TSDB_FUNC_INVALID_ID, TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_OF,
-        function_setup, stddev_function, stddev_function_f, stddev_next_step, stddev_finalizer, noop, noop,
-        data_req_load_info,
-    },
-    {
-        // 6
-        "percentile", TSDB_FUNC_PERCT, TSDB_FUNC_INVALID_ID,
-        TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_OF, percentile_function_setup, percentile_function,
-        percentile_function_f, no_next_step, percentile_finalizer, noop, noop, data_req_load_info,
-    },
-    {
-        // 7
-        "apercentile", TSDB_FUNC_APERCT, TSDB_FUNC_APERCT,
-        TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_METRIC,
-        apercentile_function_setup, apercentile_function, apercentile_function_f, no_next_step, apercentile_finalizer,
-        apercentile_func_merge, apercentile_func_second_merge, data_req_load_info,
-    },
-    {
-        // 8
-        "first", TSDB_FUNC_FIRST, TSDB_FUNC_FIRST_DST, TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY, function_setup,
-        first_function, first_function_f, no_next_step, function_finalizer, noop, noop, first_data_req_info,
-    },
-    {
-        // 9
-        "last", TSDB_FUNC_LAST, TSDB_FUNC_LAST_DST, TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY, function_setup,
-        last_function, last_function_f, no_next_step, function_finalizer, noop, noop, last_data_req_info,
-    },
-    {
-        // 10
-        "last_row", TSDB_FUNC_LAST_ROW, TSDB_FUNC_LAST_ROW,
-        TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_NEED_TS |
-            TSDB_FUNCSTATE_SELECTIVITY,
-        first_last_function_setup, last_row_function, noop, no_next_step, last_row_finalizer, noop,
-        last_dist_func_second_merge, data_req_load_info,
-    },
-    {
-        // 11
-        "top", TSDB_FUNC_TOP, TSDB_FUNC_TOP, TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_OF |
-                                                 TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY,
-        top_bottom_function_setup, top_function, top_function_f, no_next_step, top_bottom_func_finalizer,
-        top_func_merge, top_func_second_merge, data_req_load_info,
-    },
-    {
-        // 12
-        "bottom", TSDB_FUNC_BOTTOM, TSDB_FUNC_BOTTOM, TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_OF |
-                                                          TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY,
-        top_bottom_function_setup, bottom_function, bottom_function_f, no_next_step, top_bottom_func_finalizer,
-        bottom_func_merge, bottom_func_second_merge, data_req_load_info,
-    },
-    {
-        // 13
-        "spread", TSDB_FUNC_SPREAD, TSDB_FUNC_SPREAD, TSDB_BASE_FUNC_SO, spread_function_setup, spread_function,
-        spread_function_f, no_next_step, spread_function_finalizer, spread_func_merge, spread_func_sec_merge,
-        count_load_data_info,
-    },
-    {
-        // 14
-        "twa", TSDB_FUNC_TWA, TSDB_FUNC_TWA, TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS, twa_function_setup,
-        twa_function, twa_function_f, no_next_step, twa_function_finalizer, twa_func_merge, twa_function_copy,
-        data_req_load_info,
-    },
-    {
-        // 15
-        "leastsquares", TSDB_FUNC_LEASTSQR, TSDB_FUNC_INVALID_ID,
-        TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_OF, leastsquares_function_setup,
-        leastsquares_function, leastsquares_function_f, no_next_step, leastsquares_finalizer, noop, noop,
-        data_req_load_info,
-    },
-    {
-        // 16
-        "ts", TSDB_FUNC_TS, TSDB_FUNC_TS, TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS, function_setup,
-        date_col_output_function, date_col_output_function, no_next_step, noop, copy_function, copy_function,
-        no_data_info,
-    },
-    {
-        // 17
-        "ts", TSDB_FUNC_TS_DUMMY, TSDB_FUNC_TS_DUMMY, TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS, function_setup, noop,
-        noop, no_next_step, noop, copy_function, copy_function, data_req_load_info,
-    },
-    {
-        // 18
-        "tag", TSDB_FUNC_TAG_DUMMY, TSDB_FUNC_TAG_DUMMY, TSDB_BASE_FUNC_SO, function_setup, tag_function, noop,
-        no_next_step, noop, copy_function, copy_function, no_data_info,
-    },
-    {
-        // 19
-        "ts", TSDB_FUNC_TS_COMP, TSDB_FUNC_TS_COMP, TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_NEED_TS, ts_comp_function_setup,
-        ts_comp_function, ts_comp_function_f, no_next_step, ts_comp_finalize, copy_function, copy_function,
-        data_req_load_info,
-    },
-    {
-        // 20
-        "tag", TSDB_FUNC_TAG, TSDB_FUNC_TAG, TSDB_BASE_FUNC_SO, function_setup, tag_function, tag_function_f,
-        no_next_step, noop, copy_function, copy_function, no_data_info,
-    },
-    {
-        // 21, column project sql function
-        "colprj", TSDB_FUNC_PRJ, TSDB_FUNC_PRJ, TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_NEED_TS, function_setup,
-        col_project_function, col_project_function_f, no_next_step, noop, copy_function, copy_function,
-        data_req_load_info,
-    },
-    {
-        // 22, multi-output, tag function has only one result
-        "tagprj", TSDB_FUNC_TAGPRJ, TSDB_FUNC_TAGPRJ, TSDB_BASE_FUNC_MO, function_setup, tag_project_function,
-        tag_project_function_f, no_next_step, noop, copy_function, copy_function, no_data_info,
-    },
-    {
-        // 23
-        "arithmetic", TSDB_FUNC_ARITHM, TSDB_FUNC_ARITHM,
-        TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_NEED_TS, function_setup, arithmetic_function,
-        arithmetic_function_f, no_next_step, noop, copy_function, copy_function, data_req_load_info,
-    },
-    {
-        // 24
-        "diff", TSDB_FUNC_DIFF, TSDB_FUNC_INVALID_ID, TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_NEED_TS, diff_function_setup,
-        diff_function, diff_function_f, no_next_step, noop, noop, noop, data_req_load_info,
-    },
-    // distributed version used in two-stage aggregation processes
-    {
-        // 25
-        "first_dist", TSDB_FUNC_FIRST_DST, TSDB_FUNC_FIRST_DST,
-        TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY, first_last_function_setup,
-        first_dist_function, first_dist_function_f, no_next_step, function_finalizer, first_dist_func_merge,
-        first_dist_func_second_merge, first_dist_data_req_info,
-    },
-    {
-        // 26
-        "last_dist", TSDB_FUNC_LAST_DST, TSDB_FUNC_LAST_DST,
-        TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY, first_last_function_setup,
-        last_dist_function, last_dist_function_f, no_next_step, function_finalizer, last_dist_func_merge,
-        last_dist_func_second_merge, last_dist_data_req_info,
-    },
-    {
-        // 27
-        "interp", TSDB_FUNC_INTERP, TSDB_FUNC_INTERP,
-        TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_NEED_TS, function_setup,
-        interp_function,
-        do_sum_f,  // todo filter handle
-        no_next_step, noop, noop, copy_function, no_data_info,
-    }};
+SQLAggFuncElem aAggs[28] = {{
+                                // 0, count function does not invoke the finalize function
+                                "count",
+                                TSDB_FUNC_COUNT,
+                                TSDB_FUNC_COUNT,
+                                TSDB_BASE_FUNC_SO,
+                                function_setup,
+                                count_function,
+                                count_function_f,
+                                no_next_step,
+                                noop,
+                                count_func_merge,
+                                count_func_merge,
+                                count_load_data_info,
+                            },
+                            {
+                                // 1
+                                "sum",
+                                TSDB_FUNC_SUM,
+                                TSDB_FUNC_SUM,
+                                TSDB_BASE_FUNC_SO,
+                                function_setup,
+                                sum_function,
+                                sum_function_f,
+                                no_next_step,
+                                function_finalizer,
+                                sum_func_merge,
+                                sum_func_second_merge,
+                                precal_req_load_info,
+                            },
+                            {
+                                // 2
+                                "avg",
+                                TSDB_FUNC_AVG,
+                                TSDB_FUNC_AVG,
+                                TSDB_BASE_FUNC_SO,
+                                function_setup,
+                                avg_function,
+                                avg_function_f,
+                                no_next_step,
+                                avg_finalizer,
+                                avg_func_merge,
+                                avg_func_second_merge,
+                                precal_req_load_info,
+                            },
+                            {
+                                // 3
+                                "min",
+                                TSDB_FUNC_MIN,
+                                TSDB_FUNC_MIN,
+                                TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                                min_func_setup,
+                                min_function,
+                                min_function_f,
+                                no_next_step,
+                                function_finalizer,
+                                min_func_merge,
+                                min_func_second_merge,
+                                precal_req_load_info,
+                            },
+                            {
+                                // 4
+                                "max",
+                                TSDB_FUNC_MAX,
+                                TSDB_FUNC_MAX,
+                                TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                                max_func_setup,
+                                max_function,
+                                max_function_f,
+                                no_next_step,
+                                function_finalizer,
+                                max_func_merge,
+                                max_func_second_merge,
+                                precal_req_load_info,
+                            },
+                            {
+                                // 5
+                                "stddev",
+                                TSDB_FUNC_STDDEV,
+                                TSDB_FUNC_INVALID_ID,
+                                TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_OF,
+                                function_setup,
+                                stddev_function,
+                                stddev_function_f,
+                                stddev_next_step,
+                                stddev_finalizer,
+                                noop,
+                                noop,
+                                data_req_load_info,
+                            },
+                            {
+                                // 6
+                                "percentile",
+                                TSDB_FUNC_PERCT,
+                                TSDB_FUNC_INVALID_ID,
+                                TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_OF,
+                                percentile_function_setup,
+                                percentile_function,
+                                percentile_function_f,
+                                no_next_step,
+                                percentile_finalizer,
+                                noop,
+                                noop,
+                                data_req_load_info,
+                            },
+                            {
+                                // 7
+                                "apercentile",
+                                TSDB_FUNC_APERCT,
+                                TSDB_FUNC_APERCT,
+                                TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_METRIC,
+                                apercentile_function_setup,
+                                apercentile_function,
+                                apercentile_function_f,
+                                no_next_step,
+                                apercentile_finalizer,
+                                apercentile_func_merge,
+                                apercentile_func_second_merge,
+                                data_req_load_info,
+                            },
+                            {
+                                // 8
+                                "first",
+                                TSDB_FUNC_FIRST,
+                                TSDB_FUNC_FIRST_DST,
+                                TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                                function_setup,
+                                first_function,
+                                first_function_f,
+                                no_next_step,
+                                function_finalizer,
+                                noop,
+                                noop,
+                                first_data_req_info,
+                            },
+                            {
+                                // 9
+                                "last",
+                                TSDB_FUNC_LAST,
+                                TSDB_FUNC_LAST_DST,
+                                TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                                function_setup,
+                                last_function,
+                                last_function_f,
+                                no_next_step,
+                                function_finalizer,
+                                noop,
+                                noop,
+                                last_data_req_info,
+                            },
+                            {
+                                // 10
+                                "last_row",
+                                TSDB_FUNC_LAST_ROW,
+                                TSDB_FUNC_LAST_ROW,
+                                TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_NEED_TS |
+                                    TSDB_FUNCSTATE_SELECTIVITY,
+                                first_last_function_setup,
+                                last_row_function,
+                                noop,
+                                no_next_step,
+                                last_row_finalizer,
+                                noop,
+                                last_dist_func_second_merge,
+                                data_req_load_info,
+                            },
+                            {
+                                // 11
+                                "top",
+                                TSDB_FUNC_TOP,
+                                TSDB_FUNC_TOP,
+                                TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_NEED_TS |
+                                    TSDB_FUNCSTATE_SELECTIVITY,
+                                top_bottom_function_setup,
+                                top_function,
+                                top_function_f,
+                                no_next_step,
+                                top_bottom_func_finalizer,
+                                top_func_merge,
+                                top_func_second_merge,
+                                data_req_load_info,
+                            },
+                            {
+                                // 12
+                                "bottom",
+                                TSDB_FUNC_BOTTOM,
+                                TSDB_FUNC_BOTTOM,
+                                TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_NEED_TS |
+                                    TSDB_FUNCSTATE_SELECTIVITY,
+                                top_bottom_function_setup,
+                                bottom_function,
+                                bottom_function_f,
+                                no_next_step,
+                                top_bottom_func_finalizer,
+                                bottom_func_merge,
+                                bottom_func_second_merge,
+                                data_req_load_info,
+                            },
+                            {
+                                // 13
+                                "spread",
+                                TSDB_FUNC_SPREAD,
+                                TSDB_FUNC_SPREAD,
+                                TSDB_BASE_FUNC_SO,
+                                spread_function_setup,
+                                spread_function,
+                                spread_function_f,
+                                no_next_step,
+                                spread_function_finalizer,
+                                spread_func_merge,
+                                spread_func_sec_merge,
+                                count_load_data_info,
+                            },
+                            {
+                                // 14
+                                "twa",
+                                TSDB_FUNC_TWA,
+                                TSDB_FUNC_TWA,
+                                TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
+                                twa_function_setup,
+                                twa_function,
+                                twa_function_f,
+                                no_next_step,
+                                twa_function_finalizer,
+                                twa_func_merge,
+                                twa_function_copy,
+                                data_req_load_info,
+                            },
+                            {
+                                // 15
+                                "leastsquares",
+                                TSDB_FUNC_LEASTSQR,
+                                TSDB_FUNC_INVALID_ID,
+                                TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_OF,
+                                leastsquares_function_setup,
+                                leastsquares_function,
+                                leastsquares_function_f,
+                                no_next_step,
+                                leastsquares_finalizer,
+                                noop,
+                                noop,
+                                data_req_load_info,
+                            },
+                            {
+                                // 16
+                                "ts",
+                                TSDB_FUNC_TS,
+                                TSDB_FUNC_TS,
+                                TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
+                                function_setup,
+                                date_col_output_function,
+                                date_col_output_function,
+                                no_next_step,
+                                noop,
+                                copy_function,
+                                copy_function,
+                                no_data_info,
+                            },
+                            {
+                                // 17
+                                "ts",
+                                TSDB_FUNC_TS_DUMMY,
+                                TSDB_FUNC_TS_DUMMY,
+                                TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
+                                function_setup,
+                                noop,
+                                noop,
+                                no_next_step,
+                                noop,
+                                copy_function,
+                                copy_function,
+                                data_req_load_info,
+                            },
+                            {
+                                // 18
+                                "tag",
+                                TSDB_FUNC_TAG_DUMMY,
+                                TSDB_FUNC_TAG_DUMMY,
+                                TSDB_BASE_FUNC_SO,
+                                function_setup,
+                                tag_function,
+                                noop,
+                                no_next_step,
+                                noop,
+                                copy_function,
+                                copy_function,
+                                no_data_info,
+                            },
+                            {
+                                // 19
+                                "ts",
+                                TSDB_FUNC_TS_COMP,
+                                TSDB_FUNC_TS_COMP,
+                                TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_NEED_TS,
+                                ts_comp_function_setup,
+                                ts_comp_function,
+                                ts_comp_function_f,
+                                no_next_step,
+                                ts_comp_finalize,
+                                copy_function,
+                                copy_function,
+                                data_req_load_info,
+                            },
+                            {
+                                // 20
+                                "tag",
+                                TSDB_FUNC_TAG,
+                                TSDB_FUNC_TAG,
+                                TSDB_BASE_FUNC_SO,
+                                function_setup,
+                                tag_function,
+                                tag_function_f,
+                                no_next_step,
+                                noop,
+                                copy_function,
+                                copy_function,
+                                no_data_info,
+                            },
+                            {
+                                // 21, column project sql function
+                                "colprj",
+                                TSDB_FUNC_PRJ,
+                                TSDB_FUNC_PRJ,
+                                TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_NEED_TS,
+                                function_setup,
+                                col_project_function,
+                                col_project_function_f,
+                                no_next_step,
+                                noop,
+                                copy_function,
+                                copy_function,
+                                data_req_load_info,
+                            },
+                            {
+                                // 22, multi-output, tag function has only one result
+                                "tagprj",
+                                TSDB_FUNC_TAGPRJ,
+                                TSDB_FUNC_TAGPRJ,
+                                TSDB_BASE_FUNC_MO,
+                                function_setup,
+                                tag_project_function,
+                                tag_project_function_f,
+                                no_next_step,
+                                noop,
+                                copy_function,
+                                copy_function,
+                                no_data_info,
+                            },
+                            {
+                                // 23
+                                "arithmetic",
+                                TSDB_FUNC_ARITHM,
+                                TSDB_FUNC_ARITHM,
+                                TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_NEED_TS,
+                                function_setup,
+                                arithmetic_function,
+                                arithmetic_function_f,
+                                no_next_step,
+                                noop,
+                                copy_function,
+                                copy_function,
+                                data_req_load_info,
+                            },
+                            {
+                                // 24
+                                "diff",
+                                TSDB_FUNC_DIFF,
+                                TSDB_FUNC_INVALID_ID,
+                                TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_NEED_TS,
+                                diff_function_setup,
+                                diff_function,
+                                diff_function_f,
+                                no_next_step,
+                                noop,
+                                noop,
+                                noop,
+                                data_req_load_info,
+                            },
+                            // distributed version used in two-stage aggregation processes
+                            {
+                                // 25
+                                "first_dist",
+                                TSDB_FUNC_FIRST_DST,
+                                TSDB_FUNC_FIRST_DST,
+                                TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY,
+                                first_last_function_setup,
+                                first_dist_function,
+                                first_dist_function_f,
+                                no_next_step,
+                                function_finalizer,
+                                first_dist_func_merge,
+                                first_dist_func_second_merge,
+                                first_dist_data_req_info,
+                            },
+                            {
+                                // 26
+                                "last_dist",
+                                TSDB_FUNC_LAST_DST,
+                                TSDB_FUNC_LAST_DST,
+                                TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY,
+                                first_last_function_setup,
+                                last_dist_function,
+                                last_dist_function_f,
+                                no_next_step,
+                                function_finalizer,
+                                last_dist_func_merge,
+                                last_dist_func_second_merge,
+                                last_dist_data_req_info,
+                            },
+                            {
+                                // 27
+                                "interp",
+                                TSDB_FUNC_INTERP,
+                                TSDB_FUNC_INTERP,
+                                TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_OF | TSDB_FUNCSTATE_METRIC | TSDB_FUNCSTATE_NEED_TS,
+                                function_setup,
+                                interp_function,
+                                do_sum_f,  // todo filter handle
+                                no_next_step,
+                                noop,
+                                noop,
+                                copy_function,
+                                no_data_info,
+                            }};

@@ -1840,7 +1840,7 @@ static void setCtxTagColumnInfo(SQuery* pQuery, SQueryRuntimeEnv* pRuntimeEnv) {
         // ts may be the required primary timestamp column
         continue;
       } else {
-        assert(0);
+        // the column may be the normal column, group by normal_column, the functionId is TSDB_FUNC_PRJ
       }
     }
 
@@ -3122,9 +3122,11 @@ static bool onlyOneQueryType(SQuery *pQuery, int32_t functId, int32_t functIdDst
   for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
     int32_t functionId = pQuery->pSelectExpr[i].pBase.functionId;
 
-    if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG) {
+    if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY ||
+      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAG_DUMMY) {
       continue;
     }
+
     if (functionId != functId && functionId != functIdDst) {
       return false;
     }
@@ -3137,10 +3139,9 @@ static bool onlyFirstQuery(SQuery *pQuery) { return onlyOneQueryType(pQuery, TSD
 
 static bool onlyLastQuery(SQuery *pQuery) { return onlyOneQueryType(pQuery, TSDB_FUNC_LAST, TSDB_FUNC_LAST_DST); }
 
-static void rewriteExecOrder(SQuery *pQuery, bool metricQuery) {
+static void changeExecuteScanOrder(SQuery *pQuery, bool metricQuery) {
   // in case of point-interpolation query, use asc order scan
-  char msg[] =
-      "QInfo:%p scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%lld-%lld, "
+  char msg[] = "QInfo:%p scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%lld-%lld, "
       "new qrange:%lld-%lld";
 
   // descending order query
@@ -3436,9 +3437,18 @@ void pointInterpSupporterSetData(SQInfo *pQInfo, SPointInterpoSupporter *pPointI
     if (pQuery->interpoType == TSDB_INTERPO_SET_VALUE) {
       for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
         SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
+
+        // only the function of interp needs the corresponding information
+        if (pCtx->functionId != TSDB_FUNC_INTERP) {
+            continue;
+        }
+
+        pCtx->numOfParams = 4;
+
         SInterpInfo *   pInterpInfo = (SInterpInfo *)pRuntimeEnv->pCtx[i].aOutputBuf;
 
         pInterpInfo->pInterpDetail = calloc(1, sizeof(SInterpInfoDetail));
+
         SInterpInfoDetail *pInterpDetail = pInterpInfo->pInterpDetail;
 
         // for primary timestamp column, set the flag
@@ -3605,7 +3615,7 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
   }
 
   setScanLimitationByResultBuffer(pQuery);
-  rewriteExecOrder(pQuery, false);
+  changeExecuteScanOrder(pQuery, false);
 
   pQInfo->over = 0;
   pQInfo->pointsRead = 0;
@@ -3781,7 +3791,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
   pQInfo->pointsRead = 0;
   pQuery->pointsRead = 0;
 
-  rewriteExecOrder(pQuery, true);
+  changeExecuteScanOrder(pQuery, true);
 
   vnodeInitDataBlockInfo(&pSupporter->runtimeEnv.loadBlockInfo);
   vnodeInitLoadCompBlockInfo(&pSupporter->runtimeEnv.loadCompBlockInfo);
@@ -3880,14 +3890,14 @@ void vnodeDecMeterRefcnt(SQInfo *pQInfo) {
   SMeterQuerySupportObj *pSupporter = pQInfo->pMeterQuerySupporter;
 
   if (pSupporter == NULL || pSupporter->numOfMeters == 1) {
-    __sync_fetch_and_sub(&pQInfo->pObj->numOfQueries, 1);
+    atomic_fetch_sub_32(&pQInfo->pObj->numOfQueries, 1);
     dTrace("QInfo:%p vid:%d sid:%d meterId:%s, query is over, numOfQueries:%d", pQInfo, pQInfo->pObj->vnode,
            pQInfo->pObj->sid, pQInfo->pObj->meterId, pQInfo->pObj->numOfQueries);
   } else {
     int32_t num = 0;
     for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
       SMeterObj *pMeter = getMeterObj(pSupporter->pMeterObj, pSupporter->pSidSet->pSids[i]->sid);
-      __sync_fetch_and_sub(&(pMeter->numOfQueries), 1);
+      atomic_fetch_sub_32(&(pMeter->numOfQueries), 1);
 
       if (pMeter->numOfQueries > 0) {
         dTrace("QInfo:%p vid:%d sid:%d meterId:%s, query is over, numOfQueries:%d", pQInfo, pMeter->vnode, pMeter->sid,

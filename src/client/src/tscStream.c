@@ -546,7 +546,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 void taos_close_stream(TAOS_STREAM *handle) {
   SSqlStream *pStream = (SSqlStream *)handle;
 
-  SSqlObj *pSql = (SSqlObj *)__sync_val_compare_and_swap_64(&pStream->pSql, pStream->pSql, 0);
+  SSqlObj *pSql = (SSqlObj *)atomic_exchange_ptr(&pStream->pSql, 0);
   if (pSql == NULL) {
     return;
   }

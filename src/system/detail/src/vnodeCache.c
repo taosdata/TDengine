@@ -14,9 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <sys/time.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "taosmsg.h"
 #include "vnode.h"
@@ -174,6 +172,7 @@ int vnodeFreeCacheBlock(SCacheBlock *pCacheBlock) {
     SCachePool *pPool = (SCachePool *)vnodeList[pObj->vnode].pCachePool;
     if (pCacheBlock->notFree) {
       pPool->notFreeSlots--;
+      pInfo->unCommittedBlocks--;
       dTrace("vid:%d sid:%d id:%s, cache block is not free, slot:%d, index:%d notFreeSlots:%d",
              pObj->vnode, pObj->sid, pObj->meterId, pCacheBlock->slot, pCacheBlock->index, pPool->notFreeSlots);
     }
@@ -256,7 +255,7 @@ void vnodeUpdateCommitInfo(SMeterObj *pObj, int slot, int pos, uint64_t count) {
     tslot = (tslot + 1) % pInfo->maxBlocks;
   }
 
-  __sync_fetch_and_add(&pObj->freePoints, pObj->pointsPerBlock * slots);
+  atomic_fetch_add_32(&pObj->freePoints, pObj->pointsPerBlock * slots);
   pInfo->commitSlot = slot;
   pInfo->commitPoint = pos;
   pObj->commitCount = count;
@@ -298,7 +297,7 @@ pthread_t vnodeCreateCommitThread(SVnodeObj *pVnode) {
 
   taosTmrStopA(&pVnode->commitTimer);
 
-  if (pVnode->status == TSDB_STATUS_UNSYNCED) {
+  if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_UNSYNCED) {
     taosTmrReset(vnodeProcessCommitTimer, pVnode->cfg.commitTime * 1000, pVnode, vnodeTmrCtrl, &pVnode->commitTimer);
     dTrace("vid:%d, it is in unsyc state, commit later", pVnode->vnode);
     return pVnode->commitThread;
@@ -517,7 +516,7 @@ int vnodeInsertPointToCache(SMeterObj *pObj, char *pData) {
     pData += pObj->schema[col].bytes;
   }
 
-  __sync_fetch_and_sub(&pObj->freePoints, 1);
+  atomic_fetch_sub_32(&pObj->freePoints, 1);
   pCacheBlock->numOfPoints++;
   pPool->count++;
 
@@ -1126,7 +1125,7 @@ int vnodeSyncRestoreCache(int vnode, int fd) {
       for (int col = 0; col < pObj->numOfColumns; ++col)
         if (taosReadMsg(fd, pBlock->offset[col], pObj->schema[col].bytes * points) <= 0) return -1;
 
-      __sync_fetch_and_sub(&pObj->freePoints, points);
+      atomic_fetch_sub_32(&pObj->freePoints, points);
       blocksReceived++;
       pointsReceived += points;
       pObj->lastKey = *((TSKEY *)(pBlock->offset[0] + pObj->schema[0].bytes * (points - 1)));

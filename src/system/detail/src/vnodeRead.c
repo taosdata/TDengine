@@ -14,12 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <fcntl.h>
-#include <limits.h>
-#include <time.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "ihash.h"
 #include "taosmsg.h"
@@ -866,7 +861,8 @@ int vnodeSaveQueryResult(void *handle, char *data, int32_t *size) {
          pQInfo->pointsRead);
 
   if (pQInfo->over == 0) {
-    dTrace("QInfo:%p set query flag, oldSig:%p, func:%s", pQInfo, pQInfo->signature, __FUNCTION__);
+    //dTrace("QInfo:%p set query flag, oldSig:%p, func:%s", pQInfo, pQInfo->signature, __FUNCTION__);
+    dTrace("QInfo:%p set query flag, oldSig:%p", pQInfo, pQInfo->signature);
     uint64_t oldSignature = TSDB_QINFO_SET_QUERY_FLAG(pQInfo);
 
     /*

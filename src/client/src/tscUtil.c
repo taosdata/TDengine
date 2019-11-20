@@ -13,10 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <math.h>
-#include <time.h>
-
 #include "os.h"
 #include "ihash.h"
 #include "taosmsg.h"
@@ -146,7 +142,6 @@ bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd) {
   return false;
 }
 
-
 void tscGetDBInfoFromMeterId(char* meterId, char* db) {
   char* st = strstr(meterId, TS_PATH_DELIMITER);
   if (st != NULL) {
@@ -269,7 +264,7 @@ bool tscIsPointInterpQuery(SSqlCmd* pCmd) {
 }
 
 bool tscIsTWAQuery(SSqlCmd* pCmd) {
-  for(int32_t i = 0; i < pCmd->exprsInfo.numOfExprs; ++i) {
+  for (int32_t i = 0; i < pCmd->exprsInfo.numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pCmd, i);
     if (pExpr == NULL) {
       continue;
@@ -454,7 +449,8 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
   tfree(pDataBlock);
 }
 
-SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, short bytes, uint32_t offset) {
+SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, short bytes,
+                                   uint32_t offset) {
   uint32_t needed = pDataBlock->numOfParams + 1;
   if (needed > pDataBlock->numOfAllocedParams) {
     needed *= 2;
@@ -494,13 +490,13 @@ SDataBlockList* tscCreateBlockArrayList() {
   return pDataBlockArrayList;
 }
 
-void tscAppendDataBlock(SDataBlockList *pList, STableDataBlocks *pBlocks) {
+void tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks) {
   if (pList->nSize >= pList->nAlloc) {
     pList->nAlloc = pList->nAlloc << 1;
-    pList->pData = realloc(pList->pData, sizeof(void *) * (size_t)pList->nAlloc);
+    pList->pData = realloc(pList->pData, sizeof(void*) * (size_t)pList->nAlloc);
 
     // reset allocated memory
-    memset(pList->pData + pList->nSize, 0, sizeof(void *) * (pList->nAlloc - pList->nSize));
+    memset(pList->pData + pList->nSize, 0, sizeof(void*) * (pList->nAlloc - pList->nSize));
   }
 
   pList->pData[pList->nSize++] = pBlocks;
@@ -557,7 +553,7 @@ void tscFreeUnusedDataBlocks(SDataBlockList* pList) {
 }
 
 STableDataBlocks* tscCreateDataBlockEx(size_t size, int32_t rowSize, int32_t startOffset, char* name) {
-  STableDataBlocks *dataBuf = tscCreateDataBlock(size);
+  STableDataBlocks* dataBuf = tscCreateDataBlock(size);
 
   dataBuf->rowSize = rowSize;
   dataBuf->size = startOffset;
@@ -577,7 +573,7 @@ STableDataBlocks* tscGetDataBlockFromList(void* pHashList, SDataBlockList* pData
   }
 
   if (dataBuf == NULL) {
-    dataBuf = tscCreateDataBlockEx((size_t) size, rowSize, startOffset, tableId);
+    dataBuf = tscCreateDataBlockEx((size_t)size, rowSize, startOffset, tableId);
     dataBuf = *(STableDataBlocks**)taosAddIntHash(pHashList, id, (char*)&dataBuf);
     tscAppendDataBlock(pDataBlockList, dataBuf);
   }
@@ -608,7 +604,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
       if (tmp != NULL) {
         dataBuf->pData = tmp;
         memset(dataBuf->pData + dataBuf->size, 0, dataBuf->nAllocSize - dataBuf->size);
-      } else { // failed to allocate memory, free already allocated memory and return error code
+      } else {  // failed to allocate memory, free already allocated memory and return error code
         tscError("%p failed to allocate memory for merging submit block, size:%d", pSql, dataBuf->nAllocSize);
 
         taosCleanUpIntHash(pVnodeDataBlockHashList);
@@ -677,7 +673,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
     pCmd->allocSize = size;
   } else {
     if (pCmd->allocSize < size) {
-      char* b = realloc(pCmd->payload, size);      
+      char* b = realloc(pCmd->payload, size);
       if (b == NULL) return TSDB_CODE_CLI_OUT_OF_MEMORY;
       pCmd->payload = b;
       pCmd->allocSize = size;
@@ -873,11 +869,11 @@ void tscClearFieldInfo(SFieldInfo* pFieldInfo) {
 
 static void _exprCheckSpace(SSqlExprInfo* pExprInfo, int32_t size) {
   if (size > pExprInfo->numOfAlloc) {
-    int32_t oldSize = pExprInfo->numOfAlloc;
+    uint32_t oldSize = pExprInfo->numOfAlloc;
 
-    int32_t newSize = (oldSize <= 0) ? 8 : (oldSize << 1);
+    uint32_t newSize = (oldSize <= 0) ? 8 : (oldSize << 1U);
     while (newSize < size) {
-      newSize = (newSize << 1);
+      newSize = (newSize << 1U);
     }
 
     if (newSize > TSDB_MAX_COLUMNS) {
@@ -1165,7 +1161,7 @@ void tscColumnBaseInfoDestroy(SColumnBaseInfo* pColumnBaseInfo) {
   assert(pColumnBaseInfo->numOfCols <= TSDB_MAX_COLUMNS);
 
   for (int32_t i = 0; i < pColumnBaseInfo->numOfCols; ++i) {
-    SColumnBase *pColBase = &(pColumnBaseInfo->pColList[i]);
+    SColumnBase* pColBase = &(pColumnBaseInfo->pColList[i]);
 
     if (pColBase->numOfFilters > 0) {
       for (int32_t j = 0; j < pColBase->numOfFilters; ++j) {
@@ -1183,8 +1179,9 @@ void tscColumnBaseInfoDestroy(SColumnBaseInfo* pColumnBaseInfo) {
   tfree(pColumnBaseInfo->pColList);
 }
 
-
-void tscColumnBaseInfoReserve(SColumnBaseInfo* pColumnBaseInfo, int32_t size) { _cf_ensureSpace(pColumnBaseInfo, size); }
+void tscColumnBaseInfoReserve(SColumnBaseInfo* pColumnBaseInfo, int32_t size) {
+  _cf_ensureSpace(pColumnBaseInfo, size);
+}
 
 /*
  * 1. normal name, not a keyword or number
@@ -1232,16 +1229,16 @@ int32_t tscValidateName(SSQLToken* pToken) {
       int len = tSQLGetToken(pToken->z, &pToken->type);
 
       // single token, validate it
-      if (len == pToken->n){
+      if (len == pToken->n) {
         return validateQuoteToken(pToken);
       } else {
-		sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
-		if (sep == NULL) {
-		  return TSDB_CODE_INVALID_SQL;
-		}
+        sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
+        if (sep == NULL) {
+          return TSDB_CODE_INVALID_SQL;
+        }
 
         return tscValidateName(pToken);
-	  }
+      }
     } else {
       if (isNumber(pToken)) {
         return TSDB_CODE_INVALID_SQL;
@@ -1620,8 +1617,8 @@ int32_t SStringAlloc(SString* pStr, int32_t size) {
 #ifdef WINDOWS
     LPVOID lpMsgBuf;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
-      GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  // Default language
-      (LPTSTR)&lpMsgBuf, 0, NULL);
+                  GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  // Default language
+                  (LPTSTR)&lpMsgBuf, 0, NULL);
     tscTrace("failed to allocate memory, reason:%s", lpMsgBuf);
     LocalFree(lpMsgBuf);
 #else
@@ -1656,12 +1653,11 @@ int32_t SStringEnsureRemain(SString* pStr, int32_t size) {
 
   char* tmp = realloc(pStr->z, newsize);
   if (tmp == NULL) {
-
 #ifdef WINDOWS
     LPVOID lpMsgBuf;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
-      GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  // Default language
-      (LPTSTR)&lpMsgBuf, 0, NULL);
+                  GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  // Default language
+                  (LPTSTR)&lpMsgBuf, 0, NULL);
     tscTrace("failed to allocate memory, reason:%s", lpMsgBuf);
     LocalFree(lpMsgBuf);
 #else
@@ -1732,7 +1728,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int32_t vnodeIndex, int16_t tableIndex
   if (pPrevSql != NULL) {
     pNew->cmd.type = pPrevSql->cmd.type;
   } else {
-    pNew->cmd.type |= TSDB_QUERY_TYPE_SUBQUERY; // it must be the subquery
+    pNew->cmd.type |= TSDB_QUERY_TYPE_SUBQUERY;  // it must be the subquery
   }
 
   uint64_t uid = pMeterMetaInfo->pMeterMeta->uid;
@@ -1764,7 +1760,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int32_t vnodeIndex, int16_t tableIndex
   char key[TSDB_MAX_TAGS_LEN + 1] = {0};
   tscGetMetricMetaCacheKey(pCmd, key, pMetermetaInfo->pMeterMeta->uid);
 
-  char* name = pMeterMetaInfo->name;
+  char*           name = pMeterMetaInfo->name;
   SMeterMetaInfo* pFinalInfo = NULL;
 
   if (pPrevSql == NULL) {
@@ -1772,11 +1768,11 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int32_t vnodeIndex, int16_t tableIndex
     SMetricMeta* pMetricMeta = taosGetDataFromCache(tscCacheHandle, key);
 
     pFinalInfo = tscAddMeterMetaInfo(&pNew->cmd, name, pMeterMeta, pMetricMeta, pMeterMetaInfo->numOfTags,
-                        pMeterMetaInfo->tagColumnIndex);
+                                     pMeterMetaInfo->tagColumnIndex);
   } else {
     SMeterMetaInfo* pPrevInfo = tscGetMeterMetaInfo(&pPrevSql->cmd, 0);
-    pFinalInfo = tscAddMeterMetaInfo(&pNew->cmd, name, pPrevInfo->pMeterMeta, pPrevInfo->pMetricMeta, pMeterMetaInfo->numOfTags,
-                        pMeterMetaInfo->tagColumnIndex);
+    pFinalInfo = tscAddMeterMetaInfo(&pNew->cmd, name, pPrevInfo->pMeterMeta, pPrevInfo->pMetricMeta,
+                                     pMeterMetaInfo->numOfTags, pMeterMetaInfo->tagColumnIndex);
 
     pPrevInfo->pMeterMeta = NULL;
     pPrevInfo->pMetricMeta = NULL;
@@ -1787,13 +1783,14 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int32_t vnodeIndex, int16_t tableIndex
     assert(pFinalInfo->pMetricMeta != NULL);
   }
 
-  tscTrace("%p new subquery %p, vnodeIdx:%d, tableIndex:%d, type:%d", pSql, pNew, vnodeIndex, tableIndex, pNew->cmd.type);
+  tscTrace("%p new subquery %p, vnodeIdx:%d, tableIndex:%d, type:%d", pSql, pNew, vnodeIndex, tableIndex,
+           pNew->cmd.type);
   return pNew;
 }
 
 void tscDoQuery(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
-  void* fp = pSql->fp;
+  void*    fp = pSql->fp;
 
   if (pCmd->command > TSDB_SQL_LOCAL) {
     tscProcessLocalCmd(pSql);
@@ -1820,4 +1817,16 @@ int16_t tscGetJoinTagColIndexByUid(SSqlCmd* pCmd, uint64_t uid) {
   } else {
     return pTagCond->joinInfo.right.tagCol;
   }
+}
+
+bool tscIsUpdateQuery(STscObj* pObj) {
+  if (pObj == NULL || pObj->signature != pObj) {
+    globalCode = TSDB_CODE_DISCONNECTED;
+    return TSDB_CODE_DISCONNECTED;
+  }
+
+  SSqlCmd* pCmd = &pObj->pSql->cmd;
+  return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) ||
+      TSDB_SQL_USE_DB == pCmd->command) ? 1 : 0;
+
 }

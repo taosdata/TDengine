@@ -20,8 +20,6 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-
 int  mgmtInitRedirect();
 
 void mgmtCleanUpRedirect();
