@@ -1208,7 +1208,7 @@ void *vnodeAcceptPeerTcpConnection(void *argv)
     return NULL;
   } 
 
-  dTrace("peer TCP server is created, ip:%s port:%d", tsPrivateIp, tsVnodeVnodePort);
+  dTrace("peer TCP server is created, ip:%s port:%hu", tsPrivateIp, tsVnodeVnodePort);
 
   while ( 1 ) {
     socklen_t addrlen = sizeof(clientAddr);
@@ -1222,7 +1222,7 @@ void *vnodeAcceptPeerTcpConnection(void *argv)
     taosKeepTcpAlive(connFd);
     sourceIp = clientAddr.sin_addr.s_addr;
     tinet_ntoa(ipstr, sourceIp);
-    dTrace("peer TCP connection from ip:%s port:%u", ipstr, htons(clientAddr.sin_port));
+    dTrace("peer TCP connection from ip:%s port:%hu", ipstr, htons(clientAddr.sin_port));
 
     if ( taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt) ) {
       dError("failed to read peer first pkt from ip:%s, reason:%s", ipstr, strerror(errno));
