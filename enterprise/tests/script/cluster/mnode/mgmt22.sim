@@ -12,10 +12,14 @@ system sh/cfg.sh -n dnode1 -c numOfMPeers -v 2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 2
 system sh/cfg.sh -n dnode3 -c numOfMPeers -v 2
 
+system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode3 -c secondIp -v 192.168.0.2
+
 print ============== step1
 system sh/exec.sh -n dnode1 -s start
-sql connect
 sleep 3000
+sql connect
 
 sql show mnodes
 print 192.168.0.1 ==> $data3_192.168.0.1
@@ -97,8 +101,10 @@ if $data3_192.168.0.2 != master then
 endi
 
 print ============== step6
-#system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
-#system sh/cfg.sh -n dnode1 -c numOfMPeers -v 2
+system sh/deploy.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c numOfMPeers -v 2
+system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.1
+
 system sh/exec.sh -n dnode1 -s start
 sql create dnode 192.168.0.1
 sleep 5000
