@@ -377,21 +377,22 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
         dTrace("vid:%d, status:%s, wait vnode delete finished", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
       } else {
         dTrace("vid:%d, status:%s, start to update vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
-      }
-      /*
-      if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
-        vnodeCleanUpOneVnode(vnode);
-      }
 
-      vnodeConfigVPeers(vnode, pCfg->replications, pMsg->vpeerDesc);
-      vnodeSaveVnodeCfg(vnode, pCfg, pMsg->vpeerDesc);
+        if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
+          vnodeCleanUpOneVnode(vnode);
+        }
 
-      if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
-        vnodeUpdateHeadFile(vnode, vnodeList[vnode].cfg.maxSessions, pCfg->maxSessions);
-        vnodeList[vnode].cfg.maxSessions = pCfg->maxSessions;
-        vnodeOpenVnode(vnode);
+        vnodeConfigVPeers(vnode, pCfg->replications, pMsg->vpeerDesc);
+        vnodeSaveVnodeCfg(vnode, pCfg, pMsg->vpeerDesc);
+
+        /*
+        if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
+          vnodeUpdateHeadFile(vnode, vnodeList[vnode].cfg.maxSessions, pCfg->maxSessions);
+          vnodeList[vnode].cfg.maxSessions = pCfg->maxSessions;
+          vnodeOpenVnode(vnode);
+        }
+        */
       }
-      */
       return 0;
     } else {
       dTrace("vid:%d, status:%s, start to delete vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));

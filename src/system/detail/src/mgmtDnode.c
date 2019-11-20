@@ -53,11 +53,12 @@ void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
 void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode) {
   int totalVnodes = 0;
 
+  mTrace("dnode:%s, begin calc free vnodes", taosIpStr(pDnode->privateIp));
   for (int i = 0; i < pDnode->numOfVnodes; ++i) {
     SVnodeLoad *pVload = pDnode->vload + i;
     if (pVload->vgId != 0) {
-      mTrace("dnode:%s, calc free vnodes, exist vnode:%d, vgroup:%d, state:%d %s, dropstate:%d %s, syncstatus:%d %s",
-             taosIpStr(pDnode->privateIp), i, pVload->vgId,
+      mTrace("%d-dnode:%s, calc free vnodes, exist vnode:%d, vgroup:%d, state:%d %s, dropstate:%d %s, syncstatus:%d %s",
+             totalVnodes, taosIpStr(pDnode->privateIp), i, pVload->vgId,
              pVload->status, taosGetDnodeStatusStr(pVload->status),
              pVload->dropStatus, taosGetVnodeDropStatusStr(pVload->dropStatus),
              pVload->syncStatus, taosGetVnodeSyncStatusStr(pVload->syncStatus));
@@ -66,7 +67,7 @@ void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode) {
   }
 
   pDnode->numOfFreeVnodes = pDnode->numOfVnodes - totalVnodes;
-  mTrace("dnode:%s, calc free vnodes, numOfVnodes:%d, numOfFreeVnodes:%d, totalVnodes:%d",
+  mTrace("dnode:%s, numOfVnodes:%d, numOfFreeVnodes:%d, totalVnodes:%d",
           taosIpStr(pDnode->privateIp), pDnode->numOfVnodes, pDnode->numOfFreeVnodes, totalVnodes);
 }
 

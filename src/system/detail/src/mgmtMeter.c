@@ -618,7 +618,7 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
 
     if (pDb->vgStatus == TSDB_VG_STATUS_IN_PROGRESS) {
       mgmtDestroyMeter(pMeter);
-      mTrace("table:%s, vgroup in creating progress", pCreate->meterId);
+      //mTrace("table:%s, vgroup in creating progress", pCreate->meterId);
       return TSDB_CODE_ACTION_IN_PROGRESS;
     }
 
