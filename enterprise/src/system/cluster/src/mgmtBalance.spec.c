@@ -53,22 +53,22 @@ bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode) {
 /**
  * check if a dnode in offline state
  **/
-bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) { return pDnode->status == TSDB_STATUS_OFFLINE; }
+bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) { return pDnode->status == TSDB_DNODE_STATUS_OFFLINE; }
 
 /**
  * check if can alloc a vnode from this dnode
  **/
 bool mgmtCheckDnodeFree(SDnodeObj *pDnode) {
   mTrace("dnode:%s, try alloc vnode, state:%d %s, lbstate:%d %s, numOfFreeVnodes:%d",
-          taosIpStr(pDnode->privateIp), pDnode->status, sdbDnodeStatusStr[pDnode->status],
-          pDnode->lbState, sdbDnodeBalanceStateStr[pDnode->lbState], pDnode->numOfFreeVnodes);
+          taosIpStr(pDnode->privateIp), pDnode->status, taosGetDnodeStatusStr(pDnode->status),
+          pDnode->lbState, taosGetDnodeBalanceStateStr(pDnode->lbState), pDnode->numOfFreeVnodes);
   for (int vnode = 0; vnode < pDnode->numOfVnodes; vnode++) {
     if (pDnode->vload[vnode].vgId != 0) {
       mTrace("dnode:%s, try alloc vnode, exist vnode:%d, vgroup:%d, state:%d %s, dropstate:%d %s, syncstatus:%d %s",
               taosIpStr(pDnode->privateIp), vnode, pDnode->vload[vnode].vgId,
-             pDnode->vload[vnode].status, sdbDnodeStatusStr[pDnode->vload[vnode].status],
-             pDnode->vload[vnode].dropStatus, sdbVnodeDropStateStr[pDnode->vload[vnode].dropStatus],
-             pDnode->vload[vnode].syncStatus, sdbVnodeSyncStatusStr[pDnode->vload[vnode].syncStatus])
+             pDnode->vload[vnode].status, taosGetVnodeStatusStr(pDnode->vload[vnode].status),
+             pDnode->vload[vnode].dropStatus, taosGetVnodeDropStatusStr(pDnode->vload[vnode].dropStatus),
+             pDnode->vload[vnode].syncStatus, taosGetVnodeSyncStatusStr(pDnode->vload[vnode].syncStatus));
     }
   }
 
@@ -376,9 +376,9 @@ bool mgmtCheckVnodeReady(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode) 
   }
 
   mTrace("dnode:%s, vgroup:%d, vnode:%d, status:%d %s, syncstatus:%d %s",
-          taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode, vload->status, sdbDnodeStatusStr[vload->status],
-          vload->syncStatus, sdbVnodeSyncStatusStr[vload->syncStatus]);
-  return vload->status > TSDB_STATUS_UNSYNCED;
+          taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode, vload->status, taosGetVnodeStatusStr(vload->status),
+          vload->syncStatus, taosGetVnodeSyncStatusStr(vload->syncStatus));
+  return vload->status == TSDB_VNODE_STATUS_SLAVE || vload->syncStatus == TSDB_VNODE_STATUS_MASTER;
 }
 
 /**
@@ -528,8 +528,8 @@ void mgmtMonitorDnodeBalanced(int type) {
   for (int src = mgmtOrderedDnodesSize - 1; src >= 0; --src) {
     SDnodeObj *pDnode = mgmtOrderedDnodes[src];
     mTrace("dnode:%s, state:%d %s, lbState:%d %s, lbScore:%.1f, totalVnodes:%d, freeVnodes:%d, openVnodes:%d",
-            taosIpStr(pDnode->privateIp), pDnode->status, sdbDnodeStatusStr[pDnode->status],
-            pDnode->lbState, sdbDnodeBalanceStateStr[pDnode->lbState],
+            taosIpStr(pDnode->privateIp), pDnode->status, taosGetDnodeStatusStr(pDnode->status),
+            pDnode->lbState, taosGetDnodeBalanceStateStr(pDnode->lbState),
             pDnode->lbScore, pDnode->numOfVnodes, pDnode->numOfFreeVnodes, pDnode->openVnodes
     );
   }
@@ -601,8 +601,7 @@ void mgmtSetDnodeOfflineOnSdbChanged() {
 
     mPrint("dnode:%s set access:%d to 0", taosIpStr(pDnode->privateIp), pDnode->lastAccess);
     pDnode->lastAccess = 0;
-    pDnode->status = TSDB_STATUS_OFFLINE;  // while master change, should reset
-                                           // pDnode to offline
+    pDnode->status = TSDB_DNODE_STATUS_OFFLINE;  // while master change, should reset dnode to offline
   }
 
   mgmtAccessSquence = 0;

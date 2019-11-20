@@ -42,8 +42,8 @@ if $data00 != 5 then
   return -1
 endi
 
-sql import into tb values(now-29d, -29, 0)
+sql_error import into tb values(now-29d, -29, 0)
 sql select count(b) from tb
-if $data00 != 6 then
+if $data00 != 5 then
   return -1
 endi

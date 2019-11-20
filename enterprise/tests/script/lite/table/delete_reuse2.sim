@@ -47,10 +47,7 @@ endi
 print ======== step2
 sql drop table db1.t1
 sleep 1000
-sql insert into db1.t1 values(now, 2) -x step2
-  return -1
-endi
-step2:
+sql_error insert into db1.t1 values(now, 2)
 
 print ========= step3
 sql create table db1.tb1 (ts timestamp, i int)
@@ -72,9 +69,7 @@ while $x < 20
   sql drop table $tb
   
   sleep 1000
-  sql insert into $tb values(now, -1) -x step4
-    return -1
-  endi
+  sql_error insert into $tb values(now, -1)
   
   step4:
   
