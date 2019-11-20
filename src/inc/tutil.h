@@ -187,44 +187,35 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, cha
 
 char *taosIpStr(uint32_t ipInt);
 
-extern void taos_detect_memory_leak(const char* path, bool autoDump);
-extern void taos_dump_memory_leak();
+#define TAOS_ALLOC_MODE_DEFAULT 0
+#define TAOS_ALLOC_MODE_RANDOM_FAIL 1
+#define TAOS_ALLOC_MODE_DETECT_LEAK 2
+void taosSetAllocMode(int mode, const char* path, bool autoDump);
+void taosDumpMemoryLeak();
 
-#if TAOS_MEM_CHECK == 1
+#ifdef TAOS_MEM_CHECK
 
-// Use during test to simulate the success and failure scenarios of memory allocation
-extern void* taos_malloc(size_t size, const char* func);
-extern void* taos_calloc(size_t num, size_t size, const char* func);
-extern void* taos_realloc(void* ptr, size_t size, const char* func);
-extern void  taos_free(void* ptr);
-extern char* taos_strdup(const char* str, const char* func);
-extern char* taos_strndup(const char* str, size_t size, const char* func);
-#define malloc(size)        taos_malloc(size, __FUNCTION__)
-#define calloc(num, size)   taos_calloc(num, size, __FUNCTION__)
-#define realloc(ptr, size)  taos_realloc(ptr, size, __FUNCTION__)
-#define free(ptr)           taos_free(ptr)
-#define strdup(str)         taos_strdup(str, __FUNCTION__)
-#define strndup(str, size)  taos_strndup(str, size, __FUNCTION__)
+void *  taos_malloc(size_t size, const char *file, uint32_t line);
+void *  taos_calloc(size_t num, size_t size, const char *file, uint32_t line);
+void *  taos_realloc(void *ptr, size_t size, const char *file, uint32_t line);
+void    taos_free(void *ptr, const char *file, uint32_t line);
+char *  taos_strdup(const char *str, const char *file, uint32_t line);
+char *  taos_strndup(const char *str, size_t size, const char *file, uint32_t line);
+ssize_t taos_getline(char **lineptr, size_t *n, FILE *stream, const char *file, uint32_t line);
 
-#elif TAOS_MEM_CHECK == 2
+#ifndef TAOS_MEM_CHECK_IMPL
 
-extern void* taos_malloc(size_t size, const char* file, uint32_t line);
-extern void* taos_calloc(size_t num, size_t size, const char* file, uint32_t line);
-extern void* taos_realloc(void* ptr, size_t size, const char* file, uint32_t line);
-extern void  taos_free(void* ptr, const char* file, uint32_t line);
-extern char* taos_strdup(const char* str, const char* file, uint32_t line);
-extern char* taos_strndup(const char* str, size_t size, const char* file, uint32_t line);
-extern ssize_t taos_getline(char **lineptr, size_t *n, FILE *stream, const char* file, uint32_t line);
-
-#define malloc(size)        taos_malloc(size, __FILE__, __LINE__)
-#define calloc(num, size)   taos_calloc(num, size, __FILE__, __LINE__)
-#define realloc(ptr, size)  taos_realloc(ptr, size, __FILE__, __LINE__)
-#define free(ptr)           taos_free(ptr, __FILE__, __LINE__)
-#define strdup(str)         taos_strdup(str, __FILE__, __LINE__)
-#define strndup(str, size)  taos_strndup(str, size, __FILE__, __LINE__)
+#define malloc(size) taos_malloc(size, __FILE__, __LINE__)
+#define calloc(num, size) taos_calloc(num, size, __FILE__, __LINE__)
+#define realloc(ptr, size) taos_realloc(ptr, size, __FILE__, __LINE__)
+#define free(ptr) taos_free(ptr, __FILE__, __LINE__)
+#define strdup(str) taos_strdup(str, __FILE__, __LINE__)
+#define strndup(str, size) taos_strndup(str, size, __FILE__, __LINE__)
 #define getline(lineptr, n, stream) taos_getline(lineptr, n, stream, __FILE__, __LINE__)
 
-#endif
+#endif  // TAOS_MEM_CHECK_IMPL
+
+#endif // TAOS_MEM_CHECK
 
 #ifdef __cplusplus
 }
