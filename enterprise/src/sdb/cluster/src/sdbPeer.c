@@ -438,7 +438,7 @@ void sdbCleanUpPeers() {
 void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
   int       temp;
   uint32_t  peerIp, peerId;
-  short     peerPort;
+  uint16_t  peerPort;
   SSdbPeer *pPeer = (SSdbPeer *)ahandle;
   SIntMsg  *pMsg = (SIntMsg *)msg;
   int       ret = -1;
@@ -1070,7 +1070,7 @@ void *sdbAcceptSyncTcpConnection(void *argv) {
     goto _sync_over;
   }
 
-  sdbTrace("sync TCP server is created, ip:%s port:%d", sdbPrivateIp, tsMgmtSyncPort);
+  sdbTrace("sync TCP server is created, ip:%s port:%hu", sdbPrivateIp, tsMgmtSyncPort);
 
   char *    pStart, *pMsg;
   SSdbSync *pSync;
@@ -1098,7 +1098,7 @@ void *sdbAcceptSyncTcpConnection(void *argv) {
     goto _sync_over;
   }
 
-  sdbTrace("sync TCP connection from ip:%s port:%u", inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
+  sdbTrace("sync TCP connection from ip:%s port:%hu", inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
 
   sdbRestoreDbReq(connFd);
 
