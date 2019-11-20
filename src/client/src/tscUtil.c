@@ -1643,7 +1643,7 @@ int32_t SStringEnsureRemain(SString* pStr, int32_t size) {
   }
 
   // remain space is insufficient, allocate more spaces
-  int32_t inc = (size < MIN_ALLOC_SIZE) ? size : MIN_ALLOC_SIZE;
+  int32_t inc = (size >= MIN_ALLOC_SIZE) ? size : MIN_ALLOC_SIZE;
   if (inc < (pStr->alloc >> 1)) {
     inc = (pStr->alloc >> 1);
   }
@@ -1670,6 +1670,7 @@ int32_t SStringEnsureRemain(SString* pStr, int32_t size) {
   }
 
   memset(tmp + pStr->n, 0, inc);
+  pStr->alloc = newsize;
   pStr->z = tmp;
 
   return TSDB_CODE_SUCCESS;
