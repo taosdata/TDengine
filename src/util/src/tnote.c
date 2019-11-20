@@ -13,22 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <time.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <stdarg.h>
-#include <ctype.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <semaphore.h>
-
 #include "os.h"
 #include "tutil.h"
 #include "tglobalcfg.h"
