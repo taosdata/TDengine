@@ -47,7 +47,7 @@ class TDTestCase:
           err = 'affected rows %d != expected %d' %(affrows, self.nrowsPerBatch)
           print("\033[1;31m%s %s\033[0m\nfailed insert sqlcmd: %d:%s" \
                       % (datetime.datetime.now(), err, tid, sqlcmd[1]))
-    print('Thread %d finished importing' %threadIndex)
+    print('Thread %d finished inserting' %threadIndex)
     conn.close()
 
   def importImp(self):
@@ -70,7 +70,8 @@ class TDTestCase:
           err = 'affected rows %d != expected %d' %(affrows, self.nrowsPerBatch)
           print("\033[1;31m%s %s\033[0m\nfailed import sqlcmd: %d:%s" \
                       % (datetime.datetime.now(), err, tid, sqlcmd[1]))
-    print('Thread %d finished inserting' %threadIndex)
+    print('Thread %d finished importing' %threadIndex)
+    self.queryFlag = False
     conn.close()
   
   def selectImp(self):
@@ -91,41 +92,36 @@ class TDTestCase:
     conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     cursor = conn.cursor()
     cursor.execute('use db')
-    count = 0
-    while(True):
+    while(self.queryFlag):
       cursor.execute('select last(*) from tb ')
-      print('select last(*) from tb ===========')
+      print('select last(*) from tb ===================')
       print(cursor.fetchall())
       time.sleep(5)
-      if (count == 50):break
-      count += 1
     conn.close()  
 
   def selectcountImp(self):
     conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     cursor = conn.cursor()
     cursor.execute('use db')
-    count = 0
-    while(True):
+    while(self.queryFlag):
       cursor.execute('select count(*) from tb')
-      print('select count(*) from tb ==========')
+      print('select count(*) from tb ==================')
       print(cursor.fetchall())
       time.sleep(5)
-      if (count == 50):break
-      count += 1
     conn.close() 
 
   def run(self):
     self.ntables = 2000
     self.nrowsPerBatch = 200+randint(0,100)
     self.nbatchs = 100
-    self.nthreads = 3 
+    self.nthreads = 5 
     #only represent insert/import thread
     print('working threads = %d' %self.nthreads)
     print('total table numbers = %d' %self.ntables)
     print('insert/import rounds = %d' %self.nbatchs)
     print('in every round insert/import %d records' %self.nrowsPerBatch)
     self.startTime = 1520000010000L
+    self.queryFlag = True
 
     tdSql.execute('reset query cache')
     tdSql.execute('drop database db')
