@@ -912,9 +912,10 @@ void scanDir(const char *dbDir, SVnodeInfo *pInfo) {
       sprintf(ldataName, "%s/v%df%d.data", dbDir, vnode, fid);
       sprintf(llastName, "%s/v%df%d.last", dbDir, vnode, fid);
 
-      if (access(lheadName, F_OK) == -1) {  // Head not exists
+      if (access(lheadName, F_OK) == -1) {  // .head not exists
+        remove(lheadName);
         sprintf(headName, "%s/v%df%d.head0", dDir, vnode, fid);
-        printf("  >> Neet to create missing file: %s\n", headName);
+        printf("  >> Need to create missing file: %s\n", headName);
         if (gArg.inPlace) {
           symlink(headName, lheadName);
           int fd = open(lheadName, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
@@ -936,7 +937,8 @@ void scanDir(const char *dbDir, SVnodeInfo *pInfo) {
         }
       }
 
-      if (access(ldataName, F_OK) == -1) {  // Head not exists
+      if (access(ldataName, F_OK) == -1) {  // .data not exists
+        remove(ldataName);
         sprintf(dataName, "%s/v%df%d.data", dDir, vnode, fid);
         printf("  >> Need to create missing file: %s\n", dataName);
         if (gArg.inPlace) {
@@ -952,7 +954,8 @@ void scanDir(const char *dbDir, SVnodeInfo *pInfo) {
         }
       }
 
-      if (access(llastName, F_OK) == -1) {  // Head not exists
+      if (access(llastName, F_OK) == -1) {  // .last not exists
+        remove(llastName);
         sprintf(lastName, "%s/v%df%d.last0", dDir, vnode, fid);
         printf("  >> Need to create missing file: %s\n", lastName);
         if (gArg.inPlace) {
