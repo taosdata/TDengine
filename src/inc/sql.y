@@ -154,7 +154,7 @@ ifnotexists(X) ::= .                {X.n = 0;}
 
 /////////////////////////////////THE CREATE STATEMENT///////////////////////////////////////
 //create option for dnode/db/user/account
-cmd ::= CREATE DNODE IP(X).     { setDCLSQLElems(pInfo, CREATE_DNODE, 1, &X);}
+cmd ::= CREATE DNODE IPTOKEN(X).     { setDCLSQLElems(pInfo, CREATE_DNODE, 1, &X);}
 cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
                                 { setCreateAcctSQL(pInfo, CREATE_ACCOUNT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDBSQL(pInfo, CREATE_DATABASE, &X, &Y, &Z);}
