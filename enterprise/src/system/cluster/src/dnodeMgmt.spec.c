@@ -24,6 +24,7 @@
 #include "vnodeMgmt.h"
 #include "vnodeSystem.h"
 #include "vnodeUtil.h"
+#include "tstatus.h"
 
 extern SMgmtObj mgmtObj;
 extern void*tsStatusTimer;
@@ -173,7 +174,7 @@ int vnodeProcessBufferedCreateMsgs(int vnode) {
     trans++;
   }
 
-  vnodeList[vnode].syncStatus = TSDB_SSTATUS_SYNC_FILE;
+  vnodeList[vnode].syncStatus = TSDB_VN_SYNC_STATUS_SYNC_FILE;
   pQueue->offset = pQueue->buffer;
   pQueue->trans = 0;
 
@@ -188,7 +189,7 @@ int vnodeSaveCreateMsgIntoQueue(SVnodeObj *pVnode, char *pMsg, int msgLen) {
 
   pthread_mutex_lock(&pQueue->qmutex);
 
-  if (pVnode->syncStatus == TSDB_SSTATUS_SYNCING) {
+  if (pVnode->syncStatus == TSDB_VN_SYNC_STATUS_SYNCING) {
     if (pQueue->bufferSize - (pQueue->offset - pQueue->buffer) < msgLen + 100) {
       dError("vid:%d, buffer size:%d is too small", pVnode->vnode, pQueue->bufferSize);
       vnodeCancelSync(pVnode->vnode);
@@ -274,7 +275,7 @@ void vnodeSendStatusMsgToMgmt(void *handle, void *tmrId) {
     pLoad->accessState = (uint8_t)(pVnode->accessState);
     pLoad->totalStorage = htobe64(pVnode->vnodeStatistic.totalStorage);
     pLoad->compStorage = htobe64(pVnode->vnodeStatistic.compStorage);
-    if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_MASTER) {
+    if (pVnode->vnodeStatus == TSDB_VN_STATUS_MASTER) {
       pLoad->pointsWritten = htobe64(pVnode->vnodeStatistic.pointsWritten);
     } else {
       pLoad->pointsWritten = htobe64(0);

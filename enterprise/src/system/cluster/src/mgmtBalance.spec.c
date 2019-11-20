@@ -15,30 +15,30 @@
 
 #define _DEFAULT_SOURCE
 #include "mgmtBalance.h"
+#include "tstatus.h"
 
 #pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
 
-// once sdb work as mater, then mgmtAccessSquence reset to zero
-// increase mgmtAccessSquence every balance interval
+/*
+ * once sdb work as mater, then mgmtAccessSquence reset to zero, increase mgmtAccessSquence every balance interval
+ */
 uint32_t        mgmtAccessSquence = 0;
 pthread_mutex_t balanceMutex;
 void *          balanceTimer = NULL;
 void *          balanceMonitorTimer = NULL;
-#define LB_BALANCE_SCHEDULE 0
-#define LB_BLANACE_SOON 1
 
 void mgmtLockBalance() { pthread_mutex_lock(&balanceMutex); }
 
 void mgmtUnLockBalance() { pthread_mutex_unlock(&balanceMutex); }
 
-void mgmtUpdateDnodeState(SDnodeObj *pDnode, int lbState) {
-  pDnode->lbState = lbState;
+void mgmtUpdateDnodeState(SDnodeObj *pDnode, int lbStatus) {
+  pDnode->lbStatus = lbStatus;
   sdbUpdateRow(dnodeSdb, pDnode, tsDnodeUpdateSize, 1);
 }
 
-void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbState, int srcIp) {
-  pVgroup->lbTime = time(NULL);
-  pVgroup->lbState = lbState;
+void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbStatus, int srcIp) {
+  pVgroup->lbTime = taosGetTimestampSec();
+  pVgroup->lbStatus = lbStatus;
   pVgroup->lbIp = srcIp;
   sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
 }
@@ -47,28 +47,28 @@ void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbState, int srcIp) {
  * check if a dnode in remove state
  **/
 bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode) {
-  return pDnode->lbState == LB_DNODE_STATE_OFFLINE_REMOVING || pDnode->lbState == LB_DNODE_STATE_SHELL_REMOVING;
+  return pDnode->lbStatus == TSDB_DN_LB_STATUS_OFFLINE_REMOVING || pDnode->lbStatus == TSDB_DN_LB_STATE_SHELL_REMOVING;
 }
 
 /**
  * check if a dnode in offline state
  **/
-bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) { return pDnode->status == TSDB_DNODE_STATUS_OFFLINE; }
+bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) { return pDnode->status == TSDB_DN_STATUS_OFFLINE; }
 
 /**
  * check if can alloc a vnode from this dnode
  **/
 bool mgmtCheckDnodeFree(SDnodeObj *pDnode) {
-  mTrace("dnode:%s, try alloc vnode, state:%d %s, lbstate:%d %s, numOfFreeVnodes:%d",
-          taosIpStr(pDnode->privateIp), pDnode->status, taosGetDnodeStatusStr(pDnode->status),
-          pDnode->lbState, taosGetDnodeBalanceStateStr(pDnode->lbState), pDnode->numOfFreeVnodes);
+  mTrace("dnode:%s, try alloc vnode, status:%s, lbstatus:%s, numOfFreeVnodes:%d",
+         taosIpStr(pDnode->privateIp), taosGetDnodeStatusStr(pDnode->status),
+         taosGetDnodeLbStatusStr(pDnode->lbStatus), pDnode->numOfFreeVnodes);
   for (int vnode = 0; vnode < pDnode->numOfVnodes; vnode++) {
     if (pDnode->vload[vnode].vgId != 0) {
-      mTrace("dnode:%s, try alloc vnode, exist vnode:%d, vgroup:%d, state:%d %s, dropstate:%d %s, syncstatus:%d %s",
-              taosIpStr(pDnode->privateIp), vnode, pDnode->vload[vnode].vgId,
-             pDnode->vload[vnode].status, taosGetVnodeStatusStr(pDnode->vload[vnode].status),
-             pDnode->vload[vnode].dropStatus, taosGetVnodeDropStatusStr(pDnode->vload[vnode].dropStatus),
-             pDnode->vload[vnode].syncStatus, taosGetVnodeSyncStatusStr(pDnode->vload[vnode].syncStatus));
+      mTrace("dnode:%s, try alloc vnode, vnode:%d already exist, vgroup:%d, vnodestatus:%s, dropstatus:%s, syncstatus:%s",
+             taosIpStr(pDnode->privateIp), vnode, pDnode->vload[vnode].vgId,
+             taosGetVnodeStatusStr(pDnode->vload[vnode].status),
+             taosGetVnodeDropStatusStr(pDnode->vload[vnode].dropStatus),
+             taosGetVnodeSyncStatusStr(pDnode->vload[vnode].syncStatus));
     }
   }
 
@@ -85,7 +85,7 @@ bool mgmtCheckDnodeFree(SDnodeObj *pDnode) {
   }
 
   if (pDnode->diskAvailable <= tsMinimalDataDirGB) {
-    mError("dnode:%s, disk no space to alloc vnode, available:%fGB", taosIpStr(pDnode->privateIp), pDnode->diskAvailable);
+    mError("dnode:%s, no disk space to alloc vnode, available:%fGB", taosIpStr(pDnode->privateIp), pDnode->diskAvailable);
     return false;
   }
 
@@ -96,7 +96,7 @@ bool mgmtCheckDnodeFree(SDnodeObj *pDnode) {
  * check if can balance a vnode into this dnode
  **/
 bool mgmtCheckDnodeCanBalanceIn(SDnodeObj *pDnode) {
-  if (pDnode->lbState != LB_DNODE_STATE_BALANCED) {
+  if (pDnode->lbStatus != TSDB_DN_LB_STATUS_BALANCED) {
     return false;
   }
 
@@ -115,7 +115,7 @@ bool mgmtCheckDnodeCanBalanceIn(SDnodeObj *pDnode) {
  * check if can balance a vnode out of this dnode
  **/
 bool mgmtCheckDnodeCanBalanceOut(SDnodeObj *pDnode) {
-  if (pDnode->lbState != LB_DNODE_STATE_BALANCED) {
+  if (pDnode->lbStatus != TSDB_DN_LB_STATUS_BALANCED) {
     return false;
   }
 
@@ -165,7 +165,7 @@ bool mgmtAllocVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid, SDnodeObj *pDnode) {
   int selectedVnode = -1;
   for (int i = 0; i < pDnode->numOfVnodes; i++) {
     int vnode = (i + pDnode->lastAllocVnode) % pDnode->numOfVnodes;
-    if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_READY) {
+    if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_OFFLINE) {
       selectedVnode = vnode;
       break;
     }
@@ -375,10 +375,10 @@ bool mgmtCheckVnodeReady(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode) 
     return false;
   }
 
-  mTrace("dnode:%s, vgroup:%d, vnode:%d, status:%d %s, syncstatus:%d %s",
-          taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode, vload->status, taosGetVnodeStatusStr(vload->status),
-          vload->syncStatus, taosGetVnodeSyncStatusStr(vload->syncStatus));
-  return vload->status == TSDB_VNODE_STATUS_SLAVE || vload->syncStatus == TSDB_VNODE_STATUS_MASTER;
+  mTrace("dnode:%s, vgroup:%d, vnode:%d, status:%s, syncstatus:%s",
+          taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode,
+          taosGetVnodeStatusStr(vload->status), taosGetVnodeSyncStatusStr(vload->syncStatus));
+  return vload->status == TSDB_VN_STATUS_SLAVE || vload->syncStatus == TSDB_VN_STATUS_MASTER;
 }
 
 /**
@@ -405,7 +405,7 @@ void mgmtRemoveOneRedundantVnode(SVgObj *pVgroup) {
       break;
     }
 
-    if (pDnode->lbState == LB_DNODE_STATE_SHELL_REMOVING) {
+    if (pDnode->lbStatus == TSDB_DN_LB_STATE_SHELL_REMOVING) {
       mTrace("dnode:%s, vgroup:%d, vnode:%d, dnode in shell removing state",
               taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode);
       pRmVnode = pVnode;
@@ -507,7 +507,7 @@ bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) 
   }
 
   uint32_t srcIp = (pSrcDnode == NULL ? 0 : pSrcDnode->privateIp);
-  mgmtUpdateVgroupState(pVgroup, LB_VGROUP_STATE_UPDATE, srcIp);
+  mgmtUpdateVgroupState(pVgroup, TSDB_VG_LB_STATUS_UPDATE, srcIp);
   mgmtAppendVnode(pVgroup, &pVnodeGid);
   mgmtStartBalanceTimer(1002);
 
@@ -527,9 +527,9 @@ void mgmtMonitorDnodeBalanced(int type) {
 
   for (int src = mgmtOrderedDnodesSize - 1; src >= 0; --src) {
     SDnodeObj *pDnode = mgmtOrderedDnodes[src];
-    mTrace("dnode:%s, state:%d %s, lbState:%d %s, lbScore:%.1f, totalVnodes:%d, freeVnodes:%d, openVnodes:%d",
-            taosIpStr(pDnode->privateIp), pDnode->status, taosGetDnodeStatusStr(pDnode->status),
-            pDnode->lbState, taosGetDnodeBalanceStateStr(pDnode->lbState),
+    mTrace("dnode:%s, state:%s, lbStatus:%s, lbScore:%.1f, totalVnodes:%d, freeVnodes:%d, openVnodes:%d",
+            taosIpStr(pDnode->privateIp), taosGetDnodeStatusStr(pDnode->status),
+            taosGetDnodeLbStatusStr(pDnode->lbStatus),
             pDnode->lbScore, pDnode->numOfVnodes, pDnode->numOfFreeVnodes, pDnode->openVnodes
     );
   }
@@ -552,7 +552,7 @@ void mgmtMonitorDnodeBalanced(int type) {
 
       SVgObj *pVgroup = mgmtGetVgroup(pVload->vgId);
       if (pVgroup == NULL) continue;
-      if (pVgroup->lbState != LB_VGROUP_STATE_READY) continue;
+      if (pVgroup->lbStatus != TSDB_VG_LB_STATUS_READY) continue;
 
       for (int dest = 0; dest < src; dest++) {
         SDnodeObj *pDestDnode = mgmtOrderedDnodes[dest];
@@ -578,7 +578,7 @@ void mgmtMonitorDnodeBalanced(int type) {
             taosIpStr(pSrcDnode->privateIp), pVgroup->vgId, taosIpStr(pDestDnode->privateIp),
             pSrcDnode->lbScore, srcScore, pDestDnode->lbScore, destScore);
         if (mgmtAddVnode(pVgroup, pSrcDnode, pDestDnode)) {
-          mgmtUpdateDnodeState(pSrcDnode, LB_DNODE_STATE_BALANCING);
+          mgmtUpdateDnodeState(pSrcDnode, TSDB_DN_LB_STATUS_BALANCING);
           return;
         }
       }
@@ -601,7 +601,7 @@ void mgmtSetDnodeOfflineOnSdbChanged() {
 
     mPrint("dnode:%s set access:%d to 0", taosIpStr(pDnode->privateIp), pDnode->lastAccess);
     pDnode->lastAccess = 0;
-    pDnode->status = TSDB_DNODE_STATUS_OFFLINE;  // while master change, should reset dnode to offline
+    pDnode->status = TSDB_DN_STATUS_OFFLINE;  // while master change, should reset dnode to offline
   }
 
   mgmtAccessSquence = 0;
@@ -615,7 +615,7 @@ void mgmtStartBalance(int type) {
   mgmtMakeDnodeOrderList();
   mgmtMonitorDnodes();
   mgmtMonitorVgroups();
-  if (type == LB_BLANACE_SOON || (taosGetTimestampSec() - lastTime) > tsBalanceStartInterval) {
+  if (type == TSDB_LB_TYPE_SOON || (taosGetTimestampSec() - lastTime) > tsBalanceStartInterval) {
     mgmtMonitorDnodeBalanced(type);
     mgmtMonitorDnodeModule();
     lastTime = taosGetTimestampSec();
@@ -626,14 +626,14 @@ void mgmtStartBalance(int type) {
 }
 
 void mgmtProcessBalanceTimer(void *handle, void *tmrId) {
-  if ((int)handle == LB_BALANCE_SCHEDULE) {
+  if ((int)handle == TSDB_LB_TYPE_SCHEDULE) {
     mgmtAccessSquence += tsBalanceMonitorInterval;
   }
 
   balanceTimer = NULL;
   mgmtStartBalance((int)handle);
   if (balanceTimer == NULL) {
-    taosTmrReset(mgmtProcessBalanceTimer, tsBalanceMonitorInterval * 1000, (void *)LB_BALANCE_SCHEDULE, mgmtTmr,
+    taosTmrReset(mgmtProcessBalanceTimer, tsBalanceMonitorInterval * 1000, (void *)TSDB_LB_TYPE_SCHEDULE, mgmtTmr,
                  &balanceTimer);
   }
 }
@@ -644,7 +644,7 @@ void mgmtStartBalanceTimer(int mseconds) {
   //   balanceTimer = NULL;
   // }
   mTrace("balance function will be called after:%d mseconds", mseconds);
-  taosTmrReset(mgmtProcessBalanceTimer, mseconds, (void *)LB_BLANACE_SOON, mgmtTmr, &balanceTimer);
+  taosTmrReset(mgmtProcessBalanceTimer, mseconds, (void *)TSDB_LB_TYPE_SOON, mgmtTmr, &balanceTimer);
 }
 
 void mgmtMonitorVgroups() {
@@ -656,7 +656,7 @@ void mgmtMonitorVgroups() {
   while (1) {
     pNode = sdbFetchRow(vgSdb, pNode, (void **)&pVgroup);
     if (pVgroup == NULL) break;
-    if (pVgroup->lbState == LB_VGROUP_STATE_READY) continue;
+    if (pVgroup->lbStatus == TSDB_VG_LB_STATUS_READY) continue;
     if (pVgroup->lbTime + 5 * tsStatusInterval >= curTime) continue;
 
     pDb = mgmtGetDb(pVgroup->dbName);
@@ -674,7 +674,7 @@ void mgmtMonitorVgroups() {
       mgmtRemoveOneRedundantVnode(pVgroup);
     } else if (vgReplica == dbReplica) {
       mTrace("vgroup:%d, db:%s update success", pVgroup->vgId, pVgroup->dbName);
-      mgmtUpdateVgroupState(pVgroup, LB_VGROUP_STATE_READY, 0);
+      mgmtUpdateVgroupState(pVgroup, TSDB_VG_LB_STATUS_READY, 0);
       mgmtStartBalanceTimer(1003);
     } else {
       mgmtAddVnode(pVgroup, NULL, NULL);
@@ -695,7 +695,7 @@ void mgmtMontiorDnodeOffline(SDnodeObj *pDnode) {
   mLPrint("dnode:%s set to removing state for it offline:%d seconds",
           taosIpStr(pDnode->privateIp), mgmtAccessSquence - pDnode->lastAccess);
 
-  mgmtUpdateDnodeState(pDnode, LB_DNODE_STATE_OFFLINE_REMOVING);
+  mgmtUpdateDnodeState(pDnode, TSDB_DN_LB_STATUS_OFFLINE_REMOVING);
   mgmtStartBalanceTimer(1004);
 }
 
@@ -709,7 +709,7 @@ void mgmtMonitorDnodeBalancing(SDnodeObj *pDnode) {
 
     SVgObj *pVgroup = mgmtGetVgroup(pVload->vgId);
     if (pVgroup == NULL) continue;
-    if (pVgroup->lbState == LB_VGROUP_STATE_READY) continue;
+    if (pVgroup->lbStatus == TSDB_VG_LB_STATUS_READY) continue;
     if (pVgroup->lbIp != pDnode->privateIp) continue;
 
     numOfUpdateVgroups++;
@@ -719,7 +719,7 @@ void mgmtMonitorDnodeBalancing(SDnodeObj *pDnode) {
 
   if (numOfUpdateVgroups == 0) {
     mPrint("dnode:%s, set to balanced state", taosIpStr(pDnode->privateIp));
-    mgmtUpdateDnodeState(pDnode, LB_DNODE_STATE_BALANCED);
+    mgmtUpdateDnodeState(pDnode, TSDB_DN_LB_STATUS_BALANCED);
     mgmtStartBalanceTimer(1005);
   }
 }
@@ -750,13 +750,13 @@ void mgmtMonitorDnodeRemoving(SDnodeObj *pDnode) {
       if (pVgroup->lbIp != pDnode->privateIp) {
         mTrace("dnode:%s, vgroup:%d set to updating state, change lbIp:%s to %s",
             taosIpStr(pDnode->privateIp), pVgroup->vgId, taosIpStr(pVgroup->lbIp), taosIpStr(pDnode->privateIp));
-        mgmtUpdateVgroupState(pVgroup, LB_VGROUP_STATE_UPDATE, pDnode->privateIp);
+        mgmtUpdateVgroupState(pVgroup, TSDB_VG_LB_STATUS_UPDATE, pDnode->privateIp);
       } else {
         mTrace("dnode:%s, vgroup:%d wait update over", taosIpStr(pDnode->privateIp), pVgroup->vgId);
       }
     }
 
-    if (pVgroup->lbState == LB_VGROUP_STATE_UPDATE) {
+    if (pVgroup->lbStatus == TSDB_VG_LB_STATUS_UPDATE) {
       break;
     }
   }
@@ -779,20 +779,20 @@ void mgmtMonitorDnodes() {
 
     mgmtMontiorDnodeOffline(pDnode);
 
-    switch (pDnode->lbState) {
-      case LB_DNODE_STATE_BALANCED:
+    switch (pDnode->lbStatus) {
+      case TSDB_DN_LB_STATUS_BALANCED:
         break;
-      case LB_DNODE_STATE_BALANCING:
+      case TSDB_DN_LB_STATUS_BALANCING:
         mgmtMonitorDnodeBalancing(pDnode);
         break;
-      case LB_DNODE_STATE_OFFLINE_REMOVING:
-      case LB_DNODE_STATE_SHELL_REMOVING:
+      case TSDB_DN_LB_STATUS_OFFLINE_REMOVING:
+      case TSDB_DN_LB_STATE_SHELL_REMOVING:
         if (hasRemovingDnode) break;
         hasRemovingDnode = true;
         mgmtMonitorDnodeRemoving(pDnode);
         break;
       default:
-        mgmtUpdateDnodeState(pDnode, LB_DNODE_STATE_BALANCED);
+        mgmtUpdateDnodeState(pDnode, TSDB_DN_LB_STATUS_BALANCED);
         break;
     }
   }
@@ -827,7 +827,7 @@ void mgmtCleanupBalance() {
 void mgmtSetDnodeUnRemove(SDnodeObj *pDnode) {
   mPrint("dnode:%s, set to unremove state", taosIpStr(pDnode->privateIp));
   if (mgmtCheckDnodeInRemoveState(pDnode)) {
-    mgmtUpdateDnodeState(pDnode, LB_DNODE_STATE_BALANCED);
+    mgmtUpdateDnodeState(pDnode, TSDB_DN_LB_STATUS_BALANCED);
     mgmtStartBalanceTimer(11);
   }
 }
@@ -835,7 +835,7 @@ void mgmtSetDnodeUnRemove(SDnodeObj *pDnode) {
 void mgmtSetDnodeShellRemoving(SDnodeObj *pDnode) {
   mPrint("dnode:%s, set to shell removing state", taosIpStr(pDnode->privateIp));
   if (pDnode->privateIp == mgmtIpList.ip[0]) return;
-  mgmtUpdateDnodeState(pDnode, LB_DNODE_STATE_SHELL_REMOVING);
+  mgmtUpdateDnodeState(pDnode, TSDB_DN_LB_STATE_SHELL_REMOVING);
   mgmtStartBalanceTimer(12);
 }
 

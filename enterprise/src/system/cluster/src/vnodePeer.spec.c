@@ -61,29 +61,31 @@ int vnodeOpenPeerVnode(int vnode)
   pQueue = (STranQueue *) pVnode->pQueue;
   pthread_mutex_init ( &(pQueue->qmutex), NULL);
 
-  for (int i=0; i<pVnode->cfg.replications; ++i) {
+  for (int i = 0; i < pVnode->cfg.replications; ++i) {
     pVPeer = (SVnodePeer *) calloc(1, sizeof(SVnodePeer));
     pVPeer->signature = pVPeer;
     pVPeer->ip = pVnode->vpeers[i].ip;
     tinet_ntoa(pVPeer->ipstr, pVPeer->ip);
     pVPeer->vid = pVnode->vpeers[i].vnode;
     pVPeer->ownId = vnode;
-    pVPeer->status = TSDB_VNODE_STATUS_OFFLINE;
+    pVPeer->status = TSDB_VN_STATUS_OFFLINE;
     pVPeer->syncFd = -1;
     pVPeer->peerFd = -1;
     pVnode->peerInfo[i] = pVPeer;
-    if ( pVPeer->ip == tsPrivateIp4 ) pVnode->selfIndex = i;
+    if (pVPeer->ip == tsPrivateIp4) {
+      pVnode->selfIndex = i;
+    }
   }
 
-  pVnode->vnodeStatus = (pVnode->cfg.replications>1) ? TSDB_VNODE_STATUS_UNSYNCED : TSDB_VNODE_STATUS_MASTER;
+  pVnode->vnodeStatus = (pVnode->cfg.replications > 1) ? TSDB_VN_STATUS_UNSYNCED : TSDB_VN_STATUS_MASTER;
   dTrace("vid:%d, vnode status:%s numOfPeers:%d", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus), pVnode->cfg.replications-1);
   vnodeUpdateStreamRole(pVnode);
 
-  for (int i=0; i<pVnode->cfg.replications; ++i) {
+  for (int i = 0; i < pVnode->cfg.replications; ++i) {
     pVPeer = pVnode->peerInfo[i];
-    if ( pVPeer->ip ) {
-      dTrace("vid:%d, peer:%s:%d is configured", vnode, pVPeer->ipstr, pVPeer->vid); 
-      if ( tsPrivateIp4 < pVPeer->ip ) 
+    if (pVPeer->ip) {
+      dTrace("vid:%d, peer:%s:%d is configured", vnode, pVPeer->ipstr, pVPeer->vid);
+      if (tsPrivateIp4 < pVPeer->ip)
         taosTmrReset(vnodeCheckPeerConnection, 0, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
     }
   }
@@ -118,7 +120,7 @@ void vnodeClosePeerVnode(int vnode)
     pVnode->pQueue = NULL;
   }
 
-  pVnode->vnodeStatus = TSDB_VNODE_STATUS_OFFLINE;
+  pVnode->vnodeStatus = TSDB_VN_STATUS_OFFLINE;
 
   pthread_mutex_unlock (&pVnode->vmutex);
 }
@@ -163,7 +165,7 @@ void vnodeConfigVPeers(int vnode, int numOfPeers, SVPeerDesc peerDesc[])
   SVnodeObj  *pVnode = vnodeList + vnode;
   int         i, j;
 
-  if ( vnodeList[vnode].vnodeStatus == TSDB_VNODE_STATUS_CREATING ) {
+  if ( vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_CREATING ) {
     dTrace("vid:%d, vnode is still under creating", vnode);
     return;
   }
@@ -200,7 +202,7 @@ void vnodeConfigVPeers(int vnode, int numOfPeers, SVPeerDesc peerDesc[])
       pVPeer->ownId = vnode;
       pVPeer->peerFd = -1;
       pVPeer->syncFd = -1;
-      pVPeer->status = TSDB_VNODE_STATUS_OFFLINE;
+      pVPeer->status = TSDB_VN_STATUS_OFFLINE;
       dTrace("vid:%d, peer:%s:%d is configured", vnode, pVPeer->ipstr, pVPeer->vid);
       if ( pVPeer->ip > tsPrivateIp4 )
         taosTmrReset(vnodeCheckPeerConnection, 0, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
@@ -218,7 +220,7 @@ void vnodeConfigVPeers(int vnode, int numOfPeers, SVPeerDesc peerDesc[])
 
   if ( numOfPeers <= 1) {
     dTrace("vid:%d, no peers are configured!", vnode);
-    pVnode->vnodeStatus = TSDB_VNODE_STATUS_MASTER;
+    pVnode->vnodeStatus = TSDB_VN_STATUS_MASTER;
   }
 
   pVnode->cfg.replications = numOfPeers;
@@ -262,7 +264,7 @@ void vnodeBroadcastStatusToUnsyncedPeer(SVnodeObj *pVnode)
   for (int i=0; i<pVnode->cfg.replications; ++i) {
     pVPeer = pVnode->peerInfo[i];
     if ( pVPeer == NULL || pVPeer->ip == 0 ) continue;
-    if ( (pVPeer->peerFd >= 0) && (pVPeer->status == TSDB_VNODE_STATUS_UNSYNCED) )
+    if ( (pVPeer->peerFd >= 0) && (pVPeer->status == TSDB_VN_STATUS_UNSYNCED) )
       vnodeSendStatusMsgToPeer(pVPeer, 1);
   }
 }
@@ -277,10 +279,10 @@ void vnodeChooseMaster(SVnodeObj *pVnode)
   
   for (int i=0; i<pVnode->cfg.replications; ++i) {
     pVPeer = pVnode->peerInfo[i];
-    if ( pVPeer->status == TSDB_VNODE_STATUS_UNSYNCED )
+    if ( pVPeer->status == TSDB_VN_STATUS_UNSYNCED )
       unsyncNum++;
 
-    if ( pVPeer->status == TSDB_VNODE_STATUS_SLAVE ) {
+    if ( pVPeer->status == TSDB_VN_STATUS_SLAVE ) {
       //slave with highest version shall be master
       if ( index < 0 || pVPeer->version > pVnode->peerInfo[index]->version )
         index = i;
@@ -306,7 +308,7 @@ void vnodeChooseMaster(SVnodeObj *pVnode)
   if ( index >= 0 ) {
     if ( index == pVnode->selfIndex ) {
       dPrint("vid:%d, peer: start to work as master", pVnode->vnode);  
-      pVnode->vnodeStatus = TSDB_VNODE_STATUS_MASTER;
+      pVnode->vnodeStatus = TSDB_VN_STATUS_MASTER;
     } else {
       dTrace("vid:%d, peer:%s:%d shall work as master", pVnode->vnode, pVnode->peerInfo[index]->ipstr, pVnode->peerInfo[index]->vid);
     }
@@ -326,13 +328,13 @@ int vnodeRecoverFromPeer(SVnodeObj *pVnode, int fileId)
   if ( pVnode->cfg.replications <= 1 || pVnode->peerInfo[0] == NULL ) return code;
   
   for (int i=0; i<pVnode->cfg.replications; ++i) {
-    if ( pVnode->peerInfo[i]->status == TSDB_VNODE_STATUS_OFFLINE )
+    if ( pVnode->peerInfo[i]->status == TSDB_VN_STATUS_OFFLINE )
       offlineNum++;
   }
 
   if ( offlineNum < pVnode->cfg.replications * 0.5) {
     dTrace("vid:%d, try to recover fileId:%d from peer", pVnode->vnode, fileId);
-    pVnode->vnodeStatus = TSDB_VNODE_STATUS_UNSYNCED;
+    pVnode->vnodeStatus = TSDB_VN_STATUS_UNSYNCED;
 
     for (int i=0; i<pVnode->cfg.replications; ++i) {
       pVPeer = (SVnodePeer *)pVnode->peerInfo[i];
@@ -370,15 +372,15 @@ void vnodeCheckStatus(SVnodePeer *pVPeer, SPeerState peerStates[], char newState
   pVnode->peerInfo[pVnode->selfIndex]->fileId = pVnode->badFileId;
   pVPeer->status = newState;
 
-  if ( newState == TSDB_VNODE_STATUS_OFFLINE ) {
+  if ( newState == TSDB_VN_STATUS_OFFLINE ) {
     for ( i=0; i<pVnode->cfg.replications; ++i) {
-      if ( pVnode->peerInfo[i]->status == TSDB_VNODE_STATUS_OFFLINE )
+      if ( pVnode->peerInfo[i]->status == TSDB_VN_STATUS_OFFLINE )
         offlineNum++; 
     }
 
-    if ( offlineNum > pVnode->cfg.replications * 0.5 && pVnode->vnodeStatus != TSDB_VNODE_STATUS_UNSYNCED ) {
+    if ( offlineNum > pVnode->cfg.replications * 0.5 && pVnode->vnodeStatus != TSDB_VN_STATUS_UNSYNCED ) {
       dTrace("vid:%d, peer:%s:%d is down, change to unsynced state", pVnode->vnode, pVPeer->ipstr, pVPeer->vid);
-      pVnode->vnodeStatus = TSDB_VNODE_STATUS_UNSYNCED;
+      pVnode->vnodeStatus = TSDB_VN_STATUS_UNSYNCED;
       pVnode->peerInfo[pVnode->selfIndex]->status = pVnode->vnodeStatus;
     }
   }        
@@ -386,13 +388,13 @@ void vnodeCheckStatus(SVnodePeer *pVPeer, SPeerState peerStates[], char newState
   int index = -1;
   for ( i=0; i<pVnode->cfg.replications; ++i) {
     SVnodePeer *pTemp = pVnode->peerInfo[i];
-    if ( pTemp->status == TSDB_VNODE_STATUS_MASTER ) {
+    if ( pTemp->status == TSDB_VN_STATUS_MASTER ) {
       if ( index < 0 ) {
         index = i;
       } else { // multiple masters 
         if ( i == pVnode->selfIndex ) {
           dPrint("vid:%d, peer:%s:%d is master, work as slave instead", pTemp->ownId, pTemp->ipstr, pTemp->vid);
-          pVnode->vnodeStatus = TSDB_VNODE_STATUS_SLAVE;
+          pVnode->vnodeStatus = TSDB_VN_STATUS_SLAVE;
         }
       }
     }
@@ -401,14 +403,14 @@ void vnodeCheckStatus(SVnodePeer *pVPeer, SPeerState peerStates[], char newState
   SVnodePeer *pMaster = (index>=0) ? pVnode->peerInfo[index]:NULL;
   if ( pMaster ) {
     // master is there
-    if ( pVnode->vnodeStatus == TSDB_VNODE_STATUS_UNSYNCED ) {
+    if ( pVnode->vnodeStatus == TSDB_VN_STATUS_UNSYNCED ) {
       if ( pVnode->version < pMaster->version || pVnode->badFileId > 0) {
         syncRequired = 1;
       } else { 
         dPrint("vid:%d, peer:%s:%d is master, work as slave", pVnode->vnode, pMaster->ipstr, pMaster->vid, pMaster->version);
-        pVnode->vnodeStatus = TSDB_VNODE_STATUS_SLAVE;
+        pVnode->vnodeStatus = TSDB_VN_STATUS_SLAVE;
       }
-    } else if ( pVnode->vnodeStatus == TSDB_VNODE_STATUS_SLAVE && pMaster == pVPeer) {
+    } else if ( pVnode->vnodeStatus == TSDB_VN_STATUS_SLAVE && pMaster == pVPeer) {
       pVnode->version = pMaster->version;
     }
   } else {
@@ -417,7 +419,7 @@ void vnodeCheckStatus(SVnodePeer *pVPeer, SPeerState peerStates[], char newState
     if ( peerStates ) {
       for (i=0; i<pVnode->cfg.replications; ++i) { 
         if ( pVnode->peerInfo[i]->status != peerStates[i].status ) break;
-        if ((pVnode->peerInfo[i]->status != TSDB_VNODE_STATUS_OFFLINE) &&
+        if ((pVnode->peerInfo[i]->status != TSDB_VN_STATUS_OFFLINE) &&
             (pVnode->peerInfo[i]->version != peerStates[i].version) ) break;
       }
      
@@ -472,7 +474,7 @@ void vnodeRestartConnection(SVnodePeer *pVPeer)
 
   pthread_mutex_unlock (&(pVnode->vmutex));
 
-  vnodeCheckStatus(pVPeer, NULL, TSDB_VNODE_STATUS_OFFLINE);
+  vnodeCheckStatus(pVPeer, NULL, TSDB_VN_STATUS_OFFLINE);
 }
 
 int vnodeProcessSyncRequest(char *msg, SVnodePeer *pVPeer)
@@ -553,8 +555,8 @@ void vnodeSyncWithPeer(void *param, void *tmrId)
   dTrace("vid:%d, peer:%s:%d try to sync", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
 
   if ( pVnode->syncStatus > 0 ) return;
-  if ( pVnode->vnodeStatus == TSDB_VNODE_STATUS_SLAVE ) return;
-  if ( pVPeer->status != TSDB_VNODE_STATUS_MASTER ) return;
+  if ( pVnode->vnodeStatus == TSDB_VN_STATUS_SLAVE ) return;
+  if ( pVPeer->status != TSDB_VN_STATUS_MASTER ) return;
   if ( pVPeer->commitInProcess ) return; 
 
   if ( pVnode->commitInProcess ) { // if commiting in process, try to start again later
@@ -570,8 +572,8 @@ void vnodeSyncWithPeer(void *param, void *tmrId)
   }
 
   pthread_mutex_lock (&pQueue->qmutex);
-    if ( pVnode->syncStatus < TSDB_SSTATUS_SYNCING ) 
-      pVnode->syncStatus = TSDB_SSTATUS_SYNCING;
+    if ( pVnode->syncStatus < TSDB_VN_SYNC_STATUS_SYNCING )
+      pVnode->syncStatus = TSDB_VN_SYNC_STATUS_SYNCING;
     else
       eflag = 1;
   pthread_mutex_unlock (&pQueue->qmutex);
@@ -656,7 +658,7 @@ int vnodeProcessBufferedFwd(int vnode)
   }
 
   vnodeList[vnode].syncStatus = 0; 
-  vnodeList[vnode].vnodeStatus = TSDB_VNODE_STATUS_SLAVE;
+  vnodeList[vnode].vnodeStatus = TSDB_VN_STATUS_SLAVE;
   tfree (pQueue->buffer);
   pQueue->trans = 0;
   
@@ -723,22 +725,22 @@ int vnodeProcessForwardFromVMeter(int vid, SVMsgHeader *pHeader, char *cont, SVn
     return  TSDB_CODE_SUCCESS;
   }
  
-  if ( pVnode->vnodeStatus >= TSDB_VNODE_STATUS_SLAVE ) {
+  if ( pVnode->vnodeStatus >= TSDB_VN_STATUS_SLAVE ) {
     pVnode->version = pHeader->lastVersion;
     TSKEY now = taosGetTimestamp(pVnode->cfg.precision);
     (*vnodeProcessAction[pHeader->action])(pObj, cont, contLen, TSDB_DATA_SOURCE_QUEUE, NULL, pHeader->sversion, &insertPoints, now);
     return code;
   }
 
-  if ( pVnode->vnodeStatus == TSDB_VNODE_STATUS_OFFLINE ||
-      (pVnode->vnodeStatus == TSDB_VNODE_STATUS_UNSYNCED && pVnode->syncStatus < TSDB_SSTATUS_SYNC_CACHE) ) {
+  if ( pVnode->vnodeStatus == TSDB_VN_STATUS_OFFLINE ||
+      (pVnode->vnodeStatus == TSDB_VN_STATUS_UNSYNCED && pVnode->syncStatus < TSDB_VN_SYNC_STATUS_SYNC_CACHE) ) {
     dTrace("vid:%d sid:%d id:%s, forward not processed since in state:%d", vid, sid, pObj->meterId, pVnode->vnodeStatus);
     return code;
   }
 
   pthread_mutex_lock (&pQueue->qmutex);
 
-  if ( pVnode->syncStatus == TSDB_SSTATUS_SYNC_CACHE ) {
+  if ( pVnode->syncStatus == TSDB_VN_SYNC_STATUS_SYNC_CACHE ) {
     if ( pQueue->bufferSize - (pQueue->offset - pQueue->buffer) < contLen + 100 ) {
       dError("vid:%d sid:%d id:%s, sync queue size:%d is small, sync shall restart", vid, sid, pObj->meterId, pQueue->bufferSize);
       vnodeCancelSync(vid);
@@ -750,7 +752,7 @@ int vnodeProcessForwardFromVMeter(int vid, SVMsgHeader *pHeader, char *cont, SVn
       pQueue->trans++;
       dTrace("vid:%d sid:%d id:%s, forward is saved into sync queue", vid, sid, pObj->meterId);
     }
-  } else if ( pVnode->vnodeStatus >= TSDB_VNODE_STATUS_SLAVE ) {
+  } else if ( pVnode->vnodeStatus >= TSDB_VN_STATUS_SLAVE ) {
     dTrace("vid:%d sid:%d id:%s, forward is processed since sync is over ", vid, sid, pObj->meterId);
     pVnode->version = pHeader->lastVersion;
     TSKEY now = taosGetTimestamp(pVnode->cfg.precision);
@@ -965,14 +967,14 @@ void *vnodeSyncRestoreData(void *param)
     goto _sync_req_over;
   }
 
-  vnodeList[vnode].syncStatus = TSDB_SSTATUS_SYNC_FILE;
+  vnodeList[vnode].syncStatus = TSDB_VN_SYNC_STATUS_SYNC_FILE;
   dTrace("vid:%d, peer:%s:%d start to restore file", vnode, pVPeer->ipstr, pVPeer->vid);
   if ( vnodeSyncRestoreFile(vnode, pVPeer->syncFd) < 0 ) {
     dError("vid:%d, peer:%s:%d failed to restore file, reason:%s", vnode, pVPeer->ipstr, pVPeer->vid, strerror(errno));
     goto _sync_req_over;
   }
 
-  vnodeList[vnode].syncStatus = TSDB_SSTATUS_SYNC_CACHE;
+  vnodeList[vnode].syncStatus = TSDB_VN_SYNC_STATUS_SYNC_CACHE;
   dTrace("vid:%d, peer:%s:%d send sync cache signal", vnode, pVPeer->ipstr, pVPeer->vid);
   if ( write(pVPeer->syncFd, &startCache, sizeof(startCache)) < 0 ) {
     dError("vid:%d, peer:%s:%d failed to send sync cache signal, reason:%s", vnode, pVPeer->ipstr, pVPeer->vid, strerror(errno));
@@ -1002,7 +1004,7 @@ void *vnodeSyncRestoreData(void *param)
 _sync_req_over:
   tfree (pQueue->buffer);
   pVnode->syncStatus = 0;
-  pVnode->vnodeStatus = TSDB_VNODE_STATUS_UNSYNCED;
+  pVnode->vnodeStatus = TSDB_VN_STATUS_UNSYNCED;
   vnodeRestartConnection(pVPeer);
   tsSyncNum--;
   return NULL;
@@ -1026,7 +1028,7 @@ void *vnodeSyncRetrieveData(void *param)
     goto _over;
   }
 
-  pVPeer->syncStatus = TSDB_SSTATUS_SYNCING;
+  pVPeer->syncStatus = TSDB_VN_SYNC_STATUS_SYNCING;
   dTrace("vid:%d, peer:%s:%d start to retrieve data", vnode, pVPeer->ipstr, pVPeer->vid);
   if ( write(pVPeer->syncFd, (char *)&firstPkt, sizeof(firstPkt)) < 0 ) {
     dError("vid:%d, peer:%s:%d failed to send syncCmd, reason:%s", vnode, pVPeer->ipstr, pVPeer->vid, strerror(errno));
@@ -1045,7 +1047,7 @@ void *vnodeSyncRetrieveData(void *param)
     goto _over;
   }
 
-  pVPeer->syncStatus = TSDB_SSTATUS_SYNC_FILE;
+  pVPeer->syncStatus = TSDB_VN_SYNC_STATUS_SYNC_FILE;
   dTrace("vid:%d, peer:%s:%d start to retrieve file", vnode, pVPeer->ipstr, pVPeer->vid);
   if ( vnodeSyncRetrieveFile(vnode, pVPeer->syncFd, pSync->fileId, pSync->fmagic) < 0 ) {
     dError("vid:%d, peer:%s:%d failed to retrieve file, reason:%s", vnode, pVPeer->ipstr, pVPeer->vid, strerror(errno));
@@ -1058,7 +1060,7 @@ void *vnodeSyncRetrieveData(void *param)
     goto _over;
   }
 
-  pVPeer->syncStatus = TSDB_SSTATUS_SYNC_CACHE;
+  pVPeer->syncStatus = TSDB_VN_SYNC_STATUS_SYNC_CACHE;
   dTrace("vid:%d, peer:%s:%d start to retrieve cache", vnode, pVPeer->ipstr, pVPeer->vid);
   if ( vnodeSyncRetrieveCache(vnode, pVPeer->syncFd) < 0 ) {
     dError("vid:%d, peer:%s:%d failed to retrieve cache, reason:%s", vnode, pVPeer->ipstr, pVPeer->vid, strerror(errno));
