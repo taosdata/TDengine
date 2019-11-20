@@ -973,7 +973,10 @@ int mgmtProcessCreateTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     }
   }
 
-  if (code != 0) {
+  if (code == 1) {
+    //mTrace("table:%s, wait vgroup create finish", pCreate->meterId, code);
+  }
+  else if (code != 0) {
     mError("table:%s, failed to create table, code:%d", pCreate->meterId, code);
   } else {
     mTrace("table:%s, table is created by %s", pCreate->meterId, pConn->pUser->user);
