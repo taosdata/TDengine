@@ -342,7 +342,7 @@ typedef struct _tsc_obj {
   void *           signature;
   void *           pTimer;
   char             mgmtIp[TSDB_USER_LEN];
-  short            mgmtPort;
+  uint16_t         mgmtPort;
   char             user[TSDB_USER_LEN];
   char             pass[TSDB_KEY_LEN];
   char             acctId[TSDB_DB_NAME_LEN];

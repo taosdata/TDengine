@@ -28,7 +28,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 
-TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const char *db, int port, void (*fp)(void *, TAOS_RES *, int),
+TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                        void *param, void **taos) {
   STscObj *pObj;
 
@@ -153,7 +153,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
   return pObj;
 }
 
-TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, int port) {
+TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   if (ip == NULL || (ip != NULL && (strcmp("127.0.0.1", ip) == 0 || strcasecmp("localhost", ip) == 0))) {
 #ifdef CLUSTER
     ip = tsPrivateIp;
@@ -205,7 +205,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   return taos;
 }
 
-TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, int port, void (*fp)(void *, TAOS_RES *, int),
+TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
 #ifndef CLUSTER
   if (ip == NULL) {

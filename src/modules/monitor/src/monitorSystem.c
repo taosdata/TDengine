@@ -61,7 +61,7 @@ typedef struct {
 
 MonitorConn *monitor = NULL;
 
-TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, int port, void (*fp)(void *, TAOS_RES *, int),
+TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos);
 void monitorInitConn(void *para, void *unused);
 void monitorInitConnCb(void *param, TAOS_RES *result, int code);

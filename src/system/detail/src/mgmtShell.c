@@ -189,8 +189,11 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   int size = sizeof(STaosHeader) + sizeof(STaosRsp) + sizeof(SMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS +
              sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN + TSDB_EXTRA_PAYLOAD_SIZE;
 
+  SDbObj *pDb = NULL;
+  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+
   // todo db check should be extracted
-  if (pConn->pDb == NULL || (pConn->pDb != NULL && pConn->pDb->dropStatus != TSDB_DB_STATUS_READY)) {
+  if (pDb == NULL || (pDb != NULL && pDb->dropStatus != TSDB_DB_STATUS_READY)) {
 
     if ((pStart = mgmtAllocMsg(pConn, size, &pMsg, &pRsp)) == NULL) {
       taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_METERINFO_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
@@ -223,10 +226,10 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
     SDbObj* pMeterDb = mgmtGetDbByMeterId(pCreateMsg->meterId);
     mTrace("meter:%s, pConnDb:%p, pConnDbName:%s, pMeterDb:%p, pMeterDbName:%s",
-           pCreateMsg->meterId, pConn->pDb, pConn->pDb->name, pMeterDb, pMeterDb->name);
-    assert(pConn->pDb == pMeterDb);
+           pCreateMsg->meterId, pDb, pDb->name, pMeterDb, pMeterDb->name);
+    assert(pDb == pMeterDb);
 
-    int32_t code = mgmtCreateMeter(pConn->pDb, pCreateMsg);
+    int32_t code = mgmtCreateMeter(pDb, pCreateMsg);
 
     char stableName[TSDB_METER_ID_LEN] = {0};
     strncpy(stableName, pInfo->tags, TSDB_METER_ID_LEN);
@@ -256,7 +259,7 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   }
 
   if (pMeterObj == NULL) {
-    if (pConn->pDb)
+    if (pDb)
       pRsp->code = TSDB_CODE_INVALID_TABLE;
     else
       pRsp->code = TSDB_CODE_DB_NOT_SELECTED;
@@ -274,7 +277,7 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     pMeta->vgid = htonl(pMeterObj->gid.vgId);
     pMeta->sversion = htons(pMeterObj->sversion);
 
-    pMeta->precision = pConn->pDb->cfg.precision;
+    pMeta->precision = pDb->cfg.precision;
 
     pMeta->numOfTags = pMeterObj->numOfTags;
     pMeta->numOfColumns = htons(pMeterObj->numOfColumns);
@@ -505,7 +508,10 @@ int mgmtProcessMetricMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   SMetricMetaElemMsg *pElem = (SMetricMetaElemMsg *)(((char *)pMetricMetaMsg) + pMetricMetaMsg->metaElem[0]);
   pMetric = mgmtGetMeter(pElem->meterId);
 
-  if (pMetric == NULL || (pConn->pDb != NULL && pConn->pDb->dropStatus != TSDB_DB_STATUS_READY)) {
+  SDbObj *pDb = NULL;
+  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+
+  if (pMetric == NULL || (pDb != NULL && pDb->dropStatus != TSDB_DB_STATUS_READY)) {
     pStart = taosBuildRspMsg(pConn->thandle, TSDB_MSG_TYPE_METRIC_META_RSP);
     if (pStart == NULL) {
       taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_METRIC_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
@@ -514,7 +520,7 @@ int mgmtProcessMetricMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
     pMsg = pStart;
     pRsp = (STaosRsp *)pMsg;
-    if (pConn->pDb)
+    if (pDb)
       pRsp->code = TSDB_CODE_INVALID_TABLE;
     else
       pRsp->code = TSDB_CODE_DB_NOT_SELECTED;
@@ -957,15 +963,21 @@ int mgmtProcessCreateTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
       pSchema++;
     }
 
-    if (pConn->pDb) {
-      code = mgmtCreateMeter(pConn->pDb, pCreate);
-      if (code == 0) {
-        mTrace("meter:%s is created by %s", pCreate->meterId, pConn->pUser->user);
-        // mLPrint("meter:%s is created by %s", pCreate->meterId, pConn->pUser->user);
-      }
+    SDbObj *pDb = NULL;
+    if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+
+    if (pDb) {
+      code = mgmtCreateMeter(pDb, pCreate);
     } else {
       code = TSDB_CODE_DB_NOT_SELECTED;
     }
+  }
+
+  if (code != 0) {
+    mError("table:%s, failed to create table, code:%d", pCreate->meterId, code);
+  } else {
+    mTrace("table:%s, table is created by %s", pCreate->meterId, pConn->pUser->user);
+    //mLPrint("meter:%s is created by %s", pCreate->meterId, pConn->pUser->user);
   }
 
   taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_TABLE_RSP, code);
@@ -984,7 +996,10 @@ int mgmtProcessDropTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   if (!pConn->writeAuth) {
     code = TSDB_CODE_NO_RIGHTS;
   } else {
-    code = mgmtDropMeter(pConn->pDb, pDrop->meterId, pDrop->igNotExists);
+    SDbObj *pDb = NULL;
+    if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+
+    code = mgmtDropMeter(pDb, pDrop->meterId, pDrop->igNotExists);
     if (code == 0) {
       mTrace("meter:%s is dropped by user:%s", pDrop->meterId, pConn->pUser->user);
       // mLPrint("meter:%s is dropped by user:%s", pDrop->meterId, pConn->pUser->user);
@@ -1014,12 +1029,15 @@ int mgmtProcessAlterTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
       mError("meter:%s error numOfCols:%d in alter table", pAlter->meterId, pAlter->numOfCols);
       code = TSDB_CODE_APP_ERROR;
     } else {
-      if (pConn->pDb) {
+      SDbObj *pDb = NULL;
+      if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+
+      if (pDb) {
         for (int32_t i = 0; i < pAlter->numOfCols; ++i) {
           pAlter->schema[i].bytes = htons(pAlter->schema[i].bytes);
         }
 
-        code = mgmtAlterMeter(pConn->pDb, pAlter);
+        code = mgmtAlterMeter(pDb, pAlter);
         if (code == 0) {
           mLPrint("meter:%s is altered by %s", pAlter->meterId, pConn->pUser->user);
         }
@@ -1258,13 +1276,12 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
       if (pConn->pUser) {
         pConn->pAcct = mgmtGetAcct(pConn->pUser->acct);
         mgmtEstablishConn(pConn);
-        mTrace("login from:%x:%d", pConn->ip, htons(pConn->port));
+        mTrace("login from:%x:%hu", pConn->ip, htons(pConn->port));
       }
     }
 
     if (pConn->pAcct) {
-      if (pConn->pDb == NULL ||
-          strncmp(pConn->pDb->name, pHead->db, tListLen(pConn->pDb->name)) != 0) {
+      if (pConn->pDb == NULL || strncmp(pConn->pDb->name, pHead->db, tListLen(pConn->pDb->name)) != 0) {
         pConn->pDb = mgmtGetDb(pHead->db);
       }
 

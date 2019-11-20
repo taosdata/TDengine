@@ -83,6 +83,8 @@ void taos_init_imp() {
     tscTrace("Local IP address is:%s", tsLocalIp);
   }
 
+  taosSetCoreDump();
+
 #ifdef CLUSTER
   tscMgmtIpList.numOfIps = 2;
   strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);

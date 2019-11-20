@@ -32,7 +32,7 @@ typedef struct _fd_obj {
   void *              thandle;  // handle from upper layer, like TAOS
   char                ipstr[TAOS_IPv4ADDR_LEN];
   unsigned int        ip;
-  unsigned short      port;
+  uint16_t            port;
   struct _thread_obj *pThreadObj;
   struct _fd_obj *    prev, *next;
 } SFdObj;
@@ -48,13 +48,13 @@ typedef struct _thread_obj {
   char            label[12];
   // char    buffer[128000];  // buffer to receive data
   void *shandle;  // handle passed by upper layer during server initialization
-  void *(*processData)(char *data, int dataLen, unsigned int ip, short port, void *shandle, void *thandle,
+  void *(*processData)(char *data, int dataLen, unsigned int ip, uint16_t port, void *shandle, void *thandle,
                        void *chandle);
 } SThreadObj;
 
 typedef struct {
   char        ip[40];
-  short       port;
+  uint16_t    port;
   char        label[12];
   int         numOfThreads;
   void *      shandle;
@@ -185,8 +185,9 @@ static void taosProcessTcpData(void *param) {
 
       void *buffer = malloc(1024);
       int   headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(STaosHeader));
+
       if (headLen != sizeof(STaosHeader)) {
-        tError("%s read error, headLen:%d", pThreadObj->label, headLen);
+        tError("%s read error, headLen:%d, errno:%d", pThreadObj->label, headLen, errno);
         taosCleanUpFdObj(pFdObj);
         tfree(buffer);
         continue;
@@ -208,7 +209,7 @@ static void taosProcessTcpData(void *param) {
         continue;
       }
 
-      pFdObj->thandle = (*(pThreadObj->processData))(buffer, dataLen, pFdObj->ip, (int16_t)pFdObj->port,
+      pFdObj->thandle = (*(pThreadObj->processData))(buffer, dataLen, pFdObj->ip, pFdObj->port,
                                                      pThreadObj->shandle, pFdObj->thandle, pFdObj);
 
       if (pFdObj->thandle == NULL) taosCleanUpFdObj(pFdObj);
@@ -231,10 +232,10 @@ void taosAcceptTcpConnection(void *arg) {
   sockFd = taosOpenTcpServerSocket(pServerObj->ip, pServerObj->port);
 
   if (sockFd < 0) {
-    tError("%s failed to open TCP socket, ip:%s, port:%u", pServerObj->label, pServerObj->ip, pServerObj->port);
+    tError("%s failed to open TCP socket, ip:%s, port:%hu", pServerObj->label, pServerObj->ip, pServerObj->port);
     return;
   } else {
-    tTrace("%s TCP server is ready, ip:%s, port:%u", pServerObj->label, pServerObj->ip, pServerObj->port);
+    tTrace("%s TCP server is ready, ip:%s, port:%hu", pServerObj->label, pServerObj->ip, pServerObj->port);
   }
 
   while (1) {
@@ -246,7 +247,7 @@ void taosAcceptTcpConnection(void *arg) {
       continue;
     }
 
-    tTrace("%s TCP connection from ip:%s port:%u", pServerObj->label, inet_ntoa(clientAddr.sin_addr),
+    tTrace("%s TCP connection from ip:%s port:%hu", pServerObj->label, inet_ntoa(clientAddr.sin_addr),
            htons(clientAddr.sin_port));
     taosKeepTcpAlive(connFd);
 
@@ -291,7 +292,7 @@ void taosAcceptTcpConnection(void *arg) {
 
     pthread_mutex_unlock(&(pThreadObj->threadMutex));
 
-    tTrace("%s TCP thread:%d, a new connection, ip:%s port:%u, numOfFds:%d", pServerObj->label, pThreadObj->threadId,
+    tTrace("%s TCP thread:%d, a new connection, ip:%s port:%hu, numOfFds:%d", pServerObj->label, pThreadObj->threadId,
            pFdObj->ipstr, pFdObj->port, pThreadObj->numOfFds);
 
     // pick up next thread for next connection
@@ -313,10 +314,10 @@ void taosAcceptUDConnection(void *arg) {
   sockFd = taosOpenUDServerSocket(pServerObj->ip, pServerObj->port);
 
   if (sockFd < 0) {
-    tError("%s failed to open UD socket, ip:%s, port:%u", pServerObj->label, pServerObj->ip, pServerObj->port);
+    tError("%s failed to open UD socket, ip:%s, port:%hu", pServerObj->label, pServerObj->ip, pServerObj->port);
     return;
   } else {
-    tTrace("%s UD server is ready, ip:%s, port:%u", pServerObj->label, pServerObj->ip, pServerObj->port);
+    tTrace("%s UD server is ready, ip:%s, port:%hu", pServerObj->label, pServerObj->ip, pServerObj->port);
   }
 
   while (1) {
@@ -373,7 +374,7 @@ void taosAcceptUDConnection(void *arg) {
   }
 }
 
-void *taosInitTcpServer(char *ip, short port, char *label, int numOfThreads, void *fp, void *shandle) {
+void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle) {
   int            i;
   SServerObj *   pServerObj;
   pthread_attr_t thattr;
@@ -441,7 +442,7 @@ void *taosInitTcpServer(char *ip, short port, char *label, int numOfThreads, voi
     }
   */
   pthread_attr_destroy(&thattr);
-  tTrace("%s TCP server is initialized, ip:%s port:%u numOfThreads:%d", label, ip, port, numOfThreads);
+  tTrace("%s TCP server is initialized, ip:%s port:%hu numOfThreads:%d", label, ip, port, numOfThreads);
 
   return (void *)pServerObj;
 }
@@ -467,7 +468,7 @@ void taosListTcpConnection(void *handle, char *buffer) {
     msg = msg + strlen(msg);
     pFdObj = pThreadObj->pHead;
     while (pFdObj) {
-      sprintf("   ip:%s port:%u\n", pFdObj->ipstr, pFdObj->port);
+      sprintf("   ip:%s port:%hu\n", pFdObj->ipstr, pFdObj->port);
       msg = msg + strlen(msg);
       numOfFds++;
       numOfConns++;
@@ -486,7 +487,7 @@ void taosListTcpConnection(void *handle, char *buffer) {
   return;
 }
 
-int taosSendTcpServerData(uint32_t ip, short port, char *data, int len, void *chandle) {
+int taosSendTcpServerData(uint32_t ip, uint16_t port, char *data, int len, void *chandle) {
   SFdObj *pFdObj = (SFdObj *)chandle;
 
   if (chandle == NULL) return -1;

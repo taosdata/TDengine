@@ -27,6 +27,7 @@
 #include "vnode.h"
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
+#include "vnodeStore.h"
 
 #pragma GCC diagnostic ignored "-Wint-conversion"
 extern int tsMaxQueues;
@@ -46,7 +47,7 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   SShellObj *pObj = (SShellObj *)ahandle;
   SIntMsg *  pMsg = (SIntMsg *)msg;
   uint32_t   peerId, peerIp;
-  short      peerPort;
+  uint16_t   peerPort;
   char       ipstr[20];
 
   if (msg == NULL) {
@@ -89,9 +90,9 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   // if ( vnodeList[vnode].status != TSDB_STATUS_MASTER && pMsg->msgType != TSDB_MSG_TYPE_RETRIEVE ) {
 
 #ifdef CLUSTER
-  if (vnodeList[vnode].status != TSDB_STATUS_MASTER) {
+  if (vnodeList[vnode].vnodeStatus != TSDB_VNODE_STATUS_MASTER) {
     taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_NOT_READY);
-    dTrace("vid:%d sid:%d, shell msg is ignored since in state:%d", vnode, sid, vnodeList[vnode].status);
+    dTrace("vid:%d sid:%d, shell msg is ignored since in state:%d", vnode, sid, vnodeList[vnode].vnodeStatus);
   } else {
 #endif
     dTrace("vid:%d sid:%d, msg:%s is received pConn:%p", vnode, sid, taosMsg[pMsg->msgType], thandle);
@@ -154,6 +155,11 @@ int vnodeInitShell() {
 }
 
 int vnodeOpenShellVnode(int vnode) {
+  if (shellList[vnode] != NULL) {
+    dError("vid:%d, shell is already opened", vnode);
+    return -1;
+  }
+
   const int32_t MIN_NUM_OF_SESSIONS = 300;
 
   SVnodeCfg *pCfg = &vnodeList[vnode].cfg;
@@ -162,23 +168,29 @@ int vnodeOpenShellVnode(int vnode) {
   size_t size = sessions * sizeof(SShellObj);
   shellList[vnode] = (SShellObj *)calloc(1, size);
   if (shellList[vnode] == NULL) {
-    dError("vid:%d failed to allocate shellObj, size:%d", vnode, size);
+    dError("vid:%d, sessions:%d, failed to allocate shellObj, size:%d", vnode, pCfg->maxSessions, size);
     return -1;
   }
 
   if(taosOpenRpcChannWithQ(pShellServer, vnode, sessions, rpcQhandle[(vnode+1)%tsMaxQueues]) != TSDB_CODE_SUCCESS) {
+    dError("vid:%d, sessions:%d, failed to open shell", vnode, pCfg->maxSessions);
     return -1;
   }
 
+  dTrace("vid:%d, sessions:%d, shell is opened", vnode, pCfg->maxSessions);
   return TSDB_CODE_SUCCESS;
 }
 
 static void vnodeDelayedFreeResource(void *param, void *tmrId) {
   int32_t vnode = *(int32_t*) param;
-  taosCloseRpcChann(pShellServer, vnode); // close connection
-  tfree (shellList[vnode]);  //free SShellObj
+  dTrace("vid:%d, start to free resources", vnode);
 
+  taosCloseRpcChann(pShellServer, vnode); // close connection
+  tfree(shellList[vnode]);  //free SShellObj
   tfree(param);
+
+  memset(vnodeList + vnode, 0, sizeof(SVnodeObj));
+  vnodeCalcOpenVnodes();
 }
 
 void vnodeCloseShellVnode(int vnode) {

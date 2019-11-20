@@ -163,12 +163,12 @@ int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optle
   return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
 }
 
-int taosOpenUDClientSocket(char *ip, short port) {
+int taosOpenUDClientSocket(char *ip, uint16_t port) {
   int                sockFd = 0;
   struct sockaddr_un serverAddr;
   int                ret;
   char               name[128];
-  sprintf(name, "%s.%d", ip, port);
+  sprintf(name, "%s.%hu", ip, port);
 
   sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -191,14 +191,13 @@ int taosOpenUDClientSocket(char *ip, short port) {
   return sockFd;
 }
 
-int taosOpenUDServerSocket(char *ip, short port) {
+int taosOpenUDServerSocket(char *ip, uint16_t port) {
   struct sockaddr_un serverAdd;
   int                sockFd;
   char               name[128];
 
   pTrace("open ud socket:%s", name);
-  // if (tsAllowLocalhost) ip = "0.0.0.0";
-  sprintf(name, "%s.%d", ip, port);
+  sprintf(name, "%s.%hu", ip, port);
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
   serverAdd.sun_family = AF_UNIX;

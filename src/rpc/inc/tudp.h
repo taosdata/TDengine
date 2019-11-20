@@ -18,11 +18,11 @@
 
 #include "tsdb.h"
 
-void *taosInitUdpServer(char *ip, short port, char *label, int, void *fp, void *shandle);
-void *taosInitUdpClient(char *ip, short port, char *label, int, void *fp, void *shandle);
+void *taosInitUdpServer(char *ip, uint16_t port, char *label, int, void *fp, void *shandle);
+void *taosInitUdpClient(char *ip, uint16_t port, char *label, int, void *fp, void *shandle);
 void taosCleanUpUdpConnection(void *handle);
-int taosSendUdpData(uint32_t ip, short port, char *data, int dataLen, void *chandle);
-void *taosOpenUdpConnection(void *shandle, void *thandle, char *ip, short port);
+int taosSendUdpData(uint32_t ip, uint16_t port, char *data, int dataLen, void *chandle);
+void *taosOpenUdpConnection(void *shandle, void *thandle, char *ip, uint16_t port);
 
 void taosFreeMsgHdr(void *hdr);
 int taosMsgHdrSize(void *hdr);

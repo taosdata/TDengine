@@ -51,10 +51,10 @@ typedef struct {
   uint8_t  secret[TSDB_KEY_LEN];
   uint8_t  ckey[TSDB_KEY_LEN];
 
-  short              localPort;  // for UDP only
+  uint16_t           localPort;  // for UDP only
   uint32_t           peerUid;
   uint32_t           peerIp;         // peer IP
-  short              peerPort;       // peer port
+  uint16_t           peerPort;       // peer port
   char               peerIpstr[20];  // peer IP string
   uint16_t           tranId;         // outgoing transcation ID, for build message
   uint16_t           outTranId;      // outgoing transcation ID
@@ -99,7 +99,7 @@ typedef struct rpc_server {
   int   idleTime;  // milliseconds;
   int   noFree;    // do not free the request msg when rsp is received
   int   index;     // for UDP server, next thread for new connection
-  short localPort;
+  uint16_t localPort;
   char  label[12];
   void *(*fp)(char *, void *ahandle, void *thandle);
   void (*efp)(int);                                                                     // FP to report error
@@ -114,16 +114,16 @@ int      tsRpcProgressTime = 10;  // milliseocnds
 int tsRpcMaxRetry;
 int tsRpcHeadSize;
 
-void *(*taosInitConn[])(char *ip, short port, char *label, int threads, void *fp, void *shandle) = {
+void *(*taosInitConn[])(char *ip, uint16_t port, char *label, int threads, void *fp, void *shandle) = {
     taosInitUdpServer, taosInitUdpClient, taosInitTcpServer, taosInitTcpClient};
 
 void (*taosCleanUpConn[])(void *thandle) = {taosCleanUpUdpConnection, taosCleanUpUdpConnection, taosCleanUpTcpServer,
                                             taosCleanUpTcpClient};
 
-int (*taosSendData[])(uint32_t ip, short port, char *data, int len, void *chandle) = {
+int (*taosSendData[])(uint32_t ip, uint16_t port, char *data, int len, void *chandle) = {
     taosSendUdpData, taosSendUdpData, taosSendTcpServerData, taosSendTcpClientData};
 
-void *(*taosOpenConn[])(void *shandle, void *thandle, char *ip, short port) = {
+void *(*taosOpenConn[])(void *shandle, void *thandle, char *ip, uint16_t port) = {
     taosOpenUdpConnection,
     taosOpenUdpConnection,
     NULL,
@@ -134,7 +134,7 @@ void (*taosCloseConn[])(void *chandle) = {NULL, NULL, taosCloseTcpServerConnecti
 
 int   taosReSendRspToPeer(SRpcConn *pConn);
 void  taosProcessTaosTimer(void *, void *);
-void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, void *shandle, void *thandle,
+void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, uint16_t port, void *shandle, void *thandle,
                               void *chandle);
 int   taosSendDataToPeer(SRpcConn *pConn, char *data, int dataLen);
 void  taosProcessSchedMsg(SSchedMsg *pMsg);
@@ -354,6 +354,8 @@ int taosOpenRpcChannWithQ(void *handle, int cid, int sessions, void *qhandle) {
   STaosRpc * pServer = (STaosRpc *)handle;
   SRpcChann *pChann;
 
+  tTrace("cid:%d, handle:%p open rpc chann", cid, handle);
+
   if (pServer == NULL) return -1;
   if (cid >= pServer->numOfChanns || cid < 0) {
     tError("%s: cid:%d, chann is out of range, max:%d", pServer->label, cid, pServer->numOfChanns);
@@ -401,6 +403,8 @@ int taosOpenRpcChannWithQ(void *handle, int cid, int sessions, void *qhandle) {
 void taosCloseRpcChann(void *handle, int cid) {
   STaosRpc * pServer = (STaosRpc *)handle;
   SRpcChann *pChann;
+
+  tTrace("cid:%d, handle:%p close rpc chann", cid, handle);
 
   if (pServer == NULL) return;
   if (cid >= pServer->numOfChanns || cid < 0) {
@@ -716,7 +720,7 @@ void taosProcessResponse(SRpcConn *pConn) {
 }
 
 int taosProcessMsgHeader(STaosHeader *pHeader, SRpcConn **ppConn, STaosRpc *pServer, int dataLen, uint32_t ip,
-                         short port, void *chandle) {
+                         uint16_t port, void *chandle) {
   int        chann, sid, code = 0;
   SRpcConn * pConn = NULL;
   SRpcChann *pChann;
@@ -1005,7 +1009,7 @@ void taosProcessIdleTimer(void *param, void *tmrId) {
   pthread_mutex_unlock(&pChann->mutex);
 }
 
-void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, void *shandle, void *thandle,
+void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, uint16_t port, void *shandle, void *thandle,
                               void *chandle) {
   STaosHeader *pHeader;
   uint8_t      code;
@@ -1071,6 +1075,7 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
     // parsing error
 
     if (pHeader->msgType & 1) {
+      memset(pReply, 0, sizeof(pReply));
       msgLen = taosBuildErrorMsgToPeer(data, code, pReply);
       (*taosSendData[pServer->type])(ip, port, pReply, msgLen, chandle);
       tTrace("%s cid:%d sid:%d id:%s, %s is sent with error code:%u pConn:%p", pServer->label, chann, sid,
@@ -1307,7 +1312,7 @@ void taosProcessTaosTimer(void *param, void *tmrId) {
 
 }
 
-void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, short *peerPort, int *cid, int *sid) {
+void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, uint16_t *peerPort, int *cid, int *sid) {
   SRpcConn *pConn = (SRpcConn *)thandle;
 
   *peerId = pConn->peerId;

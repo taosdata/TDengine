@@ -172,6 +172,7 @@ int vnodeFreeCacheBlock(SCacheBlock *pCacheBlock) {
     SCachePool *pPool = (SCachePool *)vnodeList[pObj->vnode].pCachePool;
     if (pCacheBlock->notFree) {
       pPool->notFreeSlots--;
+      pInfo->unCommittedBlocks--;
       dTrace("vid:%d sid:%d id:%s, cache block is not free, slot:%d, index:%d notFreeSlots:%d",
              pObj->vnode, pObj->sid, pObj->meterId, pCacheBlock->slot, pCacheBlock->index, pPool->notFreeSlots);
     }
@@ -296,7 +297,7 @@ pthread_t vnodeCreateCommitThread(SVnodeObj *pVnode) {
 
   taosTmrStopA(&pVnode->commitTimer);
 
-  if (pVnode->status == TSDB_STATUS_UNSYNCED) {
+  if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_UNSYNCED) {
     taosTmrReset(vnodeProcessCommitTimer, pVnode->cfg.commitTime * 1000, pVnode, vnodeTmrCtrl, &pVnode->commitTimer);
     dTrace("vid:%d, it is in unsyc state, commit later", pVnode->vnode);
     return pVnode->commitThread;
