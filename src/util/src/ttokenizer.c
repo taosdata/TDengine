@@ -96,7 +96,6 @@ static SKeyword keywordTable[] = {
     {"TABLE",        TK_TABLE},
     {"DATABASE",     TK_DATABASE},
     {"DNODE",        TK_DNODE},
-    {"IP",           TK_IP},
     {"USER",         TK_USER},
     {"ACCOUNT",      TK_ACCOUNT},
     {"USE",          TK_USE},
@@ -523,7 +522,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       }
 
       if (seg == 4) {  // ip address
-        *tokenType = TK_IP;
+        *tokenType = TK_IPTOKEN;
         return i;
       }
 

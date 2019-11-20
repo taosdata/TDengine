@@ -26,7 +26,6 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
-
 #include "tsql.h"
 #include "tutil.h"
 }
@@ -113,7 +112,7 @@ cmd ::= DROP TABLE ifexists(Y) ids(X) cpxName(Z).   {
 }
 
 cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDCLSQLElems(pInfo, DROP_DATABASE, 2, &X, &Y); }
-cmd ::= DROP DNODE IP(X).        { setDCLSQLElems(pInfo, DROP_DNODE, 1, &X);    }
+cmd ::= DROP DNODE IPTOKEN(X).        { setDCLSQLElems(pInfo, DROP_DNODE, 1, &X);    }
 cmd ::= DROP USER ids(X).        { setDCLSQLElems(pInfo, DROP_USER, 1, &X);     }
 cmd ::= DROP ACCOUNT ids(X).     { setDCLSQLElems(pInfo, DROP_ACCOUNT, 1, &X);  }
 
@@ -129,8 +128,8 @@ cmd ::= DESCRIBE ids(X) cpxName(Y). {
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
 cmd ::= ALTER USER ids(X) PASS ids(Y).          { setDCLSQLElems(pInfo, ALTER_USER_PASSWD, 2, &X, &Y);    }
 cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setDCLSQLElems(pInfo, ALTER_USER_PRIVILEGES, 2, &X, &Y);}
-cmd ::= ALTER DNODE IP(X) ids(Y).               { setDCLSQLElems(pInfo, ALTER_DNODE, 2, &X, &Y);          }
-cmd ::= ALTER DNODE IP(X) ids(Y) ids(Z).        { setDCLSQLElems(pInfo, ALTER_DNODE, 3, &X, &Y, &Z);      }
+cmd ::= ALTER DNODE IPTOKEN(X) ids(Y).               { setDCLSQLElems(pInfo, ALTER_DNODE, 2, &X, &Y);          }
+cmd ::= ALTER DNODE IPTOKEN(X) ids(Y) ids(Z).        { setDCLSQLElems(pInfo, ALTER_DNODE, 3, &X, &Y, &Z);      }
 cmd ::= ALTER LOCAL ids(X).                     { setDCLSQLElems(pInfo, ALTER_LOCAL, 1, &X);              }
 cmd ::= ALTER LOCAL ids(X) ids(Y).              { setDCLSQLElems(pInfo, ALTER_LOCAL, 2, &X, &Y);          }
 cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SSQLToken t = {0};  setCreateDBSQL(pInfo, ALTER_DATABASE, &X, &Y, &t);}
@@ -642,12 +641,12 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
 }
 
 ////////////////////////////////////////kill statement///////////////////////////////////////
-cmd ::= KILL CONNECTION IP(X) COLON(Z) INTEGER(Y).   {X.n += (Z.n + Y.n); setDCLSQLElems(pInfo, KILL_CONNECTION, 1, &X);}
-cmd ::= KILL STREAM IP(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).       {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_STREAM, 1, &X);}
-cmd ::= KILL QUERY IP(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).        {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_QUERY, 1, &X);}
+cmd ::= KILL CONNECTION IPTOKEN(X) COLON(Z) INTEGER(Y).   {X.n += (Z.n + Y.n); setDCLSQLElems(pInfo, KILL_CONNECTION, 1, &X);}
+cmd ::= KILL STREAM IPTOKEN(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).       {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_STREAM, 1, &X);}
+cmd ::= KILL QUERY IPTOKEN(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).        {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_QUERY, 1, &X);}
 
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
   LIKE MATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
   COUNT SUM AVG MIN MAX FIRST LAST TOP BOTTOM STDDEV PERCENTILE APERCENTILE LEASTSQUARES HISTOGRAM DIFF
-  SPREAD TWA INTERP LAST_ROW NOW IP SEMI NONE PREV LINEAR IMPORT METRIC TBNAME JOIN METRICS STABLE.
+  SPREAD TWA INTERP LAST_ROW NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT METRIC TBNAME JOIN METRICS STABLE NULL.
