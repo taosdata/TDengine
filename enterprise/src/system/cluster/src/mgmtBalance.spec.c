@@ -514,8 +514,12 @@ bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) 
   return true;
 }
 
-void mgmtMonitorDnodeBalanced(int type) {
-  mTrace("balance function is started by %s, dnodes:%d", type == 0 ? "schedule" : "event", mgmtOrderedDnodesSize);
+void mgmtMonitorDnodeBalanced(int mseconds) {
+  if (mseconds == 0) {
+    mTrace("balance function is started by schedule, dnodes:%d", mgmtOrderedDnodesSize);
+  } else {
+    mTrace("balance function is started by event after:%d mseconds, dnodes:%d", mseconds, mgmtOrderedDnodesSize);
+  }
   if (mgmtOrderedDnodesSize < 2) {
     return;
   }
@@ -527,7 +531,7 @@ void mgmtMonitorDnodeBalanced(int type) {
 
   for (int src = mgmtOrderedDnodesSize - 1; src >= 0; --src) {
     SDnodeObj *pDnode = mgmtOrderedDnodes[src];
-    mTrace("dnode:%s, state:%s, lbStatus:%s, lbScore:%.1f, totalVnodes:%d, freeVnodes:%d, openVnodes:%d",
+    mTrace("dnode:%s, state:%s, lbstatus:%s, lbScore:%.1f, totalVnodes:%d, freeVnodes:%d, openVnodes:%d",
             taosIpStr(pDnode->privateIp), taosGetDnodeStatusStr(pDnode->status),
             taosGetDnodeLbStatusStr(pDnode->lbStatus),
             pDnode->lbScore, pDnode->numOfVnodes, pDnode->numOfFreeVnodes, pDnode->openVnodes
@@ -607,7 +611,7 @@ void mgmtSetDnodeOfflineOnSdbChanged() {
   mgmtAccessSquence = 0;
 }
 
-void mgmtStartBalance(int type) {
+void mgmtStartBalance(int mseconds) {
   if (!sdbMaster) return;
   static uint32_t lastTime = 0;
 
@@ -615,8 +619,8 @@ void mgmtStartBalance(int type) {
   mgmtMakeDnodeOrderList();
   mgmtMonitorDnodes();
   mgmtMonitorVgroups();
-  if (type == TSDB_LB_TYPE_SOON || (taosGetTimestampSec() - lastTime) > tsBalanceStartInterval) {
-    mgmtMonitorDnodeBalanced(type);
+  if (mseconds != 0 || (taosGetTimestampSec() - lastTime) > tsBalanceStartInterval) {
+    mgmtMonitorDnodeBalanced(mseconds);
     mgmtMonitorDnodeModule();
     lastTime = taosGetTimestampSec();
   }
@@ -626,25 +630,20 @@ void mgmtStartBalance(int type) {
 }
 
 void mgmtProcessBalanceTimer(void *handle, void *tmrId) {
-  if ((int)handle == TSDB_LB_TYPE_SCHEDULE) {
+  if (handle == NULL) {
     mgmtAccessSquence += tsBalanceMonitorInterval;
   }
 
   balanceTimer = NULL;
   mgmtStartBalance((int)handle);
   if (balanceTimer == NULL) {
-    taosTmrReset(mgmtProcessBalanceTimer, tsBalanceMonitorInterval * 1000, (void *)TSDB_LB_TYPE_SCHEDULE, mgmtTmr,
-                 &balanceTimer);
+    taosTmrReset(mgmtProcessBalanceTimer, tsBalanceMonitorInterval * 1000, NULL, mgmtTmr, &balanceTimer);
   }
 }
 
 void mgmtStartBalanceTimer(int mseconds) {
-  // if (balanceTimer != NULL) {
-  //   taosTmrStop(balanceTimer);
-  //   balanceTimer = NULL;
-  // }
   mTrace("balance function will be called after:%d mseconds", mseconds);
-  taosTmrReset(mgmtProcessBalanceTimer, mseconds, (void *)TSDB_LB_TYPE_SOON, mgmtTmr, &balanceTimer);
+  taosTmrReset(mgmtProcessBalanceTimer, mseconds, (void *)mseconds, mgmtTmr, &balanceTimer);
 }
 
 void mgmtMonitorVgroups() {

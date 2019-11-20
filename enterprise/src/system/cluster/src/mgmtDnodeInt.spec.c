@@ -150,7 +150,7 @@ void mgmtUpdateVgroupPublicIp(uint32_t privateIp, uint32_t oldPublicIp, uint32_t
     for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
       SVnodeGid *vnodeGid = pVgroup->vnodeGid + i;
       if (vnodeGid->ip == privateIp) {
-        mPrint("vgroup:%d, index:%d vnode:%d ip:%s change public ip from %s to %s", pVgroup->vgId, i, vnodeGid->vnode,
+        mPrint("vgroup:%d, index:%d vnode:%d ip:%s change publicIp from %s to %s", pVgroup->vgId, i, vnodeGid->vnode,
                taosIpStr(privateIp), taosIpStr(vnodeGid->publicIp), taosIpStr(newPublicIp));
         vnodeGid->publicIp = newPublicIp;
         sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
