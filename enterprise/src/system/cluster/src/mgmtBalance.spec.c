@@ -263,11 +263,12 @@ void mgmtAppendVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
     mError("dnode:%s, not in dnode DB!!!", taosIpStr(pVnodeGid->ip));
   }
 
+  sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
+
   for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
-    mTrace("dnode:%s, vgroup:%d, vnode:%d exist after addition", taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vgId, pVgroup->vnodeGid[i].vnode);
+    mTrace("%d-dnode:%s, vgroup:%d, vnode:%d exist after addition", i, taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vgId, pVgroup->vnodeGid[i].vnode);
   }
 
-  sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
   mgmtSendVPeersMsg(pVgroup);
 }
 
@@ -427,7 +428,7 @@ void mgmtRemoveOneRedundantVnode(SVgObj *pVgroup) {
   if (pRmVnode != NULL && allReady) {
     mTrace("vgroup:%d is ready", pVgroup->vgId);
     mgmtDiscardVnode(pVgroup, pRmVnode);
-    mgmtStartBalanceTimer(1001);
+    mgmtStartBalanceTimer(1000);
     return;
   }
 
@@ -518,7 +519,7 @@ void mgmtMonitorDnodeBalanced(int mseconds) {
   if (mseconds == 0) {
     mTrace("balance function is started by schedule, dnodes:%d", mgmtOrderedDnodesSize);
   } else {
-    mTrace("balance function is started by event after:%d mseconds, dnodes:%d", mseconds, mgmtOrderedDnodesSize);
+    mTrace("balance function is started by event for %d mseconds arrived, dnodes:%d", mseconds, mgmtOrderedDnodesSize);
   }
   if (mgmtOrderedDnodesSize < 2) {
     return;
@@ -531,8 +532,8 @@ void mgmtMonitorDnodeBalanced(int mseconds) {
 
   for (int src = mgmtOrderedDnodesSize - 1; src >= 0; --src) {
     SDnodeObj *pDnode = mgmtOrderedDnodes[src];
-    mTrace("dnode:%s, state:%s, lbstatus:%s, lbScore:%.1f, totalVnodes:%d, freeVnodes:%d, openVnodes:%d",
-            taosIpStr(pDnode->privateIp), taosGetDnodeStatusStr(pDnode->status),
+    mTrace("%d-dnode:%s, state:%s, lbstatus:%s, lbScore:%.1f, totalVnodes:%d, freeVnodes:%d, openVnodes:%d",
+            mgmtOrderedDnodesSize - src - 1, taosIpStr(pDnode->privateIp), taosGetDnodeStatusStr(pDnode->status),
             taosGetDnodeLbStatusStr(pDnode->lbStatus),
             pDnode->lbScore, pDnode->numOfVnodes, pDnode->numOfFreeVnodes, pDnode->openVnodes
     );
@@ -642,7 +643,7 @@ void mgmtProcessBalanceTimer(void *handle, void *tmrId) {
 }
 
 void mgmtStartBalanceTimer(int mseconds) {
-  mTrace("balance function will be called after:%d mseconds", mseconds);
+  mTrace("balance function will be called after %d mseconds", mseconds);
   taosTmrReset(mgmtProcessBalanceTimer, mseconds, (void *)mseconds, mgmtTmr, &balanceTimer);
 }
 
