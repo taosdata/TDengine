@@ -107,9 +107,9 @@ void httpCleanUpContextTimer(HttpContext *pContext) {
 }
 
 void httpCleanUpContext(HttpContext *pContext) {
-  httpTrace("context:%p, start the clean up operation", pContext);
-  atomic_val_compare_exchange_ptr(&pContext->signature, pContext, 0);
-  if (pContext->signature != NULL) {
+  httpTrace("context:%p, start the clean up operation, sig:%p", pContext, pContext->signature);
+  void *sig = atomic_val_compare_exchange_ptr(&pContext->signature, pContext, 0);
+  if (sig == NULL) {
     httpTrace("context:%p is freed by another thread.", pContext);
     return;
   }
