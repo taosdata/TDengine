@@ -17,6 +17,26 @@
 #include "tsdb.h"
 #include "tstatus.h"
 
+const char* taosGetVgroupStatusStr(int vgroupStatus) {
+  switch (vgroupStatus) {
+    case TSDB_VG_STATUS_READY:                 return "ready";
+    case TSDB_VG_STATUS_IN_PROGRESS:           return "inprogress";
+    case TSDB_VG_STATUS_COMMITLOG_INIT_FAILED: return "commitlog_init_failed";
+    case TSDB_VG_STATUS_INIT_FAILED:           return "init_failed";
+    case TSDB_VG_STATUS_FULL:                  return "full";
+    default:                                   return "undefined";
+  }
+}
+
+const char* taosGetDbStatusStr(int dbStatus) {
+  switch (dbStatus) {
+    case TSDB_DB_STATUS_READY:         return "ready";
+    case TSDB_DB_STATUS_DROPPING:      return "dropping";
+    case TSDB_DB_STATUS_DROP_FROM_SDB: return "drop_from_sdb";
+    default:                           return "undefined";
+  }
+}
+
 const char* taosGetVnodeStatusStr(int vnodeStatus) {
   switch (vnodeStatus) {
     case TSDB_VN_STATUS_OFFLINE:  return "offline";

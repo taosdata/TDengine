@@ -99,7 +99,7 @@ int mgmtProcessVpeerCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
     *pMsg = 0;
     pMsg++;
     pMsg = mgmtBuildVpeersIe(pMsg, pVgroup, vnode);
-    mTrace("dnode:%s, vnode:%d, vgroup:%d, send create meter msg, code:%d", taosIpStr(pObj->privateIp), vnode, pVgroup->vgId, *pMsg);
+    mTrace("dnode:%s, vnode:%d, vgroup:%d, send create vnode msg, code:%d", taosIpStr(pObj->privateIp), vnode, pVgroup->vgId, *pMsg);
   } else {
     mTrace("dnode:%s, vnode:%d, no vgroup info, vgroup:%d", taosIpStr(pObj->privateIp), vnode, pObj->vload[vnode].vgId);
     *pMsg = TSDB_CODE_NOT_ACTIVE_VNODE;
@@ -128,7 +128,8 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
   }
 
   if (pDb->vgStatus != TSDB_VG_STATUS_IN_PROGRESS) {
-    mTrace("dnode:%s, db:%s vpeer rsp already disposed, vgroup status:%d code:%d", taosIpStr(pObj->privateIp), pRsp->more, pDb->vgStatus, pRsp->code);
+    mTrace("dnode:%s, db:%s vpeer rsp already disposed, vgroup status:%s code:%d",
+            taosIpStr(pObj->privateIp), pRsp->more, taosGetVgroupStatusStr(pDb->vgStatus), pRsp->code);
     return 0;
   }
 

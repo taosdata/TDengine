@@ -78,6 +78,8 @@ enum _TSDB_VN_STREAM_STATUS {
   TSDB_VN_STREAM_STATUS_START
 };
 
+const char* taosGetVgroupStatusStr(int vgroupStatus);
+const char* taosGetDbStatusStr(int dbStatus);
 const char* taosGetVnodeStatusStr(int vnodeStatus);
 const char* taosGetVnodeSyncStatusStr(int vnodeSyncStatus);
 const char* taosGetVnodeDropStatusStr(int dropping);

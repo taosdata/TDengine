@@ -78,7 +78,7 @@ void *vnodeOpenCachePool(int vnode) {
     }
   }
 
-  dTrace("vid:%d, cache pool is allocated:0x%x", vnode, pCachePool);
+  dPrint("vid:%d, cache pool is allocated:0x%x", vnode, pCachePool);
 
   return pCachePool;
 
@@ -103,7 +103,7 @@ void vnodeCloseCachePool(int vnode) {
   taosTmrStopA(&pVnode->commitTimer);
   if (pVnode->commitInProcess) pthread_cancel(pVnode->commitThread);
 
-  dTrace("vid:%d, cache pool closed, count:%d", vnode, pCachePool->count);
+  dPrint("vid:%d, cache pool closed, count:%d", vnode, pCachePool->count);
 
   int maxAllocBlock = (1024 * 1024 * 1024) / pVnode->cfg.cacheBlockSize;
   while (blockId < pVnode->cfg.cacheNumOfBlocks.totalBlocks) {

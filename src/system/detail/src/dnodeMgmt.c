@@ -350,33 +350,33 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   pCfg->rowsInFileBlock = htonl(pCfg->rowsInFileBlock);
 
   if (pCfg->replications > 0) {
-    dTrace("vid:%d, vpeer cfg received, replica:%d session:%d, vnodeList replica:%d session:%d",
+    dPrint("vid:%d, vpeer cfg received, replica:%d session:%d, vnodeList replica:%d session:%d",
         vnode, pCfg->replications, pCfg->maxSessions, vnodeList[vnode].cfg.replications, vnodeList[vnode].cfg.maxSessions);
     for (i = 0; i < pCfg->replications; ++i) {
       pMsg->vpeerDesc[i].vnode = htonl(pMsg->vpeerDesc[i].vnode);
       pMsg->vpeerDesc[i].ip = htonl(pMsg->vpeerDesc[i].ip);
-      dTrace("vid:%d, vpeer:%d ip:0x%x vid:%d ", vnode, i, pMsg->vpeerDesc[i].ip, pMsg->vpeerDesc[i].vnode);
+      dPrint("vid:%d, vpeer:%d ip:0x%x vid:%d ", vnode, i, pMsg->vpeerDesc[i].ip, pMsg->vpeerDesc[i].vnode);
     }
   }
 
   if (vnodeList[vnode].cfg.maxSessions == 0) {
-    dTrace("vid:%d, vnode is empty", vnode);
+    dPrint("vid:%d, vnode is empty", vnode);
     if (pCfg->maxSessions > 0) {
       if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_OFFLINE) {
-        dTrace("vid:%d, status:%s, start to create vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+        dPrint("vid:%d, status:%s, start to create vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
         return vnodeCreateVnode(vnode, pCfg, pMsg->vpeerDesc);
       } else {
-        dTrace("vid:%d, status:%s, cannot preform create vnode operation", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+        dPrint("vid:%d, status:%s, cannot preform create vnode operation", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
         return TSDB_CODE_INVALID_VNODE_STATUS;
       }
     }
   } else {
-    dTrace("vid:%d, vnode is not empty", vnode);
+    dPrint("vid:%d, vnode is not empty", vnode);
     if (pCfg->maxSessions > 0) {
       if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_DELETING) {
-        dTrace("vid:%d, status:%s, wait vnode delete finished", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+        dPrint("vid:%d, status:%s, wait vnode delete finished", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
       } else {
-        dTrace("vid:%d, status:%s, start to update vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+        dPrint("vid:%d, status:%s, start to update vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
 
         if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
           vnodeCleanUpOneVnode(vnode);
@@ -395,7 +395,7 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
       }
       return 0;
     } else {
-      dTrace("vid:%d, status:%s, start to delete vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+      dPrint("vid:%d, status:%s, start to delete vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
       vnodeRemoveVnode(vnode);
     }
   }
