@@ -45,6 +45,10 @@ extern int            tscEmbedded;
 int                   tscNumOfThreads;
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 
+extern int  tsTscEnableRecordSql;
+extern int  tsNumOfLogLines;
+void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
+
 void tscCheckDiskUsage(void *para, void *unused) {
   taosGetDisk();
   taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
@@ -85,6 +89,10 @@ void taos_init_imp() {
 
   taosSetCoreDump();
 
+  if (tsTscEnableRecordSql != 0) {
+    taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
+  }
+  
 #ifdef CLUSTER
   tscMgmtIpList.numOfIps = 2;
   strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
