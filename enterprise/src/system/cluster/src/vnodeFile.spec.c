@@ -219,7 +219,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
 
     // file is the same
     if (pVnode->fmagic[i] == fmagic[i]) {
-      dTrace("vid:%d, fileId:%d, skip retrieve, fmagic:%ld peer fmagic:%ld is same", vnode, fileId, pVnode->fmagic[i], fmagic[i]);
+      //dTrace("vid:%d, fileId:%d, skip retrieve, fmagic:%ld peer fmagic:%ld is same", vnode, fileId, pVnode->fmagic[i], fmagic[i]);
       continue;
     }
 
@@ -405,7 +405,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
     }
 
     if (fileId == 0) {
-      dTrace("vid:%d, stop fileId:%d received from peer, fileId:%d", vnode, fileId);
+      dTrace("vid:%d, stop fileId:%d received from peer", vnode, fileId);
     } else {
       dTrace("vid:%d, start to receive file from peer, fileId:%d", vnode, fileId);
     }

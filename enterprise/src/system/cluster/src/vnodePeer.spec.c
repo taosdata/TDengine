@@ -84,9 +84,10 @@ int vnodeOpenPeerVnode(int vnode)
   for (int i = 0; i < pVnode->cfg.replications; ++i) {
     pVPeer = pVnode->peerInfo[i];
     if (pVPeer->ip) {
-      dTrace("vid:%d, peer:%s:%d is configured", vnode, pVPeer->ipstr, pVPeer->vid);
+      dTrace("vid:%d, peer:%s:%d is configured by open msg, status:%s syncFd:%d peerFd:%d",
+              vnode, pVPeer->ipstr, pVPeer->vid, taosGetVnodeStatusStr(pVPeer->status), pVPeer->syncFd, pVPeer->peerFd);
       if (tsPrivateIp4 < pVPeer->ip) {
-        dTrace("vid:%d, start check peer connection");
+        dTrace("vid:%d, peer:%s:%d start check peer:%p connection", vnode, pVPeer->ipstr, pVPeer->vid, pVPeer);
         taosTmrReset(vnodeCheckPeerConnection, 0, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
       }
     }
@@ -215,9 +216,11 @@ void vnodeConfigVPeers(int vnode, int numOfPeers, SVPeerDesc peerDesc[])
       pVPeer->peerFd = -1;
       pVPeer->syncFd = -1;
       pVPeer->status = TSDB_VN_STATUS_OFFLINE;
-      dTrace("vid:%d, peer:%s:%d is configured", vnode, pVPeer->ipstr, pVPeer->vid);
-      if (pVPeer->ip > tsPrivateIp4)
+      dTrace("vid:%d, peer:%s:%d is configured by config msg", vnode, pVPeer->ipstr, pVPeer->vid);
+      if (pVPeer->ip > tsPrivateIp4) {
+        dTrace("vid:%d, start check peer:%p connection", vnode, pVPeer);
         taosTmrReset(vnodeCheckPeerConnection, 0, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
+      }
       newPeers[i] = pVPeer;
     } else {
       newPeers[i] = pVnode->peerInfo[j];
@@ -460,6 +463,8 @@ void vnodeCheckStatus(SVnodePeer *pVPeer, SPeerState peerStates[], char newState
 
 void vnodeRestartConnection(SVnodePeer *pVPeer)
 {
+  dTrace("vid:%d, peer:%s:%d restart connection", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
+
   SVnodeObj *pVnode;
 
   if (pVPeer->signature != pVPeer) return;
@@ -915,17 +920,38 @@ void vnodeCheckPeerConnection(void *param, void *tmrId)
   int         connFd;
   SFirstPkt   firstPkt;
 
-  if (pVPeer == NULL) return;
-  if (pVPeer->signature != pVPeer) return;
-  if (pVPeer->ip == 0) return;
-  if (pVPeer->ownId < 0 || pVPeer->ownId >= TSDB_MAX_VNODES) return;
+  if (pVPeer == NULL) {
+    dError("check peer:%p connection, vpeer is null", pVPeer);
+    return;
+  }
+
+  if (pVPeer->signature != pVPeer) {
+    dError("check peer:%p connection, invalid signature:%p", pVPeer, pVPeer->signature);
+    return;
+  }
+
+  if (pVPeer->ip == 0) {
+    dError("check peer:%p connection, invalid ip:%d", pVPeer, pVPeer->ip);
+    return;
+  }
+
+  if (pVPeer->ownId < 0 || pVPeer->ownId >= TSDB_MAX_VNODES) {
+    dError("check peer:%p connection, invalid ownId:%d", pVPeer, pVPeer->ownId);
+    return;
+  }
+
+  dTrace("vid:%d, peer:%s:%d check peer:%p connection", vid, pVPeer->ipstr, pVPeer->vid, pVPeer);
 
   SVnodeObj *pVnode = vnodeList + pVPeer->ownId;
-  if (pVnode->peerInfo[pVnode->selfIndex] == NULL) return;
+  if (pVnode->peerInfo[pVnode->selfIndex] == NULL) {
+    dError("vid:%d, peer:%s:%d self info is empty", vid, pVPeer->ipstr, pVPeer->vid);
+    return;
+  }
 
   taosTmrStopA(&pVPeer->hbTimer);
 
   if (pVPeer->peerFd >= 0) {
+    dTrace("vid:%d, peer:%s:%d send status to peer, peerFd:%d", vid, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd);
     vnodeSendStatusMsgToPeer(pVPeer, 1);
     return;
   }
@@ -933,7 +959,8 @@ void vnodeCheckPeerConnection(void *param, void *tmrId)
   vid = pVPeer->ownId;
   connFd = taosOpenTcpClientSocket(pVPeer->ipstr, tsVnodeVnodePort, tsPrivateIp);
   if (connFd < 0) {
-    //dTrace("failed to open tcp socket to peer");
+    dTrace("vid:%d, failed to open tcp socket to peer:%s:%d, retry after %d mseconds ",
+            vid, pVPeer->ipstr, pVPeer->vid, tsVnodePeerHBTimer * 1000);
     taosTmrReset(vnodeCheckPeerConnection, tsVnodePeerHBTimer * 1000, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
     return;
   }
@@ -944,8 +971,13 @@ void vnodeCheckPeerConnection(void *param, void *tmrId)
   firstPkt.destVid = pVPeer->vid;
   firstPkt.type = TSDB_VMSG_STATUS;
 
-  write(connFd, &firstPkt, sizeof(firstPkt));
-  dTrace("vid:%d, peer:%s:%d connection to peer server is setup", vid, pVPeer->ipstr, pVPeer->vid);
+  int len = write(connFd, &firstPkt, sizeof(firstPkt));
+  if (len != sizeof(firstPkt)) {
+    dError("vid:%d, peer:%s:%d failed to send firstPkt size:%d, ret:%d",
+            vid, pVPeer->ipstr, pVPeer->vid, connFd, sizeof(firstPkt), len);
+  }
+
+  dTrace("vid:%d, peer:%s:%d connection to peer server is setup, connFd:%d", vid, pVPeer->ipstr, pVPeer->vid, connFd);
 
   vnodeAddPeerFd(&tsPeerThreadPool, pVPeer, connFd);
 
@@ -1153,7 +1185,7 @@ void vnodeClosePeerFd(SVnodePeer *pVPeer)
   SThreadObj *pThread = pVPeer->pThread;
 
   if (pThread == NULL) {
-    dError("pthread is NULL");
+    dTrace("vid:%d, peer:%s:%d thread is null", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
     return;
   }
 
@@ -1163,9 +1195,7 @@ void vnodeClosePeerFd(SVnodePeer *pVPeer)
     pThread->numOfFds--;
   }
 
-  // pVPeer->peerFd = -1;
-
-  dTrace ("vid:%d, peer:%s:%d connection closed, threadId:%d numOfFds:%d",
+  dTrace("vid:%d, peer:%s:%d connection closed, threadId:%d numOfFds:%d",
           pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pThread->threadId, pThread->numOfFds);
 }
 
@@ -1209,21 +1239,20 @@ static void vnodeProcessTcpData(void *param)
       SVnodePeer *pVPeer = events[i].data.ptr;
       if (pVPeer->ip == 0 && pVPeer->peerFd >= 0) {
         // it is already removed
+        dError("vid:%d, peer:%s:%d is already removed, signature:%p", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->signature);
         pVPeer->signature = NULL;
         tfree(pVPeer);
         continue;
       }
 
       if (events[i].events & EPOLLERR) {
-        dTrace("vid:%d, peer:%s:%d error happened on FD, threadId:%d", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid,
-               pThread->threadId);
+        dTrace("vid:%d, peer:%s:%d error happened on FD, threadId:%d", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pThread->threadId);
         vnodeRestartConnection(pVPeer);
         continue;
       }
 
       if (events[i].events & EPOLLHUP) {
-        dTrace("vid:%d, peer:%s:%d FD hang up, threadId:%d", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid,
-               pThread->threadId);
+        dTrace("vid:%d, peer:%s:%d FD hang up, threadId:%d", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pThread->threadId);
         vnodeRestartConnection(pVPeer);
         continue;
       }
@@ -1347,21 +1376,23 @@ int vnodeAddPeerFd(SThreadPool *pPool, SVnodePeer *pVPeer, int connFd)
   if (pThread == NULL) {
     pThread = (SThreadObj *) calloc(1, sizeof(SThreadObj));
     if (pThread == NULL) {
-      dError("peer TCP, failed to create thread");
+      dError("vid:%d, peer:%s:%d failed to create thread", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
       goto _over;
     }
 
     pThread->threadId = pPool->threadId;
     pThread->pollFd = epoll_create(10);  // size does not matter
     if (pThread->pollFd < 0) {
-      dError ("peer TCP, failed to create epoll, reason:%s", strerror(errno));
+      dError("vid:%d, peer:%s:%d failed to create tcp epoll, reason:%s",
+              pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, strerror(errno));
       goto _over;
     }
 
     pthread_attr_init(&thattr);
     pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
     if (pthread_create(&(pThread->thread), &thattr, (void *) vnodeProcessTcpData, (void *) (pThread)) != 0) {
-      dError("peer TCP, failed to create thread, reason:%s", strerror(errno));
+      dError("vid:%d, peer:%s:%d failed to create tcp thread, reason:%s",
+              pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, strerror(errno));
       goto _over;
     }
 
@@ -1369,7 +1400,8 @@ int vnodeAddPeerFd(SThreadPool *pPool, SVnodePeer *pVPeer, int connFd)
   }
 
   if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
-    dError("vid:%d, peer:%s:%d failed to add FD, error:%s", strerror(errno));
+    dError("vid:%d, peer:%s:%d failed to add fd:%d to tcp epoll, reason:%s",
+           pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, connFd, strerror(errno));
     close(connFd);
     goto _over;
   }
