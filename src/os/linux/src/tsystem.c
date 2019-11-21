@@ -586,9 +586,13 @@ void taosKillSystem() {
   kill(tsProcId, 2);
 }
 
-
+extern int   tsEnableCoreFile;
 int _sysctl(struct __sysctl_args *args );
 void taosSetCoreDump() {
+  if (0 == tsEnableCoreFile) {
+    return;
+  }
+  
   // 1. set ulimit -c unlimited
   struct rlimit rlim;
   struct rlimit rlim_new;
