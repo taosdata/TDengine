@@ -62,6 +62,7 @@ class TDTestCase:
           ##sys.exit(1) 
           ninserted = 0
           sqlcmd = ['import into']
+    self.queryFlag = False
     conn.close()
   
   def selectImp(self):
@@ -69,12 +70,11 @@ class TDTestCase:
     cursor = conn.cursor()
     cursor.execute('use db')
     count = 0
-    while(True):
+    while(self.queryFlag):
       cursor.execute('select * from tb')
       for line in cursor:
         continue
       print("query %d finished" %count)
-      if (count == 200):break
       count += 1
     conn.close()
 
@@ -82,6 +82,11 @@ class TDTestCase:
     self.ntables = 2000
     self.nrows = 200
     self.nthreads = 5
+    self.queryFlag = True
+
+    tdLog.info("total importing thread number = %d" %self.nthreads)
+    tdLog.info("total table number = %d" %self.ntables)
+    tdLog.info("total records in each table = %ld" %self.nthreads*self.nrows)
 
     tdSql.execute('reset query cache')
     tdSql.execute('drop database db')
