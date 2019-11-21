@@ -191,7 +191,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
   struct stat fstat;
   int         sfd;
 
-  dTrace("vid:%d, fd:%d, start sync retrieve", vnode, fd);
+  dPrint("vid:%d, fd:%d, start sync retrieve", vnode, fd);
 
   pVnode = vnodeList + vnode;
 
@@ -206,7 +206,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
     for (int i = 0; i < pVnode->maxFiles; ++i, ++fileId) {
       if (fileId > peerFid) fileId -= pVnode->maxFiles;
       if (fileId < minFId) {
-        dTrace("vid:%d, peer fileId:%d is too old, set magic to 0", vnode, fileId);
+        dPrint("vid:%d, peer fileId:%d is too old, set magic to 0", vnode, fileId);
         fmagic[i] = 0;
       }
     }
@@ -223,7 +223,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       continue;
     }
 
-    dTrace("vid:%d, fileId:%d, start to retrieve, fmagic:%ld peer fmagic:%ld not equal", vnode, fileId, pVnode->fmagic[i], fmagic[i]);
+    dPrint("vid:%d, fileId:%d, start to retrieve, fmagic:%ld peer fmagic:%ld not equal", vnode, fileId, pVnode->fmagic[i], fmagic[i]);
 
     if (pVnode->fmagic[i] == 0 && fmagic[i] != 0) {
       // file not exist
@@ -244,7 +244,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       vnodeGetHeadDataLname(headName, dataName, lastName, vnode, fileId);
 
       // send head file first
-      dTrace("vid:%d, fileId:%d, try to send head file:%s to peer", vnode, fileId, headName);
+      dPrint("vid:%d, fileId:%d, try to send head file:%s to peer", vnode, fileId, headName);
       if (taosWriteMsg(fd, &(fileId), sizeof(fileId)) < 0) {
         dError("vid:%d, fileId:%d, failed to send fileId to peer", vnode, fileId);
         return -1;
@@ -275,11 +275,11 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
         return -1;
       }
 
-      dTrace("vid:%d, fileId:%d, head file:%s is sent to peer, size:%ld", vnode, fileId, headName, size);
+      dPrint("vid:%d, fileId:%d, head file:%s is sent to peer, size:%ld", vnode, fileId, headName, size);
       close(sfd);
 
       // send data file
-      dTrace("vid:%d, fileId:%d, try to send data file:%s to peer", vnode, fileId, dataName);
+      dPrint("vid:%d, fileId:%d, try to send data file:%s to peer", vnode, fileId, dataName);
       if (stat(dataName, &fstat) < 0) {
         dError("vid:%d, fileId:%d, failed to stat data file:%s, errno:%d", vnode, fileId, dataName, errno);
         return -1;
@@ -303,11 +303,11 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
         return -1;
       }
 
-      dTrace("vid:%d, fileId:%d, data file:%s is sent to peer, size:%ld", vnode, fileId, dataName, size);
+      dPrint("vid:%d, fileId:%d, data file:%s is sent to peer, size:%ld", vnode, fileId, dataName, size);
       close(sfd);
 
       // send last file
-      dTrace("vid:%d, fileId:%d, try to send data file:%s to peer", vnode, fileId, lastName);
+      dPrint("vid:%d, fileId:%d, try to send data file:%s to peer", vnode, fileId, lastName);
       if (stat(lastName, &fstat) < 0) {
         dError("vid:%d, fileId:%d, failed to last data file:%s, errno:%d", vnode, fileId, lastName, errno);
         return -1;
@@ -331,7 +331,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
         return -1;
       }
 
-      dTrace("vid:%d, fileId:%d, last file:%s is sent to peer, size:%ld", vnode, fileId, lastName, size);
+      dPrint("vid:%d, fileId:%d, last file:%s is sent to peer, size:%ld", vnode, fileId, lastName, size);
       close(sfd);
     }
   }
@@ -339,28 +339,28 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
   fileId = 0;
   size = -1;
   if (taosWriteMsg(fd, &(fileId), sizeof(fileId)) < 0) {
-    dTrace("vid:%d, failed to send stop fileId:%d to peer", vnode, fileId);
+    dPrint("vid:%d, failed to send stop fileId:%d to peer", vnode, fileId);
     return -1;
   }
 
   if (taosWriteMsg(fd, &size, sizeof(size)) < 0) {
-    dTrace("vid:%d, failed to send stop file size:%ld to peer", vnode, size);
+    dPrint("vid:%d, failed to send stop file size:%ld to peer", vnode, size);
     return -1;
   }
 
   fileId = pVnode->fileId;
   size = pVnode->numOfFiles;
   if (taosWriteMsg(fd, &(fileId), sizeof(fileId)) < 0) {
-    dTrace("vid:%d, failed to send vnode fileId:%d to peer", vnode, fileId);
+    dPrint("vid:%d, failed to send vnode fileId:%d to peer", vnode, fileId);
     return -1;
   }
 
   if (taosWriteMsg(fd, &size, sizeof(size)) < 0) {
-    dTrace("vid:%d, failed to send vnode numOfFiles:%ld to peer", vnode, size);
+    dPrint("vid:%d, failed to send vnode numOfFiles:%ld to peer", vnode, size);
     return -1;
   }
 
-  dTrace("vid:%d, sync retrieve finished", vnode);
+  dPrint("vid:%d, sync retrieve finished", vnode);
   return 0;
 }
 
@@ -393,7 +393,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
   int64_t    size;
   int        dfd;
 
-  dTrace("vid:%d, fd:%d, start sync restore", vnode, sfd);
+  dPrint("vid:%d, fd:%d, start sync restore", vnode, sfd);
 
   pVnode = vnodeList + vnode;
   SVnodeCfg *pCfg = &pVnode->cfg;
@@ -405,9 +405,9 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
     }
 
     if (fileId == 0) {
-      dTrace("vid:%d, stop fileId:%d received from peer", vnode, fileId);
+      dPrint("vid:%d, stop fileId:%d received from peer", vnode, fileId);
     } else {
-      dTrace("vid:%d, start to receive file from peer, fileId:%d", vnode, fileId);
+      dPrint("vid:%d, start to receive file from peer, fileId:%d", vnode, fileId);
     }
 
     if (taosReadMsg(sfd, &size, sizeof(size)) < 0) {
@@ -416,7 +416,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
     }
 
     if (size == -1) {
-      dTrace("vid:%d, stop head file size:%d received from peer", vnode, size);
+      dPrint("vid:%d, stop head file size:%d received from peer", vnode, size);
       break;
     }
 
@@ -428,7 +428,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
 
     if (size > 0) {
       // read head file
-      dTrace("vid:%d, fileId:%d, start to receive head file:%s from peer, size:%ld", vnode, fileId, headName, size);
+      dPrint("vid:%d, fileId:%d, start to receive head file:%s from peer, size:%ld", vnode, fileId, headName, size);
 
       dfd = open(headName, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
       if (dfd < 0) {
@@ -443,7 +443,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
         return -1;
       }
 
-      dTrace("vid:%d, fileId:%d, head file:%s is received from peer, size:%ld", vnode, fileId, headName, size);
+      dPrint("vid:%d, fileId:%d, head file:%s is received from peer, size:%ld", vnode, fileId, headName, size);
 
       close(dfd);
 
@@ -459,7 +459,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
         return -1;
       }
 
-      dTrace("vid:%d, fileId:%d, start to receive data file:%s from peer, size:%ld", vnode, fileId, dataName, size);
+      dPrint("vid:%d, fileId:%d, start to receive data file:%s from peer, size:%ld", vnode, fileId, dataName, size);
 
       dfd = open(dataName, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
       if (dfd < 0) {
@@ -475,7 +475,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
         return -1;
       }
 
-      dTrace("vid:%d, fileId:%d, data file:%s is received from peer, size:%ld", vnode, fileId, dataName, size);
+      dPrint("vid:%d, fileId:%d, data file:%s is received from peer, size:%ld", vnode, fileId, dataName, size);
 
       close(dfd);
 
@@ -491,7 +491,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
         return -1;
       }
 
-      dTrace("vid:%d, fileId:%d, start to receieve last file:%s from peer, size:%ld", vnode, fileId, lastName, size);
+      dPrint("vid:%d, fileId:%d, start to receieve last file:%s from peer, size:%ld", vnode, fileId, lastName, size);
 
       dfd = open(lastName, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
       if (dfd < 0) {
@@ -507,13 +507,13 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
         return -1;
       }
 
-      dTrace("vid:%d, fileId:%d, last file:%s is received from peer, size:%ld", vnode, fileId, lastName, size);
+      dPrint("vid:%d, fileId:%d, last file:%s is received from peer, size:%ld", vnode, fileId, lastName, size);
 
       close(dfd);
 
       vnodeUpdateFileMagic(vnode, fileId);
     } else {
-      dTrace("vid:%d, fileId:%d, head file:%s is removed since peer does not have it", vnode, fileId, headName);
+      dPrint("vid:%d, fileId:%d, head file:%s is removed since peer does not have it", vnode, fileId, headName);
       vnodeRemoveFile(vnode, fileId);
       pVnode->fmagic[fileId % pVnode->maxFiles] = 0;
     }
@@ -525,7 +525,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
   }
 
   if (taosReadMsg(sfd, &size, sizeof(size)) < 0) {
-    dTrace("vid:%d, failed to receive vnode numOfFiles:%ld from peer", vnode, size);
+    dPrint("vid:%d, failed to receive vnode numOfFiles:%ld from peer", vnode, size);
     return -1;
   }
 
@@ -535,7 +535,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
   if (pVnode->numOfFiles > 0) {
     while (oldFirstFileId < newFirstFileId) {
       vnodeRemoveFile(vnode, oldFirstFileId);
-      dTrace("vid:%d, fileId:%d is removed since they are too old", vnode, oldFirstFileId);
+      dPrint("vid:%d, fileId:%d is removed since they are too old", vnode, oldFirstFileId);
       oldFirstFileId++;
     }
   }
@@ -550,7 +550,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
                               : (int64_t)(pVnode->fileId + 1) * pCfg->daysPerFile * tsMsPerDay[pVnode->cfg.precision] - 1;
   vnodeSaveVnodeInfo(vnode);
 
-  dTrace("vid:%d, sync restore finished", vnode);
+  dPrint("vid:%d, sync restore finished", vnode);
 
   return 0;
 }

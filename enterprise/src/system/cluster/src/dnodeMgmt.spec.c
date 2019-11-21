@@ -239,7 +239,7 @@ void vnodeSendStatusMsgToMgmt(void *handle, void *tmrId) {
     connInit.peerIp = mgmtIpStr[pObj->mgmtIndex];
     connInit.peerPort = tsMgmtVnodePort;
 
-    dTrace("mgmt ip:%s is picked up", connInit.peerIp);
+    dPrint("mgmt ip:%s is picked up", connInit.peerIp);
     pObj->thandle = taosOpenRpcConn(&connInit, &code);
   }
 
@@ -322,11 +322,11 @@ int vnodeProcessStatusRspMsg(char *msg, int msgLen, SMgmtObj *pObj) {
   pMsg += sizeof(SIpList) + size;
 
   if (memcmp(pIpList->ip, mgmtIpList.ip, size) != 0) {
-    dTrace("mgmt ip list is changed, numOfIps:%d", pIpList->numOfIps);
+    dPrint("mgmt ip list is changed, numOfIps:%d", pIpList->numOfIps);
     for (int i = 0; i < pIpList->numOfIps; ++i) {
       tinet_ntoa(mgmtIpStr[i], pIpList->ip[i]);
       mgmtIpList.ip[i] = pIpList->ip[i];
-      dTrace("mgmt IP index:%d ip:%s", i, mgmtIpStr[i]);
+      dPrint("mgmt IP index:%d ip:%s", i, mgmtIpStr[i]);
     }
 
     vnodeSaveMgmtIp();
@@ -338,7 +338,7 @@ int vnodeProcessStatusRspMsg(char *msg, int msgLen, SMgmtObj *pObj) {
     mgmtPublicIpList.numOfIps = pIpList->numOfIps;
     for (int i = 0; i < pIpList->numOfIps; ++i) {
       mgmtPublicIpList.ip[i] = pIpList->ip[i];
-      dTrace("mgmt Public IP index:%d, ip:%d", i, mgmtPublicIpList.ip[i]);
+      dPrint("mgmt Public IP index:%d, ip:%s", i, taosIpStr(mgmtPublicIpList.ip[i]));
     }
   }
 
@@ -630,7 +630,7 @@ void vnodeInitMgmtIp() {
   }
 
   if (!ipListValid) {
-    dTrace("read mgmt ipList from %s failed", fn);
+    dPrint("read mgmt ipList from %s failed", fn);
     memset(pIpList, 0, sizeof(mgmtIpList));
     pIpList->numOfIps = 1;
     pIpList->ip[0] = inet_addr(tsMasterIp);
@@ -645,9 +645,9 @@ void vnodeInitMgmtIp() {
     tinet_ntoa(mgmtIpStr[i], pIpList->ip[i]);
   }
 
-  dTrace("%d mgmt IPs are configured:", pIpList->numOfIps);
+  dPrint("%d mgmt IPs are configured:", pIpList->numOfIps);
   for (int i = 0; i < pIpList->numOfIps; ++i) {
-    dTrace("index:%d ip:%s", i, mgmtIpStr[i]);
+    dPrint("index:%d ip:%s", i, mgmtIpStr[i]);
   }
 
   if (pIpList->numOfIps >= 3) {
