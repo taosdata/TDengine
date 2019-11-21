@@ -81,6 +81,8 @@ int32_t vnodeSetMeterState(SMeterObj* pMeterObj, int32_t state);
 void vnodeClearMeterState(SMeterObj* pMeterObj, int32_t state);
 bool vnodeIsMeterState(SMeterObj* pMeterObj, int32_t state);
 void vnodeSetMeterDeleting(SMeterObj* pMeterObj);
+int32_t vnodeSetMeterInsertImportStateEx(SMeterObj* pObj, int32_t st);
+
 bool vnodeIsSafeToDeleteMeter(SVnodeObj* pVnode, int32_t sid);
 void vnodeFreeColumnInfo(SColumnInfo* pColumnInfo);
 bool isGroupbyNormalCol(SSqlGroupbyExpr* pExpr);

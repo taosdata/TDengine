@@ -500,7 +500,7 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SSQLToken *type) {
 SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
                              tVariantList *pGroupby, tVariantList *pSortOrder, SSQLToken *pInterval,
                              SSQLToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
-  assert(pSelection != NULL && pFrom != NULL && pInterval != NULL && pLimit != NULL && pGLimit != NULL);
+  assert(pSelection != NULL);
 
   SQuerySQL *pQuery = calloc(1, sizeof(SQuerySQL));
   pQuery->selectToken = *pSelectToken;
@@ -512,13 +512,23 @@ SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, 
   pQuery->pSortOrder = pSortOrder;
   pQuery->pWhere = pWhere;
 
-  pQuery->limit = *pLimit;
-  pQuery->slimit = *pGLimit;
+  if (pLimit != NULL) {
+    pQuery->limit = *pLimit;
+  }
+  
+  if (pGLimit != NULL) {
+    pQuery->slimit = *pGLimit;
+  }
 
-  pQuery->interval = *pInterval;
-  pQuery->sliding = *pSliding;
+  if (pInterval != NULL) {
+    pQuery->interval = *pInterval;
+  }
+  
+  if (pSliding != NULL) {
+    pQuery->sliding = *pSliding;
+  }
+  
   pQuery->fillType = pFill;
-
   return pQuery;
 }
 

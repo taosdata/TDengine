@@ -80,7 +80,7 @@
 #define TK_TABLE                           62
 #define TK_DATABASE                        63
 #define TK_DNODE                           64
-#define TK_IP                              65
+#define TK_IPTOKEN                         65
 #define TK_USER                            66
 #define TK_ACCOUNT                         67
 #define TK_USE                             68
@@ -210,7 +210,6 @@
 #define TK_JOIN                           192
 #define TK_METRICS                        193
 #define TK_STABLE                         194
-#define TK_QUESTION                       195
 
 #endif
 
