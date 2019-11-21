@@ -45,7 +45,7 @@ static bool random_alloc_fail(size_t size, const char* file, uint32_t line) {
   }
 
   if (fpAllocLog != NULL) {
-    fprintf(fpAllocLog, "memory allocation(%zu bytes) at line %d of '%s' will fail.\n", size, line, file);
+    fprintf(fpAllocLog, "%s:%d: memory allocation of %zu bytes will fail.\n", file, line, size);
   }
 
   return true;
@@ -137,7 +137,7 @@ static void free_detect_leak(void* ptr, const char* file, uint32_t line) {
   SMemBlock* blk = (SMemBlock*)(((char*)ptr) - sizeof(SMemBlock));
   if (blk->magic != MEMBLK_MAGIC) {
     if (fpAllocLog != NULL) {
-      fprintf(fpAllocLog, "%s:%d: memory not allocated by 'taos_malloc'.\n", file, line);
+      fprintf(fpAllocLog, "%s:%d: memory is allocated by default allocator.\n", file, line);
     }
     free(ptr);
     return;
@@ -196,7 +196,7 @@ static void* realloc_detect_leak(void* ptr, size_t size, const char* file, uint3
   SMemBlock* blk = ((char*)ptr) - sizeof(SMemBlock);
   if (blk->magic != MEMBLK_MAGIC) {
     if (fpAllocLog != NULL) {
-      fprintf(fpAllocLog, "%s:%d: memory not allocated by 'taos_malloc'.\n", file, line);
+      fprintf(fpAllocLog, "%s:%d: memory is allocated by default allocator.\n", file, line);
     }
     return realloc(ptr, size);
   }
@@ -265,7 +265,7 @@ static ssize_t getline_detect_leak(char **lineptr, size_t *n, FILE *stream, cons
 
 static void dump_memory_leak() {
   const char* hex = "0123456789ABCDEF";
-  const char* fmt = ":%d: addr=0x%p, size=%d, content(first 16 bytes)=";
+  const char* fmt = ":%d: addr=%p, size=%d, content(first 16 bytes)=";
   size_t numOfBlk = 0, totalSize = 0;
 
   if (fpAllocLog == NULL) {
