@@ -349,6 +349,14 @@ select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) fill_
   A = tSetQuerySQLElems(&T, W, X, Y, P, Z, &K, &S, F, &L, &G);
 }
 
+// Support for the SQL exprssion without from & where subclauses, e.g.,
+// select current_database(),
+// select server_version(), select client_version(),
+// select server_state();
+select(A) ::= SELECT(T) selcollist(W). {
+  A = tSetQuerySQLElems(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+}
+
 // selcollist is a list of expressions that are to become the return
 // values of the SELECT statement.  The "*" in statements like
 // "SELECT * FROM ..." is encoded as a special expression with an opcode of TK_ALL.
@@ -391,7 +399,7 @@ tmvar(A) ::= VARIABLE(X).   {A = X;}
 
 %type interval_opt {SSQLToken}
 interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N = E;     }
-interval_opt(N) ::= .                           {N.n = 0;   }
+interval_opt(N) ::= .                           {N.n = 0; N.z = NULL; N.type = 0;   }
 
 %type fill_opt {tVariantList*}
 %destructor fill_opt {tVariantListDestroy($$);}
@@ -412,7 +420,7 @@ fill_opt(N) ::= FILL LP ID(Y) RP.               {
 
 %type sliding_opt {SSQLToken}
 sliding_opt(K) ::= SLIDING LP tmvar(E) RP.      {K = E;     }
-sliding_opt(K) ::= .                            {K.n = 0;   }
+sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0;   }
 
 %type orderby_opt {tVariantList*}
 %destructor orderby_opt {tVariantListDestroy($$);}

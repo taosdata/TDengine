@@ -123,16 +123,16 @@ typedef union {
 #define ParseARG_STORE yypParser->pInfo = pInfo
 #define YYFALLBACK 1
 #define YYNSTATE             251
-#define YYNRULE              213
+#define YYNRULE              214
 #define YYNTOKEN             195
 #define YY_MAX_SHIFT         250
 #define YY_MIN_SHIFTREDUCE   401
-#define YY_MAX_SHIFTREDUCE   613
-#define YY_ERROR_ACTION      614
-#define YY_ACCEPT_ACTION     615
-#define YY_NO_ACTION         616
-#define YY_MIN_REDUCE        617
-#define YY_MAX_REDUCE        829
+#define YY_MAX_SHIFTREDUCE   614
+#define YY_ERROR_ACTION      615
+#define YY_ACCEPT_ACTION     616
+#define YY_NO_ACTION         617
+#define YY_MIN_REDUCE        618
+#define YY_MAX_REDUCE        831
 /************* End control #defines *******************************************/
 
 /* Define the yytestcase() macro to be a no-op if is not already defined
@@ -200,59 +200,59 @@ typedef union {
 *********** Begin parsing tables **********************************************/
 #define YY_ACTTAB_COUNT (530)
 static const YYACTIONTYPE yy_action[] = {
- /*     0 */    97,  439,  135,  101,  101,  156,  615,  250,  135,  440,
- /*    10 */   135,  159,  812,   43,   45,   21,   37,   38,  811,  158,
- /*    20 */   812,   31,  439,  726,  205,   41,   39,   42,   40,   10,
- /*    30 */   440,  153,  249,   36,   35,  743,  725,   34,   33,   32,
- /*    40 */    43,   45,  736,   37,   38,  166,  132,  167,   31,  723,
- /*    50 */   193,  205,   41,   39,   42,   40,  202,  767,   59,  200,
- /*    60 */    36,   35,   21,  726,   34,   33,   32,   43,   45,  134,
+ /*     0 */    97,  439,  135,  101,  101,  156,  616,  250,  135,  440,
+ /*    10 */   135,  159,  814,   43,   45,   21,   37,   38,  813,  158,
+ /*    20 */   814,   31,  439,  727,  205,   41,   39,   42,   40,   10,
+ /*    30 */   440,  153,  249,   36,   35,  745,  726,   34,   33,   32,
+ /*    40 */    43,   45,  737,   37,   38,  166,  132,  167,   31,  724,
+ /*    50 */   193,  205,   41,   39,   42,   40,  202,  769,   59,  200,
+ /*    60 */    36,   35,   21,  727,   34,   33,   32,   43,   45,  134,
  /*    70 */    37,   38,   74,   78,  244,   31,   85,   77,  205,   41,
- /*    80 */    39,   42,   40,   80,  740,  220,  498,   36,   35,  439,
- /*    90 */    21,   34,   33,   32,  168,  101,  723,  440,  101,   57,
- /*   100 */   114,  115,  224,  726,   65,   68,   45,    7,   37,   38,
+ /*    80 */    39,   42,   40,   80,  742,  220,  498,   36,   35,  439,
+ /*    90 */    21,   34,   33,   32,  168,  101,  724,  440,  101,   57,
+ /*   100 */   114,  115,  224,  727,   65,   68,   45,    7,   37,   38,
  /*   110 */    62,  111,  241,   31,  230,  229,  205,   41,   39,   42,
- /*   120 */    40,  232,  228,  564,  723,   36,   35,   21,  139,   34,
+ /*   120 */    40,  232,  228,  565,  724,   36,   35,   21,  139,   34,
  /*   130 */    33,   32,   21,  402,  403,  404,  405,  406,  407,  408,
- /*   140 */   409,  410,  411,  412,  413,  808,   37,   38,  243,  766,
- /*   150 */   724,   31,   60,  178,  205,   41,   39,   42,   40,  233,
- /*   160 */   186,  723,  183,   36,   35,  807,  722,   34,   33,   32,
- /*   170 */   653,  171,  806,  124,   17,  219,  242,  218,  217,  216,
- /*   180 */   215,  214,  213,  212,  211,  708,  151,  697,  698,  699,
- /*   190 */   700,  701,  702,  703,  704,  705,  706,  707,  163,  577,
- /*   200 */    11,  133,  568,  133,  571,   76,  574,  662,  163,  577,
- /*   210 */   124,  241,  568,  154,  571,  155,  574,  148,   34,   33,
- /*   220 */    32,  248,  247,  422,   87,   86,  142,  243,  545,  546,
- /*   230 */   160,  161,  147,  522,  204,  172,   18,  152,  227,  226,
- /*   240 */   160,  161,  163,  577,  525,  711,  568,  710,  571,  140,
- /*   250 */   574,   41,   39,   42,   40,  242,  141,   61,   27,   36,
- /*   260 */    35,   73,   72,   34,   33,   32,  514,  654,   28,  511,
+ /*   140 */   409,  410,  411,  412,  413,  810,   37,   38,  243,  768,
+ /*   150 */   725,   31,   60,  178,  205,   41,   39,   42,   40,  233,
+ /*   160 */   186,  724,  183,   36,   35,  809,  723,   34,   33,   32,
+ /*   170 */   654,  171,  808,  124,   17,  219,  242,  218,  217,  216,
+ /*   180 */   215,  214,  213,  212,  211,  709,  151,  698,  699,  700,
+ /*   190 */   701,  702,  703,  704,  705,  706,  707,  708,  163,  578,
+ /*   200 */    11,  133,  569,  133,  572,   76,  575,  663,  163,  578,
+ /*   210 */   124,  241,  569,  154,  572,  155,  575,  148,   34,   33,
+ /*   220 */    32,  248,  247,  422,   87,   86,  142,  243,  546,  547,
+ /*   230 */   160,  161,  147,  523,  204,  172,   18,  152,  227,  226,
+ /*   240 */   160,  161,  163,  578,  526,  712,  569,  711,  572,  140,
+ /*   250 */   575,   41,   39,   42,   40,  242,  141,   61,   27,   36,
+ /*   260 */    35,   73,   72,   34,   33,   32,  514,  655,   28,  511,
  /*   270 */   124,  512,  143,  513,  160,  161,  192,   36,   35,  188,
- /*   280 */   600,   34,   33,   32,   29,  570,  150,  573,  566,  128,
- /*   290 */   126,  245,   44,   89,   88,  601,  536,  169,  170,   29,
- /*   300 */    47,  576,   44,  162,  537,  594,  578,  144,   15,   14,
- /*   310 */    14,  576,  569,   49,  572,  504,  575,   52,  503,   47,
- /*   320 */   145,  209,   22,  146,  567,   22,  575,  518,  826,  519,
- /*   330 */    50,  516,   53,  517,   84,   83,   44,    9,    8,  717,
- /*   340 */   137,    2,  131,  138,  136,  576,  777,  742,  776,  164,
- /*   350 */   773,  772,  165,  231,   98,  759,  758,  112,  113,  664,
- /*   360 */   575,  110,  189,  210,  129,  515,   25,  223,   91,  225,
- /*   370 */   825,   70,  824,  822,  116,  682,   26,   23,  130,  651,
- /*   380 */   532,   79,  649,   54,   81,  647,  646,  173,  125,  644,
- /*   390 */   643,  642,  640,  633,  127,  637,  191,  635,  737,  194,
- /*   400 */   198,   95,  746,  747,  760,   51,  102,   46,  203,  103,
+ /*   280 */   601,   34,   33,   32,   29,  571,  150,  574,  567,  128,
+ /*   290 */   126,  245,   44,   89,   88,  602,  537,  169,  170,   29,
+ /*   300 */    47,  577,   44,  162,  538,  595,  579,  144,   15,   14,
+ /*   310 */    14,  577,  570,   49,  573,  504,  576,   52,  503,   47,
+ /*   320 */   145,  209,   22,  146,  568,   22,  576,  518,  828,  519,
+ /*   330 */    50,  516,   53,  517,   84,   83,   44,    9,    8,  718,
+ /*   340 */   137,    2,  131,  138,  136,  577,  779,  744,  778,  164,
+ /*   350 */   775,  774,  165,  231,   98,  761,  760,  112,  113,  665,
+ /*   360 */   576,  110,  189,  210,  129,  515,   25,  223,   91,  225,
+ /*   370 */   827,   70,  826,  824,  116,  683,   26,   23,  130,  652,
+ /*   380 */   533,   79,  650,   54,   81,  648,  647,  173,  125,  645,
+ /*   390 */   644,  643,  641,  634,  127,  638,  191,  636,  738,  194,
+ /*   400 */   198,   95,  748,  749,  762,   51,  102,   46,  203,  103,
  /*   410 */   201,  199,  197,  195,   30,   27,  222,   75,  234,  235,
  /*   420 */   207,   55,  236,  240,  238,  237,  239,   63,   66,  149,
- /*   430 */   246,  613,  175,  174,  176,  645,  612,   90,  639,  119,
- /*   440 */   123,  177,  683,  117,  118,  120,  106,  104,  721,  122,
+ /*   430 */   246,  614,  175,  174,  176,  646,  613,   90,  640,  119,
+ /*   440 */   123,  177,  684,  117,  118,  120,  106,  104,  722,  122,
  /*   450 */    92,  121,  108,  105,  107,  109,    1,   24,  180,  179,
- /*   460 */   181,  182,  611,  184,  185,  604,   58,   12,   13,   99,
- /*   470 */   190,  187,   96,  533,  157,  538,  196,  100,   19,   64,
- /*   480 */   479,  579,    3,   20,    4,   16,  206,    6,  208,  478,
+ /*   460 */   181,  182,  612,  184,  185,  605,   58,   12,   13,   99,
+ /*   470 */   190,  187,   96,  534,  157,  539,  196,  100,   19,   64,
+ /*   480 */   479,  580,    3,   20,    4,   16,  206,    6,  208,  478,
  /*   490 */   477,  476,  475,    5,  474,  473,  472,  470,   47,  443,
  /*   500 */    67,  445,   22,  221,  500,   48,  499,  497,   56,  464,
  /*   510 */   462,  454,  460,   69,  456,   71,  458,  452,  450,  471,
- /*   520 */   469,   82,  441,  425,   93,  415,  617,  616,  616,   94,
+ /*   520 */   469,   82,  441,  425,   93,  415,  618,  617,  617,   94,
 };
 static const YYCODETYPE yy_lookahead[] = {
  /*     0 */   199,    1,  247,  199,  199,  216,  196,  197,  247,    9,
@@ -380,32 +380,32 @@ static const short yy_reduce_ofst[] = {
  /*   130 */   255,
 };
 static const YYACTIONTYPE yy_default[] = {
- /*     0 */   614,  663,  814,  814,  614,  614,  614,  614,  614,  614,
- /*    10 */   744,  630,  614,  614,  814,  614,  614,  614,  614,  614,
- /*    20 */   614,  614,  614,  665,  652,  665,  665,  739,  614,  614,
- /*    30 */   614,  614,  614,  614,  614,  614,  614,  614,  614,  614,
- /*    40 */   614,  614,  614,  614,  614,  614,  614,  614,  614,  614,
- /*    50 */   614,  614,  614,  614,  614,  614,  614,  614,  614,  763,
- /*    60 */   763,  614,  614,  614,  614,  614,  614,  614,  614,  614,
- /*    70 */   614,  614,  614,  614,  614,  614,  614,  614,  614,  650,
- /*    80 */   614,  648,  614,  614,  614,  614,  614,  614,  614,  614,
- /*    90 */   614,  614,  614,  614,  614,  614,  632,  632,  632,  614,
- /*   100 */   614,  632,  770,  774,  768,  756,  764,  755,  751,  750,
- /*   110 */   778,  614,  632,  632,  660,  660,  632,  681,  679,  677,
- /*   120 */   669,  675,  671,  673,  667,  632,  658,  632,  658,  696,
- /*   130 */   709,  614,  818,  819,  779,  813,  769,  797,  796,  809,
- /*   140 */   803,  802,  614,  801,  800,  799,  798,  614,  614,  614,
- /*   150 */   614,  805,  804,  614,  614,  614,  614,  614,  614,  614,
- /*   160 */   614,  614,  614,  781,  775,  771,  614,  614,  614,  614,
- /*   170 */   614,  614,  614,  614,  614,  614,  614,  614,  614,  614,
- /*   180 */   614,  614,  614,  614,  614,  614,  614,  614,  614,  614,
- /*   190 */   614,  815,  614,  745,  614,  614,  614,  614,  614,  614,
- /*   200 */   765,  614,  757,  614,  614,  614,  614,  614,  614,  718,
- /*   210 */   614,  614,  614,  614,  614,  614,  614,  614,  614,  614,
- /*   220 */   684,  614,  614,  614,  614,  614,  614,  614,  823,  614,
- /*   230 */   614,  614,  712,  821,  614,  614,  614,  614,  614,  614,
- /*   240 */   614,  614,  614,  614,  614,  614,  614,  636,  634,  614,
- /*   250 */   614,
+ /*     0 */   615,  664,  816,  816,  615,  615,  615,  615,  615,  615,
+ /*    10 */   746,  631,  615,  615,  816,  615,  615,  615,  615,  615,
+ /*    20 */   615,  615,  615,  666,  653,  666,  666,  741,  615,  615,
+ /*    30 */   615,  615,  615,  615,  615,  615,  615,  615,  615,  615,
+ /*    40 */   615,  615,  615,  615,  615,  615,  615,  615,  615,  615,
+ /*    50 */   615,  615,  615,  615,  615,  615,  615,  615,  615,  765,
+ /*    60 */   765,  739,  615,  615,  615,  615,  615,  615,  615,  615,
+ /*    70 */   615,  615,  615,  615,  615,  615,  615,  615,  615,  651,
+ /*    80 */   615,  649,  615,  615,  615,  615,  615,  615,  615,  615,
+ /*    90 */   615,  615,  615,  615,  615,  615,  633,  633,  633,  615,
+ /*   100 */   615,  633,  772,  776,  770,  758,  766,  757,  753,  752,
+ /*   110 */   780,  615,  633,  633,  661,  661,  633,  682,  680,  678,
+ /*   120 */   670,  676,  672,  674,  668,  633,  659,  633,  659,  697,
+ /*   130 */   710,  615,  820,  821,  781,  815,  771,  799,  798,  811,
+ /*   140 */   805,  804,  615,  803,  802,  801,  800,  615,  615,  615,
+ /*   150 */   615,  807,  806,  615,  615,  615,  615,  615,  615,  615,
+ /*   160 */   615,  615,  615,  783,  777,  773,  615,  615,  615,  615,
+ /*   170 */   615,  615,  615,  615,  615,  615,  615,  615,  615,  615,
+ /*   180 */   615,  615,  615,  615,  615,  615,  615,  615,  615,  615,
+ /*   190 */   615,  817,  615,  747,  615,  615,  615,  615,  615,  615,
+ /*   200 */   767,  615,  759,  615,  615,  615,  615,  615,  615,  719,
+ /*   210 */   615,  615,  615,  615,  615,  615,  615,  615,  615,  615,
+ /*   220 */   685,  615,  615,  615,  615,  615,  615,  615,  825,  615,
+ /*   230 */   615,  615,  713,  823,  615,  615,  615,  615,  615,  615,
+ /*   240 */   615,  615,  615,  615,  615,  615,  615,  637,  635,  615,
+ /*   250 */   615,
 };
 /********** End of lemon-generated parsing tables *****************************/
 
@@ -1094,98 +1094,99 @@ static const char *const yyRuleName[] = {
  /* 118 */ "tagitem ::= PLUS FLOAT",
  /* 119 */ "cmd ::= select",
  /* 120 */ "select ::= SELECT selcollist from where_opt interval_opt fill_opt sliding_opt groupby_opt orderby_opt having_opt slimit_opt limit_opt",
- /* 121 */ "sclp ::= selcollist COMMA",
- /* 122 */ "sclp ::=",
- /* 123 */ "selcollist ::= sclp expr as",
- /* 124 */ "selcollist ::= sclp STAR",
- /* 125 */ "as ::= AS ids",
- /* 126 */ "as ::= ids",
- /* 127 */ "as ::=",
- /* 128 */ "from ::= FROM tablelist",
- /* 129 */ "tablelist ::= ids cpxName",
- /* 130 */ "tablelist ::= tablelist COMMA ids cpxName",
- /* 131 */ "tmvar ::= VARIABLE",
- /* 132 */ "interval_opt ::= INTERVAL LP tmvar RP",
- /* 133 */ "interval_opt ::=",
- /* 134 */ "fill_opt ::=",
- /* 135 */ "fill_opt ::= FILL LP ID COMMA tagitemlist RP",
- /* 136 */ "fill_opt ::= FILL LP ID RP",
- /* 137 */ "sliding_opt ::= SLIDING LP tmvar RP",
- /* 138 */ "sliding_opt ::=",
- /* 139 */ "orderby_opt ::=",
- /* 140 */ "orderby_opt ::= ORDER BY sortlist",
- /* 141 */ "sortlist ::= sortlist COMMA item sortorder",
- /* 142 */ "sortlist ::= item sortorder",
- /* 143 */ "item ::= ids cpxName",
- /* 144 */ "sortorder ::= ASC",
- /* 145 */ "sortorder ::= DESC",
- /* 146 */ "sortorder ::=",
- /* 147 */ "groupby_opt ::=",
- /* 148 */ "groupby_opt ::= GROUP BY grouplist",
- /* 149 */ "grouplist ::= grouplist COMMA item",
- /* 150 */ "grouplist ::= item",
- /* 151 */ "having_opt ::=",
- /* 152 */ "having_opt ::= HAVING expr",
- /* 153 */ "limit_opt ::=",
- /* 154 */ "limit_opt ::= LIMIT signed",
- /* 155 */ "limit_opt ::= LIMIT signed OFFSET signed",
- /* 156 */ "limit_opt ::= LIMIT signed COMMA signed",
- /* 157 */ "slimit_opt ::=",
- /* 158 */ "slimit_opt ::= SLIMIT signed",
- /* 159 */ "slimit_opt ::= SLIMIT signed SOFFSET signed",
- /* 160 */ "slimit_opt ::= SLIMIT signed COMMA signed",
- /* 161 */ "where_opt ::=",
- /* 162 */ "where_opt ::= WHERE expr",
- /* 163 */ "expr ::= LP expr RP",
- /* 164 */ "expr ::= ID",
- /* 165 */ "expr ::= ID DOT ID",
- /* 166 */ "expr ::= ID DOT STAR",
- /* 167 */ "expr ::= INTEGER",
- /* 168 */ "expr ::= MINUS INTEGER",
- /* 169 */ "expr ::= PLUS INTEGER",
- /* 170 */ "expr ::= FLOAT",
- /* 171 */ "expr ::= MINUS FLOAT",
- /* 172 */ "expr ::= PLUS FLOAT",
- /* 173 */ "expr ::= STRING",
- /* 174 */ "expr ::= NOW",
- /* 175 */ "expr ::= VARIABLE",
- /* 176 */ "expr ::= BOOL",
- /* 177 */ "expr ::= ID LP exprlist RP",
- /* 178 */ "expr ::= ID LP STAR RP",
- /* 179 */ "expr ::= expr AND expr",
- /* 180 */ "expr ::= expr OR expr",
- /* 181 */ "expr ::= expr LT expr",
- /* 182 */ "expr ::= expr GT expr",
- /* 183 */ "expr ::= expr LE expr",
- /* 184 */ "expr ::= expr GE expr",
- /* 185 */ "expr ::= expr NE expr",
- /* 186 */ "expr ::= expr EQ expr",
- /* 187 */ "expr ::= expr PLUS expr",
- /* 188 */ "expr ::= expr MINUS expr",
- /* 189 */ "expr ::= expr STAR expr",
- /* 190 */ "expr ::= expr SLASH expr",
- /* 191 */ "expr ::= expr REM expr",
- /* 192 */ "expr ::= expr LIKE expr",
- /* 193 */ "expr ::= expr IN LP exprlist RP",
- /* 194 */ "exprlist ::= exprlist COMMA expritem",
- /* 195 */ "exprlist ::= expritem",
- /* 196 */ "expritem ::= expr",
- /* 197 */ "expritem ::=",
- /* 198 */ "cmd ::= INSERT INTO cpxName insert_value_list",
- /* 199 */ "insert_value_list ::= VALUES LP itemlist RP",
- /* 200 */ "insert_value_list ::= insert_value_list VALUES LP itemlist RP",
- /* 201 */ "itemlist ::= itemlist COMMA expr",
- /* 202 */ "itemlist ::= expr",
- /* 203 */ "cmd ::= RESET QUERY CACHE",
- /* 204 */ "cmd ::= ALTER TABLE ids cpxName ADD COLUMN columnlist",
- /* 205 */ "cmd ::= ALTER TABLE ids cpxName DROP COLUMN ids",
- /* 206 */ "cmd ::= ALTER TABLE ids cpxName ADD TAG columnlist",
- /* 207 */ "cmd ::= ALTER TABLE ids cpxName DROP TAG ids",
- /* 208 */ "cmd ::= ALTER TABLE ids cpxName CHANGE TAG ids ids",
- /* 209 */ "cmd ::= ALTER TABLE ids cpxName SET TAG ids EQ tagitem",
- /* 210 */ "cmd ::= KILL CONNECTION IPTOKEN COLON INTEGER",
- /* 211 */ "cmd ::= KILL STREAM IPTOKEN COLON INTEGER COLON INTEGER",
- /* 212 */ "cmd ::= KILL QUERY IPTOKEN COLON INTEGER COLON INTEGER",
+ /* 121 */ "select ::= SELECT selcollist",
+ /* 122 */ "sclp ::= selcollist COMMA",
+ /* 123 */ "sclp ::=",
+ /* 124 */ "selcollist ::= sclp expr as",
+ /* 125 */ "selcollist ::= sclp STAR",
+ /* 126 */ "as ::= AS ids",
+ /* 127 */ "as ::= ids",
+ /* 128 */ "as ::=",
+ /* 129 */ "from ::= FROM tablelist",
+ /* 130 */ "tablelist ::= ids cpxName",
+ /* 131 */ "tablelist ::= tablelist COMMA ids cpxName",
+ /* 132 */ "tmvar ::= VARIABLE",
+ /* 133 */ "interval_opt ::= INTERVAL LP tmvar RP",
+ /* 134 */ "interval_opt ::=",
+ /* 135 */ "fill_opt ::=",
+ /* 136 */ "fill_opt ::= FILL LP ID COMMA tagitemlist RP",
+ /* 137 */ "fill_opt ::= FILL LP ID RP",
+ /* 138 */ "sliding_opt ::= SLIDING LP tmvar RP",
+ /* 139 */ "sliding_opt ::=",
+ /* 140 */ "orderby_opt ::=",
+ /* 141 */ "orderby_opt ::= ORDER BY sortlist",
+ /* 142 */ "sortlist ::= sortlist COMMA item sortorder",
+ /* 143 */ "sortlist ::= item sortorder",
+ /* 144 */ "item ::= ids cpxName",
+ /* 145 */ "sortorder ::= ASC",
+ /* 146 */ "sortorder ::= DESC",
+ /* 147 */ "sortorder ::=",
+ /* 148 */ "groupby_opt ::=",
+ /* 149 */ "groupby_opt ::= GROUP BY grouplist",
+ /* 150 */ "grouplist ::= grouplist COMMA item",
+ /* 151 */ "grouplist ::= item",
+ /* 152 */ "having_opt ::=",
+ /* 153 */ "having_opt ::= HAVING expr",
+ /* 154 */ "limit_opt ::=",
+ /* 155 */ "limit_opt ::= LIMIT signed",
+ /* 156 */ "limit_opt ::= LIMIT signed OFFSET signed",
+ /* 157 */ "limit_opt ::= LIMIT signed COMMA signed",
+ /* 158 */ "slimit_opt ::=",
+ /* 159 */ "slimit_opt ::= SLIMIT signed",
+ /* 160 */ "slimit_opt ::= SLIMIT signed SOFFSET signed",
+ /* 161 */ "slimit_opt ::= SLIMIT signed COMMA signed",
+ /* 162 */ "where_opt ::=",
+ /* 163 */ "where_opt ::= WHERE expr",
+ /* 164 */ "expr ::= LP expr RP",
+ /* 165 */ "expr ::= ID",
+ /* 166 */ "expr ::= ID DOT ID",
+ /* 167 */ "expr ::= ID DOT STAR",
+ /* 168 */ "expr ::= INTEGER",
+ /* 169 */ "expr ::= MINUS INTEGER",
+ /* 170 */ "expr ::= PLUS INTEGER",
+ /* 171 */ "expr ::= FLOAT",
+ /* 172 */ "expr ::= MINUS FLOAT",
+ /* 173 */ "expr ::= PLUS FLOAT",
+ /* 174 */ "expr ::= STRING",
+ /* 175 */ "expr ::= NOW",
+ /* 176 */ "expr ::= VARIABLE",
+ /* 177 */ "expr ::= BOOL",
+ /* 178 */ "expr ::= ID LP exprlist RP",
+ /* 179 */ "expr ::= ID LP STAR RP",
+ /* 180 */ "expr ::= expr AND expr",
+ /* 181 */ "expr ::= expr OR expr",
+ /* 182 */ "expr ::= expr LT expr",
+ /* 183 */ "expr ::= expr GT expr",
+ /* 184 */ "expr ::= expr LE expr",
+ /* 185 */ "expr ::= expr GE expr",
+ /* 186 */ "expr ::= expr NE expr",
+ /* 187 */ "expr ::= expr EQ expr",
+ /* 188 */ "expr ::= expr PLUS expr",
+ /* 189 */ "expr ::= expr MINUS expr",
+ /* 190 */ "expr ::= expr STAR expr",
+ /* 191 */ "expr ::= expr SLASH expr",
+ /* 192 */ "expr ::= expr REM expr",
+ /* 193 */ "expr ::= expr LIKE expr",
+ /* 194 */ "expr ::= expr IN LP exprlist RP",
+ /* 195 */ "exprlist ::= exprlist COMMA expritem",
+ /* 196 */ "exprlist ::= expritem",
+ /* 197 */ "expritem ::= expr",
+ /* 198 */ "expritem ::=",
+ /* 199 */ "cmd ::= INSERT INTO cpxName insert_value_list",
+ /* 200 */ "insert_value_list ::= VALUES LP itemlist RP",
+ /* 201 */ "insert_value_list ::= insert_value_list VALUES LP itemlist RP",
+ /* 202 */ "itemlist ::= itemlist COMMA expr",
+ /* 203 */ "itemlist ::= expr",
+ /* 204 */ "cmd ::= RESET QUERY CACHE",
+ /* 205 */ "cmd ::= ALTER TABLE ids cpxName ADD COLUMN columnlist",
+ /* 206 */ "cmd ::= ALTER TABLE ids cpxName DROP COLUMN ids",
+ /* 207 */ "cmd ::= ALTER TABLE ids cpxName ADD TAG columnlist",
+ /* 208 */ "cmd ::= ALTER TABLE ids cpxName DROP TAG ids",
+ /* 209 */ "cmd ::= ALTER TABLE ids cpxName CHANGE TAG ids ids",
+ /* 210 */ "cmd ::= ALTER TABLE ids cpxName SET TAG ids EQ tagitem",
+ /* 211 */ "cmd ::= KILL CONNECTION IPTOKEN COLON INTEGER",
+ /* 212 */ "cmd ::= KILL STREAM IPTOKEN COLON INTEGER COLON INTEGER",
+ /* 213 */ "cmd ::= KILL QUERY IPTOKEN COLON INTEGER COLON INTEGER",
 };
 #endif /* NDEBUG */
 
@@ -1760,98 +1761,99 @@ static const struct {
   {  234,   -2 }, /* (118) tagitem ::= PLUS FLOAT */
   {  197,   -1 }, /* (119) cmd ::= select */
   {  232,  -12 }, /* (120) select ::= SELECT selcollist from where_opt interval_opt fill_opt sliding_opt groupby_opt orderby_opt having_opt slimit_opt limit_opt */
-  {  246,   -2 }, /* (121) sclp ::= selcollist COMMA */
-  {  246,    0 }, /* (122) sclp ::= */
-  {  235,   -3 }, /* (123) selcollist ::= sclp expr as */
-  {  235,   -2 }, /* (124) selcollist ::= sclp STAR */
-  {  248,   -2 }, /* (125) as ::= AS ids */
-  {  248,   -1 }, /* (126) as ::= ids */
-  {  248,    0 }, /* (127) as ::= */
-  {  236,   -2 }, /* (128) from ::= FROM tablelist */
-  {  249,   -2 }, /* (129) tablelist ::= ids cpxName */
-  {  249,   -4 }, /* (130) tablelist ::= tablelist COMMA ids cpxName */
-  {  250,   -1 }, /* (131) tmvar ::= VARIABLE */
-  {  238,   -4 }, /* (132) interval_opt ::= INTERVAL LP tmvar RP */
-  {  238,    0 }, /* (133) interval_opt ::= */
-  {  239,    0 }, /* (134) fill_opt ::= */
-  {  239,   -6 }, /* (135) fill_opt ::= FILL LP ID COMMA tagitemlist RP */
-  {  239,   -4 }, /* (136) fill_opt ::= FILL LP ID RP */
-  {  240,   -4 }, /* (137) sliding_opt ::= SLIDING LP tmvar RP */
-  {  240,    0 }, /* (138) sliding_opt ::= */
-  {  242,    0 }, /* (139) orderby_opt ::= */
-  {  242,   -3 }, /* (140) orderby_opt ::= ORDER BY sortlist */
-  {  251,   -4 }, /* (141) sortlist ::= sortlist COMMA item sortorder */
-  {  251,   -2 }, /* (142) sortlist ::= item sortorder */
-  {  253,   -2 }, /* (143) item ::= ids cpxName */
-  {  254,   -1 }, /* (144) sortorder ::= ASC */
-  {  254,   -1 }, /* (145) sortorder ::= DESC */
-  {  254,    0 }, /* (146) sortorder ::= */
-  {  241,    0 }, /* (147) groupby_opt ::= */
-  {  241,   -3 }, /* (148) groupby_opt ::= GROUP BY grouplist */
-  {  255,   -3 }, /* (149) grouplist ::= grouplist COMMA item */
-  {  255,   -1 }, /* (150) grouplist ::= item */
-  {  243,    0 }, /* (151) having_opt ::= */
-  {  243,   -2 }, /* (152) having_opt ::= HAVING expr */
-  {  245,    0 }, /* (153) limit_opt ::= */
-  {  245,   -2 }, /* (154) limit_opt ::= LIMIT signed */
-  {  245,   -4 }, /* (155) limit_opt ::= LIMIT signed OFFSET signed */
-  {  245,   -4 }, /* (156) limit_opt ::= LIMIT signed COMMA signed */
-  {  244,    0 }, /* (157) slimit_opt ::= */
-  {  244,   -2 }, /* (158) slimit_opt ::= SLIMIT signed */
-  {  244,   -4 }, /* (159) slimit_opt ::= SLIMIT signed SOFFSET signed */
-  {  244,   -4 }, /* (160) slimit_opt ::= SLIMIT signed COMMA signed */
-  {  237,    0 }, /* (161) where_opt ::= */
-  {  237,   -2 }, /* (162) where_opt ::= WHERE expr */
-  {  247,   -3 }, /* (163) expr ::= LP expr RP */
-  {  247,   -1 }, /* (164) expr ::= ID */
-  {  247,   -3 }, /* (165) expr ::= ID DOT ID */
-  {  247,   -3 }, /* (166) expr ::= ID DOT STAR */
-  {  247,   -1 }, /* (167) expr ::= INTEGER */
-  {  247,   -2 }, /* (168) expr ::= MINUS INTEGER */
-  {  247,   -2 }, /* (169) expr ::= PLUS INTEGER */
-  {  247,   -1 }, /* (170) expr ::= FLOAT */
-  {  247,   -2 }, /* (171) expr ::= MINUS FLOAT */
-  {  247,   -2 }, /* (172) expr ::= PLUS FLOAT */
-  {  247,   -1 }, /* (173) expr ::= STRING */
-  {  247,   -1 }, /* (174) expr ::= NOW */
-  {  247,   -1 }, /* (175) expr ::= VARIABLE */
-  {  247,   -1 }, /* (176) expr ::= BOOL */
-  {  247,   -4 }, /* (177) expr ::= ID LP exprlist RP */
-  {  247,   -4 }, /* (178) expr ::= ID LP STAR RP */
-  {  247,   -3 }, /* (179) expr ::= expr AND expr */
-  {  247,   -3 }, /* (180) expr ::= expr OR expr */
-  {  247,   -3 }, /* (181) expr ::= expr LT expr */
-  {  247,   -3 }, /* (182) expr ::= expr GT expr */
-  {  247,   -3 }, /* (183) expr ::= expr LE expr */
-  {  247,   -3 }, /* (184) expr ::= expr GE expr */
-  {  247,   -3 }, /* (185) expr ::= expr NE expr */
-  {  247,   -3 }, /* (186) expr ::= expr EQ expr */
-  {  247,   -3 }, /* (187) expr ::= expr PLUS expr */
-  {  247,   -3 }, /* (188) expr ::= expr MINUS expr */
-  {  247,   -3 }, /* (189) expr ::= expr STAR expr */
-  {  247,   -3 }, /* (190) expr ::= expr SLASH expr */
-  {  247,   -3 }, /* (191) expr ::= expr REM expr */
-  {  247,   -3 }, /* (192) expr ::= expr LIKE expr */
-  {  247,   -5 }, /* (193) expr ::= expr IN LP exprlist RP */
-  {  256,   -3 }, /* (194) exprlist ::= exprlist COMMA expritem */
-  {  256,   -1 }, /* (195) exprlist ::= expritem */
-  {  257,   -1 }, /* (196) expritem ::= expr */
-  {  257,    0 }, /* (197) expritem ::= */
-  {  197,   -4 }, /* (198) cmd ::= INSERT INTO cpxName insert_value_list */
-  {  258,   -4 }, /* (199) insert_value_list ::= VALUES LP itemlist RP */
-  {  258,   -5 }, /* (200) insert_value_list ::= insert_value_list VALUES LP itemlist RP */
-  {  259,   -3 }, /* (201) itemlist ::= itemlist COMMA expr */
-  {  259,   -1 }, /* (202) itemlist ::= expr */
-  {  197,   -3 }, /* (203) cmd ::= RESET QUERY CACHE */
-  {  197,   -7 }, /* (204) cmd ::= ALTER TABLE ids cpxName ADD COLUMN columnlist */
-  {  197,   -7 }, /* (205) cmd ::= ALTER TABLE ids cpxName DROP COLUMN ids */
-  {  197,   -7 }, /* (206) cmd ::= ALTER TABLE ids cpxName ADD TAG columnlist */
-  {  197,   -7 }, /* (207) cmd ::= ALTER TABLE ids cpxName DROP TAG ids */
-  {  197,   -8 }, /* (208) cmd ::= ALTER TABLE ids cpxName CHANGE TAG ids ids */
-  {  197,   -9 }, /* (209) cmd ::= ALTER TABLE ids cpxName SET TAG ids EQ tagitem */
-  {  197,   -5 }, /* (210) cmd ::= KILL CONNECTION IPTOKEN COLON INTEGER */
-  {  197,   -7 }, /* (211) cmd ::= KILL STREAM IPTOKEN COLON INTEGER COLON INTEGER */
-  {  197,   -7 }, /* (212) cmd ::= KILL QUERY IPTOKEN COLON INTEGER COLON INTEGER */
+  {  232,   -2 }, /* (121) select ::= SELECT selcollist */
+  {  246,   -2 }, /* (122) sclp ::= selcollist COMMA */
+  {  246,    0 }, /* (123) sclp ::= */
+  {  235,   -3 }, /* (124) selcollist ::= sclp expr as */
+  {  235,   -2 }, /* (125) selcollist ::= sclp STAR */
+  {  248,   -2 }, /* (126) as ::= AS ids */
+  {  248,   -1 }, /* (127) as ::= ids */
+  {  248,    0 }, /* (128) as ::= */
+  {  236,   -2 }, /* (129) from ::= FROM tablelist */
+  {  249,   -2 }, /* (130) tablelist ::= ids cpxName */
+  {  249,   -4 }, /* (131) tablelist ::= tablelist COMMA ids cpxName */
+  {  250,   -1 }, /* (132) tmvar ::= VARIABLE */
+  {  238,   -4 }, /* (133) interval_opt ::= INTERVAL LP tmvar RP */
+  {  238,    0 }, /* (134) interval_opt ::= */
+  {  239,    0 }, /* (135) fill_opt ::= */
+  {  239,   -6 }, /* (136) fill_opt ::= FILL LP ID COMMA tagitemlist RP */
+  {  239,   -4 }, /* (137) fill_opt ::= FILL LP ID RP */
+  {  240,   -4 }, /* (138) sliding_opt ::= SLIDING LP tmvar RP */
+  {  240,    0 }, /* (139) sliding_opt ::= */
+  {  242,    0 }, /* (140) orderby_opt ::= */
+  {  242,   -3 }, /* (141) orderby_opt ::= ORDER BY sortlist */
+  {  251,   -4 }, /* (142) sortlist ::= sortlist COMMA item sortorder */
+  {  251,   -2 }, /* (143) sortlist ::= item sortorder */
+  {  253,   -2 }, /* (144) item ::= ids cpxName */
+  {  254,   -1 }, /* (145) sortorder ::= ASC */
+  {  254,   -1 }, /* (146) sortorder ::= DESC */
+  {  254,    0 }, /* (147) sortorder ::= */
+  {  241,    0 }, /* (148) groupby_opt ::= */
+  {  241,   -3 }, /* (149) groupby_opt ::= GROUP BY grouplist */
+  {  255,   -3 }, /* (150) grouplist ::= grouplist COMMA item */
+  {  255,   -1 }, /* (151) grouplist ::= item */
+  {  243,    0 }, /* (152) having_opt ::= */
+  {  243,   -2 }, /* (153) having_opt ::= HAVING expr */
+  {  245,    0 }, /* (154) limit_opt ::= */
+  {  245,   -2 }, /* (155) limit_opt ::= LIMIT signed */
+  {  245,   -4 }, /* (156) limit_opt ::= LIMIT signed OFFSET signed */
+  {  245,   -4 }, /* (157) limit_opt ::= LIMIT signed COMMA signed */
+  {  244,    0 }, /* (158) slimit_opt ::= */
+  {  244,   -2 }, /* (159) slimit_opt ::= SLIMIT signed */
+  {  244,   -4 }, /* (160) slimit_opt ::= SLIMIT signed SOFFSET signed */
+  {  244,   -4 }, /* (161) slimit_opt ::= SLIMIT signed COMMA signed */
+  {  237,    0 }, /* (162) where_opt ::= */
+  {  237,   -2 }, /* (163) where_opt ::= WHERE expr */
+  {  247,   -3 }, /* (164) expr ::= LP expr RP */
+  {  247,   -1 }, /* (165) expr ::= ID */
+  {  247,   -3 }, /* (166) expr ::= ID DOT ID */
+  {  247,   -3 }, /* (167) expr ::= ID DOT STAR */
+  {  247,   -1 }, /* (168) expr ::= INTEGER */
+  {  247,   -2 }, /* (169) expr ::= MINUS INTEGER */
+  {  247,   -2 }, /* (170) expr ::= PLUS INTEGER */
+  {  247,   -1 }, /* (171) expr ::= FLOAT */
+  {  247,   -2 }, /* (172) expr ::= MINUS FLOAT */
+  {  247,   -2 }, /* (173) expr ::= PLUS FLOAT */
+  {  247,   -1 }, /* (174) expr ::= STRING */
+  {  247,   -1 }, /* (175) expr ::= NOW */
+  {  247,   -1 }, /* (176) expr ::= VARIABLE */
+  {  247,   -1 }, /* (177) expr ::= BOOL */
+  {  247,   -4 }, /* (178) expr ::= ID LP exprlist RP */
+  {  247,   -4 }, /* (179) expr ::= ID LP STAR RP */
+  {  247,   -3 }, /* (180) expr ::= expr AND expr */
+  {  247,   -3 }, /* (181) expr ::= expr OR expr */
+  {  247,   -3 }, /* (182) expr ::= expr LT expr */
+  {  247,   -3 }, /* (183) expr ::= expr GT expr */
+  {  247,   -3 }, /* (184) expr ::= expr LE expr */
+  {  247,   -3 }, /* (185) expr ::= expr GE expr */
+  {  247,   -3 }, /* (186) expr ::= expr NE expr */
+  {  247,   -3 }, /* (187) expr ::= expr EQ expr */
+  {  247,   -3 }, /* (188) expr ::= expr PLUS expr */
+  {  247,   -3 }, /* (189) expr ::= expr MINUS expr */
+  {  247,   -3 }, /* (190) expr ::= expr STAR expr */
+  {  247,   -3 }, /* (191) expr ::= expr SLASH expr */
+  {  247,   -3 }, /* (192) expr ::= expr REM expr */
+  {  247,   -3 }, /* (193) expr ::= expr LIKE expr */
+  {  247,   -5 }, /* (194) expr ::= expr IN LP exprlist RP */
+  {  256,   -3 }, /* (195) exprlist ::= exprlist COMMA expritem */
+  {  256,   -1 }, /* (196) exprlist ::= expritem */
+  {  257,   -1 }, /* (197) expritem ::= expr */
+  {  257,    0 }, /* (198) expritem ::= */
+  {  197,   -4 }, /* (199) cmd ::= INSERT INTO cpxName insert_value_list */
+  {  258,   -4 }, /* (200) insert_value_list ::= VALUES LP itemlist RP */
+  {  258,   -5 }, /* (201) insert_value_list ::= insert_value_list VALUES LP itemlist RP */
+  {  259,   -3 }, /* (202) itemlist ::= itemlist COMMA expr */
+  {  259,   -1 }, /* (203) itemlist ::= expr */
+  {  197,   -3 }, /* (204) cmd ::= RESET QUERY CACHE */
+  {  197,   -7 }, /* (205) cmd ::= ALTER TABLE ids cpxName ADD COLUMN columnlist */
+  {  197,   -7 }, /* (206) cmd ::= ALTER TABLE ids cpxName DROP COLUMN ids */
+  {  197,   -7 }, /* (207) cmd ::= ALTER TABLE ids cpxName ADD TAG columnlist */
+  {  197,   -7 }, /* (208) cmd ::= ALTER TABLE ids cpxName DROP TAG ids */
+  {  197,   -8 }, /* (209) cmd ::= ALTER TABLE ids cpxName CHANGE TAG ids ids */
+  {  197,   -9 }, /* (210) cmd ::= ALTER TABLE ids cpxName SET TAG ids EQ tagitem */
+  {  197,   -5 }, /* (211) cmd ::= KILL CONNECTION IPTOKEN COLON INTEGER */
+  {  197,   -7 }, /* (212) cmd ::= KILL STREAM IPTOKEN COLON INTEGER COLON INTEGER */
+  {  197,   -7 }, /* (213) cmd ::= KILL QUERY IPTOKEN COLON INTEGER COLON INTEGER */
 };
 
 static void yy_accept(yyParser*);  /* Forward Declaration */
@@ -2101,8 +2103,6 @@ static void yy_reduce(
       case 60: /* users ::= */ yytestcase(yyruleno==60);
       case 62: /* conns ::= */ yytestcase(yyruleno==62);
       case 64: /* state ::= */ yytestcase(yyruleno==64);
-      case 133: /* interval_opt ::= */ yytestcase(yyruleno==133);
-      case 138: /* sliding_opt ::= */ yytestcase(yyruleno==138);
 {yymsp[1].minor.yy0.n = 0;   }
         break;
       case 49: /* pps ::= PPS INTEGER */
@@ -2307,59 +2307,69 @@ static void yy_reduce(
 }
   yymsp[-11].minor.yy24 = yylhsminor.yy24;
         break;
-      case 121: /* sclp ::= selcollist COMMA */
+      case 121: /* select ::= SELECT selcollist */
+{
+  yylhsminor.yy24 = tSetQuerySQLElems(&yymsp[-1].minor.yy0, yymsp[0].minor.yy498, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+}
+  yymsp[-1].minor.yy24 = yylhsminor.yy24;
+        break;
+      case 122: /* sclp ::= selcollist COMMA */
 {yylhsminor.yy498 = yymsp[-1].minor.yy498;}
   yymsp[-1].minor.yy498 = yylhsminor.yy498;
         break;
-      case 122: /* sclp ::= */
+      case 123: /* sclp ::= */
 {yymsp[1].minor.yy498 = 0;}
         break;
-      case 123: /* selcollist ::= sclp expr as */
+      case 124: /* selcollist ::= sclp expr as */
 {
    yylhsminor.yy498 = tSQLExprListAppend(yymsp[-2].minor.yy498, yymsp[-1].minor.yy90, yymsp[0].minor.yy0.n?&yymsp[0].minor.yy0:0);
 }
   yymsp[-2].minor.yy498 = yylhsminor.yy498;
         break;
-      case 124: /* selcollist ::= sclp STAR */
+      case 125: /* selcollist ::= sclp STAR */
 {
    tSQLExpr *pNode = tSQLExprIdValueCreate(NULL, TK_ALL);
    yylhsminor.yy498 = tSQLExprListAppend(yymsp[-1].minor.yy498, pNode, 0);
 }
   yymsp[-1].minor.yy498 = yylhsminor.yy498;
         break;
-      case 125: /* as ::= AS ids */
+      case 126: /* as ::= AS ids */
 { yymsp[-1].minor.yy0 = yymsp[0].minor.yy0;    }
         break;
-      case 126: /* as ::= ids */
+      case 127: /* as ::= ids */
 { yylhsminor.yy0 = yymsp[0].minor.yy0;    }
   yymsp[0].minor.yy0 = yylhsminor.yy0;
         break;
-      case 127: /* as ::= */
+      case 128: /* as ::= */
 { yymsp[1].minor.yy0.n = 0;  }
         break;
-      case 128: /* from ::= FROM tablelist */
+      case 129: /* from ::= FROM tablelist */
 {yymsp[-1].minor.yy56 = yymsp[0].minor.yy56;}
         break;
-      case 129: /* tablelist ::= ids cpxName */
+      case 130: /* tablelist ::= ids cpxName */
 { toTSDBType(yymsp[-1].minor.yy0.type); yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yylhsminor.yy56 = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1);}
   yymsp[-1].minor.yy56 = yylhsminor.yy56;
         break;
-      case 130: /* tablelist ::= tablelist COMMA ids cpxName */
+      case 131: /* tablelist ::= tablelist COMMA ids cpxName */
 { toTSDBType(yymsp[-1].minor.yy0.type); yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yylhsminor.yy56 = tVariantListAppendToken(yymsp[-3].minor.yy56, &yymsp[-1].minor.yy0, -1);   }
   yymsp[-3].minor.yy56 = yylhsminor.yy56;
         break;
-      case 131: /* tmvar ::= VARIABLE */
+      case 132: /* tmvar ::= VARIABLE */
 {yylhsminor.yy0 = yymsp[0].minor.yy0;}
   yymsp[0].minor.yy0 = yylhsminor.yy0;
         break;
-      case 132: /* interval_opt ::= INTERVAL LP tmvar RP */
-      case 137: /* sliding_opt ::= SLIDING LP tmvar RP */ yytestcase(yyruleno==137);
+      case 133: /* interval_opt ::= INTERVAL LP tmvar RP */
+      case 138: /* sliding_opt ::= SLIDING LP tmvar RP */ yytestcase(yyruleno==138);
 {yymsp[-3].minor.yy0 = yymsp[-1].minor.yy0;     }
         break;
-      case 134: /* fill_opt ::= */
+      case 134: /* interval_opt ::= */
+      case 139: /* sliding_opt ::= */ yytestcase(yyruleno==139);
+{yymsp[1].minor.yy0.n = 0; yymsp[1].minor.yy0.z = NULL; yymsp[1].minor.yy0.type = 0;   }
+        break;
+      case 135: /* fill_opt ::= */
 {yymsp[1].minor.yy56 = 0;     }
         break;
-      case 135: /* fill_opt ::= FILL LP ID COMMA tagitemlist RP */
+      case 136: /* fill_opt ::= FILL LP ID COMMA tagitemlist RP */
 {
     tVariant A = {0};
     toTSDBType(yymsp[-3].minor.yy0.type);
@@ -2369,33 +2379,33 @@ static void yy_reduce(
     yymsp[-5].minor.yy56 = yymsp[-1].minor.yy56;
 }
         break;
-      case 136: /* fill_opt ::= FILL LP ID RP */
+      case 137: /* fill_opt ::= FILL LP ID RP */
 {
     toTSDBType(yymsp[-1].minor.yy0.type);
     yymsp[-3].minor.yy56 = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1);
 }
         break;
-      case 139: /* orderby_opt ::= */
-      case 147: /* groupby_opt ::= */ yytestcase(yyruleno==147);
+      case 140: /* orderby_opt ::= */
+      case 148: /* groupby_opt ::= */ yytestcase(yyruleno==148);
 {yymsp[1].minor.yy56 = 0;}
         break;
-      case 140: /* orderby_opt ::= ORDER BY sortlist */
-      case 148: /* groupby_opt ::= GROUP BY grouplist */ yytestcase(yyruleno==148);
+      case 141: /* orderby_opt ::= ORDER BY sortlist */
+      case 149: /* groupby_opt ::= GROUP BY grouplist */ yytestcase(yyruleno==149);
 {yymsp[-2].minor.yy56 = yymsp[0].minor.yy56;}
         break;
-      case 141: /* sortlist ::= sortlist COMMA item sortorder */
+      case 142: /* sortlist ::= sortlist COMMA item sortorder */
 {
     yylhsminor.yy56 = tVariantListAppend(yymsp[-3].minor.yy56, &yymsp[-1].minor.yy186, yymsp[0].minor.yy332);
 }
   yymsp[-3].minor.yy56 = yylhsminor.yy56;
         break;
-      case 142: /* sortlist ::= item sortorder */
+      case 143: /* sortlist ::= item sortorder */
 {
   yylhsminor.yy56 = tVariantListAppend(NULL, &yymsp[-1].minor.yy186, yymsp[0].minor.yy332);
 }
   yymsp[-1].minor.yy56 = yylhsminor.yy56;
         break;
-      case 143: /* item ::= ids cpxName */
+      case 144: /* item ::= ids cpxName */
 {
   toTSDBType(yymsp[-1].minor.yy0.type);
   yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
@@ -2404,210 +2414,210 @@ static void yy_reduce(
 }
   yymsp[-1].minor.yy186 = yylhsminor.yy186;
         break;
-      case 144: /* sortorder ::= ASC */
+      case 145: /* sortorder ::= ASC */
 {yymsp[0].minor.yy332 = TSQL_SO_ASC; }
         break;
-      case 145: /* sortorder ::= DESC */
+      case 146: /* sortorder ::= DESC */
 {yymsp[0].minor.yy332 = TSQL_SO_DESC;}
         break;
-      case 146: /* sortorder ::= */
+      case 147: /* sortorder ::= */
 {yymsp[1].minor.yy332 = TSQL_SO_ASC;}
         break;
-      case 149: /* grouplist ::= grouplist COMMA item */
+      case 150: /* grouplist ::= grouplist COMMA item */
 {
   yylhsminor.yy56 = tVariantListAppend(yymsp[-2].minor.yy56, &yymsp[0].minor.yy186, -1);
 }
   yymsp[-2].minor.yy56 = yylhsminor.yy56;
         break;
-      case 150: /* grouplist ::= item */
+      case 151: /* grouplist ::= item */
 {
   yylhsminor.yy56 = tVariantListAppend(NULL, &yymsp[0].minor.yy186, -1);
 }
   yymsp[0].minor.yy56 = yylhsminor.yy56;
         break;
-      case 151: /* having_opt ::= */
-      case 161: /* where_opt ::= */ yytestcase(yyruleno==161);
-      case 197: /* expritem ::= */ yytestcase(yyruleno==197);
+      case 152: /* having_opt ::= */
+      case 162: /* where_opt ::= */ yytestcase(yyruleno==162);
+      case 198: /* expritem ::= */ yytestcase(yyruleno==198);
 {yymsp[1].minor.yy90 = 0;}
         break;
-      case 152: /* having_opt ::= HAVING expr */
-      case 162: /* where_opt ::= WHERE expr */ yytestcase(yyruleno==162);
+      case 153: /* having_opt ::= HAVING expr */
+      case 163: /* where_opt ::= WHERE expr */ yytestcase(yyruleno==163);
 {yymsp[-1].minor.yy90 = yymsp[0].minor.yy90;}
         break;
-      case 153: /* limit_opt ::= */
-      case 157: /* slimit_opt ::= */ yytestcase(yyruleno==157);
+      case 154: /* limit_opt ::= */
+      case 158: /* slimit_opt ::= */ yytestcase(yyruleno==158);
 {yymsp[1].minor.yy294.limit = -1; yymsp[1].minor.yy294.offset = 0;}
         break;
-      case 154: /* limit_opt ::= LIMIT signed */
-      case 158: /* slimit_opt ::= SLIMIT signed */ yytestcase(yyruleno==158);
+      case 155: /* limit_opt ::= LIMIT signed */
+      case 159: /* slimit_opt ::= SLIMIT signed */ yytestcase(yyruleno==159);
 {yymsp[-1].minor.yy294.limit = yymsp[0].minor.yy389;  yymsp[-1].minor.yy294.offset = 0;}
         break;
-      case 155: /* limit_opt ::= LIMIT signed OFFSET signed */
-      case 159: /* slimit_opt ::= SLIMIT signed SOFFSET signed */ yytestcase(yyruleno==159);
+      case 156: /* limit_opt ::= LIMIT signed OFFSET signed */
+      case 160: /* slimit_opt ::= SLIMIT signed SOFFSET signed */ yytestcase(yyruleno==160);
 {yymsp[-3].minor.yy294.limit = yymsp[-2].minor.yy389;  yymsp[-3].minor.yy294.offset = yymsp[0].minor.yy389;}
         break;
-      case 156: /* limit_opt ::= LIMIT signed COMMA signed */
-      case 160: /* slimit_opt ::= SLIMIT signed COMMA signed */ yytestcase(yyruleno==160);
+      case 157: /* limit_opt ::= LIMIT signed COMMA signed */
+      case 161: /* slimit_opt ::= SLIMIT signed COMMA signed */ yytestcase(yyruleno==161);
 {yymsp[-3].minor.yy294.limit = yymsp[0].minor.yy389;  yymsp[-3].minor.yy294.offset = yymsp[-2].minor.yy389;}
         break;
-      case 163: /* expr ::= LP expr RP */
+      case 164: /* expr ::= LP expr RP */
 {yymsp[-2].minor.yy90 = yymsp[-1].minor.yy90; }
         break;
-      case 164: /* expr ::= ID */
+      case 165: /* expr ::= ID */
 {yylhsminor.yy90 = tSQLExprIdValueCreate(&yymsp[0].minor.yy0, TK_ID);}
   yymsp[0].minor.yy90 = yylhsminor.yy90;
         break;
-      case 165: /* expr ::= ID DOT ID */
+      case 166: /* expr ::= ID DOT ID */
 {yymsp[-2].minor.yy0.n += (1+yymsp[0].minor.yy0.n); yylhsminor.yy90 = tSQLExprIdValueCreate(&yymsp[-2].minor.yy0, TK_ID);}
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 166: /* expr ::= ID DOT STAR */
+      case 167: /* expr ::= ID DOT STAR */
 {yymsp[-2].minor.yy0.n += (1+yymsp[0].minor.yy0.n); yylhsminor.yy90 = tSQLExprIdValueCreate(&yymsp[-2].minor.yy0, TK_ALL);}
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 167: /* expr ::= INTEGER */
+      case 168: /* expr ::= INTEGER */
 {yylhsminor.yy90 = tSQLExprIdValueCreate(&yymsp[0].minor.yy0, TK_INTEGER);}
   yymsp[0].minor.yy90 = yylhsminor.yy90;
         break;
-      case 168: /* expr ::= MINUS INTEGER */
-      case 169: /* expr ::= PLUS INTEGER */ yytestcase(yyruleno==169);
+      case 169: /* expr ::= MINUS INTEGER */
+      case 170: /* expr ::= PLUS INTEGER */ yytestcase(yyruleno==170);
 {yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yymsp[-1].minor.yy0.type = TK_INTEGER; yylhsminor.yy90 = tSQLExprIdValueCreate(&yymsp[-1].minor.yy0, TK_INTEGER);}
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
-      case 170: /* expr ::= FLOAT */
+      case 171: /* expr ::= FLOAT */
 {yylhsminor.yy90 = tSQLExprIdValueCreate(&yymsp[0].minor.yy0, TK_FLOAT);}
   yymsp[0].minor.yy90 = yylhsminor.yy90;
         break;
-      case 171: /* expr ::= MINUS FLOAT */
-      case 172: /* expr ::= PLUS FLOAT */ yytestcase(yyruleno==172);
+      case 172: /* expr ::= MINUS FLOAT */
+      case 173: /* expr ::= PLUS FLOAT */ yytestcase(yyruleno==173);
 {yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n; yymsp[-1].minor.yy0.type = TK_FLOAT; yylhsminor.yy90 = tSQLExprIdValueCreate(&yymsp[-1].minor.yy0, TK_FLOAT);}
   yymsp[-1].minor.yy90 = yylhsminor.yy90;
         break;
-      case 173: /* expr ::= STRING */
+      case 174: /* expr ::= STRING */
 {yylhsminor.yy90 = tSQLExprIdValueCreate(&yymsp[0].minor.yy0, TK_STRING);}
   yymsp[0].minor.yy90 = yylhsminor.yy90;
         break;
-      case 174: /* expr ::= NOW */
+      case 175: /* expr ::= NOW */
 {yylhsminor.yy90 = tSQLExprIdValueCreate(&yymsp[0].minor.yy0, TK_NOW); }
   yymsp[0].minor.yy90 = yylhsminor.yy90;
         break;
-      case 175: /* expr ::= VARIABLE */
+      case 176: /* expr ::= VARIABLE */
 {yylhsminor.yy90 = tSQLExprIdValueCreate(&yymsp[0].minor.yy0, TK_VARIABLE);}
   yymsp[0].minor.yy90 = yylhsminor.yy90;
         break;
-      case 176: /* expr ::= BOOL */
+      case 177: /* expr ::= BOOL */
 {yylhsminor.yy90 = tSQLExprIdValueCreate(&yymsp[0].minor.yy0, TK_BOOL);}
   yymsp[0].minor.yy90 = yylhsminor.yy90;
         break;
-      case 177: /* expr ::= ID LP exprlist RP */
+      case 178: /* expr ::= ID LP exprlist RP */
 {
   yylhsminor.yy90 = tSQLExprCreateFunction(yymsp[-1].minor.yy498, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0, yymsp[-3].minor.yy0.type);
 }
   yymsp[-3].minor.yy90 = yylhsminor.yy90;
         break;
-      case 178: /* expr ::= ID LP STAR RP */
+      case 179: /* expr ::= ID LP STAR RP */
 {
   yylhsminor.yy90 = tSQLExprCreateFunction(NULL, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0, yymsp[-3].minor.yy0.type);
 }
   yymsp[-3].minor.yy90 = yylhsminor.yy90;
         break;
-      case 179: /* expr ::= expr AND expr */
+      case 180: /* expr ::= expr AND expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_AND);}
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 180: /* expr ::= expr OR expr */
+      case 181: /* expr ::= expr OR expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_OR); }
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 181: /* expr ::= expr LT expr */
+      case 182: /* expr ::= expr LT expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_LT);}
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 182: /* expr ::= expr GT expr */
+      case 183: /* expr ::= expr GT expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_GT);}
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 183: /* expr ::= expr LE expr */
+      case 184: /* expr ::= expr LE expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_LE);}
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 184: /* expr ::= expr GE expr */
+      case 185: /* expr ::= expr GE expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_GE);}
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 185: /* expr ::= expr NE expr */
+      case 186: /* expr ::= expr NE expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_NE);}
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 186: /* expr ::= expr EQ expr */
+      case 187: /* expr ::= expr EQ expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_EQ);}
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 187: /* expr ::= expr PLUS expr */
+      case 188: /* expr ::= expr PLUS expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_PLUS);  }
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 188: /* expr ::= expr MINUS expr */
+      case 189: /* expr ::= expr MINUS expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_MINUS); }
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 189: /* expr ::= expr STAR expr */
+      case 190: /* expr ::= expr STAR expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_STAR);  }
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 190: /* expr ::= expr SLASH expr */
+      case 191: /* expr ::= expr SLASH expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_DIVIDE);}
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 191: /* expr ::= expr REM expr */
+      case 192: /* expr ::= expr REM expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_REM);   }
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 192: /* expr ::= expr LIKE expr */
+      case 193: /* expr ::= expr LIKE expr */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-2].minor.yy90, yymsp[0].minor.yy90, TK_LIKE);  }
   yymsp[-2].minor.yy90 = yylhsminor.yy90;
         break;
-      case 193: /* expr ::= expr IN LP exprlist RP */
+      case 194: /* expr ::= expr IN LP exprlist RP */
 {yylhsminor.yy90 = tSQLExprCreate(yymsp[-4].minor.yy90, (tSQLExpr*)yymsp[-1].minor.yy498, TK_IN); }
   yymsp[-4].minor.yy90 = yylhsminor.yy90;
         break;
-      case 194: /* exprlist ::= exprlist COMMA expritem */
-      case 201: /* itemlist ::= itemlist COMMA expr */ yytestcase(yyruleno==201);
+      case 195: /* exprlist ::= exprlist COMMA expritem */
+      case 202: /* itemlist ::= itemlist COMMA expr */ yytestcase(yyruleno==202);
 {yylhsminor.yy498 = tSQLExprListAppend(yymsp[-2].minor.yy498,yymsp[0].minor.yy90,0);}
   yymsp[-2].minor.yy498 = yylhsminor.yy498;
         break;
-      case 195: /* exprlist ::= expritem */
-      case 202: /* itemlist ::= expr */ yytestcase(yyruleno==202);
+      case 196: /* exprlist ::= expritem */
+      case 203: /* itemlist ::= expr */ yytestcase(yyruleno==203);
 {yylhsminor.yy498 = tSQLExprListAppend(0,yymsp[0].minor.yy90,0);}
   yymsp[0].minor.yy498 = yylhsminor.yy498;
         break;
-      case 196: /* expritem ::= expr */
+      case 197: /* expritem ::= expr */
 {yylhsminor.yy90 = yymsp[0].minor.yy90;}
   yymsp[0].minor.yy90 = yylhsminor.yy90;
         break;
-      case 198: /* cmd ::= INSERT INTO cpxName insert_value_list */
+      case 199: /* cmd ::= INSERT INTO cpxName insert_value_list */
 {
     tSetInsertSQLElems(pInfo, &yymsp[-1].minor.yy0, yymsp[0].minor.yy74);
 }
         break;
-      case 199: /* insert_value_list ::= VALUES LP itemlist RP */
+      case 200: /* insert_value_list ::= VALUES LP itemlist RP */
 {yymsp[-3].minor.yy74 = tSQLListListAppend(NULL, yymsp[-1].minor.yy498);}
         break;
-      case 200: /* insert_value_list ::= insert_value_list VALUES LP itemlist RP */
+      case 201: /* insert_value_list ::= insert_value_list VALUES LP itemlist RP */
 {yylhsminor.yy74 = tSQLListListAppend(yymsp[-4].minor.yy74, yymsp[-1].minor.yy498);}
   yymsp[-4].minor.yy74 = yylhsminor.yy74;
         break;
-      case 203: /* cmd ::= RESET QUERY CACHE */
+      case 204: /* cmd ::= RESET QUERY CACHE */
 { setDCLSQLElems(pInfo, RESET_QUERY_CACHE, 0);}
         break;
-      case 204: /* cmd ::= ALTER TABLE ids cpxName ADD COLUMN columnlist */
+      case 205: /* cmd ::= ALTER TABLE ids cpxName ADD COLUMN columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&yymsp[-4].minor.yy0, yymsp[0].minor.yy471, NULL, ALTER_TABLE_ADD_COLUMN);
     setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_ADD_COLUMN);
 }
         break;
-      case 205: /* cmd ::= ALTER TABLE ids cpxName DROP COLUMN ids */
+      case 206: /* cmd ::= ALTER TABLE ids cpxName DROP COLUMN ids */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
 
@@ -2618,14 +2628,14 @@ static void yy_reduce(
     setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_DROP_COLUMN);
 }
         break;
-      case 206: /* cmd ::= ALTER TABLE ids cpxName ADD TAG columnlist */
+      case 207: /* cmd ::= ALTER TABLE ids cpxName ADD TAG columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
     SAlterTableSQL* pAlterTable = tAlterTableSQLElems(&yymsp[-4].minor.yy0, yymsp[0].minor.yy471, NULL, ALTER_TABLE_TAGS_ADD);
     setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_ADD);
 }
         break;
-      case 207: /* cmd ::= ALTER TABLE ids cpxName DROP TAG ids */
+      case 208: /* cmd ::= ALTER TABLE ids cpxName DROP TAG ids */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
 
@@ -2636,7 +2646,7 @@ static void yy_reduce(
     setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_DROP);
 }
         break;
-      case 208: /* cmd ::= ALTER TABLE ids cpxName CHANGE TAG ids ids */
+      case 209: /* cmd ::= ALTER TABLE ids cpxName CHANGE TAG ids ids */
 {
     yymsp[-5].minor.yy0.n += yymsp[-4].minor.yy0.n;
 
@@ -2650,7 +2660,7 @@ static void yy_reduce(
     setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_CHG);
 }
         break;
-      case 209: /* cmd ::= ALTER TABLE ids cpxName SET TAG ids EQ tagitem */
+      case 210: /* cmd ::= ALTER TABLE ids cpxName SET TAG ids EQ tagitem */
 {
     yymsp[-6].minor.yy0.n += yymsp[-5].minor.yy0.n;
 
@@ -2662,13 +2672,13 @@ static void yy_reduce(
     setSQLInfo(pInfo, pAlterTable, NULL, ALTER_TABLE_TAGS_SET);
 }
         break;
-      case 210: /* cmd ::= KILL CONNECTION IPTOKEN COLON INTEGER */
+      case 211: /* cmd ::= KILL CONNECTION IPTOKEN COLON INTEGER */
 {yymsp[-2].minor.yy0.n += (yymsp[-1].minor.yy0.n + yymsp[0].minor.yy0.n); setDCLSQLElems(pInfo, KILL_CONNECTION, 1, &yymsp[-2].minor.yy0);}
         break;
-      case 211: /* cmd ::= KILL STREAM IPTOKEN COLON INTEGER COLON INTEGER */
+      case 212: /* cmd ::= KILL STREAM IPTOKEN COLON INTEGER COLON INTEGER */
 {yymsp[-4].minor.yy0.n += (yymsp[-3].minor.yy0.n + yymsp[-2].minor.yy0.n + yymsp[-1].minor.yy0.n + yymsp[0].minor.yy0.n); setDCLSQLElems(pInfo, KILL_STREAM, 1, &yymsp[-4].minor.yy0);}
         break;
-      case 212: /* cmd ::= KILL QUERY IPTOKEN COLON INTEGER COLON INTEGER */
+      case 213: /* cmd ::= KILL QUERY IPTOKEN COLON INTEGER COLON INTEGER */
 {yymsp[-4].minor.yy0.n += (yymsp[-3].minor.yy0.n + yymsp[-2].minor.yy0.n + yymsp[-1].minor.yy0.n + yymsp[0].minor.yy0.n); setDCLSQLElems(pInfo, KILL_QUERY, 1, &yymsp[-4].minor.yy0);}
         break;
       default:

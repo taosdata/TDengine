@@ -117,7 +117,8 @@ static int32_t optrToString(tSQLExpr* pExpr, char** exprString);
 static SColumnList getColumnList(int32_t num, int16_t tableIndex, int32_t columnIndex);
 static int32_t     getMeterIndex(SSQLToken* pTableToken, SSqlCmd* pCmd, SColumnIndex* pIndex);
 static int32_t     doFunctionsCompatibleCheck(SSqlObj* pSql);
-
+static int32_t     doLocalQueryProcess(SQuerySQL* pQuerySql, SSqlCmd* pCmd);
+  
 static int32_t tscQueryOnlyMetricTags(SSqlCmd* pCmd, bool* queryOnMetricTags) {
   assert(QUERY_IS_STABLE_QUERY(pCmd->type));
 
@@ -877,7 +878,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSQL_QUERY_METER: {
       SQuerySQL* pQuerySql = pInfo->pQueryInfo;
-      assert(pQuerySql != NULL && pQuerySql->from->nExpr > 0);
+      assert(pQuerySql != NULL && (pQuerySql->from == NULL || pQuerySql->from->nExpr > 0));
 
       const char* msg0 = "invalid table name";
       const char* msg1 = "table name too long";
@@ -894,6 +895,19 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (pQuerySql->pSelection->nExpr > TSDB_MAX_COLUMNS) {
         setErrMsg(pCmd, msg8);
         return TSDB_CODE_INVALID_SQL;
+      }
+      
+      /*
+       * handle the sql expression without from subclause
+       * select current_database();
+       * select server_version();
+       * select client_version();
+       * select server_state();
+       */
+      if (pQuerySql->from == NULL) {
+        assert(pQuerySql->fillType == NULL && pQuerySql->pGroupby == NULL && pQuerySql->pWhere == NULL &&
+          pQuerySql->pSortOrder == NULL);
+        return doLocalQueryProcess(pQuerySql, pCmd);
       }
 
       if (pQuerySql->from->nExpr > TSDB_MAX_JOIN_TABLE_NUM) {
@@ -1120,7 +1134,7 @@ int32_t parseIntervalClause(SSqlCmd* pCmd, SQuerySQL* pQuerySql) {
 
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
 
-  if (pQuerySql->interval.type == 0) {
+  if (pQuerySql->interval.type == 0 || pQuerySql->interval.n == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4971,8 +4985,8 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd) {
 }
 
 typedef struct SDNodeDynConfOption {
-  char*   name;
-  int32_t len;
+  char*   name;     // command name
+  int32_t len;      // name string length
 } SDNodeDynConfOption;
 
 int32_t validateDNodeConfig(tDCLSQL* pOptions) {
@@ -4980,7 +4994,7 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  SDNodeDynConfOption DNODE_DYNAMIC_CFG_OPTIONS[14] = {
+  const SDNodeDynConfOption DNODE_DYNAMIC_CFG_OPTIONS[14] = {
       {"resetLog", 8},      {"resetQueryCache", 15}, {"dDebugFlag", 10},       {"rpcDebugFlag", 12},
       {"tmrDebugFlag", 12}, {"cDebugFlag", 10},      {"uDebugFlag", 10},       {"mDebugFlag", 10},
       {"sdbDebugFlag", 12}, {"httpDebugFlag", 13},   {"monitorDebugFlag", 16}, {"qDebugflag", 10},
@@ -4991,7 +5005,7 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
   if (pOptions->nTokens == 2) {
     // reset log and reset query cache does not need value
     for (int32_t i = 0; i < 2; ++i) {
-      SDNodeDynConfOption* pOption = &DNODE_DYNAMIC_CFG_OPTIONS[i];
+      const SDNodeDynConfOption* pOption = &DNODE_DYNAMIC_CFG_OPTIONS[i];
       if ((strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0) && (pOption->len == pOptionToken->n)) {
         return TSDB_CODE_SUCCESS;
       }
@@ -5014,7 +5028,7 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
     }
 
     for (int32_t i = 2; i < tListLen(DNODE_DYNAMIC_CFG_OPTIONS) - 1; ++i) {
-      SDNodeDynConfOption* pOption = &DNODE_DYNAMIC_CFG_OPTIONS[i];
+      const SDNodeDynConfOption* pOption = &DNODE_DYNAMIC_CFG_OPTIONS[i];
 
       if ((strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0) && (pOption->len == pOptionToken->n)) {
         /* options is valid */
@@ -5031,8 +5045,10 @@ int32_t validateLocalConfig(tDCLSQL* pOptions) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  SDNodeDynConfOption LOCAL_DYNAMIC_CFG_OPTIONS[6] = {{"resetLog", 8},    {"rpcDebugFlag", 12}, {"tmrDebugFlag", 12},
-                                                      {"cDebugFlag", 10}, {"uDebugFlag", 10},   {"debugFlag", 9}};
+  SDNodeDynConfOption LOCAL_DYNAMIC_CFG_OPTIONS[6] = {
+      {"resetLog", 8},    {"rpcDebugFlag", 12}, {"tmrDebugFlag", 12},
+      {"cDebugFlag", 10}, {"uDebugFlag", 10},   {"debugFlag", 9}
+  };
 
   SSQLToken* pOptionToken = &pOptions->a[0];
 
@@ -5684,5 +5700,55 @@ int32_t doFunctionsCompatibleCheck(SSqlObj* pSql) {
     return TSDB_CODE_SUCCESS;
   } else {
     return checkUpdateTagPrjFunctions(pCmd);
+  }
+}
+
+int32_t doLocalQueryProcess(SQuerySQL* pQuerySql, SSqlCmd* pCmd) {
+  const char* msg1 = "only one expression allowed";
+  const char* msg2 = "invalid expression in select clause";
+  const char* msg3 = "invalid function";
+  
+  tSQLExprList* pExprList = pQuerySql->pSelection;
+  if (pExprList->nExpr != 1) {
+    setErrMsg(pCmd, msg1);
+    return TSDB_CODE_INVALID_SQL;
+  }
+  
+  tSQLExpr* pExpr = pExprList->a[0].pNode;
+  if (pExpr->operand.z == NULL) {
+    setErrMsg(pCmd, msg2);
+    return TSDB_CODE_INVALID_SQL;
+  }
+  
+  SDNodeDynConfOption functionsInfo[5] = {
+      {"database()", 10}, {"server_version()", 16}, {"server_status()", 15}, {"client_version()", 16}, {"current_user()", 14}
+  };
+  
+  int32_t index = -1;
+  for(int32_t i = 0; i < tListLen(functionsInfo); ++i) {
+    if (strncasecmp(functionsInfo[i].name, pExpr->operand.z, functionsInfo[i].len) == 0 &&
+      functionsInfo[i].len == pExpr->operand.n) {
+      index = i;
+      break;
+    }
+  }
+  
+  SSqlExpr* pExpr1 = tscSqlExprInsertEmpty(pCmd, 0, TSDB_FUNC_TAG_DUMMY);
+  if (pExprList->a[0].aliasName != NULL) {
+    strncpy(pExpr1->aliasName, pExprList->a[0].aliasName, tListLen(pExpr1->aliasName));
+  } else {
+    strncpy(pExpr1->aliasName, functionsInfo[index].name, tListLen(pExpr1->aliasName));
+  }
+  
+  switch(index) {
+    case 0: pCmd->command = TSDB_SQL_CURRENT_DB;return TSDB_CODE_SUCCESS;
+    case 1: pCmd->command = TSDB_SQL_SERV_VERSION;return TSDB_CODE_SUCCESS;
+    case 2: pCmd->command = TSDB_SQL_SERV_STATUS;return TSDB_CODE_SUCCESS;
+    case 3: pCmd->command = TSDB_SQL_CLI_VERSION;return TSDB_CODE_SUCCESS;
+    case 4: pCmd->command = TSDB_SQL_CURRENT_USER;return TSDB_CODE_SUCCESS;
+    default: {
+      setErrMsg(pCmd, msg3);
+      return TSDB_CODE_INVALID_SQL;
+    }
   }
 }

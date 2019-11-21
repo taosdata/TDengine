@@ -720,7 +720,7 @@ static void evic(SFieldInfo* pFieldInfo, int32_t index) {
   }
 }
 
-static void setValueImpl(TAOS_FIELD* pField, int8_t type, char* name, int16_t bytes) {
+static void setValueImpl(TAOS_FIELD* pField, int8_t type, const char* name, int16_t bytes) {
   pField->type = type;
   strncpy(pField->name, name, TSDB_COL_NAME_LEN);
   pField->bytes = bytes;
@@ -764,7 +764,7 @@ void tscFieldInfoUpdateVisible(SFieldInfo* pFieldInfo, int32_t index, bool visib
   }
 }
 
-void tscFieldInfoSetValue(SFieldInfo* pFieldInfo, int32_t index, int8_t type, char* name, int16_t bytes) {
+void tscFieldInfoSetValue(SFieldInfo* pFieldInfo, int32_t index, int8_t type, const char* name, int16_t bytes) {
   ensureSpace(pFieldInfo, pFieldInfo->numOfOutputCols + 1);
   evic(pFieldInfo, index);
 
@@ -894,6 +894,19 @@ static void _exprEvic(SSqlExprInfo* pExprInfo, int32_t index) {
     memmove(&pExprInfo->pExprs[index + 1], &pExprInfo->pExprs[index],
             sizeof(pExprInfo->pExprs[0]) * (pExprInfo->numOfExprs - index));
   }
+}
+
+SSqlExpr* tscSqlExprInsertEmpty(SSqlCmd* pCmd, int32_t index, int16_t functionId) {
+  SSqlExprInfo* pExprInfo = &pCmd->exprsInfo;
+  
+  _exprCheckSpace(pExprInfo, pExprInfo->numOfExprs + 1);
+  _exprEvic(pExprInfo, index);
+  
+  SSqlExpr* pExpr = &pExprInfo->pExprs[index];
+  pExpr->functionId = functionId;
+  
+  pExprInfo->numOfExprs++;
+  return pExpr;
 }
 
 SSqlExpr* tscSqlExprInsert(SSqlCmd* pCmd, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
