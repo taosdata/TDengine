@@ -163,6 +163,7 @@ int tsTelegrafUseFieldNum = 0;
 int tsAdminRowLimit = 10240;
 
 int   tsTscEnableRecordSql = 0;
+int   tsEnableCoreFile = 0;
 
 int tsRpcTimer = 300;
 int tsRpcMaxTime = 600;      // seconds;
@@ -772,6 +773,11 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "tscEnableRecordSql", &tsTscEnableRecordSql, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG,
                      1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+
+  tsInitConfigOption(cfg++, "enableCoreFile", &tsEnableCoreFile, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+                     
   // version info
   tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
