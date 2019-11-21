@@ -150,6 +150,8 @@ extern int   tsHttpEnableRecordSql;
 extern int   tsTelegrafUseFieldNum;
 extern int   tsAdminRowLimit;
 
+extern int   tsTscEnableRecordSql;
+
 extern char tsMonitorDbName[];
 extern char tsInternalPass[];
 extern int  tsMonitorInterval;

@@ -27,6 +27,7 @@
 #include "tsql.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "tnote.h"
 
 TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                        void *param, void **taos) {
@@ -273,6 +274,8 @@ int taos_query(TAOS *taos, const char *sqlstr) {
     pRes->code = TSDB_CODE_INVALID_SQL;
     return pRes->code;
   }
+
+  taosNotePrintTsc(sqlstr);
 
   void *sql = realloc(pSql->sqlstr, sqlLen + 1);
   if (sql == NULL) {
