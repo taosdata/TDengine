@@ -853,7 +853,7 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
   }
 
   {  // Initialize data[] and cdata[], which is used to hold data to write to data file
-    size = pObj->bytesPerPoint * pVnode->cfg.rowsInFileBlock + (sizeof(SData) + EXTRA_BYTES) * pObj->numOfColumns;
+    size = pObj->bytesPerPoint * pVnode->cfg.rowsInFileBlock + (sizeof(SData) + EXTRA_BYTES + sizeof(TSCKSUM)) * pObj->numOfColumns;
 
     buffer = (char *)malloc(size);
     if (buffer == NULL) {
@@ -873,9 +873,9 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
     cdata[0] = (SData *)cbuffer;
 
     for (int col = 1; col < pObj->numOfColumns; col++) {
-      data[col] = (SData *)((char *)data[col - 1] + sizeof(SData) + EXTRA_BYTES +
+      data[col] = (SData *)((char *)data[col - 1] + sizeof(SData) + EXTRA_BYTES + sizeof(TSCKSUM) +
                             pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes);
-      cdata[col] = (SData *)((char *)cdata[col - 1] + sizeof(SData) + EXTRA_BYTES +
+      cdata[col] = (SData *)((char *)cdata[col - 1] + sizeof(SData) + EXTRA_BYTES + sizeof(TSCKSUM) +
                              pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes);
     }
   }
