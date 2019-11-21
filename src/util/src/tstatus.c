@@ -73,3 +73,11 @@ const char* taosGetVgroupLbStatusStr(int vglbStatus) {
     default:                        return "undefined";
   }
 }
+
+const  char* taosGetVnodeStreamStatusStr(int vnodeStreamStatus) {
+  switch (vnodeStreamStatus) {
+    case TSDB_VN_STREAM_STATUS_START: return "start";
+    case TSDB_VN_STREAM_STATUS_STOP:  return "stop";
+    default:                          return "undefined";
+  }
+}

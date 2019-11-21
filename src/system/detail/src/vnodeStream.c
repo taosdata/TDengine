@@ -81,7 +81,7 @@ void vnodeOpenStreams(void *param, void *tmrId) {
   SVnodeObj *pVnode = (SVnodeObj *)param;
   SMeterObj *pObj;
 
-  if (pVnode->streamRole == 0) return;
+  if (pVnode->streamRole == TSDB_VN_STREAM_STATUS_STOP) return;
   if (pVnode->meterList == NULL) return;
 
   taosTmrStopA(&pVnode->streamTimer);
@@ -120,7 +120,7 @@ void vnodeCreateStream(SMeterObj *pObj) {
 
   SVnodeObj *pVnode = vnodeList + pObj->vnode;
 
-  if (pVnode->streamRole == 0) return;
+  if (pVnode->streamRole == TSDB_VN_STREAM_STATUS_STOP) return;
   if (pObj->pStream) return;
 
   dTrace("vid:%d sid:%d id:%s stream:%s is created", pObj->vnode, pObj->sid, pObj->meterId, pObj->pSql);
@@ -155,7 +155,7 @@ void vnodeRemoveStream(SMeterObj *pObj) {
 // Close all streams in a vnode
 void vnodeCloseStream(SVnodeObj *pVnode) {
   SMeterObj *pObj;
-  dTrace("vid:%d, stream is closed, old role:%d", pVnode->vnode, pVnode->streamRole);
+  dTrace("vid:%d, stream is closed, old role %s", pVnode->vnode, taosGetVnodeStreamStatusStr(pVnode->streamRole));
 
   // stop stream computing
   for (int sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
@@ -172,9 +172,10 @@ void vnodeCloseStream(SVnodeObj *pVnode) {
 void vnodeUpdateStreamRole(SVnodeObj *pVnode) {
   /* SMeterObj *pObj; */
 
-  int newRole = (pVnode->vnodeStatus == TSDB_VN_STATUS_MASTER) ? 1 : 0;
+  int newRole = (pVnode->vnodeStatus == TSDB_VN_STATUS_MASTER) ? TSDB_VN_STREAM_STATUS_START : TSDB_VN_STREAM_STATUS_STOP;
   if (newRole != pVnode->streamRole) {
-    dTrace("vid:%d, stream role is changed to:%d", pVnode->vnode, newRole);
+    dTrace("vid:%d, stream role is changed from %s to %s",
+            pVnode->vnode, taosGetVnodeStreamStatusStr(pVnode->streamRole), taosGetVnodeStreamStatusStr(newRole));
     pVnode->streamRole = newRole;
     if (newRole) {
       vnodeOpenStreams(pVnode, NULL);
@@ -182,7 +183,7 @@ void vnodeUpdateStreamRole(SVnodeObj *pVnode) {
       vnodeCloseStream(pVnode);
     }
   } else {
-    dTrace("vid:%d, stream role is keep to:%d", pVnode->vnode, newRole);
+    dTrace("vid:%d, stream role is keep to %s", pVnode->vnode, taosGetVnodeStreamStatusStr(newRole));
   }
 }
 

@@ -73,12 +73,18 @@ enum _TSDB_VG_LB_STATUS {
   TSDB_VG_LB_STATUS_UPDATE
 };
 
+enum _TSDB_VN_STREAM_STATUS {
+  TSDB_VN_STREAM_STATUS_STOP,
+  TSDB_VN_STREAM_STATUS_START
+};
+
 const char* taosGetVnodeStatusStr(int vnodeStatus);
 const char* taosGetVnodeSyncStatusStr(int vnodeSyncStatus);
 const char* taosGetVnodeDropStatusStr(int dropping);
 const char* taosGetDnodeStatusStr(int dnodeStatus);
 const char* taosGetDnodeLbStatusStr(int dnodeBalanceStatus);
 const char* taosGetVgroupLbStatusStr(int vglbStatus);
+const char* taosGetVnodeStreamStatusStr(int vnodeStreamStatus);
 
 #ifdef __cplusplus
 }
