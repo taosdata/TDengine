@@ -790,6 +790,7 @@ static void doInitGlobalConfig() {
                      0, 0, 0, TSDB_CFG_UTYPE_NONE);
 
   tsGlobalConfigNum = (int)(cfg - tsGlobalConfig);
+  assert(tsGlobalConfigNum <= TSDB_CFG_MAX_NUM);
 }
 
 static pthread_once_t initGlobalConfig = PTHREAD_ONCE_INIT;
