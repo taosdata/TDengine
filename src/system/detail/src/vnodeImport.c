@@ -702,8 +702,8 @@ int vnodeFindKeyInFile(SImportInfo *pImport, int order) {
 
       if (pImport->key != key && pImport->pos > 0) {
         if ( pObj->sversion != pBlock->sversion ) {
-          dError("vid:%d sid:%d id:%s, import sversion not matached, expected:%d received:%d", pObj->vnode, pObj->sid,
-                 pBlock->sversion, pObj->sversion);
+          dError("vid:%d sid:%d id:%s, import sversion not matched, expected:%d received:%d", pObj->vnode, pObj->sid,
+                 pObj->meterId, pBlock->sversion, pObj->sversion);
           code = TSDB_CODE_OTHERS;
         } else {
           pImport->offset = pBlock->offset;
