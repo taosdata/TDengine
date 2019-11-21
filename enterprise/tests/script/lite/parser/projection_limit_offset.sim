@@ -354,4 +354,19 @@ endi
 
 #error sql
 sql_error select * from 1;
+sql_error select 1;
+sql_error select k+k;
+sql_error select k+1;
+sql_error select abc();
+sql_error select 1 where 1=2;
+sql_error select 1 limit 1;
+sql_error select 1 slimit 1;
+sql_error select 1 interval(1h);
+sql_error select count(*);
+sql_error select sum(k);
+sql_error select 'abc';
+
+#=============================tbase-1205
+sql select count(*) from tm1 where ts<now and ts>= now -1d interval(1h) fill(NULL);
+
 
