@@ -55,14 +55,11 @@ void vnodeProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   contLen += sizeof(SSubmitMsg);
 
   int32_t numOfPoints = 0;
+  int32_t code = vnodeInsertPoints(pObj, (char *)pMsg, contLen, TSDB_DATA_SOURCE_SHELL, NULL, pObj->sversion,
+      &numOfPoints, taosGetTimestamp(vnodeList[pObj->vnode].cfg.precision));
 
-  int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_INSERT);
-  if (state == TSDB_METER_STATE_READY) {
-    vnodeInsertPoints(pObj, (char *)pMsg, contLen, TSDB_DATA_SOURCE_SHELL, NULL, pObj->sversion, &numOfPoints, taosGetTimestamp(vnodeList[pObj->vnode].cfg.precision));
-    vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);
-  } else {
-    dError("vid:%d sid:%d id:%s, failed to insert continuous query results, state:%d", pObj->vnode, pObj->sid,
-           pObj->meterId, state);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("vid:%d sid:%d id:%s, failed to insert continuous query results", pObj->vnode, pObj->sid, pObj->meterId);
   }
 
   assert(numOfPoints >= 0 && numOfPoints <= 1);

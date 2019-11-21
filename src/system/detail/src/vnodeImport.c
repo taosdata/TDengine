@@ -286,12 +286,9 @@ void vnodeProcessImportTimer(void *param, void *tmrId) {
   SShellObj  *pShell = pImport->pShell;
 
   pImport->retry++;
-
-  //slow query will block the import operation
-  int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_IMPORTING);
-  if (state >= TSDB_METER_STATE_DELETING) {
-    dError("vid:%d sid:%d id:%s, meter is deleted, failed to import, state:%d",
-           pObj->vnode, pObj->sid, pObj->meterId, state);
+  
+  int32_t code = vnodeSetMeterInsertImportStateEx(pObj, TSDB_METER_STATE_IMPORTING);
+  if (code == TSDB_CODE_NOT_ACTIVE_TABLE) {
     return;
   }
 
@@ -303,14 +300,14 @@ void vnodeProcessImportTimer(void *param, void *tmrId) {
   //if the num == 0, it will never be increased before state is set to TSDB_METER_STATE_READY
   int32_t commitInProcess = 0;
   pthread_mutex_lock(&pPool->vmutex);
-  if (((commitInProcess = pPool->commitInProcess) == 1) || num > 0 || state != TSDB_METER_STATE_READY) {
+  if (((commitInProcess = pPool->commitInProcess) == 1) || num > 0 || code == TSDB_CODE_ACTION_IN_PROGRESS) {
     pthread_mutex_unlock(&pPool->vmutex);
     vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
 
     if (pImport->retry < 1000) {
       dTrace("vid:%d sid:%d id:%s, import failed, retry later. commit in process or queries on it, or not ready."
              "commitInProcess:%d, numOfQueries:%d, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
-             commitInProcess, num, state);
+             commitInProcess, num, pObj->state);
 
       taosTmrStart(vnodeProcessImportTimer, 10, pImport, vnodeTmrCtrl);
       return;
@@ -320,15 +317,14 @@ void vnodeProcessImportTimer(void *param, void *tmrId) {
   } else {
     pPool->commitInProcess = 1;
     pthread_mutex_unlock(&pPool->vmutex);
-    int code = vnodeImportData(pObj, pImport);
+    int32_t ret = vnodeImportData(pObj, pImport);
     if (pShell) {
-      pShell->code = code;
+      pShell->code = ret;
       pShell->numOfTotalPoints += pImport->importedRows;
     }
   }
 
   vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
-
   pVnode->version++;
 
   // send response back to shell
@@ -912,16 +908,12 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   }
 
   if (*((TSKEY *)(pSubmit->payLoad + (rows - 1) * pObj->bytesPerPoint)) > pObj->lastKey) {
-    vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
-    vnodeSetMeterState(pObj, TSDB_METER_STATE_INSERT);
     code = vnodeInsertPoints(pObj, cont, contLen, TSDB_DATA_SOURCE_LOG, NULL, pObj->sversion, &pointsImported, now);
 
     if (pShell) {
       pShell->code = code;
       pShell->numOfTotalPoints += pointsImported;
     }
-
-    vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);
   } else {
     SImportInfo *pNew, import;
 
@@ -933,7 +925,11 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     import.pShell = pShell;
     import.payload = payload;
     import.rows = rows;
-
+  
+    if ((code = vnodeSetMeterInsertImportStateEx(pObj, TSDB_METER_STATE_IMPORTING)) != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    
     int32_t num = 0;
     pthread_mutex_lock(&pVnode->vmutex);
     num = pObj->numOfQueries;
@@ -944,7 +940,8 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     pthread_mutex_lock(&pPool->vmutex);
     if (((commitInProcess = pPool->commitInProcess) == 1) || num > 0) {
       pthread_mutex_unlock(&pPool->vmutex);
-
+      vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
+  
       pNew = (SImportInfo *)malloc(sizeof(SImportInfo));
       memcpy(pNew, &import, sizeof(SImportInfo));
       pNew->signature = pNew;
@@ -956,19 +953,25 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
       dTrace("vid:%d sid:%d id:%s, import later, commit in process:%d, numOfQueries:%d", pObj->vnode, pObj->sid,
              pObj->meterId, commitInProcess, pObj->numOfQueries);
 
+      /*
+       * vnodeProcessImportTimer will set the import status for this table, so need to
+       * set the import flag here
+       */
       taosTmrStart(vnodeProcessImportTimer, 10, pNew, vnodeTmrCtrl);
       return 0;
     } else {
       pPool->commitInProcess = 1;
       pthread_mutex_unlock(&pPool->vmutex);
-      int code = vnodeImportData(pObj, &import);
+      
+      int ret = vnodeImportData(pObj, &import);
       if (pShell) {
-        pShell->code = code;
+        pShell->code = ret;
         pShell->numOfTotalPoints += import.importedRows;
       }
     }
   }
 
+  vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
   pVnode->version++;
 
   if (pShell) {
