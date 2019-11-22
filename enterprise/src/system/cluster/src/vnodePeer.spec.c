@@ -407,14 +407,12 @@ void vnodeCheckStatus(SVnodePeer *pVPeer, SPeerState peerStates[], char newState
   pVnode->peerInfo[pVnode->selfIndex]->fileId = pVnode->badFileId;
   pVPeer->status = newState;
 
-  dPrint("vid:%d, status:%s, peer:%s:%d received new status:%s",
+  dTrace("vid:%d, status:%s, peer:%s:%d received new status:%s",
           pVnode->vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus),
           pVPeer->ipstr, pVPeer->vid, taosGetVnodeStatusStr(newState));
 
   if (newState == TSDB_VN_STATUS_OFFLINE) {
     for (i = 0; i < pVnode->cfg.replications; ++i) {
-      dPrint("vid:%d, peer:%s:%d current status:%s",
-              pVnode->vnode, pVPeer->ipstr, pVPeer->vid, taosGetVnodeStatusStr(pVnode->peerInfo[i]->status));
       if (pVnode->peerInfo[i]->status == TSDB_VN_STATUS_OFFLINE) {
         offlineNum++;
       }
@@ -431,8 +429,7 @@ void vnodeCheckStatus(SVnodePeer *pVPeer, SPeerState peerStates[], char newState
   int index = -1;
   for (i = 0; i < pVnode->cfg.replications; ++i) {
     SVnodePeer *pTemp = pVnode->peerInfo[i];
-    dPrint("vid:%d, peer:%s:%d current status:%s",
-           pVnode->vnode, pTemp->ipstr, pTemp->vid, taosGetVnodeStatusStr(pTemp->status));
+    dTrace("vid:%d, peer:%s:%d status:%s", pVnode->vnode, pTemp->ipstr, pTemp->vid, taosGetVnodeStatusStr(pTemp->status));
 
     if (pTemp->status == TSDB_VN_STATUS_MASTER) {
       if (index < 0) {
@@ -897,7 +894,7 @@ int vnodeProcessPeerStatusMsg(char *cont, SVnodePeer *pVPeer)
   int  code = 0;
   int  vid = pVPeer->ownId;
 
-  dPrint("vid:%d, peer:%s:%d status received, self:%s version:%d peer:%s version:%d ack:%d",
+  dTrace("vid:%d, peer:%s:%d status received, self:%s version:%d peer:%s version:%d ack:%d",
          vid, pVPeer->ipstr, pVPeer->vid, taosGetVnodeStatusStr(pVnode->vnodeStatus), pVnode->version,
          taosGetVnodeStatusStr(pStatus->status), pStatus->version, pStatus->ack);
 
@@ -1072,7 +1069,7 @@ void vnodeCheckPeerConnection(void *param, void *tmrId)
             vid, pVPeer->ipstr, pVPeer->vid, connFd, sizeof(firstPkt), len);
   }
 
-  dPrint("vid:%d, peer:%s:%d connection to peer server is setup, connFd:%d", vid, pVPeer->ipstr, pVPeer->vid, connFd);
+  dTrace("vid:%d, peer:%s:%d connection to peer server is setup, connFd:%d", vid, pVPeer->ipstr, pVPeer->vid, connFd);
 
   vnodeAddPeerFd(&tsPeerThreadPool, pVPeer, connFd);
 

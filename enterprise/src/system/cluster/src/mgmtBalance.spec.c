@@ -360,8 +360,10 @@ int mgmtAllocVnodes(SVgObj *pVgroup) {
 bool mgmtCheckVnodeReady(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode) {
   if (pDnode == NULL) {
     pDnode = mgmtGetDnode(pVnode->ip);
-    if (pDnode == NULL)
+    if (pDnode == NULL) {
       mError("dnode:%s, vgroup:%d, vnode:%d dnode not exist", taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode);
+      return false;
+    }
   }
 
   if (mgmtCheckDnodeInOfflineState(pDnode)) {
@@ -379,7 +381,7 @@ bool mgmtCheckVnodeReady(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode) 
   mTrace("dnode:%s, vgroup:%d, vnode:%d, status:%s, syncstatus:%s",
           taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode,
           taosGetVnodeStatusStr(vload->status), taosGetVnodeSyncStatusStr(vload->syncStatus));
-  return vload->status == TSDB_VN_STATUS_SLAVE || vload->syncStatus == TSDB_VN_STATUS_MASTER;
+  return vload->status == TSDB_VN_STATUS_SLAVE || vload->status == TSDB_VN_STATUS_MASTER;
 }
 
 /**

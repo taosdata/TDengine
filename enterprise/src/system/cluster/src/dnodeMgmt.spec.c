@@ -378,7 +378,7 @@ int vnodeProcessStatusRspMsg(char *msg, int msgLen, SMgmtObj *pObj) {
 
     uint32_t status = htonl(pState->moduleStatus);
     if (status != tsModuleStatus) {
-      dPrint("module statis is received, old:%d, new:%d", tsModuleStatus, status);
+      dPrint("module status is received, old:%d, new:%d", tsModuleStatus, status);
       dnodeProcessModuleStatus(status);
     }
 
