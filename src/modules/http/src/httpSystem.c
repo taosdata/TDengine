@@ -89,7 +89,7 @@ int httpStartSystem() {
   }
 
   if (httpServer->timerHandle == NULL) {
-    httpServer->timerHandle = taosTmrInit(tsHttpCacheSessions * 20 + 100, 200, 60000, "http");
+    httpServer->timerHandle = taosTmrInit(tsHttpCacheSessions * 100 + 100, 200, 60000, "http");
   }
   if (httpServer->timerHandle == NULL) {
     httpError("http init timer failed");

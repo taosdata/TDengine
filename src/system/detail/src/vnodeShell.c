@@ -178,7 +178,7 @@ int vnodeOpenShellVnode(int vnode) {
     return -1;
   }
 
-  dTrace("vid:%d, sessions:%d, shell is opened", vnode, pCfg->maxSessions);
+  dPrint("vid:%d, sessions:%d, shell is opened", vnode, pCfg->maxSessions);
   return TSDB_CODE_SUCCESS;
 }
 
