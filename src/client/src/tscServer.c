@@ -1807,7 +1807,7 @@ int tscBuildCreateDbMsg(SSqlObj *pSql) {
   pMsg += sizeof(SMgmtHead);
 
   pCreateDbMsg = (SCreateDbMsg *)pMsg;
-  strcpy(pCreateDbMsg->db, pMeterMetaInfo->name);
+  strncpy(pCreateDbMsg->db, pMeterMetaInfo->name, tListLen(pCreateDbMsg->db));
   pMsg += sizeof(SCreateDbMsg);
 
   msgLen = pMsg - pStart;
@@ -2029,7 +2029,7 @@ int tscBuildDropDbMsg(SSqlObj *pSql) {
   pMsg += sizeof(SMgmtHead);
 
   pDropDbMsg = (SDropDbMsg *)pMsg;
-  strcpy(pDropDbMsg->db, pMeterMetaInfo->name);
+  strncpy(pDropDbMsg->db, pMeterMetaInfo->name, tListLen(pDropDbMsg->db));
 
   pDropDbMsg->ignoreNotExists = htons(pCmd->existsCheck ? 1 : 0);
 
