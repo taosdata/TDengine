@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mgmtBalance.h"
+#include "tstatus.h"
 
 void mgmtStartBalanceTimer(int mseconds) {}
 
@@ -28,7 +29,7 @@ int mgmtAllocVnodes(SVgObj *pVgroup) {
 
   for (int i = 0; i < pDnode->numOfVnodes; i++) {
     int vnode = (i + pDnode->lastAllocVnode) % pDnode->numOfVnodes;
-    if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_READY) {
+    if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_OFFLINE) {
       selectedVnode = vnode;
       break;
     }
