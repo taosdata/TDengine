@@ -60,7 +60,8 @@ class TDTestCase:
     tdLog.info("================= step4")
     dnodesDir  = tdDnodes.getDnodesRootDir()
     dataDir    = dnodesDir + '/dnode1/data/data'
-    if (os.path.exists(dataDir)):
+    vnodes = os.listdir(dataDir)
+    if (len(vnodes) > 0):
       tdLog.info("data is committed")
     else:
       tdLog.exit("ERROR: data has not been committed")
