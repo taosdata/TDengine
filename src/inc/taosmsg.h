@@ -583,7 +583,7 @@ typedef struct {
   int64_t  compStorage;
   int64_t  pointsWritten;
   uint8_t  syncStatus;
-  uint8_t  reserved;
+  uint8_t  reserved[15];
 } SVnodeLoad;
 
 typedef struct {

@@ -43,6 +43,11 @@ int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   SMeterCfgMsg *pCfg = (SMeterCfgMsg *)cont;
   SVgObj *      pVgroup;
 
+  if (!sdbMaster) {
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_METER_CFG_RSP, TSDB_CODE_REDIRECT);
+    return 0;
+  }
+
   int vnode = htonl(pCfg->vnode);
   int sid = htonl(pCfg->sid);
 
@@ -51,6 +56,7 @@ int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
     taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_METER_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return 0;
   }
+
   pMsg = pStart;
 
   if (vnode < pObj->numOfVnodes) {
@@ -87,10 +93,18 @@ int mgmtProcessVpeerCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   SVpeerCfgMsg *pCfg = (SVpeerCfgMsg *)cont;
   SVgObj *      pVgroup = NULL;
 
+  if (!sdbMaster) {
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VPEER_CFG_RSP, TSDB_CODE_REDIRECT);
+    return 0;
+  }
+
   int vnode = htonl(pCfg->vnode);
 
   pStart = taosBuildRspMsgToDnode(pObj, TSDB_MSG_TYPE_VPEER_CFG_RSP);
-  if (pStart == NULL) return 0;
+  if (pStart == NULL) {
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VPEER_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
+    return 0;
+  }
   pMsg = pStart;
 
   if (vnode < pObj->numOfVnodes) pVgroup = mgmtGetVgroup(pObj->vload[vnode].vgId);
@@ -120,6 +134,11 @@ int mgmtProcessFreeVnodeRsp(char *msg, int msgLen, SDnodeObj *pObj) { return 0; 
 
 int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
   STaosRsp *pRsp = (STaosRsp *)msg;
+
+  if (!sdbMaster) {
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VPEERS_RSP, TSDB_CODE_REDIRECT);
+    return 0;
+  }
 
   SDbObj *pDb = mgmtGetDb(pRsp->more);
   if (!pDb) {
