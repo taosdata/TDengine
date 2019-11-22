@@ -37,7 +37,7 @@ int mgmtInitDnodes() {
   dnodeObj.thandle = (void*)(1);  //hack way
   if (dnodeObj.numOfVnodes == TSDB_INVALID_VNODE_NUM) {
     mgmtSetDnodeMaxVnodes(&dnodeObj);
-    mPrint("first access, set total vnodes:%d", dnodeObj.numOfVnodes);
+    mPrint("dnode first access, set total vnodes:%d", dnodeObj.numOfVnodes);
   }
   return  0;
 }

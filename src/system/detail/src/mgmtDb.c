@@ -142,7 +142,7 @@ int mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   if (pCreate->cacheNumOfBlocks.fraction < 0) pCreate->cacheNumOfBlocks.fraction = tsAverageCacheBlocks;  //
   //-1 for balance
 
-  if (pCreate->replications <= 0 || pCreate->replications > TSDB_REPLICA_MAX_NUM) {
+  if (pCreate->replications < 0 || pCreate->replications > TSDB_REPLICA_MAX_NUM) {
     mTrace("invalid db option replications: %d", pCreate->replications);
     return TSDB_CODE_INVALID_OPTION;
   }
