@@ -519,18 +519,15 @@ bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) 
 
 void mgmtMonitorDnodeBalanced(int mseconds) {
   if (mseconds == 0) {
-    mTrace("balance function is started by schedule, dnodes:%d", mgmtOrderedDnodesSize);
+    mTrace("balance function is scheduled by schedule, dnodes:%d", mgmtOrderedDnodesSize);
   } else {
-    mTrace("balance function is started by event for %d mseconds arrived, dnodes:%d", mseconds, mgmtOrderedDnodesSize);
-  }
-  if (mgmtOrderedDnodesSize < 2) {
-    return;
+    mTrace("balance function is scheduled by event for %d mseconds arrived, dnodes:%d", mseconds, mgmtOrderedDnodesSize);
   }
 
-//  mTrace("balance dnode:%d:%s score:%s, dnode:%d:%s score:%s, ",
-//         0, taosIpStr(mgmtOrderedDnodes[0]->privateIp), mgmtOrderedDnodes[0]->lbScore,
-//         mgmtOrderedDnodesSize - 1, taosIpStr(mgmtOrderedDnodes[mgmtOrderedDnodesSize - 1]->privateIp),
-//         mgmtOrderedDnodes[mgmtOrderedDnodesSize - 1]->lbScore);
+  if (mgmtOrderedDnodesSize < 2) {
+    mTrace("dnodes:%d not enough, stop balance", mgmtOrderedDnodesSize);
+    return;
+  }
 
   for (int src = mgmtOrderedDnodesSize - 1; src >= 0; --src) {
     SDnodeObj *pDnode = mgmtOrderedDnodes[src];
@@ -542,6 +539,7 @@ void mgmtMonitorDnodeBalanced(int mseconds) {
   }
 
   if ((mgmtOrderedDnodes[mgmtOrderedDnodesSize - 1]->lbScore - mgmtOrderedDnodes[0]->lbScore) < 2) {
+    mTrace("all dnodes:%d is already balanced", mgmtOrderedDnodesSize);
     return;
   }
 
@@ -616,6 +614,7 @@ void mgmtSetDnodeOfflineOnSdbChanged() {
 
 void mgmtStartBalance(int mseconds) {
   if (!sdbMaster) return;
+
   static uint32_t lastTime = 0;
 
   mgmtLockBalance();

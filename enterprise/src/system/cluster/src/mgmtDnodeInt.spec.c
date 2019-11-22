@@ -186,6 +186,12 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
     return 0;
   }
 
+  if (!sdbMaster) {
+    mError("dnode:%s status msg received, redirect the message", taosIpStr(pObj->privateIp));
+    mgmtSendStatusRspMsg(pObj, NULL, 0);
+    return 0;
+  }
+
   uint32_t pubicIp = htonl(pStatus->publicIp);
   if (pObj->publicIp != pubicIp) {
     mPrint("dnode:%s, change publicIp from %s to %s", taosIpStr(pObj->privateIp), taosIpStr(pObj->publicIp), taosIpStr(pubicIp));
@@ -203,8 +209,9 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
   pObj->openVnodes = htonl(pStatus->openVnodes);
 
   if (pObj->numOfVnodes == TSDB_INVALID_VNODE_NUM) {
+    int oldVnodes = pObj->numOfVnodes;
     mgmtSetDnodeMaxVnodes(pObj);
-    mPrint("dnode:%s, first access, set total vnodes:%d", taosIpStr(pObj->privateIp), pObj->numOfVnodes);
+    mPrint("dnode:%s, first access, set total vnodes from %d to %d", taosIpStr(pObj->privateIp), oldVnodes, pObj->numOfVnodes);
   }
 
   // wait vnode dropped
@@ -313,7 +320,11 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
     }
   }
 
-  if (pObj->status != TSDB_DN_STATUS_READY && pObj->openVnodes == 0) {
+  /*
+   * In some unusual cases, the dnode is likely to have openVnodes 0.
+   */
+  //if (pObj->status != TSDB_DN_STATUS_READY && pObj->openVnodes == 0) {
+  if (pObj->status != TSDB_DN_STATUS_READY) {
     mTrace("dnode:%s, from offline to online", taosIpStr(pObj->privateIp));
     mgmtStartBalanceTimer(200);
   }
@@ -330,7 +341,9 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
 int mgmtProcessDnodeGrantMsg(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
   grantUpdate(pMsg);
 
-  taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_GRANT_RSP, 0);
+  int code = (sdbMaster == 1 ? 0 : TSDB_CODE_REDIRECT);
+
+  taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_GRANT_RSP, code);
 
   return 0;
 }
