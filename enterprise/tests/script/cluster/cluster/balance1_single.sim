@@ -24,11 +24,11 @@ system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode5 -c numOfTotalVnodes -v 4
 
-system sh/cfg.sh -n dnode1 -c clog -v 0
-system sh/cfg.sh -n dnode2 -c clog -v 0
-system sh/cfg.sh -n dnode3 -c clog -v 0
-system sh/cfg.sh -n dnode4 -c clog -v 0
-system sh/cfg.sh -n dnode5 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c clog -v 1
+system sh/cfg.sh -n dnode2 -c clog -v 1
+system sh/cfg.sh -n dnode3 -c clog -v 1
+system sh/cfg.sh -n dnode4 -c clog -v 1
+system sh/cfg.sh -n dnode5 -c clog -v 1
 
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
@@ -48,7 +48,7 @@ $x = 0
 show1: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql show dnodes -x show1
@@ -108,7 +108,7 @@ $x = 0
 show2: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql show dnodes -x show2
@@ -145,7 +145,7 @@ $x = 0
 show4: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql show dnodes -x show4
@@ -173,7 +173,7 @@ $x = 0
 show5: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql show dnodes -x show5
@@ -203,7 +203,7 @@ $x = 0
 show6: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show6
@@ -231,7 +231,7 @@ $x = 0
 show7: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql show dnodes -x show7
@@ -260,7 +260,7 @@ $x = 0
 show8: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql show dnodes -x show8
@@ -286,7 +286,7 @@ $x = 0
 show9: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql show dnodes -x show9
@@ -317,7 +317,7 @@ $x = 0
 show10: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql show dnodes -x show10
@@ -348,7 +348,7 @@ $x = 0
 show11: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql show dnodes -x show11
@@ -382,7 +382,7 @@ $x = 0
 create5: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql create table c_b1_t5 (t timestamp, i int) -x create5
@@ -431,7 +431,7 @@ $x = 0
 show14: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql show dnodes -x show14
@@ -486,7 +486,7 @@ $x = 0
 show15: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 15 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show15
@@ -532,7 +532,7 @@ $x = 0
 show16: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then 
+	if $x == 50 then
 	  return -1
 	endi
 sql show dnodes -x show16
