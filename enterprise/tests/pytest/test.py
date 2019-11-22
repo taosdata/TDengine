@@ -195,6 +195,7 @@ from cluster_mgmt.kill_corruptmgmt_restart import *
 ##from import_merge.importCacheFileTO import *
 ##from import_merge.importCacheFileTPO import *
 ##from import_merge.importCacheFileS import *
+from import_merge.importToCommit import *
 
 from multi_import_merge.create_droptbH import *
 from multi_import_merge.create_droptbT import *
