@@ -39,8 +39,7 @@ echo topdir: %{_topdir}
 echo version: %{_version}
 echo buildroot: %{buildroot}
 
-versioninfo=$(%{_compiledir}/../packaging/tools/get_version.sh ../../src/util/src/version.c)
-libfile="libtaos.so.${versioninfo}"
+libfile="libtaos.so.%{_version}"
 
 # create install path, and cp file
 mkdir -p %{buildroot}%{homepath}/bin
@@ -80,18 +79,17 @@ fi
 if pidof taosd &> /dev/null; then
     if pidof systemd &> /dev/null; then
         ${csudo} systemctl stop taosd || :
-    elif $(which insserv &> /dev/null); then
-        ${csudo} service taosd stop || :
-    elif $(which update-rc.d &> /dev/null); then
+    elif $(which service  &> /dev/null); then
         ${csudo} service taosd stop || :
     else
         pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
-        ${csudo} kill -9 ${pid}   || :
+        if [ -n "$pid" ]; then
+           ${csudo} kill -9 $pid   || :
+        fi
     fi
     echo "Stop taosd service success!"
     sleep 1
 fi
-
 # if taos.cfg already softlink, remove it
 if [ -f %{cfg_install_dir}/taos.cfg ]; then
     ${csudo} rm -f %{homepath}/cfg/taos.cfg   || :
@@ -146,7 +144,9 @@ if [ $1 -eq 0 ];then
     ${csudo} rm -f ${data_link_dir}           || :
     
     pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
-    ${csudo} kill -9 ${pid}   || :      
+    if [ -n "$pid" ]; then
+      ${csudo} kill -9 $pid   || :
+    fi    
   fi  
 fi
  
