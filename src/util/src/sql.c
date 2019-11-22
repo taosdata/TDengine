@@ -1934,7 +1934,6 @@ static void yy_reduce(
 /********** Begin reduce actions **********************************************/
         YYMINORTYPE yylhsminor;
       case 0: /* program ::= cmd */
-      case 79: /* db_optr ::= */ yytestcase(yyruleno==79);
 {}
         break;
       case 1: /* cmd ::= SHOW DATABASES */
@@ -2145,6 +2144,9 @@ static void yy_reduce(
       case 77: /* comp ::= COMP INTEGER */ yytestcase(yyruleno==77);
       case 78: /* prec ::= PRECISION STRING */ yytestcase(yyruleno==78);
 { yymsp[-1].minor.yy0 = yymsp[0].minor.yy0; }
+        break;
+      case 79: /* db_optr ::= */
+{memset(&yymsp[1].minor.yy398, 0, sizeof(SCreateDBInfo));}
         break;
       case 80: /* db_optr ::= db_optr tables */
       case 94: /* alter_db_optr ::= alter_db_optr tables */ yytestcase(yyruleno==94);
