@@ -222,7 +222,7 @@ typedef struct {
   // internal part
   uint32_t destId;
   char     meterId[TSDB_UNI_LEN];
-  short    port;  // for UDP only
+  uint16_t port;  // for UDP only
   char     empty[1];
   char     msgType;
   int32_t  msgLen;
@@ -309,7 +309,7 @@ typedef struct {
 } SCreateMsg;
 
 typedef struct {
-  char  db[TSDB_DB_NAME_LEN];
+  char  db[TSDB_METER_ID_LEN];
   short ignoreNotExists;
 } SDropDbMsg, SUseDbMsg;
 
@@ -594,7 +594,7 @@ typedef struct {
 // NOTE: sizeof(SVnodeCfg) < TSDB_FILE_HEADER_LEN/4
 typedef struct {
   char     acct[TSDB_USER_LEN];
-  char     db[TSDB_DB_NAME_LEN];
+  char     db[TSDB_METER_ID_LEN+2]; // 8bytes align
   uint32_t vgId;
   int32_t  maxSessions;
   int32_t  cacheBlockSize;

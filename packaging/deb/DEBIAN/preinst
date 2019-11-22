@@ -9,13 +9,13 @@ fi
 if pidof taosd &> /dev/null; then
     if pidof systemd &> /dev/null; then
         ${csudo} systemctl stop taosd || :
-    elif $(which insserv &> /dev/null); then
-        ${csudo} service taosd stop || :
-    elif $(which update-rc.d &> /dev/null); then
+    elif $(which service  &> /dev/null); then
         ${csudo} service taosd stop || :
     else
         pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
-        ${csudo} kill -9 ${pid}   || :
+        if [ -n "$pid" ]; then
+           ${csudo} kill -9 $pid   || :
+        fi
     fi
     echo "Stop taosd service success!"
     sleep 1

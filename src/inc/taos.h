@@ -59,7 +59,7 @@ typedef struct taosField {
 
 void  taos_init();
 int   taos_options(TSDB_OPTION option, const void *arg, ...);
-TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, int port);
+TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 void  taos_close(TAOS *taos);
 
 typedef struct TAOS_BIND {

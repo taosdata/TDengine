@@ -668,6 +668,26 @@ void vnodeSetMeterDeleting(SMeterObj* pMeterObj) {
   pMeterObj->state |= TSDB_METER_STATE_DELETING;
 }
 
+int32_t vnodeSetMeterInsertImportStateEx(SMeterObj* pObj, int32_t st) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  int32_t state = vnodeSetMeterState(pObj, st);
+  if (state != TSDB_METER_STATE_READY) {//return to denote import is not performed
+    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+      dTrace("vid:%d sid:%d id:%s, meter is deleted, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
+             pObj->state);
+      code = TSDB_CODE_NOT_ACTIVE_TABLE;
+    } else {// waiting for 300ms by default and try again
+      dTrace("vid:%d sid:%d id:%s, try submit again since in state:%d", pObj->vnode, pObj->sid,
+             pObj->meterId, pObj->state);
+      
+      code = TSDB_CODE_ACTION_IN_PROGRESS;
+    }
+  }
+  
+  return code;
+}
+
 bool vnodeIsSafeToDeleteMeter(SVnodeObj* pVnode, int32_t sid) {
   SMeterObj* pObj = pVnode->meterList[sid];
 

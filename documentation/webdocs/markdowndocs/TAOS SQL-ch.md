@@ -424,9 +424,9 @@ SELECT function_list FROM tb_name
 
 SELECT function_list FROM stb_name 
   [WHERE where_condition]
-  [GROUP BY tags]
   INTERVAL (interval)
   [FILL ({ VALUE | PREV | NULL | LINEAR})]
+  [GROUP BY tags]
 ```
 
 - 聚合时间段的长度由关键词INTERVAL指定，最短时间间隔10毫秒（10a）。聚合查询中，能够同时执行的聚合和选择函数仅限于单个输出的函数：count、avg、sum 、stddev、leastsquares、percentile、min、max、first、last，不能使用具有多行输出结果的函数（例如：top、bottom、diff以及四则运算）。

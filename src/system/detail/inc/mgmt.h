@@ -146,7 +146,7 @@ typedef struct _vg_obj {
 } SVgObj;
 
 typedef struct _db_obj {
-  char    name[TSDB_DB_NAME_LEN + 1];
+  char    name[TSDB_METER_ID_LEN + 1];
   int64_t createdTime;
   SDbCfg  cfg;
   int32_t numOfVgroups;
@@ -222,7 +222,7 @@ typedef struct _connObj {
   uint32_t         queryId;             // query ID to be killed
   uint32_t         streamId;            // stream ID to be killed
   uint32_t         ip;                  // shell IP
-  short            port;                // shell port
+  uint16_t         port;                // shell port
   void *           thandle;
   SQList *         pQList;  // query list
   SSList *         pSList;  // stream list

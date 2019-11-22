@@ -92,7 +92,12 @@ enum _sql_cmd {
    */
   TSDB_SQL_RETRIEVE_EMPTY_RESULT,
 
-  TSDB_SQL_RESET_CACHE,
+  TSDB_SQL_RESET_CACHE,  // 40
+  TSDB_SQL_SERV_STATUS,
+  TSDB_SQL_CURRENT_DB,
+  TSDB_SQL_SERV_VERSION,
+  TSDB_SQL_CLI_VERSION,
+  TSDB_SQL_CURRENT_USER,
   TSDB_SQL_CFG_LOCAL,
 
   TSDB_SQL_MAX
@@ -342,11 +347,11 @@ typedef struct _tsc_obj {
   void *           signature;
   void *           pTimer;
   char             mgmtIp[TSDB_USER_LEN];
-  short            mgmtPort;
+  uint16_t         mgmtPort;
   char             user[TSDB_USER_LEN];
   char             pass[TSDB_KEY_LEN];
   char             acctId[TSDB_DB_NAME_LEN];
-  char             db[TSDB_DB_NAME_LEN];
+  char             db[TSDB_METER_ID_LEN];
   char             sversion[TSDB_VERSION_LEN];
   char             writeAuth : 1;
   char             superAuth : 1;

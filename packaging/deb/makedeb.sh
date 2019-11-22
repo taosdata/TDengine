@@ -24,8 +24,7 @@ fi
 mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
-versioninfo=$(${script_dir}/../tools/get_version.sh ${script_dir}/../../src/util/src/version.c)
-libfile="libtaos.so.${versioninfo}"
+libfile="libtaos.so.${tdengine_ver}"
 
 # create install dir 
 install_home_path="/usr/local/taos"

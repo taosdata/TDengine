@@ -31,6 +31,7 @@ extern "C" {
 #define TK_OCT        204   // oct number
 #define TK_BIN        205   // bin format data 0b111
 #define TK_FILE       206
+#define TK_QUESTION   207   // denoting the placeholder of "?",when invoking statement bind query
 
 #define TSQL_SO_ASC   1
 #define TSQL_SO_DESC  0

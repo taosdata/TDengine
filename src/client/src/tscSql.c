@@ -27,8 +27,9 @@
 #include "tsql.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "tnote.h"
 
-TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const char *db, int port, void (*fp)(void *, TAOS_RES *, int),
+TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                        void *param, void **taos) {
   STscObj *pObj;
 
@@ -149,7 +150,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
   return pObj;
 }
 
-TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, int port) {
+TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   if (ip == NULL || (ip != NULL && (strcmp("127.0.0.1", ip) == 0 || strcasecmp("localhost", ip) == 0))) {
 #ifdef CLUSTER
     ip = tsMasterIp;
@@ -201,7 +202,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   return taos;
 }
 
-TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, int port, void (*fp)(void *, TAOS_RES *, int),
+TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
 #ifndef CLUSTER
   if (ip == NULL) {
@@ -241,9 +242,9 @@ int taos_query_imp(STscObj* pObj, SSqlObj* pSql) {
   pRes->qhandle = 0;
   pSql->thandle = NULL;
 
-  if (pRes->code != TSDB_CODE_SUCCESS) return pRes->code;
-
-  tscDoQuery(pSql);
+  if (pRes->code == TSDB_CODE_SUCCESS) {
+    tscDoQuery(pSql);
+  }
 
   tscTrace("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pObj), pObj);
   if (pRes->code != TSDB_CODE_SUCCESS) {
@@ -269,6 +270,8 @@ int taos_query(TAOS *taos, const char *sqlstr) {
     pRes->code = TSDB_CODE_INVALID_SQL;
     return pRes->code;
   }
+
+  taosNotePrintTsc(sqlstr);
 
   void *sql = realloc(pSql->sqlstr, sqlLen + 1);
   if (sql == NULL) {

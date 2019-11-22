@@ -586,9 +586,13 @@ void taosKillSystem() {
   kill(tsProcId, 2);
 }
 
-
+extern int   tsEnableCoreFile;
 int _sysctl(struct __sysctl_args *args );
 void taosSetCoreDump() {
+  if (0 == tsEnableCoreFile) {
+    return;
+  }
+  
   // 1. set ulimit -c unlimited
   struct rlimit rlim;
   struct rlimit rlim_new;
@@ -608,6 +612,7 @@ void taosSetCoreDump() {
     pPrint("the new unlimited para: rlim_cur=%d, rlim_max=%d", rlim.rlim_cur, rlim.rlim_max);
   }
 
+#ifndef _TD_ARM_
   // 2. set the path for saving core file
   struct __sysctl_args args;
   int     old_usespid = 0;
@@ -649,9 +654,10 @@ void taosSetCoreDump() {
   }
   
   pPrint("The new core_uses_pid[%d]: %d", old_len, old_usespid);
+#endif
   
 #if 0
-  // 3. set the path for saving core file
+  // 3. create the path for saving core file
   int status; 
   char coredump_dir[32] = "/var/log/taosdump";
   if (opendir(coredump_dir) == NULL) {

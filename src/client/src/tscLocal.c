@@ -26,7 +26,9 @@
 #include "tschemautil.h"
 #include "tsocket.h"
 
-static int32_t getToStringLength(char *pData, int32_t length, int32_t type) {
+static void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnName, size_t valueLength);
+
+static int32_t getToStringLength(const char *pData, int32_t length, int32_t type) {
   char buf[512] = {0};
 
   int32_t len = 0;
@@ -39,7 +41,7 @@ static int32_t getToStringLength(char *pData, int32_t length, int32_t type) {
     case TSDB_DATA_TYPE_DOUBLE: {
 #ifdef _TD_ARM_32_
       double dv = 0;
-      *(int64_t*)(&dv) = *(int64_t*)pData;
+      *(int64_t *)(&dv) = *(int64_t *)pData;
       len = sprintf(buf, "%f", dv);
 #else
       len = sprintf(buf, "%lf", *(double *)pData);
@@ -47,12 +49,11 @@ static int32_t getToStringLength(char *pData, int32_t length, int32_t type) {
       if (strncasecmp("nan", buf, 3) == 0) {
         len = 4;
       }
-    }
-      break;
+    } break;
     case TSDB_DATA_TYPE_FLOAT: {
 #ifdef _TD_ARM_32_
       float fv = 0;
-      *(int32_t*)(&fv) = *(int32_t*)pData;
+      *(int32_t *)(&fv) = *(int32_t *)pData;
       len = sprintf(buf, "%f", fv);
 #else
       len = sprintf(buf, "%f", *(float *)pData);
@@ -60,8 +61,7 @@ static int32_t getToStringLength(char *pData, int32_t length, int32_t type) {
       if (strncasecmp("nan", buf, 3) == 0) {
         len = 4;
       }
-    }
-      break;
+    } break;
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT:
       len = sprintf(buf, "%lld", *(int64_t *)pData);
@@ -203,23 +203,21 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
         case TSDB_DATA_TYPE_FLOAT: {
 #ifdef _TD_ARM_32_
           float fv = 0;
-          *(int32_t*)(&fv) = *(int32_t*)pTagValue;
+          *(int32_t *)(&fv) = *(int32_t *)pTagValue;
           sprintf(target, "%f", fv);
 #else
           sprintf(target, "%f", *(float *)pTagValue);
 #endif
-          }
-          break;
+        } break;
         case TSDB_DATA_TYPE_DOUBLE: {
 #ifdef _TD_ARM_32_
           double dv = 0;
-          *(int64_t*)(&dv) = *(int64_t*)pTagValue;
+          *(int64_t *)(&dv) = *(int64_t *)pTagValue;
           sprintf(target, "%lf", dv);
 #else
           sprintf(target, "%lf", *(double *)pTagValue);
 #endif
-          }
-          break;
+        } break;
         case TSDB_DATA_TYPE_TINYINT:
           sprintf(target, "%d", *(int8_t *)pTagValue);
           break;
@@ -391,6 +389,68 @@ static int tscProcessQueryTags(SSqlObj *pSql) {
   }
 }
 
+static void tscProcessCurrentUser(SSqlObj *pSql) {
+  SSqlExpr* pExpr = tscSqlExprGet(&pSql->cmd, 0);
+  tscSetLocalQueryResult(pSql, pSql->pTscObj->user, pExpr->aliasName, TSDB_USER_LEN);
+}
+
+static void tscProcessCurrentDB(SSqlObj *pSql) {
+  char db[TSDB_DB_NAME_LEN + 1] = {0};
+  extractDBName(pSql->pTscObj->db, db);
+  
+  // no use db is invoked before.
+  if (strlen(db) == 0) {
+    setNull(db, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
+  }
+  
+  SSqlExpr* pExpr = tscSqlExprGet(&pSql->cmd, 0);
+  tscSetLocalQueryResult(pSql, db, pExpr->aliasName, TSDB_DB_NAME_LEN);
+}
+
+static void tscProcessServerVer(SSqlObj *pSql) {
+  const char* v = pSql->pTscObj->sversion;
+  
+  SSqlExpr* pExpr = tscSqlExprGet(&pSql->cmd, 0);
+  tscSetLocalQueryResult(pSql, v, pExpr->aliasName, tListLen(pSql->pTscObj->sversion));
+}
+
+static void tscProcessClientVer(SSqlObj *pSql) {
+  SSqlExpr* pExpr = tscSqlExprGet(&pSql->cmd, 0);
+  tscSetLocalQueryResult(pSql, version, pExpr->aliasName, strlen(version));
+}
+
+static void tscProcessServStatus(SSqlObj *pSql) {
+  STscObj* pObj = pSql->pTscObj;
+  
+  if (pObj->pHb != NULL) {
+    if (pObj->pHb->res.code == TSDB_CODE_NETWORK_UNAVAIL) {
+      pSql->res.code = TSDB_CODE_NETWORK_UNAVAIL;
+      return;
+    }
+  } else {
+    if (pSql->res.code == TSDB_CODE_NETWORK_UNAVAIL) {
+      return;
+    }
+  }
+  
+  SSqlExpr* pExpr = tscSqlExprGet(&pSql->cmd, 0);
+  tscSetLocalQueryResult(pSql, "1", pExpr->aliasName, 2);
+}
+
+void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnName, size_t valueLength) {
+  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlRes *pRes = &pSql->res;
+
+  pCmd->numOfCols = 1;
+  pCmd->order.order = TSQL_SO_ASC;
+
+  tscFieldInfoSetValue(&pCmd->fieldsInfo, 0, TSDB_DATA_TYPE_BINARY, columnName, valueLength);
+  tscInitResObjForLocalQuery(pSql, 1, valueLength);
+
+  TAOS_FIELD *pField = tscFieldInfoGetField(pCmd, 0);
+  strncpy(pRes->data, val, pField->bytes);
+}
+
 int tscProcessLocalCmd(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -402,13 +462,23 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
     pSql->res.code = (uint8_t)tscProcessQueryTags(pSql);
   } else if (pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     /*
-     * pass the qhandle check, in order to call partial release function to
-     * free allocated resources and remove the SqlObj from linked list
+     * set the qhandle to be 1 in order to pass the qhandle check, and to call partial release function to
+     * free allocated resources and remove the SqlObj from sql query linked list
      */
-    pSql->res.qhandle = 0x1;  // pass the qhandle check
+    pSql->res.qhandle = 0x1;
     pSql->res.numOfRows = 0;
   } else if (pCmd->command == TSDB_SQL_RESET_CACHE) {
     taosClearDataCache(tscCacheHandle);
+  } else if (pCmd->command == TSDB_SQL_SERV_VERSION) {
+    tscProcessServerVer(pSql);
+  } else if (pCmd->command == TSDB_SQL_CLI_VERSION) {
+    tscProcessClientVer(pSql);
+  } else if (pCmd->command == TSDB_SQL_CURRENT_USER) {
+    tscProcessCurrentUser(pSql);
+  } else if (pCmd->command == TSDB_SQL_CURRENT_DB) {
+    tscProcessCurrentDB(pSql);
+  } else if (pCmd->command == TSDB_SQL_SERV_STATUS) {
+    tscProcessServStatus(pSql);
   } else {
     pSql->res.code = TSDB_CODE_INVALID_SQL;
     tscError("%p not support command:%d", pSql, pCmd->command);

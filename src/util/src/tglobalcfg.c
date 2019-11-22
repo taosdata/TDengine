@@ -58,12 +58,12 @@ int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
 char  tsMasterIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsSecondIp[TSDB_IPv4ADDR_LEN] = {0};
-short tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
-short tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
-short tsMgmtVnodePort = 6040;   // udp[6040-6044] tcp[6040]
-short tsVnodeVnodePort = 6045;  // tcp[6045]
-short tsMgmtMgmtPort = 6050;    // udp, numOfVnodes fixed to 1, range udp[6050]
-short tsMgmtSyncPort = 6050;    // tcp, range tcp[6050]
+uint16_t tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
+uint16_t tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
+uint16_t tsMgmtVnodePort = 6040;   // udp[6040-6044] tcp[6040]
+uint16_t tsVnodeVnodePort = 6045;  // tcp[6045]
+uint16_t tsMgmtMgmtPort = 6050;    // udp, numOfVnodes fixed to 1, range udp[6050]
+uint16_t tsMgmtSyncPort = 6050;    // tcp, range tcp[6050]
 
 int tsStatusInterval = 1;         // second
 int tsShellActivityTimer = 3;     // second
@@ -152,8 +152,8 @@ int     tsProjectExecInterval = 10000;   // every 10sec, the projection will be 
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
 char  tsHttpIp[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
-short tsHttpPort = 6020;                 // only tcp, range tcp[6020]
-// short tsNginxPort = 6060;             //only tcp, range tcp[6060]
+uint16_t tsHttpPort = 6020;                 // only tcp, range tcp[6020]
+// uint16_t tsNginxPort = 6060;             //only tcp, range tcp[6060]
 int tsHttpCacheSessions = 100;
 int tsHttpSessionExpire = 36000;
 int tsHttpMaxThreads = 2;
@@ -161,6 +161,9 @@ int tsHttpEnableCompress = 0;
 int tsHttpEnableRecordSql = 0;
 int tsTelegrafUseFieldNum = 0;
 int tsAdminRowLimit = 10240;
+
+int   tsTscEnableRecordSql = 0;
+int   tsEnableCoreFile = 0;
 
 int tsRpcTimer = 300;
 int tsRpcMaxTime = 600;      // seconds;
@@ -767,6 +770,14 @@ static void doInitGlobalConfig() {
                      0, 255, 0,
                      TSDB_CFG_UTYPE_NONE);
 
+  tsInitConfigOption(cfg++, "tscEnableRecordSql", &tsTscEnableRecordSql, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+
+  tsInitConfigOption(cfg++, "enableCoreFile", &tsEnableCoreFile, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+                     
   // version info
   tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
@@ -779,6 +790,7 @@ static void doInitGlobalConfig() {
                      0, 0, 0, TSDB_CFG_UTYPE_NONE);
 
   tsGlobalConfigNum = (int)(cfg - tsGlobalConfig);
+  assert(tsGlobalConfigNum <= TSDB_CFG_MAX_NUM);
 }
 
 static pthread_once_t initGlobalConfig = PTHREAD_ONCE_INIT;

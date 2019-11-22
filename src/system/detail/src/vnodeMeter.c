@@ -572,7 +572,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     dTrace("vid:%d sid:%d id:%s, cache is full, freePoints:%d, notFreeSlots:%d", pObj->vnode, pObj->sid, pObj->meterId,
            pObj->freePoints, pPool->notFreeSlots);
     vnodeProcessCommitTimer(pVnode, NULL);
-    return TSDB_CODE_ACTION_IN_PROGRESS;
+    return code;
   }
 
   // FIXME: Here should be after the comparison of sversions.
@@ -596,7 +596,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   }
 
   pData = pSubmit->payLoad;
-  code = 0;
+  code = TSDB_CODE_SUCCESS;
 
   TSKEY firstKey = *((TSKEY *)pData);
   TSKEY lastKey = *((TSKEY *)(pData + pObj->bytesPerPoint * (numOfPoints - 1)));
@@ -608,9 +608,12 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
             pObj->vnode, pObj->sid, pObj->meterId, pVnode->lastKeyOnFile, numOfPoints,firstKey, lastKey, minAllowedKey, maxAllowedKey);
     return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
   }
-
-  for (i = 0; i < numOfPoints; ++i) {
-    // meter will be dropped, abort current insertion
+  
+  if ((code = vnodeSetMeterInsertImportStateEx(pObj, TSDB_METER_STATE_INSERT)) != TSDB_CODE_SUCCESS) {
+    goto _over;
+  }
+  
+  for (i = 0; i < numOfPoints; ++i) { // meter will be dropped, abort current insertion
     if (pObj->state >= TSDB_METER_STATE_DELETING) {
       dWarn("vid:%d sid:%d id:%s, meter is dropped, abort insert, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
             pObj->state);
@@ -652,6 +655,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   pVnode->version++;
 
   pthread_mutex_unlock(&(pVnode->vmutex));
+  vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);
 
 _over:
   dTrace("vid:%d sid:%d id:%s, %d out of %d points are inserted, lastKey:%ld source:%d, vnode total storage: %ld",

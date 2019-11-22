@@ -42,7 +42,7 @@
 #endif
 
 static HttpServer *httpServer = NULL;
-void taosInitNote(int numOfNoteLines, int maxNotes);
+void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
 
 int httpInitSystem() {
   taos_init();
@@ -61,7 +61,7 @@ int httpInitSystem() {
   pthread_mutex_init(&httpServer->serverMutex, NULL);
 
   if (tsHttpEnableRecordSql != 0) {
-    taosInitNote(tsNumOfLogLines / 10, 1);
+    taosInitNote(tsNumOfLogLines / 10, 1, (char*)"http_note");
   }
   restInitHandle(httpServer);
   adminInitHandle(httpServer);

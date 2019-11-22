@@ -184,6 +184,15 @@ void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
     pSql->vnode = TSC_MGMT_VNODE;
 #endif
   }
+  
+  // the pSql->res.code is the previous error(status) code.
+  if (pSql->thandle == NULL && pSql->retry >= pSql->maxRetry) {
+    if (pSql->res.code != TSDB_CODE_SUCCESS && pSql->res.code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      *pCode = pSql->res.code;
+    }
+    
+    tscError("%p reach the max retry:%d, code:%d", pSql, pSql->retry, *pCode);
+  }
 }
 
 void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
@@ -442,6 +451,9 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       tscTrace("%p it shall be redirected!", pSql);
       taosAddConnIntoCache(tscConnCache, thandle, pSql->ip, pSql->vnode, pObj->user);
       pSql->thandle = NULL;
+      
+      // reset the retry times for a new mgmt node
+      pSql->retry = 0;
 
       if (pCmd->command > TSDB_SQL_MGMT) {
         tscProcessMgmtRedirect(pSql, pMsg->content + 1);
@@ -1795,7 +1807,7 @@ int tscBuildCreateDbMsg(SSqlObj *pSql) {
   pMsg += sizeof(SMgmtHead);
 
   pCreateDbMsg = (SCreateDbMsg *)pMsg;
-  strcpy(pCreateDbMsg->db, pMeterMetaInfo->name);
+  strncpy(pCreateDbMsg->db, pMeterMetaInfo->name, tListLen(pCreateDbMsg->db));
   pMsg += sizeof(SCreateDbMsg);
 
   msgLen = pMsg - pStart;
@@ -2017,7 +2029,7 @@ int tscBuildDropDbMsg(SSqlObj *pSql) {
   pMsg += sizeof(SMgmtHead);
 
   pDropDbMsg = (SDropDbMsg *)pMsg;
-  strcpy(pDropDbMsg->db, pMeterMetaInfo->name);
+  strncpy(pDropDbMsg->db, pMeterMetaInfo->name, tListLen(pDropDbMsg->db));
 
   pDropDbMsg->ignoreNotExists = htons(pCmd->existsCheck ? 1 : 0);
 
@@ -3795,7 +3807,14 @@ void tscInitMsgs() {
   tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromVnode;   // rsp handled by same function.
   tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
+  
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_TAGS] = tscProcessTagRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_CURRENT_DB] = tscProcessTagRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_CURRENT_USER] = tscProcessTagRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_SERV_VERSION] = tscProcessTagRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_CLI_VERSION] = tscProcessTagRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_SERV_STATUS] = tscProcessTagRetrieveRsp;
+  
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_EMPTY_RESULT] = tscProcessEmptyResultRsp;
 
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_METRIC] = tscProcessRetrieveMetricRsp;

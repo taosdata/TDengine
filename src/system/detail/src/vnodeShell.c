@@ -48,7 +48,7 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   SShellObj *pObj = (SShellObj *)ahandle;
   SIntMsg *  pMsg = (SIntMsg *)msg;
   uint32_t   peerId, peerIp;
-  short      peerPort;
+  uint16_t   peerPort;
   char       ipstr[20];
 
   if (msg == NULL) {
@@ -566,40 +566,15 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
     int subMsgLen = sizeof(pBlocks->numOfRows) + htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint;
     int sversion = htonl(pBlocks->sversion);
 
-    int32_t state = TSDB_METER_STATE_READY;
     if (pSubmit->import) {
-      state = vnodeSetMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
+      code = vnodeImportPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
+                               sversion, &numOfPoints, now);
     } else {
-      state = vnodeSetMeterState(pMeterObj, TSDB_METER_STATE_INSERT);
+      code = vnodeInsertPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, NULL,
+                               sversion, &numOfPoints, now);
     }
 
-    if (state == TSDB_METER_STATE_READY) {
-      // meter status is ready for insert/import
-      if (pSubmit->import) {
-        code = vnodeImportPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
-                                 sversion, &numOfPoints, now);
-        vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
-      } else {
-        code = vnodeInsertPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, NULL,
-                                 sversion, &numOfPoints, now);
-        vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_INSERT);
-      }
-
-      if (code != TSDB_CODE_SUCCESS) {break;}
-    } else {
-      if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DELETING)) {
-        dTrace("vid:%d sid:%d id:%s, it is removed, state:%d", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId,
-               pMeterObj->state);
-        code = TSDB_CODE_NOT_ACTIVE_TABLE;
-        break;
-      } else {// waiting for 300ms by default and try again
-        dTrace("vid:%d sid:%d id:%s, try submit again since in state:%d", pMeterObj->vnode, pMeterObj->sid,
-               pMeterObj->meterId, pMeterObj->state);
-
-        code = TSDB_CODE_ACTION_IN_PROGRESS;
-        break;
-      }
-    }
+    if (code != TSDB_CODE_SUCCESS) {break;}
 
     numOfTotalPoints += numOfPoints;
     pBlocks = (SShellSubmitBlock *)((char *)pBlocks + sizeof(SShellSubmitBlock) +
