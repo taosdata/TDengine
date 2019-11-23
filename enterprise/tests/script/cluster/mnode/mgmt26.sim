@@ -128,7 +128,7 @@ print ============== step6
 system sh/exec.sh -n dnode1 -s stop
 sleep 10000
 sql drop dnode 192.168.0.1
-sleep 8000
+sleep 12000
 
 sql show mnodes
 $dnode1Role = $data3_192.168.0.1
