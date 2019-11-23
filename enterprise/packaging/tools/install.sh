@@ -136,11 +136,6 @@ function install_bin() {
     ${csudo} chmod 777 ${nginx_dir}/sbin/nginx
 }
 
-function clean_lib() {
-    sudo rm -f /usr/lib/libtaos.so || :
-    sudo rm -rf ${lib_dir} || :
-}
-
 function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :

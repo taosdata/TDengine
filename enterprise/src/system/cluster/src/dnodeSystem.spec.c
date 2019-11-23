@@ -79,8 +79,6 @@ int dnodeInitSystemSpec() {
   sprintf(cfgFile, "%s/taos.cfg", configDir);
   grantActiveSystem(cfgFile);
 
-  vnodeInitMgmtIp();
-
   if (dnodeCheckConfig() != 0) {
     dError("TDengine initialization failed");
     return -1;

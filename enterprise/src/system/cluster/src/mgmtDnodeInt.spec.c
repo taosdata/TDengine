@@ -150,7 +150,7 @@ void mgmtUpdateVgroupPublicIp(uint32_t privateIp, uint32_t oldPublicIp, uint32_t
     for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
       SVnodeGid *vnodeGid = pVgroup->vnodeGid + i;
       if (vnodeGid->ip == privateIp) {
-        mPrint("vgroup:%d, index:%d vnode:%d ip:%s change public ip from %s to %s", pVgroup->vgId, i, vnodeGid->vnode,
+        mPrint("vgroup:%d, index:%d vnode:%d ip:%s change publicIp from %s to %s", pVgroup->vgId, i, vnodeGid->vnode,
                taosIpStr(privateIp), taosIpStr(vnodeGid->publicIp), taosIpStr(newPublicIp));
         vnodeGid->publicIp = newPublicIp;
         sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
@@ -167,7 +167,7 @@ void mgmtUpdateMnodePublicIp(uint32_t privateIp, uint32_t oldPublicIp, uint32_t 
     if (pMnode == NULL) break;
 
     if (pMnode->ip == privateIp) {
-      mPrint("mnode:%s change public ip from %s to %s",
+      mPrint("mnode:%s, change public ip from %s to %s",
               taosIpStr(pMnode->ip), taosIpStr(pMnode->publicIp), taosIpStr(newPublicIp));
       pMnode->publicIp = newPublicIp;
       sdbUpdateRow(mnodeSdb, pMnode, tsMnodeUpdateSize, 1);
@@ -183,6 +183,12 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
   uint32_t version = htonl(pStatus->version);
   if (version != tsVersion) {
     mError("dnode:%s status msg version:%d not equal with master:%d", taosIpStr(pObj->privateIp), version, tsVersion);
+    return 0;
+  }
+
+  if (!sdbMaster) {
+    mError("dnode:%s status msg received, redirect the message", taosIpStr(pObj->privateIp));
+    mgmtSendStatusRspMsg(pObj, NULL, 0);
     return 0;
   }
 
@@ -203,14 +209,15 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
   pObj->openVnodes = htonl(pStatus->openVnodes);
 
   if (pObj->numOfVnodes == TSDB_INVALID_VNODE_NUM) {
+    int oldVnodes = pObj->numOfVnodes;
     mgmtSetDnodeMaxVnodes(pObj);
-    mPrint("dnode:%s, first access, set total vnodes:%d", taosIpStr(pObj->privateIp), pObj->numOfVnodes);
+    mPrint("dnode:%s, first access, set total vnodes from %d to %d", taosIpStr(pObj->privateIp), oldVnodes, pObj->numOfVnodes);
   }
 
   // wait vnode dropped
   for (int vnode = 0; vnode < pObj->numOfVnodes; ++vnode) {
     SVnodeLoad *pVload = &(pObj->vload[vnode]);
-    if (pVload->dropStatus == TSDB_VN_STATUS_DROPPING) {
+    if (pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
       bool existInDnode = false;
       for (int j = 0; j < pObj->openVnodes; ++j) {
         if (htonl(pStatus->load[j].vnode) == vnode) {
@@ -220,8 +227,8 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
       }
 
       if (!existInDnode) {
-        pVload->dropStatus = TSDB_VN_STATUS_READY;
-        pVload->status = TSDB_VN_STATUS_READY;
+        pVload->dropStatus = TSDB_VN_DROP_STATUS_READY;
+        pVload->status = TSDB_VN_STATUS_OFFLINE;
         mgmtUpdateDnode(pObj);
         mPrint("dnode:%s, vid:%d, drop finished", taosIpStr(pObj->privateIp), vnode);
         taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, mgmtTmr);
@@ -300,7 +307,7 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
     pVload->compStorage = compStorage;
     pVload->pointsWritten = pointsWritten;
 
-    if (pVload->vgId == 0 || pVload->dropStatus == TSDB_VN_STATUS_DROPPING) {
+    if (pVload->vgId == 0 || pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
       mPrint("dnode:%s, vid:%d, mgmt not exist, drop it", taosIpStr(pObj->privateIp), vnode);
       SVnodeGid pVnodeGid;
       pVnodeGid.ip = pObj->privateIp;
@@ -309,17 +316,21 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
       memset(pVload, 0, sizeof(SVnodeLoad));
 
       // if dnode not receive drop-vnode-msg, set the vnode to dropping state
-      pVload->dropStatus = TSDB_VN_STATUS_DROPPING;
+      pVload->dropStatus = TSDB_VN_DROP_STATUS_DROPPING;
     }
   }
 
-  if (pObj->status != TSDB_DNODE_STATUS_READY && pObj->openVnodes == 0) {
+  /*
+   * In some unusual cases, the dnode is likely to have openVnodes 0.
+   */
+  //if (pObj->status != TSDB_DN_STATUS_READY && pObj->openVnodes == 0) {
+  if (pObj->status != TSDB_DN_STATUS_READY) {
     mTrace("dnode:%s, from offline to online", taosIpStr(pObj->privateIp));
     mgmtStartBalanceTimer(200);
   }
 
   pObj->lastAccess = mgmtAccessSquence;
-  pObj->status = TSDB_DNODE_STATUS_READY;
+  pObj->status = TSDB_DN_STATUS_READY;
   mgmtSendStatusRspMsg(pObj, pVMsg, (((char *)pAccess) - pVMsg));
 
   tfree(pVMsg);
@@ -330,7 +341,9 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
 int mgmtProcessDnodeGrantMsg(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
   grantUpdate(pMsg);
 
-  taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_GRANT_RSP, 0);
+  int code = (sdbMaster == 1 ? 0 : TSDB_CODE_REDIRECT);
+
+  taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_GRANT_RSP, code);
 
   return 0;
 }
@@ -387,8 +400,8 @@ void *mgmtProcessMsgFromDnodeSpec(char *msg, void *ahandle, void *thandle) {
   if (msg == NULL) {
     if (pObj) {
       pObj->thandle = NULL;
-      if (pObj->status != TSDB_DNODE_STATUS_OFFLINE) {
-        pObj->status = TSDB_DNODE_STATUS_OFFLINE;
+      if (pObj->status != TSDB_DN_STATUS_OFFLINE) {
+        pObj->status = TSDB_DN_STATUS_OFFLINE;
         __sync_fetch_and_sub(&mgmtDnodeConns, 1);
         __sync_fetch_and_sub(&sdbExtConns, 1);
       }
