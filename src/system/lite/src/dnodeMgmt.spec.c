@@ -90,4 +90,6 @@ void vnodeProcessMsgFromMgmtSpec(SSchedMsg *sched) {
 
 int vnodeInitMgmt() { return 0; }
 
+void vnodeInitMgmtIp() {}
+
 int vnodeSaveCreateMsgIntoQueue(SVnodeObj *pVnode, char *pMsg, int msgLen) { return 0; }

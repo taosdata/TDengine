@@ -246,9 +246,9 @@ void monitorStopSystem() {
   }
 
 #ifdef CLUSTER
-  monitorLPrint("dnode:%s is stopped", tsPrivateIp);
+  monitorLPrint("dnode:%s monitor module is stopped", tsPrivateIp);
 #else
-  monitorLPrint("dnode:%s is stopped", tsInternalIp);
+  monitorLPrint("dnode:%s monitor module is stopped", tsInternalIp);
 #endif
   monitor->state = MONITOR_STATE_STOPPED;
   taosLogFp = NULL;

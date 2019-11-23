@@ -107,9 +107,9 @@ void httpCleanUpContextTimer(HttpContext *pContext) {
 }
 
 void httpCleanUpContext(HttpContext *pContext) {
-  httpTrace("context:%p, start the clean up operation", pContext);
-  atomic_val_compare_exchange_ptr(&pContext->signature, pContext, 0);
-  if (pContext->signature != NULL) {
+  httpTrace("context:%p, start the clean up operation, sig:%p", pContext, pContext->signature);
+  void *sig = atomic_val_compare_exchange_ptr(&pContext->signature, pContext, 0);
+  if (sig == NULL) {
     httpTrace("context:%p is freed by another thread.", pContext);
     return;
   }
@@ -527,8 +527,8 @@ void httpAcceptHttpConnection(void *arg) {
       totalFds += pServer->pThreads[i].numOfFds;
     }
 
-    if (totalFds > tsHttpCacheSessions * 20) {
-      httpError("fd:%d, ip:%s:%u, totalFds:%d larger than httpCacheSessions:%d*20, refuse connection",
+    if (totalFds > tsHttpCacheSessions * 100) {
+      httpError("fd:%d, ip:%s:%u, totalFds:%d larger than httpCacheSessions:%d*100, refuse connection",
               connFd, inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port), totalFds, tsHttpCacheSessions);
       taosCloseSocket(connFd);
       continue;

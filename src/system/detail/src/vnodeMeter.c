@@ -112,7 +112,7 @@ FILE *vnodeOpenMeterObjFile(int vnode) {
   fp = fopen(fileName, "r+");
   if (fp != NULL) {
     if (vnodeCheckFileIntegrity(fp) < 0) {
-      dError("file:%s is corrupted, need to restore it first", fileName);
+      dError("file:%s is corrupted, need to restore it first, exit program", fileName);
       fclose(fp);
 
       // todo: how to recover
@@ -376,7 +376,11 @@ int vnodeOpenMetersVnode(int vnode) {
 
   fseek(fp, TSDB_FILE_HEADER_LEN * 2 / 4, SEEK_SET);
   fread(&pVnode->cfg, sizeof(SVnodeCfg), 1, fp);
+
   if (vnodeIsValidVnodeCfg(&pVnode->cfg) == false) {
+    dError("vid:%d, maxSessions:%d cacheBlockSize:%d replications:%d daysPerFile:%d daysToKeep:%d invalid, clear it",
+            vnode, pVnode->cfg.maxSessions, pVnode->cfg.cacheBlockSize, pVnode->cfg.replications,
+            pVnode->cfg.daysPerFile, pVnode->cfg.daysToKeep);
     pVnode->cfg.maxSessions = 0;  // error in vnode file
     return 0;
   }
@@ -484,7 +488,7 @@ int vnodeCreateMeterObj(SMeterObj *pNew, SConnSec *pSec) {
     vnodeSaveMeterObjToFile(pNew);
     // vnodeCreateMeterMgmt(pNew, pSec);
     vnodeCreateStream(pNew);
-    dTrace("vid:%d sid:%d id:%s, meterObj is created, uid:%ld", pNew->vnode, pNew->sid, pNew->meterId, pNew->uid);
+    dTrace("vid:%d, sid:%d id:%s, meterObj is created, uid:%ld", pNew->vnode, pNew->sid, pNew->meterId, pNew->uid);
   }
 
   return code;

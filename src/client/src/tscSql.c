@@ -64,12 +64,8 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 
 #ifdef CLUSTER
   if (ip && ip[0]) {
-    tscMgmtIpList.numOfIps = 2;
     strcpy(tscMgmtIpList.ipstr[0], ip);
     tscMgmtIpList.ip[0] = inet_addr(ip);
-
-    strcpy(tscMgmtIpList.ipstr[1], ip);
-    tscMgmtIpList.ip[1] = inet_addr(ip);
   }
 #else
   if (ip && ip[0]) {
@@ -157,7 +153,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   if (ip == NULL || (ip != NULL && (strcmp("127.0.0.1", ip) == 0 || strcasecmp("localhost", ip) == 0))) {
 #ifdef CLUSTER
-    ip = tsPrivateIp;
+    ip = tsMasterIp;
 #else
     ip = tsServerIpStr;
 #endif

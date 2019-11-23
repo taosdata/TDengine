@@ -20,6 +20,7 @@
 #include "mgmtBalance.h"
 #include "mgmtUtil.h"
 #include "tschemautil.h"
+#include "tstatus.h"
 
 void *dbSdb = NULL;
 int   tsDbUpdateSize;
@@ -141,7 +142,7 @@ int mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   if (pCreate->cacheNumOfBlocks.fraction < 0) pCreate->cacheNumOfBlocks.fraction = tsAverageCacheBlocks;  //
   //-1 for balance
 
-  if (pCreate->replications <= 0 || pCreate->replications > TSDB_REPLICA_MAX_NUM) {
+  if (pCreate->replications < 0 || pCreate->replications > TSDB_REPLICA_MAX_NUM) {
     mTrace("invalid db option replications: %d", pCreate->replications);
     return TSDB_CODE_INVALID_OPTION;
   }
@@ -281,8 +282,8 @@ int mgmtSetDbDropping(SDbObj *pDb) {
       if (pDnode == NULL) continue;
 
       SVnodeLoad *pVload = &pDnode->vload[pVnodeGid->vnode];
-      if (pVload->dropStatus != TSDB_VN_STATUS_DROPPING) {
-        pVload->dropStatus = TSDB_VN_STATUS_DROPPING;
+      if (pVload->dropStatus != TSDB_VN_DROP_STATUS_DROPPING) {
+        pVload->dropStatus = TSDB_VN_DROP_STATUS_DROPPING;
 
         mPrint("dnode:%s vnode:%d db:%s set to dropping status", taosIpStr(pDnode->privateIp), pVnodeGid->vnode, pDb->name);
         if (mgmtUpdateDnode(pDnode) < 0) {
@@ -315,10 +316,10 @@ bool mgmtCheckDropDbFinished(SDbObj *pDb) {
       SDnodeObj *pDnode = mgmtGetDnode(pVnodeGid->ip);
 
       if (pDnode == NULL) continue;
-      if (pDnode->status == TSDB_DNODE_STATUS_OFFLINE) continue;
+      if (pDnode->status == TSDB_DN_STATUS_OFFLINE) continue;
 
       SVnodeLoad *pVload = &pDnode->vload[pVnodeGid->vnode];
-      if (pVload->dropStatus == TSDB_VN_STATUS_DROPPING) {
+      if (pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
         mTrace("dnode:%s, vnode:%d db:%s wait dropping", taosIpStr(pDnode->privateIp), pVnodeGid->vnode, pDb->name);
         return false;
       }
@@ -444,7 +445,7 @@ int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
 
   SVgObj *pVgroup = pDb->pHead;
   while (pVgroup != NULL) {
-    mgmtUpdateVgroupState(pVgroup, LB_VGROUP_STATE_UPDATE, 0);
+    mgmtUpdateVgroupState(pVgroup, TSDB_VG_LB_STATUS_UPDATE, 0);
     if (oldReplicaNum < pDb->cfg.replications) {
       if (!mgmtAddVnode(pVgroup, NULL, NULL)) {
         mWarn("db:%s vgroup:%d not enough dnode to add vnode", pAlter->db, pVgroup->vgId);

@@ -28,6 +28,7 @@
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
 #include "vnodeStore.h"
+#include "tstatus.h"
 
 #pragma GCC diagnostic ignored "-Wint-conversion"
 extern int tsMaxQueues;
@@ -90,7 +91,7 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   // if ( vnodeList[vnode].status != TSDB_STATUS_MASTER && pMsg->msgType != TSDB_MSG_TYPE_RETRIEVE ) {
 
 #ifdef CLUSTER
-  if (vnodeList[vnode].vnodeStatus != TSDB_VNODE_STATUS_MASTER) {
+  if (vnodeList[vnode].vnodeStatus != TSDB_VN_STATUS_MASTER) {
     taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_NOT_READY);
     dTrace("vid:%d sid:%d, shell msg is ignored since in state:%d", vnode, sid, vnodeList[vnode].vnodeStatus);
   } else {
@@ -177,7 +178,7 @@ int vnodeOpenShellVnode(int vnode) {
     return -1;
   }
 
-  dTrace("vid:%d, sessions:%d, shell is opened", vnode, pCfg->maxSessions);
+  dPrint("vid:%d, sessions:%d, shell is opened", vnode, pCfg->maxSessions);
   return TSDB_CODE_SUCCESS;
 }
 

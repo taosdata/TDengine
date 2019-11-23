@@ -43,6 +43,11 @@ int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   SMeterCfgMsg *pCfg = (SMeterCfgMsg *)cont;
   SVgObj *      pVgroup;
 
+  if (!sdbMaster) {
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_METER_CFG_RSP, TSDB_CODE_REDIRECT);
+    return 0;
+  }
+
   int vnode = htonl(pCfg->vnode);
   int sid = htonl(pCfg->sid);
 
@@ -51,6 +56,7 @@ int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
     taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_METER_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return 0;
   }
+
   pMsg = pStart;
 
   if (vnode < pObj->numOfVnodes) {
@@ -87,10 +93,18 @@ int mgmtProcessVpeerCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   SVpeerCfgMsg *pCfg = (SVpeerCfgMsg *)cont;
   SVgObj *      pVgroup = NULL;
 
+  if (!sdbMaster) {
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VPEER_CFG_RSP, TSDB_CODE_REDIRECT);
+    return 0;
+  }
+
   int vnode = htonl(pCfg->vnode);
 
   pStart = taosBuildRspMsgToDnode(pObj, TSDB_MSG_TYPE_VPEER_CFG_RSP);
-  if (pStart == NULL) return 0;
+  if (pStart == NULL) {
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VPEER_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
+    return 0;
+  }
   pMsg = pStart;
 
   if (vnode < pObj->numOfVnodes) pVgroup = mgmtGetVgroup(pObj->vload[vnode].vgId);
@@ -99,7 +113,7 @@ int mgmtProcessVpeerCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
     *pMsg = 0;
     pMsg++;
     pMsg = mgmtBuildVpeersIe(pMsg, pVgroup, vnode);
-    mTrace("dnode:%s, vnode:%d, vgroup:%d, send create meter msg, code:%d", taosIpStr(pObj->privateIp), vnode, pVgroup->vgId, *pMsg);
+    mTrace("dnode:%s, vnode:%d, vgroup:%d, send create vnode msg, code:%d", taosIpStr(pObj->privateIp), vnode, pVgroup->vgId, *pMsg);
   } else {
     mTrace("dnode:%s, vnode:%d, no vgroup info, vgroup:%d", taosIpStr(pObj->privateIp), vnode, pObj->vload[vnode].vgId);
     *pMsg = TSDB_CODE_NOT_ACTIVE_VNODE;
@@ -121,6 +135,11 @@ int mgmtProcessFreeVnodeRsp(char *msg, int msgLen, SDnodeObj *pObj) { return 0; 
 int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
   STaosRsp *pRsp = (STaosRsp *)msg;
 
+  if (!sdbMaster) {
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VPEERS_RSP, TSDB_CODE_REDIRECT);
+    return 0;
+  }
+
   SDbObj *pDb = mgmtGetDb(pRsp->more);
   if (!pDb) {
     mError("dnode:%s, db not find, code:%d", taosIpStr(pObj->privateIp), pRsp->code);
@@ -128,7 +147,8 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
   }
 
   if (pDb->vgStatus != TSDB_VG_STATUS_IN_PROGRESS) {
-    mTrace("dnode:%s, db:%s vpeer rsp already disposed, vgroup status:%d code:%d", taosIpStr(pObj->privateIp), pRsp->more, pDb->vgStatus, pRsp->code);
+    mTrace("dnode:%s, db:%s vpeer rsp already disposed, vgroup status:%s code:%d",
+            taosIpStr(pObj->privateIp), pRsp->more, taosGetVgroupStatusStr(pDb->vgStatus), pRsp->code);
     return 0;
   }
 

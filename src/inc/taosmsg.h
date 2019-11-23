@@ -583,7 +583,7 @@ typedef struct {
   int64_t  compStorage;
   int64_t  pointsWritten;
   uint8_t  syncStatus;
-  uint8_t  reserved;
+  uint8_t  reserved[15];
 } SVnodeLoad;
 
 typedef struct {
@@ -594,7 +594,12 @@ typedef struct {
 // NOTE: sizeof(SVnodeCfg) < TSDB_FILE_HEADER_LEN/4
 typedef struct {
   char     acct[TSDB_USER_LEN];
-  char     db[TSDB_METER_ID_LEN+2]; // 8bytes align
+  /*
+   * the message is too large, so it may will overwrite the cfg information in meterobj.v*
+   * recover to origin codes
+   */
+  //char     db[TSDB_METER_ID_LEN+2]; // 8bytes align
+  char     db[TSDB_DB_NAME_LEN];
   uint32_t vgId;
   int32_t  maxSessions;
   int32_t  cacheBlockSize;

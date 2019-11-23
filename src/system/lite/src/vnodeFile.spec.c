@@ -97,7 +97,7 @@ int vnodeCheckNewHeaderFile(int fd, SVnodeObj *pVnode) {
   }
 
     _correct_exit:
-  dTrace("vid: %d new header file %s is correct", pVnode->vnode, pVnode->nfn);
+  dPrint("vid: %d new header file %s is correct", pVnode->vnode, pVnode->nfn);
   tfree(pBlocks);
   tfree(pHeader);
   return 0;

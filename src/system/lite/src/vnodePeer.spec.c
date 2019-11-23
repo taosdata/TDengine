@@ -31,8 +31,8 @@ void vnodeBroadcastStatusToUnsyncedPeer(SVnodeObj *pVnode) {}
 
 int vnodeOpenPeerVnode(int vnode) {
   SVnodeObj *pVnode = vnodeList + vnode;
-  pVnode->vnodeStatus = (pVnode->cfg.replications > 1) ? TSDB_VNODE_STATUS_UNSYNCED : TSDB_VNODE_STATUS_MASTER;
-  dTrace("vid:%d, status:%s numOfPeers:%d", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus), pVnode->cfg.replications - 1);
+  pVnode->vnodeStatus = (pVnode->cfg.replications > 1) ? TSDB_VN_STATUS_UNSYNCED : TSDB_VN_STATUS_MASTER;
+  dPrint("vid:%d, status:%s numOfPeers:%d", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus), pVnode->cfg.replications - 1);
   vnodeUpdateStreamRole(pVnode);
   return 0;
 }
