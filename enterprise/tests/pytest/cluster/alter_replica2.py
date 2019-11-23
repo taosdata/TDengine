@@ -189,11 +189,10 @@ class TDTestCase:
     tdLog.info("================= step10")
     queryRows = tdSql.query('show vgroups')
     for i in range(queryRows):
-      print('vnode status: %s:%s:%s' \
-             %(tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5)))
+      tdLog.info('Vgid%s: %s:%s:%s' \
+             %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5)))
     
     tdLog.info("================= step11")
-    tdLog.sleep(5)
     self.replica = 2
     tdLog.info('alter database db replica %d' %self.replica)
     tdSql.execute('alter database db replica %d' %self.replica)
@@ -234,7 +233,7 @@ class TDTestCase:
     tdLog.info("================= step13")
     queryRows = tdSql.query('show vgroups')
     for i in range(queryRows):
-      print('Vgid%s: %s:%s:%s|%s:%s:%s' \
+      tdLog.info('Vgid%s: %s:%s:%s|%s:%s:%s' \
              %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
                tdSql.getData(i,7),tdSql.getData(i,8),tdSql.getData(i,9)))
 
@@ -279,7 +278,7 @@ class TDTestCase:
     tdLog.info("================= step16")
     queryRows = tdSql.query('show vgroups')
     for i in range(queryRows):
-      print('Vgid%s: %s:%s:%s|%s:%s:%s|%s:%s:%s' \
+      tdLog.info('Vgid%s: %s:%s:%s|%s:%s:%s|%s:%s:%s' \
              %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
                tdSql.getData(i,7),tdSql.getData(i,8),tdSql.getData(i,9),\
                tdSql.getData(i,11),tdSql.getData(i,12),tdSql.getData(i,13)))
