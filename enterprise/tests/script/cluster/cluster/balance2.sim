@@ -36,14 +36,14 @@ system sh/cfg.sh -n dnode6 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode7 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode8 -c numOfMPeers -v 3
 
-system sh/cfg.sh -n dnode1 -c clog -v 0
-system sh/cfg.sh -n dnode2 -c clog -v 0
-system sh/cfg.sh -n dnode3 -c clog -v 0
-system sh/cfg.sh -n dnode4 -c clog -v 0
-system sh/cfg.sh -n dnode5 -c clog -v 0
-system sh/cfg.sh -n dnode6 -c clog -v 0
-system sh/cfg.sh -n dnode7 -c clog -v 0
-system sh/cfg.sh -n dnode8 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c clog -v 1
+system sh/cfg.sh -n dnode2 -c clog -v 1
+system sh/cfg.sh -n dnode3 -c clog -v 1
+system sh/cfg.sh -n dnode4 -c clog -v 1
+system sh/cfg.sh -n dnode5 -c clog -v 1
+system sh/cfg.sh -n dnode6 -c clog -v 1
+system sh/cfg.sh -n dnode7 -c clog -v 1
+system sh/cfg.sh -n dnode8 -c clog -v 1
 
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
@@ -96,7 +96,7 @@ sql insert into c_b2_t3 values(1520000024031, 31)
 $x = 0
 show1: 
 	$x = $x + 1
-	sleep 1000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -126,7 +126,7 @@ sleep 9000
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 2000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -178,7 +178,7 @@ sleep 10000
 $x = 0
 show3: 
 	$x = $x + 1
-	sleep 2000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -218,7 +218,7 @@ sleep 9000
 $x = 0
 show4: 
 	$x = $x + 1
-	sleep 2000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -271,7 +271,7 @@ $x = 0
 show5: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show5
@@ -316,7 +316,7 @@ $x = 0
 show6: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show6
@@ -387,7 +387,7 @@ show7:
 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show7
@@ -438,7 +438,7 @@ $x = 0
 show8: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show8
@@ -484,7 +484,7 @@ $x = 0
 show9: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show9
@@ -554,7 +554,7 @@ show10:
 	
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show10
@@ -614,7 +614,7 @@ $x = 0
 show11: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show11

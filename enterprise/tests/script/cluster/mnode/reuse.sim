@@ -9,8 +9,8 @@ system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.2
 
 print ========== step1 dnode1 start
 system sh/exec.sh -n dnode1 -s start
-sql connect
 sleep 3000
+sql connect
 
 print ========== step2 connect to dnode1
 sql create dnode 192.168.0.2
