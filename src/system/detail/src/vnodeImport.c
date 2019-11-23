@@ -156,83 +156,13 @@ void vnodeGetValidDataRange(int vnode, TSKEY now, TSKEY *minKey, TSKEY *maxKey) 
   return;
 }
 
-void vnodeProcessImportTimer(void *param, void *tmrId) {
-  SImportInfo *pImport = (SImportInfo *)param;
-  if (pImport == NULL || pImport->signature != param) {
-    dError("import timer is messed up, signature:%p", pImport);
-    return;
-  }
-
-  SMeterObj * pObj = pImport->pObj;
-  SVnodeObj * pVnode = &vnodeList[pObj->vnode];
-  SCachePool *pPool = (SCachePool *)pVnode->pCachePool;
-  SShellObj * pShell = pImport->pShell;
-
-  pImport->retry++;
-
-  // slow query will block the import operation
-  int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_IMPORTING);
-  if (state >= TSDB_METER_STATE_DELETING) {
-    dError("vid:%d sid:%d id:%s, meter is deleted, failed to import, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
-           state);
-    return;
-  }
-
-  int32_t num = 0;
-  pthread_mutex_lock(&pVnode->vmutex);
-  num = pObj->numOfQueries;
-  pthread_mutex_unlock(&pVnode->vmutex);
-
-  // if the num == 0, it will never be increased before state is set to TSDB_METER_STATE_READY
-  int32_t commitInProcess = 0;
-  pthread_mutex_lock(&pPool->vmutex);
-  if (((commitInProcess = pPool->commitInProcess) == 1) || num > 0 || state != TSDB_METER_STATE_READY) {
-    pthread_mutex_unlock(&pPool->vmutex);
-    vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
-
-    if (pImport->retry < 1000) {
-      dTrace(
-          "vid:%d sid:%d id:%s, import failed, retry later. commit in process or queries on it, or not ready."
-          "commitInProcess:%d, numOfQueries:%d, state:%d",
-          pObj->vnode, pObj->sid, pObj->meterId, commitInProcess, num, state);
-
-      taosTmrStart(vnodeProcessImportTimer, 10, pImport, vnodeTmrCtrl);
-      return;
-    } else {
-      pShell->code = TSDB_CODE_TOO_SLOW;
-    }
-  } else {
-    pPool->commitInProcess = 1;
-    pthread_mutex_unlock(&pPool->vmutex);
-    int code = vnodeImportData(pObj, pImport);
-    if (pShell) {
-      pShell->code = code;
-      pShell->numOfTotalPoints += pImport->importedRows;
-    }
-  }
-
-  vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
-
-  pVnode->version++;
-
-  // send response back to shell
-  if (pShell) {
-    pShell->count--;
-    if (pShell->count <= 0) vnodeSendShellSubmitRspMsg(pImport->pShell, pShell->code, pShell->numOfTotalPoints);
-  }
-
-  pImport->signature = NULL;
-  free(pImport->opayload);
-  free(pImport);
-}
-
 int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, void *param, int sversion,
                       int *pNumOfPoints, TSKEY now) {
   SSubmitMsg *pSubmit = (SSubmitMsg *)cont;
   SVnodeObj * pVnode = vnodeList + pObj->vnode;
   int         rows = 0;
   char *      payload = NULL;
-  int         code = TSDB_CODE_ACTION_IN_PROGRESS;
+  int         code = TSDB_CODE_SUCCESS;
   SCachePool *pPool = (SCachePool *)(pVnode->pCachePool);
   SShellObj * pShell = (SShellObj *)param;
   int         pointsImported = 0;
@@ -243,14 +173,10 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
 
   if (firstKey > pObj->lastKey) {  // Just call insert
     vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
+    // TODO: Here may fail to set the state, add error handling.
     vnodeSetMeterState(pObj, TSDB_METER_STATE_INSERT);
-    code = vnodeInsertPoints(pObj, cont, contLen, TSDB_DATA_SOURCE_LOG, NULL, sversion, &pointsImported, now);
-
-    if (pShell) {
-      pShell->code = code;
-      pShell->numOfTotalPoints += pointsImported;
-    }
-
+    code = vnodeInsertPoints(pObj, cont, contLen, TSDB_DATA_SOURCE_LOG, NULL, sversion, pNumOfPoints, now);
+    // TODO: outside clear state function is invalid for this structure
     vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);
   } else {  // trigger import
     {
@@ -290,7 +216,7 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
       }
     }
 
-    SImportInfo *pNew, import;
+    SImportInfo import;
 
     dTrace("vid:%d sid:%d id:%s, try to import %d rows data, firstKey:%ld, lastKey:%ld, object lastKey:%ld",
            pObj->vnode, pObj->sid, pObj->meterId, rows, firstKey, lastKey, pObj->lastKey);
@@ -315,40 +241,17 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     if (((commitInProcess = pPool->commitInProcess) == 1) ||
         num > 0) {  // mutual exclusion with read (need to change here)
       pthread_mutex_unlock(&pPool->vmutex);
-
-      pNew = (SImportInfo *)malloc(sizeof(SImportInfo));
-      memcpy(pNew, &import, sizeof(SImportInfo));
-      pNew->signature = pNew;
-      int payloadLen = contLen - sizeof(SSubmitMsg);
-      pNew->payload = malloc(payloadLen);
-      pNew->opayload = pNew->payload;
-      memcpy(pNew->payload, payload, payloadLen);
-
-      dTrace("vid:%d sid:%d id:%s, import later, commit in process:%d, numOfQueries:%d", pObj->vnode, pObj->sid,
-             pObj->meterId, commitInProcess, pObj->numOfQueries);
-
-      taosTmrStart(vnodeProcessImportTimer, 10, pNew, vnodeTmrCtrl);
-      return 0;
+      return TSDB_CODE_ACTION_IN_PROGRESS;
     } else {
       pPool->commitInProcess = 1;
       pthread_mutex_unlock(&pPool->vmutex);
       int code = vnodeImportData(pObj, &import);
-      if (pShell) {
-        pShell->code = code;
-        pShell->numOfTotalPoints += import.importedRows;
-      }
+      *pNumOfPoints = import.importedRows;
     }
+    pVnode->version++;
   }
 
-  // How about the retry? Will this also cause vnode version++?
-  pVnode->version++;
-
-  if (pShell) {
-    pShell->count--;
-    if (pShell->count <= 0) vnodeSendShellSubmitRspMsg(pShell, pShell->code, pShell->numOfTotalPoints);
-  }
-
-  return 0;
+  return code;
 }
 
 /* Function to search keys in a range

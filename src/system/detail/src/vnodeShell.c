@@ -38,9 +38,20 @@ SShellObj **shellList = NULL;
 int vnodeProcessRetrieveRequest(char *pMsg, int msgLen, SShellObj *pObj);
 int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj);
 int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj);
+static void vnodeProcessBatchImportTimer(void *param, void *tmrId);
 
 int vnodeSelectReqNum = 0;
 int vnodeInsertReqNum = 0;
+
+typedef struct {
+  int32_t import;
+  int32_t vnode;
+  int32_t numOfSid;
+  int32_t ssid;   // Start sid
+  SShellObj *pObj;
+  int64_t offset; // offset relative the blks
+  char    blks[];
+} SBatchImportInfo;
 
 void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   int        sid, vnode;
@@ -242,6 +253,7 @@ int vnodeSendShellSubmitRspMsg(SShellObj *pObj, int code, int numOfPoints) {
   char *pMsg, *pStart;
   int   msgLen;
 
+  dTrace("code:%d numOfTotalPoints:%d", code, numOfPoints);
   pStart = taosBuildRspMsgWithSize(pObj->thandle, TSDB_MSG_TYPE_SUBMIT_RSP, 128);
   if (pStart == NULL) return -1;
   pMsg = pStart;
@@ -273,6 +285,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   }
 
   if (pQueryMsg->numOfSids <= 0) {
+    dError("Invalid number of meters to query, numOfSids:%d", pQueryMsg->numOfSids);
     code = TSDB_CODE_INVALID_QUERY_MSG;
     goto _query_over;
   }
@@ -482,10 +495,37 @@ int vnodeProcessRetrieveRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   return msgLen;
 }
 
+static int vnodeCheckSubmitBlockContext(SShellSubmitBlock *pBlocks, SVnodeObj *pVnode) {
+  int32_t  sid = htonl(pBlocks->sid);
+  uint64_t uid = htobe64(pBlocks->uid);
+
+  if (sid >= pVnode->cfg.maxSessions || sid <= 0) {
+    dError("sid:%d is out of range", sid);
+    return TSDB_CODE_INVALID_TABLE_ID;
+  }
+
+  SMeterObj *pMeterObj = pVnode->meterList[sid];
+  if (pMeterObj == NULL) {
+    dError("vid:%d sid:%d, no active table", pVnode->vnode, sid);
+    vnodeSendMeterCfgMsg(pVnode->vnode, sid);
+    return TSDB_CODE_NOT_ACTIVE_TABLE;
+  }
+
+  if (pMeterObj->uid != uid) {
+    dError("vid:%d sid:%d, meterId:%s, uid:%lld, uid in msg:%lld, uid mismatch", pVnode->vnode, sid, pMeterObj->meterId,
+           pMeterObj->uid, uid);
+    return TSDB_CODE_INVALID_SUBMIT_MSG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   int              code = 0, ret = 0;
+  int32_t          i = 0;
   SShellSubmitMsg  shellSubmit = *(SShellSubmitMsg *)pMsg;
   SShellSubmitMsg *pSubmit = &shellSubmit;
+  SShellSubmitBlock *pBlocks = NULL;
 
   pSubmit->vnode = htons(pSubmit->vnode);
   pSubmit->numOfSid = htonl(pSubmit->numOfSid);
@@ -524,67 +564,41 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   pObj->count = pSubmit->numOfSid;  // for import
   pObj->code = 0;                   // for import
   pObj->numOfTotalPoints = 0;       // for import
-  SShellSubmitBlock *pBlocks = (SShellSubmitBlock *)(pMsg + sizeof(SShellSubmitMsg));
 
   int32_t numOfPoints = 0;
   int32_t numOfTotalPoints = 0;
   // We take current time here to avoid it in the for loop.
   TSKEY   now = taosGetTimestamp(pVnode->cfg.precision);
 
-  for (int32_t i = 0; i < pSubmit->numOfSid; ++i) {
+  pBlocks = (SShellSubmitBlock *)(pMsg + sizeof(SShellSubmitMsg));
+  for (i = 0; i < pSubmit->numOfSid; ++i) {
     numOfPoints = 0;
 
-    pBlocks->sid = htonl(pBlocks->sid);
-    pBlocks->uid = htobe64(pBlocks->uid);
+    code = vnodeCheckSubmitBlockContext(pBlocks, pVnode);
+    if (code != TSDB_CODE_SUCCESS) break;
 
-    if (pBlocks->sid >= pVnode->cfg.maxSessions || pBlocks->sid <= 0) {
-      dTrace("sid:%d is out of range", pBlocks->sid);
-      code = TSDB_CODE_INVALID_TABLE_ID;
-      goto _submit_over;
-    }
-
-    int vnode = pSubmit->vnode;
-    int sid = pBlocks->sid;
-
-    SMeterObj *pMeterObj = vnodeList[vnode].meterList[sid];
-    if (pMeterObj == NULL) {
-      dError("vid:%d sid:%d, no active table", vnode, sid);
-      vnodeSendMeterCfgMsg(vnode, sid);
-      code = TSDB_CODE_NOT_ACTIVE_TABLE;
-      goto _submit_over;
-    }
-
-    if (pMeterObj->uid != pBlocks->uid) {
-      dError("vid:%d sid:%d, meterId:%s, uid:%lld, uid in msg:%lld, uid mismatch", vnode, sid, pMeterObj->meterId,
-             pMeterObj->uid, pBlocks->uid);
-      code = TSDB_CODE_INVALID_SUBMIT_MSG;
-      goto _submit_over;
-    }
-
+    SMeterObj *pMeterObj = (SMeterObj *)(pVnode->meterList[htonl(pBlocks->sid)]);
     // dont include sid, vid
-    int subMsgLen = sizeof(pBlocks->numOfRows) + htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint;
-    int sversion = htonl(pBlocks->sversion);
+    int32_t subMsgLen = sizeof(pBlocks->numOfRows) + htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint;
+    int32_t sversion = htonl(pBlocks->sversion);
 
     int32_t state = TSDB_METER_STATE_READY;
-    if (pSubmit->import) {
-      state = vnodeSetMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
-    } else {
-      state = vnodeSetMeterState(pMeterObj, TSDB_METER_STATE_INSERT);
-    }
+    state = vnodeSetMeterState(pMeterObj, (pSubmit->import ? TSDB_METER_STATE_IMPORTING : TSDB_METER_STATE_INSERT));
 
-    if (state == TSDB_METER_STATE_READY) {
-      // meter status is ready for insert/import
+    if (state == TSDB_METER_STATE_READY) { // meter status is ready for insert/import
       if (pSubmit->import) {
         code = vnodeImportPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
                                  sversion, &numOfPoints, now);
         vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
+        pObj->numOfTotalPoints += numOfPoints;
+        if (code == TSDB_CODE_SUCCESS) pObj->count--;
       } else {
         code = vnodeInsertPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, NULL,
                                  sversion, &numOfPoints, now);
         vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_INSERT);
+        numOfTotalPoints += numOfPoints;
       }
-
-      if (code != TSDB_CODE_SUCCESS) {break;}
+      if (code != TSDB_CODE_SUCCESS) break;
     } else {
       if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DELETING)) {
         dTrace("vid:%d sid:%d id:%s, it is removed, state:%d", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId,
@@ -600,15 +614,103 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
       }
     }
 
-    numOfTotalPoints += numOfPoints;
     pBlocks = (SShellSubmitBlock *)((char *)pBlocks + sizeof(SShellSubmitBlock) +
                                     htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint);
   }
 
 _submit_over:
-  // for import, send the submit response only when return code is not zero
-  if (pSubmit->import == 0 || code != 0) ret = vnodeSendShellSubmitRspMsg(pObj, code, numOfTotalPoints);
+  ret = 0;
+  if (pSubmit->import) {  // Import case
+    if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+
+      SBatchImportInfo *pImportInfo =
+          (SBatchImportInfo *)calloc(1, sizeof(SBatchImportInfo) + msgLen - sizeof(SShellSubmitMsg));
+      if (pImportInfo == NULL) {
+        code = TSDB_CODE_SERV_OUT_OF_MEMORY;
+        ret = vnodeSendShellSubmitRspMsg(pObj, code, pObj->numOfTotalPoints);
+      } else { // Start a timer to process the next part of request
+        pImportInfo->import = 1;
+        pImportInfo->vnode = pSubmit->vnode;
+        pImportInfo->numOfSid = pSubmit->numOfSid;
+        pImportInfo->ssid = i;
+        pImportInfo->pObj = pObj;
+        pImportInfo->offset = ((char *)pBlocks) - (pMsg + sizeof(SShellSubmitMsg));
+        assert(pImportInfo->offset >= 0);
+        memcpy((void *)(pImportInfo->blks), (void *)(pMsg + sizeof(SShellSubmitMsg)), msgLen - sizeof(SShellSubmitMsg));
+        taosTmrStart(vnodeProcessBatchImportTimer, 10, (void *)pImportInfo, vnodeTmrCtrl);
+      }
+    } else {
+      if (code == TSDB_CODE_SUCCESS) assert(pObj->count == 0);
+      ret = vnodeSendShellSubmitRspMsg(pObj, code, pObj->numOfTotalPoints);
+    }
+  } else {  // Insert case
+    ret = vnodeSendShellSubmitRspMsg(pObj, code, numOfTotalPoints);
+  }
 
   atomic_fetch_add_32(&vnodeInsertReqNum, 1);
   return ret;
+}
+
+static void vnodeProcessBatchImportTimer(void *param, void *tmrId) {
+  SBatchImportInfo *pImportInfo = (SBatchImportInfo *)param;
+  assert(pImportInfo != NULL && pImportInfo->import);
+
+  int32_t i = 0, numOfPoints = 0, numOfTotalPoints = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SShellObj *        pShell = pImportInfo->pObj;
+  SVnodeObj *        pVnode = &vnodeList[pImportInfo->vnode];
+  SShellSubmitBlock *pBlocks = (SShellSubmitBlock *)(pImportInfo->blks + pImportInfo->offset);
+  TSKEY   now = taosGetTimestamp(pVnode->cfg.precision);
+
+  for (i = pImportInfo->ssid; i < pImportInfo->numOfSid; i++) {
+    numOfPoints = 0;
+
+    code = vnodeCheckSubmitBlockContext(pBlocks, pVnode);
+    if (code != TSDB_CODE_SUCCESS) break;
+
+    SMeterObj *pMeterObj = (SMeterObj *)(pVnode->meterList[htonl(pBlocks->sid)]);
+    // dont include sid, vid
+    int32_t subMsgLen = sizeof(pBlocks->numOfRows) + htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint;
+    int32_t sversion = htonl(pBlocks->sversion);
+
+    int32_t state = TSDB_METER_STATE_READY;
+    state = vnodeSetMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
+
+    if (state == TSDB_METER_STATE_READY) {  // meter status is ready for insert/import
+      code = vnodeImportPoints(pMeterObj, (char *)&(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pShell,
+                               sversion, &numOfPoints, now);
+      vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
+      pShell->numOfTotalPoints += numOfPoints;
+      if (code != TSDB_CODE_SUCCESS) break;
+      pShell->count--;
+    } else {
+      if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DELETING)) {
+        dTrace("vid:%d sid:%d id:%s, it is removed, state:%d", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId,
+               pMeterObj->state);
+        code = TSDB_CODE_NOT_ACTIVE_TABLE;
+        break;
+      } else {  // waiting for 300ms by default and try again
+        dTrace("vid:%d sid:%d id:%s, try submit again since in state:%d", pMeterObj->vnode, pMeterObj->sid,
+               pMeterObj->meterId, pMeterObj->state);
+
+        code = TSDB_CODE_ACTION_IN_PROGRESS;
+        break;
+      }
+    }
+
+    pBlocks = (SShellSubmitBlock *)((char *)pBlocks + sizeof(SShellSubmitBlock) +
+                                    htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint);
+  }
+
+  int ret = 0;
+  if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+    pImportInfo->ssid = i;
+    pImportInfo->offset = ((char *)pBlocks) - pImportInfo->blks;
+    taosTmrStart(vnodeProcessBatchImportTimer, 10, (void *)pImportInfo, vnodeTmrCtrl);
+  } else {
+    if (code == TSDB_CODE_SUCCESS) assert(pShell->count == 0);
+    tfree(param);
+    ret = vnodeSendShellSubmitRspMsg(pShell, code, pShell->numOfTotalPoints);
+  }
 }
