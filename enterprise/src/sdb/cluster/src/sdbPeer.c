@@ -83,6 +83,27 @@ void sdbUpdateIpList();
 void sdbCheckSelfRole();
 int sdbProcessCfgMnodeMsg(char *cont, int contLen, SSdbPeer *pPeer);
 
+const char *taosGetSdbRoleStr(int sdbRole) {
+  switch (sdbRole) {
+    case SDB_ROLE_UNAPPROVED: return "unapproved";
+    case SDB_ROLE_UNDECIDED:  return "undecided";
+    case SDB_ROLE_MASTER:     return "master";
+    case SDB_ROLE_SLAVE:      return "slave";
+    default:                  return "undefined";
+  }
+}
+
+const char *taosGetSdbStatusStr(int status) {
+  switch (status) {
+    case SDB_STATUS_OFFLINE:  return "offline";
+    case SDB_STATUS_UNSYNCED: return "unsynced";
+    case SDB_STATUS_SYNCING:  return "syncing";
+    case SDB_STATUS_SERVING:  return "serving";
+    case SDB_STATUS_DELETED:  return "deleted";
+    default:                  return "undefined";
+  }
+}
+
 void sdbProcessForwardRequest(SSchedMsg *pSchedMsg) {
   SIntMsg * pMsg = (SIntMsg *)pSchedMsg->msg;
   SSdbPeer *pPeer = (SSdbPeer *)pSchedMsg->ahandle;
@@ -689,7 +710,7 @@ void sdbUpdateIpList() {
     if (sdbPeer[i]->role == SDB_ROLE_MASTER) {
       pSdbIpList->ip[numOfIps] = sdbPeer[i]->ip;
       pSdbPublicIpList->ip[numOfIps] = sdbPeer[i]->publicIp;
-      sdbTrace("index:%d ip:%s publicIp:%s", numOfIps, taosIpStr(pSdbIpList->ip[numOfIps]), taosIpStr(pSdbPublicIpList->ip[numOfIps]));
+      sdbTrace("index:%d ip:%s publicIp:%s is master", numOfIps, taosIpStr(pSdbIpList->ip[numOfIps]), taosIpStr(pSdbPublicIpList->ip[numOfIps]));
       numOfIps++;
 
       break;
@@ -737,14 +758,16 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
   }
 
   sdbRoleTimer = NULL;
-  sdbTrace("check role status, self status:%d self role:%d", pSelf->status, pSelf->role);
+  sdbTrace("check role status, self status:%s self role:%s",
+          taosGetSdbStatusStr(pSelf->status), taosGetSdbRoleStr(pSelf->role));
 
   for (i = 0; i < SDB_MAX_PEERS; ++i) {
     pPeer = sdbPeer[i];
     if (pPeer == NULL || pPeer->status == SDB_STATUS_DELETED) continue;
 
     if (pPeer->role == SDB_ROLE_MASTER && pPeer->status == SDB_STATUS_SERVING) {
-      sdbTrace("master:%s is there, self status:%d role:%d", pPeer->ipstr, pSelf->status, pSelf->role);
+      sdbTrace("master:%s is there, self status:%s role:%s",
+              pPeer->ipstr, taosGetSdbStatusStr(pSelf->status), taosGetSdbRoleStr(pSelf->role));
       if (pPeer != pSelf) {
         pSelf->role = SDB_ROLE_SLAVE;
         if (pSelf->status != SDB_STATUS_SYNCING) pSelf->status = SDB_STATUS_SERVING;
@@ -760,23 +783,47 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
 
   for (i = 0; i < SDB_MAX_PEERS; ++i) {
     pPeer = sdbPeer[i];
-    if (pPeer != NULL)
-      sdbTrace(
-          "peerId: %d, ipstr: %s, role: %d, dbVersion: %ld, status: %d, "
-          "numOfMnodes: %d, numOfDnodes: %d",
-          i, pPeer->ipstr, pPeer->role, pPeer->dbVersion, pPeer->status, pPeer->numOfMnodes, pPeer->numOfDnodes);
-    if (pPeer == NULL || pPeer->status == SDB_STATUS_DELETED) continue;
-    if (pPeer->dbVersion < dbVersion) continue;
+    if (pPeer == NULL) continue;
+
+    if (pPeer != NULL) {
+      sdbTrace("id:%d, peer:%s, role:%s, dbVersion:%ld, status:%s, numOfMnodes:%d, numOfDnodes:%d",
+               i, pPeer->ipstr, taosGetSdbRoleStr(pPeer->role), pPeer->dbVersion,
+               taosGetSdbStatusStr(pPeer->status), pPeer->numOfMnodes, pPeer->numOfDnodes);
+    }
+
+    if (pPeer->status == SDB_STATUS_DELETED) {
+      sdbTrace("peer:%s, is deleting, give up", pPeer->ipstr);
+      continue;
+    }
+
+    if (pPeer->dbVersion < dbVersion) {
+      sdbTrace("peer:%s, version:%d < current version:%d, give up", pPeer->ipstr, pPeer->dbVersion, dbVersion);
+      continue;
+    }
     if (pPeer->dbVersion > dbVersion) {
       dbVersion = pPeer->dbVersion;
       pos = -1;
       maxIp = 0;
     }
 
-    if (pPeer->numOfDnodes <= 0) continue;
-    if (pPeer->status == SDB_STATUS_SYNCING) continue;
-    if (pPeer->status == SDB_STATUS_OFFLINE) continue;
-    if ((pPeer->numOfMnodes + 1.0) / sdbNumOfPeers < 0.5) continue;
+    if (pPeer->numOfDnodes <= 0) {
+      sdbTrace("peer:%s, numOfDnodes:%d <= 0, give up", pPeer->ipstr, pPeer->numOfDnodes);
+      continue;
+    }
+
+    if (pPeer->status == SDB_STATUS_SYNCING) {
+      sdbTrace("peer:%s, status is syncing, give up", pPeer->ipstr);
+      continue;
+    }
+
+    if (pPeer->status == SDB_STATUS_OFFLINE) {
+      sdbTrace("peer:%s, status is offline, give up", pPeer->ipstr);
+      continue;
+    }
+    if ((pPeer->numOfMnodes + 1.0) / sdbNumOfPeers < 0.5) {
+      sdbTrace("peer:%s, average numOfMnodes:%f < 0.5, give up", pPeer->ipstr, (pPeer->numOfMnodes + 1.0) / sdbNumOfPeers);
+      continue;
+    }
 
     if ((pPeer->dbVersion == dbVersion) && (pPeer->ip > maxIp)) {
       maxIp = pPeer->ip;
@@ -784,10 +831,17 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
     }
   }
 
-  if (pos >= 0 && pos < SDB_MAX_PEERS) sdbTrace("%s shall work as master", sdbPeer[pos]->ipstr);
+  if (pos >= 0 && pos < SDB_MAX_PEERS) {
+    sdbTrace("%s shall work as master", sdbPeer[pos]->ipstr);
+  }
 
-  if ((pos == 0) && ((pSelf->status == SDB_STATUS_SERVING) || (pSelf->numOfMnodes >= sdbNumOfPeers - 1))) {
-    sdbWorkAsMaster();
+  if (pos == 0) {
+    if ((pSelf->status == SDB_STATUS_SERVING) || (pSelf->numOfMnodes >= sdbNumOfPeers - 1)) {
+      sdbWorkAsMaster();
+    } else {
+      sdbTrace("%s self status:%s numOfMnodes:%d sdbNumOfPeers:%d, can not work as master",
+              sdbPeer[pos]->ipstr, taosGetSdbStatusStr(pSelf->status), pSelf->numOfMnodes, sdbNumOfPeers);
+    }
   }
 
   taosTmrReset(sdbCheckRoleStatus, tsMgmtPeerHBTimer * 1000, NULL, sdbTmr, &sdbRoleTimer);

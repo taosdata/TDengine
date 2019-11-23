@@ -24,6 +24,7 @@
 #include "vnodeMgmt.h"
 #include "vnodeSystem.h"
 #include "vnodeUtil.h"
+#include "tstatus.h"
 
 extern SMgmtObj mgmtObj;
 extern void*tsStatusTimer;
@@ -173,7 +174,7 @@ int vnodeProcessBufferedCreateMsgs(int vnode) {
     trans++;
   }
 
-  vnodeList[vnode].syncStatus = TSDB_SSTATUS_SYNC_FILE;
+  vnodeList[vnode].syncStatus = TSDB_VN_SYNC_STATUS_SYNC_FILE;
   pQueue->offset = pQueue->buffer;
   pQueue->trans = 0;
 
@@ -188,7 +189,7 @@ int vnodeSaveCreateMsgIntoQueue(SVnodeObj *pVnode, char *pMsg, int msgLen) {
 
   pthread_mutex_lock(&pQueue->qmutex);
 
-  if (pVnode->syncStatus == TSDB_SSTATUS_SYNCING) {
+  if (pVnode->syncStatus == TSDB_VN_SYNC_STATUS_SYNCING) {
     if (pQueue->bufferSize - (pQueue->offset - pQueue->buffer) < msgLen + 100) {
       dError("vid:%d, buffer size:%d is too small", pVnode->vnode, pQueue->bufferSize);
       vnodeCancelSync(pVnode->vnode);
@@ -238,7 +239,7 @@ void vnodeSendStatusMsgToMgmt(void *handle, void *tmrId) {
     connInit.peerIp = mgmtIpStr[pObj->mgmtIndex];
     connInit.peerPort = tsMgmtVnodePort;
 
-    dTrace("mgmt ip:%s is picked up", connInit.peerIp);
+    dPrint("mgmt ip:%s is picked up", connInit.peerIp);
     pObj->thandle = taosOpenRpcConn(&connInit, &code);
   }
 
@@ -274,7 +275,7 @@ void vnodeSendStatusMsgToMgmt(void *handle, void *tmrId) {
     pLoad->accessState = (uint8_t)(pVnode->accessState);
     pLoad->totalStorage = htobe64(pVnode->vnodeStatistic.totalStorage);
     pLoad->compStorage = htobe64(pVnode->vnodeStatistic.compStorage);
-    if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_MASTER) {
+    if (pVnode->vnodeStatus == TSDB_VN_STATUS_MASTER) {
       pLoad->pointsWritten = htobe64(pVnode->vnodeStatistic.pointsWritten);
     } else {
       pLoad->pointsWritten = htobe64(0);
@@ -321,11 +322,11 @@ int vnodeProcessStatusRspMsg(char *msg, int msgLen, SMgmtObj *pObj) {
   pMsg += sizeof(SIpList) + size;
 
   if (memcmp(pIpList->ip, mgmtIpList.ip, size) != 0) {
-    dTrace("mgmt ip list is changed, numOfIps:%d", pIpList->numOfIps);
+    dPrint("mgmt ip list is changed, numOfIps:%d", pIpList->numOfIps);
     for (int i = 0; i < pIpList->numOfIps; ++i) {
       tinet_ntoa(mgmtIpStr[i], pIpList->ip[i]);
       mgmtIpList.ip[i] = pIpList->ip[i];
-      dTrace("mgmt IP index:%d ip:%s", i, mgmtIpStr[i]);
+      dPrint("mgmt IP index:%d ip:%s", i, mgmtIpStr[i]);
     }
 
     vnodeSaveMgmtIp();
@@ -337,7 +338,7 @@ int vnodeProcessStatusRspMsg(char *msg, int msgLen, SMgmtObj *pObj) {
     mgmtPublicIpList.numOfIps = pIpList->numOfIps;
     for (int i = 0; i < pIpList->numOfIps; ++i) {
       mgmtPublicIpList.ip[i] = pIpList->ip[i];
-      dTrace("mgmt Public IP index:%d, ip:%d", i, mgmtPublicIpList.ip[i]);
+      dPrint("mgmt Public IP index:%d, ip:%s", i, taosIpStr(mgmtPublicIpList.ip[i]));
     }
   }
 
@@ -377,7 +378,7 @@ int vnodeProcessStatusRspMsg(char *msg, int msgLen, SMgmtObj *pObj) {
 
     uint32_t status = htonl(pState->moduleStatus);
     if (status != tsModuleStatus) {
-      dPrint("module statis is received, old:%d, new:%d", tsModuleStatus, status);
+      dPrint("module status is received, old:%d, new:%d", tsModuleStatus, status);
       dnodeProcessModuleStatus(status);
     }
 
@@ -629,7 +630,7 @@ void vnodeInitMgmtIp() {
   }
 
   if (!ipListValid) {
-    dTrace("read mgmt ipList from %s failed", fn);
+    dPrint("read mgmt ipList from %s failed", fn);
     memset(pIpList, 0, sizeof(mgmtIpList));
     pIpList->numOfIps = 1;
     pIpList->ip[0] = inet_addr(tsMasterIp);
@@ -640,10 +641,22 @@ void vnodeInitMgmtIp() {
     }
   }
 
-  for (int i = 0; i < pIpList->numOfIps; ++i) tinet_ntoa(mgmtIpStr[i], pIpList->ip[i]);
+  for (int i = 0; i < pIpList->numOfIps; ++i) {
+    tinet_ntoa(mgmtIpStr[i], pIpList->ip[i]);
+  }
 
-  dTrace("%d mgmt IPs are configured:", pIpList->numOfIps);
-  for (int i = 0; i < pIpList->numOfIps; ++i) dTrace("index:%d ip:%s", i, mgmtIpStr[i]);
+  dPrint("%d mgmt IPs are configured:", pIpList->numOfIps);
+  for (int i = 0; i < pIpList->numOfIps; ++i) {
+    dPrint("index:%d ip:%s", i, mgmtIpStr[i]);
+  }
+
+  if (pIpList->numOfIps >= 3) {
+    strcpy(tsSecondIp, mgmtIpStr[2]);
+  }
+
+  if (pIpList->numOfIps >= 2) {
+    strcpy(tsMasterIp, mgmtIpStr[1]);
+  }
 }
 
 void vnodeSaveMgmtIp() {
