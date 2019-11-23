@@ -350,8 +350,9 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   pCfg->rowsInFileBlock = htonl(pCfg->rowsInFileBlock);
 
   if (pCfg->replications > 0) {
-    dPrint("vid:%d, vpeer cfg received, replica:%d session:%d, vnodeList replica:%d session:%d",
-        vnode, pCfg->replications, pCfg->maxSessions, vnodeList[vnode].cfg.replications, vnodeList[vnode].cfg.maxSessions);
+    dPrint("vid:%d, vpeer cfg received, replica:%d session:%d, vnodeList replica:%d session:%d, acct:%s db:%s",
+        vnode, pCfg->replications, pCfg->maxSessions, vnodeList[vnode].cfg.replications, vnodeList[vnode].cfg.maxSessions,
+        pCfg->acct, pCfg->db);
     for (i = 0; i < pCfg->replications; ++i) {
       pMsg->vpeerDesc[i].vnode = htonl(pMsg->vpeerDesc[i].vnode);
       pMsg->vpeerDesc[i].ip = htonl(pMsg->vpeerDesc[i].ip);
