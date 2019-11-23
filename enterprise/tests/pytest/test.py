@@ -85,6 +85,7 @@ from util.cases import *
 ##from bug.connect_repeat import *
 ##
 from cluster.alter_replica import *
+from cluster.alter_replica2 import *
 from cluster.create_droptb import *
 from cluster.single_upgrade import *
 ##from cluster.monitor_upgrade import *
