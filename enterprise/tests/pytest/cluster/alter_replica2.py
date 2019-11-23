@@ -90,7 +90,7 @@ class TDTestCase:
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
       for rid in range(1,11):
-        sqlcmd.append('tb%d values(%ld, %d)' %(tid,startTime+self.rowsPerTable+rid, rid))
+        sqlcmd.append('tb%d values(%ld, %d)' %(tid,startTime+self.rowsPerTable+rid, rid+self.rowsPerTable))
         ninserted += 1
         if (ninserted == 300):
           tdSql.execute(" ".join(sqlcmd))
@@ -128,7 +128,7 @@ class TDTestCase:
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
       for rid in range(1,11):
-        sqlcmd.append('tb%d values(%ld, %d)' %(tid,startTime+self.rowsPerTable+rid, rid))
+        sqlcmd.append('tb%d values(%ld, %d)' %(tid,startTime+self.rowsPerTable+rid, rid+self.rowsPerTable))
         ninserted += 1
         if (ninserted == 300):
           tdSql.execute(" ".join(sqlcmd))
@@ -144,8 +144,8 @@ class TDTestCase:
     tdLog.info("================= step7")
     queryRows = tdSql.query('show vgroups')
     for i in range(queryRows):
-      print('vnode status: %s:%s:%s|%s:%s:%s' \
-             %(tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
+      tdLog.info('Vgid%s: %s:%s:%s|%s:%s:%s' \
+             %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
                tdSql.getData(i,7),tdSql.getData(i,8),tdSql.getData(i,9)))
     
     tdLog.info("================= step8")
@@ -173,7 +173,7 @@ class TDTestCase:
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
       for rid in range(1,11):
-        sqlcmd.append('tb%d values(%ld, %d)' %(tid,startTime+self.rowsPerTable+rid, rid))
+        sqlcmd.append('tb%d values(%ld, %d)' %(tid,startTime+self.rowsPerTable+rid, rid+self.rowsPerTable))
         ninserted += 1
         if (ninserted == 300):
           tdSql.execute(" ".join(sqlcmd))
@@ -193,6 +193,7 @@ class TDTestCase:
              %(tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5)))
     
     tdLog.info("================= step11")
+    tdLog.sleep(5)
     self.replica = 2
     tdLog.info('alter database db replica %d' %self.replica)
     tdSql.execute('alter database db replica %d' %self.replica)
@@ -217,7 +218,7 @@ class TDTestCase:
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
       for rid in range(1,11):
-        sqlcmd.append('tb%d values(%ld, %d)' %(tid,startTime+self.rowsPerTable+rid, rid))
+        sqlcmd.append('tb%d values(%ld, %d)' %(tid,startTime+self.rowsPerTable+rid, rid+self.rowsPerTable))
         ninserted += 1
         if (ninserted == 300):
           tdSql.execute(" ".join(sqlcmd))
@@ -233,8 +234,8 @@ class TDTestCase:
     tdLog.info("================= step13")
     queryRows = tdSql.query('show vgroups')
     for i in range(queryRows):
-      print('vnode status: %s:%s:%s|%s:%s:%s' \
-             %(tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
+      print('Vgid%s: %s:%s:%s|%s:%s:%s' \
+             %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
                tdSql.getData(i,7),tdSql.getData(i,8),tdSql.getData(i,9)))
 
     tdLog.info("================= step14")
@@ -262,7 +263,7 @@ class TDTestCase:
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
       for rid in range(1,11):
-        sqlcmd.append('tb%d values(%ld, %d)' %(tid,startTime+self.rowsPerTable+rid, rid))
+        sqlcmd.append('tb%d values(%ld, %d)' %(tid,startTime+self.rowsPerTable+rid, rid+self.rowsPerTable))
         ninserted += 1
         if (ninserted == 300):
           tdSql.execute(" ".join(sqlcmd))
@@ -278,8 +279,8 @@ class TDTestCase:
     tdLog.info("================= step16")
     queryRows = tdSql.query('show vgroups')
     for i in range(queryRows):
-      print('vnode status: %s:%s:%s|%s:%s:%s|%s:%s:%s' \
-             %(tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
+      print('Vgid%s: %s:%s:%s|%s:%s:%s|%s:%s:%s' \
+             %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
                tdSql.getData(i,7),tdSql.getData(i,8),tdSql.getData(i,9),\
                tdSql.getData(i,11),tdSql.getData(i,12),tdSql.getData(i,13)))
 
