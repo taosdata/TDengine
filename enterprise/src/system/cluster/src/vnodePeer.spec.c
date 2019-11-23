@@ -47,6 +47,16 @@ int   vnodeAddPeerFd(SThreadPool *pPool, SVnodePeer *pVPeer, int connFd);
 void  vnodeClosePeerFd(SVnodePeer *pVPeer);
 void  vnodeBroadcastStatus(SVnodeObj *pVnode);
 
+void taosBlockSIGPIPE() {
+  sigset_t signal_mask;
+  sigemptyset(&signal_mask);
+  sigaddset(&signal_mask, SIGPIPE);
+  int rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
+  if (rc != 0) {
+    pError("failed to block SIGPIPE");
+  }
+}
+
 int vnodeOpenPeerVnode(int vnode) 
 {
   SVnodePeer    *pVPeer;
@@ -1102,6 +1112,8 @@ void *vnodeSyncRestoreData(void *param)
     goto _sync_req_over;
   }
 
+  taosBlockSIGPIPE();
+  
   dTrace("vid:%d, peer:%s:%d start to restore, buffer:%p size:%d", vnode, pVPeer->ipstr, pVPeer->vid, pQueue->buffer,
          pQueue->bufferSize);
   dTrace("vid:%d, peer:%s:%d start to restore missed create", vnode, pVPeer->ipstr, pVPeer->vid);
@@ -1186,6 +1198,8 @@ void *vnodeSyncRetrieveData(void *param)
     dTrace("vid:%d, peer:%s:%d sync retrieve shall stop since in commit process", vnode, pVPeer->ipstr, pVPeer->vid);
     goto _over;
   }
+
+  taosBlockSIGPIPE();
 
   pVPeer->syncStatus = TSDB_VN_SYNC_STATUS_SYNCING;
   dTrace("vid:%d, peer:%s:%d start to retrieve data", vnode, pVPeer->ipstr, pVPeer->vid);
@@ -1323,6 +1337,8 @@ static void vnodeProcessTcpData(void *param)
 
   void *buffer = malloc(64000);
 
+  taosBlockSIGPIPE();
+
   while (1) {
     fdNum = epoll_wait(pThread->pollFd, events, maxEvents, -1);
     if (fdNum < 0) continue;
@@ -1367,6 +1383,8 @@ void *vnodeAcceptPeerTcpConnection(void *argv)
   uint32_t       sourceIp;
   char           ipstr[24];
   struct sockaddr_in clientAddr;
+
+  taosBlockSIGPIPE();
 
   tcpFd = taosOpenTcpServerSocket(tsPrivateIp, tsVnodeVnodePort);
   if (tcpFd < 0) {
