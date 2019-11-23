@@ -26,7 +26,6 @@ class TDTestCase:
   def run(self):
     self.ntables = 1
     self.startTime = 1520000010000L
-    self.rowsPerTable = 40*38*6/10
 
     tdSql.execute('reset query cache')
     tdSql.execute('drop database db')
@@ -39,32 +38,19 @@ class TDTestCase:
     tdLog.info("one block can import 38 records and totally there are 40 blocks")
 
     tdLog.info("================= step2")
-    tdLog.info("insert %d sequential data" %self.rowsPerTable)
-    startTime = self.startTime
-    sqlcmd = ['insert into tb1 values']
-    ninserted = 0
-    for rid in range(1,self.rowsPerTable+1):
-      sqlcmd.append('(%ld, %d)' %(startTime+rid*2, rid))
-      ninserted += 1
-      if (ninserted == 300):
-        tdSql.execute(" ".join(sqlcmd))
-        ninserted = 0
-        sqlcmd = ['insert into tb1 values']
-    if (ninserted > 0):
-      tdSql.execute(" ".join(sqlcmd))
-    
-    tdLog.info("================= step3")
-    tdSql.query('select count(*) from tb1')
-    tdSql.checkData(0, 0, self.rowsPerTable)
-
-    tdLog.info("================= step4")
+    tdLog.info('insert data until the first commit')
     dnodesDir  = tdDnodes.getDnodesRootDir()
     dataDir    = dnodesDir + '/dnode1/data/data'
-    vnodes = os.listdir(dataDir)
-    if (len(vnodes) > 0):
-      tdLog.info("data is committed")
-    else:
-      tdLog.exit("ERROR: data has not been committed")
+    startTime = self.startTime
+    rid0 = 1
+    while (True):
+      sqlcmd = 'insert into tb1 values(%ld, %d)' %(startTime+rid0*2, rid0)
+      tdSql.execute(sqlcmd)
+      rid0 += 1
+      vnodes = os.listdir(dataDir)
+      if (len(vnodes) > 0):
+        tdLog.info("data is committed, stop inserting")
+        break
 
     tdLog.info("================= step5")
     tdLog.info("import 1 data before ")
@@ -77,12 +63,12 @@ class TDTestCase:
     tdLog.info("================= step6")
     tdSql.execute('reset query cache')
     tdSql.query('select * from tb1 order by ts desc')
-    tdSql.checkRows(self.rowsPerTable+1)
+    tdSql.checkRows(rid0-1+1)
 
     tdLog.info("================= step7")
     tdSql.execute('reset query cache')
     tdSql.query('select count(*) from tb1')
-    tdSql.checkData(0, 0, self.rowsPerTable+1)
+    tdSql.checkData(0, 0, rid0-1+1)
 
   def stop(self):
     tdSql.close()

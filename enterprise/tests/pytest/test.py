@@ -86,6 +86,7 @@ from util.cases import *
 ##
 from cluster.alter_replica import *
 from cluster.alter_replica2 import *
+from cluster.alter_replica3 import *
 from cluster.create_droptb import *
 from cluster.single_upgrade import *
 ##from cluster.monitor_upgrade import *
@@ -126,6 +127,8 @@ from cluster.corruptfile_restore2 import *
 from cluster.kill_restart import *
 ##from cluster.kill_restart2 import *
 from cluster.query_speed import *
+from cluster_mgmt.alter_replica2 import *
+from cluster_mgmt.alter_replica3 import *
 from cluster_mgmt.multi_alter import *
 from cluster_mgmt.kill_alter_restart import *
 from cluster_mgmt.kill_most import *
