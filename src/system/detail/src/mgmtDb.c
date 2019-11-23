@@ -256,7 +256,7 @@ int mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
 
   pDb = malloc(sizeof(SDbObj));
   memset(pDb, 0, sizeof(SDbObj));
-  strcpy(pDb->name, pCreate->db);
+  sprintf(pDb->name, "%s.%s", pAcct->acctId, pCreate->db); // set fullname
   strcpy(pCreate->acct, pAcct->user);
   pDb->createdTime = taosGetTimestampMs();
   pDb->cfg = *pCreate;

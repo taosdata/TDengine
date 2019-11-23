@@ -1807,7 +1807,7 @@ int tscBuildCreateDbMsg(SSqlObj *pSql) {
   pMsg += sizeof(SMgmtHead);
 
   pCreateDbMsg = (SCreateDbMsg *)pMsg;
-  strncpy(pCreateDbMsg->db, pMeterMetaInfo->name, tListLen(pCreateDbMsg->db));
+  (void)extractDBName(pMeterMetaInfo->name, pCreateDbMsg->db); // only send db name, then recombining db name + acctId on the mgmt
   pMsg += sizeof(SCreateDbMsg);
 
   msgLen = pMsg - pStart;
