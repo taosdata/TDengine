@@ -146,7 +146,10 @@ typedef struct _vg_obj {
 } SVgObj;
 
 typedef struct _db_obj {
-  char    name[TSDB_METER_ID_LEN + 1];
+  /*
+   * this length will cause the storage structure to change, rollback
+   */
+  char    name[TSDB_DB_NAME_LEN + 1];
   int64_t createdTime;
   SDbCfg  cfg;
   int32_t numOfVgroups;
