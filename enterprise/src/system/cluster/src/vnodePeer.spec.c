@@ -546,7 +546,14 @@ void vnodeRestartConnection(SVnodePeer *pVPeer)
     return;
   }
 
-  if (pthread_mutex_trylock(&(pVnode->vmutex) != 0)) {
+  if (pVnode->vnodeStatus == TSDB_VN_STATUS_OFFLINE || pVnode->vnodeStatus == TSDB_VN_STATUS_CREATING
+      || pVnode->vnodeStatus == TSDB_VN_STATUS_DELETING) {
+    dError("vid:%d, peer:%s:%d, relate resource is not initialized, vnodeStatus:%s",
+            pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, taosGetVnodeStatusStr(pVnode->vnodeStatus));
+    return;
+  }
+
+  if (pthread_mutex_trylock(&(pVnode->vmutex)) != 0) {
     dTrace("vid:%d, peer:%s:%d restart connection in progress", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
   } else {
     dTrace("vid:%d, peer:%s:%d do restart connection", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
