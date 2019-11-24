@@ -341,3 +341,13 @@ bool taosSkipSocketCheck() {
 
   return false;
 }
+
+void taosBlockSIGPIPE() {
+  sigset_t signal_mask;
+  sigemptyset(&signal_mask);
+  sigaddset(&signal_mask, SIGPIPE);
+  int rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
+  if (rc != 0) {
+    pError("failed to block SIGPIPE");
+  }
+}
