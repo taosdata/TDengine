@@ -256,9 +256,9 @@ static void doUnmapHeaderFileData(SQueryRuntimeEnv* pRuntimeEnv) {
     
     otherVnodeFiles->pHeaderFileData = NULL;
     pRuntimeEnv->mmapedHFileIndex = -1;
-  } else {
-    assert(pRuntimeEnv->mmapedHFileIndex == -1);
   }
+
+  assert(pRuntimeEnv->mmapedHFileIndex == -1);
 }
 
 /**
@@ -286,12 +286,12 @@ char *vnodeGetHeaderFileData(SQueryRuntimeEnv *pRuntimeEnv, int32_t fileIndex) {
     pVnodeFiles->pHeaderFileData = mmap(NULL, size, PROT_READ, MAP_SHARED, pVnodeFiles->headerFd, 0);
     if (pVnodeFiles->pHeaderFileData == MAP_FAILED) {
       pVnodeFiles->pHeaderFileData = NULL;
-      dError("QInfo:%p failed to map header file:%s, size:%lld, %s", pQInfo, pVnodeFiles->headerFilePath, size,
+      dError("QInfo:%p failed to mmap header file:%s, size:%lld, %s", pQInfo, pVnodeFiles->headerFilePath, size,
              strerror(errno));
     } else {
       pRuntimeEnv->mmapedHFileIndex = fileIndex;  // set the value in case of success mmap file
       if (madvise(pVnodeFiles->pHeaderFileData, size, MADV_SEQUENTIAL) == -1) {
-        dError("QInfo:%p failed to advise kernel the usage of header files, reason:%s", pQInfo, strerror(errno));
+        dError("QInfo:%p failed to advise kernel the usage of header file, reason:%s", pQInfo, strerror(errno));
       }
     }
   } else {
@@ -326,9 +326,9 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
   pSummary->numOfSeek++;
 
 #if 1
-  char *data = vnodeGetHeaderFileData(pRuntimeEnv, fileIndex);  // failed to load the header file data into memory
+  char *data = vnodeGetHeaderFileData(pRuntimeEnv, fileIndex);
   if (data == NULL) {
-    return -1;
+    return -1;  // failed to load the header file data into memory
   }
   
 #else
@@ -2842,9 +2842,8 @@ int64_t loadRequiredBlockIntoMem(SQueryRuntimeEnv *pRuntimeEnv, SPositionInfo *p
      * currently opened file is not the start file, reset to the start file
      */
     int32_t fileIdx = vnodeGetVnodeHeaderFileIdx(&pQuery->fileId, pRuntimeEnv, pQuery->order.order);
-    if (fileIdx < 0) {
+    if (fileIdx < 0) { // ignore the files on disk
       dError("QInfo:%p failed to get data file:%d", GET_QINFO_ADDR(pQuery), pQuery->fileId);
-      // ignore the files on disk
       position->fileId = -1;
       return -1;
     }
@@ -5494,11 +5493,15 @@ SMeterDataInfo **vnodeFilterQualifiedMeters(SQInfo *pQInfo, int32_t vid, int32_t
 
   SVnodeObj *pVnode = &vnodeList[vid];
 
-  char *  pHeaderData = vnodeGetHeaderFileData(pRuntimeEnv, fileIndex);
+  char *  pHeaderFileData = vnodeGetHeaderFileData(pRuntimeEnv, fileIndex);
+  if (pHeaderFileData == NULL) { // failed to load header file into buffer
+    return 0;
+  }
+  
   int32_t tmsize = sizeof(SCompHeader) * (pVnode->cfg.maxSessions) + sizeof(TSCKSUM);
 
   // file is corrupted, abort query in current file
-  if (validateHeaderOffsetSegment(pQInfo, pQueryFileInfo->headerFilePath, vid, pHeaderData, tmsize) < 0) {
+  if (validateHeaderOffsetSegment(pQInfo, pQueryFileInfo->headerFilePath, vid, pHeaderFileData, tmsize) < 0) {
     *numOfMeters = 0;
     return 0;
   }
@@ -5549,7 +5552,7 @@ SMeterDataInfo **vnodeFilterQualifiedMeters(SQInfo *pQInfo, int32_t vid, int32_t
 
     int64_t headerOffset = TSDB_FILE_HEADER_LEN + sizeof(SCompHeader) * pMeterObj->sid;
 
-    SCompHeader *compHeader = (SCompHeader *)(pHeaderData + headerOffset);
+    SCompHeader *compHeader = (SCompHeader *)(pHeaderFileData + headerOffset);
 
     if (compHeader->compInfoOffset == 0) {
       continue;
