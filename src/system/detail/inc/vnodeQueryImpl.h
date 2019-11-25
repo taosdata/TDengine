@@ -174,7 +174,7 @@ void queryOnBlock(SMeterQuerySupportObj* pSupporter, int64_t* primaryKeys, int32
                   SBlockInfo* pBlockBasicInfo, SMeterDataInfo* pDataHeadInfoEx, SField* pFields,
                   __block_search_fn_t searchFn);
 
-SMeterDataInfo** vnodeFilterQualifiedMeters(SQInfo* pQInfo, int32_t vid, SQueryFileInfo* pQueryFileInfo,
+SMeterDataInfo** vnodeFilterQualifiedMeters(SQInfo* pQInfo, int32_t vid, int32_t fileIndex,
                                             tSidSet* pSidSet, SMeterDataInfo* pMeterDataInfo, int32_t* numOfMeters);
 int32_t vnodeGetVnodeHeaderFileIdx(int32_t* fid, SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 
@@ -194,6 +194,7 @@ uint32_t getDataBlocksForMeters(SMeterQuerySupportObj* pSupporter, SQuery* pQuer
                                 int32_t numOfMeters, SQueryFileInfo* pQueryFileInfo, SMeterDataInfo** pMeterDataInfo);
 int32_t LoadDatablockOnDemand(SCompBlock* pBlock, SField** pFields, int8_t* blkStatus, SQueryRuntimeEnv* pRuntimeEnv,
                               int32_t fileIdx, int32_t slotIdx, __block_search_fn_t searchFn, bool onDemand);
+char *vnodeGetHeaderFileData(SQueryRuntimeEnv *pRuntimeEnv, int32_t fileIndex);
 
 /**
  * Create SMeterQueryInfo.
