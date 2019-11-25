@@ -269,6 +269,7 @@ int vnodeRemoveVnode(int vnode) {
         return ret;
       }
 
+      dTrace("vid:%d, status:%s, do delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
       vnodeRemoveDataFiles(vnode);
     }
 
