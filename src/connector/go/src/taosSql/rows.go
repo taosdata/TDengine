@@ -118,14 +118,15 @@ func (rows *taosSqlRows) ColumnTypeScanType(i int) reflect.Type {
 	return rows.rs.columns[i].scanType()
 }
 
-func (rows *taosSqlRows) Close() (err error) {
-	mc := rows.mc
-	if mc == nil {
-		return nil
+func (rows *taosSqlRows) Close() error {
+	if rows.mc != nil {
+		result := C.taos_use_result(rows.mc.taos)
+		if result != nil {
+			C.taos_free_result(result)
+		}
+		rows.mc = nil
 	}
-
-	rows.mc = nil
-	return err
+	return nil
 }
 
 func (rows *taosSqlRows) HasNextResultSet() (b bool) {
