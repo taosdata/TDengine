@@ -39,7 +39,7 @@ func (mc *taosConn) taosConnect(ip, user, pass, db string, port int) (taos unsaf
 	defer C.free(unsafe.Pointer(cpass))
 	defer C.free(unsafe.Pointer(cdb))
 
-	taosObj := C.taos_connect(cip, cuser, cpass, cdb, (C.int)(port))
+	taosObj := C.taos_connect(cip, cuser, cpass, cdb, (C.ushort)(port))
 	if taosObj == nil {
 		return nil, errors.New("taos_connect() fail!")
 	}
