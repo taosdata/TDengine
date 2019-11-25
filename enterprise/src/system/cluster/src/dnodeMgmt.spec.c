@@ -569,7 +569,7 @@ int vnodeRestoreMissedCreateMsg(int vnode, int fd) {
     }
 
     if (len == 0) {
-      dError("vid:%d, fd:%d invalid restore missed create msg len:%d", vnode, fd, len);
+      dTrace("vid:%d, fd:%d restore missed create msg len:%d, finished", vnode, fd, len);
       break;
     }
 
@@ -614,12 +614,12 @@ int vnodeRestoreMissedRemoveMsg(int vnode, int fd) {
     }
 
     if (sid == -1) {
-      dError("vid:%d, fd:%d invalid restore missed remove msg sid:%d", vnode, fd, sid);
+      dTrace("vid:%d, fd:%d restore missed remove msg sid:%d, finished", vnode, fd, sid);
       break;
     }
 
     if (vid == -1) {
-      dError("vid:%d, fd:%d invalid restore missed remove msg vid:%d", vnode, fd, vid);
+      dTrace("vid:%d, fd:%d restore missed remove msg vid:%d, finished", vnode, fd, vid);
       break;
     }
 
