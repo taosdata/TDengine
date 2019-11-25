@@ -187,7 +187,7 @@ void vnodeConfigVPeers(int vnode, int numOfPeers, SVPeerDesc peerDesc[])
     dPrint("vid:%d, vnode is still under creating", vnode);
     return;
   }
-
+  
   dPrint("vid:%d, config vpeer, status:%s numOfPeers:%d", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus), numOfPeers);
 
   pthread_mutex_lock (&dmutex);
