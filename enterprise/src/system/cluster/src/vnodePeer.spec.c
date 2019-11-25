@@ -574,7 +574,7 @@ void vnodeRestartConnection(SVnodePeer *pVPeer)
     pthread_mutex_unlock(&pQueue->qmutex);
   }
 
-  pVnode->syncStatus = 0;
+  pVnode->syncStatus = TSDB_VN_SYNC_STATUS_INIT;
   pVPeer->syncFd = -1;
   taosTmrStopA(&pVPeer->syncTimer);
 
@@ -665,7 +665,7 @@ void vnodeSyncWithPeer(void *param, void *tmrId)
   dPrint("vid:%d, peer:%s:%d try to sync, pfd:%d sfd:%d",
           pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
 
-  if (pVnode->syncStatus > 0) {
+  if (pVnode->syncStatus > TSDB_VN_SYNC_STATUS_INIT) {
     dPrint("vid:%d, syncstatus:%s is not init status, stop sync", pVnode->vnode, taosGetVnodeSyncStatusStr(pVnode->syncStatus));
     return;
   }
@@ -726,14 +726,16 @@ void vnodeSyncWithPeer(void *param, void *tmrId)
   if (write(pVPeer->peerFd, buffer, msgLen) != msgLen) {
     dError("vid:%d, peer:%s:%d failed to send sync req to peer, pfd:%d sfd:%d",
             pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
+    pVnode->syncStatus = TSDB_VN_SYNC_STATUS_INIT;
     taosTmrStart(vnodeSyncNotStarted, 0, pVPeer, vnodeTmrCtrl);
   } else {
-    dPrint("vid:%d, peer:%s:%d sync req is sent, pfd:%d sfd:%d",
-            pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
-
     if (pVPeer->syncFd < 0) {
       dPrint("vid:%d, peer:%s:%d sfd:%d < 0, try sync later", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->syncFd);
+      pVnode->syncStatus = TSDB_VN_SYNC_STATUS_INIT;
       taosTmrReset(vnodeSyncNotStarted, tsVnodePeerHBTimer * 1000, pVPeer, vnodeTmrCtrl, &pVPeer->syncTimer);
+    } else {
+      dPrint("vid:%d, peer:%s:%d sync req is sent, pfd:%d sfd:%d",
+             pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
     }
   }
 
@@ -801,7 +803,7 @@ int vnodeProcessBufferedFwd(int vnode)
     submits++;
   }
 
-  vnodeList[vnode].syncStatus = 0;
+  vnodeList[vnode].syncStatus = TSDB_VN_SYNC_STATUS_INIT;
   vnodeList[vnode].vnodeStatus = TSDB_VN_STATUS_SLAVE;
   tfree (pQueue->buffer);
   pQueue->trans = 0;
@@ -1202,7 +1204,7 @@ void *vnodeSyncRestoreData(void *param)
 _sync_req_over:
   pthread_mutex_lock(&pQueue->qmutex);
   tfree (pQueue->buffer);
-  pVnode->syncStatus = 0;
+  pVnode->syncStatus = TSDB_VN_SYNC_STATUS_INIT;
   pVnode->vnodeStatus = TSDB_VN_STATUS_UNSYNCED;
   pthread_mutex_unlock(&pQueue->qmutex);
 
@@ -1278,12 +1280,12 @@ void *vnodeSyncRetrieveData(void *param)
   dTrace("vid:%d, peer:%s:%d sync retrieve process is successful", vnode, pVPeer->ipstr, pVPeer->vid);
 
   tclose(pVPeer->syncFd);
-  pVPeer->syncStatus = 0;
+  pVPeer->syncStatus = TSDB_VN_SYNC_STATUS_INIT;
   tfree(pSync);
   return NULL;
 
 _over:
-  pVPeer->syncStatus = 0;
+  pVPeer->syncStatus = TSDB_VN_SYNC_STATUS_INIT;
 
   dError("vid:%d, peer:%s:%d failed to sync retrieve data, restart connection", vnode, pVPeer->ipstr, pVPeer->vid);
   vnodeRestartConnection(pVPeer);
@@ -1300,7 +1302,7 @@ void  vnodeCloseAllSyncFds(int vnode) {
     if (pVPeer && pVPeer->syncFd >= 0) {
       taosCloseTcpSocket(pVPeer->syncFd);
       pVPeer->syncFd = -1;
-      pVPeer->syncStatus = 0;
+      pVPeer->syncStatus = TSDB_VN_SYNC_STATUS_INIT;
       dTrace("vid:%d, peer:%s:%d sync connection is closed", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
     }
   }
