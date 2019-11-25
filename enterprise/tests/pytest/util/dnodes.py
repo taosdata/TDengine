@@ -1,11 +1,11 @@
 ###################################################################
- #           Copyright (c) 2016 by TAOS Technologies, Inc.
- #                     All rights reserved.
+ #					 Copyright (c) 2016 by TAOS Technologies, Inc.
+ #										 All rights reserved.
  #
- #  This file is proprietary and confidential to TAOS Technologies.
- #  No part of this file may be reproduced, stored, transmitted, 
- #  disclosed or used in any form or by any means other than as 
- #  expressly provided by the written permission from Jianhui Tao
+ #	This file is proprietary and confidential to TAOS Technologies.
+ #	No part of this file may be reproduced, stored, transmitted, 
+ #	disclosed or used in any form or by any means other than as 
+ #	expressly provided by the written permission from Jianhui Tao
  #
 ###################################################################
 
@@ -41,11 +41,11 @@ class TDSimClient:
 		if os.system(cmd) != 0 :
 			tdLog.exit(cmd)
 			
-		cmd = "mkdir -p " + self.logDir	
+		cmd = "mkdir -p " + self.logDir 
 		if os.system(cmd) != 0 :
 			tdLog.exit(cmd)
 			
-		cmd = "mkdir -p " + self.cfgDir	
+		cmd = "mkdir -p " + self.cfgDir 
 		if os.system(cmd) != 0 :
 			tdLog.exit(cmd)
 			
@@ -101,11 +101,11 @@ class TDDnode:
 		if os.system(cmd) != 0 :
 			tdLog.exit(cmd)
 			
-		cmd = "mkdir -p " + self.logDir	
+		cmd = "mkdir -p " + self.logDir 
 		if os.system(cmd) != 0 :
 			tdLog.exit(cmd)
 			
-		cmd = "mkdir -p " + self.cfgDir	
+		cmd = "mkdir -p " + self.cfgDir 
 		if os.system(cmd) != 0 :
 			tdLog.exit(cmd)
 			
@@ -174,8 +174,8 @@ class TDDnode:
 			if os.system(cmd) != 0 :
 				tdLog.exit(cmd)
 			tdLog.debug("dnode:%d is stopped by kill -SIGINT" % (self.index))
-		  tdLog.debug("wait 2 seconds for the dnode:%d to stop." % (self.index))
-		  time.sleep(2)
+			tdLog.debug("wait 2 seconds for the dnode:%d to stop." % (self.index))
+			time.sleep(2)
 			
 	def forcestop(self):
 		if self.running != 0:
@@ -183,8 +183,8 @@ class TDDnode:
 			if os.system(cmd) != 0 :
 				tdLog.exit(cmd)
 			tdLog.debug("dnode:%d is stopped by kill -9" % (self.index))
-		tdLog.debug("wait 2 seconds for the dnode:%d to stop." % (self.index))
-		time.sleep(2)
+			tdLog.debug("wait 2 seconds for the dnode:%d to stop." % (self.index))
+			time.sleep(2)
 			
 	def startIP(self):
 		cmd = "sudo ifconfig lo:%d 192.168.0.%d up" % (self.index, self.index)
@@ -237,12 +237,12 @@ class TDDnodes:
 		
 		# cmd = "sudo cp %s/build/bin/taos /usr/local/bin/taos/" % (binPath)
 		# if os.system(cmd) != 0 :
-		#	 tdLog.exit(cmd)
+		#  tdLog.exit(cmd)
 		# tdLog.debug("execute %s" % (cmd))
 		
 		# cmd = "sudo cp %s/build/bin/taosd /usr/local/bin/taos/" % (binPath)
 		# if os.system(cmd) != 0 :
-		#	tdLog.exit(cmd)
+		# tdLog.exit(cmd)
 		# tdLog.debug("execute %s" % (cmd))
 		
 		if path == "":
@@ -286,7 +286,7 @@ class TDDnodes:
 		self.check(index)
 		self.dnodes[index-1].stopIP()
 		
-	def check(self, index): 	
+	def check(self, index):		
 		if index < 1 or index > 10 :
 			tdLog.exit("index:%d should on a scale of [1, 10]" % (index))
 	
@@ -298,12 +298,12 @@ class TDDnodes:
 		cmd = "sudo systemctl stop taosd"
 		os.system(cmd)
 		#if os.system(cmd) != 0 :
-		#	tdLog.exit(cmd)
+		# tdLog.exit(cmd)
 		
 		cmd = "ps -ef | grep taosd | grep 'dnode' | grep -v grep | awk '{print $2}' | sudo xargs kill -9" 
 		os.system(cmd)
 		#if os.system(cmd) != 0 :
-		#	tdLog.exit(cmd)
+		# tdLog.exit(cmd)
 
 	def getDnodesRootDir(self):
 		dnodesRootDir = "%s/sim" %(self.path)
