@@ -289,12 +289,11 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
     pQuery->fileId = fid;
     pSummary->numOfFiles++;
 
-    SQueryFileInfo *pQueryFileInfo = &pRuntimeEnv->pHeaderFiles[fileIdx];
-    char *          pHeaderData = pQueryFileInfo->pHeaderFileData;
+    SQueryFileInfo *pQueryFileInfo = &pRuntimeEnv->pVnodeFiles[fileIdx];
 
     int32_t          numOfQualifiedMeters = 0;
-    SMeterDataInfo **pReqMeterDataInfo = vnodeFilterQualifiedMeters(
-        pQInfo, vnodeId, pQueryFileInfo, pSupporter->pSidSet, pMeterDataInfo, &numOfQualifiedMeters);
+    SMeterDataInfo **pReqMeterDataInfo = vnodeFilterQualifiedMeters(pQInfo, vnodeId, fileIdx, pSupporter->pSidSet,
+        pMeterDataInfo, &numOfQualifiedMeters);
     dTrace("QInfo:%p file:%s, %d meters qualified", pQInfo, pQueryFileInfo->dataFilePath, numOfQualifiedMeters);
 
     if (pReqMeterDataInfo == NULL) {
@@ -312,6 +311,11 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
       continue;
     }
 
+    char *pHeaderData = vnodeGetHeaderFileData(pRuntimeEnv, fileIdx);
+    if (pHeaderData == NULL) { // failed to mmap header file into buffer
+      continue;
+    }
+    
     uint32_t numOfBlocks = getDataBlocksForMeters(pSupporter, pQuery, pHeaderData, numOfQualifiedMeters, pQueryFileInfo,
                                                   pReqMeterDataInfo);
 
@@ -500,7 +504,7 @@ static int64_t doCheckMetersInGroup(SQInfo *pQInfo, int32_t index, int32_t start
 
 #if DEFAULT_IO_ENGINE == IO_ENGINE_MMAP
   for (int32_t i = 0; i < pRuntimeEnv->numOfFiles; ++i) {
-    resetMMapWindow(&pRuntimeEnv->pHeaderFiles[i]);
+    resetMMapWindow(&pRuntimeEnv->pVnodeFiles[i]);
   }
 #endif
 
@@ -670,7 +674,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
 
 #if DEFAULT_IO_ENGINE == IO_ENGINE_MMAP
       for (int32_t i = 0; i < pRuntimeEnv->numOfFiles; ++i) {
-        resetMMapWindow(&pRuntimeEnv->pHeaderFiles[i]);
+        resetMMapWindow(&pRuntimeEnv->pVnodeFiles[i]);
       }
 #endif
 
