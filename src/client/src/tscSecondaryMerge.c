@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "os.h"
 #include "tlosertree.h"
 #include "tscSecondaryMerge.h"

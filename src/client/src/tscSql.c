@@ -24,7 +24,7 @@
 #include "tsclient.h"
 #include "tscompression.h"
 #include "tsocket.h"
-#include "tsql.h"
+#include "tscSQLParser.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tnote.h"

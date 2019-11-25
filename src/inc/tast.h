@@ -25,7 +25,7 @@ extern "C" {
 #include <stdlib.h>
 
 #include "taosmsg.h"
-#include "tsql.h"
+#include "ttypes.h"
 
 struct tSQLBinaryExpr;
 struct SSchema;
@@ -49,7 +49,7 @@ typedef struct tQueryInfo {
   int32_t       offset;   // offset value in tags
   int32_t       colIdx;   // index of column in schema
   uint8_t       optr;     // expression operator
-  SSchema       sch;  // schema of tags
+  SSchema       sch;      // schema of tags
   tVariant      q;        // query condition value on the specific schema, filter expression
   __compar_fn_t compare;  // filter function
 } tQueryInfo;

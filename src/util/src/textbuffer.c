@@ -18,7 +18,6 @@
 #include "taosmsg.h"
 #include "textbuffer.h"
 #include "tlog.h"
-#include "tsql.h"
 #include "tsqlfunction.h"
 #include "ttime.h"
 #include "ttypes.h"

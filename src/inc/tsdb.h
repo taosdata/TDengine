@@ -146,8 +146,8 @@ extern "C" {
 #define TSDB_MAX_MPEERS           5
 #define TSDB_MAX_MGMT_IPS         (TSDB_MAX_MPEERS+1)
 
-//#define TSDB_REPLICA_MAX_NUM    3
 #define TSDB_REPLICA_MIN_NUM      1
+#define TSDB_REPLICA_MAX_NUM      3
 
 #define TSDB_TBNAME_COLUMN_INDEX       (-1)
 #define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta
@@ -162,9 +162,6 @@ extern "C" {
 #define TSDB_MIN_COMPRESSION_LEVEL      0
 #define TSDB_MAX_COMPRESSION_LEVEL      2
 
-#define TSDB_MIN_CACHE_BLOCKS_PER_METER 32
-#define TSDB_MAX_CACHE_BLOCKS_PER_METER 40960
-
 #define TSDB_MIN_COMMIT_TIME_INTERVAL   30
 #define TSDB_MAX_COMMIT_TIME_INTERVAL   40960
 
@@ -177,7 +174,9 @@ extern "C" {
 #define TSDB_MIN_CACHE_BLOCKS           100
 #define TSDB_MAX_CACHE_BLOCKS           409600
 
+#define TSDB_MIN_AVG_BLOCKS             2
 #define TSDB_MAX_AVG_BLOCKS             2048
+#define TSDB_DEFAULT_AVG_BLOCKS         4
 
 #define TSDB_MIN_TABLES_PER_VNODE       1
 #define TSDB_MAX_TABLES_PER_VNODE       220000
@@ -204,7 +203,7 @@ extern "C" {
 
 #define TSDB_MAX_RPC_THREADS            5
 
-#define TSDB_QUERY_TYPE_QUERY                            0     // normal query
+#define TSDB_QUERY_TYPE_QUERY                          0         // normal query
 #define TSDB_QUERY_TYPE_FREE_RESOURCE                  0x01U     // free qhandle at vnode
 
 /*
@@ -219,6 +218,9 @@ extern "C" {
 #define TSDB_QUERY_TYPE_JOIN_QUERY                     0x20U    // join query
 #define TSDB_QUERY_TYPE_PROJECTION_QUERY               0x40U    // select *,columns... query
 #define TSDB_QUERY_TYPE_JOIN_SEC_STAGE                 0x80U    // join sub query at the second stage
+
+#define TSQL_SO_ASC   1
+#define TSQL_SO_DESC  0
 
 #ifdef __cplusplus
 }
