@@ -1032,8 +1032,6 @@ _error:
     pVPeer->signature = NULL;
     tfree(pVPeer);
   }
-
-  return;
 }
 
 void vnodeCheckPeerConnection(void *param, void *tmrId)
