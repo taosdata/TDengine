@@ -510,7 +510,7 @@ static void doInitGlobalConfig() {
                      0, TSDB_MAX_VNODES, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "tables", &tsSessionsPerVnode, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
-                     4, 220000, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_MIN_TABLES_PER_VNODE, TSDB_MAX_TABLES_PER_VNODE, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "cache", &tsCacheBlockSize, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      100, 1048576, 0, TSDB_CFG_UTYPE_BYTE);
