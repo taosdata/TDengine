@@ -981,8 +981,8 @@ int vnodeSendStatusMsgToPeer(SVnodePeer *pVPeer, char ack)
             pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, ack);
     code = 0;
   } else {
-    dTrace("vid:%d, peer:%s:%d failed to send status, pfd:%d ack:%d errno:%d, restart connection",
-            pVPeer->ownId, pVPeer->ipstr, pVPeer->peerFd, ack, errno);
+    dTrace("vid:%d, peer:%s:%d failed to send status, pfd:%d ack:%d reason:%s, restart connection",
+            pVPeer->ownId, pVPeer->ipstr, pVPeer->peerFd, ack, strerror(errno));
     vnodeRestartConnection(pVPeer);
   }
 
@@ -1285,7 +1285,7 @@ void *vnodeSyncRetrieveData(void *param)
 _over:
   pVPeer->syncStatus = 0;
 
-  dError("vid:%d, peer:%s:%d failed to sync restore data, restart connection", vnode, pVPeer->ipstr, pVPeer->vid);
+  dError("vid:%d, peer:%s:%d failed to sync retrieve data, restart connection", vnode, pVPeer->ipstr, pVPeer->vid);
   vnodeRestartConnection(pVPeer);
   tfree(pSync);
   return NULL;
