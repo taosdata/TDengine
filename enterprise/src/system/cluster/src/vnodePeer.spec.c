@@ -556,12 +556,9 @@ void vnodeRestartConnection(SVnodePeer *pVPeer)
     return;
   }
 
-  if (pthread_mutex_trylock(&(pVnode->vmutex)) != 0) {
-    dTrace("vid:%d, peer:%s:%d restart connection in progress", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
-  } else {
-    dTrace("vid:%d, peer:%s:%d do restart connection", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
-  }
-
+  pthread_mutex_trylock(&(pVnode->vmutex);
+  dTrace("vid:%d, peer:%s:%d do restart connection", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
+  
   if (pVPeer->peerFd >= 0) vnodeClosePeerFd(pVPeer);
   pVPeer->peerFd = -1;
 
@@ -640,9 +637,13 @@ void vnodeSyncNotStarted(void *param, void *tmrId)
   int         vid;
 
   if (pVPeer == NULL) return;
-  if (pVPeer->ip == 0) return;
 
   vid = pVPeer->ownId;
+
+  if (pVPeer->ip == 0) {
+    dError("vid:%d, peer:%s:%d sync connection is still not up, ip is 0", vid, pVPeer->ipstr, pVPeer->vid);
+    return;
+  }
 
   dPrint("vid:%d, peer:%s:%d sync connection is still not up, restart connection", vid, pVPeer->ipstr, pVPeer->vid);
 
@@ -726,16 +727,14 @@ void vnodeSyncWithPeer(void *param, void *tmrId)
   if (write(pVPeer->peerFd, buffer, msgLen) != msgLen) {
     dError("vid:%d, peer:%s:%d failed to send sync req to peer, pfd:%d sfd:%d",
             pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
-    pVnode->syncStatus = TSDB_VN_SYNC_STATUS_INIT;
     taosTmrStart(vnodeSyncNotStarted, 0, pVPeer, vnodeTmrCtrl);
   } else {
+    dPrint("vid:%d, peer:%s:%d sync req is sent, pfd:%d sfd:%d",
+            pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
+
     if (pVPeer->syncFd < 0) {
       dPrint("vid:%d, peer:%s:%d sfd:%d < 0, try sync later", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->syncFd);
-      pVnode->syncStatus = TSDB_VN_SYNC_STATUS_INIT;
       taosTmrReset(vnodeSyncNotStarted, tsVnodePeerHBTimer * 1000, pVPeer, vnodeTmrCtrl, &pVPeer->syncTimer);
-    } else {
-      dPrint("vid:%d, peer:%s:%d sync req is sent, pfd:%d sfd:%d",
-             pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
     }
   }
 
