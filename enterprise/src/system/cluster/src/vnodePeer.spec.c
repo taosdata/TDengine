@@ -130,7 +130,10 @@ void vnodeClosePeerVnode(int vnode)
     pVnode->pQueue = NULL;
   }
 
-  pVnode->vnodeStatus = TSDB_VN_STATUS_OFFLINE;
+  /*
+   * The vnode can be set to the offline state only when it is completely deleted.
+   */
+  //pVnode->vnodeStatus = TSDB_VN_STATUS_OFFLINE;
 
   pthread_mutex_unlock (&pVnode->vmutex);
 }
@@ -187,7 +190,7 @@ void vnodeConfigVPeers(int vnode, int numOfPeers, SVPeerDesc peerDesc[])
     dPrint("vid:%d, vnode is still under creating", vnode);
     return;
   }
-  
+
   dPrint("vid:%d, config vpeer, status:%s numOfPeers:%d", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus), numOfPeers);
 
   pthread_mutex_lock (&dmutex);
