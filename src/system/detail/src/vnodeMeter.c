@@ -24,6 +24,7 @@
 #include "vnodeMgmt.h"
 #include "vnodeShell.h"
 #include "vnodeUtil.h"
+#include "tstatus.h"
 
 #pragma GCC diagnostic ignored "-Wpointer-sign"
 
@@ -717,7 +718,8 @@ void vnodeUpdateMeter(void *param, void *tmrId) {
   SVnodeObj* pVnode = &vnodeList[pNew->vnode];
 
   if (pVnode->meterList == NULL) {
-    dTrace("vid:%d sid:%d id:%s, vnode is deleted, abort update schema", pNew->vnode, pNew->sid, pNew->meterId);
+    dTrace("vid:%d sid:%d id:%s, vnode is deleted, status:%s, abort update schema",
+            pNew->vnode, pNew->sid, pNew->meterId, taosGetVnodeStatusStr(vnodeList[pNew->vnode].vnodeStatus));
     free(pNew->schema);
     free(pNew);
     return;

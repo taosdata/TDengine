@@ -250,7 +250,7 @@ static void vnodeRemoveDataFiles(int vnode) {
 
   sprintf(vnodeDir, "%s/vnode%d", tsDirectory, vnode);
   rmdir(vnodeDir);
-  dPrint("vid:%d, vnode is removed!", vnode);
+  dPrint("vid:%d, vnode is removed, status:%s", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
 }
 
 int vnodeRemoveVnode(int vnode) {
