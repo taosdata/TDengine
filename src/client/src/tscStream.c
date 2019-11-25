@@ -15,7 +15,7 @@
 
 #include "os.h"
 #include "tlog.h"
-#include "tsql.h"
+#include "tscSQLParser.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"

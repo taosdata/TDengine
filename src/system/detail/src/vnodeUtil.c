@@ -283,6 +283,7 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
     int32_t param = pExprs[i].pBase.arg[0].argValue.i64;
     if (getResultDataInfo(type, bytes, pExprs[i].pBase.functionId, param, &pExprs[i].resType, &pExprs[i].resBytes,
                   &pExprs[i].interResBytes, 0, isSuperTable) != TSDB_CODE_SUCCESS) {
+      *code = TSDB_CODE_INVALID_QUERY_MSG;
       return NULL;
     }
 
@@ -626,16 +627,16 @@ void vnodeUpdateQueryColumnIndex(SQuery* pQuery, SMeterObj* pMeterObj) {
     return;
   }
 
-  for(int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-    SSqlFuncExprMsg* pSqlExprMsg = &pQuery->pSelectExpr[i].pBase;
+  for(int32_t k = 0; k < pQuery->numOfOutputCols; ++k) {
+    SSqlFuncExprMsg* pSqlExprMsg = &pQuery->pSelectExpr[k].pBase;
     if (pSqlExprMsg->functionId == TSDB_FUNC_ARITHM || pSqlExprMsg->colInfo.flag == TSDB_COL_TAG) {
       continue;
     }
 
     SColIndexEx* pColIndexEx = &pSqlExprMsg->colInfo;
-    for(int32_t j = 0; j < pQuery->numOfCols; ++j) {
-      if (pColIndexEx->colId == pQuery->colList[j].data.colId) {
-        pColIndexEx->colIdx = pQuery->colList[j].colIdx;
+    for(int32_t f = 0; f < pQuery->numOfCols; ++f) {
+      if (pColIndexEx->colId == pQuery->colList[f].data.colId) {
+        pColIndexEx->colIdx = pQuery->colList[f].colIdx;
         break;
       }
     }

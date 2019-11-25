@@ -140,90 +140,31 @@ int mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   if (pCreate->replications < 0) pCreate->replications = tsReplications;                                  //
   if (pCreate->rowsInFileBlock < 0) pCreate->rowsInFileBlock = tsRowsInFileBlock;                         //
   if (pCreate->cacheNumOfBlocks.fraction < 0) pCreate->cacheNumOfBlocks.fraction = tsAverageCacheBlocks;  //
-  //-1 for balance
-
-  if (pCreate->replications < 0 || pCreate->replications > TSDB_REPLICA_MAX_NUM) {
-    mTrace("invalid db option replications: %d", pCreate->replications);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-
-  if (pCreate->commitLog < 0 || pCreate->commitLog > 1) {
-    mTrace("invalid db option commitLog: %d", pCreate->commitLog);
+  
+  if (mgmtCheckDBParams(pCreate) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_OPTION;
   }
   
-  if (pCreate->replications < TSDB_REPLICA_MIN_NUM || pCreate->replications > TSDB_REPLICA_MAX_NUM) {
-    mTrace("invalid db option replications: %d", pCreate->replications);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-
-  if (pCreate->daysPerFile < TSDB_FILE_MIN_PARTITION_RANGE || pCreate->daysPerFile > TSDB_FILE_MAX_PARTITION_RANGE) {
-    mTrace("invalid db option daysPerFile: %d valid range: %d--%d", pCreate->daysPerFile, TSDB_FILE_MIN_PARTITION_RANGE,
-           TSDB_FILE_MAX_PARTITION_RANGE);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-
-  if (pCreate->daysToKeep1 > pCreate->daysToKeep2 || pCreate->daysToKeep2 > pCreate->daysToKeep) {
-    mTrace("invalid db option daystokeep1: %d, daystokeep2: %d, daystokeep: %d", pCreate->daysToKeep1,
-           pCreate->daysToKeep2, pCreate->daysToKeep);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-
-  if (pCreate->daysToKeep1 < TSDB_FILE_MIN_PARTITION_RANGE || pCreate->daysToKeep1 < pCreate->daysPerFile) {
-    mTrace("invalid db option daystokeep: %d", pCreate->daysToKeep);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-  if (pCreate->rowsInFileBlock < TSDB_MIN_ROWS_IN_FILEBLOCK || pCreate->rowsInFileBlock > TSDB_MAX_ROWS_IN_FILEBLOCK) {
-    mTrace("invalid db option rowsInFileBlock: %d valid range: %d--%d", pCreate->rowsInFileBlock,
-           TSDB_MIN_ROWS_IN_FILEBLOCK, TSDB_MAX_ROWS_IN_FILEBLOCK);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-  if (pCreate->cacheBlockSize < TSDB_MIN_CACHE_BLOCK_SIZE || pCreate->cacheBlockSize > TSDB_MAX_CACHE_BLOCK_SIZE) {
-    mTrace("invalid db option cacheBlockSize: %d valid range: %d--%d", pCreate->cacheBlockSize,
-           TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MAX_CACHE_BLOCK_SIZE);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-  if (pCreate->maxSessions < TSDB_MIN_TABLES_PER_VNODE || pCreate->maxSessions > TSDB_MAX_TABLES_PER_VNODE) {
-    mTrace("invalid db option maxSessions: %d valid range: %d--%d", pCreate->maxSessions, TSDB_MIN_TABLES_PER_VNODE,
-           TSDB_MAX_TABLES_PER_VNODE);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-
-  if (pCreate->precision != TSDB_TIME_PRECISION_MILLI && pCreate->precision != TSDB_TIME_PRECISION_MICRO) {
-    mTrace("invalid db option timePrecision: %d valid value: %d,%d", pCreate->precision, TSDB_TIME_PRECISION_MILLI,
-           TSDB_TIME_PRECISION_MICRO);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-
-  if (pCreate->cacheNumOfBlocks.fraction < 0 || pCreate->cacheNumOfBlocks.fraction > TSDB_MAX_AVG_BLOCKS) {
-    mTrace("invalid db option ablocks: %d valid value: %d,%d", pCreate->precision, 0, TSDB_MAX_AVG_BLOCKS);
-    return TSDB_CODE_INVALID_OPTION;
-  } else {
-    pCreate->cacheNumOfBlocks.totalBlocks = (int32_t)(pCreate->cacheNumOfBlocks.fraction * pCreate->maxSessions);
-  }
-
+  pCreate->cacheNumOfBlocks.totalBlocks = (int32_t)(pCreate->cacheNumOfBlocks.fraction * pCreate->maxSessions);
+  
   if (pCreate->cacheNumOfBlocks.totalBlocks > TSDB_MAX_CACHE_BLOCKS) {
-    mTrace("invalid db option cacheNumOfBlocks: %d valid range: %d", pCreate->cacheNumOfBlocks.totalBlocks,
-           TSDB_MAX_CACHE_BLOCKS);
+    mTrace("invalid db option cacheNumOfBlocks: %d valid range: [%d, %d]", pCreate->cacheNumOfBlocks.totalBlocks,
+           TSDB_MIN_CACHE_BLOCKS, TSDB_MAX_CACHE_BLOCKS);
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (pCreate->commitTime < TSDB_MIN_COMMIT_TIME_INTERVAL || pCreate->commitTime > TSDB_MAX_COMMIT_TIME_INTERVAL) {
-    mTrace("invalid db option commitTime: %d valid range: %d-%d", pCreate->commitTime, TSDB_MIN_COMMIT_TIME_INTERVAL,
-           TSDB_MAX_COMMIT_TIME_INTERVAL);
-    return TSDB_CODE_INVALID_OPTION;
+  // calculate the blocks per table
+  if (pCreate->blocksPerMeter < 0) {
+    pCreate->blocksPerMeter = pCreate->cacheNumOfBlocks.totalBlocks / 4;
   }
-  if (pCreate->compression > TSDB_MAX_COMPRESSION_LEVEL) {
-    mTrace("invalid db option compression: %d", pCreate->compression, TSDB_MIN_COMMIT_TIME_INTERVAL,
-           TSDB_MAX_COMMIT_TIME_INTERVAL);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-
-  if (pCreate->blocksPerMeter < 0) pCreate->blocksPerMeter = pCreate->cacheNumOfBlocks.totalBlocks / 4;
+  
   if (pCreate->blocksPerMeter > pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4) {
     pCreate->blocksPerMeter = pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4;
   }
-  if (pCreate->blocksPerMeter < 4) pCreate->blocksPerMeter = 4;
+  
+  if (pCreate->blocksPerMeter < TSDB_MIN_AVG_BLOCKS) {
+    pCreate->blocksPerMeter = TSDB_MIN_AVG_BLOCKS;
+  }
 
   pCreate->maxSessions++;
 

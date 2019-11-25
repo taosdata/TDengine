@@ -26,7 +26,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
-#include "tsql.h"
+#include "tscSQLParser.h"
 #include "tutil.h"
 }
 
@@ -218,7 +218,8 @@ comp(Y)    ::= COMP INTEGER(X).               { Y = X; }
 prec(Y)    ::= PRECISION STRING(X).           { Y = X; }
 
 %type db_optr {SCreateDBInfo}
-db_optr(Y) ::= . {memset(&Y, 0, sizeof(SCreateDBInfo));}
+db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
+
 db_optr(Y) ::= db_optr(Z) tables(X).         { Y = Z; Y.tablesPerVnode = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) cache(X).          { Y = Z; Y.cacheBlockSize = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) replica(X).        { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
@@ -233,7 +234,7 @@ db_optr(Y) ::= db_optr(Z) prec(X).           { Y = Z; Y.precision = X; }
 db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
 
 %type alter_db_optr {SCreateDBInfo}
-alter_db_optr(Y) ::= . { memset(&Y, 0, sizeof(SCreateDBInfo));}
+alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y);}
 
 alter_db_optr(Y) ::= alter_db_optr(Z) replica(X).     { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) tables(X).      { Y = Z; Y.tablesPerVnode = strtol(X.z, NULL, 10); }
