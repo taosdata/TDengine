@@ -1,6 +1,6 @@
-#run lite/parser/alter.sim
-#run lite/parser/alter1.sim
-#run lite/parser/alter_stable.sim
+run lite/parser/alter.sim
+run lite/parser/alter1.sim
+run lite/parser/alter_stable.sim
 run lite/parser/auto_create_tb.sim
 run lite/parser/auto_create_tb_drop_tb.sim
 run lite/parser/col_arithmetic_operation.sim
