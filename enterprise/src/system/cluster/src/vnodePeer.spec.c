@@ -691,8 +691,8 @@ void vnodeSyncWithPeer(void *param, void *tmrId)
   }
 
   if (tsSyncNum >= tsPeerThreadPool.numOfThreads) {
-    dPrint("vid:%d, peer:%s:%d too many sync in process, try later, tsSyncNum:%d", pVPeer->ownId, pVPeer->ipstr,
-           pVPeer->vid, tsSyncNum);
+    dPrint("vid:%d, peer:%s:%d too many sync in process, try later, tsSyncNum:%d numOfThreads:%d",
+            pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, tsSyncNum, tsPeerThreadPool.numOfThreads);
     taosTmrReset(vnodeSyncWithPeer, 500, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
     return;
   }
@@ -1121,7 +1121,7 @@ void *vnodeSyncRestoreData(void *param)
   uint32_t    startCache = 1;
   STranQueue *pQueue;
 
-  tsSyncNum++;
+  __sync_fetch_and_add(&tsSyncNum, 1);
   vnode = pVPeer->ownId;
   pVnode = &vnodeList[vnode];
   pQueue = (STranQueue *) pVnode->pQueue;
@@ -1196,7 +1196,7 @@ void *vnodeSyncRestoreData(void *param)
   vnodeBroadcastStatus(pVnode);
 
   taosTmrStopA(&pVPeer->syncTimer);
-  tsSyncNum--;
+  __sync_fetch_and_sub(&tsSyncNum, 1);
   return NULL;
 
 _sync_req_over:
@@ -1208,7 +1208,7 @@ _sync_req_over:
 
   dError("vid:%d, peer:%s:%d failed to sync restore data, restart connection", pVnode->vnode, pVPeer->ipstr, pVPeer->vid);
   vnodeRestartConnection(pVPeer);
-  tsSyncNum--;
+  __sync_fetch_and_sub(&tsSyncNum, 1);
   return NULL;
 }
 
