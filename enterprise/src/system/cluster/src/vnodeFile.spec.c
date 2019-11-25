@@ -251,7 +251,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       }
 
       if (stat(headName, &fstat) < 0) {
-        dError("vid:%d, fileId:%d, failed to stat head file:%s, errno:%d", vnode, fileId, headName, errno);
+        dError("vid:%d, fileId:%d, failed to stat head file:%s, errno:%s", vnode, fileId, headName, strerror(errno));
         return -1;
       }
 
@@ -270,7 +270,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       }
 
       if (tsendfile(fd, sfd, NULL, size) < 0) {
-        dError("vid:%d, fileId:%d, failed to send head file:%s size:%d to peer, errno:%d", vnode, fileId, headName, size, errno);
+        dError("vid:%d, fileId:%d, failed to send head file:%s size:%d to peer, errno:%s", vnode, fileId, headName, size, strerror(errno));
         close(sfd);
         return -1;
       }
@@ -281,7 +281,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       // send data file
       dPrint("vid:%d, fileId:%d, try to send data file:%s to peer", vnode, fileId, dataName);
       if (stat(dataName, &fstat) < 0) {
-        dError("vid:%d, fileId:%d, failed to stat data file:%s, errno:%d", vnode, fileId, dataName, errno);
+        dError("vid:%d, fileId:%d, failed to stat data file:%s, errno:%s", vnode, fileId, dataName, strerror(errno));
         return -1;
       }
 
@@ -298,7 +298,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       }
 
       if (tsendfile(fd, sfd, NULL, size) < 0) {
-        dError("vid:%d, fileId:%d, failed to send data file:%s size:%ld to peer, errno:%d", vnode, fileId, dataName, size, errno);
+        dError("vid:%d, fileId:%d, failed to send data file:%s size:%ld to peer, errno:%s", vnode, fileId, dataName, size, strerror(errno));
         close(sfd);
         return -1;
       }
@@ -309,7 +309,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       // send last file
       dPrint("vid:%d, fileId:%d, try to send data file:%s to peer", vnode, fileId, lastName);
       if (stat(lastName, &fstat) < 0) {
-        dError("vid:%d, fileId:%d, failed to last data file:%s, errno:%d", vnode, fileId, lastName, errno);
+        dError("vid:%d, fileId:%d, failed to last data file:%s, errno:%s", vnode, fileId, lastName, strerror(errno));
         return -1;
       }
 
@@ -326,7 +326,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       }
 
       if (tsendfile(fd, sfd, NULL, size) < 0) {
-        dError("vid:%d, fileId:%d, failed to send last file:%s size:%d to peer, errno:%d", vnode, fileId, lastName, size, errno);
+        dError("vid:%d, fileId:%d, failed to send last file:%s size:%d to peer, errno:%s", vnode, fileId, lastName, size, strerror(errno));
         close(sfd);
         return -1;
       }
@@ -437,7 +437,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
       }
 
       if (taosCopyFds(sfd, dfd, size) < 0) {
-        dError("vid:%d, fileId:%d, failed to receive head file:%s from peer, size:%ld", vnode, fileId, headName, size);
+        dError("vid:%d, fileId:%d, failed to receive head file:%s content from peer, size:%ld", vnode, fileId, headName, size);
         close(dfd);
         vnodeRemoveFile(vnode, fileId);
         return -1;
@@ -469,7 +469,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
       }
 
       if (taosCopyFds(sfd, dfd, size) < 0) {
-        dError("vid:%d, fileId:%d, failed to receive data file:%s from peer, size:%ld", vnode, fileId, dataName, size);
+        dError("vid:%d, fileId:%d, failed to receive data file:%s content from peer, size:%ld", vnode, fileId, dataName, size);
         close(dfd);
         vnodeRemoveFile(vnode, fileId);
         return -1;
@@ -491,7 +491,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
         return -1;
       }
 
-      dPrint("vid:%d, fileId:%d, start to receieve last file:%s from peer, size:%ld", vnode, fileId, lastName, size);
+      dPrint("vid:%d, fileId:%d, start to receieve last file:%s content from peer, size:%ld", vnode, fileId, lastName, size);
 
       dfd = open(lastName, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
       if (dfd < 0) {

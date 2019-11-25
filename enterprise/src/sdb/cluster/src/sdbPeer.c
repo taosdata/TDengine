@@ -157,6 +157,7 @@ SSdbPeer *sdbAddPeer(uint32_t ip, uint32_t publicIp, char role) {
   if (sdbInsertRow(mnodeSdb, pPeer, 0) > 0) {
     sdbTrace("sdb peer:%s is added", pPeer->ipstr);
   } else {
+    sdbError("failed to add sdb peer:%s", pPeer->ipstr);
     tfree(pPeer);
   }
 
@@ -169,6 +170,8 @@ int sdbRemovePeer(SSdbPeer *pPeer) {
   if (pPeer->ip == selfIp) {
     sdbWarn("could not remove self IP");
     return 0;
+  } else {
+    sdbTrace("sdb peer:%s will be removed", pPeer->ipstr);
   }
 
   sdbDeleteRow(mnodeSdb, &(pPeer->ip));
@@ -180,7 +183,10 @@ int sdbRemovePeerByIp(uint32_t ip) {
   SSdbPeer *pPeer;
 
   pPeer = sdbGetRow(mnodeSdb, &ip);
-  if (pPeer == NULL) return TSDB_CODE_INVALID_VALUE;
+  if (pPeer == NULL) {
+    sdbError("sdb peer:%s not exist, can not remove", taosIpStr(ip));
+    return TSDB_CODE_INVALID_VALUE;
+  }
 
   sdbRemovePeer(pPeer);
 
@@ -209,7 +215,7 @@ void sdbNewPeerAdded(SSdbPeer *pPeer) {
     }
 
     if (i >= SDB_MAX_PEERS) {
-      sdbError("max number of peers is reached, ignore new one");
+      sdbError("numOfPeers:%d larger than max number of peers:%d, ignore new one:%s", i, SDB_MAX_PEERS, pPeer->ipstr);
       return;
     }
   }
@@ -389,7 +395,10 @@ int sdbInitPeers(char *directory) {
   pSelf->status = SDB_STATUS_UNSYNCED;
   pSelf->role = SDB_ROLE_UNDECIDED;
   pSelf->numOfMnodes = 0;
-  if ((sdbNumOfPeers == 1) && (masterIp == selfIp)) sdbWorkAsMaster();
+  if ((sdbNumOfPeers == 1) && (masterIp == selfIp)) {
+    sdbPrint("numOfPeers:%d, master:%s self:%s work as master", sdbNumOfPeers, taosIpStr(masterIp), taosIpStr(selfIp));
+    sdbWorkAsMaster();
+  }
 
   sdbUpdateIpList();
 
@@ -467,8 +476,8 @@ void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
 
   if (msg == NULL) {
     if (pPeer && pPeer->ip && pPeer->status != SDB_STATUS_DELETED) {
-      sdbTrace("ip:%s, connection is gone, role:%d, status:%d numOfMnodes:%d", pPeer->ipstr, pPeer->role, pPeer->status,
-               pSelf->numOfMnodes);
+      sdbTrace("ip:%s, role:%s status:%s connection is gone, self numOfMnodes:%d",
+              pPeer->ipstr, taosGetSdbRoleStr(pPeer->role), taosGetSdbStatusStr(pPeer->status), pSelf->numOfMnodes);
 
       int outType = taosGetOutType(pPeer->thandle);
       if (outType == TSDB_MSG_TYPE_FORWARD) {
@@ -741,6 +750,9 @@ void sdbCheckSelfRole() {
 
   if (pSelf->role == SDB_ROLE_MASTER) {
     if ((pSelf->numOfMnodes + 1.0) / sdbNumOfPeers < 0.5) {
+      sdbTrace("self role:%s status:%s numOfMnodes:%d sdbNumOfPeers:%d, mnode ratio %f < 0.5, stop work as master",
+               taosGetSdbRoleStr(pSelf->role), taosGetSdbStatusStr(pSelf->status),
+               pSelf->numOfMnodes, sdbNumOfPeers, (pSelf->numOfMnodes + 1.0) / sdbNumOfPeers);
       sdbStopWorkingAsMaster();
     }
   }
@@ -821,7 +833,8 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
       continue;
     }
     if ((pPeer->numOfMnodes + 1.0) / sdbNumOfPeers < 0.5) {
-      sdbTrace("peer:%s, average numOfMnodes:%f < 0.5, give up", pPeer->ipstr, (pPeer->numOfMnodes + 1.0) / sdbNumOfPeers);
+      sdbTrace("peer:%s, mnode ratio %f < 0.5, give up, numOfMnodes:%d sdbNumOfPeers:%d",
+              pPeer->ipstr, (pPeer->numOfMnodes + 1.0) / sdbNumOfPeers, pPeer->numOfMnodes, sdbNumOfPeers);
       continue;
     }
 
