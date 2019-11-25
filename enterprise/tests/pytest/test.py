@@ -149,7 +149,7 @@ from cluster_mgmt.kill_corruptmgmt_restart import *
 ##from import_merge.importTailOverlap import *
 ##from import_merge.importTailPartOverlap import *
 ##from import_merge.importSpan import *
-##from import_merge.importHRestart import *
+from import_merge.importHRestart import *
 ##from import_merge.importTRestart import *
 ##from import_merge.importHORestart import *
 ##from import_merge.importHPORestart import *
