@@ -250,7 +250,7 @@ static void vnodeRemoveDataFiles(int vnode) {
 
   sprintf(vnodeDir, "%s/vnode%d", tsDirectory, vnode);
   rmdir(vnodeDir);
-  dPrint("vid:%d, vnode is removed!", vnode);
+  dPrint("vid:%d, vnode is removed, status:%s", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
 }
 
 int vnodeRemoveVnode(int vnode) {
@@ -261,7 +261,7 @@ int vnodeRemoveVnode(int vnode) {
     if (pVnode->vnodeStatus == TSDB_VN_STATUS_CREATING
         || pVnode->vnodeStatus == TSDB_VN_STATUS_OFFLINE
         || pVnode->vnodeStatus == TSDB_VN_STATUS_DELETING) {
-      dError("vid:%d, status:%s, cannot enter close/delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
+      dTrace("vid:%d, status:%s, cannot enter close/delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
       return TSDB_CODE_ACTION_IN_PROGRESS;
     } else {
       int32_t ret = vnodeCloseVnode(vnode);
@@ -269,6 +269,7 @@ int vnodeRemoveVnode(int vnode) {
         return ret;
       }
 
+      dTrace("vid:%d, status:%s, do delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
       vnodeRemoveDataFiles(vnode);
     }
 

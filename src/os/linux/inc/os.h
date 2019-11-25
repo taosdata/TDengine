@@ -224,6 +224,7 @@ int64_t str2int64(char *str);
 
 void taosSetCoreDump();
 
+void taosBlockSIGPIPE();
 
 #define BUILDIN_CLZL(val) __builtin_clzl(val)
 #define BUILDIN_CLZ(val) __builtin_clz(val)

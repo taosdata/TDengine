@@ -142,7 +142,7 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
 
   SDbObj *pDb = mgmtGetDb(pRsp->more);
   if (!pDb) {
-    mError("dnode:%s, db not find, code:%d", taosIpStr(pObj->privateIp), pRsp->code);
+    mError("dnode:%s, db:%s not find, code:%d", taosIpStr(pObj->privateIp), pRsp->more, pRsp->code);
     return 0;
   }
 

@@ -184,13 +184,15 @@ int vnodeOpenShellVnode(int vnode) {
 
 static void vnodeDelayedFreeResource(void *param, void *tmrId) {
   int32_t vnode = *(int32_t*) param;
-  dTrace("vid:%d, start to free resources", vnode);
+  dTrace("vid:%d, start to free resources for 500ms arrived", vnode);
 
   taosCloseRpcChann(pShellServer, vnode); // close connection
   tfree(shellList[vnode]);  //free SShellObj
   tfree(param);
 
   memset(vnodeList + vnode, 0, sizeof(SVnodeObj));
+  dTrace("vid:%d, status set to %s", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+
   vnodeCalcOpenVnodes();
 }
 
