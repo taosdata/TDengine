@@ -1,6 +1,3 @@
-run cluster/mnode/secondIp.sim
-run cluster/mnode/drop.sim
-run cluster/mnode/reuse.sim
 run cluster/mnode/mgmt22.sim
 run cluster/mnode/mgmt23.sim
 run cluster/mnode/mgmt24.sim
@@ -10,4 +7,7 @@ run cluster/mnode/mgmt33.sim
 run cluster/mnode/mgmt34.sim
 run cluster/mnode/mgmtr1.sim
 run cluster/mnode/mgmtr2.sim
-          
+run cluster/mnode/drop.sim
+run cluster/mnode/reuse.sim
+run cluster/mnode/secondIp.sim
+
