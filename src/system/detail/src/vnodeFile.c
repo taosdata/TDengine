@@ -181,29 +181,24 @@ int vnodeCreateEmptyCompFile(int vnode, int fileId) {
   return 0;
 }
 
-int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
-  char        name[TSDB_FILENAME_LEN];
-  char        dHeadName[TSDB_FILENAME_LEN] = "\0";
-  char        dLastName[TSDB_FILENAME_LEN] = "\0";
-  int         len = 0;
-  struct stat filestat;
-  int         vnode = pVnode->vnode;
-  int         fileId, numOfFiles, filesAdded = 0;
-  SVnodeCfg * pCfg = &pVnode->cfg;
+int vnodeCreateNeccessaryFiles(SVnodeObj *pVnode) {
+  int        numOfFiles = 0, fileId, filesAdded = 0;
+  int        vnode = pVnode->vnode;
+  SVnodeCfg *pCfg = &(pVnode->cfg);
 
   if (pVnode->lastKeyOnFile == 0) {
     if (pCfg->daysPerFile == 0) pCfg->daysPerFile = 10;
     pVnode->fileId = pVnode->firstKey / tsMsPerDay[pVnode->cfg.precision] / pCfg->daysPerFile;
-    pVnode->lastKeyOnFile = (int64_t)(pVnode->fileId + 1) * pCfg->daysPerFile * tsMsPerDay[pVnode->cfg.precision] - 1;
+    pVnode->lastKeyOnFile = (long)(pVnode->fileId + 1) * pCfg->daysPerFile * tsMsPerDay[pVnode->cfg.precision] - 1;
     pVnode->numOfFiles = 1;
-    vnodeCreateEmptyCompFile(vnode, pVnode->fileId);
+    if (vnodeCreateEmptyCompFile(vnode, pVnode->fileId) < 0) return -1;
   }
 
   numOfFiles = (pVnode->lastKeyOnFile - pVnode->commitFirstKey) / tsMsPerDay[pVnode->cfg.precision] / pCfg->daysPerFile;
   if (pVnode->commitFirstKey > pVnode->lastKeyOnFile) numOfFiles = -1;
 
-  dTrace("vid:%d, commitFirstKey:%ld lastKeyOnFile:%ld numOfFiles:%d fileId:%d vnodeNumOfFiles:%d",
-      vnode, pVnode->commitFirstKey, pVnode->lastKeyOnFile, numOfFiles, pVnode->fileId, pVnode->numOfFiles);
+  dTrace("vid:%d, commitFirstKey:%ld lastKeyOnFile:%ld numOfFiles:%d fileId:%d vnodeNumOfFiles:%d", pVnode->vnode,
+         pVnode->commitFirstKey, pVnode->lastKeyOnFile, numOfFiles, pVnode->fileId, pVnode->numOfFiles);
 
   if (numOfFiles >= pVnode->numOfFiles) {
     // create empty header files backward
@@ -215,7 +210,7 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
 #ifdef CLUSTER	  
 	    return vnodeRecoverFromPeer(pVnode, fileId);
 #else
-        return -1;
+      return -1;
 #endif				
     }
   } else if (numOfFiles < 0) {
@@ -225,19 +220,35 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
 #ifdef CLUSTER	  
 	    return vnodeRecoverFromPeer(pVnode, pVnode->fileId);
 #else
-        return -1;
+      return -1;
 #endif
-    pVnode->lastKeyOnFile += (int64_t)tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile;
+    pVnode->lastKeyOnFile += (long)tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile;
     filesAdded = 1;
     numOfFiles = 0;  // hacker way
   }
 
   fileId = pVnode->fileId - numOfFiles;
   pVnode->commitLastKey =
-      pVnode->lastKeyOnFile - (int64_t)numOfFiles * tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile;
-  pVnode->commitFirstKey = pVnode->commitLastKey - (int64_t)tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile + 1;
+      pVnode->lastKeyOnFile - (long)numOfFiles * tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile;
+  pVnode->commitFirstKey = pVnode->commitLastKey - (long)tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile + 1;
   pVnode->commitFileId = fileId;
   pVnode->numOfFiles = pVnode->numOfFiles + filesAdded;
+
+  return 0;
+}
+
+
+int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
+  char        name[TSDB_FILENAME_LEN];
+  char        dHeadName[TSDB_FILENAME_LEN] = "\0";
+  char        dLastName[TSDB_FILENAME_LEN] = "\0";
+  int         len = 0;
+  struct stat filestat;
+  int         vnode = pVnode->vnode;
+  int         fileId, numOfFiles, filesAdded = 0;
+  SVnodeCfg * pCfg = &pVnode->cfg;
+
+  if (vnodeCreateNeccessaryFiles(pVnode) < 0) return -1;
 
   dTrace("vid:%d, commit fileId:%d, commitLastKey:%ld, vnodeLastKey:%ld, lastKeyOnFile:%ld numOfFiles:%d",
       vnode, fileId, pVnode->commitLastKey, pVnode->lastKey, pVnode->lastKeyOnFile, pVnode->numOfFiles);
