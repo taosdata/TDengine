@@ -250,6 +250,8 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
 
   if (vnodeCreateNeccessaryFiles(pVnode) < 0) return -1;
 
+  fileId = pVnode->commitFileId;
+
   dTrace("vid:%d, commit fileId:%d, commitLastKey:%ld, vnodeLastKey:%ld, lastKeyOnFile:%ld numOfFiles:%d",
       vnode, fileId, pVnode->commitLastKey, pVnode->lastKey, pVnode->lastKeyOnFile, pVnode->numOfFiles);
 
