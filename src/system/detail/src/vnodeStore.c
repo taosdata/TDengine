@@ -261,7 +261,7 @@ int vnodeRemoveVnode(int vnode) {
     if (pVnode->vnodeStatus == TSDB_VN_STATUS_CREATING
         || pVnode->vnodeStatus == TSDB_VN_STATUS_OFFLINE
         || pVnode->vnodeStatus == TSDB_VN_STATUS_DELETING) {
-      dError("vid:%d, status:%s, cannot enter close/delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
+      dTrace("vid:%d, status:%s, cannot enter close/delete operation", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus));
       return TSDB_CODE_ACTION_IN_PROGRESS;
     } else {
       int32_t ret = vnodeCloseVnode(vnode);
