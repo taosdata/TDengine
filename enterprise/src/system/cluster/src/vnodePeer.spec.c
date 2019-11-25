@@ -982,7 +982,7 @@ int vnodeSendStatusMsgToPeer(SVnodePeer *pVPeer, char ack)
     code = 0;
   } else {
     dTrace("vid:%d, peer:%s:%d failed to send status, pfd:%d ack:%d reason:%s, restart connection",
-            pVPeer->ownId, pVPeer->ipstr, pVPeer->peerFd, ack, strerror(errno));
+            pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, ack, strerror(errno));
     vnodeRestartConnection(pVPeer);
   }
 
