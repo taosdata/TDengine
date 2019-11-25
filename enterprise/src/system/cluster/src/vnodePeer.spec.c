@@ -659,7 +659,8 @@ void vnodeSyncWithPeer(void *param, void *tmrId)
   pQueue = (STranQueue *) pVnode->pQueue;
 
   taosTmrStopA(&pVPeer->hbTimer);
-  dPrint("vid:%d, peer:%s:%d try to sync", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
+  dPrint("vid:%d, peer:%s:%d try to sync, pfd:%d sfd:%d",
+          pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
 
   if (pVnode->syncStatus > 0) {
     dPrint("vid:%d, syncstatus:%s is not init status, stop sync", pVnode->vnode, taosGetVnodeSyncStatusStr(pVnode->syncStatus));
@@ -720,13 +721,15 @@ void vnodeSyncWithPeer(void *param, void *tmrId)
   memcpy(pSync->fmagic, pVnode->fmagic, fsize);
 
   if (write(pVPeer->peerFd, buffer, msgLen) != msgLen) {
-    dError("vid:%d, peer:%s:%d failed to send sync req to peer", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
+    dError("vid:%d, peer:%s:%d failed to send sync req to peer, pfd:%d sfd:%d",
+            pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
     taosTmrStart(vnodeSyncNotStarted, 0, pVPeer, vnodeTmrCtrl);
   } else {
-    dPrint("vid:%d, peer:%s:%d sync req is sent", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
+    dPrint("vid:%d, peer:%s:%d sync req is sent, pfd:%d sfd:%d",
+            pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
 
     if (pVPeer->syncFd < 0) {
-      dPrint("vid:%d, peer:%s:%d syncFd:%d < 0, try sync latter", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->syncFd);
+      dPrint("vid:%d, peer:%s:%d sfd:%d < 0, try sync later", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->syncFd);
       taosTmrReset(vnodeSyncNotStarted, tsVnodePeerHBTimer * 1000, pVPeer, vnodeTmrCtrl, &pVPeer->syncTimer);
     }
   }
@@ -923,9 +926,9 @@ int vnodeProcessPeerStatusMsg(char *cont, SVnodePeer *pVPeer)
   int  code = 0;
   int  vid = pVPeer->ownId;
 
-  dTrace("vid:%d, peer:%s:%d status received, self:%s version:%d peer:%s version:%d ack:%d",
+  dTrace("vid:%d, peer:%s:%d status received, self:%s version:%d peer:%s version:%d ack:%d sfd:%d pfd:%d",
          vid, pVPeer->ipstr, pVPeer->vid, taosGetVnodeStatusStr(pVnode->vnodeStatus), pVnode->version,
-         taosGetVnodeStatusStr(pStatus->status), pStatus->version, pStatus->ack);
+         taosGetVnodeStatusStr(pStatus->status), pStatus->version, pStatus->ack, pVPeer->syncFd, pVPeer->peerFd);
 
   pVPeer->commitInProcess = pStatus->commitInProcess;
   pVPeer->version = pStatus->version;
@@ -967,14 +970,16 @@ int vnodeSendStatusMsgToPeer(SVnodePeer *pVPeer, char ack)
 
   msgLen = size;
 
-  dTrace("vid:%d, peer:%s:%d status is sent, ack:%d", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, ack);
   pthread_mutex_lock(&(pVnode->vmutex));
   int retLen = write(pVPeer->peerFd, msg, msgLen);
   pthread_mutex_unlock(&(pVnode->vmutex));
   if (retLen == msgLen) {
+    dTrace("vid:%d, peer:%s:%d status is sent, pfd:%d ack:%d",
+            pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, ack);
     code = 0;
   } else {
-    dTrace("vid:%d, peer:%s:%d failed to send status, restart connection", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
+    dTrace("vid:%d, peer:%s:%d failed to send status, pfd:%d ack:%d errno:%d, restart connection",
+            pVPeer->ownId, pVPeer->ipstr, pVPeer->peerFd, ack, errno);
     vnodeRestartConnection(pVPeer);
   }
 
@@ -1159,7 +1164,7 @@ void *vnodeSyncRestoreData(void *param)
   vnodeList[vnode].syncStatus = TSDB_VN_SYNC_STATUS_SYNC_FILE;
   dTrace("vid:%d, peer:%s:%d start to restore file", vnode, pVPeer->ipstr, pVPeer->vid);
   if (vnodeSyncRestoreFile(vnode, pVPeer->syncFd) < 0) {
-    dError("vid:%d, peer:%s:%d failed to restore file, reason:%s", vnode, pVPeer->ipstr, pVPeer->vid, strerror(errno));
+    dError("vid:%d, peer:%s:%d failed to restore file", vnode, pVPeer->ipstr, pVPeer->vid);
     goto _sync_req_over;
   }
 
