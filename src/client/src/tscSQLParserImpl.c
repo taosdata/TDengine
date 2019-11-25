@@ -14,8 +14,10 @@
  */
 
 #include "os.h"
+#include "taosmsg.h"
 #include "tglobalcfg.h"
-#include "tsql.h"
+#include "tlog.h"
+#include "tscSQLParser.h"
 #include "tstoken.h"
 #include "ttime.h"
 #include "tutil.h"
@@ -515,7 +517,7 @@ SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, 
   if (pLimit != NULL) {
     pQuery->limit = *pLimit;
   }
-  
+
   if (pGLimit != NULL) {
     pQuery->slimit = *pGLimit;
   }
@@ -523,11 +525,11 @@ SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, 
   if (pInterval != NULL) {
     pQuery->interval = *pInterval;
   }
-  
+
   if (pSliding != NULL) {
     pQuery->sliding = *pSliding;
   }
-  
+
   pQuery->fillType = pFill;
   return pQuery;
 }
@@ -741,4 +743,23 @@ void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken
   if (pPwd->n > 0) {
     tTokenListAppend(pInfo->pDCLInfo, pPwd);
   }
+}
+
+void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
+  pDBInfo->numOfBlocksPerTable = -1;
+  pDBInfo->compressionLevel = -1;
+
+  pDBInfo->commitLog = -1;
+  pDBInfo->commitTime = -1;
+  pDBInfo->tablesPerVnode = -1;
+  pDBInfo->numOfAvgCacheBlocks = -1;
+
+  pDBInfo->cacheBlockSize = -1;
+  pDBInfo->rowPerFileBlock = -1;
+  pDBInfo->daysPerFile = -1;
+
+  pDBInfo->replica = -1;
+  pDBInfo->keep = NULL;
+
+  memset(&pDBInfo->precision, 0, sizeof(SSQLToken));
 }

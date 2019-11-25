@@ -16,7 +16,6 @@
 #include "os.h"
 #include "taos.h"
 #include "tsdb.h"
-#include "tsql.h"
 #include "tsqldef.h"
 #include "ttypes.h"
 #include "tutil.h"
@@ -67,6 +66,8 @@ bool isValidDataType(int32_t type, int32_t length) {
 void tVariantCreate(tVariant *pVar, SSQLToken *token) { tVariantCreateFromString(pVar, token->z, token->n, token->type); }
 
 void tVariantCreateFromString(tVariant *pVar, char *pz, uint32_t len, uint32_t type) {
+  memset(pVar, 0, sizeof(tVariant));
+  
   switch (type) {
     case TSDB_DATA_TYPE_BOOL: {
       int32_t k = strncasecmp(pz, "true", 4);

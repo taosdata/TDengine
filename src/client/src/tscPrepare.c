@@ -15,7 +15,7 @@
 
 #include "taos.h"
 #include "tsclient.h"
-#include "tsql.h"
+#include "tscSQLParser.h"
 #include "tscUtil.h"
 #include "ttimer.h"
 #include "taosmsg.h"

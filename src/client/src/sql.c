@@ -30,7 +30,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
-#include "tsql.h"
+#include "tscSQLParser.h"
 #include "tutil.h"
 /**************** End of %include directives **********************************/
 /* These constants specify the various numeric values for terminal symbols
@@ -2146,7 +2146,7 @@ static void yy_reduce(
 { yymsp[-1].minor.yy0 = yymsp[0].minor.yy0; }
         break;
       case 79: /* db_optr ::= */
-{memset(&yymsp[1].minor.yy398, 0, sizeof(SCreateDBInfo));}
+{setDefaultCreateDbOption(&yymsp[1].minor.yy398);}
         break;
       case 80: /* db_optr ::= db_optr tables */
       case 94: /* alter_db_optr ::= alter_db_optr tables */ yytestcase(yyruleno==94);
@@ -2199,7 +2199,7 @@ static void yy_reduce(
   yymsp[-1].minor.yy398 = yylhsminor.yy398;
         break;
       case 92: /* alter_db_optr ::= */
-{ memset(&yymsp[1].minor.yy398, 0, sizeof(SCreateDBInfo));}
+{ setDefaultCreateDbOption(&yymsp[1].minor.yy398);}
         break;
       case 95: /* typename ::= ids */
 { tSQLSetColumnType (&yylhsminor.yy223, &yymsp[0].minor.yy0); }
