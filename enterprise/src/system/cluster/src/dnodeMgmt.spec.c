@@ -156,17 +156,30 @@ char *vnodeProcessOneBufferedCreateMsg(char *offset) {
 int vnodeProcessBufferedCreateMsgs(int vnode) {
   STranQueue *pQueue;
   int         trans = 0;
-  char *      offset;
+  char *      offset = NULL;
 
   pQueue = (STranQueue *)vnodeList[vnode].pQueue;
+
+  /*
+   * This function is called infrequently, should focus on security, increase the scope of the lock
+   */
+
+  /*
   offset = pQueue->buffer;
 
   while (trans < pQueue->trans) {
     offset = vnodeProcessOneBufferedCreateMsg(offset);
     trans++;
   }
+  */
 
   pthread_mutex_lock(&pQueue->qmutex);
+
+  if (pQueue->buffer == NULL) {
+    dError("vid:%d, failed to process buffered create msg for buffer is null", vnode);
+    pthread_mutex_unlock(&pQueue->qmutex);
+    return -1;
+  }
 
   if (offset == NULL) offset = pQueue->buffer;
   while (trans < pQueue->trans) {
@@ -188,6 +201,12 @@ int vnodeSaveCreateMsgIntoQueue(SVnodeObj *pVnode, char *pMsg, int msgLen) {
   STranQueue *pQueue = (STranQueue *)pVnode->pQueue;
 
   pthread_mutex_lock(&pQueue->qmutex);
+
+  if (pQueue->buffer == NULL) {
+    dError("vid:%d, failed to save create msg into queue for buffer is null", pVnode->vnode);
+    pthread_mutex_unlock(&pQueue->qmutex);
+    return -1;
+  }
 
   if (pVnode->syncStatus == TSDB_VN_SYNC_STATUS_SYNCING) {
     if (pQueue->bufferSize - (pQueue->offset - pQueue->buffer) < msgLen + 100) {
@@ -444,23 +463,42 @@ int vnodeRetrieveMissedCreateMsg(int vnode, int fd, uint64_t stime) {
   SMeterObj *pObj;
   char *     msg;
   SVnodeObj *pVnode = vnodeList + vnode;
+  int        writeLen;
 
   msg = (char *)malloc(1024 + TSDB_MAX_COLUMNS * sizeof(SSchema));
+
+  dTrace("vid:%d, fd:%d start to retrieve missed create msg, stime:%ld", vnode, fd, stime);
 
   for (sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
     pObj = pVnode->meterList[sid];
 
     if (pObj && !vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETED) && (pObj->timeStamp > stime)) {
       len = vnodeRebuildCreateMsg(vnode, sid, msg);
-      if (taosWriteMsg(fd, &len, sizeof(len)) < 0) goto _exit;
-      if (taosWriteMsg(fd, msg, len) < 0) goto _exit;
+      writeLen = taosWriteMsg(fd, &len, sizeof(len));
+      if (writeLen < 0) {
+        dError("vid:%d, fd:%d failed to retrieve missed create msg len, writeLen:%d errno:%d", vnode, fd, writeLen, errno);
+        goto _exit;
+      }
+
+      writeLen = taosWriteMsg(fd, msg, len);
+      if (writeLen < 0) {
+        dError("vid:%d, fd:%d failed to retrieve missed create msg, writeLen:%d errno:%d", vnode, fd, writeLen, errno);
+        goto _exit;
+      }
+
       dTrace("vid:%d sid:%d id:%s, meterObj is sent to peer, len:%d", vnode, sid, pObj->meterId, len);
     }
   }
 
   len = 0;
-  if (taosWriteMsg(fd, (char *)&len, sizeof(len)) < 0) goto _exit;
+  writeLen = taosWriteMsg(fd, (char *)&len, sizeof(len));
+  if (writeLen < 0) {
+    dError("vid:%d, fd:%d failed to retrieve missed create msg end, writeLen:%d errno:%d", vnode, fd, writeLen, errno);
+    goto _exit;
+  }
   code = 0;
+
+  dTrace("vid:%d, fd:%d retrieve missed create msg finished", vnode, fd);
 
 _exit:
   free(msg);
@@ -469,59 +507,128 @@ _exit:
 
 int vnodeRetrieveMissedRemoveMsg(int vid, int fd, uint64_t stime) {
   SMeterObj *pObj;
-  int        sid;
+  int        sid, writeLen;
   SVnodeObj *pVnode = vnodeList + vid;
+
+  dTrace("vid:%d, fd:%d start to retrieve missed remove msg", vid, fd);
 
   for (sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
     pObj = pVnode->meterList[sid];
 
     if (pObj && (pObj->state == TSDB_METER_STATE_DELETED) && (pObj->timeStamp > stime)) {
-      if (taosWriteMsg(fd, (char *)&vid, sizeof(vid)) < 0) return -1;
-      if (taosWriteMsg(fd, (char *)&sid, sizeof(sid)) < 0) return -1;
+      writeLen = taosWriteMsg(fd, (char *)&vid, sizeof(vid));
+      if (writeLen < 0) {
+        dError("vid:%d, fd:%d failed to retrieve missed remove msg vid:%d, writeLen:%d errno:%d", vid, fd, vid, writeLen, errno);
+        return -1;
+      }
+
+      writeLen = taosWriteMsg(fd, (char *)&sid, sizeof(sid));
+      if (writeLen < 0) {
+        dError("vid:%d, fd:%d failed to retrieve missed remove msg sid:%d, writeLen:%d errno:%d", vid, fd, sid, writeLen, errno);
+        return -1;
+      }
       dTrace("vid:%d sid:%d id:%s, removed meterObj is sent to peer", vid, sid, pObj->meterId);
     }
   }
 
   vid = -1;
   sid = -1;
-  if (taosWriteMsg(fd, (char *)&vid, sizeof(vid)) < 0) return -1;
-  if (taosWriteMsg(fd, (char *)&sid, sizeof(sid)) < 0) return -1;
+
+  writeLen = taosWriteMsg(fd, (char *)&vid, sizeof(vid));
+  if (writeLen < 0) {
+    dError("vid:%d, fd:%d failed to retrieve missed remove msg vid:%d, writeLen:%d errno:%d", vid, fd, vid, writeLen, errno);
+    return -1;
+  }
+
+  writeLen = taosWriteMsg(fd, (char *)&sid, sizeof(sid));
+  if (writeLen < 0) {
+    dError("vid:%d, fd:%d failed to retrieve missed remove msg sid:%d, writeLen:%d errno:%d", vid, fd, sid, writeLen, errno);
+    return -1;
+  }
+
+  dTrace("vid:%d, fd:%d retrieve missed remove msg finished", vid, fd);
 
   return 0;
 }
+
 
 int vnodeRestoreMissedCreateMsg(int vnode, int fd) {
   char        msg[1024 + TSDB_MAX_COLUMNS * sizeof(SSchema)];
   uint32_t    len;
   SCreateMsg *pCreate;
 
+  dTrace("vid:%d, fd:%d start to restore missed create msg", vnode, fd);
+
   while (1) {
     len = 0;
-    if (taosReadMsg(fd, &len, sizeof(len)) < 0) return -1;
-    if (len == 0) break;
 
-    dTrace("vid:%d, missed create is received, len:%d", vnode, len);
-    if (taosReadMsg(fd, msg, len) < 0) return -1;
+    int readLen = taosReadMsg(fd, &len, sizeof(len));
+    if (readLen < 0) {
+      dError("vid:%d, fd:%d failed to restore missed create msg len, readLen:%d errno:%d", vnode, fd, readLen, errno);
+      return -1;
+    }
+
+    if (len == 0) {
+      dTrace("vid:%d, fd:%d restore missed create msg len:%d, finished", vnode, fd, len);
+      break;
+    }
+
+    readLen = taosReadMsg(fd, msg, len);
+    if (readLen < 0) {
+      dError("vid:%d, fd:%d failed to restore missed create msg, size:%d readLen:%d errno:%d",
+              vnode, fd, len, readLen, errno);
+      return -1;
+    }
 
     pCreate = (SCreateMsg *)msg;
     pCreate->vnode = htons(vnode);
+
+    dTrace("vid:%d, fd:%d missed create is restored, vnode:%d len:%d", vnode, fd, pCreate->vnode, len);
+
     vnodeProcessCreateMeterMsg(msg, len);
   }
+
+  dTrace("vid:%d, fd:%d to restore missed create msg finished", vnode, fd);
 
   return 0;
 }
 
 int vnodeRestoreMissedRemoveMsg(int vnode, int fd) {
-  uint32_t vid, sid;
+  int vid, sid;
+
+  dTrace("vid:%d, fd:%d start to restore missed remove msg", vnode, fd);
 
   while (1) {
-    if (taosReadMsg(fd, &vid, sizeof(vid)) < 0) return -1;
-    if (taosReadMsg(fd, &sid, sizeof(sid)) < 0) return -1;
+    int readLen = taosReadMsg(fd, &vid, sizeof(vid));
+    if (readLen < 0) {
+      dError("vid:%d, fd:%d failed to restore missed remove msg vid, size:%d read:%d errno:%d",
+              vnode, fd, sizeof(vid), readLen, errno);
+      return -1;
+    }
 
-    if (sid == -1 || vid == -1) break;
+    readLen = taosReadMsg(fd, &sid, sizeof(sid));
+    if (readLen < 0) {
+      dError("vid:%d, fd:%d failed to restore missed remove msg sid, size:%d read:%d errno:%d",
+              vnode, fd, sizeof(sid), readLen, errno);
+      return -1;
+    }
+
+    if (sid == -1) {
+      dTrace("vid:%d, fd:%d restore missed remove msg sid:%d, finished", vnode, fd, sid);
+      break;
+    }
+
+    if (vid == -1) {
+      dTrace("vid:%d, fd:%d restore missed remove msg vid:%d, finished", vnode, fd, vid);
+      break;
+    }
+
+    dTrace("vid:%d, fd:%d missed remove msg is restored, vid:%d sid:%d", vnode, fd, vid, sid);
 
     vnodeRemoveMeterObj(vid, sid);
   }
+
+  dTrace("vid:%d, fd:%d restore missed remove msg finished", vnode, fd);
 
   return 0;
 }
