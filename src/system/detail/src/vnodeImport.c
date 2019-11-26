@@ -243,7 +243,7 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
       pthread_mutex_unlock(&pPool->vmutex);
       vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
       return TSDB_CODE_ACTION_IN_PROGRESS;
-      
+
     } else {
       pPool->commitInProcess = 1;
       pthread_mutex_unlock(&pPool->vmutex);
@@ -251,9 +251,9 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
       *pNumOfPoints = import.importedRows;
     }
     pVnode->version++;
+    vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
   }
   
-  vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
   return code;
 }
 
