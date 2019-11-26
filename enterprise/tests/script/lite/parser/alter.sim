@@ -114,6 +114,7 @@ endi
 sql drop table tb
 sql drop table mt
 
+sleep 3000
 ## ALTER TABLE WHILE STREAMING [TBASE271]
 sql create table tb1 (ts timestamp, c1 int, c2 nchar(5), c3 int)
 sql create table strm as select count(*), avg(c1), first(c2), sum(c3) from tb1 interval(2s)
