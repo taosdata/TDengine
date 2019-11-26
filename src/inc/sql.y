@@ -73,6 +73,9 @@ cmd ::= SHOW CONFIGS.    { setDCLSQLElems(pInfo, SHOW_CONFIGS, 0);  }
 cmd ::= SHOW SCORES.     { setDCLSQLElems(pInfo, SHOW_SCORES, 0);   }
 cmd ::= SHOW GRANTS.     { setDCLSQLElems(pInfo, SHOW_GRANTS, 0);   }
 
+cmd ::= SHOW VNODES.                { setDCLSQLElems(pInfo, SHOW_VNODES, 0); }
+cmd ::= SHOW VNODES IPTOKEN(X).     { setDCLSQLElems(pInfo, SHOW_VNODES, 1, &X); }
+
 %type dbPrefix {SSQLToken}
 dbPrefix(A) ::=.                   {A.n = 0;}
 dbPrefix(A) ::= ids(X) DOT.        {A = X;  }
