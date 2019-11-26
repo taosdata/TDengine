@@ -353,8 +353,18 @@ int64_t sdbInsertRow(void *handle, void *row, int rowSize) {
 
   if ((pTable->keyType != SDB_KEYTYPE_AUTO) || *((int64_t *)row))
     if (sdbGetRow(handle, row)) {
-      sdbError("table:%s, failed to insert record", pTable->name);
-      return -1;
+      if (strcmp(pTable->name, "mnode") == 0) {
+        /*
+         * An mnode is created when the cluster is started, so conflicts may occur during synchronization.
+         * In this case, the version is still increased.
+         */
+        sdbVersion++;
+        sdbPrint("table:%s, failed to insert record to mnodes, sdbVersion:%d", pTable->name, sdbVersion);
+        return -1;
+      } else {
+        sdbError("table:%s, failed to insert record, sdbVersion:%d", pTable->name, sdbVersion);
+        return -1;
+      }
     }
 
   total_size = sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM);
