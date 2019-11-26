@@ -586,8 +586,8 @@ int sdbUpdatePeerStatus(SSdbPeer *pPeer, char *msg, int msgLen) {
 
   if (pPeer->status == SDB_STATUS_OFFLINE) {
     pSelf->numOfMnodes++;
-    sdbTrace("ip:%s is online, role:%d status:%d numOfMnodes:%d", pPeer->ipstr, pStatus->role, pStatus->status,
-             pSelf->numOfMnodes);
+    sdbTrace("ip:%s is online, role:%s status:%s numOfMnodes:%d", pPeer->ipstr, taosGetSdbRoleStr(pStatus->role),
+            taosGetSdbStatusStr(pStatus->status), pSelf->numOfMnodes);
   }
 
   int oldRole = pPeer->role;
@@ -616,11 +616,11 @@ int sdbUpdatePeerStatus(SSdbPeer *pPeer, char *msg, int msgLen) {
         pSelf->status = SDB_STATUS_SERVING;
       } else if (pPeer->dbVersion > sdbVersion) {
         if (pSelf->status != SDB_STATUS_SYNCING) {
-          sdbTrace("peer dbVersion:%d, sdbVersion:%d, sync start", pPeer->dbVersion, sdbVersion);
+          sdbTrace("peer:%s dbVersion:%d, sdbVersion:%d, sync start", pPeer->ipstr, pPeer->dbVersion, sdbVersion);
           sdbStartSyncProcess(pPeer);
         }
       } else {
-        sdbError("peer is master, but version:%d is lower than self:%d", pPeer->dbVersion, sdbVersion);
+        sdbError("peer:%s is master, but version:%d is lower than self:%d", pPeer->ipstr, pPeer->dbVersion, sdbVersion);
         pPeer->role = SDB_ROLE_UNDECIDED;
         taosTmrReset(sdbCheckRoleStatus, 100, NULL, sdbTmr, &sdbRoleTimer);
       }
@@ -630,7 +630,7 @@ int sdbUpdatePeerStatus(SSdbPeer *pPeer, char *msg, int msgLen) {
       sdbCheckRoleStatus(NULL, NULL);
     } else {
       if ((pSelf->role == SDB_ROLE_MASTER) && (pPeer->dbVersion > sdbVersion)) {
-        sdbError("master, but version:%d is lower than peer:%d", sdbVersion, pPeer->dbVersion);
+        sdbError("master, but version:%d is lower than peer:%s version:%d", sdbVersion, pPeer->ipstr, pPeer->dbVersion);
         sdbStopWorkingAsMaster();
       }
     }
@@ -770,8 +770,8 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
   }
 
   sdbRoleTimer = NULL;
-  sdbTrace("check role status, self status:%s self role:%s",
-          taosGetSdbStatusStr(pSelf->status), taosGetSdbRoleStr(pSelf->role));
+  sdbTrace("check role status, self status:%s self role:%s dbVersion:%d",
+          taosGetSdbStatusStr(pSelf->status), taosGetSdbRoleStr(pSelf->role), pSelf->dbVersion);
 
   for (i = 0; i < SDB_MAX_PEERS; ++i) {
     pPeer = sdbPeer[i];
@@ -812,14 +812,17 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
       sdbTrace("peer:%s, version:%d < current version:%d, give up", pPeer->ipstr, pPeer->dbVersion, dbVersion);
       continue;
     }
+
     if (pPeer->dbVersion > dbVersion) {
+      sdbTrace("peer:%s, version:%d larger than current version:%d, set pos from %d to -1",
+              pPeer->ipstr, pPeer->dbVersion, dbVersion, pos);
       dbVersion = pPeer->dbVersion;
       pos = -1;
       maxIp = 0;
     }
 
     if (pPeer->numOfDnodes <= 0) {
-      sdbTrace("peer:%s, numOfDnodes:%d <= 0, give up", pPeer->ipstr, pPeer->numOfDnodes);
+      sdbTrace("peer:%s, numOfDnodes:%d smaller than 0, give up", pPeer->ipstr, pPeer->numOfDnodes);
       continue;
     }
 
@@ -833,19 +836,26 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
       continue;
     }
     if ((pPeer->numOfMnodes + 1.0) / sdbNumOfPeers < 0.5) {
-      sdbTrace("peer:%s, mnode ratio %f < 0.5, give up, numOfMnodes:%d sdbNumOfPeers:%d",
+      sdbTrace("peer:%s, mnode ratio %f smaller than 0.5, give up, numOfMnodes:%d sdbNumOfPeers:%d",
               pPeer->ipstr, (pPeer->numOfMnodes + 1.0) / sdbNumOfPeers, pPeer->numOfMnodes, sdbNumOfPeers);
       continue;
     }
 
     if ((pPeer->dbVersion == dbVersion) && (pPeer->ip > maxIp)) {
+      sdbTrace("peer:%s, version:%d equal with current version:%d, maxIp:%d, set pos from %d to %d",
+               pPeer->ipstr, pPeer->dbVersion, dbVersion, maxIp, pos, i);
       maxIp = pPeer->ip;
       pos = i;
+    } else {
+      sdbTrace("peer:%s, version:%d current version:%d, maxIp:%d pos:%d give up",
+               pPeer->ipstr, pPeer->dbVersion, dbVersion, maxIp, pos);
     }
   }
 
   if (pos >= 0 && pos < SDB_MAX_PEERS) {
     sdbTrace("%s shall work as master", sdbPeer[pos]->ipstr);
+  } else {
+    sdbTrace("no master is elected, pos:%d", pos);
   }
 
   if (pos == 0) {
@@ -962,6 +972,7 @@ int sdbRetrieveRows(int syncFd, SSdbTable *pTable, uint64_t version) {
       updatePos = (firstUpdate + versionDelta + 1) % pTable->maxRows;
       curVersion = version + 1;
 
+      int writeLen = 0;
       while (curVersion <= pTable->id) {
         SSdbUpdate *pUpdate = pTable->update + updatePos;
         (*(pTable->appTool))(SDB_TYPE_ENCODE, pUpdate->row, msg, pTable->maxRowSize, &rowSize);
@@ -970,14 +981,31 @@ int sdbRetrieveRows(int syncFd, SSdbTable *pTable, uint64_t version) {
         forward.type = pUpdate->type;
         forward.version = htobe64(curVersion - 1);
         forward.dataLen = htons(rowSize);
-        write(syncFd, &forward, sizeof(forward));
-        write(syncFd, msg, rowSize);
+
+        writeLen = write(syncFd, &forward, sizeof(forward));
+        if (writeLen != sizeof(forward)) {
+          sdbError("table:%s, failed to send forward msg:%d, writeLen:%d reason:%s fd:%d",
+                  pTable->name, sizeof(forward), writeLen, strerror(errno), syncFd);
+          writeLen = -1;
+          break;
+        }
+
+        writeLen = write(syncFd, msg, rowSize);;
+        if (writeLen != rowSize) {
+          sdbError("table:%s, failed to send %d rows data, writeLen:%d reason:%s fd:%d",
+                   pTable->name, curVersion - version - 1, writeLen, strerror(errno), syncFd);
+          writeLen = -1;
+          break;
+        }
 
         updatePos = (updatePos + 1) % pTable->maxRows;
         curVersion++;
       }
 
-      sdbTrace("table:%s, %d rows data are sent", pTable->name, curVersion - version - 1);
+      if (writeLen != -1) {
+        sdbTrace("table:%s, %d rows data are sent, rowSize:%d", pTable->name, curVersion - version - 1, rowSize);
+      }
+
       tfree(msg);
       return 0;
     }
@@ -992,16 +1020,22 @@ void *sdbRetrieveSyncData(void *argv) {
   SSdbPeer *pPeer = (SSdbPeer *)argv;
   SSdbSync *pSync = (SSdbSync *)pPeer->pSync;
 
+  sdbPrint("ip:%s:%d, start to send sdb retrieve data, fd:%d", pPeer->ipstr, tsMgmtSyncPort, pPeer->syncFd);
+
   // based on dbVersion, forward the data to peer
   for (int i = 0; i < pSync->numOfTables; ++i) {
     if (tableList[i]->id > pSync->version[i]) {
-      sdbTrace("table:%s, peer version:%d, self version:%d", tableList[i]->name, pSync->version[i], tableList[i]->id);
+      sdbTrace("table:%s, peer version:%d, self version:%d, send data", tableList[i]->name, pSync->version[i], tableList[i]->id);
       sdbRetrieveRows(pPeer->syncFd, tableList[i], pSync->version[i]);
+    } else {
+      sdbTrace("table:%s, peer version:%d, self version:%d, not need to send data", tableList[i]->name, pSync->version[i], tableList[i]->id);
     }
   }
 
   close(pPeer->syncFd);
   pPeer->syncFd = 0;
+
+  sdbPrint("ip:%s:%d, send sdb retrieve data finished", pPeer->ipstr, tsMgmtSyncPort);
 
   return NULL;
 }
@@ -1027,7 +1061,7 @@ int sdbProcessSyncRequest(char *msg, int msgLen, SSdbPeer *pPeer) {
     goto _sync_req_over;
   }
 
-  sdbTrace("ip:%s, sync tcp socket is setup", pPeer->ipstr);
+  sdbTrace("ip:%s:%d, sync tcp socket is setup, fd:%d", pPeer->ipstr, tsMgmtSyncPort, pPeer->syncFd);
 
   // start a new thread to transfer the cache
   pthread_attr_init(&thattr);
@@ -1093,21 +1127,47 @@ void sdbRestoreDbReq(int tcpFd) {
 
   while (1) {
     ret = taosReadMsg(tcpFd, pForward, sizeof(SForwardMsg));
-    if (ret <= 0) break;
+    if (ret <= 0) {
+      sdbTrace("failed to read forward msg size from fd:%d, ret:%d reason:%s, restore finished", tcpFd, ret, strerror(errno));
+      break;
+    }
+
     dataLen = htons(pForward->dataLen);
-    sdbTrace("dbReq dataLen: %d", dataLen);
+    sdbTrace("forward msg size received, dbId:%d type:%d version:%ld dataLen:%d ret:%d",
+            pForward->dbId, pForward->type, htobe64(pForward->version), dataLen, ret);
+
     if (dataLen > 0) {
       ret = taosReadMsg(tcpFd, pForward->data, dataLen);
-      if (ret <= 0) break;
+      if (ret <= 0) {
+        sdbError("failed to read forward msg, dataLen:%d ret:%d reason:%s", dataLen, ret, strerror(errno));
+        break;
+      } else {
+        sdbTrace("forward msg received from fd:%d, dataLen:%d ret:%d", tcpFd, dataLen, ret);
+      }
+    } else {
+      sdbError("invalid forward msg dataLen:%d, ret:%d reason:%s", dataLen, ret, strerror(errno));
+      break;
     }
 
     if (pForward->dbId < 0) {
       ret = sdbStartFullSync(tcpFd, pForward);
-      if (ret < 0) break;
+      if (ret < 0) {
+        sdbError("failed to full sync, ret:%d", ret);
+        break;
+      } else {
+        sdbPrint("full sync finished, ret:%d", ret);
+      }
     } else {
       if (dataLen > 0) {
         ret = sdbProcessQueuedDbReq(cont, dataLen + sizeof(SForwardMsg));
-        if (ret < 0) break;
+        if (ret < 0) {
+          sdbError("failed to process queue db req, ret:%d", ret);
+          break;
+        } else {
+          sdbTrace("forward msg processed, ret:%d sdbVersion:%d", ret, tcpFd, sdbVersion);
+        }
+      } else {
+        sdbError("invalid forward msg dataLen:%d", dataLen);
       }
     }
   }
@@ -1115,12 +1175,12 @@ void sdbRestoreDbReq(int tcpFd) {
   tfree(cont);
 
   if (ret < 0) {
-    sdbError("sync failed, reason:%s", strerror(errno));
+    sdbError("sync failed, sdbVersion:%d reason:%s ", sdbVersion, strerror(errno));
     pSelf->status = SDB_STATUS_UNSYNCED;
   } else {
     sdbProcessBufferedForwards();
     // pSelf->status = SDB_STATUS_SERVING;
-    sdbTrace("sync is finished");
+    sdbTrace("sync is finished, sdbVersion:%d", sdbVersion);
   }
 }
 
@@ -1165,7 +1225,7 @@ void *sdbAcceptSyncTcpConnection(void *argv) {
     goto _sync_over;
   }
 
-  sdbTrace("sync TCP connection from ip:%s port:%hu", inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
+  sdbTrace("sync TCP connection from ip:%s port:%hu fd:%d", inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port), connFd);
 
   sdbRestoreDbReq(connFd);
 
@@ -1208,13 +1268,21 @@ int sdbProcessDbReq(char *cont, int contLen) {
   if (pForward->type == SDB_TYPE_INSERT) {
     /* char *row = malloc(dataLen); */
     /* memcpy(row, pForward->data, dataLen); */
-    sdbInsertRow(pTable, pForward->data, dataLen);
+    if (sdbInsertRow(pTable, pForward->data, dataLen) < 0) {
+      sdbError("failed to process db insert req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+    }
   } else if (pForward->type == SDB_TYPE_DELETE) {
-    sdbDeleteRow(pTable, pForward->data);
+    if (sdbDeleteRow(pTable, pForward->data) < 0) {
+      sdbError("failed to process db delete req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+    }
   } else if (pForward->type == SDB_TYPE_UPDATE) {
-    sdbUpdateRow(pTable, pForward->data, dataLen, 0);
+    if (sdbUpdateRow(pTable, pForward->data, dataLen, 0) < 0) {
+      sdbError("failed to process db update req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+    }
   } else if (pForward->type == SDB_TYPE_BATCH_UPDATE) {
-    sdbBatchUpdateRow(pTable, pForward->data, dataLen);
+    if (sdbBatchUpdateRow(pTable, pForward->data, dataLen) < 0) {
+      sdbError("failed to process db batch update req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+    }
   } else {
     sdbError("sdb type:%d not processed", pForward->type);
   }
@@ -1236,13 +1304,21 @@ int sdbProcessQueuedDbReq(char *cont, int contLen) {
   if (pForward->type == SDB_TYPE_INSERT) {
     /* char *row = malloc(dataLen); */
     /* memcpy(row, pForward->data, dataLen); */
-    sdbInsertRow(pTable, pForward->data, dataLen);
+    if (sdbInsertRow(pTable, pForward->data, dataLen) < 0) {
+      sdbError("failed to process queued db insert req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+    }
   } else if (pForward->type == SDB_TYPE_DELETE) {
-    sdbDeleteRow(pTable, pForward->data);
+    if (sdbDeleteRow(pTable, pForward->data) < 0) {
+      sdbError("failed to process queued db delete req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+    }
   } else if (pForward->type == SDB_TYPE_UPDATE) {
-    sdbUpdateRow(pTable, pForward->data, dataLen, 0);
+    if (sdbUpdateRow(pTable, pForward->data, dataLen, 0) < 0) {
+      sdbError("failed to process update db update req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+    }
   } else if (pForward->type == SDB_TYPE_BATCH_UPDATE) {
-    sdbBatchUpdateRow(pTable, pForward->data, dataLen);
+    if (sdbBatchUpdateRow(pTable, pForward->data, dataLen) < 0) {
+      sdbError("failed to process queued db batch update req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+    }
   } else {
     sdbError("sdb type:%d not processed", pForward->type);
   }
