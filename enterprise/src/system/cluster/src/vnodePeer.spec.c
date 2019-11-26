@@ -556,7 +556,7 @@ void vnodeRestartConnection(SVnodePeer *pVPeer)
     return;
   }
 
-  pthread_mutex_trylock(&(pVnode->vmutex));
+  pthread_mutex_lock(&(pVnode->vmutex));
   dTrace("vid:%d, peer:%s:%d do restart connection", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
 
   if (pVPeer->peerFd >= 0) vnodeClosePeerFd(pVPeer);
