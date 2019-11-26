@@ -27,7 +27,14 @@ class TDTestCase:
     self.ntables = 1
     self.startTime = 1520000010000L
 
-    tdSql.prepare()
+    tdDnodes.stop(1)
+    tdDnodes.deploy(1)
+    tdDnodes.start(1)
+
+    tdSql.execute('reset query cache')
+    tdSql.execute('drop database db')
+    tdSql.execute('create database db')
+    tdSql.execute('use db')
 
     tdLog.info("================= step1")
     tdLog.info("create 1 table")

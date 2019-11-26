@@ -28,6 +28,10 @@ class TDTestCase:
     self.rowsPerTable = 10
     self.startTime = 1520000010000L
 
+    tdDnodes.stop(1)
+    tdDnodes.deploy(1)
+    tdDnodes.start(1)
+
     tdLog.info("prepare database:db") 
     tdSql.execute('reset query cache')
     tdSql.execute('drop database db')

@@ -115,6 +115,11 @@ class TDTestCase:
     self.nrowsPerBatch = 200+randint(0,100)
     self.nbatchs = 100
     self.nthreads = 5 
+
+    tdDnodes.stop(1)
+    tdDnodes.deploy(1)
+    tdDnodes.start(1)
+    
     #only represent insert/import thread
     print('working threads = %d' %self.nthreads)
     print('total table numbers = %d' %self.ntables)

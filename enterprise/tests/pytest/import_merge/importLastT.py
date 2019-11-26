@@ -28,6 +28,10 @@ class TDTestCase:
     self.startTime = 1520000010000L
     self.rows = 200
 
+    tdDnodes.stop(1)
+    tdDnodes.deploy(1)
+    tdDnodes.start(1)
+
     tdSql.execute('reset query cache')
     tdSql.execute('drop database if exists db')
     tdSql.execute('create database db rows %d' %self.rows)
