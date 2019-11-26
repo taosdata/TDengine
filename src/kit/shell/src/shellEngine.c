@@ -21,6 +21,7 @@
 #include "shellCommand.h"
 #include "ttime.h"
 #include "tutil.h"
+#include <regex.h>
 
 /**************** Global variables ****************/
 #ifdef WINDOWS
