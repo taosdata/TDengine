@@ -105,6 +105,7 @@ enum TSQL_TYPE {
   SHOW_MODULES = 0x6c,
   SHOW_CONNECTIONS = 0x6d,
   SHOW_GRANTS = 0x6e,
+  SHOW_VNODES = 0x6f,
 
   // create dnode
   CREATE_DNODE = 0x80,

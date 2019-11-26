@@ -410,6 +410,9 @@ int mgmtRetrieveScores(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 int grantGetGrantsMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int grantRetrieveGrants(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
+int  mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int  mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+
 // dnode balance api
 int  mgmtInitBalance();
 void mgmtCleanupBalance();

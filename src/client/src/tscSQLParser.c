@@ -291,7 +291,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     case SHOW_STREAMS:
     case SHOW_SCORES:
     case SHOW_GRANTS:
-    case SHOW_CONFIGS: {
+    case SHOW_CONFIGS: 
+    case SHOW_VNODES: {
       return setShowInfo(pSql, pInfo);
     }
 
@@ -2595,6 +2596,9 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     case SHOW_CONFIGS:
       pCmd->showType = TSDB_MGMT_TABLE_CONFIGS;
       break;
+    case SHOW_VNODES:
+      pCmd->showType = TSDB_MGMT_TABLE_VNODES;
+      break;
     default:
       return TSDB_CODE_INVALID_SQL;
   }
@@ -2639,6 +2643,19 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           return TSDB_CODE_INVALID_SQL;  // wildcard is too long
         }
       }
+    }
+  }else if (type == SHOW_VNODES) {
+    // show vnodes may be ip addr of dnode in payload
+    if (pInfo->pDCLInfo->nTokens > 0) {
+      SSQLToken* pDnodeIp = &pInfo->pDCLInfo->a[0];
+
+      if (pDnodeIp->n > TSDB_IPv4ADDR_LEN) {  // ip addr is too long
+        setErrMsg(pCmd, msg);
+        return TSDB_CODE_INVALID_SQL;
+      }
+
+      strncpy(pCmd->payload, pDnodeIp->z, pDnodeIp->n);
+      pCmd->payloadLen = strdequote(pCmd->payload);
     }
   }
 

@@ -224,6 +224,7 @@ static SKeyword keywordTable[] = {
     {"METRICS",      TK_METRICS},
     {"STABLE",       TK_STABLE},
     {"FILE",         TK_FILE},
+    {"VNODES",       TK_VNODES},
 };
 
 /* This is the hash table */
