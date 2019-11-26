@@ -483,13 +483,9 @@ void vnodeFreeQInfo(void *param, bool decQueryRef) {
   }
 
   tfree(pQuery->pGroupbyExpr);
-
   dTrace("QInfo:%p vid:%d sid:%d meterId:%s, QInfo is freed", pQInfo, pObj->vnode, pObj->sid, pObj->meterId);
 
-  /*
-   * destory signature, in order to avoid the query process pass the object
-   * safety check
-   */
+  //destroy signature, in order to avoid the query process pass the object safety check
   memset(pQInfo, 0, sizeof(SQInfo));
   tfree(pQInfo);
 }

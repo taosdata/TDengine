@@ -2952,11 +2952,11 @@ static int32_t vnodeOpenVnodeDBFiles(SQInfo *pQInfo, SQueryFileInfo *pVnodeFiles
   pVnodeFiles->dataFd = open(pVnodeFiles->dataFilePath, O_RDONLY);
   pVnodeFiles->lastFd = open(pVnodeFiles->lastFilePath, O_RDONLY);
 
-  if (stat(pVnodeFiles->dataFilePath, &fstat) < 0) return -1;
-  pVnodeFiles->dataFileSize = fstat.st_size;
-
-  if (stat(pVnodeFiles->lastFilePath, &fstat) < 0) return -1;
-  pVnodeFiles->lastFileSize = fstat.st_size;
+//  if (stat(pVnodeFiles->dataFilePath, &fstat) < 0) return -1;
+//  pVnodeFiles->dataFileSize = fstat.st_size;
+//
+//  if (stat(pVnodeFiles->lastFilePath, &fstat) < 0) return -1;
+//  pVnodeFiles->lastFileSize = fstat.st_size;
 
 #if DEFAULT_IO_ENGINE == IO_ENGINE_MMAP
   /* enforce kernel to preload data when the file is mapping */

@@ -256,6 +256,8 @@ SGlobalConfig *tsGetConfigOption(const char *option);
 #define TSDB_CFG_OPTION_LEN 24
 #define TSDB_CFG_VALUE_LEN  41
 
+#define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
+
 #ifdef __cplusplus
 }
 #endif
