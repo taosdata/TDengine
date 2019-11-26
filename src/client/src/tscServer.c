@@ -59,6 +59,22 @@ void tscPrintMgmtIp() {
 }
 #endif
 
+/*
+ * For each management node, try twice at least in case of poor network situation.
+ * If the client start to connect to a non-management node from the client, and the first retry may fail due to
+ * the poor network quality. And then, the second retry get the response with redirection command.
+ * The retry will not be executed since only *two* retry is allowed in case of single management node in the cluster.
+ * Therefore, we need to multiply the retry times by factor of 2 to fix this problem.
+ */
+static int32_t tscGetMgmtConnMaxRetryTimes() {
+  int32_t factor = 2;
+#ifdef CLUSTER
+  return tscMgmtIpList.numOfIps * factor;
+#else
+  return 1*factor;
+#endif
+}
+
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   STscObj *pObj = (STscObj *)param;
   if (pObj == NULL) return;
@@ -134,18 +150,17 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
   tscProcessSql(pObj->pHb);
 }
 
-//TODO HANDLE error from mgmt
 void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
   STscObj *pTscObj = pSql->pTscObj;
 #ifdef CLUSTER
-  if (pSql->retry < tscMgmtIpList.numOfIps) {
+  if (pSql->retry < tscGetMgmtConnMaxRetryTimes()) {
     *pCode = 0;
     pSql->retry++;
     pSql->index = pSql->index % tscMgmtIpList.numOfIps;
     if (pSql->cmd.command > TSDB_SQL_READ && pSql->index == 0) pSql->index = 1;
     void *thandle = taosGetConnFromCache(tscConnCache, tscMgmtIpList.ip[pSql->index], TSC_MGMT_VNODE, pTscObj->user);
 #else
-  if (pSql->retry < 1) {
+  if (pSql->retry < tscGetMgmtConnMaxRetryTimes()) {
     *pCode = 0;
     pSql->retry++;
     void *thandle = taosGetConnFromCache(tscConnCache, tsServerIp, TSC_MGMT_VNODE, pTscObj->user);
@@ -444,16 +459,13 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
     }
   } else {
     uint16_t rspCode = pMsg->content[0];
-#ifdef CLUSTER
     
+#ifdef CLUSTER
     
     if (rspCode == TSDB_CODE_REDIRECT) {
       tscTrace("%p it shall be redirected!", pSql);
       taosAddConnIntoCache(tscConnCache, thandle, pSql->ip, pSql->vnode, pObj->user);
       pSql->thandle = NULL;
-      
-      // reset the retry times for a new mgmt node
-      pSql->retry = 0;
 
       if (pCmd->command > TSDB_SQL_MGMT) {
         tscProcessMgmtRedirect(pSql, pMsg->content + 1);
