@@ -27,7 +27,7 @@
 #include "vnodeQueryImpl.h"
 
 #define ALL_CACHE_BLOCKS_CHECKED(q) \
-  ((q)->slot == (q)->currentSlot && QUERY_IS_ASC_QUERY(q) || (q)->slot == (q)->firstSlot && (!QUERY_IS_ASC_QUERY(q)))
+  (((q)->slot == (q)->currentSlot && QUERY_IS_ASC_QUERY(q)) || ((q)->slot == (q)->firstSlot && (!QUERY_IS_ASC_QUERY(q))))
 
 #define FORWARD_CACHE_BLOCK_CHECK_SLOT(slot, step, maxblocks) (slot) = ((slot) + (step) + (maxblocks)) % (maxblocks);
 
@@ -289,13 +289,15 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
     pQuery->fileId = fid;
     pSummary->numOfFiles++;
 
-    SQueryFileInfo *pQueryFileInfo = &pRuntimeEnv->pHeaderFiles[fileIdx];
-    char *          pHeaderData = pQueryFileInfo->pHeaderFileData;
-
+    SQueryFileInfo *pQueryFileInfo = &pRuntimeEnv->pVnodeFiles[fileIdx];
+    char *pHeaderData = vnodeGetHeaderFileData(pRuntimeEnv, fileIdx);
+    if (pHeaderData == NULL) { // failed to mmap header file into buffer, ignore current file, try next
+      continue;
+    }
+    
     int32_t          numOfQualifiedMeters = 0;
-    SMeterDataInfo **pReqMeterDataInfo = vnodeFilterQualifiedMeters(
-        pQInfo, vnodeId, pQueryFileInfo, pSupporter->pSidSet, pMeterDataInfo, &numOfQualifiedMeters);
-    dTrace("QInfo:%p file:%s, %d meters qualified", pQInfo, pQueryFileInfo->dataFilePath, numOfQualifiedMeters);
+    SMeterDataInfo **pReqMeterDataInfo = vnodeFilterQualifiedMeters(pQInfo, vnodeId, fileIdx, pSupporter->pSidSet,
+        pMeterDataInfo, &numOfQualifiedMeters);
 
     if (pReqMeterDataInfo == NULL) {
       dError("QInfo:%p failed to allocate memory to perform query processing, abort", pQInfo);
@@ -305,6 +307,8 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
       return NULL;
     }
 
+    dTrace("QInfo:%p file:%s, %d meters qualified", pQInfo, pQueryFileInfo->dataFilePath, numOfQualifiedMeters);
+    
     // none of meters in query set have pHeaderData in this file, try next file
     if (numOfQualifiedMeters == 0) {
       fid += step;
@@ -500,7 +504,7 @@ static int64_t doCheckMetersInGroup(SQInfo *pQInfo, int32_t index, int32_t start
 
 #if DEFAULT_IO_ENGINE == IO_ENGINE_MMAP
   for (int32_t i = 0; i < pRuntimeEnv->numOfFiles; ++i) {
-    resetMMapWindow(&pRuntimeEnv->pHeaderFiles[i]);
+    resetMMapWindow(&pRuntimeEnv->pVnodeFiles[i]);
   }
 #endif
 
@@ -670,7 +674,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
 
 #if DEFAULT_IO_ENGINE == IO_ENGINE_MMAP
       for (int32_t i = 0; i < pRuntimeEnv->numOfFiles; ++i) {
-        resetMMapWindow(&pRuntimeEnv->pHeaderFiles[i]);
+        resetMMapWindow(&pRuntimeEnv->pVnodeFiles[i]);
       }
 #endif
 

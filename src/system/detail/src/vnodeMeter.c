@@ -24,6 +24,7 @@
 #include "vnodeMgmt.h"
 #include "vnodeShell.h"
 #include "vnodeUtil.h"
+#include "tstatus.h"
 
 #pragma GCC diagnostic ignored "-Wpointer-sign"
 
@@ -112,7 +113,7 @@ FILE *vnodeOpenMeterObjFile(int vnode) {
   fp = fopen(fileName, "r+");
   if (fp != NULL) {
     if (vnodeCheckFileIntegrity(fp) < 0) {
-      dError("file:%s is corrupted, need to restore it first", fileName);
+      dError("file:%s is corrupted, need to restore it first, exit program", fileName);
       fclose(fp);
 
       // todo: how to recover
@@ -376,7 +377,11 @@ int vnodeOpenMetersVnode(int vnode) {
 
   fseek(fp, TSDB_FILE_HEADER_LEN * 2 / 4, SEEK_SET);
   fread(&pVnode->cfg, sizeof(SVnodeCfg), 1, fp);
+
   if (vnodeIsValidVnodeCfg(&pVnode->cfg) == false) {
+    dError("vid:%d, maxSessions:%d cacheBlockSize:%d replications:%d daysPerFile:%d daysToKeep:%d invalid, clear it",
+            vnode, pVnode->cfg.maxSessions, pVnode->cfg.cacheBlockSize, pVnode->cfg.replications,
+            pVnode->cfg.daysPerFile, pVnode->cfg.daysToKeep);
     pVnode->cfg.maxSessions = 0;  // error in vnode file
     return 0;
   }
@@ -484,7 +489,7 @@ int vnodeCreateMeterObj(SMeterObj *pNew, SConnSec *pSec) {
     vnodeSaveMeterObjToFile(pNew);
     // vnodeCreateMeterMgmt(pNew, pSec);
     vnodeCreateStream(pNew);
-    dTrace("vid:%d sid:%d id:%s, meterObj is created, uid:%ld", pNew->vnode, pNew->sid, pNew->meterId, pNew->uid);
+    dTrace("vid:%d, sid:%d id:%s, meterObj is created, uid:%ld", pNew->vnode, pNew->sid, pNew->meterId, pNew->uid);
   }
 
   return code;
@@ -572,7 +577,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     dTrace("vid:%d sid:%d id:%s, cache is full, freePoints:%d, notFreeSlots:%d", pObj->vnode, pObj->sid, pObj->meterId,
            pObj->freePoints, pPool->notFreeSlots);
     vnodeProcessCommitTimer(pVnode, NULL);
-    return TSDB_CODE_ACTION_IN_PROGRESS;
+    return code;
   }
 
   // FIXME: Here should be after the comparison of sversions.
@@ -596,7 +601,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   }
 
   pData = pSubmit->payLoad;
-  code = 0;
+  code = TSDB_CODE_SUCCESS;
 
   TSKEY firstKey = *((TSKEY *)pData);
   TSKEY lastKey = *((TSKEY *)(pData + pObj->bytesPerPoint * (numOfPoints - 1)));
@@ -608,9 +613,12 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
             pObj->vnode, pObj->sid, pObj->meterId, pVnode->lastKeyOnFile, numOfPoints,firstKey, lastKey, minAllowedKey, maxAllowedKey);
     return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
   }
-
-  for (i = 0; i < numOfPoints; ++i) {
-    // meter will be dropped, abort current insertion
+  
+  if ((code = vnodeSetMeterInsertImportStateEx(pObj, TSDB_METER_STATE_INSERT)) != TSDB_CODE_SUCCESS) {
+    goto _over;
+  }
+  
+  for (i = 0; i < numOfPoints; ++i) { // meter will be dropped, abort current insertion
     if (pObj->state >= TSDB_METER_STATE_DELETING) {
       dWarn("vid:%d sid:%d id:%s, meter is dropped, abort insert, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
             pObj->state);
@@ -652,6 +660,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   pVnode->version++;
 
   pthread_mutex_unlock(&(pVnode->vmutex));
+  vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);
 
 _over:
   dTrace("vid:%d sid:%d id:%s, %d out of %d points are inserted, lastKey:%ld source:%d, vnode total storage: %ld",
@@ -709,7 +718,8 @@ void vnodeUpdateMeter(void *param, void *tmrId) {
   SVnodeObj* pVnode = &vnodeList[pNew->vnode];
 
   if (pVnode->meterList == NULL) {
-    dTrace("vid:%d sid:%d id:%s, vnode is deleted, abort update schema", pNew->vnode, pNew->sid, pNew->meterId);
+    dTrace("vid:%d sid:%d id:%s, vnode is deleted, status:%s, abort update schema",
+            pNew->vnode, pNew->sid, pNew->meterId, taosGetVnodeStatusStr(vnodeList[pNew->vnode].vnodeStatus));
     free(pNew->schema);
     free(pNew);
     return;

@@ -6,9 +6,9 @@
 <p>Like a table, you can create, show, delete and describe STables. Most query operations on tables can be applied to STable too, including the aggregation and selector functions. For queries on a STable, if no tags filter, the operations are applied to all the tables created via this STable. If there is a tag filter, the operations are applied only to a subset of the tables which satisfy the tag filter conditions. It will be very convenient to use tags to put devices into different groups for aggregation.</p>
 <a class='anchor' id='Create-a-STable'></a><h2>Create a STable</h2>
 <p>Similiar to creating a standard table, syntax is: </p>
-<pre><code class="mysql language-mysql">CREATE TABLE &lt;stable_name&gt; (&lt;field_name&gt; TIMESTAMP, field_name1 field_type,…) TAGS(tag_name tag_type, …)</code></pre>
+<pre><code class="mysql language-mysql">CREATE TABLE &lt;stable_name&gt; (&lt;field_name&gt; TIMESTAMP, field_name1 field_type, ...) TAGS(tag_name tag_type, ...)</code></pre>
 <p>New keyword "tags" is introduced, where tag_name is the tag name, and tag_type is the associated data type. </p>
-<p>Note：</p>
+<p>Note: </p>
 <ol>
 <li>The bytes of all tags together shall be less than 512 </li>
 <li>Tag's data type can not be time stamp or nchar</li>
@@ -30,12 +30,12 @@ tags (location binary(20), type int)</code></pre>
  create table t4 using thermometer tags ('shanghai', 20);
  create table t5 using thermometer tags ('new york', 10);</code></pre>
 <a class='anchor' id='Aggregate-Tables-via-STable'></a><h2>Aggregate Tables via STable</h2>
-<p>You can group a set of tables together by specifying the tags filter condition, then apply the aggregation operations. The result set can be grouped and ordered based on tag value. Syntax is：</p>
-<pre><code class="mysql language-mysql">SELECT function&lt;field_name&gt;,… 
+<p>You can group a set of tables together by specifying the tags filter condition, then apply the aggregation operations. The result set can be grouped and ordered based on tag value. Syntax is:</p>
+<pre><code class="mysql language-mysql">SELECT function&lt;field_name&gt;, ... 
  FROM &lt;stable_name&gt; 
- WHERE &lt;tag_name&gt; &lt;[=|&lt;=|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)
+ WHERE &lt;tag_name&gt; &lt;[=|&lt;=|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] ...
  INTERVAL (&lt;time range&gt;)
- GROUP BY &lt;tag_name&gt;, &lt;tag_name&gt;…
+ GROUP BY &lt;tag_name&gt;, &lt;tag_name&gt; ... 
  ORDER BY &lt;tag_name&gt; &lt;asc|desc&gt;
  SLIMIT &lt;group_limit&gt;
  SOFFSET &lt;group_offset&gt;
@@ -75,9 +75,9 @@ INTERVAL(10M)</code></pre>
 <pre><code class="mysql language-mysql">DROP TABLE &lt;stable_name&gt;</code></pre>
 <p>To delete a STable, all the tables created via this STable shall be deleted first, otherwise, it will fail.</p>
 <a class='anchor' id='List-the-Associated-Tables-of-a-STable'></a><h3>List the Associated Tables of a STable</h3>
-<pre><code class="mysql language-mysql">SELECT TBNAME,[TAG_NAME,…] FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)</code></pre>
+<pre><code class="mysql language-mysql">SELECT TBNAME,[TAG_NAME, ...] FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] ...)</code></pre>
 <p>It will list all the tables which satisfy the tag filter conditions. The tables are all created from this specific STable. TBNAME is a new keyword introduced, it is the table name associated with the STable. </p>
-<pre><code class="mysql language-mysql">SELECT COUNT(TBNAME) FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)</code></pre>
+<pre><code class="mysql language-mysql">SELECT COUNT(TBNAME) FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] ...)</code></pre>
 <p>The above SQL statement will list the number of tables in a STable, which satisfy the filter condition.</p>
 <a class='anchor' id='Management-of-Tags'></a><h2>Management of Tags</h2>
 <p>You can add, delete and change the tags for a STable, and you can change the tag value of a table. The SQL commands are listed below.  </p>

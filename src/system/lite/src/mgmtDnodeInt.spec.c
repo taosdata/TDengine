@@ -23,6 +23,7 @@
 #include "tutil.h"
 #include "vnode.h"
 #include "tsystem.h"
+#include "tstatus.h"
 
 extern void *dmQhandle;
 void * mgmtStatusTimer = NULL;
@@ -82,7 +83,7 @@ void mgmtCleanUpDnodeInt() {}
 void mgmtProcessDnodeStatus(void *handle, void *tmrId) {
   SDnodeObj *pObj = &dnodeObj;
   pObj->openVnodes = tsOpenVnodes;
-  pObj->status = TSDB_DNODE_STATUS_READY;
+  pObj->status = TSDB_DN_STATUS_READY;
 
   float memoryUsedMB = 0;
   taosGetSysMemory(&memoryUsedMB);
@@ -93,10 +94,10 @@ void mgmtProcessDnodeStatus(void *handle, void *tmrId) {
     SVnodeObj * pVnode = vnodeList + vnode;
 
     // wait vnode dropped
-    if (pVload->dropStatus == TSDB_VN_STATUS_DROPPING) {
+    if (pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
       if (vnodeList[vnode].cfg.maxSessions <= 0) {
-        pVload->dropStatus = TSDB_VN_STATUS_READY;
-        pVload->status = TSDB_VN_STATUS_READY;
+        pVload->dropStatus = TSDB_VN_DROP_STATUS_READY;
+        pVload->status = TSDB_VN_STATUS_OFFLINE;
         mPrint("dnode:%s, vid:%d, drop finished", taosIpStr(pObj->privateIp), vnode);
         taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, mgmtTmr);
       }
@@ -107,7 +108,7 @@ void mgmtProcessDnodeStatus(void *handle, void *tmrId) {
     }
 
     pVload->vnode = vnode;
-    pVload->status = TSDB_VN_STATUS_READY;
+    pVload->status = TSDB_VN_STATUS_MASTER;
     pVload->totalStorage = pVnode->vnodeStatistic.totalStorage;
     pVload->compStorage = pVnode->vnodeStatistic.compStorage;
     pVload->pointsWritten = pVnode->vnodeStatistic.pointsWritten;
@@ -116,7 +117,7 @@ void mgmtProcessDnodeStatus(void *handle, void *tmrId) {
     SVgObj *pVgroup = mgmtGetVgroup(vgId);
     if (pVgroup == NULL) {
       mError("vgroup:%d is not there, but associated with vnode %d", vgId, vnode);
-      pVload->dropStatus = TSDB_VN_STATUS_DROPPING;
+      pVload->dropStatus = TSDB_VN_DROP_STATUS_DROPPING;
       continue;
     }
 
@@ -126,9 +127,9 @@ void mgmtProcessDnodeStatus(void *handle, void *tmrId) {
       continue;
     }
 
-    if (pVload->vgId == 0 || pVload->dropStatus == TSDB_VN_STATUS_DROPPING) {
+    if (pVload->vgId == 0 || pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
       mError("vid:%d, mgmt not exist, drop it", vnode);
-      pVload->dropStatus = TSDB_VN_STATUS_DROPPING;
+      pVload->dropStatus = TSDB_VN_DROP_STATUS_DROPPING;
     }
   }
 

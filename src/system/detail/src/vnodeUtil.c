@@ -283,6 +283,7 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
     int32_t param = pExprs[i].pBase.arg[0].argValue.i64;
     if (getResultDataInfo(type, bytes, pExprs[i].pBase.functionId, param, &pExprs[i].resType, &pExprs[i].resBytes,
                   &pExprs[i].interResBytes, 0, isSuperTable) != TSDB_CODE_SUCCESS) {
+      *code = TSDB_CODE_INVALID_QUERY_MSG;
       return NULL;
     }
 
@@ -626,16 +627,16 @@ void vnodeUpdateQueryColumnIndex(SQuery* pQuery, SMeterObj* pMeterObj) {
     return;
   }
 
-  for(int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-    SSqlFuncExprMsg* pSqlExprMsg = &pQuery->pSelectExpr[i].pBase;
+  for(int32_t k = 0; k < pQuery->numOfOutputCols; ++k) {
+    SSqlFuncExprMsg* pSqlExprMsg = &pQuery->pSelectExpr[k].pBase;
     if (pSqlExprMsg->functionId == TSDB_FUNC_ARITHM || pSqlExprMsg->colInfo.flag == TSDB_COL_TAG) {
       continue;
     }
 
     SColIndexEx* pColIndexEx = &pSqlExprMsg->colInfo;
-    for(int32_t j = 0; j < pQuery->numOfCols; ++j) {
-      if (pColIndexEx->colId == pQuery->colList[j].data.colId) {
-        pColIndexEx->colIdx = pQuery->colList[j].colIdx;
+    for(int32_t f = 0; f < pQuery->numOfCols; ++f) {
+      if (pColIndexEx->colId == pQuery->colList[f].data.colId) {
+        pColIndexEx->colIdx = pQuery->colList[f].colIdx;
         break;
       }
     }
@@ -666,6 +667,26 @@ void vnodeSetMeterDeleting(SMeterObj* pMeterObj) {
   }
 
   pMeterObj->state |= TSDB_METER_STATE_DELETING;
+}
+
+int32_t vnodeSetMeterInsertImportStateEx(SMeterObj* pObj, int32_t st) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  int32_t state = vnodeSetMeterState(pObj, st);
+  if (state != TSDB_METER_STATE_READY) {//return to denote import is not performed
+    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+      dTrace("vid:%d sid:%d id:%s, meter is deleted, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
+             pObj->state);
+      code = TSDB_CODE_NOT_ACTIVE_TABLE;
+    } else {// waiting for 300ms by default and try again
+      dTrace("vid:%d sid:%d id:%s, try submit again since in state:%d", pObj->vnode, pObj->sid,
+             pObj->meterId, pObj->state);
+      
+      code = TSDB_CODE_ACTION_IN_PROGRESS;
+    }
+  }
+  
+  return code;
 }
 
 bool vnodeIsSafeToDeleteMeter(SVnodeObj* pVnode, int32_t sid) {

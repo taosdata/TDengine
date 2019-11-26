@@ -84,7 +84,7 @@ short tsCheckHeaderFile = 0;
 
 int tsSessionsPerVnode = 1000;
 int tsCacheBlockSize = 16384;  // 256 columns
-int tsAverageCacheBlocks = 4;
+int tsAverageCacheBlocks = TSDB_DEFAULT_AVG_BLOCKS;
 
 int   tsRowsInFileBlock = 4096;
 float tsFileBlockMinPercent = 0.05;
@@ -92,10 +92,10 @@ float tsFileBlockMinPercent = 0.05;
 short tsNumOfBlocksPerMeter = 100;
 short tsCommitTime = 3600;  // seconds
 short tsCommitLog = 1;
-short tsCompression = 2;
+short tsCompression = TSDB_MAX_COMPRESSION_LEVEL;
 short tsDaysPerFile = 10;
 int   tsDaysToKeep = 3650;
-int   tsReplications = 1;
+int   tsReplications = TSDB_REPLICA_MIN_NUM;
 
 int  tsNumOfMPeers = 3;
 int  tsMaxShellConns = 2000;
@@ -161,6 +161,9 @@ int tsHttpEnableCompress = 0;
 int tsHttpEnableRecordSql = 0;
 int tsTelegrafUseFieldNum = 0;
 int tsAdminRowLimit = 10240;
+
+int   tsTscEnableRecordSql = 0;
+int   tsEnableCoreFile = 0;
 
 int tsRpcTimer = 300;
 int tsRpcMaxTime = 600;      // seconds;
@@ -507,7 +510,7 @@ static void doInitGlobalConfig() {
                      0, TSDB_MAX_VNODES, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "tables", &tsSessionsPerVnode, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
-                     4, 220000, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_MIN_TABLES_PER_VNODE, TSDB_MAX_TABLES_PER_VNODE, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "cache", &tsCacheBlockSize, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      100, 1048576, 0, TSDB_CFG_UTYPE_BYTE);
@@ -519,7 +522,7 @@ static void doInitGlobalConfig() {
                      0, 1.0, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "ablocks", &tsAverageCacheBlocks, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
-                     2, 128, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_MIN_AVG_BLOCKS, TSDB_MAX_AVG_BLOCKS, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "tblocks", &tsNumOfBlocksPerMeter, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      32, 4096, 0, TSDB_CFG_UTYPE_NONE);
@@ -767,6 +770,14 @@ static void doInitGlobalConfig() {
                      0, 255, 0,
                      TSDB_CFG_UTYPE_NONE);
 
+  tsInitConfigOption(cfg++, "tscEnableRecordSql", &tsTscEnableRecordSql, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+
+  tsInitConfigOption(cfg++, "enableCoreFile", &tsEnableCoreFile, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+                     
   // version info
   tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
@@ -779,6 +790,7 @@ static void doInitGlobalConfig() {
                      0, 0, 0, TSDB_CFG_UTYPE_NONE);
 
   tsGlobalConfigNum = (int)(cfg - tsGlobalConfig);
+  assert(tsGlobalConfigNum <= TSDB_CFG_MAX_NUM);
 }
 
 static pthread_once_t initGlobalConfig = PTHREAD_ONCE_INIT;

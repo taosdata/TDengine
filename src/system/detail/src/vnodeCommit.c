@@ -235,7 +235,7 @@ int vnodeInitCommit(int vnode) {
   }
 
   pVnode->pWrite += size;
-  dTrace("vid:%d, commit log is initialized", vnode);
+  dPrint("vid:%d, commit log is initialized", vnode);
 
   return 0;
 }

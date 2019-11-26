@@ -13,14 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ctype.h>
-#include <pthread.h>
-#include <string.h>
-
 #include "os.h"
 #include "shash.h"
-#include "tsql.h"
 #include "tutil.h"
+#include "tsqldef.h"
+#include "tstoken.h"
+#include "ttypes.h"
 
 // All the keywords of the SQL language are stored in a hash table
 typedef struct SKeyword {
@@ -96,7 +94,6 @@ static SKeyword keywordTable[] = {
     {"TABLE",        TK_TABLE},
     {"DATABASE",     TK_DATABASE},
     {"DNODE",        TK_DNODE},
-    {"IP",           TK_IP},
     {"USER",         TK_USER},
     {"ACCOUNT",      TK_ACCOUNT},
     {"USE",          TK_USE},
@@ -523,7 +520,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       }
 
       if (seg == 4) {  // ip address
-        *tokenType = TK_IP;
+        *tokenType = TK_IPTOKEN;
         return i;
       }
 

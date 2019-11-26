@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mgmtBalance.h"
+#include "tstatus.h"
 
 void mgmtStartBalanceTimer(int mseconds) {}
 
@@ -25,10 +26,11 @@ void mgmtCleanupBalance() {}
 int mgmtAllocVnodes(SVgObj *pVgroup) {
   int        selectedVnode = -1;
   SDnodeObj *pDnode = &dnodeObj;
+  int        lastAllocVode = pDnode->lastAllocVnode;
 
   for (int i = 0; i < pDnode->numOfVnodes; i++) {
-    int vnode = (i + pDnode->lastAllocVnode) % pDnode->numOfVnodes;
-    if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_READY) {
+    int vnode = (i + lastAllocVode) % pDnode->numOfVnodes;
+    if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_OFFLINE) {
       selectedVnode = vnode;
       break;
     }
@@ -38,8 +40,7 @@ int mgmtAllocVnodes(SVgObj *pVgroup) {
     mError("vgroup:%d alloc vnode failed, free vnodes:%d", pVgroup->vgId, pDnode->numOfFreeVnodes);
     return -1;
   } else {
-    mTrace("vgroup:%d allocate vnode:%d, last allocated vnode:%d", pVgroup->vgId, selectedVnode,
-           pDnode->lastAllocVnode);
+    mTrace("vgroup:%d allocate vnode:%d, last allocated vnode:%d", pVgroup->vgId, selectedVnode, lastAllocVode);
     pVgroup->vnodeGid[0].vnode = selectedVnode;
     pDnode->lastAllocVnode = selectedVnode + 1;
     if (pDnode->lastAllocVnode >= pDnode->numOfVnodes) pDnode->lastAllocVnode = 0;
@@ -53,8 +54,8 @@ bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType) {
 
 bool mgmtCheckVnodeReady(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode) { return true; }
 
-void mgmtUpdateDnodeState(SDnodeObj *pDnode, int lbState) {}
+void mgmtUpdateDnodeState(SDnodeObj *pDnode, int lbStatus) {}
 
-void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbState, int srcIp) {}
+void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbStatus, int srcIp) {}
 
 bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) { return false; }

@@ -44,40 +44,6 @@ extern "C" {
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
 
-  enum _vnode_status {
-  TSDB_VNODE_STATUS_OFFLINE,
-  TSDB_VNODE_STATUS_CREATING,
-  TSDB_VNODE_STATUS_UNSYNCED,
-  TSDB_VNODE_STATUS_SLAVE,
-  TSDB_VNODE_STATUS_MASTER,
-  TSDB_VNODE_STATUS_CLOSING,
-  TSDB_VNODE_STATUS_DELETING,
-};
-
-enum _vnode_sync_status {
-  STDB_SSTATUS_INIT,
-  TSDB_SSTATUS_SYNCING,
-  TSDB_SSTATUS_SYNC_CACHE,
-  TSDB_SSTATUS_SYNC_FILE,
-};
-
-enum _dnode_status {
-    TSDB_DNODE_STATUS_OFFLINE,
-    TSDB_DNODE_STATUS_READY
-};
-
-enum _dnode_balance_status {
-    LB_DNODE_STATE_BALANCED,
-    LB_DNODE_STATE_BALANCING,
-    LB_DNODE_STATE_OFFLINE_REMOVING,
-    LB_DNODE_STATE_SHELL_REMOVING
-};
-
-enum _vgroup_status {
-    LB_VGROUP_STATE_READY,
-    LB_VGROUP_STATE_UPDATE
-};
-
 #define TSDB_DATA_TYPE_BOOL       1     // 1 bytes
 #define TSDB_DATA_TYPE_TINYINT    2     // 1 byte
 #define TSDB_DATA_TYPE_SMALLINT   3     // 2 bytes
@@ -180,8 +146,8 @@ enum _vgroup_status {
 #define TSDB_MAX_MPEERS           5
 #define TSDB_MAX_MGMT_IPS         (TSDB_MAX_MPEERS+1)
 
-//#define TSDB_REPLICA_MAX_NUM    3
 #define TSDB_REPLICA_MIN_NUM      1
+#define TSDB_REPLICA_MAX_NUM      3
 
 #define TSDB_TBNAME_COLUMN_INDEX       (-1)
 #define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta
@@ -196,9 +162,6 @@ enum _vgroup_status {
 #define TSDB_MIN_COMPRESSION_LEVEL      0
 #define TSDB_MAX_COMPRESSION_LEVEL      2
 
-#define TSDB_MIN_CACHE_BLOCKS_PER_METER 32
-#define TSDB_MAX_CACHE_BLOCKS_PER_METER 40960
-
 #define TSDB_MIN_COMMIT_TIME_INTERVAL   30
 #define TSDB_MAX_COMMIT_TIME_INTERVAL   40960
 
@@ -211,7 +174,9 @@ enum _vgroup_status {
 #define TSDB_MIN_CACHE_BLOCKS           100
 #define TSDB_MAX_CACHE_BLOCKS           409600
 
+#define TSDB_MIN_AVG_BLOCKS             2
 #define TSDB_MAX_AVG_BLOCKS             2048
+#define TSDB_DEFAULT_AVG_BLOCKS         4
 
 #define TSDB_MIN_TABLES_PER_VNODE       1
 #define TSDB_MAX_TABLES_PER_VNODE       220000
@@ -238,7 +203,7 @@ enum _vgroup_status {
 
 #define TSDB_MAX_RPC_THREADS            5
 
-#define TSDB_QUERY_TYPE_QUERY                            0     // normal query
+#define TSDB_QUERY_TYPE_QUERY                          0         // normal query
 #define TSDB_QUERY_TYPE_FREE_RESOURCE                  0x01U     // free qhandle at vnode
 
 /*
@@ -253,6 +218,9 @@ enum _vgroup_status {
 #define TSDB_QUERY_TYPE_JOIN_QUERY                     0x20U    // join query
 #define TSDB_QUERY_TYPE_PROJECTION_QUERY               0x40U    // select *,columns... query
 #define TSDB_QUERY_TYPE_JOIN_SEC_STAGE                 0x80U    // join sub query at the second stage
+
+#define TSQL_SO_ASC   1
+#define TSQL_SO_DESC  0
 
 #ifdef __cplusplus
 }

@@ -24,7 +24,6 @@ extern "C" {
 #include <stdint.h>
 
 #include "trpc.h"
-#include "tsql.h"
 #include "ttypes.h"
 
 #define TSDB_FUNC_INVALID_ID  -1

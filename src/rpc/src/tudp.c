@@ -506,6 +506,8 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
       pConn->localPort = (int16_t)ntohs(sin.sin_port);
     }
 
+    strcpy(pConn->label, label);
+
     if (pthread_create(&pConn->thread, &thAttr, taosRecvUdpData, pConn) != 0) {
       tError("%s failed to create thread to process UDP data, reason:%s", label, strerror(errno));
       taosCloseSocket(pConn->fd);
@@ -513,7 +515,6 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
       return NULL;
     }
 
-    strcpy(pConn->label, label);
     pConn->shandle = shandle;
     pConn->processData = fp;
     pConn->index = i;

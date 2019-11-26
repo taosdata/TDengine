@@ -136,6 +136,8 @@ int dnodeInitSystem() {
     return -1;
   }
 
+  vnodeInitMgmtIp();
+
   tsPrintGlobalConfig();
   dPrint("Server IP address is:%s", tsInternalIp);
 

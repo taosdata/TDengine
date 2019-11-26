@@ -22,8 +22,9 @@
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "tsocket.h"
-#include "tsql.h"
+#include "tscSQLParser.h"
 #include "tutil.h"
+#include "tnote.h"
 
 void tscProcessFetchRow(SSchedMsg *pMsg);
 void tscProcessAsyncRetrieve(void *param, TAOS_RES *tres, int numOfRows);
@@ -53,7 +54,9 @@ void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *,
     tscError("sql string too long");
     tscQueueAsyncError(fp, param);
     return;
-  }
+  }  
+
+  taosNotePrintTsc(sqlstr);
 
   SSqlObj *pSql = (SSqlObj *)malloc(sizeof(SSqlObj));
   if (pSql == NULL) {

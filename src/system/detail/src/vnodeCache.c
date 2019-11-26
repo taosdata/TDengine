@@ -20,6 +20,7 @@
 #include "vnode.h"
 #include "vnodeCache.h"
 #include "vnodeUtil.h"
+#include "tstatus.h"
 
 void vnodeSearchPointInCache(SMeterObj *pObj, SQuery *pQuery);
 void vnodeProcessCommitTimer(void *param, void *tmrId);
@@ -77,7 +78,7 @@ void *vnodeOpenCachePool(int vnode) {
     }
   }
 
-  dTrace("vid:%d, cache pool is allocated:0x%x", vnode, pCachePool);
+  dPrint("vid:%d, cache pool is allocated:0x%x", vnode, pCachePool);
 
   return pCachePool;
 
@@ -102,7 +103,7 @@ void vnodeCloseCachePool(int vnode) {
   taosTmrStopA(&pVnode->commitTimer);
   if (pVnode->commitInProcess) pthread_cancel(pVnode->commitThread);
 
-  dTrace("vid:%d, cache pool closed, count:%d", vnode, pCachePool->count);
+  dPrint("vid:%d, cache pool closed, count:%d", vnode, pCachePool->count);
 
   int maxAllocBlock = (1024 * 1024 * 1024) / pVnode->cfg.cacheBlockSize;
   while (blockId < pVnode->cfg.cacheNumOfBlocks.totalBlocks) {
@@ -297,7 +298,7 @@ pthread_t vnodeCreateCommitThread(SVnodeObj *pVnode) {
 
   taosTmrStopA(&pVnode->commitTimer);
 
-  if (pVnode->vnodeStatus == TSDB_VNODE_STATUS_UNSYNCED) {
+  if (pVnode->vnodeStatus == TSDB_VN_STATUS_UNSYNCED) {
     taosTmrReset(vnodeProcessCommitTimer, pVnode->cfg.commitTime * 1000, pVnode, vnodeTmrCtrl, &pVnode->commitTimer);
     dTrace("vid:%d, it is in unsyc state, commit later", pVnode->vnode);
     return pVnode->commitThread;

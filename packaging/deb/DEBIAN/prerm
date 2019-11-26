@@ -35,6 +35,8 @@ else
     ${csudo} rm -f ${data_link_dir}           || :
     
     pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
-    ${csudo} kill -9 ${pid}   || :
+    if [ -n "$pid" ]; then
+        ${csudo} kill -9 $pid   || :
+    fi
 fi
 

@@ -45,17 +45,6 @@ extern int   mgmtShellConns;
 extern int   mgmtDnodeConns;
 extern char  mgmtDirectory[];
 
-enum _TSDB_VG_STATUS {
-  TSDB_VG_STATUS_READY,
-  TSDB_VG_STATUS_IN_PROGRESS,
-  TSDB_VG_STATUS_COMMITLOG_INIT_FAILED,
-  TSDB_VG_STATUS_INIT_FAILED,
-  TSDB_VG_STATUS_FULL
-};
-
-enum _TSDB_DB_STATUS { TSDB_DB_STATUS_READY, TSDB_DB_STATUS_DROPPING, TSDB_DB_STATUS_DROP_FROM_SDB };
-
-enum _TSDB_VN_STATUS { TSDB_VN_STATUS_READY, TSDB_VN_STATUS_DROPPING };
 
 typedef struct {
   uint32_t   privateIp;
@@ -86,7 +75,7 @@ typedef struct {
   uint16_t   slot;
   int32_t    customScore;     // config by user
   float      lbScore;         // calc in balance function
-  int16_t    lbState;         // set in balance function
+  int16_t    lbStatus;         // set in balance function
   int16_t    lastAllocVnode;  // increase while create vnode
   SVnodeLoad vload[TSDB_MAX_VNODES];
   char       reserved[16];
@@ -148,7 +137,7 @@ typedef struct _vg_obj {
   int32_t         numOfMeters;
   int32_t         lbIp;
   int32_t         lbTime;
-  int8_t          lbState;
+  int8_t          lbStatus;
   char            reserved[16];
   char            updateEnd[1];
   struct _vg_obj *prev, *next;
@@ -157,6 +146,9 @@ typedef struct _vg_obj {
 } SVgObj;
 
 typedef struct _db_obj {
+  /*
+   * this length will cause the storage structure to change, rollback
+   */
   char    name[TSDB_DB_NAME_LEN + 1];
   int64_t createdTime;
   SDbCfg  cfg;
@@ -426,7 +418,7 @@ void mgmtSetDnodeShellRemoving(SDnodeObj *pDnode);
 void mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
 void mgmtStartBalanceTimer(int mseconds);
 void mgmtSetDnodeOfflineOnSdbChanged();
-void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbState, int srcIp);
+void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbStatus, int srcIp);
 bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode);
 
 void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType);

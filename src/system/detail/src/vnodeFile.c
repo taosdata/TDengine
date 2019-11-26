@@ -125,10 +125,8 @@ int vnodeCreateHeadDataFile(int vnode, int fileId, char *headName, char *dataNam
   if (symlink(dDataName, dataName) != 0) return -1;
   if (symlink(dLastName, lastName) != 0) return -1;
 
-  dTrace(
-      "vid:%d, fileId:%d, empty header file:%s dataFile:%s lastFile:%s on "
-      "disk:%s is created ",
-      vnode, fileId, headName, dataName, lastName, path);
+  dPrint("vid:%d, fileId:%d, empty header file:%s dataFile:%s lastFile:%s on disk:%s is created ",
+          vnode, fileId, headName, dataName, lastName, path);
 
   return 0;
 }
@@ -322,7 +320,7 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
     vnodeRecoverFromPeer(pVnode, fileId);
     goto _error;
   } else {
-    dTrace("vid:%d, data file:%s is opened to write", vnode, name);
+    dPrint("vid:%d, data file:%s is opened to write", vnode, name);
   }
 
   // open last file
@@ -427,7 +425,7 @@ void vnodeRemoveFile(int vnode, int fileId) {
   remove(dDataName);
   remove(dLastName);
 
-  dTrace("vid:%d fileId:%d on disk: %s is removed, numOfFiles:%d maxFiles:%d", vnode, fileId, path,
+  dPrint("vid:%d fileId:%d on disk: %s is removed, numOfFiles:%d maxFiles:%d", vnode, fileId, path,
          pVnode->numOfFiles, pVnode->maxFiles);
 }
 

@@ -24,7 +24,7 @@
 #include "tsclient.h"
 #include "tscompression.h"
 #include "tsocket.h"
-#include "tsql.h"
+#include "tscSQLParser.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
@@ -58,6 +58,22 @@ void tscPrintMgmtIp() {
   }
 }
 #endif
+
+/*
+ * For each management node, try twice at least in case of poor network situation.
+ * If the client start to connect to a non-management node from the client, and the first retry may fail due to
+ * the poor network quality. And then, the second retry get the response with redirection command.
+ * The retry will not be executed since only *two* retry is allowed in case of single management node in the cluster.
+ * Therefore, we need to multiply the retry times by factor of 2 to fix this problem.
+ */
+static int32_t tscGetMgmtConnMaxRetryTimes() {
+  int32_t factor = 2;
+#ifdef CLUSTER
+  return tscMgmtIpList.numOfIps * factor;
+#else
+  return 1*factor;
+#endif
+}
 
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   STscObj *pObj = (STscObj *)param;
@@ -134,18 +150,17 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
   tscProcessSql(pObj->pHb);
 }
 
-//TODO HANDLE error from mgmt
 void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
   STscObj *pTscObj = pSql->pTscObj;
 #ifdef CLUSTER
-  if (pSql->retry < tscMgmtIpList.numOfIps) {
+  if (pSql->retry < tscGetMgmtConnMaxRetryTimes()) {
     *pCode = 0;
     pSql->retry++;
     pSql->index = pSql->index % tscMgmtIpList.numOfIps;
     if (pSql->cmd.command > TSDB_SQL_READ && pSql->index == 0) pSql->index = 1;
     void *thandle = taosGetConnFromCache(tscConnCache, tscMgmtIpList.ip[pSql->index], TSC_MGMT_VNODE, pTscObj->user);
 #else
-  if (pSql->retry < 1) {
+  if (pSql->retry < tscGetMgmtConnMaxRetryTimes()) {
     *pCode = 0;
     pSql->retry++;
     void *thandle = taosGetConnFromCache(tscConnCache, tsServerIp, TSC_MGMT_VNODE, pTscObj->user);
@@ -183,6 +198,15 @@ void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
     pSql->ip = tsServerIp;
     pSql->vnode = TSC_MGMT_VNODE;
 #endif
+  }
+  
+  // the pSql->res.code is the previous error(status) code.
+  if (pSql->thandle == NULL && pSql->retry >= pSql->maxRetry) {
+    if (pSql->res.code != TSDB_CODE_SUCCESS && pSql->res.code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      *pCode = pSql->res.code;
+    }
+    
+    tscError("%p reach the max retry:%d, code:%d", pSql, pSql->retry, *pCode);
   }
 }
 
@@ -435,8 +459,8 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
     }
   } else {
     uint16_t rspCode = pMsg->content[0];
-#ifdef CLUSTER
     
+#ifdef CLUSTER
     
     if (rspCode == TSDB_CODE_REDIRECT) {
       tscTrace("%p it shall be redirected!", pSql);
@@ -1795,7 +1819,7 @@ int tscBuildCreateDbMsg(SSqlObj *pSql) {
   pMsg += sizeof(SMgmtHead);
 
   pCreateDbMsg = (SCreateDbMsg *)pMsg;
-  strcpy(pCreateDbMsg->db, pMeterMetaInfo->name);
+  strncpy(pCreateDbMsg->db, pMeterMetaInfo->name, tListLen(pCreateDbMsg->db));
   pMsg += sizeof(SCreateDbMsg);
 
   msgLen = pMsg - pStart;
@@ -2017,7 +2041,7 @@ int tscBuildDropDbMsg(SSqlObj *pSql) {
   pMsg += sizeof(SMgmtHead);
 
   pDropDbMsg = (SDropDbMsg *)pMsg;
-  strcpy(pDropDbMsg->db, pMeterMetaInfo->name);
+  strncpy(pDropDbMsg->db, pMeterMetaInfo->name, tListLen(pDropDbMsg->db));
 
   pDropDbMsg->ignoreNotExists = htons(pCmd->existsCheck ? 1 : 0);
 
@@ -3795,7 +3819,14 @@ void tscInitMsgs() {
   tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromVnode;   // rsp handled by same function.
   tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
+  
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_TAGS] = tscProcessTagRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_CURRENT_DB] = tscProcessTagRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_CURRENT_USER] = tscProcessTagRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_SERV_VERSION] = tscProcessTagRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_CLI_VERSION] = tscProcessTagRetrieveRsp;
+  tscProcessMsgRsp[TSDB_SQL_SERV_STATUS] = tscProcessTagRetrieveRsp;
+  
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_EMPTY_RESULT] = tscProcessEmptyResultRsp;
 
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_METRIC] = tscProcessRetrieveMetricRsp;

@@ -21,8 +21,12 @@
 #include "tschemautil.h"
 #include "tsdb.h"
 #include "tskiplist.h"
+#include "tsqldef.h"
 #include "tsqlfunction.h"
+#include "tstoken.h"
+#include "ttypes.h"
 #include "tutil.h"
+#include "tscSQLParser.h"
 
 /*
  *
@@ -37,10 +41,10 @@
  */
 
 static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken *pToken);
-static void tSQLSyntaxNodeDestroy(tSQLSyntaxNode *pNode, void (*fp)(void *));
+static void            tSQLSyntaxNodeDestroy(tSQLSyntaxNode *pNode, void (*fp)(void *));
 
 static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i);
-static void destroySyntaxTree(tSQLSyntaxNode *);
+static void            destroySyntaxTree(tSQLSyntaxNode *);
 
 static uint8_t isQueryOnPrimaryKey(const char *primaryColumnName, const tSQLSyntaxNode *pLeft,
                                    const tSQLSyntaxNode *pRight);
@@ -255,7 +259,7 @@ static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, cha
 
   t0 = tStrGetToken(str, i, false, 0, NULL);
   if (t0.n == 0 || t0.type == TK_RP) {
-    if (pLeft->nodeType != TSQL_NODE_EXPR) { // if left is not the expr, it is not a legal expr
+    if (pLeft->nodeType != TSQL_NODE_EXPR) {  // if left is not the expr, it is not a legal expr
       tSQLSyntaxNodeDestroy(pLeft, NULL);
       return NULL;
     }
