@@ -584,12 +584,12 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   if (pVnode->cfg.commitLog && source != TSDB_DATA_SOURCE_LOG) {
     if (pVnode->logFd < 0) return TSDB_CODE_INVALID_COMMIT_LOG;
     code = vnodeWriteToCommitLog(pObj, TSDB_ACTION_INSERT, cont, contLen, sversion);
-    if (code != 0) return code;
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
 
   if (source == TSDB_DATA_SOURCE_SHELL && pVnode->cfg.replications > 1) {
     code = vnodeForwardToPeer(pObj, cont, contLen, TSDB_ACTION_INSERT, sversion);
-    if (code != 0) return code;
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
 
   if (pObj->sversion < sversion) {
@@ -601,11 +601,11 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   }
 
   pData = pSubmit->payLoad;
-  code = TSDB_CODE_SUCCESS;
 
   TSKEY firstKey = *((TSKEY *)pData);
   TSKEY lastKey = *((TSKEY *)(pData + pObj->bytesPerPoint * (numOfPoints - 1)));
   int cfid = now/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  
   TSKEY minAllowedKey = (cfid - pVnode->maxFiles + 1)*pVnode->cfg.daysPerFile*tsMsPerDay[pVnode->cfg.precision];
   TSKEY maxAllowedKey = (cfid + 2)*pVnode->cfg.daysPerFile*tsMsPerDay[pVnode->cfg.precision] - 2;
   if (firstKey < minAllowedKey || firstKey > maxAllowedKey || lastKey < minAllowedKey || lastKey > maxAllowedKey) {
@@ -619,7 +619,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   }
   
   for (i = 0; i < numOfPoints; ++i) { // meter will be dropped, abort current insertion
-    if (pObj->state >= TSDB_METER_STATE_DELETING) {
+    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
       dWarn("vid:%d sid:%d id:%s, meter is dropped, abort insert, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
             pObj->state);
 
@@ -648,6 +648,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     pData += pObj->bytesPerPoint;
     points++;
   }
+  
   atomic_fetch_add_64(&(pVnode->vnodeStatistic.pointsWritten), points * (pObj->numOfColumns - 1));
   atomic_fetch_add_64(&(pVnode->vnodeStatistic.totalStorage), points * pObj->bytesPerPoint);
 
@@ -660,6 +661,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   pVnode->version++;
 
   pthread_mutex_unlock(&(pVnode->vmutex));
+  
   vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);
 
 _over:

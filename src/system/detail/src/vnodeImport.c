@@ -166,7 +166,6 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   int         code = TSDB_CODE_SUCCESS;
   SCachePool *pPool = (SCachePool *)(pVnode->pCachePool);
   SShellObj * pShell = (SShellObj *)param;
-  int         pointsImported = 0;
   TSKEY       firstKey, lastKey;
 
   payload = pSubmit->payLoad;
@@ -200,25 +199,29 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     if (code != 0) return code;
   }
 
+  /*
+   * The timestamp of all records in a submit payload are always in ascending order, guaranteed by client, so here only
+   * the first key.
+   */
   if (firstKey > pObj->lastKey) {  // Just call insert
-    vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
-    // TODO: Here may fail to set the state, add error handling.
-    vnodeSetMeterState(pObj, TSDB_METER_STATE_INSERT);
     code = vnodeInsertPoints(pObj, cont, contLen, TSDB_DATA_SOURCE_LOG, NULL, sversion, pNumOfPoints, now);
-    // TODO: outside clear state function is invalid for this structure
-    vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);
   } else {  // trigger import
     if (sversion != pObj->sversion) {
       dError("vid:%d sid:%d id:%s, invalid sversion, expected:%d received:%d", pObj->vnode, pObj->sid, pObj->meterId,
              pObj->sversion, sversion);
       return TSDB_CODE_OTHERS;
     }
-
-    SImportInfo import;
+  
+    // check the table status for perform import historical data
+    if ((code = vnodeSetMeterInsertImportStateEx(pObj, TSDB_METER_STATE_IMPORTING)) != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    
+    SImportInfo import = {0};
 
     dTrace("vid:%d sid:%d id:%s, try to import %d rows data, firstKey:%ld, lastKey:%ld, object lastKey:%ld",
            pObj->vnode, pObj->sid, pObj->meterId, rows, firstKey, lastKey, pObj->lastKey);
-    memset(&import, 0, sizeof(import));
+    
     import.firstKey = firstKey;
     import.lastKey = lastKey;
     import.pObj = pObj;
@@ -226,8 +229,7 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     import.payload = payload;
     import.rows = rows;
 
-    // FIXME: mutex here seems meaningless and num here still can
-    // be changed
+    // FIXME: mutex here seems meaningless and num here still can be changed
     int32_t num = 0;
     pthread_mutex_lock(&pVnode->vmutex);
     num = pObj->numOfQueries;
@@ -236,10 +238,12 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     int32_t commitInProcess = 0;
 
     pthread_mutex_lock(&pPool->vmutex);
-    if (((commitInProcess = pPool->commitInProcess) == 1) ||
-        num > 0) {  // mutual exclusion with read (need to change here)
+    if (((commitInProcess = pPool->commitInProcess) == 1) || num > 0) {
+      // mutual exclusion with read (need to change here)
       pthread_mutex_unlock(&pPool->vmutex);
+      vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
       return TSDB_CODE_ACTION_IN_PROGRESS;
+      
     } else {
       pPool->commitInProcess = 1;
       pthread_mutex_unlock(&pPool->vmutex);
@@ -248,7 +252,8 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     }
     pVnode->version++;
   }
-
+  
+  vnodeClearMeterState(pObj, TSDB_METER_STATE_IMPORTING);
   return code;
 }
 

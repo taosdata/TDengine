@@ -509,7 +509,7 @@ static int vnodeCheckSubmitBlockContext(SShellSubmitBlock *pBlocks, SVnodeObj *p
 
   SMeterObj *pMeterObj = pVnode->meterList[sid];
   if (pMeterObj == NULL) {
-    dError("vid:%d sid:%d, no active table", pVnode->vnode, sid);
+    dError("vid:%d sid:%d, not active table", pVnode->vnode, sid);
     vnodeSendMeterCfgMsg(pVnode->vnode, sid);
     return TSDB_CODE_NOT_ACTIVE_TABLE;
   }
@@ -581,41 +581,27 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
     if (code != TSDB_CODE_SUCCESS) break;
 
     SMeterObj *pMeterObj = (SMeterObj *)(pVnode->meterList[htonl(pBlocks->sid)]);
+    
     // dont include sid, vid
     int32_t subMsgLen = sizeof(pBlocks->numOfRows) + htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint;
     int32_t sversion = htonl(pBlocks->sversion);
 
-    int32_t state = TSDB_METER_STATE_READY;
-    state = vnodeSetMeterState(pMeterObj, (pSubmit->import ? TSDB_METER_STATE_IMPORTING : TSDB_METER_STATE_INSERT));
-
-    if (state == TSDB_METER_STATE_READY) { // meter status is ready for insert/import
-      if (pSubmit->import) {
-        code = vnodeImportPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
-                                 sversion, &numOfPoints, now);
-        vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
-        pObj->numOfTotalPoints += numOfPoints;
-        if (code == TSDB_CODE_SUCCESS) pObj->count--;
-      } else {
-        code = vnodeInsertPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, NULL,
-                                 sversion, &numOfPoints, now);
-        vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_INSERT);
-        numOfTotalPoints += numOfPoints;
+    if (pSubmit->import) {
+      code = vnodeImportPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
+                               sversion, &numOfPoints, now);
+      pObj->numOfTotalPoints += numOfPoints;
+      
+      //records for one table should be consecutive located in the payload buffer, which is guaranteed by client
+      if (code == TSDB_CODE_SUCCESS) {
+        pObj->count--;
       }
-      if (code != TSDB_CODE_SUCCESS) break;
     } else {
-      if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DELETING)) {
-        dTrace("vid:%d sid:%d id:%s, it is removed, state:%d", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId,
-               pMeterObj->state);
-        code = TSDB_CODE_NOT_ACTIVE_TABLE;
-        break;
-      } else {// waiting for 300ms by default and try again
-        dTrace("vid:%d sid:%d id:%s, try submit again since in state:%d", pMeterObj->vnode, pMeterObj->sid,
-               pMeterObj->meterId, pMeterObj->state);
-
-        code = TSDB_CODE_ACTION_IN_PROGRESS;
-        break;
-      }
+      code = vnodeInsertPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, NULL,
+                               sversion, &numOfPoints, now);
+      numOfTotalPoints += numOfPoints;
     }
+      
+    if (code != TSDB_CODE_SUCCESS) break;
 
     pBlocks = (SShellSubmitBlock *)((char *)pBlocks + sizeof(SShellSubmitBlock) +
                                     htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint);
@@ -635,7 +621,7 @@ _submit_over:
         pImportInfo->import = 1;
         pImportInfo->vnode = pSubmit->vnode;
         pImportInfo->numOfSid = pSubmit->numOfSid;
-        pImportInfo->ssid = i;
+        pImportInfo->ssid = i;   // start from this position, not the initial position
         pImportInfo->pObj = pObj;
         pImportInfo->offset = ((char *)pBlocks) - (pMsg + sizeof(SShellSubmitMsg));
         assert(pImportInfo->offset >= 0);
@@ -658,7 +644,7 @@ static void vnodeProcessBatchImportTimer(void *param, void *tmrId) {
   SBatchImportInfo *pImportInfo = (SBatchImportInfo *)param;
   assert(pImportInfo != NULL && pImportInfo->import);
 
-  int32_t i = 0, numOfPoints = 0, numOfTotalPoints = 0;
+  int32_t i = 0, numOfPoints = 0;
   int32_t code = TSDB_CODE_SUCCESS;
 
   SShellObj *        pShell = pImportInfo->pObj;
@@ -677,30 +663,11 @@ static void vnodeProcessBatchImportTimer(void *param, void *tmrId) {
     int32_t subMsgLen = sizeof(pBlocks->numOfRows) + htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint;
     int32_t sversion = htonl(pBlocks->sversion);
 
-    int32_t state = TSDB_METER_STATE_READY;
-    state = vnodeSetMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
-
-    if (state == TSDB_METER_STATE_READY) {  // meter status is ready for insert/import
-      code = vnodeImportPoints(pMeterObj, (char *)&(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pShell,
-                               sversion, &numOfPoints, now);
-      vnodeClearMeterState(pMeterObj, TSDB_METER_STATE_IMPORTING);
-      pShell->numOfTotalPoints += numOfPoints;
-      if (code != TSDB_CODE_SUCCESS) break;
-      pShell->count--;
-    } else {
-      if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DELETING)) {
-        dTrace("vid:%d sid:%d id:%s, it is removed, state:%d", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId,
-               pMeterObj->state);
-        code = TSDB_CODE_NOT_ACTIVE_TABLE;
-        break;
-      } else {  // waiting for 300ms by default and try again
-        dTrace("vid:%d sid:%d id:%s, try submit again since in state:%d", pMeterObj->vnode, pMeterObj->sid,
-               pMeterObj->meterId, pMeterObj->state);
-
-        code = TSDB_CODE_ACTION_IN_PROGRESS;
-        break;
-      }
-    }
+    code = vnodeImportPoints(pMeterObj, (char *)&(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pShell,
+                             sversion, &numOfPoints, now);
+    pShell->numOfTotalPoints += numOfPoints;
+    if (code != TSDB_CODE_SUCCESS) break;
+    pShell->count--;
 
     pBlocks = (SShellSubmitBlock *)((char *)pBlocks + sizeof(SShellSubmitBlock) +
                                     htons(pBlocks->numOfRows) * pMeterObj->bytesPerPoint);
