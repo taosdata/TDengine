@@ -267,9 +267,9 @@ typedef struct {
   union {
     bool   existsCheck;       // check if the table exists
     int8_t showType;          // show command type
-    int8_t isInsertFromFile;  // load data from file or not
   };
   
+  int8_t          isInsertFromFile;  // load data from file or not
   bool            import;     // import/insert type
   char            msgType;
   uint16_t        type;  // query type
