@@ -1,11 +1,12 @@
 #!/bin/sh
 
+echo "Executing clear.sh"
+
 if [ $# != 6 ]; then 
   echo "argument list need input : "
   echo "  -n nodeName"
   echo "  -i nodeIp"
   echo "  -m masterIp"
-  echo
   exit 1
 fi
 
@@ -49,13 +50,13 @@ CFG_DIR=$NODE_DIR/cfg
 LOG_DIR=$NODE_DIR/log
 DATA_DIR=$NODE_DIR/data
 
-echo ============ deploy $NODE_NAME
+#echo ============ deploy $NODE_NAME
 #echo === masterIp : $MASTER_IP
 #echo === nodeIp : $NODE_IP
-echo === nodePath : $EXE_DIR
-echo === cfgPath : $CFG_DIR
-echo === logPath : $LOG_DIR
-echo === dataPath : $DATA_DIR
+#echo === nodePath : $EXE_DIR
+#echo === cfgPath : $CFG_DIR
+#echo === logPath : $LOG_DIR
+#echo === dataPath : $DATA_DIR
 
 # rm -rf $NODE_DIR
 
@@ -96,13 +97,13 @@ echo "privateIp           $NODE_IP"       >> $TAOS_CFG
 echo "dDebugFlag          135"            >> $TAOS_CFG
 echo "mDebugFlag          135"            >> $TAOS_CFG
 echo "sdbDebugFlag        135"            >> $TAOS_CFG
-echo "rpcDebugFlag        135"            >> $TAOS_CFG
+echo "rpcDebugFlag        131"            >> $TAOS_CFG
 echo "tmrDebugFlag        131"            >> $TAOS_CFG
 echo "cDebugFlag          135"            >> $TAOS_CFG
-echo "httpDebugFlag       135"            >> $TAOS_CFG
-echo "monitorDebugFlag    135"            >> $TAOS_CFG
-echo "udebugFlag          135"            >> $TAOS_CFG
-echo "jnidebugFlag        135"            >> $TAOS_CFG
+echo "httpDebugFlag       131"            >> $TAOS_CFG
+echo "monitorDebugFlag    131"            >> $TAOS_CFG
+echo "udebugFlag          131"            >> $TAOS_CFG
+echo "jnidebugFlag        131"            >> $TAOS_CFG
 echo "monitor             0"              >> $TAOS_CFG
 echo "numOfThreadsPerCore 2.0"            >> $TAOS_CFG
 echo "defaultPass         taosdata"       >> $TAOS_CFG
