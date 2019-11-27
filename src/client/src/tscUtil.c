@@ -1294,8 +1294,7 @@ int32_t tscValidateName(SSQLToken* pToken) {
 
     // re-build the whole name string
     if (pStr[firstPartLen] == TS_PATH_DELIMITER[0]) {
-      // first part do not have quote
-      // do nothing
+      // first part do not have quote do nothing
     } else {
       pStr[firstPartLen] = TS_PATH_DELIMITER[0];
       memmove(&pStr[firstPartLen + 1], pToken->z, pToken->n);
@@ -1842,5 +1841,30 @@ bool tscIsUpdateQuery(STscObj* pObj) {
   SSqlCmd* pCmd = &pObj->pSql->cmd;
   return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) ||
       TSDB_SQL_USE_DB == pCmd->command) ? 1 : 0;
-
 }
+
+int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql) {
+  const char *msgFormat1 = "invalid SQL: %s";
+  const char *msgFormat2 = "invalid SQL: syntax error near \"%s\" (%s)";
+  const char *msgFormat3 = "invalid SQL: syntax error near \"%s\"";
+  
+  const int32_t BACKWARD_CHAR_STEP = 0;
+  
+  if (sql == NULL) {
+    assert(additionalInfo != NULL);
+    sprintf(msg, msgFormat1, additionalInfo);
+    return TSDB_CODE_INVALID_SQL;
+  }
+  
+  char buf[64] = {0};   // only extract part of sql string
+  strncpy(buf, (sql - BACKWARD_CHAR_STEP), tListLen(buf) - 1);
+  
+  if (additionalInfo != NULL) {
+    sprintf(msg, msgFormat2, buf, additionalInfo);
+  } else {
+    sprintf(msg, msgFormat3, buf); // no additional information for invalid sql error
+  }
+  
+  return TSDB_CODE_INVALID_SQL;
+}
+

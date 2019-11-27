@@ -1415,7 +1415,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql) {
   pMsg = pStart;
 
   pShellMsg = (SShellSubmitMsg *)pMsg;
-  pShellMsg->import = pSql->cmd.order.order;
+  pShellMsg->import = pSql->cmd.import;
   pShellMsg->vnode = htons(pMeterMeta->vpeerDesc[pMeterMeta->index].vnode);
   pShellMsg->numOfSid = htonl(pSql->cmd.count);  // number of meters to be inserted
 
@@ -3453,31 +3453,6 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   return 0;
 }
 
-static void doDecompressPayload(SSqlCmd *pCmd, SSqlRes *pRes, int16_t compressed) {
-  if (compressed && pRes->numOfRows > 0) {
-    SRetrieveMeterRsp *pRetrieve = (SRetrieveMeterRsp *)pRes->pRsp;
-
-    int32_t numOfTotalCols = pCmd->fieldsInfo.numOfOutputCols + pCmd->fieldsInfo.numOfHiddenCols;
-    int32_t rowSize = pCmd->fieldsInfo.pOffset[numOfTotalCols - 1] + pCmd->fieldsInfo.pFields[numOfTotalCols - 1].bytes;
-
-    // TODO handle the OOM problem
-    char *  buf = malloc(rowSize * pRes->numOfRows);
-
-    int32_t payloadSize = pRes->rspLen - 1 - sizeof(SRetrieveMeterRsp);
-    assert(payloadSize > 0);
-
-    int32_t decompressedSize = tsDecompressString(pRetrieve->data, payloadSize, 1, buf, rowSize * pRes->numOfRows, 0, 0, 0);
-    assert(decompressedSize == rowSize * pRes->numOfRows);
-
-    pRes->pRsp = realloc(pRes->pRsp, pRes->rspLen - payloadSize + decompressedSize);
-    memcpy(pRes->pRsp + sizeof(SRetrieveMeterRsp), buf, decompressedSize);
-
-    free(buf);
-  }
-
-  pRes->data = ((SRetrieveMeterRsp *)pRes->pRsp)->data;
-}
-
 int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
@@ -3490,9 +3465,7 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   pRes->offset = htobe64(pRetrieve->offset);
 
   pRes->useconds = htobe64(pRetrieve->useconds);
-  pRetrieve->compress = htons(pRetrieve->compress);
-
-  doDecompressPayload(pCmd, pRes, pRetrieve->compress);
+  pRes->data = pRetrieve->data;
 
   tscSetResultPointer(pCmd, pRes);
   pRes->row = 0;

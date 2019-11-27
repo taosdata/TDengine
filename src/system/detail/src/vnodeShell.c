@@ -452,11 +452,7 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   pMsg = pRsp->data;
 
   if (numOfRows > 0 && code == TSDB_CODE_SUCCESS) {
-    int32_t oldSize = size;
     vnodeSaveQueryResult((void *)(pRetrieve->qhandle), pRsp->data, &size);
-    if (oldSize > size) {
-      pRsp->compress = htons(1); // denote that the response msg is compressed
-    }
   }
 
   pMsg += size;
@@ -573,6 +569,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
     int sversion = htonl(pBlocks->sversion);
 
     if (pSubmit->import) {
+      dTrace("start to import data");
       code = vnodeImportPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
                                sversion, &numOfPoints, now);
     } else {

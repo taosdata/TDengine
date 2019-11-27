@@ -353,7 +353,7 @@ bool vnodeIsValidVnodeCfg(SVnodeCfg *pCfg);
 
 int32_t vnodeGetResultSize(void *handle, int32_t *numOfRows);
 
-int32_t vnodeCopyQueryResultToMsg(void *handle, char *data, int32_t numOfRows, int32_t *size);
+int32_t vnodeCopyQueryResultToMsg(void *handle, char *data, int32_t numOfRows);
 
 int64_t vnodeGetOffsetVal(void *thandle);
 

@@ -568,7 +568,6 @@ typedef struct {
 typedef struct {
   int32_t numOfRows;
   int16_t precision;
-  int16_t compress;
   int64_t offset;  // updated offset value for multi-vnode projection query
   int64_t useconds;
   char    data[];
