@@ -123,6 +123,7 @@ bool tsMeterMetaIdentical(SMeterMeta* p1, SMeterMeta* p2) {
   return memcmp(p1, p2, size) == 0;
 }
 
+//todo refactor
 static FORCE_INLINE char* skipSegments(char* input, char delimiter, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
     while (*input != 0 && *input++ != delimiter) {
