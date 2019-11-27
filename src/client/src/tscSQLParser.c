@@ -2546,6 +2546,10 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
     }
   }else if (type == SHOW_VNODES) {
+    if (NULL == pInfo->pDCLInfo) {
+      return invalidSqlErrMsg(pCmd, "No specified ip of dnode");
+    }
+
     // show vnodes may be ip addr of dnode in payload
     if (pInfo->pDCLInfo->nTokens > 0) {
       SSQLToken* pDnodeIp = &pInfo->pDCLInfo->a[0];
