@@ -353,8 +353,33 @@ int64_t sdbInsertRow(void *handle, void *row, int rowSize) {
 
   if ((pTable->keyType != SDB_KEYTYPE_AUTO) || *((int64_t *)row))
     if (sdbGetRow(handle, row)) {
-      sdbError("table:%s, failed to insert record, sdbVersion:%d", pTable->name, sdbVersion);
-      return -1;
+      if (strcmp(pTable->name, "mnode") == 0) {
+        /*
+         * The first mnode created when the system just start, so the insert action may failed
+         * see sdbPeer.c : sdbInitPeers
+         */
+        pTable->id++;
+        sdbVersion++;
+        sdbPrint("table:%s, record:%s already exist, think it successed, sdbVersion:%ld id:%d",
+                pTable->name, taosIpStr(*(int32_t *)row), sdbVersion, pTable->id);
+        return 0;
+      } else {
+        switch (pTable->keyType) {
+          case SDB_KEYTYPE_STRING:
+            sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, (char *)row, sdbVersion, pTable->id);
+            break;
+          case SDB_KEYTYPE_UINT32: //dnodes or mnodes
+            sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, taosIpStr(*(int32_t *)row), sdbVersion, pTable->id);
+            break;
+          case SDB_KEYTYPE_AUTO:
+            sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, *(int32_t *)row, sdbVersion, pTable->id);
+            break;
+          default:
+            sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, sdbVersion, pTable->id);
+            break;
+        }
+        return -1;
+      }
     }
 
   total_size = sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM);
@@ -562,7 +587,24 @@ int sdbUpdateRow(void *handle, void *row, int updateSize, char isUpdated) {
   if (pTable == NULL || row == NULL) return -1;
   pMeta = sdbGetRowMeta(handle, row);
   if (pMeta == NULL) {
-    sdbTrace("table:%s, record is not there, update failed", pTable->name);
+    switch (pTable->keyType) {
+      case SDB_KEYTYPE_STRING:
+        sdbError("table:%s, failed to update record:%s, record is not there, sdbVersion:%ld id:%d",
+                pTable->name, (char *) row, sdbVersion, pTable->id);
+        break;
+      case SDB_KEYTYPE_UINT32: //dnodes or mnodes
+        sdbError("table:%s, failed to update record:%s record is not there, sdbVersion:%ld id:%d",
+                pTable->name, taosIpStr(*(int32_t *) row), sdbVersion, pTable->id);
+        break;
+      case SDB_KEYTYPE_AUTO:
+        sdbError("table:%s, failed to update record:F%s record is not there, sdbVersion:%ld id:%d",
+                pTable->name, *(int32_t *) row, sdbVersion, pTable->id);
+        break;
+      default:
+        sdbError("table:%s, failed to update record:%s record is not there, sdbVersion:%ld id:%d",
+                pTable->name, sdbVersion, pTable->id);
+        break;
+    }
     return -1;
   }
 
@@ -623,7 +665,7 @@ int sdbUpdateRow(void *handle, void *row, int updateSize, char isUpdated) {
                 pTable->name, (char *)row, sdbVersion, pTable->id, pTable->numOfRows);
         break;
       case SDB_KEYTYPE_UINT32: //dnodes or mnodes
-        sdbTrace("table:%s, a record is updated:%d, sdbVersion:%ld id:%ld numOfRows:%d",
+        sdbTrace("table:%s, a record is updated:%s, sdbVersion:%ld id:%ld numOfRows:%d",
                  pTable->name, taosIpStr(*(int32_t *)row), sdbVersion, pTable->id, pTable->numOfRows);
         break;
       case SDB_KEYTYPE_AUTO:
