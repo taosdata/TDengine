@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-#include "unistd.h"
 #include "os.h"
 #include "tutil.h"
 #include "tglobalcfg.h"
