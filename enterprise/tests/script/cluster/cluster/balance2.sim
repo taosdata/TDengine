@@ -165,10 +165,10 @@ print ========= start dnode2
 sql create dnode 192.168.0.2
 
 sleep 3000
-system sh/clear.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode2 -c clog -v 0
+system sh/cfg.sh -n dnode2 -c clog -v 1
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 
@@ -257,10 +257,10 @@ print ========= start dnode3
 sql create dnode 192.168.0.3
 
 sleep 3000
-system sh/clear.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
 system sh/cfg.sh -n dnode3 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode3 -c clog -v 0
+system sh/cfg.sh -n dnode3 -c clog -v 1
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 
@@ -362,10 +362,10 @@ print 192.168.0.3 ==> $dnode3Role
 print 192.168.0.4 ==> $dnode4Role
 
 sleep 3000
-system sh/clear.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
+system sh/deploy.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode1 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c clog -v 1
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 
@@ -519,20 +519,20 @@ sql create dnode 192.168.0.1
 sql create dnode 192.168.0.4
 
 sleep 3000
-system sh/clear.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
+system sh/deploy.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.2
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode1 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c clog -v 1
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 
 sleep 3000
-system sh/clear.sh -n dnode4 -m 192.168.0.2 -i 192.168.0.4
+system sh/deploy.sh -n dnode4 -m 192.168.0.2 -i 192.168.0.4
 system sh/cfg.sh -n dnode4 -c secondIp -v 192.168.0.2
 system sh/cfg.sh -n dnode4 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode4 -c clog -v 0
+system sh/cfg.sh -n dnode4 -c clog -v 1
 system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 

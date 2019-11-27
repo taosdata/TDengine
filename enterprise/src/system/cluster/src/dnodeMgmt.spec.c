@@ -476,13 +476,13 @@ int vnodeRetrieveMissedCreateMsg(int vnode, int fd, uint64_t stime) {
       len = vnodeRebuildCreateMsg(vnode, sid, msg);
       writeLen = taosWriteMsg(fd, &len, sizeof(len));
       if (writeLen < 0) {
-        dError("vid:%d, fd:%d failed to retrieve missed create msg len, writeLen:%d errno:%d", vnode, fd, writeLen, errno);
+        dError("vid:%d, fd:%d failed to retrieve missed create msg len, writeLen:%d reason:%s", vnode, fd, writeLen, strerror(errno));
         goto _exit;
       }
 
       writeLen = taosWriteMsg(fd, msg, len);
       if (writeLen < 0) {
-        dError("vid:%d, fd:%d failed to retrieve missed create msg, writeLen:%d errno:%d", vnode, fd, writeLen, errno);
+        dError("vid:%d, fd:%d failed to retrieve missed create msg, writeLen:%d reason:%s", vnode, fd, writeLen, strerror(errno));
         goto _exit;
       }
 
@@ -493,7 +493,7 @@ int vnodeRetrieveMissedCreateMsg(int vnode, int fd, uint64_t stime) {
   len = 0;
   writeLen = taosWriteMsg(fd, (char *)&len, sizeof(len));
   if (writeLen < 0) {
-    dError("vid:%d, fd:%d failed to retrieve missed create msg end, writeLen:%d errno:%d", vnode, fd, writeLen, errno);
+    dError("vid:%d, fd:%d failed to retrieve missed create msg end, writeLen:%d reason:%s", vnode, fd, writeLen, strerror(errno));
     goto _exit;
   }
   code = 0;
@@ -518,13 +518,13 @@ int vnodeRetrieveMissedRemoveMsg(int vid, int fd, uint64_t stime) {
     if (pObj && (pObj->state == TSDB_METER_STATE_DELETED) && (pObj->timeStamp > stime)) {
       writeLen = taosWriteMsg(fd, (char *)&vid, sizeof(vid));
       if (writeLen < 0) {
-        dError("vid:%d, fd:%d failed to retrieve missed remove msg vid:%d, writeLen:%d errno:%d", vid, fd, vid, writeLen, errno);
+        dError("vid:%d, fd:%d failed to retrieve missed remove msg vid:%d, writeLen:%d reason:%s", vid, fd, vid, writeLen, strerror(errno));
         return -1;
       }
 
       writeLen = taosWriteMsg(fd, (char *)&sid, sizeof(sid));
       if (writeLen < 0) {
-        dError("vid:%d, fd:%d failed to retrieve missed remove msg sid:%d, writeLen:%d errno:%d", vid, fd, sid, writeLen, errno);
+        dError("vid:%d, fd:%d failed to retrieve missed remove msg sid:%d, writeLen:%d reason:%s", vid, fd, sid, writeLen, strerror(errno));
         return -1;
       }
       dTrace("vid:%d sid:%d id:%s, removed meterObj is sent to peer", vid, sid, pObj->meterId);
@@ -536,13 +536,13 @@ int vnodeRetrieveMissedRemoveMsg(int vid, int fd, uint64_t stime) {
 
   writeLen = taosWriteMsg(fd, (char *)&vid, sizeof(vid));
   if (writeLen < 0) {
-    dError("vid:%d, fd:%d failed to retrieve missed remove msg vid:%d, writeLen:%d errno:%d", vid, fd, vid, writeLen, errno);
+    dError("vid:%d, fd:%d failed to retrieve missed remove msg vid:%d, writeLen:%d reason:%s", vid, fd, vid, writeLen, strerror(errno));
     return -1;
   }
 
   writeLen = taosWriteMsg(fd, (char *)&sid, sizeof(sid));
   if (writeLen < 0) {
-    dError("vid:%d, fd:%d failed to retrieve missed remove msg sid:%d, writeLen:%d errno:%d", vid, fd, sid, writeLen, errno);
+    dError("vid:%d, fd:%d failed to retrieve missed remove msg sid:%d, writeLen:%d reason:%s", vid, fd, sid, writeLen, strerror(errno));
     return -1;
   }
 
@@ -564,7 +564,7 @@ int vnodeRestoreMissedCreateMsg(int vnode, int fd) {
 
     int readLen = taosReadMsg(fd, &len, sizeof(len));
     if (readLen < 0) {
-      dError("vid:%d, fd:%d failed to restore missed create msg len, readLen:%d errno:%d", vnode, fd, readLen, errno);
+      dError("vid:%d, fd:%d failed to restore missed create msg len, readLen:%d reason:%s", vnode, fd, readLen, strerror(errno));
       return -1;
     }
 
@@ -575,8 +575,8 @@ int vnodeRestoreMissedCreateMsg(int vnode, int fd) {
 
     readLen = taosReadMsg(fd, msg, len);
     if (readLen < 0) {
-      dError("vid:%d, fd:%d failed to restore missed create msg, size:%d readLen:%d errno:%d",
-              vnode, fd, len, readLen, errno);
+      dError("vid:%d, fd:%d failed to restore missed create msg, size:%d readLen:%d reason:%s",
+              vnode, fd, len, readLen, strerror(errno));
       return -1;
     }
 
@@ -601,15 +601,15 @@ int vnodeRestoreMissedRemoveMsg(int vnode, int fd) {
   while (1) {
     int readLen = taosReadMsg(fd, &vid, sizeof(vid));
     if (readLen < 0) {
-      dError("vid:%d, fd:%d failed to restore missed remove msg vid, size:%d read:%d errno:%d",
-              vnode, fd, sizeof(vid), readLen, errno);
+      dError("vid:%d, fd:%d failed to restore missed remove msg vid, size:%d read:%d reason:%s",
+              vnode, fd, sizeof(vid), readLen, strerror(errno));
       return -1;
     }
 
     readLen = taosReadMsg(fd, &sid, sizeof(sid));
     if (readLen < 0) {
-      dError("vid:%d, fd:%d failed to restore missed remove msg sid, size:%d read:%d errno:%d",
-              vnode, fd, sizeof(sid), readLen, errno);
+      dError("vid:%d, fd:%d failed to restore missed remove msg sid, size:%d read:%d reason:%s",
+              vnode, fd, sizeof(sid), readLen, strerror(errno));
       return -1;
     }
 
