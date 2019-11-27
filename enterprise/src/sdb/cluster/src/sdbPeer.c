@@ -104,6 +104,36 @@ const char *taosGetSdbStatusStr(int status) {
   }
 }
 
+const char *taosGetSdbTableName(int dbId) {
+  switch (dbId) {
+    case 0:  return "account";
+    case 1:  return "user";
+    case 2:  return "dnodes";
+    case 3:  return "db";
+    case 4:  return "vgroups";
+    case 5:  return "meters";
+    case 6:  return "mnode";
+    default: return "undefined";
+  }
+}
+
+const char *taosGetSdbOperName(int oper) {
+  switch (oper) {
+    case SDB_TYPE_INSERT:              return "insert";
+    case SDB_TYPE_DELETE:              return "delete";
+    case SDB_TYPE_UPDATE:              return "update";
+    case SDB_TYPE_DECODE:              return "decode";
+    case SDB_TYPE_ENCODE:              return "encode";
+    case SDB_TYPE_BEFORE_BATCH_UPDATE: return "before_batch_update";
+    case SDB_TYPE_BATCH_UPDATE:        return "batch_update";
+    case SDB_TYPE_AFTER_BATCH_UPDATE:  return "after_batch_update";
+    case SDB_TYPE_RESET:               return "reset";
+    case SDB_TYPE_DESTROY:             return "destroy";
+    case SDB_MAX_ACTION_TYPES:         return "invalid";
+    default:                           return "undefined";
+  }
+}
+
 void sdbProcessForwardRequest(SSchedMsg *pSchedMsg) {
   SIntMsg * pMsg = (SIntMsg *)pSchedMsg->msg;
   SSdbPeer *pPeer = (SSdbPeer *)pSchedMsg->ahandle;
@@ -380,9 +410,15 @@ int sdbInitPeers(char *directory) {
     if (sdbNumOfPeers >= SDB_MAX_PEERS) break;
   }
 
+  int64_t oldSdbVersion = sdbVersion;
+  int32_t oldTableId = ((SSdbTable*)mnodeSdb)->id;
+
   // add masterIP into peer
   uint32_t masterPublicIp = (masterIp == selfIp) ? sdbPublicIp : masterIp;
   sdbAddPeer(masterIp, masterPublicIp, SDB_ROLE_MASTER);
+
+  sdbPrint("add peer:%s to mnodes, old sdbVersion:%ld new sdbVersion:%ld, old id:%d new id:%d",
+          taosIpStr(masterIp), oldSdbVersion, sdbVersion, oldTableId, ((SSdbTable*)mnodeSdb)->id);
 
   if (pSelf == NULL || pSelf->status == SDB_STATUS_DELETED) {
     pSelf = (SSdbPeer *)malloc(sizeof(SSdbPeer));
@@ -396,8 +432,17 @@ int sdbInitPeers(char *directory) {
   pSelf->role = SDB_ROLE_UNDECIDED;
   pSelf->numOfMnodes = 0;
   if ((sdbNumOfPeers == 1) && (masterIp == selfIp)) {
-    sdbPrint("numOfPeers:%d, master:%s self:%s work as master", sdbNumOfPeers, taosIpStr(masterIp), taosIpStr(selfIp));
+    sdbPrint("numOfPeers:%d, master:%s self:%s work as master, sdbVersion:%ld id:%d",
+            sdbNumOfPeers, taosIpStr(masterIp), taosIpStr(selfIp), sdbVersion, ((SSdbTable*)mnodeSdb)->id);
     sdbWorkAsMaster();
+  } else {
+    /*
+     * The first mnode created when the system just start, should not enter version management
+     */
+    sdbPrint("reset sdbVersion from %d to old %ld, id from %d to %d, for mnode changed",
+            sdbVersion, oldSdbVersion, ((SSdbTable*)mnodeSdb)->id, oldTableId);
+    sdbVersion = oldSdbVersion;
+    ((SSdbTable*)mnodeSdb)->id = oldTableId;
   }
 
   sdbUpdateIpList();
@@ -616,7 +661,7 @@ int sdbUpdatePeerStatus(SSdbPeer *pPeer, char *msg, int msgLen) {
         pSelf->status = SDB_STATUS_SERVING;
       } else if (pPeer->dbVersion > sdbVersion) {
         if (pSelf->status != SDB_STATUS_SYNCING) {
-          sdbTrace("peer:%s dbVersion:%d, sdbVersion:%d, sync start", pPeer->ipstr, pPeer->dbVersion, sdbVersion);
+          sdbTrace("peer:%s dbVersion:%d, sdbVersion:%ld, sync start", pPeer->ipstr, pPeer->dbVersion, sdbVersion);
           sdbStartSyncProcess(pPeer);
         }
       } else {
@@ -650,7 +695,7 @@ char *sdbEncodeSelfStatus(SSdbPeer *pPeer, char *pMsg) {
   pStatus->dbVersion = htobe64(sdbVersion);
   pStatus->publicIp = sdbPublicIp;
   pMsg += sizeof(SMnodeStatus);
-  sdbTrace("Encode self status, dbVersion: %ld", htobe64(pStatus->dbVersion));
+  sdbTrace("encode self status, sdbVersion:%ld", sdbVersion);
 
   return pMsg;
 }
@@ -909,7 +954,7 @@ void sdbCheckPeerStatus(void *param, void *tmrId) {
   pMsg = sdbEncodeSelfStatus(pPeer, pStart);
   msgLen = pMsg - pStart;
 
-  sdbTrace("Send HB msg to peer:%s", pPeer->ipstr);
+  sdbTrace("send heartbeat msg to peer:%s", pPeer->ipstr);
   taosSendMsgToPeer(pPeer->thandle, pStart, msgLen);
 
   return;
@@ -1133,8 +1178,8 @@ void sdbRestoreDbReq(int tcpFd) {
     }
 
     dataLen = htons(pForward->dataLen);
-    sdbTrace("forward msg size received, dbId:%d type:%d version:%ld dataLen:%d ret:%d",
-            pForward->dbId, pForward->type, htobe64(pForward->version), dataLen, ret);
+    sdbTrace("forward msg size received, table:%s type:%s version:%ld dataLen:%d ret:%d",
+            taosGetSdbTableName(pForward->dbId), taosGetSdbOperName(pForward->type), htobe64(pForward->version), dataLen, ret);
 
     if (dataLen > 0) {
       ret = taosReadMsg(tcpFd, pForward->data, dataLen);
@@ -1142,7 +1187,7 @@ void sdbRestoreDbReq(int tcpFd) {
         sdbError("failed to read forward msg, dataLen:%d ret:%d reason:%s", dataLen, ret, strerror(errno));
         break;
       } else {
-        sdbTrace("forward msg received from fd:%d, dataLen:%d ret:%d", tcpFd, dataLen, ret);
+        //sdbTrace("forward msg received from fd:%d, dataLen:%d ret:%d", tcpFd, dataLen, ret);
       }
     } else {
       sdbError("invalid forward msg dataLen:%d, ret:%d reason:%s", dataLen, ret, strerror(errno));
@@ -1164,7 +1209,7 @@ void sdbRestoreDbReq(int tcpFd) {
           sdbError("failed to process queue db req, ret:%d", ret);
           break;
         } else {
-          sdbTrace("forward msg processed, ret:%d sdbVersion:%d", ret, tcpFd, sdbVersion);
+          sdbTrace("forward msg processed, ret:%d sdbVersion:%ld", ret, sdbVersion);
         }
       } else {
         sdbError("invalid forward msg dataLen:%d", dataLen);
@@ -1175,12 +1220,12 @@ void sdbRestoreDbReq(int tcpFd) {
   tfree(cont);
 
   if (ret < 0) {
-    sdbError("sync failed, sdbVersion:%d reason:%s ", sdbVersion, strerror(errno));
+    sdbError("sync failed, sdbVersion:%ld reason:%s ", sdbVersion, strerror(errno));
     pSelf->status = SDB_STATUS_UNSYNCED;
   } else {
     sdbProcessBufferedForwards();
     // pSelf->status = SDB_STATUS_SERVING;
-    sdbTrace("sync is finished, sdbVersion:%d", sdbVersion);
+    sdbTrace("sync is finished, sdbVersion:%ld", sdbVersion);
   }
 }
 
@@ -1269,19 +1314,19 @@ int sdbProcessDbReq(char *cont, int contLen) {
     /* char *row = malloc(dataLen); */
     /* memcpy(row, pForward->data, dataLen); */
     if (sdbInsertRow(pTable, pForward->data, dataLen) < 0) {
-      sdbError("failed to process db insert req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+      sdbError("failed to process db insert req, table:%s rows:%d id:%d", pTable->name, pTable->numOfRows, pTable->id);
     }
   } else if (pForward->type == SDB_TYPE_DELETE) {
     if (sdbDeleteRow(pTable, pForward->data) < 0) {
-      sdbError("failed to process db delete req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+      sdbError("failed to process db delete req, table:%s rows:%d id:%d", pTable->name, pTable->numOfRows, pTable->id);
     }
   } else if (pForward->type == SDB_TYPE_UPDATE) {
     if (sdbUpdateRow(pTable, pForward->data, dataLen, 0) < 0) {
-      sdbError("failed to process db update req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+      sdbError("failed to process db update req, table:%s rows:%d id:%d", pTable->name, pTable->numOfRows, pTable->id);
     }
   } else if (pForward->type == SDB_TYPE_BATCH_UPDATE) {
     if (sdbBatchUpdateRow(pTable, pForward->data, dataLen) < 0) {
-      sdbError("failed to process db batch update req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+      sdbError("failed to process db batch update req, table:%s rows:%d id:%d", pTable->name, pTable->numOfRows, pTable->id);
     }
   } else {
     sdbError("sdb type:%d not processed", pForward->type);
@@ -1305,19 +1350,19 @@ int sdbProcessQueuedDbReq(char *cont, int contLen) {
     /* char *row = malloc(dataLen); */
     /* memcpy(row, pForward->data, dataLen); */
     if (sdbInsertRow(pTable, pForward->data, dataLen) < 0) {
-      sdbError("failed to process queued db insert req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+      sdbError("failed to process queued db insert req, table:%s rows:%d id:%d", pTable->name, pTable->numOfRows, pTable->id);
     }
   } else if (pForward->type == SDB_TYPE_DELETE) {
     if (sdbDeleteRow(pTable, pForward->data) < 0) {
-      sdbError("failed to process queued db delete req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+      sdbError("failed to process queued db delete req, table:%s rows:%d id:%d", pTable->name, pTable->numOfRows, pTable->id);
     }
   } else if (pForward->type == SDB_TYPE_UPDATE) {
     if (sdbUpdateRow(pTable, pForward->data, dataLen, 0) < 0) {
-      sdbError("failed to process update db update req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+      sdbError("failed to process queued db update req, table:%s rows:%d id:%d", pTable->name, pTable->numOfRows, pTable->id);
     }
   } else if (pForward->type == SDB_TYPE_BATCH_UPDATE) {
     if (sdbBatchUpdateRow(pTable, pForward->data, dataLen) < 0) {
-      sdbError("failed to process queued db batch update req, table:%s rows:%d", pTable->name, pTable->numOfRows);
+      sdbError("failed to process queued db batch update req, table:%s rows:%d id:%d", pTable->name, pTable->numOfRows, pTable->id);
     }
   } else {
     sdbError("sdb type:%d not processed", pForward->type);
