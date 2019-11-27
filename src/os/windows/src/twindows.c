@@ -395,3 +395,5 @@ char *strndup(const char *s, size_t n) {
   r[len] = 0;
   return r;
 }
+
+void taosSetCoreDump() {}
