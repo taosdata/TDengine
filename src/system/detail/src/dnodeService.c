@@ -61,6 +61,20 @@ int main(int argc, char *argv[]) {
       return 0;
     } else if (strcmp(argv[i], "-k") == 0) {
       dnodeParseParameterK();
+#ifdef TAOS_MEM_CHECK
+    } else if (strcmp(argv[i], "--alloc-random-fail") == 0) {
+      if ((i < argc - 1) && (argv[i+1][0] != '-')) {
+        taosSetAllocMode(TAOS_ALLOC_MODE_RANDOM_FAIL, argv[++i], true);
+      } else {
+        taosSetAllocMode(TAOS_ALLOC_MODE_RANDOM_FAIL, NULL, true);
+      }
+    } else if (strcmp(argv[i], "--detect-mem-leak") == 0) {
+      if ((i < argc - 1) && (argv[i+1][0] != '-')) {
+        taosSetAllocMode(TAOS_ALLOC_MODE_DETECT_LEAK, argv[++i], true);
+      } else {
+        taosSetAllocMode(TAOS_ALLOC_MODE_DETECT_LEAK, NULL, true);
+      }
+#endif
     }
   }
 

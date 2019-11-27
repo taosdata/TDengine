@@ -11,6 +11,22 @@ extern "C" {
 #define com_taosdata_jdbc_TSDBJNIConnector_INVALID_CONNECTION_POINTER_VALUE 0LL
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    
+ * Signature: (Ljava/lang/String;)V
+ */
+JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setAllocModeImp
+  (JNIEnv *, jclass, jint, jstring, jboolean);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_dumpMemoryLeakImp
+  (JNIEnv *, jclass);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
  * Method:    initImp
  * Signature: (Ljava/lang/String;)V
  */
