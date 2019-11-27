@@ -556,13 +556,12 @@ _again:
   pVnode->commitInProcess = 1;
   commitAgain = 0;
   memset(hmem, 0, totalSize);
-  memset(&query, 0, sizeof(query));
+  // memset(&query, 0, sizeof(query));
 
   if (vnodeOpenCommitFiles(pVnode, ssid) < 0) goto _over;
-  dTrace("vid:%d, start to commit, commitFirstKey:%ld commitLastKey:%ld", vnode, pVnode->commitFirstKey,
-         pVnode->commitLastKey);
+  dTrace("vid:%d, start to commit, commitFileId:%d commitFirstKey:%ld commitLastKey:%ld", vnode, pVnode->commitFileId,
+         pVnode->commitFirstKey, pVnode->commitLastKey);
 
-  headLen = 0;
   vnodeGetHeadFileHeaderInfo(pVnode->hfd, &headInfo);
   int maxOldBlocks = 1;
 
@@ -634,7 +633,8 @@ _again:
             }
           }
         } else {
-          dError("vid:%d sid:%d id:%s, failed to read compinfo in file:%s", vnode, sid, pObj->meterId, pVnode->cfn);
+          dError("vid:%d sid:%d id:%s, failed to read compinfo in file:%s, reason:%s", vnode, sid, pObj->meterId,
+                 pVnode->cfn, strerror(errno));
           vnodeRecoverFromPeer(pVnode, pVnode->commitFileId);
           goto _over;
         }
@@ -642,156 +642,146 @@ _again:
     }
   }
   // Loop To write data to fileId
-  for (sid = ssid; sid <= esid; ++sid) {
-    pObj = (SMeterObj *)(pVnode->meterList[sid]);
-    if ((pObj == NULL) || (pObj->pCache == NULL)) continue;
-
-    data[0] = (SData *)dmem;
-    cdata[0] = (SData *)cmem;
-    for (col = 1; col < pObj->numOfColumns; ++col) {
-      data[col] = (SData *)(((char *)data[col - 1]) + sizeof(SData) +
-                            pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes + EXTRA_BYTES + sizeof(TSCKSUM));
-      cdata[col] = (SData *)(((char *)cdata[col - 1]) + sizeof(SData) +
-                             pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes + EXTRA_BYTES + sizeof(TSCKSUM));
-    }
-
-    pMeter = meterInfo + sid;
-    pMeter->tempHeadOffset = headLen;
-
-    memset(&query, 0, sizeof(query));
-    query.colList = colList;
-    query.pSelectExpr = pExprs;
-
-    query.ekey = pVnode->commitLastKey;
-    query.skey = pVnode->commitFirstKey;
-    query.lastKey = query.skey;
-
-    query.sdata = data;
-    vnodeSetCommitQuery(pObj, &query);
-
-    dTrace("vid:%d sid:%d id:%s, start to commit, startKey:%lld slot:%d pos:%d", pObj->vnode, pObj->sid, pObj->meterId,
-           pObj->lastKeyOnFile, query.slot, query.pos);
-
-    pointsRead = 0;
-    pointsReadLast = 0;
-
-    // last block is at last file
-    if (pMeter->last) {
-      if ((pMeter->lastBlock.sversion != pObj->sversion) || (query.over)) {
-        // TODO : Check the correctness of this code. write the last block to
-        // .data file
-        pCompBlock = (SCompBlock *)(hmem + headLen);
-        assert(dmem - (char *)pCompBlock >= sizeof(SCompBlock));
-        *pCompBlock = pMeter->lastBlock;
-        if (pMeter->lastBlock.sversion != pObj->sversion) {
-          pCompBlock->last = 0;
-          pCompBlock->offset = lseek(pVnode->dfd, 0, SEEK_END);
-          pMeter->last = 0;
-          lseek(pVnode->lfd, pMeter->lastBlock.offset, SEEK_SET);
-          tsendfile(pVnode->dfd, pVnode->lfd, NULL, pMeter->lastBlock.len);
-          pVnode->dfSize = pCompBlock->offset + pMeter->lastBlock.len;
-        } else {
-          if (ssid == 0) {
-            assert(pCompBlock->last && pVnode->tfd != -1);
-            pCompBlock->offset = lseek(pVnode->tfd, 0, SEEK_END); 
-            lseek(pVnode->lfd, pMeter->lastBlock.offset, SEEK_SET);
-            tsendfile(pVnode->tfd, pVnode->lfd, NULL, pMeter->lastBlock.len);
-            pVnode->lfSize = pCompBlock->offset + pMeter->lastBlock.len;
-          } else {
-            assert(pVnode->tfd == -1);
-          }
-
-        }
-
-        headLen += sizeof(SCompBlock);
-        pMeter->newNumOfBlocks++;
-      } else {
-        // read last block into memory
-        if (vnodeReadLastBlockToMem(pObj, &pMeter->lastBlock, data) < 0) goto _over;
-        pMeter->last = 0;
-        pointsReadLast = pMeter->lastBlock.numOfPoints;
-        query.over = 0;
-        headInfo.totalStorage -= (pointsReadLast * pObj->bytesPerPoint);
-
-        dTrace("vid:%d sid:%d id:%s, points:%d in last block will be merged to new block",
-            pObj->vnode, pObj->sid, pObj->meterId, pointsReadLast);
-      }
-
-      pMeter->changed = 1;
-      pMeter->oldNumOfBlocks--;
-    }
-
-    while (query.over == 0) {
-      pCompBlock = (SCompBlock *)(hmem + headLen);
-      assert(dmem - (char *)pCompBlock >= sizeof(SCompBlock));
-      pointsRead += pointsReadLast;
-
-      while (pointsRead < pObj->pointsPerFileBlock) {
-        query.pointsToRead = pObj->pointsPerFileBlock - pointsRead;
-        query.pointsOffset = pointsRead;
-        pointsRead += vnodeQueryFromCache(pObj, &query);
-        if (query.over) break;
-      }
-
-      if (pointsRead == 0) break;
-
-      headInfo.totalStorage += ((pointsRead - pointsReadLast) * pObj->bytesPerPoint);
-      pCompBlock->last = 1;
-      if (vnodeWriteBlockToFile(pObj, pCompBlock, data, cdata, pointsRead) < 0) goto _over;
-      if (pCompBlock->keyLast > pObj->lastKeyOnFile) pObj->lastKeyOnFile = pCompBlock->keyLast;
-      pMeter->last = pCompBlock->last;
-
-      // write block info into header buffer
-      headLen += sizeof(SCompBlock);
-      pMeter->newNumOfBlocks++;
-      pMeter->committedPoints += (pointsRead - pointsReadLast);
-
-      dTrace("vid:%d sid:%d id:%s, pointsRead:%d, pointsReadLast:%d lastKey:%lld, "
-             "slot:%d pos:%d newNumOfBlocks:%d headLen:%d",
-          pObj->vnode, pObj->sid, pObj->meterId, pointsRead, pointsReadLast, pObj->lastKeyOnFile, query.slot, query.pos,
-          pMeter->newNumOfBlocks, headLen);
-
-      if (pointsRead < pObj->pointsPerFileBlock || query.keyIsMet) break;
-
-      pointsRead = 0;
-      pointsReadLast = 0;
-    }
-
-    dTrace("vid:%d sid:%d id:%s, %d points are committed, lastKey:%lld slot:%d pos:%d newNumOfBlocks:%d",
-        pObj->vnode, pObj->sid, pObj->meterId, pMeter->committedPoints, pObj->lastKeyOnFile, query.slot, query.pos,
-        pMeter->newNumOfBlocks);
-
-    if (pMeter->committedPoints > 0) {
-      pMeter->commitSlot = query.slot;
-      pMeter->commitPos = query.pos;
-    }
-
-    TSKEY nextKey = 0;
-    if (pObj->lastKey > pVnode->commitLastKey)
-      nextKey = pVnode->commitLastKey + 1;
-    else if (pObj->lastKey > pObj->lastKeyOnFile)
-      nextKey = pObj->lastKeyOnFile + 1;
-
-    pthread_mutex_lock(&(pVnode->vmutex));
-    if (nextKey < pVnode->firstKey && nextKey > 1) pVnode->firstKey = nextKey;
-    pthread_mutex_unlock(&(pVnode->vmutex));
-  }
-
-  if (pVnode->lastKey > pVnode->commitLastKey) commitAgain = 1;
-
-  dTrace("vid:%d, finish appending the data file", vnode);
-
-  // calculate the new compInfoOffset
   int compInfoOffset = TSDB_FILE_HEADER_LEN + tmsize;
+  pOldCompBlocks = (uint8_t *)malloc(sizeof(SCompBlock) * maxOldBlocks);
   for (sid = 0; sid < pCfg->maxSessions; ++sid) {
     pObj = (SMeterObj *)(pVnode->meterList[sid]);
     pHeader = ((SCompHeader *)tmem) + sid;
+    pMeter = meterInfo + sid;
     if (pObj == NULL) {
       pHeader->compInfoOffset = 0;
       continue;
     }
+    
+    // write data to file
+    if (sid >= ssid && sid <= esid && (pObj->pCache != NULL)) { // Commit data
 
-    pMeter = meterInfo + sid;
+      data[0] = (SData *)dmem;
+      cdata[0] = (SData *)cmem;
+      for (col = 1; col < pObj->numOfColumns; ++col) {
+        data[col] = (SData *)(((char *)data[col - 1]) + sizeof(SData) +
+                              pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes + EXTRA_BYTES + sizeof(TSCKSUM));
+        cdata[col] = (SData *)(((char *)cdata[col - 1]) + sizeof(SData) +
+                               pObj->pointsPerFileBlock * pObj->schema[col - 1].bytes + EXTRA_BYTES + sizeof(TSCKSUM));
+      }
+
+      memset(&query, 0, sizeof(query));
+      query.colList = colList;
+      query.pSelectExpr = pExprs;
+
+      query.ekey = pVnode->commitLastKey;
+      query.skey = pVnode->commitFirstKey;
+      query.lastKey = query.skey;
+
+      query.sdata = data;
+      vnodeSetCommitQuery(pObj, &query);
+
+      dTrace("vid:%d sid:%d id:%s, start to commit, startKey:%lld slot:%d pos:%d", pObj->vnode, pObj->sid,
+             pObj->meterId, pObj->lastKeyOnFile, query.slot, query.pos);
+
+      pointsRead = 0;
+      pointsReadLast = 0;
+      headLen = 0;
+
+      // last block is at last file
+      if (pMeter->last) {
+        if ((pMeter->lastBlock.sversion != pObj->sversion) || (query.over)) {
+          // TODO : Check the correctness of this code. write the last block to
+          // .data file
+          pCompBlock = (SCompBlock *)(hmem + headLen);
+          assert(dmem - (char *)pCompBlock >= sizeof(SCompBlock));
+          *pCompBlock = pMeter->lastBlock;
+          if (pMeter->lastBlock.sversion != pObj->sversion) {
+            pCompBlock->last = 0;
+            pCompBlock->offset = lseek(pVnode->dfd, 0, SEEK_END);
+            pMeter->last = 0;
+            lseek(pVnode->lfd, pMeter->lastBlock.offset, SEEK_SET);
+            tsendfile(pVnode->dfd, pVnode->lfd, NULL, pMeter->lastBlock.len);
+            pVnode->dfSize = pCompBlock->offset + pMeter->lastBlock.len;
+          } else {
+            if (ssid == 0) {
+              assert(pCompBlock->last && pVnode->tfd != -1);
+              pCompBlock->offset = lseek(pVnode->tfd, 0, SEEK_END);
+              lseek(pVnode->lfd, pMeter->lastBlock.offset, SEEK_SET);
+              tsendfile(pVnode->tfd, pVnode->lfd, NULL, pMeter->lastBlock.len);
+              pVnode->lfSize = pCompBlock->offset + pMeter->lastBlock.len;
+            } else {
+              assert(pVnode->tfd == -1);
+            }
+          }
+
+          headLen += sizeof(SCompBlock);
+          pMeter->newNumOfBlocks++;
+        } else {
+          // read last block into memory
+          if (vnodeReadLastBlockToMem(pObj, &pMeter->lastBlock, data) < 0) goto _over;
+          pMeter->last = 0;
+          pointsReadLast = pMeter->lastBlock.numOfPoints;
+          query.over = 0;
+          headInfo.totalStorage -= (pointsReadLast * pObj->bytesPerPoint);
+
+          dTrace("vid:%d sid:%d id:%s, points:%d in last block will be merged to new block", pObj->vnode, pObj->sid,
+                 pObj->meterId, pointsReadLast);
+        }
+
+        pMeter->changed = 1;
+        pMeter->oldNumOfBlocks--;
+      }
+
+      while (query.over == 0) {
+        pCompBlock = (SCompBlock *)(hmem + headLen);
+        assert(dmem - (char *)pCompBlock >= sizeof(SCompBlock));
+        pointsRead += pointsReadLast;
+
+        while (pointsRead < pObj->pointsPerFileBlock) {
+          query.pointsToRead = pObj->pointsPerFileBlock - pointsRead;
+          query.pointsOffset = pointsRead;
+          pointsRead += vnodeQueryFromCache(pObj, &query);
+          if (query.over) break;
+        }
+
+        if (pointsRead == 0) break;
+
+        headInfo.totalStorage += ((pointsRead - pointsReadLast) * pObj->bytesPerPoint);
+        pCompBlock->last = 1;
+        if (vnodeWriteBlockToFile(pObj, pCompBlock, data, cdata, pointsRead) < 0) goto _over;
+        if (pCompBlock->keyLast > pObj->lastKeyOnFile) pObj->lastKeyOnFile = pCompBlock->keyLast;
+        pMeter->last = pCompBlock->last;
+
+        // write block info into header buffer
+        headLen += sizeof(SCompBlock);
+        pMeter->newNumOfBlocks++;
+        pMeter->committedPoints += (pointsRead - pointsReadLast);
+
+        dTrace(
+            "vid:%d sid:%d id:%s, pointsRead:%d, pointsReadLast:%d lastKey:%lld, "
+            "slot:%d pos:%d newNumOfBlocks:%d headLen:%d",
+            pObj->vnode, pObj->sid, pObj->meterId, pointsRead, pointsReadLast, pObj->lastKeyOnFile, query.slot,
+            query.pos, pMeter->newNumOfBlocks, headLen);
+
+        if (pointsRead < pObj->pointsPerFileBlock || query.keyIsMet) break;
+
+        pointsRead = 0;
+        pointsReadLast = 0;
+      }
+
+      if (pMeter->committedPoints > 0) {
+        pMeter->commitSlot = query.slot;
+        pMeter->commitPos = query.pos;
+      }
+
+      TSKEY nextKey = 0;
+      if (pObj->lastKey > pVnode->commitLastKey)
+        nextKey = pVnode->commitLastKey + 1;
+      else if (pObj->lastKey > pObj->lastKeyOnFile)
+        nextKey = pObj->lastKeyOnFile + 1;
+
+      pthread_mutex_lock(&(pVnode->vmutex));
+      if (nextKey < pVnode->firstKey && nextKey > 1) pVnode->firstKey = nextKey;
+      pthread_mutex_unlock(&(pVnode->vmutex));
+    }
+
+    // get the new compInfoOffset
     pMeter->compInfoOffset = compInfoOffset;
     pMeter->finalNumOfBlocks = pMeter->oldNumOfBlocks + pMeter->newNumOfBlocks;
 
@@ -802,8 +792,61 @@ _again:
       pHeader->compInfoOffset = 0;
     }
 
-    dTrace("vid:%d sid:%d id:%s, oldBlocks:%d numOfBlocks:%d compInfoOffset:%d", pObj->vnode, pObj->sid, pObj->meterId,
-           pMeter->oldNumOfBlocks, pMeter->finalNumOfBlocks, compInfoOffset);
+    dTrace(
+        "vid:%d sid:%d id:%s, %d points are committed, lastKey:%lld slot:%d pos:%d oldBlocks:%d numOfBlocks:%d "
+        "compInfoOffset:%d",
+        pObj->vnode, pObj->sid, pObj->meterId, pMeter->committedPoints, pObj->lastKeyOnFile, pMeter->commitSlot,
+        pMeter->commitPos, pMeter->oldNumOfBlocks, pMeter->finalNumOfBlocks, compInfoOffset);
+
+    // write head file part
+    if (pMeter->finalNumOfBlocks > 0) {
+      // write SCompInfo part
+      compInfo.last = pMeter->last;
+      compInfo.uid = pObj->uid;
+      compInfo.numOfBlocks = pMeter->finalNumOfBlocks;
+      /* compInfo.compBlockLen = pMeter->finalCompBlockLen; */
+      compInfo.delimiter = TSDB_VNODE_DELIMITER;
+      taosCalcChecksumAppend(0, (uint8_t *)(&compInfo), sizeof(SCompInfo));
+      lseek(pVnode->nfd, pMeter->compInfoOffset, SEEK_SET);
+      if (twrite(pVnode->nfd, &compInfo, sizeof(compInfo)) <= 0) {
+        dError("vid:%d sid:%d id:%s, failed to write:%s, reason:%s", vnode, sid, pObj->meterId, pVnode->nfn,
+               strerror(errno));
+        vnodeRecoverFromPeer(pVnode, pVnode->commitFileId);
+        goto _over;
+      }
+
+      // write SCompBlock part
+      chksum = 0;
+      if (pVnode->hfd && pMeter->oldNumOfBlocks) {
+        lseek(pVnode->hfd, pMeter->oldCompBlockOffset, SEEK_SET);
+        if (pMeter->changed) {// need to read and calculate a new checksum
+          int compBlockLen = pMeter->oldNumOfBlocks * sizeof(SCompBlock);
+          read(pVnode->hfd, pOldCompBlocks, compBlockLen);
+          twrite(pVnode->nfd, pOldCompBlocks, compBlockLen);
+          chksum = taosCalcChecksum(0, pOldCompBlocks, compBlockLen);
+        } else {// just need to send file
+          tsendfile(pVnode->nfd, pVnode->hfd, NULL, pMeter->oldNumOfBlocks * sizeof(SCompBlock));
+          read(pVnode->hfd, &chksum, sizeof(TSCKSUM));
+        }
+      }
+
+      if (pMeter->newNumOfBlocks) {
+        chksum = taosCalcChecksum(chksum, (uint8_t *)hmem,
+                                  pMeter->newNumOfBlocks * sizeof(SCompBlock));
+        if (twrite(pVnode->nfd, hmem, pMeter->newNumOfBlocks * sizeof(SCompBlock)) <= 0) {
+          dError("vid:%d sid:%d id:%s, failed to write:%s, reason:%s", vnode, sid, pObj->meterId, pVnode->nfn,
+                 strerror(errno));
+          vnodeRecoverFromPeer(pVnode, pVnode->commitFileId);
+          goto _over;
+        }
+      }
+      twrite(pVnode->nfd, &chksum, sizeof(TSCKSUM));
+
+      // Free the committed cache blocks
+      if (pMeter->committedPoints > 0) {
+        vnodeUpdateCommitInfo(pObj, pMeter->commitSlot, pMeter->commitPos, pMeter->commitCount);
+      }
+    }
   }
 
   // write the comp header into new file
@@ -817,73 +860,11 @@ _again:
     goto _over;
   }
 
-  pOldCompBlocks = (uint8_t *)malloc(sizeof(SCompBlock) * maxOldBlocks);
-
-  // write the comp block list in new file
-  for (sid = 0; sid < pCfg->maxSessions; ++sid) {
-    pObj = (SMeterObj *)(pVnode->meterList[sid]);
-    if (pObj == NULL) continue;
-
-    pMeter = meterInfo + sid;
-    if (pMeter->finalNumOfBlocks <= 0) continue;
-
-    compInfo.last = pMeter->last;
-    compInfo.uid = pObj->uid;
-    compInfo.numOfBlocks = pMeter->finalNumOfBlocks;
-    /* compInfo.compBlockLen = pMeter->finalCompBlockLen; */
-    compInfo.delimiter = TSDB_VNODE_DELIMITER;
-    taosCalcChecksumAppend(0, (uint8_t *)(&compInfo), sizeof(SCompInfo));
-    lseek(pVnode->nfd, pMeter->compInfoOffset, SEEK_SET);
-    if (twrite(pVnode->nfd, &compInfo, sizeof(compInfo)) <= 0) {
-      dError("vid:%d sid:%d id:%s, failed to write:%s, reason:%s", vnode, sid, pObj->meterId, pVnode->nfn,
-             strerror(errno));
-      vnodeRecoverFromPeer(pVnode, pVnode->commitFileId);
-      goto _over;
-    }
-
-    // write the old comp blocks
-    chksum = 0;
-    if (pVnode->hfd && pMeter->oldNumOfBlocks) {
-      lseek(pVnode->hfd, pMeter->oldCompBlockOffset, SEEK_SET);
-      if (pMeter->changed) {
-        int compBlockLen = pMeter->oldNumOfBlocks * sizeof(SCompBlock);
-        read(pVnode->hfd, pOldCompBlocks, compBlockLen);
-        twrite(pVnode->nfd, pOldCompBlocks, compBlockLen);
-        chksum = taosCalcChecksum(0, pOldCompBlocks, compBlockLen);
-      } else {
-        tsendfile(pVnode->nfd, pVnode->hfd, NULL, pMeter->oldNumOfBlocks * sizeof(SCompBlock));
-        read(pVnode->hfd, &chksum, sizeof(TSCKSUM));
-      }
-    }
-
-    if (pMeter->newNumOfBlocks) {
-      chksum = taosCalcChecksum(chksum, (uint8_t *)(hmem + pMeter->tempHeadOffset),
-                                pMeter->newNumOfBlocks * sizeof(SCompBlock));
-      if (twrite(pVnode->nfd, hmem + pMeter->tempHeadOffset, pMeter->newNumOfBlocks * sizeof(SCompBlock)) <= 0) {
-        dError("vid:%d sid:%d id:%s, failed to write:%s, reason:%s", vnode, sid, pObj->meterId, pVnode->nfn,
-               strerror(errno));
-        vnodeRecoverFromPeer(pVnode, pVnode->commitFileId);
-        goto _over;
-      }
-    }
-    twrite(pVnode->nfd, &chksum, sizeof(TSCKSUM));
-  }
-
   tfree(pOldCompBlocks);
   dTrace("vid:%d, finish writing the new header file:%s", vnode, pVnode->nfn);
   vnodeCloseCommitFiles(pVnode);
 
-  for (sid = ssid; sid <= esid; ++sid) {
-    pObj = (SMeterObj *)(pVnode->meterList[sid]);
-    if (pObj == NULL) continue;
-
-    pMeter = meterInfo + sid;
-    if (pMeter->finalNumOfBlocks <= 0) continue;
-
-    if (pMeter->committedPoints > 0) {
-      vnodeUpdateCommitInfo(pObj, pMeter->commitSlot, pMeter->commitPos, pMeter->commitCount);
-    }
-  }
+  if (pVnode->lastKey > pVnode->commitLastKey) commitAgain = 1;
 
   if (commitAgain) {
     pVnode->commitFirstKey = pVnode->commitLastKey + 1;
