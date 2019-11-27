@@ -746,7 +746,7 @@ void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken
 }
 
 void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
-  pDBInfo->numOfBlocksPerTable = -1;
+  pDBInfo->numOfBlocksPerTable = 50;
   pDBInfo->compressionLevel = -1;
 
   pDBInfo->commitLog = -1;
