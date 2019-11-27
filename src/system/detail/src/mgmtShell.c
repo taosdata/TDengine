@@ -788,12 +788,14 @@ int (*mgmtGetMetaFp[])(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = {
     mgmtGetAcctMeta,   mgmtGetUserMeta,   mgmtGetDbMeta,     mgmtGetMeterMeta,  mgmtGetDnodeMeta,
     mgmtGetMnodeMeta,  mgmtGetVgroupMeta, mgmtGetMetricMeta, mgmtGetModuleMeta, mgmtGetQueryMeta,
     mgmtGetStreamMeta, mgmtGetConfigMeta, mgmtGetConnsMeta,  mgmtGetScoresMeta, grantGetGrantsMeta,
+    mgmtGetVnodeMeta,
 };
 
 int (*mgmtRetrieveFp[])(SShowObj *pShow, char *data, int rows, SConnObj *pConn) = {
     mgmtRetrieveAccts,   mgmtRetrieveUsers,   mgmtRetrieveDbs,     mgmtRetrieveMeters,  mgmtRetrieveDnodes,
     mgmtRetrieveMnodes,  mgmtRetrieveVgroups, mgmtRetrieveMetrics, mgmtRetrieveModules, mgmtRetrieveQueries,
     mgmtRetrieveStreams, mgmtRetrieveConfigs, mgmtRetrieveConns,   mgmtRetrieveScores,  grantRetrieveGrants,
+    mgmtRetrieveVnodes,
 };
 
 int mgmtProcessShowMsg(char *pMsg, int msgLen, SConnObj *pConn) {

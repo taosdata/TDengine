@@ -158,6 +158,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_CONNS,
   TSDB_MGMT_TABLE_SCORES,
   TSDB_MGMT_TABLE_GRANTS,
+  TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_MAX,
 };
 
@@ -224,7 +225,7 @@ typedef struct {
   char     meterId[TSDB_UNI_LEN];
   uint16_t port;  // for UDP only
   char     empty[1];
-  char     msgType;
+  uint8_t  msgType;
   int32_t  msgLen;
   uint8_t  content[0];
 } STaosHeader;

@@ -675,7 +675,7 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
 
   // send create message to the selected vnode servers
   if (pCreate->numOfTags == 0) {
-    mTrace("table:%s, send create msg to dnode, vgId:%d, sid:%d, vnode:%d",
+    mTrace("table:%s, send create table msg to dnode, vgId:%d, sid:%d, vnode:%d",
            pMeter->meterId, pMeter->gid.vgId, pMeter->gid.sid, pVgroup->vnodeGid[0].vnode);
 
     grantAddTimeSeries(pMeter->numOfColumns - 1);
