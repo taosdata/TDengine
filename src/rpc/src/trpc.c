@@ -232,7 +232,9 @@ char *taosBuildReqHeader(void *param, char type, char *msg) {
   }
 
   pHeader = (STaosHeader *)(msg + sizeof(SMsgNode));
+  memset(pHeader, 0, sizeof(STaosHeader));
   pHeader->version = 1;
+  pHeader->comp = 0;
   pHeader->msgType = type;
   pHeader->spi = 0;
   pHeader->tcp = 0;
