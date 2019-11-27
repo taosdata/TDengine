@@ -40,6 +40,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
  */
 static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 
+// TODO return the correct error code to client in tscQueueAsyncError
 void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *, int), void *param) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
@@ -54,18 +55,17 @@ void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *,
     tscError("sql string too long");
     tscQueueAsyncError(fp, param);
     return;
-  }  
+  }
 
   taosNotePrintTsc(sqlstr);
 
-  SSqlObj *pSql = (SSqlObj *)malloc(sizeof(SSqlObj));
+  SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
     tscQueueAsyncError(fp, param);
     return;
   }
 
-  memset(pSql, 0, sizeof(SSqlObj));
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 

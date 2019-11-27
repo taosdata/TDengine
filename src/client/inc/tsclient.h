@@ -34,8 +34,8 @@ extern "C" {
 #include "tglobalcfg.h"
 #include "tlog.h"
 #include "tscCache.h"
-#include "tsdb.h"
 #include "tscSQLParser.h"
+#include "tsdb.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
 
@@ -219,22 +219,22 @@ typedef struct STagCond {
 } STagCond;
 
 typedef struct SParamInfo {
-  int32_t idx;
-  char  type;
-  uint8_t timePrec;
-  short bytes;
+  int32_t  idx;
+  char     type;
+  uint8_t  timePrec;
+  short    bytes;
   uint32_t offset;
 } SParamInfo;
 
 typedef struct STableDataBlocks {
   char   meterId[TSDB_METER_ID_LEN];
   int8_t tsSource;
-  bool ordered;
+  bool   ordered;
 
   int64_t vgid;
   int64_t prevTS;
 
-  int32_t  numOfMeters;
+  int32_t numOfMeters;
 
   int32_t  rowSize;
   uint32_t nAllocSize;
@@ -245,9 +245,9 @@ typedef struct STableDataBlocks {
   };
 
   // for parameter ('?') binding
-  uint32_t numOfAllocedParams;
-  uint32_t numOfParams;
-  SParamInfo* params;
+  uint32_t    numOfAllocedParams;
+  uint32_t    numOfParams;
+  SParamInfo *params;
 } STableDataBlocks;
 
 typedef struct SDataBlockList {
@@ -262,18 +262,17 @@ typedef struct SDataBlockList {
 typedef struct {
   SOrderVal order;
   int       command;
-
-  // TODO refactor
-  int     count;
-  int16_t isInsertFromFile;  // load data from file or not
+  int       count;// TODO refactor
 
   union {
-    bool   existsCheck;
-    int8_t showType;
+    bool   existsCheck;       // check if the table exists
+    int8_t showType;          // show command type
+    int8_t isInsertFromFile;  // load data from file or not
   };
-
+  
+  bool            import;     // import/insert type
   char            msgType;
-  uint16_t        type;
+  uint16_t        type;  // query type
   char            intervalTimeUnit;
   int64_t         etime, stime;
   int64_t         nAggTimeInterval;  // aggregation time interval
@@ -286,20 +285,20 @@ typedef struct {
    *
    * In such cases, allocate the memory dynamically, and need to free the memory
    */
-  uint32_t     allocSize;
-  char *       payload;
-  int          payloadLen;
-  short        numOfCols;
+  uint32_t        allocSize;
+  char *          payload;
+  int             payloadLen;
+  short           numOfCols;
   SColumnBaseInfo colList;
-  SFieldInfo   fieldsInfo;
-  SSqlExprInfo exprsInfo;
-  SLimitVal    limit;
-  SLimitVal    slimit;
-  int64_t      globalLimit;
-  STagCond     tagCond;
-  int16_t      vnodeIdx;     // vnode index in pMetricMeta for metric query
-  int16_t      interpoType;  // interpolate type
-  int16_t      numOfTables;
+  SFieldInfo      fieldsInfo;
+  SSqlExprInfo    exprsInfo;
+  SLimitVal       limit;
+  SLimitVal       slimit;
+  int64_t         globalLimit;
+  STagCond        tagCond;
+  int16_t         vnodeIdx;     // vnode index in pMetricMeta for metric query
+  int16_t         interpoType;  // interpolate type
+  int16_t         numOfTables;
 
   // submit data blocks branched according to vnode
   SDataBlockList * pDataBlocks;
@@ -430,11 +429,11 @@ int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion);
 
 void  tscInitMsgs();
 void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle);
-int tscProcessSql(SSqlObj *pSql);
+int   tscProcessSql(SSqlObj *pSql);
 
 void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows);
 
-int tscRenewMeterMeta(SSqlObj *pSql, char *meterId);
+int  tscRenewMeterMeta(SSqlObj *pSql, char *meterId);
 void tscQueueAsyncRes(SSqlObj *pSql);
 
 void tscQueueAsyncError(void(*fp), void *param);
@@ -448,18 +447,12 @@ int taos_retrieve(TAOS_RES *res);
  * before send query message to vnode
  */
 int32_t tscTansformSQLFunctionForMetricQuery(SSqlCmd *pCmd);
-void tscRestoreSQLFunctionForMetricQuery(SSqlCmd *pCmd);
-
-/**
- * release both metric/meter meta information
- * @param pCmd  SSqlCmd object that contains the metric/meter meta info
- */
-void tscClearSqlMetaInfo(SSqlCmd *pCmd);
+void    tscRestoreSQLFunctionForMetricQuery(SSqlCmd *pCmd);
 
 void tscClearSqlMetaInfoForce(SSqlCmd *pCmd);
 
 int32_t tscCreateResPointerInfo(SSqlCmd *pCmd, SSqlRes *pRes);
-void tscDestroyResPointerInfo(SSqlRes *pRes);
+void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
 void tscFreeSqlCmdData(SSqlCmd *pCmd);
 
@@ -479,12 +472,12 @@ void tscFreeSqlObj(SSqlObj *pObj);
 
 void tscCloseTscObj(STscObj *pObj);
 
-void tscProcessMultiVnodesInsert(SSqlObj *pSql);
-void tscProcessMultiVnodesInsertForFile(SSqlObj *pSql);
-void tscKillMetricQuery(SSqlObj *pSql);
-void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
-int32_t tscBuildResultsForEmptyRetrieval(SSqlObj *pSql);
-bool tscIsUpdateQuery(STscObj *pObj);
+void    tscProcessMultiVnodesInsert(SSqlObj *pSql);
+void    tscProcessMultiVnodesInsertForFile(SSqlObj *pSql);
+void    tscKillMetricQuery(SSqlObj *pSql);
+void    tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
+bool    tscIsUpdateQuery(STscObj *pObj);
+int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
 // transfer SSqlInfo to SqlCmd struct
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);

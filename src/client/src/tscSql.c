@@ -246,7 +246,12 @@ int taos_query_imp(STscObj* pObj, SSqlObj* pSql) {
     tscDoQuery(pSql);
   }
 
-  tscTrace("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pObj), pObj);
+  if (pRes->code == TSDB_CODE_SUCCESS) {
+    tscTrace("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pObj), pObj);
+  } else {
+    tscError("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pObj), pObj);
+  }
+  
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscFreeSqlObjPartial(pSql);
   }
@@ -266,8 +271,9 @@ int taos_query(TAOS *taos, const char *sqlstr) {
 
   size_t sqlLen = strlen(sqlstr);
   if (sqlLen > TSDB_MAX_SQL_LEN) {
-    tscError("%p sql too long", pSql);
-    pRes->code = TSDB_CODE_INVALID_SQL;
+    pRes->code = tscInvalidSQLErrMsg(pSql->cmd.payload, "sql too long", NULL);  // set the additional error msg for invalid sql
+    tscError("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
+    
     return pRes->code;
   }
 
@@ -276,8 +282,9 @@ int taos_query(TAOS *taos, const char *sqlstr) {
   void *sql = realloc(pSql->sqlstr, sqlLen + 1);
   if (sql == NULL) {
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
-    tscError("%p failed to malloc sql string buffer", pSql);
-    tscTrace("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
+    tscError("%p failed to malloc sql string buffer, reason:%s", pSql, strerror(errno));
+  
+    tscError("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
     return pRes->code;
   }
 
@@ -777,9 +784,9 @@ int taos_errno(TAOS *taos) {
 }
 
 char *taos_errstr(TAOS *taos) {
-  STscObj *     pObj = (STscObj *)taos;
-  unsigned char code;
-  char          temp[256] = {0};
+  STscObj *pObj = (STscObj *)taos;
+  uint8_t  code;
+//  char          temp[256] = {0};
 
   if (pObj == NULL || pObj->signature != pObj) return tsError[globalCode];
 
@@ -788,9 +795,10 @@ char *taos_errstr(TAOS *taos) {
   else
     code = pObj->pSql->res.code;
 
+  // for invalid sql, additional information is attached to explain why the sql is invalid
   if (code == TSDB_CODE_INVALID_SQL) {
-    snprintf(temp, tListLen(temp), "invalid SQL: %s", pObj->pSql->cmd.payload);
-    strcpy(pObj->pSql->cmd.payload, temp);
+//    snprintf(temp, tListLen(temp), "invalid SQL: %s", pObj->pSql->cmd.payload);
+//    strcpy(pObj->pSql->cmd.payload, temp);
     return pObj->pSql->cmd.payload;
   } else {
     return tsError[code];
