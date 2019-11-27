@@ -519,10 +519,8 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
   pMeter = mgmtGetMeter(pCreate->meterId);
   if (pMeter) {
     if (pCreate->igExists) {
-      mError("table:%s, igExists is true", pCreate->meterId);
       return TSDB_CODE_SUCCESS;
     } else {
-      mError("table:%s, table is already exist", pCreate->meterId);
       return TSDB_CODE_TABLE_ALREADY_EXIST;
     }
   }
