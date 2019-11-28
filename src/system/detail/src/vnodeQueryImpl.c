@@ -2919,6 +2919,7 @@ static int file_order_comparator(const void *p1, const void *p2) {
 
 /**
  * open a data files and header file for metric meta query
+ *
  * @param pQInfo
  * @param pVnodeFiles
  * @param fid
@@ -2929,8 +2930,6 @@ static int file_order_comparator(const void *p1, const void *p2) {
  */
 static int32_t vnodeOpenVnodeDBFiles(SQInfo *pQInfo, SQueryFileInfo *pVnodeFiles, int32_t fid, int32_t vnodeId,
                                      char *fileName, char *prefix) {
-  //  __off_t size = 0;
-
   pVnodeFiles->fileID = fid;
   pVnodeFiles->defaultMappingSize = DEFAULT_DATA_FILE_MMAP_WINDOW_SIZE;
 
