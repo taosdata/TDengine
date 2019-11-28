@@ -569,7 +569,6 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
     int sversion = htonl(pBlocks->sversion);
 
     if (pSubmit->import) {
-      dTrace("start to import data");
       code = vnodeImportPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
                                sversion, &numOfPoints, now);
     } else {

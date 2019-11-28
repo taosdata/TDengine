@@ -1395,7 +1395,7 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
 
   TSKEY key = *(TSKEY *)(pCtx[0].aInputElemBuf + TSDB_KEYSIZE * offset);
 
-#if 1
+#if defined(_DEBUG_VIEW)
   printf("elem in comp ts file:%lld, key:%lld, tag:%d, id:%s, query order:%d, ts order:%d, traverse:%d, index:%d\n",
          elem.ts, key, elem.tag, pRuntimeEnv->pMeterObj->meterId, pQuery->order.order, pRuntimeEnv->pTSBuf->tsOrder,
          pRuntimeEnv->pTSBuf->cur.order, pRuntimeEnv->pTSBuf->cur.tsIndex);
@@ -2919,6 +2919,7 @@ static int file_order_comparator(const void *p1, const void *p2) {
 
 /**
  * open a data files and header file for metric meta query
+ *
  * @param pQInfo
  * @param pVnodeFiles
  * @param fid
@@ -2929,8 +2930,6 @@ static int file_order_comparator(const void *p1, const void *p2) {
  */
 static int32_t vnodeOpenVnodeDBFiles(SQInfo *pQInfo, SQueryFileInfo *pVnodeFiles, int32_t fid, int32_t vnodeId,
                                      char *fileName, char *prefix) {
-  //  __off_t size = 0;
-
   pVnodeFiles->fileID = fid;
   pVnodeFiles->defaultMappingSize = DEFAULT_DATA_FILE_MMAP_WINDOW_SIZE;
 
