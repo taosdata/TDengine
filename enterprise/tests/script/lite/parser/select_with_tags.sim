@@ -21,7 +21,7 @@ $mt = $mtPrefix . $i
 
 $tstart = 100000
 
-sql drop database if exits $db -x step1
+sql drop database if exists $db -x step1
 step1:
 sql create database if not exists $db tables 4 keep 36500
 sql use $db
@@ -618,6 +618,24 @@ if $data22 != @select_tags_tb2@ then
    return -1
 endi
 
+sql select first(ts),ts from select_tags_tb0 where c1<3
+if $row != 1 then
+   return -1
+endi
+
+if $data00 != $data01 then
+   return -1
+endi
+
+sql select last(ts),ts from select_tags_tb0 where c1<3
+if $row != 1 then
+   return -1
+endi
+
+if $data00 != $data01 then
+   return -1
+endi
+
 print ======= selectivity + tags + group by + tags + filter + interval ================
 sql select first(c1), t2, t1, tbname from select_tags_mt0 where c1<=2 interval(1d) group by tbname;
 if $row != 3 then
@@ -771,6 +789,11 @@ if $data95 != @select_tags_tb0@ then
   return -1
 endi
 
+sql select last(ts),TBNAME from select_tags_mt0 interval(1y)
+if $row != 1 then
+   return -1
+endi
+
 print ======= selectivity + tags+ group by + tags + filter + interval + join===========
 
 
@@ -797,6 +820,9 @@ sql_error select count(tbname) from select_tags_mt0 interval(1d);
 sql_error select count(tbname) from select_tags_mt0 group by t1;
 sql_error select count(tbname),SUM(T1) from select_tags_mt0 interval(1d);
 sql_error select first(c1), count(*), t2, t1, tbname from select_tags_mt0 where c1<=2 interval(1d) group by tbname;
+sql_error select ts from select_tags_mt0 interval(1y);
+sql_error select count(*), tbname from select_tags_mt0 interval(1y);
+sql_error select tbname, t1 from select_tags_mt0 interval(1y);
 
 #===error sql + group by ===============================================
 #valid sql: select first(c1), last(c2), tbname from select_tags_mt0 group by tbname;

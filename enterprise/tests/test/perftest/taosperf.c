@@ -489,7 +489,7 @@ int main(int argc, char **argv) {
     }
 
     // check running environment
-    strcpy(configDir, argv[1]);
+    taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);
     taos_init();
 
     TAOS* conn = taos_connect("192.168.0.1", "root", "taosdata", NULL, 0);

@@ -80,7 +80,7 @@ void createEnvironment(TAOS *conn, int32_t count, int32_t totalCnt, int32_t poin
         sprintf(tt, "drop table if exists tm%d", i);
         taos_query(conn, tt);
 
-        sprintf(tt, "create table tm%d using m1 tags('tm%d', %d, %d)\0", i % 40, i, i % 20, i);
+        sprintf(tt, "create table tm%d using m1 tags('tm%d', %d, %d)", i, i, i % 20, i);
         ret = taos_query(conn, tt);
         if (ret != 0) {
             printf("%s\n", taos_errstr(conn));
@@ -203,16 +203,21 @@ void displayData(void* result, int32_t num_fields, TAOS_FIELD* fields, char* tem
         printf("%s\n", field);
 
     while ((row = taos_fetch_row(result))) {
-        temp[0] = 0;
-        numOfRows++;
+      temp[0] = 0;
+      numOfRows++;
 
-        taos_print_row(temp, row, fields, num_fields);
-        printf("%d: %s, \t len:%d\n", numOfRows, temp, strlen(temp));
+      taos_print_row(temp, row, fields, num_fields);
+      printf("%d: %s, \t len:%ld\n", numOfRows, temp, strlen(temp));
 
-        if (pRes != NULL)
-            validateData(fields, num_fields, row, pRes);
+      if (pRes != NULL) {
+        validateData(fields, num_fields, row, pRes);
+      }
+      
+//      taos_free_result(result);
+//      break;
     }
-    printf("total elapsed time:%ld ms, %d rows\n", taosGetTimestampMs() - start, numOfRows);
+
+    printf("total elapsed time:%lld ms, %lld rows\n", taosGetTimestampMs() - start, numOfRows);
 }
 
 TAOS* connectdb() {

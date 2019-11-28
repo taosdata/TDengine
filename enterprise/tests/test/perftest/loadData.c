@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    strcpy(configDir, argv[1]);
+    taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);
     taos_init();
 
     char* db = argv[2];
