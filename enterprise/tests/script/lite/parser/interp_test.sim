@@ -566,7 +566,7 @@ $tb = $tbPrefix . 0
 
   ## interp(*) from stb + group by + fill(none)
   $t = $ts0 + 1000
-  sql_error select interp(*) from $stb where ts = $t fill(null) group by tbname
+  sql select interp(*) from $stb where ts = $t fill(null) group by tbname
   #if $rows != $tbNum then
   #  return -1
   #endi
@@ -601,7 +601,7 @@ $tb = $tbPrefix . 0
   #  return -1
   #endi
 
-  sql_error select interp(*) from $stb where ts = $ts0 fill(null) group by tbname
+  sql select interp(*) from $stb where ts = $ts0 fill(null) group by tbname
   #if $rows != 0 then
   #  return -1
   #endi

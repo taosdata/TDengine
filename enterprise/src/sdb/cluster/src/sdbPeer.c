@@ -1091,6 +1091,15 @@ int sdbProcessSyncRequest(char *msg, int msgLen, SSdbPeer *pPeer) {
   pthread_t      thread;
   SSdbSync *     pSync;
 
+  /*
+   * Multiple messages may trigger synchronization at the same time
+   * Use syncFd > 0 as a condition to determine whether synchronization is in progress
+   */
+  if (pPeer->syncFd > 0) {
+    sdbError("%s, a sync thread is already started, sfd:%d", pPeer->ipstr, pPeer->syncFd);
+    return TSDB_CODE_APP_ERROR;
+  }
+
   pSync = (SSdbSync *)msg;
   for (int i = 0; i < pSync->numOfTables; ++i) pSync->version[i] = htobe64(pSync->version[i]);
 
