@@ -190,10 +190,10 @@ system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 print ============================== step4
 print ========= start dnode2
 sleep 3000
-system sh/clear.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode2 -c clog -v 0
+system sh/cfg.sh -n dnode2 -c clog -v 1
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 sql create dnode 192.168.0.2
@@ -262,10 +262,10 @@ system sh/exec.sh -n dnode3 -s stop  -x SIGINT
 print ============================== step6
 print ========= start dnode3
 sleep 3000
-system sh/clear.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
 system sh/cfg.sh -n dnode3 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode3 -c clog -v 0
+system sh/cfg.sh -n dnode3 -c clog -v 1
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 sql create dnode 192.168.0.3
@@ -333,10 +333,10 @@ system sh/exec.sh -n dnode4 -s stop  -x SIGINT
 print ============================== step8
 print ========= start dnode4
 sleep 3000
-system sh/clear.sh -n dnode4 -m 192.168.0.1 -i 192.168.0.4
+system sh/deploy.sh -n dnode4 -m 192.168.0.1 -i 192.168.0.4
 system sh/cfg.sh -n dnode4 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode4 -c clog -v 0
+system sh/cfg.sh -n dnode4 -c clog -v 1
 system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 sql create dnode 192.168.0.4
@@ -407,10 +407,10 @@ endi
 print ============================== step10
 print ========= start dnode1
 sleep 3000
-system sh/clear.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
+system sh/deploy.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode1 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c clog -v 1
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 sql create dnode 192.168.0.1

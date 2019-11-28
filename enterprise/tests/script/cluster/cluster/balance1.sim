@@ -40,7 +40,7 @@ print ========= start dnode1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-sql create database c_b1_d1
+sql create database c_b1_d1 tables 4
 sql use c_b1_d1
 
 sql create table c_b1_t1 (t timestamp, i int)
@@ -50,7 +50,7 @@ sql insert into c_b1_t1 values(1520000022013, 13)
 sql insert into c_b1_t1 values(1520000023012, 12)
 sql insert into c_b1_t1 values(1520000024011, 11)
 
-sql create database c_b1_d2
+sql create database c_b1_d2 tables 4
 sql use c_b1_d2
 sql create table c_b1_t2 (t timestamp, i int)
 sql insert into c_b1_t2 values(1520000020025, 25)
@@ -111,7 +111,7 @@ print 192.168.0.4 ==> $dnode4Role
 
 print ============================== step3
 print ========= add db3
-sql create database c_b1_d3
+sql create database c_b1_d3 tables 4
 sql use c_b1_d3
 sql create table c_b1_t3 (t timestamp, i int)
 sql insert into c_b1_t3 values(1520000020035, 35)
@@ -159,11 +159,11 @@ print ============================== step5
 print ========= add dnode2
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sleep 3000
-system sh/clear.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
 system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode2 -c clog -v 0
+system sh/cfg.sh -n dnode2 -c clog -v 1
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 system sh/exec.sh -n dnode2 -s start
@@ -244,10 +244,10 @@ print ============================== step7
 print ========= add dnode1
 sql create dnode 192.168.0.1
 sleep 3000
-system sh/clear.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
+system sh/deploy.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode1 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c clog -v 1
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 sleep 23000
 system sh/exec.sh -n dnode1 -s start
@@ -329,11 +329,11 @@ endi
 print ============================== step9
 print ========= add dnode2
 sql create dnode 192.168.0.2
-system sh/clear.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
 system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode2 -c clog -v 0
+system sh/cfg.sh -n dnode2 -c clog -v 1
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 system sh/exec.sh -n dnode2 -s start
@@ -371,7 +371,7 @@ print 192.168.0.4 ==> $dnode4Role
 
 print ============================== step10
 print ========= add db4
-sql create database c_b1_d4
+sql create database c_b1_d4 tables 4
 sql use c_b1_d4
 sql create table c_b1_t4 (t timestamp, i int)
 sql insert into c_b1_t4 values(1520000020045, 45)
@@ -442,11 +442,21 @@ if $dnode2Vnodes != null then
    goto show11
 endi
 
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 
 print ============================== step12
 print ========= add db5
-sql create database c_b1_d5
+sql create database c_b1_d5 tables 4
 sql use c_b1_d5
 sql create table c_b1_t5 (t timestamp, i int) -x error3
 print no enough vnodes, but create success
@@ -456,15 +466,25 @@ error3:
 print ============================== step13
 print ========= add dnode2
 sql create dnode 192.168.0.2
-system sh/clear.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
 system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode2 -c clog -v 0
+system sh/cfg.sh -n dnode2 -c clog -v 1
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 system sh/exec.sh -n dnode2 -s start
 sleep 9000
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
 
 sql use c_b1_d5;
 sql create table c_b1_t5 (t timestamp, i int)
@@ -474,7 +494,7 @@ sql insert into c_b1_t5 values(1520000022053, 53)
 sql insert into c_b1_t5 values(1520000023052, 52)
 sql insert into c_b1_t5 values(1520000024051, 51)
 
-sql create database c_b1_d6
+sql create database c_b1_d6 tables 4
 sql use c_b1_d6
 sql create table c_b1_t6 (t timestamp, i int)
 sql insert into c_b1_t6 values(1520000020065, 65)
@@ -498,7 +518,18 @@ print 192.168.0.2 $dnode2Vnodes
 
 print ============================== step14
 print ========= add dnode3
-sql sleep 2000
+
+sql show mnodes
+$dnode1Role = $data3_192.168.0.1
+$dnode2Role = $data3_192.168.0.2
+$dnode3Role = $data3_192.168.0.3
+$dnode4Role = $data3_192.168.0.4
+print 192.168.0.1 ==> $dnode1Role
+print 192.168.0.2 ==> $dnode2Role
+print 192.168.0.3 ==> $dnode3Role
+print 192.168.0.4 ==> $dnode4Role
+
+sleep 2000
 sql create dnode 192.168.0.3
 system sh/exec.sh -n dnode3 -s start
 sleep 15000
@@ -539,7 +570,7 @@ print 192.168.0.3 ==> $dnode3Role
 print ============================== step15
 print ========= create db7 db8
 
-sql create database c_b1_d7
+sql create database c_b1_d7 tables 4
 sql use c_b1_d7
 sql create table c_b1_t7 (t timestamp, i int)
 sql insert into c_b1_t7 values(1520000020075, 75)
@@ -548,7 +579,7 @@ sql insert into c_b1_t7 values(1520000022073, 73)
 sql insert into c_b1_t7 values(1520000023072, 72)
 sql insert into c_b1_t7 values(1520000024071, 71)
 
-sql create database c_b1_d8
+sql create database c_b1_d8 tables 4
 sql use c_b1_d8
 sql create table c_b1_t8 (t timestamp, i int)
 sql insert into c_b1_t8 values(1520000020085, 85)
@@ -568,7 +599,7 @@ print 192.168.0.3 ==> $dnode3Role
 print 192.168.0.4 ==> $dnode4Role
 
 print ========== add dnode4
-sql sleep 2000
+sleep 2000
 sql create dnode 192.168.0.4
 print sql create dnode 192.168.0.4 over
 system sh/exec.sh -n dnode4 -s start
@@ -611,7 +642,7 @@ print ========= drop dnode4, create db9
 
 sql drop dnode 192.168.0.4
 sleep 10000
-sql create database c_b1_d9
+sql create database c_b1_d9 tables 4
 sql use c_b1_d9
 sql create table c_b1_t9 (t timestamp, i int)
 sql insert into c_b1_t9 values(1520000020095, 95)
