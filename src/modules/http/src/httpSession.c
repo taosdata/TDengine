@@ -114,6 +114,7 @@ void httpRestoreSession(HttpContext *pContext) {
     return;
   }
   session->access--;
+  pContext->session = NULL;
   httpTrace("context:%p, ip:%s, user:%s, restore session:%p:%p, access:%d, expire:%d",
             pContext, pContext->ipstr, pContext->user, session, session->taos,
             session->access, pContext->session->expire);
