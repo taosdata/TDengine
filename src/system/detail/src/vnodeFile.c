@@ -188,7 +188,7 @@ int vnodeCreateNeccessaryFiles(SVnodeObj *pVnode) {
   if (pVnode->lastKeyOnFile == 0) {
     if (pCfg->daysPerFile == 0) pCfg->daysPerFile = 10;
     pVnode->fileId = pVnode->firstKey / tsMsPerDay[pVnode->cfg.precision] / pCfg->daysPerFile;
-    pVnode->lastKeyOnFile = (long)(pVnode->fileId + 1) * pCfg->daysPerFile * tsMsPerDay[pVnode->cfg.precision] - 1;
+    pVnode->lastKeyOnFile = (int64_t)(pVnode->fileId + 1) * pCfg->daysPerFile * tsMsPerDay[pVnode->cfg.precision] - 1;
     pVnode->numOfFiles = 1;
     if (vnodeCreateEmptyCompFile(vnode, pVnode->fileId) < 0) return -1;
   }
@@ -221,15 +221,15 @@ int vnodeCreateNeccessaryFiles(SVnodeObj *pVnode) {
 #else
       return -1;
 #endif
-    pVnode->lastKeyOnFile += (long)tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile;
+    pVnode->lastKeyOnFile += (int64_t)tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile;
     filesAdded = 1;
     numOfFiles = 0;  // hacker way
   }
 
   fileId = pVnode->fileId - numOfFiles;
   pVnode->commitLastKey =
-      pVnode->lastKeyOnFile - (long)numOfFiles * tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile;
-  pVnode->commitFirstKey = pVnode->commitLastKey - (long)tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile + 1;
+      pVnode->lastKeyOnFile - (int64_t)numOfFiles * tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile;
+  pVnode->commitFirstKey = pVnode->commitLastKey - (int64_t)tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile + 1;
   pVnode->commitFileId = fileId;
   pVnode->numOfFiles = pVnode->numOfFiles + filesAdded;
 
