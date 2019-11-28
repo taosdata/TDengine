@@ -290,8 +290,9 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
     pSummary->numOfFiles++;
 
     SQueryFileInfo *pQueryFileInfo = &pRuntimeEnv->pVnodeFiles[fileIdx];
-    char *pHeaderData = vnodeGetHeaderFileData(pRuntimeEnv, fileIdx);
+    char *pHeaderData = vnodeGetHeaderFileData(pRuntimeEnv, vnodeId, fileIdx);
     if (pHeaderData == NULL) { // failed to mmap header file into buffer, ignore current file, try next
+      fid += step;
       continue;
     }
     
