@@ -26,12 +26,14 @@ extern "C" {
 #include "tsdb.h"
 
 #ifndef STDERR_FILENO
-  #define VALIDFD(x) ((x) > 2)
-#else
-  #define VALIDFD(x) ((x) > STDERR_FILENO)
+#define STDERR_FILENO (2)
 #endif
 
+#define FD_VALID(x) ((x) > STDERR_FILENO)
+#define FD_INITIALIZER  ((int32_t)-1)
+
 #define WCHAR wchar_t
+
 #define tfree(x) \
   {              \
     if (x) {     \

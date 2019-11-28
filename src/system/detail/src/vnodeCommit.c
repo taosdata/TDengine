@@ -81,7 +81,7 @@ int vnodeRenewCommitLog(int vnode) {
 
   pthread_mutex_lock(&(pVnode->logMutex));
 
-  if (VALIDFD(pVnode->logFd)) {
+  if (FD_VALID(pVnode->logFd)) {
     munmap(pVnode->pMem, pVnode->mappingSize);
     close(pVnode->logFd);
     rename(fileName, oldName);
@@ -243,7 +243,7 @@ int vnodeInitCommit(int vnode) {
 void vnodeCleanUpCommit(int vnode) {
   SVnodeObj *pVnode = vnodeList + vnode;
 
-  if (VALIDFD(pVnode->logFd)) close(pVnode->logFd);
+  if (FD_VALID(pVnode->logFd)) close(pVnode->logFd);
 
   if (pVnode->cfg.commitLog && (pVnode->logFd > 0 && remove(pVnode->logFn) < 0)) {
     dError("vid:%d, failed to remove:%s", vnode, pVnode->logFn);

@@ -52,9 +52,9 @@ typedef struct SQueryLoadCompBlockInfo {
  */
 typedef struct SQueryFileInfo {
   int32_t fileID;              /* file id */
-  char    headerFilePath[256]; /* full file name */
-  char    dataFilePath[256];
-  char    lastFilePath[256];
+  char    headerFilePath[PATH_MAX]; /* full file name */
+  char    dataFilePath[PATH_MAX];
+  char    lastFilePath[PATH_MAX];
   int32_t defaultMappingSize; /* default mapping size */
 
   int32_t  headerFd;        /* file handler */

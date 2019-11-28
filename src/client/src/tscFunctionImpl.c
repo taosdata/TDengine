@@ -3191,7 +3191,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
     } else {                                                                                 \
       *(type *)(ctx)->aOutputBuf = *(type *)(d) - (*(type *)(&(ctx)->param[1].i64Key));      \
       *(type *)(&(ctx)->param[1].i64Key) = *(type *)(d);                                     \
-      *(int64_t *)(ctx)->ptsOutputBuf = *(int64_t *)((ctx)->ptsList + (TSDB_KEYSIZE)*index); \
+      *(int64_t *)(ctx)->ptsOutputBuf = *(int64_t *)((ctx)->ptsList[index]); \
     }                                                                                        \
   } while (0);
 
