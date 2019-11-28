@@ -449,9 +449,9 @@ int main(int argc, char **argv) {
         total = strtol(argv[4], NULL, 10);
     }
     
-    executeSQL(conn, "use m_alt_db0", NULL);
+    executeSQL(conn, "use db", NULL);
     // selectivity + tags/ts + group by normal columns
-    executeSQL(conn, "insert into tb values('2018-11-1 16:00:00', 1, '2', 1)", NULL);
+    executeSQL(conn, "create table st_int_e0 using mt_int tags (2147483648)", NULL);
 //    createEnvironment(conn, 5000, 5000, 100, 30);
 //    executeSQL(conn, "select last_row(ts) from m1 where tbname in ('tm0', 'tm1') group by tbname", NULL);
 //    executeSQL(conn, "select top(k, 5) from tm0", NULL);
