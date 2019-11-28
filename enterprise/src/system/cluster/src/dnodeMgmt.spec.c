@@ -509,6 +509,7 @@ int vnodeRetrieveMissedRemoveMsg(int vid, int fd, uint64_t stime) {
   SMeterObj *pObj;
   int        sid, writeLen;
   SVnodeObj *pVnode = vnodeList + vid;
+  int        oldVid = vid;
 
   dTrace("vid:%d, fd:%d start to retrieve missed remove msg", vid, fd);
 
@@ -546,11 +547,10 @@ int vnodeRetrieveMissedRemoveMsg(int vid, int fd, uint64_t stime) {
     return -1;
   }
 
-  dTrace("vid:%d, fd:%d retrieve missed remove msg finished", vid, fd);
+  dTrace("vid:%d, fd:%d retrieve missed remove msg finished", oldVid, fd);
 
   return 0;
 }
-
 
 int vnodeRestoreMissedCreateMsg(int vnode, int fd) {
   char        msg[1024 + TSDB_MAX_COLUMNS * sizeof(SSchema)];

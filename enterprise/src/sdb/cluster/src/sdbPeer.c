@@ -187,7 +187,7 @@ SSdbPeer *sdbAddPeer(uint32_t ip, uint32_t publicIp, char role) {
   if (sdbInsertRow(mnodeSdb, pPeer, 0) > 0) {
     sdbTrace("sdb peer:%s is added", pPeer->ipstr);
   } else {
-    sdbError("failed to add sdb peer:%s", pPeer->ipstr);
+    //sdbError("failed to add sdb peer:%s", pPeer->ipstr);
     tfree(pPeer);
   }
 
