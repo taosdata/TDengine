@@ -2952,11 +2952,11 @@ static int32_t vnodeOpenVnodeDBFiles(SQInfo *pQInfo, SQueryFileInfo *pVnodeFiles
   pVnodeFiles->dataFd = open(pVnodeFiles->dataFilePath, O_RDONLY);
   pVnodeFiles->lastFd = open(pVnodeFiles->lastFilePath, O_RDONLY);
 
-  if (stat(pVnodeFiles->dataFilePath, &fstat) < 0) return -1;
-  pVnodeFiles->dataFileSize = fstat.st_size;
-
-  if (stat(pVnodeFiles->lastFilePath, &fstat) < 0) return -1;
-  pVnodeFiles->lastFileSize = fstat.st_size;
+//  if (stat(pVnodeFiles->dataFilePath, &fstat) < 0) return -1;
+//  pVnodeFiles->dataFileSize = fstat.st_size;
+//
+//  if (stat(pVnodeFiles->lastFilePath, &fstat) < 0) return -1;
+//  pVnodeFiles->lastFileSize = fstat.st_size;
 
 #if DEFAULT_IO_ENGINE == IO_ENGINE_MMAP
   /* enforce kernel to preload data when the file is mapping */
@@ -6943,36 +6943,18 @@ static int32_t resultInterpolate(SQInfo *pQInfo, tFilePage **data, tFilePage **p
   return numOfRes;
 }
 
-static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data, int32_t *size) {
+static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data) {
   SMeterObj *pObj = pQInfo->pObj;
   SQuery *   pQuery = &pQInfo->query;
 
-  int     tnumOfRows = vnodeList[pObj->vnode].cfg.rowsInFileBlock;
-  int32_t dataSize = pQInfo->query.rowSize * numOfRows;
+  int tnumOfRows = vnodeList[pObj->vnode].cfg.rowsInFileBlock;
+  
+  // for metric query, bufIndex always be 0.
+  for (int32_t col = 0; col < pQuery->numOfOutputCols; ++col) {  // pQInfo->bufIndex == 0
+    int32_t bytes = pQuery->pSelectExpr[col].resBytes;
 
-  if (dataSize >= tsCompressMsgSize && tsCompressMsgSize > 0) {
-    char *compBuf = malloc((size_t)dataSize);
-
-    // for metric query, bufIndex always be 0.
-    char *d = compBuf;
-    for (int32_t col = 0; col < pQuery->numOfOutputCols; ++col) {  // pQInfo->bufIndex == 0
-      int32_t bytes = pQuery->pSelectExpr[col].resBytes;
-
-      memmove(d, pQuery->sdata[col]->data + bytes * tnumOfRows * pQInfo->bufIndex, bytes * numOfRows);
-      d += bytes * numOfRows;
-    }
-
-    *size = tsCompressString(compBuf, dataSize, 1, data, dataSize + EXTRA_BYTES, 0, 0, 0);
-
-    dTrace("QInfo:%p compress rsp msg, before:%d, after:%d", pQInfo, dataSize, *size);
-    free(compBuf);
-  } else {                                                         // for metric query, bufIndex always be 0.
-    for (int32_t col = 0; col < pQuery->numOfOutputCols; ++col) {  // pQInfo->bufIndex == 0
-      int32_t bytes = pQuery->pSelectExpr[col].resBytes;
-
-      memmove(data, pQuery->sdata[col]->data + bytes * tnumOfRows * pQInfo->bufIndex, bytes * numOfRows);
-      data += bytes * numOfRows;
-    }
+    memmove(data, pQuery->sdata[col]->data + bytes * tnumOfRows * pQInfo->bufIndex, bytes * numOfRows);
+    data += bytes * numOfRows;
   }
 }
 
@@ -6987,7 +6969,7 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
  * @param numOfRows the number of rows that are not returned in current retrieve
  * @return
  */
-int32_t vnodeCopyQueryResultToMsg(void *handle, char *data, int32_t numOfRows, int32_t *size) {
+int32_t vnodeCopyQueryResultToMsg(void *handle, char *data, int32_t numOfRows) {
   SQInfo *pQInfo = (SQInfo *)handle;
   SQuery *pQuery = &pQInfo->query;
 
@@ -7000,7 +6982,7 @@ int32_t vnodeCopyQueryResultToMsg(void *handle, char *data, int32_t numOfRows, i
     // make sure file exist
     if (VALIDFD(fd)) {
       size_t s = lseek(fd, 0, SEEK_END);
-      dTrace("QInfo:%p ts comp data return, file:%s, size:%ld", pQInfo, pQuery->sdata[0]->data, size);
+      dTrace("QInfo:%p ts comp data return, file:%s, size:%lld", pQInfo, pQuery->sdata[0]->data, s);
 
       lseek(fd, 0, SEEK_SET);
       read(fd, data, s);
@@ -7012,7 +6994,7 @@ int32_t vnodeCopyQueryResultToMsg(void *handle, char *data, int32_t numOfRows, i
              pQuery->sdata[0]->data, strerror(errno));
     }
   } else {
-    doCopyQueryResultToMsg(pQInfo, numOfRows, data, size);
+    doCopyQueryResultToMsg(pQInfo, numOfRows, data);
   }
 
   return numOfRows;

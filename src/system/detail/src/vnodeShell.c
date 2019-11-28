@@ -99,28 +99,32 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
     }
   }
 
-  // if ( vnodeList[vnode].status != TSDB_STATUS_MASTER && pMsg->msgType != TSDB_MSG_TYPE_RETRIEVE ) {
+  dTrace("vid:%d sid:%d, msg:%s is received pConn:%p", vnode, sid, taosMsg[pMsg->msgType], thandle);
 
-#ifdef CLUSTER
-  if (vnodeList[vnode].vnodeStatus != TSDB_VN_STATUS_MASTER) {
-    taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_NOT_READY);
-    dTrace("vid:%d sid:%d, shell msg is ignored since in state:%d", vnode, sid, vnodeList[vnode].vnodeStatus);
-  } else {
-#endif
-    dTrace("vid:%d sid:%d, msg:%s is received pConn:%p", vnode, sid, taosMsg[pMsg->msgType], thandle);
-
-    if (pMsg->msgType == TSDB_MSG_TYPE_QUERY) {
+  if (pMsg->msgType == TSDB_MSG_TYPE_QUERY) {
+    if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_MASTER || vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_SLAVE) {
       vnodeProcessQueryRequest((char *)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pObj);
-    } else if (pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE) {
-      vnodeProcessRetrieveRequest((char *)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pObj);
-    } else if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
-      vnodeProcessShellSubmitRequest((char *)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pObj);
     } else {
-      dError("%s is not processed", taosMsg[pMsg->msgType]);
+      taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_NOT_READY);
+      dTrace("vid:%d sid:%d, shell query msg is ignored since in status:%s", vnode, sid, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
     }
-#ifdef CLUSTER
+  } else if (pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE) {
+    if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_MASTER || vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_SLAVE) {
+      vnodeProcessRetrieveRequest((char *) pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pObj);
+    } else {
+      taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_NOT_READY);
+      dTrace("vid:%d sid:%d, shell retrieve msg is ignored since in status:%s", vnode, sid, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+    }
+  } else if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
+    if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_MASTER) {
+      vnodeProcessShellSubmitRequest((char *) pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pObj);
+    } else {
+      taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_NOT_READY);
+      dTrace("vid:%d sid:%d, shell submit msg is ignored since in status:%s", vnode, sid, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+    }
+  } else {
+    dError("%s is not processed", taosMsg[pMsg->msgType]);
   }
-#endif
 
   return pObj;
 }
@@ -461,11 +465,7 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   pMsg = pRsp->data;
 
   if (numOfRows > 0 && code == TSDB_CODE_SUCCESS) {
-    int32_t oldSize = size;
     vnodeSaveQueryResult((void *)(pRetrieve->qhandle), pRsp->data, &size);
-    if (oldSize > size) {
-      pRsp->compress = htons(1); // denote that the response msg is compressed
-    }
   }
 
   pMsg += size;
@@ -587,6 +587,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
     int32_t sversion = htonl(pBlocks->sversion);
 
     if (pSubmit->import) {
+      dTrace("start to import data");
       code = vnodeImportPoints(pMeterObj, (char *) &(pBlocks->numOfRows), subMsgLen, TSDB_DATA_SOURCE_SHELL, pObj,
                                sversion, &numOfPoints, now);
       pObj->numOfTotalPoints += numOfPoints;

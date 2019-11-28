@@ -114,6 +114,7 @@ int vnodeCreateHeadDataFile(int vnode, int fileId, char *headName, char *dataNam
 
   char *path = vnodeGetDataDir(vnode, fileId);
   if (path == NULL) {
+    dError("vid:%d, fileId:%d, failed to get dataDir", vnode, fileId);
     return -1;
   }
   

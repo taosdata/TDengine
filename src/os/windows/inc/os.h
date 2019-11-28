@@ -16,20 +16,30 @@
 #ifndef TDENGINE_PLATFORM_WINDOWS_H
 #define TDENGINE_PLATFORM_WINDOWS_H
 
-#include <io.h>
-#include <stdio.h>
-#include <signal.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <pthread.h>
+#include <assert.h>
+#include <ctype.h>
 #include <direct.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <float.h>
+#include <locale.h>
+#include <intrin.h>
+#include <io.h>
+#include <math.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <time.h>
 #include "winsock2.h"
 #include <WS2tcpip.h>
-#include <assert.h>
-#include <math.h>
-#include <string.h>
-#include <assert.h>
-#include <intrin.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -365,6 +375,8 @@ int fsendfile(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count);
 #define strdup _strdup
 
 char *strndup(const char *s, size_t n);
+
+void taosSetCoreDump();
 
 #ifdef __cplusplus
 }

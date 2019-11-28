@@ -12,8 +12,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 package taosSql
+
+/*
+#cgo CFLAGS : -I/usr/include
+#include <stdlib.h>
+#cgo LDFLAGS: -L/usr/lib -ltaos
+void taosSetAllocMode(int mode, const char* path, _Bool autoDump);
+void taosDumpMemoryLeak();
+*/
+import "C"
+
 
 import (
 	"database/sql/driver"
@@ -21,6 +30,7 @@ import (
 	"fmt"
 	"sync/atomic"
 	"time"
+	"unsafe"
 )
 
 // Returns the bool value of the input.
@@ -398,3 +408,15 @@ func namedValueToValue(named []driver.NamedValue) ([]driver.Value, error) {
 }
 
 
+/******************************************************************************
+*                     Utils for C memory issues debugging                     *
+******************************************************************************/
+func SetAllocMode(mode int32, path string) {
+	cpath := C.CString(path)
+	defer C.free(unsafe.Pointer(cpath))
+	C.taosSetAllocMode(C.int(mode), cpath, false)
+}
+
+func DumpMemoryLeak() {
+	C.taosDumpMemoryLeak()
+}
