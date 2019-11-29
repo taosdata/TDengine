@@ -43,16 +43,16 @@ class TDTestCase:
     tdLog.info("More than 10 rows less than %d rows will go to data file" %self.rows)
 
     tdLog.info("================= step2")
-    tdLog.info("import 20 sequential data")
+    tdLog.info("import %d sequential data" %self.rows)
     startTime = self.startTime
     sqlcmd = ['import into tb1 values']
-    for rid in range(1,21):
+    for rid in range(1,self.rows+1):
       sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
     tdSql.execute(" ".join(sqlcmd))
     
     tdLog.info("================= step3")
     tdSql.query('select * from tb1')
-    tdSql.checkRows(20)
+    tdSql.checkRows(self.rows)
 
     tdLog.info("================= step4")
     tdDnodes.stop(1)
@@ -64,9 +64,24 @@ class TDTestCase:
     startTime = self.startTime - 1
     tdSql.execute('import into tb1 values(%ld, %d)' %(startTime + 1, 1))
 
-    tdLog.info("================= step6")
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(21)
+
+    tdLog.info("================= step7")
+    tdSql.execute('reset query cache')
+    tdSql.query('select * from tb1 order by ts desc')
+    tdSql.checkRows(self.rows + 1)
+
+    tdLog.info("================= step8")
+    tdLog.info("import 10 data in batch before")
+    startTime = self.startTime
+    sqlcmd = ['import into tb1 values']
+    for rid in range(1,11):
+      sqlcmd.append('(%ld, %d)' %(startTime - rid, rid))
+    tdSql.execute(" ".join(sqlcmd))
+
+    tdLog.info("================= step9")
+    tdSql.execute('reset query cache')
+    tdSql.query('select * from tb1 order by ts desc')
+    tdSql.checkRows(self.rows + 11)
 
   def stop(self):
     tdSql.close()
