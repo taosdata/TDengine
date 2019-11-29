@@ -1,6 +1,6 @@
-#run lite/parser/alter.sim
-#run lite/parser/alter1.sim
-#run lite/parser/alter_stable.sim
+run lite/parser/alter.sim
+run lite/parser/alter1.sim
+run lite/parser/alter_stable.sim
 run lite/parser/auto_create_tb.sim
 run lite/parser/auto_create_tb_drop_tb.sim
 run lite/parser/col_arithmetic_operation.sim
@@ -43,3 +43,4 @@ run lite/parser/where.sim
 run lite/parser/join.sim
 run lite/parser/projection_limit_offset.sim
 run lite/parser/select_with_tags.sim
+run lite/parser/groupby.sim

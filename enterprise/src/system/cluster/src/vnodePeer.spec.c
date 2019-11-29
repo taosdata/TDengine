@@ -14,13 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <endian.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <netdb.h>
-#include <sys/epoll.h>
+#include "os.h"
 
 #include "vnode.h"
 #include "vnodeUtil.h"
@@ -1039,14 +1033,12 @@ _error:
     pVPeer->signature = NULL;
     tfree(pVPeer);
   }
-
-  return;
 }
 
 void vnodeCheckPeerConnection(void *param, void *tmrId)
 {
   SVnodePeer *pVPeer = (SVnodePeer *)param;
-  int         vid;
+  int         vid = -1;
   int         connFd;
   SFirstPkt   firstPkt;
 
@@ -1110,8 +1102,6 @@ void vnodeCheckPeerConnection(void *param, void *tmrId)
   dTrace("vid:%d, peer:%s:%d connection to peer server is setup, connFd:%d", vid, pVPeer->ipstr, pVPeer->vid, connFd);
 
   vnodeAddPeerFd(&tsPeerThreadPool, pVPeer, connFd);
-
-  return;
 }
 
 void *vnodeSyncRestoreData(void *param)
