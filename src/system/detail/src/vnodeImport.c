@@ -650,7 +650,7 @@ static int vnodeCloseImportFiles(SMeterObj *pObj, SImportHandle *pHandle) {
   return 0;
 }
 
-void vnodeConvertRowsToCols(SMeterObj *pObj, const char *payload, int rows, SData *data[], int rowOffset) {
+static void vnodeConvertRowsToCols(SMeterObj *pObj, const char *payload, int rows, SData *data[], int rowOffset) {
   int sdataRow;
   int offset;
 
@@ -698,7 +698,7 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
   assert(pVnode->commitFileId == fid);
 
   // Open least files to import .head(hfd) .data(dfd) .last(lfd)
-  if (vnodeOpenMinFilesForImport(pObj->vnode, fid) < 0) return TSDB_CODE_OTHERS;
+  if (vnodeOpenMinFilesForImport(pObj->vnode, fid) < 0) return TSDB_CODE_FILE_CORRUPTED;
 
   memset(&importHandle, 0, sizeof(SImportHandle));
 
@@ -716,7 +716,7 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
     if (read(pVnode->hfd, (void *)(importHandle.pHeader), importHandle.pHeaderSize) < importHandle.pHeaderSize) {
       dError("vid: %d, sid: %d, meterId: %s, fid: %d failed to read SCompHeader part, reason:%s", pObj->vnode,
              pObj->sid, pObj->meterId, fid, strerror(errno));
-      code = TSDB_CODE_OTHERS;
+      code = TSDB_CODE_FILE_CORRUPTED;
       goto _error_merge;
     }
 
@@ -875,31 +875,8 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
         }
 
         if (blockIter.slot >= importHandle.compInfo.numOfBlocks) {  // blocks end, break
-          assert(false);
-
           // Should never come here
-          int rowsLeft = rows - payloadIter;
-          if (pVnode->nfd > 0 && rowsLeft > 0) {
-            // TODO : Convert into while here
-            vnodeConvertRowsToCols(pObj, payload + pObj->bytesPerPoint * payloadIter, rowsLeft, data, 0);
-            pointsImported++;
-            lastKeyImported = KEY_AT_INDEX(payload, pObj->bytesPerPoint, payloadIter);
-
-            assert(importHandle.last == 0);
-
-            compBlock.last = 1;
-            if (vnodeWriteBlockToFile(pObj, &compBlock, data, cdata, rows - payloadIter) < 0) {
-              // TODO :
-            }
-
-            checksum = taosCalcChecksum(checksum, (uint8_t *)(&compBlock), sizeof(SCompBlock));
-            importHandle.newNumOfBlocks++;
-            importHandle.driftOffset += sizeof(SCompBlock);
-            importHandle.last = compBlock.last;
-            twrite(pVnode->nfd, (void *)(&compBlock), sizeof(SCompBlock));
-            twrite(pVnode->nfd, (void *)(&checksum), sizeof(TSCKSUM));
-          }
-          break;
+          assert(false);
         }
 
         TSKEY key = KEY_AT_INDEX(payload, pObj->bytesPerPoint, payloadIter);
