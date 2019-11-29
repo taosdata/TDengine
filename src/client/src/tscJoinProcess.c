@@ -1203,16 +1203,20 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
   if (pCur->vnodeIndex == -1) {
     if (pCur->order == TSQL_SO_ASC) {
       tsBufGetBlock(pTSBuf, 0, 0);
-      // list is empty
-      if (pTSBuf->block.numOfElem == 0) {
+      
+      if (pTSBuf->block.numOfElem == 0) { // the whole list is empty, return
         tsBufResetPos(pTSBuf);
         return false;
       } else {
         return true;
       }
-    } else {
+      
+    } else { // get the last timestamp record in the last block of the last vnode
+      assert(pTSBuf->numOfVnodes > 0);
+      
       int32_t vnodeIndex = pTSBuf->numOfVnodes - 1;
-
+      pCur->vnodeIndex = vnodeIndex;
+      
       int32_t            vnodeId = pTSBuf->pData[pCur->vnodeIndex].info.vnode;
       STSVnodeBlockInfo* pBlockInfo = tsBufGetVnodeBlockInfo(pTSBuf, vnodeId);
       int32_t            blockIndex = pBlockInfo->numOfBlocks - 1;

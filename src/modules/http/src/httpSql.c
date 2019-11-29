@@ -378,9 +378,7 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
 }
 
 void httpProcessRequest(HttpContext *pContext) {
-  if (pContext->session == NULL) {
-    httpFetchSession(pContext);
-  }
+  httpFetchSession(pContext);
 
   if (pContext->session == NULL || pContext->session != pContext->session->signature ||
       pContext->reqType == HTTP_REQTYPE_LOGIN) {

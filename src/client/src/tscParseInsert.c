@@ -155,7 +155,8 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
   int64_t iv;
   int32_t numType;
   char *  endptr = NULL;
-
+  errno = 0;   // clear the previous existed error information
+  
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {  // bool
       if ((pToken->type == TK_BOOL || pToken->type == TK_STRING) && (pToken->n != 0)) {

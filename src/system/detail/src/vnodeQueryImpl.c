@@ -40,12 +40,12 @@ enum {
 
 #define IS_DISK_DATA_BLOCK(q) ((q)->fileId >= 0)
 
-static int32_t copyDataFromMMapBuffer(int fd, SQInfo *pQInfo, SQueryFileInfo *pQueryFile, char *buf, uint64_t offset,
-                                      int32_t size);
-static int32_t readDataFromDiskFile(int fd, SQInfo *pQInfo, SQueryFileInfo *pQueryFile, char *buf, uint64_t offset,
+//static int32_t copyDataFromMMapBuffer(int fd, SQInfo *pQInfo, SQueryFilesInfo *pQueryFile, char *buf, uint64_t offset,
+//                                      int32_t size);
+static int32_t readDataFromDiskFile(int fd, SQInfo *pQInfo, SQueryFilesInfo *pQueryFile, char *buf, uint64_t offset,
                                     int32_t size);
 
-__read_data_fn_t readDataFunctor[2] = {copyDataFromMMapBuffer, readDataFromDiskFile};
+//__read_data_fn_t readDataFunctor[2] = {copyDataFromMMapBuffer, readDataFromDiskFile};
 
 static void    vnodeInitLoadCompBlockInfo(SQueryLoadCompBlockInfo *pCompBlockLoadInfo);
 static int32_t moveToNextBlock(SQueryRuntimeEnv *pRuntimeEnv, int32_t step, __block_search_fn_t searchFn,
@@ -99,7 +99,7 @@ static FORCE_INLINE int32_t getCompHeaderStartPosition(SVnodeCfg *pCfg) {
 }
 
 static FORCE_INLINE int32_t validateCompBlockOffset(SQInfo *pQInfo, SMeterObj *pMeterObj, SCompHeader *pCompHeader,
-                                                    SQueryFileInfo *pQueryFileInfo, int32_t headerSize) {
+                                                    SHeaderFileInfo *pQueryFileInfo, int32_t headerSize) {
   if (pCompHeader->compInfoOffset < headerSize || pCompHeader->compInfoOffset > pQueryFileInfo->headFileSize) {
     dError("QInfo:%p vid:%d sid:%d id:%s, compInfoOffset:%d is not valid, size:%ld", pQInfo, pMeterObj->vnode,
            pMeterObj->sid, pMeterObj->meterId, pCompHeader->compInfoOffset, pQueryFileInfo->headFileSize);
@@ -195,7 +195,7 @@ static bool vnodeIsCompBlockInfoLoaded(SQueryRuntimeEnv *pRuntimeEnv, SMeterObj 
   // if vnodeFreeFields is called, the pQuery->pFields is NULL
   if (pLoadCompBlockInfo->fileListIndex == fileIndex && pLoadCompBlockInfo->sid == pMeterObj->sid &&
       pQuery->pFields != NULL && pQuery->fileId > 0) {
-    assert(pRuntimeEnv->pVnodeFiles[fileIndex].fileID == pLoadCompBlockInfo->fileId && pQuery->numOfBlocks > 0);
+    assert(pRuntimeEnv->vnodeFileInfo.pFileInfo[fileIndex].fileID == pLoadCompBlockInfo->fileId && pQuery->numOfBlocks > 0);
     return true;
   }
 
@@ -207,7 +207,7 @@ static void vnodeSetCompBlockInfoLoaded(SQueryRuntimeEnv *pRuntimeEnv, int32_t f
 
   pLoadCompBlockInfo->sid = sid;
   pLoadCompBlockInfo->fileListIndex = fileIndex;
-  pLoadCompBlockInfo->fileId = pRuntimeEnv->pVnodeFiles[fileIndex].fileID;
+  pLoadCompBlockInfo->fileId = pRuntimeEnv->vnodeFileInfo.pFileInfo[fileIndex].fileID;
 }
 
 static void vnodeInitLoadCompBlockInfo(SQueryLoadCompBlockInfo *pCompBlockLoadInfo) {
@@ -247,58 +247,148 @@ static void vnodeInitDataBlockInfo(SQueryLoadBlockInfo *pBlockLoadInfo) {
   pBlockLoadInfo->fileListIndex = -1;
 }
 
-static void doUnmapHeaderFileData(SQueryRuntimeEnv* pRuntimeEnv) {
-  if (pRuntimeEnv->mmapedHFileIndex >= 0) {
-    assert(pRuntimeEnv->mmapedHFileIndex < pRuntimeEnv->numOfFiles && pRuntimeEnv->mmapedHFileIndex >= 0);
+/**
+ * if the header is smaller than a threshold value(header size + initial offset value)
+ *
+ * @param vnodeId
+ * @param headerFileSize
+ * @return
+ */
+static bool isHeaderFileEmpty(int32_t vnodeId, size_t headerFileSize) {
+  SVnodeCfg* pVnodeCfg = &vnodeList[vnodeId].cfg;
+  return headerFileSize <= getCompHeaderStartPosition(pVnodeCfg);
+}
+
+static void doCloseQueryFileInfoFD(SQueryFilesInfo* pVnodeFilesInfo) {
+  tclose(pVnodeFilesInfo->headerFd);
+  tclose(pVnodeFilesInfo->dataFd);
+  tclose(pVnodeFilesInfo->lastFd);
+}
+
+static void doInitQueryFileInfoFD(SQueryFilesInfo* pVnodeFilesInfo) {
+  pVnodeFilesInfo->current = -1;
+  
+  pVnodeFilesInfo->headerFd = FD_INITIALIZER;  // set the initial value
+  pVnodeFilesInfo->dataFd = FD_INITIALIZER;
+  pVnodeFilesInfo->lastFd = FD_INITIALIZER;
+}
+
+static int32_t doOpenQueryFileData(SQInfo* pQInfo, SQueryFilesInfo* pVnodeFiles) {
+  // if the header is smaller than a threshold value, this file is empty, no need to
+  SHeaderFileInfo* pCurrentFileInfo = &pVnodeFiles->pFileInfo[pVnodeFiles->current];
+  
+  // set the full file path for current opened files
+  snprintf(pVnodeFiles->headerFilePath, PATH_MAX, "%sv%df%d.head", pVnodeFiles->dbFilePathPrefix,
+      pVnodeFiles->vnodeId, pCurrentFileInfo->fileID);
+  
+  pVnodeFiles->headerFd = open(pVnodeFiles->headerFilePath, O_RDONLY);
+  if (!FD_VALID(pVnodeFiles->headerFd)) {
+    dError("QInfo:%p failed open header file:%s reason:%s", pQInfo, pVnodeFiles->headerFilePath, strerror(errno));
+    return -1;
+  }
+  
+  snprintf(pVnodeFiles->dataFilePath, PATH_MAX, "%sv%df%d.data", pVnodeFiles->dbFilePathPrefix,
+           pVnodeFiles->vnodeId, pCurrentFileInfo->fileID);
+  
+  pVnodeFiles->dataFd = open(pVnodeFiles->dataFilePath, O_RDONLY);
+  if (!FD_VALID(pVnodeFiles->dataFd)) {
+    dError("QInfo:%p failed open data file:%s reason:%s", pQInfo, pVnodeFiles->dataFilePath, strerror(errno));
+    return -1;
+  }
+  
+  snprintf(pVnodeFiles->lastFilePath, PATH_MAX, "%sv%df%d.last", pVnodeFiles->dbFilePathPrefix,
+           pVnodeFiles->vnodeId, pCurrentFileInfo->fileID);
+  
+  pVnodeFiles->lastFd = open(pVnodeFiles->lastFilePath, O_RDONLY);
+  if (!FD_VALID(pVnodeFiles->lastFd)) {
+    dError("QInfo:%p failed open last file:%s reason:%s", pQInfo, pVnodeFiles->lastFilePath, strerror(errno));
+    return -1;
+  }
+  
+  pVnodeFiles->pHeaderFileData = mmap(NULL, pCurrentFileInfo->headFileSize, PROT_READ, MAP_SHARED,
+                                      pVnodeFiles->headerFd, 0);
+  
+  if (pVnodeFiles->pHeaderFileData == MAP_FAILED) {
+    pVnodeFiles->pHeaderFileData = NULL;
     
-    SQueryFileInfo *otherVnodeFiles = &pRuntimeEnv->pVnodeFiles[pRuntimeEnv->mmapedHFileIndex];
-    munmap(otherVnodeFiles->pHeaderFileData, otherVnodeFiles->headFileSize);
+    doCloseQueryFileInfoFD(pVnodeFiles);
+    doInitQueryFileInfoFD(pVnodeFiles);
     
-    otherVnodeFiles->pHeaderFileData = NULL;
-    pRuntimeEnv->mmapedHFileIndex = -1;
+    dError("QInfo:%p failed to mmap header file:%s, size:%lld, %s", pQInfo, pVnodeFiles->headerFilePath,
+           pCurrentFileInfo->headFileSize, strerror(errno));
+    
+    return -1;
+  } else {
+    if (madvise(pVnodeFiles->pHeaderFileData, pCurrentFileInfo->headFileSize, MADV_SEQUENTIAL) == -1) {
+      dError("QInfo:%p failed to advise kernel the usage of header file, reason:%s", pQInfo, strerror(errno));
+    }
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+static void doCloseOpenedFileData(SQueryFilesInfo* pVnodeFileInfo) {
+  if (pVnodeFileInfo->current >= 0) {
+    
+    assert(pVnodeFileInfo->current < pVnodeFileInfo->numOfFiles && pVnodeFileInfo->current >= 0 &&
+        pVnodeFileInfo->pHeaderFileData != NULL);
+    
+    SHeaderFileInfo *pCurrentFile = &pVnodeFileInfo->pFileInfo[pVnodeFileInfo->current];
+    
+    munmap(pVnodeFileInfo->pHeaderFileData, pCurrentFile->headFileSize);
+    pVnodeFileInfo->pHeaderFileData = NULL;
+    
+    doCloseQueryFileInfoFD(pVnodeFileInfo);
+    doInitQueryFileInfoFD(pVnodeFileInfo);
   }
 
-  assert(pRuntimeEnv->mmapedHFileIndex == -1);
+  assert(pVnodeFileInfo->current == -1);
 }
 
 /**
  * mmap the data file into memory. For each query, only one header file is allowed to mmap into memory, in order to
- * avoid too many mmapped files at the save time to cause OS return the message of "Cannot allocate memory",
+ * avoid too many memory mapped files at the save time to cause OS return the message of "Cannot allocate memory",
  * during query processing.
  *
  * @param pRuntimeEnv
  * @param fileIndex
  * @return   the return value may be null, so any invoker needs to check the returned value
  */
-char *vnodeGetHeaderFileData(SQueryRuntimeEnv *pRuntimeEnv, int32_t fileIndex) {
-  assert(fileIndex >= 0 && fileIndex < pRuntimeEnv->numOfFiles);
+char *vnodeGetHeaderFileData(SQueryRuntimeEnv *pRuntimeEnv, int32_t vnodeId, int32_t fileIndex) {
+  assert(fileIndex >= 0 && fileIndex < pRuntimeEnv->vnodeFileInfo.numOfFiles);
 
   SQuery *pQuery = pRuntimeEnv->pQuery;
   SQInfo *pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);  // only for log output
 
-  SQueryFileInfo *pVnodeFiles = &pRuntimeEnv->pVnodeFiles[fileIndex];
-  size_t          size = pVnodeFiles->headFileSize;
-
-  if (pVnodeFiles->pHeaderFileData == NULL) {
-    assert(pRuntimeEnv->mmapedHFileIndex != fileIndex);
-    doUnmapHeaderFileData(pRuntimeEnv);     // do close the other mmaped header file
+  SQueryFilesInfo *pVnodeFileInfo = &pRuntimeEnv->vnodeFileInfo;
+  SHeaderFileInfo *pHeaderFileInfo = &pVnodeFileInfo->pFileInfo[fileIndex];
   
-    pVnodeFiles->pHeaderFileData = mmap(NULL, size, PROT_READ, MAP_SHARED, pVnodeFiles->headerFd, 0);
-    if (pVnodeFiles->pHeaderFileData == MAP_FAILED) {
-      pVnodeFiles->pHeaderFileData = NULL;
-      dError("QInfo:%p failed to mmap header file:%s, size:%lld, %s", pQInfo, pVnodeFiles->headerFilePath, size,
-             strerror(errno));
-    } else {
-      pRuntimeEnv->mmapedHFileIndex = fileIndex;  // set the value in case of success mmap file
-      if (madvise(pVnodeFiles->pHeaderFileData, size, MADV_SEQUENTIAL) == -1) {
-        dError("QInfo:%p failed to advise kernel the usage of header file, reason:%s", pQInfo, strerror(errno));
-      }
+  if (pVnodeFileInfo->current != fileIndex || pVnodeFileInfo->pHeaderFileData == NULL) {
+    if (pVnodeFileInfo->current >= 0) {
+      assert(pVnodeFileInfo->pHeaderFileData != NULL);
     }
-  } else {
-    assert(pRuntimeEnv->mmapedHFileIndex == fileIndex);
+    
+    doCloseOpenedFileData(pVnodeFileInfo);     // do close the other memory mapped header file
+    assert(pVnodeFileInfo->pHeaderFileData == NULL);
+    
+    // current header file is empty or broken, return directly
+    if (isHeaderFileEmpty(vnodeId, pHeaderFileInfo->headFileSize)) {
+      qTrace("QInfo:%p vid:%d, fileId:%d, index:%d, size:%d, ignore file, empty or broken", pQInfo,
+          pVnodeFileInfo->vnodeId, pHeaderFileInfo->fileID, fileIndex, pHeaderFileInfo->headFileSize);
+      
+      return pVnodeFileInfo->pHeaderFileData;
+    }
+    
+    // set current opened file Index
+    pVnodeFileInfo->current = fileIndex;
+    
+    if (doOpenQueryFileData(pQInfo, pVnodeFileInfo) != TSDB_CODE_SUCCESS) {
+      doCloseOpenedFileData(pVnodeFileInfo);  // there may be partially open fd, close it anyway.
+      return pVnodeFileInfo->pHeaderFileData;
+    }
   }
 
-  return pVnodeFiles->pHeaderFileData;
+  return pVnodeFileInfo->pHeaderFileData;
 }
 
 /*
@@ -310,7 +400,7 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
   SQInfo *pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);
 
   SVnodeCfg *     pCfg = &vnodeList[pMeterObj->vnode].cfg;
-  SQueryFileInfo *pQueryFileInfo = &pRuntimeEnv->pVnodeFiles[fileIndex];
+  SHeaderFileInfo *pQueryFileInfo = &pRuntimeEnv->vnodeFileInfo.pFileInfo[fileIndex];
 
   int64_t st = taosGetTimestampUs();
 
@@ -326,7 +416,7 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
   pSummary->numOfSeek++;
 
 #if 1
-  char *data = vnodeGetHeaderFileData(pRuntimeEnv, fileIndex);
+  char *data = vnodeGetHeaderFileData(pRuntimeEnv, pMeterObj->vnode, fileIndex);
   if (data == NULL) {
     return -1;  // failed to load the header file data into memory
   }
@@ -337,7 +427,7 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
 #endif
 
   // check the offset value integrity
-  if (validateHeaderOffsetSegment(pQInfo, pQueryFileInfo->headerFilePath, pMeterObj->vnode, data,
+  if (validateHeaderOffsetSegment(pQInfo, pRuntimeEnv->vnodeFileInfo.headerFilePath, pMeterObj->vnode, data,
                                   getCompHeaderSegSize(pCfg)) < 0) {
     return -1;
   }
@@ -365,7 +455,7 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
 #endif
 
   // check compblock info integrity
-  if (validateCompBlockInfoSegment(pQInfo, pQueryFileInfo->headerFilePath, pMeterObj->vnode, compInfo,
+  if (validateCompBlockInfoSegment(pQInfo, pRuntimeEnv->vnodeFileInfo.headerFilePath, pMeterObj->vnode, compInfo,
                                    compHeader->compInfoOffset) < 0) {
     return -1;
   }
@@ -399,7 +489,7 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
 #endif
 
   // check comp block integrity
-  if (validateCompBlockSegment(pQInfo, pQueryFileInfo->headerFilePath, compInfo, (char *)pQuery->pBlock,
+  if (validateCompBlockSegment(pQInfo, pRuntimeEnv->vnodeFileInfo.headerFilePath, compInfo, (char *)pQuery->pBlock,
                                pMeterObj->vnode, checksum) < 0) {
     return -1;
   }
@@ -409,7 +499,7 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
 
   int64_t et = taosGetTimestampUs();
   qTrace("QInfo:%p vid:%d sid:%d id:%s, fileId:%d, load compblock info, size:%d, elapsed:%f ms", pQInfo,
-         pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pRuntimeEnv->pVnodeFiles[fileIndex].fileID,
+         pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pRuntimeEnv->vnodeFileInfo.pFileInfo[fileIndex].fileID,
          compBlockSize, (et - st) / 1000.0);
 
   pSummary->totalCompInfoSize += compBlockSize;
@@ -469,8 +559,9 @@ static int32_t binarySearchForBlock(SQuery *pQuery, int64_t key) {
   return binarySearchForBlockImpl(pQuery->pBlock, pQuery->numOfBlocks, key, pQuery->order.order);
 }
 
+#if 0
 /* unmap previous buffer */
-static UNUSED_FUNC int32_t resetMMapWindow(SQueryFileInfo *pQueryFileInfo) {
+static UNUSED_FUNC int32_t resetMMapWindow(SHeaderFileInfo *pQueryFileInfo) {
   munmap(pQueryFileInfo->pDataFileData, pQueryFileInfo->defaultMappingSize);
 
   pQueryFileInfo->dtFileMappingOffset = 0;
@@ -484,7 +575,7 @@ static UNUSED_FUNC int32_t resetMMapWindow(SQueryFileInfo *pQueryFileInfo) {
   return 0;
 }
 
-static int32_t moveMMapWindow(SQueryFileInfo *pQueryFileInfo, uint64_t offset) {
+static int32_t moveMMapWindow(SHeaderFileInfo *pQueryFileInfo, uint64_t offset) {
   uint64_t upperBnd = (pQueryFileInfo->dtFileMappingOffset + pQueryFileInfo->defaultMappingSize - 1);
 
   /* data that are located in current mmapping window */
@@ -531,7 +622,7 @@ static int32_t moveMMapWindow(SQueryFileInfo *pQueryFileInfo, uint64_t offset) {
   return 0;
 }
 
-static int32_t copyDataFromMMapBuffer(int fd, SQInfo *pQInfo, SQueryFileInfo *pQueryFile, char *buf, uint64_t offset,
+static int32_t copyDataFromMMapBuffer(int fd, SQInfo *pQInfo, SHeaderFileInfo *pQueryFile, char *buf, uint64_t offset,
                                       int32_t size) {
   assert(size >= 0);
 
@@ -582,7 +673,9 @@ static int32_t copyDataFromMMapBuffer(int fd, SQInfo *pQInfo, SQueryFileInfo *pQ
   return 0;
 }
 
-static int32_t readDataFromDiskFile(int fd, SQInfo *pQInfo, SQueryFileInfo *pQueryFile, char *buf, uint64_t offset,
+#endif
+
+static int32_t readDataFromDiskFile(int fd, SQInfo *pQInfo, SQueryFilesInfo *pQueryFile, char *buf, uint64_t offset,
                                     int32_t size) {
   assert(size >= 0);
 
@@ -597,7 +690,7 @@ static int32_t readDataFromDiskFile(int fd, SQInfo *pQInfo, SQueryFileInfo *pQue
   return 0;
 }
 
-static int32_t loadColumnIntoMem(SQuery *pQuery, SQueryFileInfo *pQueryFileInfo, SCompBlock *pBlock, SField *pFields,
+static int32_t loadColumnIntoMem(SQuery *pQuery, SQueryFilesInfo *pQueryFileInfo, SCompBlock *pBlock, SField *pFields,
                                  int32_t col, SData *sdata, void *tmpBuf, char *buffer, int32_t buffersize) {
   char *dst = (pBlock->algorithm) ? tmpBuf : sdata->data;
 
@@ -605,14 +698,14 @@ static int32_t loadColumnIntoMem(SQuery *pQuery, SQueryFileInfo *pQueryFileInfo,
   SQInfo *pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);
 
   int     fd = pBlock->last ? pQueryFileInfo->lastFd : pQueryFileInfo->dataFd;
-  int32_t ret = (*readDataFunctor[DEFAULT_IO_ENGINE])(fd, pQInfo, pQueryFileInfo, dst, offset, pFields[col].len);
+  int32_t ret = readDataFromDiskFile(fd, pQInfo, pQueryFileInfo, dst, offset, pFields[col].len);
   if (ret != 0) {
     return ret;
   }
 
   // load checksum
   TSCKSUM checksum = 0;
-  ret = (*readDataFunctor[DEFAULT_IO_ENGINE])(fd, pQInfo, pQueryFileInfo, (char *)&checksum, offset + pFields[col].len,
+  ret = readDataFromDiskFile(fd, pQInfo, pQueryFileInfo, (char *)&checksum, offset + pFields[col].len,
                                               sizeof(TSCKSUM));
   if (ret != 0) {
     return ret;
@@ -634,12 +727,12 @@ static int32_t loadColumnIntoMem(SQuery *pQuery, SQueryFileInfo *pQueryFileInfo,
   return 0;
 }
 
-static int32_t loadDataBlockFieldsInfo(SQueryRuntimeEnv *pRuntimeEnv, SQueryFileInfo *pQueryFileInfo,
-                                       SCompBlock *pBlock, SField **pField) {
+static int32_t loadDataBlockFieldsInfo(SQueryRuntimeEnv *pRuntimeEnv, SCompBlock *pBlock, SField **pField) {
   SQuery *   pQuery = pRuntimeEnv->pQuery;
   SQInfo *   pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);
   SMeterObj *pMeterObj = pRuntimeEnv->pMeterObj;
-
+  SQueryFilesInfo *pVnodeFilesInfo = &pRuntimeEnv->vnodeFileInfo;
+  
   size_t size = sizeof(SField) * (pBlock->numOfCols) + sizeof(TSCKSUM);
 
   // if *pField != NULL, this block is loaded once, in current query do nothing
@@ -654,9 +747,8 @@ static int32_t loadDataBlockFieldsInfo(SQueryRuntimeEnv *pRuntimeEnv, SQueryFile
 
   int64_t st = taosGetTimestampUs();
 
-  int     fd = pBlock->last ? pQueryFileInfo->lastFd : pQueryFileInfo->dataFd;
-  int32_t ret =
-      (*readDataFunctor[DEFAULT_IO_ENGINE])(fd, pQInfo, pQueryFileInfo, (char *)(*pField), pBlock->offset, size);
+  int     fd = pBlock->last ? pVnodeFilesInfo->lastFd : pVnodeFilesInfo->dataFd;
+  int32_t ret = readDataFromDiskFile(fd, pQInfo, pVnodeFilesInfo, (char *)(*pField), pBlock->offset, size);
   if (ret != 0) {
     return ret;
   }
@@ -664,7 +756,7 @@ static int32_t loadDataBlockFieldsInfo(SQueryRuntimeEnv *pRuntimeEnv, SQueryFile
   // check fields integrity
   if (!taosCheckChecksumWhole((uint8_t *)(*pField), size)) {
     dLError("QInfo:%p vid:%d sid:%d id:%s, slot:%d, failed to read sfields, file:%s, sfields area broken:%lld", pQInfo,
-            pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->slot, pQueryFileInfo->dataFilePath,
+            pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->slot, pVnodeFilesInfo->dataFilePath,
             pBlock->offset);
     return -1;
   }
@@ -692,7 +784,8 @@ static int32_t loadDataBlockIntoMem(SCompBlock *pBlock, SField **pField, SQueryR
   SMeterObj *pMeterObj = pRuntimeEnv->pMeterObj;
   SData **   sdata = pRuntimeEnv->colDataBuffer;
 
-  SQueryFileInfo *pQueryFileInfo = &pRuntimeEnv->pVnodeFiles[fileIdx];
+  assert(fileIdx == pRuntimeEnv->vnodeFileInfo.current);
+  
   SData **        primaryTSBuf = &pRuntimeEnv->primaryColBuffer;
   void *          tmpBuf = pRuntimeEnv->unzipBuffer;
 
@@ -705,7 +798,7 @@ static int32_t loadDataBlockIntoMem(SCompBlock *pBlock, SField **pField, SQueryR
   }
 
   /* failed to load fields info, return with error info */
-  if (loadSField && (loadDataBlockFieldsInfo(pRuntimeEnv, pQueryFileInfo, pBlock, pField) != 0)) {
+  if (loadSField && (loadDataBlockFieldsInfo(pRuntimeEnv, pBlock, pField) != 0)) {
     return -1;
   }
 
@@ -720,7 +813,7 @@ static int32_t loadDataBlockIntoMem(SCompBlock *pBlock, SField **pField, SQueryR
     } else {
       columnBytes += (*pField)[PRIMARYKEY_TIMESTAMP_COL_INDEX].len + sizeof(TSCKSUM);
       int32_t ret =
-          loadColumnIntoMem(pQuery, pQueryFileInfo, pBlock, *pField, PRIMARYKEY_TIMESTAMP_COL_INDEX, *primaryTSBuf,
+          loadColumnIntoMem(pQuery, &pRuntimeEnv->vnodeFileInfo, pBlock, *pField, PRIMARYKEY_TIMESTAMP_COL_INDEX, *primaryTSBuf,
                             tmpBuf, pRuntimeEnv->secondaryUnzipBuffer, pRuntimeEnv->unzipBufSize);
       if (ret != 0) {
         return -1;
@@ -758,7 +851,7 @@ static int32_t loadDataBlockIntoMem(SCompBlock *pBlock, SField **pField, SQueryR
           fillWithNull(pQuery, sdata[i]->data, i, pBlock->numOfPoints);
         } else {
           columnBytes += (*pField)[j].len + sizeof(TSCKSUM);
-          ret = loadColumnIntoMem(pQuery, pQueryFileInfo, pBlock, *pField, j, sdata[i], tmpBuf,
+          ret = loadColumnIntoMem(pQuery, &pRuntimeEnv->vnodeFileInfo, pBlock, *pField, j, sdata[i], tmpBuf,
                                   pRuntimeEnv->secondaryUnzipBuffer, pRuntimeEnv->unzipBufSize);
 
           pSummary->numOfSeek++;
@@ -1395,7 +1488,7 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
 
   TSKEY key = *(TSKEY *)(pCtx[0].aInputElemBuf + TSDB_KEYSIZE * offset);
 
-#if 1
+#if defined(_DEBUG_VIEW)
   printf("elem in comp ts file:%lld, key:%lld, tag:%d, id:%s, query order:%d, ts order:%d, traverse:%d, index:%d\n",
          elem.ts, key, elem.tag, pRuntimeEnv->pMeterObj->meterId, pQuery->order.order, pRuntimeEnv->pTSBuf->tsOrder,
          pRuntimeEnv->pTSBuf->cur.order, pRuntimeEnv->pTSBuf->cur.tsIndex);
@@ -1708,23 +1801,25 @@ static int32_t applyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SBlockInfo *
 }
 
 int32_t vnodeGetVnodeHeaderFileIdx(int32_t *fid, SQueryRuntimeEnv *pRuntimeEnv, int32_t order) {
-  if (pRuntimeEnv->numOfFiles == 0) {
+  if (pRuntimeEnv->vnodeFileInfo.numOfFiles == 0) {
     return -1;
   }
 
+  SQueryFilesInfo* pVnodeFiles = &pRuntimeEnv->vnodeFileInfo;
+  
   /* set the initial file for current query */
-  if (order == TSQL_SO_ASC && *fid < pRuntimeEnv->pVnodeFiles[0].fileID) {
-    *fid = pRuntimeEnv->pVnodeFiles[0].fileID;
+  if (order == TSQL_SO_ASC && *fid < pVnodeFiles->pFileInfo[0].fileID) {
+    *fid = pVnodeFiles->pFileInfo[0].fileID;
     return 0;
-  } else if (order == TSQL_SO_DESC && *fid > pRuntimeEnv->pVnodeFiles[pRuntimeEnv->numOfFiles - 1].fileID) {
-    *fid = pRuntimeEnv->pVnodeFiles[pRuntimeEnv->numOfFiles - 1].fileID;
-    return pRuntimeEnv->numOfFiles - 1;
+  } else if (order == TSQL_SO_DESC && *fid > pVnodeFiles->pFileInfo[pVnodeFiles->numOfFiles - 1].fileID) {
+    *fid = pVnodeFiles->pFileInfo[pVnodeFiles->numOfFiles - 1].fileID;
+    return pVnodeFiles->numOfFiles - 1;
   }
 
-  int32_t numOfFiles = pRuntimeEnv->numOfFiles;
+  int32_t numOfFiles = pVnodeFiles->numOfFiles;
 
-  if (order == TSQL_SO_DESC && *fid > pRuntimeEnv->pVnodeFiles[numOfFiles - 1].fileID) {
-    *fid = pRuntimeEnv->pVnodeFiles[numOfFiles - 1].fileID;
+  if (order == TSQL_SO_DESC && *fid > pVnodeFiles->pFileInfo[numOfFiles - 1].fileID) {
+    *fid = pVnodeFiles->pFileInfo[numOfFiles - 1].fileID;
     return numOfFiles - 1;
   }
 
@@ -1732,12 +1827,12 @@ int32_t vnodeGetVnodeHeaderFileIdx(int32_t *fid, SQueryRuntimeEnv *pRuntimeEnv, 
     int32_t i = 0;
     int32_t step = 1;
 
-    while (i<numOfFiles && * fid> pRuntimeEnv->pVnodeFiles[i].fileID) {
+    while (i<numOfFiles && * fid> pVnodeFiles->pFileInfo[i].fileID) {
       i += step;
     }
 
-    if (i < numOfFiles && *fid <= pRuntimeEnv->pVnodeFiles[i].fileID) {
-      *fid = pRuntimeEnv->pVnodeFiles[i].fileID;
+    if (i < numOfFiles && *fid <= pVnodeFiles->pFileInfo[i].fileID) {
+      *fid = pVnodeFiles->pFileInfo[i].fileID;
       return i;
     } else {
       return -1;
@@ -1746,12 +1841,12 @@ int32_t vnodeGetVnodeHeaderFileIdx(int32_t *fid, SQueryRuntimeEnv *pRuntimeEnv, 
     int32_t i = numOfFiles - 1;
     int32_t step = -1;
 
-    while (i >= 0 && *fid < pRuntimeEnv->pVnodeFiles[i].fileID) {
+    while (i >= 0 && *fid < pVnodeFiles->pFileInfo[i].fileID) {
       i += step;
     }
 
-    if (i >= 0 && *fid >= pRuntimeEnv->pVnodeFiles[i].fileID) {
-      *fid = pRuntimeEnv->pVnodeFiles[i].fileID;
+    if (i >= 0 && *fid >= pVnodeFiles->pFileInfo[i].fileID) {
+      *fid = pVnodeFiles->pFileInfo[i].fileID;
       return i;
     } else {
       return -1;
@@ -2082,24 +2177,11 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
     tfree(pRuntimeEnv->primaryColBuffer);
   }
 
-  for (int32_t i = 0; i < pRuntimeEnv->numOfFiles; ++i) {
-    SQueryFileInfo *pQFileInfo = &(pRuntimeEnv->pVnodeFiles[i]);
-    if (pQFileInfo->pHeaderFileData != NULL && pQFileInfo->pHeaderFileData != MAP_FAILED) {
-      munmap(pQFileInfo->pHeaderFileData, pQFileInfo->headFileSize);
-    }
-    tclose(pQFileInfo->headerFd);
+  doCloseOpenedFileData(&pRuntimeEnv->vnodeFileInfo);
 
-    if (pQFileInfo->pDataFileData != NULL && pQFileInfo->pDataFileData != MAP_FAILED) {
-      munmap(pQFileInfo->pDataFileData, pQFileInfo->defaultMappingSize);
-    }
-
-    tclose(pQFileInfo->dataFd);
-    tclose(pQFileInfo->lastFd);
-  }
-
-  if (pRuntimeEnv->pVnodeFiles != NULL) {
-    pRuntimeEnv->numOfFiles = 0;
-    free(pRuntimeEnv->pVnodeFiles);
+  if (pRuntimeEnv->vnodeFileInfo.pFileInfo != NULL) {
+    pRuntimeEnv->vnodeFileInfo.numOfFiles = 0;
+    free(pRuntimeEnv->vnodeFileInfo.pFileInfo);
   }
 
   if (pRuntimeEnv->pInterpoBuf != NULL) {
@@ -2907,8 +2989,8 @@ bool vnodeParametersSafetyCheck(SQuery *pQuery) {
 }
 
 static int file_order_comparator(const void *p1, const void *p2) {
-  SQueryFileInfo *pInfo1 = (SQueryFileInfo *)p1;
-  SQueryFileInfo *pInfo2 = (SQueryFileInfo *)p2;
+  SHeaderFileInfo *pInfo1 = (SHeaderFileInfo *)p1;
+  SHeaderFileInfo *pInfo2 = (SHeaderFileInfo *)p2;
 
   if (pInfo1->fileID == pInfo2->fileID) {
     return 0;
@@ -2919,6 +3001,7 @@ static int file_order_comparator(const void *p1, const void *p2) {
 
 /**
  * open a data files and header file for metric meta query
+ *
  * @param pQInfo
  * @param pVnodeFiles
  * @param fid
@@ -2927,36 +3010,17 @@ static int file_order_comparator(const void *p1, const void *p2) {
  * @param prefix
  * @return
  */
-static int32_t vnodeOpenVnodeDBFiles(SQInfo *pQInfo, SQueryFileInfo *pVnodeFiles, int32_t fid, int32_t vnodeId,
-                                     char *fileName, char *prefix) {
-  //  __off_t size = 0;
+static int32_t vnodeOpenVnodeDBFiles(SQueryFilesInfo *pVnodeFiles, int32_t fid, int32_t index, char *fileName) {
+  SHeaderFileInfo *pFileInfo = &pVnodeFiles->pFileInfo[index];
+  
+  pFileInfo->fileID = fid;
 
-  pVnodeFiles->fileID = fid;
-  pVnodeFiles->defaultMappingSize = DEFAULT_DATA_FILE_MMAP_WINDOW_SIZE;
-
-  snprintf(pVnodeFiles->headerFilePath, 256, "%s%s", prefix, fileName);
-  pVnodeFiles->headerFd = open(pVnodeFiles->headerFilePath, O_RDONLY);
-
-  if (!VALIDFD(pVnodeFiles->headerFd)) {
-    dError("QInfo:%p failed open header file:%s reason:%s", pQInfo, pVnodeFiles->headerFilePath, strerror(errno));
-    goto _clean;
-  }
+  char buf[PATH_MAX] = {0};
+  snprintf(buf, PATH_MAX, "%s%s", pVnodeFiles->dbFilePathPrefix, fileName);
 
   struct stat fstat = {0};
-  if (stat(pVnodeFiles->headerFilePath, &fstat) < 0) return -1;
-  pVnodeFiles->headFileSize = fstat.st_size;
-
-  snprintf(pVnodeFiles->dataFilePath, 256, "%sv%df%d.data", prefix, vnodeId, fid);
-  snprintf(pVnodeFiles->lastFilePath, 256, "%sv%df%d.last", prefix, vnodeId, fid);
-
-  pVnodeFiles->dataFd = open(pVnodeFiles->dataFilePath, O_RDONLY);
-  pVnodeFiles->lastFd = open(pVnodeFiles->lastFilePath, O_RDONLY);
-
-//  if (stat(pVnodeFiles->dataFilePath, &fstat) < 0) return -1;
-//  pVnodeFiles->dataFileSize = fstat.st_size;
-//
-//  if (stat(pVnodeFiles->lastFilePath, &fstat) < 0) return -1;
-//  pVnodeFiles->lastFileSize = fstat.st_size;
+  if (stat(buf, &fstat) < 0) return -1;
+  pFileInfo->headFileSize = fstat.st_size;
 
 #if DEFAULT_IO_ENGINE == IO_ENGINE_MMAP
   /* enforce kernel to preload data when the file is mapping */
@@ -2976,38 +3040,38 @@ static int32_t vnodeOpenVnodeDBFiles(SQInfo *pQInfo, SQueryFileInfo *pVnodeFiles
 
   return TSDB_CODE_SUCCESS;
 
-_clean:
-
 #if DEFAULT_IO_ENGINE == IO_ENGINE_MMAP
+_clean:
   if (pVnodeFiles->pDataFileData != MAP_FAILED && pVnodeFiles->pDataFileData != NULL) {
     munmap(pVnodeFiles->pDataFileData, pVnodeFiles->defaultMappingSize);
     pVnodeFiles->pDataFileData = NULL;
   }
-#endif
-
+  
   tclose(pVnodeFiles->headerFd);
   tclose(pVnodeFiles->dataFd);
   tclose(pVnodeFiles->lastFd);
   return -1;
+  
+#endif
 }
 
-static void vnodeOpenAllFiles(SQInfo *pQInfo, int32_t vnodeId) {
-  char dbFilePathPrefix[TSDB_FILENAME_LEN] = {0};
-
-  sprintf(dbFilePathPrefix, "%s/vnode%d/db/", tsDirectory, vnodeId);
-  DIR *pDir = opendir(dbFilePathPrefix);
-  if (pDir == NULL) {
-    dError("QInfo:%p failed to open directory:%s", pQInfo, dbFilePathPrefix);
-    return;
-  }
-
+static void vnodeRecordAllFiles(SQInfo *pQInfo, int32_t vnodeId) {
   char suffix[] = ".head";
 
   struct dirent *pEntry = NULL;
   size_t         alloc = 4;  // default allocated size
 
-  SQueryRuntimeEnv *pRuntimeEnv = &(pQInfo->pMeterQuerySupporter->runtimeEnv);
-  pRuntimeEnv->pVnodeFiles = calloc(1, sizeof(SQueryFileInfo) * alloc);
+  SQueryFilesInfo *pVnodeFilesInfo = &(pQInfo->pMeterQuerySupporter->runtimeEnv.vnodeFileInfo);
+  pVnodeFilesInfo->vnodeId = vnodeId;
+  
+  sprintf(pVnodeFilesInfo->dbFilePathPrefix, "%s/vnode%d/db/", tsDirectory, vnodeId);
+  DIR *pDir = opendir(pVnodeFilesInfo->dbFilePathPrefix);
+  if (pDir == NULL) {
+    dError("QInfo:%p failed to open directory:%s", pQInfo, pVnodeFilesInfo->dbFilePathPrefix);
+    return;
+  }
+
+  pVnodeFilesInfo->pFileInfo = calloc(1, sizeof(SHeaderFileInfo) * alloc);
   SVnodeObj *pVnode = &vnodeList[vnodeId];
 
   while ((pEntry = readdir(pDir)) != NULL) {
@@ -3041,26 +3105,28 @@ static void vnodeOpenAllFiles(SQInfo *pQInfo, int32_t vnodeId) {
 
     assert(fid >= 0 && vid >= 0);
 
-    if (++pRuntimeEnv->numOfFiles > alloc) {
-      alloc = alloc << 1;
-      pRuntimeEnv->pVnodeFiles = realloc(pRuntimeEnv->pVnodeFiles, alloc * sizeof(SQueryFileInfo));
-      memset(&pRuntimeEnv->pVnodeFiles[alloc >> 1], 0, (alloc >> 1) * sizeof(SQueryFileInfo));
+    if (++pVnodeFilesInfo->numOfFiles > alloc) {
+      alloc = alloc << 1U;
+      pVnodeFilesInfo->pFileInfo = realloc(pVnodeFilesInfo->pFileInfo, alloc * sizeof(SHeaderFileInfo));
+      memset(&pVnodeFilesInfo->pFileInfo[alloc >> 1U], 0, (alloc >> 1U) * sizeof(SHeaderFileInfo));
     }
 
-    SQueryFileInfo *pVnodeFiles = &pRuntimeEnv->pVnodeFiles[pRuntimeEnv->numOfFiles - 1];
-    int32_t         ret = vnodeOpenVnodeDBFiles(pQInfo, pVnodeFiles, fid, vnodeId, pEntry->d_name, dbFilePathPrefix);
+    SHeaderFileInfo *pVnodeFiles = &pVnodeFilesInfo->pFileInfo[pVnodeFilesInfo->numOfFiles - 1];
+    
+    int32_t ret = vnodeOpenVnodeDBFiles(pVnodeFilesInfo, fid, pVnodeFilesInfo->numOfFiles - 1, pEntry->d_name);
     if (ret < 0) {
-      memset(pVnodeFiles, 0, sizeof(SQueryFileInfo));  // reset information
-      pRuntimeEnv->numOfFiles -= 1;
+      memset(pVnodeFiles, 0, sizeof(SHeaderFileInfo));  // reset information
+      pVnodeFilesInfo->numOfFiles -= 1;
     }
   }
 
   closedir(pDir);
 
-  dTrace("QInfo:%p find %d data files in %s to be checked", pQInfo, pRuntimeEnv->numOfFiles, dbFilePathPrefix);
+  dTrace("QInfo:%p find %d data files in %s to be checked", pQInfo, pVnodeFilesInfo->numOfFiles,
+      pVnodeFilesInfo->dbFilePathPrefix);
 
   /* order the files information according their names */
-  qsort(pRuntimeEnv->pVnodeFiles, (size_t)pRuntimeEnv->numOfFiles, sizeof(SQueryFileInfo), file_order_comparator);
+  qsort(pVnodeFilesInfo->pFileInfo, (size_t)pVnodeFilesInfo->numOfFiles, sizeof(SHeaderFileInfo), file_order_comparator);
 }
 
 static void updateOffsetVal(SQueryRuntimeEnv *pRuntimeEnv, SBlockInfo *pBlockInfo, void *pBlock) {
@@ -3642,7 +3708,8 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
   // dataInCache requires lastKey value
   pQuery->lastKey = pQuery->skey;
 
-  pSupporter->runtimeEnv.mmapedHFileIndex = -1;  // set the initial value
+  doInitQueryFileInfoFD(&pSupporter->runtimeEnv.vnodeFileInfo);
+  
   vnodeInitDataBlockInfo(&pSupporter->runtimeEnv.loadBlockInfo);
   vnodeInitLoadCompBlockInfo(&pSupporter->runtimeEnv.loadCompBlockInfo);
 
@@ -3675,7 +3742,7 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
     return ret;
   }
 
-  vnodeOpenAllFiles(pQInfo, pMeterObj->vnode);
+  vnodeRecordAllFiles(pQInfo, pMeterObj->vnode);
 
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
     if ((ret = allocateOutputBufForGroup(pSupporter, pQuery, false)) != TSDB_CODE_SUCCESS) {
@@ -3768,7 +3835,7 @@ void vnodeQueryFreeQInfoEx(SQInfo *pQInfo) {
     }
   }
 
-  if (VALIDFD(pSupporter->meterOutputFd)) {
+  if (FD_VALID(pSupporter->meterOutputFd)) {
     assert(pSupporter->meterOutputMMapBuf != NULL);
     dTrace("QInfo:%p disk-based output buffer during query:%lld bytes", pQInfo, pSupporter->bufSize);
     munmap(pSupporter->meterOutputMMapBuf, pSupporter->bufSize);
@@ -3811,8 +3878,8 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
   pQuery->pointsRead = 0;
 
   changeExecuteScanOrder(pQuery, true);
-
-  pSupporter->runtimeEnv.mmapedHFileIndex = -1;  // set the initial value
+  
+  doInitQueryFileInfoFD(&pSupporter->runtimeEnv.vnodeFileInfo);
   vnodeInitDataBlockInfo(&pSupporter->runtimeEnv.loadBlockInfo);
   vnodeInitLoadCompBlockInfo(&pSupporter->runtimeEnv.loadCompBlockInfo);
 
@@ -3853,7 +3920,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
   }
 
   tSidSetSort(pSupporter->pSidSet);
-  vnodeOpenAllFiles(pQInfo, pMeter->vnode);
+  vnodeRecordAllFiles(pQInfo, pMeter->vnode);
 
   if ((ret = allocateOutputBufForGroup(pSupporter, pQuery, true)) != TSDB_CODE_SUCCESS) {
     return ret;
@@ -3869,7 +3936,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
     getTmpfilePath("tb_metric_mmap", pSupporter->extBufFile);
     pSupporter->meterOutputFd = open(pSupporter->extBufFile, O_CREAT | O_RDWR, 0666);
 
-    if (!VALIDFD(pSupporter->meterOutputFd)) {
+    if (!FD_VALID(pSupporter->meterOutputFd)) {
       dError("QInfo:%p failed to create file: %s on disk. %s", pQInfo, pSupporter->extBufFile, strerror(errno));
       return TSDB_CODE_SERV_OUT_OF_MEMORY;
     }
@@ -3994,7 +4061,7 @@ TSKEY getTimestampInDiskBlock(SQueryRuntimeEnv *pRuntimeEnv, int32_t index) {
 
   // the fields info is not loaded, load it into memory
   if (pQuery->pFields == NULL || pQuery->pFields[pQuery->slot] == NULL) {
-    loadDataBlockFieldsInfo(pRuntimeEnv, &pRuntimeEnv->pVnodeFiles[fileIndex], pBlock, &pQuery->pFields[pQuery->slot]);
+    loadDataBlockFieldsInfo(pRuntimeEnv, pBlock, &pQuery->pFields[pQuery->slot]);
   }
 
   SET_DATA_BLOCK_LOADED(pRuntimeEnv->blockStatus);
@@ -5489,11 +5556,12 @@ SMeterDataInfo **vnodeFilterQualifiedMeters(SQInfo *pQInfo, int32_t vid, int32_t
   SMeterQuerySupportObj *pSupporter = pQInfo->pMeterQuerySupporter;
   SMeterSidExtInfo **    pMeterSidExtInfo = pSupporter->pMeterSidExtInfo;
   SQueryRuntimeEnv *     pRuntimeEnv = &pSupporter->runtimeEnv;
-  SQueryFileInfo *       pQueryFileInfo = &pRuntimeEnv->pVnodeFiles[fileIndex];
+  
+  SHeaderFileInfo *      pQueryFileInfo = &pRuntimeEnv->vnodeFileInfo.pFileInfo[fileIndex];
 
   SVnodeObj *pVnode = &vnodeList[vid];
 
-  char *  pHeaderFileData = vnodeGetHeaderFileData(pRuntimeEnv, fileIndex);
+  char *  pHeaderFileData = vnodeGetHeaderFileData(pRuntimeEnv, vid, fileIndex);
   if (pHeaderFileData == NULL) { // failed to load header file into buffer
     return 0;
   }
@@ -5501,7 +5569,7 @@ SMeterDataInfo **vnodeFilterQualifiedMeters(SQInfo *pQInfo, int32_t vid, int32_t
   int32_t tmsize = sizeof(SCompHeader) * (pVnode->cfg.maxSessions) + sizeof(TSCKSUM);
 
   // file is corrupted, abort query in current file
-  if (validateHeaderOffsetSegment(pQInfo, pQueryFileInfo->headerFilePath, vid, pHeaderFileData, tmsize) < 0) {
+  if (validateHeaderOffsetSegment(pQInfo, pRuntimeEnv->vnodeFileInfo.headerFilePath, vid, pHeaderFileData, tmsize) < 0) {
     *numOfMeters = 0;
     return 0;
   }
@@ -5791,7 +5859,7 @@ static bool setCurrentQueryRange(SMeterDataInfo *pMeterDataInfo, SQuery *pQuery,
  * @return
  */
 uint32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery, char *pHeaderData,
-                                int32_t numOfMeters, SQueryFileInfo *pQueryFileInfo, SMeterDataInfo **pMeterDataInfo) {
+                                int32_t numOfMeters, const char* filePath, SMeterDataInfo **pMeterDataInfo) {
   uint32_t           numOfBlocks = 0;
   SQInfo *           pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);
   SQueryCostSummary *pSummary = &pSupporter->runtimeEnv.summary;
@@ -5803,7 +5871,7 @@ uint32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuer
     SMeterObj *pMeterObj = pMeterDataInfo[j]->pMeterObj;
 
     SCompInfo *compInfo = (SCompInfo *)(pHeaderData + pMeterDataInfo[j]->offsetInHeaderFile);
-    int32_t    ret = validateCompBlockInfoSegment(pQInfo, pQueryFileInfo->headerFilePath, pMeterObj->vnode, compInfo,
+    int32_t    ret = validateCompBlockInfoSegment(pQInfo, filePath, pMeterObj->vnode, compInfo,
                                                pMeterDataInfo[j]->offsetInHeaderFile);
     if (ret != 0) {
       clearMeterDataBlockInfo(pMeterDataInfo[j]);
@@ -5822,8 +5890,7 @@ uint32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuer
 
     // check compblock integrity
     TSCKSUM checksum = *(TSCKSUM *)((char *)compInfo + sizeof(SCompInfo) + size);
-    ret = validateCompBlockSegment(pQInfo, pQueryFileInfo->headerFilePath, compInfo, (char *)pCompBlock,
-                                   pMeterObj->vnode, checksum);
+    ret = validateCompBlockSegment(pQInfo, filePath, compInfo, (char *)pCompBlock, pMeterObj->vnode, checksum);
     if (ret < 0) {
       clearMeterDataBlockInfo(pMeterDataInfo[j]);
       continue;
@@ -6492,11 +6559,11 @@ bool needPrimaryTimestampCol(SQuery *pQuery, SBlockInfo *pBlockInfo) {
   return loadPrimaryTS;
 }
 
-int32_t LoadDatablockOnDemand(SCompBlock *pBlock, SField **pFields, int8_t *blkStatus, SQueryRuntimeEnv *pRuntimeEnv,
+int32_t LoadDatablockOnDemand(SCompBlock *pBlock, SField **pFields, uint8_t *blkStatus, SQueryRuntimeEnv *pRuntimeEnv,
                               int32_t fileIdx, int32_t slotIdx, __block_search_fn_t searchFn, bool onDemand) {
   SQuery *        pQuery = pRuntimeEnv->pQuery;
   SMeterObj *     pMeterObj = pRuntimeEnv->pMeterObj;
-  SQueryFileInfo *pQueryFileInfo = &pRuntimeEnv->pVnodeFiles[fileIdx];
+  SHeaderFileInfo *pQueryFileInfo = &pRuntimeEnv->vnodeFileInfo.pFileInfo[fileIdx];
 
   TSKEY *primaryKeys = (TSKEY *)pRuntimeEnv->primaryColBuffer->data;
 
@@ -6531,7 +6598,7 @@ int32_t LoadDatablockOnDemand(SCompBlock *pBlock, SField **pFields, int8_t *blkS
 
       setTimestampRange(pRuntimeEnv, pBlock->keyFirst, pBlock->keyLast);
     } else if (req == BLK_DATA_FILEDS_NEEDED) {
-      if (loadDataBlockFieldsInfo(pRuntimeEnv, pQueryFileInfo, pBlock, pFields) < 0) {
+      if (loadDataBlockFieldsInfo(pRuntimeEnv, pBlock, pFields) < 0) {
         return DISK_DATA_LOAD_FAILED;
       }
     } else {
@@ -6540,7 +6607,7 @@ int32_t LoadDatablockOnDemand(SCompBlock *pBlock, SField **pFields, int8_t *blkS
     }
   } else {
   _load_all:
-    if (loadDataBlockFieldsInfo(pRuntimeEnv, pQueryFileInfo, pBlock, pFields) < 0) {
+    if (loadDataBlockFieldsInfo(pRuntimeEnv, pBlock, pFields) < 0) {
       return DISK_DATA_LOAD_FAILED;
     }
 
@@ -6980,7 +7047,7 @@ int32_t vnodeCopyQueryResultToMsg(void *handle, char *data, int32_t numOfRows) {
     int32_t fd = open(pQuery->sdata[0]->data, O_RDONLY, 0666);
 
     // make sure file exist
-    if (VALIDFD(fd)) {
+    if (FD_VALID(fd)) {
       size_t s = lseek(fd, 0, SEEK_END);
       dTrace("QInfo:%p ts comp data return, file:%s, size:%lld", pQInfo, pQuery->sdata[0]->data, s);
 

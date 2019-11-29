@@ -75,11 +75,12 @@ extern "C" {
 
 #define taosCloseSocket(x) \
   {                        \
-    if (VALIDFD(x)) {      \
+    if (FD_VALID(x)) {     \
       close(x);            \
       x = -1;              \
     }                      \
   }
+  
 #define taosWriteSocket(fd, buf, len) write(fd, buf, len)
 #define taosReadSocket(fd, buf, len) read(fd, buf, len)
 

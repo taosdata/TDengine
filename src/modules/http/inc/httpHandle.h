@@ -68,6 +68,8 @@
 #define HTTP_COMPRESS_IDENTITY      0
 #define HTTP_COMPRESS_GZIP          2
 
+#define HTTP_SESSION_ID_LEN         (TSDB_USER_LEN * 2 + 1)
+
 typedef enum {
     HTTP_CONTEXT_STATE_READY,
     HTTP_CONTEXT_STATE_HANDLING,
@@ -83,7 +85,7 @@ typedef struct {
   int   expire;
   int   access;
   void *taos;
-  char  id[TSDB_USER_LEN];
+  char  id[HTTP_SESSION_ID_LEN + 1];
 } HttpSession;
 
 typedef enum {

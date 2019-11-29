@@ -47,7 +47,7 @@
 
 #define taosCloseSocket(x) \
   {                        \
-    if (VALIDFD(x)) {      \
+    if (FD_VALID(x)) {      \
       close(x);            \
       x = -1;              \
     }                      \

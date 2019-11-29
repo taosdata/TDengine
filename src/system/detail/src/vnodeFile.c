@@ -1830,7 +1830,15 @@ int vnodeInitFile(int vnode) {
   pVnode->fmagic = (uint64_t *)calloc(pVnode->maxFiles + 1, sizeof(uint64_t));
   int fileId = pVnode->fileId;
 
-  for (int i = 0; i < pVnode->numOfFiles; ++i) {
+  /*
+   * The actual files will far exceed the files that need to exist
+   */
+  if (pVnode->numOfFiles > pVnode->maxFiles) {
+    dError("vid:%d numOfFiles:%d should not larger than maxFiles:%d", vnode, pVnode->numOfFiles, pVnode->maxFiles);
+  }
+
+  int numOfFiles = MIN(pVnode->numOfFiles, pVnode->maxFiles);
+  for (int i = 0; i < numOfFiles; ++i) {
     if (vnodeUpdateFileMagic(vnode, fileId) < 0) {
       if (pVnode->cfg.replications > 1) {
         pVnode->badFileId = fileId;

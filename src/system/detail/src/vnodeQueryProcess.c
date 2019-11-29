@@ -266,7 +266,9 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
   __block_search_fn_t searchFn = vnodeSearchKeyFunc[pTempMeter->searchAlgorithm];
 
   int32_t vnodeId = pTempMeter->vnode;
-  dTrace("QInfo:%p start to check data blocks in %d files", pQInfo, pRuntimeEnv->numOfFiles);
+  SQueryFilesInfo* pVnodeFileInfo = &pRuntimeEnv->vnodeFileInfo;
+  
+  dTrace("QInfo:%p start to check data blocks in %d files", pQInfo, pVnodeFileInfo->numOfFiles);
 
   int32_t            fid = QUERY_IS_ASC_QUERY(pQuery) ? -1 : INT32_MAX;
   int32_t            step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
@@ -289,9 +291,9 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
     pQuery->fileId = fid;
     pSummary->numOfFiles++;
 
-    SQueryFileInfo *pQueryFileInfo = &pRuntimeEnv->pVnodeFiles[fileIdx];
-    char *pHeaderData = vnodeGetHeaderFileData(pRuntimeEnv, fileIdx);
-    if (pHeaderData == NULL) { // failed to mmap header file into buffer, ignore current file, try next
+    char *pHeaderFileData = vnodeGetHeaderFileData(pRuntimeEnv, vnodeId, fileIdx);
+    if (pHeaderFileData == NULL) { // failed to mmap header file into buffer, ignore current file, try next
+      fid += step;
       continue;
     }
     
@@ -307,20 +309,21 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
       return NULL;
     }
 
-    dTrace("QInfo:%p file:%s, %d meters qualified", pQInfo, pQueryFileInfo->dataFilePath, numOfQualifiedMeters);
+    dTrace("QInfo:%p file:%s, %d meters qualified", pQInfo, pVnodeFileInfo->dataFilePath, numOfQualifiedMeters);
     
-    // none of meters in query set have pHeaderData in this file, try next file
+    // none of meters in query set have pHeaderFileData in this file, try next file
     if (numOfQualifiedMeters == 0) {
       fid += step;
       tfree(pReqMeterDataInfo);
       continue;
     }
 
-    uint32_t numOfBlocks = getDataBlocksForMeters(pSupporter, pQuery, pHeaderData, numOfQualifiedMeters, pQueryFileInfo,
-                                                  pReqMeterDataInfo);
+    uint32_t numOfBlocks = getDataBlocksForMeters(pSupporter, pQuery, pHeaderFileData, numOfQualifiedMeters,
+        pVnodeFileInfo->headerFilePath, pReqMeterDataInfo);
 
-    dTrace("QInfo:%p file:%s, %d meters contains %d blocks to be checked", pQInfo, pQueryFileInfo->dataFilePath,
+    dTrace("QInfo:%p file:%s, %d meters contains %d blocks to be checked", pQInfo, pVnodeFileInfo->dataFilePath,
            numOfQualifiedMeters, numOfBlocks);
+    
     if (numOfBlocks == 0) {
       fid += step;
       tfree(pReqMeterDataInfo);
@@ -345,7 +348,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
 
     totalBlocks += numOfBlocks;
 
-    // sequentially scan the pHeaderData file
+    // sequentially scan the pHeaderFileData file
     int32_t j = QUERY_IS_ASC_QUERY(pQuery) ? 0 : numOfBlocks - 1;
 
     for (; j < numOfBlocks && j >= 0; j += step) {
@@ -427,7 +430,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
   }
 
   int64_t time = taosGetTimestampUs() - st;
-  dTrace("QInfo:%p complete check %d files, %d blocks, elapsed time:%.3fms", pQInfo, pRuntimeEnv->numOfFiles,
+  dTrace("QInfo:%p complete check %d files, %d blocks, elapsed time:%.3fms", pQInfo, pVnodeFileInfo->numOfFiles,
          totalBlocks, time / 1000.0);
 
   pSummary->fileTimeUs += time;
