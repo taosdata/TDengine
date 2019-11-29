@@ -192,6 +192,11 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
         pObj->vnode, pObj->sid, pObj->meterId, rows, firstKey, lastKey, minKey, maxKey);
     return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
   }
+    // forward to peers
+  if (pShell && pVnode->cfg.replications > 1) {
+    code = vnodeForwardToPeer(pObj, cont, contLen, TSDB_ACTION_IMPORT, sversion);
+    if (code != 0) return code;
+  }
 
   if (pVnode->cfg.commitLog && source != TSDB_DATA_SOURCE_LOG) {
     if (pVnode->logFd < 0) return TSDB_CODE_INVALID_COMMIT_LOG;
