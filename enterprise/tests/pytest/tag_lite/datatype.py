@@ -47,7 +47,7 @@ class TDTestCase:
     tdLog.info("create %d tables" %self.ntables)
     for tid in range(1, self.ntables+1):
       tdSql.execute('create table tb%d using stb tags(%d,%f,%ld,%f,\'%s\',%d)' \
-                     %(tid, tid, 1.2*tid, self.startTime+tid, 1.22*tid, 't'+str(tid), tid%2))
+                     %(tid, tid%3, 1.2*tid, self.startTime+tid, 1.22*tid, 't'+str(tid), tid%2))
     tdLog.sleep(5)
 
     tdLog.info("================= step3")    
@@ -64,19 +64,41 @@ class TDTestCase:
     tdLog.info("drop one tag")
     tdSql.execute('alter table stb drop tag tbi')
     tdLog.info("insert %d data in to each %d tables" %(2,self.ntables))  
-    self.rowsPerTable += 2
     for rid in range(self.rowsPerTable+1,self.rowsPerTable+3):
       sqlcmd = ['insert into']
       for tid in range(1,self.ntables+1):
         sqlcmd.append('tb%d values(%ld,%d)' %(tid, self.startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
+    self.rowsPerTable += 2
     tdSql.query('select count(*) from stb')
     tdSql.checkData(0,0, self.rowsPerTable*self.ntables)
     tdSql.query('describe tb1')
-    tdSq.checkRows(2+5)
+    tdSql.checkRows(2+5)
 
     tdLog.info("================= step5")  
-    tdLog.info("add one tag")   
+    tdLog.info("add one tag") 
+    tdSql.execute('alter table stb add tag tnc nchar(10)')
+    for tid in range(1, self.ntables+1):
+      tdSql.execute('alter table tb%d set tag tnc=\"%s\"' %(tid, str(tid*1.2)))
+    tdLog.info("insert %d data in to each %d tables" %(2,self.ntables))  
+    for rid in range(self.rowsPerTable+1,self.rowsPerTable+3):
+      sqlcmd = ['insert into']
+      for tid in range(1,self.ntables+1):
+        sqlcmd.append('tb%d values(%ld,%d)' %(tid, self.startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
+    self.rowsPerTable += 2
+    tdSql.query('select count(*) from stb')
+    tdSql.checkData(0,0, self.rowsPerTable*self.ntables)
+    tdSql.query('describe tb1')
+    tdSql.checkRows(2+6) 
+
+    tdLog.info("================= step6") 
+    tdLog.info("group and filter by tag1 int")
+    tdSql.query('select max(i) from stb where tbl=0 group by tin')
+    tdSql.checkRows(3)
+    tdSql.execute('reset query cache')
+    tdSql.query('select max(i) from stb where tbl=true group by tin')
+    tdSql.checkData(2, 0, self.rowsPerTable)
 
     
   def stop(self):

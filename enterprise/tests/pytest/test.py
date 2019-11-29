@@ -257,6 +257,8 @@ from multi_import_merge.multithread2 import *  ## large data import
 
 from tag_lite.datatype import *
 
+from anomaly import failedConnTime
+
 
 if __name__=="__main__":
 	fileName = "all"
