@@ -180,6 +180,7 @@ from import_merge.importLastTPO import *
 from import_merge.importLastS import *
 from import_merge.importDataH2 import *
 from import_merge.importDataHO import *
+from import_merge.importDataHO2 import *
 from import_merge.importDataHPO import *
 from import_merge.importDataT import *
 from import_merge.importDataTO import *

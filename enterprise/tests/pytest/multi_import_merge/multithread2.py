@@ -70,6 +70,7 @@ class TDTestCase:
           err = 'affected rows %d != expected %d' %(affrows, self.nrowsPerBatch)
           print("\033[1;31m%s %s\033[0m\nfailed import sqlcmd: %d:%s" \
                       % (datetime.datetime.now(), err, tid, sqlcmd[1]))
+          sys.exit(1) 
     print('Thread %d finished importing' %threadIndex)
     self.queryFlag = False
     conn.close()

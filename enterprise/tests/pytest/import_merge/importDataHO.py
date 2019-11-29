@@ -27,6 +27,7 @@ class TDTestCase:
     self.ntables = 1
     self.startTime = 1520000010000L
     self.rows = 200
+    self.rowsPerTable = 20
 
     tdDnodes.stop(1)
     tdDnodes.deploy(1)
@@ -43,16 +44,16 @@ class TDTestCase:
     tdLog.info("More than 10 rows less than %d rows will go to data file" %self.rows)
 
     tdLog.info("================= step2")
-    tdLog.info("import 20 sequential data")
+    tdLog.info("import %d sequential data" %self.rowsPerTable)
     startTime = self.startTime
     sqlcmd = ['import into tb1 values']
-    for rid in range(1,21):
+    for rid in range(1,self.rowsPerTable+1):
       sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
     tdSql.execute(" ".join(sqlcmd))
     
     tdLog.info("================= step3")
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(20)
+    tdSql.query('select count(*) from tb1')
+    tdSql.checkData(0, 0, self.rowsPerTable)
 
     tdLog.info("================= step4")
     tdDnodes.stop(1)
@@ -68,8 +69,8 @@ class TDTestCase:
     tdSql.execute(" ".join(sqlcmd))
 
     tdLog.info("================= step6")
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(23)
+    tdSql.query('select * from tb1 order by ts desc')
+    tdSql.checkRows(self.rowsPerTable + 3)
 
   def stop(self):
     tdSql.close()

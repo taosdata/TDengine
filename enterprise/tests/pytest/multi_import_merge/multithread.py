@@ -48,7 +48,7 @@ class TDTestCase:
             err = 'affected rows %d != expected %d' %(affrows, ninserted)
             print("\033[1;31m%s %s\033[0m\nfailed sqlcmd: %s" \
                          % (datetime.datetime.now(), err, sqlcmd[1]))
-            ##sys.exit(1) 
+            sys.exit(1) 
             ninserted = 0
             sqlcmd = ['import into']
       if (ninserted > 0):
@@ -59,7 +59,7 @@ class TDTestCase:
           err = 'affected rows %d != expected %d' %(affrows, ninserted)
           print("\033[1;31m%s %s\033[0m\nfailed sqlcmd: %s" \
                          % (datetime.datetime.now(), err, sqlcmd[1]))
-          ##sys.exit(1) 
+          sys.exit(1) 
           ninserted = 0
           sqlcmd = ['import into']
     self.queryFlag = False

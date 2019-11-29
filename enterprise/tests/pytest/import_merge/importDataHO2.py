@@ -47,10 +47,8 @@ class TDTestCase:
     tdLog.info("import %d sequential data" %self.rowsPerTable)
     startTime = self.startTime
     sqlcmd = ['import into tb1 values']
-    for rid in range(1,10):
+    for rid in range(1,self.rowsPerTable+1):
       sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
-    for rid in range(14,self.rowsPerTable+5):
-      sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))  
     tdSql.execute(" ".join(sqlcmd))
     
     tdLog.info("================= step3")
@@ -63,16 +61,16 @@ class TDTestCase:
     tdDnodes.start(1)
 
     tdLog.info("================= step5")
-    tdLog.info("import 20 data before with partly overlap")
-    startTime = self.startTime - 4
+    tdLog.info("import 6 data before with overlap")
+    startTime = self.startTime - 3
     sqlcmd = ['import into tb1 values']
-    for rid in range(1,21):
+    for rid in range(6, 0, -1):
       sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
     tdSql.execute(" ".join(sqlcmd))
 
     tdLog.info("================= step6")
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(self.rowsPerTable+8)
+    tdSql.query('select * from tb1 order by ts desc')
+    tdSql.checkRows(self.rowsPerTable+3)
 
   def stop(self):
     tdSql.close()
