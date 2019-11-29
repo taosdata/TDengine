@@ -21,6 +21,7 @@
 #include "tsqlfunction.h"
 #include "ttime.h"
 #include "ttypes.h"
+#include "tutil.h"
 
 #pragma GCC diagnostic ignored "-Wformat"
 
@@ -46,8 +47,7 @@ void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   strcpy(tmpPath, tmpDir);
   strcat(tmpPath, tdengineTmpFileNamePrefix);
   strcat(tmpPath, fileNamePrefix);
-  strcat(tmpPath, "-%u-%u");
-
+  strcat(tmpPath, "-%llu-%u");
   snprintf(dstPath, MAX_TMPFILE_PATH_LENGTH, tmpPath, taosGetPthreadId(), atomic_add_fetch_32(&tmpFileSerialNum, 1));
 }
 
@@ -431,7 +431,8 @@ void tBucketIntHash(tMemBucket *pBucket, void *value, int16_t *segIdx, int16_t *
 }
 
 void tBucketDoubleHash(tMemBucket *pBucket, void *value, int16_t *segIdx, int16_t *slotIdx) {
-  double v = *(double *)value;
+  //double v = *(double *)value;
+  double v = GET_DOUBLE_VAL(value);
 
   if (pBucket->nRange.dMinVal == DBL_MAX) {
     /*
@@ -675,7 +676,8 @@ void tMemBucketUpdateBoundingBox(MinMaxEntry *r, char *data, int32_t dataType) {
       break;
     };
     case TSDB_DATA_TYPE_DOUBLE: {
-      double val = *(double *)data;
+      //double val = *(double *)data;
+      double val = GET_DOUBLE_VAL(data);
       if (r->dMinVal > val) {
         r->dMinVal = val;
       }
@@ -686,7 +688,8 @@ void tMemBucketUpdateBoundingBox(MinMaxEntry *r, char *data, int32_t dataType) {
       break;
     };
     case TSDB_DATA_TYPE_FLOAT: {
-      double val = *(float *)data;
+      //double val = *(float *)data;
+      double val = GET_FLOAT_VAL(data);
 
       if (r->dMinVal > val) {
         r->dMinVal = val;
@@ -734,12 +737,14 @@ void tMemBucketPut(tMemBucket *pBucket, void *data, int32_t numOfRows) {
         break;
       }
       case TSDB_DATA_TYPE_DOUBLE: {
-        double val = *(double *)d;
+        //double val = *(double *)d;
+        double val = GET_DOUBLE_VAL(d);
         (pBucket->HashFunc)(pBucket, &val, &segIdx, &slotIdx);
         break;
       }
       case TSDB_DATA_TYPE_FLOAT: {
-        double val = *(float *)d;
+        //double val = *(float *)d;
+        double val = GET_FLOAT_VAL(d);
         (pBucket->HashFunc)(pBucket, &val, &segIdx, &slotIdx);
         break;
       }
@@ -840,16 +845,20 @@ static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, i
       return (first < second) ? -1 : 1;
     };
     case TSDB_DATA_TYPE_DOUBLE: {
-      double first = *(double *)f1;
-      double second = *(double *)f2;
+      //double first = *(double *)f1;
+      double first = GET_DOUBLE_VAL(f1);
+      //double second = *(double *)f2;
+      double second = GET_DOUBLE_VAL(f2);
       if (first == second) {
         return 0;
       }
       return (first < second) ? -1 : 1;
     };
     case TSDB_DATA_TYPE_FLOAT: {
-      float first = *(float *)f1;
-      float second = *(float *)f2;
+      //float first = *(float *)f1;
+      //float second = *(float *)f2;
+      float first = GET_FLOAT_VAL(f1);
+      float second = GET_FLOAT_VAL(f2);
       if (first == second) {
         return 0;
       }
@@ -1298,10 +1307,16 @@ double findOnlyResult(tMemBucket *pMemBucket) {
                 return *(int8_t *)pPage->data;
               case TSDB_DATA_TYPE_BIGINT:
                 return (double)(*(int64_t *)pPage->data);
-              case TSDB_DATA_TYPE_DOUBLE:
-                return *(double *)pPage->data;
-              case TSDB_DATA_TYPE_FLOAT:
-                return *(float *)pPage->data;
+              case TSDB_DATA_TYPE_DOUBLE: {
+		double dv = GET_DOUBLE_VAL(pPage->data);				  
+                //return *(double *)pPage->data;
+		return dv;
+	      }
+              case TSDB_DATA_TYPE_FLOAT: {
+		float fv = GET_FLOAT_VAL(pPage->data);
+                //return *(float *)pPage->data;
+		return fv;
+	      }
               default:
                 return 0;
             }
@@ -1788,13 +1803,17 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
               break;
             };
             case TSDB_DATA_TYPE_FLOAT: {
-              td = *(float *)thisVal;
-              nd = *(float *)nextVal;
+              //td = *(float *)thisVal;
+              //nd = *(float *)nextVal;
+              td = GET_FLOAT_VAL(thisVal);
+              nd = GET_FLOAT_VAL(nextVal);
               break;
             }
             case TSDB_DATA_TYPE_DOUBLE: {
-              td = *(double *)thisVal;
-              nd = *(double *)nextVal;
+              //td = *(double *)thisVal;
+              td = GET_DOUBLE_VAL(thisVal);
+              //nd = *(double *)nextVal;
+              nd = GET_DOUBLE_VAL(nextVal);
               break;
             }
             case TSDB_DATA_TYPE_BIGINT: {
@@ -1831,15 +1850,17 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
                 break;
               };
               case TSDB_DATA_TYPE_FLOAT: {
-                finalResult = *(float *)thisVal;
+                //finalResult = *(float *)thisVal;
+                finalResult = GET_FLOAT_VAL(thisVal);
                 break;
               }
               case TSDB_DATA_TYPE_DOUBLE: {
-                finalResult = *(double *)thisVal;
+                //finalResult = *(double *)thisVal;
+                finalResult = GET_DOUBLE_VAL(thisVal);
                 break;
               }
               case TSDB_DATA_TYPE_BIGINT: {
-                finalResult = (double)*(int64_t *)thisVal;
+                finalResult = (double)(*(int64_t *)thisVal);
                 break;
               }
             }
