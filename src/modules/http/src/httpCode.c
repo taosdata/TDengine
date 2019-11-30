@@ -69,7 +69,7 @@ char* httpMsg[] = {
     "field value type should be number or string",
     "field value is null",                     // 51
     "parse basic auth token error",
-    "parse taosd auth token error",
+    "parse http auth token error",
     "host type should be string",
 
     // grafana

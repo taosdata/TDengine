@@ -64,8 +64,8 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 
 #ifdef CLUSTER
   if (ip && ip[0]) {
-    strcpy(tscMgmtIpList.ipstr[0], ip);
-    tscMgmtIpList.ip[0] = inet_addr(ip);
+    strcpy(tscMgmtIpList.ipstr[1], ip);
+    tscMgmtIpList.ip[1] = inet_addr(ip);
   }
 #else
   if (ip && ip[0]) {

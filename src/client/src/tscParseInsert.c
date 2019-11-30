@@ -56,6 +56,7 @@ static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
     radix = 2;
   }
 
+  errno = 0;
   *value = strtoll(pToken->z, endPtr, radix);
 
   return numType;
@@ -66,6 +67,8 @@ static int32_t tscToDouble(SSQLToken *pToken, double *value, char **endPtr) {
   if (TK_ILLEGAL == numType) {
     return numType;
   }
+
+  errno = 0;
   *value = strtod(pToken->z, endPtr);
   return numType;
 }

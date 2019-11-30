@@ -476,6 +476,8 @@ int mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
           continue;
         }
         
+        cols = 0;
+        
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
         *(uint32_t *)pWrite = pVnode->vnode;
         cols++;
