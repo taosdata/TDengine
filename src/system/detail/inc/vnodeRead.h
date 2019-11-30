@@ -53,7 +53,6 @@ typedef struct SQueryLoadCompBlockInfo {
  */
 typedef struct SHeaderFileInfo {
   int32_t fileID;        // file id
-  size_t  headFileSize;  // header file size
 } SHeaderFileInfo;
 
 typedef struct SQueryCostSummary {
@@ -103,9 +102,10 @@ typedef struct SQueryFilesInfo {
   
   int32_t          headerFd;    // header file fd
   char*            pHeaderFileData; // mmap header files
-  
+  int64_t          headFileSize;
   int32_t          dataFd;
   int32_t          lastFd;
+  
   char             headerFilePath[PATH_MAX];  // current opened header file name
   char             dataFilePath[PATH_MAX];    // current opened data file name
   char             lastFilePath[PATH_MAX];    // current opened last file path

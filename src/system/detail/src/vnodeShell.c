@@ -551,7 +551,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
     SMeterObj *pMeterObj = vnodeList[vnode].meterList[sid];
     if (pMeterObj == NULL) {
-      dError("vid:%d sid:%d, no active table", vnode, sid);
+      dError("vid:%d sid:%d, not active table", vnode, sid);
       vnodeSendMeterCfgMsg(vnode, sid);
       code = TSDB_CODE_NOT_ACTIVE_TABLE;
       goto _submit_over;

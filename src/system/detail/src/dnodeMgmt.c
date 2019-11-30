@@ -160,7 +160,7 @@ int vnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
 
   SMeterObj *pMeterObj = vnodeList[vid].meterList[sid];
   if (pMeterObj == NULL || sid != pMeterObj->sid || vid != pMeterObj->vnode) {
-    dError("vid:%d sid:%d, no active table", vid, sid);
+    dError("vid:%d sid:%d, not active table", vid, sid);
     code = TSDB_CODE_NOT_ACTIVE_TABLE;
     goto _over;
   }
