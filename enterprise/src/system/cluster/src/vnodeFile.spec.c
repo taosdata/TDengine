@@ -197,13 +197,13 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
   struct stat fstat;
   int         sfd;
 
-  dPrint("vid:%d, fd:%d, start sync retrieve", vnode, fd);
-
   pVnode = vnodeList + vnode;
 
   if (pVnode->numOfFiles <= 0){
     pVnode->fileId = pVnode->firstKey / pVnode->cfg.daysPerFile / tsMsPerDay[pVnode->cfg.precision];
   }
+
+  dPrint("vid:%d, fd:%d, start sync retrieve, numOfFiles:%d", vnode, fd, pVnode->numOfFiles);
 
   if (peerFid > 0) {
     int minFId = pVnode->fileId - pVnode->maxFiles + 1;
