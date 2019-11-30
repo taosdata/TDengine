@@ -20,7 +20,7 @@ release_dir="${top_dir}/release"
 community_dir="${script_dir}/../../../community/src"
 
 package_name='linux'
-install_dir="${release_dir}/TDengine-client-enterprise-${version}-${package_name}-$(echo ${build_time}| tr ': ' -)"
+install_dir="${release_dir}/taos-client-${version}-${package_name}-$(echo ${build_time}| tr ': ' -)"
 
 # Directories and files.
 bin_files="${build_dir}/bin/taos ${build_dir}/bin/taosdump ${script_dir}/remove_client.sh"
