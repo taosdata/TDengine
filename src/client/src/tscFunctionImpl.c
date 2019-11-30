@@ -1043,10 +1043,10 @@ static bool max_func_setup(SQLFunctionCtx *pCtx) {
       *((int32_t *)pCtx->aOutputBuf) = INT32_MIN;
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      *((float *)pCtx->aOutputBuf) = -FLT_MIN;
+      *((float *)pCtx->aOutputBuf) = -FLT_MAX;
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      *((double *)pCtx->aOutputBuf) = -DBL_MIN;
+      *((double *)pCtx->aOutputBuf) = -DBL_MAX;
       break;
     case TSDB_DATA_TYPE_BIGINT:
       *((int64_t *)pCtx->aOutputBuf) = INT64_MIN;
