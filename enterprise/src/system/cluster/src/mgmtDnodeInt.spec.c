@@ -303,10 +303,10 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
       pAccess++;
     }
 
-    pVload->totalStorage = totalStorage;
-    pVload->compStorage = compStorage;
-    pVload->pointsWritten = pointsWritten;
-
+    pVload->totalStorage = totalStorage > 0 ? totalStorage : 0;
+    pVload->compStorage = compStorage > 0 ? compStorage : 0;
+    pVload->pointsWritten = pointsWritten > 0 ? pointsWritten : 0;
+    
     if (pVload->vgId == 0 || pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
       mPrint("dnode:%s, vid:%d, mgmt not exist, drop it", taosIpStr(pObj->privateIp), vnode);
       SVnodeGid pVnodeGid;
