@@ -429,7 +429,7 @@ int vnodeRebuildCreateMsg(int vid, int sid, char *msg) {
   pCreate->timeStamp = htobe64(pObj->timeStamp);
   pCreate->uid = pObj->uid;
   pCreate->sqlLen = htons(pObj->sqlLen);
-  pCreate->sversion = htobe32(pObj->sversion);
+  pCreate->sversion = htol(pObj->sversion);
 
   /*
     SConnSec  *pConnSec;
