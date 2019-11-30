@@ -503,7 +503,7 @@ static int vnodeCheckSubmitBlockContext(SShellSubmitBlock *pBlocks, SVnodeObj *p
   uint64_t uid = htobe64(pBlocks->uid);
 
   if (sid >= pVnode->cfg.maxSessions || sid <= 0) {
-    dError("sid:%d is out of range", sid);
+    dError("vid:%d sid:%d, sid is out of range", sid);
     return TSDB_CODE_INVALID_TABLE_ID;
   }
 
@@ -515,7 +515,7 @@ static int vnodeCheckSubmitBlockContext(SShellSubmitBlock *pBlocks, SVnodeObj *p
   }
 
   if (pMeterObj->uid != uid) {
-    dError("vid:%d sid:%d, meterId:%s, uid:%lld, uid in msg:%lld, uid mismatch", pVnode->vnode, sid, pMeterObj->meterId,
+    dError("vid:%d sid:%d id:%s, uid:%lld, uid in msg:%lld, uid mismatch", pVnode->vnode, sid, pMeterObj->meterId,
            pMeterObj->uid, uid);
     return TSDB_CODE_INVALID_SUBMIT_MSG;
   }

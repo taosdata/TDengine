@@ -14,11 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "vnode.h"
 #include "vnodeUtil.h"

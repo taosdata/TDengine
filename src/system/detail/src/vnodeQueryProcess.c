@@ -297,7 +297,9 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
       continue;
     }
     
-    int32_t          numOfQualifiedMeters = 0;
+    int32_t numOfQualifiedMeters = 0;
+    assert(fileIdx == pRuntimeEnv->vnodeFileInfo.current);
+    
     SMeterDataInfo **pReqMeterDataInfo = vnodeFilterQualifiedMeters(pQInfo, vnodeId, fileIdx, pSupporter->pSidSet,
         pMeterDataInfo, &numOfQualifiedMeters);
 
