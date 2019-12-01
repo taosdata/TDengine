@@ -200,7 +200,7 @@ endi
 if $data02 != 6.0000 then
   return -1
 endi
-if $data03 != 3 then.000000000 then
+if $data03 != 3.000000000 then
   return -1
 endi
 if $data04 != 0 then

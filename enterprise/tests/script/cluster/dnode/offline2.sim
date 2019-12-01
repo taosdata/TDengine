@@ -24,9 +24,9 @@ system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
 
-system sh/cfg.sh -n dnode1 -c commitLog -v 1
-system sh/cfg.sh -n dnode2 -c commitLog -v 1
-system sh/cfg.sh -n dnode3 -c commitLog -v 1
+system sh/cfg.sh -n dnode1 -c clog -v 1
+system sh/cfg.sh -n dnode2 -c clog -v 1
+system sh/cfg.sh -n dnode3 -c clog -v 1
 
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
@@ -35,7 +35,7 @@ sql create dnode 192.168.0.2
 system sh/exec.sh -n dnode2 -s start
 sleep 3000
 
-sql create database d1 replica 2
+sql create database d1 replica 2 tables 4
 sql create table d1.t1(ts timestamp, i int)
 sql insert into d1.t1 values(now, 1)
 

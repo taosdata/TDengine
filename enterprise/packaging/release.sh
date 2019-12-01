@@ -5,10 +5,12 @@
 set -e
 # set -x
 
+armver=$1
+
 curr_dir=$(pwd)
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -m ${script_dir}/..)"
-versioninfo="${top_dir}/src/util/cluster/src/version.c"
+versioninfo="${top_dir}/../community/src/util/src/version.c"
 
 csudo=""
 if command -v sudo > /dev/null; then
@@ -119,7 +121,18 @@ fi
 ${csudo} mkdir -p ${compile_dir}
 cd ${compile_dir}
 
-cmake ${top_dir}/../
+# arm only support lite ver
+if [ -z "$armver" ]; then
+  cmake ${top_dir}/../
+elif [ "$armver" == "arm64" ]; then
+  cmake ${top_dir}/../ -DVERSION=lite -DARMVER=arm64
+elif [ "$armver" == "arm32" ]; then
+  cmake ${top_dir}/../ -DVERSION=lite -DARMVER=arm32
+else
+  echo "input parameter error!!!"
+  return
+fi
+
 make
 
 cd ${curr_dir}
@@ -154,7 +167,8 @@ cd ${curr_dir}
 #fi
 
 cd ${script_dir}/tools
-${csudo} ./makepkg.sh ${compile_dir} ${version} "${build_time}"
+${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${armver}
+${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${armver}
 
 # 4. Clean up temporary compile directories
 #${csudo} rm -rf ${compile_dir}

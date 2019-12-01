@@ -24,9 +24,9 @@ system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 4
 
-system sh/cfg.sh -n dnode1 -c commitLog -v 1
-system sh/cfg.sh -n dnode2 -c commitLog -v 1
-system sh/cfg.sh -n dnode3 -c commitLog -v 1
+system sh/cfg.sh -n dnode1 -c clog -v 1
+system sh/cfg.sh -n dnode2 -c clog -v 1
+system sh/cfg.sh -n dnode3 -c clog -v 1
 
 print ========== step1
 system sh/exec.sh -n dnode1 -s start

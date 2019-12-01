@@ -79,12 +79,15 @@ int dnodeInitSystemSpec() {
   sprintf(cfgFile, "%s/taos.cfg", configDir);
   grantActiveSystem(cfgFile);
 
-  vnodeInitMgmtIp();
-
+  /*
+   * The cluster may not have a master, so the command may always be in progress
+   */
+  /*
   if (dnodeCheckConfig() != 0) {
     dError("TDengine initialization failed");
     return -1;
   }
+  */
 
   return 0;
 }

@@ -71,9 +71,6 @@ int mgmtStartCheckMgmtRunning() {
 
   strcpy(sdbMasterIp, mgmtIpStr[0]);
   strcpy(sdbPrivateIp, tsPrivateIp);
-  sdbPeerPort = tsMgmtMgmtPort;
-  sdbSyncPort = tsMgmtSyncPort;
-  sdbHbTimer = tsMgmtPeerHBTimer;
   sdbPublicIp = inet_addr(tsPublicIp);
 
   return 0;
@@ -85,16 +82,18 @@ void mgmtStartMgmtTimer() {
 void mgmtDoStatistic(void *handle, void *tmrId) {
   SAcctObj *pAcct = NULL;
   void *    pNode = NULL;
-  mgmtStatisticTimer = NULL;
 
-  int64_t totalStorage = 0;
-  while (1) {
-    pNode = sdbFetchRow(acctSdb, pNode, (void **)&pAcct);
-    if (pAcct == NULL) break;
-    totalStorage += mgmtGetAcctStatistic(pAcct);
+  if (acctSdb != NULL) {
+    int64_t totalStorage = 0;
+    while (1) {
+      pNode = sdbFetchRow(acctSdb, pNode, (void **)&pAcct);
+      if (pAcct == NULL) break;
+      totalStorage += mgmtGetAcctStatistic(pAcct);
+    }
+
+    grantResetCurStorage(totalStorage);
   }
 
-  grantResetCurStorage(totalStorage);
   taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, mgmtTmr, &mgmtStatisticTimer);
 }
 

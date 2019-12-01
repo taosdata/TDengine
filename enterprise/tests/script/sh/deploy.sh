@@ -99,7 +99,7 @@ echo "rpcDebugFlag        131"            >> $TAOS_CFG
 echo "tmrDebugFlag        131"            >> $TAOS_CFG
 echo "cDebugFlag          135"            >> $TAOS_CFG
 echo "httpDebugFlag       131"            >> $TAOS_CFG
-echo "monitorDebugFlag    135"            >> $TAOS_CFG
+echo "monitorDebugFlag    131"            >> $TAOS_CFG
 echo "udebugFlag          131"            >> $TAOS_CFG
 echo "jnidebugFlag        131"            >> $TAOS_CFG
 echo "monitor             0"              >> $TAOS_CFG

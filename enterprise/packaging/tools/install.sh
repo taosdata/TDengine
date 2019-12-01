@@ -97,7 +97,7 @@ fi
 
 function kill_taosd() {
   pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
-  if [ $pid ]; then
+  if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
 }
@@ -136,11 +136,6 @@ function install_bin() {
     ${csudo} chmod 777 ${nginx_dir}/sbin/nginx
 }
 
-function clean_lib() {
-    sudo rm -f /usr/lib/libtaos.so || :
-    sudo rm -rf ${lib_dir} || :
-}
-
 function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
@@ -158,9 +153,10 @@ function install_lib() {
 }
 
 function install_header() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h     || :
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
     ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function install_config() {
@@ -421,9 +417,9 @@ vercomp () {
 
 function is_version_compatible() {
 
-    curr_version=$(${bin_dir}/taosd -V | cut -d ' ' -f 1)
+    curr_version=$(${bin_dir}/taosd -V | head -1 |  cut -d ' ' -f 2)
 
-    min_compatible_version=$(${script_dir}/bin/taosd -V | cut -d ' ' -f 2)
+    min_compatible_version=$(${script_dir}/bin/taosd -V | head -1 | cut -d ' ' -f 4)
 
     vercomp $curr_version $min_compatible_version
     case $? in

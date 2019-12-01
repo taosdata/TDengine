@@ -24,6 +24,7 @@
 #include "vnodeMgmt.h"
 #include "vnodeSystem.h"
 #include "vnodeUtil.h"
+#include "tstatus.h"
 
 extern SMgmtObj mgmtObj;
 extern void*tsStatusTimer;
@@ -155,17 +156,30 @@ char *vnodeProcessOneBufferedCreateMsg(char *offset) {
 int vnodeProcessBufferedCreateMsgs(int vnode) {
   STranQueue *pQueue;
   int         trans = 0;
-  char *      offset;
+  char *      offset = NULL;
 
   pQueue = (STranQueue *)vnodeList[vnode].pQueue;
+
+  /*
+   * This function is called infrequently, should focus on security, increase the scope of the lock
+   */
+
+  /*
   offset = pQueue->buffer;
 
   while (trans < pQueue->trans) {
     offset = vnodeProcessOneBufferedCreateMsg(offset);
     trans++;
   }
+  */
 
   pthread_mutex_lock(&pQueue->qmutex);
+
+  if (pQueue->buffer == NULL) {
+    dError("vid:%d, failed to process buffered create msg for buffer is null", vnode);
+    pthread_mutex_unlock(&pQueue->qmutex);
+    return -1;
+  }
 
   if (offset == NULL) offset = pQueue->buffer;
   while (trans < pQueue->trans) {
@@ -173,7 +187,7 @@ int vnodeProcessBufferedCreateMsgs(int vnode) {
     trans++;
   }
 
-  vnodeList[vnode].syncStatus = TSDB_SSTATUS_SYNC_FILE;
+  vnodeList[vnode].syncStatus = TSDB_VN_SYNC_STATUS_SYNC_FILE;
   pQueue->offset = pQueue->buffer;
   pQueue->trans = 0;
 
@@ -188,7 +202,13 @@ int vnodeSaveCreateMsgIntoQueue(SVnodeObj *pVnode, char *pMsg, int msgLen) {
 
   pthread_mutex_lock(&pQueue->qmutex);
 
-  if (pVnode->syncStatus == TSDB_SSTATUS_SYNCING) {
+  if (pQueue->buffer == NULL) {
+    dError("vid:%d, failed to save create msg into queue for buffer is null", pVnode->vnode);
+    pthread_mutex_unlock(&pQueue->qmutex);
+    return -1;
+  }
+
+  if (pVnode->syncStatus == TSDB_VN_SYNC_STATUS_SYNCING) {
     if (pQueue->bufferSize - (pQueue->offset - pQueue->buffer) < msgLen + 100) {
       dError("vid:%d, buffer size:%d is too small", pVnode->vnode, pQueue->bufferSize);
       vnodeCancelSync(pVnode->vnode);
@@ -238,7 +258,7 @@ void vnodeSendStatusMsgToMgmt(void *handle, void *tmrId) {
     connInit.peerIp = mgmtIpStr[pObj->mgmtIndex];
     connInit.peerPort = tsMgmtVnodePort;
 
-    dTrace("mgmt ip:%s is picked up", connInit.peerIp);
+    dPrint("mgmt ip:%s is picked up", connInit.peerIp);
     pObj->thandle = taosOpenRpcConn(&connInit, &code);
   }
 
@@ -269,12 +289,12 @@ void vnodeSendStatusMsgToMgmt(void *handle, void *tmrId) {
     pLoad->vgId = htonl(pVnode->cfg.vgId);
     //int status = vnodeList[vnode].status > TSDB_STATUS_UNSYNCED) ? TSDB_STATUS_READY : TSDB_STATUS_UNSYNCED;
     //pLoad->status = (uint8_t)status;
-    pLoad->status = (uint8_t)vnodeList[vnode].status;
+    pLoad->status = (uint8_t)vnodeList[vnode].vnodeStatus;
     pLoad->syncStatus =(uint8_t)vnodeList[vnode].syncStatus;
     pLoad->accessState = (uint8_t)(pVnode->accessState);
     pLoad->totalStorage = htobe64(pVnode->vnodeStatistic.totalStorage);
     pLoad->compStorage = htobe64(pVnode->vnodeStatistic.compStorage);
-    if (pVnode->status == TSDB_STATUS_MASTER) {
+    if (pVnode->vnodeStatus == TSDB_VN_STATUS_MASTER) {
       pLoad->pointsWritten = htobe64(pVnode->vnodeStatistic.pointsWritten);
     } else {
       pLoad->pointsWritten = htobe64(0);
@@ -321,11 +341,11 @@ int vnodeProcessStatusRspMsg(char *msg, int msgLen, SMgmtObj *pObj) {
   pMsg += sizeof(SIpList) + size;
 
   if (memcmp(pIpList->ip, mgmtIpList.ip, size) != 0) {
-    dTrace("mgmt ip list is changed, numOfIps:%d", pIpList->numOfIps);
+    dPrint("mgmt ip list is changed, numOfIps:%d", pIpList->numOfIps);
     for (int i = 0; i < pIpList->numOfIps; ++i) {
       tinet_ntoa(mgmtIpStr[i], pIpList->ip[i]);
       mgmtIpList.ip[i] = pIpList->ip[i];
-      dTrace("mgmt IP index:%d ip:%s", i, mgmtIpStr[i]);
+      dPrint("mgmt IP index:%d ip:%s", i, mgmtIpStr[i]);
     }
 
     vnodeSaveMgmtIp();
@@ -337,7 +357,7 @@ int vnodeProcessStatusRspMsg(char *msg, int msgLen, SMgmtObj *pObj) {
     mgmtPublicIpList.numOfIps = pIpList->numOfIps;
     for (int i = 0; i < pIpList->numOfIps; ++i) {
       mgmtPublicIpList.ip[i] = pIpList->ip[i];
-      dTrace("mgmt Public IP index:%d, ip:%d", i, mgmtPublicIpList.ip[i]);
+      dPrint("mgmt Public IP index:%d, ip:%s", i, taosIpStr(mgmtPublicIpList.ip[i]));
     }
   }
 
@@ -377,7 +397,7 @@ int vnodeProcessStatusRspMsg(char *msg, int msgLen, SMgmtObj *pObj) {
 
     uint32_t status = htonl(pState->moduleStatus);
     if (status != tsModuleStatus) {
-      dPrint("module statis is received, old:%d, new:%d", tsModuleStatus, status);
+      dPrint("module status is received, old:%d, new:%d", tsModuleStatus, status);
       dnodeProcessModuleStatus(status);
     }
 
@@ -409,6 +429,7 @@ int vnodeRebuildCreateMsg(int vid, int sid, char *msg) {
   pCreate->timeStamp = htobe64(pObj->timeStamp);
   pCreate->uid = pObj->uid;
   pCreate->sqlLen = htons(pObj->sqlLen);
+  pCreate->sversion = htonl(pObj->sversion);
 
   /*
     SConnSec  *pConnSec;
@@ -443,23 +464,42 @@ int vnodeRetrieveMissedCreateMsg(int vnode, int fd, uint64_t stime) {
   SMeterObj *pObj;
   char *     msg;
   SVnodeObj *pVnode = vnodeList + vnode;
+  int        writeLen;
 
   msg = (char *)malloc(1024 + TSDB_MAX_COLUMNS * sizeof(SSchema));
+
+  dTrace("vid:%d, fd:%d start to retrieve missed create msg, stime:%ld", vnode, fd, stime);
 
   for (sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
     pObj = pVnode->meterList[sid];
 
     if (pObj && !vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETED) && (pObj->timeStamp > stime)) {
       len = vnodeRebuildCreateMsg(vnode, sid, msg);
-      if (taosWriteMsg(fd, &len, sizeof(len)) < 0) goto _exit;
-      if (taosWriteMsg(fd, msg, len) < 0) goto _exit;
+      writeLen = taosWriteMsg(fd, &len, sizeof(len));
+      if (writeLen < 0) {
+        dError("vid:%d, fd:%d failed to retrieve missed create msg len, writeLen:%d reason:%s", vnode, fd, writeLen, strerror(errno));
+        goto _exit;
+      }
+
+      writeLen = taosWriteMsg(fd, msg, len);
+      if (writeLen < 0) {
+        dError("vid:%d, fd:%d failed to retrieve missed create msg, writeLen:%d reason:%s", vnode, fd, writeLen, strerror(errno));
+        goto _exit;
+      }
+
       dTrace("vid:%d sid:%d id:%s, meterObj is sent to peer, len:%d", vnode, sid, pObj->meterId, len);
     }
   }
 
   len = 0;
-  if (taosWriteMsg(fd, (char *)&len, sizeof(len)) < 0) goto _exit;
+  writeLen = taosWriteMsg(fd, (char *)&len, sizeof(len));
+  if (writeLen < 0) {
+    dError("vid:%d, fd:%d failed to retrieve missed create msg end, writeLen:%d reason:%s", vnode, fd, writeLen, strerror(errno));
+    goto _exit;
+  }
   code = 0;
+
+  dTrace("vid:%d, fd:%d retrieve missed create msg finished", vnode, fd);
 
 _exit:
   free(msg);
@@ -468,23 +508,47 @@ _exit:
 
 int vnodeRetrieveMissedRemoveMsg(int vid, int fd, uint64_t stime) {
   SMeterObj *pObj;
-  int        sid;
+  int        sid, writeLen;
   SVnodeObj *pVnode = vnodeList + vid;
+  int        oldVid = vid;
+
+  dTrace("vid:%d, fd:%d start to retrieve missed remove msg", vid, fd);
 
   for (sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
     pObj = pVnode->meterList[sid];
 
     if (pObj && (pObj->state == TSDB_METER_STATE_DELETED) && (pObj->timeStamp > stime)) {
-      if (taosWriteMsg(fd, (char *)&vid, sizeof(vid)) < 0) return -1;
-      if (taosWriteMsg(fd, (char *)&sid, sizeof(sid)) < 0) return -1;
+      writeLen = taosWriteMsg(fd, (char *)&vid, sizeof(vid));
+      if (writeLen < 0) {
+        dError("vid:%d, fd:%d failed to retrieve missed remove msg vid:%d, writeLen:%d reason:%s", vid, fd, vid, writeLen, strerror(errno));
+        return -1;
+      }
+
+      writeLen = taosWriteMsg(fd, (char *)&sid, sizeof(sid));
+      if (writeLen < 0) {
+        dError("vid:%d, fd:%d failed to retrieve missed remove msg sid:%d, writeLen:%d reason:%s", vid, fd, sid, writeLen, strerror(errno));
+        return -1;
+      }
       dTrace("vid:%d sid:%d id:%s, removed meterObj is sent to peer", vid, sid, pObj->meterId);
     }
   }
 
   vid = -1;
   sid = -1;
-  if (taosWriteMsg(fd, (char *)&vid, sizeof(vid)) < 0) return -1;
-  if (taosWriteMsg(fd, (char *)&sid, sizeof(sid)) < 0) return -1;
+
+  writeLen = taosWriteMsg(fd, (char *)&vid, sizeof(vid));
+  if (writeLen < 0) {
+    dError("vid:%d, fd:%d failed to retrieve missed remove msg vid:%d, writeLen:%d reason:%s", vid, fd, vid, writeLen, strerror(errno));
+    return -1;
+  }
+
+  writeLen = taosWriteMsg(fd, (char *)&sid, sizeof(sid));
+  if (writeLen < 0) {
+    dError("vid:%d, fd:%d failed to retrieve missed remove msg sid:%d, writeLen:%d reason:%s", vid, fd, sid, writeLen, strerror(errno));
+    return -1;
+  }
+
+  dTrace("vid:%d, fd:%d retrieve missed remove msg finished", oldVid, fd);
 
   return 0;
 }
@@ -494,33 +558,78 @@ int vnodeRestoreMissedCreateMsg(int vnode, int fd) {
   uint32_t    len;
   SCreateMsg *pCreate;
 
+  dTrace("vid:%d, fd:%d start to restore missed create msg", vnode, fd);
+
   while (1) {
     len = 0;
-    if (taosReadMsg(fd, &len, sizeof(len)) < 0) return -1;
-    if (len == 0) break;
 
-    dTrace("vid:%d, missed create is received, len:%d", vnode, len);
-    if (taosReadMsg(fd, msg, len) < 0) return -1;
+    int readLen = taosReadMsg(fd, &len, sizeof(len));
+    if (readLen < 0) {
+      dError("vid:%d, fd:%d failed to restore missed create msg len, readLen:%d reason:%s", vnode, fd, readLen, strerror(errno));
+      return -1;
+    }
+
+    if (len == 0) {
+      dTrace("vid:%d, fd:%d restore missed create msg len:%d, finished", vnode, fd, len);
+      break;
+    }
+
+    readLen = taosReadMsg(fd, msg, len);
+    if (readLen < 0) {
+      dError("vid:%d, fd:%d failed to restore missed create msg, size:%d readLen:%d reason:%s",
+              vnode, fd, len, readLen, strerror(errno));
+      return -1;
+    }
 
     pCreate = (SCreateMsg *)msg;
     pCreate->vnode = htons(vnode);
+
+    dTrace("vid:%d, fd:%d missed create is restored, vnode:%d len:%d", vnode, fd, pCreate->vnode, len);
+
     vnodeProcessCreateMeterMsg(msg, len);
   }
+
+  dTrace("vid:%d, fd:%d to restore missed create msg finished", vnode, fd);
 
   return 0;
 }
 
 int vnodeRestoreMissedRemoveMsg(int vnode, int fd) {
-  uint32_t vid, sid;
+  int vid, sid;
+
+  dTrace("vid:%d, fd:%d start to restore missed remove msg", vnode, fd);
 
   while (1) {
-    if (taosReadMsg(fd, &vid, sizeof(vid)) < 0) return -1;
-    if (taosReadMsg(fd, &sid, sizeof(sid)) < 0) return -1;
+    int readLen = taosReadMsg(fd, &vid, sizeof(vid));
+    if (readLen < 0) {
+      dError("vid:%d, fd:%d failed to restore missed remove msg vid, size:%d read:%d reason:%s",
+              vnode, fd, sizeof(vid), readLen, strerror(errno));
+      return -1;
+    }
 
-    if (sid == -1 || vid == -1) break;
+    readLen = taosReadMsg(fd, &sid, sizeof(sid));
+    if (readLen < 0) {
+      dError("vid:%d, fd:%d failed to restore missed remove msg sid, size:%d read:%d reason:%s",
+              vnode, fd, sizeof(sid), readLen, strerror(errno));
+      return -1;
+    }
+
+    if (sid == -1) {
+      dTrace("vid:%d, fd:%d restore missed remove msg sid:%d, finished", vnode, fd, sid);
+      break;
+    }
+
+    if (vid == -1) {
+      dTrace("vid:%d, fd:%d restore missed remove msg vid:%d, finished", vnode, fd, vid);
+      break;
+    }
+
+    dTrace("vid:%d, fd:%d missed remove msg is restored, vid:%d sid:%d", vnode, fd, vid, sid);
 
     vnodeRemoveMeterObj(vid, sid);
   }
+
+  dTrace("vid:%d, fd:%d restore missed remove msg finished", vnode, fd);
 
   return 0;
 }
@@ -629,7 +738,7 @@ void vnodeInitMgmtIp() {
   }
 
   if (!ipListValid) {
-    dTrace("read mgmt ipList from %s failed", fn);
+    dPrint("read mgmt ipList from %s failed", fn);
     memset(pIpList, 0, sizeof(mgmtIpList));
     pIpList->numOfIps = 1;
     pIpList->ip[0] = inet_addr(tsMasterIp);
@@ -640,10 +749,22 @@ void vnodeInitMgmtIp() {
     }
   }
 
-  for (int i = 0; i < pIpList->numOfIps; ++i) tinet_ntoa(mgmtIpStr[i], pIpList->ip[i]);
+  for (int i = 0; i < pIpList->numOfIps; ++i) {
+    tinet_ntoa(mgmtIpStr[i], pIpList->ip[i]);
+  }
 
-  dTrace("%d mgmt IPs are configured:", pIpList->numOfIps);
-  for (int i = 0; i < pIpList->numOfIps; ++i) dTrace("index:%d ip:%s", i, mgmtIpStr[i]);
+  dPrint("%d mgmt IPs are configured:", pIpList->numOfIps);
+  for (int i = 0; i < pIpList->numOfIps; ++i) {
+    dPrint("index:%d ip:%s", i, mgmtIpStr[i]);
+  }
+
+  if (pIpList->numOfIps >= 3) {
+    strcpy(tsSecondIp, mgmtIpStr[2]);
+  }
+
+  if (pIpList->numOfIps >= 2) {
+    strcpy(tsMasterIp, mgmtIpStr[1]);
+  }
 }
 
 void vnodeSaveMgmtIp() {

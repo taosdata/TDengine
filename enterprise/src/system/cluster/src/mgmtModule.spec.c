@@ -140,8 +140,8 @@ void mgmtMonitorDnodeModule() {
     if (pDnode == NULL) break;
 
     if (mgmtCheckDnodeInRemoveState(pDnode)) {
-      mPrint("dnode:%s, status:%d, lbState:%d, remove all modules for it in remove state",
-          taosIpStr(pDnode->privateIp), pDnode->status, pDnode->lbState);
+      mPrint("dnode:%s, status:%d, lbstatus:%s, remove all modules for it in remove state",
+          taosIpStr(pDnode->privateIp), pDnode->status, taosGetDnodeLbStatusStr(pDnode->lbStatus));
       mgmtStopRemoveStateModule(pDnode);
       continue;
     }

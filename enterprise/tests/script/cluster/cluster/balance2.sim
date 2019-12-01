@@ -18,6 +18,11 @@ system sh/deploy.sh -n dnode6 -m 192.168.0.1 -i 192.168.0.6
 system sh/deploy.sh -n dnode7 -m 192.168.0.1 -i 192.168.0.7
 system sh/deploy.sh -n dnode8 -m 192.168.0.1 -i 192.168.0.8
 
+system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode2 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode3 -c secondIp -v 192.168.0.2
+system sh/cfg.sh -n dnode4 -c secondIp -v 192.168.0.2
+
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
@@ -36,14 +41,14 @@ system sh/cfg.sh -n dnode6 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode7 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode8 -c numOfMPeers -v 3
 
-system sh/cfg.sh -n dnode1 -c clog -v 0
-system sh/cfg.sh -n dnode2 -c clog -v 0
-system sh/cfg.sh -n dnode3 -c clog -v 0
-system sh/cfg.sh -n dnode4 -c clog -v 0
-system sh/cfg.sh -n dnode5 -c clog -v 0
-system sh/cfg.sh -n dnode6 -c clog -v 0
-system sh/cfg.sh -n dnode7 -c clog -v 0
-system sh/cfg.sh -n dnode8 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c clog -v 1
+system sh/cfg.sh -n dnode2 -c clog -v 1
+system sh/cfg.sh -n dnode3 -c clog -v 1
+system sh/cfg.sh -n dnode4 -c clog -v 1
+system sh/cfg.sh -n dnode5 -c clog -v 1
+system sh/cfg.sh -n dnode6 -c clog -v 1
+system sh/cfg.sh -n dnode7 -c clog -v 1
+system sh/cfg.sh -n dnode8 -c clog -v 1
 
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
@@ -66,7 +71,7 @@ system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 sleep 4001
 
-sql create database c_b2_d1 replica 2
+sql create database c_b2_d1 replica 2 tables 4
 sql use c_b2_d1
 sql create table c_b2_t1 (t timestamp, i int)
 sql insert into c_b2_t1 values(1520000020015, 15)
@@ -75,7 +80,7 @@ sql insert into c_b2_t1 values(1520000022013, 13)
 sql insert into c_b2_t1 values(1520000023012, 12)
 sql insert into c_b2_t1 values(1520000024011, 11)
 
-sql create database c_b2_d2 replica 2
+sql create database c_b2_d2 replica 2 tables 4
 sql use c_b2_d2
 sql create table c_b2_t2 (t timestamp, i int)
 sql insert into c_b2_t2 values(1520000020025, 25)
@@ -84,7 +89,7 @@ sql insert into c_b2_t2 values(1520000022023, 23)
 sql insert into c_b2_t2 values(1520000023022, 22)
 sql insert into c_b2_t2 values(1520000024021, 21)
 
-sql create database c_b2_d3 replica 2
+sql create database c_b2_d3 replica 2 tables 4
 sql use c_b2_d3
 sql create table c_b2_t3 (t timestamp, i int)
 sql insert into c_b2_t3 values(1520000020035, 35)
@@ -96,7 +101,7 @@ sql insert into c_b2_t3 values(1520000024031, 31)
 $x = 0
 show1: 
 	$x = $x + 1
-	sleep 1000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -126,7 +131,7 @@ sleep 9000
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 2000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -165,10 +170,10 @@ print ========= start dnode2
 sql create dnode 192.168.0.2
 
 sleep 3000
-system sh/clear.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
+system sh/deploy.sh -n dnode2 -m 192.168.0.1 -i 192.168.0.2
 system sh/cfg.sh -n dnode2 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode2 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode2 -c clog -v 0
+system sh/cfg.sh -n dnode2 -c clog -v 1
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 
@@ -178,7 +183,7 @@ sleep 10000
 $x = 0
 show3: 
 	$x = $x + 1
-	sleep 2000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -218,7 +223,7 @@ sleep 9000
 $x = 0
 show4: 
 	$x = $x + 1
-	sleep 2000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -257,10 +262,10 @@ print ========= start dnode3
 sql create dnode 192.168.0.3
 
 sleep 3000
-system sh/clear.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
+system sh/deploy.sh -n dnode3 -m 192.168.0.1 -i 192.168.0.3
 system sh/cfg.sh -n dnode3 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode3 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode3 -c clog -v 0
+system sh/cfg.sh -n dnode3 -c clog -v 1
 system sh/cfg.sh -n dnode3 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 
@@ -271,7 +276,7 @@ $x = 0
 show5: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show5
@@ -316,7 +321,7 @@ $x = 0
 show6: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show6
@@ -362,10 +367,10 @@ print 192.168.0.3 ==> $dnode3Role
 print 192.168.0.4 ==> $dnode4Role
 
 sleep 3000
-system sh/clear.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
+system sh/deploy.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode1 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c clog -v 1
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 
@@ -387,7 +392,7 @@ show7:
 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show7
@@ -411,7 +416,7 @@ endi
 print ============================== step8
 print ========= add db4
 
-sql create database c_b2_d4 replica 2
+sql create database c_b2_d4 replica 2 tables 4
 sql use c_b2_d4
 sql create table c_b2_t4 (t timestamp, i int) 
 sql insert into c_b2_t4 values(1520000020045, 45)
@@ -438,7 +443,7 @@ $x = 0
 show8: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show8
@@ -484,7 +489,7 @@ $x = 0
 show9: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show9
@@ -519,20 +524,20 @@ sql create dnode 192.168.0.1
 sql create dnode 192.168.0.4
 
 sleep 3000
-system sh/clear.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
+system sh/deploy.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.2
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode1 -c clog -v 0
+system sh/cfg.sh -n dnode1 -c clog -v 1
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 
 sleep 3000
-system sh/clear.sh -n dnode4 -m 192.168.0.2 -i 192.168.0.4
+system sh/deploy.sh -n dnode4 -m 192.168.0.2 -i 192.168.0.4
 system sh/cfg.sh -n dnode4 -c secondIp -v 192.168.0.2
 system sh/cfg.sh -n dnode4 -c numOfMPeers -v 3
 system sh/cfg.sh -n dnode4 -c numOfTotalVnodes -v 4
-system sh/cfg.sh -n dnode4 -c clog -v 0
+system sh/cfg.sh -n dnode4 -c clog -v 1
 system sh/cfg.sh -n dnode4 -c mgmtEqualVnodeNum -v 0
 sleep 3000
 
@@ -554,7 +559,7 @@ show10:
 	
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show10
@@ -592,7 +597,7 @@ print 192.168.0.2 ==> $dnode2Role
 print 192.168.0.3 ==> $dnode3Role
 print 192.168.0.4 ==> $dnode4Role
 
-sql create database c_b2_d5 replica 2
+sql create database c_b2_d5 replica 2 tables 4
 sql use c_b2_d5;
 sql create table c_b2_t5 (t timestamp, i int)
 sql insert into c_b2_t5 values(1520000020055, 55)
@@ -601,7 +606,7 @@ sql insert into c_b2_t5 values(1520000022053, 53)
 sql insert into c_b2_t5 values(1520000023052, 52)
 sql insert into c_b2_t5 values(1520000024051, 51)
 
-sql create database c_b2_d6 replica 2
+sql create database c_b2_d6 replica 2 tables 4
 sql use c_b2_d6
 sql create table c_b2_t6 (t timestamp, i int) 
 sql insert into c_b2_t6 values(1520000020065, 65)
@@ -614,7 +619,7 @@ $x = 0
 show11: 
 	$x = $x + 1
 	sleep 2000
-	if $x == 20 then 
+	if $x == 30 then
 	  return -1
 	endi
 sql show dnodes -x show11

@@ -1,3 +1,4 @@
+sleep 3000
 sql connect
 sleep 3000
 

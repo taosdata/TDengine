@@ -108,7 +108,7 @@ if $data01 != NULL then
 endi
 
 print =============== step9
-sql insert into $tb values (now+8m, 'null')
+sql insert into $tb values (now+9m, 'null')
 sql select * from $tb order by ts desc
 if $rows != 9 then 
   return -1
@@ -118,7 +118,7 @@ if $data01 != NULL then
 endi
 
 print =============== step10
-sql insert into $tb values (now+9m, -123)
+sql insert into $tb values (now+10m, -123)
 sql select * from $tb order by ts desc
 if $rows != 10 then 
   return -1
