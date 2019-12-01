@@ -56,9 +56,9 @@ mpool_h taosMemPoolInit(int numOfBlock, int blockSize) {
 
   if (pool_p->pool == NULL || pool_p->freeList == NULL) {
     pError("failed to allocate memory\n");
-    free(pool_p->freeList);
-    free(pool_p->pool);
-    free(pool_p);
+    tfree(pool_p->freeList);
+    tfree(pool_p->pool);
+    tfree(pool_p);
     return NULL;
   }
 

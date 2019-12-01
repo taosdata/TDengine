@@ -4,7 +4,7 @@
  */
 
 /* @(#) $Id$ */
-
+#include <stdint.h>
 #include "zutil.h"
 
 local uLong adler32_combine_ OF((uLong adler1, uLong adler2, z_off64_t len2));
@@ -26,7 +26,7 @@ local uLong adler32_combine_ OF((uLong adler1, uLong adler2, z_off64_t len2));
    (thank you to John Reiser for pointing this out) */
 #  define CHOP(a) \
     do { \
-        unsigned long tmp = a >> 16; \
+        uint64_t tmp = a >> 16; \
         a &= 0xffffUL; \
         a += (tmp << 4) - tmp; \
     } while (0)
@@ -65,7 +65,7 @@ uLong ZEXPORT adler32_z(adler, buf, len)
     const Bytef *buf;
     z_size_t len;
 {
-    unsigned long sum2;
+    uint64_t sum2;
     unsigned n;
 
     /* split Adler-32 into component sums */
@@ -145,8 +145,8 @@ local uLong adler32_combine_(adler1, adler2, len2)
     uLong adler2;
     z_off64_t len2;
 {
-    unsigned long sum1;
-    unsigned long sum2;
+    uint64_t sum1;
+    uint64_t sum2;
     unsigned rem;
 
     /* for negative len, return invalid adler32 as a clue for debugging */
@@ -163,7 +163,7 @@ local uLong adler32_combine_(adler1, adler2, len2)
     sum2 += ((adler1 >> 16) & 0xffff) + ((adler2 >> 16) & 0xffff) + BASE - rem;
     if (sum1 >= BASE) sum1 -= BASE;
     if (sum1 >= BASE) sum1 -= BASE;
-    if (sum2 >= ((unsigned long)BASE << 1)) sum2 -= ((unsigned long)BASE << 1);
+    if (sum2 >= ((uint64_t)BASE << 1)) sum2 -= ((uint64_t)BASE << 1);
     if (sum2 >= BASE) sum2 -= BASE;
     return sum1 | (sum2 << 16);
 }

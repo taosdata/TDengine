@@ -56,24 +56,26 @@
 #define HTTP_REQTYPE_SINGLE_SQL     3
 #define HTTP_REQTYPE_MULTI_SQL      4
 
-#define HTTP_CLOSE_CONN             0
-#define HTTP_KEEP_CONN              1
-
-#define HTTP_PROCESS_ERROR          0
-#define HTTP_PROCESS_SUCCESS        1
-
 #define HTTP_CHECK_BODY_ERROR      -1
 #define HTTP_CHECK_BODY_CONTINUE    0
 #define HTTP_CHECK_BODY_SUCCESS     1
 
-#define HTTP_READ_RETRY_TIMES       5
-#define HTTP_READ_WAIT_TIME_MS      5
 #define HTTP_WRITE_RETRY_TIMES      500
 #define HTTP_WRITE_WAIT_TIME_MS     5
 #define HTTP_EXPIRED_TIME           60000
+#define HTTP_DELAY_CLOSE_TIME_MS    500
 
 #define HTTP_COMPRESS_IDENTITY      0
 #define HTTP_COMPRESS_GZIP          2
+
+#define HTTP_SESSION_ID_LEN         (TSDB_USER_LEN * 2 + 1)
+
+typedef enum {
+    HTTP_CONTEXT_STATE_READY,
+    HTTP_CONTEXT_STATE_HANDLING,
+    HTTP_CONTEXT_STATE_DROPPING,
+    HTTP_CONTEXT_STATE_CLOSED
+} HttpContextState;
 
 struct HttpContext;
 struct HttpThread;
@@ -83,7 +85,7 @@ typedef struct {
   int   expire;
   int   access;
   void *taos;
-  char  id[TSDB_USER_LEN];
+  char  id[HTTP_SESSION_ID_LEN + 1];
 } HttpSession;
 
 typedef enum {
@@ -174,10 +176,9 @@ typedef struct HttpContext {
   uint8_t      fromMemPool;
   uint8_t      acceptEncoding;
   uint8_t      contentEncoding;
-  uint8_t      usedByEpoll;
-  uint8_t      usedByApp;
   uint8_t      reqType;
   uint8_t      parsed;
+  int32_t      state;
   char         ipstr[22];
   char         user[TSDB_USER_LEN];  // parsed from auth token or login message
   char         pass[TSDB_PASSWORD_LEN];
@@ -189,7 +190,7 @@ typedef struct HttpContext {
   HttpSqlCmds        *multiCmds;
   JsonBuf            *jsonBuf;
   HttpParser          parser;
-  void               *readTimer;
+  void               *timer;
   struct HttpThread  *pThread;
   struct HttpContext *prev;
   struct HttpContext *next;
@@ -211,7 +212,7 @@ typedef struct HttpThread {
 typedef struct _http_server_obj_ {
   char              label[HTTP_LABEL_SIZE];
   char              serverIp[16];
-  short             serverPort;
+  uint16_t          serverPort;
   int               cacheContext;
   int               sessionExpire;
   int               numOfThreads;
@@ -234,7 +235,7 @@ bool httpCheckUsedbSql(char *sql);
 void httpTimeToString(time_t t, char *buf, int buflen);
 
 // http init method
-void *httpInitServer(char *ip, short port, char *label, int numOfThreads, void *fp, void *shandle);
+void *httpInitServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
 void httpCleanUpServer(HttpServer *pServer);
 
 // http server connection
@@ -271,6 +272,7 @@ bool httpProcessData(HttpContext *pContext);
 bool httpReadDataImp(HttpContext *pContext);
 bool httpParseRequest(HttpContext* pContext);
 int  httpCheckReadCompleted(HttpContext* pContext);
+void httpReadDirtyData(HttpContext *pContext);
 
 // http request handler
 void httpProcessRequest(HttpContext *pContext);
@@ -306,5 +308,9 @@ int httpGzipCompress(HttpContext *pContext, char *inSrcData, int32_t inSrcDataLe
 
 extern const char *httpKeepAliveStr[];
 extern const char *httpVersionStr[];
+const char* httpContextStateStr(HttpContextState state);
+
+bool httpAlterContextState(HttpContext *pContext, HttpContextState srcState, HttpContextState destState);
+void httpRemoveContextFromEpoll(HttpThread *pThread, HttpContext *pContext);
 
 #endif

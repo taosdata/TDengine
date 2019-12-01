@@ -33,7 +33,16 @@
 #include "restHandle.h"
 #include "tgHandle.h"
 
+#ifdef CLUSTER
+  void adminInitHandle(HttpServer* pServer);
+  void opInitHandle(HttpServer* pServer);
+#else
+  void adminInitHandle(HttpServer* pServer) {}
+  void opInitHandle(HttpServer* pServer) {}
+#endif
+
 static HttpServer *httpServer = NULL;
+void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
 
 int httpInitSystem() {
   taos_init();
@@ -41,7 +50,7 @@ int httpInitSystem() {
   httpServer = (HttpServer *)malloc(sizeof(HttpServer));
   memset(httpServer, 0, sizeof(HttpServer));
 
-  strcpy(httpServer->label, "taosh");
+  strcpy(httpServer->label, "rest");
   strcpy(httpServer->serverIp, tsHttpIp);
   httpServer->serverPort = tsHttpPort;
   httpServer->cacheContext = tsHttpCacheSessions;
@@ -51,9 +60,14 @@ int httpInitSystem() {
 
   pthread_mutex_init(&httpServer->serverMutex, NULL);
 
+  if (tsHttpEnableRecordSql != 0) {
+    taosInitNote(tsNumOfLogLines / 10, 1, (char*)"http_note");
+  }
   restInitHandle(httpServer);
+  adminInitHandle(httpServer);
   gcInitHandle(httpServer);
   tgInitHandle(httpServer);
+  opInitHandle(httpServer);
 
   return 0;
 }
@@ -63,7 +77,7 @@ int httpStartSystem() {
 
   if (httpServer == NULL) {
     httpError("http server is null");
-    return -1;
+    httpInitSystem();
   }
 
   if (httpServer->pContextPool == NULL) {
@@ -75,7 +89,7 @@ int httpStartSystem() {
   }
 
   if (httpServer->timerHandle == NULL) {
-    httpServer->timerHandle = taosTmrInit(5, 1000, 60000, "http");
+    httpServer->timerHandle = taosTmrInit(tsHttpCacheSessions * 100 + 100, 200, 60000, "http");
   }
   if (httpServer->timerHandle == NULL) {
     httpError("http init timer failed");
@@ -134,7 +148,7 @@ void httpCleanUpSystem() {
 
 void httpGetReqCount(int32_t *httpReqestNum) {
   if (httpServer != NULL) {
-    *httpReqestNum = __sync_fetch_and_and(&httpServer->requestNum, 0);
+    *httpReqestNum = atomic_exchange_32(&httpServer->requestNum, 0);
   } else {
     *httpReqestNum = 0;
   }

@@ -13,11 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <taos.h>
-#include <tsclient.h>
+#include "os.h"
 #include "taosmsg.h"
 
 #include "tcache.h"
@@ -30,7 +26,9 @@
 #include "tschemautil.h"
 #include "tsocket.h"
 
-static int32_t getToStringLength(char *pData, int32_t length, int32_t type) {
+static void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnName, size_t valueLength);
+
+static int32_t getToStringLength(const char *pData, int32_t length, int32_t type) {
   char buf[512] = {0};
 
   int32_t len = 0;
@@ -40,12 +38,30 @@ static int32_t getToStringLength(char *pData, int32_t length, int32_t type) {
       return length;
     case TSDB_DATA_TYPE_NCHAR:
       return length;
-    case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_DOUBLE: {
+#ifdef _TD_ARM_32_
+      double dv = 0;
+      *(int64_t *)(&dv) = *(int64_t *)pData;
+      len = sprintf(buf, "%f", dv);
+#else
       len = sprintf(buf, "%lf", *(double *)pData);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
+#endif
+      if (strncasecmp("nan", buf, 3) == 0) {
+        len = 4;
+      }
+    } break;
+    case TSDB_DATA_TYPE_FLOAT: {
+#ifdef _TD_ARM_32_
+      float fv = 0;
+      *(int32_t *)(&fv) = *(int32_t *)pData;
+      len = sprintf(buf, "%f", fv);
+#else
       len = sprintf(buf, "%f", *(float *)pData);
-      break;
+#endif
+      if (strncasecmp("nan", buf, 3) == 0) {
+        len = 4;
+      }
+    } break;
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT:
       len = sprintf(buf, "%lld", *(int64_t *)pData);
@@ -69,9 +85,10 @@ static int32_t getToStringLength(char *pData, int32_t length, int32_t type) {
  * length((uint64_t) 123456789011) > 12, greater than sizsof(uint64_t)
  */
 static int32_t tscMaxLengthOfTagsFields(SSqlObj *pSql) {
-  SMeterMeta *pMeta = pSql->cmd.pMeterMeta;
+  SMeterMeta *pMeta = tscGetMeterMetaInfo(&pSql->cmd, 0)->pMeterMeta;
 
-  if (pMeta->meterType != TSDB_METER_MTABLE) {
+  if (pMeta->meterType == TSDB_METER_METRIC || pMeta->meterType == TSDB_METER_OTABLE ||
+      pMeta->meterType == TSDB_METER_STABLE) {
     return 0;
   }
 
@@ -97,8 +114,9 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
   SSqlRes *pRes = &pSql->res;
 
   // one column for each row
-  SSqlCmd *   pCmd = &pSql->cmd;
-  SMeterMeta *pMeta = pCmd->pMeterMeta;
+  SSqlCmd *       pCmd = &pSql->cmd;
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  SMeterMeta *    pMeta = pMeterMetaInfo->pMeterMeta;
 
   /*
    * tagValueCnt is to denote the number of tags columns for meter, not metric. and is to show the column data.
@@ -109,7 +127,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
   int32_t numOfRows = pMeta->numOfColumns;
   int32_t totalNumOfRows = numOfRows + pMeta->numOfTags;
 
-  if (UTIL_METER_IS_METRIC(pCmd)) {
+  if (UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
     numOfRows = pMeta->numOfColumns + pMeta->numOfTags;
   }
 
@@ -141,7 +159,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     }
   }
 
-  if (UTIL_METER_IS_METRIC(pCmd)) {
+  if (UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
     return 0;
   }
 
@@ -182,12 +200,24 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
         case TSDB_DATA_TYPE_NCHAR:
           taosUcs4ToMbs(pTagValue, pSchema[i].bytes, target);
           break;
-        case TSDB_DATA_TYPE_FLOAT:
+        case TSDB_DATA_TYPE_FLOAT: {
+#ifdef _TD_ARM_32_
+          float fv = 0;
+          *(int32_t *)(&fv) = *(int32_t *)pTagValue;
+          sprintf(target, "%f", fv);
+#else
           sprintf(target, "%f", *(float *)pTagValue);
-          break;
-        case TSDB_DATA_TYPE_DOUBLE:
+#endif
+        } break;
+        case TSDB_DATA_TYPE_DOUBLE: {
+#ifdef _TD_ARM_32_
+          double dv = 0;
+          *(int64_t *)(&dv) = *(int64_t *)pTagValue;
+          sprintf(target, "%lf", dv);
+#else
           sprintf(target, "%lf", *(double *)pTagValue);
-          break;
+#endif
+        } break;
         case TSDB_DATA_TYPE_TINYINT:
           sprintf(target, "%d", *(int8_t *)pTagValue);
           break;
@@ -240,7 +270,7 @@ static int32_t tscBuildMeterSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
 }
 
 static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
-  assert(pSql->cmd.pMeterMeta != NULL);
+  assert(tscGetMeterMetaInfo(&pSql->cmd, 0)->pMeterMeta != NULL);
 
   const int32_t NUM_OF_DESCRIBE_TABLE_COLUMNS = 4;
   const int32_t TYPE_COLUMN_LENGTH = 16;
@@ -261,15 +291,17 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
 static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
   // the result structure has been completed in sql parse, so we
   // only need to reorganize the results in the column format
-  SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
+  SSqlCmd *       pCmd = &pSql->cmd;
+  SSqlRes *       pRes = &pSql->res;
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
 
-  SMetricMeta *pMetricMeta = pCmd->pMetricMeta;
-  SSchema *    pSchema = tsGetTagSchema(pCmd->pMeterMeta);
+  SMetricMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
+  SSchema *    pSchema = tsGetTagSchema(pMeterMetaInfo->pMeterMeta);
 
   int32_t vOffset[TSDB_MAX_COLUMNS] = {0};
-  for (int32_t f = 1; f < pCmd->numOfReqTags; ++f) {
-    int16_t tagColumnIndex = pCmd->tagColumnIndex[f - 1];
+
+  for (int32_t f = 1; f < pMeterMetaInfo->numOfTags; ++f) {
+    int16_t tagColumnIndex = pMeterMetaInfo->tagColumnIndex[f - 1];
     if (tagColumnIndex == -1) {
       vOffset[f] = vOffset[f - 1] + TSDB_METER_NAME_LEN;
     } else {
@@ -290,10 +322,10 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
       SMeterSidExtInfo *pSidExt = tscGetMeterSidInfo(pSidList, j);
 
       for (int32_t k = 0; k < pCmd->fieldsInfo.numOfOutputCols; ++k) {
-        SColIndex *pColIndex = &tscSqlExprGet(pCmd, k)->colInfo;
-        int32_t    offsetId = pColIndex->colIdx;
+        SColIndexEx *pColIndex = &tscSqlExprGet(pCmd, k)->colInfo;
+        int16_t      offsetId = pColIndex->colIdx;
 
-        assert(pColIndex->isTag);
+        assert((pColIndex->flag & TSDB_COL_TAG) != 0);
 
         char *      val = pSidExt->tags + vOffset[offsetId];
         TAOS_FIELD *pField = tscFieldInfoGetField(pCmd, k);
@@ -312,7 +344,7 @@ static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  SMetricMeta *pMetricMeta = pCmd->pMetricMeta;
+  SMetricMeta *pMetricMeta = tscGetMeterMetaInfo(pCmd, 0)->pMetricMeta;
   int32_t      totalNumOfResults = 1;  // count function only produce one result
   int32_t      rowLen = tscGetResRowLength(pCmd);
 
@@ -323,7 +355,7 @@ static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
     for (int32_t k = 0; k < pCmd->fieldsInfo.numOfOutputCols; ++k) {
       SSqlExpr *pExpr = tscSqlExprGet(pCmd, i);
 
-      if (pExpr->colInfo.colIdx == -1 && pExpr->sqlFuncId == TSDB_FUNC_COUNT) {
+      if (pExpr->colInfo.colIdx == -1 && pExpr->functionId == TSDB_FUNC_COUNT) {
         TAOS_FIELD *pField = tscFieldInfoGetField(pCmd, k);
 
         memcpy(pRes->data + tscFieldInfoGetOffset(pCmd, i) * totalNumOfResults + pField->bytes * rowIdx,
@@ -342,7 +374,7 @@ static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
 static int tscProcessQueryTags(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SMeterMeta *pMeterMeta = pCmd->pMeterMeta;
+  SMeterMeta *pMeterMeta = tscGetMeterMetaInfo(pCmd, 0)->pMeterMeta;
   if (pMeterMeta == NULL || pMeterMeta->numOfTags == 0 || pMeterMeta->numOfColumns == 0) {
     strcpy(pCmd->payload, "invalid table");
     pSql->res.code = TSDB_CODE_INVALID_TABLE;
@@ -350,11 +382,73 @@ static int tscProcessQueryTags(SSqlObj *pSql) {
   }
 
   SSqlExpr *pExpr = tscSqlExprGet(pCmd, 0);
-  if (pExpr->sqlFuncId == TSDB_FUNC_COUNT) {
+  if (pExpr->functionId == TSDB_FUNC_COUNT) {
     return tscBuildMetricTagSqlFunctionResult(pSql);
   } else {
     return tscBuildMetricTagProjectionResult(pSql);
   }
+}
+
+static void tscProcessCurrentUser(SSqlObj *pSql) {
+  SSqlExpr* pExpr = tscSqlExprGet(&pSql->cmd, 0);
+  tscSetLocalQueryResult(pSql, pSql->pTscObj->user, pExpr->aliasName, TSDB_USER_LEN);
+}
+
+static void tscProcessCurrentDB(SSqlObj *pSql) {
+  char db[TSDB_DB_NAME_LEN + 1] = {0};
+  extractDBName(pSql->pTscObj->db, db);
+  
+  // no use db is invoked before.
+  if (strlen(db) == 0) {
+    setNull(db, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
+  }
+  
+  SSqlExpr* pExpr = tscSqlExprGet(&pSql->cmd, 0);
+  tscSetLocalQueryResult(pSql, db, pExpr->aliasName, TSDB_DB_NAME_LEN);
+}
+
+static void tscProcessServerVer(SSqlObj *pSql) {
+  const char* v = pSql->pTscObj->sversion;
+  
+  SSqlExpr* pExpr = tscSqlExprGet(&pSql->cmd, 0);
+  tscSetLocalQueryResult(pSql, v, pExpr->aliasName, tListLen(pSql->pTscObj->sversion));
+}
+
+static void tscProcessClientVer(SSqlObj *pSql) {
+  SSqlExpr* pExpr = tscSqlExprGet(&pSql->cmd, 0);
+  tscSetLocalQueryResult(pSql, version, pExpr->aliasName, strlen(version));
+}
+
+static void tscProcessServStatus(SSqlObj *pSql) {
+  STscObj* pObj = pSql->pTscObj;
+  
+  if (pObj->pHb != NULL) {
+    if (pObj->pHb->res.code == TSDB_CODE_NETWORK_UNAVAIL) {
+      pSql->res.code = TSDB_CODE_NETWORK_UNAVAIL;
+      return;
+    }
+  } else {
+    if (pSql->res.code == TSDB_CODE_NETWORK_UNAVAIL) {
+      return;
+    }
+  }
+  
+  SSqlExpr* pExpr = tscSqlExprGet(&pSql->cmd, 0);
+  tscSetLocalQueryResult(pSql, "1", pExpr->aliasName, 2);
+}
+
+void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnName, size_t valueLength) {
+  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlRes *pRes = &pSql->res;
+
+  pCmd->numOfCols = 1;
+  pCmd->order.order = TSQL_SO_ASC;
+
+  tscFieldInfoSetValue(&pCmd->fieldsInfo, 0, TSDB_DATA_TYPE_BINARY, columnName, valueLength);
+  tscInitResObjForLocalQuery(pSql, 1, valueLength);
+
+  TAOS_FIELD *pField = tscFieldInfoGetField(pCmd, 0);
+  strncpy(pRes->data, val, pField->bytes);
 }
 
 int tscProcessLocalCmd(SSqlObj *pSql) {
@@ -367,16 +461,30 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
   } else if (pCmd->command == TSDB_SQL_RETRIEVE_TAGS) {
     pSql->res.code = (uint8_t)tscProcessQueryTags(pSql);
   } else if (pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-    pSql->res.qhandle = 0x1; // pass the qhandle check
+    /*
+     * set the qhandle to be 1 in order to pass the qhandle check, and to call partial release function to
+     * free allocated resources and remove the SqlObj from sql query linked list
+     */
+    pSql->res.qhandle = 0x1;
     pSql->res.numOfRows = 0;
   } else if (pCmd->command == TSDB_SQL_RESET_CACHE) {
     taosClearDataCache(tscCacheHandle);
+  } else if (pCmd->command == TSDB_SQL_SERV_VERSION) {
+    tscProcessServerVer(pSql);
+  } else if (pCmd->command == TSDB_SQL_CLI_VERSION) {
+    tscProcessClientVer(pSql);
+  } else if (pCmd->command == TSDB_SQL_CURRENT_USER) {
+    tscProcessCurrentUser(pSql);
+  } else if (pCmd->command == TSDB_SQL_CURRENT_DB) {
+    tscProcessCurrentDB(pSql);
+  } else if (pCmd->command == TSDB_SQL_SERV_STATUS) {
+    tscProcessServStatus(pSql);
   } else {
     pSql->res.code = TSDB_CODE_INVALID_SQL;
     tscError("%p not support command:%d", pSql, pCmd->command);
   }
 
-  //keep the code in local variable in order to avoid invalid read in case of async query
+  // keep the code in local variable in order to avoid invalid read in case of async query
   int32_t code = pSql->res.code;
 
   if (pSql->fp != NULL) {  // callback function

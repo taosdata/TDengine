@@ -13,22 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/types.h>
-#include <time.h>
-
 #include "os.h"
 #include "tlog.h"
 #include "tutil.h"
@@ -41,7 +25,7 @@
 #define MAX_LOGLINE_DUMP_CONTENT_SIZE (MAX_LOGLINE_DUMP_SIZE - 100)
 
 #define LOG_FILE_NAME_LEN          300
-#define TSDB_DEFAULT_LOG_BUF_SIZE (64 * 1024)   // 10K
+#define TSDB_DEFAULT_LOG_BUF_SIZE (512 * 1024)   // 512K
 #define TSDB_MIN_LOG_BUF_SIZE      1024         // 1K
 #define TSDB_MAX_LOG_BUF_SIZE     (1024 * 1024) // 1M
 #define TSDB_DEFAULT_LOG_BUF_UNIT  1024         // 1K
@@ -61,7 +45,7 @@ typedef struct {
 uint32_t uDebugFlag = 131;  // all the messages
 short tsAsyncLog = 1;
 
-static SLogBuff *logHandle;
+static SLogBuff *logHandle = NULL;
 static int       taosLogFileNum = 1;
 static int       taosLogMaxLines = 0;
 static int       taosLogLines = 0;
@@ -381,7 +365,7 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
     }
 
     if (taosLogMaxLines > 0) {
-      __sync_add_and_fetch_32(&taosLogLines, 1);
+      atomic_add_fetch_32(&taosLogLines, 1);
 
       if ((taosLogLines > taosLogMaxLines) && (openInProgress == 0)) taosOpenNewLogFile();
     }
@@ -458,7 +442,7 @@ void taosPrintLongString(const char *const flags, int dflag, const char *const f
     taosPushLogBuffer(logHandle, buffer, len);
 
     if (taosLogMaxLines > 0) {
-      __sync_add_and_fetch_32(&taosLogLines, 1);
+      atomic_add_fetch_32(&taosLogLines, 1);
 
       if ((taosLogLines > taosLogMaxLines) && (openInProgress == 0)) taosOpenNewLogFile();
     }

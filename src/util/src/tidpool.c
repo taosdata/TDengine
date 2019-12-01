@@ -13,10 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "os.h"
 #include "tlog.h"
 
 typedef struct {
@@ -149,4 +146,39 @@ void taosIdPoolSetFreeList(void *handle) {
       pos++;
     }
   }
+}
+
+int taosUpdateIdPool(id_pool_t *handle, int maxId) {
+  id_pool_t *pIdPool = (id_pool_t*)handle;
+  if (maxId <= pIdPool->maxId) {
+    return -1;
+  }
+
+  int *idList, i;
+  idList = (int *)malloc(sizeof(int) * (size_t)maxId);
+  if (idList == NULL) {
+    return -1;
+  }
+  for (i = 1; i < maxId; ++i) {
+    idList[i - 1] = i;
+  }
+
+  if (pthread_mutex_lock(&pIdPool->mutex) != 0) perror("lock pIdPool Mutex");
+
+  memcpy(idList, pIdPool->freeList, sizeof(int) * (size_t)pIdPool->maxId);
+  pIdPool->numOfFree += (maxId - pIdPool->maxId);
+  pIdPool->maxId = maxId;
+
+  int *oldIdList = pIdPool->freeList;
+  pIdPool->freeList = idList;
+  free(oldIdList);
+
+  if (pthread_mutex_unlock(&pIdPool->mutex) != 0) perror("unlock pIdPool Mutex");
+
+  return 0;
+}
+
+int taosIdPoolMaxSize(void *handle) {
+  id_pool_t *pIdPool = (id_pool_t*)handle;
+  return pIdPool->maxId;
 }

@@ -145,7 +145,7 @@ char *tsError[] = {"success",
                    "not online",
                    "send failed",
                    "not active session",     // 20
-                   "insert failed",
+                   "invalid vnode id",
                    "App error",
                    "invalid IE",
                    "invalid value",
@@ -178,8 +178,8 @@ char *tsError[] = {"success",
                    "others",
                    "can't remove dnode which is master",
                    "wrong schema",
-                   "no results",
-                   "num of users execeed maxUsers",
+                   "vnode not active(not created yet or dropped already)",
+                   "num of users execeed maxUsers",   //55
                    "num of databases execeed maxDbs",
                    "num of tables execeed maxTables",
                    "num of dnodes execeed maxDnodes",
@@ -208,32 +208,38 @@ char *tsError[] = {"success",
                    "client out of memory",
                    "data value overflow",
                    "query cancelled",
-                   "grant timeseries limited",  // 84
+                   "grant timeseries limited",
                    "grant expired",             // 85
                    "client no disk space",
                    "DB file corrupted",
                    "version of client and server not match",
                    "invalid account parameter",
-                   "no enough available time series",
+                   "no enough available time series",  //90
                    "storage credit is used up",
-                   "query credit is used up",    // 92
+                   "query credit is used up",
                    "grant database limited",
                    "grant user limited",
-                   "grant connection limited",
+                   "grant connection limited",      //95
                    "grant stream limited",
                    "grant writing speed limited",
                    "grant storage limited",
-                   "grant query time limited",   // 99
-                   "grant account limited",
+                   "grant query time limited",
+                   "grant account limited",      // 100
                    "grant dnode limited",
-                   "grant cpu core limited",     // 102
+                   "grant cpu core limited",
                    "session not ready",
                    "batch size too big",
-                   "timestamp out of range",
+                   "timestamp out of range",     //105
                    "invalid query message",
                    "timestamp disordered in cache block",
                    "timestamp disordered in file block",
                    "invalid commit log",
-                   "server no disk space",
+                   "server no disk space",    //110
+                   "only super table has metric meta info",
+                   "tags value not unique for join",
                    "invalid submit message",
+                   "not active table(not created yet or deleted already)",  //114
+                   "invalid table id",
+                   "invalid vnode status",    //116
+                   "failed to lock resources",
 };

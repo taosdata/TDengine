@@ -30,6 +30,9 @@
 #include <wordexp.h>
 
 #include "taos.h"
+
+extern char configDir[];
+
 #pragma GCC diagnostic ignored "-Wmissing-braces"
 
 #define BUFFER_SIZE      65536
@@ -53,10 +56,10 @@ static struct argp_option options[] = {
   {0, 'b', "type_of_cols",             0, "The data_type of columns: 'INT', 'TINYINT', 'SMALLINT', 'BIGINT', 'FLOAT', 'DOUBLE', 'BINARY'. Default is 'INT'.", 7},
   {0, 'w', "length_of_binary",         0, "The length of data_type 'BINARY'. Only applicable when type of cols is 'BINARY'. Default is 8",                    8},
   {0, 'l', "num_of_cols_per_record",   0, "The number of columns per record. Default is 3.",                                                                  8},
-  {0, 'c', "num_of_conns",             0, "The number of connections. Default is 10.",                                                                         9},
-  {0, 'r', "num_of_records_per_req",   0, "The number of records per request. Default is 1000.",                                                                 10},
-  {0, 't', "num_of_tables",            0, "The number of tables. Default is 10000.",                                                                              11},
-  {0, 'n', "num_of_records_per_table", 0, "The number of records per table. Default is 100000.",                                                               12},
+  {0, 'c', "num_of_conns",             0, "The number of connections. Default is 10.",                                                                        9},
+  {0, 'r', "num_of_records_per_req",   0, "The number of records per request. Default is 1000.",                                                              10},
+  {0, 't', "num_of_tables",            0, "The number of tables. Default is 10000.",                                                                          11},
+  {0, 'n', "num_of_records_per_table", 0, "The number of records per table. Default is 100000.",                                                              12},
   {0, 'f', "config_directory",         0, "Configuration directory. Default is '/etc/taos/'.",                                                                14},
   {0, 'x', 0,                          0, "Insert only flag.",                                                                                                13},
   {0}};
@@ -64,7 +67,7 @@ static struct argp_option options[] = {
 /* Used by main to communicate with parse_opt. */
 struct arguments {
   char  *host;
-  int    port;
+  uint16_t    port;
   char  *user;
   char  *password;
   char  *database;
@@ -176,7 +179,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }
-      strcpy(configDir, full_path.we_wordv[0]);
+      taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
       wordfree(&full_path);
       break;
     case OPT_ABORT:
@@ -212,7 +215,7 @@ typedef struct {
   int ncols_per_record;
   int nrecords_per_table;
   int nrecords_per_request;
-  long start_time;
+  int64_t start_time;
   bool do_aggreFunc;
 
   sem_t mutex_sem;
@@ -224,7 +227,7 @@ typedef struct {
   TAOS  *taos;
 
   char   tb_name[MAX_TB_NAME_SIZE];
-  long   timestamp;
+  int64_t   timestamp;
   int    target;
   int    counter;
   int    nrecords_per_request;
@@ -255,7 +258,7 @@ void *syncWrite(void *sarg);
 
 void *asyncWrite(void *sarg);
 
-void generateData(char *res, char **data_type, int num_of_cols, long timestamp, int len_of_binary);
+void generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp, int len_of_binary);
 
 void rand_string(char *str, int size);
 
@@ -307,7 +310,7 @@ int main(int argc, char *argv[]) {
   
   enum MODE query_mode = arguments.mode;
   char *ip_addr = arguments.host;
-  int port = arguments.port;
+  uint16_t port = arguments.port;
   char *user = arguments.user;
   char *pass = arguments.password;
   char *db_name = arguments.database;
@@ -340,7 +343,7 @@ int main(int argc, char *argv[]) {
   struct tm tm = *localtime(&tTime);
 
   fprintf(fp, "###################################################################\n");
-  fprintf(fp, "# Server IP:                         %s:%d\n", ip_addr == NULL ? "localhost" : ip_addr, port);
+  fprintf(fp, "# Server IP:                         %s:%hu\n", ip_addr == NULL ? "localhost" : ip_addr, port);
   fprintf(fp, "# User:                              %s\n", user);
   fprintf(fp, "# Password:                          %s\n", pass);
   fprintf(fp, "# Use metric:                        %s\n", use_metric ? "true" : "false");
@@ -536,7 +539,7 @@ void *readTable(void *sarg) {
   info *rinfo = (info *)sarg;
   TAOS *taos = rinfo->taos;
   char command[BUFFER_SIZE] = "\0";
-  long sTime = rinfo->start_time;
+  int64_t sTime = rinfo->start_time;
   char *tb_prefix = rinfo->tb_prefix;
   FILE *fp = fopen(rinfo->fp, "a");
   int num_of_DPT = rinfo->nrecords_per_table;
@@ -681,11 +684,11 @@ void *syncWrite(void *sarg) {
   int len_of_binary = winfo->len_of_binary;
   int ncols_per_record = winfo->ncols_per_record;
   srand(time(NULL));
-  long time_counter = winfo->start_time;
+  int64_t time_counter = winfo->start_time;
   for (int i = 0; i < winfo->nrecords_per_table;) {
     for (int tID = winfo->start_table_id; tID <= winfo->end_table_id; tID++) {
       int inserted = i;
-      long tmp_time = time_counter;
+      int64_t tmp_time = time_counter;
 
       char *pstr = buffer;
       pstr += sprintf(pstr, "insert into %s.%s%d values", winfo->db_name, winfo->tb_prefix, tID);
@@ -749,7 +752,7 @@ void callBack(void *param, TAOS_RES *res, int code) {
   char **datatype = tb_info->data_type;
   int ncols_per_record = tb_info->ncols_per_record;
   int len_of_binary = tb_info->len_of_binary;
-  long tmp_time = tb_info->timestamp;
+  int64_t tmp_time = tb_info->timestamp;
 
   if (code < 0) {
     fprintf(stderr, "failed to insert data %d:reason; %s\n", code, taos_errstr(tb_info->taos));
@@ -795,7 +798,7 @@ double getCurrentTime() {
   return tv.tv_sec + tv.tv_usec / 1E6;
 }
 
-void generateData(char *res, char **data_type, int num_of_cols, long timestamp, int len_of_binary) {
+void generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp, int len_of_binary) {
   memset(res, 0, MAX_DATA_SIZE);
   char *pstr = res;
   pstr += sprintf(pstr, "(%ld", timestamp);

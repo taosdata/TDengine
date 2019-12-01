@@ -16,28 +16,24 @@
 #ifndef TDENGINE_TUTIL_H
 #define TDENGINE_TUTIL_H
 
-#include "os.h"
-#include "tmd5.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <assert.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <wchar.h>
-
+#include "os.h"
+#include "tmd5.h"
 #include "tcrc32c.h"
 #include "tsdb.h"
 
-#define VALIDFD(x) ((x) > 2)
+#ifndef STDERR_FILENO
+#define STDERR_FILENO (2)
+#endif
+
+#define FD_VALID(x) ((x) > STDERR_FILENO)
+#define FD_INITIALIZER  ((int32_t)-1)
 
 #define WCHAR wchar_t
+
 #define tfree(x) \
   {              \
     if (x) {     \
@@ -95,14 +91,30 @@ extern "C" {
     } else {                     \
       return (x) < (y) ? -1 : 1; \
     }                            \
-  } while (0);
+  } while (0)
 
 #define GET_INT8_VAL(x)   (*(int8_t *)(x))
 #define GET_INT16_VAL(x)  (*(int16_t *)(x))
 #define GET_INT32_VAL(x)  (*(int32_t *)(x))
 #define GET_INT64_VAL(x)  (*(int64_t *)(x))
-#define GET_FLOAT_VAL(x)  (*(float *)(x))
-#define GET_DOUBLE_VAL(x) (*(double *)(x))
+
+#ifdef _TD_ARM_32_
+  #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
+  #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
+
+  float  taos_align_get_float(char* pBuf);
+  double taos_align_get_double(char* pBuf);
+
+  //#define __float_align_declear()  float __underlyFloat = 0.0;
+  //#define __float_align_declear()
+  //#define GET_FLOAT_VAL_ALIGN(x) (*(int32_t*)&(__underlyFloat) = *(int32_t*)(x); __underlyFloat);
+  // notes: src must be float or double type variable !!!
+  #define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
+  #define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
+#else
+  #define GET_FLOAT_VAL(x)  (*(float *)(x))
+  #define GET_DOUBLE_VAL(x) (*(double *)(x))
+#endif
 
 #define ALIGN_NUM(n, align) (((n) + ((align)-1)) & (~((align)-1)))
 
@@ -132,6 +144,10 @@ int64_t strnatoi(char *num, int32_t len);
 
 char* strreplace(const char* str, const char* pattern, const char* rep);
 
+#define POW2(x) ((x) * (x))
+
+int32_t strdequote(char *src);
+
 char *paGetToken(char *src, char **token, int32_t *tokenLen);
 
 void taosMsleep(int32_t mseconds);
@@ -155,8 +171,6 @@ int32_t taosInitTimer(void (*callback)(int), int32_t ms);
  */
 uint32_t MurmurHash3_32(const void *key, int32_t len);
 
-bool taosCheckDbName(char *db, char *monitordb);
-
 bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len);
 
 bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
@@ -172,6 +186,38 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, cha
   MD5Final(&context);
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
+
+char *taosIpStr(uint32_t ipInt);
+
+#define TAOS_ALLOC_MODE_DEFAULT 0
+#define TAOS_ALLOC_MODE_RANDOM_FAIL 1
+#define TAOS_ALLOC_MODE_DETECT_LEAK 2
+void taosSetAllocMode(int mode, const char* path, bool autoDump);
+void taosDumpMemoryLeak();
+
+#ifdef TAOS_MEM_CHECK
+
+void *  taos_malloc(size_t size, const char *file, uint32_t line);
+void *  taos_calloc(size_t num, size_t size, const char *file, uint32_t line);
+void *  taos_realloc(void *ptr, size_t size, const char *file, uint32_t line);
+void    taos_free(void *ptr, const char *file, uint32_t line);
+char *  taos_strdup(const char *str, const char *file, uint32_t line);
+char *  taos_strndup(const char *str, size_t size, const char *file, uint32_t line);
+ssize_t taos_getline(char **lineptr, size_t *n, FILE *stream, const char *file, uint32_t line);
+
+#ifndef TAOS_MEM_CHECK_IMPL
+
+#define malloc(size) taos_malloc(size, __FILE__, __LINE__)
+#define calloc(num, size) taos_calloc(num, size, __FILE__, __LINE__)
+#define realloc(ptr, size) taos_realloc(ptr, size, __FILE__, __LINE__)
+#define free(ptr) taos_free(ptr, __FILE__, __LINE__)
+#define strdup(str) taos_strdup(str, __FILE__, __LINE__)
+#define strndup(str, size) taos_strndup(str, size, __FILE__, __LINE__)
+#define getline(lineptr, n, stream) taos_getline(lineptr, n, stream, __FILE__, __LINE__)
+
+#endif  // TAOS_MEM_CHECK_IMPL
+
+#endif // TAOS_MEM_CHECK
 
 #ifdef __cplusplus
 }

@@ -9,7 +9,7 @@
    with inffast.c is retained so that optimized assembler-coded versions of
    inflate_fast() can be used with either inflate.c or infback.c.
  */
-
+#include <stdint.h>
 #include "zutil.h"
 #include "inftrees.h"
 #include "inflate.h"
@@ -173,7 +173,7 @@ struct inflate_state FAR *state;
     do { \
         PULL(); \
         have--; \
-        hold += (unsigned long)(*next++) << bits; \
+        hold += (uint64_t)(*next++) << bits; \
         bits += 8; \
     } while (0)
 
@@ -258,7 +258,7 @@ void FAR *out_desc;
     z_const unsigned char FAR *next;    /* next input */
     unsigned char FAR *put;     /* next output */
     unsigned have, left;        /* available input and output */
-    unsigned long hold;         /* bit buffer */
+    uint64_t hold;         /* bit buffer */
     unsigned bits;              /* bits in bit buffer */
     unsigned copy;              /* number of stored or match bytes to copy */
     unsigned char FAR *from;    /* where to copy match bytes from */

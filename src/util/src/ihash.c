@@ -13,13 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "os.h"
 
 typedef struct _str_node_t {
@@ -39,8 +32,7 @@ typedef struct {
 
 int32_t taosHashInt(void *handle, uint64_t key) {
   IHashObj *pObj = (IHashObj *)handle;
-  int32_t   hash = 0;
-  hash = key % pObj->maxSessions;
+  int32_t   hash = key % pObj->maxSessions;
   return hash;
 }
 

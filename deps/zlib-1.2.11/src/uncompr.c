@@ -4,7 +4,7 @@
  */
 
 /* @(#) $Id$ */
-
+#include <stdint.h>
 #define ZLIB_INTERNAL
 #include "zlib.h"
 

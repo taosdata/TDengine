@@ -13,14 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <locale.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-
 #include "os.h"
+#include <locale.h>
+
 #include "tglobalcfg.h"
 #include "tkey.h"
 #include "tlog.h"
@@ -29,11 +24,16 @@
 #include "tsystem.h"
 #include "tutil.h"
 
+// monitor module api
+int  (*startMonitor)() = NULL;
+void (*stopMonitor)()  = NULL;
+
 // system info, not configurable
 int64_t tsPageSize;
 int64_t tsOpenMax;
 int64_t tsStreamMax;
 int32_t tsNumOfCores = 1;
+int32_t tsAlternativeRole = 0;
 float tsTotalLogDirGB = 0;
 float tsTotalTmpDirGB = 0;
 float tsTotalDataDirGB = 0;
@@ -56,8 +56,14 @@ int tscEmbedded = 0;
  */
 int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
-short tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
-short tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
+char  tsMasterIp[TSDB_IPv4ADDR_LEN] = {0};
+char  tsSecondIp[TSDB_IPv4ADDR_LEN] = {0};
+uint16_t tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
+uint16_t tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
+uint16_t tsMgmtVnodePort = 6040;   // udp[6040-6044] tcp[6040]
+uint16_t tsVnodeVnodePort = 6045;  // tcp[6045]
+uint16_t tsMgmtMgmtPort = 6050;    // udp, numOfVnodes fixed to 1, range udp[6050]
+uint16_t tsMgmtSyncPort = 6050;    // tcp, range tcp[6050]
 
 int tsStatusInterval = 1;         // second
 int tsShellActivityTimer = 3;     // second
@@ -68,15 +74,17 @@ int tsMetricMetaKeepTimer = 600;  // second
 
 float tsNumOfThreadsPerCore = 1.0;
 float tsRatioOfQueryThreads = 0.5;
+char  tsPublicIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsInternalIp[TSDB_IPv4ADDR_LEN] = {0};
-char  tsServerIpStr[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
+char  tsPrivateIp[TSDB_IPv4ADDR_LEN] = {0};
+char  tsServerIpStr[TSDB_IPv4ADDR_LEN] = "127.0.0.1";
 short tsNumOfVnodesPerCore = 8;
 short tsNumOfTotalVnodes = 0;
 short tsCheckHeaderFile = 0;
 
 int tsSessionsPerVnode = 1000;
 int tsCacheBlockSize = 16384;  // 256 columns
-int tsAverageCacheBlocks = 4;
+int tsAverageCacheBlocks = TSDB_DEFAULT_AVG_BLOCKS;
 
 int   tsRowsInFileBlock = 4096;
 float tsFileBlockMinPercent = 0.05;
@@ -84,18 +92,22 @@ float tsFileBlockMinPercent = 0.05;
 short tsNumOfBlocksPerMeter = 100;
 short tsCommitTime = 3600;  // seconds
 short tsCommitLog = 1;
-short tsCompression = 2;
+short tsCompression = TSDB_MAX_COMPRESSION_LEVEL;
 short tsDaysPerFile = 10;
 int   tsDaysToKeep = 3650;
+int   tsReplications = TSDB_REPLICA_MIN_NUM;
 
+int  tsNumOfMPeers = 3;
 int  tsMaxShellConns = 2000;
+int  tsMaxAccounts = 100;
 int  tsMaxUsers = 1000;
 int  tsMaxDbs = 1000;
 int  tsMaxTables = 650000;
 int  tsMaxDnodes = 1000;
 int  tsMaxVGroups = 1000;
+char tsMgmtZone[16] = "rzone";
 
-char tsLocalIp[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
+char tsLocalIp[TSDB_IPv4ADDR_LEN] = {0};
 char tsDefaultDB[TSDB_DB_NAME_LEN] = {0};
 char tsDefaultUser[64] = "root";
 char tsDefaultPass[64] = "taosdata";
@@ -103,10 +115,27 @@ int  tsMaxMeterConnections = 10000;
 int  tsMaxMgmtConnections = 2000;
 int  tsMaxVnodeConnections = 10000;
 
+int tsBalanceMonitorInterval = 2;  // seconds
+int tsBalanceStartInterval = 300;  // seconds
+int tsBalancePolicy = 0;           // 1-use sys.montor
+int tsOfflineThreshold = 864000;   // seconds 10days
+int tsMgmtEqualVnodeNum = 0;
+
 int tsEnableHttpModule = 1;
 int tsEnableMonitorModule = 1;
 int tsRestRowLimit = 10240;
 
+/*
+ * denote if the server needs to compress response message at the application layer to client, including query rsp,
+ * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
+ *
+ * 0: all data are compressed
+ * -1: all data are not compressed
+ * other values: if the message payload size is greater than the tsCompressMsgSize, the message will be compressed.
+ */
+int tsCompressMsgSize = -1;
+
+char tsSocketType[4] = "udp";      // use UDP by default[option: udp, tcp]
 int tsTimePrecision = TSDB_TIME_PRECISION_MILLI;  // time precision, millisecond by default
 int tsMinSlidingTime = 10;                        // 10 ms for sliding time, the value will changed in
                                                   // case of time precision changed
@@ -122,17 +151,24 @@ int tsStreamCompRetryDelay = 10;                  // the stream computing delay 
 int     tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
-char  tsSocketType[4] = "udp";           // use UDP by default[option: udp, tcp]
 char  tsHttpIp[TSDB_IPv4ADDR_LEN] = "0.0.0.0";
-short tsHttpPort = 6020;                 // only tcp, range tcp[6020]
-// short tsNginxPort = 6060;             //only tcp, range tcp[6060]
+uint16_t tsHttpPort = 6020;                 // only tcp, range tcp[6020]
+// uint16_t tsNginxPort = 6060;             //only tcp, range tcp[6060]
 int tsHttpCacheSessions = 100;
 int tsHttpSessionExpire = 36000;
 int tsHttpMaxThreads = 2;
 int tsHttpEnableCompress = 0;
+int tsHttpEnableRecordSql = 0;
 int tsTelegrafUseFieldNum = 0;
+int tsAdminRowLimit = 10240;
 
-char tsMonitorDbName[] = "log";
+int   tsTscEnableRecordSql = 0;
+int   tsEnableCoreFile = 0;
+
+int tsRpcTimer = 300;
+int tsRpcMaxTime = 600;      // seconds;
+
+char tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
 int  tsMonitorInterval = 30;  // seconds
 char tsInternalPass[] = "secretkey";
 
@@ -141,6 +177,7 @@ char tsLocale[TSDB_LOCALE_LEN] = {0};
 char tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 
 int tsNumOfLogLines = 10000000;
+uint32_t rpcDebugFlag = 131;
 uint32_t ddebugFlag = 131;
 uint32_t mdebugFlag = 135;
 uint32_t sdbDebugFlag = 135;
@@ -258,6 +295,21 @@ void tsReadFilePathConfig(SGlobalConfig *cfg, char *input_value) {
   }
 }
 
+void tsExpandFilePath(char* option_name, char* input_value) {
+  wordexp_t full_path;
+  wordexp(input_value, &full_path, 0);
+  if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
+    strcpy(input_value, full_path.we_wordv[0]);
+  }
+  wordfree(&full_path);
+
+  struct stat dirstat;
+  if (stat(input_value, &dirstat) < 0) {
+    int code = mkdir(input_value, 0755);
+    pPrint("config option:%s, input value:%s, directory not exist, create with return code:%d", option_name, input_value, code);
+  }
+}
+
 void tsReadIpConfig(SGlobalConfig *cfg, char *input_value) {
   uint32_t value = inet_addr(input_value);
   char *   option = (char *)cfg->ptr;
@@ -315,7 +367,7 @@ void tsReadLogOption(char *option, char *value) {
   }
 }
 
-SGlobalConfig *tsGetConfigOption(char *option) {
+SGlobalConfig *tsGetConfigOption(const char *option) {
   tsInitGlobalConfig();
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
@@ -325,7 +377,7 @@ SGlobalConfig *tsGetConfigOption(char *option) {
   return NULL;
 }
 
-void tsReadConfigOption(char *option, char *value) {
+void tsReadConfigOption(const char *option, char *value) {
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
     if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_CONFIG)) continue;
@@ -374,229 +426,377 @@ void tsInitConfigOption(SGlobalConfig *cfg, char *name, void *ptr, int8_t valTyp
   cfg->cfgStatus = TSDB_CFG_CSTATUS_NONE;
 }
 
-void tsInitGlobalConfig() {
-  if (tsGlobalConfig != NULL) return;
-
-  tsGlobalConfig = (SGlobalConfig *)malloc(sizeof(SGlobalConfig) * TSDB_CFG_MAX_NUM);
+static void doInitGlobalConfig() {
+  tsGlobalConfig = (SGlobalConfig *) malloc(sizeof(SGlobalConfig) * TSDB_CFG_MAX_NUM);
   memset(tsGlobalConfig, 0, sizeof(SGlobalConfig) * TSDB_CFG_MAX_NUM);
 
   SGlobalConfig *cfg = tsGlobalConfig;
 
   // ip address
-  tsInitConfigOption(cfg++, "internalIp", tsInternalIp, TSDB_CFG_VTYPE_IPSTR,
-                     TSDB_CFG_CTYPE_B_CONFIG, 0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "masterIp", tsMasterIp, TSDB_CFG_VTYPE_IPSTR,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_CLUSTER,
+                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "secondIp", tsSecondIp, TSDB_CFG_VTYPE_IPSTR,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_CLUSTER,
+                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "serverIp", tsServerIpStr, TSDB_CFG_VTYPE_IPSTR,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_LITE,
+                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "publicIp", tsPublicIp, TSDB_CFG_VTYPE_IPSTR,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
+                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "privateIp", tsPrivateIp, TSDB_CFG_VTYPE_IPSTR,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
+                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "internalIp", tsInternalIp, TSDB_CFG_VTYPE_IPSTR,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "localIp", tsLocalIp, TSDB_CFG_VTYPE_IPSTR,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "httpIp", tsHttpIp, TSDB_CFG_VTYPE_IPSTR, TSDB_CFG_CTYPE_B_CONFIG, 0, 0, TSDB_IPv4ADDR_LEN,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "httpIp", tsHttpIp, TSDB_CFG_VTYPE_IPSTR,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
 
   // port
   tsInitConfigOption(cfg++, "httpPort", &tsHttpPort, TSDB_CFG_VTYPE_SHORT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 65535, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     1, 65535, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "mgmtShellPort", &tsMgmtShellPort, TSDB_CFG_VTYPE_SHORT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT, 1, 65535, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
+                     1, 65535, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "vnodeShellPort", &tsVnodeShellPort, TSDB_CFG_VTYPE_SHORT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT, 1, 65535, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
+                     1, 65535, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "mgmtVnodePort", &tsMgmtVnodePort, TSDB_CFG_VTYPE_SHORT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     1, 65535, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "vnodeVnodePort", &tsVnodeVnodePort, TSDB_CFG_VTYPE_SHORT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     1, 65535, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "mgmtMgmtPort", &tsMgmtMgmtPort, TSDB_CFG_VTYPE_SHORT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     1, 65535, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "mgmtSyncPort", &tsMgmtSyncPort, TSDB_CFG_VTYPE_SHORT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     1, 65535, 0, TSDB_CFG_UTYPE_NONE);
 
   // directory
-  tsInitConfigOption(cfg++, "configDir", configDir, TSDB_CFG_VTYPE_DIRECTORY, TSDB_CFG_CTYPE_B_CLIENT, 0, 0,
-                       TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
-#ifdef LINUX
-  tsInitConfigOption(cfg++, "dataDir", dataDir, TSDB_CFG_VTYPE_DIRECTORY, TSDB_CFG_CTYPE_B_CONFIG, 0, 0,
-                     TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
-#endif
+  tsInitConfigOption(cfg++, "configDir", configDir, TSDB_CFG_VTYPE_DIRECTORY,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 0, TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "logDir", logDir, TSDB_CFG_VTYPE_DIRECTORY,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_FILENAME_LEN,
-                     TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "scriptDir", scriptDir, TSDB_CFG_VTYPE_DIRECTORY, TSDB_CFG_CTYPE_B_CONFIG, 0, 0,
-                     TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_LOG,
+                     0, 0, TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "scriptDir", scriptDir, TSDB_CFG_VTYPE_DIRECTORY,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 0, TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "dataDir", dataDir, TSDB_CFG_VTYPE_DIRECTORY,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     0, 0, TSDB_FILENAME_LEN, TSDB_CFG_UTYPE_NONE);
 
   // dnode configs
   tsInitConfigOption(cfg++, "numOfThreadsPerCore", &tsNumOfThreadsPerCore, TSDB_CFG_VTYPE_FLOAT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 10, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 10, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "ratioOfQueryThreads", &tsRatioOfQueryThreads, TSDB_CFG_VTYPE_FLOAT,
-                     TSDB_CFG_CTYPE_B_CONFIG, 0.1, 0.9, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     0.1, 0.9, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "numOfVnodesPerCore", &tsNumOfVnodesPerCore, TSDB_CFG_VTYPE_SHORT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 64, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "numOfTotalVnodes", &tsNumOfTotalVnodes, TSDB_CFG_VTYPE_SHORT, TSDB_CFG_CTYPE_B_CONFIG, 0,
-                     TSDB_MAX_VNODES, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "checkHeaderFile", &tsCheckHeaderFile, TSDB_CFG_VTYPE_SHORT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0, 1, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     1, 64, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "numOfTotalVnodes", &tsNumOfTotalVnodes, TSDB_CFG_VTYPE_SHORT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     0, TSDB_MAX_VNODES, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "tables", &tsSessionsPerVnode, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 4, 220000, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     TSDB_MIN_TABLES_PER_VNODE, TSDB_MAX_TABLES_PER_VNODE, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "cache", &tsCacheBlockSize, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 100, 1048576, 0, TSDB_CFG_UTYPE_BYTE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     100, 1048576, 0, TSDB_CFG_UTYPE_BYTE);
   tsInitConfigOption(cfg++, "rows", &tsRowsInFileBlock, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 200, 1048576, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     200, 1048576, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "fileBlockMinPercent", &tsFileBlockMinPercent, TSDB_CFG_VTYPE_FLOAT,
-                     TSDB_CFG_CTYPE_B_CONFIG, 0, 1.0, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     0, 1.0, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "ablocks", &tsAverageCacheBlocks, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 2, 128, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     TSDB_MIN_AVG_BLOCKS, TSDB_MAX_AVG_BLOCKS, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "tblocks", &tsNumOfBlocksPerMeter, TSDB_CFG_VTYPE_SHORT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 32, 4096, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     32, 4096, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "numOfMPeers", &tsNumOfMPeers, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     1, 3, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "balanceInterval", &tsBalanceStartInterval, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     1, 30000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "alternativeRole", &tsAlternativeRole, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
+                     0, 2, 0, TSDB_CFG_UTYPE_NONE);
+  // 0-any, 1-mgmt, 2-dnode
+
+  // timer
+  tsInitConfigOption(cfg++, "maxTmrCtrl", &taosMaxTmrCtrl, TSDB_CFG_VTYPE_INT,
+                    TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                    8, 2048, 0, TSDB_CFG_UTYPE_NONE);
 
   // time
-  tsInitConfigOption(cfg++, "monitorInterval", &tsMonitorInterval, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 1, 600,
-                     0, TSDB_CFG_UTYPE_SECOND);
+  tsInitConfigOption(cfg++, "monitorInterval", &tsMonitorInterval, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 600, 0, TSDB_CFG_UTYPE_SECOND);
+  tsInitConfigOption(cfg++, "offlineThreshold", &tsOfflineThreshold, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     5, 7200000, 0, TSDB_CFG_UTYPE_SECOND);
   tsInitConfigOption(cfg++, "rpcTimer", &tsRpcTimer, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 100, 3000, 0, TSDB_CFG_UTYPE_MS);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     100, 3000, 0, TSDB_CFG_UTYPE_MS);
   tsInitConfigOption(cfg++, "rpcMaxTime", &tsRpcMaxTime, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 100, 7200, 0, TSDB_CFG_UTYPE_SECOND);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     100, 7200, 0, TSDB_CFG_UTYPE_SECOND);
   tsInitConfigOption(cfg++, "ctime", &tsCommitTime, TSDB_CFG_VTYPE_SHORT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 30, 40960, 0, TSDB_CFG_UTYPE_SECOND);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     30, 40960, 0, TSDB_CFG_UTYPE_SECOND);
   tsInitConfigOption(cfg++, "statusInterval", &tsStatusInterval, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 10, 0, TSDB_CFG_UTYPE_SECOND);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     1, 10, 0, TSDB_CFG_UTYPE_SECOND);
   tsInitConfigOption(cfg++, "shellActivityTimer", &tsShellActivityTimer, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 1, 120, 0, TSDB_CFG_UTYPE_SECOND);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     1, 120, 0, TSDB_CFG_UTYPE_SECOND);
+  tsInitConfigOption(cfg++, "vnodePeerHBTimer", &tsVnodePeerHBTimer, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     1, 10, 0, TSDB_CFG_UTYPE_SECOND);
+  tsInitConfigOption(cfg++, "mgmtPeerHBTimer", &tsMgmtPeerHBTimer, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER, 1, 10, 0,
+                     TSDB_CFG_UTYPE_SECOND);
   tsInitConfigOption(cfg++, "meterMetaKeepTimer", &tsMeterMetaKeepTimer, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 1, 8640000, 0, TSDB_CFG_UTYPE_SECOND);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     1, 8640000, 0, TSDB_CFG_UTYPE_SECOND);
   tsInitConfigOption(cfg++, "metricMetaKeepTimer", &tsMetricMetaKeepTimer, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 1, 8640000, 0, TSDB_CFG_UTYPE_SECOND);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     1, 8640000, 0, TSDB_CFG_UTYPE_SECOND);
 
   // mgmt configs
+  tsInitConfigOption(cfg++, "mgmtZone", tsMgmtZone, TSDB_CFG_VTYPE_STRING,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     0, 0, 16, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "maxAccounts", &tsMaxAccounts, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     1, 1000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "maxUsers", &tsMaxUsers, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 1000, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "maxDbs", &tsMaxDbs, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1,
-                     10000, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     1, 1000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "maxDbs", &tsMaxDbs, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     1, 10000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "maxTables", &tsMaxTables, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 100000000, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     1, 100000000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "maxDnodes", &tsMaxDnodes, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     1, 1000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "maxVGroups", &tsMaxVGroups, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 1000000, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     1, 1000000, 0, TSDB_CFG_UTYPE_NONE);
 
   tsInitConfigOption(cfg++, "minSlidingTime", &tsMinSlidingTime, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 1000000, 0, TSDB_CFG_UTYPE_MS);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     10, 1000000, 0, TSDB_CFG_UTYPE_MS);
   tsInitConfigOption(cfg++, "minIntervalTime", &tsMinIntervalTime, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 1000000, 0, TSDB_CFG_UTYPE_MS);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     10, 1000000, 0, TSDB_CFG_UTYPE_MS);
   tsInitConfigOption(cfg++, "maxStreamCompDelay", &tsMaxStreamComputDelay, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 1000000000, 0, TSDB_CFG_UTYPE_MS);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     10, 1000000000, 0, TSDB_CFG_UTYPE_MS);
   tsInitConfigOption(cfg++, "maxFirstStreamCompDelay", &tsStreamCompStartDelay, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1000, 1000000000, 0, TSDB_CFG_UTYPE_MS);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     1000, 1000000000, 0, TSDB_CFG_UTYPE_MS);
   tsInitConfigOption(cfg++, "retryStreamCompDelay", &tsStreamCompRetryDelay, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 1000000000, 0, TSDB_CFG_UTYPE_MS);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     10, 1000000000, 0, TSDB_CFG_UTYPE_MS);
 
   tsInitConfigOption(cfg++, "clog", &tsCommitLog, TSDB_CFG_VTYPE_SHORT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0, 1, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "comp", &tsCompression, TSDB_CFG_VTYPE_SHORT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0, 2, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     0, 2, 0, TSDB_CFG_UTYPE_NONE);
 
   // database configs
   tsInitConfigOption(cfg++, "days", &tsDaysPerFile, TSDB_CFG_VTYPE_SHORT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 365, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     1, 365, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "keep", &tsDaysToKeep, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 1, 365000, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     1, 365000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "replica", &tsReplications, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     1, 3, 0, TSDB_CFG_UTYPE_NONE);
 
   // login configs
   tsInitConfigOption(cfg++, "defaultDB", tsDefaultDB, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_DB_NAME_LEN, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 0, TSDB_DB_NAME_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "defaultUser", tsDefaultUser, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, TSDB_USER_LEN, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 0, TSDB_USER_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "defaultPass", tsDefaultPass, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT, 0, 0,
-                     TSDB_PASSWORD_LEN, TSDB_CFG_UTYPE_NONE);
-
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_NOT_PRINT,
+                     0, 0, TSDB_PASSWORD_LEN, TSDB_CFG_UTYPE_NONE);
+  
   // socket type, udp by default
   tsInitConfigOption(cfg++, "sockettype", tsSocketType, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW, 0, 0, 3, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
+                     0, 0, 3, TSDB_CFG_UTYPE_NONE);
+
+  tsInitConfigOption(cfg++, "compressMsgSize", &tsCompressMsgSize, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
+                     -1, 10000000, 0, TSDB_CFG_UTYPE_NONE);
 
   // locale & charset
   tsInitConfigOption(cfg++, "timezone", tsTimezone, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, tListLen(tsTimezone),
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 0, tListLen(tsTimezone), TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "locale", tsLocale, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, tListLen(tsLocale), TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 0, tListLen(tsLocale), TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "charset", tsCharset, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, tListLen(tsCharset), TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 0, tListLen(tsCharset), TSDB_CFG_UTYPE_NONE);
 
   // connect configs
   tsInitConfigOption(cfg++, "maxShellConns", &tsMaxShellConns, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 50000000, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     10, 50000000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "maxMeterConnections", &tsMaxMeterConnections, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 50000000, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     10, 50000000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "maxMgmtConnections", &tsMaxMgmtConnections, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 50000000, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     10, 50000000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "maxVnodeConnections", &tsMaxVnodeConnections, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 50000000, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     10, 50000000, 0, TSDB_CFG_UTYPE_NONE);
 
   tsInitConfigOption(cfg++, "minimalLogDirGB", &tsMinimalLogDirGB, TSDB_CFG_VTYPE_FLOAT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0.001, 10000000, 0, TSDB_CFG_UTYPE_GB);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     0.001, 10000000, 0, TSDB_CFG_UTYPE_GB);
   tsInitConfigOption(cfg++, "minimalTmpDirGB", &tsMinimalTmpDirGB, TSDB_CFG_VTYPE_FLOAT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0.001, 10000000, 0, TSDB_CFG_UTYPE_GB);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     0.001, 10000000, 0, TSDB_CFG_UTYPE_GB);
   tsInitConfigOption(cfg++, "minimalDataDirGB", &tsMinimalDataDirGB, TSDB_CFG_VTYPE_FLOAT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0.001, 10000000, 0, TSDB_CFG_UTYPE_GB);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     0.001, 10000000, 0, TSDB_CFG_UTYPE_GB);
 
   // module configs
-  tsInitConfigOption(cfg++, "enableHttp", &tsEnableHttpModule, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0, 1, 1, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "enableMonitor", &tsEnableMonitorModule, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0, 1, 1, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "mgmtEqualVnodeNum", &tsMgmtEqualVnodeNum, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
+                     0, 1000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "http", &tsEnableHttpModule, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     0, 1, 1, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "monitor", &tsEnableMonitorModule, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     0, 1, 1, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "monitorDbName", tsMonitorDbName, TSDB_CFG_VTYPE_STRING,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     0, 0, TSDB_DB_NAME_LEN, TSDB_CFG_UTYPE_NONE);
 
   // http configs
-  tsInitConfigOption(cfg++, "httpCacheSessions", &tsHttpCacheSessions, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 1,
-                     100000, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "telegrafUseFieldNum", &tsTelegrafUseFieldNum, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0,
-                     1, 1, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "httpMaxThreads", &tsHttpMaxThreads, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 1,
-                     1000000, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "restfulRowLimit", &tsRestRowLimit, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 1,
-                     10000000, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "httpEnableCompress", &tsHttpEnableCompress, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 0,
-                     1, 1, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "httpCacheSessions", &tsHttpCacheSessions, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "httpEnableRecordSql", &tsHttpEnableRecordSql, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "telegrafUseFieldNum", &tsTelegrafUseFieldNum, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
+                     0, 1, 1, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "httpMaxThreads", &tsHttpMaxThreads, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 1000000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "restfulRowLimit", &tsRestRowLimit, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 10000000, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "httpEnableCompress", &tsHttpEnableCompress, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     0, 1, 1, TSDB_CFG_UTYPE_NONE);
 
   // debug flag
   tsInitConfigOption(cfg++, "numOfLogLines", &tsNumOfLogLines, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 10000, 2000000000, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     10000, 2000000000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "asyncLog", &tsAsyncLog, TSDB_CFG_VTYPE_SHORT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 1, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "debugFlag", &debugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 255, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "mDebugFlag", &mdebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG, 0, 255, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "dDebugFlag", &ddebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG, 0, 255, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "sdbDebugFlag", &sdbDebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG, 0, 255, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "rpcDebugFlag", &rpcDebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 255, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "tmrDebugFlag", &tmrDebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 255, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "cDebugFlag", &cdebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 255, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "jniDebugFlag", &jnidebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 255, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "odbcDebugFlag", &odbcdebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 255, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "uDebugFlag", &uDebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 255, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "httpDebugFlag", &httpDebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG, 0, 255, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "monitorDebugFlag", &monitorDebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG, 0, 255, 0, TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG,
+                     0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "qDebugFlag", &qdebugFlag, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 255, 0,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 255, 0,
                      TSDB_CFG_UTYPE_NONE);
 
+  tsInitConfigOption(cfg++, "tscEnableRecordSql", &tsTscEnableRecordSql, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+
+  tsInitConfigOption(cfg++, "enableCoreFile", &tsEnableCoreFile, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+                     
   // version info
-  tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING, TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
+  tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING,
+                     TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
                      0, 0, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "buildinfo", buildinfo, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT, 0, 0, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "version", version, TSDB_CFG_VTYPE_STRING, TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
+                     TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 0, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "version", version, TSDB_CFG_VTYPE_STRING,
+                     TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
                      0, 0, 0, TSDB_CFG_UTYPE_NONE);
 
   tsGlobalConfigNum = (int)(cfg - tsGlobalConfig);
+  assert(tsGlobalConfigNum <= TSDB_CFG_MAX_NUM);
+}
+
+static pthread_once_t initGlobalConfig = PTHREAD_ONCE_INIT;
+void tsInitGlobalConfig() {
+  pthread_once(&initGlobalConfig, doInitGlobalConfig);
 }
 
 void tsReadGlobalLogConfig() {
@@ -665,8 +865,6 @@ bool tsReadGlobalConfig() {
   sprintf(fileName, "%s/taos.cfg", configDir);
   fp = fopen(fileName, "r");
   if (fp == NULL) {
-    // printf("option file:%s not there, all options are set to system default\n", fileName);
-    // return;
   } else {
     line = NULL;
     while (!feof(fp)) {
@@ -696,8 +894,30 @@ bool tsReadGlobalConfig() {
     fclose(fp);
   }
 
+  tsReadGlobalConfigSpec();
+
+  if (tsPrivateIp[0] == 0) {
+    taosGetPrivateIp(tsPrivateIp);
+  }
+
+  if (tsPublicIp[0] == 0) {
+    strcpy(tsPublicIp, tsPrivateIp);
+  }
+
   if (tsInternalIp[0] == 0) {
-    taosGetPrivateIp(tsInternalIp);
+    strcpy(tsInternalIp, tsPrivateIp);
+  }
+
+  if (tsLocalIp[0] == 0) {
+    strcpy(tsLocalIp, tsPrivateIp);
+  }
+
+  if (tsMasterIp[0] == 0) {
+    strcpy(tsMasterIp, tsPrivateIp);
+  }
+
+  if (tsSecondIp[0] == 0) {
+    strcpy(tsSecondIp, tsMasterIp);
   }
 
   taosGetSystemInfo();
@@ -711,6 +931,15 @@ bool tsReadGlobalConfig() {
 
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
+  }
+
+  if (strlen(tsPrivateIp) == 0) {
+    pError("privateIp is null");
+    return false;
+  }
+
+  if (tscEmbedded) {
+    strcpy(tsLocalIp, tsPrivateIp);
   }
 
   tsVersion = 0;
@@ -750,7 +979,19 @@ int tsCfgDynamicOptions(char *msg) {
     if (strncasecmp(option, cfg->option, olen) != 0) continue;
     *((int *)cfg->ptr) = vint;
 
-    if (strncasecmp(cfg->option, "debugFlag", olen) == 0) tsSetAllDebugFlag();
+    if (strncasecmp(cfg->option, "monitor", olen) == 0) {
+      if (0 == vint) {
+        if(stopMonitor) (void)(*stopMonitor)();
+      } else {
+        if(startMonitor) (*startMonitor)();
+      }
+      return code;
+    }
+
+    if (strncasecmp(cfg->option, "debugFlag", olen) == 0) {
+      tsSetAllDebugFlag();
+    }
+    
     return code;
   }
 
@@ -783,7 +1024,17 @@ void tsPrintGlobalConfig() {
     SGlobalConfig *cfg = tsGlobalConfig + i;
     if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
-
+    if (cfg->cfgType & TSDB_CFG_CTYPE_B_LITE) {
+#ifdef CLUSTER
+      continue;
+#endif
+    }
+    if (cfg->cfgType & TSDB_CFG_CTYPE_B_CLUSTER) {
+#ifndef CLUSTER
+      continue;
+#endif
+    }
+    
     int optionLen = (int)strlen(cfg->option);
     int blankLen = TSDB_CFG_PRINT_LEN - optionLen;
     blankLen = blankLen < 0 ? 0 : blankLen;
@@ -814,9 +1065,8 @@ void tsPrintGlobalConfig() {
         break;
     }
   }
-#ifdef LINUX
-  pPrint(" dataDir:                %s", dataDir);
-#endif
+
+  tsPrintGlobalConfigSpec();
 
   tsPrintOsInfo();
 
@@ -910,3 +1160,13 @@ void tsSetTimeZone() {
 
   pPrint("timezone format changed to %s", tsTimezone);
 }
+
+#ifndef CLUSTER
+
+bool tsReadGlobalConfigSpec() { return true; }
+
+void tsPrintGlobalConfigSpec() {
+  pPrint(" dataDir:                %s", dataDir);
+}
+
+#endif

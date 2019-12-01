@@ -26,8 +26,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
-
-#include "tsql.h"
+#include "tscSQLParser.h"
 #include "tutil.h"
 }
 
@@ -63,6 +62,7 @@ program ::= cmd.    {}
 cmd ::= SHOW DATABASES.  { setDCLSQLElems(pInfo, SHOW_DATABASES, 0);}
 cmd ::= SHOW MNODES.     { setDCLSQLElems(pInfo, SHOW_MNODES, 0);}
 cmd ::= SHOW DNODES.     { setDCLSQLElems(pInfo, SHOW_DNODES, 0);}
+cmd ::= SHOW ACCOUNTS.   { setDCLSQLElems(pInfo, SHOW_ACCOUNTS, 0);}
 cmd ::= SHOW USERS.      { setDCLSQLElems(pInfo, SHOW_USERS, 0);}
 
 cmd ::= SHOW MODULES.    { setDCLSQLElems(pInfo, SHOW_MODULES, 0);  }
@@ -72,6 +72,9 @@ cmd ::= SHOW STREAMS.    { setDCLSQLElems(pInfo, SHOW_STREAMS, 0);  }
 cmd ::= SHOW CONFIGS.    { setDCLSQLElems(pInfo, SHOW_CONFIGS, 0);  }
 cmd ::= SHOW SCORES.     { setDCLSQLElems(pInfo, SHOW_SCORES, 0);   }
 cmd ::= SHOW GRANTS.     { setDCLSQLElems(pInfo, SHOW_GRANTS, 0);   }
+
+cmd ::= SHOW VNODES.                { setDCLSQLElems(pInfo, SHOW_VNODES, 0); }
+cmd ::= SHOW VNODES IPTOKEN(X).     { setDCLSQLElems(pInfo, SHOW_VNODES, 1, &X); }
 
 %type dbPrefix {SSQLToken}
 dbPrefix(A) ::=.                   {A.n = 0;}
@@ -112,7 +115,9 @@ cmd ::= DROP TABLE ifexists(Y) ids(X) cpxName(Z).   {
 }
 
 cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDCLSQLElems(pInfo, DROP_DATABASE, 2, &X, &Y); }
+cmd ::= DROP DNODE IPTOKEN(X).        { setDCLSQLElems(pInfo, DROP_DNODE, 1, &X);    }
 cmd ::= DROP USER ids(X).        { setDCLSQLElems(pInfo, DROP_USER, 1, &X);     }
+cmd ::= DROP ACCOUNT ids(X).     { setDCLSQLElems(pInfo, DROP_ACCOUNT, 1, &X);  }
 
 /////////////////////////////////THE USE STATEMENT//////////////////////////////////////////
 cmd ::= USE ids(X).              { setDCLSQLElems(pInfo, USE_DATABASE, 1, &X);}
@@ -126,10 +131,14 @@ cmd ::= DESCRIBE ids(X) cpxName(Y). {
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
 cmd ::= ALTER USER ids(X) PASS ids(Y).          { setDCLSQLElems(pInfo, ALTER_USER_PASSWD, 2, &X, &Y);    }
 cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setDCLSQLElems(pInfo, ALTER_USER_PRIVILEGES, 2, &X, &Y);}
-cmd ::= ALTER DNODE IP(X) ids(Y).               { setDCLSQLElems(pInfo, ALTER_DNODE, 2, &X, &Y);          }
-cmd ::= ALTER DNODE IP(X) ids(Y) ids(Z).        { setDCLSQLElems(pInfo, ALTER_DNODE, 3, &X, &Y, &Z);      }
+cmd ::= ALTER DNODE IPTOKEN(X) ids(Y).               { setDCLSQLElems(pInfo, ALTER_DNODE, 2, &X, &Y);          }
+cmd ::= ALTER DNODE IPTOKEN(X) ids(Y) ids(Z).        { setDCLSQLElems(pInfo, ALTER_DNODE, 3, &X, &Y, &Z);      }
 cmd ::= ALTER LOCAL ids(X).                     { setDCLSQLElems(pInfo, ALTER_LOCAL, 1, &X);              }
+cmd ::= ALTER LOCAL ids(X) ids(Y).              { setDCLSQLElems(pInfo, ALTER_LOCAL, 2, &X, &Y);          }
 cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SSQLToken t = {0};  setCreateDBSQL(pInfo, ALTER_DATABASE, &X, &Y, &t);}
+
+cmd ::= ALTER ACCOUNT ids(X) acct_optr(Z).      { SSQLToken t = {0};  setCreateAcctSQL(pInfo, ALTER_ACCT, &X, &t, &Z);}
+cmd ::= ALTER ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).      { setCreateAcctSQL(pInfo, ALTER_ACCT, &X, &Y, &Z);}
 
 // An IDENTIFIER can be a generic identifier, or one of several keywords.
 // Any non-standard keyword can also be an identifier.
@@ -147,8 +156,52 @@ ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
 ifnotexists(X) ::= .                {X.n = 0;}
 
 /////////////////////////////////THE CREATE STATEMENT///////////////////////////////////////
+//create option for dnode/db/user/account
+cmd ::= CREATE DNODE IPTOKEN(X).     { setDCLSQLElems(pInfo, CREATE_DNODE, 1, &X);}
+cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
+                                { setCreateAcctSQL(pInfo, CREATE_ACCOUNT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDBSQL(pInfo, CREATE_DATABASE, &X, &Y, &Z);}
 cmd ::= CREATE USER ids(X) PASS ids(Y).     { setDCLSQLElems(pInfo, CREATE_USER, 2, &X, &Y);}
+
+pps(Y) ::= .                                {Y.n = 0;   }
+pps(Y) ::= PPS INTEGER(X).                  {Y = X;     }
+
+tseries(Y) ::= .                            {Y.n = 0;   }
+tseries(Y) ::= TSERIES INTEGER(X).          {Y = X;     }
+
+dbs(Y) ::= .                                {Y.n = 0;   }
+dbs(Y) ::= DBS INTEGER(X).                  {Y = X;     }
+
+streams(Y) ::= .                            {Y.n = 0;   }
+streams(Y) ::= STREAMS INTEGER(X).          {Y = X;     }
+
+storage(Y) ::= .                            {Y.n = 0;   }
+storage(Y) ::= STORAGE INTEGER(X).          {Y = X;     }
+
+qtime(Y) ::= .                              {Y.n = 0;   }
+qtime(Y) ::= QTIME INTEGER(X).              {Y = X;     }
+
+users(Y) ::= .                              {Y.n = 0;   }
+users(Y) ::= USERS INTEGER(X).              {Y = X;     }
+
+conns(Y) ::= .                              {Y.n = 0;   }
+conns(Y) ::= CONNS INTEGER(X).              {Y = X;     }
+
+state(Y) ::= .                              {Y.n = 0;   }
+state(Y) ::= STATE ids(X).                  {Y = X;     }
+
+%type acct_optr {SCreateAcctSQL}
+acct_optr(Y) ::= pps(C) tseries(D) storage(P) streams(F) qtime(Q) dbs(E) users(K) conns(L) state(M). {
+    Y.users   = (K.n>0)?atoi(K.z):-1;
+    Y.dbs     = (E.n>0)?atoi(E.z):-1;
+    Y.tseries = (D.n>0)?atoi(D.z):-1;
+    Y.streams = (F.n>0)?atoi(F.z):-1;
+    Y.pps     = (C.n>0)?atoi(C.z):-1;
+    Y.storage = (P.n>0)?strtoll(P.z, NULL, 10):-1;
+    Y.qtime   = (Q.n>0)?strtoll(Q.z, NULL, 10):-1;
+    Y.conns   = (L.n>0)?atoi(L.z):-1;
+    Y.stat    = M;
+}
 
 %type keep {tVariantList*}
 %destructor keep {tVariantListDestroy($$);}
@@ -168,7 +221,8 @@ comp(Y)    ::= COMP INTEGER(X).               { Y = X; }
 prec(Y)    ::= PRECISION STRING(X).           { Y = X; }
 
 %type db_optr {SCreateDBInfo}
-db_optr    ::= . {}
+db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
+
 db_optr(Y) ::= db_optr(Z) tables(X).         { Y = Z; Y.tablesPerVnode = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) cache(X).          { Y = Z; Y.cacheBlockSize = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) replica(X).        { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
@@ -183,9 +237,10 @@ db_optr(Y) ::= db_optr(Z) prec(X).           { Y = Z; Y.precision = X; }
 db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
 
 %type alter_db_optr {SCreateDBInfo}
-alter_db_optr(Y) ::= REPLICA tagitem(A).     {
-    Y.replica = A.i64Key;
-}
+alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y);}
+
+alter_db_optr(Y) ::= alter_db_optr(Z) replica(X).     { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
+alter_db_optr(Y) ::= alter_db_optr(Z) tables(X).      { Y = Z; Y.tablesPerVnode = strtol(X.z, NULL, 10); }
 
 %type typename {TAOS_FIELD}
 typename(A) ::= ids(X).              { tSQLSetColumnType (&A, &X); }
@@ -257,7 +312,7 @@ tagitem(A) ::= INTEGER(X).      {toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= FLOAT(X).        {toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= STRING(X).       {toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= BOOL(X).         {toTSDBType(X.type); tVariantCreate(&A, &X); }
-tagitem(A) ::= NULL(X).         { X.type = TK_STRING; toTSDBType(X.type); tVariantCreate(&A, &X); }
+tagitem(A) ::= NULL(X).         { X.type = 0; tVariantCreate(&A, &X); }
 
 tagitem(A) ::= MINUS(X) INTEGER(Y).{
     X.n += Y.n;
@@ -273,6 +328,19 @@ tagitem(A) ::= MINUS(X) FLOAT(Y).  {
     tVariantCreate(&A, &X);
 }
 
+tagitem(A) ::= PLUS(X) INTEGER(Y). {
+    X.n += Y.n;
+    X.type = Y.type;
+    toTSDBType(X.type);
+    tVariantCreate(&A, &X);
+}
+
+tagitem(A) ::= PLUS(X) FLOAT(Y).  {
+    X.n += Y.n;
+    X.type = Y.type;
+    toTSDBType(X.type);
+    tVariantCreate(&A, &X);
+}
 
 //////////////////////// The SELECT statement /////////////////////////////////
 cmd ::= select(X).  {
@@ -282,7 +350,15 @@ cmd ::= select(X).  {
 %type select {SQuerySQL*}
 %destructor select {destroyQuerySql($$);}
 select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
-  A = tSetQuerySQLElems(&T, W, &X, Y, P, Z, &K, &S, F, &L, &G);
+  A = tSetQuerySQLElems(&T, W, X, Y, P, Z, &K, &S, F, &L, &G);
+}
+
+// Support for the SQL exprssion without from & where subclauses, e.g.,
+// select current_database(),
+// select server_version(), select client_version(),
+// select server_state();
+select(A) ::= SELECT(T) selcollist(W). {
+  A = tSetQuerySQLElems(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 // selcollist is a list of expressions that are to become the return
@@ -313,9 +389,13 @@ as(X) ::= ids(Y).       { X = Y;    }
 as(X) ::= .             { X.n = 0;  }
 
 // A complete FROM clause.
-%type from {SSQLToken}
+%type from {tVariantList*}
 // current not support query from no-table
-from(A) ::= FROM ids(X) cpxName(Y).                 {A = X; A.n += Y.n;}
+from(A) ::= FROM tablelist(X).                 {A = X;}
+
+%type tablelist {tVariantList*}
+tablelist(A) ::= ids(X) cpxName(Y).                     { toTSDBType(X.type); X.n += Y.n; A = tVariantListAppendToken(NULL, &X, -1);}
+tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z).  { toTSDBType(X.type); X.n += Z.n; A = tVariantListAppendToken(Y, &X, -1);   }
 
 // The value of interval should be the form of "number+[a,s,m,h,d,n,y]" or "now"
 %type tmvar {SSQLToken}
@@ -323,7 +403,7 @@ tmvar(A) ::= VARIABLE(X).   {A = X;}
 
 %type interval_opt {SSQLToken}
 interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N = E;     }
-interval_opt(N) ::= .                           {N.n = 0;   }
+interval_opt(N) ::= .                           {N.n = 0; N.z = NULL; N.type = 0;   }
 
 %type fill_opt {tVariantList*}
 %destructor fill_opt {tVariantListDestroy($$);}
@@ -344,7 +424,7 @@ fill_opt(N) ::= FILL LP ID(Y) RP.               {
 
 %type sliding_opt {SSQLToken}
 sliding_opt(K) ::= SLIDING LP tmvar(E) RP.      {K = E;     }
-sliding_opt(K) ::= .                            {K.n = 0;   }
+sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0;   }
 
 %type orderby_opt {tVariantList*}
 %destructor orderby_opt {tVariantListDestroy($$);}
@@ -573,12 +653,12 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
 }
 
 ////////////////////////////////////////kill statement///////////////////////////////////////
-cmd ::= KILL CONNECTION IP(X) COLON(Z) INTEGER(Y).   {X.n += (Z.n + Y.n); setDCLSQLElems(pInfo, KILL_CONNECTION, 1, &X);}
-cmd ::= KILL STREAM IP(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).       {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_STREAM, 1, &X);}
-cmd ::= KILL QUERY IP(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).        {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_QUERY, 1, &X);}
+cmd ::= KILL CONNECTION IPTOKEN(X) COLON(Z) INTEGER(Y).   {X.n += (Z.n + Y.n); setDCLSQLElems(pInfo, KILL_CONNECTION, 1, &X);}
+cmd ::= KILL STREAM IPTOKEN(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).       {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_STREAM, 1, &X);}
+cmd ::= KILL QUERY IPTOKEN(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).        {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_QUERY, 1, &X);}
 
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
   LIKE MATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
   COUNT SUM AVG MIN MAX FIRST LAST TOP BOTTOM STDDEV PERCENTILE APERCENTILE LEASTSQUARES HISTOGRAM DIFF
-  SPREAD WAVG INTERP LAST_ROW NOW IP SEMI NONE PREV LINEAR IMPORT METRIC TBNAME JOIN METRICS STABLE.
+  SPREAD TWA INTERP LAST_ROW NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT METRIC TBNAME JOIN METRICS STABLE NULL.

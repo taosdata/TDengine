@@ -20,6 +20,7 @@
 #include "taos.h"
 #include "tlog.h"
 #include "tsdb.h"
+#include "stdbool.h"
 
 #define MAX_USERNAME_SIZE      64
 #define MAX_DBNAME_SIZE        64
@@ -78,6 +79,7 @@ void cleanup_handler(void* arg);
 void exitShell();
 int shellDumpResult(TAOS* con, char* fname, int* error_no, bool printMode);
 void shellPrintNChar(char* str, int width, bool printMode);
+void shellGetGrantInfo(void *con);
 #define max(a, b) ((int)(a) < (int)(b) ? (int)(b) : (int)(a))
 
 /**************** Global variable declarations ****************/

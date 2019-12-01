@@ -3,7 +3,9 @@
 # Generate the deb package for ubunt, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
-#set -x
+# set -x
+
+armver=$1
 
 curr_dir=$(pwd)
 script_dir="$(dirname $(readlink -f $0))"
@@ -110,21 +112,28 @@ echo "char gitinfo[128] = \"$(git rev-parse --verify HEAD)\";"  >> ${versioninfo
 echo "char buildinfo[512] = \"Built by ${USER} at ${build_time}\";"  >> ${versioninfo}
 
 # 2. cmake executable file
-#default use debug mode
-compile_mode="debug"
-if [[ $1 == "Release" ]] || [[ $1 == "release" ]]; then
-  compile_mode="Release"
-fi
 
-compile_dir="${top_dir}/${compile_mode}"
+compile_dir="${top_dir}/debug"
 if [ -d ${compile_dir} ]; then
-	 ${csudo} rm -rf ${compile_dir}
+    ${csudo} rm -rf ${compile_dir}
 fi
 
 ${csudo} mkdir -p ${compile_dir}
 cd ${compile_dir}
-${csudo} cmake -DCMAKE_BUILD_TYPE=${compile_mode} ${top_dir}
-${csudo} make
+
+# arm only support lite ver
+if [ -z "$armver" ]; then
+  cmake ../
+elif [ "$armver" == "arm64" ]; then
+  cmake ../ -DARMVER=arm64
+elif [ "$armver" == "arm32" ]; then
+  cmake ../ -DARMVER=arm32
+else
+  echo "input parameter error!!!"
+  return
+fi
+
+make
 
 cd ${curr_dir}
 
@@ -153,7 +162,8 @@ ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version}
 
 echo "do tar.gz package for all systems"  
 cd ${script_dir}/tools
-${csudo} ./makepkg.sh ${compile_dir} ${version} "${build_time}" 
+${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${armver}
+${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${armver}
 
 # 4. Clean up temporary compile directories
 #${csudo} rm -rf ${compile_dir}

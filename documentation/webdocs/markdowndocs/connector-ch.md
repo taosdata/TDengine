@@ -4,13 +4,13 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、JAVA、
 
 ## C/C++ Connector
 
-C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine头文件 _taos.h_（安装后，位于_/usr/local/taos/include_）：
+C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine头文件 _taos.h_（安装后，位于 _/usr/local/taos/include_）：
 
 ```C
 #include <taos.h>
 ```
 
-在编译时需要链接TDengine动态库_libtaos.so_（安装后，位于/usr/local/taos/driver，gcc编译时，请加上 -ltaos）。 所有API都以返回_-1_或_NULL_均表示失败。
+在编译时需要链接TDengine动态库 _libtaos.so_ （安装后，位于 _/usr/local/taos/driver_，gcc编译时，请加上 -ltaos）。 如未特别说明，当API的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
 
 ### C/C++同步API
 
@@ -78,6 +78,51 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 上述12个API是C/C++接口中最重要的API，剩余的辅助API请参看_taos.h_文件。
 
 **注意**：对于单个数据库连接，在同一时刻只能有一个线程使用该链接调用API，否则会有未定义的行为出现并可能导致客户端crash。客户端应用可以通过建立多个连接进行多线程的数据写入或查询处理。
+
+### C/C++ 参数绑定接口
+
+除了直接调用 `taos_query` 进行查询，TDengine也提供了支持参数绑定的Prepare API，与 MySQL 一样，这些API目前也仅支持用问号`?`来代表待绑定的参数，具体如下：
+
+- `TAOS_STMT* taos_stmt_init(TAOS *taos)`
+
+  创建一个 TAOS_STMT 对象用于后续调用。
+
+- `int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)`
+
+  解析一条sql语句，将解析结果和参数信息绑定到stmt上，如果参数length大于0，将使用此此参数作为sql语句的长度，如等于0，将自动判断sql语句的长度。
+
+- `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind)`
+
+  进行参数绑定，bind指向一个数组，需保证此数组的元素数量和顺序与sql语句中的参数完全一致。TAOS_BIND 的使用方法与 MySQL中的 MYSQL_BIND 一致，具体定义如下：
+
+  ```c
+  typedef struct TAOS_BIND {
+    int            buffer_type;
+    void *         buffer;
+    unsigned long  buffer_length;  // 未实际使用
+    unsigned long *length;
+    int *          is_null;
+    int            is_unsigned;    // 未实际使用
+    int *          error;          // 未实际使用
+  } TAOS_BIND;
+  ```
+
+- `int taos_stmt_add_batch(TAOS_STMT *stmt)`
+
+  将当前绑定的参数加入批处理中，调用此函数后，可以再次调用`taos_stmt_bind_param`绑定新的参数。需要注意，此函数仅支持 insert/import 语句，如果是select等其他SQL语句，将返回错误。
+
+- `int taos_stmt_execute(TAOS_STMT *stmt)`
+
+  执行准备好的语句。目前，一条语句只能执行一次。
+
+- `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
+
+  获取语句的结果集。结果集的使用方式与非参数化调用时一致，使用完成后，应对此结果集调用 `taos_free_result`以释放资源。
+  
+- `int taos_stmt_close(TAOS_STMT *stmt)`
+
+  执行完毕，释放所有资源。
+
 
 ### C/C++异步API
 
@@ -224,13 +269,14 @@ public Connection getConn() throws Exception{
 
 用户可以在源代码的src/connector/python文件夹下找到python2和python3的安装包。用户可以通过pip命令安装： 
 
-​		`pip install src/connector/python/python2/`
+​		`pip install src/connector/python/[linux|windows]/python2/`
 
 或
 
-​		`pip install src/connector/python/python3/`
+​		`pip install src/connector/python/[linux|windows]/python3/`
 
 如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。
+对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。所有TDengine的连接器，均需依赖taos.dll。
 
 ### Python客户端接口
 

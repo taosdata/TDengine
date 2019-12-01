@@ -1,13 +1,14 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 PROJECT(TDengine)
 
+INCLUDE_DIRECTORIES(inc)
+INCLUDE_DIRECTORIES(jni)
+INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/inc)
+INCLUDE_DIRECTORIES(${TD_OS_DIR}/inc)
 AUX_SOURCE_DIRECTORY(./src SRC)
-INCLUDE_DIRECTORIES(inc jni ${TD_ROOT_DIR}/src/inc ${TD_OS_DIR}/inc)
 
-IF (TD_LINUX)
-
-  INCLUDE_DIRECTORIES(${TD_ROOT_DIR}/deps/jni/linux)
+IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/linux)
 
   # set the static lib name
   ADD_LIBRARY(taos_static STATIC ${SRC})
@@ -23,30 +24,38 @@ IF (TD_LINUX)
   #set version of .so
   #VERSION    so version
   #SOVERSION  api version
-  execute_process(COMMAND chmod 777 ${PROJECT_SOURCE_DIR}/../../packaging/tools/get_version.sh)
-  execute_process(COMMAND ${PROJECT_SOURCE_DIR}/../../packaging/tools/get_version.sh
-    OUTPUT_VARIABLE
-    VERSION_INFO)
+  IF (TD_LITE)
+    execute_process(COMMAND chmod 777 ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh)
+    execute_process(COMMAND ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh ${TD_COMMUNITY_DIR}/src/util/src/version.c
+          OUTPUT_VARIABLE
+          VERSION_INFO)
+    MESSAGE(STATUS "build lite version ${VERSION_INFO}")
+  ELSE ()
+    execute_process(COMMAND chmod 777 ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh)
+    execute_process(COMMAND ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh ${TD_COMMUNITY_DIR}/src/util/src/version.c
+            OUTPUT_VARIABLE
+            VERSION_INFO)
+    MESSAGE(STATUS "build cluster version ${VERSION_INFO}")
+  ENDIF ()
+
   MESSAGE(STATUS "build version ${VERSION_INFO}")
   SET_TARGET_PROPERTIES(taos PROPERTIES VERSION ${VERSION_INFO} SOVERSION 1)
   
-ELSEIF (TD_WINDOWS)
-  
-  INCLUDE_DIRECTORIES(${TD_ROOT_DIR}/deps/jni/windows)
-  INCLUDE_DIRECTORIES(${TD_ROOT_DIR}/deps/jni/windows/win32)
-  INCLUDE_DIRECTORIES(${TD_ROOT_DIR}/deps/pthread)  
+ELSEIF (TD_WINDOWS_64)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/windows)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/windows/win32)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/pthread)
   
   ADD_LIBRARY(taos_static STATIC ${SRC})
   TARGET_LINK_LIBRARIES(taos_static trpc tutil)
 
   # generate dynamic library (*.dll)
   ADD_LIBRARY(taos SHARED ${SRC})
-  SET_TARGET_PROPERTIES(taos PROPERTIES LINK_FLAGS /DEF:${TD_ROOT_DIR}/src/client/src/taos.def)
+  SET_TARGET_PROPERTIES(taos PROPERTIES LINK_FLAGS /DEF:${TD_COMMUNITY_DIR}/src/client/src/taos.def)
   TARGET_LINK_LIBRARIES(taos trpc)
 
-ELSEIF (TD_DARWIN)
-
-  INCLUDE_DIRECTORIES(${TD_ROOT_DIR}/deps/jni/linux)
+ELSEIF (TD_DARWIN_64)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/linux)
 
   ADD_LIBRARY(taos_static STATIC ${SRC})
   TARGET_LINK_LIBRARIES(taos_static trpc tutil pthread m)
@@ -55,6 +64,6 @@ ELSEIF (TD_DARWIN)
   # generate dynamic library (*.dylib)
   ADD_LIBRARY(taos SHARED ${SRC})
   TARGET_LINK_LIBRARIES(taos trpc tutil pthread m)
-
+  
 ENDIF ()
 

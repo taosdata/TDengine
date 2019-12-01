@@ -22,6 +22,7 @@ extern "C" {
 
 #include <stdint.h>
 #include "taosmsg.h"
+#include "tstoken.h"
 
 #define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 
@@ -45,7 +46,7 @@ struct SSchema *tsGetSchema(SMeterMeta *pMeta);
 
 struct SSchema *tsGetTagSchema(SMeterMeta *pMeta);
 
-struct SSchema *tsGetSchemaColIdx(SMeterMeta *pMeta, int32_t startCol);
+struct SSchema *tsGetColumnSchema(SMeterMeta *pMeta, int32_t startCol);
 
 char *tsGetTagsValue(SMeterMeta *pMeta);
 
@@ -53,7 +54,9 @@ bool tsMeterMetaIdentical(SMeterMeta *p1, SMeterMeta *p2);
 
 void extractMeterName(char *meterId, char *name);
 
-void extractDBName(char *meterId, char *name);
+SSQLToken extractDBName(char *meterId, char *name);
+
+void extractTableNameFromToken(SSQLToken *pToken, SSQLToken* pTable);
 
 #ifdef __cplusplus
 }

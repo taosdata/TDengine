@@ -529,7 +529,7 @@ static unsigned parse_hex4(const unsigned char * const input)
  * A literal can be one or two sequences of the form \uXXXX */
 static unsigned char utf16_literal_to_utf8(const unsigned char * const input_pointer, const unsigned char * const input_end, unsigned char **output_pointer)
 {
-    long unsigned int codepoint = 0;
+    uint64_t codepoint = 0;
     unsigned int first_code = 0;
     const unsigned char *first_sequence = input_pointer;
     unsigned char utf8_length = 0;

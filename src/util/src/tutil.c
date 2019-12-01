@@ -13,14 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <locale.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <limits.h>
-#include <errno.h>
-
 #include "os.h"
 
 #ifdef USE_LIBICONV
@@ -406,13 +398,6 @@ int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstP
   return rename(fullPath, *dstPath);
 }
 
-bool taosCheckDbName(char *db, char *monitordb) {
-  char *pos = strchr(db, '.');
-  if (pos == NULL) return false;
-
-  return strncasecmp(pos + 1, monitordb, strlen(monitordb)) == 0;
-}
-
 bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
 #ifdef USE_LIBICONV
   iconv_t cd = iconv_open(tsCharset, DEFAULT_UNICODE_ENCODEC);
@@ -500,13 +485,50 @@ bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
   return true;
 }
 
-char *taosIpStr(int ipInt) {
+char *taosIpStr(uint32_t ipInt) {
   static char ipStrArray[3][30];
   static int ipStrIndex = 0;
 
   char *ipStr = ipStrArray[(ipStrIndex++) % 3];
-  sprintf(ipStr, "0x%x:%d.%d.%d.%d", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, ipInt >> 24);
+  sprintf(ipStr, "0x%x:%u.%u.%u.%u", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
   return ipStr;
+}
+<<<<<<< HEAD
+
+typedef struct CharsetPair {
+  char *oldCharset;
+  char *newCharset;
+} CharsetPair;
+
+char *taosCharsetReplace(char *charsetstr) {
+  CharsetPair charsetRep[] = {
+      { "utf8", "UTF-8" }, { "936", "CP936" },
+  };
+
+  for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
+    if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
+      return strdup(charsetRep[i].newCharset);
+    }
+  }
+
+  return strdup(charsetstr);
+}
+=======
+
+#ifndef CLUSTER
+void taosCleanupTier() {}
+#endif
+
+FORCE_INLINE float taos_align_get_float(char* pBuf) {
+  float fv = 0; 
+  *(int32_t*)(&fv) = *(int32_t*)pBuf;
+  return fv; 
+}
+
+FORCE_INLINE double taos_align_get_double(char* pBuf) {
+  double dv = 0; 
+  *(int64_t*)(&dv) = *(int64_t*)pBuf;
+  return dv; 
 }
 
 typedef struct CharsetPair {
@@ -527,3 +549,4 @@ char *taosCharsetReplace(char *charsetstr) {
 
   return strdup(charsetstr);
 }
+>>>>>>> release/v1.6.4.0

@@ -24,8 +24,9 @@
 #include "httpResp.h"
 #include "taos.h"
 #include "tsclient.h"
+#include "tnote.h"
 
-void *taos_connect_a(char *ip, char *user, char *pass, char *db, int port, void (*fp)(void *, TAOS_RES *, int),
+void *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos);
 void httpProcessMultiSql(HttpContext *pContext);
 
@@ -164,6 +165,7 @@ void httpProcessMultiSql(HttpContext *pContext) {
   char *sql = httpGetCmdsString(pContext, cmd->sql);
   httpDump("context:%p, fd:%d, ip:%s, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd,
            pContext->ipstr, pContext->user, multiCmds->pos, sql);
+  taosNotePrintHttp(sql);
   taos_query_a(pContext->session->taos, sql, httpProcessMultiSqlCallBack, (void *)pContext);
 }
 
@@ -296,6 +298,7 @@ void httpProcessSingleSqlCmd(HttpContext *pContext) {
 
   httpDump("context:%p, fd:%d, ip:%s, user:%s, start query, sql:%s", pContext, pContext->fd, pContext->ipstr,
            pContext->user, sql);
+  taosNotePrintHttp(sql);
   taos_query_a(pSession->taos, sql, httpProcessSingleSqlCallBack, (void *)pContext);
 }
 
@@ -375,9 +378,7 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
 }
 
 void httpProcessRequest(HttpContext *pContext) {
-  if (pContext->session == NULL) {
-    httpFetchSession(pContext);
-  }
+  httpFetchSession(pContext);
 
   if (pContext->session == NULL || pContext->session != pContext->session->signature ||
       pContext->reqType == HTTP_REQTYPE_LOGIN) {

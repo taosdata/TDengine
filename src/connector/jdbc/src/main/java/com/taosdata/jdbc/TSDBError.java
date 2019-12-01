@@ -69,7 +69,7 @@ public enum TSDBError {
     TSDB_CODE_INVALID_OPTION(45, "invalid option"),
     TSDB_CODE_NODE_OFFLINE(46, "node offline"),
     TSDB_CODE_SYNC_REQUIRED(47, "sync required"),
-    TSDB_CODE_NO_ENOUGH_PNODES(48, "more dnodes are needed"),
+    TSDB_CODE_NO_ENOUGH_DNODES(48, "more dnodes are needed"),
     TSDB_CODE_UNSYNCED(49, "node in unsynced state"),
     TSDB_CODE_TOO_SLOW(50, "too slow"),
     TSDB_CODE_OTHERS(51, "others"),

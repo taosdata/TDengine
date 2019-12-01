@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Generate deb package for ubuntu
-#set -x
+# set -x
 
 #curr_dir=$(pwd)
 compile_dir=$1
@@ -24,8 +24,7 @@ fi
 mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
-versioninfo=$(${script_dir}/../tools/get_version.sh)
-libfile="libtaos.so.${versioninfo}"
+libfile="libtaos.so.${tdengine_ver}"
 
 # create install dir 
 install_home_path="/usr/local/taos"
@@ -49,6 +48,7 @@ cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_pat
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver 
 cp ${compile_dir}/../src/inc/taos.h                 ${pkg_dir}${install_home_path}/include
+cp ${compile_dir}/../src/inc/taoserror.h            ${pkg_dir}${install_home_path}/include
 cp -r ${top_dir}/tests/examples/*                   ${pkg_dir}${install_home_path}/examples
 cp -r ${top_dir}/src/connector/grafana              ${pkg_dir}${install_home_path}/connector
 cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector

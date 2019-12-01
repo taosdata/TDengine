@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <signal.h>
+#include "os.h"
 
 #include "shash.h"
 #include "taos.h"
@@ -36,7 +36,7 @@ typedef struct {
   TAOS_RES * result;
 } SSub;
 
-TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char *db, char *name, int64_t time, int mseconds) {
+TAOS_SUB *taos_subscribe(const char *host, const char *user, const char *pass, const char *db, const char *name, int64_t time, int mseconds) {
   SSub *pSub;
 
   pSub = (SSub *)malloc(sizeof(SSub));

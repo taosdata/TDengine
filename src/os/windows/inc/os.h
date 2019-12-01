@@ -16,13 +16,28 @@
 #ifndef TDENGINE_PLATFORM_WINDOWS_H
 #define TDENGINE_PLATFORM_WINDOWS_H
 
-#include <io.h>
-#include <stdio.h>
-#include <signal.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <pthread.h>
+#include <assert.h>
+#include <ctype.h>
 #include <direct.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <float.h>
+#include <locale.h>
+#include <intrin.h>
+#include <io.h>
+#include <math.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <time.h>
 #include "winsock2.h"
 #include <WS2tcpip.h>
 
@@ -74,14 +89,198 @@ extern "C" {
 #define taosWriteSocket(fd, buf, len) send(fd, buf, len, 0)
 #define taosReadSocket(fd, buf, len) recv(fd, buf, len, 0)
 
-int32_t __sync_val_compare_and_swap_32(int32_t *ptr, int32_t oldval, int32_t newval);
-int32_t __sync_add_and_fetch_32(int32_t *ptr, int32_t val);
-int32_t __sync_sub_and_fetch_32(int32_t *ptr, int32_t val);
-int64_t __sync_val_compare_and_swap_64(int64_t *ptr, int64_t oldval, int64_t newval);
-int64_t __sync_add_and_fetch_64(int64_t *ptr, int64_t val);
-int64_t __sync_sub_and_fetch_64(int64_t *ptr, int64_t val);
-int32_t __sync_val_load_32(int32_t *ptr);
-void __sync_val_restore_32(int32_t *ptr, int32_t newval);
+#if defined(_M_ARM) || defined(_M_ARM64)
+
+/* the '__iso_volatile' functions does not use a memory fence, so these
+ * definitions are incorrect, comment out as we don't support Windows on
+ * ARM at present.
+
+#define atomic_load_8(ptr) __iso_volatile_load8((const volatile __int8*)(ptr))
+#define atomic_load_16(ptr) __iso_volatile_load16((const volatile __int16*)(ptr))
+#define atomic_load_32(ptr) __iso_volatile_load32((const volatile __int32*)(ptr))
+#define atomic_load_64(ptr) __iso_volatile_load64((const volatile __int64*)(ptr))
+
+#define atomic_store_8(ptr, val) __iso_volatile_store8((volatile __int8*)(ptr), (__int8)(val))
+#define atomic_store_16(ptr, val) __iso_volatile_store16((volatile __int16*)(ptr), (__int16)(val))
+#define atomic_store_32(ptr, val) __iso_volatile_store32((volatile __int32*)(ptr), (__int32)(val))
+#define atomic_store_64(ptr, val) __iso_volatile_store64((volatile __int64*)(ptr), (__int64)(val))
+
+#ifdef _M_ARM64
+#define atomic_load_ptr atomic_load_64
+#define atomic_store_ptr atomic_store_64
+#else
+#define atomic_load_ptr atomic_load_32
+#define atomic_store_ptr atomic_store_32
+#endif
+*/
+#else
+
+#define atomic_load_8(ptr) (*(char volatile*)(ptr))
+#define atomic_load_16(ptr) (*(short volatile*)(ptr))
+#define atomic_load_32(ptr) (*(long volatile*)(ptr))
+#define atomic_load_64(ptr) (*(__int64 volatile*)(ptr))
+#define atomic_load_ptr(ptr) (*(void* volatile*)(ptr))
+
+#define atomic_store_8(ptr, val) ((*(char volatile*)(ptr)) = (char)(val))
+#define atomic_store_16(ptr, val) ((*(short volatile*)(ptr)) = (short)(val))
+#define atomic_store_32(ptr, val) ((*(long volatile*)(ptr)) = (long)(val))
+#define atomic_store_64(ptr, val) ((*(__int64 volatile*)(ptr)) = (__int64)(val))
+#define atomic_store_ptr(ptr, val) ((*(void* volatile*)(ptr)) = (void*)(val))
+
+#endif
+
+#define atomic_exchange_8(ptr, val) _InterlockedExchange8((char volatile*)(ptr), (char)(val))
+#define atomic_exchange_16(ptr, val) _InterlockedExchange16((short volatile*)(ptr), (short)(val))
+#define atomic_exchange_32(ptr, val) _InterlockedExchange((long volatile*)(ptr), (long)(val))
+#define atomic_exchange_64(ptr, val) _InterlockedExchange64((__int64 volatile*)(ptr), (__int64)(val))
+#define atomic_exchange_ptr(ptr, val) _InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val))
+
+#define atomic_val_compare_exchange_8(ptr, oldval, newval) _InterlockedCompareExchange8((char volatile*)(ptr), (char)(newval), (char)(oldval))
+#define atomic_val_compare_exchange_16(ptr, oldval, newval) _InterlockedCompareExchange16((short volatile*)(ptr), (short)(newval), (short)(oldval))
+#define atomic_val_compare_exchange_32(ptr, oldval, newval) _InterlockedCompareExchange((long volatile*)(ptr), (long)(newval), (long)(oldval))
+#define atomic_val_compare_exchange_64(ptr, oldval, newval) _InterlockedCompareExchange64((__int64 volatile*)(ptr), (__int64)(newval), (__int64)(oldval))
+#define atomic_val_compare_exchange_ptr(ptr, oldval, newval) _InterlockedCompareExchangePointer((void* volatile*)(ptr), (void*)(newval), (void*)(oldval))
+
+char    interlocked_add_fetch_8(char volatile *ptr, char val);
+short   interlocked_add_fetch_16(short volatile *ptr, short val);
+long    interlocked_add_fetch_32(long volatile *ptr, long val);
+__int64 interlocked_add_fetch_64(__int64 volatile *ptr, __int64 val);
+
+#define atomic_add_fetch_8(ptr, val) interlocked_add_fetch_8((char volatile*)(ptr), (char)(val))
+#define atomic_add_fetch_16(ptr, val) interlocked_add_fetch_16((short volatile*)(ptr), (short)(val))
+#define atomic_add_fetch_32(ptr, val) interlocked_add_fetch_32((long volatile*)(ptr), (long)(val))
+#define atomic_add_fetch_64(ptr, val) interlocked_add_fetch_64((__int64 volatile*)(ptr), (__int64)(val))
+#ifdef _WIN64
+  #define atomic_add_fetch_ptr atomic_add_fetch_64
+#else
+  #define atomic_add_fetch_ptr atomic_add_fetch_32
+#endif
+
+#define atomic_fetch_add_8(ptr, val) _InterlockedExchangeAdd8((char volatile*)(ptr), (char)(val))
+#define atomic_fetch_add_16(ptr, val) _InterlockedExchangeAdd16((short volatile*)(ptr), (short)(val))
+#define atomic_fetch_add_32(ptr, val) _InterlockedExchangeAdd((long volatile*)(ptr), (long)(val))
+#define atomic_fetch_add_64(ptr, val) _InterlockedExchangeAdd64((__int64 volatile*)(ptr), (__int64)(val))
+#ifdef _WIN64
+  #define atomic_fetch_add_ptr atomic_fetch_add_64
+#else
+  #define atomic_fetch_add_ptr atomic_fetch_add_32
+#endif
+
+#define atomic_sub_fetch_8(ptr, val) interlocked_add_fetch_8((char volatile*)(ptr), -(char)(val))
+#define atomic_sub_fetch_16(ptr, val) interlocked_add_fetch_16((short volatile*)(ptr), -(short)(val))
+#define atomic_sub_fetch_32(ptr, val) interlocked_add_fetch_32((long volatile*)(ptr), -(long)(val))
+#define atomic_sub_fetch_64(ptr, val) interlocked_add_fetch_64((__int64 volatile*)(ptr), -(__int64)(val))
+#ifdef _WIN64
+  #define atomic_sub_fetch_ptr atomic_sub_fetch_64
+#else
+  #define atomic_sub_fetch_ptr atomic_sub_fetch_32
+#endif
+
+#define atomic_fetch_sub_8(ptr, val) _InterlockedExchangeAdd8((char volatile*)(ptr), -(char)(val))
+#define atomic_fetch_sub_16(ptr, val) _InterlockedExchangeAdd16((short volatile*)(ptr), -(short)(val))
+#define atomic_fetch_sub_32(ptr, val) _InterlockedExchangeAdd((long volatile*)(ptr), -(long)(val))
+#define atomic_fetch_sub_64(ptr, val) _InterlockedExchangeAdd64((__int64 volatile*)(ptr), -(__int64)(val))
+#ifdef _WIN64
+  #define atomic_fetch_sub_ptr atomic_fetch_sub_64
+#else
+  #define atomic_fetch_sub_ptr atomic_fetch_sub_32
+#endif
+
+char interlocked_and_fetch_8(char volatile* ptr, char val);
+short interlocked_and_fetch_16(short volatile* ptr, short val);
+long interlocked_and_fetch_32(long volatile* ptr, long val);
+__int64 interlocked_and_fetch_64(__int64 volatile* ptr, __int64 val);
+
+#define atomic_and_fetch_8(ptr, val) interlocked_and_fetch_8((char volatile*)(ptr), (char)(val))
+#define atomic_and_fetch_16(ptr, val) interlocked_and_fetch_16((short volatile*)(ptr), (short)(val))
+#define atomic_and_fetch_32(ptr, val) interlocked_and_fetch_32((long volatile*)(ptr), (long)(val))
+#define atomic_and_fetch_64(ptr, val) interlocked_and_fetch_64((__int64 volatile*)(ptr), (__int64)(val))
+#ifdef _WIN64
+  #define atomic_and_fetch_ptr atomic_and_fetch_64
+#else
+  #define atomic_and_fetch_ptr atomic_and_fetch_32
+#endif
+
+#define atomic_fetch_and_8(ptr, val) _InterlockedAnd8((char volatile*)(ptr), (char)(val))
+#define atomic_fetch_and_16(ptr, val) _InterlockedAnd16((short volatile*)(ptr), (short)(val))
+#define atomic_fetch_and_32(ptr, val) _InterlockedAnd((long volatile*)(ptr), (long)(val))
+
+#ifdef _M_IX86
+  __int64 interlocked_fetch_and_64(__int64 volatile* ptr, __int64 val);
+  #define atomic_fetch_and_64(ptr, val) interlocked_fetch_and_64((__int64 volatile*)(ptr), (__int64)(val))
+#else
+  #define atomic_fetch_and_64(ptr, val) _InterlockedAnd64((__int64 volatile*)(ptr), (__int64)(val))
+#endif
+
+#ifdef _WIN64
+  #define atomic_fetch_and_ptr atomic_fetch_and_64
+#else
+  #define atomic_fetch_and_ptr atomic_fetch_and_32
+#endif
+
+char interlocked_or_fetch_8(char volatile* ptr, char val);
+short interlocked_or_fetch_16(short volatile* ptr, short val);
+long interlocked_or_fetch_32(long volatile* ptr, long val);
+__int64 interlocked_or_fetch_64(__int64 volatile* ptr, __int64 val);
+
+#define atomic_or_fetch_8(ptr, val) interlocked_or_fetch_8((char volatile*)(ptr), (char)(val))
+#define atomic_or_fetch_16(ptr, val) interlocked_or_fetch_16((short volatile*)(ptr), (short)(val))
+#define atomic_or_fetch_32(ptr, val) interlocked_or_fetch_32((long volatile*)(ptr), (long)(val))
+#define atomic_or_fetch_64(ptr, val) interlocked_or_fetch_64((__int64 volatile*)(ptr), (__int64)(val))
+#ifdef _WIN64
+  #define atomic_or_fetch_ptr atomic_or_fetch_64
+#else
+  #define atomic_or_fetch_ptr atomic_or_fetch_32
+#endif
+
+#define atomic_fetch_or_8(ptr, val) _InterlockedOr8((char volatile*)(ptr), (char)(val))
+#define atomic_fetch_or_16(ptr, val) _InterlockedOr16((short volatile*)(ptr), (short)(val))
+#define atomic_fetch_or_32(ptr, val) _InterlockedOr((long volatile*)(ptr), (long)(val))
+
+#ifdef _M_IX86
+  __int64 interlocked_fetch_or_64(__int64 volatile* ptr, __int64 val);
+  #define atomic_fetch_or_64(ptr, val) interlocked_fetch_or_64((__int64 volatile*)(ptr), (__int64)(val))
+#else
+  #define atomic_fetch_or_64(ptr, val) _InterlockedOr64((__int64 volatile*)(ptr), (__int64)(val))
+#endif
+
+#ifdef _WIN64
+  #define atomic_fetch_or_ptr atomic_fetch_or_64
+#else
+  #define atomic_fetch_or_ptr atomic_fetch_or_32
+#endif
+
+char interlocked_xor_fetch_8(char volatile* ptr, char val);
+short interlocked_xor_fetch_16(short volatile* ptr, short val);
+long interlocked_xor_fetch_32(long volatile* ptr, long val);
+__int64 interlocked_xor_fetch_64(__int64 volatile* ptr, __int64 val);
+
+#define atomic_xor_fetch_8(ptr, val) interlocked_xor_fetch_8((char volatile*)(ptr), (char)(val))
+#define atomic_xor_fetch_16(ptr, val) interlocked_xor_fetch_16((short volatile*)(ptr), (short)(val))
+#define atomic_xor_fetch_32(ptr, val) interlocked_xor_fetch_32((long volatile*)(ptr), (long)(val))
+#define atomic_xor_fetch_64(ptr, val) interlocked_xor_fetch_64((__int64 volatile*)(ptr), (__int64)(val))
+#ifdef _WIN64
+  #define atomic_xor_fetch_ptr atomic_xor_fetch_64
+#else
+  #define atomic_xor_fetch_ptr atomic_xor_fetch_32
+#endif
+
+#define atomic_fetch_xor_8(ptr, val) _InterlockedXor8((char volatile*)(ptr), (char)(val))
+#define atomic_fetch_xor_16(ptr, val) _InterlockedXor16((short volatile*)(ptr), (short)(val))
+#define atomic_fetch_xor_32(ptr, val) _InterlockedXor((long volatile*)(ptr), (long)(val))
+
+#ifdef _M_IX86
+  __int64 interlocked_fetch_xor_64(__int64 volatile* ptr, __int64 val);
+  #define atomic_fetch_xor_64(ptr, val) interlocked_fetch_xor_64((__int64 volatile*)(ptr), (__int64)(val))
+#else
+  #define atomic_fetch_xor_64(ptr, val) _InterlockedXor64((__int64 volatile*)(ptr), (__int64)(val))
+#endif
+
+#ifdef _WIN64
+  #define atomic_fetch_xor_ptr atomic_fetch_xor_64
+#else
+  #define atomic_fetch_xor_ptr atomic_fetch_xor_32
+#endif
 
 #define SWAP(a, b, c)      \
   do {                     \
@@ -172,6 +371,12 @@ bool taosSkipSocketCheck();
 int fsendfile(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count);
 
 #define ssize_t int
+
+#define strdup _strdup
+
+char *strndup(const char *s, size_t n);
+
+void taosSetCoreDump();
 
 #ifdef __cplusplus
 }

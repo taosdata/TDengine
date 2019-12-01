@@ -391,20 +391,28 @@ bool httpDecodeRequest(HttpContext* pContext) {
  * Process the request from http pServer
  */
 bool httpProcessData(HttpContext* pContext) {
-  pContext->usedByApp = 1;
+
+  if (!httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_HANDLING)) {
+    httpTrace("context:%p, fd:%d, ip:%s, state:%s not in ready state, stop process request",
+            pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state));
+    httpCloseContextByApp(pContext);
+    return false;
+  }
 
   // handle Cross-domain request
   if (strcmp(pContext->parser.method.pos, "OPTIONS") == 0) {
     httpTrace("context:%p, fd:%d, ip:%s, process options request", pContext, pContext->fd, pContext->ipstr);
     httpSendOptionResp(pContext, "process options request success");
-    return HTTP_PROCESS_SUCCESS;
+  } else {
+    if (!httpDecodeRequest(pContext)) {
+      /*
+       * httpCloseContextByApp has been called when parsing the error
+       */
+      //httpCloseContextByApp(pContext);
+    } else {
+      httpProcessRequest(pContext);
+    }
   }
 
-  if (!httpDecodeRequest(pContext)) {
-    httpCloseContextByApp(pContext);
-    return HTTP_PROCESS_SUCCESS;
-  }
-
-  httpProcessRequest(pContext);
-  return HTTP_PROCESS_SUCCESS;
+  return true;
 }

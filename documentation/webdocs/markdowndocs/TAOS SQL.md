@@ -474,9 +474,9 @@ SELECT function_list FROM tb_name
 
 SELECT function_list FROM stb_name 
   [WHERE where_condition]
-  [GROUP BY tags]
   INTERVAL (interval)
   [FILL ({ VALUE | PREV | NULL | LINEAR})]
+  [GROUP BY tags]
 ```
 
 The downsampling time window is defined by `interval`, which is at least 10 milliseconds. The query returns a new series of downsampled data that has a series of fixed timestamps with an increment of `interval`. 

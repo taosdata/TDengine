@@ -31,6 +31,7 @@
 char configDir[TSDB_FILENAME_LEN] = "C:/TDengine/cfg";
 char tsDirectory[TSDB_FILENAME_LEN] = "C:/TDengine/data";
 char logDir[TSDB_FILENAME_LEN] = "C:/TDengine/log";
+char dataDir[TSDB_FILENAME_LEN] = "C:/TDengine/data";
 char scriptDir[TSDB_FILENAME_LEN] = "C:/TDengine/script";
 
 bool taosCheckPthreadValid(pthread_t thread) {
@@ -42,8 +43,11 @@ void taosResetPthread(pthread_t *thread) {
 }
 
 int64_t taosGetPthreadId() {
-  pthread_t id = pthread_self();
-  return (int64_t)id.p;
+#ifdef PTW32_VERSION
+  return pthread_getw32threadid_np(pthread_self());
+#else
+  return (int64_t)pthread_self();
+#endif
 }
 
 int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optlen) {
@@ -62,40 +66,148 @@ int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optle
   return setsockopt(socketfd, level, optname, optval, optlen);
 }
 
-int32_t __sync_val_compare_and_swap_32(int32_t *ptr, int32_t oldval, int32_t newval) {
-  return InterlockedCompareExchange(ptr, newval, oldval);
+// add
+char interlocked_add_fetch_8(char volatile* ptr, char val) {
+  return _InterlockedExchangeAdd8(ptr, val) + val;
 }
 
-int32_t __sync_add_and_fetch_32(int32_t *ptr, int32_t val) {
-  return InterlockedAdd(ptr, val);
+short interlocked_add_fetch_16(short volatile* ptr, short val) {
+  return _InterlockedExchangeAdd16(ptr, val) + val;
 }
 
-int32_t __sync_sub_and_fetch_32(int32_t *ptr, int32_t val) {
-  return InterlockedAdd(ptr, -val);
+long interlocked_add_fetch_32(long volatile* ptr, long val) {
+  return _InterlockedExchangeAdd(ptr, val) + val;
 }
 
-int64_t __sync_val_compare_and_swap_64(int64_t *ptr, int64_t oldval, int64_t newval) {
-  return InterlockedCompareExchange64(ptr, newval, oldval);
+__int64 interlocked_add_fetch_64(__int64 volatile* ptr, __int64 val) {
+  return _InterlockedExchangeAdd64(ptr, val) + val;
 }
 
-int64_t __sync_add_and_fetch_64(int64_t *ptr, int64_t val) {
-  return InterlockedAdd64(ptr, val);
+// and
+char interlocked_and_fetch_8(char volatile* ptr, char val) {
+  return _InterlockedAnd8(ptr, val) & val;
 }
 
-int64_t __sync_sub_and_fetch_64(int64_t *ptr, int64_t val) {
-  return InterlockedAdd64(ptr, -val);
+short interlocked_and_fetch_16(short volatile* ptr, short val) {
+  return _InterlockedAnd16(ptr, val) & val;
 }
 
-int32_t __sync_val_load_32(int32_t *ptr) {
-  return InterlockedOr(ptr, 0);
+long interlocked_and_fetch_32(long volatile* ptr, long val) {
+  return _InterlockedAnd(ptr, val) & val;
 }
 
-void __sync_val_restore_32(int32_t *ptr, int32_t newval) {
-  InterlockedCompareExchange(ptr, *ptr, newval);
+#ifndef _M_IX86
+
+__int64 interlocked_and_fetch_64(__int64 volatile* ptr, __int64 val) {
+  return _InterlockedAnd64(ptr, val) & val;
 }
+
+#else
+
+__int64 interlocked_and_fetch_64(__int64 volatile* ptr, __int64 val) {
+  __int64 old, res;
+  do {
+    old = *ptr;
+    res = old & val;
+  } while(_InterlockedCompareExchange64(ptr, res, old) != old);
+  return res;
+}
+
+__int64 interlocked_fetch_and_64(__int64 volatile* ptr, __int64 val) {
+  __int64 old;
+  do {
+    old = *ptr;
+  } while(_InterlockedCompareExchange64(ptr, old & val, old) != old);
+  return old;
+}
+
+#endif
+
+// or
+char interlocked_or_fetch_8(char volatile* ptr, char val) {
+  return _InterlockedOr8(ptr, val) | val;
+}
+
+short interlocked_or_fetch_16(short volatile* ptr, short val) {
+  return _InterlockedOr16(ptr, val) | val;
+}
+
+<<<<<<< HEAD
+=======
+long interlocked_or_fetch_32(long volatile* ptr, long val) {
+  return _InterlockedOr(ptr, val) | val;
+}
+
+#ifndef _M_IX86
+
+__int64 interlocked_or_fetch_64(__int64 volatile* ptr, __int64 val) {
+  return _InterlockedOr64(ptr, val) & val;
+}
+
+#else
+
+__int64 interlocked_or_fetch_64(__int64 volatile* ptr, __int64 val) {
+  __int64 old, res;
+  do {
+    old = *ptr;
+    res = old | val;
+  } while(_InterlockedCompareExchange64(ptr, res, old) != old);
+  return res;
+}
+
+__int64 interlocked_fetch_or_64(__int64 volatile* ptr, __int64 val) {
+  __int64 old;
+  do {
+    old = *ptr;
+  } while(_InterlockedCompareExchange64(ptr, old | val, old) != old);
+  return old;
+}
+
+#endif
+
+// xor
+char interlocked_xor_fetch_8(char volatile* ptr, char val) {
+  return _InterlockedXor8(ptr, val) ^ val;
+}
+
+short interlocked_xor_fetch_16(short volatile* ptr, short val) {
+  return _InterlockedXor16(ptr, val) ^ val;
+}
+
+long interlocked_xor_fetch_32(long volatile* ptr, long val) {
+  return _InterlockedXor(ptr, val) ^ val;
+}
+
+#ifndef _M_IX86
+
+__int64 interlocked_xor_fetch_64(__int64 volatile* ptr, __int64 val) {
+  return _InterlockedXor64(ptr, val) ^ val;
+}
+
+#else
+
+__int64 interlocked_xor_fetch_64(__int64 volatile* ptr, __int64 val) {
+  __int64 old, res;
+  do {
+    old = *ptr;
+    res = old ^ val;
+  } while(_InterlockedCompareExchange64(ptr, res, old) != old);
+  return res;
+}
+
+__int64 interlocked_fetch_xor_64(__int64 volatile* ptr, __int64 val) {
+  __int64 old;
+  do {
+    old = *ptr;
+  } while(_InterlockedCompareExchange64(ptr, old ^ val, old) != old);
+  return old;
+}
+
+#endif
 
 void tsPrintOsInfo() {}
 
+>>>>>>> release/v1.6.4.0
 void taosGetSystemTimezone() {
   // get and set default timezone
   SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");
@@ -275,3 +387,16 @@ int32_t BUILDIN_CTZ(uint32_t val) {
   return (int)(r >> 3);
 }
 
+char *strndup(const char *s, size_t n) {
+  int len = strlen(s);
+  if (len >= n) {
+    len = n;
+  }
+
+  char *r = calloc(len + 1, 1);
+  memcpy(r, s, len);
+  r[len] = 0;
+  return r;
+}
+
+void taosSetCoreDump() {}

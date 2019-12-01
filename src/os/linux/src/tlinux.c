@@ -163,12 +163,12 @@ int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optle
   return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
 }
 
-int taosOpenUDClientSocket(char *ip, short port) {
+int taosOpenUDClientSocket(char *ip, uint16_t port) {
   int                sockFd = 0;
   struct sockaddr_un serverAddr;
   int                ret;
   char               name[128];
-  sprintf(name, "%s.%d", ip, port);
+  sprintf(name, "%s.%hu", ip, port);
 
   sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -191,14 +191,13 @@ int taosOpenUDClientSocket(char *ip, short port) {
   return sockFd;
 }
 
-int taosOpenUDServerSocket(char *ip, short port) {
+int taosOpenUDServerSocket(char *ip, uint16_t port) {
   struct sockaddr_un serverAdd;
   int                sockFd;
   char               name[128];
 
   pTrace("open ud socket:%s", name);
-  // if (tsAllowLocalhost) ip = "0.0.0.0";
-  sprintf(name, "%s.%d", ip, port);
+  sprintf(name, "%s.%hu", ip, port);
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
   serverAdd.sun_family = AF_UNIX;
@@ -288,8 +287,10 @@ ssize_t tsendfile(int dfd, int sfd, off_t *offset, size_t size) {
   ssize_t sentbytes;
 
   while (leftbytes > 0) {
-    // TODO : Think to check if file is larger than 1GB
-    if (leftbytes > 1000000000) leftbytes = 1000000000;
+    /*
+     * TODO : Think to check if file is larger than 1GB
+     */
+    //if (leftbytes > 1000000000) leftbytes = 1000000000;
     sentbytes = sendfile(dfd, sfd, offset, leftbytes);
     if (sentbytes == -1) {
       if (errno == EINTR) {
@@ -341,10 +342,12 @@ bool taosSkipSocketCheck() {
   return false;
 }
 
-int32_t __sync_val_load_32(int32_t *ptr) {
-  return __atomic_load_n(ptr, __ATOMIC_ACQUIRE);
-}
-
-void __sync_val_restore_32(int32_t *ptr, int32_t newval) {
-  __atomic_store_n(ptr, newval, __ATOMIC_RELEASE);
+void taosBlockSIGPIPE() {
+  sigset_t signal_mask;
+  sigemptyset(&signal_mask);
+  sigaddset(&signal_mask, SIGPIPE);
+  int rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
+  if (rc != 0) {
+    pError("failed to block SIGPIPE");
+  }
 }

@@ -101,7 +101,7 @@ function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*     || :    
     
-    versioninfo=$(${script_dir}/get_version.sh)
+    versioninfo=$(${script_dir}/get_version.sh ${source_dir}/src/util/src/version.c)
     ${csudo} cp ${binary_dir}/build/lib/libtaos.so.${versioninfo} ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
     ${csudo} ln -sf ${install_main_dir}/driver/libtaos.so.${versioninfo} ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
@@ -109,9 +109,10 @@ function install_lib() {
 
 function install_header() {
 
-    ${csudo} rm -f ${inc_link_dir}/taos.h     || :    
-    ${csudo} cp -f ${source_dir}/src/inc/taos.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :    
+    ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function install_config() {

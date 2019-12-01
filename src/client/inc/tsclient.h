@@ -34,8 +34,8 @@ extern "C" {
 #include "tglobalcfg.h"
 #include "tlog.h"
 #include "tscCache.h"
+#include "tscSQLParser.h"
 #include "tsdb.h"
-#include "tsql.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
 
@@ -63,9 +63,9 @@ enum _sql_cmd {
   TSDB_SQL_ALTER_DB,
   TSDB_SQL_CREATE_MNODE,
   TSDB_SQL_DROP_MNODE,
-  TSDB_SQL_CREATE_PNODE,
-  TSDB_SQL_DROP_PNODE,
-  TSDB_SQL_CFG_PNODE,  // 20
+  TSDB_SQL_CREATE_DNODE,
+  TSDB_SQL_DROP_DNODE,
+  TSDB_SQL_CFG_DNODE,  // 20
   TSDB_SQL_CFG_MNODE,
   TSDB_SQL_SHOW,
   TSDB_SQL_RETRIEVE,
@@ -78,15 +78,26 @@ enum _sql_cmd {
   TSDB_SQL_USE_DB,
   TSDB_SQL_META,  // 30
   TSDB_SQL_METRIC,
+  TSDB_SQL_MULTI_META,
   TSDB_SQL_HB,
 
   TSDB_SQL_LOCAL,  // SQL below for client local
   TSDB_SQL_DESCRIBE_TABLE,
   TSDB_SQL_RETRIEVE_METRIC,
+  TSDB_SQL_METRIC_JOIN_RETRIEVE,
   TSDB_SQL_RETRIEVE_TAGS,
-  TSDB_SQL_RETRIEVE_EMPTY_RESULT,  // build empty result instead of accessing
-                                   // dnode to fetch result
-  TSDB_SQL_RESET_CACHE,            // reset the client cache
+  /*
+   * build empty result instead of accessing dnode to fetch result
+   * reset the client cache
+   */
+  TSDB_SQL_RETRIEVE_EMPTY_RESULT,
+
+  TSDB_SQL_RESET_CACHE,  // 40
+  TSDB_SQL_SERV_STATUS,
+  TSDB_SQL_CURRENT_DB,
+  TSDB_SQL_SERV_VERSION,
+  TSDB_SQL_CLI_VERSION,
+  TSDB_SQL_CURRENT_USER,
   TSDB_SQL_CFG_LOCAL,
 
   TSDB_SQL_MAX
@@ -96,24 +107,35 @@ enum _sql_cmd {
 struct SSqlInfo;
 
 typedef struct SSqlGroupbyExpr {
-  int16_t numOfGroupbyCols;
-  int16_t tagIndex[TSDB_MAX_TAGS]; /* group by columns information */
-  int16_t orderIdx;                /* order by column index        */
-  int16_t orderType;               /* order by type: asc/desc      */
+  int16_t tableIndex;
+
+  int16_t     numOfGroupCols;
+  SColIndexEx columnInfo[TSDB_MAX_TAGS];  // group by columns information
+
+  int16_t orderIndex;  // order by column index
+  int16_t orderType;   // order by type: asc/desc
 } SSqlGroupbyExpr;
+
+typedef struct SMeterMetaInfo {
+  SMeterMeta * pMeterMeta;   // metermeta
+  SMetricMeta *pMetricMeta;  // metricmeta
+
+  char    name[TSDB_METER_ID_LEN + 1];
+  int16_t numOfTags;                      // total required tags in query, including groupby tags
+  int16_t tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
+} SMeterMetaInfo;
 
 /* the structure for sql function in select clause */
 typedef struct SSqlExpr {
-  char aliasName[TSDB_COL_NAME_LEN + 1];  // as aliasName
-
-  SColIndex colInfo;
-  int16_t   sqlFuncId;  // function id in aAgg array
-
-  int16_t resType;      // return value type
-  int16_t resBytes;     // length of return value
-
-  int16_t  numOfParams;  // argument value of each function
-  tVariant param[3];     // parameters are not more than 3
+  char        aliasName[TSDB_COL_NAME_LEN + 1];  // as aliasName
+  SColIndexEx colInfo;
+  int64_t     uid;            // refactor use the pointer
+  int16_t     functionId;     // function id in aAgg array
+  int16_t     resType;        // return value type
+  int16_t     resBytes;       // length of return value
+  int16_t     interResBytes;  // inter result buffer size
+  int16_t     numOfParams;    // argument value of each function
+  tVariant    param[3];       // parameters are not more than 3
 } SSqlExpr;
 
 typedef struct SFieldInfo {
@@ -121,6 +143,15 @@ typedef struct SFieldInfo {
   int16_t     numOfAlloc;       // allocated size
   TAOS_FIELD *pFields;
   short *     pOffset;
+
+  /*
+   * define if this column is belong to the queried result, it may be add by parser to faciliate
+   * the query process
+   *
+   * NOTE: these hidden columns always locate at the end of the output columns
+   */
+  bool *  pVisibleCols;
+  int32_t numOfHiddenCols;  // the number of column not belongs to the queried result columns
 } SFieldInfo;
 
 typedef struct SSqlExprInfo {
@@ -129,87 +160,121 @@ typedef struct SSqlExprInfo {
   SSqlExpr *pExprs;
 } SSqlExprInfo;
 
+typedef struct SColumnIndex {
+  int16_t tableIndex;
+  int16_t columnIndex;
+} SColumnIndex;
+
 typedef struct SColumnBase {
-  int16_t colIndex;
-
-  /* todo refactor: the following data is belong to one struct */
-  int16_t filterOn; /* denote if the filter is active       */
-  int16_t lowerRelOptr;
-  int16_t upperRelOptr;
-  int16_t filterOnBinary; /* denote if current column is binary   */
-
-  union {
-    struct {
-      int64_t lowerBndi;
-      int64_t upperBndi;
-    };
-    struct {
-      double lowerBndd;
-      double upperBndd;
-    };
-    struct {
-      int64_t pz;
-      int64_t len;
-    };
-  };
+  SColumnIndex       colIndex;
+  int32_t            numOfFilters;
+  SColumnFilterInfo *filterInfo;
 } SColumnBase;
 
-typedef struct SColumnsInfo {
+typedef struct SColumnBaseInfo {
   int16_t      numOfAlloc;
   int16_t      numOfCols;
   SColumnBase *pColList;
-} SColumnsInfo;
+} SColumnBaseInfo;
 
 struct SLocalReducer;
 
+// todo move to utility
+typedef struct SString {
+  int32_t alloc;
+  int32_t n;
+  char *  z;
+} SString;
+
+typedef struct SCond {
+  uint64_t uid;
+  SString  cond;
+} SCond;
+
+typedef struct SJoinNode {
+  char     meterId[TSDB_METER_ID_LEN];
+  uint64_t uid;
+  int16_t  tagCol;
+} SJoinNode;
+
+typedef struct SJoinInfo {
+  bool      hasJoin;
+  SJoinNode left;
+  SJoinNode right;
+} SJoinInfo;
+
 typedef struct STagCond {
-  int32_t len;
-  int32_t allocSize;
-  int16_t type;
-  char *  pData;
+  // relation between tbname list and query condition, including : TK_AND or TK_OR
+  int16_t relType;
+
+  // tbname query condition, only support tbname query condition on one table
+  SCond tbnameCond;
+
+  // join condition, only support two tables join currently
+  SJoinInfo joinInfo;
+
+  // for different table, the query condition must be seperated
+  SCond   cond[TSDB_MAX_JOIN_TABLE_NUM];
+  int16_t numOfTagCond;
 } STagCond;
 
+typedef struct SParamInfo {
+  int32_t  idx;
+  char     type;
+  uint8_t  timePrec;
+  short    bytes;
+  uint32_t offset;
+} SParamInfo;
+
 typedef struct STableDataBlocks {
-  char        meterId[TSDB_METER_ID_LEN];
-  int8_t      tsSource;
+  char   meterId[TSDB_METER_ID_LEN];
+  int8_t tsSource;
+  bool   ordered;
 
-  int64_t     vgid;
-  int64_t     size;
+  int64_t vgid;
+  int64_t prevTS;
 
-  int64_t     prevTS;
-  bool        ordered;
+  int32_t numOfMeters;
 
-  int32_t     numOfMeters;
-  int32_t     rowSize;
-  uint32_t    nAllocSize;
+  int32_t  rowSize;
+  uint32_t nAllocSize;
+  uint32_t size;
   union {
     char *filename;
     char *pData;
   };
+
+  // for parameter ('?') binding
+  uint32_t    numOfAllocedParams;
+  uint32_t    numOfParams;
+  SParamInfo *params;
 } STableDataBlocks;
 
 typedef struct SDataBlockList {
-  int32_t               idx;
-  int32_t               nSize;
-  int32_t               nAlloc;
-  char *                userParam; /* user assigned parameters for async query */
-  void *                udfp;      /* user defined function pointer, used in async model */
+  int32_t            idx;
+  int32_t            nSize;
+  int32_t            nAlloc;
+  char *             userParam; /* user assigned parameters for async query */
+  void *             udfp;      /* user defined function pointer, used in async model */
   STableDataBlocks **pData;
 } SDataBlockList;
 
 typedef struct {
-  char            name[TSDB_METER_ID_LEN];
-  SOrderVal       order;
-  int             command;
-  int             count;
-  int16_t         isInsertFromFile;  // load data from file or not
-  int16_t         metricQuery;       // metric query or not
-  bool            existsCheck;
+  SOrderVal order;
+  int       command;
+  int       count;// TODO refactor
+
+  union {
+    bool   existsCheck;       // check if the table exists
+    int8_t showType;          // show command type
+  };
+  
+  int8_t          isInsertFromFile;  // load data from file or not
+  bool            import;     // import/insert type
   char            msgType;
-  char            type;
+  uint16_t        type;  // query type
   char            intervalTimeUnit;
-  int64_t         etime;
-  int64_t         stime;
+  int64_t         etime, stime;
   int64_t         nAggTimeInterval;  // aggregation time interval
   int64_t         nSlidingTime;      // sliding window in mseconds
   SSqlGroupbyExpr groupbyExpr;       // group by tags info
@@ -220,28 +285,31 @@ typedef struct {
    *
    * In such cases, allocate the memory dynamically, and need to free the memory
    */
-  uint32_t     allocSize;
-  char *       payload;
-  int          payloadLen;
-  short        numOfCols;
-  SColumnsInfo colList;
-  SFieldInfo   fieldsInfo;
-  SSqlExprInfo exprsInfo;
-  int16_t      numOfReqTags;  // total required tags in query, inlcuding groupby clause + tag projection
-  int16_t      tagColumnIndex[TSDB_MAX_TAGS + 1];
-  SLimitVal    limit;
-  int64_t      globalLimit;
-  SLimitVal    glimit;
-  STagCond     tagCond;
-  int16_t      vnodeIdx;     // vnode index in pMetricMeta for metric query
-  int16_t      interpoType;  // interpolate type
+  uint32_t        allocSize;
+  char *          payload;
+  int             payloadLen;
+  short           numOfCols;
+  SColumnBaseInfo colList;
+  SFieldInfo      fieldsInfo;
+  SSqlExprInfo    exprsInfo;
+  SLimitVal       limit;
+  SLimitVal       slimit;
+  int64_t         globalLimit;
+  STagCond        tagCond;
+  int16_t         vnodeIdx;     // vnode index in pMetricMeta for metric query
+  int16_t         interpoType;  // interpolate type
+  int16_t         numOfTables;
 
-  SDataBlockList *pDataBlocks;  // submit data blocks branched according to vnode
-  SMeterMeta *    pMeterMeta;   // metermeta
-  SMetricMeta *   pMetricMeta;  // metricmeta
-
+  // submit data blocks branched according to vnode
+  SDataBlockList * pDataBlocks;
+  SMeterMetaInfo **pMeterInfo;
+  struct STSBuf *  tsBuf;
   // todo use dynamic allocated memory for defaultVal
   int64_t defaultVal[TSDB_MAX_COLUMNS];  // default value for interpolation
+
+  // for parameter ('?') binding and batch processing
+  int32_t batchSize;
+  int32_t numOfParams;
 } SSqlCmd;
 
 typedef struct SResRec {
@@ -249,39 +317,40 @@ typedef struct SResRec {
   int numOfTotal;
 } SResRec;
 
-typedef struct {
-  uint8_t  code;
-  int      numOfRows;   // num of results in current retrieved
-  int      numOfTotal;  // num of total results
-  char *   pRsp;
-  int      rspType;
-  int      rspLen;
-  uint64_t qhandle;
-  int64_t  useconds;
-  int64_t  offset;  // offset value from vnode during projection query of stable
-  int      row;
-  int16_t  numOfnchar;
-  int16_t  precision;
-  int32_t  numOfGroups;
-  SResRec *pGroupRec;
-  char *   data;
-  short *  bytes;
-  void **  tsrow;
+struct STSBuf;
 
-  // Buffer used to put multibytes encoded using unicode (wchar_t)
-  char **               buffer;
+typedef struct {
+  uint8_t               code;
+  int                   numOfRows;   // num of results in current retrieved
+  int                   numOfTotal;  // num of total results
+  char *                pRsp;
+  int                   rspType;
+  int                   rspLen;
+  uint64_t              qhandle;
+  int64_t               useconds;
+  int64_t               offset;  // offset value from vnode during projection query of stable
+  int                   row;
+  int16_t               numOfnchar;
+  int16_t               precision;
+  int32_t               numOfGroups;
+  SResRec *             pGroupRec;
+  char *                data;
+  short *               bytes;
+  void **               tsrow;
+  char **               buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   struct SLocalReducer *pLocalReducer;
+  SColumnIndex *        pColumnIndex;
 } SSqlRes;
 
 typedef struct _tsc_obj {
   void *           signature;
   void *           pTimer;
   char             mgmtIp[TSDB_USER_LEN];
-  short            mgmtPort;
+  uint16_t         mgmtPort;
   char             user[TSDB_USER_LEN];
   char             pass[TSDB_KEY_LEN];
   char             acctId[TSDB_DB_NAME_LEN];
-  char             db[TSDB_DB_NAME_LEN];
+  char             db[TSDB_METER_ID_LEN];
   char             sversion[TSDB_VERSION_LEN];
   char             writeAuth : 1;
   char             superAuth : 1;
@@ -328,7 +397,7 @@ typedef struct _sstream {
   int64_t  num;  // number of computing count
 
   /*
-   * bookmark the current number of result in computing,
+   * keep the number of current result in computing,
    * the value will be set to 0 before set timer for next computing
    */
   int64_t numOfRes;
@@ -336,8 +405,7 @@ typedef struct _sstream {
   int64_t useconds;  // total  elapsed time
   int64_t ctime;     // stream created time
   int64_t stime;     // stream next executed time
-  int64_t etime;     // stream end query time, when time is larger then etime, the
-                     // stream will be closed
+  int64_t etime;     // stream end query time, when time is larger then etime, the stream will be closed
   int64_t interval;
   int64_t slidingTime;
   int16_t precision;
@@ -346,8 +414,7 @@ typedef struct _sstream {
   void (*fp)();
   void *param;
 
-  // Call backfunction when stream is stopped from client level
-  void (*callback)(void *);
+  void (*callback)(void *);  // Callback function when stream is stopped from client level
   struct _sstream *prev, *next;
 } SSqlStream;
 
@@ -362,15 +429,13 @@ int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion);
 
 void  tscInitMsgs();
 void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle);
-int tscProcessSql(SSqlObj *pSql);
-int tscGetMeterMeta(SSqlObj *pSql, char *meterId);
-int tscGetMeterMetaEx(SSqlObj *pSql, char *meterId, bool createIfNotExists);
+int   tscProcessSql(SSqlObj *pSql);
 
 void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows);
 
-int tscRenewMeterMeta(SSqlObj *pSql, char *meterId);
+int  tscRenewMeterMeta(SSqlObj *pSql, char *meterId);
 void tscQueueAsyncRes(SSqlObj *pSql);
-int tscGetMetricMeta(SSqlObj *pSql, char *meterId);
+
 void tscQueueAsyncError(void(*fp), void *param);
 
 int tscProcessLocalCmd(SSqlObj *pSql);
@@ -381,21 +446,15 @@ int taos_retrieve(TAOS_RES *res);
  * transfer function for metric query in stream computing, the function need to be change
  * before send query message to vnode
  */
-void tscTansformSQLFunctionForMetricQuery(SSqlCmd *pCmd);
-void tscRestoreSQLFunctionForMetricQuery(SSqlCmd *pCmd);
-
-/**
- * release both metric/meter meta information
- * @param pCmd  SSqlCmd object that contains the metric/meter meta info
- */
-void tscClearSqlMetaInfo(SSqlCmd *pCmd);
+int32_t tscTansformSQLFunctionForMetricQuery(SSqlCmd *pCmd);
+void    tscRestoreSQLFunctionForMetricQuery(SSqlCmd *pCmd);
 
 void tscClearSqlMetaInfoForce(SSqlCmd *pCmd);
 
 int32_t tscCreateResPointerInfo(SSqlCmd *pCmd, SSqlRes *pRes);
-void tscDestroyResPointerInfo(SSqlRes *pRes);
+void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
-void tscfreeSqlCmdData(SSqlCmd *pCmd);
+void tscFreeSqlCmdData(SSqlCmd *pCmd);
 
 /**
  * only free part of resources allocated during query.
@@ -413,40 +472,30 @@ void tscFreeSqlObj(SSqlObj *pObj);
 
 void tscCloseTscObj(STscObj *pObj);
 
-//
-// support functions for async metric query.
-// we declare them as global visible functions, because we need them to check if a
-// failed async query in tscMeterMetaCallBack is a metric query or not.
-
-// expr: (fp == tscRetrieveDataRes or fp == tscRetrieveFromVnodeCallBack)
-// If a query is async query, we simply abort current query process, instead of continuing
-//
-void tscRetrieveDataRes(void *param, TAOS_RES *tres, int numOfRows);
-void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows);
-
-void tscProcessMultiVnodesInsert(SSqlObj *pSql);
-void tscProcessMultiVnodesInsertForFile(SSqlObj *pSql);
-void tscKillMetricQuery(SSqlObj *pSql);
-void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
-int32_t tscBuildResultsForEmptyRetrieval(SSqlObj *pSql);
+void    tscProcessMultiVnodesInsert(SSqlObj *pSql);
+void    tscProcessMultiVnodesInsertForFile(SSqlObj *pSql);
+void    tscKillMetricQuery(SSqlObj *pSql);
+void    tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
+bool    tscIsUpdateQuery(STscObj *pObj);
+int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
 // transfer SSqlInfo to SqlCmd struct
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
 
 void tscQueueAsyncFreeResult(SSqlObj *pSql);
 
-extern void *   pVnodeConn;
-extern void *   pTscMgmtConn;
-extern void *   tscCacheHandle;
-extern uint8_t  globalCode;
-extern int      slaveIndex;
-extern void *   tscTmr;
-extern void *   tscConnCache;
-extern void *   tscQhandle;
-extern int      tscKeepConn[];
-extern int      tsInsertHeadSize;
-extern int      tscNumOfThreads;
-extern uint32_t tsServerIp;
+extern void *     pVnodeConn;
+extern void *     pTscMgmtConn;
+extern void *     tscCacheHandle;
+extern uint8_t    globalCode;
+extern int        slaveIndex;
+extern void *     tscTmr;
+extern void *     tscConnCache;
+extern void *     tscQhandle;
+extern int        tscKeepConn[];
+extern int        tsInsertHeadSize;
+extern int        tscNumOfThreads;
+extern SIpStrList tscMgmtIpList;
 
 #ifdef __cplusplus
 }

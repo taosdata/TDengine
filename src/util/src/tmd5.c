@@ -90,10 +90,7 @@ static uint8_t PADDING[64] = {0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x
 void MD5Init(MD5_CTX *mdContext) {
   memset(mdContext, 0, sizeof(MD5_CTX));
 
-  mdContext->i[0] = mdContext->i[1] = (uint32_t)0;
-
-  /* Load magic initialization constants.
-   */
+  /* Load magic initialization constants. */
   mdContext->buf[0] = (uint32_t)0x67452301;
   mdContext->buf[1] = (uint32_t)0xefcdab89;
   mdContext->buf[2] = (uint32_t)0x98badcfe;

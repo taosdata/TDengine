@@ -13,15 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <errno.h>
-#include <pthread.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-
 #include "os.h"
 #include "shash.h"
 #include "taosmsg.h"
@@ -38,6 +29,7 @@
 #include "ttimer.h"
 #include "tudp.h"
 #include "tutil.h"
+#include "lz4.h"
 
 #pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
 
@@ -58,11 +50,10 @@ typedef struct {
   char     encrypt;
   uint8_t  secret[TSDB_KEY_LEN];
   uint8_t  ckey[TSDB_KEY_LEN];
-
-  short              localPort;  // for UDP only
+  uint16_t           localPort;      // for UDP only
   uint32_t           peerUid;
   uint32_t           peerIp;         // peer IP
-  short              peerPort;       // peer port
+  uint16_t           peerPort;       // peer port
   char               peerIpstr[20];  // peer IP string
   uint16_t           tranId;         // outgoing transcation ID, for build message
   uint16_t           outTranId;      // outgoing transcation ID
@@ -107,7 +98,7 @@ typedef struct rpc_server {
   int   idleTime; // milliseconds;
   int   noFree;   // do not free the request msg when rsp is received
   int   index;    // for UDP server, next thread for new connection
-  short localPort;
+  uint16_t localPort;
   char  label[12];
   void *(*fp)(char *, void *ahandle, void *thandle);
   void (*efp)(int);                                                                     // FP to report error
@@ -115,39 +106,121 @@ typedef struct rpc_server {
   SRpcChann *channList;
 } STaosRpc;
 
-// configurable
-uint32_t rpcDebugFlag = 131;
-int tsRpcTimer = 300;
-int tsRpcMaxTime = 600;  // seconds;
 int tsRpcProgressTime = 10;  // milliseocnds
 
 // not configurable
 int tsRpcMaxRetry;
 int tsRpcHeadSize;
 
-void *(*taosInitConn[])(char *ip, short port, char *label, int threads, void *fp, void *shandle) = {
+void *(*taosInitConn[])(char *ip, uint16_t port, char *label, int threads, void *fp, void *shandle) = {
     taosInitUdpServer, taosInitUdpClient, taosInitTcpServer, taosInitTcpClient};
 
 void (*taosCleanUpConn[])(void *thandle) = {taosCleanUpUdpConnection, taosCleanUpUdpConnection, taosCleanUpTcpServer,
                                             taosCleanUpTcpClient};
 
-int (*taosSendData[])(uint32_t ip, short port, char *data, int len, void *chandle) = {
+int (*taosSendData[])(uint32_t ip, uint16_t port, char *data, int len, void *chandle) = {
     taosSendUdpData, taosSendUdpData, taosSendTcpServerData, taosSendTcpClientData};
 
-void *(*taosOpenConn[])(void *shandle, void *thandle, char *ip, short port) = {
-    taosOpenUdpConnection, taosOpenUdpConnection, NULL, taosOpenTcpClientConnection,
+void *(*taosOpenConn[])(void *shandle, void *thandle, char *ip, uint16_t port) = {
+    taosOpenUdpConnection,
+    taosOpenUdpConnection,
+    NULL,
+    taosOpenTcpClientConnection,
 };
 
 void (*taosCloseConn[])(void *chandle) = {NULL, NULL, taosCloseTcpServerConnection, taosCloseTcpClientConnection};
 
-int taosReSendRspToPeer(SRpcConn *pConn);
+int   taosReSendRspToPeer(SRpcConn *pConn);
 void  taosProcessTaosTimer(void *, void *);
-void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, void *shandle, void *thandle,
+void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, uint16_t port, void *shandle, void *thandle,
                               void *chandle);
-int taosSendDataToPeer(SRpcConn *pConn, char *data, int dataLen);
-void taosProcessSchedMsg(SSchedMsg *pMsg);
-int taosAuthenticateMsg(uint8_t *pMsg, int msgLen, uint8_t *pAuth, uint8_t *pKey);
-int taosBuildAuthHeader(uint8_t *pMsg, int msgLen, uint8_t *pAuth, uint8_t *pKey);
+int   taosSendDataToPeer(SRpcConn *pConn, char *data, int dataLen);
+void  taosProcessSchedMsg(SSchedMsg *pMsg);
+int   taosAuthenticateMsg(uint8_t *pMsg, int msgLen, uint8_t *pAuth, uint8_t *pKey);
+int   taosBuildAuthHeader(uint8_t *pMsg, int msgLen, uint8_t *pAuth, uint8_t *pKey);
+
+static int32_t taosCompressRpcMsg(char* pCont, int32_t contLen) {
+  STaosHeader* pHeader = (STaosHeader *)(pCont - sizeof(STaosHeader));
+  int32_t overhead = sizeof(int32_t) * 2;
+  int32_t finalLen = 0;
+  
+  if (!NEEDTO_COMPRESSS_MSG(contLen)) {
+    return contLen;
+  }
+  
+  char *buf = malloc (contLen + overhead + 8);  // 16 extra bytes
+  if (buf == NULL) {
+    tError("failed to allocate memory for rpc msg compression, contLen:%d, reason:%s", contLen, strerror(errno));
+    return contLen;
+  }
+  
+  int32_t compLen = LZ4_compress_default(pCont, buf, contLen, contLen + overhead);
+  
+  /*
+   * only the compressed size is less than the value of contLen - overhead, the compression is applied
+   * The first four bytes is set to 0, the second four bytes are utilized to keep the original length of message
+   */
+  if (compLen < contLen - overhead) {
+    //tDump(pCont, contLen);
+    int32_t *pLen = (int32_t *)pCont;
+    
+    *pLen = 0;    // first 4 bytes must be zero
+    pLen = (int32_t *)(pCont + sizeof(int32_t));
+    
+    *pLen = htonl(contLen); // contLen is encoded in second 4 bytes
+    memcpy(pCont + overhead, buf, compLen);
+    
+    pHeader->comp = 1;
+    tTrace("compress rpc msg, before:%lld, after:%lld", contLen, compLen);
+    
+    finalLen = compLen + overhead;
+    //tDump(pCont, contLen);
+  } else {
+    finalLen = contLen;
+  }
+
+  free(buf);
+  return finalLen;
+}
+
+static STaosHeader* taosDecompressRpcMsg(STaosHeader* pHeader, SSchedMsg* pSchedMsg, int32_t msgLen) {
+  int overhead = sizeof(int32_t) * 2;
+  
+  if (pHeader->comp == 0) {
+    pSchedMsg->msg = (char *)(&(pHeader->destId));
+    return pHeader;
+  }
+  
+  // decompress the content
+  assert(GET_INT32_VAL(pHeader->content) == 0);
+  
+  // contLen is original message length before compression applied
+  int contLen = htonl(GET_INT32_VAL(pHeader->content + sizeof(int32_t)));
+  
+  // prepare the temporary buffer to decompress message
+  char *buf = malloc(sizeof(STaosHeader) + contLen);
+  
+  //tDump(pHeader->content, msgLen);
+  
+  if (buf) {
+    int32_t originalLen = LZ4_decompress_safe(pHeader->content + overhead, buf + sizeof(STaosHeader),
+        msgLen - overhead, contLen);
+    
+    memcpy(buf, pHeader, sizeof(STaosHeader));
+    free(pHeader); // free the compressed message buffer
+  
+    STaosHeader* pNewHeader = (STaosHeader *) buf;
+    pNewHeader->msgLen = originalLen + (int) sizeof(SIntMsg);
+    assert(originalLen == contLen);
+
+    pSchedMsg->msg = (char *)(&(pNewHeader->destId));
+    //tDump(pHeader->content, contLen);
+    return pNewHeader;
+  } else {
+    tError("failed to allocate memory to decompress msg, contLen:%d, reason:%s", contLen, strerror(errno));
+    pSchedMsg->msg = NULL;
+  }
+}
 
 char *taosBuildReqHeader(void *param, char type, char *msg) {
   STaosHeader *pHeader;
@@ -159,13 +232,15 @@ char *taosBuildReqHeader(void *param, char type, char *msg) {
   }
 
   pHeader = (STaosHeader *)(msg + sizeof(SMsgNode));
+  memset(pHeader, 0, sizeof(STaosHeader));
   pHeader->version = 1;
+  pHeader->comp = 0;
   pHeader->msgType = type;
   pHeader->spi = 0;
   pHeader->tcp = 0;
   pHeader->encrypt = 0;
-  pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
-  if (pHeader->tranId == 0) pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
+  pHeader->tranId = atomic_add_fetch_32(&pConn->tranId, 1);
+  if (pHeader->tranId == 0) pHeader->tranId = atomic_add_fetch_32(&pConn->tranId, 1);
 
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
@@ -196,8 +271,8 @@ char *taosBuildReqMsgWithSize(void *param, char type, int size) {
   pHeader->spi = 0;
   pHeader->tcp = 0;
   pHeader->encrypt = 0;
-  pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
-  if (pHeader->tranId == 0) pHeader->tranId = __sync_add_and_fetch_32(&pConn->tranId, 1);
+  pHeader->tranId = atomic_add_fetch_32(&pConn->tranId, 1);
+  if (pHeader->tranId == 0) pHeader->tranId = atomic_add_fetch_32(&pConn->tranId, 1);
 
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
@@ -362,6 +437,8 @@ int taosOpenRpcChannWithQ(void *handle, int cid, int sessions, void *qhandle) {
   STaosRpc * pServer = (STaosRpc *)handle;
   SRpcChann *pChann;
 
+  tTrace("cid:%d, handle:%p open rpc chann", cid, handle);
+
   if (pServer == NULL) return -1;
   if (cid >= pServer->numOfChanns || cid < 0) {
     tError("%s: cid:%d, chann is out of range, max:%d", pServer->label, cid, pServer->numOfChanns);
@@ -409,6 +486,8 @@ int taosOpenRpcChannWithQ(void *handle, int cid, int sessions, void *qhandle) {
 void taosCloseRpcChann(void *handle, int cid) {
   STaosRpc * pServer = (STaosRpc *)handle;
   SRpcChann *pChann;
+
+  tTrace("cid:%d, handle:%p close rpc chann", cid, handle);
 
   if (pServer == NULL) return;
   if (cid >= pServer->numOfChanns || cid < 0) {
@@ -538,7 +617,7 @@ int taosGetRpcConn(int chann, int sid, char *meterId, STaosRpc *pServer, SRpcCon
       if (ret != 0) {
         tWarn("%s cid:%d sid:%d id:%s, meterId not there pConn:%p", pServer->label, chann, sid, pConn->meterId, pConn);
         taosFreeId(pChann->idPool, sid);   // sid shall be released
-        memset(pConn, 0, sizeof(SRpcConn));
+        memset(pConn, 0, sizeof(SRpcConn)); 
         return ret;
       }
     }
@@ -724,7 +803,7 @@ void taosProcessResponse(SRpcConn *pConn) {
 }
 
 int taosProcessMsgHeader(STaosHeader *pHeader, SRpcConn **ppConn, STaosRpc *pServer, int dataLen, uint32_t ip,
-                         short port, void *chandle) {
+                         uint16_t port, void *chandle) {
   int        chann, sid, code = 0;
   SRpcConn * pConn = NULL;
   SRpcChann *pChann;
@@ -980,6 +1059,16 @@ int taosBuildErrorMsgToPeer(char *pMsg, int code, char *pReply) {
   return msgLen;
 }
 
+void taosReportDisconnection(SRpcChann *pChann, SRpcConn *pConn)
+{
+    SSchedMsg schedMsg;
+    schedMsg.fp = taosProcessSchedMsg;
+    schedMsg.msg = NULL;
+    schedMsg.ahandle = pConn->ahandle;
+    schedMsg.thandle = pConn;
+    taosScheduleTask(pChann->qhandle, &schedMsg);
+}
+
 void taosProcessIdleTimer(void *param, void *tmrId) {
   SRpcConn *pConn = (SRpcConn *)param;
   if (pConn->signature != param) {
@@ -995,25 +1084,23 @@ void taosProcessIdleTimer(void *param, void *tmrId) {
     return;
   }
 
+  int reportDisc = 0;
+
   pthread_mutex_lock(&pChann->mutex);
 
   tTrace("%s cid:%d sid:%d id:%s, close the connection since no activity pConn:%p", pServer->label, pConn->chann,
          pConn->sid, pConn->meterId, pConn);
   if (pConn->rspReceived == 0) {
     pConn->rspReceived = 1;
-
-    SSchedMsg schedMsg;
-    schedMsg.fp = taosProcessSchedMsg;
-    schedMsg.msg = NULL;
-    schedMsg.ahandle = pConn->ahandle;
-    schedMsg.thandle = pConn;
-    taosScheduleTask(pChann->qhandle, &schedMsg);
+    reportDisc = 1;    
   }
 
   pthread_mutex_unlock(&pChann->mutex);
+
+  if (reportDisc) taosReportDisconnection(pChann, pConn);
 }
 
-void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, void *shandle, void *thandle,
+void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, uint16_t port, void *shandle, void *thandle,
                               void *chandle) {
   STaosHeader *pHeader;
   uint8_t      code;
@@ -1035,11 +1122,7 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
              pConn->meterId, pConn);
       pConn->rspReceived = 1;
       pConn->chandle = NULL;
-      schedMsg.fp = taosProcessSchedMsg;
-      schedMsg.msg = NULL;
-      schedMsg.ahandle = pConn->ahandle;
-      schedMsg.thandle = pConn;
-      taosScheduleTask(pChann->qhandle, &schedMsg);
+      taosReportDisconnection(pChann, pConn);
     }
     tfree(data);
     return NULL;
@@ -1078,7 +1161,9 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
   if (code != 0) {
     // parsing error
 
-    if (pHeader->msgType & 1) {
+    if (pHeader->msgType & 1U) {
+      memset(pReply, 0, sizeof(pReply));
+      
       msgLen = taosBuildErrorMsgToPeer(data, code, pReply);
       (*taosSendData[pServer->type])(ip, port, pReply, msgLen, chandle);
       tTrace("%s cid:%d sid:%d id:%s, %s is sent with error code:%u pConn:%p", pServer->label, chann, sid,
@@ -1093,17 +1178,17 @@ void *taosProcessDataFromPeer(char *data, int dataLen, uint32_t ip, short port, 
     // parsing OK
 
     // internal communication is based on TAOS protocol, a trick here to make it efficient
-    pHeader->msgLen = msgLen - (int)sizeof(STaosHeader) + (int)sizeof(SIntMsg);
-    if (pHeader->spi) pHeader->msgLen -= sizeof(STaosDigest);
+    if (pHeader->spi) msgLen -= sizeof(STaosDigest);
+    msgLen -= (int)sizeof(STaosHeader);
+    pHeader->msgLen = msgLen + (int)sizeof(SIntMsg);
 
-    if ((pHeader->msgType & 1) == 0 && (pHeader->content[0] == TSDB_CODE_SESSION_ALREADY_EXIST)) {
+    if ((pHeader->msgType & 1U) == 0 && (pHeader->content[0] == TSDB_CODE_INVALID_VALUE)) {
       schedMsg.msg = NULL;  // connection shall be closed
     } else {
-      schedMsg.msg = (char *)(&(pHeader->destId));
-      // memcpy(schedMsg.msg, (char *)(&(pHeader->destId)), pHeader->msgLen);
+      pHeader = taosDecompressRpcMsg(pHeader, &schedMsg, msgLen);
     }
 
-    if (pHeader->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16)) {
+    if (pHeader->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16U)) {
       tTrace("%s cid:%d sid:%d id:%s, %s is put into queue, msgLen:%d pConn:%p pTimer:%p", pServer->label, chann, sid,
              pHeader->meterId, taosMsg[pHeader->msgType], pHeader->msgLen, pConn, pConn->pTimer);
     }
@@ -1135,9 +1220,12 @@ int taosSendMsgToPeerH(void *thandle, char *pCont, int contLen, void *ahandle) {
   pChann = pServer->channList + pConn->chann;
   pHeader = (STaosHeader *)(pCont - sizeof(STaosHeader));
   msg = (char *)pHeader;
-  msgLen = contLen + (int32_t)sizeof(STaosHeader);
 
-  if ((pHeader->msgType & 1) == 0 && pConn->localPort) pHeader->port = pConn->localPort;
+  if ((pHeader->msgType & 1U) == 0 && pConn->localPort) pHeader->port = pConn->localPort;
+  
+  contLen = taosCompressRpcMsg(pCont, contLen);
+
+  msgLen = contLen + (int32_t)sizeof(STaosHeader);
 
   if (pConn->spi) {
     // add auth part
@@ -1154,7 +1242,7 @@ int taosSendMsgToPeerH(void *thandle, char *pCont, int contLen, void *ahandle) {
   pthread_mutex_lock(&pChann->mutex);
   msgType = pHeader->msgType;
 
-  if ((msgType & 1) == 0) {
+  if ((msgType & 1U) == 0) {
     // response
     pConn->inType = 0;
     tfree(pConn->pRspMsg);
@@ -1246,6 +1334,7 @@ void taosProcessTaosTimer(void *param, void *tmrId) {
   STaosHeader *pHeader = NULL;
   SRpcConn *   pConn = (SRpcConn *)param;
   int          msgLen;
+  int          reportDisc = 0;
 
   if (pConn->signature != param) {
     tError("pConn Signature:0x%x, pConn:0x%x not matched", pConn->signature, param);
@@ -1275,7 +1364,7 @@ void taosProcessTaosTimer(void *param, void *tmrId) {
     pConn->pTimer = NULL;
     pConn->retry++;
 
-    if (pConn->retry < 3) {
+    if (pConn->retry < 4) {
       tTrace("%s cid:%d sid:%d id:%s, re-send msg:%s to %s:%hu pConn:%p", pServer->label, pConn->chann, pConn->sid,
              pConn->meterId, taosMsg[pConn->outType], pConn->peerIpstr, pConn->peerPort, pConn);
       if (pConn->pMsgNode && pConn->pMsgNode->msgLen > 0) {
@@ -1295,27 +1384,22 @@ void taosProcessTaosTimer(void *param, void *tmrId) {
              pConn->sid, pConn->meterId, taosMsg[pConn->outType], pConn->peerIpstr, pConn->peerPort, pConn);
       if (pConn->rspReceived == 0) {
         pConn->rspReceived = 1;
-
-        SSchedMsg schedMsg;
-        schedMsg.fp = taosProcessSchedMsg;
-        schedMsg.msg = NULL;
-        schedMsg.ahandle = pConn->ahandle;
-        schedMsg.thandle = pConn;
-        taosScheduleTask(pChann->qhandle, &schedMsg);
+        reportDisc = 1;
       }
     }
   }
 
   if (pHeader) {
     (*taosSendData[pServer->type])(pConn->peerIp, pConn->peerPort, (char *)pHeader, msgLen, pConn->chandle);
-    taosTmrReset(taosProcessTaosTimer, tsRpcTimer, pConn, pChann->tmrCtrl, &pConn->pTimer);
+    taosTmrReset(taosProcessTaosTimer, tsRpcTimer<<pConn->retry, pConn, pChann->tmrCtrl, &pConn->pTimer);
   }
 
   pthread_mutex_unlock(&pChann->mutex);
 
+  if (reportDisc) taosReportDisconnection(pChann, pConn);
 }
 
-void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, short *peerPort, int *cid, int *sid) {
+void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, uint16_t *peerPort, int *cid, int *sid) {
   SRpcConn *pConn = (SRpcConn *)thandle;
 
   *peerId = pConn->peerId;
@@ -1359,22 +1443,19 @@ void taosStopRpcConn(void *thandle) {
   tTrace("%s cid:%d sid:%d id:%s, stop the connection pConn:%p", pServer->label, pConn->chann, pConn->sid,
          pConn->meterId, pConn);
 
+  int reportDisc = 0;
   pthread_mutex_lock(&pChann->mutex);
 
   if (pConn->outType) {
     pConn->rspReceived = 1;
-    SSchedMsg schedMsg;
-    schedMsg.fp = taosProcessSchedMsg;
-    schedMsg.msg = NULL;
-    schedMsg.ahandle = pConn->ahandle;
-    schedMsg.thandle = pConn;
+    reportDisc = 1;
     pthread_mutex_unlock(&pChann->mutex);
-
-    taosScheduleTask(pChann->qhandle, &schedMsg);
   } else {
     pthread_mutex_unlock(&pChann->mutex);
     taosCloseRpcConn(pConn);
   }
+
+  if (reportDisc) taosReportDisconnection(pChann, pConn);
 }
 
 int taosAuthenticateMsg(uint8_t *pMsg, int msgLen, uint8_t *pAuth, uint8_t *pKey) {
