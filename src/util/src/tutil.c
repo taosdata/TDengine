@@ -493,27 +493,6 @@ char *taosIpStr(uint32_t ipInt) {
   sprintf(ipStr, "0x%x:%u.%u.%u.%u", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
   return ipStr;
 }
-<<<<<<< HEAD
-
-typedef struct CharsetPair {
-  char *oldCharset;
-  char *newCharset;
-} CharsetPair;
-
-char *taosCharsetReplace(char *charsetstr) {
-  CharsetPair charsetRep[] = {
-      { "utf8", "UTF-8" }, { "936", "CP936" },
-  };
-
-  for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
-    if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
-      return strdup(charsetRep[i].newCharset);
-    }
-  }
-
-  return strdup(charsetstr);
-}
-=======
 
 #ifndef CLUSTER
 void taosCleanupTier() {}
@@ -549,4 +528,3 @@ char *taosCharsetReplace(char *charsetstr) {
 
   return strdup(charsetstr);
 }
->>>>>>> release/v1.6.4.0

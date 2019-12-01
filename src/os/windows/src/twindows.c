@@ -132,8 +132,6 @@ short interlocked_or_fetch_16(short volatile* ptr, short val) {
   return _InterlockedOr16(ptr, val) | val;
 }
 
-<<<<<<< HEAD
-=======
 long interlocked_or_fetch_32(long volatile* ptr, long val) {
   return _InterlockedOr(ptr, val) | val;
 }
@@ -207,7 +205,6 @@ __int64 interlocked_fetch_xor_64(__int64 volatile* ptr, __int64 val) {
 
 void tsPrintOsInfo() {}
 
->>>>>>> release/v1.6.4.0
 void taosGetSystemTimezone() {
   // get and set default timezone
   SGlobalConfig *cfg_timezone = tsGetConfigOption("timezone");
