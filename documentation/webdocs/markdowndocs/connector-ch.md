@@ -306,15 +306,16 @@ import taos
 
 ### HTTP请求格式 
 
-​	`http://<ip>:<PORT>/rest/sql`
+```
+http://<ip>:<PORT>/rest/sql
+```
 
-​    参数说明：
+​参数说明：
 
-​    IP: 集群中的任一台主机
+- IP: 集群中的任一台主机
+- PORT: 配置文件中httpPort配置项，缺省为6020
 
-​    PORT: 配置文件中httpPort配置项，缺省为6020 
-
-如：http://192.168.0.1:6020/rest/sql 是指向IP地址为192.168.0.1的URL. 
+例如：http://192.168.0.1:6020/rest/sql 是指向IP地址为192.168.0.1的URL. 
 
 HTTP请求的Header里需带有身份认证信息，TDengine支持Basic认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
 
@@ -348,7 +349,8 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 
 ### HTTP返回格式
 
-返回值为JSON格式，如下：
+返回值为JSON格式，如下:
+
 ```
 {
     "status": "succ",
@@ -363,10 +365,10 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 
 说明：
 
-- 第一行”status”告知操作结果是成功还是失败;
-- 第二行”head”是表的定义，如果不返回结果集，仅有一列“affected_rows”;
-- 第三行是具体返回的数据，一排一排的呈现。如果不返回结果集，仅[[affected_rows]]
-- 第四行”rows”表明总共多少行数据
+- status: 告知操作结果是成功还是失败
+- head: 表的定义，如果不返回结果集，仅有一列“affected_rows”
+- data: 具体返回的数据，一排一排的呈现,如果不返回结果集，仅[[affected_rows]]
+- rows: 表明总共多少行数据
 
 ### 自定义授权码
 
@@ -403,7 +405,7 @@ curl http://192.168.0.1:6020/rest/login/root/taosdata
 
 ### 使用示例
 
-- 在demo库里查询表t1的所有记录, curl如下： 
+- 在demo库里查询表t1的所有记录： 
 
 ```
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sql`
@@ -445,7 +447,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 19
 HTTP请求URL采用`sqlt`时，返回结果集的时间戳将采用Unix时间戳格式表示，例如
 
 ```
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sqlt`
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sqlt
 ```
 
 返回值：
@@ -466,7 +468,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 1
 
 HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间字符串表示，例如
 ```
-  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sqlutc`
+  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sqlutc
 ```
 
 返回值：
