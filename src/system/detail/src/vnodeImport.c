@@ -466,8 +466,6 @@ static int vnodeLoadNeededBlockData(SMeterObj *pObj, SImportHandle *pHandle, int
   SCompBlock *pBlock = pHandle->pBlocks + blockId;
   *code = TSDB_CODE_SUCCESS;
 
-  assert(pBlock->sversion == pObj->sversion);
-
   SVnodeObj *pVnode = vnodeList + pObj->vnode;
 
   int dfd = pBlock->last ? pVnode->lfd : pVnode->dfd;
@@ -987,6 +985,13 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
               }
             }
           }
+        }
+
+        int aslot = MIN(blockIter.slot, importHandle.compInfo.numOfBlocks - 1);
+        int64_t sversion = importHandle.pBlocks[aslot].sversion;
+        if (sversion != pObj->sversion) {
+          code = TSDB_CODE_OTHERS;
+          goto _error_merge;
         }
 
         // Open the new .t file if not opened yet.
