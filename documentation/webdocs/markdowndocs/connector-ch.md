@@ -392,15 +392,64 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 
 ## Go Connector
 
-TDengine提供了GO驱动程序“taosSql”包。taosSql驱动包是基于GO的“database/sql/driver”接口的实现。用户可在安装后的/usr/local/taos/connector/go目录获得GO的客户端驱动程序。用户需将驱动包/usr/local/taos/connector/go/src/taosSql目录拷贝到应用程序工程的src目录下。然后在应用程序中导入驱动包，就可以使用“database/sql”中定义的接口访问TDengine：
+#### 安装TDengine
+
+Go的链接器使用了到了 libtaos.so 和taos.h，因此，在使用Go连接器之前，需要在程序运行的机器上安装TDengine以获得相关的驱动文件。
+
+#### Go语言引入package
+TDengine提供了GO驱动程序“taosSql”包。taosSql驱动包是基于GO的“database/sql/driver”接口的实现。用户可以通过`go get`命令来获取驱动包。
+```sh
+go get github.com/taosdata/TDengine/src/connector/go/src/taosSql
+```
+然后在应用程序中导入驱动包，就可以使用“database/sql”中定义的接口访问TDengine：
 
 ```Go
 import (
     "database/sql"
-    _ "taosSql"
+    _ "github.com/taosdata/TDengine/src/connector/go/src/taosSql"
 )
 ```
 
 taosSql驱动包内采用cgo模式，调用了TDengine的C/C++同步接口，与TDengine进行交互，因此，在数据库操作执行完成之前，客户端应用将处于阻塞状态。单个数据库连接，在同一时刻只能有一个线程调用API。客户应用可以建立多个连接，进行多线程的数据写入或查询处理。
 
-更多使用的细节，请参考下载目录中的示例源码。
+#### Go语言使用参考
+在Go程序中使用TDengine写入方法大致可以分为以下几步
+1. 打开TDengine数据库链接
+
+首先需要调用sql包中的Open方法，打开数据库，并获得db对象
+```go
+	db, err := sql.Open(taosDriverName, dbuser+":"+dbpassword+"@/tcp("+daemonUrl+")/"+dbname)
+	if err != nil {
+		log.Fatalf("Open database error: %s\n", err)
+	}
+	defer db.Close()
+```
+其中参数为
+-   taosDataname: 涛思数据库的名称，其值为字符串"taosSql"
+-   dbuser和dbpassword: 链接TDengine的用户名和密码，缺省为root和taosdata，类型为字符串
+-   daemonUrl: 为TDengine的地址，其形式为`ip address:port`形式，port填写缺省值0即可。例如："116.118.24.71:0"
+-   dbname：TDengine中的database名称，通过`create database`创建的数据库。如果为空则在后续的写入和查询操作必须通过”数据库名.超级表名或表名“的方式指定数据库名
+
+2. 创建数据库
+
+打开TDengine数据库连接后，首选需要创建数据库。基本用法和直接在TDengine客户端shell下一样，通过create database + 数据库名的方法来创建。
+```go
+	db, err := sql.Open(taosDriverName, dbuser+":"+dbpassword+"@/tcp("+daemonUrl+")/")
+	if err != nil {
+		log.Fatalf("Open database error: %s\n", err)
+	}
+    defer db.Close()
+    
+    //准备创建数据库语句
+    sqlcmd := fmt.Sprintf("create database if not exists %s", dbname)
+    
+    //执行语句并检查错误
+    _, err = db.Exec(sqlcmd)
+    if err != nil {
+        log.Fatalf("Create database error: %s\n", err)
+    }
+```
+
+3. 创建表、写入和查询数据
+
+在创建好了数据库后，就可以开始创建表和写入查询数据了。这些操作的基本思路都是首先组装SQL语句，然后调用db.Exec执行，并检查错误信息和执行相应的处理。可以参考上面的样例代码
