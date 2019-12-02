@@ -147,7 +147,10 @@ extern "C" {
 #define TSDB_MAX_MGMT_IPS         (TSDB_MAX_MPEERS+1)
 
 #define TSDB_REPLICA_MIN_NUM      1
-#define TSDB_REPLICA_MAX_NUM      3
+/*
+ * this is defined in CMakeList.txt
+ */
+//#define TSDB_REPLICA_MAX_NUM      3
 
 #define TSDB_TBNAME_COLUMN_INDEX       (-1)
 #define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta

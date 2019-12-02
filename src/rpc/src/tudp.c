@@ -377,6 +377,7 @@ void *taosTransferDataViaTcp(void *argv) {
       pThead->tcp = 1;
       pThead->msgType = (char)(pHeader->msgType - 1);
       pThead->msgLen = (int32_t)htonl(sizeof(STaosHeader));
+      uint32_t id = pThead->sourceId; pThead->sourceId = pThead->destId; pThead->destId = id;
       pMonitor->ip = pTransfer->ip;
       pMonitor->port = pTransfer->port;
       pMonitor->pSet = pSet;
