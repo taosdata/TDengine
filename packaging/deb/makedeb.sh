@@ -63,7 +63,7 @@ debver="Version: "$tdengine_ver
 sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
  
 #get taos version, then set deb name
-debname="tdengine-"${tdengine_ver}".deb"
+debname="TDengine-"${tdengine_ver}".deb"
 
 # make deb package
 dpkg -b ${pkg_dir} $debname
