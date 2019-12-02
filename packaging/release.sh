@@ -123,11 +123,11 @@ cd ${compile_dir}
 
 # arm only support lite ver
 if [ -z "$armver" ]; then
-  cmake ${top_dir}/../
+  cmake ../
 elif [ "$armver" == "arm64" ]; then
-  cmake ${top_dir}/../ -DVERSION=lite -DARMVER=arm64
+  cmake ../ -DARMVER=arm64
 elif [ "$armver" == "arm32" ]; then
-  cmake ${top_dir}/../ -DVERSION=lite -DARMVER=arm32
+  cmake ../ -DARMVER=arm32
 else
   echo "input parameter error!!!"
   return
