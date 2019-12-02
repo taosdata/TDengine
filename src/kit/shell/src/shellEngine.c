@@ -29,9 +29,19 @@
 #elif defined(DARWIN)
   char    CLIENT_VERSION[] = "Welcome to the TDengine shell from mac, client version:%s ";
 #else
-  char    CLIENT_VERSION[] = "Welcome to the TDengine shell from linux, client version:%s ";
+  #ifdef CLUSTER
+    char    CLIENT_VERSION[] = "Welcome to the TDengine shell from linux, enterprise client version:%s ";
+  #else
+    char    CLIENT_VERSION[] = "Welcome to the TDengine shell from linux, community client version:%s ";
+  #endif
 #endif
-char      SERVER_VERSION[] = "server version:%s\nCopyright (c) 2017 by TAOS Data, Inc. All rights reserved.\n\n";
+
+#ifdef CLUSTER
+ char      SERVER_VERSION[] = "enterprise server version:%s\nCopyright (c) 2017 by TAOS Data, Inc. All rights reserved.\n\n";
+#else
+ char      SERVER_VERSION[] = "community server version:%s\nCopyright (c) 2017 by TAOS Data, Inc. All rights reserved.\n\n";
+#endif
+
 char      PROMPT_HEADER[] = "taos> ";
 char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
