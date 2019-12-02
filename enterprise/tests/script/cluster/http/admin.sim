@@ -121,7 +121,7 @@ print ===============  step4 - meta
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show mnodes' 127.0.0.1:6020/admin/meta
 print curl 127.0.0.1:6020/admin/meta -----> $system_content
-if $system_content != @{"status":"succ","head":["column type","column name","column bytes"],"data":[["binary","IP",16],["timestamp","created time",8],["binary","status",10],["binary","role",10]],"rows":4}@ then
+if $system_content != @{"status":"succ","head":["column type","column name","column bytes"],"data":[["binary","IP",16],["timestamp","created time",8],["binary","status",10],["binary","role",10],["binary","public ip",16]],"rows":5}@ then
   return -1
 endi
 
