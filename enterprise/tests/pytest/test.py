@@ -262,7 +262,7 @@ from tag_cluster.datatype2 import *
 from account_lite.privilege import *
 from account_cluster.privilege import *
 
-from anomaly import failedConnTime
+#from anomaly import failedConnTime
 
 
 if __name__=="__main__":
