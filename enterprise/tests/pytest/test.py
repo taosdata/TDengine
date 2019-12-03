@@ -256,6 +256,11 @@ from multi_import_merge.multithread import *  ## large data import
 from multi_import_merge.multithread2 import *  ## large data import
 
 from tag_lite.datatype import *
+from tag_cluster.datatype1 import *
+from tag_cluster.datatype2 import *
+
+from account_lite.privilege import *
+from account_cluster.privilege import *
 
 from anomaly import failedConnTime
 

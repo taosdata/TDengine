@@ -35,7 +35,7 @@ class TDTestCase:
     tdSql.execute('create dnode 192.168.0.3')
     tdDnodes.deploy(3)
     tdDnodes.start(3)
-    tdLog.sleep(10)
+    tdLog.sleep(5)
     
   def run(self):
     self.ntables = 10
@@ -115,5 +115,4 @@ class TDTestCase:
     tdSql.close()
     tdLog.success("%s successfully executed" % __file__)
   
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+tdCases.addCluster(__file__, TDTestCase())
