@@ -7,6 +7,7 @@
 compile_dir=$1
 output_dir=$2
 tdengine_ver=$3
+armver=$4
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -m ${script_dir}/../..)"
@@ -63,7 +64,16 @@ debver="Version: "$tdengine_ver
 sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
  
 #get taos version, then set deb name
-debname="TDengine-"${tdengine_ver}".deb"
+if [ -z "$armver" ]; then
+  debname="TDengine-"${tdengine_ver}".deb"
+elif [ "$armver" == "arm64" ]; then
+  debname="TDengine-"${tdengine_ver}"-arm64.deb"
+elif [ "$armver" == "arm32" ]; then
+  debname="TDengine-"${tdengine_ver}"-arm32.deb"
+else
+  echo "input parameter error!!!"
+  return
+fi
 
 # make deb package
 dpkg -b ${pkg_dir} $debname

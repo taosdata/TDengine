@@ -9,6 +9,7 @@
 compile_dir=$1
 output_dir=$2
 tdengine_ver=$3
+armver=$4
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -m ${script_dir}/../..)"
@@ -57,6 +58,12 @@ ${csudo} rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_di
 # copy rpm package to output_dir, then clean temp dir
 #${csudo} cp -rf RPMS/* ${output_dir}
 cp_rpm_package ${pkg_dir}/RPMS 
+
+if [ "$armver" == "arm64" ]; then
+  mv ${output_dir}/TDengine-${tdengine_ver}.rpm ${output_dir}/TDengine-${tdengine_ver}-arm64.rpm
+elif [ "$armver" == "arm32" ]; then
+  mv ${output_dir}/TDengine-${tdengine_ver}.rpm ${output_dir}/TDengine-${tdengine_ver}-arm32.rpm
+fi
 
 cd ..
 ${csudo} rm -rf ${pkg_dir}
