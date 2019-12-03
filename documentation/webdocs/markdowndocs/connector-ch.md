@@ -573,7 +573,7 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 #### 安装TDengine
 
-Go的链接器使用了到了 libtaos.so 和taos.h，因此，在使用Go连接器之前，需要在程序运行的机器上安装TDengine以获得相关的驱动文件。
+Go的连接器使用到了 libtaos.so 和taos.h，因此，在使用Go连接器之前，需要在程序运行的机器上安装TDengine以获得相关的驱动文件。
 
 #### Go语言引入package
 TDengine提供了GO驱动程序“taosSql”包。taosSql驱动包是基于GO的“database/sql/driver”接口的实现。用户可以通过`go get`命令来获取驱动包。
@@ -632,3 +632,37 @@ taosSql驱动包内采用cgo模式，调用了TDengine的C/C++同步接口，与
 3. 创建表、写入和查询数据
 
 在创建好了数据库后，就可以开始创建表和写入查询数据了。这些操作的基本思路都是首先组装SQL语句，然后调用db.Exec执行，并检查错误信息和执行相应的处理。可以参考上面的样例代码
+
+## CSharp Connector
+
+在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
+
+#### 安装TDengine客户端
+
+C#连接器需要使用`libtaos.so`和`taos.h`。因此，在使用C#连接器之前，需在程序运行的Windows环境安装TDengine的Windows客户端，以便获得相关驱动文件。
+
+安装完成后，在文件夹`C:/TDengine/examples/C#`中，将会看到两个文件
+
+- TDengineDriver.cs 调用taos.dll文件的Native C方法
+- TDengineTest.cs 参考程序示例
+
+在文件夹`C:\Windows\System32`，将会看到`taos.dll`文件
+
+#### 使用方法
+
+- 将C#接口文件TDengineDriver.cs加入到应用程序所在.NET项目中
+- 参考TDengineTest.cs来定义数据库连接参数，及执行数据插入、查询等操作的方法
+- 因为C#接口需要用到`taos.dll`文件，用户可以将`taos.dll`文件加入.NET解决方案中
+
+#### 注意事项
+
+- `taos.dll`文件使用x64平台编译，所以.NET项目在生成.exe文件时，“解决方案”/“项目”的“平台”请均选择“x64”。
+- 此.NET接口目前已经在Visual Studio 2013/2015/2017中验证过，其它VS版本尚待验证。
+
+#### 第三方驱动
+
+Maikebing.Data.Taos是一个基于TDengine的RESTful Connector构建的ADO.Net提供器，该开发包由热心贡献者`麦壳饼@@maikebing`提供，具体请参考
+
+```
+https://gitee.com/maikebing/Maikebing.EntityFrameworkCore.Taos
+```
