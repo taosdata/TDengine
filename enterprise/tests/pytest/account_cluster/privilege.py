@@ -56,7 +56,7 @@ class TDTestCase:
     tdLog.info("================= step2")
     tdLog.info("create user user1 with read privilege")
     tdSql.execute('create user user1 pass \'123\'')
-    tdSql.execute('alter user user1 privilege read')
+    tdSql.execute('alter user user1 privilege \'read\'')
     
     tdLog.info("================= step3")
     tdLog.info("login in using user1")
@@ -77,7 +77,7 @@ class TDTestCase:
     newconn = taos.connect(host='192.168.0.1', user='root', \
                       password='taosdata', config=tdDnodes.getSimCfgPath())
     tdSql.init(newconn.cursor())
-    tdSql.execute('alter user user1 privilege super')
+    tdSql.execute('alter user user1 privilege \'super\'')
     tdSql.close()
     newconn.close()
 
