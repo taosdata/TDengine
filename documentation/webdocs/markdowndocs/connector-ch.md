@@ -310,7 +310,7 @@ import taos
 http://<ip>:<PORT>/rest/sql
 ```
 
-​参数说明：
+参数说明：
 
 - IP: 集群中的任一台主机
 - PORT: 配置文件中httpPort配置项，缺省为6020
@@ -595,3 +595,83 @@ Maikebing.Data.Taos是一个基于TDengine的RESTful Connector构建的ADO.Net�
 ```
 https://gitee.com/maikebing/Maikebing.EntityFrameworkCore.Taos
 ```
+
+## Windows客户端及程序接口
+
+### 客户端安装
+
+在Windows操作系统下，TDengine提供64位的Windows客户端，客户端安装程序为.exe文件，运行该文件即可安装，安装路径为C:\TDengine。Windows的客户端可运行在主流的64位Windows平台之上，客户端目录结构如下：
+
+```
+├── cfg
+│   └── taos.cfg
+├── connector
+│   ├── go
+│   ├── grafana
+│   ├── jdbc
+│   └── python
+├── driver
+│   ├── taos.dll
+│   ├── taos.exp
+│   └── taos.lib
+├── examples
+│   ├── bash
+│   ├── c
+│   ├── C#
+│   ├── go
+│   ├── JDBC
+│   ├── lua
+│   ├── matlab
+│   ├── nodejs
+│   ├── python
+│   ├── R
+│   └── rust
+├── include
+│   └── taos.h
+└── taos.exe
+```
+
+其中，最常用的文件列出如下：
+
++ Client可执行文件: C:/TDengine/taos.exe 
++ 配置文件: C:/TDengine/cfg/taos.cfg
++ C驱动程序目录: C:/TDengine/driver
++ C驱动程序头文件: C:/TDengine/include
++ JDBC驱动程序目录: C:/TDengine/connector/jdbc
++ GO驱动程序目录：C:/TDengine/connector/go
++ Python驱动程序目录：C:/TDengine/connector/python
++ C#驱动程序及示例代码: C:/TDengine/examples/C#
++ 日志目录（第一次运行程序时生成）：C:/TDengine/log
+
+### 注意事项
+
+#### Shell工具注意事项
+
+在开始菜单中搜索cmd程序，通过命令行方式执行taos.exe即可打开TDengine的Client程序，如下所示，其中ServerIP为TDengine所在Linux服务器的IP地址
+
+```
+taos -h <ServerIP>
+```
+
+在cmd中对taos的使用与Linux平台没有差别，但需要注意以下几点：
+
++ 确保Windows防火墙或者其他杀毒软件处于关闭状态，TDengine的服务端与客户端通信的端口请参考`服务端配置`章节
++ 确认客户端连接时指定了正确的服务器IP地址
++ ping服务器IP，如果没有反应，请检查你的网络
+
+#### C++接口注意事项
+
+TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序使用时，需要包含TDengine头文件taos.h，连接时需要链接TDengine库taos.lib，运行时将taos.dll放到可执行文件目录下。
+
+#### JDBC接口注意事项
+
+在Windows系统上，应用程序可以使用JDBC接口来操纵数据库，使用JDBC接口的注意事项如下：
+
++ 将JDBC驱动程序(JDBCDriver-1.0.0-dist.jar)放置到当前的CLASS_PATH中;
+
++ 将Windows开发包(taos.dll)放置到system32目录下。
+
+
+
+
+
