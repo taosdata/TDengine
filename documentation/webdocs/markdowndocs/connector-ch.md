@@ -306,21 +306,34 @@ import taos
 
 ### HTTP请求格式 
 
-​	`http://<ip>:<PORT>/rest/sql`
+```
+http://<ip>:<PORT>/rest/sql
+```
 
-​    参数说明：
+​参数说明：
 
-​    IP: 集群中的任一台主机
+- IP: 集群中的任一台主机
+- PORT: 配置文件中httpPort配置项，缺省为6020
 
-​    PORT: 配置文件中httpPort配置项，缺省为6020 
+例如：http://192.168.0.1:6020/rest/sql 是指向IP地址为192.168.0.1的URL. 
 
-如：http://192.168.0.1:6020/rest/sql 是指向IP地址为192.168.0.1的URL. 
+HTTP请求的Header里需带有身份认证信息，TDengine支持Basic认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
 
-HTTP请求的Header里需带有身份认证信息，TDengine单机版仅支持Basic认证机制。
+- 自定义身份认证信息如下所示（<token>稍后介绍）
+
+```
+Authorization: Taosd <TOKEN>
+```
+
+- Basic身份认证信息如下所示
+
+```
+Authorization: Basic <TOKEN>
+```
 
 HTTP请求的BODY里就是一个完整的SQL语句，SQL语句中的数据表应提供数据库前缀，例如\<db-name>.\<tb-name>。如果表名不带数据库前缀，系统会返回错误。因为HTTP模块只是一个简单的转发，没有当前DB的概念。 
 
-使用curl来发起一个HTTP Request, 语法如下：
+使用curl通过自定义身份认证方式来发起一个HTTP Request, 语法如下：
 
 ```
 curl -H 'Authorization: Basic <TOKEN>' -d '<SQL>' <ip>:<PORT>/rest/sql
@@ -332,11 +345,12 @@ curl -H 'Authorization: Basic <TOKEN>' -d '<SQL>' <ip>:<PORT>/rest/sql
 curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 ```
 
-其中，`TOKEN`为`{username}:{password}`经过Base64编码之后的字符串，例如`root:taosdata`编码后为`cm9vdDp0YW9zZGF0YQ==`
+其中，`TOKEN`为`{username}:{password}`经过Base64编码之后的字符串, 例如`root:taosdata`编码后为`cm9vdDp0YW9zZGF0YQ==`
 
 ### HTTP返回格式
 
-返回值为JSON格式，如下：
+返回值为JSON格式，如下:
+
 ```
 {
     "status": "succ",
@@ -351,26 +365,60 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 
 说明：
 
-- 第一行”status”告知操作结果是成功还是失败;
-- 第二行”head”是表的定义，如果不返回结果集，仅有一列“affected_rows”;
-- 第三行是具体返回的数据，一排一排的呈现。如果不返回结果集，仅[[affected_rows]]
-- 第四行”rows”表明总共多少行数据
+- status: 告知操作结果是成功还是失败
+- head: 表的定义，如果不返回结果集，仅有一列“affected_rows”
+- data: 具体返回的数据，一排一排的呈现,如果不返回结果集，仅[[affected_rows]]
+- rows: 表明总共多少行数据
+
+### 自定义授权码
+
+HTTP请求中需要带有授权码`<TOKEN>`, 用于身份识别。授权码通常由管理员提供, 可简单的通过发送`HTTP GET`请求来获取授权码, 操作如下：
+
+```
+curl http://<ip>:6020/rest/login/<username>/<password>
+```
+
+其中, `ip`是TDengine数据库的IP地址, `username`为数据库用户名, `password`为数据库密码, 返回值为`JSON`格式, 各字段含义如下：
+
+- status：请求结果的标志位
+
+- code：返回值代码
+
+- desc: 授权码
+
+获取授权码示例：
+
+```
+curl http://192.168.0.1:6020/rest/login/root/taosdata
+```
+
+返回值：
+
+```
+{
+  "status": "succ",
+  "code": 0,
+  "desc": 
+"/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"
+}
+```
 
 ### 使用示例
 
-- 在demo库里查询表t1的所有记录, curl如下： 
+- 在demo库里查询表t1的所有记录： 
 
-  `curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sql`
-
-  返回值：
+```
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sql`
+```
+返回值：
 
 ```
 {
     "status": "succ",
     "head": ["column1","column2","column3"],
     "data": [
-        ["2017-12-12 23:44:25.730", 1, 2.3],
-        ["2017-12-12 22:44:25.728", 4, 5.6]
+        ["2017-12-12 22:44:25.728",4,5.60000],
+        ["2017-12-12 23:44:25.730",1,2.30000]
     ],
     "rows": 2
 }
@@ -378,9 +426,11 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 
 - 创建库demo：
 
-  `curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6020/rest/sql`
+```
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6020/rest/sql`
+```
 
-  返回值：
+返回值：
 ```
 {
     "status": "succ",
@@ -389,6 +439,64 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
     "rows": 1,
 }
 ```
+
+### 其他用法
+
+#### 结果集采用Unix时间戳
+
+HTTP请求URL采用`sqlt`时，返回结果集的时间戳将采用Unix时间戳格式表示，例如
+
+```
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sqlt
+```
+
+返回值：
+
+```
+{
+    "status": "succ",
+    "head": ["column1","column2","column3"],
+    "data": [
+        [1513089865728,4,5.60000],
+        [1513093465730,1,2.30000]
+    ],
+    "rows": 2
+}
+```
+
+#### 结果集采用UTC时间字符串
+
+HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间字符串表示，例如
+```
+  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sqlutc
+```
+
+返回值：
+
+```
+{
+    "status": "succ",
+    "head": ["column1","column2","column3"],
+    "data": [
+        ["2017-12-12T22:44:25.728+0800",4,5.60000],
+        ["2017-12-12T23:44:25.730+0800",1,2.30000]
+    ],
+    "rows": 2
+}
+```
+
+### 重要配置项
+
+下面仅列出一些与RESTFul接口有关的配置参数，其他系统参数请看配置文件里的说明。注意：配置修改后，需要重启taosd服务才能生效
+
+- httpIp: 对外提供RESTFul服务的IP地址，默认绑定到0.0.0.0
+- httpPort: 对外提供RESTFul服务的端口号，默认绑定到6020
+- httpMaxThreads: 启动的线程数量，默认为2
+- httpCacheSessions: 缓存连接的数量，并发请求数目需小于此数值的10倍，默认值为100
+- restfulRowLimit: 返回结果集（JSON格式）的最大条数，默认值为10240
+- httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式
+- httpDebugFlag: 日志开关，131：仅错误和报警信息，135：所有，默认131
+
 
 ## Go Connector
 
