@@ -125,35 +125,36 @@ public Connection getConn() throws Exception{
 <p>或者</p>
 <pre><code>pip install src/connector/python/linux/python3/</code></pre>
 <a class='anchor' id='Windows'></a><h4>Windows</h4>
-<p>在已安装Windows 客户端的情况下， 将文件"C:\TDengine\driver\taos.dll" 拷贝到 "C:\windows\system32" 目录下, 然后进入Windwos <em>cmd</em> 命令行界面</p>
+<p>在已安装Windows TDengine 客户端的情况下， 将文件"C:\TDengine\driver\taos.dll" 拷贝到 "C:\windows\system32" 目录下, 然后进入Windwos <em>cmd</em> 命令行界面</p>
 <pre><code>cd C:\TDengine\connector\python\windows</code></pre>
 <pre><code>pip install python2\</code></pre>
 <p>或者</p>
 <pre><code>cd C:\TDengine\connector\python\windows</code></pre>
 <pre><code>pip install python3\</code></pre>
 <p>* 如果机器上没有<em>pip</em>命令，用户可将src/connector/python/windows/python3或src/connector/python/windows/python2下的taos文件夹拷贝到应用程序的目录使用。 </p>
-<a class='anchor' id='Python-client-interfaces'></a><h3>Python client interfaces</h3>
-<p>在使用TDengine的python接口时，需导入TDengine客户端模块：</p>
-<pre><code class="python language-python">import taos </code></pre>
+<a class='anchor' id='使用'></a><h3>使用</h3>
 <a class='anchor' id='代码示例'></a><h4>代码示例</h4>
+<li>导入TDengine客户端模块：</li>
+<pre><code class="python language-python">import taos </code></pre>
 <li>获取连接</li>
 <pre><code>
 conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
 c1 = conn.cursor()
 </code></pre>
+<p>* <em>host 是TDengine 服务端所有IP, config 为客户端配置文件所在目录</em></p>
 <li>写入数据</li>
 <pre><code>
 import datetime
  
-# create a database
+# 创建数据库
 c1.execute('create database db')
 c1.execute('use db')
-# create a table
+# 建表
 c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
-# insert a record
+# 插入数据
 start_time = datetime.datetime(2019, 11, 1)
 affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
-# insert multiple records in a batch
+# 批量插入数据
 time_interval = datetime.timedelta(seconds=60)
 sqlcmd = ['insert into tb values']
 for irow in range(1,11):
@@ -164,15 +165,15 @@ affected_rows = c1.execute(' '.join(sqlcmd))
 <li>写入数据</li>
 <code><pre>
 c1.execute('select * from tb')
-# fetch all returned results
+# 拉取查询结果
 data = c1.fetchall()
-# data is a list of returned rows with each row being a tuple
+# 返回的结果是一个列表，每一行构成列表的一个元素
 numOfRows = c1.rowcount
 numOfCols = c1.descriptions
 for irow in range(numOfRows):
   print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2])
   
-# use the cursor as an iterator to retrieve all returned results
+# 直接使用cursor 循环拉取查询结果
 c1.execute('select * from tb')
 for data in c1:
   print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])

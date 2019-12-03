@@ -126,29 +126,30 @@ public Connection getConn() throws Exception{
 <li>TDengine installed, TDengine-client installed if on Windows</li>
 <li>python 2.7 or >= 3.4</li>
 <li>pip installed </li>
-<a class='anchor' id='Install-TDengine-Python-client'></a><h3>Install TDengine Python client</h3>
+<a class='anchor' id='Installation'></a><h3>Installation</h3>
 <a class='anchor' id='Linux'></a><h4>Linux</h4>
-<p>Users can find python client packages in our source code directory <em>src/connector/python</em>. There are two directories corresponding two python versions. Please choose the correct package to install. Users can use <em>pip</em> command to install:</p>
+<p>Users can find python client packages in our source code directory <em>src/connector/python</em>. There are two directories corresponding to two python versions. Please choose the correct package to install. Users can use <em>pip</em> command to install:</p>
 <pre><code class="cmd language-cmd">pip install src/connector/python/linux/python2/</code></pre>
 <p>or</p>
 <pre><code>pip install src/connector/python/linux/python3/</code></pre>
 <a class='anchor' id='Windows'></a><h4>Windows</h4>
-<p>Assume you have installed the Windows client , copy the file "C:\TDengine\driver\taos.dll" to the folder "C:\windows\system32", and then enter the <em>cmd</em> command interface</p>
+<p>Assumed the Windows TDengine client has been installed , copy the file "C:\TDengine\driver\taos.dll" to the folder "C:\windows\system32", and then enter the <em>cmd</em> Windows command interface</p>
 <pre><code>cd C:\TDengine\connector\python\windows</code></pre>
 <pre><code>pip install python2\</code></pre>
 <p>or</p>
 <pre><code>cd C:\TDengine\connector\python\windows</code></pre>
 <pre><code>pip install python3\</code></pre>
 <p>* If <em>pip</em> command is not installed on the system, users can choose to install pip or just copy the <em>taos</em> directory in the python client directory to the application directory to use.</p>
-<a class='anchor' id='Python-client-interfaces'></a><h3>Python client interfaces</h3>
-<p>To use TDengine Python client, import TDengine module at first:</p>
-<pre><code class="python language-python">import taos </code></pre>
+<a class='anchor' id='Usage'></a><h3>Usage</h3>
 <a class='anchor' id='Examples'></a><h4>Examples</h4>
+<li>import TDengine module at first:</li>
+<pre><code class="python language-python">import taos </code></pre>
 <li>get the connection</li>
 <pre><code>
 conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
 c1 = conn.cursor()
 </code></pre>
+<p>* <em>host is the IP of TDengine server, and config is the directory where exists the TDengine client configure file</em></p>
 <li>insert records into the database</li>
 <pre><code>
 import datetime
