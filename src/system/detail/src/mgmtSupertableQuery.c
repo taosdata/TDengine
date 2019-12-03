@@ -56,7 +56,7 @@ static int32_t tabObjVGIDComparator(const void* pLeft, const void* pRight) {
 
 // monotonic inc in memory address
 static int32_t tabObjPointerComparator(const void* pLeft, const void* pRight) {
-  int64_t ret = (int64_t)pLeft - (int64_t)pRight;
+  int64_t ret = (*(STabObj**)(pLeft))->uid - (*(STabObj**)(pRight))->uid;
   if (ret == 0) {
     return 0;
   } else {
@@ -427,11 +427,11 @@ static tQueryResultset* doNestedLoopIntersect(tQueryResultset* pRes1, tQueryResu
 }
 
 static tQueryResultset* doSortIntersect(tQueryResultset* pRes1, tQueryResultset* pRes2) {
-  size_t sizePtr = sizeof(void*);
-
+  size_t sizePtr = sizeof(void *);
+  
   qsort(pRes1->pRes, pRes1->num, sizePtr, tabObjPointerComparator);
   qsort(pRes2->pRes, pRes2->num, sizePtr, tabObjPointerComparator);
-
+  
   int32_t i = 0;
   int32_t j = 0;
 
