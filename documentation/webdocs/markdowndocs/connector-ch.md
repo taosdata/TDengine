@@ -265,26 +265,97 @@ public Connection getConn() throws Exception{
 
 ## Python Connector
 
+### 安装准备
+* 已安装TDengine, 如果客户端在Windows上，需要安装Windows 版本的TDengine客户端
+* 已安装python 2.7 or >= 3.4
+* 已安装pip
+
 ### Python客户端安装
+
+#### Linux
 
 用户可以在源代码的src/connector/python文件夹下找到python2和python3的安装包。用户可以通过pip命令安装： 
 
-​		`pip install src/connector/python/[linux|windows]/python2/`
+​		`pip install src/connector/python/linux/python2/`
 
 或
 
-​		`pip install src/connector/python/[linux|windows]/python3/`
+​		`pip install src/connector/python/linux/python3/`
 
-如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。
-对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。所有TDengine的连接器，均需依赖taos.dll。
-
-### Python客户端接口
-
-在使用TDengine的python接口时，需导入TDengine客户端模块：
-
+#### Windows
+在已安装Windows TDengine 客户端的情况下， 将文件"C:\TDengine\driver\taos.dll" 拷贝到 "C:\windows\system32" 目录下, 然后进入Windwos <em>cmd</em> 命令行界面
+```cmd
+cd C:\TDengine\connector\python\windows
+pip install python2\
 ```
+或
+```cmd
+cd C:\TDengine\connector\python\windows
+pip install python3\
+```
+
+*如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。
+对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。
+
+### 使用
+
+#### 代码示例
+
+* 导入TDengine客户端模块
+
+```python
 import taos 
 ```
+* 获取连接
+```python
+conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
+c1 = conn.cursor()
+```
+*<em>host</em> 是TDengine 服务端所有IP, <em>config</em> 为客户端配置文件所在目录
+
+* 写入数据
+```python
+import datetime
+ 
+# 创建数据库
+c1.execute('create database db')
+c1.execute('use db')
+# 建表
+c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
+# 插入数据
+start_time = datetime.datetime(2019, 11, 1)
+affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
+# 批量插入数据
+time_interval = datetime.timedelta(seconds=60)
+sqlcmd = ['insert into tb values']
+for irow in range(1,11):
+  start_time += time_interval
+  sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
+affected_rows = c1.execute(' '.join(sqlcmd))
+```
+
+* 查询数据
+```python
+c1.execute('select * from tb')
+# 拉取查询结果
+data = c1.fetchall()
+# 返回的结果是一个列表，每一行构成列表的一个元素
+numOfRows = c1.rowcount
+numOfCols = c1.descriptions
+for irow in range(numOfRows):
+  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2])
+  
+# 直接使用cursor 循环拉取查询结果
+c1.execute('select * from tb')
+for data in c1:
+  print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])
+```
+* 关闭连接
+```python
+c1.close()
+conn.close()
+```
+#### 帮助信息
 
 用户可通过python的帮助信息直接查看模块的使用信息，或者参考code/examples/python中的示例程序。以下为部分常用类和方法：
 
