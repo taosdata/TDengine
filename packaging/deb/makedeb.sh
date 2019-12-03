@@ -69,7 +69,7 @@ if [ -z "$armver" ]; then
 elif [ "$armver" == "arm64" ]; then
   debname="TDengine-"${tdengine_ver}"-arm64.deb"
 elif [ "$armver" == "arm32" ]; then
-  debname="TDengine-"${tdengine_ver}-arm32".deb"
+  debname="TDengine-"${tdengine_ver}"-arm32.deb"
 else
   echo "input parameter error!!!"
   return
