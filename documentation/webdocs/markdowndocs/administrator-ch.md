@@ -66,12 +66,25 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 
 ## 客户端配置 
 
-TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同一个配置文件taos.cfg。运行taos时，使用参数-c指定配置文件目录，如taos -c /home/cfg，表示使用/home/cfg/目录下的taos.cfg配置文件中的参数，缺省目录是/etc/taos。更多taos的使用方法请见[Shell命令行程序](#_TDengine_Shell命令行程序)。本节主要讲解taos客户端应用在配置文件taos.cfg文件中使用到的参数。
+TDengine系统的前台交互客户端应用程序为taos（Windows平台上为taos.exe），可以使用taos.cfg来配置启动和运行配置项。可以使用 `taos -?` 来获取全部的可选项。
+启动的时候如果不指定taos加载配置文件路径，默认读取`/etc/taos/`路径下的`taos.cfg`文件来设置启动选项，如果在默认路径下找不到配置文件，则使用默认配置的设置来启动程序，并且会在启动的时候打印一行告警信息。指定配置文件来启动`taos`的命令如下：
+```
+taos -c /home/cfg/
+```
+**注意：启动设置的是配置文件所在目录，而不是配置文件本身**
 
-客户端配置参数列表及解释
+如果`/home/cfg/`目录下没有配置文件，程序会继续启动并打印如下告警信息：
+```
+Welcome to the TDengine shell from linux, client version:1.6.4.0
+option file:/home/cfg/taos.cfg not found, all options are set to system default
+```
+更多taos的使用方法请见[Shell命令行程序](#_TDengine_Shell命令行程序)。本节主要讲解taos客户端应用在配置文件taos.cfg文件中使用到的参数。
+
+客户端配置参数如下
 
 - masterIP：客户端默认发起请求的服务器的IP地址
-- charset：指明客户端所使用的字符集，默认值为UTF-8。TDengine存储nchar类型数据时使用的是unicode存储，因此客户端需要告知服务自己所使用的字符集，也即客户端所在系统的字符集。
+- charset：指明客户端所使用的字符集，默认值为UTF-8。TDengine为了存储中文、日文等非ASCII编码的宽字符，提供一种专门的字段类型`nchar`。如果数据写入`nchar`字段，将统一采用`UCS4-LE`格式对字段中数据进行编码存储。需要注意的是，**编码正确性**是客户端来保证。因此，如果用户想要正常使用`nchar`字段来存储诸如中文、日文等非ASCII字符，需要正确设置客户端的编码格式。客户端的输入的字符均采用操作系统当前默认的编码格式，在Linux系统上多为`UTF-8`，也有部分中文编码，例如`GB18030`或`GBK`等。在docker环境中默认的编码是`POSIX`。因此，客户端需要设置自己所使用的字符集，即所在系统的当前编码字符集才能正确地确保数据转换为`UCS4-LE`编码格式。
+如果配置文件中不设置`charset`，taos将自动读取系统当前的locale信息，并从locale信息中解析提取charset编码格式。如果自动读取locale信息失败，则中断启动，要求用户在配置文件中指定charset，才能正常启动。
 - locale：设置系统语言环境。Linux上客户端与服务端共享
 - defaultUser：默认登录用户，默认值root
 - defaultPass：默认登录密码，默认值taosdata
