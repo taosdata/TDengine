@@ -34,6 +34,7 @@ echo "test >>>>>>>>>"
 cd $pyDir
 python2 generate_testscript.py
 cd $simDir
+rm fangTest.txt
 cp fangTest.template fangTest.txt
 cat $pyDir/testlist.sh >> fangTest.txt
 ./tjenkins -p -f fangTest.txt
