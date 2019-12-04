@@ -33,8 +33,9 @@ sudo cp libtaos.so* /usr/lib
 echo "test >>>>>>>>>"
 cd $pyDir
 python2 generate_testscript.py
-cat testlist.sh
 cd $simDir
+rm fangTest.txt
+cp fangTest.template fangTest.txt
 cat $pyDir/testlist.sh >> fangTest.txt
 ./tjenkins -p -f fangTest.txt
 
