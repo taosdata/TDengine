@@ -1,7 +1,23 @@
 pwdDir=`pwd`
-sourceDir=/home/ubuntu/fpan/workspace/TDinternal
+homeDir=/home/ubuntu/fpan/workspace
+sourceDir=$homeDir/TDinternal
 debugDir=$sourceDir/debug
 pyDir=$sourceDir/enterprise/tests/pytest
+simDir=$sourceDir/enterprise/tests/script
+currentDate=`date +%Y%m%d`
+outputf=coverage$currentDate
+
+echo "update the code from github internal"
+cd $sourceDir/community
+git checkout develop
+git pull
+cd $sourceDir/enterprise
+git checkout develop
+git pull
+git checkout feature/fangtest
+git pull
+git merge develop
+
 echo "clean up previous binary file >>>>>>>>>"
 cd $sourceDir
 lcov --directory . -z
@@ -13,10 +29,15 @@ cmake .. -DCOVER=true
 make
 cd $debugDir/build/lib
 sudo cp libtaos.so* /usr/lib
+
 echo "test >>>>>>>>>"
 cd $pyDir
 python2 generate_testscript.py
 ./testlist.sh
+cd $simDir
+./test.sh
+
+echo "test finished, begin to count coverage >>>>>>>"
 cd $sourceDir
 gcovr -r . -o coverage.xml 
-mv coverage.xml $pwdDir/
+mv coverage.xml $homeDir/report/$outputf

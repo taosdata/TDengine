@@ -35,14 +35,15 @@ python2 test.py -f import_merge/importBlock2S.py
 python2 test.py -f import_merge/importToCommit.py
 python2 test.py -f import_merge/importBlock1HPO.py
 python2 test.py -f import_merge/importBlock2T.py
+python2 test.py -f import_merge/importDataH2.py
 python2 test.py -f import_merge/importBlock1HO.py
 python2 test.py -f import_merge/importLastT.py
 python2 test.py -f import_merge/importCacheFileT.py
-python2 test.py -f import_merge/importDataH.py
 python2 test.py -f import_merge/importLastTO.py
 python2 test.py -f import_merge/importDataLastS.py
 python2 test.py -f import_merge/importDataLastH.py
 python2 test.py -f import_merge/importDataHO.py
+python2 test.py -f import_merge/importDataHO2.py
 python2 test.py -f import_merge/importLastHPO.py
 python2 test.py -f import_merge/importBlockbetween.py
 python2 test.py -f import_merge/importBlock2TPO.py
