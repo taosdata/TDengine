@@ -3,6 +3,7 @@ outputf=static_check_report$currentDate
 homeDir=/home/ubuntu/fpan/workspace
 sourceDir=$homeDir/TDinternal
 pwdDir=`pwd`
+
 cd $sourceDir/community
 git checkout develop
 git pull
@@ -12,7 +13,7 @@ git pull
 cd $pwdDir
 echo "begin the static check >>>>>>"
 cppcheck -q --enable=all --output-file=$outputf -rp=$sourceDir $sourceDir 
-rm -rf $homeDir/report/*
+rm -rf $homeDir/report/static*
 mv $outputf $homeDir/report/
 cd $homeDir/report/
 errcount=`grep "\[" static_check_report20191204 |wc -l`

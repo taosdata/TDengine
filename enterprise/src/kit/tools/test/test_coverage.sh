@@ -3,7 +3,7 @@ homeDir=/home/ubuntu/fpan/workspace
 sourceDir=$homeDir/TDinternal
 debugDir=$sourceDir/debug
 pyDir=$sourceDir/enterprise/tests/pytest
-simDir=$sourceDir/enterprise/tests/script
+simDir=$sourceDir/enterprise/tests/jenkins
 currentDate=`date +%Y%m%d`
 outputf=coverage$currentDate
 
@@ -33,11 +33,13 @@ sudo cp libtaos.so* /usr/lib
 echo "test >>>>>>>>>"
 cd $pyDir
 python2 generate_testscript.py
-./testlist.sh
+cat testlist.sh
 cd $simDir
-./test.sh
+cat $pyDir/testlist.sh >> fangTest.txt
+./tjenkins -p -f fangTest.txt
 
 echo "test finished, begin to count coverage >>>>>>>"
 cd $sourceDir
 gcovr -r . -o coverage.xml 
+rm $homeDir/report/coverage*
 mv coverage.xml $homeDir/report/$outputf
