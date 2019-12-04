@@ -27,7 +27,13 @@ extern "C" {
 #define GET_QINFO_ADDR(x)    ((char*)(x)-offsetof(SQInfo, query))
 #define Q_STATUS_EQUAL(p, s) (((p) & (s)) != 0)
 
+/*
+ * set the output buffer page size is 16k
+ * The page size should be sufficient for at least one output result or intermediate result.
+ * Some intermediate results may be extremely large, such as top/bottom(100) query.
+ */
 #define DEFAULT_INTERN_BUF_SIZE            16384L
+
 #define INIT_ALLOCATE_DISK_PAGES           60L
 #define DEFAULT_DATA_FILE_MAPPING_PAGES    2L
 #define DEFAULT_DATA_FILE_MMAP_WINDOW_SIZE (DEFAULT_DATA_FILE_MAPPING_PAGES * DEFAULT_INTERN_BUF_SIZE)
@@ -160,7 +166,7 @@ void pointInterpSupporterDestroy(SPointInterpoSupporter* pPointInterpSupport);
 void pointInterpSupporterSetData(SQInfo* pQInfo, SPointInterpoSupporter* pPointInterpSupport);
 
 int64_t loadRequiredBlockIntoMem(SQueryRuntimeEnv* pRuntimeEnv, SPositionInfo* position);
-void doCloseAllOpenedResults(SMeterQuerySupportObj* pSupporter);
+int32_t doCloseAllOpenedResults(SMeterQuerySupportObj* pSupporter);
 void disableFunctForSuppleScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 void enableFunctForMasterScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 
@@ -185,7 +191,7 @@ void freeMeterBlockInfoEx(SMeterDataBlockInfoEx* pDataBlockInfoEx, int32_t len);
 
 void setExecutionContext(SMeterQuerySupportObj* pSupporter, SOutputRes* outputRes, int32_t meterIdx, int32_t groupIdx,
                          SMeterQueryInfo* sqinfo);
-void setIntervalQueryExecutionContext(SMeterQuerySupportObj* pSupporter, int32_t meterIdx, SMeterQueryInfo* sqinfo);
+int32_t setIntervalQueryExecutionContext(SMeterQuerySupportObj* pSupporter, int32_t meterIdx, SMeterQueryInfo* sqinfo);
 
 int64_t getQueryStartPositionInCache(SQueryRuntimeEnv* pRuntimeEnv, int32_t* slot, int32_t* pos, bool ignoreQueryRange);
 int64_t getNextAccessedKeyInData(SQuery* pQuery, int64_t* pPrimaryCol, SBlockInfo* pBlockInfo, int32_t blockStatus);
@@ -224,11 +230,11 @@ void changeMeterQueryInfoForSuppleQuery(SMeterQueryInfo *pMeterQueryInfo, TSKEY 
 /**
  * add the new allocated disk page to meter query info
  * the new allocated disk page is used to keep the intermediate (interval) results
- *
+ * @param pQuery
  * @param pMeterQueryInfo
  * @param pSupporter
  */
-tFilePage* addDataPageForMeterQueryInfo(SMeterQueryInfo *pMeterQueryInfo, SMeterQuerySupportObj *pSupporter);
+tFilePage* addDataPageForMeterQueryInfo(SQuery* pQuery, SMeterQueryInfo *pMeterQueryInfo, SMeterQuerySupportObj *pSupporter);
 
 /**
  * save the query range data into SMeterQueryInfo
