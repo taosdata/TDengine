@@ -60,28 +60,17 @@ class TDTestCase:
     tdDnodes.start(1)
 
     tdLog.info("================= step5")
-    tdLog.info("import 1 data before")
-    startTime = self.startTime - 1
-    tdSql.execute('import into tb1 values(%ld, %d)' %(startTime + 1, 1))
-
-
-    tdLog.info("================= step7")
-    tdSql.execute('reset query cache')
-    tdSql.query('select * from tb1 order by ts desc')
-    tdSql.checkRows(self.rows/2 + 1)
-
-    tdLog.info("================= step8")
-    tdLog.info("import 10 data in batch before")
-    startTime = self.startTime
+    tdLog.info("import 10 data totally repetitive")
+    startTime = self.startTime + 10
     sqlcmd = ['import into tb1 values']
     for rid in range(1,11):
-      sqlcmd.append('(%ld, %d)' %(startTime - rid, rid))
+      sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
     tdSql.execute(" ".join(sqlcmd))
 
     tdLog.info("================= step9")
     tdSql.execute('reset query cache')
     tdSql.query('select * from tb1 order by ts desc')
-    tdSql.checkRows(self.rows/2 + 11)
+    tdSql.checkRows(self.rows/2)
 
   def stop(self):
     tdSql.close()

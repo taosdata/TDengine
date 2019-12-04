@@ -114,7 +114,7 @@ class TDTestCase:
   def run(self):
     self.ntables = 2000
     self.nrowsPerBatch = 200+randint(0,100)
-    self.nbatchs = 100
+    self.nbatchs = 10
     self.nthreads = 5 
 
     tdDnodes.stop(1)
