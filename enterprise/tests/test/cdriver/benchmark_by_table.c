@@ -97,7 +97,7 @@ void createDbAndTable() {
 
   int len = sprintf(qstr, "create table if not exists %s(ts timestamp", stableName);
   for (int64_t f = 0; f < pointsPerTable; ++f) {
-    len += sprintf(qstr + len, ", f%ld int", f);
+    len += sprintf(qstr + len, ", f%ld double", f);
   }
   sprintf(qstr + len, ") tags(t int)");
 
