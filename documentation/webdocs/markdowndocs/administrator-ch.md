@@ -123,6 +123,7 @@ RESTful服务使用的端口号，所有的HTTP请求（TCP）都需要向该接
 ## 客户端配置 
 
 TDengine系统的前台交互客户端应用程序为taos（Windows平台上为taos.exe）。与服务端程序一样，也可以通过设置taos.cfg来配置`taos`启动和运行的配置项。启动的时候如果不指定taos加载配置文件路径，默认读取`/etc/taos/`路径下的`taos.cfg`文件。指定配置文件来启动`taos`的命令如下：
+
 ```
 taos -c /home/cfg/
 ```
