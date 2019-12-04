@@ -533,15 +533,15 @@ To interact with TDengine, we make use of the [node-gyp](https://github.com/node
 
      in your Terminal) 
 
-    - This step will install `gcc` and the related toolchain containing `make`
+    - 安装`gcc` 和`make`
 
-### On Windows
+### Windows
 
-#### Option 1
+#### 安装方法1
 
 Install all the required tools and configurations using Microsoft's [windows-build-tools](https://github.com/felixrieseberg/windows-build-tools) using `npm install --global --production windows-build-tools` from an elevated PowerShell or CMD.exe (run as Administrator).
 
-#### Option 2
+#### 安装方法2
 
 Install tools and configuration manually:
 
