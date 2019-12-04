@@ -188,7 +188,7 @@ typedef struct SString {
 
 typedef struct SCond {
   uint64_t uid;
-  SString  cond;
+  char* cond;
 } SCond;
 
 typedef struct SJoinNode {

@@ -124,6 +124,7 @@ int tsMgmtEqualVnodeNum = 0;
 int tsEnableHttpModule = 1;
 int tsEnableMonitorModule = 1;
 int tsRestRowLimit = 10240;
+int tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -653,7 +654,11 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "compressMsgSize", &tsCompressMsgSize, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
                      -1, 10000000, 0, TSDB_CFG_UTYPE_NONE);
-
+  
+  tsInitConfigOption(cfg++, "maxSQLLength", &tsMaxSQLStringLen, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
+                     TSDB_MAX_SQL_LEN, TSDB_MAX_ALLOWED_SQL_LEN, 0, TSDB_CFG_UTYPE_BYTE);
+  
   // locale & charset
   tsInitConfigOption(cfg++, "timezone", tsTimezone, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,

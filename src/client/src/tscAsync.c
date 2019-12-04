@@ -51,7 +51,7 @@ void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *,
   }
 
   int32_t sqlLen = strlen(sqlstr);
-  if (sqlLen > TSDB_MAX_SQL_LEN) {
+  if (sqlLen > tsMaxSQLStringLen) {
     tscError("sql string too long");
     tscQueueAsyncError(fp, param);
     return;

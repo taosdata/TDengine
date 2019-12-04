@@ -107,14 +107,6 @@ void tscAddSpecialColumnForSelect(SSqlCmd* pCmd, int32_t outputColIndex, int16_t
 
 void addRequiredTagColumn(SSqlCmd* pCmd, int32_t tagColIndex, int32_t tableIndex);
 
-//TODO refactor, remove
-void SStringFree(SString* str);
-void SStringCopy(SString* pDest, const SString* pSrc);
-SString SStringCreate(const char* str);
-
-int32_t SStringAlloc(SString* pStr, int32_t size);
-int32_t SStringEnsureRemain(SString* pStr, int32_t size);
-
 int32_t setMeterID(SSqlObj* pSql, SSQLToken* pzTableName, int32_t tableIndex);
 void tscClearInterpInfo(SSqlCmd* pCmd);
 
