@@ -51,7 +51,6 @@ void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, char* str, uint64_t uid) {
   assert(len < tListLen(tagIdBuf));
 
   const int32_t maxKeySize = TSDB_MAX_TAGS_LEN;  // allowed max key size
-  char*         tmp = calloc(1, TSDB_MAX_SQL_LEN);
 
   SCond* cond = tsGetMetricQueryCondPos(pTagCond, uid);
 
@@ -60,12 +59,24 @@ void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, char* str, uint64_t uid) {
     sprintf(join, "%s,%s", pTagCond->joinInfo.left.meterId, pTagCond->joinInfo.right.meterId);
   }
 
-  int32_t keyLen =
-      snprintf(tmp, TSDB_MAX_SQL_LEN, "%s,%s,%s,%d,%s,[%s],%d", pMeterMetaInfo->name,
-               (cond != NULL ? cond->cond.z : NULL), pTagCond->tbnameCond.cond.n > 0 ? pTagCond->tbnameCond.cond.z : NULL,
+  // estimate the buffer size
+  size_t tbnameCondLen = pTagCond->tbnameCond.cond != NULL? strlen(pTagCond->tbnameCond.cond):0;
+  size_t redundantLen = 20;
+  
+  size_t bufSize = strlen(pMeterMetaInfo->name) + tbnameCondLen + strlen(join) + strlen(tagIdBuf);
+  if (cond != NULL) {
+    bufSize += strlen(cond->cond);
+  }
+  
+  bufSize = (size_t) ((bufSize + redundantLen) * 1.5);
+  char* tmp = calloc(1, bufSize);
+
+  int32_t keyLen = snprintf(tmp, bufSize, "%s,%s,%s,%d,%s,[%s],%d", pMeterMetaInfo->name,
+               (cond != NULL ? cond->cond : NULL),
+               (tbnameCondLen > 0 ? pTagCond->tbnameCond.cond : NULL),
                pTagCond->relType, join, tagIdBuf, pCmd->groupbyExpr.orderType);
 
-  assert(keyLen <= TSDB_MAX_SQL_LEN);
+  assert(keyLen <= bufSize);
 
   if (keyLen < maxKeySize) {
     strcpy(str, tmp);
@@ -99,7 +110,7 @@ void tsSetMetricQueryCond(STagCond* pTagCond, uint64_t uid, const char* str) {
 
   SCond* pDest = &pTagCond->cond[pTagCond->numOfTagCond];
   pDest->uid = uid;
-  pDest->cond = SStringCreate(str);
+  pDest->cond = strdup(str);
 
   pTagCond->numOfTagCond += 1;
 }
@@ -1340,14 +1351,20 @@ bool tscValidateColumnId(SSqlCmd* pCmd, int32_t colId) {
 
 void tscTagCondCopy(STagCond* dest, const STagCond* src) {
   memset(dest, 0, sizeof(STagCond));
+  
+  if (src->tbnameCond.cond != NULL) {
+    dest->tbnameCond.cond = strdup(src->tbnameCond.cond);
+  }
 
-  SStringCopy(&dest->tbnameCond.cond, &src->tbnameCond.cond);
   dest->tbnameCond.uid = src->tbnameCond.uid;
 
   memcpy(&dest->joinInfo, &src->joinInfo, sizeof(SJoinInfo));
 
   for (int32_t i = 0; i < src->numOfTagCond; ++i) {
-    SStringCopy(&dest->cond[i].cond, &src->cond[i].cond);
+    if (src->cond[i].cond != NULL) {
+      dest->cond[i].cond = strdup(src->cond[i].cond);
+    }
+    
     dest->cond[i].uid = src->cond[i].uid;
   }
 
@@ -1356,10 +1373,9 @@ void tscTagCondCopy(STagCond* dest, const STagCond* src) {
 }
 
 void tscTagCondRelease(STagCond* pCond) {
-  SStringFree(&pCond->tbnameCond.cond);
-
+  free(pCond->tbnameCond.cond);
   for (int32_t i = 0; i < pCond->numOfTagCond; ++i) {
-    SStringFree(&pCond->cond[i].cond);
+    free(pCond->cond[i].cond);
   }
 
   memset(pCond, 0, sizeof(STagCond));
@@ -1571,123 +1587,6 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
   pRes->numOfRows = 0;
 }
 
-SString SStringCreate(const char* str) {
-  size_t len = strlen(str);
-
-  SString dest = {.n = len, .alloc = len + 1};
-  dest.z = calloc(1, dest.alloc);
-  strcpy(dest.z, str);
-
-  return dest;
-}
-
-void SStringCopy(SString* pDest, const SString* pSrc) {
-  if (pSrc->n > 0) {
-    pDest->n = pSrc->n;
-    pDest->alloc = pDest->n + 1;  // one additional space for null terminate
-
-    pDest->z = calloc(1, pDest->alloc);
-
-    memcpy(pDest->z, pSrc->z, pDest->n);
-  } else {
-    memset(pDest, 0, sizeof(SString));
-  }
-}
-
-void SStringFree(SString* pStr) {
-  if (pStr->alloc > 0) {
-    tfree(pStr->z);
-    pStr->alloc = 0;
-  }
-}
-
-void SStringShrink(SString* pStr) {
-  if (pStr->alloc > (pStr->n + 1) && pStr->alloc > (pStr->n * 2)) {
-    pStr->z = realloc(pStr->z, pStr->n + 1);
-    assert(pStr->z != NULL);
-
-    pStr->alloc = pStr->n + 1;
-  }
-}
-
-int32_t SStringAlloc(SString* pStr, int32_t size) {
-  if (pStr->alloc >= size) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  size = ALIGN8(size);
-
-  char* tmp = NULL;
-  if (pStr->z != NULL) {
-    tmp = realloc(pStr->z, size);
-    memset(pStr->z + pStr->n, 0, size - pStr->n);
-  } else {
-    tmp = calloc(1, size);
-  }
-
-  if (tmp == NULL) {
-#ifdef WINDOWS
-    LPVOID lpMsgBuf;
-    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
-                  GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  // Default language
-                  (LPTSTR)&lpMsgBuf, 0, NULL);
-    tscTrace("failed to allocate memory, reason:%s", lpMsgBuf);
-    LocalFree(lpMsgBuf);
-#else
-    char errmsg[256] = {0};
-    strerror_r(errno, errmsg, tListLen(errmsg));
-    tscTrace("failed to allocate memory, reason:%s", errmsg);
-#endif
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
-  }
-
-  pStr->z = tmp;
-  pStr->alloc = size;
-
-  return TSDB_CODE_SUCCESS;
-}
-
-#define MIN_ALLOC_SIZE 8
-
-int32_t SStringEnsureRemain(SString* pStr, int32_t size) {
-  if (pStr->alloc - pStr->n > size) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  // remain space is insufficient, allocate more spaces
-  int32_t inc = (size >= MIN_ALLOC_SIZE) ? size : MIN_ALLOC_SIZE;
-  if (inc < (pStr->alloc >> 1)) {
-    inc = (pStr->alloc >> 1);
-  }
-
-  // get the new size
-  int32_t newsize = pStr->alloc + inc;
-
-  char* tmp = realloc(pStr->z, newsize);
-  if (tmp == NULL) {
-#ifdef WINDOWS
-    LPVOID lpMsgBuf;
-    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
-                  GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  // Default language
-                  (LPTSTR)&lpMsgBuf, 0, NULL);
-    tscTrace("failed to allocate memory, reason:%s", lpMsgBuf);
-    LocalFree(lpMsgBuf);
-#else
-    char errmsg[256] = {0};
-    strerror_r(errno, errmsg, tListLen(errmsg));
-    tscTrace("failed to allocate memory, reason:%s", errmsg);
-#endif
-
-    return TSDB_CODE_CLI_OUT_OF_MEMORY;
-  }
-
-  memset(tmp + pStr->n, 0, inc);
-  pStr->alloc = newsize;
-  pStr->z = tmp;
-
-  return TSDB_CODE_SUCCESS;
-}
-
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int32_t vnodeIndex, int16_t tableIndex, void (*fp)(), void* param,
                            SSqlObj* pPrevSql) {
   SSqlCmd* pCmd = &pSql->cmd;
@@ -1822,9 +1721,7 @@ void tscDoQuery(SSqlObj* pSql) {
   }
 }
 
-int16_t tscGetJoinTagColIndexByUid(SSqlCmd* pCmd, uint64_t uid) {
-  STagCond* pTagCond = &pCmd->tagCond;
-
+int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid) {
   if (pTagCond->joinInfo.left.uid == uid) {
     return pTagCond->joinInfo.left.tagCol;
   } else {

@@ -824,11 +824,11 @@ int vnodeRetrieveQueryInfo(void *handle, int *numOfRows, int *rowSize, int16_t *
   }
 
   if (pQInfo->killed) {
-    dTrace("QInfo:%p it is already killed, %p, code:%d", pQInfo, pQuery, pQInfo->code);
+    dTrace("QInfo:%p query is killed, %p, code:%d", pQInfo, pQuery, pQInfo->code);
     if (pQInfo->code == TSDB_CODE_SUCCESS) {
       return TSDB_CODE_QUERY_CANCELLED;
     } else { // in case of not TSDB_CODE_SUCCESS, return the code to client
-      return pQInfo->code;
+      return abs(pQInfo->code);
     }
   }
 
@@ -837,8 +837,13 @@ int vnodeRetrieveQueryInfo(void *handle, int *numOfRows, int *rowSize, int16_t *
   *rowSize = pQuery->rowSize;
 
   *timePrec = vnodeList[pQInfo->pObj->vnode].cfg.precision;
-
-  if (pQInfo->code < 0) return -pQInfo->code;
+  
+  dTrace("QInfo:%p, retrieve data info completed, precision:%d, rowsize:%d, rows:%d, code:%d", pQInfo, *timePrec,
+      *rowSize, *numOfRows, pQInfo->code);
+  
+  if (pQInfo->code < 0) {  // less than 0 means there are error existed.
+    return -pQInfo->code;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

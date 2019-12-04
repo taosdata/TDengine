@@ -270,7 +270,7 @@ int taos_query(TAOS *taos, const char *sqlstr) {
   SSqlRes *pRes = &pSql->res;
 
   size_t sqlLen = strlen(sqlstr);
-  if (sqlLen > TSDB_MAX_SQL_LEN) {
+  if (sqlLen > tsMaxSQLStringLen) {
     pRes->code = tscInvalidSQLErrMsg(pSql->cmd.payload, "sql too long", NULL);  // set the additional error msg for invalid sql
     tscError("%p SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
     
@@ -786,7 +786,6 @@ int taos_errno(TAOS *taos) {
 char *taos_errstr(TAOS *taos) {
   STscObj *pObj = (STscObj *)taos;
   uint8_t  code;
-//  char          temp[256] = {0};
 
   if (pObj == NULL || pObj->signature != pObj) return tsError[globalCode];
 
@@ -797,11 +796,13 @@ char *taos_errstr(TAOS *taos) {
 
   // for invalid sql, additional information is attached to explain why the sql is invalid
   if (code == TSDB_CODE_INVALID_SQL) {
-//    snprintf(temp, tListLen(temp), "invalid SQL: %s", pObj->pSql->cmd.payload);
-//    strcpy(pObj->pSql->cmd.payload, temp);
     return pObj->pSql->cmd.payload;
   } else {
-    return tsError[code];
+    if (code < 0 || code > TSDB_CODE_MAX_ERROR_CODE) {
+      return tsError[TSDB_CODE_SUCCESS];
+    } else {
+      return tsError[code];
+    }
   }
 }
 
@@ -924,7 +925,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   tscTrace("%p Valid SQL: %s pObj:%p", pSql, sql, pObj);
 
   int32_t sqlLen = strlen(sql);
-  if (sqlLen > TSDB_MAX_SQL_LEN) {
+  if (sqlLen > tsMaxSQLStringLen) {
     tscError("%p sql too long", pSql);
     pRes->code = TSDB_CODE_INVALID_SQL;
     return pRes->code;

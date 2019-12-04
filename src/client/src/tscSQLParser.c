@@ -21,6 +21,7 @@
 #include "taosmsg.h"
 #include "tstoken.h"
 #include "ttime.h"
+#include "tstrbuild.h"
 
 #include "tscUtil.h"
 #include "tschemautil.h"
@@ -3103,26 +3104,23 @@ static int32_t optrToString(tSQLExpr* pExpr, char** exprString) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tablenameListToString(tSQLExpr* pExpr, char* str) {
+static int32_t tablenameListToString(tSQLExpr* pExpr, /*char* str*/SStringBuilder* sb) {
   tSQLExprList* pList = pExpr->pParam;
   if (pList->nExpr <= 0) {
     return TSDB_CODE_INVALID_SQL;
   }
 
   if (pList->nExpr > 0) {
-    strcpy(str, QUERY_COND_REL_PREFIX_IN);
-    str += QUERY_COND_REL_PREFIX_IN_LEN;
+    taosStringBuilderAppendStringLen(sb, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN);
   }
 
   int32_t len = 0;
   for (int32_t i = 0; i < pList->nExpr; ++i) {
     tSQLExpr* pSub = pList->a[i].pNode;
-    strncpy(str + len, pSub->val.pz, pSub->val.nLen);
-
-    len += pSub->val.nLen;
+    taosStringBuilderAppendStringLen(sb, pSub->val.pz, pSub->val.nLen);
 
     if (i < pList->nExpr - 1) {
-      str[len++] = TBNAME_LIST_SEP[0];
+      taosStringBuilderAppendString(sb, TBNAME_LIST_SEP);
     }
 
     if (pSub->val.nLen <= 0 || pSub->val.nLen > TSDB_METER_NAME_LEN) {
@@ -3133,11 +3131,9 @@ static int32_t tablenameListToString(tSQLExpr* pExpr, char* str) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tablenameCondToString(tSQLExpr* pExpr, char* str) {
-  strcpy(str, QUERY_COND_REL_PREFIX_LIKE);
-  str += strlen(QUERY_COND_REL_PREFIX_LIKE);
-
-  strcpy(str, pExpr->val.pz);
+static int32_t tablenameCondToString(tSQLExpr* pExpr, /*char* str*/SStringBuilder* sb) {
+  taosStringBuilderAppendStringLen(sb, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN);
+  taosStringBuilderAppendString(sb, pExpr->val.pz);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3241,7 +3237,7 @@ static int32_t getTagCondString(SSqlCmd* pCmd, tSQLExpr* pExpr, char** str) {
   return tSQLExprLeafToString(pExpr, true, str);
 }
 
-static int32_t getTablenameCond(SSqlCmd* pCmd, tSQLExpr* pTableCond, char* str) {
+static int32_t getTablenameCond(SSqlCmd* pCmd, tSQLExpr* pTableCond, /*char* str*/SStringBuilder* sb) {
   const char* msg0 = "invalid table name list";
 
   if (pTableCond == NULL) {
@@ -3258,9 +3254,9 @@ static int32_t getTablenameCond(SSqlCmd* pCmd, tSQLExpr* pTableCond, char* str) 
   int32_t ret = TSDB_CODE_SUCCESS;
 
   if (pTableCond->nSQLOptr == TK_IN) {
-    ret = tablenameListToString(pRight, str);
+    ret = tablenameListToString(pRight, sb);
   } else if (pTableCond->nSQLOptr == TK_LIKE) {
-    ret = tablenameCondToString(pRight, str);
+    ret = tablenameCondToString(pRight, sb);
   }
 
   if (ret != TSDB_CODE_SUCCESS) {
@@ -3828,8 +3824,7 @@ int tableNameCompar(const void* lhs, const void* rhs) {
   return ret > 0 ? 1 : -1;
 }
 
-static int32_t setTableCondForMetricQuery(SSqlObj* pSql, tSQLExpr* pExpr, int16_t tableCondIndex,
-                                          char* tmpTableCondBuf) {
+static int32_t setTableCondForMetricQuery(SSqlObj* pSql, tSQLExpr* pExpr, int16_t tableCondIndex, SStringBuilder* sb) {
   SSqlCmd*    pCmd = &pSql->cmd;
   const char* msg = "meter name too long";
 
@@ -3842,26 +3837,25 @@ static int32_t setTableCondForMetricQuery(SSqlObj* pSql, tSQLExpr* pExpr, int16_
   STagCond* pTagCond = &pSql->cmd.tagCond;
   pTagCond->tbnameCond.uid = pMeterMetaInfo->pMeterMeta->uid;
 
-  SString* pTableCond = &pCmd->tagCond.tbnameCond.cond;
-  SStringAlloc(pTableCond, 4096);
-
   assert(pExpr->nSQLOptr == TK_LIKE || pExpr->nSQLOptr == TK_IN);
 
   if (pExpr->nSQLOptr == TK_LIKE) {
-    strcpy(pTableCond->z, tmpTableCondBuf);
-    pTableCond->n = strlen(pTableCond->z);
+    char* str = taosStringBuilderGetResult(sb, NULL);
+    pCmd->tagCond.tbnameCond.cond = strdup(str);
     return TSDB_CODE_SUCCESS;
   }
 
-  strcpy(pTableCond->z, QUERY_COND_REL_PREFIX_IN);
-  pTableCond->n += strlen(QUERY_COND_REL_PREFIX_IN);
+  SStringBuilder sb1 = {0};
+  taosStringBuilderAppendStringLen(&sb1, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN);
 
   char db[TSDB_METER_ID_LEN] = {0};
 
   // remove the duplicated input table names
   int32_t num = 0;
-  char**  segments = strsplit(tmpTableCondBuf + QUERY_COND_REL_PREFIX_IN_LEN, TBNAME_LIST_SEP, &num);
-  qsort(segments, num, sizeof(void*), tableNameCompar);
+  char* tableNameString = taosStringBuilderGetResult(sb, NULL);
+  
+  char**  segments = strsplit(tableNameString + QUERY_COND_REL_PREFIX_IN_LEN, TBNAME_LIST_SEP, &num);
+  qsort(segments, num, POINTER_BYTES, tableNameCompar);
 
   int32_t j = 1;
   for (int32_t i = 1; i < num; ++i) {
@@ -3875,25 +3869,30 @@ static int32_t setTableCondForMetricQuery(SSqlObj* pSql, tSQLExpr* pExpr, int16_
   char*     acc = getAccountId(pSql);
 
   for (int32_t i = 0; i < num; ++i) {
-    SStringEnsureRemain(pTableCond, TSDB_METER_ID_LEN);
-
     if (i >= 1) {
-      pTableCond->z[pTableCond->n++] = TBNAME_LIST_SEP[0];
+      taosStringBuilderAppendStringLen(&sb1, TBNAME_LIST_SEP, 1);
     }
-
+    
+    char idBuf[TSDB_METER_ID_LEN + 1] = {0};
     int32_t   xlen = strlen(segments[i]);
     SSQLToken t = {.z = segments[i], .n = xlen, .type = TK_STRING};
 
-    int32_t ret = setObjFullName(pTableCond->z + pTableCond->n, acc, &dbToken, &t, &xlen);
+    int32_t ret = setObjFullName(idBuf, acc, &dbToken, &t, &xlen);
     if (ret != TSDB_CODE_SUCCESS) {
+      taosStringBuilderDestroy(&sb1);
       tfree(segments);
+      
       invalidSqlErrMsg(pCmd, msg);
       return ret;
     }
-
-    pTableCond->n += xlen;
+    
+    taosStringBuilderAppendString(&sb1, idBuf);
   }
-
+  
+  char* str = taosStringBuilderGetResult(&sb1, NULL);
+  pCmd->tagCond.tbnameCond.cond = strdup(str);
+  
+  taosStringBuilderDestroy(&sb1);
   tfree(segments);
   return TSDB_CODE_SUCCESS;
 }
@@ -4071,10 +4070,9 @@ int32_t doParseWhereClause(SSqlObj* pSql, tSQLExpr** pExpr, SCondExpr* condExpr)
   SSqlCmd* pCmd = &pSql->cmd;
 
   /*
-   * tags query condition may be larger than 512bytes,
-   * therefore, we need to prepare enough large space
+   * tags query condition may be larger than 512bytes, therefore, we need to prepare enough large space
    */
-  char tableNameCond[TSDB_MAX_SQL_LEN] = {0};
+  SStringBuilder sb = {0};
 
   int32_t ret = TSDB_CODE_SUCCESS;
   if ((ret = getQueryCondExpr(pCmd, pExpr, condExpr, &type, (*pExpr)->nSQLOptr)) != TSDB_CODE_SUCCESS) {
@@ -4119,7 +4117,7 @@ int32_t doParseWhereClause(SSqlObj* pSql, tSQLExpr** pExpr, SCondExpr* condExpr)
   }
 
   // 4. get the table name query condition
-  if ((ret = getTablenameCond(pCmd, condExpr->pTableCond, tableNameCond)) != TSDB_CODE_SUCCESS) {
+  if ((ret = getTablenameCond(pCmd, condExpr->pTableCond, &sb)) != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
@@ -4135,7 +4133,10 @@ int32_t doParseWhereClause(SSqlObj* pSql, tSQLExpr** pExpr, SCondExpr* condExpr)
 
   // 7. query condition for table name
   pCmd->tagCond.relType = (condExpr->relType == TK_AND) ? TSDB_RELATION_AND : TSDB_RELATION_OR;
-  ret = setTableCondForMetricQuery(pSql, condExpr->pTableCond, condExpr->tableCondIndex, tableNameCond);
+  
+  ret = setTableCondForMetricQuery(pSql, condExpr->pTableCond, condExpr->tableCondIndex, &sb);
+  taosStringBuilderDestroy(&sb);
+  
   if (!validateFilterExpr(pCmd)) {
     return invalidSqlErrMsg(pCmd, msg);
   }
@@ -5156,7 +5157,7 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t tableIn
 
     if (pExpr->functionId != TSDB_FUNC_TAG) {
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
-      int16_t         columnInfo = tscGetJoinTagColIndexByUid(pCmd, pMeterMetaInfo->pMeterMeta->uid);
+      int16_t         columnInfo = tscGetJoinTagColIndexByUid(&pCmd->tagCond, pMeterMetaInfo->pMeterMeta->uid);
       SColumnIndex    index = {.tableIndex = 0, .columnIndex = columnInfo};
       SSchema*        pSchema = tsGetTagSchema(pMeterMetaInfo->pMeterMeta);
 
