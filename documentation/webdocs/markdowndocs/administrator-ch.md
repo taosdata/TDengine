@@ -163,7 +163,7 @@ timezone Asia/Shanghai
 ```
 SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
 ```
-在东八区转换的SQL语句等效于
+在东八区，SQL语句等效于
 ```
 SELECT count(*) FROM table_name WHERE TS<1554955268000;
 ```
@@ -174,14 +174,31 @@ SELECT count(*) FROM table_name WHERE TS<1554984068000;
 为了避免使用字符串时间格式带来的不确定性，也可以直接使用Unix时间戳。此外，还可以在SQL语句中使用带有时区的时间戳字符串，例如：RFC3339格式的时间戳字符串，`2013-04-12T15:52:01.123+08:00`或者ISO-8601格式时间戳字符串`2013-04-12T15:52:01.123+0800`。上述两个字符串转化为Unix时间戳不受系统所在时区的影响。
 
 **defaultUser**
-默认登录用户，默认值root
+- 默认值：root
+- 是否必须设置：否
+
+登录用户名，客户端登录的时候，如果不指定用户名，则自动使用该用户名登录。默认情况下，以下的两个命令等效
+```
+taos
+taos -u root
+```
+用户名为从配置中读取的`defaultUser`配置项。如果更改`defaultUser abc`，则以下两个命令等效：
+```
+taos
+taos -u abc
+```
 
 **defaultPass**
-默认登录密码，默认值taosdata
+- 默认值：taosdata
+- 是否必须设置：否
+
+登录用户名，客户端登录的时候，如果不指定密码，则自动使用该密码登录。默认情况下，以下的两个命令等效
+```
+taos
+taos -ptaosdata
+```
 
 TCP/UDP端口，以及日志的配置参数，与server的配置参数完全一样。
-
-启动taos时，你也可以从命令行指定IP地址、端口号，用户名和密码，否则就从taos.cfg读取。
 
 
 ## 用户管理
