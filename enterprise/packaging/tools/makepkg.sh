@@ -17,8 +17,8 @@ code_dir="${top_dir}/src"
 release_dir="${top_dir}/release"
 community_dir="${script_dir}/../../../community/src"
 
-package_name='linux'
-install_dir="${release_dir}/TDengine-enterprise-${version}-${package_name}-$(echo ${build_time}| tr ': ' -)"
+#package_name='linux'
+install_dir="${release_dir}/TDengine-enterprise-${version}"
 
 # Directories and files.
 bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdump ${script_dir}/remove.sh"
