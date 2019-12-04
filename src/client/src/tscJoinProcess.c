@@ -307,7 +307,7 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
       SSqlExpr* pExpr = tscSqlExprGet(&pNew->cmd, 0);
       assert(pNew->cmd.tagCond.joinInfo.hasJoin);
 
-      int16_t tagColIndex = tscGetJoinTagColIndexByUid(&pNew->cmd, pMeterMetaInfo->pMeterMeta->uid);
+      int16_t tagColIndex = tscGetJoinTagColIndexByUid(&pNew->cmd.tagCond, pMeterMetaInfo->pMeterMeta->uid);
       pExpr->param[0].i64Key = tagColIndex;
       pExpr->numOfParams = 1;
 

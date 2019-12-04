@@ -689,7 +689,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, int16_t vnodeId
     SSqlExpr *pExpr = tscSqlExprGet(&pNew->cmd, 0);
 
     SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pNew->cmd, 0);
-    int16_t         tagColIndex = tscGetJoinTagColIndexByUid(&pNew->cmd, pMeterMetaInfo->pMeterMeta->uid);
+    int16_t         tagColIndex = tscGetJoinTagColIndexByUid(&pSupporter->tagCond, pMeterMetaInfo->pMeterMeta->uid);
 
     pExpr->param->i64Key = tagColIndex;
     pExpr->numOfParams = 1;
@@ -2741,10 +2741,14 @@ static int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
 
   int32_t n = 0;
   for (int32_t i = 0; i < pCmd->tagCond.numOfTagCond; ++i) {
-    n += pCmd->tagCond.cond[i].cond.n;
+    n += strlen(pCmd->tagCond.cond[i].cond);
   }
 
-  int32_t tagLen = n * TSDB_NCHAR_SIZE + pCmd->tagCond.tbnameCond.cond.n * TSDB_NCHAR_SIZE;
+  int32_t tagLen = n * TSDB_NCHAR_SIZE;
+  if (pCmd->tagCond.tbnameCond.cond != NULL) {
+   tagLen += strlen(pCmd->tagCond.tbnameCond.cond) * TSDB_NCHAR_SIZE;
+  }
+  
   int32_t joinCondLen = (TSDB_METER_ID_LEN + sizeof(int16_t)) * 2;
   int32_t elemSize = sizeof(SMetricMetaElemMsg) * pCmd->numOfTables;
 
@@ -2816,8 +2820,9 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql) {
     if (pTagCond->numOfTagCond > 0) {
       SCond *pCond = tsGetMetricQueryCondPos(pTagCond, uid);
       if (pCond != NULL) {
-        condLen = pCond->cond.n + 1;
-        bool ret = taosMbsToUcs4(pCond->cond.z, pCond->cond.n, pMsg, pCond->cond.n * TSDB_NCHAR_SIZE);
+        condLen = strlen(pCond->cond) + 1;
+        
+        bool ret = taosMbsToUcs4(pCond->cond, condLen, pMsg, condLen * TSDB_NCHAR_SIZE);
         if (!ret) {
           tscError("%p mbs to ucs4 failed:%s", pSql, tsGetMetricQueryCondPos(pTagCond, uid));
           return 0;
@@ -2836,15 +2841,17 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql) {
       offset = pMsg - (char *)pMetaMsg;
 
       pElem->tableCond = htonl(offset);
-      pElem->tableCondLen = htonl(pTagCond->tbnameCond.cond.n);
+      
+      uint32_t len = strlen(pTagCond->tbnameCond.cond);
+      pElem->tableCondLen = htonl(len);
 
-      memcpy(pMsg, pTagCond->tbnameCond.cond.z, pTagCond->tbnameCond.cond.n);
-      pMsg += pTagCond->tbnameCond.cond.n;
+      memcpy(pMsg, pTagCond->tbnameCond.cond, len);
+      pMsg += len;
     }
 
     SSqlGroupbyExpr *pGroupby = &pCmd->groupbyExpr;
 
-    if (pGroupby->tableIndex != i) {
+    if (pGroupby->tableIndex != i && pGroupby->numOfGroupCols > 0) {
       pElem->orderType = 0;
       pElem->orderIndex = 0;
       pElem->numOfGroupCols = 0;
