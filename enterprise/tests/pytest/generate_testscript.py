@@ -8,7 +8,6 @@ cluster_modules = ['cluster',\
                    'cluster_mgmt']             
 
 rootDir = os.getcwd()
-print(rootDir)
 outfile = 'testlist.sh'
 shcmd = 'rm -rf %s' %outfile
 if os.system(shcmd) != 0:
@@ -30,7 +29,7 @@ if __name__=="__main__":
     for file in os.listdir(moduleDir):
       if file.startswith("_"): continue
       if file.endswith(".pyc"): continue
-      shcmd = 'python2 test.py -f %s/%s -c\n' %(module, file)
+      shcmd = 'python2 %s/est.py -f %s/%s/%s -c\n' %(rootDir, rootDir, module, file)
       outfd.write(shcmd)
   
   outfd.close()
