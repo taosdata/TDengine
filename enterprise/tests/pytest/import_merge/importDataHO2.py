@@ -27,7 +27,7 @@ class TDTestCase:
     self.ntables = 1
     self.startTime = 1520000010000L
     self.rows = 200
-    self.rowsPerTable = 20
+    self.rowsPerTable = 100
 
     tdDnodes.stop(1)
     tdDnodes.deploy(1)
