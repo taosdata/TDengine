@@ -23,7 +23,7 @@ from util.sql import *
 from util.dnodes import *
 
 class TDTestCase:
-  def init(self, conn):
+  def init(self):
     tdLog.debug("start to execute %s" % __file__)
     tdLog.info("prepare cluster") 
     tdDnodes.stopAll()
