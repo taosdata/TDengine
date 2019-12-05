@@ -345,7 +345,7 @@ c1.execute('select * from tb')
 data = c1.fetchall()
 # data is a list of returned rows with each row being a tuple
 numOfRows = c1.rowcount
-numOfCols = c1.descriptions
+numOfCols = len(c1.description)
 for irow in range(numOfRows):
   print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2])
   
