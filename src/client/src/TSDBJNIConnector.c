@@ -239,7 +239,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
                                                                                jbyteArray jsql, jlong con) {
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
-    jniError("jobj:%p, connection is closed", jobj);
+    jniError("jobj:%p, connection is already closed", jobj);
     return JNI_CONNECTION_NULL;
   }
 
@@ -252,6 +252,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
 
   char *dst = (char *)calloc(1, sizeof(char) * (len + 1));
   if (dst == NULL) {
+    jniError("jobj:%p, conn:%p, can not alloc memory", jobj, tscon);
     return JNI_OUT_OF_MEMORY;
   }
 
@@ -259,6 +260,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
   if ((*env)->ExceptionCheck(env)) {
     //todo handle error
   }
+
+  jniTrace("jobj:%p, conn:%p, sql:%s", jobj, tscon, sql);
 
   int code = taos_query(tscon, dst);
   if (code != 0) {
@@ -271,9 +274,9 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
 
     if (pSql->cmd.command == TSDB_SQL_INSERT) {
       affectRows = taos_affected_rows(tscon);
-      jniTrace("jobj:%p, conn:%p, code:%d, affect rows:%d, sql:%s", jobj, tscon, code, affectRows, dst);
+      jniTrace("jobj:%p, conn:%p, code:%d, affect rows:%d", jobj, tscon, code, affectRows, dst);
     } else {
-      jniTrace("jobj:%p, conn:%p, code:%d, sql:%s", jobj, tscon, code, dst);
+      jniTrace("jobj:%p, conn:%p, code:%d", jobj, tscon, code, dst);
     }
 
     free(dst);
@@ -307,7 +310,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(
 
   if (tscIsUpdateQuery(tscon)) {
     ret = 0;  // for update query, no result pointer
-    jniTrace("jobj:%p, conn:%p, no result", jobj, tscon);
+    jniTrace("jobj:%p, conn:%p, no resultset", jobj, tscon);
   } else {
     ret = (jlong) taos_use_result(tscon);
     jniTrace("jobj:%p, conn:%p, get resultset:%p", jobj, tscon, (void *) ret);
@@ -496,7 +499,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeConnectionIm
                                                                                   jlong con) {
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
-    jniError("jobj:%p, connection is closed", jobj);
+    jniError("jobj:%p, connection is already closed", jobj);
     return JNI_CONNECTION_NULL;
   } else {
     jniTrace("jobj:%p, conn:%p, close connection success", jobj, tscon);
