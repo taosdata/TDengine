@@ -151,6 +151,8 @@ void shellReplaceCtrlChar(char *str) {
           }
           break;
         default:
+          *pstr = *str;
+          pstr++;
           break;
       }
       ctrlOn = false;
