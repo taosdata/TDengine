@@ -377,21 +377,34 @@ conn.close()
 
 ### HTTP请求格式 
 
-​	`http://<ip>:<PORT>/rest/sql`
+```
+http://<ip>:<PORT>/rest/sql
+```
 
-​    参数说明：
+参数说明：
 
-​    IP: 集群中的任一台主机
+- IP: 集群中的任一台主机
+- PORT: 配置文件中httpPort配置项，缺省为6020
 
-​    PORT: 配置文件中httpPort配置项，缺省为6020 
+例如：http://192.168.0.1:6020/rest/sql 是指向IP地址为192.168.0.1的URL. 
 
-如：http://192.168.0.1:6020/rest/sql 是指向IP地址为192.168.0.1的URL. 
+HTTP请求的Header里需带有身份认证信息，TDengine支持Basic认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
 
-HTTP请求的Header里需带有身份认证信息，TDengine单机版仅支持Basic认证机制。
+- 自定义身份认证信息如下所示（<token>稍后介绍）
+
+```
+Authorization: Taosd <TOKEN>
+```
+
+- Basic身份认证信息如下所示
+
+```
+Authorization: Basic <TOKEN>
+```
 
 HTTP请求的BODY里就是一个完整的SQL语句，SQL语句中的数据表应提供数据库前缀，例如\<db-name>.\<tb-name>。如果表名不带数据库前缀，系统会返回错误。因为HTTP模块只是一个简单的转发，没有当前DB的概念。 
 
-使用curl来发起一个HTTP Request, 语法如下：
+使用curl通过自定义身份认证方式来发起一个HTTP Request, 语法如下：
 
 ```
 curl -H 'Authorization: Basic <TOKEN>' -d '<SQL>' <ip>:<PORT>/rest/sql
@@ -403,11 +416,12 @@ curl -H 'Authorization: Basic <TOKEN>' -d '<SQL>' <ip>:<PORT>/rest/sql
 curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 ```
 
-其中，`TOKEN`为`{username}:{password}`经过Base64编码之后的字符串，例如`root:taosdata`编码后为`cm9vdDp0YW9zZGF0YQ==`
+其中，`TOKEN`为`{username}:{password}`经过Base64编码之后的字符串, 例如`root:taosdata`编码后为`cm9vdDp0YW9zZGF0YQ==`
 
 ### HTTP返回格式
 
-返回值为JSON格式，如下：
+返回值为JSON格式，如下:
+
 ```
 {
     "status": "succ",
@@ -422,26 +436,60 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 
 说明：
 
-- 第一行”status”告知操作结果是成功还是失败;
-- 第二行”head”是表的定义，如果不返回结果集，仅有一列“affected_rows”;
-- 第三行是具体返回的数据，一排一排的呈现。如果不返回结果集，仅[[affected_rows]]
-- 第四行”rows”表明总共多少行数据
+- status: 告知操作结果是成功还是失败
+- head: 表的定义，如果不返回结果集，仅有一列“affected_rows”
+- data: 具体返回的数据，一排一排的呈现,如果不返回结果集，仅[[affected_rows]]
+- rows: 表明总共多少行数据
+
+### 自定义授权码
+
+HTTP请求中需要带有授权码`<TOKEN>`, 用于身份识别。授权码通常由管理员提供, 可简单的通过发送`HTTP GET`请求来获取授权码, 操作如下：
+
+```
+curl http://<ip>:6020/rest/login/<username>/<password>
+```
+
+其中, `ip`是TDengine数据库的IP地址, `username`为数据库用户名, `password`为数据库密码, 返回值为`JSON`格式, 各字段含义如下：
+
+- status：请求结果的标志位
+
+- code：返回值代码
+
+- desc: 授权码
+
+获取授权码示例：
+
+```
+curl http://192.168.0.1:6020/rest/login/root/taosdata
+```
+
+返回值：
+
+```
+{
+  "status": "succ",
+  "code": 0,
+  "desc": 
+"/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"
+}
+```
 
 ### 使用示例
 
-- 在demo库里查询表t1的所有记录, curl如下： 
+- 在demo库里查询表t1的所有记录： 
 
-  `curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sql`
-
-  返回值：
+```
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sql`
+```
+返回值：
 
 ```
 {
     "status": "succ",
     "head": ["column1","column2","column3"],
     "data": [
-        ["2017-12-12 23:44:25.730", 1, 2.3],
-        ["2017-12-12 22:44:25.728", 4, 5.6]
+        ["2017-12-12 22:44:25.728",4,5.60000],
+        ["2017-12-12 23:44:25.730",1,2.30000]
     ],
     "rows": 2
 }
@@ -449,9 +497,11 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 
 - 创建库demo：
 
-  `curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6020/rest/sql`
+```
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6020/rest/sql`
+```
 
-  返回值：
+返回值：
 ```
 {
     "status": "succ",
@@ -461,11 +511,69 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 }
 ```
 
+### 其他用法
+
+#### 结果集采用Unix时间戳
+
+HTTP请求URL采用`sqlt`时，返回结果集的时间戳将采用Unix时间戳格式表示，例如
+
+```
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sqlt
+```
+
+返回值：
+
+```
+{
+    "status": "succ",
+    "head": ["column1","column2","column3"],
+    "data": [
+        [1513089865728,4,5.60000],
+        [1513093465730,1,2.30000]
+    ],
+    "rows": 2
+}
+```
+
+#### 结果集采用UTC时间字符串
+
+HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间字符串表示，例如
+```
+  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6020/rest/sqlutc
+```
+
+返回值：
+
+```
+{
+    "status": "succ",
+    "head": ["column1","column2","column3"],
+    "data": [
+        ["2017-12-12T22:44:25.728+0800",4,5.60000],
+        ["2017-12-12T23:44:25.730+0800",1,2.30000]
+    ],
+    "rows": 2
+}
+```
+
+### 重要配置项
+
+下面仅列出一些与RESTFul接口有关的配置参数，其他系统参数请看配置文件里的说明。注意：配置修改后，需要重启taosd服务才能生效
+
+- httpIp: 对外提供RESTFul服务的IP地址，默认绑定到0.0.0.0
+- httpPort: 对外提供RESTFul服务的端口号，默认绑定到6020
+- httpMaxThreads: 启动的线程数量，默认为2
+- httpCacheSessions: 缓存连接的数量，并发请求数目需小于此数值的10倍，默认值为100
+- restfulRowLimit: 返回结果集（JSON格式）的最大条数，默认值为10240
+- httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式
+- httpDebugFlag: 日志开关，131：仅错误和报警信息，135：所有，默认131
+
+
 ## Go Connector
 
 #### 安装TDengine
 
-Go的链接器使用了到了 libtaos.so 和taos.h，因此，在使用Go连接器之前，需要在程序运行的机器上安装TDengine以获得相关的驱动文件。
+Go的连接器使用到了 libtaos.so 和taos.h，因此，在使用Go连接器之前，需要在程序运行的机器上安装TDengine以获得相关的驱动文件。
 
 #### Go语言引入package
 TDengine提供了GO驱动程序“taosSql”包。taosSql驱动包是基于GO的“database/sql/driver”接口的实现。用户可以通过`go get`命令来获取驱动包。
@@ -660,3 +768,114 @@ promise2.then(function(result) {
 [这里](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js)提供了一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例
 
 [这里](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)同样是一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用`cursor`.
+
+## CSharp Connector
+
+在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
+
+#### 安装TDengine客户端
+
+C#连接器需要使用`libtaos.so`和`taos.h`。因此，在使用C#连接器之前，需在程序运行的Windows环境安装TDengine的Windows客户端，以便获得相关驱动文件。
+
+安装完成后，在文件夹`C:/TDengine/examples/C#`中，将会看到两个文件
+
+- TDengineDriver.cs 调用taos.dll文件的Native C方法
+- TDengineTest.cs 参考程序示例
+
+在文件夹`C:\Windows\System32`，将会看到`taos.dll`文件
+
+#### 使用方法
+
+- 将C#接口文件TDengineDriver.cs加入到应用程序所在.NET项目中
+- 参考TDengineTest.cs来定义数据库连接参数，及执行数据插入、查询等操作的方法
+- 因为C#接口需要用到`taos.dll`文件，用户可以将`taos.dll`文件加入.NET解决方案中
+
+#### 注意事项
+
+- `taos.dll`文件使用x64平台编译，所以.NET项目在生成.exe文件时，“解决方案”/“项目”的“平台”请均选择“x64”。
+- 此.NET接口目前已经在Visual Studio 2013/2015/2017中验证过，其它VS版本尚待验证。
+
+#### 第三方驱动
+
+Maikebing.Data.Taos是一个基于TDengine的RESTful Connector构建的ADO.Net提供器，该开发包由热心贡献者`麦壳饼@@maikebing`提供，具体请参考
+
+```
+https://gitee.com/maikebing/Maikebing.EntityFrameworkCore.Taos
+```
+
+## Windows客户端及程序接口
+
+### 客户端安装
+
+在Windows操作系统下，TDengine提供64位的Windows客户端，客户端安装程序为.exe文件，运行该文件即可安装，安装路径为C:\TDengine。Windows的客户端可运行在主流的64位Windows平台之上，客户端目录结构如下：
+
+```
+├── cfg
+│   └── taos.cfg
+├── connector
+│   ├── go
+│   ├── grafana
+│   ├── jdbc
+│   └── python
+├── driver
+│   ├── taos.dll
+│   ├── taos.exp
+│   └── taos.lib
+├── examples
+│   ├── bash
+│   ├── c
+│   ├── C#
+│   ├── go
+│   ├── JDBC
+│   ├── lua
+│   ├── matlab
+│   ├── nodejs
+│   ├── python
+│   ├── R
+│   └── rust
+├── include
+│   └── taos.h
+└── taos.exe
+```
+
+其中，最常用的文件列出如下：
+
++ Client可执行文件: C:/TDengine/taos.exe 
++ 配置文件: C:/TDengine/cfg/taos.cfg
++ C驱动程序目录: C:/TDengine/driver
++ C驱动程序头文件: C:/TDengine/include
++ JDBC驱动程序目录: C:/TDengine/connector/jdbc
++ GO驱动程序目录：C:/TDengine/connector/go
++ Python驱动程序目录：C:/TDengine/connector/python
++ C#驱动程序及示例代码: C:/TDengine/examples/C#
++ 日志目录（第一次运行程序时生成）：C:/TDengine/log
+
+### 注意事项
+
+#### Shell工具注意事项
+
+在开始菜单中搜索cmd程序，通过命令行方式执行taos.exe即可打开TDengine的Client程序，如下所示，其中ServerIP为TDengine所在Linux服务器的IP地址
+
+```
+taos -h <ServerIP>
+```
+
+在cmd中对taos的使用与Linux平台没有差别，但需要注意以下几点：
+
++ 确保Windows防火墙或者其他杀毒软件处于关闭状态，TDengine的服务端与客户端通信的端口请参考`服务端配置`章节
++ 确认客户端连接时指定了正确的服务器IP地址
++ ping服务器IP，如果没有反应，请检查你的网络
+
+#### C++接口注意事项
+
+TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序使用时，需要包含TDengine头文件taos.h，连接时需要链接TDengine库taos.lib，运行时将taos.dll放到可执行文件目录下。
+
+#### JDBC接口注意事项
+
+在Windows系统上，应用程序可以使用JDBC接口来操纵数据库，使用JDBC接口的注意事项如下：
+
++ 将JDBC驱动程序(JDBCDriver-1.0.0-dist.jar)放置到当前的CLASS_PATH中;
+
++ 将Windows开发包(taos.dll)放置到system32目录下。
+
+
