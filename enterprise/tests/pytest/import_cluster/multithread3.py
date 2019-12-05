@@ -68,7 +68,8 @@ class TDTestCase:
       cursor.execute('select * from tb')
       for line in cursor:
         count += 1
-      print("%ld data has been imported" %count)  
+      print("%ld data has been imported" %count) 
+      count = 0 
     conn.close()
 
   def run(self):
