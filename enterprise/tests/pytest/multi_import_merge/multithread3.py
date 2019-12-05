@@ -34,8 +34,8 @@ class TDTestCase:
     threadIndex = int(threading.current_thread().name)
     ninserted = 0
     startTime = 1520000010000L + threadIndex
-    for rid in range(self.nrows):
-      for tid in range(self.ntables, 0, -1):
+    for rid in range(self.nrows, 0, -1):
+      for tid in range(1, self.ntables+1):
         sqlcmd = 'import into tb%d values(%ld, %d)' %(tid, startTime+rid*self.nthreads,  rid)
         affrows = cursor.execute(sqlcmd)
         if (affrows != 1):
