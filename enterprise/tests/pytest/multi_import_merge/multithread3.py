@@ -55,7 +55,7 @@ class TDTestCase:
       cursor.execute('select * from tb')
       for line in cursor:
         count += 1
-      print("%ld data has been inserted" %count)
+      print("%ld data has been imported" %count)
       
     conn.close()
 
@@ -71,7 +71,7 @@ class TDTestCase:
 
     tdLog.info("total importing thread number = %d" %self.nthreads)
     tdLog.info("total table number = %d" %self.ntables)
-    tdLog.info("total records in each table = %ld" %self.nthreads*self.nrows)
+    tdLog.info("total records in each table = %ld" %(self.nthreads*self.nrows))
 
     tdSql.execute('reset query cache')
     tdSql.execute('drop database db')
