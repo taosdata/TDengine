@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#include <inttypes.h>
 #include "os.h"
 #include "tstrbuild.h"
 
@@ -70,7 +70,7 @@ void taosStringBuilderAppendNull(SStringBuilder* sb) { taosStringBuilderAppendSt
 
 void taosStringBuilderAppendInteger(SStringBuilder* sb, int64_t v) {
   char   buf[64];
-  size_t len = sprintf(buf, "%lld", v);
+  size_t len = sprintf(buf, "%" PRId64, v);
   taosStringBuilderAppendStringLen(sb, buf, len);
 }
 
