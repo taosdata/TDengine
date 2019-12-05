@@ -238,7 +238,7 @@ char *tsError[] = {"success",
                    "only super table has metric meta info",
                    "tags value not unique for join",
                    "invalid submit message",
-                   "not active table(not created yet or deleted already)",  //114
+                   "not active table(not created yet or dropped already)",  //114
                    "invalid table id",
                    "invalid vnode status",    //116
                    "failed to lock resources",

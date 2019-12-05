@@ -529,9 +529,11 @@ static int vnodeDoSubmitJob(SVnodeObj *pVnode, int import, int32_t *ssid, int32_
   int code = TSDB_CODE_SUCCESS;
   int32_t numOfPoints = 0;
   int32_t i = 0;
+  SShellSubmitBlock tBlock;
 
   for (i = *ssid; i < esid; i++) {
     numOfPoints = 0;
+    tBlock = *pBlocks;
 
     code = vnodeCheckSubmitBlockContext(pBlocks, pVnode);
     if (code != TSDB_CODE_SUCCESS) break;
@@ -565,6 +567,13 @@ static int vnodeDoSubmitJob(SVnodeObj *pVnode, int import, int32_t *ssid, int32_
 
   *ssid = i;
   *ppBlocks = pBlocks;
+  /* Since the pBlock part can be changed by the vnodeForwardToPeer interface,
+   * which is also possible to be used again. For that case, we just copy the original
+   * block content back.
+   */
+  if (import && (code == TSDB_CODE_ACTION_IN_PROGRESS)) {
+    memcpy((void *)pBlocks, (void *)&tBlock, sizeof(SShellSubmitBlock));
+  }
 
   return code;
 }
@@ -606,7 +615,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (tsAvailDataDirGB < tsMinimalDataDirGB) {
     dError("server disk space remain %.3f GB, need at least %.3f GB, stop writing", tsAvailDataDirGB, tsMinimalDataDirGB);
-    code = TSDB_CODE_SERVER_NO_SPACE;
+    code = TSDB_CODE_SERV_NO_DISKSPACE;
     goto _submit_over;
   }
 

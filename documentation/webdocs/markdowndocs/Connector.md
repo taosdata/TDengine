@@ -273,29 +273,93 @@ All the error codes and error messages can be found in `TSDBError.java` . For a 
 
 ## Python Connector
 
-### Install TDengine Python client
+### Pre-requirement
+* TDengine installed, TDengine-client installed if on Windows
+* python 2.7 or >= 3.4
+* pip installed
 
-Users can find python client packages in our source code directory _src/connector/python_. There are two directories corresponding two python versions. Please choose the correct package to install. Users can use _pip_ command to install:
+### Installation
+#### Linux
+
+Users can find python client packages in our source code directory _src/connector/python_. There are two directories corresponding to two python versions. Please choose the correct package to install. Users can use _pip_ command to install:
 
 ```cmd
-pip install src/connector/python/[linux|Windows]/python2/
+pip install src/connector/python/linux/python3/
 ```
 
 or
 
 ```
-pip install src/connector/python/[linux|Windows]/python3/
+pip install src/connector/python/linux/python2/
 ```
+#### Windows
+Assumed the Windows TDengine client has been installed , copy the file "C:\TDengine\driver\taos.dll" to the folder "C:\windows\system32", and then enter the _cmd_ Windows command interface
+```
+cd C:\TDengine\connector\python\windows
+pip install python3\
+```
+or
+```
+cd C:\TDengine\connector\python\windows
+pip install python2\
+```
+*If _pip_ command is not installed on the system, users can choose to install pip or just copy the _taos_ directory in the python client directory to the application directory to use.
 
-If _pip_ command is not installed on the system, users can choose to install pip or just copy the _taos_ directory in the python client directory to the application directory to use.
-
-### Python client interfaces
-
-To use TDengine Python client, import TDengine module at first:
+### Usage
+#### Examples
+* import TDengine module
 
 ```python
 import taos 
 ```
+* get the connection
+```python
+conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
+c1 = conn.cursor()
+```
+*<em>host</em> is the IP of TDengine server, and <em>config</em> is the directory where exists the TDengine client configure file
+* insert records into the database
+```python
+import datetime
+ 
+# create a database
+c1.execute('create database db')
+c1.execute('use db')
+# create a table
+c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
+# insert a record
+start_time = datetime.datetime(2019, 11, 1)
+affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
+# insert multiple records in a batch
+time_interval = datetime.timedelta(seconds=60)
+sqlcmd = ['insert into tb values']
+for irow in range(1,11):
+  start_time += time_interval
+  sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
+affected_rows = c1.execute(' '.join(sqlcmd))
+```
+* query the database
+```python
+c1.execute('select * from tb')
+# fetch all returned results
+data = c1.fetchall()
+# data is a list of returned rows with each row being a tuple
+numOfRows = c1.rowcount
+numOfCols = len(c1.description)
+for irow in range(numOfRows):
+  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2])
+  
+# use the cursor as an iterator to retrieve all returned results
+c1.execute('select * from tb')
+for data in c1:
+  print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])
+```
+* close the connection
+```python
+c1.close()
+conn.close()
+```
+#### Help information
 
 Users can get module information from Python help interface or refer to our [python code example](). We list the main classes and methods below:
 

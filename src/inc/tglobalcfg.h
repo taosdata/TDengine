@@ -106,7 +106,6 @@ extern int  tsMaxDbs;
 extern int  tsMaxTables;
 extern int  tsMaxDnodes;
 extern int  tsMaxVGroups;
-extern int  tsShellActivityTimer;
 extern char tsMgmtZone[];
 
 extern char tsLocalIp[];
@@ -127,6 +126,7 @@ extern int tsEnableHttpModule;
 extern int tsEnableMonitorModule;
 extern int tsRestRowLimit;
 extern int tsCompressMsgSize;
+extern int tsMaxSQLStringLen;
 
 extern char tsSocketType[4];
 

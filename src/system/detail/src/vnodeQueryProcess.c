@@ -157,7 +157,11 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
 
         setExecutionContext(pSupporter, pSupporter->pResult, k, pMeterInfo[k].groupIdx, pMeterQueryInfo);
       } else {
-        setIntervalQueryExecutionContext(pSupporter, k, pMeterQueryInfo);
+        int32_t ret = setIntervalQueryExecutionContext(pSupporter, k, pMeterQueryInfo);
+        if (ret != TSDB_CODE_SUCCESS) {
+          pQInfo->killed = 1;
+          return NULL;
+        }
       }
 
       qTrace("QInfo:%p vid:%d sid:%d id:%s, query in cache, qrange:%lld-%lld, lastKey:%lld", pQInfo, pMeterObj->vnode,
@@ -306,7 +310,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
     if (pReqMeterDataInfo == NULL) {
       dError("QInfo:%p failed to allocate memory to perform query processing, abort", pQInfo);
 
-      pQInfo->code = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      pQInfo->code = -TSDB_CODE_SERV_OUT_OF_MEMORY;
       pQInfo->killed = 1;
       return NULL;
     }
@@ -338,7 +342,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
       dError("QInfo:%p failed to allocate memory to perform query processing, abort", pQInfo);
       tfree(pReqMeterDataInfo);
 
-      pQInfo->code = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      pQInfo->code = -TSDB_CODE_SERV_OUT_OF_MEMORY;
       pQInfo->killed = 1;
       return NULL;
     }
@@ -393,7 +397,12 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
         setExecutionContext(pSupporter, pSupporter->pResult, pOneMeterDataInfo->meterOrderIdx,
                             pOneMeterDataInfo->groupIdx, pMeterQueryInfo);
       } else {  // interval query
-        setIntervalQueryExecutionContext(pSupporter, pOneMeterDataInfo->meterOrderIdx, pMeterQueryInfo);
+        int32_t ret = setIntervalQueryExecutionContext(pSupporter, pOneMeterDataInfo->meterOrderIdx, pMeterQueryInfo);
+        if (ret != TSDB_CODE_SUCCESS) {
+          tfree(pReqMeterDataInfo);  // error code has been set
+          pQInfo->killed = 1;
+          return NULL;
+        }
       }
 
       SCompBlock *pBlock = pInfoEx->pBlock.compBlock;
@@ -900,7 +909,12 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
   dTrace("QInfo:%p main scan completed, elapsed time: %lldms, supplementary scan start, order:%d", pQInfo, et - st,
          pQuery->order.order ^ 1);
 
-  doCloseAllOpenedResults(pSupporter);
+  // failed to save all intermediate results into disk, abort further query processing
+  if (doCloseAllOpenedResults(pSupporter) != TSDB_CODE_SUCCESS) {
+    dError("QInfo:%p failed to save intermediate results, abort further query processing", pQInfo);
+    return;
+  }
+  
   doMultiMeterSupplementaryScan(pQInfo);
 
   if (isQueryKilled(pQuery)) {
@@ -911,12 +925,13 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
   if (pQuery->nAggTimeInterval > 0) {
     assert(pSupporter->subgroupIdx == 0 && pSupporter->numOfGroupResultPages == 0);
 
-    mergeMetersResultToOneGroups(pSupporter);
-    copyResToQueryResultBuf(pSupporter, pQuery);
-
+    if (mergeMetersResultToOneGroups(pSupporter) == TSDB_CODE_SUCCESS) {
+      copyResToQueryResultBuf(pSupporter, pQuery);
+      
 #ifdef _DEBUG_VIEW
-    displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->len);
+      displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->len);
 #endif
+    }
   } else {  // not a interval query
     copyFromGroupBuf(pQInfo, pSupporter->pResult);
   }
