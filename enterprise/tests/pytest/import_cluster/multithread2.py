@@ -139,7 +139,7 @@ class TDTestCase:
 
     tdSql.execute('reset query cache')
     tdSql.execute('drop database db')
-    tdSql.execute('create database db ')
+    tdSql.execute('create database db replica 2')
     tdLog.sleep(5)
     tdSql.execute('use db')
 
