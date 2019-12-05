@@ -36,7 +36,7 @@ class TDTestCase:
     startTime = 1520000010000L + threadIndex
     for rid in range(self.nrows):
       for tid in range(self.ntables, 0, -1):
-        sqlcmd = 'import into tb%d values(%ld, %d)' %(tid, startTime+rid*self.nthreads,  rid))'
+        sqlcmd = 'import into tb%d values(%ld, %d)' %(tid, startTime+rid*self.nthreads,  rid)
         affrows = cursor.execute(sqlcmd)
         if (affrows != 1):
           err = 'affected rows %d != expected %d' %(affrows, 1)
