@@ -351,7 +351,7 @@ int64_t sdbInsertRow(void *handle, void *row, int rowSize) {
     return -1;
   }
 
-  if ((pTable->keyType != SDB_KEYTYPE_AUTO) || *((int64_t *)row))
+  if ((pTable->keyType != SDB_KEYTYPE_AUTO) || *((int32_t *)row))
     if (sdbGetRow(handle, row)) {
       if (strcmp(pTable->name, "mnode") == 0) {
         /*
@@ -372,10 +372,10 @@ int64_t sdbInsertRow(void *handle, void *row, int rowSize) {
             sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, taosIpStr(*(int32_t *)row), sdbVersion, pTable->id);
             break;
           case SDB_KEYTYPE_AUTO:
-            sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, *(int32_t *)row, sdbVersion, pTable->id);
+            sdbError("table:%s, failed to insert record:%d sdbVersion:%ld id:%d", pTable->name, *(int32_t *)row, sdbVersion, pTable->id);
             break;
           default:
-            sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, sdbVersion, pTable->id);
+            sdbError("table:%s, failed to insert record sdbVersion:%ld id:%d", pTable->name, sdbVersion, pTable->id);
             break;
         }
         return -1;
@@ -593,15 +593,15 @@ int sdbUpdateRow(void *handle, void *row, int updateSize, char isUpdated) {
                 pTable->name, (char *) row, sdbVersion, pTable->id);
         break;
       case SDB_KEYTYPE_UINT32: //dnodes or mnodes
-        sdbError("table:%s, failed to update record:%s record is not there, sdbVersion:%ld id:%d",
+        sdbError("table:%s, failed to update record:%s, record is not there, sdbVersion:%ld id:%d",
                 pTable->name, taosIpStr(*(int32_t *) row), sdbVersion, pTable->id);
         break;
       case SDB_KEYTYPE_AUTO:
-        sdbError("table:%s, failed to update record:F%s record is not there, sdbVersion:%ld id:%d",
+        sdbError("table:%s, failed to update record:%d, record is not there, sdbVersion:%ld id:%d",
                 pTable->name, *(int32_t *) row, sdbVersion, pTable->id);
         break;
       default:
-        sdbError("table:%s, failed to update record:%s record is not there, sdbVersion:%ld id:%d",
+        sdbError("table:%s, failed to update record, record is not there, sdbVersion:%ld id:%d",
                 pTable->name, sdbVersion, pTable->id);
         break;
     }
