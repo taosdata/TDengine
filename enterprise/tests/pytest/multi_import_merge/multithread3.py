@@ -54,9 +54,9 @@ class TDTestCase:
     while(self.queryFlag):
       cursor.execute('select * from tb')
       for line in cursor:
-        continue
-      print("query %d finished" %count)
-      count += 1
+        count += 1
+      print("%ld data has been inserted" %count)
+      
     conn.close()
 
   def run(self):
