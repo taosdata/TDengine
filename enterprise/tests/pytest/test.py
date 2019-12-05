@@ -267,6 +267,8 @@ from multi_import_merge.multithread import *  ## large data import
 from multi_import_merge.multithread2 import *  ## large data import
 from multi_import_merge.multithread3 import *  ## large data import
 
+from import_cluster.multithread3 import * ## large data import
+
 from tag_lite.datatype import *
 from tag_cluster.datatype1 import *
 from tag_cluster.datatype2 import *
