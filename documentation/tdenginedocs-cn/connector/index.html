@@ -162,7 +162,7 @@ for irow in range(1,11):
   sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
 affected_rows = c1.execute(' '.join(sqlcmd))
 </code></pre>
-<li>写入数据</li>
+<li>查询数据</li>
 <code><pre>
 c1.execute('select * from tb')
 # 拉取查询结果

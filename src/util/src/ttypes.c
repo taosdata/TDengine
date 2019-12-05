@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#include <inttypes.h>
 #include "os.h"
 #include "taos.h"
 #include "tsdb.h"
@@ -213,7 +213,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
       return sprintf(dst, "%d", (int32_t)pVar->i64Key);
 
     case TSDB_DATA_TYPE_BIGINT:
-      return sprintf(dst, "%lld", pVar->i64Key);
+      return sprintf(dst, "%" PRId64, pVar->i64Key);
 
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
@@ -224,6 +224,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
   }
 }
 
+#if 0
 static int32_t doConvertToInteger(tVariant *pVariant, char *pDest, int32_t type, bool releaseVariantPtr) {
   if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
     setNull(pDest, type, tDataTypeDesc[type].nSize);
@@ -337,7 +338,7 @@ static int32_t doConvertToInteger(tVariant *pVariant, char *pDest, int32_t type,
 
   return 0;
 }
-
+#endif
 static FORCE_INLINE int32_t convertToBoolImpl(char *pStr, int32_t len) {
   if ((strncasecmp(pStr, "true", len) == 0) && (len == 4)) {
     return TSDB_TRUE;
@@ -386,7 +387,7 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
 
   } else {
     if (pVariant->nType >= TSDB_DATA_TYPE_TINYINT && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-      sprintf(pBuf == NULL ? *pDest : pBuf, "%lld", pVariant->i64Key);
+      sprintf(pBuf == NULL ? *pDest : pBuf, "%" PRId64, pVariant->i64Key);
     } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
       sprintf(pBuf == NULL ? *pDest : pBuf, "%lf", pVariant->dKey);
     } else if (pVariant->nType == TSDB_DATA_TYPE_BOOL) {
@@ -411,7 +412,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   int32_t nLen = 0;
 
   if (pVariant->nType >= TSDB_DATA_TYPE_TINYINT && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-    nLen = sprintf(pDst, "%lld", pVariant->i64Key);
+    nLen = sprintf(pDst, "%" PRId64, pVariant->i64Key);
   } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
     nLen = sprintf(pDst, "%lf", pVariant->dKey);
   } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
@@ -437,7 +438,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
     char* tmp = realloc(pVariant->wpz, (*pDestSize + 1)*TSDB_NCHAR_SIZE);
     assert(tmp != NULL);
 
-    pVariant->wpz = tmp;
+    pVariant->wpz = (wchar_t *)tmp;
   } else {
     taosMbsToUcs4(pDst, nLen, *pDest, (nLen + 1) * TSDB_NCHAR_SIZE);
   }

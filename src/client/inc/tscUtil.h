@@ -107,14 +107,6 @@ void tscAddSpecialColumnForSelect(SSqlCmd* pCmd, int32_t outputColIndex, int16_t
 
 void addRequiredTagColumn(SSqlCmd* pCmd, int32_t tagColIndex, int32_t tableIndex);
 
-//TODO refactor, remove
-void SStringFree(SString* str);
-void SStringCopy(SString* pDest, const SString* pSrc);
-SString SStringCreate(const char* str);
-
-int32_t SStringAlloc(SString* pStr, int32_t size);
-int32_t SStringEnsureRemain(SString* pStr, int32_t size);
-
 int32_t setMeterID(SSqlObj* pSql, SSQLToken* pzTableName, int32_t tableIndex);
 void tscClearInterpInfo(SSqlCmd* pCmd);
 
@@ -226,7 +218,7 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t tableIn
 
 void doAddGroupColumnForSubquery(SSqlCmd* pCmd, int32_t tagIndex);
 
-int16_t tscGetJoinTagColIndexByUid(SSqlCmd* pCmd, uint64_t uid);
+int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid);
 
 TAOS* taos_connect_a(char* ip, char* user, char* pass, char* db, uint16_t port, void (*fp)(void*, TAOS_RES*, int),
                      void* param, void** taos);

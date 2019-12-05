@@ -265,26 +265,97 @@ public Connection getConn() throws Exception{
 
 ## Python Connector
 
+### 安装准备
+* 已安装TDengine, 如果客户端在Windows上，需要安装Windows 版本的TDengine客户端
+* 已安装python 2.7 or >= 3.4
+* 已安装pip
+
 ### Python客户端安装
+
+#### Linux
 
 用户可以在源代码的src/connector/python文件夹下找到python2和python3的安装包。用户可以通过pip命令安装： 
 
-​		`pip install src/connector/python/[linux|windows]/python2/`
+​		`pip install src/connector/python/linux/python2/`
 
 或
 
-​		`pip install src/connector/python/[linux|windows]/python3/`
+​		`pip install src/connector/python/linux/python3/`
 
-如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。
-对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。所有TDengine的连接器，均需依赖taos.dll。
-
-### Python客户端接口
-
-在使用TDengine的python接口时，需导入TDengine客户端模块：
-
+#### Windows
+在已安装Windows TDengine 客户端的情况下， 将文件"C:\TDengine\driver\taos.dll" 拷贝到 "C:\windows\system32" 目录下, 然后进入Windwos <em>cmd</em> 命令行界面
+```cmd
+cd C:\TDengine\connector\python\windows
+pip install python2\
 ```
+或
+```cmd
+cd C:\TDengine\connector\python\windows
+pip install python3\
+```
+
+*如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。
+对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。
+
+### 使用
+
+#### 代码示例
+
+* 导入TDengine客户端模块
+
+```python
 import taos 
 ```
+* 获取连接
+```python
+conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
+c1 = conn.cursor()
+```
+*<em>host</em> 是TDengine 服务端所有IP, <em>config</em> 为客户端配置文件所在目录
+
+* 写入数据
+```python
+import datetime
+ 
+# 创建数据库
+c1.execute('create database db')
+c1.execute('use db')
+# 建表
+c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
+# 插入数据
+start_time = datetime.datetime(2019, 11, 1)
+affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
+# 批量插入数据
+time_interval = datetime.timedelta(seconds=60)
+sqlcmd = ['insert into tb values']
+for irow in range(1,11):
+  start_time += time_interval
+  sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
+affected_rows = c1.execute(' '.join(sqlcmd))
+```
+
+* 查询数据
+```python
+c1.execute('select * from tb')
+# 拉取查询结果
+data = c1.fetchall()
+# 返回的结果是一个列表，每一行构成列表的一个元素
+numOfRows = c1.rowcount
+numOfCols = len(c1.description)
+for irow in range(numOfRows):
+  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2])
+  
+# 直接使用cursor 循环拉取查询结果
+c1.execute('select * from tb')
+for data in c1:
+  print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])
+```
+* 关闭连接
+```python
+c1.close()
+conn.close()
+```
+#### 帮助信息
 
 用户可通过python的帮助信息直接查看模块的使用信息，或者参考code/examples/python中的示例程序。以下为部分常用类和方法：
 
@@ -562,6 +633,142 @@ taosSql驱动包内采用cgo模式，调用了TDengine的C/C++同步接口，与
 
 在创建好了数据库后，就可以开始创建表和写入查询数据了。这些操作的基本思路都是首先组装SQL语句，然后调用db.Exec执行，并检查错误信息和执行相应的处理。可以参考上面的样例代码
 
+## Node.js Connector
+
+TDengine 同时也提供了node.js 的连接器。用户可以通过[npm](https://www.npmjs.com/)来进行安装，也可以通过源代码*src/connector/nodejs/* 来进行安装。[具体安装步骤如下](https://github.com/taosdata/tdengine/tree/master/src/connector/nodejs)：
+
+首先，通过[npm](https://www.npmjs.com/)安装node.js 连接器.
+
+```cmd
+npm install td-connector
+```
+我们建议用户使用npm 安装node.js连接器。如果您没有安装npm, 可以将*src/connector/nodejs/*拷贝到您的nodejs 项目目录下
+
+To interact with TDengine, we make use of the [node-gyp](https://github.com/nodejs/node-gyp) library. To install, you will need to install the following depending on platform (the following instructions are quoted from node-gyp)我们使用[node-gyp](https://github.com/nodejs/node-gyp)和TDengine服务端进行交互。安装node.js 连接器之前，还需安装以下软件：
+
+### Unix
+
+- `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
+- `make`
+- c语言编译器比如[GCC](https://gcc.gnu.org)
+
+### macOS
+
+- `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
+
+- Xcode
+
+  - 然后通过Xcode安装
+
+    ```
+    Command Line Tools
+    ```
+
+    在
+    ```
+    Xcode -> Preferences -> Locations
+    ```
+
+    目录下可以找到这个工具。或者在终端里执行
+
+    ```
+    xcode-select --install
+    ```
+
+
+    - 该步执行后 `gcc` 和 `make`就被安装上了
+
+### Windows
+
+#### 安装方法1
+
+使用微软的[windows-build-tools](https://github.com/felixrieseberg/windows-build-tools)在`cmd` 命令行界面执行`npm install --global --production windows-build-tools` 即可安装所有的必备工具
+
+#### 安装方法2
+
+手动安装以下工具:
+
+- 安装Visual Studio相关：[Visual Studio Build 工具](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools) 或者 [Visual Studio 2017 Community](https://visualstudio.microsoft.com/pl/thank-you-downloading-visual-studio/?sku=Community) 
+- 安装 [Python 2.7](https://www.python.org/downloads/) (`v3.x.x` 暂不支持) 并执行 `npm config set python python2.7` 
+- 进入`cmd`命令行界面, `npm config set msvs_version 2017`
+
+如果以上步骤不能成功执行, 可以参考微软的node.js用户手册[Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules)
+
+如果在Windows 10 ARM 上使用ARM64 Node.js, 还需添加 "Visual C++ compilers and libraries for ARM64" 和 "Visual  C++ ATL for ARM64".
+
+### 使用方法
+
+(http://docs.taosdata.com/node)
+以下是node.js 连接器的一些基本使用方法，详细的使用方法可参考[该文档](http://docs.taosdata.com/node)
+
+#### 连接
+
+使用node.js连接器时，必须先require```td-connector```，然后使用 ```taos.connect``` 函数。```taos.connect``` 函数必须提供的参数是```host```，其它参数在没有提供的情况下会使用如下的默认值。最后需要初始化```cursor``` 来和TDengine服务端通信 
+
+```javascript
+const taos = require('td-connector');
+var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", config:"/etc/taos",port:0})
+var cursor = conn.cursor(); // Initializing a new cursor
+```
+
+关闭连接可执行
+
+```javascript
+conn.close();
+```
+
+#### 查询
+
+可通过 ```cursor.query``` 函数来查询数据库。
+
+```javascript
+var query = cursor.query('show databases;')
+```
+
+查询的结果可以通过 ```query.execute()``` 函数获取并打印出来
+
+```javascript
+var promise = query.execute();
+promise.then(function(result) {
+  result.pretty(); 
+});
+```
+格式化查询语句还可以使用```query```的```bind```方法。如下面的示例：```query```会自动将提供的数值填入查询语句的```?```里。
+
+```javascript
+var query = cursor.query('select * from meterinfo.meters where ts <= ? and areaid = ?;').bind(new Date(), 5);
+query.execute().then(function(result) {
+  result.pretty();
+})
+```
+如果在```query```语句里提供第二个参数并设为```true```也可以立即获取查询结果。如下：
+
+
+```javascript
+var promise = cursor.query('select * from meterinfo.meters where v1 = 30;', true)
+promise.then(function(result) {
+  result.pretty();
+})
+```
+#### 异步函数
+异步查询数据库的操作和上面类似，只需要在`cursor.execute`, `TaosQuery.execute`等函数后面加上`_a`。
+```javascript
+var promise1 = cursor.query('select count(*), avg(v1), avg(v2) from meter1;').execute_a()
+var promise2 = cursor.query('select count(*), avg(v1), avg(v2) from meter2;').execute_a();
+promise1.then(function(result) {
+  result.pretty();
+})
+promise2.then(function(result) {
+  result.pretty();
+})
+```
+
+
+### 示例
+[这里](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js)提供了一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例
+
+[这里](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)同样是一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用`cursor`.
+
 ## CSharp Connector
 
 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
@@ -670,8 +877,5 @@ TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序
 + 将JDBC驱动程序(JDBCDriver-1.0.0-dist.jar)放置到当前的CLASS_PATH中;
 
 + 将Windows开发包(taos.dll)放置到system32目录下。
-
-
-
 
 
