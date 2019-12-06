@@ -2,8 +2,8 @@ import os
 import sys
 
 if __name__ == "__main__":
-  #file = sys.argv[1]
-  file = '/home/fang/workspace2/coverage20191204'
+  file = sys.argv[1]
+  #file = '/home/fang/workspace2/coverage20191204'
   outputCover = {} #coverage:[filename]
   singleCover = 0
   singleFile = ""
