@@ -609,7 +609,15 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 
     assert((pRes->offset >= 0 && pRes->numOfRows == 0) || (pRes->offset == 0 && pRes->numOfRows >= 0));
 
-    if ((++pCmd->vnodeIdx) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+    /*
+     * For project query with super table join, the numOfSub is equalled to the number of all subqueries, so
+     * we need to reset the value of numOfSubs to be 0.
+     *
+     * For super table join with projection query, if anyone of the subquery is exhausted, the query completed.
+     */
+    pSql->numOfSubs = 0;
+    
+    if ((++pMeterMetaInfo->vnodeIndex) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
       pCmd->command = TSDB_SQL_SELECT;
       assert(pSql->fp == NULL);
       tscProcessSql(pSql);
@@ -617,7 +625,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     }
 
     // check!!!
-    if (rows != NULL || pCmd->vnodeIdx >= pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+    if (rows != NULL || pMeterMetaInfo->vnodeIndex >= pMeterMetaInfo->pMetricMeta->numOfVnodes) {
       break;
     }
   }
@@ -654,7 +662,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
     pCmd->limit.offset = pRes->offset;
 
 
-    if ((++pSql->cmd.vnodeIdx) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+    if ((++pMeterMetaInfo->vnodeIndex) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
       pSql->cmd.command = TSDB_SQL_SELECT;
       assert(pSql->fp == NULL);
       tscProcessSql(pSql);
@@ -662,7 +670,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
     }
 
     // check!!!
-    if (*rows != NULL || pCmd->vnodeIdx >= pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+    if (*rows != NULL || pMeterMetaInfo->vnodeIndex >= pMeterMetaInfo->pMetricMeta->numOfVnodes) {
       break;
     }
   }

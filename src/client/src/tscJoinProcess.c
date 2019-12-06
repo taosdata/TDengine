@@ -150,7 +150,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
   tsBufDestory(pSupporter1->pTSBuf);
   tsBufDestory(pSupporter2->pTSBuf);
 
-  tscTrace("%p input1:%lld, input2:%lld, %lld for secondary query after ts blocks intersecting",
+  tscTrace("%p input1:%lld, input2:%lld, final:%lld for secondary query after ts blocks intersecting",
            pSql, numOfInput1, numOfInput2, output1->numOfTotal);
 
   return output1->numOfTotal;
@@ -239,15 +239,20 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
     pSupporter = pSql->pSubs[i]->param;
     pSupporter->pState->numOfCompleted = 0;
 
+    /*
+     * If the columns are not involved in the final select clause, the secondary query will not be launched
+     * for the subquery.
+     */
     if (pSupporter->exprsInfo.numOfExprs > 0) {
       ++numOfSub;
     }
   }
 
   // scan all subquery, if one sub query has only ts, ignore it
-  int32_t j = 0;
-  tscTrace("%p start to launch secondary subqueries: %d", pSql, pSql->numOfSubs);
+  tscTrace("%p start to launch secondary subqueries, total:%d, only:%d needs to query, others are not retrieve in "
+           "select clause", pSql, pSql->numOfSubs, numOfSub);
 
+  int32_t j = 0;
   for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
     SSqlObj* pSub = pSql->pSubs[i];
     pSupporter = pSub->param;
@@ -259,15 +264,14 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
       continue;
     }
 
-    SSqlObj* pNew = createSubqueryObj(pSql, 0, (int16_t)i, tscJoinQueryCallback, pSupporter, NULL);
+    SSqlObj* pNew = createSubqueryObj(pSql, (int16_t)i, tscJoinQueryCallback, pSupporter, NULL);
     if (pNew == NULL) {
       pSql->numOfSubs = i; //revise the number of subquery
       pSupporter->pState->numOfTotal = i;
 
       pSupporter->pState->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
       tscDestroyJoinSupporter(pSupporter);
-
-      return NULL;
+      return 0;
     }
 
     tscFreeSqlCmdData(&pNew->cmd);
@@ -386,8 +390,8 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 
     if (numOfRows > 0) { // write the data into disk
       fwrite(pSql->res.data, pSql->res.numOfRows, 1, pSupporter->f);
-      fflush(pSupporter->f);
-
+      fclose(pSupporter->f);
+      
       STSBuf* pBuf = tsBufCreateFromFile(pSupporter->path, true);
       if (pBuf == NULL) {
         tscError("%p invalid ts comp file from vnode, abort sub query, file size:%d", pSql, numOfRows);
@@ -401,7 +405,10 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         tscTrace("%p create tmp file for ts block:%s", pSql, pBuf->path);
         pSupporter->pTSBuf = pBuf;
       } else {
-        tsBufMerge(pSupporter->pTSBuf, pBuf, pSql->cmd.vnodeIdx);
+        assert(pSql->cmd.numOfTables == 1); // for subquery, only one metermetaInfo
+        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
+        
+        tsBufMerge(pSupporter->pTSBuf, pBuf, pMeterMetaInfo->vnodeIndex);
         tsBufDestory(pBuf);
       }
 
@@ -412,6 +419,20 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 
       taos_fetch_rows_a(tres, joinRetrieveCallback, param);
     } else if (numOfRows == 0) { // no data from this vnode anymore
+      if (tscProjectionQueryOnMetric(&pParentSql->cmd)) {
+        SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
+        assert(pSql->cmd.numOfTables == 1);
+  
+        // for projection query, need to try next vnode
+        if ((++pMeterMetaInfo->vnodeIndex) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+          pSql->cmd.command = TSDB_SQL_SELECT;
+          pSql->fp = tscJoinQueryCallback;
+          tscProcessSql(pSql);
+          
+          return;
+        }
+      }
+      
       if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
 
         if (pSupporter->pState->code != TSDB_CODE_SUCCESS) {
@@ -466,6 +487,8 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
   int32_t numOfFetch = 0;
 
+  assert(pSql->numOfSubs >= 1);
+  
   for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
     SJoinSubquerySupporter* pSupporter = (SJoinSubquerySupporter*)pSql->pSubs[i]->param;
 
@@ -731,7 +754,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
 
   strncpy(pTSBuf->path, path, PATH_MAX);
 
-  pTSBuf->f = fopen(pTSBuf->path, "r");
+  pTSBuf->f = fopen(pTSBuf->path, "r+");
   if (pTSBuf->f == NULL) {
     return NULL;
   }
@@ -797,6 +820,10 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   pTSBuf->cur.order = TSQL_SO_ASC;
 
   pTSBuf->autoDelete = autoDelete;
+  
+  tscTrace("create tsBuf from file:%s, fd:%d, size:%d, numOfVnode:%d, autoDelete:%d", pTSBuf->path, fileno(pTSBuf->f),
+      pTSBuf->fileSize, pTSBuf->numOfVnodes, pTSBuf->autoDelete);
+  
   return pTSBuf;
 }
 
@@ -814,10 +841,21 @@ void tsBufDestory(STSBuf* pTSBuf) {
   fclose(pTSBuf->f);
 
   if (pTSBuf->autoDelete) {
+    tscTrace("tsBuf %p destroyed, delete tmp file:%s", pTSBuf, pTSBuf->path);
     unlink(pTSBuf->path);
+  } else {
+    tscTrace("tsBuf %p destroyed, tmp file:%s, remains", pTSBuf, pTSBuf->path);
   }
 
   free(pTSBuf);
+  
+}
+
+static STSVnodeBlockInfoEx* tsBufGetLastVnodeInfo(STSBuf* pTSBuf) {
+  int32_t last = pTSBuf->numOfVnodes - 1;
+  
+  assert(last >= 0);
+  return &pTSBuf->pData[last];
 }
 
 static STSVnodeBlockInfoEx* addOneVnodeInfo(STSBuf* pTSBuf, int32_t vnodeId) {
@@ -836,10 +874,10 @@ static STSVnodeBlockInfoEx* addOneVnodeInfo(STSBuf* pTSBuf, int32_t vnodeId) {
   }
 
   if (pTSBuf->numOfVnodes > 0) {
-    STSVnodeBlockInfo* pPrevBlockInfo = &pTSBuf->pData[pTSBuf->numOfVnodes - 1].info;
+    STSVnodeBlockInfoEx* pPrevBlockInfoEx = tsBufGetLastVnodeInfo(pTSBuf);
 
     // update prev vnode length info in file
-    TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, pPrevBlockInfo);
+    TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, &pPrevBlockInfoEx->info);
   }
 
   // set initial value for vnode block
@@ -855,11 +893,11 @@ static STSVnodeBlockInfoEx* addOneVnodeInfo(STSBuf* pTSBuf, int32_t vnodeId) {
   pTSBuf->numOfVnodes += 1;
 
   // update the header info
-  STSBufFileHeader header = {
-      .magic = TS_COMP_FILE_MAGIC, .numOfVnode = pTSBuf->numOfVnodes, .tsOrder = pTSBuf->tsOrder};
+  STSBufFileHeader header =
+      {.magic = TS_COMP_FILE_MAGIC, .numOfVnode = pTSBuf->numOfVnodes, .tsOrder = pTSBuf->tsOrder};
+  
   STSBufUpdateHeader(pTSBuf, &header);
-
-  return &pTSBuf->pData[pTSBuf->numOfVnodes - 1];
+  return tsBufGetLastVnodeInfo(pTSBuf);
 }
 
 static void shrinkBuffer(STSList* ptsData) {
@@ -905,9 +943,11 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
   pTSBuf->fileSize += blockSize;
 
   pTSBuf->tsData.len = 0;
-
-  pTSBuf->pData[pTSBuf->numOfVnodes - 1].info.compLen += blockSize;
-  pTSBuf->pData[pTSBuf->numOfVnodes - 1].info.numOfBlocks += 1;
+  
+  STSVnodeBlockInfoEx* pVnodeBlockInfoEx = tsBufGetLastVnodeInfo(pTSBuf);
+  
+  pVnodeBlockInfoEx->info.compLen += blockSize;
+  pVnodeBlockInfoEx->info.numOfBlocks += 1;
 
   shrinkBuffer(&pTSBuf->tsData);
 }
@@ -1008,13 +1048,13 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData
   STSVnodeBlockInfoEx* pBlockInfo = NULL;
   STSList*             ptsData = &pTSBuf->tsData;
 
-  if (pTSBuf->numOfVnodes == 0 || pTSBuf->pData[pTSBuf->numOfVnodes - 1].info.vnode != vnodeId) {
+  if (pTSBuf->numOfVnodes == 0 || tsBufGetLastVnodeInfo(pTSBuf)->info.vnode != vnodeId) {
     writeDataToDisk(pTSBuf);
     shrinkBuffer(ptsData);
 
     pBlockInfo = addOneVnodeInfo(pTSBuf, vnodeId);
   } else {
-    pBlockInfo = &pTSBuf->pData[pTSBuf->numOfVnodes - 1];
+    pBlockInfo = tsBufGetLastVnodeInfo(pTSBuf);
   }
 
   assert(pBlockInfo->info.vnode == vnodeId);
@@ -1037,6 +1077,8 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData
 
   pTSBuf->numOfTotal += len / TSDB_KEYSIZE;
 
+  // the size of raw data exceeds the size of the default prepared buffer, so
+  // during getBufBlock, the output buffer needs to be large enough.
   if (ptsData->len >= ptsData->threshold) {
     writeDataToDisk(pTSBuf);
     shrinkBuffer(ptsData);
@@ -1053,10 +1095,10 @@ void tsBufFlush(STSBuf* pTSBuf) {
   writeDataToDisk(pTSBuf);
   shrinkBuffer(&pTSBuf->tsData);
 
-  STSVnodeBlockInfo* pBlockInfo = &pTSBuf->pData[pTSBuf->numOfVnodes - 1].info;
+  STSVnodeBlockInfoEx* pBlockInfoEx = tsBufGetLastVnodeInfo(pTSBuf);
 
   // update prev vnode length info in file
-  TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, pBlockInfo);
+  TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, &pBlockInfoEx->info);
 
   // save the ts order into header
   STSBufFileHeader header = {
@@ -1157,11 +1199,22 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t vnodeIndex, int32_t blockIndex
   }
 
   STSBlock* pBlock = &pTSBuf->block;
+  
+  size_t s = pBlock->numOfElem * TSDB_KEYSIZE;
+  
+  /*
+   * In order to accommodate all the qualified data, the actual buffer size for one block with identical tags value
+   * may exceed the maximum allowed size during *tsBufAppend* function by invoking expandBuffer function
+   */
+  if (s > pTSBuf->tsData.allocSize) {
+    expandBuffer(&pTSBuf->tsData, s);
+  }
+  
   pTSBuf->tsData.len =
       tsDecompressTimestamp(pBlock->payload, pBlock->compLen, pBlock->numOfElem, pTSBuf->tsData.rawBuf,
                             pTSBuf->tsData.allocSize, TWO_STAGE_COMP, pTSBuf->assistBuf, pTSBuf->bufSize);
 
-  assert(pTSBuf->tsData.len / TSDB_KEYSIZE == pBlock->numOfElem);
+  assert((pTSBuf->tsData.len / TSDB_KEYSIZE == pBlock->numOfElem) && (pTSBuf->tsData.allocSize >= pTSBuf->tsData.len));
 
   pCur->vnodeIndex = vnodeIndex;
   pCur->blockIndex = blockIndex;
@@ -1293,6 +1346,8 @@ STSElem tsBufGetElem(STSBuf* pTSBuf) {
   return elem1;
 }
 
+
+
 /**
  * current only support ts comp data from two vnode merge
  * @param pDestBuf
@@ -1318,7 +1373,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
   tsBufFlush(pDestBuf);
 
   // compared with the last vnode id
-  if (vnodeId != pDestBuf->pData[pDestBuf->numOfVnodes - 1].info.vnode) {
+  if (vnodeId != tsBufGetLastVnodeInfo(pDestBuf)->info.vnode) {
     int32_t oldSize = pDestBuf->numOfVnodes;
     int32_t newSize = oldSize + pSrcBuf->numOfVnodes;
 
@@ -1345,36 +1400,49 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
 
     pDestBuf->numOfVnodes = newSize;
   } else {
-    STSVnodeBlockInfoEx* pBlockInfoEx = &pDestBuf->pData[pDestBuf->numOfVnodes - 1];
+    STSVnodeBlockInfoEx* pBlockInfoEx = tsBufGetLastVnodeInfo(pDestBuf);
+    
     pBlockInfoEx->len += pSrcBuf->pData[0].len;
     pBlockInfoEx->info.numOfBlocks += pSrcBuf->pData[0].info.numOfBlocks;
     pBlockInfoEx->info.compLen += pSrcBuf->pData[0].info.compLen;
     pBlockInfoEx->info.vnode = vnodeId;
   }
 
-  int64_t r = fseek(pDestBuf->f, 0, SEEK_END);
+  int32_t r = fseek(pDestBuf->f, 0, SEEK_END);
   assert(r == 0);
 
   int64_t offset = getDataStartOffset();
   int32_t size = pSrcBuf->fileSize - offset;
 
 #ifdef LINUX
-  ssize_t rc = sendfile(fileno(pDestBuf->f), fileno(pSrcBuf->f), &offset, size);
+  ssize_t rc = tsendfile(fileno(pDestBuf->f), fileno(pSrcBuf->f), &offset, size);
 #else
   ssize_t rc = fsendfile(pDestBuf->f, pSrcBuf->f, &offset, size);
 #endif
+  
   if (rc == -1) {
-    printf("%s\n", strerror(errno));
+    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));
     return -1;
   }
 
   if (rc != size) {
-    printf("%s\n", strerror(errno));
+    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));
     return -1;
   }
 
   pDestBuf->numOfTotal += pSrcBuf->numOfTotal;
-
+  
+  int32_t oldSize = pDestBuf->fileSize;
+  
+  struct stat fileStat;
+  fstat(fileno(pDestBuf->f), &fileStat);
+  pDestBuf->fileSize = (uint32_t) fileStat.st_size;
+  
+  assert(pDestBuf->fileSize == oldSize + size);
+  
+  tscTrace("tsBuf merge success, %p, path:%s, fd:%d, file size:%d, vnode:%d, autoDelete:%d", pDestBuf, pDestBuf->path,
+      fileno(pDestBuf->f), pDestBuf->fileSize, pDestBuf->numOfVnodes, pDestBuf->autoDelete);
+  
   return 0;
 }
 
