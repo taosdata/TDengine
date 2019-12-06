@@ -277,10 +277,14 @@ from tag_lite.datatype import *
 from tag_cluster.datatype1 import *
 from tag_cluster.datatype2 import *
 
-from account_lite.privilege import *
-from account_cluster.privilege import *
+from manage_lite.privilege import *
+from manage_lite.privilege2 import *
+from manage_lite.account import *
+from manage_lite.dropNoExistDb import *
+from manage_cluster.privilege import *
 
-#from anomaly import failedConnTime
+#from anomaly.failedConnTime import *
+#from anomaly.repeateCursor import *
 
 
 if __name__=="__main__":

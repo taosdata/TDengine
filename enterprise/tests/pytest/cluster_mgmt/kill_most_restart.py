@@ -105,7 +105,7 @@ class TDTestCase:
       tdSql.execute(" ".join(sqlcmd))
     tdLog.info(" ".join(sqlcmd))
     tdSql.execute('reset query cache')
-    tdSql.execute('select count(*) from tb')
+    tdSql.query('select count(*) from tb')
     tdSql.checkData(0, 0, self.ntables*(self.rowsPerTable+1))
       
   def stop(self):
