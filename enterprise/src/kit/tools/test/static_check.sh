@@ -13,6 +13,7 @@ git pull
 cd $pwdDir
 echo "begin the static check >>>>>>"
 cppcheck -q --enable=all --output-file=$outputf -rp=$sourceDir $sourceDir 
+git checkout feature/fangtest
 python2 cleanDepsFromSC.py $outputf
 rm -rf $homeDir/report/static*
 mv $outputf* $homeDir/report/
