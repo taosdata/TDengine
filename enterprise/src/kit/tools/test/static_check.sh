@@ -16,6 +16,8 @@ cppcheck -q --enable=all --output-file=$outputf -rp=$sourceDir $sourceDir
 rm -rf $homeDir/report/static*
 mv $outputf $homeDir/report/
 cd $homeDir/report/
-errcount=`grep "\[" static_check_report20191204 |wc -l`
+errcount=`grep "\[" $outputf |wc -l`
+depserr=`grep -a "deps" $outputf |wc -l`
 echo "There is totally $errcount errors or warnings from the static check" >>$outputf
+echo "There is totally $depserr errors or warnings from the dependencies" >>$outputf
 echo "static check has finished and result is in the report directory"
