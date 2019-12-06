@@ -44,3 +44,7 @@ cd $sourceDir
 gcovr -r . -o coverage.xml 
 rm $homeDir/report/coverage*
 mv coverage.xml $homeDir/report/$outputf
+cd $pwdDir
+python2 coverAnalyze.py $homeDir/report/$outputf
+echo "Please to $homeDir/report and take a look at the report"
+
