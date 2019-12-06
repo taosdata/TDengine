@@ -21,10 +21,6 @@
 
 #define abs(x) (((x) < 0) ? -(x) : (x))
 
-#ifndef max
-  #define max(a, b)  ((a) > (b) ? (a) : (b))
-#endif
-
 extern char   version[];
 const int16_t sdbFileVersion = 0;
 int           sdbExtConns = 0;
@@ -247,14 +243,14 @@ int sdbInitTableByFile(SSdbTable *pTable) {
         (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, rowMeta.row, &rowMeta);
         if (pTable->keyType == SDB_KEYTYPE_AUTO) {
           pTable->autoIndex++;
-          maxAutoIndex = max(maxAutoIndex, *(int32_t*)rowHead->data);
+          maxAutoIndex = MAX(maxAutoIndex, *(int32_t*)rowHead->data);
         }
         pTable->numOfRows++;
       }
     } else {                  // already exists
       if (pTable->keyType == SDB_KEYTYPE_AUTO) {
         pTable->autoIndex++;
-        maxAutoIndex = max(maxAutoIndex, *(int32_t *) rowHead->data);
+        maxAutoIndex = MAX(maxAutoIndex, *(int32_t *) rowHead->data);
       }
 
       if (rowHead->id < 0) {  // Delete the object
@@ -276,7 +272,7 @@ int sdbInitTableByFile(SSdbTable *pTable) {
   if (pTable->keyType == SDB_KEYTYPE_AUTO) {
     pTable->autoIndex = maxAutoIndex;
   }
-  
+
   sdbVersion += (pTable->id - oldId);
   if (numOfDels > pTable->maxRows / 4) sdbSaveSnapShot(pTable);
 
