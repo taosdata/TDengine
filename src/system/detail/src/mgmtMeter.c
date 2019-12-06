@@ -233,6 +233,10 @@ void *mgmtMeterActionDelete(void *row, char *str, int size, int *ssize) {
   pMeter = (STabObj *)row;
 
   if (mgmtIsNormalMeter(pMeter)) {
+    if (pMeter->gid.vgId == 0) {
+      return NULL;
+    }
+
     pVgroup = mgmtGetVgroup(pMeter->gid.vgId);
     if (pVgroup == NULL) {
       mError("id:%s not in vgroup:%d", pMeter->meterId, pMeter->gid.vgId);
@@ -426,6 +430,7 @@ void mgmtAddMeterStatisticToAcct(STabObj *pMeter, SAcctObj *pAcct) {
 
 int mgmtInitMeters() {
   void *    pNode = NULL;
+  void *    pLastNode = NULL;
   SVgObj *  pVgroup = NULL;
   STabObj * pMeter = NULL;
   STabObj * pMetric = NULL;
@@ -451,21 +456,47 @@ int mgmtInitMeters() {
 
   pNode = NULL;
   while (1) {
+    pLastNode = pNode;
     pNode = sdbFetchRow(meterSdb, pNode, (void **)&pMeter);
     if (pMeter == NULL) break;
 
     pDb = mgmtGetDbByMeterId(pMeter->meterId);
     if (pDb == NULL) {
-      mError("failed to get db: %s", pMeter->meterId);
+      mError("meter:%s, failed to get db, discard it", pMeter->meterId, pMeter->gid.vgId, pMeter->gid.sid);
+      pMeter->gid.vgId = 0;
+      sdbDeleteRow(meterSdb, pMeter);
+      pNode = pLastNode;
       continue;
     }
 
     if (mgmtIsNormalMeter(pMeter)) {
       pVgroup = mgmtGetVgroup(pMeter->gid.vgId);
-      if (pVgroup == NULL || pVgroup->meterList == NULL) {
-        mError("failed to get vgroup:%i", pMeter->gid.vgId);
+
+      if (pVgroup == NULL) {
+        mError("meter:%s, failed to get vgroup:%d sid:%d, discard it", pMeter->meterId, pMeter->gid.vgId, pMeter->gid.sid);
+        pMeter->gid.vgId = 0;
+        sdbDeleteRow(meterSdb, pMeter);
+        pNode = pLastNode;
         continue;
       }
+
+      if (strcmp(pVgroup->dbName, pDb->name) != 0) {
+        mError("meter:%s, db:%s not match with vgroup:%d db:%s sid:%d, discard it",
+               pMeter->meterId, pDb->name, pMeter->gid.vgId, pVgroup->dbName, pMeter->gid.sid);
+        pMeter->gid.vgId = 0;
+        sdbDeleteRow(meterSdb, pMeter);
+        pNode = pLastNode;
+        continue;
+      }
+
+      if ( pVgroup->meterList == NULL) {
+        mError("meter:%s, vgroup:%d meterlist is null", pMeter->meterId, pMeter->gid.vgId);
+        pMeter->gid.vgId = 0;
+        sdbDeleteRow(meterSdb, pMeter);
+        pNode = pLastNode;
+        continue;
+      }
+
       pVgroup->meterList[pMeter->gid.sid] = pMeter;
       taosIdPoolMarkStatus(pVgroup->idPool, pMeter->gid.sid, 1);
 

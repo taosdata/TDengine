@@ -21,6 +21,10 @@
 
 #define abs(x) (((x) < 0) ? -(x) : (x))
 
+#ifndef max
+  #define max(a, b)  ((a) > (b) ? (a) : (b))
+#endif
+
 extern char   version[];
 const int16_t sdbFileVersion = 0;
 int           sdbExtConns = 0;
@@ -171,6 +175,7 @@ int sdbInitTableByFile(SSdbTable *pTable) {
   void *   pMetaRow = NULL;
   int      total_size = 0;
   int      real_size = 0;
+  int      maxAutoIndex = 0;
 
   oldId = pTable->id;
   if (sdbOpenSdbFile(pTable) < 0) return -1;
@@ -240,10 +245,18 @@ int sdbInitTableByFile(SSdbTable *pTable) {
         rowMeta.rowSize = rowHead->rowSize;
         rowMeta.row = (*(pTable->appTool))(SDB_TYPE_DECODE, NULL, rowHead->data, rowHead->rowSize, NULL);
         (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, rowMeta.row, &rowMeta);
-        if (pTable->keyType == SDB_KEYTYPE_AUTO) pTable->autoIndex++;
+        if (pTable->keyType == SDB_KEYTYPE_AUTO) {
+          pTable->autoIndex++;
+          maxAutoIndex = max(maxAutoIndex, *(int32_t*)rowHead->data);
+        }
         pTable->numOfRows++;
       }
     } else {                  // already exists
+      if (pTable->keyType == SDB_KEYTYPE_AUTO) {
+        pTable->autoIndex++;
+        maxAutoIndex = max(maxAutoIndex, *(int32_t *) rowHead->data);
+      }
+
       if (rowHead->id < 0) {  // Delete the object
         (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
         (*(pTable->appTool))(SDB_TYPE_DESTROY, pMetaRow, NULL, 0, NULL);
@@ -260,6 +273,10 @@ int sdbInitTableByFile(SSdbTable *pTable) {
     if (pTable->id < abs(rowHead->id)) pTable->id = abs(rowHead->id);
   }
 
+  if (pTable->keyType == SDB_KEYTYPE_AUTO) {
+    pTable->autoIndex = maxAutoIndex;
+  }
+  
   sdbVersion += (pTable->id - oldId);
   if (numOfDels > pTable->maxRows / 4) sdbSaveSnapShot(pTable);
 
@@ -372,10 +389,10 @@ int64_t sdbInsertRow(void *handle, void *row, int rowSize) {
             sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, taosIpStr(*(int32_t *)row), sdbVersion, pTable->id);
             break;
           case SDB_KEYTYPE_AUTO:
-            sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, *(int32_t *)row, sdbVersion, pTable->id);
+            sdbError("table:%s, failed to insert record:%d sdbVersion:%ld id:%d", pTable->name, *(int32_t *)row, sdbVersion, pTable->id);
             break;
           default:
-            sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, sdbVersion, pTable->id);
+            sdbError("table:%s, failed to insert record sdbVersion:%ld id:%d", pTable->name, sdbVersion, pTable->id);
             break;
         }
         return -1;
@@ -593,15 +610,15 @@ int sdbUpdateRow(void *handle, void *row, int updateSize, char isUpdated) {
                 pTable->name, (char *) row, sdbVersion, pTable->id);
         break;
       case SDB_KEYTYPE_UINT32: //dnodes or mnodes
-        sdbError("table:%s, failed to update record:%s record is not there, sdbVersion:%ld id:%d",
+        sdbError("table:%s, failed to update record:%s, record is not there, sdbVersion:%ld id:%d",
                 pTable->name, taosIpStr(*(int32_t *) row), sdbVersion, pTable->id);
         break;
       case SDB_KEYTYPE_AUTO:
-        sdbError("table:%s, failed to update record:F%s record is not there, sdbVersion:%ld id:%d",
+        sdbError("table:%s, failed to update record:%d, record is not there, sdbVersion:%ld id:%d",
                 pTable->name, *(int32_t *) row, sdbVersion, pTable->id);
         break;
       default:
-        sdbError("table:%s, failed to update record:%s record is not there, sdbVersion:%ld id:%d",
+        sdbError("table:%s, failed to update record, record is not there, sdbVersion:%ld id:%d",
                 pTable->name, sdbVersion, pTable->id);
         break;
     }
