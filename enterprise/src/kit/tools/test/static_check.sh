@@ -13,11 +13,13 @@ git pull
 cd $pwdDir
 echo "begin the static check >>>>>>"
 cppcheck -q --enable=all --output-file=$outputf -rp=$sourceDir $sourceDir 
+git checkout feature/fangtest
+python2 cleanDepsFromSC.py $outputf
 rm -rf $homeDir/report/static*
-mv $outputf $homeDir/report/
+mv $outputf* $homeDir/report/
 cd $homeDir/report/
 errcount=`grep "\[" $outputf |wc -l`
-depserr=`grep -a "deps" $outputf |wc -l`
-echo "There is totally $errcount errors or warnings from the static check" >>$outputf
-echo "There is totally $depserr errors or warnings from the dependencies" >>$outputf
+echo "There is totally $errcount errors or warnings" >>$outputf
+errcount=`grep "\[" $outputf.nodeps |wc -l`
+echo "There is totally $errcount errors or warnings" >>$outputf.nodeps
 echo "static check has finished and result is in the report directory"

@@ -34,6 +34,7 @@ if __name__ == "__main__":
     inputFd.close()
   except:
     print ('%s failed to open' %file)
+    sys.exit(1)
 
   totalLines = 0
   totalCover = 0
