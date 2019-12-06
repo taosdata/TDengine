@@ -418,7 +418,12 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       int  delim = z[0];
       bool strEnd = false;
       for (i = 1; z[i]; i++) {
-        if (z[i] == delim) {
+        if (z[i] == '\\') { 
+          i++;
+          continue;
+        }
+        
+        if (z[i] == delim ) {
           if (z[i + 1] == delim) {
             i++;
           } else {
@@ -427,6 +432,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
           }
         }
       }
+      
       if (z[i]) i++;
 
       if (strEnd) {

@@ -392,7 +392,7 @@ static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start
 }
 
 int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[], SParsedDataColInfo *spd, char *error,
-                      int16_t timePrec) {
+                      int16_t timePrec, int32_t *code, char* tmpTokenBuf) {
   int32_t   index = 0;
   bool      isPrevOptr;
   SSQLToken sToken = {0};
@@ -418,6 +418,7 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
       }
       
       strcpy(error, "client out of memory");
+      *code = TSDB_CODE_CLI_OUT_OF_MEMORY;
       return -1;
     }
 
@@ -425,23 +426,42 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
          (sToken.type != TK_FLOAT) && (sToken.type != TK_BOOL) && (sToken.type != TK_NULL)) ||
         (sToken.n == 0) || (sToken.type == TK_RP)) {
       tscInvalidSQLErrMsg(error, "invalid data or symbol", sToken.z);
+      *code = TSDB_CODE_INVALID_SQL;
       return -1;
     }
 
     // Remove quotation marks
     if (TK_STRING == sToken.type) {
-      sToken.z++;
-      sToken.n -= 2;
+      // delete escape character: \\, \', \"
+      char delim = sToken.z[0];
+      int32_t cnt = 0;
+      int32_t j = 0;
+      for (int32_t i = 1; i < sToken.n - 1; ++i) {
+        if (sToken.z[i] == delim || sToken.z[i] == '\\') {
+          if (sToken.z[i + 1] == delim) {
+            cnt++;
+            continue;
+          }
+        }
+      
+        tmpTokenBuf[j] = sToken.z[i];
+        j++;
+      }
+      
+      sToken.z = tmpTokenBuf;
+      sToken.n -= 2 + cnt;    
     }
 
     bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
     int32_t ret = tsParseOneColumnData(pSchema, &sToken, start, error, str, isPrimaryKey, timePrec);
     if (ret != TSDB_CODE_SUCCESS) {
+      *code = TSDB_CODE_INVALID_SQL;
       return -1;  // NOTE: here 0 mean error!
     }
 
     if (isPrimaryKey && tsCheckTimestamp(pDataBlocks, start) != TSDB_CODE_SUCCESS) {
       tscInvalidSQLErrMsg(error, "client time/server time can not be mixed up", sToken.z);
+      *code = TSDB_CODE_INVALID_TIME_STAMP;
       return -1;
     }
   }
@@ -476,7 +496,7 @@ static int32_t rowDataCompar(const void *lhs, const void *rhs) {
 }
 
 int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMeta, int maxRows,
-                  SParsedDataColInfo *spd, char *error) {
+                  SParsedDataColInfo *spd, char *error, int32_t *code, char* tmpTokenBuf) {
   int32_t   index = 0;
   SSQLToken sToken;
 
@@ -487,6 +507,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMe
 
   if (spd->hasVal[0] == false) {
     strcpy(error, "primary timestamp column can not be null");
+    *code = TSDB_CODE_INVALID_SQL;
     return -1;
   }
 
@@ -500,12 +521,13 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMe
       int32_t tSize = tscAllocateMemIfNeed(pDataBlock, pMeterMeta->rowSize);
       if (0 == tSize) {
         strcpy(error, "client out of memory");
+        *code = TSDB_CODE_CLI_OUT_OF_MEMORY;
         return -1;
       }
       maxRows += tSize;
     }
 
-    int32_t len = tsParseOneRowData(str, pDataBlock, pSchema, spd, error, precision);
+    int32_t len = tsParseOneRowData(str, pDataBlock, pSchema, spd, error, precision, code, tmpTokenBuf);
     if (len <= 0) { // error message has been set in tsParseOneRowData
       return -1;
     }
@@ -517,6 +539,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMe
     *str += index;
     if (sToken.n == 0 || sToken.type != TK_RP) {
       tscInvalidSQLErrMsg(error, ") expected", *str);
+      *code = TSDB_CODE_INVALID_SQL;
       return -1;
     }
 
@@ -525,6 +548,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMe
 
   if (numOfRows <= 0) {
     strcpy(error, "no any data points");
+    *code = TSDB_CODE_INVALID_SQL;
     return -1;
   } else {
     return numOfRows;
@@ -636,10 +660,17 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
   if (0 == maxNumOfRows) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
-
-  int32_t numOfRows = tsParseValues(str, dataBuf, pMeterMeta, maxNumOfRows, spd, pCmd->payload);
+  
+  int32_t code = TSDB_CODE_INVALID_SQL;
+  char*   tmpTokenBuf = calloc(1, 4096);  // used for deleting Escape character: \\, \', \"
+  if (NULL == tmpTokenBuf) {
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
+  
+  int32_t numOfRows = tsParseValues(str, dataBuf, pMeterMeta, maxNumOfRows, spd, pCmd->payload, &code, tmpTokenBuf);
+  free(tmpTokenBuf);
   if (numOfRows <= 0) {
-    return TSDB_CODE_INVALID_SQL;
+    return code;
   }
 
   for (uint32_t i = 0; i < dataBuf->numOfParams; ++i) {
@@ -1173,7 +1204,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
   return TSDB_CODE_SUCCESS;
 }
 
-static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp) {
+static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   size_t          readLen = 0;
   char *          line = NULL;
   size_t          n = 0;
@@ -1216,10 +1247,10 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp) {
       maxRows += tSize;    
     }
 
-    len = tsParseOneRowData(&lineptr, pTableDataBlock, pSchema, &spd, pCmd->payload, pMeterMeta->precision);
+    len = tsParseOneRowData(&lineptr, pTableDataBlock, pSchema, &spd, pCmd->payload, pMeterMeta->precision, &code, tmpTokenBuf);
     if (len <= 0 || pTableDataBlock->numOfParams > 0) {
-      pSql->res.code = TSDB_CODE_INVALID_SQL;
-      return -1;
+      pSql->res.code = code;
+      return (-code);
     }
     
     pTableDataBlock->size += len;
@@ -1348,8 +1379,16 @@ void tscProcessMultiVnodesInsertForFile(SSqlObj *pSql) {
       tscError("%p get meter meta failed, abort", pSql);
       continue;
     }
+    
+    char*   tmpTokenBuf = calloc(1, 4096);  // used for deleting Escape character: \\, \', \"
+    if (NULL == tmpTokenBuf) {
+      tscError("%p calloc failed", pSql);
+      continue;
+    }
 
-    int nrows = tscInsertDataFromFile(pSql, fp);
+    int nrows = tscInsertDataFromFile(pSql, fp, tmpTokenBuf);
+    free(tmpTokenBuf);
+    
     pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
     if (nrows < 0) {
