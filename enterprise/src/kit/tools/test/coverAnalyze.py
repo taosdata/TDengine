@@ -2,8 +2,8 @@ import os
 import sys
 
 if __name__ == "__main__":
-  file = sys.argv[1]
-  #file = '/home/fang/workspace2/coverage20191204'
+  #file = sys.argv[1]
+  file = '/home/fang/workspace2/coverage20191204'
   outputCover = {} #coverage:[filename]
   singleCover = 0
   singleFile = ""
@@ -35,10 +35,15 @@ if __name__ == "__main__":
   except:
     print ('%s failed to open' %file)
 
-
+  totalLines = 0
+  totalCover = 0
   outputFd = open('%s.csv' %file, 'w')
   outputFd.write('Coverage(%), File, FileLines\n')
   for key in outputCover.keys():
     for value in outputCover[key]:
+      if (value[0].find('deps') < 0):
+        totalLines += value[1]
+        totalCover += key*value[1]
       outputFd.write('%d, %s, %d\n' %(key, value[0], value[1]))
+  outputFd.write('%f, %s, %d\n' %(totalCover*1.0/totalLines, 'Total', totalLines))
   outputFd.close()
