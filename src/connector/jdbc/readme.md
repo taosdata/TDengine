@@ -18,16 +18,16 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 * TDengine 不提供针对单条数据记录的删除和修改的操作，驱动中也没有支持相关方法。
 * 由于不支持删除和修改，所以也不支持事务操作。
 * 目前不支持表间的 union 操作。
-* 目前不支持嵌套查询(nested query)，对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet还没关闭的情况下执行了新的查询，TSDBJDBCDriver 则会自动关闭上一个 ResultSet。
+* 目前不支持嵌套查询(nested query)，`对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet还没关闭的情况下执行了新的查询，TSDBJDBCDriver 则会自动关闭上一个 ResultSet`。
 
 
 ## TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
 | taos-jdbcdriver 版本 | TDengine 版本 | JDK 版本 | 
 | --- | --- | --- | 
-| 1.0.3 | 1.6.4.x，1.6.3.x，1.6.2.x，1.6.1.x | 1.8.x |
-| 1.0.2 | 1.6.4.x，1.6.3.x，1.6.2.x，1.6.1.x | 1.8.x |  
-| 1.0.1 | 1.6.4.x，1.6.3.x，1.6.2.x，1.6.1.x | 1.8.x |  
+| 1.0.3 | 1.6.1.x 及以上 | 1.8.x |
+| 1.0.2 | 1.6.1.x 及以上 | 1.8.x |  
+| 1.0.1 | 1.6.1.x 及以上 | 1.8.x |  
 
 ## TDengine DataType 和 Java DataType
 
@@ -36,7 +36,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | TDengine DataType | Java DataType | 
 | --- | --- | 
 | TIMESTAMP | java.sql.Timestamp | 
-| INT | java.lang.Integer, | 
+| INT | java.lang.Integer | 
 | BIGINT | java.lang.Long |  
 | FLOAT | java.lang.Float |  
 | DOUBLE | java.lang.Double | 
@@ -99,36 +99,36 @@ TDengine 的 JDBC URL 规范格式为：
     如上所述，可以在 JDBC URL 的参数中指定。
 2. java.sql.DriverManager.getConnection(String jdbcUrl, Properties connProps)
 ```java
-    public Connection getConn() throws Exception{
-      Class.forName("com.taosdata.jdbc.TSDBDriver");
-      String jdbcUrl = "jdbc:TAOS://127.0.0.1:0/log?user=root&password=taosdata";
-      Properties connProps = new Properties();
-      connProps.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
-      connProps.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
-      connProps.setProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR, "/etc/taos");
-      connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-      connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-      connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-      Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
-      return conn;
-    }
+public Connection getConn() throws Exception{
+  Class.forName("com.taosdata.jdbc.TSDBDriver");
+  String jdbcUrl = "jdbc:TAOS://127.0.0.1:0/log?user=root&password=taosdata";
+  Properties connProps = new Properties();
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR, "/etc/taos");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+  Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
+  return conn;
+}
 ```
 
 3. 客户端配置文件 taos.cfg
 
     linux 系统默认配置文件为 /var/lib/taos/taos.cfg，windows 系统默认配置文件路径为 C:\TDengine\cfg\taos.cfg。
 ```properties
-    # client default username
-    # defaultUser           root
+# client default username
+# defaultUser           root
 
-    # client default password
-    # defaultPass           taosdata
+# client default password
+# defaultPass           taosdata
 
-    # default system charset
-    # charset               UTF-8
+# default system charset
+# charset               UTF-8
 
-    # system locale
-    # locale                en_US.UTF-8
+# system locale
+# locale                en_US.UTF-8
 ```
 
 ### 创建数据库和表
@@ -186,7 +186,7 @@ resultSet.close();
 stmt.close();
 conn.close();
 ```
-
+> `注意务必要将 connection 进行关闭`，否则会出现连接泄露。
 ## 与连接池使用
 
 **HikariCP**
@@ -276,8 +276,19 @@ public static void main(String[] args) throws Exception {
     connection.close(); // put back to conneciton pool
 }
 ```
-
 > 更多 druid 使用问题请查看[官方说明][6]
+
+**注意事项**
+* TDengine `v1.6.4.1` 版本开始提供了一个专门用于心跳检测的函数 `select server_status()`，所以在使用连接池时推荐使用 `select server_status()` 进行 Validation Query。
+
+如下所示，`select server_status()` 执行成功会返回 `1`。
+```shell
+taos> select server_status();
+server_status()|
+================
+1              |
+Query OK, 1 row(s) in set (0.000141s)
+```
 
 ## 与框架使用
 
@@ -314,4 +325,3 @@ public static void main(String[] args) throws Exception {
 [10]: https://maven.aliyun.com/mvn/search
 [11]:  https://github.com/taosdata/TDengine/tree/feature/ylxie/tests/examples/JDBC/SpringJdbcTemplate
 [12]: https://github.com/taosdata/TDengine/tree/feature/ylxie/tests/examples/JDBC/springbootdemo
- 
