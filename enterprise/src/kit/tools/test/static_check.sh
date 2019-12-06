@@ -19,6 +19,7 @@ rm -rf $homeDir/report/static*
 mv $outputf* $homeDir/report/
 cd $homeDir/report/
 errcount=`grep "\[" $outputf |wc -l`
-echo "There is totally $depserr errors or warnings from the dependencies" >>$outputf
+echo "There is totally $errcount errors or warnings" >>$outputf
 errcount=`grep "\[" $outputf.nodeps |wc -l`
+echo "There is totally $errcount errors or warnings" >>$outputf.nodeps
 echo "static check has finished and result is in the report directory"
