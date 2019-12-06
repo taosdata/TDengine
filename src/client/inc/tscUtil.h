@@ -23,8 +23,7 @@ extern "C" {
 /*
  * @date   2018/09/30
  */
-#include <limits.h>
-#include <stdio.h>
+#include "os.h"
 #include "textbuffer.h"
 #include "tscSecondaryMerge.h"
 #include "tsclient.h"
