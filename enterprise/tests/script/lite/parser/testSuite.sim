@@ -41,6 +41,7 @@ run lite/parser/where.sim
 #run lite/parser/repeatAlter.sim
 #run lite/parser/repeatStream.sim
 run lite/parser/join.sim
+run lite/parser/join_multivnode.sim
 run lite/parser/projection_limit_offset.sim
 run lite/parser/select_with_tags.sim
 run lite/parser/groupby.sim

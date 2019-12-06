@@ -392,9 +392,6 @@ endi
 
 
 #======================limit offset===================================
-
-
-
 # tag values not int
 sql_error select count(*) from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t2=join_mt1.t2;
 
