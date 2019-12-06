@@ -1,5 +1,6 @@
 
 ### TAOS-JDBCDriver 概述
+------
 
 TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API 规范的 `taos-jdbcdriver` 实现。目前可以通过 [Sonatype Repository][1] 搜索并下载。
 
@@ -22,6 +23,7 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 
 
 ### TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
+------
 
 | taos-jdbcdriver 版本 | TDengine 版本 | JDK 版本 | 
 | --- | --- | --- | 
@@ -30,6 +32,7 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 | 1.0.1 | 1.6.4.x，1.6.3.x，1.6.2.x，1.6.1.x | 1.8.x |  
 
 ### TDengine DataType 和 Java DataType
+------
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
@@ -45,6 +48,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BINARY, NCHAR | java.lang.String | 
 
 ### 如何获取 TAOS-JDBCDriver
+------
 
 #### maven 仓库
 
@@ -71,6 +75,7 @@ maven 项目中使用如下 pom.xml 配置即可：
 
 
 ### 使用说明
+------
 
 #### 获取连接
 
@@ -188,6 +193,7 @@ conn.close();
 ```
 
 ### 与连接池使用
+------
 
 **HikariCP**
 
@@ -280,11 +286,13 @@ public static void main(String[] args) throws Exception {
 > 更多 druid 使用问题请查看[官方说明][6]
 
 ### 与框架使用
+------
 
 * Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate][11]
 * Springboot + Mybatis 中使用，可参考 [springbootdemo][12]
 
 ### 常见问题
+------
 
 * java.lang.UnsatisfiedLinkError: no taos in java.library.path
   
