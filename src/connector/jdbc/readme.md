@@ -1,5 +1,5 @@
 
-### taos-jdbcdriver 概述
+### TAOS-JDBCDriver 概述
 
 TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API 规范的 `taos-jdbcdriver` 实现。目前可以通过 [Sonatype Repository][1] 搜索并下载。
 
@@ -21,7 +21,7 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 * 目前不支持嵌套查询(nested query)，对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet还没关闭的情况下执行了新的查询，TSDBJDBCDriver 则会自动关闭上一个 ResultSet。
 
 
-### taos-jdbcdriver 版本以及支持的 TDengine 版本和 JDK 版本
+### TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
 | taos-jdbcdriver 版本 | TDengine 版本 | JDK 版本 | 
 | --- | --- | --- | 
@@ -44,7 +44,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BOOL | java.lang.Boolean | 
 | BINARY, NCHAR | java.lang.String | 
 
-### 如何获取 taos-jdbcdriver
+### 如何获取 TAOS-JDBCDriver
 
 #### maven 仓库
 
@@ -289,10 +289,13 @@ public static void main(String[] args) throws Exception {
 * java.lang.UnsatisfiedLinkError: no taos in java.library.path
   
   **原因**：程序没有找到依赖的本地函数库 taos。
+  
   **解决方法**：windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，linux 下将建立如下软链 ` ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
   
 * java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
+  
   **原因**：目前 TDengine 只支持 64 位 JDK。
+  
   **解决方法**：重新安装 64 位 JDK。
 
 * 其它问题请参考 [Issues][7]
@@ -309,6 +312,6 @@ public static void main(String[] args) throws Exception {
 [8]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
 [9]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
 [10]: https://maven.aliyun.com/mvn/search
-[11]: https://github.com/taosdata/TDengine/tests/examples/JDBC/SpringJdbcTemplate
-[12]: https://github.com/taosdata/TDengine/tests/examples/JDBC/springbootdemo
+[11]:  https://github.com/taosdata/TDengine/tree/feature/ylxie/tests/examples/JDBC/SpringJdbcTemplate
+[12]: https://github.com/taosdata/TDengine/tree/feature/ylxie/tests/examples/JDBC/springbootdemo
  
