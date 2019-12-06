@@ -1,6 +1,5 @@
 
-### TAOS-JDBCDriver 概述
-------
+## TAOS-JDBCDriver 概述
 
 TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API 规范的 `taos-jdbcdriver` 实现。目前可以通过 [Sonatype Repository][1] 搜索并下载。
 
@@ -22,8 +21,7 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 * 目前不支持嵌套查询(nested query)，对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet还没关闭的情况下执行了新的查询，TSDBJDBCDriver 则会自动关闭上一个 ResultSet。
 
 
-### TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
-------
+## TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
 | taos-jdbcdriver 版本 | TDengine 版本 | JDK 版本 | 
 | --- | --- | --- | 
@@ -31,8 +29,7 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 | 1.0.2 | 1.6.4.x，1.6.3.x，1.6.2.x，1.6.1.x | 1.8.x |  
 | 1.0.1 | 1.6.4.x，1.6.3.x，1.6.2.x，1.6.1.x | 1.8.x |  
 
-### TDengine DataType 和 Java DataType
-------
+## TDengine DataType 和 Java DataType
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
@@ -47,10 +44,9 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BOOL | java.lang.Boolean | 
 | BINARY, NCHAR | java.lang.String | 
 
-### 如何获取 TAOS-JDBCDriver
-------
+## 如何获取 TAOS-JDBCDriver
 
-#### maven 仓库
+### maven 仓库
 
 目前 taos-jdbcdriver 已经发布到 [Sonatype Repository][1] 仓库，且各大仓库都已同步。
 * [sonatype][8]
@@ -69,15 +65,14 @@ maven 项目中使用如下 pom.xml 配置即可：
 </dependencies>
 ```
 
-#### 源码编译打包
+### 源码编译打包
 
 下载 [TDengine][3] 源码之后，进入 taos-jdbcdriver 源码目录 `src/connector/jdbc` 执行 `mvn clean package` 即可生成相应 jar 包。
 
 
-### 使用说明
-------
+## 使用说明
 
-#### 获取连接
+### 获取连接
 
 如下所示配置即可获取 TDengine Connection：
 ```java
@@ -136,7 +131,7 @@ TDengine 的 JDBC URL 规范格式为：
     # locale                en_US.UTF-8
 ```
 
-#### 创建数据库和表
+### 创建数据库和表
 
 ```java
 Statement stmt = conn.createStatement();
@@ -152,7 +147,7 @@ stmt.executeUpdate("create table if not exists tb (ts timestamp, temperature int
 ```
 > 注意：如果不使用 `use db` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 db.tb。
 
-#### 插入数据
+### 插入数据
 
 ```java
 // insert data
@@ -163,7 +158,7 @@ System.out.println("insert " + affectedRows + " rows.");
 > now 为系统内部函数，默认为服务器当前时间。
 > `now + 1s` 代表服务器当前时间往后加 1 秒，数字后面代表时间单位：a(毫秒), s(秒), m(分), h(小时), d(天)，w(周), n(月), y(年)。
 
-#### 查询数据
+### 查询数据
 
 ```java
 // query data
@@ -184,7 +179,7 @@ while(resultSet.next()){
 > 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
 
 
-#### 关闭资源
+### 关闭资源
 
 ```java
 resultSet.close();
@@ -192,8 +187,7 @@ stmt.close();
 conn.close();
 ```
 
-### 与连接池使用
-------
+## 与连接池使用
 
 **HikariCP**
 
@@ -285,14 +279,12 @@ public static void main(String[] args) throws Exception {
 
 > 更多 druid 使用问题请查看[官方说明][6]
 
-### 与框架使用
-------
+## 与框架使用
 
 * Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate][11]
 * Springboot + Mybatis 中使用，可参考 [springbootdemo][12]
 
-### 常见问题
-------
+## 常见问题
 
 * java.lang.UnsatisfiedLinkError: no taos in java.library.path
   
