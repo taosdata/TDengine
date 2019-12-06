@@ -313,9 +313,9 @@ vercomp () {
 
 function is_version_compatible() {
 
-    curr_version=$(${bin_dir}/taosd -V | head -1 | cut -d ' ' -f 2)
+    curr_version=$(${bin_dir}/taosd -V | head -1 | cut -d ' ' -f 3)
 
-    min_compatible_version=$(${script_dir}/bin/taosd -V | head -1 | cut -d ' ' -f 4)
+    min_compatible_version=$(${script_dir}/bin/taosd -V | head -1 | cut -d ' ' -f 5)
 
     vercomp $curr_version $min_compatible_version
     case $? in
