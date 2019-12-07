@@ -287,7 +287,7 @@ sdb_exit1:
   return -1;
 }
 
-void *sdbOpenTable(int maxRows, int32_t maxRowSize, char *name, char keyType, char *directory,
+void *sdbOpenTable(int maxRows, int32_t maxRowSize, char *name, uint8_t keyType, char *directory,
                    void *(*appTool)(char, void *, char *, int, int *)) {
   SSdbTable *pTable = (SSdbTable *)malloc(sizeof(SSdbTable));
   if (pTable == NULL) return NULL;
