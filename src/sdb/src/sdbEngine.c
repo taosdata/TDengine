@@ -171,6 +171,7 @@ int sdbInitTableByFile(SSdbTable *pTable) {
   void *   pMetaRow = NULL;
   int      total_size = 0;
   int      real_size = 0;
+  int      maxAutoIndex = 0;
 
   oldId = pTable->id;
   if (sdbOpenSdbFile(pTable) < 0) return -1;
@@ -240,10 +241,18 @@ int sdbInitTableByFile(SSdbTable *pTable) {
         rowMeta.rowSize = rowHead->rowSize;
         rowMeta.row = (*(pTable->appTool))(SDB_TYPE_DECODE, NULL, rowHead->data, rowHead->rowSize, NULL);
         (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, rowMeta.row, &rowMeta);
-        if (pTable->keyType == SDB_KEYTYPE_AUTO) pTable->autoIndex++;
+        if (pTable->keyType == SDB_KEYTYPE_AUTO) {
+          pTable->autoIndex++;
+          maxAutoIndex = MAX(maxAutoIndex, *(int32_t*)rowHead->data);
+        }
         pTable->numOfRows++;
       }
     } else {                  // already exists
+      if (pTable->keyType == SDB_KEYTYPE_AUTO) {
+        pTable->autoIndex++;
+        maxAutoIndex = MAX(maxAutoIndex, *(int32_t *) rowHead->data);
+      }
+
       if (rowHead->id < 0) {  // Delete the object
         (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
         (*(pTable->appTool))(SDB_TYPE_DESTROY, pMetaRow, NULL, 0, NULL);
@@ -258,6 +267,10 @@ int sdbInitTableByFile(SSdbTable *pTable) {
 
     pTable->size += real_size;
     if (pTable->id < abs(rowHead->id)) pTable->id = abs(rowHead->id);
+  }
+
+  if (pTable->keyType == SDB_KEYTYPE_AUTO) {
+    pTable->autoIndex = maxAutoIndex;
   }
 
   sdbVersion += (pTable->id - oldId);
