@@ -42,6 +42,7 @@ class TDTestCase:
           err = 'affected rows %d != expected %d' %(affrows, 1)
           print("\033[1;31m%s %s\033[0m\nfailed sqlcmd: %s" \
                         % (datetime.datetime.now(), err, sqlcmd))
+          self.successFlag = False
           sys.exit(1) 
     self.queryFlag = False
     conn.close()
@@ -64,6 +65,7 @@ class TDTestCase:
     self.nrows = 200
     self.nthreads = 5
     self.queryFlag = True
+    self.successFlag = True
 
     tdDnodes.stop(1)
     tdDnodes.deploy(1)
@@ -101,6 +103,10 @@ class TDTestCase:
     for tid in range (self.nthreads) :
       threads[tid].join()
     threads[tid+1].join()
+
+    if(~self.successFlag):
+      tdSql.close()
+      tdLog.exit('This test failed!')
 
   def stop(self):
     tdSql.close()
