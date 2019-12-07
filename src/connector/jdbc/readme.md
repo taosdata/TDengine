@@ -323,5 +323,5 @@ Query OK, 1 row(s) in set (0.000141s)
 [8]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
 [9]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
 [10]: https://maven.aliyun.com/mvn/search
-[11]:  https://github.com/taosdata/TDengine/tree/feature/ylxie/tests/examples/JDBC/SpringJdbcTemplate
-[12]: https://github.com/taosdata/TDengine/tree/feature/ylxie/tests/examples/JDBC/springbootdemo
+[11]:  https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
+[12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
