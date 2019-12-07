@@ -32,8 +32,6 @@
 #define MAX_TRY_WAIT_TIMES 2000
 #define TRY_WAIT_TIME_IN_MS 1
 
-#pragma GCC diagnostic ignored "-Wpointer-sign"
-
 extern void *mgmtTranQhandle;
 void *       pPeerConn = NULL;  // for mnode-mnode communication
 void *       sdbTmr;
@@ -65,23 +63,23 @@ char  sdbPrivateIp[24];
 #define SDB_BUFFER_SIZE 1024000
 
 void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle);
-int sdbProcessHeartBeatFromPeer(char *pMsg, int msgLen, SSdbPeer *pPeer);
-int sdbProcessHeartBeatRspFromPeer(char *pMsg, int msgLen, SSdbPeer *pPeer);
+int sdbProcessHeartBeatFromPeer(uint8_t *pMsg, int msgLen, SSdbPeer *pPeer);
+int sdbProcessHeartBeatRspFromPeer(uint8_t *pMsg, int msgLen, SSdbPeer *pPeer);
 void sdbCheckPeerStatus(void *param, void *tmrId);
 void sdbCheckRoleStatus(void *param, void *tmrId);
 void sdbConfigPeers(int numOfPeers, uint32_t peerIp[]);
-int sdbProcessForwardMsg(char *cont, int contLen, SSdbPeer *pPeer);
-int sdbProcessForwardRspMsg(char *cont, int contLen, SSdbPeer *pPeer);
-int sdbProcessSyncRequest(char *pMsg, int msgLen, SSdbPeer *pPeer);
+int sdbProcessForwardMsg(uint8_t *cont, int contLen, SSdbPeer *pPeer);
+int sdbProcessForwardRspMsg(uint8_t *cont, int contLen, SSdbPeer *pPeer);
+int sdbProcessSyncRequest(uint8_t *pMsg, int msgLen, SSdbPeer *pPeer);
 void *sdbRetrieveSyncData(void *param);
 void sdbStartSyncProcess(SSdbPeer *pPeer);
 void *sdbAcceptSyncTcpConnection(void *argv);
 int sdbProcessBufferedForwards();
-int sdbProcessDbReq(char *cont, int contLen);
+int sdbProcessDbReq(uint8_t *cont, int contLen);
 int sdbProcessQueuedDbReq(char *cont, int contLen);
 void sdbUpdateIpList();
 void sdbCheckSelfRole();
-int sdbProcessCfgMnodeMsg(char *cont, int contLen, SSdbPeer *pPeer);
+int sdbProcessCfgMnodeMsg(uint8_t *cont, int contLen, SSdbPeer *pPeer);
 
 const char *taosGetSdbRoleStr(int sdbRole) {
   switch (sdbRole) {
@@ -626,7 +624,7 @@ void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
   return pPeer;
 }
 
-int sdbUpdatePeerStatus(SSdbPeer *pPeer, char *msg, int msgLen) {
+int sdbUpdatePeerStatus(SSdbPeer *pPeer, uint8_t *msg, int msgLen) {
   SMnodeStatus *pStatus = (SMnodeStatus *)msg;
 
   if (pPeer->status == SDB_STATUS_OFFLINE) {
@@ -700,7 +698,7 @@ char *sdbEncodeSelfStatus(SSdbPeer *pPeer, char *pMsg) {
   return pMsg;
 }
 
-int sdbProcessHeartBeatFromPeer(char *msg, int msgLen, SSdbPeer *pPeer) {
+int sdbProcessHeartBeatFromPeer(uint8_t *msg, int msgLen, SSdbPeer *pPeer) {
   char *pStart, *pMsg;
 
   if (pPeer == NULL || pPeer->status == SDB_STATUS_DELETED) return 0;
@@ -721,7 +719,7 @@ int sdbProcessHeartBeatFromPeer(char *msg, int msgLen, SSdbPeer *pPeer) {
   return 0;
 }
 
-int sdbProcessHeartBeatRspFromPeer(char *msg, int msgLen, SSdbPeer *pPeer) {
+int sdbProcessHeartBeatRspFromPeer(uint8_t *msg, int msgLen, SSdbPeer *pPeer) {
   unsigned char code = *msg;
   if (pPeer == NULL || pPeer->status == SDB_STATUS_DELETED) return 0;
 
@@ -734,7 +732,7 @@ int sdbProcessHeartBeatRspFromPeer(char *msg, int msgLen, SSdbPeer *pPeer) {
   return 0;
 }
 
-int sdbProcessCfgMnodeMsg(char *cont, int contLen, SSdbPeer *pPeer) {
+int sdbProcessCfgMnodeMsg(uint8_t *cont, int contLen, SSdbPeer *pPeer) {
   char *   pStart, *pMsg;
   SCfgMsg *pCfg = (SCfgMsg *)cont;
 
@@ -1086,7 +1084,7 @@ void *sdbRetrieveSyncData(void *argv) {
   return NULL;
 }
 
-int sdbProcessSyncRequest(char *msg, int msgLen, SSdbPeer *pPeer) {
+int sdbProcessSyncRequest(uint8_t *msg, int msgLen, SSdbPeer *pPeer) {
   int            code = 0;
   pthread_attr_t thattr;
   pthread_t      thread;
@@ -1305,7 +1303,7 @@ void sdbStartSyncProcess(SSdbPeer *pPeer) {
   pthread_attr_destroy(&thattr);
 }
 
-int sdbProcessDbReq(char *cont, int contLen) {
+int sdbProcessDbReq(uint8_t *cont, int contLen) {
   SForwardMsg *pForward;
   SSdbTable *  pTable;
 
@@ -1487,14 +1485,14 @@ int sdbForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int dataLen)
   return -1;
 }
 
-int sdbProcessForwardRspMsg(char *cont, int contLen, SSdbPeer *pPeer) {
+int sdbProcessForwardRspMsg(uint8_t *cont, int contLen, SSdbPeer *pPeer) {
   sdbCode = *cont;
   sem_post(&sdbSem);
 
   return 0;
 }
 
-int sdbProcessForwardMsg(char *cont, int contLen, SSdbPeer *pPeer) {
+int sdbProcessForwardMsg(uint8_t *cont, int contLen, SSdbPeer *pPeer) {
   STranQueue *pQueue = &sdbQueue;
 
   if (pSelf == NULL || pSelf->status == SDB_STATUS_DELETED) return 0;
