@@ -29,7 +29,7 @@ class TDTestCase:
     tdDnodes.cfg(1,"tables", "4")
     tdDnodes.start(1)
     
-    self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
+    self.conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     tdSql.init(self.conn.cursor())
     tdSql.execute('reset query cache')
     tdSql.execute('create dnode 192.168.0.2')
@@ -53,20 +53,21 @@ class TDTestCase:
     tdLog.info("================= step1")
     tdLog.info("insert %d records into %d tables" % (self.rowsPerTable, self.ntables))
     tdSql.execute('create database db replica %d' % self.replica)
+    tdLog.sleep(5)
     tdSql.execute('use db')
+    tdSql.execute('create table tb(ts timestamp, i int) tags(id int)')
     for tid in range(1,self.ntables+1):
-      tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
+      tdSql.execute('create table tb%d using tb tags(%d)' %(tid,tid))
     tdLog.sleep(5)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
       sqlcmd = ['insert into tb%d values' % (tid)]
       for rid in range(1,self.rowsPerTable+1):
-        sqlcmd.append("(%ld, %d)" % (startTime, rid))
-        startTime += 1
+        sqlcmd.append("(%ld, %d)" % (startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(self.rowsPerTable)
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
     tdLog.sleep(5)
 
     tdLog.info("================= step2")
@@ -75,10 +76,10 @@ class TDTestCase:
     tdLog.sleep(10)
 
     tdLog.info("================= step3")
-    tdSql.error('select * from tb%d' %1)
+    tdSql.error('select count(*) from tb')
 
     tdLog.info("================= step4")
-    tdSql.error('insert into tb%d values(%ld, %d)' %(1, self.startTime, 1))
+    tdSql.error('insert into tb%d values(%ld, %d)' %(1, self.startTime+1, 1))
     
   def stop(self):
     tdSql.close()

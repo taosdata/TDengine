@@ -40,18 +40,13 @@ class TDTestCase:
     tdDnodes.cfg(2,"offlineThreshold", "5")
     tdDnodes.start(2)
     tdSql.execute('create dnode 192.168.0.3')
-    tdDnodes.deploy(3)
-    tdDnodes.cfg(3,"numOfMPeers", "1")
-    tdDnodes.cfg(3,"tables", "5")
-    tdDnodes.cfg(3,"offlineThreshold", "5")
-    tdDnodes.start(3)
     tdLog.sleep(10)
     
   def run(self):
     self.ntables = 20
     self.startTime = 1520000010000L
 
-    tdSql.execute('create database db replica 3')
+    tdSql.execute('create database db replica 2')
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
@@ -69,11 +64,18 @@ class TDTestCase:
     tdLog.sleep(10)
 
     tdLog.info("================= step2")
-    tdDnodes.stopIP(3)
+    tdDnodes.stopIP(2)
+    tdLog.sleep(10)
+
+    tdDnodes.deploy(3)
+    tdDnodes.cfg(3,"numOfMPeers", "1")
+    tdDnodes.cfg(3,"tables", "5")
+    tdDnodes.cfg(3,"offlineThreshold", "5")
+    tdDnodes.start(3)
     tdLog.sleep(20)
 
     tdLog.info("================= step2")
-    tdDnodes.startIP(3)
+    tdDnodes.startIP(2)
     tdLog.sleep(10)
     tdSql.query('show dnodes')
     tdSql.checkRows(2)

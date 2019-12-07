@@ -26,7 +26,7 @@ class TDTestCase:
     tdDnodes.stopAll()
     tdDnodes.deploy(1)
     tdDnodes.cfg(1,"numOfMPeers", "1")
-    tdDnodes.cfg(1,"tables", "100")
+    tdDnodes.cfg(1,"tables", "10")
     tdDnodes.start(1)
     
     self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
@@ -35,14 +35,14 @@ class TDTestCase:
     tdSql.execute('create dnode 192.168.0.2')
     tdDnodes.deploy(2)
     tdDnodes.cfg(2,"numOfMPeers", "1")
-    tdDnodes.cfg(2,"tables", "100")
+    tdDnodes.cfg(2,"tables", "10")
     tdDnodes.start(2)
     tdSql.execute('create dnode 192.168.0.3')
     tdDnodes.deploy(3)
     tdDnodes.cfg(3,"numOfMPeers", "1")
-    tdDnodes.cfg(3,"tables", "100")
+    tdDnodes.cfg(3,"tables", "10")
     tdDnodes.start(3)
-    tdLog.sleep(5)
+    tdLog.sleep(10)
 
 
   def sync(self):
@@ -52,43 +52,44 @@ class TDTestCase:
     conn = taos.connect(config=tdDnodes.getSimCfgPath())
     cursor = conn.cursor()
     cursor.execute('drop database db')
-    tdLog.sleep(3)
 
   def run(self):
-    self.ntables = 1000
-    self.rowsPerTable = 100
+    self.ntables = 100
+    self.rowsPerTable = 500
     self.startTime = 1520000010000L
     self.replica = 2
 
+    tdLog.info("insert into each %d tables %d records while killing dnode 3" %(self.ntables, self.rowsPerTable))
     tdSql.execute('create database db replica %d' %self.replica)
+    tdLog.sleep(5)
     tdSql.execute('use db')
+    tdSql.execute('create table tb(ts timestamp, i int) tags(id int)')
     for tid in range(1,self.ntables+1):
-      tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
-    tdLog.sleep(3)
+      tdSql.execute('create table tb%d using tb tags (%d)' %(tid, tid))
+    tdLog.sleep(5)
     for tid in range(1,2):
       startTime = self.startTime
       sqlcmd = ["insert into tb%d values" % (tid)]
       for rid in range(1, self.rowsPerTable+1):
-        sqlcmd.append("(%ld, %d)" %(startTime, rid))
-        startTime += 1
+        sqlcmd.append("(%ld, %d)" %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     tdDnodes.forcestop(3)
-    tdLog.sleep(2)
+    tdLog.sleep(5)
     for tid in range(2,self.ntables+1):
       startTime = self.startTime
       sqlcmd = ["insert into tb%d values" % (tid)]
       for rid in range(1, self.rowsPerTable+1):
-        sqlcmd.append("(%ld, %d)" %(startTime, rid))
-        startTime += 1
+        sqlcmd.append("(%ld, %d)" %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
-    tdLog.sleep(3)
-
-    tdLog.info("================= step1")
-    tdSql.query('select * from tb%d' %1)
-    tdSql.checkRows(self.rowsPerTable)
+    tdLog.sleep(5)
 
     tdLog.info("================= step2")
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
+
+    tdLog.info("================= step3")
+    tdLog.info("drop database in syncing")
     threads = []
     thread = threading.Thread(target=self.sync, name="db is syncing") 
     thread.start()
@@ -100,7 +101,7 @@ class TDTestCase:
       threads[t].join()
     tdLog.sleep(10)
 
-    tdLog.info("================= step3")
+    tdLog.info("================= step4")
     tdSql.query('show databases')
     tdSql.checkRows(0)
     

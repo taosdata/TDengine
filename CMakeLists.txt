@@ -65,6 +65,13 @@ SET(TD_MIPS_64 FALSE)
 SET(TD_DARWIN_64 FALSE)
 SET(TD_WINDOWS_64 FALSE)
 
+# test for coverage
+SET(TD_COVER FALSE) 
+IF (${COVER} MATCHES "true")
+  SET(TD_COVER TRUE)
+ENDIF ()
+
+
 # if generate ARM version:
 #   cmake -DARMVER=arm32 .. or cmake -DARMVER=arm64
 IF (${ARMVER} MATCHES "arm32")
@@ -165,6 +172,10 @@ IF (TD_LINUX_64)
       SET(COMMON_FLAGS "-std=gnu99 -Wall -fPIC -malign-double -g -Wno-char-subscripts -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
     ELSE ()
       SET(COMMON_FLAGS "-std=gnu99 -Wall -fPIC -malign-double -g -Wno-char-subscripts -malign-stringops -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
+    ENDIF ()
+    IF (TD_COVER)
+      SET(COVER_FLAGS "-fprofile-arcs -ftest-coverage")
+      SET(COMMON_FLAGS "${COMMON_FLAGS} ${COVER_FLAGS}")
     ENDIF ()
     LINK_DIRECTORIES("${TD_ENTERPRISE_DIR}/deps/libiconv/ningsi")
   ELSE ()
