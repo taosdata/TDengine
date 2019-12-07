@@ -211,10 +211,10 @@ Since the native language of TDengine is C, the necessary TDengine library shoul
 > Note: Please make sure that TDengine Windows client has been installed if developing on Windows.
 
 Since TDengine is time-series database, there are still some differences compared with traditional databases in using TDengine JDBC driver: 
-* TDengine doesn't allow to delete/modify single record, and thus JDBC driver also has no such method. 
+* TDengine doesn't allow to delete/modify a single record, and thus JDBC driver also has no such method. 
 * No support for transaction
 * No support for union between tables
-* No support for nested query)，`There is at most one open ResultSet for each Connection. Thus, TSDB JDBC Driver will close current ResultSet if it is not closed and a new query begins`.
+* No support for nested query，`There is at most one open ResultSet for each Connection. Thus, TSDB JDBC Driver will close current ResultSet if it is not closed and a new query begins`.
 
 ## Version list of TAOS-JDBCDriver and required TDengine and JDK 
 
