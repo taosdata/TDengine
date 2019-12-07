@@ -869,3 +869,17 @@ An example of using the NodeJS connector to create a table with weather data and
 
 An example of using the NodeJS connector to achieve the same things but without all the object wrappers that wrap around the data returned to achieve higher functionality can be found [here](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)
 
+[1]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[2]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[3]: https://github.com/taosdata/TDengine
+[4]: https://www.taosdata.com/blog/2019/12/03/jdbcdriver%e6%89%be%e4%b8%8d%e5%88%b0%e5%8a%a8%e6%80%81%e9%93%be%e6%8e%a5%e5%ba%93/
+[5]: https://github.com/brettwooldridge/HikariCP
+[6]: https://github.com/alibaba/druid
+[7]: https://github.com/taosdata/TDengine/issues
+[8]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[9]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[10]: https://maven.aliyun.com/mvn/search
+[11]:  https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
+[12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
+[13]: https://www.taosdata.com/cn/documentation/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
+
