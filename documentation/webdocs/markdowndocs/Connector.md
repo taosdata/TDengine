@@ -211,10 +211,10 @@ Since the native language of TDengine is C, the necessary TDengine library shoul
 > Note: Please make sure that TDengine Windows client has been installed if developing on Windows.
 
 Since TDengine is time-series database, there are still some differences compared with traditional databases in using TDengine JDBC driver: 
-* TDengine doesn't allow to delete/modify single record, and thus JDBC driver also has no such method. 
+* TDengine doesn't allow to delete/modify a single record, and thus JDBC driver also has no such method. 
 * No support for transaction
 * No support for union between tables
-* No support for nested query)，`There is at most one open ResultSet for each Connection. Thus, TSDB JDBC Driver will close current ResultSet if it is not closed and a new query begins`.
+* No support for nested query，`There is at most one open ResultSet for each Connection. Thus, TSDB JDBC Driver will close current ResultSet if it is not closed and a new query begins`.
 
 ## Version list of TAOS-JDBCDriver and required TDengine and JDK 
 
@@ -868,4 +868,18 @@ promise2.then(function(result) {
 An example of using the NodeJS connector to create a table with weather data and create and execute queries can be found [here](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js) (The preferred method for using the connector)
 
 An example of using the NodeJS connector to achieve the same things but without all the object wrappers that wrap around the data returned to achieve higher functionality can be found [here](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)
+
+[1]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[2]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[3]: https://github.com/taosdata/TDengine
+[4]: https://www.taosdata.com/blog/2019/12/03/jdbcdriver%e6%89%be%e4%b8%8d%e5%88%b0%e5%8a%a8%e6%80%81%e9%93%be%e6%8e%a5%e5%ba%93/
+[5]: https://github.com/brettwooldridge/HikariCP
+[6]: https://github.com/alibaba/druid
+[7]: https://github.com/taosdata/TDengine/issues
+[8]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[9]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
+[10]: https://maven.aliyun.com/mvn/search
+[11]:  https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
+[12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
+[13]: https://www.taosdata.com/cn/documentation/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
 
