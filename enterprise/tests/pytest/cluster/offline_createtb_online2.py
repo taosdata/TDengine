@@ -91,6 +91,7 @@ class TDTestCase:
     tdLog.sleep(5)
 
     tdLog.info("================= step6")
+    tdSql.execute('reset query cache')
     tdSql.query('select count(*) from tb')
     tdSql.checkData(0, 0, self.rowsPerTable*self.ntables +11*10)
   
