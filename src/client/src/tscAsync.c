@@ -157,7 +157,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   SSqlObj *pSql = (SSqlObj *)tres;
   if (pSql == NULL) {  // error
     tscError("sql object is NULL");
-    tscQueueAsyncError(pSql->fetchFp, param);
+    tscQueueAsyncError(pSql->fetchFp, param); // fang pSql==NULL
     return;
   }
 
