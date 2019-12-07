@@ -1065,6 +1065,7 @@ void *sdbRetrieveSyncData(void *argv) {
   SSdbPeer *pPeer = (SSdbPeer *)argv;
   SSdbSync *pSync = (SSdbSync *)pPeer->pSync;
 
+  taosBlockSIGPIPE();
   sdbPrint("ip:%s:%d, start to send sdb retrieve data, fd:%d", pPeer->ipstr, tsMgmtSyncPort, pPeer->syncFd);
 
   // based on dbVersion, forward the data to peer
@@ -1251,6 +1252,7 @@ void *sdbAcceptSyncTcpConnection(void *argv) {
     goto _sync_over;
   }
 
+  taosBlockSIGPIPE();
   sdbTrace("sync TCP server is created, ip:%s port:%hu", sdbPrivateIp, tsMgmtSyncPort);
 
   char *    pStart, *pMsg;

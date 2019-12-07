@@ -133,7 +133,7 @@ $quote = "
 $ret1 = $quote . $data01
 $ret2 = $ret1 . $quote
 print $ret2 
-if $ret2 = "N CHAR" then 
+if $ret2 = "NCHAR" then
   goto label2
 else
   return -1
