@@ -458,14 +458,48 @@ static void **tscJoinResultsetFromBuf(SSqlObj *pSql) {
   while (1) {
     bool hasData = true;
 
+    if (tscProjectionQueryOnMetric(pCmd)) {
+      bool allSubqueryExhausted = true;
+      
+      for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->pSubs[i]->cmd, 0);
+        if (pMeterMetaInfo->vnodeIndex < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+          allSubqueryExhausted = false;
+          break;
+        }
+      }
+      
+      hasData = !allSubqueryExhausted;
+    } else { //otherwise, in case inner join, if any subquery exhausted, query completed.
+      for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+        SSqlRes *pRes1 = &pSql->pSubs[i]->res;
+        if (pRes1->numOfRows == 0) {
+          hasData = false;
+          break;
+        }
+      }
+    }
+    
     for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
       SSqlRes *pRes1 = &pSql->pSubs[i]->res;
-
-      // in case inner join, if any subquery exhausted, query completed
-      if (pRes1->numOfRows == 0) {
-        hasData = false;
-        break;
+      SMeterMetaInfo* pMeterMeta = tscGetMeterMetaInfo(&pSql->pSubs[i]->cmd, 0);
+      
+      if (tscProjectionQueryOnMetric(pCmd)) {
+        //For multi-vnode projection query, the results may locate in following vnode, so we needs to go on
+        if (pMeterMeta->vnodeIndex < pMeterMeta->pMetricMeta->numOfVnodes) {
+          break;
+        }
+      } else { //otherwise, in case inner join, if any subquery exhausted, query completed.
+        if (pRes1->numOfRows == 0) {
+          hasData = false;
+          break;
+        }
       }
+//      if (pRes1->numOfRows == 0 && !tscProjectionQueryOnMetric(pCmd) ||
+//        (pMeterMeta->vnodeIndex >= pMeterMeta->pMetricMeta->numOfVnodes && )) {
+//        hasData = false;
+//        break;
+//      }
     }
 
     if (!hasData) {  // free all sub sqlobj
@@ -487,34 +521,26 @@ static void **tscJoinResultsetFromBuf(SSqlObj *pSql) {
     }
 
     if (pRes->tsrow == NULL) {
-      pRes->tsrow = malloc(sizeof(void *) * pCmd->exprsInfo.numOfExprs);
+      pRes->tsrow = malloc(POINTER_BYTES * pCmd->exprsInfo.numOfExprs);
     }
 
     bool success = false;
-    if (pSql->numOfSubs >= 2) {
-      // do merge result
+    if (pSql->numOfSubs >= 2) { // do merge result
       SSqlRes *pRes1 = &pSql->pSubs[0]->res;
       SSqlRes *pRes2 = &pSql->pSubs[1]->res;
 
-      while (pRes1->row < pRes1->numOfRows && pRes2->row < pRes2->numOfRows) {
+      if (pRes1->row < pRes1->numOfRows && pRes2->row < pRes2->numOfRows) {
         doSetResultRowData(pSql->pSubs[0]);
         doSetResultRowData(pSql->pSubs[1]);
-
-        TSKEY key1 = *(TSKEY *)pRes1->tsrow[0];
-        TSKEY key2 = *(TSKEY *)pRes2->tsrow[0];
-
-        if (key1 == key2) {
-          success = true;
-          pRes1->row++;
-          pRes2->row++;
-          break;
-        } else if (key1 < key2) {
-          pRes1->row++;
-        } else if (key1 > key2) {
-          pRes2->row++;
-        }
+//        TSKEY key1 = *(TSKEY *)pRes1->tsrow[0];
+//        TSKEY key2 = *(TSKEY *)pRes2->tsrow[0];
+//        printf("first:%lld, second:%lld\n", key1, key2);
+        success = true;
+        pRes1->row++;
+        pRes2->row++;
       }
-    } else {
+      
+    } else {  // only one subquery
       SSqlRes *pRes1 = &pSql->pSubs[0]->res;
       doSetResultRowData(pSql->pSubs[0]);
 
@@ -553,9 +579,12 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
 
   if (pCmd->command == TSDB_SQL_METRIC_JOIN_RETRIEVE) {
     tscFetchDatablockFromSubquery(pSql);
+    
     if (pRes->code == TSDB_CODE_SUCCESS) {
+      tscTrace("%p data from all subqueries have been retrieved to client", pSql);
       return tscJoinResultsetFromBuf(pSql);
     } else {
+      tscTrace("%p retrieve data from subquery failed, code:%d", pSql, pRes->code);
       return NULL;
     }
 

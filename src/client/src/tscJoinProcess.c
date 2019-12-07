@@ -164,8 +164,6 @@ SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pS
   }
 
   pSupporter->pObj = pSql;
-  pSupporter->hasMore = true;
-
   pSupporter->pState = pState;
 
   pSupporter->subqueryIndex = index;
@@ -226,12 +224,6 @@ bool needSecondaryQuery(SSqlObj* pSql) {
  * launch secondary stage query to fetch the result that contains timestamp in set
  */
 int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
-  // TODO not launch secondary stage query
-  //  if (!needSecondaryQuery(pSql)) {
-  //    return;
-  //  }
-
-  // sub query may not be necessary
   int32_t                 numOfSub = 0;
   SJoinSubquerySupporter* pSupporter = NULL;
 
@@ -286,7 +278,6 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
     pNew->cmd.type |= TSDB_QUERY_TYPE_JOIN_SEC_STAGE;
 
     pNew->cmd.nAggTimeInterval = pSupporter->interval;
-    pNew->cmd.limit = pSupporter->limit;
     pNew->cmd.groupbyExpr = pSupporter->groupbyExpr;
 
     tscColumnBaseInfoCopy(&pNew->cmd.colList, &pSupporter->colList, 0);
@@ -305,7 +296,14 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
     tscFieldInfoCalOffset(&pNew->cmd);
 
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pNew->cmd, 0);
-
+  
+    /*
+     * When handling the projection query, the offset value will be modified for table-table join, which is changed
+     * during the timestamp intersection.
+     */
+    pSupporter->limit = pSql->cmd.limit;
+    pNew->cmd.limit = pSupporter->limit;
+    
     // fetch the join tag column
     if (UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
       SSqlExpr* pExpr = tscSqlExprGet(&pNew->cmd, 0);
@@ -314,10 +312,12 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
       int16_t tagColIndex = tscGetJoinTagColIndexByUid(&pNew->cmd.tagCond, pMeterMetaInfo->pMeterMeta->uid);
       pExpr->param[0].i64Key = tagColIndex;
       pExpr->numOfParams = 1;
-
-      addRequiredTagColumn(&pNew->cmd, tagColIndex, 0);
     }
 
+#ifdef _DEBUG_VIEW
+    tscPrintSelectClause(&pNew->cmd);
+#endif
+    
     tscProcessSql(pNew);
   }
 
@@ -471,9 +471,31 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       pSupporter->pState->code = numOfRows;
       tscError("%p retrieve failed, code:%d, index:%d", pSql, numOfRows, pSupporter->subqueryIndex);
     }
-
+  
+    if (tscProjectionQueryOnMetric(&pSql->cmd) && numOfRows == 0) {
+      SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
+      assert(pSql->cmd.numOfTables == 1);
+    
+      // for projection query, need to try next vnode if current vnode is exhausted
+      if ((++pMeterMetaInfo->vnodeIndex) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+  
+        pSupporter->pState->numOfCompleted = 0;
+        pSupporter->pState->numOfTotal = 1;
+        
+        pSql->cmd.command = TSDB_SQL_SELECT;
+        pSql->fp = tscJoinQueryCallback;
+        tscProcessSql(pSql);
+      
+        return;
+      }
+    }
+    
     if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
-      tscTrace("%p secondary retrieve completed, global code:%d", tres, pParentSql->res.code);
+      assert(pSupporter->pState->numOfCompleted == pSupporter->pState->numOfTotal);
+      
+      tscTrace("%p all %d secondary retrieves are completed, global code:%d", tres, pSupporter->pState->numOfTotal,
+          pParentSql->res.code);
+      
       if (pSupporter->pState->code != TSDB_CODE_SUCCESS) {
         pParentSql->res.code = abs(pSupporter->pState->code);
         freeSubqueryObj(pParentSql);
@@ -490,11 +512,17 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
   assert(pSql->numOfSubs >= 1);
   
   for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
-    SJoinSubquerySupporter* pSupporter = (SJoinSubquerySupporter*)pSql->pSubs[i]->param;
-
     SSqlRes* pRes = &pSql->pSubs[i]->res;
-    if (pRes->row >= pRes->numOfRows && pSupporter->hasMore) {
-      numOfFetch++;
+    SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->pSubs[i]->cmd, 0);
+    
+    if (UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
+      if (pRes->row >= pRes->numOfRows && pMeterMetaInfo->vnodeIndex < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+        numOfFetch++;
+      }
+    } else {
+      if (pRes->row >= pRes->numOfRows) {
+        numOfFetch++;
+      }
     }
   }
 
@@ -515,8 +543,13 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
 
       // wait for all subqueries completed
       pSupporter->pState->numOfTotal = numOfFetch;
-      if (pRes1->row >= pRes1->numOfRows && pSupporter->hasMore) {
-        tscTrace("%p subquery:%p retrieve data from vnode, index:%d", pSql, pSql1, pSupporter->subqueryIndex);
+      
+      assert(pRes1->numOfRows >= 0 && pCmd1->numOfTables == 1);
+      
+      SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd1, 0);
+      if (pRes1->row >= pRes1->numOfRows) {
+        tscTrace("%p subquery:%p retrieve data from vnode, subquery:%d, vnodeIndex:%d", pSql, pSql1,
+            pSupporter->subqueryIndex, pMeterMetaInfo->vnodeIndex);
 
         tscResetForNextRetrieve(pRes1);
 
@@ -541,7 +574,11 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
   SSqlRes* pRes = &pSql->res;
 
   tscTrace("%p all subquery response, retrieve data", pSql);
-
+  
+  if (pRes->pColumnIndex != NULL) {
+    return;  // the column transfer support struct has been built
+  }
+  
   pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * pCmd->fieldsInfo.numOfOutputCols);
 
   for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
@@ -631,20 +668,34 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
       if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
         tscSetupOutputColumnIndex(pParentSql);
 
-        if (pParentSql->fp == NULL) {
-          tsem_wait(&pParentSql->emptyRspSem);
-          tsem_wait(&pParentSql->emptyRspSem);
-
-          tsem_post(&pParentSql->rspSem);
-        } else {
-          // set the command flag must be after the semaphore been correctly set.
-          //    pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
-          //    if (pPObj->res.code == TSDB_CODE_SUCCESS) {
-          //      (*pPObj->fp)(pPObj->param, pPObj, 0);
-          //    } else {
-          //      tscQueueAsyncRes(pPObj);
-          //    }
-          assert(0);
+        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
+  
+        /**
+         * if the query is a continue query (vnodeIndex > 0 for projection query) for next vnode, do the retrieval of data instead of returning to its invoker
+         */
+        if (pMeterMetaInfo->vnodeIndex > 0 && tscProjectionQueryOnMetric(&pSql->cmd)) {
+          assert(pMeterMetaInfo->vnodeIndex < pMeterMetaInfo->pMetricMeta->numOfVnodes);
+          pSupporter->pState->numOfCompleted = 0;  // reset the record value
+          
+          pSql->fp = joinRetrieveCallback;  // continue retrieve data
+          pSql->cmd.command = TSDB_SQL_FETCH;
+          tscProcessSql(pSql);
+        } else { // first retrieve from vnode during the secondary stage sub-query
+          if (pParentSql->fp == NULL) {
+            tsem_wait(&pParentSql->emptyRspSem);
+            tsem_wait(&pParentSql->emptyRspSem);
+    
+            tsem_post(&pParentSql->rspSem);
+          } else {
+            // set the command flag must be after the semaphore been correctly set.
+            //    pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
+            //    if (pPObj->res.code == TSDB_CODE_SUCCESS) {
+            //      (*pPObj->fp)(pPObj->param, pPObj, 0);
+            //    } else {
+            //      tscQueueAsyncRes(pPObj);
+            //    }
+            assert(0);
+          }
         }
       }
     }
@@ -1440,7 +1491,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
   
   assert(pDestBuf->fileSize == oldSize + size);
   
-  tscTrace("tsBuf merge success, %p, path:%s, fd:%d, file size:%d, vnode:%d, autoDelete:%d", pDestBuf, pDestBuf->path,
+  tscTrace("tsBuf merge success, %p, path:%s, fd:%d, file size:%d, numOfVnode:%d, autoDelete:%d", pDestBuf, pDestBuf->path,
       fileno(pDestBuf->f), pDestBuf->fileSize, pDestBuf->numOfVnodes, pDestBuf->autoDelete);
   
   return 0;

@@ -1538,7 +1538,7 @@ SMeterMetaInfo* tscAddMeterMetaInfo(SSqlCmd* pCmd, const char* name, SMeterMeta*
   pMeterMetaInfo->numOfTags = numOfTags;
 
   if (tags != NULL) {
-    memcpy(pMeterMetaInfo->tagColumnIndex, tags, sizeof(int16_t) * numOfTags);
+    memcpy(pMeterMetaInfo->tagColumnIndex, tags, sizeof(pMeterMetaInfo->tagColumnIndex[0]) * numOfTags);
   }
 
   pCmd->numOfTables += 1;
@@ -1673,6 +1673,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   char key[TSDB_MAX_TAGS_LEN + 1] = {0};
   tscGetMetricMetaCacheKey(pCmd, key, pMetermetaInfo->pMeterMeta->uid);
+  printf("-----%s\n", key);
 
   char*           name = pMeterMetaInfo->name;
   SMeterMetaInfo* pFinalInfo = NULL;

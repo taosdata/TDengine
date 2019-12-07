@@ -52,7 +52,6 @@ typedef struct SParsedDataColInfo {
 typedef struct SJoinSubquerySupporter {
   SSubqueryState* pState;
   SSqlObj*        pObj;           // parent SqlObj
-  bool            hasMore;        // has data from vnode to fetch
   int32_t         subqueryIndex;  // index of sub query
   int64_t         interval;       // interval time
   SLimitVal       limit;          // limit info
@@ -166,7 +165,6 @@ void   tsSetMetricQueryCond(STagCond* pTagCond, uint64_t uid, const char* str);
 
 void tscTagCondCopy(STagCond* dest, const STagCond* src);
 void tscTagCondRelease(STagCond* pCond);
-void tscTagCondSetQueryCondType(STagCond* pCond, int16_t type);
 
 void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SSqlCmd* pCmd);
 
@@ -222,6 +220,9 @@ TAOS* taos_connect_a(char* ip, char* user, char* pass, char* db, uint16_t port, 
                      void* param, void** taos);
 
 void sortRemoveDuplicates(STableDataBlocks* dataBuf);
+
+void tscPrintSelectClause(SSqlCmd* pCmd);
+
 #ifdef __cplusplus
 }
 #endif

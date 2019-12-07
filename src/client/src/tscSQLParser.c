@@ -1020,7 +1020,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       setColumnOffsetValueInResultset(pCmd);
-      updateTagColumnIndex(pCmd, 0);
+      
+      for(int32_t i = 0; i < pCmd->numOfTables; ++i) {
+        updateTagColumnIndex(pCmd, i);
+      }
 
       break;
     }
@@ -1796,12 +1799,11 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, tSQLExprItem* pItem) {
     }
 
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-      SColumnIndex index1 = {0, TSDB_TBNAME_COLUMN_INDEX};
       SSchema      colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_METER_NAME_LEN};
       strcpy(colSchema.name, TSQL_TBNAME_L);
 
       pCmd->type = TSDB_QUERY_TYPE_STABLE_QUERY;
-      tscAddSpecialColumnForSelect(pCmd, startPos, TSDB_FUNC_TAGPRJ, &index1, &colSchema, true);
+      tscAddSpecialColumnForSelect(pCmd, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, true);
     } else {
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, index.tableIndex);
       SMeterMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
@@ -2739,15 +2741,20 @@ static bool functionCompatibleCheck(SSqlCmd* pCmd) {
 void updateTagColumnIndex(SSqlCmd* pCmd, int32_t tableIndex) {
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, tableIndex);
 
-  // update tags column index for group by tags
-  for (int32_t i = 0; i < pCmd->groupbyExpr.numOfGroupCols; ++i) {
-    int32_t index = pCmd->groupbyExpr.columnInfo[i].colIdx;
-
-    for (int32_t j = 0; j < pMeterMetaInfo->numOfTags; ++j) {
-      int32_t tagColIndex = pMeterMetaInfo->tagColumnIndex[j];
-      if (tagColIndex == index) {
-        pCmd->groupbyExpr.columnInfo[i].colIdx = j;
-        break;
+  /*
+   * update tags column index for group by tags
+   * group by columns belong to this table
+   */
+  if (pCmd->groupbyExpr.numOfGroupCols > 0 && pCmd->groupbyExpr.tableIndex == tableIndex) {
+    for (int32_t i = 0; i < pCmd->groupbyExpr.numOfGroupCols; ++i) {
+      int32_t index = pCmd->groupbyExpr.columnInfo[i].colIdx;
+    
+      for (int32_t j = 0; j < pMeterMetaInfo->numOfTags; ++j) {
+        int32_t tagColIndex = pMeterMetaInfo->tagColumnIndex[j];
+        if (tagColIndex == index) {
+          pCmd->groupbyExpr.columnInfo[i].colIdx = j;
+          break;
+        }
       }
     }
   }
@@ -2755,7 +2762,13 @@ void updateTagColumnIndex(SSqlCmd* pCmd, int32_t tableIndex) {
   // update tags column index for expression
   for (int32_t i = 0; i < pCmd->exprsInfo.numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pCmd, i);
+    
     if (!TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {  // not tags, continue
+      continue;
+    }
+    
+    // not belongs to this table
+    if (pExpr->uid != pMeterMetaInfo->pMeterMeta->uid) {
       continue;
     }
 
@@ -2766,6 +2779,32 @@ void updateTagColumnIndex(SSqlCmd* pCmd, int32_t tableIndex) {
       }
     }
   }
+  
+  // update join condition tag column index
+  SJoinInfo* pJoinInfo = &pCmd->tagCond.joinInfo;
+  if (!pJoinInfo->hasJoin) {  // not join query
+    return;
+  }
+  
+  assert(pJoinInfo->left.uid != pJoinInfo->right.uid);
+  
+  // the join condition expression node belongs to this table(super table)
+  if (pMeterMetaInfo->pMeterMeta->uid == pJoinInfo->left.uid) {
+    for(int32_t i = 0; i < pMeterMetaInfo->numOfTags; ++i) {
+      if (pJoinInfo->left.tagCol == pMeterMetaInfo->tagColumnIndex[i]) {
+        pJoinInfo->left.tagCol = i;
+      }
+    }
+  }
+  
+  if (pMeterMetaInfo->pMeterMeta->uid == pJoinInfo->right.uid) {
+    for(int32_t i = 0; i < pMeterMetaInfo->numOfTags; ++i) {
+      if (pJoinInfo->right.tagCol == pMeterMetaInfo->tagColumnIndex[i]) {
+        pJoinInfo->right.tagCol = i;
+      }
+    }
+  }
+  
 }
 
 int32_t parseGroupbyClause(SSqlCmd* pCmd, tVariantList* pList) {
@@ -2986,8 +3025,6 @@ typedef struct SCondExpr {
 } SCondExpr;
 
 static int32_t getTimeRange(int64_t* stime, int64_t* etime, tSQLExpr* pRight, int32_t optr, int16_t timePrecision);
-
-static int32_t doParseWhereClause(SSqlObj* pSql, tSQLExpr** pExpr, SCondExpr* condExpr);
 
 static int32_t tSQLExprNodeToString(tSQLExpr* pExpr, char** str) {
   if (pExpr->nSQLOptr == TK_ID) {  // column name
@@ -4018,129 +4055,128 @@ static void cleanQueryExpr(SCondExpr* pCondExpr) {
   }
 }
 
-int32_t parseWhereClause(SSqlObj* pSql, tSQLExpr** pExpr) {
-  SSqlCmd* pCmd = &pSql->cmd;
 
+static void doAddJoinTagsColumnsIntoTagList(SSqlCmd* pCmd, SCondExpr* pCondExpr) {
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  if (QUERY_IS_JOIN_QUERY(pCmd->type) && UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
+    SColumnIndex index = {0};
+    
+    getColumnIndexByNameEx(&pCondExpr->pJoinExpr->pLeft->colInfo, pCmd, &index);
+    pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, index.tableIndex);
+    
+    int32_t columnInfo = index.columnIndex - pMeterMetaInfo->pMeterMeta->numOfColumns;
+    addRequiredTagColumn(pCmd, columnInfo, index.tableIndex);
+    
+    getColumnIndexByNameEx(&pCondExpr->pJoinExpr->pRight->colInfo, pCmd, &index);
+    pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, index.tableIndex);
+    
+    columnInfo = index.columnIndex - pMeterMetaInfo->pMeterMeta->numOfColumns;
+    addRequiredTagColumn(pCmd, columnInfo, index.tableIndex);
+  }
+}
+
+static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SCondExpr* pCondExpr, tSQLExpr** pExpr) {
+  int32_t ret = TSDB_CODE_SUCCESS;
+  
+  if (pCondExpr->pTagCond != NULL) {
+    for (int32_t i = 0; i < pCmd->numOfTables; ++i) {
+      tSQLExpr* p1 = extractExprForSTable(pExpr, pCmd, i);
+      
+      SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, i);
+      
+      char  c[TSDB_MAX_TAGS_LEN] = {0};
+      char* str = c;
+      
+      if ((ret = getTagCondString(pCmd, p1, &str)) != TSDB_CODE_SUCCESS) {
+        return ret;
+      }
+      
+      tsSetMetricQueryCond(&pCmd->tagCond, pMeterMetaInfo->pMeterMeta->uid, c);
+      
+      doCompactQueryExpr(pExpr);
+      tSQLExprDestroy(p1);
+    }
+  
+    pCondExpr->pTagCond = NULL;
+  }
+  
+  return ret;
+}
+int32_t parseWhereClause(SSqlObj* pSql, tSQLExpr** pExpr) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
-
+  
+  const char* msg = "invalid filter expression";
+  const char* msg1 = "invalid expression";
+  
+  int32_t ret = TSDB_CODE_SUCCESS;
+  
+  SSqlCmd* pCmd = &pSql->cmd;
   pCmd->stime = 0;
   pCmd->etime = INT64_MAX;
 
-  int32_t ret = TSDB_CODE_SUCCESS;
-
-  const char* msg1 = "invalid expression";
+  //tags query condition may be larger than 512bytes, therefore, we need to prepare enough large space
+  SStringBuilder sb = {0};
   SCondExpr   condExpr = {0};
 
   if ((*pExpr)->pLeft == NULL || (*pExpr)->pRight == NULL) {
     return invalidSqlErrMsg(pCmd, msg1);
   }
 
-  ret = doParseWhereClause(pSql, pExpr, &condExpr);
-  if (ret != TSDB_CODE_SUCCESS) {
+  int32_t type = 0;
+  if ((ret = getQueryCondExpr(pCmd, pExpr, &condExpr, &type, (*pExpr)->nSQLOptr)) != TSDB_CODE_SUCCESS) {
     return ret;
   }
-
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
-  if (QUERY_IS_JOIN_QUERY(pCmd->type) && UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
-    SColumnIndex index = {0};
-
-    getColumnIndexByNameEx(&condExpr.pJoinExpr->pLeft->colInfo, pCmd, &index);
-    pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, index.tableIndex);
-
-    int32_t columnInfo = index.columnIndex - pMeterMetaInfo->pMeterMeta->numOfColumns;
-    addRequiredTagColumn(pCmd, columnInfo, index.tableIndex);
-
-    getColumnIndexByNameEx(&condExpr.pJoinExpr->pRight->colInfo, pCmd, &index);
-    pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, index.tableIndex);
-
-    columnInfo = index.columnIndex - pMeterMetaInfo->pMeterMeta->numOfColumns;
-    addRequiredTagColumn(pCmd, columnInfo, index.tableIndex);
-  }
-
-  cleanQueryExpr(&condExpr);
-  return ret;
-}
-
-int32_t doParseWhereClause(SSqlObj* pSql, tSQLExpr** pExpr, SCondExpr* condExpr) {
-  const char* msg = "invalid filter expression";
-
-  int32_t  type = 0;
-  SSqlCmd* pCmd = &pSql->cmd;
-
-  /*
-   * tags query condition may be larger than 512bytes, therefore, we need to prepare enough large space
-   */
-  SStringBuilder sb = {0};
-
-  int32_t ret = TSDB_CODE_SUCCESS;
-  if ((ret = getQueryCondExpr(pCmd, pExpr, condExpr, &type, (*pExpr)->nSQLOptr)) != TSDB_CODE_SUCCESS) {
-    return ret;
-  }
-
-  doCompactQueryExpr(pExpr);
-
-  // after expression compact, the expression tree is only include tag query condition
-  condExpr->pTagCond = (*pExpr);
-
-  // 1. check if it is a join query
-  if ((ret = validateJoinExpr(pCmd, condExpr)) != TSDB_CODE_SUCCESS) {
-    return ret;
-  }
-
-  // 2. get the query time range
-  if ((ret = getTimeRangeFromExpr(pCmd, condExpr->pTimewindow)) != TSDB_CODE_SUCCESS) {
-    return ret;
-  }
-
-  // 3. get the tag query condition
-  if (condExpr->pTagCond != NULL) {
-    for (int32_t i = 0; i < pCmd->numOfTables; ++i) {
-      tSQLExpr* p1 = extractExprForSTable(pExpr, pCmd, i);
-
-      SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, i);
-
-      char  c[TSDB_MAX_TAGS_LEN] = {0};
-      char* str = c;
-      if ((ret = getTagCondString(pCmd, p1, &str)) != TSDB_CODE_SUCCESS) {
-        return ret;
-      }
-
-      tsSetMetricQueryCond(&pCmd->tagCond, pMeterMetaInfo->pMeterMeta->uid, c);
-
-      doCompactQueryExpr(pExpr);
-      tSQLExprDestroy(p1);
-    }
-
-    condExpr->pTagCond = NULL;
-  }
-
-  // 4. get the table name query condition
-  if ((ret = getTablenameCond(pCmd, condExpr->pTableCond, &sb)) != TSDB_CODE_SUCCESS) {
-    return ret;
-  }
-
-  // 5. other column query condition
-  if ((ret = getColumnQueryCondInfo(pCmd, condExpr->pColumnCond, TK_AND)) != TSDB_CODE_SUCCESS) {
-    return ret;
-  }
-
-  // 6. join condition
-  if ((ret = getJoinCondInfo(pSql, condExpr->pJoinExpr)) != TSDB_CODE_SUCCESS) {
-    return ret;
-  }
-
-  // 7. query condition for table name
-  pCmd->tagCond.relType = (condExpr->relType == TK_AND) ? TSDB_RELATION_AND : TSDB_RELATION_OR;
   
-  ret = setTableCondForMetricQuery(pSql, condExpr->pTableCond, condExpr->tableCondIndex, &sb);
+  doCompactQueryExpr(pExpr);
+  
+  // after expression compact, the expression tree is only include tag query condition
+  condExpr.pTagCond = (*pExpr);
+  
+  // 1. check if it is a join query
+  if ((ret = validateJoinExpr(pCmd, &condExpr)) != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+  
+  // 2. get the query time range
+  if ((ret = getTimeRangeFromExpr(pCmd, condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+  
+  // 3. get the tag query condition
+  if ((ret = getTagQueryCondExpr(pCmd, &condExpr, pExpr)) != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+  
+  // 4. get the table name query condition
+  if ((ret = getTablenameCond(pCmd, condExpr.pTableCond, &sb)) != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+  
+  // 5. other column query condition
+  if ((ret = getColumnQueryCondInfo(pCmd, condExpr.pColumnCond, TK_AND)) != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+  
+  // 6. join condition
+  if ((ret = getJoinCondInfo(pSql, condExpr.pJoinExpr)) != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+  
+  // 7. query condition for table name
+  pCmd->tagCond.relType = (condExpr.relType == TK_AND) ? TSDB_RELATION_AND : TSDB_RELATION_OR;
+  
+  ret = setTableCondForMetricQuery(pSql, condExpr.pTableCond, condExpr.tableCondIndex, &sb);
   taosStringBuilderDestroy(&sb);
   
   if (!validateFilterExpr(pCmd)) {
     return invalidSqlErrMsg(pCmd, msg);
   }
-
+  
+  doAddJoinTagsColumnsIntoTagList(pCmd, &condExpr);
+  
+  cleanQueryExpr(&condExpr);
   return ret;
 }
 
@@ -5683,4 +5719,31 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCreateDbMsg *pCreate) {
   }
   
   return TSDB_CODE_SUCCESS;
+}
+
+// for debug purpose
+void tscPrintSelectClause(SSqlCmd* pCmd) {
+  if (pCmd == NULL || pCmd->exprsInfo.numOfExprs == 0) {
+    return;
+  }
+  
+  char* str = calloc(1, 10240);
+  int32_t offset = 0;
+  
+  offset += sprintf(str, "%d [", pCmd->exprsInfo.numOfExprs);
+  for(int32_t i = 0; i < pCmd->exprsInfo.numOfExprs; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pCmd, i);
+    
+    int32_t size = sprintf(str + offset, "%s(%d)", aAggs[pExpr->functionId].aName, pExpr->colInfo.colId);
+    offset += size;
+    
+    if (i < pCmd->exprsInfo.numOfExprs - 1) {
+      str[offset++] = ',';
+    }
+  }
+  
+  str[offset] = ']';
+  printf("%s\n", str);
+  
+  free(str);
 }

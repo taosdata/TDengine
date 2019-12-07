@@ -695,8 +695,6 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     pExpr->param->i64Key = tagColIndex;
     pExpr->numOfParams = 1;
 
-    addRequiredTagColumn(pCmd, tagColIndex, 0);
-
     // add the filter tag column
     for (int32_t i = 0; i < pSupporter->colList.numOfCols; ++i) {
       SColumnBase *pColBase = &pSupporter->colList.pColList[i];
@@ -708,7 +706,11 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
   } else {
     pNew->cmd.type |= TSDB_QUERY_TYPE_SUBQUERY;
   }
-
+  
+#ifdef _DEBUG_VIEW
+  tscPrintSelectClause(&pNew->cmd);
+#endif
+  
   return tscProcessSql(pNew);
 }
 
