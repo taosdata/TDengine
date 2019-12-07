@@ -1048,7 +1048,7 @@ https://gitee.com/maikebing/Maikebing.EntityFrameworkCore.Taos
 ```
 ├── cfg
 ├───└── taos.cfg
-├─── connector
+├── connector
 ├───├── go
 ├───├── grafana
 ├───├── jdbc
