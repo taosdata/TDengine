@@ -123,11 +123,11 @@ cd ${compile_dir}
 
 # arm only support lite ver
 if [ -z "$armver" ]; then
-  cmake ${top_dir}/../
+  cmake ../
 elif [ "$armver" == "arm64" ]; then
-  cmake ${top_dir}/../ -DVERSION=lite -DARMVER=arm64
+  cmake ../ -DARMVER=arm64
 elif [ "$armver" == "arm32" ]; then
-  cmake ${top_dir}/../ -DVERSION=lite -DARMVER=arm32
+  cmake ../ -DARMVER=arm32
 else
   echo "input parameter error!!!"
   return
@@ -149,7 +149,7 @@ if [ -d ${output_dir} ]; then
 fi  
 ${csudo} mkdir -p ${output_dir} 
 cd ${script_dir}/deb
-${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${version}
+${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${version} ${armver}
   
 echo "do rpm package for the centos system"
 output_dir="${top_dir}/rpms"
@@ -158,7 +158,7 @@ if [ -d ${output_dir} ]; then
 fi
 ${csudo} mkdir -p ${output_dir}  
 cd ${script_dir}/rpm
-${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version}
+${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version} ${armver}
 
 echo "do tar.gz package for all systems"  
 cd ${script_dir}/tools

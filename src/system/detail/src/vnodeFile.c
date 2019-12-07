@@ -1254,6 +1254,7 @@ int vnodeWriteBlockToFile(SMeterObj *pObj, SCompBlock *pCompBlock, SData *data[]
       offset += (cdata[i]->len + sizeof(TSCKSUM));
 
     } else {
+      data[i]->len = pObj->schema[i].bytes * points;
       fields[i].len = data[i]->len;
       taosCalcChecksumAppend(0, (uint8_t *)(data[i]->data), data[i]->len + sizeof(TSCKSUM));
       offset += (data[i]->len + sizeof(TSCKSUM));
