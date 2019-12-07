@@ -51,8 +51,9 @@ class TDTestCase:
     conn = taos.connect(config=tdDnodes.getSimCfgPath())
     cursor = conn.cursor()
     cursor.execute('use db')
+    tdLog.sleep(10)
     for tid in range(self.ntables+1, self.ntables+11):
-      tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
+      tdSql.execute('create table tb%d using tb tags (%d)' %(tid, tid))
 
   def run(self):
     self.ntables = 100
@@ -103,7 +104,8 @@ class TDTestCase:
       threads[t].join()
     tdLog.sleep(10)
 
-    tdLog.info("================= step3")
+    tdSql.execute('reset query cache')
+    tdLog.info("================= step4")
     tdSql.query('select count(tbname) from tb')
     tdSql.checkData(0, 0, self.ntables + 10)
     
