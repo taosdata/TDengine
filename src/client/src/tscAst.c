@@ -112,8 +112,8 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
   tSQLSyntaxNode *pNode = NULL;
 
   if (pToken->type == TK_ID || pToken->type == TK_TBNAME) {
+    int32_t  i = 0; 
     if (pToken->type == TK_ID) {
-      int32_t         i = 0; 
       do {
         size_t len = strlen(pSchema[i].name);
         if (strncmp(pToken->z, pSchema[i].name, pToken->n) == 0 && pToken->n == len) break;
@@ -326,8 +326,8 @@ static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, cha
     uint8_t localOptr = getBinaryExprOptr(&t0); 
     if (localOptr == 0) {
       pError("not support binary operator:%d", t0.type);
+      free(pBinExpr);
       return NULL;
-      free(pBinExpr)
     }
 
     return parseRemainStr(str, pBinExpr, pSchema, localOptr, numOfCols, i);
