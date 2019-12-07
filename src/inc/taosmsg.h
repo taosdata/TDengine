@@ -664,7 +664,7 @@ typedef struct {
   uint32_t destId;
   char     meterId[TSDB_UNI_LEN];
   char     empty[3];
-  char     msgType;
+  uint8_t  msgType;
   int32_t  msgLen;
   uint8_t  content[0];
 } SIntMsg;
