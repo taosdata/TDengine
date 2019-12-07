@@ -98,14 +98,25 @@ class TDTestCase:
     tdLog.info("================= step9")
     tdLog.info("insert 1 record into all tables")
     for rid in range(1,2):
-      startTime = self.startTime
+      startTime = self.startTime + 100000
       sqlcmd = ['insert into']
       for tid in range(1,self.ntables+1):
         sqlcmd.append("tb%d values(%ld, %d)" % (tid, startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     tdLog.info(" ".join(sqlcmd))
     tdSql.execute('reset query cache')
-    tdSql.execute('select count(*) from tb')
+    tdLog.sleep(5)
+
+    tdSql.query('select count(*) from tb1')
+    tdSql.checkData(0, 0, 11)
+    tdSql.query('select count(*) from tb2')
+    tdSql.checkData(0, 0, 11)
+    tdSql.query('select count(*) from tb3')
+    tdSql.checkData(0, 0, 11)
+    tdSql.query('select count(*) from tb4')
+    tdSql.checkData(0, 0, 11)
+
+    tdSql.query('select count(*) from tb')
     tdSql.checkData(0, 0, self.ntables*(self.rowsPerTable+1))
       
   def stop(self):
