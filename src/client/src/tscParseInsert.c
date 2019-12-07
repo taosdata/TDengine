@@ -519,11 +519,12 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMe
     *str += index;
     if (numOfRows >= maxRows || pDataBlock->size + pMeterMeta->rowSize >= pDataBlock->nAllocSize) {
       int32_t tSize = tscAllocateMemIfNeed(pDataBlock, pMeterMeta->rowSize);
-      if (0 == tSize) {
+      if (0 == tSize) {  //TODO pass the correct error code to client
         strcpy(error, "client out of memory");
         *code = TSDB_CODE_CLI_OUT_OF_MEMORY;
         return -1;
       }
+      
       maxRows += tSize;
     }
 
@@ -1091,8 +1092,10 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;
     }
 
+    SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+    
     // set the next sent data vnode index in data block arraylist
-    pCmd->vnodeIdx = 1;
+    pMeterMetaInfo->vnodeIndex = 1;
   } else {
     pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   }
@@ -1310,19 +1313,19 @@ void tscProcessMultiVnodesInsert(SSqlObj *pSql) {
   int32_t           code = TSDB_CODE_SUCCESS;
 
   /* the first block has been sent to server in processSQL function */
-  assert(pCmd->isInsertFromFile != -1 && pCmd->vnodeIdx >= 1 && pCmd->pDataBlocks != NULL);
+  assert(pCmd->isInsertFromFile != -1 && pMeterMetaInfo->vnodeIndex >= 1 && pCmd->pDataBlocks != NULL);
 
-  if (pCmd->vnodeIdx < pCmd->pDataBlocks->nSize) {
+  if (pMeterMetaInfo->vnodeIndex < pCmd->pDataBlocks->nSize) {
     SDataBlockList *pDataBlocks = pCmd->pDataBlocks;
 
-    for (int32_t i = pCmd->vnodeIdx; i < pDataBlocks->nSize; ++i) {
+    for (int32_t i = pMeterMetaInfo->vnodeIndex; i < pDataBlocks->nSize; ++i) {
       pDataBlock = pDataBlocks->pData[i];
       if (pDataBlock == NULL) {
         continue;
       }
 
       if ((code = tscCopyDataBlockToPayload(pSql, pDataBlock)) != TSDB_CODE_SUCCESS) {
-        tscTrace("%p build submit data block failed, vnodeIdx:%d, total:%d", pSql, pCmd->vnodeIdx, pDataBlocks->nSize);
+        tscTrace("%p build submit data block failed, vnodeIdx:%d, total:%d", pSql, pMeterMetaInfo->vnodeIndex, pDataBlocks->nSize);
         continue;
       }
 
