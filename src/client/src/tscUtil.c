@@ -244,14 +244,24 @@ bool tscProjectionQueryOnMetric(SSqlCmd* pCmd) {
 
   //for project query, only the following two function is allowed
   for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
-    SSqlExpr* pExpr = tscSqlExprGet(pCmd, i);
-    int32_t functionId = pExpr->functionId;
+    int32_t functionId = tscSqlExprGet(pCmd, i)->functionId;
     if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TAGPRJ &&
         functionId != TSDB_FUNC_TAG && functionId != TSDB_FUNC_TS) {
       return false;
     }
   }
 
+  return true;
+}
+
+bool tscProjectionQueryOnTable(SSqlCmd* pCmd) {
+  for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
+    int32_t functionId = tscSqlExprGet(pCmd, i)->functionId;
+    if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TS) {
+      return false;
+    }
+  }
+  
   return true;
 }
 
@@ -1673,8 +1683,11 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   char key[TSDB_MAX_TAGS_LEN + 1] = {0};
   tscGetMetricMetaCacheKey(pCmd, key, pMetermetaInfo->pMeterMeta->uid);
-  printf("-----%s\n", key);
-
+  
+#ifdef _DEBUG_VIEW
+  printf("the metricmeta key is:%s\n", key);
+#endif
+  
   char*           name = pMeterMetaInfo->name;
   SMeterMetaInfo* pFinalInfo = NULL;
 
@@ -1766,5 +1779,14 @@ int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *s
   }
   
   return TSDB_CODE_INVALID_SQL;
+}
+
+bool tscHasReachLimitation(SSqlObj* pSql) {
+  assert(pSql != NULL && pSql->cmd.globalLimit != 0);
+  
+  SSqlCmd* pCmd = &pSql->cmd;
+  SSqlRes* pRes = &pSql->res;
+  
+  return (pCmd->globalLimit > 0 && pRes->numOfTotal >= pCmd->globalLimit);
 }
 

@@ -95,6 +95,8 @@ SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
 bool tscIsPointInterpQuery(SSqlCmd* pCmd);
 bool tscIsTWAQuery(SSqlCmd* pCmd);
 bool tscProjectionQueryOnMetric(SSqlCmd* pCmd);
+bool tscProjectionQueryOnTable(SSqlCmd* pCmd);
+
 bool tscIsTwoStageMergeMetricQuery(SSqlCmd* pCmd);
 bool tscQueryOnMetric(SSqlCmd* pCmd);
 bool tscQueryMetricTags(SSqlCmd* pCmd);

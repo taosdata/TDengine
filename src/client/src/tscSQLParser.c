@@ -5008,6 +5008,8 @@ int32_t parseLimitClause(SSqlObj* pSql, SQuerySQL* pQuerySql) {
 
   // handle the limit offset value, validate the limit
   pCmd->limit = pQuerySql->limit;
+  pCmd->globalLimit = pCmd->limit.limit;
+  
   pCmd->slimit = pQuerySql->slimit;
 
   if (pCmd->slimit.offset < 0 || pCmd->limit.offset < 0) {
