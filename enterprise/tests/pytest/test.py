@@ -280,6 +280,7 @@ from tag_cluster.datatype2 import *
 from manage_lite.privilege import *
 from manage_lite.privilege2 import *
 from manage_lite.account import *
+from manage_lite.droptbInCommit import *
 from manage_lite.dropNoExistDb import *
 from manage_cluster.privilege import *
 

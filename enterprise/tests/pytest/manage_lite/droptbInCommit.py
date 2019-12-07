@@ -11,12 +11,13 @@
 
 # -*- coding: utf-8 -*-  
 
-# multiple threads process the same table 
+# insert combined with import, no cross tables between threads
 import sys
 import time
 import datetime
 import threading
 import taos
+from random import randint
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -27,73 +28,68 @@ class TDTestCase:
     tdLog.debug("start to execute %s" % __file__)
     tdSql.init(conn.cursor())
   
-  def importImp(self):
+  def insertImp(self):
     conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     cursor = conn.cursor()
     cursor.execute('use db')
-    threadIndex = int(threading.current_thread().name)
+    threadName = threading.current_thread().name
+    print('Thread %s begin to inser data ==================' %threadName)
+    threadIndex = int(threadName)
     ninserted = 0
-    startTime = 1520000010000L + threadIndex
-    for rid in range(self.nrows):
-      sqlcmd = ['import into']
-      for tid in range(1, self.ntables+1):
-        sqlcmd.append('tb%d values(%ld, %d)' %(tid, startTime+rid*self.nthreads,  rid))
-        ninserted += 1
-        if (ninserted == 1000):
+    startTime =  self.startTime
+    for tid in range(threadIndex+1, self.ntables+1, self.nthreads):
+      for bid in range(self.nbatchs):
+        sqlcmd = ['insert into tb%d using tb tags (%d) values' %(tid,tid)]
+        ninserted = bid*self.nrowsPerBatch
+        for rid in range(self.nrowsPerBatch):
+          sqlcmd.append('(%ld, %d)' %(startTime+rid+ninserted, rid))
+        try:
           affrows = cursor.execute(" ".join(sqlcmd))
-          if (affrows == ninserted):
-            ninserted = 0
-            sqlcmd = ['import into']
-          else:
-            err = 'affected rows %d != expected %d' %(affrows, ninserted)
-            print("\033[1;31m%s %s\033[0m\nfailed sqlcmd: %s" \
-                         % (datetime.datetime.now(), err, sqlcmd[1]))
+          if (affrows != self.nrowsPerBatch):
+            err = 'affected rows %d != expected %d' %(affrows, self.nrowsPerBatch)
+            print("\033[1;31m%s %s\033[0m\nfailed insert sqlcmd: %d:%s" \
+                        % (datetime.datetime.now(), err, tid, sqlcmd[1]))
             self.successFlag = False
-            sys.exit(1) 
-            ninserted = 0
-            sqlcmd = ['import into']
-      if (ninserted > 0):
-        affrows = cursor.execute(" ".join(sqlcmd))
-        if (affrows == ninserted):
-          ninserted = 0
-        else:
-          err = 'affected rows %d != expected %d' %(affrows, ninserted)
-          print("\033[1;31m%s %s\033[0m\nfailed sqlcmd: %s" \
-                         % (datetime.datetime.now(), err, sqlcmd[1]))
+            sys.exit(1)
+        except:
           self.successFlag = False
-          sys.exit(1) 
-          ninserted = 0
-          sqlcmd = ['import into']
-    self.queryFlag = False
+          print('Thread %s Failed sql: %.80s' %(threadName, " ".join(sqlcmd)))
+          sys.exit(1)
+    print('Thread %d finished inserting' %threadIndex)
     conn.close()
-  
-  def selectImp(self):
+    self.queryFlag = False
+
+  def dropImp(self):
+    time.sleep(5)
+    threadName = threading.current_thread().name
+    print('%s begin to drop tables ==================' %threadName)
     conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     cursor = conn.cursor()
     cursor.execute('use db')
-    count = 0
     while(self.queryFlag):
-      cursor.execute('select * from tb')
-      for line in cursor:
-        continue
-      print("query %d finished" %count)
-      count += 1
-    conn.close()
+      for tid in range(self.ntables):
+        cursor.execute('drop table if exists tb%d' %tid)
+        time.sleep(0.1)
+    conn.close() 
 
   def run(self):
-    self.ntables = 2000
-    self.nrows = 200
-    self.nthreads = 5
-    self.queryFlag = True
+    self.ntables = 200
+    self.nrowsPerBatch = 200+randint(0,100)
+    self.nbatchs = 1000
+    self.nthreads = 5 
     self.successFlag = True
 
     tdDnodes.stop(1)
     tdDnodes.deploy(1)
     tdDnodes.start(1)
-
-    tdLog.info("total importing thread number = %d" %self.nthreads)
-    tdLog.info("total table number = %d" %self.ntables)
-    tdLog.info("total records in each table = %ld" %self.nthreads*self.nrows)
+    
+    #only represent insert/import thread
+    print('working threads = %d' %self.nthreads)
+    print('total table numbers = %d' %self.ntables)
+    print('insert/import rounds = %d' %self.nbatchs)
+    print('in every round insert %d records' %self.nrowsPerBatch)
+    self.startTime = 1520000010000L
+    self.queryFlag = True
 
     tdSql.execute('reset query cache')
     tdSql.execute('drop database db')
@@ -109,20 +105,19 @@ class TDTestCase:
     tdLog.sleep(10)
 
     tdLog.info("================= step2")
-    tdLog.info("%d threads begin to import data into all %d tables" %(self.nthreads, self.ntables))
+    tdLog.info("%d threads begin to insert data into all %d tables" %(self.nthreads, self.ntables))
     threads = []
     for tid in range (self.nthreads) :
       threadName = "%d" % (tid)
-      thread = threading.Thread(target=self.importImp, name=threadName)
+      thread = threading.Thread(target=self.insertImp, name=threadName)
       thread.start()
       threads.append(thread)
-    thread = threading.Thread(target=self.selectImp, name="select query")
+    thread = threading.Thread(target=self.dropImp, name="drop table in inserting")
     thread.start()
     threads.append(thread)
     
-    for tid in range (self.nthreads) :
+    for tid in range (self.nthreads+1) :
       threads[tid].join()
-    threads[tid+1].join()
 
     if(~self.successFlag):
       tdSql.close()

@@ -47,6 +47,8 @@ class TDTestCase:
           err = 'affected rows %d != expected %d' %(affrows, self.nrowsPerBatch)
           print("\033[1;31m%s %s\033[0m\nfailed insert sqlcmd: %d:%s" \
                       % (datetime.datetime.now(), err, tid, sqlcmd[1]))
+          self.successFlag = False
+          sys.exit(1)
     print('Thread %d finished inserting' %threadIndex)
     conn.close()
 
@@ -70,6 +72,7 @@ class TDTestCase:
           err = 'affected rows %d != expected %d' %(affrows, self.nrowsPerBatch)
           print("\033[1;31m%s %s\033[0m\nfailed import sqlcmd: %d:%s" \
                       % (datetime.datetime.now(), err, tid, sqlcmd[1]))
+          self.successFlag = False
           sys.exit(1) 
     print('Thread %d finished importing' %threadIndex)
     self.queryFlag = False
@@ -116,6 +119,7 @@ class TDTestCase:
     self.nrowsPerBatch = 200+randint(0,100)
     self.nbatchs = 10
     self.nthreads = 5 
+    self.successFlag = True
 
     tdDnodes.stop(1)
     tdDnodes.deploy(1)
@@ -164,6 +168,10 @@ class TDTestCase:
     
     for tid in range (self.nthreads+2) :
       threads[tid].join()
+
+    if(~self.successFlag):
+      tdSql.close()
+      tdLog.exit('This test failed!')
 
   def stop(self):
     tdSql.close()
