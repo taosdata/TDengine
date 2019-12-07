@@ -261,11 +261,11 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
     //todo handle error
   }
 
-  jniTrace("jobj:%p, conn:%p, sql:%s", jobj, tscon, sql);
+  jniTrace("jobj:%p, conn:%p, sql:%s", jobj, tscon, dst);
 
   int code = taos_query(tscon, dst);
   if (code != 0) {
-    jniError("jobj:%p, conn:%p, code:%d, msg:%s, sql:%s", jobj, tscon, code, taos_errstr(tscon), dst);
+    jniError("jobj:%p, conn:%p, code:%d, msg:%s", jobj, tscon, code, taos_errstr(tscon));
     free(dst);
     return JNI_TDENGINE_ERROR;
   } else {
@@ -274,9 +274,9 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
 
     if (pSql->cmd.command == TSDB_SQL_INSERT) {
       affectRows = taos_affected_rows(tscon);
-      jniTrace("jobj:%p, conn:%p, code:%d, affect rows:%d", jobj, tscon, code, affectRows, dst);
+      jniTrace("jobj:%p, conn:%p, code:%d, affect rows:%d", jobj, tscon, code, affectRows);
     } else {
-      jniTrace("jobj:%p, conn:%p, code:%d", jobj, tscon, code, dst);
+      jniTrace("jobj:%p, conn:%p, code:%d", jobj, tscon, code);
     }
 
     free(dst);
