@@ -113,7 +113,6 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
 
   if (pToken->type == TK_ID || pToken->type == TK_TBNAME) {
     int32_t i = 0;
-    
     if (pToken->type == TK_ID) {
       do {
         size_t len = strlen(pSchema[i].name);
