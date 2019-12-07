@@ -1,12 +1,12 @@
 ﻿###################################################################
- #       Copyright (c) 2016 by TAOS Technologies, Inc.
- #             All rights reserved.
- #
- #  This file is proprietary and confidential to TAOS Technologies.
- #  No part of this file may be reproduced, stored, transmitted, 
- #  disclosed or used in any form or by any means other than as 
- #  expressly provided by the written permission from Jianhui Tao
- #
+#       Copyright (c) 2016 by TAOS Technologies, Inc.
+#             All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
 ###################################################################
 
 # -*- coding: utf-8 -*-  
@@ -21,12 +21,12 @@ from util.dnodes import *
 class TDTestCase:
   def init(self):
     tdLog.debug("start to execute %s" % __file__)
-    tdLog.info("prepare cluster") 
+    tdLog.info("prepare cluster")
     tdDnodes.stopAll()
     tdDnodes.deploy(1)
     tdDnodes.cfg(1,"numOfMPeers", "1")
     tdDnodes.start(1)
-    
+
     self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
     tdSql.init(self.conn.cursor())
     tdSql.execute('reset query cache')
@@ -39,13 +39,13 @@ class TDTestCase:
     tdDnodes.cfg(3,"numOfMPeers", "1")
     tdDnodes.start(3)
     tdLog.sleep(5)
-    
+
   def run(self):
     self.replica = 3
     self.ntables = 20
     self.rowsPerTable = 40*38*7/10
     self.startTime = 1520000010000L
-    
+
     tdLog.info("================= step1")
     tdLog.info("create database db replica %d tables 10 cache 512" %self.replica)
     tdSql.execute('create database db replica %d tables 10 cache 512' %self.replica)
@@ -107,6 +107,8 @@ class TDTestCase:
     self.replica = 2
     tdLog.info('alter database db replica %d' %self.replica)
     tdSql.execute('alter database db replica %d' %self.replica)
+    tdLog.sleep(20)
+
     tdSql.query('show dnodes')
     for i in range(3):
       tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
@@ -124,6 +126,9 @@ class TDTestCase:
     tdLog.info("================= step6")
     tdLog.info("insert 10 records again into each %d tables" %(self.ntables))
     ninserted = 0
+
+    querybegin = self.startTime+self.rowsPerTable
+
     sqlcmd = ['insert into']
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
@@ -138,20 +143,22 @@ class TDTestCase:
       tdSql.execute(" ".join(sqlcmd))
     self.rowsPerTable += 10
     tdSql.execute('reset query cache')
-    tdSql.query('select count(*) from tb')
-    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
+    tdSql.query('select count(*) from tb where ts > %ld' % (querybegin))
+    tdSql.checkData(0, 0, 10*self.ntables)
 
     tdLog.info("================= step7")
     queryRows = tdSql.query('show vgroups')
     for i in range(queryRows):
       tdLog.info('Vgid%s: %s:%s:%s|%s:%s:%s' \
-             %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
-               tdSql.getData(i,7),tdSql.getData(i,8),tdSql.getData(i,9)))
-    
+                 %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5), \
+                   tdSql.getData(i,7),tdSql.getData(i,8),tdSql.getData(i,9)))
+
     tdLog.info("================= step8")
     self.replica = 1
     tdLog.info('alter database db replica %d' %self.replica)
     tdSql.execute('alter database db replica %d' %self.replica)
+    tdLog.sleep(20)
+
     tdSql.query('show dnodes')
     for i in range(3):
       tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
@@ -169,6 +176,8 @@ class TDTestCase:
     tdLog.info("================= step9")
     tdLog.info("insert 10 records again into each %d tables" %(self.ntables))
     ninserted = 0
+
+    querybegin = self.startTime+self.rowsPerTable
     sqlcmd = ['insert into']
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
@@ -183,19 +192,20 @@ class TDTestCase:
       tdSql.execute(" ".join(sqlcmd))
     self.rowsPerTable += 10
     tdSql.execute('reset query cache')
-    tdSql.query('select count(*) from tb')
-    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
+    tdSql.query('select count(*) from tb where ts > %ld' % (querybegin))
+    tdSql.checkData(0, 0, 10*self.ntables)
 
     tdLog.info("================= step10")
     queryRows = tdSql.query('show vgroups')
     for i in range(queryRows):
       tdLog.info('Vgid%s: %s:%s:%s' \
-             %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5)))
-    
+                 %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5)))
+
     tdLog.info("================= step11")
     self.replica = 2
     tdLog.info('alter database db replica %d' %self.replica)
     tdSql.execute('alter database db replica %d' %self.replica)
+    tdLog.sleep(20)
     tdSql.query('show dnodes')
     for i in range(3):
       tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
@@ -213,6 +223,8 @@ class TDTestCase:
     tdLog.info("================= step12")
     tdLog.info("insert 10 records again into each %d tables" %(self.ntables))
     ninserted = 0
+
+    querybegin = self.startTime+self.rowsPerTable
     sqlcmd = ['insert into']
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
@@ -227,20 +239,21 @@ class TDTestCase:
       tdSql.execute(" ".join(sqlcmd))
     self.rowsPerTable += 10
     tdSql.execute('reset query cache')
-    tdSql.query('select count(*) from tb')
-    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
+    tdSql.query('select count(*) from tb where ts > %ld' % (querybegin))
+    tdSql.checkData(0, 0, 10*self.ntables)
 
     tdLog.info("================= step13")
     queryRows = tdSql.query('show vgroups')
     for i in range(queryRows):
       tdLog.info('Vgid%s: %s:%s:%s|%s:%s:%s' \
-             %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
-               tdSql.getData(i,7),tdSql.getData(i,8),tdSql.getData(i,9)))
+                 %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5), \
+                   tdSql.getData(i,7),tdSql.getData(i,8),tdSql.getData(i,9)))
 
     tdLog.info("================= step14")
     self.replica = 3
     tdLog.info('alter database db replica %d' %self.replica)
     tdSql.execute('alter database db replica %d' %self.replica)
+    tdLog.sleep(20)
     tdSql.query('show dnodes')
     for i in range(3):
       tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
@@ -258,6 +271,8 @@ class TDTestCase:
     tdLog.info("================= step15")
     tdLog.info("insert 10 records again into each %d tables" %(self.ntables))
     ninserted = 0
+
+    querybegin = self.startTime+self.rowsPerTable
     sqlcmd = ['insert into']
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
@@ -272,21 +287,21 @@ class TDTestCase:
       tdSql.execute(" ".join(sqlcmd))
     self.rowsPerTable += 10
     tdSql.execute('reset query cache')
-    tdSql.query('select count(*) from tb')
-    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
+    tdSql.query('select count(*) from tb where ts > %ld' % (querybegin))
+    tdSql.checkData(0, 0, 10*self.ntables)
 
     tdLog.info("================= step16")
     queryRows = tdSql.query('show vgroups')
     for i in range(queryRows):
       tdLog.info('Vgid%s: %s:%s:%s|%s:%s:%s|%s:%s:%s' \
-             %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
-               tdSql.getData(i,7),tdSql.getData(i,8),tdSql.getData(i,9),\
-               tdSql.getData(i,11),tdSql.getData(i,12),tdSql.getData(i,13)))
+                 %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5), \
+                   tdSql.getData(i,7),tdSql.getData(i,8),tdSql.getData(i,9), \
+                   tdSql.getData(i,11),tdSql.getData(i,12),tdSql.getData(i,13)))
 
-    
+
   def stop(self):
     tdSql.close()
     self.conn.close()
     tdLog.success("%s successfully executed" % __file__)
-  
+
 tdCases.addCluster(__file__, TDTestCase())
