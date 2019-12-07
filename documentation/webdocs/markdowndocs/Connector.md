@@ -198,56 +198,104 @@ For the time being, TDengine supports subscription on one table. It is implement
 
 ##  Java Connector
 
-### JDBC Interface
+To Java delevopers, TDengine provides `taos-jdbcdriver` according to the JDBC(3.0) API. Users can find and download it through [Sonatype Repository][1].
 
-TDengine provides a JDBC driver `taos-jdbcdriver-x.x.x.jar` for Enterprise Java developers. TDengine's JDBC Driver is implemented as a subset of the standard JDBC 3.0 Specification and supports the most common Java development frameworks. The driver have been published to dependency repositories such as Sonatype Maven Repository, and users could refer to the following `pom.xml` configuration file.
+Since the native language of TDengine is C, the necessary TDengine library should be checked before using the taos-jdbcdriver:
+
+* libtaos.so (Linux)
+    After TDengine is installed successfully, the library `libtaos.so` will be automatically copied to the `/usr/lib/`, which is the system's default search path. 
+    
+* taos.dll (Windows)
+    After TDengine client is installed, the library `taos.dll` will be automatically copied to the `C:/Windows/System32`, which is the system's default search path. 
+    
+> Note: Please make sure that TDengine Windows client has been installed if developing on Windows.
+
+Since TDengine is time-series database, there are still some differences compared with traditional databases in using TDengine JDBC driver: 
+* TDengine doesn't allow to delete/modify single record, and thus JDBC driver also has no such method. 
+* No support for transaction
+* No support for union between tables
+* No support for nested query)，`There is at most one open ResultSet for each Connection. Thus, TSDB JDBC Driver will close current ResultSet if it is not closed and a new query begins`.
+
+## Version list of TAOS-JDBCDriver and required TDengine and JDK 
+
+| taos-jdbcdriver | TDengine  | JDK  | 
+| --- | --- | --- | 
+| 1.0.3 | 1.6.1.x or higher | 1.8.x |
+| 1.0.2 | 1.6.1.x or higher | 1.8.x |  
+| 1.0.1 | 1.6.1.x or higher | 1.8.x |  
+
+## DataType in TDengine and Java
+
+The datatypes in TDengine include timestamp, number, string and boolean, which are converted as follows in Java:
+
+| TDengine | Java | 
+| --- | --- | 
+| TIMESTAMP | java.sql.Timestamp | 
+| INT | java.lang.Integer | 
+| BIGINT | java.lang.Long |  
+| FLOAT | java.lang.Float |  
+| DOUBLE | java.lang.Double | 
+| SMALLINT, TINYINT |java.lang.Short  |
+| BOOL | java.lang.Boolean | 
+| BINARY, NCHAR | java.lang.String | 
+
+## How to get TAOS-JDBC Driver
+
+### maven repository
+
+taos-jdbcdriver has been published to [Sonatype Repository][1]:
+* [sonatype][8]
+* [mvnrepository][9]
+* [maven.aliyun][10]
+
+Using the following pom.xml for maven projects
 
 ```xml
-<repositories>
-    <repository>
-      <id>oss-sonatype</id>
-      <name>oss-sonatype</name>
-      <url>https://oss.sonatype.org/content/groups/public</url>
-    </repository>
-</repositories>
- 
 <dependencies>
     <dependency>
         <groupId>com.taosdata.jdbc</groupId>
         <artifactId>taos-jdbcdriver</artifactId>
-        <version>1.0.1</version>
+        <version>1.0.3</version>
     </dependency>
 </dependencies>
 ```
 
-Please note the JDBC driver itself relies on a native library written in C. On a Linux OS, the driver relies on a `libtaos.so` native library, where .so stands for "Shared Object". After the successful installation of TDengine on Linux, `libtaos.so` should be automatically copied to `/usr/local/lib/taos` and added to the system's default search path. On a Windows OS, the driver relies on a `taos.dll` native library, where .dll stands for "Dynamic Link Library". After the successful installation of the TDengine client on Windows, the `taos-jdbcdriver.jar` file can be found in `C:/TDengine/driver/JDBC`; the `taos.dll` file can be found in `C:/TDengine/driver/C` and should have been automatically copied to the system's searching path `C:/Windows/System32`. 
+### JAR file from the source code
 
-Developers can refer to the Oracle's official JDBC API documentation for detailed usage on classes and methods. However, there are some differences of connection configurations and supported methods in the driver implementation between TDengine and traditional relational databases. 
+After downloading the [TDengine][3] source code, execute `mvn clean package` in the directory `src/connector/jdbc` and then the corresponding jar file is generated.
 
-For database connections, TDengine's JDBC driver has the following configurable parameters in the JDBC URL. The standard format of a TDengine JDBC URL is:
+## Usage 
 
-`jdbc:TSDB://{host_ip}:{port}/{database_name}?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
-
-where `{}` marks the required parameters and `[]` marks the optional. The usage of each parameter is pretty straightforward:
-
-* user - login user name for TDengine; by default, it's `root`
-* password - login password; by default, it's `taosdata`
-* charset - the client-side charset; by default, it's the operation system's charset
-* cfgdir - the directory of TDengine client configuration file; by default it's `/etc/taos` on Linux and `C:\TDengine/cfg` on Windows
-* locale - the language environment of TDengine client; by default, it's the operation system's locale
-* timezone - the timezone of the TDengine client; by default, it's the operation system's timezone 
-
-All parameters can be configured at the time when creating a connection using the java.sql.DriverManager class, for example:
+### get the connection
 
 ```java
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.util.Properties;
-import com.taosdata.jdbc.TSDBDriver;
+Class.forName("com.taosdata.jdbc.TSDBDriver");
+String jdbcUrl = "jdbc:TAOS://127.0.0.1:6030/log?user=root&password=taosdata";
+Connection conn = DriverManager.getConnection(jdbcUrl);
+```
+> `6030` is the default port and `log` is the default database for system monitor.
 
+A normal JDBC URL looks as follows:
+`jdbc:TSDB://{host_ip}:{port}/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
+
+values in `{}` are necessary while values in `[]` are optional。Each option in the above URL denotes:
+
+* user：user name for login, defaultly root。
+* password：password for login，defaultly taosdata。
+* charset：charset for client，defaultly system charset
+* cfgdir：log directory for client, defaultly _/etc/taos/_ on Linux and _C:/TDengine/cfg_ on Windows。
+* locale：language for client，defaultly system locale。
+* timezone：timezone for client，defaultly system timezone。
+
+The options above can be configures (`ordered by priority`):
+1. JDBC URL 
+
+    As explained above.
+2. java.sql.DriverManager.getConnection(String jdbcUrl, Properties connProps)
+```java
 public Connection getConn() throws Exception{
-    Class.forName("com.taosdata.jdbc.TSDBDriver");
-  String jdbcUrl = "jdbc:TAOS://127.0.0.1:0/db?user=root&password=taosdata";
+  Class.forName("com.taosdata.jdbc.TSDBDriver");
+  String jdbcUrl = "jdbc:TAOS://127.0.0.1:0/log?user=root&password=taosdata";
   Properties connProps = new Properties();
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
@@ -260,16 +308,204 @@ public Connection getConn() throws Exception{
 }
 ```
 
-Except `cfgdir`, all the parameters listed above can also be configured in the configuration file. The properties specified when calling DriverManager.getConnection() has the highest priority among all configuration methods. The JDBC URL has the second-highest priority, and the configuration file has the lowest priority. The explicitly configured parameters in a method with higher priorities always overwrite that same parameter configured in methods with lower priorities. For example, if `charset` is explicitly configured as "UTF-8" in the JDBC URL and "GKB" in the `taos.cfg` file, then "UTF-8" will be used.
+3. Configuration file (taos.cfg)
 
-Although the JDBC driver is implemented following the JDBC standard as much as possible, there are major differences between TDengine and traditional databases in terms of data models that lead to the differences in the driver implementation. Here is a list of head-ups for developers who have plenty of experience on traditional databases but little on TDengine:
+    Default configuration file is _/var/lib/taos/taos.cfg_ On Linux and _C:\TDengine\cfg\taos.cfg_ on Windows
+```properties
+# client default username
+# defaultUser           root
 
-*  TDengine does NOT support updating or deleting a specific record, which leads to some unsupported methods in the JDBC driver
-* TDengine currently does not support `join` or `union` operations, and thus, is lack of support for associated methods in the JDBC driver
-* TDengine supports batch insertions which are controlled at the level of SQL statement writing instead of API calls
-* TDengine doesn't support nested queries and neither does the JDBC driver. Thus for each established connection to TDengine, there should be only one open result set associated with it
+# client default password
+# defaultPass           taosdata
 
-All the error codes and error messages can be found in `TSDBError.java` . For a more detailed coding example, please refer to the demo project `JDBCDemo` in TDengine's code examples. 
+# default system charset
+# charset               UTF-8
+
+# system locale
+# locale                en_US.UTF-8
+```
+> More options can refer to [client configuration][13]
+
+### Create databases and tables
+
+```java
+Statement stmt = conn.createStatement();
+
+// create database
+stmt.executeUpdate("create database if not exists db");
+
+// use database
+stmt.executeUpdate("use db");
+
+// create table
+stmt.executeUpdate("create table if not exists tb (ts timestamp, temperature int, humidity float)");
+```
+> Note: if no step like `use db`, the name of database must be added as prefix like _db.tb_ when operating on tables 
+
+### Insert data
+
+```java
+// insert data
+int affectedRows = stmt.executeUpdate("insert into tb values(now, 23, 10.3) (now + 1s, 20, 9.3)");
+
+System.out.println("insert " + affectedRows + " rows.");
+```
+> _now_ is the server time.
+> _now+1s_ is 1 second later than current server time. The time unit includes: _a_(millisecond), _s_(second), _m_(minute), _h_(hour), _d_(day), _w_(week), _n_(month), _y_(year).
+
+### Query database
+
+```java
+// query data
+ResultSet resultSet = stmt.executeQuery("select * from tb");
+
+Timestamp ts = null;
+int temperature = 0;
+float humidity = 0;
+while(resultSet.next()){
+
+    ts = resultSet.getTimestamp(1);
+    temperature = resultSet.getInt(2);
+    humidity = resultSet.getFloat("humidity");
+
+    System.out.printf("%s, %d, %s\n", ts, temperature, humidity);
+}
+```
+> query is consistent with relational database. The subscript start with 1 when retrieving return results. It is recommended to use the column name to retrieve results.
+
+### Close all
+
+```java
+resultSet.close();
+stmt.close();
+conn.close();
+```
+> `please make sure the connection is closed to avoid the error like connection leakage`
+
+## Using connection pool
+
+**HikariCP**
+
+* dependence in pom.xml：
+```xml
+<dependency>
+    <groupId>com.zaxxer</groupId>
+    <artifactId>HikariCP</artifactId>
+    <version>3.4.1</version>
+</dependency>
+```
+
+* Examples：
+```java
+ public static void main(String[] args) throws SQLException {
+    HikariConfig config = new HikariConfig();
+    config.setJdbcUrl("jdbc:TAOS://127.0.0.1:6030/log");
+    config.setUsername("root");
+    config.setPassword("taosdata");
+
+    config.setMinimumIdle(3);           //minimum number of idle connection
+    config.setMaximumPoolSize(10);      //maximum number of connection in the pool
+    config.setConnectionTimeout(10000); //maximum wait milliseconds for get connection from pool
+    config.setIdleTimeout(60000);       // max idle time for recycle idle connection 
+    config.setConnectionTestQuery("describe log.dn"); //validation query
+    config.setValidationTimeout(3000);   //validation query timeout
+
+    HikariDataSource ds = new HikariDataSource(config); //create datasource
+    
+    Connection  connection = ds.getConnection(); // get connection
+    Statement statement = connection.createStatement(); // get statement
+    
+    //query or insert 
+    // ...
+    
+    connection.close(); // put back to conneciton pool
+}
+```
+> The close() method will not close the connection from HikariDataSource.getConnection(). Instead, the connection is put back to the connection pool. 
+> More instructions can refer to [User Guide][5]
+
+**Druid**
+
+* dependency in pom.xml：
+
+```xml
+<dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>druid</artifactId>
+    <version>1.1.20</version>
+</dependency>
+```
+
+* Examples：
+```java
+public static void main(String[] args) throws Exception {
+    Properties properties = new Properties();
+    properties.put("driverClassName","com.taosdata.jdbc.TSDBDriver");
+    properties.put("url","jdbc:TAOS://127.0.0.1:6030/log");
+    properties.put("username","root");
+    properties.put("password","taosdata");
+
+    properties.put("maxActive","10"); //maximum number of connection in the pool
+    properties.put("initialSize","3");//initial number of connection
+    properties.put("maxWait","10000");//maximum wait milliseconds for get connection from pool
+    properties.put("minIdle","3");//minimum number of connection in the pool
+
+    properties.put("timeBetweenEvictionRunsMillis","3000");// the interval milliseconds to test connection
+
+    properties.put("minEvictableIdleTimeMillis","60000");//the minimum milliseconds to keep idle
+    properties.put("maxEvictableIdleTimeMillis","90000");//the maximum milliseconds to keep idle
+
+    properties.put("validationQuery","describe log.dn"); //validation query
+    properties.put("testWhileIdle","true"); // test connection while idle
+    properties.put("testOnBorrow","false"); // don't need while testWhileIdle is true
+    properties.put("testOnReturn","false"); // don't need while testWhileIdle is true
+    
+    //create druid datasource
+    DataSource ds = DruidDataSourceFactory.createDataSource(properties);
+    Connection  connection = ds.getConnection(); // get connection
+    Statement statement = connection.createStatement(); // get statement
+
+    //query or insert 
+    // ...
+
+    connection.close(); // put back to conneciton pool
+}
+```
+> More instructions can refer to [User Guide][6]
+
+**Notice**
+* TDengine `v1.6.4.1` provides a function `select server_status()` to check heartbeat. It is highly recommended to use this function for `Validation Query`.
+
+As follows，`1` will be returned if `select server_status()` is successfully executed。
+```shell
+taos> select server_status();
+server_status()|
+================
+1              |
+Query OK, 1 row(s) in set (0.000141s)
+```
+
+## Integrated with framework
+
+* Please refer to [SpringJdbcTemplate][11] if using taos-jdbcdriver in Spring JdbcTemplate
+* Please refer to [springbootdemo][12] if using taos-jdbcdriver in Spring JdbcTemplate
+
+## FAQ
+
+* java.lang.UnsatisfiedLinkError: no taos in java.library.path
+  
+  **Cause**：The application program cannot find Library function _taos_
+  
+  **Answer**：Copy `C:\TDengine\driver\taos.dll` to `C:\Windows\System32\` on Windows and make a soft link through ` ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` on Linux.
+  
+* java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
+  
+  **Cause**：Currently TDengine only support 64bit JDK
+  
+  **Answer**：re-install 64bit JDK.
+
+* For other questions, please refer to [Issues][7]
+
 
 ## Python Connector
 
