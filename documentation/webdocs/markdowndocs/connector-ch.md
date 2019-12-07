@@ -270,7 +270,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 > 端口 6030 为默认连接端口，JDBC URL 中的 log 为系统本身的监控数据库。
 
 TDengine 的 JDBC URL 规范格式为：
-`jdbc:TSDB://{host_ip}:{port}/{database_name}?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
+`jdbc:TSDB://{host_ip}:{port}/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
 
 其中，`{}` 中的内容必须，`[]` 中为可选。配置参数说明如下：
 
@@ -317,6 +317,7 @@ public Connection getConn() throws Exception{
 # system locale
 # locale                en_US.UTF-8
 ```
+> 更多详细配置请参考[客户端配置][13]
 
 ### 创建数据库和表
 
@@ -408,7 +409,7 @@ conn.close();
     Statement statement = connection.createStatement(); // get statement
     
     //query or insert 
-    // 
+    // ...
     
     connection.close(); // put back to conneciton pool
 }
@@ -1126,3 +1127,4 @@ TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序
 [10]: https://maven.aliyun.com/mvn/search
 [11]:  https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
 [12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
+[13]: https://www.taosdata.com/cn/documentation/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
