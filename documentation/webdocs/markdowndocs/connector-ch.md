@@ -1047,30 +1047,30 @@ https://gitee.com/maikebing/Maikebing.EntityFrameworkCore.Taos
 
 ```
 ├── cfg
-│   └── taos.cfg
-├── connector
-│   ├── go
-│   ├── grafana
-│   ├── jdbc
-│   └── python
+├───└── taos.cfg
+├─── connector
+├───├── go
+├───├── grafana
+├───├── jdbc
+├───└── python
 ├── driver
-│   ├── taos.dll
-│   ├── taos.exp
-│   └── taos.lib
+├───├── taos.dll
+├───├── taos.exp
+├───└── taos.lib
 ├── examples
-│   ├── bash
-│   ├── c
-│   ├── C#
-│   ├── go
-│   ├── JDBC
-│   ├── lua
-│   ├── matlab
-│   ├── nodejs
-│   ├── python
-│   ├── R
-│   └── rust
+├───├── bash
+├───├── c
+├───├── C#
+├───├── go
+├───├── JDBC
+├───├── lua
+├───├── matlab
+├───├── nodejs
+├───├── python
+├───├── R
+├───└── rust
 ├── include
-│   └── taos.h
+├───└── taos.h
 └── taos.exe
 ```
 
