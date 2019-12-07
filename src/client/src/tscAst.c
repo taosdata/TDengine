@@ -108,12 +108,12 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
     return NULL;
   }
 
-  int32_t         i = 0;
   size_t          nodeSize = sizeof(tSQLSyntaxNode);
   tSQLSyntaxNode *pNode = NULL;
 
   if (pToken->type == TK_ID || pToken->type == TK_TBNAME) {
     if (pToken->type == TK_ID) {
+      int32_t         i = 0; 
       do {
         size_t len = strlen(pSchema[i].name);
         if (strncmp(pToken->z, pSchema[i].name, pToken->n) == 0 && pToken->n == len) break;
@@ -268,8 +268,8 @@ static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, cha
   }
 
   // get the operator of expr
-  uint8_t optr = getBinaryExprOptr(&t0);
-  if (optr <= 0) {
+  uint8_t optr = getBinaryExprOptr(&t0);  
+  if (optr == 0) {
     pError("not support binary operator:%d", t0.type);
     tSQLSyntaxNodeDestroy(pLeft, NULL);
     return NULL;
@@ -323,10 +323,11 @@ static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, cha
     pn->colId = -1;
     return pn;
   } else {
-    uint8_t localOptr = getBinaryExprOptr(&t0);
-    if (localOptr <= 0) {
+    uint8_t localOptr = getBinaryExprOptr(&t0); 
+    if (localOptr == 0) {
       pError("not support binary operator:%d", t0.type);
       return NULL;
+      free(pBinExpr)
     }
 
     return parseRemainStr(str, pBinExpr, pSchema, localOptr, numOfCols, i);
@@ -418,16 +419,17 @@ void tSQLBinaryExprToString(tSQLBinaryExpr *pExpr, char *dst, int32_t *len) {
   if (pExpr == NULL) {
     *dst = 0;
     *len = 0;
+    return; 
   }
 
-  int32_t lhs = tSQLBinaryExprToStringImpl(pExpr->pLeft, dst, pExpr->pLeft->nodeType);
+  int32_t lhs = tSQLBinaryExprToStringImpl(pExpr->pLeft, dst, pExpr->pLeft->nodeType); 
   dst += lhs;
   *len = lhs;
 
-  char *start = tSQLOptrToString(pExpr->nSQLBinaryOptr, dst);
+  char *start = tSQLOptrToString(pExpr->nSQLBinaryOptr, dst); 
   *len += (start - dst);
 
-  *len += tSQLBinaryExprToStringImpl(pExpr->pRight, start, pExpr->pRight->nodeType);
+  *len += tSQLBinaryExprToStringImpl(pExpr->pRight, start, pExpr->pRight->nodeType); 
 }
 
 static void UNUSED_FUNC destroySyntaxTree(tSQLSyntaxNode *pNode) { tSQLSyntaxNodeDestroy(pNode, NULL); }
@@ -650,7 +652,8 @@ void tSQLListTraverseOnResult(struct tSQLBinaryExpr *pExpr, bool (*fp)(tSkipList
   // brutal force search
   int64_t num = pResult->num;
   for (int32_t i = 0, j = 0; i < pResult->num; ++i) {
-    if (fp == NULL || (fp != NULL && fp(pResult->pRes[i], pExpr->info) == true)) {
+    //if (fp == NULL || (fp != NULL && fp(pResult->pRes[i], pExpr->info) == true)) {
+    if (fp == NULL || (fp(pResult->pRes[i], pExpr->info) == true)) { 
       pResult->pRes[j++] = pResult->pRes[i];
     } else {
       num--;
