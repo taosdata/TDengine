@@ -279,8 +279,7 @@ bool httpReadChunkedBody(HttpContext* pContext, HttpParser* pParser) {
     httpParseChunkedBody(pContext, pParser, false);
     return HTTP_CHECK_BODY_SUCCESS;
   } else {
-    httpTrace("context:%p, fd:%d, ip:%s, chunked body not finished, continue read", pContext, pContext->fd,
-              pContext->ipstr);
+    httpTrace("context:%p, fd:%d, ip:%s, chunked body not finished, continue read", pContext, pContext->fd, pContext->ipstr);
     if (!httpReadDataImp(pContext)) {
       httpError("context:%p, fd:%d, ip:%s, read chunked request error", pContext, pContext->fd, pContext->ipstr);
       return HTTP_CHECK_BODY_ERROR;
