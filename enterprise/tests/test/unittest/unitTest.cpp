@@ -879,7 +879,7 @@ TEST(testCase, tGetToken_Test) {
 
   char s3[] = "1.1.1.1";
   len = tSQLGetToken(s3, &type);
-  EXPECT_EQ(type, TK_IP);
+  EXPECT_EQ(type, TK_IPTOKEN);
   EXPECT_EQ(len, strlen(s3));
 
   char s5[] = "0x ";
