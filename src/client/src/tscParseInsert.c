@@ -74,8 +74,8 @@ static int32_t tscToDouble(SSQLToken *pToken, double *value, char **endPtr) {
 }
 
 int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec) {
-  char *    token;
-  int       tokenlen;
+  //char *    token; //fang not used
+  //int       tokenlen; //fang not used
   int32_t   index = 0;
   SSQLToken sToken;
   int64_t   interval;
@@ -394,7 +394,7 @@ static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start
 int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[], SParsedDataColInfo *spd, char *error,
                       int16_t timePrec, int32_t *code, char* tmpTokenBuf) {
   int32_t   index = 0;
-  bool      isPrevOptr;
+  //bool      isPrevOptr; //fang, never used
   SSQLToken sToken = {0};
   char *    payload = pDataBlocks->pData + pDataBlocks->size;
 
@@ -436,9 +436,9 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
       char delim = sToken.z[0];
       int32_t cnt = 0;
       int32_t j = 0;
-      for (int32_t i = 1; i < sToken.n - 1; ++i) {
-        if (sToken.z[i] == delim || sToken.z[i] == '\\') {
-          if (sToken.z[i + 1] == delim) {
+      for (int32_t k = 1; k < sToken.n - 1; ++k) {  
+        if (sToken.z[k] == delim || sToken.z[k] == '\\') {
+          if (sToken.z[k + 1] == delim) {
             cnt++;
             continue;
           }
@@ -1239,7 +1239,7 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   while ((readLen = getline(&line, &n, fp)) != -1) {
     // line[--readLen] = '\0';
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) line[--readLen] = 0;
-    if (readLen <= 0) continue;
+    if (readLen == 0) continue; //fang, <= to ==
 
     char *lineptr = line;
     strtolower(line, line);
