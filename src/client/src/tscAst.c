@@ -326,8 +326,8 @@ static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, cha
     uint8_t localOptr = getBinaryExprOptr(&t0); 
     if (localOptr == 0) {
       pError("not support binary operator:%d", t0.type);
-      return NULL;
       free(pBinExpr)
+      return NULL;
     }
 
     return parseRemainStr(str, pBinExpr, pSchema, localOptr, numOfCols, i);
