@@ -107,22 +107,25 @@ enum _sql_cmd {
 struct SSqlInfo;
 
 typedef struct SSqlGroupbyExpr {
-  int16_t tableIndex;
-
+  int16_t     tableIndex;
   int16_t     numOfGroupCols;
   SColIndexEx columnInfo[TSDB_MAX_TAGS];  // group by columns information
-
-  int16_t orderIndex;  // order by column index
-  int16_t orderType;   // order by type: asc/desc
+  int16_t     orderIndex;                 // order by column index
+  int16_t     orderType;                  // order by type: asc/desc
 } SSqlGroupbyExpr;
 
 typedef struct SMeterMetaInfo {
-  SMeterMeta * pMeterMeta;   // metermeta
-  SMetricMeta *pMetricMeta;  // metricmeta
-
-  char    name[TSDB_METER_ID_LEN + 1];
-  int16_t numOfTags;                      // total required tags in query, including groupby tags
-  int16_t tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
+  SMeterMeta * pMeterMeta;                     // metermeta
+  SMetricMeta *pMetricMeta;                    // metricmeta
+  
+  /*
+   * 1. keep the vnode index during the multi-vnode super table projection query
+   * 2. keep the vnode index for multi-vnode insertion
+   */
+  int32_t      vnodeIndex;
+  char         name[TSDB_METER_ID_LEN + 1];    // table(super table) name
+  int16_t      numOfTags;                      // total required tags in query, including groupby tags
+  int16_t      tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
 } SMeterMetaInfo;
 
 /* the structure for sql function in select clause */
@@ -188,7 +191,7 @@ typedef struct SString {
 
 typedef struct SCond {
   uint64_t uid;
-  char* cond;
+  char *   cond;
 } SCond;
 
 typedef struct SJoinNode {
@@ -262,15 +265,15 @@ typedef struct SDataBlockList {
 typedef struct {
   SOrderVal order;
   int       command;
-  int       count;// TODO refactor
+  int       count;  // TODO refactor
 
   union {
-    bool   existsCheck;       // check if the table exists
-    int8_t showType;          // show command type
+    bool   existsCheck;  // check if the table exists
+    int8_t showType;     // show command type
   };
-  
+
   int8_t          isInsertFromFile;  // load data from file or not
-  bool            import;     // import/insert type
+  bool            import;            // import/insert type
   char            msgType;
   uint16_t        type;  // query type
   char            intervalTimeUnit;
@@ -296,7 +299,6 @@ typedef struct {
   SLimitVal       slimit;
   int64_t         globalLimit;
   STagCond        tagCond;
-  int16_t         vnodeIdx;     // vnode index in pMetricMeta for metric query
   int16_t         interpoType;  // interpolate type
   int16_t         numOfTables;
 
@@ -366,25 +368,23 @@ typedef struct _sql_obj {
   STscObj *pTscObj;
   void (*fp)();
   void (*fetchFp)();
-  void *   param;
-  uint32_t ip;
-  short    vnode;
-  int64_t  stime;
-  uint32_t queryId;
-  void *   thandle;
-  void *   pStream;
-  char *   sqlstr;
-  char     retry;
-  char     maxRetry;
-  char     index;
-  char     freed : 4;
-  char     listed : 4;
-  tsem_t   rspSem;
-  tsem_t   emptyRspSem;
-
-  SSqlCmd cmd;
-  SSqlRes res;
-
+  void *            param;
+  uint32_t          ip;
+  short             vnode;
+  int64_t           stime;
+  uint32_t          queryId;
+  void *            thandle;
+  void *            pStream;
+  char *            sqlstr;
+  char              retry;
+  char              maxRetry;
+  char              index;
+  char              freed : 4;
+  char              listed : 4;
+  tsem_t            rspSem;
+  tsem_t            emptyRspSem;
+  SSqlCmd           cmd;
+  SSqlRes           res;
   char              numOfSubs;
   struct _sql_obj **pSubs;
   struct _sql_obj * prev, *next;
@@ -477,6 +477,8 @@ void    tscProcessMultiVnodesInsertForFile(SSqlObj *pSql);
 void    tscKillMetricQuery(SSqlObj *pSql);
 void    tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool    tscIsUpdateQuery(STscObj *pObj);
+bool    tscHasReachLimitation(SSqlObj* pSql);
+
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
 // transfer SSqlInfo to SqlCmd struct

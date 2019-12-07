@@ -978,12 +978,19 @@ int mgmtProcessCreateTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   if (code == 1) {
     //mTrace("table:%s, wait vgroup create finish", pCreate->meterId, code);
-  }
-  else if (code != 0) {
-    mError("table:%s, failed to create table, code:%d", pCreate->meterId, code);
+  } else if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_TABLE_ALREADY_EXIST) {  // table already created when the second attempt to create table
+      
+      STabObj* pMeter = mgmtGetMeter(pCreate->meterId);
+      assert(pMeter != NULL);
+      
+      mWarn("table:%s, table already created, failed to create table, ts:%lld, code:%d", pCreate->meterId,
+            pMeter->createdTime, code);
+    } else {  // other errors
+      mError("table:%s, failed to create table, code:%d", pCreate->meterId, code);
+    }
   } else {
     mTrace("table:%s, table is created by %s", pCreate->meterId, pConn->pUser->user);
-    //mLPrint("meter:%s is created by %s", pCreate->meterId, pConn->pUser->user);
   }
 
   taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_TABLE_RSP, code);
