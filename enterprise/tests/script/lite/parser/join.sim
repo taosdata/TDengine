@@ -195,10 +195,21 @@ endi
 
 #select + where condition
 sql select join_tb1.*, join_tb0.* from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = false limit 10 offset 1;
-
-$val = 0
-if $rows != $val then
+print $rows
+if $rows != 9 then
   return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.100@ then
+  return -1
+endi
+
+if $data10 != @70-01-01 08:01:40.200@ then
+  return -1
+endi
+
+if $data07 != false then
+  return  -1
 endi
 
 #select + where condition   ======reverse query

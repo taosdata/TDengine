@@ -121,3 +121,7 @@ sql select * from m1,m2 where m1.ts=m2.ts and m1.b=m2.b;
 if $row != 1 then
   return -1
 endi
+
+sql select join_mt0.ts, join_mt1.t1 from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1
+
+sql select join_mt0.ts, join_mt1.t1, join_mt0.t1, join_mt1.tbname, join_mt0.tbname from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1
