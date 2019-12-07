@@ -364,7 +364,7 @@ int64_t sdbInsertRow(void *handle, void *row, int rowSize) {
     return -1;
   }
 
-  if ((pTable->keyType != SDB_KEYTYPE_AUTO) || *((int32_t *)row))
+  if ((pTable->keyType != SDB_KEYTYPE_AUTO) || *((int64_t *)row))
     if (sdbGetRow(handle, row)) {
       if (strcmp(pTable->name, "mnode") == 0) {
         /*
