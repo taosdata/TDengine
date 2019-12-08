@@ -31,8 +31,6 @@
 #include "tutil.h"
 #include "lz4.h"
 
-#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
-
 typedef struct _msg_node {
   struct _msg_node *next;
   void *            ahandle;
@@ -58,7 +56,7 @@ typedef struct {
   uint16_t           tranId;         // outgoing transcation ID, for build message
   uint16_t           outTranId;      // outgoing transcation ID
   uint16_t           inTranId;
-  char               outType;
+  uint8_t            outType;
   char               inType;
   char               closing;
   char               rspReceived;
@@ -203,7 +201,7 @@ static STaosHeader* taosDecompressRpcMsg(STaosHeader* pHeader, SSchedMsg* pSched
   //tDump(pHeader->content, msgLen);
   
   if (buf) {
-    int32_t originalLen = LZ4_decompress_safe(pHeader->content + overhead, buf + sizeof(STaosHeader),
+    int32_t originalLen = LZ4_decompress_safe((const char*)(pHeader->content + overhead), buf + sizeof(STaosHeader),
         msgLen - overhead, contLen);
     
     memcpy(buf, pHeader, sizeof(STaosHeader));
@@ -220,6 +218,8 @@ static STaosHeader* taosDecompressRpcMsg(STaosHeader* pHeader, SSchedMsg* pSched
     tError("failed to allocate memory to decompress msg, contLen:%d, reason:%s", contLen, strerror(errno));
     pSchedMsg->msg = NULL;
   }
+
+  return NULL;
 }
 
 char *taosBuildReqHeader(void *param, char type, char *msg) {
@@ -245,7 +245,10 @@ char *taosBuildReqHeader(void *param, char type, char *msg) {
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
   pHeader->port = 0;
+
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
   pHeader->uid = (uint32_t)pConn + (uint32_t)getpid();
+#pragma GCC diagnostic warning "-Wpointer-to-int-cast"
 
   memcpy(pHeader->meterId, pConn->meterId, tListLen(pHeader->meterId));
 
@@ -276,7 +279,11 @@ char *taosBuildReqMsgWithSize(void *param, char type, int size) {
 
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
+
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
   pHeader->uid = (uint32_t)pConn + (uint32_t)getpid();
+#pragma GCC diagnostic warning "-Wpointer-to-int-cast"
+
   memcpy(pHeader->meterId, pConn->meterId, tListLen(pHeader->meterId));
 
   return (char *)pHeader->content;

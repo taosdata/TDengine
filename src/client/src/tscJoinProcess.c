@@ -819,6 +819,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
 
   pTSBuf->f = fopen(pTSBuf->path, "r+");
   if (pTSBuf->f == NULL) {
+    free(pTSBuf); 
     return NULL;
   }
 
@@ -860,7 +861,8 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   size_t infoSize = sizeof(STSVnodeBlockInfo) * pTSBuf->numOfVnodes;
 
   STSVnodeBlockInfo* buf = (STSVnodeBlockInfo*)calloc(1, infoSize);
-  int64_t            pos = ftell(pTSBuf->f);
+  
+  //int64_t pos = ftell(pTSBuf->f); //pos not used
   fread(buf, infoSize, 1, pTSBuf->f);
 
   // the length value for each vnode is not kept in file, so does not set the length value
@@ -1363,6 +1365,10 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
         if ((pCur->vnodeIndex >= pTSBuf->numOfVnodes - 1 && pCur->order == TSQL_SO_ASC) ||
             (pCur->vnodeIndex <= 0 && pCur->order == TSQL_SO_DESC)) {
           pCur->vnodeIndex = -1;
+          return false;
+        }
+        
+        if (pBlockInfo == NULL) {
           return false;
         }
 
