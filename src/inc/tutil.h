@@ -175,7 +175,7 @@ bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len)
 
 bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
 
-bool taosValidateEncodec(char *encodec);
+bool taosValidateEncodec(const char *encodec);
 
 bool taosGetVersionNumber(char *versionStr, int *versionNubmer);
 

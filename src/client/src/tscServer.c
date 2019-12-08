@@ -3634,7 +3634,7 @@ int tscRenewMeterMeta(SSqlObj *pSql, char *meterId) {
    */
   if (pMeterMetaInfo->pMeterMeta == NULL || !tscQueryOnMetric(pCmd)) {
     if (pMeterMetaInfo->pMeterMeta) {
-      tscTrace("%p update meter meta, old: numOfTags:%d, numOfCols:%d, uid:%lld, addr:%p", pSql,
+      tscTrace("%p update meter meta, old: numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
                pMeterMetaInfo->numOfTags, pCmd->numOfCols, pMeterMetaInfo->pMeterMeta->uid, pMeterMetaInfo->pMeterMeta);
     }
     tscWaitingForCreateTable(&pSql->cmd);
@@ -3642,7 +3642,7 @@ int tscRenewMeterMeta(SSqlObj *pSql, char *meterId) {
 
     code = tscDoGetMeterMeta(pSql, meterId, 0);  // todo ??
   } else {
-    tscTrace("%p metric query not update metric meta, numOfTags:%d, numOfCols:%d, uid:%lld, addr:%p", pSql,
+    tscTrace("%p metric query not update metric meta, numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
              pMeterMetaInfo->pMeterMeta->numOfTags, pCmd->numOfCols, pMeterMetaInfo->pMeterMeta->uid,
              pMeterMetaInfo->pMeterMeta);
   }

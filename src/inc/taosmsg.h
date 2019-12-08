@@ -279,7 +279,7 @@ typedef struct {
 } SShellSubmitMsg;
 
 typedef struct SSchema {
-  char  type;
+  uint8_t  type;
   char  name[TSDB_COL_NAME_LEN];
   short colId;
   short bytes;

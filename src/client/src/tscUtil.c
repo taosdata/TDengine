@@ -1202,7 +1202,8 @@ void tscColumnBaseInfoDestroy(SColumnBaseInfo* pColumnBaseInfo) {
         assert(pColBase->filterInfo[j].filterOnBinary == 0 || pColBase->filterInfo[j].filterOnBinary == 1);
 
         if (pColBase->filterInfo[j].filterOnBinary) {
-          tfree(pColBase->filterInfo[j].pz);
+          free((char*) pColBase->filterInfo[j].pz);
+          pColBase->filterInfo[j].pz = 0;
         }
       }
     }

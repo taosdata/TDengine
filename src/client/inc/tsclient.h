@@ -274,7 +274,7 @@ typedef struct {
 
   int8_t          isInsertFromFile;  // load data from file or not
   bool            import;            // import/insert type
-  char            msgType;
+  uint8_t         msgType;
   uint16_t        type;  // query type
   char            intervalTimeUnit;
   int64_t         etime, stime;
@@ -378,14 +378,14 @@ typedef struct _sql_obj {
   char *            sqlstr;
   char              retry;
   char              maxRetry;
-  char              index;
+  uint8_t           index;
   char              freed : 4;
   char              listed : 4;
   tsem_t            rspSem;
   tsem_t            emptyRspSem;
   SSqlCmd           cmd;
   SSqlRes           res;
-  char              numOfSubs;
+  uint8_t           numOfSubs;
   struct _sql_obj **pSubs;
   struct _sql_obj * prev, *next;
 } SSqlObj;
