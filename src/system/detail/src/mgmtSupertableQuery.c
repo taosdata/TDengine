@@ -203,7 +203,7 @@ static bool mgmtTablenameFilterCallback(tSkipListNode* pNode, void* param) {
 
 static void mgmtRetrieveFromLikeOptr(tQueryResultset* pRes, const char* str, STabObj* pMetric) {
   SPatternCompareInfo       info = PATTERN_COMPARE_INFO_INITIALIZER;
-  SMeterNameFilterSupporter supporter = {info, str};
+  SMeterNameFilterSupporter supporter = {info, (char*) str};
 
   pRes->num =
       tSkipListIterateList(pMetric->pSkipList, (tSkipListNode***)&pRes->pRes, mgmtTablenameFilterCallback, &supporter);
@@ -230,7 +230,7 @@ static void mgmtFilterByTableNameCond(tQueryResultset* pRes, char* condStr, int3
   free(str);
 }
 
-static bool mgmtJoinFilterCallback(tSkipListNode* pNode, void* param) {
+UNUSED_FUNC static bool mgmtJoinFilterCallback(tSkipListNode* pNode, void* param) {
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
 
   SSchema s = {0};
@@ -639,7 +639,8 @@ static void getTagColumnInfo(SSyntaxTreeFilterSupporter* pSupporter, SSchema* pS
   }
 }
 
-void filterPrepare(tSQLBinaryExpr* pExpr, void* param) {
+void filterPrepare(void* expr, void* param) {
+  tSQLBinaryExpr *pExpr = (tSQLBinaryExpr*) expr;
   if (pExpr->info != NULL) {
     return;
   }
@@ -791,9 +792,10 @@ static char* getTagValueFromMeter(STabObj* pMeter, int32_t offset, void* param) 
   }
 }
 
-bool tSkipListNodeFilterCallback(tSkipListNode* pNode, void* param) {
+bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
+  
   tQueryInfo* pInfo = (tQueryInfo*)param;
-  STabObj*    pMeter = (STabObj*)pNode->pData;
+  STabObj*    pMeter = (STabObj*)(((tSkipListNode*)pNode)->pData);
 
   char   name[TSDB_METER_NAME_LEN + 1] = {0};
   char*  val = getTagValueFromMeter(pMeter, pInfo->offset, name);

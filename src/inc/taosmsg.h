@@ -622,7 +622,7 @@ typedef struct {
 
   char repStrategy;
   char loadLatest;  // load into mem or not
-  char precision;   // time resoluation
+  uint8_t precision;   // time resolution
 
   char reserved[16];
 } SVnodeCfg, SCreateDbMsg, SDbCfg, SAlterDbMsg;
