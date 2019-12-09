@@ -230,7 +230,7 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
         return -1;
       }
 
-      if (cfg && cfg && cfg->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
+      if (cfg && cfg->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
         char sep = '.';
 
         if (strlen(tsLocale) == 0) { // locale does not set yet
