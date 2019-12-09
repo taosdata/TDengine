@@ -113,11 +113,7 @@ void monitorInitConn(void *para, void *unused) {
   monitor->state = MONITOR_STATE_INITIALIZING;
 
   if (monitor->privateIpStr[0] == 0) {
-#ifdef CLUSTER
     strcpy(monitor->privateIpStr, tsPrivateIp);
-#else
-    strcpy(monitor->privateIpStr, tsInternalIp);
-#endif
     for (int i = 0; i < TSDB_IPv4ADDR_LEN; ++i) {
       if (monitor->privateIpStr[i] == '.') {
         monitor->privateIpStr[i] = '_';
@@ -167,11 +163,7 @@ void dnodeBuildMonitorSql(char *sql, int cmd) {
              tsMonitorDbName, IP_LEN_STR + 1);
   } else if (cmd == MONITOR_CMD_CREATE_TB_DN) {
     snprintf(sql, SQL_LENGTH, "create table if not exists %s.dn_%s using %s.dn tags('%s')", tsMonitorDbName,
-#ifdef CLUSTER
              monitor->privateIpStr, tsMonitorDbName, tsPrivateIp);
-#else
-             monitor->privateIpStr, tsMonitorDbName, tsInternalIp);
-#endif
   } else if (cmd == MONITOR_CMD_CREATE_MT_ACCT) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.acct(ts timestamp "
@@ -226,10 +218,8 @@ void monitorInitDatabaseCb(void *param, TAOS_RES *result, int code) {
       taosLogSqlFp = monitorExecuteSQL;
 #ifdef CLUSTER
       taosLogAcctFp = monitorSaveAcctLog;
-      monitorLPrint("dnode:%s is started", tsPrivateIp);
-#else
-      monitorLPrint("dnode:%s is started", tsInternalIp);
 #endif
+      monitorLPrint("dnode:%s is started", tsPrivateIp);
     }
     monitor->cmdIndex++;
     monitorInitDatabase();
@@ -245,11 +235,7 @@ void monitorStopSystem() {
     return;
   }
 
-#ifdef CLUSTER
   monitorLPrint("dnode:%s monitor module is stopped", tsPrivateIp);
-#else
-  monitorLPrint("dnode:%s monitor module is stopped", tsInternalIp);
-#endif
   monitor->state = MONITOR_STATE_STOPPED;
   taosLogFp = NULL;
   if (monitor->initTimer != NULL) {
@@ -439,11 +425,7 @@ void monitorSaveLog(int level, const char *const format, ...) {
   va_end(argpointer);
   if (len > max_length) len = max_length;
 
-#ifdef CLUSTER
   len += sprintf(sql + len, "', '%s')", tsPrivateIp);
-#else
-  len += sprintf(sql + len, "', '%s')", tsInternalIp);
-#endif
   sql[len++] = 0;
 
   monitorTrace("monitor:%p, save log, sql: %s", monitor->conn, sql);

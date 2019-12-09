@@ -75,7 +75,6 @@ int tsMetricMetaKeepTimer = 600;  // second
 float tsNumOfThreadsPerCore = 1.0;
 float tsRatioOfQueryThreads = 0.5;
 char  tsPublicIp[TSDB_IPv4ADDR_LEN] = {0};
-char  tsInternalIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsPrivateIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsServerIpStr[TSDB_IPv4ADDR_LEN] = "127.0.0.1";
 short tsNumOfVnodesPerCore = 8;
@@ -164,6 +163,7 @@ int tsAdminRowLimit = 10240;
 
 int   tsTscEnableRecordSql = 0;
 int   tsEnableCoreFile = 0;
+int   tsAnyIp = 1;
 
 int tsRpcTimer = 300;
 int tsRpcMaxTime = 600;      // seconds;
@@ -448,9 +448,6 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "privateIp", tsPrivateIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
                      0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "internalIp", tsInternalIp, TSDB_CFG_VTYPE_IPSTR,
-                     TSDB_CFG_CTYPE_B_CONFIG,
-                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "localIp", tsLocalIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
                      0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
@@ -709,7 +706,7 @@ static void doInitGlobalConfig() {
                      1, 100000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "httpEnableRecordSql", &tsHttpEnableRecordSql, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG,
-                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "telegrafUseFieldNum", &tsTelegrafUseFieldNum, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      0, 1, 1, TSDB_CFG_UTYPE_NONE);
@@ -773,12 +770,16 @@ static void doInitGlobalConfig() {
 
   tsInitConfigOption(cfg++, "tscEnableRecordSql", &tsTscEnableRecordSql, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG,
-                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
 
   tsInitConfigOption(cfg++, "enableCoreFile", &tsEnableCoreFile, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG,
-                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
-                     
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
+
+  tsInitConfigOption(cfg++, "anyIp", &tsAnyIp, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
+
   // version info
   tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
@@ -902,10 +903,6 @@ bool tsReadGlobalConfig() {
 
   if (tsPublicIp[0] == 0) {
     strcpy(tsPublicIp, tsPrivateIp);
-  }
-
-  if (tsInternalIp[0] == 0) {
-    strcpy(tsInternalIp, tsPrivateIp);
   }
 
   if (tsLocalIp[0] == 0) {

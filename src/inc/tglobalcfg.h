@@ -74,7 +74,6 @@ extern int tsMetricMetaKeepTimer;
 extern float tsNumOfThreadsPerCore;
 extern float tsRatioOfQueryThreads;
 extern char  tsPublicIp[];
-extern char  tsInternalIp[];
 extern char  tsPrivateIp[];
 extern char  tsServerIpStr[];
 extern short tsNumOfVnodesPerCore;
@@ -151,6 +150,7 @@ extern int   tsTelegrafUseFieldNum;
 extern int   tsAdminRowLimit;
 
 extern int   tsTscEnableRecordSql;
+extern int   tsAnyIp;
 
 extern char tsMonitorDbName[];
 extern char tsInternalPass[];

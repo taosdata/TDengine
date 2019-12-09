@@ -79,11 +79,8 @@ int mgmtInitShell() {
   if (numOfThreads < 1) numOfThreads = 1;
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-#ifdef CLUSTER
-  rpcInit.localIp = tsInternalIp;
-#else
-  rpcInit.localIp = "0.0.0.0";
-#endif
+
+  rpcInit.localIp = tsAnyIp ? "0.0.0.0" : tsPrivateIp;;
   rpcInit.localPort = tsMgmtShellPort;
   rpcInit.label = "MND-shell";
   rpcInit.numOfThreads = numOfThreads;
