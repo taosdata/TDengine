@@ -28,8 +28,6 @@
 #include "tsclient.h"
 #include "tscSQLParser.h"
 
-#pragma GCC diagnostic ignored "-Wunused-variable"
-
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
 // -1 is tbname column index, so here use the -2 as the initial value

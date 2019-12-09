@@ -18,9 +18,6 @@
 
 #define _XOPEN_SOURCE
 
-#pragma GCC diagnostic ignored "-Woverflow"
-#pragma GCC diagnostic ignored "-Wunused-variable"
-
 #include "os.h"
 #include "ihash.h"
 #include "tscSecondaryMerge.h"
