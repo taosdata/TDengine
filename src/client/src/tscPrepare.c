@@ -65,6 +65,7 @@ static int normalStmtAddPart(SNormalStmt* stmt, bool isParam, char* str, uint32_
     }
     stmt->sizeParts = size;
     stmt->parts = (SNormalStmtPart*)tmp;
+    free(tmp); //fang memory leak
   }
 
   stmt->parts[stmt->numParts].isParam = isParam;
@@ -75,7 +76,6 @@ static int normalStmtAddPart(SNormalStmt* stmt, bool isParam, char* str, uint32_
   if (isParam) {
     ++stmt->numParams;
   }
-
   return TSDB_CODE_SUCCESS;
 }
 

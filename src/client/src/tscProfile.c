@@ -198,7 +198,7 @@ void tscKillStream(STscObj *pObj, uint32_t killId) {
 
   pthread_mutex_unlock(&pObj->mutex);
 
-  tscTrace("%p stream:%p is killed, streamId:%d", pStream->pSql, pStream, killId);
+  tscTrace("%p stream:%p is killed, streamId:%d", pStream->pSql, pStream, killId); //fang, pStream could be null
 
   taos_close_stream(pStream);
   if (pStream->callback) {
