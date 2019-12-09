@@ -131,7 +131,7 @@ int mgmtInitRedirect() {
   }
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
+  rpcInit.localIp = tsPrivateIp;
   rpcInit.localPort = tsMgmtShellPort;
   rpcInit.label = "MND-shell";
   rpcInit.numOfThreads = 1;
