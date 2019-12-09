@@ -1138,7 +1138,8 @@ void tscColumnFilterInfoCopy(SColumnFilterInfo* dst, const SColumnFilterInfo* sr
   *dst = *src;
   if (dst->filterOnBinary) {
     size_t len = (size_t) dst->len + 1;
-    dst->pz = calloc(1, len);
+    char* pTmp = calloc(1, len);
+    dst->pz = (int64_t) pTmp;
     memcpy((char*) dst->pz, (char*) src->pz, (size_t) len);
   }
 }

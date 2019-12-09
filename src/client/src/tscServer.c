@@ -3350,7 +3350,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
 }
 
 int tscProcessConnectRsp(SSqlObj *pSql) {
-  char         temp[TSDB_METER_ID_LEN];
+  char         temp[TSDB_METER_ID_LEN*2];
   SConnectRsp *pConnect;
 
   STscObj *pObj = pSql->pTscObj;
@@ -3358,8 +3358,11 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
 
   pConnect = (SConnectRsp *)pRes->pRsp;
   strcpy(pObj->acctId, pConnect->acctId);  // copy acctId from response
-  sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
-  strcpy(pObj->db, temp);
+  int32_t len  =sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
+  
+  assert(len <= tListLen(pObj->db));
+  strncpy(pObj->db, temp, tListLen(pObj->db));
+  
 #ifdef CLUSTER
   SIpList *    pIpList;
   char *rsp = pRes->pRsp + sizeof(SConnectRsp);

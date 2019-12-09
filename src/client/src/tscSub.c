@@ -56,7 +56,7 @@ TAOS_SUB *taos_subscribe(const char *host, const char *user, const char *pass, c
   if (pSub->taos == NULL) {
     tfree(pSub);
   } else {
-    char qstr[128];
+    char qstr[256] = {0};
     sprintf(qstr, "use %s", db);
     int res = taos_query(pSub->taos, qstr);
     if (res != 0) {
@@ -64,7 +64,7 @@ TAOS_SUB *taos_subscribe(const char *host, const char *user, const char *pass, c
       taos_close(pSub->taos);
       tfree(pSub);
     } else {
-      sprintf(qstr, "select * from %s where _c0 > now+1000d", pSub->name);
+      snprintf(qstr, tListLen(qstr), "select * from %s where _c0 > now+1000d", pSub->name);
       if (taos_query(pSub->taos, qstr)) {
         tscTrace("failed to select, reason:%s", taos_errstr(pSub->taos));
         taos_close(pSub->taos);
