@@ -257,7 +257,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       if (pToken->n > TSDB_DB_NAME_LEN) {
-        const char* msg = "db name too long"; //fang, reduce scope
+        const char* msg = "db name too long"; 
         return invalidSqlErrMsg(pCmd, msg);
       }
 
@@ -306,12 +306,12 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       SCreateDBInfo* pCreateDB = &(pInfo->pDCLInfo->dbOpt);
       if (tscValidateName(&pCreateDB->dbname) != TSDB_CODE_SUCCESS) {
         const char* msg3 = "invalid db name";
-        return invalidSqlErrMsg(pCmd, msg3);//fang reduce scope
+        return invalidSqlErrMsg(pCmd, msg3);
       }
 
       int32_t ret = setObjFullName(pMeterMetaInfo->name, getAccountId(pSql), &(pCreateDB->dbname), NULL, NULL);
       if (ret != TSDB_CODE_SUCCESS) {
-        const char* msg2 = "name too long"; //fang reduce scope
+        const char* msg2 = "name too long"; 
         return invalidSqlErrMsg(pCmd, msg2);
       }
 
@@ -349,7 +349,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       if (pInfo->pDCLInfo->a[1].type != TK_STRING) {
         const char* msg3 = "password needs single quote marks enclosed";
-        return invalidSqlErrMsg(pCmd, msg3);//fang reduce scope
+        return invalidSqlErrMsg(pCmd, msg3);
       }
 
       strdequote(pInfo->pDCLInfo->a[1].z);
@@ -358,17 +358,17 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       if (pInfo->pDCLInfo->a[1].n <= 0) {
         const char* msg1 = "password can not be empty";
-        return invalidSqlErrMsg(pCmd, msg1);//fang reduce scope
+        return invalidSqlErrMsg(pCmd, msg1);
       }
 
       if (pInfo->pDCLInfo->a[0].n > TSDB_USER_LEN || pInfo->pDCLInfo->a[1].n > TSDB_PASSWORD_LEN) {
         const char* msg = "name or password too long";
-        return invalidSqlErrMsg(pCmd, msg); //fang reduce scope
+        return invalidSqlErrMsg(pCmd, msg); 
       }
 
       if (tscValidateName(&pInfo->pDCLInfo->a[0]) != TSDB_CODE_SUCCESS) {
         const char* msg2 = "invalid user/account name";
-        return invalidSqlErrMsg(pCmd, msg2); //fang reduce scope
+        return invalidSqlErrMsg(pCmd, msg2); 
       }
 
       strncpy(pMeterMetaInfo->name, pInfo->pDCLInfo->a[0].z, pInfo->pDCLInfo->a[0].n);  // name
@@ -402,7 +402,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
             pCmd->defaultVal[8] = 0;
           } else {
             const char* msg4 = "invalid state option, available options[no, r, w, all]";
-            return invalidSqlErrMsg(pCmd, msg4); //fang reduce scope
+            return invalidSqlErrMsg(pCmd, msg4); 
           }
         }
       }
@@ -2163,7 +2163,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, int32_t colIdx, tSQLExprItem* pItem
       int16_t resultSize = pSchema[index.columnIndex].bytes;
 
       char val[8] = {0};
-      int32_t numOfAddedColumn = 1; //fang reduce scope
+      int32_t numOfAddedColumn = 1; 
       if (optr == TK_PERCENTILE || optr == TK_APERCENTILE) {
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_DOUBLE);
 
@@ -2927,7 +2927,7 @@ static SColumnFilterInfo* addColumnFilterInfo(SColumnBase* pColumn) {
   char*   tmp = realloc(pColumn->filterInfo, sizeof(SColumnFilterInfo) * (size));
   if (tmp != NULL) {
     pColumn->filterInfo = (SColumnFilterInfo*)tmp;
-    free(tmp); //fang, memory leak
+    free(tmp); 
   }
 
   pColumn->numOfFilters++;
