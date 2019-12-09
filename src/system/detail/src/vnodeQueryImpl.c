@@ -4555,8 +4555,7 @@ static void doMerge(SQueryRuntimeEnv *pRuntimeEnv, int64_t timestamp, tFilePage 
 }
 
 static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType) {
-  if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_FIRST_DST ||
-      functionId == TSDB_FUNC_LAST_DST) {
+  if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
     switch (srcDataType) {
       case TSDB_DATA_TYPE_BINARY:
         printf("%ld,%s\t", *(TSKEY *)data, (data + TSDB_KEYSIZE + 1));
