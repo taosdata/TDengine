@@ -645,7 +645,9 @@ void mgmtProcessBalanceTimer(void *handle, void *tmrId) {
 
 void mgmtStartBalanceTimer(int mseconds) {
   mTrace("balance function will be called after %d mseconds", mseconds);
-  taosTmrReset(mgmtProcessBalanceTimer, mseconds, (void *)mseconds, mgmtTmr, &balanceTimer);
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+  taosTmrReset((TAOS_TMR_CALLBACK)mgmtProcessBalanceTimer, mseconds, (void *)mseconds, mgmtTmr, &balanceTimer);
+#pragma GCC diagnostic warning "-Wint-to-pointer-cast"
 }
 
 void mgmtMonitorVgroups() {

@@ -437,7 +437,7 @@ void *mgmtProcessMsgFromDnodeSpec(char *msg, void *ahandle, void *thandle) {
   } else if (pMsg->msgType == TSDB_MSG_TYPE_GRANT) {
     mgmtProcessDnodeGrantMsg(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pObj);
   } else {
-    mgmtProcessMsgFromDnode(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pMsg->msgType, pObj);
+    mgmtProcessMsgFromDnode((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pMsg->msgType, pObj);
   }
 
   return pObj;
