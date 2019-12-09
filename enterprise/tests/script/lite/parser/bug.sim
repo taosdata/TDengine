@@ -1,0 +1,45 @@
+system sh/stop_dnodes.sh
+system sh/ip.sh -i 1 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c commitLog       -v 0
+
+system sh/cfg.sh -n dnode1 -c dDebugFlag       -v 135
+system sh/cfg.sh -n dnode1 -c mDebugFlag       -v 135
+system sh/cfg.sh -n dnode1 -c sdbDebugFlag     -v 135
+system sh/cfg.sh -n dnode1 -c rpcDebugFlag    -v 135
+system sh/cfg.sh -n dnode1 -c cDebugFlag       -v 135
+system sh/cfg.sh -n dnode1 -c monitorDebugflag -v 135
+system sh/cfg.sh -n dnode1 -c httpDebugFlag    -v 135
+system sh/cfg.sh -n dnode1 -c uDebugFlag       -v 135
+
+system sh/cfg.sh -n dnode1 -c httpCacheSessions  -v 10
+system sh/cfg.sh -n dnode1 -c httpMaxThreads     -v 10
+system sh/cfg.sh -n dnode1 -c httpEnableCompress -v 0
+
+system sh/cfg.sh -n dnode1 -c maxVnodeConnections -v 30000
+system sh/cfg.sh -n dnode1 -c maxMgmtConnections -v 30000
+system sh/cfg.sh -n dnode1 -c maxMeterConnections -v 30000
+system sh/cfg.sh -n dnode1 -c maxShellConns       -v 30000
+system sh/cfg.sh -n dnode1 -c numOfTotalVnodes    -v 60
+
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database db;
+sql use db;
+sql create table t (ts timestamp, i int);
+sql create table st1 (ts timestamp, f1 int) tags(t1 int);
+sql create table st2 (ts timestamp, f2 int) tags(t2 int);
+
+sql create table t1 using st1 tags(1);
+sql create table t2 using st2 tags(1);
+
+sql insert into t1 values(1575880055000, 1);
+sql insert into t2 values(1575880055000, 2);
+
+sql select st1.ts, st1.f1, st2.f2 from db.st1, db.st2 where st1.t1=st2.t2 and st1.ts=st2.ts
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select st1.ts, st1.f1, st2.f2 from db.st1, db.st2 where st1.t1=st2.t2 and st1.ts=st2.ts'  127.0.0.1:6020/restful/sql
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
