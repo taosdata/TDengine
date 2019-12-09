@@ -203,7 +203,7 @@ static bool mgmtTablenameFilterCallback(tSkipListNode* pNode, void* param) {
 
 static void mgmtRetrieveFromLikeOptr(tQueryResultset* pRes, const char* str, STabObj* pMetric) {
   SPatternCompareInfo       info = PATTERN_COMPARE_INFO_INITIALIZER;
-  SMeterNameFilterSupporter supporter = {info, str};
+  SMeterNameFilterSupporter supporter = {info, (char*)str};
 
   pRes->num =
       tSkipListIterateList(pMetric->pSkipList, (tSkipListNode***)&pRes->pRes, mgmtTablenameFilterCallback, &supporter);
@@ -230,6 +230,12 @@ static void mgmtFilterByTableNameCond(tQueryResultset* pRes, char* condStr, int3
   free(str);
 }
 
+
+/*
+ *-Wunused-function"
+ */
+
+#if 0
 static bool mgmtJoinFilterCallback(tSkipListNode* pNode, void* param) {
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
 
@@ -259,6 +265,7 @@ static bool mgmtJoinFilterCallback(tSkipListNode* pNode, void* param) {
 
   return false;
 }
+#endif
 
 static void orderResult(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes, int16_t colIndex, int32_t tableIndex) {
   SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pMetricMetaMsg + pMetricMetaMsg->metaElem[tableIndex]);
@@ -691,7 +698,9 @@ static int32_t mgmtFilterMeterByIndex(STabObj* pMetric, tQueryResultset* pRes, c
     return TSDB_CODE_OPS_NOT_SUPPORT;
   } else {  // query according to the binary expression
     SSyntaxTreeFilterSupporter s = {.pTagSchema = pTagSchema, .numOfTags = pMetric->numOfTags};
-    SBinaryFilterSupp          supp = {.fp = tSkipListNodeFilterCallback, .setupInfoFn = filterPrepare, .pExtInfo = &s};
+    SBinaryFilterSupp          supp = {.fp = (__result_filter_fn_t)tSkipListNodeFilterCallback,
+                                       .setupInfoFn = (__do_filter_suppl_fn_t)filterPrepare,
+                                       .pExtInfo = &s};
 
     tSQLBinaryExprTraverse(pExpr, pMetric->pSkipList, pRes, &supp);
     tSQLBinaryExprDestroy(&pExpr, tSQLListTraverseDestroyInfo);

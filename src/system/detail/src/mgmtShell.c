@@ -840,11 +840,11 @@ int mgmtProcessShowMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     pShowRsp->qhandle = (uint64_t)pShow;  // qhandle;
     pConn->qhandle = pShowRsp->qhandle;
 
-    code = (*mgmtGetMetaFp[pShowMsg->type])(&pShowRsp->meterMeta, pShow, pConn);
+    code = (*mgmtGetMetaFp[(uint8_t)pShowMsg->type])(&pShowRsp->meterMeta, pShow, pConn);
     if (code == 0) {
       pMsg += sizeof(SShowRspMsg) + sizeof(SSchema) * pShow->numOfColumns;
     } else {
-      mError("pShow:%p, type:%d %s, failed to get Meta, code:%d", pShow, pShowMsg->type, taosMsg[pShowMsg->type], code);
+      mError("pShow:%p, type:%d %s, failed to get Meta, code:%d", pShow, pShowMsg->type, taosMsg[(uint8_t)pShowMsg->type], code);
       free(pShow);
     }
   }
@@ -915,7 +915,7 @@ int mgmtProcessRetrieveMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
     // if free flag is set, client wants to clean the resources
     if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE)
-      rowsRead = (*mgmtRetrieveFp[pShow->type])(pShow, pRsp->data, rowsToRead, pConn);
+      rowsRead = (*mgmtRetrieveFp[(uint8_t)pShow->type])(pShow, pRsp->data, rowsToRead, pConn);
 
     if (rowsRead < 0) {
       rowsRead = 0;

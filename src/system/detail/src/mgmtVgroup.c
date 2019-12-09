@@ -55,8 +55,8 @@ void mgmtVgroupActionInit() {
 }
 
 void *mgmtVgroupAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtVgroupActionFp[action] != NULL) {
-    return (*(mgmtVgroupActionFp[action]))(row, str, size, ssize);
+  if (mgmtVgroupActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtVgroupActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }

@@ -146,7 +146,7 @@ int vnodeFindKeyInCache(SImportInfo *pImport, int order) {
 void vnodeGetValidDataRange(int vnode, TSKEY now, TSKEY *minKey, TSKEY *maxKey) {
   SVnodeObj *pVnode = vnodeList + vnode;
 
-  int64_t delta = pVnode->cfg.daysPerFile * tsMsPerDay[pVnode->cfg.precision];
+  int64_t delta = pVnode->cfg.daysPerFile * tsMsPerDay[(uint8_t)pVnode->cfg.precision];
   int     fid = now / delta;
   *minKey = (fid - pVnode->maxFiles + 1) * delta;
   *maxKey = (fid + 2) * delta - 1;
@@ -682,7 +682,7 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
   SCacheInfo *  pInfo = (SCacheInfo *)(pObj->pCache);
   TSKEY         lastKeyImported = 0;
 
-  TSKEY delta = pVnode->cfg.daysPerFile * tsMsPerDay[pVnode->cfg.precision];
+  TSKEY delta = pVnode->cfg.daysPerFile * tsMsPerDay[(uint8_t)pVnode->cfg.precision];
   TSKEY minFileKey = fid * delta;
   TSKEY maxFileKey = minFileKey + delta - 1;
   TSKEY firstKey = KEY_AT_INDEX(payload, pObj->bytesPerPoint, 0);
@@ -1499,7 +1499,7 @@ int vnodeImportDataToFiles(SImportInfo *pImport, char *payload, const int rows) 
   SMeterObj *pObj = (SMeterObj *)(pImport->pObj);
   SVnodeObj *pVnode = vnodeList + pObj->vnode;
 
-  int64_t delta = pVnode->cfg.daysPerFile * tsMsPerDay[pVnode->cfg.precision];
+  int64_t delta = pVnode->cfg.daysPerFile * tsMsPerDay[(uint8_t)pVnode->cfg.precision];
   int     sfid = KEY_AT_INDEX(payload, pObj->bytesPerPoint, 0) / delta;
   int     efid = KEY_AT_INDEX(payload, pObj->bytesPerPoint, rows - 1) / delta;
 
