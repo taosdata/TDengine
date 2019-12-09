@@ -37,8 +37,8 @@ extern "C" {
 #define tfree(x) \
   {              \
     if (x) {     \
-      free(x);   \
-      x = NULL;  \
+      free((void*)(x));   \
+      x = 0;  \
     }            \
   }
 

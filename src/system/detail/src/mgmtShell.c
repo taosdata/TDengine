@@ -23,12 +23,6 @@
 #include "tlog.h"
 #include "tstatus.h"
 
-#pragma GCC diagnostic push
-
-#pragma GCC diagnostic ignored "-Woverflow"
-#pragma GCC diagnostic ignored "-Wpointer-sign"
-#pragma GCC diagnostic ignored "-Wint-conversion"
-
 #define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
 
 void *    pShellConn = NULL;
@@ -695,7 +689,7 @@ int mgmtProcessAlterUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
              (strcmp(pConn->pUser->user, "root") == 0)) {
     if ((pAlter->flag & TSDB_ALTER_USER_PASSWD) != 0) {
       memset(pUser->pass, 0, sizeof(pUser->pass));
-      taosEncryptPass(pAlter->pass, strlen(pAlter->pass), pUser->pass);
+      taosEncryptPass((uint8_t *)pAlter->pass, strlen(pAlter->pass), pUser->pass);
     }
     if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
       if (pAlter->privilege == 1) {  // super
@@ -931,7 +925,7 @@ int mgmtProcessRetrieveMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   taosSendMsgToPeer(pConn->thandle, pStart, msgLen);
 
   if (rowsToRead == 0) {
-    uintptr_t oldSign = atomic_val_compare_exchange_ptr(&pShow->signature, pShow, 0);
+    uintptr_t oldSign = (uintptr_t)atomic_val_compare_exchange_ptr(&pShow->signature, pShow, 0);
     if (oldSign != (uintptr_t)pShow) {
       return msgLen;
     }
@@ -1139,8 +1133,9 @@ void mgmtEstablishConn(SConnObj *pConn) {
     }
   }
 
-  uint32_t temp;
-  taosGetRpcConnInfo(pConn->thandle, &temp, &pConn->ip, &pConn->port, &temp, &temp);
+  int32_t tempint32;
+  uint32_t tempuint32;
+  taosGetRpcConnInfo(pConn->thandle, &tempuint32, &pConn->ip, &pConn->port, &tempint32, &tempint32);
   mgmtAddConnIntoAcct(pConn);
 }
 

@@ -26,8 +26,6 @@
 #include "vnodeUtil.h"
 #include "tstatus.h"
 
-#pragma GCC diagnostic ignored "-Wpointer-sign"
-
 #define VALID_TIMESTAMP(key, curKey, prec) (((key) >= 0) && ((key) <= ((curKey) + 36500 * tsMsPerDay[prec])))
 
 int  tsMeterSizeOnFile;
