@@ -970,7 +970,7 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
   }
 }
 
-void assignVal(char *val, char *src, int32_t len, int32_t type) {
+void assignVal(char *val, const char *src, int32_t len, int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
       *((int32_t *)val) = GET_INT32_VAL(src);
