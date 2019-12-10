@@ -62,6 +62,7 @@ int main(int argc, char *argv[]) {
       #endif
       
       printf("gitinfo: %s\n", gitinfo);
+      printf("gitinfoI: %s\n", gitinfoOfInternal);
       printf("buildinfo: %s\n", buildinfo);
       return 0;
     } else if (strcmp(argv[i], "-k") == 0) {

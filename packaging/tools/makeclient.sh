@@ -17,7 +17,6 @@ top_dir="$(readlink -m ${script_dir}/../..)"
 build_dir="${compile_dir}/build"
 code_dir="${top_dir}/src"
 release_dir="${top_dir}/release"
-community_dir="${script_dir}/../../../community/src"
 
 #package_name='linux'
 install_dir="${release_dir}/TDengine-client-${version}"
@@ -25,7 +24,7 @@ install_dir="${release_dir}/TDengine-client-${version}"
 # Directories and files.
 bin_files="${build_dir}/bin/taos ${build_dir}/bin/taosdump ${script_dir}/remove_client.sh"
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-header_files="${community_dir}/inc/taos.h ${community_dir}/inc/taoserror.h"
+header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
 cfg_dir="${top_dir}/packaging/cfg"
 install_files="${script_dir}/install_client.sh"
 
@@ -55,7 +54,7 @@ mkdir -p ${install_dir}/driver
 cp ${lib_files} ${install_dir}/driver
 
 # Copy connector
-connector_dir="${community_dir}/connector"
+connector_dir="${code_dir}/connector"
 mkdir -p ${install_dir}/connector
 cp ${build_dir}/lib/*.jar      ${install_dir}/connector
 cp -r ${connector_dir}/grafana ${install_dir}/connector/
