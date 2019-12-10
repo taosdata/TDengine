@@ -447,7 +447,10 @@ static void setErrorInfo(STscObj* pObj, int32_t code, char* info) {
   SSqlCmd* pCmd = &pObj->pSql->cmd;
 
   pObj->pSql->res.code = code;
-  strncpy(pCmd->payload, info, pCmd->payloadLen);
+  
+  if (info != NULL) {
+    strncpy(pCmd->payload, info, pCmd->payloadLen);
+  }
 }
 
 TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
