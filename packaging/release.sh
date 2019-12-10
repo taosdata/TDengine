@@ -109,6 +109,7 @@ build_time=$(date +"%F %R")
 echo "char version[64] = \"${version}\";" > ${versioninfo}
 echo "char compatible_version[64] = \"${compatible_version}\";" >> ${versioninfo}
 echo "char gitinfo[128] = \"$(git rev-parse --verify HEAD)\";"  >> ${versioninfo}
+echo "char gitinfoOfInternal[128] = \"\";"  >> ${versioninfo}
 echo "char buildinfo[512] = \"Built by ${USER} at ${build_time}\";"  >> ${versioninfo}
 
 # 2. cmake executable file
