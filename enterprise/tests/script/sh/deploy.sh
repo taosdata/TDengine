@@ -113,6 +113,7 @@ echo "numOfTotalVnodes    4"              >> $TAOS_CFG
 echo "asyncLog            0"              >> $TAOS_CFG
 echo "numOfMPeers         1"              >> $TAOS_CFG
 echo "locale    en_US.UTF-8"              >> $TAOS_CFG
+echo "anyIp               0"              >> $TAOS_CFG
 #echo "balanceInterval    3"              >> $TAOS_CFG
 
 

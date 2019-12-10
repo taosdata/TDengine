@@ -61,6 +61,7 @@ class TDSimClient:
 		self.cfg("locale", "en_US.UTF-8")
 		self.cfg("charset", "GBK")
 		self.cfg("asyncLog", "0")
+		self.cfg("anyIp", "0")
 		self.cfg("sdbDebugFlag", "135")
 		self.cfg("rpcDebugFlag", "135")
 		self.cfg("tmrDebugFlag", "131")
