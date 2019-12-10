@@ -2312,6 +2312,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql) {
   size = tscEstimateCreateTableMsgLength(pSql);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for create table msg", pSql);
+    free(tmpData); 
     return -1;
   }
 

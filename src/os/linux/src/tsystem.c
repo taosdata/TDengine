@@ -124,7 +124,7 @@ bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   }
 
   char cpu[10] = {0};
-  sscanf(line, "%s %ld %ld %ld %ld", cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle);
+  sscanf(line, "%s %lu %lu %lu %lu", cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle);
 
   tfree(line);
   fclose(fp);
@@ -150,7 +150,7 @@ bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   for (int i = 0, blank = 0; line[i] != 0; ++i) {
     if (line[i] == ' ') blank++;
     if (blank == PROCESS_ITEM) {
-      sscanf(line + i + 1, "%ld %ld %ld %ld", &cpuInfo->utime, &cpuInfo->stime, &cpuInfo->cutime, &cpuInfo->cstime);
+      sscanf(line + i + 1, "%lu %lu %lu %lu", &cpuInfo->utime, &cpuInfo->stime, &cpuInfo->cutime, &cpuInfo->cstime);
       break;
     }
   }

@@ -289,6 +289,7 @@ int mgmtRetrieveVgroups(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
 
   SDbObj *pDb = NULL;
   if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+  assert(pDb != NULL);
 
   pVgroup = pDb->pHead;
   while (pVgroup != NULL) {

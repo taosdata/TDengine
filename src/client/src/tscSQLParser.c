@@ -248,7 +248,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     case USE_DATABASE: {
-      const char* msg = "db name too long";
       pCmd->command = TSDB_SQL_USE_DB;
 
       SSQLToken* pToken = &pInfo->pDCLInfo->a[0];
@@ -258,6 +257,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       if (pToken->n > TSDB_DB_NAME_LEN) {
+        const char* msg = "db name too long"; 
         return invalidSqlErrMsg(pCmd, msg);
       }
 
@@ -295,8 +295,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case ALTER_DATABASE:
     case CREATE_DATABASE: {
-      const char* msg2 = "name too long";
-      const char* msg3 = "invalid db name";
 
       if (pInfo->sqlType == ALTER_DATABASE) {
         pCmd->command = TSDB_SQL_ALTER_DB;
@@ -307,11 +305,13 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       SCreateDBInfo* pCreateDB = &(pInfo->pDCLInfo->dbOpt);
       if (tscValidateName(&pCreateDB->dbname) != TSDB_CODE_SUCCESS) {
+        const char* msg3 = "invalid db name";
         return invalidSqlErrMsg(pCmd, msg3);
       }
 
       int32_t ret = setObjFullName(pMeterMetaInfo->name, getAccountId(pSql), &(pCreateDB->dbname), NULL, NULL);
       if (ret != TSDB_CODE_SUCCESS) {
+        const char* msg2 = "name too long"; 
         return invalidSqlErrMsg(pCmd, msg2);
       }
 
@@ -347,13 +347,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       pCmd->command = (pInfo->sqlType == CREATE_USER) ? TSDB_SQL_CREATE_USER : TSDB_SQL_CREATE_ACCT;
       assert(pInfo->pDCLInfo->nTokens >= 2);
 
-      const char* msg = "name or password too long";
-      const char* msg1 = "password can not be empty";
-      const char* msg2 = "invalid user/account name";
-      const char* msg3 = "password needs single quote marks enclosed";
-      const char* msg4 = "invalid state option, available options[no, r, w, all]";
-
       if (pInfo->pDCLInfo->a[1].type != TK_STRING) {
+        const char* msg3 = "password needs single quote marks enclosed";
         return invalidSqlErrMsg(pCmd, msg3);
       }
 
@@ -362,15 +357,18 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       pInfo->pDCLInfo->a[1].n = strlen(pInfo->pDCLInfo->a[1].z);
 
       if (pInfo->pDCLInfo->a[1].n <= 0) {
+        const char* msg1 = "password can not be empty";
         return invalidSqlErrMsg(pCmd, msg1);
       }
 
       if (pInfo->pDCLInfo->a[0].n > TSDB_USER_LEN || pInfo->pDCLInfo->a[1].n > TSDB_PASSWORD_LEN) {
-        return invalidSqlErrMsg(pCmd, msg);
+        const char* msg = "name or password too long";
+        return invalidSqlErrMsg(pCmd, msg); 
       }
 
       if (tscValidateName(&pInfo->pDCLInfo->a[0]) != TSDB_CODE_SUCCESS) {
-        return invalidSqlErrMsg(pCmd, msg2);
+        const char* msg2 = "invalid user/account name";
+        return invalidSqlErrMsg(pCmd, msg2); 
       }
 
       strncpy(pMeterMetaInfo->name, pInfo->pDCLInfo->a[0].z, pInfo->pDCLInfo->a[0].n);  // name
@@ -403,7 +401,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           } else if (strncmp(pAcctOpt->stat.z, "no", 2) == 0 && pAcctOpt->stat.n == 2) {
             pCmd->defaultVal[8] = 0;
           } else {
-            return invalidSqlErrMsg(pCmd, msg4);
+            const char* msg4 = "invalid state option, available options[no, r, w, all]";
+            return invalidSqlErrMsg(pCmd, msg4); 
           }
         }
       }
@@ -415,13 +414,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       assert(num >= 1 && num <= 2);
 
       const char* msg = "password too long";
-      const char* msg1 = "password can not be empty";
-      const char* msg2 = "invalid user/account name";
-      const char* msg3 = "password needs single quote marks enclosed";
-      const char* msg4 = "invalid state option, available options[no, r, w, all]";
 
       if (num == 2) {
         if (pInfo->pDCLInfo->a[1].type != TK_STRING) {
+          const char* msg3 = "password needs single quote marks enclosed";
           return invalidSqlErrMsg(pCmd, msg3);
         }
 
@@ -430,6 +426,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         pInfo->pDCLInfo->a[1].n = strlen(pInfo->pDCLInfo->a[1].z);
 
         if (pInfo->pDCLInfo->a[1].n <= 0) {
+          const char* msg1 = "password can not be empty";
           return invalidSqlErrMsg(pCmd, msg1);
         }
 
@@ -445,6 +442,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       if (tscValidateName(&pInfo->pDCLInfo->a[0]) != TSDB_CODE_SUCCESS) {
+        const char* msg2 = "invalid user/account name";
         return invalidSqlErrMsg(pCmd, msg2);
       }
 
@@ -475,6 +473,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         } else if (strncmp(pAcctOpt->stat.z, "no", 2) == 0 && pAcctOpt->stat.n == 2) {
           pCmd->defaultVal[8] = 0;
         } else {
+          const char* msg4 = "invalid state option, available options[no, r, w, all]";
           return invalidSqlErrMsg(pCmd, msg4);
         }
       }
@@ -1868,8 +1867,6 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, int32_t colIdx, tSQLExprItem* pItem
   SMeterMetaInfo* pMeterMetaInfo = NULL;
   int32_t         optr = pItem->pNode->nSQLOptr;
 
-  int32_t numOfAddedColumn = 1;
-
   const char* msg1 = "not support column types";
   const char* msg2 = "invalid parameters";
   const char* msg3 = "illegal column name";
@@ -2166,6 +2163,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, int32_t colIdx, tSQLExprItem* pItem
       int16_t resultSize = pSchema[index.columnIndex].bytes;
 
       char val[8] = {0};
+      int32_t numOfAddedColumn = 1; 
       if (optr == TK_PERCENTILE || optr == TK_APERCENTILE) {
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_DOUBLE);
 
@@ -2190,6 +2188,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, int32_t colIdx, tSQLExprItem* pItem
         SSqlExpr* pExpr = tscSqlExprInsert(pCmd, colIdx, functionId, &index, resultType, resultSize, resultSize);
         addExprParams(pExpr, val, TSDB_DATA_TYPE_DOUBLE, sizeof(double), 0);
       } else {
+
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT);
 
         int64_t nTop = *((int32_t*)val);
