@@ -23,6 +23,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <error.h>
 #include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>
