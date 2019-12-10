@@ -75,7 +75,6 @@ static int normalStmtAddPart(SNormalStmt* stmt, bool isParam, char* str, uint32_
   if (isParam) {
     ++stmt->numParams;
   }
-
   return TSDB_CODE_SUCCESS;
 }
 

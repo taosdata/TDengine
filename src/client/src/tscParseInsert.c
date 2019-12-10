@@ -18,9 +18,6 @@
 
 #define _XOPEN_SOURCE
 
-#pragma GCC diagnostic ignored "-Woverflow"
-#pragma GCC diagnostic ignored "-Wunused-variable"
-
 #include "os.h"
 #include "ihash.h"
 #include "tscSecondaryMerge.h"
@@ -444,7 +441,7 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
           }
         }
       
-        tmpTokenBuf[j] = sToken.z[i];
+        tmpTokenBuf[j] = sToken.z[k];
         j++;
       }
       tmpTokenBuf[j] = 0; 

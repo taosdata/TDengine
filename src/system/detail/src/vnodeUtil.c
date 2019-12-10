@@ -23,8 +23,6 @@
 #include "vnodeDataFilterFunc.h"
 #include "vnodeUtil.h"
 
-#pragma GCC diagnostic ignored "-Wint-conversion"
-
 int vnodeCheckFileIntegrity(FILE* fp) {
   /*
     int savedSessions, savedMeterSize;

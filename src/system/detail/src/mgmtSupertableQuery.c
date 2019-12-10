@@ -692,7 +692,9 @@ static int32_t mgmtFilterMeterByIndex(STabObj* pMetric, tQueryResultset* pRes, c
     return TSDB_CODE_OPS_NOT_SUPPORT;
   } else {  // query according to the binary expression
     SSyntaxTreeFilterSupporter s = {.pTagSchema = pTagSchema, .numOfTags = pMetric->numOfTags};
-    SBinaryFilterSupp          supp = {.fp = tSkipListNodeFilterCallback, .setupInfoFn = filterPrepare, .pExtInfo = &s};
+    SBinaryFilterSupp          supp = {.fp = (__result_filter_fn_t)tSkipListNodeFilterCallback,
+                                       .setupInfoFn = (__do_filter_suppl_fn_t)filterPrepare,
+                                       .pExtInfo = &s};
 
     tSQLBinaryExprTraverse(pExpr, pMetric->pSkipList, pRes, &supp);
     tSQLBinaryExprDestroy(&pExpr, tSQLListTraverseDestroyInfo);

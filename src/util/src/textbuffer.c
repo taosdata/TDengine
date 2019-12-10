@@ -22,8 +22,6 @@
 #include "ttypes.h"
 #include "tutil.h"
 
-//#pragma GCC diagnostic ignored "-Wformat"
-
 #define COLMODEL_GET_VAL(data, schema, allrow, rowId, colId) \
   (data + (schema)->colOffset[colId] * (allrow) + (rowId) * (schema)->pFields[colId].bytes)
 

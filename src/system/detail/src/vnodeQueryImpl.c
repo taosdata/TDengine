@@ -1055,7 +1055,7 @@ static void *getGenericDataBlock(SMeterObj *pMeterObj, SQuery *pQuery, int32_t s
 
 static int32_t getFileIdFromKey(int32_t vid, TSKEY key) {
   SVnodeObj *pVnode = &vnodeList[vid];
-  int64_t    delta = (int64_t)pVnode->cfg.daysPerFile * tsMsPerDay[pVnode->cfg.precision];
+  int64_t    delta = (int64_t)pVnode->cfg.daysPerFile * tsMsPerDay[(uint8_t)pVnode->cfg.precision];
 
   return (int32_t)(key / delta);  // set the starting fileId
 }
@@ -2227,7 +2227,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
 // get maximum time interval in each file
 static int64_t getOldestKey(int32_t numOfFiles, int64_t fileId, SVnodeCfg *pCfg) {
-  int64_t duration = pCfg->daysPerFile * tsMsPerDay[pCfg->precision];
+  int64_t duration = pCfg->daysPerFile * tsMsPerDay[(uint8_t)pCfg->precision];
   return (fileId - numOfFiles + 1) * duration;
 }
 
@@ -4555,8 +4555,7 @@ static void doMerge(SQueryRuntimeEnv *pRuntimeEnv, int64_t timestamp, tFilePage 
 }
 
 static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType) {
-  if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_FIRST_DST ||
-      functionId == TSDB_FUNC_LAST_DST) {
+  if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
     switch (srcDataType) {
       case TSDB_DATA_TYPE_BINARY:
         printf("%ld,%s\t", *(TSKEY *)data, (data + TSDB_KEYSIZE + 1));
@@ -6332,6 +6331,8 @@ int32_t setIntervalQueryExecutionContext(SMeterQuerySupportObj *pSupporter, int3
       tsBufSetCursor(pSupporter->runtimeEnv.pTSBuf, &pMeterQueryInfo->cur);
     }
   }
+
+  return 0;
 }
 
 static void doApplyIntervalQueryOnBlock(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pInfo,

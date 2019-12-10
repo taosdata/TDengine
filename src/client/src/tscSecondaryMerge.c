@@ -1314,8 +1314,10 @@ int32_t tscLocalDoReduce(SSqlObj *pSql) {
     tscTrace("%s call the drop local reducer", __FUNCTION__);
 
     tscDestroyLocalReducer(pSql);
-    pRes->numOfRows = 0;
-    pRes->row = 0;
+    if (pRes) {
+      pRes->numOfRows = 0;
+      pRes->row = 0;
+    }
     return 0;
   }
 

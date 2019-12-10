@@ -780,6 +780,7 @@ void source_file(TAOS *con, char *fptr) {
 
   if (wordexp(fptr, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: illegal file name\n");
+    free(cmd);
     return;
   }
 
@@ -788,6 +789,7 @@ void source_file(TAOS *con, char *fptr) {
   if (access(fname, R_OK) == -1) {
     fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
     wordfree(&full_path);
+    free(cmd);
     return;
   }
 
@@ -795,6 +797,7 @@ void source_file(TAOS *con, char *fptr) {
   if (f == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);
+    free(cmd);
     return;
   }
 

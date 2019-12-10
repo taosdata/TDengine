@@ -30,7 +30,6 @@
 #include "vnodeStore.h"
 #include "tstatus.h"
 
-#pragma GCC diagnostic ignored "-Wint-conversion"
 extern int tsMaxQueues;
 
 void *      pShellServer = NULL;
@@ -390,7 +389,7 @@ _query_over:
   tfree(pMeterObjList);
   ret = vnodeSendQueryRspMsg(pObj, code, pObj->qhandle);
 
-  free(pQueryMsg->pSidExtInfo);
+  tfree(pQueryMsg->pSidExtInfo);
   for(int32_t i = 0; i < pQueryMsg->numOfCols; ++i) {
     vnodeFreeColumnInfo(&pQueryMsg->colList[i]);
   }
@@ -455,7 +454,7 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   pRsp->precision = htons(timePrec);
 
   if (code == TSDB_CODE_SUCCESS) {
-    pRsp->offset = htobe64(vnodeGetOffsetVal(pRetrieve->qhandle));
+    pRsp->offset = htobe64(vnodeGetOffsetVal((void*)pRetrieve->qhandle));
     pRsp->useconds = htobe64(((SQInfo *)(pRetrieve->qhandle))->useconds);
   } else {
     pRsp->offset = 0;

@@ -418,8 +418,8 @@ void *mgmtMeterActionAfterBatchUpdate(void *row, char *str, int size, int *ssize
 }
 
 void *mgmtMeterAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtMeterActionFp[action] != NULL) {
-    return (*(mgmtMeterActionFp[action]))(row, str, size, ssize);
+  if (mgmtMeterActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtMeterActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }
