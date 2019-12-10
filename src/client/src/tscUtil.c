@@ -451,15 +451,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   free(pSql);
 }
 
-STableDataBlocks* tscCreateDataBlock(int32_t size) {
-  STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
-  dataBuf->nAllocSize = (uint32_t)size;
-  dataBuf->pData = calloc(1, dataBuf->nAllocSize);
-  dataBuf->ordered = true;
-  dataBuf->prevTS = INT64_MIN;
-  return dataBuf;
-}
-
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
   if (pDataBlock == NULL) {
     return;
@@ -467,6 +458,9 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
 
   tfree(pDataBlock->pData);
   tfree(pDataBlock->params);
+  
+  // free the refcount for metermeta
+  taosRemoveDataFromCache(tscCacheHandle, (void**) &(pDataBlock->pMeterMeta), false);
   tfree(pDataBlock);
 }
 
@@ -513,11 +507,11 @@ SDataBlockList* tscCreateBlockArrayList() {
 
 void tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks) {
   if (pList->nSize >= pList->nAlloc) {
-    pList->nAlloc = pList->nAlloc << 1;
-    pList->pData = realloc(pList->pData, sizeof(void*) * (size_t)pList->nAlloc);
+    pList->nAlloc = (pList->nAlloc) << 1U;
+    pList->pData = realloc(pList->pData, POINTER_BYTES * (size_t)pList->nAlloc);
 
     // reset allocated memory
-    memset(pList->pData + pList->nSize, 0, sizeof(void*) * (pList->nAlloc - pList->nSize));
+    memset(pList->pData + pList->nSize, 0, POINTER_BYTES * (pList->nAlloc - pList->nSize));
   }
 
   pList->pData[pList->nSize++] = pBlocks;
@@ -539,29 +533,43 @@ void* tscDestroyBlockArrayList(SDataBlockList* pList) {
 }
 
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
-  SSqlCmd* pCmd = &pSql->cmd;
-
+  SSqlCmd *pCmd = &pSql->cmd;
+  assert(pDataBlock->pMeterMeta != NULL);
+  
   pCmd->count = pDataBlock->numOfMeters;
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
-  strcpy(pMeterMetaInfo->name, pDataBlock->meterId);
-
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  
+  //set the correct metermeta object, the metermeta has been locked in pDataBlocks, so it must be in the cache
+  if (pMeterMetaInfo->pMeterMeta != pDataBlock->pMeterMeta) {
+    strcpy(pMeterMetaInfo->name, pDataBlock->meterId);
+    taosRemoveDataFromCache(tscCacheHandle, (void**) &(pMeterMetaInfo->pMeterMeta), false);
+    
+    pMeterMetaInfo->pMeterMeta = pDataBlock->pMeterMeta;
+    pDataBlock->pMeterMeta = NULL;   // delegate the ownership of metermeta to pMeterMetaInfo
+  } else {
+    assert(strncmp(pMeterMetaInfo->name, pDataBlock->meterId, tListLen(pDataBlock->meterId)) == 0);
+  }
+  
   /*
    * the submit message consists of : [RPC header|message body|digest]
    * the dataBlock only includes the RPC Header buffer and actual submit messsage body, space for digest needs
    * additional space.
    */
   int ret = tscAllocPayload(pCmd, pDataBlock->nAllocSize + sizeof(STaosDigest));
-  if (TSDB_CODE_SUCCESS != ret) return ret;
+  if (TSDB_CODE_SUCCESS != ret) {
+    return ret;
+  }
+  
   memcpy(pCmd->payload, pDataBlock->pData, pDataBlock->nAllocSize);
-
+  
   /*
    * the payloadLen should be actual message body size
    * the old value of payloadLen is the allocated payload size
    */
   pCmd->payloadLen = pDataBlock->nAllocSize - tsRpcHeadSize;
-
+  
   assert(pCmd->allocSize >= pCmd->payloadLen + tsRpcHeadSize + sizeof(STaosDigest));
-  return tscGetMeterMeta(pSql, pMeterMetaInfo->name, 0);
+  return TSDB_CODE_SUCCESS;
 }
 
 void tscFreeUnusedDataBlocks(SDataBlockList* pList) {
@@ -573,19 +581,38 @@ void tscFreeUnusedDataBlocks(SDataBlockList* pList) {
   }
 }
 
-STableDataBlocks* tscCreateDataBlockEx(size_t size, int32_t rowSize, int32_t startOffset, char* name) {
-  STableDataBlocks* dataBuf = tscCreateDataBlock(size);
+/**
+ * create the in-memory buffer for each table to keep the submitted data block
+ * @param initialSize
+ * @param rowSize
+ * @param startOffset
+ * @param name
+ * @param pMeterMeta  the ownership of pMeterMeta should be transfer to STableDataBlocks
+ * @return
+ */
+STableDataBlocks* tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name) {
+  
+  STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
+  dataBuf->nAllocSize = (uint32_t) initialSize;
+  dataBuf->pData = calloc(1, dataBuf->nAllocSize);
+  dataBuf->ordered = true;
+  dataBuf->prevTS = INT64_MIN;
 
   dataBuf->rowSize = rowSize;
   dataBuf->size = startOffset;
   dataBuf->tsSource = -1;
 
   strncpy(dataBuf->meterId, name, TSDB_METER_ID_LEN);
+  
+  // sure that the metermeta must be in the local client cache
+  dataBuf->pMeterMeta = taosGetDataFromCache(tscCacheHandle, dataBuf->meterId);
+  assert(dataBuf->pMeterMeta != NULL && initialSize > 0);
+  
   return dataBuf;
 }
 
 STableDataBlocks* tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
-                                          int32_t startOffset, int32_t rowSize, char* tableId) {
+                                          int32_t startOffset, int32_t rowSize, const char* tableId) {
   STableDataBlocks* dataBuf = NULL;
 
   STableDataBlocks** t1 = (STableDataBlocks**)taosGetIntHashData(pHashList, id);
@@ -594,7 +621,7 @@ STableDataBlocks* tscGetDataBlockFromList(void* pHashList, SDataBlockList* pData
   }
 
   if (dataBuf == NULL) {
-    dataBuf = tscCreateDataBlockEx((size_t)size, rowSize, startOffset, tableId);
+    dataBuf = tscCreateDataBlock((size_t)size, rowSize, startOffset, tableId);
     dataBuf = *(STableDataBlocks**)taosAddIntHash(pHashList, id, (char*)&dataBuf);
     tscAppendDataBlock(pDataBlockList, dataBuf);
   }

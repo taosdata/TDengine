@@ -231,17 +231,22 @@ typedef struct SParamInfo {
 
 typedef struct STableDataBlocks {
   char   meterId[TSDB_METER_ID_LEN];
-  int8_t tsSource;
-  bool   ordered;
+  int8_t tsSource;        // where does the UNIX timestamp come from, server or client
+  bool   ordered;         // if current rows are ordered or not
+  int64_t vgid;           // virtual group id
+  int64_t prevTS;         // previous timestamp, recorded to decide if the records array is ts ascending
+  int32_t numOfMeters;    // number of tables in current submit block
 
-  int64_t vgid;
-  int64_t prevTS;
-
-  int32_t numOfMeters;
-
-  int32_t  rowSize;
+  int32_t  rowSize;       // row size for current table
   uint32_t nAllocSize;
   uint32_t size;
+  
+  /*
+   * the metermeta for current table, the metermeta will be used during submit stage, keep a ref
+   * to avoid it to be removed from cache
+   */
+  SMeterMeta* pMeterMeta;
+  
   union {
     char *filename;
     char *pData;
@@ -255,8 +260,8 @@ typedef struct STableDataBlocks {
 
 typedef struct SDataBlockList {
   int32_t            idx;
-  int32_t            nSize;
-  int32_t            nAlloc;
+  uint32_t           nSize;
+  uint32_t           nAlloc;
   char *             userParam; /* user assigned parameters for async query */
   void *             udfp;      /* user defined function pointer, used in async model */
   STableDataBlocks **pData;
