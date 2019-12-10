@@ -783,9 +783,12 @@ static void doInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG,
                      0, 1, 0, TSDB_CFG_UTYPE_NONE);
 
+#ifdef CLUSTER
   tsInitConfigOption(cfg++, "anyIp", &tsAnyIp, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG,
                      0, 1, 0, TSDB_CFG_UTYPE_NONE);
+  }
+#endif
 
   tsInitConfigOption(cfg++, "usePublicIp", &tsUsePublicIp, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
