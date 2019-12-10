@@ -33,8 +33,6 @@
 
 extern char configDir[];
 
-#pragma GCC diagnostic ignored "-Wmissing-braces"
-
 #define BUFFER_SIZE      65536
 #define MAX_DB_NAME_SIZE 64
 #define MAX_TB_NAME_SIZE 64
@@ -267,30 +265,35 @@ double getCurrentTime();
 void callBack(void *param, TAOS_RES *res, int code);
 
 int main(int argc, char *argv[]) {
-  struct arguments arguments = {NULL,
-                                0,
-                                "root",
-                                "taosdata",
-                                "test",
-                                "t",
-                                false,
-                                false,
-                                "./output.txt",
-                                0,
-                                "int",
+  struct arguments arguments = {NULL,            // host
+                                0,               // port
+                                "root",          // user
+                                "taosdata",      // password
+                                "test",          // database
+                                "t",             // tb_prefix
+                                false,           // use_metric
+                                false,           // insert_only
+                                "./output.txt",  // output_file
+                                0,               // mode
+                                {
+                                "int",           // datatype
                                 "",
                                 "",
                                 "",
                                 "",
                                 "",
                                 "",
-                                "",
-                                8,
-                                1,
-                                1,
-                                1,
-                                1,
-                                50000};
+                                ""
+                                },
+                                8,               // len_of_binary
+                                1,               // num_of_CPR
+                                1,               // num_of_connections
+                                1,               // num_of_RPR
+                                1,               // num_of_tables
+                                50000,           // num_of_DPT
+                                0,               // abort
+                                NULL             // arg_list
+                                };
 
   /* Parse our arguments; every option seen by parse_opt will be
      reflected in arguments. */

@@ -215,7 +215,7 @@ ParseEnd:
   }
 }
 
-int tgParseSchema(char *content, char*fileName) {
+int tgParseSchema(const char *content, char*fileName) {
   cJSON *root = cJSON_Parse(content);
   if (root == NULL) {
     httpError("failed to parse telegraf schema file:%s, invalid json format, content:%s", fileName, content);
@@ -248,7 +248,7 @@ int tgParseSchema(char *content, char*fileName) {
   return size;
 }
 
-int tgReadSchema(const char *fileName) {
+int tgReadSchema(char *fileName) {
   FILE *fp = fopen(fileName, "r");
   if (fp == NULL) {
     return -1;
@@ -262,6 +262,8 @@ int tgReadSchema(const char *fileName) {
   size_t result = fread(content, 1, contentSize, fp);
   if (result != contentSize) {
     httpError("failed to read telegraf schema file:%s", fileName);
+    fclose(fp);
+    free(content);
     return -1;
   }
 

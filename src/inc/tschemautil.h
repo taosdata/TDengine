@@ -47,6 +47,7 @@ struct SSchema *tsGetSchema(SMeterMeta *pMeta);
 struct SSchema *tsGetTagSchema(SMeterMeta *pMeta);
 
 struct SSchema *tsGetColumnSchema(SMeterMeta *pMeta, int32_t startCol);
+struct SSchema tsGetTbnameColumnSchema();
 
 char *tsGetTagsValue(SMeterMeta *pMeta);
 

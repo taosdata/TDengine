@@ -23,12 +23,6 @@
 #include "tlog.h"
 #include "tstatus.h"
 
-#pragma GCC diagnostic push
-
-#pragma GCC diagnostic ignored "-Woverflow"
-#pragma GCC diagnostic ignored "-Wpointer-sign"
-#pragma GCC diagnostic ignored "-Wint-conversion"
-
 #define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
 
 void *    pShellConn = NULL;
@@ -695,7 +689,7 @@ int mgmtProcessAlterUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
              (strcmp(pConn->pUser->user, "root") == 0)) {
     if ((pAlter->flag & TSDB_ALTER_USER_PASSWD) != 0) {
       memset(pUser->pass, 0, sizeof(pUser->pass));
-      taosEncryptPass(pAlter->pass, strlen(pAlter->pass), pUser->pass);
+      taosEncryptPass((uint8_t *)pAlter->pass, strlen(pAlter->pass), pUser->pass);
     }
     if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
       if (pAlter->privilege == 1) {  // super
@@ -840,11 +834,11 @@ int mgmtProcessShowMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     pShowRsp->qhandle = (uint64_t)pShow;  // qhandle;
     pConn->qhandle = pShowRsp->qhandle;
 
-    code = (*mgmtGetMetaFp[pShowMsg->type])(&pShowRsp->meterMeta, pShow, pConn);
+    code = (*mgmtGetMetaFp[(uint8_t)pShowMsg->type])(&pShowRsp->meterMeta, pShow, pConn);
     if (code == 0) {
       pMsg += sizeof(SShowRspMsg) + sizeof(SSchema) * pShow->numOfColumns;
     } else {
-      mError("pShow:%p, type:%d %s, failed to get Meta, code:%d", pShow, pShowMsg->type, taosMsg[pShowMsg->type], code);
+      mError("pShow:%p, type:%d %s, failed to get Meta, code:%d", pShow, pShowMsg->type, taosMsg[(uint8_t)pShowMsg->type], code);
       free(pShow);
     }
   }
@@ -915,7 +909,7 @@ int mgmtProcessRetrieveMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
     // if free flag is set, client wants to clean the resources
     if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE)
-      rowsRead = (*mgmtRetrieveFp[pShow->type])(pShow, pRsp->data, rowsToRead, pConn);
+      rowsRead = (*mgmtRetrieveFp[(uint8_t)pShow->type])(pShow, pRsp->data, rowsToRead, pConn);
 
     if (rowsRead < 0) {
       rowsRead = 0;
@@ -931,7 +925,7 @@ int mgmtProcessRetrieveMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   taosSendMsgToPeer(pConn->thandle, pStart, msgLen);
 
   if (rowsToRead == 0) {
-    uintptr_t oldSign = atomic_val_compare_exchange_ptr(&pShow->signature, pShow, 0);
+    uintptr_t oldSign = (uintptr_t)atomic_val_compare_exchange_ptr(&pShow->signature, pShow, 0);
     if (oldSign != (uintptr_t)pShow) {
       return msgLen;
     }
@@ -978,12 +972,19 @@ int mgmtProcessCreateTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   if (code == 1) {
     //mTrace("table:%s, wait vgroup create finish", pCreate->meterId, code);
-  }
-  else if (code != 0) {
-    mError("table:%s, failed to create table, code:%d", pCreate->meterId, code);
+  } else if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_TABLE_ALREADY_EXIST) {  // table already created when the second attempt to create table
+      
+      STabObj* pMeter = mgmtGetMeter(pCreate->meterId);
+      assert(pMeter != NULL);
+      
+      mWarn("table:%s, table already created, failed to create table, ts:%lld, code:%d", pCreate->meterId,
+            pMeter->createdTime, code);
+    } else {  // other errors
+      mError("table:%s, failed to create table, code:%d", pCreate->meterId, code);
+    }
   } else {
     mTrace("table:%s, table is created by %s", pCreate->meterId, pConn->pUser->user);
-    //mLPrint("meter:%s is created by %s", pCreate->meterId, pConn->pUser->user);
   }
 
   taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_TABLE_RSP, code);
@@ -1132,8 +1133,9 @@ void mgmtEstablishConn(SConnObj *pConn) {
     }
   }
 
-  uint32_t temp;
-  taosGetRpcConnInfo(pConn->thandle, &temp, &pConn->ip, &pConn->port, &temp, &temp);
+  int32_t tempint32;
+  uint32_t tempuint32;
+  taosGetRpcConnInfo(pConn->thandle, &tempuint32, &pConn->ip, &pConn->port, &tempint32, &tempint32);
   mgmtAddConnIntoAcct(pConn);
 }
 
@@ -1361,5 +1363,3 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_STREAM] = mgmtProcessKillStreamMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_CONNECTION] = mgmtProcessKillConnectionMsg;
 }
-
-#pragma GCC diagnostic pop

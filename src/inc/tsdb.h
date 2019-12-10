@@ -100,6 +100,7 @@ extern "C" {
 #define TSDB_COL_NAME_LEN         64
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 16
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
+#define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 6mb
 
 #define TSDB_MAX_BYTES_PER_ROW    TSDB_MAX_COLUMNS * 16
 #define TSDB_MAX_TAGS_LEN         512

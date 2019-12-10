@@ -67,13 +67,13 @@ static void doApplyIntervalQueryOnBlock(SMeterQuerySupportObj *pSupporter, SMete
                                         SBlockInfo *pBlockInfo, int64_t *pPrimaryCol, char *sdata, SField *pFields,
                                         __block_search_fn_t searchFn);
 
-static void saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryInfo, int32_t numOfResult);
+static int32_t saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryInfo, int32_t numOfResult);
 static void applyIntervalQueryOnBlock(SMeterQuerySupportObj *pSupporter, SMeterDataInfo *pInfoEx, char *data,
                                       int64_t *pPrimaryData, SBlockInfo *pBlockInfo, int32_t blockStatus,
                                       SField *pFields, __block_search_fn_t searchFn);
 
 static void resetMergeResultBuf(SQuery *pQuery, SQLFunctionCtx *pCtx);
-static void flushFromResultBuf(SMeterQuerySupportObj *pSupporter, const SQuery *pQuery,
+static int32_t flushFromResultBuf(SMeterQuerySupportObj *pSupporter, const SQuery *pQuery,
                                const SQueryRuntimeEnv *pRuntimeEnv);
 static void validateTimestampForSupplementResult(SQueryRuntimeEnv *pRuntimeEnv, int64_t numOfIncrementRes);
 static void getBasicCacheInfoSnapshot(SQuery *pQuery, SCacheInfo *pCacheInfo, int32_t vid);
@@ -252,15 +252,31 @@ static void vnodeSetOpenedFileNames(SQueryFilesInfo* pVnodeFilesInfo) {
   
   SHeaderFileInfo* pCurrentFileInfo = &pVnodeFilesInfo->pFileInfo[pVnodeFilesInfo->current];
   
-  // set the full file path for current opened files
-  snprintf(pVnodeFilesInfo->headerFilePath, PATH_MAX, "%sv%df%d.head", pVnodeFilesInfo->dbFilePathPrefix,
-           pVnodeFilesInfo->vnodeId, pCurrentFileInfo->fileID);
+  /*
+   * set the full file path for current opened files
+   * the maximum allowed path string length is PATH_MAX in Linux, 100 bytes is used to
+   * suppress the compiler warnings
+   */
+  char str[PATH_MAX + 100] = {0};
+  int32_t PATH_WITH_EXTRA = PATH_MAX + 100;
   
-  snprintf(pVnodeFilesInfo->dataFilePath, PATH_MAX, "%sv%df%d.data", pVnodeFilesInfo->dbFilePathPrefix,
-           pVnodeFilesInfo->vnodeId, pCurrentFileInfo->fileID);
+  int32_t vnodeId = pVnodeFilesInfo->vnodeId;
+  int32_t fileId = pCurrentFileInfo->fileID;
   
-  snprintf(pVnodeFilesInfo->lastFilePath, PATH_MAX, "%sv%df%d.last", pVnodeFilesInfo->dbFilePathPrefix,
-           pVnodeFilesInfo->vnodeId, pCurrentFileInfo->fileID);
+  int32_t len = snprintf(str, PATH_WITH_EXTRA, "%sv%df%d.head", pVnodeFilesInfo->dbFilePathPrefix, vnodeId, fileId);
+  assert(len <= PATH_MAX);
+  
+  strncpy(pVnodeFilesInfo->headerFilePath, str, PATH_MAX);
+  
+  len = snprintf(str, PATH_WITH_EXTRA, "%sv%df%d.data", pVnodeFilesInfo->dbFilePathPrefix, vnodeId, fileId);
+  assert(len <= PATH_MAX);
+  
+  strncpy(pVnodeFilesInfo->dataFilePath, str, PATH_MAX);
+  
+  len = snprintf(str, PATH_WITH_EXTRA, "%sv%df%d.last", pVnodeFilesInfo->dbFilePathPrefix, vnodeId, fileId);
+  assert(len <= PATH_MAX);
+  
+  strncpy(pVnodeFilesInfo->lastFilePath, str, PATH_MAX);
 }
 
 /**
@@ -413,7 +429,7 @@ char *vnodeGetHeaderFileData(SQueryRuntimeEnv *pRuntimeEnv, int32_t vnodeId, int
     vnodeSetOpenedFileNames(pVnodeFileInfo);
     
     if (doOpenQueryFileData(pQInfo, pVnodeFileInfo, vnodeId) != TSDB_CODE_SUCCESS) {
-      doCloseOpenedFileData(pVnodeFileInfo);  // there may be partially open fd, close it anyway.
+      doCloseOpenedFileData(pVnodeFileInfo);  // all the fds may be partially opened, close them anyway.
       return pVnodeFileInfo->pHeaderFileData;
     }
   }
@@ -1055,7 +1071,7 @@ static void *getGenericDataBlock(SMeterObj *pMeterObj, SQuery *pQuery, int32_t s
 
 static int32_t getFileIdFromKey(int32_t vid, TSKEY key) {
   SVnodeObj *pVnode = &vnodeList[vid];
-  int64_t    delta = (int64_t)pVnode->cfg.daysPerFile * tsMsPerDay[pVnode->cfg.precision];
+  int64_t    delta = (int64_t)pVnode->cfg.daysPerFile * tsMsPerDay[(uint8_t)pVnode->cfg.precision];
 
   return (int32_t)(key / delta);  // set the starting fileId
 }
@@ -1291,9 +1307,6 @@ static int32_t blockwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t
 
   for (int32_t k = 0; k < pQuery->numOfOutputCols; ++k) {
     int32_t functionId = pQuery->pSelectExpr[k].pBase.functionId;
-    //    if (!functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
-    //      continue;
-    //    }
 
     SField dummyField = {0};
 
@@ -2230,7 +2243,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
 // get maximum time interval in each file
 static int64_t getOldestKey(int32_t numOfFiles, int64_t fileId, SVnodeCfg *pCfg) {
-  int64_t duration = pCfg->daysPerFile * tsMsPerDay[pCfg->precision];
+  int64_t duration = pCfg->daysPerFile * tsMsPerDay[(uint8_t)pCfg->precision];
   return (fileId - numOfFiles + 1) * duration;
 }
 
@@ -3052,7 +3065,7 @@ static void vnodeRecordAllFiles(SQInfo *pQInfo, int32_t vnodeId) {
   sprintf(pVnodeFilesInfo->dbFilePathPrefix, "%s/vnode%d/db/", tsDirectory, vnodeId);
   DIR *pDir = opendir(pVnodeFilesInfo->dbFilePathPrefix);
   if (pDir == NULL) {
-    dError("QInfo:%p failed to open directory:%s", pQInfo, pVnodeFilesInfo->dbFilePathPrefix);
+    dError("QInfo:%p failed to open directory:%s, %s", pQInfo, pVnodeFilesInfo->dbFilePathPrefix, strerror(errno));
     return;
   }
 
@@ -3920,11 +3933,16 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
       dError("QInfo:%p failed to create file: %s on disk. %s", pQInfo, pSupporter->extBufFile, strerror(errno));
       return TSDB_CODE_SERV_OUT_OF_MEMORY;
     }
-
-    // set 4k page for each meter
+    
     pSupporter->numOfPages = pSupporter->numOfMeters;
 
-    ftruncate(pSupporter->meterOutputFd, pSupporter->numOfPages * DEFAULT_INTERN_BUF_SIZE);
+    ret = ftruncate(pSupporter->meterOutputFd, pSupporter->numOfPages * DEFAULT_INTERN_BUF_SIZE);
+    if (ret != TSDB_CODE_SUCCESS) {
+      dError("QInfo:%p failed to create intermediate result output file:%s. %s", pQInfo, pSupporter->extBufFile,
+          strerror(errno));
+      return TSDB_CODE_SERV_NO_DISKSPACE;
+    }
+    
     pSupporter->runtimeEnv.numOfRowsPerPage = (DEFAULT_INTERN_BUF_SIZE - sizeof(tFilePage)) / pQuery->rowSize;
     pSupporter->lastPageId = -1;
     pSupporter->bufSize = pSupporter->numOfPages * DEFAULT_INTERN_BUF_SIZE;
@@ -3932,7 +3950,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
     pSupporter->meterOutputMMapBuf =
         mmap(NULL, pSupporter->bufSize, PROT_READ | PROT_WRITE, MAP_SHARED, pSupporter->meterOutputFd, 0);
     if (pSupporter->meterOutputMMapBuf == MAP_FAILED) {
-      dError("QInfo:%p failed to map data file: %s to disk. %s", pQInfo, pSupporter->extBufFile, strerror(errno));
+      dError("QInfo:%p failed to map temp file: %s. %s", pQInfo, pSupporter->extBufFile, strerror(errno));
       return TSDB_CODE_SERV_OUT_OF_MEMORY;
     }
   }
@@ -4553,8 +4571,7 @@ static void doMerge(SQueryRuntimeEnv *pRuntimeEnv, int64_t timestamp, tFilePage 
 }
 
 static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType) {
-  if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_FIRST_DST ||
-      functionId == TSDB_FUNC_LAST_DST) {
+  if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
     switch (srcDataType) {
       case TSDB_DATA_TYPE_BINARY:
         printf("%ld,%s\t", *(TSKEY *)data, (data + TSDB_KEYSIZE + 1));
@@ -4733,20 +4750,24 @@ int32_t mergeMetersResultToOneGroups(SMeterQuerySupportObj *pSupporter) {
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
   int64_t st = taosGetTimestampMs();
+  int32_t ret = TSDB_CODE_SUCCESS;
 
   while (pSupporter->subgroupIdx < pSupporter->pSidSet->numOfSubSet) {
     int32_t start = pSupporter->pSidSet->starterPos[pSupporter->subgroupIdx];
     int32_t end = pSupporter->pSidSet->starterPos[pSupporter->subgroupIdx + 1];
 
-    int32_t ret =
-        doMergeMetersResultsToGroupRes(pSupporter, pQuery, pRuntimeEnv, pSupporter->pMeterDataInfo, start, end);
+    ret = doMergeMetersResultsToGroupRes(pSupporter, pQuery, pRuntimeEnv, pSupporter->pMeterDataInfo, start, end);
+    if (ret < 0) {       // not enough disk space to save the data into disk
+      return -1;
+    }
+    
     pSupporter->subgroupIdx += 1;
 
-    /* this group generates at least one result, return results */
+    // this group generates at least one result, return results
     if (ret > 0) {
       break;
     }
-
+    
     assert(pSupporter->numOfGroupResultPages == 0);
     dTrace("QInfo:%p no result in group %d, continue", GET_QINFO_ADDR(pQuery), pSupporter->subgroupIdx - 1);
   }
@@ -4754,7 +4775,7 @@ int32_t mergeMetersResultToOneGroups(SMeterQuerySupportObj *pSupporter) {
   dTrace("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%lldms", GET_QINFO_ADDR(pQuery),
          pSupporter->subgroupIdx - 1, pSupporter->pSidSet->numOfSubSet, taosGetTimestampMs() - st);
 
-  return pSupporter->numOfGroupResultPages;
+  return TSDB_CODE_SUCCESS;
 }
 
 void copyResToQueryResultBuf(SMeterQuerySupportObj *pSupporter, SQuery *pQuery) {
@@ -4762,7 +4783,9 @@ void copyResToQueryResultBuf(SMeterQuerySupportObj *pSupporter, SQuery *pQuery) 
     pSupporter->numOfGroupResultPages = 0;
 
     // current results of group has been sent to client, try next group
-    mergeMetersResultToOneGroups(pSupporter);
+    if (mergeMetersResultToOneGroups(pSupporter) != TSDB_CODE_SUCCESS) {
+      return;      // failed to save data in the disk
+    }
 
     // set current query completed
     if (pSupporter->numOfGroupResultPages == 0 && pSupporter->subgroupIdx == pSupporter->pSidSet->numOfSubSet) {
@@ -4840,7 +4863,10 @@ int32_t doMergeMetersResultsToGroupRes(SMeterQuerySupportObj *pSupporter, SQuery
     } else {
       // copy data to disk buffer
       if (buffer[0]->numOfElems == pQuery->pointsToRead) {
-        flushFromResultBuf(pSupporter, pQuery, pRuntimeEnv);
+        if (flushFromResultBuf(pSupporter, pQuery, pRuntimeEnv) != TSDB_CODE_SUCCESS) {
+          return -1;
+        }
+        
         resetMergeResultBuf(pQuery, pCtx);
       }
 
@@ -4887,7 +4913,14 @@ int32_t doMergeMetersResultsToGroupRes(SMeterQuerySupportObj *pSupporter, SQuery
   }
 
   if (buffer[0]->numOfElems != 0) {  // there are data in buffer
-    flushFromResultBuf(pSupporter, pQuery, pRuntimeEnv);
+    if (flushFromResultBuf(pSupporter, pQuery, pRuntimeEnv) != TSDB_CODE_SUCCESS) {
+      dError("QInfo:%p failed to flush data into temp file, abort query", GET_QINFO_ADDR(pQuery), pSupporter->extBufFile);
+      tfree(pTree);
+      tfree(pValidMeter);
+      tfree(posArray);
+      
+      return -1;
+    }
   }
 
   int64_t endt = taosGetTimestampMs();
@@ -4906,25 +4939,44 @@ int32_t doMergeMetersResultsToGroupRes(SMeterQuerySupportObj *pSupporter, SQuery
   return pSupporter->numOfGroupResultPages;
 }
 
-static void extendDiskBuf(SMeterQuerySupportObj *pSupporter, int32_t numOfPages) {
+static int32_t extendDiskBuf(const SQuery* pQuery, SMeterQuerySupportObj *pSupporter, int32_t numOfPages) {
   assert(pSupporter->numOfPages * DEFAULT_INTERN_BUF_SIZE == pSupporter->bufSize);
-
+  
+  SQInfo* pQInfo = (SQInfo*) GET_QINFO_ADDR(pQuery);
+  
   int32_t ret = munmap(pSupporter->meterOutputMMapBuf, pSupporter->bufSize);
   pSupporter->numOfPages = numOfPages;
 
-  // disk-based output buffer is exhausted, try to extend the disk-based buffer
+  /*
+   * disk-based output buffer is exhausted, try to extend the disk-based buffer, the available disk space may
+   * be insufficient
+   */
   ret = ftruncate(pSupporter->meterOutputFd, pSupporter->numOfPages * DEFAULT_INTERN_BUF_SIZE);
   if (ret != 0) {
-    perror("error in allocate the disk-based buffer");
-    return;
+    dError("QInfo:%p failed to create intermediate result output file:%s. %s", pQInfo, pSupporter->extBufFile,
+           strerror(errno));
+    pQInfo->code = -TSDB_CODE_SERV_NO_DISKSPACE;
+    pQInfo->killed = 1;
+    
+    return pQInfo->code;
   }
 
   pSupporter->bufSize = pSupporter->numOfPages * DEFAULT_INTERN_BUF_SIZE;
   pSupporter->meterOutputMMapBuf =
       mmap(NULL, pSupporter->bufSize, PROT_READ | PROT_WRITE, MAP_SHARED, pSupporter->meterOutputFd, 0);
+  
+  if (pSupporter->meterOutputMMapBuf == MAP_FAILED) {
+    dError("QInfo:%p failed to map temp file: %s. %s", pQInfo, pSupporter->extBufFile, strerror(errno));
+    pQInfo->code = -TSDB_CODE_SERV_OUT_OF_MEMORY;
+    pQInfo->killed = 1;
+    
+    return pQInfo->code;
+  }
+  
+  return TSDB_CODE_SUCCESS;
 }
 
-void flushFromResultBuf(SMeterQuerySupportObj *pSupporter, const SQuery *pQuery, const SQueryRuntimeEnv *pRuntimeEnv) {
+int32_t flushFromResultBuf(SMeterQuerySupportObj *pSupporter, const SQuery *pQuery, const SQueryRuntimeEnv *pRuntimeEnv) {
   int32_t numOfMeterResultBufPages = pSupporter->lastPageId + 1;
   int64_t dstSize = numOfMeterResultBufPages * DEFAULT_INTERN_BUF_SIZE +
                     pSupporter->groupResultSize * (pSupporter->numOfGroupResultPages + 1);
@@ -4935,7 +4987,9 @@ void flushFromResultBuf(SMeterQuerySupportObj *pSupporter, const SQuery *pQuery,
       requiredPages += pSupporter->numOfMeters;
     }
 
-    extendDiskBuf(pSupporter, requiredPages);
+    if (extendDiskBuf(pQuery, pSupporter, requiredPages) != TSDB_CODE_SUCCESS) {
+      return -1;
+    }
   }
 
   char *lastPosition = pSupporter->meterOutputMMapBuf + DEFAULT_INTERN_BUF_SIZE * numOfMeterResultBufPages +
@@ -4949,6 +5003,7 @@ void flushFromResultBuf(SMeterQuerySupportObj *pSupporter, const SQuery *pQuery,
   }
 
   pSupporter->numOfGroupResultPages += 1;
+  return TSDB_CODE_SUCCESS;
 }
 
 void resetMergeResultBuf(SQuery *pQuery, SQLFunctionCtx *pCtx) {
@@ -4966,7 +5021,7 @@ void setMeterDataInfo(SMeterDataInfo *pMeterDataInfo, SMeterObj *pMeterObj, int3
   pMeterDataInfo->meterOrderIdx = meterIdx;
 }
 
-void doCloseAllOpenedResults(SMeterQuerySupportObj *pSupporter) {
+int32_t doCloseAllOpenedResults(SMeterQuerySupportObj *pSupporter) {
   SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
@@ -4980,11 +5035,20 @@ void doCloseAllOpenedResults(SMeterQuerySupportObj *pSupporter) {
         pRuntimeEnv->pMeterObj = getMeterObj(pSupporter->pMeterObj, pSupporter->pSidSet->pSids[index]->sid);
         assert(pRuntimeEnv->pMeterObj == pMeterInfo[i].pMeterObj);
 
-        setIntervalQueryExecutionContext(pSupporter, i, pMeterInfo[i].pMeterQInfo);
-        saveResult(pSupporter, pMeterInfo[i].pMeterQInfo, pMeterInfo[i].pMeterQInfo->lastResRows);
+        int32_t ret = setIntervalQueryExecutionContext(pSupporter, i, pMeterInfo[i].pMeterQInfo);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return ret;
+        }
+        
+        ret = saveResult(pSupporter, pMeterInfo[i].pMeterQInfo, pMeterInfo[i].pMeterQInfo->lastResRows);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return ret;
+        }
       }
     }
   }
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 void disableFunctForSuppleScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order) {
@@ -5690,18 +5754,24 @@ void changeMeterQueryInfoForSuppleQuery(SMeterQueryInfo *pMeterQueryInfo, TSKEY 
   }
 }
 
-static tFilePage *allocNewPage(SMeterQuerySupportObj *pSupporter, uint32_t *pageId) {
+static tFilePage *allocNewPage(SQuery* pQuery, SMeterQuerySupportObj *pSupporter, uint32_t *pageId) {
   if (pSupporter->lastPageId == pSupporter->numOfPages - 1) {
-    extendDiskBuf(pSupporter, pSupporter->numOfPages + pSupporter->numOfMeters);
+    if (extendDiskBuf(pQuery, pSupporter, pSupporter->numOfPages + pSupporter->numOfMeters) != TSDB_CODE_SUCCESS) {
+      return NULL;
+    }
   }
 
   *pageId = (++pSupporter->lastPageId);
   return getFilePage(pSupporter, *pageId);
 }
 
-tFilePage *addDataPageForMeterQueryInfo(SMeterQueryInfo *pMeterQueryInfo, SMeterQuerySupportObj *pSupporter) {
+tFilePage *addDataPageForMeterQueryInfo(SQuery* pQuery, SMeterQueryInfo *pMeterQueryInfo, SMeterQuerySupportObj *pSupporter) {
   uint32_t   pageId = 0;
-  tFilePage *pPage = allocNewPage(pSupporter, &pageId);
+  
+  tFilePage *pPage = allocNewPage(pQuery, pSupporter, &pageId);
+  if (pPage == NULL) {  // failed to allocate disk-based buffer for intermediate results
+    return NULL;
+  }
 
   if (pMeterQueryInfo->numOfPages >= pMeterQueryInfo->numOfAlloc) {
     pMeterQueryInfo->numOfAlloc = pMeterQueryInfo->numOfAlloc << 1;
@@ -6199,44 +6269,51 @@ void validateTimestampForSupplementResult(SQueryRuntimeEnv *pRuntimeEnv, int64_t
   }
 }
 
-void setOutputBufferForIntervalQuery(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryInfo) {
+int32_t setOutputBufferForIntervalQuery(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
   tFilePage *       pData = NULL;
 
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  
   // in the first scan, new space needed for results
   if (pMeterQueryInfo->numOfPages == 0) {
-    pData = addDataPageForMeterQueryInfo(pMeterQueryInfo, pSupporter);
+    pData = addDataPageForMeterQueryInfo(pQuery, pMeterQueryInfo, pSupporter);
   } else {
     int32_t lastPageId = pMeterQueryInfo->pageList[pMeterQueryInfo->numOfPages - 1];
     pData = getFilePage(pSupporter, lastPageId);
 
     if (pData->numOfElems >= pRuntimeEnv->numOfRowsPerPage) {
-      pData = addDataPageForMeterQueryInfo(pMeterQueryInfo, pSupporter);
-      assert(pData->numOfElems == 0);  // number of elements must be 0 for new allocated buffer
+      pData = addDataPageForMeterQueryInfo(pRuntimeEnv->pQuery, pMeterQueryInfo, pSupporter);
+      if (pData != NULL) {
+        assert(pData->numOfElems == 0);  // number of elements must be 0 for new allocated buffer
+      }
     }
+  }
+  
+  if (pData == NULL) {
+    return -1;
   }
 
   for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutputCols; ++i) {
     pRuntimeEnv->pCtx[i].aOutputBuf = getOutputResPos(pRuntimeEnv, pData, pData->numOfElems, i);
     pRuntimeEnv->pCtx[i].resultInfo = &pMeterQueryInfo->resultInfo[i];
   }
+  
+  return TSDB_CODE_SUCCESS;
 }
 
-void setIntervalQueryExecutionContext(SMeterQuerySupportObj *pSupporter, int32_t meterIdx,
+int32_t setIntervalQueryExecutionContext(SMeterQuerySupportObj *pSupporter, int32_t meterIdx,
                                       SMeterQueryInfo *pMeterQueryInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
-  SQuery *          pQuery = pRuntimeEnv->pQuery;
 
   if (IS_MASTER_SCAN(pRuntimeEnv)) {
-    setOutputBufferForIntervalQuery(pSupporter, pMeterQueryInfo);
+    if (setOutputBufferForIntervalQuery(pSupporter, pMeterQueryInfo) != TSDB_CODE_SUCCESS) {
+      // not enough disk space or memory buffer for intermediate results
+      return -1;
+    }
 
     if (pMeterQueryInfo->lastResRows == 0) {
       initCtxOutputBuf(pRuntimeEnv);
-    }
-
-    // reset the number of iterated elements, once this function is called. since the pCtx for different
-    for (int32_t j = 0; j < pQuery->numOfOutputCols; ++j) {
-      //      pRuntimeEnv->pCtx[j].numOfIteratedElems = 0;
     }
 
   } else {
@@ -6249,7 +6326,9 @@ void setIntervalQueryExecutionContext(SMeterQuerySupportObj *pSupporter, int32_t
        *
        * If the master scan does not produce any results, new spaces needed to be allocated during supplement scan
        */
-      setOutputBufferForIntervalQuery(pSupporter, pMeterQueryInfo);
+      if (setOutputBufferForIntervalQuery(pSupporter, pMeterQueryInfo) != TSDB_CODE_SUCCESS) {
+        return -1;
+      }
     }
   }
 
@@ -6268,6 +6347,8 @@ void setIntervalQueryExecutionContext(SMeterQuerySupportObj *pSupporter, int32_t
       tsBufSetCursor(pSupporter->runtimeEnv.pTSBuf, &pMeterQueryInfo->cur);
     }
   }
+
+  return 0;
 }
 
 static void doApplyIntervalQueryOnBlock(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pInfo,
@@ -6659,14 +6740,14 @@ static void validateResultBuf(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo
   }
 }
 
-void saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryInfo, int32_t numOfResult) {
+int32_t saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryInfo, int32_t numOfResult) {
   SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
   // no results generated, do nothing for master scan
   if (numOfResult <= 0) {
     if (IS_MASTER_SCAN(pRuntimeEnv)) {
-      return;
+      return TSDB_CODE_SUCCESS;
     } else {
       /*
        * There is a case that no result generated during the the supplement scan, and during the main
@@ -6691,7 +6772,7 @@ void saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryI
         setCtxOutputPointerForSupplementScan(pSupporter, pMeterQueryInfo);
       }
 
-      return;
+      return TSDB_CODE_SUCCESS;
     }
   }
 
@@ -6720,7 +6801,9 @@ void saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryI
     pMeterQueryInfo->numOfRes += numOfResult;
     assert(pData->numOfElems <= pRuntimeEnv->numOfRowsPerPage);
 
-    setOutputBufferForIntervalQuery(pSupporter, pMeterQueryInfo);
+    if (setOutputBufferForIntervalQuery(pSupporter, pMeterQueryInfo) != TSDB_CODE_SUCCESS) {
+      return -1;
+    }
 
     for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
       resetResultInfo(&pMeterQueryInfo->resultInfo[i]);
@@ -6743,6 +6826,8 @@ void saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryI
         tColModelDisplay(cm, outputPage->data, outputPage->numOfElems, pRuntimeEnv->numOfRowsPerPage);
 #endif
   }
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t getSubsetNumber(SMeterQuerySupportObj *pSupporter) {

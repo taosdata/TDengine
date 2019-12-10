@@ -24,9 +24,6 @@
 #include "vnodeUtil.h"
 #include "tstatus.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Woverflow"
-
 int        tsMaxVnode = -1;
 int        tsOpenVnodes = 0;
 SVnodeObj *vnodeList = NULL;
@@ -386,6 +383,3 @@ void vnodeCalcOpenVnodes() {
 void vnodeUpdateHeadFile(int vnode, int oldTables, int newTables) {
   //todo rewrite the head file with newTables
 }
-
-#pragma GCC diagnostic pop
-

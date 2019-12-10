@@ -26,8 +26,6 @@
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
 
-#pragma GCC diagnostic ignored "-Wint-conversion"
-
 int (*pQueryFunc[])(SMeterObj *, SQuery *) = {vnodeQueryFromCache, vnodeQueryFromFile};
 
 int vnodeInterpolationSearchKey(char *pValue, int num, TSKEY key, int order) {
@@ -824,11 +822,11 @@ int vnodeRetrieveQueryInfo(void *handle, int *numOfRows, int *rowSize, int16_t *
   }
 
   if (pQInfo->killed) {
-    dTrace("QInfo:%p it is already killed, %p, code:%d", pQInfo, pQuery, pQInfo->code);
+    dTrace("QInfo:%p query is killed, %p, code:%d", pQInfo, pQuery, pQInfo->code);
     if (pQInfo->code == TSDB_CODE_SUCCESS) {
       return TSDB_CODE_QUERY_CANCELLED;
     } else { // in case of not TSDB_CODE_SUCCESS, return the code to client
-      return pQInfo->code;
+      return abs(pQInfo->code);
     }
   }
 
@@ -837,8 +835,13 @@ int vnodeRetrieveQueryInfo(void *handle, int *numOfRows, int *rowSize, int16_t *
   *rowSize = pQuery->rowSize;
 
   *timePrec = vnodeList[pQInfo->pObj->vnode].cfg.precision;
-
-  if (pQInfo->code < 0) return -pQInfo->code;
+  
+  dTrace("QInfo:%p, retrieve data info completed, precision:%d, rowsize:%d, rows:%d, code:%d", pQInfo, *timePrec,
+      *rowSize, *numOfRows, pQInfo->code);
+  
+  if (pQInfo->code < 0) {  // less than 0 means there are error existed.
+    return -pQInfo->code;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -998,8 +1001,9 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
 
       if (pDestFilterInfo->filterOnBinary) {
         pDestFilterInfo->len = htobe64(pFilterInfo->len);
-        pDestFilterInfo->pz = calloc(1, pDestFilterInfo->len + 1);
-        memcpy(pDestFilterInfo->pz, pMsg, pDestFilterInfo->len + 1);
+
+        pDestFilterInfo->pz = (int64_t)calloc(1, pDestFilterInfo->len + 1);
+        memcpy((void*)pDestFilterInfo->pz, pMsg, pDestFilterInfo->len + 1);
         pMsg += (pDestFilterInfo->len + 1);
       } else {
         pDestFilterInfo->lowerBndi = htobe64(pFilterInfo->lowerBndi);
@@ -1017,8 +1021,7 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
    * 1. simple projection query on meters, we only record the pSqlFuncExprs[i].colIdx value
    * 2. for complex queries, whole SqlExprs object is required.
    */
-  pQueryMsg->pSqlFuncExprs = malloc(POINTER_BYTES * pQueryMsg->numOfOutputCols);
-
+  pQueryMsg->pSqlFuncExprs = (int64_t)malloc(POINTER_BYTES * pQueryMsg->numOfOutputCols);
   SSqlFuncExprMsg *pExprMsg = (SSqlFuncExprMsg *)pMsg;
 
   for (int32_t i = 0; i < pQueryMsg->numOfOutputCols; ++i) {
@@ -1065,7 +1068,7 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
   pQueryMsg->colNameLen = htonl(pQueryMsg->colNameLen);
   if (hasArithmeticFunction) {  // column name array
     assert(pQueryMsg->colNameLen > 0);
-    pQueryMsg->colNameList = pMsg;
+    pQueryMsg->colNameList = (int64_t)pMsg;
     pMsg += pQueryMsg->colNameLen;
   }
 

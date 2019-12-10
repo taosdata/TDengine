@@ -54,8 +54,8 @@ void mgmtDbActionInit() {
 }
 
 void *mgmtDbAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtDbActionFp[action] != NULL) {
-    return (*(mgmtDbActionFp[action]))(row, str, size, ssize);
+  if (mgmtDbActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtDbActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }
