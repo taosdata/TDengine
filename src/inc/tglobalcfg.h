@@ -179,6 +179,7 @@ extern int  tsUdpDelay;
 extern char version[];
 extern char compatible_version[];
 extern char gitinfo[];
+extern char gitinfoOfInternal[];
 extern char buildinfo[];
 
 extern char tsTimezone[64];

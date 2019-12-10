@@ -783,6 +783,9 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
                      0, 0, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "gitinfoOfInternal", gitinfoOfInternal, TSDB_CFG_VTYPE_STRING,
+                     TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 0, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "buildinfo", buildinfo, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
                      0, 0, 0, TSDB_CFG_UTYPE_NONE);
