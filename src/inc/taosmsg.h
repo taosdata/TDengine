@@ -279,7 +279,7 @@ typedef struct {
 } SShellSubmitMsg;
 
 typedef struct SSchema {
-  char  type;
+  uint8_t  type;
   char  name[TSDB_COL_NAME_LEN];
   short colId;
   short bytes;
@@ -622,7 +622,7 @@ typedef struct {
 
   char repStrategy;
   char loadLatest;  // load into mem or not
-  char precision;   // time resoluation
+  uint8_t precision;   // time resolution
 
   char reserved[16];
 } SVnodeCfg, SCreateDbMsg, SDbCfg, SAlterDbMsg;

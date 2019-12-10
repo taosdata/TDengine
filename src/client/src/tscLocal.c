@@ -64,7 +64,7 @@ static int32_t getToStringLength(const char *pData, int32_t length, int32_t type
     } break;
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT:
-      len = sprintf(buf, "%lld", *(int64_t *)pData);
+      len = sprintf(buf, "%" PRId64 "", *(int64_t *)pData);
       break;
     case TSDB_DATA_TYPE_BOOL:
       len = MAX_BOOL_TYPE_LENGTH;
@@ -228,7 +228,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
           sprintf(target, "%d", *(int32_t *)pTagValue);
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          sprintf(target, "%lld", *(int64_t *)pTagValue);
+          sprintf(target, "%" PRId64 "", *(int64_t *)pTagValue);
           break;
         case TSDB_DATA_TYPE_BOOL: {
           char *val = (*((int8_t *)pTagValue) == 0) ? "false" : "true";

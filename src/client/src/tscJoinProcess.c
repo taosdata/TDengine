@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tscJoinProcess.h"
 #include "os.h"
+#include "tscJoinProcess.h"
 #include "tcache.h"
 #include "tscUtil.h"
 #include "tsclient.h"
@@ -88,7 +88,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
 
 #ifdef _DEBUG_VIEW
     // for debug purpose
-    tscPrint("%lld, tags:%d \t %lld, tags:%d", elem1.ts, elem1.tag, elem2.ts, elem2.tag);
+    tscPrint("%" PRId64 ", tags:%d \t %" PRId64 ", tags:%d", elem1.ts, elem1.tag, elem2.ts, elem2.tag);
 #endif
 
     if (elem1.tag < elem2.tag || (elem1.tag == elem2.tag && doCompare(order, elem1.ts, elem2.ts))) {
@@ -150,7 +150,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
   tsBufDestory(pSupporter1->pTSBuf);
   tsBufDestory(pSupporter2->pTSBuf);
 
-  tscTrace("%p input1:%lld, input2:%lld, final:%lld for secondary query after ts blocks intersecting", pSql,
+  tscTrace("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " for secondary query after ts blocks intersecting", pSql,
            numOfInput1, numOfInput2, output1->numOfTotal);
 
   return output1->numOfTotal;
@@ -528,8 +528,8 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
         numOfFetch++;
       }
     } else {
-      if ((pRes->row >= pRes->numOfRows && (!tscHasReachLimitation(pSql->pSubs[i])) && tscProjectionQueryOnTable(pSql))
-      || (pRes->numOfRows == 0)) {
+      if ((pRes->row >= pRes->numOfRows && (!tscHasReachLimitation(pSql->pSubs[i])) &&
+        tscProjectionQueryOnTable(&pSql->cmd)) || (pRes->numOfRows == 0)) {
         numOfFetch++;
       }
     }
@@ -1619,7 +1619,7 @@ void tsBufDisplay(STSBuf* pTSBuf) {
 
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
+    printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, *(int64_t*) elem.tag, elem.ts);
   }
 
   pTSBuf->cur.order = old;

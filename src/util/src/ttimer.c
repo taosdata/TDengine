@@ -14,7 +14,6 @@
  */
 
 #include "os.h"
-#include <inttypes.h>
 #include "tlog.h"
 #include "tsched.h"
 #include "ttime.h"

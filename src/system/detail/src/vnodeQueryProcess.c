@@ -1213,8 +1213,8 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
 
     dTrace("QInfo:%p reset signature", pQInfo);
 
-    TSDB_QINFO_RESET_SIG(pQInfo);
     sem_post(&pQInfo->dataReady);
+    TSDB_QINFO_RESET_SIG(pQInfo);
 
     return;
   }
@@ -1235,8 +1235,8 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
 
           dTrace("QInfo:%p reset signature", pQInfo);
 
-          TSDB_QINFO_RESET_SIG(pQInfo);
           sem_post(&pQInfo->dataReady);
+          TSDB_QINFO_RESET_SIG(pQInfo);
           return;
         }
       }
@@ -1247,8 +1247,8 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
            pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQInfo->pointsRead);
 
     vnodePrintQueryStatistics(pQInfo->pMeterQuerySupporter);
-    TSDB_QINFO_RESET_SIG(pQInfo);
     sem_post(&pQInfo->dataReady);
+    TSDB_QINFO_RESET_SIG(pQInfo);
 
     return;
   }
@@ -1284,8 +1284,8 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
            pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead);
   }
 
-  TSDB_QINFO_RESET_SIG(pQInfo);
   sem_post(&pQInfo->dataReady);
+  TSDB_QINFO_RESET_SIG(pQInfo);
 }
 
 void vnodeMultiMeterQuery(SSchedMsg *pMsg) {
@@ -1335,6 +1335,6 @@ void vnodeMultiMeterQuery(SSchedMsg *pMsg) {
     vnodePrintQueryStatistics(pSupporter);
   }
 
-  TSDB_QINFO_RESET_SIG(pQInfo);
   sem_post(&pQInfo->dataReady);
+  TSDB_QINFO_RESET_SIG(pQInfo);
 }

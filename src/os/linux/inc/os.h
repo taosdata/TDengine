@@ -71,6 +71,7 @@ extern "C" {
 #include <wchar.h>
 #include <wordexp.h>
 #include <wctype.h>
+#include <inttypes.h>
 
 
 #define taosCloseSocket(x) \

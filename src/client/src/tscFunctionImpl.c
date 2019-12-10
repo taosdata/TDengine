@@ -1666,7 +1666,7 @@ static void last_data_assign_impl(SQLFunctionCtx *pCtx, char *pData, int32_t ind
 
   if (pInfo->hasResult != DATA_SET_FLAG || pInfo->ts < timestamp[index]) {
 #if defined(_DEBUG_VIEW)
-    pTrace("assign index:%d, ts:%lld, val:%d, ", index, timestamp[index], *(int32_t *)pData);
+    pTrace("assign index:%d, ts:%" PRId64 ", val:%d, ", index, timestamp[index], *(int32_t *)pData);
 #endif
 
     memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);

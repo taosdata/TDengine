@@ -643,13 +643,12 @@ int32_t intersect(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResults
 }
 
 /*
- *
+ * traverse the result and apply the function to each item to check if the item is qualified or not
  */
-void tSQLListTraverseOnResult(struct tSQLBinaryExpr *pExpr, bool (*fp)(tSkipListNode *, void *),
-                              tQueryResultset *      pResult) {
+static void tSQLListTraverseOnResult(struct tSQLBinaryExpr *pExpr, __result_filter_fn_t  fp, tQueryResultset *pResult) {
   assert(pExpr->pLeft->nodeType == TSQL_NODE_COL && pExpr->pRight->nodeType == TSQL_NODE_VALUE);
 
-  // brutal force search
+  // brutal force scan the result list and check for each item in the list
   int64_t num = pResult->num;
   for (int32_t i = 0, j = 0; i < pResult->num; ++i) {
     if (fp == NULL || (fp(pResult->pRes[i], pExpr->info) == true)) {

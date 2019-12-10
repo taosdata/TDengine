@@ -982,7 +982,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
       strcpy(fname, full_path.we_wordv[0]);
       wordfree(&full_path);
 
-      STableDataBlocks *pDataBlock = tscCreateDataBlockEx(PATH_MAX, pMeterMetaInfo->pMeterMeta->rowSize,
+      STableDataBlocks *pDataBlock = tscCreateDataBlock(PATH_MAX, pMeterMetaInfo->pMeterMeta->rowSize,
                                                           sizeof(SShellSubmitBlock), pMeterMetaInfo->name);
 
       tscAppendDataBlock(pCmd->pDataBlocks, pDataBlock);
@@ -1219,8 +1219,8 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   int32_t         rowSize = pMeterMeta->rowSize;
 
   pCmd->pDataBlocks = tscCreateBlockArrayList();
-  STableDataBlocks *pTableDataBlock =
-      tscCreateDataBlockEx(TSDB_PAYLOAD_SIZE, pMeterMeta->rowSize, sizeof(SShellSubmitBlock), pMeterMetaInfo->name);
+  STableDataBlocks *pTableDataBlock = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, pMeterMeta->rowSize,
+      sizeof(SShellSubmitBlock), pMeterMetaInfo->name);
 
   tscAppendDataBlock(pCmd->pDataBlocks, pTableDataBlock);
 

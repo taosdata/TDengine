@@ -37,6 +37,6 @@ int32_t mgmtRetrieveMetersFromMetric(SMetricMetaMsg* pInfo, int32_t tableIndex, 
 int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes);
 void mgmtReorganizeMetersInMetricMeta(SMetricMetaMsg* pInfo, int32_t index, tQueryResultset* pRes);
 
-bool tSkipListNodeFilterCallback(struct tSkipListNode *pNode, void *param);
+bool tSkipListNodeFilterCallback(const void *pNode, void *param);
 
 #endif //TBASE_MGMTUTIL_H
