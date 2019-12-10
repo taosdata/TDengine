@@ -5336,7 +5336,8 @@ static int32_t checkUpdateTagPrjFunctions(SSqlCmd* pCmd) {
 
   for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
     int16_t functionId = tscSqlExprGet(pCmd, i)->functionId;
-    if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS) {
+    if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS || 
+        functionId == TSDB_FUNC_ARITHM) {
       continue;
     }
 
