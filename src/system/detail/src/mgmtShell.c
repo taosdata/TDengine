@@ -314,8 +314,13 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
         goto _exit_code;
       }
       for (int i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-        pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
-        pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+        if (pConn->usePublicIp) {
+          pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
+          pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+        } else {
+          pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].ip;
+          pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+        }
       }
     }
   }
@@ -453,8 +458,13 @@ int mgmtProcessMultiMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
         }
 
         for (int i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-          pMeta->meta.vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
-          pMeta->meta.vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+          if (pConn->usePublicIp) {
+            pMeta->meta.vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
+            pMeta->meta.vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+          } else {
+            pMeta->meta.vpeerDesc[i].ip = pVgroup->vnodeGid[i].ip;
+            pMeta->meta.vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+          }
         }
       }
     }
@@ -526,7 +536,7 @@ int mgmtProcessMetricMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
     msgLen = pMsg - pStart;
   } else {
-    msgLen = mgmtRetrieveMetricMeta(pConn->thandle, &pStart, pMetricMetaMsg);
+    msgLen = mgmtRetrieveMetricMeta(pConn, &pStart, pMetricMetaMsg);
     if (msgLen <= 0) {
       taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_METRIC_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
       return 0;
@@ -1099,10 +1109,17 @@ int mgmtProcessHeartBeatMsg(char *cont, int contLen, SConnObj *pConn) {
   pHBRsp->killConnection = pConn->killConnection;
 
 #ifdef CLUSTER
-  int size = pSdbPublicIpList->numOfIps * 4;
-  pHBRsp->ipList.numOfIps = pSdbPublicIpList->numOfIps;
-  memcpy(pHBRsp->ipList.ip, pSdbPublicIpList->ip, size);
-  pMsg += sizeof(SHeartBeatRsp) + size;
+  if (pConn->usePublicIp) {
+    int size = pSdbPublicIpList->numOfIps * 4;
+    pHBRsp->ipList.numOfIps = pSdbPublicIpList->numOfIps;
+    memcpy(pHBRsp->ipList.ip, pSdbPublicIpList->ip, size);
+    pMsg += sizeof(SHeartBeatRsp) + size;
+  } else {
+    int size = pSdbIpList->numOfIps * 4;
+    pHBRsp->ipList.numOfIps = pSdbIpList->numOfIps;
+    memcpy(pHBRsp->ipList.ip, pSdbIpList->ip, size);
+    pMsg += sizeof(SHeartBeatRsp) + size;
+  }
 #else
   pMsg += sizeof(SHeartBeatRsp);
 #endif
@@ -1178,6 +1195,18 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   pAcct = mgmtGetAcct(pUser->acct);
 
+  code = taosCheckVersion(pConnectMsg->clientVersion, version, 3);
+  if (code != 0) {
+    mError("invalid client version:%s", pConnectMsg->clientVersion);
+    goto _rsp;
+  }
+
+  if (pConnectMsg->isCluster != tsIsCluster) {
+    mError("Cluster Edition and lite Edition cannot be interconnected, client:%d server:%d", pConnectMsg->isCluster, tsIsCluster);
+    code = TSDB_CODE_INVALID_CLIENT_VERSION;
+    goto _rsp;
+  }
+
   if (pConnectMsg->db[0]) {
     sprintf(dbName, "%x%s%s", pAcct->acctId, TS_PATH_DELIMITER, pConnectMsg->db);
     pDb = mgmtGetDb(dbName);
@@ -1217,9 +1246,17 @@ _rsp:
     pMsg += sizeof(SConnectRsp);
 
 #ifdef CLUSTER
-    int size = pSdbPublicIpList->numOfIps * 4 + sizeof(SIpList);
-    memcpy(pMsg, pSdbPublicIpList, size);
-    pMsg += size;
+    if (pConnectMsg->usePublicIp) {
+      pConn->usePublicIp = 1;
+      int size = pSdbPublicIpList->numOfIps * 4 + sizeof(SIpList);
+      memcpy(pMsg, pSdbPublicIpList, size);
+      pMsg += size;
+    }
+    else {
+      int size = pSdbIpList->numOfIps * 4 + sizeof(SIpList);
+      memcpy(pMsg, pSdbIpList, size);
+      pMsg += size;
+    }
 #endif
 
     // set the time resolution: millisecond or microsecond

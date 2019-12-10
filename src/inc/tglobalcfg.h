@@ -151,6 +151,8 @@ extern int   tsAdminRowLimit;
 
 extern int   tsTscEnableRecordSql;
 extern int   tsAnyIp;
+extern int   tsUsePublicIp;
+extern int   tsIsCluster;
 
 extern char tsMonitorDbName[];
 extern char tsInternalPass[];

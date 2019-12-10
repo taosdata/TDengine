@@ -2642,6 +2642,11 @@ int tscBuildConnectMsg(SSqlObj *pSql) {
   db = (db == NULL) ? pObj->db : db + 1;
   strcpy(pConnect->db, db);
 
+  strcpy(pConnect->clientVersion, version);
+  pConnect->usePublicIp = (int8_t)tsUsePublicIp;
+  pConnect->isCluster = (int8_t)tsIsCluster;
+  memset(pConnect->reserved, 0, sizeof(pConnect->reserved));
+
   pMsg += sizeof(SConnectMsg);
 
   msgLen = pMsg - pStart;

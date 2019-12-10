@@ -350,7 +350,11 @@ typedef struct {
 } SAlterTableMsg;
 
 typedef struct {
+  char clientVersion[TSDB_VERSION_LEN];
   char db[TSDB_METER_ID_LEN];
+  int8_t usePublicIp;
+  int8_t isCluster;
+  int8_t reserved[14];
 } SConnectMsg;
 
 typedef struct {

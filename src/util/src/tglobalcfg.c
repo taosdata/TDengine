@@ -164,6 +164,13 @@ int tsAdminRowLimit = 10240;
 int   tsTscEnableRecordSql = 0;
 int   tsEnableCoreFile = 0;
 int   tsAnyIp = 1;
+int   tsUsePublicIp = 0;
+
+#ifdef CLUSTER
+int   tsIsCluster = 1;
+#else
+int   tsIsCluster = 0;
+#endif
 
 int tsRpcTimer = 300;
 int tsRpcMaxTime = 600;      // seconds;
@@ -780,6 +787,9 @@ static void doInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG,
                      0, 1, 0, TSDB_CFG_UTYPE_NONE);
 
+  tsInitConfigOption(cfg++, "usePublicIp", &tsUsePublicIp, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
   // version info
   tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,

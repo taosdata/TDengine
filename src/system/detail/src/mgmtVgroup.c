@@ -102,13 +102,17 @@ int mgmtInitVgroups() {
     }
     
     taosIdPoolReinit(pVgroup->idPool);
-#ifdef CLUSTER
-    if (pVgroup->vnodeGid[0].publicIp == 0) {
-      pVgroup->vnodeGid[0].publicIp = inet_addr(tsPublicIp);
-      pVgroup->vnodeGid[0].ip = inet_addr(tsPrivateIp);
-      sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
+
+    if (tsIsCluster) {
+      /*
+       * Upgrade from open source version to cluster version for the first time
+       */
+      if (pVgroup->vnodeGid[0].publicIp == 0) {
+        pVgroup->vnodeGid[0].publicIp = inet_addr(tsPublicIp);
+        pVgroup->vnodeGid[0].ip = inet_addr(tsPrivateIp);
+        sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
+      }
     }
-#endif
 
     mgmtSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes, pVgroup->vgId);
   }
