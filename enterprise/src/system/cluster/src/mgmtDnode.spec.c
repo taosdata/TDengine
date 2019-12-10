@@ -56,8 +56,8 @@ void mgmtDnodeActionInit() {
 }
 
 void *mgmtDnodeAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtDnodeActionFp[action] != NULL) {
-    return (*(mgmtDnodeActionFp[action]))(row, str, size, ssize);
+  if (mgmtDnodeActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtDnodeActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }
@@ -65,7 +65,7 @@ void *mgmtDnodeAction(char action, void *row, char *str, int size, int *ssize) {
 int mgmtInitDnodes() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
-  int64_t    numOfRows, pos = 0;
+  int64_t    numOfRows = 0;
 
   mgmtDnodeActionInit();
 
@@ -76,9 +76,7 @@ int mgmtInitDnodes() {
   }
 
   numOfRows = sdbGetNumOfRows(dnodeSdb);
-  if (numOfRows > 0)
-    pos = rand() % numOfRows;
-  else {
+  if (numOfRows <= 0) {
     if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
       mgmtCreateDnode(inet_addr(tsPrivateIp));
       pDnode = mgmtGetDnode(inet_addr(tsPrivateIp));
@@ -178,7 +176,7 @@ int mgmtGetDnodesNum() {
 }
 
 void *mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode) {
-  return sdbFetchRow(dnodeSdb, pShow->pNode, pDnode);
+  return sdbFetchRow(dnodeSdb, pShow->pNode, (void**)pDnode);
 }
 
 void *mgmtDnodeActionInsert(void *row, char *str, int size, int *ssize) {

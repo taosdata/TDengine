@@ -305,7 +305,7 @@ void vnodeChooseMaster(SVnodeObj *pVnode)
 
     if (pVPeer->status == TSDB_VN_STATUS_SLAVE) {
       //slave with highest version shall be master
-      if (index < 0 || pVPeer->version > pVnode->peerInfo[index]->version)
+      if (index < 0 || pVPeer->version > pVnode->peerInfo[(uint8_t)index]->version)
         index = i;
     }
   }
@@ -317,7 +317,7 @@ void vnodeChooseMaster(SVnodeObj *pVnode)
       if (pVnode->peerInfo[i]->fileId != 0) continue;
       if (index < 0) index = i;
 
-      if (pVnode->peerInfo[i]->version > pVnode->peerInfo[index]->version)
+      if (pVnode->peerInfo[i]->version > pVnode->peerInfo[(uint8_t)index]->version)
         index = i;
     }
 
@@ -331,8 +331,8 @@ void vnodeChooseMaster(SVnodeObj *pVnode)
       dPrint("vid:%d, start to work as master", pVnode->vnode);
       pVnode->vnodeStatus = TSDB_VN_STATUS_MASTER;
     } else {
-      dPrint("vid:%d, peer:%s:%d shall work as master", pVnode->vnode, pVnode->peerInfo[index]->ipstr,
-             pVnode->peerInfo[index]->vid);
+      dPrint("vid:%d, peer:%s:%d shall work as master", pVnode->vnode, pVnode->peerInfo[(uint8_t)index]->ipstr,
+             pVnode->peerInfo[(uint8_t)index]->vid);
     }
   } else {
     dPrint("vid:%d, failed to choose master", pVnode->vnode);
@@ -401,9 +401,9 @@ void vnodeCheckStatus(SVnodePeer *pVPeer, SPeerState peerStates[], char newState
     return;
   }
 
-  pVnode->peerInfo[pVnode->selfIndex]->version = pVnode->version;
-  pVnode->peerInfo[pVnode->selfIndex]->status = pVnode->vnodeStatus;
-  pVnode->peerInfo[pVnode->selfIndex]->fileId = pVnode->badFileId;
+  pVnode->peerInfo[(uint8_t)pVnode->selfIndex]->version = pVnode->version;
+  pVnode->peerInfo[(uint8_t)pVnode->selfIndex]->status = pVnode->vnodeStatus;
+  pVnode->peerInfo[(uint8_t)pVnode->selfIndex]->fileId = pVnode->badFileId;
   pVPeer->status = newState;
 
   dTrace("vid:%d, status:%s, peer:%s:%d received new status:%s",
@@ -419,7 +419,7 @@ void vnodeCheckStatus(SVnodePeer *pVPeer, SPeerState peerStates[], char newState
 
     if (offlineNum > pVnode->cfg.replications * 0.5 && pVnode->vnodeStatus != TSDB_VN_STATUS_UNSYNCED) {
       pVnode->vnodeStatus = TSDB_VN_STATUS_UNSYNCED;
-      pVnode->peerInfo[pVnode->selfIndex]->status = pVnode->vnodeStatus;
+      pVnode->peerInfo[(uint8_t)pVnode->selfIndex]->status = pVnode->vnodeStatus;
       dPrint("vid:%d, offline:%d replica:%d, change to status:%s",
              pVnode->vnode, offlineNum, pVnode->cfg.replications, taosGetVnodeStatusStr(pVnode->vnodeStatus));
     }
@@ -749,7 +749,7 @@ char *vnodeProcessOneBufferedFwd(int vid, char *offset)
     if (pVnode->meterList && pHeader->sid < pVnode->cfg.maxSessions) {
       SMeterObj *pObj = pVnode->meterList[pHeader->sid];
       TSKEY now = taosGetTimestamp(pVnode->cfg.precision);
-      (*vnodeProcessAction[pHeader->action])(pObj, cont, contLen, TSDB_DATA_SOURCE_QUEUE, NULL, pHeader->sversion,
+      (*vnodeProcessAction[(uint8_t)pHeader->action])(pObj, cont, contLen, TSDB_DATA_SOURCE_QUEUE, NULL, pHeader->sversion,
                                              &insertPoints, now);
     } else {
       dError("vid:%d, invalid sid:%d max:%d", vid, pHeader->sid, pVnode->cfg.maxSessions);
@@ -869,7 +869,7 @@ int vnodeProcessForwardFromVMeter(int vid, SVMsgHeader *pHeader, char *cont, SVn
   if (pVnode->vnodeStatus >= TSDB_VN_STATUS_SLAVE) {
     pVnode->version = pHeader->lastVersion;
     TSKEY now = taosGetTimestamp(pVnode->cfg.precision);
-    (*vnodeProcessAction[pHeader->action])(pObj, cont, contLen, TSDB_DATA_SOURCE_QUEUE, NULL, pHeader->sversion,
+    (*vnodeProcessAction[(uint8_t)pHeader->action])(pObj, cont, contLen, TSDB_DATA_SOURCE_QUEUE, NULL, pHeader->sversion,
                                            &insertPoints, now);
     return code;
   }
@@ -905,7 +905,7 @@ int vnodeProcessForwardFromVMeter(int vid, SVMsgHeader *pHeader, char *cont, SVn
     dTrace("vid:%d sid:%d id:%s, forward is processed since sync is over ", vid, sid, pObj->meterId);
     pVnode->version = pHeader->lastVersion;
     TSKEY now = taosGetTimestamp(pVnode->cfg.precision);
-    (*vnodeProcessAction[pHeader->action])(pObj, cont, contLen, TSDB_DATA_SOURCE_QUEUE, NULL, pHeader->sversion,
+    (*vnodeProcessAction[(uint8_t)pHeader->action])(pObj, cont, contLen, TSDB_DATA_SOURCE_QUEUE, NULL, pHeader->sversion,
                                            &insertPoints, now);
   } else {
     dTrace("vid:%d sid:%d id:%s, forward is thrown away during sync, status:%d", vid, sid, pObj->meterId,
@@ -959,8 +959,8 @@ int vnodeSendStatusMsgToPeer(SVnodePeer *pVPeer, char ack)
   pStatus->commitInProcess = pVnode->commitInProcess;
   pStatus->ack = ack;
 
-  pVnode->peerInfo[pVnode->selfIndex]->version = pVnode->version;
-  pVnode->peerInfo[pVnode->selfIndex]->status = pVnode->vnodeStatus;
+  pVnode->peerInfo[(uint8_t)pVnode->selfIndex]->version = pVnode->version;
+  pVnode->peerInfo[(uint8_t)pVnode->selfIndex]->status = pVnode->vnodeStatus;
   for (int i = 0; i < pVnode->cfg.replications; ++i) {
     pStatus->peerStates[i].status = pVnode->peerInfo[i]->status;
     pStatus->peerStates[i].version = pVnode->peerInfo[i]->version;
@@ -1065,7 +1065,7 @@ void vnodeCheckPeerConnection(void *param, void *tmrId)
   dTrace("vid:%d, peer:%s:%d check peer:%p connection", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer);
 
   SVnodeObj *pVnode = vnodeList + pVPeer->ownId;
-  if (pVnode->peerInfo[pVnode->selfIndex] == NULL) {
+  if (pVnode->peerInfo[(uint8_t)pVnode->selfIndex] == NULL) {
     dError("vid:%d, peer:%s:%d self info is empty", vid, pVPeer->ipstr, pVPeer->vid);
     return;
   }
