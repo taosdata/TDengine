@@ -246,9 +246,7 @@ char *taosBuildReqHeader(void *param, char type, char *msg) {
   pHeader->destId = pConn->peerId;
   pHeader->port = 0;
 
-#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
-  pHeader->uid = (uint32_t)pConn + (uint32_t)getpid();
-#pragma GCC diagnostic warning "-Wpointer-to-int-cast"
+  pHeader->uid = (uint32_t)((int64_t)pConn + (int64_t)getpid());
 
   memcpy(pHeader->meterId, pConn->meterId, tListLen(pHeader->meterId));
 
@@ -280,9 +278,7 @@ char *taosBuildReqMsgWithSize(void *param, char type, int size) {
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;
 
-#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
-  pHeader->uid = (uint32_t)pConn + (uint32_t)getpid();
-#pragma GCC diagnostic warning "-Wpointer-to-int-cast"
+  pHeader->uid = (uint32_t)((int64_t)pConn + (int64_t)getpid());
 
   memcpy(pHeader->meterId, pConn->meterId, tListLen(pHeader->meterId));
 

@@ -37,8 +37,8 @@ extern "C" {
 #define tfree(x) \
   {              \
     if (x) {     \
-      free(x);   \
-      x = NULL;  \
+      free((void*)(x));   \
+      x = 0;  \
     }            \
   }
 
@@ -188,6 +188,8 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, cha
 }
 
 char *taosIpStr(uint32_t ipInt);
+
+uint32_t ip2uint(const char *const ip_addr);
 
 #define TAOS_ALLOC_MODE_DEFAULT 0
 #define TAOS_ALLOC_MODE_RANDOM_FAIL 1

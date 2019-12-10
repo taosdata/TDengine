@@ -33,8 +33,6 @@
 
 extern char configDir[];
 
-#pragma GCC diagnostic ignored "-Wmissing-braces"
-
 #define BUFFER_SIZE      65536
 #define MAX_DB_NAME_SIZE 64
 #define MAX_TB_NAME_SIZE 64

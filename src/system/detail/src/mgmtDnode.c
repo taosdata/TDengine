@@ -461,7 +461,6 @@ int mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
   int        cols = 0;
-  char       ipstr[20];
 
   if (0 == rows) return 0;
 

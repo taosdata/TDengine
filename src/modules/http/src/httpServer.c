@@ -106,7 +106,7 @@ void httpCleanUpContextTimer(HttpContext *pContext) {
   }
 }
 
-void httpCleanUpContext(HttpContext *pContext) {
+void httpCleanUpContext(HttpContext *pContext, void *unused) {
   httpTrace("context:%p, start the clean up operation, sig:%p", pContext, pContext->signature);
   void *sig = atomic_val_compare_exchange_ptr(&pContext->signature, pContext, 0);
   if (sig == NULL) {
@@ -184,7 +184,7 @@ bool httpInitContext(HttpContext *pContext) {
 
 
 void httpCloseContext(HttpThread *pThread, HttpContext *pContext) {
-  taosTmrReset(httpCleanUpContext, HTTP_DELAY_CLOSE_TIME_MS, pContext, pThread->pServer->timerHandle, &pContext->timer);
+  taosTmrReset((TAOS_TMR_CALLBACK)httpCleanUpContext, HTTP_DELAY_CLOSE_TIME_MS, pContext, pThread->pServer->timerHandle, &pContext->timer);
   httpTrace("context:%p, fd:%d, ip:%s, state:%s will be closed after:%d ms, timer:%p",
           pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), HTTP_DELAY_CLOSE_TIME_MS, pContext->timer);
 }
@@ -273,7 +273,7 @@ void httpCleanUpConnect(HttpServer *pServer) {
     taosCloseSocket(pThread->pollFd);
 
     while (pThread->pHead) {
-      httpCleanUpContext(pThread->pHead);
+      httpCleanUpContext(pThread->pHead, 0);
     }
 
     pthread_cancel(pThread->thread);

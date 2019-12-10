@@ -25,8 +25,6 @@
 #include <stdlib.h>
 
 #include "tcrc32c.h"
-//todo : use the original source code
-//#pragma GCC diagnostic ignored "-Wunused-function"
 
 #define POLY 0x82f63b78
 #define LONG_SHIFT 8192
