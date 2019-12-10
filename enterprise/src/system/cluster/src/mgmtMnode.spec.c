@@ -90,11 +90,11 @@ int mgmtRetrieveMnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, sdbStatusStr[pMnode->status]);
+    strcpy(pWrite, sdbStatusStr[(uint8_t)pMnode->status]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, sdbRoleStr[pMnode->role]);
+    strcpy(pWrite, sdbRoleStr[(uint8_t)pMnode->role]);
     cols++;
 
     tinet_ntoa(ipstr, pMnode->publicIp);
