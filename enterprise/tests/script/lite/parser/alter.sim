@@ -191,36 +191,30 @@ sql insert into tb values ('2018-11-01 16:30:00.000', 1, 'insert', 1)
 sql alter table mt drop column c3
 # the below query should be deleted after bug fix
 sql insert into tb values ('2018-11-01 16:29:59.000', 1, 'insert')
-sql import into tb values ('2018-11-01 16:29:59.000', 1, 'import')
+sql_error import into tb values ('2018-11-01 16:29:59.000', 1, 'import')
 sql select * from tb order by ts desc 
-if $data11 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data12 != import then 
+if $data02 != insert then
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+sql alter table mt add column c3 nchar(4)
+sql select * from tb order by ts desc
+if $data03 != NULL then
   return -1
 endi
 if $data13 != null then
   return -1
 endi
-sql alter table mt add column c3 nchar(4)
-sql select * from tb order by ts desc 
-if $data03 != NULL then
-  return -1
-endi
-if $data13 != NULL then
-  return -1
-endi
 # the query below should be deleted after bug fix
 sql insert into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
-sql import into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
+sql_error import into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
 sql select * from tb order by ts desc 
-if $rows != 3 then
-  return -1
-endi
-if $data23 != 3 then
-  return -1
-endi
-if $data13 != NULL then
+if $rows != 1 then
   return -1
 endi
 
