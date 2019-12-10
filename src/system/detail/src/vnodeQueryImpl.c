@@ -252,15 +252,31 @@ static void vnodeSetOpenedFileNames(SQueryFilesInfo* pVnodeFilesInfo) {
   
   SHeaderFileInfo* pCurrentFileInfo = &pVnodeFilesInfo->pFileInfo[pVnodeFilesInfo->current];
   
-  // set the full file path for current opened files
-  snprintf(pVnodeFilesInfo->headerFilePath, PATH_MAX, "%sv%df%d.head", pVnodeFilesInfo->dbFilePathPrefix,
-           pVnodeFilesInfo->vnodeId, pCurrentFileInfo->fileID);
+  /*
+   * set the full file path for current opened files
+   * the maximum allowed path string length is PATH_MAX in Linux, 100 bytes is used to
+   * suppress the compiler warnings
+   */
+  char str[PATH_MAX + 100] = {0};
+  int32_t PATH_WITH_EXTRA = PATH_MAX + 100;
   
-  snprintf(pVnodeFilesInfo->dataFilePath, PATH_MAX, "%sv%df%d.data", pVnodeFilesInfo->dbFilePathPrefix,
-           pVnodeFilesInfo->vnodeId, pCurrentFileInfo->fileID);
+  int32_t vnodeId = pVnodeFilesInfo->vnodeId;
+  int32_t fileId = pCurrentFileInfo->fileID;
   
-  snprintf(pVnodeFilesInfo->lastFilePath, PATH_MAX, "%sv%df%d.last", pVnodeFilesInfo->dbFilePathPrefix,
-           pVnodeFilesInfo->vnodeId, pCurrentFileInfo->fileID);
+  int32_t len = snprintf(str, PATH_WITH_EXTRA, "%sv%df%d.head", pVnodeFilesInfo->dbFilePathPrefix, vnodeId, fileId);
+  assert(len <= PATH_MAX);
+  
+  strncpy(pVnodeFilesInfo->headerFilePath, str, PATH_MAX);
+  
+  len = snprintf(str, PATH_WITH_EXTRA, "%sv%df%d.data", pVnodeFilesInfo->dbFilePathPrefix, vnodeId, fileId);
+  assert(len <= PATH_MAX);
+  
+  strncpy(pVnodeFilesInfo->dataFilePath, str, PATH_MAX);
+  
+  len = snprintf(str, PATH_WITH_EXTRA, "%sv%df%d.last", pVnodeFilesInfo->dbFilePathPrefix, vnodeId, fileId);
+  assert(len <= PATH_MAX);
+  
+  strncpy(pVnodeFilesInfo->lastFilePath, str, PATH_MAX);
 }
 
 /**
