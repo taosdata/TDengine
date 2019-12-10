@@ -193,6 +193,10 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
   }
 
   uint32_t pubicIp = htonl(pStatus->publicIp);
+
+  /*
+   * When publicIp changes, update the publicIP of all vnodes
+   */
   if (pObj->publicIp != pubicIp) {
     mPrint("dnode:%s, change publicIp from %s to %s", taosIpStr(pObj->privateIp), taosIpStr(pObj->publicIp), taosIpStr(pubicIp));
     mgmtUpdateVgroupPublicIp(pObj->privateIp, pObj->publicIp, pubicIp);

@@ -48,9 +48,15 @@ int mgmtRedirectMsg(SConnObj *pConn, int msgType) {
   pRsp->code = TSDB_CODE_REDIRECT;
   pMsg = (char *)pRsp->more;
 
-  size = sizeof(SIpList) + pSdbPublicIpList->numOfIps * 4;
-  memcpy(pMsg, pSdbPublicIpList, size);
-  pMsg += size;
+  if (pConn->usePublicIp) {
+    size = sizeof(SIpList) + pSdbPublicIpList->numOfIps * 4;
+    memcpy(pMsg, pSdbPublicIpList, size);
+    pMsg += size;
+  } else {
+    size = sizeof(SIpList) + pSdbIpList->numOfIps * 4;
+    memcpy(pMsg, pSdbIpList, size);
+    pMsg += size;
+  }
 
   msgLen = pMsg - pStart;
 
