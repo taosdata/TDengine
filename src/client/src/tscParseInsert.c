@@ -444,7 +444,7 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
           }
         }
       
-        tmpTokenBuf[j] = sToken.z[i];
+        tmpTokenBuf[j] = sToken.z[k];
         j++;
       }
       tmpTokenBuf[j] = 0; 
