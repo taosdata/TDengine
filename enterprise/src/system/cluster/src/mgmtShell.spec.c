@@ -23,12 +23,6 @@
 #include "taosmsg.h"
 #include "tlog.h"
 
-#pragma GCC diagnostic push
-
-#pragma GCC diagnostic ignored "-Woverflow"
-#pragma GCC diagnostic ignored "-Wpointer-sign"
-#pragma GCC diagnostic ignored "-Wint-conversion"
-
 #define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
 
 void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle);
@@ -242,5 +236,3 @@ int mgmtProcessCreateAcctMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   return 0;
 }
-
-#pragma GCC diagnostic pop

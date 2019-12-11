@@ -237,6 +237,18 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
         mPrint("dnode:%s, vid:%d, drop finished", taosIpStr(pObj->privateIp), vnode);
         taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, mgmtTmr);
       }
+    } else if (pVload->vgId == 0) {
+      /*
+       * In some cases, vnode information may be reported abnormally, recover it
+       */
+      if (pVload->dropStatus != TSDB_VN_DROP_STATUS_READY || pVload->status != TSDB_VN_STATUS_OFFLINE) {
+        mPrint("dnode:%s, vid:%d, vgroup:%d status:%s dropStatus:%s, set it to avail status",
+                taosIpStr(pObj->privateIp), vnode, pVload->vgId, taosGetVnodeStatusStr(pVload->status),
+                taosGetVnodeDropStatusStr(pVload->dropStatus));
+        pVload->dropStatus = TSDB_VN_DROP_STATUS_READY;
+        pVload->status = TSDB_VN_STATUS_OFFLINE;
+        mgmtUpdateDnode(pObj);
+      }
     }
   }
 
@@ -441,7 +453,7 @@ void *mgmtProcessMsgFromDnodeSpec(char *msg, void *ahandle, void *thandle) {
   } else if (pMsg->msgType == TSDB_MSG_TYPE_GRANT) {
     mgmtProcessDnodeGrantMsg(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pObj);
   } else {
-    mgmtProcessMsgFromDnode(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pMsg->msgType, pObj);
+    mgmtProcessMsgFromDnode((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pMsg->msgType, pObj);
   }
 
   return pObj;

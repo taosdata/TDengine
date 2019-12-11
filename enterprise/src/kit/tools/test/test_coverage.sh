@@ -1,0 +1,50 @@
+pwdDir=`pwd`
+homeDir=/home/ubuntu/fpan/workspace
+sourceDir=$homeDir/TDinternal
+debugDir=$sourceDir/debug
+pyDir=$sourceDir/enterprise/tests/pytest
+simDir=$sourceDir/enterprise/tests/jenkins
+currentDate=`date +%Y%m%d`
+outputf=coverage$currentDate
+
+echo "update the code from github internal"
+cd $sourceDir/community
+git checkout develop
+git pull
+cd $sourceDir/enterprise
+git checkout develop
+git pull
+git checkout feature/fangtest
+git pull
+git merge develop
+
+echo "clean up previous binary file >>>>>>>>>"
+cd $sourceDir
+lcov --directory . -z
+find ./ -name '*.c.gcno' |xargs rm -r
+echo "build >>>>>>>>>"
+cd $debugDir
+rm -rf *
+cmake .. -DCOVER=true
+make
+cd $debugDir/build/lib
+sudo cp libtaos.so* /usr/lib
+
+echo "test >>>>>>>>>"
+cd $pyDir
+python2 generate_testscript.py
+cd $simDir
+rm fangTest.txt
+cp fangTest.template fangTest.txt
+cat $pyDir/testlist.sh >> fangTest.txt
+./tjenkins -p -f fangTest.txt
+
+echo "test finished, begin to count coverage >>>>>>>"
+cd $sourceDir
+gcovr -r . -o coverage.xml 
+rm $homeDir/report/coverage*
+mv coverage.xml $homeDir/report/$outputf
+cd $pwdDir
+python2 coverAnalyze.py $homeDir/report/$outputf
+echo "Please to $homeDir/report and take a look at the report"
+

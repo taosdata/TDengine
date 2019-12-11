@@ -22,33 +22,39 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>2.3.2</version>
                 <configuration>
-                    <encoding>GBK</encoding>
-                    <source>8</source>
-                    <target>8</target>
+                    <encoding>UTF-8</encoding>
+                    <source>1.8</source>
+                    <target>1.8</target>
                     <debug>true</debug>
                 </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
-                <version>2.1.2</version>
-                <executions>
-                    <execution>
-                        <id>attach-sources</id>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                    </execution>
-                </executions>
+	        <artifactId>maven-assembly-plugin</artifactId>
+	        <version>3.0.0</version>
+		<configuration>
+		<descriptors>
+		    <descriptor>src/main/assembly/assembly-jar.xml</descriptor>
+	 	</descriptors>
+		</configuration>
+		<executions>
+		  <execution>
+		    <id>make-assembly</id>
+		    <phase>package</phase>
+		    <goals>
+		        <goal>single</goal>
+		    </goals>
+		  </execution>
+		</executions>
             </plugin>
         </plugins>
     </build>
 
     <dependencies>
         <dependency>
-            <groupId>com.taosdata.iot</groupId>
-            <artifactId>taos-jdbcdriver</artifactId>
-            <version>1.0.0</version>
+            <groupId>com.taosdata.jdbc</groupId>
+	    <artifactId>taos-jdbcdriver</artifactId>
+            <version>1.0.3</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
