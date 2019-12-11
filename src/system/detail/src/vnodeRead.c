@@ -392,10 +392,10 @@ __clean_memory:
   return NULL;
 }
 
-static void vnodeFreeQInfoInQueueImpl(SSchedMsg *pMsg) {
-  SQInfo *pQInfo = (SQInfo *)pMsg->ahandle;
-  vnodeFreeQInfo(pQInfo, true);
-}
+//static void vnodeFreeQInfoInQueueImpl(SSchedMsg *pMsg) {
+//  SQInfo *pQInfo = (SQInfo *)pMsg->ahandle;
+//  vnodeFreeQInfo(pQInfo, true);
+//}
 
 void vnodeFreeQInfoInQueue(void *param) {
   SQInfo *pQInfo = (SQInfo *)param;
@@ -403,15 +403,18 @@ void vnodeFreeQInfoInQueue(void *param) {
   if (!vnodeIsQInfoValid(pQInfo)) return;
 
   pQInfo->killed = 1;
+  dTrace("QInfo:%p set kill flag to free QInfo");
+  
+  vnodeDecRefCount(pQInfo);
+  
+//  dTrace("QInfo:%p set kill flag and add to queue, stop query ASAP", pQInfo);
+//  SSchedMsg schedMsg = {0};
+//  schedMsg.fp = vnodeFreeQInfoInQueueImpl;
 
-  dTrace("QInfo:%p set kill flag and add to queue, stop query ASAP", pQInfo);
-  SSchedMsg schedMsg = {0};
-  schedMsg.fp = vnodeFreeQInfoInQueueImpl;
-
-  schedMsg.msg = NULL;
-  schedMsg.thandle = (void *)1;
-  schedMsg.ahandle = param;
-  taosScheduleTask(queryQhandle, &schedMsg);
+//  schedMsg.msg = NULL;
+//  schedMsg.thandle = (void *)1;
+//  schedMsg.ahandle = param;
+//  taosScheduleTask(queryQhandle, &schedMsg);
 }
 
 void vnodeFreeQInfo(void *param, bool decQueryRef) {
@@ -419,8 +422,6 @@ void vnodeFreeQInfo(void *param, bool decQueryRef) {
   if (!vnodeIsQInfoValid(param)) return;
 
   pQInfo->killed = 1;
-  TSDB_WAIT_TO_SAFE_DROP_QINFO(pQInfo);
-
   SMeterObj *pObj = pQInfo->pObj;
   dTrace("QInfo:%p start to free SQInfo", pQInfo);
 
@@ -499,7 +500,30 @@ bool vnodeIsQInfoValid(void *param) {
    * into local variable, then compare by using local variable
    */
   uint64_t sig = pQInfo->signature;
-  return (sig == (uint64_t)pQInfo) || (sig == TSDB_QINFO_QUERY_FLAG);
+  return (sig == (uint64_t)pQInfo);
+}
+
+void vnodeDecRefCount(void *param) {
+  SQInfo *pQInfo = (SQInfo*) param;
+  
+  assert(vnodeIsQInfoValid(pQInfo));
+  
+  int32_t ref = atomic_sub_fetch_32(&pQInfo->refCount, 1);
+  assert(ref >= 0);
+  
+  dTrace("QInfo:%p decrease obj refcount, %d", pQInfo, ref);
+  if (ref == 0) {
+    vnodeFreeQInfo(pQInfo, true);
+  }
+}
+
+void vnodeAddRefCount(void *param) {
+  SQInfo *pQInfo = (SQInfo*) param;
+  
+  assert(vnodeIsQInfoValid(pQInfo));
+  
+  int32_t ref = atomic_add_fetch_32(&pQInfo->refCount, 1);
+  dTrace("QInfo:%p add refcount, %d", pQInfo, ref);
 }
 
 void vnodeQueryData(SSchedMsg *pMsg) {
@@ -509,12 +533,11 @@ void vnodeQueryData(SSchedMsg *pMsg) {
   pQInfo = (SQInfo *)pMsg->ahandle;
 
   if (pQInfo->killed) {
-    TSDB_QINFO_RESET_SIG(pQInfo);
-    dTrace("QInfo:%p it is already killed, reset signature and abort", pQInfo);
+    dTrace("QInfo:%p it is already killed, abort", pQInfo);
+    vnodeDecRefCount(pQInfo);
     return;
   }
 
-  assert(pQInfo->signature == TSDB_QINFO_QUERY_FLAG);
   pQuery = &(pQInfo->query);
 
   SMeterObj *pObj = pQInfo->pObj;
@@ -582,13 +605,11 @@ void vnodeQueryData(SSchedMsg *pMsg) {
     tclose(pQInfo->query.lfd);
   }
 
-  /* reset QInfo signature */
-  dTrace("QInfo:%p reset signature", pQInfo);
-  TSDB_QINFO_RESET_SIG(pQInfo);
   sem_post(&pQInfo->dataReady);
+  vnodeDecRefCount(pQInfo);
 }
 
-void *vnodeQueryInTimeRange(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pSqlExprs,
+void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pSqlExprs,
                             SQueryMeterMsg *pQueryMsg, int32_t *code) {
   SQInfo *pQInfo;
   SQuery *pQuery;
@@ -659,6 +680,7 @@ void *vnodeQueryInTimeRange(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExp
     }
 
     if (pQInfo->over == 1) {
+      vnodeAddRefCount(pQInfo);  // for retrieve procedure
       return pQInfo;
     }
 
@@ -667,15 +689,20 @@ void *vnodeQueryInTimeRange(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExp
     schedMsg.fp = vnodeQueryData;
   }
 
-  // set in query flag
-  pQInfo->signature = TSDB_QINFO_QUERY_FLAG;
-
+  /*
+   * The reference count, which is 2, is for both the current query thread and the future retrieve request,
+   * which will always be issued by client to acquire data or free SQInfo struct.
+   */
+  vnodeAddRefCount(pQInfo);
+  vnodeAddRefCount(pQInfo);
+  
   schedMsg.msg = NULL;
   schedMsg.thandle = (void *)1;
   schedMsg.ahandle = pQInfo;
 
-  dTrace("QInfo:%p set query flag and prepare runtime environment completed, wait for schedule", pQInfo);
-
+  dTrace("QInfo:%p set query flag and prepare runtime environment completed, ref:%d, wait for schedule", pQInfo,
+      pQInfo->refCount);
+  
   taosScheduleTask(queryQhandle, &schedMsg);
   return pQInfo;
 
@@ -775,12 +802,13 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     goto _error;
   }
 
+  vnodeAddRefCount(pQInfo);
   if (pQInfo->over == 1) {
     return pQInfo;
   }
 
-  pQInfo->signature = TSDB_QINFO_QUERY_FLAG;
-
+  vnodeAddRefCount(pQInfo);
+  
   schedMsg.msg = NULL;
   schedMsg.thandle = (void *)1;
   schedMsg.ahandle = pQInfo;
@@ -860,21 +888,15 @@ int vnodeSaveQueryResult(void *handle, char *data, int32_t *size) {
          pQInfo->pointsRead);
 
   if (pQInfo->over == 0) {
-    //dTrace("QInfo:%p set query flag, oldSig:%p, func:%s", pQInfo, pQInfo->signature, __FUNCTION__);
-    dTrace("QInfo:%p set query flag, oldSig:%p", pQInfo, pQInfo->signature);
-    uint64_t oldSignature = TSDB_QINFO_SET_QUERY_FLAG(pQInfo);
+    dTrace("QInfo:%p set query flag, sig:%p, func:%s", pQInfo, pQInfo->signature, __FUNCTION__);
 
-    /*
-     * If SQInfo has been released, the value of signature cannot be equalled to the address of pQInfo,
-     * since in release function, the original value has been destroyed. However, this memory area may be reused
-     * by another function. It may be 0 or any value, but it is rarely still be equalled to the address of SQInfo.
-     */
-    if (oldSignature == 0 || oldSignature != (uint64_t)pQInfo) {
-      dTrace("%p freed or killed, old sig:%p abort query", pQInfo, oldSignature);
+    if (pQInfo->killed == 1) {
+      dTrace("%p freed or killed, abort query", pQInfo);
     } else {
+      vnodeAddRefCount(pQInfo);
       dTrace("%p add query into task queue for schedule", pQInfo);
-
-      SSchedMsg schedMsg;
+      
+      SSchedMsg schedMsg = {0};
 
       if (pQInfo->pMeterQuerySupporter != NULL) {
         if (pQInfo->pMeterQuerySupporter->pSidSet == NULL) {

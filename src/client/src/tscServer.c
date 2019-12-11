@@ -1290,6 +1290,12 @@ static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsu
   SSqlObj *pNew = createSubqueryObj(pSql, 0, tscRetrieveDataRes, trsupport, prevSqlObj);
   if (pNew != NULL) {  // the sub query of two-stage super table query
     pNew->cmd.type |= TSDB_QUERY_TYPE_STABLE_SUBQUERY;
+    assert(pNew->cmd.numOfTables == 1);
+    
+    //launch subquery for each vnode, so the subquery index equals to the vnodeIndex.
+    SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pNew->cmd, 0);
+    pMeterMetaInfo->vnodeIndex = trsupport->subqueryIndex;
+    
     pSql->pSubs[trsupport->subqueryIndex] = pNew;
   }
 
@@ -1507,7 +1513,6 @@ int tscBuildQueryMsg(SSqlObj *pSql) {
     pQueryMsg->uid = pMeterMeta->uid;
     pQueryMsg->numOfTagsCols = 0;
   } else {  // query on metric
-    SMetricMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
     if (pMeterMetaInfo->vnodeIndex < 0) {
       tscError("%p error vnodeIdx:%d", pSql, pMeterMetaInfo->vnodeIndex);
       return -1;
@@ -2872,15 +2877,14 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql) {
         pElem->groupbyTagColumnList = htonl(offset);
         for (int32_t j = 0; j < pCmd->groupbyExpr.numOfGroupCols; ++j) {
           SColIndexEx *pCol = &pCmd->groupbyExpr.columnInfo[j];
-
-          *((int16_t *)pMsg) = pCol->colId;
-          pMsg += sizeof(pCol->colId);
-
-          *((int16_t *)pMsg) += pCol->colIdx;
-          pMsg += sizeof(pCol->colIdx);
-
-          *((int16_t *)pMsg) += pCol->flag;
-          pMsg += sizeof(pCol->flag);
+          SColIndexEx* pDestCol = (SColIndexEx*) pMsg;
+          
+          pDestCol->colIdxInBuf = 0;
+          pDestCol->colIdx = htons(pCol->colIdx);
+          pDestCol->colId = htons(pDestCol->colId);
+          pDestCol->flag = htons(pDestCol->flag);
+          
+          pMsg += sizeof(SColIndexEx);
         }
       }
     }

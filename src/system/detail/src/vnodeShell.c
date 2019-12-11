@@ -376,7 +376,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (QUERY_IS_STABLE_QUERY(pQueryMsg->queryType)) {
     pObj->qhandle = vnodeQueryOnMultiMeters(pMeterObjList, pGroupbyExpr, pExprs, pQueryMsg, &code);
   } else {
-    pObj->qhandle = vnodeQueryInTimeRange(pMeterObjList, pGroupbyExpr, pExprs, pQueryMsg, &code);
+    pObj->qhandle = vnodeQueryOnSingleTable(pMeterObjList, pGroupbyExpr, pExprs, pQueryMsg, &code);
   }
 
 _query_over:
@@ -470,9 +470,11 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   pMsg += size;
   msgLen = pMsg - pStart;
 
+  assert(code != TSDB_CODE_ACTION_IN_PROGRESS);
+  
   if (numOfRows == 0 && (pRetrieve->qhandle == (uint64_t)pObj->qhandle) && (code != TSDB_CODE_ACTION_IN_PROGRESS)) {
     dTrace("QInfo:%p %s free qhandle code:%d", pObj->qhandle, __FUNCTION__, code);
-    vnodeFreeQInfo(pObj->qhandle, true);
+    vnodeDecRefCount(pObj->qhandle);
     pObj->qhandle = NULL;
   }
 
