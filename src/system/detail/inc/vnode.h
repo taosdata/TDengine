@@ -213,18 +213,20 @@ typedef struct {
  * Only the QInfo.signature == QInfo, this structure can be released safely.
  */
 #define TSDB_QINFO_QUERY_FLAG 0x1
-#define TSDB_QINFO_RESET_SIG(x) atomic_store_64(&((x)->signature), (uint64_t)(x))
-#define TSDB_QINFO_SET_QUERY_FLAG(x) \
-  atomic_val_compare_exchange_64(&((x)->signature), (uint64_t)(x), TSDB_QINFO_QUERY_FLAG);
+//#define TSDB_QINFO_RESET_SIG(x) atomic_store_64(&((x)->signature), (uint64_t)(x))
+#define TSDB_QINFO_RESET_SIG(x)
+#define TSDB_QINFO_SET_QUERY_FLAG(x)
+//#define TSDB_QINFO_SET_QUERY_FLAG(x) \
+//  atomic_val_compare_exchange_64(&((x)->signature), (uint64_t)(x), TSDB_QINFO_QUERY_FLAG);
 
 // live lock: wait for query reaching a safe-point, release all resources
 // belongs to this query
 #define TSDB_WAIT_TO_SAFE_DROP_QINFO(x)                                                       \
-  {                                                                                           \
-    while (atomic_val_compare_exchange_64(&((x)->signature), (x), 0) == TSDB_QINFO_QUERY_FLAG) { \
-      taosMsleep(1);                                                                          \
-    }                                                                                         \
-  }
+//  {                                                                                           \
+//    while (atomic_val_compare_exchange_64(&((x)->signature), (x), 0) == TSDB_QINFO_QUERY_FLAG) { \
+//      taosMsleep(1);                                                                          \
+//    }                                                                                         \
+//  }
 
 struct tSQLBinaryExpr;
 
@@ -370,6 +372,8 @@ void vnodeFreeQInfo(void *, bool);
 void vnodeFreeQInfoInQueue(void *param);
 
 bool vnodeIsQInfoValid(void *param);
+void vnodeDecRefCount(void *param);
+void vnodeAddRefCount(void *param);
 
 int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQuery);
 

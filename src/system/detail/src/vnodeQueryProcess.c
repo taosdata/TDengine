@@ -890,12 +890,16 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
 
     dTrace("QInfo:%p points returned:%d, totalRead:%d totalReturn:%d", pQInfo, pQuery->pointsRead, pQInfo->pointsRead,
            pQInfo->pointsReturned);
+    
+    vnodeDecRefCount(pQInfo);
     return;
   }
 
   pSupporter->pMeterDataInfo = (SMeterDataInfo *)calloc(1, sizeof(SMeterDataInfo) * pSupporter->numOfMeters);
   if (pSupporter->pMeterDataInfo == NULL) {
     dError("QInfo:%p failed to allocate memory, %s", pQInfo, strerror(errno));
+    pQInfo->code = -TSDB_CODE_SERV_OUT_OF_MEMORY;
+    vnodeDecRefCount(pQInfo);
     return;
   }
 
@@ -912,6 +916,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
   // failed to save all intermediate results into disk, abort further query processing
   if (doCloseAllOpenedResults(pSupporter) != TSDB_CODE_SUCCESS) {
     dError("QInfo:%p failed to save intermediate results, abort further query processing", pQInfo);
+    vnodeDecRefCount(pQInfo);
     return;
   }
   
@@ -919,6 +924,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
 
   if (isQueryKilled(pQuery)) {
     dTrace("QInfo:%p query killed, abort", pQInfo);
+    vnodeDecRefCount(pQInfo);
     return;
   }
 
@@ -940,6 +946,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
   pQInfo->pointsRead += pQuery->pointsRead;
   dTrace("QInfo:%p points returned:%d, totalRead:%d totalReturn:%d", pQInfo, pQuery->pointsRead, pQInfo->pointsRead,
          pQInfo->pointsReturned);
+  vnodeDecRefCount(pQInfo);
 }
 
 /*
@@ -1174,10 +1181,13 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
   if (pQInfo->killed) {
     TSDB_QINFO_RESET_SIG(pQInfo);
     dTrace("QInfo:%p it is already killed, reset signature and abort", pQInfo);
+    vnodeDecRefCount(pQInfo);
+  
     return;
   }
 
-  assert(pQInfo->signature == TSDB_QINFO_QUERY_FLAG);
+  assert(pQInfo->refCount >= 1);
+//  assert(pQInfo->signature == TSDB_QINFO_QUERY_FLAG);
 
   SQuery *   pQuery = &pQInfo->query;
   SMeterObj *pMeterObj = pQInfo->pObj;
@@ -1215,6 +1225,7 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
 
     sem_post(&pQInfo->dataReady);
     TSDB_QINFO_RESET_SIG(pQInfo);
+    vnodeDecRefCount(pQInfo);
 
     return;
   }
@@ -1237,6 +1248,8 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
 
           sem_post(&pQInfo->dataReady);
           TSDB_QINFO_RESET_SIG(pQInfo);
+          vnodeDecRefCount(pQInfo);
+  
           return;
         }
       }
@@ -1249,7 +1262,7 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
     vnodePrintQueryStatistics(pQInfo->pMeterQuerySupporter);
     sem_post(&pQInfo->dataReady);
     TSDB_QINFO_RESET_SIG(pQInfo);
-
+    vnodeDecRefCount(pQInfo);
     return;
   }
 
@@ -1284,8 +1297,10 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
            pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead);
   }
 
-  sem_post(&pQInfo->dataReady);
   TSDB_QINFO_RESET_SIG(pQInfo);
+  sem_post(&pQInfo->dataReady);
+  
+  vnodeDecRefCount(pQInfo);
 }
 
 void vnodeMultiMeterQuery(SSchedMsg *pMsg) {
@@ -1297,11 +1312,13 @@ void vnodeMultiMeterQuery(SSchedMsg *pMsg) {
 
   if (pQInfo->killed) {
     TSDB_QINFO_RESET_SIG(pQInfo);
+    vnodeDecRefCount(pQInfo);
     dTrace("QInfo:%p it is already killed, reset signature and abort", pQInfo);
     return;
   }
 
-  assert(pQInfo->signature == TSDB_QINFO_QUERY_FLAG);
+  assert(pQInfo->refCount >= 1);
+//  assert(pQInfo->signature == TSDB_QINFO_QUERY_FLAG);
 
   SQuery *pQuery = &pQInfo->query;
   pQuery->pointsRead = 0;
@@ -1337,4 +1354,5 @@ void vnodeMultiMeterQuery(SSchedMsg *pMsg) {
 
   sem_post(&pQInfo->dataReady);
   TSDB_QINFO_RESET_SIG(pQInfo);
+  vnodeDecRefCount(pQInfo);
 }

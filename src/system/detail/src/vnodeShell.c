@@ -470,9 +470,11 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   pMsg += size;
   msgLen = pMsg - pStart;
 
+  assert(code != TSDB_CODE_ACTION_IN_PROGRESS);
+  
   if (numOfRows == 0 && (pRetrieve->qhandle == (uint64_t)pObj->qhandle) && (code != TSDB_CODE_ACTION_IN_PROGRESS)) {
     dTrace("QInfo:%p %s free qhandle code:%d", pObj->qhandle, __FUNCTION__, code);
-    vnodeFreeQInfo(pObj->qhandle, true);
+    vnodeDecRefCount(pObj->qhandle);
     pObj->qhandle = NULL;
   }
 
