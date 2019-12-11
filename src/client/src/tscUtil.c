@@ -246,7 +246,7 @@ bool tscProjectionQueryOnMetric(SSqlCmd* pCmd) {
   for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
     int32_t functionId = tscSqlExprGet(pCmd, i)->functionId;
     if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TAGPRJ &&
-        functionId != TSDB_FUNC_TAG && functionId != TSDB_FUNC_TS) {
+        functionId != TSDB_FUNC_TAG && functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_ARITHM) {
       return false;
     }
   }
