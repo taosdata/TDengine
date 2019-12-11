@@ -52,7 +52,7 @@ typedef struct SQueryLoadCompBlockInfo {
  * the header file info for one vnode
  */
 typedef struct SHeaderFileInfo {
-  int32_t fileID;        // file id
+  int32_t fileID;  // file id
 } SHeaderFileInfo;
 
 typedef struct SQueryCostSummary {
@@ -99,17 +99,17 @@ typedef struct SQueryFilesInfo {
   uint32_t         numOfFiles;  // the total available number of files for this virtual node during query execution
   int32_t          current;     // the memory mapped header file, NOTE: only one header file can be mmap.
   int32_t          vnodeId;
-  
-  int32_t          headerFd;    // header file fd
-  char*            pHeaderFileData; // mmap header files
-  int64_t          headFileSize;
-  int32_t          dataFd;
-  int32_t          lastFd;
-  
-  char             headerFilePath[PATH_MAX];  // current opened header file name
-  char             dataFilePath[PATH_MAX];    // current opened data file name
-  char             lastFilePath[PATH_MAX];    // current opened last file path
-  char             dbFilePathPrefix[PATH_MAX];
+
+  int32_t headerFd;         // header file fd
+  char*   pHeaderFileData;  // mmap header files
+  int64_t headFileSize;
+  int32_t dataFd;
+  int32_t lastFd;
+
+  char headerFilePath[PATH_MAX];  // current opened header file name
+  char dataFilePath[PATH_MAX];    // current opened data file name
+  char lastFilePath[PATH_MAX];    // current opened last file path
+  char dbFilePathPrefix[PATH_MAX];
 } SQueryFilesInfo;
 
 typedef struct RuntimeEnvironment {
@@ -129,17 +129,17 @@ typedef struct RuntimeEnvironment {
   SQueryLoadBlockInfo loadBlockInfo;         /* record current block load information */
   SQueryLoadCompBlockInfo loadCompBlockInfo; /* record current compblock information in SQuery */
   SQueryFilesInfo         vnodeFileInfo;
-  int16_t            numOfRowsPerPage;
-  int16_t            offset[TSDB_MAX_COLUMNS];
-  int16_t            scanFlag;  // denotes reversed scan of data or not
-  SInterpolationInfo interpoInfo;
-  SData**            pInterpoBuf;
-  SOutputRes*        pResult;  // reference to SQuerySupporter->pResult
-  void*              hashList;
-  int32_t            usedIndex;  // assigned SOutputRes in list
-  STSBuf*            pTSBuf;
-  STSCursor          cur;
-  SQueryCostSummary  summary;
+  int16_t                 numOfRowsPerPage;
+  int16_t                 offset[TSDB_MAX_COLUMNS];
+  int16_t                 scanFlag;  // denotes reversed scan of data or not
+  SInterpolationInfo      interpoInfo;
+  SData**                 pInterpoBuf;
+  SOutputRes*             pResult;  // reference to SQuerySupporter->pResult
+  void*                   hashList;
+  int32_t                 usedIndex;  // assigned SOutputRes in list
+  STSBuf*                 pTSBuf;
+  STSCursor               cur;
+  SQueryCostSummary       summary;
 } SQueryRuntimeEnv;
 
 /* intermediate result during multimeter query involves interval */
@@ -214,14 +214,12 @@ typedef struct SMeterQuerySupportObj {
 
   SMeterDataInfo* pMeterDataInfo;
 
-  TSKEY*  tsList;
-  int32_t tsNum;
-
+  TSKEY* tsList;
 } SMeterQuerySupportObj;
 
 typedef struct _qinfo {
-  uint64_t signature;
-
+  uint64_t       signature;
+  int32_t        refCount;  // QInfo reference count, when the value is 0, it can be released safely
   char           user[TSDB_METER_ID_LEN + 1];
   char           sql[TSDB_SHOW_SQL_LEN];
   uint8_t        stream;
@@ -231,24 +229,21 @@ typedef struct _qinfo {
   int64_t        useconds;
   int            killed;
   struct _qinfo *prev, *next;
+  SQuery         query;
+  int            num;
+  int            totalPoints;
+  int            pointsRead;
+  int            pointsReturned;
+  int            pointsInterpo;
+  int            code;
+  char           bufIndex;
+  char           changed;
+  char           over;
+  SMeterObj*     pObj;
+  sem_t          dataReady;
 
-  SQuery     query;
-  int        num;
-  int        totalPoints;
-  int        pointsRead;
-  int        pointsReturned;
-  int        pointsInterpo;
-  int        code;
-  char       bufIndex;
-  char       changed;
-  char       over;
-  SMeterObj* pObj;
-
-  int (*fp)(SMeterObj*, SQuery*);
-
-  sem_t                  dataReady;
   SMeterQuerySupportObj* pMeterQuerySupporter;
-
+  int (*fp)(SMeterObj*, SQuery*);
 } SQInfo;
 
 int32_t vnodeQuerySingleMeterPrepare(SQInfo* pQInfo, SMeterObj* pMeterObj, SMeterQuerySupportObj* pSMultiMeterObj,

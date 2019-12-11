@@ -784,14 +784,15 @@ int mgmtRetrieveMetersFromMetric(SMetricMetaMsg* pMsg, int32_t tableIndex, tQuer
 }
 
 // todo refactor!!!!!
-static char* getTagValueFromMeter(STabObj* pMeter, int32_t offset, void* param) {
+static char* getTagValueFromMeter(STabObj* pMeter, int32_t offset, int32_t len, char* param) {
   if (offset == TSDB_TBNAME_COLUMN_INDEX) {
     extractMeterName(pMeter->meterId, param);
-    return param;
   } else {
-    char* tags = pMeter->pTagData + TSDB_METER_ID_LEN;  // tag start position
-    return (tags + offset);
+    char* tags = pMeter->pTagData + offset + TSDB_METER_ID_LEN;  // tag start position
+    memcpy(param, tags, len);  // make sure the value is null-terminated string
   }
+  
+  return param;
 }
 
 bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
@@ -799,8 +800,9 @@ bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
   tQueryInfo* pInfo = (tQueryInfo*)param;
   STabObj*    pMeter = (STabObj*)(((tSkipListNode*)pNode)->pData);
 
-  char   name[TSDB_METER_NAME_LEN + 1] = {0};
-  char*  val = getTagValueFromMeter(pMeter, pInfo->offset, name);
+  char   buf[TSDB_MAX_TAGS_LEN] = {0};
+  
+  char*  val = getTagValueFromMeter(pMeter, pInfo->offset, pInfo->sch.bytes, buf);
   int8_t type = pInfo->sch.type;
 
   int32_t ret = 0;

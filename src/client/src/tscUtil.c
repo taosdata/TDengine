@@ -1706,12 +1706,10 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   pNew->fp = fp;
-
   pNew->param = param;
-  SMeterMetaInfo* pMetermetaInfo = tscGetMeterMetaInfo(pCmd, tableIndex);
-
+  
   char key[TSDB_MAX_TAGS_LEN + 1] = {0};
-  tscGetMetricMetaCacheKey(pCmd, key, pMetermetaInfo->pMeterMeta->uid);
+  tscGetMetricMetaCacheKey(pCmd, key, uid);
   
 #ifdef _DEBUG_VIEW
   printf("the metricmeta key is:%s\n", key);
@@ -1736,7 +1734,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   assert(pFinalInfo->pMeterMeta != NULL);
-  if (UTIL_METER_IS_METRIC(pMetermetaInfo)) {
+  if (UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
     assert(pFinalInfo->pMetricMeta != NULL);
   }
 
