@@ -95,7 +95,7 @@ echo "privateIp           $NODE_IP"       >> $TAOS_CFG
 echo "dDebugFlag          135"            >> $TAOS_CFG
 echo "mDebugFlag          135"            >> $TAOS_CFG
 echo "sdbDebugFlag        135"            >> $TAOS_CFG
-echo "rpcDebugFlag        131"            >> $TAOS_CFG
+echo "rpcDebugFlag        135"            >> $TAOS_CFG
 echo "tmrDebugFlag        131"            >> $TAOS_CFG
 echo "cDebugFlag          135"            >> $TAOS_CFG
 echo "httpDebugFlag       131"            >> $TAOS_CFG
