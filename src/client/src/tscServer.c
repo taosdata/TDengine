@@ -1290,6 +1290,12 @@ static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsu
   SSqlObj *pNew = createSubqueryObj(pSql, 0, tscRetrieveDataRes, trsupport, prevSqlObj);
   if (pNew != NULL) {  // the sub query of two-stage super table query
     pNew->cmd.type |= TSDB_QUERY_TYPE_STABLE_SUBQUERY;
+    assert(pNew->cmd.numOfTables == 1);
+    
+    //launch subquery for each vnode, so the subquery index equals to the vnodeIndex.
+    SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pNew->cmd, 0);
+    pMeterMetaInfo->vnodeIndex = trsupport->subqueryIndex;
+    
     pSql->pSubs[trsupport->subqueryIndex] = pNew;
   }
 
