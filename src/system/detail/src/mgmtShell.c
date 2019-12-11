@@ -1298,11 +1298,11 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
     pConn = connList + pMsg->destId;
     pConn->thandle = thandle;
     strcpy(pConn->user, pMsg->meterId);
-  }
 
-  pConn->usePublicIp = (pMsg->destIp == tsPublicIpInt ? 1 : 0);
-  mTrace("pConn:%p, destIp:%s publicIp:%s usePublicIp:%u",
-          pConn, taosIpStr(pMsg->destIp), taosIpStr(tsPublicIpInt), pConn->usePublicIp);
+    pConn->usePublicIp = (pMsg->destIp == tsPublicIpInt ? 1 : 0);
+    mPrint("pConn:%p is rebuild, destIp:%s publicIp:%s usePublicIp:%u",
+           pConn, taosIpStr(pMsg->destIp), taosIpStr(tsPublicIpInt), pConn->usePublicIp);
+  }
 
   if (pMsg->msgType == TSDB_MSG_TYPE_CONNECT) {
     (*mgmtProcessShellMsg[pMsg->msgType])((char *)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pConn);
