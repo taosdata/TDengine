@@ -15,6 +15,7 @@ echo "begin the static check >>>>>>"
 cppcheck -q --enable=all --output-file=$outputf -rp=$sourceDir $sourceDir 
 git checkout feature/fangtest
 git merge develop
+cp $homeDir/report/record* ./
 python2 sepQFromSc.py $outputf
 rm -rf $homeDir/report/static*
 mv *$outputf* $homeDir/report/
