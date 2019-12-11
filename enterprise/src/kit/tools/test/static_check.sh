@@ -17,5 +17,5 @@ git checkout feature/fangtest
 git merge develop
 python2 sepQFromSc.py $outputf
 rm -rf $homeDir/report/static*
-mv $*outputf* $homeDir/report/
+mv *$outputf* $homeDir/report/
 echo "static check has finished and result is in the report directory"
