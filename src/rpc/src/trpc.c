@@ -1411,11 +1411,6 @@ void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, uint1
   *sid = pConn->sid;
 }
 
-uint32_t taosGetRpcLocalIp(void *thandle) {
-  SRpcConn *pConn = (SRpcConn *)thandle;
-  return pConn->peerIp;
-}
-
 int taosGetOutType(void *thandle) {
   SRpcConn *pConn = (SRpcConn *)thandle;
   if (pConn == NULL) return -1;
