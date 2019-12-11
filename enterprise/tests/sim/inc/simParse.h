@@ -29,18 +29,18 @@ enum {
 
 /* label stack */
 typedef struct {
-  char top;                                  /* number of labels */
+  uint8_t top;                                  /* number of labels */
   short pos[MAX_NUM_LABLES];                 /* the position of the label */
   char label[MAX_NUM_LABLES][MAX_LABEL_LEN]; /* name of the label */
 } SLabel;
 
 /* block definition */
 typedef struct {
-  char top;                  /* the number of blocks stacked */
+  uint8_t top;                  /* the number of blocks stacked */
   char type[MAX_NUM_BLOCK];  /* the block type */
   short *pos[MAX_NUM_BLOCK]; /* position of the jump for if/elif/case */
   short back[MAX_NUM_BLOCK]; /* go back, endw and continue */
-  char numJump[MAX_NUM_BLOCK];
+  uint8_t numJump[MAX_NUM_BLOCK];
   short *jump[MAX_NUM_BLOCK][MAX_NUM_JUMP]; /* break or elif */
   char sexp[MAX_NUM_BLOCK][40];             /*switch expression */
   char sexpLen[MAX_NUM_BLOCK];              /*switch expression length */
