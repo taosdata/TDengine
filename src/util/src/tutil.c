@@ -106,6 +106,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
     if ((*num) >= size) {
       size = (size << 1);
       split = realloc(split, POINTER_BYTES * size);
+      assert(NULL != split);
     }
   }
 
