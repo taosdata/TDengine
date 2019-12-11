@@ -2,6 +2,8 @@ system sh/stop_dnodes.sh
 system sh/ip.sh -i 1 -s up
 system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/cfg.sh -n dnode1 -c debugFlag -v 135
+system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
 system sh/exec.sh -n dnode1 -s start
 sql connect
 sleep 1000
@@ -227,6 +229,7 @@ if $data00 != $val then
   return -1
 endi
 
+print 1
 #select + where condition + interval query
 sql select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by join_tb0.ts desc;
 
@@ -235,6 +238,7 @@ if $rows != $val then
   return -1
 endi
 
+print 2
 #===========================aggregation===================================
 #select + where condition
 sql select count(join_tb1.*), count(join_tb0.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = false;
@@ -248,6 +252,7 @@ if $data01 != $val then
   return -1
 endi
 
+print 3
 #agg + where condition
 sql select count(join_tb1.c3), count(join_tb0.ts) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts <= 100002 and join_tb0.c7 = true;
 
@@ -260,6 +265,7 @@ if $data01 != $val then
   return -1
 endi
 
+print 4
 #agg + where condition
 sql select count(join_tb1.c3), count(join_tb0.ts), sum(join_tb0.c1), first(join_tb0.c7), last(join_tb1.c3), first(join_tb0.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts <= 100002 and join_tb0.c7 = true;
 

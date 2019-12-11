@@ -7,7 +7,6 @@
 
 #include "taos.h"
 #include "taosmsg.h"
-#include "tsql.h"
 #include "textbuffer.h"
 
 void intDataTest();
