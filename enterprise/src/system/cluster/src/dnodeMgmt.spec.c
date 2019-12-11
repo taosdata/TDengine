@@ -111,7 +111,8 @@ int vnodeInitMgmt() {
   pObj->sid = 1;
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp = tsPrivateIp, rpcInit.localPort = 0;
+  rpcInit.localIp = tsPrivateIp;
+  rpcInit.localPort = 0;
   rpcInit.label = "DND-mgmt";
   rpcInit.numOfThreads = 1;
   rpcInit.fp = vnodeProcessMsgFromMgmtSpec;
