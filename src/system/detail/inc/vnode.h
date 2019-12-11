@@ -206,28 +206,6 @@ typedef struct {
   char     cont[];
 } SVMsgHeader;
 
-/*
- * The value of QInfo.signature is used to denote that a query is executing, it isn't safe to release QInfo yet.
- * The release operations will be blocked in a busy-waiting until the query operation reach a safepoint.
- * Then it will reset the signature in a atomic operation, followed by release operation.
- * Only the QInfo.signature == QInfo, this structure can be released safely.
- */
-#define TSDB_QINFO_QUERY_FLAG 0x1
-//#define TSDB_QINFO_RESET_SIG(x) atomic_store_64(&((x)->signature), (uint64_t)(x))
-#define TSDB_QINFO_RESET_SIG(x)
-#define TSDB_QINFO_SET_QUERY_FLAG(x)
-//#define TSDB_QINFO_SET_QUERY_FLAG(x) \
-//  atomic_val_compare_exchange_64(&((x)->signature), (uint64_t)(x), TSDB_QINFO_QUERY_FLAG);
-
-// live lock: wait for query reaching a safe-point, release all resources
-// belongs to this query
-#define TSDB_WAIT_TO_SAFE_DROP_QINFO(x)                                                       \
-//  {                                                                                           \
-//    while (atomic_val_compare_exchange_64(&((x)->signature), (x), 0) == TSDB_QINFO_QUERY_FLAG) { \
-//      taosMsleep(1);                                                                          \
-//    }                                                                                         \
-//  }
-
 struct tSQLBinaryExpr;
 
 typedef struct SColumnInfoEx {

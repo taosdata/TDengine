@@ -1173,15 +1173,13 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
   }
 
   if (pQInfo->killed) {
-    TSDB_QINFO_RESET_SIG(pQInfo);
-    dTrace("QInfo:%p it is already killed, reset signature and abort", pQInfo);
+    dTrace("QInfo:%p it is already killed, abort", pQInfo);
     vnodeDecRefCount(pQInfo);
   
     return;
   }
 
   assert(pQInfo->refCount >= 1);
-//  assert(pQInfo->signature == TSDB_QINFO_QUERY_FLAG);
 
   SQuery *   pQuery = &pQInfo->query;
   SMeterObj *pMeterObj = pQInfo->pObj;
@@ -1215,10 +1213,7 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
         pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead, numOfInterpo,
         pQInfo->pointsRead, pQInfo->pointsInterpo, pQInfo->pointsReturned);
 
-    dTrace("QInfo:%p reset signature", pQInfo);
-
     sem_post(&pQInfo->dataReady);
-    TSDB_QINFO_RESET_SIG(pQInfo);
     vnodeDecRefCount(pQInfo);
 
     return;
@@ -1238,10 +1233,7 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
                  pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead, pQInfo->pointsRead,
                  pQInfo->pointsInterpo, pQInfo->pointsReturned);
 
-          dTrace("QInfo:%p reset signature", pQInfo);
-
           sem_post(&pQInfo->dataReady);
-          TSDB_QINFO_RESET_SIG(pQInfo);
           vnodeDecRefCount(pQInfo);
   
           return;
@@ -1250,12 +1242,12 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
     }
 
     pQInfo->over = 1;
-    dTrace("QInfo:%p vid:%d sid:%d id:%s, query over, %d points are returned, reset signature", pQInfo,
+    dTrace("QInfo:%p vid:%d sid:%d id:%s, query over, %d points are returned", pQInfo,
            pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQInfo->pointsRead);
 
     vnodePrintQueryStatistics(pQInfo->pMeterQuerySupporter);
     sem_post(&pQInfo->dataReady);
-    TSDB_QINFO_RESET_SIG(pQInfo);
+    
     vnodeDecRefCount(pQInfo);
     return;
   }
@@ -1284,16 +1276,14 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
 
   /* check if query is killed or not */
   if (isQueryKilled(pQuery)) {
-    dTrace("QInfo:%p query is killed, reset signature", pQInfo);
+    dTrace("QInfo:%p query is killed", pQInfo);
     pQInfo->over = 1;
   } else {
-    dTrace("QInfo:%p vid:%d sid:%d id:%s, meter query thread completed, %d points are returned, reset signature",
+    dTrace("QInfo:%p vid:%d sid:%d id:%s, meter query thread completed, %d points are returned",
            pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead);
   }
 
-  TSDB_QINFO_RESET_SIG(pQInfo);
   sem_post(&pQInfo->dataReady);
-  
   vnodeDecRefCount(pQInfo);
 }
 
@@ -1305,14 +1295,12 @@ void vnodeMultiMeterQuery(SSchedMsg *pMsg) {
   }
 
   if (pQInfo->killed) {
-    TSDB_QINFO_RESET_SIG(pQInfo);
     vnodeDecRefCount(pQInfo);
-    dTrace("QInfo:%p it is already killed, reset signature and abort", pQInfo);
+    dTrace("QInfo:%p it is already killed, abort", pQInfo);
     return;
   }
 
   assert(pQInfo->refCount >= 1);
-//  assert(pQInfo->signature == TSDB_QINFO_QUERY_FLAG);
 
   SQuery *pQuery = &pQInfo->query;
   pQuery->pointsRead = 0;
@@ -1333,7 +1321,6 @@ void vnodeMultiMeterQuery(SSchedMsg *pMsg) {
   pQInfo->useconds += (taosGetTimestampUs() - st);
   pQInfo->over = isQueryKilled(pQuery) ? 1 : 0;
 
-  dTrace("QInfo:%p reset signature", pQInfo);
   taosInterpoSetStartInfo(&pQInfo->pMeterQuerySupporter->runtimeEnv.interpoInfo, pQuery->pointsRead,
                           pQInfo->query.interpoType);
 
@@ -1341,12 +1328,11 @@ void vnodeMultiMeterQuery(SSchedMsg *pMsg) {
 
   if (pQuery->pointsRead == 0) {
     pQInfo->over = 1;
-    dTrace("QInfo:%p over, %d meters queried, %d points are returned, reset signature", pQInfo, pSupporter->numOfMeters,
+    dTrace("QInfo:%p over, %d meters queried, %d points are returned", pQInfo, pSupporter->numOfMeters,
            pQInfo->pointsRead);
     vnodePrintQueryStatistics(pSupporter);
   }
 
   sem_post(&pQInfo->dataReady);
-  TSDB_QINFO_RESET_SIG(pQInfo);
   vnodeDecRefCount(pQInfo);
 }

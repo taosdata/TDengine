@@ -422,8 +422,6 @@ void vnodeFreeQInfo(void *param, bool decQueryRef) {
   if (!vnodeIsQInfoValid(param)) return;
 
   pQInfo->killed = 1;
-  TSDB_WAIT_TO_SAFE_DROP_QINFO(pQInfo);
-
   SMeterObj *pObj = pQInfo->pObj;
   dTrace("QInfo:%p start to free SQInfo", pQInfo);
 
@@ -502,7 +500,6 @@ bool vnodeIsQInfoValid(void *param) {
    * into local variable, then compare by using local variable
    */
   uint64_t sig = pQInfo->signature;
-//  return (sig == (uint64_t)pQInfo) || (sig == TSDB_QINFO_QUERY_FLAG);
   return (sig == (uint64_t)pQInfo);
 }
 
@@ -536,13 +533,11 @@ void vnodeQueryData(SSchedMsg *pMsg) {
   pQInfo = (SQInfo *)pMsg->ahandle;
 
   if (pQInfo->killed) {
-    TSDB_QINFO_RESET_SIG(pQInfo);
-    dTrace("QInfo:%p it is already killed, reset signature and abort", pQInfo);
+    dTrace("QInfo:%p it is already killed, abort", pQInfo);
     vnodeDecRefCount(pQInfo);
     return;
   }
 
-//  assert(pQInfo->signature == TSDB_QINFO_QUERY_FLAG);
   pQuery = &(pQInfo->query);
 
   SMeterObj *pObj = pQInfo->pObj;
@@ -610,9 +605,6 @@ void vnodeQueryData(SSchedMsg *pMsg) {
     tclose(pQInfo->query.lfd);
   }
 
-  /* reset QInfo signature */
-  dTrace("QInfo:%p reset signature", pQInfo);
-  TSDB_QINFO_RESET_SIG(pQInfo);
   sem_post(&pQInfo->dataReady);
   vnodeDecRefCount(pQInfo);
 }
@@ -697,9 +689,6 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     schedMsg.fp = vnodeQueryData;
   }
 
-  // set in query flag
-//  pQInfo->signature = TSDB_QINFO_QUERY_FLAG;
-  
   /*
    * The reference count, which is 2, is for both the current query thread and the future retrieve request,
    * which will always be issued by client to acquire data or free SQInfo struct.
@@ -818,7 +807,6 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     return pQInfo;
   }
 
-//  pQInfo->signature = TSDB_QINFO_QUERY_FLAG;
   vnodeAddRefCount(pQInfo);
   
   schedMsg.msg = NULL;
@@ -900,18 +888,9 @@ int vnodeSaveQueryResult(void *handle, char *data, int32_t *size) {
          pQInfo->pointsRead);
 
   if (pQInfo->over == 0) {
-    //dTrace("QInfo:%p set query flag, oldSig:%p, func:%s", pQInfo, pQInfo->signature, __FUNCTION__);
-    dTrace("QInfo:%p set query flag, oldSig:%p", pQInfo, pQInfo->signature);
-//    uint64_t oldSignature = TSDB_QINFO_SET_QUERY_FLAG(pQInfo);
+    dTrace("QInfo:%p set query flag, sig:%p, func:%s", pQInfo, pQInfo->signature, __FUNCTION__);
 
-    /*
-     * If SQInfo has been released, the value of signature cannot be equalled to the address of pQInfo,
-     * since in release function, the original value has been destroyed. However, this memory area may be reused
-     * by another function. It may be 0 or any value, but it is rarely still be equalled to the address of SQInfo.
-     */
-//    if (oldSignature == 0 || oldSignature != (uint64_t)pQInfo) {
     if (pQInfo->killed == 1) {
-//      dTrace("%p freed or killed, old sig:%p abort query", pQInfo, oldSignature);
       dTrace("%p freed or killed, abort query", pQInfo);
     } else {
       vnodeAddRefCount(pQInfo);
