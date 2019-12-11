@@ -8,6 +8,8 @@ if __name__ == "__main__":
 
   outErrFd = open('%s.err' %file, 'w')
   errCounter = 0
+  outMemFd = open('%s.memleak' %file, 'w')
+  memCounter = 0
   outWarnFd = open('%s.warn' %file, 'w')
   warnCounter = 0
   outTestFd = open('%s.test' %file, 'w')
@@ -17,6 +19,7 @@ if __name__ == "__main__":
   outOthersFd = open('%s.others' %file, 'w')
   otherCounter = 0
   outCalFd = open('record_%s' %file, 'a+')
+
   try:
     inputFd = open(file,'r')
     line = inputFd.readline()
@@ -33,10 +36,16 @@ if __name__ == "__main__":
           outTestFd.write(inputFd.readline())
           outTestFd.write(inputFd.readline())
         elif (line.find('error') > 0):
-          errCounter += 1
-          outErrFd.write(line)
-          outErrFd.write(inputFd.readline())
-          outErrFd.write(inputFd.readline())
+          if (line.find('memleak') > 0):
+            memCounter += 1
+            outMemFd.write(line)
+            outMemFd.write(inputFd.readline())
+            outMemFd.write(inputFd.readline())
+          else:
+            errCounter += 1
+            outErrFd.write(line)
+            outErrFd.write(inputFd.readline())
+            outErrFd.write(inputFd.readline())
         elif (line.find('warning') > 0):
           warnCounter += 1
           outWarnFd.write(line)
@@ -54,6 +63,8 @@ if __name__ == "__main__":
     sys.exit(1)
   outErrFd.write('There is total %d errors\n' %errCounter)
   outErrFd.close()
+  outMemFd.write('There is total %d errors\n' %memCounter)
+  outMemFd.close()
   outWarnFd.write('There is total %d warnings\n' %warnCounter)
   outWarnFd.close()
   outTestFd.write('There is total %d questions in test script\n' %testCounter)
@@ -62,6 +73,6 @@ if __name__ == "__main__":
   outDepsFd.close()
   outOthersFd.write('There is total %d qeustions except error/warnings\n' %otherCounter)
   outOthersFd.close()
-  outCalFd.write('%s   %d     %d       %d   %d   %d\n' \
-    %(datetime.date.today(), errCounter, warnCounter, otherCounter, testCounter, depsCounter))
+  outCalFd.write('%s   %d     %d      %d       %d   %d   %d\n' \
+    %(datetime.date.today(), errCounter, memCounter, warnCounter, otherCounter, testCounter, depsCounter))
   outCalFd.close()
