@@ -1507,7 +1507,6 @@ int tscBuildQueryMsg(SSqlObj *pSql) {
     pQueryMsg->uid = pMeterMeta->uid;
     pQueryMsg->numOfTagsCols = 0;
   } else {  // query on metric
-    SMetricMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
     if (pMeterMetaInfo->vnodeIndex < 0) {
       tscError("%p error vnodeIdx:%d", pSql, pMeterMetaInfo->vnodeIndex);
       return -1;
@@ -2872,15 +2871,14 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql) {
         pElem->groupbyTagColumnList = htonl(offset);
         for (int32_t j = 0; j < pCmd->groupbyExpr.numOfGroupCols; ++j) {
           SColIndexEx *pCol = &pCmd->groupbyExpr.columnInfo[j];
-
-          *((int16_t *)pMsg) = pCol->colId;
-          pMsg += sizeof(pCol->colId);
-
-          *((int16_t *)pMsg) += pCol->colIdx;
-          pMsg += sizeof(pCol->colIdx);
-
-          *((int16_t *)pMsg) += pCol->flag;
-          pMsg += sizeof(pCol->flag);
+          SColIndexEx* pDestCol = (SColIndexEx*) pMsg;
+          
+          pDestCol->colIdxInBuf = 0;
+          pDestCol->colIdx = htons(pCol->colIdx);
+          pDestCol->colId = htons(pDestCol->colId);
+          pDestCol->flag = htons(pDestCol->flag);
+          
+          pMsg += sizeof(SColIndexEx);
         }
       }
     }
