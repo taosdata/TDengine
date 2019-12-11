@@ -528,8 +528,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
         numOfFetch++;
       }
     } else {
-      if ((pRes->row >= pRes->numOfRows && (!tscHasReachLimitation(pSql->pSubs[i])) &&
-        tscProjectionQueryOnTable(&pSql->cmd)) || (pRes->numOfRows == 0)) {
+      if (pRes->row >= pRes->numOfRows && (!tscHasReachLimitation(pSql->pSubs[i]))) {
         numOfFetch++;
       }
     }

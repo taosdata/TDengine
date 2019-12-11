@@ -512,8 +512,9 @@ void vnodeDecRefCount(void *param) {
   assert(vnodeIsQInfoValid(pQInfo));
   
   int32_t ref = atomic_sub_fetch_32(&pQInfo->refCount, 1);
-  dTrace("QInfo:%p decrease obj refcount, %d", pQInfo, ref);
+  assert(ref >= 0);
   
+  dTrace("QInfo:%p decrease obj refcount, %d", pQInfo, ref);
   if (ref == 0) {
     vnodeFreeQInfo(pQInfo, true);
   }
@@ -616,7 +617,7 @@ void vnodeQueryData(SSchedMsg *pMsg) {
   vnodeDecRefCount(pQInfo);
 }
 
-void *vnodeQueryInTimeRange(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pSqlExprs,
+void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pSqlExprs,
                             SQueryMeterMsg *pQueryMsg, int32_t *code) {
   SQInfo *pQInfo;
   SQuery *pQuery;
@@ -687,6 +688,7 @@ void *vnodeQueryInTimeRange(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExp
     }
 
     if (pQInfo->over == 1) {
+      vnodeAddRefCount(pQInfo);  // for retrieve procedure
       return pQInfo;
     }
 
@@ -811,12 +813,12 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     goto _error;
   }
 
+  vnodeAddRefCount(pQInfo);
   if (pQInfo->over == 1) {
     return pQInfo;
   }
 
 //  pQInfo->signature = TSDB_QINFO_QUERY_FLAG;
-  vnodeAddRefCount(pQInfo);
   vnodeAddRefCount(pQInfo);
   
   schedMsg.msg = NULL;

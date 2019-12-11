@@ -339,7 +339,7 @@ extern void *     vnodeTmrCtrl;
 // read API
 extern int (*vnodeSearchKeyFunc[])(char *pValue, int num, TSKEY key, int order);
 
-void *vnodeQueryInTimeRange(SMeterObj **pMeterObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *sqlExprs,
+void *vnodeQueryOnSingleTable(SMeterObj **pMeterObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *sqlExprs,
                             SQueryMeterMsg *pQueryMsg, int *code);
 
 void *vnodeQueryOnMultiMeters(SMeterObj **pMeterObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pSqlExprs,
