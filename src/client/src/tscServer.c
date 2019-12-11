@@ -3351,7 +3351,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
 }
 
 int tscProcessConnectRsp(SSqlObj *pSql) {
-  char         temp[TSDB_METER_ID_LEN];
+  char         temp[TSDB_METER_ID_LEN*2];
   SConnectRsp *pConnect;
 
   STscObj *pObj = pSql->pTscObj;
@@ -3359,8 +3359,11 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
 
   pConnect = (SConnectRsp *)pRes->pRsp;
   strcpy(pObj->acctId, pConnect->acctId);  // copy acctId from response
-  sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
-  strcpy(pObj->db, temp);
+  int32_t len  =sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
+  
+  assert(len <= tListLen(pObj->db));
+  strncpy(pObj->db, temp, tListLen(pObj->db));
+  
 #ifdef CLUSTER
   SIpList *    pIpList;
   char *rsp = pRes->pRsp + sizeof(SConnectRsp);
@@ -3635,7 +3638,7 @@ int tscRenewMeterMeta(SSqlObj *pSql, char *meterId) {
    */
   if (pMeterMetaInfo->pMeterMeta == NULL || !tscQueryOnMetric(pCmd)) {
     if (pMeterMetaInfo->pMeterMeta) {
-      tscTrace("%p update meter meta, old: numOfTags:%d, numOfCols:%d, uid:%lld, addr:%p", pSql,
+      tscTrace("%p update meter meta, old: numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
                pMeterMetaInfo->numOfTags, pCmd->numOfCols, pMeterMetaInfo->pMeterMeta->uid, pMeterMetaInfo->pMeterMeta);
     }
     tscWaitingForCreateTable(&pSql->cmd);
@@ -3643,7 +3646,7 @@ int tscRenewMeterMeta(SSqlObj *pSql, char *meterId) {
 
     code = tscDoGetMeterMeta(pSql, meterId, 0);  // todo ??
   } else {
-    tscTrace("%p metric query not update metric meta, numOfTags:%d, numOfCols:%d, uid:%lld, addr:%p", pSql,
+    tscTrace("%p metric query not update metric meta, numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
              pMeterMetaInfo->pMeterMeta->numOfTags, pCmd->numOfCols, pMeterMetaInfo->pMeterMeta->uid,
              pMeterMetaInfo->pMeterMeta);
   }

@@ -24,7 +24,7 @@ char* vnodeGetDataDir(int vnode, int fileId) { return dataDir; }
 void vnodeAdustVnodeFile(SVnodeObj *pVnode) {
   // Retention policy here
   int fileId = pVnode->fileId - pVnode->numOfFiles + 1;
-  int cfile = taosGetTimestamp(pVnode->cfg.precision)/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  int cfile = taosGetTimestamp(pVnode->cfg.precision)/pVnode->cfg.daysPerFile/tsMsPerDay[(uint8_t)pVnode->cfg.precision];
   while (fileId <= cfile - pVnode->maxFiles) {
     vnodeRemoveFile(pVnode->vnode, fileId);
     pVnode->numOfFiles--;

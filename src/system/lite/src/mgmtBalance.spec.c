@@ -17,7 +17,7 @@
 #include "mgmtBalance.h"
 #include "tstatus.h"
 
-void mgmtStartBalanceTimer(int mseconds) {}
+void mgmtStartBalanceTimer(int64_t mseconds) {}
 
 int mgmtInitBalance() { return 0; }
 

@@ -14,6 +14,7 @@
  */
 
 #include "monitor.h"
+#include <inttypes.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -376,7 +377,7 @@ void monitorSaveSystemInfo() {
 
   int64_t ts = taosGetTimestampUs();
   char *  sql = monitor->sql;
-  int pos = snprintf(sql, SQL_LENGTH, "insert into %s.dn_%s values(%ld", tsMonitorDbName, monitor->privateIpStr, ts);
+  int pos = snprintf(sql, SQL_LENGTH, "insert into %s.dn_%s values(%" PRId64, tsMonitorDbName, monitor->privateIpStr, ts);
 
   pos += monitorBuildCpuSql(sql + pos);
   pos += monitorBuildMemorySql(sql + pos);
@@ -402,16 +403,16 @@ void monitorSaveAcctLog(char *acctId, int64_t currentPointsPerSecond, int64_t ma
   char sql[1024] = {0};
   sprintf(sql,
           "insert into %s.acct_%s using %s.acct tags('%s') values(now"
-          ", %ld, %ld "
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
+	  ", %" PRId64, "%" PRId64
+	  ", %" PRId64, "%" PRId64
+	  ", %" PRId64, "%" PRId64
+	  ", %" PRId64, "%" PRId64
+	  ", %" PRId64, "%" PRId64
+	  ", %" PRId64, "%" PRId64
+	  ", %" PRId64, "%" PRId64
+	  ", %" PRId64, "%" PRId64
+	  ", %" PRId64, "%" PRId64
+	  ", %" PRId64, "%" PRId64
           ", %d)",
           tsMonitorDbName, acctId, tsMonitorDbName, acctId, currentPointsPerSecond, maxPointsPerSecond, totalTimeSeries,
           maxTimeSeries, totalStorage, maxStorage, totalQueryTime, maxQueryTime, totalInbound, maxInbound,
@@ -431,7 +432,7 @@ void monitorSaveLog(int level, const char *const format, ...) {
     return;
   }
 
-  int len = snprintf(sql, (size_t)max_length, "import into %s.log values(%ld, %d,'", tsMonitorDbName,
+  int len = snprintf(sql, (size_t)max_length, "import into %s.log values(%\" PRId64 \", %d,'", tsMonitorDbName,
                      taosGetTimestampUs(), level);
 
   va_start(argpointer, format);

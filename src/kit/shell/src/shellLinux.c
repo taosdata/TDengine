@@ -26,6 +26,7 @@
 int indicator = 1;
 struct termios oldtio;
 
+extern int wcwidth(wchar_t c);
 void insertChar(Command *cmd, char *c, int size);
 const char *argp_program_version = version;
 const char *argp_program_bug_address = "<support@taosdata.com>";

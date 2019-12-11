@@ -252,15 +252,31 @@ static void vnodeSetOpenedFileNames(SQueryFilesInfo* pVnodeFilesInfo) {
   
   SHeaderFileInfo* pCurrentFileInfo = &pVnodeFilesInfo->pFileInfo[pVnodeFilesInfo->current];
   
-  // set the full file path for current opened files
-  snprintf(pVnodeFilesInfo->headerFilePath, PATH_MAX, "%sv%df%d.head", pVnodeFilesInfo->dbFilePathPrefix,
-           pVnodeFilesInfo->vnodeId, pCurrentFileInfo->fileID);
+  /*
+   * set the full file path for current opened files
+   * the maximum allowed path string length is PATH_MAX in Linux, 100 bytes is used to
+   * suppress the compiler warnings
+   */
+  char str[PATH_MAX + 100] = {0};
+  int32_t PATH_WITH_EXTRA = PATH_MAX + 100;
   
-  snprintf(pVnodeFilesInfo->dataFilePath, PATH_MAX, "%sv%df%d.data", pVnodeFilesInfo->dbFilePathPrefix,
-           pVnodeFilesInfo->vnodeId, pCurrentFileInfo->fileID);
+  int32_t vnodeId = pVnodeFilesInfo->vnodeId;
+  int32_t fileId = pCurrentFileInfo->fileID;
   
-  snprintf(pVnodeFilesInfo->lastFilePath, PATH_MAX, "%sv%df%d.last", pVnodeFilesInfo->dbFilePathPrefix,
-           pVnodeFilesInfo->vnodeId, pCurrentFileInfo->fileID);
+  int32_t len = snprintf(str, PATH_WITH_EXTRA, "%sv%df%d.head", pVnodeFilesInfo->dbFilePathPrefix, vnodeId, fileId);
+  assert(len <= PATH_MAX);
+  
+  strncpy(pVnodeFilesInfo->headerFilePath, str, PATH_MAX);
+  
+  len = snprintf(str, PATH_WITH_EXTRA, "%sv%df%d.data", pVnodeFilesInfo->dbFilePathPrefix, vnodeId, fileId);
+  assert(len <= PATH_MAX);
+  
+  strncpy(pVnodeFilesInfo->dataFilePath, str, PATH_MAX);
+  
+  len = snprintf(str, PATH_WITH_EXTRA, "%sv%df%d.last", pVnodeFilesInfo->dbFilePathPrefix, vnodeId, fileId);
+  assert(len <= PATH_MAX);
+  
+  strncpy(pVnodeFilesInfo->lastFilePath, str, PATH_MAX);
 }
 
 /**
@@ -1055,7 +1071,7 @@ static void *getGenericDataBlock(SMeterObj *pMeterObj, SQuery *pQuery, int32_t s
 
 static int32_t getFileIdFromKey(int32_t vid, TSKEY key) {
   SVnodeObj *pVnode = &vnodeList[vid];
-  int64_t    delta = (int64_t)pVnode->cfg.daysPerFile * tsMsPerDay[pVnode->cfg.precision];
+  int64_t    delta = (int64_t)pVnode->cfg.daysPerFile * tsMsPerDay[(uint8_t)pVnode->cfg.precision];
 
   return (int32_t)(key / delta);  // set the starting fileId
 }
@@ -2227,7 +2243,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
 // get maximum time interval in each file
 static int64_t getOldestKey(int32_t numOfFiles, int64_t fileId, SVnodeCfg *pCfg) {
-  int64_t duration = pCfg->daysPerFile * tsMsPerDay[pCfg->precision];
+  int64_t duration = pCfg->daysPerFile * tsMsPerDay[(uint8_t)pCfg->precision];
   return (fileId - numOfFiles + 1) * duration;
 }
 
@@ -6331,6 +6347,8 @@ int32_t setIntervalQueryExecutionContext(SMeterQuerySupportObj *pSupporter, int3
       tsBufSetCursor(pSupporter->runtimeEnv.pTSBuf, &pMeterQueryInfo->cur);
     }
   }
+
+  return 0;
 }
 
 static void doApplyIntervalQueryOnBlock(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pInfo,
