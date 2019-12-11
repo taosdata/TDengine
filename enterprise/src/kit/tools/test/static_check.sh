@@ -14,12 +14,8 @@ cd $pwdDir
 echo "begin the static check >>>>>>"
 cppcheck -q --enable=all --output-file=$outputf -rp=$sourceDir $sourceDir 
 git checkout feature/fangtest
-python2 cleanDepsFromSC.py $outputf
+git merge develop
+python2 sepQFromSc.py $outputf
 rm -rf $homeDir/report/static*
-mv $outputf* $homeDir/report/
-cd $homeDir/report/
-errcount=`grep "\[" $outputf |wc -l`
-echo "There is totally $errcount errors or warnings" >>$outputf
-errcount=`grep "\[" $outputf.nodeps |wc -l`
-echo "There is totally $errcount errors or warnings" >>$outputf.nodeps
+mv *$outputf* $homeDir/report/
 echo "static check has finished and result is in the report directory"
