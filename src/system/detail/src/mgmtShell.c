@@ -1224,7 +1224,7 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   uint32_t peerIp = taosGetRpcLocalIp(pConn->thandle);
   pConn->usePublicIp = (peerIp == tsPublicIpInt ? 1 : 0);
   mgmtEstablishConn(pConn);
-  
+
 _rsp:
   pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_CONNECT_RSP, 128);
   if (pStart == NULL) return 0;
@@ -1298,12 +1298,11 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
     pConn = connList + pMsg->destId;
     pConn->thandle = thandle;
     strcpy(pConn->user, pMsg->meterId);
-
-    uint32_t peerIp = taosGetRpcLocalIp(thandle);
-    pConn->usePublicIp = (peerIp == tsPublicIpInt ? 1 : 0);
-    mPrint("pConn:%p is rebuild, peerIp:%s publicIp:%s usePublicIp:%u",
-            pConn, taosIpStr(peerIp), taosIpStr(tsPublicIpInt), pConn->usePublicIp);
   }
+
+  pConn->usePublicIp = (pMsg->destIp == tsPublicIpInt ? 1 : 0);
+  mTrace("pConn:%p, destIp:%s publicIp:%s usePublicIp:%u",
+          pConn, taosIpStr(pMsg->destIp), taosIpStr(tsPublicIpInt), pConn->usePublicIp);
 
   if (pMsg->msgType == TSDB_MSG_TYPE_CONNECT) {
     (*mgmtProcessShellMsg[pMsg->msgType])((char *)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pConn);
