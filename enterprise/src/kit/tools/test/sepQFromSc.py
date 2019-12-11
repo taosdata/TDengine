@@ -62,6 +62,6 @@ if __name__ == "__main__":
   outDepsFd.close()
   outOthersFd.write('There is total %d qeustions except error/warnings\n' %otherCounter)
   outOthersFd.close()
-  outCalFd.write('%s   %d   %d   %d   %d   %d\n' \
+  outCalFd.write('%s   %d     %d       %d   %d   %d\n' \
     %(datetime.date.today(), errCounter, warnCounter, otherCounter, testCounter, depsCounter))
   outCalFd.close()
