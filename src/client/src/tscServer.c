@@ -211,7 +211,6 @@ void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
 }
 
 void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
-  char        ipstr[40] = {0};
   SVPeerDesc *pVPeersDesc = NULL;
   static int  vidIndex = 0;
   STscObj *   pTscObj = pSql->pTscObj;
@@ -244,6 +243,7 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
   while (pSql->retry < pSql->maxRetry) {
     (pSql->retry)++;
 #ifdef CLUSTER
+    char ipstr[40] = {0};
     if (pVPeersDesc[pSql->index].ip == 0) {
       (pSql->index) = (pSql->index + 1) % TSDB_VNODES_SUPPORT;
       continue;
