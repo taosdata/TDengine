@@ -246,6 +246,8 @@ char *taosBuildReqHeader(void *param, char type, char *msg) {
   pHeader->destId = pConn->peerId;
   pHeader->port = 0;
   pHeader->uid = (uint32_t)pConn + (uint32_t)getpid();
+  pHeader->usePublicIp = (tsUsePublicIp == 0 ? 0 : 1);
+  pHeader->isCluster = (tsIsCluster == 0 ? 0 : 1);
 
   memcpy(pHeader->meterId, pConn->meterId, tListLen(pHeader->meterId));
 

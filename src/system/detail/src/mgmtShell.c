@@ -1201,8 +1201,8 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     goto _rsp;
   }
 
-  if (pConnectMsg->isCluster != tsIsCluster) {
-    mError("Cluster Edition and lite Edition cannot be interconnected, client:%d server:%d", pConnectMsg->isCluster, tsIsCluster);
+  if (pConn->isCluster != tsIsCluster) {
+    mError("Cluster Edition and lite Edition cannot be interconnected, client:%d server:%d", pConn->isCluster, tsIsCluster);
     code = TSDB_CODE_INVALID_CLIENT_VERSION;
     goto _rsp;
   }
@@ -1246,17 +1246,13 @@ _rsp:
     pMsg += sizeof(SConnectRsp);
 
 #ifdef CLUSTER
-    if (pConnectMsg->usePublicIp) {
-      pConn->usePublicIp = 1;
-      int size = pSdbPublicIpList->numOfIps * 4 + sizeof(SIpList);
+    int size = pSdbPublicIpList->numOfIps * 4 + sizeof(SIpList);
+    if (pConn->usePublicIp) {
       memcpy(pMsg, pSdbPublicIpList, size);
-      pMsg += size;
-    }
-    else {
-      int size = pSdbIpList->numOfIps * 4 + sizeof(SIpList);
+    } else {
       memcpy(pMsg, pSdbIpList, size);
-      pMsg += size;
     }
+    pMsg += size;
 #endif
 
     // set the time resolution: millisecond or microsecond
@@ -1305,7 +1301,15 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
     pConn = connList + pMsg->destId;
     pConn->thandle = thandle;
     strcpy(pConn->user, pMsg->meterId);
+
+    uint32_t ip = taosGetRpcLocalIp(thandle);
+    if (ip == tsPublicIp) {
+      pConn->usePublicIp = true;
+    }
   }
+
+  pConn->usePublicIp = pMsg->usePublicIp;
+  pConn->isCluster = pMsg->isCluster;
 
   if (pMsg->msgType == TSDB_MSG_TYPE_CONNECT) {
     (*mgmtProcessShellMsg[pMsg->msgType])((char *)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pConn);

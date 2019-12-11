@@ -2643,9 +2643,6 @@ int tscBuildConnectMsg(SSqlObj *pSql) {
   strcpy(pConnect->db, db);
 
   strcpy(pConnect->clientVersion, version);
-  pConnect->usePublicIp = (int8_t)tsUsePublicIp;
-  pConnect->isCluster = (int8_t)tsIsCluster;
-  memset(pConnect->reserved, 0, sizeof(pConnect->reserved));
 
   pMsg += sizeof(SConnectMsg);
 

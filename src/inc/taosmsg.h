@@ -224,7 +224,9 @@ typedef struct {
   uint32_t destId;
   char     meterId[TSDB_UNI_LEN];
   uint16_t port;  // for UDP only
-  char     empty[1];
+  uint8_t  usePublicIp : 1;
+  uint8_t  isCluster : 1;
+  uint8_t  empty : 6;
   uint8_t  msgType;
   int32_t  msgLen;
   uint8_t  content[0];
@@ -352,9 +354,6 @@ typedef struct {
 typedef struct {
   char clientVersion[TSDB_VERSION_LEN];
   char db[TSDB_METER_ID_LEN];
-  int8_t usePublicIp;
-  int8_t isCluster;
-  int8_t reserved[14];
 } SConnectMsg;
 
 typedef struct {
@@ -667,8 +666,11 @@ typedef struct {
 typedef struct {
   uint32_t destId;
   char     meterId[TSDB_UNI_LEN];
-  char     empty[3];
-  char     msgType;
+  uint16_t port;  // for UDP only
+  uint8_t  usePublicIp : 1;
+  uint8_t  isCluster : 1;
+  uint8_t  empty : 6;
+  uint8_t  msgType;
   int32_t  msgLen;
   uint8_t  content[0];
 } SIntMsg;
