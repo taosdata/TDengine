@@ -120,21 +120,21 @@ endi
 print ================= step9 only insert last one
 sql import into tb values(1564641705000, 5000)(1564641718000, 18000)(1564642400000, 700000)
 sql select * from tb;
-if $rows != 18 then 
+if $rows != 20 then
   return -1
 endi
 
 print ================= step10
 sql import into tb values(1564641705000, 5000)(1564641718000, 18000)(1564642400000, 70000)
 sql select * from tb;
-if $rows != 19 then 
+if $rows != 20 then
   return -1
 endi
 
 print ================= step11
 sql import into tb values(1564642400000, 700000)
 sql select * from tb;
-if $rows != 19 then 
+if $rows != 20 then
   return -1
 endi
 
@@ -142,7 +142,7 @@ print ================= step12
 sql import into tb values(1564641709527, 9527)(1564641709527, 9528)
 sql select * from tb;
 print rows=> $rows
-if $rows != 20 then
+if $rows != 21 then
   return -1
 endi
 
@@ -150,7 +150,7 @@ print ================= step13
 sql import into tb values(1564641709898, 9898)(1564641709897, 9897)
 sql select * from tb;
 print rows=> $rows
-if $rows != 22 then
+if $rows != 23 then
   return -1
 endi
 

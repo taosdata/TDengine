@@ -669,23 +669,8 @@ print ============================== step17
 print ========= check data
 
 sql use c_b1_d1
-sql select * from c_b1_t1 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != null then
-  return -1
-endi
-if $data11 != null then
-  return -1
-endi
-if $data21 != null then
-  return -1
-endi
-if $data31 != null then
-  return -1
-endi
-if $data41 != null then
-  return -1
-endi
+sql_error select * from c_b1_t1 order by t desc
+sleep 10000
 
 sql use c_b1_d2
 sql select * from c_b1_t2 order by t desc
