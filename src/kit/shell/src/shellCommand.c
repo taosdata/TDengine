@@ -19,6 +19,8 @@
 #include "shell.h"
 #include "shellCommand.h"
 
+extern int wcwidth(wchar_t c);
+extern int wcswidth(const wchar_t *s, size_t n);
 typedef struct {
   char widthInString;
   char widthOnScreen;

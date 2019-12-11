@@ -532,7 +532,7 @@ static void **tscJoinResultsetFromBuf(SSqlObj *pSql) {
         doSetResultRowData(pSql->pSubs[1]);
         //        TSKEY key1 = *(TSKEY *)pRes1->tsrow[0];
         //        TSKEY key2 = *(TSKEY *)pRes2->tsrow[0];
-        //        printf("first:%lld, second:%lld\n", key1, key2);
+        //        printf("first:%" PRId64 ", second:%" PRId64 "\n", key1, key2);
         success = true;
         pRes1->row++;
         pRes2->row++;
@@ -903,7 +903,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         break;
 
       case TSDB_DATA_TYPE_BIGINT:
-        len += sprintf(str + len, "%lld ", *((int64_t *)row[i]));
+        len += sprintf(str + len, "%" PRId64 " ", *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_FLOAT:
@@ -928,7 +928,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
-        len += sprintf(str + len, "%lld ", *((int64_t *)row[i]));
+        len += sprintf(str + len, "%" PRId64 " ", *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BOOL:

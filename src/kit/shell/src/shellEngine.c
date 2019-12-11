@@ -16,6 +16,7 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 
+#include <inttypes.h>
 #include "os.h"
 #include "shell.h"
 #include "shellCommand.h"
@@ -446,7 +447,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 printf("%*d|", l[i], *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-                printf("%*lld|", l[i], *((int64_t *)row[i]));
+                printf("%*" PRId64 "|", l[i], *((int64_t *)row[i]));
                 break;
               case TSDB_DATA_TYPE_FLOAT: {
 #ifdef _TD_ARM_32_
@@ -481,7 +482,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
                 if (args.is_raw_time) {
-                  printf(" %lld|", *(int64_t *)row[i]);
+                  printf(" %" PRId64 "|", *(int64_t *)row[i]);
                 } else {
                   if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
                     tt = (time_t)((*(int64_t *)row[i]) / 1000000);
@@ -531,7 +532,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 printf("%d\n", *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-                printf("%lld\n", *((int64_t *)row[i]));
+                printf("%" PRId64 "\n", *((int64_t *)row[i]));
                 break;
               case TSDB_DATA_TYPE_FLOAT: {
 #ifdef _TD_ARM_32_
@@ -564,7 +565,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
                 if (args.is_raw_time) {
-                  printf("%lld\n", *(int64_t *)row[i]);
+                  printf("%" PRId64 "\n", *(int64_t *)row[i]);
                 } else {
                   if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
                     tt = (time_t)((*(int64_t *)row[i]) / 1000000);
@@ -619,7 +620,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 fprintf(fp, "%d", *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-                fprintf(fp, "%lld", *((int64_t *)row[i]));
+                fprintf(fp, "%" PRId64, *((int64_t *)row[i]));
                 break;
               case TSDB_DATA_TYPE_FLOAT: {
 #ifdef _TD_ARM_32_
@@ -651,7 +652,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
                 if (args.is_raw_time) {
-                  fprintf(fp, "%lld", *(int64_t *)row[i]);
+                  fprintf(fp, "%" PRId64, *(int64_t *)row[i]);
                 } else {
                   if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
                     tt = (time_t)((*(int64_t *)row[i]) / 1000000);
@@ -780,6 +781,7 @@ void source_file(TAOS *con, char *fptr) {
 
   if (wordexp(fptr, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: illegal file name\n");
+    free(cmd);
     return;
   }
 
@@ -788,6 +790,7 @@ void source_file(TAOS *con, char *fptr) {
   if (access(fname, R_OK) == -1) {
     fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
     wordfree(&full_path);
+    free(cmd);
     return;
   }
 
@@ -795,6 +798,7 @@ void source_file(TAOS *con, char *fptr) {
   if (f == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);
+    free(cmd);
     return;
   }
 

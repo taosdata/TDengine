@@ -262,6 +262,8 @@ int tgReadSchema(char *fileName) {
   size_t result = fread(content, 1, contentSize, fp);
   if (result != contentSize) {
     httpError("failed to read telegraf schema file:%s", fileName);
+    fclose(fp);
+    free(content);
     return -1;
   }
 

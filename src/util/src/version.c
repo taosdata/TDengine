@@ -1,4 +1,3 @@
-
 char version[64] = "1.6.4.2";
 char compatible_version[64] = "1.6.1.0";
 char gitinfo[128] = "b9a62d60dc1d4a41452a9bc94e3a0924485c3a75";
