@@ -16,7 +16,7 @@ if __name__ == "__main__":
   depsCounter = 0
   outOthersFd = open('%s.others' %file, 'w')
   otherCounter = 0
-  outCalFd = open('%s.count' %file, 'a+')
+  outCalFd = open('record_%s' %file, 'a+')
   try:
     inputFd = open(file,'r')
     line = inputFd.readline()
