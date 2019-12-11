@@ -159,8 +159,8 @@ int main(int argc, char *argv[])
     char tsdbDir[TSDB_FILENAME_LEN] = "\0";
     char dataDir[TSDB_FILENAME_LEN] = "\0";
     char mgmtDir[TSDB_FILENAME_LEN] = "\0";
-    char vnodeDir[TSDB_FILENAME_LEN] = "\0";
-    char linkName[TSDB_FILENAME_LEN] = "\0";
+    char vnodeDir[388] = "\0";
+    char linkName[645] = "\0";
     char targetName[TSDB_FILENAME_LEN] = "\0";
     wordexp_t full_path;
     struct dirent *dent1, *dent2;
@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
         {"vgroups.db", (sdb_mod_fun_t)modVgObj}
     };
 
-    char ofname[TSDB_FILENAME_LEN] = "\0";
+    char ofname[400] = "\0";
     int ofd = -1;
     uint32_t sdbEcommit = 0;
     SRowHead *pRowHead = malloc(1024 * 1024);
@@ -409,14 +409,14 @@ __link_mod:
                     }
                     if (strncmp(dent2->d_name + strlen(dent2->d_name) - 2, ".t", 2) == 0) {
                         printf(">> Remove file %s in vnodeDir %s\n", dent2->d_name, vnodeDir);
-                        char dropLinkName[TSDB_FILENAME_LEN] = "\0";
+                        char dropLinkName[645] = "\0";
                         sprintf(dropLinkName, "%s/%s", vnodeDir, dent2->d_name);
                         remove(dropLinkName);
                         continue;
                     }
                     if (strncmp(dent2->d_name + strlen(dent2->d_name) - 2, ".l", 2) == 0) {
                         printf(">> Remove file %s in vnodeDir %s\n", dent2->d_name, vnodeDir);
-                        char dropLinkName[TSDB_FILENAME_LEN] = "\0";
+                        char dropLinkName[645] = "\0";
                         sprintf(dropLinkName, "%s/%s", vnodeDir, dent2->d_name);
                         remove(dropLinkName);
                         continue;
