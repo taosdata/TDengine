@@ -403,21 +403,29 @@ void monitorSaveAcctLog(char *acctId, int64_t currentPointsPerSecond, int64_t ma
   char sql[1024] = {0};
   sprintf(sql,
           "insert into %s.acct_%s using %s.acct tags('%s') values(now"
-	  ", %" PRId64, "%" PRId64
-	  ", %" PRId64, "%" PRId64
-	  ", %" PRId64, "%" PRId64
-	  ", %" PRId64, "%" PRId64
-	  ", %" PRId64, "%" PRId64
-	  ", %" PRId64, "%" PRId64
-	  ", %" PRId64, "%" PRId64
-	  ", %" PRId64, "%" PRId64
-	  ", %" PRId64, "%" PRId64
-	  ", %" PRId64, "%" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
           ", %d)",
-          tsMonitorDbName, acctId, tsMonitorDbName, acctId, currentPointsPerSecond, maxPointsPerSecond, totalTimeSeries,
-          maxTimeSeries, totalStorage, maxStorage, totalQueryTime, maxQueryTime, totalInbound, maxInbound,
-          totalOutbound, maxOutbound, totalDbs, maxDbs, totalUsers, maxUsers, totalStreams, maxStreams, totalConns,
-          maxConns, accessState);
+          tsMonitorDbName, acctId, tsMonitorDbName, acctId,
+          currentPointsPerSecond, maxPointsPerSecond,
+          totalTimeSeries, maxTimeSeries,
+          totalStorage, maxStorage,
+          totalQueryTime, maxQueryTime,
+          totalInbound, maxInbound,
+          totalOutbound, maxOutbound,
+          totalDbs, maxDbs,
+          totalUsers, maxUsers,
+          totalStreams, maxStreams,
+          totalConns, maxConns,
+          accessState);
 
   monitorTrace("monitor:%p, save account info, sql %s", monitor->conn, sql);
   taos_query_a(monitor->conn, sql, dnodeMontiorInsertAcctCallback, "account");
@@ -432,7 +440,7 @@ void monitorSaveLog(int level, const char *const format, ...) {
     return;
   }
 
-  int len = snprintf(sql, (size_t)max_length, "import into %s.log values(%\" PRId64 \", %d,'", tsMonitorDbName,
+  int len = snprintf(sql, (size_t)max_length, "import into %s.log values(%" PRId64 ", %d,'", tsMonitorDbName,
                      taosGetTimestampUs(), level);
 
   va_start(argpointer, format);
