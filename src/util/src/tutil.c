@@ -24,6 +24,8 @@
 #include "ttime.h"
 #include "ttypes.h"
 #include "tutil.h"
+#include "tlog.h"
+#include "taoserror.h"
 
 int32_t strdequote(char *z) {
   if (z == NULL) {
@@ -451,10 +453,8 @@ bool taosValidateEncodec(const char *encodec) {
     return false;
   }
   iconv_close(cd);
-  return true;
-#else
-  return true;
 #endif
+  return true;
 }
 
 bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
@@ -484,6 +484,36 @@ bool taosGetVersionNumber(char *versionStr, int *versionNubmer) {
   versionStr[versionNumberPos[3] - 1] = '.';
 
   return true;
+}
+
+int taosCheckVersion(char *input_client_version, char *input_server_version, int comparedSegments) {
+  char client_version[64] = {0};
+  char server_version[64] = {0};
+  int clientVersionNumber[4] = {0};
+  int serverVersionNumber[4] = {0};
+
+  strcpy(client_version, input_client_version);
+  strcpy(server_version, input_server_version);
+
+  if (!taosGetVersionNumber(client_version, clientVersionNumber)) {
+    pError("invalid client version:%s", client_version);
+    return TSDB_CODE_INVALID_CLIENT_VERSION;
+  }
+
+  if (!taosGetVersionNumber(server_version, serverVersionNumber)) {
+    pError("invalid server version:%s", server_version);
+    return TSDB_CODE_INVALID_CLIENT_VERSION;
+    return NULL;
+  }
+
+  for(int32_t i = 0; i < comparedSegments; ++i) {
+    if (clientVersionNumber[i] != serverVersionNumber[i]) {
+      tscError("the %d-th number of server version:%s not matched with client version:%s", i, server_version, version);
+      return TSDB_CODE_INVALID_CLIENT_VERSION;
+    }
+  }
+
+  return 0;
 }
 
 char *taosIpStr(uint32_t ipInt) {

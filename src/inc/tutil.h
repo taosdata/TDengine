@@ -187,6 +187,8 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, cha
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
 
+int taosCheckVersion(char *input_client_version, char *input_server_version, int compared_segments);
+
 char *taosIpStr(uint32_t ipInt);
 
 uint32_t ip2uint(const char *const ip_addr);

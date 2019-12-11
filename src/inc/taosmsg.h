@@ -222,6 +222,7 @@ typedef struct {
 
   // internal part
   uint32_t destId;
+  uint32_t destIp;
   char     meterId[TSDB_UNI_LEN];
   uint16_t port;  // for UDP only
   char     empty[1];
@@ -350,6 +351,7 @@ typedef struct {
 } SAlterTableMsg;
 
 typedef struct {
+  char clientVersion[TSDB_VERSION_LEN];
   char db[TSDB_METER_ID_LEN];
 } SConnectMsg;
 
@@ -662,6 +664,7 @@ typedef struct {
 // internal message
 typedef struct {
   uint32_t destId;
+  uint32_t destIp;
   char     meterId[TSDB_UNI_LEN];
   char     empty[3];
   uint8_t  msgType;

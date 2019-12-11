@@ -73,11 +73,8 @@ int mgmtInitShell() {
   if (numOfThreads < 1) numOfThreads = 1;
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-#ifdef CLUSTER
-  rpcInit.localIp = tsInternalIp;
-#else
-  rpcInit.localIp = "0.0.0.0";
-#endif
+
+  rpcInit.localIp = tsAnyIp ? "0.0.0.0" : tsPrivateIp;;
   rpcInit.localPort = tsMgmtShellPort;
   rpcInit.label = "MND-shell";
   rpcInit.numOfThreads = numOfThreads;
@@ -311,8 +308,13 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
         goto _exit_code;
       }
       for (int i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-        pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
-        pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+        if (pConn->usePublicIp) {
+          pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
+          pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+        } else {
+          pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].ip;
+          pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+        }
       }
     }
   }
@@ -450,8 +452,13 @@ int mgmtProcessMultiMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
         }
 
         for (int i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-          pMeta->meta.vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
-          pMeta->meta.vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+          if (pConn->usePublicIp) {
+            pMeta->meta.vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
+            pMeta->meta.vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+          } else {
+            pMeta->meta.vpeerDesc[i].ip = pVgroup->vnodeGid[i].ip;
+            pMeta->meta.vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+          }
         }
       }
     }
@@ -523,7 +530,7 @@ int mgmtProcessMetricMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
     msgLen = pMsg - pStart;
   } else {
-    msgLen = mgmtRetrieveMetricMeta(pConn->thandle, &pStart, pMetricMetaMsg);
+    msgLen = mgmtRetrieveMetricMeta(pConn, &pStart, pMetricMetaMsg);
     if (msgLen <= 0) {
       taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_METRIC_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
       return 0;
@@ -1103,10 +1110,17 @@ int mgmtProcessHeartBeatMsg(char *cont, int contLen, SConnObj *pConn) {
   pHBRsp->killConnection = pConn->killConnection;
 
 #ifdef CLUSTER
-  int size = pSdbPublicIpList->numOfIps * 4;
-  pHBRsp->ipList.numOfIps = pSdbPublicIpList->numOfIps;
-  memcpy(pHBRsp->ipList.ip, pSdbPublicIpList->ip, size);
-  pMsg += sizeof(SHeartBeatRsp) + size;
+  if (pConn->usePublicIp) {
+    int size = pSdbPublicIpList->numOfIps * 4;
+    pHBRsp->ipList.numOfIps = pSdbPublicIpList->numOfIps;
+    memcpy(pHBRsp->ipList.ip, pSdbPublicIpList->ip, size);
+    pMsg += sizeof(SHeartBeatRsp) + size;
+  } else {
+    int size = pSdbIpList->numOfIps * 4;
+    pHBRsp->ipList.numOfIps = pSdbIpList->numOfIps;
+    memcpy(pHBRsp->ipList.ip, pSdbIpList->ip, size);
+    pMsg += sizeof(SHeartBeatRsp) + size;
+  }
 #else
   pMsg += sizeof(SHeartBeatRsp);
 #endif
@@ -1183,6 +1197,12 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   pAcct = mgmtGetAcct(pUser->acct);
 
+  code = taosCheckVersion(pConnectMsg->clientVersion, version, 3);
+  if (code != 0) {
+    mError("invalid client version:%s", pConnectMsg->clientVersion);
+    goto _rsp;
+  }
+
   if (pConnectMsg->db[0]) {
     sprintf(dbName, "%x%s%s", pAcct->acctId, TS_PATH_DELIMITER, pConnectMsg->db);
     pDb = mgmtGetDb(dbName);
@@ -1203,7 +1223,7 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   pConn->pDb = pDb;
   pConn->pUser = pUser;
   mgmtEstablishConn(pConn);
-
+  
 _rsp:
   pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_CONNECT_RSP, 128);
   if (pStart == NULL) return 0;
@@ -1223,7 +1243,11 @@ _rsp:
 
 #ifdef CLUSTER
     int size = pSdbPublicIpList->numOfIps * 4 + sizeof(SIpList);
-    memcpy(pMsg, pSdbPublicIpList, size);
+    if (pConn->usePublicIp) {
+      memcpy(pMsg, pSdbPublicIpList, size);
+    } else {
+      memcpy(pMsg, pSdbIpList, size);
+    }
     pMsg += size;
 #endif
 
@@ -1273,6 +1297,9 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
     pConn = connList + pMsg->destId;
     pConn->thandle = thandle;
     strcpy(pConn->user, pMsg->meterId);
+    pConn->usePublicIp = (pMsg->destIp == tsPublicIpInt ? 1 : 0);
+    mTrace("pConn:%p is rebuild, destIp:%s publicIp:%s usePublicIp:%u",
+            pConn, taosIpStr(pMsg->destIp), taosIpStr(tsPublicIpInt), pConn->usePublicIp);
   }
 
   if (pMsg->msgType == TSDB_MSG_TYPE_CONNECT) {
