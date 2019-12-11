@@ -1224,9 +1224,7 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   uint32_t peerIp = taosGetRpcLocalIp(pConn->thandle);
   pConn->usePublicIp = (peerIp == tsPublicIpInt ? 1 : 0);
   mgmtEstablishConn(pConn);
-  mPrint("pConn:%p is created, peerIp:%s publicIp:%s usePublicIp:%u",
-          pConn, taosIpStr(peerIp), taosIpStr(tsPublicIpInt), pConn->usePublicIp);
-
+  
 _rsp:
   pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_CONNECT_RSP, 128);
   if (pStart == NULL) return 0;
