@@ -109,6 +109,8 @@ int taosSetSecurityInfo(int cid, int sid, char *id, int spi, int encrypt, char *
 
 void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, uint16_t *peerPort, int *cid, int *sid);
 
+uint32_t taosGetRpcLocalIp(void *thandle);
+
 int taosGetOutType(void *thandle);
 
 #ifdef __cplusplus

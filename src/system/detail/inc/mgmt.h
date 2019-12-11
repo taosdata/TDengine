@@ -222,9 +222,8 @@ typedef struct _connObj {
   char             superAuth : 1;       // super user flag
   char             writeAuth : 1;       // write flag
   char             killConnection : 1;  // kill the connection flag
-  char             usePublicIp : 1;     // if the connection request is publicIp
-  char             isCluster : 1;
-  char             reserved : 3;
+  uint8_t          usePublicIp : 1;     // if the connection request is publicIp
+  uint8_t          reserved : 4;
   uint32_t         queryId;             // query ID to be killed
   uint32_t         streamId;            // stream ID to be killed
   uint32_t         ip;                  // shell IP

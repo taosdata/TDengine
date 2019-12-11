@@ -80,6 +80,7 @@ extern short tsNumOfVnodesPerCore;
 extern short tsNumOfTotalVnodes;
 extern short tsCheckHeaderFile;
 extern uint32_t tsServerIp;
+extern uint32_t tsPublicIpInt;
 
 extern int tsSessionsPerVnode;
 extern int tsAverageCacheBlocks;
@@ -151,7 +152,6 @@ extern int   tsAdminRowLimit;
 
 extern int   tsTscEnableRecordSql;
 extern int   tsAnyIp;
-extern int   tsUsePublicIp;
 extern int   tsIsCluster;
 
 extern char tsMonitorDbName[];

@@ -164,7 +164,7 @@ int tsAdminRowLimit = 10240;
 int   tsTscEnableRecordSql = 0;
 int   tsEnableCoreFile = 0;
 int   tsAnyIp = 1;
-int   tsUsePublicIp = 0;
+uint32_t tsPublicIpInt = 0;
 
 #ifdef CLUSTER
 int   tsIsCluster = 1;
@@ -789,9 +789,6 @@ static void doInitGlobalConfig() {
                      0, 1, 0, TSDB_CFG_UTYPE_NONE);
 #endif
 
-  tsInitConfigOption(cfg++, "usePublicIp", &tsUsePublicIp, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
-                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
   // version info
   tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
@@ -916,6 +913,7 @@ bool tsReadGlobalConfig() {
   if (tsPublicIp[0] == 0) {
     strcpy(tsPublicIp, tsPrivateIp);
   }
+  tsPublicIpInt = inet_addr(tsPublicIp);
 
   if (tsLocalIp[0] == 0) {
     strcpy(tsLocalIp, tsPrivateIp);

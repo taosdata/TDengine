@@ -1201,12 +1201,6 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     goto _rsp;
   }
 
-  if (pConn->isCluster != tsIsCluster) {
-    mError("Cluster Edition and lite Edition cannot be interconnected, client:%d server:%d", pConn->isCluster, tsIsCluster);
-    code = TSDB_CODE_INVALID_CLIENT_VERSION;
-    goto _rsp;
-  }
-
   if (pConnectMsg->db[0]) {
     sprintf(dbName, "%x%s%s", pAcct->acctId, TS_PATH_DELIMITER, pConnectMsg->db);
     pDb = mgmtGetDb(dbName);
@@ -1226,7 +1220,12 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   pConn->pAcct = pAcct;
   pConn->pDb = pDb;
   pConn->pUser = pUser;
+
+  uint32_t peerIp = taosGetRpcLocalIp(pConn->thandle);
+  pConn->usePublicIp = (peerIp == tsPublicIpInt ? 1 : 0);
   mgmtEstablishConn(pConn);
+  mPrint("pConn:%p is created, peerIp:%s publicIp:%s usePublicIp:%u",
+          pConn, taosIpStr(peerIp), taosIpStr(tsPublicIpInt), pConn->usePublicIp);
 
 _rsp:
   pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_CONNECT_RSP, 128);
@@ -1302,14 +1301,11 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
     pConn->thandle = thandle;
     strcpy(pConn->user, pMsg->meterId);
 
-    uint32_t ip = taosGetRpcLocalIp(thandle);
-    if (ip == tsPublicIp) {
-      pConn->usePublicIp = true;
-    }
+    uint32_t peerIp = taosGetRpcLocalIp(thandle);
+    pConn->usePublicIp = (peerIp == tsPublicIpInt ? 1 : 0);
+    mPrint("pConn:%p is rebuild, peerIp:%s publicIp:%s usePublicIp:%u",
+            pConn, taosIpStr(peerIp), taosIpStr(tsPublicIpInt), pConn->usePublicIp);
   }
-
-  pConn->usePublicIp = pMsg->usePublicIp;
-  pConn->isCluster = pMsg->isCluster;
 
   if (pMsg->msgType == TSDB_MSG_TYPE_CONNECT) {
     (*mgmtProcessShellMsg[pMsg->msgType])((char *)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pConn);
