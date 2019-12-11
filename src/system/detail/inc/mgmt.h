@@ -421,7 +421,7 @@ void mgmtCleanupBalance();
 int  mgmtAllocVnodes(SVgObj *pVgroup);
 void mgmtSetDnodeShellRemoving(SDnodeObj *pDnode);
 void mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
-void mgmtStartBalanceTimer(int mseconds);
+void mgmtStartBalanceTimer(int64_t mseconds);
 void mgmtSetDnodeOfflineOnSdbChanged();
 void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbStatus, int srcIp);
 bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode);

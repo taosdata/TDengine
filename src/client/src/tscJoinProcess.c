@@ -14,8 +14,8 @@
  */
 
 #include "os.h"
-#include "tcache.h"
 #include "tscJoinProcess.h"
+#include "tcache.h"
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "tscompression.h"
@@ -45,8 +45,8 @@ static bool doCompare(int32_t order, int64_t left, int64_t right) {
   }
 }
 
-static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSupporter1, SJoinSubquerySupporter* pSupporter2,
-                               TSKEY* st, TSKEY* et) {
+static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSupporter1,
+                                  SJoinSubquerySupporter* pSupporter2, TSKEY* st, TSKEY* et) {
   STSBuf* output1 = tsBufCreate(true);
   STSBuf* output2 = tsBufCreate(true);
 
@@ -88,7 +88,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
 
 #ifdef _DEBUG_VIEW
     // for debug purpose
-    tscPrint("%lld, tags:%d \t %lld, tags:%d", elem1.ts, elem1.tag, elem2.ts, elem2.tag);
+    tscPrint("%" PRId64 ", tags:%d \t %" PRId64 ", tags:%d", elem1.ts, elem1.tag, elem2.ts, elem2.tag);
 #endif
 
     if (elem1.tag < elem2.tag || (elem1.tag == elem2.tag && doCompare(order, elem1.ts, elem2.ts))) {
@@ -150,22 +150,21 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
   tsBufDestory(pSupporter1->pTSBuf);
   tsBufDestory(pSupporter2->pTSBuf);
 
-  tscTrace("%p input1:%lld, input2:%lld, %lld for secondary query after ts blocks intersecting",
-           pSql, numOfInput1, numOfInput2, output1->numOfTotal);
+  tscTrace("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " for secondary query after ts blocks intersecting", pSql,
+           numOfInput1, numOfInput2, output1->numOfTotal);
 
   return output1->numOfTotal;
 }
 
-//todo handle failed to create sub query
-SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, /*int32_t* numOfComplete, int32_t* gc,*/ int32_t index) {
+// todo handle failed to create sub query
+SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState,
+                                               /*int32_t* numOfComplete, int32_t* gc,*/ int32_t index) {
   SJoinSubquerySupporter* pSupporter = calloc(1, sizeof(SJoinSubquerySupporter));
   if (pSupporter == NULL) {
     return NULL;
   }
 
   pSupporter->pObj = pSql;
-  pSupporter->hasMore = true;
-
   pSupporter->pState = pState;
 
   pSupporter->subqueryIndex = index;
@@ -226,12 +225,6 @@ bool needSecondaryQuery(SSqlObj* pSql) {
  * launch secondary stage query to fetch the result that contains timestamp in set
  */
 int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
-  // TODO not launch secondary stage query
-  //  if (!needSecondaryQuery(pSql)) {
-  //    return;
-  //  }
-
-  // sub query may not be necessary
   int32_t                 numOfSub = 0;
   SJoinSubquerySupporter* pSupporter = NULL;
 
@@ -239,15 +232,22 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
     pSupporter = pSql->pSubs[i]->param;
     pSupporter->pState->numOfCompleted = 0;
 
+    /*
+     * If the columns are not involved in the final select clause, the secondary query will not be launched
+     * for the subquery.
+     */
     if (pSupporter->exprsInfo.numOfExprs > 0) {
       ++numOfSub;
     }
   }
 
   // scan all subquery, if one sub query has only ts, ignore it
-  int32_t j = 0;
-  tscTrace("%p start to launch secondary subqueries: %d", pSql, pSql->numOfSubs);
+  tscTrace(
+      "%p start to launch secondary subqueries, total:%d, only:%d needs to query, others are not retrieve in "
+      "select clause",
+      pSql, pSql->numOfSubs, numOfSub);
 
+  int32_t j = 0;
   for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
     SSqlObj* pSub = pSql->pSubs[i];
     pSupporter = pSub->param;
@@ -259,15 +259,14 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
       continue;
     }
 
-    SSqlObj* pNew = createSubqueryObj(pSql, 0, (int16_t)i, tscJoinQueryCallback, pSupporter, NULL);
+    SSqlObj* pNew = createSubqueryObj(pSql, (int16_t)i, tscJoinQueryCallback, pSupporter, NULL);
     if (pNew == NULL) {
-      pSql->numOfSubs = i; //revise the number of subquery
+      pSql->numOfSubs = i;  // revise the number of subquery
       pSupporter->pState->numOfTotal = i;
 
       pSupporter->pState->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
       tscDestroyJoinSupporter(pSupporter);
-
-      return NULL;
+      return 0;
     }
 
     tscFreeSqlCmdData(&pNew->cmd);
@@ -282,7 +281,6 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
     pNew->cmd.type |= TSDB_QUERY_TYPE_JOIN_SEC_STAGE;
 
     pNew->cmd.nAggTimeInterval = pSupporter->interval;
-    pNew->cmd.limit = pSupporter->limit;
     pNew->cmd.groupbyExpr = pSupporter->groupbyExpr;
 
     tscColumnBaseInfoCopy(&pNew->cmd.colList, &pSupporter->colList, 0);
@@ -302,17 +300,26 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
 
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pNew->cmd, 0);
 
+    /*
+     * When handling the projection query, the offset value will be modified for table-table join, which is changed
+     * during the timestamp intersection.
+     */
+    pSupporter->limit = pSql->cmd.limit;
+    pNew->cmd.limit = pSupporter->limit;
+
     // fetch the join tag column
     if (UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
       SSqlExpr* pExpr = tscSqlExprGet(&pNew->cmd, 0);
       assert(pNew->cmd.tagCond.joinInfo.hasJoin);
 
-      int16_t tagColIndex = tscGetJoinTagColIndexByUid(&pNew->cmd, pMeterMetaInfo->pMeterMeta->uid);
+      int16_t tagColIndex = tscGetJoinTagColIndexByUid(&pNew->cmd.tagCond, pMeterMetaInfo->pMeterMeta->uid);
       pExpr->param[0].i64Key = tagColIndex;
       pExpr->numOfParams = 1;
-
-      addRequiredTagColumn(&pNew->cmd, tagColIndex, 0);
     }
+
+#ifdef _DEBUG_VIEW
+    tscPrintSelectClause(&pNew->cmd);
+#endif
 
     tscProcessSql(pNew);
   }
@@ -384,9 +391,9 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       return;
     }
 
-    if (numOfRows > 0) { // write the data into disk
+    if (numOfRows > 0) {  // write the data into disk
       fwrite(pSql->res.data, pSql->res.numOfRows, 1, pSupporter->f);
-      fflush(pSupporter->f);
+      fclose(pSupporter->f);
 
       STSBuf* pBuf = tsBufCreateFromFile(pSupporter->path, true);
       if (pBuf == NULL) {
@@ -401,7 +408,10 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         tscTrace("%p create tmp file for ts block:%s", pSql, pBuf->path);
         pSupporter->pTSBuf = pBuf;
       } else {
-        tsBufMerge(pSupporter->pTSBuf, pBuf, pSql->cmd.vnodeIdx);
+        assert(pSql->cmd.numOfTables == 1);  // for subquery, only one metermetaInfo
+        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
+
+        tsBufMerge(pSupporter->pTSBuf, pBuf, pMeterMetaInfo->vnodeIndex);
         tsBufDestory(pBuf);
       }
 
@@ -411,12 +421,25 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       pSql->res.row = pSql->res.numOfRows;
 
       taos_fetch_rows_a(tres, joinRetrieveCallback, param);
-    } else if (numOfRows == 0) { // no data from this vnode anymore
-      if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
+    } else if (numOfRows == 0) {  // no data from this vnode anymore
+      if (tscProjectionQueryOnMetric(&pParentSql->cmd)) {
+        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
+        assert(pSql->cmd.numOfTables == 1);
 
+        // for projection query, need to try next vnode
+        if ((++pMeterMetaInfo->vnodeIndex) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+          pSql->cmd.command = TSDB_SQL_SELECT;
+          pSql->fp = tscJoinQueryCallback;
+          tscProcessSql(pSql);
+
+          return;
+        }
+      }
+
+      if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
         if (pSupporter->pState->code != TSDB_CODE_SUCCESS) {
           tscTrace("%p sub:%p, numOfSub:%d, quit from further procedure due to other queries failure", pParentSql, tres,
-          pSupporter->subqueryIndex);
+                   pSupporter->subqueryIndex);
           doQuitSubquery(pParentSql);
           return;
         }
@@ -451,8 +474,33 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       tscError("%p retrieve failed, code:%d, index:%d", pSql, numOfRows, pSupporter->subqueryIndex);
     }
 
+    if (numOfRows >= 0) {
+      pSql->res.numOfTotal += pSql->res.numOfRows;
+    }
+
+    if (tscProjectionQueryOnMetric(&pSql->cmd) && numOfRows == 0) {
+      SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
+      assert(pSql->cmd.numOfTables == 1);
+
+      // for projection query, need to try next vnode if current vnode is exhausted
+      if ((++pMeterMetaInfo->vnodeIndex) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+        pSupporter->pState->numOfCompleted = 0;
+        pSupporter->pState->numOfTotal = 1;
+
+        pSql->cmd.command = TSDB_SQL_SELECT;
+        pSql->fp = tscJoinQueryCallback;
+        tscProcessSql(pSql);
+
+        return;
+      }
+    }
+
     if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
-      tscTrace("%p secondary retrieve completed, global code:%d", tres, pParentSql->res.code);
+      assert(pSupporter->pState->numOfCompleted == pSupporter->pState->numOfTotal);
+
+      tscTrace("%p all %d secondary retrieves are completed, global code:%d", tres, pSupporter->pState->numOfTotal,
+               pParentSql->res.code);
+
       if (pSupporter->pState->code != TSDB_CODE_SUCCESS) {
         pParentSql->res.code = abs(pSupporter->pState->code);
         freeSubqueryObj(pParentSql);
@@ -466,50 +514,68 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
   int32_t numOfFetch = 0;
 
+  assert(pSql->numOfSubs >= 1);
+
   for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
-    SJoinSubquerySupporter* pSupporter = (SJoinSubquerySupporter*)pSql->pSubs[i]->param;
-
-    SSqlRes* pRes = &pSql->pSubs[i]->res;
-    if (pRes->row >= pRes->numOfRows && pSupporter->hasMore) {
-      numOfFetch++;
-    }
-  }
-
-  if (numOfFetch > 0) {
-    tscTrace("%p retrieve data from %d subqueries", pSql, numOfFetch);
-
-    SJoinSubquerySupporter* pSupporter = (SJoinSubquerySupporter*)pSql->pSubs[0]->param;
-    pSupporter->pState->numOfTotal = numOfFetch;  // wait for all subqueries completed
-    pSupporter->pState->numOfCompleted = 0;
-
-    for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
-      SSqlObj* pSql1 = pSql->pSubs[i];
-
-      SSqlRes* pRes1 = &pSql1->res;
-      SSqlCmd* pCmd1 = &pSql1->cmd;
-
-      pSupporter = (SJoinSubquerySupporter*)pSql1->param;
-
-      // wait for all subqueries completed
-      pSupporter->pState->numOfTotal = numOfFetch;
-      if (pRes1->row >= pRes1->numOfRows && pSupporter->hasMore) {
-        tscTrace("%p subquery:%p retrieve data from vnode, index:%d", pSql, pSql1, pSupporter->subqueryIndex);
-
-        tscResetForNextRetrieve(pRes1);
-
-        pSql1->fp = joinRetrieveCallback;
-
-        if (pCmd1->command < TSDB_SQL_LOCAL) {
-          pCmd1->command = (pCmd1->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-        }
-
-        tscProcessSql(pSql1);
+    SSqlRes *pRes = &pSql->pSubs[i]->res;
+    SSqlCmd *pCmd = &pSql->pSubs[i]->cmd;
+  
+    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  
+    if (tscProjectionQueryOnMetric(pCmd)) {
+      if (pRes->row >= pRes->numOfRows && pMeterMetaInfo->vnodeIndex < pMeterMetaInfo->pMetricMeta->numOfVnodes &&
+          (!tscHasReachLimitation(pSql->pSubs[i]))) {
+        numOfFetch++;
+      }
+    } else {
+      if (pRes->row >= pRes->numOfRows && (!tscHasReachLimitation(pSql->pSubs[i]))) {
+        numOfFetch++;
       }
     }
-
-    // wait for all subquery completed
-    tsem_wait(&pSql->rspSem);
   }
+
+  if (numOfFetch <= 0) {
+    return ;
+  }
+
+  // TODO multi-vnode retrieve for projection query with limitation has bugs, since the global limiation is not handled
+  tscTrace("%p retrieve data from %d subqueries", pSql, numOfFetch);
+
+  SJoinSubquerySupporter* pSupporter = (SJoinSubquerySupporter*)pSql->pSubs[0]->param;
+  pSupporter->pState->numOfTotal = numOfFetch;  // wait for all subqueries completed
+  pSupporter->pState->numOfCompleted = 0;
+
+  for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+    SSqlObj* pSql1 = pSql->pSubs[i];
+
+    SSqlRes* pRes1 = &pSql1->res;
+    SSqlCmd* pCmd1 = &pSql1->cmd;
+
+    pSupporter = (SJoinSubquerySupporter*)pSql1->param;
+
+    // wait for all subqueries completed
+    pSupporter->pState->numOfTotal = numOfFetch;
+    assert(pRes1->numOfRows >= 0 && pCmd1->numOfTables == 1);
+
+    SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd1, 0);
+    
+    if (pRes1->row >= pRes1->numOfRows) {
+      tscTrace("%p subquery:%p retrieve data from vnode, subquery:%d, vnodeIndex:%d", pSql, pSql1,
+               pSupporter->subqueryIndex, pMeterMetaInfo->vnodeIndex);
+
+      tscResetForNextRetrieve(pRes1);
+      pSql1->fp = joinRetrieveCallback;
+
+      if (pCmd1->command < TSDB_SQL_LOCAL) {
+        pCmd1->command = (pCmd1->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+      }
+
+      tscProcessSql(pSql1);
+    }
+  }
+
+  // wait for all subquery completed
+  tsem_wait(&pSql->rspSem);
 }
 
 // all subqueries return, set the result output index
@@ -518,6 +584,10 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
   SSqlRes* pRes = &pSql->res;
 
   tscTrace("%p all subquery response, retrieve data", pSql);
+
+  if (pRes->pColumnIndex != NULL) {
+    return;  // the column transfer support struct has been built
+  }
 
   pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * pCmd->fieldsInfo.numOfOutputCols);
 
@@ -608,20 +678,35 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
       if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
         tscSetupOutputColumnIndex(pParentSql);
 
-        if (pParentSql->fp == NULL) {
-          tsem_wait(&pParentSql->emptyRspSem);
-          tsem_wait(&pParentSql->emptyRspSem);
+        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
 
-          tsem_post(&pParentSql->rspSem);
-        } else {
-          // set the command flag must be after the semaphore been correctly set.
-          //    pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
-          //    if (pPObj->res.code == TSDB_CODE_SUCCESS) {
-          //      (*pPObj->fp)(pPObj->param, pPObj, 0);
-          //    } else {
-          //      tscQueueAsyncRes(pPObj);
-          //    }
-          assert(0);
+        /**
+         * if the query is a continue query (vnodeIndex > 0 for projection query) for next vnode, do the retrieval of
+         * data instead of returning to its invoker
+         */
+        if (pMeterMetaInfo->vnodeIndex > 0 && tscProjectionQueryOnMetric(&pSql->cmd)) {
+          assert(pMeterMetaInfo->vnodeIndex < pMeterMetaInfo->pMetricMeta->numOfVnodes);
+          pSupporter->pState->numOfCompleted = 0;  // reset the record value
+
+          pSql->fp = joinRetrieveCallback;  // continue retrieve data
+          pSql->cmd.command = TSDB_SQL_FETCH;
+          tscProcessSql(pSql);
+        } else {  // first retrieve from vnode during the secondary stage sub-query
+          if (pParentSql->fp == NULL) {
+            tsem_wait(&pParentSql->emptyRspSem);
+            tsem_wait(&pParentSql->emptyRspSem);
+
+            tsem_post(&pParentSql->rspSem);
+          } else {
+            // set the command flag must be after the semaphore been correctly set.
+            //    pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
+            //    if (pPObj->res.code == TSDB_CODE_SUCCESS) {
+            //      (*pPObj->fp)(pPObj->param, pPObj, 0);
+            //    } else {
+            //      tscQueueAsyncRes(pPObj);
+            //    }
+            assert(0);
+          }
         }
       }
     }
@@ -731,8 +816,9 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
 
   strncpy(pTSBuf->path, path, PATH_MAX);
 
-  pTSBuf->f = fopen(pTSBuf->path, "r");
+  pTSBuf->f = fopen(pTSBuf->path, "r+");
   if (pTSBuf->f == NULL) {
+    free(pTSBuf); 
     return NULL;
   }
 
@@ -774,7 +860,8 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   size_t infoSize = sizeof(STSVnodeBlockInfo) * pTSBuf->numOfVnodes;
 
   STSVnodeBlockInfo* buf = (STSVnodeBlockInfo*)calloc(1, infoSize);
-  int64_t pos = ftell(pTSBuf->f);
+  
+  //int64_t pos = ftell(pTSBuf->f); //pos not used
   fread(buf, infoSize, 1, pTSBuf->f);
 
   // the length value for each vnode is not kept in file, so does not set the length value
@@ -790,13 +877,17 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   struct stat fileStat;
   fstat(fileno(pTSBuf->f), &fileStat);
 
-  pTSBuf->fileSize = (uint32_t) fileStat.st_size;
+  pTSBuf->fileSize = (uint32_t)fileStat.st_size;
   tsBufResetPos(pTSBuf);
 
   // ascending by default
   pTSBuf->cur.order = TSQL_SO_ASC;
 
   pTSBuf->autoDelete = autoDelete;
+
+  tscTrace("create tsBuf from file:%s, fd:%d, size:%d, numOfVnode:%d, autoDelete:%d", pTSBuf->path, fileno(pTSBuf->f),
+           pTSBuf->fileSize, pTSBuf->numOfVnodes, pTSBuf->autoDelete);
+
   return pTSBuf;
 }
 
@@ -814,10 +905,20 @@ void tsBufDestory(STSBuf* pTSBuf) {
   fclose(pTSBuf->f);
 
   if (pTSBuf->autoDelete) {
+    tscTrace("tsBuf %p destroyed, delete tmp file:%s", pTSBuf, pTSBuf->path);
     unlink(pTSBuf->path);
+  } else {
+    tscTrace("tsBuf %p destroyed, tmp file:%s, remains", pTSBuf, pTSBuf->path);
   }
 
   free(pTSBuf);
+}
+
+static STSVnodeBlockInfoEx* tsBufGetLastVnodeInfo(STSBuf* pTSBuf) {
+  int32_t last = pTSBuf->numOfVnodes - 1;
+
+  assert(last >= 0);
+  return &pTSBuf->pData[last];
 }
 
 static STSVnodeBlockInfoEx* addOneVnodeInfo(STSBuf* pTSBuf, int32_t vnodeId) {
@@ -836,10 +937,10 @@ static STSVnodeBlockInfoEx* addOneVnodeInfo(STSBuf* pTSBuf, int32_t vnodeId) {
   }
 
   if (pTSBuf->numOfVnodes > 0) {
-    STSVnodeBlockInfo* pPrevBlockInfo = &pTSBuf->pData[pTSBuf->numOfVnodes - 1].info;
+    STSVnodeBlockInfoEx* pPrevBlockInfoEx = tsBufGetLastVnodeInfo(pTSBuf);
 
     // update prev vnode length info in file
-    TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, pPrevBlockInfo);
+    TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, &pPrevBlockInfoEx->info);
   }
 
   // set initial value for vnode block
@@ -857,9 +958,9 @@ static STSVnodeBlockInfoEx* addOneVnodeInfo(STSBuf* pTSBuf, int32_t vnodeId) {
   // update the header info
   STSBufFileHeader header = {
       .magic = TS_COMP_FILE_MAGIC, .numOfVnode = pTSBuf->numOfVnodes, .tsOrder = pTSBuf->tsOrder};
-  STSBufUpdateHeader(pTSBuf, &header);
 
-  return &pTSBuf->pData[pTSBuf->numOfVnodes - 1];
+  STSBufUpdateHeader(pTSBuf, &header);
+  return tsBufGetLastVnodeInfo(pTSBuf);
 }
 
 static void shrinkBuffer(STSList* ptsData) {
@@ -906,8 +1007,10 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
 
   pTSBuf->tsData.len = 0;
 
-  pTSBuf->pData[pTSBuf->numOfVnodes - 1].info.compLen += blockSize;
-  pTSBuf->pData[pTSBuf->numOfVnodes - 1].info.numOfBlocks += 1;
+  STSVnodeBlockInfoEx* pVnodeBlockInfoEx = tsBufGetLastVnodeInfo(pTSBuf);
+
+  pVnodeBlockInfoEx->info.compLen += blockSize;
+  pVnodeBlockInfoEx->info.numOfBlocks += 1;
 
   shrinkBuffer(&pTSBuf->tsData);
 }
@@ -1008,13 +1111,13 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData
   STSVnodeBlockInfoEx* pBlockInfo = NULL;
   STSList*             ptsData = &pTSBuf->tsData;
 
-  if (pTSBuf->numOfVnodes == 0 || pTSBuf->pData[pTSBuf->numOfVnodes - 1].info.vnode != vnodeId) {
+  if (pTSBuf->numOfVnodes == 0 || tsBufGetLastVnodeInfo(pTSBuf)->info.vnode != vnodeId) {
     writeDataToDisk(pTSBuf);
     shrinkBuffer(ptsData);
 
     pBlockInfo = addOneVnodeInfo(pTSBuf, vnodeId);
   } else {
-    pBlockInfo = &pTSBuf->pData[pTSBuf->numOfVnodes - 1];
+    pBlockInfo = tsBufGetLastVnodeInfo(pTSBuf);
   }
 
   assert(pBlockInfo->info.vnode == vnodeId);
@@ -1037,6 +1140,8 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData
 
   pTSBuf->numOfTotal += len / TSDB_KEYSIZE;
 
+  // the size of raw data exceeds the size of the default prepared buffer, so
+  // during getBufBlock, the output buffer needs to be large enough.
   if (ptsData->len >= ptsData->threshold) {
     writeDataToDisk(pTSBuf);
     shrinkBuffer(ptsData);
@@ -1053,10 +1158,10 @@ void tsBufFlush(STSBuf* pTSBuf) {
   writeDataToDisk(pTSBuf);
   shrinkBuffer(&pTSBuf->tsData);
 
-  STSVnodeBlockInfo* pBlockInfo = &pTSBuf->pData[pTSBuf->numOfVnodes - 1].info;
+  STSVnodeBlockInfoEx* pBlockInfoEx = tsBufGetLastVnodeInfo(pTSBuf);
 
   // update prev vnode length info in file
-  TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, pBlockInfo);
+  TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, &pBlockInfoEx->info);
 
   // save the ts order into header
   STSBufFileHeader header = {
@@ -1157,11 +1262,22 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t vnodeIndex, int32_t blockIndex
   }
 
   STSBlock* pBlock = &pTSBuf->block;
+
+  size_t s = pBlock->numOfElem * TSDB_KEYSIZE;
+
+  /*
+   * In order to accommodate all the qualified data, the actual buffer size for one block with identical tags value
+   * may exceed the maximum allowed size during *tsBufAppend* function by invoking expandBuffer function
+   */
+  if (s > pTSBuf->tsData.allocSize) {
+    expandBuffer(&pTSBuf->tsData, s);
+  }
+
   pTSBuf->tsData.len =
       tsDecompressTimestamp(pBlock->payload, pBlock->compLen, pBlock->numOfElem, pTSBuf->tsData.rawBuf,
                             pTSBuf->tsData.allocSize, TWO_STAGE_COMP, pTSBuf->assistBuf, pTSBuf->bufSize);
 
-  assert(pTSBuf->tsData.len / TSDB_KEYSIZE == pBlock->numOfElem);
+  assert((pTSBuf->tsData.len / TSDB_KEYSIZE == pBlock->numOfElem) && (pTSBuf->tsData.allocSize >= pTSBuf->tsData.len));
 
   pCur->vnodeIndex = vnodeIndex;
   pCur->blockIndex = blockIndex;
@@ -1203,20 +1319,20 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
   if (pCur->vnodeIndex == -1) {
     if (pCur->order == TSQL_SO_ASC) {
       tsBufGetBlock(pTSBuf, 0, 0);
-      
-      if (pTSBuf->block.numOfElem == 0) { // the whole list is empty, return
+
+      if (pTSBuf->block.numOfElem == 0) {  // the whole list is empty, return
         tsBufResetPos(pTSBuf);
         return false;
       } else {
         return true;
       }
-      
-    } else { // get the last timestamp record in the last block of the last vnode
+
+    } else {  // get the last timestamp record in the last block of the last vnode
       assert(pTSBuf->numOfVnodes > 0);
-      
+
       int32_t vnodeIndex = pTSBuf->numOfVnodes - 1;
       pCur->vnodeIndex = vnodeIndex;
-      
+
       int32_t            vnodeId = pTSBuf->pData[pCur->vnodeIndex].info.vnode;
       STSVnodeBlockInfo* pBlockInfo = tsBufGetVnodeBlockInfo(pTSBuf, vnodeId);
       int32_t            blockIndex = pBlockInfo->numOfBlocks - 1;
@@ -1248,6 +1364,10 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
         if ((pCur->vnodeIndex >= pTSBuf->numOfVnodes - 1 && pCur->order == TSQL_SO_ASC) ||
             (pCur->vnodeIndex <= 0 && pCur->order == TSQL_SO_DESC)) {
           pCur->vnodeIndex = -1;
+          return false;
+        }
+        
+        if (pBlockInfo == NULL) {
           return false;
         }
 
@@ -1318,7 +1438,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
   tsBufFlush(pDestBuf);
 
   // compared with the last vnode id
-  if (vnodeId != pDestBuf->pData[pDestBuf->numOfVnodes - 1].info.vnode) {
+  if (vnodeId != tsBufGetLastVnodeInfo(pDestBuf)->info.vnode) {
     int32_t oldSize = pDestBuf->numOfVnodes;
     int32_t newSize = oldSize + pSrcBuf->numOfVnodes;
 
@@ -1345,35 +1465,48 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeId) {
 
     pDestBuf->numOfVnodes = newSize;
   } else {
-    STSVnodeBlockInfoEx* pBlockInfoEx = &pDestBuf->pData[pDestBuf->numOfVnodes - 1];
+    STSVnodeBlockInfoEx* pBlockInfoEx = tsBufGetLastVnodeInfo(pDestBuf);
+
     pBlockInfoEx->len += pSrcBuf->pData[0].len;
     pBlockInfoEx->info.numOfBlocks += pSrcBuf->pData[0].info.numOfBlocks;
     pBlockInfoEx->info.compLen += pSrcBuf->pData[0].info.compLen;
     pBlockInfoEx->info.vnode = vnodeId;
   }
 
-  int64_t r = fseek(pDestBuf->f, 0, SEEK_END);
+  int32_t r = fseek(pDestBuf->f, 0, SEEK_END);
   assert(r == 0);
 
   int64_t offset = getDataStartOffset();
   int32_t size = pSrcBuf->fileSize - offset;
 
 #ifdef LINUX
-  ssize_t rc = sendfile(fileno(pDestBuf->f), fileno(pSrcBuf->f), &offset, size);
+  ssize_t rc = tsendfile(fileno(pDestBuf->f), fileno(pSrcBuf->f), &offset, size);
 #else
   ssize_t rc = fsendfile(pDestBuf->f, pSrcBuf->f, &offset, size);
 #endif
+
   if (rc == -1) {
-    printf("%s\n", strerror(errno));
+    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));
     return -1;
   }
 
   if (rc != size) {
-    printf("%s\n", strerror(errno));
+    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));
     return -1;
   }
 
   pDestBuf->numOfTotal += pSrcBuf->numOfTotal;
+
+  int32_t oldSize = pDestBuf->fileSize;
+
+  struct stat fileStat;
+  fstat(fileno(pDestBuf->f), &fileStat);
+  pDestBuf->fileSize = (uint32_t)fileStat.st_size;
+
+  assert(pDestBuf->fileSize == oldSize + size);
+
+  tscTrace("tsBuf merge success, %p, path:%s, fd:%d, file size:%d, numOfVnode:%d, autoDelete:%d", pDestBuf,
+           pDestBuf->path, fileno(pDestBuf->f), pDestBuf->fileSize, pDestBuf->numOfVnodes, pDestBuf->autoDelete);
 
   return 0;
 }
@@ -1391,7 +1524,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   TSBufUpdateVnodeInfo(pTSBuf, pTSBuf->numOfVnodes - 1, pBlockInfo);
 
   fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET);
-  fwrite((void*) pData, 1, len, pTSBuf->f);
+  fwrite((void*)pData, 1, len, pTSBuf->f);
   pTSBuf->fileSize += len;
 
   pTSBuf->tsOrder = order;
@@ -1485,7 +1618,7 @@ void tsBufDisplay(STSBuf* pTSBuf) {
 
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
+    printf("%d-%" PRId64 "-%" PRId64 "\n", elem.vnode, *(int64_t*) elem.tag, elem.ts);
   }
 
   pTSBuf->cur.order = old;

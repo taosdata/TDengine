@@ -26,6 +26,7 @@
 int indicator = 1;
 struct termios oldtio;
 
+extern int wcwidth(wchar_t c);
 void insertChar(Command *cmd, char *c, int size);
 const char *argp_program_version = version;
 const char *argp_program_bug_address = "<support@taosdata.com>";
@@ -277,7 +278,10 @@ void *shellLoopQuery(void *arg) {
   pthread_cleanup_push(cleanup_handler, NULL);
 
   char *command = malloc(MAX_COMMAND_SIZE);
-
+  if (command == NULL){
+    tscError("failed to malloc command");
+    return NULL;
+  }
   while (1) {
     // Read command from shell.
 
@@ -286,10 +290,8 @@ void *shellLoopQuery(void *arg) {
     shellReadCommand(con, command);
     reset_terminal_mode();
 
-    if (command != NULL) {
-      // Run the command
-      shellRunCommand(con, command);
-    }
+    // Run the command
+    shellRunCommand(con, command);
   }
 
   pthread_cleanup_pop(1);

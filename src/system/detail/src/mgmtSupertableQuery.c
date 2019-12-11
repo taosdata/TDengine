@@ -203,7 +203,7 @@ static bool mgmtTablenameFilterCallback(tSkipListNode* pNode, void* param) {
 
 static void mgmtRetrieveFromLikeOptr(tQueryResultset* pRes, const char* str, STabObj* pMetric) {
   SPatternCompareInfo       info = PATTERN_COMPARE_INFO_INITIALIZER;
-  SMeterNameFilterSupporter supporter = {info, str};
+  SMeterNameFilterSupporter supporter = {info, (char*) str};
 
   pRes->num =
       tSkipListIterateList(pMetric->pSkipList, (tSkipListNode***)&pRes->pRes, mgmtTablenameFilterCallback, &supporter);
@@ -230,7 +230,7 @@ static void mgmtFilterByTableNameCond(tQueryResultset* pRes, char* condStr, int3
   free(str);
 }
 
-static bool mgmtJoinFilterCallback(tSkipListNode* pNode, void* param) {
+UNUSED_FUNC static bool mgmtJoinFilterCallback(tSkipListNode* pNode, void* param) {
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
 
   SSchema s = {0};
@@ -639,7 +639,8 @@ static void getTagColumnInfo(SSyntaxTreeFilterSupporter* pSupporter, SSchema* pS
   }
 }
 
-void filterPrepare(tSQLBinaryExpr* pExpr, void* param) {
+void filterPrepare(void* expr, void* param) {
+  tSQLBinaryExpr *pExpr = (tSQLBinaryExpr*) expr;
   if (pExpr->info != NULL) {
     return;
   }
@@ -691,7 +692,9 @@ static int32_t mgmtFilterMeterByIndex(STabObj* pMetric, tQueryResultset* pRes, c
     return TSDB_CODE_OPS_NOT_SUPPORT;
   } else {  // query according to the binary expression
     SSyntaxTreeFilterSupporter s = {.pTagSchema = pTagSchema, .numOfTags = pMetric->numOfTags};
-    SBinaryFilterSupp          supp = {.fp = tSkipListNodeFilterCallback, .setupInfoFn = filterPrepare, .pExtInfo = &s};
+    SBinaryFilterSupp          supp = {.fp = (__result_filter_fn_t)tSkipListNodeFilterCallback,
+                                       .setupInfoFn = (__do_filter_suppl_fn_t)filterPrepare,
+                                       .pExtInfo = &s};
 
     tSQLBinaryExprTraverse(pExpr, pMetric->pSkipList, pRes, &supp);
     tSQLBinaryExprDestroy(&pExpr, tSQLListTraverseDestroyInfo);
@@ -781,22 +784,25 @@ int mgmtRetrieveMetersFromMetric(SMetricMetaMsg* pMsg, int32_t tableIndex, tQuer
 }
 
 // todo refactor!!!!!
-static char* getTagValueFromMeter(STabObj* pMeter, int32_t offset, void* param) {
+static char* getTagValueFromMeter(STabObj* pMeter, int32_t offset, int32_t len, char* param) {
   if (offset == TSDB_TBNAME_COLUMN_INDEX) {
     extractMeterName(pMeter->meterId, param);
-    return param;
   } else {
-    char* tags = pMeter->pTagData + TSDB_METER_ID_LEN;  // tag start position
-    return (tags + offset);
+    char* tags = pMeter->pTagData + offset + TSDB_METER_ID_LEN;  // tag start position
+    memcpy(param, tags, len);  // make sure the value is null-terminated string
   }
+  
+  return param;
 }
 
-bool tSkipListNodeFilterCallback(tSkipListNode* pNode, void* param) {
+bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
+  
   tQueryInfo* pInfo = (tQueryInfo*)param;
-  STabObj*    pMeter = (STabObj*)pNode->pData;
+  STabObj*    pMeter = (STabObj*)(((tSkipListNode*)pNode)->pData);
 
-  char   name[TSDB_METER_NAME_LEN + 1] = {0};
-  char*  val = getTagValueFromMeter(pMeter, pInfo->offset, name);
+  char   buf[TSDB_MAX_TAGS_LEN] = {0};
+  
+  char*  val = getTagValueFromMeter(pMeter, pInfo->offset, pInfo->sch.bytes, buf);
   int8_t type = pInfo->sch.type;
 
   int32_t ret = 0;

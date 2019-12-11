@@ -418,8 +418,8 @@ void *mgmtMeterActionAfterBatchUpdate(void *row, char *str, int size, int *ssize
 }
 
 void *mgmtMeterAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtMeterActionFp[action] != NULL) {
-    return (*(mgmtMeterActionFp[action]))(row, str, size, ssize);
+  if (mgmtMeterActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtMeterActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }
@@ -1099,9 +1099,12 @@ static SMetricMetaElemMsg *doConvertMetricMetaMsg(SMetricMetaMsg *pMetricMetaMsg
 
   pElem->groupbyTagColumnList = htonl(pElem->groupbyTagColumnList);
 
-  int16_t *groupColIds = (int16_t*) (((char *)pMetricMetaMsg) + pElem->groupbyTagColumnList);
+  SColIndexEx *groupColIds = (SColIndexEx*) (((char *)pMetricMetaMsg) + pElem->groupbyTagColumnList);
   for (int32_t i = 0; i < pElem->numOfGroupCols; ++i) {
-    groupColIds[i] = htons(groupColIds[i]);
+    groupColIds[i].colId = htons(groupColIds[i].colId);
+    groupColIds[i].colIdx = htons(groupColIds[i].colIdx);
+    groupColIds[i].flag = htons(groupColIds[i].flag);
+    groupColIds[i].colIdxInBuf = 0;
   }
 
   return pElem;

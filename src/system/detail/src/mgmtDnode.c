@@ -59,7 +59,7 @@ void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode) {
     if (pVload->vgId != 0) {
       mTrace("%d-dnode:%s, calc free vnodes, exist vnode:%d, vgroup:%d, state:%d %s, dropstate:%d %s, syncstatus:%d %s",
              totalVnodes, taosIpStr(pDnode->privateIp), i, pVload->vgId,
-             pVload->status, taosGetDnodeStatusStr(pVload->status),
+             pVload->status, taosGetVnodeStatusStr(pVload->status),
              pVload->dropStatus, taosGetVnodeDropStatusStr(pVload->dropStatus),
              pVload->syncStatus, taosGetVnodeSyncStatusStr(pVload->syncStatus));
       totalVnodes++;
@@ -461,7 +461,6 @@ int mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
   int        cols = 0;
-  char       ipstr[20];
 
   if (0 == rows) return 0;
 

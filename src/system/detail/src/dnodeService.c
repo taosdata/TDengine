@@ -58,6 +58,7 @@ int main(int argc, char *argv[]) {
       char *versionStr = tsIsCluster ? "enterprise" : "community";
       printf("%s version: %s compatible_version: %s\n", versionStr, version, compatible_version);
       printf("gitinfo: %s\n", gitinfo);
+      printf("gitinfoI: %s\n", gitinfoOfInternal);
       printf("buildinfo: %s\n", buildinfo);
       return 0;
     } else if (strcmp(argv[i], "-k") == 0) {

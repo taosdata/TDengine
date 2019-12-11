@@ -26,9 +26,6 @@
 #include "tglobalcfg.h"
 #include "vnode.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Woverflow"
-
 SModule         tsModule[TSDB_MOD_MAX] = {0};
 uint32_t        tsModuleStatus = 0;
 pthread_mutex_t dmutex;
@@ -219,5 +216,3 @@ void dnodeCountRequest(SCountInfo *info) {
   info->selectReqNum = atomic_exchange_32(&vnodeSelectReqNum, 0);
   info->insertReqNum = atomic_exchange_32(&vnodeInsertReqNum, 0);
 }
-
-#pragma GCC diagnostic pop

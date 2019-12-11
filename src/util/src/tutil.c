@@ -108,6 +108,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
     if ((*num) >= size) {
       size = (size << 1);
       split = realloc(split, POINTER_BYTES * size);
+      assert(NULL != split);
     }
   }
 
@@ -445,7 +446,7 @@ bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len)
 #endif
 }
 
-bool taosValidateEncodec(char *encodec) {
+bool taosValidateEncodec(const char *encodec) {
 #ifdef USE_LIBICONV
   iconv_t cd = iconv_open(encodec, DEFAULT_UNICODE_ENCODEC);
   if (cd == (iconv_t)(-1)) {

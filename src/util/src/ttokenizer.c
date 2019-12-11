@@ -418,7 +418,12 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       int  delim = z[0];
       bool strEnd = false;
       for (i = 1; z[i]; i++) {
-        if (z[i] == delim) {
+        if (z[i] == '\\') { 
+          i++;
+          continue;
+        }
+        
+        if (z[i] == delim ) {
           if (z[i + 1] == delim) {
             i++;
           } else {
@@ -427,6 +432,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
           }
         }
       }
+      
       if (z[i]) i++;
 
       if (strEnd) {
@@ -504,7 +510,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       if ((z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' || z[i] == 'y' ||
           z[i] == 'w' || z[i] == 'A' || z[i] == 'S' || z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' ||
           z[i] == 'Y' || z[i] == 'W') &&
-          (isIdChar[z[i + 1]] == 0)) {
+          (isIdChar[(uint8_t)z[i + 1]] == 0)) {
         *tokenType = TK_VARIABLE;
         i += 1;
         return i;
@@ -545,7 +551,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
     case 't':
     case 'F':
     case 'f': {
-      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[z[i]]; i++) {
+      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
       }
 
       if ((i == 4 && strncasecmp(z, "true", 4) == 0) || (i == 5 && strncasecmp(z, "false", 5) == 0)) {
@@ -554,10 +560,10 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       }
     }
     default: {
-      if (((*z & 0x80) != 0) || !isIdChar[*z]) {
+      if (((*z & 0x80) != 0) || !isIdChar[(uint8_t) *z]) {
         break;
       }
-      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[z[i]]; i++) {
+      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
       }
       *tokenType = tSQLKeywordCode(z, i);
       return i;
