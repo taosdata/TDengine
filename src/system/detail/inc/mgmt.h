@@ -222,6 +222,8 @@ typedef struct _connObj {
   char             superAuth : 1;       // super user flag
   char             writeAuth : 1;       // write flag
   char             killConnection : 1;  // kill the connection flag
+  uint8_t          usePublicIp : 1;     // if the connection request is publicIp
+  uint8_t          reserved : 4;
   uint32_t         queryId;             // query ID to be killed
   uint32_t         streamId;            // stream ID to be killed
   uint32_t         ip;                  // shell IP
@@ -343,7 +345,7 @@ void mgmtCleanUpVgroups();
 int      mgmtInitMeters();
 STabObj *mgmtGetMeter(char *meterId);
 STabObj *mgmtGetMeterInfo(char *src, char *tags[]);
-int mgmtRetrieveMetricMeta(void *thandle, char **pStart, SMetricMetaMsg *pInfo);
+int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SMetricMetaMsg *pInfo);
 int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate);
 int mgmtDropMeter(SDbObj *pDb, char *meterId, int ignore);
 int mgmtAlterMeter(SDbObj *pDb, SAlterTableMsg *pAlter);

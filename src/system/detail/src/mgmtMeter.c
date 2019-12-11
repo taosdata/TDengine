@@ -987,7 +987,7 @@ SSchema *mgmtGetMeterSchema(STabObj *pMeter) {
 /*
  * serialize SVnodeSidList to byte array
  */
-static char *mgmtBuildMetricMetaMsg(STabObj *pMeter, int32_t *ovgId, SVnodeSidList **pList, SMetricMeta *pMeta,
+static char *mgmtBuildMetricMetaMsg(SConnObj *pConn, STabObj *pMeter, int32_t *ovgId, SVnodeSidList **pList, SMetricMeta *pMeta,
                                     int32_t tagLen, int16_t numOfTags, int16_t *tagsId, int32_t maxNumOfMeters,
                                     char *pMsg) {
   if (pMeter->gid.vgId != *ovgId || ((*pList) != NULL && (*pList)->numOfSids >= maxNumOfMeters)) {
@@ -1004,8 +1004,13 @@ static char *mgmtBuildMetricMetaMsg(STabObj *pMeter, int32_t *ovgId, SVnodeSidLi
 
     SVgObj *pVgroup = mgmtGetVgroup(pMeter->gid.vgId);
     for (int i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-      (*pList)->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
-      (*pList)->vpeerDesc[i].vnode = pVgroup->vnodeGid[i].vnode;
+      if (pConn->usePublicIp) {
+        (*pList)->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
+        (*pList)->vpeerDesc[i].vnode = pVgroup->vnodeGid[i].vnode;
+      } else {
+        (*pList)->vpeerDesc[i].ip = pVgroup->vnodeGid[i].ip;
+        (*pList)->vpeerDesc[i].vnode = pVgroup->vnodeGid[i].vnode;
+      }
     }
 
     pMsg += sizeof(SVnodeSidList);
@@ -1105,10 +1110,10 @@ static SMetricMetaElemMsg *doConvertMetricMetaMsg(SMetricMetaMsg *pMetricMetaMsg
   return pElem;
 }
 
-static int32_t mgmtBuildMetricMetaRspMsg(void *thandle, SMetricMetaMsg *pMetricMetaMsg, tQueryResultset *pResult,
+static int32_t mgmtBuildMetricMetaRspMsg(SConnObj *pConn, SMetricMetaMsg *pMetricMetaMsg, tQueryResultset *pResult,
                                          char **pStart, int32_t *tagLen, int32_t rspMsgSize, int32_t maxTablePerVnode,
                                          int32_t code) {
-  *pStart = taosBuildRspMsgWithSize(thandle, TSDB_MSG_TYPE_METRIC_META_RSP, rspMsgSize);
+  *pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_METRIC_META_RSP, rspMsgSize);
   if (*pStart == NULL) {
     return 0;
   }
@@ -1146,7 +1151,7 @@ static int32_t mgmtBuildMetricMetaRspMsg(void *thandle, SMetricMetaMsg *pMetricM
 
     for (int32_t i = 0; i < pResult[j].num; ++i) {
       STabObj *pMeter = pResult[j].pRes[i];
-      pMsg = mgmtBuildMetricMetaMsg(pMeter, &ovgId, &pList, pMeta, tagLen[j], pElem->numOfTags, pElem->tagCols,
+      pMsg = mgmtBuildMetricMetaMsg(pConn, pMeter, &ovgId, &pList, pMeta, tagLen[j], pElem->numOfTags, pElem->tagCols,
                                     maxTablePerVnode, pMsg);
     }
 
@@ -1162,7 +1167,7 @@ static int32_t mgmtBuildMetricMetaRspMsg(void *thandle, SMetricMetaMsg *pMetricM
   return msgLen;
 }
 
-int mgmtRetrieveMetricMeta(void *thandle, char **pStart, SMetricMetaMsg *pMetricMetaMsg) {
+int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SMetricMetaMsg *pMetricMetaMsg) {
   /*
    * naive method: Do not limit the maximum number of meters in each
    * vnode(subquery), split the result according to vnodes
@@ -1236,8 +1241,7 @@ int mgmtRetrieveMetricMeta(void *thandle, char **pStart, SMetricMetaMsg *pMetric
     msgLen = 512;
   }
 
-  msgLen = mgmtBuildMetricMetaRspMsg(thandle, pMetricMetaMsg, result, pStart, tagLen, msgLen, maxMetersPerVNodeForQuery,
-                                     ret);
+  msgLen = mgmtBuildMetricMetaRspMsg(pConn, pMetricMetaMsg, result, pStart, tagLen, msgLen, maxMetersPerVNodeForQuery, ret);
 
   for (int32_t i = 0; i < pMetricMetaMsg->numOfMeters; ++i) {
     tQueryResultClean(&result[i]);

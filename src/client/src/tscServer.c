@@ -2650,6 +2650,8 @@ int tscBuildConnectMsg(SSqlObj *pSql) {
   db = (db == NULL) ? pObj->db : db + 1;
   strcpy(pConnect->db, db);
 
+  strcpy(pConnect->clientVersion, version);
+
   pMsg += sizeof(SConnectMsg);
 
   msgLen = pMsg - pStart;

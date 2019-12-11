@@ -1222,6 +1222,7 @@ int taosSendMsgToPeerH(void *thandle, char *pCont, int contLen, void *ahandle) {
   pServer = pConn->pServer;
   pChann = pServer->channList + pConn->chann;
   pHeader = (STaosHeader *)(pCont - sizeof(STaosHeader));
+  pHeader->destIp = pConn->peerIp;
   msg = (char *)pHeader;
 
   if ((pHeader->msgType & 1U) == 0 && pConn->localPort) pHeader->port = pConn->localPort;

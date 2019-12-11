@@ -136,7 +136,7 @@ int dnodeInitSystem() {
   vnodeInitMgmtIp();
 
   tsPrintGlobalConfig();
-  dPrint("Server IP address is:%s", tsInternalIp);
+  dPrint("Server IP address is:%s", tsPrivateIp);
 
   taosSetCoreDump();
 
