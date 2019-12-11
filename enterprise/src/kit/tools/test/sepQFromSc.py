@@ -1,5 +1,6 @@
 import sys
 import os
+import Datetime
 
 if __name__ == "__main__":
   file = sys.argv[1]
@@ -15,6 +16,7 @@ if __name__ == "__main__":
   depsCounter = 0
   outOthersFd = open('%s.others' %file, 'w')
   otherCounter = 0
+  outCalFd = open('%s.count' %file, 'a')
   try:
     inputFd = open(file,'r')
     line = inputFd.readline()
@@ -60,3 +62,6 @@ if __name__ == "__main__":
   outDepsFd.close()
   outOthersFd.write('There is total %d qeustions except error/warnings\n' %otherCounter)
   outOthersFd.close()
+  outCalFd.write('%s   %d   %d   %d   %d   %d\n' \
+    %(datetime.date.today(), errCounter, warnCounter, otherCounter, testCounter, depsCounter))
+  outCalFd.close()
