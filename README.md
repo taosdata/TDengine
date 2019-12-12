@@ -39,10 +39,16 @@ sudo apt-get install maven
 ```
 
 Build TDengine:
-```cmd
 
+```
 mkdir build && cd build
 cmake .. && cmake --build .
+```
+
+if compiling on an arm64 processor, you need add one parameter:
+
+```cmd
+cmake .. -DARMVER=arm64 && cmake --build .
 ```
 
 # Quick Run
