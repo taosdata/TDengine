@@ -315,8 +315,7 @@ int mgmtDropDbByName(SAcctObj *pAcct, char *name) {
   pDb = (SDbObj *)sdbGetRow(dbSdb, name);
   if (pDb == NULL) {
     mWarn("db:%s is not there", name);
-    // return TSDB_CODE_INVALID_DB;
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_INVALID_DB;
   }
 
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
