@@ -503,7 +503,6 @@ int taosCheckVersion(char *input_client_version, char *input_server_version, int
   if (!taosGetVersionNumber(server_version, serverVersionNumber)) {
     pError("invalid server version:%s", server_version);
     return TSDB_CODE_INVALID_CLIENT_VERSION;
-    return NULL;
   }
 
   for(int32_t i = 0; i < comparedSegments; ++i) {
