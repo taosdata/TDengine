@@ -22,6 +22,8 @@
 ** The following is the concatenation of all %include directives from the
 ** input grammar file:
 */
+#pragma GCC diagnostic ignored "-Wunused-variable"
+
 #include <stdio.h>
 /************ Begin %include sections from the grammar ************************/
 
