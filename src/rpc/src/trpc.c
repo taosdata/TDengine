@@ -328,6 +328,10 @@ int taosSendSimpleRsp(void *thandle, char rsptype, char code) {
   }
 
   pStart = taosBuildRspMsgWithSize(thandle, rsptype, 32);
+  if (pStart == NULL) {
+    tError("build rsp msg error, return null prt");
+    return -1;
+  }
   pMsg = pStart;
 
   *pMsg = code;
