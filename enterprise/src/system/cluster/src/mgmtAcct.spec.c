@@ -263,7 +263,7 @@ int mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
 
   pAcct = (SAcctObj *)sdbGetRow(acctSdb, name);
   if (pAcct != NULL) {
-    return mgmtAlterAcct(name, pass, pCfg);
+    return TSDB_CODE_ACCT_ALREADY_EXIST;
   }
 
   int numOfUsers = sdbGetNumOfRows(userSdb);
