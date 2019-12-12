@@ -20,6 +20,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <signal.h>
+#include <inttypes.h>
 #include "taos.h"
 #include "tsclient.h"
 #include "tlog.h"
@@ -263,15 +264,15 @@ void printHelp() {
   printf("%s%s\n", indent, "-r");
   printf("%s%s%s%ld\n", indent, indent, "Number of records to write to each table, default is ", rowsPerTable);
   printf("%s%s\n", indent, "-p");
-  printf("%s%s%s%ld\n", indent, indent, "Number of columns per table, default is ", pointsPerTable);
+  printf("%s%s%s%" PRId64 "\n", indent, indent, "Number of columns per table, default is ", pointsPerTable);
   printf("%s%s\n", indent, "-t");
-  printf("%s%s%s%ld\n", indent, indent, "Number of threads to be used, default is ", numOfThreads);
+  printf("%s%s%s%" PRId64 "\n", indent, indent, "Number of threads to be used, default is ", numOfThreads);
   printf("%s%s\n", indent, "-n");
-  printf("%s%s%s%ld\n", indent, indent, "Number of tables per thread, default is ", numOfTablesPerThread);
+  printf("%s%s%s%" PRId64 "\n", indent, indent, "Number of tables per thread, default is ", numOfTablesPerThread);
   printf("%s%s\n", indent, "-tables");
-  printf("%s%s%s%ld\n", indent, indent, "Database parameters tables, default is ", tables);
+  printf("%s%s%s%d\n", indent, indent, "Database parameters tables, default is ", tables);
   printf("%s%s\n", indent, "-cache");
-  printf("%s%s%s%ld\n", indent, indent, "Database parameters cache, default is ", cache);
+  printf("%s%s%s%d\n", indent, indent, "Database parameters cache, default is ", cache);
 
   exit(EXIT_SUCCESS);
 }
@@ -308,12 +309,12 @@ void shellParseArgument(int argc, char *argv[]) {
     } else {}
   }
 
-  dPrint("%srowsPerTable:%ld%s", GREEN, rowsPerTable, NC);
-  dPrint("%spointsPerTable:%ld%s", GREEN, pointsPerTable, NC);
-  dPrint("%snumOfThreads:%ld%s", GREEN, numOfThreads, NC);
-  dPrint("%snumOfTablesPerThread:%ld%s", GREEN, numOfTablesPerThread, NC);
-  dPrint("%scache:%ld%s", GREEN, cache, NC);
-  dPrint("%stables:%ld%s", GREEN, tables, NC);
+  dPrint("%srowsPerTable:%" PRId64 "%s", GREEN, rowsPerTable, NC);
+  dPrint("%spointsPerTable:%" PRId64 "%s", GREEN, pointsPerTable, NC);
+  dPrint("%snumOfThreads:%" PRId64 "%s", GREEN, numOfThreads, NC);
+  dPrint("%snumOfTablesPerThread:%" PRId64 "%s", GREEN, numOfTablesPerThread, NC);
+  dPrint("%scache:%" PRId64 "%s", GREEN, cache, NC);
+  dPrint("%stables:%" PRId64 "%s", GREEN, tables, NC);
   dPrint("%sdbName:%s%s", GREEN, dbName, NC);
   dPrint("%stableName:%s%s", GREEN, stableName, NC);
   dPrint("%sstart to run%s", GREEN, NC);
