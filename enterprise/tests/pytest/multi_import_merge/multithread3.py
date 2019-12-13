@@ -76,7 +76,7 @@ class TDTestCase:
     tdLog.info("total records in each table = %ld" %(self.nthreads*self.nrows))
 
     tdSql.execute('reset query cache')
-    tdSql.execute('drop database db')
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db ')
     tdLog.sleep(5)
     tdSql.execute('use db')

@@ -31,7 +31,7 @@ class TDTestCase:
     tdDnodes.deploy(1)
     tdDnodes.start(1)
     tdSql.execute('reset query cache')
-    tdSql.execute('drop database db')
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db cache 512 tables 10')
     tdSql.execute('use db')
 
