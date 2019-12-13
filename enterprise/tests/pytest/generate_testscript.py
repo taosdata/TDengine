@@ -5,7 +5,8 @@ import os
 modules = ['import_merge',\
            'multi_import_merge']
 cluster_modules = ['cluster',\
-                   'cluster_mgmt']             
+                   'cluster_mgmt',\
+                   'import_cluster']             
 
 rootDir = os.getcwd()
 outfile = 'testlist.sh'

@@ -32,7 +32,7 @@ class TDSql:
 	def prepare(self):
 		tdLog.info("prepare database:db")	
 		self.cursor.execute('reset query cache')
-		self.cursor.execute('drop database db')
+		self.cursor.execute('drop database if exists db')
 		self.cursor.execute('create database db')
 		self.cursor.execute('use db')
 	

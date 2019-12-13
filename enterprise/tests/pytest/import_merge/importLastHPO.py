@@ -29,7 +29,7 @@ class TDTestCase:
     self.rows = 200
 
     tdSql.execute('reset query cache')
-    tdSql.execute('drop database db')
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db rows %d' %self.rows)
     tdSql.execute('use db')
 
