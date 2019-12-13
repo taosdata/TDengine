@@ -29,7 +29,7 @@ if __name__=="__main__":
     for file in os.listdir(moduleDir):
       if file.startswith("_"): continue
       if file.endswith(".pyc"): continue
-      shcmd = 'python2 %s/est.py -f %s/%s/%s -c\n' %(rootDir, rootDir, module, file)
+      shcmd = 'python2 %s/test.py -f %s/%s/%s -c\n' %(rootDir, rootDir, module, file)
       outfd.write(shcmd)
   
   outfd.close()
