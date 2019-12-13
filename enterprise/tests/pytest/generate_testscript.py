@@ -34,7 +34,7 @@ if __name__=="__main__":
       outfd.write(shcmd)
   
   outfd.close()
-  shcmd = 'chmod 755 %s' %outfile
+  shcmd = 'sudo chmod 755 %s' %outfile
   if os.system(shcmd) != 0:
     print '%s: failed' %shcmd
-  sys.exit(1)
+    sys.exit(1)
