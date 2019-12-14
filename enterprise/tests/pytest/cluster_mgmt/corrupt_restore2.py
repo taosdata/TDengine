@@ -34,7 +34,7 @@ class TDTestCase:
     tdDnodes.deploy(2)
     tdDnodes.cfg(2,"numOfMPeers", "2")
     tdDnodes.start(2)
-    tdLog.sleep(10)
+    tdLog.sleep(5)
 
   def run(self):
     self.replica = 2
@@ -46,6 +46,7 @@ class TDTestCase:
     tdLog.sleep(5)
     tdSql.execute('use db')
     tdSql.execute('create table tb1 (ts timestamp, i int, f float)')
+    tdLog.sleep(5)
     tdSql.execute('insert into tb1 values(%ld, %d, %f)' %(self.startTime+1, 1, 1.1))
 
     tdLog.info("================= step2")
@@ -61,7 +62,7 @@ class TDTestCase:
     files = os.listdir(dnode2DataDir)
     fileToMod = "%s/%s" %(dnode2DataDir, files[0])
     oldFileSize = os.path.getsize(fileToMod)
-    cmd = "echo \"hello world\" > %s" %(dnode2DataDir, fileToMod)
+    cmd = "echo \"hello world\" > %s" %(fileToMod)
     if os.system(cmd) != 0 :
       tdLog.exit(cmd)
 

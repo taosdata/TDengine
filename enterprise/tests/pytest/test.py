@@ -141,8 +141,8 @@ from util.cases import *
 ##from cluster_mgmt.sync_resync_createtb import *
 ##from cluster_mgmt.sync_resync_droptb import *
 ##from cluster_mgmt.kill_corruptmgmt_restart import *
-from cluster_mgmt.corrupt_restore import *
-from cluster_mgmt.corrupt_restore2 import *
+##from cluster_mgmt.corrupt_restore import *  #TBASE-601
+##from cluster_mgmt.corrupt_restore2 import * #TBASE-601
 ##
 from import_merge.importHead import *
 from import_merge.importTail import *
