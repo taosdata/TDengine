@@ -1,5 +1,6 @@
 currentDate=`date +%Y%m%d`
 outputf=static_check_report$currentDate
+recordf=record_static_check
 homeDir=/home/ubuntu/fpan/workspace
 sourceDir=$homeDir/TDinternal
 pwdDir=`pwd`
@@ -16,9 +17,9 @@ cppcheck -q --enable=all --output-file=$outputf -rp=$sourceDir $sourceDir
 git checkout feature/fangtest
 git pull
 #git merge develop
-cp $homeDir/report/record* ./
+cp $homeDir/report/$recordf ./
 python2 sepQFromSc.py $outputf
 rm -rf $homeDir/report/static*
 mv *$outputf* $homeDir/report/
-mv record* $homeDir/report/
+mv $recordf $homeDir/report/
 echo "static check has finished and result is in the report directory"
