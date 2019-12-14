@@ -85,13 +85,13 @@ from util.cases import *
 ##from bug.connect_repeat import *
 ##
 ##from cluster.alter_replica import *
-from cluster.alter_replica2 import *
+##from cluster.alter_replica2 import *
 ##from cluster.alter_replica3 import *
 ##from cluster.create_droptb import *
 ##from cluster.single_upgrade import *
 ##from cluster.monitor_upgrade import *
 ##from cluster.sync_createtb import *
-from cluster.sync_createtb2 import *
+##from cluster.sync_createtb2 import *
 ##from cluster.sync_droptb import *
 ##from cluster.sync_droptb2 import *
 ##from cluster.sync_altertb import *
@@ -100,8 +100,8 @@ from cluster.sync_createtb2 import *
 ##from cluster.sync_dropdb2 import *
 ##from cluster.offline_droptb_online import *
 ##from cluster.offline_droptb_online2 import *
-from cluster.offline_createtb_online import *
-from cluster.offline_createtb_online2 import *
+##from cluster.offline_createtb_online import *
+##from cluster.offline_createtb_online2 import *
 ##from cluster.offline_altertb_online import *
 ##from cluster.offline_altertb_online2 import *
 ##from cluster.offline_dropdb_online import *
@@ -115,8 +115,8 @@ from cluster.offline_createtb_online2 import *
 ##from cluster.kill_timeout import *
 ##from cluster.kill_timeout_restart import *
 ##from cluster.kill_timeout_restart2 import *
-from cluster.nw_disable_timeout import *
-from cluster.nw_disable_timeout_restart import *
+##from cluster.nw_disable_timeout import *
+##from cluster.nw_disable_timeout_restart import *
 ##from cluster.nw_disable_able import *
 ##from cluster.kill_most import *
 ##from cluster.kill_most_restart import *
@@ -132,7 +132,7 @@ from cluster.nw_disable_timeout_restart import *
 ##from cluster_mgmt.multi_alter import *
 ##from cluster_mgmt.kill_alter_restart import *
 ##from cluster_mgmt.kill_most import *
-from cluster_mgmt.kill_most_restart import *
+##from cluster_mgmt.kill_most_restart import *
 ##from cluster_mgmt.kill_all_restart import *
 ##from cluster_mgmt.sync_altertb import *
 ##from cluster_mgmt.sync_createtb import *
@@ -141,6 +141,8 @@ from cluster_mgmt.kill_most_restart import *
 ##from cluster_mgmt.sync_resync_createtb import *
 ##from cluster_mgmt.sync_resync_droptb import *
 ##from cluster_mgmt.kill_corruptmgmt_restart import *
+from cluster_mgmt.corrupt_restore import *
+from cluster_mgmt.corrupt_restore2 import *
 ##
 from import_merge.importHead import *
 from import_merge.importTail import *
