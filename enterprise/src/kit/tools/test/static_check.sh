@@ -3,7 +3,7 @@ outputf=static_check_report$currentDate
 recordf=record_static_check
 homeDir=/home/ubuntu/fpan/workspace
 sourceDir=$homeDir/TDinternal
-pwdDir=`pwd`
+pyDir=$sourceDir/enterprise/src/kit/tools/test
 
 cd $sourceDir/community
 git checkout develop
@@ -11,14 +11,14 @@ git pull
 cd $sourceDir/enterprise
 git checkout develop
 git pull
-cd $pwdDir
 echo "begin the static check >>>>>>"
-cppcheck -q --enable=all --output-file=$outputf -rp=$sourceDir $sourceDir 
+cppcheck -q --enable=all --output-file=$outputf -rp=$homeDir $sourceDir 
 git checkout feature/fangtest
 git pull
 #git merge develop
+cd $homeDir
 cp $homeDir/report/$recordf ./
-python2 sepQFromSc.py $outputf
+python2 $pyDir/sepQFromSc.py $outputf
 rm -rf $homeDir/report/static*
 mv *$outputf* $homeDir/report/
 mv $recordf $homeDir/report/
