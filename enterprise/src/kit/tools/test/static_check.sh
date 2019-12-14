@@ -10,11 +10,11 @@ git checkout develop
 git pull
 cd $sourceDir/enterprise
 git checkout develop
-git pull
+sudo git pull
 echo "begin the static check >>>>>>"
 cppcheck -q --enable=all --output-file=$outputf -rp=$homeDir $sourceDir 
 git checkout feature/fangtest
-git pull
+sudo git pull
 #git merge develop
 cd $homeDir
 cp $homeDir/report/$recordf ./
