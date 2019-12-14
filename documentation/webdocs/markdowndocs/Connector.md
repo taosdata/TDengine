@@ -510,7 +510,7 @@ Query OK, 1 row(s) in set (0.000141s)
 ## Python Connector
 
 ### Pre-requirement
-* TDengine installed, TDengine-client installed if on Windows
+* TDengine installed, TDengine-client installed if on Windows [(Windows TDengine client installation)](https://www.taosdata.com/cn/documentation/connector/#Windows客户端及程序接口)
 * python 2.7 or >= 3.4
 * pip installed
 
