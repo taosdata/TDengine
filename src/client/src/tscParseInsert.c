@@ -759,20 +759,84 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
       return tscInvalidSQLErrMsg(pCmd->payload, "create table only from super table is allowed", sToken.z);
     }
 
-    char *   tagVal = pTag->data;
     SSchema *pTagSchema = tsGetTagSchema(pMeterMetaInfo->pMeterMeta);
 
     index = 0;
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
     sql += index;
+
+    SParsedDataColInfo spd = {0};   
+    uint8_t numOfTags = pMeterMetaInfo->pMeterMeta->numOfTags;
+    spd.numOfCols = numOfTags;
+
+    // if specify some tags column
+    if (sToken.type != TK_LP) {
+      tscSetAssignedColumnInfo(&spd, pTagSchema, numOfTags);
+    } else {
+      /* insert into tablename (col1, col2,..., coln) using superTableName (tagName1, tagName2, ..., tagNamen) tags(tagVal1, tagVal2, ..., tagValn) values(v1, v2,... vn); */
+      int16_t offset[TSDB_MAX_COLUMNS] = {0};
+      for (int32_t t = 1; t < numOfTags; ++t) {
+        offset[t] = offset[t - 1] + pTagSchema[t - 1].bytes;
+      }
+
+      while (1) {
+        index = 0;
+        sToken = tStrGetToken(sql, &index, false, 0, NULL);
+        sql += index;
+
+        if (TK_STRING == sToken.type) {
+          sToken.n = strdequote(sToken.z);
+          strtrim(sToken.z);
+          sToken.n = (uint32_t)strlen(sToken.z);
+        }
+
+        if (sToken.type == TK_RP) {
+          break;
+        }
+
+        bool findColumnIndex = false;
+
+        // todo speedup by using hash list
+        for (int32_t t = 0; t < numOfTags; ++t) {
+          if (strncmp(sToken.z, pTagSchema[t].name, sToken.n) == 0 && strlen(pTagSchema[t].name) == sToken.n) {
+            SParsedColElem *pElem = &spd.elems[spd.numOfAssignedCols++];
+            pElem->offset   = offset[t];
+            pElem->colIndex = t;
+
+            if (spd.hasVal[t] == true) {
+              return tscInvalidSQLErrMsg(pCmd->payload, "duplicated tag name", sToken.z);
+            }
+
+            spd.hasVal[t]   = true;
+            findColumnIndex = true;
+            break;
+          }
+        }
+
+        if (!findColumnIndex) {
+          return tscInvalidSQLErrMsg(pCmd->payload, "invalid tag name", sToken.z);
+        }
+      }
+
+      if (spd.numOfAssignedCols == 0 || spd.numOfAssignedCols > numOfTags) {
+        return tscInvalidSQLErrMsg(pCmd->payload, "tag name expected", sToken.z);
+      }
+    }
+    
+    index = 0;
+    sToken = tStrGetToken(sql, &index, false, 0, NULL);
+    sql += index;
+    
     if (sToken.type != TK_TAGS) {
-      return tscInvalidSQLErrMsg(pCmd->payload, "keyword TAGS expected", sql);
+      return tscInvalidSQLErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z);
     }
 
-    int32_t  numOfTagValues = 0;
     uint32_t ignoreTokenTypes = TK_LP;
     uint32_t numOfIgnoreToken = 1;
-    while (1) {
+    for (int i = 0; i < spd.numOfAssignedCols; ++i) {
+      char*   tagVal   = pTag->data + spd.elems[i].offset;
+      int16_t colIndex = spd.elems[i].colIndex;
+    
       index = 0;
       sToken = tStrGetToken(sql, &index, true, numOfIgnoreToken, &ignoreTokenTypes);
       sql += index;
@@ -788,26 +852,39 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
         sToken.n -= 2;
       }
 
-      code = tsParseOneColumnData(&pTagSchema[numOfTagValues], &sToken, tagVal, pCmd->payload, &sql, false,
-                                  pMeterMetaInfo->pMeterMeta->precision);
+      code = tsParseOneColumnData(&pTagSchema[colIndex], &sToken, tagVal, pCmd->payload, &sql, false, pMeterMetaInfo->pMeterMeta->precision);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
 
-      if ((pTagSchema[numOfTagValues].type == TSDB_DATA_TYPE_BINARY ||
-           pTagSchema[numOfTagValues].type == TSDB_DATA_TYPE_NCHAR) && sToken.n > pTagSchema[numOfTagValues].bytes) {
+      if ((pTagSchema[colIndex].type == TSDB_DATA_TYPE_BINARY ||
+           pTagSchema[colIndex].type == TSDB_DATA_TYPE_NCHAR) && sToken.n > pTagSchema[colIndex].bytes) {
         return tscInvalidSQLErrMsg(pCmd->payload, "string too long", sToken.z);
       }
-
-      tagVal += pTagSchema[numOfTagValues++].bytes;
     }
 
-    if (numOfTagValues != pMeterMetaInfo->pMeterMeta->numOfTags) {
-      return tscInvalidSQLErrMsg(pCmd->payload, "number of tags mismatch", sql);
+    index = 0;
+    sToken = tStrGetToken(sql, &index, false, 0, NULL);
+    sql += index;
+    if (sToken.n == 0 || sToken.type != TK_RP) {
+      return tscInvalidSQLErrMsg(pCmd->payload, ") expected", sToken.z);
+    }
+
+    // 2. set the null value for the columns that do not assign values
+    if (spd.numOfAssignedCols < spd.numOfCols) {
+      char *ptr = pTag->data;
+    
+      for (int32_t i = 0; i < spd.numOfCols; ++i) {
+        if (!spd.hasVal[i]) { // current tag column do not have any value to insert, set it to null
+          setNull(ptr, pTagSchema[i].type, pTagSchema[i].bytes);
+        }
+    
+        ptr += pTagSchema[i].bytes;
+      }    
     }
 
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
-      return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", sql);
+      return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);
     }
 
     int32_t ret = setMeterID(pSql, &tableToken, 0);
