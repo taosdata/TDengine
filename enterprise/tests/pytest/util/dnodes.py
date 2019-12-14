@@ -137,6 +137,7 @@ class TDDnode:
     self.cfg("locale", "en_US.UTF-8")
     self.cfg("charset", "UTF-8")
     self.cfg("asyncLog", "0")
+    self.cfg("anyIp", "0")
     self.cfg("dDebugFlag", "135")
     self.cfg("mDebugFlag", "135")
     self.cfg("sdbDebugFlag", "135")

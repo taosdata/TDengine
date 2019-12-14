@@ -142,7 +142,7 @@ class TDTestCase:
     self.successFlag = True
 
     tdSql.execute('reset query cache')
-    tdSql.execute('drop database db')
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db replica 2')
     tdLog.sleep(5)
     tdSql.execute('use db')
