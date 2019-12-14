@@ -502,7 +502,7 @@ Query OK, 1 row(s) in set (0.000141s)
 ## Python Connector
 
 ### 安装准备
-* 已安装TDengine, 如果客户端在Windows上，需要安装Windows 版本的TDengine客户端
+* 已安装TDengine, 如果客户端在Windows上，需要安装Windows 版本的TDengine客户端 [（Windows TDengine 客户端安装）](https://www.taosdata.com/cn/documentation/connector/#Windows客户端及程序接口)
 * 已安装python 2.7 or >= 3.4
 * 已安装pip
 
@@ -1111,6 +1111,13 @@ TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序
 在Windows系统上，应用程序可以使用JDBC接口来操纵数据库，使用JDBC接口的注意事项如下：
 
 + 将JDBC驱动程序(JDBCDriver-1.0.0-dist.jar)放置到当前的CLASS_PATH中;
+
++ 将Windows开发包(taos.dll)放置到system32目录下。
+
+#### python接口注意事项
+在Windows系统上，应用程序可以通过导入taos这个模块来操纵数据库，使用python接口的注意事项如下：
+
++ 确定在Windows上安装了TDengine客户端
 
 + 将Windows开发包(taos.dll)放置到system32目录下。
 
