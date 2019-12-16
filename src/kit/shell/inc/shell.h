@@ -58,6 +58,8 @@ struct arguments {
   bool  is_raw_time;
   bool  is_use_passwd;
   char  file[TSDB_FILENAME_LEN];
+  char  dir[TSDB_FILENAME_LEN];
+  int   threadNum;
   char* commands;
   int   abort;
 };
@@ -74,12 +76,14 @@ void shellRunCommandOnServer(TAOS* con, char command[]);
 void read_history();
 void write_history();
 void source_file(TAOS* con, char* fptr);
+void source_dir(TAOS* con, struct arguments* args);
 void get_history_path(char* history);
 void cleanup_handler(void* arg);
 void exitShell();
 int shellDumpResult(TAOS* con, char* fname, int* error_no, bool printMode);
 void shellPrintNChar(char* str, int width, bool printMode);
 void shellGetGrantInfo(void *con);
+int isCommentLine(char *line);
 #define max(a, b) ((int)(a) < (int)(b) ? (int)(b) : (int)(a))
 
 /**************** Global variable declarations ****************/

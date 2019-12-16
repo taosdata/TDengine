@@ -40,6 +40,8 @@ static struct argp_option options[] = {
   {"commands",   's', "COMMANDS",   0,                   "Commands to run without enter the shell."},
   {"raw-time",   'r', 0,            0,                   "Output time as uint64_t."},
   {"file",       'f', "FILE",       0,                   "Script to run without enter the shell."},
+  {"directory",  'D', "DIRECTORY",  0,                   "Use multi-thread to import all SQL files in the directory separately."},
+  {"thread",     'T', "THREADNUM",  0,                   "Number of threads when using multi-thread to import data."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   't', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
   {0}};
@@ -88,6 +90,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       }
       strcpy(arguments->file, full_path.we_wordv[0]);
       wordfree(&full_path);
+      break;
+    case 'D':
+      if (wordexp(arg, &full_path, 0) != 0) {
+        fprintf(stderr, "Invalid path %s\n", arg);
+        return -1;
+      }
+      strcpy(arguments->dir, full_path.we_wordv[0]);
+      wordfree(&full_path);
+      break;
+    case 'T':
+      arguments->threadNum = atoi(arg);
       break;
     case 'd':
       arguments->database = arg;
