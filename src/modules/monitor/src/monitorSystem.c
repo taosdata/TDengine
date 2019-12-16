@@ -14,6 +14,7 @@
  */
 
 #include "monitor.h"
+#include <inttypes.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -113,11 +114,7 @@ void monitorInitConn(void *para, void *unused) {
   monitor->state = MONITOR_STATE_INITIALIZING;
 
   if (monitor->privateIpStr[0] == 0) {
-#ifdef CLUSTER
     strcpy(monitor->privateIpStr, tsPrivateIp);
-#else
-    strcpy(monitor->privateIpStr, tsInternalIp);
-#endif
     for (int i = 0; i < TSDB_IPv4ADDR_LEN; ++i) {
       if (monitor->privateIpStr[i] == '.') {
         monitor->privateIpStr[i] = '_';
@@ -167,11 +164,7 @@ void dnodeBuildMonitorSql(char *sql, int cmd) {
              tsMonitorDbName, IP_LEN_STR + 1);
   } else if (cmd == MONITOR_CMD_CREATE_TB_DN) {
     snprintf(sql, SQL_LENGTH, "create table if not exists %s.dn_%s using %s.dn tags('%s')", tsMonitorDbName,
-#ifdef CLUSTER
              monitor->privateIpStr, tsMonitorDbName, tsPrivateIp);
-#else
-             monitor->privateIpStr, tsMonitorDbName, tsInternalIp);
-#endif
   } else if (cmd == MONITOR_CMD_CREATE_MT_ACCT) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.acct(ts timestamp "
@@ -226,10 +219,8 @@ void monitorInitDatabaseCb(void *param, TAOS_RES *result, int code) {
       taosLogSqlFp = monitorExecuteSQL;
 #ifdef CLUSTER
       taosLogAcctFp = monitorSaveAcctLog;
-      monitorLPrint("dnode:%s is started", tsPrivateIp);
-#else
-      monitorLPrint("dnode:%s is started", tsInternalIp);
 #endif
+      monitorLPrint("dnode:%s is started", tsPrivateIp);
     }
     monitor->cmdIndex++;
     monitorInitDatabase();
@@ -245,11 +236,7 @@ void monitorStopSystem() {
     return;
   }
 
-#ifdef CLUSTER
   monitorLPrint("dnode:%s monitor module is stopped", tsPrivateIp);
-#else
-  monitorLPrint("dnode:%s monitor module is stopped", tsInternalIp);
-#endif
   monitor->state = MONITOR_STATE_STOPPED;
   taosLogFp = NULL;
   if (monitor->initTimer != NULL) {
@@ -376,7 +363,7 @@ void monitorSaveSystemInfo() {
 
   int64_t ts = taosGetTimestampUs();
   char *  sql = monitor->sql;
-  int pos = snprintf(sql, SQL_LENGTH, "insert into %s.dn_%s values(%ld", tsMonitorDbName, monitor->privateIpStr, ts);
+  int pos = snprintf(sql, SQL_LENGTH, "insert into %s.dn_%s values(%" PRId64, tsMonitorDbName, monitor->privateIpStr, ts);
 
   pos += monitorBuildCpuSql(sql + pos);
   pos += monitorBuildMemorySql(sql + pos);
@@ -402,21 +389,29 @@ void monitorSaveAcctLog(char *acctId, int64_t currentPointsPerSecond, int64_t ma
   char sql[1024] = {0};
   sprintf(sql,
           "insert into %s.acct_%s using %s.acct tags('%s') values(now"
-          ", %ld, %ld "
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
-          ", %ld, %ld"
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
+	      ", %" PRId64 ", %" PRId64
           ", %d)",
-          tsMonitorDbName, acctId, tsMonitorDbName, acctId, currentPointsPerSecond, maxPointsPerSecond, totalTimeSeries,
-          maxTimeSeries, totalStorage, maxStorage, totalQueryTime, maxQueryTime, totalInbound, maxInbound,
-          totalOutbound, maxOutbound, totalDbs, maxDbs, totalUsers, maxUsers, totalStreams, maxStreams, totalConns,
-          maxConns, accessState);
+          tsMonitorDbName, acctId, tsMonitorDbName, acctId,
+          currentPointsPerSecond, maxPointsPerSecond,
+          totalTimeSeries, maxTimeSeries,
+          totalStorage, maxStorage,
+          totalQueryTime, maxQueryTime,
+          totalInbound, maxInbound,
+          totalOutbound, maxOutbound,
+          totalDbs, maxDbs,
+          totalUsers, maxUsers,
+          totalStreams, maxStreams,
+          totalConns, maxConns,
+          accessState);
 
   monitorTrace("monitor:%p, save account info, sql %s", monitor->conn, sql);
   taos_query_a(monitor->conn, sql, dnodeMontiorInsertAcctCallback, "account");
@@ -431,7 +426,7 @@ void monitorSaveLog(int level, const char *const format, ...) {
     return;
   }
 
-  int len = snprintf(sql, (size_t)max_length, "import into %s.log values(%ld, %d,'", tsMonitorDbName,
+  int len = snprintf(sql, (size_t)max_length, "import into %s.log values(%" PRId64 ", %d,'", tsMonitorDbName,
                      taosGetTimestampUs(), level);
 
   va_start(argpointer, format);
@@ -439,11 +434,7 @@ void monitorSaveLog(int level, const char *const format, ...) {
   va_end(argpointer);
   if (len > max_length) len = max_length;
 
-#ifdef CLUSTER
   len += sprintf(sql + len, "', '%s')", tsPrivateIp);
-#else
-  len += sprintf(sql + len, "', '%s')", tsInternalIp);
-#endif
   sql[len++] = 0;
 
   monitorTrace("monitor:%p, save log, sql: %s", monitor->conn, sql);

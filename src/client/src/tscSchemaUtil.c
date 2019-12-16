@@ -83,6 +83,13 @@ struct SSchema* tsGetColumnSchema(SMeterMeta* pMeta, int32_t startCol) {
   return (SSchema*)(((char*)pMeta + sizeof(SMeterMeta)) + startCol * sizeof(SSchema));
 }
 
+struct SSchema tsGetTbnameColumnSchema() {
+  struct SSchema s = {.colId = TSDB_TBNAME_COLUMN_INDEX, .type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_METER_NAME_LEN};
+  strcpy(s.name, TSQL_TBNAME_L);
+  
+  return s;
+}
+
 /**
  * the MeterMeta data format in memory is as follows:
  *
@@ -123,7 +130,7 @@ bool tsMeterMetaIdentical(SMeterMeta* p1, SMeterMeta* p2) {
   return memcmp(p1, p2, size) == 0;
 }
 
-//todo refactor
+// todo refactor
 static FORCE_INLINE char* skipSegments(char* input, char delimiter, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
     while (*input != 0 && *input++ != delimiter) {

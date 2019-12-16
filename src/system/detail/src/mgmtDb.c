@@ -54,8 +54,8 @@ void mgmtDbActionInit() {
 }
 
 void *mgmtDbAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtDbActionFp[action] != NULL) {
-    return (*(mgmtDbActionFp[action]))(row, str, size, ssize);
+  if (mgmtDbActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtDbActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }
@@ -310,10 +310,11 @@ int mgmtDropDb(SDbObj *pDb) {
   }
 }
 
-int mgmtDropDbByName(SAcctObj *pAcct, char *name) {
+int mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists) {
   SDbObj *pDb;
   pDb = (SDbObj *)sdbGetRow(dbSdb, name);
   if (pDb == NULL) {
+    if (ignoreNotExists) return TSDB_CODE_SUCCESS;
     mWarn("db:%s is not there", name);
     return TSDB_CODE_INVALID_DB;
   }

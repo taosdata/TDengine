@@ -23,6 +23,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <error.h>
 #include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>
@@ -71,6 +72,7 @@ extern "C" {
 #include <wchar.h>
 #include <wordexp.h>
 #include <wctype.h>
+#include <inttypes.h>
 
 
 #define taosCloseSocket(x) \
