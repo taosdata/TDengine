@@ -13,33 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <argp.h>
-#include <assert.h>
-#include <error.h>
-#include <fcntl.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <sys/stat.h>
-#include <string.h>
-#include <errno.h>
-#include <pthread.h>
+#define _XOPEN_SOURCE
+#define _DEFAULT_SOURCE
 
-#include "taos.h"
-#include "tglobalcfg.h"
+#include "os.h"
 #include "tlog.h"
 #include "ihash.h"
 #include "shash.h"
 #include "tsdb.h"
 #include "taosmsg.h"
 #include "tutil.h"
+#include "ttime.h"
 
-int64_t taosGetMsFromYYYYMMDD(const char* timeStr) {
+#define TIME_UNIT 1000  //ms
+#define COMMAND_SIZE (50*1024)
+#define MAX_TABLES 100000
+#define MAX_DAYS 365*50
+#define BEGIN_DAYS (946656000L * TIME_UNIT) //2001-01-01 00:00:00
+#define INTERVAL_DAYS (86400 * TIME_UNIT)  //ms
+
+// pre define
+bool taosContainSchema = true;
+
+int64_t tdGetMsFromYYYYMMDD(const char* timeStr) {
   if (timeStr == 0) {
     fprintf(stderr, "time string is null\n");
     return 0;
@@ -53,13 +49,13 @@ int64_t taosGetMsFromYYYYMMDD(const char* timeStr) {
     return 0;
   }
 
-  int64_t expire = mktime(&tm);
-  if (expire <= 0) {
+  int64_t second = mktime(&tm);
+  if (second <= 0) {
     fprintf(stderr, "time should larger than 0\n");
     return 0;
   }
 
-  return expire;
+  return second * TIME_UNIT;
 }
 
 const char *argp_program_version = version;
@@ -82,25 +78,25 @@ static char args_doc[] = "dbname [tbname ...]\n--databases dbname ...\n--all-dat
 /* The options we understand. */
 static struct argp_option options[] = {
     // input option
-    {"inputDir",     'i', "./input",    0, "Raw data file path",                                                                       0},
-    {"beginTime",    'b', "YYYY-MM-DD", 0, "Raw data start time, need to be specified when repeat is greater than 1",                  0},
-    {"endTime",      'e', "YYYY-MM-DD", 0, "Raw data end time, need to be specified when repeat is greater than 1",                    0},
+    {"inputDir",     'i', "./input",        0, "Raw data file path",                                                                       0},
+    {"beginTime",    'b', "YYYY-MM-DD",     0, "Raw data start time, need to be specified when repeat is greater than 1",                  0},
+    {"endTime",      'e', "YYYY-MM-DD",     0, "Raw data end time, need to be specified when repeat is greater than 1",                    0},
 
     // output option
-    {"outputDir",    'o', "./output",   0, "Output data file path",                                                                    1},
-    {"numOfFiles",   'n', "100",        0, "Number of generated SQL files",                                                            1},
-    {"repeat",       'r', "0",          0, "Repeat number of splits, if 0, only statistics",                                           1},
-    {"generateTime", 'g', "YYYY-MM-DD", 0, "The time when the data was generated, need to be specified when repeat is greater than 1", 1},
+    {"outputDir",    'o', "./output",       0, "Output data file path",                                                                    1},
+    {"numOfFiles",   'n', "10",             0, "Number of generated SQL files",                                                            1},
+    {"repeat",       'r', "0",              0, "Repeat number of splits, if 0, only statistics",                                           1},
+    {"generateTime", 'g', "YYYY-MM-DD",     0, "The time when the data was generated, need to be specified when repeat is greater than 1", 1},
 
     // database option
-    {"database",     'd', "100",        0, "The name of the database to be created",                                                   2},
-    {"ablocks",      'a', "4",          0, "Ablocks option for the database to be created",                                            2},
-    {"cache",        'c', "16384",      0, "Cache options for the database to be created",                                             2},
-    {"stable",       's', "st",         0, "The name of the super table to be created",                                                2},
-    {"prefix",       'p', "t_",         0, "Prefix of table name to be created",                                                       2},
-    {"batch ",       'p', "0",          0, "Number of batches of SQL statements, When it is 0, it means that 50K of SQL is specified", 2},
+    {"database",     'd', "db",             0, "The name of the database to be created",                                                   2},
+    {"ablocks",      'a', "4",              0, "Ablocks option for the database to be created",                                            2},
+    {"cache",        'c', "16384",          0, "Cache options for the database to be created",                                             2},
+    {"stable",       's', "UVMP_MON_TRACK", 0, "The name of the super table to be created",                                                2},
+    {"prefix",       'p', "u_",             0, "Prefix of table name to be created",                                                       2},
+    {"batch ",       'B', "0",              0, "Number of batches of SQL statements, When it is 0, it means that 50K of SQL is specified", 2},
 
-    {"debugflag",    'D', "135",        0, "Debug of the program, 131- output warning and error, 199 - both screen and file",          3},
+    {"debugflag",    'D', "199",            0, "Debug of the program, 131- output warning and error, 199 - both screen and file",          3},
 
     {0}
 };
@@ -121,6 +117,9 @@ struct arguments {
   char prefix[TSDB_METER_NAME_LEN + 1];
   int batch;
   int debugFlag;
+  int abort;
+  char **arg_list;
+  int arg_list_len;
 };
 
 /* Parse a single option. */
@@ -149,10 +148,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       wordfree(&full_path);
       break;
     case 'b':
-      arguments->beginTime = taosGetMsFromYYYYMMDD(arg);
+      arguments->beginTime = tdGetMsFromYYYYMMDD(arg);
       break;
     case 'e':
-      arguments->endTime = taosGetMsFromYYYYMMDD(arg);;
+      arguments->endTime = tdGetMsFromYYYYMMDD(arg);;
       break;
     case 'n':
       arguments->numOfFiles = atoi(arg);
@@ -161,7 +160,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       arguments->repeat = atoi(arg);
       break;
     case 'g':
-      arguments->generateTime = taosGetMsFromYYYYMMDD(arg);
+      arguments->generateTime = tdGetMsFromYYYYMMDD(arg);
       break;
     case 'd':
       strcpy(arguments->database, arg);
@@ -178,7 +177,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case 'p':
       strcpy(arguments->prefix, arg);
       break;
-    case 'b':
+    case 'B':
       arguments->batch = atoi(arg);
       break;
     case 'D':
@@ -199,103 +198,123 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   return 0;
 }
 
-int taosCheckParam(struct arguments *arguments) {
-  tdPrint("program parameters:");
-  tdPrint("inputDir: %s", arguments.inputDir);
-  tdPrint("beginTime: %ld", arguments.beginTime);
-  tdPrint("endTime:%ld", arguments.endTime);
-  tdPrint("outputDir:%s", arguments.outputDir);
-  tdPrint("numOfFiles:%d", arguments.numOfFiles);
-  tdPrint("repeat:%d", arguments.repeat);
-  tdPrint("generateTime:%ld", arguments.generateTime);
-  tdPrint("database: %s", arguments.database);
-  tdPrint("stable: %s", arguments.stable);
-  tdPrint("prefix: %s", arguments.prefix);
-  tdPrint("batch:%d", arguments.batch);
-  tdPrint("ablocks:%d", arguments.ablocks);
-  tdPrint("cache:%d", arguments.cache);
-  tdPrint("debugFlag:%d", arguments.debugFlag);
+/* Our argp parser. */
+static struct argp argp = {options, parse_opt, args_doc, doc};
+static struct arguments tdArgs = {
+    .inputDir = "./input",
+    .outputDir = "./output",
+    .beginTime = 0,
+    .endTime = 0,
+    .numOfFiles = 10,
+    .repeat = 1,
+    .generateTime = 0,
+    .database = "db",
+    .ablocks = 4,
+    .cache = 16384,
+    .stable = "UVMP_MON_TRACK",
+    .prefix = "u_",
+    .batch = 0,
+    .debugFlag = 199};
+
+// log function
+#define tdError(...)                          \
+  if (tdArgs.debugFlag & DEBUG_ERROR) {            \
+    tprintf("ERROR TD  ", 255, __VA_ARGS__); \
+  }
+#define tdWarn(...)                                  \
+  if (tdArgs.debugFlag & DEBUG_WARN) {                    \
+    tprintf("WARN  TD  ", tdArgs.debugFlag, __VA_ARGS__); \
+  }
+#define tdTrace(...)                           \
+  if (tdArgs.debugFlag & DEBUG_TRACE) {             \
+    tprintf("TD  ", tdArgs.debugFlag, __VA_ARGS__); \
+  }
+#define tdPrint(...) \
+  { tprintf("TD  ", 255, __VA_ARGS__); }
+
+int tdCheckParam(struct arguments *arguments) {
+  tdPrint("program parameters");
+  tdPrint("inputDir: %s", arguments->inputDir);
+  tdPrint("beginTime: %ld", arguments->beginTime);
+  tdPrint("endTime: %ld", arguments->endTime);
+  tdPrint("outputDir: %s", arguments->outputDir);
+  tdPrint("numOfFiles: %d", arguments->numOfFiles);
+  tdPrint("repeat: %d", arguments->repeat);
+  tdPrint("generateTime: %ld", arguments->generateTime);
+  tdPrint("database: %s", arguments->database);
+  tdPrint("stable: %s", arguments->stable);
+  tdPrint("prefix: %s", arguments->prefix);
+  tdPrint("batch: %d", arguments->batch);
+  tdPrint("ablocks: %d", arguments->ablocks);
+  tdPrint("cache: %d", arguments->cache);
+  tdPrint("debugFlag: %d", arguments->debugFlag);
+
 
   if (arguments->repeat >= 2) {
     if (arguments->beginTime == 0) {
-      fprintf(stderr, "conflict option --repeat >= 2 but beginTime not specified\n");
+      tdError("conflict option --repeat >= 2 but beginTime not specified\n");
       return -1;
     }
     if (arguments->endTime == 0) {
-      fprintf(stderr, "conflict option --repeat >= 2 but endTime not specified\n");
+      tdError("conflict option --repeat >= 2 but endTime not specified\n");
       return -1;
     }
     if (arguments->generateTime == 0) {
-      fprintf(stderr, "conflict option --repeat >=2 but generateTime not specified\n");
+      tdError("conflict option --repeat >=2 but generateTime not specified\n");
       return -1;
+    }
+  }
+
+  if (arguments->repeat != 0) {
+    if (arguments->generateTime != 0) {
+      if (arguments->beginTime == 0) {
+        tdError("conflict option --generateTime != 0 but beginTime not specified\n");
+        return -1;
+      }
+      if (arguments->endTime == 0) {
+        tdError("conflict option --generateTime != 0 but endTime not specified\n");
+        return -1;
+      }
     }
   }
 
   return 0;
 }
 
-/* Our argp parser. */
-static struct argp argp = {options, parse_opt, args_doc, doc};
-static struct arguments arguments = {"./input", "./output", 0, 0, 100, 0, 0, db, 4, 16384, "st", "t_", 0, 199};
-
-// mnode log function
-#define tdError(...)                          \
-  if (mdebugFlag & DEBUG_ERROR) {            \
-    tprintf("ERROR TD  ", 255, __VA_ARGS__); \
-  }
-#define tdWarn(...)                                  \
-  if (mdebugFlag & DEBUG_WARN) {                    \
-    tprintf("WARN  TD  ", mdebugFlag, __VA_ARGS__); \
-  }
-#define tdTrace(...)                           \
-  if (mdebugFlag & DEBUG_TRACE) {             \
-    tprintf("TD  ", mdebugFlag, __VA_ARGS__); \
-  }
-#define tdPrint(...) \
-  { tprintf("TD  ", 255, __VA_ARGS__); }
-
-
-#define COMMAND_SIZE (50*1024)
-#define MAX_TABLES 100000
-char *insertString = "\ninsert into ";
-int insertStringLen = strlen(insertString);
-
-// pre define
-int32_t taosColumnSize = 10;
-bool taosContainSchema = false;
-
 // output
-void *taosTableHash = NULL;
-char **taosCsvFiles = NULL;
-int32_t taosCsvFileNum = 0;
-int64_t taosTotalRows = 0;
-int32_t taosTotalTables = 0;
-int32_t taosBatchSize = 0;
-FILE  **taosDataFps = NULL;
-FILE    taosTableFp = NULL;
-int32_t taosPrintSize = 0;
+void *tdTableHash = NULL;
+char **tdCsvFiles = NULL;
+int32_t tdCsvFileNum = 0;
+int64_t tdTotalRows = 0;
+int32_t tdTotalTables = 0;
+FILE  **tdDataFps = NULL;
+bool   *tdDataFpUsed = NULL;
+FILE   *tdTableFp = NULL;
+int32_t tdPrintSize = COMMAND_SIZE * 2;
+int32_t tdBatchSize = COMMAND_SIZE;
+int32_t tdDays[MAX_DAYS] = {0};
 
 typedef struct {
   int tableId;
   int parseRows;
-} TaosTable;
+} TdTable;
 
 typedef struct {
-  char *RECORD_TIME
+  char *RECORD_TIME;
   char *DX;
   char *DY;
   char *SPEED;
   char *DIRECTION;
-  char *HIGH_LEVEL
+  char *HIGH_LEVEL;
   char *ALARM_TAG;
   char *STATUS;
   char *ORG_ID;
   char *VEHICLE_ID;
   int64_t RECORD_TIME_TS;
   bool parsedOk;
-} TaosLine;
+} TdRow;
 
-int taosGetDirectoryFileNum(const char *directoryName, const char *prefix)
+int tdGetDirectoryFileNum(const char *directoryName, const char *prefix)
 {
   char cmd[1024] = { 0 };
   sprintf(cmd, "ls %s/*.%s | wc -l ", directoryName, prefix);
@@ -321,7 +340,7 @@ int taosGetDirectoryFileNum(const char *directoryName, const char *prefix)
   return fileNum;
 }
 
-void taosParseDirectory(const char *directoryName, const char *prefix, char **fileArray, int totalFiles)
+void tdParseDirectory(const char *directoryName, const char *prefix, char **fileArray, int totalFiles)
 {
   char cmd[1024] = { 0 };
   sprintf(cmd, "ls %s/*.%s | sort", directoryName, prefix);
@@ -347,7 +366,7 @@ void taosParseDirectory(const char *directoryName, const char *prefix, char **fi
   pclose(fp);
 }
 
-const char* taosGenerateTime(int64_t timeMs)
+const char* tdGenerateTime(int64_t timeMs)
 {
   time_t tt = timeMs / 1000;
   static char buf[25] = { 0 };
@@ -357,11 +376,15 @@ const char* taosGenerateTime(int64_t timeMs)
   return buf;
 }
 
-bool taosParseTime(const char *timeString, int64_t *timeVal)
+bool tdReformatTime(const char *timeString, int64_t *timeVal)
 {
   struct tm tm = { 0 };
-  char* str = strptime(timeString, "%Y-%m-%d %H:%M:%S", &tm);
+  //char* str = strptime(timeString, "%Y-%m-%d %H:%M:%S", &tm);
+
+  //01-MAY-19 09.00.08.000000 AM
+  char* str = strptime(timeString, "%d-%b-%y %l.%M.%S.000000 %p", &tm);
   if (str == NULL) return false;
+
 
   int64_t seconds = mktime(&tm);
   int64_t fraction = 0;
@@ -372,15 +395,19 @@ bool taosParseTime(const char *timeString, int64_t *timeVal)
   }
 
   *timeVal = 1000 * seconds + fraction;
+  if (TIME_UNIT == 1000000) {
+    *timeVal *= 1000;
+  }
+
   return true;
 }
 
-void taosSortCsvFiles()
+void tdSortCsvFiles()
 {
-  int64_t *fileDate = calloc(taosCsvFileNum, sizeof(int64_t));
+  int64_t *fileDate = calloc(tdCsvFileNum, sizeof(int64_t));
 
-  for (int i = 0; i < taosCsvFileNum; ++i) {
-    char *fileName = taosCsvFiles[i];
+  for (int i = 0; i < tdCsvFileNum; ++i) {
+    char *fileName = tdCsvFiles[i];
     int len = (int)strlen(fileName);
     if (len < 15) {
       tdError("invalid file name:%s length should large than 15", fileName);
@@ -389,16 +416,16 @@ void taosSortCsvFiles()
     fileDate[i] = strnatoi(fileName + (len - 12), 8);
   }
 
-  for (int i = 0; i < taosCsvFileNum; ++i) {
-    for (int j = i + 1; j < taosCsvFileNum; ++j) {
+  for (int i = 0; i < tdCsvFileNum; ++i) {
+    for (int j = i + 1; j < tdCsvFileNum; ++j) {
       if (fileDate[i] > fileDate[j]) {
         int64_t tmp = fileDate[i];
         fileDate[i] = fileDate[j];
         fileDate[j] = tmp;
 
-        char *tmpFile = taosCsvFiles[i];
-        taosCsvFiles[i] = taosCsvFiles[j];
-        taosCsvFiles[j] = tmpFile;
+        char *tmpFile = tdCsvFiles[i];
+        tdCsvFiles[i] = tdCsvFiles[j];
+        tdCsvFiles[j] = tmpFile;
       }
     }
   }
@@ -406,76 +433,49 @@ void taosSortCsvFiles()
   free(fileDate);
 }
 
-void taosMallocCsvFiles()
+void tdMallocCsvFiles()
 {
-  taosCsvFiles = (char**)calloc(taosCsvFileNum, sizeof(char*));
-  for (int i = 0; i < taosCsvFileNum; i++) {
-    taosCsvFiles[i] = calloc(1, TSDB_FILENAME_LEN);
+  tdCsvFiles = (char**)calloc(tdCsvFileNum, sizeof(char*));
+  for (int i = 0; i < tdCsvFileNum; i++) {
+    tdCsvFiles[i] = calloc(1, TSDB_FILENAME_LEN);
   }
 }
 
-void taosGetDirectoryFileList()
+void tdGetDirectoryFileList()
 {
   struct stat fileStat;
-  if (stat(arguments.inputDir, &fileStat) < 0) {
-    tdError("%s not exist", gsCsvFileName);
+  if (stat(tdArgs.inputDir, &fileStat) < 0) {
+    tdError("%s not exist", tdArgs.inputDir);
     exit(0);
   }
 
   if (fileStat.st_mode & S_IFDIR) {
-    taosCsvFileNum = taosGetDirectoryFileNum(arguments.inputDir, "csv");
-    taosMallocCsvFiles();
-    taosParseDirectory(arguments.inputDir, "csv", taosCsvFiles, taosCsvFileNum);
-    taosSortCsvFiles();
-    tdPrint("start to dispose %d files in %s", taosCsvFileNum, taosCsvFileName);
+    tdCsvFileNum = tdGetDirectoryFileNum(tdArgs.inputDir, "csv");
+    tdMallocCsvFiles();
+    tdParseDirectory(tdArgs.inputDir, "csv", tdCsvFiles, tdCsvFileNum);
+    //tdSortCsvFiles();
+    tdPrint("start to dispose %d files in %s", tdCsvFileNum, tdArgs.inputDir);
   }
   else {
-    taosCsvFileNum = 1;
-    taosCsvFiles = (char**)calloc(taosCsvFileNum, sizeof(char*));
-    taosCsvFiles[0] = gsCsvFileName;
-    taosPrint("start to dispose %s", taosCsvFileName);
+    tdCsvFileNum = 1;
+    tdCsvFiles = (char**)calloc(tdCsvFileNum, sizeof(char*));
+    tdCsvFiles[0] = tdArgs.inputDir;
+    tdPrint("start to dispose %s", tdArgs.inputDir);
   }
 }
 
-int taosSplitLine(char *line, char**columns)
-{
-  int i = 0;
-  int column_index = 0;
-  columns[column_index++] = line;
-
-  while (line[i] != 0) {
-    if (line[i] == '\n' || line[i] == '\r') {
-      line[i] = 0;
-      break;
-    }
-
-    if (line[i] == '.' || line[i] == '-') {
-      line[i] = '_';
-    }
-    else if (line[i] == ',') {
-      line[i] = 0;
-      columns[column_index++] = line + i + 1;
-    }
-    else {}
-
-    i++;
-  }
-
-  return column_index;
-}
-
-void taosParseDataLine(char *line, int lineNum, char *csvfile)
+void tdParseDataLine(char *line, int lineNum, char *csvfile)
 {
   int fieldPos = -1;
   int columnPos = -1;
-  TaosLine line;
-  line.parsedOk = false;
+  TdRow row;
+  row.parsedOk = false;
 
   int len = 0;
   while (line[len] != 0) {
     if (line[len] == '\"') {
       if (fieldPos == -1) {
-        fieldPos = len;
+        fieldPos = len + 1;
       } else {
         line[len] = 0;
         char *field = line + fieldPos;
@@ -483,71 +483,125 @@ void taosParseDataLine(char *line, int lineNum, char *csvfile)
         columnPos++;
         switch (columnPos) {
           case 1:
-            line.VEHICLE_ID = field;
+            row.VEHICLE_ID = field;
             break;
           case 3:
-            line.DX = field;
+            row.DX = field;
             break;
           case 4:
-            line.DY = field;
+            row.DY = field;
             break;
           case 5:
-            line.SPEED = field;
+            row.SPEED = field;
             break;
           case 6:
-            line.RECORD_TIME = field;
+            row.RECORD_TIME = field;
             break;
           case 7:
-            line.DIRECTION = field;
+            row.DIRECTION = field;
             break;
           case 8:
-            line.HIGH_LEVEL = field;
+            row.HIGH_LEVEL = field;
             break;
           case 9:
-            line.ALARM_TAG = field;
+            row.ALARM_TAG = field;
             break;
           case 10:
-            line.STATUS = field;
+            row.STATUS = field;
             break;
           case 11:
-            line.ORG_ID = field;
+            row.ORG_ID = field;
             break;
           case 12:
-            line.parsedOk = true;
+            row.parsedOk = true;
             break;
           default:
             break;
         }
       }
     }
+    len ++;
   }
 
-  if (!line.parsedOk) {
+  if (!row.parsedOk) {
     return;
   }
 
-  TaosTable *table = taosGetStrHashData(taosTableHash, line.VEHICLE_ID);
+  if (row.RECORD_TIME[0] == 0) {
+    return;
+  }
+  if (row.VEHICLE_ID[0] == 0) {
+    return;
+  }
+
+  if (row.DX[0] == 0) { row.DX = "NULL"; }
+  if (row.DY[0] == 0) { row.DY = "NULL"; }
+  if (row.SPEED[0] == 0) { row.SPEED = "NULL"; }
+  if (row.DIRECTION[0] == 0) { row.DIRECTION = "NULL"; }
+  if (row.HIGH_LEVEL[0] == 0) { row.HIGH_LEVEL = "NULL"; }
+  if (row.ALARM_TAG[0] == 0) { row.ALARM_TAG = "NULL"; }
+  if (row.STATUS[0] == 0) { row.STATUS = "NULL"; }
+  if (row.ORG_ID[0] == 0) { row.ORG_ID = "NULL"; }
+
+  bool parseTime = tdReformatTime(row.RECORD_TIME, &row.RECORD_TIME_TS);
+  if (!parseTime) {
+    tdError("file:%s table:%s timestamp:%s parse failed", csvfile, row.VEHICLE_ID, row.RECORD_TIME);
+    return;
+  }
+
+  if (tdArgs.beginTime != 0 && row.RECORD_TIME_TS < tdArgs.beginTime) {
+    return;
+  }
+
+  if (tdArgs.endTime != 0 && row.RECORD_TIME_TS > tdArgs.endTime) {
+    return;
+  }
+
+  if (tdArgs.generateTime != 0) {
+    row.RECORD_TIME_TS = row.RECORD_TIME_TS - tdArgs.beginTime + tdArgs.generateTime;
+  }
+
+  if (tdArgs.repeat == 0) {
+    int index = (row.RECORD_TIME_TS - BEGIN_DAYS) / INTERVAL_DAYS;
+    if (index < 0 || index > MAX_DAYS) {
+      return ;
+    }
+    tdDays[index] ++;
+    return;
+  }
+
+  TdTable *table = taosGetStrHashData(tdTableHash, row.VEHICLE_ID);
   if (table == NULL) {
-    TaosTable newTable = {0, 0}
-    table = taosAddStrHash(taosTableHash, field, &newTable);
-    taosTotalTables++;
+    TdTable newTable = {tdTotalTables++, 0};
+    table = taosAddStrHash(tdTableHash, row.VEHICLE_ID, (char*)(&newTable));
+    fprintf(tdTableFp, "create table %s%s using %s tags('%s');\n", tdArgs.prefix, row.VEHICLE_ID, tdArgs.stable, row.ORG_ID);
   }
   if (table == NULL) {
-    tdError("file:%s table:%s add failed", csvfile, line.VEHICLE_ID);
+    tdError("file:%s table:%s add failed", csvfile, row.VEHICLE_ID);
     exit(0);
   }
 
-  if ((arguments.batch == 0 && taosPrintSize > COMMAND_SIZE) || (arguments.batch == 0 && taosBatchSize > arguments.batch)) {
-    taosBatchSize = 0;
-    taosPrintSize = fprintf(taosDataFps[table->tableId % arguments.numOfFiles], "import into");
+  table->parseRows++;
+  int fileIndex = table->tableId % tdArgs.numOfFiles;
+  if ((tdArgs.batch == 0 && tdPrintSize > COMMAND_SIZE) || (tdArgs.batch != 0 && tdBatchSize >= tdArgs.batch)) {
+    tdBatchSize = 0;
+    if (!tdDataFpUsed[fileIndex]) {
+      tdDataFpUsed[fileIndex] = true;
+      fprintf(tdDataFps[fileIndex], "use %s;\n", tdArgs.database);
+      tdPrintSize = fprintf(tdDataFps[fileIndex], "import into");
+    } else {
+      tdPrintSize = fprintf(tdDataFps[fileIndex], ";\nimport into");
+    }
   }
 
-  taosPrintSize += fprintf(taosDataFps[table->tableId % arguments.numOfFiles], " %s values(%ld,%s,%s,%s,%s,%s,%s,%s)",
-        line.RECORD_TIME_TS, line.DX, line.DY, line.SPEED, line.DIRECTION, line.HIGH_LEVEL, line.ALARM_TAG, line.STATUS);
-  taosBatchSize++;
+  tdBatchSize++;
+  tdPrintSize += fprintf(tdDataFps[fileIndex], " %s%s values(%ld,%s,%s,%s,%s,%s,%s,%s)",
+                           tdArgs.prefix, row.VEHICLE_ID,
+                           row.RECORD_TIME_TS,
+                           row.DX, row.DY, row.SPEED, row.DIRECTION, row.HIGH_LEVEL, row.ALARM_TAG, row.STATUS);
 }
 
-void taosParseCsvFile(char *csvfile) {
+void tdParseCsvFile(char *csvfile) {
   FILE *fp = fopen(csvfile, "r");
   if (fp == NULL) {
     tdError("failed to open file:%s, error:%s", csvfile, strerror(errno));
@@ -555,7 +609,7 @@ void taosParseCsvFile(char *csvfile) {
   }
 
   char *line = NULL;
-  int len = 0;
+  size_t len = 0;
   int lineNum = 0;
 
   if (taosContainSchema) {
@@ -569,79 +623,118 @@ void taosParseCsvFile(char *csvfile) {
 
   do {
     tfree(line);
-    getline(&line, &len, fp);
-    if (line == NULL) {
+    int ret = getline(&line, &len, fp);
+    if (line == NULL || ret == -1 || len == 0) {
       tdPrint("file:%s read finished, totallines:%d", csvfile, lineNum);
       break;
     }
 
-    taosParseDataLine(line, lineNum, csvfile);
+    tdParseDataLine(line, lineNum, csvfile);
     lineNum++;
   } while (true);
 
-  taosTotalRows += lineNum;
+  tdTotalRows += lineNum;
   fclose(fp);
 }
 
-void taosParseData() {
-  for (int i = 0; i < taosCsvFileNum; ++i) {
-    char *csvfile = taosCsvFiles[i];
+void tdParseData() {
+  tdGetDirectoryFileList();
+  for (int i = 0; i < tdCsvFileNum; ++i) {
+    char *csvfile = tdCsvFiles[i];
     tdPrint("parse file:%s, index:%d", csvfile, i + 1);
-    taosParseCsvFile(csvfile);
+    tdParseCsvFile(csvfile);
   }
 }
 
-void taosInitResources() {
-  taosTableHash = taosInitStrHash(MAX_TABLES, sizeof(TaosTable), taosHashStringStep1);
-  taosDataFps = (FILE**)calloc(arguments.numOfFiles, sizeof(FILE*));
-  for (int f = 0; f < arguments.numOfFiles; ++f) {
+void tdInitResources() {
+  tdTableHash = taosInitStrHash(MAX_TABLES, sizeof(TdTable), taosHashStringStep1);
+
+  if (tdArgs.repeat != 0) {
+    tdDataFps = (FILE**)calloc(tdArgs.numOfFiles, sizeof(FILE*));
+    tdDataFpUsed = (bool*)calloc(tdArgs.numOfFiles, sizeof(bool*));
+    for (int f = 0; f < tdArgs.numOfFiles; ++f) {
+      char fileName[TSDB_FILENAME_LEN] = {0};
+      sprintf(fileName, "%s/d%d.sql", tdArgs.outputDir, f);
+      tdDataFps[f] = fopen(fileName, "w");
+      if (tdDataFps[f] == NULL) {
+        tdError("failed to open file:%s, error:%s", fileName, strerror(errno));
+        exit(0);
+      }
+    }
+
     char fileName[TSDB_FILENAME_LEN] = {0};
-    sprintf(fileName, "%s/d%d.sql", arguments.outputDir, f);
-    taosDataFps[f] = fopen(fileName, "w");
-    if (taosDataFps[f] == NULL) {
+    sprintf(fileName, "%s/tables.sql", tdArgs.outputDir);
+    tdTableFp = fopen(fileName, "w");
+    if (tdTableFp == NULL) {
       tdError("failed to open file:%s, error:%s", fileName, strerror(errno));
       exit(0);
     }
-  }
 
-  char fileName[TSDB_FILENAME_LEN] = {0};
-  sprintf(fileName, "%s/tables.sql", arguments.outputDir);
-  taosTableFp = fopen(fileName, "w");
-  if (taosTableFp == NULL) {
-    tdError("failed to open file:%s, error:%s", fileName, strerror(errno));
-    exit(0);
+    if (TIME_UNIT == 1000000) {
+      fprintf(tdTableFp, "create database if not exists %s ablocks %d cache %d precision 'us';\n", tdArgs.database, tdArgs.ablocks, tdArgs.cache);
+    } else {
+      fprintf(tdTableFp, "create database if not exists %s ablocks %d cache %d;\n", tdArgs.database, tdArgs.ablocks, tdArgs.cache);
+    };
+    fprintf(tdTableFp, "use %s;\n", tdArgs.database);
+    fprintf(tdTableFp, "create table if not exists %s (RECORD_TIME TIMESTAMP, DX DOUBLE, DY DOUBLE, SPEED FLOAT, "
+                       "DIRECTION SMALLINT, HIGH_LEVEL FLOAT, ALARM_TAG BOOL, STATUS BIGINT) tags(ORG_ID BINARY(32));\n",
+                       tdArgs.stable);
   }
 }
 
-void taosCloseResources() {
-  for (int f = 0; f < arguments.numOfFiles; ++f) {
-    fclose(taosDataFps[f]);
+void tdCloseResources() {
+  if (tdArgs.repeat != 0) {
+    for (int f = 0; f < tdArgs.numOfFiles; ++f) {
+      if (tdDataFpUsed[f]) {
+        fprintf(tdDataFps[f], ";\n");
+      }
+      fclose(tdDataFps[f]);
+    }
+    fclose(tdTableFp);
   }
-  fclose(taosTableFp);
 }
 
 int main(int argc, char *argv[]) {
   /* Parse our arguments; every option seen by parse_opt will be
      reflected in arguments. */
-  argp_parse(&argp, argc, argv, 0, 0, &arguments);
+  argp_parse(&argp, argc, argv, 0, 0, &tdArgs);
 
-  if (arguments.abort) error(10, 0, "ABORTED");
+  if (tdArgs.abort) error(10, 0, "ABORTED");
 
-  if (taosCheckParam(&arguments) < 0) {
+  if (tdCheckParam(&tdArgs) < 0) {
     exit(EXIT_FAILURE);
   }
 
   int64_t start = taosGetTimestampMs();
 
-  taosInitResources();
+  tdInitResources();
 
-  taosParseData();
+  int loopTimes = tdArgs.repeat;
+  loopTimes = MAX(loopTimes, 1);
+  for (int i = 0; i < loopTimes; ++i) {
+    tdParseData();
+    tdPrint("repeat:%d finished", i);
+    tdArgs.generateTime += (tdArgs.endTime - tdArgs.beginTime);
+  }
+
+  tdCloseResources();
 
   int64_t end = taosGetTimestampMs();
 
-  tdPrint("parse %d files in %s, find %d tables, total %ld rows", taosCsvFileNum, arguments.inputDir, taosTotalTables, taosTotalRows);
- 
-  tdPrint("generate %d files in %s, time spent: %d seconds", arguments.numOfFiles, arguments.outputDir, (end - start) / 1000);
+  tdPrint("parse %d files in %s, find %d tables, total %ld rows, repeat:%d, time spent: %f seconds",
+      tdCsvFileNum, tdArgs.inputDir, tdTotalTables, tdTotalRows, tdArgs.repeat, (end - start) / 1000.0);
+
+  if (tdArgs.repeat != 0) {
+    tdPrint("generate %d files in %s", tdArgs.numOfFiles, tdArgs.outputDir);
+  } else {
+    for (int64_t i = 0; i < MAX_DAYS; ++i) {
+      if (tdDays[i] != 0) {
+        int64_t ts = i * INTERVAL_DAYS + BEGIN_DAYS;
+        const char *days = tdGenerateTime(ts);
+        tdPrint("%s rows:%d", days, tdDays[i]);
+      }
+    }
+  }
 
   return 0;
 }
