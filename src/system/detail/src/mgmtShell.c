@@ -677,77 +677,164 @@ int mgmtProcessAlterUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   SAlterUserMsg *pAlter = (SAlterUserMsg *)pMsg;
   int            code = 0;
   SUserObj *     pUser;
+  SUserObj *     pOperUser;
 
   if (mgmtCheckRedirectMsg(pConn, TSDB_MSG_TYPE_ALTER_USER_RSP) != 0) {
     return 0;
   }
 
   pUser = mgmtGetUser(pAlter->user);
+  pOperUser = mgmtGetUser(pConn->pUser->user);
+
   if (pUser == NULL) {
     taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_USER_RSP, TSDB_CODE_INVALID_USER);
     return 0;
   }
 
-  if (strcmp(pUser->user, "monitor") == 0 || strcmp(pUser->user, "stream") == 0) {
-    code = TSDB_CODE_NO_RIGHTS;
-  } else if ((strcmp(pUser->user, pConn->pUser->user) == 0) ||
-             ((strcmp(pUser->acct, pConn->pAcct->user) == 0) && pConn->superAuth) ||
-             (strcmp(pConn->pUser->user, "root") == 0)) {
-    if ((pAlter->flag & TSDB_ALTER_USER_PASSWD) != 0) {
-      memset(pUser->pass, 0, sizeof(pUser->pass));
-      taosEncryptPass(pAlter->pass, strlen(pAlter->pass), pUser->pass);
-    }
-    if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
-      if (pAlter->privilege == 1) {  // super
-        pUser->superAuth = 1;
-        pUser->writeAuth = 1;
-      }
-      if (pAlter->privilege == 2) {  // read
-        pUser->superAuth = 0;
-        pUser->writeAuth = 0;
-      }
-      if (pAlter->privilege == 3) {  // write
-        pUser->superAuth = 0;
-        pUser->writeAuth = 1;
-      }
-    }
-
-    code = mgmtUpdateUser(pUser);
-    mLPrint("user:%s is altered by %s", pAlter->user, pConn->pUser->user);
-  } else {
-    code = TSDB_CODE_NO_RIGHTS;
+  if (pOperUser == NULL) {
+    taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_USER_RSP, TSDB_CODE_INVALID_USER);
+    return 0;
   }
 
-  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_USER_RSP, code);
+  if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
+    code = TSDB_CODE_NO_RIGHTS;
+    taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_USER_RSP, code);
+    return 0;
+  }
 
+  if ((pAlter->flag & TSDB_ALTER_USER_PASSWD) != 0) {
+    bool hasRight = false;
+    if (strcmp(pOperUser->user, "root") == 0) {
+      hasRight = true;
+    } else if (strcmp(pUser->user, pOperUser->user) == 0) {
+      hasRight = true;
+    } else if (pOperUser->superAuth) {
+      if (strcmp(pUser->user, "root") == 0) {
+        hasRight = false;
+      } else if (strcmp(pOperUser->acct, pUser->acct) != 0) {
+        hasRight = false;
+      } else {
+        hasRight = true;
+      }
+    }
+
+    if (hasRight) {
+      memset(pUser->pass, 0, sizeof(pUser->pass));
+      taosEncryptPass(pAlter->pass, strlen(pAlter->pass), pUser->pass);
+      code = mgmtUpdateUser(pUser);
+      mLPrint("user:%s password is altered by %s, code:%d", pAlter->user, pConn->pUser->user, code);
+    } else {
+      code = TSDB_CODE_NO_RIGHTS;
+    }
+
+    taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_USER_RSP, code);
+    return 0;
+  }
+
+  if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
+    bool hasRight = false;
+    if (strcmp(pUser->user, "root") == 0) {
+      hasRight = false;
+    } else if (strcmp(pOperUser->user, "root") == 0) {
+      hasRight = true;
+    } else if (strcmp(pUser->user, pOperUser->user) == 0) {
+      hasRight = false;
+    } else if (pOperUser->superAuth) {
+      if (strcmp(pUser->user, "root") == 0) {
+        hasRight = false;
+      } else if (strcmp(pOperUser->acct, pUser->acct) != 0) {
+        hasRight = false;
+      } else {
+        hasRight = true;
+      }
+    }
+
+    if (hasRight) {
+      if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
+        if (pAlter->privilege == 1) {  // super
+          pUser->superAuth = 1;
+          pUser->writeAuth = 1;
+        }
+        if (pAlter->privilege == 2) {  // read
+          pUser->superAuth = 0;
+          pUser->writeAuth = 0;
+        }
+        if (pAlter->privilege == 3) {  // write
+          pUser->superAuth = 0;
+          pUser->writeAuth = 1;
+        }
+      }
+      code = mgmtUpdateUser(pUser);
+      mLPrint("user:%s privilege is altered by %s, code:%d", pAlter->user, pConn->pUser->user, code);
+    } else {
+      code = TSDB_CODE_NO_RIGHTS;
+    }
+
+    taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_USER_RSP, code);
+    return 0;
+  }
+
+  code = TSDB_CODE_NO_RIGHTS;
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_USER_RSP, code);
   return 0;
 }
 
 int mgmtProcessDropUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   SDropUserMsg *pDrop = (SDropUserMsg *)pMsg;
   int           code = 0;
+  SUserObj *    pUser;
+  SUserObj *    pOperUser;
 
   if (mgmtCheckRedirectMsg(pConn, TSDB_MSG_TYPE_DROP_USER_RSP) != 0) {
     return 0;
   }
 
-  if (strcmp(pConn->pUser->user, pDrop->user) == 0) {
+  pUser = mgmtGetUser(pDrop->user);
+  pOperUser = mgmtGetUser(pConn->pUser->user);
+
+  if (pUser == NULL) {
+    taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_USER_RSP, TSDB_CODE_INVALID_USER);
+    return 0;
+  }
+
+  if (pOperUser == NULL) {
+    taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_USER_RSP, TSDB_CODE_INVALID_USER);
+    return 0;
+  }
+
+  if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
     code = TSDB_CODE_NO_RIGHTS;
-  } else if (strcmp(pDrop->user, "monitor") == 0 || strcmp(pDrop->user, "stream") == 0) {
-    code = TSDB_CODE_NO_RIGHTS;
-  } else {
-    if (pConn->superAuth) {
-      code = mgmtDropUser(pConn->pAcct, pDrop->user);
-      if (code == 0) {
-        mLPrint("user:%s is dropped by %s", pDrop->user, pConn->pUser->user);
-      }
+    taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_USER_RSP, code);
+    return 0;
+  }
+
+  bool hasRight = false;
+  if (strcmp(pUser->user, "root") == 0) {
+    hasRight = false;
+  } else if (strcmp(pOperUser->user, "root") == 0) {
+    hasRight = true;
+  } else if (strcmp(pUser->user, pOperUser->user) == 0) {
+    hasRight = false;
+  } else if (pOperUser->superAuth) {
+    if (strcmp(pUser->user, "root") == 0) {
+      hasRight = false;
+    } else if (strcmp(pOperUser->acct, pUser->acct) != 0) {
+      hasRight = false;
     } else {
-      code = TSDB_CODE_NO_RIGHTS;
+      hasRight = true;
     }
   }
 
-  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_USER_RSP, code);
+  if (hasRight) {
+    code = mgmtDropUser(pConn->pAcct, pDrop->user);
+    if (code == 0) {
+      mLPrint("user:%s is dropped by %s", pDrop->user, pConn->pUser->user);
+    }
+  } else {
+    code = TSDB_CODE_NO_RIGHTS;
+  }
 
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_USER_RSP, code);
   return 0;
 }
 
@@ -1121,7 +1208,7 @@ void mgmtEstablishConn(SConnObj *pConn) {
   atomic_fetch_add_32(&sdbExtConns, 1);
   pConn->stime = taosGetTimestampMs();
 
-  if (strcmp(pConn->pUser->user, "root") == 0 || strcmp(pConn->pUser->user, pConn->pAcct->user) == 0) {
+  if (strcmp(pConn->pUser->user, "root") == 0) {
     pConn->superAuth = 1;
     pConn->writeAuth = 1;
   } else {
