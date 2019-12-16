@@ -131,7 +131,7 @@ static void shellGetDirectoryFileList(char *inputDir)
     }
     shellMallocSQLFiles();
     shellParseDirectory(inputDir, "sql", shellSQLFiles, shellSQLFileNum);
-    fprintf(stdout, "start to dispose %d files in %s\n", totalSQLFileNum, inputDir);
+    fprintf(stdout, "\nstart to dispose %d files in %s\n", totalSQLFileNum, inputDir);
   }
   else {
     fprintf(stderr, "ERROR: %s is not a directory\n", inputDir);
