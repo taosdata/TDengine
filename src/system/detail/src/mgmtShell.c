@@ -849,7 +849,7 @@ int mgmtProcessDropDbMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   if (!pConn->writeAuth) {
     code = TSDB_CODE_NO_RIGHTS;
   } else {
-    code = mgmtDropDbByName(pConn->pAcct, pDrop->db);
+    code = mgmtDropDbByName(pConn->pAcct, pDrop->db, pDrop->ignoreNotExists);
     if (code == 0) {
       mLPrint("DB:%s is dropped by %s", pDrop->db, pConn->pUser->user);
     }

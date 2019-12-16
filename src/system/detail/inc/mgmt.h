@@ -312,7 +312,7 @@ int mgmtUpdateDb(SDbObj *pDb);
 SDbObj *mgmtGetDb(char *db);
 SDbObj *mgmtGetDbByMeterId(char *db);
 int mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate);
-int mgmtDropDbByName(SAcctObj *pAcct, char *name);
+int mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
 int mgmtDropDb(SDbObj *pDb);
 /* void    mgmtMonitorDbDrop(void *unused); */
 void mgmtMonitorDbDrop(void *unused, void *unusedt);
