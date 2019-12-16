@@ -267,9 +267,7 @@ typedef struct SQuery {
   int16_t     checkBufferInLoop;  // check if the buffer is full during scan each block
   SLimitVal   limit;
   int32_t     rowSize;
-  int32_t     dataRowSize;  // row size of each loaded data from disk, the value is
 
-  // used for prepare buffer
   SSqlGroupbyExpr *        pGroupbyExpr;
   SSqlFunctionExpr *       pSelectExpr;
   SColumnInfoEx *          colList;

@@ -40,6 +40,7 @@ typedef struct SQueryLoadBlockInfo {
   int32_t fileId;
   int32_t slotIdx;
   int32_t sid;
+  bool    tsLoaded;      // if timestamp column of current block is loaded or not
 } SQueryLoadBlockInfo;
 
 typedef struct SQueryLoadCompBlockInfo {

@@ -193,8 +193,6 @@ static SQInfo *vnodeAllocateQInfoCommon(SQueryMeterMsg *pQueryMsg, SMeterObj *pM
     } else {
       pQuery->colList[i].data.filters = NULL;
     }
-
-    pQuery->dataRowSize += colList[i].bytes;
   }
 
   vnodeUpdateQueryColumnIndex(pQuery, pMeterObj);
