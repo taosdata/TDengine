@@ -136,8 +136,9 @@ extern "C" {
 #define TSDB_CODE_INVALID_TABLE_ID           115
 #define TSDB_CODE_INVALID_VNODE_STATUS       116
 #define TSDB_CODE_FAILED_TO_LOCK_RESOURCES   117
+#define TSDB_CODE_TABLE_ID_MISMATCH          118
 
-#define TSDB_CODE_MAX_ERROR_CODE             118
+#define TSDB_CODE_MAX_ERROR_CODE             119
 
 #ifdef __cplusplus
 }

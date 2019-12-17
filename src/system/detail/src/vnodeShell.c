@@ -28,7 +28,7 @@
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
 #include "vnodeStore.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 extern int tsMaxQueues;
 
@@ -297,7 +297,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   }
 
   if (pQueryMsg->vnode >= TSDB_MAX_VNODES || pQueryMsg->vnode < 0) {
-    dTrace("qmsg:%p,vid:%d is out of range", pQueryMsg, pQueryMsg->vnode);
+    dError("qmsg:%p,vid:%d is out of range", pQueryMsg, pQueryMsg->vnode);
     code = TSDB_CODE_INVALID_TABLE_ID;
     goto _query_over;
   }
@@ -312,29 +312,37 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   }
 
   if (!(pVnode->accessState & TSDB_VN_READ_ACCCESS)) {
+    dError("qmsg:%p,vid:%d access not allowed", pQueryMsg, pQueryMsg->vnode);
     code = TSDB_CODE_NO_READ_ACCESS;
     goto _query_over;
   }
-
-  if (pQueryMsg->pSidExtInfo == 0) {
-    dTrace("qmsg:%p,SQueryMeterMsg wrong format", pQueryMsg);
-    code = TSDB_CODE_INVALID_QUERY_MSG;
-    goto _query_over;
-  }
-
+  
   if (pVnode->meterList == NULL) {
     dError("qmsg:%p,vid:%d has been closed", pQueryMsg, pQueryMsg->vnode);
     code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _query_over;
   }
 
+  if (pQueryMsg->pSidExtInfo == 0) {
+    dError("qmsg:%p,SQueryMeterMsg wrong format", pQueryMsg);
+    code = TSDB_CODE_INVALID_QUERY_MSG;
+    goto _query_over;
+  }
+
   pSids = (SMeterSidExtInfo **)pQueryMsg->pSidExtInfo;
   for (int32_t i = 0; i < pQueryMsg->numOfSids; ++i) {
     if (pSids[i]->sid >= pVnode->cfg.maxSessions || pSids[i]->sid < 0) {
-      dTrace("qmsg:%p sid:%d is out of range, valid range:[%d,%d]", pQueryMsg, pSids[i]->sid, 0,
-             pVnode->cfg.maxSessions);
-
+      dError("qmsg:%p sid:%d out of range, valid range:[%d,%d]", pQueryMsg, pSids[i]->sid, 0, pVnode->cfg.maxSessions);
       code = TSDB_CODE_INVALID_TABLE_ID;
+      goto _query_over;
+    }
+    
+    SMeterObj* pMeterObj = pVnode->meterList[pSids[i]->sid];
+    if (pMeterObj->uid != pSids[i]->uid || pMeterObj->sid != pSids[i]->sid) { // uid/sid not match, error in query msg
+      dError("qmsg:%p sid/uid mismatch, vid:%d sid:%d id:%s uid:%" ", in msg sid:%d, uid:%lld", pQueryMsg,
+             pQueryMsg->vnode, pMeterObj->sid, pMeterObj->meterId, pMeterObj->uid, pSids[i]->sid, pSids[i]->uid);
+      
+      code = TSDB_CODE_TABLE_ID_MISMATCH;
       goto _query_over;
     }
   }
