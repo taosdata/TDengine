@@ -821,11 +821,11 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
       if (spd.numOfAssignedCols == 0 || spd.numOfAssignedCols > numOfTags) {
         return tscInvalidSQLErrMsg(pCmd->payload, "tag name expected", sToken.z);
       }
+
+      index = 0;
+      sToken = tStrGetToken(sql, &index, false, 0, NULL);
+      sql += index;
     }
-    
-    index = 0;
-    sToken = tStrGetToken(sql, &index, false, 0, NULL);
-    sql += index;
     
     if (sToken.type != TK_TAGS) {
       return tscInvalidSQLErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z);
