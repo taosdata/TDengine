@@ -21,7 +21,7 @@
 #include "vnodePeer.h"
 #include "trpc.h"
 #include "dnodeSystem.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 uint32_t    tsPrivateIp4;
 int         tsSyncNum;    // number of sync in process in whole system
