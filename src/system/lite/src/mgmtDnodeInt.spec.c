@@ -23,7 +23,7 @@
 #include "tutil.h"
 #include "vnode.h"
 #include "tsystem.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 extern void *dmQhandle;
 void * mgmtStatusTimer = NULL;

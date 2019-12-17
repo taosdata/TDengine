@@ -2336,7 +2336,7 @@ static int32_t getMeterIndex(SSQLToken* pTableToken, SSqlCmd* pCmd, SColumnIndex
 
   for (int32_t i = 0; i < pCmd->numOfTables; ++i) {
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, i);
-    extractMeterName(pMeterMetaInfo->name, tableName);
+    extractTableName(pMeterMetaInfo->name, tableName);
 
     if (strncasecmp(tableName, pTableToken->z, pTableToken->n) == 0 && strlen(tableName) == pTableToken->n) {
       pIndex->tableIndex = i;

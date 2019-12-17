@@ -27,7 +27,7 @@
 #include "tsqlfunction.h"
 #include "ttime.h"
 #include "vnodeTagMgmt.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 extern int64_t sdbVersion;
 
@@ -984,6 +984,28 @@ SSchema *mgmtGetMeterSchema(STabObj *pMeter) {
   return (SSchema *)pMetric->schema;
 }
 
+static int32_t mgmtSerializeTagValue(char* pMsg, STabObj* pMeter, int16_t* tagsId, int32_t numOfTags) {
+  int32_t offset = 0;
+  
+  for (int32_t j = 0; j < numOfTags; ++j) {
+    if (tagsId[j] == TSDB_TBNAME_COLUMN_INDEX) {  // handle the table name tags
+      char name[TSDB_METER_NAME_LEN] = {0};
+      extractTableName(pMeter->meterId, name);
+      
+      memcpy(pMsg + offset, name, TSDB_METER_NAME_LEN);
+      offset += TSDB_METER_NAME_LEN;
+    } else {
+      SSchema s = {0};
+      char *  tag = mgmtMeterGetTag(pMeter, tagsId[j], &s);
+      
+      memcpy(pMsg + offset, tag, (size_t)s.bytes);
+      offset += s.bytes;
+    }
+  }
+  
+  return offset;
+}
+
 /*
  * serialize SVnodeSidList to byte array
  */
@@ -996,7 +1018,6 @@ static char *mgmtBuildMetricMetaMsg(STabObj *pMeter, int32_t *ovgId, SVnodeSidLi
      * 1. the query msg may be larger than 64k,
      * 2. the following meters belong to different vnodes
      */
-
     (*pList) = (SVnodeSidList *)pMsg;
     (*pList)->numOfSids = 0;
     (*pList)->index = 0;
@@ -1015,29 +1036,15 @@ static char *mgmtBuildMetricMetaMsg(STabObj *pMeter, int32_t *ovgId, SVnodeSidLi
   (*pList)->numOfSids++;
 
   SMeterSidExtInfo *pSMeterTagInfo = (SMeterSidExtInfo *)pMsg;
-  pSMeterTagInfo->sid = pMeter->gid.sid;
+  pSMeterTagInfo->sid = htonl(pMeter->gid.sid);
+  pSMeterTagInfo->uid = htobe64(pMeter->uid);
+  
   pMsg += sizeof(SMeterSidExtInfo);
 
-  int32_t offset = 0;
-  for (int32_t j = 0; j < numOfTags; ++j) {
-    if (tagsId[j] == -1) {
-      char name[TSDB_METER_NAME_LEN] = {0};
-      extractMeterName(pMeter->meterId, name);
-
-      memcpy(pMsg + offset, name, TSDB_METER_NAME_LEN);
-      offset += TSDB_METER_NAME_LEN;
-    } else {
-      SSchema s = {0};
-      char *  tag = mgmtMeterGetTag(pMeter, tagsId[j], &s);
-
-      memcpy(pMsg + offset, tag, (size_t)s.bytes);
-      offset += s.bytes;
-    }
-  }
-
-  pMsg += offset;
+  int32_t offset = mgmtSerializeTagValue(pMsg, pMeter, tagsId, numOfTags);
   assert(offset == tagLen);
-
+  
+  pMsg += offset;
   return pMsg;
 }
 
@@ -1209,12 +1216,9 @@ int mgmtRetrieveMetricMeta(void *thandle, char **pStart, SMetricMetaMsg *pMetric
 #endif
 
   if (ret == TSDB_CODE_SUCCESS) {
+    // todo opt performance
     for (int32_t i = 0; i < pMetricMetaMsg->numOfMeters; ++i) {
       ret = mgmtRetrieveMetersFromMetric(pMetricMetaMsg, i, &result[i]);
-      // todo opt performance
-      //      if (result[i].num <= 0) {//no result
-      //      } else if (result[i].num < 10) {
-      //      }
     }
   }
 
@@ -1283,7 +1287,7 @@ int mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
     memset(meterName, 0, tListLen(meterName));
 
     // pattern compare for meter name
-    extractMeterName(pMeter->meterId, meterName);
+    extractTableName(pMeter->meterId, meterName);
 
     if (pShow->payloadLen > 0 &&
         patternMatch(pShow->payload, meterName, TSDB_METER_NAME_LEN, &info) != TSDB_PATTERN_MATCH)
@@ -1305,7 +1309,7 @@ int mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pMeter->pTagData) {
-      extractMeterName(pMeter->pTagData, pWrite);
+      extractTableName(pMeter->pTagData, pWrite);
     }
     cols++;
 
@@ -1389,7 +1393,7 @@ int mgmtRetrieveMetrics(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
     pShow->pNode = (void *)pMetric->next;
 
     memset(metricName, 0, tListLen(metricName));
-    extractMeterName(pMetric->meterId, metricName);
+    extractTableName(pMetric->meterId, metricName);
 
     if (pShow->payloadLen > 0 &&
         patternMatch(pShow->payload, metricName, TSDB_METER_NAME_LEN, &info) != TSDB_PATTERN_MATCH)
@@ -1398,7 +1402,7 @@ int mgmtRetrieveMetrics(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    extractMeterName(pMetric->meterId, pWrite);
+    extractTableName(pMetric->meterId, pWrite);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

@@ -19,7 +19,7 @@
 #include "mgmt.h"
 #include "tschemautil.h"
 #include "tlog.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 void *       vgSdb = NULL;
 int          tsVgUpdateSize;

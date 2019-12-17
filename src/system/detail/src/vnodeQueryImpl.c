@@ -31,6 +31,7 @@
 #include "vnodeDataFilterFunc.h"
 #include "vnodeFile.h"
 #include "vnodeQueryImpl.h"
+#include "vnodeStatus.h"
 
 enum {
   TS_JOIN_TS_EQUAL = 0,
@@ -47,8 +48,7 @@ enum {
 #define IS_DISK_DATA_BLOCK(q) ((q)->fileId >= 0)
 
 // static int32_t copyDataFromMMapBuffer(int fd, SQInfo *pQInfo, SQueryFilesInfo *pQueryFile, char *buf, uint64_t
-// offset,
-//                                      int32_t size);
+// offset, int32_t size);
 static int32_t readDataFromDiskFile(int fd, SQInfo *pQInfo, SQueryFilesInfo *pQueryFile, char *buf, uint64_t offset,
                                     int32_t size);
 
@@ -2304,7 +2304,7 @@ bool isQueryKilled(SQuery *pQuery) {
    * if it will be deleted soon, stop current query ASAP.
    */
   SMeterObj *pMeterObj = pQInfo->pObj;
-  if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DELETING)) {
+  if (vnodeIsMeterState(pMeterObj, TSDB_METER_STATE_DROPPING)) {
     pQInfo->killed = 1;
     return true;
   }

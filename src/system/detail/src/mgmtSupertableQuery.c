@@ -196,7 +196,7 @@ static bool mgmtTablenameFilterCallback(tSkipListNode* pNode, void* param) {
 
   // pattern compare for meter name
   STabObj* pMeterObj = (STabObj*)pNode->pData;
-  extractMeterName(pMeterObj->meterId, name);
+  extractTableName(pMeterObj->meterId, name);
 
   return patternMatch(pSupporter->pattern, name, TSDB_METER_ID_LEN, &pSupporter->info) == TSDB_PATTERN_MATCH;
 }
@@ -786,7 +786,7 @@ int mgmtRetrieveMetersFromMetric(SMetricMetaMsg* pMsg, int32_t tableIndex, tQuer
 // todo refactor!!!!!
 static char* getTagValueFromMeter(STabObj* pMeter, int32_t offset, int32_t len, char* param) {
   if (offset == TSDB_TBNAME_COLUMN_INDEX) {
-    extractMeterName(pMeter->meterId, param);
+    extractTableName(pMeter->meterId, param);
   } else {
     char* tags = pMeter->pTagData + offset + TSDB_METER_ID_LEN;  // tag start position
     memcpy(param, tags, len);  // make sure the value is null-terminated string
