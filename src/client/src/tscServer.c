@@ -477,25 +477,17 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       if (code == 0) return pSql;
       msg = NULL;
     } else if (rspCode == TSDB_CODE_NOT_ACTIVE_TABLE || rspCode == TSDB_CODE_INVALID_TABLE_ID ||
-        rspCode == TSDB_CODE_INVALID_VNODE_ID || rspCode == TSDB_CODE_NOT_ACTIVE_VNODE ||
-        rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
+        rspCode == TSDB_CODE_NOT_ACTIVE_VNODE || rspCode == TSDB_CODE_INVALID_VNODE_ID ||
+        rspCode == TSDB_CODE_TABLE_ID_MISMATCH || rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
 #else
      if (rspCode == TSDB_CODE_NOT_ACTIVE_TABLE || rspCode == TSDB_CODE_INVALID_TABLE_ID ||
-        rspCode == TSDB_CODE_INVALID_VNODE_ID || rspCode == TSDB_CODE_NOT_ACTIVE_VNODE ||
-        rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
+        rspCode == TSDB_CODE_NOT_ACTIVE_VNODE || rspCode == TSDB_CODE_INVALID_VNODE_ID ||
+        rspCode == TSDB_CODE_TABLE_ID_MISMATCH || rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
 #endif
       pSql->thandle = NULL;
       taosAddConnIntoCache(tscConnCache, thandle, pSql->ip, pSql->vnode, pObj->user);
       
-      if ((pCmd->command == TSDB_SQL_INSERT || pCmd->command == TSDB_SQL_SELECT) &&
-          (rspCode == TSDB_CODE_INVALID_TABLE_ID || rspCode == TSDB_CODE_INVALID_VNODE_ID)) {
-        /*
-         * In case of the insert/select operations, the invalid table(vnode) id means
-         * the submit/query msg is invalid, renew meter meta will not help to fix this problem,
-         * so return the invalid_query_msg to client directly.
-         */
-        code = TSDB_CODE_INVALID_QUERY_MSG;
-      } else if (pCmd->command == TSDB_SQL_CONNECT) {
+      if (pCmd->command == TSDB_SQL_CONNECT) {
         code = TSDB_CODE_NETWORK_UNAVAIL;
       } else if (pCmd->command == TSDB_SQL_HB) {
         code = TSDB_CODE_NOT_READY;
@@ -2331,7 +2323,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql) {
   size = tscEstimateCreateTableMsgLength(pSql);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for create table msg", pSql);
-    free(tmpData); 
+    free(tmpData);
     return -1;
   }
 
