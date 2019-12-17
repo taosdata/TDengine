@@ -1,5 +1,6 @@
 import os
 import sys
+import datetime
 
 if __name__ == "__main__":
   file = sys.argv[1]
@@ -48,3 +49,7 @@ if __name__ == "__main__":
       outputFd.write('%d, %s, %d\n' %(key, value[0], value[1]))
   outputFd.write('%f, %s, %d\n' %(totalCover*1.0/totalLines, 'Total', totalLines))
   outputFd.close()
+
+  outRecFd = open('record_coverage','a+')
+  outRecFd.write('%s   %f\n' %(datetime.date.today(),totalCover*1.0/totalLines))
+  outRecFd.close()

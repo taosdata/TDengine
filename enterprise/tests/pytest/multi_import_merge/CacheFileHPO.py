@@ -33,7 +33,7 @@ class TDTestCase:
     tdDnodes.start(1)
 
     tdSql.execute('reset query cache')
-    tdSql.execute('drop database db')
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db tables 5')
     tdSql.execute('use db')
 

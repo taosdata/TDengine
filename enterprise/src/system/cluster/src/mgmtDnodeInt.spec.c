@@ -193,6 +193,10 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
   }
 
   uint32_t pubicIp = htonl(pStatus->publicIp);
+
+  /*
+   * When publicIp changes, update the publicIP of all vnodes
+   */
   if (pObj->publicIp != pubicIp) {
     mPrint("dnode:%s, change publicIp from %s to %s", taosIpStr(pObj->privateIp), taosIpStr(pObj->publicIp), taosIpStr(pubicIp));
     mgmtUpdateVgroupPublicIp(pObj->privateIp, pObj->publicIp, pubicIp);
@@ -232,6 +236,18 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
         mgmtUpdateDnode(pObj);
         mPrint("dnode:%s, vid:%d, drop finished", taosIpStr(pObj->privateIp), vnode);
         taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, mgmtTmr);
+      }
+    } else if (pVload->vgId == 0) {
+      /*
+       * In some cases, vnode information may be reported abnormally, recover it
+       */
+      if (pVload->dropStatus != TSDB_VN_DROP_STATUS_READY || pVload->status != TSDB_VN_STATUS_OFFLINE) {
+        mPrint("dnode:%s, vid:%d, vgroup:%d status:%s dropStatus:%s, set it to avail status",
+                taosIpStr(pObj->privateIp), vnode, pVload->vgId, taosGetVnodeStatusStr(pVload->status),
+                taosGetVnodeDropStatusStr(pVload->dropStatus));
+        pVload->dropStatus = TSDB_VN_DROP_STATUS_READY;
+        pVload->status = TSDB_VN_STATUS_OFFLINE;
+        mgmtUpdateDnode(pObj);
       }
     }
   }
