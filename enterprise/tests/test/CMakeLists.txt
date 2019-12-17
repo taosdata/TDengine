@@ -1,6 +1,6 @@
 PROJECT(TDengine)
 
-include_directories(${PRJ_HEADER_PATH} ${TD_COMMUNITY_DIR}/src/inc  ../../src/client/inc/
+include_directories(${PRJ_HEADER_PATH} ${TD_COMMUNITY_DIR}/src/inc  ${TD_COMMUNITY_DIR}/src/client/inc/
         ../../tests/test/perftest/inc ${TD_OS_DIR}/inc)
 
 add_executable(synctest ./cdriver/synctest.c )
@@ -39,9 +39,9 @@ target_link_libraries(skiplisttest taos tutil)
 add_executable(querytest ./perftest/queryTest.c ./perftest/testCommon.c)
 target_link_libraries(querytest taos_static tutil)
 
-add_executable(unittest unittest/hashTest.cpp unittest/unitTest.cpp)
-#add_executable(unittest unittest/unitTest.cpp unittest/histogramtest.cpp unittest/patternMatchTest.cpp
-#        unittest/cacheTest.cpp unittest/tsBufTest.cpp)
+#add_executable(unittest unittest/hashTest.cpp unittest/unitTest.cpp)
+add_executable(unittest unittest/unitTest.cpp unittest/histogramtest.cpp unittest/patternMatchTest.cpp
+        unittest/cacheTest.cpp unittest/tsBufTest.cpp)
 target_link_libraries(unittest taos_static tutil gtest)
 
 add_executable(functiontest ./perftest/sqlfunctionTest.c)

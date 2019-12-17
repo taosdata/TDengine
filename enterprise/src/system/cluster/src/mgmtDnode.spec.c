@@ -22,7 +22,7 @@
 #include "dnodeSystem.h"
 #include "mgmt.h"
 #include "tschemautil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 void *dnodeSdb = NULL;
 int   tsDnodeUpdateSize;
