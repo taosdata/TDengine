@@ -193,8 +193,6 @@ static SQInfo *vnodeAllocateQInfoCommon(SQueryMeterMsg *pQueryMsg, SMeterObj *pM
     } else {
       pQuery->colList[i].data.filters = NULL;
     }
-
-    pQuery->dataRowSize += colList[i].bytes;
   }
 
   vnodeUpdateQueryColumnIndex(pQuery, pMeterObj);
@@ -1099,10 +1097,12 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
 
   pSids[0] = (SMeterSidExtInfo *)pMsg;
   pSids[0]->sid = htonl(pSids[0]->sid);
-
+  pSids[0]->uid = htobe64(pSids[0]->uid);
+  
   for (int32_t j = 1; j < pQueryMsg->numOfSids; ++j) {
     pSids[j] = (SMeterSidExtInfo *)((char *)pSids[j - 1] + sizeof(SMeterSidExtInfo) + pQueryMsg->tagLength);
     pSids[j]->sid = htonl(pSids[j]->sid);
+    pSids[j]->uid = htobe64(pSids[j]->uid);
   }
 
   pMsg = (char *)pSids[pQueryMsg->numOfSids - 1];

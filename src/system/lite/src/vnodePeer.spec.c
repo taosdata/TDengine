@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vnode.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 int vnodeInitPeer(int numOfThreads) { return 0; }
 

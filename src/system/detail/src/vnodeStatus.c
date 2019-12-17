@@ -15,9 +15,9 @@
 
 #include "taosmsg.h"
 #include "tsdb.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
-const char* taosGetVgroupStatusStr(int vgroupStatus) {
+const char* taosGetVgroupStatusStr(int32_t vgroupStatus) {
   switch (vgroupStatus) {
     case TSDB_VG_STATUS_READY:                 return "ready";
     case TSDB_VG_STATUS_IN_PROGRESS:           return "inprogress";
@@ -28,7 +28,7 @@ const char* taosGetVgroupStatusStr(int vgroupStatus) {
   }
 }
 
-const char* taosGetDbStatusStr(int dbStatus) {
+const char* taosGetDbStatusStr(int32_t dbStatus) {
   switch (dbStatus) {
     case TSDB_DB_STATUS_READY:         return "ready";
     case TSDB_DB_STATUS_DROPPING:      return "dropping";
@@ -37,7 +37,7 @@ const char* taosGetDbStatusStr(int dbStatus) {
   }
 }
 
-const char* taosGetVnodeStatusStr(int vnodeStatus) {
+const char* taosGetVnodeStatusStr(int32_t vnodeStatus) {
   switch (vnodeStatus) {
     case TSDB_VN_STATUS_OFFLINE:  return "offline";
     case TSDB_VN_STATUS_CREATING: return "creating";
@@ -50,7 +50,7 @@ const char* taosGetVnodeStatusStr(int vnodeStatus) {
   }
 }
 
-const char* taosGetVnodeSyncStatusStr(int vnodeSyncStatus) {
+const char* taosGetVnodeSyncStatusStr(int32_t vnodeSyncStatus) {
   switch (vnodeSyncStatus) {
     case TSDB_VN_SYNC_STATUS_INIT:       return "init";
     case TSDB_VN_SYNC_STATUS_SYNCING:    return "syncing";
@@ -60,7 +60,7 @@ const char* taosGetVnodeSyncStatusStr(int vnodeSyncStatus) {
   }
 }
 
-const char* taosGetVnodeDropStatusStr(int dropping) {
+const char* taosGetVnodeDropStatusStr(int32_t dropping) {
   switch (dropping) {
     case TSDB_VN_DROP_STATUS_READY:     return "ready";
     case TSDB_VN_DROP_STATUS_DROPPING:  return "dropping";
@@ -68,7 +68,7 @@ const char* taosGetVnodeDropStatusStr(int dropping) {
   }
 }
 
-const char* taosGetDnodeStatusStr(int dnodeStatus) {
+const char* taosGetDnodeStatusStr(int32_t dnodeStatus) {
   switch (dnodeStatus) {
     case TSDB_DN_STATUS_OFFLINE: return "offline";
     case TSDB_DN_STATUS_READY:   return "ready";
@@ -76,7 +76,7 @@ const char* taosGetDnodeStatusStr(int dnodeStatus) {
   }
 }
 
-const char* taosGetDnodeLbStatusStr(int dnodeBalanceStatus) {
+const char* taosGetDnodeLbStatusStr(int32_t dnodeBalanceStatus) {
   switch (dnodeBalanceStatus) {
     case TSDB_DN_LB_STATUS_BALANCED:         return "balanced";
     case TSDB_DN_LB_STATUS_BALANCING:        return "balancing";
@@ -86,7 +86,7 @@ const char* taosGetDnodeLbStatusStr(int dnodeBalanceStatus) {
   }
 }
 
-const char* taosGetVgroupLbStatusStr(int vglbStatus) {
+const char* taosGetVgroupLbStatusStr(int32_t vglbStatus) {
   switch (vglbStatus) {
     case TSDB_VG_LB_STATUS_READY:   return "ready";
     case TSDB_VG_LB_STATUS_UPDATE:  return "updating";
@@ -94,10 +94,22 @@ const char* taosGetVgroupLbStatusStr(int vglbStatus) {
   }
 }
 
-const  char* taosGetVnodeStreamStatusStr(int vnodeStreamStatus) {
+const  char* taosGetVnodeStreamStatusStr(int32_t vnodeStreamStatus) {
   switch (vnodeStreamStatus) {
     case TSDB_VN_STREAM_STATUS_START: return "start";
     case TSDB_VN_STREAM_STATUS_STOP:  return "stop";
     default:                          return "undefined";
+  }
+}
+
+const char* taosGetTableStatusStr(int32_t tableStatus) {
+  switch(tableStatus) {
+    case TSDB_METER_STATE_INSERTING:   return "inserting";
+    case TSDB_METER_STATE_IMPORTING:return "importing";
+    case TSDB_METER_STATE_UPDATING: return "updating";
+    case TSDB_METER_STATE_DROPPING: return "deleting";
+    case TSDB_METER_STATE_DROPPED:  return "dropped";
+    case TSDB_METER_STATE_READY:    return "ready";
+    default:return "undefined";
   }
 }

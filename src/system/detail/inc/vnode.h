@@ -64,15 +64,6 @@ enum _sync_cmd {
   TSDB_SYNC_CMD_REMOVE,
 };
 
-enum _meter_state {
-  TSDB_METER_STATE_READY       = 0x00,
-  TSDB_METER_STATE_INSERT      = 0x01,
-  TSDB_METER_STATE_IMPORTING   = 0x02,
-  TSDB_METER_STATE_UPDATING    = 0x04,
-  TSDB_METER_STATE_DELETING    = 0x10,
-  TSDB_METER_STATE_DELETED     = 0x18,
-};
-
 typedef struct {
   int64_t offset : 48;
   int64_t length : 16;
@@ -267,9 +258,7 @@ typedef struct SQuery {
   int16_t     checkBufferInLoop;  // check if the buffer is full during scan each block
   SLimitVal   limit;
   int32_t     rowSize;
-  int32_t     dataRowSize;  // row size of each loaded data from disk, the value is
 
-  // used for prepare buffer
   SSqlGroupbyExpr *        pGroupbyExpr;
   SSqlFunctionExpr *       pSelectExpr;
   SColumnInfoEx *          colList;

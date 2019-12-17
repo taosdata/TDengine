@@ -489,7 +489,7 @@ typedef struct SColumnInfo {
  */
 typedef struct SMeterSidExtInfo {
   int32_t sid;
-  void *  pObj;
+  int64_t uid;
   char    tags[];
 } SMeterSidExtInfo;
 
@@ -727,9 +727,7 @@ typedef struct {
   int32_t numOfMeters;
   int32_t join;
   int32_t joinCondLen;  // for join condition
-
   int32_t metaElem[TSDB_MAX_JOIN_TABLE_NUM];
-
 } SMetricMetaMsg;
 
 typedef struct {

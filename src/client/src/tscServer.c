@@ -477,25 +477,17 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       if (code == 0) return pSql;
       msg = NULL;
     } else if (rspCode == TSDB_CODE_NOT_ACTIVE_TABLE || rspCode == TSDB_CODE_INVALID_TABLE_ID ||
-        rspCode == TSDB_CODE_INVALID_VNODE_ID || rspCode == TSDB_CODE_NOT_ACTIVE_VNODE ||
-        rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
+        rspCode == TSDB_CODE_NOT_ACTIVE_VNODE || rspCode == TSDB_CODE_INVALID_VNODE_ID ||
+        rspCode == TSDB_CODE_TABLE_ID_MISMATCH || rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
 #else
      if (rspCode == TSDB_CODE_NOT_ACTIVE_TABLE || rspCode == TSDB_CODE_INVALID_TABLE_ID ||
-        rspCode == TSDB_CODE_INVALID_VNODE_ID || rspCode == TSDB_CODE_NOT_ACTIVE_VNODE ||
-        rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
+        rspCode == TSDB_CODE_NOT_ACTIVE_VNODE || rspCode == TSDB_CODE_INVALID_VNODE_ID ||
+        rspCode == TSDB_CODE_TABLE_ID_MISMATCH || rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
 #endif
       pSql->thandle = NULL;
       taosAddConnIntoCache(tscConnCache, thandle, pSql->ip, pSql->vnode, pObj->user);
       
-      if ((pCmd->command == TSDB_SQL_INSERT || pCmd->command == TSDB_SQL_SELECT) &&
-          (rspCode == TSDB_CODE_INVALID_TABLE_ID || rspCode == TSDB_CODE_INVALID_VNODE_ID)) {
-        /*
-         * In case of the insert/select operations, the invalid table(vnode) id means
-         * the submit/query msg is invalid, renew meter meta will not help to fix this problem,
-         * so return the invalid_query_msg to client directly.
-         */
-        code = TSDB_CODE_INVALID_QUERY_MSG;
-      } else if (pCmd->command == TSDB_SQL_CONNECT) {
+      if (pCmd->command == TSDB_SQL_CONNECT) {
         code = TSDB_CODE_NETWORK_UNAVAIL;
       } else if (pCmd->command == TSDB_SQL_HB) {
         code = TSDB_CODE_NOT_READY;
@@ -1482,6 +1474,46 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd) {
   return size;
 }
 
+static char* doSerializeTableInfo(SSqlObj* pSql, int32_t numOfMeters, int32_t vnodeId, char* pMsg) {
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
+  
+  SMeterMeta * pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  SMetricMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
+
+  tscTrace("%p vid:%d, query on %d meters", pSql, htons(vnodeId), numOfMeters);
+  if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
+#ifdef _DEBUG_VIEW
+    tscTrace("%p sid:%d, uid:%lld", pSql, pMeterMetaInfo->pMeterMeta->sid, pMeterMetaInfo->pMeterMeta->uid);
+#endif
+    SMeterSidExtInfo *pMeterInfo = (SMeterSidExtInfo *)pMsg;
+    pMeterInfo->sid = htonl(pMeterMeta->sid);
+    pMeterInfo->uid = htobe64(pMeterMeta->uid);
+    
+    pMsg += sizeof(SMeterSidExtInfo);
+  } else {
+    SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
+    
+    for (int32_t i = 0; i < numOfMeters; ++i) {
+      SMeterSidExtInfo *pMeterInfo = (SMeterSidExtInfo *)pMsg;
+      SMeterSidExtInfo *pQueryMeterInfo = tscGetMeterSidInfo(pVnodeSidList, i);
+      
+      pMeterInfo->sid = htonl(pQueryMeterInfo->sid);
+      pMeterInfo->uid = htobe64(pQueryMeterInfo->uid);
+      
+      pMsg += sizeof(SMeterSidExtInfo);
+      
+      memcpy(pMsg, pQueryMeterInfo->tags, pMetricMeta->tagLen);
+      pMsg += pMetricMeta->tagLen;
+
+#ifdef _DEBUG_VIEW
+      tscTrace("%p sid:%d, uid:%lld", pSql, pQueryMeterInfo->sid, pQueryMeterInfo->uid);
+#endif
+    }
+  }
+  
+  return pMsg;
+}
+
 int tscBuildQueryMsg(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -1512,7 +1544,7 @@ int tscBuildQueryMsg(SSqlObj *pSql) {
     pQueryMsg->vnode = htons(pMeterMeta->vpeerDesc[pMeterMeta->index].vnode);
     pQueryMsg->uid = pMeterMeta->uid;
     pQueryMsg->numOfTagsCols = 0;
-  } else {  // query on metric
+  } else {  // query on super table
     if (pMeterMetaInfo->vnodeIndex < 0) {
       tscError("%p error vnodeIdx:%d", pSql, pMeterMetaInfo->vnodeIndex);
       return -1;
@@ -1699,34 +1731,8 @@ int tscBuildQueryMsg(SSqlObj *pSql) {
 
   pQueryMsg->colNameLen = htonl(len);
 
-  // set sids list
-  tscTrace("%p vid:%d, query on %d meters", pSql, htons(pQueryMsg->vnode), numOfMeters);
-  if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
-#ifdef _DEBUG_VIEW
-
-    tscTrace("%p %d", pSql, pMeterMetaInfo->pMeterMeta->sid);
-#endif
-    SMeterSidExtInfo *pSMeterTagInfo = (SMeterSidExtInfo *)pMsg;
-    pSMeterTagInfo->sid = htonl(pMeterMeta->sid);
-    pMsg += sizeof(SMeterSidExtInfo);
-  } else {
-    SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
-
-    for (int32_t i = 0; i < numOfMeters; ++i) {
-      SMeterSidExtInfo *pMeterTagInfo = (SMeterSidExtInfo *)pMsg;
-      SMeterSidExtInfo *pQueryMeterInfo = tscGetMeterSidInfo(pVnodeSidList, i);
-
-      pMeterTagInfo->sid = htonl(pQueryMeterInfo->sid);
-      pMsg += sizeof(SMeterSidExtInfo);
-
-#ifdef _DEBUG_VIEW
-      tscTrace("%p %d", pSql, pQueryMeterInfo->sid);
-#endif
-
-      memcpy(pMsg, pQueryMeterInfo->tags, pMetricMeta->tagLen);
-      pMsg += pMetricMeta->tagLen;
-    }
-  }
+  // serialize the table info (sid, uid, tags)
+  pMsg = doSerializeTableInfo(pSql, numOfMeters, htons(pQueryMsg->vnode), pMsg);
 
   // only include the required tag column schema. If a tag is not required, it won't be sent to vnode
   if (pMeterMetaInfo->numOfTags > 0) {
@@ -2317,7 +2323,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql) {
   size = tscEstimateCreateTableMsgLength(pSql);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for create table msg", pSql);
-    free(tmpData); 
+    free(tmpData);
     return -1;
   }
 
@@ -3228,44 +3234,47 @@ int tscProcessMetricMetaRsp(SSqlObj *pSql) {
 
     size += pMeta->numOfVnodes * sizeof(SVnodeSidList *) + pMeta->numOfMeters * sizeof(SMeterSidExtInfo *);
 
-    char *pStr = calloc(1, size);
-    if (pStr == NULL) {
+    char *pBuf = calloc(1, size);
+    if (pBuf == NULL) {
       pSql->res.code = TSDB_CODE_CLI_OUT_OF_MEMORY;
       goto _error_clean;
     }
 
-    SMetricMeta *pNewMetricMeta = (SMetricMeta *)pStr;
+    SMetricMeta *pNewMetricMeta = (SMetricMeta *)pBuf;
     metricMetaList[k] = pNewMetricMeta;
 
     pNewMetricMeta->numOfMeters = pMeta->numOfMeters;
     pNewMetricMeta->numOfVnodes = pMeta->numOfVnodes;
     pNewMetricMeta->tagLen = pMeta->tagLen;
 
-    pStr = pStr + sizeof(SMetricMeta) + pNewMetricMeta->numOfVnodes * sizeof(SVnodeSidList *);
+    pBuf = pBuf + sizeof(SMetricMeta) + pNewMetricMeta->numOfVnodes * sizeof(SVnodeSidList *);
 
     for (int32_t i = 0; i < pMeta->numOfVnodes; ++i) {
       SVnodeSidList *pSidLists = (SVnodeSidList *)rsp;
-      memcpy(pStr, pSidLists, sizeof(SVnodeSidList));
+      memcpy(pBuf, pSidLists, sizeof(SVnodeSidList));
 
-      pNewMetricMeta->list[i] = pStr - (char *)pNewMetricMeta;  // offset value
-      SVnodeSidList *pLists = (SVnodeSidList *)pStr;
+      pNewMetricMeta->list[i] = pBuf - (char *)pNewMetricMeta;  // offset value
+      SVnodeSidList *pLists = (SVnodeSidList *)pBuf;
 
       tscTrace("%p metricmeta:vid:%d,numOfMeters:%d", pSql, i, pLists->numOfSids);
 
-      pStr += sizeof(SVnodeSidList) + sizeof(SMeterSidExtInfo *) * pSidLists->numOfSids;
+      pBuf += sizeof(SVnodeSidList) + sizeof(SMeterSidExtInfo *) * pSidLists->numOfSids;
       rsp += sizeof(SVnodeSidList);
 
-      size_t sidSize = sizeof(SMeterSidExtInfo) + pNewMetricMeta->tagLen;
+      size_t elemSize = sizeof(SMeterSidExtInfo) + pNewMetricMeta->tagLen;
       for (int32_t j = 0; j < pSidLists->numOfSids; ++j) {
-        pLists->pSidExtInfoList[j] = pStr - (char *)pLists;
-        memcpy(pStr, rsp, sidSize);
-
-        rsp += sidSize;
-        pStr += sidSize;
+        pLists->pSidExtInfoList[j] = pBuf - (char *)pLists;
+        memcpy(pBuf, rsp, elemSize);
+        
+        ((SMeterSidExtInfo*) pBuf)->uid = htobe64(((SMeterSidExtInfo*) pBuf)->uid);
+        ((SMeterSidExtInfo*) pBuf)->sid = htonl(((SMeterSidExtInfo*) pBuf)->sid);
+        
+        rsp += elemSize;
+        pBuf += elemSize;
       }
     }
 
-    sizes[k] = pStr - (char *)pNewMetricMeta;
+    sizes[k] = pBuf - (char *)pNewMetricMeta;
   }
 
   for (int32_t i = 0; i < num; ++i) {

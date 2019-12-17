@@ -22,7 +22,7 @@
 #include "vnode.h"
 #include "vnodeStore.h"
 #include "vnodeUtil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 int        tsMaxVnode = -1;
 int        tsOpenVnodes = 0;
@@ -118,7 +118,7 @@ static int32_t vnodeMarkAllMetersDropped(SVnodeObj* pVnode) {
     } else { // set the meter is to be deleted
       SMeterObj* pObj = pVnode->meterList[sid];
       if (pObj != NULL) {
-        pObj->state = TSDB_METER_STATE_DELETED;
+        pObj->state = TSDB_METER_STATE_DROPPED;
       }
     }
   }

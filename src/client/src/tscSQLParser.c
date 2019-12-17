@@ -1957,7 +1957,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, int32_t colIdx, tSQLExprItem* pItem
       }
 
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-      if (getColumnIndexByNameEx(&pParamElem->pNode->colInfo, pCmd, &index) != TSDB_CODE_SUCCESS) {
+      if ((getColumnIndexByNameEx(&pParamElem->pNode->colInfo, pCmd, &index) != TSDB_CODE_SUCCESS) ||
+        index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
         return invalidSqlErrMsg(pCmd, msg3);
       }
 
@@ -1966,7 +1967,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, int32_t colIdx, tSQLExprItem* pItem
       SSchema* pSchema = tsGetColumnSchema(pMeterMetaInfo->pMeterMeta, index.columnIndex);
       int16_t  colType = pSchema->type;
 
-      if (colType == TSDB_DATA_TYPE_BOOL || colType >= TSDB_DATA_TYPE_BINARY) {
+      if (colType <= TSDB_DATA_TYPE_BOOL || colType >= TSDB_DATA_TYPE_BINARY) {
         return invalidSqlErrMsg(pCmd, msg1);
       }
 
@@ -2336,7 +2337,7 @@ static int32_t getMeterIndex(SSQLToken* pTableToken, SSqlCmd* pCmd, SColumnIndex
 
   for (int32_t i = 0; i < pCmd->numOfTables; ++i) {
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, i);
-    extractMeterName(pMeterMetaInfo->name, tableName);
+    extractTableName(pMeterMetaInfo->name, tableName);
 
     if (strncasecmp(tableName, pTableToken->z, pTableToken->n) == 0 && strlen(tableName) == pTableToken->n) {
       pIndex->tableIndex = i;
@@ -5468,15 +5469,16 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd) {
 
 int32_t doFunctionsCompatibleCheck(SSqlObj* pSql) {
   const char* msg1 = "functions/columns not allowed in group by query";
+  const char* msg2 = "projection query on columns not allowed";
   const char* msg3 = "group by not allowed on projection query";
-  const char* msg5 = "retrieve tags not compatible with group by or interval query";
+  const char* msg4 = "retrieve tags not compatible with group by or interval query";
 
   SSqlCmd* pCmd = &pSql->cmd;
 
   // only retrieve tags, group by is not supportted
   if (pCmd->command == TSDB_SQL_RETRIEVE_TAGS) {
     if (pCmd->groupbyExpr.numOfGroupCols > 0 || pCmd->nAggTimeInterval > 0) {
-      return invalidSqlErrMsg(pCmd, msg5);
+      return invalidSqlErrMsg(pCmd, msg4);
     } else {
       return TSDB_CODE_SUCCESS;
     }
@@ -5509,7 +5511,7 @@ int32_t doFunctionsCompatibleCheck(SSqlObj* pSql) {
         }
 
         if (!qualified) {
-          return TSDB_CODE_INVALID_SQL;
+          return invalidSqlErrMsg(pCmd, msg2);
         }
       }
 

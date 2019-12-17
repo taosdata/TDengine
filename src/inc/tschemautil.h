@@ -53,7 +53,7 @@ char *tsGetTagsValue(SMeterMeta *pMeta);
 
 bool tsMeterMetaIdentical(SMeterMeta *p1, SMeterMeta *p2);
 
-void extractMeterName(char *meterId, char *name);
+void extractTableName(char *meterId, char *name);
 
 SSQLToken extractDBName(char *meterId, char *name);
 

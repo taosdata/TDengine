@@ -18,6 +18,7 @@
 
 #include "vnode.h"
 #include "vnodeUtil.h"
+#include "vnodeStatus.h"
 
 extern void         vnodeGetHeadTname(char *nHeadName, char *nLastName, int vnode, int fileId);
 extern int          vnodeReadColumnToMem(int fd, SCompBlock *pBlock, SField **fields, int col, char *data, int dataSize,

@@ -20,7 +20,7 @@
 #include "mgmtBalance.h"
 #include "mgmtUtil.h"
 #include "tschemautil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 void *dbSdb = NULL;
 int   tsDbUpdateSize;

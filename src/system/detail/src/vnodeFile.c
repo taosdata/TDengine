@@ -21,6 +21,7 @@
 #include "vnode.h"
 #include "vnodeFile.h"
 #include "vnodeUtil.h"
+#include "vnodeStatus.h"
 
 #define FILE_QUERY_NEW_BLOCK -5  // a special negative number
 
@@ -611,7 +612,7 @@ _again:
     }
 
     // meter is going to be deleted, abort
-    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPING)) {
       dWarn("vid:%d sid:%d is dropped, ignore this meter", vnode, sid);
       continue;
     }
