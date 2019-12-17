@@ -1,3 +1,6 @@
+run lite/parser/tags_filter.sim
+sleep 2000
+
 run lite/parser/alter.sim
 sleep 2000
 run lite/parser/alter1.sim
