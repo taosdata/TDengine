@@ -336,15 +336,6 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
       code = TSDB_CODE_INVALID_TABLE_ID;
       goto _query_over;
     }
-    
-    SMeterObj* pMeterObj = pVnode->meterList[pSids[i]->sid];
-    if (pMeterObj->uid != pSids[i]->uid || pMeterObj->sid != pSids[i]->sid) { // uid/sid not match, error in query msg
-      dError("qmsg:%p sid/uid mismatch, vid:%d sid:%d id:%s uid:%" ", in msg sid:%d, uid:%lld", pQueryMsg,
-             pQueryMsg->vnode, pMeterObj->sid, pMeterObj->meterId, pMeterObj->uid, pSids[i]->sid, pSids[i]->uid);
-      
-      code = TSDB_CODE_TABLE_ID_MISMATCH;
-      goto _query_over;
-    }
   }
 
   // todo optimize for single table query process
