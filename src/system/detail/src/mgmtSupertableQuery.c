@@ -100,6 +100,32 @@ static int32_t tabObjResultComparator(const void* p1, const void* p2, void* para
   return 0;
 }
 
+/**
+ * update the tag order index according to the tags column index. The tags column index needs to be checked one-by-one,
+ * since the normal columns may be passed to server for handling the group by on status column.
+ *
+ * @param pMetricMetaMsg
+ * @param tableIndex
+ * @param pOrderIndexInfo
+ * @param numOfTags
+ */
+static void mgmtUpdateOrderTagColIndex(SMetricMetaMsg* pMetricMetaMsg, int32_t tableIndex, tOrderIdx* pOrderIndexInfo,
+     int32_t numOfTags) {
+  SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pMetricMetaMsg + pMetricMetaMsg->metaElem[tableIndex]);
+  SColIndexEx* groupColumnList = (SColIndexEx*)((char*)pMetricMetaMsg + pElem->groupbyTagColumnList);
+  
+  int32_t numOfGroupbyTags = 0;
+  for (int32_t i = 0; i < pElem->numOfGroupCols; ++i) {
+    if (groupColumnList[i].flag == TSDB_COL_TAG) {  // ignore this column if it is not a tag column.
+      pOrderIndexInfo->pData[numOfGroupbyTags++] = groupColumnList[i].colIdx;
+      
+      assert(groupColumnList[i].colIdx < numOfTags);
+    }
+  }
+  
+  pOrderIndexInfo->numOfOrderedCols = numOfGroupbyTags;
+}
+
 // todo merge sort function with losertree used
 void mgmtReorganizeMetersInMetricMeta(SMetricMetaMsg* pMetricMetaMsg, int32_t tableIndex, tQueryResultset* pRes) {
   if (pRes->num <= 0) {  // no result, no need to pagination
@@ -122,13 +148,9 @@ void mgmtReorganizeMetersInMetricMeta(SMetricMetaMsg* pMetricMetaMsg, int32_t ta
 
   int32_t* startPos = NULL;
   int32_t  numOfSubset = 1;
-
-  if (pElem->numOfGroupCols > 0) {
-    SColIndexEx* groupColumnList = (SColIndexEx*)((char*)pMetricMetaMsg + pElem->groupbyTagColumnList);
-    for (int32_t i = 0; i < pElem->numOfGroupCols; ++i) {
-      descriptor->orderIdx.pData[i] = groupColumnList[i].colIdx;
-    }
-
+  
+  mgmtUpdateOrderTagColIndex(pMetricMetaMsg, tableIndex, &descriptor->orderIdx, pMetric->numOfTags);
+  if (descriptor->orderIdx.numOfOrderedCols > 0) {
     tQSortEx(pRes->pRes, POINTER_BYTES, 0, pRes->num - 1, descriptor, tabObjResultComparator);
     startPos = calculateSubGroup(pRes->pRes, pRes->num, &numOfSubset, descriptor, tabObjResultComparator);
   } else {
