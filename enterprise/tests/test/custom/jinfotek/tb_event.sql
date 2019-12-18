@@ -33,7 +33,7 @@ create table TB_EVENT
   ci             binary(20),
   billtype       binary(20),
   calltype       binary(20),
-  dtmf           binary(20),
+  dtmf           binary(40),
   callduration   BIGINT,
   cause          BIGINT,
   rlgtime        BIGINT,

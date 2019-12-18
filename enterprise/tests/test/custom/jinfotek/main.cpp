@@ -579,7 +579,7 @@ static bool create_output_files()
     }
 
     char path[256];
-    join_path( path, g_outpath, "table.sql" );
+    join_path( path, g_outpath, "tables.sql" );
     g_table_file = fopen( path, "w+" );
     if( g_table_file == NULL )
     {

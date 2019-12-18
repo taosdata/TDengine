@@ -53,7 +53,7 @@ struct Record
     char ci[20];
     char billtype[20];
     char calltype[20];
-    char dtmf[20];
+    char dtmf[40];
     int64_t callduration;
     int64_t cause;
     int64_t rlgtime;
