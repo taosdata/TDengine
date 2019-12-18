@@ -886,7 +886,11 @@ int vnodeSaveQueryResult(void *handle, char *data, int32_t *size) {
          pQInfo->pointsRead);
 
   if (pQInfo->over == 0) {
-    dTrace("QInfo:%p set query flag, sig:%" PRIu64 ", func:%s", pQInfo, pQInfo->signature, __FUNCTION__);
+    #ifdef _TD_ARM_
+      dTrace("QInfo:%p set query flag, sig:%" PRIu64 ", func:vnodeSaveQueryResult", pQInfo, pQInfo->signature);
+    #else
+      dTrace("QInfo:%p set query flag, sig:%" PRIu64 ", func:%s", pQInfo, pQInfo->signature, __FUNCTION__);
+    #endif
 
     if (pQInfo->killed == 1) {
       dTrace("%p freed or killed, abort query", pQInfo);
