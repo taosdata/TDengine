@@ -437,6 +437,9 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
         if (sToken.z[k] == delim || sToken.z[k] == '\\') {
           if (sToken.z[k + 1] == delim) {
             cnt++;
+            tmpTokenBuf[j] = sToken.z[k + 1];
+            j++;
+            k++;
             continue;
           }
         }
