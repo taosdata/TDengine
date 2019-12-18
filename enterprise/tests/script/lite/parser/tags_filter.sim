@@ -146,3 +146,8 @@ sql select * from st2 where period='02';
 if $rows != 2 then
   return -1
 endi
+
+sql select sum(v2) from st2 group by farm,period,line;
+if $rows != 2 then
+  return -1
+endi
