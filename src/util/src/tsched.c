@@ -145,6 +145,8 @@ void *taosProcessSchedQueue(void *param) {
     else if (msg.tfp)
       (*(msg.tfp))(msg.ahandle, msg.thandle);
   }
+
+  return NULL;
 }
 
 int taosScheduleTask(void *qhandle, SSchedMsg *pMsg) {
