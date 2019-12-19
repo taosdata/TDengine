@@ -264,7 +264,6 @@ void *taosProcessAlarmSignal(void *tharg) {
     callback(0);
   }
 
-  assert(0);
   return NULL;
 }
 

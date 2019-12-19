@@ -372,24 +372,24 @@ static int32_t doOpenQueryFileData(SQInfo *pQInfo, SQueryFilesInfo *pVnodeFileIn
     return -1;
   }
 
-  pVnodeFileInfo->pHeaderFileData =
-      mmap(NULL, pVnodeFileInfo->headFileSize, PROT_READ, MAP_SHARED, pVnodeFileInfo->headerFd, 0);
-
-  if (pVnodeFileInfo->pHeaderFileData == MAP_FAILED) {
-    pVnodeFileInfo->pHeaderFileData = NULL;
-
-    doCloseQueryFileInfoFD(pVnodeFileInfo);
-    doInitQueryFileInfoFD(pVnodeFileInfo);
-
-    dError("QInfo:%p failed to mmap header file:%s, size:%lld, %s", pQInfo, pVnodeFileInfo->headerFilePath,
-           pVnodeFileInfo->headFileSize, strerror(errno));
-
-    return -1;
-  } else {
-    if (madvise(pVnodeFileInfo->pHeaderFileData, pVnodeFileInfo->headFileSize, MADV_SEQUENTIAL) == -1) {
-      dError("QInfo:%p failed to advise kernel the usage of header file, reason:%s", pQInfo, strerror(errno));
-    }
-  }
+//  pVnodeFileInfo->pHeaderFileData =
+//      mmap(NULL, pVnodeFileInfo->headFileSize, PROT_READ, MAP_SHARED, pVnodeFileInfo->headerFd, 0);
+//
+//  if (pVnodeFileInfo->pHeaderFileData == MAP_FAILED) {
+//    pVnodeFileInfo->pHeaderFileData = NULL;
+//
+//    doCloseQueryFileInfoFD(pVnodeFileInfo);
+//    doInitQueryFileInfoFD(pVnodeFileInfo);
+//
+//    dError("QInfo:%p failed to mmap header file:%s, size:%lld, %s", pQInfo, pVnodeFileInfo->headerFilePath,
+//           pVnodeFileInfo->headFileSize, strerror(errno));
+//
+//    return -1;
+//  } else {
+//    if (madvise(pVnodeFileInfo->pHeaderFileData, pVnodeFileInfo->headFileSize, MADV_SEQUENTIAL) == -1) {
+//      dError("QInfo:%p failed to advise kernel the usage of header file, reason:%s", pQInfo, strerror(errno));
+//    }
+//  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -431,7 +431,7 @@ char *vnodeGetHeaderFileData(SQueryRuntimeEnv *pRuntimeEnv, int32_t vnodeId, int
 
   if (pVnodeFileInfo->current != fileIndex || pVnodeFileInfo->pHeaderFileData == NULL) {
     if (pVnodeFileInfo->current >= 0) {
-      assert(pVnodeFileInfo->pHeaderFileData != NULL);
+//      assert(pVnodeFileInfo->pHeaderFileData != NULL);
     }
 
     // do close the current memory mapped header file and corresponding fd
@@ -450,7 +450,7 @@ char *vnodeGetHeaderFileData(SQueryRuntimeEnv *pRuntimeEnv, int32_t vnodeId, int
     }
   }
 
-  return pVnodeFileInfo->pHeaderFileData;
+  return 1;//pVnodeFileInfo->pHeaderFileData;
 }
 
 /*
@@ -487,16 +487,17 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
   char *data = calloc(1, tmsize + TSDB_FILE_HEADER_LEN);
   read(fd, data, tmsize + TSDB_FILE_HEADER_LEN);
 #endif
+  
+  int64_t offset = TSDB_FILE_HEADER_LEN + sizeof(SCompHeader) * pMeterObj->sid;
 
+#if 0
   // check the offset value integrity
   if (validateHeaderOffsetSegment(pQInfo, pRuntimeEnv->vnodeFileInfo.headerFilePath, pMeterObj->vnode, data,
                                   getCompHeaderSegSize(pCfg)) < 0) {
     return -1;
   }
 
-  int64_t      offset = TSDB_FILE_HEADER_LEN + sizeof(SCompHeader) * pMeterObj->sid;
   SCompHeader *compHeader = (SCompHeader *)(data + offset);
-
   // no data in this file for specified meter, abort
   if (compHeader->compInfoOffset == 0) {
     return 0;
@@ -507,14 +508,29 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
                               getCompHeaderStartPosition(pCfg)) < 0) {
     return -1;
   }
+#else
+  char* buf = calloc(1, getCompHeaderSegSize(pCfg));
+  SQueryFilesInfo *pVnodeFileInfo = &pRuntimeEnv->vnodeFileInfo;
+  
+  lseek(pVnodeFileInfo->headerFd, TSDB_FILE_HEADER_LEN, SEEK_SET);
+  read(pVnodeFileInfo->headerFd, buf, getCompHeaderSegSize(pCfg));
+  
+  // check the offset value integrity
+  if (validateHeaderOffsetSegment(pQInfo, pRuntimeEnv->vnodeFileInfo.headerFilePath, pMeterObj->vnode, buf - TSDB_FILE_HEADER_LEN,
+                                  getCompHeaderSegSize(pCfg)) < 0) {
+    return -1;
+  }
+#endif
 
-#if 1
+#if 0
   SCompInfo *compInfo = (SCompInfo *)(data + compHeader->compInfoOffset);
 #else
-  lseek(fd, compHeader->compInfoOffset, SEEK_SET);
+  SCompHeader *compHeader = (SCompHeader *)(buf + sizeof(SCompHeader) * pMeterObj->sid);
+  lseek(pVnodeFileInfo->headerFd, compHeader->compInfoOffset, SEEK_SET);
+  
   SCompInfo  CompInfo = {0};
   SCompInfo *compInfo = &CompInfo;
-  read(fd, compInfo, sizeof(SCompInfo));
+  read(pVnodeFileInfo->headerFd, compInfo, sizeof(SCompInfo));
 #endif
 
   // check compblock info integrity
@@ -542,19 +558,19 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
 
   memset(pQuery->pBlock, 0, (size_t)pQuery->blockBufferSize);
 
-#if 1
+#if 0
   memcpy(pQuery->pBlock, (char *)compInfo + sizeof(SCompInfo), (size_t)compBlockSize);
   TSCKSUM checksum = *(TSCKSUM *)((char *)compInfo + sizeof(SCompInfo) + compBlockSize);
 #else
   TSCKSUM checksum;
-  read(fd, pQuery->pBlock, compBlockSize);
-  read(fd, &checksum, sizeof(TSCKSUM));
+  read(pVnodeFileInfo->headerFd, pQuery->pBlock, compBlockSize);
+  read(pVnodeFileInfo->headerFd, &checksum, sizeof(TSCKSUM));
 #endif
 
   // check comp block integrity
   if (validateCompBlockSegment(pQInfo, pRuntimeEnv->vnodeFileInfo.headerFilePath, compInfo, (char *)pQuery->pBlock,
                                pMeterObj->vnode, checksum) < 0) {
-    return -1;
+    return -1; //TODO free resource in error process
   }
 
   pQuery->pFields = (SField **)((char *)pQuery->pBlock + compBlockSize);
@@ -567,7 +583,8 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
 
   pSummary->totalCompInfoSize += compBlockSize;
   pSummary->loadCompInfoUs += (et - st);
-
+  
+  free(buf);
   return pQuery->numOfBlocks;
 }
 
@@ -1411,11 +1428,12 @@ static int32_t blockwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t
  *
  * first filter the data block according to the value filter condition, then, if the top/bottom query applied,
  * invoke the filter function to decide if the data block need to be accessed or not.
+ * TODO handle the whole data block is NULL situation
  * @param pQuery
  * @param pField
  * @return
  */
-static bool needToLoadDataBlock(SQuery *pQuery, SField *pField, SQLFunctionCtx *pCtx) {
+static bool needToLoadDataBlock(SQuery *pQuery, SField *pField, SQLFunctionCtx *pCtx, int32_t numOfTotalPoints) {
   if (pField == NULL) {
     return false;  // no need to load data
   }
@@ -1431,6 +1449,11 @@ static bool needToLoadDataBlock(SQuery *pQuery, SField *pField, SQLFunctionCtx *
 
     // not support pre-filter operation on binary/nchar data type
     if (!vnodeSupportPrefilter(pFilterInfo->info.data.type)) {
+      continue;
+    }
+    
+    // all points in current column are NULL, no need to check its boundary value
+    if (pField[colIndex].numOfNullPoints == numOfTotalPoints) {
       continue;
     }
 
@@ -1968,6 +1991,7 @@ int32_t getNextDataFileCompInfo(SQueryRuntimeEnv *pRuntimeEnv, SMeterObj *pMeter
       break;
     }
 
+    
     // failed to mmap header file into memory will cause the retrieval of compblock info failed
     if (vnodeGetCompBlockInfo(pMeterObj, pRuntimeEnv, fid) > 0) {
       break;
@@ -6724,7 +6748,7 @@ int32_t LoadDatablockOnDemand(SCompBlock *pBlock, SField **pFields, uint8_t *blk
        * filter the data block according to the value filter condition.
        * no need to load the data block, continue for next block
        */
-      if (!needToLoadDataBlock(pQuery, *pFields, pRuntimeEnv->pCtx)) {
+      if (!needToLoadDataBlock(pQuery, *pFields, pRuntimeEnv->pCtx, pBlock->numOfPoints)) {
 #if defined(_DEBUG_VIEW)
         dTrace("QInfo:%p fileId:%d, slot:%d, block discarded by per-filter, ", GET_QINFO_ADDR(pQuery), pQuery->fileId,
                pQuery->slot);
