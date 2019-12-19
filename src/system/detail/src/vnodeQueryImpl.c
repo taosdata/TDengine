@@ -339,13 +339,7 @@ static void doInitQueryFileInfoFD(SQueryFilesInfo *pVnodeFilesInfo) {
  */
 static int32_t doOpenQueryFileData(SQInfo *pQInfo, SQueryFilesInfo *pVnodeFileInfo, int32_t vnodeId) {
   SHeaderFileInfo *pHeaderFileInfo = &pVnodeFileInfo->pFileInfo[pVnodeFileInfo->current];
-
-  pVnodeFileInfo->headerFd = open(pVnodeFileInfo->headerFilePath, O_RDONLY);
-  if (!FD_VALID(pVnodeFileInfo->headerFd)) {
-    dError("QInfo:%p failed open head file:%s reason:%s", pQInfo, pVnodeFileInfo->headerFilePath, strerror(errno));
-    return -1;
-  }
-
+  
   /*
    * current header file is empty or broken, return directly.
    *
@@ -356,7 +350,13 @@ static int32_t doOpenQueryFileData(SQInfo *pQInfo, SQueryFilesInfo *pVnodeFileIn
   if (checkIsHeaderFileEmpty(pVnodeFileInfo, vnodeId)) {
     qTrace("QInfo:%p vid:%d, fileId:%d, index:%d, size:%d, ignore file, empty or broken", pQInfo,
            pVnodeFileInfo->vnodeId, pHeaderFileInfo->fileID, pVnodeFileInfo->current, pVnodeFileInfo->headFileSize);
-
+    
+    return -1;
+  }
+  
+  pVnodeFileInfo->headerFd = open(pVnodeFileInfo->headerFilePath, O_RDONLY);
+  if (!FD_VALID(pVnodeFileInfo->headerFd)) {
+    dError("QInfo:%p failed open head file:%s reason:%s", pQInfo, pVnodeFileInfo->headerFilePath, strerror(errno));
     return -1;
   }
 
@@ -548,23 +548,23 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
   pQuery->numOfBlocks = (int32_t)compInfo->numOfBlocks;
 
   int32_t compBlockSize = compInfo->numOfBlocks * sizeof(SCompBlock);
-  size_t  bufferSize = compBlockSize + POINTER_BYTES * compInfo->numOfBlocks;
+  size_t  bufferSize = compBlockSize + sizeof(TSCKSUM);
 
   // prepare buffer to hold compblock data
   if (pQuery->blockBufferSize != bufferSize) {
     pQuery->pBlock = realloc(pQuery->pBlock, bufferSize);
-    pQuery->blockBufferSize = (int32_t)bufferSize;
+    pQuery->blockBufferSize = (int32_t) bufferSize;
   }
 
-  memset(pQuery->pBlock, 0, (size_t)pQuery->blockBufferSize);
+  memset(pQuery->pBlock, 0, bufferSize);
 
 #if 0
   memcpy(pQuery->pBlock, (char *)compInfo + sizeof(SCompInfo), (size_t)compBlockSize);
   TSCKSUM checksum = *(TSCKSUM *)((char *)compInfo + sizeof(SCompInfo) + compBlockSize);
 #else
-  TSCKSUM checksum;
-  read(pVnodeFileInfo->headerFd, pQuery->pBlock, compBlockSize);
-  read(pVnodeFileInfo->headerFd, &checksum, sizeof(TSCKSUM));
+  read(pVnodeFileInfo->headerFd, pQuery->pBlock, bufferSize);
+  TSCKSUM checksum = *(TSCKSUM*)((char*)pQuery->pBlock + compBlockSize);
+//  read(pVnodeFileInfo->headerFd, &checksum, sizeof(TSCKSUM));
 #endif
 
   // check comp block integrity
