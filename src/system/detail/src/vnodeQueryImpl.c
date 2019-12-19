@@ -431,7 +431,7 @@ char *vnodeGetHeaderFileData(SQueryRuntimeEnv *pRuntimeEnv, int32_t vnodeId, int
 
   if (pVnodeFileInfo->current != fileIndex || pVnodeFileInfo->pHeaderFileData == NULL) {
     if (pVnodeFileInfo->current >= 0) {
-      assert(pVnodeFileInfo->pHeaderFileData != NULL);
+//      assert(pVnodeFileInfo->pHeaderFileData != NULL);
     }
 
     // do close the current memory mapped header file and corresponding fd
@@ -487,16 +487,17 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
   char *data = calloc(1, tmsize + TSDB_FILE_HEADER_LEN);
   read(fd, data, tmsize + TSDB_FILE_HEADER_LEN);
 #endif
+  
+  int64_t offset = TSDB_FILE_HEADER_LEN + sizeof(SCompHeader) * pMeterObj->sid;
 
+#if 0
   // check the offset value integrity
   if (validateHeaderOffsetSegment(pQInfo, pRuntimeEnv->vnodeFileInfo.headerFilePath, pMeterObj->vnode, data,
                                   getCompHeaderSegSize(pCfg)) < 0) {
     return -1;
   }
 
-  int64_t      offset = TSDB_FILE_HEADER_LEN + sizeof(SCompHeader) * pMeterObj->sid;
   SCompHeader *compHeader = (SCompHeader *)(data + offset);
-
   // no data in this file for specified meter, abort
   if (compHeader->compInfoOffset == 0) {
     return 0;
@@ -507,14 +508,29 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
                               getCompHeaderStartPosition(pCfg)) < 0) {
     return -1;
   }
+#else
+  char* buf = calloc(1, getCompHeaderSegSize(pCfg));
+  SQueryFilesInfo *pVnodeFileInfo = &pRuntimeEnv->vnodeFileInfo;
+  
+  lseek(pVnodeFileInfo->headerFd, TSDB_FILE_HEADER_LEN, SEEK_SET);
+  read(pVnodeFileInfo->headerFd, buf, getCompHeaderSegSize(pCfg));
+  
+  // check the offset value integrity
+  if (validateHeaderOffsetSegment(pQInfo, pRuntimeEnv->vnodeFileInfo.headerFilePath, pMeterObj->vnode, buf - TSDB_FILE_HEADER_LEN,
+                                  getCompHeaderSegSize(pCfg)) < 0) {
+    return -1;
+  }
+#endif
 
-#if 1
+#if 0
   SCompInfo *compInfo = (SCompInfo *)(data + compHeader->compInfoOffset);
 #else
-  lseek(fd, compHeader->compInfoOffset, SEEK_SET);
+  SCompHeader *compHeader = (SCompHeader *)(buf + sizeof(SCompHeader) * pMeterObj->sid);
+  lseek(pVnodeFileInfo->headerFd, compHeader->compInfoOffset, SEEK_SET);
+  
   SCompInfo  CompInfo = {0};
   SCompInfo *compInfo = &CompInfo;
-  read(fd, compInfo, sizeof(SCompInfo));
+  read(pVnodeFileInfo->headerFd, compInfo, sizeof(SCompInfo));
 #endif
 
   // check compblock info integrity
@@ -542,19 +558,19 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
 
   memset(pQuery->pBlock, 0, (size_t)pQuery->blockBufferSize);
 
-#if 1
+#if 0
   memcpy(pQuery->pBlock, (char *)compInfo + sizeof(SCompInfo), (size_t)compBlockSize);
   TSCKSUM checksum = *(TSCKSUM *)((char *)compInfo + sizeof(SCompInfo) + compBlockSize);
 #else
   TSCKSUM checksum;
-  read(fd, pQuery->pBlock, compBlockSize);
-  read(fd, &checksum, sizeof(TSCKSUM));
+  read(pVnodeFileInfo->headerFd, pQuery->pBlock, compBlockSize);
+  read(pVnodeFileInfo->headerFd, &checksum, sizeof(TSCKSUM));
 #endif
 
   // check comp block integrity
   if (validateCompBlockSegment(pQInfo, pRuntimeEnv->vnodeFileInfo.headerFilePath, compInfo, (char *)pQuery->pBlock,
                                pMeterObj->vnode, checksum) < 0) {
-    return -1;
+    return -1; //TODO free resource in error process
   }
 
   pQuery->pFields = (SField **)((char *)pQuery->pBlock + compBlockSize);
@@ -567,7 +583,8 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
 
   pSummary->totalCompInfoSize += compBlockSize;
   pSummary->loadCompInfoUs += (et - st);
-
+  
+  free(buf);
   return pQuery->numOfBlocks;
 }
 
