@@ -352,6 +352,23 @@ int mgmtAllocVnodes(SVgObj *pVgroup) {
   return 0;
 }
 
+char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
+  SDnodeObj *pDnode = mgmtGetDnode(pVnode->ip);
+  if (pDnode == NULL) {
+    mError("dnode:%s, vgroup:%d, vnode:%d dnode not exist", taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode);
+    return "null";
+  }
+
+  SVnodeLoad *vload = pDnode->vload + pVnode->vnode;
+  if (vload->vgId != pVgroup->vgId || vload->vnode != pVnode->vnode) {
+    mError("dnode:%s, vgroup:%d, vnode:%d not same with dnode vgroup:%d vnode:%d",
+           taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode, vload->vgId, vload->vnode);
+    return "null";
+  }
+
+  return taosGetVnodeStatusStr(vload->status);
+}
+
 /**
  * desc: check vnode is ready (synced)
  **/
