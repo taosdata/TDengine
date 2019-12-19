@@ -52,6 +52,8 @@ bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType) {
   return tsModule[moduleType].num != 0;
 }
 
+char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) { return "master"; }
+
 bool mgmtCheckVnodeReady(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode) { return true; }
 
 void mgmtUpdateDnodeState(SDnodeObj *pDnode, int lbStatus) {}
