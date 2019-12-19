@@ -167,9 +167,11 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     return;
   }
 
-  fprintf(stdout, "start to dispose file:%s\n", fname);
+  fprintf(stdout, "begin import file:%s\n", fname);
 
+  int lineNo = 0;
   while ((read_len = getline(&line, &line_len, f)) != -1) {
+    ++lineNo;
     if (read_len >= MAX_COMMAND_SIZE) continue;
     line[--read_len] = '\0';
 
@@ -186,7 +188,10 @@ static void shellSourceFile(TAOS *con, char *fptr) {
 
     memcpy(cmd + cmd_len, line, read_len);
     if (taos_query(con, cmd)) {
-      taos_error(con);
+      fprintf(stderr, "DB error: %s: %s (%d)\n", taos_errstr(con), fname, lineNo);
+      /* free local resouce: allocated memory/metric-meta refcnt */
+      TAOS_RES *pRes = taos_use_result(con);
+      taos_free_result(pRes);
     }
 
     memset(cmd, 0, MAX_COMMAND_SIZE);
