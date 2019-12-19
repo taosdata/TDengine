@@ -24,6 +24,7 @@
 #include "taosmsg.h"
 #include "tutil.h"
 #include "ttime.h"
+#include <error.h>
 
 #define TIME_UNIT 1000  //ms
 #define COMMAND_SIZE (50*1024)
@@ -70,7 +71,7 @@ static char doc[] = "";
 /*         to force a line-break, e.g.\n<-- here."; */
 
 /* A description of the arguments we accept. */
-static char args_doc[] = "dbname [tbname ...]\n--databases dbname ...\n--all-databases\n-i input_file";
+static char args_doc[] = "The purpose of this program is to split the CSV file into multiple SQL files.";
 
 /* Keys for options without short-options. */
 #define OPT_ABORT 1 /* –abort */
@@ -78,25 +79,25 @@ static char args_doc[] = "dbname [tbname ...]\n--databases dbname ...\n--all-dat
 /* The options we understand. */
 static struct argp_option options[] = {
     // input option
-    {"inputDir",     'i', "./input",        0, "Raw data file path",                                                                       0},
-    {"beginTime",    'b', "YYYY-MM-DD",     0, "Raw data start time, need to be specified when repeat is greater than 1",                  0},
-    {"endTime",      'e', "YYYY-MM-DD",     0, "Raw data end time, need to be specified when repeat is greater than 1",                    0},
+    {"inputDir",   'i', "./input",        0, "Raw data file path",                                                                       0},
+    {"beginTime",  'b', "YYYY-MM-DD",     0, "Raw data start time, need to be specified when repeat is greater than 1",                  0},
+    {"endTime",    'e', "YYYY-MM-DD",     0, "Raw data end time, need to be specified when repeat is greater than 1",                    0},
 
     // output option
-    {"outputDir",    'o', "./output",       0, "Output data file path",                                                                    1},
-    {"numOfFiles",   'n', "10",             0, "Number of generated SQL files",                                                            1},
-    {"repeat",       'r', "0",              0, "Repeat number of splits, if 0, only statistics",                                           1},
-    {"generateTime", 'g', "YYYY-MM-DD",     0, "The time when the data was generated, need to be specified when repeat is greater than 1", 1},
+    {"outputDir",  'o', "./output",       0, "Output data file path",                                                                    1},
+    {"numOfFiles", 'n', "10",             0, "Number of generated SQL files",                                                            1},
+    {"repeat",     'r', "1",              0, "Repeat number of splits, if 0, only statistics",                                           1},
+    {"genTime",    'g', "YYYY-MM-DD",     0, "The time when the data was generated, need to be specified when repeat is greater than 1", 1},
 
     // database option
-    {"database",     'd', "db",             0, "The name of the database to be created",                                                   2},
-    {"ablocks",      'a', "4",              0, "Ablocks option for the database to be created",                                            2},
-    {"cache",        'c', "16384",          0, "Cache options for the database to be created",                                             2},
-    {"stable",       's', "UVMP_MON_TRACK", 0, "The name of the super table to be created",                                                2},
-    {"prefix",       'p', "u_",             0, "Prefix of table name to be created",                                                       2},
-    {"batch ",       'B', "0",              0, "Number of batches of SQL statements, When it is 0, it means that 50K of SQL is specified", 2},
+    {"database",   'd', "db",             0, "The name of the database to be created",                                                   2},
+    {"ablocks",    'a', "4",              0, "Ablocks option for the database to be created",                                            2},
+    {"cache",      'c', "16384",          0, "Cache options for the database to be created",                                             2},
+    {"stable",     's', "UVMP",           0, "The name of the super table to be created",                                                2},
+    {"prefix",     'p', "u_",             0, "Prefix of table name to be created",                                                       2},
+    {"batch ",     'B', "100",              0, "Number of batches of SQL statements, When it is 0, it means that 50K of SQL is specified", 2},
 
-    {"debugflag",    'D', "199",            0, "Debug of the program, 131- output warning and error, 199 - both screen and file",          3},
+    {"debugflag",  'D', "199",            0, "Debug of the program, 131- output warning and error, 199 - both screen and file",          3},
 
     {0}
 };
@@ -211,9 +212,9 @@ static struct arguments tdArgs = {
     .database = "db",
     .ablocks = 4,
     .cache = 16384,
-    .stable = "UVMP_MON_TRACK",
+    .stable = "UVMP",
     .prefix = "u_",
-    .batch = 0,
+    .batch = 100,
     .debugFlag = 199};
 
 // log function
@@ -281,17 +282,21 @@ int tdCheckParam(struct arguments *arguments) {
   return 0;
 }
 
+typedef struct {
+  FILE* fp;
+  bool used;
+  int batch;
+  int printSize;
+} DataFp;
+
 // output
 void *tdTableHash = NULL;
 char **tdCsvFiles = NULL;
 int32_t tdCsvFileNum = 0;
 int64_t tdTotalRows = 0;
 int32_t tdTotalTables = 0;
-FILE  **tdDataFps = NULL;
-bool   *tdDataFpUsed = NULL;
+DataFp  *tdDataFps = NULL;
 FILE   *tdTableFp = NULL;
-int32_t tdPrintSize = COMMAND_SIZE * 2;
-int32_t tdBatchSize = COMMAND_SIZE;
 int32_t tdDays[MAX_DAYS] = {0};
 
 typedef struct {
@@ -570,6 +575,11 @@ void tdParseDataLine(char *line, int lineNum, char *csvfile)
     return;
   }
 
+  int tbnameLen = strlen(row.VEHICLE_ID);
+  for (int i = 0; i < tbnameLen; ++i) {
+    row.VEHICLE_ID[i] = tolower(row.VEHICLE_ID[i]);
+  }
+
   TdTable *table = taosGetStrHashData(tdTableHash, row.VEHICLE_ID);
   if (table == NULL) {
     TdTable newTable = {tdTotalTables++, 0};
@@ -583,22 +593,31 @@ void tdParseDataLine(char *line, int lineNum, char *csvfile)
 
   table->parseRows++;
   int fileIndex = table->tableId % tdArgs.numOfFiles;
-  if ((tdArgs.batch == 0 && tdPrintSize > COMMAND_SIZE) || (tdArgs.batch != 0 && tdBatchSize >= tdArgs.batch)) {
-    tdBatchSize = 0;
-    if (!tdDataFpUsed[fileIndex]) {
-      tdDataFpUsed[fileIndex] = true;
-      fprintf(tdDataFps[fileIndex], "use %s;\n", tdArgs.database);
-      tdPrintSize = fprintf(tdDataFps[fileIndex], "import into");
-    } else {
-      tdPrintSize = fprintf(tdDataFps[fileIndex], ";\nimport into");
-    }
+
+  if (!tdDataFps[fileIndex].used) {
+    tdDataFps[fileIndex].used = true;
+    fprintf(tdDataFps[fileIndex].fp, "use %s", tdArgs.database);
   }
 
-  tdBatchSize++;
-  tdPrintSize += fprintf(tdDataFps[fileIndex], " %s%s values(%ld,%s,%s,%s,%s,%s,%s,%s)",
+  if (tdDataFps[fileIndex].printSize == 0) {
+    tdDataFps[fileIndex].printSize = fprintf(tdDataFps[fileIndex].fp, ";\nimport into");
+  }
+
+  tdDataFps[fileIndex].batch++;
+  tdDataFps[fileIndex].printSize += fprintf(tdDataFps[fileIndex].fp, " %s%s values(%ld,%s,%s,%s,%s,%s,%s,%s)",
                            tdArgs.prefix, row.VEHICLE_ID,
                            row.RECORD_TIME_TS,
                            row.DX, row.DY, row.SPEED, row.DIRECTION, row.HIGH_LEVEL, row.ALARM_TAG, row.STATUS);
+
+  if (tdArgs.batch == 0 && tdDataFps[fileIndex].printSize > COMMAND_SIZE) {
+    tdDataFps[fileIndex].printSize = 0;
+    tdDataFps[fileIndex].batch = 0;
+  }
+
+  if (tdArgs.batch != 0 && tdDataFps[fileIndex].batch >= tdArgs.batch) {
+    tdDataFps[fileIndex].printSize = 0;
+    tdDataFps[fileIndex].batch = 0;
+  }
 }
 
 void tdParseCsvFile(char *csvfile) {
@@ -650,13 +669,12 @@ void tdInitResources() {
   tdTableHash = taosInitStrHash(MAX_TABLES, sizeof(TdTable), taosHashStringStep1);
 
   if (tdArgs.repeat != 0) {
-    tdDataFps = (FILE**)calloc(tdArgs.numOfFiles, sizeof(FILE*));
-    tdDataFpUsed = (bool*)calloc(tdArgs.numOfFiles, sizeof(bool*));
+    tdDataFps = (DataFp*)calloc(tdArgs.numOfFiles, sizeof(DataFp));
     for (int f = 0; f < tdArgs.numOfFiles; ++f) {
       char fileName[TSDB_FILENAME_LEN] = {0};
       sprintf(fileName, "%s/d%d.sql", tdArgs.outputDir, f);
-      tdDataFps[f] = fopen(fileName, "w");
-      if (tdDataFps[f] == NULL) {
+      tdDataFps[f].fp = fopen(fileName, "w");
+      if (tdDataFps[f].fp == NULL) {
         tdError("failed to open file:%s, error:%s", fileName, strerror(errno));
         exit(0);
       }
@@ -685,10 +703,10 @@ void tdInitResources() {
 void tdCloseResources() {
   if (tdArgs.repeat != 0) {
     for (int f = 0; f < tdArgs.numOfFiles; ++f) {
-      if (tdDataFpUsed[f]) {
-        fprintf(tdDataFps[f], ";\n");
+      if (tdDataFps[f].used) {
+        fprintf(tdDataFps[f].fp, ";\n");
       }
-      fclose(tdDataFps[f]);
+      fclose(tdDataFps[f].fp);
     }
     fclose(tdTableFp);
   }
@@ -721,7 +739,7 @@ int main(int argc, char *argv[]) {
 
   int64_t end = taosGetTimestampMs();
 
-  tdPrint("parse %d files in %s, find %d tables, total %ld rows, repeat:%d, time spent: %f seconds",
+  tdPrint("parse %d files in %s, find %d tables, total %ld rows, repeat:%d, time spent: %.2f seconds",
       tdCsvFileNum, tdArgs.inputDir, tdTotalTables, tdTotalRows, tdArgs.repeat, (end - start) / 1000.0);
 
   if (tdArgs.repeat != 0) {

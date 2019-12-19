@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mgmtBalance.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 /*
  * once sdb work as mater, then mgmtAccessSquence reset to zero, increase mgmtAccessSquence every balance interval
@@ -350,6 +350,27 @@ int mgmtAllocVnodes(SVgObj *pVgroup) {
 
   mgmtUnLockBalance();
   return 0;
+}
+
+char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
+  SDnodeObj *pDnode = mgmtGetDnode(pVnode->ip);
+  if (pDnode == NULL) {
+    mError("dnode:%s, vgroup:%d, vnode:%d dnode not exist", taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode);
+    return "null";
+  }
+
+  if (pDnode->status == TSDB_DN_STATUS_OFFLINE) {
+    return "offline";
+  }
+
+  SVnodeLoad *vload = pDnode->vload + pVnode->vnode;
+  if (vload->vgId != pVgroup->vgId || vload->vnode != pVnode->vnode) {
+    mError("dnode:%s, vgroup:%d, vnode:%d not same with dnode vgroup:%d vnode:%d",
+           taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode, vload->vgId, vload->vnode);
+    return "null";
+  }
+
+  return taosGetVnodeStatusStr(vload->status);
 }
 
 /**

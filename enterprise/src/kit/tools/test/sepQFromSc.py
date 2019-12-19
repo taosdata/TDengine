@@ -18,7 +18,7 @@ if __name__ == "__main__":
   depsCounter = 0
   outOthersFd = open('%s.others' %file, 'w')
   otherCounter = 0
-  outCalFd = open('record_%s' %file, 'a+')
+  outCalFd = open('record_static_check', 'a+')
 
   try:
     inputFd = open(file,'r')
