@@ -391,6 +391,8 @@ typedef struct _sql_obj {
   SSqlCmd           cmd;
   SSqlRes           res;
   uint8_t           numOfSubs;
+  char*             asyncTblPos;
+  void*             pTableHashList;
   struct _sql_obj **pSubs;
   struct _sql_obj * prev, *next;
 } SSqlObj;

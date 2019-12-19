@@ -3606,9 +3606,9 @@ int tscGetMeterMeta(SSqlObj *pSql, char *meterId, int32_t index) {
    * for async insert operation, release data block buffer before issue new object to get metermeta
    * because in metermeta callback function, the tscParse function will generate the submit data blocks
    */
-  if (pSql->fp != NULL && pSql->pStream == NULL) {
-    tscFreeSqlCmdData(pCmd);
-  }
+  //if (pSql->fp != NULL && pSql->pStream == NULL) {
+  //  tscFreeSqlCmdData(pCmd);
+  //}
 
   return tscDoGetMeterMeta(pSql, meterId, index);
 }
