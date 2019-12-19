@@ -5,7 +5,7 @@
 #include "tsdb.h"
 #include "taosmsg.h"
 #include "tskiplist.h"
-#include "../../system/inc/mgmt.h"
+#include "../../../../community/src/system/detail/inc/mgmt.h"
 
 typedef struct ResultObj {
     int32_t numOfResult;

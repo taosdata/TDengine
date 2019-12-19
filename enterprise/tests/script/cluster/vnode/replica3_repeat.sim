@@ -39,7 +39,7 @@ sql select count(*) from db.tb
 $lastRows = $rows
 
 print ======== step2
-run_back vnode/back_insert.sim
+run_back cluster/vnode/back_insert.sim
 sleep 3000
 
 print ======== step3

@@ -15,9 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mgmtBalance.h"
-#include "tstatus.h"
-
-#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
+#include "vnodeStatus.h"
 
 /*
  * once sdb work as mater, then mgmtAccessSquence reset to zero, increase mgmtAccessSquence every balance interval
@@ -629,7 +627,7 @@ void mgmtSetDnodeOfflineOnSdbChanged() {
   mgmtAccessSquence = 0;
 }
 
-void mgmtStartBalance(int mseconds) {
+void mgmtStartBalance(int64_t mseconds) {
   if (!sdbMaster) return;
 
   static uint32_t lastTime = 0;
@@ -654,15 +652,15 @@ void mgmtProcessBalanceTimer(void *handle, void *tmrId) {
   }
 
   balanceTimer = NULL;
-  mgmtStartBalance((int)handle);
+  mgmtStartBalance((int64_t)handle);
   if (balanceTimer == NULL) {
     taosTmrReset(mgmtProcessBalanceTimer, tsBalanceMonitorInterval * 1000, NULL, mgmtTmr, &balanceTimer);
   }
 }
 
-void mgmtStartBalanceTimer(int mseconds) {
+void mgmtStartBalanceTimer(int64_t mseconds) {
   mTrace("balance function will be called after %d mseconds", mseconds);
-  taosTmrReset(mgmtProcessBalanceTimer, mseconds, (void *)mseconds, mgmtTmr, &balanceTimer);
+  taosTmrReset((TAOS_TMR_CALLBACK)mgmtProcessBalanceTimer, mseconds, (void *)mseconds, mgmtTmr, &balanceTimer);
 }
 
 void mgmtMonitorVgroups() {

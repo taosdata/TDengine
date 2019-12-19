@@ -67,8 +67,8 @@ void mgmtAcctActionInit() {
 }
 
 void *mgmtAcctAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtAcctActionFp[action] != NULL) {
-    return (*(mgmtAcctActionFp[action]))(row, str, size, ssize);
+  if (mgmtAcctActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtAcctActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }
@@ -716,7 +716,7 @@ void mgmtCreateRootAcct() {
     pAcct = malloc(sizeof(SAcctObj));
     memset(pAcct, 0, sizeof(SAcctObj));
     strcpy(pAcct->user, "root");
-    taosEncryptPass("taosdata", strlen("taosdata"), pAcct->pass);
+    taosEncryptPass((uint8_t*)"taosdata", strlen("taosdata"), pAcct->pass);
     pAcct->cfg = (SAcctCfg){.maxUsers = TSDB_MAX_USERS_PER_ACCT,
                             .maxDbs = TSDB_MAX_DBS_PER_ACCT,
                             .maxTimeSeries = TSDB_MAX_TIMESERIES_PER_ACCT,

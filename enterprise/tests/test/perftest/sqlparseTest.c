@@ -2,8 +2,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <stdint.h>
 
-#include "tsql.h"
+#include "tscSQLParser.h"
+
+//#include "sql.h"
 #include "tstoken.h"
 #include "testCommon.h"
 

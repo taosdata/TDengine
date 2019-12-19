@@ -110,7 +110,7 @@ int dnodeCheckConfig() {
   taos_init();
 
   if (strcmp(tsMasterIp, tsPrivateIp) == 0 || strcmp(tsMasterIp, tsPublicIp) == 0 ||
-      strcmp(tsMasterIp, tsInternalIp) == 0) {
+      strcmp(tsMasterIp, tsPrivateIp) == 0) {
     return 0;
   }
 
