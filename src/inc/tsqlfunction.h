@@ -24,7 +24,6 @@ extern "C" {
 #include <stdint.h>
 
 #include "trpc.h"
-#include "tsql.h"
 #include "ttypes.h"
 
 #define TSDB_FUNC_INVALID_ID  -1
@@ -227,8 +226,6 @@ typedef struct SPatternCompareInfo {
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *len, int16_t *interResBytes, int16_t extLength, bool isSuperTable);
-
-SResultInfo *getResultSupportInfo(SQLFunctionCtx *pCtx);
 
 int patternMatch(const char *zPattern, const char *zString, size_t size, const SPatternCompareInfo *pInfo);
 

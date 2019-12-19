@@ -14,11 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <pthread.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
+#include "os.h"
 
 #include "mgmt.h"
 #include "vnode.h"
@@ -30,11 +26,8 @@
 #include "tglobalcfg.h"
 #include "vnode.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Woverflow"
-
-SModule         tsModule[TSDB_MOD_MAX];
-uint32_t        tsModuleStatus;
+SModule         tsModule[TSDB_MOD_MAX] = {0};
+uint32_t        tsModuleStatus = 0;
 pthread_mutex_t dmutex;
 extern int      vnodeSelectReqNum;
 extern int      vnodeInsertReqNum;
@@ -140,8 +133,12 @@ int dnodeInitSystem() {
     return -1;
   }
 
+  vnodeInitMgmtIp();
+
   tsPrintGlobalConfig();
-  dPrint("Server IP address is:%s", tsInternalIp);
+  dPrint("Server IP address is:%s", tsPrivateIp);
+
+  taosSetCoreDump();
 
   signal(SIGPIPE, SIG_IGN);
 
@@ -216,8 +213,6 @@ void dnodeResetSystem() {
 
 void dnodeCountRequest(SCountInfo *info) {
   httpGetReqCount(&info->httpReqNum);
-  info->selectReqNum = __sync_fetch_and_and(&vnodeSelectReqNum, 0);
-  info->insertReqNum = __sync_fetch_and_and(&vnodeInsertReqNum, 0);
+  info->selectReqNum = atomic_exchange_32(&vnodeSelectReqNum, 0);
+  info->insertReqNum = atomic_exchange_32(&vnodeInsertReqNum, 0);
 }
-
-#pragma GCC diagnostic pop

@@ -59,7 +59,7 @@ typedef struct taosField {
 
 void  taos_init();
 int   taos_options(TSDB_OPTION option, const void *arg, ...);
-TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, int port);
+TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 void  taos_close(TAOS *taos);
 
 typedef struct TAOS_BIND {
@@ -121,9 +121,6 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *para
 void taos_close_stream(TAOS_STREAM *tstr);
 
 int taos_load_table_info(TAOS *taos, const char* tableNameList);
-
-// TODO: `configDir` should not be declared here
-extern char configDir[];  // the path to global configuration
 
 #ifdef __cplusplus
 }

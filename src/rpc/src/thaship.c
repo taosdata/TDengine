@@ -13,21 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-
 #include "os.h"
 #include "tlog.h"
 #include "tmempool.h"
 
 typedef struct _ip_hash_t {
   uint32_t           ip;
-  short              port;
+  uint16_t           port;
   int                hash;
   struct _ip_hash_t *prev;
   struct _ip_hash_t *next;
@@ -40,20 +32,20 @@ typedef struct {
   int       maxSessions;
 } SHashObj;
 
-int taosHashIp(void *handle, uint32_t ip, short port) {
+int taosHashIp(void *handle, uint32_t ip, uint16_t port) {
   SHashObj *pObj = (SHashObj *)handle;
   int       hash = 0;
 
   hash = (int)(ip >> 16);
   hash += (unsigned short)(ip & 0xFFFF);
-  hash += (unsigned short)port;
+  hash += port;
 
   hash = hash % pObj->maxSessions;
 
   return hash;
 }
 
-void *taosAddIpHash(void *handle, void *data, uint32_t ip, short port) {
+void *taosAddIpHash(void *handle, void *data, uint32_t ip, uint16_t port) {
   int       hash;
   SIpHash * pNode;
   SHashObj *pObj;
@@ -76,7 +68,7 @@ void *taosAddIpHash(void *handle, void *data, uint32_t ip, short port) {
   return pObj;
 }
 
-void taosDeleteIpHash(void *handle, uint32_t ip, short port) {
+void taosDeleteIpHash(void *handle, uint32_t ip, uint16_t port) {
   int       hash;
   SIpHash * pNode;
   SHashObj *pObj;
@@ -108,7 +100,7 @@ void taosDeleteIpHash(void *handle, uint32_t ip, short port) {
   }
 }
 
-void *taosGetIpHash(void *handle, uint32_t ip, short port) {
+void *taosGetIpHash(void *handle, uint32_t ip, uint16_t port) {
   int       hash;
   SIpHash * pNode;
   SHashObj *pObj;

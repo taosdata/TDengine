@@ -13,16 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
-#include <stdarg.h>
-
 #include "os.h"
+#include "taosmsg.h"
 #include "tglobalcfg.h"
-#include "tsql.h"
+#include "tlog.h"
+#include "tscSQLParser.h"
 #include "tstoken.h"
 #include "ttime.h"
 #include "tutil.h"
@@ -507,7 +502,7 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SSQLToken *type) {
 SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
                              tVariantList *pGroupby, tVariantList *pSortOrder, SSQLToken *pInterval,
                              SSQLToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
-  assert(pSelection != NULL && pFrom != NULL && pInterval != NULL && pLimit != NULL && pGLimit != NULL);
+  assert(pSelection != NULL);
 
   SQuerySQL *pQuery = calloc(1, sizeof(SQuerySQL));
   pQuery->selectToken = *pSelectToken;
@@ -519,13 +514,23 @@ SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, 
   pQuery->pSortOrder = pSortOrder;
   pQuery->pWhere = pWhere;
 
-  pQuery->limit = *pLimit;
-  pQuery->slimit = *pGLimit;
+  if (pLimit != NULL) {
+    pQuery->limit = *pLimit;
+  }
 
-  pQuery->interval = *pInterval;
-  pQuery->sliding = *pSliding;
+  if (pGLimit != NULL) {
+    pQuery->slimit = *pGLimit;
+  }
+
+  if (pInterval != NULL) {
+    pQuery->interval = *pInterval;
+  }
+
+  if (pSliding != NULL) {
+    pQuery->sliding = *pSliding;
+  }
+
   pQuery->fillType = pFill;
-
   return pQuery;
 }
 
@@ -738,4 +743,23 @@ void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken
   if (pPwd->n > 0) {
     tTokenListAppend(pInfo->pDCLInfo, pPwd);
   }
+}
+
+void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
+  pDBInfo->numOfBlocksPerTable = 50;
+  pDBInfo->compressionLevel = -1;
+
+  pDBInfo->commitLog = -1;
+  pDBInfo->commitTime = -1;
+  pDBInfo->tablesPerVnode = -1;
+  pDBInfo->numOfAvgCacheBlocks = -1;
+
+  pDBInfo->cacheBlockSize = -1;
+  pDBInfo->rowPerFileBlock = -1;
+  pDBInfo->daysPerFile = -1;
+
+  pDBInfo->replica = -1;
+  pDBInfo->keep = NULL;
+
+  memset(&pDBInfo->precision, 0, sizeof(SSQLToken));
 }

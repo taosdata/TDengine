@@ -13,27 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <argp.h>
-#include <assert.h>
-#include <assert.h>
-#include <error.h>
-#include <pwd.h>
-#include <regex.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <termios.h>
-#include <time.h>
-#include <unistd.h>
-#include <wordexp.h>
-
 #define __USE_XOPEN
 
-#include <wchar.h>
+#include "os.h"
 
 #include "shell.h"
 #include "shellCommand.h"
@@ -44,6 +26,7 @@
 int indicator = 1;
 struct termios oldtio;
 
+extern int wcwidth(wchar_t c);
 void insertChar(Command *cmd, char *c, int size);
 const char *argp_program_version = version;
 const char *argp_program_bug_address = "<support@taosdata.com>";
@@ -58,6 +41,8 @@ static struct argp_option options[] = {
   {"commands",   's', "COMMANDS",   0,                   "Commands to run without enter the shell."},
   {"raw-time",   'r', 0,            0,                   "Output time as uint64_t."},
   {"file",       'f', "FILE",       0,                   "Script to run without enter the shell."},
+  {"directory",  'D', "DIRECTORY",  0,                   "Use multi-thread to import all SQL files in the directory separately."},
+  {"thread",     'T', "THREADNUM",  0,                   "Number of threads when using multi-thread to import data."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   't', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
   {0}};
@@ -107,6 +92,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       strcpy(arguments->file, full_path.we_wordv[0]);
       wordfree(&full_path);
       break;
+    case 'D':
+      if (wordexp(arg, &full_path, 0) != 0) {
+        fprintf(stderr, "Invalid path %s\n", arg);
+        return -1;
+      }
+      strcpy(arguments->dir, full_path.we_wordv[0]);
+      wordfree(&full_path);
+      break;
+    case 'T':
+      arguments->threadNum = atoi(arg);
+      break;
     case 'd':
       arguments->database = arg;
       break;
@@ -123,6 +119,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
 void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
+  char verType[32] = {0};
+  #ifdef CLUSTER
+    sprintf(verType, "enterprise version: %s\n", version);
+  #else
+    sprintf(verType, "community version: %s\n", version);
+  #endif
+  
+  argp_program_version = verType;
+  
   argp_parse(&argp, argc, argv, 0, 0, arguments);
   if (arguments->abort) {
     error(10, 0, "ABORTED");
@@ -286,7 +291,10 @@ void *shellLoopQuery(void *arg) {
   pthread_cleanup_push(cleanup_handler, NULL);
 
   char *command = malloc(MAX_COMMAND_SIZE);
-
+  if (command == NULL){
+    tscError("failed to malloc command");
+    return NULL;
+  }
   while (1) {
     // Read command from shell.
 
@@ -295,10 +303,8 @@ void *shellLoopQuery(void *arg) {
     shellReadCommand(con, command);
     reset_terminal_mode();
 
-    if (command != NULL) {
-      // Run the command
-      shellRunCommand(con, command);
-    }
+    // Run the command
+    shellRunCommand(con, command);
   }
 
   pthread_cleanup_pop(1);

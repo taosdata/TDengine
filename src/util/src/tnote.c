@@ -13,58 +13,50 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <time.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <stdarg.h>
-#include <ctype.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <semaphore.h>
+#include "tnote.h"
 
-#include "os.h"
-#include "tutil.h"
-#include "tglobalcfg.h"
+taosNoteInfo  m_HttpNote;
+taosNoteInfo  m_TscNote;
 
-#define MAX_NOTE_LINE_SIZE 66000
-#define NOTE_FILE_NAME_LEN 300
+int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum, taosNoteInfo * pNote);
 
-static int  taosNoteFileNum = 1;
-static int  taosNoteMaxLines = 0;
-static int  taosNoteLines = 0;
-static char taosNoteName[NOTE_FILE_NAME_LEN];
-static int  taosNoteFlag = 0;
-static int  taosNoteFd = -1;
-static int  taosNoteOpenInProgress = 0;
-static pthread_mutex_t taosNoteMutex;
-void taosNotePrint(const char * const format, ...);
-int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum);
-
-void taosInitNote(int numOfNoteLines, int maxNotes)
+void taosInitNote(int numOfNoteLines, int maxNotes, char* lable)
 {
+    taosNoteInfo * pNote = NULL;
     char temp[128] = { 0 };
-    sprintf(temp, "%s/taosnote", logDir);
-    if (taosOpenNoteWithMaxLines(temp, numOfNoteLines, maxNotes) < 0)
+
+    if (strcasecmp(lable, "http_note") == 0) {
+        pNote = &m_HttpNote;
+        sprintf(temp, "%s/httpnote", logDir);
+    } else if (strcasecmp(lable, "tsc_note") == 0) {
+        pNote = &m_TscNote;        
+        sprintf(temp, "%s/tscnote-%d", logDir, getpid());
+    } else {
+        return;
+    }
+
+    memset(pNote, 0, sizeof(taosNoteInfo));
+    pNote->taosNoteFileNum        = 1;
+    //pNote->taosNoteMaxLines       = 0;
+    //pNote->taosNoteLines          = 0;
+    //pNote->taosNoteFlag           = 0;
+    pNote->taosNoteFd             = -1;
+    //pNote->taosNoteOpenInProgress = 0;
+
+    if (taosOpenNoteWithMaxLines(temp, numOfNoteLines, maxNotes, pNote) < 0)
         fprintf(stderr, "failed to init note file\n");
 
-    taosNotePrint("==================================================");
-    taosNotePrint("===================  new note  ===================");
-    taosNotePrint("==================================================");
+    taosNotePrint(pNote, "==================================================");
+    taosNotePrint(pNote, "===================  new note  ===================");
+    taosNotePrint(pNote, "==================================================");
 }
 
-void taosCloseNoteByFd(int oldFd);
-bool taosLockNote(int fd)
+void taosCloseNoteByFd(int oldFd, taosNoteInfo * pNote);
+bool taosLockNote(int fd, taosNoteInfo * pNote)
 {
     if (fd < 0) return false;
 
-    if (taosNoteFileNum > 1) {
+    if (pNote->taosNoteFileNum > 1) {
         int ret = (int)(flock(fd, LOCK_EX | LOCK_NB));
         if (ret == 0) {
             return true;
@@ -74,11 +66,11 @@ bool taosLockNote(int fd)
     return false;
 }
 
-void taosUnLockNote(int fd)
+void taosUnLockNote(int fd, taosNoteInfo * pNote)
 {
     if (fd < 0) return;
 
-    if (taosNoteFileNum > 1) {
+    if (pNote->taosNoteFileNum > 1) {
         flock(fd, LOCK_UN | LOCK_NB);
     }
 }
@@ -86,50 +78,51 @@ void taosUnLockNote(int fd)
 void *taosThreadToOpenNewNote(void *param)
 {
     char name[NOTE_FILE_NAME_LEN];
+    taosNoteInfo * pNote = (taosNoteInfo *)param;
 
-    taosNoteFlag ^= 1;
-    taosNoteLines = 0;
-    sprintf(name, "%s.%d", taosNoteName, taosNoteFlag);
+    pNote->taosNoteFlag ^= 1;
+    pNote->taosNoteLines = 0;
+    sprintf(name, "%s.%d", pNote->taosNoteName, pNote->taosNoteFlag);
 
     umask(0);
 
     int fd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
-    taosLockNote(fd);
+    taosLockNote(fd, pNote);
     lseek(fd, 0, SEEK_SET);
 
-    int oldFd = taosNoteFd;
-    taosNoteFd = fd;
-    taosNoteLines = 0;
-    taosNoteOpenInProgress = 0;
-    taosNotePrint("===============  new note is opened  =============");
+    int oldFd = pNote->taosNoteFd;
+    pNote->taosNoteFd = fd;
+    pNote->taosNoteLines = 0;
+    pNote->taosNoteOpenInProgress = 0;
+    taosNotePrint(pNote, "===============  new note is opened  =============");
 
-    taosCloseNoteByFd(oldFd);
+    taosCloseNoteByFd(oldFd, pNote);
     return NULL;
 }
 
-int taosOpenNewNote()
+int taosOpenNewNote(taosNoteInfo * pNote)
 {
-    pthread_mutex_lock(&taosNoteMutex);
+    pthread_mutex_lock(&pNote->taosNoteMutex);
 
-    if (taosNoteLines > taosNoteMaxLines && taosNoteOpenInProgress == 0) {
-        taosNoteOpenInProgress = 1;
+    if (pNote->taosNoteLines > pNote->taosNoteMaxLines && pNote->taosNoteOpenInProgress == 0) {
+        pNote->taosNoteOpenInProgress = 1;
 
-        taosNotePrint("===============  open new note  ==================");
+        taosNotePrint(pNote, "===============  open new note  ==================");
         pthread_t pattern;
         pthread_attr_t attr;
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-        pthread_create(&pattern, &attr, taosThreadToOpenNewNote, NULL);
+        pthread_create(&pattern, &attr, taosThreadToOpenNewNote, (void*)pNote);
         pthread_attr_destroy(&attr);
     }
 
-    pthread_mutex_unlock(&taosNoteMutex);
+    pthread_mutex_unlock(&pNote->taosNoteMutex);
 
-    return taosNoteFd;
+    return pNote->taosNoteFd;
 }
 
-bool taosCheckNoteIsOpen(char *noteName)
+bool taosCheckNoteIsOpen(char *noteName, taosNoteInfo * pNote)
 {
     int exist = access(noteName, F_OK);
     if (exist != 0) {
@@ -142,8 +135,8 @@ bool taosCheckNoteIsOpen(char *noteName)
         return true;
     }
 
-    if (taosLockNote(fd)) {
-        taosUnLockNote(fd);
+    if (taosLockNote(fd, pNote)) {
+        taosUnLockNote(fd, pNote);
         close(fd);
         return false;
     }
@@ -153,80 +146,80 @@ bool taosCheckNoteIsOpen(char *noteName)
     }
 }
 
-void taosGetNoteName(char *fn)
+void taosGetNoteName(char *fn, taosNoteInfo * pNote)
 {
-    if (taosNoteFileNum > 1) {
-        for (int i = 0; i < taosNoteFileNum; i++) {
+    if (pNote->taosNoteFileNum > 1) {
+        for (int i = 0; i < pNote->taosNoteFileNum; i++) {
             char fileName[NOTE_FILE_NAME_LEN];
 
             sprintf(fileName, "%s%d.0", fn, i);
-            bool file1open = taosCheckNoteIsOpen(fileName);
+            bool file1open = taosCheckNoteIsOpen(fileName, pNote);
 
             sprintf(fileName, "%s%d.1", fn, i);
-            bool file2open = taosCheckNoteIsOpen(fileName);
+            bool file2open = taosCheckNoteIsOpen(fileName, pNote);
 
             if (!file1open && !file2open) {
-                sprintf(taosNoteName, "%s%d", fn, i);
+                sprintf(pNote->taosNoteName, "%s%d", fn, i);
                 return;
             }
         }
     }
 
-    strcpy(taosNoteName, fn);
+    strcpy(pNote->taosNoteName, fn);
 }
 
-int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum)
+int taosOpenNoteWithMaxLines(char *fn, int maxLines, int maxNoteNum, taosNoteInfo * pNote)
 {
     char name[NOTE_FILE_NAME_LEN] = "\0";
     struct stat  notestat0, notestat1;
     int size;
 
-    taosNoteMaxLines = maxLines;
-    taosNoteFileNum = maxNoteNum;
-    taosGetNoteName(fn);
+    pNote->taosNoteMaxLines = maxLines;
+    pNote->taosNoteFileNum = maxNoteNum;
+    taosGetNoteName(fn, pNote);
 
     strcpy(name, fn);
     strcat(name, ".0");
 
     // if none of the note files exist, open 0, if both exists, open the old one
     if (stat(name, &notestat0) < 0) {
-        taosNoteFlag = 0;
+        pNote->taosNoteFlag = 0;
     }
     else {
         strcpy(name, fn);
         strcat(name, ".1");
         if (stat(name, &notestat1) < 0) {
-            taosNoteFlag = 1;
+            pNote->taosNoteFlag = 1;
         }
         else {
-            taosNoteFlag = (notestat0.st_mtime > notestat1.st_mtime) ? 0 : 1;
+            pNote->taosNoteFlag = (notestat0.st_mtime > notestat1.st_mtime) ? 0 : 1;
         }
     }
 
-    sprintf(name, "%s.%d", taosNoteName, taosNoteFlag);
-    pthread_mutex_init(&taosNoteMutex, NULL);
+    sprintf(name, "%s.%d", pNote->taosNoteName, pNote->taosNoteFlag);
+    pthread_mutex_init(&pNote->taosNoteMutex, NULL);
 
     umask(0);
-    taosNoteFd = open(name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+    pNote->taosNoteFd = open(name, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 
-    if (taosNoteFd < 0) {
+    if (pNote->taosNoteFd < 0) {
         fprintf(stderr, "failed to open note file:%s reason:%s\n", name, strerror(errno));
         return -1;
     }
-    taosLockNote(taosNoteFd);
+    taosLockNote(pNote->taosNoteFd, pNote);
 
     // only an estimate for number of lines
     struct stat filestat;
-    fstat(taosNoteFd, &filestat);
+    fstat(pNote->taosNoteFd, &filestat);
     size = (int)filestat.st_size;
-    taosNoteLines = size / 60;
+    pNote->taosNoteLines = size / 60;
 
-    lseek(taosNoteFd, 0, SEEK_END);
+    lseek(pNote->taosNoteFd, 0, SEEK_END);
 
     return 0;
 }
 
-void taosNotePrint(const char * const format, ...)
+void taosNotePrint(taosNoteInfo * pNote, const char * const format, ...)
 {
     va_list argpointer;
     char    buffer[MAX_NOTE_LINE_SIZE];
@@ -238,7 +231,7 @@ void taosNotePrint(const char * const format, ...)
     gettimeofday(&timeSecs, NULL);
     curTime = timeSecs.tv_sec;
     ptm = localtime_r(&curTime, &Tm);
-    len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (int)timeSecs.tv_usec);
+    len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (int)timeSecs.tv_usec, pthread_self());
 
     va_start(argpointer, format);
     len += vsnprintf(buffer + len, MAX_NOTE_LINE_SIZE - len, format, argpointer);
@@ -249,26 +242,26 @@ void taosNotePrint(const char * const format, ...)
     buffer[len++] = '\n';
     buffer[len] = 0;
 
-    if (taosNoteFd >= 0)  {
-        twrite(taosNoteFd, buffer, (unsigned int)len);
+    if (pNote->taosNoteFd >= 0)  {
+        twrite(pNote->taosNoteFd, buffer, (unsigned int)len);
 
-        if (taosNoteMaxLines > 0) {
-            taosNoteLines++;
-            if ((taosNoteLines > taosNoteMaxLines) && (taosNoteOpenInProgress == 0))
-                taosOpenNewNote();
+        if (pNote->taosNoteMaxLines > 0) {
+            pNote->taosNoteLines++;
+            if ((pNote->taosNoteLines > pNote->taosNoteMaxLines) && (pNote->taosNoteOpenInProgress == 0))
+                taosOpenNewNote(pNote);
         }
     }
 }
 
-void taosCloseNote()
+void taosCloseNote(taosNoteInfo * pNote)
 {
-    taosCloseNoteByFd(taosNoteFd);
+    taosCloseNoteByFd(pNote->taosNoteFd, pNote);
 }
 
-void taosCloseNoteByFd(int fd)
+void taosCloseNoteByFd(int fd, taosNoteInfo * pNote)
 {
     if (fd >= 0) {
-        taosUnLockNote(fd);
+        taosUnLockNote(fd, pNote);
         close(fd);
     }
 }

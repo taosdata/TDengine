@@ -26,17 +26,19 @@ extern "C" {
 #include "tsdb.h"
 
 #ifndef STDERR_FILENO
-  #define VALIDFD(x) ((x) > 2)
-#else
-  #define VALIDFD(x) ((x) > STDERR_FILENO)
+#define STDERR_FILENO (2)
 #endif
 
+#define FD_VALID(x) ((x) > STDERR_FILENO)
+#define FD_INITIALIZER  ((int32_t)-1)
+
 #define WCHAR wchar_t
+
 #define tfree(x) \
   {              \
     if (x) {     \
-      free(x);   \
-      x = NULL;  \
+      free((void*)(x));   \
+      x = 0;  \
     }            \
   }
 
@@ -89,7 +91,7 @@ extern "C" {
     } else {                     \
       return (x) < (y) ? -1 : 1; \
     }                            \
-  } while (0);
+  } while (0)
 
 #define GET_INT8_VAL(x)   (*(int8_t *)(x))
 #define GET_INT16_VAL(x)  (*(int16_t *)(x))
@@ -169,13 +171,11 @@ int32_t taosInitTimer(void (*callback)(int), int32_t ms);
  */
 uint32_t MurmurHash3_32(const void *key, int32_t len);
 
-bool taosCheckDbName(char *db, char *monitordb);
-
 bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len);
 
 bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
 
-bool taosValidateEncodec(char *encodec);
+bool taosValidateEncodec(const char *encodec);
 
 bool taosGetVersionNumber(char *versionStr, int *versionNubmer);
 
@@ -187,20 +187,41 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, cha
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
 
+int taosCheckVersion(char *input_client_version, char *input_server_version, int compared_segments);
+
 char *taosIpStr(uint32_t ipInt);
 
-#ifdef _TAOS_MEM_TEST_
-// Use during test to simulate the success and failure scenarios of memory allocation
-extern void* taos_malloc(unsigned int size, char* _func);
-extern void* taos_calloc(unsigned int num, unsigned int size, char* _func);
-extern void* taos_realloc(void* ptr, unsigned int size, char* _func);
-extern void  taos_free(void* ptr);
-#define malloc(size)        taos_malloc(size, __FUNCTION__)
-#define calloc(num, size)   taos_calloc(num, size, __FUNCTION__)
-#define realloc(ptr, size)  taos_realloc(ptr, size, __FUNCTION__)
-#define free(ptr)           taos_free(ptr)
-#endif
+uint32_t ip2uint(const char *const ip_addr);
 
+#define TAOS_ALLOC_MODE_DEFAULT 0
+#define TAOS_ALLOC_MODE_RANDOM_FAIL 1
+#define TAOS_ALLOC_MODE_DETECT_LEAK 2
+void taosSetAllocMode(int mode, const char* path, bool autoDump);
+void taosDumpMemoryLeak();
+
+#ifdef TAOS_MEM_CHECK
+
+void *  taos_malloc(size_t size, const char *file, uint32_t line);
+void *  taos_calloc(size_t num, size_t size, const char *file, uint32_t line);
+void *  taos_realloc(void *ptr, size_t size, const char *file, uint32_t line);
+void    taos_free(void *ptr, const char *file, uint32_t line);
+char *  taos_strdup(const char *str, const char *file, uint32_t line);
+char *  taos_strndup(const char *str, size_t size, const char *file, uint32_t line);
+ssize_t taos_getline(char **lineptr, size_t *n, FILE *stream, const char *file, uint32_t line);
+
+#ifndef TAOS_MEM_CHECK_IMPL
+
+#define malloc(size) taos_malloc(size, __FILE__, __LINE__)
+#define calloc(num, size) taos_calloc(num, size, __FILE__, __LINE__)
+#define realloc(ptr, size) taos_realloc(ptr, size, __FILE__, __LINE__)
+#define free(ptr) taos_free(ptr, __FILE__, __LINE__)
+#define strdup(str) taos_strdup(str, __FILE__, __LINE__)
+#define strndup(str, size) taos_strndup(str, size, __FILE__, __LINE__)
+#define getline(lineptr, n, stream) taos_getline(lineptr, n, stream, __FILE__, __LINE__)
+
+#endif  // TAOS_MEM_CHECK_IMPL
+
+#endif // TAOS_MEM_CHECK
 
 #ifdef __cplusplus
 }

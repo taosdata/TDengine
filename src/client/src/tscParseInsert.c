@@ -18,25 +18,8 @@
 
 #define _XOPEN_SOURCE
 
-#pragma GCC diagnostic ignored "-Woverflow"
-#pragma GCC diagnostic ignored "-Wunused-variable"
-
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <pthread.h>
-#include <sys/types.h>
-
-#include <assert.h>
-#include <float.h>
-#include <math.h>
-#include <string.h>
-#include <time.h>
-#include <wchar.h>
-
-#include "ihash.h"
 #include "os.h"
+#include "ihash.h"
 #include "tscSecondaryMerge.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
@@ -48,18 +31,11 @@
 #include "tstoken.h"
 #include "ttime.h"
 
-#define INVALID_SQL_RET_MSG(p, ...) \
-  do {                              \
-    sprintf(p, __VA_ARGS__);        \
-    return TSDB_CODE_INVALID_SQL;   \
-  } while (0)
-
 enum {
   TSDB_USE_SERVER_TS = 0,
   TSDB_USE_CLI_TS = 1,
 };
 
-static void setErrMsg(char *msg, const char *sql);
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize);
 
 static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
@@ -77,6 +53,7 @@ static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
     radix = 2;
   }
 
+  errno = 0;
   *value = strtoll(pToken->z, endPtr, radix);
 
   return numType;
@@ -87,13 +64,15 @@ static int32_t tscToDouble(SSQLToken *pToken, double *value, char **endPtr) {
   if (TK_ILLEGAL == numType) {
     return numType;
   }
+
+  errno = 0;
   *value = strtod(pToken->z, endPtr);
   return numType;
 }
 
 int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec) {
-  char *    token;
-  int       tokenlen;
+  //char *    token; //fang not used
+  //int       tokenlen; //fang not used
   int32_t   index = 0;
   SSQLToken sToken;
   int64_t   interval;
@@ -111,7 +90,7 @@ int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int1
   } else {
     // strptime("2001-11-12 18:31:01", "%Y-%m-%d %H:%M:%S", &tm);
     if (taosParseTime(pToken->z, time, pToken->n, timePrec) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_INVALID_SQL;
+      return tscInvalidSQLErrMsg(error, "invalid timestamp format", pToken->z);
     }
 
     return TSDB_CODE_SUCCESS;
@@ -136,18 +115,21 @@ int tsParseTime(SSQLToken *pToken, int64_t *time, char **next, char *error, int1
   index = 0;
   sToken = tStrGetToken(pTokenEnd, &index, false, 0, NULL);
   pTokenEnd += index;
+  
   if (sToken.type == TK_MINUS || sToken.type == TK_PLUS) {
+    
     index = 0;
     valueToken = tStrGetToken(pTokenEnd, &index, false, 0, NULL);
     pTokenEnd += index;
+    
     if (valueToken.n < 2) {
-      strcpy(error, "value is expected");
-      return TSDB_CODE_INVALID_SQL;
+      return tscInvalidSQLErrMsg(error, "value expected in timestamp", sToken.z);
     }
 
     if (getTimestampInUsFromStr(valueToken.z, valueToken.n, &interval) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_INVALID_SQL;
     }
+    
     if (timePrec == TSDB_TIME_PRECISION_MILLI) {
       interval /= 1000;
     }
@@ -170,8 +152,8 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
   int64_t iv;
   int32_t numType;
   char *  endptr = NULL;
-  errno = 0;  // reset global error code
-
+  errno = 0;   // clear the previous existed error information
+  
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {  // bool
       if ((pToken->type == TK_BOOL || pToken->type == TK_STRING) && (pToken->n != 0)) {
@@ -182,7 +164,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         } else if (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0) {
           *(uint8_t *)payload = TSDB_DATA_BOOL_NULL;
         } else {
-          INVALID_SQL_RET_MSG(msg, "data is illegal");
+          return tscInvalidSQLErrMsg(msg, "invalid bool data", pToken->z);
         }
       } else if (pToken->type == TK_INTEGER) {
         iv = strtoll(pToken->z, NULL, 10);
@@ -193,7 +175,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
       } else if (pToken->type == TK_NULL) {
         *(uint8_t *)payload = TSDB_DATA_BOOL_NULL;
       } else {
-        INVALID_SQL_RET_MSG(msg, "data is illegal");
+        return tscInvalidSQLErrMsg(msg, "invalid bool data", pToken->z);
       }
       break;
     }
@@ -205,13 +187,13 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         *((int8_t *)payload) = TSDB_DATA_TINYINT_NULL;
       } else {
         numType = tscToInteger(pToken, &iv, &endptr);
-        if (errno == ERANGE || iv > INT8_MAX || iv <= INT8_MIN) {
-          INVALID_SQL_RET_MSG(msg, "data is overflow");
-        } else if (TK_ILLEGAL == numType) {
-          INVALID_SQL_RET_MSG(msg, "data is illegal");
+        if (TK_ILLEGAL == numType) {
+          return tscInvalidSQLErrMsg(msg, "invalid tinyint data", pToken->z);
+        } else if (errno == ERANGE || iv > INT8_MAX || iv <= INT8_MIN) {
+          return tscInvalidSQLErrMsg(msg, "tinyint data overflow", pToken->z);
         }
 
-        *((int8_t *)payload) = (int8_t)iv;
+        *((int8_t *)payload) = (int8_t) iv;
       }
 
       break;
@@ -224,10 +206,10 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         *((int16_t *)payload) = TSDB_DATA_SMALLINT_NULL;
       } else {
         numType = tscToInteger(pToken, &iv, &endptr);
-        if (errno == ERANGE || iv > INT16_MAX || iv <= INT16_MIN) {
-          INVALID_SQL_RET_MSG(msg, "data is overflow");
-        } else if (TK_ILLEGAL == numType) {
-          INVALID_SQL_RET_MSG(msg, "data is illegal");
+        if (TK_ILLEGAL == numType) {
+          return tscInvalidSQLErrMsg(msg, "invalid smallint data", pToken->z);
+        } else if (errno == ERANGE || iv > INT16_MAX || iv <= INT16_MIN) {
+          return tscInvalidSQLErrMsg(msg, "smallint data overflow", pToken->z);
         }
 
         *((int16_t *)payload) = (int16_t)iv;
@@ -242,10 +224,10 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         *((int32_t *)payload) = TSDB_DATA_INT_NULL;
       } else {
         numType = tscToInteger(pToken, &iv, &endptr);
-        if (errno == ERANGE || iv > INT32_MAX || iv <= INT32_MIN) {
-          INVALID_SQL_RET_MSG(msg, "data is overflow");
-        } else if (TK_ILLEGAL == numType) {
-          INVALID_SQL_RET_MSG(msg, "data is illegal");
+        if (TK_ILLEGAL == numType) {
+          return tscInvalidSQLErrMsg(msg, "invalid int data", pToken->z);
+        } else if (errno == ERANGE || iv > INT32_MAX || iv <= INT32_MIN) {
+          return tscInvalidSQLErrMsg(msg, "int data overflow", pToken->z);
         }
 
         *((int32_t *)payload) = (int32_t)iv;
@@ -261,10 +243,10 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         *((int64_t *)payload) = TSDB_DATA_BIGINT_NULL;
       } else {
         numType = tscToInteger(pToken, &iv, &endptr);
-        if (errno == ERANGE || iv > INT64_MAX || iv <= INT64_MIN) {
-          INVALID_SQL_RET_MSG(msg, "data is overflow");
-        } else if (TK_ILLEGAL == numType) {
-          INVALID_SQL_RET_MSG(msg, "data is illegal");
+        if (TK_ILLEGAL == numType) {
+          return tscInvalidSQLErrMsg(msg, "invalid bigint data", pToken->z);
+        } else if (errno == ERANGE || iv > INT64_MAX || iv <= INT64_MIN) {
+          return tscInvalidSQLErrMsg(msg, "bigint data overflow", pToken->z);
         }
 
         *((int64_t *)payload) = iv;
@@ -280,12 +262,12 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
       } else {
         double dv;
         if (TK_ILLEGAL == tscToDouble(pToken, &dv, &endptr)) {
-          INVALID_SQL_RET_MSG(msg, "data is illegal");
+          return tscInvalidSQLErrMsg(msg, "illegal float data", pToken->z);
         }
 
         float fv = (float)dv;
         if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || (fv > FLT_MAX || fv < -FLT_MAX)) {
-          INVALID_SQL_RET_MSG(msg, "data is illegal");
+          return tscInvalidSQLErrMsg(msg, "illegal float data", pToken->z);
         }
 
         if (isinf(fv) || isnan(fv)) {
@@ -305,11 +287,11 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
       } else {
         double dv;
         if (TK_ILLEGAL == tscToDouble(pToken, &dv, &endptr)) {
-          INVALID_SQL_RET_MSG(msg, "data is illegal");
+          return tscInvalidSQLErrMsg(msg, "illegal double data", pToken->z);
         }
 
         if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || (dv > DBL_MAX || dv < -DBL_MAX)) {
-          INVALID_SQL_RET_MSG(msg, "data is illegal");
+          return tscInvalidSQLErrMsg(msg, "illegal double data", pToken->z);
         }
 
         if (isinf(dv) || isnan(dv)) {
@@ -324,11 +306,11 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
       // binary data cannot be null-terminated char string, otherwise the last char of the string is lost
       if (pToken->type == TK_NULL) {
         *payload = TSDB_DATA_BINARY_NULL;
-      } else {
-        // too long values will return invalid sql, not be truncated automatically
+      } else { // too long values will return invalid sql, not be truncated automatically
         if (pToken->n > pSchema->bytes) {
-          INVALID_SQL_RET_MSG(msg, "value too long");
+          return tscInvalidSQLErrMsg(msg, "string data overflow", pToken->z);
         }
+        
         strncpy(payload, pToken->z, pToken->n);
       }
 
@@ -340,8 +322,10 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
       } else {
         // if the converted output len is over than pSchema->bytes, return error: 'Argument list too long'
         if (!taosMbsToUcs4(pToken->z, pToken->n, payload, pSchema->bytes)) {
-          sprintf(msg, "%s", strerror(errno));
-          return TSDB_CODE_INVALID_SQL;
+          char buf[512] = {0};
+          snprintf(buf, 512, "%s", strerror(errno));
+          
+          return tscInvalidSQLErrMsg(msg, buf, pToken->z);
         }
       }
       break;
@@ -356,8 +340,9 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
       } else {
         int64_t temp;
         if (tsParseTime(pToken, &temp, str, msg, timePrec) != TSDB_CODE_SUCCESS) {
-          return TSDB_CODE_INVALID_SQL;
+          return tscInvalidSQLErrMsg(msg, "invalid timestamp", pToken->z);
         }
+        
         *((int64_t *)payload) = temp;
       }
 
@@ -365,18 +350,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
     }
   }
 
-  return 0;
-}
-
-// todo merge the error msg function with tSQLParser
-static void setErrMsg(char *msg, const char *sql) {
-  const char *  msgFormat = "near \"%s\" syntax error";
-  const int32_t BACKWARD_CHAR_STEP = 15;
-
-  // only extract part of sql string,avoid too long sql string cause stack over flow
-  char buf[64] = {0};
-  strncpy(buf, (sql - BACKWARD_CHAR_STEP), tListLen(buf) - 1);
-  sprintf(msg, msgFormat, buf);
+  return TSDB_CODE_SUCCESS;
 }
 
 /*
@@ -399,7 +373,8 @@ static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start
     }
   } else {
     if (pDataBlocks->tsSource == TSDB_USE_SERVER_TS) {
-      return -1;
+      return -1;  // client time/server time can not be mixed
+      
     } else if (pDataBlocks->tsSource == -1) {
       pDataBlocks->tsSource = TSDB_USE_CLI_TS;
     }
@@ -414,10 +389,10 @@ static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start
 }
 
 int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[], SParsedDataColInfo *spd, char *error,
-                      int16_t timePrec) {
+                      int16_t timePrec, int32_t *code, char* tmpTokenBuf) {
   int32_t   index = 0;
-  bool      isPrevOptr;
-  SSQLToken sToken;
+  //bool      isPrevOptr; //fang, never used
+  SSQLToken sToken = {0};
   char *    payload = pDataBlocks->pData + pDataBlocks->size;
 
   // 1. set the parsed value from sql string
@@ -438,30 +413,55 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
       if (tscAddParamToDataBlock(pDataBlocks, pSchema->type, (uint8_t)timePrec, pSchema->bytes, offset) != NULL) {
         continue;
       }
+      
       strcpy(error, "client out of memory");
+      *code = TSDB_CODE_CLI_OUT_OF_MEMORY;
       return -1;
     }
 
     if (((sToken.type != TK_NOW) && (sToken.type != TK_INTEGER) && (sToken.type != TK_STRING) &&
          (sToken.type != TK_FLOAT) && (sToken.type != TK_BOOL) && (sToken.type != TK_NULL)) ||
         (sToken.n == 0) || (sToken.type == TK_RP)) {
-      setErrMsg(error, *str);
+      tscInvalidSQLErrMsg(error, "invalid data or symbol", sToken.z);
+      *code = TSDB_CODE_INVALID_SQL;
       return -1;
     }
 
     // Remove quotation marks
     if (TK_STRING == sToken.type) {
-      sToken.z++;
-      sToken.n -= 2;
+      // delete escape character: \\, \', \"
+      char delim = sToken.z[0];
+      int32_t cnt = 0;
+      int32_t j = 0;
+      for (int32_t k = 1; k < sToken.n - 1; ++k) {  
+        if (sToken.z[k] == delim || sToken.z[k] == '\\') {
+          if (sToken.z[k + 1] == delim) {
+            cnt++;
+            tmpTokenBuf[j] = sToken.z[k + 1];
+            j++;
+            k++;
+            continue;
+          }
+        }
+      
+        tmpTokenBuf[j] = sToken.z[k];
+        j++;
+      }
+      tmpTokenBuf[j] = 0; 
+      sToken.z = tmpTokenBuf;
+      sToken.n -= 2 + cnt;    
     }
 
     bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
     int32_t ret = tsParseOneColumnData(pSchema, &sToken, start, error, str, isPrimaryKey, timePrec);
     if (ret != TSDB_CODE_SUCCESS) {
+      *code = TSDB_CODE_INVALID_SQL;
       return -1;  // NOTE: here 0 mean error!
     }
 
     if (isPrimaryKey && tsCheckTimestamp(pDataBlocks, start) != TSDB_CODE_SUCCESS) {
+      tscInvalidSQLErrMsg(error, "client time/server time can not be mixed up", sToken.z);
+      *code = TSDB_CODE_INVALID_TIME_STAMP;
       return -1;
     }
   }
@@ -471,8 +471,7 @@ int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[
     char *ptr = payload;
 
     for (int32_t i = 0; i < spd->numOfCols; ++i) {
-      if (!spd->hasVal[i]) {
-        // current column do not have any value to insert, set it to null
+      if (!spd->hasVal[i]) { // current column do not have any value to insert, set it to null
         setNull(ptr, schema[i].type, schema[i].bytes);
       }
 
@@ -497,7 +496,7 @@ static int32_t rowDataCompar(const void *lhs, const void *rhs) {
 }
 
 int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMeta, int maxRows,
-                  SParsedDataColInfo *spd, char *error) {
+                  SParsedDataColInfo *spd, char *error, int32_t *code, char* tmpTokenBuf) {
   int32_t   index = 0;
   SSQLToken sToken;
 
@@ -508,6 +507,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMe
 
   if (spd->hasVal[0] == false) {
     strcpy(error, "primary timestamp column can not be null");
+    *code = TSDB_CODE_INVALID_SQL;
     return -1;
   }
 
@@ -519,16 +519,17 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMe
     *str += index;
     if (numOfRows >= maxRows || pDataBlock->size + pMeterMeta->rowSize >= pDataBlock->nAllocSize) {
       int32_t tSize = tscAllocateMemIfNeed(pDataBlock, pMeterMeta->rowSize);
-      if (0 == tSize) {
+      if (0 == tSize) {  //TODO pass the correct error code to client
         strcpy(error, "client out of memory");
+        *code = TSDB_CODE_CLI_OUT_OF_MEMORY;
         return -1;
       }
+      
       maxRows += tSize;
     }
 
-    int32_t len = tsParseOneRowData(str, pDataBlock, pSchema, spd, error, precision);
-    if (len <= 0) {
-      setErrMsg(error, *str);
+    int32_t len = tsParseOneRowData(str, pDataBlock, pSchema, spd, error, precision, code, tmpTokenBuf);
+    if (len <= 0) { // error message has been set in tsParseOneRowData
       return -1;
     }
 
@@ -538,7 +539,8 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMe
     sToken = tStrGetToken(*str, &index, false, 0, NULL);
     *str += index;
     if (sToken.n == 0 || sToken.type != TK_RP) {
-      setErrMsg(error, *str);
+      tscInvalidSQLErrMsg(error, ") expected", *str);
+      *code = TSDB_CODE_INVALID_SQL;
       return -1;
     }
 
@@ -547,6 +549,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMe
 
   if (numOfRows <= 0) {
     strcpy(error, "no any data points");
+    *code = TSDB_CODE_INVALID_SQL;
     return -1;
   } else {
     return numOfRows;
@@ -658,10 +661,17 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
   if (0 == maxNumOfRows) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
+  
+  int32_t code = TSDB_CODE_INVALID_SQL;
+  char*   tmpTokenBuf = calloc(1, 4096);  // used for deleting Escape character: \\, \', \"
+  if (NULL == tmpTokenBuf) {
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
 
-  int32_t numOfRows = tsParseValues(str, dataBuf, pMeterMeta, maxNumOfRows, spd, pCmd->payload);
+  int32_t numOfRows = tsParseValues(str, dataBuf, pMeterMeta, maxNumOfRows, spd, pCmd->payload, &code, tmpTokenBuf);
+  free(tmpTokenBuf);
   if (numOfRows <= 0) {
-    return TSDB_CODE_INVALID_SQL;
+    return code;
   }
 
   for (uint32_t i = 0; i < dataBuf->numOfParams; ++i) {
@@ -733,8 +743,7 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  if (sToken.type == TK_USING) {
-    // create table if not exists
+  if (sToken.type == TK_USING) { // create table if not exists
     index = 0;
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
     sql += index;
@@ -750,25 +759,87 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
     }
 
     if (!UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
-      strcpy(pCmd->payload, "create table only from super table is allowed");
-      return TSDB_CODE_INVALID_SQL;
+      return tscInvalidSQLErrMsg(pCmd->payload, "create table only from super table is allowed", sToken.z);
     }
 
-    char *   tagVal = pTag->data;
     SSchema *pTagSchema = tsGetTagSchema(pMeterMetaInfo->pMeterMeta);
 
     index = 0;
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
     sql += index;
+
+    SParsedDataColInfo spd = {0};   
+    uint8_t numOfTags = pMeterMetaInfo->pMeterMeta->numOfTags;
+    spd.numOfCols = numOfTags;
+
+    // if specify some tags column
+    if (sToken.type != TK_LP) {
+      tscSetAssignedColumnInfo(&spd, pTagSchema, numOfTags);
+    } else {
+      /* insert into tablename (col1, col2,..., coln) using superTableName (tagName1, tagName2, ..., tagNamen) tags(tagVal1, tagVal2, ..., tagValn) values(v1, v2,... vn); */
+      int16_t offset[TSDB_MAX_COLUMNS] = {0};
+      for (int32_t t = 1; t < numOfTags; ++t) {
+        offset[t] = offset[t - 1] + pTagSchema[t - 1].bytes;
+      }
+
+      while (1) {
+        index = 0;
+        sToken = tStrGetToken(sql, &index, false, 0, NULL);
+        sql += index;
+
+        if (TK_STRING == sToken.type) {
+          sToken.n = strdequote(sToken.z);
+          strtrim(sToken.z);
+          sToken.n = (uint32_t)strlen(sToken.z);
+        }
+
+        if (sToken.type == TK_RP) {
+          break;
+        }
+
+        bool findColumnIndex = false;
+
+        // todo speedup by using hash list
+        for (int32_t t = 0; t < numOfTags; ++t) {
+          if (strncmp(sToken.z, pTagSchema[t].name, sToken.n) == 0 && strlen(pTagSchema[t].name) == sToken.n) {
+            SParsedColElem *pElem = &spd.elems[spd.numOfAssignedCols++];
+            pElem->offset   = offset[t];
+            pElem->colIndex = t;
+
+            if (spd.hasVal[t] == true) {
+              return tscInvalidSQLErrMsg(pCmd->payload, "duplicated tag name", sToken.z);
+            }
+
+            spd.hasVal[t]   = true;
+            findColumnIndex = true;
+            break;
+          }
+        }
+
+        if (!findColumnIndex) {
+          return tscInvalidSQLErrMsg(pCmd->payload, "invalid tag name", sToken.z);
+        }
+      }
+
+      if (spd.numOfAssignedCols == 0 || spd.numOfAssignedCols > numOfTags) {
+        return tscInvalidSQLErrMsg(pCmd->payload, "tag name expected", sToken.z);
+      }
+
+      index = 0;
+      sToken = tStrGetToken(sql, &index, false, 0, NULL);
+      sql += index;
+    }
+    
     if (sToken.type != TK_TAGS) {
-      setErrMsg(pCmd->payload, sql);
-      return TSDB_CODE_INVALID_SQL;
+      return tscInvalidSQLErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z);
     }
 
-    int32_t  numOfTagValues = 0;
     uint32_t ignoreTokenTypes = TK_LP;
     uint32_t numOfIgnoreToken = 1;
-    while (1) {
+    for (int i = 0; i < spd.numOfAssignedCols; ++i) {
+      char*   tagVal   = pTag->data + spd.elems[i].offset;
+      int16_t colIndex = spd.elems[i].colIndex;
+    
       index = 0;
       sToken = tStrGetToken(sql, &index, true, numOfIgnoreToken, &ignoreTokenTypes);
       sql += index;
@@ -784,31 +855,39 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
         sToken.n -= 2;
       }
 
-      code = tsParseOneColumnData(&pTagSchema[numOfTagValues], &sToken, tagVal, pCmd->payload, &sql, false,
-                                  pMeterMetaInfo->pMeterMeta->precision);
+      code = tsParseOneColumnData(&pTagSchema[colIndex], &sToken, tagVal, pCmd->payload, &sql, false, pMeterMetaInfo->pMeterMeta->precision);
       if (code != TSDB_CODE_SUCCESS) {
-        setErrMsg(pCmd->payload, sql);
-        return TSDB_CODE_INVALID_SQL;
+        return code;
       }
 
-      if ((pTagSchema[numOfTagValues].type == TSDB_DATA_TYPE_BINARY ||
-           pTagSchema[numOfTagValues].type == TSDB_DATA_TYPE_NCHAR) &&
-          sToken.n > pTagSchema[numOfTagValues].bytes) {
-        strcpy(pCmd->payload, "tag value too long");
-        return TSDB_CODE_INVALID_SQL;
+      if ((pTagSchema[colIndex].type == TSDB_DATA_TYPE_BINARY ||
+           pTagSchema[colIndex].type == TSDB_DATA_TYPE_NCHAR) && sToken.n > pTagSchema[colIndex].bytes) {
+        return tscInvalidSQLErrMsg(pCmd->payload, "string too long", sToken.z);
       }
-
-      tagVal += pTagSchema[numOfTagValues++].bytes;
     }
 
-    if (numOfTagValues != pMeterMetaInfo->pMeterMeta->numOfTags) {
-      setErrMsg(pCmd->payload, sql);
-      return TSDB_CODE_INVALID_SQL;
+    index = 0;
+    sToken = tStrGetToken(sql, &index, false, 0, NULL);
+    sql += index;
+    if (sToken.n == 0 || sToken.type != TK_RP) {
+      return tscInvalidSQLErrMsg(pCmd->payload, ") expected", sToken.z);
+    }
+
+    // 2. set the null value for the columns that do not assign values
+    if (spd.numOfAssignedCols < spd.numOfCols) {
+      char *ptr = pTag->data;
+    
+      for (int32_t i = 0; i < spd.numOfCols; ++i) {
+        if (!spd.hasVal[i]) { // current tag column do not have any value to insert, set it to null
+          setNull(ptr, pTagSchema[i].type, pTagSchema[i].bytes);
+        }
+    
+        ptr += pTagSchema[i].bytes;
+      }    
     }
 
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
-      setErrMsg(pCmd->payload, sql);
-      return TSDB_CODE_INVALID_SQL;
+      return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);
     }
 
     int32_t ret = setMeterID(pSql, &tableToken, 0);
@@ -858,17 +937,11 @@ int validateTableName(char *tblName, int len) {
  * @param pSql
  * @return
  */
-int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
+int doParserInsertSql(SSqlObj *pSql, char *str) {
   SSqlCmd *pCmd = &pSql->cmd;
-
-  pCmd->command = TSDB_SQL_INSERT;
-  pCmd->isInsertFromFile = -1;
-  pCmd->count = 0;
-
-  pSql->res.numOfRows = 0;
+  
+  int32_t code = TSDB_CODE_INVALID_SQL;
   int32_t totalNum = 0;
-
-  int       code = TSDB_CODE_INVALID_SQL;
 
   SMeterMetaInfo *pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pCmd);
 
@@ -876,9 +949,17 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
     return code;
   }
 
-  void *pTableHashList = taosInitIntHash(128, sizeof(void *), taosHashInt);
-
-  pSql->cmd.pDataBlocks = tscCreateBlockArrayList();
+  if ((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList)) {
+    pSql->pTableHashList  = taosInitIntHash(128, POINTER_BYTES, taosHashInt);
+    pSql->cmd.pDataBlocks = tscCreateBlockArrayList();
+    if (NULL == pSql->pTableHashList || NULL == pSql->cmd.pDataBlocks) {
+      code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      goto _error_clean;
+    }
+  } else {
+    str = pSql->asyncTblPos;
+  }
+  
   tscTrace("%p create data block list for submit data, %p", pSql, pSql->cmd.pDataBlocks);
 
   while (1) {
@@ -897,13 +978,15 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
       }
     }
 
+    pSql->asyncTblPos = sToken.z;
+
     // Check if the table name available or not
     if (validateTableName(sToken.z, sToken.n) != TSDB_CODE_SUCCESS) {
-      code = TSDB_CODE_INVALID_SQL;
-      sprintf(pCmd->payload, "table name is invalid");
+      code = tscInvalidSQLErrMsg(pCmd->payload, "table name invalid", sToken.z);
       goto _error_clean;
     }
 
+    //TODO refactor
     if ((code = setMeterID(pSql, &sToken, 0)) != TSDB_CODE_SUCCESS) {
       goto _error_clean;
     }
@@ -911,7 +994,8 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
     void *fp = pSql->fp;
     if ((code = tscParseSqlForCreateTableOnDemand(&str, pSql)) != TSDB_CODE_SUCCESS) {
       if (fp != NULL) {
-        goto _clean;
+        //goto _clean;
+        return code;
       } else {
         /*
          * for async insert, the free data block operations, which is tscDestroyBlockArrayList,
@@ -923,8 +1007,7 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
     }
 
     if (UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
-      code = TSDB_CODE_INVALID_SQL;
-      sprintf(pCmd->payload, "insert data into metric is not supported");
+      code = tscInvalidSQLErrMsg(pCmd->payload, "insert data into super table is not supported", NULL);
       goto _error_clean;
     }
 
@@ -932,8 +1015,7 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
     sToken = tStrGetToken(str, &index, false, 0, NULL);
     str += index;
     if (sToken.n == 0) {
-      code = TSDB_CODE_INVALID_SQL;
-      sprintf(pCmd->payload, "keyword VALUES or FILE are required");
+      code = tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES or FILE are required", sToken.z);
       goto _error_clean;
     }
 
@@ -947,8 +1029,7 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
         pCmd->isInsertFromFile = 0;
       } else {
         if (pCmd->isInsertFromFile == 1) {
-          code = TSDB_CODE_INVALID_SQL;
-          sprintf(pCmd->payload, "keyword VALUES and FILE are not allowed to mix up");
+          code = tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES and FILE are not allowed to mix up", sToken.z);
           goto _error_clean;
         }
       }
@@ -957,18 +1038,16 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
        * app here insert data in different vnodes, so we need to set the following
        * data in another submit procedure using async insert routines
        */
-      code = doParseInsertStatement(pSql, pTableHashList, &str, &spd, &totalNum);
+      code = doParseInsertStatement(pSql, pSql->pTableHashList, &str, &spd, &totalNum);
       if (code != TSDB_CODE_SUCCESS) {
         goto _error_clean;
       }
-
     } else if (sToken.type == TK_FILE) {
       if (pCmd->isInsertFromFile == -1) {
         pCmd->isInsertFromFile = 1;
       } else {
         if (pCmd->isInsertFromFile == 0) {
-          code = TSDB_CODE_INVALID_SQL;
-          sprintf(pCmd->payload, "keyword VALUES and FILE are not allowed to mix up");
+          code = tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES and FILE are not allowed to mix up", sToken.z);
           goto _error_clean;
         }
       }
@@ -977,8 +1056,7 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
       sToken = tStrGetToken(str, &index, false, 0, NULL);
       str += index;
       if (sToken.n == 0) {
-        code = TSDB_CODE_INVALID_SQL;
-        sprintf(pCmd->payload, "file path is required following keyword FILE");
+        code = tscInvalidSQLErrMsg(pCmd->payload, "file path is required following keyword FILE", sToken.z);
         goto _error_clean;
       }
 
@@ -988,14 +1066,13 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
 
       wordexp_t full_path;
       if (wordexp(fname, &full_path, 0) != 0) {
-        code = TSDB_CODE_INVALID_SQL;
-        sprintf(pCmd->payload, "invalid filename");
+        code = tscInvalidSQLErrMsg(pCmd->payload, "invalid filename", sToken.z);
         goto _error_clean;
       }
       strcpy(fname, full_path.we_wordv[0]);
       wordfree(&full_path);
 
-      STableDataBlocks *pDataBlock = tscCreateDataBlockEx(PATH_MAX, pMeterMetaInfo->pMeterMeta->rowSize,
+      STableDataBlocks *pDataBlock = tscCreateDataBlock(PATH_MAX, pMeterMetaInfo->pMeterMeta->rowSize,
                                                           sizeof(SShellSubmitBlock), pMeterMetaInfo->name);
 
       tscAppendDataBlock(pCmd->pDataBlocks, pDataBlock);
@@ -1008,8 +1085,7 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
       if (pCmd->isInsertFromFile == -1) {
         pCmd->isInsertFromFile = 0;
       } else if (pCmd->isInsertFromFile == 1) {
-        code = TSDB_CODE_INVALID_SQL;
-        sprintf(pCmd->payload, "keyword VALUES and FILE are not allowed to mix up");
+        code = tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES and FILE are not allowed to mix up", sToken.z);
         goto _error_clean;
       }
 
@@ -1046,8 +1122,7 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
             pElem->colIndex = t;
 
             if (spd.hasVal[t] == true) {
-              code = TSDB_CODE_INVALID_SQL;
-              sprintf(pCmd->payload, "duplicated column name");
+              code = tscInvalidSQLErrMsg(pCmd->payload, "duplicated column name", sToken.z);
               goto _error_clean;
             }
 
@@ -1058,15 +1133,13 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
         }
 
         if (!findColumnIndex) {
-          code = TSDB_CODE_INVALID_SQL;
-          sprintf(pCmd->payload, "invalid column name");
+          code = tscInvalidSQLErrMsg(pCmd->payload, "invalid column name", sToken.z);
           goto _error_clean;
         }
       }
 
       if (spd.numOfAssignedCols == 0 || spd.numOfAssignedCols > pMeterMeta->numOfColumns) {
-        code = TSDB_CODE_INVALID_SQL;
-        sprintf(pCmd->payload, "column name expected");
+        code = tscInvalidSQLErrMsg(pCmd->payload, "column name expected", sToken.z);
         goto _error_clean;
       }
 
@@ -1075,18 +1148,16 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
       str += index;
 
       if (sToken.type != TK_VALUES) {
-        code = TSDB_CODE_INVALID_SQL;
-        sprintf(pCmd->payload, "keyword VALUES is expected");
+        code = tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES is expected", sToken.z);
         goto _error_clean;
       }
 
-      code = doParseInsertStatement(pSql, pTableHashList, &str, &spd, &totalNum);
+      code = doParseInsertStatement(pSql, pSql->pTableHashList, &str, &spd, &totalNum);
       if (code != TSDB_CODE_SUCCESS) {
         goto _error_clean;
       }
     } else {
-      code = TSDB_CODE_INVALID_SQL;
-      sprintf(pCmd->payload, "keyword VALUES or FILE are required");
+      code = tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES or FILE are required", sToken.z);
       goto _error_clean;
     }
   }
@@ -1095,7 +1166,7 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
   if (pCmd->numOfParams > 0) {
     goto _clean;
   }
-
+  
   // submit to more than one vnode
   if (pCmd->pDataBlocks->nSize > 0) {
     // merge according to vgid
@@ -1108,8 +1179,10 @@ int tsParseInsertStatement(SSqlObj *pSql, char *str, char *acct, char *db) {
       goto _error_clean;
     }
 
+    SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+    
     // set the next sent data vnode index in data block arraylist
-    pCmd->vnodeIdx = 1;
+    pMeterMetaInfo->vnodeIndex = 1;
   } else {
     pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   }
@@ -1121,7 +1194,8 @@ _error_clean:
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
 _clean:
-  taosCleanUpIntHash(pTableHashList);
+  taosCleanUpIntHash(pSql->pTableHashList);
+  pSql->pTableHashList = NULL;
   return code;
 }
 
@@ -1130,29 +1204,25 @@ int tsParseInsertSql(SSqlObj *pSql, char *sql, char *acct, char *db) {
     return TSDB_CODE_NO_RIGHTS;
   }
 
-  int32_t   index = 0;
+  int32_t  index = 0;
   SSqlCmd *pCmd = &pSql->cmd;
 
   SSQLToken sToken = tStrGetToken(sql, &index, false, 0, NULL);
-  if (sToken.type == TK_IMPORT) {
-      pCmd->order.order = TSQL_SO_ASC;
-  } else if (sToken.type != TK_INSERT) {
-    if (sToken.n) {
-      sToken.z[sToken.n] = 0;
-      sprintf(pCmd->payload, "invalid keyword:%s", sToken.z);
-    } else {
-      strcpy(pCmd->payload, "no any keywords");
-    }
-    return TSDB_CODE_INVALID_SQL;
-  }
-
+  
+  assert(sToken.type == TK_INSERT || sToken.type == TK_IMPORT);
+  pCmd->import = (sToken.type == TK_IMPORT);
+  
   sToken = tStrGetToken(sql, &index, false, 0, NULL);
   if (sToken.type != TK_INTO) {
-    strcpy(pCmd->payload, "keyword INTO is expected");
-    return TSDB_CODE_INVALID_SQL;
+    return tscInvalidSQLErrMsg(pCmd->payload, "keyword INTO is expected", sToken.z);
   }
-
-  return tsParseInsertStatement(pSql, sql + index, acct, db);
+  
+  pCmd->count = 0;
+  pCmd->command = TSDB_SQL_INSERT;
+  pCmd->isInsertFromFile = -1;
+  pSql->res.numOfRows = 0;
+  
+  return doParserInsertSql(pSql, sql + index);
 }
 
 int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion) {
@@ -1160,7 +1230,11 @@ int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion) {
 
   // must before clean the sqlcmd object
   tscRemoveAllMeterMetaInfo(&pSql->cmd, false);
-  tscCleanSqlCmd(&pSql->cmd);
+  
+  if (NULL == pSql->asyncTblPos) {
+    tscTrace("continue parse sql: %s", pSql->asyncTblPos);
+    tscCleanSqlCmd(&pSql->cmd);
+  }
 
   if (tscIsInsertOrImportData(pSql->sqlstr)) {
     /*
@@ -1225,7 +1299,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
   return TSDB_CODE_SUCCESS;
 }
 
-static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp) {
+static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   size_t          readLen = 0;
   char *          line = NULL;
   size_t          n = 0;
@@ -1240,8 +1314,8 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp) {
   int32_t         rowSize = pMeterMeta->rowSize;
 
   pCmd->pDataBlocks = tscCreateBlockArrayList();
-  STableDataBlocks *pTableDataBlock =
-      tscCreateDataBlockEx(TSDB_PAYLOAD_SIZE, pMeterMeta->rowSize, sizeof(SShellSubmitBlock), pMeterMetaInfo->name);
+  STableDataBlocks *pTableDataBlock = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, pMeterMeta->rowSize,
+      sizeof(SShellSubmitBlock), pMeterMetaInfo->name);
 
   tscAppendDataBlock(pCmd->pDataBlocks, pTableDataBlock);
 
@@ -1257,7 +1331,7 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp) {
   while ((readLen = getline(&line, &n, fp)) != -1) {
     // line[--readLen] = '\0';
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) line[--readLen] = 0;
-    if (readLen <= 0) continue;
+    if (readLen == 0) continue; //fang, <= to ==
 
     char *lineptr = line;
     strtolower(line, line);
@@ -1268,11 +1342,12 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp) {
       maxRows += tSize;    
     }
 
-    len = tsParseOneRowData(&lineptr, pTableDataBlock, pSchema, &spd, pCmd->payload, pMeterMeta->precision);
+    len = tsParseOneRowData(&lineptr, pTableDataBlock, pSchema, &spd, pCmd->payload, pMeterMeta->precision, &code, tmpTokenBuf);
     if (len <= 0 || pTableDataBlock->numOfParams > 0) {
-      pSql->res.code = TSDB_CODE_INVALID_SQL;
-      return -1;
+      pSql->res.code = code;
+      return (-code);
     }
+    
     pTableDataBlock->size += len;
 
     count++;
@@ -1330,19 +1405,19 @@ void tscProcessMultiVnodesInsert(SSqlObj *pSql) {
   int32_t           code = TSDB_CODE_SUCCESS;
 
   /* the first block has been sent to server in processSQL function */
-  assert(pCmd->isInsertFromFile != -1 && pCmd->vnodeIdx >= 1 && pCmd->pDataBlocks != NULL);
+  assert(pCmd->isInsertFromFile != -1 && pMeterMetaInfo->vnodeIndex >= 1 && pCmd->pDataBlocks != NULL);
 
-  if (pCmd->vnodeIdx < pCmd->pDataBlocks->nSize) {
+  if (pMeterMetaInfo->vnodeIndex < pCmd->pDataBlocks->nSize) {
     SDataBlockList *pDataBlocks = pCmd->pDataBlocks;
 
-    for (int32_t i = pCmd->vnodeIdx; i < pDataBlocks->nSize; ++i) {
+    for (int32_t i = pMeterMetaInfo->vnodeIndex; i < pDataBlocks->nSize; ++i) {
       pDataBlock = pDataBlocks->pData[i];
       if (pDataBlock == NULL) {
         continue;
       }
 
       if ((code = tscCopyDataBlockToPayload(pSql, pDataBlock)) != TSDB_CODE_SUCCESS) {
-        tscTrace("%p build submit data block failed, vnodeIdx:%d, total:%d", pSql, pCmd->vnodeIdx, pDataBlocks->nSize);
+        tscTrace("%p build submit data block failed, vnodeIdx:%d, total:%d", pSql, pMeterMetaInfo->vnodeIndex, pDataBlocks->nSize);
         continue;
       }
 
@@ -1399,8 +1474,16 @@ void tscProcessMultiVnodesInsertForFile(SSqlObj *pSql) {
       tscError("%p get meter meta failed, abort", pSql);
       continue;
     }
+    
+    char*   tmpTokenBuf = calloc(1, 4096);  // used for deleting Escape character: \\, \', \"
+    if (NULL == tmpTokenBuf) {
+      tscError("%p calloc failed", pSql);
+      continue;
+    }
 
-    int nrows = tscInsertDataFromFile(pSql, fp);
+    int nrows = tscInsertDataFromFile(pSql, fp, tmpTokenBuf);
+    free(tmpTokenBuf);
+    
     pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
     if (nrows < 0) {

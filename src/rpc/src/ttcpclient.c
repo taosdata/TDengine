@@ -13,15 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <errno.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "os.h"
 #include "taosmsg.h"
 #include "tlog.h"
@@ -39,7 +30,7 @@ typedef struct _tcp_fd {
   void *              thandle;
   uint32_t            ip;
   char                ipstr[20];
-  short               port;
+  uint16_t            port;
   struct _tcp_client *pTcp;
   struct _tcp_fd *    prev, *next;
 } STcpFd;
@@ -54,7 +45,7 @@ typedef struct _tcp_client {
   char            label[12];
   char            ipstr[20];
   void *          shandle;  // handle passed by upper layer during server initialization
-  void *(*processData)(char *data, int dataLen, unsigned int ip, short port, void *shandle, void *thandle,
+  void *(*processData)(char *data, int dataLen, unsigned int ip, uint16_t port, void *shandle, void *thandle,
                        void *chandle);
   // char   buffer[128000];
 } STcpClient;
@@ -203,7 +194,7 @@ static void *taosReadTcpData(void *param) {
   return NULL;
 }
 
-void *taosInitTcpClient(char *ip, short port, char *label, int num, void *fp, void *shandle) {
+void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp, void *shandle) {
   STcpClient *   pTcp;
   pthread_attr_t thattr;
 
@@ -238,7 +229,7 @@ void *taosInitTcpClient(char *ip, short port, char *label, int num, void *fp, vo
     return NULL;
   }
 
-  tTrace("%s TCP client is initialized, ip:%s port:%u", label, ip, port);
+  tTrace("%s TCP client is initialized, ip:%s port:%hu", label, ip, port);
 
   return pTcp;
 }
@@ -251,7 +242,7 @@ void taosCloseTcpClientConnection(void *chandle) {
   taosCleanUpTcpFdObj(pFdObj);
 }
 
-void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, short port) {
+void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port) {
   STcpClient *       pTcp = (STcpClient *)shandle;
   STcpFd *           pFdObj;
   struct epoll_event event;
@@ -310,12 +301,12 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, short 
 
   pthread_mutex_unlock(&(pTcp->mutex));
 
-  tTrace("%s TCP connection to ip:%s port:%u is created, numOfFds:%d", pTcp->label, ip, port, pTcp->numOfFds);
+  tTrace("%s TCP connection to ip:%s port:%hu is created, numOfFds:%d", pTcp->label, ip, port, pTcp->numOfFds);
 
   return pFdObj;
 }
 
-int taosSendTcpClientData(uint32_t ip, short port, char *data, int len, void *chandle) {
+int taosSendTcpClientData(uint32_t ip, uint16_t port, char *data, int len, void *chandle) {
   STcpFd *pFdObj = (STcpFd *)chandle;
 
   if (chandle == NULL) return -1;

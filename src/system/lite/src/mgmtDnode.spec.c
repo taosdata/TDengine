@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mgmt.h"
+#include "vnodeStatus.h"
 
 SDnodeObj       dnodeObj;
 extern uint32_t tsRebootTime;
@@ -26,17 +27,17 @@ int mgmtUpdateDnode(SDnodeObj *pDnode) { return 0; }
 void mgmtCleanUpDnodes() {}
 
 int mgmtInitDnodes() {
-  dnodeObj.privateIp = inet_addr(tsInternalIp);;
+  dnodeObj.privateIp = inet_addr(tsPrivateIp);;
   dnodeObj.createdTime = (int64_t)tsRebootTime * 1000;
   dnodeObj.lastReboot = tsRebootTime;
   dnodeObj.numOfCores = (uint16_t)tsNumOfCores;
-  dnodeObj.status = TSDB_STATUS_READY;
+  dnodeObj.status = TSDB_DN_STATUS_READY;
   dnodeObj.alternativeRole = TSDB_DNODE_ROLE_ANY;
   dnodeObj.numOfTotalVnodes = tsNumOfTotalVnodes;
   dnodeObj.thandle = (void*)(1);  //hack way
   if (dnodeObj.numOfVnodes == TSDB_INVALID_VNODE_NUM) {
     mgmtSetDnodeMaxVnodes(&dnodeObj);
-    mPrint("first access, set total vnodes:%d", dnodeObj.numOfVnodes);
+    mPrint("dnode first access, set total vnodes:%d", dnodeObj.numOfVnodes);
   }
   return  0;
 }

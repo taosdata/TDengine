@@ -47,21 +47,54 @@ initd_mod=0
 service_mod=2
 if pidof systemd &> /dev/null; then
     service_mod=0
-elif $(which insserv &> /dev/null); then
+elif $(which service &> /dev/null); then    
     service_mod=1
-    initd_mod=1
-    service_config_dir="/etc/init.d"
-elif $(which update-rc.d &> /dev/null); then
-    service_mod=1
-    initd_mod=2
-    service_config_dir="/etc/init.d"
+    service_config_dir="/etc/init.d" 
+    if $(which chkconfig &> /dev/null); then
+         initd_mod=1 
+    elif $(which insserv &> /dev/null); then
+        initd_mod=2
+    elif $(which update-rc.d &> /dev/null); then
+        initd_mod=3
+    else
+        service_mod=2
+    fi
 else 
     service_mod=2
 fi
 
+
+# get the operating system type for using the corresponding init file
+# ubuntu/debian(deb), centos/fedora(rpm), others: opensuse, redhat, ..., no verification
+#osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
+osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
+#echo "osinfo: ${osinfo}"
+os_type=0
+if echo $osinfo | grep -qwi "ubuntu" ; then
+  echo "this is ubuntu system"
+  os_type=1
+elif echo $osinfo | grep -qwi "debian" ; then
+  echo "this is debian system"
+  os_type=1
+elif echo $osinfo | grep -qwi "Kylin" ; then
+  echo "this is Kylin system"
+  os_type=1
+elif  echo $osinfo | grep -qwi "centos" ; then
+  echo "this is centos system"
+  os_type=2
+elif echo $osinfo | grep -qwi "fedora" ; then
+  echo "this is fedora system"
+  os_type=2
+else
+  echo "this is other linux system"
+  os_type=0
+fi
+
 function kill_taosd() {
   pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
-  ${csudo} kill -9 ${pid}   || :
+  if [ -n "$pid" ]; then
+    ${csudo} kill -9 $pid   || :
+  fi
 }
 
 function install_main_path() {
@@ -109,9 +142,10 @@ function install_lib() {
 
 function install_header() {
 
-    ${csudo} rm -f ${inc_link_dir}/taos.h     || :    
-    ${csudo} cp -f ${source_dir}/src/inc/taos.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :    
+    ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function install_config() {
@@ -152,20 +186,26 @@ function install_examples() {
 }
 
 function clean_service_on_sysvinit() {
-    restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
+    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
+    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
+    
     if pidof taosd &> /dev/null; then
         ${csudo} service taosd stop || :
     fi
-    ${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
-    ${csudo} rm -f ${service_config_dir}/taosd || :
 
     if ((${initd_mod}==1)); then
-        ${csudo} grep -q -F "taos" /etc/inittab && ${csudo} insserv -r taosd || :
+        ${csudo} chkconfig --del taosd || :
     elif ((${initd_mod}==2)); then
-        ${csudo} grep -q -F "taos" /etc/inittab && ${csudo} update-rc.d -f taosd remove || :
+        ${csudo} insserv -r taosd || :
+    elif ((${initd_mod}==3)); then
+        ${csudo} update-rc.d -f taosd remove || :
     fi
-#    ${csudo} update-rc.d -f taosd remove || :
-    ${csudo} init q || :
+    
+    ${csudo} rm -f ${service_config_dir}/taosd || :
+    
+    if $(which init &> /dev/null); then
+        ${csudo} init q || :
+    fi
 }
 
 function install_service_on_sysvinit() {
@@ -174,19 +214,26 @@ function install_service_on_sysvinit() {
     sleep 1
 
     # Install taosd service
+    if ((${os_type}==1)); then
     ${csudo} cp -f ${script_dir}/../deb/init.d/taosd ${install_main_dir}/init.d
     ${csudo} cp    ${script_dir}/../deb/init.d/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
-    restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-
-    ${csudo} grep -q -F "$restart_config_str" /etc/inittab || ${csudo} bash -c "echo '${restart_config_str}' >> /etc/inittab"
-    # TODO: for centos, change here
+    elif ((${os_type}==2)); then
+    ${csudo} cp -f ${script_dir}/../rpm/init.d/taosd ${install_main_dir}/init.d
+    ${csudo} cp    ${script_dir}/../rpm/init.d/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
+    fi
+    
+    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
+    #${csudo} grep -q -F "$restart_config_str" /etc/inittab || ${csudo} bash -c "echo '${restart_config_str}' >> /etc/inittab"
+    
     if ((${initd_mod}==1)); then
-        ${csudo} insserv taosd || :
+        ${csudo} chkconfig --add taosd || :
+        ${csudo} chkconfig --level 2345 taosd on || :
     elif ((${initd_mod}==2)); then
+        ${csudo} insserv taosd || :
+        ${csudo} insserv -d taosd || :
+    elif ((${initd_mod}==3)); then
         ${csudo} update-rc.d taosd defaults || :
     fi
-#    ${csudo} update-rc.d taosd defaults
-    # chkconfig mysqld on
 }
 
 function clean_service_on_systemd() {
@@ -236,7 +283,7 @@ function install_service() {
     elif ((${service_mod}==1)); then
         install_service_on_sysvinit
     else
-        # must manual start taosd
+        # must manual stop taosd
         kill_taosd
     fi
 }

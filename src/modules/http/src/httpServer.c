@@ -13,23 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <arpa/inet.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <syslog.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "taosmsg.h"
 #include "tlog.h"
@@ -72,7 +56,7 @@ void httpRemoveContextFromEpoll(HttpThread *pThread, HttpContext *pContext) {
 }
 
 bool httpAlterContextState(HttpContext *pContext, HttpContextState srcState, HttpContextState destState) {
-  return (__sync_val_compare_and_swap_32(&pContext->state, srcState, destState) == srcState);
+  return (atomic_val_compare_exchange_32(&pContext->state, srcState, destState) == srcState);
 }
 
 void httpFreeContext(HttpServer *pServer, HttpContext *pContext);
@@ -117,15 +101,15 @@ void httpFreeContext(HttpServer *pServer, HttpContext *pContext) {
 void httpCleanUpContextTimer(HttpContext *pContext) {
   if (pContext->timer != NULL) {
     taosTmrStopA(&pContext->timer);
-    httpTrace("context:%p, ip:%s, close timer:%p", pContext, pContext->ipstr, pContext->timer);
+    //httpTrace("context:%p, ip:%s, close timer:%p", pContext, pContext->ipstr, pContext->timer);
     pContext->timer = NULL;
   }
 }
 
-void httpCleanUpContext(HttpContext *pContext) {
-  httpTrace("context:%p, start the clean up operation", pContext);
-  __sync_val_compare_and_swap_64(&pContext->signature, pContext, 0);
-  if (pContext->signature != NULL) {
+void httpCleanUpContext(HttpContext *pContext, void *unused) {
+  httpTrace("context:%p, start the clean up operation, sig:%p", pContext, pContext->signature);
+  void *sig = atomic_val_compare_exchange_ptr(&pContext->signature, pContext, 0);
+  if (sig == NULL) {
     httpTrace("context:%p is freed by another thread.", pContext);
     return;
   }
@@ -200,7 +184,7 @@ bool httpInitContext(HttpContext *pContext) {
 
 
 void httpCloseContext(HttpThread *pThread, HttpContext *pContext) {
-  taosTmrReset(httpCleanUpContext, HTTP_DELAY_CLOSE_TIME_MS, pContext, pThread->pServer->timerHandle, &pContext->timer);
+  taosTmrReset((TAOS_TMR_CALLBACK)httpCleanUpContext, HTTP_DELAY_CLOSE_TIME_MS, pContext, pThread->pServer->timerHandle, &pContext->timer);
   httpTrace("context:%p, fd:%d, ip:%s, state:%s will be closed after:%d ms, timer:%p",
           pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), HTTP_DELAY_CLOSE_TIME_MS, pContext->timer);
 }
@@ -289,7 +273,7 @@ void httpCleanUpConnect(HttpServer *pServer) {
     taosCloseSocket(pThread->pollFd);
 
     while (pThread->pHead) {
-      httpCleanUpContext(pThread->pHead);
+      httpCleanUpContext(pThread->pHead, 0);
     }
 
     pthread_cancel(pThread->thread);
@@ -345,8 +329,6 @@ bool httpReadDataImp(HttpContext *pContext) {
   }
 
   pParser->buffer[pParser->bufsize] = 0;
-  httpTrace("context:%p, fd:%d, ip:%s, thread:%s, read size:%d",
-            pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pParser->bufsize);
 
   return true;
 }
@@ -399,10 +381,12 @@ bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
   int ret = httpCheckReadCompleted(pContext);
   if (ret == HTTP_CHECK_BODY_CONTINUE) {
     taosTmrReset(httpCloseContextByServerForExpired, HTTP_EXPIRED_TIME, pContext, pThread->pServer->timerHandle, &pContext->timer);
-    httpTrace("context:%p, fd:%d, ip:%s, not finished yet, try another times, timer:%p", pContext, pContext->fd, pContext->ipstr, pContext->timer);
+    //httpTrace("context:%p, fd:%d, ip:%s, not finished yet, try another times, timer:%p", pContext, pContext->fd, pContext->ipstr, pContext->timer);
     return false;
   } else if (ret == HTTP_CHECK_BODY_SUCCESS){
     httpCleanUpContextTimer(pContext);
+    httpTrace("context:%p, fd:%d, ip:%s, thread:%s, read size:%d, dataLen:%d",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->parser.bufsize, pContext->parser.data.len);
     if (httpDecompressData(pContext)) {
       return true;
     } else {
@@ -494,7 +478,7 @@ void httpProcessHttpData(void *param) {
       } else {
         if (httpReadData(pThread, pContext)) {
           (*(pThread->processData))(pContext);
-          __sync_fetch_and_add(&pThread->pServer->requestNum, 1);
+          atomic_fetch_add_32(&pThread->pServer->requestNum, 1);
         }
       }
     }
@@ -543,8 +527,8 @@ void httpAcceptHttpConnection(void *arg) {
       totalFds += pServer->pThreads[i].numOfFds;
     }
 
-    if (totalFds > tsHttpCacheSessions * 20) {
-      httpError("fd:%d, ip:%s:%u, totalFds:%d larger than httpCacheSessions:%d*20, refuse connection",
+    if (totalFds > tsHttpCacheSessions * 100) {
+      httpError("fd:%d, ip:%s:%u, totalFds:%d larger than httpCacheSessions:%d*100, refuse connection",
               connFd, inet_ntoa(clientAddr.sin_addr), htons(clientAddr.sin_port), totalFds, tsHttpCacheSessions);
       taosCloseSocket(connFd);
       continue;

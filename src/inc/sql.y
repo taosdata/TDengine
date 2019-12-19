@@ -26,8 +26,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
-
-#include "tsql.h"
+#include "tscSQLParser.h"
 #include "tutil.h"
 }
 
@@ -74,6 +73,9 @@ cmd ::= SHOW CONFIGS.    { setDCLSQLElems(pInfo, SHOW_CONFIGS, 0);  }
 cmd ::= SHOW SCORES.     { setDCLSQLElems(pInfo, SHOW_SCORES, 0);   }
 cmd ::= SHOW GRANTS.     { setDCLSQLElems(pInfo, SHOW_GRANTS, 0);   }
 
+cmd ::= SHOW VNODES.                { setDCLSQLElems(pInfo, SHOW_VNODES, 0); }
+cmd ::= SHOW VNODES IPTOKEN(X).     { setDCLSQLElems(pInfo, SHOW_VNODES, 1, &X); }
+
 %type dbPrefix {SSQLToken}
 dbPrefix(A) ::=.                   {A.n = 0;}
 dbPrefix(A) ::= ids(X) DOT.        {A = X;  }
@@ -113,7 +115,7 @@ cmd ::= DROP TABLE ifexists(Y) ids(X) cpxName(Z).   {
 }
 
 cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDCLSQLElems(pInfo, DROP_DATABASE, 2, &X, &Y); }
-cmd ::= DROP DNODE IP(X).        { setDCLSQLElems(pInfo, DROP_DNODE, 1, &X);    }
+cmd ::= DROP DNODE IPTOKEN(X).        { setDCLSQLElems(pInfo, DROP_DNODE, 1, &X);    }
 cmd ::= DROP USER ids(X).        { setDCLSQLElems(pInfo, DROP_USER, 1, &X);     }
 cmd ::= DROP ACCOUNT ids(X).     { setDCLSQLElems(pInfo, DROP_ACCOUNT, 1, &X);  }
 
@@ -129,8 +131,8 @@ cmd ::= DESCRIBE ids(X) cpxName(Y). {
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
 cmd ::= ALTER USER ids(X) PASS ids(Y).          { setDCLSQLElems(pInfo, ALTER_USER_PASSWD, 2, &X, &Y);    }
 cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setDCLSQLElems(pInfo, ALTER_USER_PRIVILEGES, 2, &X, &Y);}
-cmd ::= ALTER DNODE IP(X) ids(Y).               { setDCLSQLElems(pInfo, ALTER_DNODE, 2, &X, &Y);          }
-cmd ::= ALTER DNODE IP(X) ids(Y) ids(Z).        { setDCLSQLElems(pInfo, ALTER_DNODE, 3, &X, &Y, &Z);      }
+cmd ::= ALTER DNODE IPTOKEN(X) ids(Y).               { setDCLSQLElems(pInfo, ALTER_DNODE, 2, &X, &Y);          }
+cmd ::= ALTER DNODE IPTOKEN(X) ids(Y) ids(Z).        { setDCLSQLElems(pInfo, ALTER_DNODE, 3, &X, &Y, &Z);      }
 cmd ::= ALTER LOCAL ids(X).                     { setDCLSQLElems(pInfo, ALTER_LOCAL, 1, &X);              }
 cmd ::= ALTER LOCAL ids(X) ids(Y).              { setDCLSQLElems(pInfo, ALTER_LOCAL, 2, &X, &Y);          }
 cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SSQLToken t = {0};  setCreateDBSQL(pInfo, ALTER_DATABASE, &X, &Y, &t);}
@@ -155,7 +157,7 @@ ifnotexists(X) ::= .                {X.n = 0;}
 
 /////////////////////////////////THE CREATE STATEMENT///////////////////////////////////////
 //create option for dnode/db/user/account
-cmd ::= CREATE DNODE IP(X).     { setDCLSQLElems(pInfo, CREATE_DNODE, 1, &X);}
+cmd ::= CREATE DNODE IPTOKEN(X).     { setDCLSQLElems(pInfo, CREATE_DNODE, 1, &X);}
 cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
                                 { setCreateAcctSQL(pInfo, CREATE_ACCOUNT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDBSQL(pInfo, CREATE_DATABASE, &X, &Y, &Z);}
@@ -219,7 +221,8 @@ comp(Y)    ::= COMP INTEGER(X).               { Y = X; }
 prec(Y)    ::= PRECISION STRING(X).           { Y = X; }
 
 %type db_optr {SCreateDBInfo}
-db_optr    ::= . {}
+db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
+
 db_optr(Y) ::= db_optr(Z) tables(X).         { Y = Z; Y.tablesPerVnode = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) cache(X).          { Y = Z; Y.cacheBlockSize = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) replica(X).        { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
@@ -234,7 +237,7 @@ db_optr(Y) ::= db_optr(Z) prec(X).           { Y = Z; Y.precision = X; }
 db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
 
 %type alter_db_optr {SCreateDBInfo}
-alter_db_optr(Y) ::= . { memset(&Y, 0, sizeof(SCreateDBInfo));}
+alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y);}
 
 alter_db_optr(Y) ::= alter_db_optr(Z) replica(X).     { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) tables(X).      { Y = Z; Y.tablesPerVnode = strtol(X.z, NULL, 10); }
@@ -350,6 +353,14 @@ select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) fill_
   A = tSetQuerySQLElems(&T, W, X, Y, P, Z, &K, &S, F, &L, &G);
 }
 
+// Support for the SQL exprssion without from & where subclauses, e.g.,
+// select current_database(),
+// select server_version(), select client_version(),
+// select server_state();
+select(A) ::= SELECT(T) selcollist(W). {
+  A = tSetQuerySQLElems(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+}
+
 // selcollist is a list of expressions that are to become the return
 // values of the SELECT statement.  The "*" in statements like
 // "SELECT * FROM ..." is encoded as a special expression with an opcode of TK_ALL.
@@ -392,7 +403,7 @@ tmvar(A) ::= VARIABLE(X).   {A = X;}
 
 %type interval_opt {SSQLToken}
 interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N = E;     }
-interval_opt(N) ::= .                           {N.n = 0;   }
+interval_opt(N) ::= .                           {N.n = 0; N.z = NULL; N.type = 0;   }
 
 %type fill_opt {tVariantList*}
 %destructor fill_opt {tVariantListDestroy($$);}
@@ -413,7 +424,7 @@ fill_opt(N) ::= FILL LP ID(Y) RP.               {
 
 %type sliding_opt {SSQLToken}
 sliding_opt(K) ::= SLIDING LP tmvar(E) RP.      {K = E;     }
-sliding_opt(K) ::= .                            {K.n = 0;   }
+sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0;   }
 
 %type orderby_opt {tVariantList*}
 %destructor orderby_opt {tVariantListDestroy($$);}
@@ -642,12 +653,12 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
 }
 
 ////////////////////////////////////////kill statement///////////////////////////////////////
-cmd ::= KILL CONNECTION IP(X) COLON(Z) INTEGER(Y).   {X.n += (Z.n + Y.n); setDCLSQLElems(pInfo, KILL_CONNECTION, 1, &X);}
-cmd ::= KILL STREAM IP(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).       {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_STREAM, 1, &X);}
-cmd ::= KILL QUERY IP(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).        {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_QUERY, 1, &X);}
+cmd ::= KILL CONNECTION IPTOKEN(X) COLON(Z) INTEGER(Y).   {X.n += (Z.n + Y.n); setDCLSQLElems(pInfo, KILL_CONNECTION, 1, &X);}
+cmd ::= KILL STREAM IPTOKEN(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).       {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_STREAM, 1, &X);}
+cmd ::= KILL QUERY IPTOKEN(X) COLON(Z) INTEGER(Y) COLON(K) INTEGER(F).        {X.n += (Z.n + Y.n + K.n + F.n); setDCLSQLElems(pInfo, KILL_QUERY, 1, &X);}
 
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
   LIKE MATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
   COUNT SUM AVG MIN MAX FIRST LAST TOP BOTTOM STDDEV PERCENTILE APERCENTILE LEASTSQUARES HISTOGRAM DIFF
-  SPREAD TWA INTERP LAST_ROW NOW IP SEMI NONE PREV LINEAR IMPORT METRIC TBNAME JOIN METRICS STABLE.
+  SPREAD TWA INTERP LAST_ROW NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT METRIC TBNAME JOIN METRICS STABLE NULL.

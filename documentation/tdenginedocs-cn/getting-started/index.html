@@ -28,7 +28,7 @@
 <p>在TDengine终端中，用户可以通过SQL命令来创建/删除数据库、表等，并进行插入查询操作。在终端中运行的SQL语句需要以分号结束来运行。示例：</p>
 <pre><code class="mysql language-mysql">create database db;
 use db;
-create table t (ts timestamp, cdata int);
+create table t (ts timestamp, speed int);
 insert into t values ('2019-07-15 00:00:00', 10);
 insert into t values ('2019-07-15 01:00:00', 20);
 select * from t;
@@ -63,7 +63,7 @@ Query OK, 2 row(s) in set (0.001700s)</code></pre>
 <a class='anchor' id='主要功能'></a><h2>主要功能</h2>
 <p>TDengine的核心功能是时序数据库。除此之外，为减少研发的复杂度、系统维护的难度，TDengine还提供缓存、消息队列、订阅、流式计算等功能。更详细的功能如下：</p>
 <ul>
-<li>使用类SQL语言用插入或查询数据</li>
+<li>使用类SQL语言插入或查询数据</li>
 <li>支持C/C++, Java(JDBC), Python, Go, RESTful, and Node.JS 开发接口</li>
 <li>可通过Python/R/Matlab or TDengine shell做Ad Hoc查询分析</li>
 <li>通过定时连续查询支持基于滑动窗口的流式计算</li>

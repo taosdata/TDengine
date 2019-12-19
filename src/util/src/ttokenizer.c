@@ -13,14 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ctype.h>
-#include <pthread.h>
-#include <string.h>
-
 #include "os.h"
 #include "shash.h"
-#include "tsql.h"
 #include "tutil.h"
+#include "tsqldef.h"
+#include "tstoken.h"
+#include "ttypes.h"
 
 // All the keywords of the SQL language are stored in a hash table
 typedef struct SKeyword {
@@ -96,7 +94,6 @@ static SKeyword keywordTable[] = {
     {"TABLE",        TK_TABLE},
     {"DATABASE",     TK_DATABASE},
     {"DNODE",        TK_DNODE},
-    {"IP",           TK_IP},
     {"USER",         TK_USER},
     {"ACCOUNT",      TK_ACCOUNT},
     {"USE",          TK_USE},
@@ -227,6 +224,7 @@ static SKeyword keywordTable[] = {
     {"METRICS",      TK_METRICS},
     {"STABLE",       TK_STABLE},
     {"FILE",         TK_FILE},
+    {"VNODES",       TK_VNODES},
 };
 
 /* This is the hash table */
@@ -420,7 +418,12 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       int  delim = z[0];
       bool strEnd = false;
       for (i = 1; z[i]; i++) {
-        if (z[i] == delim) {
+        if (z[i] == '\\') { 
+          i++;
+          continue;
+        }
+        
+        if (z[i] == delim ) {
           if (z[i + 1] == delim) {
             i++;
           } else {
@@ -429,6 +432,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
           }
         }
       }
+      
       if (z[i]) i++;
 
       if (strEnd) {
@@ -506,7 +510,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       if ((z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' || z[i] == 'y' ||
           z[i] == 'w' || z[i] == 'A' || z[i] == 'S' || z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' ||
           z[i] == 'Y' || z[i] == 'W') &&
-          (isIdChar[z[i + 1]] == 0)) {
+          (isIdChar[(uint8_t)z[i + 1]] == 0)) {
         *tokenType = TK_VARIABLE;
         i += 1;
         return i;
@@ -523,7 +527,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       }
 
       if (seg == 4) {  // ip address
-        *tokenType = TK_IP;
+        *tokenType = TK_IPTOKEN;
         return i;
       }
 
@@ -547,7 +551,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
     case 't':
     case 'F':
     case 'f': {
-      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[z[i]]; i++) {
+      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
       }
 
       if ((i == 4 && strncasecmp(z, "true", 4) == 0) || (i == 5 && strncasecmp(z, "false", 5) == 0)) {
@@ -556,10 +560,10 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       }
     }
     default: {
-      if (((*z & 0x80) != 0) || !isIdChar[*z]) {
+      if (((*z & 0x80) != 0) || !isIdChar[(uint8_t) *z]) {
         break;
       }
-      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[z[i]]; i++) {
+      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
       }
       *tokenType = tSQLKeywordCode(z, i);
       return i;

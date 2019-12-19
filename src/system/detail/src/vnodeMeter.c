@@ -14,10 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include "os.h"
 
 #include "trpc.h"
 #include "tschemautil.h"
@@ -27,8 +24,7 @@
 #include "vnodeMgmt.h"
 #include "vnodeShell.h"
 #include "vnodeUtil.h"
-
-#pragma GCC diagnostic ignored "-Wpointer-sign"
+#include "vnodeStatus.h"
 
 #define VALID_TIMESTAMP(key, curKey, prec) (((key) >= 0) && ((key) <= ((curKey) + 36500 * tsMsPerDay[prec])))
 
@@ -115,7 +111,7 @@ FILE *vnodeOpenMeterObjFile(int vnode) {
   fp = fopen(fileName, "r+");
   if (fp != NULL) {
     if (vnodeCheckFileIntegrity(fp) < 0) {
-      dError("file:%s is corrupted, need to restore it first", fileName);
+      dError("file:%s is corrupted, need to restore it first, exit program", fileName);
       fclose(fp);
 
       // todo: how to recover
@@ -379,7 +375,11 @@ int vnodeOpenMetersVnode(int vnode) {
 
   fseek(fp, TSDB_FILE_HEADER_LEN * 2 / 4, SEEK_SET);
   fread(&pVnode->cfg, sizeof(SVnodeCfg), 1, fp);
+
   if (vnodeIsValidVnodeCfg(&pVnode->cfg) == false) {
+    dError("vid:%d, maxSessions:%d cacheBlockSize:%d replications:%d daysPerFile:%d daysToKeep:%d invalid, clear it",
+            vnode, pVnode->cfg.maxSessions, pVnode->cfg.cacheBlockSize, pVnode->cfg.replications,
+            pVnode->cfg.daysPerFile, pVnode->cfg.daysToKeep);
     pVnode->cfg.maxSessions = 0;  // error in vnode file
     return 0;
   }
@@ -487,7 +487,7 @@ int vnodeCreateMeterObj(SMeterObj *pNew, SConnSec *pSec) {
     vnodeSaveMeterObjToFile(pNew);
     // vnodeCreateMeterMgmt(pNew, pSec);
     vnodeCreateStream(pNew);
-    dTrace("vid:%d sid:%d id:%s, meterObj is created, uid:%ld", pNew->vnode, pNew->sid, pNew->meterId, pNew->uid);
+    dTrace("vid:%d, sid:%d id:%s, meterObj is created, uid:%ld", pNew->vnode, pNew->sid, pNew->meterId, pNew->uid);
   }
 
   return code;
@@ -520,7 +520,7 @@ int vnodeRemoveMeterObj(int vnode, int sid) {
   }
 
   // after remove this meter, change its state to DELETED
-  pObj->state = TSDB_METER_STATE_DELETED;
+  pObj->state = TSDB_METER_STATE_DROPPED;
   pObj->timeStamp = taosGetTimestampMs();
   vnodeList[vnode].lastRemove = pObj->timeStamp;
 
@@ -575,19 +575,19 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     dTrace("vid:%d sid:%d id:%s, cache is full, freePoints:%d, notFreeSlots:%d", pObj->vnode, pObj->sid, pObj->meterId,
            pObj->freePoints, pPool->notFreeSlots);
     vnodeProcessCommitTimer(pVnode, NULL);
-    return TSDB_CODE_ACTION_IN_PROGRESS;
+    return code;
   }
 
   // FIXME: Here should be after the comparison of sversions.
   if (pVnode->cfg.commitLog && source != TSDB_DATA_SOURCE_LOG) {
     if (pVnode->logFd < 0) return TSDB_CODE_INVALID_COMMIT_LOG;
     code = vnodeWriteToCommitLog(pObj, TSDB_ACTION_INSERT, cont, contLen, sversion);
-    if (code != 0) return code;
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
 
   if (source == TSDB_DATA_SOURCE_SHELL && pVnode->cfg.replications > 1) {
     code = vnodeForwardToPeer(pObj, cont, contLen, TSDB_ACTION_INSERT, sversion);
-    if (code != 0) return code;
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
 
   if (pObj->sversion < sversion) {
@@ -599,26 +599,29 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   }
 
   pData = pSubmit->payLoad;
-  code = 0;
 
   TSKEY firstKey = *((TSKEY *)pData);
   TSKEY lastKey = *((TSKEY *)(pData + pObj->bytesPerPoint * (numOfPoints - 1)));
-  int cfid = now/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
-  TSKEY minAllowedKey = (cfid - pVnode->maxFiles + 1)*pVnode->cfg.daysPerFile*tsMsPerDay[pVnode->cfg.precision];
-  TSKEY maxAllowedKey = (cfid + 2)*pVnode->cfg.daysPerFile*tsMsPerDay[pVnode->cfg.precision] - 2;
+  int cfid = now/pVnode->cfg.daysPerFile/tsMsPerDay[(uint8_t)pVnode->cfg.precision];
+  
+  TSKEY minAllowedKey = (cfid - pVnode->maxFiles + 1)*pVnode->cfg.daysPerFile*tsMsPerDay[(uint8_t)pVnode->cfg.precision];
+  TSKEY maxAllowedKey = (cfid + 2)*pVnode->cfg.daysPerFile*tsMsPerDay[(uint8_t)pVnode->cfg.precision] - 2;
   if (firstKey < minAllowedKey || firstKey > maxAllowedKey || lastKey < minAllowedKey || lastKey > maxAllowedKey) {
     dError("vid:%d sid:%d id:%s, vnode lastKeyOnFile:%lld, data is out of range, numOfPoints:%d firstKey:%lld lastKey:%lld minAllowedKey:%lld maxAllowedKey:%lld",
             pObj->vnode, pObj->sid, pObj->meterId, pVnode->lastKeyOnFile, numOfPoints,firstKey, lastKey, minAllowedKey, maxAllowedKey);
     return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
   }
-
-  for (i = 0; i < numOfPoints; ++i) {
-    // meter will be dropped, abort current insertion
-    if (pObj->state >= TSDB_METER_STATE_DELETING) {
+  
+  if ((code = vnodeSetMeterInsertImportStateEx(pObj, TSDB_METER_STATE_INSERTING)) != TSDB_CODE_SUCCESS) {
+    goto _over;
+  }
+  
+  for (i = 0; i < numOfPoints; ++i) { // meter will be dropped, abort current insertion
+    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPING)) {
       dWarn("vid:%d sid:%d id:%s, meter is dropped, abort insert, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
             pObj->state);
 
-      code = TSDB_CODE_NOT_ACTIVE_SESSION;
+      code = TSDB_CODE_NOT_ACTIVE_TABLE;
       break;
     }
 
@@ -629,7 +632,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
       continue;
     }
 
-    if (!VALID_TIMESTAMP(*((TSKEY *)pData), tsKey, pVnode->cfg.precision)) {
+    if (!VALID_TIMESTAMP(*((TSKEY *)pData), tsKey, (uint8_t)pVnode->cfg.precision)) {
       code = TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
       break;
     }
@@ -643,8 +646,9 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     pData += pObj->bytesPerPoint;
     points++;
   }
-  __sync_fetch_and_add(&(pVnode->vnodeStatistic.pointsWritten), points * (pObj->numOfColumns - 1));
-  __sync_fetch_and_add(&(pVnode->vnodeStatistic.totalStorage), points * pObj->bytesPerPoint);
+  
+  atomic_fetch_add_64(&(pVnode->vnodeStatistic.pointsWritten), points * (pObj->numOfColumns - 1));
+  atomic_fetch_add_64(&(pVnode->vnodeStatistic.totalStorage), points * pObj->bytesPerPoint);
 
   pthread_mutex_lock(&(pVnode->vmutex));
 
@@ -655,6 +659,8 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   pVnode->version++;
 
   pthread_mutex_unlock(&(pVnode->vmutex));
+  
+  vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERTING);
 
 _over:
   dTrace("vid:%d sid:%d id:%s, %d out of %d points are inserted, lastKey:%ld source:%d, vnode total storage: %ld",
@@ -712,14 +718,15 @@ void vnodeUpdateMeter(void *param, void *tmrId) {
   SVnodeObj* pVnode = &vnodeList[pNew->vnode];
 
   if (pVnode->meterList == NULL) {
-    dTrace("vid:%d sid:%d id:%s, vnode is deleted, abort update schema", pNew->vnode, pNew->sid, pNew->meterId);
+    dTrace("vid:%d sid:%d id:%s, vnode is deleted, status:%s, abort update schema",
+            pNew->vnode, pNew->sid, pNew->meterId, taosGetVnodeStatusStr(vnodeList[pNew->vnode].vnodeStatus));
     free(pNew->schema);
     free(pNew);
     return;
   }
 
   SMeterObj *pObj = pVnode->meterList[pNew->sid];
-  if (pObj == NULL || vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+  if (pObj == NULL || vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPING)) {
     dTrace("vid:%d sid:%d id:%s, meter is deleted, abort update schema", pNew->vnode, pNew->sid, pNew->meterId);
     free(pNew->schema);
     free(pNew);
@@ -727,7 +734,7 @@ void vnodeUpdateMeter(void *param, void *tmrId) {
   }
 
   int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_UPDATING);
-  if (state >= TSDB_METER_STATE_DELETING) {
+  if (state >= TSDB_METER_STATE_DROPPING) {
     dError("vid:%d sid:%d id:%s, meter is deleted, failed to update, state:%d",
            pObj->vnode, pObj->sid, pObj->meterId, state);
     return;

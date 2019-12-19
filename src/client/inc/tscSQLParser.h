@@ -23,22 +23,9 @@ extern "C" {
 #include "taos.h"
 #include "tsqldef.h"
 #include "ttypes.h"
-
-#define TK_SPACE      200
-#define TK_COMMENT    201
-#define TK_ILLEGAL    202
-#define TK_HEX        203   // hex number  0x123
-#define TK_OCT        204   // oct number
-#define TK_BIN        205   // bin format data 0b111
-#define TK_FILE       206
-
-#define TSQL_SO_ASC   1
-#define TSQL_SO_DESC  0
+#include "taosmsg.h"
 
 #define MAX_TOKEN_LEN 30
-
-#define TSQL_TBNAME "TBNAME"
-#define TSQL_TBNAME_L "tbname"
 
 // token type
 enum {
@@ -118,6 +105,7 @@ enum TSQL_TYPE {
   SHOW_MODULES = 0x6c,
   SHOW_CONNECTIONS = 0x6d,
   SHOW_GRANTS = 0x6e,
+  SHOW_VNODES = 0x6f,
 
   // create dnode
   CREATE_DNODE = 0x80,
@@ -277,8 +265,7 @@ typedef struct tSQLExpr {
   uint32_t nSQLOptr;  // TK_FUNCTION: sql function, TK_LE: less than(binary expr)
 
   // the full sql string of function(col, param), which is actually the raw
-  // field name,
-  // since the function name is kept in nSQLOptr already
+  // field name, since the function name is kept in nSQLOptr already
   SSQLToken            operand;
   struct tSQLExprList *pParam;  // function parameters
 
@@ -345,8 +332,6 @@ tSQLExprList *tSQLExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SSQLToken
 
 void tSQLExprListDestroy(tSQLExprList *pList);
 
-int32_t tSQLSyntaxNodeToString(tSQLExpr *pNode, char *dst);
-
 SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
                              tVariantList *pGroupby, tVariantList *pSortOrder, SSQLToken *pInterval,
                              SSQLToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit);
@@ -378,6 +363,7 @@ tDCLSQL *tTokenListAppend(tDCLSQL *pTokenList, SSQLToken *pToken);
 void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBInfo *pDB, SSQLToken *pIgExists);
 
 void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken *pPwd, SCreateAcctSQL *pAcctInfo);
+void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo);
 
 // prefix show db.tables;
 void setDBName(SSQLToken *pCpxName, SSQLToken *pDB);

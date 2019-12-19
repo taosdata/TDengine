@@ -30,7 +30,8 @@
 #include <wordexp.h>
 
 #include "taos.h"
-#pragma GCC diagnostic ignored "-Wmissing-braces"
+
+extern char configDir[];
 
 #define BUFFER_SIZE      65536
 #define MAX_DB_NAME_SIZE 64
@@ -64,7 +65,7 @@ static struct argp_option options[] = {
 /* Used by main to communicate with parse_opt. */
 struct arguments {
   char  *host;
-  int    port;
+  uint16_t    port;
   char  *user;
   char  *password;
   char  *database;
@@ -176,7 +177,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
       }
-      strcpy(configDir, full_path.we_wordv[0]);
+      taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
       wordfree(&full_path);
       break;
     case OPT_ABORT:
@@ -264,30 +265,35 @@ double getCurrentTime();
 void callBack(void *param, TAOS_RES *res, int code);
 
 int main(int argc, char *argv[]) {
-  struct arguments arguments = {NULL,
-                                0,
-                                "root",
-                                "taosdata",
-                                "test",
-                                "t",
-                                false,
-                                false,
-                                "./output.txt",
-                                0,
-                                "int",
+  struct arguments arguments = {NULL,            // host
+                                0,               // port
+                                "root",          // user
+                                "taosdata",      // password
+                                "test",          // database
+                                "t",             // tb_prefix
+                                false,           // use_metric
+                                false,           // insert_only
+                                "./output.txt",  // output_file
+                                0,               // mode
+                                {
+                                "int",           // datatype
                                 "",
                                 "",
                                 "",
                                 "",
                                 "",
                                 "",
-                                "",
-                                8,
-                                1,
-                                1,
-                                1,
-                                1,
-                                50000};
+                                ""
+                                },
+                                8,               // len_of_binary
+                                1,               // num_of_CPR
+                                1,               // num_of_connections
+                                1,               // num_of_RPR
+                                1,               // num_of_tables
+                                50000,           // num_of_DPT
+                                0,               // abort
+                                NULL             // arg_list
+                                };
 
   /* Parse our arguments; every option seen by parse_opt will be
      reflected in arguments. */
@@ -307,7 +313,7 @@ int main(int argc, char *argv[]) {
   
   enum MODE query_mode = arguments.mode;
   char *ip_addr = arguments.host;
-  int port = arguments.port;
+  uint16_t port = arguments.port;
   char *user = arguments.user;
   char *pass = arguments.password;
   char *db_name = arguments.database;
@@ -340,7 +346,7 @@ int main(int argc, char *argv[]) {
   struct tm tm = *localtime(&tTime);
 
   fprintf(fp, "###################################################################\n");
-  fprintf(fp, "# Server IP:                         %s:%d\n", ip_addr == NULL ? "localhost" : ip_addr, port);
+  fprintf(fp, "# Server IP:                         %s:%hu\n", ip_addr == NULL ? "localhost" : ip_addr, port);
   fprintf(fp, "# User:                              %s\n", user);
   fprintf(fp, "# Password:                          %s\n", pass);
   fprintf(fp, "# Use metric:                        %s\n", use_metric ? "true" : "false");

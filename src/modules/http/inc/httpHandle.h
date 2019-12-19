@@ -63,10 +63,12 @@
 #define HTTP_WRITE_RETRY_TIMES      500
 #define HTTP_WRITE_WAIT_TIME_MS     5
 #define HTTP_EXPIRED_TIME           60000
-#define HTTP_DELAY_CLOSE_TIME_MS    1000
+#define HTTP_DELAY_CLOSE_TIME_MS    500
 
 #define HTTP_COMPRESS_IDENTITY      0
 #define HTTP_COMPRESS_GZIP          2
+
+#define HTTP_SESSION_ID_LEN         (TSDB_USER_LEN * 2 + 1)
 
 typedef enum {
     HTTP_CONTEXT_STATE_READY,
@@ -83,7 +85,7 @@ typedef struct {
   int   expire;
   int   access;
   void *taos;
-  char  id[TSDB_USER_LEN];
+  char  id[HTTP_SESSION_ID_LEN + 1];
 } HttpSession;
 
 typedef enum {
@@ -210,7 +212,7 @@ typedef struct HttpThread {
 typedef struct _http_server_obj_ {
   char              label[HTTP_LABEL_SIZE];
   char              serverIp[16];
-  short             serverPort;
+  uint16_t          serverPort;
   int               cacheContext;
   int               sessionExpire;
   int               numOfThreads;
@@ -233,7 +235,7 @@ bool httpCheckUsedbSql(char *sql);
 void httpTimeToString(time_t t, char *buf, int buflen);
 
 // http init method
-void *httpInitServer(char *ip, short port, char *label, int numOfThreads, void *fp, void *shandle);
+void *httpInitServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
 void httpCleanUpServer(HttpServer *pServer);
 
 // http server connection

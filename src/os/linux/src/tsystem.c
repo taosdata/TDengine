@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#include <inttypes.h>
 #include <ifaddrs.h>
 #include <locale.h>
 #include <netdb.h>
@@ -25,6 +25,14 @@
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/resource.h>
+#include <sys/sysctl.h>
+#include <sys/syscall.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <linux/sysctl.h>
 
 #include "tglobalcfg.h"
 #include "tlog.h"
@@ -73,6 +81,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   char * line = NULL;
   while (!feof(fp)) {
     tfree(line);
+    len = 0;
     getline(&line, &len, fp);
     if (line == NULL) {
       break;
@@ -90,7 +99,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
 
   int64_t memKB = 0;
   char    tmp[10];
-  sscanf(line, "%s %ld", tmp, &memKB);
+  sscanf(line, "%s %" PRId64, tmp, &memKB);
   *memoryUsedMB = (float)((double)memKB / 1024);
 
   tfree(line);
@@ -115,7 +124,7 @@ bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   }
 
   char cpu[10] = {0};
-  sscanf(line, "%s %ld %ld %ld %ld", cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle);
+  sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle);
 
   tfree(line);
   fclose(fp);
@@ -129,7 +138,7 @@ bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     return false;
   }
 
-  size_t len;
+  size_t len = 0;
   char * line = NULL;
   getline(&line, &len, fp);
   if (line == NULL) {
@@ -141,7 +150,7 @@ bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   for (int i = 0, blank = 0; line[i] != 0; ++i) {
     if (line[i] == ' ') blank++;
     if (blank == PROCESS_ITEM) {
-      sscanf(line + i + 1, "%ld %ld %ld %ld", &cpuInfo->utime, &cpuInfo->stime, &cpuInfo->cutime, &cpuInfo->cstime);
+      sscanf(line + i + 1, "%" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &cpuInfo->utime, &cpuInfo->stime, &cpuInfo->cutime, &cpuInfo->cstime);
       break;
     }
   }
@@ -208,25 +217,6 @@ void taosGetSystemTimezone() {
 
   cfg_timezone->cfgStatus = TSDB_CFG_CSTATUS_DEFAULT;
   pPrint("timezone not configured, set to system default:%s", tsTimezone);
-}
-
-typedef struct CharsetPair {
-  char *oldCharset;
-  char *newCharset;
-} CharsetPair;
-
-char *taosCharsetReplace(char *charsetstr) {
-  CharsetPair charsetRep[] = {
-      {"utf8", "UTF-8"}, {"936", "CP936"},
-  };
-
-  for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
-    if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
-      return strdup(charsetRep[i].newCharset);
-    }
-  }
-
-  return strdup(charsetstr);
 }
 
 /*
@@ -391,8 +381,8 @@ bool taosGetCardName(char *ip, char *name) {
 bool taosGetCardInfo(int64_t *bytes) {
   static char tsPublicCard[1000] = {0};
   if (tsPublicCard[0] == 0) {
-    if (!taosGetCardName(tsInternalIp, tsPublicCard)) {
-      pError("can't get card name from ip:%s", tsInternalIp);
+    if (!taosGetCardName(tsPrivateIp, tsPublicCard)) {
+      pError("can't get card name from ip:%s", tsPrivateIp);
       return false;
     }
     int cardNameLen = (int)strlen(tsPublicCard);
@@ -420,6 +410,7 @@ bool taosGetCardInfo(int64_t *bytes) {
 
   while (!feof(fp)) {
     tfree(line);
+    len = 0;
     getline(&line, &len, fp);
     if (line == NULL) {
       break;
@@ -429,7 +420,7 @@ bool taosGetCardInfo(int64_t *bytes) {
     }
   }
   if (line != NULL) {
-    sscanf(line, "%s %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld", nouse0, &rbytes, &rpackts, &nouse1, &nouse2, &nouse3,
+    sscanf(line, "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64, nouse0, &rbytes, &rpackts, &nouse1, &nouse2, &nouse3,
            &nouse4, &nouse5, &nouse6, &tbytes, &tpackets);
     *bytes = rbytes + tbytes;
     tfree(line);
@@ -491,15 +482,16 @@ bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
 
   while (!feof(fp)) {
     tfree(line);
+    len = 0;
     getline(&line, &len, fp);
     if (line == NULL) {
       break;
     }
     if (strstr(line, "rchar:") != NULL) {
-      sscanf(line, "%s %ld", tmp, readbyte);
+      sscanf(line, "%s %" PRId64, tmp, readbyte);
       readIndex++;
     } else if (strstr(line, "wchar:") != NULL) {
-      sscanf(line, "%s %ld", tmp, writebyte);
+      sscanf(line, "%s %" PRId64, tmp, writebyte);
       readIndex++;
     } else {
     }
@@ -572,9 +564,9 @@ void taosGetSystemInfo() {
 }
 
 void tsPrintOsInfo() {
-  pPrint(" os pageSize:            %ld(KB)", tsPageSize);
-  pPrint(" os openMax:             %ld", tsOpenMax);
-  pPrint(" os streamMax:           %ld", tsStreamMax);
+  pPrint(" os pageSize:            %" PRId64 "(KB)", tsPageSize);
+  pPrint(" os openMax:             %" PRId64, tsOpenMax);
+  pPrint(" os streamMax:           %" PRId64, tsStreamMax);
   pPrint(" os numOfCores:          %d", tsNumOfCores);
   pPrint(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
   pPrint(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
@@ -596,3 +588,128 @@ void taosKillSystem() {
   pPrint("taosd will shut down soon");
   kill(tsProcId, 2);
 }
+
+extern int   tsEnableCoreFile;
+int _sysctl(struct __sysctl_args *args );
+void taosSetCoreDump() {
+  if (0 == tsEnableCoreFile) {
+    return;
+  }
+  
+  // 1. set ulimit -c unlimited
+  struct rlimit rlim;
+  struct rlimit rlim_new;
+  if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
+    pPrint("the old unlimited para: rlim_cur=%d, rlim_max=%d", rlim.rlim_cur, rlim.rlim_max);
+    rlim_new.rlim_cur = RLIM_INFINITY;
+    rlim_new.rlim_max = RLIM_INFINITY;
+    if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
+      pPrint("set unlimited fail, error: %s", strerror(errno));
+      rlim_new.rlim_cur = rlim.rlim_max;
+      rlim_new.rlim_max = rlim.rlim_max;
+      (void)setrlimit(RLIMIT_CORE, &rlim_new);
+    }
+  }
+
+  if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
+    pPrint("the new unlimited para: rlim_cur=%d, rlim_max=%d", rlim.rlim_cur, rlim.rlim_max);
+  }
+
+#ifndef _TD_ARM_
+  // 2. set the path for saving core file
+  struct __sysctl_args args;
+  int     old_usespid = 0;
+  size_t  old_len     = 0;
+  int     new_usespid = 1;
+  size_t  new_len     = sizeof(new_usespid);
+  
+  int name[] = {CTL_KERN, KERN_CORE_USES_PID};
+  
+  memset(&args, 0, sizeof(struct __sysctl_args));
+  args.name    = name;
+  args.nlen    = sizeof(name)/sizeof(name[0]);
+  args.oldval  = &old_usespid;
+  args.oldlenp = &old_len;
+  args.newval  = &new_usespid;
+  args.newlen  = new_len;
+  
+  old_len = sizeof(old_usespid);
+  
+  if (syscall(SYS__sysctl, &args) == -1) {
+      pPrint("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
+  }
+  
+  pPrint("The old core_uses_pid[%d]: %d", old_len, old_usespid);
+
+
+  old_usespid = 0;
+  old_len     = 0;
+  memset(&args, 0, sizeof(struct __sysctl_args));
+  args.name    = name;
+  args.nlen    = sizeof(name)/sizeof(name[0]);
+  args.oldval  = &old_usespid;
+  args.oldlenp = &old_len;
+  
+  old_len = sizeof(old_usespid);
+  
+  if (syscall(SYS__sysctl, &args) == -1) {
+      pPrint("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
+  }
+  
+  pPrint("The new core_uses_pid[%d]: %d", old_len, old_usespid);
+#endif
+  
+#if 0
+  // 3. create the path for saving core file
+  int status; 
+  char coredump_dir[32] = "/var/log/taosdump";
+  if (opendir(coredump_dir) == NULL) {
+    status = mkdir(coredump_dir, S_IRWXU | S_IRWXG | S_IRWXO); 
+    if (status) {
+      pPrint("mkdir fail, error: %s\n", strerror(errno));
+    }
+  }
+
+  // 4. set kernel.core_pattern
+   struct __sysctl_args args;
+   char    old_corefile[128];
+   size_t  old_len;
+   char    new_corefile[128] = "/var/log/taosdump/core-%e-%p";
+   size_t  new_len = sizeof(new_corefile);
+   
+   int name[] = {CTL_KERN, KERN_CORE_PATTERN};
+
+   memset(&args, 0, sizeof(struct __sysctl_args));
+   args.name    = name;
+   args.nlen    = sizeof(name)/sizeof(name[0]);
+   args.oldval  = old_corefile;
+   args.oldlenp = &old_len;
+   args.newval  = new_corefile;
+   args.newlen  = new_len;
+
+   old_len = sizeof(old_corefile);
+
+   if (syscall(SYS__sysctl, &args) == -1) {
+       pPrint("_sysctl(kern_core_pattern) set fail: %s", strerror(errno));
+   }
+   
+   pPrint("The old kern_core_pattern: %*s\n", old_len, old_corefile);
+
+
+   memset(&args, 0, sizeof(struct __sysctl_args));
+   args.name    = name;
+   args.nlen    = sizeof(name)/sizeof(name[0]);
+   args.oldval  = old_corefile;
+   args.oldlenp = &old_len;
+   
+   old_len = sizeof(old_corefile);
+
+   if (syscall(SYS__sysctl, &args) == -1) {
+       pPrint("_sysctl(kern_core_pattern) get fail: %s", strerror(errno));
+   }
+   
+   pPrint("The new kern_core_pattern: %*s\n", old_len, old_corefile);
+#endif
+  
+}
+

@@ -20,13 +20,13 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
+#include "os.h"
 
 typedef struct {
   int      sid;
   int      vnode;
   uint32_t ip;
-  short    port;
+  uint16_t port;
   int      count;             // track the number of imports
   int      code;              // track the code of imports
   int      numOfTotalPoints;  // track the total number of points imported

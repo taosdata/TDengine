@@ -12,14 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include <assert.h>
-#include <float.h>
-#include <math.h>
-#include <memory.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "os.h"
 
 #include "taosmsg.h"
 #include "thistogram.h"
@@ -453,7 +446,7 @@ void tHistogramPrint(SHistogramInfo* pHisto) {
   printf("total entries: %d, elements: %d\n", pHisto->numOfEntries, pHisto->numOfElems);
 #if defined(USE_ARRAYLIST)
   for (int32_t i = 0; i < pHisto->numOfEntries; ++i) {
-    printf("%d: (%f, %lld)\n", i + 1, pHisto->elems[i].val, pHisto->elems[i].num);
+    printf("%d: (%f, %" PRId64 ")\n", i + 1, pHisto->elems[i].val, pHisto->elems[i].num);
   }
 #else
   tSkipListNode* pNode = pHisto->pList->pHead.pForward[0];

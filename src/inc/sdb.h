@@ -23,10 +23,10 @@ extern "C" {
 #include "taosmsg.h"
 #include "tsdb.h"
 
-extern short    sdbPeerPort;
-extern short    sdbSyncPort;
+extern uint16_t    tsMgmtMgmtPort;
+extern uint16_t    tsMgmtSyncPort;
 extern int      sdbMaxNodes;
-extern int      sdbHbTimer;  // seconds
+extern int      tsMgmtPeerHBTimer;  // seconds
 extern char     sdbZone[];
 extern char     sdbMasterIp[];
 extern char     sdbPrivateIp[];
@@ -105,7 +105,7 @@ extern SSdbPeer *sdbPeer[];
 
 #endif
 
-void *sdbOpenTable(int maxRows, int32_t maxRowSize, char *name, char keyType, char *directory,
+void *sdbOpenTable(int maxRows, int32_t maxRowSize, char *name, uint8_t keyType, char *directory,
                    void *(*appTool)(char, void *, char *, int, int *));
 
 void *sdbGetRow(void *handle, void *key);

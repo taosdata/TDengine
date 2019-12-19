@@ -170,12 +170,12 @@ int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optle
   return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
 }
 
-int taosOpenUDClientSocket(char *ip, short port) {
+int taosOpenUDClientSocket(char *ip, uint16_t port) {
   int                sockFd = 0;
   struct sockaddr_un serverAddr;
   int                ret;
   char               name[128];
-  sprintf(name, "%s.%d", ip, port);
+  sprintf(name, "%s.%hu", ip, port);
 
   sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -198,14 +198,13 @@ int taosOpenUDClientSocket(char *ip, short port) {
   return sockFd;
 }
 
-int taosOpenUDServerSocket(char *ip, short port) {
+int taosOpenUDServerSocket(char *ip, uint16_t port) {
   struct sockaddr_un serverAdd;
   int                sockFd;
   char               name[128];
 
   pTrace("open ud socket:%s", name);
-  // if (tsAllowLocalhost) ip = "0.0.0.0";
-  sprintf(name, "%s.%d", ip, port);
+  sprintf(name, "%s.%hu", ip, port);
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
   serverAdd.sun_family = AF_UNIX;
@@ -241,10 +240,6 @@ int taosInitTimer(void (*callback)(int), int ms) {
   tv.it_value = tv.it_interval;
 
   return setitimer(ITIMER_REAL, &tv, NULL);
-}
-
-char *taosCharsetReplace(char *charsetstr) {
-  return charsetstr;
 }
 
 void taosGetSystemTimezone() {
@@ -300,7 +295,7 @@ void taosGetSystemInfo() {
   taosGetSystemLocale();
 }
 
-void *taosInitTcpClient(char *ip, short port, char *flabel, int num, void *fp, void *shandle) {
+void *taosInitTcpClient(char *ip, uint16_t port, char *flabel, int num, void *fp, void *shandle) {
   tError("function taosInitTcpClient is not implemented in darwin system, exit!");
   exit(0);
 }
@@ -310,12 +305,12 @@ void taosCloseTcpClientConnection(void *chandle) {
   exit(0);
 }
 
-void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, short port) {
+void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port) {
   tError("function taosOpenTcpClientConnection is not implemented in darwin system, exit!");
   exit(0);
 }
 
-int taosSendTcpClientData(unsigned int ip, short port, char *data, int len, void *chandle) {
+int taosSendTcpClientData(unsigned int ip, uint16_t port, char *data, int len, void *chandle) {
   tError("function taosSendTcpClientData is not implemented in darwin system, exit!");
   exit(0);
 }
@@ -335,12 +330,12 @@ void taosCleanUpTcpServer(void *handle) {
   exit(0);
 }
 
-void *taosInitTcpServer(char *ip, short port, char *label, int numOfThreads, void *fp, void *shandle) {
+void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle) {
   tError("function taosInitTcpServer is not implemented in darwin system, exit!");
   exit(0);
 }
 
-int taosSendTcpServerData(unsigned int ip, short port, char *data, int len, void *chandle) {
+int taosSendTcpServerData(unsigned int ip, uint16_t port, char *data, int len, void *chandle) {
   tError("function taosSendTcpServerData is not implemented in darwin system, exit!");
   exit(0);
 }

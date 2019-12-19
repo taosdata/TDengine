@@ -2,7 +2,7 @@
 %define cfg_install_dir  /etc/taos
 %define __strip /bin/true
 
-Name:		  tdengine
+Name:		TDengine
 Version:	%{_version}
 Release:	3%{?dist}
 Summary:	tdengine from taosdata
@@ -39,8 +39,7 @@ echo topdir: %{_topdir}
 echo version: %{_version}
 echo buildroot: %{buildroot}
 
-versioninfo=$(%{_compiledir}/../packaging/tools/get_version.sh ../../src/util/src/version.c)
-libfile="libtaos.so.${versioninfo}"
+libfile="libtaos.so.%{_version}"
 
 # create install path, and cp file
 mkdir -p %{buildroot}%{homepath}/bin
@@ -62,6 +61,7 @@ cp %{_compiledir}/build/bin/taosdemo                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
+cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/include
 cp -r %{_compiledir}/../src/connector/grafana       %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
@@ -79,18 +79,17 @@ fi
 if pidof taosd &> /dev/null; then
     if pidof systemd &> /dev/null; then
         ${csudo} systemctl stop taosd || :
-    elif $(which insserv &> /dev/null); then
-        ${csudo} service taosd stop || :
-    elif $(which update-rc.d &> /dev/null); then
+    elif $(which service  &> /dev/null); then
         ${csudo} service taosd stop || :
     else
         pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
-        ${csudo} kill -9 ${pid}   || :
+        if [ -n "$pid" ]; then
+           ${csudo} kill -9 $pid   || :
+        fi
     fi
     echo "Stop taosd service success!"
     sleep 1
 fi
-
 # if taos.cfg already softlink, remove it
 if [ -f %{cfg_install_dir}/taos.cfg ]; then
     ${csudo} rm -f %{homepath}/cfg/taos.cfg   || :
@@ -138,13 +137,16 @@ if [ $1 -eq 0 ];then
     ${csudo} rm -f ${bin_link_dir}/taosdump   || :
     ${csudo} rm -f ${cfg_link_dir}/*          || :
     ${csudo} rm -f ${inc_link_dir}/taos.h     || :
+    ${csudo} rm -f ${inc_link_dir}/taoserror.h     || :
     ${csudo} rm -f ${lib_link_dir}/libtaos.*  || :
     
     ${csudo} rm -f ${log_link_dir}            || :
     ${csudo} rm -f ${data_link_dir}           || :
     
     pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
-    ${csudo} kill -9 ${pid}   || :      
+    if [ -n "$pid" ]; then
+      ${csudo} kill -9 $pid   || :
+    fi    
   fi  
 fi
  

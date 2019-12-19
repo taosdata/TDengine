@@ -14,15 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <pthread.h>
-#include <pwd.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <syslog.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "tsdb.h"
 #include "tsocket.h"
@@ -44,8 +36,14 @@ void vnodeCleanUpSystem() {
 
 bool vnodeInitQueryHandle() {
   int numOfThreads = tsRatioOfQueryThreads * tsNumOfCores * tsNumOfThreadsPerCore;
-  if (numOfThreads < 1) numOfThreads = 1;
-  queryQhandle = taosInitScheduler(tsNumOfVnodesPerCore * tsNumOfCores * tsSessionsPerVnode, numOfThreads, "query");
+  if (numOfThreads < 1) {
+    numOfThreads = 1;
+  }
+  
+  int32_t maxQueueSize = tsNumOfVnodesPerCore * tsNumOfCores * tsSessionsPerVnode;
+  dTrace("query task queue initialized, max slot:%d, task threads:%d", maxQueueSize,numOfThreads);
+  
+  queryQhandle = taosInitSchedulerWithInfo(maxQueueSize, numOfThreads, "query", vnodeTmrCtrl);
   return true;
 }
 
@@ -60,13 +58,13 @@ bool vnodeInitTmrCtl() {
 
 int vnodeInitSystem() {
 
-  if (!vnodeInitQueryHandle()) {
-    dError("failed to init query qhandle, exit");
-    return -1;
-  }
-
   if (!vnodeInitTmrCtl()) {
     dError("failed to init timer, exit");
+    return -1;
+  }
+  
+  if (!vnodeInitQueryHandle()) {
+    dError("failed to init query qhandle, exit");
     return -1;
   }
 

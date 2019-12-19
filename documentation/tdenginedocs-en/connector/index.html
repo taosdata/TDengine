@@ -122,15 +122,76 @@ public Connection getConn() throws Exception{
 </ul>
 <p>All the error codes and error messages can be found in <code>TSDBError.java</code> . For a more detailed coding example, please refer to the demo project <code>JDBCDemo</code> in TDengine's code examples. </p>
 <a class='anchor' id='Python-Connector'></a><h2>Python Connector</h2>
-<a class='anchor' id='Install-TDengine-Python-client'></a><h3>Install TDengine Python client</h3>
-<p>Users can find python client packages in our source code directory <em>src/connector/python</em>. There are two directories corresponding two python versions. Please choose the correct package to install. Users can use <em>pip</em> command to install:</p>
-<pre><code class="cmd language-cmd">pip install src/connector/python/python2/</code></pre>
+<a class='anchor' id='Pre-requirement'></a><h3>Pre-requirement</h3>
+<li>TDengine installed, TDengine-client installed if on Windows</li>
+<li>python 2.7 or >= 3.4</li>
+<li>pip installed </li>
+<a class='anchor' id='Installation'></a><h3>Installation</h3>
+<a class='anchor' id='Linux'></a><h4>Linux</h4>
+<p>Users can find python client packages in our source code directory <em>src/connector/python</em>. There are two directories corresponding to two python versions. Please choose the correct package to install. Users can use <em>pip</em> command to install:</p>
+<pre><code class="cmd language-cmd">pip install src/connector/python/linux/python2/</code></pre>
 <p>or</p>
-<pre><code>pip install src/connector/python/python3/</code></pre>
-<p>If <em>pip</em> command is not installed on the system, users can choose to install pip or just copy the <em>taos</em> directory in the python client directory to the application directory to use.</p>
-<a class='anchor' id='Python-client-interfaces'></a><h3>Python client interfaces</h3>
-<p>To use TDengine Python client, import TDengine module at first:</p>
+<pre><code>pip install src/connector/python/linux/python3/</code></pre>
+<a class='anchor' id='Windows'></a><h4>Windows</h4>
+<p>Assumed the Windows TDengine client has been installed , copy the file "C:\TDengine\driver\taos.dll" to the folder "C:\windows\system32", and then enter the <em>cmd</em> Windows command interface</p>
+<pre><code>cd C:\TDengine\connector\python\windows</code></pre>
+<pre><code>pip install python2\</code></pre>
+<p>or</p>
+<pre><code>cd C:\TDengine\connector\python\windows</code></pre>
+<pre><code>pip install python3\</code></pre>
+<p>* If <em>pip</em> command is not installed on the system, users can choose to install pip or just copy the <em>taos</em> directory in the python client directory to the application directory to use.</p>
+<a class='anchor' id='Usage'></a><h3>Usage</h3>
+<a class='anchor' id='Examples'></a><h4>Examples</h4>
+<li>import TDengine module at first:</li>
 <pre><code class="python language-python">import taos </code></pre>
+<li>get the connection</li>
+<pre><code>
+conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
+c1 = conn.cursor()
+</code></pre>
+<p>* <em>host is the IP of TDengine server, and config is the directory where exists the TDengine client configure file</em></p>
+<li>insert records into the database</li>
+<pre><code>
+import datetime
+ 
+# create a database
+c1.execute('create database db')
+c1.execute('use db')
+# create a table
+c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
+# insert a record
+start_time = datetime.datetime(2019, 11, 1)
+affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
+# insert multiple records in a batch
+time_interval = datetime.timedelta(seconds=60)
+sqlcmd = ['insert into tb values']
+for irow in range(1,11):
+  start_time += time_interval
+  sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
+affected_rows = c1.execute(' '.join(sqlcmd))
+</code></pre>
+<li>query the database</li>
+<code><pre>
+c1.execute('select * from tb')
+# fetch all returned results
+data = c1.fetchall()
+# data is a list of returned rows with each row being a tuple
+numOfRows = c1.rowcount
+numOfCols = c1.descriptions
+for irow in range(numOfRows):
+  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2])
+  
+# use the cursor as an iterator to retrieve all returned results
+c1.execute('select * from tb')
+for data in c1:
+  print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])
+</pre></code>
+<li>close the connection</li>
+<code><pre>
+c1.close()
+conn.close()
+</pre></code>
+<a class='anchor' id='Help information''></a><h4>Help information</h4>
 <p>Users can get module information from Python help interface or refer to our [python code example](). We list the main classes and methods below:</p>
 <ul>
 <li><p><em>TaosConnection</em> class</p>

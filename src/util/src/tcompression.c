@@ -46,12 +46,6 @@
  *   of the XORed value with informations. If not, record the first corresponding bytes.
  *
  */
-#include <assert.h>
-#include <limits.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "os.h"
 #include "lz4.h"
@@ -361,16 +355,16 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
         tmp_bit = (LONG_BYTES * BITS_PER_BYTE) - BUILDIN_CLZL(zigzag_value);
       }
 
-      if (elems + 1 <= selector_to_elems[selector] && elems + 1 <= selector_to_elems[bit_to_selector[tmp_bit]]) {
+      if (elems + 1 <= selector_to_elems[(int)selector] && elems + 1 <= selector_to_elems[(int)(bit_to_selector[(int)tmp_bit])]) {
         // If can hold another one.
-        selector = selector > bit_to_selector[tmp_bit] ? selector : bit_to_selector[tmp_bit];
+        selector = selector > bit_to_selector[(int)tmp_bit] ? selector : bit_to_selector[(int)tmp_bit];
         elems++;
-        bit = bit_per_integer[selector];
+        bit = bit_per_integer[(int)selector];
       } else {
         // if cannot hold another one.
-        while (elems < selector_to_elems[selector]) selector++;
-        elems = selector_to_elems[selector];
-        bit = bit_per_integer[selector];
+        while (elems < selector_to_elems[(int)selector]) selector++;
+        elems = selector_to_elems[(int)selector];
+        bit = bit_per_integer[(int)selector];
         break;
       }
       prev_value_tmp = curr_value;
@@ -461,8 +455,8 @@ int tsDecompressINTImp(const char *const input, const int nelements, char *const
     memcpy(&w, ip, LONG_BYTES);
 
     char selector = (char)(w & INT64MASK(4));  // selector = 4
-    char bit = bit_per_integer[selector];      // bit = 3
-    int  elems = selector_to_elems[selector];
+    char bit = bit_per_integer[(int)selector];      // bit = 3
+    int  elems = selector_to_elems[(int)selector];
 
     for (int i = 0; i < elems; i++) {
       uint64_t zigzag_value;

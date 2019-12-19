@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
+#include "os.h"
 
 #include "mgmt.h"
 #include "tschemautil.h"
@@ -54,8 +54,8 @@ void mgmtUserActionInit() {
 }
 
 void *mgmtUserAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtUserActionFp[action] != NULL) {
-    return (*(mgmtUserActionFp[action]))(row, str, size, ssize);
+  if (mgmtUserActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtUserActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }

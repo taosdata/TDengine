@@ -17,6 +17,7 @@
 #include "taosmsg.h"
 #include "vnode.h"
 #include "vnodeUtil.h"
+#include "vnodeStatus.h"
 
 /* static TAOS *dbConn = NULL; */
 void vnodeCloseStreamCallback(void *param);
@@ -55,14 +56,11 @@ void vnodeProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   contLen += sizeof(SSubmitMsg);
 
   int32_t numOfPoints = 0;
+  int32_t code = vnodeInsertPoints(pObj, (char *)pMsg, contLen, TSDB_DATA_SOURCE_SHELL, NULL, pObj->sversion,
+      &numOfPoints, taosGetTimestamp(vnodeList[pObj->vnode].cfg.precision));
 
-  int32_t state = vnodeSetMeterState(pObj, TSDB_METER_STATE_INSERT);
-  if (state == TSDB_METER_STATE_READY) {
-    vnodeInsertPoints(pObj, (char *)pMsg, contLen, TSDB_DATA_SOURCE_SHELL, NULL, pObj->sversion, &numOfPoints, taosGetTimestamp(vnodeList[pObj->vnode].cfg.precision));
-    vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERT);
-  } else {
-    dError("vid:%d sid:%d id:%s, failed to insert continuous query results, state:%d", pObj->vnode, pObj->sid,
-           pObj->meterId, state);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("vid:%d sid:%d id:%s, failed to insert continuous query results", pObj->vnode, pObj->sid, pObj->meterId);
   }
 
   assert(numOfPoints >= 0 && numOfPoints <= 1);
@@ -80,7 +78,7 @@ void vnodeOpenStreams(void *param, void *tmrId) {
   SVnodeObj *pVnode = (SVnodeObj *)param;
   SMeterObj *pObj;
 
-  if (pVnode->streamRole == 0) return;
+  if (pVnode->streamRole == TSDB_VN_STREAM_STATUS_STOP) return;
   if (pVnode->meterList == NULL) return;
 
   taosTmrStopA(&pVnode->streamTimer);
@@ -88,7 +86,7 @@ void vnodeOpenStreams(void *param, void *tmrId) {
 
   for (int sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
     pObj = pVnode->meterList[sid];
-    if (pObj == NULL || pObj->sqlLen == 0 || vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) continue;
+    if (pObj == NULL || pObj->sqlLen == 0 || vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPING)) continue;
 
     dTrace("vid:%d sid:%d id:%s, open stream:%s", pObj->vnode, sid, pObj->meterId, pObj->pSql);
 
@@ -119,7 +117,7 @@ void vnodeCreateStream(SMeterObj *pObj) {
 
   SVnodeObj *pVnode = vnodeList + pObj->vnode;
 
-  if (pVnode->streamRole == 0) return;
+  if (pVnode->streamRole == TSDB_VN_STREAM_STATUS_STOP) return;
   if (pObj->pStream) return;
 
   dTrace("vid:%d sid:%d id:%s stream:%s is created", pObj->vnode, pObj->sid, pObj->meterId, pObj->pSql);
@@ -154,7 +152,7 @@ void vnodeRemoveStream(SMeterObj *pObj) {
 // Close all streams in a vnode
 void vnodeCloseStream(SVnodeObj *pVnode) {
   SMeterObj *pObj;
-  dTrace("vid:%d, stream is closed, old role:%d", pVnode->vnode, pVnode->streamRole);
+  dPrint("vid:%d, stream is closed, old role %s", pVnode->vnode, taosGetVnodeStreamStatusStr(pVnode->streamRole));
 
   // stop stream computing
   for (int sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
@@ -171,17 +169,18 @@ void vnodeCloseStream(SVnodeObj *pVnode) {
 void vnodeUpdateStreamRole(SVnodeObj *pVnode) {
   /* SMeterObj *pObj; */
 
-  int newRole = (pVnode->status == TSDB_STATUS_MASTER) ? 1 : 0;
+  int newRole = (pVnode->vnodeStatus == TSDB_VN_STATUS_MASTER) ? TSDB_VN_STREAM_STATUS_START : TSDB_VN_STREAM_STATUS_STOP;
   if (newRole != pVnode->streamRole) {
-    dTrace("vid:%d, stream role is changed to:%d", pVnode->vnode, newRole);
+    dPrint("vid:%d, stream role is changed from %s to %s",
+            pVnode->vnode, taosGetVnodeStreamStatusStr(pVnode->streamRole), taosGetVnodeStreamStatusStr(newRole));
     pVnode->streamRole = newRole;
-    if (newRole) {
+    if (newRole == TSDB_VN_STREAM_STATUS_START) {
       vnodeOpenStreams(pVnode, NULL);
     } else {
       vnodeCloseStream(pVnode);
     }
   } else {
-    dTrace("vid:%d, stream role is keep to:%d", pVnode->vnode, newRole);
+    dPrint("vid:%d, stream role is keep to %s", pVnode->vnode, taosGetVnodeStreamStatusStr(pVnode->streamRole));
   }
 }
 

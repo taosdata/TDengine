@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vnode.h"
+#include "vnodeStatus.h"
 
 int vnodeInitPeer(int numOfThreads) { return 0; }
 
@@ -30,8 +31,8 @@ void vnodeBroadcastStatusToUnsyncedPeer(SVnodeObj *pVnode) {}
 
 int vnodeOpenPeerVnode(int vnode) {
   SVnodeObj *pVnode = vnodeList + vnode;
-  pVnode->status = (pVnode->cfg.replications > 1) ? TSDB_STATUS_UNSYNCED : TSDB_STATUS_MASTER;
-  dTrace("vid:%d, vnode status:%d numOfPeers:%d", vnode, pVnode->status, pVnode->cfg.replications-1);
+  pVnode->vnodeStatus = (pVnode->cfg.replications > 1) ? TSDB_VN_STATUS_UNSYNCED : TSDB_VN_STATUS_MASTER;
+  dPrint("vid:%d, status:%s numOfPeers:%d", vnode, taosGetVnodeStatusStr(pVnode->vnodeStatus), pVnode->cfg.replications - 1);
   vnodeUpdateStreamRole(pVnode);
   return 0;
 }

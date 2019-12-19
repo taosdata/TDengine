@@ -23,12 +23,12 @@ void taosCleanUpTcpServer(void *handle) {
   tError("CleanUpTcpServer not support in windows");
 }
 
-void *taosInitTcpServer(char *ip, short port, char *label, int numOfThreads, void *fp, void *shandle) {
+void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle) {
   tError("InitTcpServer not support in windows");
   return 0;
 }
 
-int taosSendTcpServerData(unsigned int ip, short port, char *data, int len, void *chandle) {
+int taosSendTcpServerData(unsigned int ip, uint16_t port, char *data, int len, void *chandle) {
   tError("SendTcpServerData not support in windows");
   return 0;
 }

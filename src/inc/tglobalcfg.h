@@ -57,12 +57,12 @@ extern char scriptDir[];
 
 extern char  tsMasterIp[];
 extern char  tsSecondIp[];
-extern short tsMgmtVnodePort;
-extern short tsMgmtShellPort;
-extern short tsVnodeShellPort;
-extern short tsVnodeVnodePort;
-extern short tsMgmtMgmtPort;
-extern short tsMgmtSyncPort;
+extern uint16_t tsMgmtVnodePort;
+extern uint16_t tsMgmtShellPort;
+extern uint16_t tsVnodeShellPort;
+extern uint16_t tsVnodeVnodePort;
+extern uint16_t tsMgmtMgmtPort;
+extern uint16_t tsMgmtSyncPort;
 
 extern int tsStatusInterval;
 extern int tsShellActivityTimer;
@@ -74,13 +74,13 @@ extern int tsMetricMetaKeepTimer;
 extern float tsNumOfThreadsPerCore;
 extern float tsRatioOfQueryThreads;
 extern char  tsPublicIp[];
-extern char  tsInternalIp[];
 extern char  tsPrivateIp[];
 extern char  tsServerIpStr[];
 extern short tsNumOfVnodesPerCore;
 extern short tsNumOfTotalVnodes;
 extern short tsCheckHeaderFile;
 extern uint32_t tsServerIp;
+extern uint32_t tsPublicIpInt;
 
 extern int tsSessionsPerVnode;
 extern int tsAverageCacheBlocks;
@@ -106,7 +106,6 @@ extern int  tsMaxDbs;
 extern int  tsMaxTables;
 extern int  tsMaxDnodes;
 extern int  tsMaxVGroups;
-extern int  tsShellActivityTimer;
 extern char tsMgmtZone[];
 
 extern char tsLocalIp[];
@@ -127,6 +126,7 @@ extern int tsEnableHttpModule;
 extern int tsEnableMonitorModule;
 extern int tsRestRowLimit;
 extern int tsCompressMsgSize;
+extern int tsMaxSQLStringLen;
 
 extern char tsSocketType[4];
 
@@ -141,7 +141,7 @@ extern int     tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
 
 extern char  tsHttpIp[];
-extern short tsHttpPort;
+extern uint16_t tsHttpPort;
 extern int   tsHttpCacheSessions;
 extern int   tsHttpSessionExpire;
 extern int   tsHttpMaxThreads;
@@ -149,6 +149,10 @@ extern int   tsHttpEnableCompress;
 extern int   tsHttpEnableRecordSql;
 extern int   tsTelegrafUseFieldNum;
 extern int   tsAdminRowLimit;
+
+extern int   tsTscEnableRecordSql;
+extern int   tsAnyIp;
+extern int   tsIsCluster;
 
 extern char tsMonitorDbName[];
 extern char tsInternalPass[];
@@ -169,12 +173,15 @@ extern uint32_t debugFlag;
 extern uint32_t odbcdebugFlag;
 extern uint32_t qdebugFlag;
 
+extern uint32_t taosMaxTmrCtrl;
+
 extern int  tsRpcTimer;
 extern int  tsRpcMaxTime;
 extern int  tsUdpDelay;
 extern char version[];
 extern char compatible_version[];
 extern char gitinfo[];
+extern char gitinfoOfInternal[];
 extern char buildinfo[];
 
 extern char tsTimezone[64];
@@ -245,12 +252,14 @@ typedef struct {
 extern SGlobalConfig *tsGlobalConfig;
 extern int            tsGlobalConfigNum;
 extern char *         tsCfgStatusStr[];
-SGlobalConfig *tsGetConfigOption(char *option);
+SGlobalConfig *tsGetConfigOption(const char *option);
 
 #define TSDB_CFG_MAX_NUM    110
 #define TSDB_CFG_PRINT_LEN  23
 #define TSDB_CFG_OPTION_LEN 24
 #define TSDB_CFG_VALUE_LEN  41
+
+#define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 #ifdef __cplusplus
 }

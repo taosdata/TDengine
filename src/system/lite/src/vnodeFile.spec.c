@@ -24,7 +24,7 @@ char* vnodeGetDataDir(int vnode, int fileId) { return dataDir; }
 void vnodeAdustVnodeFile(SVnodeObj *pVnode) {
   // Retention policy here
   int fileId = pVnode->fileId - pVnode->numOfFiles + 1;
-  int cfile = taosGetTimestamp(pVnode->cfg.precision)/pVnode->cfg.daysPerFile/tsMsPerDay[pVnode->cfg.precision];
+  int cfile = taosGetTimestamp(pVnode->cfg.precision)/pVnode->cfg.daysPerFile/tsMsPerDay[(uint8_t)pVnode->cfg.precision];
   while (fileId <= cfile - pVnode->maxFiles) {
     vnodeRemoveFile(pVnode->vnode, fileId);
     pVnode->numOfFiles--;
@@ -97,7 +97,7 @@ int vnodeCheckNewHeaderFile(int fd, SVnodeObj *pVnode) {
   }
 
     _correct_exit:
-  dTrace("vid: %d new header file %s is correct", pVnode->vnode, pVnode->nfn);
+  dPrint("vid: %d new header file %s is correct", pVnode->vnode, pVnode->nfn);
   tfree(pBlocks);
   tfree(pHeader);
   return 0;

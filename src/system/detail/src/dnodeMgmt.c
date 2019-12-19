@@ -14,9 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <unistd.h>
+
+#include "os.h"
 
 #include "dnodeSystem.h"
 #include "taosmsg.h"
@@ -27,6 +26,7 @@
 #include "vnodeMgmt.h"
 #include "vnodeSystem.h"
 #include "vnodeUtil.h"
+#include "vnodeStatus.h"
 
 SMgmtObj mgmtObj;
 extern uint64_t tsCreatedTime;
@@ -105,18 +105,18 @@ int vnodeProcessCreateMeterRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
 
   if (vid >= TSDB_MAX_VNODES || vid < 0) {
     dError("vid:%d, vnode is out of range", vid);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_VNODE_ID;
     goto _over;
   }
 
   pVnode = vnodeList + vid;
   if (pVnode->cfg.maxSessions <= 0) {
     dError("vid:%d, not activated", vid);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _over;
   }
 
-  if (pVnode->syncStatus == TSDB_SSTATUS_SYNCING) {
+  if (pVnode->syncStatus == TSDB_VN_SYNC_STATUS_SYNCING) {
     code = vnodeSaveCreateMsgIntoQueue(pVnode, pMsg, msgLen);
     dTrace("vid:%d, create msg is saved into sync queue", vid);
   } else {
@@ -141,27 +141,27 @@ int vnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
 
   if (vid >= TSDB_MAX_VNODES || vid < 0) {
     dError("vid:%d, vnode is out of range", vid);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_VNODE_ID;
     goto _over;
   }
 
   pVnode = vnodeList + vid;
   if (pVnode->cfg.maxSessions <= 0 || pVnode->pCachePool == NULL) {
     dError("vid:%d is not activated yet", pAlter->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _over;
   }
 
   if (pAlter->sid >= pVnode->cfg.maxSessions || pAlter->sid < 0) {
     dError("vid:%d sid:%d uid:%ld, sid is out of range", pAlter->vnode, pAlter->sid, pAlter->uid);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_TABLE_ID;
     goto _over;
   }
 
   SMeterObj *pMeterObj = vnodeList[vid].meterList[sid];
   if (pMeterObj == NULL || sid != pMeterObj->sid || vid != pMeterObj->vnode) {
-    dError("vid:%d sid:%d, no active session", vid, sid);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    dError("vid:%d sid:%d, not active table", vid, sid);
+    code = TSDB_CODE_NOT_ACTIVE_TABLE;
     goto _over;
   }
 
@@ -195,7 +195,7 @@ int vnodeProcessCreateMeterMsg(char *pMsg, int msgLen) {
 
   if (pCreate->vnode >= TSDB_MAX_VNODES || pCreate->vnode < 0) {
     dError("vid:%d is out of range", pCreate->vnode);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_VNODE_ID;
     goto _create_over;
   }
 
@@ -203,13 +203,13 @@ int vnodeProcessCreateMeterMsg(char *pMsg, int msgLen) {
   if (pVnode->pCachePool == NULL) {
     dError("vid:%d is not activated yet", pCreate->vnode);
     vnodeSendVpeerCfgMsg(pCreate->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_SESSION;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _create_over;
   }
 
   if (pCreate->sid >= pVnode->cfg.maxSessions || pCreate->sid < 0) {
     dError("vid:%d sid:%d id:%s, sid is out of range", pCreate->vnode, pCreate->sid, pCreate->meterId);
-    code = TSDB_CODE_INVALID_SESSION_ID;
+    code = TSDB_CODE_INVALID_TABLE_ID;
     goto _create_over;
   }
 
@@ -331,7 +331,7 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
     return -1;
   }
 
-  if (vnodeList[vnode].status == TSDB_STATUS_CREATING) {
+  if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_CREATING) {
     dTrace("vid:%d, vnode is still under creating", vnode);
     return 0;
   }
@@ -350,34 +350,53 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   pCfg->rowsInFileBlock = htonl(pCfg->rowsInFileBlock);
 
   if (pCfg->replications > 0) {
-    dTrace("vid:%d, vpeer cfg received, replica:%d session:%d, vnodeList replica:%d session:%d",
-        vnode, pCfg->replications, pCfg->maxSessions, vnodeList[vnode].cfg.replications, vnodeList[vnode].cfg.maxSessions);
+    dPrint("vid:%d, vpeer cfg received, replica:%d session:%d, vnodeList replica:%d session:%d, acct:%s db:%s",
+        vnode, pCfg->replications, pCfg->maxSessions, vnodeList[vnode].cfg.replications, vnodeList[vnode].cfg.maxSessions,
+        pCfg->acct, pCfg->db);
     for (i = 0; i < pCfg->replications; ++i) {
       pMsg->vpeerDesc[i].vnode = htonl(pMsg->vpeerDesc[i].vnode);
       pMsg->vpeerDesc[i].ip = htonl(pMsg->vpeerDesc[i].ip);
-      dTrace("vid:%d, vpeer:%d ip:0x%x vid:%d ", vnode, i, pMsg->vpeerDesc[i].ip, pMsg->vpeerDesc[i].vnode);
+      dPrint("vid:%d, vpeer:%d ip:0x%x vid:%d ", vnode, i, pMsg->vpeerDesc[i].ip, pMsg->vpeerDesc[i].vnode);
     }
   }
 
   if (vnodeList[vnode].cfg.maxSessions == 0) {
+    dPrint("vid:%d, vnode is empty", vnode);
     if (pCfg->maxSessions > 0) {
-      return vnodeCreateVnode(vnode, pCfg, pMsg->vpeerDesc);
+      if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_OFFLINE) {
+        dPrint("vid:%d, status:%s, start to create vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+        return vnodeCreateVnode(vnode, pCfg, pMsg->vpeerDesc);
+      } else {
+        dPrint("vid:%d, status:%s, cannot preform create vnode operation", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+        return TSDB_CODE_INVALID_VNODE_STATUS;
+      }
     }
   } else {
+    dPrint("vid:%d, vnode is not empty", vnode);
     if (pCfg->maxSessions > 0) {
-      if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
+      if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_DELETING) {
+        dPrint("vid:%d, status:%s, wait vnode delete finished", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+      } else {
+        dPrint("vid:%d, status:%s, start to update vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
+
+        if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
           vnodeCleanUpOneVnode(vnode);
-      }
+        }
 
-      vnodeConfigVPeers(vnode, pCfg->replications, pMsg->vpeerDesc);
-      vnodeSaveVnodeCfg(vnode, pCfg, pMsg->vpeerDesc);
+        vnodeConfigVPeers(vnode, pCfg->replications, pMsg->vpeerDesc);
+        vnodeSaveVnodeCfg(vnode, pCfg, pMsg->vpeerDesc);
 
-      if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
-        vnodeUpdateHeadFile(vnode, vnodeList[vnode].cfg.maxSessions, pCfg->maxSessions);
-        vnodeList[vnode].cfg.maxSessions = pCfg->maxSessions;
-        vnodeOpenVnode(vnode);
+        /*
+        if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
+          vnodeUpdateHeadFile(vnode, vnodeList[vnode].cfg.maxSessions, pCfg->maxSessions);
+          vnodeList[vnode].cfg.maxSessions = pCfg->maxSessions;
+          vnodeOpenVnode(vnode);
+        }
+        */
       }
+      return 0;
     } else {
+      dPrint("vid:%d, status:%s, start to delete vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
       vnodeRemoveVnode(vnode);
     }
   }
@@ -435,11 +454,11 @@ int vnodeProcessFreeVnodeRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj) {
   pFree->vnode = htons(pFree->vnode);
 
   if (pFree->vnode < 0 || pFree->vnode >= TSDB_MAX_VNODES) {
-    dWarn("vid:%d out of range", pFree->vnode);
+    dWarn("vid:%d, out of range", pFree->vnode);
     return -1;
   }
 
-  dTrace("vid:%d receive free vnode message", pFree->vnode);
+  dTrace("vid:%d, receive free vnode message", pFree->vnode);
   int32_t code = vnodeRemoveVnode(pFree->vnode);
   assert(code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS);
 

@@ -54,7 +54,7 @@ STable从属于库，一个STable只属于一个库，但一个库可以有一�
     说明：
 
     1. TAGS列总长度不能超过512 bytes；
-    2. TAGS列的数据类型不能是timestamp和nchar类型；
+    2. TAGS列的数据类型不能是timestamp；
     3. TAGS列名不能与其他列名相同;
     4. TAGS列名不能为预留关键字. 
 
@@ -169,7 +169,7 @@ SELECT function<field_name>,…
 
 以温度传感器采集时序数据作为例，示范STable的使用。 在这个例子中，对每个温度计都会建立一张表，表名为温度计的ID，温度计读数的时刻记为ts，采集的值记为degree。通过tags给每个采集器打上不同的标签，其中记录温度计的地区和类型，以方便我们后面的查询。所有温度计的采集量都一样，因此我们用STable来定义表结构。
 
-###定义STable表结构并使用它创建子表
+###1:定义STable表结构并使用它创建子表
 
 创建STable语句如下：
 
@@ -189,7 +189,7 @@ CREATE TABLE therm4 USING thermometer TAGS ('shanghai', 3);
 
 其中therm1，therm2，therm3，therm4是超级表thermometer四个具体的子表，也即普通的Table。以therm1为例，它表示采集器therm1的数据，表结构完全由thermometer定义，标签location=”beijing”, type=1表示therm1的地区是北京，类型是第1类的温度计。
 
-###写入数据
+###2:写入数据
 
 注意，写入数据时不能直接对STable操作，而是要对每张子表进行操作。我们分别向四张表therm1，therm2， therm3， therm4写入一条数据，写入语句如下：
 
@@ -200,7 +200,7 @@ INSERT INTO therm3 VALUES ('2018-01-01 00:00:00.000', 24);
 INSERT INTO therm4 VALUES ('2018-01-01 00:00:00.000', 23);
 ```
 
-### 按标签聚合查询
+###3:按标签聚合查询
 
 查询位于北京(beijing)和天津(tianjing)两个地区的温度传感器采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)、最低温度min(degree)，并将结果按所处地域(location)和传感器类型(type)进行聚合。
 
@@ -211,14 +211,14 @@ WHERE location='beijing' or location='tianjin'
 GROUP BY location, type 
 ```
 
-### 按时间周期聚合查询
+###4:按时间周期聚合查询
 
 查询仅位于北京以外地区的温度传感器最近24小时(24h)采样值的数量count(*)、平均温度avg(degree)、最高温度max(degree)和最低温度min(degree)，将采集结果按照10分钟为周期进行聚合，并将结果按所处地域(location)和传感器类型(type)再次进行聚合。
 
 ```mysql
 SELECT COUNT(*), AVG(degree), MAX(degree), MIN(degree)
 FROM thermometer
-WHERE name<>'beijing' and ts>=now-1d
+WHERE location<>'beijing' and ts>=now-1d
 INTERVAL(10M)
 GROUP BY location, type
 ```

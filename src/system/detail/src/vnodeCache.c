@@ -14,14 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <sys/time.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "taosmsg.h"
 #include "vnode.h"
 #include "vnodeCache.h"
 #include "vnodeUtil.h"
+#include "vnodeStatus.h"
 
 void vnodeSearchPointInCache(SMeterObj *pObj, SQuery *pQuery);
 void vnodeProcessCommitTimer(void *param, void *tmrId);
@@ -79,7 +78,7 @@ void *vnodeOpenCachePool(int vnode) {
     }
   }
 
-  dTrace("vid:%d, cache pool is allocated:0x%x", vnode, pCachePool);
+  dPrint("vid:%d, cache pool is allocated:0x%x", vnode, pCachePool);
 
   return pCachePool;
 
@@ -104,7 +103,7 @@ void vnodeCloseCachePool(int vnode) {
   taosTmrStopA(&pVnode->commitTimer);
   if (pVnode->commitInProcess) pthread_cancel(pVnode->commitThread);
 
-  dTrace("vid:%d, cache pool closed, count:%d", vnode, pCachePool->count);
+  dPrint("vid:%d, cache pool closed, count:%d", vnode, pCachePool->count);
 
   int maxAllocBlock = (1024 * 1024 * 1024) / pVnode->cfg.cacheBlockSize;
   while (blockId < pVnode->cfg.cacheNumOfBlocks.totalBlocks) {
@@ -174,6 +173,7 @@ int vnodeFreeCacheBlock(SCacheBlock *pCacheBlock) {
     SCachePool *pPool = (SCachePool *)vnodeList[pObj->vnode].pCachePool;
     if (pCacheBlock->notFree) {
       pPool->notFreeSlots--;
+      pInfo->unCommittedBlocks--;
       dTrace("vid:%d sid:%d id:%s, cache block is not free, slot:%d, index:%d notFreeSlots:%d",
              pObj->vnode, pObj->sid, pObj->meterId, pCacheBlock->slot, pCacheBlock->index, pPool->notFreeSlots);
     }
@@ -256,7 +256,7 @@ void vnodeUpdateCommitInfo(SMeterObj *pObj, int slot, int pos, uint64_t count) {
     tslot = (tslot + 1) % pInfo->maxBlocks;
   }
 
-  __sync_fetch_and_add(&pObj->freePoints, pObj->pointsPerBlock * slots);
+  atomic_fetch_add_32(&pObj->freePoints, pObj->pointsPerBlock * slots);
   pInfo->commitSlot = slot;
   pInfo->commitPoint = pos;
   pObj->commitCount = count;
@@ -298,7 +298,7 @@ pthread_t vnodeCreateCommitThread(SVnodeObj *pVnode) {
 
   taosTmrStopA(&pVnode->commitTimer);
 
-  if (pVnode->status == TSDB_STATUS_UNSYNCED) {
+  if (pVnode->vnodeStatus == TSDB_VN_STATUS_UNSYNCED) {
     taosTmrReset(vnodeProcessCommitTimer, pVnode->cfg.commitTime * 1000, pVnode, vnodeTmrCtrl, &pVnode->commitTimer);
     dTrace("vid:%d, it is in unsyc state, commit later", pVnode->vnode);
     return pVnode->commitThread;
@@ -372,13 +372,60 @@ void vnodeCancelCommit(SVnodeObj *pVnode) {
   taosTmrReset(vnodeProcessCommitTimer, pVnode->cfg.commitTime * 1000, pVnode, vnodeTmrCtrl, &pVnode->commitTimer);
 }
 
+/* The vnode cache lock should be hold before calling this interface
+ */
+SCacheBlock *vnodeGetFreeCacheBlock(SVnodeObj *pVnode) {
+  SCachePool  *pPool = (SCachePool *)(pVnode->pCachePool);
+  SVnodeCfg   *pCfg = &(pVnode->cfg);
+  SCacheBlock *pCacheBlock = NULL;
+  int skipped = 0;
+
+  while (1) {
+    pCacheBlock = (SCacheBlock *)(pPool->pMem[((int64_t)pPool->freeSlot)]);
+    if (pCacheBlock->blockId == 0) break;
+
+    if (pCacheBlock->notFree) {
+      pPool->freeSlot++;
+      pPool->freeSlot = pPool->freeSlot % pCfg->cacheNumOfBlocks.totalBlocks;
+      skipped++;
+      if (skipped > pPool->threshold) {
+        vnodeCreateCommitThread(pVnode);
+        pthread_mutex_unlock(&pPool->vmutex);
+        dError("vid:%d committing process is too slow, notFreeSlots:%d....", pVnode->vnode, pPool->notFreeSlots);
+        return NULL;
+      }
+    } else {
+      SMeterObj * pRelObj = pCacheBlock->pMeterObj;
+      SCacheInfo *pRelInfo = (SCacheInfo *)pRelObj->pCache;
+      int firstSlot = (pRelInfo->currentSlot - pRelInfo->numOfBlocks + 1 + pRelInfo->maxBlocks) % pRelInfo->maxBlocks;
+      pCacheBlock = pRelInfo->cacheBlocks[firstSlot];
+      if (pCacheBlock) {
+        pPool->freeSlot = pCacheBlock->index;
+        vnodeFreeCacheBlock(pCacheBlock);
+        break;
+      } else {
+        pPool->freeSlot = (pPool->freeSlot + 1) % pCfg->cacheNumOfBlocks.totalBlocks;
+        skipped++;
+      }
+    }
+  }
+
+  pCacheBlock = (SCacheBlock *)(pPool->pMem[pPool->freeSlot]);
+  pCacheBlock->index = pPool->freeSlot;
+  pCacheBlock->notFree = 1;
+  pPool->freeSlot = (pPool->freeSlot + 1) % pCfg->cacheNumOfBlocks.totalBlocks;
+  pPool->notFreeSlots++;
+
+  return pCacheBlock;
+}
+
 int vnodeAllocateCacheBlock(SMeterObj *pObj) {
   int          index;
   SCachePool * pPool;
   SCacheBlock *pCacheBlock;
   SCacheInfo * pInfo;
   SVnodeObj *  pVnode;
-  int          skipped = 0, commit = 0;
+  int          commit = 0;
 
   pVnode = vnodeList + pObj->vnode;
   pPool = (SCachePool *)pVnode->pCachePool;
@@ -406,45 +453,10 @@ int vnodeAllocateCacheBlock(SMeterObj *pObj) {
     return -1;
   }
 
-  while (1) {
-    pCacheBlock = (SCacheBlock *)(pPool->pMem[((int64_t)pPool->freeSlot)]);
-    if (pCacheBlock->blockId == 0) break;
+  if ((pCacheBlock = vnodeGetFreeCacheBlock(pVnode)) == NULL) return -1;
 
-    if (pCacheBlock->notFree) {
-      pPool->freeSlot++;
-      pPool->freeSlot = pPool->freeSlot % pCfg->cacheNumOfBlocks.totalBlocks;
-      skipped++;
-      if (skipped > pPool->threshold) {
-        vnodeCreateCommitThread(pVnode);
-        pthread_mutex_unlock(&pPool->vmutex);
-        dError("vid:%d sid:%d id:%s, committing process is too slow, notFreeSlots:%d....",
-               pObj->vnode, pObj->sid, pObj->meterId, pPool->notFreeSlots);
-        return -1;
-      }
-    } else {
-      SMeterObj  *pRelObj = pCacheBlock->pMeterObj;
-      SCacheInfo *pRelInfo = (SCacheInfo *)pRelObj->pCache;
-      int firstSlot = (pRelInfo->currentSlot - pRelInfo->numOfBlocks + 1 + pRelInfo->maxBlocks) % pRelInfo->maxBlocks;
-      pCacheBlock = pRelInfo->cacheBlocks[firstSlot];
-      if (pCacheBlock) {
-        pPool->freeSlot = pCacheBlock->index;
-        vnodeFreeCacheBlock(pCacheBlock);
-        break;
-      } else {
-        pPool->freeSlot = (pPool->freeSlot + 1) % pCfg->cacheNumOfBlocks.totalBlocks;
-        skipped++;
-      }
-    }
-  }
-
-  index = pPool->freeSlot;
-  pPool->freeSlot++;
-  pPool->freeSlot = pPool->freeSlot % pCfg->cacheNumOfBlocks.totalBlocks;
-  pPool->notFreeSlots++;
-
+  index = pCacheBlock->index;
   pCacheBlock->pMeterObj = pObj;
-  pCacheBlock->notFree = 1;
-  pCacheBlock->index = index;
 
   pCacheBlock->offset[0] = ((char *)(pCacheBlock)) + sizeof(SCacheBlock) + pObj->numOfColumns * sizeof(char *);
   for (int col = 1; col < pObj->numOfColumns; ++col)
@@ -505,7 +517,7 @@ int vnodeInsertPointToCache(SMeterObj *pObj, char *pData) {
     pData += pObj->schema[col].bytes;
   }
 
-  __sync_fetch_and_sub(&pObj->freePoints, 1);
+  atomic_fetch_sub_32(&pObj->freePoints, 1);
   pCacheBlock->numOfPoints++;
   pPool->count++;
 
@@ -1114,7 +1126,7 @@ int vnodeSyncRestoreCache(int vnode, int fd) {
       for (int col = 0; col < pObj->numOfColumns; ++col)
         if (taosReadMsg(fd, pBlock->offset[col], pObj->schema[col].bytes * points) <= 0) return -1;
 
-      __sync_fetch_and_sub(&pObj->freePoints, points);
+      atomic_fetch_sub_32(&pObj->freePoints, points);
       blocksReceived++;
       pointsReceived += points;
       pObj->lastKey = *((TSKEY *)(pBlock->offset[0] + pObj->schema[0].bytes * (points - 1)));

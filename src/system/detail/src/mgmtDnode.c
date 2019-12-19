@@ -15,14 +15,12 @@
 
 #define _DEFAULT_SOURCE
 
-#include <arpa/inet.h>
-#include <endian.h>
-#include <stdbool.h>
+#include "os.h"
 
 #include "dnodeSystem.h"
 #include "mgmt.h"
 #include "tschemautil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType);
 int  mgmtGetDnodesNum();
@@ -45,29 +43,30 @@ void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
   pDnode->openVnodes = 0;
 
 #ifdef CLUSTER
-  pDnode->status = TSDB_STATUS_OFFLINE;
+  pDnode->status = TSDB_DN_STATUS_OFFLINE;
 #else
-  pDnode->status = TSDB_STATUS_READY;
+  pDnode->status = TSDB_DN_STATUS_READY;
 #endif
 }
 
 void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode) {
   int totalVnodes = 0;
 
+  mTrace("dnode:%s, begin calc free vnodes", taosIpStr(pDnode->privateIp));
   for (int i = 0; i < pDnode->numOfVnodes; ++i) {
     SVnodeLoad *pVload = pDnode->vload + i;
     if (pVload->vgId != 0) {
-      mTrace("dnode:%s, calc free vnodes, exist vnode:%d, vgroup:%d, state:%d %s, dropstate:%d %s, syncstatus:%d %s",
-             taosIpStr(pDnode->privateIp), i, pVload->vgId,
-             pVload->status, sdbDnodeStatusStr[pVload->status],
-             pVload->dropStatus, sdbVnodeDropStateStr[pVload->dropStatus],
-             pVload->syncStatus, sdbVnodeSyncStatusStr[pVload->syncStatus]);
+      mTrace("%d-dnode:%s, calc free vnodes, exist vnode:%d, vgroup:%d, state:%d %s, dropstate:%d %s, syncstatus:%d %s",
+             totalVnodes, taosIpStr(pDnode->privateIp), i, pVload->vgId,
+             pVload->status, taosGetVnodeStatusStr(pVload->status),
+             pVload->dropStatus, taosGetVnodeDropStatusStr(pVload->dropStatus),
+             pVload->syncStatus, taosGetVnodeSyncStatusStr(pVload->syncStatus));
       totalVnodes++;
     }
   }
 
   pDnode->numOfFreeVnodes = pDnode->numOfVnodes - totalVnodes;
-  mTrace("dnode:%s, calc free vnodes, numOfVnodes:%d, numOfFreeVnodes:%d, totalVnodes:%d",
+  mTrace("dnode:%s, numOfVnodes:%d, numOfFreeVnodes:%d, totalVnodes:%d",
           taosIpStr(pDnode->privateIp), pDnode->numOfVnodes, pDnode->numOfFreeVnodes, totalVnodes);
 }
 
@@ -198,11 +197,11 @@ int mgmtRetrieveDnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, sdbDnodeStatusStr[pDnode->status]);
+    strcpy(pWrite, taosGetDnodeStatusStr(pDnode->status) );
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, sdbDnodeBalanceStateStr[pDnode->lbState]);
+    strcpy(pWrite, taosGetDnodeLbStatusStr(pDnode->lbStatus));
     cols++;
 
     tinet_ntoa(ipstr, pDnode->publicIp);
@@ -294,7 +293,7 @@ int mgmtRetrieveModules(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, sdbDnodeStatusStr[pDnode->status]);
+      strcpy(pWrite, taosGetDnodeStatusStr(pDnode->status) );
       cols++;
 
       numOfRows++;
@@ -389,3 +388,120 @@ int mgmtRetrieveConfigs(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
+
+int mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+  int cols = 0;
+
+  if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+
+  SSchema *pSchema = tsGetSchema(pMeta);
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "vnode");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "vgid");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 12;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "status");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 12;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "sync status");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pMeta->numOfColumns = htons(cols);
+  pShow->numOfColumns = cols;
+
+  pShow->offset[0] = 0;
+  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+
+  // TODO: if other thread drop dnode ????
+  SDnodeObj *pDnode = NULL;
+  if (pShow->payloadLen > 0 ) {
+    uint32_t ip = ip2uint(pShow->payload);
+    pDnode = mgmtGetDnode(ip);
+    if (NULL == pDnode) {
+      return TSDB_CODE_NODE_OFFLINE;
+    }
+    
+    pShow->numOfRows = pDnode->openVnodes;
+    pShow->pNode     = pDnode;
+    
+  } else {
+    while (true) {
+      pShow->pNode = mgmtGetNextDnode(pShow, (SDnodeObj **)&pDnode);
+      if (pDnode == NULL) break;
+      pShow->numOfRows += pDnode->openVnodes;
+
+      if (0 == pShow->numOfRows) return TSDB_CODE_NODE_OFFLINE;      
+    }
+
+    pShow->pNode = NULL;
+  } 
+
+  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+
+  return 0;
+}
+
+int mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
+  int        numOfRows = 0;
+  SDnodeObj *pDnode = NULL;
+  char *     pWrite;
+  int        cols = 0;
+
+  if (0 == rows) return 0;
+
+  if (pShow->payloadLen) {
+    // output the vnodes info of the designated dnode. And output all vnodes of this dnode, instead of rows (max 100)
+    pDnode = (SDnodeObj *)(pShow->pNode);
+    if (pDnode != NULL) {
+      SVnodeLoad* pVnode;
+      for (int i = 0 ; i < TSDB_MAX_VNODES; i++) {
+        pVnode = &pDnode->vload[i];
+        if (0 == pVnode->vgId) {
+          continue;
+        }
+        
+        cols = 0;
+        
+        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+        *(uint32_t *)pWrite = pVnode->vnode;
+        cols++;
+        
+        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+        *(uint32_t *)pWrite = pVnode->vgId;
+        cols++;
+        
+        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+        strcpy(pWrite, taosGetVnodeStatusStr(pVnode->status));
+        cols++;
+        
+        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+        strcpy(pWrite, taosGetVnodeSyncStatusStr(pVnode->syncStatus));
+        cols++;
+        
+        numOfRows++;
+      }
+    }
+  } else {
+    // TODO: output all vnodes of all dnodes
+    numOfRows = 0;
+  }
+  
+  pShow->numOfReads += numOfRows;
+  return numOfRows;
+}
+
+

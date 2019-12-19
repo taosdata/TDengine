@@ -13,20 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <regex.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #define __USE_XOPEN
-
-#include <wchar.h>
 
 #include "os.h"
 #include "shell.h"
 #include "shellCommand.h"
 
+extern int wcwidth(wchar_t c);
+extern int wcswidth(const wchar_t *s, size_t n);
 typedef struct {
   char widthInString;
   char widthOnScreen;

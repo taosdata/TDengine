@@ -25,7 +25,6 @@ extern "C" {
 
 #define TAOS_CONN_UDPS     0
 #define TAOS_CONN_UDPC     1
-#define TAOS_CONN_UDP      1
 #define TAOS_CONN_TCPS     2
 #define TAOS_CONN_TCPC     3
 #define TAOS_CONN_HTTPS    4
@@ -39,7 +38,7 @@ extern "C" {
 #define TAOS_ID_REALLOCATE 2
 
 #define TAOS_CONN_SOCKET_TYPE_S()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDPS:TAOS_CONN_TCPS)
-#define TAOS_CONN_SOCKET_TYPE_C()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDP:TAOS_CONN_TCPC)
+#define TAOS_CONN_SOCKET_TYPE_C()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDPC:TAOS_CONN_TCPC)
 
 #define taosSendMsgToPeer(x, y, z) taosSendMsgToPeerH(x, y, z, NULL)
 #define taosOpenRpcChann(x, y, z) taosOpenRpcChannWithQ(x,y,z,NULL)
@@ -48,7 +47,7 @@ extern "C" {
 
 typedef struct {
   char *localIp;                        // local IP used
-  short localPort;                      // local port
+  uint16_t localPort;                      // local port
   char *label;                          // for debug purpose
   int   numOfThreads;                   // number of threads to handle connections
   void *(*fp)(char *, void *, void *);  // function to process the incoming msg
@@ -73,7 +72,7 @@ typedef struct {
   void *   shandle;   // pointer returned by taosOpenRpc
   void *   ahandle;   // handle provided by app
   char *   peerIp;    // peer IP string
-  short    peerPort;  // peer port
+  uint16_t    peerPort;  // peer port
   char     spi;       // security parameter index
   char     encrypt;   // encrypt algorithm
   char *   secret;    // key for authentication
@@ -108,7 +107,7 @@ int taosSendSimpleRsp(void *thandle, char rsptype, char code);
 
 int taosSetSecurityInfo(int cid, int sid, char *id, int spi, int encrypt, char *secret, char *ckey);
 
-void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, short *peerPort, int *cid, int *sid);
+void taosGetRpcConnInfo(void *thandle, uint32_t *peerId, uint32_t *peerIp, uint16_t *peerPort, int *cid, int *sid);
 
 int taosGetOutType(void *thandle);
 

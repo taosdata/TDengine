@@ -20,11 +20,7 @@
 extern "C" {
 #endif
 
-#include <errno.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <syslog.h>
-#include <stdint.h>
+#include "os.h"
 
 #include "sdb.h"
 #include "tglobalcfg.h"
@@ -33,7 +29,6 @@ extern "C" {
 #include "tlog.h"
 #include "tmempool.h"
 #include "trpc.h"
-#include "tsdb.h"
 #include "tsdb.h"
 #include "tskiplist.h"
 #include "tsocket.h"
@@ -50,17 +45,6 @@ extern int   mgmtShellConns;
 extern int   mgmtDnodeConns;
 extern char  mgmtDirectory[];
 
-enum _TSDB_VG_STATUS {
-  TSDB_VG_STATUS_READY,
-  TSDB_VG_STATUS_IN_PROGRESS,
-  TSDB_VG_STATUS_COMMITLOG_INIT_FAILED,
-  TSDB_VG_STATUS_INIT_FAILED,
-  TSDB_VG_STATUS_FULL
-};
-
-enum _TSDB_DB_STATUS { TSDB_DB_STATUS_READY, TSDB_DB_STATUS_DROPPING, TSDB_DB_STATUS_DROP_FROM_SDB };
-
-enum _TSDB_VN_STATUS { TSDB_VN_STATUS_READY, TSDB_VN_STATUS_DROPPING };
 
 typedef struct {
   uint32_t   privateIp;
@@ -91,7 +75,7 @@ typedef struct {
   uint16_t   slot;
   int32_t    customScore;     // config by user
   float      lbScore;         // calc in balance function
-  int16_t    lbState;         // set in balance function
+  int16_t    lbStatus;         // set in balance function
   int16_t    lastAllocVnode;  // increase while create vnode
   SVnodeLoad vload[TSDB_MAX_VNODES];
   char       reserved[16];
@@ -153,7 +137,7 @@ typedef struct _vg_obj {
   int32_t         numOfMeters;
   int32_t         lbIp;
   int32_t         lbTime;
-  int8_t          lbState;
+  int8_t          lbStatus;
   char            reserved[16];
   char            updateEnd[1];
   struct _vg_obj *prev, *next;
@@ -162,6 +146,9 @@ typedef struct _vg_obj {
 } SVgObj;
 
 typedef struct _db_obj {
+  /*
+   * this length will cause the storage structure to change, rollback
+   */
   char    name[TSDB_DB_NAME_LEN + 1];
   int64_t createdTime;
   SDbCfg  cfg;
@@ -235,10 +222,12 @@ typedef struct _connObj {
   char             superAuth : 1;       // super user flag
   char             writeAuth : 1;       // write flag
   char             killConnection : 1;  // kill the connection flag
+  uint8_t          usePublicIp : 1;     // if the connection request is publicIp
+  uint8_t          reserved : 4;
   uint32_t         queryId;             // query ID to be killed
   uint32_t         streamId;            // stream ID to be killed
   uint32_t         ip;                  // shell IP
-  short            port;                // shell port
+  uint16_t         port;                // shell port
   void *           thandle;
   SQList *         pQList;  // query list
   SSList *         pSList;  // stream list
@@ -325,7 +314,7 @@ int mgmtUpdateDb(SDbObj *pDb);
 SDbObj *mgmtGetDb(char *db);
 SDbObj *mgmtGetDbByMeterId(char *db);
 int mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate);
-int mgmtDropDbByName(SAcctObj *pAcct, char *name);
+int mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
 int mgmtDropDb(SDbObj *pDb);
 /* void    mgmtMonitorDbDrop(void *unused); */
 void mgmtMonitorDbDrop(void *unused, void *unusedt);
@@ -356,7 +345,7 @@ void mgmtCleanUpVgroups();
 int      mgmtInitMeters();
 STabObj *mgmtGetMeter(char *meterId);
 STabObj *mgmtGetMeterInfo(char *src, char *tags[]);
-int mgmtRetrieveMetricMeta(void *thandle, char **pStart, SMetricMetaMsg *pInfo);
+int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SMetricMetaMsg *pInfo);
 int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate);
 int mgmtDropMeter(SDbObj *pDb, char *meterId, int ignore);
 int mgmtAlterMeter(SDbObj *pDb, SAlterTableMsg *pAlter);
@@ -423,15 +412,18 @@ int mgmtRetrieveScores(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 int grantGetGrantsMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int grantRetrieveGrants(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
+int  mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int  mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+
 // dnode balance api
 int  mgmtInitBalance();
 void mgmtCleanupBalance();
 int  mgmtAllocVnodes(SVgObj *pVgroup);
 void mgmtSetDnodeShellRemoving(SDnodeObj *pDnode);
 void mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
-void mgmtStartBalanceTimer(int mseconds);
+void mgmtStartBalanceTimer(int64_t mseconds);
 void mgmtSetDnodeOfflineOnSdbChanged();
-void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbState, int srcIp);
+void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbStatus, int srcIp);
 bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode);
 
 void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType);

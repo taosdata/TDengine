@@ -13,22 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/types.h>
-#include <time.h>
-
 #include "os.h"
 #include "tlog.h"
 #include "tutil.h"
@@ -381,7 +365,7 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
     }
 
     if (taosLogMaxLines > 0) {
-      __sync_add_and_fetch_32(&taosLogLines, 1);
+      atomic_add_fetch_32(&taosLogLines, 1);
 
       if ((taosLogLines > taosLogMaxLines) && (openInProgress == 0)) taosOpenNewLogFile();
     }
@@ -458,7 +442,7 @@ void taosPrintLongString(const char *const flags, int dflag, const char *const f
     taosPushLogBuffer(logHandle, buffer, len);
 
     if (taosLogMaxLines > 0) {
-      __sync_add_and_fetch_32(&taosLogLines, 1);
+      atomic_add_fetch_32(&taosLogLines, 1);
 
       if ((taosLogLines > taosLogMaxLines) && (openInProgress == 0)) taosOpenNewLogFile();
     }

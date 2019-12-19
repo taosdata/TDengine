@@ -13,15 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <errno.h>
-#include <pthread.h>
-#include <string.h>
+#include "os.h"
 
 #include "tcache.h"
 #include "tlog.h"
@@ -516,7 +508,7 @@ static SDataNode *taosUpdateCacheImpl(SCacheObj *pObj, SDataNode *pNode, char *k
     pNewNode->addTime = taosGetTimestampMs();
     pNewNode->time = pNewNode->addTime + keepTime;
 
-    __sync_add_and_fetch_32(&pNewNode->refCount, 1);
+    atomic_add_fetch_32(&pNewNode->refCount, 1);
 
     // the address of this node may be changed, so the prev and next element should update the corresponding pointer
     taosUpdateInHashTable(pObj, pNewNode);
@@ -529,7 +521,7 @@ static SDataNode *taosUpdateCacheImpl(SCacheObj *pObj, SDataNode *pNode, char *k
       return NULL;
     }
 
-    __sync_add_and_fetch_32(&pNewNode->refCount, 1);
+    atomic_add_fetch_32(&pNewNode->refCount, 1);
 
     assert(hashVal == (*pObj->hashFp)(key, keyLen - 1));
     pNewNode->hashVal = hashVal;
@@ -558,7 +550,7 @@ static FORCE_INLINE SDataNode *taosAddToCacheImpl(SCacheObj *pObj, char *key, ui
     return NULL;
   }
 
-  __sync_add_and_fetch_32(&pNode->refCount, 1);
+  atomic_add_fetch_32(&pNode->refCount, 1);
   pNode->hashVal = (*pObj->hashFp)(key, keyLen - 1);
   taosAddNodeToHashTable(pObj, pNode);
 
@@ -616,7 +608,7 @@ static FORCE_INLINE void taosDecRef(SDataNode *pNode) {
   }
 
   if (pNode->refCount > 0) {
-    __sync_sub_and_fetch_32(&pNode->refCount, 1);
+    atomic_sub_fetch_32(&pNode->refCount, 1);
     pTrace("key:%s is released by app.refcnt:%d", pNode->key, pNode->refCount);
   } else {
     /*
@@ -676,20 +668,20 @@ void *taosGetDataFromCache(void *handle, char *key) {
 
   SDataNode *ptNode = taosGetNodeFromHashTable(handle, key, keyLen);
   if (ptNode != NULL) {
-    __sync_add_and_fetch_32(&ptNode->refCount, 1);
+    atomic_add_fetch_32(&ptNode->refCount, 1);
   }
 
   __cache_unlock(pObj);
 
   if (ptNode != NULL) {
-    __sync_add_and_fetch_32(&pObj->statistics.hitCount, 1);
+    atomic_add_fetch_32(&pObj->statistics.hitCount, 1);
     pTrace("key:%s is retrieved from cache,refcnt:%d", key, ptNode->refCount);
   } else {
-    __sync_add_and_fetch_32(&pObj->statistics.missCount, 1);
+    atomic_add_fetch_32(&pObj->statistics.missCount, 1);
     pTrace("key:%s not in cache,retrieved failed", key);
   }
 
-  __sync_add_and_fetch_32(&pObj->statistics.totalAccess, 1);
+  atomic_add_fetch_32(&pObj->statistics.totalAccess, 1);
   return (ptNode != NULL) ? ptNode->data : NULL;
 }
 

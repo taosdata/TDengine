@@ -14,19 +14,12 @@
  */
 
 #define _GNU_SOURCE /* See feature_test_macros(7) */
-#include <fcntl.h>
-
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include "os.h"
 
 #include "tsdb.h"
 #include "vnode.h"
 #include "vnodeUtil.h"
+#include "vnodeStatus.h"
 
 typedef struct {
   int  sversion;
@@ -89,7 +82,7 @@ int vnodeRenewCommitLog(int vnode) {
 
   pthread_mutex_lock(&(pVnode->logMutex));
 
-  if (VALIDFD(pVnode->logFd)) {
+  if (FD_VALID(pVnode->logFd)) {
     munmap(pVnode->pMem, pVnode->mappingSize);
     close(pVnode->logFd);
     rename(fileName, oldName);
@@ -173,7 +166,7 @@ size_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
           continue;
         }
 
-        if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+        if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPING)) {
           dWarn("vid:%d sid:%d id:%s, meter is dropped, ignore data in commit log, contLen:%d action:%d",
                  vnode, head.sid, head.contLen, head.action);
           continue;
@@ -243,7 +236,7 @@ int vnodeInitCommit(int vnode) {
   }
 
   pVnode->pWrite += size;
-  dTrace("vid:%d, commit log is initialized", vnode);
+  dPrint("vid:%d, commit log is initialized", vnode);
 
   return 0;
 }
@@ -251,7 +244,7 @@ int vnodeInitCommit(int vnode) {
 void vnodeCleanUpCommit(int vnode) {
   SVnodeObj *pVnode = vnodeList + vnode;
 
-  if (VALIDFD(pVnode->logFd)) close(pVnode->logFd);
+  if (FD_VALID(pVnode->logFd)) close(pVnode->logFd);
 
   if (pVnode->cfg.commitLog && (pVnode->logFd > 0 && remove(pVnode->logFn) < 0)) {
     dError("vid:%d, failed to remove:%s", vnode, pVnode->logFn);
