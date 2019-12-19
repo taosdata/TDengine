@@ -62,7 +62,19 @@ int checkVersion() {
 }
 
 // Global configurations
-struct arguments args = {NULL, NULL, NULL, NULL, NULL, false, false, "\0", NULL};
+struct arguments args = {
+  .host = NULL,
+  .password = NULL,
+  .user = NULL,
+  .database = NULL,
+  .timezone = NULL,
+  .is_raw_time = false,
+  .is_use_passwd = false,
+  .file = "\0",
+  .dir = "\0",
+  .threadNum = 5,
+  .commands = NULL
+};
 
 /*
  * Main function.
