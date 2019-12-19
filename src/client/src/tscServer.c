@@ -469,6 +469,9 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
 
       if (pCmd->command > TSDB_SQL_MGMT) {
         tscProcessMgmtRedirect(pSql, pMsg->content + 1);
+      } else if (pCmd->command == TSDB_SQL_INSERT){
+        pSql->index++;
+        pSql->maxRetry = TSDB_VNODES_SUPPORT * 2;
       } else {
         pSql->index++;
       }

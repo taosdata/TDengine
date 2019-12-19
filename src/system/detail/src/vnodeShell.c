@@ -118,6 +118,9 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   } else if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
     if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_MASTER) {
       vnodeProcessShellSubmitRequest((char *) pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pObj);
+    } else if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_SLAVE) {
+      taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_REDIRECT);
+      dTrace("vid:%d sid:%d, shell submit msg is redirect since in status:%s", vnode, sid, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
     } else {
       taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_NOT_READY);
       dTrace("vid:%d sid:%d, shell submit msg is ignored since in status:%s", vnode, sid, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
