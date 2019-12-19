@@ -361,6 +361,10 @@ char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
     return "null";
   }
 
+  if (pDnode->status == TSDB_DN_STATUS_OFFLINE) {
+    return "offline";
+  }
+
   SVnodeLoad *vload = pDnode->vload + pVnode->vnode;
   if (vload->vgId != pVgroup->vgId || vload->vnode != pVnode->vnode) {
     mError("dnode:%s, vgroup:%d, vnode:%d not same with dnode vgroup:%d vnode:%d",
