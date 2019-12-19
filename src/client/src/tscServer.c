@@ -1400,7 +1400,7 @@ void tscUpdateVnodeInSubmitMsg(SSqlObj *pSql, char *buf) {
 
   pShellMsg = (SShellSubmitMsg *)pMsg;
   pShellMsg->vnode = htons(pMeterMeta->vpeerDesc[pSql->index].vnode);
-  tscTrace("%p update submit msg vnode:%d", pSql, htons(pShellMsg->vnode));
+  tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pMeterMeta->vpeerDesc[pSql->index].ip), htons(pShellMsg->vnode));
 }
 
 int tscBuildSubmitMsg(SSqlObj *pSql) {
@@ -1421,7 +1421,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql) {
 
   // pSql->cmd.payloadLen is set during parse sql routine, so we do not use it here
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
-  tscTrace("%p update submit msg vnode:%d", pSql, htons(pShellMsg->vnode));
+  tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pMeterMeta->vpeerDesc[pMeterMeta->index].ip), htons(pShellMsg->vnode));
 
   return msgLen;
 }

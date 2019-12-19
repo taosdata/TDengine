@@ -40,6 +40,7 @@ void *mgmtVgroupActionAfterBatchUpdate(void *row, char *str, int size, int *ssiz
 void *mgmtVgroupActionReset(void *row, char *str, int size, int *ssize);
 void *mgmtVgroupActionDestroy(void *row, char *str, int size, int *ssize);
 bool mgmtCheckVnodeReady(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode);
+char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode);
 
 void mgmtVgroupActionInit() {
   mgmtVgroupActionFp[SDB_TYPE_INSERT] = mgmtVgroupActionInsert;
@@ -328,8 +329,8 @@ int mgmtRetrieveVgroups(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       if (pVgroup->vnodeGid[i].ip != 0) {
-        bool ready = mgmtCheckVnodeReady(NULL, pVgroup, pVgroup->vnodeGid + i);
-        strcpy(pWrite, ready ? "ready" : "unsynced");
+        char *vnodeStatus = mgmtGetVnodeStatus(pVgroup, pVgroup->vnodeGid + i);
+        strcpy(pWrite, vnodeStatus);
       } else {
         strcpy(pWrite, "null");
       }
