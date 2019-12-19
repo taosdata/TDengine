@@ -372,24 +372,24 @@ static int32_t doOpenQueryFileData(SQInfo *pQInfo, SQueryFilesInfo *pVnodeFileIn
     return -1;
   }
 
-  pVnodeFileInfo->pHeaderFileData =
-      mmap(NULL, pVnodeFileInfo->headFileSize, PROT_READ, MAP_SHARED, pVnodeFileInfo->headerFd, 0);
-
-  if (pVnodeFileInfo->pHeaderFileData == MAP_FAILED) {
-    pVnodeFileInfo->pHeaderFileData = NULL;
-
-    doCloseQueryFileInfoFD(pVnodeFileInfo);
-    doInitQueryFileInfoFD(pVnodeFileInfo);
-
-    dError("QInfo:%p failed to mmap header file:%s, size:%lld, %s", pQInfo, pVnodeFileInfo->headerFilePath,
-           pVnodeFileInfo->headFileSize, strerror(errno));
-
-    return -1;
-  } else {
-    if (madvise(pVnodeFileInfo->pHeaderFileData, pVnodeFileInfo->headFileSize, MADV_SEQUENTIAL) == -1) {
-      dError("QInfo:%p failed to advise kernel the usage of header file, reason:%s", pQInfo, strerror(errno));
-    }
-  }
+//  pVnodeFileInfo->pHeaderFileData =
+//      mmap(NULL, pVnodeFileInfo->headFileSize, PROT_READ, MAP_SHARED, pVnodeFileInfo->headerFd, 0);
+//
+//  if (pVnodeFileInfo->pHeaderFileData == MAP_FAILED) {
+//    pVnodeFileInfo->pHeaderFileData = NULL;
+//
+//    doCloseQueryFileInfoFD(pVnodeFileInfo);
+//    doInitQueryFileInfoFD(pVnodeFileInfo);
+//
+//    dError("QInfo:%p failed to mmap header file:%s, size:%lld, %s", pQInfo, pVnodeFileInfo->headerFilePath,
+//           pVnodeFileInfo->headFileSize, strerror(errno));
+//
+//    return -1;
+//  } else {
+//    if (madvise(pVnodeFileInfo->pHeaderFileData, pVnodeFileInfo->headFileSize, MADV_SEQUENTIAL) == -1) {
+//      dError("QInfo:%p failed to advise kernel the usage of header file, reason:%s", pQInfo, strerror(errno));
+//    }
+//  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -450,7 +450,7 @@ char *vnodeGetHeaderFileData(SQueryRuntimeEnv *pRuntimeEnv, int32_t vnodeId, int
     }
   }
 
-  return pVnodeFileInfo->pHeaderFileData;
+  return 1;//pVnodeFileInfo->pHeaderFileData;
 }
 
 /*
