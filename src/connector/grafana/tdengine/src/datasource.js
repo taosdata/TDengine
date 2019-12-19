@@ -114,6 +114,7 @@ export class GenericDatasource {
     sql = sql.replace("$end", "'" + queryEnd + "'");
     sql = sql.replace("$interval", intervalMs);
 
+    sql = this.templateSrv.replace(sql, options.scopedVars, 'csv');
     return sql;
   }
 
