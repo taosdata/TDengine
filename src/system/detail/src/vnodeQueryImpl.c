@@ -526,6 +526,13 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
   SCompInfo *compInfo = (SCompInfo *)(data + compHeader->compInfoOffset);
 #else
   SCompHeader *compHeader = (SCompHeader *)(buf + sizeof(SCompHeader) * pMeterObj->sid);
+  
+  // no data in this file for specified meter, abort
+  if (compHeader->compInfoOffset == 0) {
+    free(buf);
+    return 0;
+  }
+  
   lseek(pVnodeFileInfo->headerFd, compHeader->compInfoOffset, SEEK_SET);
   
   SCompInfo  CompInfo = {0};
@@ -547,8 +554,13 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
   vnodeFreeFieldsEx(pRuntimeEnv);
   pQuery->numOfBlocks = (int32_t)compInfo->numOfBlocks;
 
+  /*
+   * +-------------+-----------+----------------+
+   * | comp block  | checksum  | SField Pointer |
+   * +-------------+-----------+----------------+
+   */
   int32_t compBlockSize = compInfo->numOfBlocks * sizeof(SCompBlock);
-  size_t  bufferSize = compBlockSize + sizeof(TSCKSUM);
+  size_t  bufferSize = compBlockSize + sizeof(TSCKSUM) + POINTER_BYTES * pQuery->numOfBlocks;
 
   // prepare buffer to hold compblock data
   if (pQuery->blockBufferSize != bufferSize) {
@@ -562,7 +574,8 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
   memcpy(pQuery->pBlock, (char *)compInfo + sizeof(SCompInfo), (size_t)compBlockSize);
   TSCKSUM checksum = *(TSCKSUM *)((char *)compInfo + sizeof(SCompInfo) + compBlockSize);
 #else
-  read(pVnodeFileInfo->headerFd, pQuery->pBlock, bufferSize);
+  // read data: comp block + checksum
+  read(pVnodeFileInfo->headerFd, pQuery->pBlock, compBlockSize + sizeof(TSCKSUM));
   TSCKSUM checksum = *(TSCKSUM*)((char*)pQuery->pBlock + compBlockSize);
 //  read(pVnodeFileInfo->headerFd, &checksum, sizeof(TSCKSUM));
 #endif
@@ -573,7 +586,7 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
     return -1; //TODO free resource in error process
   }
 
-  pQuery->pFields = (SField **)((char *)pQuery->pBlock + compBlockSize);
+  pQuery->pFields = (SField **)((char *)pQuery->pBlock + compBlockSize + sizeof(TSCKSUM));
   vnodeSetCompBlockInfoLoaded(pRuntimeEnv, fileIndex, pMeterObj->sid);
 
   int64_t et = taosGetTimestampUs();
