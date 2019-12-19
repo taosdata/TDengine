@@ -29,7 +29,7 @@ class TDTestCase:
     tdDnodes.cfg(1, "tables", "5")
     tdDnodes.start(1)
     
-    self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
+    self.conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     tdSql.init(self.conn.cursor())
     tdSql.execute('reset query cache')
     tdSql.execute('create dnode 192.168.0.2')
@@ -42,6 +42,7 @@ class TDTestCase:
     tdDnodes.cfg(3, "numOfMPeers", "3")
     tdDnodes.cfg(3, "tables", "5")
     tdDnodes.start(3)
+    tdLog.sleep(5)
 
   def run(self):
     self.ntables = 20
@@ -52,20 +53,21 @@ class TDTestCase:
     tdLog.info("================= step1")
     tdLog.info("insert %d records into %d tables" % (self.rowsPerTable, self.ntables))
     tdSql.execute('create database db replica %d' % self.replica)
+    tdLog.sleep(5)
     tdSql.execute('use db')
+    tdSql.execute('create table tb(ts timestamp, i int) tags(id int)')
     for tid in range(1,self.ntables+1):
-      tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
+      tdSql.execute('create table tb%d using tb tags(%d)' %(tid, tid))
     tdLog.sleep(5)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
       sqlcmd = ['insert into tb%d values' % (tid)]
       for rid in range(1,self.rowsPerTable+1):
-        sqlcmd.append("(%ld, %d)" % (startTime, rid))
-        startTime += 1
+        sqlcmd.append("(%ld, %d)" % (startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(self.rowsPerTable)
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
     tdLog.sleep(5)
 
     tdLog.info("================= step2")
@@ -101,35 +103,35 @@ class TDTestCase:
 
     tdLog.info("================= step4")
     self.ntables += 1
-    tdLog.info("create table tb%d" % (self.ntables))
-    tdSql.execute('create table tb%d(ts timestamp, i int)' % (self.ntables))
+    tdLog.info("create table tb%d and insert %d data" % (self.ntables, self.rowsPerTable))
+    tdSql.execute('create table tb%d using tb tags(%d)' % (self.ntables, self.ntables))
     tdLog.sleep(5)
     startTime = self.startTime
     sqlcmd = ['insert into tb%d values' % (self.ntables)]
     for rid in range(1,self.rowsPerTable+1):
-      sqlcmd.append("(%ld, %d)" % (startTime, rid))
-      startTime += 1
+      sqlcmd.append("(%ld, %d)" % (startTime+rid, rid))
     tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
-    tdSql.query("show tables")
-    tdSql.checkRows(self.ntables)
+    tdSql.execute("reset query cache")
+    tdSql.query("select count(*) from tb")
+    tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
 
     tdLog.info("================= step5")
     tdLog.info("drop table tb%d" % (self.ntables))
     tdSql.execute('drop table tb%d' % (self.ntables))
     self.ntables -= 1
-    tdSql.query("show tables")
-    tdSql.checkRows(self.ntables)
+    tdSql.query("select count(*) from tb")
+    tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
 
     tdLog.info("================= step6")
-    tdLog.info("alter table tb%d" % (self.ntables))
-    tdSql.execute('alter table tb%d add column f float' % (self.ntables))
+    tdLog.info("alter super table tb and insert %d data again" %self.rowsPerTable)
+    tdSql.execute('alter table tb add column f float')
     startTime = self.startTime
-    sqlcmd = ['insert into tb%d values' % (self.ntables)]
-    for rid in range(1,self.rowsPerTable+1):
-      sqlcmd.append("(%ld, %d, %f)" % (startTime, rid, rid*1.2))
-      startTime += 1
-    tdSql.execute(" ".join(sqlcmd))
+    for tid in range(1, self.ntables+1):
+      sqlcmd = ['insert into tb%d values' % (self.ntables)]
+      for rid in range(1,self.rowsPerTable+1):
+        sqlcmd.append("(%ld, %d, %f)" % (startTime+rid, rid, rid*1.2))
+      tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
     tdSql.query("select last(*) from tb%d" % (self.ntables))
     res = tdSql.getData(0, 2)
@@ -145,11 +147,11 @@ class TDTestCase:
     tdSql.execute('alter user root PASS \'%s\'' % (newPass))
     tdSql.close()
     tdLog.sleep(5)
-    conn = taos.connect(config=tdDnodes.getSimCfgPath(), user='root', password='%s'%(newPass))
+    conn = taos.connect(host='192.168.0.1', user='root', password='%s'%(newPass))
     tdSql.init(conn.cursor())
     tdSql.execute("use db")
-    tdSql.query("show tables")
-    tdSql.checkRows(self.ntables)
+    tdSql.query("select count(tbname) from tb")
+    tdSql.checkData(0, 0, self.ntables)
 
     tdLog.info("================= step8")
     tdLog.info("drop database db")
@@ -158,8 +160,6 @@ class TDTestCase:
     tdSql.query("show databases")
     tdSql.checkRows(0)
 
-
-    
 
   def stop(self):
     tdSql.close()

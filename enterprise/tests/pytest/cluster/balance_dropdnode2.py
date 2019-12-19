@@ -27,6 +27,7 @@ class TDTestCase:
     tdDnodes.deploy(1)
     tdDnodes.cfg(1,"numOfMPeers", "1")
     tdDnodes.cfg(1,"commitTime", "30")
+    tdDnodes.cfg(1,"tables", "10")
     tdDnodes.start(1)
     
     self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
@@ -36,15 +37,21 @@ class TDTestCase:
     tdDnodes.deploy(2)
     tdDnodes.cfg(2,"numOfMPeers", "1")
     tdDnodes.cfg(2,"commitTime", "30")
+    tdDnodes.cfg(2,"tables", "10")
     tdDnodes.start(2)
     tdSql.execute('create dnode 192.168.0.3')
     tdDnodes.deploy(3)
     tdDnodes.cfg(3,"numOfMPeers", "1")
     tdDnodes.cfg(3,"commitTime", "30")
+    tdDnodes.cfg(3,"tables", "10")
     tdDnodes.start(3)
+    tdLog.sleep(10)
     
   def run(self):
     self.ntables = 100
+    self.startTime = 1520000010000L
+    self.rowsPerTable = 10
+    self.replica = 2
 
     tdSql.execute('create database db replica 2 ctime 30')
     tdSql.execute('use db')
@@ -53,16 +60,19 @@ class TDTestCase:
     tdLog.sleep(5)
 
     tdLog.info("================= step1")
-    startTime = 1520000010000L
-    for rid in range(1,11):
-      for tid in range(1,self.ntables+1):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-      startTime += 1
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(10)
-    tdLog.sleep(30)
+    tdLog.info("insert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
+    for tid in range(1,self.ntables+1):
+      startTime = self.startTime
+      sqlcmd = ['insert into tb%d values' %(tid)]
+      for rid in range(1,self.rowsPerTable+1):
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
+    tdSql.query('select count(*) from tb1')
+    tdSql.checkData(0, 0, self.rowsPerTable)
+    tdLog.sleep(35)
 
     tdLog.info("================= step2")
+    tdLog.info("check old dnode1 data file size")
     dnodesDir = tdDnodes.getDnodesRootDir()
     dataDir = dnodesDir + '/dnode1/data/data'
     dnode1SizeOld = 0
@@ -72,12 +82,13 @@ class TDTestCase:
         dnode1SizeOld += os.path.getsize(os.path.join(vnodeDir, file))
 
     tdLog.info("================= step3")
+    tdLog.info("drop dnode 3")
     tdSql.execute('drop dnode 192.168.0.3')
-    tdLog.sleep(30)
+    tdLog.sleep(35)
 
     tdLog.info("================= step4")
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(10)
+    tdSql.query('select count(*) from tb1')
+    tdSql.checkData(0, 0, self.rowsPerTable)
 
     tdLog.info("================= step5")
     dataDir = dnodesDir + '/dnode1/data/data'

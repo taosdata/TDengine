@@ -1,0 +1,130 @@
+system sh/stop_dnodes.sh
+system sh/ip.sh -i 1 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sleep 1000
+
+$dbPrefix = join_m_db
+$tbPrefix = join_tb
+$mtPrefix = join_mt
+$tbNum = 3
+$rowNum = 1000
+$totalNum = $tbNum * $rowNum
+
+print =============== join_multivnode.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$tstart = 100000
+
+sql drop database if exits $db -x step1
+step1:
+sql create database if not exists $db tables 4 keep 36500
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  $tg2 = ' . abc
+  $tg2 = $tg2 . '
+  sql create table $tb using $mt tags( $i , $tg2 )
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    $nchar = ' . nchar
+    $nchar = $nchar . $c
+    $nchar = $nchar . '
+
+    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $tstart = 100000
+endw
+
+sleep 100
+
+$tstart = 100000
+$mt = $mtPrefix . 1 . $i
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12), t3 int)
+
+$i = 0
+$tbPrefix = join_1_tb
+
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  $c = $i
+  $t3 = $i + 1
+
+  $binary = ' . abc
+  $binary = $binary . $i
+  $binary = $binary . '
+
+  print $binary
+  sql create table $tb using $mt tags( $i , $binary , $t3 )
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    $nchar = ' . nchar
+    $nchar = $nchar . $c
+    $nchar = $nchar . '
+
+    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $tstart = 100000
+endw
+
+print ===============multivnode projection join.sim
+
+sql select join_mt0.ts,join_mt0.ts,join_mt0.t1 from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1;
+
+print $row
+if $row != 3000 then
+  return -1
+endi
+
+print ======= second tags join
+
+sql create table m1(ts timestamp, k int) tags(a binary(12), b int);
+sql create table m2(ts timestamp, k int) tags(a binary(12), b int);
+
+sql insert into tm1 using m1 tags('tm1', 1) values(10000000, 1) tm2 using m2 tags('tm2', 1) values(10000000, 99);
+
+sql select * from m1,m2 where m1.ts=m2.ts and m1.b=m2.b;
+if $row != 1 then
+  return -1
+endi
+
+sql select join_mt0.ts, join_mt1.t1 from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1
+
+sql select join_mt0.ts, join_mt1.t1, join_mt0.t1, join_mt1.tbname, join_mt0.tbname from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1
+
+sql select join_mt0.ts, join_mt1.t1, join_mt0.t1, join_mt1.tbname, join_mt0.tbname from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t1=join_mt1.t1 limit 1

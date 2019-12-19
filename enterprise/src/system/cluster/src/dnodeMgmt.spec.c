@@ -24,7 +24,7 @@
 #include "vnodeMgmt.h"
 #include "vnodeSystem.h"
 #include "vnodeUtil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 extern SMgmtObj mgmtObj;
 extern void*tsStatusTimer;
@@ -111,7 +111,8 @@ int vnodeInitMgmt() {
   pObj->sid = 1;
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp = tsPrivateIp, rpcInit.localPort = 0;
+  rpcInit.localIp = tsPrivateIp;
+  rpcInit.localPort = 0;
   rpcInit.label = "DND-mgmt";
   rpcInit.numOfThreads = 1;
   rpcInit.fp = vnodeProcessMsgFromMgmtSpec;
@@ -473,7 +474,7 @@ int vnodeRetrieveMissedCreateMsg(int vnode, int fd, uint64_t stime) {
   for (sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
     pObj = pVnode->meterList[sid];
 
-    if (pObj && !vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETED) && (pObj->timeStamp > stime)) {
+    if (pObj && !vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPED) && (pObj->timeStamp > stime)) {
       len = vnodeRebuildCreateMsg(vnode, sid, msg);
       writeLen = taosWriteMsg(fd, &len, sizeof(len));
       if (writeLen < 0) {
@@ -517,7 +518,7 @@ int vnodeRetrieveMissedRemoveMsg(int vid, int fd, uint64_t stime) {
   for (sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
     pObj = pVnode->meterList[sid];
 
-    if (pObj && (pObj->state == TSDB_METER_STATE_DELETED) && (pObj->timeStamp > stime)) {
+    if (pObj && (pObj->state == TSDB_METER_STATE_DROPPED) && (pObj->timeStamp > stime)) {
       writeLen = taosWriteMsg(fd, (char *)&vid, sizeof(vid));
       if (writeLen < 0) {
         dError("vid:%d, fd:%d failed to retrieve missed remove msg vid:%d, writeLen:%d reason:%s", vid, fd, vid, writeLen, strerror(errno));

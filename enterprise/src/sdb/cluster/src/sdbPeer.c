@@ -32,8 +32,6 @@
 #define MAX_TRY_WAIT_TIMES 2000
 #define TRY_WAIT_TIME_IN_MS 1
 
-#pragma GCC diagnostic ignored "-Wpointer-sign"
-
 extern void *mgmtTranQhandle;
 void *       pPeerConn = NULL;  // for mnode-mnode communication
 void *       sdbTmr;
@@ -138,7 +136,7 @@ void sdbProcessForwardRequest(SSchedMsg *pSchedMsg) {
   SIntMsg * pMsg = (SIntMsg *)pSchedMsg->msg;
   SSdbPeer *pPeer = (SSdbPeer *)pSchedMsg->ahandle;
 
-  sdbProcessForwardMsg(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
+  sdbProcessForwardMsg((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
 
   if (pSchedMsg->msg) free(pSchedMsg->msg);
 }
@@ -585,13 +583,13 @@ void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
   taosTmrStopA(&pPeer->hbTimer);
 
   if (pMsg->msgType == TSDB_MSG_TYPE_SYNC) {
-    ret = sdbProcessSyncRequest(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
+    ret = sdbProcessSyncRequest((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_SYNC_RSP) {
     ret = 0;
   } else if (pMsg->msgType == TSDB_MSG_TYPE_HEARTBEAT) {
-    ret = sdbProcessHeartBeatFromPeer(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
+    ret = sdbProcessHeartBeatFromPeer((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_HEARTBEAT_RSP) {
-    ret = sdbProcessHeartBeatRspFromPeer(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
+    ret = sdbProcessHeartBeatRspFromPeer((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_FORWARD) {
     SSchedMsg schedMsg;
     schedMsg.msg = malloc(pMsg->msgLen);
@@ -604,9 +602,9 @@ void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
     taosScheduleTask(mgmtTranQhandle, &schedMsg);
     ret = 0;
   } else if (pMsg->msgType == TSDB_MSG_TYPE_FORWARD_RSP) {
-    ret = sdbProcessForwardRspMsg(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
+    ret = sdbProcessForwardRspMsg((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_CFG_MNODE) {
-    ret = sdbProcessCfgMnodeMsg(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
+    ret = sdbProcessCfgMnodeMsg((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_CFG_MNODE_RSP) {
     ret = 0;  // do nothing right now
   } else {
