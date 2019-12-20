@@ -370,7 +370,7 @@ char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
     return "null";
   }
 
-  return taosGetVnodeStatusStr(vload->status);
+  return (char*)taosGetVnodeStatusStr(vload->status);
 }
 
 /**

@@ -101,7 +101,7 @@ if $data3_192.168.0.2 != master then
 endi
 
 print ============== step6
-system sh/clear.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
+system sh/deploy.sh -n dnode1 -m 192.168.0.2 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c numOfMPeers -v 2
 system sh/cfg.sh -n dnode1 -c secondIp -v 192.168.0.1
 
