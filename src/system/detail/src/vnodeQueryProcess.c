@@ -295,8 +295,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
     pQuery->fileId = fid;
     pSummary->numOfFiles++;
 
-    char *pHeaderFileData = vnodeGetHeaderFileData(pRuntimeEnv, vnodeId, fileIdx);
-    if (pHeaderFileData == NULL) { // failed to mmap header file into buffer, ignore current file, try next
+    if (vnodeGetHeaderFile(pRuntimeEnv, fileIdx) != TSDB_CODE_SUCCESS) {
       fid += step;
       continue;
     }
@@ -304,14 +303,16 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
     int32_t numOfQualifiedMeters = 0;
     assert(fileIdx == pRuntimeEnv->vnodeFileInfo.current);
     
-    SMeterDataInfo **pReqMeterDataInfo = vnodeFilterQualifiedMeters(pQInfo, vnodeId, fileIdx, pSupporter->pSidSet,
-        pMeterDataInfo, &numOfQualifiedMeters);
-
-    if (pReqMeterDataInfo == NULL) {
-      dError("QInfo:%p failed to allocate memory to perform query processing, abort", pQInfo);
-
-      pQInfo->code = -TSDB_CODE_SERV_OUT_OF_MEMORY;
+    SMeterDataInfo **pReqMeterDataInfo = NULL;
+    int32_t ret = vnodeFilterQualifiedMeters(pQInfo, vnodeId, pSupporter->pSidSet, pMeterDataInfo,
+                                             &numOfQualifiedMeters, &pReqMeterDataInfo);
+    if (ret != TSDB_CODE_SUCCESS) {
+      dError("QInfo:%p failed to create meterdata struct to perform query processing, abort", pQInfo);
+  
+      tfree(pReqMeterDataInfo);
+      pQInfo->code = -ret;
       pQInfo->killed = 1;
+      
       return NULL;
     }
 
@@ -324,8 +325,18 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
       continue;
     }
 
-    uint32_t numOfBlocks = getDataBlocksForMeters(pSupporter, pQuery, pHeaderFileData, numOfQualifiedMeters,
-        pVnodeFileInfo->headerFilePath, pReqMeterDataInfo);
+    uint32_t numOfBlocks = 0;
+    ret = getDataBlocksForMeters(pSupporter, pQuery, numOfQualifiedMeters, pVnodeFileInfo->headerFilePath,
+                                 pReqMeterDataInfo, &numOfBlocks);
+    if (ret != TSDB_CODE_SUCCESS) {
+      dError("QInfo:%p failed to get data block before scan data blocks, abort", pQInfo);
+  
+      tfree(pReqMeterDataInfo);
+      pQInfo->code = -ret;
+      pQInfo->killed = 1;
+  
+      return NULL;
+    }
 
     dTrace("QInfo:%p file:%s, %d meters contains %d blocks to be checked", pQInfo, pVnodeFileInfo->dataFilePath,
            numOfQualifiedMeters, numOfBlocks);
@@ -336,13 +347,13 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
       continue;
     }
 
-    int32_t n = createDataBlocksInfoEx(pReqMeterDataInfo, numOfQualifiedMeters, &pDataBlockInfoEx, numOfBlocks,
+    ret = createDataBlocksInfoEx(pReqMeterDataInfo, numOfQualifiedMeters, &pDataBlockInfoEx, numOfBlocks,
                                        &nAllocBlocksInfoSize, (int64_t)pQInfo);
-    if (n < 0) {  // failed to create data blocks
-      dError("QInfo:%p failed to allocate memory to perform query processing, abort", pQInfo);
+    if (ret != TSDB_CODE_SUCCESS) {  // failed to create data blocks
+      dError("QInfo:%p build blockInfoEx failed, abort", pQInfo);
       tfree(pReqMeterDataInfo);
 
-      pQInfo->code = -TSDB_CODE_SERV_OUT_OF_MEMORY;
+      pQInfo->code = -ret;
       pQInfo->killed = 1;
       return NULL;
     }
@@ -397,7 +408,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
         setExecutionContext(pSupporter, pSupporter->pResult, pOneMeterDataInfo->meterOrderIdx,
                             pOneMeterDataInfo->groupIdx, pMeterQueryInfo);
       } else {  // interval query
-        int32_t ret = setIntervalQueryExecutionContext(pSupporter, pOneMeterDataInfo->meterOrderIdx, pMeterQueryInfo);
+        ret = setIntervalQueryExecutionContext(pSupporter, pOneMeterDataInfo->meterOrderIdx, pMeterQueryInfo);
         if (ret != TSDB_CODE_SUCCESS) {
           tfree(pReqMeterDataInfo);  // error code has been set
           pQInfo->killed = 1;

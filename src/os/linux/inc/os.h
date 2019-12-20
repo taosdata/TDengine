@@ -79,7 +79,7 @@ extern "C" {
   {                        \
     if (FD_VALID(x)) {     \
       close(x);            \
-      x = -1;              \
+      x = FD_INITIALIZER;  \
     }                      \
   }
   

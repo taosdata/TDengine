@@ -100,12 +100,11 @@ typedef struct SQueryFilesInfo {
   uint32_t         numOfFiles;  // the total available number of files for this virtual node during query execution
   int32_t          current;     // the memory mapped header file, NOTE: only one header file can be mmap.
   int32_t          vnodeId;
-
-  int32_t headerFd;         // header file fd
-  char*   pHeaderFileData;  // mmap header files
-  int64_t headFileSize;
-  int32_t dataFd;
-  int32_t lastFd;
+  
+  int32_t          headerFd;         // header file fd
+  int64_t          headerFileSize;
+  int32_t          dataFd;
+  int32_t          lastFd;
 
   char headerFilePath[PATH_MAX];  // current opened header file name
   char dataFilePath[PATH_MAX];    // current opened data file name
@@ -165,11 +164,10 @@ typedef struct SMeterDataInfo {
   uint64_t     offsetInHeaderFile;
   int32_t      numOfBlocks;
   int32_t      start;  // start block index
-  SCompBlock** pBlock;
+  SCompBlock*  pBlock;
   int32_t      meterOrderIdx;
   SMeterObj*   pMeterObj;
-  int32_t      groupIdx;  // group id in meter list
-
+  int32_t      groupIdx;    // group id in meter list
   SMeterQueryInfo* pMeterQInfo;
 } SMeterDataInfo;
 
