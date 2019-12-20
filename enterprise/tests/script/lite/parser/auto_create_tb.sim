@@ -255,6 +255,8 @@ if $data28 != 涛思数据3 then
   return -1
 endi
 
+sleep 2000
+
 sql select count(*), first(c9) from $stb group by t1 order by t1 asc slimit 2 soffset 1
 if $rows != 2 then
   return -1
