@@ -721,7 +721,7 @@ int mgmtProcessAlterUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
     if (hasRight) {
       memset(pUser->pass, 0, sizeof(pUser->pass));
-      taosEncryptPass(pAlter->pass, strlen(pAlter->pass), pUser->pass);
+      taosEncryptPass((uint8_t*)pAlter->pass, strlen(pAlter->pass), pUser->pass);
       code = mgmtUpdateUser(pUser);
       mLPrint("user:%s password is altered by %s, code:%d", pAlter->user, pConn->pUser->user, code);
     } else {
