@@ -9,10 +9,9 @@
 
   "metrics": true,
   "annotations": false,
-  "alerting": true,
 
   "info": {
-    "description": "TDengine datasource",
+    "description": "grafana datasource plugin for tdengine",
     "author": {
       "name": "Taosdata Inc.",
       "url": "https://www.taosdata.com"
@@ -21,8 +20,12 @@
       "small": "img/taosdata_logo.png",
       "large": "img/taosdata_logo.png"
     },
+    "links": [
+      {"name": "GitHub", "url": "https://github.com/taosdata/TDengine/tree/develop/src/connector/grafana/tdengine"},
+      {"name": "AGPL 3.0", "url": "https://github.com/taosdata/TDengine/tree/develop/src/connector/grafana/tdengine/LICENSE"}
+    ],
     "version": "1.6.0",
-    "updated": "2019-07-01"
+    "updated": "2019-11-12"
   },
 
   "dependencies": {
