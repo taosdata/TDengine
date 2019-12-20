@@ -97,10 +97,11 @@ void tExtMemBufferDestroy(tExtMemBuffer **pMemBuffer) {
 
   // close temp file
   if ((*pMemBuffer)->dataFile != 0) {
-    int32_t ret = fclose((*pMemBuffer)->dataFile);
-    if (ret != 0) {
+    if (fclose((*pMemBuffer)->dataFile) != 0) {
       pError("failed to close file:%s, reason:%s", (*pMemBuffer)->dataFilePath, strerror(errno));
     }
+    
+    pTrace("remove temp file:%s for external buffer", (*pMemBuffer)->dataFilePath);
     unlink((*pMemBuffer)->dataFilePath);
   }
 
