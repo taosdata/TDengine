@@ -502,7 +502,7 @@ static int vnodeCheckSubmitBlockContext(SShellSubmitBlock *pBlocks, SVnodeObj *p
   uint64_t uid = htobe64(pBlocks->uid);
 
   if (sid >= pVnode->cfg.maxSessions || sid <= 0) {
-    dError("vid:%d sid:%d, sid is out of range", sid);
+    dError("vid:%d sid:%d, sid is out of range", pVnode->vnode, sid);
     return TSDB_CODE_INVALID_TABLE_ID;
   }
 

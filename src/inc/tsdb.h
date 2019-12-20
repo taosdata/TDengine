@@ -182,7 +182,7 @@ extern "C" {
 #define TSDB_MAX_AVG_BLOCKS             2048
 #define TSDB_DEFAULT_AVG_BLOCKS         4
 
-#define TSDB_MIN_TABLES_PER_VNODE       1
+#define TSDB_MIN_TABLES_PER_VNODE       2
 #define TSDB_MAX_TABLES_PER_VNODE       220000
 
 #define TSDB_MAX_JOIN_TABLE_NUM         5
