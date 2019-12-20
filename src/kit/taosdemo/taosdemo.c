@@ -17,7 +17,10 @@
 
 #include <argp.h>
 #include <assert.h>
+#if !defined (__USE_GNU) && defined (LINUX)
+#else
 #include <error.h>
+#endif
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdbool.h>
@@ -309,7 +312,13 @@ int main(int argc, char *argv[]) {
 
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-  if (arguments.abort) error(10, 0, "ABORTED");
+  if (arguments.abort) {
+    #ifdef __USE_GNU
+      error(10, 0, "ABORTED");
+    #else
+      abort();
+    #endif
+  }
   
   enum MODE query_mode = arguments.mode;
   char *ip_addr = arguments.host;

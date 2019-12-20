@@ -229,6 +229,14 @@ void taosSetCoreDump();
 
 void taosBlockSIGPIPE();
 
+#ifndef __USE_GNU
+  typedef int(*__compar_fn_t)(const void *, const void *);
+  void  error (int, int, const char *);
+  #ifndef PTHREAD_MUTEX_RECURSIVE_NP
+    #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
+  #endif
+#endif
+
 #define BUILDIN_CLZL(val) __builtin_clzl(val)
 #define BUILDIN_CLZ(val) __builtin_clz(val)
 #define BUILDIN_CTZL(val) __builtin_ctzl(val)
