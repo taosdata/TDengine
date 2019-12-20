@@ -208,14 +208,12 @@ endi
 sql reset query cache
 sql insert into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
 sql_error import into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
+sql import into tb values ('2018-11-01 16:39:58.000', 2, 'import', 3)
 sql select * from tb order by ts desc 
-if $rows != 3 then
+if $rows != 2 then
   return -1
 endi
-if $data23 != 3 then
-  return -1
-endi
-if $data13 != NULL then
+if $data03 != 3 then
   return -1
 endi
 

@@ -30,10 +30,10 @@ system sh/cfg.sh -n dnode2 -c balanceStartInterval -v 10
 system sh/cfg.sh -n dnode3 -c balanceStartInterval -v 10
 system sh/cfg.sh -n dnode4 -c balanceStartInterval -v 10
 
-system sh/cfg.sh -n dnode1 -c commitLog -v 1
-system sh/cfg.sh -n dnode2 -c commitLog -v 1
-system sh/cfg.sh -n dnode3 -c commitLog -v 1
-system sh/cfg.sh -n dnode4 -c commitLog -v 1
+system sh/cfg.sh -n dnode1 -c clog -v 1
+system sh/cfg.sh -n dnode2 -c clog -v 1
+system sh/cfg.sh -n dnode3 -c clog -v 1
+system sh/cfg.sh -n dnode4 -c clog -v 1
 
 system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode2 -c mgmtEqualVnodeNum -v 0
@@ -80,7 +80,7 @@ $db = $dbPrefix . $i
 $mt = $mtPrefix . $i
 $st = $stPrefix . $i
 
-sql create database $db
+sql create database $db tables 4
 sql use $db
 sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
 
@@ -180,7 +180,7 @@ sleep 8000
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 1000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -209,7 +209,7 @@ sleep 9000
 $x = 0
 show6: 
 	$x = $x + 1
-	sleep 1000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi

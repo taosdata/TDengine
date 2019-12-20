@@ -38,7 +38,7 @@ sql connect
 
 print ============== step1
 $db = $dbPrefix
-sql create database $db
+sql create database $db tables 4
 sql use $db
 
 $i = 0
@@ -183,7 +183,7 @@ print rows0=>$r0 rows3=>$r3 rows6=>$r6  rows9=>$r9
 $x = 0
 show1: 
 	$x = $x + 1
-	sleep 1000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -208,7 +208,7 @@ sleep 8000
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 1000
+	sleep 3000
 	if $x == 20 then 
 	  return -1
 	endi
