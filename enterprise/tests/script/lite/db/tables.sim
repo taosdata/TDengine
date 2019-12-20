@@ -10,20 +10,8 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 sleep 3000
 
-print =============== step1
-sql drop database dd 
-
-sql create database -x step1
-	return -1
-step1:
-
-sql show databases
-if $rows != 0 then 
-  return -1
-endi
-
 print =============== step2
-sql create database a tables 1
+sql create database db tables 2
 sql show databases
 print $rows $data07
 
@@ -31,21 +19,30 @@ if $rows != 1 then
   return -1
 endi
 
-if $data07 != 1 then
+if $data07 != 2 then
   return -1
 endi
 
 print =============== step3
+sql use db
 sql create table t1 (ts timestamp, i int)
 sql create table t2 (ts timestamp, i int)
 sql create table t3 (ts timestamp, i int)
 sql create table t4 (ts timestamp, i int)
+sql create table t11 (ts timestamp, i int)
+sql create table t22 (ts timestamp, i int)
+sql create table t33 (ts timestamp, i int)
+sql create table t44 (ts timestamp, i int)
 
 print =============== step4
 sql insert into t1 values(now, 1)
 sql insert into t2 values(now, 2)
 sql insert into t3 values(now, 3)
 sql insert into t4 values(now, 4)
+sql insert into t11 values(now, 1)
+sql insert into t22 values(now, 2)
+sql insert into t33 values(now, 3)
+sql insert into t44 values(now, 4)
 
 print =============== step5
 sql select * from t1
@@ -74,7 +71,7 @@ sql reset query cache
 sleep 20000
 
 print =============== step7
-sql create database a tables 1
+sql create database db tables 2
 sql show databases
 print $rows $data07
 
@@ -82,21 +79,30 @@ if $rows != 1 then
   return -1
 endi
 
-if $data07 != 1 then
+if $data07 != 2 then
   return -1
 endi
 
 print =============== step8
+sql use db
 sql create table t1 (ts timestamp, i int)
 sql create table t2 (ts timestamp, i int)
 sql create table t3 (ts timestamp, i int)
 sql create table t4 (ts timestamp, i int)
+sql create table t11 (ts timestamp, i int)
+sql create table t22 (ts timestamp, i int)
+sql create table t33 (ts timestamp, i int)
+sql create table t44 (ts timestamp, i int)
 
 print =============== step9
 sql insert into t1 values(now, 1)
 sql insert into t2 values(now, 2)
 sql insert into t3 values(now, 3)
 sql insert into t4 values(now, 4)
+sql insert into t11 values(now, 1)
+sql insert into t22 values(now, 2)
+sql insert into t33 values(now, 3)
+sql insert into t44 values(now, 4)
 
 print =============== step10
 sql select * from t1
