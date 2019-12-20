@@ -45,7 +45,7 @@ uint8_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* par
 
   *pTree = (SLoserTreeInfo*)calloc(1, sizeof(SLoserTreeInfo) + sizeof(SLoserTreeNode) * totalEntries);
   if ((*pTree) == NULL) {
-    pError("allocate memory for losertree failed. out of memory");
+    pError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
