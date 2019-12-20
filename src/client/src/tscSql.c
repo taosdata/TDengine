@@ -230,6 +230,12 @@ int taos_query_imp(STscObj* pObj, SSqlObj* pSql) {
 
   pRes->numOfRows = 1;
   pRes->numOfTotal = 0;
+  pSql->asyncTblPos = NULL;
+  if (NULL != pSql->pTableHashList) {
+    taosCleanUpIntHash(pSql->pTableHashList);
+    pSql->pTableHashList = NULL;
+  }
+  
   tscTrace("%p SQL: %s pObj:%p", pSql, pSql->sqlstr, pObj);
 
   pRes->code = (uint8_t)tsParseSql(pSql, pObj->acctId, pObj->db, false);
@@ -939,6 +945,12 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   }
 
   strtolower(pSql->sqlstr, sql);
+
+  pSql->asyncTblPos = NULL;
+  if (NULL != pSql->pTableHashList) {
+    taosCleanUpIntHash(pSql->pTableHashList);
+    pSql->pTableHashList = NULL;
+  }
 
   pRes->code = (uint8_t)tsParseSql(pSql, pObj->acctId, pObj->db, false);
   int code = pRes->code;
