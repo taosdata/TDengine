@@ -54,6 +54,7 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 ../script/test.sh -f lite/compute/null.sim
 ../script/test.sh -f lite/compute/diff2.sim
 
+../script/test.sh -f lite/db/tables.sim
 ../script/test.sh -f lite/db/basic.sim
 ../script/test.sh -f lite/db/len.sim
 ../script/test.sh -f lite/db/delete_reuse1.sim
