@@ -386,6 +386,8 @@ typedef struct _sql_obj {
   SSqlRes res;
 
   char              numOfSubs;
+  char*             asyncTblPos;
+  void*             pTableHashList;  
   struct _sql_obj **pSubs;
   struct _sql_obj * prev, *next;
 } SSqlObj;

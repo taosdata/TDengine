@@ -840,9 +840,17 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
     return code;
   }
 
-  void *pTableHashList = taosInitIntHash(128, POINTER_BYTES, taosHashInt);
-
-  pSql->cmd.pDataBlocks = tscCreateBlockArrayList();
+  if ((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList)) {
+    pSql->pTableHashList  = taosInitIntHash(128, POINTER_BYTES, taosHashInt);
+    pSql->cmd.pDataBlocks = tscCreateBlockArrayList();
+    if (NULL == pSql->pTableHashList || NULL == pSql->cmd.pDataBlocks) {
+      code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+      goto _error_clean;
+    }
+  } else {
+    str = pSql->asyncTblPos;
+  }
+  
   tscTrace("%p create data block list for submit data, %p", pSql, pSql->cmd.pDataBlocks);
 
   while (1) {
@@ -861,6 +869,8 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
       }
     }
 
+    pSql->asyncTblPos = sToken.z;
+
     // Check if the table name available or not
     if (validateTableName(sToken.z, sToken.n) != TSDB_CODE_SUCCESS) {
       code = tscInvalidSQLErrMsg(pCmd->payload, "table name invalid", sToken.z);
@@ -875,7 +885,8 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
     void *fp = pSql->fp;
     if ((code = tscParseSqlForCreateTableOnDemand(&str, pSql)) != TSDB_CODE_SUCCESS) {
       if (fp != NULL) {
-        goto _clean;
+        //goto _clean;
+        return code;
       } else {
         /*
          * for async insert, the free data block operations, which is tscDestroyBlockArrayList,
@@ -918,7 +929,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
        * app here insert data in different vnodes, so we need to set the following
        * data in another submit procedure using async insert routines
        */
-      code = doParseInsertStatement(pSql, pTableHashList, &str, &spd, &totalNum);
+      code = doParseInsertStatement(pSql, pSql->pTableHashList, &str, &spd, &totalNum);
       if (code != TSDB_CODE_SUCCESS) {
         goto _error_clean;
       }
@@ -1033,7 +1044,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
         goto _error_clean;
       }
 
-      code = doParseInsertStatement(pSql, pTableHashList, &str, &spd, &totalNum);
+      code = doParseInsertStatement(pSql, pSql->pTableHashList, &str, &spd, &totalNum);
       if (code != TSDB_CODE_SUCCESS) {
         goto _error_clean;
       }
@@ -1073,7 +1084,8 @@ _error_clean:
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
 _clean:
-  taosCleanUpIntHash(pTableHashList);
+  taosCleanUpIntHash(pSql->pTableHashList);
+  pSql->pTableHashList = NULL;
   return code;
 }
 
@@ -1108,7 +1120,11 @@ int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion) {
 
   // must before clean the sqlcmd object
   tscRemoveAllMeterMetaInfo(&pSql->cmd, false);
-  tscCleanSqlCmd(&pSql->cmd);
+  
+  if (NULL == pSql->asyncTblPos) {
+    tscTrace("continue parse sql: %s", pSql->asyncTblPos);
+    tscCleanSqlCmd(&pSql->cmd);
+  }
 
   if (tscIsInsertOrImportData(pSql->sqlstr)) {
     /*
