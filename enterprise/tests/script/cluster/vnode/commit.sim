@@ -108,20 +108,18 @@ system sh/exec.sh -n dnode2 -s start
 sleep 12000
 
 print =================== step7
-sql insert into tb values(now + 100h, 100)
+sql_error insert into tb values(now + 1000h, 100)
 sql select count(*) from tb order by ts desc
-print select count(*) from tb ==> $data00 (expect < 936)
-if $data00 >= 936 then 
+print select count(*) from tb ==> $data00 (expect <= 936)
+if $data00 != 936 then
   return -1
 endi
 $remainRows = $data00
 
 sql select * from tb order by ts desc
 print select * from tb ==> $data00 $data01 $data10 $data11 $rows
-if $data01 != 100 then 
-  return -1
-endi
-if $data11 != 1682 then 
+
+if $data11 != 1681 then
   return -1
 endi
 if $rows != $remainRows then 
@@ -145,9 +143,7 @@ endi
 $remainRows = $data00
 sql select * from tb order by ts desc
 print select * from tb ==> $data00 $data01 $rows
-if $data01 != 100 then 
-  return -1
-endi
+
 if $rows != $remainRows then 
   return -1
 endi
