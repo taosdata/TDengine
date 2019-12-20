@@ -56,7 +56,7 @@ if $rows != 0 then
 endi 
 
 print =============== step4
-sql drop database $db
+sql_error drop database $db
 
 print =============== step5
 sql create database $db replica 1 days 15 keep 1500
