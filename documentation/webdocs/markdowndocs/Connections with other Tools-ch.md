@@ -34,7 +34,7 @@ TDengine能够与开源数据可视化系统[Grafana](https://www.grafana.com/)�
 
 ### 安装Grafana
 
-目前TDengine支持Grafana 5.2.4以上的版本。用户可以根据当前的操作系统，到Grafana官网下载安装包，并执行安装。下载地址如下：https://grafana.com/grafana/download
+目前TDengine支持Grafana 5.2.4以上的版本。用户可以根据当前的操作系统，到Grafana官网下载安装包，并执行安装。下载地址如下：https://grafana.com/grafana/download。
 
 ### 配置Grafana
 
@@ -58,9 +58,9 @@ TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafana目录�
 
 ![img](../assets/add_datasource3.jpg)
 
-* HostTDengine：集群的中任意一台服务器的IP地址与TDengine RESTful接口的端口号(6020)，默认http://localhost:6020
-* User：TDengine 用户名
-* Password：TDengine 用户密码
+* HostTDengine：集群的中任意一台服务器的IP地址与TDengine RESTful接口的端口号(6020)，默认http://localhost:6020。
+* User：TDengine 用户名。
+* Password：TDengine 用户密码。
 
 点击 `Save & Test` 进行测试，成功会有如下提示：
 
