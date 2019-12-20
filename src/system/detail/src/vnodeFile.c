@@ -1311,6 +1311,7 @@ int vnodeWriteBlockToFile(SMeterObj *pObj, SCompBlock *pCompBlock, SData *data[]
   pCompBlock->keyFirst = *((TSKEY *)(data[0]->data));  // hack way to get the key
   pCompBlock->keyLast = *((TSKEY *)(data[0]->data + (points - 1) * pObj->schema[0].bytes));
   pCompBlock->sversion = pObj->sversion;
+  assert(pCompBlock->keyFirst <= pCompBlock->keyLast);
 
   return 0;
 }
