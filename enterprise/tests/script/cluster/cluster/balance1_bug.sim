@@ -668,8 +668,6 @@ endi
 print ============================== step17
 print ========= check data
 
-sql use c_b1_d1
-sql_error select * from c_b1_t1 order by t desc
 sleep 10000
 
 sql use c_b1_d2
@@ -690,127 +688,6 @@ if $data31 != 23 then
   return -1
 endi
 if $data41 != 24 then
-  return -1
-endi
-
-sql use c_b1_d3
-sql select * from c_b1_t3 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 35 then
-  return -1
-endi
-
-sql use c_b1_d4
-sql select * from c_b1_d4.c_b1_t4 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != null then
-  return -1
-endi
-if $data11 != null then
-  return -1
-endi
-if $data21 != null then
-  return -1
-endi
-if $data31 != null then
-  return -1
-endi
-if $data41 != null then
-  return -1
-endi
-
-sql use c_b1_d5
-sql select * from c_b1_d5.c_b1_t5 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 51 then
-  return -1
-endi
-if $data11 != 52 then
-  return -1
-endi
-if $data21 != 53 then
-  return -1
-endi
-if $data31 != 54 then
-  return -1
-endi
-if $data41 != 55 then
-  return -1
-endi
-
-sql use c_b1_d6
-sql select * from c_b1_d6.c_b1_t6 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 61 then
-  return -1
-endi
-if $data11 != 62 then
-  return -1
-endi
-if $data21 != 63 then
-  return -1
-endi
-if $data31 != 64 then
-  return -1
-endi
-if $data41 != 65 then
-  return -1
-endi
-
-sql use c_b1_d7
-sql select * from c_b1_d7.c_b1_t7 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 71 then
-  return -1
-endi
-if $data11 != 72 then
-  return -1
-endi
-if $data21 != 73 then
-  return -1
-endi
-if $data31 != 74 then
-  return -1
-endi
-if $data41 != 75 then
-  return -1
-endi
-
-sql use c_b1_d8
-sql select * from c_b1_d8.c_b1_t8 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != null then
-  return -1
-endi
-if $data11 != null then
-  return -1
-endi
-if $data21 != null then
-  return -1
-endi
-if $data31 != null then
-  return -1
-endi
-if $data41 != null then
-  return -1
-endi
-
-sql use c_b1_d9
-sql select * from c_b1_t9 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != 91 then
-  return -1
-endi
-if $data11 != 92 then
-  return -1
-endi
-if $data21 != 93 then
-  return -1
-endi
-if $data31 != 94 then
-  return -1
-endi
-if $data41 != 95 then
   return -1
 endi
 
