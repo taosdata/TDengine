@@ -435,10 +435,17 @@ int mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
     if (NULL == pDnode) {
       return TSDB_CODE_NODE_OFFLINE;
     }
+
+    SVnodeLoad* pVnode;
+    pShow->numOfRows = 0;
+    for (int i = 0 ; i < TSDB_MAX_VNODES; i++) {
+      pVnode = &pDnode->vload[i];
+      if (0 != pVnode->vgId) {
+        pShow->numOfRows++;
+      }
+    }
     
-    pShow->numOfRows = pDnode->openVnodes;
-    pShow->pNode     = pDnode;
-    
+    pShow->pNode = pDnode;
   } else {
     while (true) {
       pShow->pNode = mgmtGetNextDnode(pShow, (SDnodeObj **)&pDnode);
