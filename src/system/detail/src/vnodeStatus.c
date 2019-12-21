@@ -52,7 +52,7 @@ const char* taosGetVnodeStatusStr(int32_t vnodeStatus) {
 
 const char* taosGetVnodeSyncStatusStr(int32_t vnodeSyncStatus) {
   switch (vnodeSyncStatus) {
-    case TSDB_VN_SYNC_STATUS_INIT:       return "init";
+    case TSDB_VN_SYNC_STATUS_INIT:       return "ready";
     case TSDB_VN_SYNC_STATUS_SYNCING:    return "syncing";
     case TSDB_VN_SYNC_STATUS_SYNC_CACHE: return "sync_cache";
     case TSDB_VN_SYNC_STATUS_SYNC_FILE:  return "sync_file";
