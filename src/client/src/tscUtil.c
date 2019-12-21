@@ -22,8 +22,8 @@
 #include "tscJoinProcess.h"
 #include "tscProfile.h"
 #include "tscSecondaryMerge.h"
-#include "tscUtil.h"
 #include "tschemautil.h"
+#include "tscUtil.h"
 #include "tsclient.h"
 #include "tsqldef.h"
 #include "ttimer.h"
@@ -60,21 +60,20 @@ void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, char* str, uint64_t uid) {
   }
 
   // estimate the buffer size
-  size_t tbnameCondLen = pTagCond->tbnameCond.cond != NULL? strlen(pTagCond->tbnameCond.cond):0;
+  size_t tbnameCondLen = pTagCond->tbnameCond.cond != NULL ? strlen(pTagCond->tbnameCond.cond) : 0;
   size_t redundantLen = 20;
-  
+
   size_t bufSize = strlen(pMeterMetaInfo->name) + tbnameCondLen + strlen(join) + strlen(tagIdBuf);
   if (cond != NULL) {
     bufSize += strlen(cond->cond);
   }
-  
-  bufSize = (size_t) ((bufSize + redundantLen) * 1.5);
+
+  bufSize = (size_t)((bufSize + redundantLen) * 1.5);
   char* tmp = calloc(1, bufSize);
 
   int32_t keyLen = snprintf(tmp, bufSize, "%s,%s,%s,%d,%s,[%s],%d", pMeterMetaInfo->name,
-               (cond != NULL ? cond->cond : NULL),
-               (tbnameCondLen > 0 ? pTagCond->tbnameCond.cond : NULL),
-               pTagCond->relType, join, tagIdBuf, pCmd->groupbyExpr.orderType);
+                            (cond != NULL ? cond->cond : NULL), (tbnameCondLen > 0 ? pTagCond->tbnameCond.cond : NULL),
+                            pTagCond->relType, join, tagIdBuf, pCmd->groupbyExpr.orderType);
 
   assert(keyLen <= bufSize);
 
@@ -84,7 +83,7 @@ void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, char* str, uint64_t uid) {
     MD5_CTX ctx;
     MD5Init(&ctx);
 
-    MD5Update(&ctx, (uint8_t*) tmp, keyLen);
+    MD5Update(&ctx, (uint8_t*)tmp, keyLen);
     char* pStr = base64_encode(ctx.digest, tListLen(ctx.digest));
     strcpy(str, pStr);
   }
@@ -242,11 +241,11 @@ bool tscProjectionQueryOnMetric(SSqlCmd* pCmd) {
     return false;
   }
 
-  //for project query, only the following two function is allowed
+  // for project query, only the following two function is allowed
   for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
     int32_t functionId = tscSqlExprGet(pCmd, i)->functionId;
-    if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TAGPRJ &&
-        functionId != TSDB_FUNC_TAG && functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_ARITHM) {
+    if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TAGPRJ && functionId != TSDB_FUNC_TAG &&
+        functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_ARITHM) {
       return false;
     }
   }
@@ -261,7 +260,7 @@ bool tscProjectionQueryOnTable(SSqlCmd* pCmd) {
       return false;
     }
   }
-  
+
   return true;
 }
 
@@ -458,9 +457,9 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
 
   tfree(pDataBlock->pData);
   tfree(pDataBlock->params);
-  
+
   // free the refcount for metermeta
-  taosRemoveDataFromCache(tscCacheHandle, (void**) &(pDataBlock->pMeterMeta), false);
+  taosRemoveDataFromCache(tscCacheHandle, (void**)&(pDataBlock->pMeterMeta), false);
   tfree(pDataBlock);
 }
 
@@ -533,23 +532,23 @@ void* tscDestroyBlockArrayList(SDataBlockList* pList) {
 }
 
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
-  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlCmd* pCmd = &pSql->cmd;
   assert(pDataBlock->pMeterMeta != NULL);
-  
+
   pCmd->count = pDataBlock->numOfMeters;
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
-  
-  //set the correct metermeta object, the metermeta has been locked in pDataBlocks, so it must be in the cache
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+
+  // set the correct metermeta object, the metermeta has been locked in pDataBlocks, so it must be in the cache
   if (pMeterMetaInfo->pMeterMeta != pDataBlock->pMeterMeta) {
     strcpy(pMeterMetaInfo->name, pDataBlock->meterId);
-    taosRemoveDataFromCache(tscCacheHandle, (void**) &(pMeterMetaInfo->pMeterMeta), false);
-    
+    taosRemoveDataFromCache(tscCacheHandle, (void**)&(pMeterMetaInfo->pMeterMeta), false);
+
     pMeterMetaInfo->pMeterMeta = pDataBlock->pMeterMeta;
-    pDataBlock->pMeterMeta = NULL;   // delegate the ownership of metermeta to pMeterMetaInfo
+    pDataBlock->pMeterMeta = NULL;  // delegate the ownership of metermeta to pMeterMetaInfo
   } else {
     assert(strncmp(pMeterMetaInfo->name, pDataBlock->meterId, tListLen(pDataBlock->meterId)) == 0);
   }
-  
+
   /*
    * the submit message consists of : [RPC header|message body|digest]
    * the dataBlock only includes the RPC Header buffer and actual submit messsage body, space for digest needs
@@ -559,15 +558,15 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   if (TSDB_CODE_SUCCESS != ret) {
     return ret;
   }
-  
+
   memcpy(pCmd->payload, pDataBlock->pData, pDataBlock->nAllocSize);
-  
+
   /*
    * the payloadLen should be actual message body size
    * the old value of payloadLen is the allocated payload size
    */
   pCmd->payloadLen = pDataBlock->nAllocSize - tsRpcHeadSize;
-  
+
   assert(pCmd->allocSize >= pCmd->payloadLen + tsRpcHeadSize + sizeof(STaosDigest));
   return TSDB_CODE_SUCCESS;
 }
@@ -587,13 +586,18 @@ void tscFreeUnusedDataBlocks(SDataBlockList* pList) {
  * @param rowSize
  * @param startOffset
  * @param name
- * @param pMeterMeta  the ownership of pMeterMeta should be transfer to STableDataBlocks
+ * @param dataBlocks
  * @return
  */
-STableDataBlocks* tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name) {
-  
+int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
+                           STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
-  dataBuf->nAllocSize = (uint32_t) initialSize;
+  if (dataBuf == NULL) {
+    tscError("failed to allocated memory, reason:%s", strerror(errno));
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
+
+  dataBuf->nAllocSize = (uint32_t)initialSize;
   dataBuf->pData = calloc(1, dataBuf->nAllocSize);
   dataBuf->ordered = true;
   dataBuf->prevTS = INT64_MIN;
@@ -603,30 +607,44 @@ STableDataBlocks* tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_
   dataBuf->tsSource = -1;
 
   strncpy(dataBuf->meterId, name, TSDB_METER_ID_LEN);
-  
-  // sure that the metermeta must be in the local client cache
+
+  /*
+   * The metermeta may be released since the metermeta cache are completed clean by other thread
+   * due to operation such as drop database.
+   */
   dataBuf->pMeterMeta = taosGetDataFromCache(tscCacheHandle, dataBuf->meterId);
-  assert(dataBuf->pMeterMeta != NULL && initialSize > 0);
+  assert(initialSize > 0);
   
-  return dataBuf;
+  if (dataBuf->pMeterMeta == NULL) {
+    tfree(dataBuf);
+    return TSDB_CODE_QUERY_CACHE_ERASED;
+  } else {
+    *dataBlocks = dataBuf;
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
-STableDataBlocks* tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
-                                          int32_t startOffset, int32_t rowSize, const char* tableId) {
-  STableDataBlocks* dataBuf = NULL;
+int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
+                                int32_t startOffset, int32_t rowSize, const char* tableId,
+                                STableDataBlocks** dataBlocks) {
+  *dataBlocks = NULL;
 
-  STableDataBlocks** t1 = (STableDataBlocks**)taosGetIntHashData(pHashList, id);
+  STableDataBlocks** t1 = (STableDataBlocks**) taosGetIntHashData(pHashList, id);
   if (t1 != NULL) {
-    dataBuf = *t1;
+    *dataBlocks = *t1;
   }
 
-  if (dataBuf == NULL) {
-    dataBuf = tscCreateDataBlock((size_t)size, rowSize, startOffset, tableId);
-    dataBuf = *(STableDataBlocks**)taosAddIntHash(pHashList, id, (char*)&dataBuf);
-    tscAppendDataBlock(pDataBlockList, dataBuf);
+  if (*dataBlocks == NULL) {
+    int32_t ret = tscCreateDataBlock((size_t) size, rowSize, startOffset, tableId, dataBlocks);
+    if (ret != TSDB_CODE_SUCCESS) {
+      return ret;
+    }
+
+    *dataBlocks = *(STableDataBlocks**)taosAddIntHash(pHashList, id, (char*)(*dataBlocks));
+    tscAppendDataBlock(pDataBlockList, *dataBlocks);
   }
 
-  return dataBuf;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockList) {
@@ -638,9 +656,15 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
   for (int32_t i = 0; i < pTableDataBlockList->nSize; ++i) {
     STableDataBlocks* pOneTableBlock = pTableDataBlockList->pData[i];
 
-    STableDataBlocks* dataBuf =
-        tscGetDataBlockFromList(pVnodeDataBlockHashList, pVnodeDataBlockList, pOneTableBlock->vgid, TSDB_PAYLOAD_SIZE,
-                                tsInsertHeadSize, 0, pOneTableBlock->meterId);
+    STableDataBlocks* dataBuf = NULL;
+    int32_t ret = tscGetDataBlockFromList(pVnodeDataBlockHashList, pVnodeDataBlockList, pOneTableBlock->vgid,
+                                TSDB_PAYLOAD_SIZE, tsInsertHeadSize, 0, pOneTableBlock->meterId, &dataBuf);
+    if (ret != TSDB_CODE_SUCCESS) {
+      tscError("%p failed to allocate the data buffer block for merging table data", pSql);
+      tscDestroyBlockArrayList(pTableDataBlockList);
+      
+      return ret;
+    }
 
     int64_t destSize = dataBuf->size + pOneTableBlock->size;
     if (dataBuf->nAllocSize < destSize) {
@@ -705,7 +729,7 @@ void tscCloseTscObj(STscObj* pObj) {
 }
 
 bool tscIsInsertOrImportData(char* sqlstr) {
-  int32_t index = 0;
+  int32_t   index = 0;
   SSQLToken t0 = tStrGetToken(sqlstr, &index, false, 0, NULL);
   return t0.type == TK_INSERT || t0.type == TK_IMPORT;
 }
@@ -946,13 +970,13 @@ static void _exprEvic(SSqlExprInfo* pExprInfo, int32_t index) {
 
 SSqlExpr* tscSqlExprInsertEmpty(SSqlCmd* pCmd, int32_t index, int16_t functionId) {
   SSqlExprInfo* pExprInfo = &pCmd->exprsInfo;
-  
+
   _exprCheckSpace(pExprInfo, pExprInfo->numOfExprs + 1);
   _exprEvic(pExprInfo, index);
-  
+
   SSqlExpr* pExpr = &pExprInfo->pExprs[index];
   pExpr->functionId = functionId;
-  
+
   pExprInfo->numOfExprs++;
   return pExpr;
 }
@@ -1155,7 +1179,7 @@ SColumnBase* tscColumnBaseInfoInsert(SSqlCmd* pCmd, SColumnIndex* pColIndex) {
 }
 
 void tscColumnFilterInfoCopy(SColumnFilterInfo* dst, const SColumnFilterInfo* src) {
-  assert (src != NULL && dst != NULL);
+  assert(src != NULL && dst != NULL);
 
   assert(src->filterOnBinary == 0 || src->filterOnBinary == 1);
   if (src->lowerRelOptr == TSDB_RELATION_INVALID && src->upperRelOptr == TSDB_RELATION_INVALID) {
@@ -1164,15 +1188,15 @@ void tscColumnFilterInfoCopy(SColumnFilterInfo* dst, const SColumnFilterInfo* sr
 
   *dst = *src;
   if (dst->filterOnBinary) {
-    size_t len = (size_t) dst->len + 1;
-    char* pTmp = calloc(1, len);
-    dst->pz = (int64_t) pTmp;
-    memcpy((char*) dst->pz, (char*) src->pz, (size_t) len);
+    size_t len = (size_t)dst->len + 1;
+    char*  pTmp = calloc(1, len);
+    dst->pz = (int64_t)pTmp;
+    memcpy((char*)dst->pz, (char*)src->pz, (size_t)len);
   }
 }
 
 void tscColumnBaseCopy(SColumnBase* dst, const SColumnBase* src) {
-  assert (src != NULL && dst != NULL);
+  assert(src != NULL && dst != NULL);
 
   *dst = *src;
 
@@ -1230,7 +1254,7 @@ void tscColumnBaseInfoDestroy(SColumnBaseInfo* pColumnBaseInfo) {
         assert(pColBase->filterInfo[j].filterOnBinary == 0 || pColBase->filterInfo[j].filterOnBinary == 1);
 
         if (pColBase->filterInfo[j].filterOnBinary) {
-          free((char*) pColBase->filterInfo[j].pz);
+          free((char*)pColBase->filterInfo[j].pz);
           pColBase->filterInfo[j].pz = 0;
         }
       }
@@ -1390,7 +1414,7 @@ bool tscValidateColumnId(SSqlCmd* pCmd, int32_t colId) {
 
 void tscTagCondCopy(STagCond* dest, const STagCond* src) {
   memset(dest, 0, sizeof(STagCond));
-  
+
   if (src->tbnameCond.cond != NULL) {
     dest->tbnameCond.cond = strdup(src->tbnameCond.cond);
   }
@@ -1403,7 +1427,7 @@ void tscTagCondCopy(STagCond* dest, const STagCond* src) {
     if (src->cond[i].cond != NULL) {
       dest->cond[i].cond = strdup(src->cond[i].cond);
     }
-    
+
     dest->cond[i].uid = src->cond[i].uid;
   }
 
@@ -1513,10 +1537,10 @@ bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql) {
      * data blocks have been submit to vnode.
      */
     SDataBlockList* pDataBlocks = pCmd->pDataBlocks;
-    
+
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
     assert(pSql->cmd.numOfTables == 1);
-    
+
     if (pDataBlocks == NULL || pMeterMetaInfo->vnodeIndex >= pDataBlocks->nSize) {
       tscTrace("%p object should be release since all data blocks have been submit", pSql);
       return true;
@@ -1632,7 +1656,7 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 }
 
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, SSqlObj* pPrevSql) {
-  SSqlCmd* pCmd = &pSql->cmd;
+  SSqlCmd*        pCmd = &pSql->cmd;
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, tableIndex);
 
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
@@ -1677,7 +1701,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   tscColumnBaseInfoCopy(&pNew->cmd.colList, &pCmd->colList, (int16_t)tableIndex);
-  
+
   // set the correct query type
   if (pPrevSql != NULL) {
     pNew->cmd.type = pPrevSql->cmd.type;
@@ -1707,14 +1731,14 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   pNew->fp = fp;
   pNew->param = param;
-  
+
   char key[TSDB_MAX_TAGS_LEN + 1] = {0};
   tscGetMetricMetaCacheKey(pCmd, key, uid);
-  
+
 #ifdef _DEBUG_VIEW
   printf("the metricmeta key is:%s\n", key);
 #endif
-  
+
   char*           name = pMeterMetaInfo->name;
   SMeterMetaInfo* pFinalInfo = NULL;
 
@@ -1739,7 +1763,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   tscTrace("%p new subquery %p, tableIndex:%d, vnodeIdx:%d, type:%d", pSql, pNew, tableIndex,
-      pMeterMetaInfo->vnodeIndex, pNew->cmd.type);
+           pMeterMetaInfo->vnodeIndex, pNew->cmd.type);
   return pNew;
 }
 
@@ -1780,40 +1804,41 @@ bool tscIsUpdateQuery(STscObj* pObj) {
 
   SSqlCmd* pCmd = &pObj->pSql->cmd;
   return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) ||
-      TSDB_SQL_USE_DB == pCmd->command) ? 1 : 0;
+          TSDB_SQL_USE_DB == pCmd->command)
+             ? 1
+             : 0;
 }
 
-int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql) {
-  const char *msgFormat1 = "invalid SQL: %s";
-  const char *msgFormat2 = "invalid SQL: syntax error near \"%s\" (%s)";
-  const char *msgFormat3 = "invalid SQL: syntax error near \"%s\"";
-  
+int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* sql) {
+  const char* msgFormat1 = "invalid SQL: %s";
+  const char* msgFormat2 = "invalid SQL: syntax error near \"%s\" (%s)";
+  const char* msgFormat3 = "invalid SQL: syntax error near \"%s\"";
+
   const int32_t BACKWARD_CHAR_STEP = 0;
-  
+
   if (sql == NULL) {
     assert(additionalInfo != NULL);
     sprintf(msg, msgFormat1, additionalInfo);
     return TSDB_CODE_INVALID_SQL;
   }
-  
-  char buf[64] = {0};   // only extract part of sql string
+
+  char buf[64] = {0};  // only extract part of sql string
   strncpy(buf, (sql - BACKWARD_CHAR_STEP), tListLen(buf) - 1);
-  
+
   if (additionalInfo != NULL) {
     sprintf(msg, msgFormat2, buf, additionalInfo);
   } else {
-    sprintf(msg, msgFormat3, buf); // no additional information for invalid sql error
+    sprintf(msg, msgFormat3, buf);  // no additional information for invalid sql error
   }
-  
+
   return TSDB_CODE_INVALID_SQL;
 }
 
 bool tscHasReachLimitation(SSqlObj* pSql) {
   assert(pSql != NULL && pSql->cmd.globalLimit != 0);
-  
+
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
-  
+
   return (pCmd->globalLimit > 0 && pRes->numOfTotal >= pCmd->globalLimit);
 }
-

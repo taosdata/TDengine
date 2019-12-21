@@ -242,5 +242,6 @@ char *tsError[] = {"success",
                    "invalid table id",        // 115
                    "invalid vnode status",
                    "failed to lock resources",
-                   "table id/uid mismatch",   // 118
+                   "table id/uid mismatch",
+                   "client query cache erased",     // 119
 };
