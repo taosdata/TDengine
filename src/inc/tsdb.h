@@ -182,6 +182,10 @@ extern "C" {
 #define TSDB_MAX_AVG_BLOCKS             2048
 #define TSDB_DEFAULT_AVG_BLOCKS         4
 
+/*
+ * There is a bug in function taosAllocateId.
+ * When "create database tables 1" is executed, the wrong sid is assigned, so the minimum value is set to 2.
+ */
 #define TSDB_MIN_TABLES_PER_VNODE       2
 #define TSDB_MAX_TABLES_PER_VNODE       220000
 
