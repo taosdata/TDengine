@@ -16,12 +16,12 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 
-#include <inttypes.h>
 #include "os.h"
 #include "shell.h"
 #include "shellCommand.h"
 #include "ttime.h"
 #include "tutil.h"
+
 #include <regex.h>
 
 /**************** Global variables ****************/
@@ -295,7 +295,6 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   if (fname != NULL) {
     wordfree(&full_path);
   }
-  return;
 }
 
 /* Function to do regular expression check */
@@ -795,8 +794,17 @@ void source_file(TAOS *con, char *fptr) {
 
   char *fname = full_path.we_wordv[0];
 
-  if (access(fname, R_OK) == -1) {
+  if (access(fname, F_OK) != 0) {
+    fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
+    
+    wordfree(&full_path);
+    free(cmd);
+    return;
+  }
+  
+  if (access(fname, R_OK) != 0) {
     fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
+  
     wordfree(&full_path);
     free(cmd);
     return;
