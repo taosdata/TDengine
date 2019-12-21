@@ -16,12 +16,12 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 
-#include <inttypes.h>
 #include "os.h"
 #include "shell.h"
 #include "shellCommand.h"
 #include "ttime.h"
 #include "tutil.h"
+
 #include <regex.h>
 
 /**************** Global variables ****************/
@@ -295,7 +295,6 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   if (fname != NULL) {
     wordfree(&full_path);
   }
-  return;
 }
 
 /* Function to do regular expression check */
@@ -376,29 +375,29 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
         for (int col = 0; col < num_fields; col++) {
           switch (fields[col].type) {
             case TSDB_DATA_TYPE_BOOL:
-              l[col] = max(BOOL_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(BOOL_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_TINYINT:
-              l[col] = max(TINYINT_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(TINYINT_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_SMALLINT:
-              l[col] = max(SMALLINT_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(SMALLINT_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_INT:
-              l[col] = max(INT_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(INT_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_BIGINT:
-              l[col] = max(BIGINT_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(BIGINT_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_FLOAT:
-              l[col] = max(FLOAT_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(FLOAT_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_DOUBLE:
-              l[col] = max(DOUBLE_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(DOUBLE_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
-              l[col] = max(fields[col].bytes, strlen(fields[col].name));
+              l[col] = MAX(fields[col].bytes, strlen(fields[col].name));
               /* l[col] = max(BINARY_OUTPUT_LENGTH, strlen(fields[col].name)); */
               break;
             case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -409,7 +408,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
               if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
                 defaultWidth += 3;
               }
-              l[col] = max(defaultWidth, strlen(fields[col].name));
+              l[col] = MAX(defaultWidth, strlen(fields[col].name));
 
               break;
             }
@@ -568,7 +567,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
               case TSDB_DATA_TYPE_NCHAR:
                 memset(t_str, 0, TSDB_MAX_BYTES_PER_ROW);
                 memcpy(t_str, row[i], fields[i].bytes);
-                l[i] = max(fields[i].bytes, strlen(fields[i].name));
+                l[i] = MAX(fields[i].bytes, strlen(fields[i].name));
                 shellPrintNChar(t_str, l[i], printMode);
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
@@ -795,8 +794,17 @@ void source_file(TAOS *con, char *fptr) {
 
   char *fname = full_path.we_wordv[0];
 
-  if (access(fname, R_OK) == -1) {
+  if (access(fname, F_OK) != 0) {
+    fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
+    
+    wordfree(&full_path);
+    free(cmd);
+    return;
+  }
+  
+  if (access(fname, R_OK) != 0) {
     fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
+  
     wordfree(&full_path);
     free(cmd);
     return;
