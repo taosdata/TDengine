@@ -640,7 +640,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
       return ret;
     }
 
-    *dataBlocks = *(STableDataBlocks**)taosAddIntHash(pHashList, id, (char*)(*dataBlocks));
+    *dataBlocks = *(STableDataBlocks**)taosAddIntHash(pHashList, id, (char*)dataBlocks);
     tscAppendDataBlock(pDataBlockList, *dataBlocks);
   }
 
