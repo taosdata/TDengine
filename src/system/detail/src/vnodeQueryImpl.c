@@ -2240,6 +2240,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
       }
 
       tVariantDestroy(&pCtx->tag);
+      tfree(pCtx->tagInfo.pTagCtxList);
       tfree(pRuntimeEnv->resultInfo[i].interResultBuf);
     }
 
@@ -3687,22 +3688,21 @@ static int32_t allocateOutputBufForGroup(SMeterQuerySupportObj *pSupporter, SQue
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
-  // create group result buffer
   for (int32_t k = 0; k < slot; ++k) {
     SOutputRes *pOneRes = &pSupporter->pResult[k];
-
+    pOneRes->nAlloc = 1;
+  
     /*
-     * for top/bottom query, the output for group by normal column, the output rows is equals to the
-     * maximum rows, instead of 1.
+     * for single table top/bottom query, the output for group by normal column, the output rows is
+     * equals to the maximum rows, instead of 1.
      */
-    SSqlFunctionExpr *pExpr = &pQuery->pSelectExpr[1];
-    if ((pExpr->pBase.functionId == TSDB_FUNC_TOP || pExpr->pBase.functionId == TSDB_FUNC_BOTTOM) &&
-        pExpr->resType != TSDB_DATA_TYPE_BINARY) {
+    if (!isMetricQuery && isTopBottomQuery(pQuery)) {
+      assert(pQuery->numOfOutputCols > 1);
+      
+      SSqlFunctionExpr *pExpr = &pQuery->pSelectExpr[1];
       pOneRes->nAlloc = pExpr->pBase.arg[0].argValue.i64;
-    } else {
-      pOneRes->nAlloc = 1;
     }
-
+    
     createGroupResultBuf(pQuery, pOneRes, isMetricQuery);
   }
 
@@ -6011,14 +6011,14 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     pSummary->loadCompInfoUs += (et - st);
 
     if (!setCurrentQueryRange(pMeterDataInfo[j], pQuery, pSupporter->rawEKey, &minval, &maxval)) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j);
       continue;
     }
 
     int32_t end = 0;
     if (!getValidDataBlocksRangeIndex(pMeterDataInfo[j], pQuery, pMeterDataInfo[j]->pBlock, compInfo.numOfBlocks,
                                       minval, maxval, &end)) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j);
       continue;
     }
 
