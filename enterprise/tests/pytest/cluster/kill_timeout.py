@@ -73,7 +73,7 @@ class TDTestCase:
 
     tdLog.info("================= step2")
     tdDnodes.forcestop(3)
-    tdLog.sleep(10)
+    tdLog.sleep(30)
 
     tdLog.info("================= step3")
     tdLog.info("show dnodes")
