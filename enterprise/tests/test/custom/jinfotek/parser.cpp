@@ -37,13 +37,23 @@ static int parse_int64( const char* s, int64_t* result )
 #define PARSE_STRING( result ) \
     do { \
         ++column;   \
-        char c, *p = result;\
+        char c, *p = result, *l = line;\
         do { \
-            c = *line++; \
-            if( c == '\'' ) \
+            if ( p - result == sizeof(result) ) {\
+                printf( "%s ", line );\
+                return column; \
+            }\
+            c = *l++; \
+            if( c == '\'' ) {\
                 *p++ = '\\'; \
+                if ( p - result == sizeof(result) ) {\
+                    printf( "%s ", line );\
+                    return column; \
+                }\
+            }\
             *p++ = c; \
         } while(c != 0); \
+        line = l; \
     } while( 0 );
 
 
