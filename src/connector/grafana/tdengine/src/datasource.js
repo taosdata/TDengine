@@ -49,7 +49,7 @@ export class GenericDatasource {
     var targets = _.map(options.targets, target => {
       return {
         refId: target.refId,
-        alias: target.alias || "",
+        alias: this.generateAlias(options, target),
         sql: this.generateSql(options, target)
       };
     });
@@ -87,6 +87,12 @@ export class GenericDatasource {
     var defaultPassword = jsonData.password || "taosdata";
 
     return "Basic " + this.encode(defaultUser + ":" + defaultPassword);
+  }
+
+  generateAlias(options, target){
+    var alias = target.alias || "";
+    alias = this.templateSrv.replace(alias, options.scopedVars, 'csv');
+    return alias;
   }
 
   generateSql(options, target) {
