@@ -466,11 +466,17 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
       case TSDB_DATA_TYPE_BIGINT:
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetLongFp, i, (jlong) * ((int64_t *)row[i]));
         break;
-      case TSDB_DATA_TYPE_FLOAT:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetFloatFp, i, (jfloat) * ((float *)row[i]));
+      case TSDB_DATA_TYPE_FLOAT: {
+        float fv = 0;
+        fv = GET_FLOAT_VAL(row[i]);
+        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetFloatFp, i, (jfloat)fv);
+      }
         break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetDoubleFp, i, (jdouble) * ((double *)row[i]));
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double dv = 0;
+        dv = GET_DOUBLE_VAL(row[i]);
+        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetDoubleFp, i, (jdouble)dv);
+      }
         break;
       case TSDB_DATA_TYPE_BINARY: {
         strncpy(tmp, row[i], (size_t) fields[i].bytes);  // handle the case that terminated does not exist
@@ -615,11 +621,17 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNI
       case TSDB_DATA_TYPE_BIGINT:
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetLongFp, i, (jlong) * ((int64_t *)row[i]));
         break;
-      case TSDB_DATA_TYPE_FLOAT:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetFloatFp, i, (jfloat) * ((float *)row[i]));
+      case TSDB_DATA_TYPE_FLOAT: {
+        float fv = 0;
+        fv = GET_FLOAT_VAL(row[i]);
+        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetFloatFp, i, (jfloat)fv);
+      }
         break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetDoubleFp, i, (jdouble) * ((double *)row[i]));
+      case TSDB_DATA_TYPE_DOUBLE:{
+        double dv = 0;
+        dv = GET_DOUBLE_VAL(row[i]);
+        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetDoubleFp, i, (jdouble)dv);
+      }
         break;
       case TSDB_DATA_TYPE_BINARY: {
         strncpy(tmp, row[i], (size_t) fields[i].bytes);  // handle the case that terminated does not exist
