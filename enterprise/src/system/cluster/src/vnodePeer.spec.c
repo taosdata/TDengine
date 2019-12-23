@@ -300,7 +300,7 @@ void vnodeChooseMaster(SVnodeObj *pVnode)
 
   for (int i = 0; i < pVnode->cfg.replications; ++i) {
     pVPeer = pVnode->peerInfo[i];
-    if (pVPeer->status == TSDB_VN_STATUS_UNSYNCED)
+    if (pVPeer->status == TSDB_VN_STATUS_UNSYNCED || pVPeer->status == TSDB_VN_STATUS_OFFLINE)
       unsyncNum++;
 
     if (pVPeer->status == TSDB_VN_STATUS_SLAVE) {
