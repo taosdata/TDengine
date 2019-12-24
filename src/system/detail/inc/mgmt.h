@@ -419,7 +419,7 @@ int  mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 int  mgmtInitBalance();
 void mgmtCleanupBalance();
 int  mgmtAllocVnodes(SVgObj *pVgroup);
-void mgmtSetDnodeShellRemoving(SDnodeObj *pDnode);
+int  mgmtSetDnodeShellRemoving(SDnodeObj *pDnode);
 void mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
 void mgmtStartBalanceTimer(int64_t mseconds);
 void mgmtSetDnodeOfflineOnSdbChanged();
