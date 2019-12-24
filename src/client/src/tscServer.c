@@ -183,7 +183,7 @@ void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
 #ifdef CLUSTER
       connInit.peerIp = tscMgmtIpList.ipstr[pSql->index];
 #else
-	    connInit.peerIp = tsServerIpStr;
+	    connInit.peerIp = tsMasterIp;
 #endif
       thandle = taosOpenRpcConn(&connInit, pCode);
     }
@@ -291,7 +291,7 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
       connInit.peerId = htonl((pVPeersDesc[0].vnode << TSDB_SHELL_VNODE_BITS));
       connInit.shandle = pVnodeConn;
       connInit.ahandle = pSql;
-      connInit.peerIp = tsServerIpStr;
+      connInit.peerIp = tsMasterIp;
       connInit.peerPort = tsVnodeShellPort;
       thandle = taosOpenRpcConn(&connInit, pCode);
       vidIndex = (vidIndex + 1) % tscNumOfThreads;

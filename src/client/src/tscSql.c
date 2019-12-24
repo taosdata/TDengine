@@ -70,8 +70,8 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
   }
 #else
   if (ip && ip[0]) {
-    if (ip != tsServerIpStr) {
-      strcpy(tsServerIpStr, ip);
+    if (ip != tsMasterIp) {
+      strcpy(tsMasterIp, ip);
     }
     tsServerIp = inet_addr(ip);
   }
@@ -153,11 +153,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   if (ip == NULL || (ip != NULL && (strcmp("127.0.0.1", ip) == 0 || strcasecmp("localhost", ip) == 0))) {
-#ifdef CLUSTER
     ip = tsMasterIp;
-#else
-    ip = tsServerIpStr;
-#endif
   }
   tscTrace("try to create a connection to %s", ip);
 
@@ -181,7 +177,7 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
                      void *param, void **taos) {
 #ifndef CLUSTER
   if (ip == NULL) {
-    ip = tsServerIpStr;
+    ip = tsMasterIp;
   }
 #endif
   return taos_connect_imp(ip, user, pass, db, port, fp, param, taos);
