@@ -56,7 +56,11 @@ int tscEmbedded = 0;
  */
 int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
+#ifdef CLUSTER
 char  tsMasterIp[TSDB_IPv4ADDR_LEN] = {0};
+#else
+char  tsMasterIp[TSDB_IPv4ADDR_LEN] = "127.0.0.1";
+#endif
 char  tsSecondIp[TSDB_IPv4ADDR_LEN] = {0};
 uint16_t tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
 uint16_t tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
@@ -76,7 +80,6 @@ float tsNumOfThreadsPerCore = 1.0;
 float tsRatioOfQueryThreads = 0.5;
 char  tsPublicIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsPrivateIp[TSDB_IPv4ADDR_LEN] = {0};
-char  tsServerIpStr[TSDB_IPv4ADDR_LEN] = "127.0.0.1";
 short tsNumOfVnodesPerCore = 8;
 short tsNumOfTotalVnodes = 0;
 short tsCheckHeaderFile = 0;
@@ -118,7 +121,7 @@ int tsBalanceMonitorInterval = 2;  // seconds
 int tsBalanceStartInterval = 300;  // seconds
 int tsBalancePolicy = 0;           // 1-use sys.montor
 int tsOfflineThreshold = 864000;   // seconds 10days
-int tsMgmtEqualVnodeNum = 0;
+int tsMgmtEqualVnodeNum = 4;
 
 int tsEnableHttpModule = 1;
 int tsEnableMonitorModule = 1;
@@ -160,7 +163,6 @@ int tsHttpMaxThreads = 2;
 int tsHttpEnableCompress = 0;
 int tsHttpEnableRecordSql = 0;
 int tsTelegrafUseFieldNum = 0;
-int tsAdminRowLimit = 10240;
 
 int   tsTscEnableRecordSql = 0;
 int   tsEnableCoreFile = 0;
@@ -446,9 +448,6 @@ static void doInitGlobalConfig() {
                      0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "secondIp", tsSecondIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_CLUSTER,
-                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "serverIp", tsServerIpStr, TSDB_CFG_VTYPE_IPSTR,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_LITE,
                      0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "publicIp", tsPublicIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
