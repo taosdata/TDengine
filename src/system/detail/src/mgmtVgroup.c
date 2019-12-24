@@ -237,11 +237,25 @@ int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  int     maxReplica = 0;
-  SVgObj *pVgroup = pDb->pHead;
-  while (pVgroup != NULL) {
+  int      maxReplica = 0;
+  SVgObj  *pVgroup    = NULL;
+  STabObj *pMeter     = NULL;
+  if (pShow->payloadLen > 0 ) {
+    pMeter = mgmtGetMeter(pShow->payload);
+    if (NULL == pMeter) {
+      return TSDB_CODE_INVALID_METER_ID;
+    }
+
+    pVgroup = mgmtGetVgroup(pMeter->gid.vgId);
+    if (NULL == pVgroup) return TSDB_CODE_INVALID_METER_ID;
+    
     maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
-    pVgroup = pVgroup->next;
+  } else {
+    SVgObj *pVgroup = pDb->pHead;
+    while (pVgroup != NULL) {
+      maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
+      pVgroup = pVgroup->next;
+    }
   }
 
   for (int i = 0; i < maxReplica; ++i) {
@@ -276,9 +290,15 @@ int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->offset[0] = 0;
   for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
-  pShow->numOfRows = pDb->numOfVgroups;
-  pShow->pNode = pDb->pHead;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+
+  if (NULL == pMeter) {
+    pShow->numOfRows = pDb->numOfVgroups;
+    pShow->pNode = pDb->pHead;
+  } else {
+    pShow->numOfRows = 1;
+    pShow->pNode = pVgroup;
+  }
 
   return 0;
 }

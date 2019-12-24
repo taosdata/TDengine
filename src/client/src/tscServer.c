@@ -2191,7 +2191,8 @@ int tscBuildShowMsg(SSqlObj *pSql) {
   pShowMsg = (SShowMsg *)pMsg;
   pShowMsg->type = pCmd->showType;
 
-  if ((pShowMsg->type == TSDB_MGMT_TABLE_TABLE || pShowMsg->type == TSDB_MGMT_TABLE_METRIC || pShowMsg->type == TSDB_MGMT_TABLE_VNODES ) && pCmd->payloadLen != 0) {
+  if ((pShowMsg->type == TSDB_MGMT_TABLE_TABLE || pShowMsg->type == TSDB_MGMT_TABLE_METRIC || pShowMsg->type == TSDB_MGMT_TABLE_VNODES  || pShowMsg->type == TSDB_MGMT_TABLE_VGROUP) 
+    && pCmd->payloadLen != 0) {
     // only show tables support wildcard query
     pShowMsg->payloadLen = htons(pCmd->payloadLen);
     memcpy(pShowMsg->payload, payload, pCmd->payloadLen);
