@@ -883,5 +883,7 @@ int mgmtSetDnodeShellRemoving(SDnodeObj *pDnode) {
   mPrint("dnode:%s, set to shell removing state", taosIpStr(pDnode->privateIp));
 
   mgmtStartBalanceTimer(12);
+
+  return 0;
 }
 
