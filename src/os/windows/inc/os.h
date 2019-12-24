@@ -38,6 +38,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
+#include <inttypes.h>
 #include "winsock2.h"
 #include <WS2tcpip.h>
 

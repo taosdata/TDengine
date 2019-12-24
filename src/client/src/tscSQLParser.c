@@ -2165,7 +2165,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, int32_t colIdx, tSQLExprItem* pItem
       if (optr == TK_PERCENTILE || optr == TK_APERCENTILE) {
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_DOUBLE);
 
-        double dp = *((double*)val);
+        double dp = GET_DOUBLE_VAL(val);
         if (dp < 0 || dp > TOP_BOTTOM_QUERY_LIMIT) {
           return invalidSqlErrMsg(pCmd, msg5);
         }

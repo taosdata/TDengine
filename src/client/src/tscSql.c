@@ -887,12 +887,18 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         len += sprintf(str + len, "%" PRId64 " ", *((int64_t *)row[i]));
         break;
 
-      case TSDB_DATA_TYPE_FLOAT:
-        len += sprintf(str + len, "%f ", *((float *)row[i]));
+      case TSDB_DATA_TYPE_FLOAT: {
+        float fv = 0;
+        fv = GET_FLOAT_VAL(row[i]);
+        len += sprintf(str + len, "%f ", fv);
+      }
         break;
 
-      case TSDB_DATA_TYPE_DOUBLE:
-        len += sprintf(str + len, "%lf ", *((double *)row[i]));
+      case TSDB_DATA_TYPE_DOUBLE:{
+        double dv = 0;
+        dv = GET_DOUBLE_VAL(row[i]);
+        len += sprintf(str + len, "%lf ", dv);
+      }
         break;
 
       case TSDB_DATA_TYPE_BINARY:

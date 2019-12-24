@@ -653,10 +653,13 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
   SMeterMeta *    pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
-  STableDataBlocks *dataBuf =
-      tscGetDataBlockFromList(pTableHashList, pCmd->pDataBlocks, pMeterMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
-                              sizeof(SShellSubmitBlock), pMeterMeta->rowSize, pMeterMetaInfo->name);
-
+  STableDataBlocks *dataBuf = NULL;
+  int32_t ret = tscGetDataBlockFromList(pTableHashList, pCmd->pDataBlocks, pMeterMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
+                              sizeof(SShellSubmitBlock), pMeterMeta->rowSize, pMeterMetaInfo->name, &dataBuf);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+  
   int32_t maxNumOfRows = tscAllocateMemIfNeed(dataBuf, pMeterMeta->rowSize);
   if (0 == maxNumOfRows) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
@@ -1072,9 +1075,13 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
       strcpy(fname, full_path.we_wordv[0]);
       wordfree(&full_path);
 
-      STableDataBlocks *pDataBlock = tscCreateDataBlock(PATH_MAX, pMeterMetaInfo->pMeterMeta->rowSize,
-                                                          sizeof(SShellSubmitBlock), pMeterMetaInfo->name);
-
+      STableDataBlocks *pDataBlock = NULL;
+      int32_t ret = tscCreateDataBlock(PATH_MAX, pMeterMetaInfo->pMeterMeta->rowSize, sizeof(SShellSubmitBlock),
+                                       pMeterMetaInfo->name, &pDataBlock);
+      if (ret != TSDB_CODE_SUCCESS) {
+        goto _error_clean;
+      }
+      
       tscAppendDataBlock(pCmd->pDataBlocks, pDataBlock);
       strcpy(pDataBlock->filename, fname);
     } else if (sToken.type == TK_LP) {
@@ -1314,9 +1321,13 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   int32_t         rowSize = pMeterMeta->rowSize;
 
   pCmd->pDataBlocks = tscCreateBlockArrayList();
-  STableDataBlocks *pTableDataBlock = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, pMeterMeta->rowSize,
-      sizeof(SShellSubmitBlock), pMeterMetaInfo->name);
-
+  STableDataBlocks *pTableDataBlock = NULL;
+  int32_t ret = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, pMeterMeta->rowSize, sizeof(SShellSubmitBlock),
+                                   pMeterMetaInfo->name, &pTableDataBlock);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return -1;
+  }
+  
   tscAppendDataBlock(pCmd->pDataBlocks, pTableDataBlock);
 
   maxRows = tscAllocateMemIfNeed(pTableDataBlock, rowSize);

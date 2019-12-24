@@ -66,19 +66,24 @@ typedef struct SJoinSubquerySupporter {
   char            path[PATH_MAX];  // temporary file path
 } SJoinSubquerySupporter;
 
-void              tscDestroyDataBlock(STableDataBlocks* pDataBlock);
-STableDataBlocks* tscCreateDataBlock(size_t initialBufSize, int32_t rowSize, int32_t startOffset, const char* name);
-void              tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks);
-SParamInfo*       tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, short bytes,
-                                         uint32_t offset);
+int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
+                           STableDataBlocks** dataBlocks);
+void    tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks);
+void    tscDestroyDataBlock(STableDataBlocks* pDataBlock);
 
-SDataBlockList*   tscCreateBlockArrayList();
-void*             tscDestroyBlockArrayList(SDataBlockList* pList);
-int32_t           tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
-void              tscFreeUnusedDataBlocks(SDataBlockList* pList);
-int32_t           tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pDataList);
-STableDataBlocks* tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
-                                          int32_t startOffset, int32_t rowSize, const char* tableId);
+SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, short bytes,
+                                   uint32_t offset);
+
+SDataBlockList* tscCreateBlockArrayList();
+
+void*   tscDestroyBlockArrayList(SDataBlockList* pList);
+int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
+void    tscFreeUnusedDataBlocks(SDataBlockList* pList);
+int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pDataList);
+int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
+                                int32_t startOffset, int32_t rowSize, const char* tableId,
+                                STableDataBlocks** dataBlocks);
+
 SVnodeSidList*    tscGetVnodeSidList(SMetricMeta* pMetricmeta, int32_t vnodeIdx);
 SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
 
