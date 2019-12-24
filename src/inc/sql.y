@@ -108,6 +108,12 @@ cmd ::= SHOW dbPrefix(X) VGROUPS.    {
     setDCLSQLElems(pInfo, SHOW_VGROUPS, 1, &token);
 }
 
+cmd ::= SHOW dbPrefix(X) VGROUPS ids(Y).    {
+    SSQLToken token;
+    setDBName(&token, &X);    
+    setDCLSQLElems(pInfo, SHOW_VGROUPS, 2, &token, &Y);
+}
+
 //drop configure for tables
 cmd ::= DROP TABLE ifexists(Y) ids(X) cpxName(Z).   {
     X.n += Z.n;

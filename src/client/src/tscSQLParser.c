@@ -2532,15 +2532,29 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return ret;
       }
 
-      if (type != SHOW_VGROUPS && pInfo->pDCLInfo->nTokens == 2) {
-        // set the like conds for show tables
-        SSQLToken* likeToken = &pInfo->pDCLInfo->a[1];
-
-        strncpy(pCmd->payload, likeToken->z, likeToken->n);
-        pCmd->payloadLen = strdequote(pCmd->payload);
-
-        if (pCmd->payloadLen > TSDB_METER_NAME_LEN) {
-          return invalidSqlErrMsg(pCmd, msg2);
+      if (pInfo->pDCLInfo->nTokens == 2) {
+        if (type == SHOW_VGROUPS) {
+          // set the table name for show vgroups
+          SSQLToken* meterId = &pInfo->pDCLInfo->a[1];
+          if (0 == pDbPrefixToken->n) {
+            SSQLToken db = {0};
+            getCurrentDBName(pSql, &db);
+            pDbPrefixToken = &db;
+          }
+          ret = setObjFullName(pCmd->payload, NULL, pDbPrefixToken, meterId, &(pCmd->payloadLen));
+          if (ret != TSDB_CODE_SUCCESS) {
+            return ret;
+          }
+        } else {
+          // set the like conds for show tables/stables
+          SSQLToken* likeToken = &pInfo->pDCLInfo->a[1];
+  
+          strncpy(pCmd->payload, likeToken->z, likeToken->n);
+          pCmd->payloadLen = strdequote(pCmd->payload);
+  
+          if (pCmd->payloadLen > TSDB_METER_NAME_LEN) {
+            return invalidSqlErrMsg(pCmd, msg2);
+          }
         }
       }
     }
