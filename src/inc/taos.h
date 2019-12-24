@@ -116,11 +116,10 @@ DLL_EXPORT void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param
 DLL_EXPORT void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);
 DLL_EXPORT void taos_fetch_row_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), void *param);
 
-DLL_EXPORT TAOS_SUB *taos_subscribe(const char *host, const char *user, const char *pass, const char *db, const char *table, int64_t time, int mseconds);
-DLL_EXPORT TAOS_ROW taos_consume(TAOS_SUB *tsub);
-DLL_EXPORT void taos_unsubscribe(TAOS_SUB *tsub);
-DLL_EXPORT int taos_subfields_count(TAOS_SUB *tsub);
-DLL_EXPORT TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub);
+typedef void (*TAOS_SUBSCRIBE_CALLBACK)(void *param, TAOS_RES *res, int code);
+DLL_EXPORT TAOS_SUB *taos_subscribe(TAOS *taos, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval);
+DLL_EXPORT TAOS_RES *taos_consume(TAOS_SUB *tsub);
+DLL_EXPORT void      taos_unsubscribe(TAOS_SUB *tsub);
 
 DLL_EXPORT TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *));

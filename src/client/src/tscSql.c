@@ -627,6 +627,11 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       rows = taos_fetch_row_impl(res);
     }
 
+    if (rows != NULL && pSql->pSubscription != NULL) {
+      TSKEY ts = *(TSKEY*)rows[pCmd->fieldsInfo.numOfOutputCols - 1];
+      tscUpdateSubscriptionProgress(pMeterMetaInfo->pMeterMeta->uid, ts);
+    }
+
     // check!!!
     if (rows != NULL || pMeterMetaInfo->vnodeIndex >= pMeterMetaInfo->pMetricMeta->numOfVnodes) {
       break;

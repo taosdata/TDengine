@@ -819,7 +819,7 @@ void tscFieldInfoSetValFromField(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIE
 }
 
 void tscFieldInfoUpdateVisible(SFieldInfo* pFieldInfo, int32_t index, bool visible) {
-  if (index < 0 || index > pFieldInfo->numOfOutputCols) {
+  if (index < 0 || index >= pFieldInfo->numOfOutputCols) {
     return;
   }
 

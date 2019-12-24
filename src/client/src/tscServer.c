@@ -1531,7 +1531,7 @@ static char* doSerializeTableInfo(SSqlObj* pSql, int32_t numOfMeters, int32_t vn
     SMeterSidExtInfo *pMeterInfo = (SMeterSidExtInfo *)pMsg;
     pMeterInfo->sid = htonl(pMeterMeta->sid);
     pMeterInfo->uid = htobe64(pMeterMeta->uid);
-    
+    pMeterInfo->skey = tscGetSubscriptionProgress(pSql, pMeterMeta->uid);
     pMsg += sizeof(SMeterSidExtInfo);
   } else {
     SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
@@ -1542,6 +1542,7 @@ static char* doSerializeTableInfo(SSqlObj* pSql, int32_t numOfMeters, int32_t vn
       
       pMeterInfo->sid = htonl(pQueryMeterInfo->sid);
       pMeterInfo->uid = htobe64(pQueryMeterInfo->uid);
+      pMeterInfo->skey = tscGetSubscriptionProgress(pSql, pMeterMeta->uid);
       
       pMsg += sizeof(SMeterSidExtInfo);
       
@@ -3535,7 +3536,7 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   pRes->numOfRows = htonl(pRetrieve->numOfRows);
   pRes->precision = htons(pRetrieve->precision);
   pRes->offset = htobe64(pRetrieve->offset);
-
+  pRes->uid = pRetrieve->uid;
   pRes->useconds = htobe64(pRetrieve->useconds);
   pRes->data = pRetrieve->data;
 
