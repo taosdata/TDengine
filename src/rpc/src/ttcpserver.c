@@ -447,6 +447,7 @@ void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, 
   return (void *)pServerObj;
 }
 
+#if 0
 void taosListTcpConnection(void *handle, char *buffer) {
   SServerObj *pServerObj;
   SThreadObj *pThreadObj;
@@ -468,7 +469,7 @@ void taosListTcpConnection(void *handle, char *buffer) {
     msg = msg + strlen(msg);
     pFdObj = pThreadObj->pHead;
     while (pFdObj) {
-      sprintf("   ip:%s port:%hu\n", pFdObj->ipstr, pFdObj->port);
+      sprintf(msg, "   ip:%s port:%hu\n", pFdObj->ipstr, pFdObj->port);
       msg = msg + strlen(msg);
       numOfFds++;
       numOfConns++;
@@ -486,6 +487,7 @@ void taosListTcpConnection(void *handle, char *buffer) {
 
   return;
 }
+#endif
 
 int taosSendTcpServerData(uint32_t ip, uint16_t port, char *data, int len, void *chandle) {
   SFdObj *pFdObj = (SFdObj *)chandle;
