@@ -388,12 +388,6 @@ SDnodeObj *mgmtProcessNewConnection(char *msg) {
       mTrace("ip:%s not configured", pMsg->meterId);
     }
   } else {
-    /*
-        if ( numOfVnodes != pObj->numOfVnodes ) {
-          mgmtDropDnode (pObj);
-          pObj = mgmtCreateDnode(ip, numOfVnodes);
-        }
-    */
     if (pObj->thandle) {
       taosCloseRpcConn(pObj->thandle);
       __sync_fetch_and_sub(&mgmtDnodeConns, 1);
