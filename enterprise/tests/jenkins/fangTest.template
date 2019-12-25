@@ -316,7 +316,7 @@
 ../script/test.sh -f cluster/vnode/replica2_repeat.sim
 ../script/test.sh -f cluster/vnode/replica3_basic.sim
 ../script/test.sh -f cluster/vnode/replica3_repeat.sim
-
+../script/test.sh -f cluster/vnode/replica3_vgroup.sim
 
 cd ../pytest
 sudo python2  test.py -f  alter/alter_table.py
