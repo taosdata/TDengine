@@ -434,7 +434,7 @@ int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes) {
 #endif
 
 #else
-  return wcsncmp((wchar_t *)f1_ucs4, (wchar_t *)f2_ucs4, bytes);
+  return wcsncmp((wchar_t *)f1_ucs4, (wchar_t *)f2_ucs4, bytes / TSDB_NCHAR_SIZE);
 #endif
 }
 
