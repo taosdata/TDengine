@@ -120,6 +120,7 @@ class TDTestCase:
     tdLog.info("drop table tb%d" % (self.ntables))
     tdSql.execute('drop table tb%d' % (self.ntables))
     self.ntables -= 1
+    tdSql.execute("reset query cache")
     tdSql.query("select count(*) from tb")
     tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
 
