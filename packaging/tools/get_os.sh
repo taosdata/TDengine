@@ -10,5 +10,5 @@ set -e
 OS=$(cat /etc/*-release | grep "^NAME=" | cut -d= -f2)
 len=$(echo ${#OS})
 len=$((len-2))
-retval=$(echo -ne ${OS:1:${len}} | cut -d" " -f0)
+retval=$(echo -ne ${OS:1:${len}} | cut -d" " -f1)
 echo -ne $retval
