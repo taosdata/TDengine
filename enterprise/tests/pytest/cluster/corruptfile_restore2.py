@@ -83,6 +83,7 @@ class TDTestCase:
     vnodeDir   = os.path.join(dataDir, vnodes[0])
     vnodefiles = os.listdir(vnodeDir)
     fileToDel = os.path.join(vnodeDir, vnodefiles[0])
+    fileToDel = dnodesDir + '/dnode3/data/data/vnode1/v1f1759.data'
     cmd = 'echo \"corrupt file!\" > %s' % (fileToDel)
     if os.system(cmd) != 0 :
       tdLog.exit(cmd)

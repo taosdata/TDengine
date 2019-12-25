@@ -157,14 +157,11 @@ int mgmtDropDnodeByIp(uint32_t ip) {
   if (pDnode == NULL) return TSDB_CODE_INVALID_VALUE;
 
   if (pDnode->privateIp == mgmtIpList.ip[0]) {
-    mError("dnode:0x%x, can't drop dnode which is master", pDnode->privateIp);
+    mError("dnode:%s, can't drop dnode which is master", taosIpStr(pDnode->privateIp));
     return TSDB_CODE_NO_REMOVE_MASTER;
   }
 
-  // sdbDeleteRow(dnodeSdb, pDnode);
-  mgmtSetDnodeShellRemoving(pDnode);
-
-  return 0;
+  return mgmtSetDnodeShellRemoving(pDnode);
 }
 
 int mgmtUpdateDnode(SDnodeObj *pDnode) { return sdbUpdateRow(dnodeSdb, pDnode, 0, 1); }
