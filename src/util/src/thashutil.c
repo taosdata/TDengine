@@ -8,6 +8,7 @@
  *
  */
 #include "tutil.h"
+#include "hashutil.h"
 
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32 - (r)))
 
@@ -67,7 +68,7 @@ static void MurmurHash3_32_s(const void *key, int len, uint32_t seed, void *out)
   *(uint32_t *)out = h1;
 }
 
-uint32_t MurmurHash3_32(const void *key, int len) {
+uint32_t MurmurHash3_32(const char *key, uint32_t len) {
   const int32_t hashSeed = 0x12345678;
 
   uint32_t val = 0;
@@ -75,3 +76,26 @@ uint32_t MurmurHash3_32(const void *key, int len) {
 
   return val;
 }
+
+uint32_t taosIntHash_32(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint32_t *)key; }
+
+uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
+  uint64_t val = *(uint64_t *)key;
+
+  uint64_t hash = val >> 16U;
+  hash += (val & 0xFFFFU);
+  
+  return hash;
+}
+
+_hash_fn_t taosGetDefaultHashFunction(int32_t type) {
+  _hash_fn_t fn = NULL;
+  switch(type) {
+    case TSDB_DATA_TYPE_BIGINT: fn = taosIntHash_64;break;
+    case TSDB_DATA_TYPE_BINARY: fn = MurmurHash3_32;break;
+    case TSDB_DATA_TYPE_INT: fn = taosIntHash_32; break;
+    default: fn = taosIntHash_32;break;
+  }
+  
+  return fn;
+  }

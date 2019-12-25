@@ -14,11 +14,13 @@
  */
 
 #include "os.h"
+#include "hashutil.h"
 #include "shash.h"
 #include "tutil.h"
 #include "tsqldef.h"
 #include "tstoken.h"
 #include "ttypes.h"
+#include "hash.h"
 
 // All the keywords of the SQL language are stored in a hash table
 typedef struct SKeyword {
@@ -225,10 +227,8 @@ static SKeyword keywordTable[] = {
     {"STABLE",       TK_STABLE},
     {"FILE",         TK_FILE},
     {"VNODES",       TK_VNODES},
+    {"UNION",        TK_UNION},
 };
-
-/* This is the hash table */
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static const char isIdChar[] = {
     /* x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 xA xB xC xD xE xF */
@@ -243,27 +243,22 @@ static const char isIdChar[] = {
 };
 
 static void* KeywordHashTable = NULL;
-int          tSQLKeywordCode(const char* z, int n) {
-  int         i;
-  static char needInit = 1;
-  if (needInit) {
-    // Initialize the keyword hash table
-    pthread_mutex_lock(&mutex);
 
-    // double check
-    if (needInit) {
-      int nk = tListLen(keywordTable);
-
-      KeywordHashTable = taosInitStrHash(nk, POINTER_BYTES, taosHashStringStep1);
-      for (i = 0; i < nk; i++) {
-        keywordTable[i].len = strlen(keywordTable[i].name);
-        void* ptr = &keywordTable[i];
-        taosAddStrHash(KeywordHashTable, (char*)keywordTable[i].name, (void*)&ptr);
-      }
-      needInit = 0;
-    }
-    pthread_mutex_unlock(&mutex);
+static void doInitKeywordsTable() {
+  int numOfEntries = tListLen(keywordTable);
+  
+  KeywordHashTable = taosInitHashTable(numOfEntries, MurmurHash3_32, false);
+  for (int32_t i = 0; i < numOfEntries; i++) {
+    keywordTable[i].len = strlen(keywordTable[i].name);
+    void* ptr = &keywordTable[i];
+    taosAddToHashTable(KeywordHashTable, keywordTable[i].name, keywordTable[i].len, (void*)&ptr, POINTER_BYTES);
   }
+}
+
+static pthread_once_t keywordsHashTableInit = PTHREAD_ONCE_INIT;
+
+int tSQLKeywordCode(const char* z, int n) {
+  pthread_once(&keywordsHashTableInit, doInitKeywordsTable);
 
   char key[128] = {0};
   for (int32_t j = 0; j < n; ++j) {
@@ -274,7 +269,7 @@ int          tSQLKeywordCode(const char* z, int n) {
     }
   }
 
-  SKeyword** pKey = (SKeyword**)taosGetStrHashData(KeywordHashTable, key);
+  SKeyword** pKey = (SKeyword**)taosGetDataFromHash(KeywordHashTable, key, n);
   if (pKey != NULL) {
     return (*pKey)->type;
   } else {

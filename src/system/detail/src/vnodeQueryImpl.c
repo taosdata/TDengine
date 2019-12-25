@@ -17,6 +17,8 @@
 #include "taosmsg.h"
 #include "textbuffer.h"
 #include "ttime.h"
+#include "hash.h"
+#include "hashutil.h"
 
 #include "tinterpolation.h"
 #include "tscJoinProcess.h"
@@ -51,8 +53,6 @@ enum {
 // offset, int32_t size);
 static int32_t readDataFromDiskFile(int fd, SQInfo *pQInfo, SQueryFilesInfo *pQueryFile, char *buf, uint64_t offset,
                                     int32_t size);
-
-//__read_data_fn_t readDataFunctor[2] = {copyDataFromMMapBuffer, readDataFromDiskFile};
 
 static void    vnodeInitLoadCompBlockInfo(SQueryLoadCompBlockInfo *pCompBlockLoadInfo);
 static int32_t moveToNextBlock(SQueryRuntimeEnv *pRuntimeEnv, int32_t step, __block_search_fn_t searchFn,
@@ -161,6 +161,30 @@ bool isGroupbyNormalCol(SSqlGroupbyExpr *pGroupbyExpr) {
   }
 
   return false;
+}
+
+int16_t getGroupbyColumnType(SQuery* pQuery, SSqlGroupbyExpr *pGroupbyExpr) {
+  assert(pGroupbyExpr != NULL);
+  
+  int32_t colId = -2;
+  int16_t type = TSDB_DATA_TYPE_NULL;
+  
+  for(int32_t i = 0; i < pGroupbyExpr->numOfGroupCols; ++i) {
+    SColIndexEx *pColIndex = &pGroupbyExpr->columnInfo[i];
+    if (pColIndex->flag == TSDB_COL_NORMAL) {
+      colId = pColIndex->colId;
+      break;
+    }
+  }
+  
+  for(int32_t i = 0; i < pQuery->numOfCols; ++i) {
+    if (colId == pQuery->colList[i].data.colId) {
+      type = pQuery->colList[i].data.type;
+      break;
+    }
+  }
+  
+  return type;
 }
 
 bool isSelectivityWithTagsQuery(SQuery *pQuery) {
@@ -1446,7 +1470,7 @@ static bool needToLoadDataBlock(SQuery *pQuery, SField *pField, SQLFunctionCtx *
   return true;
 }
 
-static int32_t setGroupResultForKey(SQueryRuntimeEnv *pRuntimeEnv, char *pData, int16_t type, char *columnData) {
+static int32_t setGroupResultForKey(SQueryRuntimeEnv *pRuntimeEnv, char *pData, int16_t type, int16_t bytes) {
   SOutputRes *pOutputRes = NULL;
 
   // ignore the null value
@@ -1454,35 +1478,17 @@ static int32_t setGroupResultForKey(SQueryRuntimeEnv *pRuntimeEnv, char *pData, 
     return -1;
   }
 
-  int64_t t = 0;
-  switch (type) {
-    case TSDB_DATA_TYPE_TINYINT:
-      t = GET_INT8_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-      t = GET_INT64_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      t = GET_INT16_VAL(pData);
-      break;
-    case TSDB_DATA_TYPE_INT:
-    default:
-      t = GET_INT32_VAL(pData);
-      break;
-  }
-
-  SOutputRes **p1 = (SOutputRes **)taosGetIntHashData(pRuntimeEnv->hashList, t);
+  SOutputRes **p1 = (SOutputRes **)taosGetDataFromHash(pRuntimeEnv->hashList, pData, bytes);
   if (p1 != NULL) {
     pOutputRes = *p1;
-  } else {
-    // more than the threshold number, discard data that are not belong to current groups
+  } else { // more than the threshold number, discard data that are not belong to current groups
     if (pRuntimeEnv->usedIndex >= 10000) {
       return -1;
     }
 
     // add a new result set for a new group
-    char *b = (char *)&pRuntimeEnv->pResult[pRuntimeEnv->usedIndex++];
-    pOutputRes = *(SOutputRes **)taosAddIntHash(pRuntimeEnv->hashList, t, (char *)&b);
+    pOutputRes = &pRuntimeEnv->pResult[pRuntimeEnv->usedIndex++];
+    taosAddToHashTable(pRuntimeEnv->hashList, pData, bytes, (char *)&pOutputRes, POINTER_BYTES);
   }
 
   setGroupOutputBuffer(pRuntimeEnv, pOutputRes);
@@ -1686,7 +1692,7 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
     if (groupbyStateValue) {
       char *stateVal = groupbyColumnData + bytes * offset;
 
-      int32_t ret = setGroupResultForKey(pRuntimeEnv, stateVal, type, groupbyColumnData);
+      int32_t ret = setGroupResultForKey(pRuntimeEnv, stateVal, type, bytes);
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
         continue;
       }
@@ -2229,7 +2235,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   tfree(pRuntimeEnv->secondaryUnzipBuffer);
 
-  taosCleanUpIntHash(pRuntimeEnv->hashList);
+  taosCleanUpHashTable(pRuntimeEnv->hashList);
 
   if (pRuntimeEnv->pCtx != NULL) {
     for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutputCols; ++i) {
@@ -3742,9 +3748,11 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
   // check data in file or cache
   bool dataInCache = true;
   bool dataInDisk = true;
-  pSupporter->runtimeEnv.pQuery = pQuery;
+  
+  SQueryRuntimeEnv* pRuntimeEnv = &pSupporter->runtimeEnv;
+  pRuntimeEnv->pQuery = pQuery;
 
-  vnodeCheckIfDataExists(&pSupporter->runtimeEnv, pMeterObj, &dataInDisk, &dataInCache);
+  vnodeCheckIfDataExists(pRuntimeEnv, pMeterObj, &dataInDisk, &dataInCache);
 
   /* data in file or cache is not qualified for the query. abort */
   if (!(dataInCache || dataInDisk)) {
@@ -3755,11 +3763,11 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
     return TSDB_CODE_SUCCESS;
   }
 
-  pSupporter->runtimeEnv.pTSBuf = param;
-  pSupporter->runtimeEnv.cur.vnodeIndex = -1;
+  pRuntimeEnv->pTSBuf = param;
+  pRuntimeEnv->cur.vnodeIndex = -1;
   if (param != NULL) {
-    int16_t order = (pQuery->order.order == pSupporter->runtimeEnv.pTSBuf->tsOrder) ? TSQL_SO_ASC : TSQL_SO_DESC;
-    tsBufSetTraverseOrder(pSupporter->runtimeEnv.pTSBuf, order);
+    int16_t order = (pQuery->order.order == pRuntimeEnv->pTSBuf->tsOrder) ? TSQL_SO_ASC : TSQL_SO_DESC;
+    tsBufSetTraverseOrder(pRuntimeEnv->pTSBuf, order);
   }
 
   // create runtime environment
@@ -3775,9 +3783,13 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
       return ret;
     }
 
-    pSupporter->runtimeEnv.hashList = taosInitIntHash(10039, sizeof(void *), taosHashInt);
-    pSupporter->runtimeEnv.usedIndex = 0;
-    pSupporter->runtimeEnv.pResult = pSupporter->pResult;
+    int16_t type = getGroupbyColumnType(pQuery, pQuery->pGroupbyExpr);
+    _hash_fn_t fn = taosGetDefaultHashFunction(type);
+    
+    pRuntimeEnv->hashList = taosInitHashTable(10039, fn, false);
+    
+    pRuntimeEnv->usedIndex = 0;
+    pRuntimeEnv->pResult = pSupporter->pResult;
   }
 
   // in case of last_row query, we set the query timestamp to pMeterObj->lastKey;
@@ -3820,7 +3832,7 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
 
   int64_t rs = taosGetIntervalStartTimestamp(pSupporter->rawSKey, pQuery->nAggTimeInterval, pQuery->intervalTimeUnit,
                                              pQuery->precision);
-  taosInitInterpoInfo(&pSupporter->runtimeEnv.interpoInfo, pQuery->order.order, rs, 0, 0);
+  taosInitInterpoInfo(&pRuntimeEnv->interpoInfo, pQuery->order.order, rs, 0, 0);
   allocMemForInterpo(pSupporter, pQuery, pMeterObj);
 
   if (!isPointInterpoQuery(pQuery)) {
@@ -3843,9 +3855,9 @@ void vnodeQueryFreeQInfoEx(SQInfo *pQInfo) {
   teardownQueryRuntimeEnv(&pSupporter->runtimeEnv);
   tfree(pSupporter->pMeterSidExtInfo);
 
-  if (pSupporter->pMeterObj != NULL) {
-    taosCleanUpIntHash(pSupporter->pMeterObj);
-    pSupporter->pMeterObj = NULL;
+  if (pSupporter->pMetersHashTable != NULL) {
+    taosCleanUpHashTable(pSupporter->pMetersHashTable);
+    pSupporter->pMetersHashTable = NULL;
   }
 
   if (pSupporter->pSidSet != NULL || isGroupbyNormalCol(pQInfo->query.pGroupbyExpr)) {
@@ -3904,10 +3916,11 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
   pQuery->pointsRead = 0;
 
   changeExecuteScanOrder(pQuery, true);
+  SQueryRuntimeEnv* pRuntimeEnv = &pSupporter->runtimeEnv;
 
-  doInitQueryFileInfoFD(&pSupporter->runtimeEnv.vnodeFileInfo);
-  vnodeInitDataBlockInfo(&pSupporter->runtimeEnv.loadBlockInfo);
-  vnodeInitLoadCompBlockInfo(&pSupporter->runtimeEnv.loadCompBlockInfo);
+  doInitQueryFileInfoFD(&pRuntimeEnv->vnodeFileInfo);
+  vnodeInitDataBlockInfo(&pRuntimeEnv->loadBlockInfo);
+  vnodeInitLoadCompBlockInfo(&pRuntimeEnv->loadCompBlockInfo);
 
   /*
    * since we employ the output control mechanism in main loop.
@@ -3929,15 +3942,15 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
   }
 
   // get one queried meter
-  SMeterObj *pMeter = getMeterObj(pSupporter->pMeterObj, pSupporter->pSidSet->pSids[0]->sid);
+  SMeterObj *pMeter = getMeterObj(pSupporter->pMetersHashTable, pSupporter->pSidSet->pSids[0]->sid);
 
-  pSupporter->runtimeEnv.pTSBuf = param;
-  pSupporter->runtimeEnv.cur.vnodeIndex = -1;
+  pRuntimeEnv->pTSBuf = param;
+  pRuntimeEnv->cur.vnodeIndex = -1;
 
   // set the ts-comp file traverse order
   if (param != NULL) {
-    int16_t order = (pQuery->order.order == pSupporter->runtimeEnv.pTSBuf->tsOrder) ? TSQL_SO_ASC : TSQL_SO_DESC;
-    tsBufSetTraverseOrder(pSupporter->runtimeEnv.pTSBuf, order);
+    int16_t order = (pQuery->order.order == pRuntimeEnv->pTSBuf->tsOrder) ? TSQL_SO_ASC : TSQL_SO_DESC;
+    tsBufSetTraverseOrder(pRuntimeEnv->pTSBuf, order);
   }
 
   int32_t ret = setupQueryRuntimeEnv(pMeter, pQuery, &pSupporter->runtimeEnv, pTagSchema, TSQL_SO_ASC, true);
@@ -3953,9 +3966,9 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
   }
 
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // group by columns not tags;
-    pSupporter->runtimeEnv.hashList = taosInitIntHash(10039, sizeof(void *), taosHashInt);
-    pSupporter->runtimeEnv.usedIndex = 0;
-    pSupporter->runtimeEnv.pResult = pSupporter->pResult;
+    pRuntimeEnv->hashList = taosInitHashTable(10039, taosIntHash_64, false);
+    pRuntimeEnv->usedIndex = 0;
+    pRuntimeEnv->pResult = pSupporter->pResult;
   }
 
   if (pQuery->nAggTimeInterval != 0) {
@@ -3976,7 +3989,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
       return TSDB_CODE_SERV_NO_DISKSPACE;
     }
 
-    pSupporter->runtimeEnv.numOfRowsPerPage = (DEFAULT_INTERN_BUF_SIZE - sizeof(tFilePage)) / pQuery->rowSize;
+    pRuntimeEnv->numOfRowsPerPage = (DEFAULT_INTERN_BUF_SIZE - sizeof(tFilePage)) / pQuery->rowSize;
     pSupporter->lastPageId = -1;
     pSupporter->bufSize = pSupporter->numOfPages * DEFAULT_INTERN_BUF_SIZE;
 
@@ -3995,7 +4008,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
 
   TSKEY revisedStime = taosGetIntervalStartTimestamp(pSupporter->rawSKey, pQuery->nAggTimeInterval,
                                                      pQuery->intervalTimeUnit, pQuery->precision);
-  taosInitInterpoInfo(&pSupporter->runtimeEnv.interpoInfo, pQuery->order.order, revisedStime, 0, 0);
+  taosInitInterpoInfo(&pRuntimeEnv->interpoInfo, pQuery->order.order, revisedStime, 0, 0);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -4014,7 +4027,7 @@ void vnodeDecMeterRefcnt(SQInfo *pQInfo) {
   } else {
     int32_t num = 0;
     for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
-      SMeterObj *pMeter = getMeterObj(pSupporter->pMeterObj, pSupporter->pSidSet->pSids[i]->sid);
+      SMeterObj *pMeter = getMeterObj(pSupporter->pMetersHashTable, pSupporter->pSidSet->pSids[i]->sid);
       atomic_fetch_sub_32(&(pMeter->numOfQueries), 1);
 
       if (pMeter->numOfQueries > 0) {
@@ -5060,7 +5073,7 @@ int32_t doCloseAllOpenedResults(SMeterQuerySupportObj *pSupporter) {
       if (pMeterInfo[i].pMeterQInfo != NULL && pMeterInfo[i].pMeterQInfo->lastResRows > 0) {
         int32_t index = pMeterInfo[i].meterOrderIdx;
 
-        pRuntimeEnv->pMeterObj = getMeterObj(pSupporter->pMeterObj, pSupporter->pSidSet->pSids[index]->sid);
+        pRuntimeEnv->pMeterObj = getMeterObj(pSupporter->pMetersHashTable, pSupporter->pSidSet->pSids[index]->sid);
         assert(pRuntimeEnv->pMeterObj == pMeterInfo[i].pMeterObj);
 
         int32_t ret = setIntervalQueryExecutionContext(pSupporter, i, pMeterInfo[i].pMeterQInfo);
@@ -5666,7 +5679,7 @@ int32_t vnodeFilterQualifiedMeters(SQInfo *pQInfo, int32_t vid, tSidSet *pSidSet
   TSKEY   skey, ekey;
 
   for (int32_t i = 0; i < pSidSet->numOfSids; ++i) {  // load all meter meta info
-    SMeterObj *pMeterObj = getMeterObj(pSupporter->pMeterObj, pMeterSidExtInfo[i]->sid);
+    SMeterObj *pMeterObj = getMeterObj(pSupporter->pMetersHashTable, pMeterSidExtInfo[i]->sid);
     if (pMeterObj == NULL) {
       dError("QInfo:%p failed to find required sid:%d", pQInfo, pMeterSidExtInfo[i]->sid);
       continue;

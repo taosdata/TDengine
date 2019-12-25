@@ -92,7 +92,7 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
 
   SMeterSidExtInfo **pMeterSidExtInfo = pSupporter->pMeterSidExtInfo;
 
-  SMeterObj *pTempMeterObj = getMeterObj(pSupporter->pMeterObj, pMeterSidExtInfo[0]->sid);
+  SMeterObj *pTempMeterObj = getMeterObj(pSupporter->pMetersHashTable, pMeterSidExtInfo[0]->sid);
   assert(pTempMeterObj != NULL);
 
   __block_search_fn_t searchFn = vnodeSearchKeyFunc[pTempMeterObj->searchAlgorithm];
@@ -111,7 +111,7 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
     }
 
     for (int32_t k = start; k <= end; ++k) {
-      SMeterObj *pMeterObj = getMeterObj(pSupporter->pMeterObj, pMeterSidExtInfo[k]->sid);
+      SMeterObj *pMeterObj = getMeterObj(pSupporter->pMetersHashTable, pMeterSidExtInfo[k]->sid);
       if (pMeterObj == NULL) {
         dError("QInfo:%p failed to find meterId:%d, continue", pQInfo, pMeterSidExtInfo[k]->sid);
         continue;
@@ -266,7 +266,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
   SMeterDataBlockInfoEx *pDataBlockInfoEx = NULL;
   int32_t                nAllocBlocksInfoSize = 0;
 
-  SMeterObj *         pTempMeter = getMeterObj(pSupporter->pMeterObj, pSupporter->pMeterSidExtInfo[0]->sid);
+  SMeterObj *         pTempMeter = getMeterObj(pSupporter->pMetersHashTable, pSupporter->pMeterSidExtInfo[0]->sid);
   __block_search_fn_t searchFn = vnodeSearchKeyFunc[pTempMeter->searchAlgorithm];
 
   int32_t vnodeId = pTempMeter->vnode;
@@ -475,7 +475,7 @@ static bool multimeterMultioutputHelper(SQInfo *pQInfo, bool *dataInDisk, bool *
 
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
 
-  SMeterObj *pMeterObj = getMeterObj(pSupporter->pMeterObj, pMeterSidExtInfo[index]->sid);
+  SMeterObj *pMeterObj = getMeterObj(pSupporter->pMetersHashTable, pMeterSidExtInfo[index]->sid);
   if (pMeterObj == NULL) {
     dError("QInfo:%p do not find required meter id: %d, all meterObjs id is:", pQInfo, pMeterSidExtInfo[index]->sid);
     return false;
@@ -576,7 +576,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
   SQuery * pQuery = &pQInfo->query;
   tSidSet *pSids = pSupporter->pSidSet;
 
-  SMeterObj *pOneMeter = getMeterObj(pSupporter->pMeterObj, pMeterSidExtInfo[0]->sid);
+  SMeterObj *pOneMeter = getMeterObj(pSupporter->pMetersHashTable, pMeterSidExtInfo[0]->sid);
 
   resetCtxOutputBuf(pRuntimeEnv);
 
@@ -604,7 +604,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
           }
 
           // get the last key of meters that belongs to this group
-          SMeterObj *pMeterObj = getMeterObj(pSupporter->pMeterObj, pMeterSidExtInfo[k]->sid);
+          SMeterObj *pMeterObj = getMeterObj(pSupporter->pMetersHashTable, pMeterSidExtInfo[k]->sid);
           if (pMeterObj != NULL) {
             if (key < pMeterObj->lastKey) {
               key = pMeterObj->lastKey;
@@ -674,10 +674,10 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
     }
 
     pRuntimeEnv->usedIndex = 0;
-    taosCleanUpIntHash(pRuntimeEnv->hashList);
+    taosCleanUpHashTable(pRuntimeEnv->hashList);
 
     int32_t primeHashSlot = 10039;
-    pRuntimeEnv->hashList = taosInitIntHash(primeHashSlot, POINTER_BYTES, taosHashInt);
+    pRuntimeEnv->hashList = taosInitHashTable(primeHashSlot, taosIntHash_32, false);
 
     while (pSupporter->meterIdx < pSupporter->numOfMeters) {
       int32_t k = pSupporter->meterIdx;
