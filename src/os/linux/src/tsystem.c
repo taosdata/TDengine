@@ -27,12 +27,15 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/resource.h>
-#include <sys/sysctl.h>
-#include <sys/syscall.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifndef __USE_GNU
 #include <linux/sysctl.h>
+#else
+#include <sys/sysctl.h>
+#endif
 
 #include "tglobalcfg.h"
 #include "tlog.h"

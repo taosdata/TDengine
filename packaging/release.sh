@@ -9,7 +9,7 @@ armver=$1
 
 curr_dir=$(pwd)
 script_dir="$(dirname $(readlink -f $0))"
-top_dir="$(readlink -m ${script_dir}/..)"
+top_dir="$(readlink -f ${script_dir}/..)"
 versioninfo="${top_dir}/src/util/src/version.c"
 
 csudo=""

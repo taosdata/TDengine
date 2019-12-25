@@ -10,7 +10,7 @@ tdengine_ver=$3
 armver=$4
 
 script_dir="$(dirname $(readlink -f $0))"
-top_dir="$(readlink -m ${script_dir}/../..)"
+top_dir="$(readlink -f ${script_dir}/../..)"
 pkg_dir="${top_dir}/debworkroom"
 
 #echo "curr_dir: ${curr_dir}"

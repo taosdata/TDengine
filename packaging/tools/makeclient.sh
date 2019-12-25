@@ -11,7 +11,7 @@ build_time=$3
 armver=$4
 
 script_dir="$(dirname $(readlink -f $0))"
-top_dir="$(readlink -m ${script_dir}/../..)"
+top_dir="$(readlink -f ${script_dir}/../..)"
 
 # create compressed install file.
 build_dir="${compile_dir}/build"
