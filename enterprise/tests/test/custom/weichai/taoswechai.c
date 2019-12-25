@@ -88,7 +88,7 @@ static struct argp_option options[] = {
     {"cache",     'c', "16384",   0, "Cache options for the database to be created",                                             1},
     {"stable",    's', "s_",      0, "The name of the super table to be created",                                                1},
     {"prefix",    'p', "u_",      0, "Prefix of table name to be created",                                                       1},
-    {"mode ",     'm', "0",       0, "0 - write, 1 - only create table, 2 - only parse",                                         1},
+    {"mode ",     'm', "0",       0, "-1 write with auto ts, 0 - write, 1 - only create table, 2 - only parse",                  1},
     {"batch ",    'B', "1000",    0, "Number of batches of SQL statements, When it is 0, it means that 50K of SQL is specified", 1},
 
     {"debugflag", 'D', "199",     0, "Debug of the program, 131- output warning and error, 199 - both screen and file",          2},
@@ -232,6 +232,7 @@ typedef struct {
   int sqlPos;
   int batch;
   DataFp *dataFp;
+  int64_t timestamp;
 } TdTable;
 
 typedef struct {
@@ -494,6 +495,7 @@ void tdParseResourceLine(int threadindex, char *line) {
       TdTable newTable = {.batch = 0, .sqlPos = 0, .dataFp = dataFp};
       table = taosAddStrHash(dataFp->tableHash, tableName, (char *) (&newTable));
       table->sqlPos = sprintf(table->sql, "insert into %s values ", tableName);
+      table->timestamp = 1545550734000L;
 
       char sql[2048];
       sprintf(sql, "create table if not exists %s using %s tags('%s', '%s', '%s', %s, %s, '%s')",
@@ -521,7 +523,14 @@ void tdParseResourceLine(int threadindex, char *line) {
       dataFp->inserted += table->batch;
       table->batch = 0;
     } else {
-      table->sqlPos += sprintf(table->sql + table->sqlPos, "('%s',%s)", timestamp1, fields[f + 1]);
+      if (tdArgs.writeMode == -1) {
+        table->sqlPos += sprintf(table->sql + table->sqlPos, "(%ld,%s)", table->timestamp, fields[f + 1]);
+        table->timestamp += 1000;
+      } else if (tdArgs.writeMode == -2) {
+        table->sqlPos += sprintf(table->sql + table->sqlPos, "(%s,%s)", timestamp1, fields[f + 1]);
+      } else {
+        table->sqlPos += sprintf(table->sql + table->sqlPos, "('%s',%s)", timestamp1, fields[f + 1]);
+      }
       table->batch++;
     }
   }
@@ -696,8 +705,9 @@ int main(int argc, char *argv[]) {
 
   int64_t end = taosGetTimestampMs();
 
-  tdPrint("parse %d files in %s, total %ld json %ld lines, time spent: %.2f seconds",
-          tdCsvFileNum, tdArgs.inputDir, tdTotalRows, tdTotalLines, (end - start) / 1000.0);
+  float seconds = (end - start) / 1000.0;
+  tdPrint("parse %d files in %s, total %ld json %ld lines, time spent: %.2f seconds, speed: %d row/s",
+          tdCsvFileNum, tdArgs.inputDir, tdTotalRows, tdTotalLines, seconds,  (int)(tdTotalLines / seconds));
 
   return 0;
 }
