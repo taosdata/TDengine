@@ -23,7 +23,10 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <error.h>
+#ifdef __USE_GNU
+  #include <error.h>
+#endif
+
 #include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>
