@@ -2,7 +2,11 @@
 #include <assert.h>
 #include <dirent.h>
 #include <errno.h>
+
+#ifdef __USE_GNU
 #include <error.h>
+#endif
+
 #include <fcntl.h>
 #include <libgen.h>
 #include <stddef.h>
