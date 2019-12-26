@@ -17,8 +17,8 @@
 
 #include <argp.h>
 #include <assert.h>
-#if !defined (__USE_GNU) && defined (LINUX)
-#else
+
+#ifndef _ALPINE
 #include <error.h>
 #endif
 #include <pthread.h>
@@ -313,7 +313,7 @@ int main(int argc, char *argv[]) {
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
   if (arguments.abort) {
-    #ifdef __USE_GNU
+    #ifndef _ALPINE
       error(10, 0, "ABORTED");
     #else
       abort();

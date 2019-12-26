@@ -130,7 +130,7 @@ void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
   
   argp_parse(&argp, argc, argv, 0, 0, arguments);
   if (arguments->abort) {
-    #ifdef __USE_GNU
+    #ifndef _ALPINE
       error(10, 0, "ABORTED");
     #else
       abort();

@@ -234,8 +234,8 @@ void *taosProcessAlarmSignal(void *tharg) {
 
   timer_t         timerId;
   struct sigevent sevent;
-  
-  #ifndef __USE_GNU
+
+  #ifdef _ALPINE
     sevent.sigev_notify = SIGEV_THREAD;
     sevent.sigev_value.sival_int = syscall(__NR_gettid);
   #else
