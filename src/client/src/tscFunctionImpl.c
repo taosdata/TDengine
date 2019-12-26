@@ -3504,7 +3504,6 @@ void spread_func_sec_merge(SQLFunctionCtx *pCtx) {
     pCtx->param[3].dKey = pData->max;
   }
 
-  //  pCtx->numOfIteratedElems += 1;
   GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
 }
 
@@ -3536,9 +3535,8 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
 
     *(double *)pCtx->aOutputBuf = pInfo->max - pInfo->min;
   }
-
-  //  SET_VAL(pCtx, pCtx->numOfIteratedElems, 1);
-  resetResultInfo(GET_RES_INFO(pCtx));
+  
+  GET_RES_INFO(pCtx)->numOfRes = 1;  // todo add test case
 }
 
 /*
