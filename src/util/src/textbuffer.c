@@ -897,8 +897,7 @@ static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, i
       return (ret < 0) ? -1 : 1;
     };
     case TSDB_DATA_TYPE_NCHAR: {
-      int32_t b = bytes / TSDB_NCHAR_SIZE;
-      int32_t ret = wcsncmp((wchar_t *)f1, (wchar_t *)f2, b);
+      int32_t ret = tasoUcs4Compare(f1, f2, bytes);
       if (ret == 0) {
         return 0;
       }
