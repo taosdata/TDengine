@@ -750,6 +750,8 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
         pQuery->ekey = pSupporter->rawEKey;
         pSupporter->meterIdx++;
 
+        pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[k]->key = pQuery->lastKey;
+
         // if the buffer is full or group by each table, we need to jump out of the loop
         if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL) ||
             isGroupbyEachTable(pQuery->pGroupbyExpr, pSupporter->pSidSet)) {
@@ -765,6 +767,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
           assert(!Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL));
           continue;
         } else {
+          pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[k]->key = pQuery->lastKey;
           // buffer is full, wait for the next round to retrieve data from current meter
           assert(Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL));
           break;

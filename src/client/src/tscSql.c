@@ -627,11 +627,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       rows = taos_fetch_row_impl(res);
     }
 
-    if (rows != NULL && pSql->pSubscription != NULL) {
-      TSKEY ts = *(TSKEY*)rows[pCmd->fieldsInfo.numOfOutputCols - 1];
-      tscUpdateSubscriptionProgress(pMeterMetaInfo->pMeterMeta->uid, ts);
-    }
-
     // check!!!
     if (rows != NULL || pMeterMetaInfo->vnodeIndex >= pMeterMetaInfo->pMetricMeta->numOfVnodes) {
       break;
@@ -866,61 +861,63 @@ void taos_stop_query(TAOS_RES *res) {
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
   int len = 0;
   for (int i = 0; i < num_fields; ++i) {
+    if (i > 0) {
+      str[len++] = ' ';
+    }
+
     if (row[i] == NULL) {
-      len += sprintf(str + len, "%s ", TSDB_DATA_NULL_STR);
+      len += sprintf(str + len, "%s", TSDB_DATA_NULL_STR);
       continue;
     }
 
     switch (fields[i].type) {
       case TSDB_DATA_TYPE_TINYINT:
-        len += sprintf(str + len, "%d ", *((char *)row[i]));
+        len += sprintf(str + len, "%d", *((char *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_SMALLINT:
-        len += sprintf(str + len, "%d ", *((short *)row[i]));
+        len += sprintf(str + len, "%d", *((short *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_INT:
-        len += sprintf(str + len, "%d ", *((int *)row[i]));
+        len += sprintf(str + len, "%d", *((int *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BIGINT:
-        len += sprintf(str + len, "%" PRId64 " ", *((int64_t *)row[i]));
+        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_FLOAT: {
         float fv = 0;
         fv = GET_FLOAT_VAL(row[i]);
-        len += sprintf(str + len, "%f ", fv);
+        len += sprintf(str + len, "%f", fv);
       }
         break;
 
       case TSDB_DATA_TYPE_DOUBLE:{
         double dv = 0;
         dv = GET_DOUBLE_VAL(row[i]);
-        len += sprintf(str + len, "%lf ", dv);
+        len += sprintf(str + len, "%lf", dv);
       }
-        break;
 
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR: {
-        /* limit the max length of string to no greater than the maximum length,
-         * in case of not null-terminated string */
-        size_t xlen = strlen(row[i]);
-        size_t trueLen = MIN(xlen, fields[i].bytes);
-
-        memcpy(str + len, (char *)row[i], trueLen);
-
-        str[len + trueLen] = ' ';
-        len += (trueLen + 1);
-      } break;
+          size_t xlen = 0;
+          for (xlen = 0; xlen <= fields[i].bytes; xlen++) {
+            char c = ((char*)row[i])[xlen];
+            if (c == 0) break;
+            str[len++] = c;
+          }
+          str[len] = 0;
+        }
+        break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
-        len += sprintf(str + len, "%" PRId64 " ", *((int64_t *)row[i]));
+        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BOOL:
-        len += sprintf(str + len, "%d ", *((int8_t *)row[i]));
+        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
       default:
         break;
     }

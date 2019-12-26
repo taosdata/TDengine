@@ -490,7 +490,7 @@ typedef struct SColumnInfo {
 typedef struct SMeterSidExtInfo {
   int32_t sid;
   int64_t uid;
-  TSKEY   skey;   // start key for subscription
+  TSKEY   key;   // key for subscription
   char    tags[];
 } SMeterSidExtInfo;
 
@@ -573,7 +573,6 @@ typedef struct {
   int16_t precision;
   int64_t offset;  // updated offset value for multi-vnode projection query
   int64_t useconds;
-  int64_t uid;
   char    data[];
 } SRetrieveMeterRsp;
 

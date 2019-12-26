@@ -80,7 +80,7 @@ void tscUpdateSubscriptionProgress(SSqlObj* pSql, int64_t uid, TSKEY ts) {
     else if (p->uid < uid)
       s = m + 1;
     else {
-      p->key = ts + 1;
+      if (ts >= p->key) p->key = ts + 1;
       break;
     }
   }
@@ -219,6 +219,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   pRes->numOfTotal = 0;
   pRes->qhandle = 0;
   pSql->thandle = NULL;
+  pSql->cmd.command = TSDB_SQL_SELECT;
 
   tscDoQuery(pSql);
   if (pRes->code != TSDB_CODE_SUCCESS) {
