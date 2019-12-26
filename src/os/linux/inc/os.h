@@ -23,7 +23,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef __USE_GNU
+#ifndef _ALPINE
   #include <error.h>
 #endif
 
@@ -232,7 +232,7 @@ void taosSetCoreDump();
 
 void taosBlockSIGPIPE();
 
-#ifndef __USE_GNU
+#ifdef _ALPINE
   typedef int(*__compar_fn_t)(const void *, const void *);
   void  error (int, int, const char *);
   #ifndef PTHREAD_MUTEX_RECURSIVE_NP

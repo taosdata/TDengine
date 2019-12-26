@@ -579,7 +579,12 @@ static int vnodeCloseImportFiles(SMeterObj *pObj, SImportHandle *pHandle) {
   SVnodeObj *pVnode = vnodeList + pObj->vnode;
   char       dpath[TSDB_FILENAME_LEN] = "\0";
   SCompInfo  compInfo;
+
+#ifdef _ALPINE
   off_t    offset = 0;
+#else
+  __off_t  offset = 0;
+#endif
 
   if (pVnode->nfd > 0) {
     offset = lseek(pVnode->nfd, 0, SEEK_CUR);

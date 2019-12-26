@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifndef __USE_GNU
+#ifdef _ALPINE
 #include <linux/sysctl.h>
 #else
 #include <sys/sysctl.h>
