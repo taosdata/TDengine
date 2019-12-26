@@ -240,9 +240,14 @@ void taosBlockSIGPIPE();
   #endif
 #endif
 
+#ifndef _TD_ARM_32_
 #define BUILDIN_CLZL(val) __builtin_clzl(val)
-#define BUILDIN_CLZ(val) __builtin_clz(val)
 #define BUILDIN_CTZL(val) __builtin_ctzl(val)
+#else
+#define BUILDIN_CLZL(val) __builtin_clzll(val)
+#define BUILDIN_CTZL(val) __builtin_ctzll(val)
+#endif
+#define BUILDIN_CLZ(val) __builtin_clz(val)
 #define BUILDIN_CTZ(val) __builtin_ctz(val)
 
 #ifdef __cplusplus
