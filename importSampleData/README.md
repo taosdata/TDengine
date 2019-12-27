@@ -8,7 +8,7 @@
 
 ### 下载可执行文件
 
-由于该工具使用 go 语言开发，为了方便使用，项目中已经提供了编译好的可执行文件 `bin/timport`。通过 `git clone https://github.com/taosdata/TDengine.git` 命令或者直接下载 `ZIP` 文件解压进入样例导入程序目录 `cd importSampleData`，执行 `bin/taosimport`。
+由于该工具使用 go 语言开发，为了方便使用，项目中已经提供了编译好的可执行文件 `bin/taosimport`。通过 `git clone https://github.com/taosdata/TDengine.git` 命令或者直接下载 `ZIP` 文件解压进入样例导入程序目录 `cd importSampleData`，执行 `bin/taosimport`。
 
 ### go 源码编译
 
