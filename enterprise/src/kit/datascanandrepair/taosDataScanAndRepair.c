@@ -3,7 +3,7 @@
 #include <dirent.h>
 #include <errno.h>
 
-#ifdef __USE_GNU
+#ifndef _ALPINE
 #include <error.h>
 #endif
 
