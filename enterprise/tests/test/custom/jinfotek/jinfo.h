@@ -99,7 +99,6 @@ struct Record
     int64_t USERNAME_FY_TF;
     int64_t USERNAME_FY_TIME;
 
-    char equipment[20];
     char number[20];
     char type[20];
     char address[20];

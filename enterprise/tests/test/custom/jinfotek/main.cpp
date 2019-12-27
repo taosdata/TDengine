@@ -271,7 +271,7 @@ static OutputFile* get_output_file( const Record* r )
     {
         const char* sqlFmt = "CREATE TABLE %s USING tb_event TAGS ('%s', '', '%s', '');\n";
 
-        fprintf( g_table_file, sqlFmt, r->tbname, r->equipment, r->type );
+        fprintf( g_table_file, sqlFmt, r->tbname, r->equid, r->type );
         TableEntry* te = (TableEntry*)malloc( sizeof(TableEntry) );
         if( te == NULL )
         {
