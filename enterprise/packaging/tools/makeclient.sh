@@ -26,7 +26,7 @@ install_dir="${release_dir}/TDengine-enterprise-client-${version}"
 bin_files="${build_dir}/bin/taos ${build_dir}/bin/taosdump ${script_dir}/remove_client.sh"
 lib_files="${build_dir}/lib/libtaos.so.${version}"
 header_files="${community_dir}/inc/taos.h ${community_dir}/inc/taoserror.h"
-cfg_dir="${top_dir}/packaging/cfg"
+cfg_dir="${community_dir}/../packaging/cfg"
 install_files="${script_dir}/install_client.sh"
 
 # make directories.
