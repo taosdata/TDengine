@@ -144,8 +144,8 @@ static void tscProcessSubscribeTimer(void *handle, void *tmrId) {
 
   TAOS_RES* res = taos_consume(pSub);
   if (res != NULL) {
-    pSub->fp(pSub->param, res, 0);
-    taos_free_result(res);
+    pSub->fp(pSub, res, pSub->param, 0);
+    // TODO: memory leak
   }
 
   taosTmrReset(tscProcessSubscribeTimer, pSub->interval, pSub, tscTmr, &pSub->pTimer);
@@ -239,16 +239,4 @@ void taos_unsubscribe(TAOS_SUB *tsub) {
   free(pSub->progress);
   memset(pSub, 0, sizeof(*pSub));
   free(pSub);
-}
-
-int taos_subfields_count(TAOS_SUB *tsub) {
-  SSub *pSub = (SSub *)tsub;
-
-  return taos_num_fields(pSub->pSql);
-}
-
-TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub) {
-  SSub *pSub = (SSub *)tsub;
-
-  return pSub->pSql->cmd.fieldsInfo.pFields;
 }

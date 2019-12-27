@@ -46,6 +46,8 @@ int (*tscProcessMsgRsp[TSDB_SQL_MAX])(SSqlObj *pSql);
 void (*tscUpdateVnodeMsg[TSDB_SQL_MAX])(SSqlObj *pSql, char *buf);
 void tscProcessActivityTimer(void *handle, void *tmrId);
 int tscKeepConn[TSDB_SQL_MAX] = {0};
+TSKEY tscGetSubscriptionProgress(SSqlObj* pSql, int64_t uid);
+void tscUpdateSubscriptionProgress(SSqlObj* pSql, int64_t uid, TSKEY ts);
 
 static int32_t minMsgSize() { return tsRpcHeadSize + sizeof(STaosDigest); }
 
@@ -3526,7 +3528,6 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   return 0;
 }
 
-void tscUpdateSubscriptionProgress(SSqlObj* pSql, int64_t uid, TSKEY ts);
 int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
