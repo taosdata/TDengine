@@ -872,9 +872,8 @@ static int32_t loadDataBlockIntoMem(SCompBlock *pBlock, SField **pField, SQueryR
 
   int32_t status = vnodeIsDatablockLoaded(pRuntimeEnv, pMeterObj, fileIdx, loadPrimaryCol);
   if (status == DISK_BLOCK_NO_NEED_TO_LOAD) {
-    dTrace(
-        "QInfo:%p vid:%d sid:%d id:%s, fileId:%d, data block has been loaded, no need to load again, ts:%d, slot:%d, "
-        "brange:%lld-%lld, rows:%d",
+    dTrace("QInfo:%p vid:%d sid:%d id:%s, fileId:%d, data block has been loaded, no need to load again, ts:%d, slot:%d,"
+        " brange:%lld-%lld, rows:%d",
         GET_QINFO_ADDR(pQuery), pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->fileId, loadPrimaryCol,
         pQuery->slot, pBlock->keyFirst, pBlock->keyLast, pBlock->numOfPoints);
   
@@ -1176,7 +1175,7 @@ static bool getQualifiedDataBlock(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRunti
 
   // load first data block into memory failed, caused by disk block error
   bool blockLoaded = false;
-  while (blkIdx < pQuery->numOfBlocks) {
+  while (blkIdx < pQuery->numOfBlocks && blkIdx >= 0) {
     pQuery->slot = blkIdx;
     if (loadDataBlockIntoMem(&pQuery->pBlock[pQuery->slot], &pQuery->pFields[pQuery->slot], pRuntimeEnv, fid, true,
                              true) == 0) {
@@ -2893,8 +2892,7 @@ static bool doGetQueryPos(TSKEY key, SMeterQuerySupportObj *pSupporter, SPointIn
 /**
  * determine the first query range, according to raw query range [skey, ekey] and group-by interval.
  * the time interval for aggregating is not enforced to check its validation, the minimum interval is not less than
- * 10ms,
- * which is guaranteed by parser at client-side
+ * 10ms, which is guaranteed by parser at client-side
  */
 bool normalizedFirstQueryRange(bool dataInDisk, bool dataInCache, SMeterQuerySupportObj *pSupporter,
                                SPointInterpoSupporter *pPointInterpSupporter) {
