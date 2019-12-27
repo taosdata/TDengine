@@ -952,6 +952,9 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
     return code;
   }
 
+  ASSERT(((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList)) 
+      || ((NULL != pSql->asyncTblPos) && (NULL != pSql->pTableHashList)));
+
   if ((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList)) {
     pSql->pTableHashList  = taosInitIntHash(128, POINTER_BYTES, taosHashInt);
     pSql->cmd.pDataBlocks = tscCreateBlockArrayList();
@@ -960,6 +963,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;
     }
   } else {
+    ASSERT((NULL != pSql->asyncTblPos) && (NULL != pSql->pTableHashList));
     str = pSql->asyncTblPos;
   }
   
@@ -997,8 +1001,13 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
     void *fp = pSql->fp;
     if ((code = tscParseSqlForCreateTableOnDemand(&str, pSql)) != TSDB_CODE_SUCCESS) {
       if (fp != NULL) {
-        //goto _clean;
-        return code;
+        if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
+          tscTrace("async insert and waiting to get meter meta, then continue parse sql: %s", pSql->asyncTblPos);
+          return code;
+        }
+        tscTrace("async insert parse error, code:%d, %s", code, tsError[code]);
+        pSql->asyncTblPos = NULL;
+        goto _error_clean;       // TODO: should _clean or _error_clean to async flow ????
       } else {
         /*
          * for async insert, the free data block operations, which is tscDestroyBlockArrayList,
@@ -1239,9 +1248,11 @@ int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion) {
   tscRemoveAllMeterMetaInfo(&pSql->cmd, false);
   
   if (NULL == pSql->asyncTblPos) {
-    tscTrace("continue parse sql: %s", pSql->asyncTblPos);
     tscCleanSqlCmd(&pSql->cmd);
+  } else {
+    tscTrace("continue parse sql: %s", pSql->asyncTblPos);
   }
+  
 
   if (tscIsInsertOrImportData(pSql->sqlstr)) {
     /*
