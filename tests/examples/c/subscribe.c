@@ -6,38 +6,76 @@
 #include <string.h>
 #include <taos.h>  // include TDengine header file
 
+
+void print_result(TAOS_RES* res) {
+  TAOS_ROW    row;
+  int         num_fields = taos_num_fields(res);
+  TAOS_FIELD* fields = taos_fetch_fields(res);
+
+  while ((row = taos_fetch_row(res))) {
+    char temp[256];
+    taos_print_row(temp, row, fields, num_fields);
+    puts(temp);
+  }
+}
+
+void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code) {
+  print_result(res);
+}
+
+
 int main(int argc, char *argv[]) {
+  const char* host = "127.0.0.1";
+  const char* user = "root";
+  const char* passwd = "taosdata";
+  int async = 1;
+  TAOS_SUB* tsub = NULL;
+
+  for (int i = 1; i < argc; i++) {
+    if (strncmp(argv[i], "-h=", 3) == 0) {
+      host = argv[i] + 3;
+      continue;
+    }
+    if (strncmp(argv[i], "-u=", 3) == 0) {
+      user = argv[i] + 3;
+      continue;
+    }
+    if (strncmp(argv[i], "-p=", 3) == 0) {
+      passwd = argv[i] + 3;
+      continue;
+    }
+    if (strncmp(argv[i], "-m=", 3) == 0) {
+      async = strcmp(argv[i] + 3, "sync");
+      continue;
+    }
+  }
+
   // init TAOS
   taos_init();
 
-  TAOS* taos = taos_connect(argv[1], "root", "taosdata", "test", 0);
+  TAOS* taos = taos_connect(host, user, passwd, "test", 0);
   if (taos == NULL) {
     printf("failed to connect to db, reason:%s\n", taos_errstr(taos));
     exit(1);
   }
 
-  TAOS_SUB* tsub = taos_subscribe(taos, "select * from meters;", NULL, NULL, 0);
-  if ( tsub == NULL ) {
+  if (async) {
+    tsub = taos_subscribe(taos, "select * from meters;", subscribe_callback, NULL, 1000);
+  } else {
+    tsub = taos_subscribe(taos, "select * from meters;", NULL, NULL, 0);
+  }
+
+  if (tsub == NULL) {
     printf("failed to create subscription.\n");
     exit(0);
   } 
 
-  for( int i = 0; i < 3; i++ ) {
+  if (async) {
+    getchar();
+  } else while(1) {
     TAOS_RES* res = taos_consume(tsub);
-    TAOS_ROW    row;
-    int         rows = 0;
-    int         num_fields = taos_subfields_count(tsub);
-    TAOS_FIELD *fields = taos_fetch_fields(res);
-    char        temp[256];
-
-    // fetch the records row by row
-    while ((row = taos_fetch_row(res))) {
-      rows++;
-      taos_print_row(temp, row, fields, num_fields);
-      printf("%s\n", temp);
-    }
-
-    printf("\n");
+    print_result(res);
+    getchar();
   }
 
   taos_unsubscribe(tsub);
