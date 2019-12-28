@@ -115,7 +115,7 @@ class TDTestCase:
     conn.close() 
 
   def run(self):
-    self.ntables = 2000
+    self.ntables = 200
     self.nrowsPerBatch = 200+randint(0,100)
     self.nbatchs = 10
     self.nthreads = 5 
@@ -135,7 +135,7 @@ class TDTestCase:
 
     tdSql.execute('reset query cache')
     tdSql.execute('drop database if exists db')
-    tdSql.execute('create database db ')
+    tdSql.execute('create database db tables 50')
     tdLog.sleep(5)
     tdSql.execute('use db')
 
