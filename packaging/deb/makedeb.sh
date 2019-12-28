@@ -1,13 +1,17 @@
 #!/bin/bash
 #
 # Generate deb package for ubuntu
-# set -x
+set -e
+#set -x
 
 #curr_dir=$(pwd)
 compile_dir=$1
 output_dir=$2
 tdengine_ver=$3
-armver=$4
+cpuType=$4
+osType=$5
+verMode=$6
+verType=$7
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
@@ -64,15 +68,24 @@ debver="Version: "$tdengine_ver
 sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
  
 #get taos version, then set deb name
-if [ -z "$armver" ]; then
-  debname="TDengine-"${tdengine_ver}".deb"
-elif [ "$armver" == "arm64" ]; then
-  debname="TDengine-"${tdengine_ver}"-arm64.deb"
-elif [ "$armver" == "arm32" ]; then
-  debname="TDengine-"${tdengine_ver}"-arm32.deb"
+
+
+if [ "$verMode" == "cluster" ]; then
+  debname="TDengine-server-"${tdengine_ver}-${osType}-${cpuType}
+elif [ "$verMode" == "lite" ]; then
+  debname="TDengine-server-edge"-${tdengine_ver}-${osType}-${cpuType}
 else
-  echo "input parameter error!!!"
-  return
+  echo "unknow verMode, nor cluster or lite"
+  exit 1
+fi
+
+if [ "$verType" == "beta" ]; then
+  debname=${debname}-${verType}".deb"
+elif [ "$verType" == "stable" ]; then 
+  debname=${debname}".deb"
+else
+  echo "unknow verType, nor stabel or beta"
+  exit 1
 fi
 
 # make deb package
