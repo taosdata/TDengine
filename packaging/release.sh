@@ -149,13 +149,19 @@ echo "char compatible_version[64] = \"${compatible_version}\";"      >> ${versio
 echo "char gitinfo[128] = \"$(git rev-parse --verify HEAD)\";"       >> ${versioninfo}
 echo "char gitinfoOfInternal[128] = \"\";"                           >> ${versioninfo}
 echo "char buildinfo[512] = \"Built by ${USER} at ${build_time}\";"  >> ${versioninfo}
-
 echo ""                                                              >> ${versioninfo}
 tmp_version=$(echo $version | tr -s "." "_")
-echo "void libtaos_edge_${tmp_version}_${osType}_${cpuType}() {};"   >> ${versioninfo}
+if [ "$verMode" == "cluster" ]; then
+  libtaos_info=${tmp_version}_${osType}_${cpuType}
+else
+  libtaos_info=edge_${tmp_version}_${osType}_${cpuType}
+fi
+if [ "$verType" == "beta" ]; then
+  libtaos_info=${libtaos_info}_${verType}
+fi
+echo "void libtaos_${libtaos_info}() {};"        >> ${versioninfo}
 
 # 2. cmake executable file
-
 compile_dir="${top_dir}/debug"
 if [ -d ${compile_dir} ]; then
     ${csudo} rm -rf ${compile_dir}
