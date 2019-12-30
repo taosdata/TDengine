@@ -449,9 +449,17 @@ int main(int argc, char **argv) {
         total = strtol(argv[4], NULL, 10);
     }
     
-    executeSQL(conn, "use testselectwheretags", NULL);
+    executeSQL(conn, "use demodb", NULL);
+    executeSQL(conn, "alter table m1 change tag a bbc", NULL);
+//    createEnvironment(conn, 5, 5, 100, 30);
+//    executeSQL(conn, "show stables", NULL);
+//    executeSQL(conn, "CREATE database TU1", NULL);
     // selectivity + tags/ts + group by normal columns
-    executeSQL(conn, "select tbname, line from st1 where tbname in ('a13')", NULL);
+//    executeSQL(conn, "(select count(*) from test where ts<'1970-1-1 8:1:40.9') union "
+//                     "(select count(*) from test where ts<'1970-1-1 8:1:40.9')", NULL);
+//    executeSQL(conn, "select count(*) from test where ts<'1970-1-1 8:1:40.9' union "
+//                   "select count(*) from test where ts<'1970-1-1 8:1:40.9'", NULL);
+  
 //    createEnvironment(conn, 5000, 5000, 100, 30);
 //    executeSQL(conn, "select last_row(ts) from m1 where tbname in ('tm0', 'tm1') group by tbname", NULL);
 //    executeSQL(conn, "select top(k, 5) from tm0", NULL);
