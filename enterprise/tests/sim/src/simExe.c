@@ -25,7 +25,7 @@ void simLogSql(char *sql) {
   if (fp == NULL) {
     fp = fopen("bug.sql", "w");
     if (fp == NULL) {
-      fprintf(stderr, "ERROR: failed to open file: sim.sql\n");
+      fprintf(stderr, "ERROR: failed to open file: bug.sql\n");
       return;
     }
   }
