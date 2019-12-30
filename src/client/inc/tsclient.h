@@ -43,66 +43,6 @@ extern "C" {
   ((res->data + tscFieldInfoGetOffset(cmd, col) * res->numOfRows) + \
    (1 - ord.order) * (res->numOfRows - 1) * tscFieldInfoGetField(cmd, col)->bytes)
 
-enum _sql_cmd {
-  TSDB_SQL_SELECT,
-  TSDB_SQL_FETCH,
-  TSDB_SQL_INSERT,
-
-  TSDB_SQL_MGMT,  // the SQL below is for mgmt node
-  TSDB_SQL_CREATE_DB,
-  TSDB_SQL_CREATE_TABLE,
-  TSDB_SQL_DROP_DB,
-  TSDB_SQL_DROP_TABLE,
-  TSDB_SQL_CREATE_ACCT,
-  TSDB_SQL_CREATE_USER,
-  TSDB_SQL_DROP_ACCT,  // 10
-  TSDB_SQL_DROP_USER,
-  TSDB_SQL_ALTER_USER,
-  TSDB_SQL_ALTER_ACCT,
-  TSDB_SQL_ALTER_TABLE,
-  TSDB_SQL_ALTER_DB,
-  TSDB_SQL_CREATE_MNODE,
-  TSDB_SQL_DROP_MNODE,
-  TSDB_SQL_CREATE_DNODE,
-  TSDB_SQL_DROP_DNODE,
-  TSDB_SQL_CFG_DNODE,  // 20
-  TSDB_SQL_CFG_MNODE,
-  TSDB_SQL_SHOW,
-  TSDB_SQL_RETRIEVE,
-  TSDB_SQL_KILL_QUERY,
-  TSDB_SQL_KILL_STREAM,
-  TSDB_SQL_KILL_CONNECTION,
-
-  TSDB_SQL_READ,  // SQL below is for read operation
-  TSDB_SQL_CONNECT,
-  TSDB_SQL_USE_DB,
-  TSDB_SQL_META,  // 30
-  TSDB_SQL_METRIC,
-  TSDB_SQL_MULTI_META,
-  TSDB_SQL_HB,
-
-  TSDB_SQL_LOCAL,  // SQL below for client local
-  TSDB_SQL_DESCRIBE_TABLE,
-  TSDB_SQL_RETRIEVE_METRIC,
-  TSDB_SQL_METRIC_JOIN_RETRIEVE,
-  TSDB_SQL_RETRIEVE_TAGS,
-  /*
-   * build empty result instead of accessing dnode to fetch result
-   * reset the client cache
-   */
-  TSDB_SQL_RETRIEVE_EMPTY_RESULT,
-
-  TSDB_SQL_RESET_CACHE,  // 40
-  TSDB_SQL_SERV_STATUS,
-  TSDB_SQL_CURRENT_DB,
-  TSDB_SQL_SERV_VERSION,
-  TSDB_SQL_CLI_VERSION,
-  TSDB_SQL_CURRENT_USER,
-  TSDB_SQL_CFG_LOCAL,
-
-  TSDB_SQL_MAX
-};
-
 // forward declaration
 struct SSqlInfo;
 
@@ -267,6 +207,28 @@ typedef struct SDataBlockList {
   STableDataBlocks **pData;
 } SDataBlockList;
 
+typedef struct SQueryInfo {
+  char            intervalTimeUnit;
+  
+  int64_t         etime, stime;
+  int64_t         nAggTimeInterval;  // aggregation time interval
+  int64_t         nSlidingTime;      // sliding window in mseconds
+  SSqlGroupbyExpr groupbyExpr;       // group by tags info
+  
+  SColumnBaseInfo colList;
+  SFieldInfo      fieldsInfo;
+  SSqlExprInfo    exprsInfo;
+  SLimitVal       limit;
+  SLimitVal       slimit;
+  STagCond        tagCond;
+  int16_t         interpoType;  // interpolate type
+  int16_t         numOfTables;
+  SMeterMetaInfo **pMeterInfo;
+  struct STSBuf *  tsBuf;
+  // todo use dynamic allocated memory for defaultVal
+  int64_t defaultVal[TSDB_MAX_COLUMNS];  // default value for interpolation
+} SQueryInfo;
+
 typedef struct {
   SOrderVal order;
   int       command;
@@ -274,18 +236,12 @@ typedef struct {
 
   union {
     bool   existsCheck;  // check if the table exists
-    int8_t showType;     // show command type
+    bool   import;       // import/insert type
   };
 
   int8_t          isInsertFromFile;  // load data from file or not
-  bool            import;            // import/insert type
   uint8_t         msgType;
   uint16_t        type;  // query type
-  char            intervalTimeUnit;
-  int64_t         etime, stime;
-  int64_t         nAggTimeInterval;  // aggregation time interval
-  int64_t         nSlidingTime;      // sliding window in mseconds
-  SSqlGroupbyExpr groupbyExpr;       // group by tags info
 
   /*
    * use to keep short request msg and error msg, in such case, SSqlCmd->payload == SSqlCmd->ext;
@@ -297,22 +253,32 @@ typedef struct {
   char *          payload;
   int             payloadLen;
   short           numOfCols;
-  SColumnBaseInfo colList;
-  SFieldInfo      fieldsInfo;
-  SSqlExprInfo    exprsInfo;
-  SLimitVal       limit;
-  SLimitVal       slimit;
   int64_t         globalLimit;
-  STagCond        tagCond;
-  int16_t         interpoType;  // interpolate type
-  int16_t         numOfTables;
+  
+  SQueryInfo     *pQueryInfo;
+  int32_t         numOfQueries;
+  
+//  char            intervalTimeUnit;
+//  int64_t         etime, stime;
+//  int64_t         nAggTimeInterval;  // aggregation time interval
+//  int64_t         nSlidingTime;      // sliding window in mseconds
+//  SSqlGroupbyExpr groupbyExpr;       // group by tags info
+//
+//  SColumnBaseInfo colList;
+//  SFieldInfo      fieldsInfo;
+//  SSqlExprInfo    exprsInfo;
+//  SLimitVal       limit;
+//  SLimitVal       slimit;
+//  STagCond        tagCond;
+//  int16_t         interpoType;  // interpolate type
+//  int16_t         numOfTables;
+//  SMeterMetaInfo **pMeterInfo;
+//  struct STSBuf *  tsBuf;
+//  // todo use dynamic allocated memory for defaultVal
+//  int64_t defaultVal[TSDB_MAX_COLUMNS];  // default value for interpolation
 
   // submit data blocks branched according to vnode
   SDataBlockList * pDataBlocks;
-  SMeterMetaInfo **pMeterInfo;
-  struct STSBuf *  tsBuf;
-  // todo use dynamic allocated memory for defaultVal
-  int64_t defaultVal[TSDB_MAX_COLUMNS];  // default value for interpolation
 
   // for parameter ('?') binding and batch processing
   int32_t batchSize;
@@ -435,6 +401,8 @@ typedef struct {
 int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion);
 
 void  tscInitMsgs();
+extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
+
 void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle);
 int   tscProcessSql(SSqlObj *pSql);
 

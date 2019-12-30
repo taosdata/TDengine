@@ -3383,6 +3383,10 @@ void forwardQueryStartPosition(SQueryRuntimeEnv *pRuntimeEnv) {
     updateOffsetVal(pRuntimeEnv, &blockInfo, pBlock);
   } else {
     pQuery->limit.offset -= maxReads;
+    
+    // update the lastkey, since the following skip operation may traverse to another media. update the lastkey first.
+    pQuery->lastKey = (QUERY_IS_ASC_QUERY(pQuery))? blockInfo.keyLast+1:blockInfo.keyFirst-1;
+    
     doSkipDataBlock(pRuntimeEnv);
   }
 }

@@ -254,16 +254,16 @@ static int32_t tscBuildMeterSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
 
   pCmd->order.order = TSQL_SO_ASC;
 
-  tscFieldInfoSetValue(&pCmd->fieldsInfo, 0, TSDB_DATA_TYPE_BINARY, "Field", TSDB_COL_NAME_LEN);
+  tscFieldInfoSetValue(&pCmd->pQueryInfo->fieldsInfo, 0, TSDB_DATA_TYPE_BINARY, "Field", TSDB_COL_NAME_LEN);
   rowLen += TSDB_COL_NAME_LEN;
 
-  tscFieldInfoSetValue(&pCmd->fieldsInfo, 1, TSDB_DATA_TYPE_BINARY, "Type", typeColLength);
+  tscFieldInfoSetValue(&pCmd->pQueryInfo->fieldsInfo, 1, TSDB_DATA_TYPE_BINARY, "Type", typeColLength);
   rowLen += typeColLength;
 
-  tscFieldInfoSetValue(&pCmd->fieldsInfo, 2, TSDB_DATA_TYPE_INT, "Length", sizeof(int32_t));
+  tscFieldInfoSetValue(&pCmd->pQueryInfo->fieldsInfo, 2, TSDB_DATA_TYPE_INT, "Length", sizeof(int32_t));
   rowLen += sizeof(int32_t);
 
-  tscFieldInfoSetValue(&pCmd->fieldsInfo, 3, TSDB_DATA_TYPE_BINARY, "Note", noteColLength);
+  tscFieldInfoSetValue(&pCmd->pQueryInfo->fieldsInfo, 3, TSDB_DATA_TYPE_BINARY, "Note", noteColLength);
   rowLen += noteColLength;
 
   return rowLen;
@@ -321,7 +321,7 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
     for (int32_t j = 0; j < pSidList->numOfSids; ++j) {
       SMeterSidExtInfo *pSidExt = tscGetMeterSidInfo(pSidList, j);
 
-      for (int32_t k = 0; k < pCmd->fieldsInfo.numOfOutputCols; ++k) {
+      for (int32_t k = 0; k < pCmd->pQueryInfo->fieldsInfo.numOfOutputCols; ++k) {
         SColIndexEx *pColIndex = &tscSqlExprGet(pCmd, k)->colInfo;
         int16_t      offsetId = pColIndex->colIdx;
 
@@ -352,7 +352,7 @@ static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
 
   int32_t rowIdx = 0;
   for (int32_t i = 0; i < totalNumOfResults; ++i) {
-    for (int32_t k = 0; k < pCmd->fieldsInfo.numOfOutputCols; ++k) {
+    for (int32_t k = 0; k < pCmd->pQueryInfo[0].fieldsInfo.numOfOutputCols; ++k) {
       SSqlExpr *pExpr = tscSqlExprGet(pCmd, i);
 
       if (pExpr->colInfo.colIdx == -1 && pExpr->functionId == TSDB_FUNC_COUNT) {
@@ -444,7 +444,7 @@ void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnNa
   pCmd->numOfCols = 1;
   pCmd->order.order = TSQL_SO_ASC;
 
-  tscFieldInfoSetValue(&pCmd->fieldsInfo, 0, TSDB_DATA_TYPE_BINARY, columnName, valueLength);
+  tscFieldInfoSetValue(&pCmd->pQueryInfo[0].fieldsInfo, 0, TSDB_DATA_TYPE_BINARY, columnName, valueLength);
   tscInitResObjForLocalQuery(pSql, 1, valueLength);
 
   TAOS_FIELD *pField = tscFieldInfoGetField(pCmd, 0);

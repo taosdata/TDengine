@@ -131,8 +131,8 @@ static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOf
     }
 
     /* update the limit value according to current retrieval results */
-    pCmd->limit.limit = pCmd->globalLimit - pRes->numOfTotal;
-    pCmd->limit.offset = pRes->offset;
+    pCmd->pQueryInfo->limit.limit = pCmd->globalLimit - pRes->numOfTotal;
+    pCmd->pQueryInfo->limit.offset = pRes->offset;
 
     if ((++(pMeterMetaInfo->vnodeIndex)) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
       tscTrace("%p retrieve data from next vnode:%d", pSql, pMeterMetaInfo->vnodeIndex);
@@ -282,7 +282,7 @@ void tscProcessAsyncRetrieve(void *param, TAOS_RES *tres, int numOfRows) {
       }
 
       /* update the limit value according to current retrieval results */
-      pCmd->limit.limit = pCmd->globalLimit - pRes->numOfTotal;
+      pCmd->pQueryInfo->limit.limit = pCmd->globalLimit - pRes->numOfTotal;
 
       if ((++pMeterMetaInfo->vnodeIndex) <= pMeterMetaInfo->pMetricMeta->numOfVnodes) {
         pSql->cmd.command = TSDB_SQL_SELECT;  // reset flag to launch query first.
@@ -407,7 +407,7 @@ void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows) 
   assert(!pCmd->isInsertFromFile && pSql->signature == pSql);
   
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
-  assert(pCmd->numOfTables == 1);
+  assert(pCmd->pQueryInfo->numOfTables == 1);
   
   SDataBlockList *pDataBlocks = pCmd->pDataBlocks;
   if (pDataBlocks == NULL || pMeterMetaInfo->vnodeIndex >= pDataBlocks->nSize) {

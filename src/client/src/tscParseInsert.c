@@ -18,6 +18,7 @@
 
 #define _XOPEN_SOURCE
 
+#include <hash.h>
 #include "os.h"
 #include "ihash.h"
 #include "tscSecondaryMerge.h"
@@ -953,7 +954,8 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
   }
 
   if ((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList)) {
-    pSql->pTableHashList  = taosInitIntHash(128, POINTER_BYTES, taosHashInt);
+    pSql->pTableHashList  = taosInitHashTable(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+    
     pSql->cmd.pDataBlocks = tscCreateBlockArrayList();
     if (NULL == pSql->pTableHashList || NULL == pSql->cmd.pDataBlocks) {
       code = TSDB_CODE_CLI_OUT_OF_MEMORY;
@@ -1239,8 +1241,9 @@ int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion) {
   tscRemoveAllMeterMetaInfo(&pSql->cmd, false);
   
   if (NULL == pSql->asyncTblPos) {
-    tscTrace("continue parse sql: %s", pSql->asyncTblPos);
     tscCleanSqlCmd(&pSql->cmd);
+  } else {
+    tscTrace("continue parse sql: %s", pSql->asyncTblPos);
   }
 
   if (tscIsInsertOrImportData(pSql->sqlstr)) {

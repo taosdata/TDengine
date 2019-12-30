@@ -28,7 +28,7 @@
 #include "tsocket.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "ihash.h"
+#include "hash.h"
 
 TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const char *db, uint16_t port,
                        void (*fp)(void *, TAOS_RES *, int), void *param, void **taos) {
@@ -207,7 +207,7 @@ int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
   pRes->numOfTotal = 0;
   pSql->asyncTblPos = NULL;
   if (NULL != pSql->pTableHashList) {
-    taosCleanUpIntHash(pSql->pTableHashList);
+    taosCleanUpHashTable(pSql->pTableHashList);
     pSql->pTableHashList = NULL;
   }
   
@@ -298,7 +298,7 @@ int taos_num_fields(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
-  SFieldInfo *pFieldsInfo = &pSql->cmd.fieldsInfo;
+  SFieldInfo *pFieldsInfo = &pSql->cmd.pQueryInfo[0].fieldsInfo;
 
   return (pFieldsInfo->numOfOutputCols - pFieldsInfo->numOfHiddenCols);
 }
@@ -321,7 +321,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
-  return pSql->cmd.fieldsInfo.pFields;
+  return pSql->cmd.pQueryInfo[0].fieldsInfo.pFields;
 }
 
 int taos_retrieve(TAOS_RES *res) {
@@ -370,7 +370,7 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
     pRes->numOfTotal += pRes->numOfRows;
   }
 
-  for (int i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
+  for (int i = 0; i < pCmd->pQueryInfo[0].fieldsInfo.numOfOutputCols; ++i) {
     pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pCmd, i, pCmd->order) +
                      pRes->bytes[i] * (1 - pCmd->order.order) * (pRes->numOfRows - 1);
   }
@@ -386,11 +386,11 @@ static void **doSetResultRowData(SSqlObj *pSql) {
 
   int32_t num = 0;
 
-  for (int i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
+  for (int i = 0; i < pCmd->pQueryInfo[0].fieldsInfo.numOfOutputCols; ++i) {
     pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pCmd, i, pCmd->order) + pRes->bytes[i] * pRes->row;
 
     // primary key column cannot be null in interval query, no need to check
-    if (i == 0 && pCmd->nAggTimeInterval > 0) {
+    if (i == 0 && pCmd->pQueryInfo[0].nAggTimeInterval > 0) {
       continue;
     }
 
@@ -419,7 +419,7 @@ static void **doSetResultRowData(SSqlObj *pSql) {
     }
   }
 
-  assert(num <= pCmd->fieldsInfo.numOfOutputCols);
+  assert(num <= pCmd->pQueryInfo[0].fieldsInfo.numOfOutputCols);
 
   return pRes->tsrow;
 }
@@ -445,7 +445,7 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
       SSqlCmd *pCmd1 = &pSql->pSubs[i]->cmd;
 
       SMeterMetaInfo *pMetaInfo = tscGetMeterMetaInfo(pCmd1, 0);
-      assert(pCmd1->numOfTables == 1);
+      assert(pCmd1->pQueryInfo[0].numOfTables == 1);
 
       /*
        * if the global limitation is not reached, and current result has not exhausted, or next more vnodes are
@@ -500,7 +500,7 @@ static void **tscJoinResultsetFromBuf(SSqlObj *pSql) {
     }
 
     if (pRes->tsrow == NULL) {
-      pRes->tsrow = malloc(POINTER_BYTES * pCmd->exprsInfo.numOfExprs);
+      pRes->tsrow = malloc(POINTER_BYTES * pCmd->pQueryInfo[0].exprsInfo.numOfExprs);
     }
 
     bool success = false;
@@ -526,7 +526,7 @@ static void **tscJoinResultsetFromBuf(SSqlObj *pSql) {
     }
 
     if (success) {  // current row of final output has been built, return to app
-      for (int32_t i = 0; i < pCmd->exprsInfo.numOfExprs; ++i) {
+      for (int32_t i = 0; i < pCmd->pQueryInfo[0].exprsInfo.numOfExprs; ++i) {
         int32_t tableIndex = pRes->pColumnIndex[i].tableIndex;
         int32_t columnIndex = pRes->pColumnIndex[i].columnIndex;
 
@@ -611,8 +611,8 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
      * update the limit and offset value according to current retrieval results
      * Note: if pRes->offset > 0, pRes->numOfRows = 0, pRes->numOfTotal = 0;
      */
-    pCmd->limit.limit = pCmd->globalLimit - pRes->numOfTotal;
-    pCmd->limit.offset = pRes->offset;
+    pCmd->pQueryInfo->limit.limit = pCmd->globalLimit - pRes->numOfTotal;
+    pCmd->pQueryInfo->limit.offset = pRes->offset;
 
     assert((pRes->offset >= 0 && pRes->numOfRows == 0) || (pRes->offset == 0 && pRes->numOfRows >= 0));
 
@@ -665,8 +665,8 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
     SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
 
     /* update the limit value according to current retrieval results */
-    pCmd->limit.limit = pSql->cmd.globalLimit - pRes->numOfTotal;
-    pCmd->limit.offset = pRes->offset;
+    pCmd->pQueryInfo->limit.limit = pSql->cmd.globalLimit - pRes->numOfTotal;
+    pCmd->pQueryInfo->limit.offset = pRes->offset;
 
     if ((++pMeterMetaInfo->vnodeIndex) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
       pSql->cmd.command = TSDB_SQL_SELECT;
@@ -956,7 +956,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   pSql->asyncTblPos = NULL;
   if (NULL != pSql->pTableHashList) {
-    taosCleanUpIntHash(pSql->pTableHashList);
+    taosCleanUpHashTable(pSql->pTableHashList);
     pSql->pTableHashList = NULL;
   }
 

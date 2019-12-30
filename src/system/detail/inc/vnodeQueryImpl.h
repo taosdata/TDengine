@@ -22,7 +22,8 @@ extern "C" {
 
 #include "os.h"
 
-#include "ihash.h"
+#include "hash.h"
+#include "hashutil.h"
 
 #define GET_QINFO_ADDR(x)    ((char*)(x)-offsetof(SQInfo, query))
 #define Q_STATUS_EQUAL(p, s) (((p) & (s)) != 0)
@@ -117,11 +118,9 @@ typedef enum {
 #define SET_MASTER_SCAN_FLAG(runtime) ((runtime)->scanFlag = MASTER_SCAN)
 
 typedef int (*__block_search_fn_t)(char* data, int num, int64_t key, int order);
-typedef int32_t (*__read_data_fn_t)(int fd, SQInfo* pQInfo, SQueryFilesInfo* pQueryFile, char* buf, uint64_t offset,
-                                    int32_t size);
 
 static FORCE_INLINE SMeterObj* getMeterObj(void* hashHandle, int32_t sid) {
-  return *(SMeterObj**)taosGetIntHashData(hashHandle, sid);
+  return *(SMeterObj**)taosGetDataFromHash(hashHandle, (const char*) &sid, sizeof(sid));
 }
 
 bool isQueryKilled(SQuery* pQuery);

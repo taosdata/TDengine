@@ -134,6 +134,7 @@ TAOS_FIELD* tscFieldInfoGetField(SSqlCmd* pCmd, int32_t index);
 int16_t     tscFieldInfoGetOffset(SSqlCmd* pCmd, int32_t index);
 int32_t     tscGetResRowLength(SSqlCmd* pCmd);
 void        tscClearFieldInfo(SFieldInfo* pFieldInfo);
+int32_t tscNumOfFields(SSqlCmd* pCmd);
 
 void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes, int16_t tableIndex);
 
@@ -186,6 +187,7 @@ void            tscClearMeterMetaInfo(SMeterMetaInfo* pMeterMetaInfo, bool remov
 SMeterMetaInfo* tscAddMeterMetaInfo(SSqlCmd* pCmd, const char* name, SMeterMeta* pMeterMeta, SMetricMeta* pMetricMeta,
                                     int16_t numOfTags, int16_t* tags);
 SMeterMetaInfo* tscAddEmptyMeterMetaInfo(SSqlCmd* pCmd);
+int32_t tscAddQueryInfo(SSqlCmd *pCmd);
 
 void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, char* keyStr, uint64_t uid);
 int  tscGetMetricMeta(SSqlObj* pSql);

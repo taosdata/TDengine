@@ -21,17 +21,77 @@ extern "C" {
 #endif
 
 #include "taos.h"
+#include "taosmsg.h"
 #include "tsqldef.h"
 #include "ttypes.h"
-#include "taosmsg.h"
+
+enum _sql_cmd {
+  TSDB_SQL_SELECT = 1,
+  TSDB_SQL_FETCH,
+  TSDB_SQL_INSERT,
+  
+  TSDB_SQL_MGMT,  // the SQL below is for mgmt node
+  TSDB_SQL_CREATE_DB,
+  TSDB_SQL_CREATE_TABLE,
+  TSDB_SQL_DROP_DB,
+  TSDB_SQL_DROP_TABLE,
+  TSDB_SQL_CREATE_ACCT,
+  TSDB_SQL_CREATE_USER,  //10
+  TSDB_SQL_DROP_ACCT,
+  TSDB_SQL_DROP_USER,
+  TSDB_SQL_ALTER_USER,
+  TSDB_SQL_ALTER_ACCT,
+  TSDB_SQL_ALTER_TABLE,
+  TSDB_SQL_ALTER_DB,
+  TSDB_SQL_CREATE_MNODE,
+  TSDB_SQL_DROP_MNODE,
+  TSDB_SQL_CREATE_DNODE,
+  TSDB_SQL_DROP_DNODE,  // 20
+  TSDB_SQL_CFG_DNODE,
+  TSDB_SQL_CFG_MNODE,
+  TSDB_SQL_SHOW,
+  TSDB_SQL_RETRIEVE,
+  TSDB_SQL_KILL_QUERY,
+  TSDB_SQL_KILL_STREAM,
+  TSDB_SQL_KILL_CONNECTION,
+  
+  TSDB_SQL_READ,  // SQL below is for read operation
+  TSDB_SQL_CONNECT,
+  TSDB_SQL_USE_DB,    // 30
+  TSDB_SQL_META,
+  TSDB_SQL_METRIC,
+  TSDB_SQL_MULTI_META,
+  TSDB_SQL_HB,
+  
+  TSDB_SQL_LOCAL,  // SQL below for client local
+  TSDB_SQL_DESCRIBE_TABLE,
+  TSDB_SQL_RETRIEVE_METRIC,
+  TSDB_SQL_METRIC_JOIN_RETRIEVE,
+  TSDB_SQL_RETRIEVE_TAGS,
+  /*
+   * build empty result instead of accessing dnode to fetch result
+   * reset the client cache
+   */
+  TSDB_SQL_RETRIEVE_EMPTY_RESULT,  //40
+  
+  TSDB_SQL_RESET_CACHE,
+  TSDB_SQL_SERV_STATUS,
+  TSDB_SQL_CURRENT_DB,
+  TSDB_SQL_SERV_VERSION,
+  TSDB_SQL_CLI_VERSION,
+  TSDB_SQL_CURRENT_USER,
+  TSDB_SQL_CFG_LOCAL,
+  
+  TSDB_SQL_MAX   //48
+};
 
 #define MAX_TOKEN_LEN 30
 
 // token type
 enum {
-  TSQL_NODE_TYPE_EXPR   = 0x1,
-  TSQL_NODE_TYPE_ID     = 0x2,
-  TSQL_NODE_TYPE_VALUE  = 0x4,
+  TSQL_NODE_TYPE_EXPR = 0x1,
+  TSQL_NODE_TYPE_ID = 0x2,
+  TSQL_NODE_TYPE_VALUE = 0x4,
 };
 
 extern char tTokenTypeSwitcher[13];
@@ -72,72 +132,12 @@ typedef struct tFieldList {
   TAOS_FIELD *p;
 } tFieldList;
 
-// sql operation type
+// create table operation type
 enum TSQL_TYPE {
-  TSQL_CREATE_NORMAL_METER = 0x01,
-  TSQL_CREATE_NORMAL_METRIC = 0x02,
-  TSQL_CREATE_METER_FROM_METRIC = 0x04,
-  TSQL_CREATE_STREAM = 0x08,
-  TSQL_QUERY_METER = 0x10,
-  TSQL_INSERT = 0x20,
-
-  DROP_DNODE = 0x40,
-  DROP_DATABASE = 0x41,
-  DROP_TABLE = 0x42,
-  DROP_USER = 0x43,
-  DROP_ACCOUNT = 0x44,
-
-  USE_DATABASE = 0x50,
-
-  // show operation
-  SHOW_DATABASES = 0x60,
-  SHOW_TABLES = 0x61,
-  SHOW_STABLES = 0x62,
-  SHOW_MNODES = 0x63,
-  SHOW_DNODES = 0x64,
-  SHOW_ACCOUNTS = 0x65,
-  SHOW_USERS = 0x66,
-  SHOW_VGROUPS = 0x67,
-  SHOW_QUERIES = 0x68,
-  SHOW_STREAMS = 0x69,
-  SHOW_CONFIGS = 0x6a,
-  SHOW_SCORES = 0x6b,
-  SHOW_MODULES = 0x6c,
-  SHOW_CONNECTIONS = 0x6d,
-  SHOW_GRANTS = 0x6e,
-  SHOW_VNODES = 0x6f,
-
-  // create dnode
-  CREATE_DNODE = 0x80,
-  CREATE_DATABASE = 0x81,
-  CREATE_USER = 0x82,
-  CREATE_ACCOUNT = 0x83,
-
-  DESCRIBE_TABLE = 0x90,
-
-  ALTER_USER_PASSWD = 0xA0,
-  ALTER_USER_PRIVILEGES = 0xA1,
-  ALTER_DNODE = 0xA2,
-  ALTER_LOCAL = 0xA3,
-  ALTER_DATABASE = 0xA4,
-  ALTER_ACCT = 0xA5,
-
-  // reset operation
-  RESET_QUERY_CACHE = 0xB0,
-
-  // alter tags
-  ALTER_TABLE_TAGS_ADD = 0xC0,
-  ALTER_TABLE_TAGS_DROP = 0xC1,
-  ALTER_TABLE_TAGS_CHG = 0xC2,
-  ALTER_TABLE_TAGS_SET = 0xC4,
-
-  // alter table column
-  ALTER_TABLE_ADD_COLUMN = 0xD0,
-  ALTER_TABLE_DROP_COLUMN = 0xD1,
-
-  KILL_QUERY = 0xD2,
-  KILL_STREAM = 0xD3,
-  KILL_CONNECTION = 0xD4,
+  TSQL_CREATE_TABLE = 0x1,
+  TSQL_CREATE_STABLE = 0x2,
+  TSQL_CREATE_TABLE_FROM_STABLE = 0x3,
+  TSQL_CREATE_STREAM = 0x4,
 };
 
 typedef struct SQuerySQL {
@@ -157,32 +157,30 @@ typedef struct SQuerySQL {
 typedef struct SCreateTableSQL {
   struct SSQLToken name;  // meter name, create table [meterName] xxx
   bool             existCheck;
-
+  
+  int8_t           type; // create normal table/from super table/ stream
   struct {
     tFieldList *pTagColumns;  // for normal table, pTagColumns = NULL;
     tFieldList *pColumns;
   } colInfo;
 
   struct {
-    SSQLToken     metricName;  // metric name, for using clause
+    SSQLToken     stableName;  // super table name, for using clause
     tVariantList *pTagVals;    // create by using metric, tag value
+    STagData      tagdata;
   } usingInfo;
 
   SQuerySQL *pSelect;
-
 } SCreateTableSQL;
 
 typedef struct SAlterTableSQL {
   SSQLToken     name;
+  int16_t       type;
+  STagData      tagData;
+  
   tFieldList *  pAddColumns;
-  SSQLToken     dropTagToken;
   tVariantList *varList;  // set t=val or: change src dst
 } SAlterTableSQL;
-
-typedef struct SInsertSQL {
-  SSQLToken                name;
-  struct tSQLExprListList *pValue;
-} SInsertSQL;
 
 typedef struct SCreateDBInfo {
   SSQLToken dbname;
@@ -204,41 +202,68 @@ typedef struct SCreateDBInfo {
 } SCreateDBInfo;
 
 typedef struct SCreateAcctSQL {
-  int32_t   users;
-  int32_t   dbs;
-  int32_t   tseries;
-  int32_t   streams;
-  int32_t   pps;
-  int64_t   storage;
-  int64_t   qtime;
-  int32_t   conns;
+  int32_t   maxUsers;
+  int32_t   maxDbs;
+  int32_t   maxTimeSeries;
+  int32_t   maxStreams;
+  int32_t   maxPointsPerSecond;
+  int64_t   maxStorage;
+  int64_t   maxQueryTime;
+  int32_t   maxConnections;
   SSQLToken stat;
 } SCreateAcctSQL;
+
+typedef struct SShowInfo {
+  uint8_t showType;
+  SSQLToken prefix;
+  SSQLToken pattern;
+} SShowInfo;
+
+typedef struct SUserInfo {
+  SSQLToken user;
+  SSQLToken passwd;
+//  bool      hasPasswd;
+  
+  SSQLToken privilege;
+//  bool      hasPrivilege;
+  
+  int16_t   type;
+} SUserInfo;
 
 typedef struct tDCLSQL {
   int32_t    nTokens; /* Number of expressions on the list */
   int32_t    nAlloc;  /* Number of entries allocated below */
   SSQLToken *a;       /* one entry for element */
+  bool  existsCheck;
 
   union {
     SCreateDBInfo  dbOpt;
     SCreateAcctSQL acctOpt;
+    SShowInfo      showOpt;
+    SSQLToken ip;
   };
+  
+  SUserInfo user;
+  
 } tDCLSQL;
 
+typedef struct SSubclauseInfo {  // "UNION" multiple select sub-clause
+  SQuerySQL **pClause;
+  int32_t     numOfClause;
+} SSubclauseInfo;
+
 typedef struct SSqlInfo {
-  int32_t sqlType;
-  bool    validSql;
+  int32_t type;
+  bool    valid;
 
   union {
     SCreateTableSQL *pCreateTableInfo;
-    SInsertSQL *     pInsertInfo;
     SAlterTableSQL * pAlterInfo;
-    SQuerySQL *      pQueryInfo;
     tDCLSQL *        pDCLInfo;
   };
 
-  char pzErrMsg[256];
+  SSubclauseInfo subclauseInfo;
+  char           pzErrMsg[256];
 } SSqlInfo;
 
 typedef struct tSQLExpr {
@@ -338,31 +363,40 @@ SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, 
 
 SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLToken *pMetricName,
                                     tVariantList *pTagVals, SQuerySQL *pSelect, int32_t type);
-void tSQLExprDestroy(tSQLExpr *);
-void tSQLExprNodeDestroy(tSQLExpr *pExpr);
+
+void      tSQLExprDestroy(tSQLExpr *);
+void      tSQLExprNodeDestroy(tSQLExpr *pExpr);
 tSQLExpr *tSQLExprNodeClone(tSQLExpr *pExpr);
 
 SAlterTableSQL *tAlterTableSQLElems(SSQLToken *pMeterName, tFieldList *pCols, tVariantList *pVals, int32_t type);
 
 tSQLExprListList *tSQLListListAppend(tSQLExprListList *pList, tSQLExprList *pExprList);
 
-void tSetInsertSQLElems(SSqlInfo *pInfo, SSQLToken *pName, tSQLExprListList *pList);
+void destroyAllSelectClause(SSubclauseInfo *pSql);
+void doDestroyQuerySql(SQuerySQL *pSql);
 
-void destroyQuerySql(SQuerySQL *pSql);
+SSqlInfo *      setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SSQLToken *pMeterName, int32_t type);
+SSubclauseInfo *setSubclause(SSubclauseInfo *pClause, void *pSqlExprInfo);
 
-void setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SSQLToken *pMeterName, int32_t type);
+SSubclauseInfo *appendSelectClause(SSubclauseInfo *pInfo, void *pSubclause);
 
 void setCreatedMeterName(SSqlInfo *pInfo, SSQLToken *pMeterName, SSQLToken *pIfNotExists);
 
 void SQLInfoDestroy(SSqlInfo *pInfo);
 
 void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParams, ...);
+void setDropDBTableInfo(SSqlInfo *pInfo, int32_t type, SSQLToken* pToken, SSQLToken* existsCheck);
+void setShowOptions(SSqlInfo *pInfo, int32_t type, SSQLToken* prefix, SSQLToken* pPatterns);
 
 tDCLSQL *tTokenListAppend(tDCLSQL *pTokenList, SSQLToken *pToken);
 
 void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBInfo *pDB, SSQLToken *pIgExists);
 
 void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken *pPwd, SCreateAcctSQL *pAcctInfo);
+void setCreateUserSQL(SSqlInfo *pInfo, SSQLToken *pName, SSQLToken *pPasswd);
+void setKillSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *ip);
+void setAlterUserSQL(SSqlInfo *pInfo, int16_t type, SSQLToken *pName, SSQLToken* pPwd, SSQLToken *pPrivilege);
+
 void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo);
 
 // prefix show db.tables;

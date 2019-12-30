@@ -24,7 +24,7 @@
 
 int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {
   void *pParser = ParseAlloc(malloc);
-  pSQLInfo->validSql = true;
+  pSQLInfo->valid = true;
 
   int32_t i = 0;
   while (1) {
@@ -50,12 +50,12 @@ int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {
       }
       case TK_ILLEGAL: {
         snprintf(pSQLInfo->pzErrMsg, tListLen(pSQLInfo->pzErrMsg), "unrecognized token: \"%s\"", t0.z);
-        pSQLInfo->validSql = false;
+        pSQLInfo->valid = false;
         goto abort_parse;
       }
       default:
         Parse(pParser, t0.type, t0, pSQLInfo);
-        if (pSQLInfo->validSql == false) {
+        if (pSQLInfo->valid == false) {
           goto abort_parse;
         }
     }
@@ -554,58 +554,62 @@ tSQLExprListList *tSQLListListAppend(tSQLExprListList *pList, tSQLExprList *pExp
   return pList;
 }
 
-void tSetInsertSQLElems(SSqlInfo *pInfo, SSQLToken *pName, tSQLExprListList *pList) {
-  SInsertSQL *pInsert = calloc(1, sizeof(SInsertSQL));
-
-  pInsert->name = *pName;
-  pInsert->pValue = pList;
-
-  pInfo->pInsertInfo = pInsert;
-  pInfo->sqlType = TSQL_INSERT;
+void doDestroyQuerySql(SQuerySQL *pQuerySql) {
+  if (pQuerySql == NULL) {
+    return;
+  }
+  
+  tSQLExprListDestroy(pQuerySql->pSelection);
+  
+  pQuerySql->pSelection = NULL;
+  
+  tSQLExprDestroy(pQuerySql->pWhere);
+  pQuerySql->pWhere = NULL;
+  
+  tVariantListDestroy(pQuerySql->pSortOrder);
+  pQuerySql->pSortOrder = NULL;
+  
+  tVariantListDestroy(pQuerySql->pGroupby);
+  pQuerySql->pGroupby = NULL;
+  
+  tVariantListDestroy(pQuerySql->from);
+  pQuerySql->from = NULL;
+  
+  tVariantListDestroy(pQuerySql->fillType);
+  
+  free(pQuerySql);
 }
 
-void destroyQuerySql(SQuerySQL *pSql) {
-  if (pSql == NULL) return;
+void destroyAllSelectClause(SSubclauseInfo *pClause) {
+  if (pClause == NULL || pClause->numOfClause == 0) {
+    return;
+  }
 
-  tSQLExprListDestroy(pSql->pSelection);
-  pSql->pSelection = NULL;
-
-  tSQLExprDestroy(pSql->pWhere);
-  pSql->pWhere = NULL;
-
-  tVariantListDestroy(pSql->pSortOrder);
-  pSql->pSortOrder = NULL;
-
-  tVariantListDestroy(pSql->pGroupby);
-  pSql->pGroupby = NULL;
-
-  tVariantListDestroy(pSql->from);
-  pSql->from = NULL;
-
-  tVariantListDestroy(pSql->fillType);
-
-  free(pSql);
+  for(int32_t i = 0; i < pClause->numOfClause; ++i) {
+    SQuerySQL *pQuerySql = pClause->pClause[i];
+    doDestroyQuerySql(pQuerySql);
+  }
 }
 
-SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLToken *pMetricName,
+SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLToken *pStableName,
                                     tVariantList *pTagVals, SQuerySQL *pSelect, int32_t type) {
   SCreateTableSQL *pCreate = calloc(1, sizeof(SCreateTableSQL));
 
   switch (type) {
-    case TSQL_CREATE_NORMAL_METER: {
+    case TSQL_CREATE_TABLE: {
       pCreate->colInfo.pColumns = pCols;
       assert(pTagVals == NULL && pTags == NULL);
       break;
     }
-    case TSQL_CREATE_NORMAL_METRIC: {
+    case TSQL_CREATE_STABLE: {
       pCreate->colInfo.pColumns = pCols;
       pCreate->colInfo.pTagColumns = pTags;
       assert(pTagVals == NULL && pTags != NULL && pCols != NULL);
       break;
     }
-    case TSQL_CREATE_METER_FROM_METRIC: {
+    case TSQL_CREATE_TABLE_FROM_STABLE: {
       pCreate->usingInfo.pTagVals = pTagVals;
-      pCreate->usingInfo.metricName = *pMetricName;
+      pCreate->usingInfo.stableName = *pStableName;
       break;
     }
     case TSQL_CREATE_STREAM: {
@@ -616,19 +620,24 @@ SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLTo
       assert(false);
   }
 
+  pCreate->type = type;
   return pCreate;
 }
 
 SAlterTableSQL *tAlterTableSQLElems(SSQLToken *pMeterName, tFieldList *pCols, tVariantList *pVals, int32_t type) {
   SAlterTableSQL *pAlterTable = calloc(1, sizeof(SAlterTableSQL));
+  
   pAlterTable->name = *pMeterName;
+  pAlterTable->type = type;
 
-  if (type == ALTER_TABLE_ADD_COLUMN || type == ALTER_TABLE_TAGS_ADD) {
+  if (type == TSDB_ALTER_TABLE_ADD_COLUMN || type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN) {
     pAlterTable->pAddColumns = pCols;
     assert(pVals == NULL);
   } else {
-    /* ALTER_TABLE_TAGS_CHG, ALTER_TABLE_TAGS_SET, ALTER_TABLE_TAGS_DROP,
-     * ALTER_TABLE_DROP_COLUMN */
+    /*
+     * ALTER_TABLE_TAGS_CHG, ALTER_TABLE_TAGS_SET, ALTER_TABLE_TAGS_DROP,
+     * ALTER_TABLE_DROP_COLUMN
+     */
     pAlterTable->varList = pVals;
     assert(pCols == NULL);
   }
@@ -639,27 +648,28 @@ SAlterTableSQL *tAlterTableSQLElems(SSQLToken *pMeterName, tFieldList *pCols, tV
 void SQLInfoDestroy(SSqlInfo *pInfo) {
   if (pInfo == NULL) return;
 
-  if (pInfo->sqlType == TSQL_QUERY_METER) {
-    destroyQuerySql(pInfo->pQueryInfo);
-  } else if (pInfo->sqlType >= TSQL_CREATE_NORMAL_METER && pInfo->sqlType <= TSQL_CREATE_STREAM) {
+  if (pInfo->type == TSDB_SQL_SELECT) {
+    destroyAllSelectClause(&pInfo->subclauseInfo);
+  } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
     SCreateTableSQL *pCreateTableInfo = pInfo->pCreateTableInfo;
-    destroyQuerySql(pCreateTableInfo->pSelect);
+    doDestroyQuerySql(pCreateTableInfo->pSelect);
 
     tFieldListDestroy(pCreateTableInfo->colInfo.pColumns);
     tFieldListDestroy(pCreateTableInfo->colInfo.pTagColumns);
 
     tVariantListDestroy(pCreateTableInfo->usingInfo.pTagVals);
     tfree(pInfo->pCreateTableInfo);
-  } else if (pInfo->sqlType >= ALTER_TABLE_TAGS_ADD && pInfo->sqlType <= ALTER_TABLE_DROP_COLUMN) {
+  } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
     tVariantListDestroy(pInfo->pAlterInfo->varList);
     tFieldListDestroy(pInfo->pAlterInfo->pAddColumns);
+    
     tfree(pInfo->pAlterInfo);
   } else {
     if (pInfo->pDCLInfo != NULL && pInfo->pDCLInfo->nAlloc > 0) {
       free(pInfo->pDCLInfo->a);
     }
 
-    if (pInfo->sqlType == CREATE_DATABASE) {
+    if (pInfo->type == TSDB_SQL_CREATE_DB) {
       tVariantListDestroy(pInfo->pDCLInfo->dbOpt.keep);
     }
 
@@ -667,13 +677,52 @@ void SQLInfoDestroy(SSqlInfo *pInfo) {
   }
 }
 
-void setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SSQLToken *pMeterName, int32_t type) {
-  pInfo->sqlType = type;
-  pInfo->pCreateTableInfo = pSqlExprInfo;
+SSubclauseInfo* setSubclause(SSubclauseInfo* pSubclause, void *pSqlExprInfo) {
+  if (pSubclause == NULL) {
+    pSubclause = calloc(1, sizeof(SSubclauseInfo));
+  }
+  
+  int32_t newSize = pSubclause->numOfClause + 1;
+  char* tmp = realloc(pSubclause->pClause, newSize * POINTER_BYTES);
+  if (tmp == NULL) {
+    return pSubclause;
+  }
+  
+  pSubclause->pClause = (SQuerySQL**) tmp;
+  
+  pSubclause->pClause[newSize - 1] = pSqlExprInfo;
+  pSubclause->numOfClause++;
+  
+  return pSubclause;
+}
 
+SSqlInfo* setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SSQLToken *pMeterName, int32_t type) {
+  pInfo->type = type;
+  
+  if (type == TSDB_SQL_SELECT) {
+    pInfo->subclauseInfo = *(SSubclauseInfo*) pSqlExprInfo;
+    free(pSqlExprInfo);
+  } else {
+    pInfo->pCreateTableInfo = pSqlExprInfo;
+  }
+  
   if (pMeterName != NULL) {
     pInfo->pCreateTableInfo->name = *pMeterName;
   }
+  
+  return pInfo;
+}
+
+SSubclauseInfo* appendSelectClause(SSubclauseInfo *pQueryInfo, void *pSubclause) {
+  char* tmp = realloc(pQueryInfo->pClause, (pQueryInfo->numOfClause + 1) * POINTER_BYTES);
+  if (tmp == NULL) {  // out of memory
+    return pQueryInfo;
+  }
+  
+  pQueryInfo->pClause = (SQuerySQL**) tmp;
+  pQueryInfo->pClause[pQueryInfo->numOfClause++] = pSubclause;
+  
+  return pQueryInfo;
 }
 
 void setCreatedMeterName(SSqlInfo *pInfo, SSQLToken *pMeterName, SSQLToken *pIfNotExists) {
@@ -703,7 +752,7 @@ tDCLSQL *tTokenListAppend(tDCLSQL *pTokenList, SSQLToken *pToken) {
 }
 
 void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
-  pInfo->sqlType = type;
+  pInfo->type = type;
 
   if (nParam == 0) return;
   if (pInfo->pDCLInfo == NULL) pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
@@ -718,8 +767,42 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   va_end(va);
 }
 
+void setDropDBTableInfo(SSqlInfo *pInfo, int32_t type, SSQLToken* pToken, SSQLToken* existsCheck) {
+  pInfo->type = type;
+  
+  if (pInfo->pDCLInfo == NULL) {
+    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  }
+  
+  tTokenListAppend(pInfo->pDCLInfo, pToken);
+  pInfo->pDCLInfo->existsCheck = (existsCheck->n == 1);
+}
+
+void setShowOptions(SSqlInfo *pInfo, int32_t type, SSQLToken* prefix, SSQLToken* pPatterns) {
+  if (pInfo->pDCLInfo == NULL) {
+    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  }
+  
+  pInfo->type = TSDB_SQL_SHOW;
+  
+  SShowInfo* pShowInfo = &pInfo->pDCLInfo->showOpt;
+  pShowInfo->showType = type;
+  
+  if (prefix != NULL && prefix->type != 0) {
+    pShowInfo->prefix = *prefix;
+  } else {
+    pShowInfo->prefix.type = 0;
+  }
+  
+  if (pPatterns != NULL && pPatterns->type != 0) {
+    pShowInfo->pattern = *pPatterns;
+  } else {
+    pShowInfo->pattern.type = 0;
+  }
+}
+
 void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBInfo *pDB, SSQLToken *pIgExists) {
-  pInfo->sqlType = type;
+  pInfo->type = type;
   if (pInfo->pDCLInfo == NULL) {
     pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
   }
@@ -731,18 +814,68 @@ void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pToken, SCreateDBI
 }
 
 void setCreateAcctSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *pName, SSQLToken *pPwd, SCreateAcctSQL *pAcctInfo) {
-  pInfo->sqlType = type;
+  pInfo->type = type;
   if (pInfo->pDCLInfo == NULL) {
     pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
   }
 
   pInfo->pDCLInfo->acctOpt = *pAcctInfo;
-
-  tTokenListAppend(pInfo->pDCLInfo, pName);
-
-  if (pPwd->n > 0) {
-    tTokenListAppend(pInfo->pDCLInfo, pPwd);
+  
+  assert(pName != NULL);
+  pInfo->pDCLInfo->user.user = *pName;
+  
+  if (pPwd != NULL) {
+    pInfo->pDCLInfo->user.passwd = *pPwd;
+//    pInfo->pDCLInfo->user.hasPasswd = true;
+  } else {
+//    pInfo->pDCLInfo->user.hasPasswd = false;
   }
+}
+
+void setCreateUserSQL(SSqlInfo *pInfo, SSQLToken *pName, SSQLToken *pPasswd) {
+  pInfo->type = TSDB_SQL_CREATE_USER;
+  if (pInfo->pDCLInfo == NULL) {
+    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  }
+  
+  assert(pName != NULL && pPasswd != NULL);
+  
+  pInfo->pDCLInfo->user.user = *pName;
+  pInfo->pDCLInfo->user.passwd = *pPasswd;
+}
+
+void setAlterUserSQL(SSqlInfo *pInfo, int16_t type, SSQLToken *pName, SSQLToken* pPwd, SSQLToken *pPrivilege) {
+  pInfo->type = TSDB_SQL_ALTER_USER;
+  if (pInfo->pDCLInfo == NULL) {
+    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  }
+  
+  assert(pName != NULL);
+  
+  SUserInfo* pUser = &pInfo->pDCLInfo->user;
+  pUser->type = type;
+  pUser->user = *pName;
+  
+  if (pPwd != NULL) {
+    pUser->passwd = *pPwd;
+//    pUser->hasPasswd = true;
+  }
+  
+  if (pPrivilege != NULL) {
+    pUser->privilege = *pPrivilege;
+//    pUser->hasPrivilege = true;
+  }
+}
+
+void setKillSQL(SSqlInfo *pInfo, int32_t type, SSQLToken *ip) {
+  pInfo->type = type;
+  if (pInfo->pDCLInfo == NULL) {
+    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  }
+  
+  assert(ip != NULL);
+  
+  pInfo->pDCLInfo->ip = *ip;
 }
 
 void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {

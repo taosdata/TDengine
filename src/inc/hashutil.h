@@ -16,6 +16,7 @@
 #ifndef TDENGINE_HASHUTIL_H
 #define TDENGINE_HASHUTIL_H
 
+#include "os.h"
 
 typedef uint32_t (*_hash_fn_t)(const char *, uint32_t);
 

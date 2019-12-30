@@ -172,7 +172,7 @@ typedef struct SMeterDataInfo {
 } SMeterDataInfo;
 
 typedef struct SMeterQuerySupportObj {
-  void* pMeterObj;
+  void* pMetersHashTable;   // meter table hash list
 
   SMeterSidExtInfo** pMeterSidExtInfo;
   int32_t            numOfMeters;

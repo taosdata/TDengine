@@ -53,11 +53,11 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
   *st = INT64_MAX;
   *et = INT64_MIN;
 
-  SLimitVal* pLimit = &pSql->cmd.limit;
+  SLimitVal* pLimit = &pSql->cmd.pQueryInfo->limit;
   int32_t    order = pSql->cmd.order.order;
 
-  pSql->pSubs[0]->cmd.tsBuf = output1;
-  pSql->pSubs[1]->cmd.tsBuf = output2;
+  pSql->pSubs[0]->cmd.pQueryInfo->tsBuf = output1;
+  pSql->pSubs[1]->cmd.pQueryInfo->tsBuf = output2;
 
   tsBufResetPos(pSupporter1->pTSBuf);
   tsBufResetPos(pSupporter2->pTSBuf);
@@ -113,7 +113,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
       }
 
       // in case of stable query, limit/offset is not applied here
-      if (pLimit->offset == 0 || pSql->cmd.nAggTimeInterval > 0 || QUERY_IS_STABLE_QUERY(pSql->cmd.type)) {
+      if (pLimit->offset == 0 || pSql->cmd.pQueryInfo->nAggTimeInterval > 0 || QUERY_IS_STABLE_QUERY(pSql->cmd.type)) {
         tsBufAppend(output1, elem1.vnode, elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
         tsBufAppend(output2, elem2.vnode, elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
       } else {
@@ -168,8 +168,8 @@ SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pS
   pSupporter->pState = pState;
 
   pSupporter->subqueryIndex = index;
-  pSupporter->interval = pSql->cmd.nAggTimeInterval;
-  pSupporter->limit = pSql->cmd.limit;
+  pSupporter->interval = pSql->cmd.pQueryInfo->nAggTimeInterval;
+  pSupporter->limit = pSql->cmd.pQueryInfo->limit;
 
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, index);
   pSupporter->uid = pMeterMetaInfo->pMeterMeta->uid;
@@ -211,8 +211,8 @@ void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter) {
  */
 bool needSecondaryQuery(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
-  for (int32_t i = 0; i < pCmd->colList.numOfCols; ++i) {
-    SColumnBase* pBase = tscColumnBaseInfoGet(&pCmd->colList, i);
+  for (int32_t i = 0; i < pCmd->pQueryInfo->colList.numOfCols; ++i) {
+    SColumnBase* pBase = tscColumnBaseInfoGet(&pCmd->pQueryInfo->colList, i);
     if (pBase->colIndex.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
       return true;
     }
@@ -272,25 +272,25 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
     tscFreeSqlCmdData(&pNew->cmd);
 
     pSql->pSubs[j++] = pNew;
-    pNew->cmd.tsBuf = pSub->cmd.tsBuf;
-    pSub->cmd.tsBuf = NULL;
+    pNew->cmd.pQueryInfo->tsBuf = pSub->cmd.pQueryInfo->tsBuf;
+    pSub->cmd.pQueryInfo->tsBuf = NULL;
 
     taos_free_result(pSub);
 
     // set the second stage sub query for join process
     pNew->cmd.type |= TSDB_QUERY_TYPE_JOIN_SEC_STAGE;
 
-    pNew->cmd.nAggTimeInterval = pSupporter->interval;
-    pNew->cmd.groupbyExpr = pSupporter->groupbyExpr;
+    pNew->cmd.pQueryInfo->nAggTimeInterval = pSupporter->interval;
+    pNew->cmd.pQueryInfo->groupbyExpr = pSupporter->groupbyExpr;
 
-    tscColumnBaseInfoCopy(&pNew->cmd.colList, &pSupporter->colList, 0);
-    tscTagCondCopy(&pNew->cmd.tagCond, &pSupporter->tagCond);
+    tscColumnBaseInfoCopy(&pNew->cmd.pQueryInfo->colList, &pSupporter->colList, 0);
+    tscTagCondCopy(&pNew->cmd.pQueryInfo->tagCond, &pSupporter->tagCond);
 
-    tscSqlExprCopy(&pNew->cmd.exprsInfo, &pSupporter->exprsInfo, pSupporter->uid);
-    tscFieldInfoCopyAll(&pSupporter->fieldsInfo, &pNew->cmd.fieldsInfo);
+    tscSqlExprCopy(&pNew->cmd.pQueryInfo->exprsInfo, &pSupporter->exprsInfo, pSupporter->uid);
+    tscFieldInfoCopyAll(&pSupporter->fieldsInfo, &pNew->cmd.pQueryInfo->fieldsInfo);
 
     // add the ts function for interval query if it is missing
-    if (pSupporter->exprsInfo.pExprs[0].functionId != TSDB_FUNC_TS && pNew->cmd.nAggTimeInterval > 0) {
+    if (pSupporter->exprsInfo.pExprs[0].functionId != TSDB_FUNC_TS && pNew->cmd.pQueryInfo->nAggTimeInterval > 0) {
       tscAddTimestampColumn(&pNew->cmd, TSDB_FUNC_TS, 0);
     }
 
@@ -304,15 +304,15 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
      * When handling the projection query, the offset value will be modified for table-table join, which is changed
      * during the timestamp intersection.
      */
-    pSupporter->limit = pSql->cmd.limit;
-    pNew->cmd.limit = pSupporter->limit;
+    pSupporter->limit = pSql->cmd.pQueryInfo->limit;
+    pNew->cmd.pQueryInfo->limit = pSupporter->limit;
 
     // fetch the join tag column
     if (UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
       SSqlExpr* pExpr = tscSqlExprGet(&pNew->cmd, 0);
-      assert(pNew->cmd.tagCond.joinInfo.hasJoin);
+      assert(pNew->cmd.pQueryInfo->tagCond.joinInfo.hasJoin);
 
-      int16_t tagColIndex = tscGetJoinTagColIndexByUid(&pNew->cmd.tagCond, pMeterMetaInfo->pMeterMeta->uid);
+      int16_t tagColIndex = tscGetJoinTagColIndexByUid(&pNew->cmd.pQueryInfo->tagCond, pMeterMetaInfo->pMeterMeta->uid);
       pExpr->param[0].i64Key = tagColIndex;
       pExpr->numOfParams = 1;
     }
@@ -370,10 +370,10 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSubquerySupporter* pSupporter
 
 // update the query time range according to the join results on timestamp
 static void updateQueryTimeRange(SSqlObj* pSql, int64_t st, int64_t et) {
-  assert(pSql->cmd.stime <= st && pSql->cmd.etime >= et);
+  assert(pSql->cmd.pQueryInfo->stime <= st && pSql->cmd.pQueryInfo->etime >= et);
 
-  pSql->cmd.stime = st;
-  pSql->cmd.etime = et;
+  pSql->cmd.pQueryInfo->stime = st;
+  pSql->cmd.pQueryInfo->etime = et;
 }
 
 static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
@@ -408,7 +408,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         tscTrace("%p create tmp file for ts block:%s", pSql, pBuf->path);
         pSupporter->pTSBuf = pBuf;
       } else {
-        assert(pSql->cmd.numOfTables == 1);  // for subquery, only one metermetaInfo
+        assert(pSql->cmd.pQueryInfo->numOfTables == 1);  // for subquery, only one metermetaInfo
         SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
 
         tsBufMerge(pSupporter->pTSBuf, pBuf, pMeterMetaInfo->vnodeIndex);
@@ -424,7 +424,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
     } else if (numOfRows == 0) {  // no data from this vnode anymore
       if (tscProjectionQueryOnMetric(&pParentSql->cmd)) {
         SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
-        assert(pSql->cmd.numOfTables == 1);
+        assert(pSql->cmd.pQueryInfo->numOfTables == 1);
 
         // for projection query, need to try next vnode
         if ((++pMeterMetaInfo->vnodeIndex) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
@@ -480,7 +480,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 
     if (tscProjectionQueryOnMetric(&pSql->cmd) && numOfRows == 0) {
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0);
-      assert(pSql->cmd.numOfTables == 1);
+      assert(pSql->cmd.pQueryInfo->numOfTables == 1);
 
       // for projection query, need to try next vnode if current vnode is exhausted
       if ((++pMeterMetaInfo->vnodeIndex) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
@@ -555,7 +555,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
 
     // wait for all subqueries completed
     pSupporter->pState->numOfTotal = numOfFetch;
-    assert(pRes1->numOfRows >= 0 && pCmd1->numOfTables == 1);
+    assert(pRes1->numOfRows >= 0 && pCmd1->pQueryInfo->numOfTables == 1);
 
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd1, 0);
     
@@ -589,13 +589,13 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
     return;  // the column transfer support struct has been built
   }
 
-  pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * pCmd->fieldsInfo.numOfOutputCols);
+  pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * pCmd->pQueryInfo->fieldsInfo.numOfOutputCols);
 
-  for (int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < pCmd->pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pCmd, i);
 
     int32_t tableIndexOfSub = -1;
-    for (int32_t j = 0; j < pCmd->numOfTables; ++j) {
+    for (int32_t j = 0; j < pCmd->pQueryInfo->numOfTables; ++j) {
       SSqlObj* pSub = pSql->pSubs[j];
 
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSub->cmd, 0);
@@ -607,7 +607,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
 
     SSqlCmd* pSubCmd = &pSql->pSubs[tableIndexOfSub]->cmd;
 
-    for (int32_t k = 0; k < pSubCmd->exprsInfo.numOfExprs; ++k) {
+    for (int32_t k = 0; k < pSubCmd->pQueryInfo->exprsInfo.numOfExprs; ++k) {
       SSqlExpr* pSubExpr = tscSqlExprGet(pSubCmd, k);
       if (pExpr->functionId == pSubExpr->functionId && pExpr->colInfo.colId == pSubExpr->colInfo.colId) {
         pRes->pColumnIndex[i] = (SColumnIndex){.tableIndex = tableIndexOfSub, .columnIndex = k};

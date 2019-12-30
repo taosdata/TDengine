@@ -894,7 +894,7 @@ int mgmtProcessShowMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   SShowRspMsg *pShowRsp;
   SShowObj *   pShow = NULL;
 
-  if (pShowMsg->type == TSDB_MGMT_TABLE_PNODE || TSDB_MGMT_TABLE_GRANTS || TSDB_MGMT_TABLE_SCORES) {
+  if (pShowMsg->type == TSDB_MGMT_TABLE_DNODE || TSDB_MGMT_TABLE_GRANTS || TSDB_MGMT_TABLE_SCORES) {
     if (mgmtCheckRedirectMsg(pConn, TSDB_MSG_TYPE_SHOW_RSP) != 0) {
       return 0;
     }
@@ -1467,8 +1467,8 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_SHOW] = mgmtProcessShowMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_CONNECT] = mgmtProcessConnectMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_HEARTBEAT] = mgmtProcessHeartBeatMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_PNODE] = mgmtProcessCreateDnodeMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_PNODE] = mgmtProcessDropDnodeMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_DNODE] = mgmtProcessCreateDnodeMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_DNODE] = mgmtProcessDropDnodeMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_MNODE] = mgmtProcessCreateMnodeMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_MNODE] = mgmtProcessDropMnodeMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_CFG_MNODE] = mgmtProcessCfgMnodeMsg;
