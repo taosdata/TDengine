@@ -807,20 +807,22 @@ void sdbResetTable(SSdbTable *pTable) {
   int       bytes;
   int       total_size = 0;
   int       real_size = 0;
-  int64_t   oldId;
   SRowHead *rowHead = NULL;
   void *    pMetaRow = NULL;
+  int64_t   oldId = pTable->id;
+  int       oldNumOfRows = pTable->numOfRows;
 
-  oldId = pTable->id;
   if (sdbOpenSdbFile(pTable) < 0) return;
+  pTable->numOfRows = oldNumOfRows;
 
   total_size = sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM);
   rowHead = (SRowHead *)malloc(total_size);
   if (rowHead == NULL) {
+    sdbError("failed to allocate row head memory for reset, sdb:%s", pTable->name);
     return;
   }
 
-  sdbTrace("open sdb file:%s for update", pTable->fn);
+  sdbPrint("open sdb file:%s for reset table", pTable->fn);
 
   while (1) {
     memset(rowHead, 0, total_size);
@@ -841,15 +843,15 @@ void sdbResetTable(SSdbTable *pTable) {
     }
 
     if (rowHead->rowSize < 0 || rowHead->rowSize > pTable->maxRowSize) {
-      sdbError("error row size in sdb file:%s  rowSize:%d  maxRowSize:%d", pTable->fn, rowHead->rowSize,
-               pTable->maxRowSize);
+      sdbError("error row size in sdb file:%s for reset, id:%d rowSize:%d maxRowSize:%d",
+               pTable->fn, rowHead->id, rowHead->rowSize, pTable->maxRowSize);
       pTable->size += sizeof(SRowHead);
       continue;
     }
 
     bytes = read(pTable->fd, rowHead->data, rowHead->rowSize + sizeof(TSCKSUM));
     if (bytes < rowHead->rowSize + sizeof(TSCKSUM)) {
-      sdbError("failed to read sdb file:%s  id:%d  rowSize:%d", pTable->fn, rowHead->id, rowHead->rowSize);
+      sdbError("failed to read sdb file:%s for reset, id:%d  rowSize:%d", pTable->fn, rowHead->id, rowHead->rowSize);
       break;
     }
 
@@ -897,7 +899,7 @@ void sdbResetTable(SSdbTable *pTable) {
 
   tfree(rowHead);
 
-  sdbTrace("table:%s is updated, sdbVerion:%ld id:%ld", pTable->name, sdbVersion, pTable->id);
+  sdbPrint("table:%s is updated, sdbVerion:%ld id:%ld", pTable->name, sdbVersion, pTable->id);
 }
 
 // TODO:A problem here :use snapshot file to sync another node will cause
