@@ -32,6 +32,7 @@ typedef struct SSubscriptionProgress {
 } SSubscriptionProgress;
 
 typedef struct SSub {
+  int64_t                 lastSyncTime;
   void *                  signature;
   TAOS *                  taos;
   void *                  pTimer;
@@ -152,6 +153,57 @@ static void tscProcessSubscribeTimer(void *handle, void *tmrId) {
 }
 
 
+bool tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
+  int code = (uint8_t)tsParseSql(pSub->pSql, pObj->acctId, pObj->db, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_unsubscribe(pSub);
+    return false;
+  }
+
+  int numOfMeters = 0;
+  SSubscriptionProgress* progress = NULL;
+
+// ??? if there's more than one vnode
+  SSqlCmd* pCmd = &pSub->pSql->cmd;
+
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
+    numOfMeters = 1;
+    progress = calloc(1, sizeof(SSubscriptionProgress));
+    int64_t uid = pMeterMetaInfo->pMeterMeta->uid;
+    progress[0].uid = uid;
+    progress[0].key = tscGetSubscriptionProgress(pSub->pSql, uid);
+  } else {
+    SMetricMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
+    SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
+    numOfMeters = pVnodeSidList->numOfSids;
+    progress = calloc(numOfMeters, sizeof(SSubscriptionProgress));
+    for (int32_t i = 0; i < numOfMeters; ++i) {
+      SMeterSidExtInfo *pMeterInfo = tscGetMeterSidInfo(pVnodeSidList, i);
+      int64_t uid = pMeterInfo->uid;
+      progress[i].uid = uid;
+      progress[i].key = tscGetSubscriptionProgress(pSub->pSql, uid);
+    }
+    qsort(progress, numOfMeters, sizeof(SSubscriptionProgress), tscCompareSubscriptionProgress);
+  }
+
+  free(pSub->progress);
+  pSub->numOfMeters = numOfMeters;
+  pSub->progress = progress;
+
+  // timestamp must in the output column
+  SFieldInfo* pFieldInfo = &pCmd->fieldsInfo;
+  tscFieldInfoSetValue(pFieldInfo, pFieldInfo->numOfOutputCols, TSDB_DATA_TYPE_TIMESTAMP, "_c0", TSDB_KEYSIZE);
+  tscSqlExprInsertEmpty(pCmd, pFieldInfo->numOfOutputCols - 1, TSDB_FUNC_PRJ);
+  tscFieldInfoUpdateVisible(pFieldInfo, pFieldInfo->numOfOutputCols - 1, false);
+  tscFieldInfoCalOffset(pCmd);
+
+  pSub->lastSyncTime = taosGetTimestampMs();
+
+  return true;
+}
+
+
 TAOS_SUB *taos_subscribe(TAOS *taos, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval) {
   STscObj* pObj = (STscObj*)taos;
   if (pObj == NULL || pObj->signature != pObj) {
@@ -164,39 +216,11 @@ TAOS_SUB *taos_subscribe(TAOS *taos, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp
   if (pSub == NULL) {
     return NULL;
   }
+  pSub->taos = taos;
 
-  int code = (uint8_t)tsParseSql(pSub->pSql, pObj->acctId, pObj->db, false);
-  if (code != TSDB_CODE_SUCCESS) {
-    taos_unsubscribe(pSub);
+  if (!tscUpdateSubscription(pObj, pSub)) {
     return NULL;
   }
-
-// ??? if there's more than one vnode
-  SSqlCmd* pCmd = &pSub->pSql->cmd;
-
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
-  if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
-    pSub->numOfMeters = 1;
-    pSub->progress = calloc(1, sizeof(SSubscriptionProgress));
-    pSub->progress[0].uid = pMeterMetaInfo->pMeterMeta->uid;
-  } else {
-    SMetricMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
-    SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
-    pSub->numOfMeters = pVnodeSidList->numOfSids;
-    pSub->progress = calloc(pSub->numOfMeters, sizeof(SSubscriptionProgress));
-    for (int32_t i = 0; i < pSub->numOfMeters; ++i) {
-      SMeterSidExtInfo *pMeterInfo = tscGetMeterSidInfo(pVnodeSidList, i);
-      pSub->progress[i].uid = pMeterInfo->uid;
-    }
-    qsort(pSub->progress, pSub->numOfMeters, sizeof(SSubscriptionProgress), tscCompareSubscriptionProgress);
-  }
-
-  // timestamp must in the output column
-  SFieldInfo* pFieldInfo = &pCmd->fieldsInfo;
-  tscFieldInfoSetValue(pFieldInfo, pFieldInfo->numOfOutputCols, TSDB_DATA_TYPE_TIMESTAMP, "_c0", TSDB_KEYSIZE);
-  tscSqlExprInsertEmpty(pCmd, pFieldInfo->numOfOutputCols - 1, TSDB_FUNC_PRJ);
-  tscFieldInfoUpdateVisible(pFieldInfo, pFieldInfo->numOfOutputCols - 1, false);
-  tscFieldInfoCalOffset(pCmd);
 
   if (fp != NULL) {
     pSub->fp = fp;
@@ -211,6 +235,12 @@ TAOS_SUB *taos_subscribe(TAOS *taos, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp
 TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SSub *pSub = (SSub *)tsub;
   if (pSub == NULL) return NULL;
+
+  if (taosGetTimestampMs() - pSub->lastSyncTime > 30 * 10 * 1000) {
+    taos_query(pSub->taos, "reset query cache;");
+    // TODO: clear memory
+    if (!tscUpdateSubscription(pSub->taos, pSub)) return NULL;
+  }
 
   SSqlObj* pSql = pSub->pSql;
   SSqlRes *pRes = &pSql->res;

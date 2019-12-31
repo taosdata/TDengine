@@ -1105,6 +1105,7 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
   pSids[0] = (SMeterSidExtInfo *)pMsg;
   pSids[0]->sid = htonl(pSids[0]->sid);
   pSids[0]->uid = htobe64(pSids[0]->uid);
+  pSids[0]->key = htobe64(pSids[0]->key);
   
   for (int32_t j = 1; j < pQueryMsg->numOfSids; ++j) {
     pSids[j] = (SMeterSidExtInfo *)((char *)pSids[j - 1] + sizeof(SMeterSidExtInfo) + pQueryMsg->tagLength);

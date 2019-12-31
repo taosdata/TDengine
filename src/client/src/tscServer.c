@@ -3543,18 +3543,20 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
 
   tscSetResultPointer(pCmd, pRes);
 
-  TAOS_FIELD *pField = tscFieldInfoGetField(pCmd, pCmd->fieldsInfo.numOfOutputCols - 1);
-  int16_t     offset = tscFieldInfoGetOffset(pCmd, pCmd->fieldsInfo.numOfOutputCols - 1);
-  char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
+  if (pSql->pSubscription != NULL) {
+    TAOS_FIELD *pField = tscFieldInfoGetField(pCmd, pCmd->fieldsInfo.numOfOutputCols - 1);
+    int16_t     offset = tscFieldInfoGetOffset(pCmd, pCmd->fieldsInfo.numOfOutputCols - 1);
+    char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
 
-  int32_t numOfMeters = htonl(*(int32_t*)p);
-  p += sizeof(int32_t);
-  for (int i = 0; i < numOfMeters; i++) {
-    int64_t uid = htobe64(*(int64_t*)p);
-    p += sizeof(int64_t);
-    TSKEY key = htobe64(*(TSKEY*)p);
-    p += sizeof(TSKEY);
-    tscUpdateSubscriptionProgress(pSql, uid, key);
+    int32_t numOfMeters = htonl(*(int32_t*)p);
+    p += sizeof(int32_t);
+    for (int i = 0; i < numOfMeters; i++) {
+      int64_t uid = htobe64(*(int64_t*)p);
+      p += sizeof(int64_t);
+      TSKEY key = htobe64(*(TSKEY*)p);
+      p += sizeof(TSKEY);
+      tscUpdateSubscriptionProgress(pSql, uid, key);
+    }
   }
 
   pRes->row = 0;
