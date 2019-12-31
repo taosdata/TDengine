@@ -277,8 +277,19 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   sprintf(buf, "cd %s; ", scriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
 
-  sprintf(script->system_exit_code, "%d", system(buf));
+  int code = system(buf);
+  int repeatTimes = 0;
+  while (code < 0) {
+    simError("script:%s, failed to execute %s , code %d, errno:%d %s, repeatTimes:%d",
+        script->fileName, buf, code, errno, strerror(errno), repeatTimes);
+    taosMsleep(1000);
+    signal(SIGCHLD, SIG_DFL);
+    if (repeatTimes++ >= 10) {
+      exit(0);
+    }
+  }
 
+  sprintf(script->system_exit_code, "%d", code);
   script->linePos++;
   return true;
 }
