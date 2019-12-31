@@ -70,13 +70,13 @@ cp ${install_files} ${install_dir} && chmod a+x ${install_dir}/install*
 
 # Copy example code
 mkdir -p ${install_dir}/examples
-examples_dir="${top_dir}/tests/examples"
+examples_dir="${community_dir}/../tests/examples"
 cp -r ${examples_dir}/c      ${install_dir}/examples
-cp -r ${examples_dir}/java   ${install_dir}/examples
+cp -r ${examples_dir}/go     ${install_dir}/examples
+cp -r ${examples_dir}/JDBC   ${install_dir}/examples
 cp -r ${examples_dir}/matlab ${install_dir}/examples
 cp -r ${examples_dir}/python ${install_dir}/examples
 cp -r ${examples_dir}/R      ${install_dir}/examples
-cp -r ${examples_dir}/go     ${install_dir}/examples
 
 # Copy driver
 mkdir -p ${install_dir}/driver 
