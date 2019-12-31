@@ -312,6 +312,10 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         }
         
         strncpy(payload, pToken->z, pToken->n);
+        
+        if (pToken->n < pSchema->bytes) {
+          payload[pToken->n] = 0;   // add the null-terminated char if the length of the string is shorter than the available space
+        }
       }
 
       break;
