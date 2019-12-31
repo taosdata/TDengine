@@ -1021,10 +1021,10 @@ int sdbRetrieveRows(int syncFd, SSdbTable *pTable, uint64_t version) {
   SForwardMsg forward;
   int         rowSize = 0;
 
-  if (strcmp(pTable->name, "mnode") == 0) {
-    sdbPrint("table:%s fd:%d, force full sync", pTable->name, syncFd);
-    return sdbTransferWholeDataToPeer(syncFd, pTable);
-  }
+//  if (strcmp(pTable->name, "mnode") == 0) {
+//    sdbPrint("table:%s fd:%d, force full sync", pTable->name, syncFd);
+//    return sdbTransferWholeDataToPeer(syncFd, pTable);
+//  }
 
   char *msg = (char *)malloc(pTable->maxRowSize);
   if (msg == NULL) return -1;
