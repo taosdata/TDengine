@@ -480,6 +480,8 @@ void taosCleanUpHashTable(void *handle) {
         free(pNode);
         pNode = pNext;
       }
+      
+      tfree(pEntry);
     }
 
     free(pObj->hashList);

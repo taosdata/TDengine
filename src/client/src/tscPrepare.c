@@ -409,7 +409,7 @@ static int insertStmtReset(STscStmt* pStmt) {
   }
   pCmd->batchSize = 0;
   
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
   pMeterMetaInfo->vnodeIndex = 0;
   return TSDB_CODE_SUCCESS;
 }
@@ -423,7 +423,7 @@ static int insertStmtExecute(STscStmt* stmt) {
     ++pCmd->batchSize;
   }
 
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
   
   if (pCmd->pDataBlocks->nSize > 0) {
     // merge according to vgid

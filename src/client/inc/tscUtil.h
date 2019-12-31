@@ -29,9 +29,9 @@ extern "C" {
 #include "tsclient.h"
 #include "tsdb.h"
 
-#define UTIL_METER_IS_METRIC(metaInfo) \
+#define UTIL_METER_IS_SUPERTABLE(metaInfo) \
   (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->meterType == TSDB_METER_METRIC))
-#define UTIL_METER_IS_NOMRAL_METER(metaInfo) (!(UTIL_METER_IS_METRIC(metaInfo)))
+#define UTIL_METER_IS_NOMRAL_METER(metaInfo) (!(UTIL_METER_IS_SUPERTABLE(metaInfo)))
 #define UTIL_METER_IS_CREATE_FROM_METRIC(metaInfo) \
   (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->meterType == TSDB_METER_MTABLE))
 
@@ -95,23 +95,23 @@ SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
  * @param pSql  sql object
  * @return
  */
-bool tscIsPointInterpQuery(SSqlCmd* pCmd);
-bool tscIsTWAQuery(SSqlCmd* pCmd);
-bool tscProjectionQueryOnMetric(SSqlCmd* pCmd);
-bool tscProjectionQueryOnTable(SSqlCmd* pCmd);
+bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
+bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
+bool tscProjectionQueryOnMetric(SSqlCmd* pCmd, int32_t subClauseIndex);
+bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo);
 
 bool tscIsTwoStageMergeMetricQuery(SSqlCmd* pCmd);
 bool tscQueryOnMetric(SSqlCmd* pCmd);
-bool tscQueryMetricTags(SSqlCmd* pCmd);
+bool tscQueryMetricTags(SQueryInfo* pQueryInfo);
 bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd);
 
-void tscAddSpecialColumnForSelect(SSqlCmd* pCmd, int32_t outputColIndex, int16_t functionId, SColumnIndex* pIndex,
+void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId, SColumnIndex* pIndex,
                                   SSchema* pColSchema, int16_t isTag);
 
-void addRequiredTagColumn(SSqlCmd* pCmd, int32_t tagColIndex, int32_t tableIndex);
+void addRequiredTagColumn(SQueryInfo* pQueryInfo, int32_t tagColIndex, int32_t tableIndex);
 
-int32_t setMeterID(SSqlObj* pSql, SSQLToken* pzTableName, int32_t tableIndex);
-void    tscClearInterpInfo(SSqlCmd* pCmd);
+int32_t setMeterID(SSqlObj* pSql, int32_t subClauseIndex, SSQLToken* pzTableName, int32_t tableIndex);
+void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
 bool tscIsInsertOrImportData(char* sqlstr);
 
@@ -125,30 +125,30 @@ void tscFieldInfoSetValFromField(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIE
 void tscFieldInfoSetValue(SFieldInfo* pFieldInfo, int32_t index, int8_t type, const char* name, int16_t bytes);
 void tscFieldInfoUpdateVisible(SFieldInfo* pFieldInfo, int32_t index, bool visible);
 
-void tscFieldInfoCalOffset(SSqlCmd* pCmd);
-void tscFieldInfoUpdateOffset(SSqlCmd* pCmd);
+void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo);
+void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
 void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList, int32_t size);
 void tscFieldInfoCopyAll(SFieldInfo* src, SFieldInfo* dst);
 
-TAOS_FIELD* tscFieldInfoGetField(SSqlCmd* pCmd, int32_t index);
-int16_t     tscFieldInfoGetOffset(SSqlCmd* pCmd, int32_t index);
-int32_t     tscGetResRowLength(SSqlCmd* pCmd);
+TAOS_FIELD* tscFieldInfoGetField(SQueryInfo* pQueryInfo, int32_t index);
+int16_t     tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
+int32_t     tscGetResRowLength(SQueryInfo* pQueryInfo);
 void        tscClearFieldInfo(SFieldInfo* pFieldInfo);
-int32_t tscNumOfFields(SSqlCmd* pCmd);
+int32_t tscNumOfFields(SQueryInfo* pQueryInfo);
 
 void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes, int16_t tableIndex);
 
-SSqlExpr* tscSqlExprInsert(SSqlCmd* pCmd, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
                            int16_t size, int16_t interSize);
-SSqlExpr* tscSqlExprInsertEmpty(SSqlCmd* pCmd, int32_t index, int16_t functionId);
+SSqlExpr* tscSqlExprInsertEmpty(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId);
 
-SSqlExpr* tscSqlExprUpdate(SSqlCmd* pCmd, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
+SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int16_t size);
 
-SSqlExpr* tscSqlExprGet(SSqlCmd* pCmd, int32_t index);
+SSqlExpr* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index);
 void      tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t uid);
 
-SColumnBase* tscColumnBaseInfoInsert(SSqlCmd* pCmd, SColumnIndex* colIndex);
+SColumnBase* tscColumnBaseInfoInsert(SQueryInfo* pQueryInfo, SColumnIndex* colIndex);
 void         tscColumnFilterInfoCopy(SColumnFilterInfo* dst, const SColumnFilterInfo* src);
 void         tscColumnBaseCopy(SColumnBase* dst, const SColumnBase* src);
 
@@ -172,31 +172,36 @@ void   tsSetMetricQueryCond(STagCond* pTagCond, uint64_t uid, const char* str);
 void tscTagCondCopy(STagCond* dest, const STagCond* src);
 void tscTagCondRelease(STagCond* pCond);
 
-void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SSqlCmd* pCmd);
+void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo);
 
 void tscSetFreeHeatBeat(STscObj* pObj);
 bool tscShouldFreeHeatBeat(SSqlObj* pHb);
 void tscCleanSqlCmd(SSqlCmd* pCmd);
 bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql);
 
-void            tscRemoveAllMeterMetaInfo(SSqlCmd* pCmd, bool removeFromCache);
-SMeterMetaInfo* tscGetMeterMetaInfo(SSqlCmd* pCmd, int32_t index);
-SMeterMetaInfo* tscGetMeterMetaInfoByUid(SSqlCmd* pCmd, uint64_t uid, int32_t* index);
+void            tscRemoveAllMeterMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache);
+SMeterMetaInfo* tscGetMeterMetaInfo(SSqlCmd *pCmd, int32_t subClauseIndex, int32_t tableIndex);
+SMeterMetaInfo* tscGetMeterMetaInfoFromQueryInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
+
+SQueryInfo *tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex);
+
+SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, int32_t subClauseIndex, uint64_t uid, int32_t* index);
 void            tscClearMeterMetaInfo(SMeterMetaInfo* pMeterMetaInfo, bool removeFromCache);
 
-SMeterMetaInfo* tscAddMeterMetaInfo(SSqlCmd* pCmd, const char* name, SMeterMeta* pMeterMeta, SMetricMeta* pMetricMeta,
+SMeterMetaInfo* tscAddMeterMetaInfo(SSqlCmd* pCmd, int32_t subClauseIndex, const char* name, SMeterMeta* pMeterMeta, SMetricMeta* pMetricMeta,
                                     int16_t numOfTags, int16_t* tags);
-SMeterMetaInfo* tscAddEmptyMeterMetaInfo(SSqlCmd* pCmd);
-int32_t tscAddQueryInfo(SSqlCmd *pCmd);
+SMeterMetaInfo* tscAddEmptyMeterMetaInfo(SSqlCmd* pCmd, int32_t subClauseIndex);
+int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
+void tscFreeSubqueryInfo(SSqlCmd* pCmd);
 
-void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, char* keyStr, uint64_t uid);
+void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, int32_t subClauseIndex, char* keyStr, uint64_t uid);
 int  tscGetMetricMeta(SSqlObj* pSql);
 int  tscGetMeterMeta(SSqlObj* pSql, char* meterId, int32_t tableIndex);
 int  tscGetMeterMetaEx(SSqlObj* pSql, char* meterId, bool createIfNotExists);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
 
-void tscAddTimestampColumn(SSqlCmd* pCmd, int16_t functionId, int16_t tableIndex);
+void tscAddTimestampColumn(SQueryInfo* pQueryInfo, int16_t functionId, int16_t tableIndex);
 void tscDoQuery(SSqlObj* pSql);
 
 /**
@@ -217,9 +222,9 @@ void tscDoQuery(SSqlObj* pSql);
  * @return
  */
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, SSqlObj* pPrevSql);
-void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t tableIndex);
+void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClauseIndex, int32_t tableIndex);
 
-void doAddGroupColumnForSubquery(SSqlCmd* pCmd, int32_t tagIndex);
+void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex);
 
 int16_t tscGetJoinTagColIndexByUid(STagCond* pTagCond, uint64_t uid);
 
@@ -228,7 +233,7 @@ TAOS* taos_connect_a(char* ip, char* user, char* pass, char* db, uint16_t port, 
 
 void sortRemoveDuplicates(STableDataBlocks* dataBuf);
 
-void tscPrintSelectClause(SSqlCmd* pCmd);
+void tscPrintSelectClause(SSqlCmd* pCmd, int32_t subClauseIndex);
 
 #ifdef __cplusplus
 }

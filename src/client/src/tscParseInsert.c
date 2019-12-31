@@ -651,7 +651,7 @@ void sortRemoveDuplicates(STableDataBlocks *dataBuf) {
 static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char **str, SParsedDataColInfo *spd,
                                       int32_t *totalNum) {
   SSqlCmd *       pCmd = &pSql->cmd;
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
   SMeterMeta *    pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   STableDataBlocks *dataBuf = NULL;
@@ -707,7 +707,7 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
   int32_t   code = TSDB_CODE_SUCCESS;
 
   SSqlCmd *       pCmd = &pSql->cmd;
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
 
   char *sql = *sqlstr;
   // get the token of specified table
@@ -754,7 +754,7 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
 
     STagData *pTag = (STagData *)pCmd->payload;
     memset(pTag, 0, sizeof(STagData));
-    setMeterID(pSql, &sToken, 0);
+    setMeterID(pSql, 0, &sToken, 0);
 
     strncpy(pTag->name, pMeterMetaInfo->name, TSDB_METER_ID_LEN);
     code = tscGetMeterMeta(pSql, pTag->name, 0);
@@ -762,7 +762,7 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
       return code;
     }
 
-    if (!UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
+    if (!UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
       return tscInvalidSQLErrMsg(pCmd->payload, "create table only from super table is allowed", sToken.z);
     }
 
@@ -894,7 +894,7 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
       return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);
     }
 
-    int32_t ret = setMeterID(pSql, &tableToken, 0);
+    int32_t ret = setMeterID(pSql, 0, &tableToken, 0);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -941,13 +941,13 @@ int validateTableName(char *tblName, int len) {
  * @param pSql
  * @return
  */
-int doParserInsertSql(SSqlObj *pSql, char *str) {
+int doParseInsertSql(SSqlObj *pSql, char *str) {
   SSqlCmd *pCmd = &pSql->cmd;
   
   int32_t code = TSDB_CODE_INVALID_SQL;
   int32_t totalNum = 0;
 
-  SMeterMetaInfo *pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pCmd);
+  SMeterMetaInfo *pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pCmd, 0);
 
   if ((code = tscAllocPayload(pCmd, TSDB_PAYLOAD_SIZE)) != TSDB_CODE_SUCCESS) {
     return code;
@@ -992,7 +992,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
     }
 
     //TODO refactor
-    if ((code = setMeterID(pSql, &sToken, 0)) != TSDB_CODE_SUCCESS) {
+    if ((code = setMeterID(pSql, 0, &sToken, 0)) != TSDB_CODE_SUCCESS) {
       goto _error_clean;
     }
 
@@ -1011,7 +1011,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
       }
     }
 
-    if (UTIL_METER_IS_METRIC(pMeterMetaInfo)) {
+    if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
       code = tscInvalidSQLErrMsg(pCmd->payload, "insert data into super table is not supported", NULL);
       goto _error_clean;
     }
@@ -1088,7 +1088,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
       strcpy(pDataBlock->filename, fname);
     } else if (sToken.type == TK_LP) {
       /* insert into tablename(col1, col2,..., coln) values(v1, v2,... vn); */
-      SMeterMeta *pMeterMeta = tscGetMeterMetaInfo(pCmd, 0)->pMeterMeta;
+      SMeterMeta *pMeterMeta = tscGetMeterMetaInfo(pCmd, 0, 0)->pMeterMeta;
       SSchema *   pSchema = tsGetSchema(pMeterMeta);
 
       if (pCmd->isInsertFromFile == -1) {
@@ -1188,7 +1188,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;
     }
 
-    SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+    pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
     
     // set the next sent data vnode index in data block arraylist
     pMeterMetaInfo->vnodeIndex = 1;
@@ -1203,7 +1203,7 @@ _error_clean:
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
 _clean:
-  taosCleanUpIntHash(pSql->pTableHashList);
+  taosCleanUpHashTable(pSql->pTableHashList);
   pSql->pTableHashList = NULL;
   return code;
 }
@@ -1231,14 +1231,14 @@ int tsParseInsertSql(SSqlObj *pSql, char *sql, char *acct, char *db) {
   pCmd->isInsertFromFile = -1;
   pSql->res.numOfRows = 0;
   
-  return doParserInsertSql(pSql, sql + index);
+  return doParseInsertSql(pSql, sql + index);
 }
 
 int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
   // must before clean the sqlcmd object
-  tscRemoveAllMeterMetaInfo(&pSql->cmd, false);
+//  tscRemoveMeterMetaInfo(&pSql->cmd, false);
   
   if (NULL == pSql->asyncTblPos) {
     tscCleanSqlCmd(&pSql->cmd);
@@ -1287,7 +1287,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
   int32_t  code = TSDB_CODE_SUCCESS;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SMeterMeta *pMeterMeta = tscGetMeterMetaInfo(pCmd, 0)->pMeterMeta;
+  SMeterMeta *pMeterMeta = tscGetMeterMetaInfo(pCmd, 0, 0)->pMeterMeta;
 
   SShellSubmitBlock *pBlocks = (SShellSubmitBlock *)(pTableDataBlocks->pData);
   tsSetBlockInfo(pBlocks, pMeterMeta, numOfRows);
@@ -1319,7 +1319,7 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   int             numOfRows = 0;
   int32_t         code = 0;
   int             nrows = 0;
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
   SMeterMeta *    pMeterMeta = pMeterMetaInfo->pMeterMeta;
   int32_t         rowSize = pMeterMeta->rowSize;
 
@@ -1415,7 +1415,7 @@ void tscProcessMultiVnodesInsert(SSqlObj *pSql) {
   }
 
   STableDataBlocks *pDataBlock = NULL;
-  SMeterMetaInfo *  pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  SMeterMetaInfo *  pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
   int32_t           code = TSDB_CODE_SUCCESS;
 
   /* the first block has been sent to server in processSQL function */
@@ -1450,7 +1450,7 @@ void tscProcessMultiVnodesInsertForFile(SSqlObj *pSql) {
     return;
   }
 
-  SMeterMetaInfo *  pInfo = tscGetMeterMetaInfo(pCmd, 0);
+  SMeterMetaInfo *  pInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
   STableDataBlocks *pDataBlock = NULL;
   int32_t           affected_rows = 0;
 

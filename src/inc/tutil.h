@@ -102,8 +102,8 @@ extern "C" {
   #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
   #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
 
-  float  taos_align_get_float(char* pBuf);
-  double taos_align_get_double(char* pBuf);
+  float  taos_align_get_float(const char* pBuf);
+  double taos_align_get_double(const char* pBuf);
 
   //#define __float_align_declear()  float __underlyFloat = 0.0;
   //#define __float_align_declear()

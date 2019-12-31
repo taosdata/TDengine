@@ -39,9 +39,9 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 
-#define TSC_GET_RESPTR_BASE(res, cmd, col, ord)                     \
-  ((res->data + tscFieldInfoGetOffset(cmd, col) * res->numOfRows) + \
-   (1 - ord.order) * (res->numOfRows - 1) * tscFieldInfoGetField(cmd, col)->bytes)
+#define TSC_GET_RESPTR_BASE(res, _queryinfo, col, ord)                     \
+  ((res->data + tscFieldInfoGetOffset(_queryinfo, col) * res->numOfRows) + \
+   (1 - ord.order) * (res->numOfRows - 1) * tscFieldInfoGetField(_queryinfo, col)->bytes)
 
 // forward declaration
 struct SSqlInfo;
@@ -208,6 +208,7 @@ typedef struct SDataBlockList {
 } SDataBlockList;
 
 typedef struct SQueryInfo {
+  uint16_t        type;  // query type
   char            intervalTimeUnit;
   
   int64_t         etime, stime;
@@ -221,16 +222,18 @@ typedef struct SQueryInfo {
   SLimitVal       limit;
   SLimitVal       slimit;
   STagCond        tagCond;
+  SOrderVal       order;
   int16_t         interpoType;  // interpolate type
   int16_t         numOfTables;
   SMeterMetaInfo **pMeterInfo;
   struct STSBuf *  tsBuf;
   // todo use dynamic allocated memory for defaultVal
   int64_t defaultVal[TSDB_MAX_COLUMNS];  // default value for interpolation
+  char*           msg;       // pointer to the pCmd->payload to keep error message temporarily
 } SQueryInfo;
 
 typedef struct {
-  SOrderVal order;
+//  SOrderVal order;
   int       command;
   int       count;  // TODO refactor
 
@@ -241,7 +244,6 @@ typedef struct {
 
   int8_t          isInsertFromFile;  // load data from file or not
   uint8_t         msgType;
-  uint16_t        type;  // query type
 
   /*
    * use to keep short request msg and error msg, in such case, SSqlCmd->payload == SSqlCmd->ext;
@@ -255,8 +257,8 @@ typedef struct {
   short           numOfCols;
   int64_t         globalLimit;
   
-  SQueryInfo     *pQueryInfo;
-  int32_t         numOfQueries;
+  SQueryInfo    **pQueryInfo;
+  int32_t         numOfClause;
   
 //  char            intervalTimeUnit;
 //  int64_t         etime, stime;
@@ -421,12 +423,12 @@ int taos_retrieve(TAOS_RES *res);
  * transfer function for metric query in stream computing, the function need to be change
  * before send query message to vnode
  */
-int32_t tscTansformSQLFunctionForMetricQuery(SSqlCmd *pCmd);
-void    tscRestoreSQLFunctionForMetricQuery(SSqlCmd *pCmd);
+int32_t tscTansformSQLFunctionForMetricQuery(SQueryInfo* pQueryInfo);
+void    tscRestoreSQLFunctionForMetricQuery(SQueryInfo* pQueryInfo);
 
 void tscClearSqlMetaInfoForce(SSqlCmd *pCmd);
 
-int32_t tscCreateResPointerInfo(SSqlCmd *pCmd, SSqlRes *pRes);
+int32_t tscCreateResPointerInfo(SQueryInfo* pQueryInfo, SSqlRes *pRes);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
 void tscFreeSqlCmdData(SSqlCmd *pCmd);
@@ -453,6 +455,8 @@ void    tscKillMetricQuery(SSqlObj *pSql);
 void    tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool    tscIsUpdateQuery(STscObj *pObj);
 bool    tscHasReachLimitation(SSqlObj* pSql);
+
+char* tscGetErrorMsgPayload(SSqlCmd* pCmd);
 
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 

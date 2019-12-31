@@ -354,7 +354,8 @@ select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) fill_
 
 union(Y) ::= select(X). { Y = setSubclause(NULL, X); }
 union(Y) ::= LP union(X) RP. { Y = X; }
-union(Y) ::= union(Z) UNION select(X). { Y = appendSelectClause(Z, X); }
+union(Y) ::= union(Z) UNION ALL select(X). { Y = appendSelectClause(Z, X); }
+union(Y) ::= union(Z) UNION ALL LP select(X) RP. { Y = appendSelectClause(Z, X); }
 
 cmd ::= union(X). { setSQLInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
 
