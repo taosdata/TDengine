@@ -46,11 +46,11 @@ TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafana目录�
 
 #### 配置数据源
 
-用户可以直接通过localhost:3000的网址，登录Grafana服务器(用户名/密码:admin/admin)，通过左侧`Configuration -> Data Sources`可以添加数据源，如下图所示：
+用户可以直接通过 localhost:3000 的网址，登录 Grafana 服务器(用户名/密码:admin/admin)，通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
 
 ![img](../assets/add_datasource1.jpg)
 
-点击 `Add data source` 可进入新增数据源页面，在查询框中输入TDengine 可选择添加，如下图所示：
+点击 `Add data source` 可进入新增数据源页面，在查询框中输入 TDengine 可选择添加，如下图所示：
 
 ![img](../assets/add_datasource2.jpg)
 
@@ -58,7 +58,7 @@ TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafana目录�
 
 ![img](../assets/add_datasource3.jpg)
 
-* HostTDengine：集群的中任意一台服务器的IP地址与TDengine RESTful接口的端口号(6020)，默认http://localhost:6020。
+* Host： TDengine 集群的中任意一台服务器的 IP 地址与 TDengine RESTful 接口的端口号(6020)，默认 http://localhost:6020。
 * User：TDengine 用户名。
 * Password：TDengine 用户密码。
 
@@ -83,7 +83,7 @@ TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafana目录�
 ![img](../assets/create_dashboard2.jpg)
 
 > 关于如何使用Grafana创建相应的监测界面以及更多有关使用Grafana的信息，请参考Grafana官方的[文档](https://grafana.com/docs/)。
-> 
+
 #### 导入 Dashboard
 
 在 Grafana 插件目录 /usr/local/taos/connector/grafana/tdengine/dashboard/ 下提供了一个 `tdengine-grafana.json` 可导入的 dashboard。
