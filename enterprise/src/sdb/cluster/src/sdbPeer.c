@@ -279,6 +279,14 @@ void sdbPeerRemoved(SSdbPeer *pPeer) {
   sdbCheckRoleStatus(NULL, NULL);
 }
 
+bool sdbPeerUpdate(SSdbPeer *pPeer) {
+  if (sdbGetRow(mnodeSdb, pPeer->ip) == NULL) {
+    sdbNewPeerAdded(pPeer);
+    return true;
+  }
+  return false;
+}
+
 void *mgmtPeerTool(char action, void *row, char *str, int size, int *ssize) {
   SSdbPeer *pPeer = NULL;
   int       tsize = 0;
@@ -295,6 +303,11 @@ void *mgmtPeerTool(char action, void *row, char *str, int size, int *ssize) {
       sdbUpdateIpList();
       break;
     case SDB_TYPE_UPDATE:
+      pPeer = (SSdbPeer *)row;
+      if (sdbGetRow(mnodeSdb, &pPeer->ip) == NULL) {
+        sdbNewPeerAdded(pPeer);
+        sdbUpdateIpList();
+      }
       break;
     case SDB_TYPE_BATCH_UPDATE:
       break;
@@ -764,7 +777,7 @@ void sdbUpdateIpList() {
     if (sdbPeer[i]->role == SDB_ROLE_MASTER) {
       pSdbIpList->ip[numOfIps] = sdbPeer[i]->ip;
       pSdbPublicIpList->ip[numOfIps] = sdbPeer[i]->publicIp;
-      sdbPrint("index:%d ip:%s publicIp:%s is master", numOfIps, taosIpStr(pSdbIpList->ip[numOfIps]), taosIpStr(pSdbPublicIpList->ip[numOfIps]));
+      sdbTrace("index:%d ip:%s publicIp:%s is master", numOfIps, taosIpStr(pSdbIpList->ip[numOfIps]), taosIpStr(pSdbPublicIpList->ip[numOfIps]));
       numOfIps++;
 
       break;
@@ -776,7 +789,7 @@ void sdbUpdateIpList() {
 
     pSdbIpList->ip[numOfIps] = sdbPeer[i]->ip;
     pSdbPublicIpList->ip[numOfIps] = sdbPeer[i]->publicIp;
-    sdbPrint("index:%d ip:%s publicIp:%s", numOfIps, taosIpStr(pSdbIpList->ip[numOfIps]), taosIpStr(pSdbPublicIpList->ip[numOfIps]));
+    sdbTrace("index:%d ip:%s publicIp:%s", numOfIps, taosIpStr(pSdbIpList->ip[numOfIps]), taosIpStr(pSdbPublicIpList->ip[numOfIps]));
     numOfIps++;
   }
 
@@ -1012,7 +1025,7 @@ int sdbRetrieveRows(int syncFd, SSdbTable *pTable, uint64_t version) {
   int         rowSize = 0;
 
   if (strcmp(pTable->name, "mnode") == 0) {
-    sdbPrint("table:%s fd:%d, force fully sync", pTable->name, syncFd);
+    sdbPrint("table:%s fd:%d, force full sync", pTable->name, syncFd);
     return sdbTransferWholeDataToPeer(syncFd, pTable);
   }
 
@@ -1209,12 +1222,12 @@ void sdbRestoreDbReq(int tcpFd) {
   while (1) {
     ret = taosReadMsg(tcpFd, pForward, sizeof(SForwardMsg));
     if (ret <= 0) {
-      sdbError("fd:%d, failed to read forward msg size, ret:%d reason:%s, restore finished", tcpFd, ret, strerror(errno));
+      sdbPrint("fd:%d, failed to read forward msg size, ret:%d reason:%s, restore finished", tcpFd, ret, strerror(errno));
       break;
     }
 
     dataLen = htons(pForward->dataLen);
-    sdbPrint("fd:%d, forward msg size received, table:%s type:%s version:%ld dataLen:%d ret:%d",
+    sdbTrace("fd:%d, forward msg size received, table:%s type:%s version:%ld dataLen:%d ret:%d",
             tcpFd, taosGetSdbTableName(pForward->dbId), taosGetSdbOperName(pForward->type), htobe64(pForward->version), dataLen, ret);
 
     if (dataLen > 0) {
