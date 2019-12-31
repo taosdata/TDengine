@@ -251,7 +251,8 @@ void sdbNewPeerAdded(SSdbPeer *pPeer) {
   }
 
   sdbNumOfPeers++;
-  sdbPrint("peer:%s is added into system, numOfPeers:%d", pPeer->ipstr, sdbNumOfPeers);
+  sdbPrint("peer:%s is added into system, numOfPeers:%d sdbVersion:%d mnodeId:%d",
+      pPeer->ipstr, sdbNumOfPeers, sdbVersion, ((SSdbTable*)mnodeSdb)->id);
 }
 
 void sdbPeerRemoved(SSdbPeer *pPeer) {
@@ -261,6 +262,7 @@ void sdbPeerRemoved(SSdbPeer *pPeer) {
 
   for (i = 0; i < SDB_MAX_PEERS; ++i) {
     if (sdbPeer[i] == pPeer) break;
+    if (sdbPeer[i]->ip == pPeer->ip) break;
   }
 
   if (i >= SDB_MAX_PEERS) {
@@ -274,17 +276,10 @@ void sdbPeerRemoved(SSdbPeer *pPeer) {
   // if ( pPeer->syncFd > 0 ) close(pPeer->syncFd);
 
   sdbNumOfPeers--;
-  sdbPrint("peer:%s is removed, numOfPeers:%d", pPeer->ipstr, sdbNumOfPeers);
+  sdbPrint("peer:%s is removed, numOfPeers:%d, sdbVersion:%d mnodeId:%d",
+      pPeer->ipstr, sdbNumOfPeers, sdbVersion, ((SSdbTable*)mnodeSdb)->id);
 
   sdbCheckRoleStatus(NULL, NULL);
-}
-
-bool sdbPeerUpdate(SSdbPeer *pPeer) {
-  if (sdbGetRow(mnodeSdb, pPeer->ip) == NULL) {
-    sdbNewPeerAdded(pPeer);
-    return true;
-  }
-  return false;
 }
 
 void *mgmtPeerTool(char action, void *row, char *str, int size, int *ssize) {
@@ -338,6 +333,8 @@ void *mgmtPeerTool(char action, void *row, char *str, int size, int *ssize) {
     case SDB_TYPE_DESTROY:
       pPeer = (SSdbPeer *)row;
       if (pPeer->status != SDB_STATUS_DELETED) {
+        sdbPeerRemoved(pPeer);
+        sdbUpdateIpList();
         taosTmrStopA(&pPeer->hbTimer);
         if (pPeer->thandle) taosCloseRpcConn(pPeer->thandle);
         if (pPeer->syncFd > 0) taosCloseTcpSocket(pPeer->syncFd);
@@ -1116,7 +1113,7 @@ void *sdbRetrieveSyncData(void *argv) {
   }
 
   close(pPeer->syncFd);
-  sdbPrint("fd:%d, send sdb retrieve data finished", pPeer->syncFd);
+  sdbPrint("fd:%d, send sdb retrieve data finished, sdbVersion:%d", pPeer->syncFd, sdbVersion);
   pPeer->syncFd = 0;
 
   return NULL;
