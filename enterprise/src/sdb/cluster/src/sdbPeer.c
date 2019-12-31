@@ -258,7 +258,6 @@ void sdbNewPeerAdded(SSdbPeer *pPeer) {
 void sdbPeerRemoved(SSdbPeer *pPeer) {
   int i;
 
-
   if (pPeer == NULL || pPeer->status == SDB_STATUS_DELETED) return;
 
   for (i = 0; i < SDB_MAX_PEERS; ++i) {
