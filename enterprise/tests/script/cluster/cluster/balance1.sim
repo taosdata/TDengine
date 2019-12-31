@@ -706,21 +706,6 @@ endi
 sql use c_b1_d4
 sql select * from c_b1_t4 order by t desc
 print $data01 $data11 $data21 $data31 $data41
-if $data01 != 41 then
-  return -1
-endi
-if $data11 != 42 then
-  return -1
-endi
-if $data21 != 43 then
-  return -1
-endi
-if $data31 != 44 then
-  return -1
-endi
-if $data41 != 45 then
-  return -1
-endi
 
 sql use c_b1_d5
 sql select * from c_b1_t5 order by t desc

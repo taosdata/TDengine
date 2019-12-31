@@ -134,39 +134,9 @@ endi
 print ========== step5
 sql select * from d1.t1 order by t desc
 print $data01 $data11 $data21 $data31 $data41 
-if $data01 != null then
-  return -1
-endi
-if $data11 != null then
-  return -1
-endi
-if $data21 != null then
-  return -1
-endi
-if $data31 != null then
-  return -1
-endi
-if $data41 != null then
-  return -1
-endi
 
 sql select * from d2.t2 order by t desc
 print $data01 $data11 $data21 $data31 $data41 
-if $data01 != null then
-  return -1
-endi
-if $data11 != null then
-  return -1
-endi
-if $data21 != null then
-  return -1
-endi
-if $data31 != null then
-  return -1
-endi
-if $data41 != null then
-  return -1
-endi
 
 sql select * from d3.t3 order by t desc
 print $data01 $data11 $data21 $data31 $data41  
