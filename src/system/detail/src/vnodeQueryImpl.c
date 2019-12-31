@@ -1152,7 +1152,7 @@ static bool getQualifiedDataBlock(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRunti
 
   // load first data block into memory failed, caused by disk block error
   bool blockLoaded = false;
-  while (blkIdx < pQuery->numOfBlocks) {
+  while (blkIdx < pQuery->numOfBlocks && blkIdx >= 0) {
     pQuery->slot = blkIdx;
     if (loadDataBlockIntoMem(&pQuery->pBlock[pQuery->slot], &pQuery->pFields[pQuery->slot], pRuntimeEnv, fid, true,
                              true) == 0) {
