@@ -703,21 +703,7 @@ endi
 sql use c_b1_d4
 sql select * from c_b1_d4.c_b1_t4 order by t desc
 print $data01 $data11 $data21 $data31 $data41
-if $data01 != null then
-  return -1
-endi
-if $data11 != null then
-  return -1
-endi
-if $data21 != null then
-  return -1
-endi
-if $data31 != null then
-  return -1
-endi
-if $data41 != null then
-  return -1
-endi
+
 
 sql use c_b1_d5
 sql select * from c_b1_d5.c_b1_t5 order by t desc
