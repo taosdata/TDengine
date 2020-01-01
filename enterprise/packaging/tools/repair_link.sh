@@ -17,7 +17,7 @@ done
 declare -A dirHash
 
 for linkFile in $(find -L $linkDir -xtype l); do
-    targetFile=$(readlink -m $linkFile)
+    targetFile=$(readlink -f $linkFile)
     echo "targetFile: ${targetFile}"
     # TODO : Extract directory part and basename part
     dirName=$(dirname $(dirname ${targetFile}))

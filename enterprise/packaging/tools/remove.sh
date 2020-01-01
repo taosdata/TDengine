@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Script to stop the service and uninstall database, but retain the config, data and log files.
+# Script to stop the service and uninstall TDengine, but retain the config, data and log files.
 
 RED='\033[0;31m'
 GREEN='\033[1;32m'

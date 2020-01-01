@@ -33,6 +33,8 @@ struct TableEntry
 
 static const char *g_inpath = ".";
 static const char *g_outpath = ".";
+static const char *g_database = "wjz";
+static const char *g_stable = "tb_event";
 
 static time_t g_now;
 
@@ -42,7 +44,7 @@ static uint32_t g_num_input_files = 0;
 #define MAX_NUM_OF_TABLE_ENTRY 4096
 static TableEntry** g_tables = NULL;
 
-#define MAX_NUM_OF_OUTPUT_FILE 100
+#define MAX_NUM_OF_OUTPUT_FILE 20
 static OutputFile* g_output_files = NULL;
 static FILE* g_table_file = NULL;
 static uint64_t g_records_written = 0;
@@ -269,9 +271,9 @@ static OutputFile* get_output_file( const Record* r )
 
     if( !found )
     {
-        const char* sqlFmt = "CREATE TABLE %s USING tb_event TAGS ('%s', '', '%s', '');\n";
+        const char* sqlFmt = "CREATE TABLE %s USING %s TAGS ('%s', '', '%s', '');\n";
 
-        fprintf( g_table_file, sqlFmt, r->tbname, r->equipment, r->type );
+        fprintf( g_table_file, sqlFmt, r->tbname, g_stable, r->equid, r->type );
         TableEntry* te = (TableEntry*)malloc( sizeof(TableEntry) );
         if( te == NULL )
         {
@@ -545,15 +547,17 @@ static bool parse_files()
 
 static void close_output_files()
 {
-    for( int i = 0; i < MAX_NUM_OF_OUTPUT_FILE; ++i )
-    {
-        OutputFile* of = g_output_files + i;
-        if( of->fp != NULL )
+    if( g_output_files != NULL ) {
+        for( int i = 0; i < MAX_NUM_OF_OUTPUT_FILE; ++i )
         {
-            if( of->num_records % 10 != 0 )
-                fprintf( of->fp, ";\n" );
-            fclose( of->fp );
-            of->fp = NULL;
+            OutputFile* of = g_output_files + i;
+            if( of->fp != NULL )
+            {
+                if( of->num_records % 10 != 0 )
+                    fprintf( of->fp, ";\n" );
+                fclose( of->fp );
+                of->fp = NULL;
+            }
         }
     }
 
@@ -586,7 +590,7 @@ static bool create_output_files()
         printf( "failed to create table.sql\n" );
         return false;
     }
-    fputs( "use wjz;\n", g_table_file );
+    fprintf(g_table_file, "use %s;\n", g_database);
 
     for( int i = 0; i < MAX_NUM_OF_OUTPUT_FILE; ++i )
     {
@@ -599,7 +603,7 @@ static bool create_output_files()
             printf( "failed to create output files\n" );
             return false;
         }
-        fputs( "use wjz;\n", g_output_files[i].fp );
+        fprintf(g_output_files[i].fp, "use %s;\n", g_database);
     }
 
     return true;
@@ -708,7 +712,18 @@ int main( int argc, char** argv )
             if( g_outpath[0] != 0 )
                 continue;
         }
-
+        else if( strncmp(argv[i], "-db=", 4) == 0 )
+        {
+            g_database = argv[i] + 4;
+            if( g_database[0] != 0 )
+                continue;
+        }
+        else if( strncmp(argv[i], "-stable=", 8) == 0 )
+        {
+            g_stable = argv[i] + 8;
+            if( g_stable[0] != 0 )
+                continue;
+        }
         show_usage();
         return 1;
     }
