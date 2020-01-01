@@ -22,7 +22,7 @@
 #include "tstrbuild.h"
 
 
-int tsParseInsertSql(SSqlObj *pSql, char *sql, char *acct, char *db);
+int tsParseInsertSql(SSqlObj *pSql);
 int taos_query_imp(STscObj* pObj, SSqlObj* pSql);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -385,12 +385,11 @@ static int insertStmtAddBatch(STscStmt* stmt) {
 }
 
 static int insertStmtPrepare(STscStmt* stmt) {
-  STscObj* taos = stmt->taos;
   SSqlObj *pSql = stmt->pSql;
   pSql->cmd.numOfParams = 0;
   pSql->cmd.batchSize = 0;
 
-  return tsParseInsertSql(pSql, pSql->sqlstr, taos->acctId, taos->db);
+  return tsParseInsertSql(pSql);
 }
 
 static int insertStmtReset(STscStmt* pStmt) {

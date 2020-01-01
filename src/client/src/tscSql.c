@@ -212,7 +212,7 @@ int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
   
   tscTrace("%p SQL: %s pObj:%p", pSql, pSql->sqlstr, pObj);
 
-  pRes->code = (uint8_t)tsParseSql(pSql, pObj->acctId, pObj->db, false);
+  pRes->code = (uint8_t)tsParseSql(pSql, false);
 
   /*
    * set the qhandle to 0 before return in order to erase the qhandle value assigned in the previous successful query.
@@ -447,9 +447,9 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
       SSqlRes *pRes1 = &pSql->pSubs[i]->res;
       SSqlCmd *pCmd1 = &pSql->pSubs[i]->cmd;
 
-      SMeterMetaInfo *pMetaInfo = tscGetMeterMetaInfo(pCmd1, 0, 0);
+      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd1, 0);
+      SMeterMetaInfo *pMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
   
-      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
       assert(pQueryInfo->numOfTables == 1);
 
       /*
@@ -972,7 +972,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
     pSql->pTableHashList = NULL;
   }
 
-  pRes->code = (uint8_t)tsParseSql(pSql, pObj->acctId, pObj->db, false);
+  pRes->code = (uint8_t)tsParseSql(pSql, false);
   int code = pRes->code;
 
   tscTrace("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(taos), pObj);
@@ -993,7 +993,13 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   int   code = TSDB_CODE_INVALID_METER_ID;
   char *str = (char *)tblNameList;
 
-  SMeterMetaInfo *pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  if (pQueryInfo == NULL) {
+    tscAddSubqueryInfo(pCmd);
+    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  }
+  
+  SMeterMetaInfo *pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
 
   if ((code = tscAllocPayload(pCmd, tblListLen + 16)) != TSDB_CODE_SUCCESS) {
     return code;

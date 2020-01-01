@@ -121,7 +121,7 @@ STSBuf* tsBufCreate(bool autoDelete);
 STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete);
 STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t tsOrder);
 
-void tsBufDestory(STSBuf* pTSBuf);
+void* tsBufDestory(STSBuf* pTSBuf);
 
 void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData, int32_t len);
 int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeIdx);

@@ -2274,10 +2274,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
     tfree(pRuntimeEnv->pInterpoBuf);
   }
 
-  if (pRuntimeEnv->pTSBuf != NULL) {
-    tsBufDestory(pRuntimeEnv->pTSBuf);
-    pRuntimeEnv->pTSBuf = NULL;
-  }
+  pRuntimeEnv->pTSBuf = tsBufDestory(pRuntimeEnv->pTSBuf);
 }
 
 // get maximum time interval in each file

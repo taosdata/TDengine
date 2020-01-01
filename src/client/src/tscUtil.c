@@ -885,7 +885,7 @@ void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList
 
   if (size <= 0) {
     *dst = *src;
-    tscFieldInfoCopyAll(src, dst);
+    tscFieldInfoCopyAll(dst, src);
   } else {  // only copy the required column
     for (int32_t i = 0; i < size; ++i) {
       assert(indexList[i] >= 0 && indexList[i] <= src->numOfOutputCols);
@@ -894,7 +894,7 @@ void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList
   }
 }
 
-void tscFieldInfoCopyAll(SFieldInfo* src, SFieldInfo* dst) {
+void tscFieldInfoCopyAll(SFieldInfo* dst, SFieldInfo* src) {
   *dst = *src;
 
   dst->pFields = malloc(sizeof(TAOS_FIELD) * dst->numOfAlloc);
@@ -1565,18 +1565,18 @@ bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql) {
 /**
  *
  * @param pCmd
- * @param unionSubClause denote the index of the union sub clause, usually are 0, if no union query exists.
+ * @param clauseIndex denote the index of the union sub clause, usually are 0, if no union query exists.
  * @param tableIndex  denote the table index for join query, where more than one table exists
  * @return
  */
-SMeterMetaInfo* tscGetMeterMetaInfo(SSqlCmd* pCmd, int32_t unionClauseIndex, int32_t tableIndex) {
+SMeterMetaInfo* tscGetMeterMetaInfo(SSqlCmd* pCmd, int32_t clauseIndex, int32_t tableIndex) {
   if (pCmd == NULL || pCmd->numOfClause == 0) {
     return NULL;
   }
 
-  assert(unionClauseIndex >= 0 && unionClauseIndex < pCmd->numOfClause);
+  assert(clauseIndex >= 0 && clauseIndex < pCmd->numOfClause);
 
-  SQueryInfo* pQueryInfo = pCmd->pQueryInfo[unionClauseIndex];
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
   return tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
 }
 
@@ -1599,6 +1599,23 @@ SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex) {
 
   assert(pCmd != NULL && subClauseIndex >= 0 && subClauseIndex < pCmd->numOfClause);
   return pCmd->pQueryInfo[subClauseIndex];
+}
+
+int32_t tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex, SQueryInfo** pQueryInfo) {
+  int32_t ret = TSDB_CODE_SUCCESS;
+  assert(subClauseIndex >= 0 && subClauseIndex < TSDB_MAX_UNION_CLAUSE);
+  
+  *pQueryInfo = tscGetQueryInfoDetail(pCmd, subClauseIndex);
+  
+  while ((*pQueryInfo) == NULL) {
+    if ((ret = tscAddSubqueryInfo(pCmd)) != TSDB_CODE_SUCCESS) {
+      return ret;
+    }
+    
+    (*pQueryInfo) = tscGetQueryInfoDetail(pCmd, subClauseIndex);
+  }
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, int32_t subClauseIndex, uint64_t uid, int32_t* index) {
@@ -1636,23 +1653,24 @@ int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void doFreeSubqueryInfo(SQueryInfo* pQueryInfo, int64_t address) {
+static void doClearSubqueryInfo(SQueryInfo* pQueryInfo) {
   tscTagCondRelease(&pQueryInfo->tagCond);
   tscClearFieldInfo(&pQueryInfo->fieldsInfo);
-
+  
   tfree(pQueryInfo->exprsInfo.pExprs);
   memset(&pQueryInfo->exprsInfo, 0, sizeof(pQueryInfo->exprsInfo));
-
+  
   tscColumnBaseInfoDestroy(&pQueryInfo->colList);
   memset(&pQueryInfo->colList, 0, sizeof(pQueryInfo->colList));
-
-  if (pQueryInfo->tsBuf != NULL) {
-    tsBufDestory(pQueryInfo->tsBuf);
-    pQueryInfo->tsBuf = NULL;
-  }
   
-  tscRemoveAllMeterMetaInfo(pQueryInfo, (const char*) address, false);
-  tfree(pQueryInfo);
+  pQueryInfo->tsBuf = tsBufDestory(pQueryInfo->tsBuf);
+}
+
+void tscClearSubqueryInfo(SSqlCmd* pCmd) {
+  for(int32_t i = 0; i < pCmd->numOfClause; ++i) {
+    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
+    doClearSubqueryInfo(pQueryInfo);
+  }
 }
 
 void tscFreeSubqueryInfo(SSqlCmd* pCmd) {
@@ -1661,24 +1679,26 @@ void tscFreeSubqueryInfo(SSqlCmd* pCmd) {
   }
 
   for (int32_t i = 0; i < pCmd->numOfClause; ++i) {
-    int64_t offset = offsetof(SSqlObj, cmd);
-    int64_t addr = (char*) pCmd - offset;
+    char *addr = (char *) pCmd - offsetof(SSqlObj, cmd);
     
-    doFreeSubqueryInfo(tscGetQueryInfoDetail(pCmd, i), addr);
+    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
+  
+    doClearSubqueryInfo(pQueryInfo);
+    tscRemoveAllMeterMetaInfo(pQueryInfo, (const char *) addr, false);
+    tfree(pQueryInfo);
   }
-
+  
   pCmd->numOfClause = 0;
   tfree(pCmd->pQueryInfo);
 }
 
-SMeterMetaInfo* tscAddMeterMetaInfo(SSqlCmd* pCmd, int32_t subClauseIndex, const char* name, SMeterMeta* pMeterMeta,
+SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, SMeterMeta* pMeterMeta,
                                     SMetricMeta* pMetricMeta, int16_t numOfTags, int16_t* tags) {
-  assert(subClauseIndex >= 0 && subClauseIndex < TSDB_MAX_UNION_CLAUSE);
-  while (pCmd->numOfClause <= subClauseIndex) {
-    tscAddSubqueryInfo(pCmd);
-  }
+//  while (pCmd->numOfClause <= subClauseIndex) {
+//    tscAddSubqueryInfo(pCmd);
+//  }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+//  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
   void* pAlloc = realloc(pQueryInfo->pMeterInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
   if (pAlloc == NULL) {
@@ -1708,8 +1728,8 @@ SMeterMetaInfo* tscAddMeterMetaInfo(SSqlCmd* pCmd, int32_t subClauseIndex, const
   return pMeterMetaInfo;
 }
 
-SMeterMetaInfo* tscAddEmptyMeterMetaInfo(SSqlCmd* pCmd, int32_t subClauseIndex) {
-  return tscAddMeterMetaInfo(pCmd, subClauseIndex, NULL, NULL, NULL, 0, NULL);
+SMeterMetaInfo* tscAddEmptyMeterMetaInfo(SQueryInfo* pQueryInfo) {
+  return tscAddMeterMetaInfo(pQueryInfo, NULL, NULL, NULL, 0, NULL);
 }
 
 void doRemoveMeterMetaInfo(SQueryInfo* pQueryInfo, int32_t index, bool removeFromCache) {
@@ -1858,11 +1878,11 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     SMeterMeta*  pMeterMeta = taosGetDataFromCache(tscCacheHandle, name);
     SMetricMeta* pMetricMeta = taosGetDataFromCache(tscCacheHandle, key);
 
-    pFinalInfo = tscAddMeterMetaInfo(&pNew->cmd, 0, name, pMeterMeta, pMetricMeta, pMeterMetaInfo->numOfTags,
+    pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pMeterMeta, pMetricMeta, pMeterMetaInfo->numOfTags,
                                      pMeterMetaInfo->tagColumnIndex);
-  } else {
+  } else { // transfer the ownership of pMeterMeta/pMetricMeta to the newly create sql object.
     SMeterMetaInfo* pPrevInfo = tscGetMeterMetaInfo(&pPrevSql->cmd, 0, 0);
-    pFinalInfo = tscAddMeterMetaInfo(&pNew->cmd, 0, name, pPrevInfo->pMeterMeta, pPrevInfo->pMetricMeta,
+    pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pPrevInfo->pMeterMeta, pPrevInfo->pMetricMeta,
                                      pMeterMetaInfo->numOfTags, pMeterMetaInfo->tagColumnIndex);
 
     pPrevInfo->pMeterMeta = NULL;

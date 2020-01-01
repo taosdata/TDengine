@@ -666,23 +666,26 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
 
     // refactor as one method
     SQueryInfo* pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
+    assert(pNewQueryInfo != NULL);
+    
     tscColumnBaseInfoUpdateTableIndex(&pNewQueryInfo->colList, 0);
     tscColumnBaseInfoCopy(&pSupporter->colList, &pNewQueryInfo->colList, 0);
 
     tscSqlExprCopy(&pSupporter->exprsInfo, &pNewQueryInfo->exprsInfo, pSupporter->uid);
 
-    tscFieldInfoCopyAll(&pNewQueryInfo->fieldsInfo, &pSupporter->fieldsInfo);
+    tscFieldInfoCopyAll(&pSupporter->fieldsInfo, &pNewQueryInfo->fieldsInfo);
     tscTagCondCopy(&pSupporter->tagCond, &pNewQueryInfo->tagCond);
-    pSupporter->groupbyExpr = pNewQueryInfo->groupbyExpr;
 
     pNew->cmd.numOfCols = 0;
     pNewQueryInfo->nAggTimeInterval = 0;
     memset(&pNewQueryInfo->limit, 0, sizeof(SLimitVal));
+    
+    // backup the data and clear it in the sqlcmd object
+    pSupporter->groupbyExpr = pNewQueryInfo->groupbyExpr;
     memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SSqlGroupbyExpr));
 
     // set the ts,tags that involved in join, as the output column of intermediate result
-    pCmd->pDataBlocks = tscDestroyBlockArrayList(pNew->cmd.pDataBlocks);
-    tscFreeSubqueryInfo(&pNew->cmd);
+    tscClearSubqueryInfo(&pNew->cmd);
     
     SSchema      colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = 1};
     SColumnIndex index = {0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
@@ -3458,7 +3461,7 @@ static int32_t tscDoGetMeterMeta(SSqlObj *pSql, char *meterId, int32_t index) {
   pNew->cmd.allocSize = 0;
 
   tscAddSubqueryInfo(&pNew->cmd);
-  pNew->cmd.numOfClause = 1;
+  assert(pNew->cmd.numOfClause == 1);
   
   SQueryInfo* pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
   pNewQueryInfo->defaultVal[0] = pQueryInfo->defaultVal[0];  // flag of create table if not exists
@@ -3469,7 +3472,7 @@ static int32_t tscDoGetMeterMeta(SSqlObj *pSql, char *meterId, int32_t index) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  SMeterMetaInfo *pMeterMetaInfo = tscAddEmptyMeterMetaInfo(&pNew->cmd, 0);
+  SMeterMetaInfo *pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pNewQueryInfo);
 
   strcpy(pMeterMetaInfo->name, meterId);
   memcpy(pNew->cmd.payload, pSql->cmd.payload, TSDB_DEFAULT_PAYLOAD_SIZE);
@@ -3639,10 +3642,10 @@ int tscGetMetricMeta(SSqlObj *pSql) {
   pNew->cmd.command = TSDB_SQL_METRIC;
 
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-    SMeterMetaInfo *pMMInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, i);
-
+    SMeterMetaInfo *pMMInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
+  
     SMeterMeta *pMeterMeta = taosGetDataFromCache(tscCacheHandle, pMMInfo->name);
-    tscAddMeterMetaInfo(&pNew->cmd, 0, pMMInfo->name, pMeterMeta, NULL, pMMInfo->numOfTags, pMMInfo->tagColumnIndex);
+    tscAddMeterMetaInfo(pQueryInfo, pMMInfo->name, pMeterMeta, NULL, pMMInfo->numOfTags, pMMInfo->tagColumnIndex);
   }
 
   if ((code = tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) != TSDB_CODE_SUCCESS) {

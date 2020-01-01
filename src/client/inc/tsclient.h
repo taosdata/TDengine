@@ -400,7 +400,7 @@ typedef struct {
 } SIpStrList;
 
 // tscSql API
-int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion);
+int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
 
 void  tscInitMsgs();
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);

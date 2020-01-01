@@ -277,7 +277,7 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
       return 0;
     }
 
-    tscFreeSqlCmdData(&pNew->cmd);
+    tscClearSubqueryInfo(&pNew->cmd);
 
     pSql->pSubs[j++] = pNew;
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
@@ -298,7 +298,7 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
 
     tscSqlExprCopy(&pQueryInfo->exprsInfo, &pSupporter->exprsInfo, pSupporter->uid);
-    tscFieldInfoCopyAll(&pSupporter->fieldsInfo, &pQueryInfo->fieldsInfo);
+    tscFieldInfoCopyAll(&pQueryInfo->fieldsInfo, &pSupporter->fieldsInfo);
 
     // add the ts function for interval query if it is missing
     if (pSupporter->exprsInfo.pExprs[0].functionId != TSDB_FUNC_TS && pQueryInfo->nAggTimeInterval > 0) {
@@ -918,9 +918,9 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   return pTSBuf;
 }
 
-void tsBufDestory(STSBuf* pTSBuf) {
+void* tsBufDestory(STSBuf* pTSBuf) {
   if (pTSBuf == NULL) {
-    return;
+    return NULL;
   }
 
   tfree(pTSBuf->assistBuf);
@@ -939,6 +939,7 @@ void tsBufDestory(STSBuf* pTSBuf) {
   }
 
   free(pTSBuf);
+  return NULL;
 }
 
 static STSVnodeBlockInfoEx* tsBufGetLastVnodeInfo(STSBuf* pTSBuf) {

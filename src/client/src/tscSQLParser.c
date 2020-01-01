@@ -199,14 +199,17 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   }
 
   SSqlCmd* pCmd = &(pSql->cmd);
+  SQueryInfo* pQueryInfo = NULL;
 
   if (!pInfo->valid) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), pInfo->pzErrMsg);
   }
 
-  SMeterMetaInfo* pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pCmd, 0);
+  int32_t code = tscGetQueryInfoDetailSafely(pCmd, 0, &pQueryInfo);
+  
+  SMeterMetaInfo* pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
+  
   pCmd->command = pInfo->type;
-  int32_t code = 0;
 
   switch (pInfo->type) {
     case TSDB_SQL_DROP_TABLE:
@@ -226,7 +229,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (pInfo->type == TSDB_SQL_DROP_DB) {
         assert(pInfo->pDCLInfo->nTokens == 1);
 
-        int32_t code = setObjFullName(pMeterMetaInfo->name, getAccountId(pSql), pzName, NULL, NULL);
+        code = setObjFullName(pMeterMetaInfo->name, getAccountId(pSql), pzName, NULL, NULL);
         if (code != TSDB_CODE_SUCCESS) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
@@ -500,7 +503,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       assert(pCmd->numOfClause == 1);
 
       for (int32_t i = pCmd->numOfClause; i < pInfo->subclauseInfo.numOfClause; ++i) {
-        tscAddEmptyMeterMetaInfo(pCmd, i);
+        SQueryInfo* pqi = NULL;
+        if ((code = tscGetQueryInfoDetailSafely(pCmd, i, &pqi)) != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
 
       assert(pCmd->numOfClause == pInfo->subclauseInfo.numOfClause);
@@ -5384,9 +5390,9 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
     }
 
-    SQueryInfo* pQueryInfo = pCmd->pQueryInfo[index];
+    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, index);
     if (pQueryInfo->numOfTables <= i) {  // more than one table
-      tscAddEmptyMeterMetaInfo(pCmd, 0);
+      tscAddEmptyMeterMetaInfo(pQueryInfo);
     }
 
     SSQLToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->nLen, .z = pTableItem->pz};

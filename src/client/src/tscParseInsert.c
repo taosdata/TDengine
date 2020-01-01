@@ -944,10 +944,18 @@ int validateTableName(char *tblName, int len) {
 int doParseInsertSql(SSqlObj *pSql, char *str) {
   SSqlCmd *pCmd = &pSql->cmd;
   
-  int32_t code = TSDB_CODE_INVALID_SQL;
   int32_t totalNum = 0;
-
-  SMeterMetaInfo *pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pCmd, 0);
+  SQueryInfo* pQueryInfo = NULL;
+  SMeterMetaInfo* pMeterMetaInfo = NULL;
+  
+  int32_t code = tscGetQueryInfoDetailSafely(pCmd, 0, &pQueryInfo);
+  
+  if (pQueryInfo->numOfTables == 0) {
+    pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
+  } else {
+    pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+    assert(pQueryInfo->numOfTables == 1);
+  }
 
   if ((code = tscAllocPayload(pCmd, TSDB_PAYLOAD_SIZE)) != TSDB_CODE_SUCCESS) {
     return code;
@@ -1208,14 +1216,15 @@ _clean:
   return code;
 }
 
-int tsParseInsertSql(SSqlObj *pSql, char *sql, char *acct, char *db) {
+int tsParseInsertSql(SSqlObj *pSql) {
   if (!pSql->pTscObj->writeAuth) {
     return TSDB_CODE_NO_RIGHTS;
   }
 
   int32_t  index = 0;
   SSqlCmd *pCmd = &pSql->cmd;
-
+  char* sql = pSql->sqlstr;
+  
   SSQLToken sToken = tStrGetToken(sql, &index, false, 0, NULL);
   
   assert(sToken.type == TK_INSERT || sToken.type == TK_IMPORT);
@@ -1234,12 +1243,9 @@ int tsParseInsertSql(SSqlObj *pSql, char *sql, char *acct, char *db) {
   return doParseInsertSql(pSql, sql + index);
 }
 
-int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion) {
+int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
-  // must before clean the sqlcmd object
-//  tscRemoveMeterMetaInfo(&pSql->cmd, false);
-  
   if (NULL == pSql->asyncTblPos) {
     tscCleanSqlCmd(&pSql->cmd);
   } else {
@@ -1260,7 +1266,7 @@ int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion) {
       pSql->fp = tscAsyncInsertMultiVnodesProxy;
     }
 
-    ret = tsParseInsertSql(pSql, pSql->sqlstr, acct, db);
+    ret = tsParseInsertSql(pSql);
   } else {
     ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
     if (TSDB_CODE_SUCCESS != ret) return ret;

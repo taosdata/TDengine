@@ -128,7 +128,7 @@ void tscFieldInfoUpdateVisible(SFieldInfo* pFieldInfo, int32_t index, bool visib
 void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo);
 void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
 void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList, int32_t size);
-void tscFieldInfoCopyAll(SFieldInfo* src, SFieldInfo* dst);
+void tscFieldInfoCopyAll(SFieldInfo* dst, SFieldInfo* src);
 
 TAOS_FIELD* tscFieldInfoGetField(SQueryInfo* pQueryInfo, int32_t index);
 int16_t     tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
@@ -184,15 +184,17 @@ SMeterMetaInfo* tscGetMeterMetaInfo(SSqlCmd *pCmd, int32_t subClauseIndex, int32
 SMeterMetaInfo* tscGetMeterMetaInfoFromQueryInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
 
 SQueryInfo *tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex);
+int32_t tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex, SQueryInfo** pQueryInfo);
 
 SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, int32_t subClauseIndex, uint64_t uid, int32_t* index);
 void            tscClearMeterMetaInfo(SMeterMetaInfo* pMeterMetaInfo, bool removeFromCache);
 
-SMeterMetaInfo* tscAddMeterMetaInfo(SSqlCmd* pCmd, int32_t subClauseIndex, const char* name, SMeterMeta* pMeterMeta, SMetricMeta* pMetricMeta,
+SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, SMeterMeta* pMeterMeta, SMetricMeta* pMetricMeta,
                                     int16_t numOfTags, int16_t* tags);
-SMeterMetaInfo* tscAddEmptyMeterMetaInfo(SSqlCmd* pCmd, int32_t subClauseIndex);
+SMeterMetaInfo* tscAddEmptyMeterMetaInfo(SQueryInfo *pQueryInfo);
 int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
 void tscFreeSubqueryInfo(SSqlCmd* pCmd);
+void tscClearSubqueryInfo(SSqlCmd* pCmd);
 
 void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, int32_t subClauseIndex, char* keyStr, uint64_t uid);
 int  tscGetMetricMeta(SSqlObj* pSql);

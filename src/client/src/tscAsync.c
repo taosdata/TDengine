@@ -97,7 +97,7 @@ void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *,
   strtolower(pSql->sqlstr, sqlstr);
   tscTrace("%p Async SQL: %s, pObj:%p", pSql, pSql->sqlstr, pObj);
 
-  int32_t code = tsParseSql(pSql, pObj->acctId, pObj->db, true);
+  int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -523,7 +523,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
     } else {  // normal async query continues
-      code = tsParseSql(pSql, pObj->acctId, pObj->db, false);
+      code = tsParseSql(pSql, false);
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
     }
 
