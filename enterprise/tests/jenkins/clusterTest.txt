@@ -45,16 +45,6 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 ../script/test.sh -f cluster/dnode/remove2.sim
 ../script/test.sh -f cluster/dnode/vnode_clean.sim
 
-../script/test.sh -f cluster/dnode/balance1.sim
-../script/test.sh -f cluster/dnode/balance2.sim
-../script/test.sh -f cluster/dnode/balance3.sim
-../script/test.sh -f cluster/dnode/balancex.sim
-../script/test.sh -f cluster/dnode/offline1.sim
-../script/test.sh -f cluster/dnode/offline2.sim
-../script/test.sh -f cluster/dnode/remove1.sim
-../script/test.sh -f cluster/dnode/remove2.sim
-../script/test.sh -f cluster/dnode/vnode_clean.sim
-
 ../script/test.sh -f cluster/http/admin.sim
 
 ../script/test.sh -f cluster/import/replica2.sim
