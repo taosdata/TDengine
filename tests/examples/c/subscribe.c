@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
   const char* host = "127.0.0.1";
   const char* user = "root";
   const char* passwd = "taosdata";
-  int async = 1;
+  int async = 1, restart = 0;
   TAOS_SUB* tsub = NULL;
 
   for (int i = 1; i < argc; i++) {
@@ -44,8 +44,12 @@ int main(int argc, char *argv[]) {
       passwd = argv[i] + 3;
       continue;
     }
-    if (strncmp(argv[i], "-m=", 3) == 0) {
-      async = strcmp(argv[i] + 3, "sync");
+    if (strcmp(argv[i], "-sync") == 0) {
+      async = 0;
+      continue;
+    }
+    if (strcmp(argv[i], "-restart") == 0) {
+      restart = 1;
       continue;
     }
   }
@@ -60,9 +64,9 @@ int main(int argc, char *argv[]) {
   }
 
   if (async) {
-    tsub = taos_subscribe(taos, "select * from meters;", subscribe_callback, NULL, 1000);
+    tsub = taos_subscribe("test", restart, taos, "select * from meters;", subscribe_callback, NULL, 1000);
   } else {
-    tsub = taos_subscribe(taos, "select * from meters;", NULL, NULL, 0);
+    tsub = taos_subscribe("test", restart, taos, "select * from meters;", NULL, NULL, 0);
   }
 
   if (tsub == NULL) {

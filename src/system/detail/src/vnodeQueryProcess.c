@@ -682,18 +682,14 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
     while (pSupporter->meterIdx < pSupporter->numOfMeters) {
       int32_t k = pSupporter->meterIdx;
 
-pQInfo->killed = 0;
-/*
       if (isQueryKilled(pQuery)) {
         setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
         return;
       }
-*/
 
       TSKEY skey = pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[k]->key;
       if (skey > 0) {
         pQuery->skey = skey;
-        // pQuery->lastKey = ???;
       }
 
       bool dataInDisk = true;
