@@ -319,7 +319,7 @@ void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
   }
 
   pQueryInfo->interpoType = TSDB_INTERPO_NONE;
-  memset(pQueryInfo->defaultVal, 0, sizeof(pQueryInfo->defaultVal));
+  tfree(pQueryInfo->defaultVal);
 }
 
 void tscClearSqlMetaInfoForce(SSqlCmd* pCmd) {
@@ -398,20 +398,20 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   tfree(pSql->sqlstr);
   pthread_mutex_unlock(&pObj->mutex);
 
-  tfree(pSql->res.pRsp);
-  pSql->res.row = 0;
-  pSql->res.numOfRows = 0;
-  pSql->res.numOfTotal = 0;
+  tfree(pRes->pRsp);
+  pRes->row = 0;
+  pRes->numOfRows = 0;
+  pRes->numOfTotal = 0;
 
-  pSql->res.numOfGroups = 0;
-  tfree(pSql->res.pGroupRec);
+  pRes->numOfGroups = 0;
+  tfree(pRes->pGroupRec);
 
   tscDestroyLocalReducer(pSql);
 
   tfree(pSql->pSubs);
   pSql->numOfSubs = 0;
   tscDestroyResPointerInfo(pRes);
-  tfree(pSql->res.pColumnIndex);
+  tfree(pRes->pColumnIndex);
 
   tscFreeSqlCmdData(pCmd);
 }
@@ -535,7 +535,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   SSqlCmd* pCmd = &pSql->cmd;
   assert(pDataBlock->pMeterMeta != NULL);
 
-  pCmd->count = pDataBlock->numOfMeters;
+  pCmd->numOfTablesInSubmit = pDataBlock->numOfMeters;
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
 
   // set the correct metermeta object, the metermeta has been locked in pDataBlocks, so it must be in the cache
@@ -1548,7 +1548,7 @@ bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql) {
     SQueryInfo*     pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
 
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-    assert(pQueryInfo->numOfTables == 1);
+    assert(pQueryInfo->numOfTables == 1 || pQueryInfo->numOfTables == 2);
 
     if (pDataBlocks == NULL || pMeterMetaInfo->vnodeIndex >= pDataBlocks->nSize) {
       tscTrace("%p object should be release since all data blocks have been submit", pSql);
@@ -1664,6 +1664,8 @@ static void doClearSubqueryInfo(SQueryInfo* pQueryInfo) {
   memset(&pQueryInfo->colList, 0, sizeof(pQueryInfo->colList));
   
   pQueryInfo->tsBuf = tsBufDestory(pQueryInfo->tsBuf);
+  
+  tfree(pQueryInfo->defaultVal);
 }
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd) {
@@ -1814,15 +1816,18 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
   memcpy(pNewQueryInfo, pQueryInfo, sizeof(SQueryInfo));
-  pNewQueryInfo->pMeterInfo = NULL;
 
   memset(&pNewQueryInfo->colList, 0, sizeof(pNewQueryInfo->colList));
   memset(&pNewQueryInfo->fieldsInfo, 0, sizeof(SFieldInfo));
-
+  
+  pNewQueryInfo->pMeterInfo = NULL;
+  pNewQueryInfo->defaultVal = NULL;
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->tsBuf = NULL;
 
   tscTagCondCopy(&pNewQueryInfo->tagCond, &pQueryInfo->tagCond);
+  pNewQueryInfo->defaultVal = malloc(pQueryInfo->fieldsInfo.numOfOutputCols * sizeof(int64_t));
+  memcpy(pNewQueryInfo->defaultVal, pQueryInfo->defaultVal, pQueryInfo->fieldsInfo.numOfOutputCols * sizeof(int64_t));
 
   if (tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE) != TSDB_CODE_SUCCESS) {
     tscError("%p new subquery failed, tableIndex:%d, vnodeIndex:%d", pSql, tableIndex, pMeterMetaInfo->vnodeIndex);
@@ -1910,8 +1915,8 @@ void tscDoQuery(SSqlObj* pSql) {
       tscAddIntoSqlList(pSql);
     }
 
-    if (pCmd->isInsertFromFile == 1) {
-      tscProcessMultiVnodesInsertForFile(pSql);
+    if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
+      tscProcessMultiVnodesInsertFromFile(pSql);
     } else {
       // pSql may be released in this function if it is a async insertion.
       tscProcessSql(pSql);

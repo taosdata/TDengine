@@ -585,6 +585,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   SShellSubmitMsg *pSubmit = &shellSubmit;
   SShellSubmitBlock *pBlocks = NULL;
 
+  pSubmit->import = htons(pSubmit->import);
   pSubmit->vnode = htons(pSubmit->vnode);
   pSubmit->numOfSid = htonl(pSubmit->numOfSid);
 

@@ -110,7 +110,7 @@ void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex
 
 void addRequiredTagColumn(SQueryInfo* pQueryInfo, int32_t tagColIndex, int32_t tableIndex);
 
-int32_t setMeterID(SSqlObj* pSql, int32_t subClauseIndex, SSQLToken* pzTableName, int32_t tableIndex);
+int32_t setMeterID(SMeterMetaInfo* pMeterMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql);
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
 bool tscIsInsertOrImportData(char* sqlstr);
@@ -198,8 +198,8 @@ void tscClearSubqueryInfo(SSqlCmd* pCmd);
 
 void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, int32_t subClauseIndex, char* keyStr, uint64_t uid);
 int  tscGetMetricMeta(SSqlObj* pSql);
-int  tscGetMeterMeta(SSqlObj* pSql, char* meterId, int32_t tableIndex);
-int  tscGetMeterMetaEx(SSqlObj* pSql, char* meterId, bool createIfNotExists);
+int  tscGetMeterMeta(SSqlObj* pSql, SMeterMetaInfo* pMeterMetaInfo);
+int  tscGetMeterMetaEx(SSqlObj* pSql, SMeterMetaInfo* pMeterMetaInfo, bool createIfNotExists);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
 

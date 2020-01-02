@@ -589,6 +589,8 @@ void destroyAllSelectClause(SSubclauseInfo *pClause) {
     SQuerySQL *pQuerySql = pClause->pClause[i];
     doDestroyQuerySql(pQuerySql);
   }
+  
+  tfree(pClause->pClause);
 }
 
 SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLToken *pStableName,

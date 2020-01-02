@@ -70,7 +70,7 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
-  int code = tscGetMeterMeta(pSql, pMeterMetaInfo->name, 0);
+  int code = tscGetMeterMeta(pSql, pMeterMetaInfo);
   pSql->res.code = code;
 
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
@@ -82,7 +82,7 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
     if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
   }
 
-  tscTansformSQLFunctionForMetricQuery(pQueryInfo);
+  tscTansformSQLFunctionForSTableQuery(pQueryInfo);
 
   // failed to get meter/metric meta, retry in 10sec.
   if (code != TSDB_CODE_SUCCESS) {
@@ -391,6 +391,7 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   }
 
   pStream->slidingTime = pQueryInfo->nSlidingTime;
+  pQueryInfo->nAggTimeInterval = 0; // clear the interval value to avoid the force time window split by query processor
 }
 
 static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, int64_t stime) {
@@ -507,8 +508,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
     return NULL;
   }
   
-  // TODO later refactor use enum
-  pSql->cmd.count = 1;  // 1 means sql in stream, allowed the sliding clause.
+  pSql->cmd.inStream = 1;  // 1 means sql in stream, allowed the sliding clause.
   pRes->code = tscToSQLCmd(pSql, &SQLInfo);
   SQLInfoDestroy(&SQLInfo);
 

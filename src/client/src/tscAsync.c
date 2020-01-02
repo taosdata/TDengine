@@ -413,13 +413,13 @@ void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows) 
   SSqlCmd *pCmd = &pSql->cmd;
   int32_t  code = TSDB_CODE_SUCCESS;
 
-  assert(!pCmd->isInsertFromFile && pSql->signature == pSql);
+  assert(pCmd->dataSourceType != 0 && pSql->signature == pSql);
   
   int32_t index = 0;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, index);
   
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, index, 0);
-  assert(pQueryInfo->numOfTables == 1);
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  assert(pQueryInfo->numOfTables == 1 || pQueryInfo->numOfTables == 2);
   
   SDataBlockList *pDataBlocks = pCmd->pDataBlocks;
   if (pDataBlocks == NULL || pMeterMetaInfo->vnodeIndex >= pDataBlocks->nSize) {
@@ -456,7 +456,6 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
   SSqlObj *pSql = (SSqlObj *)param;
   if (pSql == NULL || pSql->signature != pSql) return;
 
-  STscObj *pObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
@@ -480,7 +479,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
       assert(pMeterMetaInfo->pMeterMeta == NULL);
       
-      tscGetMeterMeta(pSql, pMeterMetaInfo->name, 0);
+      tscGetMeterMeta(pSql, pMeterMetaInfo);
       code = tscSendMsgToServer(pSql);
       if (code != 0) {
         pRes->code = code;
@@ -513,7 +512,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
 
       tscTrace("%p get metricMeta during metric query successfully", pSql);
       
-      code = tscGetMeterMeta(pSql, pMeterMetaInfo->name, 0);
+      code = tscGetMeterMeta(pSql, pMeterMetaInfo);
       pRes->code = code;
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
@@ -529,12 +528,11 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
 
   } else {  // stream computing
     SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
-    code = tscGetMeterMeta(pSql, pMeterMetaInfo->name, 0);
+    code = tscGetMeterMeta(pSql, pMeterMetaInfo);
     pRes->code = code;
 
     if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
-    pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
     if (code == TSDB_CODE_SUCCESS && UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
       code = tscGetMetricMeta(pSql);
       pRes->code = code;
@@ -557,7 +555,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
      */
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
     
-    tscTansformSQLFunctionForMetricQuery(pQueryInfo);
+    tscTansformSQLFunctionForSTableQuery(pQueryInfo);
     tscIncStreamExecutionCount(pSql->pStream);
   } else {
     tscTrace("%p get meterMeta/metricMeta successfully", pSql);

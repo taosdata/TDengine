@@ -298,8 +298,11 @@ int taos_num_fields(TAOS_RES *res) {
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  if (pQueryInfo == NULL) {
+    return 0;
+  }
+  
   SFieldInfo *pFieldsInfo = &pQueryInfo->fieldsInfo;
-
   return (pFieldsInfo->numOfOutputCols - pFieldsInfo->numOfHiddenCols);
 }
 
@@ -993,11 +996,8 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   int   code = TSDB_CODE_INVALID_METER_ID;
   char *str = (char *)tblNameList;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  if (pQueryInfo == NULL) {
-    tscAddSubqueryInfo(pCmd);
-    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  }
+  SQueryInfo* pQueryInfo = NULL;
+  tscGetQueryInfoDetailSafely(pCmd, 0, &pQueryInfo);
   
   SMeterMetaInfo *pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
 
@@ -1034,7 +1034,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
       return code;
     }
 
-    if ((code = setMeterID(pSql, 0, &sToken, 0)) != TSDB_CODE_SUCCESS) {
+    if ((code = setMeterID(pMeterMetaInfo, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
       return code;
     }
 
