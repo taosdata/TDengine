@@ -1043,7 +1043,7 @@ https://gitee.com/maikebing/Maikebing.EntityFrameworkCore.Taos
 
 ### 客户端安装
 
-在Windows操作系统下，TDengine提供64位的Windows客户端，客户端安装程序为.exe文件，运行该文件即可安装，安装路径为C:\TDengine。Windows的客户端可运行在主流的64位Windows平台之上，客户端目录结构如下：
+在Windows操作系统下，TDengine提供64位的Windows客户端([点击下载](https://www.taosdata.com/cn/all-downloads/#tdengine_win-list))，客户端安装程序为.exe文件，运行该文件即可安装，安装路径为C:\TDengine。Windows的客户端可运行在主流的64位Windows平台之上，客户端目录结构如下：
 
 ```
 ├── cfg
