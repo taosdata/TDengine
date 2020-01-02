@@ -444,6 +444,8 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   int progressSize = 0;
   if (pQInfo->pMeterQuerySupporter != NULL)
     progressSize = pQInfo->pMeterQuerySupporter->numOfMeters * (sizeof(int64_t) + sizeof(TSKEY)) + sizeof(int32_t);
+  else if (pQInfo->pObj != NULL)
+    progressSize = sizeof(int64_t) + sizeof(TSKEY) + sizeof(int32_t);
 
   pStart = taosBuildRspMsgWithSize(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, progressSize + size + 100);
   if (pStart == NULL) {
@@ -478,7 +480,7 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
 
   // write the progress information of each meter to response
   // this is required by subscriptions
-  if (progressSize > 0) {
+  if (pQInfo->pMeterQuerySupporter != NULL) {
     *((int32_t*)pMsg) = htonl(pQInfo->pMeterQuerySupporter->numOfMeters);
     pMsg += sizeof(int32_t);
     for (int32_t i = 0; i < pQInfo->pMeterQuerySupporter->numOfMeters; i++) {
@@ -487,6 +489,13 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
       *((TSKEY*)pMsg) = htobe64(pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[i]->key);
       pMsg += sizeof(TSKEY);
     }
+  } else if (pQInfo->pObj != NULL) {
+    *((int32_t*)pMsg) = htonl(1);
+    pMsg += sizeof(int32_t);
+    *((int64_t*)pMsg) = htobe64(pQInfo->pObj->uid);
+    pMsg += sizeof(int64_t);
+    *((TSKEY*)pMsg) = htobe64(pQInfo->query.lastKey);
+    pMsg += sizeof(TSKEY);
   }
 
   msgLen = pMsg - pStart;

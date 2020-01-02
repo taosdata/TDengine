@@ -630,7 +630,13 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   pQuery = &(pQInfo->query);
   dTrace("qmsg:%p create QInfo:%p, QInfo created", pQueryMsg, pQInfo);
 
-  pQuery->skey = pQueryMsg->skey;
+  SMeterSidExtInfo** pSids = (SMeterSidExtInfo**)pQueryMsg->pSidExtInfo;
+  if (pSids != NULL && pSids[0]->key > 0) {
+    pQuery->skey = pSids[0]->key;
+  } else {
+    pQuery->skey = pQueryMsg->skey;
+  }
+
   pQuery->ekey = pQueryMsg->ekey;
   pQuery->lastKey = pQuery->skey;
 
