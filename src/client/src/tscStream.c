@@ -382,6 +382,7 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   }
 
   pStream->slidingTime = pCmd->nSlidingTime;
+  pQueryInfo->nAggTimeInterval = 0; // clear the interval value to avoid the force time window split by query processor
 }
 
 static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, int64_t stime) {
