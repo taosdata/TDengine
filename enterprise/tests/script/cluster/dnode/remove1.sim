@@ -89,7 +89,7 @@ if $data3_192.168.0.2 != 1 then
 endi
 
 print ========== step3
-sql drop dnode 192.168.0.2
+sql_error drop dnode 192.168.0.2
 
 sleep 7001
 $x = 0
@@ -107,6 +107,8 @@ print 192.168.0.2 freeVnodes $data3_192.168.0.2 $data5_192.168.0.2
 print ========== step4
 sql create dnode 192.168.0.3
 system sh/exec.sh -n dnode3 -s start
+sleep 4000
+sql drop dnode 192.168.0.2
 
 $x = 0
 show4: 
