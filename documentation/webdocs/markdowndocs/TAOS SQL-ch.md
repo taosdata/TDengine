@@ -1,6 +1,8 @@
 # TAOS SQL
 
-TDengine提供类似SQL语法，用户可以在TDengine Shell中使用SQL语句操纵数据库，也可以通过C/C++, Java(JDBC), Python, Go等各种程序来执行SQL语句。 
+本文档说明TAOS SQL支持的语法规则、主要查询功能、支持的SQL查询函数，以及常用技巧等内容。阅读本文档需要读者具有基本的SQL语言的基础。
+
+TAOS SQL是用户对TDengine进行数据写入和查询的主要工具。TAOS SQL为了便于用户快速上手，在一定程度上提供类似于标准SQL类似的风格和模式。严格意义上，TAOS SQL并不是也不试图提供SQL标准的语法。此外，由于TDengine针对的时序性结构化数据不提供修改和更新功能，因此在TAO SQL中不提供数据更新和数据删除的相关功能。
 
 本章节SQL语法遵循如下约定：
 
@@ -9,11 +11,41 @@ TDengine提供类似SQL语法，用户可以在TDengine Shell中使用SQL语句�
 - | 表示多选一，选择其中一个即可，但不能输入|本身
 - … 表示前面的项可重复多个
 
+为更好地说明SQL语法的规则及其特点，本文假设存在一个数据集。该数据集是针对两种类型的设备温度（湿度）传感器、气压（海拔）传感器建立的数据模型。
+针对温度传感器，具有超级表（super table） temp_stable。其数据模型如下：
+```
+taos> describe temp_stable;
+Field       | Type     | Length | Note |
+=======================================================================================================
+ts          |TIMESTAMP | 8      |      |
+temperature |FLOAT     | 4      |      |
+humidity    |TINYINT   | 1      |      |
+status      |TINYINT   | 1      |      |
+deviceid    |BIGINT    | 12     |tag   |
+location    |BINARY    | 20     |tag   |
+```
+数据集包含2个温度传感器的数据，按照TDengine的建模规则，对应2个子表，其名称分别是 temp_tb_1，temp_tb_2 。
+针对压力（海拔）传感器，具有超级表（super table） pressure_stable。其数据模型如下：
+数据集包含2个压力传感器数据，对应2个子表，分别是 press_tb_1，press_tb_2。
+
+```text
+taos> describe pressure_stable;
+Field      | Type     | Length | Note |
+=======================================================================================================
+ts         |TIMESTAMP | 8      |      |
+height     |FLOAT     | 4      |      |
+pressure   |FLOAT     | 4      |      |
+devstat    |TINYINT   | 1      |      |
+id         |BIGINT    | 8      |tag   |
+city       |NCHAR     | 20     |tag   |
+longitude  |FLOAT     | 4      |tag   |
+latitude   |FLOAT     | 4      |tag   |
+```
 ## 支持的数据类型
 
 使用TDengine，最重要的是时间戳。创建并插入记录、查询历史记录的时候，均需要指定时间戳。时间戳有如下规则：
 
-- 时间格式为YYYY-MM-DD HH:mm:ss.MS, 默认时间分辨率为毫秒。比如：2017-08-12 18:25:58.128
+- 时间格式为```YYYY-MM-DD HH:mm:ss.MS```, 默认时间分辨率为毫秒。比如：```2017-08-12 18:25:58.128```
 - 内部函数now是服务器的当前时间
 - 插入记录时，如果时间戳为0，插入数据时使用服务器当前时间
 - Epoch Time: 时间戳也可以是一个长整数，表示从1970-01-01 08:00:00.000开始的毫秒数
@@ -27,13 +59,13 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 |      |   类型    | Bytes  | 说明                                                         |
 | ---- | :-------: | ------ | ------------------------------------------------------------ |
 | 1    | TIMESTAMP | 8      | 时间戳。最小精度毫秒。从格林威治时间 1970-01-01 00:00:00.000 (UTC/GMT) 开始，计时不能早于该时间。 |
-| 2    |    INT    | 4      | 整型，范围 [-2^31+1,   2^31-1], -2^31被用作Null值            |
-| 3    |  BIGINT   | 8      | 长整型，范围 [-2^59,   2^59]                                 |
+| 2    |    INT    | 4      | 整型，范围 [-2^31+1,   2^31-1], -2^31用作Null           |
+| 3    |  BIGINT   | 8      | 长整型，范围 [-2^63+1,   2^63-1], -2^63用于NULL                                 |
 | 4    |   FLOAT   | 4      | 浮点型，有效位数6-7，范围 [-3.4E38, 3.4E38]                  |
 | 5    |  DOUBLE   | 8      | 双精度浮点型，有效位数15-16，范围 [-1.7E308,   1.7E308]      |
 | 6    |  BINARY   | 自定义 | 用于记录字符串，最长不能超过504 bytes。binary仅支持字符串输入，字符串两端使用单引号引用，否则英文全部自动转化为小写。使用时须指定大小，如binary(20)定义了最长为20个字符的字符串，每个字符占1byte的存储空间。如果用户字符串超出20字节，将被自动截断。对于字符串内的单引号，可以用转义字符反斜线加单引号来表示， 即 **\’**。 |
-| 7    | SMALLINT  | 2      | 短整型， 范围 [-32767, 32767]                                |
-| 8    |  TINYINT  | 1      | 单字节整型，范围 [-127, 127]                                 |
+| 7    | SMALLINT  | 2      | 短整型， 范围 [-32767, 32767], -32768用于NULL                                |
+| 8    |  TINYINT  | 1      | 单字节整型，范围 [-127, 127], -128用于NULL                                |
 | 9    |   BOOL    | 1      | 布尔型，{true,   false}                                      |
 | 10   |   NCHAR   | 自定义 | 用于记录非ASCII字符串，如中文字符。每个nchar字符占用4bytes的存储空间。字符串两端使用单引号引用，字符串内的单引号需用转义字符 **\’**。nchar使用时须指定字符串大小，类型为nchar(10)的列表示此列的字符串最多存储10个nchar字符，会固定占用40bytes的空间。如用户字符串长度超出声明长度，则将被自动截断。 |
 
@@ -165,19 +197,172 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 ## 数据查询
 
-###查询语法是：
+### 查询语法：
 
 ```mysql
-SELECT {* | expr_list} FROM tb_name
-    [WHERE where_condition]
-    [ORDER BY _c0 { DESC | ASC }]
-    [LIMIT limit [, OFFSET offset]]
-    [>> export_file]
-    
-SELECT function_list FROM tb_name
-    [WHERE where_condition]
-    [LIMIT limit [, OFFSET offset]]
-    [>> export_file]
+SELECT [DISTINCT] select_expr [, select_expr ...]
+FROM {tb_name_list}
+[WHERE where_condition]
+[INTERVAL [interval_offset,] interval_val]
+[FILL fill_val]
+[SLIDING fill_val]
+[GROUP BY col_list]
+[ORDER BY col_list { DESC | ASC }]
+[HAVING expr_list]
+[SLIMIT limit_val [, SOFFSET offset_val]]
+[LIMIT limit_val [, OFFSET offset_val]]
+[>> export_file]
+```
+#### SELECT子句
+一个选择子句可以是联合查询（UNION）和另一个查询的子查询（SUBQUERY）。
+
+##### 通配符
+通配符 * 可以用于代指全部列。对于普通表，结果中只有普通列。
+```
+taos> select * from temp_tb_1;
+ts                   | temperature |humidity|status|
+============================================================
+19-04-28 14:22:07.000| 20.00000    | 34     | 1    |
+19-04-28 14:22:08.000| 21.50000    | 38     | 1    |
+19-04-28 14:22:09.000| 21.30000    | 38     | 1    |
+19-04-28 14:22:10.000| 21.20000    | 38     | 1    |
+19-04-28 14:22:11.000| 21.30000    | 35     | 0    |
+19-04-28 14:22:12.000| 22.00000    | 34     | 0    |
+```
+在针对超级表，通配符包含 _标签列_ 。
+```
+taos> select * from temp_stable;
+ts                   | temperature |humidity|status| deviceid | location |
+==============================================================================================
+19-04-28 14:22:07.000| 21.00000    | 37     | 1    |54197     |beijing   |
+19-04-28 14:22:07.000| 20.00000    | 34     | 1    |91234     |beijing   |
+19-04-28 14:22:08.000| 21.50000    | 38     | 1    |91234     |beijing   |
+19-04-28 14:22:09.000| 21.30000    | 38     | 1    |91234     |beijing   |
+19-04-28 14:22:10.000| 21.20000    | 38     | 1    |91234     |beijing   |
+19-04-28 14:22:11.000| 21.30000    | 35     | 0    |91234     |beijing   |
+19-04-28 14:22:12.000| 22.00000    | 34     | 0    |91234     |beijing   |
+```
+通配符支持表名前缀，以下两个SQL语句均为返回全部的列：
+```
+select * from temp_tb_1;
+select temp_tb_1.* from temp_tb_1;
+```
+在Join查询中，带前缀的\*和不带前缀\*返回的结果有差别， \*返回全部表的所有列数据（不包含标签），带前缀的通配符，则只返回该表的列数据。
+```
+taos> select * from temp_tb_1,temp_tb_2 where temp_tb_1.ts=temp_tb_2.ts;
+ts                   | temperature |humidity|status| ts                   | temperature |humidity|status|
+========================================================================================================================
+19-04-28 14:22:07.000| 20.00000    | 34     | 1    | 19-04-28 14:22:07.000| 21.00000    | 37     | 1    |
+```
+
+```
+taos> select temp_tb_1.* from temp_tb_1,temp_tb_2 where temp_tb_1.ts=temp_tb_2.ts;
+ts                   | temperature |humidity|status|
+============================================================
+19-04-28 14:22:07.000| 20.00000    | 34     | 1    |
+```
+
+在使用SQL函数来进行查询过程中，部分SQL函数支持通配符操作。其中的区别在于：
+```count(\*)```函数只返回一列。```first```、```last```、```last_row```函数则是返回全部列。
+
+```
+taos> select count(*) from temp_tb_1;
+count(*)  |
+======================
+1         |
+```
+
+```
+taos> select first(*) from temp_tb_1;
+first(ts)            | first(temperature) |first(humidity)|first(status)|
+==========================================================================
+19-04-28 14:22:07.000| 20.00000           | 34            | 1           |
+```
+
+#### 结果集列名
+
+```SELECT```子句中，如果不指定返回结果集合的列名，结果集列名称默认使用```SELECT```子句中的表达式名称作为列名称。此外，用户可使用```AS```来重命名返回结果集合中列的名称。例如：
+```
+taos> select ts, ts as primary_key_ts from temp_tb_1;
+ts                   | primary_key_ts       |
+==============================================
+19-04-28 14:22:07.000| 19-04-28 14:22:07.000|
+```
+但是针对```first(*)```、```last(*)```、```last_row(*)```不支持针对单列的重命名。
+
+#### DISTINCT修饰符*
+只能用于修饰标签列（TAGS）的结果，不能用于修饰普通列来获得去重后的结果。并且应用```DISTINCT```以后，只能进行单列的标签输出。
+```count(distinct column_name)```用以返回近似的不重复结果的数量，该结果是近似值。
+
+#### 隐式结果列
+```Select_exprs```可以是表所属列的列名，也可以是基于列的函数表达式或计算式，数量的上限256个。当用户使用了```interval```或```group by tags```的子句以后，在最后返回结果中会强制返回时间戳列（第一列）和group by子句中的标签列。后续的版本中可以支持关闭group by子句中隐式列的输出，列输出完全由select子句控制。
+
+#### 表（超级表）列表
+
+FROM关键字后面可以是若干个表（超级表）列表，也可以是子查询的结果。
+如果没有指定用户的当前数据库，可以在表名称之前使用数据库的名称来指定表所属的数据库。例如：```sample.temp_tb_1``` 方式来跨库使用表。
+```
+SELECT * FROM sample.temp_tb_1;
+------------------------------
+use sample;
+SELECT * FROM temp_tb_1;
+```
+From子句中列表可以使用别名来让SQL整体更加简单。
+```
+SELECT t.ts FROM temp_tb_1 t ;
+```
+> 暂不支持FROM子句的表别名
+
+#### 特殊功能
+部分特殊的查询功能可以不使用FROM子句执行。获取当前所在的数据库 database() 
+```
+taos> SELECT database();
+database() |
+=================================
+sample     |
+```
+如果登录的时候没有指定默认数据库，且没有使用```use``命令切换数据，则返回NULL。
+```
+taos> select database();
+database() |
+=================================
+NULL       |
+```
+获取服务器和客户端版本号:
+```
+SELECT client_version()
+SELECT server_version()
+```
+服务器状态检测语句。如果服务器正常，返回一个数字（例如 1）。如果服务器异常，返回error code。该SQL语法能兼容连接池对于TDengine状态的检查及第三方工具对于数据库服务器状态的检查。并可以避免出现使用了错误的心跳检测SQL语句导致的连接池连接丢失的问题。
+```
+SELECT server_status()
+SELECT server_status() AS result
+```
+#### TAOS SQL中特殊关键词
+
+ >   TBNAME： 在超级表查询中可视为一个特殊的标签，代表查询涉及的子表名<br>
+    \_c0: 表示表（超级表）的第一列
+
+#### 小技巧
+获取一个超级表所有的子表名及相关的标签信息：
+```
+SELECT TBNAME, location FROM temp_stable
+```
+统计超级表下辖子表数量：
+```
+SELECT COUNT(TBNAME) FROM temp_stable
+```
+以上两个查询均只支持在Where条件子句中添加针对标签（TAGS）的过滤条件。例如：
+```
+taos> select count(tbname) from temp_stable;
+count(tbname) |
+======================
+2             |
+
+taos> select count(tbname) from temp_stable where deviceid > 60000;
+count(tbname) |
+======================
+1             |
 ```
 
 - 可以使用* 返回所有列，或指定列名。可以对数字列进行四则运算，可以给输出的列取列名
