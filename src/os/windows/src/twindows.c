@@ -28,6 +28,10 @@
 #include "tsdb.h"
 #include "tglobalcfg.h"
 
+#include <intrin.h>
+#include <winbase.h>
+#include <Winsock2.h>
+
 char configDir[TSDB_FILENAME_LEN] = "C:/TDengine/cfg";
 char tsDirectory[TSDB_FILENAME_LEN] = "C:/TDengine/data";
 char logDir[TSDB_FILENAME_LEN] = "C:/TDengine/log";
@@ -67,12 +71,20 @@ int taosSetSockOpt(int socketfd, int level, int optname, void *optval, int optle
 }
 
 // add
+// char interlocked_add_fetch_8(char volatile* ptr, char val) {
+//   return _InterlockedExchangeAdd8(ptr, val) + val;
+// }
+
+// short interlocked_add_fetch_16(short volatile* ptr, short val) {
+//   return _InterlockedExchangeAdd16(ptr, val) + val;
+// }
+
 char interlocked_add_fetch_8(char volatile* ptr, char val) {
-  return _InterlockedExchangeAdd8(ptr, val) + val;
+  return __sync_fetch_and_add(ptr, val) + val;
 }
 
 short interlocked_add_fetch_16(short volatile* ptr, short val) {
-  return _InterlockedExchangeAdd16(ptr, val) + val;
+  return __sync_fetch_and_add(ptr, val) + val;
 }
 
 long interlocked_add_fetch_32(long volatile* ptr, long val) {
@@ -84,13 +96,13 @@ __int64 interlocked_add_fetch_64(__int64 volatile* ptr, __int64 val) {
 }
 
 // and
-char interlocked_and_fetch_8(char volatile* ptr, char val) {
-  return _InterlockedAnd8(ptr, val) & val;
-}
+// char interlocked_and_fetch_8(char volatile* ptr, char val) {
+//   return _InterlockedAnd8(ptr, val) & val;
+// }
 
-short interlocked_and_fetch_16(short volatile* ptr, short val) {
-  return _InterlockedAnd16(ptr, val) & val;
-}
+// short interlocked_and_fetch_16(short volatile* ptr, short val) {
+//   return _InterlockedAnd16(ptr, val) & val;
+// }
 
 long interlocked_and_fetch_32(long volatile* ptr, long val) {
   return _InterlockedAnd(ptr, val) & val;
@@ -124,13 +136,13 @@ __int64 interlocked_fetch_and_64(__int64 volatile* ptr, __int64 val) {
 #endif
 
 // or
-char interlocked_or_fetch_8(char volatile* ptr, char val) {
-  return _InterlockedOr8(ptr, val) | val;
-}
+// char interlocked_or_fetch_8(char volatile* ptr, char val) {
+//   return _InterlockedOr8(ptr, val) | val;
+// }
 
-short interlocked_or_fetch_16(short volatile* ptr, short val) {
-  return _InterlockedOr16(ptr, val) | val;
-}
+// short interlocked_or_fetch_16(short volatile* ptr, short val) {
+//   return _InterlockedOr16(ptr, val) | val;
+// }
 
 long interlocked_or_fetch_32(long volatile* ptr, long val) {
   return _InterlockedOr(ptr, val) | val;
@@ -164,13 +176,13 @@ __int64 interlocked_fetch_or_64(__int64 volatile* ptr, __int64 val) {
 #endif
 
 // xor
-char interlocked_xor_fetch_8(char volatile* ptr, char val) {
-  return _InterlockedXor8(ptr, val) ^ val;
-}
+// char interlocked_xor_fetch_8(char volatile* ptr, char val) {
+//   return _InterlockedXor8(ptr, val) ^ val;
+// }
 
-short interlocked_xor_fetch_16(short volatile* ptr, short val) {
-  return _InterlockedXor16(ptr, val) ^ val;
-}
+// short interlocked_xor_fetch_16(short volatile* ptr, short val) {
+//   return _InterlockedXor16(ptr, val) ^ val;
+// }
 
 long interlocked_xor_fetch_32(long volatile* ptr, long val) {
   return _InterlockedXor(ptr, val) ^ val;
@@ -397,3 +409,13 @@ char *strndup(const char *s, size_t n) {
 }
 
 void taosSetCoreDump() {}
+
+int64_t str2int64(char *str) {
+  char *endptr = NULL;
+  return strtoll(str, &endptr, 10);
+}
+
+uint64_t htonll(uint64_t val)
+{
+    return (((uint64_t) htonl(val)) << 32) + htonl(val >> 32);
+}
