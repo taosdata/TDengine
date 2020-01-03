@@ -35,6 +35,8 @@ run lite/parser/import_commit3.sim
 sleep 2000
 run lite/parser/insert_tb.sim
 sleep 2000
+run lite/parser/tags_dynamically_specifiy.sim
+sleep 2000
 run lite/parser/interp.sim
 run lite/parser/lastrow.sim
 sleep 2000
