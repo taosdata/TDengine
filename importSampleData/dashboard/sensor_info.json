@@ -15,7 +15,7 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 4,
+  "id": 7,
   "links": [],
   "panels": [
     {
@@ -84,7 +84,7 @@
         {
           "alias": "lastest_temperature",
           "refId": "A",
-          "sql": "select last(temperature) from test.s_sensor_info where location = 'beijing' and ts > now - 1h and ts < now  interval(1m)",
+          "sql": "select  ts, temp from  test.stream_temp_last  where ts >= $from and ts < $to",
           "target": "select metric",
           "type": "timeserie"
         }
@@ -116,9 +116,10 @@
       "options": {
         "fieldOptions": {
           "calcs": [
-            "mean"
+            "last"
           ],
           "defaults": {
+            "decimals": 2,
             "mappings": [],
             "max": 100,
             "min": 0,
@@ -146,7 +147,7 @@
         {
           "alias": "maxHumidity",
           "refId": "A",
-          "sql": "select max(humidity) from test.s_sensor_info where location = 'beijing' and ts > now -1h and ts < now",
+          "sql": "select  ts, humidity  from  test.stream_humidity_max  where ts >= $from and ts < $to",
           "target": "select metric",
           "type": "timeserie"
         }
@@ -198,7 +199,7 @@
         {
           "alias": "avgTemperature",
           "refId": "A",
-          "sql": "select avg(temperature) from test.s_sensor_info where location = 'beijing' and ts > now -1h and ts < now  interval(1m)",
+          "sql": "select  ts, temp from  test.stream_temp_avg  where ts >= $from and ts < $to",
           "target": "select metric",
           "type": "timeserie"
         }
@@ -284,23 +285,23 @@
       "steppedLine": false,
       "targets": [
         {
-          "alias": "avg",
+          "alias": "max",
           "refId": "A",
-          "sql": "select max(temperature) from test.t_0_sensor_info where ts > now -1h and ts < now  interval(1m)",
+          "sql": "select  ts, max_temp  from  test.stream_sensor  where ts >= $from and ts < $to",
           "target": "select metric",
           "type": "timeserie"
         },
         {
-          "alias": "max",
+          "alias": "avg",
           "refId": "B",
-          "sql": "select avg(temperature) from test.t_0_sensor_info where ts > now -1h and ts < now  interval(1m)",
+          "sql": "select  ts, avg_temp   from  test.stream_sensor  where ts >= $from and ts < $to",
           "target": "select metric",
           "type": "timeserie"
         },
         {
           "alias": "min",
           "refId": "C",
-          "sql": "select min(temperature) from test.t_0_sensor_info where ts > now -1h and ts < now interval(1m)",
+          "sql": "select  ts, min_temp   from  test.stream_sensor  where ts >= $from and ts < $to",
           "target": "select metric",
           "type": "timeserie"
         }
@@ -355,7 +356,7 @@
     "list": []
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {
