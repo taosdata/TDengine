@@ -660,6 +660,13 @@ int32_t setMeterID(SMeterMetaInfo* pMeterMetaInfo, SSQLToken* pzTableName, SSqlO
   SSqlCmd* pCmd = &pSql->cmd;
   int32_t  code = TSDB_CODE_SUCCESS;
 
+  // backup the old name in pMeterMetaInfo
+  size_t size = strlen(pMeterMetaInfo->name);
+  char* oldName = NULL;
+  if (size > 0) {
+    oldName = strdup(pMeterMetaInfo->name);
+  }
+  
   if (hasSpecifyDB(pzTableName)) {
     // db has been specified in sql string so we ignore current db path
     code = setObjFullName(pMeterMetaInfo->name, getAccountId(pSql), NULL, pzTableName, NULL);
@@ -674,7 +681,25 @@ int32_t setMeterID(SMeterMetaInfo* pMeterMetaInfo, SSQLToken* pzTableName, SSqlO
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
-  return code;
+  if (code != TSDB_CODE_SUCCESS) {
+    free(oldName);
+    return code;
+  }
+  
+  /*
+   * the old name exists and is not equalled to the new name. Release the metermeta/metricmeta
+   * that are corresponding to the old name for the new table name.
+   */
+  if (size > 0) {
+    if (strncasecmp(oldName, pMeterMetaInfo->name, tListLen(pMeterMetaInfo->name)) != 0) {
+      tscClearMeterMetaInfo(pMeterMetaInfo, false);
+    }
+  } else {
+    assert(pMeterMetaInfo->pMeterMeta == NULL && pMeterMetaInfo->pMetricMeta == NULL);
+  }
+  
+  tfree(oldName);
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool validateTableColumnInfo(tFieldList* pFieldList, SSqlCmd* pCmd) {
@@ -4412,7 +4437,7 @@ int32_t parseLimitClause(SSqlObj* pSql, int32_t subClauseIndex, SQuerySQL* pQuer
     if (queryOnTags == true) {  // local handle the metric tag query
       pCmd->command = TSDB_SQL_RETRIEVE_TAGS;
     } else {
-      if (tscProjectionQueryOnMetric(&pSql->cmd, 0) &&
+      if (tscProjectionQueryOnSTable(&pSql->cmd, 0) &&
           (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
@@ -4425,11 +4450,12 @@ int32_t parseLimitClause(SSqlObj* pSql, int32_t subClauseIndex, SQuerySQL* pQuer
     }
 
     /*
-     * get the distribution of all tables among available virtual nodes that satisfy query condition and
-     * created according to this super table from management node.
-     * And then launching multiple async-queries on required virtual nodes, which is the first-stage query operation.
+     * Get the distribution of all tables among all available virtual nodes that are qualified for the query condition
+     * and created according to this super table from management node.
+     * And then launching multiple async-queries against all qualified virtual nodes, during the first-stage
+     * query operation.
      */
-    int32_t code = tscGetMetricMeta(pSql);
+    int32_t code = tscGetMetricMeta(pSql, 0);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -4951,7 +4977,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     }
 
     // projection query on metric does not compatible with "group by" syntax
-    if (tscProjectionQueryOnMetric(pCmd, 0)) {
+    if (tscProjectionQueryOnSTable(pCmd, 0)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
@@ -5259,9 +5285,6 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   assert(pQueryInfo->numOfTables == 1);
-  //  if (pQueryInfo->numOfTables == 1) {
-  //    tscAddEmptyMeterMetaInfo(pQueryInfo);
-  //  }
 
   SCreateTableSQL* pCreateTable = pInfo->pCreateTableInfo;
   SMeterMetaInfo*  pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);

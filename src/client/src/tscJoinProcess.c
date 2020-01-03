@@ -438,7 +438,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 
       taos_fetch_rows_a(tres, joinRetrieveCallback, param);
     } else if (numOfRows == 0) {  // no data from this vnode anymore
-      if (tscProjectionQueryOnMetric(&pSql->cmd, 0)) {
+      if (tscProjectionQueryOnSTable(&pParentSql->cmd, 0)) {
         SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
         
         SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
@@ -498,7 +498,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   
     SSqlCmd* pCmd = &pSql->cmd;
   
-    if (tscProjectionQueryOnMetric(pCmd, 0) && numOfRows == 0) {
+    if (tscProjectionQueryOnSTable(pCmd, 0) && numOfRows == 0) {
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
       assert(pQueryInfo->numOfTables == 1);
 
@@ -543,7 +543,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
   
     SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
   
-    if (tscProjectionQueryOnMetric(&pSql->cmd, 0)) {
+    if (tscProjectionQueryOnSTable(&pSql->cmd, 0)) {
       if (pRes->row >= pRes->numOfRows && pMeterMetaInfo->vnodeIndex < pMeterMetaInfo->pMetricMeta->numOfVnodes &&
           (!tscHasReachLimitation(pSql->pSubs[i]))) {
         numOfFetch++;
@@ -711,7 +711,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
          * if the query is a continue query (vnodeIndex > 0 for projection query) for next vnode, do the retrieval of
          * data instead of returning to its invoker
          */
-        if (pMeterMetaInfo->vnodeIndex > 0 && tscProjectionQueryOnMetric(&pSql->cmd, 0)) {
+        if (pMeterMetaInfo->vnodeIndex > 0 && tscProjectionQueryOnSTable(&pSql->cmd, 0)) {
           assert(pMeterMetaInfo->vnodeIndex < pMeterMetaInfo->pMetricMeta->numOfVnodes);
           pSupporter->pState->numOfCompleted = 0;  // reset the record value
 

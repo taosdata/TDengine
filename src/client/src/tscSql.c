@@ -443,7 +443,7 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   bool     hasData = true;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  if (tscProjectionQueryOnMetric(pCmd, 0)) {
+  if (tscProjectionQueryOnSTable(pCmd, 0)) {
     bool allSubqueryExhausted = true;
 
     for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
@@ -611,7 +611,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  while (rows == NULL && tscProjectionQueryOnMetric(pCmd, 0)) {
+  while (rows == NULL && tscProjectionQueryOnSTable(pCmd, 0)) {
     SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
     // reach the maximum number of output rows, abort
@@ -670,7 +670,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   nRows = taos_fetch_block_impl(res, rows);
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  while (*rows == NULL && tscProjectionQueryOnMetric(pCmd, 0)) {
+  while (*rows == NULL && tscProjectionQueryOnSTable(pCmd, 0)) {
     /* reach the maximum number of output rows, abort */
     if (tscHasReachLimitation(pSql)) {
       return 0;

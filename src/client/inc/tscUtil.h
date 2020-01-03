@@ -67,7 +67,7 @@ typedef struct SJoinSubquerySupporter {
 } SJoinSubquerySupporter;
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
-                           STableDataBlocks** dataBlocks);
+                           SMeterMeta* pMeterMeta, STableDataBlocks** dataBlocks);
 void    tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks);
 void    tscDestroyDataBlock(STableDataBlocks* pDataBlock);
 
@@ -81,7 +81,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
 void    tscFreeUnusedDataBlocks(SDataBlockList* pList);
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pDataList);
 int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
-                                int32_t startOffset, int32_t rowSize, const char* tableId,
+                                int32_t startOffset, int32_t rowSize, const char* tableId, SMeterMeta* pMeterMeta,
                                 STableDataBlocks** dataBlocks);
 
 SVnodeSidList*    tscGetVnodeSidList(SMetricMeta* pMetricmeta, int32_t vnodeIdx);
@@ -97,7 +97,7 @@ SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
-bool tscProjectionQueryOnMetric(SSqlCmd* pCmd, int32_t subClauseIndex);
+bool tscProjectionQueryOnSTable(SSqlCmd* pCmd, int32_t subClauseIndex);
 bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo);
 
 bool tscIsTwoStageMergeMetricQuery(SSqlCmd* pCmd);
@@ -197,7 +197,7 @@ void tscFreeSubqueryInfo(SSqlCmd* pCmd);
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 
 void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, int32_t subClauseIndex, char* keyStr, uint64_t uid);
-int  tscGetMetricMeta(SSqlObj* pSql);
+int  tscGetMetricMeta(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetMeterMeta(SSqlObj* pSql, SMeterMetaInfo* pMeterMetaInfo);
 int  tscGetMeterMetaEx(SSqlObj* pSql, SMeterMetaInfo* pMeterMetaInfo, bool createIfNotExists);
 

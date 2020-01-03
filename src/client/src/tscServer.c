@@ -2932,16 +2932,11 @@ int tscProcessMeterMetaRsp(SSqlObj *pSql) {
   pMeta->numOfColumns = htons(pMeta->numOfColumns);
 
   if (pMeta->numOfTags > TSDB_MAX_TAGS || pMeta->numOfTags < 0) {
-    tscError("invalid tag value count:%d", pMeta->numOfTags);
-    return TSDB_CODE_INVALID_VALUE;
-  }
-
-  if (pMeta->numOfTags > TSDB_MAX_TAGS || pMeta->numOfTags < 0) {
     tscError("invalid numOfTags:%d", pMeta->numOfTags);
     return TSDB_CODE_INVALID_VALUE;
   }
 
-  if (pMeta->numOfColumns > TSDB_MAX_COLUMNS || pMeta->numOfColumns < 0) {
+  if (pMeta->numOfColumns > TSDB_MAX_COLUMNS || pMeta->numOfColumns <= 0) {
     tscError("invalid numOfColumns:%d", pMeta->numOfColumns);
     return TSDB_CODE_INVALID_VALUE;
   }
@@ -2985,10 +2980,11 @@ int tscProcessMeterMetaRsp(SSqlObj *pSql) {
 
   // todo add one more function: taosAddDataIfNotExists();
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
-  taosRemoveDataFromCache(tscCacheHandle, (void **)&(pMeterMetaInfo->pMeterMeta), false);
+  assert(pMeterMetaInfo->pMeterMeta == NULL);
 
   pMeterMetaInfo->pMeterMeta = (SMeterMeta *)taosAddDataIntoCache(tscCacheHandle, pMeterMetaInfo->name, (char *)pMeta,
                                                                   size, tsMeterMetaKeepTimer);
+  // todo handle out of memory case
   if (pMeterMetaInfo->pMeterMeta == NULL) return 0;
 
   return TSDB_CODE_OTHERS;
@@ -3421,7 +3417,7 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
    * If the query result is exhausted, or current query is to free resource at server side,
    * the connection will be recycled.
    */
-  if ((pRes->numOfRows == 0 && !(tscProjectionQueryOnMetric(pCmd, 0) && pRes->offset > 0)) ||
+  if ((pRes->numOfRows == 0 && !(tscProjectionQueryOnSTable(pCmd, 0) && pRes->offset > 0)) ||
       ((pQueryInfo->type & TSDB_QUERY_TYPE_FREE_RESOURCE) == TSDB_QUERY_TYPE_FREE_RESOURCE)) {
     tscTrace("%p no result or free resource, recycle connection", pSql);
     taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pObj->user);
@@ -3494,9 +3490,7 @@ static int32_t doGetMeterMetaFromServer(SSqlObj *pSql, SMeterMetaInfo *pMeterMet
      * Transfer the ownership of metermeta to the new object, instead of invoking the release/acquire routine
      */
     if (code == TSDB_CODE_SUCCESS) {
-      pMeterMetaInfo->pMeterMeta = pNewMeterMetaInfo->pMeterMeta;
-      pNewMeterMetaInfo->pMeterMeta = NULL;
-
+      pMeterMetaInfo->pMeterMeta = taosTransferDataInCache(tscCacheHandle, (void**) &pNewMeterMetaInfo->pMeterMeta);
       assert(pMeterMetaInfo->pMeterMeta != NULL);
     }
 
@@ -3520,10 +3514,12 @@ static int32_t doGetMeterMetaFromServer(SSqlObj *pSql, SMeterMetaInfo *pMeterMet
 int tscGetMeterMeta(SSqlObj *pSql, SMeterMetaInfo *pMeterMetaInfo) {
   assert(strlen(pMeterMetaInfo->name) != 0);
 
-  // if the SSqlCmd owns a metermeta, release it first
-  taosRemoveDataFromCache(tscCacheHandle, (void **)&(pMeterMetaInfo->pMeterMeta), false);
+  // If this SMeterMetaInfo owns a metermeta, release it first
+  if (pMeterMetaInfo->pMeterMeta != NULL) {
+    taosRemoveDataFromCache(tscCacheHandle, (void **)&(pMeterMetaInfo->pMeterMeta), false);
+  }
+  
   pMeterMetaInfo->pMeterMeta = (SMeterMeta *)taosGetDataFromCache(tscCacheHandle, pMeterMetaInfo->name);
-
   if (pMeterMetaInfo->pMeterMeta != NULL) {
     SMeterMeta *pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
@@ -3605,36 +3601,35 @@ int tscRenewMeterMeta(SSqlObj *pSql, char *meterId) {
   return code;
 }
 
-int tscGetMetricMeta(SSqlObj *pSql) {
+int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
   int      code = TSDB_CODE_NETWORK_UNAVAIL;
   SSqlCmd *pCmd = &pSql->cmd;
 
   /*
-   * the vnode query condition is serialized into pCmd->payload, we need to rebuild key for metricmeta info in cache.
+   * the query condition is serialized into pCmd->payload, we need to rebuild key for metricmeta info in cache.
    */
-  bool    reqMetricMeta = false;
-  int32_t subClauseIndex = 0;
+  bool    required = false;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, subClauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     char tagstr[TSDB_MAX_TAGS_LEN + 1] = {0};
 
     SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
-    tscGetMetricMetaCacheKey(pCmd, subClauseIndex, tagstr, pMeterMetaInfo->pMeterMeta->uid);
+    tscGetMetricMetaCacheKey(pCmd, clauseIndex, tagstr, pMeterMetaInfo->pMeterMeta->uid);
 
     taosRemoveDataFromCache(tscCacheHandle, (void **)&(pMeterMetaInfo->pMetricMeta), false);
 
     SMetricMeta *ppMeta = (SMetricMeta *)taosGetDataFromCache(tscCacheHandle, tagstr);
     if (ppMeta == NULL) {
-      reqMetricMeta = true;
+      required = true;
       break;
     } else {
       pMeterMetaInfo->pMetricMeta = ppMeta;
     }
   }
 
-  // all metricmeta are retrieved from cache, no need to query mgmt node
-  if (!reqMetricMeta) {
+  // all metricmeta for one clause are retrieved from cache, no need to retrieve metricmeta from management node
+  if (!required) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -3645,7 +3640,9 @@ int tscGetMetricMeta(SSqlObj *pSql) {
   pNew->cmd.command = TSDB_SQL_METRIC;
   
   SQueryInfo *pNewQueryInfo = NULL;
-  tscGetQueryInfoDetailSafely(&pNew->cmd, 0, &pNewQueryInfo);
+  if ((code = tscGetQueryInfoDetailSafely(&pNew->cmd, 0, &pNewQueryInfo)) != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SMeterMetaInfo *pMMInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
@@ -3667,10 +3664,10 @@ int tscGetMetricMeta(SSqlObj *pSql) {
   pNewQueryInfo->slimit = pQueryInfo->slimit;
   pNewQueryInfo->order = pQueryInfo->order;
 
-  if (pSql->fp != NULL && pSql->pStream == NULL) {
-    pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-    tscFreeSubqueryInfo(pCmd);
-  }
+//  if (pSql->fp != NULL && pSql->pStream == NULL) {
+//    pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+//    tscFreeSubqueryInfo(pCmd);
+//  }
 
   tscTrace("%p allocate new pSqlObj:%p to get metricMeta", pSql, pNew);
   if (pSql->fp == NULL) {
@@ -3679,19 +3676,22 @@ int tscGetMetricMeta(SSqlObj *pSql) {
 
     code = tscProcessSql(pNew);
 
-    for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-      char tagstr[TSDB_MAX_TAGS_LEN] = {0};
-
-      SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
-      tscGetMetricMetaCacheKey(pCmd, 0, tagstr, pMeterMetaInfo->pMeterMeta->uid);
+    if (code == TSDB_CODE_SUCCESS) {//todo optimize the performance
+      for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
+        char tagstr[TSDB_MAX_TAGS_LEN] = {0};
+    
+        SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
+        tscGetMetricMetaCacheKey(pCmd, 0, tagstr, pMeterMetaInfo->pMeterMeta->uid);
 
 #ifdef _DEBUG_VIEW
-      printf("create metric key:%s, index:%d\n", tagstr, i);
+        printf("create metric key:%s, index:%d\n", tagstr, i);
 #endif
-
-      taosRemoveDataFromCache(tscCacheHandle, (void **)&(pMeterMetaInfo->pMetricMeta), false);
-      pMeterMetaInfo->pMetricMeta = (SMetricMeta *)taosGetDataFromCache(tscCacheHandle, tagstr);
+    
+        taosRemoveDataFromCache(tscCacheHandle, (void **)&(pMeterMetaInfo->pMetricMeta), false);
+        pMeterMetaInfo->pMetricMeta = (SMetricMeta *)taosGetDataFromCache(tscCacheHandle, tagstr);
+      }
     }
+    
 
     tscFreeSqlObj(pNew);
   } else {

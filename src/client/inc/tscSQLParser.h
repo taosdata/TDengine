@@ -364,7 +364,6 @@ SQuerySQL *tSetQuerySQLElems(SSQLToken *pSelectToken, tSQLExprList *pSelection, 
 SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SSQLToken *pMetricName,
                                     tVariantList *pTagVals, SQuerySQL *pSelect, int32_t type);
 
-void      tSQLExprDestroy(tSQLExpr *);
 void      tSQLExprNodeDestroy(tSQLExpr *pExpr);
 tSQLExpr *tSQLExprNodeClone(tSQLExpr *pExpr);
 

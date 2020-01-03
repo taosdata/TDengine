@@ -121,7 +121,7 @@ static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOf
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   
   // sequentially retrieve data from remain vnodes first, query vnode specified by vnodeIdx
-  if (numOfRows == 0 && tscProjectionQueryOnMetric(pCmd, 0)) {
+  if (numOfRows == 0 && tscProjectionQueryOnSTable(pCmd, 0)) {
     // vnode is denoted by vnodeIdx, continue to query vnode specified by vnodeIdx
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
     assert(pMeterMetaInfo->vnodeIndex >= 0);
@@ -272,7 +272,7 @@ void tscProcessAsyncRetrieve(void *param, TAOS_RES *tres, int numOfRows) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   if (numOfRows == 0) {
     // sequentially retrieve data from remain vnodes.
-    if (tscProjectionQueryOnMetric(pCmd, 0)) {
+    if (tscProjectionQueryOnSTable(pCmd, 0)) {
       /*
        * vnode is denoted by vnodeIdx, continue to query vnode specified by vnodeIdx till all vnode have been retrieved
        */
@@ -517,7 +517,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
-      code = tscGetMetricMeta(pSql);
+      code = tscGetMetricMeta(pSql, 0);
       pRes->code = code;
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
@@ -534,7 +534,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
     if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
     if (code == TSDB_CODE_SUCCESS && UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
-      code = tscGetMetricMeta(pSql);
+      code = tscGetMetricMeta(pSql, 0);
       pRes->code = code;
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;

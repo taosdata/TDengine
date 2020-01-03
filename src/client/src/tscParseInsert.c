@@ -18,8 +18,8 @@
 
 #define _XOPEN_SOURCE
 
-#include "ihash.h"
 #include "os.h"
+#include "hash.h"
 #include "tscSecondaryMerge.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
@@ -652,7 +652,8 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
 
   STableDataBlocks *dataBuf = NULL;
   int32_t ret = tscGetDataBlockFromList(pTableHashList, pCmd->pDataBlocks, pMeterMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
-                                        sizeof(SShellSubmitBlock), pMeterMeta->rowSize, pMeterMetaInfo->name, &dataBuf);
+                                        sizeof(SShellSubmitBlock), pMeterMeta->rowSize, pMeterMetaInfo->name,
+                                        pMeterMeta, &dataBuf);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
@@ -1111,8 +1112,10 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       wordfree(&full_path);
 
       STableDataBlocks *pDataBlock = NULL;
-      int32_t ret = tscCreateDataBlock(PATH_MAX, pMeterMetaInfo->pMeterMeta->rowSize, sizeof(SShellSubmitBlock),
-                                       pMeterMetaInfo->name, &pDataBlock);
+      SMeterMeta* pMeterMeta = pMeterMetaInfo->pMeterMeta;
+      
+      int32_t ret = tscCreateDataBlock(PATH_MAX, pMeterMeta->rowSize, sizeof(SShellSubmitBlock), pMeterMetaInfo->name,
+                                       pMeterMeta, &pDataBlock);
       if (ret != TSDB_CODE_SUCCESS) {
         goto _error_clean;
       }
@@ -1358,8 +1361,8 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
 
   pCmd->pDataBlocks = tscCreateBlockArrayList();
   STableDataBlocks *pTableDataBlock = NULL;
-  int32_t           ret = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, pMeterMeta->rowSize, sizeof(SShellSubmitBlock),
-                                   pMeterMetaInfo->name, &pTableDataBlock);
+  int32_t           ret = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, rowSize, sizeof(SShellSubmitBlock),
+                                   pMeterMetaInfo->name, pMeterMeta, &pTableDataBlock);
   if (ret != TSDB_CODE_SUCCESS) {
     return -1;
   }
@@ -1370,10 +1373,10 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   if (maxRows < 1) return -1;
 
   int                count = 0;
-  SParsedDataColInfo spd = {.numOfCols = pMeterMetaInfo->pMeterMeta->numOfColumns};
-  SSchema *          pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
+  SParsedDataColInfo spd = {.numOfCols = pMeterMeta->numOfColumns};
+  SSchema *          pSchema = tsGetSchema(pMeterMeta);
 
-  tscSetAssignedColumnInfo(&spd, pSchema, pMeterMetaInfo->pMeterMeta->numOfColumns);
+  tscSetAssignedColumnInfo(&spd, pSchema, pMeterMeta->numOfColumns);
 
   while ((readLen = getline(&line, &n, fp)) != -1) {
     // line[--readLen] = '\0';
@@ -1383,8 +1386,8 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
     char *lineptr = line;
     strtolower(line, line);
 
-    if (numOfRows >= maxRows || pTableDataBlock->size + pMeterMeta->rowSize >= pTableDataBlock->nAllocSize) {
-      uint32_t tSize = tscAllocateMemIfNeed(pTableDataBlock, pMeterMeta->rowSize);
+    if (numOfRows >= maxRows || pTableDataBlock->size + rowSize >= pTableDataBlock->nAllocSize) {
+      uint32_t tSize = tscAllocateMemIfNeed(pTableDataBlock, rowSize);
       if (0 == tSize) return (-TSDB_CODE_CLI_OUT_OF_MEMORY);
       maxRows += tSize;
     }
