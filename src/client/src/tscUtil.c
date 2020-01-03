@@ -660,8 +660,9 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     int32_t ret = tscGetDataBlockFromList(pVnodeDataBlockHashList, pVnodeDataBlockList, pOneTableBlock->vgid,
                                 TSDB_PAYLOAD_SIZE, tsInsertHeadSize, 0, pOneTableBlock->meterId, &dataBuf);
     if (ret != TSDB_CODE_SUCCESS) {
-      tscError("%p failed to allocate the data buffer block for merging table data", pSql);
-      tscDestroyBlockArrayList(pTableDataBlockList);
+      tscError("%p failed to prepare the data block buffer for merging table data, code:%d", pSql, ret);
+      taosCleanUpHashTable(pVnodeDataBlockHashList);
+      tscDestroyBlockArrayList(pVnodeDataBlockList);
       
       return ret;
     }
