@@ -388,10 +388,10 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 static void **doSetResultRowData(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   int32_t num = 0;
-
   for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
     pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i, pQueryInfo->order) + pRes->bytes[i] * pRes->row;
 
@@ -575,7 +575,7 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
       return NULL;
     }
 
-  } else if (pRes->row >= pRes->numOfRows) {
+  } else if (pRes->row >= pRes->numOfRows) {  // not a join query
     tscResetForNextRetrieve(pRes);
 
     if (pCmd->command < TSDB_SQL_LOCAL) {
@@ -587,7 +587,10 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
       return NULL;
     }
 
-    // local reducer has handle this situation
+    /*
+     * local reducer has handle this case,
+     * so no need to add the pRes->numOfRows for metric retrieve
+     */
     if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC) {
       pRes->numOfTotal += pRes->numOfRows;
     }
@@ -610,7 +613,9 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   TAOS_ROW rows = taos_fetch_row_impl(res);
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  
+  if (rows == NULL) {
+    int32_t k = 1;
+  }
   while (rows == NULL && tscProjectionQueryOnSTable(pCmd, 0)) {
     SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
@@ -647,6 +652,17 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     if (rows != NULL || pMeterMetaInfo->vnodeIndex >= pMeterMetaInfo->pMetricMeta->numOfVnodes) {
       break;
     }
+  }
+  
+  // current subclause is completed, try the next subclause
+  if (rows == NULL && pCmd->clauseIndex < pCmd->numOfClause - 1) {
+    pSql->cmd.command = TSDB_SQL_SELECT;
+    pCmd->clauseIndex++;
+    
+    assert(pSql->fp == NULL);
+    tscProcessSql(pSql);
+    
+    rows = taos_fetch_row_impl(res);
   }
 
   return rows;

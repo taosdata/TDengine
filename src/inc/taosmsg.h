@@ -506,7 +506,6 @@ typedef struct {
   uint64_t uid;
   TSKEY    skey;
   TSKEY    ekey;
-  int32_t  num;
 
   int16_t order;
   int16_t orderColId;

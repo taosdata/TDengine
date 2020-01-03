@@ -229,7 +229,6 @@ typedef struct _qinfo {
   int            killed;
   struct _qinfo *prev, *next;
   SQuery         query;
-  int            num;
   int            totalPoints;
   int            pointsRead;
   int            pointsReturned;

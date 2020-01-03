@@ -439,8 +439,6 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       taos_fetch_rows_a(tres, joinRetrieveCallback, param);
     } else if (numOfRows == 0) {  // no data from this vnode anymore
       if (tscProjectionQueryOnSTable(&pParentSql->cmd, 0)) {
-        SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-        
         SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
         assert(pQueryInfo->numOfTables == 1);
 

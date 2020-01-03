@@ -1591,17 +1591,17 @@ SMeterMetaInfo* tscGetMeterMetaInfoFromQueryInfo(SQueryInfo* pQueryInfo, int32_t
 }
 
 SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex) {
-  if (pCmd->pQueryInfo == NULL) {
+  assert(pCmd != NULL && subClauseIndex >= 0 && subClauseIndex < TSDB_MAX_UNION_CLAUSE);
+  
+  if (pCmd->pQueryInfo == NULL || subClauseIndex >= pCmd->numOfClause) {
     return NULL;
   }
 
-  assert(pCmd != NULL && subClauseIndex >= 0 && subClauseIndex < pCmd->numOfClause);
   return pCmd->pQueryInfo[subClauseIndex];
 }
 
 int32_t tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex, SQueryInfo** pQueryInfo) {
   int32_t ret = TSDB_CODE_SUCCESS;
-  assert(subClauseIndex >= 0 && subClauseIndex < TSDB_MAX_UNION_CLAUSE);
   
   *pQueryInfo = tscGetQueryInfoDetail(pCmd, subClauseIndex);
   

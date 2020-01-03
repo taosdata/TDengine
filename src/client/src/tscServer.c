@@ -760,8 +760,8 @@ int tscProcessSql(SSqlObj *pSql) {
   char *   name = NULL;
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
-
-  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  
+  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   SMeterMetaInfo *pMeterMetaInfo = NULL;
   int16_t         type = 0;
 
@@ -1492,14 +1492,14 @@ void tscUpdateVnodeInQueryMsg(SSqlObj *pSql, char *buf) {
  * for meter query, simply return the size <= 1k
  * for metric query, estimate size according to meter tags
  */
-static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd) {
+static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   const static int32_t MIN_QUERY_MSG_PKT_SIZE = TSDB_MAX_BYTES_PER_ROW * 5;
-  SQueryInfo *         pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *         pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
 
   int32_t srcColListSize = pQueryInfo->colList.numOfCols * sizeof(SColumnInfo);
 
   int32_t         exprSize = sizeof(SSqlFuncExprMsg) * pQueryInfo->fieldsInfo.numOfOutputCols;
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
   // meter query without tags values
   if (!UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
@@ -1564,14 +1564,14 @@ static char *doSerializeTableInfo(SSqlObj *pSql, int32_t numOfMeters, int32_t vn
 int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
-  int32_t size = tscEstimateQueryMsgSize(pCmd);
+  int32_t size = tscEstimateQueryMsgSize(pCmd, pCmd->clauseIndex);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for query msg", pSql);
     return -1;
   }
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
   char *          pStart = pCmd->payload + tsRpcHeadSize;
@@ -1623,7 +1623,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->ekey = htobe64(pQueryInfo->stime);
   }
 
-  pQueryMsg->num = htonl(0);
   pQueryMsg->order = htons(pQueryInfo->order.order);
   pQueryMsg->orderColId = htons(pQueryInfo->order.orderColId);
 
@@ -2880,29 +2879,6 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return msgLen;
 }
 
-int tscProcessRetrieveRspFromMgmt(SSqlObj *pSql) {
-  SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
-  STscObj *pObj = pSql->pTscObj;
-
-  SRetrieveMeterRsp *pRetrieve = (SRetrieveMeterRsp *)(pRes->pRsp);
-  pRes->numOfRows = htonl(pRetrieve->numOfRows);
-  pRes->precision = htons(pRes->precision);
-
-  pRes->data = pRetrieve->data;
-
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  tscSetResultPointer(pQueryInfo, pRes);
-
-  if (pRes->numOfRows == 0) {
-    taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pObj->user);
-    pSql->thandle = NULL;
-  }
-
-  pRes->row = 0;
-  return 0;
-}
-
 int tscProcessMeterMetaRsp(SSqlObj *pSql) {
   SMeterMeta *pMeta;
   SSchema *   pSchema;
@@ -3399,8 +3375,6 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-
   SRetrieveMeterRsp *pRetrieve = (SRetrieveMeterRsp *)pRes->pRsp;
 
   pRes->numOfRows = htonl(pRetrieve->numOfRows);
@@ -3410,7 +3384,8 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   pRes->useconds = htobe64(pRetrieve->useconds);
   pRes->data = pRetrieve->data;
 
-  tscSetResultPointer(tscGetQueryInfoDetail(pCmd, 0), pRes);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  tscSetResultPointer(pQueryInfo, pRes);
   pRes->row = 0;
 
   /**

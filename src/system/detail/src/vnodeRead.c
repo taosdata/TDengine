@@ -637,7 +637,6 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   pQuery->lastKey = pQuery->skey;
 
   pQInfo->fp = pQueryFunc[pQueryMsg->order];
-  pQInfo->num = pQueryMsg->num;
 
   if (sem_init(&(pQInfo->dataReady), 0, 0) != 0) {
     dError("QInfo:%p vid:%d sid:%d meterId:%s, init dataReady sem failed, reason:%s", pQInfo, pMeterObj->vnode,
@@ -737,7 +736,6 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   pQuery->ekey = pQueryMsg->ekey;
 
   pQInfo->fp = pQueryFunc[pQueryMsg->order];
-  pQInfo->num = pQueryMsg->num;
 
   if (sem_init(&(pQInfo->dataReady), 0, 0) != 0) {
     dError("QInfo:%p vid:%d sid:%d id:%s, init dataReady sem failed, reason:%s", pQInfo, pMetersObj[0]->vnode,
@@ -975,8 +973,6 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
   pQueryMsg->skey = htobe64(pQueryMsg->skey);
   pQueryMsg->ekey = htobe64(pQueryMsg->ekey);
 #endif
-
-  pQueryMsg->num = htonl(pQueryMsg->num);
 
   pQueryMsg->order = htons(pQueryMsg->order);
   pQueryMsg->orderColId = htons(pQueryMsg->orderColId);
