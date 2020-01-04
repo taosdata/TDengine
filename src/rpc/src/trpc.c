@@ -899,7 +899,10 @@ int taosProcessMsgHeader(STaosHeader *pHeader, SRpcConn **ppConn, STaosRpc *pSer
       }
 
       if (taosAuthenticateMsg((uint8_t *)pHeader, dataLen - TSDB_AUTH_LEN, pDigest->auth, pConn->secret) < 0) {
-        tTrace("%s cid:%d sid:%d id:%s, authentication failed, msg discarded pConn:%p", pServer->label, chann, sid,
+        char ipstr[24];
+        tinet_ntoa(ipstr, ip);
+        mLError("user:%s login from %s, authentication failed", pHeader->meterId, ipstr);
+        tError("%s cid:%d sid:%d id:%s, authentication failed, msg discarded pConn:%p", pServer->label, chann, sid,
                pConn->meterId, pConn);
         code = TSDB_CODE_AUTH_FAILURE;
         goto _exit;

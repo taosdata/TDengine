@@ -1259,6 +1259,11 @@ int mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
 
   if (pDb == NULL) return 0;
+  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 && strcmp(pConn->pUser->user, "monitor") != 0 ) {
+      return 0;
+    }
+  }
 
   strcpy(prefix, pDb->name);
   strcat(prefix, TS_PATH_DELIMITER);
@@ -1375,6 +1380,16 @@ int mgmtRetrieveMetrics(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
   STabObj *pMetric = NULL;
   char *   pWrite;
   int      cols = 0;
+
+  SDbObj *pDb = NULL;
+  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+
+  if (pDb == NULL) return 0;
+  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 && strcmp(pConn->pUser->user, "monitor") != 0 ) {
+      return 0;
+    }
+  }
 
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 

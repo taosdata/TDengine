@@ -733,7 +733,10 @@ int mgmtProcessAlterUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
     bool hasRight = false;
+
     if (strcmp(pUser->user, "root") == 0) {
+      hasRight = false;
+    } else if (strcmp(pUser->user, pUser->acct) == 0) {
       hasRight = false;
     } else if (strcmp(pOperUser->user, "root") == 0) {
       hasRight = true;
@@ -749,21 +752,24 @@ int mgmtProcessAlterUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
       }
     }
 
+    if (pAlter->privilege == 1) { // super
+      hasRight = false;
+    }
+
     if (hasRight) {
-      if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
-        if (pAlter->privilege == 1) {  // super
-          pUser->superAuth = 1;
-          pUser->writeAuth = 1;
-        }
-        if (pAlter->privilege == 2) {  // read
-          pUser->superAuth = 0;
-          pUser->writeAuth = 0;
-        }
-        if (pAlter->privilege == 3) {  // write
-          pUser->superAuth = 0;
-          pUser->writeAuth = 1;
-        }
+      //if (pAlter->privilege == 1) {  // super
+      //  pUser->superAuth = 1;
+      //  pUser->writeAuth = 1;
+      //}
+      if (pAlter->privilege == 2) {  // read
+        pUser->superAuth = 0;
+        pUser->writeAuth = 0;
       }
+      if (pAlter->privilege == 3) {  // write
+        pUser->superAuth = 0;
+        pUser->writeAuth = 1;
+      }
+
       code = mgmtUpdateUser(pUser);
       mLPrint("user:%s privilege is altered by %s, code:%d", pAlter->user, pConn->pUser->user, code);
     } else {
