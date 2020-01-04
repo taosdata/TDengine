@@ -842,7 +842,7 @@ void generateData(char *res, char **data_type, int num_of_cols, int64_t timestam
     } else if (strcasecmp(data_type[i % c], "binary") == 0) {
       char s[len_of_binary];
       rand_string(s, len_of_binary);
-      pstr += sprintf(pstr, ", %s", s);
+      pstr += sprintf(pstr, ", \"%s\"", s);
     }
   }
 
