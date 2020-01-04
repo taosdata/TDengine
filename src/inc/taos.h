@@ -57,10 +57,16 @@ typedef struct taosField {
   char  type;
 } TAOS_FIELD;
 
-void  taos_init();
-int   taos_options(TSDB_OPTION option, const void *arg, ...);
-TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
-void  taos_close(TAOS *taos);
+#ifdef _TD_GO_DLL_
+  #define DLL_EXPORT    __declspec(dllexport)
+#else
+  #define DLL_EXPORT 
+#endif
+
+DLL_EXPORT void  taos_init();
+DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
+DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
+DLL_EXPORT void  taos_close(TAOS *taos);
 
 typedef struct TAOS_BIND {
   int            buffer_type;
@@ -80,18 +86,18 @@ int        taos_stmt_execute(TAOS_STMT *stmt);
 TAOS_RES * taos_stmt_use_result(TAOS_STMT *stmt);
 int        taos_stmt_close(TAOS_STMT *stmt);
 
-int taos_query(TAOS *taos, const char *sql);
-TAOS_RES *taos_use_result(TAOS *taos);
-TAOS_ROW taos_fetch_row(TAOS_RES *res);
-int taos_result_precision(TAOS_RES *res);  // get the time precision of result
-void taos_free_result(TAOS_RES *res);
-int taos_field_count(TAOS *taos);
-int taos_num_fields(TAOS_RES *res);
-int taos_affected_rows(TAOS *taos);
-TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
-int taos_select_db(TAOS *taos, const char *db);
-int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
-void taos_stop_query(TAOS_RES *res);
+DLL_EXPORT int taos_query(TAOS *taos, const char *sql);
+DLL_EXPORT TAOS_RES *taos_use_result(TAOS *taos);
+DLL_EXPORT TAOS_ROW taos_fetch_row(TAOS_RES *res);
+DLL_EXPORT int taos_result_precision(TAOS_RES *res);  // get the time precision of result
+DLL_EXPORT void taos_free_result(TAOS_RES *res);
+DLL_EXPORT int taos_field_count(TAOS *taos);
+DLL_EXPORT int taos_num_fields(TAOS_RES *res);
+DLL_EXPORT int taos_affected_rows(TAOS *taos);
+DLL_EXPORT TAOS_FIELD *taos_fetch_fields(TAOS_RES *res);
+DLL_EXPORT int taos_select_db(TAOS *taos, const char *db);
+DLL_EXPORT int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
+DLL_EXPORT void taos_stop_query(TAOS_RES *res);
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
 int taos_validate_sql(TAOS *taos, const char *sql);
@@ -100,27 +106,27 @@ int taos_validate_sql(TAOS *taos, const char *sql);
 // TAOS_RES   *taos_list_dbs(TAOS *mysql, const char *wild);
 
 // TODO: the return value should be `const`
-char *taos_get_server_info(TAOS *taos);
-char *taos_get_client_info();
-char *taos_errstr(TAOS *taos);
+DLL_EXPORT char *taos_get_server_info(TAOS *taos);
+DLL_EXPORT char *taos_get_client_info();
+DLL_EXPORT char *taos_errstr(TAOS *taos);
 
-int taos_errno(TAOS *taos);
+DLL_EXPORT int taos_errno(TAOS *taos);
 
-void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, int code), void *param);
-void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);
-void taos_fetch_row_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), void *param);
+DLL_EXPORT void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, int code), void *param);
+DLL_EXPORT void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);
+DLL_EXPORT void taos_fetch_row_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), void *param);
 
-TAOS_SUB *taos_subscribe(const char *host, const char *user, const char *pass, const char *db, const char *table, int64_t time, int mseconds);
-TAOS_ROW taos_consume(TAOS_SUB *tsub);
-void taos_unsubscribe(TAOS_SUB *tsub);
-int taos_subfields_count(TAOS_SUB *tsub);
-TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub);
+DLL_EXPORT TAOS_SUB *taos_subscribe(const char *host, const char *user, const char *pass, const char *db, const char *table, int64_t time, int mseconds);
+DLL_EXPORT TAOS_ROW taos_consume(TAOS_SUB *tsub);
+DLL_EXPORT void taos_unsubscribe(TAOS_SUB *tsub);
+DLL_EXPORT int taos_subfields_count(TAOS_SUB *tsub);
+DLL_EXPORT TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub);
 
-TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
+DLL_EXPORT TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *));
-void taos_close_stream(TAOS_STREAM *tstr);
+DLL_EXPORT void taos_close_stream(TAOS_STREAM *tstr);
 
-int taos_load_table_info(TAOS *taos, const char* tableNameList);
+DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
 #ifdef __cplusplus
 }
