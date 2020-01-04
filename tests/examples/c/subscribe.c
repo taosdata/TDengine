@@ -29,7 +29,8 @@ int main(int argc, char *argv[]) {
   const char* user = "root";
   const char* passwd = "taosdata";
   const char* sql = "select * from meters;";
-  int async = 1, restart = 0;
+  const char* topic = "test-multiple";
+  int async = 1, restart = 0, keep = 1;
   TAOS_SUB* tsub = NULL;
 
   for (int i = 1; i < argc; i++) {
@@ -55,6 +56,11 @@ int main(int argc, char *argv[]) {
     }
     if (strcmp(argv[i], "-single") == 0) {
       sql = "select * from t0;";
+      topic = "test-single";
+      continue;
+    }
+    if (strcmp(argv[i], "-nokeep") == 0) {
+      keep = 0;
       continue;
     }
   }
@@ -69,9 +75,9 @@ int main(int argc, char *argv[]) {
   }
 
   if (async) {
-    tsub = taos_subscribe("test", restart, taos, sql, subscribe_callback, NULL, 1000);
+    tsub = taos_subscribe(topic, restart, taos, sql, subscribe_callback, NULL, 1000);
   } else {
-    tsub = taos_subscribe("test", restart, taos, sql, NULL, NULL, 0);
+    tsub = taos_subscribe(topic, restart, taos, sql, NULL, NULL, 0);
   }
 
   if (tsub == NULL) {
@@ -87,7 +93,7 @@ int main(int argc, char *argv[]) {
     getchar();
   }
 
-  taos_unsubscribe(tsub);
+  taos_unsubscribe(tsub, keep);
 
   return 0;
 }

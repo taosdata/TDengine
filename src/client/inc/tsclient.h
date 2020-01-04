@@ -466,6 +466,12 @@ void    tscDestroyResPointerInfo(SSqlRes *pRes);
 void tscFreeSqlCmdData(SSqlCmd *pCmd);
 
 /**
+ * free query result of the sql object
+ * @param pObj
+ */
+void tscFreeSqlResult(SSqlObj* pSql);
+
+/**
  * only free part of resources allocated during query.
  * Note: this function is multi-thread safe.
  * @param pObj

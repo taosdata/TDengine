@@ -694,7 +694,7 @@ int taos_select_db(TAOS *taos, const char *db) {
   return taos_query(taos, sql);
 }
 
-void taos_free_result(TAOS_RES *res) {
+void taos_free_result_imp(TAOS_RES* res, int keepCmd) {
   if (res == NULL) return;
 
   SSqlObj *pSql = (SSqlObj *)res;
@@ -712,6 +712,8 @@ void taos_free_result(TAOS_RES *res) {
       pSql->thandle = NULL;
       tscFreeSqlObj(pSql);
       tscTrace("%p Async SqlObj is freed by app", pSql);
+    } else if (keepCmd) {
+      tscFreeSqlResult(pSql);
     } else {
       tscFreeSqlObjPartial(pSql);
     }
@@ -761,8 +763,13 @@ void taos_free_result(TAOS_RES *res) {
        * Then this object will be reused and no free operation is required.
        */
       pSql->thandle = NULL;
-      tscFreeSqlObjPartial(pSql);
-      tscTrace("%p sql result is freed by app", pSql);
+      if (keepCmd) {
+        tscFreeSqlResult(pSql);
+        tscTrace("%p sql result is freed by app while sql command is kept", pSql);
+      } else {
+        tscFreeSqlObjPartial(pSql);
+        tscTrace("%p sql result is freed by app", pSql);
+      }
     }
   } else {
     // if no free resource msg is sent to vnode, we free this object immediately.
@@ -772,11 +779,18 @@ void taos_free_result(TAOS_RES *res) {
       assert(pRes->numOfRows == 0 || (pCmd->command > TSDB_SQL_LOCAL));
       tscFreeSqlObj(pSql);
       tscTrace("%p Async sql result is freed by app", pSql);
+    } else if (keepCmd) {
+      tscFreeSqlResult(pSql);
+      tscTrace("%p sql result is freed while sql command is kept", pSql);
     } else {
       tscFreeSqlObjPartial(pSql);
       tscTrace("%p sql result is freed", pSql);
     }
   }
+}
+
+void taos_free_result(TAOS_RES *res) {
+  taos_free_result_imp(res, 0);
 }
 
 int taos_errno(TAOS *taos) {
