@@ -51,7 +51,7 @@ ELSEIF (TD_WINDOWS_64)
 
   # generate dynamic library (*.dll)
   ADD_LIBRARY(taos SHARED ${SRC})
-  SET_TARGET_PROPERTIES(taos PROPERTIES LINK_FLAGS /DEF:${TD_COMMUNITY_DIR}/src/client/src/taos.def)
+  # SET_TARGET_PROPERTIES(taos PROPERTIES LINK_FLAGS /DEF:${TD_COMMUNITY_DIR}/src/client/src/taos.def)
   TARGET_LINK_LIBRARIES(taos trpc)
 
 ELSEIF (TD_DARWIN_64)
