@@ -481,7 +481,18 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
       msg = NULL;
     } else if (rspCode == TSDB_CODE_NOT_ACTIVE_TABLE || rspCode == TSDB_CODE_INVALID_TABLE_ID ||
         rspCode == TSDB_CODE_INVALID_VNODE_ID || rspCode == TSDB_CODE_NOT_ACTIVE_VNODE ||
-        rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
+        rspCode == TSDB_CODE_NETWORK_UNAVAIL || rspCode == TSDB_CODE_NOT_ACTIVE_SESSION) {
+      /*
+       * not_active_table: 1. the virtual node may fail to create table, since the procedure of create table is asynchronized,
+       *                   the virtual node may have not create table till now, so try again by using the new metermeta.
+       *                   2. this requested table may have been removed by other client, so we need to renew the
+       *                   metermeta here.
+       *
+       * not_active_vnode: current vnode is move to other node due to node balance procedure or virtual node have been
+       *                   removed. So, renew metermeta and try again.
+       * not_active_session: db has been move to other node, the vnode does not exist on this dnode anymore.
+       */
+
 #else
      if (rspCode == TSDB_CODE_NOT_ACTIVE_TABLE || rspCode == TSDB_CODE_INVALID_TABLE_ID ||
         rspCode == TSDB_CODE_INVALID_VNODE_ID || rspCode == TSDB_CODE_NOT_ACTIVE_VNODE ||
