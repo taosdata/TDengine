@@ -3836,12 +3836,12 @@ static void getStatics_f(int64_t *primaryKey, float *data, int32_t numOfRow, dou
     dsum += fv;
     if (fmin > fv) {
       fmin = fv;
-      minIndex = i;
+      *minIndex = i;
     }
 
     if (fmax < fv) {
       fmax = fv;
-      maxIndex = i;
+      *maxIndex = i;
     }
 
     //    if (isNull(&lastVal, TSDB_DATA_TYPE_FLOAT)) {
@@ -3889,12 +3889,12 @@ static void getStatics_d(int64_t *primaryKey, double *data, int32_t numOfRow, do
     dsum += dv;
     if (dmin > dv) {
       dmin = dv;
-      minIndex = i;
+     *minIndex = i;
     }
 
     if (dmax < dv) {
       dmax = dv;
-      maxIndex = i;
+      *maxIndex = i;
     }
 
     //    if (isNull(&lastVal, TSDB_DATA_TYPE_DOUBLE)) {
