@@ -35,6 +35,7 @@ typedef struct SSubscriptionProgress {
 typedef struct SSub {
   char                    topic[32];
   int64_t                 lastSyncTime;
+  int64_t                 lastConsumeTime;
   void *                  signature;
   TAOS *                  taos;
   void *                  pTimer;
@@ -128,6 +129,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
   pSub->pSql = pSql;
   pSub->signature = pSub;
   strncpy(pSub->topic, topic, sizeof(pSub->topic));
+  pSub->topic[sizeof(pSub->topic) - 1] = 0;
   return pSub;
 
 failed:
@@ -294,7 +296,7 @@ void tscSaveSubscriptionProgress(void* sub) {
   fclose(fp);
 }
 
-TAOS_SUB *taos_subscribe(const char* topic, int restart, TAOS *taos, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval) {
+TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval) {
   STscObj* pObj = (STscObj*)taos;
   if (pObj == NULL || pObj->signature != pObj) {
     globalCode = TSDB_CODE_DISCONNECTED;
@@ -319,11 +321,11 @@ TAOS_SUB *taos_subscribe(const char* topic, int restart, TAOS *taos, const char 
     return NULL;
   }
 
+  pSub->interval = interval;
   if (fp != NULL) {
     pSub->fp = fp;
-    pSub->interval = interval;
     pSub->param = param;
-    taosTmrReset(tscProcessSubscriptionTimer, 0, pSub, tscTmr, &pSub->pTimer);
+    taosTmrReset(tscProcessSubscriptionTimer, interval, pSub, tscTmr, &pSub->pTimer);
   }
 
   return pSub;
@@ -338,7 +340,14 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SSqlObj* pSql = pSub->pSql;
   SSqlRes *pRes = &pSql->res;
 
-  if (taosGetTimestampMs() - pSub->lastSyncTime > 10 * 1000) {
+  if (pSub->pTimer == NULL) {
+    int duration = (int)(taosGetTimestampMs() - pSub->lastConsumeTime);
+    if (duration < pSub->interval) {
+      taosMsleep(pSub->interval - (int32_t)duration);
+    }
+  }
+
+  if (taosGetTimestampMs() - pSub->lastSyncTime > 10 * 60 * 1000) {
     char* sqlstr = pSql->sqlstr;
     pSql->sqlstr = NULL;
     taos_free_result_imp(pSql, 0);
@@ -356,11 +365,14 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     pSql->cmd.type = type;
   }
 
+
   tscDoQuery(pSql);
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscRemoveFromSqlList(pSql);
     return NULL;
   }
+
+  pSub->lastConsumeTime = taosGetTimestampMs();
   return pSql;
 }
 

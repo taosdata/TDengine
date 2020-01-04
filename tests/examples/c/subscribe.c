@@ -75,9 +75,9 @@ int main(int argc, char *argv[]) {
   }
 
   if (async) {
-    tsub = taos_subscribe(topic, restart, taos, sql, subscribe_callback, NULL, 1000);
+    tsub = taos_subscribe(taos, restart, topic, sql, subscribe_callback, NULL, 1000);
   } else {
-    tsub = taos_subscribe(topic, restart, taos, sql, NULL, NULL, 0);
+    tsub = taos_subscribe(taos, restart, topic, sql, NULL, NULL, 0);
   }
 
   if (tsub == NULL) {
