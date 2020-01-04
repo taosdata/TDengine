@@ -1086,6 +1086,7 @@ _error_clean:
 _clean:
   taosCleanUpIntHash(pSql->pTableHashList);
   pSql->pTableHashList = NULL;
+  pSql->asyncTblPos    = NULL;
   return code;
 }
 
