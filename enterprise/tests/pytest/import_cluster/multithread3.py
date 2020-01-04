@@ -113,7 +113,7 @@ class TDTestCase:
       threads[tid].join()
     threads[tid+1].join()
 
-    if(~self.successFlag):
+    if(not self.successFlag):
       tdSql.close()
       tdLog.exit('This test failed!')
 

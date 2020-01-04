@@ -42,21 +42,21 @@ class TDTestCase:
           err = 'affected rows %d != expected %d' %(affrows, 1)
           print("\033[1;31m%s %s\033[0m\nfailed sqlcmd: %s" \
                         % (datetime.datetime.now(), err, sqlcmd))
-          self.successFlag = False
           sys.exit(1) 
     self.queryFlag = False
+    self.failFlag = False
     conn.close()
   
   def selectImp(self):
     conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     cursor = conn.cursor()
     cursor.execute('use db')
-    count = 0
     while(self.queryFlag):
+      count = 0
       cursor.execute('select * from tb')
       for line in cursor:
         count += 1
-      print("%ld data has been imported" %count)
+    print("%ld data has been imported" %count)
       
     conn.close()
 
@@ -65,7 +65,7 @@ class TDTestCase:
     self.nrows = 200
     self.nthreads = 5
     self.queryFlag = True
-    self.successFlag = True
+    self.failFlag = True
 
     tdDnodes.stop(1)
     tdDnodes.deploy(1)
@@ -104,7 +104,7 @@ class TDTestCase:
       threads[tid].join()
     threads[tid+1].join()
 
-    if(~self.successFlag):
+    if(self.failFlag):
       tdSql.close()
       tdLog.exit('This test failed!')
 
