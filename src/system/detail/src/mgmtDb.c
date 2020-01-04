@@ -668,6 +668,11 @@ int mgmtRetrieveDbs(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
     pDb = (SDbObj *)pShow->pNode;
     if (pDb == NULL) break;
     pShow->pNode = (void *)pDb->next;
+    if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+      if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 && strcmp(pConn->pUser->user, "monitor") != 0 ) {
+        continue;
+      }
+    }
 
     cols = 0;
 

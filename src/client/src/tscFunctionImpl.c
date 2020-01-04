@@ -3889,7 +3889,7 @@ static void getStatics_d(int64_t *primaryKey, double *data, int32_t numOfRow, do
     dsum += dv;
     if (dmin > dv) {
       dmin = dv;
-     *minIndex = i;
+      *minIndex = i;
     }
 
     if (dmax < dv) {
