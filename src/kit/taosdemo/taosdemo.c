@@ -17,7 +17,10 @@
 
 #include <argp.h>
 #include <assert.h>
+
+#ifndef _ALPINE
 #include <error.h>
+#endif
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdbool.h>
@@ -309,7 +312,13 @@ int main(int argc, char *argv[]) {
 
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-  if (arguments.abort) error(10, 0, "ABORTED");
+  if (arguments.abort) {
+    #ifndef _ALPINE
+      error(10, 0, "ABORTED");
+    #else
+      abort();
+    #endif
+  }
   
   enum MODE query_mode = arguments.mode;
   char *ip_addr = arguments.host;
@@ -342,6 +351,11 @@ int main(int argc, char *argv[]) {
   }
 
   FILE *fp = fopen(arguments.output_file, "a");
+  if (NULL == fp) {
+    fprintf(stderr, "Failed to open %s for writing\n", arguments.output_file);
+    return 1;
+  };
+  
   time_t tTime = time(NULL);
   struct tm tm = *localtime(&tTime);
 
@@ -833,7 +847,7 @@ void generateData(char *res, char **data_type, int num_of_cols, int64_t timestam
     } else if (strcasecmp(data_type[i % c], "binary") == 0) {
       char s[len_of_binary];
       rand_string(s, len_of_binary);
-      pstr += sprintf(pstr, ", %s", s);
+      pstr += sprintf(pstr, ", \"%s\"", s);
     }
   }
 

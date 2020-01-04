@@ -15,7 +15,9 @@
 
 #include <argp.h>
 #include <assert.h>
-#include <error.h>
+#ifndef _ALPINE
+  #include <error.h>
+#endif
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -335,7 +337,13 @@ int main(int argc, char *argv[]) {
      reflected in arguments. */
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-  if (arguments.abort) error(10, 0, "ABORTED");
+  if (arguments.abort) {
+    #ifndef _ALPINE
+      error(10, 0, "ABORTED");
+    #else
+      abort();
+    #endif
+  }
 
   if (taosCheckParam(&arguments) < 0) {
     exit(EXIT_FAILURE);

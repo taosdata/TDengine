@@ -70,8 +70,8 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
   }
 #else
   if (ip && ip[0]) {
-    if (ip != tsServerIpStr) {
-      strcpy(tsServerIpStr, ip);
+    if (ip != tsMasterIp) {
+      strcpy(tsMasterIp, ip);
     }
     tsServerIp = inet_addr(ip);
   }
@@ -152,11 +152,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   if (ip == NULL || (ip != NULL && (strcmp("127.0.0.1", ip) == 0 || strcasecmp("localhost", ip) == 0))) {
-#ifdef CLUSTER
     ip = tsMasterIp;
-#else
-    ip = tsServerIpStr;
-#endif
   }
   tscTrace("try to create a connection to %s", ip);
 
@@ -180,7 +176,7 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
                      void *param, void **taos) {
 #ifndef CLUSTER
   if (ip == NULL) {
-    ip = tsServerIpStr;
+    ip = tsMasterIp;
   }
 #endif
   return taos_connect_imp(ip, user, pass, db, port, fp, param, taos);
@@ -613,9 +609,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   TAOS_ROW rows = taos_fetch_row_impl(res);
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  if (rows == NULL) {
-    int32_t k = 1;
-  }
   while (rows == NULL && tscProjectionQueryOnSTable(pCmd, 0)) {
     SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
@@ -918,12 +911,18 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         len += sprintf(str + len, "%" PRId64 " ", *((int64_t *)row[i]));
         break;
 
-      case TSDB_DATA_TYPE_FLOAT:
-        len += sprintf(str + len, "%f ", *((float *)row[i]));
+      case TSDB_DATA_TYPE_FLOAT: {
+        float fv = 0;
+        fv = GET_FLOAT_VAL(row[i]);
+        len += sprintf(str + len, "%f ", fv);
+      }
         break;
 
-      case TSDB_DATA_TYPE_DOUBLE:
-        len += sprintf(str + len, "%lf ", *((double *)row[i]));
+      case TSDB_DATA_TYPE_DOUBLE:{
+        double dv = 0;
+        dv = GET_DOUBLE_VAL(row[i]);
+        len += sprintf(str + len, "%lf ", dv);
+      }
         break;
 
       case TSDB_DATA_TYPE_BINARY:

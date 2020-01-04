@@ -108,6 +108,12 @@ cmd ::= SHOW dbPrefix(X) VGROUPS.    {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, 0);
 }
 
+cmd ::= SHOW dbPrefix(X) VGROUPS ids(Y).    {
+    SSQLToken token;
+    setDBName(&token, &X);    
+    setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, &Y);
+}
+
 //drop configure for tables
 cmd ::= DROP TABLE ifexists(Y) ids(X) cpxName(Z).   {
     X.n += Z.n;

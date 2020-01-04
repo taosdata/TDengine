@@ -536,4 +536,6 @@ int32_t taosCheckHashTable(HashObj *pObj) {
       assert(num == pEntry->num);
     }
   }
+  
+  return 0;
 }

@@ -3380,10 +3380,8 @@ void forwardQueryStartPosition(SQueryRuntimeEnv *pRuntimeEnv) {
     updateOffsetVal(pRuntimeEnv, &blockInfo, pBlock);
   } else {
     pQuery->limit.offset -= maxReads;
-    
     // update the lastkey, since the following skip operation may traverse to another media. update the lastkey first.
-    pQuery->lastKey = (QUERY_IS_ASC_QUERY(pQuery))? blockInfo.keyLast+1:blockInfo.keyFirst-1;
-    
+    pQuery->lastKey = (QUERY_IS_ASC_QUERY(pQuery))? blockInfo.keyLast+1:blockInfo.keyFirst-1;    
     doSkipDataBlock(pRuntimeEnv);
   }
 }
@@ -4289,8 +4287,8 @@ static int32_t moveToNextBlock(SQueryRuntimeEnv *pRuntimeEnv, int32_t step, __bl
 
         return DISK_DATA_LOADED;
       } else {
-        pQuery->pos = (step == QUERY_ASC_FORWARD_STEP) ? 0 : pQuery->pBlock[pQuery->slot].numOfPoints - 1;
         pQuery->slot = (step == QUERY_ASC_FORWARD_STEP) ? 0 : pQuery->numOfBlocks - 1;
+        pQuery->pos = (step == QUERY_ASC_FORWARD_STEP) ? 0 : pQuery->pBlock[pQuery->slot].numOfPoints - 1;
       }
     } else {  // next block in the same file
       int32_t fid = pQuery->fileId;

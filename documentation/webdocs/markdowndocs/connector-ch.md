@@ -880,7 +880,7 @@ npm install td-connector
 ```
 我们建议用户使用npm 安装node.js连接器。如果您没有安装npm, 可以将*src/connector/nodejs/*拷贝到您的nodejs 项目目录下
 
-To interact with TDengine, we make use of the [node-gyp](https://github.com/nodejs/node-gyp) library. To install, you will need to install the following depending on platform (the following instructions are quoted from node-gyp)我们使用[node-gyp](https://github.com/nodejs/node-gyp)和TDengine服务端进行交互。安装node.js 连接器之前，还需安装以下软件：
+我们使用[node-gyp](https://github.com/nodejs/node-gyp)和TDengine服务端进行交互。安装node.js 连接器之前，还需安装以下软件：
 
 ### Unix
 
@@ -939,7 +939,7 @@ To interact with TDengine, we make use of the [node-gyp](https://github.com/node
 
 #### 连接
 
-使用node.js连接器时，必须先require```td-connector```，然后使用 ```taos.connect``` 函数。```taos.connect``` 函数必须提供的参数是```host```，其它参数在没有提供的情况下会使用如下的默认值。最后需要初始化```cursor``` 来和TDengine服务端通信 
+使用node.js连接器时，必须先<em>require</em> ```td-connector```，然后使用 ```taos.connect``` 函数。```taos.connect``` 函数必须提供的参数是```host```，其它参数在没有提供的情况下会使用如下的默认值。最后需要初始化```cursor``` 来和TDengine服务端通信 
 
 ```javascript
 const taos = require('td-connector');
@@ -1043,7 +1043,7 @@ https://gitee.com/maikebing/Maikebing.EntityFrameworkCore.Taos
 
 ### 客户端安装
 
-在Windows操作系统下，TDengine提供64位的Windows客户端，客户端安装程序为.exe文件，运行该文件即可安装，安装路径为C:\TDengine。Windows的客户端可运行在主流的64位Windows平台之上，客户端目录结构如下：
+在Windows操作系统下，TDengine提供64位的Windows客户端([点击下载](https://www.taosdata.com/cn/all-downloads/#tdengine_win-list))，客户端安装程序为.exe文件，运行该文件即可安装，安装路径为C:\TDengine。Windows的客户端可运行在主流的64位Windows平台之上，客户端目录结构如下：
 
 ```
 ├── cfg

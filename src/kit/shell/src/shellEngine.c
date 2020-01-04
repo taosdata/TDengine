@@ -457,25 +457,15 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 printf("%*" PRId64 "|", l[i], *((int64_t *)row[i]));
                 break;
               case TSDB_DATA_TYPE_FLOAT: {
-#ifdef _TD_ARM_32_
                 float fv = 0;
-                //memcpy(&fv, row[i], sizeof(float));
-                *(int32_t*)(&fv) = *(int32_t*)row[i];
+                fv = GET_FLOAT_VAL(row[i]);
                 printf("%*.5f|", l[i], fv);
-#else
-                printf("%*.5f|", l[i], *((float *)row[i]));
-#endif
-              }
+              }              
                 break;
               case TSDB_DATA_TYPE_DOUBLE: {
-#ifdef _TD_ARM_32_
                 double dv = 0;
-                //memcpy(&dv, row[i], sizeof(double));
-                *(int64_t*)(&dv) = *(int64_t*)row[i];
+                dv = GET_DOUBLE_VAL(row[i]);
                 printf("%*.9f|", l[i], dv);
-#else
-                printf("%*.9f|", l[i], *((double *)row[i]));
-#endif
               }
                 break;
               case TSDB_DATA_TYPE_BINARY:
@@ -542,25 +532,15 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 printf("%" PRId64 "\n", *((int64_t *)row[i]));
                 break;
               case TSDB_DATA_TYPE_FLOAT: {
-#ifdef _TD_ARM_32_
                 float fv = 0;
-                //memcpy(&fv, row[i], sizeof(float));
-                *(int32_t*)(&fv) = *(int32_t*)row[i];
+                fv = GET_FLOAT_VAL(row[i]);
                 printf("%.5f\n", fv);
-#else
-                printf("%.5f\n", *((float *)row[i]));
-#endif
-              }
+              }              
                 break;
               case TSDB_DATA_TYPE_DOUBLE: {
-#ifdef _TD_ARM_32_
                 double dv = 0;
-		        //memcpy(&dv, row[i], sizeof(double));
-		        *(int64_t*)(&dv) = *(int64_t*)row[i];
+                dv = GET_DOUBLE_VAL(row[i]);
                 printf("%.9f\n", dv);
-#else
-                printf("%.9f\n", *((double *)row[i]));
-#endif
               }
                 break;
               case TSDB_DATA_TYPE_BINARY:
@@ -630,25 +610,15 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 fprintf(fp, "%" PRId64, *((int64_t *)row[i]));
                 break;
               case TSDB_DATA_TYPE_FLOAT: {
-#ifdef _TD_ARM_32_
                 float fv = 0;
-                //memcpy(&fv, row[i], sizeof(float));
-                *(int32_t*)(&fv) = *(int32_t*)row[i];
+                fv = GET_FLOAT_VAL(row[i]);
                 fprintf(fp, "%.5f", fv);
-#else
-                fprintf(fp, "%.5f", *((float *)row[i]));
-#endif
-              }
+              }              
                 break;
               case TSDB_DATA_TYPE_DOUBLE: {
-#ifdef _TD_ARM_32_
                 double dv = 0;
-		        //memcpy(&dv, row[i], sizeof(double));
-		        *(int64_t*)(&dv) = *(int64_t*)row[i];
+                dv = GET_DOUBLE_VAL(row[i]);
                 fprintf(fp, "%.9f", dv);
-#else
-                fprintf(fp, "%.9f", *((double *)row[i]));
-#endif
               }
                 break;
               case TSDB_DATA_TYPE_BINARY:

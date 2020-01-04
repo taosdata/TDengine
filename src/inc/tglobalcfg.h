@@ -75,7 +75,6 @@ extern float tsNumOfThreadsPerCore;
 extern float tsRatioOfQueryThreads;
 extern char  tsPublicIp[];
 extern char  tsPrivateIp[];
-extern char  tsServerIpStr[];
 extern short tsNumOfVnodesPerCore;
 extern short tsNumOfTotalVnodes;
 extern short tsCheckHeaderFile;
@@ -148,7 +147,6 @@ extern int   tsHttpMaxThreads;
 extern int   tsHttpEnableCompress;
 extern int   tsHttpEnableRecordSql;
 extern int   tsTelegrafUseFieldNum;
-extern int   tsAdminRowLimit;
 
 extern int   tsTscEnableRecordSql;
 extern int   tsAnyIp;

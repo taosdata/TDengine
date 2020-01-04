@@ -71,7 +71,7 @@ var GenericDatasource = exports.GenericDatasource = function () {
       var targets = _lodash2.default.map(options.targets, function (target) {
         return {
           refId: target.refId,
-          alias: target.alias || "",
+          alias: _this.generateAlias(options, target),
           sql: _this.generateSql(options, target)
         };
       });
@@ -111,6 +111,13 @@ var GenericDatasource = exports.GenericDatasource = function () {
       var defaultPassword = jsonData.password || "taosdata";
 
       return "Basic " + this.encode(defaultUser + ":" + defaultPassword);
+    }
+  }, {
+    key: 'generateAlias',
+    value: function generateAlias(options, target) {
+      var alias = target.alias || "";
+      alias = this.templateSrv.replace(alias, options.scopedVars, 'csv');
+      return alias;
     }
   }, {
     key: 'generateSql',

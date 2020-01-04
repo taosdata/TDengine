@@ -36,7 +36,7 @@ enum {
   TSDB_USE_CLI_TS = 1,
 };
 
-static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize);
+static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 
 static int32_t tscToInteger(SSQLToken *pToken, int64_t *value, char **endPtr) {
   int32_t numType = isValidNumber(pToken);
@@ -309,6 +309,10 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         }
 
         strncpy(payload, pToken->z, pToken->n);
+        
+        if (pToken->n < pSchema->bytes) {
+          payload[pToken->n] = 0;   // add the null-terminated char if the length of the string is shorter than the available space
+        }
       }
 
       break;
@@ -515,14 +519,16 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMe
 
     *str += index;
     if (numOfRows >= maxRows || pDataBlock->size + pMeterMeta->rowSize >= pDataBlock->nAllocSize) {
-      int32_t tSize = tscAllocateMemIfNeed(pDataBlock, pMeterMeta->rowSize);
-      if (0 == tSize) {  // TODO pass the correct error code to client
+      int32_t tSize;
+      int32_t retcode = tscAllocateMemIfNeed(pDataBlock, pMeterMeta->rowSize, &tSize);
+      if (retcode != TSDB_CODE_SUCCESS) {  //TODO pass the correct error code to client
         strcpy(error, "client out of memory");
-        *code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+        *code = retcode;
         return -1;
       }
-
-      maxRows += tSize;
+      
+      assert(tSize > maxRows);
+      maxRows = tSize;
     }
 
     int32_t len = tsParseOneRowData(str, pDataBlock, pSchema, spd, error, precision, code, tmpTokenBuf);
@@ -567,7 +573,7 @@ static void tscSetAssignedColumnInfo(SParsedDataColInfo *spd, SSchema *pSchema, 
   }
 }
 
-int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize) {
+int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows) {
   size_t    remain = pDataBlock->nAllocSize - pDataBlock->size;
   const int factor = 5;
   uint32_t  nAllocSizeOld = pDataBlock->nAllocSize;
@@ -587,11 +593,13 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize) {
       // assert(false);
       // do nothing
       pDataBlock->nAllocSize = nAllocSizeOld;
-      return 0;
+      *numOfRows = (int32_t)(pDataBlock->nAllocSize) / rowSize;
+      return TSDB_CODE_CLI_OUT_OF_MEMORY;
     }
   }
 
-  return (int32_t)(pDataBlock->nAllocSize - pDataBlock->size) / rowSize;
+  *numOfRows = (int32_t)(pDataBlock->nAllocSize) / rowSize;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void tsSetBlockInfo(SShellSubmitBlock *pBlocks, const SMeterMeta *pMeterMeta, int32_t numOfRows) {
@@ -657,9 +665,10 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
-
-  int32_t maxNumOfRows = tscAllocateMemIfNeed(dataBuf, pMeterMeta->rowSize);
-  if (0 == maxNumOfRows) {
+  
+  int32_t maxNumOfRows;
+  ret = tscAllocateMemIfNeed(dataBuf, pMeterMeta->rowSize, &maxNumOfRows);
+  if (TSDB_CODE_SUCCESS != ret) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
@@ -987,6 +996,9 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     return code;
   }
 
+  ASSERT(((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList)) 
+      || ((NULL != pSql->asyncTblPos) && (NULL != pSql->pTableHashList)));
+
   if ((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList)) {
     pSql->pTableHashList = taosInitHashTable(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
 
@@ -996,6 +1008,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;
     }
   } else {
+    ASSERT((NULL != pSql->asyncTblPos) && (NULL != pSql->pTableHashList));
     str = pSql->asyncTblPos;
   }
 
@@ -1048,10 +1061,16 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
        * interrupted position.
        */
       if (fp != NULL) {
-        return code;
-      } else {
-        goto _error_clean;
+        if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
+          tscTrace("async insert and waiting to get meter meta, then continue parse sql: %s", pSql->asyncTblPos);
+          return code;
+        }
+        
+        tscTrace("async insert parse error, code:%d, %s", code, tsError[code]);
+        pSql->asyncTblPos = NULL;
       }
+      
+      goto _error_clean;       // TODO: should _clean or _error_clean to async flow ????
     }
 
     if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
@@ -1281,6 +1300,7 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
   } else {
     tscTrace("continue parse sql: %s", pSql->asyncTblPos);
   }
+  
 
   if (tscIsInsertOrImportData(pSql->sqlstr)) {
     /*
@@ -1350,7 +1370,7 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   char *          line = NULL;
   size_t          n = 0;
   int             len = 0;
-  uint32_t        maxRows = 0;
+  int32_t         maxRows = 0;
   SSqlCmd *       pCmd = &pSql->cmd;
   int             numOfRows = 0;
   int32_t         code = 0;
@@ -1369,8 +1389,8 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
 
   tscAppendDataBlock(pCmd->pDataBlocks, pTableDataBlock);
 
-  maxRows = tscAllocateMemIfNeed(pTableDataBlock, rowSize);
-  if (maxRows < 1) return -1;
+  code = tscAllocateMemIfNeed(pTableDataBlock, rowSize, &maxRows);
+  if (TSDB_CODE_SUCCESS != code) return -1;
 
   int                count = 0;
   SParsedDataColInfo spd = {.numOfCols = pMeterMeta->numOfColumns};
@@ -1385,15 +1405,8 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
 
     char *lineptr = line;
     strtolower(line, line);
-
-    if (numOfRows >= maxRows || pTableDataBlock->size + rowSize >= pTableDataBlock->nAllocSize) {
-      uint32_t tSize = tscAllocateMemIfNeed(pTableDataBlock, rowSize);
-      if (0 == tSize) return (-TSDB_CODE_CLI_OUT_OF_MEMORY);
-      maxRows += tSize;
-    }
-
-    len = tsParseOneRowData(&lineptr, pTableDataBlock, pSchema, &spd, pCmd->payload, pMeterMeta->precision, &code,
-                            tmpTokenBuf);
+    
+    len = tsParseOneRowData(&lineptr, pTableDataBlock, pSchema, &spd, pCmd->payload, pMeterMeta->precision, &code, tmpTokenBuf);
     if (len <= 0 || pTableDataBlock->numOfParams > 0) {
       pSql->res.code = code;
       return (-code);

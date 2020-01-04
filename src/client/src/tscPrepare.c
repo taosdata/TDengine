@@ -121,11 +121,11 @@ static int normalStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
         break;
 
       case TSDB_DATA_TYPE_FLOAT:
-        var->dKey = *(float*)tb->buffer;
+        var->dKey = GET_FLOAT_VAL(tb->buffer);
         break;
 
       case TSDB_DATA_TYPE_DOUBLE:
-        var->dKey = *(double*)tb->buffer;
+        var->dKey = GET_DOUBLE_VAL(tb->buffer);
         break;
 
       case TSDB_DATA_TYPE_BINARY:

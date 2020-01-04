@@ -563,8 +563,8 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
 
   if (numOfPoints >= (pVnode->cfg.blocksPerMeter - 2) * pObj->pointsPerBlock) {
     code = TSDB_CODE_BATCH_SIZE_TOO_BIG;
-    dError("vid:%d sid:%d id:%s, batch size too big, it shall be smaller than:%d", pObj->vnode, pObj->sid,
-           pObj->meterId, (pVnode->cfg.blocksPerMeter - 2) * pObj->pointsPerBlock);
+    dError("vid:%d sid:%d id:%s, batch size too big, insert points:%d, it shall be smaller than:%d", pObj->vnode, pObj->sid,
+           pObj->meterId, numOfPoints, (pVnode->cfg.blocksPerMeter - 2) * pObj->pointsPerBlock);
     return code;
   }
 

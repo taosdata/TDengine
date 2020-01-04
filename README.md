@@ -45,10 +45,10 @@ mkdir build && cd build
 cmake .. && cmake --build .
 ```
 
-if compiling on an arm64 processor, you need add one parameter:
+if compiling on an aarch64 processor, you need add one parameter:
 
 ```cmd
-cmake .. -DARMVER=arm64 && cmake --build .
+cmake .. -DCPUTYPE=aarch64 && cmake --build .
 ```
 
 # Quick Run
