@@ -4,7 +4,7 @@
 # is required to use systemd to manage services at boot
 #set -x
 # -----------------------Variables definition---------------------
-script_dir=$(dirname $(readlink -m "$0"))
+script_dir=$(dirname $(readlink -f "$0"))
 # Dynamic directory
 data_dir="/var/lib/taos"
 log_dir="/var/log/taos"

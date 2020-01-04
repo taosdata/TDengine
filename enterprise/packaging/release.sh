@@ -5,11 +5,49 @@
 set -e
 # set -x
 
-armver=$1
+# releash.sh -v [cluster | lite]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta]
+
+# set parameters by default value
+verMode=cluster  # [cluster, lite]
+verType=stable   # [stable, beta]
+cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
+osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]
+
+while getopts "hv:V:c:o:" arg
+do
+  case $arg in
+    v)
+      #echo "verMode=$OPTARG"
+      verMode=$( echo $OPTARG )
+      ;;
+    V)
+      #echo "verType=$OPTARG"
+      verType=$(echo $OPTARG)
+      ;;
+    c)
+      #echo "cpuType=$OPTARG"
+      cpuType=$(echo $OPTARG)
+      ;;
+    o)
+      #echo "osType=$OPTARG"
+      osType=$(echo $OPTARG)
+      ;;
+    h)
+      echo "Usage: `basename $0` -v [cluster | lite]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta]"
+      exit 0
+      ;;
+    ?) #unknow option 
+      echo "unkonw argument"
+      exit 1
+      ;;
+  esac
+done
+
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType}"
 
 curr_dir=$(pwd)
 script_dir="$(dirname $(readlink -f $0))"
-top_dir="$(readlink -m ${script_dir}/..)"
+top_dir="$(readlink -f ${script_dir}/..)"
 versioninfo="${top_dir}/../community/src/util/src/version.c"
 
 csudo=""
@@ -114,9 +152,19 @@ echo "char gitinfo[128] = \"$(git rev-parse --verify HEAD)\";"  >> ${versioninfo
 cd ${curr_dir}
 echo "char gitinfoOfInternal[128] = \"$(git rev-parse --verify HEAD)\";"  >> ${versioninfo}
 echo "char buildinfo[512] = \"Built by ${USER} at ${build_time}\";"  >> ${versioninfo}
+echo ""                                                              >> ${versioninfo}
+tmp_version=$(echo $version | tr -s "." "_")
+if [ "$verMode" == "cluster" ]; then
+  libtaos_info=${tmp_version}_${osType}_${cpuType}
+else
+  libtaos_info=edge_${tmp_version}_${osType}_${cpuType}
+fi
+if [ "$verType" == "beta" ]; then
+  libtaos_info=${libtaos_info}_${verType}
+fi
+echo "void libtaos_${libtaos_info}() {};"        >> ${versioninfo}
 
 # 2. cmake executable file
-
 compile_dir="${top_dir}/../debug"
 if [ -d ${compile_dir} ]; then
     ${csudo} rm -rf ${compile_dir}
@@ -125,16 +173,12 @@ fi
 ${csudo} mkdir -p ${compile_dir}
 cd ${compile_dir}
 
-# arm only support lite ver
-if [ -z "$armver" ]; then
-  cmake ${top_dir}/../
-elif [ "$armver" == "arm64" ]; then
-  cmake ${top_dir}/../ -DVERSION=lite -DARMVER=arm64
-elif [ "$armver" == "arm32" ]; then
-  cmake ${top_dir}/../ -DVERSION=lite -DARMVER=arm32
+# check support cpu type
+if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
+  cmake ../ -DCPUTYPE=${cpuType} -DVERSION=${verMode}
 else
-  echo "input parameter error!!!"
-  return
+  echo "input cpuType=${cpuType} error!!!"
+  exit 1
 fi
 
 make
@@ -146,33 +190,28 @@ cd ${curr_dir}
 #osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
 #echo "osinfo: ${osinfo}"
 
-#if echo $osinfo | grep -qwi "ubuntu" ; then
-#  echo "this is ubuntu system"
+#echo "====do deb package for the ubuntu system===="
 #  output_dir="${top_dir}/debs"
 #  if [ -d ${output_dir} ]; then
 #	 ${csudo} rm -rf ${output_dir}
 #  fi
 #  ${csudo} mkdir -p ${output_dir}
 #  cd ${script_dir}/deb
-#  ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${version}
+#  ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${version} ${cpuType} ${osType} ${verMode} ${verType}
   
-#elif  echo $osinfo | grep -qwi "centos" ; then
-#  echo "this is centos system"
+#echo "====do rpm package for the centos system===="
 #  output_dir="${top_dir}/rpms"
 #  if [ -d ${output_dir} ]; then
 #	 ${csudo} rm -rf ${output_dir}
 #  fi
 #  ${csudo} mkdir -p ${output_dir}
 #  cd ${script_dir}/rpm
-#  ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version}
-  
-#else
-#  echo "this is other linux system"
-#fi
+#  ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version} ${cpuType} ${osType} ${verMode} ${verType}
 
+echo "====do tar.gz package for all systems===="  
 cd ${script_dir}/tools
-${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${armver}
-${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${armver}
+${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
+${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
 
 # 4. Clean up temporary compile directories
 #${csudo} rm -rf ${compile_dir}

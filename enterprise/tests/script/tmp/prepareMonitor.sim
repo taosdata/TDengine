@@ -44,6 +44,7 @@ while $x < 30
 	$x = $x + 1
 endw 
 
+sleep 3000
 system sh/exec.sh -n dnode2 -s start
 sql create dnode 192.168.0.2
 

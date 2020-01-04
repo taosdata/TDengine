@@ -284,7 +284,7 @@ void vnodeBroadcastStatusToUnsyncedPeer(SVnodeObj *pVnode)
 
   for (int i = 0; i < pVnode->cfg.replications; ++i) {
     pVPeer = pVnode->peerInfo[i];
-    if (pVPeer == NULL || pVPeer->ip == 0) continue;
+    if (pVPeer == NULL || pVPeer->signature != pVPeer || pVPeer->ip == 0) continue;
     if ((pVPeer->peerFd >= 0) && (pVPeer->status == TSDB_VN_STATUS_UNSYNCED))
       vnodeSendStatusMsgToPeer(pVPeer, 1);
   }
@@ -300,7 +300,7 @@ void vnodeChooseMaster(SVnodeObj *pVnode)
 
   for (int i = 0; i < pVnode->cfg.replications; ++i) {
     pVPeer = pVnode->peerInfo[i];
-    if (pVPeer->status == TSDB_VN_STATUS_UNSYNCED)
+    if (pVPeer->status == TSDB_VN_STATUS_UNSYNCED || pVPeer->status == TSDB_VN_STATUS_OFFLINE)
       unsyncNum++;
 
     if (pVPeer->status == TSDB_VN_STATUS_SLAVE) {

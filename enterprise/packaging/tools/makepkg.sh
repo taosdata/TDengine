@@ -1,15 +1,21 @@
 #!/bin/bash
 #
-# Generate deb package for other os system (no unbutu or centos)
+# Generate tar.gz package for all os system
+
+set -e
+#set -x
 
 curr_dir=$(pwd)
 compile_dir=$1
 version=$2
 build_time=$3
-armver=$4
+cpuType=$4
+osType=$5
+verMode=$6
+verType=$7
 
 script_dir="$(dirname $(readlink -f $0))"
-top_dir="$(readlink -m ${script_dir}/../..)"
+top_dir="$(readlink -f ${script_dir}/../..)"
 
 # create compressed install file.
 build_dir="${compile_dir}/build"
@@ -18,13 +24,13 @@ release_dir="${top_dir}/release"
 community_dir="${script_dir}/../../../community/src"
 
 #package_name='linux'
-install_dir="${release_dir}/TDengine-enterprise-${version}"
+install_dir="${release_dir}/TDengine-enterprise-server"
 
 # Directories and files.
 bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdump ${script_dir}/remove.sh"
 lib_files="${build_dir}/lib/libtaos.so.${version}"
 header_files="${community_dir}/inc/taos.h ${community_dir}/inc/taoserror.h"
-cfg_dir="${top_dir}/packaging/cfg"
+cfg_dir="${community_dir}/../packaging/cfg"
 install_files="${script_dir}/install.sh"
 nginx_dir="${code_dir}/modules/web"
 
@@ -49,9 +55,9 @@ mkdir -p ${install_dir}/nginxd && cp -r ${nginx_dir}/* ${install_dir}/nginxd
 cp ${code_dir}/modules/web/png/taos.png ${install_dir}/nginxd/admin/images/taos.png
 rm -rf ${install_dir}/nginxd/png
 
-if [ "$armver" == "arm64" ]; then
+if [ "$cpuType" == "aarch64" ]; then
   cp -f ${install_dir}/nginxd/sbin/arm/64bit/nginx ${install_dir}/nginxd/sbin/
-elif [ "$armver" == "arm32" ]; then
+elif [ "$cpuType" == "aarch32" ]; then
   cp -f ${install_dir}/nginxd/sbin/arm/32bit/nginx ${install_dir}/nginxd/sbin/
 fi
 rm -rf ${install_dir}/nginxd/sbin/arm
@@ -64,13 +70,13 @@ cp ${install_files} ${install_dir} && chmod a+x ${install_dir}/install*
 
 # Copy example code
 mkdir -p ${install_dir}/examples
-examples_dir="${top_dir}/tests/examples"
+examples_dir="${community_dir}/../tests/examples"
 cp -r ${examples_dir}/c      ${install_dir}/examples
-cp -r ${examples_dir}/java   ${install_dir}/examples
+cp -r ${examples_dir}/go     ${install_dir}/examples
+cp -r ${examples_dir}/JDBC   ${install_dir}/examples
 cp -r ${examples_dir}/matlab ${install_dir}/examples
 cp -r ${examples_dir}/python ${install_dir}/examples
 cp -r ${examples_dir}/R      ${install_dir}/examples
-cp -r ${examples_dir}/go     ${install_dir}/examples
 
 # Copy driver
 mkdir -p ${install_dir}/driver 
@@ -89,13 +95,26 @@ cp -r ${connector_dir}/go      ${install_dir}/connector
 
 # exit 1
 
-cd ${release_dir}  
-if [ -z "$armver" ]; then
-  tar -zcv -f "$(basename ${install_dir}).tar.gz" $(basename ${install_dir}) --remove-files
-elif [ "$armver" == "arm64" ]; then
-  tar -zcv -f "$(basename ${install_dir})-arm64.tar.gz" $(basename ${install_dir}) --remove-files
-elif [ "$armver" == "arm32" ]; then
-  tar -zcv -f "$(basename ${install_dir})-arm32.tar.gz" $(basename ${install_dir}) --remove-files
+cd ${release_dir} 
+
+if [ "$verMode" == "cluster" ]; then
+  pkg_name=${install_dir}-${version}-${osType}-${cpuType}
+elif [ "$verMode" == "lite" ]; then
+  pkg_name=${install_dir}-edge-${version}-${osType}-${cpuType}
+else
+  echo "unknow verMode, nor cluster or lite"
+  exit 1
 fi
+
+if [ "$verType" == "beta" ]; then
+  pkg_name=${pkg_name}-${verType}
+elif [ "$verType" == "stable" ]; then 
+  pkg_name=${pkg_name} 
+else
+  echo "unknow verType, nor stabel or beta"
+  exit 1
+fi
+
+tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files
 
 cd ${curr_dir}

@@ -66,3 +66,19 @@ print ===============  step6 - query no db data
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'show dnodes' 127.0.0.1:6020/rest/sql
 print curl 127.0.0.1:6020/rest/sql -----> $system_content
+
+print =============== step7 - change password
+sql create user u1 PASS 'abcd@1234'
+sql create user u2 PASS 'abcd_1234'
+
+system_content curl 127.0.0.1:6020/rest/login/u1/abcd@1234
+print curl 127.0.0.1:6020/rest/login/u1/abcd@1234 -----> $system_content
+if $system_content != @{"status":"succ","code":0,"desc":"jIlItaLFFIPa8qdtNZmtONryp201ma04SXX8PEJowKAB/46k1gwnPNryp201ma04"}@ then
+  return -1
+endi
+
+system_content curl 127.0.0.1:6020/rest/login/u2/abcd_1234
+print curl 127.0.0.1:6020/rest/login/u2/abcd_1234 -----> $system_content
+if $system_content != @{"status":"succ","code":0,"desc":"AZH3lNvWZiLa8qdtNZmtONryp201ma04QExCHYkbFFQB/46k1gwnPNryp201ma04"}@ then
+  return -1
+endi

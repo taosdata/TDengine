@@ -190,7 +190,6 @@ void initMultiTagSQLCmd(SSqlCmd *pCmd, tColModel *pModel, int32_t numOfCols) {
     pCmd->exprs[3].retTypeLen = pModel->pFields[3].bytes;
     pCmd->exprs[3].retType = TSDB_DATA_TYPE_BINARY;
     pCmd->exprs[3].sqlFuncId = 21;
-//>>>>>>> v1.6
 }
 
 tExtMemBuffer **createExtBuffer(int32_t rowLen) {

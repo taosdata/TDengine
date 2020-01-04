@@ -852,10 +852,37 @@ void mgmtSetDnodeUnRemove(SDnodeObj *pDnode) {
   }
 }
 
-void mgmtSetDnodeShellRemoving(SDnodeObj *pDnode) {
-  mPrint("dnode:%s, set to shell removing state", taosIpStr(pDnode->privateIp));
-  if (pDnode->privateIp == mgmtIpList.ip[0]) return;
+int mgmtSetDnodeShellRemoving(SDnodeObj *pDnode) {
+  int numOfVnodes = pDnode->numOfVnodes - pDnode->numOfFreeVnodes;
+  int numOfTotalFreeVnodes = 0;
+
+  void *pNode = NULL;
+  SDnodeObj *pTempDnode = NULL;
+  while (1) {
+    pNode = sdbFetchRow(dnodeSdb, pNode, (void **) &pTempDnode);
+    if (pTempDnode == NULL) break;
+    if (pTempDnode == pDnode) continue;
+
+    switch (pTempDnode->lbStatus) {
+      case TSDB_DN_LB_STATUS_OFFLINE_REMOVING:
+      case TSDB_DN_LB_STATE_SHELL_REMOVING:
+        break;
+      default:
+        numOfTotalFreeVnodes += pTempDnode->numOfFreeVnodes;
+    }
+  }
+
+  if (numOfVnodes > numOfTotalFreeVnodes) {
+    mError("dnode:%s, numOfVnodes:%d, no enough dnode for remove dnode operation, numOfTotalFreeVnodes:%d",
+           taosIpStr(pDnode->privateIp), numOfVnodes, numOfTotalFreeVnodes);
+    return TSDB_CODE_NO_ENOUGH_DNODES;
+  }
+
   mgmtUpdateDnodeState(pDnode, TSDB_DN_LB_STATE_SHELL_REMOVING);
+  mPrint("dnode:%s, set to shell removing state", taosIpStr(pDnode->privateIp));
+
   mgmtStartBalanceTimer(12);
+
+  return 0;
 }
 

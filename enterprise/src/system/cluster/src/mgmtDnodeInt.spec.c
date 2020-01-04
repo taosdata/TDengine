@@ -265,6 +265,7 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
     SVnodeLoad *pVload = &(pObj->vload[vnode]);
     pVload->vnode = vnode;
     pVload->status = pStatus->load[i].status;
+    pVload->syncStatus = pStatus->load[i].syncStatus;
 
     int64_t  totalStorage = htobe64(pStatus->load[i].totalStorage);
     int64_t  compStorage = htobe64(pStatus->load[i].compStorage);
@@ -388,12 +389,6 @@ SDnodeObj *mgmtProcessNewConnection(char *msg) {
       mTrace("ip:%s not configured", pMsg->meterId);
     }
   } else {
-    /*
-        if ( numOfVnodes != pObj->numOfVnodes ) {
-          mgmtDropDnode (pObj);
-          pObj = mgmtCreateDnode(ip, numOfVnodes);
-        }
-    */
     if (pObj->thandle) {
       taosCloseRpcConn(pObj->thandle);
       __sync_fetch_and_sub(&mgmtDnodeConns, 1);

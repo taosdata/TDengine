@@ -37,13 +37,23 @@ static int parse_int64( const char* s, int64_t* result )
 #define PARSE_STRING( result ) \
     do { \
         ++column;   \
-        char c, *p = result;\
+        char c, *p = result, *l = line;\
         do { \
-            c = *line++; \
-            if( c == '\'' ) \
+            if ( p - result == sizeof(result) ) {\
+                printf( "%s ", line );\
+                return column; \
+            }\
+            c = *l++; \
+            if( c == '\'' ) {\
                 *p++ = '\\'; \
+                if ( p - result == sizeof(result) ) {\
+                    printf( "%s ", line );\
+                    return column; \
+                }\
+            }\
             *p++ = c; \
         } while(c != 0); \
+        line = l; \
     } while( 0 );
 
 
@@ -137,9 +147,8 @@ int parse_line_cdr( char* line, Record* r )
     PARSE_STRING( r->voicekeyb )    // VOICEKEYB
     PARSE_STRING( r->peersid )      // PEERSID
 
-    sprintf( r->equipment, "%" PRId64 "-%s-%s", r->spcode, r->lai, r->ci );
+    sprintf( r->equid, "%" PRId64 "-%s-%s", r->spcode, r->lai, r->ci );
     r->type[0] = '2';
-
     sprintf( r->tbname, "wfw%" PRId64 "_%s_%s", r->spcode, r->lai, r->ci );
 
     r->TIMESTAMP = INT64_NULL;
@@ -205,7 +214,7 @@ int parse_line_evt( char* line, Record* r)
     PARSE_STRING( r->tmsi )         // TMSI
     PARSE_INT64( r->spcode )        // SPCODE
 
-    sprintf( r->equipment, "%" PRId64 "-%s-%s", r->spcode, r->lai, r->ci );
+    sprintf( r->equid, "%" PRId64 "-%s-%s", r->spcode, r->lai, r->ci );
     r->type[0] = '2';
     sprintf( r->tbname, "wfw%" PRId64 "_%s_%s", r->spcode, r->lai, r->ci );
 
@@ -277,7 +286,7 @@ int parse_line_sms( char* line, Record* r)
     PARSE_STRING( r->tmsi )         // TMSI
     PARSE_INT64( r->spcode )        // SPCODE
 
-    sprintf( r->equipment, "%" PRId64 "-%s-%s", r->spcode, r->lai, r->ci );
+    sprintf( r->equid, "%" PRId64 "-%s-%s", r->spcode, r->lai, r->ci );
     r->type[0] = '2';
     sprintf( r->tbname, "wfw%" PRId64 "_%s_%s", r->spcode, r->lai, r->ci );
 
@@ -376,9 +385,7 @@ int parse_line_rd( char* line, Record* r)
     PARSE_INT64( r->USERNAME_FY_TF );   // USERNAME_FY_TF
     PARSE_INT64( r->USERNAME_FY_TIME ); // USERNAME_FY_TIME
 
-    strcpy( r->equipment, r->equid );
     r->type[0] = '1';
-
     sprintf( r->tbname, "rd%s", r->equid );
 
     r->TIMESTAMP = INT64_NULL;
