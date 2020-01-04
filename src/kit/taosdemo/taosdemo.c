@@ -351,6 +351,11 @@ int main(int argc, char *argv[]) {
   }
 
   FILE *fp = fopen(arguments.output_file, "a");
+  if (NULL == fp) {
+    fprintf(stderr, "Failed to open %s for writing\n", arguments.output_file);
+    return 1;
+  };
+  
   time_t tTime = time(NULL);
   struct tm tm = *localtime(&tTime);
 
