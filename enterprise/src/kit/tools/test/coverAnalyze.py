@@ -51,5 +51,8 @@ if __name__ == "__main__":
   outputFd.close()
 
   outRecFd = open('record_coverage','a+')
-  outRecFd.write('%s   %f\n' %(datetime.date.today(),totalCover*1.0/totalLines))
+  if (totalLines > 0):
+    outRecFd.write('%s   %f\n' %(datetime.date.today(),totalCover*1.0/totalLines))
+  else:
+    outRecFd.write('%s   coverage collection failed!\n' %(datetime.date.today()))
   outRecFd.close()
