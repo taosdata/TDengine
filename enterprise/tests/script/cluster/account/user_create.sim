@@ -55,9 +55,9 @@ if $data1_read != read then
   return -1
 endi
 
-sql alter user read privilege super
+sql_error alter user read privilege super
 sql show users
-if $data1_read != super then 
+if $data1_read != read then
   return -1
 endi
 
