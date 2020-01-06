@@ -657,16 +657,10 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
       return TSDB_CODE_NO_ENOUGH_DNODES;
     }
 
-    if (pDb->vgStatus == TSDB_VG_STATUS_COMMITLOG_INIT_FAILED) {
+    if (pDb->vgStatus < TSDB_VG_STATUS_FULL && pDb->vgStatus > TSDB_CODE_ACTION_IN_PROGRESS) {
       mgmtDestroyMeter(pMeter);
-      mError("table:%s, commit log init failed", pCreate->meterId);
-      return TSDB_CODE_VG_COMMITLOG_INIT_FAILED;
-    }
-
-    if (pDb->vgStatus == TSDB_VG_STATUS_INIT_FAILED) {
-      mgmtDestroyMeter(pMeter);
-      mError("table:%s, vgroup init failed", pCreate->meterId);
-      return TSDB_CODE_VG_INIT_FAILED;
+      mError("table:%s, vgroup init failed, reason:%d %s", pCreate->meterId, pDb->vgStatus, taosGetVgroupStatusStr(pDb->vgStatus));
+      return pDb->vgStatus;
     }
 
     if (pVgroup == NULL) {
