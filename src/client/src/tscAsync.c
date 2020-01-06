@@ -121,7 +121,7 @@ static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOf
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   
   // sequentially retrieve data from remain vnodes first, query vnode specified by vnodeIdx
-  if (numOfRows == 0 && tscProjectionQueryOnSTable(pCmd, 0)) {
+  if (numOfRows == 0 && tscProjectionQueryOnSTable(pQueryInfo, 0)) {
     // vnode is denoted by vnodeIdx, continue to query vnode specified by vnodeIdx
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
     assert(pMeterMetaInfo->vnodeIndex >= 0);
@@ -133,7 +133,6 @@ static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOf
     }
 
     /* update the limit value according to current retrieval results */
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
     pQueryInfo->limit.limit = pCmd->globalLimit - pRes->numOfTotal;
     pQueryInfo->limit.offset = pRes->offset;
 
@@ -269,14 +268,14 @@ void tscProcessAsyncRetrieve(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   if (numOfRows == 0) {
     // sequentially retrieve data from remain vnodes.
-    if (tscProjectionQueryOnSTable(pCmd, 0)) {
+    if (tscProjectionQueryOnSTable(pQueryInfo, 0)) {
       /*
        * vnode is denoted by vnodeIdx, continue to query vnode specified by vnodeIdx till all vnode have been retrieved
        */
-      SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
+      SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
       assert(pMeterMetaInfo->vnodeIndex >= 0);
 
       /* reach the maximum number of output rows, abort */
@@ -527,7 +526,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
     }
 
   } else {  // stream computing
-    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
+    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
     code = tscGetMeterMeta(pSql, pMeterMetaInfo);
     pRes->code = code;
 

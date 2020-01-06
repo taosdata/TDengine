@@ -97,10 +97,10 @@ SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
-bool tscProjectionQueryOnSTable(SSqlCmd* pCmd, int32_t subClauseIndex);
+bool tscProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
 bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo);
 
-bool tscIsTwoStageMergeMetricQuery(SSqlCmd* pCmd);
+bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryOnMetric(SSqlCmd* pCmd);
 bool tscQueryMetricTags(SQueryInfo* pQueryInfo);
 bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd);
@@ -126,7 +126,7 @@ void tscFieldInfoSetValue(SFieldInfo* pFieldInfo, int32_t index, int8_t type, co
 void tscFieldInfoUpdateVisible(SFieldInfo* pFieldInfo, int32_t index, bool visible);
 
 void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo);
-void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
+void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo);
 void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList, int32_t size);
 void tscFieldInfoCopyAll(SFieldInfo* dst, SFieldInfo* src);
 
@@ -135,6 +135,7 @@ int16_t     tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
 int32_t     tscGetResRowLength(SQueryInfo* pQueryInfo);
 void        tscClearFieldInfo(SFieldInfo* pFieldInfo);
 int32_t tscNumOfFields(SQueryInfo* pQueryInfo);
+int32_t tscFieldInfoCompare(SFieldInfo* pFieldInfo1, SFieldInfo* pFieldInfo2);
 
 void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes, int16_t tableIndex);
 
@@ -163,7 +164,7 @@ int32_t tscValidateName(SSQLToken* pToken);
 
 void tscIncStreamExecutionCount(void* pStream);
 
-bool tscValidateColumnId(SSqlCmd* pCmd, int32_t colId);
+bool tscValidateColumnId(SMeterMetaInfo* pMeterMetaInfo, int32_t colId);
 
 // get starter position of metric query condition (query on tags) in SSqlCmd.payload
 SCond* tsGetMetricQueryCondPos(STagCond* pCond, uint64_t tableIndex);

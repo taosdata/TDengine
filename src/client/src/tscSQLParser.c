@@ -101,7 +101,7 @@ static bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField);
 static bool hasTimestampForPointInterpQuery(SQueryInfo* pQueryInfo);
 static void updateTagColumnIndex(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
-static int32_t parseLimitClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSqlObj* pSql);
+static int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t index, SQuerySQL* pQuerySql, SSqlObj* pSql);
 static int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql);
 static int32_t getColumnIndexByNameEx(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t getTableIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
@@ -205,7 +205,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), pInfo->pzErrMsg);
   }
 
-  int32_t code = tscGetQueryInfoDetailSafely(pCmd, 0, &pQueryInfo);
+  int32_t code = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
 
   assert(pQueryInfo->numOfTables == 0);
   SMeterMetaInfo* pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
@@ -502,7 +502,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_SELECT: {
       assert(pCmd->numOfClause == 1);
-
+      const char* msg1 = "columns in select caluse not identical";
+      
       for (int32_t i = pCmd->numOfClause; i < pInfo->subclauseInfo.numOfClause; ++i) {
         SQueryInfo* pqi = NULL;
         if ((code = tscGetQueryInfoDetailSafely(pCmd, i, &pqi)) != TSDB_CODE_SUCCESS) {
@@ -526,6 +527,17 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // if there is only one element, the limit of clause is the limit of global result.
       if (pCmd->numOfClause == 1) {
         pCmd->globalLimit = pQueryInfo1->clauseLimit;
+      } else { // check the output fields information, column name and column type
+        pCmd->globalLimit = -1;
+        
+        for(int32_t i = 1; i < pCmd->numOfClause; ++i) {
+          SQueryInfo* pQueryInfo2 = tscGetQueryInfoDetail(pCmd, i);
+          
+          int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
+          if (ret != 0) {
+            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+          }
+        }
       }
 
       return TSDB_CODE_SUCCESS;  // do not build query message here
@@ -852,7 +864,9 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   const char* msg5 = "invalid binary/nchar tag length";
   const char* msg6 = "invalid data type in tags";
 
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
+  assert(pCmd->numOfClause == 1);
+  
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
   SMeterMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   // no more than 6 tags
@@ -921,7 +935,8 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   const char* msg5 = "invalid column name";
   const char* msg6 = "invalid column length";
 
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
+  assert(pCmd->numOfClause == 1);
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
   SMeterMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   // no more max columns
@@ -1975,8 +1990,9 @@ int32_t changeFunctionID(int32_t optr, int16_t* functionId) {
 
 int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SSqlCmd*        pCmd = &pSql->cmd;
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
-
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  assert(pCmd->numOfClause == 1);
+  
   pCmd->command = TSDB_SQL_SHOW;
 
   const char* msg1 = "invalid name";
@@ -2125,7 +2141,7 @@ int32_t tscTansformSQLFunctionForSTableQuery(SQueryInfo* pQueryInfo) {
     }
   }
 
-  tscFieldInfoUpdateOffset(pQueryInfo);
+  tscFieldInfoUpdateOffsetForInterResult(pQueryInfo);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2370,7 +2386,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
 
 void setColumnOffsetValueInResultset(SQueryInfo* pQueryInfo) {
   if (QUERY_IS_STABLE_QUERY(pQueryInfo->type)) {
-    tscFieldInfoUpdateOffset(pQueryInfo);
+    tscFieldInfoUpdateOffsetForInterResult(pQueryInfo);
   } else {
     tscFieldInfoCalOffset(pQueryInfo);
   }
@@ -4410,7 +4426,7 @@ bool hasTimestampForPointInterpQuery(SQueryInfo* pQueryInfo) {
   return (pQueryInfo->stime == pQueryInfo->etime) && (pQueryInfo->stime != 0);
 }
 
-int32_t parseLimitClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSqlObj* pSql) {
+int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL* pQuerySql, SSqlObj* pSql) {
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
   const char* msg0 = "soffset/offset can not be less than 0";
@@ -4443,7 +4459,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSqlObj* 
     if (queryOnTags == true) {  // local handle the metric tag query
       pQueryInfo->command = TSDB_SQL_RETRIEVE_TAGS;
     } else {
-      if (tscProjectionQueryOnSTable(&pSql->cmd, 0) &&
+      if (tscProjectionQueryOnSTable(pQueryInfo, 0) &&
           (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0)) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg3);
       }
@@ -4461,7 +4477,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSqlObj* 
      * And then launching multiple async-queries against all qualified virtual nodes, during the first-stage
      * query operation.
      */
-    int32_t code = tscGetMetricMeta(pSql, 0);
+    int32_t code = tscGetMetricMeta(pSql, clauseIndex);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -4983,7 +4999,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     }
 
     // projection query on metric does not compatible with "group by" syntax
-    if (tscProjectionQueryOnSTable(pCmd, 0)) {
+    if (tscProjectionQueryOnSTable(pQueryInfo, 0)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
@@ -5564,7 +5580,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   pQueryInfo->limit = pQuerySql->limit;
 
   // temporarily save the original limitation value
-  if ((code = parseLimitClause(pQueryInfo, pQuerySql, pSql)) != TSDB_CODE_SUCCESS) {
+  if ((code = parseLimitClause(pQueryInfo, index, pQuerySql, pSql)) != TSDB_CODE_SUCCESS) {
     return code;
   }
 

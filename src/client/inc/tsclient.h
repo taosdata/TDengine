@@ -253,9 +253,9 @@ typedef struct {
   union {
     int32_t count;
     int32_t numOfTablesInSubmit;
-    int32_t clauseIndex;    // index of multiple subclause query
   };
 
+  int32_t      clauseIndex;    // index of multiple subclause query
   short        numOfCols;
   uint32_t     allocSize;
   char *       payload;
