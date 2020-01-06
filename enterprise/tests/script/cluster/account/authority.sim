@@ -38,7 +38,7 @@ endi
 
 sql alter user read privilege read
 sql alter user write privilege write
-sql alter user manage privilege super
+sql_error alter user manage privilege super
 
 print ============= step2
 sql close

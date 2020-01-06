@@ -74,7 +74,7 @@ class TDTestCase:
     conn.close()
 
   def run(self):
-    self.ntables = 2000
+    self.ntables = 200
     self.nrows = 200
     self.nthreads = 5
     self.queryFlag = True
@@ -86,7 +86,7 @@ class TDTestCase:
 
     tdSql.execute('reset query cache')
     tdSql.execute('drop database if exists db')
-    tdSql.execute('create database db replica 2')
+    tdSql.execute('create database db tables 50 replica 2')
     tdLog.sleep(5)
     tdSql.execute('use db')
 
@@ -113,7 +113,7 @@ class TDTestCase:
       threads[tid].join()
     threads[tid+1].join()
 
-    if(~self.successFlag):
+    if(not self.successFlag):
       tdSql.close()
       tdLog.exit('This test failed!')
 

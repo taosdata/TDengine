@@ -39,6 +39,7 @@ class TDTestCase:
 
     tdLog.info("================= step1")
     tdLog.info("insert 10 records into %d tables in single dnode" %self.ntables)
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db')
     tdLog.sleep(5)
     tdSql.execute('use db')
