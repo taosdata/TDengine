@@ -313,7 +313,7 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
 }
 
 bool simExecutePrintCmd(SScript *script, char *rest) {
-  char buf[1024];
+  char buf[65536];
 
   simVisuallizeOption(script, rest, buf);
   rest = buf;
