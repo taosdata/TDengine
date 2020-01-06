@@ -164,27 +164,36 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 
 ### C/C++ 数据订阅接口
 
-订阅API目前支持订阅一张表，并通过定期轮询的方式不断获取写入表中的最新数据。 
+订阅API目前支持订阅一张或多张表，并通过定期轮询的方式不断获取写入表中的最新数据。 
 
-- `TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char *db, char *table, int64_t time, int mseconds)`
+* `TAOS_SUB *taos_subscribe(TAOS* taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval)`
 
-  该API用来启动订阅，需要提供的参数包含：TDengine管理主节点的IP地址、用户名、密码、数据库、数据库表的名字；time是开始订阅消息的时间，是从1970年1月1日起计算的毫秒数，为长整型, 如果设为0，表示从当前时间开始订阅；mseconds为查询数据库更新的时间间隔，单位为毫秒，建议设为1000毫秒。返回值为一指向TDengine_SUB结构的指针，如果返回为空，表示失败。
+  该函数负责启动订阅服务，成功时返回订阅对象，失败时返回 `NULL`，其参数为：
+  * taos：已经建立好的数据库连接
+  * restart：如果订阅已经存在，是重新开始，还是继续之前的订阅
+  * topic：订阅的主题（即名称），此参数是订阅的唯一标识
+  * sql：订阅的查询语句，此语句只能是 `select` 语句，只应查询原始数据，只能按时间正序查询数据
+  * fp：收到查询结果时的回调函数（稍后介绍函数原型），只在异步调用时使用，同步调用时此参数应该传 `NULL`
+  * param：调用回调函数时的附加参数，系统API将其原样传递到回调函数，不进行任何处理
+  * interval：轮询周期，单位为毫秒。异步调用时，将根据此参数周期性的调用回调函数，为避免对系统性能造成影响，不建议将此参数设置的过小；同步调用时，如两次调用`taos_consume`的间隔小于此周期，API将会阻塞，直到时间间隔超过此周期。
 
-- `TAOS_ROW taos_consume(TAOS_SUB *tsub)`
+* `typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code)`
 
-  该API用来获取最新消息，应用程序一般会将其置于一个无限循环语句中。其中参数tsub是taos_subscribe的返回值。如果数据库有新的记录，该API将返回，返回参数是一行记录。如果没有新的记录，该API将阻塞。如果返回值为空，说明系统出错，需要检查系统是否还在正常运行。
+  异步模式下，回调函数的原型，其参数为：
+  * tsub：订阅对象
+  * res：查询结果集，注意结果集中可能没有记录
+  * param：调用 `taos_subscribe`时客户程序提供的附加参数
+  * code：错误码
 
-- `void taos_unsubscribe(TAOS_SUB *tsub)`
 
-  该API用于取消订阅，参数tsub是taos_subscribe的返回值。应用程序退出时，需要调用该API，否则有资源泄露。
+* `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
-- `int taos_num_subfields(TAOS_SUB *tsub)`
+  同步模式下，该函数用来获取订阅的结果。 用户应用程序将其置于一个循环之中。 如两次调用`taos_consume`的间隔小于订阅的轮询周期，API将会阻塞，直到时间间隔超过此周期。 如果数据库有新记录到达，该API将返回该最新的记录，否则返回一个没有记录的空结果集。 如果返回值为 `NULL`，说明系统出错。 异步模式下，用户程序不应调用此API。
 
-  该API用来获取返回的一排数据中数据的列数
+* `void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress)`
 
-- `TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub)`
+  取消订阅。 如参数 `keepProgress` 不为0，API会保留订阅的进度信息，后续调用 `taos_subscribe` 时可以基于此进度继续；否则将删除进度信息，后续只能重新开始读取数据。
 
-  该API用来获取每列数据的属性（数据类型、名字、字节数），与taos_num_subfields配合使用，可用来解析返回的一排数据。
 
 ##  Java Connector
 
@@ -205,7 +214,7 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 * TDengine 不提供针对单条数据记录的删除和修改的操作，驱动中也没有支持相关方法。
 * 由于不支持删除和修改，所以也不支持事务操作。
 * 目前不支持表间的 union 操作。
-* 目前不支持嵌套查询(nested query)，`对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet还没关闭的情况下执行了新的查询，TSDBJDBCDriver 则会自动关闭上一个 ResultSet`。
+* 目前不支持嵌套查询(nested query)，对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet还没关闭的情况下执行了新的查询，TSDBJDBCDriver 则会自动关闭上一个 ResultSet。
 
 
 ## TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
