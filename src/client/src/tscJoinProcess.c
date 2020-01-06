@@ -396,7 +396,10 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   SSqlObj*                pParentSql = pSupporter->pObj;
 
   SSqlObj* pSql = (SSqlObj*)tres;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SSqlCmd* pCmd = &pSql->cmd;
+  SSqlRes* pRes = &pSql->res;
+  
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   if ((pQueryInfo->type & TSDB_QUERY_TYPE_JOIN_SEC_STAGE) == 0) {
     if (pSupporter->pState->code != TSDB_CODE_SUCCESS) {
@@ -443,7 +446,11 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         assert(pQueryInfo->numOfTables == 1);
 
         // for projection query, need to try next vnode
-        if ((++pMeterMetaInfo->vnodeIndex) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+        int32_t totalVnode = pMeterMetaInfo->pMetricMeta->numOfVnodes;
+        if ((++pMeterMetaInfo->vnodeIndex) < totalVnode) {
+          tscTrace("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,
+                   pMeterMetaInfo->vnodeIndex - 1, pMeterMetaInfo->vnodeIndex, totalVnode, pRes->numOfTotal);
+  
           pSql->cmd.command = TSDB_SQL_SELECT;
           pSql->fp = tscJoinQueryCallback;
           tscProcessSql(pSql);

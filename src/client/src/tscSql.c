@@ -450,7 +450,7 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
       SQueryInfo *    pQueryInfo1 = tscGetQueryInfoDetail(pCmd1, pCmd1->clauseIndex);
       SMeterMetaInfo *pMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo1, 0);
 
-      assert(pQueryInfo->numOfTables == 1);
+      assert(pQueryInfo1->numOfTables == 1);
 
       /*
        * if the global limitation is not reached, and current result has not exhausted, or next more vnodes are
@@ -675,8 +675,6 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
-//  SSqlCmd *pCmd = &pSql->cmd;
-//  SSqlRes *pRes = &pSql->res;
 
   if (pSql == NULL || pSql->signature != pSql) {
     globalCode = TSDB_CODE_DISCONNECTED;
