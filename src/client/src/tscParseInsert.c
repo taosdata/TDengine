@@ -975,7 +975,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
     str = pSql->asyncTblPos;
   }
   
-  tscTrace("%p create data block list for submit data, %p", pSql, pSql->cmd.pDataBlocks);
+  tscTrace("%p create data block list for submit data:%p, asyncTblPos:%p, pTableHashList:%p", pSql, pSql->cmd.pDataBlocks, pSql->asyncTblPos, pSql->pTableHashList);
 
   while (1) {
     int32_t index = 0;
@@ -1010,7 +1010,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
     if ((code = tscParseSqlForCreateTableOnDemand(&str, pSql)) != TSDB_CODE_SUCCESS) {
       if (fp != NULL) {
         if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
-          tscTrace("async insert and waiting to get meter meta, then continue parse sql: %s", pSql->asyncTblPos);
+          tscTrace("async insert and waiting to get meter meta, then continue parse sql: %s, pTableHashList:%p", pSql->asyncTblPos, pSql->pTableHashList);
           return code;
         }
         tscTrace("async insert parse error, code:%d, %s", code, tsError[code]);
@@ -1221,6 +1221,7 @@ _clean:
   taosCleanUpIntHash(pSql->pTableHashList);
   pSql->pTableHashList = NULL;
   pSql->asyncTblPos    = NULL;
+  pCmd->isParseFinish  = 1;
   return code;
 }
 
