@@ -276,7 +276,8 @@ typedef struct {
     bool   existsCheck;  // check if the table exists
     int8_t showType;     // show command type
   };
-
+  
+  int8_t          isParseFinish;
   int8_t          isInsertFromFile;  // load data from file or not
   bool            import;            // import/insert type
   uint8_t         msgType;
