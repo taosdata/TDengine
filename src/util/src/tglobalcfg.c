@@ -1097,9 +1097,9 @@ void tsSetAllDebugFlag() {
  * In case that the setLocale failed to be executed, the right charset needs to be set.
  */
 void tsSetLocale() {
-  char msgLocale[] = "Invalid locale:%s, please set the valid locale in config file";
-  char msgCharset[] = "Invalid charset:%s, please set the valid charset in config file";
-  char msgCharset1[] = "failed to get charset, please set the valid charset in config file";
+  char msgLocale[] = "Invalid locale:%s, please set the valid locale in config file\n";
+  char msgCharset[] = "Invalid charset:%s, please set the valid charset in config file\n";
+  char msgCharset1[] = "failed to get charset, please set the valid charset in config file\n";
 
   char *locale = setlocale(LC_CTYPE, tsLocale);
 
