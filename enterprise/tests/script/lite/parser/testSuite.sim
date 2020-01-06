@@ -92,3 +92,4 @@ run lite/parser/projection_limit_offset.sim
 sleep 2000
 run lite/parser/select_with_tags.sim
 run lite/parser/groupby.sim
+run lite/parser/union.sim
