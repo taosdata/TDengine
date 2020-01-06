@@ -494,7 +494,11 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
     pMsg += sizeof(int32_t);
     *((int64_t*)pMsg) = htobe64(pQInfo->pObj->uid);
     pMsg += sizeof(int64_t);
-    *((TSKEY*)pMsg) = htobe64(pQInfo->query.lastKey);
+    if (pQInfo->pointsRead > 0) {
+      *((TSKEY*)pMsg) = htobe64(pQInfo->query.lastKey + 1);
+    } else {
+      *((TSKEY*)pMsg) = htobe64(pQInfo->query.lastKey);
+    }
     pMsg += sizeof(TSKEY);
   }
 

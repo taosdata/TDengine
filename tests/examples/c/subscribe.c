@@ -63,6 +63,11 @@ int main(int argc, char *argv[]) {
       keep = 0;
       continue;
     }
+    if (strncmp(argv[i], "-sql=", 5) == 0) {
+      sql = argv[i] + 5;
+      topic = "test-custom";
+      continue;
+    }
   }
 
   // init TAOS
