@@ -390,7 +390,7 @@ typedef struct _sql_obj {
   tsem_t            emptyRspSem;
   SSqlCmd           cmd;
   SSqlRes           res;
-  uint8_t           numOfSubs;
+  uint16_t          numOfSubs;
   char*             asyncTblPos;
   void*             pTableHashList;
   struct _sql_obj **pSubs;
