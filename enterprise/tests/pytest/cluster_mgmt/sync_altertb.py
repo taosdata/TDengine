@@ -71,6 +71,7 @@ class TDTestCase:
 
     tdLog.info("================= step1")
     tdLog.info("insert %d records into %d tables" % (self.rowsPerTable, self.ntables))
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db replica %d ctime %d' % (self.replica, self.ctime))
     tdLog.sleep(5)
     tdSql.execute('use db')

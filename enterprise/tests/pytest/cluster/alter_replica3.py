@@ -44,10 +44,12 @@ class TDTestCase:
     self.replica = 3
     self.ntables = 20
     self.rowsPerTable = 40*38*7/10
+    self.totalRows = 0
     self.startTime = 1520000010000L
     
     tdLog.info("================= step1")
     tdLog.info("create database db replica %d tables 10 cache 512" %self.replica)
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db replica %d tables 10 cache 512' %self.replica)
     tdLog.sleep(5)
     tdSql.execute('use db')
@@ -72,7 +74,8 @@ class TDTestCase:
       if (ninserted > 0):
         tdSql.execute(" ".join(sqlcmd))
     tdSql.query('select count(*) from tb')
-    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
+    self.totalRows = self.rowsPerTable*self.ntables
+    tdSql.checkData(0, 0, self.totalRows)
 
     tdLog.info("================= step3")
     dnodesDir  = tdDnodes.getDnodesRootDir()
@@ -94,14 +97,15 @@ class TDTestCase:
         ninserted += 1
         if (ninserted == 300):
           tdSql.execute(" ".join(sqlcmd))
-          inserted = 0
+          ninserted = 0
           sqlcmd = ['insert into']
     if (ninserted > 0):
       tdSql.execute(" ".join(sqlcmd))
     self.rowsPerTable += 10
+    self.totalRows += 10 * self.ntables
     tdSql.execute('reset query cache')
     tdSql.query('select count(*) from tb')
-    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
+    tdSql.checkData(0, 0, self.totalRows)
 
     tdLog.info("================= step5")
     self.replica = 2
@@ -136,14 +140,15 @@ class TDTestCase:
         ninserted += 1
         if (ninserted == 300):
           tdSql.execute(" ".join(sqlcmd))
-          inserted = 0
+          ninserted = 0
           sqlcmd = ['insert into']
     if (ninserted > 0):
       tdSql.execute(" ".join(sqlcmd))
     self.rowsPerTable += 10
+    self.totalRows += 10 * self.ntables
     tdSql.execute('reset query cache')
     tdSql.query('select count(*) from tb')
-    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
+    tdSql.checkData(0, 0, self.totalRows)
 
     tdLog.info("================= step7")
     queryRows = tdSql.query('show vgroups')
@@ -185,14 +190,15 @@ class TDTestCase:
         ninserted += 1
         if (ninserted == 300):
           tdSql.execute(" ".join(sqlcmd))
-          inserted = 0
+          ninserted = 0
           sqlcmd = ['insert into']
     if (ninserted > 0):
       tdSql.execute(" ".join(sqlcmd))
     self.rowsPerTable += 10
+    self.totalRows += 10 * self.ntables
     tdSql.execute('reset query cache')
     tdSql.query('select count(*) from tb')
-    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
+    tdSql.checkData(0, 0, self.totalRows)
 
     tdLog.info("================= step10")
     queryRows = tdSql.query('show vgroups')
@@ -233,14 +239,15 @@ class TDTestCase:
         ninserted += 1
         if (ninserted == 300):
           tdSql.execute(" ".join(sqlcmd))
-          inserted = 0
+          ninserted = 0
           sqlcmd = ['insert into']
     if (ninserted > 0):
       tdSql.execute(" ".join(sqlcmd))
     self.rowsPerTable += 10
+    self.totalRows += 10 *self.ntables
     tdSql.execute('reset query cache')
     tdSql.query('select count(*) from tb')
-    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
+    tdSql.checkData(0, 0, self.totalRows)
 
     tdLog.info("================= step13")
     queryRows = tdSql.query('show vgroups')
@@ -282,14 +289,15 @@ class TDTestCase:
         ninserted += 1
         if (ninserted == 300):
           tdSql.execute(" ".join(sqlcmd))
-          inserted = 0
+          ninserted = 0
           sqlcmd = ['insert into']
     if (ninserted > 0):
       tdSql.execute(" ".join(sqlcmd))
     self.rowsPerTable += 10
+    self.totalRows += 10 * self.ntables
     tdSql.execute('reset query cache')
     tdSql.query('select count(*) from tb')
-    tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
+    tdSql.checkData(0, 0, self.totalRows)
 
     tdLog.info("================= step16")
     queryRows = tdSql.query('show vgroups')
