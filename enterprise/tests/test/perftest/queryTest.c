@@ -449,10 +449,9 @@ int main(int argc, char **argv) {
         total = strtol(argv[4], NULL, 10);
     }
     
-    executeSQL(conn, "use demodb", NULL);
-    executeSQL(conn, "alter table m1 change tag a bbc", NULL);
+    executeSQL(conn, "use union_db0", NULL);
 //    createEnvironment(conn, 5, 5, 100, 30);
-//    executeSQL(conn, "show stables", NULL);
+    executeSQL(conn, "select ts, first(c3) as a from union_mt0 limit 1 union all select sum(c3) as a from union_mt0 interval(1h) limit 10;", NULL);
 //    executeSQL(conn, "CREATE database TU1", NULL);
     // selectivity + tags/ts + group by normal columns
 //    executeSQL(conn, "(select count(*) from test where ts<'1970-1-1 8:1:40.9') union "
