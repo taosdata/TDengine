@@ -520,7 +520,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
       }
       
-      // set the command/globallimit parameters from the first subclause to the sqlcmd object
+      // set the command/global limit parameters from the first subclause to the sqlcmd object
       SQueryInfo* pQueryInfo1 = tscGetQueryInfoDetail(pCmd, 0);
       pCmd->command = pQueryInfo1->command;
   
@@ -5576,10 +5576,6 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     }
   }
 
-  // handle the limit offset value, validate the limit
-  pQueryInfo->limit = pQuerySql->limit;
-
-  // temporarily save the original limitation value
   if ((code = parseLimitClause(pQueryInfo, index, pQuerySql, pSql)) != TSDB_CODE_SUCCESS) {
     return code;
   }

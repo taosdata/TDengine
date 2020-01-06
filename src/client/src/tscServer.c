@@ -652,18 +652,18 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
 }
 
 static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj);
-static int      tscLaunchMetricSubQueries(SSqlObj *pSql);
+static int      tscLaunchSTableSubqueries(SSqlObj *pSql);
 
 // todo merge with callback
 int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySupporter *pSupporter) {
   SSqlCmd *   pCmd = &pSql->cmd;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   pSql->res.qhandle = 0x1;
   pSql->res.numOfRows = 0;
 
   if (pSql->pSubs == NULL) {
-    pSql->pSubs = malloc(POINTER_BYTES * pSupporter->pState->numOfTotal);
+    pSql->pSubs = calloc(pSupporter->pState->numOfTotal, POINTER_BYTES);
     if (pSql->pSubs == NULL) {
       return TSDB_CODE_CLI_OUT_OF_MEMORY;
     }
@@ -874,7 +874,7 @@ int tscProcessSql(SSqlObj *pSql) {
   if (tscIsTwoStageMergeMetricQuery(pQueryInfo, 0)) {
     /*
      * (ref. line: 964)
-     * Before this function returns from tscLaunchMetricSubQueries and continues, pSql may have been released at user
+     * Before this function returns from tscLaunchSTableSubqueries and continues, pSql may have been released at user
      * program context after retrieving all data from vnodes. User function is called at tscRetrieveFromVnodeCallBack.
      *
      * when pSql being released, pSql->fp == NULL, it may pass the check of pSql->fp == NULL,
@@ -882,7 +882,7 @@ int tscProcessSql(SSqlObj *pSql) {
      */
     void *fp = pSql->fp;
 
-    if (tscLaunchMetricSubQueries(pSql) != TSDB_CODE_SUCCESS) {
+    if (tscLaunchSTableSubqueries(pSql) != TSDB_CODE_SUCCESS) {
       return pRes->code;
     }
 
@@ -923,7 +923,7 @@ static void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs, SSubqueryState
   free(pState);
 }
 
-int tscLaunchMetricSubQueries(SSqlObj *pSql) {
+int tscLaunchSTableSubqueries(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -1217,7 +1217,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
 #ifdef _DEBUG_VIEW
     printf("received data from vnode: %d rows\n", pRes->numOfRows);
     SSrcColumnInfo colInfo[256] = {0};
-    SQueryInfo *   pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+    SQueryInfo *   pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
     tscGetSrcColumnInfo(colInfo, pQueryInfo);
     tColModelDisplayEx(pDesc->pSchema, pRes->data, pRes->numOfRows, pRes->numOfRows, colInfo);
@@ -2575,8 +2575,8 @@ int tscProcessRetrieveMetricRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  pRes->code = tscLocalDoReduce(pSql);
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  pRes->code = tscDoLocalreduce(pSql);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   if (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows > 0) {
     tscSetResultPointer(pQueryInfo, pRes);
@@ -3223,7 +3223,7 @@ int tscProcessMetricMetaRsp(SSqlObj *pSql) {
     char name[TSDB_MAX_TAGS_LEN + 1] = {0};
 
     SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
-    tscGetMetricMetaCacheKey(&pSql->cmd, 0, name, pMeterMetaInfo->pMeterMeta->uid);
+    tscGetMetricMetaCacheKey(pQueryInfo, name, pMeterMetaInfo->pMeterMeta->uid);
 
 #ifdef _DEBUG_VIEW
     printf("generate the metric key:%s, index:%d\n", name, i);
@@ -3646,7 +3646,7 @@ int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
     char tagstr[TSDB_MAX_TAGS_LEN + 1] = {0};
 
     SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
-    tscGetMetricMetaCacheKey(pCmd, clauseIndex, tagstr, pMeterMetaInfo->pMeterMeta->uid);
+    tscGetMetricMetaCacheKey(pQueryInfo, tagstr, pMeterMetaInfo->pMeterMeta->uid);
 
     taosRemoveDataFromCache(tscCacheHandle, (void **)&(pMeterMetaInfo->pMetricMeta), false);
 
@@ -3712,7 +3712,7 @@ int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
         char tagstr[TSDB_MAX_TAGS_LEN] = {0};
     
         SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
-        tscGetMetricMetaCacheKey(pCmd, 0, tagstr, pMeterMetaInfo->pMeterMeta->uid);
+        tscGetMetricMetaCacheKey(pQueryInfo, tagstr, pMeterMetaInfo->pMeterMeta->uid);
 
 #ifdef _DEBUG_VIEW
         printf("create metric key:%s, index:%d\n", tagstr, i);

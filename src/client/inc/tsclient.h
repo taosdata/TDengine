@@ -273,8 +273,10 @@ struct STSBuf;
 
 typedef struct {
   uint8_t               code;
-  int                   numOfRows;   // num of results in current retrieved
-  int                   numOfTotal;  // num of total results
+  int64_t               numOfRows;   // num of results in current retrieved
+  int64_t               numOfTotal;  // num of total results
+  int64_t               numOfTotalInCurrentClause;  // num of total result in current subclause
+  
   char *                pRsp;
   int                   rspType;
   int                   rspLen;
@@ -431,7 +433,7 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql);
 void tscKillMetricQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(STscObj *pObj);
-bool tscHasReachLimitation(SSqlObj *pSql);
+bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 

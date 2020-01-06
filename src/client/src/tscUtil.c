@@ -37,12 +37,9 @@
  * fullmetername + '.' + '(nil)' + '.' + '(nil)' + relation + '.' + [tagId1,
  * tagId2,...] + '.' + group_orderType
  */
-void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, int32_t subClauseIndex, char* str, uint64_t uid) {
+void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* str, uint64_t uid) {
   int32_t index = -1;
-
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoByUid(pQueryInfo, subClauseIndex, uid, &index);
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoByUid(pQueryInfo, uid, &index);
 
   int32_t len = 0;
   char    tagIdBuf[128] = {0};
@@ -395,7 +392,8 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   pRes->row = 0;
   pRes->numOfRows = 0;
   pRes->numOfTotal = 0;
-
+  pRes->numOfTotalInCurrentClause = 0;
+  
   pRes->numOfGroups = 0;
   tfree(pRes->pGroupRec);
 
@@ -1591,13 +1589,14 @@ SMeterMetaInfo* tscGetMeterMetaInfo(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
 }
 
 SMeterMetaInfo* tscGetMeterMetaInfoFromQueryInfo(SQueryInfo* pQueryInfo, int32_t tableIndex) {
+  assert(pQueryInfo != NULL);
+  
   if (pQueryInfo->pMeterInfo == NULL) {
     assert(pQueryInfo->numOfTables == 0);
     return NULL;
   }
 
-  assert(pQueryInfo != NULL && tableIndex >= 0 && tableIndex <= pQueryInfo->numOfTables &&
-         pQueryInfo->pMeterInfo != NULL);
+  assert(tableIndex >= 0 && tableIndex <= pQueryInfo->numOfTables && pQueryInfo->pMeterInfo != NULL);
 
   return pQueryInfo->pMeterInfo[tableIndex];
 }
@@ -1628,7 +1627,7 @@ int32_t tscGetQueryInfoDetailSafely(SSqlCmd* pCmd, int32_t subClauseIndex, SQuer
   return TSDB_CODE_SUCCESS;
 }
 
-SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, int32_t subClauseIndex, uint64_t uid, int32_t* index) {
+SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* index) {
   int32_t k = -1;
 
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
@@ -1642,6 +1641,7 @@ SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, int32_t subClau
     *index = k;
   }
 
+  assert(k != -1);
   return tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, k);
 }
 
@@ -1777,6 +1777,10 @@ void tscClearMeterMetaInfo(SMeterMetaInfo* pMeterMetaInfo, bool removeFromCache)
 }
 
 void tscResetForNextRetrieve(SSqlRes* pRes) {
+  if (pRes == NULL) {
+    return;
+  }
+  
   pRes->row = 0;
   pRes->numOfRows = 0;
 }
@@ -1877,7 +1881,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   pNew->param = param;
 
   char key[TSDB_MAX_TAGS_LEN + 1] = {0};
-  tscGetMetricMetaCacheKey(pCmd, pCmd->clauseIndex, key, uid);
+  tscGetMetricMetaCacheKey(pQueryInfo, key, uid);
 
 #ifdef _DEBUG_VIEW
   printf("the metricmeta key is:%s\n", key);
@@ -1980,13 +1984,9 @@ int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* s
   return TSDB_CODE_INVALID_SQL;
 }
 
-bool tscHasReachLimitation(SSqlObj* pSql) {
-  assert(pSql != NULL && pSql->cmd.globalLimit != 0);
-
-  SSqlCmd* pCmd = &pSql->cmd;
-  SSqlRes* pRes = &pSql->res;
-
-  return (pCmd->globalLimit > 0 && pRes->numOfTotal >= pCmd->globalLimit);
+bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
+  assert(pQueryInfo != NULL && pQueryInfo->clauseLimit != 0);
+  return (pQueryInfo->clauseLimit > 0 && pRes->numOfTotalInCurrentClause >= pQueryInfo->clauseLimit);
 }
 
 char* tscGetErrorMsgPayload(SSqlCmd* pCmd) { return pCmd->payload; }

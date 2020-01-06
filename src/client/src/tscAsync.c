@@ -118,7 +118,7 @@ static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOf
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   // sequentially retrieve data from remain vnodes first, query vnode specified by vnodeIdx
   if (numOfRows == 0 && tscProjectionQueryOnSTable(pQueryInfo, 0)) {
@@ -285,7 +285,7 @@ void tscProcessAsyncRetrieve(void *param, TAOS_RES *tres, int numOfRows) {
       }
 
       /* update the limit value according to current retrieval results */
-      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
       pQueryInfo->limit.limit = pCmd->globalLimit - pRes->numOfTotal;
 
       if ((++pMeterMetaInfo->vnodeIndex) <= pMeterMetaInfo->pMetricMeta->numOfVnodes) {
@@ -312,9 +312,8 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
   SSqlObj *pSql = (SSqlObj *)pMsg->ahandle;
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
-  assert(0);
   
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   assert(pCmd->numOfCols == pQueryInfo->fieldsInfo.numOfOutputCols);
 
   for (int i = 0; i < pCmd->numOfCols; ++i)
@@ -497,7 +496,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
 
   if (pSql->pStream == NULL) {
     // check if it is a sub-query of metric query first, if true, enter another routine
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) == TSDB_QUERY_TYPE_STABLE_SUBQUERY) {
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
@@ -552,7 +551,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
      * transfer the sql function for metric query before get meter/metric meta,
      * since in callback functions, only tscProcessSql(pStream->pSql) is executed!
      */
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
     
     tscTansformSQLFunctionForSTableQuery(pQueryInfo);
     tscIncStreamExecutionCount(pSql->pStream);

@@ -187,7 +187,7 @@ SMeterMetaInfo* tscGetMeterMetaInfoFromQueryInfo(SQueryInfo *pQueryInfo, int32_t
 SQueryInfo *tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex);
 int32_t tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex, SQueryInfo** pQueryInfo);
 
-SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, int32_t subClauseIndex, uint64_t uid, int32_t* index);
+SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* index);
 void            tscClearMeterMetaInfo(SMeterMetaInfo* pMeterMetaInfo, bool removeFromCache);
 
 SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, SMeterMeta* pMeterMeta, SMetricMeta* pMetricMeta,
@@ -197,7 +197,7 @@ int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
 void tscFreeSubqueryInfo(SSqlCmd* pCmd);
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 
-void tscGetMetricMetaCacheKey(SSqlCmd* pCmd, int32_t subClauseIndex, char* keyStr, uint64_t uid);
+void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* keyStr, uint64_t uid);
 int  tscGetMetricMeta(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetMeterMeta(SSqlObj* pSql, SMeterMetaInfo* pMeterMetaInfo);
 int  tscGetMeterMetaEx(SSqlObj* pSql, SMeterMetaInfo* pMeterMetaInfo, bool createIfNotExists);

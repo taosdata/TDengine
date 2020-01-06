@@ -58,7 +58,7 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SSqlRes *pRes, SLocalReducer *pRedu
    * the fields and offset attributes in pCmd and pModel may be different due to
    * merge requirement. So, the final result in pRes structure is formatted in accordance with the pCmd object.
    */
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
     SQLFunctionCtx *pCtx = &pReducer->pCtx[i];
 
@@ -215,7 +215,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 #ifdef _DEBUG_VIEW
       printf("load data page into mem for build loser tree: %ld rows\n", pDS->filePage.numOfElems);
       SSrcColumnInfo colInfo[256] = {0};
-      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
       tscGetSrcColumnInfo(colInfo, pQueryInfo);
 
@@ -241,7 +241,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   param->pLocalData = pReducer->pLocalDataSrc;
   param->pDesc = pReducer->pDesc;
   param->numOfElems = pReducer->pLocalDataSrc[0]->pMemBuffer->numOfElemsPerPage;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   param->groupOrderType = pQueryInfo->groupbyExpr.orderType;
 
@@ -434,7 +434,7 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
   }
 
   SSqlCmd *pCmd = &pSql->cmd;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   // there is no more result, so we release all allocated resource
   SLocalReducer *pLocalReducer = (SLocalReducer*)atomic_exchange_ptr(&pRes->pLocalReducer, NULL);
@@ -500,7 +500,7 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
 
 static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCmd, tColModel *pModel) {
   int32_t numOfGroupByCols = 0;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     numOfGroupByCols = pQueryInfo->groupbyExpr.numOfGroupCols;
@@ -541,7 +541,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
 }
 
 bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage *tmpBuffer) {
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   int16_t functionId = tscSqlExprGet(pQueryInfo, 0)->functionId;
 
@@ -787,7 +787,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
   SSqlCmd *  pCmd = &pSql->cmd;
   SSqlRes *  pRes = &pSql->res;
   tFilePage *pFinalDataPage = pLocalReducer->pResultBuf;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   if (pRes->pLocalReducer != pLocalReducer) {
     /*
@@ -802,7 +802,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
     // no interval query, no interpolation
     pRes->data = pLocalReducer->pFinalRes;
     pRes->numOfRows = pFinalDataPage->numOfElems;
-    pRes->numOfTotal += pRes->numOfRows;
+    pRes->numOfTotalInCurrentClause += pRes->numOfRows;
 
     if (pQueryInfo->limit.offset > 0) {
       if (pQueryInfo->limit.offset < pRes->numOfRows) {
@@ -813,23 +813,23 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
         tColModelCompact(pLocalReducer->resColModel, pFinalDataPage, prevSize);
 
         pRes->numOfRows -= pQueryInfo->limit.offset;
-        pRes->numOfTotal -= pQueryInfo->limit.offset;
+        pRes->numOfTotalInCurrentClause -= pQueryInfo->limit.offset;
         pQueryInfo->limit.offset = 0;
       } else {
         pQueryInfo->limit.offset -= pRes->numOfRows;
         pRes->numOfRows = 0;
-        pRes->numOfTotal = 0;
+        pRes->numOfTotalInCurrentClause = 0;
       }
     }
 
-    if (pQueryInfo->limit.limit >= 0 && pRes->numOfTotal > pQueryInfo->limit.limit) {
+    if (pQueryInfo->limit.limit >= 0 && pRes->numOfTotalInCurrentClause > pQueryInfo->limit.limit) {
       /* impose the limitation of output rows on the final result */
       int32_t prevSize = pFinalDataPage->numOfElems;
-      int32_t overFlow = pRes->numOfTotal - pQueryInfo->limit.limit;
+      int32_t overFlow = pRes->numOfTotalInCurrentClause - pQueryInfo->limit.limit;
 
       assert(overFlow < pRes->numOfRows);
 
-      pRes->numOfTotal = pQueryInfo->limit.limit;
+      pRes->numOfTotalInCurrentClause = pQueryInfo->limit.limit;
       pRes->numOfRows -= overFlow;
       pFinalDataPage->numOfElems -= overFlow;
 
@@ -898,7 +898,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
 
       pRes->data = pLocalReducer->pFinalRes;
       pRes->numOfRows = newRows;
-      pRes->numOfTotal += newRows;
+      pRes->numOfTotalInCurrentClause += newRows;
 
       pQueryInfo->limit.offset = 0;
       break;
@@ -924,13 +924,13 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
   }
 
   if (pRes->numOfRows > 0) {
-    if (pQueryInfo->limit.limit >= 0 && pRes->numOfTotal > pQueryInfo->limit.limit) {
-      int32_t overFlow = pRes->numOfTotal - pQueryInfo->limit.limit;
+    if (pQueryInfo->limit.limit >= 0 && pRes->numOfTotalInCurrentClause > pQueryInfo->limit.limit) {
+      int32_t overFlow = pRes->numOfTotalInCurrentClause - pQueryInfo->limit.limit;
       pRes->numOfRows -= overFlow;
 
       assert(pRes->numOfRows >= 0);
 
-      pRes->numOfTotal = pQueryInfo->limit.limit;
+      pRes->numOfTotalInCurrentClause = pQueryInfo->limit.limit;
       pFinalDataPage->numOfElems -= overFlow;
 
       /* set remain data to be discarded, and reset the interpolation information */
@@ -974,7 +974,7 @@ static void savePreviousRow(SLocalReducer *pLocalReducer, tFilePage *tmpBuffer) 
 
 static void doExecuteSecondaryMerge(SSqlCmd* pCmd, SLocalReducer *pLocalReducer, bool needInit) {
   // the tag columns need to be set before all functions execution
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   for(int32_t j = 0; j < pQueryInfo->fieldsInfo.numOfOutputCols; ++j) {
     SSqlExpr *      pExpr = tscSqlExprGet(pQueryInfo, j);
@@ -1129,7 +1129,7 @@ static bool saveGroupResultInfo(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   pRes->numOfGroups += 1;
 
   // the output group is limited by the slimit clause
@@ -1139,7 +1139,7 @@ static bool saveGroupResultInfo(SSqlObj *pSql) {
 
   //    pRes->pGroupRec = realloc(pRes->pGroupRec, pRes->numOfGroups*sizeof(SResRec));
   //    pRes->pGroupRec[pRes->numOfGroups-1].numOfRows = pRes->numOfRows;
-  //    pRes->pGroupRec[pRes->numOfGroups-1].numOfTotal = pRes->numOfTotal;
+  //    pRes->pGroupRec[pRes->numOfGroups-1].numOfTotalInCurrentClause = pRes->numOfTotalInCurrentClause;
 
   return false;
 }
@@ -1155,7 +1155,7 @@ bool doGenerateFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool no
   SSqlCmd *  pCmd = &pSql->cmd;
   SSqlRes *  pRes = &pSql->res;
   
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   tFilePage *pResBuf = pLocalReducer->pResultBuf;
   tColModel *pModel = pLocalReducer->resColModel;
 
@@ -1207,8 +1207,9 @@ void resetOutputBuf(SQueryInfo* pQueryInfo, SLocalReducer *pLocalReducer) {  // 
 static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalReducer *pLocalReducer) {
   // In handling data in other groups, we need to reset the interpolation information for a new group data
   pRes->numOfRows = 0;
-  pRes->numOfTotal = 0;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  pRes->numOfTotalInCurrentClause = 0;
+  
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   pQueryInfo->limit.offset = pLocalReducer->offset;
 
@@ -1233,7 +1234,7 @@ static bool doInterpolationForCurrentGroup(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   SLocalReducer *     pLocalReducer = pRes->pLocalReducer;
   SInterpolationInfo *pInterpoInfo = &pLocalReducer->interpolationInfo;
 
@@ -1269,7 +1270,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
 
   bool prevGroupCompleted = (!pLocalReducer->discard) && pLocalReducer->hasUnprocessedRow;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
   int8_t precision = pMeterMetaInfo->pMeterMeta->precision;
 
@@ -1313,7 +1314,7 @@ static void doMergeWithPrevRows(SSqlObj *pSql, int32_t numOfRes) {
   SSqlRes *      pRes = &pSql->res;
   
   SLocalReducer *pLocalReducer = pRes->pLocalReducer;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   for (int32_t k = 0; k < pQueryInfo->fieldsInfo.numOfOutputCols; ++k) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, k);
@@ -1330,26 +1331,21 @@ static void doMergeWithPrevRows(SSqlObj *pSql, int32_t numOfRes) {
   doExecuteSecondaryMerge(pCmd, pLocalReducer, true);
 }
 
-int32_t tscLocalDoReduce(SSqlObj *pSql) {
+int32_t tscDoLocalreduce(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
-
+  
+  tscResetForNextRetrieve(pRes);
+  
   if (pSql->signature != pSql || pRes == NULL || pRes->pLocalReducer == NULL) {  // all data has been processed
     tscTrace("%s call the drop local reducer", __FUNCTION__);
 
     tscDestroyLocalReducer(pSql);
-    if (pRes) {
-      pRes->numOfRows = 0;
-      pRes->row = 0;
-    }
     return 0;
   }
-
-  pRes->row = 0;
-  pRes->numOfRows = 0;
-
+  
   SLocalReducer *pLocalReducer = pRes->pLocalReducer;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   // set the data merge in progress
   int32_t prevStatus =
@@ -1397,7 +1393,7 @@ int32_t tscLocalDoReduce(SSqlObj *pSql) {
 #if defined(_DEBUG_VIEW)
     printf("chosen row:\t");
     SSrcColumnInfo colInfo[256] = {0};
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
     tscGetSrcColumnInfo(colInfo, pQueryInfo);
 
