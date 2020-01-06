@@ -72,6 +72,7 @@ sql_error (select c1 from union_tb0 limit 1 union all select c1 from union_tb1 l
 # union as subclause
 sql_error (select c1 from union_tb0 limit 1 union all select c1 from union_tb1 limit 1) limit 1
 
+# sql with parenthese
 sql (((select c1 from union_tb0)))
 if $rows != 10000 then
   return -1
@@ -85,6 +86,7 @@ if $data10 != 1 then
   return -1
 endi
 
+# mixed order
 sql select ts, c1 from union_tb1 order by ts asc limit 10 union all select ts, c1 from union_tb0 order by ts desc limit 2 union all select ts, c1 from union_tb2 order by ts asc limit 10", NULL);
 if $rows != 22 then
   return -1
@@ -117,18 +119,73 @@ endi
 # different sort order
 
 # super table & normal table mixed up
+sql select c3 from union_tb0 limit 2 union all select sum(c1) as c3 from union_mt0;
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != 0 then
+  return -1
+endi
+
+if $data10 != 1 then
+  return -1
+endi
+
+if $data20 != 495000 then
+  return -1
+endi
 
 # type compatible
+sql select c3 from union_tb0 limit 2 union all select sum(c1) as c3 from union_tb1;
+if $rows != 3 then
+ return -1
+endi
+
+if $data00 != 0 then
+   return -1
+endi
+
+if $data10 != 0 then
+  return -1
+endi
+
+if $data20 != 0 then
+  return -1
+endi
 
 # two join subclause
 
 
 # first subclause are empty
 sql select count(*) as c from union_tb0 where ts>now+10y union all select sum(c1) as c from union_tb1;
+if $rows != 1 then
+  return -1
+endi
 
+if $data00 != 495000 then
+  return -1
+endi
 
 # all subclause are empty
-sql select c1 from union_tb0 limit 0 union all select c1 from union_tb1 where ts>'2020-1-1 0:0:0'
+sql select c1 from union_tb0 limit 0 union all select c1 from union_tb1 where ts>'2021-1-1 0:0:0'
+if $rows != 0 then
+  return -1
+endi
+
+# middle subclause empty
+sql select c1 from union_tb0 limit 1 union all select c1 from union_tb1 where ts>'2030-1-1 0:0:0' union all select last(c1) as c1 from union_tb1;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != 0 then
+  return -1
+endi
+
+if $data10 != 99 then
+  return -1
+endi
 
 # multi-vnode projection query
 sql (select c1 from union_mt0) union all select c1 from union_mt0;
@@ -136,8 +193,66 @@ if $rows != 200000 then
  return -1
 endi
 
-#multi-vnode projection query + limit
+# multi-vnode projection query + limit
 sql (select c1 from union_mt0 limit 1) union all (select c1 from union_mt0 limit 1);
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @20-01-05 13:51:24.000@ then
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+if $data10 != @20-01-05 13:51:24.000@ then
+  return -1
+endi
+
+if $data11 != 0 then
+  return -1
+endi
+
+# two aggregated functions for super tables
+select sum(c1) as a from union_mt0 limit 1 union all select sum(c3) as a from union_mt0 limit 2;
+
+# two aggregated functions for normal tables
+sql select sum(c1) as a from union_tb0 limit 1 union all select sum(c3) as a from union_tb1 limit 2;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != 495000 then
+  return -1
+endi
+
+if $data10 != 495000 then
+  return -1
+endi
+
+# two super table query + interval + limit
+sql select ts, first(c3) as a from union_mt0 limit 1 union all select sum(c3) as a from union_mt0 interval(1h) limit 1;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @20-01-05 13:51:24.000@ then
+ return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+if $data10 != @20-01-05 13:00:00.000@ then
+ return -1
+endi
+
+if $data11 1= 360 then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 2000
