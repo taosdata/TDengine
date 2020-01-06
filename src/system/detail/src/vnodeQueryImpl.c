@@ -5861,7 +5861,8 @@ static void clearAllMeterDataBlockInfo(SMeterDataInfo** pMeterDataInfo, int32_t 
   for(int32_t i = start; i < end; ++i) {
     tfree(pMeterDataInfo[i]->pBlock);
     pMeterDataInfo[i]->numOfBlocks = 0;
-    pMeterDataInfo[i]->start = 0;  }
+    pMeterDataInfo[i]->start = 0;
+  }
 }
 
 static bool getValidDataBlocksRangeIndex(SMeterDataInfo *pMeterDataInfo, SQuery *pQuery, SCompBlock *pCompBlock,
@@ -6013,14 +6014,15 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     pSummary->loadCompInfoUs += (et - st);
 
     if (!setCurrentQueryRange(pMeterDataInfo[j], pQuery, pSupporter->rawEKey, &minval, &maxval)) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j + 1);
       continue;
     }
 
     int32_t end = 0;
     if (!getValidDataBlocksRangeIndex(pMeterDataInfo[j], pQuery, pMeterDataInfo[j]->pBlock, compInfo.numOfBlocks,
                                       minval, maxval, &end)) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j);
+      // current table has no qualified data blocks, erase its information.
+      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j + 1);
       continue;
     }
 
