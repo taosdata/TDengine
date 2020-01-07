@@ -804,7 +804,6 @@ int tscProcessSql(SSqlObj *pSql) {
 
     if (pMeterMetaInfo == NULL) {  // the pMeterMetaInfo cannot be NULL
       pSql->res.code = TSDB_CODE_OTHERS;
-      assert(0);
       return pSql->res.code;
     }
 
@@ -1501,7 +1500,6 @@ void tscUpdateVnodeInSubmitMsg(SSqlObj *pSql, char *buf) {
 int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SShellSubmitMsg *pShellMsg;
   char *           pMsg, *pStart;
-  int              msgLen = 0;
 
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
@@ -2519,7 +2517,7 @@ static int tscLocalResultCommonBuilder(SSqlObj *pSql, int32_t numOfRes) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   pRes->code = TSDB_CODE_SUCCESS;
 
@@ -2559,7 +2557,7 @@ int tscProcessDescribeTableRsp(SSqlObj *pSql) {
 int tscProcessTagRetrieveRsp(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
   int32_t numOfRes = 0;

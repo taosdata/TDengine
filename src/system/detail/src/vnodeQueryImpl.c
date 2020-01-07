@@ -3381,7 +3381,7 @@ void forwardQueryStartPosition(SQueryRuntimeEnv *pRuntimeEnv) {
   } else {
     pQuery->limit.offset -= maxReads;
     // update the lastkey, since the following skip operation may traverse to another media. update the lastkey first.
-    pQuery->lastKey = (QUERY_IS_ASC_QUERY(pQuery))? blockInfo.keyLast+1:blockInfo.keyFirst-1;    
+    pQuery->lastKey = (QUERY_IS_ASC_QUERY(pQuery))? blockInfo.keyLast+1:blockInfo.keyFirst-1;
     doSkipDataBlock(pRuntimeEnv);
   }
 }
@@ -5869,7 +5869,8 @@ static void clearAllMeterDataBlockInfo(SMeterDataInfo** pMeterDataInfo, int32_t 
   for(int32_t i = start; i < end; ++i) {
     tfree(pMeterDataInfo[i]->pBlock);
     pMeterDataInfo[i]->numOfBlocks = 0;
-    pMeterDataInfo[i]->start = 0;  }
+    pMeterDataInfo[i]->start = -1;
+  }
 }
 
 static bool getValidDataBlocksRangeIndex(SMeterDataInfo *pMeterDataInfo, SQuery *pQuery, SCompBlock *pCompBlock,
@@ -5934,7 +5935,7 @@ static bool setCurrentQueryRange(SMeterDataInfo *pMeterDataInfo, SQuery *pQuery,
   SQInfo *         pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);
   SMeterObj *      pMeterObj = pMeterDataInfo->pMeterObj;
   SMeterQueryInfo *pMeterQInfo = pMeterDataInfo->pMeterQInfo;
-
+  
   if (QUERY_IS_ASC_QUERY(pQuery)) {
     *minval = pMeterQInfo->lastKey;
     *maxval = endKey;
@@ -5996,6 +5997,7 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     int32_t size = compInfo.numOfBlocks * sizeof(SCompBlock);
     size_t  bufferSize = size + sizeof(TSCKSUM);
     
+    pMeterDataInfo[j]->numOfBlocks = compInfo.numOfBlocks;  // set to be the initial value
     pMeterDataInfo[j]->pBlock = calloc(1, bufferSize);
     if (pMeterDataInfo[j]->pBlock == NULL) {
       clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
@@ -6021,14 +6023,14 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     pSummary->loadCompInfoUs += (et - st);
 
     if (!setCurrentQueryRange(pMeterDataInfo[j], pQuery, pSupporter->rawEKey, &minval, &maxval)) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j + 1);
       continue;
     }
 
     int32_t end = 0;
     if (!getValidDataBlocksRangeIndex(pMeterDataInfo[j], pQuery, pMeterDataInfo[j]->pBlock, compInfo.numOfBlocks,
                                       minval, maxval, &end)) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, j, j + 1);
       continue;
     }
 

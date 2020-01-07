@@ -493,7 +493,8 @@ static void **tscJoinResultsetFromBuf(SSqlObj *pSql) {
       SSubqueryState *pState = NULL;
 
       for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
-        SSqlObj *               pChildObj = pSql->pSubs[i];
+        SSqlObj *pChildObj = pSql->pSubs[i];
+        
         SJoinSubquerySupporter *pSupporter = (SJoinSubquerySupporter *)pChildObj->param;
         pState = pSupporter->pState;
 
@@ -713,16 +714,22 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
    */
   TAOS_ROW rows = taos_fetch_row_impl(res);
   
-  pRes->numOfTotal += pRes->numOfTotalInCurrentClause;
-  pRes->numOfTotalInCurrentClause = 0;
-  
   // current subclause is completed, try the next subclause
   while (rows == NULL && pCmd->clauseIndex < pCmd->numOfClause - 1) {
-    pSql->cmd.command = TSDB_SQL_SELECT;
+    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  
+    pSql->cmd.command = pQueryInfo->command;
     pCmd->clauseIndex++;
 
     assert(pSql->fp == NULL);
-
+    
+    pRes->numOfTotal += pRes->numOfTotalInCurrentClause;
+    pRes->numOfTotalInCurrentClause = 0;
+    pRes->rspType = 0;
+    
+    pSql->numOfSubs = 0;
+    tfree(pSql->pSubs);
+    
     tscTrace("%p try data in the next subclause:%d, total subclause:%d", pSql, pCmd->clauseIndex, pCmd->numOfClause);
     tscProcessSql(pSql);
 
@@ -736,7 +743,8 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   SSqlObj *pSql = (SSqlObj *)res;
   SSqlCmd *pCmd = &pSql->cmd;
-
+  SSqlRes *pRes = &pSql->res;
+  
   int nRows = 0;
 
   if (pSql == NULL || pSql->signature != pSql) {
@@ -751,8 +759,17 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 
   // current subclause is completed, try the next subclause
   while (rows == NULL && pCmd->clauseIndex < pCmd->numOfClause - 1) {
-    pSql->cmd.command = TSDB_SQL_SELECT;
+    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+    
+    pSql->cmd.command = pQueryInfo->command;
     pCmd->clauseIndex++;
+  
+    pRes->numOfTotal += pRes->numOfTotalInCurrentClause;
+    pRes->numOfTotalInCurrentClause = 0;
+    pRes->rspType = 0;
+    
+    pSql->numOfSubs = 0;
+    tfree(pSql->pSubs);
     
     assert(pSql->fp == NULL);
     

@@ -71,7 +71,7 @@ static int32_t changeFunctionID(int32_t optr, int16_t* functionId);
 static int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isMetric);
 
 static bool validateIpAddress(const char* ip, size_t size);
-static bool hasUnsupportFunctionsForMetricQuery(SQueryInfo* pQueryInfo);
+static bool hasUnsupportFunctionsForSTableQuery(SQueryInfo* pQueryInfo);
 static bool functionCompatibleCheck(SQueryInfo* pQueryInfo);
 static void setColumnOffsetValueInResultset(SQueryInfo* pQueryInfo);
 
@@ -91,7 +91,7 @@ static int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
 static int32_t validateSqlFunctionInStreamSql(SQueryInfo* pQueryInfo);
 static int32_t buildArithmeticExprString(tSQLExpr* pExpr, char** exprString);
 static int32_t validateFunctionsInIntervalOrGroupbyQuery(SQueryInfo* pQueryInfo);
-static int32_t validateArithmeticSQLExpr(tSQLExpr* pExpr, SSchema* pSchema, int32_t numOfCols, SColumnIdListRes* pList);
+static int32_t validateArithmeticSQLExpr(tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList);
 static int32_t validateDNodeConfig(tDCLSQL* pOptions);
 static int32_t validateLocalConfig(tDCLSQL* pOptions);
 static int32_t validateColumnName(char* name);
@@ -103,13 +103,13 @@ static void updateTagColumnIndex(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
 static int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t index, SQuerySQL* pQuerySql, SSqlObj* pSql);
 static int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql);
-static int32_t getColumnIndexByNameEx(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
+static int32_t getColumnIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t getTableIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t optrToString(tSQLExpr* pExpr, char** exprString);
 
 static int32_t getMeterIndex(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
-static int32_t doLocalQueryProcess(SQuerySQL* pQuerySql, SSqlCmd* pCmd, int32_t subClauseIndex);
+static int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql);
 static int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCreateDbMsg* pCreate);
 
 static SColumnList getColumnList(int32_t num, int16_t tableIndex, int32_t columnIndex);
@@ -1081,6 +1081,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
   const char* msg1 = "invalid column name/illegal column type in arithmetic expression";
   const char* msg2 = "functions can not be mixed up";
   const char* msg3 = "not support query expression";
+  
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
 
   for (int32_t i = 0; i < pSelection->nExpr; ++i) {
@@ -1114,10 +1115,11 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
       SSchema*        pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
 
-      SColumnIdListRes columnList = {.pSchema = pSchema, .numOfCols = pMeterMetaInfo->pMeterMeta->numOfColumns};
+      SColumnIdListRes columnList = {.pSchema = pSchema, .numOfCols = pMeterMetaInfo->pMeterMeta->numOfColumns,
+                                     .list = {0}};
 
       int32_t ret =
-          validateArithmeticSQLExpr(pItem->pNode, pSchema, pMeterMetaInfo->pMeterMeta->numOfColumns, &columnList);
+          validateArithmeticSQLExpr(pItem->pNode, pQueryInfo, &columnList.list);
       if (ret != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg1);
       }
@@ -1165,8 +1167,8 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
     if (tscQueryMetricTags(pQueryInfo)) {  // local handle the metric tag query
-      pCmd->command = TSDB_SQL_RETRIEVE_TAGS;//todo !!!!!!==================================
       pCmd->count = pMeterMetaInfo->pMeterMeta->numOfColumns;  // the number of meter schema, tricky.
+      pQueryInfo->command = TSDB_SQL_RETRIEVE_TAGS;
     }
 
     /*
@@ -1175,7 +1177,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
      */
     tscTansformSQLFunctionForSTableQuery(pQueryInfo);
 
-    if (hasUnsupportFunctionsForMetricQuery(pQueryInfo)) {
+    if (hasUnsupportFunctionsForSTableQuery(pQueryInfo)) {
       return TSDB_CODE_INVALID_SQL;
     }
   }
@@ -1336,7 +1338,7 @@ int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprItem* pI
   } else if (pItem->pNode->nSQLOptr == TK_ID) {  // simple column projection query
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
-    if (getColumnIndexByNameEx(&pItem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&pItem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg0);
     }
 
@@ -1452,7 +1454,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
           tscSqlExprInsert(pQueryInfo, colIdx, functionID, &index, TSDB_DATA_TYPE_BIGINT, size, size);
         } else {
           // count the number of meters created according to the metric
-          if (getColumnIndexByNameEx(pToken, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+          if (getColumnIndexByName(pToken, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
             return invalidSqlErrMsg(pQueryInfo->msg, msg3);
           }
 
@@ -1503,7 +1505,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
       }
 
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-      if ((getColumnIndexByNameEx(&pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) ||
+      if ((getColumnIndexByName(&pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) ||
           index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg3);
       }
@@ -1621,7 +1623,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
             }
 
           } else {
-            if (getColumnIndexByNameEx(&pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+            if (getColumnIndexByName(&pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
               return invalidSqlErrMsg(pQueryInfo->msg, msg3);
             }
 
@@ -1680,7 +1682,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
       getColumnName(pItem, columnName, TSDB_COL_NAME_LEN);
 
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-      if (getColumnIndexByNameEx(&pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+      if (getColumnIndexByName(&pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg3);
       }
 
@@ -1911,7 +1913,7 @@ int32_t getTableIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIn
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getColumnIndexByNameEx(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
+int32_t getColumnIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
   if (pQueryInfo->pMeterInfo == NULL || pQueryInfo->numOfTables == 0) {
     return TSDB_CODE_INVALID_SQL;
   }
@@ -2164,14 +2166,16 @@ void tscRestoreSQLFunctionForMetricQuery(SQueryInfo* pQueryInfo) {
   }
 }
 
-bool hasUnsupportFunctionsForMetricQuery(SQueryInfo* pQueryInfo) {
+bool hasUnsupportFunctionsForSTableQuery(SQueryInfo* pQueryInfo) {
   const char* msg1 = "TWA not allowed to apply to super table directly";
   const char* msg2 = "TWA only support group by tbname for super table query";
-
+  const char* msg3 = "function not support for super table query";
+  
   // filter sql function not supported by metric query yet.
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
     int32_t functionId = tscSqlExprGet(pQueryInfo, i)->functionId;
     if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_METRIC) == 0) {
+      invalidSqlErrMsg(pQueryInfo->msg, msg3);
       return true;
     }
   }
@@ -2325,7 +2329,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
-    if (getColumnIndexByNameEx(&token, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&token, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg2);
     }
 
@@ -2787,7 +2791,7 @@ static int32_t getColumnQueryCondInfo(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, i
     return getColumnQueryCondInfo(pQueryInfo, pExpr->pRight, pExpr->nSQLOptr);
   } else {  // handle leaf node
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-    if (getColumnIndexByNameEx(&pExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&pExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_INVALID_SQL;
     }
 
@@ -2811,7 +2815,7 @@ static int32_t getJoinCondInfo(SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
   SJoinNode* pRight = &pTagCond->joinInfo.right;
 
   SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-  if (getColumnIndexByNameEx(&pExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+  if (getColumnIndexByName(&pExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_SQL;
   }
 
@@ -2823,7 +2827,7 @@ static int32_t getJoinCondInfo(SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
   strcpy(pLeft->meterId, pMeterMetaInfo->name);
 
   index = (SColumnIndex)COLUMN_INDEX_INITIALIZER;
-  if (getColumnIndexByNameEx(&pExpr->pRight->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+  if (getColumnIndexByName(&pExpr->pRight->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_SQL;
   }
 
@@ -3020,7 +3024,7 @@ static bool validateJoinExprNode(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SColum
 
   SColumnIndex rightIndex = COLUMN_INDEX_INITIALIZER;
 
-  if (getColumnIndexByNameEx(&pRight->colInfo, pQueryInfo, &rightIndex) != TSDB_CODE_SUCCESS) {
+  if (getColumnIndexByName(&pRight->colInfo, pQueryInfo, &rightIndex) != TSDB_CODE_SUCCESS) {
     invalidSqlErrMsg(pQueryInfo->msg, msg1);
     return false;
   }
@@ -3096,7 +3100,7 @@ static int32_t handleExprInQueryCond(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, S
   int32_t ret = TSDB_CODE_SUCCESS;
 
   SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-  if (getColumnIndexByNameEx(&pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+  if (getColumnIndexByName(&pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg2);
   }
 
@@ -3283,7 +3287,7 @@ static void doExtractExprForSTable(tSQLExpr** pExpr, SQueryInfo* pQueryInfo, tSQ
     tSQLExpr* pLeft = (*pExpr)->pLeft;
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-    if (getColumnIndexByNameEx(&pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return;
     }
 
@@ -3443,7 +3447,7 @@ static int32_t getTimeRangeFromExpr(SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
     return getTimeRangeFromExpr(pQueryInfo, pExpr->pRight);
   } else {
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-    if (getColumnIndexByNameEx(&pExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&pExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_INVALID_SQL;
     }
 
@@ -3527,13 +3531,13 @@ static void doAddJoinTagsColumnsIntoTagList(SQueryInfo* pQueryInfo, SCondExpr* p
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type) && UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
     SColumnIndex index = {0};
 
-    getColumnIndexByNameEx(&pCondExpr->pJoinExpr->pLeft->colInfo, pQueryInfo, &index);
+    getColumnIndexByName(&pCondExpr->pJoinExpr->pLeft->colInfo, pQueryInfo, &index);
     pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
 
     int32_t columnInfo = index.columnIndex - pMeterMetaInfo->pMeterMeta->numOfColumns;
     addRequiredTagColumn(pQueryInfo, columnInfo, index.tableIndex);
 
-    getColumnIndexByNameEx(&pCondExpr->pJoinExpr->pRight->colInfo, pQueryInfo, &index);
+    getColumnIndexByName(&pCondExpr->pJoinExpr->pRight->colInfo, pQueryInfo, &index);
     pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
 
     columnInfo = index.columnIndex - pMeterMetaInfo->pMeterMeta->numOfColumns;
@@ -3918,7 +3922,7 @@ int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema
   SColumnIndex index = {0};
 
   if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {  // metric query
-    if (getColumnIndexByNameEx(&columnName, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&columnName, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
     }
 
@@ -3978,7 +3982,7 @@ int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema
 
       tVariant* pVar2 = &pSortorder->a[1].pVar;
       SSQLToken cname = {pVar2->nLen, pVar2->nType, pVar2->pz};
-      if (getColumnIndexByNameEx(&cname, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+      if (getColumnIndexByName(&cname, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg1);
       }
 
@@ -3991,7 +3995,7 @@ int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema
     }
 
   } else {  // meter query
-    if (getColumnIndexByNameEx(&columnName, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&columnName, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
     }
 
@@ -4098,7 +4102,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
     SSQLToken    name = {.z = pItem->pVar.pz, .n = pItem->pVar.nLen, .type = TK_STRING};
 
-    if (getColumnIndexByNameEx(&name, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&name, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_INVALID_SQL;
     }
 
@@ -4136,12 +4140,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     SColumnIndex destIndex = COLUMN_INDEX_INITIALIZER;
 
     SSQLToken srcToken = {.z = pSrcItem->pVar.pz, .n = pSrcItem->pVar.nLen, .type = TK_STRING};
-    if (getColumnIndexByNameEx(&srcToken, pQueryInfo, &srcIndex) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&srcToken, pQueryInfo, &srcIndex) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_INVALID_SQL;
     }
 
     SSQLToken destToken = {.z = pDstItem->pVar.pz, .n = pDstItem->pVar.nLen, .type = TK_STRING};
-    if (getColumnIndexByNameEx(&destToken, pQueryInfo, &destIndex) == TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&destToken, pQueryInfo, &destIndex) == TSDB_CODE_SUCCESS) {
       return TSDB_CODE_INVALID_SQL;
     }
 
@@ -4164,7 +4168,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SSQLToken    name = {.type = TK_STRING, .z = pTagName->pz, .n = pTagName->nLen};
-    if (getColumnIndexByNameEx(&name, pQueryInfo, &columnIndex) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&name, pQueryInfo, &columnIndex) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_INVALID_SQL;
     }
 
@@ -4219,7 +4223,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SSQLToken    name = {.type = TK_STRING, .z = pItem->pVar.pz, .n = pItem->pVar.nLen};
-    if (getColumnIndexByNameEx(&name, pQueryInfo, &columnIndex) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&name, pQueryInfo, &columnIndex) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg4);
     }
 
@@ -5009,12 +5013,11 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   }
 }
 
-int32_t doLocalQueryProcess(SQuerySQL* pQuerySql, SSqlCmd* pCmd, int32_t subClauseIndex) {
+int32_t doLocalQueryProcess(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   const char* msg1 = "only one expression allowed";
   const char* msg2 = "invalid expression in select clause";
   const char* msg3 = "invalid function";
 
-  SQueryInfo*   pQueryInfo = tscGetQueryInfoDetail(pCmd, subClauseIndex);
   tSQLExprList* pExprList = pQuerySql->pSelection;
   if (pExprList->nExpr != 1) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
@@ -5050,19 +5053,19 @@ int32_t doLocalQueryProcess(SQuerySQL* pQuerySql, SSqlCmd* pCmd, int32_t subClau
 
   switch (index) {
     case 0:
-      pCmd->command = TSDB_SQL_CURRENT_DB;
+      pQueryInfo->command = TSDB_SQL_CURRENT_DB;
       return TSDB_CODE_SUCCESS;
     case 1:
-      pCmd->command = TSDB_SQL_SERV_VERSION;
+      pQueryInfo->command = TSDB_SQL_SERV_VERSION;
       return TSDB_CODE_SUCCESS;
     case 2:
-      pCmd->command = TSDB_SQL_SERV_STATUS;
+      pQueryInfo->command = TSDB_SQL_SERV_STATUS;
       return TSDB_CODE_SUCCESS;
     case 3:
-      pCmd->command = TSDB_SQL_CLI_VERSION;
+      pQueryInfo->command = TSDB_SQL_CLI_VERSION;
       return TSDB_CODE_SUCCESS;
     case 4:
-      pCmd->command = TSDB_SQL_CURRENT_USER;
+      pQueryInfo->command = TSDB_SQL_CURRENT_USER;
       return TSDB_CODE_SUCCESS;
     default: { return invalidSqlErrMsg(pQueryInfo->msg, msg3); }
   }
@@ -5442,7 +5445,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   if (pQuerySql->from == NULL) {
     assert(pQuerySql->fillType == NULL && pQuerySql->pGroupby == NULL && pQuerySql->pWhere == NULL &&
            pQuerySql->pSortOrder == NULL);
-    return doLocalQueryProcess(pQuerySql, pCmd, 0);
+    return doLocalQueryProcess(pQueryInfo, pQuerySql);
   }
 
   if (pQuerySql->from->nExpr > TSDB_MAX_JOIN_TABLE_NUM) {
