@@ -5861,7 +5861,7 @@ static void clearAllMeterDataBlockInfo(SMeterDataInfo** pMeterDataInfo, int32_t 
   for(int32_t i = start; i < end; ++i) {
     tfree(pMeterDataInfo[i]->pBlock);
     pMeterDataInfo[i]->numOfBlocks = 0;
-    pMeterDataInfo[i]->start = 0;
+    pMeterDataInfo[i]->start = -1;
   }
 }
 
@@ -5989,6 +5989,7 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     int32_t size = compInfo.numOfBlocks * sizeof(SCompBlock);
     size_t  bufferSize = size + sizeof(TSCKSUM);
     
+    pMeterDataInfo[j]->numOfBlocks = compInfo.numOfBlocks;
     pMeterDataInfo[j]->pBlock = calloc(1, bufferSize);
     if (pMeterDataInfo[j]->pBlock == NULL) {
       clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
