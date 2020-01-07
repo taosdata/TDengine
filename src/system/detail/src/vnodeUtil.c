@@ -195,9 +195,9 @@ static int32_t vnodeBuildExprFromArithmeticStr(SSqlFunctionExpr* pExpr, SQueryMe
   num = i + 1;
   pBinaryExprInfo->pReqColumns = malloc(sizeof(SColIndexEx) * num);
 
-  for (int32_t i = 0; i < num; ++i) {
-    SColIndexEx* pColIndex = &pBinaryExprInfo->pReqColumns[i];
-    pColIndex->colId = ids[i];
+  for (int32_t k = 0; k < num; ++k) {
+    SColIndexEx* pColIndex = &pBinaryExprInfo->pReqColumns[k];
+    pColIndex->colId = ids[k];
   }
 
   pBinaryExprInfo->numOfCols = num;
@@ -252,7 +252,7 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
       if (pColumnIndexExInfo->colIdx >= pQueryMsg->numOfTagsCols) {
         *code = TSDB_CODE_INVALID_QUERY_MSG;
         tfree(pExprs);
-        break;
+        return NULL;
       }
 
       type = pTagSchema[pColumnIndexExInfo->colIdx].type;
@@ -264,7 +264,7 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
 
         if (*code != TSDB_CODE_SUCCESS) {
           tfree(pExprs);
-          break;
+          return NULL;
         }
 
         type = TSDB_DATA_TYPE_DOUBLE;

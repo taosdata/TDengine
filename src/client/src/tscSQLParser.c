@@ -2876,31 +2876,14 @@ int32_t buildArithmeticExprString(tSQLExpr* pExpr, char** exprString) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t validateSQLExpr(tSQLExpr* pExpr, SSchema* pSchema, int32_t numOfCols, SColumnIdListRes* pList) {
+static int32_t validateSQLExpr(tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList) {
   if (pExpr->nSQLOptr == TK_ID) {
-    bool validColumnName = false;
-
-    SColumnList* list = &pList->list;
-
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      if (strncasecmp(pExpr->colInfo.z, pSchema[i].name, pExpr->colInfo.n) == 0 &&
-          pExpr->colInfo.n == strlen(pSchema[i].name)) {
-        if (pSchema[i].type < TSDB_DATA_TYPE_TINYINT || pSchema[i].type > TSDB_DATA_TYPE_DOUBLE) {
-          return TSDB_CODE_INVALID_SQL;
-        }
-
-        if (pList != NULL) {
-          list->ids[list->num++].columnIndex = (int16_t)i;
-        }
-
-        validColumnName = true;
+      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+      if (getColumnIndexByName(&pExpr->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_INVALID_SQL;
       }
-    }
-
-    if (!validColumnName) {
-      return TSDB_CODE_INVALID_SQL;
-    }
-
+      
+      pList->ids[pList->num++].columnIndex = index.columnIndex;
   } else if (pExpr->nSQLOptr == TK_FLOAT && (isnan(pExpr->val.dKey) || isinf(pExpr->val.dKey))) {
     return TSDB_CODE_INVALID_SQL;
   } else if (pExpr->nSQLOptr >= TK_MIN && pExpr->nSQLOptr <= TK_LAST_ROW) {
@@ -2910,20 +2893,19 @@ static int32_t validateSQLExpr(tSQLExpr* pExpr, SSchema* pSchema, int32_t numOfC
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t validateArithmeticSQLExpr(tSQLExpr* pExpr, SSchema* pSchema, int32_t numOfCols,
-                                         SColumnIdListRes* pList) {
+static int32_t validateArithmeticSQLExpr(tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
   tSQLExpr* pLeft = pExpr->pLeft;
   if (pLeft->nSQLOptr >= TK_PLUS && pLeft->nSQLOptr <= TK_REM) {
-    int32_t ret = validateArithmeticSQLExpr(pLeft, pSchema, numOfCols, pList);
+    int32_t ret = validateArithmeticSQLExpr(pLeft, pQueryInfo, pList);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
   } else {
-    int32_t ret = validateSQLExpr(pLeft, pSchema, numOfCols, pList);
+    int32_t ret = validateSQLExpr(pLeft, pQueryInfo, pList);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -2931,12 +2913,12 @@ static int32_t validateArithmeticSQLExpr(tSQLExpr* pExpr, SSchema* pSchema, int3
 
   tSQLExpr* pRight = pExpr->pRight;
   if (pRight->nSQLOptr >= TK_PLUS && pRight->nSQLOptr <= TK_REM) {
-    int32_t ret = validateArithmeticSQLExpr(pRight, pSchema, numOfCols, pList);
+    int32_t ret = validateArithmeticSQLExpr(pRight, pQueryInfo, pList);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
   } else {
-    int32_t ret = validateSQLExpr(pRight, pSchema, numOfCols, pList);
+    int32_t ret = validateSQLExpr(pRight, pQueryInfo, pList);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }

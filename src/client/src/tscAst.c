@@ -115,6 +115,9 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
     int32_t i = 0;
     if (pToken->type == TK_ID) {
       do {
+        SSQLToken tableToken = {0};
+        extractTableNameFromToken(pToken, &tableToken);
+        
         size_t len = strlen(pSchema[i].name);
         if (strncmp(pToken->z, pSchema[i].name, pToken->n) == 0 && pToken->n == len) break;
       } while (++i < numOfCols);
