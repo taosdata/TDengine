@@ -3,6 +3,6 @@ PROJECT(TDengine)
 
 ADD_SUBDIRECTORY(sim)
 #ADD_SUBDIRECTORY(jenkins)
-#ADD_SUBDIRECTORY(test)
+ADD_SUBDIRECTORY(test)
 #ADD_SUBDIRECTORY(test/cdriver)
 #ADD_SUBDIRECTORY(test/custom/gwwz)
