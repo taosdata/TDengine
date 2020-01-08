@@ -239,6 +239,7 @@ typedef struct STableDataBlocks {
 
   int32_t  rowSize;       // row size for current table
   uint32_t nAllocSize;
+  uint32_t headerSize;    // header for metadata (submit metadata)
   uint32_t size;
   
   /*
