@@ -78,6 +78,8 @@ uint32_t MurmurHash3_32(const char *key, uint32_t len) {
 }
 
 uint32_t taosIntHash_32(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint32_t *)key; }
+uint32_t taosIntHash_16(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint16_t *)key; }
+uint32_t taosIntHash_8(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint8_t *)key; }
 
 uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
   uint64_t val = *(uint64_t *)key;
@@ -94,6 +96,8 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
     case TSDB_DATA_TYPE_BIGINT: fn = taosIntHash_64;break;
     case TSDB_DATA_TYPE_BINARY: fn = MurmurHash3_32;break;
     case TSDB_DATA_TYPE_INT: fn = taosIntHash_32; break;
+    case TSDB_DATA_TYPE_SMALLINT: fn = taosIntHash_16; break;
+    case TSDB_DATA_TYPE_TINYINT: fn = taosIntHash_8; break;
     default: fn = taosIntHash_32;break;
   }
   
