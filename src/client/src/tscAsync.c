@@ -507,8 +507,21 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
     } else {  // normal async query continues
-      code = tsParseSql(pSql, pObj->acctId, pObj->db, false);
-      if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+      if (pCmd->isParseFinish) {
+        tscTrace("%p resend data to vnode in metermeta callback since sql has been parsed completed", pSql);
+        
+        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+        code = tscGetMeterMeta(pSql, pMeterMetaInfo->name, 0);
+        assert(code == TSDB_CODE_SUCCESS);
+      
+        if (pMeterMetaInfo->pMeterMeta) {
+          code = tscSendMsgToServer(pSql);
+          if (code == TSDB_CODE_SUCCESS) return;
+        }
+      } else {
+        code = tsParseSql(pSql, pObj->acctId, pObj->db, false);
+        if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+      }
     }
 
   } else {  // stream computing

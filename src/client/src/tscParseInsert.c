@@ -975,7 +975,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
     str = pSql->asyncTblPos;
   }
   
-  tscTrace("%p create data block list for submit data, %p", pSql, pSql->cmd.pDataBlocks);
+  tscTrace("%p create data block list for submit data:%p, asyncTblPos:%p, pTableHashList:%p", pSql, pSql->cmd.pDataBlocks, pSql->asyncTblPos, pSql->pTableHashList);
 
   while (1) {
     int32_t index = 0;
@@ -1223,6 +1223,7 @@ _clean:
   taosCleanUpIntHash(pSql->pTableHashList);
   pSql->pTableHashList = NULL;
   pSql->asyncTblPos    = NULL;
+  pCmd->isParseFinish  = 1;
   return code;
 }
 
