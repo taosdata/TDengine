@@ -48,6 +48,7 @@ static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 extern int  tsTscEnableRecordSql;
 extern int  tsNumOfLogLines;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
+void deltaToUtcInitOnce();
 
 void tscCheckDiskUsage(void *para, void *unused) {
   taosGetDisk();
@@ -60,6 +61,7 @@ void taos_init_imp() {
   SRpcInit    rpcInit;
 
   srand(taosGetTimestampSec());
+  deltaToUtcInitOnce();
 
   if (tscEmbedded == 0) {
     /*
