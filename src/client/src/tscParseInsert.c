@@ -908,6 +908,7 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
 
     createTable = true;
     code = tscGetMeterMetaEx(pSql, pMeterMetaInfo->name, true);
+    if (TSDB_CODE_ACTION_IN_PROGRESS == code) return code;
   } else {
     if (cstart != NULL) {
       sql = cstart;
@@ -1015,7 +1016,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
           tscTrace("async insert and waiting to get meter meta, then continue parse sql from offset: %" PRId64, pos);
           return code;
         }
-        tscTrace("async insert parse error, code:%d, %s", code, tsError[code]);
+        tscError("async insert parse error, code:%d, %s", code, tsError[code]);
         pSql->asyncTblPos = NULL;
         goto _error_clean;       // TODO: should _clean or _error_clean to async flow ????
       } else {
