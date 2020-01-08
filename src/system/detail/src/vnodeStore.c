@@ -45,24 +45,24 @@ static int vnodeInitStoreVnode(int vnode) {
   pVnode->pCachePool = vnodeOpenCachePool(vnode);
   if (pVnode->pCachePool == NULL) {
     dError("vid:%d, cache pool init failed.", pVnode->vnode);
-    return -1;
+    return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
-  if (vnodeInitFile(vnode) < 0) {
+  if (vnodeInitFile(vnode) != TSDB_CODE_SUCCESS) {
     dError("vid:%d, files init failed.", pVnode->vnode);
-    return -1;
+    return TSDB_CODE_VG_INIT_FAILED;
   }
 
-  if (vnodeInitCommit(vnode) < 0) {
+  if (vnodeInitCommit(vnode) != TSDB_CODE_SUCCESS) {
     dError("vid:%d, commit init failed.", pVnode->vnode);
-    return -1;
+    return TSDB_CODE_VG_INIT_FAILED;
   }
 
   pthread_mutex_init(&(pVnode->vmutex), NULL);
   dPrint("vid:%d, storage initialized, version:%ld fileId:%d numOfFiles:%d", vnode, pVnode->version, pVnode->fileId,
          pVnode->numOfFiles);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int vnodeOpenVnode(int vnode) {
@@ -192,16 +192,19 @@ int vnodeCreateVnode(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc) {
   mkdir(fileName, 0755);
 
   vnodeList[vnode].cfg = *pCfg;
-  if (vnodeCreateMeterObjFile(vnode) != 0) {
+  int code = vnodeCreateMeterObjFile(vnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = vnodeSaveVnodeCfg(vnode, pCfg, pDesc);
+  if (code != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_VG_INIT_FAILED;
   }
 
-  if (vnodeSaveVnodeCfg(vnode, pCfg, pDesc) != 0) {
-    return TSDB_CODE_VG_INIT_FAILED;
-  }
-
-  if (vnodeInitStoreVnode(vnode) < 0) {
-    return TSDB_CODE_VG_COMMITLOG_INIT_FAILED;
+  code = vnodeInitStoreVnode(vnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   return vnodeOpenVnode(vnode);
@@ -294,7 +297,8 @@ int vnodeInitStore() {
   if (vnodeInitInfo() < 0) return -1;
 
   for (vnode = 0; vnode < TSDB_MAX_VNODES; ++vnode) {
-    if (vnodeInitStoreVnode(vnode) < 0) {
+    int code = vnodeInitStoreVnode(vnode);
+    if (code != TSDB_CODE_SUCCESS) {
       // one vnode is failed to recover from commit log, continue for remain
       return -1;
     }

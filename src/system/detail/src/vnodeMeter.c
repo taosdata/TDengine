@@ -79,8 +79,14 @@ int vnodeCreateMeterObjFile(int vnode) {
   sprintf(fileName, "%s/vnode%d/meterObj.v%d", tsDirectory, vnode, vnode);
   fp = fopen(fileName, "w+");
   if (fp == NULL) {
-    dError("failed to create vnode:%d file:%s", vnode, fileName);
-    return -1;
+    dError("failed to create vnode:%d file:%s, reason:%s", vnode, fileName, strerror(errno));
+    if (errno == EACCES) {
+      return TSDB_CODE_NO_DISK_PERMISSIONS;
+    } else if (errno == ENOSPC) {
+      return TSDB_CODE_SERVER_NO_SPACE;
+    } else {
+      return TSDB_CODE_VG_INIT_FAILED;
+    }
   } else {
     vnodeCreateFileHeader(fp);
     vnodeUpdateVnodeFileHeader(fp, vnodeList + vnode);
@@ -95,7 +101,7 @@ int vnodeCreateMeterObjFile(int vnode) {
     fclose(fp);
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 FILE *vnodeOpenMeterObjFile(int vnode) {
@@ -273,7 +279,7 @@ int vnodeSaveVnodeCfg(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc) {
   /* vnodeUpdateFileCheckSum(fp); */
   fclose(fp);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int vnodeSaveVnodeInfo(int vnode) {
