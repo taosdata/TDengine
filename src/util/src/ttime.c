@@ -24,6 +24,61 @@
 #include "ttime.h"
 #include "tutil.h"
 
+
+// ==== mktime() kernel code =================//
+static int64_t m_deltaUtc = 0;
+void deltaToUtcInitOnce() {  
+  struct tm tm = {0};
+  
+  (void)strptime("1970-01-01 00:00:00", (const char *)("%Y-%m-%d %H:%M:%S"), &tm);
+  m_deltaUtc = (int64_t)mktime(&tm);
+  //printf("====delta:%lld\n\n", seconds);	
+  return;
+}
+
+int64_t user_mktime(struct tm * tm)
+{
+#define TAOS_MINUTE   60
+#define TAOS_HOUR     (60*TAOS_MINUTE)
+#define TAOS_DAY      (24*TAOS_HOUR)
+#define TAOS_YEAR     (365*TAOS_DAY)
+  
+static int month[12] = {
+  0,
+  TAOS_DAY*(31),
+  TAOS_DAY*(31+29),
+  TAOS_DAY*(31+29+31),
+  TAOS_DAY*(31+29+31+30),
+  TAOS_DAY*(31+29+31+30+31),
+  TAOS_DAY*(31+29+31+30+31+30),
+  TAOS_DAY*(31+29+31+30+31+30+31),
+  TAOS_DAY*(31+29+31+30+31+30+31+31),
+  TAOS_DAY*(31+29+31+30+31+30+31+31+30),
+  TAOS_DAY*(31+29+31+30+31+30+31+31+30+31),
+  TAOS_DAY*(31+29+31+30+31+30+31+31+30+31+30)
+};
+
+  int64_t res;
+  int     year;
+  
+  year= tm->tm_year - 70; 
+  res= TAOS_YEAR*year + TAOS_DAY*((year+1)/4);
+  res+= month[tm->tm_mon];
+  
+  if(tm->tm_mon > 1 && ((year+2)%4)) {  
+    res-= TAOS_DAY;
+  }
+  
+  res+= TAOS_DAY*(tm->tm_mday-1);  
+  res+= TAOS_HOUR*tm->tm_hour;  
+  res+= TAOS_MINUTE*tm->tm_min;  
+  res+= tm->tm_sec;
+  
+  return res + m_deltaUtc;
+
+}
+
+
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
 static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec);
 static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
@@ -238,6 +293,8 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
 
   /* mktime will be affected by TZ, set by using taos_options */
   int64_t seconds = mktime(&tm);
+  //int64_t seconds = (int64_t)user_mktime(&tm);
+  
   int64_t fraction = 0;
 
   if (*str == '.') {
