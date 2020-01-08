@@ -521,18 +521,12 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       pCmd->command = pQueryInfo1->command;
   
       // if there is only one element, the limit of clause is the limit of global result.
-      if (pCmd->numOfClause == 1) {
-        pCmd->globalLimit = pQueryInfo1->clauseLimit;
-      } else { // check the output fields information, column name and column type
-        pCmd->globalLimit = -1;
+      for(int32_t i = 1; i < pCmd->numOfClause; ++i) {
+        SQueryInfo* pQueryInfo2 = tscGetQueryInfoDetail(pCmd, i);
         
-        for(int32_t i = 1; i < pCmd->numOfClause; ++i) {
-          SQueryInfo* pQueryInfo2 = tscGetQueryInfoDetail(pCmd, i);
-          
-          int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
-          if (ret != 0) {
-            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-          }
+        int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
+        if (ret != 0) {
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
         }
       }
 

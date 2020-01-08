@@ -252,7 +252,6 @@ typedef struct {
   uint32_t     allocSize;
   char *       payload;
   int          payloadLen;
-  int64_t      globalLimit;
   SQueryInfo **pQueryInfo;
   int32_t      numOfClause;
 

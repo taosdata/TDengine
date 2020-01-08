@@ -2057,12 +2057,15 @@ void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp) {
     
     // in case of async query, set the callback function
     void* fp1 = pSql->fp;
+    pSql->fp = fp;
+    
     if (fp1 != NULL) {
         assert(fp != NULL);
-       pSql->fp = fp;
     }
     
     int32_t ret = tscProcessSql(pSql);  // todo check for failure
+    
+    // in case of async query, return now
     if (fp != NULL) {
       return;
     }

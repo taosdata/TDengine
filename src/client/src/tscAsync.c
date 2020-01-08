@@ -133,7 +133,7 @@ static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOf
   
   // local reducer has handle this situation during super table non-projection query.
   if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC) {
-    pRes->numOfTotal += pRes->numOfRows;
+    pRes->numOfTotalInCurrentClause += pRes->numOfRows;
   }
 
   (*pSql->fetchFp)(param, tres, numOfRows);

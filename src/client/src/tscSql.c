@@ -543,12 +543,12 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
       pRes->numOfTotalInCurrentClause++;
 
       break;
-    } else {                                              // continue retrieve data from vnode
-      if (!tscHashRemainDataInSubqueryResultSet(pSql)) {  // free all sub sqlobj
+    } else {// continue retrieve data from vnode
+      if (!tscHashRemainDataInSubqueryResultSet(pSql)) {
         tscTrace("%p at least one subquery exhausted, free all other %d subqueries", pSql, pSql->numOfSubs - 1);
-
         SSubqueryState *pState = NULL;
-
+  
+        // free all sub sqlobj
         for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
           SSqlObj *pChildObj = pSql->pSubs[i];
           if (pChildObj == NULL) {
@@ -716,7 +716,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 }
 
 int taos_select_db(TAOS *taos, const char *db) {
-  char sql[64];
+  char sql[256] = {0};
 
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
@@ -724,8 +724,7 @@ int taos_select_db(TAOS *taos, const char *db) {
     return TSDB_CODE_DISCONNECTED;
   }
 
-  sprintf(sql, "use %s", db);
-
+  snprintf(sql, tListLen(sql), "use %s", db);
   return taos_query(taos, sql);
 }
 
