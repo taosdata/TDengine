@@ -192,19 +192,20 @@ int vnodeCreateVnode(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc) {
       return TSDB_CODE_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {
       return TSDB_CODE_SERVER_NO_SPACE;
+    } else if (errno == EEXIST) {
     } else {
       return TSDB_CODE_VG_INIT_FAILED;
     }
   }
 
   sprintf(fileName, "%s/vnode%d/db", tsDirectory, vnode);
-  mkdir(fileName, 0755);
   if (mkdir(fileName, 0755) != 0) {
     dError("failed to create vnode:%d directory:%s, errno:%d, reason:%s", vnode, fileName, errno, strerror(errno));
     if (errno == EACCES) {
       return TSDB_CODE_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {
       return TSDB_CODE_SERVER_NO_SPACE;
+    } else if (errno == EEXIST) {
     } else {
       return TSDB_CODE_VG_INIT_FAILED;
     }
