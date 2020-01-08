@@ -208,7 +208,7 @@ Since the native language of TDengine is C, the necessary TDengine library shoul
 * taos.dll (Windows)
     After TDengine client is installed, the library `taos.dll` will be automatically copied to the `C:/Windows/System32`, which is the system's default search path. 
     
-> Note: Please make sure that TDengine Windows client has been installed if developing on Windows.
+> Note: Please make sure that [TDengine Windows client][14] has been installed if developing on Windows. Now although TDengine client would be defaultly installed together with TDengine server, it can also be installed [alone][15].
 
 Since TDengine is time-series database, there are still some differences compared with traditional databases in using TDengine JDBC driver: 
 * TDengine doesn't allow to delete/modify a single record, and thus JDBC driver also has no such method. 
@@ -882,4 +882,5 @@ An example of using the NodeJS connector to achieve the same things but without 
 [11]:  https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
 [12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
 [13]: https://www.taosdata.com/cn/documentation/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
-
+[14]: https://www.taosdata.com/cn/documentation/connector/#Windows%E5%AE%A2%E6%88%B7%E7%AB%AF%E5%8F%8A%E7%A8%8B%E5%BA%8F%E6%8E%A5%E5%8F%A3
+[15]: https://www.taosdata.com/cn/getting-started/#%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B
