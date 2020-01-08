@@ -33,10 +33,10 @@ typedef struct SSubscriptionProgress {
 } SSubscriptionProgress;
 
 typedef struct SSub {
+  void *                  signature;
   char                    topic[32];
   int64_t                 lastSyncTime;
   int64_t                 lastConsumeTime;
-  void *                  signature;
   TAOS *                  taos;
   void *                  pTimer;
   SSqlObj *               pSql;
