@@ -1007,10 +1007,12 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
     }
 
     void *fp = pSql->fp;
+    ptrdiff_t pos = pSql->asyncTblPos - pSql->sqlstr;
+
     if ((code = tscParseSqlForCreateTableOnDemand(&str, pSql)) != TSDB_CODE_SUCCESS) {
       if (fp != NULL) {
         if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
-          tscTrace("async insert and waiting to get meter meta, then continue parse sql: %s, pTableHashList:%p", pSql->asyncTblPos, pSql->pTableHashList);
+          tscTrace("async insert and waiting to get meter meta, then continue parse sql from offset: %" PRId64, pos);
           return code;
         }
         tscTrace("async insert parse error, code:%d, %s", code, tsError[code]);
