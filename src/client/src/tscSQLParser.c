@@ -42,12 +42,6 @@ typedef struct SColumnList {
   SColumnIndex ids[TSDB_MAX_COLUMNS];
 } SColumnList;
 
-typedef struct SColumnIdListRes {
-  SSchema*    pSchema;
-  int32_t     numOfCols;
-  SColumnList list;
-} SColumnIdListRes;
-
 static SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t colIdx, int32_t tableIndex);
 
 static int32_t setShowInfo(SSqlObj* pSql, SSqlInfo* pInfo);
@@ -518,6 +512,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         if ((code = doCheckForQuery(pSql, pQuerySql, i)) != TSDB_CODE_SUCCESS) {
           return code;
         }
+  
+        tscPrintSelectClause(pCmd, i);
       }
       
       // set the command/global limit parameters from the first subclause to the sqlcmd object
@@ -1078,9 +1074,10 @@ static void extractColumnNameFromString(tSQLExprItem* pItem) {
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable) {
   assert(pSelection != NULL && pCmd != NULL);
 
-  const char* msg1 = "invalid column name/illegal column type in arithmetic expression";
+  const char* msg1 = "invalid column name, or illegal column type";
   const char* msg2 = "functions can not be mixed up";
   const char* msg3 = "not support query expression";
+  const char* msg4 = "columns from different table mixed up in arithmetic expression";
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
 
@@ -1112,16 +1109,16 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
 
     } else if (pItem->pNode->nSQLOptr >= TK_PLUS && pItem->pNode->nSQLOptr <= TK_REM) {
       // arithmetic function in select
-      SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-      SSchema*        pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
-
-      SColumnIdListRes columnList = {.pSchema = pSchema, .numOfCols = pMeterMetaInfo->pMeterMeta->numOfColumns,
-                                     .list = {0}};
-
-      int32_t ret =
-          validateArithmeticSQLExpr(pItem->pNode, pQueryInfo, &columnList.list);
-      if (ret != TSDB_CODE_SUCCESS) {
+      SColumnList columnList = {0};
+      if (validateArithmeticSQLExpr(pItem->pNode, pQueryInfo, &columnList) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg1);
+      }
+      
+      int32_t tableIndex = columnList.ids[0].tableIndex;
+      for(int32_t f = 1; f < columnList.num; ++f) {
+        if (columnList.ids[f].tableIndex != tableIndex) {
+          return invalidSqlErrMsg(pQueryInfo->msg, msg4);
+        }
       }
 
       char  arithmeticExprStr[1024] = {0};
@@ -1132,10 +1129,10 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
       }
 
       // expr string is set as the parameter of function
-      SColumnIndex index = {0};
+      SColumnIndex index = {.tableIndex = tableIndex};
       SSqlExpr*    pExpr = tscSqlExprInsert(pQueryInfo, outputIndex, TSDB_FUNC_ARITHM, &index, TSDB_DATA_TYPE_DOUBLE,
                                          sizeof(double), sizeof(double));
-      addExprParams(pExpr, arithmeticExprStr, TSDB_DATA_TYPE_BINARY, strlen(arithmeticExprStr), 0);
+      addExprParams(pExpr, arithmeticExprStr, TSDB_DATA_TYPE_BINARY, strlen(arithmeticExprStr), index.tableIndex);
 
       /* todo alias name should use the original sql string */
       if (pItem->aliasName != NULL) {
@@ -1144,7 +1141,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
         strncpy(pExpr->aliasName, arithmeticExprStr, TSDB_COL_NAME_LEN);
       }
 
-      insertResultField(pQueryInfo, i, &columnList.list, sizeof(double), TSDB_DATA_TYPE_DOUBLE, pExpr->aliasName);
+      insertResultField(pQueryInfo, i, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, pExpr->aliasName);
     } else {
       /*
        * not support such expression
@@ -2883,7 +2880,7 @@ static int32_t validateSQLExpr(tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnL
         return TSDB_CODE_INVALID_SQL;
       }
       
-      pList->ids[pList->num++].columnIndex = index.columnIndex;
+      pList->ids[pList->num++] = index;
   } else if (pExpr->nSQLOptr == TK_FLOAT && (isnan(pExpr->val.dKey) || isinf(pExpr->val.dKey))) {
     return TSDB_CODE_INVALID_SQL;
   } else if (pExpr->nSQLOptr >= TK_MIN && pExpr->nSQLOptr <= TK_LAST_ROW) {
@@ -5142,7 +5139,8 @@ void tscPrintSelectClause(SSqlCmd* pCmd, int32_t subClauseIndex) {
   for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
 
-    int32_t size = sprintf(str + offset, "%s(%d)", aAggs[pExpr->functionId].aName, pExpr->colInfo.colId);
+    int32_t size = sprintf(str + offset, "%s(uid:%" PRId64 ", %d)", aAggs[pExpr->functionId].aName,
+        pExpr->uid, pExpr->colInfo.colId);
     offset += size;
 
     if (i < pQueryInfo->exprsInfo.numOfExprs - 1) {

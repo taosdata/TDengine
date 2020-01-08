@@ -989,7 +989,6 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
   } else {
     pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-//    assert(pQueryInfo->numOfTables == 1);
   }
 
   if ((code = tscAllocPayload(pCmd, TSDB_PAYLOAD_SIZE)) != TSDB_CODE_SUCCESS) {
@@ -1053,6 +1052,8 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     }
 
     void *fp = pSql->fp;
+    ptrdiff_t pos = pSql->asyncTblPos - pSql->sqlstr;
+    
     if ((code = tscCheckIfCreateTable(&str, pSql)) != TSDB_CODE_SUCCESS) {
       /*
        * For async insert, after get the metermeta from server, the sql string will not be
@@ -1062,7 +1063,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
        */
       if (fp != NULL) {
         if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
-          tscTrace("async insert and waiting to get meter meta, then continue parse sql: %s", pSql->asyncTblPos);
+          tscTrace("async insert and waiting to get meter meta, then continue parse sql from offset: %" PRId64, pos);
           return code;
         }
         
@@ -1277,11 +1278,8 @@ int tsParseInsertSql(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = NULL;
   tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
 
-  if (sToken.type == TK_INSERT) {
-    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT);
-  } else {
-    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_IMPORT);
-  }
+  uint16_t type = (sToken.type == TK_INSERT)? TSDB_QUERY_TYPE_INSERT:TSDB_QUERY_TYPE_IMPORT;
+  TSDB_QUERY_SET_TYPE(pQueryInfo->type, type);
 
   sToken = tStrGetToken(pSql->sqlstr, &index, false, 0, NULL);
   if (sToken.type != TK_INTO) {

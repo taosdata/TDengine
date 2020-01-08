@@ -457,6 +457,8 @@ extern int        tsInsertHeadSize;
 extern int        tscNumOfThreads;
 extern SIpStrList tscMgmtIpList;
 
+typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int numOfRows);
+
 #ifdef __cplusplus
 }
 #endif

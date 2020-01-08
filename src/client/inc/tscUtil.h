@@ -238,6 +238,11 @@ void sortRemoveDuplicates(STableDataBlocks* dataBuf);
 
 void tscPrintSelectClause(SSqlCmd* pCmd, int32_t subClauseIndex);
 
+bool hasMoreVnodesToTry(SSqlObj *pSql);
+void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
+void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
+
+
 #ifdef __cplusplus
 }
 #endif

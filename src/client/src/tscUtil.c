@@ -1888,7 +1888,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 #endif
 
   char* name = pMeterMetaInfo->name;
-
   SMeterMetaInfo* pFinalInfo = NULL;
 
   if (pPrevSql == NULL) {
@@ -1907,13 +1906,16 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
                                      pMeterMetaInfo->tagColumnIndex);
   }
 
-  assert(pFinalInfo->pMeterMeta != NULL);
+  assert(pFinalInfo->pMeterMeta != NULL && pNewQueryInfo->numOfTables == 1);
   if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
     assert(pFinalInfo->pMetricMeta != NULL);
   }
 
-  tscTrace("%p new subquery %p, tableIndex:%d, vnodeIdx:%d, type:%d", pSql, pNew, tableIndex,
-           pMeterMetaInfo->vnodeIndex, pNewQueryInfo->type);
+  tscTrace("%p new subquery %p, tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d,"
+           "fieldInfo:%d, name:%s", pSql, pNew, tableIndex,
+           pMeterMetaInfo->vnodeIndex, pNewQueryInfo->type, pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
+           pNewQueryInfo->fieldsInfo.numOfOutputCols, pFinalInfo->name);
+  
   return pNew;
 }
 
@@ -1990,3 +1992,102 @@ bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
 }
 
 char* tscGetErrorMsgPayload(SSqlCmd* pCmd) { return pCmd->payload; }
+
+/**
+ *  If current vnode query does not return results anymore (pRes->numOfRows == 0), try the next vnode if exists,
+ *  in case of multi-vnode super table projection query and the result does not reach the limitation.
+ */
+bool hasMoreVnodesToTry(SSqlObj *pSql) {
+  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlRes *pRes = &pSql->res;
+  
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  
+  return pRes->numOfRows == 0 && tscProjectionQueryOnSTable(pQueryInfo, 0) && !tscHasReachLimitation(pQueryInfo, pRes);
+}
+
+void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp) {
+  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlRes *pRes = &pSql->res;
+  
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  
+  /*
+   * no result returned from the current virtual node anymore, try the next vnode if exists
+   * if case of: multi-vnode super table projection query
+   */
+  assert(pRes->numOfRows == 0 && tscProjectionQueryOnSTable(pQueryInfo, 0) && !tscHasReachLimitation(pQueryInfo, pRes));
+  
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  int32_t         totalVnode = pMeterMetaInfo->pMetricMeta->numOfVnodes;
+  
+  while (++pMeterMetaInfo->vnodeIndex < totalVnode) {
+    tscTrace("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,
+             pMeterMetaInfo->vnodeIndex - 1, pMeterMetaInfo->vnodeIndex, totalVnode, pRes->numOfTotalInCurrentClause);
+    
+    /*
+     * update the limit and offset value for the query on the next vnode,
+     * according to current retrieval results
+     *
+     * NOTE:
+     * if the pRes->offset is larger than 0, the start returned position has not reached yet.
+     * Therefore, the pRes->numOfRows, as well as pRes->numOfTotalInCurrentClause, must be 0.
+     * The pRes->offset value will be updated by virtual node, during query execution.
+     */
+    if (pQueryInfo->clauseLimit >= 0) {
+      pQueryInfo->limit.limit = pQueryInfo->clauseLimit - pRes->numOfTotalInCurrentClause;
+    }
+    
+    pQueryInfo->limit.offset = pRes->offset;
+    
+    assert((pRes->offset >= 0 && pRes->numOfRows == 0) || (pRes->offset == 0 && pRes->numOfRows >= 0));
+    tscTrace("%p new query to next vnode, vnode index:%d, limit:%" PRId64 ", offset:%" PRId64 ", glimit:%" PRId64, pSql,
+             pMeterMetaInfo->vnodeIndex, pQueryInfo->limit.limit, pQueryInfo->limit.offset, pQueryInfo->clauseLimit);
+    
+    /*
+     * For project query with super table join, the numOfSub is equalled to the number of all subqueries.
+     * Therefore, we need to reset the value of numOfSubs to be 0.
+     *
+     * For super table join with projection query, if anyone of the subquery is exhausted, the query completed.
+     */
+    pSql->numOfSubs = 0;
+    pCmd->command = TSDB_SQL_SELECT;
+    
+    tscResetForNextRetrieve(pRes);
+    
+    // in case of async query, set the callback function
+    void* fp1 = pSql->fp;
+    if (fp1 != NULL) {
+        assert(fp != NULL);
+       pSql->fp = fp;
+    }
+    
+    int32_t ret = tscProcessSql(pSql);  // todo check for failure
+    if (fp != NULL) {
+      return;
+    }
+    
+    if (ret != TSDB_CODE_SUCCESS) {
+      pSql->res.code = ret;
+      return;
+    }
+    
+    // retrieve data
+    assert(pCmd->command == TSDB_SQL_SELECT);
+    pCmd->command = TSDB_SQL_FETCH;
+    
+    if ((ret = tscProcessSql(pSql)) != TSDB_CODE_SUCCESS) {
+      pSql->res.code = ret;
+      return;
+    }
+    
+    // if the result from current virtual node are empty, try next if exists. otherwise, return the results.
+    if (pRes->numOfRows > 0) {
+      break;
+    }
+  }
+  
+  if (pRes->numOfRows == 0) {
+    tscTrace("%p all vnodes exhausted, prj query completed. total res:%d", pSql, totalVnode, pRes->numOfTotal);
+  }
+}

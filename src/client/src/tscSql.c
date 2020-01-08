@@ -201,7 +201,7 @@ int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
   pRes->numOfRows = 1;
   pRes->numOfTotal = 0;
   pRes->numOfTotalInCurrentClause = 0;
-  
+
   pSql->asyncTblPos = NULL;
   if (NULL != pSql->pTableHashList) {
     taosCleanUpHashTable(pSql->pTableHashList);
@@ -446,6 +446,10 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
     bool allSubqueryExhausted = true;
 
     for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+      if (pSql->pSubs[i] == NULL) {
+        continue;
+      }
+
       SSqlRes *pRes1 = &pSql->pSubs[i]->res;
       SSqlCmd *pCmd1 = &pSql->pSubs[i]->cmd;
 
@@ -456,7 +460,7 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
 
       /*
        * if the global limitation is not reached, and current result has not exhausted, or next more vnodes are
-       * available, go on
+       * available, goes on
        */
       if (pMetaInfo->vnodeIndex < pMetaInfo->pMetricMeta->numOfVnodes && pRes1->row < pRes1->numOfRows &&
           (!tscHasReachLimitation(pQueryInfo1, pRes1))) {
@@ -483,37 +487,25 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   return hasData;
 }
 
-static void **tscJoinResultsetFromBuf(SSqlObj *pSql) {
+static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
   while (1) {
-    if (!tscHashRemainDataInSubqueryResultSet(pSql)) {  // free all sub sqlobj
-      tscTrace("%p at least one subquery exhausted, free all other %d subqueries", pSql, pSql->numOfSubs - 1);
-
-      SSubqueryState *pState = NULL;
-
-      for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
-        SSqlObj *pChildObj = pSql->pSubs[i];
-        
-        SJoinSubquerySupporter *pSupporter = (SJoinSubquerySupporter *)pChildObj->param;
-        pState = pSupporter->pState;
-
-        tscDestroyJoinSupporter(pChildObj->param);
-        taos_free_result(pChildObj);
-      }
-
-      free(pState);
-      return NULL;
-    }
-
-    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-
+    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
     if (pRes->tsrow == NULL) {
       pRes->tsrow = malloc(POINTER_BYTES * pQueryInfo->exprsInfo.numOfExprs);
     }
 
     bool success = false;
-    if (pSql->numOfSubs >= 2) {  // do merge result
+
+    int32_t numOfTableHasRes = 0;
+    for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+      if (pSql->pSubs[i] != 0) {
+        numOfTableHasRes++;
+      }
+    }
+
+    if (numOfTableHasRes >= 2) {  // do merge result
       SSqlRes *pRes1 = &pSql->pSubs[0]->res;
       SSqlRes *pRes2 = &pSql->pSubs[1]->res;
 
@@ -528,8 +520,13 @@ static void **tscJoinResultsetFromBuf(SSqlObj *pSql) {
         pRes2->row++;
       }
     } else {  // only one subquery
-      SSqlRes *pRes1 = &pSql->pSubs[0]->res;
-      doSetResultRowData(pSql->pSubs[0]);
+      SSqlObj *pSub = pSql->pSubs[0];
+      if (pSub == NULL) {
+        pSub = pSql->pSubs[1];
+      }
+
+      SSqlRes *pRes1 = &pSub->res;
+      doSetResultRowData(pSub);
 
       success = (pRes1->row++ < pRes1->numOfRows);
     }
@@ -543,8 +540,32 @@ static void **tscJoinResultsetFromBuf(SSqlObj *pSql) {
         pRes->tsrow[i] = pRes1->tsrow[columnIndex];
       }
 
+      pRes->numOfTotalInCurrentClause++;
+
       break;
-    } else {  // continue retrieve data from vnode
+    } else {                                              // continue retrieve data from vnode
+      if (!tscHashRemainDataInSubqueryResultSet(pSql)) {  // free all sub sqlobj
+        tscTrace("%p at least one subquery exhausted, free all other %d subqueries", pSql, pSql->numOfSubs - 1);
+
+        SSubqueryState *pState = NULL;
+
+        for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+          SSqlObj *pChildObj = pSql->pSubs[i];
+          if (pChildObj == NULL) {
+            continue;
+          }
+
+          SJoinSubquerySupporter *pSupporter = (SJoinSubquerySupporter *)pChildObj->param;
+          pState = pSupporter->pState;
+
+          tscDestroyJoinSupporter(pChildObj->param);
+          taos_free_result(pChildObj);
+        }
+
+        free(pState);
+        return NULL;
+      }
+
       tscFetchDatablockFromSubquery(pSql);
       if (pRes->code != TSDB_CODE_SUCCESS) {
         return NULL;
@@ -553,94 +574,6 @@ static void **tscJoinResultsetFromBuf(SSqlObj *pSql) {
   }
 
   return pRes->tsrow;
-}
-
-/**
- *  If current vnode query does not return results anymore (pRes->numOfRows == 0), try the next vnode if exists,
- *  in case of multi-vnode super table projection query and the result does not reach the limitation.
- */
-static bool hasMoreVnodesToTry(SSqlObj *pSql) {
-  SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
-  
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  
-  return pRes->numOfRows == 0 && tscProjectionQueryOnSTable(pQueryInfo, 0) && !tscHasReachLimitation(pQueryInfo, pRes);
-}
-
-static void tscTryQueryNextVnode(SSqlObj *pSql) {
-  SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
-
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-
-  /*
-   * no result returned from the current virtual node anymore, try the next vnode if exists
-   * if case of: multi-vnode super table projection query
-   */
-  assert(pRes->numOfRows == 0 && tscProjectionQueryOnSTable(pQueryInfo, 0) && !tscHasReachLimitation(pQueryInfo, pRes));
-  
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-  int32_t         totalVnode = pMeterMetaInfo->pMetricMeta->numOfVnodes;
-
-  while (++pMeterMetaInfo->vnodeIndex < totalVnode) {
-    tscTrace("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,
-             pMeterMetaInfo->vnodeIndex - 1, pMeterMetaInfo->vnodeIndex, totalVnode, pRes->numOfTotalInCurrentClause);
-
-    /*
-     * update the limit and offset value for the query on the next vnode,
-     * according to current retrieval results
-     *
-     * NOTE:
-     * if the pRes->offset is larger than 0, the start returned position has not reached yet.
-     * Therefore, the pRes->numOfRows, as well as pRes->numOfTotalInCurrentClause, must be 0.
-     * The pRes->offset value will be updated by virtual node, during query execution.
-     */
-    if (pQueryInfo->clauseLimit >= 0) {
-      pQueryInfo->limit.limit = pQueryInfo->clauseLimit - pRes->numOfTotalInCurrentClause;
-    }
-
-    pQueryInfo->limit.offset = pRes->offset;
-
-    assert((pRes->offset >= 0 && pRes->numOfRows == 0) || (pRes->offset == 0 && pRes->numOfRows >= 0));
-    tscTrace("%p new query to next vnode, vnode index:%d, limit:%" PRId64 ", offset:%" PRId64 ", glimit:%" PRId64, pSql,
-             pMeterMetaInfo->vnodeIndex, pQueryInfo->limit.limit, pQueryInfo->limit.offset, pQueryInfo->clauseLimit);
-
-    /*
-     * For project query with super table join, the numOfSub is equalled to the number of all subqueries.
-     * Therefore, we need to reset the value of numOfSubs to be 0.
-     *
-     * For super table join with projection query, if anyone of the subquery is exhausted, the query completed.
-     */
-    pSql->numOfSubs = 0;
-
-    pCmd->command = TSDB_SQL_SELECT;
-    assert(pSql->fp == NULL);
-
-    int32_t ret = tscProcessSql(pSql);  // todo check for failure
-    if (ret != TSDB_CODE_SUCCESS) {
-      pSql->res.code = ret;
-      return;
-    }
-
-    // retrieve data
-    assert(pCmd->command == TSDB_SQL_SELECT);
-    pCmd->command = TSDB_SQL_FETCH;
-
-    if ((ret = tscProcessSql(pSql)) != TSDB_CODE_SUCCESS) {
-      pSql->res.code = ret;
-      return;
-    }
-
-    // if the result from current virtual node are empty, try next if exists. otherwise, return the results.
-    if (pRes->numOfRows > 0) {
-      break;
-    }
-  }
-
-  if (pRes->numOfRows == 0) {
-    tscTrace("%p all vnodes exhausted, prj query completed. total res:%d", pSql, totalVnode, pRes->numOfTotal);
-  }
 }
 
 TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
@@ -657,7 +590,7 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
 
     if (pRes->code == TSDB_CODE_SUCCESS) {
       tscTrace("%p data from all subqueries have been retrieved to client", pSql);
-      return tscJoinResultsetFromBuf(pSql);
+      return tscBuildResFromSubqueries(pSql);
     } else {
       tscTrace("%p retrieve data from subquery failed, code:%d", pSql, pRes->code);
       return NULL;
@@ -679,7 +612,7 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
     tscProcessSql(pSql);  // retrieve data from virtual node
 
     if (hasMoreVnodesToTry(pSql)) {
-      tscTryQueryNextVnode(pSql);
+      tscTryQueryNextVnode(pSql, NULL);
     }
 
     /*
@@ -702,7 +635,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
-  
+
   if (pSql == NULL || pSql->signature != pSql) {
     globalCode = TSDB_CODE_DISCONNECTED;
     return NULL;
@@ -713,23 +646,23 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
    * instead of two-stage merge
    */
   TAOS_ROW rows = taos_fetch_row_impl(res);
-  
+
   // current subclause is completed, try the next subclause
   while (rows == NULL && pCmd->clauseIndex < pCmd->numOfClause - 1) {
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  
+    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+
     pSql->cmd.command = pQueryInfo->command;
     pCmd->clauseIndex++;
 
     assert(pSql->fp == NULL);
-    
+
     pRes->numOfTotal += pRes->numOfTotalInCurrentClause;
     pRes->numOfTotalInCurrentClause = 0;
     pRes->rspType = 0;
-    
+
     pSql->numOfSubs = 0;
     tfree(pSql->pSubs);
-    
+
     tscTrace("%p try data in the next subclause:%d, total subclause:%d", pSql, pCmd->clauseIndex, pCmd->numOfClause);
     tscProcessSql(pSql);
 
@@ -744,7 +677,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   SSqlObj *pSql = (SSqlObj *)res;
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
-  
+
   int nRows = 0;
 
   if (pSql == NULL || pSql->signature != pSql) {
@@ -759,26 +692,26 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 
   // current subclause is completed, try the next subclause
   while (rows == NULL && pCmd->clauseIndex < pCmd->numOfClause - 1) {
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-    
+    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+
     pSql->cmd.command = pQueryInfo->command;
     pCmd->clauseIndex++;
-  
+
     pRes->numOfTotal += pRes->numOfTotalInCurrentClause;
     pRes->numOfTotalInCurrentClause = 0;
     pRes->rspType = 0;
-    
+
     pSql->numOfSubs = 0;
     tfree(pSql->pSubs);
-    
+
     assert(pSql->fp == NULL);
-    
+
     tscTrace("%p try data in the next subclause:%d, total subclause:%d", pSql, pCmd->clauseIndex, pCmd->numOfClause);
     tscProcessSql(pSql);
-  
+
     nRows = taos_fetch_block_impl(res, rows);
   }
-  
+
   return nRows;
 }
 
@@ -822,6 +755,11 @@ void taos_free_result(TAOS_RES *res) {
 
   // set freeFlag to 1 in retrieve message if there are un-retrieved results
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  if (pQueryInfo == NULL) {
+    tscFreeSqlObjPartial(pSql);
+    return;
+  }
+
   pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
@@ -1041,7 +979,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   pRes->numOfRows = 1;
   pRes->numOfTotal = 0;
   pRes->numOfTotalInCurrentClause = 0;
-  
+
   tscTrace("%p Valid SQL: %s pObj:%p", pSql, sql, pObj);
 
   int32_t sqlLen = strlen(sql);
@@ -1172,7 +1110,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   pRes->numOfTotal = 0;  // the number of getting table meta from server
   pRes->numOfTotalInCurrentClause = 0;
-  
+
   pRes->code = 0;
 
   assert(pSql->fp == NULL);
