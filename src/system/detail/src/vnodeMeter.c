@@ -79,7 +79,7 @@ int vnodeCreateMeterObjFile(int vnode) {
   sprintf(fileName, "%s/vnode%d/meterObj.v%d", tsDirectory, vnode, vnode);
   fp = fopen(fileName, "w+");
   if (fp == NULL) {
-    dError("failed to create vnode:%d file:%s, reason:%s", vnode, fileName, strerror(errno));
+    dError("failed to create vnode:%d file:%s, errno:%d, reason:%s", vnode, fileName, errno, strerror(errno));
     if (errno == EACCES) {
       return TSDB_CODE_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {

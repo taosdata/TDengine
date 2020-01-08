@@ -657,7 +657,10 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
       return TSDB_CODE_NO_ENOUGH_DNODES;
     }
 
-    if (pDb->vgStatus < TSDB_VG_STATUS_FULL && pDb->vgStatus > TSDB_CODE_ACTION_IN_PROGRESS) {
+    if (pDb->vgStatus == TSDB_VG_STATUS_NO_DISK_PERMISSIONS ||
+        pDb->vgStatus == TSDB_VG_STATUS_SERVER_NO_PACE ||
+        pDb->vgStatus == TSDB_VG_STATUS_SERV_OUT_OF_MEMORY ||
+        pDb->vgStatus == TSDB_VG_STATUS_INIT_FAILED ) {
       mgmtDestroyMeter(pMeter);
       mError("table:%s, vgroup init failed, reason:%d %s", pCreate->meterId, pDb->vgStatus, taosGetVgroupStatusStr(pDb->vgStatus));
       return pDb->vgStatus;
