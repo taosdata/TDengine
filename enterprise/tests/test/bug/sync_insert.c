@@ -21,9 +21,9 @@ typedef struct {
 	int       index;
 } ThreadObj;
 
-int threadNum = 0;
-int rowNum = 0;
-int replica = 1;
+int threadNum = 1;
+int rowNum = 1000000;
+int replica = 2;
 
 int main(int argc, char *argv[])
 {
@@ -63,10 +63,10 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-void taos_error(TAOS *con)
+void taos_error(TAOS *taos)
 {
-  fprintf(stderr, "TDengine error: %s\n", taos_errstr(con));
-  taos_close(con);
+  fprintf(stderr, "TDengine error: %s\n", taos_errstr(taos));
+  taos_close(taos);
   exit(1);
 }
 
@@ -84,61 +84,95 @@ void taos_execute(void *param)
 	
 	sprintf(sql, "create table d%d.t%d (ts timestamp, i int, j float, k double)", pThread->index, pThread->index);
 	taos_query(taos, sql);
+
+	int affectrows = 0;
 	
 	int64_t timestamp = 1530374400000L;
 	for (int i = 0; i < rowNum; ++i) {
 		
 		int val = 10*i + 2;
 		sprintf(sql, "insert into d%d.t%d values(%ld, %d, %d, %d)", pThread->index, pThread->index, timestamp + 200, val, val, val);
-		//printf("%s\n", sql);
 		taos_query(taos, sql);
-		
+		affectrows = taos_affected_rows(taos);
+		if (affectrows != 1) {
+			fprintf(stderr, "affectRows:%d, sql:%s, error:%s\n", affectrows, sql, taos_errstr(taos));
+		}
+
 		val = 10*i + 3;
 		sprintf(sql, "insert into d%d.t%d values(%ld, %d, %d, %d)", pThread->index, pThread->index, timestamp + 300, val, val, val);
-		//printf("%s\n", sql);
 		taos_query(taos, sql);
-		
+		affectrows = taos_affected_rows(taos);
+		if (affectrows != 1) {
+			fprintf(stderr, "affectRows:%d, sql:%s, error:%s\n", affectrows, sql, taos_errstr(taos));
+		}
+
 		val = 10*i + 4;
 		sprintf(sql, "insert into d%d.t%d values(%ld, %d, %d, %d)", pThread->index, pThread->index, timestamp + 400, val, val, val);
-		//printf("%s\n", sql);
 		taos_query(taos, sql);
-		
+		affectrows = taos_affected_rows(taos);
+		if (affectrows != 1) {
+			fprintf(stderr, "affectRows:%d, sql:%s, error:%s\n", affectrows, sql, taos_errstr(taos));
+		}
+
 		val = 10*i + 5;
 		sprintf(sql, "insert into d%d.t%d values(%ld, %d, %d, %d)", pThread->index, pThread->index, timestamp + 500, val, val, val);
-		//printf("%s\n", sql);
 		taos_query(taos, sql);
-		
+		affectrows = taos_affected_rows(taos);
+		if (affectrows != 1) {
+			fprintf(stderr, "affectRows:%d, sql:%s, error:%s\n", affectrows, sql, taos_errstr(taos));
+		}
+
 		val = 10*i + 6;
 		sprintf(sql, "insert into d%d.t%d values(%ld, %d, %d, %d)", pThread->index, pThread->index, timestamp + 600, val, val, val);
-		//printf("%s\n", sql);
 		taos_query(taos, sql);
-		
+		affectrows = taos_affected_rows(taos);
+		if (affectrows != 1) {
+			fprintf(stderr, "affectRows:%d, sql:%s, error:%s\n", affectrows, sql, taos_errstr(taos));
+		}
+
 		val = 10*i + 7;
 		sprintf(sql, "insert into d%d.t%d values(%ld, %d, %d, %d)", pThread->index, pThread->index, timestamp + 700, val, val, val);
-		//printf("%s\n", sql);
 		taos_query(taos, sql);
-		
+		affectrows = taos_affected_rows(taos);
+		if (affectrows != 1) {
+			fprintf(stderr, "affectRows:%d, sql:%s, error:%s\n", affectrows, sql, taos_errstr(taos));
+		}
+
 		val = 10*i + 8;
 		sprintf(sql, "insert into d%d.t%d values(%ld, %d, %d, %d)", pThread->index, pThread->index, timestamp + 800, val, val, val);
-		//printf("%s\n", sql);
 		taos_query(taos, sql);
-		
+		affectrows = taos_affected_rows(taos);
+		if (affectrows != 1) {
+			fprintf(stderr, "affectRows:%d, sql:%s, error:%s\n", affectrows, sql, taos_errstr(taos));
+		}
+
 		val = 10*i + 9;
 		sprintf(sql, "insert into d%d.t%d values(%ld, %d, %d, %d)", pThread->index, pThread->index, timestamp + 900, val, val, val);
-		//printf("%s\n", sql);
 		taos_query(taos, sql);
-		
+		affectrows = taos_affected_rows(taos);
+		if (affectrows != 1) {
+			fprintf(stderr, "affectRows:%d, sql:%s, error:%s\n", affectrows, sql, taos_errstr(taos));
+		}
+
 		val = 10*i + 1;
 		sprintf(sql, "import into d%d.t%d values(%ld, %d, %d, %d)", pThread->index, pThread->index, timestamp + 100, val, val, val);
-		//printf("%s\n", sql);
 		taos_query(taos, sql);
-		
+		affectrows = taos_affected_rows(taos);
+		if (affectrows != 1) {
+			fprintf(stderr, "affectRows:%d, sql:%s, error:%s\n", affectrows, sql, taos_errstr(taos));
+		}
+
 		val = 10*i + 0;
 		sprintf(sql, "import into d%d.t%d values(%ld, %d, %d, %d)", pThread->index, pThread->index, timestamp + 0, val, val, val);
-		//printf("%s\n", sql);
 		taos_query(taos, sql);
-		
+		affectrows = taos_affected_rows(taos);
+		if (affectrows != 1) {
+			fprintf(stderr, "affectRows:%d, sql:%s, error:%s\n", affectrows, sql, taos_errstr(taos));
+		}
+
 		timestamp += 1000;
+
+		taosMsleep(10);
 	}
 	
 	printf("thread:%d run finished\n", pThread->index);
