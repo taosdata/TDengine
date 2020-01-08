@@ -1483,11 +1483,10 @@ int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   *((uint16_t *)pMsg) = htons(pQueryInfo->type);
   pMsg += sizeof(pQueryInfo->type);
 
-  msgLen = pMsg - pStart;
-  pSql->cmd.payloadLen = msgLen;
+  pSql->cmd.payloadLen = pMsg - pStart;
   pSql->cmd.msgType = TSDB_MSG_TYPE_RETRIEVE;
 
-  return msgLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 void tscUpdateVnodeInSubmitMsg(SSqlObj *pSql, char *buf) {
@@ -2159,7 +2158,7 @@ int32_t tscBuildDropAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = pMsg - pStart;
   pCmd->msgType = TSDB_MSG_TYPE_DROP_USER;
 
-  return msgLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscBuildUseDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
@@ -2535,8 +2534,6 @@ static int tscLocalResultCommonBuilder(SSqlObj *pSql, int32_t numOfRes) {
     pRes->rspType = 1;
 
     tscSetResultPointer(pQueryInfo, pRes);
-    pRes->row = 0;
-
   } else {
     tscResetForNextRetrieve(pRes);
   }
@@ -2625,11 +2622,10 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pMsg += sizeof(SConnectMsg);
 
-  msgLen = pMsg - pStart;
-  pCmd->payloadLen = msgLen;
+  pCmd->payloadLen = pMsg - pStart;
   pCmd->msgType = TSDB_MSG_TYPE_CONNECT;
 
-  return msgLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 int tscBuildMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
@@ -2678,7 +2674,7 @@ int tscBuildMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tfree(tmpData);
 
   assert(msgLen + minMsgSize() <= pCmd->allocSize);
-  return msgLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
@@ -2881,7 +2877,8 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = msgLen;
   pCmd->msgType = TSDB_MSG_TYPE_METRIC_META;
   assert(msgLen + minMsgSize() <= size);
-  return msgLen;
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 int tscEstimateHeartBeatMsgLength(SSqlObj *pSql) {

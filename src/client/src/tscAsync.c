@@ -36,8 +36,8 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
  * If sql queries upon a super table and two-stage merge procedure is not involved (when employ the projection
  * query), it will sequentially query&retrieve data for all vnodes
  */
-static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
-static void tscProcessAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows);
+static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
+static void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows);
 
 // TODO return the correct error code to client in tscQueueAsyncError
 void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *, int), void *param) {
@@ -80,7 +80,6 @@ void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *,
     return;
   }
 
-
   pSql->sqlstr = malloc(sqlLen + 1);
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
@@ -108,7 +107,7 @@ void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *,
   tscDoQuery(pSql);
 }
 
-static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
+static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
   if (tres == NULL) {
     return;
   }
@@ -121,6 +120,15 @@ static void tscProcessAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOf
     if (hasMoreVnodesToTry(pSql)) { // sequentially retrieve data from remain vnodes.
       tscTryQueryNextVnode(pSql, tscAsyncQueryRowsForNextVnode);
     } else {
+      /*
+       * all available virtual node has been checked already, now we need to check
+       * for the next subclause queries
+       */
+      if (pCmd->clauseIndex < pCmd->numOfClause - 1) {
+        tscTryQueryNextClause(pSql, tscAsyncQueryRowsForNextVnode);
+        return;
+      }
+
       /*
        * 1. has reach the limitation
        * 2. no remain virtual nodes to be retrieved anymore
@@ -150,7 +158,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  if (pRes->qhandle == 0 || numOfRows != 0) {
+  if ((pRes->qhandle == 0 || numOfRows != 0) && pCmd->command < TSDB_SQL_LOCAL) {
     if (pRes->qhandle == 0) {
       tscError("qhandle is NULL");
     } else {
@@ -175,12 +183,12 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
  */
 static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOfRows) {
   // query completed, continue to retrieve
-  tscProcessAsyncRetrieveImpl(param, tres, numOfRows, tscProcessAsyncFetchRowsProxy);
+  tscProcessAsyncRetrieveImpl(param, tres, numOfRows, tscAsyncFetchRowsProxy);
 }
 
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows) {
   // query completed, continue to retrieve
-  tscProcessAsyncRetrieveImpl(param, tres, numOfRows, tscProcessAsyncFetchSingleRowProxy);
+  tscProcessAsyncRetrieveImpl(param, tres, numOfRows, tscAsyncFetchSingleRowProxy);
 }
 
 void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), void *param) {
@@ -203,7 +211,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, int), voi
 
   // user-defined callback function is stored in fetchFp
   pSql->fetchFp = fp;
-  pSql->fp = tscProcessAsyncFetchRowsProxy;
+  pSql->fp = tscAsyncFetchRowsProxy;
 
   pSql->param = param;
   tscResetForNextRetrieve(pRes);
@@ -238,7 +246,7 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
   
   if (pRes->row >= pRes->numOfRows) {
     tscResetForNextRetrieve(pRes);
-    pSql->fp = tscProcessAsyncFetchSingleRowProxy;
+    pSql->fp = tscAsyncFetchSingleRowProxy;
     
     if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC && pCmd->command < TSDB_SQL_LOCAL) {
       pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
@@ -255,7 +263,7 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
   }
 }
 
-void tscProcessAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows) {
+void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlObj *pSql = (SSqlObj *)tres;
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
@@ -352,7 +360,7 @@ void tscQueueAsyncRes(SSqlObj *pSql) {
     tscTrace("%p SqlObj is freed, not add into queue async res", pSql);
     return;
   } else {
-    tscTrace("%p add into queued async res, code:%d", pSql, pSql->res.code);
+    tscError("%p add into queued async res, code:%d", pSql, pSql->res.code);
   }
 
   SSchedMsg schedMsg;
@@ -513,7 +521,8 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
     }
   }
 
-  if (code != 0) {
+  if (code != TSDB_CODE_SUCCESS) {
+    pSql->res.code = code;
     tscQueueAsyncRes(pSql);
     return;
   }

@@ -543,11 +543,11 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
       pRes->numOfTotalInCurrentClause++;
 
       break;
-    } else {// continue retrieve data from vnode
+    } else {  // continue retrieve data from vnode
       if (!tscHashRemainDataInSubqueryResultSet(pSql)) {
         tscTrace("%p at least one subquery exhausted, free all other %d subqueries", pSql, pSql->numOfSubs - 1);
         SSubqueryState *pState = NULL;
-  
+
         // free all sub sqlobj
         for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
           SSqlObj *pChildObj = pSql->pSubs[i];
@@ -611,6 +611,7 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
 
     tscProcessSql(pSql);  // retrieve data from virtual node
 
+    //if failed to retrieve data from current virtual node, try next one if exists
     if (hasMoreVnodesToTry(pSql)) {
       tscTryQueryNextVnode(pSql, NULL);
     }
@@ -634,7 +635,6 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
 
   if (pSql == NULL || pSql->signature != pSql) {
     globalCode = TSDB_CODE_DISCONNECTED;
@@ -646,26 +646,14 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
    * instead of two-stage merge
    */
   TAOS_ROW rows = taos_fetch_row_impl(res);
+  if (rows != NULL) {
+    return rows;
+  }
 
   // current subclause is completed, try the next subclause
   while (rows == NULL && pCmd->clauseIndex < pCmd->numOfClause - 1) {
-    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-
-    pSql->cmd.command = pQueryInfo->command;
-    pCmd->clauseIndex++;
-
-    assert(pSql->fp == NULL);
-
-    pRes->numOfTotal += pRes->numOfTotalInCurrentClause;
-    pRes->numOfTotalInCurrentClause = 0;
-    pRes->rspType = 0;
-
-    pSql->numOfSubs = 0;
-    tfree(pSql->pSubs);
-
-    tscTrace("%p try data in the next subclause:%d, total subclause:%d", pSql, pCmd->clauseIndex, pCmd->numOfClause);
-    tscProcessSql(pSql);
-
+    tscTryQueryNextClause(pSql, NULL);
+    
     // if the rows is not NULL, return immediately
     rows = taos_fetch_row_impl(res);
   }
