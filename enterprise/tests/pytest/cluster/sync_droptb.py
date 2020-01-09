@@ -62,6 +62,7 @@ class TDTestCase:
 
     tdLog.info("================= step1")
     tdLog.info("insert into each %d tables %d records while killing dnode 3" %(self.ntables, self.rowsPerTable))
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db replica %d' %self.replica)
     tdLog.sleep(5)
     tdSql.execute('use db')
@@ -104,6 +105,7 @@ class TDTestCase:
     tdLog.sleep(10)
 
     tdLog.info("================= step4")
+    tdSql.execute('reset query cache')
     tdSql.query('select count(tbname) from tb')
     tdSql.checkData(0, 0, self.ntables - 10)
     

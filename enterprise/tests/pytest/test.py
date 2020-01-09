@@ -23,127 +23,127 @@ from util.dnodes import *
 from util.cases import *
 
 
-##from alter.alter_table import *
-##from alter.alter_stable import *
-##from alter.file_corrupt import *
-##
-##from importtest.basic import *
-##from importtest.commit import *
-##from importtest.large import *
-##from importtest.replica1 import *
-##from importtest.replica2 import *
-##from importtest.replica3 import *
-##from importtest.import_and_query import *
-##from importtest.import_and_query_replica3 import *
-##
-##from insert.basic import *
-##from insert.query_block1_memory import *
-##from insert.query_block2_memory import *
-##from insert.query_block1_file import *
-##from insert.query_block2_file import *
-##from insert.query_file_memory import *
-##from insert.query_multi_file import *
-##from insert.longTimespanWrite import *
-##
-##from dbmgmt.dropDB_memory_test import *
-##from dbmgmt.createTableAndKillDnodes import *
-##from dbmgmt.createTableAndDropDnodes import *
-##
-### These use cases have bugs.
-##from affectrows.insertsql import * 
-##from affectrows.insertsql_blocks import *
-##from affectrows.importsql import * 
-##from affectrows.importsql_blocks import *
-##
-### It might take a long time to run.
-##from http.retrieve import *
-##
-##from sdb.mnode2 import *
-##from sdb.mnode3 import *
-##from sdb.mnode2_delete import *
-##
-##from multithread.query_table import *
-##
-##from multithread.query_stable import *
-##
-###from thread.insert_replica1 import *
-##from multithread.insert_replica1 import *
-##from multithread.insert_replica2 import *
-##from multithread.insert_replica3 import *
-##from multithread.import_replica1 import *
-##from multithread.import_replica2 import *
-##from multithread.import_replica3 import *
-##from multithread.insertAndImport_dnode6_replica3 import *
-##from multithread.insertAndImport_dnode1_replica1 import *
-##
-##from bug.ahx_query_from_stables import *
-##from bug.async_query import *
-##from bug.batch_import1 import *
-##from bug.batch_import3 import *
-##from bug.column64_replica1 import *
-##from bug.column256_replica1 import *
-##from bug.connect_repeat import *
-##
-##from cluster.alter_replica import *
-##from cluster.alter_replica2 import *
-##from cluster.alter_replica3 import *
-##from cluster.create_droptb import *
-##from cluster.single_upgrade import *
-##from cluster.monitor_upgrade import *
-##from cluster.sync_createtb import *
-##from cluster.sync_createtb2 import *
-##from cluster.sync_droptb import *
-##from cluster.sync_droptb2 import *
-##from cluster.sync_altertb import *
-##from cluster.sync_altertb2 import *
-##from cluster.sync_dropdb import *
-##from cluster.sync_dropdb2 import *
-##from cluster.offline_droptb_online import *
-##from cluster.offline_droptb_online2 import *
-##from cluster.offline_createtb_online import *
-##from cluster.offline_createtb_online2 import *
-##from cluster.offline_altertb_online import *
-##from cluster.offline_altertb_online2 import *
-##from cluster.offline_dropdb_online import *
-##from cluster.offline_dropdb_online2 import *
-##from cluster.balance_adddnode import *
-##from cluster.balance_adddnode2 import *
-##from cluster.balance_dropdnode import *
-##from cluster.balance_dropdnode2 import *
-##from cluster.full_dropdnode import *
-##from cluster.full_createtb import *
-##from cluster.kill_timeout import *
-##from cluster.kill_timeout_restart import *
-##from cluster.kill_timeout_restart2 import *
-##from cluster.nw_disable_timeout import *
-##from cluster.nw_disable_timeout_restart import *
-##from cluster.nw_disable_able import *
-##from cluster.kill_most import *
-##from cluster.kill_most_restart import *
-##from cluster.kill_allvnode_restart import *
-##from cluster.kill_corruptfile_restart import *
-##from cluster.corruptfile_restore import *
-##from cluster.corruptfile_restore2 import *
-##from cluster.kill_restart import *
-##from cluster.kill_restart2 import *
-##from cluster.query_speed import *
-##from cluster_mgmt.alter_replica2 import *
-##from cluster_mgmt.alter_replica3 import *
-##from cluster_mgmt.multi_alter import *
-##from cluster_mgmt.kill_alter_restart import *
-##from cluster_mgmt.kill_most import *
-##from cluster_mgmt.kill_most_restart import *
-##from cluster_mgmt.kill_all_restart import *
-##from cluster_mgmt.sync_altertb import *
-##from cluster_mgmt.sync_createtb import *
-##from cluster_mgmt.sync_droptb import *
-##from cluster_mgmt.sync_resync_altertb import *
-##from cluster_mgmt.sync_resync_createtb import *
-##from cluster_mgmt.sync_resync_droptb import *
-##from cluster_mgmt.kill_corruptmgmt_restart import *
-##from cluster_mgmt.corrupt_restore import *  #TBASE-601
-##from cluster_mgmt.corrupt_restore2 import * #TBASE-601
-##
+from alter.alter_table import *
+from alter.alter_stable import *
+from alter.file_corrupt import *
+
+from importtest.basic import *
+from importtest.commit import *
+from importtest.large import *
+from importtest.replica1 import *
+from importtest.replica2 import *
+from importtest.replica3 import *
+from importtest.import_and_query import *
+from importtest.import_and_query_replica3 import *
+
+from insert.basic import *
+from insert.query_block1_memory import *
+from insert.query_block2_memory import *
+from insert.query_block1_file import *
+from insert.query_block2_file import *
+from insert.query_file_memory import *
+from insert.query_multi_file import *
+from insert.longTimespanWrite import *
+
+from dbmgmt.dropDB_memory_test import *
+from dbmgmt.createTableAndKillDnodes import *
+from dbmgmt.createTableAndDropDnodes import *
+
+# These use cases have bugs.
+from affectrows.insertsql import * 
+from affectrows.insertsql_blocks import *
+from affectrows.importsql import * 
+from affectrows.importsql_blocks import *
+
+# It might take a long time to run.
+from http.retrieve import *
+
+from sdb.mnode2 import *
+from sdb.mnode3 import *
+from sdb.mnode2_delete import *
+
+from multithread.query_table import *
+
+from multithread.query_stable import *
+
+#from thread.insert_replica1 import *
+from multithread.insert_replica1 import *
+from multithread.insert_replica2 import *
+from multithread.insert_replica3 import *
+from multithread.import_replica1 import *
+from multithread.import_replica2 import *
+from multithread.import_replica3 import *
+from multithread.insertAndImport_dnode6_replica3 import *
+from multithread.insertAndImport_dnode1_replica1 import *
+
+from bug.ahx_query_from_stables import *
+from bug.async_query import *
+from bug.batch_import1 import *
+from bug.batch_import3 import *
+from bug.column64_replica1 import *
+from bug.column256_replica1 import *
+from bug.connect_repeat import *
+
+from cluster.alter_replica import *
+from cluster.alter_replica2 import *
+from cluster.alter_replica3 import *
+from cluster.create_droptb import *
+from cluster.single_upgrade import *
+from cluster.monitor_upgrade import *
+from cluster.sync_createtb import *
+from cluster.sync_createtb2 import *
+from cluster.sync_droptb import *
+from cluster.sync_droptb2 import *
+from cluster.sync_altertb import *
+from cluster.sync_altertb2 import *
+from cluster.sync_dropdb import *
+from cluster.sync_dropdb2 import *
+from cluster.offline_droptb_online import *
+from cluster.offline_droptb_online2 import *
+from cluster.offline_createtb_online import *
+from cluster.offline_createtb_online2 import *
+from cluster.offline_altertb_online import *
+from cluster.offline_altertb_online2 import *
+from cluster.offline_dropdb_online import *
+from cluster.offline_dropdb_online2 import *
+from cluster.balance_adddnode import *
+from cluster.balance_adddnode2 import *
+from cluster.balance_dropdnode import *
+from cluster.balance_dropdnode2 import *
+from cluster.full_dropdnode import *
+from cluster.full_createtb import *
+from cluster.kill_timeout import *
+from cluster.kill_timeout_restart import *
+from cluster.kill_timeout_restart2 import *
+from cluster.nw_disable_timeout import *
+from cluster.nw_disable_timeout_restart import *
+from cluster.nw_disable_able import *
+from cluster.kill_most import *
+from cluster.kill_most_restart import *
+from cluster.kill_allvnode_restart import *
+from cluster.kill_corruptfile_restart import *
+from cluster.corruptfile_restore import *
+from cluster.corruptfile_restore2 import *
+from cluster.kill_restart import *
+from cluster.kill_restart2 import *
+from cluster.query_speed import *
+from cluster_mgmt.alter_replica2 import *
+from cluster_mgmt.alter_replica3 import *
+from cluster_mgmt.multi_alter import *
+from cluster_mgmt.kill_alter_restart import *
+from cluster_mgmt.kill_most import *
+from cluster_mgmt.kill_most_restart import *
+from cluster_mgmt.kill_all_restart import *
+from cluster_mgmt.sync_altertb import *
+from cluster_mgmt.sync_createtb import *
+from cluster_mgmt.sync_droptb import *
+from cluster_mgmt.sync_resync_altertb import *
+from cluster_mgmt.sync_resync_createtb import *
+from cluster_mgmt.sync_resync_droptb import *
+from cluster_mgmt.kill_corruptmgmt_restart import *
+from cluster_mgmt.corrupt_restore import *  #TBASE-601
+from cluster_mgmt.corrupt_restore2 import * #TBASE-601
+
 from import_merge.importHead import *
 from import_merge.importTail import *
 from import_merge.importHeadOverlap import *

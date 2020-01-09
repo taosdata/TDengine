@@ -23,7 +23,9 @@ if __name__=="__main__":
       if file.startswith("_"): continue
       if file.endswith(".pyc"): continue
       shcmd = 'sudo python2 %s/test.py -f %s/%s/%s\n' %(rootDir, rootDir, module, file)
+      #shcmd = 'sudo python2 test.py -f %s/%s\n' %(module, file)
       outfd.write(shcmd)
+    outfd.write('\n')
 
   for module in cluster_modules:
     moduleDir = os.path.realpath(rootDir+"/"+module)
@@ -31,7 +33,9 @@ if __name__=="__main__":
       if file.startswith("_"): continue
       if file.endswith(".pyc"): continue
       shcmd = 'sudo python2 %s/test.py -f %s/%s/%s -c\n' %(rootDir, rootDir, module, file)
+      #shcmd = 'sudo python2 test.py -f %s/%s -c\n' %(module, file)
       outfd.write(shcmd)
+    outfd.write('\n')
   
   outfd.close()
   shcmd = 'sudo chmod 755 %s' %outfile

@@ -44,6 +44,9 @@ add_executable(unittest unittest/unitTest.cpp unittest/histogramtest.cpp unittes
         unittest/cacheTest.cpp unittest/tsBufTest.cpp)
 target_link_libraries(unittest taos_static tutil gtest)
 
+add_executable(unittestTime unittest/unitTestTime.cpp)
+target_link_libraries(unittestTime taos_static tutil gtest)
+
 add_executable(functiontest ./perftest/sqlfunctionTest.c)
 target_link_libraries(functiontest taos tutil)
 

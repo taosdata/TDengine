@@ -48,6 +48,7 @@ class TDTestCase:
     
     tdLog.info("================= step1")
     tdLog.info("create database db replica %d tables 10 cache 512" %self.replica)
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db replica %d tables 10 cache 512' %self.replica)
     tdLog.sleep(5)
     tdSql.execute('use db')
@@ -143,6 +144,7 @@ class TDTestCase:
 
     tdLog.info("================= step7")
     queryRows = tdSql.query('show vgroups')
+    tdLog.info("show vgroups: vgid:dnodeIp:vnode:role")
     for i in range(queryRows):
       tdLog.info('Vgid%s: %s:%s:%s|%s:%s:%s' \
              %(tdSql.getData(i,0),tdSql.getData(i,3),tdSql.getData(i,4),tdSql.getData(i,5),\
@@ -157,7 +159,7 @@ class TDTestCase:
       tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
     retry = 0
     while(True):
-      tdLog.sleep(5)
+      tdLog.sleep(10)
       retry += 1
       tdSql.query('show dnodes')
       stateRes1 = (tdSql.getData(0,5)=="balanced")
@@ -187,6 +189,7 @@ class TDTestCase:
     tdSql.checkData(0, 0, self.rowsPerTable*self.ntables)
 
     tdLog.info("================= step10")
+    tdLog.info("show vgroups: vgid:dnodeIp:vnode:role")
     queryRows = tdSql.query('show vgroups')
     for i in range(queryRows):
       tdLog.info('Vgid%s: %s:%s:%s' \
