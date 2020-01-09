@@ -548,9 +548,13 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSid
   for (int32_t i = 0; i < pQueryMsg->numOfSids; ++i) {
     SMeterObj* pMeter = pVnode->meterList[pSids[i]->sid];
 
+    /*
+     * If table is missing or is in dropping status, config it from management node, and ignore it
+     * during query processing. The error code of TSDB_CODE_NOT_ACTIVE_TABLE will never return to client.
+     */
     if (pMeter == NULL || vnodeIsMeterState(pMeter, TSDB_METER_STATE_DROPPING)) {
-      code = TSDB_CODE_NOT_ACTIVE_TABLE;
-      dError("qmsg:%p, vid:%d sid:%d, not there or will be dropped", pQueryMsg, pQueryMsg->vnode, pSids[i]->sid);
+      dWarn("qmsg:%p, vid:%d sid:%d, not there or will be dropped, ignore this table in query", pQueryMsg,
+          pQueryMsg->vnode, pSids[i]->sid);
       
       vnodeSendMeterCfgMsg(pQueryMsg->vnode, pSids[i]->sid);
       continue;
