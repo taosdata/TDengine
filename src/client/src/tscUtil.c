@@ -692,8 +692,10 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     SShellSubmitBlock* pBlocks = (SShellSubmitBlock*)pOneTableBlock->pData;
     sortRemoveDuplicates(pOneTableBlock);
 
-    tscTrace("%p meterId:%s, sid:%d, rows:%d, sversion:%d", pSql, pOneTableBlock->meterId, pBlocks->sid,
-             pBlocks->numOfRows, pBlocks->sversion);
+    char* e = (char*)pBlocks->payLoad + pOneTableBlock->rowSize*(pBlocks->numOfRows-1);
+    
+    tscTrace("%p meterId:%s, sid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pSql, pOneTableBlock->meterId, pBlocks->sid,
+             pBlocks->numOfRows, pBlocks->sversion, GET_INT64_VAL(pBlocks->payLoad), GET_INT64_VAL(e));
 
     pBlocks->sid = htonl(pBlocks->sid);
     pBlocks->uid = htobe64(pBlocks->uid);

@@ -207,7 +207,7 @@ int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
     pSql->pTableHashList = NULL;
   }
   
-  tscTrace("%p SQL: %s pObj:%p", pSql, pSql->sqlstr, pObj);
+  tscDump("%p pObj:%p, SQL: %s", pSql, pObj, pSql->sqlstr);
 
   pRes->code = (uint8_t)tsParseSql(pSql, pObj->acctId, pObj->db, false);
 
