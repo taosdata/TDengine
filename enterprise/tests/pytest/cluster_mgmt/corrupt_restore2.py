@@ -42,6 +42,7 @@ class TDTestCase:
     
     tdLog.info("================= step1")
     tdLog.info("create 1 table and insert 1 record")
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db replica %d' %self.replica)
     tdLog.sleep(5)
     tdSql.execute('use db')
