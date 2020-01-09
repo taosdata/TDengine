@@ -2005,7 +2005,7 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-  if (!UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
+  if (!UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo) || (pMeterMetaInfo->pMetricMeta == NULL)) {
     return false;
   }
   
