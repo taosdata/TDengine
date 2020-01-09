@@ -451,14 +451,14 @@ int main(int argc, char **argv) {
     
     executeSQL(conn, "use union_db0", NULL);
 //    createEnvironment(conn, 5, 5, 100, 30);
-    executeSQL(conn, "select ts, first(c3) as a from union_mt0 limit 1 union all select sum(c3) as a from union_mt0 interval(1h) limit 10;", NULL);
+    executeSQL(conn, "select union_mt1.ts, union_mt0.ts, union_mt1.c1/1.0 as c from union_mt0, union_mt1 where union_mt1.ts=union_mt0.ts and union_mt1.t1=union_mt0.t1 limit 5;;", NULL);
 //    executeSQL(conn, "CREATE database TU1", NULL);
     // selectivity + tags/ts + group by normal columns
 //    executeSQL(conn, "(select count(*) from test where ts<'1970-1-1 8:1:40.9') union "
 //                     "(select count(*) from test where ts<'1970-1-1 8:1:40.9')", NULL);
 //    executeSQL(conn, "select count(*) from test where ts<'1970-1-1 8:1:40.9' union "
 //                   "select count(*) from test where ts<'1970-1-1 8:1:40.9'", NULL);
-  
+
 //    createEnvironment(conn, 5000, 5000, 100, 30);
 //    executeSQL(conn, "select last_row(ts) from m1 where tbname in ('tm0', 'tm1') group by tbname", NULL);
 //    executeSQL(conn, "select top(k, 5) from tm0", NULL);
