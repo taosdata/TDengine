@@ -598,6 +598,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   }
 
   dataBuf->nAllocSize = (uint32_t)initialSize;
+  dataBuf->headerSize = startOffset; // the header size will always be the startOffset value, reserved for the subumit block header
   dataBuf->pData = calloc(1, dataBuf->nAllocSize);
   dataBuf->ordered = true;
   dataBuf->prevTS = INT64_MIN;

@@ -579,7 +579,8 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
   size_t    remain = pDataBlock->nAllocSize - pDataBlock->size;
   const int factor = 5;
   uint32_t nAllocSizeOld = pDataBlock->nAllocSize;
-
+  assert(pDataBlock->headerSize >= 0);
+  
   // expand the allocated size
   if (remain < rowSize * factor) {
     while (remain < rowSize * factor) {
@@ -595,12 +596,12 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
       //assert(false);
       // do nothing
       pDataBlock->nAllocSize = nAllocSizeOld;
-      *numOfRows = (int32_t)(pDataBlock->nAllocSize) / rowSize;
+      *numOfRows = (int32_t)(pDataBlock->nAllocSize - pDataBlock->headerSize) / rowSize;
       return TSDB_CODE_CLI_OUT_OF_MEMORY;
     }
   }
 
-  *numOfRows = (int32_t)(pDataBlock->nAllocSize) / rowSize;
+  *numOfRows = (int32_t)(pDataBlock->nAllocSize - pDataBlock->headerSize) / rowSize;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -908,6 +909,7 @@ static int32_t tscParseSqlForCreateTableOnDemand(char **sqlstr, SSqlObj *pSql) {
 
     createTable = true;
     code = tscGetMeterMetaEx(pSql, pMeterMetaInfo->name, true);
+    if (TSDB_CODE_ACTION_IN_PROGRESS == code) return code;
   } else {
     if (cstart != NULL) {
       sql = cstart;
@@ -1015,7 +1017,7 @@ int doParserInsertSql(SSqlObj *pSql, char *str) {
           tscTrace("async insert and waiting to get meter meta, then continue parse sql from offset: %" PRId64, pos);
           return code;
         }
-        tscTrace("async insert parse error, code:%d, %s", code, tsError[code]);
+        tscError("async insert parse error, code:%d, %s", code, tsError[code]);
         pSql->asyncTblPos = NULL;
         goto _error_clean;       // TODO: should _clean or _error_clean to async flow ????
       } else {
