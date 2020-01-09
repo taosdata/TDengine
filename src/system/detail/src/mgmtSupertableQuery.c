@@ -329,7 +329,7 @@ int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes) {
 
   bool allEmpty = false;
   for (int32_t i = 0; i < pMetricMetaMsg->numOfMeters; ++i) {
-    if (pRes->num == 0) {  // all results are empty if one of them is empty
+    if (pRes[i].num == 0) {  // all results are empty if one of them is empty
       allEmpty = true;
       break;
     }
