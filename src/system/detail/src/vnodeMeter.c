@@ -576,6 +576,14 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     return code;
   }
 
+  /*
+   * please refer to TBASE-926, data may be lost when the cache is full
+   */
+  if (source == TSDB_DATA_SOURCE_SHELL && pVnode->cfg.replications > 1) {
+    code = vnodeForwardToPeer(pObj, cont, contLen, TSDB_ACTION_INSERT, sversion);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+
   SCachePool *pPool = (SCachePool *)pVnode->pCachePool;
   if (pObj->freePoints < numOfPoints || pObj->freePoints < (pObj->pointsPerBlock << 1) ||
       pPool->notFreeSlots > pVnode->cfg.cacheNumOfBlocks.totalBlocks - 2) {
@@ -590,11 +598,6 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   if (pVnode->cfg.commitLog && source != TSDB_DATA_SOURCE_LOG) {
     if (pVnode->logFd < 0) return TSDB_CODE_INVALID_COMMIT_LOG;
     code = vnodeWriteToCommitLog(pObj, TSDB_ACTION_INSERT, cont, contLen, sversion);
-    if (code != TSDB_CODE_SUCCESS) return code;
-  }
-
-  if (source == TSDB_DATA_SOURCE_SHELL && pVnode->cfg.replications > 1) {
-    code = vnodeForwardToPeer(pObj, cont, contLen, TSDB_ACTION_INSERT, sversion);
     if (code != TSDB_CODE_SUCCESS) return code;
   }
 
