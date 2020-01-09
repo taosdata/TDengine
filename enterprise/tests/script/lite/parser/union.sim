@@ -384,6 +384,10 @@ if $data00 != 1 then
   return -1
 endi
 
+if $data10 != 1 then
+  return -1
+endi
+
 sql select client_version() union all select server_version()
 if $rows != 2 then
   return -1
@@ -395,6 +399,10 @@ if $rows != 2 then
 endi
 
 if $data00 != @union_db0@ then
+  return -1
+endi
+
+if $data10 != @union_db0@ then
   return -1
 endi
 
