@@ -171,6 +171,7 @@ typedef struct STableDataBlocks {
 
   int32_t  rowSize;  // row size for current table
   uint32_t nAllocSize;
+  uint32_t headerSize;    // header for metadata (submit metadata)
   uint32_t size;
 
   /*
@@ -248,7 +249,9 @@ typedef struct {
   };
 
   int32_t      clauseIndex;    // index of multiple subclause query
+  int8_t       isParseFinish;
   short        numOfCols;
+  
   uint32_t     allocSize;
   char *       payload;
   int          payloadLen;

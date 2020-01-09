@@ -303,11 +303,11 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
       // binary data cannot be null-terminated char string, otherwise the last char of the string is lost
       if (pToken->type == TK_NULL) {
         *payload = TSDB_DATA_BINARY_NULL;
-      } else {  // too long values will return invalid sql, not be truncated automatically
+      } else { // too long values will return invalid sql, not be truncated automatically
         if (pToken->n > pSchema->bytes) {
           return tscInvalidSQLErrMsg(msg, "string data overflow", pToken->z);
         }
-
+        
         strncpy(payload, pToken->z, pToken->n);
         
         if (pToken->n < pSchema->bytes) {
@@ -325,7 +325,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         if (!taosMbsToUcs4(pToken->z, pToken->n, payload, pSchema->bytes)) {
           char buf[512] = {0};
           snprintf(buf, 512, "%s", strerror(errno));
-
+          
           return tscInvalidSQLErrMsg(msg, buf, pToken->z);
         }
       }
@@ -343,7 +343,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
         if (tsParseTime(pToken, &temp, str, msg, timePrec) != TSDB_CODE_SUCCESS) {
           return tscInvalidSQLErrMsg(msg, "invalid timestamp", pToken->z);
         }
-
+        
         *((int64_t *)payload) = temp;
       }
 
@@ -526,8 +526,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMe
         *code = retcode;
         return -1;
       }
-      
-      assert(tSize > maxRows);
+      ASSERT(tSize > maxRows);
       maxRows = tSize;
     }
 
@@ -576,8 +575,9 @@ static void tscSetAssignedColumnInfo(SParsedDataColInfo *spd, SSchema *pSchema, 
 int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows) {
   size_t    remain = pDataBlock->nAllocSize - pDataBlock->size;
   const int factor = 5;
-  uint32_t  nAllocSizeOld = pDataBlock->nAllocSize;
-
+  uint32_t nAllocSizeOld = pDataBlock->nAllocSize;
+  assert(pDataBlock->headerSize >= 0);
+  
   // expand the allocated size
   if (remain < rowSize * factor) {
     while (remain < rowSize * factor) {
@@ -590,15 +590,14 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
       pDataBlock->pData = tmp;
       memset(pDataBlock->pData + pDataBlock->size, 0, pDataBlock->nAllocSize - pDataBlock->size);
     } else {
-      // assert(false);
-      // do nothing
+      // do nothing, if allocate more memory failed
       pDataBlock->nAllocSize = nAllocSizeOld;
-      *numOfRows = (int32_t)(pDataBlock->nAllocSize) / rowSize;
+      *numOfRows = (int32_t)(pDataBlock->nAllocSize - pDataBlock->headerSize) / rowSize;
       return TSDB_CODE_CLI_OUT_OF_MEMORY;
     }
   }
 
-  *numOfRows = (int32_t)(pDataBlock->nAllocSize) / rowSize;
+  *numOfRows = (int32_t)(pDataBlock->nAllocSize - pDataBlock->headerSize) / rowSize;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -925,6 +924,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
     createTable = true;
     code = tscGetMeterMetaEx(pSql, pMeterMetaInfo, true);
+    if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
+      return code;
+    }
+    
   } else {
     if (cstart != NULL) {
       sql = cstart;
@@ -995,7 +998,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     return code;
   }
 
-  ASSERT(((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList)) 
+  assert(((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList))
       || ((NULL != pSql->asyncTblPos) && (NULL != pSql->pTableHashList)));
 
   if ((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList)) {
@@ -1007,11 +1010,11 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;
     }
   } else {
-    ASSERT((NULL != pSql->asyncTblPos) && (NULL != pSql->pTableHashList));
+    assert((NULL != pSql->asyncTblPos) && (NULL != pSql->pTableHashList));
     str = pSql->asyncTblPos;
   }
-
-  tscTrace("%p create data block list for submit data, %p", pSql, pSql->cmd.pDataBlocks);
+  
+  tscTrace("%p create data block list for submit data:%p, asyncTblPos:%p, pTableHashList:%p", pSql, pSql->cmd.pDataBlocks, pSql->asyncTblPos, pSql->pTableHashList);
 
   while (1) {
     int32_t   index = 0;
@@ -1067,7 +1070,8 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
           return code;
         }
         
-        tscTrace("async insert parse error, code:%d, %s", code, tsError[code]);
+        // todo add to return
+        tscError("async insert parse error, code:%d, %s", code, tsError[code]);
         pSql->asyncTblPos = NULL;
       }
       
@@ -1257,7 +1261,11 @@ _error_clean:
 
 _clean:
   taosCleanUpHashTable(pSql->pTableHashList);
+  
   pSql->pTableHashList = NULL;
+  pSql->asyncTblPos    = NULL;
+  pCmd->isParseFinish  = 1;
+  
   return code;
 }
 

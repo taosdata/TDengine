@@ -148,6 +148,8 @@ SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
 
 SSqlExpr* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index);
 void      tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t uid);
+void*     tscSqlExprDestroy(SSqlExpr* pExpr);
+void      tscSqlExprInfoDestroy(SSqlExprInfo* pExprInfo);
 
 SColumnBase* tscColumnBaseInfoInsert(SQueryInfo* pQueryInfo, SColumnIndex* colIndex);
 void         tscColumnFilterInfoCopy(SColumnFilterInfo* dst, const SColumnFilterInfo* src);
@@ -236,7 +238,7 @@ TAOS* taos_connect_a(char* ip, char* user, char* pass, char* db, uint16_t port, 
 
 void sortRemoveDuplicates(STableDataBlocks* dataBuf);
 
-void tscPrintSelectClause(SSqlCmd* pCmd, int32_t subClauseIndex);
+void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 
 bool hasMoreVnodesToTry(SSqlObj *pSql);
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);

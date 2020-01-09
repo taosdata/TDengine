@@ -731,16 +731,15 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
              pSql, pNew, tableIndex, pMeterMetaInfo->vnodeIndex, pNewQueryInfo->type,
              pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
              pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pMeterInfo[0]->name);
-  
+    tscPrintSelectClause(pNew, 0);
   } else {
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     pNewQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
   }
 
 #ifdef _DEBUG_VIEW
-  tscPrintSelectClause(&pNew->cmd, 0);
+  tscPrintSelectClause(pNew, 0);
 #endif
-
   
   return tscProcessSql(pNew);
 }
@@ -1391,10 +1390,14 @@ static SSqlObj *tscCreateSqlObjForSubquery(SSqlObj *pSql, SRetrieveSupport *trsu
 
 void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   SRetrieveSupport *trsupport = (SRetrieveSupport *)param;
-
-  SSqlObj *       pSql = (SSqlObj *)tres;
+  
+  SSqlObj*  pParentSql = trsupport->pParentSqlObj;
+  SSqlObj*  pSql = (SSqlObj *)tres;
+  
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
-  int32_t         idx = pMeterMetaInfo->vnodeIndex;
+  assert(pSql->cmd.numOfClause == 1 && pSql->cmd.pQueryInfo[0]->numOfTables == 1);
+  
+  int32_t idx = pMeterMetaInfo->vnodeIndex;
 
   SVnodeSidList *vnodeInfo = NULL;
   SVPeerDesc *   pSvd = NULL;
@@ -1405,17 +1408,17 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
 
   SSubqueryState* pState = trsupport->pState;
   assert(pState->numOfCompleted < pState->numOfTotal && pState->numOfCompleted >= 0 &&
-         trsupport->pParentSqlObj->numOfSubs == pState->numOfTotal);
+         pParentSql->numOfSubs == pState->numOfTotal);
   
-  if (trsupport->pParentSqlObj->res.code != TSDB_CODE_SUCCESS || pState->code != TSDB_CODE_SUCCESS) {
+  if (pParentSql->res.code != TSDB_CODE_SUCCESS || pState->code != TSDB_CODE_SUCCESS) {
     // metric query is killed, Note: code must be less than 0
     trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
-    if (trsupport->pParentSqlObj->res.code != TSDB_CODE_SUCCESS) {
-      code = -(int)(trsupport->pParentSqlObj->res.code);
+    if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
+      code = -(int)(pParentSql->res.code);
     } else {
       code = pState->code;
     }
-    tscTrace("%p query cancelled or failed, sub:%p, orderOfSub:%d abort, code:%d", trsupport->pParentSqlObj, pSql,
+    tscTrace("%p query cancelled or failed, sub:%p, orderOfSub:%d abort, code:%d", pParentSql, pSql,
              trsupport->subqueryIndex, code);
   }
 
@@ -1428,15 +1431,15 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
    */
   if (code != TSDB_CODE_SUCCESS) {
     if (trsupport->numOfRetry++ >= MAX_NUM_OF_SUBQUERY_RETRY) {
-      tscTrace("%p sub:%p reach the max retry count,set global code:%d", trsupport->pParentSqlObj, pSql, code);
+      tscTrace("%p sub:%p reach the max retry count,set global code:%d", pParentSql, pSql, code);
       atomic_val_compare_exchange_32(&pState->code, 0, code);
     } else {  // does not reach the maximum retry count, go on
-      tscTrace("%p sub:%p failed code:%d, retry:%d", trsupport->pParentSqlObj, pSql, code, trsupport->numOfRetry);
+      tscTrace("%p sub:%p failed code:%d, retry:%d", pParentSql, pSql, code, trsupport->numOfRetry);
 
-      SSqlObj *pNew = tscCreateSqlObjForSubquery(trsupport->pParentSqlObj, trsupport, pSql);
+      SSqlObj *pNew = tscCreateSqlObjForSubquery(pParentSql, trsupport, pSql);
       if (pNew == NULL) {
         tscError("%p sub:%p failed to create new subquery due to out of memory, abort retry, vid:%d, orderOfSub:%d",
-                 trsupport->pParentSqlObj, pSql, pSvd->vnode, trsupport->subqueryIndex);
+                 pParentSql, pSql, pSvd->vnode, trsupport->subqueryIndex);
 
         pState->code = -TSDB_CODE_CLI_OUT_OF_MEMORY;
         trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
@@ -1451,17 +1454,17 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
 
   if (pState->code != TSDB_CODE_SUCCESS) {  // failed, abort
     if (vnodeInfo != NULL) {
-      tscTrace("%p sub:%p query failed,ip:%u,vid:%d,orderOfSub:%d,global code:%d", trsupport->pParentSqlObj, pSql,
+      tscTrace("%p sub:%p query failed,ip:%u,vid:%d,orderOfSub:%d,global code:%d", pParentSql, pSql,
                vnodeInfo->vpeerDesc[vnodeInfo->index].ip, vnodeInfo->vpeerDesc[vnodeInfo->index].vnode,
                trsupport->subqueryIndex, pState->code);
     } else {
-      tscTrace("%p sub:%p query failed,orderOfSub:%d,global code:%d", trsupport->pParentSqlObj, pSql,
+      tscTrace("%p sub:%p query failed,orderOfSub:%d,global code:%d", pParentSql, pSql,
                trsupport->subqueryIndex, pState->code);
     }
 
     tscRetrieveFromVnodeCallBack(param, tres, pState->code);
   } else {  // success, proceed to retrieve data from dnode
-    tscTrace("%p sub:%p query complete,ip:%u,vid:%d,orderOfSub:%d,retrieve data", trsupport->pParentSqlObj, pSql,
+    tscTrace("%p sub:%p query complete,ip:%u,vid:%d,orderOfSub:%d,retrieve data", pParentSql, pSql,
              vnodeInfo->vpeerDesc[vnodeInfo->index].ip, vnodeInfo->vpeerDesc[vnodeInfo->index].vnode,
              trsupport->subqueryIndex);
 
@@ -1471,7 +1474,6 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
 
 int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char *pMsg, *pStart;
-  int   msgLen = 0;
 
   pStart = pSql->cmd.payload + tsRpcHeadSize;
   pMsg = pStart;
@@ -2143,7 +2145,6 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int32_t tscBuildDropAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SDropUserMsg *pDropMsg;
   char *        pMsg, *pStart;
-  int           msgLen = 0;
 
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -2604,7 +2605,6 @@ int tscProcessEmptyResultRsp(SSqlObj *pSql) { return tscLocalResultCommonBuilder
 int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SConnectMsg *pConnect;
   char *       pMsg, *pStart;
-  int          msgLen = 0;
 
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
@@ -3697,6 +3697,11 @@ int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
 
   pNewQueryInfo->slimit = pQueryInfo->slimit;
   pNewQueryInfo->order = pQueryInfo->order;
+  
+  STagCond* pTagCond = &pNewQueryInfo->tagCond;
+  tscTrace("%p new sqlobj:%p info, numOfTables:%d, slimit:%" PRId64 ", soffset:%" PRId64 ", order:%d, tbname cond:%s",
+      pSql, pNew, pNewQueryInfo->numOfTables, pNewQueryInfo->slimit.limit, pNewQueryInfo->slimit.offset,
+      pNewQueryInfo->order.order, pTagCond->tbnameCond.cond)
 
 //  if (pSql->fp != NULL && pSql->pStream == NULL) {
 //    pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
@@ -3725,7 +3730,6 @@ int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
         pMeterMetaInfo->pMetricMeta = (SMetricMeta *)taosGetDataFromCache(tscCacheHandle, tagstr);
       }
     }
-    
 
     tscFreeSqlObj(pNew);
   } else {

@@ -477,7 +477,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
   }
 
   if (pSql->pStream == NULL) {
-    // check if it is a sub-query of metric query first, if true, enter another routine
+    // check if it is a sub-query of super table query first, if true, enter another routine
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) == TSDB_QUERY_TYPE_STABLE_SUBQUERY) {
@@ -490,7 +490,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
       assert(pParObj->signature == pParObj && trs->subqueryIndex == pMeterMetaInfo->vnodeIndex &&
           pMeterMetaInfo->pMeterMeta->numOfTags != 0);
 
-      tscTrace("%p get metricMeta during metric query successfully", pSql);
+      tscTrace("%p get metricMeta during super table query successfully", pSql);
       
       code = tscGetMeterMeta(pSql, pMeterMetaInfo);
       pRes->code = code;
@@ -502,8 +502,21 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
     } else {  // normal async query continues
-      code = tsParseSql(pSql, false);
-      if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+      if (pCmd->isParseFinish) {
+        tscTrace("%p resend data to vnode in metermeta callback since sql has been parsed completed", pSql);
+        
+        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+        code = tscGetMeterMeta(pSql, pMeterMetaInfo);
+        assert(code == TSDB_CODE_SUCCESS);
+      
+        if (pMeterMetaInfo->pMeterMeta) {
+          code = tscSendMsgToServer(pSql);
+          if (code == TSDB_CODE_SUCCESS) return;
+        }
+      } else {
+        code = tsParseSql(pSql, false);
+        if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+      }
     }
 
   } else {  // stream computing
@@ -514,7 +527,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
     if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
     if (code == TSDB_CODE_SUCCESS && UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
-      code = tscGetMetricMeta(pSql, 0);
+      code = tscGetMetricMeta(pSql, pCmd->clauseIndex);
       pRes->code = code;
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
@@ -531,7 +544,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
     tscTrace("%p stream:%p meta is updated, start new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
     /*
      * NOTE:
-     * transfer the sql function for metric query before get meter/metric meta,
+     * transfer the sql function for super table query before get meter/metric meta,
      * since in callback functions, only tscProcessSql(pStream->pSql) is executed!
      */
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);

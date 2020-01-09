@@ -590,6 +590,11 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   }
 
   dataBuf->nAllocSize = (uint32_t)initialSize;
+  dataBuf->headerSize = startOffset; // the header size will always be the startOffset value, reserved for the subumit block header
+  if (dataBuf->nAllocSize <= dataBuf->headerSize) {
+    dataBuf->nAllocSize = dataBuf->headerSize*2;
+  }
+  
   dataBuf->pData = calloc(1, dataBuf->nAllocSize);
   dataBuf->ordered = true;
   dataBuf->prevTS = INT64_MIN;
@@ -1083,6 +1088,37 @@ SSqlExpr* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index) {
   return &pQueryInfo->exprsInfo.pExprs[index];
 }
 
+void* tscSqlExprDestroy(SSqlExpr* pExpr) {
+  if (pExpr == NULL) {
+    return NULL;
+  }
+  
+  for(int32_t i = 0; i < tListLen(pExpr->param); ++i) {
+    tVariantDestroy(&pExpr->param[i]);
+  }
+  
+  return NULL;
+}
+
+/*
+ * NOTE: Does not release SSqlExprInfo here.
+ */
+void tscSqlExprInfoDestroy(SSqlExprInfo* pExprInfo) {
+  if (pExprInfo->numOfAlloc == 0) {
+    return;
+  }
+  
+  for(int32_t i = 0; i < pExprInfo->numOfAlloc; ++i) {
+    tscSqlExprDestroy(&pExprInfo->pExprs[i]);
+  }
+  
+  tfree(pExprInfo->pExprs);
+  
+  pExprInfo->numOfAlloc = 0;
+  pExprInfo->numOfExprs = 0;
+}
+
+
 void tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t tableuid) {
   if (src == NULL) {
     return;
@@ -1090,7 +1126,7 @@ void tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t tableui
 
   *dst = *src;
 
-  dst->pExprs = malloc(sizeof(SSqlExpr) * dst->numOfAlloc);
+  dst->pExprs = calloc(dst->numOfAlloc, sizeof(SSqlExpr));
   int16_t num = 0;
   for (int32_t i = 0; i < src->numOfExprs; ++i) {
     if (src->pExprs[i].uid == tableuid) {
@@ -1667,7 +1703,7 @@ static void doClearSubqueryInfo(SQueryInfo* pQueryInfo) {
   tscTagCondRelease(&pQueryInfo->tagCond);
   tscClearFieldInfo(&pQueryInfo->fieldsInfo);
 
-  tfree(pQueryInfo->exprsInfo.pExprs);
+  tscSqlExprInfoDestroy(&pQueryInfo->exprsInfo);
   memset(&pQueryInfo->exprsInfo, 0, sizeof(pQueryInfo->exprsInfo));
 
   tscColumnBaseInfoDestroy(&pQueryInfo->colList);
@@ -1910,12 +1946,15 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
     assert(pFinalInfo->pMetricMeta != NULL);
   }
-
+  
   tscTrace(
-      "%p new subquery %p, tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d,"
-      "fieldInfo:%d, name:%s",
+      "%p new subquery: %p, tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d,"
+      "fieldInfo:%d, name:%s, qrang:%" PRId64 " - %" PRId64 " order:%d, limit:%" PRId64,
       pSql, pNew, tableIndex, pMeterMetaInfo->vnodeIndex, pNewQueryInfo->type, pNewQueryInfo->exprsInfo.numOfExprs,
-      pNewQueryInfo->colList.numOfCols, pNewQueryInfo->fieldsInfo.numOfOutputCols, pFinalInfo->name);
+      pNewQueryInfo->colList.numOfCols, pNewQueryInfo->fieldsInfo.numOfOutputCols, pFinalInfo->name, pNewQueryInfo->stime,
+      pNewQueryInfo->etime, pNewQueryInfo->order.order, pNewQueryInfo->limit.limit);
+  
+  tscPrintSelectClause(pNew, 0);
 
   return pNew;
 }
@@ -1923,7 +1962,9 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 void tscDoQuery(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   void*    fp = pSql->fp;
-
+  
+  assert(pSql->res.code == TSDB_CODE_SUCCESS);
+  
   if (pCmd->command > TSDB_SQL_LOCAL) {
     tscProcessLocalCmd(pSql);
   } else {
@@ -2110,10 +2151,10 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
   // current subclause is completed, try the next subclause
   assert(pCmd->clauseIndex < pCmd->numOfClause - 1);
 
+  pCmd->clauseIndex++;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   pSql->cmd.command = pQueryInfo->command;
-  pCmd->clauseIndex++;
 
   pRes->numOfTotal += pRes->numOfTotalInCurrentClause;
   pRes->numOfTotalInCurrentClause = 0;

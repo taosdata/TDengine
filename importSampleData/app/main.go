@@ -28,6 +28,7 @@ const (
 	DEFAULT_STARTTIME int64 = -1
 	DEFAULT_INTERVAL int64 = 1*1000
 	DEFAULT_DELAY int64 = -1
+	DEFAULT_STATISTIC_TABLE = "statistic"
 
 	JSON_FORMAT = "json"
 	CSV_FORMAT = "csv"
@@ -37,7 +38,6 @@ const (
 	DRIVER_NAME = "taosSql"
 	STARTTIME_LAYOUT = "2006-01-02 15:04:05.000"
 	INSERT_PREFIX = "insert into "
-	STATISTIC_TABLE = "statistic"
 )
 
 var (
@@ -75,6 +75,7 @@ var (
 	delay int64  // default 10 milliseconds
 	tick int64
 	save int
+	saveTable string
 )
 
 type superTableConfig struct {
@@ -278,9 +279,9 @@ func staticSpeed(){
 
 	if save == 1 {
 		connection.Exec("use " + db)
-		_, err := connection.Exec("create table if not exists " + STATISTIC_TABLE +"(ts timestamp, speed int)")
+		_, err := connection.Exec("create table if not exists " + saveTable +"(ts timestamp, speed int)")
 		if err != nil {
-			log.Fatalf("create %s Table error: %s\n", STATISTIC_TABLE, err)
+			log.Fatalf("create %s Table error: %s\n", saveTable, err)
 		}
 	}
 
@@ -297,7 +298,7 @@ func staticSpeed(){
 		log.Printf("insert %d rows, used %d ms, speed %d rows/s", currentSuccessRows, usedTime/1e6, speed)
 
 		if save == 1 {
-			insertSql := fmt.Sprintf("insert into %s values(%d, %d)", STATISTIC_TABLE, currentTime.UnixNano()/1e6, speed)
+			insertSql := fmt.Sprintf("insert into %s values(%d, %d)", saveTable, currentTime.UnixNano()/1e6, speed)
 			connection.Exec(insertSql)
 		}
 		
@@ -353,7 +354,7 @@ func createStatisticTable(){
 	connection := getConnection()
 	defer connection.Close()
 
-	_, err := connection.Exec("create table if not exist " + db + "."+ STATISTIC_TABLE +"(ts timestamp, speed int)")
+	_, err := connection.Exec("create table if not exist " + db + "."+ saveTable +"(ts timestamp, speed int)")
 	if err != nil {
 		log.Fatalf("createStatisticTable error: %s\n", err)
 	}
@@ -1037,6 +1038,7 @@ func parseArg() {
 	flag.Int64Var(&delay, "delay", DEFAULT_DELAY, "the delay time interval(millisecond) to continue generating data when vnum set 0.")
 	flag.Int64Var(&tick, "tick", 2000, "the tick time interval(millisecond) to print statistic info.")
 	flag.IntVar(&save, "save", 0, "whether to save the statistical info into 'statistic' table. 0 is disabled and 1 is enabled.")
+	flag.StringVar(&saveTable, "savetb", DEFAULT_STATISTIC_TABLE, "the table to save 'statistic' info when save set 1.")
 	flag.IntVar(&thread, "thread", 10, "number of threads to import data.")
 	flag.IntVar(&batch, "batch", 100, "rows of records in one import batch.")
 	flag.IntVar(&auto, "auto", 0, "whether to use the starttime and interval specified by users when simulating the data. 0 is disabled and 1 is enabled.")
@@ -1062,6 +1064,7 @@ func printArg()  {
 	fmt.Println("-delay:", delay)
 	fmt.Println("-tick:", tick)
 	fmt.Println("-save:", save)
+	fmt.Println("-savetb:", saveTable)
 	fmt.Println("-thread:", thread)
 	fmt.Println("-batch:", batch)
 	fmt.Println("-auto:", auto)

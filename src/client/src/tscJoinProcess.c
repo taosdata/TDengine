@@ -199,7 +199,7 @@ void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter) {
     return;
   }
 
-  tfree(pSupporter->exprsInfo.pExprs);
+  tscSqlExprInfoDestroy(&pSupporter->exprsInfo);
   tscColumnBaseInfoDestroy(&pSupporter->colList);
 
   tscClearFieldInfo(&pSupporter->fieldsInfo);
@@ -264,19 +264,25 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
   pState->numOfCompleted = (pSql->numOfSubs - numOfSub);
   
   for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
-    SSqlObj* pSub = pSql->pSubs[i];
-    pSupporter = pSub->param;
+    SSqlObj* pPrevSub = pSql->pSubs[i];
+    pSupporter = pPrevSub->param;
 
     if (pSupporter->exprsInfo.numOfExprs == 0) {
       tscTrace("%p subquery %d, not need to launch query, ignore it", pSql, i);
       
       tscDestroyJoinSupporter(pSupporter);
-      tscFreeSqlObj(pSub);
+      tscFreeSqlObj(pPrevSub);
       
       pSql->pSubs[i] = NULL;
       continue;
     }
-
+  
+    SQueryInfo* pSubQueryInfo = tscGetQueryInfoDetail(&pPrevSub->cmd, 0);
+    STSBuf* pTSBuf = pSubQueryInfo->tsBuf;
+    pSubQueryInfo->tsBuf = NULL;
+  
+    taos_free_result(pPrevSub);
+  
     // todo refactor to avoid the memory problem handling
     SSqlObj* pNew = createSubqueryObj(pSql, (int16_t)i, tscJoinQueryCallback, pSupporter, NULL);
     if (pNew == NULL) {
@@ -289,16 +295,10 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
     }
 
     tscClearSubqueryInfo(&pNew->cmd);
-
     pSql->pSubs[i] = pNew;
     
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
-    SQueryInfo* pSubQueryInfo = tscGetQueryInfoDetail(&pSub->cmd, 0);
-    
-    pQueryInfo->tsBuf = pSubQueryInfo->tsBuf;
-    pSubQueryInfo->tsBuf = NULL;
-
-    taos_free_result(pSub);
+    pQueryInfo->tsBuf = pTSBuf;  // transfer the ownership of timestamp comp-z data to the new created object
 
     // set the second stage sub query for join process
     pQueryInfo->type |= TSDB_QUERY_TYPE_JOIN_SEC_STAGE;
@@ -321,7 +321,6 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
     SQueryInfo* pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     assert(pNew->numOfSubs == 0 && pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
     
-    tscAddTimestampColumn(pQueryInfo, TSDB_FUNC_TS, 0);
     tscFieldInfoCalOffset(pNewQueryInfo);
 
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pNewQueryInfo, 0);
@@ -343,9 +342,7 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
       pExpr->numOfParams = 1;
     }
 
-#ifdef _DEBUG_VIEW
-    tscPrintSelectClause(&pNew->cmd, 0);
-#endif
+    tscPrintSelectClause(pNew, 0);
   
     tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
              "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",

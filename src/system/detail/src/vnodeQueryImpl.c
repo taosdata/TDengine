@@ -5997,7 +5997,7 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     int32_t size = compInfo.numOfBlocks * sizeof(SCompBlock);
     size_t  bufferSize = size + sizeof(TSCKSUM);
     
-    pMeterDataInfo[j]->numOfBlocks = compInfo.numOfBlocks;  // set to be the initial value
+    pMeterDataInfo[j]->numOfBlocks = compInfo.numOfBlocks;
     pMeterDataInfo[j]->pBlock = calloc(1, bufferSize);
     if (pMeterDataInfo[j]->pBlock == NULL) {
       clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
@@ -6030,6 +6030,7 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     int32_t end = 0;
     if (!getValidDataBlocksRangeIndex(pMeterDataInfo[j], pQuery, pMeterDataInfo[j]->pBlock, compInfo.numOfBlocks,
                                       minval, maxval, &end)) {
+      // current table has no qualified data blocks, erase its information.
       clearAllMeterDataBlockInfo(pMeterDataInfo, j, j + 1);
       continue;
     }

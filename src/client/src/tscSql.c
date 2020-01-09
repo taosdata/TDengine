@@ -386,7 +386,14 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 static void **doSetResultRowData(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
-
+  
+  assert(pRes->row >= 0 && pRes->row <= pRes->numOfRows);
+  
+  if (pRes->row >= pRes->numOfRows) {  // all the results has returned to invoker
+    tfree(pRes->tsrow);
+    return pRes->tsrow;
+  }
+  
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   int32_t num = 0;
@@ -399,7 +406,6 @@ static void **doSetResultRowData(SSqlObj *pSql) {
     }
 
     TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
-
     if (isNull(pRes->tsrow[i], pField->type)) {
       pRes->tsrow[i] = NULL;
     } else if (pField->type == TSDB_DATA_TYPE_NCHAR) {
@@ -419,21 +425,14 @@ static void **doSetResultRowData(SSqlObj *pSql) {
         tscError("%p charset:%s to %s. val:%ls convert failed.", pSql, DEFAULT_UNICODE_ENCODEC, tsCharset, pRes->tsrow);
         pRes->tsrow[i] = NULL;
       }
+      
       num++;
     }
   }
 
   assert(num <= pQueryInfo->fieldsInfo.numOfOutputCols);
-
-  return pRes->tsrow;
-}
-
-static void **getOneRowFromBuf(SSqlObj *pSql) {
-  doSetResultRowData(pSql);
-
-  SSqlRes *pRes = &pSql->res;
-  pRes->row++;
-
+  
+  pRes->row++; // index increase one-step
   return pRes->tsrow;
 }
 
@@ -493,7 +492,7 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
   while (1) {
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
     if (pRes->tsrow == NULL) {
-      pRes->tsrow = malloc(POINTER_BYTES * pQueryInfo->exprsInfo.numOfExprs);
+      pRes->tsrow = calloc(pQueryInfo->exprsInfo.numOfExprs, POINTER_BYTES);
     }
 
     bool success = false;
@@ -506,29 +505,21 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
     }
 
     if (numOfTableHasRes >= 2) {  // do merge result
-      SSqlRes *pRes1 = &pSql->pSubs[0]->res;
-      SSqlRes *pRes2 = &pSql->pSubs[1]->res;
 
-      if (pRes1->row < pRes1->numOfRows && pRes2->row < pRes2->numOfRows) {
-        doSetResultRowData(pSql->pSubs[0]);
-        doSetResultRowData(pSql->pSubs[1]);
+        success = (doSetResultRowData(pSql->pSubs[0]) != NULL) &&
+            (doSetResultRowData(pSql->pSubs[1]) != NULL);
         //        TSKEY key1 = *(TSKEY *)pRes1->tsrow[0];
         //        TSKEY key2 = *(TSKEY *)pRes2->tsrow[0];
         //        printf("first:%" PRId64 ", second:%" PRId64 "\n", key1, key2);
-        success = true;
-        pRes1->row++;
-        pRes2->row++;
-      }
     } else {  // only one subquery
       SSqlObj *pSub = pSql->pSubs[0];
       if (pSub == NULL) {
         pSub = pSql->pSubs[1];
       }
 
-      SSqlRes *pRes1 = &pSub->res;
-      doSetResultRowData(pSub);
+      success = (doSetResultRowData(pSub) != NULL);
 
-      success = (pRes1->row++ < pRes1->numOfRows);
+//      success = (pRes1->row++ < pRes1->numOfRows);
     }
 
     if (success) {  // current row of final output has been built, return to app
@@ -629,7 +620,7 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
     }
   }
 
-  return getOneRowFromBuf(pSql);
+  return doSetResultRowData(pSql);
 }
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {

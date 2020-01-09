@@ -200,8 +200,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   }
 
   int32_t code = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
-
   assert(pQueryInfo->numOfTables == 0);
+  
   SMeterMetaInfo* pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
 
   pCmd->command = pInfo->type;
@@ -496,7 +496,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_SELECT: {
       assert(pCmd->numOfClause == 1);
-      const char* msg1 = "columns in select caluse not identical";
+      const char* msg1 = "columns in select clause not identical";
       
       for (int32_t i = pCmd->numOfClause; i < pInfo->subclauseInfo.numOfClause; ++i) {
         SQueryInfo* pqi = NULL;
@@ -513,7 +513,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           return code;
         }
   
-        tscPrintSelectClause(pCmd, i);
+        tscPrintSelectClause(pSql, i);
       }
       
       // set the command/global limit parameters from the first subclause to the sqlcmd object
@@ -590,7 +590,7 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  /* revised the time precision according to the flag */
+  // if the unit of time window value is millisecond, change the value from microsecond
   if (pMeterMetaInfo->pMeterMeta->precision == TSDB_TIME_PRECISION_MILLI) {
     pQueryInfo->nAggTimeInterval = pQueryInfo->nAggTimeInterval / 1000;
   }
@@ -608,12 +608,23 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // check the invalid sql expresssion: select count(tbname)/count(tag1)/count(tag2) from super_table interval(1d);
+  /*
+   * check invalid SQL:
+   * select count(tbname)/count(tag1)/count(tag2) from super_table_name interval(1d);
+   */ 
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     if (pExpr->functionId == TSDB_FUNC_COUNT && TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
     }
+  }
+  
+  /*
+   * check invalid SQL:
+   * select tbname, tags_fields from super_table_name interval(1s)
+   */ 
+  if (tscQueryMetricTags(pQueryInfo) && pQueryInfo->nAggTimeInterval > 0) {
+    return invalidSqlErrMsg(pQueryInfo->msg, msg1);
   }
 
   // need to add timestamp column in result set, if interval is existed
@@ -5119,33 +5130,32 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCreateDbMsg* pCreate) {
 }
 
 // for debug purpose
-void tscPrintSelectClause(SSqlCmd* pCmd, int32_t subClauseIndex) {
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, subClauseIndex);
+void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex) {
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, subClauseIndex);
 
-  if (pCmd == NULL || pQueryInfo->exprsInfo.numOfExprs == 0) {
+  if (pQueryInfo->exprsInfo.numOfExprs == 0) {
     return;
   }
 
-  char*   str = calloc(1, 10240);
+  int32_t totalBufSize = 1024;
+  
+  char str[1024] = {0};
   int32_t offset = 0;
 
-  offset += sprintf(str, "%d [", pQueryInfo->exprsInfo.numOfExprs);
+  offset += sprintf(str, "num:%d [", pQueryInfo->exprsInfo.numOfExprs);
   for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
 
-    int32_t size = sprintf(str + offset, "%s(uid:%" PRId64 ", %d)", aAggs[pExpr->functionId].aName,
+    offset += snprintf(str + offset, totalBufSize - offset, "%s(uid:%" PRId64 ", %d)", aAggs[pExpr->functionId].aName,
         pExpr->uid, pExpr->colInfo.colId);
-    offset += size;
-
+    
     if (i < pQueryInfo->exprsInfo.numOfExprs - 1) {
       str[offset++] = ',';
     }
   }
 
   str[offset] = ']';
-  printf("%s\n", str);
-
-  free(str);
+  tscTrace("%p select clause:%s", pSql, str);
 }
 
 int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* pInfo) {

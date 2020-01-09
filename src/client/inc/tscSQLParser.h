@@ -68,6 +68,7 @@ enum _sql_cmd {
   TSDB_SQL_RETRIEVE_METRIC,
   TSDB_SQL_METRIC_JOIN_RETRIEVE,
   TSDB_SQL_RETRIEVE_TAGS,
+  
   /*
    * build empty result instead of accessing dnode to fetch result
    * reset the client cache
