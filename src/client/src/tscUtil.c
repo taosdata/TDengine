@@ -365,6 +365,9 @@ void tscFreeSqlCmdData(SSqlCmd* pCmd) {
   tscFreeSubqueryInfo(pCmd);
 }
 
+/*
+ * this function must not change the pRes->code value, since it may be used later.
+ */
 void tscFreeResData(SSqlObj* pSql) {
   SSqlRes* pRes = &pSql->res;
   
@@ -386,10 +389,8 @@ void tscFreeResData(SSqlObj* pSql) {
   
   pRes->offset = 0;
   pRes->useconds = 0;
-  pRes->code = 0;
   
   pRes->data = NULL;
-  
   tfree(pRes->pGroupRec);
   
   tscDestroyLocalReducer(pSql);
@@ -404,8 +405,6 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   }
 
   SSqlCmd* pCmd = &pSql->cmd;
-  SSqlRes* pRes = &pSql->res;
-
   STscObj* pObj = pSql->pTscObj;
 
   int32_t cmd = pCmd->command;

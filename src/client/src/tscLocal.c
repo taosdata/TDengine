@@ -445,7 +445,8 @@ void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnNa
   SSqlRes *pRes = &pSql->res;
 
   pCmd->numOfCols = 1;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   pQueryInfo->order.order = TSQL_SO_ASC;
   
   tscClearFieldInfo(&pQueryInfo->fieldsInfo);
