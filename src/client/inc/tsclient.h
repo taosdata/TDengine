@@ -201,10 +201,10 @@ typedef struct SDataBlockList {
 } SDataBlockList;
 
 typedef struct SQueryInfo {
-  int16_t         command; // the command may be different for each subclause, so keep it seperately.
-  uint16_t        type;    // query/insert/import type
-  char            intervalTimeUnit;
-  
+  int16_t  command;  // the command may be different for each subclause, so keep it seperately.
+  uint16_t type;     // query/insert/import type
+  char     intervalTimeUnit;
+
   int64_t         etime, stime;
   int64_t         nAggTimeInterval;  // aggregation time interval
   int64_t         nSlidingTime;      // sliding window in mseconds
@@ -221,9 +221,9 @@ typedef struct SQueryInfo {
   int16_t          numOfTables;
   SMeterMetaInfo **pMeterInfo;
   struct STSBuf *  tsBuf;
-  int64_t *        defaultVal;  // default value for interpolation
-  char *           msg;         // pointer to the pCmd->payload to keep error message temporarily
-  int64_t          clauseLimit; // limit for this sub clause
+  int64_t *        defaultVal;   // default value for interpolation
+  char *           msg;          // pointer to the pCmd->payload to keep error message temporarily
+  int64_t          clauseLimit;  // limit for this sub clause
 } SQueryInfo;
 
 // data source from sql string or from file
@@ -248,13 +248,13 @@ typedef struct {
     int32_t numOfTablesInSubmit;
   };
 
-  int32_t      clauseIndex;    // index of multiple subclause query
-  int8_t       isParseFinish;
-  short        numOfCols;
-  
-  uint32_t     allocSize;
-  char *       payload;
-  int          payloadLen;
+  int32_t  clauseIndex;  // index of multiple subclause query
+  int8_t   isParseFinish;
+  short    numOfCols;
+  uint32_t allocSize;
+  char *   payload;
+  int      payloadLen;
+
   SQueryInfo **pQueryInfo;
   int32_t      numOfClause;
 
@@ -413,6 +413,7 @@ int32_t tscCreateResPointerInfo(SQueryInfo *pQueryInfo, SSqlRes *pRes);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
 void tscFreeSqlCmdData(SSqlCmd *pCmd);
+void tscFreeResData(SSqlObj* pSql);
 
 /**
  * only free part of resources allocated during query.
@@ -435,7 +436,7 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql);
 void tscKillMetricQuery(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(STscObj *pObj);
-bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes);
+bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 

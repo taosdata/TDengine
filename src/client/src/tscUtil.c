@@ -365,6 +365,39 @@ void tscFreeSqlCmdData(SSqlCmd* pCmd) {
   tscFreeSubqueryInfo(pCmd);
 }
 
+void tscFreeResData(SSqlObj* pSql) {
+  SSqlRes* pRes = &pSql->res;
+  
+  tfree(pRes->pRsp);
+  pRes->row = 0;
+  
+  pRes->rspType = 0;
+  pRes->rspLen = 0;
+  pRes->row = 0;
+  
+  pRes->numOfRows = 0;
+  pRes->numOfTotal = 0;
+  pRes->numOfTotalInCurrentClause = 0;
+  
+  pRes->numOfGroups = 0;
+  pRes->precision = 0;
+  pRes->numOfnchar = 0;
+  pRes->qhandle = 0;
+  
+  pRes->offset = 0;
+  pRes->useconds = 0;
+  pRes->code = 0;
+  
+  pRes->data = NULL;
+  
+  tfree(pRes->pGroupRec);
+  
+  tscDestroyLocalReducer(pSql);
+  
+  tscDestroyResPointerInfo(pRes);
+  tfree(pRes->pColumnIndex);
+}
+
 void tscFreeSqlObjPartial(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     return;
@@ -387,22 +420,11 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   pthread_mutex_lock(&pObj->mutex);
   tfree(pSql->sqlstr);
   pthread_mutex_unlock(&pObj->mutex);
-
-  tfree(pRes->pRsp);
-  pRes->row = 0;
-  pRes->numOfRows = 0;
-  pRes->numOfTotal = 0;
-  pRes->numOfTotalInCurrentClause = 0;
-
-  pRes->numOfGroups = 0;
-  tfree(pRes->pGroupRec);
-
-  tscDestroyLocalReducer(pSql);
-
+  
+  tscFreeResData(pSql);
+  
   tfree(pSql->pSubs);
   pSql->numOfSubs = 0;
-  tscDestroyResPointerInfo(pRes);
-  tfree(pRes->pColumnIndex);
 
   tscFreeSqlCmdData(pCmd);
 }
@@ -2156,13 +2178,15 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
 
   pSql->cmd.command = pQueryInfo->command;
 
-  pRes->numOfTotal += pRes->numOfTotalInCurrentClause;
-  pRes->numOfTotalInCurrentClause = 0;
-  pRes->rspType = 0;
-
-  pSql->numOfSubs = 0;
+  //backup the total number of result first
+  int64_t num = pRes->numOfTotal + pRes->numOfTotalInCurrentClause;
+  tscFreeResData(pSql);
+  
+  pRes->numOfTotal = num;
+  
   tfree(pSql->pSubs);
-
+  pSql->numOfSubs = 0;
+  
   if (pSql->fp != NULL) {
     pSql->fp = queryFp;
     assert(queryFp != NULL);
