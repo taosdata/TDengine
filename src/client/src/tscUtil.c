@@ -318,27 +318,33 @@ void tscClearSqlMetaInfoForce(SSqlCmd* pCmd) {
   //    taosRemoveDataFromCache(tscCacheHandle, (void**)&(pCmd->pMetricMeta), true);
 }
 
-int32_t tscCreateResPointerInfo(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
+int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   if (pRes->tsrow == NULL) {
     pRes->numOfnchar = 0;
+  
     int32_t numOfOutputCols = pQueryInfo->fieldsInfo.numOfOutputCols;
-
     for (int32_t i = 0; i < numOfOutputCols; ++i) {
       TAOS_FIELD* pField = tscFieldInfoGetField(pQueryInfo, i);
       if (pField->type == TSDB_DATA_TYPE_NCHAR) {
         pRes->numOfnchar++;
       }
     }
-
+  
     pRes->tsrow = calloc(1, (POINTER_BYTES + sizeof(short)) * numOfOutputCols + POINTER_BYTES * pRes->numOfnchar);
-    if (pRes->tsrow == NULL) {
+    pRes->bytes = calloc(numOfOutputCols, sizeof(short));
+  
+    if (pRes->numOfnchar > 0) {
+      pRes->buffer = calloc(POINTER_BYTES, pRes->numOfnchar);
+    }
+  
+    // not enough memory
+    if (pRes->tsrow == NULL || pRes->bytes == NULL || (pRes->buffer == NULL && pRes->numOfnchar > 0)) {
+      tfree(pRes->tsrow);
+      tfree(pRes->bytes);
+      tfree(pRes->buffer);
+    
       pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
       return pRes->code;
-    }
-
-    pRes->bytes = (short*)((char*)pRes->tsrow + POINTER_BYTES * numOfOutputCols);
-    if (pRes->numOfnchar > 0) {
-      pRes->buffer = (char**)((char*)pRes->bytes + sizeof(short) * numOfOutputCols);
     }
   }
 
@@ -346,18 +352,25 @@ int32_t tscCreateResPointerInfo(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
 }
 
 void tscDestroyResPointerInfo(SSqlRes* pRes) {
-  // free all buffers containing the multibyte string
-  for (int i = 0; i < pRes->numOfnchar; i++) {
-    if (pRes->buffer[i] != NULL) {
+  if (pRes->buffer != NULL) {
+    assert(pRes->numOfnchar > 0);
+    // free all buffers containing the multibyte string
+    for (int i = 0; i < pRes->numOfnchar; i++) {
       tfree(pRes->buffer[i]);
     }
+    
+    pRes->numOfnchar = 0;
   }
-
+  
+  tfree(pRes->pRsp);
   tfree(pRes->tsrow);
-
-  pRes->numOfnchar = 0;
-  pRes->buffer = NULL;
-  pRes->bytes = NULL;
+  
+  tfree(pRes->pGroupRec);
+  tfree(pRes->pColumnIndex);
+  tfree(pRes->buffer);
+  tfree(pRes->bytes);
+  
+  pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
 }
 
 void tscFreeSqlCmdData(SSqlCmd* pCmd) {
@@ -371,7 +384,6 @@ void tscFreeSqlCmdData(SSqlCmd* pCmd) {
 void tscFreeResData(SSqlObj* pSql) {
   SSqlRes* pRes = &pSql->res;
   
-  tfree(pRes->pRsp);
   pRes->row = 0;
   
   pRes->rspType = 0;
@@ -384,19 +396,14 @@ void tscFreeResData(SSqlObj* pSql) {
   
   pRes->numOfGroups = 0;
   pRes->precision = 0;
-  pRes->numOfnchar = 0;
   pRes->qhandle = 0;
   
   pRes->offset = 0;
   pRes->useconds = 0;
   
-  pRes->data = NULL;
-  tfree(pRes->pGroupRec);
-  
   tscDestroyLocalReducer(pSql);
   
   tscDestroyResPointerInfo(pRes);
-  tfree(pRes->pColumnIndex);
 }
 
 void tscFreeSqlObjPartial(SSqlObj* pSql) {
@@ -436,24 +443,27 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   pSql->signature = NULL;
   pSql->fp = NULL;
+  
   SSqlCmd* pCmd = &pSql->cmd;
+  SSqlRes* pRes = &pSql->res;
 
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   tfree(pCmd->payload);
 
   pCmd->allocSize = 0;
 
-  if (pSql->res.buffer != NULL) {
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-
-    for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; i++) {
-      if (pSql->res.buffer[i] != NULL) {
-        tfree(pSql->res.buffer[i]);
-      }
-    }
-
-    tfree(pSql->res.buffer);
-  }
+//  if (pRes->buffer != NULL) {
+//    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+//
+//    for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; i++) {
+//      if (pRes->buffer[i] != NULL) {
+//        printf("===========free:%p\n", pRes->buffer[i]);
+//        tfree(pRes->buffer[i]);
+//      }
+//    }
+//
+//    tfree(pRes->buffer);
+//  }
 
   if (pSql->fp == NULL) {
     tsem_destroy(&pSql->rspSem);
@@ -1984,7 +1994,7 @@ void tscDoQuery(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   void*    fp = pSql->fp;
   
-  assert(pSql->res.code == TSDB_CODE_SUCCESS);
+  pSql->res.code = TSDB_CODE_SUCCESS;
   
   if (pCmd->command > TSDB_SQL_LOCAL) {
     tscProcessLocalCmd(pSql);

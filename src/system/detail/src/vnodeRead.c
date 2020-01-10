@@ -618,7 +618,7 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   bool       isProjQuery = vnodeIsProjectionQuery(pSqlExprs, pQueryMsg->numOfOutputCols);
 
   // todo pass the correct error code
-  if (isProjQuery) {
+  if (isProjQuery && pQueryMsg->tsLen == 0) {
     pQInfo = vnodeAllocateQInfo(pQueryMsg, pMeterObj, pSqlExprs);
   } else {
     pQInfo = vnodeAllocateQInfoEx(pQueryMsg, pGroupbyExpr, pSqlExprs, pMetersObj[0]);
@@ -647,7 +647,9 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
 
   SSchedMsg schedMsg = {0};
 
-  if (!isProjQuery) {
+  if (isProjQuery && pQueryMsg->tsLen == 0) {
+    schedMsg.fp = vnodeQueryData;
+  } else {
     if (vnodeParametersSafetyCheck(pQuery) == false) {
       *code = TSDB_CODE_APP_ERROR;
       goto _error;
@@ -685,8 +687,6 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     }
 
     schedMsg.fp = vnodeSingleMeterQuery;
-  } else {
-    schedMsg.fp = vnodeQueryData;
   }
 
   /*

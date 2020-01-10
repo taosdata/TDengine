@@ -409,7 +409,7 @@ void    tscRestoreSQLFunctionForMetricQuery(SQueryInfo *pQueryInfo);
 
 void tscClearSqlMetaInfoForce(SSqlCmd *pCmd);
 
-int32_t tscCreateResPointerInfo(SQueryInfo *pQueryInfo, SSqlRes *pRes);
+int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
 void tscFreeSqlCmdData(SSqlCmd *pCmd);

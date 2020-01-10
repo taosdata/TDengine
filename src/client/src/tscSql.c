@@ -411,13 +411,11 @@ static void **doSetResultRowData(SSqlObj *pSql) {
     } else if (pField->type == TSDB_DATA_TYPE_NCHAR) {
       // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
       if (pRes->buffer[num] == NULL) {
-        pRes->buffer[num] = malloc(pField->bytes + 1);
-      } else {
-        pRes->buffer[num] = realloc(pRes->buffer[num], pField->bytes + 1);
+        pRes->buffer[num] = malloc(pField->bytes + TSDB_NCHAR_SIZE);
       }
 
-      /* string terminated */
-      memset(pRes->buffer[num], 0, pField->bytes + 1);
+      /* string terminated char for binary data*/
+      memset(pRes->buffer[num], 0, pField->bytes + TSDB_NCHAR_SIZE);
 
       if (taosUcs4ToMbs(pRes->tsrow[i], pField->bytes, pRes->buffer[num])) {
         pRes->tsrow[i] = pRes->buffer[num];
@@ -471,6 +469,10 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
     hasData = !allSubqueryExhausted;
   } else {  // otherwise, in case inner join, if any subquery exhausted, query completed.
     for (int32_t i = 0; i < pSql->numOfSubs; ++i) {
+      if (pSql->pSubs[i] == 0) {
+        continue;
+      }
+      
       SSqlRes *   pRes1 = &pSql->pSubs[i]->res;
       SQueryInfo *pQueryInfo1 = tscGetQueryInfoDetail(&pSql->pSubs[i]->cmd, 0);
 
@@ -518,8 +520,6 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
       }
 
       success = (doSetResultRowData(pSub) != NULL);
-
-//      success = (pRes1->row++ < pRes1->numOfRows);
     }
 
     if (success) {  // current row of final output has been built, return to app

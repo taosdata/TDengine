@@ -301,7 +301,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pReducer->pTempBuffer->numOfElems = 0;
   pReducer->pResInfo = calloc((size_t)pQueryInfo->fieldsInfo.numOfOutputCols, sizeof(SResultInfo));
 
-  tscCreateResPointerInfo(pQueryInfo, pRes);
+  tscCreateResPointerInfo(pRes, pQueryInfo);
   tscInitSqlContext(pCmd, pRes, pReducer, pDesc);
 
   // we change the maxCapacity of schema to denote that there is only one row in temp buffer

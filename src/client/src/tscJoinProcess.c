@@ -53,7 +53,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
   *st = INT64_MAX;
   *et = INT64_MIN;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
   
   SLimitVal* pLimit = &pQueryInfo->limit;
   int32_t    order = pQueryInfo->order.order;
@@ -109,18 +109,19 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
 
       numOfInput2++;
     } else {
-      if (*st > elem1.ts) {
-        *st = elem1.ts;
-      }
-
-      if (*et < elem1.ts) {
-        *et = elem1.ts;
-      }
-
-      // in case of stable query, limit/offset is not applied here
-      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-      
+      /*
+       * in case of stable query, limit/offset is not applied here. the limit/offset is applied to the
+       * final results which is acquired after the secondry merge of in the client.
+       */
       if (pLimit->offset == 0 || pQueryInfo->nAggTimeInterval > 0 || QUERY_IS_STABLE_QUERY(pQueryInfo->type)) {
+        if (*st > elem1.ts) {
+          *st = elem1.ts;
+        }
+  
+        if (*et < elem1.ts) {
+          *et = elem1.ts;
+        }
+        
         tsBufAppend(output1, elem1.vnode, elem1.tag, (const char*)&elem1.ts, sizeof(elem1.ts));
         tsBufAppend(output2, elem2.vnode, elem2.tag, (const char*)&elem2.ts, sizeof(elem2.ts));
       } else {
@@ -157,8 +158,9 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
   tsBufDestory(pSupporter1->pTSBuf);
   tsBufDestory(pSupporter2->pTSBuf);
 
-  tscTrace("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " for secondary query after ts blocks intersecting", pSql,
-           numOfInput1, numOfInput2, output1->numOfTotal);
+  tscTrace("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " for secondary query after ts blocks "
+           "intersecting, skey:%" PRId64 ", ekey:%" PRId64, pSql,
+           numOfInput1, numOfInput2, output1->numOfTotal, *st, *et);
 
   return output1->numOfTotal;
 }
@@ -312,8 +314,11 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
     tscSqlExprCopy(&pQueryInfo->exprsInfo, &pSupporter->exprsInfo, pSupporter->uid);
     tscFieldInfoCopyAll(&pQueryInfo->fieldsInfo, &pSupporter->fieldsInfo);
 
-    // add the ts function for interval query if it is missing
-    if (pSupporter->exprsInfo.pExprs[0].functionId != TSDB_FUNC_TS && pQueryInfo->nAggTimeInterval > 0) {
+    /*
+     * if the first column of the secondary query is not ts function, add this function. 
+     * Because this column is required to filter with timestamp after intersecting.
+     */ 
+    if (pSupporter->exprsInfo.pExprs[0].functionId != TSDB_FUNC_TS) {
       tscAddTimestampColumn(pQueryInfo, TSDB_FUNC_TS, 0);
     }
 
@@ -395,9 +400,7 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSubquerySupporter* pSupporter
 }
 
 // update the query time range according to the join results on timestamp
-static void updateQueryTimeRange(SSqlObj* pSql, int64_t st, int64_t et) {
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  
+static void updateQueryTimeRange(SQueryInfo* pQueryInfo, int64_t st, int64_t et) {
   assert(pQueryInfo->stime <= st && pQueryInfo->etime >= et);
 
   pQueryInfo->stime = st;
@@ -495,7 +498,7 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
           tscTrace("%p free all sub SqlObj and quit", pParentSql);
           doQuitSubquery(pParentSql);
         } else {
-          updateQueryTimeRange(pParentSql, st, et);
+          updateQueryTimeRange(pParentQueryInfo, st, et);
           tscLaunchSecondSubquery(pParentSql);
         }
       }
