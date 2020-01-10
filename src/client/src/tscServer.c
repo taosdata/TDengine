@@ -1380,7 +1380,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
       SSqlObj *pNew = tscCreateSqlObjForSubquery(trsupport->pParentSqlObj, trsupport, pSql);
       if (pNew == NULL) {
         tscError("%p sub:%p failed to create new subquery due to out of memory, abort retry, vid:%d, orderOfSub:%d",
-                 trsupport->pParentSqlObj, pSql, pSvd->vnode, trsupport->subqueryIndex);
+                 trsupport->pParentSqlObj, pSql, pSvd != NULL ? pSvd->vnode : -1, trsupport->subqueryIndex);
 
         pState->code = -TSDB_CODE_CLI_OUT_OF_MEMORY;
         trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
@@ -1404,9 +1404,14 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
 
     tscRetrieveFromVnodeCallBack(param, tres, pState->code);
   } else {  // success, proceed to retrieve data from dnode
-    tscTrace("%p sub:%p query complete,ip:%u,vid:%d,orderOfSub:%d,retrieve data", trsupport->pParentSqlObj, pSql,
+    if (vnodeInfo != NULL) {
+      tscTrace("%p sub:%p query complete,ip:%u,vid:%d,orderOfSub:%d,retrieve data", trsupport->pParentSqlObj, pSql,
              vnodeInfo->vpeerDesc[vnodeInfo->index].ip, vnodeInfo->vpeerDesc[vnodeInfo->index].vnode,
              trsupport->subqueryIndex);
+    } else {
+      tscTrace("%p sub:%p query complete, orderOfSub:%d,retrieve data", trsupport->pParentSqlObj, pSql,
+             trsupport->subqueryIndex);
+    }
 
     taos_fetch_rows_a(tres, tscRetrieveFromVnodeCallBack, param);
   }
