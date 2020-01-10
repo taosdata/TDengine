@@ -352,7 +352,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   assert(incNumber <= pQueryMsg->numOfSids);
   pthread_mutex_unlock(&pVnode->vmutex);
 
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS || pQueryMsg->numOfSids == 0) { // all the meters may have been dropped.
     goto _query_over;
   }
 
