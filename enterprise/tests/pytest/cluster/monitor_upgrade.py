@@ -40,6 +40,7 @@ class TDTestCase:
 
     tdLog.info("================= step1")
     tdLog.info("insert 10 records into %d tables in single dnode" %self.ntables)
+    tdLog.execute('drop database if exists db')
     tdSql.execute('create database db')
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
@@ -94,10 +95,12 @@ class TDTestCase:
     tdSql.checkRows(20)
     tdLog.sleep(5)
 
-    tdLog.info("================= step6")
+    tdLog.info("================= step5")
     tdLog.info("check database replica")
-    tdSql.query('show databases')
-    tdSql.checkData(0, 4, 2)
+    queryRows = tdSql.query('show databases')
+    for i in range(queryRows):
+      if (tdSql.getData(i,0) == 'db'):
+        tdSql.checkData(i, 4, 2)
 
   def stop(self):
     tdSql.close()
