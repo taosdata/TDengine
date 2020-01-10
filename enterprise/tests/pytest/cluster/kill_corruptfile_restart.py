@@ -90,7 +90,7 @@ class TDTestCase:
 
     tdLog.info("================= step5")
     for i in range(len(vnodefiles)):
-      fileToDel = os.path.join(vnodeDir, vnodefiles[0])
+      fileToDel = os.path.join(vnodeDir, vnodefiles[i])
       if (fileToDel.find('data') >0): break
     cmd = 'rm -rf %s' % (fileToDel)
     if os.system(cmd) != 0 :
