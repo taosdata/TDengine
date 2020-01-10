@@ -210,26 +210,26 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 
 ## TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
-| taos-jdbcdriver 版本 | TDengine 版本 | JDK 版本 | 
-| --- | --- | --- | 
+| taos-jdbcdriver 版本 | TDengine 版本 | JDK 版本 |
+| --- | --- | --- |
 | 1.0.3 | 1.6.1.x 及以上 | 1.8.x |
-| 1.0.2 | 1.6.1.x 及以上 | 1.8.x |  
-| 1.0.1 | 1.6.1.x 及以上 | 1.8.x |  
+| 1.0.2 | 1.6.1.x 及以上 | 1.8.x |
+| 1.0.1 | 1.6.1.x 及以上 | 1.8.x |
 
 ## TDengine DataType 和 Java DataType
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine DataType | Java DataType | 
-| --- | --- | 
-| TIMESTAMP | java.sql.Timestamp | 
-| INT | java.lang.Integer | 
-| BIGINT | java.lang.Long |  
-| FLOAT | java.lang.Float |  
-| DOUBLE | java.lang.Double | 
+| TDengine DataType | Java DataType |
+| --- | --- |
+| TIMESTAMP | java.sql.Timestamp |
+| INT | java.lang.Integer |
+| BIGINT | java.lang.Long |
+| FLOAT | java.lang.Float |
+| DOUBLE | java.lang.Double |
 | SMALLINT, TINYINT |java.lang.Short  |
-| BOOL | java.lang.Boolean | 
-| BINARY, NCHAR | java.lang.String | 
+| BOOL | java.lang.Boolean |
+| BINARY, NCHAR | java.lang.String |
 
 ## 如何获取 TAOS-JDBCDriver
 
@@ -807,6 +807,8 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 ## Go Connector
 
+### linux环境
+
 #### 安装TDengine
 
 Go的连接器使用到了 libtaos.so 和taos.h，因此，在使用Go连接器之前，需要在程序运行的机器上安装TDengine以获得相关的驱动文件。
@@ -867,7 +869,15 @@ taosSql驱动包内采用cgo模式，调用了TDengine的C/C++同步接口，与
 
 3. 创建表、写入和查询数据
 
-在创建好了数据库后，就可以开始创建表和写入查询数据了。这些操作的基本思路都是首先组装SQL语句，然后调用db.Exec执行，并检查错误信息和执行相应的处理。可以参考上面的样例代码
+在创建好了数据库后，就可以开始创建表和写入查询数据了。这些操作的基本思路都是首先组装SQL语句，然后调用db.Exec执行，并检查错误信息和执行相应的处理。可以参考上面的样例代码。
+
+### windows环境
+
+在windows上使用Go，请参考 
+
+[TDengine GO windows驱动的编译和使用]: https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows%E9%A9%B1%E5%8A%A8%E7%9A%84%E7%BC%96%E8%AF%91/
+
+
 
 ## Node.js Connector
 
@@ -1054,6 +1064,8 @@ https://gitee.com/maikebing/Maikebing.EntityFrameworkCore.Taos
 ├───├── jdbc
 ├───└── python
 ├── driver
+├───├── libtaos.dll
+├───├── libtaos.dll.a
 ├───├── taos.dll
 ├───├── taos.exp
 ├───└── taos.lib
@@ -1078,8 +1090,8 @@ https://gitee.com/maikebing/Maikebing.EntityFrameworkCore.Taos
 
 + Client可执行文件: C:/TDengine/taos.exe 
 + 配置文件: C:/TDengine/cfg/taos.cfg
-+ C驱动程序目录: C:/TDengine/driver
-+ C驱动程序头文件: C:/TDengine/include
++ 驱动程序目录: C:/TDengine/driver
++ 驱动程序头文件: C:/TDengine/include
 + JDBC驱动程序目录: C:/TDengine/connector/jdbc
 + GO驱动程序目录：C:/TDengine/connector/go
 + Python驱动程序目录：C:/TDengine/connector/python
@@ -1105,6 +1117,16 @@ taos -h <ServerIP>
 #### C++接口注意事项
 
 TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序使用时，需要包含TDengine头文件taos.h，连接时需要链接TDengine库taos.lib，运行时将taos.dll放到可执行文件目录下。
+
+#### Go接口注意事项
+
+TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序使用时，除了需要Go的驱动包（C:\TDengine\connector\go）外，还需要包含TDengine头文件taos.h，连接时需要链接TDengine库libtaos.dll、libtaos.dll.a（C:\TDengine\driver），运行时将libtaos.dll、libtaos.dll.a放到可执行文件目录下。
+
+使用参考请见：
+
+[TDengine GO windows驱动的编译和使用]: https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows%E9%A9%B1%E5%8A%A8%E7%9A%84%E7%BC%96%E8%AF%91/
+
+
 
 #### JDBC接口注意事项
 
@@ -1137,3 +1159,6 @@ TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序
 [13]: https://www.taosdata.com/cn/documentation/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
 [14]: https://www.taosdata.com/cn/documentation/connector/#Windows%E5%AE%A2%E6%88%B7%E7%AB%AF%E5%8F%8A%E7%A8%8B%E5%BA%8F%E6%8E%A5%E5%8F%A3
 [15]: https://www.taosdata.com/cn/getting-started/#%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B
+
+[16]: https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows%E9%A9%B1%E5%8A%A8%E7%9A%84%E7%BC%96%E8%AF%91/
+
