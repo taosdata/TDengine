@@ -82,7 +82,7 @@ class TDTestCase:
     for i in range(queryRows):
       tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
     while(True):
-      tdLog.sleep(20)
+      tdLog.sleep(10)
       stopFlag = True
       queryRows = tdSql.query('show dnodes')
       for i in range(queryRows):

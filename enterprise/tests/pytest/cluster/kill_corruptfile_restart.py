@@ -97,6 +97,8 @@ class TDTestCase:
 
     tdLog.info("================= step6")
     tdDnodes.start(3)
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
     tdLog.sleep(40)
 
     tdLog.info("================= step7")
