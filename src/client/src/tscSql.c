@@ -812,26 +812,47 @@ int taos_errno(TAOS *taos) {
   return code;
 }
 
+static bool validErrorCode(int32_t code) {
+  return code >= TSDB_CODE_SUCCESS && code < TSDB_CODE_MAX_ERROR_CODE;
+}
+
+/*
+ * In case of invalid sql error, additional information is attached to explain
+ * why the sql is invalid
+ */
+static bool hasAdditionalErrorInfo(int32_t code, SSqlCmd* pCmd) {
+  if (code != TSDB_CODE_INVALID_SQL) {
+    return false;
+  }
+
+  size_t len = strlen(pCmd->payload);
+  
+  char* z = NULL;
+  if (len > 0) {
+    z = strstr (pCmd->payload, "invalid sql");
+  }
+  
+  return z != NULL;
+}
+
 char *taos_errstr(TAOS *taos) {
   STscObj *pObj = (STscObj *)taos;
   uint8_t  code;
 
   if (pObj == NULL || pObj->signature != pObj) return tsError[globalCode];
 
-  if ((int8_t)(pObj->pSql->res.code) == -1)
-    code = TSDB_CODE_OTHERS;
-  else
-    code = pObj->pSql->res.code;
-
-  // for invalid sql, additional information is attached to explain why the sql is invalid
-  if (code == TSDB_CODE_INVALID_SQL) {
-    return pObj->pSql->cmd.payload;
+  SSqlObj* pSql = pObj->pSql;
+  
+  if (validErrorCode(pSql->res.code)) {
+    code = pSql->res.code;
   } else {
-    if (code < 0 || code > TSDB_CODE_MAX_ERROR_CODE) {
-      return tsError[TSDB_CODE_SUCCESS];
-    } else {
-      return tsError[code];
-    }
+    code = TSDB_CODE_OTHERS;  //unknown error
+  }
+
+  if (hasAdditionalErrorInfo(code, &pSql->cmd)) {
+    return pSql->cmd.payload;
+  } else {
+    return tsError[code];
   }
 }
 
