@@ -793,7 +793,9 @@ STSBuf* tsBufCreate(bool autoDelete) {
     return NULL;
   }
 
-  allocResForTSBuf(pTSBuf);
+  if (NULL == allocResForTSBuf(pTSBuf)) {
+    return NULL;
+  }
 
   // update the header info
   STSBufFileHeader header = {.magic = TS_COMP_FILE_MAGIC, .numOfVnode = pTSBuf->numOfVnodes, .tsOrder = TSQL_SO_ASC};

@@ -706,14 +706,14 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   pInfo->sqlType = type;
 
   if (nParam == 0) return;
-  if (pInfo->pDCLInfo == NULL) pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pDCLInfo == NULL) pInfo->pDCLInfo = (tDCLSQL *)calloc(1, sizeof(tDCLSQL));
 
   va_list va;
   va_start(va, nParam);
 
   while (nParam-- > 0) {
     SSQLToken *pToken = va_arg(va, SSQLToken *);
-    tTokenListAppend(pInfo->pDCLInfo, pToken);
+    (void)tTokenListAppend(pInfo->pDCLInfo, pToken);
   }
   va_end(va);
 }

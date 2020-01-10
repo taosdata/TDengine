@@ -598,7 +598,9 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
     rlen += pExpr->resBytes;
   }
 
-  int32_t capacity = nBufferSizes / rlen;
+  int32_t capacity = 0;
+  if (0 != rlen) capacity = nBufferSizes / rlen;
+  
   pModel = tColModelCreate(pSchema, pCmd->fieldsInfo.numOfOutputCols, capacity);
 
   for (int32_t i = 0; i < pMeterMetaInfo->pMetricMeta->numOfVnodes; ++i) {

@@ -202,10 +202,10 @@ void tscKillStream(STscObj *pObj, uint32_t killId) {
     tscTrace("%p stream:%p is killed, streamId:%d", pStream->pSql, pStream, killId);
   }
 
-  taos_close_stream(pStream);
   if (pStream->callback) {
     pStream->callback(pStream->param);
   }
+  taos_close_stream(pStream);
 }
 
 char *tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj) {
@@ -285,8 +285,9 @@ void tscKillConnection(STscObj *pObj) {
 
   SSqlStream *pStream = pObj->streamList;
   while (pStream) {
+    SSqlStream *tmp = pStream->next;
     taos_close_stream(pStream);
-    pStream = pStream->next;
+    pStream = tmp;
   }
 
   pthread_mutex_unlock(&pObj->mutex);
