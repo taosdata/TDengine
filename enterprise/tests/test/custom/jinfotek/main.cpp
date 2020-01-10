@@ -659,18 +659,20 @@ static bool run()
 clean:
     close_output_files();
 
-    for( int i = 0; i < MAX_NUM_OF_TABLE_ENTRY; ++i )
-    {
-        TableEntry* te = g_tables[i];
-        while( te != NULL )
+    if (g_tables != NULL) {
+        for( int i = 0; i < MAX_NUM_OF_TABLE_ENTRY; ++i )
         {
-            TableEntry* next = te->next;
-            free( te );
-            te = next;
+            TableEntry* te = g_tables[i];
+            while( te != NULL )
+            {
+                TableEntry* next = te->next;
+                free( te );
+                te = next;
+            }
         }
+        free( g_tables );
+        g_tables = NULL;
     }
-    free( g_tables );
-    g_tables = NULL;
 
     free( g_records );
     g_records = NULL;
