@@ -255,13 +255,17 @@ endi
 print 3
 #agg + where condition
 sql select count(join_tb1.c3), count(join_tb0.ts) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts <= 100002 and join_tb0.c7 = true;
-
-$val = 2
-if $data00 != $val then
+if $rows != 1 then
   return -1
 endi
 
-if $data01 != $val then
+print $data00
+
+if $data00 != 2 then
+  return -1
+endi
+
+if $data01 != 2 then
   return -1
 endi
 
