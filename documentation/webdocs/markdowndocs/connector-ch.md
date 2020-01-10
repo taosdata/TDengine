@@ -1123,7 +1123,7 @@ TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序
 
 使用参考请见：
 
-[TDengine GO windows驱动的编译和使用]: https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows%E9%A9%B1%E5%8A%A8%E7%9A%84%E7%BC%96%E8%AF%91/
+[TDengine GO windows驱动的编译和使用](https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows%E9%A9%B1%E5%8A%A8%E7%9A%84%E7%BC%96%E8%AF%91/)
 
 
 
