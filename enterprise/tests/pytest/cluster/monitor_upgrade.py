@@ -64,13 +64,16 @@ class TDTestCase:
     tdDnodes.cfg(2, "tables", "4")
     tdDnodes.cfg(2, "monitor", "0")
     tdDnodes.start(2)
-    tdSql.query('show dnodes')
-    tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
+    queryRows = tdSql.query('show dnodes')
+    for i in range(queryRows):
+      tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
     while(True):
       tdLog.sleep(20)
-      tdSql.query('show dnodes')
-      stateRes = tdSql.getData(0,5)
-      if (stateRes == "balanced"): break
+      stopFlag = True
+      queryRows = tdSql.query('show dnodes')
+      for i in range(queryRows):
+        if (dSql.getData(i,5) != "balanced"): stopFlag = False
+      if (stopFlag): break
 
     tdLog.info("================= step3")
     tdLog.info("alter database replica to 2")
@@ -79,9 +82,11 @@ class TDTestCase:
     tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
     while(True):
       tdLog.sleep(20)
-      tdSql.query('show dnodes')
-      stateRes = tdSql.getData(0,5)
-      if (stateRes == "balanced"): break
+      stopFlag = True
+      queryRows = tdSql.query('show dnodes')
+      for i in range(queryRows):
+        if (dSql.getData(i,5) != "balanced"): stopFlag = False
+      if (stopFlag): break
 
     tdLog.info("================= step4")
     tdLog.info("insert 10 records into %d tables" %self.ntables)
