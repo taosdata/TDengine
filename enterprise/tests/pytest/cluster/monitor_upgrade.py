@@ -72,20 +72,21 @@ class TDTestCase:
       stopFlag = True
       queryRows = tdSql.query('show dnodes')
       for i in range(queryRows):
-        if (dSql.getData(i,5) != "balanced"): stopFlag = False
+        if (tdSql.getData(i,5) != "balanced"): stopFlag = False
       if (stopFlag): break
 
     tdLog.info("================= step3")
     tdLog.info("alter database replica to 2")
     tdSql.execute('alter database db replica 2')
-    tdSql.query('show dnodes')
-    tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
+    queryRows = tdSql.query('show dnodes')
+    for i in range(queryRows):
+      tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
     while(True):
       tdLog.sleep(20)
       stopFlag = True
       queryRows = tdSql.query('show dnodes')
       for i in range(queryRows):
-        if (dSql.getData(i,5) != "balanced"): stopFlag = False
+        if (tdSql.getData(i,5) != "balanced"): stopFlag = False
       if (stopFlag): break
 
     tdLog.info("================= step4")
