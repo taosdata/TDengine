@@ -323,6 +323,7 @@ TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char* topic, const char 
 
   pSub->interval = interval;
   if (fp != NULL) {
+    tscTrace("asynchronize subscription, create new timer", topic);
     pSub->fp = fp;
     pSub->param = param;
     taosTmrReset(tscProcessSubscriptionTimer, interval, pSub, tscTmr, &pSub->pTimer);
@@ -343,17 +344,20 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   if (pSub->pTimer == NULL) {
     int duration = (int)(taosGetTimestampMs() - pSub->lastConsumeTime);
     if (duration < pSub->interval) {
+      tscTrace("subscription consume too frequently, blocking...");
       taosMsleep(pSub->interval - (int32_t)duration);
     }
   }
 
   if (taosGetTimestampMs() - pSub->lastSyncTime > 10 * 60 * 1000) {
+    tscTrace("begin meter synchronization");
     char* sqlstr = pSql->sqlstr;
     pSql->sqlstr = NULL;
     taos_free_result_imp(pSql, 0);
     pSql->sqlstr = sqlstr;
     taosClearDataCache(tscCacheHandle);
     if (!tscUpdateSubscription(pSub->taos, pSub)) return NULL;
+    tscTrace("meter synchronization completed");
   } else {
     uint16_t type = pSql->cmd.type;
     taos_free_result_imp(pSql, 1);
@@ -365,9 +369,9 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     pSql->cmd.type = type;
   }
 
-
   tscDoQuery(pSql);
   if (pRes->code != TSDB_CODE_SUCCESS) {
+    tscError("failed to query data, error code=%d", pRes->code);
     tscRemoveFromSqlList(pSql);
     return NULL;
   }
