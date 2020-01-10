@@ -874,8 +874,7 @@ taosSql驱动包内采用cgo模式，调用了TDengine的C/C++同步接口，与
 ### windows环境
 
 在windows上使用Go，请参考 
-
-[TDengine GO windows驱动的编译和使用]: https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows%E9%A9%B1%E5%8A%A8%E7%9A%84%E7%BC%96%E8%AF%91/
+[TDengine GO windows驱动的编译和使用](https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows%E9%A9%B1%E5%8A%A8%E7%9A%84%E7%BC%96%E8%AF%91/)
 
 
 
