@@ -79,7 +79,9 @@ void gcStopQueryJson(HttpContext *pContext, HttpSqlCmd *cmd) {
   if (jsonBuf == NULL) return;
 
   // write end of target
-  gcWriteTargetEndJson(jsonBuf);
+  if (cmd->numOfRows != 0) {
+    gcWriteTargetEndJson(jsonBuf);
+  }
 }
 
 bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows) {
@@ -116,8 +118,8 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
 
   if (groupFields == -1 && cmd->numOfRows == 0) {
     gcWriteTargetStartJson(jsonBuf, refIdBuffer, aliasBuffer);
-    cmd->numOfRows += numOfRows;
   }
+  cmd->numOfRows += numOfRows;
 
   for (int i = 0; i < numOfRows; ++i) {
     TAOS_ROW row = taos_fetch_row(result);
@@ -158,7 +160,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           }
           break;
         default:
-          snprintf(target, HTTP_GC_TARGET_SIZE, "%s%s", aliasBuffer, "invalidcol");
+          snprintf(target, HTTP_GC_TARGET_SIZE, "%s%s", aliasBuffer, "-");
           break;
       }
 
@@ -217,7 +219,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           }
           break;
         default:
-          httpJsonString(jsonBuf, "invalidcol", 10);
+          httpJsonString(jsonBuf, "-", 1);
           break;
       }
     }
