@@ -762,25 +762,6 @@ if $data41 != 75 then
   return -1
 endi
 
-sql use c_b1_d8
-sql select * from c_b1_d8.c_b1_t8 order by t desc
-print $data01 $data11 $data21 $data31 $data41
-if $data01 != null then
-  return -1
-endi
-if $data11 != null then
-  return -1
-endi
-if $data21 != null then
-  return -1
-endi
-if $data31 != null then
-  return -1
-endi
-if $data41 != null then
-  return -1
-endi
-
 sql use c_b1_d9
 sql select * from c_b1_t9 order by t desc
 print $data01 $data11 $data21 $data31 $data41
