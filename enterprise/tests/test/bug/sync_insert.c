@@ -172,7 +172,7 @@ void taos_execute(void *param)
 
 		timestamp += 1000;
 
-		taosMsleep(10);
+		//taosMsleep(10);
 	}
 	
 	printf("thread:%d run finished\n", pThread->index);

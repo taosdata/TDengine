@@ -82,6 +82,7 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 ../script/test.sh -f lite/http/restful_full.sim
 ../script/test.sh -f lite/http/telegraf.sim
 ../script/test.sh -f lite/http/prepare.sim
+../script/test.sh -f lite/http/grafana_bug.sim
 
 ../script/test.sh -f lite/import/basic.sim
 ../script/test.sh -f lite/import/large.sim
