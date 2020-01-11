@@ -164,9 +164,6 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
     return 0;
   }
 
-  int numOfMeters = 0;
-  SSubscriptionProgress* progress = NULL;
-
   SSqlCmd* pCmd = &pSub->pSql->cmd;
   if (pCmd->command != TSDB_SQL_SELECT) {
     tscError("only 'select' statement is allowed in subscription: %s", pSub->topic);
@@ -174,19 +171,28 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
-  if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
-    numOfMeters = 1;
-    progress = calloc(1, sizeof(SSubscriptionProgress));
-    int64_t uid = pMeterMetaInfo->pMeterMeta->uid;
-    progress[0].uid = uid;
-    progress[0].key = tscGetSubscriptionProgress(pSub, uid);
-  } else {
+  int numOfMeters = 0;
+  if (!UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
     SMetricMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
     for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
       SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
       numOfMeters += pVnodeSidList->numOfSids;
     }
-    progress = calloc(numOfMeters, sizeof(SSubscriptionProgress));
+  }
+
+  SSubscriptionProgress* progress = (SSubscriptionProgress*)calloc(numOfMeters, sizeof(SSubscriptionProgress));
+  if (progress == NULL) {
+    tscError("failed to allocate memory for progress: %s", pSub->topic);
+    return 0;
+  }
+
+  if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
+    numOfMeters = 1;
+    int64_t uid = pMeterMetaInfo->pMeterMeta->uid;
+    progress[0].uid = uid;
+    progress[0].key = tscGetSubscriptionProgress(pSub, uid);
+  } else {
+    SMetricMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
     numOfMeters = 0;
     for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
       SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
