@@ -787,7 +787,7 @@ bool simExecuteRestFulSqlCommand(SScript *script, char *rest) {
     sprintf(script->error, "lineNum:%d. sql:%s failed, ret:%d:%s", line->lineNum, rest, ret, tsError[ret]);
     return false;
   }
-  
+
   script->linePos++;
   return true;
 }
