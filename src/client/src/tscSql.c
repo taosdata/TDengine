@@ -344,7 +344,7 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
   SSqlRes *pRes = &pSql->res;
   STscObj *pObj = pSql->pTscObj;
 
-  if (pRes->qhandle == 0 || pObj->pSql != pSql) {
+  if (pRes->qhandle == 0) {
     *rows = NULL;
     return 0;
   }

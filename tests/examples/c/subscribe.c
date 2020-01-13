@@ -8,15 +8,28 @@
 #include <unistd.h>
 
 void print_result(TAOS_RES* res) {
-  TAOS_ROW    row;
+  TAOS_ROW    row = NULL;
   int         num_fields = taos_num_fields(res);
   TAOS_FIELD* fields = taos_fetch_fields(res);
+
+#if 0
+
+  int nRows = taos_fetch_block(res, &row);
+  for (int i = 0; i < nRows; i++) {
+    char temp[256];
+    taos_print_row(temp, row + i, fields, num_fields);
+    puts(temp);
+  }
+
+#else
 
   while ((row = taos_fetch_row(res))) {
     char temp[256];
     taos_print_row(temp, row, fields, num_fields);
     puts(temp);
   }
+
+#endif
 }
 
 void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code) {

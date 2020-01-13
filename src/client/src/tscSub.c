@@ -348,8 +348,8 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SSqlRes *pRes = &pSql->res;
 
   if (pSub->pTimer == NULL) {
-    int duration = (int)(taosGetTimestampMs() - pSub->lastConsumeTime);
-    if (duration < pSub->interval) {
+    int64_t duration = taosGetTimestampMs() - pSub->lastConsumeTime;
+    if (duration < (int64_t)(pSub->interval)) {
       tscTrace("subscription consume too frequently, blocking...");
       taosMsleep(pSub->interval - (int32_t)duration);
     }
