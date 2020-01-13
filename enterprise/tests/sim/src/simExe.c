@@ -752,6 +752,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
 
   sprintf(script->rows, "%d", numOfRows);
 
+  script->linePos++;
   return true;
 }
 
@@ -786,7 +787,8 @@ bool simExecuteRestFulSqlCommand(SScript *script, char *rest) {
     sprintf(script->error, "lineNum:%d. sql:%s failed, ret:%d:%s", line->lineNum, rest, ret, tsError[ret]);
     return false;
   }
-
+  
+  script->linePos++;
   return true;
 }
 
@@ -829,18 +831,10 @@ bool simExecuteSqlImpCmd(SScript *script, char *rest, bool isSlow) {
     return true;
   }
 
-  bool ret;
   if (simAsyncQuery) {
-    ret = simExecuteRestFulSqlCommand(script, rest);
+    return simExecuteRestFulSqlCommand(script, rest);
   } else {
-    ret = simExecuteNativeSqlCommand(script, rest, isSlow);
-  }
-
-  if (!ret) {
-    return false;
-  } else {
-    script->linePos++;
-    return true;
+    return simExecuteNativeSqlCommand(script, rest, isSlow);
   }
 }
 
@@ -877,7 +871,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
     return true;
   }
 
-  if (script->taos == NULL) {
+  if ((!simAsyncQuery && script->taos == NULL) || (simAsyncQuery && script->auth[0] == 0)) {
     if (!simCreateTaosdConnect(script, "connect root")) {
       if (line->errorJump == SQL_JUMP_TRUE) {
         script->linePos = line->jump;
@@ -893,7 +887,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
     return true;
   }
 
-  int ret = -1;
+  int ret;
   if (simAsyncQuery) {
     char command[4096];
     sprintf(command, "curl -H 'Authorization: Taosd %s' -d '%s' 127.0.0.1:6020/rest/sql", script->auth, rest);
