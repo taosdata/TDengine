@@ -1224,7 +1224,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
 
     int32_t finished = atomic_add_fetch_32(&trsupport->pState->numOfCompleted, 1);
     if (finished < numOfTotal) {
-      tscTrace("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pPObj, pSql, trsupport->subqueryIndex, finished);
+      tscTrace("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pPObj, pSql, trsupport->vnodeIdx, finished);
       return tscFreeSubSqlObj(trsupport, pSql);
     }
 
