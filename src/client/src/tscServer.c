@@ -1090,8 +1090,8 @@ static void tscHandleSubRetrievalError(SRetrieveSupport *trsupport, SSqlObj *pSq
     }
   }
 
-  int32_t numOfTotal = pState->numOfTotal;
-  int32_t finished = atomic_add_fetch_32(&pState->numOfCompleted, 1);
+  int32_t numOfTotal = trsupport->pState->numOfTotal;
+  int32_t finished = atomic_add_fetch_32(&trsupport->pState->numOfCompleted, 1);
   if (finished < numOfTotal) { // pState may be released by otherthreads, so keep the value in a local variable.
     return tscFreeSubSqlObj(trsupport, pSql);
   }
@@ -1220,9 +1220,9 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     // keep this value local variable, since the pState variable may be released by other threads, if atomic_add opertion
     // increases the finished value up to pState->numOfTotal value, which means all subqueries are completed.
     // In this case, the comparsion between finished value and released pState->numOfTotal is not safe. 
-    int32_t numOfTotal = pState->numOfTotal;
+    int32_t numOfTotal = trsupport->pState->numOfTotal;
 
-    int32_t finished = atomic_add_fetch_32(&pState->numOfCompleted, 1);
+    int32_t finished = atomic_add_fetch_32(&trsupport->pState->numOfCompleted, 1);
     if (finished < numOfTotal) {
       tscTrace("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pPObj, pSql, trsupport->subqueryIndex, finished);
       return tscFreeSubSqlObj(trsupport, pSql);
