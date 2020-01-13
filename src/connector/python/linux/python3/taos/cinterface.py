@@ -144,6 +144,8 @@ class CTaosInterface(object):
     libtaos.taos_use_result.restype = ctypes.c_void_p
     libtaos.taos_fetch_row.restype = ctypes.POINTER(ctypes.c_void_p)
     libtaos.taos_errstr.restype = ctypes.c_char_p
+    libtaos.taos_subscribe.restype = ctypes.c_void_p
+    libtaos.taos_consume.restype = ctypes.c_void_p
 
     def __init__(self, config=None):
         '''
@@ -251,6 +253,41 @@ class CTaosInterface(object):
         """The affected rows after runing query
         """
         return CTaosInterface.libtaos.taos_affected_rows(connection)
+
+    @staticmethod
+    def subscribe(connection, restart, topic, sql, interval):
+        """Create a subscription
+         @restart boolean, 
+         @sql string, sql statement for data query, must be a 'select' statement.
+         @topic string, name of this subscription
+        """
+        return ctypes.c_void_p(CTaosInterface.libtaos.taos_subscribe(
+            connection,
+            1 if restart else 0,
+            ctypes.c_char_p(topic.encode('utf-8')),
+            ctypes.c_char_p(sql.encode('utf-8')),
+            None,
+            None,
+            interval))
+
+    @staticmethod
+    def consume(sub):
+        """Consume data of a subscription
+        """
+        result = ctypes.c_void_p(CTaosInterface.libtaos.taos_consume(sub))
+        fields = []
+        pfields = CTaosInterface.fetchFields(result)
+        for i in range(CTaosInterface.libtaos.taos_num_fields(result)):
+            fields.append({'name': pfields[i].name.decode('utf-8'),
+                           'bytes': pfields[i].bytes,
+                           'type': ord(pfields[i].type)})
+        return result, fields
+
+    @staticmethod
+    def unsubscribe(sub, keepProgress):
+        """Cancel a subscription
+        """
+        CTaosInterface.libtaos.taos_unsubscribe(sub, 1 if keepProgress else 0)
 
     @staticmethod
     def useResult(connection):
