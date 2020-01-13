@@ -530,20 +530,31 @@ int simStoreRestFulCommandResult(SScript *script, char *filename) {
 
 int simExecuteRestFulCommand(SScript *script, char *command) {
   char buf[5000] = {0};
-  char filename[200] = {0};
+  sprintf(buf, "%s 2>/dev/null", command);
 
-  sprintf(filename, "%s/%s.tmp", scriptDir, script->fileName);
-  sprintf(buf, "cd %s; %s > %s 2>/dev/null", scriptDir, command, filename);
-
-  int code = system(buf);
-  if (code != 0) {
-    simError("script:%s, failed to execute %s", script->fileName, command);
-    return false;
+  FILE *fp = popen(buf, "r");
+  if (fp == NULL) {
+    simError("failed to execute %s", buf);
+    return TSDB_CODE_OTHERS;
   }
 
-  sprintf(script->system_exit_code, "%d", code);
-  code = simStoreRestFulCommandResult(script, filename);
-  return code;
+  int mallocSize = 2000;
+  int alreadyReadSize = 0;
+  char* content = malloc(mallocSize);
+
+  while (!feof(fp)) {
+    int availSize = mallocSize - alreadyReadSize;
+    int len = fread(content + alreadyReadSize, 1, availSize, fp);
+    if (len >= availSize) {
+      alreadyReadSize += len;
+      mallocSize *= 2;
+      content = realloc(content, mallocSize);
+    }
+  }
+
+  pclose(fp);
+
+  return simParseHttpCommandResult(script, content);
 }
 
 bool simCreateRestFulConnect(SScript *script, char *user, char *pass) {
