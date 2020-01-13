@@ -512,22 +512,6 @@ int simParseHttpCommandResult(SScript *script, char *command) {
   return 0;
 }
 
-int simStoreRestFulCommandResult(SScript *script, char *filename) {
-  //memset(script->system_ret_content, 0, MAX_SYSTEM_RESULT_LEN);
-
-  char content[65536];
-  FILE *fd;
-  if ((fd = fopen(filename, "r")) != NULL) {
-    fread(script->system_ret_content, 1, 65536, fd);
-    fclose(fd);
-    char rmCmd[MAX_FILE_NAME_LEN] = {0};
-    sprintf(rmCmd, "rm -f %s", filename);
-    system(rmCmd);
-  }
-
-  return simParseHttpCommandResult(script, script->system_ret_content);
-}
-
 int simExecuteRestFulCommand(SScript *script, char *command) {
   char buf[5000] = {0};
   sprintf(buf, "%s 2>/dev/null", command);
