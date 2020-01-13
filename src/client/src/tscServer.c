@@ -1090,7 +1090,9 @@ static void tscHandleSubRetrievalError(SRetrieveSupport *trsupport, SSqlObj *pSq
     }
   }
 
-  if (atomic_add_fetch_32(&trsupport->pState->numOfCompleted, 1) < trsupport->pState->numOfTotal) {
+  int32_t numOfTotal = pState->numOfTotal;
+  int32_t finished = atomic_add_fetch_32(&pState->numOfCompleted, 1);
+  if (finished < numOfTotal) { // pState may be released by otherthreads, so keep the value in a local variable.
     return tscFreeSubSqlObj(trsupport, pSql);
   }
 
@@ -1215,7 +1217,14 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
       return tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
     }
 
-    if (atomic_add_fetch_32(&trsupport->pState->numOfCompleted, 1) < trsupport->pState->numOfTotal) {
+    // keep this value local variable, since the pState variable may be released by other threads, if atomic_add opertion
+    // increases the finished value up to pState->numOfTotal value, which means all subqueries are completed.
+    // In this case, the comparsion between finished value and released pState->numOfTotal is not safe. 
+    int32_t numOfTotal = pState->numOfTotal;
+
+    int32_t finished = atomic_add_fetch_32(&pState->numOfCompleted, 1);
+    if (finished < numOfTotal) {
+      tscTrace("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pPObj, pSql, trsupport->subqueryIndex, finished);
       return tscFreeSubSqlObj(trsupport, pSql);
     }
 
@@ -1223,7 +1232,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     pDesc->pSchema->maxCapacity = trsupport->pExtMemBuffer[idx]->numOfElemsPerPage;
 
     tscTrace("%p retrieve from %d vnodes completed.final NumOfRows:%d,start to build loser tree", pPObj,
-             trsupport->pState->numOfTotal, trsupport->pState->numOfCompleted);
+             trsupport->pState->numOfTotal, trsupport->pState->numOfRetrievedRows);
 
     tscClearInterpInfo(&pPObj->cmd);
     tscCreateLocalReducer(trsupport->pExtMemBuffer, trsupport->pState->numOfTotal, pDesc, trsupport->pFinalColModel,
