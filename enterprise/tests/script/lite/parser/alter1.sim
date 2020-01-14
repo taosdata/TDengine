@@ -3,8 +3,8 @@ system sh/ip.sh -i 1 -s up
 system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/exec.sh -n dnode1 -s start
-sql connect
 sleep 3000
+sql connect
 
 $dbPrefix = alt1_db
 
@@ -35,16 +35,16 @@ print rows = $rows
 if $rows != 4 then
   return -1
 endi
-if $data03 != NULL then
+if $data03 != null then
   return -1
 endi
-if $data13 != NULL then
+if $data13 != null then
   return -1
 endi
-if $data23 != NULL then
+if $data23 != null then
   return -1
 endi
-if $data33 != NULL then
+if $data33 != null then
   return -1
 endi
 
@@ -52,10 +52,10 @@ sql select c1 from stb
 if $rows != 4 then
   return -1
 endi
-if $data00 != NULL then
+if $data00 != null then
   return -1
 endi
-if $data30 != NULL then
+if $data30 != null then
   return -1
 endi
 
@@ -68,10 +68,10 @@ sql select c1+speed from car1
 if $rows != 2 then
   return -1
 endi
-if $data00 != NULL then
+if $data00 != null then
   return -1
 endi
-if $data10 != NULL then
+if $data10 != null then
   return -1
 endi
 
@@ -79,10 +79,10 @@ sql select * from car1
 if $rows != 2 then
   return -1
 endi
-if $data03 != NULL then
+if $data03 != null then
   return -1
 endi
-if $data13 != NULL then
+if $data13 != null then
   return -1
 endi
 

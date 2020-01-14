@@ -9,8 +9,8 @@ system sh/cfg.sh -n dnode1 -c monitor -v 1
 system sh/cfg.sh -n dnode1 -c monitorInterval -v 1
 system sh/exec.sh -n dnode1 -s start
 
-sql connect
 sleep 3000
+sql connect
 
 print ========== step2
 sql drop database log -x step21

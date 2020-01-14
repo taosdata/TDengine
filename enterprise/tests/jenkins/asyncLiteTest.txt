@@ -57,10 +57,10 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 ../script/test.sh -a -f lite/db/tables.sim
 ../script/test.sh -a -f lite/db/basic.sim
 ../script/test.sh -a -f lite/db/len.sim
-../script/test.sh -a -f lite/db/delete_reuse1.sim
-../script/test.sh -a -f lite/db/delete_reuse2.sim
-../script/test.sh -a -f lite/db/delete_writing1.sim
-../script/test.sh -a -f lite/db/delete_writing2.sim
+#../script/test.sh -a -f lite/db/delete_reuse1.sim
+#../script/test.sh -a -f lite/db/delete_reuse2.sim
+#../script/test.sh -a -f lite/db/delete_writing1.sim
+#../script/test.sh -a -f lite/db/delete_writing2.sim
 
 ../script/test.sh -a -f lite/field/single.sim
 ../script/test.sh -a -f lite/field/bool.sim
@@ -76,13 +76,6 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 ../script/test.sh -a -f lite/field/4.sim
 ../script/test.sh -a -f lite/field/5.sim
 ../script/test.sh -a -f lite/field/6.sim
-
-../script/test.sh -a -f lite/http/grafana.sim
-../script/test.sh -a -f lite/http/restful.sim
-../script/test.sh -a -f lite/http/restful_full.sim
-../script/test.sh -a -f lite/http/telegraf.sim
-../script/test.sh -a -f lite/http/prepare.sim
-../script/test.sh -a -f lite/http/grafana_bug.sim
 
 ../script/test.sh -a -f lite/import/basic.sim
 ../script/test.sh -a -f lite/import/large.sim
@@ -145,6 +138,7 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 ../script/test.sh -a -f lite/parser/join.sim
 ../script/test.sh -a -f lite/parser/projection_limit_offset.sim
 ../script/test.sh -a -f lite/parser/select_with_tags.sim
+../script/test.sh -a -f lite/parser/groupby.sim
 
 ../script/test.sh -a -f lite/stream/stream_1.sim
 ../script/test.sh -a -f lite/stream/stream_2.sim
@@ -178,9 +172,9 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 ../script/test.sh -a -f lite/table/smallint.sim
 ../script/test.sh -a -f lite/table/tinyint.sim
 ../script/test.sh -a -f lite/table/db.table.sim
-../script/test.sh -a -f lite/table/delete_reuse1.sim
-../script/test.sh -a -f lite/table/delete_reuse2.sim
-../script/test.sh -a -f lite/table/delete_writing.sim
+#../script/test.sh -a -f lite/table/delete_reuse1.sim
+#../script/test.sh -a -f lite/table/delete_reuse2.sim
+#../script/test.sh -a -f lite/table/delete_writing.sim
 
 ../script/test.sh -a -f lite/tag/filter.sim
 ../script/test.sh -a -f lite/tag/column.sim

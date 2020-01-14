@@ -1,6 +1,6 @@
 ####
-sql connect
 sleep 3000
+sql connect
 sql create database if not exists db
 sql use db
 

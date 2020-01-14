@@ -6,6 +6,7 @@ system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/cfg.sh -n dnode1 -c meterMetaKeepTimer -v 3
 system sh/cfg.sh -n dnode1 -c metricMetaKeepTimer -v 3
 system sh/exec.sh -n dnode1 -s start
+
 sleep 3000
 sql connect
 
@@ -227,11 +228,11 @@ if $data23 != NULL then
 endi 
 
 ################### nchar 
-sql alter table st41 set tag tag_nchar = "ÌÎË¼Êý¾Ý"
+sql alter table st41 set tag tag_nchar = "ï¿½ï¿½Ë¼ï¿½ï¿½ï¿½ï¿½"
 sql describe st41
 #sleep 1000
-#if $data33 != ÌÎË¼Êý¾Ý then
-#  print ==== expect ÌÎË¼Êý¾Ý, actually $data33
+#if $data33 != ï¿½ï¿½Ë¼ï¿½ï¿½ï¿½ï¿½ then
+#  print ==== expect ï¿½ï¿½Ë¼ï¿½ï¿½ï¿½ï¿½, actually $data33
 #  return -1
 #endi
 ##### test 'space' case

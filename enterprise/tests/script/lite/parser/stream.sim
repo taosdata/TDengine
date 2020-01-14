@@ -6,6 +6,7 @@ system sh/cfg.sh -n dnode1 -c meterMetaKeepTimer -v 5
 system sh/cfg.sh -n dnode1 -c metricMetaKeepTimer -v 5
 system sh/exec.sh -n dnode1 -s start
 
+sleep 3000
 sql connect
 print ======================== stream.sim
 

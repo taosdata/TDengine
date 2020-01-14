@@ -1,5 +1,5 @@
-sql connect
 sleep 3000
+sql connect
 
 $dbPrefix = lr_db
 $tbPrefix = lr_tb
