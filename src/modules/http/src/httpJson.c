@@ -310,7 +310,9 @@ void httpJsonInt(JsonBuf* buf, int num) {
 void httpJsonFloat(JsonBuf* buf, float num) {
   httpJsonItemToken(buf);
   httpJsonTestBuf(buf, MAX_NUM_STR_SZ);
-  if (num > 1E10 || num < -1E10) {
+  if (isinf(num) || isnan(num)) {
+    buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "null");
+  } else if (num > 1E10 || num < -1E10) {
     buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%.5e", num);
   } else {
     buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%.5f", num);
@@ -320,7 +322,9 @@ void httpJsonFloat(JsonBuf* buf, float num) {
 void httpJsonDouble(JsonBuf* buf, double num) {
   httpJsonItemToken(buf);
   httpJsonTestBuf(buf, MAX_NUM_STR_SZ);
-  if (num > 1E10 || num < -1E10) {
+  if (isinf(num) || isnan(num)) {
+    buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "null");
+  } else if (num > 1E10 || num < -1E10) {
     buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%.9e", num);
   } else {
     buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%.9f", num);
