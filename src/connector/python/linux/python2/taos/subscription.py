@@ -6,7 +6,7 @@ class TDengineSubscription(object):
     """
     def __init__(self, sub):
         self._sub = sub
-
+    
 
     def consume(self):
         """Consume rows of a subscription
@@ -31,7 +31,7 @@ class TDengineSubscription(object):
         """
         if self._sub is None:
             return False
-
+        
         CTaosInterface.unsubscribe(self._sub, keepProgress)
         return True
 
