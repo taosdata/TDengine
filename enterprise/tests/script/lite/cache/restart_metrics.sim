@@ -69,7 +69,7 @@ print ===>rows $rows, data $data01
 if $rows != 1 then
   return -1
 endi  
-if $data01 != true then
+if $data01 != 1 then
   return -1
 endi  
 
@@ -78,7 +78,7 @@ print ===>rows $rows, data $data01
 if $rows != 1 then
   return -1
 endi  
-if $data01 != true then
+if $data01 != 1 then
   return -1
 endi  
 if $data02 != 3 then

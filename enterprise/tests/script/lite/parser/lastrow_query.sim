@@ -27,10 +27,10 @@ endi
 if $data01 != 1439 then
   return -1   
 endi  
-if $data02 != NULL then
+if $data02 != null then
   return -1  
 endi 
-if $data03 != 1439.0000 then
+if $data03 != 1439.00000 then
   return -1  
 endi    
 if $data04 != 1439.000000000 then
@@ -39,7 +39,7 @@ endi
 if $data06 != 31 then
   return -1
 endi 
-if $data07 != true then
+if $data07 != 1 then
   return -1
 endi
 if $data08 != BINARY then

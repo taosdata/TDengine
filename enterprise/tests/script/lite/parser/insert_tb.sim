@@ -67,7 +67,7 @@ if $data01 != $col1 then
   return -1
 endi
 print data03 = $data03
-if $data03 != 3.0000 then 
+if $data03 != 3.00000 then
   return -1
 endi
 if $data05 != $col5 then
@@ -175,7 +175,7 @@ endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 1.0000 then
+if $data03 != 1.00000 then
   return -1
 endi
 if $data04 != 1.000000000 then
@@ -187,7 +187,7 @@ endi
 if $data06 != @none quoted@ then
   return -1
 endi
-if $data13 != 1.0000 then
+if $data13 != 1.00000 then
   return -1
 endi
 if $data14 != 1.000000000 then

@@ -92,7 +92,7 @@ sql select * from st_smallint_0
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi 
 sql insert into st_smallint_1  values (now, NULL)
@@ -100,7 +100,7 @@ sql select * from st_smallint_1
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi  
 sql insert into st_smallint_2  values (now, 'null')
@@ -108,7 +108,7 @@ sql select * from st_smallint_2
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_smallint_3  values (now, 'NULL')
@@ -116,7 +116,7 @@ sql select * from st_smallint_3
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_smallint_4  values (now, "null")
@@ -124,7 +124,7 @@ sql select * from st_smallint_4
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_smallint_5  values (now, "NULL")
@@ -132,7 +132,7 @@ sql select * from st_smallint_5
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_smallint_6  values (now, 32767)
@@ -217,7 +217,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_smallint_16
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
     
@@ -227,7 +227,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_smallint_17
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi  
 sql insert into st_smallint_18 using mt_smallint tags ('null') values (now, 'null')
@@ -236,7 +236,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_smallint_18
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_smallint_19 using mt_smallint tags ('NULL') values (now, 'NULL')
@@ -245,7 +245,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_smallint_19
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_smallint_20 using mt_smallint tags ("null") values (now, "null")
@@ -254,7 +254,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_smallint_20
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_smallint_21 using mt_smallint tags ("NULL") values (now, "NULL")
@@ -263,7 +263,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_smallint_21
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_smallint_22 using mt_smallint tags (32767)  values (now, 32767)

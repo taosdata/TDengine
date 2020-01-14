@@ -62,13 +62,13 @@ endi
 if $data01 != 9 then
   return -1
 endi
-if $data02 != NULL then
+if $data02 != null then
   return -1
 endi
-if $data03 != 9.0000 then
+if $data03 != 9.00000 then
   return -1
 endi
-if $data04 != NULL then
+if $data04 != null then
   return -1
 endi
 if $data05 != 9 then
@@ -77,7 +77,7 @@ endi
 if $data06 != 9 then
   return -1
 endi
-if $data07 != true then
+if $data07 != 1 then
   return -1
 endi
 if $data08 != binary9 then
@@ -103,7 +103,7 @@ endi
 if $data02 != 9 then
   return -1
 endi
-if $data03 != 9.0000 then
+if $data03 != 9.00000 then
   return -1
 endi
 if $data04 != 9.000000000 then
@@ -115,7 +115,7 @@ endi
 if $data06 != 9 then
   return -1
 endi
-if $data07 != true then
+if $data07 != 1 then
   return -1
 endi
 if $data08 != binary9 then
@@ -130,13 +130,13 @@ endi
 if $data11 != 0 then
   return -1
 endi
-if $data12 != NULL then
+if $data12 != null then
   return -1
 endi
-if $data13 != 0.0000 then
+if $data13 != 0.00000 then
   return -1
 endi
-if $data14 != NULL then
+if $data14 != null then
   return -1
 endi
 if $data15 != 0 then
@@ -145,7 +145,7 @@ endi
 if $data16 != 0 then
   return -1
 endi
-if $data17 != true then
+if $data17 != 1 then
   return -1
 endi
 if $data18 != binary0 then
@@ -210,7 +210,7 @@ endi
 if $data02 != 4 then
   return -1
 endi
-if $data03 != 4.0000 then
+if $data03 != 4.00000 then
   return -1
 endi
 if $data04 != 4.000000000 then
@@ -261,13 +261,13 @@ endi
 if $data01 != 0 then
   return -1
 endi
-if $data12 != NULL then
+if $data12 != null then
   return -1
 endi
-if $data23 != 2.0000 then
+if $data23 != 2.00000 then
   return -1
 endi
-if $data34 != NULL then
+if $data34 != null then
   return -1
 endi
 if $data45 != 4 then
@@ -276,7 +276,7 @@ endi
 if $data06 != 0 then
   return -1
 endi
-if $data17 != true then
+if $data17 != 1 then
  return -1
 endi
 if $data28 != binary2 then
@@ -300,7 +300,7 @@ endi
 if $data12 != 2 then
   return -1
 endi
-if $data23 != 3.0000 then
+if $data23 != 3.00000 then
   return -1
 endi
 if $data34 != 4.000000000 then
@@ -312,7 +312,7 @@ endi
 if $data06 != 1 then
   return -1
 endi
-if $data17 != true then
+if $data17 != 1 then
   return -1
 endi
 if $data28 != binary3 then
@@ -342,7 +342,7 @@ endi
 if $data04 != 9.000000000 then
   return -1
 endi
-if $data05 != true then
+if $data05 != 1 then
   return -1
 endi
 if $data06 != binary9 then
@@ -373,7 +373,7 @@ endi
 if $data04 != 0.000000000 then
   return -1
 endi
-if $data05 != true then
+if $data05 != 1 then
   return -1
 endi
 if $data06 != binary5 then
@@ -425,10 +425,10 @@ endi
 if $data25 != 9.000000000 then
   return -1
 endi
-if $data26 != true then
+if $data26 != 1 then
   return -1
 endi
-if $data31 != NULL then
+if $data31 != null then
   return -1
 endi
 if $data42 != 4.500000000 then
@@ -458,7 +458,7 @@ endi
 if $data00 != 9 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 if $data12 != 4.500000000 then
@@ -481,7 +481,7 @@ endi
 if $data25 != 9.000000000 then
   return -1
 endi
-if $data26 != true then
+if $data26 != 1 then
   return -1
 endi
 if $data31 != 0 then
@@ -514,7 +514,7 @@ endi
 if $data01 != 1 then
   return -1
 endi
-if $data07 != true then
+if $data07 != 1 then
   return -1
 endi
 if $data01 != 1 then
@@ -630,7 +630,7 @@ endi
 if $data29 != 3 then
   return -1
 endi
-if $data46 != true then
+if $data46 != 1 then
   return -1
 endi
 if $data59 != 2 then

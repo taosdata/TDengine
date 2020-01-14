@@ -149,7 +149,7 @@ sql select * from st_double_0
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi 
 sql insert into st_double_1  values (now, NULL)
@@ -157,7 +157,7 @@ sql select * from st_double_1
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi  
 sql insert into st_double_2  values (now, 'null')
@@ -165,7 +165,7 @@ sql select * from st_double_2
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_double_3  values (now, 'NULL')
@@ -173,7 +173,7 @@ sql select * from st_double_3
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_double_4  values (now, "null")
@@ -181,7 +181,7 @@ sql select * from st_double_4
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_double_5  values (now, "NULL")
@@ -189,7 +189,7 @@ sql select * from st_double_5
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 
@@ -276,7 +276,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_double_16
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
     
@@ -286,7 +286,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_double_17
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi  
 sql insert into st_double_18 using mt_double tags ('null') values (now, 'null')
@@ -295,7 +295,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_double_18
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_double_19 using mt_double tags ('NULL') values (now, 'NULL')
@@ -304,7 +304,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_double_19
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_double_20 using mt_double tags ("null") values (now, "null")
@@ -313,7 +313,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_double_20
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_double_21 using mt_double tags ("NULL") values (now, "NULL")
@@ -322,7 +322,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_double_21
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
 sql insert into st_double_22 using mt_double tags (127)  values (now, 1.7976931348623157e+308)

@@ -32,7 +32,7 @@ endi
 if $data05 != 5 then
   return -1
 endi
-if $data06 != 6.0000 then
+if $data06 != 6.00000 then
   return -1
 endi
 if $data07 != 7.000000000 then
@@ -65,7 +65,7 @@ endi
 if $data04 != 5 then
   return -1
 endi
-if $data05 != 6.0000 then
+if $data05 != 6.00000 then
   return -1
 endi
 if $data06 != 7.000000000 then
@@ -89,7 +89,7 @@ endi
 if $data14 != 5 then
   return -1
 endi
-if $data15 != 6.0000 then
+if $data15 != 6.00000 then
   return -1
 endi
 if $data16 != 7.000000000 then
@@ -120,7 +120,7 @@ endi
 if $data03 != 5 then
   return -1
 endi
-if $data04 != 6.0000 then
+if $data04 != 6.00000 then
   return -1
 endi
 if $data05 != 7.000000000 then
@@ -144,7 +144,7 @@ endi
 if $data13 != 5 then
   return -1
 endi
-if $data14 != 6.0000 then
+if $data14 != 6.00000 then
   return -1
 endi
 if $data15 != 7.000000000 then
@@ -168,7 +168,7 @@ endi
 if $data23 != 5 then
   return -1
 endi
-if $data24 != 6.0000 then
+if $data24 != 6.00000 then
   return -1
 endi
 if $data25 != 7.000000000 then
@@ -197,7 +197,7 @@ endi
 if $data01 != -19 then
   return -1
 endi
-if $data02 != 6.0000 then
+if $data02 != 6.00000 then
   return -1
 endi
 if $data03 != 3.000000000 then
@@ -221,7 +221,7 @@ endi
 if $data11 != 3 then
   return -1
 endi
-if $data12 != 6.0000 then
+if $data12 != 6.00000 then
   return -1
 endi
 if $data13 != 7.000000000 then
@@ -245,7 +245,7 @@ endi
 if $data21 != 2 then
   return -1
 endi
-if $data22 != 6.0000 then
+if $data22 != 6.00000 then
   return -1
 endi
 if $data23 != 7.000000000 then
@@ -269,7 +269,7 @@ endi
 if $data31 != 1 then
   return -1
 endi
-if $data32 != 6.0000 then
+if $data32 != 6.00000 then
   return -1
 endi
 if $data33 != 7.000000000 then
@@ -307,7 +307,7 @@ endi
 if $data01 != -16 then
   return -1
 endi
-if $data02 != 9.0000 then
+if $data02 != 9.00000 then
   return -1
 endi
 if $data03 != 5 then
@@ -331,7 +331,7 @@ endi
 if $data11 != -19 then
   return -1
 endi
-if $data12 != 6.0000 then
+if $data12 != 6.00000 then
   return -1
 endi
 if $data13 != 0 then
@@ -355,7 +355,7 @@ endi
 if $data21 != 3 then
   return -1
 endi
-if $data22 != 6.0000 then
+if $data22 != 6.00000 then
   return -1
 endi
 if $data23 != 8 then
@@ -379,7 +379,7 @@ endi
 if $data31 != 2 then
   return -1
 endi
-if $data32 != 6.0000 then
+if $data32 != 6.00000 then
   return -1
 endi
 if $data33 != 8 then
@@ -403,7 +403,7 @@ endi
 if $data41 != 1 then
   return -1
 endi
-if $data42 != 6.0000 then
+if $data42 != 6.00000 then
   return -1
 endi
 if $data43 != 8 then

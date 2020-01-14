@@ -29,38 +29,38 @@ sql select * from mt1
 if $rows != 4 then
   return -1
 endi
-if $data21 != NULL then
-  return -1
-endi 
-if $data22 != NULL then
+if $data21 != null then
   return -1
 endi
-if $data23 != NULL then
+if $data22 != null then
   return -1
 endi
-if $data24 != NULL then
+if $data23 != null then
   return -1
 endi
-if $data25 != NULL then
+if $data24 != null then
   return -1
 endi
-if $data26 != NULL then
+if $data25 != null then
   return -1
 endi
-if $data27 != NULL then
+if $data26 != null then
   return -1
 endi
-if $data28 != NULL then
+if $data27 != null then
   return -1
 endi
-if $data29 != NULL then
+if $data28 != null then
+  return -1
+endi
+if $data29 != null then
   return -1
 endi
 
-if $data31 != NULL then
+if $data31 != null then
   return -1
 endi
-if $data32 != NULL then
+if $data32 != null then
   return -1
 endi
 #if $data33 != 0.00000 then
@@ -74,7 +74,7 @@ endi
 if $data35 != null then
   return -1
 endi
-if $data36 != NULL then
+if $data36 != null then
   return -1
 endi
 if $data39 != null then
@@ -92,7 +92,7 @@ endi
 if $data63 != NULL then
   print ==1== expect: NULL, actually: $data63
   return -1
-endi 
+endi
 if $data73 != null then
   print ==2== expect: NULL, actually: $data73
   return -1
@@ -114,7 +114,7 @@ endi
 if $data63 != NULL then
   print ==5== expect: NULL, actually: $data63
   return -1
-endi 
+endi
 if $data73 != ABC then
   return -1
 endi
@@ -125,7 +125,7 @@ if $data93 != false then
   return -1
 endi
 
-### bool: 
+### bool:
 sql_error create table stx using mt2 tags ('NULL', '123aBc', 104, '123')
 sql_error create table sty using mt2 tags ('NULL', '123aBc', 104, 'xtz')
 sql create table st4 using mt2 tags ('NULL', '123aBc', 104, 'null')
@@ -135,7 +135,7 @@ if $rows != 10 then
 endi
 if $data63 != NULL then
   return -1
-endi 
+endi
 if $data73 != 123aBc then
   return -1
 endi
@@ -154,7 +154,7 @@ if $rows != 10 then
 endi
 if $data63 != NULL then
   return -1
-endi 
+endi
 if $data73 != 123aBc then
   return -1
 endi
@@ -184,50 +184,50 @@ if $rows != 8 then
 endi
 if $data23 != beijing then
   return -1
-endi 
+endi
 if $data33 != nchar_tag then
   return -1
-endi 
+endi
 if $data43 != 100 then
   return -1
-endi 
+endi
 if $data53 != false then
   return -1
-endi 
+endi
 if $data63 != 9.123450 then
   return -1
-endi 
+endi
 if $data73 != 7.123457 then
   return -1
-endi 
-################# binary 
+endi
+################# binary
 sql alter table st41 set tag tag_binary = "shanghai"
 sql describe st41
 if $data23 != shanghai then
   return -1
 endi
 ##### test 'space' case
-#$tagvalue = ' 
-#$tagvalue = $tagvalue ' 
+#$tagvalue = '
+#$tagvalue = $tagvalue '
 #sql alter table st41 set tag tag_binary = $tagvalue
 sql alter table st41 set tag tag_binary = ""
 #sql describe st41
 #if $data23 != $tagvalue then
 #  return -1
-#endi 
+#endi
 sql alter table st41 set tag tag_binary = "null"
 sql describe st41
 if $data23 != null then
   return -1
-endi 
+endi
 sql alter table st41 set tag tag_binary = NULL
 sql describe st41
 if $data23 != NULL then
   print ==8== expect: NULL, actually: $data23
   return -1
-endi 
+endi
 
-################### nchar 
+################### nchar
 sql alter table st41 set tag tag_nchar = "��˼����"
 sql describe st41
 #sleep 1000
@@ -236,26 +236,26 @@ sql describe st41
 #  return -1
 #endi
 ##### test 'space' case
-#$tagvalue = ' 
-#$tagvalue = $tagvalue ' 
+#$tagvalue = '
+#$tagvalue = $tagvalue '
 sql alter table st41 set tag tag_nchar = ''
 #sql describe st41
 #if $data33 != $tagvalue then
 #  return -1
-#endi 
+#endi
 sql alter table st41 set tag tag_nchar = "null"
 sql describe st41
 if $data33 != null then
   return -1
-endi 
+endi
 sql alter table st41 set tag tag_nchar = NULL
 #sql describe st41
 #if $data33 !=   then
 #  print ==9== expect  , actually $data33
 #   return -1
-#endi 
+#endi
 
-################### int 
+################### int
 sql alter table st41 set tag tag_int = -2147483647
 sql describe st41
 if $data43 != -2147483647 then
@@ -290,7 +290,7 @@ sql alter table st41 set tag tag_int = 'null'
 sql_error alter table st41 set tag tag_int = ''
 sql_error alter table st41 set tag tag_int = abc379
 
-################### bool 
+################### bool
 sql alter table st41 set tag tag_bool = 'true'
 sql describe st41
 if $data53 != true then
@@ -327,7 +327,7 @@ sql_error alter table st41 set tag tag_bool = '123'
 sql_error alter table st41 set tag tag_bool = ''
 sql_error alter table st41 set tag tag_bool = abc379
 
-################### float  
+################### float
 sql alter table st41 set tag tag_float = -32
 sql describe st41
 if $data63 != -32.000000 then
@@ -377,11 +377,11 @@ if $data63 != -54.123455 then
 endi
 sql_error alter table st41 set tag tag_float = ''
 
-sql_error alter table st41 set tag tag_float = 'abc'     
-sql_error alter table st41 set tag tag_float = '123abc' 
+sql_error alter table st41 set tag tag_float = 'abc'
+sql_error alter table st41 set tag tag_float = '123abc'
 sql_error alter table st41 set tag tag_float = abc
 
-################### double  
+################### double
 sql alter table st41 set tag tag_double = -92
 sql describe st41
 if $data73 != -92.000000 then

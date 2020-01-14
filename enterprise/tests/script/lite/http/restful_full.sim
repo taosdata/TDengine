@@ -106,11 +106,12 @@ if $system_content != @{"status":"error","code":1012,"desc":"no sql input"}@ the
   return -1
 endi
 
-system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'use d1' 192.168.0.1:6020/rest/sql
-print 15-> $system_content
-if $system_content != @{"status":"error","code":1017,"desc":"no need to execute use db cmd"}@ then
-  return -1
-endi
+#system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'use d1' 192.168.0.1:6020/rest/sql
+#print 15-> $system_content
+#if $system_content != @{"status":"error","code":1017,"desc":"no need to execute use db cmd"}@ then
+#if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[1]],"rows":1}@ then
+#  return -1
+#endi
 
 #system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d '  use d1' 192.168.0.1:6020/rest/sql
 #print 16-> $system_content
