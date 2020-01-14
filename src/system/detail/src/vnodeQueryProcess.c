@@ -146,9 +146,7 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
       if (pQuery->nAggTimeInterval == 0) {
         if ((pQuery->lastKey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
             (pQuery->lastKey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
-          dTrace(
-              "QInfo:%p vid:%d sid:%d id:%s, query completed, no need to scan data in cache. qrange:%lld-%lld, "
-              "lastKey:%lld",
+          dTrace("QInfo:%p vid:%d sid:%d id:%s, query completed, ignore data in cache. qrange:%lld-%lld, lastKey:%lld",
               pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->skey, pQuery->ekey,
               pQuery->lastKey);
 
@@ -183,7 +181,7 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
 
       // data in this block may be flushed to disk and this block is allocated to other meter
       // todo try with remain cache blocks
-      SCacheBlock *pBlock = getCacheDataBlock(pMeterObj, pQuery, pQuery->slot);
+      SCacheBlock *pBlock = getCacheDataBlock(pMeterObj, pRuntimeEnv, pQuery->slot);
       if (pBlock == NULL) {
         continue;
       }
@@ -196,7 +194,7 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
       SCacheInfo *pCacheInfo = (SCacheInfo *)pMeterObj->pCache;
 
       for (int32_t i = 0; i < pCacheInfo->maxBlocks; ++i) {
-        pBlock = getCacheDataBlock(pMeterObj, pQuery, pQuery->slot);
+        pBlock = getCacheDataBlock(pMeterObj, pRuntimeEnv, pQuery->slot);
 
         /*
          * 1. pBlock == NULL. The cache block may be flushed to disk, so it is not available, skip and try next
@@ -216,8 +214,8 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
 
         setStartPositionForCacheBlock(pQuery, pBlock, &firstCheckSlot);
 
-        TSKEY *primaryKeys = (TSKEY *)pBlock->offset[0];
-
+        TSKEY* primaryKeys = (TSKEY*) pRuntimeEnv->primaryColBuffer->data;
+        
         // in handling file data block, the timestamp range validation is done during fetching candidate file blocks
         if ((primaryKeys[pQuery->pos] > pSupporter->rawEKey && QUERY_IS_ASC_QUERY(pQuery)) ||
             (primaryKeys[pQuery->pos] < pSupporter->rawEKey && !QUERY_IS_ASC_QUERY(pQuery))) {
@@ -226,15 +224,14 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
 
         // only record the key on last block
         SET_CACHE_BLOCK_FLAG(pRuntimeEnv->blockStatus);
-        SBlockInfo binfo = getBlockBasicInfo(pBlock, BLK_CACHE_BLOCK);
+        SBlockInfo binfo = getBlockBasicInfo(pRuntimeEnv, pBlock, BLK_CACHE_BLOCK);
 
         dTrace("QInfo:%p check data block, brange:%lld-%lld, fileId:%d, slot:%d, pos:%d, bstatus:%d",
                GET_QINFO_ADDR(pQuery), binfo.keyFirst, binfo.keyLast, pQuery->fileId, pQuery->slot, pQuery->pos,
                pRuntimeEnv->blockStatus);
 
         totalBlocks++;
-        queryOnBlock(pSupporter, primaryKeys, pRuntimeEnv->blockStatus, (char *)pBlock, &binfo, &pMeterInfo[k], NULL,
-                     searchFn);
+        queryOnBlock(pSupporter, primaryKeys, pRuntimeEnv->blockStatus, &binfo, &pMeterInfo[k], NULL, searchFn);
 
         if (ALL_CACHE_BLOCKS_CHECKED(pQuery)) {
           break;
@@ -425,7 +422,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
         continue;
       }
 
-      SBlockInfo binfo = getBlockBasicInfo(pBlock, BLK_FILE_BLOCK);
+      SBlockInfo binfo = getBlockBasicInfo(pRuntimeEnv, pBlock, BLK_FILE_BLOCK);
 
       assert(pQuery->pos >= 0 && pQuery->pos < pBlock->numOfPoints);
       TSKEY *primaryKeys = (TSKEY *)pRuntimeEnv->primaryColBuffer->data;
@@ -441,8 +438,8 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
                (pBlock->keyFirst >= pQuery->ekey && pBlock->keyLast <= pQuery->lastKey && !QUERY_IS_ASC_QUERY(pQuery)));
       }
 
-      queryOnBlock(pSupporter, primaryKeys, pRuntimeEnv->blockStatus, (char *)pRuntimeEnv->colDataBuffer, &binfo,
-                   pOneMeterDataInfo, pInfoEx->pBlock.fields, searchFn);
+      queryOnBlock(pSupporter, primaryKeys, pRuntimeEnv->blockStatus, &binfo, pOneMeterDataInfo, pInfoEx->pBlock.fields,
+                   searchFn);
     }
 
     tfree(pReqMeterDataInfo);
@@ -489,6 +486,9 @@ static bool multimeterMultioutputHelper(SQInfo *pQInfo, bool *dataInDisk, bool *
   pQInfo->pObj = pMeterObj;
   pQuery->lastKey = pQuery->skey;
   pRuntimeEnv->pMeterObj = pMeterObj;
+  
+  vnodeUpdateQueryColumnIndex(pQuery, pRuntimeEnv->pMeterObj);
+  vnodeUpdateFilterColumnIndex(pQuery);
 
   vnodeCheckIfDataExists(pRuntimeEnv, pMeterObj, dataInDisk, dataInCache);
 
@@ -619,6 +619,9 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
         pSupporter->rawEKey = key;
 
         int64_t num = doCheckMetersInGroup(pQInfo, index, start);
+        if (num == 0) {
+          int32_t k = 1;
+        }
         assert(num >= 0);
       } else {
         dTrace("QInfo:%p interp query on vid:%d, numOfGroups:%d, current group:%d", pQInfo, pOneMeter->vnode,
@@ -686,7 +689,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
         setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
         return;
       }
-
+      
       bool dataInDisk = true;
       bool dataInCache = true;
       if (!multimeterMultioutputHelper(pQInfo, &dataInDisk, &dataInCache, k, 0)) {
@@ -724,9 +727,6 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
           continue;
         }
       }
-
-      vnodeUpdateQueryColumnIndex(pQuery, pRuntimeEnv->pMeterObj);
-      vnodeUpdateFilterColumnIndex(pQuery);
 
       vnodeScanAllData(pRuntimeEnv);
 

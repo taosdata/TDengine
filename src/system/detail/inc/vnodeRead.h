@@ -35,19 +35,19 @@ typedef struct {
   int32_t fileId;
 } SPositionInfo;
 
-typedef struct SQueryLoadBlockInfo {
+typedef struct SLoadDataBlockInfo {
   int32_t fileListIndex; /* index of this file in files list of this vnode */
   int32_t fileId;
   int32_t slotIdx;
   int32_t sid;
   bool    tsLoaded;      // if timestamp column of current block is loaded or not
-} SQueryLoadBlockInfo;
+} SLoadDataBlockInfo;
 
-typedef struct SQueryLoadCompBlockInfo {
+typedef struct SLoadCompBlockInfo {
   int32_t sid; /* meter sid */
   int32_t fileId;
   int32_t fileListIndex;
-} SQueryLoadCompBlockInfo;
+} SLoadCompBlockInfo;
 
 /*
  * the header file info for one vnode
@@ -126,20 +126,28 @@ typedef struct RuntimeEnvironment {
   SQuery*             pQuery;
   SMeterObj*          pMeterObj;
   SQLFunctionCtx*     pCtx;
-  SQueryLoadBlockInfo loadBlockInfo;         /* record current block load information */
-  SQueryLoadCompBlockInfo loadCompBlockInfo; /* record current compblock information in SQuery */
-  SQueryFilesInfo         vnodeFileInfo;
-  int16_t                 numOfRowsPerPage;
-  int16_t                 offset[TSDB_MAX_COLUMNS];
-  int16_t                 scanFlag;  // denotes reversed scan of data or not
-  SInterpolationInfo      interpoInfo;
-  SData**                 pInterpoBuf;
-  SOutputRes*             pResult;  // reference to SQuerySupporter->pResult
-  void*                   hashList;
-  int32_t                 usedIndex;  // assigned SOutputRes in list
-  STSBuf*                 pTSBuf;
-  STSCursor               cur;
-  SQueryCostSummary       summary;
+  SLoadDataBlockInfo  loadBlockInfo;         /* record current block load information */
+  SLoadCompBlockInfo  loadCompBlockInfo; /* record current compblock information in SQuery */
+  SQueryFilesInfo     vnodeFileInfo;
+  int16_t             numOfRowsPerPage;
+  int16_t             offset[TSDB_MAX_COLUMNS];
+  int16_t             scanFlag;  // denotes reversed scan of data or not
+  SInterpolationInfo  interpoInfo;
+  SData**             pInterpoBuf;
+  SOutputRes*         pResult;  // reference to SQuerySupporter->pResult
+  void*               hashList;
+  int32_t             usedIndex;  // assigned SOutputRes in list
+  STSBuf*             pTSBuf;
+  STSCursor           cur;
+  SQueryCostSummary   summary;
+  
+  /*
+   * Temporarily hold the in-memory cache block info during scan cache blocks
+   * Here we do not use the cacheblock info from pMeterObj, simple because it may change anytime
+   * during the query by the subumit/insert handling threads.
+   * So we keep a copy of the support structure as well as the cache block data itself.
+   */
+  SCacheBlock         cacheBlock;
 } SQueryRuntimeEnv;
 
 /* intermediate result during multimeter query involves interval */

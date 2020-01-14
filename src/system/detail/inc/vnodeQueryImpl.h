@@ -129,6 +129,7 @@ bool isPointInterpoQuery(SQuery* pQuery);
 bool isTopBottomQuery(SQuery* pQuery);
 bool isFirstLastRowQuery(SQuery* pQuery);
 bool isTSCompQuery(SQuery* pQuery);
+bool notHasQueryTimeRange(SQuery *pQuery);
 
 bool needSupplementaryScan(SQuery* pQuery);
 bool onDemandLoadDatablock(SQuery* pQuery, int16_t queryRangeSet);
@@ -172,10 +173,10 @@ void enableFunctForMasterScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 int32_t mergeMetersResultToOneGroups(SMeterQuerySupportObj* pSupporter);
 void copyFromGroupBuf(SQInfo* pQInfo, SOutputRes* result);
 
-SBlockInfo getBlockBasicInfo(void* pBlock, int32_t blockType);
-SCacheBlock* getCacheDataBlock(SMeterObj* pMeterObj, SQuery* pQuery, int32_t slot);
+SBlockInfo getBlockBasicInfo(SQueryRuntimeEnv* pRuntimeEnv, void* pBlock, int32_t blockType);
+SCacheBlock* getCacheDataBlock(SMeterObj* pMeterObj, SQueryRuntimeEnv* pRuntimeEnv, int32_t slot);
 
-void queryOnBlock(SMeterQuerySupportObj* pSupporter, int64_t* primaryKeys, int32_t blockStatus, char* data,
+void queryOnBlock(SMeterQuerySupportObj* pSupporter, int64_t* primaryKeys, int32_t blockStatus,
                   SBlockInfo* pBlockBasicInfo, SMeterDataInfo* pDataHeadInfoEx, SField* pFields,
                   __block_search_fn_t searchFn);
 

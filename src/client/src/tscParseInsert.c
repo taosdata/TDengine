@@ -1307,7 +1307,6 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
     tscTrace("continue parse sql: %s", pSql->asyncTblPos);
   }
   
-
   if (tscIsInsertOrImportData(pSql->sqlstr)) {
     /*
      * only for async multi-vnode insertion
