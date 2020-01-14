@@ -5,6 +5,7 @@ system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
+sql reset query cache
 
 $dbPrefix = alt1_db
 
@@ -122,6 +123,7 @@ endi
 
 sql alter table car2 set tag carmodel = 2
 sql select * from stb where carmodel = 2
+print $rows
 if $rows != 3 then
   return -1
 endi
