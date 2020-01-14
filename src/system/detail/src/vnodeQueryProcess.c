@@ -198,12 +198,9 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
 
         /*
          * 1. pBlock == NULL. The cache block may be flushed to disk, so it is not available, skip and try next
-         *
-         * 2. pBlock->numOfPoints == 0. There is a empty block, which is caused by allocate-and-write data into cache
-         *    procedure. The block has been allocated but data has not been put into yet. If the block is the last
-         *    block(newly allocated block), abort query. Otherwise, skip it and go on.
+         * The check for empty block is refactor to getCacheDataBlock function
          */
-        if ((pBlock == NULL) || (pBlock->numOfPoints == 0)) {
+        if (pBlock == NULL) {
           if (ALL_CACHE_BLOCKS_CHECKED(pQuery)) {
             break;
           }
@@ -619,9 +616,6 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
         pSupporter->rawEKey = key;
 
         int64_t num = doCheckMetersInGroup(pQInfo, index, start);
-        if (num == 0) {
-          int32_t k = 1;
-        }
         assert(num >= 0);
       } else {
         dTrace("QInfo:%p interp query on vid:%d, numOfGroups:%d, current group:%d", pQInfo, pOneMeter->vnode,
