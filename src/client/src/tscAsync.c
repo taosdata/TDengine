@@ -93,7 +93,7 @@ void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *,
   pRes->numOfRows = 1;
 
   strtolower(pSql->sqlstr, sqlstr);
-  tscTrace("%p Async SQL: %s, pObj:%p", pSql, pSql->sqlstr, pObj);
+  tscDump("%p pObj:%p, Async SQL: %s", pSql, pObj, pSql->sqlstr);
 
   int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;

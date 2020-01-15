@@ -517,7 +517,8 @@ bool taosGetProcIO(float *readKB, float *writeKB) {
   static int64_t lastReadbyte = -1;
   static int64_t lastWritebyte = -1;
 
-  int64_t curReadbyte, curWritebyte;
+  int64_t curReadbyte  = 0;
+  int64_t curWritebyte = 0;
 
   if (!taosReadProcIO(&curReadbyte, &curWritebyte)) {
     return false;

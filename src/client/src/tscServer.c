@@ -32,13 +32,13 @@
 #define TSC_MGMT_VNODE 999
 
 #ifdef CLUSTER
-SIpStrList tscMgmtIpList;
-int        tsMasterIndex = 0;
-int        tsSlaveIndex = 1;
+  SIpStrList tscMgmtIpList;
+  int        tsMasterIndex = 0;
+  int        tsSlaveIndex = 1;
 #else
-int      tsMasterIndex = 0;
-int      tsSlaveIndex = 0;  // slave == master for single node edition
-uint32_t tsServerIp;
+  int        tsMasterIndex = 0;
+  int        tsSlaveIndex = 0;  // slave == master for single node edition
+  uint32_t   tsServerIp;
 #endif
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
@@ -134,6 +134,11 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     tscGetQueryInfoDetailSafely(&pSql->cmd, 0, &pQueryInfo);
     pQueryInfo->command = TSDB_SQL_HB;
     
+    
+    SQueryInfo *pQueryInfo = NULL;
+    tscGetQueryInfoDetailSafely(&pSql->cmd, 0, &pQueryInfo);
+    pQueryInfo->command = TSDB_SQL_HB;
+    
     if (TSDB_CODE_SUCCESS != tscAllocPayload(&(pSql->cmd), TSDB_DEFAULT_PAYLOAD_SIZE)) {
       tfree(pSql);
       return;
@@ -143,6 +148,8 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     pSql->pTscObj = pObj;
     pSql->signature = pSql;
     pObj->pHb = pSql;
+    tscAddSubqueryInfo(&pObj->pHb->cmd);
+
     tscAddSubqueryInfo(&pObj->pHb->cmd);
 
     tscTrace("%p pHb is allocated, pObj:%p", pObj->pHb, pObj);
@@ -732,6 +739,13 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
              pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
              pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pMeterInfo[0]->name);
     tscPrintSelectClause(pNew, 0);
+  
+    tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
+             "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+             pSql, pNew, tableIndex, pMeterMetaInfo->vnodeIndex, pNewQueryInfo->type,
+             pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
+             pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pMeterInfo[0]->name);
+    tscPrintSelectClause(pNew, 0);
   } else {
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     pNewQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
@@ -1141,8 +1155,10 @@ static void tscHandleSubRetrievalError(SRetrieveSupport *trsupport, SSqlObj *pSq
     }
   }
 
+  int32_t numOfTotal = pState->numOfTotal;
+
   int32_t finished = atomic_add_fetch_32(&pState->numOfCompleted, 1);
-  if (finished < pState->numOfTotal) {
+  if (finished < numOfTotal) {
     tscTrace("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pPObj, pSql, trsupport->subqueryIndex, finished);
     return tscFreeSubSqlObj(trsupport, pSql);
   }
@@ -1277,8 +1293,13 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
       return tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
     }
   
+    // keep this value local variable, since the pState variable may be released by other threads, if atomic_add opertion
+    // increases the finished value up to pState->numOfTotal value, which means all subqueries are completed.
+    // In this case, the comparsion between finished value and released pState->numOfTotal is not safe.
+    int32_t numOfTotal = pState->numOfTotal;
+
     int32_t finished = atomic_add_fetch_32(&pState->numOfCompleted, 1);
-    if (finished < pState->numOfTotal) {
+    if (finished < numOfTotal) {
       tscTrace("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pPObj, pSql, trsupport->subqueryIndex, finished);
       return tscFreeSubSqlObj(trsupport, pSql);
     }
@@ -1287,7 +1308,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     pDesc->pSchema->maxCapacity = trsupport->pExtMemBuffer[idx]->numOfElemsPerPage;
 
     tscTrace("%p retrieve from %d vnodes completed.final NumOfRows:%d,start to build loser tree", pPObj,
-             pState->numOfTotal, pState->numOfCompleted);
+             pState->numOfTotal, pState->numOfRetrievedRows);
 
     SQueryInfo *pPQueryInfo = tscGetQueryInfoDetail(&pPObj->cmd, 0);
     tscClearInterpInfo(pPQueryInfo);
@@ -1439,7 +1460,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
       SSqlObj *pNew = tscCreateSqlObjForSubquery(pParentSql, trsupport, pSql);
       if (pNew == NULL) {
         tscError("%p sub:%p failed to create new subquery due to out of memory, abort retry, vid:%d, orderOfSub:%d",
-                 pParentSql, pSql, pSvd->vnode, trsupport->subqueryIndex);
+                 trsupport->pParentSqlObj, pSql, pSvd != NULL ? pSvd->vnode : -1, trsupport->subqueryIndex);
 
         pState->code = -TSDB_CODE_CLI_OUT_OF_MEMORY;
         trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
@@ -1464,9 +1485,14 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
 
     tscRetrieveFromVnodeCallBack(param, tres, pState->code);
   } else {  // success, proceed to retrieve data from dnode
-    tscTrace("%p sub:%p query complete,ip:%u,vid:%d,orderOfSub:%d,retrieve data", pParentSql, pSql,
+    if (vnodeInfo != NULL) {
+      tscTrace("%p sub:%p query complete,ip:%u,vid:%d,orderOfSub:%d,retrieve data", trsupport->pParentSqlObj, pSql,
              vnodeInfo->vpeerDesc[vnodeInfo->index].ip, vnodeInfo->vpeerDesc[vnodeInfo->index].vnode,
              trsupport->subqueryIndex);
+    } else {
+      tscTrace("%p sub:%p query complete, orderOfSub:%d,retrieve data", trsupport->pParentSqlObj, pSql,
+             trsupport->subqueryIndex);
+    }
 
     taos_fetch_rows_a(tres, tscRetrieveFromVnodeCallBack, param);
   }

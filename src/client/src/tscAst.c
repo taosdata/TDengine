@@ -836,7 +836,7 @@ void tSQLBinaryExprCalcTraverse(tSQLBinaryExpr *pExprs, int32_t numOfRows, char 
   tSQLSyntaxNode *pRight = pExprs->pRight;
 
   /* the left output has result from the left child syntax tree */
-  char *pLeftOutput = malloc(sizeof(int64_t) * numOfRows);
+  char *pLeftOutput = (char*)malloc(sizeof(int64_t) * numOfRows);
   if (pLeft->nodeType == TSQL_NODE_EXPR) {
     tSQLBinaryExprCalcTraverse(pLeft->pExpr, numOfRows, pLeftOutput, param, order, getSourceDataBlock);
   }

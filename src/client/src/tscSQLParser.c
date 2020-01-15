@@ -2404,7 +2404,7 @@ static SColumnFilterInfo* addColumnFilterInfo(SColumnBase* pColumn) {
   }
 
   int32_t size = pColumn->numOfFilters + 1;
-  char*   tmp = realloc(pColumn->filterInfo, sizeof(SColumnFilterInfo) * (size));
+  char*   tmp = (char*)realloc((void*)(pColumn->filterInfo), sizeof(SColumnFilterInfo) * (size));
   if (tmp != NULL) {
     pColumn->filterInfo = (SColumnFilterInfo*)tmp;
   }

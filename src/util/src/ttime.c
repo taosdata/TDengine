@@ -292,8 +292,8 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
   }
 
   /* mktime will be affected by TZ, set by using taos_options */
-  int64_t seconds = mktime(&tm);
-  //int64_t seconds = (int64_t)user_mktime(&tm);
+  //int64_t seconds = mktime(&tm);
+  int64_t seconds = (int64_t)user_mktime(&tm);
   
   int64_t fraction = 0;
 

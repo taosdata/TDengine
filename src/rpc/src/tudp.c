@@ -703,7 +703,7 @@ int taosSendPacketViaTcp(uint32_t ip, uint16_t port, char *data, int dataLen, vo
     pHead->msgLen = (int32_t)htonl(msgLen);
     code = taosSendUdpData(ip, port, buffer, msgLen, chandle);
 
-    pHead = (STaosHeader *)data;
+    //pHead = (STaosHeader *)data;
 
     tinet_ntoa(ipstr, ip);
     int fd = taosOpenTcpClientSocket(ipstr, pConn->port, tsLocalIp);

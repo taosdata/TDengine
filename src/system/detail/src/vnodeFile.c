@@ -1383,7 +1383,7 @@ int vnodeSearchPointInFile(SMeterObj *pObj, SQuery *pQuery) {
 
     firstSlot = 0;
     lastSlot = pQuery->numOfBlocks - 1;
-    numOfBlocks = pQuery->numOfBlocks;
+    //numOfBlocks = pQuery->numOfBlocks;
     if (QUERY_IS_ASC_QUERY(pQuery) && pBlock[lastSlot].keyLast < pQuery->skey) continue;
     if (!QUERY_IS_ASC_QUERY(pQuery) && pBlock[firstSlot].keyFirst > pQuery->skey) continue;
 
