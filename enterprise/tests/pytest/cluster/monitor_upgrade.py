@@ -40,6 +40,7 @@ class TDTestCase:
 
     tdLog.info("================= step1")
     tdLog.info("insert 10 records into %d tables in single dnode" %self.ntables)
+    tdSql.execute('drop database if exists db')
     tdSql.execute('create database db')
     tdSql.execute('use db')
     for tid in range(1,self.ntables+1):
@@ -63,24 +64,30 @@ class TDTestCase:
     tdDnodes.cfg(2, "tables", "4")
     tdDnodes.cfg(2, "monitor", "0")
     tdDnodes.start(2)
-    tdSql.query('show dnodes')
-    tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
+    queryRows = tdSql.query('show dnodes')
+    for i in range(queryRows):
+      tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
     while(True):
       tdLog.sleep(20)
-      tdSql.query('show dnodes')
-      stateRes = tdSql.getData(0,5)
-      if (stateRes == "balanced"): break
+      stopFlag = True
+      queryRows = tdSql.query('show dnodes')
+      for i in range(queryRows):
+        if (tdSql.getData(i,5) != "balanced"): stopFlag = False
+      if (stopFlag): break
 
     tdLog.info("================= step3")
     tdLog.info("alter database replica to 2")
     tdSql.execute('alter database db replica 2')
-    tdSql.query('show dnodes')
-    tdLog.info("%s:%s" %(tdSql.getData(0,0), tdSql.getData(0,5)))
+    queryRows = tdSql.query('show dnodes')
+    for i in range(queryRows):
+      tdLog.info("%s:%s" %(tdSql.getData(i,0), tdSql.getData(i,5)))
     while(True):
-      tdLog.sleep(20)
-      tdSql.query('show dnodes')
-      stateRes = tdSql.getData(0,5)
-      if (stateRes == "balanced"): break
+      tdLog.sleep(10)
+      stopFlag = True
+      queryRows = tdSql.query('show dnodes')
+      for i in range(queryRows):
+        if (tdSql.getData(i,5) != "balanced"): stopFlag = False
+      if (stopFlag): break
 
     tdLog.info("================= step4")
     tdLog.info("insert 10 records into %d tables" %self.ntables)
@@ -94,10 +101,12 @@ class TDTestCase:
     tdSql.checkRows(20)
     tdLog.sleep(5)
 
-    tdLog.info("================= step6")
+    tdLog.info("================= step5")
     tdLog.info("check database replica")
-    tdSql.query('show databases')
-    tdSql.checkData(0, 4, 2)
+    queryRows = tdSql.query('show databases')
+    for i in range(queryRows):
+      if (tdSql.getData(i,0) == 'db'):
+        tdSql.checkData(i, 4, 2)
 
   def stop(self):
     tdSql.close()
