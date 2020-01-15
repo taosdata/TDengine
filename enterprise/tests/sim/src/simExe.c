@@ -456,6 +456,11 @@ int simParseHttpCommandResult(SScript *script, char *command) {
       simError("script:%s, json:status:%s not equal to succ, response:%s", script->fileName, status->valuestring, command);
       cJSON_Delete(root);
       return retcode;
+    } else {
+      simTrace("script:%s, json:status:%s not equal to succ, but code is %d, response:%s", script->fileName,
+          status->valuestring, retcode, command);
+      cJSON_Delete(root);
+      return 0;
     }
   }
 
@@ -503,8 +508,11 @@ int simParseHttpCommandResult(SScript *script, char *command) {
       if (col->valuestring != NULL) {
         strcpy(script->data[r][c], col->valuestring);
       } else {
-        //sprintf(script->data[r][c], "%lf", col->valuedouble);
-        strcpy(script->data[r][c], col->numberstring);
+        if (col->numberstring[0] == 0) {
+          strcpy(script->data[r][c], "null");
+        } else {
+          strcpy(script->data[r][c], col->numberstring);
+        }
       }
     }
   }
@@ -770,8 +778,8 @@ bool simExecuteRestFulSqlCommand(SScript *script, char *rest) {
       ret = 0;
       break;
     } else if (ret != 0) {
-      simTrace("script:%s, taos:%p, %s failed, ret:%d:%s, error:%s",
-               script->fileName, script->taos, rest, ret, tsError[ret], taos_errstr(script->taos));
+      simTrace("script:%s, taos:%p, %s failed, ret:%d",
+               script->fileName, script->taos, rest, ret);
 
       if (line->errorJump == SQL_JUMP_TRUE) {
         script->linePos = line->jump;
@@ -784,7 +792,7 @@ bool simExecuteRestFulSqlCommand(SScript *script, char *rest) {
   }
 
   if (ret) {
-    sprintf(script->error, "lineNum:%d. sql:%s failed, ret:%d:%s", line->lineNum, rest, ret, tsError[ret]);
+    sprintf(script->error, "lineNum:%d. sql:%s failed, ret:%d", line->lineNum, rest, ret);
     return false;
   }
 

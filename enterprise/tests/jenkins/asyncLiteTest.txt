@@ -13,18 +13,18 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 ../script/test.sh -a -f lite/agg/fill.sim
 ../script/test.sh -a -f lite/agg/stream.sim
 
-../script/test.sh -a -f lite/alter/count.sim
-../script/test.sh -a -f lite/alter/cached_schema_after_alter.sim
+#../script/test.sh -a -f lite/alter/count.sim
+#../script/test.sh -a -f lite/alter/cached_schema_after_alter.sim
 ../script/test.sh -a -f lite/alter/import.sim
-../script/test.sh -a -f lite/alter/insert1.sim
-../script/test.sh -a -f lite/alter/insert2.sim
+#../script/test.sh -a -f lite/alter/insert1.sim
+#../script/test.sh -a -f lite/alter/insert2.sim
 ../script/test.sh -a -f lite/alter/metrics.sim
 ../script/test.sh -a -f lite/alter/table.sim
 
 ../script/test.sh -a -f lite/cache/restart_table.sim
 ../script/test.sh -a -f lite/cache/restart_metrics.sim
 ../script/test.sh -a -f lite/cache/restart_stream.sim
-../script/test.sh -a -f lite/cache/new_metrics.sim
+#../script/test.sh -a -f lite/cache/new_metrics.sim
 ../script/test.sh -a -f lite/cache/new_stream.sim
 
 ../script/test.sh -a -f lite/column/table.sim
