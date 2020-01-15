@@ -1146,6 +1146,32 @@ SCacheBlock *getCacheDataBlock(SMeterObj *pMeterObj, SQueryRuntimeEnv* pRuntimeE
   // keep the structure as well as the block data into local buffer
   memcpy(&pRuntimeEnv->cacheBlock, pBlock, sizeof(SCacheBlock));
   
+  // the commit data points will be ignored
+  int32_t offset = 0;
+  int32_t numOfPoints = pBlock->numOfPoints;
+  if (pQuery->firstSlot == pQuery->commitSlot) {
+    assert(pQuery->commitPoint >= 0 && pQuery->commitPoint <= pBlock->numOfPoints);
+    
+    offset = pQuery->commitPoint;
+    numOfPoints = pBlock->numOfPoints - offset;
+    
+    if (offset != 0) {
+      dTrace("%p ignore the data in cache block that are commit already, numOfblock:%d slot:%d ignore points:%d. "
+             "first:%d last:%d", GET_QINFO_ADDR(pQuery), pQuery->numOfBlocks, pQuery->slot, pQuery->commitPoint,
+             pQuery->firstSlot, pQuery->currentSlot);
+    }
+    
+    pBlock->numOfPoints = numOfPoints;
+  
+    // current block are all commit already, ignore it
+    if (pBlock->numOfPoints == 0) {
+      dTrace("%p ignore current in cache block that are all commit already, numOfblock:%d slot:%d"
+             "first:%d last:%d", GET_QINFO_ADDR(pQuery), pQuery->numOfBlocks, pQuery->slot,
+             pQuery->firstSlot, pQuery->currentSlot);
+      return NULL;
+    }
+  }
+  
   // keep the data from in cache into the temporarily allocated buffer
   for(int32_t i = 0; i < pQuery->numOfCols; ++i) {
     SColumnInfoEx *pColumnInfoEx = &pQuery->colList[i];
@@ -1164,9 +1190,9 @@ SCacheBlock *getCacheDataBlock(SMeterObj *pMeterObj, SQueryRuntimeEnv* pRuntimeE
       assert(pCol->colId == pQuery->colList[i].data.colId && bytes == pColumnInfoEx->data.bytes &&
           type == pColumnInfoEx->data.type);
       
-      memcpy(dst, pBlock->offset[columnIndex], pBlock->numOfPoints * bytes);
+      memcpy(dst, pBlock->offset[columnIndex] + offset * bytes, numOfPoints * bytes);
     } else {
-      setNullN(dst, type, bytes, pBlock->numOfPoints);
+      setNullN(dst, type, bytes, numOfPoints);
     }
   }
   
@@ -2500,18 +2526,24 @@ void getBasicCacheInfoSnapshot(SQuery *pQuery, SCacheInfo *pCacheInfo, int32_t v
   // commitSlot here denotes the first uncommitted block in cache
   int32_t numOfBlocks = 0;
   int32_t lastSlot = 0;
+  int32_t commitSlot = 0;
+  int32_t commitPoint = 0;
 
   SCachePool *pPool = (SCachePool *)vnodeList[vid].pCachePool;
   pthread_mutex_lock(&pPool->vmutex);
   numOfBlocks = pCacheInfo->numOfBlocks;
   lastSlot = pCacheInfo->currentSlot;
+  commitSlot = pCacheInfo->commitSlot;
+  commitPoint = pCacheInfo->commitPoint;
   pthread_mutex_unlock(&pPool->vmutex);
 
   // make sure it is there, otherwise, return right away
   pQuery->currentSlot = lastSlot;
   pQuery->numOfBlocks = numOfBlocks;
   pQuery->firstSlot = getFirstCacheSlot(numOfBlocks, lastSlot, pCacheInfo);
-
+  pQuery->commitSlot = commitSlot;
+  pQuery->commitPoint = commitPoint;
+  
   /*
    * Note: the block id is continuous increasing, never becomes smaller.
    *
@@ -4437,7 +4469,7 @@ static void doHandleDataBlockImpl(SQueryRuntimeEnv *pRuntimeEnv, SBlockInfo *pbl
 
     pSummary->fileTimeUs += (taosGetTimestampUs() - start);
   } else {
-    assert(vnodeIsDatablockLoaded(pRuntimeEnv, pRuntimeEnv->pMeterObj, -1, true));
+    assert(vnodeIsDatablockLoaded(pRuntimeEnv, pRuntimeEnv->pMeterObj, -1, true) == DISK_BLOCK_NO_NEED_TO_LOAD);
     
     SCacheBlock *pBlock = getCacheDataBlock(pRuntimeEnv->pMeterObj, pRuntimeEnv, pQuery->slot);
     *pblockInfo = getBlockBasicInfo(pRuntimeEnv, pBlock, BLK_CACHE_BLOCK);

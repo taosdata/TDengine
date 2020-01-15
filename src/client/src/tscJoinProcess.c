@@ -315,9 +315,9 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
     tscFieldInfoCopyAll(&pQueryInfo->fieldsInfo, &pSupporter->fieldsInfo);
 
     /*
-     * if the first column of the secondary query is not ts function, add this function. 
+     * if the first column of the secondary query is not ts function, add this function.
      * Because this column is required to filter with timestamp after intersecting.
-     */ 
+     */
     if (pSupporter->exprsInfo.pExprs[0].functionId != TSDB_FUNC_TS) {
       tscAddTimestampColumn(pQueryInfo, TSDB_FUNC_TS, 0);
     }
@@ -349,8 +349,7 @@ int32_t tscLaunchSecondSubquery(SSqlObj* pSql) {
 
     tscPrintSelectClause(pNew, 0);
   
-    tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, transfer to ts_comp query to retrieve timestamps, "
-             "exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
+    tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
              pSql, pNew, 0, pMeterMetaInfo->vnodeIndex, pNewQueryInfo->type,
              pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
              pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pMeterInfo[0]->name);
@@ -391,7 +390,10 @@ static void doQuitSubquery(SSqlObj* pParentSql) {
 }
 
 static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSubquerySupporter* pSupporter) {
-  if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
+  int32_t numOfTotal = pSupporter->pState->numOfCompleted;
+  int32_t finished = atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1);
+  
+  if (finished >= numOfTotal) {
     pSqlObj->res.code = abs(pSupporter->pState->code);
     tscError("%p all subquery return and query failed, global code:%d", pSqlObj, pSqlObj->res.code);
 
@@ -897,7 +899,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
 
   pTSBuf->f = fopen(pTSBuf->path, "r+");
   if (pTSBuf->f == NULL) {
-    free(pTSBuf); 
+    free(pTSBuf);
     return NULL;
   }
 
