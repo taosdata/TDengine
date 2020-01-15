@@ -16,6 +16,8 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 
 ../script/test.sh -f cluster/big/tcp.sim
 
+../script/test.sh -f lite/cache/cache_balance.sim
+
 ../script/test.sh -f cluster/cluster/balance1.sim
 ../script/test.sh -f cluster/cluster/balance2.sim
 ../script/test.sh -f cluster/cluster/balance3.sim
