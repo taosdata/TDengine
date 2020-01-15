@@ -219,10 +219,10 @@ endi
 if $data13 != -2.000000000 then
   return -1
 endi
-if $data17 != NULL then
+if $data17 != null then
   return -1
 endi
-if $data18 != NULL then
+if $data18 != null then
   return -1
 endi
 if $data19 != slm_tb6 then
@@ -293,10 +293,10 @@ endi
 if $data13 != -2.000000000 then
   return -1
 endi
-if $data17 != NULL then
+if $data17 != null then
   return -1
 endi
-if $data18 != NULL then
+if $data18 != null then
   return -1
 endi
 if $data19 != slm_tb5 then
@@ -421,7 +421,7 @@ endi
 if $data45 != 5.000000000 then
   return -1
 endi
-if $data56 != true then
+if $data56 != 1 then
   return -1
 endi
 $res = $rowNum + 1
@@ -457,7 +457,7 @@ endi
 if $data45 != 5.000000000 then
   return -1
 endi
-if $data56 != true then
+if $data56 != 1 then
   return -1
 endi
 if $data60 != $rowNum then
@@ -521,7 +521,7 @@ endi
 if $data45 != 4.000000000 then
   return -1
 endi
-if $data56 != true then
+if $data56 != 1 then
   return -1
 endi
 if $data60 != $rowNum then
@@ -555,7 +555,7 @@ endi
 if $data45 != 5.000000000 then
   return -1
 endi
-if $data56 != true then
+if $data56 != 1 then
   return -1
 endi
 if $data60 != $rowNum then

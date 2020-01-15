@@ -344,11 +344,11 @@ if $data11 != 1 then
    return -1
 endi
 
-if $data12 != NULL then
+if $data12 != null then
    return -1
 endi
 
-if $data13 != NULL then
+if $data13 != null then
    return -1
 endi
 

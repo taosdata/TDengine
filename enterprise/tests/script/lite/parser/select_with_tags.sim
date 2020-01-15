@@ -255,7 +255,7 @@ if $data00 != 114 then
 endi
 
 print $data01
-if $data01 != 99.0000 then
+if $data01 != 99.00000 then
    return -1
 endi
 
