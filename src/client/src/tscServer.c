@@ -128,12 +128,6 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     if (NULL == pSql) return;
 
     pSql->fp = tscProcessHeartBeatRsp;
-    pSql->cmd.command = TSDB_SQL_HB;
-    
-    SQueryInfo *pQueryInfo = NULL;
-    tscGetQueryInfoDetailSafely(&pSql->cmd, 0, &pQueryInfo);
-    pQueryInfo->command = TSDB_SQL_HB;
-    
     
     SQueryInfo *pQueryInfo = NULL;
     tscGetQueryInfoDetailSafely(&pSql->cmd, 0, &pQueryInfo);
@@ -148,8 +142,6 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
     pSql->pTscObj = pObj;
     pSql->signature = pSql;
     pObj->pHb = pSql;
-    tscAddSubqueryInfo(&pObj->pHb->cmd);
-
     tscAddSubqueryInfo(&pObj->pHb->cmd);
 
     tscTrace("%p pHb is allocated, pObj:%p", pObj->pHb, pObj);
