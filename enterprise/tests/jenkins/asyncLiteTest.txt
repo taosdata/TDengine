@@ -88,16 +88,17 @@ sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
 ../script/test.sh -a -f lite/insert/query_block1_file.sim
 ../script/test.sh -a -f lite/insert/query_block2_file.sim
 ../script/test.sh -a -f lite/insert/query_file_memory.sim
-../script/test.sh -a -f lite/insert/query_multi_file.sim
+# too many inserts
+#../script/test.sh -a -f lite/insert/query_multi_file.sim
 
 ../script/test.sh -a -f lite/metrics/disk.sim
-../script/test.sh -a -f lite/metrics/metrics.sim
+#../script/test.sh -a -f lite/metrics/metrics.sim
 ../script/test.sh -a -f lite/metrics/values.sim
 ../script/test.sh -a -f lite/metrics/vnode3.sim
 
-../script/test.sh -a -f lite/parser/alter.sim
-../script/test.sh -a -f lite/parser/alter1.sim
-../script/test.sh -a -f lite/parser/alter_stable.sim
+#../script/test.sh -a -f lite/parser/alter.sim
+#../script/test.sh -a -f lite/parser/alter1.sim
+#../script/test.sh -a -f lite/parser/alter_stable.sim
 ../script/test.sh -a -f lite/parser/auto_create_tb.sim
 ../script/test.sh -a -f lite/parser/auto_create_tb_drop_tb.sim
 ../script/test.sh -a -f lite/parser/col_arithmetic_operation.sim
