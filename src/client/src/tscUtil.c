@@ -445,25 +445,11 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   pSql->fp = NULL;
   
   SSqlCmd* pCmd = &pSql->cmd;
-  SSqlRes* pRes = &pSql->res;
 
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   tfree(pCmd->payload);
 
   pCmd->allocSize = 0;
-
-//  if (pRes->buffer != NULL) {
-//    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-//
-//    for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; i++) {
-//      if (pRes->buffer[i] != NULL) {
-//        printf("===========free:%p\n", pRes->buffer[i]);
-//        tfree(pRes->buffer[i]);
-//      }
-//    }
-//
-//    tfree(pRes->buffer);
-//  }
 
   if (pSql->fp == NULL) {
     tsem_destroy(&pSql->rspSem);

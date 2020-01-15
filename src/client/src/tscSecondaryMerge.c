@@ -452,8 +452,8 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
     if (pLocalReducer->pCtx != NULL) {
       for(int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
         SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[i];
-        tVariantDestroy(&pCtx->tag);
         
+        tVariantDestroy(&pCtx->tag);
         if (pCtx->tagInfo.pTagCtxList != NULL) {
           tfree(pCtx->tagInfo.pTagCtxList);
         }
