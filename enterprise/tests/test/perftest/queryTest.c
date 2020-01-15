@@ -449,9 +449,9 @@ int main(int argc, char **argv) {
         total = strtol(argv[4], NULL, 10);
     }
     
-    executeSQL(conn, "use union_db0", NULL);
+    executeSQL(conn, "use intp_db0", NULL);
 //    createEnvironment(conn, 5, 5, 100, 30);
-    executeSQL(conn, "select union_mt1.ts, union_mt0.ts, union_mt1.c1/1.0 as c from union_mt0, union_mt1 where union_mt1.ts=union_mt0.ts and union_mt1.t1=union_mt0.t1 limit 5;;", NULL);
+    executeSQL(conn, "select interp(ts) from intp_tb0;", NULL);
 //    executeSQL(conn, "CREATE database TU1", NULL);
     // selectivity + tags/ts + group by normal columns
 //    executeSQL(conn, "(select count(*) from test where ts<'1970-1-1 8:1:40.9') union "
