@@ -759,7 +759,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
 bool simExecuteRestFulSqlCommand(SScript *script, char *rest) {
   SCmdLine *line = &script->lines[script->linePos];
   char command[4096];
-  sprintf(command, "curl -H 'Authorization: Taosd %s' -d '%s' 127.0.0.1:6020/rest/sql", script->auth, rest);
+  sprintf(command, "curl -H 'Authorization: Taosd %s' -d \"%s\" 127.0.0.1:6020/rest/sql", script->auth, rest);
 
   int ret = -1;
   for (int attempt = 0; attempt < 10; ++attempt) {
