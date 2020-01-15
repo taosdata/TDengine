@@ -339,13 +339,11 @@ static void doAddToHashTable(HashObj *pObj, SHashNode *pNode) {
   pNode->prev1 = pEntry;
   
   pEntry->num++;
-
   pObj->size++;
   
-  char key[512] = {0};
-  memcpy(key, pNode->key, MIN(512, pNode->keyLen));
-  
-  pTrace("key:%s %p add to hash table", key, pNode);
+//  char key[512] = {0};
+//  memcpy(key, pNode->key, MIN(512, pNode->keyLen));
+//  pTrace("key:%s %p add to hash table", key, pNode);
 }
 
 /**

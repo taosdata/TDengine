@@ -2006,9 +2006,9 @@ int32_t getNextDataFileCompInfo(SQueryRuntimeEnv *pRuntimeEnv, SMeterObj *pMeter
     // no files left, abort
     if (fileIndex < 0) {
       if (step == QUERY_ASC_FORWARD_STEP) {
-        dTrace("QInfo:%p no file to access, try data in cache", GET_QINFO_ADDR(pQuery));
+        dTrace("QInfo:%p no more file to access, try data in cache", GET_QINFO_ADDR(pQuery));
       } else {
-        dTrace("QInfo:%p no file to access in desc order, query completed", GET_QINFO_ADDR(pQuery));
+        dTrace("QInfo:%p no more file to access in desc order, query completed", GET_QINFO_ADDR(pQuery));
       }
 
       vnodeFreeFieldsEx(pRuntimeEnv);
@@ -2596,6 +2596,7 @@ int64_t getQueryStartPositionInCache(SQueryRuntimeEnv *pRuntimeEnv, int32_t *slo
   // cache block has been flushed to disk, no required data block in cache.
   SCacheBlock* pBlock = getCacheDataBlock(pMeterObj, pRuntimeEnv, pQuery->slot);
   if (pBlock == NULL) {
+    pQuery->skey = rawskey; // restore the skey
     return -1;
   }
   
@@ -2868,8 +2869,8 @@ static bool doGetQueryPos(TSKEY key, SMeterQuerySupportObj *pSupporter, SPointIn
   }
 }
 
-static bool doSetDataInfo(SMeterQuerySupportObj *pSupporter,
-                          SPointInterpoSupporter *pPointInterpSupporter, SMeterObj *pMeterObj,TSKEY nextKey) {
+static bool doSetDataInfo(SMeterQuerySupportObj *pSupporter, SPointInterpoSupporter *pPointInterpSupporter,
+                          SMeterObj *pMeterObj,TSKEY nextKey) {
   SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
   
@@ -5441,6 +5442,9 @@ static void queryStatusSave(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatus *pStatus
 
   pStatus->overStatus = pQuery->over;
   pStatus->lastKey = pQuery->lastKey;
+  
+  pStatus->skey = pQuery->skey;
+  pStatus->ekey = pQuery->ekey;
 
   pStatus->start = pRuntimeEnv->startPos;
   pStatus->next = pRuntimeEnv->nextPos;
@@ -5465,7 +5469,9 @@ static void queryStatusRestore(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatus *pSta
   SWAP(pQuery->skey, pQuery->ekey, TSKEY);
 
   pQuery->lastKey = pStatus->lastKey;
-
+  pQuery->skey = pStatus->skey;
+  pQuery->ekey = pStatus->ekey;
+  
   pQuery->over = pStatus->overStatus;
 
   pRuntimeEnv->startPos = pStatus->start;

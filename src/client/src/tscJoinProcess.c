@@ -390,7 +390,7 @@ static void doQuitSubquery(SSqlObj* pParentSql) {
 }
 
 static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSubquerySupporter* pSupporter) {
-  int32_t numOfTotal = pSupporter->pState->numOfCompleted;
+  int32_t numOfTotal = pSupporter->pState->numOfTotal;
   int32_t finished = atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1);
   
   if (finished >= numOfTotal) {
@@ -479,8 +479,13 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
           return;
         }
       }
-
-      if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
+  
+      int32_t numOfTotal = pSupporter->pState->numOfTotal;
+      int32_t finished = atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1);
+  
+      if (finished >= numOfTotal) {
+        assert(finished == numOfTotal);
+        
         if (pSupporter->pState->code != TSDB_CODE_SUCCESS) {
           tscTrace("%p sub:%p, numOfSub:%d, quit from further procedure due to other queries failure", pParentSql, tres,
                    pSupporter->subqueryIndex);
@@ -538,10 +543,12 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         return;
       }
     }
-
-    if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
-      assert(pSupporter->pState->numOfCompleted == pSupporter->pState->numOfTotal);
-
+  
+    int32_t numOfTotal = pSupporter->pState->numOfTotal;
+    int32_t finished = atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1);
+  
+    if (finished >= numOfTotal) {
+      assert(finished == numOfTotal);
       tscTrace("%p all %d secondary retrieves are completed, global code:%d", tres, pSupporter->pState->numOfTotal,
                pParentSql->res.code);
 
@@ -756,7 +763,12 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
 
       quitAllSubquery(pParentSql, pSupporter);
     } else {
-      if (atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1) >= pSupporter->pState->numOfTotal) {
+      int32_t numOfTotal = pSupporter->pState->numOfTotal;
+      int32_t finished = atomic_add_fetch_32(&pSupporter->pState->numOfCompleted, 1);
+      
+      if (finished >= numOfTotal) {
+        assert(finished == numOfTotal);
+        
         tscSetupOutputColumnIndex(pParentSql);
 
         SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
