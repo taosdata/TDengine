@@ -169,7 +169,7 @@ void tVariantDestroy(tVariant *pVar) {
   }
 }
 
-void tVariantAssign(tVariant *pDst, tVariant *pSrc) {
+void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
 
   *pDst = *pSrc;

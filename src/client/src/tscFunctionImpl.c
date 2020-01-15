@@ -3282,12 +3282,13 @@ char *arithmetic_callback_function(void *param, char *name, int32_t colId) {
 
 static void arithmetic_function(SQLFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
-  SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[0].pz;
+  SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
 
   tSQLBinaryExprCalcTraverse(sas->pExpr->pBinExprInfo.pBinExpr, pCtx->size, pCtx->aOutputBuf, sas, pCtx->order,
                              arithmetic_callback_function);
 
   pCtx->aOutputBuf += pCtx->outputBytes * pCtx->size * GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  pCtx->param[1].pz = NULL;
 }
 
 static void arithmetic_function_f(SQLFunctionCtx *pCtx, int32_t index) {

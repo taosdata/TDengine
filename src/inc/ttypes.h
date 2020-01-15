@@ -73,7 +73,7 @@ void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t t
 
 void tVariantDestroy(tVariant *pV);
 
-void tVariantAssign(tVariant *pDst, tVariant *pSrc);
+void tVariantAssign(tVariant *pDst, const tVariant *pSrc);
 
 int32_t tVariantToString(tVariant *pVar, char *dst);
 
