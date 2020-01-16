@@ -4,7 +4,9 @@ system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/exec.sh -n dnode1 -s start
 
+sleep 3000
 sql connect
+
 print ======================== dnode1 start
 
 $dbPrefix = sr_db
@@ -115,7 +117,7 @@ $tb = $tbPrefix . $i
 $st = $stPrefix . $i
 sql select * from $st
 print $st ==> $rows $data00 $data01
-if $data11 != 10 then 
+if $rows <= 1 then
   return -1
 endi
 
@@ -124,7 +126,7 @@ $tb = $tbPrefix . $i
 $st = $stPrefix . $i
 sql select * from $st
 print $st ==> $rows $data00 $data01
-if $data11 != 10 then 
+if $rows <= 1 then
   return -1
 endi
 
@@ -133,7 +135,7 @@ $tb = $tbPrefix . $i
 $st = $stPrefix . $i
 sql select * from $st
 print $st ==> $rows $data00 $data01
-if $data11 != 10 then 
+if $rows <= 1 then
   return -1
 endi
 

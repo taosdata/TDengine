@@ -38,6 +38,8 @@ sql create dnode 192.168.0.3
 system sh/exec.sh -n dnode3 -s start
 sleep 3000
 
+sql reset query cache
+
 print ========= step1 
 sql create database d1 replica 2
 sql create database d2 replica 2

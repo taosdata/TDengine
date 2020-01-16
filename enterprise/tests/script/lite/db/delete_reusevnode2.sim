@@ -11,6 +11,7 @@ system sh/cfg.sh -n dnode3 -c cacheBlockSize -v 200
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
+
 sleep 3000
 
 print ======== step1

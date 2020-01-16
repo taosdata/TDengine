@@ -100,6 +100,8 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 3000
 system sh/exec.sh -n dnode1 -s start
 sleep 5000
+
+sql use ir1db
 sql select * from tb;
 if $rows != 11 then 
   return -1
@@ -149,6 +151,8 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 3000
 system sh/exec.sh -n dnode1 -s start
 sleep 5000
+
+sql use ir1db
 sql select * from tb;
 if $rows != 29 then 
   return -1

@@ -6,6 +6,7 @@ system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/exec.sh -n dnode1 -s start
 
+sleep 3000
 sql connect
 print ============================ dnode1 start
 

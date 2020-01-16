@@ -13,7 +13,8 @@ set +e
 
 FILE_NAME=
 RELEASE=0
-while getopts "f:r" arg 
+ASYNC=0
+while getopts "f:ra" arg
 do
   case $arg in
     f)
@@ -21,6 +22,9 @@ do
       ;;
     r)
       RELEASE=1
+      ;;
+    a)
+      ASYNC=1
       ;;
     ?)
       echo "unknow argument"
@@ -39,7 +43,13 @@ cd ../
 TOP_TOP_DIR=`pwd`
 SIM_DIR=$TOP_TOP_DIR/sim
 
-PROGRAM=$BUILD_DIR/bin/tsim
+
+if [ $ASYNC -eq 0 ]; then
+  PROGRAM=$BUILD_DIR/bin/tsim
+else
+  PROGRAM="$BUILD_DIR/bin/tsim -a"
+fi
+
 PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg
 LOG_DIR=$PRG_DIR/log

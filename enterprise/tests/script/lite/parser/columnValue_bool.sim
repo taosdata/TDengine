@@ -1,5 +1,5 @@
-sql connect
 sleep 3000
+sql connect
 sql create database if not exists db
 sql use db
 
@@ -125,7 +125,7 @@ sql select * from st_bool_0
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   print ==17== expect: NULL, actually: $data01
   return -1
 endi 
@@ -134,7 +134,7 @@ sql select * from st_bool_1
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   print ==18== expect: NULL, actually: $data01
   return -1
 endi  
@@ -143,7 +143,7 @@ sql select * from st_bool_2
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   print ==19== expect: NULL, actually: $data01
   return -1
 endi
@@ -152,7 +152,7 @@ sql select * from st_bool_3
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   print ==20== expect: NULL, actually: $data01
   return -1
 endi
@@ -161,7 +161,7 @@ sql select * from st_bool_4
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   print ==21== expect: NULL, actually: $data01
   return -1
 endi
@@ -170,7 +170,7 @@ sql select * from st_bool_5
 if $rows != 1 then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   print ==22== expect: NULL, actually: $data01
   return -1
 endi
@@ -179,7 +179,7 @@ sql select * from st_bool_6
 if $rows != 1 then
   return -1
 endi
-if $data01 != true then
+if $data01 != 1 then
   print ==23== expect: true, actually: $data01
   return -1
 endi 
@@ -188,7 +188,7 @@ sql select * from st_bool_7
 if $rows != 1 then
   return -1
 endi
-if $data01 != true then
+if $data01 != 1 then
   print ==24== expect: true, actually: $data01
   return -1
 endi  
@@ -197,7 +197,7 @@ sql select * from st_bool_8
 if $rows != 1 then
   return -1
 endi
-if $data01 != true then
+if $data01 != 1 then
   print ==25== expect: true, actually: $data01
   return -1
 endi   
@@ -206,7 +206,7 @@ sql select * from st_bool_9
 if $rows != 1 then
   return -1
 endi
-if $data01 != false then
+if $data01 != 0 then
   print ==26== expect: false, actually: $data01
   return -1
 endi 
@@ -215,7 +215,7 @@ sql select * from st_bool_10
 if $rows != 1 then
   return -1
 endi
-if $data01 != false then
+if $data01 != 0 then
   print ==27== expect: false, actually: $data01
   return -1
 endi 
@@ -224,7 +224,7 @@ sql select * from st_bool_11
 if $rows != 1 then
   return -1
 endi
-if $data01 != false then
+if $data01 != 0 then
   print ==28== expect: false, actually: $data01
   return -1
 endi 
@@ -233,7 +233,7 @@ sql select * from st_bool_12
 if $rows != 1 then
   return -1
 endi
-if $data01 != false then
+if $data01 != 0 then
   print ==29== expect: false, actually: $data01
   return -1
 endi       
@@ -242,7 +242,7 @@ sql select * from st_bool_13
 if $rows != 1 then
   return -1
 endi
-if $data01 != true then
+if $data01 != 1 then
   print ==30== expect: true, actually: $data01
   return -1
 endi       
@@ -251,7 +251,7 @@ sql select * from st_bool_14
 if $rows != 1 then
   return -1
 endi
-if $data01 != true then
+if $data01 != 1 then
   print ==31== expect: true, actually: $data01
   return -1
 endi     
@@ -260,7 +260,7 @@ sql select * from st_bool_15
 if $rows != 1 then
   return -1
 endi
-if $data01 != true then
+if $data01 != 1 then
   print ==32== expect: true, actually: $data01
   return -1
 endi     
@@ -269,7 +269,7 @@ sql select * from st_bool_15_0
 if $rows != 1 then
   return -1
 endi
-if $data01 != true then
+if $data01 != 1 then
   print ==32== expect: true, actually: $data01
   return -1
 endi  
@@ -278,7 +278,7 @@ sql select * from st_bool_15_1
 if $rows != 1 then
   return -1
 endi
-if $data01 != true then
+if $data01 != 1 then
   print ==32== expect: true, actually: $data01
   return -1
 endi 
@@ -291,7 +291,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_bool_16
-if $data01 != NULL then
+if $data01 != null then
   print ==34== expect: NULL, actually: $data01
   return -1
 endi
@@ -303,7 +303,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_bool_17
-if $data01 != NULL then
+if $data01 != null then
   print ==36== expect: NULL, actually: $data01
   return -1
 endi  
@@ -314,7 +314,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_bool_18
-if $data01 != NULL then
+if $data01 != null then
   print ==38== expect: NULL, actually: $data01
   return -1
 endi
@@ -325,7 +325,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_bool_19
-if $data01 != NULL then
+if $data01 != null then
   print ==40== expect: NULL, actually: $data01
   return -1
 endi
@@ -336,7 +336,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_bool_20
-if $data01 != NULL then
+if $data01 != null then
   print ==42== expect: NULL, actually: $data01
   return -1
 endi
@@ -347,7 +347,7 @@ if $data23 != NULL then
   return -1
 endi
 sql select * from st_bool_21
-if $data01 != NULL then
+if $data01 != null then
   print ==44== expect: NULL, actually: $data01
   return -1
 endi
@@ -358,7 +358,7 @@ if $data23 != true then
   return -1
 endi
 sql select * from st_bool_22
-if $data01 != true then
+if $data01 != 1 then
   print ==46== expect: true, actually: $data01
   return -1
 endi 
@@ -369,7 +369,7 @@ if $data23 != true then
   return -1
 endi
 sql select * from st_bool_23
-if $data01 != true then
+if $data01 != 1 then
   print ==48== expect: true, actually: $data01
   return -1
 endi  
@@ -380,7 +380,7 @@ if $data23 != true then
   return -1
 endi
 sql select * from st_bool_24
-if $data01 != true then
+if $data01 != 1 then
   print ==50== expect: true, actually: $data01
   return -1
 endi    
@@ -391,7 +391,7 @@ if $data23 != false then
   return -1
 endi
 sql select * from st_bool_25
-if $data01 != false then
+if $data01 != 0 then
   print ==52== expect: false, actually: $data01
   return -1
 endi 
@@ -402,7 +402,7 @@ if $data23 != false then
   return -1
 endi
 sql select * from st_bool_26
-if $data01 != false then
+if $data01 != 0 then
   print ==54== expect: false, actually: $data01
   return -1
 endi 
@@ -413,7 +413,7 @@ if $data23 != false then
   return -1
 endi
 sql select * from st_bool_27
-if $data01 != false then
+if $data01 != 0 then
   print ==56== expect: false, actually: $data01
   return -1
 endi   
@@ -424,7 +424,7 @@ if $data23 != false then
   return -1
 endi
 sql select * from st_bool_28
-if $data01 != false then
+if $data01 != 0 then
   print ==58== expect: false, actually: $data01
   return -1
 endi       
@@ -435,7 +435,7 @@ if $data23 != true then
   return -1
 endi
 sql select * from st_bool_29
-if $data01 != true then
+if $data01 != 1 then
   print ==60== expect: true, actually: $data01
   return -1
 endi         
@@ -446,7 +446,7 @@ if $data23 != true then
   return -1
 endi
 sql select * from st_bool_30
-if $data01 != true then
+if $data01 != 1 then
   print ==62== expect: true, actually: $data01
   return -1
 endi        
@@ -457,7 +457,7 @@ if $data23 != true then
   return -1
 endi
 sql select * from st_bool_31
-if $data01 != true then
+if $data01 != 1 then
   print ==64== expect: true, actually: $data01
   return -1
 endi         
@@ -468,7 +468,7 @@ if $data23 != true then
   return -1
 endi
 sql select * from st_bool_32
-if $data01 != true then
+if $data01 != 1 then
   print ==64== expect: true, actually: $data01
   return -1
 endi    
@@ -479,7 +479,7 @@ if $data23 != true then
   return -1
 endi
 sql select * from st_bool_33
-if $data01 != true then
+if $data01 != 1 then
   print ==64== expect: true, actually: $data01
   return -1
 endi   
