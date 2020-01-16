@@ -16,13 +16,13 @@ class TDengineSubscription(object):
         
         result, fields = CTaosInterface.consume(self._sub)
         buffer = [[] for i in range(len(fields))]
-        print(buffer)
         while True:
             block, num_of_fields = CTaosInterface.fetchBlock(result, fields)
             if num_of_fields == 0: break
             for i in range(len(fields)):
                 buffer[i].extend(block[i])
 
+        self.fields = fields
         return list(map(tuple, zip(*buffer)))
 
 
