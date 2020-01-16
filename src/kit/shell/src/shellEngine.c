@@ -96,7 +96,7 @@ TAOS *shellInit(struct arguments *args) {
     exit(EXIT_SUCCESS);
   }
 
-#ifdef LINUX
+#ifndef WINDOWS
   if (args->dir[0] != 0) {
     source_dir(con, args);
     taos_close(con);

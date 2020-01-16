@@ -33,12 +33,11 @@
 #include "tsdb.h"
 #include "tutil.h"
 
-char configDir[TSDB_FILENAME_LEN] = "~/TDengine/cfg";
-char tsDirectory[TSDB_FILENAME_LEN] = "~/TDengine/data";
-char dataDir[TSDB_FILENAME_LEN] = "~/TDengine/data";
-char logDir[TSDB_FILENAME_LEN] = "~/TDengine/log";
-char scriptDir[TSDB_FILENAME_LEN] = "~/TDengine/script";
-char osName[] = "Darwin";
+char configDir[TSDB_FILENAME_LEN] = "/etc/taos";
+char tsDirectory[TSDB_FILENAME_LEN] = "/var/lib/taos";
+char dataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
+char logDir[TSDB_FILENAME_LEN] = "~/TDengineLog";
+char scriptDir[TSDB_FILENAME_LEN] = "/etc/taos";
 
 int64_t str2int64(char *str) {
   char *endptr = NULL;
@@ -420,3 +419,42 @@ int32_t __sync_val_load_32(int32_t *ptr) {
 void __sync_val_restore_32(int32_t *ptr, int32_t newval) {
   __atomic_store_n(ptr, newval, __ATOMIC_RELEASE);
 }
+
+#define _SEND_FILE_STEP_ 1000
+
+int fsendfile(FILE* out_file, FILE* in_file, int64_t* offset, int32_t count) {
+  fseek(in_file, (int32_t)(*offset), 0);
+  int writeLen = 0;
+  uint8_t buffer[_SEND_FILE_STEP_] = { 0 };
+
+  for (int len = 0; len < (count - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
+    size_t rlen = fread(buffer, 1, _SEND_FILE_STEP_, in_file);
+    if (rlen <= 0) {
+      return writeLen;
+    }
+    else if (rlen < _SEND_FILE_STEP_) {
+      fwrite(buffer, 1, rlen, out_file);
+      return (int)(writeLen + rlen);
+    }
+    else {
+      fwrite(buffer, 1, _SEND_FILE_STEP_, in_file);
+      writeLen += _SEND_FILE_STEP_;
+    }
+  }
+
+  int remain = count - writeLen;
+  if (remain > 0) {
+    size_t rlen = fread(buffer, 1, remain, in_file);
+    if (rlen <= 0) {
+      return writeLen;
+    }
+    else {
+      fwrite(buffer, 1, remain, out_file);
+      writeLen += remain;
+    }
+  }
+
+  return writeLen;
+}
+
+void taosSetCoreDump() {}

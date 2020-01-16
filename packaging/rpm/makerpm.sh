@@ -2,8 +2,8 @@
 #
 # Generate rpm package for centos 
 
-#set -e
-#set -x
+set -e
+# set -x
 
 #curr_dir=$(pwd)
 compile_dir=$1

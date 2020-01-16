@@ -698,7 +698,12 @@ int taosSendPacketViaTcp(uint32_t ip, uint16_t port, char *data, int dataLen, vo
     // send a UDP header first to set up the connection
     pHead = (STaosHeader *)buffer;
     memcpy(pHead, data, sizeof(STaosHeader));
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wbitfield-constant-conversion"
     pHead->tcp = 2;
+#pragma GCC diagnostic pop
+
     msgLen = sizeof(STaosHeader);
     pHead->msgLen = (int32_t)htonl(msgLen);
     code = taosSendUdpData(ip, port, buffer, msgLen, chandle);

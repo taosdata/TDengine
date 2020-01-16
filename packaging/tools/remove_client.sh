@@ -17,6 +17,10 @@ bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 inc_link_dir="/usr/include"
 
+
+# v1.5 jar dir
+v15_java_app_dir="/usr/local/lib/taos"
+
 csudo=""
 if command -v sudo > /dev/null; then
     csudo="sudo"
@@ -39,6 +43,7 @@ function clean_bin() {
 function clean_lib() {
     # Remove link
     ${csudo} rm -f ${lib_link_dir}/libtaos.*      || :
+    ${csudo} rm -rf ${v15_java_app_dir}                      || :
 }
 
 function clean_header() {
