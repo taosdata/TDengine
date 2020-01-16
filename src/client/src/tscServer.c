@@ -53,6 +53,41 @@ void tscPrintMgmtIp() {
   }
 }
 
+void tscSetMgmtIpListFromCluster(SIpList *pIpList) {
+  tscMgmtIpList.numOfIps = pIpList->numOfIps;
+  if (memcmp(tscMgmtIpList.ip, pIpList->ip, pIpList->numOfIps * 4) != 0) {
+    for (int i = 0; i < pIpList->numOfIps; ++i) {
+      tinet_ntoa(tscMgmtIpList.ipstr[i], pIpList->ip[i]);
+      tscMgmtIpList.ip[i] = pIpList->ip[i];
+    }
+    tscTrace("cluster mgmt IP list:");
+    tscPrintMgmtIp();
+  }
+}
+
+void tscSetMgmtIpListFromEdge() {
+  if (tscMgmtIpList.numOfIps != 2) {
+    strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
+    tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
+    strcpy(tscMgmtIpList.ipstr[1], tsMasterIp);
+    tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
+    tscTrace("edge mgmt IP list:");
+    tscPrintMgmtIp();
+  }
+}
+
+void tscSetMgmtIpList(SIpList *pIpList) {
+  /*
+    * The iplist returned by the cluster edition is the current management nodes
+    * and the iplist returned by the edge edition is empty
+    */
+  if (pIpList->numOfIps != 0) {
+    tscSetMgmtIpListFromCluster(pIpList);
+  } else {
+    tscSetMgmtIpListFromEdge();
+  }
+}
+
 /*
  * For each management node, try twice at least in case of poor network situation.
  * If the client start to connect to a non-management node from the client, and the first retry may fail due to
@@ -79,28 +114,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   if (code == 0) {
     SHeartBeatRsp *pRsp = (SHeartBeatRsp *)pRes->pRsp;
     SIpList *      pIpList = &pRsp->ipList;
-    if (pIpList->numOfIps != 0) {
-      //heart beat from cluster edition
-      tscMgmtIpList.numOfIps = pIpList->numOfIps;
-      if (memcmp(tscMgmtIpList.ip, pIpList->ip, pIpList->numOfIps * 4) != 0) {
-        for (int i = 0; i < pIpList->numOfIps; ++i) {
-          tinet_ntoa(tscMgmtIpList.ipstr[i], pIpList->ip[i]);
-          tscMgmtIpList.ip[i] = pIpList->ip[i];
-        }
-        tscTrace("new mgmt IP list:");
-        tscPrintMgmtIp();
-      }
-    } else {
-      //heart beat from edge edition
-      if (tscMgmtIpList.numOfIps != 2) {
-        strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
-        tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
-        strcpy(tscMgmtIpList.ipstr[1], tsMasterIp);
-        tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
-        tscTrace("mgmt IP list:");
-        tscPrintMgmtIp();
-      }
-    }
+    tscSetMgmtIpList(pIpList);
 
     if (pRsp->killConnection) {
       tscKillConnection(pObj);
@@ -231,7 +245,8 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
     char ipstr[40] = {0};
     if (pVPeersDesc[pSql->index].ip == 0) {
       /*
-       * Only the stand-alone version, ip is 0, at this time we use mastrIp
+       * in the edge edition, ip is 0, and at this time we use masterIp instead
+       * in the cluster edition, ip is vnode ip
        */
       //(pSql->index) = (pSql->index + 1) % TSDB_VNODES_SUPPORT;
       //continue;
@@ -334,24 +349,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
 void tscProcessMgmtRedirect(SSqlObj *pSql, uint8_t *cont) {
   SIpList *pIpList = (SIpList *)(cont);
-  tscMgmtIpList.numOfIps = pIpList->numOfIps;
-
-  if (pIpList->numOfIps != 0) {
-    for (int i = 0; i < pIpList->numOfIps; ++i) {
-      tinet_ntoa(tscMgmtIpList.ipstr[i], pIpList->ip[i]);
-      tscMgmtIpList.ip[i] = pIpList->ip[i];
-      tscTrace("Update mgmt IP, index:%d ip:%s", i, tscMgmtIpList.ipstr[i]);
-    }
-  } else {
-    if (tscMgmtIpList.numOfIps != 2) {
-      strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
-      tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
-      strcpy(tscMgmtIpList.ipstr[1], tsMasterIp);
-      tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
-      tscTrace("Update mgmt IP list:");
-      tscPrintMgmtIp();
-    }
-  }
+  tscSetMgmtIpList(pIpList);
 
   if (pSql->cmd.command < TSDB_SQL_READ) {
     tsMasterIndex = 0;
@@ -3393,25 +3391,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   SIpList *    pIpList;
   char *rsp = pRes->pRsp + sizeof(SConnectRsp);
   pIpList = (SIpList *)rsp;
-
-  if (pIpList->numOfIps != 0) {
-    tscMgmtIpList.numOfIps = pIpList->numOfIps;
-    for (int i = 0; i < pIpList->numOfIps; ++i) {
-      tinet_ntoa(tscMgmtIpList.ipstr[i], pIpList->ip[i]);
-      tscMgmtIpList.ip[i] = pIpList->ip[i];
-    }
-  } else {
-    if (tscMgmtIpList.numOfIps != 2) {
-      strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
-      tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
-      strcpy(tscMgmtIpList.ipstr[1], tsMasterIp);
-      tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
-    }
-  }
-
-  rsp += sizeof(SIpList) + sizeof(int32_t) * pIpList->numOfIps;
-
-  tscPrintMgmtIp();
+  tscSetMgmtIpList(pIpList);
 
   strcpy(pObj->sversion, pConnect->version);
   pObj->writeAuth = pConnect->writeAuth;
