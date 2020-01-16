@@ -100,7 +100,7 @@ void *taosAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port,
     tscTrace("data:%p ip:%p:%d not valid, not added in cache", data, ip, port);
     return NULL;
   }
-  
+
   hash = taosHashConn(pObj, ip, port, user);
   pNode = (SConnHash *)taosMemPoolMalloc(pObj->connHashMemPool);
   pNode->ip = ip;
