@@ -95,7 +95,6 @@ void taos_init_imp() {
     taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
   }
   
-#ifdef CLUSTER
   tscMgmtIpList.numOfIps = 2;
   strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
   tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
@@ -108,7 +107,6 @@ void taos_init_imp() {
     strcpy(tscMgmtIpList.ipstr[2], tsSecondIp);
     tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
   }
-#endif
 
   tscInitMsgs();
   slaveIndex = rand();

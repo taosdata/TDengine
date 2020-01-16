@@ -38,6 +38,7 @@ char tsDirectory[TSDB_FILENAME_LEN] = "~/TDengine/data";
 char dataDir[TSDB_FILENAME_LEN] = "~/TDengine/data";
 char logDir[TSDB_FILENAME_LEN] = "~/TDengine/log";
 char scriptDir[TSDB_FILENAME_LEN] = "~/TDengine/script";
+char osName[] = "Darwin";
 
 int64_t str2int64(char *str) {
   char *endptr = NULL;

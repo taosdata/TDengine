@@ -24,6 +24,8 @@
 extern char   version[];
 const int16_t sdbFileVersion = 0;
 int           sdbExtConns = 0;
+SIpList      *pSdbIpList = NULL;
+SIpList      *pSdbPublicIpList = NULL;
 
 #ifdef CLUSTER
 int           sdbMaster = 0;
