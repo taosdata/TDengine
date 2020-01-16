@@ -3293,7 +3293,7 @@ static void arithmetic_function(SQLFunctionCtx *pCtx) {
 
 static void arithmetic_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   INC_INIT_VAL(pCtx, 1);
-  SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[0].pz;
+  SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
 
   sas->offset = index;
   tSQLBinaryExprCalcTraverse(sas->pExpr->pBinExprInfo.pBinExpr, 1, pCtx->aOutputBuf, sas, pCtx->order,
