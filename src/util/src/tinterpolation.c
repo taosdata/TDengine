@@ -363,8 +363,6 @@ int32_t taosDoInterpoResult(SInterpolationInfo* pInterpoInfo, int16_t interpoTyp
           for (int i = 1; i < pModel->numOfCols; i++) {
             setNull(*prevValues + pModel->colOffset[i], pModel->pFields[i].type, pModel->pFields[i].bytes);
           }
-          
-          printf("alloc=------------------%p\n", *prevValues);
         }
 
         // assign rows to dst buffer
