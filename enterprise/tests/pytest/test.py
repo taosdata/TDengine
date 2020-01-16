@@ -286,6 +286,9 @@ from manage_lite.droptbInCommit import *
 from manage_lite.dropNoExistDb import *
 from manage_cluster.privilege import *
 
+from subscribe.singlemeter import *
+from subscribe.supertable import *
+
 #from anomaly.failedConnTime import *
 #from anomaly.repeateCursor import *
 
