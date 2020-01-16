@@ -411,7 +411,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg3 = "name too long";
 
       pCmd->command = pInfo->type;
-      tDCLSQL* pDCL = pInfo->pDCLInfo;
+      //tDCLSQL* pDCL = pInfo->pDCLInfo;
 
       SUserInfo* pUser = &pInfo->pDCLInfo->user;
       SSQLToken* pName = &pUser->user;
@@ -435,13 +435,15 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
             return TSDB_CODE_INVALID_SQL;
           }
         } else if (pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
-          assert(pPwd == NULL);
+          assert(pPwd->type == TSDB_DATA_TYPE_NULL);
 
-          if (strncasecmp(pUser->privilege.z, "super", 5) == 0 && pDCL->a[1].n == 5) {
+          SSQLToken* pPrivilege = &pUser->privilege;
+
+          if (strncasecmp(pPrivilege->z, "super", 5) == 0 && pPrivilege->n == 5) {
             pCmd->count = 1;
-          } else if (strncasecmp(pDCL->a[1].z, "read", 4) == 0 && pDCL->a[1].n == 4) {
+          } else if (strncasecmp(pPrivilege->z, "read", 4) == 0 && pPrivilege->n == 4) {
             pCmd->count = 2;
-          } else if (strncasecmp(pDCL->a[1].z, "write", 5) == 0 && pDCL->a[1].n == 5) {
+          } else if (strncasecmp(pPrivilege->z, "write", 5) == 0 && pPrivilege->n == 5) {
             pCmd->count = 3;
           } else {
             return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
@@ -2884,6 +2886,14 @@ static int32_t validateSQLExpr(tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnL
       if (getColumnIndexByName(&pExpr->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_INVALID_SQL;
       }
+
+      // if column is timestamp, bool, binary, nchar, not support arithmetic, so return invalid sql      
+      SMeterMeta* pMeterMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex)->pMeterMeta;   
+      SSchema* pSchema = tsGetSchema(pMeterMeta) + index.columnIndex;
+      if ((pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) || (pSchema->type == TSDB_DATA_TYPE_BOOL)
+        || (pSchema->type == TSDB_DATA_TYPE_BINARY) || (pSchema->type == TSDB_DATA_TYPE_NCHAR)){
+        return TSDB_CODE_INVALID_SQL;
+      }
       
       pList->ids[pList->num++] = index;
   } else if (pExpr->nSQLOptr == TK_FLOAT && (isnan(pExpr->val.dKey) || isinf(pExpr->val.dKey))) {
@@ -5146,8 +5156,12 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex) {
   for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
 
-    offset += snprintf(str + offset, totalBufSize - offset, "%s(uid:%" PRId64 ", %d)", aAggs[pExpr->functionId].aName,
-        pExpr->uid, pExpr->colInfo.colId);
+    char    tmpBuf[1024] = {0};
+    int32_t tmpLen       = 0;
+    tmpLen = sprintf(tmpBuf, "%s(uid:%" PRId64 ", %d)", aAggs[pExpr->functionId].aName, pExpr->uid, pExpr->colInfo.colId);
+    if (tmpLen + offset > totalBufSize) break;
+
+    offset += sprintf(str + offset, "%s", tmpBuf);
     
     if (i < pQueryInfo->exprsInfo.numOfExprs - 1) {
       str[offset++] = ',';
