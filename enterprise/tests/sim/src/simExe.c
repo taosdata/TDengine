@@ -400,20 +400,16 @@ void simCloseTaosdConnect(SScript *script) {
   simTrace("script:%s, taos:%p closed", script->fileName, script->taos);
   taos_close(script->taos);
 
-#ifdef CLUSTER
-  tscMgmtIpList.numOfIps = 2;
+  tscMgmtIpList.numOfIps = 3;
   strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
   tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
 
   strcpy(tscMgmtIpList.ipstr[1], tsMasterIp);
   tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
 
-  if (tsSecondIp[0]) {
-    tscMgmtIpList.numOfIps = 3;
-    strcpy(tscMgmtIpList.ipstr[2], tsSecondIp);
-    tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
-  }
-#endif
+  tscMgmtIpList.numOfIps = 3;
+  strcpy(tscMgmtIpList.ipstr[2], tsSecondIp);
+  tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
 
   script->taos = NULL;
 }
