@@ -46,8 +46,6 @@ uint32_t     selfIp;
 uint32_t     sdbPublicIp;
 uint32_t     sdbMasterStartTime;
 void (*sdbWorkAsMasterCallback)();
-SIpList *       pSdbIpList = NULL;
-SIpList *       pSdbPublicIpList = NULL;
 pthread_mutex_t sdbMutex;
 void *          sdbQhandle;
 int             tsMnodeUpdateSize;
