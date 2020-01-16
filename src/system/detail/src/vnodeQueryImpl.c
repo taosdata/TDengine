@@ -2260,7 +2260,9 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
     pRuntimeEnv->vnodeFileInfo.numOfFiles = 0;
     free(pRuntimeEnv->vnodeFileInfo.pFileInfo);
   }
-
+  
+  taosDestoryInterpoInfo(&pRuntimeEnv->interpoInfo);
+  
   if (pRuntimeEnv->pInterpoBuf != NULL) {
     for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutputCols; ++i) {
       tfree(pRuntimeEnv->pInterpoBuf[i]);
@@ -7085,7 +7087,6 @@ bool vnodeHasRemainResults(void *handle) {
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
   SInterpolationInfo *pInterpoInfo = &pRuntimeEnv->interpoInfo;
-
   if (pQuery->limit.limit > 0 && pQInfo->pointsRead >= pQuery->limit.limit) {
     return false;
   }
