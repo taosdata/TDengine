@@ -156,7 +156,7 @@ void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
       // For time zone
     else if (strcmp(argv[i], "-T") == 0) {
       if (i < argc - 1) {
-        arguments->threadNum = argv[++i];
+        arguments->threadNum = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -T requires an argument\n");
         exit(EXIT_FAILURE);
