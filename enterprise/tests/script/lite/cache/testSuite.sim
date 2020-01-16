@@ -1,4 +1,3 @@
-run lite/cache/cache_balance.sim
 run lite/cache/restart_table.sim
 run lite/cache/restart_metrics.sim
 run lite/cache/restart_stream.sim

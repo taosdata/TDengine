@@ -668,12 +668,14 @@ endi
 print ============================== step17
 print ========= check data
 
+sleep 2000
+
 sql use c_b1_d1
-sql_error select * from c_b1_t1 order by t desc
-sleep 10000
+sql select * from c_b1_t1 order by t desc -x s1
+s1:
 
 sql use c_b1_d2
-sql select * from c_b1_t2 order by t desc
+sql select * from c_b1_t2 order by t desc -x s2
 print $data01 $data11 $data21 $data31 $data41
 
 if $data01 != 25 then
@@ -692,21 +694,24 @@ endi
 if $data41 != 24 then
   return -1
 endi
+s2:
 
 sql use c_b1_d3
-sql select * from c_b1_t3 order by t desc
+sql select * from c_b1_t3 order by t desc -x s3
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 35 then
   return -1
 endi
+s3:
 
 sql use c_b1_d4
-sql select * from c_b1_d4.c_b1_t4 order by t desc
+sql select * from c_b1_d4.c_b1_t4 order by t desc -x s4
 print $data01 $data11 $data21 $data31 $data41
+s4:
 
 
 sql use c_b1_d5
-sql select * from c_b1_d5.c_b1_t5 order by t desc
+sql select * from c_b1_d5.c_b1_t5 order by t desc -x s5
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 51 then
   return -1
@@ -723,9 +728,10 @@ endi
 if $data41 != 55 then
   return -1
 endi
+s5:
 
 sql use c_b1_d6
-sql select * from c_b1_d6.c_b1_t6 order by t desc
+sql select * from c_b1_d6.c_b1_t6 order by t desc -x s6
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 61 then
   return -1
@@ -742,9 +748,10 @@ endi
 if $data41 != 65 then
   return -1
 endi
+s6:
 
 sql use c_b1_d7
-sql select * from c_b1_d7.c_b1_t7 order by t desc
+sql select * from c_b1_d7.c_b1_t7 order by t desc -x s7
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 71 then
   return -1
@@ -761,9 +768,10 @@ endi
 if $data41 != 75 then
   return -1
 endi
+s7:
 
 sql use c_b1_d9
-sql select * from c_b1_t9 order by t desc
+sql select * from c_b1_t9 order by t desc -x s8
 print $data01 $data11 $data21 $data31 $data41
 if $data01 != 91 then
   return -1
@@ -780,6 +788,7 @@ endi
 if $data41 != 95 then
   return -1
 endi
+s8:
 
 print ============================================ over
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

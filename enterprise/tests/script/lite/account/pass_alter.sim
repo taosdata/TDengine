@@ -6,7 +6,6 @@ system sh/cfg.sh -n dnode1 -c clog -v 0
 system sh/exec.sh -n dnode1 -s start
 sleep 3000
 sql connect
-sleep 3000
 
 print ============= step1
 sql create user read pass 'taosdata1'

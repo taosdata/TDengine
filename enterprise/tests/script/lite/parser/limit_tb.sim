@@ -1,5 +1,5 @@
-sql connect
 sleep 3000
+sql connect
 
 $dbPrefix = lm_db
 $tbPrefix = lm_tb
@@ -58,7 +58,7 @@ endi
 if $data02 != 4 then
   return -1
 endi
-if $data03 != 4.0000 then
+if $data03 != 4.00000 then
   return -1
 endi
 if $data04 != 4.000000000 then
@@ -70,7 +70,7 @@ endi
 if $data06 != 4 then
    return -1
 endi
-if $data07 != true then
+if $data07 != 1 then
   return -1
 endi
 if $data08 != binary4 then
@@ -90,7 +90,7 @@ endi
 if $data02 != 0 then
   return -1
 endi
-if $data03 != 0.0000 then
+if $data03 != 0.00000 then
   return -1
 endi
 if $data04 != 0.000000000 then
@@ -102,7 +102,7 @@ endi
 if $data06 != 0 then
   return -1
 endi
-if $data07 != true then
+if $data07 != 1 then
   return -1
 endi
 if $data08 != binary0 then
@@ -253,7 +253,7 @@ endi
 if $data05 != $rowNum then
   return -1
 endi
-if $data06 != true then
+if $data06 != 1 then
   return -1
 endi
 if $data07 != binary9 then
@@ -289,7 +289,7 @@ endi
 if $data05 != 1 then
   return -1
 endi
-if $data06 != true then
+if $data06 != 1 then
   return -1
 endi
 if $data07 != binary5 then
@@ -495,7 +495,7 @@ endi
 if $data02 != 1 then
   return -1
 endi
-if $data03 != 1.0000 then
+if $data03 != 1.00000 then
   return -1
 endi
 if $data04 != 1.000000000 then
@@ -719,7 +719,7 @@ endi
 if $data12 != 6 then
   return -1
 endi
-if $data23 != 9.0000 then
+if $data23 != 9.00000 then
   return -1
 endi
 
@@ -738,7 +738,7 @@ endi
 if $data12 != 8 then
   return -1
 endi
-if $data23 != 9.0000 then
+if $data23 != 9.00000 then
   return -1
 endi
 
@@ -761,7 +761,7 @@ endi
 if $data13 != 5 then
   return -1
 endi
-if $data14 != 3.0000 then
+if $data14 != 3.00000 then
   return -1
 endi
 if $data22 != 6 then
@@ -790,7 +790,7 @@ endi
 if $data03 != 5 then
   return -1
 endi 
-if $data04 != 3.0000 then
+if $data04 != 3.00000 then
   return -1
 endi
 if $data05 != 5.000000000 then
@@ -808,7 +808,7 @@ endi
 if $data13 != 8 then
   return -1
 endi
-if $data14 != 6.0000 then
+if $data14 != 6.00000 then
   return -1
 endi
 if $data15 != 8.000000000 then
@@ -820,7 +820,7 @@ endi
 if $data23 != 9 then
   return -1
 endi
-if $data24 != 9.0000 then
+if $data24 != 9.00000 then
   return -1
 endi
 if $data25 != 9.000000000 then
@@ -860,7 +860,7 @@ endi
 if $data20 != @18-09-17 09:20:00.000@ then
   return -1
 endi
-if $data23 != 2.0000 then
+if $data23 != 2.00000 then
   return -1
 endi
 if $data34 != 3.000000000 then
@@ -872,7 +872,7 @@ endi
 if $data06 != 0 then
   return -1
 endi
-if $data17 != true then
+if $data17 != 1 then
   return -1
 endi
 if $data28 != binary2 then
@@ -904,7 +904,7 @@ endi
 if $data20 != @18-09-17 09:30:00.000@ then
   return -1
 endi
-if $data23 != 3.0000 then
+if $data23 != 3.00000 then
   return -1
 endi
 if $data34 != 4.000000000 then
@@ -916,7 +916,7 @@ endi
 if $data06 != 1 then
   return -1
 endi
-if $data17 != true then
+if $data17 != 1 then
   return -1
 endi
 if $data28 != binary3 then
@@ -965,7 +965,7 @@ endi
 if $data12 != 5 then
   return -1
 endi
-if $data23 != 6.0000 then
+if $data23 != 6.00000 then
   return -1
 endi
 
@@ -1007,7 +1007,7 @@ endi
 if $data20 != @18-09-17 10:10:00.000@ then
   return -1
 endi
-if $data23 != 7.0000 then
+if $data23 != 7.00000 then
   return -1
 endi
 if $data34 != 6.000000000 then
@@ -1019,7 +1019,7 @@ endi
 if $data06 != 9 then
   return -1
 endi
-if $data17 != true then
+if $data17 != 1 then
   return -1
 endi
 if $data28 != binary7 then
@@ -1051,7 +1051,7 @@ endi
 if $data20 != @18-09-17 10:00:00.000@ then
   return -1
 endi
-if $data23 != 6.0000 then
+if $data23 != 6.00000 then
   return -1
 endi
 if $data34 != 5.000000000 then
@@ -1063,7 +1063,7 @@ endi
 if $data06 != 8 then
   return -1
 endi
-if $data17 != true then
+if $data17 != 1 then
   return -1
 endi
 if $data28 != binary6 then
@@ -1112,7 +1112,7 @@ endi
 if $data12 != 4 then
   return -1
 endi
-if $data23 != 3.0000 then
+if $data23 != 3.00000 then
   return -1
 endi
 
