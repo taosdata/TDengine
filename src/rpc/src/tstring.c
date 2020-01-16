@@ -197,7 +197,7 @@ char *tsError[] = {"success",
                    "invalid query handle",         // 70
                    "tables related to metric exist",
                    "can't drop monitor database or tables",
-                   "commit log init failed",
+                   "no disk permissions",
                    "vgroup init failed",
                    "data is already imported",     // 75
                    "not supported operation",
@@ -234,7 +234,7 @@ char *tsError[] = {"success",
                    "timestamp disordered in cache block",
                    "timestamp disordered in file block",
                    "invalid commit log",
-                   "server no disk space",    //110
+                   "no disk space on server",    //110
                    "only super table has metric meta info",
                    "tags value not unique for join",
                    "invalid submit message",

@@ -415,10 +415,10 @@ int vnodeProcessVPeerCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
     int32_t *pint = (int32_t *)pRsp->more;
     int      vnode = htonl(*pint);
     if (vnode < TSDB_MAX_VNODES && vnodeList[vnode].lastKey != 0) {
-      dError("vnode:%d not configured, it shall be empty");
+      dError("vnode:%d not configured, it shall be empty, code:%d", vnode, pRsp->code);
       vnodeRemoveVnode(vnode);
     } else {
-      dTrace("vnode:%d is invalid", vnode);
+      dError("vnode:%d is invalid, code:%d", vnode, pRsp->code);
     }
   }
 

@@ -19,11 +19,13 @@
 
 const char* taosGetVgroupStatusStr(int32_t vgroupStatus) {
   switch (vgroupStatus) {
-    case TSDB_VG_STATUS_READY:                 return "ready";
-    case TSDB_VG_STATUS_IN_PROGRESS:           return "inprogress";
-    case TSDB_VG_STATUS_COMMITLOG_INIT_FAILED: return "commitlog_init_failed";
-    case TSDB_VG_STATUS_INIT_FAILED:           return "init_failed";
-    case TSDB_VG_STATUS_FULL:                  return "full";
+    case TSDB_VG_STATUS_READY:                 return tsError[vgroupStatus];
+    case TSDB_VG_STATUS_IN_PROGRESS:           return tsError[vgroupStatus];
+    case TSDB_VG_STATUS_NO_DISK_PERMISSIONS:   return tsError[vgroupStatus];
+    case TSDB_VG_STATUS_SERVER_NO_PACE:        return tsError[vgroupStatus];
+    case TSDB_VG_STATUS_SERV_OUT_OF_MEMORY:    return tsError[vgroupStatus];
+    case TSDB_VG_STATUS_INIT_FAILED:           return tsError[vgroupStatus];
+    case TSDB_VG_STATUS_FULL:                  return tsError[vgroupStatus];
     default:                                   return "undefined";
   }
 }
