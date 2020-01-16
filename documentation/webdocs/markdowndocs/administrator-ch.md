@@ -337,6 +337,7 @@ TDengine也支持在shell对已存在的表从CSV文件中进行数据导入。�
 insert into tb1 file a.csv b.csv tb2 c.csv …
 import into tb1 file a.csv b.csv tb2 c.csv …
 ```
+> 注意：导入的CSV文件不能够带表头, 且表的列与CSV文件的列需要严格对应
 
 ## 数据导出
 
