@@ -77,6 +77,18 @@ void taosInitInterpoInfo(SInterpolationInfo* pInterpoInfo, int32_t order, int64_
   tfree(pInterpoInfo->prevValues);
 }
 
+// the SInterpolationInfo itself will not be released
+void taosDestoryInterpoInfo(SInterpolationInfo *pInterpoInfo) {
+  if (pInterpoInfo == NULL) {
+    return;
+  }
+  
+  tfree(pInterpoInfo->prevValues);
+  tfree(pInterpoInfo->nextValues);
+  
+  tfree(pInterpoInfo->pTags);
+}
+
 void taosInterpoSetStartInfo(SInterpolationInfo* pInterpoInfo, int32_t numOfRawDataInRows, int32_t type) {
   if (type == TSDB_INTERPO_NONE) {
     return;
@@ -283,8 +295,8 @@ static void doInterpoResultImpl(SInterpolationInfo* pInterpoInfo, int16_t interp
 
 int32_t taosDoInterpoResult(SInterpolationInfo* pInterpoInfo, int16_t interpoType, tFilePage** data,
                             int32_t numOfRawDataInRows, int32_t outputRows, int64_t nInterval,
-                            int64_t* pPrimaryKeyArray, tColModel* pModel, char** srcData, int64_t* defaultVal,
-                            int32_t* functionIDs, int32_t bufSize) {
+                            const int64_t* pPrimaryKeyArray, tColModel* pModel, char** srcData, int64_t* defaultVal,
+                            const int32_t* functionIDs, int32_t bufSize) {
   int32_t num = 0;
   pInterpoInfo->numOfCurrentInterpo = 0;
 
