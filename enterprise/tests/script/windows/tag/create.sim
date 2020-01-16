@@ -577,7 +577,7 @@ $i = 31
 $mt = $mtPrefix . $i
 $tb = $tbPrefix . $i
 sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol binary(5))
-sql create table $tb using $mt tags('1234567')
+sql create table $tb using $mt tags('1234')
 sql insert into $tb values(now, 1) 
 sql select * from $mt 
 print sql select * from $mt
@@ -586,6 +586,12 @@ if $rows != 1 then
 endi
 
 print $data00 $data01 $data02
-if $data02 != 12345 then 
+if $data02 != 1234 then
+  return -1
+endi
+
+sql drop database $db
+sql show databases
+if $rows != 0 then
   return -1
 endi

@@ -38,7 +38,8 @@ if $data00 != 23456 then
 endi
 
 print =============== step4
-sql insert into $tb values (now+3a, '345678')
+sql_error insert into $tb values (now+3a, '345678')
+sql insert into $tb values (now+3a, '34567')
 sql select speed from $tb order by ts desc
 if $rows != 3 then 
   return -1
