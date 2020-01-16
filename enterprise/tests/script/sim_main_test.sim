@@ -1,15 +1,19 @@
 ################################# 
 run lite/account/testSuite.sim
+run lite/agg/testSuite.sim
+run lite/alter/testSuite.sim
 run lite/cache/testSuite.sim
 run lite/column/testSuite.sim
 run lite/compress/testSuite.sim
 run lite/compute/testSuite.sim
+run lite/db/testSuite.sim
 run lite/field/testSuite.sim
 run lite/http/testSuite.sim
 run lite/import/testSuite.sim
 run lite/insert/testSuite.sim
 run lite/metrics/testSuite.sim
 run lite/parser/testSuite.sim
+run lite/stream/testSuite.sim
 run lite/table/testSuite.sim
 run lite/tag/testSuite.sim
 run lite/vector/testSuite.sim
