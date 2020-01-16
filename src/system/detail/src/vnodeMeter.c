@@ -81,7 +81,7 @@ int vnodeCreateMeterObjFile(int vnode) {
     if (errno == EACCES) {
       return TSDB_CODE_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {
-      return TSDB_CODE_SERVER_NO_SPACE;
+      return TSDB_CODE_SERV_NO_DISKSPACE;
     } else {
       return TSDB_CODE_VG_INIT_FAILED;
     }
