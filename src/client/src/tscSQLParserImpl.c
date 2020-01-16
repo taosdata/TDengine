@@ -861,11 +861,15 @@ void setAlterUserSQL(SSqlInfo *pInfo, int16_t type, SSQLToken *pName, SSQLToken*
   if (pPwd != NULL) {
     pUser->passwd = *pPwd;
 //    pUser->hasPasswd = true;
+  } else {
+    pUser->passwd.type = TSDB_DATA_TYPE_NULL;
   }
   
   if (pPrivilege != NULL) {
     pUser->privilege = *pPrivilege;
 //    pUser->hasPrivilege = true;
+  } else {
+    pUser->privilege.type = TSDB_DATA_TYPE_NULL;
   }
 }
 

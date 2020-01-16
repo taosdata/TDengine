@@ -2124,10 +2124,18 @@ int32_t tscBuildDropTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SSqlCmd *pCmd = &pSql->cmd;
 
-  pMsg = doBuildMsgHeader(pSql, &pStart);
+  //pMsg = doBuildMsgHeader(pSql, &pStart);
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+
+  pMsg   = pCmd->payload + tsRpcHeadSize;
+  pStart = pMsg;
+
+  SMgmtHead *pMgmt = (SMgmtHead *)pMsg;
+  tscGetDBInfoFromMeterId(pMeterMetaInfo->name, pMgmt->db);
+  pMsg += sizeof(SMgmtHead);
+
   pDropTableMsg = (SDropTableMsg *)pMsg;
 
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
   strcpy(pDropTableMsg->meterId, pMeterMetaInfo->name);
 
   pDropTableMsg->igNotExists = pInfo->pDCLInfo->existsCheck ? 1 : 0;
