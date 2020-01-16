@@ -119,13 +119,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
 void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
-  char verType[32] = {0};
-  #ifdef CLUSTER
-    sprintf(verType, "enterprise version: %s\n", version);
-  #else
-    sprintf(verType, "community version: %s\n", version);
-  #endif
-  
+  static char verType[32] = {0};
+  sprintf(verType, "version: %s\n", version);
+
   argp_program_version = verType;
   
   argp_parse(&argp, argc, argv, 0, 0, arguments);
