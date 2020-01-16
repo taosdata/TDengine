@@ -67,10 +67,16 @@ bool restProcessSqlRequest(HttpContext* pContext, int timestampFmt) {
     return false;
   }
 
+
+  /*
+   * for async test
+   * /
+  /*
   if (httpCheckUsedbSql(sql)) {
     httpSendErrorResp(pContext, HTTP_NO_EXEC_USEDB);
     return false;
   }
+  */
 
   HttpSqlCmd* cmd = &(pContext->singleCmd);
   cmd->nativSql = sql;
