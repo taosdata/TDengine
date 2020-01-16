@@ -67,6 +67,7 @@ void tscSetMgmtIpListFromCluster(SIpList *pIpList) {
 
 void tscSetMgmtIpListFromEdge() {
   if (tscMgmtIpList.numOfIps != 2) {
+    tscMgmtIpList.numOfIps = 2;
     strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
     tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
     strcpy(tscMgmtIpList.ipstr[1], tsMasterIp);
