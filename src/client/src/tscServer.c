@@ -774,10 +774,10 @@ int tscProcessSql(SSqlObj *pSql) {
         }
       }
 
-      sem_post(&pSql->emptyRspSem);
-      sem_wait(&pSql->rspSem);
+      tsem_post(&pSql->emptyRspSem);
+      tsem_wait(&pSql->rspSem);
 
-      sem_post(&pSql->emptyRspSem);
+      tsem_post(&pSql->emptyRspSem);
 
       if (pSql->numOfSubs <= 0) {
         pSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
@@ -810,9 +810,9 @@ int tscProcessSql(SSqlObj *pSql) {
     }
 
     if (fp == NULL) {
-      sem_post(&pSql->emptyRspSem);
-      sem_wait(&pSql->rspSem);
-      sem_post(&pSql->emptyRspSem);
+      tsem_post(&pSql->emptyRspSem);
+      tsem_wait(&pSql->rspSem);
+      tsem_post(&pSql->emptyRspSem);
 
       // set the command flag must be after the semaphore been correctly set.
       pSql->cmd.command = TSDB_SQL_RETRIEVE_METRIC;

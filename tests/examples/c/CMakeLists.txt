@@ -1,6 +1,6 @@
 PROJECT(TDengine)
 
-IF (TD_WINDOWS)
+IF (TD_WINDOWS_64)
   INCLUDE_DIRECTORIES(${TD_ROOT_DIR}/deps/pthread)
 ENDIF ()
 

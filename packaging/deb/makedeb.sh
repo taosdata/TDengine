@@ -2,7 +2,7 @@
 #
 # Generate deb package for ubuntu
 set -e
-#set -x
+# set -x
 
 #curr_dir=$(pwd)
 compile_dir=$1
