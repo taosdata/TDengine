@@ -49,7 +49,11 @@ typedef struct SSub {
 
 
 static int tscCompareSubscriptionProgress(const void* a, const void* b) {
-  return ((const SSubscriptionProgress*)a)->uid - ((const SSubscriptionProgress*)b)->uid;
+  const SSubscriptionProgress* x = (const SSubscriptionProgress*)a;
+  const SSubscriptionProgress* y = (const SSubscriptionProgress*)b;
+  if (x->uid > y->uid) return 1;
+  if (x->uid < y->uid) return -1;
+  return 0;
 }
 
 TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid) {
@@ -175,7 +179,7 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   if (!UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
     SMetricMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
     for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
-      SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
+      SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
       numOfMeters += pVnodeSidList->numOfSids;
     }
   }
@@ -195,7 +199,7 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
     SMetricMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
     numOfMeters = 0;
     for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
-      SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
+      SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
       for (int32_t j = 0; j < pVnodeSidList->numOfSids; j++) {
         SMeterSidExtInfo *pMeterInfo = tscGetMeterSidInfo(pVnodeSidList, j);
         int64_t uid = pMeterInfo->uid;
@@ -344,6 +348,8 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SSub *pSub = (SSub *)tsub;
   if (pSub == NULL) return NULL;
 
+  tscSaveSubscriptionProgress(pSub);
+
   SSqlObj* pSql = pSub->pSql;
   SSqlRes *pRes = &pSql->res;
 
@@ -355,27 +361,36 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     }
   }
 
-  if (taosGetTimestampMs() - pSub->lastSyncTime > 10 * 60 * 1000) {
-    tscTrace("begin meter synchronization");
-    char* sqlstr = pSql->sqlstr;
-    pSql->sqlstr = NULL;
-    taos_free_result_imp(pSql, 0);
-    pSql->sqlstr = sqlstr;
-    taosClearDataCache(tscCacheHandle);
-    if (!tscUpdateSubscription(pSub->taos, pSub)) return NULL;
-    tscTrace("meter synchronization completed");
-  } else {
-    uint16_t type = pSql->cmd.type;
-    taos_free_result_imp(pSql, 1);
-    pRes->numOfRows = 1;
-    pRes->numOfTotal = 0;
-    pRes->qhandle = 0;
-    pSql->thandle = NULL;
-    pSql->cmd.command = TSDB_SQL_SELECT;
-    pSql->cmd.type = type;
+  for (int retry = 0; retry < 3; retry++) {
+    if (taosGetTimestampMs() - pSub->lastSyncTime > 10 * 60 * 1000) {
+      tscTrace("begin meter synchronization");
+      char* sqlstr = pSql->sqlstr;
+      pSql->sqlstr = NULL;
+      taos_free_result_imp(pSql, 0);
+      pSql->sqlstr = sqlstr;
+      taosClearDataCache(tscCacheHandle);
+      if (!tscUpdateSubscription(pSub->taos, pSub)) return NULL;
+      tscTrace("meter synchronization completed");
+    } else {
+      uint16_t type = pSql->cmd.type;
+      taos_free_result_imp(pSql, 1);
+      pRes->numOfRows = 1;
+      pRes->numOfTotal = 0;
+      pRes->qhandle = 0;
+      pSql->thandle = NULL;
+      pSql->cmd.command = TSDB_SQL_SELECT;
+      pSql->cmd.type = type;
+    }
+
+    tscDoQuery(pSql);
+    if (pRes->code != TSDB_CODE_NOT_ACTIVE_TABLE) {
+      break;
+    }
+    // meter was removed, make sync time zero, so that next retry will
+    // do synchronization first
+    pSub->lastSyncTime = 0;
   }
 
-  tscDoQuery(pSql);
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscError("failed to query data, error code=%d", pRes->code);
     tscRemoveFromSqlList(pSql);
@@ -394,7 +409,9 @@ void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
     taosTmrStop(pSub->pTimer);
   }
 
-  if (!keepProgress) {
+  if (keepProgress) {
+    tscSaveSubscriptionProgress(pSub);
+  } else {
     char path[256];
     sprintf(path, "%s/subscribe/%s", dataDir, pSub->topic);
     remove(path);

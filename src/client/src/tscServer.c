@@ -3558,7 +3558,6 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
       p += sizeof(TSKEY);
       tscUpdateSubscriptionProgress(pSql->pSubscription, uid, key);
     }
-    tscSaveSubscriptionProgress(pSql->pSubscription);
   }
 
   pRes->row = 0;
