@@ -966,6 +966,7 @@ void vnodeSetCommitQuery(SMeterObj *pObj, SQuery *pQuery) {
         pObj->vnode, pObj->sid, pObj->meterId, firstKey, pQuery->skey);
     pthread_mutex_lock(&(pVnode->vmutex));
     if (firstKey < pVnode->firstKey) pVnode->firstKey = firstKey;
+    assert(pVnode->firstKey > 0);
     pthread_mutex_unlock(&(pVnode->vmutex));
   }
 }

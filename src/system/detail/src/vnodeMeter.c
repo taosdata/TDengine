@@ -655,6 +655,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   if (pObj->lastKey > pVnode->lastKey) pVnode->lastKey = pObj->lastKey;
 
   if (firstKey < pVnode->firstKey) pVnode->firstKey = firstKey;
+  assert(pVnode->firstKey > 0);
 
   pVnode->version++;
 
