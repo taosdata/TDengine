@@ -2028,7 +2028,7 @@ void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, int64_t startQueryTimes
     pCtx->ptsList = (int64_t *)(primaryColumnData + startOffset * TSDB_KEYSIZE);
 
   } else if (functionId == TSDB_FUNC_ARITHM) {
-    pCtx->param[0].pz = param;
+    pCtx->param[1].pz = param;
   }
 
   pCtx->startOffset = startOffset;
@@ -2117,14 +2117,15 @@ static int32_t setupQueryRuntimeEnv(SMeterObj *pMeterObj, SQuery *pQuery, SQuery
     pCtx->order = pQuery->order.order;
     pCtx->functionId = pSqlFuncMsg->functionId;
 
-    /*
-     * tricky: in case of char array parameters, we employ the shallow copy
-     * method and get the ownership of the char array, it later release the allocated memory if exists
-     */
     pCtx->numOfParams = pSqlFuncMsg->numOfParams;
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
-      pCtx->param[j].nType = pSqlFuncMsg->arg[j].argType;
-      pCtx->param[j].i64Key = pSqlFuncMsg->arg[j].argValue.i64;
+      int16_t type = pSqlFuncMsg->arg[j].argType;
+      int16_t bytes = pSqlFuncMsg->arg[j].argBytes;
+      if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+        tVariantCreateFromBinary(&pCtx->param[j], pSqlFuncMsg->arg->argValue.pz, bytes, type);
+      } else {
+        tVariantCreateFromBinary(&pCtx->param[j], (char*) &pSqlFuncMsg->arg[j].argValue.i64, bytes, type);
+      }
     }
 
     // set the order information for top/bottom query

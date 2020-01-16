@@ -492,12 +492,12 @@ static void setInitialValueForRangeQueryCondition(tSKipListQueryCond *q, int8_t 
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY: {
       q->upperBnd.nType = type;
-      q->upperBnd.pz = "\0";
+      q->upperBnd.pz = NULL;
       q->upperBnd.nLen = -1;
 
       q->lowerBnd.nType = type;
-      q->lowerBnd.pz = "\0";
-      q->lowerBnd.nLen = 0;
+      q->lowerBnd.pz = NULL;
+      q->lowerBnd.nLen = -1;
     }
   }
 }

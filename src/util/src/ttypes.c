@@ -163,10 +163,9 @@ void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t t
 void tVariantDestroy(tVariant *pVar) {
   if (pVar == NULL) return;
 
-  if ((pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) && pVar->nLen > 0) {
+  if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
     free(pVar->pz);
     pVar->pz = NULL;
-    pVar->nLen = 0;
   }
 }
 
