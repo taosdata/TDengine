@@ -2,7 +2,7 @@ sql connect
 sleep 3000
 
 print =============== step1
-sql drop database dd 
+sql_error drop database dd
 
 sql create database -x step1
 	return -1
