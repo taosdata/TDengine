@@ -38,6 +38,7 @@ int        tsSlaveIndex = 1;
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
 int (*tscProcessMsgRsp[TSDB_SQL_MAX])(SSqlObj *pSql);
+char *doBuildMsgHeader(SSqlObj *pSql, char **pStart);
 void (*tscUpdateVnodeMsg[TSDB_SQL_MAX])(SSqlObj *pSql, char *buf);
 void tscProcessActivityTimer(void *handle, void *tmrId);
 int  tscKeepConn[TSDB_SQL_MAX] = {0};
