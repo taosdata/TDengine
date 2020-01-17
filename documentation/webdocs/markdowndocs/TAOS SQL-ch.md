@@ -423,7 +423,7 @@ count(tbname) |
 
 ###聚合函数
 
-TDengine支持针对数据的聚合查询。提供支持的聚合和提取函数如下表：
+TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数如下：
 
 - **COUNT**
     ```mysql
@@ -446,13 +446,14 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和提取函数
     适用于：表、超级表。  
 
 
-- **WAVG**
+- **TWA**
     ```mysql
-    SELECT WAVG(field_name) FROM tb_name WHERE clause
+    SELECT TWA(field_name) FROM tb_name WHERE clause
     ```
-    功能说明：统计表/超级表中某列在一段时间内的时间加权平均。  
+    功能说明：时间加权平均函数。统计表/超级表中某列在一段时间内的时间加权平均。  
     返回结果数据类型：双精度浮点数Double。  
-    应用字段：不能应用在timestamp、binary、nchar、bool类型字段。  
+    应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
+    说明：时间加权平均(time weighted average, TWA）查询需要指定查询时间段的 _开始时间_ 和 _结束时间_ 。
     适用于：表、超级表。
 
 
@@ -556,7 +557,15 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和提取函数
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。  
     说明：*k*值取值范围0≤*k*≤100，为0的时候等同于MIN，为100的时候等同于MAX。
 
-
+- **APERCENTILE**
+    ```mysql
+    SELECT APERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：统计表中某列的值百分比分位数，与PERCENTILE函数相似，但是返回近似结果。  
+    返回结果数据类型： 双精度浮点数Double。  
+    应用字段：不能应用在timestamp、binary、nchar、bool类型字段。  
+    说明：*k*值取值范围0≤*k*≤100，为0的时候等同于MIN，为100的时候等同于MAX。推荐使用```APERCENTILE```函数，该函数性能远胜于```PERCENTILE```函数
+    
 - **LAST_ROW**
     ```mysql
     SELECT LAST_ROW(field_name) FROM { tb_name | stb_name }
