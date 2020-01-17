@@ -5,8 +5,8 @@ system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 2
 system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 10
 system sh/exec.sh -n dnode1 -s start
-sql connect
 sleep 3000
+sql connect
 
 $dbPrefix = slm_alt_tg_db
 

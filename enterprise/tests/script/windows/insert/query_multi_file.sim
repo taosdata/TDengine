@@ -27,7 +27,7 @@ $N = 20000
 $x = 0
 
 while $x < $N
-  $ms = $x . m 
+  $ms = $x . s 
   #print insert into $tb values (now + $ms , $x )
   sql insert into $tb values (now + $ms , $x ) -x error_insert
   $x = $x + 1

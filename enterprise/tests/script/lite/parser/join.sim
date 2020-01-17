@@ -5,8 +5,8 @@ system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/cfg.sh -n dnode1 -c debugFlag -v 135
 system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
 system sh/exec.sh -n dnode1 -s start
-sql connect
 sleep 1000
+sql connect
 
 $dbPrefix = join_db
 $tbPrefix = join_tb
@@ -286,7 +286,7 @@ if $data02 != 3 then
   return -1
 endi
 
-if $data03 != true then
+if $data03 != 1 then
   return -1
 endi
 

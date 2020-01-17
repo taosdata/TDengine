@@ -1,5 +1,5 @@
-sql connect
 sleep 3000
+sql connect
 
 $dbPrefix = lm2_db
 $tbPrefix = lm2_tb
@@ -163,16 +163,16 @@ endi
 if $data46 != 0.000000000 then
   return -1
 endi
-if $data47 != true then
+if $data47 != 1 then
   return -1
 endi
-if $data57 != NULL then
+if $data57 != null then
   return -1
 endi
 if $data68 != binary3 then
   return -1
 endi
-if $data79 != NULL then
+if $data79 != null then
   return -1
 endi
 
@@ -207,7 +207,7 @@ endi
 if $data05 != 0.000000000 then
   return -1
 endi
-if $data07 != true then
+if $data07 != 1 then
   return -1
 endi
 if $data08 != binary5 then
@@ -216,16 +216,16 @@ endi
 if $data09 != nchar5 then
   return -1
 endi
-if $data18 != NULL then
+if $data18 != null then
   return -1
 endi
-if $data19 != NULL then
+if $data19 != null then
   return -1
 endi
 if $data16 != -2.000000000 then
   return -1
 endi
-if $data17 != true then
+if $data17 != 1 then
   return -1
 endi
 if $data11 != -1 then
@@ -266,13 +266,13 @@ endi
 if $data19 != nchar5 then
   return -1
 endi
-if $data27 != true then
+if $data27 != 1 then
   return -1
 endi
-if $data38 != NULL then
+if $data38 != null then
   return -1
 endi
-if $data49 != NULL then
+if $data49 != null then
   return -1
 endi
 
@@ -305,7 +305,7 @@ endi
 if $data34 != 9.000000000 then
   return -1
 endi
-if $data45 != true then
+if $data45 != 1 then
   return -1
 endi
 if $data56 != binary9 then

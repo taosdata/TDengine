@@ -3,8 +3,8 @@ system sh/ip.sh -i 1 -s up
 system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/exec.sh -n dnode1 -s start
-sql connect
 sleep 3000
+sql connect
 
 $dbPrefix = db
 $tbPrefix = tb
@@ -111,7 +111,7 @@ endi
 if $data04 != 3.000000000 then
   return -1
 endi
-if $data05 != 4.0000 then
+if $data05 != 4.00000 then
   return -1
 endi
 if $data06 != 5 then
@@ -128,7 +128,7 @@ endi
 if $data01 != 1 then
   return -1
 endi
-if $data02 != true then
+if $data02 != 1 then
   return -1
 endi
 if $data03 != tb1_tg2 then
@@ -161,7 +161,7 @@ endi
 if $data04 != -3.000000000 then
   return -1
 endi
-if $data05 != -4.0000 then
+if $data05 != -4.00000 then
   return -1
 endi
 if $data06 != -5 then
@@ -171,7 +171,7 @@ if $data07 != -6 then
   return -1
 endi
 sql select * from stb2_tg
-if $data02 != false then
+if $data02 != 0 then
   return -1
 endi
 if $data03 != binary2 then
@@ -195,33 +195,33 @@ sql select * from stb1_tg
 if $rows != 1 then
   return -1
 endi
-if $data02 != NULL then
+if $data02 != null then
   return -1
 endi
-if $data03 != NULL then
+if $data03 != null then
   return -1
 endi
-if $data04 != NULL then
+if $data04 != null then
   return -1
 endi
-if $data05 != NULL then
+if $data05 != null then
   return -1
 endi
-if $data06 != NULL then
+if $data06 != null then
   return -1
 endi
-if $data07 != NULL then
+if $data07 != null then
   return -1
 endi
 sql select * from stb2_tg
-if $data02 != NULL then
+if $data02 != null then
   return -1
 endi
 
 print $data03
-if $data03 != NULL then
+if $data03 != null then
   return -1
 endi
-if $data04 != NULL then
+if $data04 != null then
   return -1
 endi

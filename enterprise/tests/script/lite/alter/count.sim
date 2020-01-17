@@ -8,8 +8,8 @@ system sh/cfg.sh -n dnode1 -c mgmtEqualVnodeNum -v 4
 
 print ========= start dnode1 as master
 system sh/exec.sh -n dnode1 -s start
-sql connect
 sleep 3000
+sql connect
 
 print ======== step1 
 sql create database d1 replica 1 days 7 keep 50 

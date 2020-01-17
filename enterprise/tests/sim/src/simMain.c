@@ -15,6 +15,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+bool simAsyncQuery = false;
+
 void simHandleSignal(int signo) {
   simSystemCleanUp();
   exit(1);
@@ -28,6 +30,8 @@ int main(int argc, char *argv[]) {
       strncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
     } else if (strcmp(argv[i], "-f") == 0 && i < argc - 1) {
       strcpy(scriptFile, argv[++i]);
+    } else if (strcmp(argv[i], "-a") == 0) {
+      simAsyncQuery = true;
     } else {
       printf("usage: %s [options] \n", argv[0]);
       printf("       [-c config]: config directory, default is: %s\n",

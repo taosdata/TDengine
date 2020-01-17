@@ -85,9 +85,7 @@ sql select count(tgcol), avg(tgcol), sum(tgcol), min(tgcol), max(tgcol), first(t
 step7:
 
 print =============== step8
-sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt group by tbcol -x step8
-  return -1
-step8:
+sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt group by tbcol
 
 print =============== step9
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt group by noexist  -x step9
@@ -102,9 +100,7 @@ if $data00 != 100 then
 endi
 
 print =============== step11
-sql select count(tbcol) as c from $mt group by tbcol -x step11
-  return -1
-step11:
+sql select count(tbcol) as c from $mt group by tbcol
 
 print =============== step12
 sql select count(tbcol) as c from $mt group by noexist -x step12

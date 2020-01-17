@@ -7,7 +7,9 @@ system sh/cfg.sh -n dnode1 -c pointsPerCompBlock -v 100
 system sh/cfg.sh -n dnode1 -c cacheBlockSize -v 1024
 system sh/exec.sh -n dnode1 -s start
 
+sleep 3000
 sql connect
+
 print ======================== dnode1 start
 
 $dbPrefix = td_db

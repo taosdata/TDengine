@@ -5,8 +5,8 @@ system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/cfg.sh -n dnode1 -c meterMetaKeepTimer -v 3
 system sh/cfg.sh -n dnode1 -c metricMetaKeepTimer -v 3
 system sh/exec.sh -n dnode1 -s start
-sql connect
 sleep 3000
+sql connect
 
 $dbPrefix = m_alt_db
 $tbPrefix = m_alt_tb
@@ -47,7 +47,7 @@ sql select * from tb order by ts desc
 if $rows != 1 then
   return -1
 endi
-if $data03 != NULL then
+if $data03 != null then
   return -1
 endi
 sql insert into tb values (now, 2, 2, 'taos')
@@ -79,7 +79,7 @@ endi
 
 sql alter table mt add column c3 nchar(4)
 sql select * from tb order by ts desc
-if $data03 != NULL then
+if $data03 != null then
   return -1
 endi
 sql insert into tb values (now, 2, 2, 'taos')
@@ -90,7 +90,7 @@ endi
 if $data03 != taos then
   return -1
 endi
-if $data13 != NULL then
+if $data13 != null then
   return -1
 endi
 sql drop table tb
@@ -200,8 +200,8 @@ if $data02 != insert then
   return -1
 endi
 sql alter table mt add column c3 nchar(4)
-sql select * from tb order by ts desc
-if $data03 != NULL then
+sql select * from tb order by ts desc 
+if $data03 != null then
   return -1
 endi
 # the query below should be deleted after bug fix

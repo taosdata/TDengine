@@ -7,8 +7,8 @@ system sh/cfg.sh -n dnode1 -c meterMetaKeepTimer -v 10
 system sh/cfg.sh -n dnode1 -c metricMetaKeepTimer -v 10
 system sh/exec.sh -n dnode1 -s start
 
-sql connect
 sleep 3000
+sql connect
 print ======================== dnode1 start
 
 $i = 0
@@ -69,7 +69,7 @@ print ===>rows $rows, data $data01
 if $rows != 1 then
   return -1
 endi  
-if $data01 != true then
+if $data01 != 1 then
   return -1
 endi  
 
@@ -78,7 +78,7 @@ print ===>rows $rows, data $data01
 if $rows != 1 then
   return -1
 endi  
-if $data01 != true then
+if $data01 != 1 then
   return -1
 endi  
 if $data02 != 3 then
