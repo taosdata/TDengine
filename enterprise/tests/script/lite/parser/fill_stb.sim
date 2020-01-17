@@ -3,8 +3,8 @@ system sh/ip.sh -i 1 -s up
 system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/exec.sh -n dnode1 -s start
-sql connect
 sleep 3000
+sql connect
 
 $dbPrefix = fl1_db
 $tbPrefix = fl1_tb
@@ -112,7 +112,7 @@ endi
 if $data12 != -2 then
   return -1
 endi
-if $data13 != -3.0000 then
+if $data13 != -3.00000 then
   return -1
 endi
 if $data14 != -4.000000000 then
@@ -127,7 +127,7 @@ endi
 if $data52 != -2 then
   return -1
 endi
-if $data73 != -3.0000 then
+if $data73 != -3.00000 then
   return -1
 endi
 if $data74 != -4.000000000 then
@@ -159,7 +159,7 @@ endi
 if $data12 != 6 then
   return -1
 endi
-if $data13 != 6.0000 then
+if $data13 != 6.00000 then
   return -1
 endi
  
@@ -218,7 +218,7 @@ endi
 # fill_into_nonarithmetic_fieds
 sql select first(c7), first(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 20000000, 20000000, 20000000)
 #if $data11 != 20000000 then
-if $data11 != true then
+if $data11 != 1 then
   return -1
 endi
 
@@ -283,13 +283,13 @@ endi
 if $data08 != 0 then
   return -1
 endi
-if $data15 != NULL then
+if $data15 != null then
   return -1
 endi
-if $data16 != NULL then
+if $data16 != null then
   return -1
 endi
-if $data17 != NULL then
+if $data17 != null then
   return -1
 endi
 if $data18 != 0 then
@@ -313,16 +313,16 @@ endi
 if $data07 != nchar0 then
   return -1
 endi
-if $data12 != NULL then
+if $data12 != null then
   return -1
 endi
-if $data14 != NULL then
+if $data14 != null then
   return -1
 endi
-if $data16 != NULL then
+if $data16 != null then
   return -1
 endi
-if $data17 != NULL then
+if $data17 != null then
   return -1
 endi
 if $data08 != 5 then
@@ -341,7 +341,7 @@ endi
 if $data07 != nchar0 then
   return -1
 endi
-if $data17 != NULL then
+if $data17 != null then
   return -1
 endi
 
@@ -359,16 +359,16 @@ endi
 if $data01 != 0 then
   return -1
 endi
-if $data02 != NULL then
+if $data02 != null then
   return -1
 endi
-if $data04 != NULL then 
+if $data04 != null then
   return -1
 endi
 if $data09 != 5 then 
   return -1
 endi
-if $data12 != NULL then
+if $data12 != null then
   return -1
 endi
 if $data19 != 5 then 
@@ -393,28 +393,28 @@ endi
 if $data01 != 0 then
   return -1
 endi
-if $data02 != NULL then
+if $data02 != null then
   return -1
 endi
-if $data04 != NULL then 
+if $data04 != null then
   return -1
 endi
-if $data06 != true then
+if $data06 != 1 then
   return -1
 endi
 if $data09 != 5 then 
   return -1
 endi
-if $data11 != NULL then
+if $data11 != null then
   return -1
 endi
-if $data12 != NULL then
+if $data12 != null then
   return -1
 endi
 if $data19 != 5 then 
   return -1
 endi
-if $data18 != NULL then
+if $data18 != null then
   return -1
 endi
 if $data59 != 6 then 

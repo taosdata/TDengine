@@ -7,8 +7,8 @@ system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 4
 system sh/exec.sh -n dnode1 -s start
 
-sql connect
 sleep 3000
+sql connect
 
 print ======================== dnode1 start
 
@@ -61,6 +61,8 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 3000
 system sh/exec.sh -n dnode1 -s start
 sleep 6000
+
+sql use $db
 sql show vgroups
 print vgroups ==> $rows
 if $rows != 3 then 

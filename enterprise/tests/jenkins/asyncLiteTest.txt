@@ -1,0 +1,219 @@
+cd ../../../debug; cmake -DCMAKE_BUILD_TYPE=Debug -DVERSION=lite ..
+cd ../../../debug; make clean
+cd ../../../debug; make
+sudo rm -rf /usr/lib/libtaos.so*
+sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
+
+../script/test.sh -a -f lite/account/pass_alter.sim
+../script/test.sh -a -f lite/account/pass_len.sim
+../script/test.sh -a -f lite/account/user_create.sim
+../script/test.sh -a -f lite/account/user_len.sim
+../script/test.sh -a -f lite/account/monitor.sim
+
+../script/test.sh -a -f lite/agg/fill.sim
+../script/test.sh -a -f lite/agg/stream.sim
+
+#../script/test.sh -a -f lite/alter/count.sim
+#../script/test.sh -a -f lite/alter/cached_schema_after_alter.sim
+../script/test.sh -a -f lite/alter/import.sim
+#../script/test.sh -a -f lite/alter/insert1.sim
+#../script/test.sh -a -f lite/alter/insert2.sim
+../script/test.sh -a -f lite/alter/metrics.sim
+../script/test.sh -a -f lite/alter/table.sim
+
+../script/test.sh -a -f lite/cache/restart_table.sim
+../script/test.sh -a -f lite/cache/restart_metrics.sim
+../script/test.sh -a -f lite/cache/restart_stream.sim
+#../script/test.sh -a -f lite/cache/new_metrics.sim
+../script/test.sh -a -f lite/cache/new_stream.sim
+
+../script/test.sh -a -f lite/column/table.sim
+../script/test.sh -a -f lite/column/metrics.sim
+../script/test.sh -a -f lite/column/stream.sim
+../script/test.sh -a -f lite/column/commit.sim
+
+../script/test.sh -a -f lite/compress/compress.sim
+../script/test.sh -a -f lite/compress/uncompress.sim
+../script/test.sh -a -f lite/compress/commitlog.sim
+../script/test.sh -a -f lite/compress/compress2.sim
+
+../script/test.sh -a -f lite/compute/count.sim
+../script/test.sh -a -f lite/compute/avg.sim
+../script/test.sh -a -f lite/compute/sum.sim
+../script/test.sh -a -f lite/compute/min.sim
+../script/test.sh -a -f lite/compute/max.sim
+../script/test.sh -a -f lite/compute/first.sim
+../script/test.sh -a -f lite/compute/last.sim
+../script/test.sh -a -f lite/compute/stddev.sim
+../script/test.sh -a -f lite/compute/leastsquare.sim
+../script/test.sh -a -f lite/compute/top.sim
+../script/test.sh -a -f lite/compute/bottom.sim
+../script/test.sh -a -f lite/compute/percentile.sim
+../script/test.sh -a -f lite/compute/diff.sim
+../script/test.sh -a -f lite/compute/interval.sim
+../script/test.sh -a -f lite/compute/null.sim
+../script/test.sh -a -f lite/compute/diff2.sim
+
+../script/test.sh -a -f lite/db/tables.sim
+../script/test.sh -a -f lite/db/basic.sim
+../script/test.sh -a -f lite/db/len.sim
+#../script/test.sh -a -f lite/db/delete_reuse1.sim
+#../script/test.sh -a -f lite/db/delete_reuse2.sim
+#../script/test.sh -a -f lite/db/delete_writing1.sim
+#../script/test.sh -a -f lite/db/delete_writing2.sim
+
+../script/test.sh -a -f lite/field/single.sim
+../script/test.sh -a -f lite/field/bool.sim
+../script/test.sh -a -f lite/field/smallint.sim
+../script/test.sh -a -f lite/field/tinyint.sim
+../script/test.sh -a -f lite/field/int.sim
+../script/test.sh -a -f lite/field/bigint.sim
+../script/test.sh -a -f lite/field/float.sim
+../script/test.sh -a -f lite/field/double.sim
+../script/test.sh -a -f lite/field/binary.sim
+../script/test.sh -a -f lite/field/2.sim
+../script/test.sh -a -f lite/field/3.sim
+../script/test.sh -a -f lite/field/4.sim
+../script/test.sh -a -f lite/field/5.sim
+../script/test.sh -a -f lite/field/6.sim
+
+../script/test.sh -a -f lite/import/basic.sim
+../script/test.sh -a -f lite/import/large.sim
+../script/test.sh -a -f lite/import/replica1.sim
+
+../script/test.sh -a -f lite/insert/basic.sim
+../script/test.sh -a -f lite/insert/insert_drop.sim
+../script/test.sh -a -f lite/insert/query_block1_memory.sim
+../script/test.sh -a -f lite/insert/query_block2_memory.sim
+../script/test.sh -a -f lite/insert/query_block1_file.sim
+../script/test.sh -a -f lite/insert/query_block2_file.sim
+../script/test.sh -a -f lite/insert/query_file_memory.sim
+# too many inserts
+#../script/test.sh -a -f lite/insert/query_multi_file.sim
+
+../script/test.sh -a -f lite/metrics/disk.sim
+#../script/test.sh -a -f lite/metrics/metrics.sim
+../script/test.sh -a -f lite/metrics/values.sim
+../script/test.sh -a -f lite/metrics/vnode3.sim
+
+#../script/test.sh -a -f lite/parser/alter.sim
+#../script/test.sh -a -f lite/parser/alter1.sim
+#../script/test.sh -a -f lite/parser/alter_stable.sim
+#../script/test.sh -a -f lite/parser/auto_create_tb.sim
+../script/test.sh -a -f lite/parser/auto_create_tb_drop_tb.sim
+../script/test.sh -a -f lite/parser/col_arithmetic_operation.sim
+##../script/test.sh -a -f lite/parser/columnValue.sim
+../script/test.sh -a -f lite/parser/commit.sim
+../script/test.sh -a -f lite/parser/create_db.sim
+../script/test.sh -a -f lite/parser/create_mt.sim
+../script/test.sh -a -f lite/parser/create_tb.sim
+##../script/test.sh -a -f lite/parser/dbtbnameValidate.sim
+##../script/test.sh -a -f lite/parser/fill.sim
+##../script/test.sh -a -f lite/parser/fill_stb.sim
+##../script/test.sh -a -f lite/parser/first_last.sim
+../script/test.sh -a -f lite/parser/import_commit1.sim
+../script/test.sh -a -f lite/parser/import_commit2.sim
+../script/test.sh -a -f lite/parser/import_commit3.sim
+##../script/test.sh -a -f lite/parser/insert_tb.sim
+##../script/test.sh -a -f lite/parser/interp.sim
+##../script/test.sh -a -f lite/parser/lastrow.sim
+##../script/test.sh -a -f lite/parser/limit.sim
+##../script/test.sh -a -f lite/parser/limit1.sim
+##../script/test.sh -a -f lite/parser/limit1_tblocks100.sim
+##../script/test.sh -a -f lite/parser/limit2.sim
+##../script/test.sh -a -f lite/parser/mixed_blocks.sim
+##../script/test.sh -a -f lite/parser/nchar.sim
+##../script/test.sh -a -f lite/parser/null_char.sim
+../script/test.sh -a -f lite/parser/selectResNum.sim
+../script/test.sh -a -f lite/parser/select_across_vnodes.sim
+##../script/test.sh -a -f lite/parser/select_from_cache_disk.sim
+../script/test.sh -a -f lite/parser/set_tag_vals.sim
+##../script/test.sh -a -f lite/parser/single_row_in_tb.sim
+##../script/test.sh -a -f lite/parser/slimit.sim
+../script/test.sh -a -f lite/parser/slimit1.sim
+##../script/test.sh -a -f lite/parser/slimit_alter_tags.sim
+../script/test.sh -a -f lite/parser/stream_on_sys.sim
+../script/test.sh -a -f lite/parser/stream.sim
+##../script/test.sh -a -f lite/parser/tbnameIn.sim
+##../script/test.sh -a -f lite/parser/where.sim
+##../script/test.sh -a -f lite/parser/join.sim
+##../script/test.sh -a -f lite/parser/projection_limit_offset.sim
+##../script/test.sh -a -f lite/parser/select_with_tags.sim
+##../script/test.sh -a -f lite/parser/groupby.sim
+
+../script/test.sh -a -f lite/stream/stream_1.sim
+../script/test.sh -a -f lite/stream/stream_2.sim
+../script/test.sh -a -f lite/stream/stream_3.sim
+##../script/test.sh -a -f lite/stream/stream_restart.sim
+../script/test.sh -a -f lite/stream/table_1.sim
+../script/test.sh -a -f lite/stream/metrics_1.sim
+../script/test.sh -a -f lite/stream/table_n.sim
+../script/test.sh -a -f lite/stream/metrics_n.sim
+../script/test.sh -a -f lite/stream/table_del.sim
+../script/test.sh -a -f lite/stream/metrics_del.sim
+../script/test.sh -a -f lite/stream/table_replica1_vnoden.sim
+../script/test.sh -a -f lite/stream/metrics_replica1_vnoden.sim
+
+../script/test.sh -a -f lite/table/table.sim
+../script/test.sh -a -f lite/table/vgroup.sim
+../script/test.sh -a -f lite/table/limit.sim
+../script/test.sh -a -f lite/table/table_len.sim
+../script/test.sh -a -f lite/table/column_num.sim
+../script/test.sh -a -f lite/table/column2.sim
+../script/test.sh -a -f lite/table/column_name.sim
+../script/test.sh -a -f lite/table/column_value.sim
+../script/test.sh -a -f lite/table/describe.sim
+##../script/test.sh -a -f lite/table/date.sim
+##../script/test.sh -a -f lite/table/bigint.sim
+##../script/test.sh -a -f lite/table/binary.sim
+../script/test.sh -a -f lite/table/bool.sim
+../script/test.sh -a -f lite/table/double.sim
+../script/test.sh -a -f lite/table/float.sim
+../script/test.sh -a -f lite/table/int.sim
+../script/test.sh -a -f lite/table/smallint.sim
+../script/test.sh -a -f lite/table/tinyint.sim
+../script/test.sh -a -f lite/table/db.table.sim
+#../script/test.sh -a -f lite/table/delete_reuse1.sim
+#../script/test.sh -a -f lite/table/delete_reuse2.sim
+#../script/test.sh -a -f lite/table/delete_writing.sim
+
+../script/test.sh -a -f lite/tag/filter.sim
+../script/test.sh -a -f lite/tag/column.sim
+../script/test.sh -a -f lite/tag/bool.sim
+../script/test.sh -a -f lite/tag/smallint.sim
+../script/test.sh -a -f lite/tag/tinyint.sim
+../script/test.sh -a -f lite/tag/int.sim
+../script/test.sh -a -f lite/tag/bigint.sim
+../script/test.sh -a -f lite/tag/float.sim
+../script/test.sh -a -f lite/tag/double.sim
+../script/test.sh -a -f lite/tag/binary.sim
+../script/test.sh -a -f lite/tag/bool_int.sim
+../script/test.sh -a -f lite/tag/bool_binary.sim
+../script/test.sh -a -f lite/tag/int_float.sim
+../script/test.sh -a -f lite/tag/int_binary.sim
+../script/test.sh -a -f lite/tag/binary_binary.sim
+../script/test.sh -a -f lite/tag/3.sim
+../script/test.sh -a -f lite/tag/4.sim
+../script/test.sh -a -f lite/tag/5.sim
+../script/test.sh -a -f lite/tag/6.sim
+##../script/test.sh -a -f lite/tag/create.sim
+##../script/test.sh -a -f lite/tag/delete.sim
+##../script/test.sh -a -f lite/tag/change.sim
+../script/test.sh -a -f lite/tag/set.sim
+../script/test.sh -a -f lite/tag/add.sim
+../script/test.sh -a -f lite/tag/commit.sim
+
+../script/test.sh -a -f lite/vector/single.sim
+../script/test.sh -a -f lite/vector/multi.sim
+##../script/test.sh -a -f lite/vector/table_query.sim
+##../script/test.sh -a -f lite/vector/table_time.sim
+##../script/test.sh -a -f lite/vector/table_field.sim
+##../script/test.sh -a -f lite/vector/table_mix.sim
+##../script/test.sh -a -f lite/vector/metrics_query.sim
+##../script/test.sh -a -f lite/vector/metrics_tag.sim
+##../script/test.sh -a -f lite/vector/metrics_time.sim
+##../script/test.sh -a -f lite/vector/metrics_field.sim
+##../script/test.sh -a -f lite/vector/metrics_mix.sim
+
+
+

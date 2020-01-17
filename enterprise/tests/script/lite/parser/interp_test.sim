@@ -1,5 +1,5 @@
-sql connect
 sleep 3000
+sql connect
 
 $dbPrefix = intp_db
 $tbPrefix = intp_tb
@@ -57,7 +57,7 @@ $tb = $tbPrefix . 0
   if $data02 != 0 then
     return -1
   endi
-  if $data03 != 0.0000 then
+  if $data03 != 0.00000 then
     return -1
   endi
   if $data04 != 0.000000000 then
@@ -69,7 +69,7 @@ $tb = $tbPrefix . 0
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != true then
+  if $data07 != 1 then
     return -1
   endi
   if $data08 != binary0 then
@@ -116,31 +116,31 @@ $tb = $tbPrefix . 0
   if $data00 != @18-11-25 19:29:59.000@ then
     return -1
   endi
-  if $data01 != NULL then
+  if $data01 != null then
     return -1
   endi
-  if $data02 != NULL then
+  if $data02 != null then
     return -1
   endi
-  if $data03 != NULL then
+  if $data03 != null then
     return -1
   endi
-  if $data04 != NULL then
+  if $data04 != null then
     return -1
   endi
-  if $data05 != NULL then
+  if $data05 != null then
     return -1
   endi
-  if $data06 != NULL then
+  if $data06 != null then
     return -1
   endi
-  if $data07 != NULL then
+  if $data07 != null then
     return -1
   endi
-  if $data08 != NULL then
+  if $data08 != null then
     return -1
   endi
-  if $data09 != NULL then
+  if $data09 != null then
     return -1
   endi
 
@@ -170,7 +170,7 @@ $tb = $tbPrefix . 0
   if $data02 != 0 then
     return -1
   endi
-  if $data03 != 0.0000 then
+  if $data03 != 0.00000 then
     return -1
   endi
   if $data04 != 0.000000000 then
@@ -182,7 +182,7 @@ $tb = $tbPrefix . 0
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != true then
+  if $data07 != 1 then
     return -1
   endi
   if $data08 != binary0 then
@@ -209,10 +209,10 @@ $tb = $tbPrefix . 0
   if $data01 != 0 then
     return -1
   endi
-  if $data02 != NULL then
+  if $data02 != null then
     return -1
   endi
-  if $data03 != 0.0000 then
+  if $data03 != 0.00000 then
     return -1
   endi
 #  if $data04 != NULL then
@@ -241,7 +241,8 @@ $tb = $tbPrefix . 0
   if $data02 != 0 then
     return -1
   endi
-  if $data03 != 0.0017 then
+  print $data03
+  if $data03 != 0.00167 then
     return -1
   endi
   if $data04 != 0.001666667 then
@@ -253,13 +254,13 @@ $tb = $tbPrefix . 0
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != NULL then
+  if $data07 != null then
     return -1
   endi
-  if $data08 != NULL then
+  if $data08 != null then
     return -1
   endi
-  if $data09 != NULL then
+  if $data09 != null then
     return -1
   endi
   # columns contain NULL values
@@ -275,13 +276,13 @@ $tb = $tbPrefix . 0
   if $data01 != 0 then
     return -1
   endi
-  if $data02 != NULL then
+  if $data02 != null then
     return -1
   endi
-  if $data03 != 0.0017 then
+  if $data03 != 0.00167 then
     return -1
   endi
-  if $data04 != NULL then
+  if $data04 != null then
     return -1
   endi
   if $data05 != 0 then
@@ -290,13 +291,13 @@ $tb = $tbPrefix . 0
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != NULL then
+  if $data07 != null then
     return -1
   endi
-  if $data08 != NULL then
+  if $data08 != null then
     return -1
   endi
-  if $data09 != NULL then
+  if $data09 != null then
     return -1
   endi
 
@@ -313,7 +314,7 @@ $tb = $tbPrefix . 0
   if $data02 != 0 then
     return -1
   endi
-  if $data03 != 0.0000 then
+  if $data03 != 0.00000 then
     return -1
   endi
   if $data04 != 0.000000000 then
@@ -325,7 +326,7 @@ $tb = $tbPrefix . 0
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != true then
+  if $data07 != 1 then
     return -1
   endi
   if $data08 != binary0 then
@@ -345,13 +346,13 @@ $tb = $tbPrefix . 0
   if $data01 != 0 then
     return -1
   endi
-  if $data02 != NULL then
+  if $data02 != null then
     return -1
   endi
-  if $data03 != 0.0000 then
+  if $data03 != 0.00000 then
     return -1
   endi
-  if $data04 != NULL then
+  if $data04 != null then
     return -1
   endi
   if $data05 != 0 then
@@ -360,7 +361,7 @@ $tb = $tbPrefix . 0
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != true then
+  if $data07 != 1 then
     return -1
   endi
   if $data08 != binary0 then
@@ -397,7 +398,7 @@ $tb = $tbPrefix . 0
   if $data02 != -2 then
     return -1
   endi
-  if $data03 != -2.0000 then
+  if $data03 != -2.00000 then
     return -1
   endi
   if $data04 != -2.000000000 then
@@ -409,13 +410,13 @@ $tb = $tbPrefix . 0
   if $data06 != -2 then
      return -1
   endi
-  if $data07 != true then
+  if $data07 != 1 then
     return -1
   endi
-  if $data08 != NULL then
+  if $data08 != null then
     return -1
   endi
-  if $data09 != NULL then
+  if $data09 != null then
     return -1
   endi
 
@@ -432,7 +433,7 @@ $tb = $tbPrefix . 0
   if $data02 != 0 then
     return -1
   endi
-  if $data03 != 0.0000 then
+  if $data03 != 0.00000 then
     return -1
   endi
   if $data04 != 0.000000000 then
@@ -444,7 +445,7 @@ $tb = $tbPrefix . 0
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != true then
+  if $data07 != 1 then
     return -1
   endi
   if $data08 != binary0 then
@@ -464,13 +465,13 @@ $tb = $tbPrefix . 0
   if $data01 != 0 then
     return -1
   endi
-  if $data02 != NULL then
+  if $data02 != null then
     return -1
   endi
-  if $data03 != 0.0000 then
+  if $data03 != 0.00000 then
     return -1
   endi
-  if $data04 != NULL then
+  if $data04 != null then
     return -1
   endi
 
@@ -520,10 +521,10 @@ $tb = $tbPrefix . 0
   if $data08 != intp_tb0 then
     return -1 
   endi
-  if $data22 != NULL then
+  if $data22 != null then
     return -1
   endi
-  if $data24 != NULL then
+  if $data24 != null then
     return -1
   endi
   if $data28 != intp_tb2 then
@@ -557,10 +558,10 @@ $tb = $tbPrefix . 0
   if $data21 != 0 then
     return -1
   endi
-  if $data22 != NULL then
+  if $data22 != null then
     return -1
   endi
-  if $data24 != NULL then
+  if $data24 != null then
     return -1
   endi
 
@@ -573,31 +574,31 @@ endi
 if $data00 != @18-09-17 09:00:01.000@ then
   return -1
 endi
-if $data01 != NULL then
+if $data01 != null then
   return -1
 endi
-if $data12 != NULL then
+if $data12 != null then
   return -1
 endi
-if $data23 != NULL then
+if $data23 != null then
   return -1
 endi
-if $data34 != NULL then
+if $data34 != null then
   return -1
 endi
-if $data05 != NULL then
+if $data05 != null then
   return -1
 endi
-if $data16 != NULL then
+if $data16 != null then
   return -1
 endi
-if $data27 != NULL then
+if $data27 != null then
   return -1
 endi
-if $data38 != NULL then
+if $data38 != null then
   return -1
 endi
-if $data09 != NULL then
+if $data09 != null then
   return -1
 endi
 
@@ -618,10 +619,10 @@ endi
 if $data21 != 0 then
   return -1
 endi
-if $data22 != NULL then
+if $data22 != null then
   return -1
 endi
-if $data24 != NULL then
+if $data24 != null then
   return -1
 endi
 
@@ -642,7 +643,7 @@ endi
   if $data02 != 0 then
     return -1
   endi
-  if $data03 != 0.0000 then
+  if $data03 != 0.00000 then
     return -1
   endi
   if $data04 != 0.000000000 then
@@ -654,7 +655,7 @@ endi
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != true then
+  if $data07 != 1 then
     return -1
   endi
   if $data08 != binary0 then
@@ -669,13 +670,13 @@ endi
   if $data21 != 0 then
     return -1
   endi
-  if $data22 != NULL then
+  if $data22 != null then
     return -1
   endi
-  if $data23 != 0.0000 then
+  if $data23 != 0.00000 then
     return -1
   endi
-  if $data24 != NULL then
+  if $data24 != null then
     return -1
   endi
   if $data25 != 0 then
@@ -684,7 +685,7 @@ endi
   if $data26 != 0 then
      return -1
   endi
-  if $data27 != true then
+  if $data27 != 1 then
     return -1
   endi
   if $data28 != binary0 then
@@ -711,7 +712,7 @@ endi
   if $data02 != 0 then
     return -1
   endi
-  if $data03 != 0.0017 then
+  if $data03 != 0.00167 then
     return -1
   endi
   if $data04 != 0.001666667 then
@@ -723,13 +724,13 @@ endi
   if $data06 != 0 then
      return -1
   endi
-  if $data07 != NULL then
+  if $data07 != null then
     return -1
   endi
-  if $data08 != NULL then
+  if $data08 != null then
     return -1
   endi
-  if $data09 != NULL then
+  if $data09 != null then
     return -1
   endi
   if $data20 != @18-09-17 09:00:01.000@ then
@@ -738,13 +739,13 @@ endi
   if $data21 != 0 then
     return -1
   endi
-  if $data22 != NULL then
+  if $data22 != null then
     return -1
   endi
-  if $data23 != 0.0017 then
+  if $data23 != 0.00167 then
     return -1
   endi
-  if $data24 != NULL then
+  if $data24 != null then
     return -1
   endi
   if $data25 != 0 then
@@ -753,13 +754,13 @@ endi
   if $data26 != 0 then
      return -1
   endi
-  if $data27 != NULL then
+  if $data27 != null then
     return -1
   endi
-  if $data28 != NULL then
+  if $data28 != null then
     return -1
   endi
-  if $data29 != NULL then
+  if $data29 != null then
     return -1
   endi
 
@@ -780,7 +781,7 @@ endi
   if $data02 != -2 then
     return -1
   endi
-  if $data03 != -2.0000 then
+  if $data03 != -2.00000 then
     return -1
   endi
   if $data04 != -2.000000000 then
@@ -792,13 +793,13 @@ endi
   if $data06 != -2 then
      return -1
   endi
-  if $data07 != true then
+  if $data07 != 1 then
     return -1
   endi
-  if $data08 != NULL then
+  if $data08 != null then
     return -1
   endi
-  if $data09 != NULL then
+  if $data09 != null then
     return -1
   endi
   if $data20 != @18-09-17 09:00:01.000@ then
@@ -810,7 +811,7 @@ endi
   if $data22 != -2 then
     return -1
   endi
-  if $data23 != -2.0000 then
+  if $data23 != -2.00000 then
     return -1
   endi
   if $data24 != -2.000000000 then
@@ -822,12 +823,12 @@ endi
   if $data26 != -2 then
      return -1
   endi
-  if $data27 != true then
+  if $data27 != 1 then
     return -1
   endi
-  if $data28 != NULL then
+  if $data28 != null then
     return -1
   endi
-  if $data29 != NULL then
+  if $data29 != null then
     return -1
   endi

@@ -7,8 +7,8 @@ system sh/cfg.sh -n dnode1 -c meterMetaKeepTimer -v 10
 system sh/cfg.sh -n dnode1 -c metricMetaKeepTimer -v 10
 system sh/exec.sh -n dnode1 -s start
 
-sql connect
 sleep 3000
+sql connect
 
 $i = 0
 $dbPrefix = ca_nm_db

@@ -40,8 +40,8 @@ endi
 sql alter table $tb set tag tagcx 1 -x step21
   return -1
 step21:
-sql alter table $tb set tgcol1=false
-sql alter table $tb set tgcol2=4
+sql alter table $tb set tag tgcol1=false
+sql alter table $tb set tag tgcol2=4
 
 sql reset query cache
 
@@ -111,8 +111,8 @@ if $data03 != 2 then
   return -1
 endi
 
-sql alter table $tb set tgcol1=3
-sql alter table $tb set tgcol2=4
+sql alter table $tb set tag tgcol1=3
+sql alter table $tb set tag tgcol2=4
 
 sql reset query cache
 
@@ -173,8 +173,8 @@ if $data03 != 2.0000 then
   return -1
 endi
 
-sql alter table $tb set tgcol1=3
-sql alter table $tb set tgcol2=4
+sql alter table $tb set tag tgcol1=3
+sql alter table $tb set tag tgcol2=4
 
 sql reset query cache
 
@@ -230,8 +230,8 @@ if $data03 != 2 then
   return -1
 endi
 
-sql alter table $tb set tgcol1=3
-sql alter table $tb set tgcol2='4'
+sql alter table $tb set tag tgcol1=3
+sql alter table $tb set tag tgcol2='4'
 
 sql reset query cache
 
@@ -299,11 +299,11 @@ if $data07 != 6 then
 endi
 
 sql alter table $mt drop tag tgcol3
-sql alter table $tb set tgcol1='7'
-sql alter table $tb set tgcol2=8
-sql alter table $tb set tgcol4='9'
-sql alter table $tb set tgcol5=10
-sql alter table $tb set tgcol6='11'
+sql alter table $tb set tag tgcol1='7'
+sql alter table $tb set tag tgcol2=8
+sql alter table $tb set tag tgcol4='9'
+sql alter table $tb set tag tgcol5=10
+sql alter table $tb set tag tgcol6='11'
 
 sql reset query cache
   

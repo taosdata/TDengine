@@ -5,8 +5,9 @@ system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
 system sh/cfg.sh -n dnode1 -c commitLog -v 0
 system sh/exec.sh -n dnode1 -s start
 
-sql connect
 sleep 3000
+sql connect
+
 print ======================== dnode1 start
 
 $dbPrefix = ta_ch_db
@@ -37,7 +38,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2 then 
@@ -101,7 +102,7 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != 2.0000 then 
+if $data03 != 2.00000 then
   return -1
 endi
 
@@ -198,7 +199,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2 then 
@@ -213,7 +214,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2 then 
@@ -285,22 +286,22 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != 2.0000 then 
+if $data03 != 2.00000 then
   return -1
 endi
 
 sql select * from $mt where tgcol4 = 2
 print $data01 $data02 $data03
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
-if $data01 != 1 then 
+if $data01 != 1 then
   return -1
 endi
-if $data02 != 1 then 
+if $data02 != 1 then
   return -1
 endi
-if $data03 != 2.0000 then 
+if $data03 != 2.00000 then
   return -1
 endi
   

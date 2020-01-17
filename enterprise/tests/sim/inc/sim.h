@@ -149,6 +149,7 @@ typedef struct _script_t {
   SCmdLine *lines;  // command list
   SVariable variables[MAX_VAR_LEN];
   struct _script_t *bgScripts[MAX_BACKGROUND_SCRIPT_NUM];
+  char auth[128];
 } SScript;
 
 extern SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
@@ -157,6 +158,7 @@ extern int simScriptPos;
 extern int simScriptSucced;
 extern int simDebugFlag;
 extern char scriptDir[];
+extern bool simAsyncQuery;
 
 SScript *simParseScript(char *fileName);
 

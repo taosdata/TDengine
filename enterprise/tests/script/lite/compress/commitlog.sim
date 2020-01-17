@@ -7,8 +7,8 @@ system sh/cfg.sh -n dnode1 -c cacheBlockSize -v 1024
 system sh/cfg.sh -n dnode1 -c compression -v 1
 system sh/exec.sh -n dnode1 -s start
 
-sql connect
 sleep 3000
+sql connect
 print ============================ dnode1 start
 
 $i = 0

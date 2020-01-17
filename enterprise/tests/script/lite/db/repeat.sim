@@ -8,8 +8,8 @@ system sh/cfg.sh -n dnode1 -c tables -v 4
 
 system sh/exec.sh -n dnode1 -s start
 
-sql connect
 sleep 3000
+sql connect
 print ============================ dnode1 start
 
 sql create database d1

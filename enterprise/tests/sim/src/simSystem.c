@@ -51,8 +51,7 @@ SScript *simProcessCallOver(SScript *script) {
       simScriptPos--;
       if (simScriptPos == -1) {
         simPrint("----------------------------------------------------------------------");
-        simPrint("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n",
-                 simScriptSucced);
+        simPrint("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
         exit(0);
       }
 
@@ -80,8 +79,7 @@ void *simExecuteScript(void *inputScript) {
     } else {
       SCmdLine *line = &script->lines[script->linePos];
       char *option = script->optionBuffer + line->optionOffset;
-      simTrace("script:%s, line:%d with option \"%s\"", script->fileName,
-               line->lineNum, option);
+      simTrace("script:%s, line:%d with option \"%s\"", script->fileName, line->lineNum, option);
 
       SCommand *cmd = &simCmdList[line->cmdno];
       int ret = (*(cmd->executeCmd))(script, option);

@@ -13,8 +13,8 @@ system sh/cfg.sh -n dnode1 -c maxMeterConnections -v 30000
 system sh/cfg.sh -n dnode1 -c maxShellConns       -v 30000
 system sh/exec.sh -n dnode1 -s start
 
-sql connect
 sleep 3000
+sql connect
 
 print =============== step2
 sql create database d4 precision 'us'

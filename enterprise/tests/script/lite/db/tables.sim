@@ -7,8 +7,8 @@ system sh/cfg.sh -n dnode1 -c numOfTotalVnodes -v 4
 system sh/cfg.sh -n dnode1 -c sessionsPerVnode -v 2000
 
 system sh/exec.sh -n dnode1 -s start
-sql connect
 sleep 3000
+sql connect
 
 print =============== step2
 sql create database db tables 2
