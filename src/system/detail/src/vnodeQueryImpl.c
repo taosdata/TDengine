@@ -1145,15 +1145,17 @@ SCacheBlock *getCacheDataBlock(SMeterObj *pMeterObj, SQueryRuntimeEnv* pRuntimeE
   
   // keep the structure as well as the block data into local buffer
   memcpy(&pRuntimeEnv->cacheBlock, pBlock, sizeof(SCacheBlock));
-  
+
+  SCacheBlock *pNewBlock = &pRuntimeEnv->cacheBlock;
+
   // the commit data points will be ignored
   int32_t offset = 0;
-  int32_t numOfPoints = pBlock->numOfPoints;
+  int32_t numOfPoints = pNewBlock->numOfPoints;
   if (pQuery->firstSlot == pQuery->commitSlot) {
-    assert(pQuery->commitPoint >= 0 && pQuery->commitPoint <= pBlock->numOfPoints);
+    assert(pQuery->commitPoint >= 0 && pQuery->commitPoint <= pNewBlock->numOfPoints);
     
     offset = pQuery->commitPoint;
-    numOfPoints = pBlock->numOfPoints - offset;
+    numOfPoints = pNewBlock->numOfPoints - offset;
     
     if (offset != 0) {
       dTrace("%p ignore the data in cache block that are commit already, numOfblock:%d slot:%d ignore points:%d. "
@@ -1161,10 +1163,10 @@ SCacheBlock *getCacheDataBlock(SMeterObj *pMeterObj, SQueryRuntimeEnv* pRuntimeE
              pQuery->firstSlot, pQuery->currentSlot);
     }
     
-    pBlock->numOfPoints = numOfPoints;
+    pNewBlock->numOfPoints = numOfPoints;
   
     // current block are all commit already, ignore it
-    if (pBlock->numOfPoints == 0) {
+    if (pNewBlock->numOfPoints == 0) {
       dTrace("%p ignore current in cache block that are all commit already, numOfblock:%d slot:%d"
              "first:%d last:%d", GET_QINFO_ADDR(pQuery), pQuery->numOfBlocks, pQuery->slot,
              pQuery->firstSlot, pQuery->currentSlot);
@@ -1195,16 +1197,18 @@ SCacheBlock *getCacheDataBlock(SMeterObj *pMeterObj, SQueryRuntimeEnv* pRuntimeE
       setNullN(dst, type, bytes, numOfPoints);
     }
   }
-  
+
+  assert(numOfPoints ==  pNewBlock->numOfPoints);
+
   // if the primary timestamp are not loaded by default, always load it here into buffer
   if(!PRIMARY_TSCOL_LOADED(pQuery)) {
-    memcpy(pRuntimeEnv->primaryColBuffer->data, pBlock->offset[0], TSDB_KEYSIZE*pBlock->numOfPoints);
+    memcpy(pRuntimeEnv->primaryColBuffer->data, pBlock->offset[0] + offset * TSDB_KEYSIZE, TSDB_KEYSIZE*numOfPoints);
   }
   
   pQuery->fileId = -1;
   pQuery->slot = slot;
   
-  if (!isCacheBlockValid(pQuery, pBlock, pMeterObj)) {
+  if (!isCacheBlockValid(pQuery, pNewBlock, pMeterObj)) {
     return NULL;
   }
   
@@ -1214,14 +1218,14 @@ SCacheBlock *getCacheDataBlock(SMeterObj *pMeterObj, SQueryRuntimeEnv* pRuntimeE
    */
   vnodeSetDataBlockInfoLoaded(pRuntimeEnv, pMeterObj, -1, true);
   
-  TSKEY skey = getTimestampInCacheBlock(pRuntimeEnv, pBlock, 0);
-  TSKEY ekey = getTimestampInCacheBlock(pRuntimeEnv, pBlock, pBlock->numOfPoints - 1);
+  TSKEY skey = getTimestampInCacheBlock(pRuntimeEnv, pNewBlock, 0);
+  TSKEY ekey = getTimestampInCacheBlock(pRuntimeEnv, pNewBlock, numOfPoints - 1);
   
   dTrace("QInfo:%p vid:%d sid:%d id:%s, fileId:%d, load cache block, ts:%d, slot:%d, brange:%lld-%lld, rows:%d",
          GET_QINFO_ADDR(pQuery), pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->fileId, 1,
-         pQuery->slot, skey, ekey, pBlock->numOfPoints);
+         pQuery->slot, skey, ekey, numOfPoints);
   
-  return &pRuntimeEnv->cacheBlock;
+  return pNewBlock;
 }
 
 static SCompBlock *getDiskDataBlock(SQuery *pQuery, int32_t slot) {
