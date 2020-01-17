@@ -1,5 +1,7 @@
 char version[64] = "1.6.5.1";
 char compatible_version[64] = "1.6.1.0";
-char gitinfo[128] = "2ea714387009421beb35e7f03b94c6a87d22529a";
-char gitinfoOfInternal[128] = "950f54ac026bc05bcec5cff356f4964a18d635bd";
-char buildinfo[512] = "Built by ubuntu at 2019-12-21 11:14";
+char gitinfo[128] = "700305490a82228ec1b0244afb838bdbb9de9793";
+char gitinfoOfInternal[128] = "";
+char buildinfo[512] = "Built by  at 2020-01-17 13:22";
+
+void libtaos_edge_1_6_5_1_Linux_x64() {};
