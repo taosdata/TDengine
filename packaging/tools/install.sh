@@ -78,23 +78,24 @@ osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
 #echo "osinfo: ${osinfo}"
 os_type=0
 if echo $osinfo | grep -qwi "ubuntu" ; then
-  echo "this is ubuntu system"
+  echo "This is ubuntu system"
   os_type=1
 elif echo $osinfo | grep -qwi "debian" ; then
-  echo "this is debian system"
+  echo "This is debian system"
   os_type=1
 elif echo $osinfo | grep -qwi "Kylin" ; then
-  echo "this is Kylin system"
+  echo "This is Kylin system"
   os_type=1
 elif  echo $osinfo | grep -qwi "centos" ; then
-  echo "this is centos system"
+  echo "This is centos system"
   os_type=2
 elif echo $osinfo | grep -qwi "fedora" ; then
-  echo "this is fedora system"
+  echo "This is fedora system"
   os_type=2
 else
-  echo "this is other linux system"
-  os_type=0
+  echo "${osinfo}: This is an officially unverified linux system, If there are any problems with the installation and operation, "
+  echo "please feel free to contact taosdata.com for support."
+  os_type=1
 fi
 
 function kill_taosd() {
