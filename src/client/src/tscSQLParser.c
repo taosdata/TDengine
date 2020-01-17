@@ -1085,6 +1085,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
   const char* msg2 = "functions can not be mixed up";
   const char* msg3 = "not support query expression";
   const char* msg4 = "columns from different table mixed up in arithmetic expression";
+  const char* msg5 = "invalid function name";
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
 
@@ -1096,7 +1097,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     if (pItem->pNode->nSQLOptr == TK_ALL || pItem->pNode->nSQLOptr == TK_ID || pItem->pNode->nSQLOptr == TK_STRING) {
       // it is actually a function, but the function name is invalid
       if (pItem->pNode->nSQLOptr == TK_ID && (pItem->pNode->colInfo.z == NULL && pItem->pNode->colInfo.n == 0)) {
-        return TSDB_CODE_INVALID_SQL;
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
 
       // if the name of column is quoted, remove it and set the right information for later process
