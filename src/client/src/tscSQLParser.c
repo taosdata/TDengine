@@ -5705,16 +5705,23 @@ void tscPrintSelectClause(SSqlCmd* pCmd) {
     return;
   }
 
-  char*   str = calloc(1, 10240);
+  int32_t totalBufSize = 10240;
+  char*   str = (char*)calloc(1, 10240);
+  if (str == NULL) return;
+  
   int32_t offset = 0;
 
-  offset += sprintf(str, "%d [", pCmd->exprsInfo.numOfExprs);
+  offset += sprintf(str, "num:%d [", pCmd->exprsInfo.numOfExprs);
   for (int32_t i = 0; i < pCmd->exprsInfo.numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pCmd, i);
 
-    int32_t size = sprintf(str + offset, "%s(%d)", aAggs[pExpr->functionId].aName, pExpr->colInfo.colId);
-    offset += size;
+    char    tmpBuf[1024] = {0};
+    int32_t tmpLen       = 0;
+    tmpLen = sprintf(tmpBuf, "%s(uid:%" PRId64 ", %d)", aAggs[pExpr->functionId].aName, pExpr->uid, pExpr->colInfo.colId);
+    if (tmpLen + offset > totalBufSize) break;  
 
+    offset += sprintf(str + offset, "%s", tmpBuf);
+ 
     if (i < pCmd->exprsInfo.numOfExprs - 1) {
       str[offset++] = ',';
     }
