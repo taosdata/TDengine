@@ -78,7 +78,7 @@ static int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprI
 
 static int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, SSqlObj* pSql);
 static int32_t parseFillClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySQL);
-static int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema* pSchema, int32_t numOfCols);
+static int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema* pSchema);
 
 static int32_t tsRewriteFieldNameIfNecessary(SQueryInfo* pQueryInfo);
 static int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
@@ -3874,7 +3874,7 @@ static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
   }
 }
 
-int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema* pSchema, int32_t numOfCols) {
+int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema* pSchema) {
   const char* msg0 = "only support order by primary timestamp";
   const char* msg1 = "invalid column name";
   const char* msg2 = "only support order by primary timestamp and queried column";
@@ -4436,7 +4436,6 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
   // handle the limit offset value, validate the limit
   pQueryInfo->limit = pQuerySql->limit;
   pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
-//  pCmd->globalLimit = pQueryInfo->limit.limit;
 
   pQueryInfo->slimit = pQuerySql->slimit;
 
@@ -4447,6 +4446,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
   if (pQueryInfo->limit.limit == 0) {
     tscTrace("%p limit 0, no output result", pSql);
     pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
@@ -5535,8 +5535,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   }
 
   // set order by info
-  if (parseOrderbyClause(pQueryInfo, pQuerySql, tsGetSchema(pMeterMetaInfo->pMeterMeta),
-                         pMeterMetaInfo->pMeterMeta->numOfColumns) != TSDB_CODE_SUCCESS) {
+  if (parseOrderbyClause(pQueryInfo, pQuerySql, tsGetSchema(pMeterMetaInfo->pMeterMeta)) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_SQL;
   }
 
