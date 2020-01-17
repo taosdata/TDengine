@@ -4651,6 +4651,13 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
   }
 }
 
+// limit the output to be 1 for each state value
+static void doLimitOutputNormalColOfGroupby(SSqlExpr* pExpr) {
+  int32_t outputRow = 1;
+  tVariantCreateFromBinary(&pExpr->param[0], (char*) &outputRow, sizeof(int32_t), TSDB_DATA_TYPE_INT);
+  pExpr->numOfParams = 1;
+}
+
 void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex) {
   int32_t index = pQueryInfo->groupbyExpr.columnInfo[tagIndex].colIdx;
 
@@ -4663,9 +4670,8 @@ void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex) {
                                      pSchema->type, pSchema->bytes, pSchema->bytes);
 
   pExpr->colInfo.flag = TSDB_COL_NORMAL;
-  pExpr->param[0].i64Key = 1;
-  pExpr->numOfParams = 1;
-
+  doLimitOutputNormalColOfGroupby(pExpr);
+  
   // NOTE: tag column does not add to source column list
   SColumnList list = {0};
   list.num = 1;
@@ -4710,8 +4716,7 @@ static void doUpdateSqlFunctionForColPrj(SQueryInfo* pQueryInfo) {
       for (int32_t j = 0; j < pQueryInfo->groupbyExpr.numOfGroupCols; ++j) {
         if (pExpr->colInfo.colId == pQueryInfo->groupbyExpr.columnInfo[j].colId) {
           qualifiedCol = true;
-
-          pExpr->param[0].i64Key = 1;  // limit the output to be 1 for each state value
+          doLimitOutputNormalColOfGroupby(pExpr);
           pExpr->numOfParams = 1;
           break;
         }

@@ -2180,16 +2180,15 @@ static int32_t setupQueryRuntimeEnv(SMeterObj *pMeterObj, SQuery *pQuery, SQuery
 
     pCtx->order = pQuery->order.order;
     pCtx->functionId = pSqlFuncMsg->functionId;
-    
+
     pCtx->numOfParams = pSqlFuncMsg->numOfParams;
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
-      if (pSqlFuncMsg->arg[j].argType == TSDB_DATA_TYPE_BINARY ||
-          pSqlFuncMsg->arg[j].argType == TSDB_DATA_TYPE_NCHAR) {
-        tVariantCreateFromBinary(&pCtx->param[j], pSqlFuncMsg->arg[j].argValue.pz,
-                                                                  pSqlFuncMsg->arg[j].argBytes, pSqlFuncMsg->arg[j].argType);
+      int16_t type = pSqlFuncMsg->arg[j].argType;
+      int16_t bytes = pSqlFuncMsg->arg[j].argBytes;
+      if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+        tVariantCreateFromBinary(&pCtx->param[j], pSqlFuncMsg->arg->argValue.pz, bytes, type);
       } else {
-        tVariantCreateFromBinary(&pCtx->param[j], (char*) &pSqlFuncMsg->arg[j].argValue.d,
-                                 pSqlFuncMsg->arg[j].argBytes, pSqlFuncMsg->arg[j].argType);
+        tVariantCreateFromBinary(&pCtx->param[j], (char*) &pSqlFuncMsg->arg[j].argValue.i64, bytes, type);
       }
     }
 
@@ -2278,7 +2277,9 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
     pRuntimeEnv->vnodeFileInfo.numOfFiles = 0;
     free(pRuntimeEnv->vnodeFileInfo.pFileInfo);
   }
-
+  
+  taosDestoryInterpoInfo(&pRuntimeEnv->interpoInfo);
+  
   if (pRuntimeEnv->pInterpoBuf != NULL) {
     for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutputCols; ++i) {
       tfree(pRuntimeEnv->pInterpoBuf[i]);
@@ -7186,7 +7187,6 @@ bool vnodeHasRemainResults(void *handle) {
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
   SInterpolationInfo *pInterpoInfo = &pRuntimeEnv->interpoInfo;
-
   if (pQuery->limit.limit > 0 && pQInfo->pointsRead >= pQuery->limit.limit) {
     return false;
   }

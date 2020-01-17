@@ -446,8 +446,7 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
       tscTrace("%p waiting for delete procedure, status: %d", pSql, status);
     }
 
-    tfree(pLocalReducer->interpolationInfo.prevValues);
-    tfree(pLocalReducer->interpolationInfo.pTags);
+    taosDestoryInterpoInfo(&pLocalReducer->interpolationInfo);
 
     if (pLocalReducer->pCtx != NULL) {
       for(int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {

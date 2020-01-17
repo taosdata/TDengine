@@ -31,15 +31,9 @@
 
 #define TSC_MGMT_VNODE 999
 
-#ifdef CLUSTER
-  SIpStrList tscMgmtIpList;
-  int        tsMasterIndex = 0;
-  int        tsSlaveIndex = 1;
-#else
-  int        tsMasterIndex = 0;
-  int        tsSlaveIndex = 0;  // slave == master for single node edition
-  uint32_t   tsServerIp;
-#endif
+SIpStrList tscMgmtIpList;
+int        tsMasterIndex = 0;
+int        tsSlaveIndex = 1;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
@@ -50,17 +44,51 @@ int  tscKeepConn[TSDB_SQL_MAX] = {0};
 
 static int32_t minMsgSize() { return tsRpcHeadSize + sizeof(STaosDigest); }
 
-static char *doBuildMsgHeader(SSqlObj *pSql, char **pStart);
-
-#ifdef CLUSTER
 void tscPrintMgmtIp() {
   if (tscMgmtIpList.numOfIps <= 0) {
-    tscError("invalid IP list:%d", tscMgmtIpList.numOfIps);
+    tscError("invalid mgmt IP list:%d", tscMgmtIpList.numOfIps);
   } else {
-    for (int i = 0; i < tscMgmtIpList.numOfIps; ++i) tscTrace("mgmt index:%d ip:%s", i, tscMgmtIpList.ipstr[i]);
+    for (int i = 0; i < tscMgmtIpList.numOfIps; ++i) {
+      tscTrace("mgmt index:%d ip:%s", i, tscMgmtIpList.ipstr[i]);
+    }
   }
 }
-#endif
+
+void tscSetMgmtIpListFromCluster(SIpList *pIpList) {
+  tscMgmtIpList.numOfIps = pIpList->numOfIps;
+  if (memcmp(tscMgmtIpList.ip, pIpList->ip, pIpList->numOfIps * 4) != 0) {
+    for (int i = 0; i < pIpList->numOfIps; ++i) {
+      tinet_ntoa(tscMgmtIpList.ipstr[i], pIpList->ip[i]);
+      tscMgmtIpList.ip[i] = pIpList->ip[i];
+    }
+    tscTrace("cluster mgmt IP list:");
+    tscPrintMgmtIp();
+  }
+}
+
+void tscSetMgmtIpListFromEdge() {
+  if (tscMgmtIpList.numOfIps != 2) {
+    tscMgmtIpList.numOfIps = 2;
+    strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
+    tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
+    strcpy(tscMgmtIpList.ipstr[1], tsMasterIp);
+    tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
+    tscTrace("edge mgmt IP list:");
+    tscPrintMgmtIp();
+  }
+}
+
+void tscSetMgmtIpList(SIpList *pIpList) {
+  /*
+    * The iplist returned by the cluster edition is the current management nodes
+    * and the iplist returned by the edge edition is empty
+    */
+  if (pIpList->numOfIps != 0) {
+    tscSetMgmtIpListFromCluster(pIpList);
+  } else {
+    tscSetMgmtIpListFromEdge();
+  }
+}
 
 /*
  * For each management node, try twice at least in case of poor network situation.
@@ -71,11 +99,7 @@ void tscPrintMgmtIp() {
  */
 static int32_t tscGetMgmtConnMaxRetryTimes() {
   int32_t factor = 2;
-#ifdef CLUSTER
   return tscMgmtIpList.numOfIps * factor;
-#else
-  return 1 * factor;
-#endif
 }
 
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
@@ -91,18 +115,9 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
   if (code == 0) {
     SHeartBeatRsp *pRsp = (SHeartBeatRsp *)pRes->pRsp;
-#ifdef CLUSTER
-    SIpList *pIpList = &pRsp->ipList;
-    tscMgmtIpList.numOfIps = pIpList->numOfIps;
-    if (memcmp(tscMgmtIpList.ip, pIpList->ip, pIpList->numOfIps * 4) != 0) {
-      for (int i = 0; i < pIpList->numOfIps; ++i) {
-        tinet_ntoa(tscMgmtIpList.ipstr[i], pIpList->ip[i]);
-        tscMgmtIpList.ip[i] = pIpList->ip[i];
-      }
-      tscTrace("new mgmt IP list:");
-      tscPrintMgmtIp();
-    }
-#endif
+    SIpList *      pIpList = &pRsp->ipList;
+    tscSetMgmtIpList(pIpList);
+
     if (pRsp->killConnection) {
       tscKillConnection(pObj);
     } else {
@@ -161,19 +176,12 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
 void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
   STscObj *pTscObj = pSql->pTscObj;
-#ifdef CLUSTER
   if (pSql->retry < tscGetMgmtConnMaxRetryTimes()) {
     *pCode = 0;
     pSql->retry++;
     pSql->index = pSql->index % tscMgmtIpList.numOfIps;
     if (pSql->cmd.command > TSDB_SQL_READ && pSql->index == 0) pSql->index = 1;
     void *thandle = taosGetConnFromCache(tscConnCache, tscMgmtIpList.ip[pSql->index], TSC_MGMT_VNODE, pTscObj->user);
-#else
-  if (pSql->retry < tscGetMgmtConnMaxRetryTimes()) {
-    *pCode = 0;
-    pSql->retry++;
-    void *thandle = taosGetConnFromCache(tscConnCache, tsServerIp, TSC_MGMT_VNODE, pTscObj->user);
-#endif
 
     if (thandle == NULL) {
       SRpcConnInit connInit;
@@ -188,25 +196,16 @@ void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
       connInit.spi = 1;
       connInit.encrypt = 0;
       connInit.secret = pSql->pTscObj->pass;
-
-#ifdef CLUSTER
+      
       connInit.peerIp = tscMgmtIpList.ipstr[pSql->index];
-#else
-	    connInit.peerIp = tsMasterIp;
-#endif
       thandle = taosOpenRpcConn(&connInit, pCode);
     }
 
     pSql->thandle = thandle;
-#ifdef CLUSTER
     pSql->ip = tscMgmtIpList.ip[pSql->index];
     pSql->vnode = TSC_MGMT_VNODE;
     tscTrace("%p mgmt index:%d ip:0x%x is picked up, pConn:%p", pSql, pSql->index, tscMgmtIpList.ip[pSql->index],
              pSql->thandle);
-#else
-    pSql->ip = tsServerIp;
-    pSql->vnode = TSC_MGMT_VNODE;
-#endif
   }
 
   // the pSql->res.code is the previous error(status) code.
@@ -251,11 +250,16 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
 
   while (pSql->retry < pSql->maxRetry) {
     (pSql->retry)++;
-#ifdef CLUSTER
     char ipstr[40] = {0};
     if (pVPeersDesc[pSql->index].ip == 0) {
-      (pSql->index) = (pSql->index + 1) % TSDB_VNODES_SUPPORT;
-      continue;
+      /*
+       * in the edge edition, ip is 0, and at this time we use masterIp instead
+       * in the cluster edition, ip is vnode ip
+       */
+      //(pSql->index) = (pSql->index + 1) % TSDB_VNODES_SUPPORT;
+      //continue;
+
+      pVPeersDesc[pSql->index].ip = tscMgmtIpList.ip[0];
     }
     *pCode = TSDB_CODE_SUCCESS;
 
@@ -285,31 +289,6 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
     pSql->vnode = pVPeersDesc[pSql->index].vnode;
     tscTrace("%p vnode:%d ip:%p index:%d is picked up, pConn:%p", pSql, pVPeersDesc[pSql->index].vnode,
              pVPeersDesc[pSql->index].ip, pSql->index, pSql->thandle);
-#else
-    *pCode = 0;
-    void *thandle = taosGetConnFromCache(tscConnCache, tsServerIp, pVPeersDesc[0].vnode, pTscObj->user);
-
-    if (thandle == NULL) {
-      SRpcConnInit connInit;
-      memset(&connInit, 0, sizeof(connInit));
-      connInit.cid = vidIndex;
-      connInit.sid = 0;
-      connInit.spi = 0;
-      connInit.encrypt = 0;
-      connInit.meterId = pSql->pTscObj->user;
-      connInit.peerId = htonl((pVPeersDesc[0].vnode << TSDB_SHELL_VNODE_BITS));
-      connInit.shandle = pVnodeConn;
-      connInit.ahandle = pSql;
-      connInit.peerIp = tsMasterIp;
-      connInit.peerPort = tsVnodeShellPort;
-      thandle = taosOpenRpcConn(&connInit, pCode);
-      vidIndex = (vidIndex + 1) % tscNumOfThreads;
-    }
-
-    pSql->thandle = thandle;
-    pSql->ip = tsServerIp;
-    pSql->vnode = pVPeersDesc[0].vnode;
-#endif
 
     break;
   }
@@ -376,15 +355,9 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   return code;
 }
 
-#ifdef CLUSTER
 void tscProcessMgmtRedirect(SSqlObj *pSql, uint8_t *cont) {
   SIpList *pIpList = (SIpList *)(cont);
-  tscMgmtIpList.numOfIps = pIpList->numOfIps;
-  for (int i = 0; i < pIpList->numOfIps; ++i) {
-    tinet_ntoa(tscMgmtIpList.ipstr[i], pIpList->ip[i]);
-    tscMgmtIpList.ip[i] = pIpList->ip[i];
-    tscTrace("Update mgmt Ip, index:%d ip:%s", i, tscMgmtIpList.ipstr[i]);
-  }
+  tscSetMgmtIpList(pIpList);
 
   if (pSql->cmd.command < TSDB_SQL_READ) {
     tsMasterIndex = 0;
@@ -395,7 +368,6 @@ void tscProcessMgmtRedirect(SSqlObj *pSql, uint8_t *cont) {
 
   tscPrintMgmtIp();
 }
-#endif
 
 void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
   if (ahandle == NULL) return NULL;
@@ -431,11 +403,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
   if (msg == NULL) {
     tscTrace("%p no response from ip:0x%x", pSql, pSql->ip);
 
-#ifdef CLUSTER
     pSql->index++;
-#else
-    // for single node situation, do NOT try next index
-#endif
     pSql->thandle = NULL;
     // todo taos_stop_query() in async model
     /*
@@ -451,12 +419,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
 
     // renew meter meta in case it is changed
     if (pCmd->command < TSDB_SQL_FETCH && pRes->code != TSDB_CODE_QUERY_CANCELLED) {
-#ifdef CLUSTER
       pSql->maxRetry = TSDB_VNODES_SUPPORT * 2;
-#else
-      // for fetch, it shall not renew meter meta
-      pSql->maxRetry = 2;
-#endif
       code = tscRenewMeterMeta(pSql, pMeterMetaInfo->name);
       pRes->code = code;
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return pSql;
@@ -468,9 +431,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
     }
   } else {
     uint16_t rspCode = pMsg->content[0];
-
-#ifdef CLUSTER
-
+    
     if (rspCode == TSDB_CODE_REDIRECT) {
       tscTrace("%p it shall be redirected!", pSql);
       taosAddConnIntoCache(tscConnCache, thandle, pSql->ip, pSql->vnode, pObj->user);
@@ -502,12 +463,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
        *                   removed. So, renew metermeta and try again.
        * not_active_session: db has been move to other node, the vnode does not exist on this dnode anymore.
        */
-#else
-    if (rspCode == TSDB_CODE_NOT_ACTIVE_TABLE || rspCode == TSDB_CODE_INVALID_TABLE_ID ||
-        rspCode == TSDB_CODE_NOT_ACTIVE_VNODE || rspCode == TSDB_CODE_INVALID_VNODE_ID ||
-        rspCode == TSDB_CODE_TABLE_ID_MISMATCH || rspCode == TSDB_CODE_NETWORK_UNAVAIL) {
-#endif
-      pSql->thandle = NULL;
+     pSql->thandle = NULL;
       taosAddConnIntoCache(tscConnCache, thandle, pSql->ip, pSql->vnode, pObj->user);
 
       if (pCmd->command == TSDB_SQL_CONNECT) {
@@ -809,13 +765,10 @@ int tscProcessSql(SSqlObj *pSql) {
   tscTrace("%p SQL cmd:%d will be processed, name:%s, type:%d", pSql, pCmd->command, name, type);
   pSql->retry = 0;
   if (pSql->cmd.command < TSDB_SQL_MGMT) {
-#ifdef CLUSTER
     pSql->maxRetry = TSDB_VNODES_SUPPORT;
-#else
-    pSql->maxRetry = 2;
-#endif
 
-    if (pMeterMetaInfo == NULL) {  // the pMeterMetaInfo cannot be NULL
+    // the pMeterMetaInfo cannot be NULL
+    if (pMeterMetaInfo == NULL) {
       pSql->res.code = TSDB_CODE_OTHERS;
       return pSql->res.code;
     }
@@ -863,10 +816,10 @@ int tscProcessSql(SSqlObj *pSql) {
         }
       }
 
-      sem_post(&pSql->emptyRspSem);
-      sem_wait(&pSql->rspSem);
+      tsem_post(&pSql->emptyRspSem);
+      tsem_wait(&pSql->rspSem);
 
-      sem_post(&pSql->emptyRspSem);
+      tsem_post(&pSql->emptyRspSem);
 
       if (pSql->numOfSubs <= 0) {
         pSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
@@ -899,9 +852,9 @@ int tscProcessSql(SSqlObj *pSql) {
     }
 
     if (fp == NULL) {
-      sem_post(&pSql->emptyRspSem);
-      sem_wait(&pSql->rspSem);
-      sem_post(&pSql->emptyRspSem);
+      tsem_post(&pSql->emptyRspSem);
+      tsem_wait(&pSql->rspSem);
+      tsem_post(&pSql->emptyRspSem);
 
       // set the command flag must be after the semaphore been correctly set.
       pSql->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
@@ -3352,21 +3305,12 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
 
   assert(len <= tListLen(pObj->db));
   strncpy(pObj->db, temp, tListLen(pObj->db));
-
-#ifdef CLUSTER
-  SIpList *pIpList;
-  char *   rsp = pRes->pRsp + sizeof(SConnectRsp);
+  
+  SIpList *    pIpList;
+  char *rsp = pRes->pRsp + sizeof(SConnectRsp);
   pIpList = (SIpList *)rsp;
-  tscMgmtIpList.numOfIps = pIpList->numOfIps;
-  for (int i = 0; i < pIpList->numOfIps; ++i) {
-    tinet_ntoa(tscMgmtIpList.ipstr[i], pIpList->ip[i]);
-    tscMgmtIpList.ip[i] = pIpList->ip[i];
-  }
+  tscSetMgmtIpList(pIpList);
 
-  rsp += sizeof(SIpList) + sizeof(int32_t) * pIpList->numOfIps;
-
-  tscPrintMgmtIp();
-#endif
   strcpy(pObj->sversion, pConnect->version);
   pObj->writeAuth = pConnect->writeAuth;
   pObj->superAuth = pConnect->superAuth;

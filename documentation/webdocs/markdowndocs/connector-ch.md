@@ -1125,8 +1125,6 @@ TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序
 
 [TDengine GO windows驱动的编译和使用](https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows%E9%A9%B1%E5%8A%A8%E7%9A%84%E7%BC%96%E8%AF%91/)
 
-
-
 #### JDBC接口注意事项
 
 在Windows系统上，应用程序可以使用JDBC接口来操纵数据库，使用JDBC接口的注意事项如下：
@@ -1141,6 +1139,49 @@ TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序
 + 确定在Windows上安装了TDengine客户端
 
 + 将Windows开发包(taos.dll)放置到system32目录下。
+
+## Mac客户端及程序接口
+
+### 客户端安装
+
+在Mac操作系统下，TDengine提供64位的Mac客户端([2月10日起提供下载](https://www.taosdata.com/cn/all-downloads/#tdengine_mac-list))，客户端安装程序为.tar.gz文件，解压并运行其中的install_client.sh后即可完成安装，安装路径为/usr/loca/taos。客户端目录结构如下：
+
+```
+├── cfg
+├───└── taos.cfg
+├── connector
+├───├── go
+├───├── grafana
+├───├── jdbc
+├───└── python
+├── driver
+├───├── libtaos.1.6.5.1.dylib
+├── examples
+├───├── bash
+├───├── c
+├───├── C#
+├───├── go
+├───├── JDBC
+├───├── lua
+├───├── matlab
+├───├── nodejs
+├───├── python
+├───├── R
+├───└── rust
+├── include
+├───└── taos.h
+└── bin
+├───└── taos
+```
+
+其中，最常用的文件列出如下：
+
++ Client可执行文件: /usr/local/taos/bin/taos 软连接到 /usr/local/bin/taos
++ 配置文件: /usr/local/taos/cfg/taos.cfg 软连接到 /etc/taos/taos.cfg
++ 驱动程序目录: /usr/local/taos/driver/libtaos.1.6.5.1.dylib 软连接到 /usr/local/lib/libtaos.dylib
++ 驱动程序头文件: /usr/local/taos/include/taos.h 软连接到 /usr/local/include/taos.h
++ 日志目录（第一次运行程序时生成）：~/TDengineLog
+
 
 
 [1]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver

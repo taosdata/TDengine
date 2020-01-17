@@ -1823,7 +1823,7 @@ int vnodeUpdateFileMagic(int vnode, int fileId) {
 }
 
 int vnodeInitFile(int vnode) {
-  int        code = 0;
+  int        code = TSDB_CODE_SUCCESS;
   SVnodeObj *pVnode = vnodeList + vnode;
 
   pVnode->maxFiles = pVnode->cfg.daysToKeep / pVnode->cfg.daysPerFile + 1;

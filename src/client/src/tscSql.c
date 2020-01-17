@@ -63,19 +63,10 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
     }
   }
 
-#ifdef CLUSTER
   if (ip && ip[0]) {
-    strcpy(tscMgmtIpList.ipstr[1], ip);
-    tscMgmtIpList.ip[1] = inet_addr(ip);
+    strcpy(tscMgmtIpList.ipstr[0], ip);
+    tscMgmtIpList.ip[0] = inet_addr(ip);
   }
-#else
-  if (ip && ip[0]) {
-    if (ip != tsMasterIp) {
-      strcpy(tsMasterIp, ip);
-    }
-    tsServerIp = inet_addr(ip);
-  }
-#endif
 
   pObj = (STscObj *)malloc(sizeof(STscObj));
   if (NULL == pObj) {
@@ -174,11 +165,6 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
-#ifndef CLUSTER
-  if (ip == NULL) {
-    ip = tsMasterIp;
-  }
-#endif
   return taos_connect_imp(ip, user, pass, db, port, fp, param, taos);
 }
 
