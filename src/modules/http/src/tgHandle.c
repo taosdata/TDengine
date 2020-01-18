@@ -572,7 +572,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
   orderTagsLen = orderTagsLen < TSDB_MAX_TAGS ? orderTagsLen : TSDB_MAX_TAGS;
 
   table_cmd->tagNum = stable_cmd->tagNum = (int8_t)orderTagsLen;
-  table_cmd->timestamp = stable_cmd->timestamp = httpAddToSqlCmdBuffer(pContext, "%ld", timestamp->valueint);
+  table_cmd->timestamp = stable_cmd->timestamp = httpAddToSqlCmdBuffer(pContext, "%" PRId64, timestamp->valueint);
 
   // stable name
   char *stname = tgGetStableName(name->valuestring, fields, fieldsSize);
@@ -593,7 +593,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
     if (tag->type == cJSON_String)
       stable_cmd->tagValues[i] = table_cmd->tagValues[i] = httpAddToSqlCmdBuffer(pContext, "'%s'", tag->valuestring);
     else if (tag->type == cJSON_Number)
-      stable_cmd->tagValues[i] = table_cmd->tagValues[i] = httpAddToSqlCmdBuffer(pContext, "%ld", tag->valueint);
+      stable_cmd->tagValues[i] = table_cmd->tagValues[i] = httpAddToSqlCmdBuffer(pContext, "%" PRId64, tag->valueint);
     else if (tag->type == cJSON_True)
       stable_cmd->tagValues[i] = table_cmd->tagValues[i] = httpAddToSqlCmdBuffer(pContext, "1");
     else if (tag->type == cJSON_False)
@@ -614,7 +614,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
     if (tag->type == cJSON_String)
       httpAddToSqlCmdBufferNoTerminal(pContext, "_%s", tag->valuestring);
     else if (tag->type == cJSON_Number)
-      httpAddToSqlCmdBufferNoTerminal(pContext, "_%ld", tag->valueint);
+      httpAddToSqlCmdBufferNoTerminal(pContext, "_%" PRId64, tag->valueint);
     else if (tag->type == cJSON_False)
       httpAddToSqlCmdBufferNoTerminal(pContext, "_0");
     else if (tag->type == cJSON_True)
@@ -670,7 +670,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
     cJSON *tag = orderedTags[i];
     if (i != orderTagsLen - 1) {
       if (tag->type == cJSON_Number)
-        httpAddToSqlCmdBufferNoTerminal(pContext, "%ld,", tag->valueint);
+        httpAddToSqlCmdBufferNoTerminal(pContext, "%" PRId64 ",", tag->valueint);
       else if (tag->type == cJSON_String)
         httpAddToSqlCmdBufferNoTerminal(pContext, "'%s',", tag->valuestring);
       else if (tag->type == cJSON_False)
@@ -682,7 +682,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
       }
     } else {
       if (tag->type == cJSON_Number)
-        httpAddToSqlCmdBufferNoTerminal(pContext, "%ld)", tag->valueint);
+        httpAddToSqlCmdBufferNoTerminal(pContext, "%" PRId64 ")", tag->valueint);
       else if (tag->type == cJSON_String)
         httpAddToSqlCmdBufferNoTerminal(pContext, "'%s')", tag->valuestring);
       else if (tag->type == cJSON_False)
@@ -695,7 +695,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
     }
   }
 
-  httpAddToSqlCmdBufferNoTerminal(pContext, " values(%ld,", timestamp->valueint);
+  httpAddToSqlCmdBufferNoTerminal(pContext, " values(%" PRId64 ",", timestamp->valueint);
   for (int i = 0; i < fieldsSize; ++i) {
     cJSON *field = cJSON_GetArrayItem(fields, i);
     if (i != fieldsSize - 1) {

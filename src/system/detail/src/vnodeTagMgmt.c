@@ -323,7 +323,7 @@ void tTagsPrints(SMeterSidExtInfo *pMeterInfo, tTagSchema *pSchema, tOrderIdx *p
         printf("%f, ", GET_TAG_VAL(pMeterInfo, colIndex, pSchema, float));
         break;
       case TSDB_DATA_TYPE_BIGINT:
-        printf("%ld, ", GET_TAG_VAL(pMeterInfo, colIndex, pSchema, int64_t));
+        printf("%" PRId64 ", ", GET_TAG_VAL(pMeterInfo, colIndex, pSchema, int64_t));
         break;
       case TSDB_DATA_TYPE_SMALLINT:
         printf("%d, ", GET_TAG_VAL(pMeterInfo, colIndex, pSchema, int16_t));

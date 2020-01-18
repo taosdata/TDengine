@@ -17,6 +17,7 @@
 
 #include <argp.h>
 #include <assert.h>
+#include <inttypes.h>
 
 #ifndef _ALPINE
 #include <error.h>
@@ -575,7 +576,7 @@ void *readTable(void *sarg) {
     double totalT = 0;
     int count = 0;
     for (int i = 0; i < num_of_tables; i++) {
-      sprintf(command, "select %s from %s%d where ts>= %ld", aggreFunc[j], tb_prefix, i, sTime);
+      sprintf(command, "select %s from %s%d where ts>= %" PRId64, aggreFunc[j], tb_prefix, i, sTime);
 
       double t = getCurrentTime();
       if (taos_query(taos, command) != 0) {
@@ -818,7 +819,7 @@ double getCurrentTime() {
 void generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp, int len_of_binary) {
   memset(res, 0, MAX_DATA_SIZE);
   char *pstr = res;
-  pstr += sprintf(pstr, "(%ld", timestamp);
+  pstr += sprintf(pstr, "(%" PRId64, timestamp);
   int c = 0;
 
   for (; c < MAX_NUM_DATATYPE; c++) {
@@ -835,7 +836,7 @@ void generateData(char *res, char **data_type, int num_of_cols, int64_t timestam
     } else if (strcasecmp(data_type[i % c], "int") == 0) {
       pstr += sprintf(pstr, ", %d", (int)(rand() % 10)); 
     } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
-      pstr += sprintf(pstr, ", %ld", rand() % 2147483648);
+      pstr += sprintf(pstr, ", %" PRId64, rand() % 2147483648);
     } else if (strcasecmp(data_type[i % c], "float") == 0) {
       pstr += sprintf(pstr, ", %10.4f", (float)(rand() / 1000));
     } else if (strcasecmp(data_type[i % c], "double") == 0) {

@@ -257,7 +257,7 @@ void httpJsonStringForTransMean(JsonBuf* buf, char* sVal, int maxLen) {
 void httpJsonInt64(JsonBuf* buf, int64_t num) {
   httpJsonItemToken(buf);
   httpJsonTestBuf(buf, MAX_NUM_STR_SZ);
-  buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%ld", num);
+  buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%" PRId64, num);
 }
 
 void httpJsonTimestamp(JsonBuf* buf, int64_t t, bool us) {

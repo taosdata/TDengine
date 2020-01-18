@@ -4605,27 +4605,27 @@ static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType)
   if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
     switch (srcDataType) {
       case TSDB_DATA_TYPE_BINARY:
-        printf("%ld,%s\t", *(TSKEY *)data, (data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%s\t", *(TSKEY *)data, (data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_TINYINT:
       case TSDB_DATA_TYPE_BOOL:
-        printf("%ld,%d\t", *(TSKEY *)data, *(int8_t *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%d\t", *(TSKEY *)data, *(int8_t *)(data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_SMALLINT:
-        printf("%ld,%d\t", *(TSKEY *)data, *(int16_t *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%d\t", *(TSKEY *)data, *(int16_t *)(data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_BIGINT:
       case TSDB_DATA_TYPE_TIMESTAMP:
-        printf("%ld,%ld\t", *(TSKEY *)data, *(TSKEY *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%" PRId64 "\t", *(TSKEY *)data, *(TSKEY *)(data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_INT:
-        printf("%ld,%d\t", *(TSKEY *)data, *(int32_t *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%d\t", *(TSKEY *)data, *(int32_t *)(data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_FLOAT:
-        printf("%ld,%f\t", *(TSKEY *)data, *(float *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%f\t", *(TSKEY *)data, *(float *)(data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_DOUBLE:
-        printf("%ld,%lf\t", *(TSKEY *)data, *(double *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%lf\t", *(TSKEY *)data, *(double *)(data + TSDB_KEYSIZE + 1));
         break;
     }
   } else if (functionId == TSDB_FUNC_AVG) {
@@ -4634,7 +4634,7 @@ static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType)
     printf("%lf,%lf\t", *(double *)data, *(double *)(data + sizeof(double)));
   } else if (functionId == TSDB_FUNC_TWA) {
     data += 1;
-    printf("%lf,%ld,%ld,%ld\t", *(double *)data, *(int64_t *)(data + 8), *(int64_t *)(data + 16),
+    printf("%lf,%" PRId64 ",%" PRId64 ",%" PRId64 "\t", *(double *)data, *(int64_t *)(data + 8), *(int64_t *)(data + 16),
            *(int64_t *)(data + 24));
   } else if (functionId == TSDB_FUNC_MIN || functionId == TSDB_FUNC_MAX) {
     switch (srcDataType) {
@@ -4647,7 +4647,7 @@ static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType)
         break;
       case TSDB_DATA_TYPE_BIGINT:
       case TSDB_DATA_TYPE_TIMESTAMP:
-        printf("%ld\t", *(int64_t *)data);
+        printf("%" PRId64 "\t", *(int64_t *)data);
         break;
       case TSDB_DATA_TYPE_INT:
         printf("%d\t", *(int *)data);
@@ -4663,7 +4663,7 @@ static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType)
     if (srcDataType == TSDB_DATA_TYPE_FLOAT || srcDataType == TSDB_DATA_TYPE_DOUBLE) {
       printf("%lf\t", *(float *)data);
     } else {
-      printf("%ld\t", *(int64_t *)data);
+      printf("%" PRId64 "\t", *(int64_t *)data);
     }
   } else {
     printf("%s\t", data);
@@ -4695,7 +4695,7 @@ void UNUSED_FUNC displayInterResult(SData **pdata, SQuery *pQuery, int32_t numOf
         }
         case TSDB_DATA_TYPE_TIMESTAMP:
         case TSDB_DATA_TYPE_BIGINT:
-          printf("%ld\t", *(int64_t *)(pdata[i]->data + pQuery->pSelectExpr[i].resBytes * j));
+          printf("%" PRId64 "\t", *(int64_t *)(pdata[i]->data + pQuery->pSelectExpr[i].resBytes * j));
           break;
         case TSDB_DATA_TYPE_INT:
           printf("%d\t", *(int32_t *)(pdata[i]->data + pQuery->pSelectExpr[i].resBytes * j));
