@@ -701,7 +701,7 @@ void vnodeInitMgmtIp() {
 
       char *rest = option + olen + 1;
       if (strcmp(option, "mgmtIpCreateTime") == 0) {
-        sscanf(rest, "%ld", &tsCreatedTime);
+        sscanf(rest, "%" PRIu64, &tsCreatedTime);
       } else if (strcmp(option, "mgmtNumOfIps") == 0) {
         int numOfIps = -1;
         sscanf(rest, "%d", &numOfIps);
@@ -783,7 +783,7 @@ void vnodeSaveMgmtIp() {
       fprintf(fp, "# The following parameters are the cache of management ip list\n");
     }
 
-    fprintf(fp, "mgmtIpCreateTime %ld\n", tsCreatedTime);
+    fprintf(fp, "mgmtIpCreateTime %" PRIu64 "\n", tsCreatedTime);
     fprintf(fp, "mgmtNumOfIps     %d\n", mgmtIpList.numOfIps);
     for (int i = 0; i < mgmtIpList.numOfIps; ++i) {
       char ipStr[20] = {0};
