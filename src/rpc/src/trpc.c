@@ -169,7 +169,7 @@ static int32_t taosCompressRpcMsg(char* pCont, int32_t contLen) {
     memcpy(pCont + overhead, buf, compLen);
     
     pHeader->comp = 1;
-    tTrace("compress rpc msg, before:%lld, after:%lld", contLen, compLen);
+    tTrace("compress rpc msg, before:%d, after:%d", contLen, compLen);
     
     finalLen = compLen + overhead;
     //tDump(pCont, contLen);

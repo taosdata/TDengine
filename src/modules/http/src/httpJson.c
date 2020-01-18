@@ -119,7 +119,7 @@ int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
       return 0;  // there is no data to dump.
     } else {
       int len = sprintf(sLen, "%lx\r\n", srcLen);
-      httpTrace("context:%p, fd:%d, ip:%s, write body, chunkSize:%ld, response:\n%s",
+      httpTrace("context:%p, fd:%d, ip:%s, write body, chunkSize:%" PRIu64 ", response:\n%s",
                 buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, buf->buf);
       httpWriteBufNoTrace(buf->pContext, sLen, len);
       remain = httpWriteBufNoTrace(buf->pContext, buf->buf, (int) srcLen);
@@ -131,7 +131,7 @@ int httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
     if (ret == 0) {
       if (compressBufLen > 0) {
         int len = sprintf(sLen, "%x\r\n", compressBufLen);
-        httpTrace("context:%p, fd:%d, ip:%s, write body, chunkSize:%ld, compressSize:%d, last:%d, response:\n%s",
+        httpTrace("context:%p, fd:%d, ip:%s, write body, chunkSize:%" PRIu64 ", compressSize:%d, last:%d, response:\n%s",
                   buf->pContext, buf->pContext->fd, buf->pContext->ipstr, srcLen, compressBufLen, isTheLast, buf->buf);
         httpWriteBufNoTrace(buf->pContext, sLen, len);
         remain = httpWriteBufNoTrace(buf->pContext, (const char *) compressBuf, (int) compressBufLen);
