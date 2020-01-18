@@ -595,6 +595,27 @@ c1.execute('select * from tb')
 for data in c1:
   print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])
 ```
+
+* 创建订阅
+```python
+# 创建一个主题为 'test' 消费周期为1000毫秒的订阅
+# 第一个参数为 True 表示重新开始订阅，如为 False 且之前创建过主题为 'test' 的订阅，则表示继续消费此订阅的数据，而不是重新开始消费所有数据
+sub = conn.subscribe(True, "test", "select * from meters;", 1000)
+```
+
+* 消费订阅的数据
+```python
+data = sub.consume()
+for d in data:
+    print(d)
+```
+
+* 取消订阅
+```python
+sub.close()
+```
+
+
 * 关闭连接
 ```python
 c1.close()

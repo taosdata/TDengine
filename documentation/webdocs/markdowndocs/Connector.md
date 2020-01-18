@@ -598,6 +598,28 @@ c1.execute('select * from tb')
 for data in c1:
   print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])
 ```
+
+* create a subscription
+```python
+# Create a subscription with topic 'test' and consumption interval 1000ms.
+# The first argument is True means to restart the subscription;
+# if the subscription with topic 'test' has already been created, then pass
+# False to this argument means to continue the existing subscription.
+sub = conn.subscribe(True, "test", "select * from meters;", 1000)
+```
+
+* consume a subscription
+```python
+data = sub.consume()
+for d in data:
+    print(d)
+```
+
+* close the subscription
+```python
+sub.close()
+```
+
 * close the connection
 ```python
 c1.close()
