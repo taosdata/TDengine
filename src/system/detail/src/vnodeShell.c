@@ -215,7 +215,7 @@ void vnodeCloseShellVnode(int vnode) {
   if (shellList[vnode] == NULL) return;
 
   for (int i = 0; i < vnodeList[vnode].cfg.maxSessions; ++i) {
-    vnodeFreeQInfo(shellList[vnode][i].qhandle, true);
+    vnodeDecRefCount(shellList[vnode][i].qhandle);
   }
 
   int32_t* v = malloc(sizeof(int32_t));
@@ -369,8 +369,10 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pObj->qhandle) {
     dTrace("QInfo:%p %s free qhandle", pObj->qhandle, __FUNCTION__);
-    vnodeFreeQInfo(pObj->qhandle, true);
+    void* qHandle = pObj->qhandle;
     pObj->qhandle = NULL;
+    
+    vnodeDecRefCount(qHandle);
   }
 
   if (QUERY_IS_STABLE_QUERY(pQueryMsg->queryType)) {
