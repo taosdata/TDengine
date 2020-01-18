@@ -11,9 +11,10 @@ void print_result(TAOS_RES* res, int blockFetch) {
   TAOS_ROW    row = NULL;
   int         num_fields = taos_num_fields(res);
   TAOS_FIELD* fields = taos_fetch_fields(res);
+  int         nRows = 0;
 
   if (blockFetch) {
-    int nRows = taos_fetch_block(res, &row);
+    nRows = taos_fetch_block(res, &row);
     for (int i = 0; i < nRows; i++) {
       char temp[256];
       taos_print_row(temp, row + i, fields, num_fields);
@@ -24,8 +25,11 @@ void print_result(TAOS_RES* res, int blockFetch) {
       char temp[256];
       taos_print_row(temp, row, fields, num_fields);
       puts(temp);
+      nRows++;
     }
   }
+
+  printf("%d rows consumed.\n", nRows);
 }
 
 

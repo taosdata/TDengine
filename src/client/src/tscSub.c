@@ -265,7 +265,7 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
       return 0;
     }
     int64_t uid, key;
-    sscanf(buf, "uid=%" SCNd64 ",progress=%" SCNd64, &uid, &key);
+    sscanf(buf, "%" SCNd64 ":%" SCNd64, &uid, &key);
     progress[i].uid = uid;
     progress[i].key = key;
   }
@@ -300,7 +300,7 @@ void tscSaveSubscriptionProgress(void* sub) {
   for (int i = 0; i < pSub->numOfMeters; i++) {
     int64_t uid = pSub->progress[i].uid;
     TSKEY key = pSub->progress[i].key;
-    fprintf(fp, "uid=%" PRId64 ",progress=%" PRId64 "\n", uid, key);
+    fprintf(fp, "%" PRId64 ":%" PRId64 "\n", uid, key);
   }
 
   fclose(fp);
