@@ -797,7 +797,10 @@ int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FI
   if (metric != NULL && metric[0] != '\0') {  // dump metric definition
     count = taosGetTableDes(metric, tableDes);
 
-    if (count < 0) return -1;
+    if (count < 0) {
+      free(tableDes);
+      return -1;
+    }
 
     taosDumpCreateTableClause(tableDes, count, arguments, fp);
 
@@ -805,17 +808,25 @@ int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FI
 
     count = taosGetTableDes(table, tableDes);
 
-    if (count < 0) return -1;
+    if (count < 0) {
+      free(tableDes);
+      return -1;
+    }
 
     taosDumpCreateMTableClause(tableDes, metric, count, arguments, fp);
 
   } else {  // dump table definition
     count = taosGetTableDes(table, tableDes);
 
-    if (count < 0) return -1;
+    if (count < 0) {
+      free(tableDes);
+      return -1;
+    }
 
     taosDumpCreateTableClause(tableDes, count, arguments, fp);
   }
+
+  free(tableDes);
 
   return taosDumpTableData(fp, table, arguments);
 }
