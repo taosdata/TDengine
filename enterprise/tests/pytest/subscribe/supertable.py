@@ -45,52 +45,52 @@ class TDTestCase:
 			for j in range(0, 5):
 				tdSql.execute("insert into t%d using meters tags(%d, 'area%d') values (%d, %d, %d);" % (i, i, i, now + j, j, j))
 
-		tdLog.info("first consumption.")
+		tdLog.info("consumption 01.")
 		tdSub.init(self.conn.subscribe(True, topic, sqlstr, 0))
 		tdSub.consume()
 		tdSub.checkRows(50)
 
-		tdLog.info("second consumption: no new rows inserted")
+		tdLog.info("consumption 02: no new rows inserted")
 		tdSub.consume()
 		tdSub.checkRows(0)
 
-		tdLog.info("third consumption: after one new rows inserted")
+		tdLog.info("consumption 03: after one new rows inserted")
 		tdSql.execute("insert into t0 values (%d, 10, 10);" % (now + 10))
 		tdSub.consume()
 		tdSub.checkRows(1)
 
-		tdLog.info("fourth consumption: keep progress and continue previous subscription")
+		tdLog.info("consumption 04: keep progress and continue previous subscription")
 		tdSub.close(True)
 		tdSub.init(self.conn.subscribe(False, topic, sqlstr, 0))
 		tdSub.consume()
 		tdSub.checkRows(0)
 
-		tdLog.info("fifth consumption: remove progress and continue previous subscription")
+		tdLog.info("consumption 05: remove progress and continue previous subscription")
 		tdSub.close(False)
 		tdSub.init(self.conn.subscribe(False, topic, sqlstr, 0))
 		tdSub.consume()
 		tdSub.checkRows(51)
 
-		tdLog.info("sixth consumption: keep progress and restart the subscription")
+		tdLog.info("consumption 06: keep progress and restart the subscription")
 		tdSub.close(True)
 		tdSub.init(self.conn.subscribe(True, topic, sqlstr, 0))
 		tdSub.consume()
 		tdSub.checkRows(51)
 
-		tdLog.info("seventh consumption: insert one row to two table then remove one table")
+		tdLog.info("consumption 07: insert one row to two table then remove one table")
 		tdSql.execute("insert into t0 values (%d, 11, 11);" % (now + 11))
 		tdSql.execute("insert into t1 values (%d, 11, 11);" % (now + 11))
 		tdSql.execute("drop table t0")
 		tdSub.consume()
 		tdSub.checkRows(1)
 
-		tdLog.info("eighth consumption: check timestamp criteria")
+		tdLog.info("consumption 08: check timestamp criteria")
 		tdSub.close(False)
 		tdSub.init(self.conn.subscribe(True, topic, sqlstr + " where ts > %d" % now, 0))
 		tdSub.consume()
 		tdSub.checkRows(37)
 
-		tdLog.info("nineth consumption: insert large timestamp to t2 then insert smaller timestamp to t1")
+		tdLog.info("consumption 09: insert large timestamp to t2 then insert smaller timestamp to t1")
 		tdSql.execute("insert into t2 values (%d, 100, 100);" % (now + 100))
 		tdSub.consume()
 		tdSub.checkRows(1)
@@ -98,6 +98,20 @@ class TDTestCase:
 		tdSub.consume()
 		tdSub.checkRows(1)
 
+		tdLog.info("consumption 10: field criteria")
+		tdSub.close(True)
+		tdSub.init(self.conn.subscribe(False, topic, sqlstr + " where a > 100", 0))
+		tdSql.execute("insert into t2 values (%d, 101, 100);" % (now + 101))
+		tdSql.execute("insert into t2 values (%d, 100, 100);" % (now + 102))
+		tdSql.execute("insert into t2 values (%d, 102, 100);" % (now + 103))
+		tdSub.consume()
+		tdSub.checkRows(2)
+
+		tdLog.info("consumption 11: two vnodes")
+		tdSql.execute("insert into t2 values (%d, 102, 100);" % (now + 104))
+		tdSql.execute("insert into t9 values (%d, 102, 100);" % (now + 104))
+		tdSub.consume()
+		tdSub.checkRows(2)
 
 	def stop(self):
 		tdSub.close(False)
