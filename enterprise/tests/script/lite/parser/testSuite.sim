@@ -33,7 +33,7 @@ run lite/parser/import_commit2.sim
 sleep 2000
 run lite/parser/import_commit3.sim
 sleep 2000
-run litp/parser/import_file.sim
+run lite/parser/import_file.sim
 sleep 2000
 run lite/parser/insert_tb.sim
 sleep 2000
