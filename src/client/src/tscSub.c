@@ -362,6 +362,8 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   }
 
   for (int retry = 0; retry < 3; retry++) {
+    tscRemoveFromSqlList(pSql);
+
     if (taosGetTimestampMs() - pSub->lastSyncTime > 10 * 60 * 1000) {
       tscTrace("begin meter synchronization");
       char* sqlstr = pSql->sqlstr;
@@ -380,6 +382,8 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
       pSql->thandle = NULL;
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->cmd.type = type;
+
+      tscGetMeterMetaInfo(&pSql->cmd, 0)->vnodeIndex = 0;
     }
 
     tscDoQuery(pSql);
