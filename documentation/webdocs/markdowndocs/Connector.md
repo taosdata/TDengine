@@ -583,7 +583,7 @@ data = c1.fetchall()
 numOfRows = c1.rowcount
 numOfCols = len(c1.description)
 for irow in range(numOfRows):
-  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2])
+  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
   
 # use the cursor as an iterator to retrieve all returned results
 c1.execute('select * from tb')

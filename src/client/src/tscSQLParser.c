@@ -613,7 +613,7 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   /*
    * check invalid SQL:
    * select count(tbname)/count(tag1)/count(tag2) from super_table_name interval(1d);
-   */ 
+   */
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     if (pExpr->functionId == TSDB_FUNC_COUNT && TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
@@ -624,7 +624,7 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   /*
    * check invalid SQL:
    * select tbname, tags_fields from super_table_name interval(1s)
-   */ 
+   */
   if (tscQueryMetricTags(pQueryInfo) && pQueryInfo->nAggTimeInterval > 0) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
   }
@@ -2888,8 +2888,8 @@ static int32_t validateSQLExpr(tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnL
         return TSDB_CODE_INVALID_SQL;
       }
 
-      // if column is timestamp, bool, binary, nchar, not support arithmetic, so return invalid sql      
-      SMeterMeta* pMeterMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex)->pMeterMeta;   
+      // if column is timestamp, bool, binary, nchar, not support arithmetic, so return invalid sql
+      SMeterMeta* pMeterMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex)->pMeterMeta;
       SSchema* pSchema = tsGetSchema(pMeterMeta) + index.columnIndex;
       if ((pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) || (pSchema->type == TSDB_DATA_TYPE_BOOL)
         || (pSchema->type == TSDB_DATA_TYPE_BINARY) || (pSchema->type == TSDB_DATA_TYPE_NCHAR)){

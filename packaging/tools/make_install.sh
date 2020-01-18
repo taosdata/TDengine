@@ -105,10 +105,10 @@ if [ "$osType" != "Darwin" ]; then
         echo "this is fedora system"
         os_type=2
     else
-        echo "this is other linux system"
-        os_type=0
+        echo "${osinfo}: This is an officially unverified linux system, If there are any problems with the installation and operation, "
+        echo "please feel free to contact taosdata.com for support."
+        os_type=1
     fi
-
 fi
 
 function kill_taosd() {
