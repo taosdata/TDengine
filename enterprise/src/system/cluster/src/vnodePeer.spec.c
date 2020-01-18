@@ -832,7 +832,7 @@ int vnodeForwardToPeer(SMeterObj *pObj, char *cont, int contLen, char action, in
       int retLen = write(pVPeer->peerFd, (char *) pHeader, fwdLen);
       pthread_mutex_unlock(&(pVnode->vmutex));
       if (retLen == fwdLen) {
-        dTrace("vid:%d sid:%d, peer:%s:%d forward is sent, contLen:%ld", pVPeer->ownId, pObj->sid, pVPeer->ipstr,
+        dTrace("vid:%d sid:%d, peer:%s:%d forward is sent, contLen:%d", pVPeer->ownId, pObj->sid, pVPeer->ipstr,
                pVPeer->vid, contLen);
       } else {
         dError("vid:%d sid:%d, peer:%s:%d failed to send forward, restart connection",
