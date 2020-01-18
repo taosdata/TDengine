@@ -241,7 +241,7 @@ SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir) {  // Open meterOb
 
   SVnodeInfo *pInfo = (SVnodeInfo *)calloc(1, sizeof(SVnodeInfo));
   if (pInfo == NULL) {
-    fprintf(stderr, "ERROR! failed to allocate memory , size:%ld\n", sizeof(SVnodeInfo));
+    fprintf(stderr, "ERROR! failed to allocate memory , size:%zu\n", sizeof(SVnodeInfo));
     return NULL;
   }
 
@@ -833,7 +833,7 @@ int printCompInfo(SCompInfo *pCompInfo, uint64_t uid, FILE *fp) {
   } else {
     fprintf(fp, "> CompInfo part is correct\n");
     if (uid != pCompInfo->uid) {
-      fprintf(fp, "> ERROR: CompInfo uid not match, obj uid:%" PRIu64 ", comp uid:%lu\n", uid, pCompInfo->uid);
+      fprintf(fp, "> ERROR: CompInfo uid not match, obj uid:%" PRIu64 ", comp uid:%" PRIu64 "\n", uid, pCompInfo->uid);
       isRight = 0;
     }
   }

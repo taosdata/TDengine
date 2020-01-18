@@ -469,7 +469,7 @@ int vnodeRetrieveMissedCreateMsg(int vnode, int fd, uint64_t stime) {
 
   msg = (char *)malloc(1024 + TSDB_MAX_COLUMNS * sizeof(SSchema));
 
-  dTrace("vid:%d, fd:%d start to retrieve missed create msg, stime:%ld", vnode, fd, stime);
+  dTrace("vid:%d, fd:%d start to retrieve missed create msg, stime:%" PRIu64, vnode, fd, stime);
 
   for (sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
     pObj = pVnode->meterList[sid];

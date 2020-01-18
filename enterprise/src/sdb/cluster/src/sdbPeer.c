@@ -416,13 +416,13 @@ int sdbInitPeers(char *directory) {
   }
 
   int64_t oldSdbVersion = sdbVersion;
-  int32_t oldTableId = ((SSdbTable*)mnodeSdb)->id;
+  int64_t oldTableId = ((SSdbTable*)mnodeSdb)->id;
 
   // add masterIP into peer
   uint32_t masterPublicIp = (masterIp == selfIp) ? sdbPublicIp : masterIp;
   sdbAddPeer(masterIp, masterPublicIp, SDB_ROLE_MASTER);
 
-  sdbPrint("add peer:%s to mnodes, old sdbVersion:%ld new sdbVersion:%ld, old id:%d new id:%d",
+  sdbPrint("add peer:%s to mnodes, old sdbVersion:%" PRId64 " new sdbVersion:%" PRId64 ", old id:%" PRId64 " new id:%" PRId64,
           taosIpStr(masterIp), oldSdbVersion, sdbVersion, oldTableId, ((SSdbTable*)mnodeSdb)->id);
 
   if (pSelf == NULL || pSelf->status == SDB_STATUS_DELETED) {
@@ -437,14 +437,14 @@ int sdbInitPeers(char *directory) {
   pSelf->role = SDB_ROLE_UNDECIDED;
   pSelf->numOfMnodes = 0;
   if ((sdbNumOfPeers == 1) && (masterIp == selfIp)) {
-    sdbPrint("numOfPeers:%d, master:%s self:%s work as master, sdbVersion:%ld id:%d",
+    sdbPrint("numOfPeers:%d, master:%s self:%s work as master, sdbVersion:%" PRId64 " id:%" PRId64,
             sdbNumOfPeers, taosIpStr(masterIp), taosIpStr(selfIp), sdbVersion, ((SSdbTable*)mnodeSdb)->id);
     sdbWorkAsMaster();
   } else {
     /*
      * The first mnode created when the system just start, should not enter version management
      */
-    sdbPrint("reset sdbVersion from %d to old %ld, id from %d to %d, for mnode changed",
+    sdbPrint("reset sdbVersion from %" PRId64 " to old %" PRId64 ", id from %" PRId64 " to %" PRId64 ", for mnode changed",
             sdbVersion, oldSdbVersion, ((SSdbTable*)mnodeSdb)->id, oldTableId);
     sdbVersion = oldSdbVersion;
     ((SSdbTable*)mnodeSdb)->id = oldTableId;
@@ -666,7 +666,7 @@ int sdbUpdatePeerStatus(SSdbPeer *pPeer, char *msg, int msgLen) {
         pSelf->status = SDB_STATUS_SERVING;
       } else if (pPeer->dbVersion > sdbVersion) {
         if (pSelf->status != SDB_STATUS_SYNCING) {
-          sdbPrint("peer:%s dbVersion:%d, sdbVersion:%ld, sync start", pPeer->ipstr, pPeer->dbVersion, sdbVersion);
+          sdbPrint("peer:%s dbVersion:%" PRIu64 ", sdbVersion:%" PRId64 ", sync start", pPeer->ipstr, pPeer->dbVersion, sdbVersion);
           sdbStartSyncProcess(pPeer);
         }
       } else {
@@ -700,7 +700,7 @@ char *sdbEncodeSelfStatus(SSdbPeer *pPeer, char *pMsg) {
   pStatus->dbVersion = htobe64(sdbVersion);
   pStatus->publicIp = sdbPublicIp;
   pMsg += sizeof(SMnodeStatus);
-  sdbTrace("encode self status, sdbVersion:%ld", sdbVersion);
+  sdbTrace("encode self status, sdbVersion:%" PRId64, sdbVersion);
 
   return pMsg;
 }
@@ -848,7 +848,7 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
     if (pPeer == NULL) continue;
 
     if (pPeer != NULL) {
-      sdbPrint("id:%d, peer:%s, role:%s, dbVersion:%ld, status:%s, numOfMnodes:%d, numOfDnodes:%d",
+      sdbPrint("id:%d, peer:%s, role:%s, dbVersion:%" PRIu64 ", status:%s, numOfMnodes:%d, numOfDnodes:%d",
                i, pPeer->ipstr, taosGetSdbRoleStr(pPeer->role), pPeer->dbVersion,
                taosGetSdbStatusStr(pPeer->status), pPeer->numOfMnodes, pPeer->numOfDnodes);
     }
@@ -996,13 +996,13 @@ int sdbTransferWholeDataToPeer(int syncFd, SSdbTable *pTable) {
 
 
   if (tsendfile(syncFd, sfd, NULL, size) < 0) {
-    sdbError("table:%s fd:%d, failed to transfer file:%s to peer, size:%ld reason:%s",
+    sdbError("table:%s fd:%d, failed to transfer file:%s to peer, size:%" PRIu64 " reason:%s",
         pTable->name, syncFd, pTable->fn, size, strerror(errno));
     tclose(sfd);
     return -1;
   }
 
-  sdbPrint("table:%s fd:%d, file:%s is sent to peer, size:%ld", pTable->name, syncFd, pTable->fn, size);
+  sdbPrint("table:%s fd:%d, file:%s is sent to peer, size:%" PRIu64, pTable->name, syncFd, pTable->fn, size);
   tclose(sfd);
 
   return 0;
@@ -1193,10 +1193,10 @@ int sdbStartFullSync(int tcpFd, SForwardMsg *pForward) {
 
   if (ret < 0) {
     remove(pTable->fn);
-    sdbError("fd:%d table:%s, failed to receive table file:%s for full sync, ret:%d size:%ld, reason:%s",
+    sdbError("fd:%d table:%s, failed to receive table file:%s for full sync, ret:%d size:%" PRId64 ", reason:%s",
         tcpFd, pTable->name, pTable->fn, ret, size, strerror(errno));
   } else {
-    sdbPrint("fd:%d table:%s, %s is received from master for full sync, ret:%d size:%ld reset table",
+    sdbPrint("fd:%d table:%s, %s is received from master for full sync, ret:%d size:%" PRId64 " reset table",
         tcpFd, pTable->name, pTable->fn, ret, size);
     sdbResetTable(pTable);
   }
@@ -1219,7 +1219,7 @@ void sdbRestoreDbReq(int tcpFd) {
     }
 
     dataLen = htons(pForward->dataLen);
-    sdbTrace("fd:%d, forward msg size received, table:%s type:%s version:%ld dataLen:%d ret:%d",
+    sdbTrace("fd:%d, forward msg size received, table:%s type:%s version:%" PRIu64 " dataLen:%d ret:%d",
             tcpFd, taosGetSdbTableName(pForward->dbId), taosGetSdbOperName(pForward->type), htobe64(pForward->version), dataLen, ret);
 
     if (dataLen > 0) {
@@ -1252,7 +1252,7 @@ void sdbRestoreDbReq(int tcpFd) {
           sdbError("fd:%d, failed to process queue db:%s req, ret:%d", tcpFd, taosGetSdbTableName(pForward->dbId), ret);
           break;
         } else {
-          sdbTrace("fd:%d, forward msg processed, db:%s ret:%d sdbVersion:%ld", tcpFd, taosGetSdbTableName(pForward->dbId), ret, sdbVersion);
+          sdbTrace("fd:%d, forward msg processed, db:%s ret:%d sdbVersion:%" PRId64 "", tcpFd, taosGetSdbTableName(pForward->dbId), ret, sdbVersion);
         }
       } else {
         sdbError("fd:%d, invalid forward msg dataLen:%d db:%s", tcpFd, dataLen, taosGetSdbTableName(pForward->dbId));
@@ -1263,12 +1263,12 @@ void sdbRestoreDbReq(int tcpFd) {
   tfree(cont);
 
   if (ret < 0) {
-    sdbError("fd:%d, sync failed, sdbVersion:%ld reason:%s ", tcpFd, sdbVersion, strerror(errno));
+    sdbError("fd:%d, sync failed, sdbVersion:%" PRId64 " reason:%s ", tcpFd, sdbVersion, strerror(errno));
     pSelf->status = SDB_STATUS_UNSYNCED;
   } else {
     sdbProcessBufferedForwards();
     // pSelf->status = SDB_STATUS_SERVING;
-    sdbPrint("fd:%d, sync is finished, sdbVersion:%ld", tcpFd, sdbVersion);
+    sdbPrint("fd:%d, sync is finished, sdbVersion:%" PRId64 "", tcpFd, sdbVersion);
   }
 }
 

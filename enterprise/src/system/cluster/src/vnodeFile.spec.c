@@ -229,18 +229,18 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       continue;
     }
 
-    dPrint("vid:%d, fileId:%d, start to retrieve, fmagic:%ld peer fmagic:%ld not equal", vnode, fileId, pVnode->fmagic[i], fmagic[i]);
+    dPrint("vid:%d, fileId:%d, start to retrieve, fmagic:%" PRIu64 " peer fmagic:%" PRIu64 " not equal", vnode, fileId, pVnode->fmagic[i], fmagic[i]);
 
     if (pVnode->fmagic[i] == 0 && fmagic[i] != 0) {
       // file not exist
       size = TSDB_SYNC_FILE_NEED_REMOVE;
-      dTrace("vid:%d, fileId:%d, file not exist, send head file size:%ld to peer", vnode, fileId, size);
+      dTrace("vid:%d, fileId:%d, file not exist, send head file size:%" PRId64 " to peer", vnode, fileId, size);
       if (taosWriteMsg(fd, &(fileId), sizeof(fileId)) < 0) {
         dError("vid:%d, fileId:%d, failed to send fileId to peer", vnode, fileId);
         return -1;
       }
       if (taosWriteMsg(fd, &size, sizeof(size)) < 0) {
-        dError("vid:%d, fileId:%d, failed to send head file size:%ld to peer", vnode, fileId, size);
+        dError("vid:%d, fileId:%d, failed to send head file size:%" PRId64 " to peer", vnode, fileId, size);
         return -1;
       }
     } else {
@@ -269,7 +269,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       }
 
       if (taosWriteMsg(fd, &size, sizeof(size)) < 0) {
-        dError("vid:%d, fileId:%d, failed to send head file:%s size:%ld to peer", vnode, fileId, headName, size);
+        dError("vid:%d, fileId:%d, failed to send head file:%s size:%" PRId64 " to peer", vnode, fileId, headName, size);
         return -1;
       }
 
@@ -288,10 +288,10 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
           return -1;
         }
 
-        dPrint("vid:%d, fileId:%d, head file:%s is sent to peer, size:%ld", vnode, fileId, headName, size);
+        dPrint("vid:%d, fileId:%d, head file:%s is sent to peer, size:%" PRId64 "", vnode, fileId, headName, size);
         close(sfd);
       } else {
-        dPrint("vid:%d, fileId:%d, head file:%s size:%ld is empty, not sent to peer", vnode, fileId, headName, size);
+        dPrint("vid:%d, fileId:%d, head file:%s size:%" PRId64 " is empty, not sent to peer", vnode, fileId, headName, size);
       }
 
       // send data file
@@ -309,30 +309,30 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       }
 
       if (taosWriteMsg(fd, &size, sizeof(size)) < 0) {
-        dError("vid:%d, fileId:%d, failed to send data file:%s size:%ld to peer", vnode, fileId, dataName, size);
+        dError("vid:%d, fileId:%d, failed to send data file:%s size:%" PRId64 " to peer", vnode, fileId, dataName, size);
         return -1;
       }
 
       if (size > 0) {
         sfd = open(dataName, O_RDONLY);
         if (sfd < 0) {
-          dError("vid:%d, fileId:%d, failed to send data file:%s size:%ld to peer for sfd:% invalid", vnode, fileId,
+          dError("vid:%d, fileId:%d, failed to send data file:%s size:%" PRId64 " to peer for sfd:% invalid", vnode, fileId,
                  dataName, size, sfd);
           return -1;
         }
 
         if (tsendfile(fd, sfd, NULL, size) < 0) {
-          dError("vid:%d, fileId:%d, failed to send data file:%s size:%ld to peer, reason:%s", vnode, fileId, dataName,
+          dError("vid:%d, fileId:%d, failed to send data file:%s size:%" PRId64 " to peer, reason:%s", vnode, fileId, dataName,
                  size, strerror(errno));
           close(sfd);
           return -1;
         }
 
-        dPrint("vid:%d, fileId:%d, data file:%s is sent to peer, size:%ld", vnode, fileId, dataName, size);
+        dPrint("vid:%d, fileId:%d, data file:%s is sent to peer, size:%" PRId64, vnode, fileId, dataName, size);
         close(sfd);
       }
       else {
-        dPrint("vid:%d, fileId:%d, data file:%s size:%ld is empty, not sent to peer", vnode, fileId, dataName, size);
+        dPrint("vid:%d, fileId:%d, data file:%s size:%" PRId64 " is empty, not sent to peer", vnode, fileId, dataName, size);
       }
 
       // send last file
@@ -350,7 +350,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
       }
 
       if (taosWriteMsg(fd, &size, sizeof(size)) < 0) {
-        dError("vid:%d, fileId:%d, failed to send last file:%s size:%ld to peer", vnode, fileId, lastName, size);
+        dError("vid:%d, fileId:%d, failed to send last file:%s size:%" PRId64 " to peer", vnode, fileId, lastName, size);
         return -1;
       }
 
@@ -369,11 +369,11 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
           return -1;
         }
 
-        dPrint("vid:%d, fileId:%d, last file:%s is sent to peer, size:%ld", vnode, fileId, lastName, size);
+        dPrint("vid:%d, fileId:%d, last file:%s is sent to peer, size:%" PRId64 "", vnode, fileId, lastName, size);
         close(sfd);
       }
       else {
-        dPrint("vid:%d, fileId:%d, last file:%s size:%ld is empty, not sent to peer", vnode, fileId, lastName, size);
+        dPrint("vid:%d, fileId:%d, last file:%s size:%" PRId64 " is empty, not sent to peer", vnode, fileId, lastName, size);
       }
     }
   }
@@ -386,7 +386,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
   }
 
   if (taosWriteMsg(fd, &size, sizeof(size)) < 0) {
-    dPrint("vid:%d, failed to send stop file size:%ld to peer", vnode, size);
+    dPrint("vid:%d, failed to send stop file size:%" PRId64 " to peer", vnode, size);
     return -1;
   }
 
@@ -398,7 +398,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
   }
 
   if (taosWriteMsg(fd, &size, sizeof(size)) < 0) {
-    dPrint("vid:%d, failed to send vnode numOfFiles:%ld to peer", vnode, size);
+    dPrint("vid:%d, failed to send vnode numOfFiles:%" PRId64 " to peer", vnode, size);
     return -1;
   }
 
@@ -471,7 +471,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
     if (size > TSDB_SYNC_FILE_FINISHED) {
       // read head file
 
-      dPrint("vid:%d, fileId:%d, start to receive head file:%s from peer, size:%ld", vnode, fileId, headName, size);
+      dPrint("vid:%d, fileId:%d, start to receive head file:%s from peer, size:%" PRId64, vnode, fileId, headName, size);
 
       if (size >= TSDB_SYNC_FILE_EMPTY) {
         dfd = open(headName, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
@@ -482,13 +482,13 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
 
         if (size > 0) {
           if (taosCopyFds(sfd, dfd, size) < 0) {
-            dError("vid:%d, fileId:%d, failed to receive head file:%s content from peer, size:%ld reason:%s",
+            dError("vid:%d, fileId:%d, failed to receive head file:%s content from peer, size:%" PRId64 " reason:%s",
                    vnode, fileId, headName, size, strerror(errno));
             close(dfd);
             vnodeRemoveFile(vnode, fileId);
             return -1;
           }
-          dPrint("vid:%d, fileId:%d, head file:%s is received from peer, size:%ld", vnode, fileId, headName, size);
+          dPrint("vid:%d, fileId:%d, head file:%s is received from peer, size:%" PRId64, vnode, fileId, headName, size);
         } else {
           dPrint("vid:%d, fileId:%d, head file:%s is empty in peer", vnode, fileId, headName);
         }
@@ -505,12 +505,12 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
       }
 
       if (size <= TSDB_SYNC_FILE_FINISHED) {
-        dError("vid:%d, fileId:%d, data file:%s size:%ld is not right", vnode, fileId, dataName, size);
+        dError("vid:%d, fileId:%d, data file:%s size:%" PRId64 " is not right", vnode, fileId, dataName, size);
         vnodeRemoveFile(vnode, fileId);
         return -1;
       }
 
-      dPrint("vid:%d, fileId:%d, start to receive data file:%s from peer, size:%ld", vnode, fileId, dataName, size);
+      dPrint("vid:%d, fileId:%d, start to receive data file:%s from peer, size:%" PRId64, vnode, fileId, dataName, size);
       if (size >= TSDB_SYNC_FILE_EMPTY) {
         dfd = open(dataName, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
         if (dfd < 0) {
@@ -521,14 +521,14 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
 
         if (size > 0) {
           if (taosCopyFds(sfd, dfd, size) < 0) {
-            dError("vid:%d, fileId:%d, failed to receive data file:%s content from peer, size:%ld reason:%s",
+            dError("vid:%d, fileId:%d, failed to receive data file:%s content from peer, size:%" PRId64 " reason:%s",
                     vnode, fileId, dataName, size, strerror(errno));
             close(dfd);
             vnodeRemoveFile(vnode, fileId);
             return -1;
           }
 
-          dPrint("vid:%d, fileId:%d, data file:%s is received from peer, size:%ld", vnode, fileId, dataName, size);
+          dPrint("vid:%d, fileId:%d, data file:%s is received from peer, size:%" PRId64 "", vnode, fileId, dataName, size);
         } else {
           dPrint("vid:%d, fileId:%d, data file:%s is empty in peer", vnode, fileId, dataName);
         }
@@ -545,12 +545,12 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
       }
 
       if (size <= TSDB_SYNC_FILE_FINISHED) {
-        dError("vid:%d, fileId:%d, last file:%s size:%ld is not right", vnode, fileId, lastName, size);
+        dError("vid:%d, fileId:%d, last file:%s size:%" PRId64 " is not right", vnode, fileId, lastName, size);
         vnodeRemoveFile(vnode, fileId);
         return -1;
       }
 
-      dPrint("vid:%d, fileId:%d, start to receieve last file:%s content from peer, size:%ld", vnode, fileId, lastName, size);
+      dPrint("vid:%d, fileId:%d, start to receieve last file:%s content from peer, size:%" PRId64 "", vnode, fileId, lastName, size);
 
       if (size >= TSDB_SYNC_FILE_EMPTY) {
         dfd = open(lastName, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
@@ -562,13 +562,13 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
 
         if (size > 0) {
           if (taosCopyFds(sfd, dfd, size) < 0) {
-            dError("vid:%d, fileId:%d, failed to receive last file:%s from peer, size:%ld reason:%s",
+            dError("vid:%d, fileId:%d, failed to receive last file:%s from peer, size:%" PRId64 " reason:%s",
                    vnode, fileId, lastName, size, strerror(errno));
             close(dfd);
             vnodeRemoveFile(vnode, fileId);
             return -1;
           }
-          dPrint("vid:%d, fileId:%d, last file:%s is received from peer, size:%ld", vnode, fileId, lastName, size);
+          dPrint("vid:%d, fileId:%d, last file:%s is received from peer, size:%" PRId64, vnode, fileId, lastName, size);
         } else {
           dPrint("vid:%d, fileId:%d, last file:%s is empty in peer", vnode, fileId, lastName);
         }
@@ -593,7 +593,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
   }
 
   if (taosReadMsg(sfd, &size, sizeof(size)) < 0) {
-    dPrint("vid:%d, failed to receive vnode numOfFiles:%ld from peer, reason:%s", vnode, size, strerror(errno));
+    dPrint("vid:%d, failed to receive vnode numOfFiles:%" PRId64 " from peer, reason:%s", vnode, size, strerror(errno));
     return -1;
   }
 
