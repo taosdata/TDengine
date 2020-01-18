@@ -465,8 +465,11 @@ int mgmtCfgDynamicOptions(SDnodeObj *pDnode, char *msg) {
 }
 
 int mgmtSendCfgDnodeMsg(char *cont) {
+#ifdef CLUSTER
   char *     pMsg, *pStart;
   int        msgLen = 0;
+#endif
+
   SDnodeObj *pDnode;
   SCfgMsg *  pCfg = (SCfgMsg *)cont;
   uint32_t   ip;
