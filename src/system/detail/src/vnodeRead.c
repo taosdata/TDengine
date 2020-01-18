@@ -581,13 +581,13 @@ void vnodeQueryData(SSchedMsg *pMsg) {
     pQuery->slot = -1;  // reset the handle
     pQuery->over = 0;
 
-    dTrace("vid:%d sid:%d id:%s, query in other media, order:%d, skey:%lld query:%p", pObj->vnode, pObj->sid,
+    dTrace("vid:%d sid:%d id:%s, query in other media, order:%d, skey:%" PRId64 " query:%p", pObj->vnode, pObj->sid,
            pObj->meterId, pQuery->order.order, pQuery->skey, pQuery);
   }
 
   pQInfo->pointsRead += pQuery->pointsRead;
 
-  dTrace("vid:%d sid:%d id:%s, %d points returned, totalRead:%d totalReturn:%d last key:%lld, query:%p", pObj->vnode,
+  dTrace("vid:%d sid:%d id:%s, %d points returned, totalRead:%d totalReturn:%d last key:%" PRId64 ", query:%p", pObj->vnode,
          pObj->sid, pObj->meterId, pQuery->pointsRead, pQInfo->pointsRead, pQInfo->pointsReturned, pQuery->lastKey,
          pQuery);
 
@@ -923,27 +923,27 @@ int vnodeSaveQueryResult(void *handle, char *data, int32_t *size) {
 
 static int32_t validateQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
   if (pQueryMsg->nAggTimeInterval < 0) {
-    dError("qmsg:%p illegal value of aggTimeInterval %ld", pQueryMsg, pQueryMsg->nAggTimeInterval);
+    dError("qmsg:%p illegal value of aggTimeInterval %" PRId64 "", pQueryMsg, pQueryMsg->nAggTimeInterval);
     return -1;
   }
 
   if (pQueryMsg->numOfTagsCols < 0 || pQueryMsg->numOfTagsCols > TSDB_MAX_TAGS + 1) {
-    dError("qmsg:%p illegal value of numOfTagsCols %ld", pQueryMsg, pQueryMsg->numOfTagsCols);
+    dError("qmsg:%p illegal value of numOfTagsCols %d", pQueryMsg, pQueryMsg->numOfTagsCols);
     return -1;
   }
 
   if (pQueryMsg->numOfCols <= 0 || pQueryMsg->numOfCols > TSDB_MAX_COLUMNS) {
-    dError("qmsg:%p illegal value of numOfCols %ld", pQueryMsg, pQueryMsg->numOfCols);
+    dError("qmsg:%p illegal value of numOfCols %d", pQueryMsg, pQueryMsg->numOfCols);
     return -1;
   }
 
   if (pQueryMsg->numOfSids <= 0) {
-    dError("qmsg:%p illegal value of numOfSids %ld", pQueryMsg, pQueryMsg->numOfSids);
+    dError("qmsg:%p illegal value of numOfSids %d", pQueryMsg, pQueryMsg->numOfSids);
     return -1;
   }
 
   if (pQueryMsg->numOfGroupCols < 0) {
-    dError("qmsg:%p illegal value of numOfGroupbyCols %ld", pQueryMsg, pQueryMsg->numOfGroupCols);
+    dError("qmsg:%p illegal value of numOfGroupbyCols %d", pQueryMsg, pQueryMsg->numOfGroupCols);
     return -1;
   }
 
@@ -1141,9 +1141,9 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
     }
   }
 
-  dTrace("qmsg:%p query on %d meter(s), qrange:%lld-%lld, numOfGroupbyTagCols:%d, numOfTagCols:%d, timestamp order:%d, "
-      "tags order:%d, tags order col:%d, numOfOutputCols:%d, numOfCols:%d, interval:%lld, fillType:%d, comptslen:%d, limit:%lld, "
-      "offset:%lld",
+  dTrace("qmsg:%p query on %d meter(s), qrange:%" PRId64 "-%" PRId64 ", numOfGroupbyTagCols:%d, numOfTagCols:%d, timestamp order:%d, "
+      "tags order:%d, tags order col:%d, numOfOutputCols:%d, numOfCols:%d, interval:%" PRId64 ", fillType:%d, comptslen:%d, limit:%" PRId64 ", "
+      "offset:%" PRId64,
       pQueryMsg, pQueryMsg->numOfSids, pQueryMsg->skey, pQueryMsg->ekey, pQueryMsg->numOfGroupCols,
       pQueryMsg->numOfTagsCols, pQueryMsg->order, pQueryMsg->orderType, pQueryMsg->orderByIdx,
       pQueryMsg->numOfOutputCols, pQueryMsg->numOfCols, pQueryMsg->nAggTimeInterval, pQueryMsg->interpoType,
