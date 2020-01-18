@@ -221,7 +221,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   }
 
   table_cmd->tagNum = stable_cmd->tagNum = (int8_t)tagsSize;
-  table_cmd->timestamp = stable_cmd->timestamp = httpAddToSqlCmdBuffer(pContext, "%lld", timestamp->valueint);
+  table_cmd->timestamp = stable_cmd->timestamp = httpAddToSqlCmdBuffer(pContext, "%" PRId64, timestamp->valueint);
   table_cmd->metric = stable_cmd->metric = httpAddToSqlCmdBuffer(pContext, "%s", name->valuestring);
 
   // stable name
@@ -259,7 +259,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
     if (tag->type == cJSON_String)
       stable_cmd->tagValues[i] = table_cmd->tagValues[i] = httpAddToSqlCmdBuffer(pContext, "\"%s\"", tag->valuestring);
     else if (tag->type == cJSON_Number)
-      stable_cmd->tagValues[i] = table_cmd->tagValues[i] = httpAddToSqlCmdBuffer(pContext, "%lld", tag->valueint);
+      stable_cmd->tagValues[i] = table_cmd->tagValues[i] = httpAddToSqlCmdBuffer(pContext, "%" PRId64, tag->valueint);
     else if (tag->type == cJSON_False || tag->type == cJSON_True)
       stable_cmd->tagValues[i] = table_cmd->tagValues[i] = httpAddToSqlCmdBuffer(pContext, "\"true\"");
     else
@@ -274,7 +274,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
     if (tag->type == cJSON_String)
       httpAddToSqlCmdBufferNoTerminal(pContext, "_%s", tag->valuestring);
     else if (tag->type == cJSON_Number)
-      httpAddToSqlCmdBufferNoTerminal(pContext, "_%lld", tag->valueint);
+      httpAddToSqlCmdBufferNoTerminal(pContext, "_%" PRId64, tag->valueint);
     else if (tag->type == cJSON_False)
       httpAddToSqlCmdBufferNoTerminal(pContext, "_0");
     else if (tag->type == cJSON_True)
@@ -344,7 +344,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
     }
   }
 
-  httpAddToSqlCmdBufferNoTerminal(pContext, " values(%lld,", timestamp->valueint);
+  httpAddToSqlCmdBufferNoTerminal(pContext, " values(%" PRId64 ",", timestamp->valueint);
   if (value->type == cJSON_Number) {
     httpAddToSqlCmdBuffer(pContext, "%lf)", value->valuedouble);
     table_cmd->values = stable_cmd->values = httpAddToSqlCmdBuffer(pContext, "%lf", value->valuedouble);
@@ -637,7 +637,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
     if (tag->type == cJSON_String)
       httpAddToSqlCmdBufferNoTerminal(pContext, "_%s", tag->valuestring);
     else if (tag->type == cJSON_Number)
-      httpAddToSqlCmdBufferNoTerminal(pContext, "_%lld", tag->valueint);
+      httpAddToSqlCmdBufferNoTerminal(pContext, "_%" PRId64, tag->valueint);
     else if (tag->type == cJSON_False)
       httpAddToSqlCmdBufferNoTerminal(pContext, "_0");
     else if (tag->type == cJSON_True)
@@ -738,7 +738,7 @@ bool opProcessPutSummaryMetricValues(HttpContext *pContext, cJSON *metric, char 
     }
   }
 
-  httpAddToSqlCmdBufferNoTerminal(pContext, " values(%lld,", timestamp->valueint);
+  httpAddToSqlCmdBufferNoTerminal(pContext, " values(%" PRId64 ",", timestamp->valueint);
   if (value->type == cJSON_Number) {
     httpAddToSqlCmdBufferNoTerminal(pContext, "%lf)", value->valuedouble);
   } else if (value->type == cJSON_String) {
