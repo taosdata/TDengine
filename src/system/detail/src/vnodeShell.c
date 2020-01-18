@@ -215,7 +215,10 @@ void vnodeCloseShellVnode(int vnode) {
   if (shellList[vnode] == NULL) return;
 
   for (int i = 0; i < vnodeList[vnode].cfg.maxSessions; ++i) {
-    vnodeDecRefCount(shellList[vnode][i].qhandle);
+    void* qhandle = shellList[vnode][i].qhandle;
+    if (qhandle != NULL) {
+      vnodeDecRefCount(qhandle);
+    }
   }
 
   int32_t* v = malloc(sizeof(int32_t));
