@@ -56,7 +56,7 @@ static int vnodeInitStoreVnode(int vnode) {
   }
 
   pthread_mutex_init(&(pVnode->vmutex), NULL);
-  dPrint("vid:%d, storage initialized, version:%ld fileId:%d numOfFiles:%d", vnode, pVnode->version, pVnode->fileId,
+  dPrint("vid:%d, storage initialized, version:%" PRIu64 " fileId:%d numOfFiles:%d", vnode, pVnode->version, pVnode->fileId,
          pVnode->numOfFiles);
 
   return TSDB_CODE_SUCCESS;
