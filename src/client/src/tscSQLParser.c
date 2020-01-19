@@ -4432,7 +4432,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
   const char* msg1 = "slimit/soffset only available for STable query";
   const char* msg2 = "function not supported on table";
   const char* msg3 = "slimit/soffset can not apply to projection query";
-  const char* msg4 = "projection on super table required limitation along with order clause";
+  const char* msg4 = "projection on super table requires order by clause along with limitation";
   const char* msg5 = "ordered projection result too large";
   
   // handle the limit offset value, validate the limit
@@ -4460,11 +4460,11 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
     if (queryOnTags == true) {  // local handle the metric tag query
       pQueryInfo->command = TSDB_SQL_RETRIEVE_TAGS;
     } else {
-      if (tscProjectionQueryOnSTable(pQueryInfo, 0)) {
-        if (pQueryInfo->order.orderColId != 0) {
+      if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+        if (pQueryInfo->order.orderColId >= 0) {
           if (pQueryInfo->limit.limit == -1) {
             return invalidSqlErrMsg(pQueryInfo->msg, msg4);
-          } else if (pQueryInfo->limit.limit > 100000) { // the result set can not be larger than 10000
+          } else if (pQueryInfo->limit.limit > 10000) { // the result set can not be larger than 10000
             //todo use global config parameter
             return invalidSqlErrMsg(pQueryInfo->msg, msg5);
           }
