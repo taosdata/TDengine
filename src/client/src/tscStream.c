@@ -349,7 +349,7 @@ static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
   } else {
     pStream->stime += pStream->slidingTime;
     if ((pStream->stime - pStream->interval) >= pStream->etime) {
-      tscTrace("%p stream:%p, stime:%ld is larger than end time: %ld, stop the stream", pStream->pSql, pStream,
+      tscTrace("%p stream:%p, stime:%" PRId64 " is larger than end time: %" PRId64 ", stop the stream", pStream->pSql, pStream,
                pStream->stime, pStream->etime);
       // TODO : How to terminate stream here
       if (pStream->callback) {

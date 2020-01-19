@@ -199,19 +199,25 @@
 #define TK_TWA                            181
 #define TK_INTERP                         182
 #define TK_LAST_ROW                       183
-#define TK_SEMI                           184
-#define TK_NONE                           185
-#define TK_PREV                           186
-#define TK_LINEAR                         187
-#define TK_IMPORT                         188
-#define TK_METRIC                         189
-#define TK_TBNAME                         190
-#define TK_JOIN                           191
-#define TK_METRICS                        192
-#define TK_STABLE                         193
-#define TK_INSERT                         194
-#define TK_INTO                           195
-#define TK_VALUES                         196
+#define TK_RATE                           184
+#define TK_IRATE                          185
+#define TK_SUM_RATE                       186
+#define TK_SUM_IRATE                      187
+#define TK_AVG_RATE                       188
+#define TK_AVG_IRATE                      189
+#define TK_SEMI                           190
+#define TK_NONE                           191
+#define TK_PREV                           192
+#define TK_LINEAR                         193
+#define TK_IMPORT                         194
+#define TK_METRIC                         195
+#define TK_TBNAME                         196
+#define TK_JOIN                           197
+#define TK_METRICS                        198
+#define TK_STABLE                         199
+#define TK_INSERT                         200
+#define TK_INTO                           201
+#define TK_VALUES                         202
 
 #endif
 

@@ -228,6 +228,11 @@ static SKeyword keywordTable[] = {
     {"FILE",         TK_FILE},
     {"VNODES",       TK_VNODES},
     {"UNION",        TK_UNION},
+    {"RATE",         TK_RATE},
+    {"IRATE",        TK_IRATE},
+    {"SUM_RATE",     TK_SUM_RATE},
+    {"AVG_RATE",     TK_AVG_RATE},
+    {"AVG_IRATE",    TK_AVG_IRATE},
 };
 
 static const char isIdChar[] = {

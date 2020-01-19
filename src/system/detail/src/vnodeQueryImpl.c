@@ -108,7 +108,7 @@ static FORCE_INLINE int32_t getCompHeaderStartPosition(SVnodeCfg *pCfg) {
 static FORCE_INLINE int32_t validateCompBlockOffset(SQInfo *pQInfo, SMeterObj *pMeterObj, SCompHeader *pCompHeader,
                                                     SQueryFilesInfo *pQueryFileInfo, int32_t headerSize) {
   if (pCompHeader->compInfoOffset < headerSize || pCompHeader->compInfoOffset > pQueryFileInfo->headerFileSize) {
-    dError("QInfo:%p vid:%d sid:%d id:%s, compInfoOffset:%d is not valid, size:%ld", pQInfo, pMeterObj->vnode,
+    dError("QInfo:%p vid:%d sid:%d id:%s, compInfoOffset:%" PRId64 " is not valid, size:%" PRId64, pQInfo, pMeterObj->vnode,
            pMeterObj->sid, pMeterObj->meterId, pCompHeader->compInfoOffset, pQueryFileInfo->headerFileSize);
 
     return -1;
@@ -121,7 +121,7 @@ static FORCE_INLINE int32_t validateCompBlockOffset(SQInfo *pQInfo, SMeterObj *p
 static FORCE_INLINE int32_t validateCompBlockInfoSegment(SQInfo *pQInfo, const char *filePath, int32_t vid,
                                                          SCompInfo *compInfo, int64_t offset) {
   if (!taosCheckChecksumWhole((uint8_t *)compInfo, sizeof(SCompInfo))) {
-    dLError("QInfo:%p vid:%d, failed to read header file:%s, file compInfo broken, offset:%lld", pQInfo, vid, filePath,
+    dLError("QInfo:%p vid:%d, failed to read header file:%s, file compInfo broken, offset:%" PRId64, pQInfo, vid, filePath,
             offset);
     return -1;
   }
@@ -133,7 +133,7 @@ static FORCE_INLINE int32_t validateCompBlockSegment(SQInfo *pQInfo, const char 
   uint32_t size = compInfo->numOfBlocks * sizeof(SCompBlock);
 
   if (checksum != taosCalcChecksum(0, (uint8_t *)pBlock, size)) {
-    dLError("QInfo:%p vid:%d, failed to read header file:%s, file compblock is broken:%ld", pQInfo, vid, filePath,
+    dLError("QInfo:%p vid:%d, failed to read header file:%s, file compblock is broken:%zu", pQInfo, vid, filePath,
             (char *)compInfo + sizeof(SCompInfo));
     return -1;
   }
@@ -774,7 +774,7 @@ static int32_t loadColumnIntoMem(SQuery *pQuery, SQueryFilesInfo *pQueryFileInfo
 
   // check column data integrity
   if (checksum != taosCalcChecksum(0, (const uint8_t *)dst, pFields[col].len)) {
-    dLError("QInfo:%p, column data checksum error, file:%s, col: %d, offset:%ld", GET_QINFO_ADDR(pQuery),
+    dLError("QInfo:%p, column data checksum error, file:%s, col: %d, offset:%" PRId64, GET_QINFO_ADDR(pQuery),
             pQueryFileInfo->dataFilePath, col, offset);
 
     return -1;
@@ -816,7 +816,7 @@ static int32_t loadDataBlockFieldsInfo(SQueryRuntimeEnv *pRuntimeEnv, SCompBlock
 
   // check fields integrity
   if (!taosCheckChecksumWhole((uint8_t *)(*pField), size)) {
-    dLError("QInfo:%p vid:%d sid:%d id:%s, slot:%d, failed to read sfields, file:%s, sfields area broken:%lld", pQInfo,
+    dLError("QInfo:%p vid:%d sid:%d id:%s, slot:%d, failed to read sfields, file:%s, sfields area broken:%" PRId64, pQInfo,
             pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->slot, pVnodeFilesInfo->dataFilePath,
             pBlock->offset);
     return -1;
@@ -1637,7 +1637,7 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
   TSKEY key = *(TSKEY *)(pCtx[0].aInputElemBuf + TSDB_KEYSIZE * offset);
 
 #if defined(_DEBUG_VIEW)
-  printf("elem in comp ts file:%lld, key:%lld, tag:%d, id:%s, query order:%d, ts order:%d, traverse:%d, index:%d\n",
+  printf("elem in comp ts file:%" PRId64 ", key:%" PRId64 ", tag:%d, id:%s, query order:%d, ts order:%d, traverse:%d, index:%d\n",
          elem.ts, key, elem.tag, pRuntimeEnv->pMeterObj->meterId, pQuery->order.order, pRuntimeEnv->pTSBuf->tsOrder,
          pRuntimeEnv->pTSBuf->cur.order, pRuntimeEnv->pTSBuf->cur.tsIndex);
 #endif
@@ -2819,7 +2819,7 @@ static bool getNeighborPoints(SMeterQuerySupportObj *pSupporter, SMeterObj *pMet
      * reset the status and load the data block that contains the qualified point
      */
     if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
-      dTrace("QInfo:%p no previous data block, start fileId:%d, slot:%d, pos:%d, qrange:%lld-%lld, out of range",
+      dTrace("QInfo:%p no previous data block, start fileId:%d, slot:%d, pos:%d, qrange:%" PRId64 "-%" PRId64 ", out of range",
              GET_QINFO_ADDR(pQuery), pRuntimeEnv->startPos.fileId, pRuntimeEnv->startPos.slot,
              pRuntimeEnv->startPos.pos, pQuery->skey, pQuery->ekey);
 
@@ -3312,8 +3312,9 @@ static bool onlyLastQuery(SQuery *pQuery) { return onlyOneQueryType(pQuery, TSDB
 
 static void changeExecuteScanOrder(SQuery *pQuery, bool metricQuery) {
   // in case of point-interpolation query, use asc order scan
-  const char* msg = "QInfo:%p scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%lld-%lld, "
-      "new qrange:%lld-%lld";
+  char msg[] =
+      "QInfo:%p scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%" PRId64 "-%" PRId64 ", "
+      "new qrange:%" PRId64 "-%" PRId64;
 
   // descending order query for last_row query
   if (isFirstLastRowQuery(pQuery)) {
@@ -3418,7 +3419,7 @@ static int32_t doSkipDataBlock(SQueryRuntimeEnv *pRuntimeEnv) {
       pQuery->lastKey = (QUERY_IS_ASC_QUERY(pQuery)) ? blockInfo.keyLast : blockInfo.keyFirst;
       pQuery->lastKey += step;
 
-      qTrace("QInfo:%p skip rows:%d, offset:%lld", GET_QINFO_ADDR(pQuery), maxReads, pQuery->limit.offset);
+      qTrace("QInfo:%p skip rows:%d, offset:%" PRId64 "", GET_QINFO_ADDR(pQuery), maxReads, pQuery->limit.offset);
     }
   }
 
@@ -3843,7 +3844,7 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
    */
   if ((QUERY_IS_ASC_QUERY(pQuery) && (pQuery->skey > pQuery->ekey)) ||
       (!QUERY_IS_ASC_QUERY(pQuery) && (pQuery->ekey > pQuery->skey))) {
-    dTrace("QInfo:%p no result in time range %lld-%lld, order %d", pQInfo, pQuery->skey, pQuery->ekey,
+    dTrace("QInfo:%p no result in time range %" PRId64 "-%" PRId64 ", order %d", pQInfo, pQuery->skey, pQuery->ekey,
            pQuery->order.order);
 
     sem_post(&pQInfo->dataReady);
@@ -4008,7 +4009,7 @@ void vnodeQueryFreeQInfoEx(SQInfo *pQInfo) {
 
   if (FD_VALID(pSupporter->meterOutputFd)) {
     assert(pSupporter->meterOutputMMapBuf != NULL);
-    dTrace("QInfo:%p disk-based output buffer during query:%lld bytes", pQInfo, pSupporter->bufSize);
+    dTrace("QInfo:%p disk-based output buffer during query:%" PRId64 " bytes", pQInfo, pSupporter->bufSize);
     munmap(pSupporter->meterOutputMMapBuf, pSupporter->bufSize);
     tclose(pSupporter->meterOutputFd);
 
@@ -4035,7 +4036,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
 
   if ((QUERY_IS_ASC_QUERY(pQuery) && (pQuery->skey > pQuery->ekey)) ||
       (!QUERY_IS_ASC_QUERY(pQuery) && (pQuery->ekey > pQuery->skey))) {
-    dTrace("QInfo:%p no result in time range %lld-%lld, order %d", pQInfo, pQuery->skey, pQuery->ekey,
+    dTrace("QInfo:%p no result in time range %" PRId64 "-%" PRId64 ", order %d", pQInfo, pQuery->skey, pQuery->ekey,
            pQuery->order.order);
 
     sem_post(&pQInfo->dataReady);
@@ -4264,8 +4265,8 @@ TSKEY getQueryPositionForCacheInvalid(SQueryRuntimeEnv *pRuntimeEnv, __block_sea
   int32_t    step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
 
   dTrace(
-      "QInfo:%p vid:%d sid:%d id:%s cache block is assigned to other meter, "
-      "try get query start position in file/cache, qrange:%lld-%lld, lastKey:%lld",
+      "QInfo:%p vid:%d sid:%d id:%s cache block re-allocated to other meter, "
+      "try get query start position in file/cache, qrange:%" PRId64 "-%" PRId64 ", lastKey:%" PRId64,
       pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->skey, pQuery->ekey, pQuery->lastKey);
 
   if (step == QUERY_DESC_FORWARD_STEP) {
@@ -4508,7 +4509,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   SPositionInfo *pStartPos = &pRuntimeEnv->startPos;
   assert(pQuery->slot == pStartPos->slot);
 
-  dTrace("QInfo:%p query start, qrange:%lld-%lld, lastkey:%lld, order:%d, start fileId:%d, slot:%d, pos:%d, bstatus:%d",
+  dTrace("QInfo:%p query start, qrange:%" PRId64 "-%" PRId64 ", lastkey:%" PRId64 ", order:%d, start fileId:%d, slot:%d, pos:%d, bstatus:%d",
          GET_QINFO_ADDR(pQuery), pQuery->skey, pQuery->ekey, pQuery->lastKey, pQuery->order.order, pStartPos->fileId,
          pStartPos->slot, pStartPos->pos, pRuntimeEnv->blockStatus);
 
@@ -4523,7 +4524,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     SBlockInfo blockInfo = {0};
     doHandleDataBlockImpl(pRuntimeEnv, &blockInfo, searchFn, &numOfRes, blockLoadStatus, &forwardStep);
 
-    dTrace("QInfo:%p check data block, brange:%lld-%lld, fileId:%d, slot:%d, pos:%d, bstatus:%d, rows:%d, checked:%d",
+    dTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", fileId:%d, slot:%d, pos:%d, bstatus:%d, rows:%d, checked:%d",
            GET_QINFO_ADDR(pQuery), blockInfo.keyFirst, blockInfo.keyLast, pQuery->fileId, pQuery->slot, pQuery->pos,
            pRuntimeEnv->blockStatus, blockInfo.size, forwardStep);
 
@@ -4712,27 +4713,27 @@ static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType)
   if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
     switch (srcDataType) {
       case TSDB_DATA_TYPE_BINARY:
-        printf("%ld,%s\t", *(TSKEY *)data, (data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%s\t", *(TSKEY *)data, (data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_TINYINT:
       case TSDB_DATA_TYPE_BOOL:
-        printf("%ld,%d\t", *(TSKEY *)data, *(int8_t *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%d\t", *(TSKEY *)data, *(int8_t *)(data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_SMALLINT:
-        printf("%ld,%d\t", *(TSKEY *)data, *(int16_t *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%d\t", *(TSKEY *)data, *(int16_t *)(data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_BIGINT:
       case TSDB_DATA_TYPE_TIMESTAMP:
-        printf("%ld,%ld\t", *(TSKEY *)data, *(TSKEY *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%" PRId64 "\t", *(TSKEY *)data, *(TSKEY *)(data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_INT:
-        printf("%ld,%d\t", *(TSKEY *)data, *(int32_t *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%d\t", *(TSKEY *)data, *(int32_t *)(data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_FLOAT:
-        printf("%ld,%f\t", *(TSKEY *)data, *(float *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%f\t", *(TSKEY *)data, *(float *)(data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_DOUBLE:
-        printf("%ld,%lf\t", *(TSKEY *)data, *(double *)(data + TSDB_KEYSIZE + 1));
+        printf("%" PRId64 ",%lf\t", *(TSKEY *)data, *(double *)(data + TSDB_KEYSIZE + 1));
         break;
     }
   } else if (functionId == TSDB_FUNC_AVG) {
@@ -4741,7 +4742,7 @@ static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType)
     printf("%lf,%lf\t", *(double *)data, *(double *)(data + sizeof(double)));
   } else if (functionId == TSDB_FUNC_TWA) {
     data += 1;
-    printf("%lf,%ld,%ld,%ld\t", *(double *)data, *(int64_t *)(data + 8), *(int64_t *)(data + 16),
+    printf("%lf,%" PRId64 ",%" PRId64 ",%" PRId64 "\t", *(double *)data, *(int64_t *)(data + 8), *(int64_t *)(data + 16),
            *(int64_t *)(data + 24));
   } else if (functionId == TSDB_FUNC_MIN || functionId == TSDB_FUNC_MAX) {
     switch (srcDataType) {
@@ -4754,7 +4755,7 @@ static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType)
         break;
       case TSDB_DATA_TYPE_BIGINT:
       case TSDB_DATA_TYPE_TIMESTAMP:
-        printf("%ld\t", *(int64_t *)data);
+        printf("%" PRId64 "\t", *(int64_t *)data);
         break;
       case TSDB_DATA_TYPE_INT:
         printf("%d\t", *(int *)data);
@@ -4770,7 +4771,7 @@ static void printBinaryData(int32_t functionId, char *data, int32_t srcDataType)
     if (srcDataType == TSDB_DATA_TYPE_FLOAT || srcDataType == TSDB_DATA_TYPE_DOUBLE) {
       printf("%lf\t", *(float *)data);
     } else {
-      printf("%ld\t", *(int64_t *)data);
+      printf("%" PRId64 "\t", *(int64_t *)data);
     }
   } else {
     printf("%s\t", data);
@@ -4802,7 +4803,7 @@ void UNUSED_FUNC displayInterResult(SData **pdata, SQuery *pQuery, int32_t numOf
         }
         case TSDB_DATA_TYPE_TIMESTAMP:
         case TSDB_DATA_TYPE_BIGINT:
-          printf("%ld\t", *(int64_t *)(pdata[i]->data + pQuery->pSelectExpr[i].resBytes * j));
+          printf("%" PRId64 "\t", *(int64_t *)(pdata[i]->data + pQuery->pSelectExpr[i].resBytes * j));
           break;
         case TSDB_DATA_TYPE_INT:
           printf("%d\t", *(int32_t *)(pdata[i]->data + pQuery->pSelectExpr[i].resBytes * j));
@@ -5068,7 +5069,7 @@ int32_t doMergeMetersResultsToGroupRes(SMeterQuerySupportObj *pSupporter, SQuery
   displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->len);
 #endif
 
-  dTrace("QInfo:%p result merge completed, elapsed time:%lld ms", GET_QINFO_ADDR(pQuery), endt - startt);
+  dTrace("QInfo:%p result merge completed, elapsed time:%" PRId64 " ms", GET_QINFO_ADDR(pQuery), endt - startt);
   tfree(pTree);
   tfree(pValidMeter);
   tfree(posArray);
@@ -6052,11 +6053,11 @@ static bool setCurrentQueryRange(SMeterDataInfo *pMeterDataInfo, SQuery *pQuery,
   }
 
   if (*minval > *maxval) {
-    qTrace("QInfo:%p vid:%d sid:%d id:%s, no result in files, qrange:%lld-%lld, lastKey:%lld", pQInfo, pMeterObj->vnode,
+    qTrace("QInfo:%p vid:%d sid:%d id:%s, no result in files, qrange:%" PRId64 "-%" PRId64 ", lastKey:%" PRId64, pQInfo, pMeterObj->vnode,
            pMeterObj->sid, pMeterObj->meterId, pMeterQInfo->skey, pMeterQInfo->ekey, pMeterQInfo->lastKey);
     return false;
   } else {
-    qTrace("QInfo:%p vid:%d sid:%d id:%s, query in files, qrange:%lld-%lld, lastKey:%lld", pQInfo, pMeterObj->vnode,
+    qTrace("QInfo:%p vid:%d sid:%d id:%s, query in files, qrange:%" PRId64 "-%" PRId64 ", lastKey:%" PRId64, pQInfo, pMeterObj->vnode,
            pMeterObj->sid, pMeterObj->meterId, pMeterQInfo->skey, pMeterQInfo->ekey, pMeterQInfo->lastKey);
     return true;
   }
@@ -6439,7 +6440,7 @@ void setCtxOutputPointerForSupplementScan(SMeterQuerySupportObj *pSupporter, SMe
   // the first column is always the timestamp for interval query
   TSKEY      ts = *(TSKEY *)pRuntimeEnv->pCtx[0].aOutputBuf;
   SMeterObj *pMeterObj = pRuntimeEnv->pMeterObj;
-  qTrace("QInfo:%p vid:%d sid:%d id:%s, set output result pointer, ts:%lld, index:%d", GET_QINFO_ADDR(pQuery),
+  qTrace("QInfo:%p vid:%d sid:%d id:%s, set output result pointer, ts:%" PRId64 ", index:%d", GET_QINFO_ADDR(pQuery),
          pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, ts, pMeterQueryInfo->reverseIndex);
 }
 
@@ -6838,7 +6839,7 @@ int32_t LoadDatablockOnDemand(SCompBlock *pBlock, SField **pFields, uint8_t *blk
     }
 
     if (req == BLK_DATA_NO_NEEDED) {
-      qTrace("QInfo:%p vid:%d sid:%d id:%s, slot:%d, data block ignored, brange:%lld-%lld, rows:%d",
+      qTrace("QInfo:%p vid:%d sid:%d id:%s, slot:%d, data block ignored, brange:%" PRId64 "-%" PRId64 ", rows:%d",
              GET_QINFO_ADDR(pQuery), pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->slot,
              pBlock->keyFirst, pBlock->keyLast, pBlock->numOfPoints);
 
@@ -6869,7 +6870,7 @@ int32_t LoadDatablockOnDemand(SCompBlock *pBlock, SField **pFields, uint8_t *blk
         dTrace("QInfo:%p fileId:%d, slot:%d, block discarded by per-filter, ", GET_QINFO_ADDR(pQuery), pQuery->fileId,
                pQuery->slot);
 #endif
-        qTrace("QInfo:%p id:%s slot:%d, data block ignored by pre-filter, fields loaded, brange:%lld-%lld, rows:%d",
+        qTrace("QInfo:%p id:%s slot:%d, data block ignored by pre-filter, fields loaded, brange:%" PRId64 "-%" PRId64 ", rows:%d",
                GET_QINFO_ADDR(pQuery), pMeterObj->meterId, pQuery->slot, pBlock->keyFirst, pBlock->keyLast,
                pBlock->numOfPoints);
         return DISK_DATA_DISCARDED;
@@ -6982,7 +6983,7 @@ int32_t saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQue
     TSKEY ts = *(TSKEY *)getOutputResPos(pRuntimeEnv, pData, pData->numOfElems, 0);
 
     SMeterObj *pMeterObj = pRuntimeEnv->pMeterObj;
-    qTrace("QInfo:%p vid:%d sid:%d id:%s, save results, ts:%lld, total:%d", GET_QINFO_ADDR(pQuery), pMeterObj->vnode,
+    qTrace("QInfo:%p vid:%d sid:%d id:%s, save results, ts:%" PRId64 ", total:%d", GET_QINFO_ADDR(pQuery), pMeterObj->vnode,
            pMeterObj->sid, pMeterObj->meterId, ts, pMeterQueryInfo->numOfRes + 1);
 
     pData->numOfElems += numOfResult;
@@ -7289,7 +7290,7 @@ int32_t vnodeCopyQueryResultToMsg(void *handle, char *data, int32_t numOfRows) {
     // make sure file exist
     if (FD_VALID(fd)) {
       size_t s = lseek(fd, 0, SEEK_END);
-      dTrace("QInfo:%p ts comp data return, file:%s, size:%lld", pQInfo, pQuery->sdata[0]->data, s);
+      dTrace("QInfo:%p ts comp data return, file:%s, size:%zu", pQInfo, pQuery->sdata[0]->data, s);
 
       lseek(fd, 0, SEEK_SET);
       read(fd, data, s);

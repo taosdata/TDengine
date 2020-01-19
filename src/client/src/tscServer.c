@@ -1212,7 +1212,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     tColModelCompact(pDesc->pSchema, trsupport->localBuffer, pDesc->pSchema->maxCapacity);
 
 #ifdef _DEBUG_VIEW
-    printf("%ld rows data flushed to disk:\n", trsupport->localBuffer->numOfElems);
+    printf("%" PRIu64 " rows data flushed to disk:\n", trsupport->localBuffer->numOfElems);
     SSrcColumnInfo colInfo[256] = {0};
     SQueryInfo *   pQueryInfo = tscGetQueryInfoDetail(&pPObj->cmd, 0);
 
@@ -1560,7 +1560,7 @@ static char *doSerializeTableInfo(SSqlObj *pSql, int32_t numOfMeters, int32_t vn
   tscTrace("%p vid:%d, query on %d meters", pSql, htons(vnodeId), numOfMeters);
   if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
 #ifdef _DEBUG_VIEW
-    tscTrace("%p sid:%d, uid:%lld", pSql, pMeterMetaInfo->pMeterMeta->sid, pMeterMetaInfo->pMeterMeta->uid);
+    tscTrace("%p sid:%d, uid:%" PRIu64, pSql, pMeterMetaInfo->pMeterMeta->sid, pMeterMetaInfo->pMeterMeta->uid);
 #endif
     SMeterSidExtInfo *pMeterInfo = (SMeterSidExtInfo *)pMsg;
     pMeterInfo->sid = htonl(pMeterMeta->sid);
@@ -1583,7 +1583,7 @@ static char *doSerializeTableInfo(SSqlObj *pSql, int32_t numOfMeters, int32_t vn
       pMsg += pMetricMeta->tagLen;
 
 #ifdef _DEBUG_VIEW
-      tscTrace("%p sid:%d, uid:%lld", pSql, pQueryMeterInfo->sid, pQueryMeterInfo->uid);
+      tscTrace("%p sid:%d, uid:%" PRId64, pSql, pQueryMeterInfo->sid, pQueryMeterInfo->uid);
 #endif
     }
   }

@@ -146,7 +146,9 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
       if (pQuery->nAggTimeInterval == 0) {
         if ((pQuery->lastKey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
             (pQuery->lastKey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
-          dTrace("QInfo:%p vid:%d sid:%d id:%s, query completed, ignore data in cache. qrange:%lld-%lld, lastKey:%lld",
+          dTrace(
+              "QInfo:%p vid:%d sid:%d id:%s, query completed, ignore data in cache. qrange:%" PRId64 "-%" PRId64 ", "
+              "lastKey:%" PRId64,
               pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->skey, pQuery->ekey,
               pQuery->lastKey);
 
@@ -162,7 +164,7 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
         }
       }
 
-      qTrace("QInfo:%p vid:%d sid:%d id:%s, query in cache, qrange:%lld-%lld, lastKey:%lld", pQInfo, pMeterObj->vnode,
+      qTrace("QInfo:%p vid:%d sid:%d id:%s, query in cache, qrange:%" PRId64 "-%" PRId64 ", lastKey:%" PRId64, pQInfo, pMeterObj->vnode,
              pMeterObj->sid, pMeterObj->meterId, pQuery->skey, pQuery->ekey, pQuery->lastKey);
 
       /*
@@ -174,7 +176,7 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
        */
       TSKEY nextKey = getQueryStartPositionInCache(pRuntimeEnv, &pQuery->slot, &pQuery->pos, true);
       if (nextKey < 0) {
-        qTrace("QInfo:%p vid:%d sid:%d id:%s, no data qualified in cache, cache blocks:%d, lastKey:%lld", pQInfo,
+        qTrace("QInfo:%p vid:%d sid:%d id:%s, no data qualified in cache, cache blocks:%d, lastKey:%" PRId64, pQInfo,
                pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->numOfBlocks, pQuery->lastKey);
         continue;
       }
@@ -223,7 +225,7 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
         SET_CACHE_BLOCK_FLAG(pRuntimeEnv->blockStatus);
         SBlockInfo binfo = getBlockBasicInfo(pRuntimeEnv, pBlock, BLK_CACHE_BLOCK);
 
-        dTrace("QInfo:%p check data block, brange:%lld-%lld, fileId:%d, slot:%d, pos:%d, bstatus:%d",
+        dTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", fileId:%d, slot:%d, pos:%d, bstatus:%d",
                GET_QINFO_ADDR(pQuery), binfo.keyFirst, binfo.keyLast, pQuery->fileId, pQuery->slot, pQuery->pos,
                pRuntimeEnv->blockStatus);
 
@@ -372,7 +374,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
         stimeUnit = taosGetTimestampMs();
       } else if ((j % TRACE_OUTPUT_BLOCK_CNT) == 0) {
         etimeUnit = taosGetTimestampMs();
-        dTrace("QInfo:%p load and check %ld blocks, and continue. elapsed:%ldms", pQInfo, TRACE_OUTPUT_BLOCK_CNT,
+        dTrace("QInfo:%p load and check %" PRId64 " blocks, and continue. elapsed:%" PRId64 " ms", pQInfo, TRACE_OUTPUT_BLOCK_CNT,
                etimeUnit - stimeUnit);
         stimeUnit = taosGetTimestampMs();
       }
@@ -391,8 +393,8 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
         if ((pQuery->lastKey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
             (pQuery->lastKey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
           qTrace(
-              "QInfo:%p vid:%d sid:%d id:%s, query completed, no need to scan this data block. qrange:%lld-%lld, "
-              "lastKey:%lld",
+              "QInfo:%p vid:%d sid:%d id:%s, query completed, no need to scan this data block. qrange:%" PRId64 "-%" PRId64 ", "
+              "lastKey:%" PRId64,
               pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->skey, pQuery->ekey,
               pQuery->lastKey);
 
@@ -477,7 +479,7 @@ static bool multimeterMultioutputHelper(SQInfo *pQInfo, bool *dataInDisk, bool *
 
   vnodeSetTagValueInParam(pSupporter->pSidSet, pRuntimeEnv, pMeterSidExtInfo[index]);
 
-  dTrace("QInfo:%p query on (%d): vid:%d sid:%d meterId:%s, qrange:%lld-%lld", pQInfo, index - start, pMeterObj->vnode,
+  dTrace("QInfo:%p query on (%d): vid:%d sid:%d meterId:%s, qrange:%" PRId64 "-%" PRId64, pQInfo, index - start, pMeterObj->vnode,
          pMeterObj->sid, pMeterObj->meterId, pQuery->skey, pQuery->ekey);
 
   pQInfo->pObj = pMeterObj;
@@ -491,7 +493,7 @@ static bool multimeterMultioutputHelper(SQInfo *pQInfo, bool *dataInDisk, bool *
 
   // data in file or cache is not qualified for the query. abort
   if (!(dataInCache || dataInDisk)) {
-    dTrace("QInfo:%p vid:%d sid:%d meterId:%s, qrange:%lld-%lld, nores, %p", pQInfo, pMeterObj->vnode, pMeterObj->sid,
+    dTrace("QInfo:%p vid:%d sid:%d meterId:%s, qrange:%" PRId64 "-%" PRId64 ", nores, %p", pQInfo, pMeterObj->vnode, pMeterObj->sid,
            pMeterObj->meterId, pQuery->skey, pQuery->ekey, pQuery);
     return false;
   }
@@ -795,7 +797,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
 
   dTrace(
       "QInfo %p vid:%d, numOfMeters:%d, index:%d, numOfGroups:%d, %d points returned, totalRead:%d totalReturn:%d,"
-      "next skey:%lld, offset:%lld",
+      "next skey:%" PRId64 ", offset:%" PRId64,
       pQInfo, pOneMeter->vnode, pSids->numOfSids, pSupporter->meterIdx, pSids->numOfSubSet, pQuery->pointsRead,
       pQInfo->pointsRead, pQInfo->pointsReturned, pQuery->skey, pQuery->limit.offset);
 }
@@ -905,7 +907,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
     return;
   }
 
-  dTrace("QInfo:%p query start, qrange:%lld-%lld, order:%d, group:%d", pQInfo, pSupporter->rawSKey, pSupporter->rawEKey,
+  dTrace("QInfo:%p query start, qrange:%" PRId64 "-%" PRId64 ", order:%d, group:%d", pQInfo, pSupporter->rawSKey, pSupporter->rawEKey,
          pQuery->order.order, pSupporter->pSidSet->numOfSubSet);
 
   dTrace("QInfo:%p main query scan start", pQInfo);
@@ -1025,7 +1027,7 @@ static void vnodeSingleMeterMultiOutputProcessor(SQInfo *pQInfo) {
     TSKEY nextTimestamp = loadRequiredBlockIntoMem(pRuntimeEnv, &pRuntimeEnv->nextPos);
     assert(nextTimestamp > 0 || ((nextTimestamp < 0) && Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)));
 
-    dTrace("QInfo:%p vid:%d sid:%d id:%s, skip current result, offset:%lld, next qrange:%lld-%lld", pQInfo,
+    dTrace("QInfo:%p vid:%d sid:%d id:%s, skip current result, offset:%" PRId64 ", next qrange:%" PRId64 "-%" PRId64, pQInfo,
            pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->limit.offset, pQuery->lastKey, pQuery->ekey);
 
     resetCtxOutputBuf(pRuntimeEnv);
@@ -1040,7 +1042,7 @@ static void vnodeSingleMeterMultiOutputProcessor(SQInfo *pQInfo) {
     TSKEY nextTimestamp = loadRequiredBlockIntoMem(pRuntimeEnv, &pRuntimeEnv->nextPos);
     assert(nextTimestamp > 0 || ((nextTimestamp < 0) && Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)));
 
-    dTrace("QInfo:%p vid:%d sid:%d id:%s, query abort due to buffer limitation, next qrange:%lld-%lld", pQInfo,
+    dTrace("QInfo:%p vid:%d sid:%d id:%s, query abort due to buffer limitation, next qrange:%" PRId64 "-%" PRId64, pQInfo,
            pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->lastKey, pQuery->ekey);
   }
 
