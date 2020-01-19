@@ -4460,7 +4460,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
     if (queryOnTags == true) {  // local handle the metric tag query
       pQueryInfo->command = TSDB_SQL_RETRIEVE_TAGS;
     } else {
-      if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+      if (tscProjectionQueryOnSTable(pQueryInfo, 0)) {
         if (pQueryInfo->order.orderColId >= 0) {
           if (pQueryInfo->limit.limit == -1) {
             return invalidSqlErrMsg(pQueryInfo->msg, msg4);
@@ -4473,6 +4473,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
         if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
           return invalidSqlErrMsg(pQueryInfo->msg, msg3);
         }
+        pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY; // for projection query on super table, all queries are subqueries
       }
     }
 
