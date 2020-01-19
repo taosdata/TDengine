@@ -31,10 +31,13 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 
-#define TSC_GET_RESPTR_BASE(res, _queryinfo, col, ord)                     \
-  ((res->data + tscFieldInfoGetOffset(_queryinfo, col) * res->numOfRows) + \
-   (1 - ord.order) * (res->numOfRows - 1) * tscFieldInfoGetField(_queryinfo, col)->bytes)
+//#define TSC_GET_RESPTR_BASE(res, _queryinfo, col, ord)                     \
+//  ((res->data + tscFieldInfoGetOffset(_queryinfo, col) * res->numOfRows) + \
+//   (1 - ord.order) * (res->numOfRows - 1) * tscFieldInfoGetField(_queryinfo, col)->bytes)
 
+#define TSC_GET_RESPTR_BASE(res, _queryinfo, col, ord)                     \
+  (res->data + tscFieldInfoGetOffset(_queryinfo, col) * res->numOfRows)
+  
 // forward declaration
 struct SSqlInfo;
 

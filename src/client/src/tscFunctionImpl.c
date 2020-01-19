@@ -1466,7 +1466,9 @@ static void first_function(SQLFunctionCtx *pCtx) {
     }
 
     memcpy(pCtx->aOutputBuf, data, pCtx->inputBytes);
-    DO_UPDATE_TAG_COLUMNS(pCtx, i);
+  
+    TSKEY k = pCtx->ptsList[i];
+    DO_UPDATE_TAG_COLUMNS(pCtx, k);
 
     SResultInfo *pInfo = GET_RES_INFO(pCtx);
     pInfo->hasResult = DATA_SET_FLAG;

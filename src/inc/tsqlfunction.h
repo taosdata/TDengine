@@ -162,8 +162,8 @@ typedef struct SExtTagsInfo {
 // sql function runtime context
 typedef struct SQLFunctionCtx {
   int32_t startOffset;
-  int32_t size;
-  int32_t order;
+  int32_t size;      // number of rows
+  int32_t order;     // asc|desc
   int32_t scanFlag;  // TODO merge with currentStage
 
   int16_t inputType;

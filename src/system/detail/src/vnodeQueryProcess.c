@@ -1162,7 +1162,7 @@ static void vnodeSingleMeterIntervalProcessor(SQInfo *pQInfo) {
   pQInfo->pointsRead += pQuery->pointsRead;
   pQInfo->pointsInterpo += numOfInterpo;
 
-  moveDescOrderResultsToFront(pRuntimeEnv);
+//  moveDescOrderResultsToFront(pRuntimeEnv);
 
   dTrace("%p vid:%d sid:%d id:%s, %d points returned %d points interpo, totalRead:%d totalInterpo:%d totalReturn:%d",
          pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead, numOfInterpo,

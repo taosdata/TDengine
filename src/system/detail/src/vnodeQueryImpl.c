@@ -4461,7 +4461,7 @@ static void doHandleDataBlockImpl(SQueryRuntimeEnv *pRuntimeEnv, SBlockInfo *pbl
   SQuery *           pQuery = pRuntimeEnv->pQuery;
   SQueryCostSummary *pSummary = &pRuntimeEnv->summary;
 
-    TSKEY *primaryKeys = (TSKEY *)pRuntimeEnv->primaryColBuffer->data;
+  TSKEY *primaryKeys = (TSKEY *)pRuntimeEnv->primaryColBuffer->data;
   int64_t start = taosGetTimestampUs();
 
   if (IS_DISK_DATA_BLOCK(pQuery)) {
@@ -5297,11 +5297,11 @@ void resetCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv) {
     SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
 
     // ts_comp query does not required reversed output
-    if (QUERY_IS_ASC_QUERY(pQuery) || isTSCompQuery(pQuery)) {
+//    if (QUERY_IS_ASC_QUERY(pQuery) || isTSCompQuery(pQuery)) {
       pCtx->aOutputBuf = pQuery->sdata[i]->data;
-    } else {  // point to the last position of output buffer for desc query
-      pCtx->aOutputBuf = pQuery->sdata[i]->data + (rows - 1) * pCtx->outputBytes;
-    }
+//    } else {  // point to the last position of output buffer for desc query
+//      pCtx->aOutputBuf = pQuery->sdata[i]->data + (rows - 1) * pCtx->outputBytes;
+//    }
 
     /*
      * set the output buffer information and intermediate buffer
@@ -5333,7 +5333,7 @@ void forwardCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, int64_t output) {
 
     // set next output position
     if (IS_OUTER_FORWARD(aAggs[functionId].nStatus)) {
-      pRuntimeEnv->pCtx[j].aOutputBuf += pRuntimeEnv->pCtx[j].outputBytes * output * factor;
+      pRuntimeEnv->pCtx[j].aOutputBuf += pRuntimeEnv->pCtx[j].outputBytes * output /** factor*/;
     }
 
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
@@ -5415,20 +5415,20 @@ void doSkipResults(SQueryRuntimeEnv *pRuntimeEnv) {
  * @param pRuntimeEnv
  */
 void moveDescOrderResultsToFront(SQueryRuntimeEnv *pRuntimeEnv) {
-  SQuery *pQuery = pRuntimeEnv->pQuery;
-  int32_t maxrows = pQuery->pointsToRead;
-
-  if (QUERY_IS_ASC_QUERY(pQuery) || isTSCompQuery(pQuery)) {
-    return;
-  }
-
-  if (pQuery->pointsRead > 0 && pQuery->pointsRead < maxrows) {
-    for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-      int32_t bytes = pRuntimeEnv->pCtx[i].outputBytes;
-      memmove(pQuery->sdata[i]->data, pQuery->sdata[i]->data + (maxrows - pQuery->pointsRead) * bytes,
-              pQuery->pointsRead * bytes);
-    }
-  }
+//  SQuery *pQuery = pRuntimeEnv->pQuery;
+//  int32_t maxrows = pQuery->pointsToRead;
+//
+//  if (QUERY_IS_ASC_QUERY(pQuery) || isTSCompQuery(pQuery)) {
+//    return;
+//  }
+//
+//  if (pQuery->pointsRead > 0 && pQuery->pointsRead < maxrows) {
+//    for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+//      int32_t bytes = pRuntimeEnv->pCtx[i].outputBytes;
+//      memmove(pQuery->sdata[i]->data, pQuery->sdata[i]->data + (maxrows - pQuery->pointsRead) * bytes,
+//              pQuery->pointsRead * bytes);
+//    }
+//  }
 }
 
 typedef struct SQueryStatus {

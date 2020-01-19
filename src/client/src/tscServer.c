@@ -257,9 +257,6 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
        * in the edge edition, ip is 0, and at this time we use masterIp instead
        * in the cluster edition, ip is vnode ip
        */
-      //(pSql->index) = (pSql->index + 1) % TSDB_VNODES_SUPPORT;
-      //continue;
-
       pVPeersDesc[pSql->index].ip = tscMgmtIpList.ip[0];
     }
     *pCode = TSDB_CODE_SUCCESS;
@@ -2484,12 +2481,12 @@ static int tscSetResultPointer(SQueryInfo *pQueryInfo, SSqlRes *pRes) {
     int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, i);
 
     pRes->bytes[i] = pField->bytes;
-    if (pQueryInfo->order.order == TSQL_SO_DESC) {
-      pRes->bytes[i] = -pRes->bytes[i];
-      pRes->tsrow[i] = ((pRes->data + offset * pRes->numOfRows) + (pRes->numOfRows - 1) * pField->bytes);
-    } else {
+//    if (pQueryInfo->order.order == TSQL_SO_DESC) {
+//      pRes->bytes[i] = -pRes->bytes[i];
+//      pRes->tsrow[i] = ((pRes->data + offset * pRes->numOfRows) + (pRes->numOfRows - 1) * pField->bytes);
+//    } else {
       pRes->tsrow[i] = (pRes->data + offset * pRes->numOfRows);
-    }
+//    }
   }
 
   return 0;
@@ -3422,7 +3419,7 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
    * If the query result is exhausted, or current query is to free resource at server side,
    * the connection will be recycled.
    */
-  if ((pRes->numOfRows == 0 && !(tscProjectionQueryOnSTable(pQueryInfo, 0) && pRes->offset > 0)) ||
+  if ((pRes->numOfRows == 0 && !(tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && pRes->offset > 0)) ||
       ((pQueryInfo->type & TSDB_QUERY_TYPE_FREE_RESOURCE) == TSDB_QUERY_TYPE_FREE_RESOURCE)) {
     tscTrace("%p no result or free resource, recycle connection", pSql);
     taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pObj->user);

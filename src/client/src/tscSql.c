@@ -360,8 +360,9 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
-    pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i, pQueryInfo->order) +
-                     pRes->bytes[i] * (1 - pQueryInfo->order.order) * (pRes->numOfRows - 1);
+//    pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i, pQueryInfo->order) +
+//                     pRes->bytes[i] * (1 - pQueryInfo->order.order) * (pRes->numOfRows - 1);
+    pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i, pQueryInfo->order);
   }
 
   *rows = pRes->tsrow;
@@ -425,7 +426,7 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  if (tscProjectionQueryOnSTable(pQueryInfo, 0)) {
+  if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
     bool allSubqueryExhausted = true;
 
     for (int32_t i = 0; i < pSql->numOfSubs; ++i) {

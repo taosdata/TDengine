@@ -1603,7 +1603,7 @@ void tColModelAppend(tColModel *dstModel, tFilePage *dstPage, void *srcData, int
 
 tOrderDescriptor *tOrderDesCreate(int32_t *orderColIdx, int32_t numOfOrderCols, tColModel *pModel,
                                   int32_t tsOrderType) {
-  tOrderDescriptor *desc = (tOrderDescriptor *)malloc(sizeof(tOrderDescriptor) + sizeof(int32_t) * numOfOrderCols);
+  tOrderDescriptor *desc = (tOrderDescriptor *)calloc(1, sizeof(tOrderDescriptor) + sizeof(int32_t) * numOfOrderCols);
   if (desc == NULL) {
     return NULL;
   }

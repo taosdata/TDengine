@@ -215,8 +215,8 @@ bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
     return false;
   }
 
-  // for projection query, iterate all qualified vnodes sequentially
-  if (tscProjectionQueryOnSTable(pQueryInfo, tableIndex)) {
+  // for ordered projection query, iterate all qualified vnodes sequentially
+  if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, tableIndex)) {
     return false;
   }
 
@@ -228,12 +228,13 @@ bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   return false;
 }
 
-bool tscProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
+bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
 
   /*
-   * In following cases, return false for project query on metric
-   * 1. failed to get metermeta from server; 2. not a metric; 3. limit 0; 4. show query, instead of a select query
+   * In following cases, return false for non ordered project query on super table
+   * 1. failed to get metermeta from server; 2. not a super table; 3. limitation is 0;
+   * 4. show queries, instead of a select query
    */
   if (pMeterMetaInfo == NULL || !UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo) ||
       pQueryInfo->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pQueryInfo->exprsInfo.numOfExprs == 0) {
@@ -242,6 +243,11 @@ bool tscProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
 
   // only query on tag, not a projection query
   if (tscQueryMetricTags(pQueryInfo)) {
+    return false;
+  }
+  
+  // order by column exists, not a non-ordered projection query
+  if (pQueryInfo->order.orderColId >= 0) {
     return false;
   }
 
@@ -2070,7 +2076,7 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
   }
   
   int32_t totalVnode = pMeterMetaInfo->pMetricMeta->numOfVnodes;
-  return pRes->numOfRows == 0 && tscProjectionQueryOnSTable(pQueryInfo, 0) &&
+  return pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
          (!tscHasReachLimitation(pQueryInfo, pRes)) && (pMeterMetaInfo->vnodeIndex < totalVnode - 1);
 }
 
@@ -2084,7 +2090,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
    * no result returned from the current virtual node anymore, try the next vnode if exists
    * if case of: multi-vnode super table projection query
    */
-  assert(pRes->numOfRows == 0 && tscProjectionQueryOnSTable(pQueryInfo, 0) && !tscHasReachLimitation(pQueryInfo, pRes));
+  assert(pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && !tscHasReachLimitation(pQueryInfo, pRes));
 
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
   int32_t         totalVnode = pMeterMetaInfo->pMetricMeta->numOfVnodes;
