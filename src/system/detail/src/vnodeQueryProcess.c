@@ -85,7 +85,7 @@ static void setStartPositionForCacheBlock(SQuery *pQuery, SCacheBlock *pBlock, b
   }
 }
 
-static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMeterInfo) {
+static void queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMeterInfo) {
   SQuery *               pQuery = &pQInfo->query;
   SMeterQuerySupportObj *pSupporter = pQInfo->pMeterQuerySupporter;
   SQueryRuntimeEnv *     pRuntimeEnv = &pQInfo->pMeterQuerySupporter->runtimeEnv;
@@ -107,7 +107,7 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
     int32_t end = pSupporter->pSidSet->starterPos[groupIdx + 1] - 1;
 
     if (isQueryKilled(pQuery)) {
-      return pMeterInfo;
+      return;
     }
 
     for (int32_t k = start; k <= end; ++k) {
@@ -160,7 +160,7 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
         int32_t ret = setIntervalQueryExecutionContext(pSupporter, k, pMeterQueryInfo);
         if (ret != TSDB_CODE_SUCCESS) {
           pQInfo->killed = 1;
-          return NULL;
+          return;
         }
       }
 
@@ -255,11 +255,9 @@ static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMe
   dTrace("QInfo:%p complete check %d cache blocks, elapsed time:%.3fms", pQInfo, totalBlocks, time / 1000.0);
 
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
-
-  return pMeterInfo;
 }
 
-static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo) {
+static void queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo) {
   SQuery *               pQuery = &pQInfo->query;
   SMeterQuerySupportObj *pSupporter = pQInfo->pMeterQuerySupporter;
   SQueryRuntimeEnv *     pRuntimeEnv = &pSupporter->runtimeEnv;
@@ -313,7 +311,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
       pQInfo->code = -ret;
       pQInfo->killed = 1;
       
-      return NULL;
+      return;
     }
 
     dTrace("QInfo:%p file:%s, %d meters qualified", pQInfo, pVnodeFileInfo->dataFilePath, numOfQualifiedMeters);
@@ -335,7 +333,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
       pQInfo->code = -ret;
       pQInfo->killed = 1;
   
-      return NULL;
+      return;
     }
 
     dTrace("QInfo:%p file:%s, %d meters contains %d blocks to be checked", pQInfo, pVnodeFileInfo->dataFilePath,
@@ -355,7 +353,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
 
       pQInfo->code = -ret;
       pQInfo->killed = 1;
-      return NULL;
+      return;
     }
 
     dTrace("QInfo:%p start to load %d blocks and check", pQInfo, numOfBlocks);
@@ -412,7 +410,7 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
         if (ret != TSDB_CODE_SUCCESS) {
           tfree(pReqMeterDataInfo);  // error code has been set
           pQInfo->killed = 1;
-          return NULL;
+          return;
         }
       }
 
@@ -461,8 +459,6 @@ static SMeterDataInfo *queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMe
 
   setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
   freeMeterBlockInfoEx(pDataBlockInfoEx, nAllocBlocksInfoSize);
-
-  return pMeterDataInfo;
 }
 
 static bool multimeterMultioutputHelper(SQInfo *pQInfo, bool *dataInDisk, bool *dataInCache, int32_t index,
@@ -811,19 +807,19 @@ static void doOrderedScan(SQInfo *pQInfo) {
   SQuery *               pQuery = &pQInfo->query;
 
   if (QUERY_IS_ASC_QUERY(pQuery)) {
-    pSupporter->pMeterDataInfo = queryOnMultiDataFiles(pQInfo, pSupporter->pMeterDataInfo);
+    queryOnMultiDataFiles(pQInfo, pSupporter->pMeterDataInfo);
     if (pQInfo->code != TSDB_CODE_SUCCESS) {
       return;
     }
 
-    pSupporter->pMeterDataInfo = queryOnMultiDataCache(pQInfo, pSupporter->pMeterDataInfo);
+    queryOnMultiDataCache(pQInfo, pSupporter->pMeterDataInfo);
   } else {
-    pSupporter->pMeterDataInfo = queryOnMultiDataCache(pQInfo, pSupporter->pMeterDataInfo);
+    queryOnMultiDataCache(pQInfo, pSupporter->pMeterDataInfo);
     if (pQInfo->code != TSDB_CODE_SUCCESS) {
       return;
     }
 
-    pSupporter->pMeterDataInfo = queryOnMultiDataFiles(pQInfo, pSupporter->pMeterDataInfo);
+    queryOnMultiDataFiles(pQInfo, pSupporter->pMeterDataInfo);
   }
 }
 

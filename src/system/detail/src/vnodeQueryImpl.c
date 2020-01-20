@@ -5980,12 +5980,12 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     int32_t ret = validateCompBlockInfoSegment(pQInfo, filePath, pMeterObj->vnode, &compInfo,
                                                pMeterDataInfo[j]->offsetInHeaderFile);
     if (ret != TSDB_CODE_SUCCESS) {  // file corrupted
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       return TSDB_CODE_FILE_CORRUPTED;
     }
 
     if (compInfo.numOfBlocks <= 0 || compInfo.uid != pMeterDataInfo[j]->pMeterObj->uid) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       continue;
     }
   
@@ -5995,7 +5995,7 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     pMeterDataInfo[j]->numOfBlocks = compInfo.numOfBlocks;
     pMeterDataInfo[j]->pBlock = calloc(1, bufferSize);
     if (pMeterDataInfo[j]->pBlock == NULL) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       return TSDB_CODE_SERV_OUT_OF_MEMORY;
     }
   
@@ -6007,7 +6007,7 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     // check compblock integrity
     ret = validateCompBlockSegment(pQInfo, filePath, &compInfo, (char*) pMeterDataInfo[j]->pBlock, pMeterObj->vnode, checksum);
     if (ret != TSDB_CODE_SUCCESS) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       return TSDB_CODE_FILE_CORRUPTED;
     }
 
@@ -6031,7 +6031,7 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     }
 
     if (!setValidDataBlocks(pMeterDataInfo[j], end)) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       
       pQInfo->killed = 1;  // set query kill, abort current query since no memory available
       return TSDB_CODE_SERV_OUT_OF_MEMORY;
