@@ -13,14 +13,14 @@ def _convert_microsecond_to_datetime(micro):
 def _crow_timestamp_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C bool row to python row
     """
-    _timstamp_converter = _convert_millisecond_to_datetime
+    _timestamp_converter = _convert_millisecond_to_datetime
     if micro:
-        _timstamp_converter = _convert_microsecond_to_datetime
+        _timestamp_converter = _convert_microsecond_to_datetime
 
     if num_of_rows > 0:
-        return list(map(_timstamp_converter, ctypes.cast(data,  ctypes.POINTER(ctypes.c_longlong))[:abs(num_of_rows)][::-1]))
+        return list(map(_timestamp_converter, ctypes.cast(data,  ctypes.POINTER(ctypes.c_longlong))[:abs(num_of_rows)][::-1]))
     else:
-        return list(map(_timstamp_converter, ctypes.cast(data,  ctypes.POINTER(ctypes.c_longlong))[:abs(num_of_rows)]))
+        return list(map(_timestamp_converter, ctypes.cast(data,  ctypes.POINTER(ctypes.c_longlong))[:abs(num_of_rows)]))
 
 def _crow_bool_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C bool row to python row
@@ -144,6 +144,8 @@ class CTaosInterface(object):
     libtaos.taos_use_result.restype = ctypes.c_void_p
     libtaos.taos_fetch_row.restype = ctypes.POINTER(ctypes.c_void_p)
     libtaos.taos_errstr.restype = ctypes.c_char_p
+    libtaos.taos_subscribe.restype = ctypes.c_void_p
+    libtaos.taos_consume.restype = ctypes.c_void_p
 
     def __init__(self, config=None):
         '''
@@ -253,6 +255,41 @@ class CTaosInterface(object):
         return CTaosInterface.libtaos.taos_affected_rows(connection)
 
     @staticmethod
+    def subscribe(connection, restart, topic, sql, interval):
+        """Create a subscription
+         @restart boolean, 
+         @sql string, sql statement for data query, must be a 'select' statement.
+         @topic string, name of this subscription
+        """
+        return ctypes.c_void_p(CTaosInterface.libtaos.taos_subscribe(
+            connection,
+            1 if restart else 0,
+            ctypes.c_char_p(topic.encode('utf-8')),
+            ctypes.c_char_p(sql.encode('utf-8')),
+            None,
+            None,
+            interval))
+
+    @staticmethod
+    def consume(sub):
+        """Consume data of a subscription
+        """
+        result = ctypes.c_void_p(CTaosInterface.libtaos.taos_consume(sub))
+        fields = []
+        pfields = CTaosInterface.fetchFields(result)
+        for i in range(CTaosInterface.libtaos.taos_num_fields(result)):
+            fields.append({'name': pfields[i].name.decode('utf-8'),
+                           'bytes': pfields[i].bytes,
+                           'type': ord(pfields[i].type)})
+        return result, fields
+
+    @staticmethod
+    def unsubscribe(sub, keepProgress):
+        """Cancel a subscription
+        """
+        CTaosInterface.libtaos.taos_unsubscribe(sub, 1 if keepProgress else 0)
+
+    @staticmethod
     def useResult(connection):
         '''Use result after calling self.query
         '''
@@ -275,8 +312,8 @@ class CTaosInterface(object):
         if num_of_rows == 0:
             return None, 0
 
-        blocks = [None] * len(fields)
         isMicro = (CTaosInterface.libtaos.taos_result_precision(result) == FieldType.C_TIMESTAMP_MICRO)
+        blocks = [None] * len(fields)
         for i in range(len(fields)):
             data = ctypes.cast(pblock, ctypes.POINTER(ctypes.c_void_p))[i]
 
@@ -352,3 +389,19 @@ class CTaosInterface(object):
         """Return the error styring
         """
         return CTaosInterface.libtaos.taos_errstr(connection)
+
+
+if __name__ == '__main__':
+    cinter = CTaosInterface()
+    conn = cinter.connect()
+
+    print('Query return value: {}'.format(cinter.query(conn, 'show databases')))
+    print('Affected rows: {}'.format(cinter.affectedRows(conn)))
+
+    result, des = CTaosInterface.useResult(conn)
+
+    data, num_of_rows = CTaosInterface.fetchBlock(result, des)
+
+    print(data)
+
+    cinter.close(conn)

@@ -175,26 +175,34 @@ TDengine provides APIs for continuous query driven by time, which run queries pe
 
 ### C/C++ subscription API
 
-For the time being, TDengine supports subscription on one table. It is implemented through periodic pulling from a TDengine server. 
+For the time being, TDengine supports subscription on one or multiple tables. It is implemented through periodic pulling from a TDengine server. 
 
-- `TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char      *db, char *table, int64_t time, int mseconds)`
-  The API is used to start a subscription session by given a handle. The parameters required are _host_ (IP address of a TDenginer server), _user_ (username), _pass_ (password), _db_ (database to use), _table_ (table name to subscribe), _time_ (start time to subscribe, 0 for now), _mseconds_ (pulling period). If failed to open a subscription session, a _NULL_ pointer is returned.
+* `TAOS_SUB *taos_subscribe(TAOS* taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval)`
 
+  The API is used to start a subscription session, it returns the subscription object on success and `NULL` in case of failure, the parameters are:
+  * **taos**: The database connnection, which must be established already.
+  * **restart**: `Zero` to continue a subscription if it already exits, other value to start from the beginning.
+  * **topic**: The unique identifier of a subscription.
+  * **sql**: A sql statement for data query, it can only be a `select` statement, can only query for raw data, and can only query data in ascending order of the timestamp field.
+  * **fp**: A callback function to receive query result, only used in asynchronization mode and should be `NULL` in synchronization mode, please refer below for its prototype.
+  * **param**: User provided additional parameter for the callback function.
+  * **interval**: Pulling interval in millisecond. Under asynchronization mode, API will call the callback function `fp` in this interval, system performance will be impacted if this interval is too short. Under synchronization mode, if the duration between two call to `taos_consume` is less than this interval, the second call blocks until the duration exceed this interval.
 
-- `TAOS_ROW taos_consume(TAOS_SUB *tsub)`
-  The API used to get the new data from a TDengine server. It should be put in an infinite loop. The parameter _tsub_ is the handle returned by _taos_subscribe_. If new data are updated, the API will return a row of the result. Otherwise, the API is blocked until new data arrives. If _NULL_ pointer is returned, it means an error occurs.
+* `typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code)`
 
+  Prototype of the callback function, the parameters are:
+  * tsub: The subscription object.
+  * res: The query result.
+  * param: User provided additional parameter when calling `taos_subscribe`.
+  * code: Error code in case of failures.
 
-- `void taos_unsubscribe(TAOS_SUB *tsub)`
-  Stop a subscription session by the handle returned by _taos_subscribe_.
+* `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
+  The API used to get the new data from a TDengine server. It should be put in an loop. The parameter `tsub` is the handle returned by `taos_subscribe`. This API should only be called in synchronization mode. If the duration between two call to `taos_consume` is less than pulling interval, the second call blocks until the duration exceed the interval. The API returns the new rows if new data arrives, or empty rowset otherwise, and if there's an error, it returns `NULL`.
+  
+* `void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress)`
 
-- `int taos_num_subfields(TAOS_SUB *tsub)`
-  The API used to get the number of fields in a row.
-
-
-- `TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub)`
-  The API used to get the description of each column.
+  Stop a subscription session by the handle returned by `taos_subscribe`. If `keepProgress` is **not** zero, the subscription progress information is kept and can be reused in later call to `taos_subscribe`, the information is removed otherwise.
 
 ##  Java Connector
 
@@ -590,6 +598,28 @@ c1.execute('select * from tb')
 for data in c1:
   print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])
 ```
+
+* create a subscription
+```python
+# Create a subscription with topic 'test' and consumption interval 1000ms.
+# The first argument is True means to restart the subscription;
+# if the subscription with topic 'test' has already been created, then pass
+# False to this argument means to continue the existing subscription.
+sub = conn.subscribe(True, "test", "select * from meters;", 1000)
+```
+
+* consume a subscription
+```python
+data = sub.consume()
+for d in data:
+    print(d)
+```
+
+* close the subscription
+```python
+sub.close()
+```
+
 * close the connection
 ```python
 c1.close()

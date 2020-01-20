@@ -40,6 +40,9 @@ int (*tscProcessMsgRsp[TSDB_SQL_MAX])(SSqlObj *pSql);
 void (*tscUpdateVnodeMsg[TSDB_SQL_MAX])(SSqlObj *pSql, char *buf);
 void tscProcessActivityTimer(void *handle, void *tmrId);
 int tscKeepConn[TSDB_SQL_MAX] = {0};
+TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid);
+void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts);
+void tscSaveSubscriptionProgress(void* sub);
 
 static int32_t minMsgSize() { return tsRpcHeadSize + sizeof(STaosDigest); }
 
@@ -1497,7 +1500,7 @@ static char* doSerializeTableInfo(SSqlObj* pSql, int32_t numOfMeters, int32_t vn
     SMeterSidExtInfo *pMeterInfo = (SMeterSidExtInfo *)pMsg;
     pMeterInfo->sid = htonl(pMeterMeta->sid);
     pMeterInfo->uid = htobe64(pMeterMeta->uid);
-    
+    pMeterInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pMeterMeta->uid));
     pMsg += sizeof(SMeterSidExtInfo);
   } else {
     SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
@@ -1508,6 +1511,7 @@ static char* doSerializeTableInfo(SSqlObj* pSql, int32_t numOfMeters, int32_t vn
       
       pMeterInfo->sid = htonl(pQueryMeterInfo->sid);
       pMeterInfo->uid = htobe64(pQueryMeterInfo->uid);
+      pMeterInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pQueryMeterInfo->uid));
       
       pMsg += sizeof(SMeterSidExtInfo);
       
@@ -3492,11 +3496,27 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   pRes->numOfRows = htonl(pRetrieve->numOfRows);
   pRes->precision = htons(pRetrieve->precision);
   pRes->offset = htobe64(pRetrieve->offset);
-
   pRes->useconds = htobe64(pRetrieve->useconds);
   pRes->data = pRetrieve->data;
 
   tscSetResultPointer(pCmd, pRes);
+
+  if (pSql->pSubscription != NULL) {
+    TAOS_FIELD *pField = tscFieldInfoGetField(pCmd, pCmd->fieldsInfo.numOfOutputCols - 1);
+    int16_t     offset = tscFieldInfoGetOffset(pCmd, pCmd->fieldsInfo.numOfOutputCols - 1);
+    char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
+
+    int32_t numOfMeters = htonl(*(int32_t*)p);
+    p += sizeof(int32_t);
+    for (int i = 0; i < numOfMeters; i++) {
+      int64_t uid = htobe64(*(int64_t*)p);
+      p += sizeof(int64_t);
+      TSKEY key = htobe64(*(TSKEY*)p);
+      p += sizeof(TSKEY);
+      tscUpdateSubscriptionProgress(pSql->pSubscription, uid, key);
+    }
+  }
+
   pRes->row = 0;
 
   /**

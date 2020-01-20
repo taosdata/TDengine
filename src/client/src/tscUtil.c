@@ -376,6 +376,21 @@ void tscFreeSqlCmdData(SSqlCmd* pCmd) {
   }
 }
 
+void tscFreeSqlResult(SSqlObj* pSql) {
+  tfree(pSql->res.pRsp);
+  pSql->res.row = 0;
+  pSql->res.numOfRows = 0;
+  pSql->res.numOfTotal = 0;
+
+  pSql->res.numOfGroups = 0;
+  tfree(pSql->res.pGroupRec);
+
+  tscDestroyLocalReducer(pSql);
+
+  tscDestroyResPointerInfo(&pSql->res);
+  tfree(pSql->res.pColumnIndex);
+}
+
 void tscFreeSqlObjPartial(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     return;
@@ -399,20 +414,9 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   tfree(pSql->sqlstr);
   pthread_mutex_unlock(&pObj->mutex);
 
-  tfree(pSql->res.pRsp);
-  pSql->res.row = 0;
-  pSql->res.numOfRows = 0;
-  pSql->res.numOfTotal = 0;
-
-  pSql->res.numOfGroups = 0;
-  tfree(pSql->res.pGroupRec);
-
-  tscDestroyLocalReducer(pSql);
-
+  tscFreeSqlResult(pSql);
   tfree(pSql->pSubs);
   pSql->numOfSubs = 0;
-  tscDestroyResPointerInfo(pRes);
-  tfree(pSql->res.pColumnIndex);
 
   tscFreeSqlCmdData(pCmd);
   tscRemoveAllMeterMetaInfo(pCmd, false);
@@ -822,7 +826,7 @@ void tscFieldInfoSetValFromField(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIE
 }
 
 void tscFieldInfoUpdateVisible(SFieldInfo* pFieldInfo, int32_t index, bool visible) {
-  if (index < 0 || index > pFieldInfo->numOfOutputCols) {
+  if (index < 0 || index >= pFieldInfo->numOfOutputCols) {
     return;
   }
 

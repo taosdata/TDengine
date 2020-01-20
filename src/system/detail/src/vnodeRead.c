@@ -630,7 +630,13 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   pQuery = &(pQInfo->query);
   dTrace("qmsg:%p create QInfo:%p, QInfo created", pQueryMsg, pQInfo);
 
-  pQuery->skey = pQueryMsg->skey;
+  SMeterSidExtInfo** pSids = (SMeterSidExtInfo**)pQueryMsg->pSidExtInfo;
+  if (pSids != NULL && pSids[0]->key > 0) {
+    pQuery->skey = pSids[0]->key;
+  } else {
+    pQuery->skey = pQueryMsg->skey;
+  }
+
   pQuery->ekey = pQueryMsg->ekey;
   pQuery->lastKey = pQuery->skey;
 
@@ -753,7 +759,6 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     taosAddIntHash(pSupporter->pMeterObj, pMetersObj[i]->sid, (char *)&pMetersObj[i]);
   }
 
-  pSupporter->pMeterSidExtInfo = (SMeterSidExtInfo **)pQueryMsg->pSidExtInfo;
   int32_t sidElemLen = pQueryMsg->tagLength + sizeof(SMeterSidExtInfo);
 
   int32_t size = POINTER_BYTES * pQueryMsg->numOfSids + sidElemLen * pQueryMsg->numOfSids;
@@ -767,12 +772,16 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   char *px = ((char *)pSupporter->pMeterSidExtInfo) + POINTER_BYTES * pQueryMsg->numOfSids;
 
   for (int32_t i = 0; i < pQueryMsg->numOfSids; ++i) {
-    pSupporter->pMeterSidExtInfo[i] = (SMeterSidExtInfo *)px;
-    pSupporter->pMeterSidExtInfo[i]->sid = ((SMeterSidExtInfo **)pQueryMsg->pSidExtInfo)[i]->sid;
+    SMeterSidExtInfo* pSrc = ((SMeterSidExtInfo **)pQueryMsg->pSidExtInfo)[i];
+    SMeterSidExtInfo* pDst = (SMeterSidExtInfo *)px;
+
+    pSupporter->pMeterSidExtInfo[i] = pDst;
+    pDst->sid = pSrc->sid;
+    pDst->uid = pSrc->uid;
+    pDst->key = pSrc->key;
 
     if (pQueryMsg->tagLength > 0) {
-      memcpy(pSupporter->pMeterSidExtInfo[i]->tags, ((SMeterSidExtInfo **)pQueryMsg->pSidExtInfo)[i]->tags,
-             pQueryMsg->tagLength);
+      memcpy(pDst->tags, pSrc->tags, pQueryMsg->tagLength);
     }
     px += sidElemLen;
   }
@@ -1102,11 +1111,13 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
   pSids[0] = (SMeterSidExtInfo *)pMsg;
   pSids[0]->sid = htonl(pSids[0]->sid);
   pSids[0]->uid = htobe64(pSids[0]->uid);
+  pSids[0]->key = htobe64(pSids[0]->key);
   
   for (int32_t j = 1; j < pQueryMsg->numOfSids; ++j) {
     pSids[j] = (SMeterSidExtInfo *)((char *)pSids[j - 1] + sizeof(SMeterSidExtInfo) + pQueryMsg->tagLength);
     pSids[j]->sid = htonl(pSids[j]->sid);
     pSids[j]->uid = htobe64(pSids[j]->uid);
+    pSids[j]->key = htobe64(pSids[j]->key);
   }
 
   pMsg = (char *)pSids[pQueryMsg->numOfSids - 1];
