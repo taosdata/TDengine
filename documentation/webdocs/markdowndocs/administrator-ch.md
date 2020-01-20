@@ -337,7 +337,8 @@ TDengine也支持在shell对已存在的表从CSV文件中进行数据导入。�
 insert into tb1 file a.csv b.csv tb2 c.csv …
 import into tb1 file a.csv b.csv tb2 c.csv …
 ```
-> 注意：导入的CSV文件不能够带表头, 且表的列与CSV文件的列需要严格对应
+> 注意：导入的CSV文件不能够带表头, 且表的列与CSV文件的列需要严格对应。
+> 同样还可以使用[样例数据导入工具][1]对数据进行横向和纵向扩展导入。
 
 ## 数据导出
 
@@ -408,3 +409,6 @@ KILL STREAM <stream-id>
 TDengine启动后，会自动创建一个监测数据库`LOG`，并自动将服务器的CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入该数据库。TDengine还将重要的系统操作（比如登录、创建、删除数据库等）日志以及各种错误报警信息记录下来存放在`LOG`库里。系统管理员可以通过客户端程序查看记录库中的运行负载信息，（在企业版中）还可以通过浏览器查看数据的图标可视化结果。
 
 这些监测信息的采集缺省是打开的，但可以修改配置文件里的选项`monitor`将其关闭或打开。
+
+
+[1]: https://github.com/taosdata/TDengine/tree/develop/importSampleData
