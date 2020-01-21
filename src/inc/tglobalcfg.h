@@ -126,6 +126,7 @@ extern int tsEnableMonitorModule;
 extern int tsRestRowLimit;
 extern int tsCompressMsgSize;
 extern int tsMaxSQLStringLen;
+extern int tsMaxNumOfOrderedResults;
 
 extern char tsSocketType[4];
 

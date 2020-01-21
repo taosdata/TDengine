@@ -124,6 +124,10 @@ int tsEnableMonitorModule = 1;
 int tsRestRowLimit = 10240;
 int tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 
+// the maximum number of results for projection query on super table that are returned from
+// one virtual node, to order according to timestamp
+int tsMaxNumOfOrderedResults = 100000;
+
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
  * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
@@ -671,6 +675,10 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "maxSQLLength", &tsMaxSQLStringLen, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
                      TSDB_MAX_SQL_LEN, TSDB_MAX_ALLOWED_SQL_LEN, 0, TSDB_CFG_UTYPE_BYTE);
+  
+  tsInitConfigOption(cfg++, "maxNumOfOrderedRes", &tsMaxNumOfOrderedResults, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
+                     TSDB_MAX_SQL_LEN, TSDB_MAX_ALLOWED_SQL_LEN, 0, TSDB_CFG_UTYPE_NONE);
   
   // locale & charset
   tsInitConfigOption(cfg++, "timezone", tsTimezone, TSDB_CFG_VTYPE_STRING,

@@ -1174,10 +1174,18 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
 
   if (numOfRows > 0) {
     assert(pRes->numOfRows == numOfRows);
-    atomic_add_fetch_64(&pState->numOfRetrievedRows, numOfRows);
+    int64_t num = atomic_add_fetch_64(&pState->numOfRetrievedRows, numOfRows);
 
     tscTrace("%p sub:%p retrieve numOfRows:%d totalNumOfRows:%d from ip:%u,vid:%d,orderOfSub:%d", pPObj, pSql,
              pRes->numOfRows, pState->numOfRetrievedRows, pSvd->ip, pSvd->vnode, idx);
+    
+    if (num > tsMaxNumOfOrderedResults) {
+      tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId64 " , current:%" PRId64,
+          pPObj, pSql, tsMaxNumOfOrderedResults, num);
+      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_SORTED_RES_TOO_MANY);
+      return;
+    }
+    
 
 #ifdef _DEBUG_VIEW
     printf("received data from vnode: %d rows\n", pRes->numOfRows);
@@ -1213,12 +1221,11 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
 #ifdef _DEBUG_VIEW
     printf("%" PRIu64 " rows data flushed to disk:\n", trsupport->localBuffer->numOfElems);
     SSrcColumnInfo colInfo[256] = {0};
-    SQueryInfo *   pQueryInfo = tscGetQueryInfoDetail(&pPObj->cmd, 0);
-
     tscGetSrcColumnInfo(colInfo, pQueryInfo);
     tColModelDisplayEx(pDesc->pSchema, trsupport->localBuffer->data, trsupport->localBuffer->numOfElems,
                        trsupport->localBuffer->numOfElems, colInfo);
 #endif
+    
     if (tsTotalTmpDirGB != 0 && tsAvailTmpDirGB < tsMinimalTmpDirGB) {
       tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query", pPObj, pSql,
                tsAvailTmpDirGB, tsMinimalTmpDirGB);
@@ -1251,7 +1258,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
 
     tscTrace("%p retrieve from %d vnodes completed.final NumOfRows:%d,start to build loser tree", pPObj,
              pState->numOfTotal, pState->numOfRetrievedRows);
-
+    
     SQueryInfo *pPQueryInfo = tscGetQueryInfoDetail(&pPObj->cmd, 0);
     tscClearInterpInfo(pPQueryInfo);
 
@@ -1674,6 +1681,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pQueryMsg->nAggTimeInterval = htobe64(pQueryInfo->nAggTimeInterval);
   pQueryMsg->intervalTimeUnit = pQueryInfo->intervalTimeUnit;
+  pQueryMsg->slidingTime = htobe64(pQueryInfo->nSlidingTime);
+  
   if (pQueryInfo->nAggTimeInterval < 0) {
     tscError("%p illegal value of aggregation time interval in query msg: %ld", pSql, pQueryInfo->nAggTimeInterval);
     return -1;
