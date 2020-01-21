@@ -150,19 +150,21 @@ sql drop table tb1
 
 #### auto create multiple tables
 sql insert into tb1 using $stb tags(1) values ( $ts0 , 1, 1, 1, 1, 'bin1', 1, 1, 1, '涛思数据1') tb2 using $stb tags(2) values ( $ts0 , 2, 2, 2, 2, 'bin2', 2, 2, 2, '涛思数据2') tb3 using $stb tags(3) values ( $ts0 , 3, 3, 3, 3, 'bin3', 3, 3, 3, '涛思数据3')
+
+# the order of results of show tables is not garenteed.!!!
 sql show tables
 if $rows != 3 then
   return -1
 endi
-if $data00 != tb3 then
-  return -1
-endi
-if $data10 != tb2 then
-  return -1
-endi
-if $data20 != tb1 then
-  return -1
-endi
+#if $data00 != tb1 then
+#  return -1
+#endi
+#if $data10 != tb2 then
+#  return -1
+#endi
+#if $data20 != tb3 then
+#  return -1
+#endi
 
 sql select ts,c1,c2,c3,c4,c5,c7,c8,c9 from $stb
 if $rows != 3 then
@@ -222,15 +224,15 @@ sql show tables
 if $rows != 3 then
   return -1
 endi
-if $data00 != tb3 then
-  return -1
-endi
-if $data10 != tb2 then
-  return -1
-endi
-if $data20 != tb1 then
-  return -1
-endi
+#if $data00 != tb3 then
+#  return -1
+#endi
+#if $data10 != tb2 then
+#  return -1
+#endi
+#if $data20 != tb1 then
+#  return -1
+#endi
 
 sql select ts,c1,c2,c3,c4,c5,c7,c8,c9 from $stb
 if $rows != 3 then
