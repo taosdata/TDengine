@@ -2020,11 +2020,11 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   int32_t      step = 0;
 
   // in case of second stage merge, always use incremental output.
-  if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
+//  if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
     step = QUERY_ASC_FORWARD_STEP;
-  } else {
-    step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
-  }
+//  } else {
+//    step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+//  }
 
   int32_t len = GET_RES_INFO(pCtx)->numOfRes;
 
@@ -2891,16 +2891,23 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
   INC_INIT_VAL(pCtx, pCtx->size);
 
   char *pDest = 0;
-  if (pCtx->order == TSQL_SO_ASC) {
+//  if (pCtx->order == TSQL_SO_ASC) {
     pDest = pCtx->aOutputBuf;
-  } else {
-    pDest = pCtx->aOutputBuf - (pCtx->size - 1) * pCtx->inputBytes;
-  }
+//  } else {
+//    pDest = pCtx->aOutputBuf - (pCtx->size - 1) * pCtx->inputBytes;
+//  }
 
   char *pData = GET_INPUT_CHAR(pCtx);
-  memcpy(pDest, pData, (size_t)pCtx->size * pCtx->inputBytes);
+  if (pCtx->order == TSQL_SO_ASC) {
+    memcpy(pDest, pData, (size_t)pCtx->size * pCtx->inputBytes);
+  } else {
+    for(int32_t i = 0; i < pCtx->size; ++i) {
+      memcpy(pDest + (pCtx->size - 1 - i) * pCtx->inputBytes, pData + i * pCtx->inputBytes,
+          pCtx->inputBytes);
+    }
+  }
 
-  pCtx->aOutputBuf += pCtx->size * pCtx->outputBytes * GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  pCtx->aOutputBuf += pCtx->size * pCtx->outputBytes/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
 }
 
 static void col_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
@@ -2915,7 +2922,7 @@ static void col_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   char *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
   memcpy(pCtx->aOutputBuf, pData, pCtx->inputBytes);
 
-  pCtx->aOutputBuf += pCtx->inputBytes * GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  pCtx->aOutputBuf += pCtx->inputBytes/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
 }
 
 /**
@@ -2927,18 +2934,18 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
   INC_INIT_VAL(pCtx, pCtx->size);
 
   assert(pCtx->inputBytes == pCtx->outputBytes);
-  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+//  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
 
   for (int32_t i = 0; i < pCtx->size; ++i) {
     tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType);
-    pCtx->aOutputBuf += pCtx->outputBytes * factor;
+    pCtx->aOutputBuf += pCtx->outputBytes/* * factor*/;
   }
 }
 
 static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   INC_INIT_VAL(pCtx, 1);
   tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType);
-  pCtx->aOutputBuf += pCtx->outputBytes * GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  pCtx->aOutputBuf += pCtx->outputBytes/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
 }
 
 /**
@@ -2986,9 +2993,10 @@ static void diff_function(SQLFunctionCtx *pCtx) {
 
   int32_t notNullElems = 0;
 
-  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t step = 1 /*GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
 
-  int32_t i = (pCtx->order == TSQL_SO_ASC) ? 0 : pCtx->size - 1;
+//  int32_t i = (pCtx->order == TSQL_SO_ASC) ? 0 : pCtx->size - 1;
+  int32_t i = 0;
   TSKEY * pTimestamp = pCtx->ptsOutputBuf;
 
   switch (pCtx->inputType) {
@@ -3289,7 +3297,7 @@ static void arithmetic_function(SQLFunctionCtx *pCtx) {
   tSQLBinaryExprCalcTraverse(sas->pExpr->pBinExprInfo.pBinExpr, pCtx->size, pCtx->aOutputBuf, sas, pCtx->order,
                              arithmetic_callback_function);
 
-  pCtx->aOutputBuf += pCtx->outputBytes * pCtx->size * GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  pCtx->aOutputBuf += pCtx->outputBytes * pCtx->size/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
   pCtx->param[1].pz = NULL;
 }
 
@@ -3301,7 +3309,7 @@ static void arithmetic_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   tSQLBinaryExprCalcTraverse(sas->pExpr->pBinExprInfo.pBinExpr, 1, pCtx->aOutputBuf, sas, pCtx->order,
                              arithmetic_callback_function);
 
-  pCtx->aOutputBuf += pCtx->outputBytes * GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  pCtx->aOutputBuf += pCtx->outputBytes/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
 }
 
 #define LIST_MINMAX_N(ctx, minOutput, maxOutput, elemCnt, data, type, tsdbType, numOfNotNullElem) \

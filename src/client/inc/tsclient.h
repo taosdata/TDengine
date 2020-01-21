@@ -226,7 +226,10 @@ typedef struct SQueryInfo {
   struct STSBuf *  tsBuf;
   int64_t *        defaultVal;   // default value for interpolation
   char *           msg;          // pointer to the pCmd->payload to keep error message temporarily
-  int64_t          clauseLimit;  // limit for this sub clause
+  int64_t          clauseLimit;  // limit for current sub clause
+  
+  // offset value in the original sql expression, NOT sent to virtual node, only applied at client side
+  int64_t          prjOffset;
 } SQueryInfo;
 
 // data source from sql string or from file

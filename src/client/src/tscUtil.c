@@ -228,9 +228,9 @@ bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   return false;
 }
 
-bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
+bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
-
+  
   /*
    * In following cases, return false for non ordered project query on super table
    * 1. failed to get metermeta from server; 2. not a super table; 3. limitation is 0;
@@ -240,17 +240,12 @@ bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableI
       pQueryInfo->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pQueryInfo->exprsInfo.numOfExprs == 0) {
     return false;
   }
-
+  
   // only query on tag, not a projection query
   if (tscQueryMetricTags(pQueryInfo)) {
     return false;
   }
   
-  // order by column exists, not a non-ordered projection query
-  if (pQueryInfo->order.orderColId >= 0) {
-    return false;
-  }
-
   // for project query, only the following two function is allowed
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
     int32_t functionId = tscSqlExprGet(pQueryInfo, i)->functionId;
@@ -259,8 +254,26 @@ bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableI
       return false;
     }
   }
-
+  
   return true;
+}
+
+bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
+  if (!tscIsProjectionQueryOnSTable(pQueryInfo, tableIndex)) {
+    return false;
+  }
+  
+  // order by column exists, not a non-ordered projection query
+  return pQueryInfo->order.orderColId < 0;
+}
+
+bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
+  if (!tscIsProjectionQueryOnSTable(pQueryInfo, tableIndex)) {
+    return false;
+  }
+  
+  // order by column exists, a non-ordered projection query
+  return pQueryInfo->order.orderColId >= 0;
 }
 
 bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo) {

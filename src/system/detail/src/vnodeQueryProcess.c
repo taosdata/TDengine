@@ -747,10 +747,10 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
         pSupporter->meterIdx++;
 
         // if the buffer is full or group by each table, we need to jump out of the loop
-        if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL) ||
-            isGroupbyEachTable(pQuery->pGroupbyExpr, pSupporter->pSidSet)) {
+//        if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL) ||
+//            isGroupbyEachTable(pQuery->pGroupbyExpr, pSupporter->pSidSet)) {
           break;
-        }
+//        }
 
       } else {
         // forward query range

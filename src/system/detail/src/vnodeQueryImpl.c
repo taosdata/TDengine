@@ -5391,14 +5391,14 @@ void doSkipResults(SQueryRuntimeEnv *pRuntimeEnv) {
 
       int32_t bytes = pRuntimeEnv->pCtx[i].outputBytes;
 
-      if (QUERY_IS_ASC_QUERY(pQuery)) {
+//      if (QUERY_IS_ASC_QUERY(pQuery)) {
         memmove(pQuery->sdata[i]->data, pQuery->sdata[i]->data + bytes * numOfSkip, pQuery->pointsRead * bytes);
-      } else {  // DESC query
-        int32_t maxrows = pQuery->pointsToRead;
-
-        memmove(pQuery->sdata[i]->data + (maxrows - pQuery->pointsRead) * bytes,
-                pQuery->sdata[i]->data + (maxrows - size) * bytes, pQuery->pointsRead * bytes);
-      }
+//      } else {  // DESC query
+//        int32_t maxrows = pQuery->pointsToRead;
+//
+//        memmove(pQuery->sdata[i]->data + (maxrows - pQuery->pointsRead) * bytes,
+//                pQuery->sdata[i]->data + (maxrows - size) * bytes, pQuery->pointsRead * bytes);
+//      }
 
       pRuntimeEnv->pCtx[i].aOutputBuf -= bytes * numOfSkip * step;
 

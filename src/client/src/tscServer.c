@@ -1182,7 +1182,6 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
 #ifdef _DEBUG_VIEW
     printf("received data from vnode: %d rows\n", pRes->numOfRows);
     SSrcColumnInfo colInfo[256] = {0};
-    SQueryInfo *   pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
     tscGetSrcColumnInfo(colInfo, pQueryInfo);
     tColModelDisplayEx(pDesc->pSchema, pRes->data, pRes->numOfRows, pRes->numOfRows, colInfo);

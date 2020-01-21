@@ -97,7 +97,11 @@ SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
+
 bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
+bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
+
 bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo);
 
 bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);

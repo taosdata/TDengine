@@ -4460,21 +4460,23 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
     if (queryOnTags == true) {  // local handle the metric tag query
       pQueryInfo->command = TSDB_SQL_RETRIEVE_TAGS;
     } else {
-      if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-        if (pQueryInfo->order.orderColId >= 0) {
-          if (pQueryInfo->limit.limit == -1) {
-            return invalidSqlErrMsg(pQueryInfo->msg, msg4);
-          } else if (pQueryInfo->limit.limit > 10000) { // the result set can not be larger than 10000
-            //todo use global config parameter
-            return invalidSqlErrMsg(pQueryInfo->msg, msg5);
-          }
-        }
-        
+      if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
         if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
           return invalidSqlErrMsg(pQueryInfo->msg, msg3);
         }
-        
-        pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY; // for projection query on super table, all queries are subqueries
+  
+        if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+//        if (pQueryInfo->order.orderColId >= 0) {
+//          if (pQueryInfo->limit.limit == -1) {
+//            return invalidSqlErrMsg(pQueryInfo->msg, msg4);
+//          } else if (pQueryInfo->limit.limit > 10000) { // the result set can not be larger than 10000
+//            //todo use global config parameter
+//            return invalidSqlErrMsg(pQueryInfo->msg, msg5);
+//          }
+//        }
+    
+          pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY; // for projection query on super table, all queries are subqueries
+        }
       }
     }
 
@@ -4504,6 +4506,20 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
 
     // keep original limitation value in globalLimit
     pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
+    pQueryInfo->prjOffset = pQueryInfo->limit.offset;
+    
+    if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+      /*
+       * the limitation/offset value should be removed during retrieve data from virtual node,
+       * since the global order are done in client side, so the limitation should also
+       * be done at the client side.
+       */
+      if (pQueryInfo->limit.limit > 0) {
+        pQueryInfo->limit.limit = -1;
+      }
+      
+      pQueryInfo->limit.offset = 0;
+    }
   } else {
     if (pQueryInfo->slimit.limit != -1 || pQueryInfo->slimit.offset != 0) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);

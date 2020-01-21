@@ -306,8 +306,15 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   // we change the maxCapacity of schema to denote that there is only one row in temp buffer
   pReducer->pDesc->pSchema->maxCapacity = 1;
+  
+  //restore the limitation value at the last stage
+  if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+    pQueryInfo->limit.limit = pQueryInfo->clauseLimit;
+    pQueryInfo->limit.offset = pQueryInfo->prjOffset;
+  }
+  
   pReducer->offset = pQueryInfo->limit.offset;
-
+  
   pRes->pLocalReducer = pReducer;
   pRes->numOfGroups = 0;
 
@@ -510,7 +517,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
   }
 
   // primary timestamp column is involved in final result
-  if (pQueryInfo->nAggTimeInterval != 0) {
+  if (pQueryInfo->nAggTimeInterval != 0 || tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
     numOfGroupByCols++;
   }
 
@@ -549,6 +556,12 @@ bool isSameGroup(SSqlCmd *pCmd, SLocalReducer *pReducer, char *pPrev, tFilePage 
   int16_t functionId = tscSqlExprGet(pQueryInfo, 0)->functionId;
 
   // disable merge procedure for column projection query
+  assert(functionId != TSDB_FUNC_ARITHM);
+  
+  if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+    return true;
+  }
+  
   if (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_ARITHM) {
     return false;
   }
@@ -848,11 +861,11 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
 
     int32_t rowSize = tscGetResRowLength(pQueryInfo);
     // handle the descend order output
-    if (pQueryInfo->order.order == TSQL_SO_ASC) {
+//    if (pQueryInfo->order.order == TSQL_SO_ASC) {
       memcpy(pRes->data, pFinalDataPage->data, pRes->numOfRows * rowSize);
-    } else {
-      reversedCopyResultToDstBuf(pQueryInfo, pRes, pFinalDataPage);
-    }
+//    } else {
+//      reversedCopyResultToDstBuf(pQueryInfo, pRes, pFinalDataPage);
+//    }
 
     pFinalDataPage->numOfElems = 0;
     return;
@@ -1400,8 +1413,6 @@ int32_t tscDoLocalreduce(SSqlObj *pSql) {
 #if defined(_DEBUG_VIEW)
     printf("chosen row:\t");
     SSrcColumnInfo colInfo[256] = {0};
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-
     tscGetSrcColumnInfo(colInfo, pQueryInfo);
 
     tColModelDisplayEx(pModel, tmpBuffer->data, tmpBuffer->numOfElems, pModel->maxCapacity, colInfo);

@@ -392,11 +392,6 @@ __clean_memory:
   return NULL;
 }
 
-//static void vnodeFreeQInfoInQueueImpl(SSchedMsg *pMsg) {
-//  SQInfo *pQInfo = (SQInfo *)pMsg->ahandle;
-//  vnodeFreeQInfo(pQInfo, true);
-//}
-
 void vnodeFreeQInfoInQueue(void *param) {
   SQInfo *pQInfo = (SQInfo *)param;
 
@@ -406,15 +401,6 @@ void vnodeFreeQInfoInQueue(void *param) {
   dTrace("QInfo:%p set kill flag to free QInfo");
   
   vnodeDecRefCount(pQInfo);
-  
-//  dTrace("QInfo:%p set kill flag and add to queue, stop query ASAP", pQInfo);
-//  SSchedMsg schedMsg = {0};
-//  schedMsg.fp = vnodeFreeQInfoInQueueImpl;
-
-//  schedMsg.msg = NULL;
-//  schedMsg.thandle = (void *)1;
-//  schedMsg.ahandle = param;
-//  taosScheduleTask(queryQhandle, &schedMsg);
 }
 
 void vnodeFreeQInfo(void *param, bool decQueryRef) {
