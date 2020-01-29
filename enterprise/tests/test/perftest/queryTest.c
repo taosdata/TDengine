@@ -449,9 +449,10 @@ int main(int argc, char **argv) {
         total = strtol(argv[4], NULL, 10);
     }
     
-    executeSQL(conn, "use intp_db0", NULL);
-//    createEnvironment(conn, 5, 5, 100, 30);
-    executeSQL(conn, "select interp(ts) from intp_tb0;", NULL);
+    executeSQL(conn, "use test", NULL);
+    createEnvironment(conn, 5, 5, 100000, 30);
+//    executeSQL(conn, "select count(*) from lm_tb0 where ts >=1537146000000 and ts <= 1537151400000 interval(20m) sliding(10m)", NULL);
+//    executeSQL(conn, "select first(ts), last(ts) from lm_tb0", NULL);
 //    executeSQL(conn, "CREATE database TU1", NULL);
     // selectivity + tags/ts + group by normal columns
 //    executeSQL(conn, "(select count(*) from test where ts<'1970-1-1 8:1:40.9') union "
