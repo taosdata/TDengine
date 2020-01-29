@@ -64,7 +64,7 @@ typedef enum {
    * the next query.
    *
    * this status is only exist in group-by clause and
-   * diff/add/division/mulitply/ query.
+   * diff/add/division/multiply/ query.
    */
   QUERY_RESBUF_FULL = 0x2,
 
@@ -149,7 +149,6 @@ void vnodeScanAllData(SQueryRuntimeEnv* pRuntimeEnv);
 int32_t vnodeQueryResultInterpolate(SQInfo* pQInfo, tFilePage** pDst, tFilePage** pDataSrc, int32_t numOfRows,
                                     int32_t* numOfInterpo);
 void copyResToQueryResultBuf(SMeterQuerySupportObj* pSupporter, SQuery* pQuery);
-void moveDescOrderResultsToFront(SQueryRuntimeEnv* pRuntimeEnv);
 
 void doSkipResults(SQueryRuntimeEnv* pRuntimeEnv);
 void doFinalizeResult(SQueryRuntimeEnv* pRuntimeEnv);
@@ -159,7 +158,7 @@ void forwardIntervalQueryRange(SMeterQuerySupportObj* pSupporter, SQueryRuntimeE
 void forwardQueryStartPosition(SQueryRuntimeEnv* pRuntimeEnv);
 
 bool normalizedFirstQueryRange(bool dataInDisk, bool dataInCache, SMeterQuerySupportObj* pSupporter,
-                               SPointInterpoSupporter* pPointInterpSupporter);
+                               SPointInterpoSupporter* pPointInterpSupporter, int64_t* key);
 
 void pointInterpSupporterInit(SQuery* pQuery, SPointInterpoSupporter* pInterpoSupport);
 void pointInterpSupporterDestroy(SPointInterpoSupporter* pPointInterpSupport);
@@ -278,6 +277,11 @@ void displayInterResult(SData** pdata, SQuery* pQuery, int32_t numOfRows);
 void vnodePrintQueryStatistics(SMeterQuerySupportObj* pSupporter);
 
 void clearGroupResultBuf(SOutputRes* pOneOutputRes, int32_t nOutputCols);
+void copyGroupResultBuf(SOutputRes* dst, const SOutputRes* src, int32_t nOutputCols);
+
+void resetResWindowInfo(SSlidingWindowResInfo* pWindowResInfo, int32_t numOfCols);
+void clearCompletedResWindows(SSlidingWindowResInfo* pWindowResInfo, int32_t numOfCols);
+int32_t numOfResFromResWindowInfo(SSlidingWindowResInfo* pWindowResInfo);
 
 #ifdef __cplusplus
 }

@@ -267,6 +267,7 @@ static SQInfo *vnodeAllocateQInfoEx(SQueryMeterMsg *pQueryMsg, SSqlGroupbyExpr *
 
   pQuery->pGroupbyExpr = pGroupbyExpr;
   pQuery->nAggTimeInterval = pQueryMsg->nAggTimeInterval;
+  pQuery->slidingTime = pQueryMsg->slidingTime;
   pQuery->interpoType = pQueryMsg->interpoType;
   pQuery->intervalTimeUnit = pQueryMsg->intervalTimeUnit;
 
@@ -966,6 +967,8 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
   pQueryMsg->queryType = htons(pQueryMsg->queryType);
 
   pQueryMsg->nAggTimeInterval = htobe64(pQueryMsg->nAggTimeInterval);
+  pQueryMsg->slidingTime = htobe64(pQueryMsg->slidingTime);
+  
   pQueryMsg->numOfTagsCols = htons(pQueryMsg->numOfTagsCols);
   pQueryMsg->numOfCols = htons(pQueryMsg->numOfCols);
   pQueryMsg->numOfOutputCols = htons(pQueryMsg->numOfOutputCols);

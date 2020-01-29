@@ -112,7 +112,31 @@ typedef struct SQueryFilesInfo {
   char dbFilePathPrefix[PATH_MAX];
 } SQueryFilesInfo;
 
-typedef struct RuntimeEnvironment {
+typedef struct STimeWindow {
+  TSKEY skey;
+  TSKEY ekey;
+} STimeWindow;
+
+typedef struct SWindowStatus {
+  STimeWindow window;
+  bool closed;
+} SWindowStatus;
+
+typedef struct SSlidingWindowResInfo {
+  SOutputRes*         pResult;    // reference to SQuerySupporter->pResult
+  SWindowStatus*      pStatus;    // current query window closed or not?
+  void*               hashList;   // hash list for quick access
+  int16_t             type;       // data type for hash key
+  int32_t             capacity;   // max capacity
+  int32_t             curIndex;   // current start active index
+  int32_t             size;
+  
+  int64_t             startTime;  // start time of the first time window for sliding query
+  int64_t             prevSKey;   // previous (not completed) sliding window start key
+  int64_t             threshold;  // threshold for return completed results.
+} SSlidingWindowResInfo;
+
+typedef struct SQueryRuntimeEnv {
   SPositionInfo       startPos; /* the start position, used for secondary/third iteration */
   SPositionInfo       endPos;   /* the last access position in query, served as the start pos of reversed order query */
   SPositionInfo       nextPos;  /* start position of the next scan */
@@ -134,12 +158,15 @@ typedef struct RuntimeEnvironment {
   int16_t             scanFlag;  // denotes reversed scan of data or not
   SInterpolationInfo  interpoInfo;
   SData**             pInterpoBuf;
-  SOutputRes*         pResult;  // reference to SQuerySupporter->pResult
-  void*               hashList;
-  int32_t             usedIndex;  // assigned SOutputRes in list
+  
+  SSlidingWindowResInfo   swindowResInfo;
+  
   STSBuf*             pTSBuf;
   STSCursor           cur;
   SQueryCostSummary   summary;
+  
+  TSKEY               intervalSKey;   // skey of the complete time window, not affected by the actual data distribution
+  TSKEY               intervalEKey;   // ekey of the complete time window
   
   /*
    * Temporarily hold the in-memory cache block info during scan cache blocks

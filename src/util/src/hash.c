@@ -423,7 +423,8 @@ void taosDeleteFromHashTable(HashObj *pObj, const char *key, uint32_t keyLen) {
     __wr_lock(&pObj->lock);
   }
 
-  SHashNode *pNode = doGetNodeFromHashTable(pObj, key, keyLen, NULL);
+  uint32_t val = 0;
+  SHashNode *pNode = doGetNodeFromHashTable(pObj, key, keyLen, &val);
   if (pNode == NULL) {
     if (pObj->multithreadSafe) {
       __unlock(&pObj->lock);
@@ -434,7 +435,12 @@ void taosDeleteFromHashTable(HashObj *pObj, const char *key, uint32_t keyLen) {
 
   SHashNode *pNext = pNode->next;
   if (pNode->prev != NULL) {
-    pNode->prev->next = pNext;
+    int32_t slot = HASH_INDEX(val, pObj->capacity);
+    if (pObj->hashList[slot]->next == pNode) {
+      pObj->hashList[slot]->next = pNext;
+    } else {
+      pNode->prev->next = pNext;
+    }
   }
   
   if (pNext != NULL) {

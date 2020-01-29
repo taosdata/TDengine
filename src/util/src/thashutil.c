@@ -93,6 +93,7 @@ uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
 _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
   _hash_fn_t fn = NULL;
   switch(type) {
+    case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT: fn = taosIntHash_64;break;
     case TSDB_DATA_TYPE_BINARY: fn = MurmurHash3_32;break;
     case TSDB_DATA_TYPE_INT: fn = taosIntHash_32; break;

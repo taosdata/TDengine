@@ -62,7 +62,7 @@ static int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQ
 static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pIdList, int16_t bytes,
                                  int8_t type, char* fieldName);
 static int32_t changeFunctionID(int32_t optr, int16_t* functionId);
-static int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isMetric);
+static int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable);
 
 static bool validateIpAddress(const char* ip, size_t size);
 static bool hasUnsupportFunctionsForSTableQuery(SQueryInfo* pQueryInfo);
@@ -93,6 +93,8 @@ static int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
 
 static bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField);
 static bool hasTimestampForPointInterpQuery(SQueryInfo* pQueryInfo);
+static bool hasDefaultQueryTimeRange(SQueryInfo *pQueryInfo);
+
 static void updateTagColumnIndex(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
 static int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t index, SQuerySQL* pQuerySql, SSqlObj* pSql);
@@ -4432,8 +4434,6 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
   const char* msg1 = "slimit/soffset only available for STable query";
   const char* msg2 = "function not supported on table";
   const char* msg3 = "slimit/soffset can not apply to projection query";
-  const char* msg4 = "projection on super table requires order by clause along with limitation";
-  const char* msg5 = "ordered projection result too large";
   
   // handle the limit offset value, validate the limit
   pQueryInfo->limit = pQuerySql->limit;
@@ -5542,28 +5542,6 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     }
   }
 
-  // set sliding value
-  SSQLToken* pSliding = &pQuerySql->sliding;
-  if (pSliding->n != 0) {
-    if (!tscEmbedded && pCmd->inStream == 0) {  // sliding only allowed in stream
-      const char* msg = "not support sliding in query";
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
-    }
-
-    getTimestampInUsFromStr(pSliding->z, pSliding->n, &pQueryInfo->nSlidingTime);
-    if (pMeterMetaInfo->pMeterMeta->precision == TSDB_TIME_PRECISION_MILLI) {
-      pQueryInfo->nSlidingTime /= 1000;
-    }
-
-    if (pQueryInfo->nSlidingTime < tsMinSlidingTime) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg3);
-    }
-
-    if (pQueryInfo->nSlidingTime > pQueryInfo->nAggTimeInterval) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg4);
-    }
-  }
-
   // set order by info
   if (parseOrderbyClause(pQueryInfo, pQuerySql, tsGetSchema(pMeterMetaInfo->pMeterMeta)) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_SQL;
@@ -5601,6 +5579,30 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
   if (!hasTimestampForPointInterpQuery(pQueryInfo)) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg2);
+  }
+  
+  // set sliding value, the query time range needs to be decide in the first place
+  SSQLToken* pSliding = &pQuerySql->sliding;
+  if (pSliding->n != 0) {
+    if (!tscEmbedded && pCmd->inStream == 0 && hasDefaultQueryTimeRange(pQueryInfo)) {  // sliding only allowed in stream
+      const char* msg = "time range expected for sliding window query";
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+    }
+    
+    getTimestampInUsFromStr(pSliding->z, pSliding->n, &pQueryInfo->nSlidingTime);
+    if (pMeterMetaInfo->pMeterMeta->precision == TSDB_TIME_PRECISION_MILLI) {
+      pQueryInfo->nSlidingTime /= 1000;
+    }
+    
+    if (pQueryInfo->nSlidingTime < tsMinSlidingTime) {
+      return invalidSqlErrMsg(pQueryInfo->msg, msg3);
+    }
+    
+    if (pQueryInfo->nSlidingTime > pQueryInfo->nAggTimeInterval) {
+      return invalidSqlErrMsg(pQueryInfo->msg, msg4);
+    }
+  } else {
+    pQueryInfo->nSlidingTime = -1;
   }
 
   // in case of join query, time range is required.
@@ -5650,4 +5652,9 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   }
 
   return TSDB_CODE_SUCCESS;  // Does not build query message here
+}
+
+bool hasDefaultQueryTimeRange(SQueryInfo *pQueryInfo) {
+  return (pQueryInfo->stime == 0 && pQueryInfo->etime == INT64_MAX) ||
+         (pQueryInfo->stime == INT64_MAX && pQueryInfo->etime == 0);
 }

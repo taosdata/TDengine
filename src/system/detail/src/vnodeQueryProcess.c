@@ -535,7 +535,7 @@ static int64_t doCheckMetersInGroup(SQInfo *pQInfo, int32_t index, int32_t start
   SPointInterpoSupporter pointInterpSupporter = {0};
   pointInterpSupporterInit(pQuery, &pointInterpSupporter);
 
-  if (!normalizedFirstQueryRange(dataInDisk, dataInCache, pSupporter, &pointInterpSupporter)) {
+  if (!normalizedFirstQueryRange(dataInDisk, dataInCache, pSupporter, &pointInterpSupporter, NULL)) {
     pointInterpSupporterDestroy(&pointInterpSupporter);
     return 0;
   }
@@ -666,19 +666,10 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
     if (pSupporter->meterIdx >= pSids->numOfSids) {
       return;
     }
-
-    for (int32_t i = 0; i < pRuntimeEnv->usedIndex; ++i) {
-      SOutputRes *pOneRes = &pRuntimeEnv->pResult[i];
-      clearGroupResultBuf(pOneRes, pQuery->numOfOutputCols);
-    }
-
-    pRuntimeEnv->usedIndex = 0;
-    taosCleanUpHashTable(pRuntimeEnv->hashList);
-
-    int32_t primeHashSlot = 10039;
-    pRuntimeEnv->hashList = taosInitHashTable(primeHashSlot, taosIntHash_32, false);
-
-    while (pSupporter->meterIdx < pSupporter->numOfMeters) {
+  
+    resetResWindowInfo(&pRuntimeEnv->swindowResInfo, pQuery->numOfOutputCols);
+    
+      while (pSupporter->meterIdx < pSupporter->numOfMeters) {
       int32_t k = pSupporter->meterIdx;
 
       if (isQueryKilled(pQuery)) {
@@ -703,7 +694,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
 #endif
 
       SPointInterpoSupporter pointInterpSupporter = {0};
-      if (normalizedFirstQueryRange(dataInDisk, dataInCache, pSupporter, &pointInterpSupporter) == false) {
+      if (normalizedFirstQueryRange(dataInDisk, dataInCache, pSupporter, &pointInterpSupporter, NULL) == false) {
         pQuery->skey = pSupporter->rawSKey;
         pQuery->ekey = pSupporter->rawEKey;
 
@@ -778,8 +769,10 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
   }
 
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
-    for (int32_t i = 0; i < pRuntimeEnv->usedIndex; ++i) {
-      SOutputRes *buf = &pRuntimeEnv->pResult[i];
+    SSlidingWindowResInfo* pWindowResInfo = &pRuntimeEnv->swindowResInfo;
+  
+    for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
+      SOutputRes *buf = &pWindowResInfo->pResult[i];
       for (int32_t j = 0; j < pQuery->numOfOutputCols; ++j) {
         buf->numOfRows = MAX(buf->numOfRows, buf->resultInfo[j].numOfRes);
       }
@@ -787,13 +780,11 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
 
     pQInfo->pMeterQuerySupporter->subgroupIdx = 0;
     pQuery->pointsRead = 0;
-    copyFromGroupBuf(pQInfo, pRuntimeEnv->pResult);
+    copyFromGroupBuf(pQInfo, pWindowResInfo->pResult);
   }
 
   pQInfo->pointsRead += pQuery->pointsRead;
   pQuery->pointsOffset = pQuery->pointsToRead;
-
-  moveDescOrderResultsToFront(pRuntimeEnv);
 
   dTrace(
       "QInfo %p vid:%d, numOfMeters:%d, index:%d, numOfGroups:%d, %d points returned, totalRead:%d totalReturn:%d,"
@@ -982,12 +973,11 @@ static void vnodeSingleMeterFixedOutputProcessor(SQInfo *pQInfo) {
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
     pQInfo->pMeterQuerySupporter->subgroupIdx = 0;
     pQuery->pointsRead = 0;
-    copyFromGroupBuf(pQInfo, pRuntimeEnv->pResult);
+    copyFromGroupBuf(pQInfo, pRuntimeEnv->swindowResInfo.pResult);
   }
 
   doSkipResults(pRuntimeEnv);
   doRevisedResultsByLimit(pQInfo);
-  moveDescOrderResultsToFront(pRuntimeEnv);
 
   pQInfo->pointsRead = pQuery->pointsRead;
 }
@@ -1034,8 +1024,6 @@ static void vnodeSingleMeterMultiOutputProcessor(SQInfo *pQInfo) {
   }
 
   doRevisedResultsByLimit(pQInfo);
-  moveDescOrderResultsToFront(pRuntimeEnv);
-
   pQInfo->pointsRead += pQuery->pointsRead;
 
   if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL)) {
@@ -1063,7 +1051,8 @@ static void vnodeSingleMeterIntervalMainLooper(SMeterQuerySupportObj *pSupporter
            (pQuery->skey >= pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery)));
 
     initCtxOutputBuf(pRuntimeEnv);
-
+    clearCompletedResWindows(&pRuntimeEnv->swindowResInfo, pQuery->numOfOutputCols);
+    
     vnodeScanAllData(pRuntimeEnv);
     if (isQueryKilled(pQuery)) {
       return;
@@ -1094,7 +1083,7 @@ static void vnodeSingleMeterIntervalMainLooper(SMeterQuerySupportObj *pSupporter
     }
 
     forwardIntervalQueryRange(pSupporter, pRuntimeEnv);
-    if (Q_STATUS_EQUAL(pQuery->over, QUERY_COMPLETED)) {
+    if (Q_STATUS_EQUAL(pQuery->over, QUERY_COMPLETED|QUERY_RESBUF_FULL)) {
       break;
     }
 
@@ -1133,17 +1122,8 @@ static void vnodeSingleMeterIntervalProcessor(SQInfo *pQInfo) {
       taosInterpoSetStartInfo(&pRuntimeEnv->interpoInfo, pQuery->pointsRead, pQuery->interpoType);
       SData **pInterpoBuf = pRuntimeEnv->pInterpoBuf;
 
-      if (QUERY_IS_ASC_QUERY(pQuery)) {
-        for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-          memcpy(pInterpoBuf[i]->data, pQuery->sdata[i]->data, pQuery->pointsRead * pQuery->pSelectExpr[i].resBytes);
-        }
-      } else {
-        int32_t size = pMeterObj->pointsPerFileBlock;
-        for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-          memcpy(pInterpoBuf[i]->data,
-                 pQuery->sdata[i]->data + (size - pQuery->pointsRead) * pQuery->pSelectExpr[i].resBytes,
-                 pQuery->pointsRead * pQuery->pSelectExpr[i].resBytes);
-        }
+      for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+        memcpy(pInterpoBuf[i]->data, pQuery->sdata[i]->data, pQuery->pointsRead * pQuery->pSelectExpr[i].resBytes);
       }
 
       numOfInterpo = 0;
@@ -1160,11 +1140,15 @@ static void vnodeSingleMeterIntervalProcessor(SQInfo *pQInfo) {
       pQuery->pointsRead = 0;
     }
   }
+  
+  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || (pQuery->slidingTime > 0 && pQuery->nAggTimeInterval > 0)) {
+    pQInfo->pMeterQuerySupporter->subgroupIdx = 0;
+    pQuery->pointsRead = 0;
+    copyFromGroupBuf(pQInfo, pRuntimeEnv->swindowResInfo.pResult);
+  }
 
   pQInfo->pointsRead += pQuery->pointsRead;
   pQInfo->pointsInterpo += numOfInterpo;
-
-//  moveDescOrderResultsToFront(pRuntimeEnv);
 
   dTrace("%p vid:%d sid:%d id:%s, %d points returned %d points interpo, totalRead:%d totalInterpo:%d totalReturn:%d",
          pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead, numOfInterpo,
@@ -1209,7 +1193,6 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
                                                      (tFilePage **)pRuntimeEnv->pInterpoBuf, remain, &numOfInterpo);
 
     doRevisedResultsByLimit(pQInfo);
-    moveDescOrderResultsToFront(pRuntimeEnv);
 
     pQInfo->pointsInterpo += numOfInterpo;
     pQInfo->pointsRead += pQuery->pointsRead;

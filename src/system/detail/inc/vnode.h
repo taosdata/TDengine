@@ -260,6 +260,7 @@ typedef struct SQuery {
   TSKEY       skey;
   TSKEY       ekey;
   int64_t     nAggTimeInterval;
+  int64_t     slidingTime;       // sliding time for sliding window query
   char        intervalTimeUnit;  // interval data type, used for daytime revise
   int8_t      precision;
   int16_t     numOfOutputCols;
