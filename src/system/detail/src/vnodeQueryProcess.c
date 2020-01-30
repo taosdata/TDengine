@@ -85,6 +85,29 @@ static void setStartPositionForCacheBlock(SQuery *pQuery, SCacheBlock *pBlock, b
   }
 }
 
+static void enableExecutionForNextTable(SQueryRuntimeEnv *pRuntimeEnv) {
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  
+  // enable execution for next table
+  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || (pQuery->nAggTimeInterval > 0 && pQuery->slidingTime > 0)) {
+    SSlidingWindowResInfo *pWindowResInfo = &pRuntimeEnv->swindowResInfo;
+    
+    for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
+      SOutputRes *buf = &pWindowResInfo->pResult[i];
+      for (int32_t j = 0; j < pQuery->numOfOutputCols; ++j) {
+        buf->resultInfo[j].complete = false;
+      }
+    }
+  } else {
+    for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+      SResultInfo *pResInfo = GET_RES_INFO(&pRuntimeEnv->pCtx[i]);
+      if (pResInfo != NULL) {
+        pResInfo->complete = false;
+      }
+    }
+  }
+}
+
 static SMeterDataInfo *queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMeterInfo) {
   SQuery *               pQuery = &pQInfo->query;
   SMeterQuerySupportObj *pSupporter = pQInfo->pMeterQuerySupporter;
@@ -548,7 +571,10 @@ static int64_t doCheckMetersInGroup(SQInfo *pQInfo, int32_t index, int32_t start
   pointInterpSupporterDestroy(&pointInterpSupporter);
 
   vnodeScanAllData(pRuntimeEnv);
-
+  
+  // enable execution for next table
+  enableExecutionForNextTable(pRuntimeEnv);
+  
   // first/last_row query, do not invoke the finalize for super table query
   if (!isFirstLastRowQuery(pQuery)) {
     doFinalizeResult(pRuntimeEnv);
@@ -725,7 +751,10 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
         pSupporter->meterIdx = pSupporter->pSidSet->numOfSids;
         break;
       }
-
+  
+      // enable execution for next table
+      enableExecutionForNextTable(pRuntimeEnv);
+  
       if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK | QUERY_COMPLETED)) {
         /*
          * query range is identical in terms of all meters involved in query,
@@ -738,10 +767,10 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
         pSupporter->meterIdx++;
 
         // if the buffer is full or group by each table, we need to jump out of the loop
-//        if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL) ||
-//            isGroupbyEachTable(pQuery->pGroupbyExpr, pSupporter->pSidSet)) {
+        if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL) ||
+            isGroupbyEachTable(pQuery->pGroupbyExpr, pSupporter->pSidSet)) {
           break;
-//        }
+        }
 
       } else {
         // forward query range
@@ -768,11 +797,14 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
     pRuntimeEnv->cur = pRuntimeEnv->pTSBuf->cur;
   }
 
+  // todo refactor
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
     SSlidingWindowResInfo* pWindowResInfo = &pRuntimeEnv->swindowResInfo;
   
     for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
       SOutputRes *buf = &pWindowResInfo->pResult[i];
+      pWindowResInfo->pStatus[i].closed = true;   // enable return all results for group by normal columns
+      
       for (int32_t j = 0; j < pQuery->numOfOutputCols; ++j) {
         buf->numOfRows = MAX(buf->numOfRows, buf->resultInfo[j].numOfRes);
       }

@@ -103,4 +103,4 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
   }
   
   return fn;
-  }
+}

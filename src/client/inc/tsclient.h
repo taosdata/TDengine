@@ -31,10 +31,6 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 
-//#define TSC_GET_RESPTR_BASE(res, _queryinfo, col, ord)                     \
-//  ((res->data + tscFieldInfoGetOffset(_queryinfo, col) * res->numOfRows) + \
-//   (1 - ord.order) * (res->numOfRows - 1) * tscFieldInfoGetField(_queryinfo, col)->bytes)
-
 #define TSC_GET_RESPTR_BASE(res, _queryinfo, col, ord)                     \
   (res->data + tscFieldInfoGetOffset(_queryinfo, col) * res->numOfRows)
   
@@ -116,13 +112,6 @@ typedef struct SColumnBaseInfo {
 } SColumnBaseInfo;
 
 struct SLocalReducer;
-
-// todo move to utility
-typedef struct SString {
-  int32_t alloc;
-  int32_t n;
-  char *  z;
-} SString;
 
 typedef struct SCond {
   uint64_t uid;

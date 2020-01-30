@@ -37,7 +37,6 @@ uint32_t MurmurHash3_32(const char *key, uint32_t len);
  */
 uint32_t taosIntHash_32(const char *key, uint32_t len);
 
-
 uint32_t taosIntHash_64(const char *key, uint32_t len);
 
 _hash_fn_t taosGetDefaultHashFunction(int32_t type);

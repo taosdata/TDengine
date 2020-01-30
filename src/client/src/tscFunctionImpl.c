@@ -2890,24 +2890,17 @@ static FORCE_INLINE void date_col_output_function_f(SQLFunctionCtx *pCtx, int32_
 static void col_project_function(SQLFunctionCtx *pCtx) {
   INC_INIT_VAL(pCtx, pCtx->size);
 
-  char *pDest = 0;
-//  if (pCtx->order == TSQL_SO_ASC) {
-    pDest = pCtx->aOutputBuf;
-//  } else {
-//    pDest = pCtx->aOutputBuf - (pCtx->size - 1) * pCtx->inputBytes;
-//  }
-
   char *pData = GET_INPUT_CHAR(pCtx);
   if (pCtx->order == TSQL_SO_ASC) {
-    memcpy(pDest, pData, (size_t)pCtx->size * pCtx->inputBytes);
+    memcpy(pCtx->aOutputBuf, pData, (size_t)pCtx->size * pCtx->inputBytes);
   } else {
     for(int32_t i = 0; i < pCtx->size; ++i) {
-      memcpy(pDest + (pCtx->size - 1 - i) * pCtx->inputBytes, pData + i * pCtx->inputBytes,
+      memcpy(pCtx->aOutputBuf + (pCtx->size - 1 - i) * pCtx->inputBytes, pData + i * pCtx->inputBytes,
           pCtx->inputBytes);
     }
   }
 
-  pCtx->aOutputBuf += pCtx->size * pCtx->outputBytes/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
+  pCtx->aOutputBuf += pCtx->size * pCtx->outputBytes;
 }
 
 static void col_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
@@ -3229,7 +3222,7 @@ static void diff_function_f(SQLFunctionCtx *pCtx, int32_t index) {
     GET_RES_INFO(pCtx)->numOfRes += 1;
   }
 
-  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t step = 1/*GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
 
   switch (pCtx->inputType) {
     case TSDB_DATA_TYPE_INT: {
