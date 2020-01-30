@@ -210,7 +210,12 @@ if $data10 != @70-01-01 08:01:40.200@ then
   return -1
 endi
 
-if $data07 != false then
+print data06 = $data06
+print data07 = $data07
+print data08 = $data08
+print data00 = $data00
+
+if $data07 != 0 then
   return  -1
 endi
 
