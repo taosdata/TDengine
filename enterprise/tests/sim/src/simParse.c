@@ -132,15 +132,15 @@ SScript *simBuildScriptObj(char *fileName) {
 
   for (--dest.top; dest.top >= 0; --dest.top) {
     for (i = 0; i < label.top; ++i) {
-      if (strcmp(label.label[i], dest.label[dest.top]) == 0) break;
+      if (strcmp(label.label[i], dest.label[(uint8_t)dest.top]) == 0) break;
     }
 
     if (i == label.top) {
-      sprintf(parseErr, "label:%s not defined", dest.label[dest.top]);
+      sprintf(parseErr, "label:%s not defined", dest.label[(uint8_t)dest.top]);
       return NULL;
     }
 
-    destPos = dest.pos[dest.top];
+    destPos = dest.pos[(uint8_t)dest.top];
     cmdLine[destPos].jump = label.pos[i];
     if (cmdLine[destPos].cmdno == SIM_CMD_SQL) {
       cmdLine[destPos].errorJump = SQL_JUMP_TRUE;
@@ -212,8 +212,8 @@ SScript *simParseScript(char *fileName) {
     if (tokenLen == 0) continue;
 
     if (token[tokenLen - 1] == ':') {
-      strncpy(label.label[label.top], token, tokenLen - 1);
-      label.pos[label.top] = numOfLines;
+      strncpy(label.label[(uint8_t)label.top], token, tokenLen - 1);
+      label.pos[(uint8_t)label.top] = numOfLines;
       label.top++;
       goto again;
     }
@@ -343,8 +343,8 @@ bool simParseIfCmd(char *rest, SCommand *pCmd, int lineNum) {
   ret = rest + expLen;
 
   if (strncmp(ret, "then", 4) == 0) {
-    block.type[block.top] = BLOCK_IF;
-    block.pos[block.top] = &cmdLine[numOfLines].jump;
+    block.type[(uint8_t)block.top] = BLOCK_IF;
+    block.pos[(uint8_t)block.top] = &cmdLine[numOfLines].jump;
     block.top++;
   } else {
     cmdLine[numOfLines].jump = numOfLines + 2;
@@ -379,7 +379,7 @@ bool simParseElifCmd(char *rest, SCommand *pCmd, int lineNum) {
   }
 
   cmdLine[numOfLines].cmdno = SIM_CMD_GOTO;
-  block.jump[block.top - 1][block.numJump[block.top - 1]] =
+  block.jump[block.top - 1][(uint8_t)block.numJump[block.top - 1]] =
       &(cmdLine[numOfLines].jump);
   block.numJump[block.top - 1]++;
 
@@ -411,7 +411,7 @@ bool simParseElseCmd(char *rest, SCommand *pCmd, int lineNum) {
   }
 
   cmdLine[numOfLines].cmdno = SIM_CMD_GOTO;
-  block.jump[block.top - 1][block.numJump[block.top - 1]] =
+  block.jump[block.top - 1][(uint8_t)block.numJump[block.top - 1]] =
       &(cmdLine[numOfLines].jump);
   block.numJump[block.top - 1]++;
 
@@ -454,9 +454,9 @@ bool simParseWhileCmd(char *rest, SCommand *pCmd, int lineNum) {
 
   if (expLen <= 0) return false;
 
-  block.type[block.top] = BLOCK_WHILE;
-  block.pos[block.top] = &(cmdLine[numOfLines].jump);
-  block.back[block.top] = numOfLines;
+  block.type[(uint8_t)block.top] = BLOCK_WHILE;
+  block.pos[(uint8_t)block.top] = &(cmdLine[numOfLines].jump);
+  block.back[(uint8_t)block.top] = numOfLines;
   block.top++;
 
   cmdLine[numOfLines].optionOffset = optionOffset;
@@ -513,9 +513,9 @@ bool simParseSwitchCmd(char *rest, SCommand *pCmd, int lineNum) {
     return false;
   }
 
-  memcpy(block.sexp[block.top], token, tokenLen);
-  block.sexpLen[block.top] = tokenLen;
-  block.type[block.top] = BLOCK_SWITCH;
+  memcpy(block.sexp[(uint8_t)block.top], token, tokenLen);
+  block.sexpLen[(uint8_t)block.top] = tokenLen;
+  block.type[(uint8_t)block.top] = BLOCK_SWITCH;
   block.top++;
 
   return true;
@@ -576,7 +576,7 @@ bool simParseBreakCmd(char *rest, SCommand *pCmd, int lineNum) {
     return false;
   }
 
-  block.jump[block.top - 1][block.numJump[block.top - 1]] =
+  block.jump[block.top - 1][(uint8_t)block.numJump[block.top - 1]] =
       &(cmdLine[numOfLines].jump);
   block.numJump[block.top - 1]++;
 
@@ -669,9 +669,9 @@ void simCheckSqlOption(char *rest) {
   if (xpos) {
     paGetToken(xpos + 3, &value, &valueLen);
     if (valueLen != 0) {
-      memcpy(dest.label[dest.top], value, valueLen);
-      dest.label[dest.top][valueLen] = 0;
-      dest.pos[dest.top] = numOfLines;
+      memcpy(dest.label[(uint8_t)dest.top], value, valueLen);
+      dest.label[(uint8_t)dest.top][valueLen] = 0;
+      dest.pos[(uint8_t)dest.top] = numOfLines;
       dest.top++;
 
       *xpos = 0;
@@ -789,9 +789,9 @@ bool simParseGotoCmd(char *rest, SCommand *pCmd, int lineNum) {
     return false;
   }
 
-  memcpy(dest.label[dest.top], token, tokenLen);
-  dest.label[dest.top][tokenLen] = 0;
-  dest.pos[dest.top] = numOfLines;
+  memcpy(dest.label[(uint8_t)dest.top], token, tokenLen);
+  dest.label[(uint8_t)dest.top][tokenLen] = 0;
+  dest.pos[(uint8_t)dest.top] = numOfLines;
   dest.top++;
 
   cmdLine[numOfLines].cmdno = SIM_CMD_GOTO;

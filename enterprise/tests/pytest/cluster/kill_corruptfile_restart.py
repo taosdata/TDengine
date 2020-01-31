@@ -30,7 +30,7 @@ class TDTestCase:
     tdDnodes.cfg(1,"commitTime", "30")
     tdDnodes.start(1)
     
-    self.conn = taos.connect(config=tdDnodes.getSimCfgPath())
+    self.conn = taos.connect(host='192.168.0.1', config=tdDnodes.getSimCfgPath())
     tdSql.init(self.conn.cursor())
     tdSql.execute('reset query cache')
     tdSql.execute('create dnode 192.168.0.2')
@@ -54,48 +54,52 @@ class TDTestCase:
     self.replica = 3
     self.ctime   = 30
 
+    tdLog.info("================= step1")
+    tdLog.info("insert into %d records into each %d tables" %(self.rowsPerTable, self.ntables))
     tdSql.execute('create database db replica %d ctime %d' %(self.replica, self.ctime))
+    tdLog.sleep(5)
     tdSql.execute('use db')
+    tdSql.execute('create table tb (ts timestamp, i int) tags(id int)')
     for tid in range(1,self.ntables+1):
-      tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
+      tdSql.execute('create table tb%d using tb tags(%d)' %(tid,tid))
     tdLog.sleep(5)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
-      sqlcmd = ["insert into"]
+      sqlcmd = ["insert into tb%d values" %(tid)]
       for rid in range(1, self.rowsPerTable+1):
-        sqlcmd.append("tb%d values(%ld, %d)" %(tid, startTime, rid))
-        startTime += 1
+        sqlcmd.append("(%ld, %d)" %(startTime+rid, rid))
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
     tdLog.sleep(40)
 
-    tdLog.info("================= step1")
-    tdSql.query('select * from tb%d' %1)
-    tdSql.checkRows(self.rowsPerTable)
-
     tdLog.info("================= step2")
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
+
+    tdLog.info("================= step3")
     tdDnodes.forcestop(3)
     tdLog.sleep(5)
 
-    tdLog.info("================= step3")
+    tdLog.info("================= step4")
+    tdLog.info("find files in dnode3")
     dnodesDir  = tdDnodes.getDnodesRootDir()
     dataDir    = dnodesDir + '/dnode3/data/data'
     vnodes     = os.listdir(dataDir)
     vnodeDir   = os.path.join(dataDir, vnodes[0])
     vnodefiles = os.listdir(vnodeDir)
 
-    tdLog.info("================= step4")
+    tdLog.info("================= step5")
     fileToDel = os.path.join(vnodeDir, vnodefiles[0])
     cmd = 'rm -rf %s' % (fileToDel)
     if os.system(cmd) != 0 :
       tdLog.exit(cmd)
     tdLog.debug("%s" % (cmd))
 
-    tdLog.info("================= step5")
+    tdLog.info("================= step6")
     tdDnodes.start(3)
     tdLog.sleep(40)
 
-    tdLog.info("================= step6")
+    tdLog.info("================= step7")
     fileToRes = fileToDel
     fileToRes0 = fileToDel[:-1] + '0'
     fileToRes1 = fileToDel[:-1] + '1'
@@ -103,6 +107,15 @@ class TDTestCase:
       tdLog.debug("%s has been restored" % (fileToDel))
     else:
       tdLog.exit("%s has not been restored" % (fileToDel))
+
+    tdLog.info("================= step8")
+    tdLog.info("insert 1 data again")
+    sqlcmd = ['insert into']
+    for tid in range(1, self.ntables+1):
+      sqlcmd.append('tb%d values(%ld, %d)' %(tid,self.startTime+11, 11))
+    tdSql.execute(" ".join(sqlcmd))
+    tdSql.query('select count(*) from tb')
+    tdSql.checkData(0, 0, self.ntables*(self.rowsPerTable+1))
     
   def stop(self):
     tdSql.close()

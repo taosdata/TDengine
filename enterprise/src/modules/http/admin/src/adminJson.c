@@ -90,7 +90,7 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
   for (int i = 0; i < numOfRows; ++i) {
     TAOS_ROW row = taos_fetch_row(result);
 
-    if (cmd->numOfRows >= tsAdminRowLimit) {
+    if (cmd->numOfRows >= tsRestRowLimit) {
       break;
     }
 
@@ -143,9 +143,9 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
     httpJsonToken(jsonBuf, JsonArrEnd);
   }
 
-  if (cmd->numOfRows >= tsAdminRowLimit) {
+  if (cmd->numOfRows >= tsRestRowLimit) {
     httpTrace("context:%p, fd:%d, ip:%s, user:%s, retrieve rows:%lld larger than limit:%d, abort retrieve"
-      , pContext, pContext->fd, pContext->ipstr, pContext->user, cmd->numOfRows, tsAdminRowLimit);
+      , pContext, pContext->fd, pContext->ipstr, pContext->user, cmd->numOfRows, tsRestRowLimit);
     return false;
   }
   else {

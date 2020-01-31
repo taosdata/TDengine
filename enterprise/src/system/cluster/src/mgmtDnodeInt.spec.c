@@ -193,6 +193,10 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
   }
 
   uint32_t pubicIp = htonl(pStatus->publicIp);
+
+  /*
+   * When publicIp changes, update the publicIP of all vnodes
+   */
   if (pObj->publicIp != pubicIp) {
     mPrint("dnode:%s, change publicIp from %s to %s", taosIpStr(pObj->privateIp), taosIpStr(pObj->publicIp), taosIpStr(pubicIp));
     mgmtUpdateVgroupPublicIp(pObj->privateIp, pObj->publicIp, pubicIp);
@@ -385,12 +389,6 @@ SDnodeObj *mgmtProcessNewConnection(char *msg) {
       mTrace("ip:%s not configured", pMsg->meterId);
     }
   } else {
-    /*
-        if ( numOfVnodes != pObj->numOfVnodes ) {
-          mgmtDropDnode (pObj);
-          pObj = mgmtCreateDnode(ip, numOfVnodes);
-        }
-    */
     if (pObj->thandle) {
       taosCloseRpcConn(pObj->thandle);
       __sync_fetch_and_sub(&mgmtDnodeConns, 1);
@@ -450,7 +448,7 @@ void *mgmtProcessMsgFromDnodeSpec(char *msg, void *ahandle, void *thandle) {
   } else if (pMsg->msgType == TSDB_MSG_TYPE_GRANT) {
     mgmtProcessDnodeGrantMsg(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pObj);
   } else {
-    mgmtProcessMsgFromDnode(pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pMsg->msgType, pObj);
+    mgmtProcessMsgFromDnode((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pMsg->msgType, pObj);
   }
 
   return pObj;

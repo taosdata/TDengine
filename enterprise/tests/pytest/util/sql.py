@@ -32,7 +32,7 @@ class TDSql:
 	def prepare(self):
 		tdLog.info("prepare database:db")	
 		self.cursor.execute('reset query cache')
-		self.cursor.execute('drop database db')
+		self.cursor.execute('drop database if exists db')
 		self.cursor.execute('create database db')
 		self.cursor.execute('use db')
 	
@@ -43,17 +43,15 @@ class TDSql:
 		except:
 			expectErrNotOccured = False
 		if expectErrNotOccured:
-			tdLog.exit("sql:%s, expect error not occured" % (sql))
+			tdLog.exit("sql:%.40s, expect error not occured" % (sql))
 		else:
-			tdLog.info("sql:%s, expect error occured" % (sql))
+			tdLog.info("sql:%.40s, expect error occured" % (sql))
 		
 	def query(self, sql):
 		self.sql = sql
 		self.cursor.execute(sql)
 		self.queryResult = self.cursor.fetchall()
 		self.queryRows = len(self.queryResult)
-		for i in range(self.queryRows):
-			print(self.queryResult[i])
 		self.queryCols = len(self.cursor.description)
 		#if self.queryRows == 1 and self.queryCols == 1:
 		#	tdLog.info("sql:%s, rows:%d cols:%d data:%s" % (self.sql, self.queryRows, self.queryCols, self.queryResult[0][0]))
@@ -63,31 +61,31 @@ class TDSql:
 		
 	def checkRows(self, expectRows):
 		if self.queryRows != expectRows:
-			tdLog.exit("sql:%s, queryRows:%d != expect:%d" % (self.sql, self.queryRows, expectRows))
-		tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
+			tdLog.exit("sql:%.40s, queryRows:%d != expect:%d" % (self.sql, self.queryRows, expectRows))
+		tdLog.info("sql:%.40s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
 		
 	def checkData(self, row, col, data):
 		if row < 0:
-			tdLog.exit("sql:%s, row:%d is smaller than zero" % (self.sql, row))
+			tdLog.exit("sql:%.40s, row:%d is smaller than zero" % (self.sql, row))
 		if col < 0:
-			tdLog.exit("sql:%s, col:%d is smaller than zero" % (self.sql, col))
+			tdLog.exit("sql:%.40s, col:%d is smaller than zero" % (self.sql, col))
 		if row >= self.queryRows:
-			tdLog.exit("sql:%s, row:%d is larger than queryRows:%d" % (self.sql, row, self.queryRows))
+			tdLog.exit("sql:%.40s, row:%d is larger than queryRows:%d" % (self.sql, row, self.queryRows))
 		if col >= self.queryCols:
-			tdLog.exit("sql:%s, col:%d is larger than queryRows:%d" % (self.sql, col, self.queryCols))
+			tdLog.exit("sql:%.40s, col:%d is larger than queryRows:%d" % (self.sql, col, self.queryCols))
 		if self.queryResult[row][col] != data:
-			tdLog.exit("sql:%s row:%d col:%d data:%s != expect:%s" % (self.sql, row, col, self.queryResult[row][col], data))
-		tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%d" % (self.sql, row, col, self.queryResult[row][col], data))
+			tdLog.exit("sql:%.40s row:%d col:%d data:%s != expect:%s" % (self.sql, row, col, self.queryResult[row][col], data))
+		tdLog.info("sql:%.40s, row:%d col:%d data:%s == expect:%d" % (self.sql, row, col, self.queryResult[row][col], data))
 	
 	def getData(self, row, col):
 		if row < 0:
-			tdLog.exit("sql:%s, row:%d is smaller than zero" % (self.sql, row))
+			tdLog.exit("sql:%.40s, row:%d is smaller than zero" % (self.sql, row))
 		if col < 0:
-			tdLog.exit("sql:%s, col:%d is smaller than zero" % (self.sql, col))
+			tdLog.exit("sql:%.40s, col:%d is smaller than zero" % (self.sql, col))
 		if row >= self.queryRows:
-			tdLog.exit("sql:%s, row:%d is larger than queryRows:%d" % (self.sql, row, self.queryRows))
+			tdLog.exit("sql:%.40s, row:%d is larger than queryRows:%d" % (self.sql, row, self.queryRows))
 		if col >= self.queryCols:
-			tdLog.exit("sql:%s, col:%d is larger than queryRows:%d" % (self.sql, col, self.queryCols))
+			tdLog.exit("sql:%.40s, col:%d is larger than queryRows:%d" % (self.sql, col, self.queryCols))
 		return self.queryResult[row][col]
 	
 	def executeTimes(self, sql, times):
@@ -99,13 +97,14 @@ class TDSql:
 				continue
 	
 	def execute(self, sql):
+		self.sql = sql
 		self.affectedRows = self.cursor.execute(sql)
 		return self.affectedRows
 	
 	def checkAffectedRows(self, expectAffectedRows):
 		if self.affectedRows != expectAffectedRows:
-			tdLog.exit("sql:%s, affectedRows:%d != expect:%d" % (self.sql, self.affectedRows, expectAffectedRows))
-		tdLog.info("sql:%s, affectedRows:%d == expect:%d" % (self.sql, self.affectedRows, expectAffectedRows))
+			tdLog.exit("sql:%.40s, affectedRows:%d != expect:%d" % (self.sql, self.affectedRows, expectAffectedRows))
+		tdLog.info("sql:%.40s, affectedRows:%d == expect:%d" % (self.sql, self.affectedRows, expectAffectedRows))
 		
 tdSql = TDSql()	
 	

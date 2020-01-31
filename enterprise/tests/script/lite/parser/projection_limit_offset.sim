@@ -352,6 +352,12 @@ if $data13 != null then
    return -1
 endi
 
+print =============tbase-1324
+sql select a, k-k from m1
+if $row != 8 then
+   return -1
+endi
+
 #error sql
 sql_error select * from 1;
 sql_error select 1;

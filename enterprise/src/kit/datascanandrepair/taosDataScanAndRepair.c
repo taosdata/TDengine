@@ -2,7 +2,11 @@
 #include <assert.h>
 #include <dirent.h>
 #include <errno.h>
+
+#ifndef _ALPINE
 #include <error.h>
+#endif
+
 #include <fcntl.h>
 #include <libgen.h>
 #include <stddef.h>
@@ -104,6 +108,7 @@ static struct argp argp = {options, parse_opt, args_doc, doc};
 void        printVnodeCfg(FILE *fp, SVnodeCfg *pCfg);
 void        printHeader(SCompHeader *pHeader, int maxSessions);
 int         printCompInfo(SCompInfo *pCompInfo, uint64_t uid, FILE *fp);
+void        printCompBlock(SCompBlock *pBlock, FILE *fp);
 void        checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *headName, int *err);
 SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir);
 int         createDir(const char *dirName);
@@ -123,10 +128,10 @@ int checkParams() {
 // #define REPARE_FILE
 int main(int argc, char **argv) {
   taosResolveCRC();
-  char tsdbDir[128] = "\0";
-  char dbDir[128] = "\0";
-  char meterObjFile[128] = "\0";
-  char headFile[128] = "\0";
+  char tsdbDir[133] = "\0";
+  char dbDir[400] = "\0";
+  char meterObjFile[408] = "\0";
+  char headFile[658] = "\0";
 
   gArg = (struct arguments){"/var/lib/taos", 0, 0, 0, 0};
 
@@ -153,7 +158,7 @@ int main(int argc, char **argv) {
       // Start to processing vnode
       printf("Processing directory: %s/%s...\n", tsdbDir, dent1->d_name);
       {  // Create report and repair vnode directory
-        char tmpDirName[128] = "\0";
+        char tmpDirName[FILENAME_MAX] = "\0";
         sprintf(tmpDirName, "%s/%s", REPORT_DIR, dent1->d_name);
         if (createDir(tmpDirName) < 0) exit(EXIT_FAILURE);
         if (!(gArg.reportOnly)) {
@@ -193,7 +198,7 @@ int main(int argc, char **argv) {
         }
 
         if (vnodeHasError == 0) {
-          char tmpfname[128] = "\0";
+          char tmpfname[1024] = "\0";
           if (!(gArg.keepAll)) {
             sprintf(tmpfname, "%s/%s/%s.info", REPORT_DIR, dent1->d_name, dent1->d_name);
             REMOVE(tmpfname);
@@ -551,6 +556,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
       SCompBlock *pBlock = &pBlocks[j];
       if (pBlock->last != 0 && j < numOfBlocks - 1) {
         fprintf(reportFP, ">> ERROR in block %d: last block in middle\n", j);
+        printCompBlock(pBlock, reportFP);
         fileHasError = 1;
         *err = 1;
         if (repairFd > 0) {
@@ -561,6 +567,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
 
       if (pBlock->keyFirst > pBlock->keyLast) {
         fprintf(reportFP, ">> ERROR in block %d: keyFirst is larger than keyLast\n", j);
+        printCompBlock(pBlock, reportFP);
         fileHasError = 1;
         *err = 1;
         if (repairFd > 0) {
@@ -571,6 +578,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
 
       if (pBlock->offset < 512) {
         fprintf(reportFP, ">> ERROR in block %d: offset %ld is smaller than 512\n", j, (long)(pBlock->offset));
+        printCompBlock(pBlock, reportFP);
         fileHasError = 1;
         *err = 1;
         if (repairFd > 0) {
@@ -580,7 +588,8 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
       }
 
       if (pBlock->keyFirst <= keyLast) {
-        fprintf(reportFP, ">> ERROR in block %d: block keyFirst is not larger than last block keyLast\n", j);
+        fprintf(reportFP, ">> ERROR in block %d: block keyFirst %ld is not larger than last block keyLast %ld\n", j, pBlock->keyFirst, keyLast);
+        printCompBlock(pBlock, reportFP);
         fileHasError = 1;
         *err = 1;
         if (repairFd > 0) {
@@ -604,6 +613,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
 
         if (pBlock->offset > toffset) {
           fprintf(reportFP, ">> ERROR in block %d: offset %ld is larger than file size %ld", j, (long)(pBlock->offset), toffset);
+          printCompBlock(pBlock, reportFP);
           numOfCorrectBlocks--;
           continue;
         }
@@ -632,6 +642,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
 
         if (!taosCheckChecksumWhole((uint8_t *)pFields, tfsize)) {
           fprintf(reportFP, ">> ERROR in block %d: SField part checksum is error\n", j);
+          printCompBlock(pBlock, reportFP);
           fileHasError = 1;
           *err = 1;
           numOfCorrectBlocks--;
@@ -662,6 +673,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
 
           if (!taosCheckChecksumWhole((uint8_t *)pCol, ttlen)) {
             fprintf(reportFP, ">> ERROR in block %d, column %d data part is broken\n", j, ti);
+            printCompBlock(pBlock, reportFP);
             fileHasError = 1;
             *err = 1;
             colHasError = 1;
@@ -829,6 +841,18 @@ int printCompInfo(SCompInfo *pCompInfo, uint64_t uid, FILE *fp) {
   return isRight;
 }
 
+void printCompBlock(SCompBlock *pBlock, FILE *fp) {
+  fprintf(fp, "   last:        %ld\n",  (int64_t)(pBlock->last));
+  fprintf(fp, "   offset:      %ld\n",  (int64_t)(pBlock->offset));
+  fprintf(fp, "   algorithm:   %d\n",   (int32_t)(pBlock->algorithm));
+  fprintf(fp, "   numOfPoints: %d\n",   (int32_t)(pBlock->numOfPoints));
+  fprintf(fp, "   sversion:    %d\n",   (int32_t)(pBlock->sversion));
+  fprintf(fp, "   len:         %d\n",   (int32_t)(pBlock->len));
+  fprintf(fp, "   numOfCols:   %d\n",   (int16_t)(pBlock->numOfCols));
+  fprintf(fp, "   keyFirst:    %ld\n",  (int64_t)(pBlock->keyFirst));
+  fprintf(fp, "   keyLast:     %ld\n",  (int64_t)(pBlock->keyLast));
+}
+
 int createDir(const char *dirName) {
   struct stat st = {0};
   if (stat(dirName, &st) == -1) {
@@ -891,7 +915,7 @@ void scanDir(const char *dbDir, SVnodeInfo *pInfo) {
       if (minFileId > fileId) minFileId = fileId;
       if (maxFileId < fileId) maxFileId = fileId;
       if (flag) {
-        char tmpfile[128] = "\0";
+        char tmpfile[1024] = "\0";
         sprintf(tmpfile, "%s/%s", dbDir, dent->d_name);
         readlink(tmpfile, buf, bufSize);
         dDir = dirname(buf);

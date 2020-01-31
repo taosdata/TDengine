@@ -200,7 +200,7 @@ int vnodeSyncRetrieveFile(int vnode, int fd, uint32_t peerFid, uint64_t *fmagic)
   pVnode = vnodeList + vnode;
 
   if (pVnode->numOfFiles <= 0){
-    pVnode->fileId = pVnode->firstKey / pVnode->cfg.daysPerFile / tsMsPerDay[pVnode->cfg.precision];
+    pVnode->fileId = pVnode->firstKey / pVnode->cfg.daysPerFile / tsMsPerDay[(uint8_t)pVnode->cfg.precision];
   }
 
   dPrint("vid:%d, fd:%d, start sync retrieve, numOfFiles:%d", vnode, fd, pVnode->numOfFiles);
@@ -615,7 +615,7 @@ int vnodeSyncRestoreFile(int vnode, int sfd) {
   pVnode->numOfFiles = size;
   pVnode->lastKeyOnFile = pVnode->numOfFiles == 0
                               ? 0
-                              : (int64_t)(pVnode->fileId + 1) * pCfg->daysPerFile * tsMsPerDay[pVnode->cfg.precision] - 1;
+                              : (int64_t)(pVnode->fileId + 1) * pCfg->daysPerFile * tsMsPerDay[(uint8_t)pVnode->cfg.precision] - 1;
   vnodeSaveVnodeInfo(vnode);
 
   dPrint("vid:%d, sync restore finished", vnode);

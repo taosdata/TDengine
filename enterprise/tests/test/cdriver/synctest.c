@@ -22,6 +22,7 @@
 #include "tsclient.h"
 #include "tlog.h"
 #include "ttimer.h"
+#include <inttypes.h>
 
 void  saveQueryResult(TAOS *con, char *fileName);
 void *syncTest(void *param);
@@ -120,7 +121,6 @@ void *syncTest(void *param)
   struct  timeval systemTime;
   int64_t st, et, i;
   char    qstr[1024];
-  char    fileName[128];
   int     points = pInfo->points;
   int     numOfRows;
   TAOS_RES *result;
@@ -247,7 +247,6 @@ void saveQueryResult(TAOS *con, char *fileName)
   TAOS_ROW row;
   TAOS_RES *result;
   int       numOfRows = 0;
-  char      temp[1024];
   FILE     *fp;
 
   result = taos_use_result(con);
@@ -259,13 +258,15 @@ void saveQueryResult(TAOS *con, char *fileName)
     return;
   }
 
-  int num_fields = taos_field_count(con);
-  TAOS_FIELD *fields = taos_fetch_fields(result);
+  //int num_fields = taos_field_count(con);
+  //TAOS_FIELD *fields = taos_fetch_fields(result);
 
   while ((row = taos_fetch_row(result)))
   {
-      temp[0] = 0;
+
 /*
+      char      temp[1024];
+      temp[0] = 0;
       for(int i = 0; i < num_fields; i++) 
       { 
         int len = strlen(temp);

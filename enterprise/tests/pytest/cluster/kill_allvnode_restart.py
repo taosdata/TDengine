@@ -51,12 +51,12 @@ class TDTestCase:
     self.replica = 2
 
     tdLog.info("================= step1")
-    tdLog.info("insert %d records into %d tables" % (self.rowsPerTable, self.ntables))
+    tdLog.info("insert %d records into each %d tables" % (self.rowsPerTable, self.ntables))
     tdSql.execute('create database db replica %d ' % (self.replica))
     tdSql.execute('use db')
-    tdSql.execute('create table stb (ts timestamp, i int) tags (id int)')
+    tdSql.execute('create table tb (ts timestamp, i int) tags (id int)')
     for tid in range(1,self.ntables+1):
-      tdSql.execute('create table tb%d using stb tags (%d)' %(tid, tid))
+      tdSql.execute('create table tb%d using tb tags (%d)' %(tid, tid))
     tdLog.sleep(10)
     for tid in range(1,self.ntables+1):
       startTime = self.startTime
@@ -66,9 +66,7 @@ class TDTestCase:
         startTime += 1
       tdSql.execute(" ".join(sqlcmd))
     self.startTime += self.rowsPerTable
-    tdSql.query('select * from stb')
-    tdSql.checkRows(self.ntables*self.rowsPerTable)
-    tdSql.query('select count(*) from stb')
+    tdSql.query('select count(*) from tb')
     tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
 
     tdLog.info("================= step2")
@@ -82,15 +80,15 @@ class TDTestCase:
     tdDnodes.forcestop(vgVnode2)
 
     tdLog.info("================= step3")
-    tdSql.error("select * from stb")
+    tdSql.error("select * from tb")
 
     tdLog.info("================= step4")
     tdDnodes.start(vgVnode1)
-    tdSql.error("select * from stb")
+    tdSql.error("select * from tb")
 
     tdLog.info("================= step5")
     tdDnodes.start(vgVnode2)
-    tdSql.query('select count(*) from stb')
+    tdSql.query('select count(*) from tb')
     tdSql.checkData(0, 0, self.ntables*self.rowsPerTable)
 
   def stop(self):

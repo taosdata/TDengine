@@ -33,7 +33,11 @@ run lite/parser/import_commit2.sim
 sleep 2000
 run lite/parser/import_commit3.sim
 sleep 2000
+run lite/parser/import_file.sim
+sleep 2000
 run lite/parser/insert_tb.sim
+sleep 2000
+run lite/parser/tags_dynamically_specifiy.sim
 sleep 2000
 run lite/parser/interp.sim
 run lite/parser/lastrow.sim
@@ -81,7 +85,7 @@ sleep 2000
 #run lite/parser/repeatStream.sim
 sleep 2000
 run lite/parser/join.sim
-sleep 2000
+run lite/parser/join_multivnode.sim
 run lite/parser/projection_limit_offset.sim
 sleep 2000
 run lite/parser/select_with_tags.sim

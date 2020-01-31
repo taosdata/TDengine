@@ -38,72 +38,110 @@ class TDTestCase:
     tdLog.sleep(10)
     
   def run(self):
-    tdSql.execute('create database db replica 3 days 7')
+    self.replica = 3
+    self.ntables = 10
+    self.rowsPerTable = 10
+    self.startTime = 1520000010000L
+    
+    tdLog.info("================= step1")
+    tdLog.info("create database db replica %d" %self.replica)
+    tdSql.execute('create database db replica %d' %self.replica)
     tdSql.execute('use db')
-    for tid in range(1,11):
+    for tid in range(1,self.ntables+1):
       tdSql.execute('create table tb%d(ts timestamp, i int)' %tid)
     tdLog.sleep(10)
 
-    tdLog.info("================= step1")
-    startTime = 1520000010000L;
-    for rid in range(1,11):
-      for tid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-      startTime += 1
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(10)
-    tdLog.sleep(5)
-
     tdLog.info("================= step2")
-    tdSql.execute('alter database db replica 2')
-    tdLog.sleep(10)
+    tdLog.info("insert %d records into each %d tables" %(self.rowsPerTable, self.ntables))
+    for tid in range(1,self.ntables+1):
+      startTime = self.startTime
+      sqlcmd = ['insert into tb%d values' %(tid)]
+      for rid in range(1,self.rowsPerTable+1):
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
+    self.startTime += self.rowsPerTable
+    tdSql.query('select * from tb1')
+    tdSql.checkRows(self.rowsPerTable)
+    tdLog.sleep(5)
 
     tdLog.info("================= step3")
-    for rid in range(1,11):
-      for tid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-      startTime += 1
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(20)
-    tdLog.sleep(5)
+    self.replica = 2
+    tdLog.info('alter database db replica %d' %self.replica)
+    tdSql.execute('alter database db replica %d' %self.replica)
+    tdLog.sleep(10)
 
     tdLog.info("================= step4")
-    tdSql.execute('alter database db replica 1')
-    tdLog.sleep(10)
+    tdLog.info("insert %d records again into each %d tables" %(10, self.ntables))
+    for tid in range(1,self.ntables+1):
+      startTime = self.startTime
+      sqlcmd = ['insert into tb%d values' %(tid)]
+      for rid in range(1,11):
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
+    self.startTime += 10
+    self.rowsPerTable += 10
+    tdSql.query('select * from tb1')
+    tdSql.checkRows(self.rowsPerTable)
+    tdLog.sleep(5)
 
     tdLog.info("================= step5")
-    for rid in range(1,11):
-      for tid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-      startTime += 1
+    self.replica = 1
+    tdLog.info('alter database db replica %d' %self.replica)
+    tdSql.execute('alter database db replica %d' %self.replica)
+    tdLog.sleep(10)
+
+    tdLog.info("================= step6")
+    tdLog.info("insert %d records again into each %d tables" %(10, self.ntables))
+    for tid in range(1,self.ntables+1):
+      startTime = self.startTime
+      sqlcmd = ['insert into tb%d values' %(tid)]
+      for rid in range(1,11):
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
+    self.startTime += 10
+    self.rowsPerTable += 10
     tdSql.query('select * from tb1')
-    tdSql.checkRows(30)
+    tdSql.checkRows(self.rowsPerTable)
     tdLog.sleep(5)
     
-    tdLog.info("================= step6")
-    tdSql.execute('alter database db replica 2')
-    tdLog.sleep(10)
-
     tdLog.info("================= step7")
-    for rid in range(1,11):
-      for tid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-      startTime += 1
-    tdSql.query('select * from tb1')
-    tdSql.checkRows(40)
-    tdLog.sleep(5)
+    self.replica = 2
+    tdLog.info('alter database db replica %d' %self.replica)
+    tdSql.execute('alter database db replica %d' %self.replica)
+    tdLog.sleep(10)
 
     tdLog.info("================= step8")
-    tdSql.execute('alter database db replica 3')
-    tdLog.sleep(10)
+    tdLog.info("insert %d records again into each %d tables" %(10, self.ntables))
+    for tid in range(1,self.ntables+1):
+      startTime = self.startTime
+      sqlcmd = ['insert into tb%d values' %(tid)]
+      for rid in range(1,11):
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
+    self.startTime += 10
+    self.rowsPerTable += 10
+    tdSql.query('select * from tb1')
+    tdSql.checkRows(self.rowsPerTable)
+    tdLog.sleep(5)
 
     tdLog.info("================= step9")
-    for rid in range(1,11):
-      for tid in range(1,11):
-        tdSql.execute('insert into tb%d values(%ld, %d)' %(tid, startTime, rid))
-      startTime += 1
+    self.replica = 3
+    tdLog.info('alter database db replica %d' %self.replica)
+    tdSql.execute('alter database db replica %d' %self.replica)
+    tdLog.sleep(10)
+
+    tdLog.info("================= step10")
+    tdLog.info("insert %d records again into each %d tables" %(10, self.ntables))
+    for tid in range(1,self.ntables+1):
+      startTime = self.startTime
+      sqlcmd = ['insert into tb%d values' %(tid)]
+      for rid in range(1,11):
+        sqlcmd.append('(%ld, %d)' %(startTime+rid, rid))
+      tdSql.execute(" ".join(sqlcmd))
+    self.startTime += 10
+    self.rowsPerTable += 10
     tdSql.query('select * from tb1')
-    tdSql.checkRows(50)
+    tdSql.checkRows(self.rowsPerTable)
     tdLog.sleep(5)
 
     

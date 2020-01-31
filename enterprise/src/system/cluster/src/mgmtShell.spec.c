@@ -23,18 +23,11 @@
 #include "taosmsg.h"
 #include "tlog.h"
 
-#pragma GCC diagnostic push
-
-#pragma GCC diagnostic ignored "-Woverflow"
-#pragma GCC diagnostic ignored "-Wpointer-sign"
-#pragma GCC diagnostic ignored "-Wint-conversion"
-
 #define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
 
-void *    mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle);
+void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle);
 int (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(char *, int, SConnObj *);
-void       mgmtInitProcessShellMsg();
-static int mgmtRedirectMsg(SConnObj *pConn, int msgType);
+void  mgmtInitProcessShellMsg();
 
 int mgmtRedirectMsg(SConnObj *pConn, int msgType) {
   char *    pStart, *pMsg;
@@ -48,9 +41,15 @@ int mgmtRedirectMsg(SConnObj *pConn, int msgType) {
   pRsp->code = TSDB_CODE_REDIRECT;
   pMsg = (char *)pRsp->more;
 
-  size = sizeof(SIpList) + pSdbPublicIpList->numOfIps * 4;
-  memcpy(pMsg, pSdbPublicIpList, size);
-  pMsg += size;
+  if (pConn->usePublicIp) {
+    size = sizeof(SIpList) + pSdbPublicIpList->numOfIps * 4;
+    memcpy(pMsg, pSdbPublicIpList, size);
+    pMsg += size;
+  } else {
+    size = sizeof(SIpList) + pSdbIpList->numOfIps * 4;
+    memcpy(pMsg, pSdbIpList, size);
+    pMsg += size;
+  }
 
   msgLen = pMsg - pStart;
 
@@ -237,5 +236,3 @@ int mgmtProcessCreateAcctMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   return 0;
 }
-
-#pragma GCC diagnostic pop

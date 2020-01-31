@@ -2,11 +2,9 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 PROJECT(TDengine)
 
-SET(SUBSCRIBER_CMD_NAME "subscriber_cmd")
-SET(SUBSCRIBER_TARGET_NAME "subscriber_target")
-
-FIND_PATH(MVN_INSTALLED mvn /usr/bin/)
-IF (MVN_INSTALLED)
+IF (TD_MVN_INSTALLED)
+  SET(SUBSCRIBER_CMD_NAME "subscriber_cmd")
+  SET(SUBSCRIBER_TARGET_NAME "subscriber_target")
   MESSAGE(STATUS "MVN is installed and subscriber will be compiled")
   ADD_CUSTOM_COMMAND(OUTPUT ${SUBSCRIBER_CMD_NAME}
     POST_BUILD

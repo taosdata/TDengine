@@ -22,7 +22,7 @@
 #include "dnodeSystem.h"
 #include "mgmt.h"
 #include "tschemautil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 void *dnodeSdb = NULL;
 int   tsDnodeUpdateSize;
@@ -56,8 +56,8 @@ void mgmtDnodeActionInit() {
 }
 
 void *mgmtDnodeAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtDnodeActionFp[action] != NULL) {
-    return (*(mgmtDnodeActionFp[action]))(row, str, size, ssize);
+  if (mgmtDnodeActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtDnodeActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }
@@ -65,7 +65,7 @@ void *mgmtDnodeAction(char action, void *row, char *str, int size, int *ssize) {
 int mgmtInitDnodes() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
-  int64_t    numOfRows, pos = 0;
+  int64_t    numOfRows = 0;
 
   mgmtDnodeActionInit();
 
@@ -76,9 +76,7 @@ int mgmtInitDnodes() {
   }
 
   numOfRows = sdbGetNumOfRows(dnodeSdb);
-  if (numOfRows > 0)
-    pos = rand() % numOfRows;
-  else {
+  if (numOfRows <= 0) {
     if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
       mgmtCreateDnode(inet_addr(tsPrivateIp));
       pDnode = mgmtGetDnode(inet_addr(tsPrivateIp));
@@ -159,14 +157,11 @@ int mgmtDropDnodeByIp(uint32_t ip) {
   if (pDnode == NULL) return TSDB_CODE_INVALID_VALUE;
 
   if (pDnode->privateIp == mgmtIpList.ip[0]) {
-    mError("dnode:0x%x, can't drop dnode which is master", pDnode->privateIp);
+    mError("dnode:%s, can't drop dnode which is master", taosIpStr(pDnode->privateIp));
     return TSDB_CODE_NO_REMOVE_MASTER;
   }
 
-  // sdbDeleteRow(dnodeSdb, pDnode);
-  mgmtSetDnodeShellRemoving(pDnode);
-
-  return 0;
+  return mgmtSetDnodeShellRemoving(pDnode);
 }
 
 int mgmtUpdateDnode(SDnodeObj *pDnode) { return sdbUpdateRow(dnodeSdb, pDnode, 0, 1); }
@@ -178,7 +173,7 @@ int mgmtGetDnodesNum() {
 }
 
 void *mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode) {
-  return sdbFetchRow(dnodeSdb, pShow->pNode, pDnode);
+  return sdbFetchRow(dnodeSdb, pShow->pNode, (void**)pDnode);
 }
 
 void *mgmtDnodeActionInsert(void *row, char *str, int size, int *ssize) {
