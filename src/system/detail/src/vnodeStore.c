@@ -188,7 +188,7 @@ int vnodeCreateVnode(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc) {
     if (errno == EACCES) {
       return TSDB_CODE_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {
-      return TSDB_CODE_SERVER_NO_SPACE;
+      return TSDB_CODE_SERV_NO_DISKSPACE;
     } else if (errno == EEXIST) {
     } else {
       return TSDB_CODE_VG_INIT_FAILED;
@@ -201,7 +201,7 @@ int vnodeCreateVnode(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc) {
     if (errno == EACCES) {
       return TSDB_CODE_NO_DISK_PERMISSIONS;
     } else if (errno == ENOSPC) {
-      return TSDB_CODE_SERVER_NO_SPACE;
+      return TSDB_CODE_SERV_NO_DISKSPACE;
     } else if (errno == EEXIST) {
     } else {
       return TSDB_CODE_VG_INIT_FAILED;
