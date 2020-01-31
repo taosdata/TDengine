@@ -72,6 +72,8 @@ for (int32_t i = 0; i < (ctx)->tagInfo.numOfTagCols; ++i) {                  \
 void noop1(SQLFunctionCtx *UNUSED_PARAM(pCtx)) {}
 void noop2(SQLFunctionCtx *UNUSED_PARAM(pCtx), int32_t UNUSED_PARAM(index)) {}
 
+void doFinalizer(SQLFunctionCtx *pCtx) { resetResultInfo(GET_RES_INFO(pCtx)); }
+
 typedef struct tValuePair {
   tVariant v;
   int64_t  timestamp;
@@ -355,8 +357,8 @@ static void function_finalizer(SQLFunctionCtx *pCtx) {
     pTrace("no result generated, result is set to NULL");
     setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
   }
-
-  resetResultInfo(GET_RES_INFO(pCtx));
+  
+  doFinalizer(pCtx);
 }
 
 /*
@@ -889,6 +891,7 @@ static void avg_finalizer(SQLFunctionCtx *pCtx) {
 
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   GET_RES_INFO(pCtx)->numOfRes = 1;
+  doFinalizer(pCtx);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -1433,8 +1436,8 @@ static void stddev_finalizer(SQLFunctionCtx *pCtx) {
     *retValue = sqrt(pStd->res / pStd->num);
     SET_VAL(pCtx, 1, 1);
   }
-
-  resetResultInfo(GET_RES_INFO(pCtx));
+  
+  doFinalizer(pCtx);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////
@@ -1836,7 +1839,7 @@ static void last_row_finalizer(SQLFunctionCtx *pCtx) {
   }
 
   GET_RES_INFO(pCtx)->numOfRes = 1;
-  resetResultInfo(GET_RES_INFO(pCtx));
+  doFinalizer(pCtx);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -2404,8 +2407,8 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
 
   GET_TRUE_DATA_TYPE();
   copyTopBotRes(pCtx, type);
-
-  resetResultInfo(pResInfo);
+  
+  doFinalizer(pCtx);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -2481,8 +2484,8 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
 
   tOrderDescDestroy(pMemBucket->pOrderDesc);
   tMemBucketDestroy(pMemBucket);
-
-  resetResultInfo(GET_RES_INFO(pCtx));
+  
+  doFinalizer(pCtx);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -2690,8 +2693,8 @@ static void apercentile_finalizer(SQLFunctionCtx *pCtx) {
       return;
     }
   }
-
-  resetResultInfo(pResInfo);
+  
+  doFinalizer(pCtx);
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -2871,7 +2874,7 @@ static void leastsquares_finalizer(SQLFunctionCtx *pCtx) {
   param[1][2] /= param[1][1];
 
   sprintf(pCtx->aOutputBuf, "(%lf, %lf)", param[0][2], param[1][2]);
-  resetResultInfo(GET_RES_INFO(pCtx));
+  doFinalizer(pCtx);
 }
 
 static void date_col_output_function(SQLFunctionCtx *pCtx) {
@@ -2927,18 +2930,17 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
   INC_INIT_VAL(pCtx, pCtx->size);
 
   assert(pCtx->inputBytes == pCtx->outputBytes);
-//  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
 
   for (int32_t i = 0; i < pCtx->size; ++i) {
     tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->outputType);
-    pCtx->aOutputBuf += pCtx->outputBytes/* * factor*/;
+    pCtx->aOutputBuf += pCtx->outputBytes;
   }
 }
 
 static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   INC_INIT_VAL(pCtx, 1);
   tVariantDump(&pCtx->tag, pCtx->aOutputBuf, pCtx->tag.nType);
-  pCtx->aOutputBuf += pCtx->outputBytes/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
+  pCtx->aOutputBuf += pCtx->outputBytes;
 }
 
 /**
@@ -4183,7 +4185,7 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
   }
 
   GET_RES_INFO(pCtx)->numOfRes = 1;
-  resetResultInfo(GET_RES_INFO(pCtx));
+  doFinalizer(pCtx);
 }
 
 /**
@@ -4345,7 +4347,7 @@ static void ts_comp_finalize(SQLFunctionCtx *pCtx) {
   strcpy(pCtx->aOutputBuf, pTSbuf->path);
 
   tsBufDestory(pTSbuf);
-  resetResultInfo(GET_RES_INFO(pCtx));
+  doFinalizer(pCtx);
 }
 
 /*
@@ -4385,7 +4387,7 @@ SQLAggFuncElem aAggs[28] = {{
                                 count_function,
                                 count_function_f,
                                 no_next_step,
-                                noop1,
+                                doFinalizer,
                                 count_func_merge,
                                 count_func_merge,
                                 count_load_data_info,
@@ -4628,7 +4630,7 @@ SQLAggFuncElem aAggs[28] = {{
                                 date_col_output_function,
                                 date_col_output_function_f,
                                 no_next_step,
-                                noop1,
+                                doFinalizer,
                                 copy_function,
                                 copy_function,
                                 no_data_info,
@@ -4643,7 +4645,7 @@ SQLAggFuncElem aAggs[28] = {{
                                 noop1,
                                 noop2,
                                 no_next_step,
-                                noop1,
+                                doFinalizer,
                                 copy_function,
                                 copy_function,
                                 data_req_load_info,
@@ -4658,7 +4660,7 @@ SQLAggFuncElem aAggs[28] = {{
                                 tag_function,
                                 noop2,
                                 no_next_step,
-                                noop1,
+                                doFinalizer,
                                 copy_function,
                                 copy_function,
                                 no_data_info,
@@ -4688,7 +4690,7 @@ SQLAggFuncElem aAggs[28] = {{
                                 tag_function,
                                 tag_function_f,
                                 no_next_step,
-                                noop1,
+                                doFinalizer,
                                 copy_function,
                                 copy_function,
                                 no_data_info,
@@ -4703,7 +4705,7 @@ SQLAggFuncElem aAggs[28] = {{
                                 col_project_function,
                                 col_project_function_f,
                                 no_next_step,
-                                noop1,
+                                doFinalizer,
                                 copy_function,
                                 copy_function,
                                 data_req_load_info,
@@ -4718,7 +4720,7 @@ SQLAggFuncElem aAggs[28] = {{
                                 tag_project_function,
                                 tag_project_function_f,
                                 no_next_step,
-                                noop1,
+                                doFinalizer,
                                 copy_function,
                                 copy_function,
                                 no_data_info,
@@ -4733,7 +4735,7 @@ SQLAggFuncElem aAggs[28] = {{
                                 arithmetic_function,
                                 arithmetic_function_f,
                                 no_next_step,
-                                noop1,
+                                doFinalizer,
                                 copy_function,
                                 copy_function,
                                 data_req_load_info,
@@ -4748,7 +4750,7 @@ SQLAggFuncElem aAggs[28] = {{
                                 diff_function,
                                 diff_function_f,
                                 no_next_step,
-                                noop1,
+                                doFinalizer,
                                 noop1,
                                 noop1,
                                 data_req_load_info,
@@ -4794,7 +4796,7 @@ SQLAggFuncElem aAggs[28] = {{
                                 interp_function,
                                 do_sum_f,  // todo filter handle
                                 no_next_step,
-                                noop1,
+                                doFinalizer,
                                 noop1,
                                 copy_function,
                                 no_data_info,

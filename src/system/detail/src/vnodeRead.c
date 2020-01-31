@@ -673,7 +673,7 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
       return pQInfo;
     }
 
-    schedMsg.fp = vnodeSingleMeterQuery;
+    schedMsg.fp = vnodeSingleTableQuery;
   }
 
   /*
@@ -891,7 +891,7 @@ int vnodeSaveQueryResult(void *handle, char *data, int32_t *size) {
 
       if (pQInfo->pMeterQuerySupporter != NULL) {
         if (pQInfo->pMeterQuerySupporter->pSidSet == NULL) {
-          schedMsg.fp = vnodeSingleMeterQuery;
+          schedMsg.fp = vnodeSingleTableQuery;
         } else {  // group by tag
           schedMsg.fp = vnodeMultiMeterQuery;
         }

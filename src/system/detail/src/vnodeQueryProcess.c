@@ -88,22 +88,10 @@ static void setStartPositionForCacheBlock(SQuery *pQuery, SCacheBlock *pBlock, b
 static void enableExecutionForNextTable(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery* pQuery = pRuntimeEnv->pQuery;
   
-  // enable execution for next table
-  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || (pQuery->nAggTimeInterval > 0 && pQuery->slidingTime > 0)) {
-    SSlidingWindowResInfo *pWindowResInfo = &pRuntimeEnv->swindowResInfo;
-    
-    for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
-      SOutputRes *buf = &pWindowResInfo->pResult[i];
-      for (int32_t j = 0; j < pQuery->numOfOutputCols; ++j) {
-        buf->resultInfo[j].complete = false;
-      }
-    }
-  } else {
-    for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-      SResultInfo *pResInfo = GET_RES_INFO(&pRuntimeEnv->pCtx[i]);
-      if (pResInfo != NULL) {
-        pResInfo->complete = false;
-      }
+  for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+    SResultInfo *pResInfo = GET_RES_INFO(&pRuntimeEnv->pCtx[i]);
+    if (pResInfo != NULL) {
+      pResInfo->complete = false;
     }
   }
 }
@@ -535,6 +523,7 @@ static bool multimeterMultioutputHelper(SQInfo *pQInfo, bool *dataInDisk, bool *
     }
   }
 
+  initCtxOutputBuf(pRuntimeEnv);
   return true;
 }
 
@@ -572,13 +561,8 @@ static int64_t doCheckMetersInGroup(SQInfo *pQInfo, int32_t index, int32_t start
 
   vnodeScanAllData(pRuntimeEnv);
   
-  // enable execution for next table
-  enableExecutionForNextTable(pRuntimeEnv);
-  
   // first/last_row query, do not invoke the finalize for super table query
-  if (!isFirstLastRowQuery(pQuery)) {
-    doFinalizeResult(pRuntimeEnv);
-  }
+  doFinalizeResult(pRuntimeEnv);
 
   int64_t numOfRes = getNumOfResult(pRuntimeEnv);
   assert(numOfRes == 1 || numOfRes == 0);
@@ -592,7 +576,14 @@ static int64_t doCheckMetersInGroup(SQInfo *pQInfo, int32_t index, int32_t start
   return numOfRes;
 }
 
-static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
+/**
+ * super table query handler
+ * 1. super table projection query, group-by on normal columns query, ts-comp query
+ * 2. point interpolation query, last row query
+ *
+ * @param pQInfo
+ */
+static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
   SMeterQuerySupportObj *pSupporter = pQInfo->pMeterQuerySupporter;
 
   SMeterSidExtInfo **pMeterSidExtInfo = pSupporter->pMeterSidExtInfo;
@@ -601,8 +592,8 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
   SQuery * pQuery = &pQInfo->query;
   tSidSet *pSids = pSupporter->pSidSet;
 
-  SMeterObj *pOneMeter = getMeterObj(pSupporter->pMetersHashTable, pMeterSidExtInfo[0]->sid);
-
+  int32_t vid = getMeterObj(pSupporter->pMetersHashTable, pMeterSidExtInfo[0]->sid)->vnode;
+  
   resetCtxOutputBuf(pRuntimeEnv);
 
   if (isPointInterpoQuery(pQuery)) {
@@ -613,7 +604,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
       int32_t end = pSids->starterPos[pSupporter->subgroupIdx + 1] - 1;
 
       if (isFirstLastRowQuery(pQuery)) {
-        dTrace("QInfo:%p last_row query on vid:%d, numOfGroups:%d, current group:%d", pQInfo, pOneMeter->vnode,
+        dTrace("QInfo:%p last_row query on vid:%d, numOfGroups:%d, current group:%d", pQInfo, vid,
                pSids->numOfSubSet, pSupporter->subgroupIdx);
 
         TSKEY   key = -1;
@@ -646,7 +637,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
         int64_t num = doCheckMetersInGroup(pQInfo, index, start);
         assert(num >= 0);
       } else {
-        dTrace("QInfo:%p interp query on vid:%d, numOfGroups:%d, current group:%d", pQInfo, pOneMeter->vnode,
+        dTrace("QInfo:%p interp query on vid:%d, numOfGroups:%d, current group:%d", pQInfo, vid,
                pSids->numOfSubSet, pSupporter->subgroupIdx);
 
         for (int32_t k = start; k <= end; ++k) {
@@ -673,7 +664,9 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
       }
     }
   } else {
-    // this procedure treats all tables as single group
+    /*
+     * 1. super table projection query, 2. group-by on normal columns query, 3. ts-comp query
+     */
     assert(pSupporter->meterIdx >= 0);
 
     /*
@@ -693,9 +686,9 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
       return;
     }
   
-    resetResWindowInfo(&pRuntimeEnv->swindowResInfo, pQuery->numOfOutputCols);
+    resetSlidingWindowInfo(&pRuntimeEnv->swindowResInfo, pQuery->numOfOutputCols);
     
-      while (pSupporter->meterIdx < pSupporter->numOfMeters) {
+    while (pSupporter->meterIdx < pSupporter->numOfMeters) {
       int32_t k = pSupporter->meterIdx;
 
       if (isQueryKilled(pQuery)) {
@@ -752,7 +745,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
         break;
       }
   
-      // enable execution for next table
+      // enable execution for next table, when handling the projection query
       enableExecutionForNextTable(pRuntimeEnv);
   
       if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK | QUERY_COMPLETED)) {
@@ -772,8 +765,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
           break;
         }
 
-      } else {
-        // forward query range
+      } else { // forward query range
         pQuery->skey = pQuery->lastKey;
 
         // all data in the result buffer are skipped due to the offset, continue to retrieve data from current meter
@@ -789,7 +781,18 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
     }
   }
 
-  if (!isGroupbyNormalCol(pQuery->pGroupbyExpr) && !isFirstLastRowQuery(pQuery)) {
+  /*
+   * 1. super table projection query, group-by on normal columns query, ts-comp query
+   * 2. point interpolation query, last row query
+   *
+   * group-by on normal columns query and last_row query do NOT invoke the finalizer here,
+   * since the finalize stage will be done at the client side.
+   *
+   * projection query, point interpolation query do not need the finalizer.
+   *
+   * Only the ts-comp query requires the finalizer function to be executed here.
+   */
+  if (isTSCompQuery(pQuery)) {
     doFinalizeResult(pRuntimeEnv);
   }
 
@@ -799,11 +802,11 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
 
   // todo refactor
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
-    SSlidingWindowResInfo* pWindowResInfo = &pRuntimeEnv->swindowResInfo;
+    SSlidingWindowInfo* pSlidingWindowInfo = &pRuntimeEnv->swindowResInfo;
   
-    for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
-      SOutputRes *buf = &pWindowResInfo->pResult[i];
-      pWindowResInfo->pStatus[i].closed = true;   // enable return all results for group by normal columns
+    for (int32_t i = 0; i < pSlidingWindowInfo->size; ++i) {
+      SOutputRes *buf = &pSlidingWindowInfo->pResult[i];
+      pSlidingWindowInfo->pStatus[i].closed = true;   // enable return all results for group by normal columns
       
       for (int32_t j = 0; j < pQuery->numOfOutputCols; ++j) {
         buf->numOfRows = MAX(buf->numOfRows, buf->resultInfo[j].numOfRes);
@@ -812,7 +815,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
 
     pQInfo->pMeterQuerySupporter->subgroupIdx = 0;
     pQuery->pointsRead = 0;
-    copyFromGroupBuf(pQInfo, pWindowResInfo->pResult);
+    copyFromGroupBuf(pQInfo, pSlidingWindowInfo->pResult);
   }
 
   pQInfo->pointsRead += pQuery->pointsRead;
@@ -821,7 +824,7 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
   dTrace(
       "QInfo %p vid:%d, numOfMeters:%d, index:%d, numOfGroups:%d, %d points returned, totalRead:%d totalReturn:%d,"
       "next skey:%" PRId64 ", offset:%" PRId64,
-      pQInfo, pOneMeter->vnode, pSids->numOfSids, pSupporter->meterIdx, pSids->numOfSubSet, pQuery->pointsRead,
+      pQInfo, vid, pSids->numOfSids, pSupporter->meterIdx, pSids->numOfSubSet, pQuery->pointsRead,
       pQInfo->pointsRead, pQInfo->pointsReturned, pQuery->skey, pQuery->limit.offset);
 }
 
@@ -979,7 +982,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
  * select count(*)/top(field,k)/avg(field name) from table_name [where ts>now-1a];
  * select count(*) from table_name group by status_column;
  */
-static void vnodeSingleMeterFixedOutputProcessor(SQInfo *pQInfo) {
+static void vnodeSingleTableFixedOutputProcessor(SQInfo *pQInfo) {
   SQuery *          pQuery = &pQInfo->query;
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->pMeterQuerySupporter->runtimeEnv;
 
@@ -1002,19 +1005,13 @@ static void vnodeSingleMeterFixedOutputProcessor(SQInfo *pQInfo) {
     assert(isTopBottomQuery(pQuery));
   }
 
-  if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
-    pQInfo->pMeterQuerySupporter->subgroupIdx = 0;
-    pQuery->pointsRead = 0;
-    copyFromGroupBuf(pQInfo, pRuntimeEnv->swindowResInfo.pResult);
-  }
-
   doSkipResults(pRuntimeEnv);
   doRevisedResultsByLimit(pQInfo);
 
   pQInfo->pointsRead = pQuery->pointsRead;
 }
 
-static void vnodeSingleMeterMultiOutputProcessor(SQInfo *pQInfo) {
+static void vnodeSingleTableMultiOutputProcessor(SQInfo *pQInfo) {
   SQuery *   pQuery = &pQInfo->query;
   SMeterObj *pMeterObj = pQInfo->pObj;
 
@@ -1083,7 +1080,7 @@ static void vnodeSingleMeterIntervalMainLooper(SMeterQuerySupportObj *pSupporter
            (pQuery->skey >= pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery)));
 
     initCtxOutputBuf(pRuntimeEnv);
-    clearCompletedResWindows(&pRuntimeEnv->swindowResInfo, pQuery->numOfOutputCols);
+    clearCompletedSlidingWindows(&pRuntimeEnv->swindowResInfo, pQuery->numOfOutputCols);
     
     vnodeScanAllData(pRuntimeEnv);
     if (isQueryKilled(pQuery)) {
@@ -1133,7 +1130,7 @@ static void vnodeSingleMeterIntervalMainLooper(SMeterQuerySupportObj *pSupporter
 }
 
 /* handle time interval query on single table */
-static void vnodeSingleMeterIntervalProcessor(SQInfo *pQInfo) {
+static void vnodeSingleTableIntervalProcessor(SQInfo *pQInfo) {
   SQuery *   pQuery = &(pQInfo->query);
   SMeterObj *pMeterObj = pQInfo->pObj;
 
@@ -1187,7 +1184,7 @@ static void vnodeSingleMeterIntervalProcessor(SQInfo *pQInfo) {
          pQInfo->pointsRead - pQInfo->pointsInterpo, pQInfo->pointsInterpo, pQInfo->pointsReturned);
 }
 
-void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
+void vnodeSingleTableQuery(SSchedMsg *pMsg) {
   SQInfo *pQInfo = (SQInfo *)pMsg->ahandle;
 
   if (pQInfo == NULL || pQInfo->pMeterQuerySupporter == NULL) {
@@ -1280,16 +1277,17 @@ void vnodeSingleMeterQuery(SSchedMsg *pMsg) {
 
   int64_t st = taosGetTimestampUs();
 
-  if (pQuery->nAggTimeInterval != 0) {  // interval (down sampling operation)
+  // group by normal column, sliding window query, interval query are handled by interval query processor
+  if (pQuery->nAggTimeInterval != 0 || isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // interval (down sampling operation)
     assert(pQuery->checkBufferInLoop == 0 && pQuery->pointsOffset == pQuery->pointsToRead);
-    vnodeSingleMeterIntervalProcessor(pQInfo);
+    vnodeSingleTableIntervalProcessor(pQInfo);
   } else {
     if (isFixedOutputQuery(pQuery)) {
       assert(pQuery->checkBufferInLoop == 0);
-      vnodeSingleMeterFixedOutputProcessor(pQInfo);
+      vnodeSingleTableFixedOutputProcessor(pQInfo);
     } else {  // diff/add/multiply/subtract/division
       assert(pQuery->checkBufferInLoop == 1);
-      vnodeSingleMeterMultiOutputProcessor(pQInfo);
+      vnodeSingleTableMultiOutputProcessor(pQInfo);
     }
   }
 
@@ -1336,7 +1334,7 @@ void vnodeMultiMeterQuery(SSchedMsg *pMsg) {
     assert((pQuery->checkBufferInLoop == 1 && pQuery->nAggTimeInterval == 0) || isPointInterpoQuery(pQuery) ||
            isGroupbyNormalCol(pQuery->pGroupbyExpr));
 
-    vnodeMultiMeterMultiOutputProcessor(pQInfo);
+    vnodeSTableSeqProcessor(pQInfo);
   }
 
   /* record the total elapsed time */

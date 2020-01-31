@@ -122,7 +122,7 @@ typedef struct SWindowStatus {
   bool closed;
 } SWindowStatus;
 
-typedef struct SSlidingWindowResInfo {
+typedef struct SSlidingWindowInfo {
   SOutputRes*         pResult;    // reference to SQuerySupporter->pResult
   SWindowStatus*      pStatus;    // current query window closed or not?
   void*               hashList;   // hash list for quick access
@@ -134,7 +134,7 @@ typedef struct SSlidingWindowResInfo {
   int64_t             startTime;  // start time of the first time window for sliding query
   int64_t             prevSKey;   // previous (not completed) sliding window start key
   int64_t             threshold;  // threshold for return completed results.
-} SSlidingWindowResInfo;
+} SSlidingWindowInfo;
 
 typedef struct SQueryRuntimeEnv {
   SPositionInfo       startPos; /* the start position, used for secondary/third iteration */
@@ -159,14 +159,13 @@ typedef struct SQueryRuntimeEnv {
   SInterpolationInfo  interpoInfo;
   SData**             pInterpoBuf;
   
-  SSlidingWindowResInfo   swindowResInfo;
+  SSlidingWindowInfo   swindowResInfo;
   
   STSBuf*             pTSBuf;
   STSCursor           cur;
   SQueryCostSummary   summary;
   
-  TSKEY               intervalSKey;   // skey of the complete time window, not affected by the actual data distribution
-  TSKEY               intervalEKey;   // ekey of the complete time window
+  STimeWindow         intervalWindow;  // the complete time window, not affected by the actual data distribution
   
   /*
    * Temporarily hold the in-memory cache block info during scan cache blocks
@@ -296,7 +295,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo* pQInfo, SQuery* pQuery, void* param)
 void vnodeDecMeterRefcnt(SQInfo* pQInfo);
 
 /* sql query handle in dnode */
-void vnodeSingleMeterQuery(SSchedMsg* pMsg);
+void vnodeSingleTableQuery(SSchedMsg* pMsg);
 
 /*
  * handle multi-meter query process

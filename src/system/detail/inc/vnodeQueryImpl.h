@@ -279,9 +279,11 @@ void vnodePrintQueryStatistics(SMeterQuerySupportObj* pSupporter);
 void clearGroupResultBuf(SOutputRes* pOneOutputRes, int32_t nOutputCols);
 void copyGroupResultBuf(SOutputRes* dst, const SOutputRes* src, int32_t nOutputCols);
 
-void resetResWindowInfo(SSlidingWindowResInfo* pWindowResInfo, int32_t numOfCols);
-void clearCompletedResWindows(SSlidingWindowResInfo* pWindowResInfo, int32_t numOfCols);
-int32_t numOfResFromResWindowInfo(SSlidingWindowResInfo* pWindowResInfo);
+void resetSlidingWindowInfo(SSlidingWindowInfo* pSlidingWindowInfo, int32_t numOfCols);
+void clearCompletedSlidingWindows(SSlidingWindowInfo* pSlidingWindowInfo, int32_t numOfCols);
+int32_t numOfClosedSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo);
+void closeSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo, int32_t slot);
+void closeAllSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo);
 
 #ifdef __cplusplus
 }
