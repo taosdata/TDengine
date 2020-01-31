@@ -210,7 +210,7 @@ if $data10 != @70-01-01 08:01:40.200@ then
   return -1
 endi
 
-if $data07 != false then
+if $data07 != 0 then
   return  -1
 endi
 
