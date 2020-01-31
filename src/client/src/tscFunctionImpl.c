@@ -2020,15 +2020,8 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   STopBotInfo *pRes = pResInfo->interResultBuf;
 
   tValuePair **tvp = pRes->res;
-  int32_t      step = 0;
-
-  // in case of second stage merge, always use incremental output.
-//  if (pCtx->currentStage == SECONDARY_STAGE_MERGE) {
-    step = QUERY_ASC_FORWARD_STEP;
-//  } else {
-//    step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
-//  }
-
+  
+  int32_t step = QUERY_ASC_FORWARD_STEP;
   int32_t len = GET_RES_INFO(pCtx)->numOfRes;
 
   switch (type) {
@@ -2988,10 +2981,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
 
   int32_t notNullElems = 0;
 
-  int32_t step = 1 /*GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
-
-//  int32_t i = (pCtx->order == TSQL_SO_ASC) ? 0 : pCtx->size - 1;
-  int32_t i = 0;
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t i = (pCtx->order == TSQL_SO_ASC) ? 0 : pCtx->size - 1;
+  
   TSKEY * pTimestamp = pCtx->ptsOutputBuf;
 
   switch (pCtx->inputType) {
@@ -3011,14 +3003,14 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
 
-          pOutput += step;
-          pTimestamp += step;
+          pOutput += 1;
+          pTimestamp += 1;
         } else {
           *pOutput = pData[i] - pData[i - step];
           *pTimestamp = pCtx->ptsList[i];
 
-          pOutput += step;
-          pTimestamp += step;
+          pOutput += 1;
+          pTimestamp += 1;
         }
 
         pCtx->param[1].i64Key = pData[i];
@@ -3039,18 +3031,18 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           pCtx->param[1].i64Key = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
-        } else if (i == 0) {
+        } else if ((i == 0 && pCtx->order == TSQL_SO_ASC) || (i == pCtx->size - 1 && pCtx->order == TSQL_SO_DESC)) {
           *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
 
-          pOutput += step;
-          pTimestamp += step;
+          pOutput += 1;
+          pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pData[i - 1];
+          *pOutput = pData[i] - pData[i - step];
           *pTimestamp = pCtx->ptsList[i];
 
-          pOutput += step;
-          pTimestamp += step;
+          pOutput += 1;
+          pTimestamp += 1;
         }
 
         pCtx->param[1].i64Key = pData[i];
@@ -3071,16 +3063,16 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           pCtx->param[1].dKey = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
-        } else if (i == 0) {
+        } else if ((i == 0 && pCtx->order == TSQL_SO_ASC) || (i == pCtx->size - 1 && pCtx->order == TSQL_SO_DESC)) {
           *pOutput = pData[i] - pCtx->param[1].dKey;
           *pTimestamp = pCtx->ptsList[i];
-          pOutput += step;
-          pTimestamp += step;
+          pOutput += 1;
+          pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pData[i - 1];
+          *pOutput = pData[i] - pData[i - step];
           *pTimestamp = pCtx->ptsList[i];
-          pOutput += step;
-          pTimestamp += step;
+          pOutput += 1;
+          pTimestamp += 1;
         }
 
         pCtx->param[1].dKey = pData[i];
@@ -3101,16 +3093,18 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           pCtx->param[1].dKey = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
-        } else if (i == 0) {
+        } else if ((i == 0 && pCtx->order == TSQL_SO_ASC) || (i == pCtx->size - 1 && pCtx->order == TSQL_SO_DESC)) {
           *pOutput = pData[i] - pCtx->param[1].dKey;
           *pTimestamp = pCtx->ptsList[i];
-          pOutput += step;
-          pTimestamp += step;
+          
+          pOutput += 1;
+          pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pData[i - 1];
+          *pOutput = pData[i] - pData[i - step];
           *pTimestamp = pCtx->ptsList[i];
-          pOutput += step;
-          pTimestamp += step;
+          
+          pOutput += 1;
+          pTimestamp += 1;
         }
 
         // keep the last value, the remain may be all null
@@ -3132,16 +3126,17 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           pCtx->param[1].i64Key = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
-        } else if (i == 0) {
+        } else if ((i == 0 && pCtx->order == TSQL_SO_ASC) || (i == pCtx->size - 1 && pCtx->order == TSQL_SO_DESC)) {
           *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
-          pOutput += step;
-          pTimestamp += step;
+          pOutput += 1;
+          pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pData[i - 1];
+          *pOutput = pData[i] - pData[i - step];
           *pTimestamp = pCtx->ptsList[i];
-          pOutput += step;
-          pTimestamp += step;
+          
+          pOutput += 1;
+          pTimestamp += 1;
         }
 
         pCtx->param[1].i64Key = pData[i];
@@ -3162,16 +3157,18 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           pCtx->param[1].i64Key = pData[i];
           pCtx->param[1].nType = pCtx->inputType;
-        } else if (i == 0) {
+        } else if ((i == 0 && pCtx->order == TSQL_SO_ASC) || (i == pCtx->size - 1 && pCtx->order == TSQL_SO_DESC)) {
           *pOutput = pData[i] - pCtx->param[1].i64Key;
           *pTimestamp = pCtx->ptsList[i];
-          pOutput += step;
-          pTimestamp += step;
+          
+          pOutput += 1;
+          pTimestamp += 1;
         } else {
-          *pOutput = pData[i] - pData[i - 1];
+          *pOutput = pData[i] - pData[i - step];
           *pTimestamp = pCtx->ptsList[i];
-          pOutput += step;
-          pTimestamp += step;
+          
+          pOutput += 1;
+          pTimestamp += 1;
         }
 
         pCtx->param[1].i64Key = pData[i];
@@ -3196,8 +3193,8 @@ static void diff_function(SQLFunctionCtx *pCtx) {
 
     GET_RES_INFO(pCtx)->numOfRes += forwardStep;
 
-    pCtx->aOutputBuf = pCtx->aOutputBuf + forwardStep * pCtx->outputBytes * step;
-    pCtx->ptsOutputBuf = (char *)pCtx->ptsOutputBuf + forwardStep * TSDB_KEYSIZE * step;
+    pCtx->aOutputBuf += forwardStep * pCtx->outputBytes;
+    pCtx->ptsOutputBuf += forwardStep * TSDB_KEYSIZE;
   }
 }
 
