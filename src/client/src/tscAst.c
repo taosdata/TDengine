@@ -108,11 +108,11 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
     return NULL;
   }
 
-  int32_t         i = 0;
   size_t          nodeSize = sizeof(tSQLSyntaxNode);
   tSQLSyntaxNode *pNode = NULL;
 
   if (pToken->type == TK_ID || pToken->type == TK_TBNAME) {
+    int32_t i = 0;
     if (pToken->type == TK_ID) {
       do {
         size_t len = strlen(pSchema[i].name);
@@ -268,8 +268,8 @@ static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, cha
   }
 
   // get the operator of expr
-  uint8_t optr = getBinaryExprOptr(&t0);
-  if (optr <= 0) {
+  uint8_t optr = getBinaryExprOptr(&t0);  
+  if (optr == 0) {
     pError("not support binary operator:%d", t0.type);
     tSQLSyntaxNodeDestroy(pLeft, NULL);
     return NULL;
@@ -323,9 +323,10 @@ static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, cha
     pn->colId = -1;
     return pn;
   } else {
-    uint8_t localOptr = getBinaryExprOptr(&t0);
-    if (localOptr <= 0) {
+    uint8_t localOptr = getBinaryExprOptr(&t0); 
+    if (localOptr == 0) {
       pError("not support binary operator:%d", t0.type);
+      free(pBinExpr);
       return NULL;
     }
 
@@ -418,16 +419,17 @@ void tSQLBinaryExprToString(tSQLBinaryExpr *pExpr, char *dst, int32_t *len) {
   if (pExpr == NULL) {
     *dst = 0;
     *len = 0;
+    return; 
   }
 
-  int32_t lhs = tSQLBinaryExprToStringImpl(pExpr->pLeft, dst, pExpr->pLeft->nodeType);
+  int32_t lhs = tSQLBinaryExprToStringImpl(pExpr->pLeft, dst, pExpr->pLeft->nodeType); 
   dst += lhs;
   *len = lhs;
 
-  char *start = tSQLOptrToString(pExpr->nSQLBinaryOptr, dst);
+  char *start = tSQLOptrToString(pExpr->nSQLBinaryOptr, dst); 
   *len += (start - dst);
 
-  *len += tSQLBinaryExprToStringImpl(pExpr->pRight, start, pExpr->pRight->nodeType);
+  *len += tSQLBinaryExprToStringImpl(pExpr->pRight, start, pExpr->pRight->nodeType); 
 }
 
 static void UNUSED_FUNC destroySyntaxTree(tSQLSyntaxNode *pNode) { tSQLSyntaxNodeDestroy(pNode, NULL); }
@@ -490,12 +492,12 @@ static void setInitialValueForRangeQueryCondition(tSKipListQueryCond *q, int8_t 
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY: {
       q->upperBnd.nType = type;
-      q->upperBnd.pz = "\0";
+      q->upperBnd.pz = NULL;
       q->upperBnd.nLen = -1;
 
       q->lowerBnd.nType = type;
-      q->lowerBnd.pz = "\0";
-      q->lowerBnd.nLen = 0;
+      q->lowerBnd.pz = NULL;
+      q->lowerBnd.nLen = -1;
     }
   }
 }
@@ -641,16 +643,15 @@ int32_t intersect(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResults
 }
 
 /*
- *
+ * traverse the result and apply the function to each item to check if the item is qualified or not
  */
-void tSQLListTraverseOnResult(struct tSQLBinaryExpr *pExpr, bool (*fp)(tSkipListNode *, void *),
-                              tQueryResultset *      pResult) {
+static void tSQLListTraverseOnResult(struct tSQLBinaryExpr *pExpr, __result_filter_fn_t  fp, tQueryResultset *pResult) {
   assert(pExpr->pLeft->nodeType == TSQL_NODE_COL && pExpr->pRight->nodeType == TSQL_NODE_VALUE);
 
-  // brutal force search
+  // brutal force scan the result list and check for each item in the list
   int64_t num = pResult->num;
   for (int32_t i = 0, j = 0; i < pResult->num; ++i) {
-    if (fp == NULL || (fp != NULL && fp(pResult->pRes[i], pExpr->info) == true)) {
+    if (fp == NULL || (fp(pResult->pRes[i], pExpr->info) == true)) {
       pResult->pRes[j++] = pResult->pRes[i];
     } else {
       num--;

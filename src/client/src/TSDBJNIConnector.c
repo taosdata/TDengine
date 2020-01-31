@@ -239,7 +239,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
                                                                                jbyteArray jsql, jlong con) {
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
-    jniError("jobj:%p, connection is closed", jobj);
+    jniError("jobj:%p, connection is already closed", jobj);
     return JNI_CONNECTION_NULL;
   }
 
@@ -252,6 +252,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
 
   char *dst = (char *)calloc(1, sizeof(char) * (len + 1));
   if (dst == NULL) {
+    jniError("jobj:%p, conn:%p, can not alloc memory", jobj, tscon);
     return JNI_OUT_OF_MEMORY;
   }
 
@@ -260,9 +261,11 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
     //todo handle error
   }
 
+  jniTrace("jobj:%p, conn:%p, sql:%s", jobj, tscon, dst);
+
   int code = taos_query(tscon, dst);
   if (code != 0) {
-    jniError("jobj:%p, conn:%p, code:%d, msg:%s, sql:%s", jobj, tscon, code, taos_errstr(tscon), dst);
+    jniError("jobj:%p, conn:%p, code:%d, msg:%s", jobj, tscon, code, taos_errstr(tscon));
     free(dst);
     return JNI_TDENGINE_ERROR;
   } else {
@@ -271,9 +274,9 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(J
 
     if (pSql->cmd.command == TSDB_SQL_INSERT) {
       affectRows = taos_affected_rows(tscon);
-      jniTrace("jobj:%p, conn:%p, code:%d, affect rows:%d, sql:%s", jobj, tscon, code, affectRows, dst);
+      jniTrace("jobj:%p, conn:%p, code:%d, affect rows:%d", jobj, tscon, code, affectRows);
     } else {
-      jniTrace("jobj:%p, conn:%p, code:%d, sql:%s", jobj, tscon, code, dst);
+      jniTrace("jobj:%p, conn:%p, code:%d", jobj, tscon, code);
     }
 
     free(dst);
@@ -307,7 +310,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultSetImp(
 
   if (tscIsUpdateQuery(tscon)) {
     ret = 0;  // for update query, no result pointer
-    jniTrace("jobj:%p, conn:%p, no result", jobj, tscon);
+    jniTrace("jobj:%p, conn:%p, no resultset", jobj, tscon);
   } else {
     ret = (jlong) taos_use_result(tscon);
     jniTrace("jobj:%p, conn:%p, get resultset:%p", jobj, tscon, (void *) ret);
@@ -463,11 +466,17 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
       case TSDB_DATA_TYPE_BIGINT:
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetLongFp, i, (jlong) * ((int64_t *)row[i]));
         break;
-      case TSDB_DATA_TYPE_FLOAT:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetFloatFp, i, (jfloat) * ((float *)row[i]));
+      case TSDB_DATA_TYPE_FLOAT: {
+        float fv = 0;
+        fv = GET_FLOAT_VAL(row[i]);
+        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetFloatFp, i, (jfloat)fv);
+      }
         break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetDoubleFp, i, (jdouble) * ((double *)row[i]));
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double dv = 0;
+        dv = GET_DOUBLE_VAL(row[i]);
+        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetDoubleFp, i, (jdouble)dv);
+      }
         break;
       case TSDB_DATA_TYPE_BINARY: {
         strncpy(tmp, row[i], (size_t) fields[i].bytes);  // handle the case that terminated does not exist
@@ -496,7 +505,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeConnectionIm
                                                                                   jlong con) {
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
-    jniError("jobj:%p, connection is closed", jobj);
+    jniError("jobj:%p, connection is already closed", jobj);
     return JNI_CONNECTION_NULL;
   } else {
     jniTrace("jobj:%p, conn:%p, close connection success", jobj, tscon);
@@ -612,11 +621,17 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_consumeImp(JNI
       case TSDB_DATA_TYPE_BIGINT:
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetLongFp, i, (jlong) * ((int64_t *)row[i]));
         break;
-      case TSDB_DATA_TYPE_FLOAT:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetFloatFp, i, (jfloat) * ((float *)row[i]));
+      case TSDB_DATA_TYPE_FLOAT: {
+        float fv = 0;
+        fv = GET_FLOAT_VAL(row[i]);
+        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetFloatFp, i, (jfloat)fv);
+      }
         break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetDoubleFp, i, (jdouble) * ((double *)row[i]));
+      case TSDB_DATA_TYPE_DOUBLE:{
+        double dv = 0;
+        dv = GET_DOUBLE_VAL(row[i]);
+        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetDoubleFp, i, (jdouble)dv);
+      }
         break;
       case TSDB_DATA_TYPE_BINARY: {
         strncpy(tmp, row[i], (size_t) fields[i].bytes);  // handle the case that terminated does not exist

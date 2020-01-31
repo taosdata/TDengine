@@ -37,8 +37,8 @@ extern "C" {
 #define tfree(x) \
   {              \
     if (x) {     \
-      free(x);   \
-      x = NULL;  \
+      free((void*)(x));   \
+      x = 0;  \
     }            \
   }
 
@@ -177,7 +177,7 @@ int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes);
 
 bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
 
-bool taosValidateEncodec(char *encodec);
+bool taosValidateEncodec(const char *encodec);
 
 bool taosGetVersionNumber(char *versionStr, int *versionNubmer);
 
@@ -189,7 +189,11 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, cha
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
 
+int taosCheckVersion(char *input_client_version, char *input_server_version, int compared_segments);
+
 char *taosIpStr(uint32_t ipInt);
+
+uint32_t ip2uint(const char *const ip_addr);
 
 #define TAOS_ALLOC_MODE_DEFAULT 0
 #define TAOS_ALLOC_MODE_RANDOM_FAIL 1

@@ -19,6 +19,7 @@
 #include "tsdb.h"
 #include "vnode.h"
 #include "vnodeUtil.h"
+#include "vnodeStatus.h"
 
 typedef struct {
   int  sversion;
@@ -165,7 +166,7 @@ size_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
           continue;
         }
 
-        if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+        if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPING)) {
           dWarn("vid:%d sid:%d id:%s, meter is dropped, ignore data in commit log, contLen:%d action:%d",
                  vnode, head.sid, head.contLen, head.action);
           continue;

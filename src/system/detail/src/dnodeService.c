@@ -55,12 +55,8 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-V") == 0) {
-      #ifdef CLUSTER
-        printf("enterprise version: %s compatible_version: %s\n", version, compatible_version);
-      #else
-        printf("community version: %s compatible_version: %s\n", version, compatible_version);
-      #endif
-      
+      char *versionStr = tsIsCluster ? "enterprise" : "community";
+      printf("%s version: %s compatible_version: %s\n", versionStr, version, compatible_version);
       printf("gitinfo: %s\n", gitinfo);
       printf("gitinfoI: %s\n", gitinfoOfInternal);
       printf("buildinfo: %s\n", buildinfo);

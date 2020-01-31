@@ -234,8 +234,15 @@ void *taosProcessAlarmSignal(void *tharg) {
 
   timer_t         timerId;
   struct sigevent sevent;
-  sevent.sigev_notify = SIGEV_THREAD_ID;
-  sevent._sigev_un._tid = syscall(__NR_gettid);
+
+  #ifdef _ALPINE
+    sevent.sigev_notify = SIGEV_THREAD;
+    sevent.sigev_value.sival_int = syscall(__NR_gettid);
+  #else
+    sevent.sigev_notify = SIGEV_THREAD_ID;
+    sevent._sigev_un._tid = syscall(__NR_gettid);
+  #endif
+  
   sevent.sigev_signo = SIGALRM;
 
   if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
@@ -264,7 +271,6 @@ void *taosProcessAlarmSignal(void *tharg) {
     callback(0);
   }
 
-  assert(0);
   return NULL;
 }
 

@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mgmt.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 SDnodeObj       dnodeObj;
 extern uint32_t tsRebootTime;
@@ -27,7 +27,7 @@ int mgmtUpdateDnode(SDnodeObj *pDnode) { return 0; }
 void mgmtCleanUpDnodes() {}
 
 int mgmtInitDnodes() {
-  dnodeObj.privateIp = inet_addr(tsInternalIp);;
+  dnodeObj.privateIp = inet_addr(tsPrivateIp);;
   dnodeObj.createdTime = (int64_t)tsRebootTime * 1000;
   dnodeObj.lastReboot = tsRebootTime;
   dnodeObj.numOfCores = (uint16_t)tsNumOfCores;

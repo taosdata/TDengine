@@ -19,8 +19,6 @@
 #include "tsocket.h"
 #include "tutil.h"
 
-unsigned int ip2uint(const char *const ip_addr);
-
 /*
  * Function to get the public ip address of current machine. If get IP
  * successfully, return 0, else, return -1. The return values is ip.
@@ -105,7 +103,7 @@ int taosGetPublicIp(char *const ip) {
 }
 
 // Function converting an IP address string to an unsigned int.
-unsigned int ip2uint(const char *const ip_addr) {
+uint32_t ip2uint(const char *const ip_addr) {
   char ip_addr_cpy[20];
   char ip[5];
 

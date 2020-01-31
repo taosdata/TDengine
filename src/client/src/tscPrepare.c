@@ -75,7 +75,6 @@ static int normalStmtAddPart(SNormalStmt* stmt, bool isParam, char* str, uint32_
   if (isParam) {
     ++stmt->numParams;
   }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -122,11 +121,11 @@ static int normalStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
         break;
 
       case TSDB_DATA_TYPE_FLOAT:
-        var->dKey = *(float*)tb->buffer;
+        var->dKey = GET_FLOAT_VAL(tb->buffer);
         break;
 
       case TSDB_DATA_TYPE_DOUBLE:
-        var->dKey = *(double*)tb->buffer;
+        var->dKey = GET_DOUBLE_VAL(tb->buffer);
         break;
 
       case TSDB_DATA_TYPE_BINARY:
@@ -409,7 +408,9 @@ static int insertStmtReset(STscStmt* pStmt) {
     }
   }
   pCmd->batchSize = 0;
-  pCmd->vnodeIdx = 0;
+  
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  pMeterMetaInfo->vnodeIndex = 0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -422,6 +423,8 @@ static int insertStmtExecute(STscStmt* stmt) {
     ++pCmd->batchSize;
   }
 
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  
   if (pCmd->pDataBlocks->nSize > 0) {
     // merge according to vgid
     int code = tscMergeTableDataBlocks(stmt->pSql, pCmd->pDataBlocks);
@@ -436,7 +439,7 @@ static int insertStmtExecute(STscStmt* stmt) {
     }
 
     // set the next sent data vnode index in data block arraylist
-    pCmd->vnodeIdx = 1;
+    pMeterMetaInfo->vnodeIndex = 1;
   } else {
     pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   }

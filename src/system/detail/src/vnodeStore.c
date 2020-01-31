@@ -22,10 +22,7 @@
 #include "vnode.h"
 #include "vnodeStore.h"
 #include "vnodeUtil.h"
-#include "tstatus.h"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Woverflow"
+#include "vnodeStatus.h"
 
 int        tsMaxVnode = -1;
 int        tsOpenVnodes = 0;
@@ -121,7 +118,7 @@ static int32_t vnodeMarkAllMetersDropped(SVnodeObj* pVnode) {
     } else { // set the meter is to be deleted
       SMeterObj* pObj = pVnode->meterList[sid];
       if (pObj != NULL) {
-        pObj->state = TSDB_METER_STATE_DELETED;
+        pObj->state = TSDB_METER_STATE_DROPPED;
       }
     }
   }
@@ -410,6 +407,3 @@ void vnodeCalcOpenVnodes() {
 void vnodeUpdateHeadFile(int vnode, int oldTables, int newTables) {
   //todo rewrite the head file with newTables
 }
-
-#pragma GCC diagnostic pop
-

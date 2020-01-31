@@ -101,12 +101,12 @@ void httpFreeContext(HttpServer *pServer, HttpContext *pContext) {
 void httpCleanUpContextTimer(HttpContext *pContext) {
   if (pContext->timer != NULL) {
     taosTmrStopA(&pContext->timer);
-    httpTrace("context:%p, ip:%s, close timer:%p", pContext, pContext->ipstr, pContext->timer);
+    //httpTrace("context:%p, ip:%s, close timer:%p", pContext, pContext->ipstr, pContext->timer);
     pContext->timer = NULL;
   }
 }
 
-void httpCleanUpContext(HttpContext *pContext) {
+void httpCleanUpContext(HttpContext *pContext, void *unused) {
   httpTrace("context:%p, start the clean up operation, sig:%p", pContext, pContext->signature);
   void *sig = atomic_val_compare_exchange_ptr(&pContext->signature, pContext, 0);
   if (sig == NULL) {
@@ -184,7 +184,7 @@ bool httpInitContext(HttpContext *pContext) {
 
 
 void httpCloseContext(HttpThread *pThread, HttpContext *pContext) {
-  taosTmrReset(httpCleanUpContext, HTTP_DELAY_CLOSE_TIME_MS, pContext, pThread->pServer->timerHandle, &pContext->timer);
+  taosTmrReset((TAOS_TMR_CALLBACK)httpCleanUpContext, HTTP_DELAY_CLOSE_TIME_MS, pContext, pThread->pServer->timerHandle, &pContext->timer);
   httpTrace("context:%p, fd:%d, ip:%s, state:%s will be closed after:%d ms, timer:%p",
           pContext, pContext->fd, pContext->ipstr, httpContextStateStr(pContext->state), HTTP_DELAY_CLOSE_TIME_MS, pContext->timer);
 }
@@ -273,7 +273,7 @@ void httpCleanUpConnect(HttpServer *pServer) {
     taosCloseSocket(pThread->pollFd);
 
     while (pThread->pHead) {
-      httpCleanUpContext(pThread->pHead);
+      httpCleanUpContext(pThread->pHead, 0);
     }
 
     pthread_cancel(pThread->thread);
@@ -329,8 +329,6 @@ bool httpReadDataImp(HttpContext *pContext) {
   }
 
   pParser->buffer[pParser->bufsize] = 0;
-  httpTrace("context:%p, fd:%d, ip:%s, thread:%s, read size:%d",
-            pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pParser->bufsize);
 
   return true;
 }
@@ -383,10 +381,12 @@ bool httpReadData(HttpThread *pThread, HttpContext *pContext) {
   int ret = httpCheckReadCompleted(pContext);
   if (ret == HTTP_CHECK_BODY_CONTINUE) {
     taosTmrReset(httpCloseContextByServerForExpired, HTTP_EXPIRED_TIME, pContext, pThread->pServer->timerHandle, &pContext->timer);
-    httpTrace("context:%p, fd:%d, ip:%s, not finished yet, try another times, timer:%p", pContext, pContext->fd, pContext->ipstr, pContext->timer);
+    //httpTrace("context:%p, fd:%d, ip:%s, not finished yet, try another times, timer:%p", pContext, pContext->fd, pContext->ipstr, pContext->timer);
     return false;
   } else if (ret == HTTP_CHECK_BODY_SUCCESS){
     httpCleanUpContextTimer(pContext);
+    httpTrace("context:%p, fd:%d, ip:%s, thread:%s, read size:%d, dataLen:%d",
+              pContext, pContext->fd, pContext->ipstr, pContext->pThread->label, pContext->parser.bufsize, pContext->parser.data.len);
     if (httpDecompressData(pContext)) {
       return true;
     } else {

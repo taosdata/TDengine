@@ -25,8 +25,6 @@
 #include <stdlib.h>
 
 #include "tcrc32c.h"
-//todo : use the original source code
-#pragma GCC diagnostic ignored "-Wunused-function"
 
 #define POLY 0x82f63b78
 #define LONG_SHIFT 8192
@@ -1093,6 +1091,7 @@ static uint32_t short_shifts[4][256] = {
      0xe1a734e7, 0xc41cc13c, 0x140cd014, 0x31b725cf, 0x5f7b3ba2, 0x7ac0ce79,
      0x82e30778, 0xa758f2a3, 0xc994ecce, 0xec2f1915}};
 
+#if 0
 static uint32_t append_trivial(uint32_t crc, crc_stream input, size_t length) {
   for (size_t i = 0; i < length; ++i) {
     crc = crc ^ input[i];
@@ -1130,6 +1129,7 @@ static uint32_t append_adler_table(uint32_t crci, crc_stream input,
   }
   return (uint32_t)(crc ^ 0xffffffff);
 }
+#endif
 
 /* Table-driven software version as a fall-back.  This is about 15 times slower
    than using the hardware instructions.  This assumes little-endian integers,

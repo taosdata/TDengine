@@ -175,7 +175,10 @@ static const struct alias sysdep_aliases[] = {
 #ifdef __GNUC__
 __inline
 #endif
-const struct alias *
+// gcc -o0 bug fix 
+// see http://git.savannah.gnu.org/gitweb/?p=libiconv.git;a=blobdiff;f=lib/iconv.c;h=31853a7f1c47871221189dbf597473a16d8a8da7;hp=5a1a32597fa3efc5f69624d37a2eb96f308cd241;hb=b29089d8b43abc8fba073da7e6dccaeba56b2b70;hpb=0a04404c90d6a725b8b6bbcd65e10c5fcf5993e9
+
+static const struct alias *
 aliases2_lookup (register const char *str)
 {
   const struct alias * ptr;

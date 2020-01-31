@@ -484,6 +484,7 @@ int mgmtSendCfgDnodeMsg(char *cont) {
     return code;
   }
 
+#ifdef CLUSTER
   pStart = taosBuildReqMsg(pDnode->thandle, TSDB_MSG_TYPE_CFG_PNODE);
   if (pStart == NULL) return TSDB_CODE_NODE_OFFLINE;
   pMsg = pStart;
@@ -493,6 +494,8 @@ int mgmtSendCfgDnodeMsg(char *cont) {
 
   msgLen = pMsg - pStart;
   taosSendMsgToDnode(pDnode, pStart, msgLen);
-
+#else
+  (void)tsCfgDynamicOptions(pCfg->config);
+#endif
   return 0;
 }

@@ -20,7 +20,7 @@
 #include "mgmtBalance.h"
 #include "mgmtUtil.h"
 #include "tschemautil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 void *dbSdb = NULL;
 int   tsDbUpdateSize;
@@ -54,8 +54,8 @@ void mgmtDbActionInit() {
 }
 
 void *mgmtDbAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtDbActionFp[action] != NULL) {
-    return (*(mgmtDbActionFp[action]))(row, str, size, ssize);
+  if (mgmtDbActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtDbActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }

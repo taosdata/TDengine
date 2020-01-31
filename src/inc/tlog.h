@@ -113,7 +113,10 @@ extern uint32_t cdebugFlag;
   }
 #define tscPrint(...) \
   { tprintf("TSC ", 255, __VA_ARGS__); }
-
+#define tscDump(...)                                        \
+    if (cdebugFlag & DEBUG_TRACE) {                         \
+      taosPrintLongString("TSC ", cdebugFlag, __VA_ARGS__); \
+    }
 #define jniError(...)                                 \
   if (jnidebugFlag & DEBUG_ERROR) {                   \
     tprintf("ERROR JNI ", jnidebugFlag, __VA_ARGS__); \

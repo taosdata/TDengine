@@ -20,8 +20,7 @@
 #include "dnodeSystem.h"
 #include "mgmt.h"
 #include "tschemautil.h"
-#include "tstatus.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType);
 int  mgmtGetDnodesNum();
@@ -468,7 +467,6 @@ int mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
   int        cols = 0;
-  char       ipstr[20];
 
   if (0 == rows) return 0;
 

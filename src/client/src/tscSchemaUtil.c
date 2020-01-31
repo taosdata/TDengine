@@ -83,6 +83,13 @@ struct SSchema* tsGetColumnSchema(SMeterMeta* pMeta, int32_t startCol) {
   return (SSchema*)(((char*)pMeta + sizeof(SMeterMeta)) + startCol * sizeof(SSchema));
 }
 
+struct SSchema tsGetTbnameColumnSchema() {
+  struct SSchema s = {.colId = TSDB_TBNAME_COLUMN_INDEX, .type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_METER_NAME_LEN};
+  strcpy(s.name, TSQL_TBNAME_L);
+  
+  return s;
+}
+
 /**
  * the MeterMeta data format in memory is as follows:
  *
@@ -123,36 +130,40 @@ bool tsMeterMetaIdentical(SMeterMeta* p1, SMeterMeta* p2) {
   return memcmp(p1, p2, size) == 0;
 }
 
-//todo refactor
-static FORCE_INLINE char* skipSegments(char* input, char delimiter, int32_t num) {
+// todo refactor
+static FORCE_INLINE char* skipSegments(char* input, char delim, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
-    while (*input != 0 && *input++ != delimiter) {
+    while (*input != 0 && *input++ != delim) {
     };
   }
   return input;
 }
 
-static FORCE_INLINE void copySegment(char* dst, char* src, char delimiter) {
+static FORCE_INLINE size_t copy(char* dst, const char* src, char delimiter) {
+  size_t len = 0;
   while (*src != delimiter && *src != 0) {
     *dst++ = *src++;
+    len++;
   }
+  
+  return len;
 }
 
 /**
- * extract meter name from meterid, which the format of userid.dbname.metername
+ * extract table name from meterid, which the format of userid.dbname.metername
  * @param meterId
  * @return
  */
-void extractMeterName(char* meterId, char* name) {
+void extractTableName(char* meterId, char* name) {
   char* r = skipSegments(meterId, TS_PATH_DELIMITER[0], 2);
-  copySegment(name, r, TS_PATH_DELIMITER[0]);
+  copy(name, r, TS_PATH_DELIMITER[0]);
 }
 
 SSQLToken extractDBName(char* meterId, char* name) {
   char* r = skipSegments(meterId, TS_PATH_DELIMITER[0], 1);
-  copySegment(name, r, TS_PATH_DELIMITER[0]);
+  size_t len = copy(name, r, TS_PATH_DELIMITER[0]);
 
-  SSQLToken token = {.z = name, .n = strlen(name), .type = TK_STRING};
+  SSQLToken token = {.z = name, .n = len, .type = TK_STRING};
   return token;
 }
 

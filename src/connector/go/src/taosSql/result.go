@@ -25,13 +25,13 @@ package taosSql
 import "C"
 
 import (
-    "database/sql/driver"
+	"database/sql/driver"
 	"errors"
-	"strconv"
-	"unsafe"
 	"fmt"
 	"io"
+	"strconv"
 	"time"
+	"unsafe"
 )
 
 /******************************************************************************
@@ -41,10 +41,10 @@ import (
 func (mc *taosConn) readColumns(count int) ([]taosSqlField, error) {
 
 	columns := make([]taosSqlField, count)
-    var result unsafe.Pointer
+	var result unsafe.Pointer
 	result = C.taos_use_result(mc.taos)
 	if result == nil {
-		return nil , errors.New("invalid result")
+		return nil, errors.New("invalid result")
 	}
 
 	pFields := (*C.struct_taosField)(C.taos_fetch_fields(result))
@@ -52,7 +52,7 @@ func (mc *taosConn) readColumns(count int) ([]taosSqlField, error) {
 	// TODO: Optimized rewriting !!!!
 	fields := (*[1 << 30]C.struct_taosField)(unsafe.Pointer(pFields))
 
-	for i := 0; i<count; i++ {
+	for i := 0; i < count; i++ {
 		//columns[i].tableName = ms.taos.
 		//fmt.Println(reflect.TypeOf(fields[i].name))
 		var charray []byte
@@ -60,14 +60,14 @@ func (mc *taosConn) readColumns(count int) ([]taosSqlField, error) {
 			//fmt.Println("fields[i].name[j]: ", fields[i].name[j])
 			if fields[i].name[j] != 0 {
 				charray = append(charray, byte(fields[i].name[j]))
-			}else {
+			} else {
 				break
 			}
 		}
-		columns[i].name      = string(charray)
-		columns[i].length    = (uint32)(fields[i].bytes)
+		columns[i].name = string(charray)
+		columns[i].length = (uint32)(fields[i].bytes)
 		columns[i].fieldType = fieldType(fields[i]._type)
-		columns[i].flags      = 0
+		columns[i].flags = 0
 		// columns[i].decimals  = 0
 		//columns[i].charSet    = 0
 	}
@@ -91,6 +91,7 @@ func (rows *taosSqlRows) readRow(dest []driver.Value) error {
 	row := C.taos_fetch_row(result)
 	if row == nil {
 		rows.rs.done = true
+		C.taos_free_result(result)
 		rows.mc = nil
 		return io.EOF
 	}
@@ -98,7 +99,7 @@ func (rows *taosSqlRows) readRow(dest []driver.Value) error {
 	// because sizeof(void*)  == sizeof(int*) == 8
 	// notes: sizeof(int) == 8 in go, but sizeof(int) == 4 in C.
 	for i := range dest {
-		currentRow := (unsafe.Pointer)(uintptr(*((*int)(unsafe.Pointer(uintptr(unsafe.Pointer(row)) + uintptr(i) * unsafe.Sizeof(int(0)))))))
+		currentRow := (unsafe.Pointer)(uintptr(*((*int)(unsafe.Pointer(uintptr(unsafe.Pointer(row)) + uintptr(i)*unsafe.Sizeof(int(0)))))))
 
 		if currentRow == nil {
 			dest[i] = nil
@@ -107,7 +108,7 @@ func (rows *taosSqlRows) readRow(dest []driver.Value) error {
 
 		switch rows.rs.columns[i].fieldType {
 		case C.TSDB_DATA_TYPE_BOOL:
-			if (*((*byte)(currentRow))) != 0{
+			if (*((*byte)(currentRow))) != 0 {
 				dest[i] = true
 			} else {
 				dest[i] = false
@@ -123,7 +124,7 @@ func (rows *taosSqlRows) readRow(dest []driver.Value) error {
 			break
 
 		case C.TSDB_DATA_TYPE_INT:
-			dest[i] = (int)(*((*int32)(currentRow)))  // notes int32 of go <----> int of C
+			dest[i] = (int)(*((*int32)(currentRow))) // notes int32 of go <----> int of C
 			break
 
 		case C.TSDB_DATA_TYPE_BIGINT:
@@ -142,7 +143,7 @@ func (rows *taosSqlRows) readRow(dest []driver.Value) error {
 			charLen := rows.rs.columns[i].length
 			var index uint32
 			binaryVal := make([]byte, charLen)
-			for index=0; index < charLen; index++  {
+			for index = 0; index < charLen; index++ {
 				binaryVal[index] = *((*byte)(unsafe.Pointer(uintptr(currentRow) + uintptr(index))))
 			}
 			dest[i] = string(binaryVal[:])
@@ -152,7 +153,7 @@ func (rows *taosSqlRows) readRow(dest []driver.Value) error {
 			if mc.cfg.parseTime == true {
 				timestamp := (int64)(*((*int64)(currentRow)))
 				dest[i] = timestampConvertToString(timestamp, int(C.taos_result_precision(result)))
-			}else {
+			} else {
 				dest[i] = (int64)(*((*int64)(currentRow)))
 			}
 			break
@@ -182,12 +183,12 @@ func timestampConvertToString(timestamp int64, precision int) string {
 	var decimal, sVal, nsVal int64
 	if precision == 0 {
 		decimal = timestamp % 1000
-		sVal    = timestamp / 1000
-		nsVal   = decimal * 1000
+		sVal = timestamp / 1000
+		nsVal = decimal * 1000
 	} else {
 		decimal = timestamp % 1000000
-		sVal    = timestamp / 1000000
-		nsVal   = decimal * 1000000
+		sVal = timestamp / 1000000
+		nsVal = decimal * 1000000
 	}
 
 	date_time := time.Unix(sVal, nsVal)

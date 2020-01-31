@@ -21,6 +21,7 @@
 #include "shellCommand.h"
 #include "ttime.h"
 #include "tutil.h"
+
 #include <regex.h>
 
 /**************** Global variables ****************/
@@ -159,6 +160,8 @@ void shellReplaceCtrlChar(char *str) {
           }
           break;
         default:
+          *pstr = *str;
+          pstr++;
           break;
       }
       ctrlOn = false;
@@ -292,7 +295,6 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   if (fname != NULL) {
     wordfree(&full_path);
   }
-  return;
 }
 
 /* Function to do regular expression check */
@@ -373,29 +375,29 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
         for (int col = 0; col < num_fields; col++) {
           switch (fields[col].type) {
             case TSDB_DATA_TYPE_BOOL:
-              l[col] = max(BOOL_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(BOOL_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_TINYINT:
-              l[col] = max(TINYINT_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(TINYINT_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_SMALLINT:
-              l[col] = max(SMALLINT_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(SMALLINT_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_INT:
-              l[col] = max(INT_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(INT_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_BIGINT:
-              l[col] = max(BIGINT_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(BIGINT_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_FLOAT:
-              l[col] = max(FLOAT_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(FLOAT_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_DOUBLE:
-              l[col] = max(DOUBLE_OUTPUT_LENGTH, strlen(fields[col].name));
+              l[col] = MAX(DOUBLE_OUTPUT_LENGTH, strlen(fields[col].name));
               break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
-              l[col] = max(fields[col].bytes, strlen(fields[col].name));
+              l[col] = MAX(fields[col].bytes, strlen(fields[col].name));
               /* l[col] = max(BINARY_OUTPUT_LENGTH, strlen(fields[col].name)); */
               break;
             case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -406,7 +408,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
               if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
                 defaultWidth += 3;
               }
-              l[col] = max(defaultWidth, strlen(fields[col].name));
+              l[col] = MAX(defaultWidth, strlen(fields[col].name));
 
               break;
             }
@@ -452,28 +454,18 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 printf("%*d|", l[i], *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-                printf("%*lld|", l[i], *((int64_t *)row[i]));
+                printf("%*" PRId64 "|", l[i], *((int64_t *)row[i]));
                 break;
               case TSDB_DATA_TYPE_FLOAT: {
-#ifdef _TD_ARM_32_
                 float fv = 0;
-                //memcpy(&fv, row[i], sizeof(float));
-                *(int32_t*)(&fv) = *(int32_t*)row[i];
+                fv = GET_FLOAT_VAL(row[i]);
                 printf("%*.5f|", l[i], fv);
-#else
-                printf("%*.5f|", l[i], *((float *)row[i]));
-#endif
-              }
+              }              
                 break;
               case TSDB_DATA_TYPE_DOUBLE: {
-#ifdef _TD_ARM_32_
                 double dv = 0;
-                //memcpy(&dv, row[i], sizeof(double));
-                *(int64_t*)(&dv) = *(int64_t*)row[i];
+                dv = GET_DOUBLE_VAL(row[i]);
                 printf("%*.9f|", l[i], dv);
-#else
-                printf("%*.9f|", l[i], *((double *)row[i]));
-#endif
               }
                 break;
               case TSDB_DATA_TYPE_BINARY:
@@ -487,7 +479,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
                 if (args.is_raw_time) {
-                  printf(" %lld|", *(int64_t *)row[i]);
+                  printf(" %" PRId64 "|", *(int64_t *)row[i]);
                 } else {
                   if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
                     tt = (time_t)((*(int64_t *)row[i]) / 1000000);
@@ -537,40 +529,30 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 printf("%d\n", *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-                printf("%lld\n", *((int64_t *)row[i]));
+                printf("%" PRId64 "\n", *((int64_t *)row[i]));
                 break;
               case TSDB_DATA_TYPE_FLOAT: {
-#ifdef _TD_ARM_32_
                 float fv = 0;
-                //memcpy(&fv, row[i], sizeof(float));
-                *(int32_t*)(&fv) = *(int32_t*)row[i];
+                fv = GET_FLOAT_VAL(row[i]);
                 printf("%.5f\n", fv);
-#else
-                printf("%.5f\n", *((float *)row[i]));
-#endif
-              }
+              }              
                 break;
               case TSDB_DATA_TYPE_DOUBLE: {
-#ifdef _TD_ARM_32_
                 double dv = 0;
-		        //memcpy(&dv, row[i], sizeof(double));
-		        *(int64_t*)(&dv) = *(int64_t*)row[i];
+                dv = GET_DOUBLE_VAL(row[i]);
                 printf("%.9f\n", dv);
-#else
-                printf("%.9f\n", *((double *)row[i]));
-#endif
               }
                 break;
               case TSDB_DATA_TYPE_BINARY:
               case TSDB_DATA_TYPE_NCHAR:
                 memset(t_str, 0, TSDB_MAX_BYTES_PER_ROW);
                 memcpy(t_str, row[i], fields[i].bytes);
-                l[i] = max(fields[i].bytes, strlen(fields[i].name));
+                l[i] = MAX(fields[i].bytes, strlen(fields[i].name));
                 shellPrintNChar(t_str, l[i], printMode);
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
                 if (args.is_raw_time) {
-                  printf("%lld\n", *(int64_t *)row[i]);
+                  printf("%" PRId64 "\n", *(int64_t *)row[i]);
                 } else {
                   if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
                     tt = (time_t)((*(int64_t *)row[i]) / 1000000);
@@ -625,28 +607,18 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 fprintf(fp, "%d", *((int *)row[i]));
                 break;
               case TSDB_DATA_TYPE_BIGINT:
-                fprintf(fp, "%lld", *((int64_t *)row[i]));
+                fprintf(fp, "%" PRId64, *((int64_t *)row[i]));
                 break;
               case TSDB_DATA_TYPE_FLOAT: {
-#ifdef _TD_ARM_32_
                 float fv = 0;
-                //memcpy(&fv, row[i], sizeof(float));
-                *(int32_t*)(&fv) = *(int32_t*)row[i];
+                fv = GET_FLOAT_VAL(row[i]);
                 fprintf(fp, "%.5f", fv);
-#else
-                fprintf(fp, "%.5f", *((float *)row[i]));
-#endif
-              }
+              }              
                 break;
               case TSDB_DATA_TYPE_DOUBLE: {
-#ifdef _TD_ARM_32_
                 double dv = 0;
-		        //memcpy(&dv, row[i], sizeof(double));
-		        *(int64_t*)(&dv) = *(int64_t*)row[i];
+                dv = GET_DOUBLE_VAL(row[i]);
                 fprintf(fp, "%.9f", dv);
-#else
-                fprintf(fp, "%.9f", *((double *)row[i]));
-#endif
               }
                 break;
               case TSDB_DATA_TYPE_BINARY:
@@ -657,7 +629,7 @@ int shellDumpResult(TAOS *con, char *fname, int *error_no, bool printMode) {
                 break;
               case TSDB_DATA_TYPE_TIMESTAMP:
                 if (args.is_raw_time) {
-                  fprintf(fp, "%lld", *(int64_t *)row[i]);
+                  fprintf(fp, "%" PRId64, *(int64_t *)row[i]);
                 } else {
                   if (taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO) {
                     tt = (time_t)((*(int64_t *)row[i]) / 1000000);
@@ -786,14 +758,25 @@ void source_file(TAOS *con, char *fptr) {
 
   if (wordexp(fptr, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: illegal file name\n");
+    free(cmd);
     return;
   }
 
   char *fname = full_path.we_wordv[0];
 
-  if (access(fname, R_OK) == -1) {
-    fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
+  if (access(fname, F_OK) != 0) {
+    fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
+    
     wordfree(&full_path);
+    free(cmd);
+    return;
+  }
+  
+  if (access(fname, R_OK) != 0) {
+    fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
+  
+    wordfree(&full_path);
+    free(cmd);
     return;
   }
 
@@ -801,6 +784,7 @@ void source_file(TAOS *con, char *fptr) {
   if (f == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);
+    free(cmd);
     return;
   }
 

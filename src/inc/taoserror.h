@@ -128,7 +128,7 @@ extern "C" {
 #define TSDB_CODE_CACHE_BLOCK_TS_DISORDERED  107      // time stamp in cache block is disordered
 #define TSDB_CODE_FILE_BLOCK_TS_DISORDERED   108      // time stamp in file block is disordered
 #define TSDB_CODE_INVALID_COMMIT_LOG         109      // commit log init failed
-#define TSDB_CODE_SERVER_NO_SPACE            110
+#define TSDB_CODE_SERV_NO_DISKSPACE          110
 #define TSDB_CODE_NOT_SUPER_TABLE            111      // operation only available for super table
 #define TSDB_CODE_DUPLICATE_TAGS             112      // tags value for join not unique
 #define TSDB_CODE_INVALID_SUBMIT_MSG         113
@@ -136,6 +136,10 @@ extern "C" {
 #define TSDB_CODE_INVALID_TABLE_ID           115
 #define TSDB_CODE_INVALID_VNODE_STATUS       116
 #define TSDB_CODE_FAILED_TO_LOCK_RESOURCES   117
+#define TSDB_CODE_TABLE_ID_MISMATCH          118
+#define TSDB_CODE_QUERY_CACHE_ERASED               119
+
+#define TSDB_CODE_MAX_ERROR_CODE             120
 
 #ifdef __cplusplus
 }

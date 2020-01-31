@@ -17,7 +17,7 @@
 #include "taosmsg.h"
 #include "vnode.h"
 #include "vnodeUtil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 /* static TAOS *dbConn = NULL; */
 void vnodeCloseStreamCallback(void *param);
@@ -86,7 +86,7 @@ void vnodeOpenStreams(void *param, void *tmrId) {
 
   for (int sid = 0; sid < pVnode->cfg.maxSessions; ++sid) {
     pObj = pVnode->meterList[sid];
-    if (pObj == NULL || pObj->sqlLen == 0 || vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) continue;
+    if (pObj == NULL || pObj->sqlLen == 0 || vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPING)) continue;
 
     dTrace("vid:%d sid:%d id:%s, open stream:%s", pObj->vnode, sid, pObj->meterId, pObj->pSql);
 

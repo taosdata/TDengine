@@ -56,7 +56,11 @@ int tscEmbedded = 0;
  */
 int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
+#ifdef CLUSTER
 char  tsMasterIp[TSDB_IPv4ADDR_LEN] = {0};
+#else
+char  tsMasterIp[TSDB_IPv4ADDR_LEN] = "127.0.0.1";
+#endif
 char  tsSecondIp[TSDB_IPv4ADDR_LEN] = {0};
 uint16_t tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
 uint16_t tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
@@ -75,9 +79,7 @@ int tsMetricMetaKeepTimer = 600;  // second
 float tsNumOfThreadsPerCore = 1.0;
 float tsRatioOfQueryThreads = 0.5;
 char  tsPublicIp[TSDB_IPv4ADDR_LEN] = {0};
-char  tsInternalIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsPrivateIp[TSDB_IPv4ADDR_LEN] = {0};
-char  tsServerIpStr[TSDB_IPv4ADDR_LEN] = "127.0.0.1";
 short tsNumOfVnodesPerCore = 8;
 short tsNumOfTotalVnodes = 0;
 short tsCheckHeaderFile = 0;
@@ -119,11 +121,12 @@ int tsBalanceMonitorInterval = 2;  // seconds
 int tsBalanceStartInterval = 300;  // seconds
 int tsBalancePolicy = 0;           // 1-use sys.montor
 int tsOfflineThreshold = 864000;   // seconds 10days
-int tsMgmtEqualVnodeNum = 0;
+int tsMgmtEqualVnodeNum = 4;
 
 int tsEnableHttpModule = 1;
 int tsEnableMonitorModule = 1;
 int tsRestRowLimit = 10240;
+int tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -160,10 +163,17 @@ int tsHttpMaxThreads = 2;
 int tsHttpEnableCompress = 0;
 int tsHttpEnableRecordSql = 0;
 int tsTelegrafUseFieldNum = 0;
-int tsAdminRowLimit = 10240;
 
 int   tsTscEnableRecordSql = 0;
 int   tsEnableCoreFile = 0;
+int   tsAnyIp = 1;
+uint32_t tsPublicIpInt = 0;
+
+#ifdef CLUSTER
+int   tsIsCluster = 1;
+#else
+int   tsIsCluster = 0;
+#endif
 
 int tsRpcTimer = 300;
 int tsRpcMaxTime = 600;      // seconds;
@@ -439,17 +449,11 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "secondIp", tsSecondIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_CLUSTER,
                      0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "serverIp", tsServerIpStr, TSDB_CFG_VTYPE_IPSTR,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_LITE,
-                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "publicIp", tsPublicIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
                      0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "privateIp", tsPrivateIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
-                     0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "internalIp", tsInternalIp, TSDB_CFG_VTYPE_IPSTR,
-                     TSDB_CFG_CTYPE_B_CONFIG,
                      0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "localIp", tsLocalIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
@@ -653,7 +657,11 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "compressMsgSize", &tsCompressMsgSize, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
                      -1, 10000000, 0, TSDB_CFG_UTYPE_NONE);
-
+  
+  tsInitConfigOption(cfg++, "maxSQLLength", &tsMaxSQLStringLen, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
+                     TSDB_MAX_SQL_LEN, TSDB_MAX_ALLOWED_SQL_LEN, 0, TSDB_CFG_UTYPE_BYTE);
+  
   // locale & charset
   tsInitConfigOption(cfg++, "timezone", tsTimezone, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
@@ -709,7 +717,7 @@ static void doInitGlobalConfig() {
                      1, 100000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "httpEnableRecordSql", &tsHttpEnableRecordSql, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG,
-                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "telegrafUseFieldNum", &tsTelegrafUseFieldNum, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      0, 1, 1, TSDB_CFG_UTYPE_NONE);
@@ -773,12 +781,18 @@ static void doInitGlobalConfig() {
 
   tsInitConfigOption(cfg++, "tscEnableRecordSql", &tsTscEnableRecordSql, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG,
-                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
 
   tsInitConfigOption(cfg++, "enableCoreFile", &tsEnableCoreFile, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG,
-                     1, 100000, 0, TSDB_CFG_UTYPE_NONE);
-                     
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
+
+#ifdef CLUSTER
+  tsInitConfigOption(cfg++, "anyIp", &tsAnyIp, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG,
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
+#endif
+
   // version info
   tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING,
                      TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
@@ -906,10 +920,7 @@ bool tsReadGlobalConfig() {
   if (tsPublicIp[0] == 0) {
     strcpy(tsPublicIp, tsPrivateIp);
   }
-
-  if (tsInternalIp[0] == 0) {
-    strcpy(tsInternalIp, tsPrivateIp);
-  }
+  tsPublicIpInt = inet_addr(tsPublicIp);
 
   if (tsLocalIp[0] == 0) {
     strcpy(tsLocalIp, tsPrivateIp);

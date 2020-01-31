@@ -15,7 +15,9 @@
 
 #include <argp.h>
 #include <assert.h>
-#include <error.h>
+#ifndef _ALPINE
+  #include <error.h>
+#endif
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -335,7 +337,13 @@ int main(int argc, char *argv[]) {
      reflected in arguments. */
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-  if (arguments.abort) error(10, 0, "ABORTED");
+  if (arguments.abort) {
+    #ifndef _ALPINE
+      error(10, 0, "ABORTED");
+    #else
+      abort();
+    #endif
+  }
 
   if (taosCheckParam(&arguments) < 0) {
     exit(EXIT_FAILURE);
@@ -789,7 +797,10 @@ int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FI
   if (metric != NULL && metric[0] != '\0') {  // dump metric definition
     count = taosGetTableDes(metric, tableDes);
 
-    if (count < 0) return -1;
+    if (count < 0) {
+      free(tableDes);
+      return -1;
+    }
 
     taosDumpCreateTableClause(tableDes, count, arguments, fp);
 
@@ -797,17 +808,25 @@ int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FI
 
     count = taosGetTableDes(table, tableDes);
 
-    if (count < 0) return -1;
+    if (count < 0) {
+      free(tableDes);
+      return -1;
+    }
 
     taosDumpCreateMTableClause(tableDes, metric, count, arguments, fp);
 
   } else {  // dump table definition
     count = taosGetTableDes(table, tableDes);
 
-    if (count < 0) return -1;
+    if (count < 0) {
+      free(tableDes);
+      return -1;
+    }
 
     taosDumpCreateTableClause(tableDes, count, arguments, fp);
   }
+
+  free(tableDes);
 
   return taosDumpTableData(fp, table, arguments);
 }

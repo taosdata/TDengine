@@ -114,23 +114,84 @@ public Connection getConn() throws Exception{
 </ul>
 <p>对于TDengine操作的报错信息，用户可使用JDBCDriver包里提供的枚举类TSDBError.java来获取error message和error code的列表。对于更多的具体操作的相关代码，请参考TDengine提供的使用示范项目<code>JDBCDemo</code>。</p>
 <a class='anchor' id='Python-Connector'></a><h2>Python Connector</h2>
-<a class='anchor' id='Python客户端安装'></a><h3>Python客户端安装</h3>
-<p>用户可以在源代码的src/connector/python文件夹下找到python2和python3的安装包。用户可以通过pip命令安装： </p>
-<p>​    <code>pip install src/connector/python/python2/</code></p>
-<p>或</p>
-<p>​    <code>pip install src/connector/python/python3/</code></p>
-<p>如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。</p>
-<a class='anchor' id='Python客户端接口'></a><h3>Python客户端接口</h3>
-<p>在使用TDengine的python接口时，需导入TDengine客户端模块：</p>
-<pre><code>import taos </code></pre>
-<p>用户可通过python的帮助信息直接查看模块的使用信息，或者参考code/examples/python中的示例程序。以下为部分常用类和方法：</p>
+<a class='anchor' id='安装准备'></a><h3>安装准备</h3>
+<li>已安装TDengine, 如果客户端在Windows上，需要安装Windows 版本的TDengine客户端</li>
+<li>已安装python 2.7 or >= 3.4</li>
+<li>已安装pip</li>
+<a class='anchor' id='安装'></a><h3>安装</h3>
+<a class='anchor' id='Linux'></a><h4>Linux</h4>
+<p>用户可以在源代码的src/connector/python文件夹下找到python2和python3的安装包， 然后通过pip命令安装</p>
+<pre><code class="cmd language-cmd">pip install src/connector/python/linux/python2/</code></pre>
+<p>或者</p>
+<pre><code>pip install src/connector/python/linux/python3/</code></pre>
+<a class='anchor' id='Windows'></a><h4>Windows</h4>
+<p>在已安装Windows TDengine 客户端的情况下， 将文件"C:\TDengine\driver\taos.dll" 拷贝到 "C:\windows\system32" 目录下, 然后进入Windwos <em>cmd</em> 命令行界面</p>
+<pre><code>cd C:\TDengine\connector\python\windows</code></pre>
+<pre><code>pip install python2\</code></pre>
+<p>或者</p>
+<pre><code>cd C:\TDengine\connector\python\windows</code></pre>
+<pre><code>pip install python3\</code></pre>
+<p>* 如果机器上没有<em>pip</em>命令，用户可将src/connector/python/windows/python3或src/connector/python/windows/python2下的taos文件夹拷贝到应用程序的目录使用。 </p>
+<a class='anchor' id='使用'></a><h3>使用</h3>
+<a class='anchor' id='代码示例'></a><h4>代码示例</h4>
+<li>导入TDengine客户端模块：</li>
+<pre><code class="python language-python">import taos </code></pre>
+<li>获取连接</li>
+<pre><code>
+conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
+c1 = conn.cursor()
+</code></pre>
+<p>* <em>host 是TDengine 服务端所有IP, config 为客户端配置文件所在目录</em></p>
+<li>写入数据</li>
+<pre><code>
+import datetime
+ 
+# 创建数据库
+c1.execute('create database db')
+c1.execute('use db')
+# 建表
+c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
+# 插入数据
+start_time = datetime.datetime(2019, 11, 1)
+affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
+# 批量插入数据
+time_interval = datetime.timedelta(seconds=60)
+sqlcmd = ['insert into tb values']
+for irow in range(1,11):
+  start_time += time_interval
+  sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
+affected_rows = c1.execute(' '.join(sqlcmd))
+</code></pre>
+<li>查询数据</li>
+<code><pre>
+c1.execute('select * from tb')
+# 拉取查询结果
+data = c1.fetchall()
+# 返回的结果是一个列表，每一行构成列表的一个元素
+numOfRows = c1.rowcount
+numOfCols = c1.descriptions
+for irow in range(numOfRows):
+  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2])
+  
+# 直接使用cursor 循环拉取查询结果
+c1.execute('select * from tb')
+for data in c1:
+  print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])
+</pre></code>
+<li>关闭连接</li>
+<code><pre>
+c1.close()
+conn.close()
+</pre></code>
+<a class='anchor' id='帮助信息''></a><h4>帮助信息</h4>
+<p>用户可通过python的帮助信息直接查看模块的使用信息，或者参考code/examples/python中的示例程序。以下为部分常用类和方法:</p>
 <ul>
-<li><p><em>TaosConnection</em>类</p>
-<p>参考python中help(taos.TaosConnection)。</p></li>
-<li><p><em>TaosCursor</em>类</p>
-<p>参考python中help(taos.TaosCursor)。</p></li>
-<li><p><em>connect</em>方法</p>
-<p>用于生成taos.TaosConnection的实例。</p></li>
+<li><p><em>TaosConnection</em> 类</p>
+<p>参考python中<code>help(taos.TDengineConnection)</code></p></li>
+<li><p><em>TaosCursor</em> 类</p>
+<p>参考python中<code>help(taos.TDengineCursor)</code></p></li>
+<li><p>connect 方法</p>
+<p>用于生成taos.TDengineConnection的实例。</p></li>
 </ul>
 <a class='anchor' id='RESTful-Connector'></a><h2>RESTful Connector</h2>
 <p>为支持各种不同类型平台的开发，TDengine提供符合REST设计标准的API，即RESTful API。为最大程度降低学习成本，不同于其他数据库RESTful API的设计方法，TDengine直接通过HTTP POST 请求BODY中包含的SQL语句来操作数据库，仅需要一个URL。 </p>

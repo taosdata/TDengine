@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#include <inttypes.h>
 #include <ifaddrs.h>
 #include <locale.h>
 #include <netdb.h>
@@ -27,12 +27,15 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/resource.h>
-#include <sys/sysctl.h>
-#include <sys/syscall.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifdef _ALPINE
 #include <linux/sysctl.h>
+#else
+#include <sys/sysctl.h>
+#endif
 
 #include "tglobalcfg.h"
 #include "tlog.h"
@@ -99,7 +102,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
 
   int64_t memKB = 0;
   char    tmp[10];
-  sscanf(line, "%s %ld", tmp, &memKB);
+  sscanf(line, "%s %" PRId64, tmp, &memKB);
   *memoryUsedMB = (float)((double)memKB / 1024);
 
   tfree(line);
@@ -124,7 +127,7 @@ bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   }
 
   char cpu[10] = {0};
-  sscanf(line, "%s %ld %ld %ld %ld", cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle);
+  sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle);
 
   tfree(line);
   fclose(fp);
@@ -150,7 +153,7 @@ bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   for (int i = 0, blank = 0; line[i] != 0; ++i) {
     if (line[i] == ' ') blank++;
     if (blank == PROCESS_ITEM) {
-      sscanf(line + i + 1, "%ld %ld %ld %ld", &cpuInfo->utime, &cpuInfo->stime, &cpuInfo->cutime, &cpuInfo->cstime);
+      sscanf(line + i + 1, "%" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &cpuInfo->utime, &cpuInfo->stime, &cpuInfo->cutime, &cpuInfo->cstime);
       break;
     }
   }
@@ -381,8 +384,8 @@ bool taosGetCardName(char *ip, char *name) {
 bool taosGetCardInfo(int64_t *bytes) {
   static char tsPublicCard[1000] = {0};
   if (tsPublicCard[0] == 0) {
-    if (!taosGetCardName(tsInternalIp, tsPublicCard)) {
-      pError("can't get card name from ip:%s", tsInternalIp);
+    if (!taosGetCardName(tsPrivateIp, tsPublicCard)) {
+      pError("can't get card name from ip:%s", tsPrivateIp);
       return false;
     }
     int cardNameLen = (int)strlen(tsPublicCard);
@@ -420,7 +423,7 @@ bool taosGetCardInfo(int64_t *bytes) {
     }
   }
   if (line != NULL) {
-    sscanf(line, "%s %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld", nouse0, &rbytes, &rpackts, &nouse1, &nouse2, &nouse3,
+    sscanf(line, "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64, nouse0, &rbytes, &rpackts, &nouse1, &nouse2, &nouse3,
            &nouse4, &nouse5, &nouse6, &tbytes, &tpackets);
     *bytes = rbytes + tbytes;
     tfree(line);
@@ -488,10 +491,10 @@ bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
       break;
     }
     if (strstr(line, "rchar:") != NULL) {
-      sscanf(line, "%s %ld", tmp, readbyte);
+      sscanf(line, "%s %" PRId64, tmp, readbyte);
       readIndex++;
     } else if (strstr(line, "wchar:") != NULL) {
-      sscanf(line, "%s %ld", tmp, writebyte);
+      sscanf(line, "%s %" PRId64, tmp, writebyte);
       readIndex++;
     } else {
     }
@@ -564,9 +567,9 @@ void taosGetSystemInfo() {
 }
 
 void tsPrintOsInfo() {
-  pPrint(" os pageSize:            %ld(KB)", tsPageSize);
-  pPrint(" os openMax:             %ld", tsOpenMax);
-  pPrint(" os streamMax:           %ld", tsStreamMax);
+  pPrint(" os pageSize:            %" PRId64 "(KB)", tsPageSize);
+  pPrint(" os openMax:             %" PRId64, tsOpenMax);
+  pPrint(" os streamMax:           %" PRId64, tsStreamMax);
   pPrint(" os numOfCores:          %d", tsNumOfCores);
   pPrint(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
   pPrint(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
