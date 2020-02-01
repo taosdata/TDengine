@@ -4525,10 +4525,11 @@ static void doSetTagValueInParam(tTagSchema *pTagSchema, int32_t tagColIdx, SMet
   SSchema *pCol = &pTagSchema->pSchema[tagColIdx];
 
   tVariantDestroy(param);
-  tVariantCreateFromBinary(param, pStr, pCol->bytes, pCol->type);
 
   if (isNull(pStr, pCol->type)) {
     param->nType = TSDB_DATA_TYPE_NULL;
+  } else {
+    tVariantCreateFromBinary(param, pStr, pCol->bytes, pCol->type);
   }
 }
 
