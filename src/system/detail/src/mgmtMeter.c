@@ -1186,6 +1186,8 @@ int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SMetricMetaMsg *pMetr
   int32_t *        tagLen = calloc(1, sizeof(int32_t) * pMetricMetaMsg->numOfMeters);
 
   if (result == NULL || tagLen == NULL) {
+    tfree(result);
+    tfree(tagLen);
     return -1;
   }
 
