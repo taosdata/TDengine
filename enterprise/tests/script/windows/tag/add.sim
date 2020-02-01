@@ -30,7 +30,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2 then 
@@ -51,7 +51,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 4 then 
@@ -125,7 +125,7 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != 2.0000 then 
+if $data03 != 2.00000 then
   return -1
 endi
 
@@ -160,7 +160,7 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != 4.0000 then 
+if $data03 != 4.00000 then
   return -1
 endi
 
@@ -228,7 +228,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2 then 
@@ -258,7 +258,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != false then 
+if $data02 != 0 then
   return -1
 endi
 if $data03 != 5 then 
@@ -276,7 +276,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != false then 
+if $data02 != 0 then
   return -1
 endi
 if $data03 != 5 then 
@@ -372,7 +372,7 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-if $data03 != 2.0000 then 
+if $data03 != 2.00000 then
   return -1
 endi
 if $data04 != 3 then 
@@ -405,7 +405,7 @@ endi
 if $data03 != 5 then 
   return -1
 endi
-if $data04 != true then 
+if $data04 != 1 then
   return -1
 endi
 
@@ -463,10 +463,10 @@ endi
 if $data02 != 4.000000000 then 
   return -1
 endi
-if $data03 != true then 
+if $data03 != 1 then
   return -1
 endi
-if $data04 != 6.0000 then 
+if $data04 != 6.00000 then
   return -1
 endi
 
@@ -534,7 +534,7 @@ endi
 if $data03 != 4 then 
   return -1
 endi
-if $data04 != false then 
+if $data04 != 0 then
   return -1
 endi
 if $data05 != null then 
@@ -562,7 +562,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2 then 
@@ -571,7 +571,7 @@ endi
 if $data04 != 3 then 
   return -1
 endi
-if $data05 != 4.0000 then 
+if $data05 != 4.00000 then
   return -1
 endi
 if $data06 != 5 then 
@@ -609,7 +609,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 4 then 
@@ -652,13 +652,13 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != true then 
+if $data02 != 1 then
   return -1
 endi
 if $data03 != 2 then 
   return -1
 endi
-if $data04 != 3.0000 then 
+if $data04 != 3.00000 then
   return -1
 endi
 if $data05 != 4.000000000 then 
@@ -698,7 +698,7 @@ endi
 if $data01 != 1 then 
   return -1
 endi
-if $data02 != false then 
+if $data02 != 0 then
   return -1
 endi
 if $data03 != 1 then 

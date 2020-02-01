@@ -58,7 +58,7 @@ sql create table $tb (ts timestamp, val float, val2 float)
 sql insert into $tb values(now, 5, 5)
 sql select * from $tb
 print ==> $data01 $data02
-if $data01 != 5.0000 then 
+if $data01 != 5.00000 then
   return -1
 endi
 
@@ -162,7 +162,7 @@ endi
 sql insert into $tb values(now, 5, 5)
 sql select * from $tb
 print ==> $data01 $data02
-if $data01 != 5.0000 then 
+if $data01 != 5.00000 then
   return -1
 endi
 
