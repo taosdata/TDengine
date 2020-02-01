@@ -397,7 +397,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
   if (msg == NULL) {
-    tscTrace("%p no response from ip:0x%x", pSql, pSql->ip);
+    tscTrace("%p no response from ip:%s", pSql, taosIpStr(pSql->ip));
 
     pSql->index++;
     pSql->thandle = NULL;
