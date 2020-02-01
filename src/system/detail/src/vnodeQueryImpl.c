@@ -1616,7 +1616,7 @@ static SOutputRes *doSetSlidingWindowFromKey(SSlidingWindowInfo *pSlidingWindowI
   return &pSlidingWindowInfo->pResult[p];
 }
 
-static int32_t initResWindowInfo(SSlidingWindowInfo *pSlidingWindowInfo, int32_t threshold, int16_t type,
+static int32_t initSlidingWindowInfo(SSlidingWindowInfo *pSlidingWindowInfo, int32_t threshold, int16_t type,
                                  SOutputRes *pRes) {
   pSlidingWindowInfo->capacity = threshold;
   pSlidingWindowInfo->threshold = threshold;
@@ -1638,7 +1638,7 @@ static int32_t initResWindowInfo(SSlidingWindowInfo *pSlidingWindowInfo, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-static void destroyResWindowInfo(SSlidingWindowInfo *pSlidingWindowInfo) {
+static void destroySlidingWindowInfo(SSlidingWindowInfo *pSlidingWindowInfo) {
   if (pSlidingWindowInfo == NULL || pSlidingWindowInfo->capacity == 0) {
     assert(pSlidingWindowInfo->hashList == NULL && pSlidingWindowInfo->pResult == NULL);
     return;
@@ -2028,9 +2028,9 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
 
       lastKey = ts;
       int32_t index = pRuntimeEnv->swindowResInfo.curIndex;
+      
+      STimeWindow nextWin = win;
       while (1) {
-        STimeWindow nextWin = {0};
-        
         getNextLogicalQueryRange(pRuntimeEnv, &nextWin);
         if (pSlidingWindowInfo->startTime > nextWin.skey || (nextWin.skey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
             (nextWin.skey > pQuery->skey && !QUERY_IS_ASC_QUERY(pQuery))) {
@@ -2599,7 +2599,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   }
 
   tfree(pRuntimeEnv->secondaryUnzipBuffer);
-  destroyResWindowInfo(&pRuntimeEnv->swindowResInfo);
+  destroySlidingWindowInfo(&pRuntimeEnv->swindowResInfo);
 
   if (pRuntimeEnv->pCtx != NULL) {
     for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutputCols; ++i) {
@@ -4294,7 +4294,7 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
     }
 
     // todo bug!
-    initResWindowInfo(&pRuntimeEnv->swindowResInfo, 3, type, pSupporter->pResult);
+    initSlidingWindowInfo(&pRuntimeEnv->swindowResInfo, 3, type, pSupporter->pResult);
   }
 
   pSupporter->rawSKey = pQuery->skey;
@@ -4322,6 +4322,7 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
     }
   } else {
     // find the skey and ekey in case of sliding query
+    // todo refactor
     if (pQuery->slidingTime > 0 && pQuery->nAggTimeInterval > 0) {
       int64_t skey = 0;
 
@@ -4422,9 +4423,10 @@ void vnodeQueryFreeQInfoEx(SQInfo *pQInfo) {
     pSupporter->pMetersHashTable = NULL;
   }
 
-  if (pSupporter->pSidSet != NULL || isGroupbyNormalCol(pQInfo->query.pGroupbyExpr)) {
+  if (pSupporter->pSidSet != NULL || isGroupbyNormalCol(pQInfo->query.pGroupbyExpr) ||
+      (pQuery->nAggTimeInterval > 0 && pQuery->slidingTime > 0)) {
     int32_t size = 0;
-    if (isGroupbyNormalCol(pQInfo->query.pGroupbyExpr)) {
+    if (isGroupbyNormalCol(pQInfo->query.pGroupbyExpr) || (pQuery->nAggTimeInterval > 0 && pQuery->slidingTime > 0)) {
       size = 10000;
     } else if (pSupporter->pSidSet != NULL) {
       size = pSupporter->pSidSet->numOfSubSet;
@@ -4534,7 +4536,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
 
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // group by columns not tags;
     int16_t type = getGroupbyColumnType(pQuery, pQuery->pGroupbyExpr);
-    initResWindowInfo(&pRuntimeEnv->swindowResInfo, 10039, type, pSupporter->pResult);
+    initSlidingWindowInfo(&pRuntimeEnv->swindowResInfo, 10039, type, pSupporter->pResult);
   }
 
   if (pQuery->nAggTimeInterval != 0) {
@@ -5734,7 +5736,6 @@ void copyGroupResultBuf(SOutputRes* dst, const SOutputRes* src, int32_t nOutputC
     memcpy(dst->result[i], src->result[i], size);
   }
 }
-
 
 void destroyGroupResultBuf(SOutputRes *pOneOutputRes, int32_t nOutputCols) {
   if (pOneOutputRes == NULL) {
