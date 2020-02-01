@@ -7413,7 +7413,7 @@ int32_t saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQue
        * scan also no result generated. The index can be backwards moved.
        *
        * However, if during the main scan, there is a result generated, such as applies count to timestamp, which
-       * always generates a result, but applies last query to a NULL column may fail to generate no results during the
+       * always generates a result, but applies last query to a NULL column may fail to generate results during the
        * supplement scan.
        *
        * NOTE:
