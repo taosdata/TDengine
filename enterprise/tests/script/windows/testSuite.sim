@@ -1,5 +1,8 @@
 #masterIp                192.168.237.135
 #scriptDir               /Users/guanshengliang/work/TDmac/enterprise/tests/script
+#/Users/guanshengliang/work/TDmac/debug/build/bin/tsim -f windows/testSuite.sim
+
+#run windows/big/tcp.sim
 
 run windows/account/user_create.sim
 run windows/account/user_len.sim
