@@ -5994,10 +5994,13 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     size_t  bufferSize = size + sizeof(TSCKSUM);
     
     pMeterDataInfo[j]->numOfBlocks = compInfo.numOfBlocks;
-    pMeterDataInfo[j]->pBlock = calloc(1, bufferSize);
-    if (pMeterDataInfo[j]->pBlock == NULL) {
+    char* p = realloc(pMeterDataInfo[j]->pBlock, bufferSize);
+    if (p == NULL) {
       clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    } else {
+      memset(p, 0, bufferSize);
+      pMeterDataInfo[j]->pBlock = (SCompBlock*) p;
     }
   
     read(pVnodeFileInfo->headerFd, pMeterDataInfo[j]->pBlock, bufferSize);
