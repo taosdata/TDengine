@@ -573,10 +573,10 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
   tSidSet *pSids = pSupporter->pSidSet;
 
   SMeterObj *pOneMeter = getMeterObj(pSupporter->pMeterObj, pMeterSidExtInfo[0]->sid);
-
-  resetCtxOutputBuf(pRuntimeEnv);
-
+  
   if (isPointInterpoQuery(pQuery)) {
+    resetCtxOutputBuf(pRuntimeEnv);
+  
     assert(pQuery->limit.offset == 0 && pQuery->limit.limit != 0);
 
     while (pSupporter->subgroupIdx < pSids->numOfSubSet) {
@@ -663,7 +663,9 @@ static void vnodeMultiMeterMultiOutputProcessor(SQInfo *pQInfo) {
     if (pSupporter->meterIdx >= pSids->numOfSids) {
       return;
     }
-
+  
+    resetCtxOutputBuf(pRuntimeEnv);
+  
     for (int32_t i = 0; i < pRuntimeEnv->usedIndex; ++i) {
       SOutputRes *pOneRes = &pRuntimeEnv->pResult[i];
       clearGroupResultBuf(pOneRes, pQuery->numOfOutputCols);
