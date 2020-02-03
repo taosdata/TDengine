@@ -232,13 +232,13 @@ int mgmtCheckAcctParams(SAcctCfg *pCfg) {
   }
 
   if (pCfg->maxStorage < TSDB_MIN_STORAGE_PER_ACCT || pCfg->maxStorage > TSDB_MAX_STORAGE_PER_ACCT) {
-    mWarn("Invalid acct parameter maxStorage: %ld, range: %ld--%ld", pCfg->maxStorage, TSDB_MIN_STORAGE_PER_ACCT,
+    mWarn("Invalid acct parameter maxStorage: %" PRId64 ", range: %" PRId64 "--%" PRId64, pCfg->maxStorage, TSDB_MIN_STORAGE_PER_ACCT,
           TSDB_MAX_STORAGE_PER_ACCT);
     return -1;
   }
 
   if (pCfg->maxQueryTime < TSDB_MIN_QUERYTIME_PER_ACCT || pCfg->maxQueryTime > TSDB_MAX_QUERYTIME_PER_ACCT) {
-    mWarn("Invalid acct parameter maxQueryTime: %ld, range: %ld--%ld", pCfg->maxQueryTime, TSDB_MIN_QUERYTIME_PER_ACCT,
+    mWarn("Invalid acct parameter maxQueryTime: %" PRId64 ", range: %" PRId64 "--%" PRId64, pCfg->maxQueryTime, TSDB_MIN_QUERYTIME_PER_ACCT,
           TSDB_MAX_QUERYTIME_PER_ACCT);
     return -1;
   }
@@ -576,14 +576,14 @@ int mgmtCheckAlterAcctParams(SAcctObj *pAcct, SAcctCfg *pCfg) {
 
   if (pCfg->maxStorage >= 0 &&
       (pCfg->maxStorage < TSDB_MIN_STORAGE_PER_ACCT || pCfg->maxStorage > TSDB_MAX_STORAGE_PER_ACCT)) {
-    mWarn("Invalid acct parameter maxStorage: %ld, range: %ld--%ld", pCfg->maxStorage, TSDB_MIN_STORAGE_PER_ACCT,
+    mWarn("Invalid acct parameter maxStorage: %" PRId64 ", range: %" PRId64 "--%" PRId64, pCfg->maxStorage, TSDB_MIN_STORAGE_PER_ACCT,
           TSDB_MAX_STORAGE_PER_ACCT);
     return -1;
   }
 
   if (pCfg->maxQueryTime >= 0 &&
       (pCfg->maxQueryTime < TSDB_MIN_QUERYTIME_PER_ACCT || pCfg->maxQueryTime > TSDB_MAX_QUERYTIME_PER_ACCT)) {
-    mWarn("Invalid acct parameter maxQueryTime: %ld, range: %ld--%ld", pCfg->maxQueryTime, TSDB_MIN_QUERYTIME_PER_ACCT,
+    mWarn("Invalid acct parameter maxQueryTime: %" PRId64 ", range: %" PRId64 "--%" PRId64, pCfg->maxQueryTime, TSDB_MIN_QUERYTIME_PER_ACCT,
           TSDB_MAX_QUERYTIME_PER_ACCT);
     return -1;
   }

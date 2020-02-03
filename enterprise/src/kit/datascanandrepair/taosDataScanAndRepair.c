@@ -241,7 +241,7 @@ SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir) {  // Open meterOb
 
   SVnodeInfo *pInfo = (SVnodeInfo *)calloc(1, sizeof(SVnodeInfo));
   if (pInfo == NULL) {
-    fprintf(stderr, "ERROR! failed to allocate memory , size:%ld\n", sizeof(SVnodeInfo));
+    fprintf(stderr, "ERROR! failed to allocate memory , size:%zu\n", sizeof(SVnodeInfo));
     return NULL;
   }
 
@@ -309,7 +309,7 @@ SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir) {  // Open meterOb
       if (pSaveObj->meterId[0] == 0) continue;
       pInfo->pMeter[sid] = (SMeterObj *)malloc(sizeof(SMeterObj) + pSaveObj->sqlLen + 1);
       memcpy(pInfo->pMeter[sid], pSaveObj, offsetof(SMeterObj, reserved));
-      fprintf(reportFP, "sid: %d, uid: %lu, numOfColumns:%d meterId:%s\n", sid, pInfo->pMeter[sid]->uid,
+      fprintf(reportFP, "sid: %d, uid: %" PRIu64 ", numOfColumns:%d meterId:%s\n", sid, pInfo->pMeter[sid]->uid,
               pInfo->pMeter[sid]->numOfColumns, pInfo->pMeter[sid]->meterId);
 
     } else {
@@ -401,20 +401,20 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
   if (hfsize < TSDB_FILE_HEADER_LEN + sizeof(SCompHeader)*pCfg->maxSessions+sizeof(TSCKSUM)) {
     fileHasError = 1;
     *err =  1;
-    fprintf(reportFP, "ERROR header file %s size is too small, size:%ld, expected minimum size:%ld\n", headFile, hfsize, TSDB_FILE_HEADER_LEN + sizeof(SCompHeader)*pCfg->maxSessions+sizeof(TSCKSUM));
+    fprintf(reportFP, "ERROR header file %s size is too small, size:%zu, expected minimum size:%" PRId64 "\n", headFile, hfsize, TSDB_FILE_HEADER_LEN + sizeof(SCompHeader)*pCfg->maxSessions+sizeof(TSCKSUM));
   }
 
   if (dfsize < TSDB_FILE_HEADER_LEN) {
     // fileHasError = 1;
     // *err =  1;
-    fprintf(reportFP, "ERROR data file %s size is too small, size:%ld\n", dataFile, dfsize);
+    fprintf(reportFP, "ERROR data file %s size is too small, size:%zu\n", dataFile, dfsize);
     // TODO: deal with the error here
   }
 
   if (lfsize < TSDB_FILE_HEADER_LEN) {
     // fileHasError = 1;
     // *err =  1;
-    fprintf(reportFP, "ERROR last file %s size is too small, size:%ld\n", lastFile, lfsize);
+    fprintf(reportFP, "ERROR last file %s size is too small, size:%zu\n", lastFile, lfsize);
     // TODO: deal with the error here
   }
 
@@ -477,7 +477,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
   for (int i = 0; i < pCfg->maxSessions; i++) {// loop over table
     if (pInfo->pMeter[i] == NULL || pHeader[i].compInfoOffset == 0) continue;
     if (pHeader[i].compInfoOffset < 0 || pHeader[i].compInfoOffset > hfsize) {
-      fprintf(reportFP, "ERROR!!! i:%d compInfoOffset:%ld\n", i, pHeader[i].compInfoOffset);
+      fprintf(reportFP, "ERROR!!! i:%d compInfoOffset:%" PRId64 "\n", i, pHeader[i].compInfoOffset);
       fileHasError = 1;
       *err = 1;
       if (repairFd > 0) {
@@ -487,7 +487,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
     }
     // Read the compInfo Block
     fprintf(reportFP, "------------------------\n");
-    fprintf(reportFP, "meter sid: %d offset:%ld\n\n", i, pHeader[i].compInfoOffset + drift);
+    fprintf(reportFP, "meter sid: %d offset:%" PRId64 "\n\n", i, pHeader[i].compInfoOffset + drift);
     if (lseek(fd, pHeader[i].compInfoOffset + drift, SEEK_SET) < 0) {
       fprintf(stderr, "failed to seek head file:%s, reason:%s\n", headFile, strerror(errno));
       continue;
@@ -577,7 +577,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
       }
 
       if (pBlock->offset < 512) {
-        fprintf(reportFP, ">> ERROR in block %d: offset %ld is smaller than 512\n", j, (long)(pBlock->offset));
+        fprintf(reportFP, ">> ERROR in block %d: offset %" PRId64 " is smaller than 512\n", j, (int64_t)(pBlock->offset));
         printCompBlock(pBlock, reportFP);
         fileHasError = 1;
         *err = 1;
@@ -588,7 +588,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
       }
 
       if (pBlock->keyFirst <= keyLast) {
-        fprintf(reportFP, ">> ERROR in block %d: block keyFirst %ld is not larger than last block keyLast %ld\n", j, pBlock->keyFirst, keyLast);
+        fprintf(reportFP, ">> ERROR in block %d: block keyFirst %" PRId64 " is not larger than last block keyLast %" PRId64 "\n", j, pBlock->keyFirst, keyLast);
         printCompBlock(pBlock, reportFP);
         fileHasError = 1;
         *err = 1;
@@ -612,7 +612,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
         }
 
         if (pBlock->offset > toffset) {
-          fprintf(reportFP, ">> ERROR in block %d: offset %ld is larger than file size %ld", j, (long)(pBlock->offset), toffset);
+          fprintf(reportFP, ">> ERROR in block %d: offset %" PRId64 " is larger than file size %zu", j, (int64_t)(pBlock->offset), toffset);
           printCompBlock(pBlock, reportFP);
           numOfCorrectBlocks--;
           continue;
@@ -797,7 +797,7 @@ __exit_error:
 void printHeader(SCompHeader *pHeader, int maxSessions) {
   printf("==========OFFSET===============\n");
   for (int i = 0; i < maxSessions; i++) {
-    printf("i: %d offset:%ld\n", i, pHeader[i].compInfoOffset);
+    printf("i: %d offset:%" PRId64 "\n", i, pHeader[i].compInfoOffset);
   }
   printf("===============================\n");
 }
@@ -823,9 +823,9 @@ int printCompInfo(SCompInfo *pCompInfo, uint64_t uid, FILE *fp) {
   int isRight = 1;
   if (!taosCheckChecksumWhole((uint8_t *)pCompInfo, sizeof(SCompInfo))) isRight = 0;
   fprintf(fp, "CompInfo:\n");
-  fprintf(fp, "uid:         %lu\n", pCompInfo->uid);
-  fprintf(fp, "last:        %ld\n", (long)(pCompInfo->last));
-  fprintf(fp, "numOfBlocks: %ld\n", (long)(pCompInfo->numOfBlocks));
+  fprintf(fp, "uid:         %" PRIu64 "\n", pCompInfo->uid);
+  fprintf(fp, "last:        %" PRId64 "\n", (int64_t)(pCompInfo->last));
+  fprintf(fp, "numOfBlocks: %" PRId64 "\n", (int64_t)(pCompInfo->numOfBlocks));
   fprintf(fp, "delimeter:   %u\n", pCompInfo->delimiter);
   fprintf(fp, "checksum:    %d\n", pCompInfo->checksum);
   if (isRight == 0) {
@@ -833,7 +833,7 @@ int printCompInfo(SCompInfo *pCompInfo, uint64_t uid, FILE *fp) {
   } else {
     fprintf(fp, "> CompInfo part is correct\n");
     if (uid != pCompInfo->uid) {
-      fprintf(fp, "> ERROR: CompInfo uid not match, obj uid:%lu, comp uid:%lu\n", uid, pCompInfo->uid);
+      fprintf(fp, "> ERROR: CompInfo uid not match, obj uid:%" PRIu64 ", comp uid:%" PRIu64 "\n", uid, pCompInfo->uid);
       isRight = 0;
     }
   }
@@ -842,15 +842,15 @@ int printCompInfo(SCompInfo *pCompInfo, uint64_t uid, FILE *fp) {
 }
 
 void printCompBlock(SCompBlock *pBlock, FILE *fp) {
-  fprintf(fp, "   last:        %ld\n",  (int64_t)(pBlock->last));
-  fprintf(fp, "   offset:      %ld\n",  (int64_t)(pBlock->offset));
+  fprintf(fp, "   last:        %" PRId64 "\n",  (int64_t)(pBlock->last));
+  fprintf(fp, "   offset:      %" PRId64 "\n",  (int64_t)(pBlock->offset));
   fprintf(fp, "   algorithm:   %d\n",   (int32_t)(pBlock->algorithm));
   fprintf(fp, "   numOfPoints: %d\n",   (int32_t)(pBlock->numOfPoints));
   fprintf(fp, "   sversion:    %d\n",   (int32_t)(pBlock->sversion));
   fprintf(fp, "   len:         %d\n",   (int32_t)(pBlock->len));
   fprintf(fp, "   numOfCols:   %d\n",   (int16_t)(pBlock->numOfCols));
-  fprintf(fp, "   keyFirst:    %ld\n",  (int64_t)(pBlock->keyFirst));
-  fprintf(fp, "   keyLast:     %ld\n",  (int64_t)(pBlock->keyLast));
+  fprintf(fp, "   keyFirst:    %" PRId64 "\n",  (int64_t)(pBlock->keyFirst));
+  fprintf(fp, "   keyLast:     %" PRId64 "\n",  (int64_t)(pBlock->keyLast));
 }
 
 int createDir(const char *dirName) {

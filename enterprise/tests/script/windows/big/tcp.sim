@@ -1,0 +1,93 @@
+#system sh/cfg.sh -n dnode1 -c tables    -v 30000
+sql connect
+sleep 3000
+
+sql create database db
+sql use db
+
+$dbPrefix = db
+$tbPrefix = tb
+$mtPrefix = mt
+$tbNum = 22000
+$rowNum = 10
+
+print =============== step1
+$i = 0
+$db = $dbPrefix
+$mt = $mtPrefix
+
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $i = $i + 1
+endw
+
+print =============== step2
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql insert into $tb values (now, $i , $i )
+
+  $i = $i + 1000
+endw
+
+$i = 0
+while $i < 100
+	print =============== step3 $i
+	sql select count(*) from $mt
+	print ===> $data00 $data01
+	if $rows != 1 then
+	  return -1
+	endi
+	if $data00 != 22 then
+	  return -1
+	endi
+
+	print =============== step4 $i
+	sql select * from $mt
+	print ===> $data00 $data01
+	if $rows != 22 then
+	  return -1
+	endi
+
+	$i = $i + 1
+endw
+
+print =============== step3
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql insert into $tb values (now, $i , $i )
+
+  $i = $i + 1000
+endw
+
+$i = 0
+while $i < 100
+	print =============== step5 $i
+	sql select count(*) from $mt where tgcol < 20200
+	print ===> $data00 $data01
+	if $rows != 1 then
+	  return -1
+	endi
+	if $data00 != 42 then
+	  return -1
+	endi
+
+	print =============== step6 $i
+	sql select * from $mt where tgcol < 20200
+	print ===> $data00 $data01
+	if $rows != 42 then
+	  return -1
+	endi
+
+	$i = $i + 1
+endw
+system sh/stop_dnodes.sh
+sleep 10000

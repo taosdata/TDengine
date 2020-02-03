@@ -25,4 +25,6 @@ system sh/cfg.sh -n dnode1 -c CacheNumOfBlocks      -v 2048
 
 system sh/cfg.sh -n dnode1 -c averageCacheBlocks  -v 8
 
+#system sh/cfg.sh -n dnode1 -c tables    -v 30000
+
 system sh/exec.sh -n dnode1 -s start
