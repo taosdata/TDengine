@@ -22,7 +22,8 @@ extern "C" {
 
 #include "os.h"
 
-#include "ihash.h"
+#include "hash.h"
+#include "hashutil.h"
 
 #define GET_QINFO_ADDR(x)    ((char*)(x)-offsetof(SQInfo, query))
 #define Q_STATUS_EQUAL(p, s) (((p) & (s)) != 0)
@@ -63,7 +64,7 @@ typedef enum {
    * the next query.
    *
    * this status is only exist in group-by clause and
-   * diff/add/division/mulitply/ query.
+   * diff/add/division/multiply/ query.
    */
   QUERY_RESBUF_FULL = 0x2,
 
@@ -117,11 +118,9 @@ typedef enum {
 #define SET_MASTER_SCAN_FLAG(runtime) ((runtime)->scanFlag = MASTER_SCAN)
 
 typedef int (*__block_search_fn_t)(char* data, int num, int64_t key, int order);
-typedef int32_t (*__read_data_fn_t)(int fd, SQInfo* pQInfo, SQueryFilesInfo* pQueryFile, char* buf, uint64_t offset,
-                                    int32_t size);
 
 static FORCE_INLINE SMeterObj* getMeterObj(void* hashHandle, int32_t sid) {
-  return *(SMeterObj**)taosGetIntHashData(hashHandle, sid);
+  return *(SMeterObj**)taosGetDataFromHash(hashHandle, (const char*) &sid, sizeof(sid));
 }
 
 bool isQueryKilled(SQuery* pQuery);
@@ -130,6 +129,7 @@ bool isPointInterpoQuery(SQuery* pQuery);
 bool isTopBottomQuery(SQuery* pQuery);
 bool isFirstLastRowQuery(SQuery* pQuery);
 bool isTSCompQuery(SQuery* pQuery);
+bool notHasQueryTimeRange(SQuery *pQuery);
 
 bool needSupplementaryScan(SQuery* pQuery);
 bool onDemandLoadDatablock(SQuery* pQuery, int16_t queryRangeSet);
@@ -149,7 +149,6 @@ void vnodeScanAllData(SQueryRuntimeEnv* pRuntimeEnv);
 int32_t vnodeQueryResultInterpolate(SQInfo* pQInfo, tFilePage** pDst, tFilePage** pDataSrc, int32_t numOfRows,
                                     int32_t* numOfInterpo);
 void copyResToQueryResultBuf(SMeterQuerySupportObj* pSupporter, SQuery* pQuery);
-void moveDescOrderResultsToFront(SQueryRuntimeEnv* pRuntimeEnv);
 
 void doSkipResults(SQueryRuntimeEnv* pRuntimeEnv);
 void doFinalizeResult(SQueryRuntimeEnv* pRuntimeEnv);
@@ -159,7 +158,7 @@ void forwardIntervalQueryRange(SMeterQuerySupportObj* pSupporter, SQueryRuntimeE
 void forwardQueryStartPosition(SQueryRuntimeEnv* pRuntimeEnv);
 
 bool normalizedFirstQueryRange(bool dataInDisk, bool dataInCache, SMeterQuerySupportObj* pSupporter,
-                               SPointInterpoSupporter* pPointInterpSupporter);
+                               SPointInterpoSupporter* pPointInterpSupporter, int64_t* key);
 
 void pointInterpSupporterInit(SQuery* pQuery, SPointInterpoSupporter* pInterpoSupport);
 void pointInterpSupporterDestroy(SPointInterpoSupporter* pPointInterpSupport);
@@ -173,10 +172,10 @@ void enableFunctForMasterScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 int32_t mergeMetersResultToOneGroups(SMeterQuerySupportObj* pSupporter);
 void copyFromGroupBuf(SQInfo* pQInfo, SOutputRes* result);
 
-SBlockInfo getBlockBasicInfo(void* pBlock, int32_t blockType);
-SCacheBlock* getCacheDataBlock(SMeterObj* pMeterObj, SQuery* pQuery, int32_t slot);
+SBlockInfo getBlockBasicInfo(SQueryRuntimeEnv* pRuntimeEnv, void* pBlock, int32_t blockType);
+SCacheBlock* getCacheDataBlock(SMeterObj* pMeterObj, SQueryRuntimeEnv* pRuntimeEnv, int32_t slot);
 
-void queryOnBlock(SMeterQuerySupportObj* pSupporter, int64_t* primaryKeys, int32_t blockStatus, char* data,
+void queryOnBlock(SMeterQuerySupportObj* pSupporter, int64_t* primaryKeys, int32_t blockStatus,
                   SBlockInfo* pBlockBasicInfo, SMeterDataInfo* pDataHeadInfoEx, SField* pFields,
                   __block_search_fn_t searchFn);
 
@@ -278,6 +277,13 @@ void displayInterResult(SData** pdata, SQuery* pQuery, int32_t numOfRows);
 void vnodePrintQueryStatistics(SMeterQuerySupportObj* pSupporter);
 
 void clearGroupResultBuf(SOutputRes* pOneOutputRes, int32_t nOutputCols);
+void copyGroupResultBuf(SOutputRes* dst, const SOutputRes* src, int32_t nOutputCols);
+
+void resetSlidingWindowInfo(SSlidingWindowInfo* pSlidingWindowInfo, int32_t numOfCols);
+void clearCompletedSlidingWindows(SSlidingWindowInfo* pSlidingWindowInfo, int32_t numOfCols);
+int32_t numOfClosedSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo);
+void closeSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo, int32_t slot);
+void closeAllSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo);
 
 #ifdef __cplusplus
 }

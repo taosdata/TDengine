@@ -22,7 +22,7 @@
 #include "tstrbuild.h"
 
 
-int tsParseInsertSql(SSqlObj *pSql, char *sql, char *acct, char *db);
+int tsParseInsertSql(SSqlObj *pSql);
 int taos_query_imp(STscObj* pObj, SSqlObj* pSql);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -385,12 +385,11 @@ static int insertStmtAddBatch(STscStmt* stmt) {
 }
 
 static int insertStmtPrepare(STscStmt* stmt) {
-  STscObj* taos = stmt->taos;
   SSqlObj *pSql = stmt->pSql;
   pSql->cmd.numOfParams = 0;
   pSql->cmd.batchSize = 0;
 
-  return tsParseInsertSql(pSql, pSql->sqlstr, taos->acctId, taos->db);
+  return tsParseInsertSql(pSql);
 }
 
 static int insertStmtReset(STscStmt* pStmt) {
@@ -409,7 +408,7 @@ static int insertStmtReset(STscStmt* pStmt) {
   }
   pCmd->batchSize = 0;
   
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
   pMeterMetaInfo->vnodeIndex = 0;
   return TSDB_CODE_SUCCESS;
 }
@@ -423,7 +422,8 @@ static int insertStmtExecute(STscStmt* stmt) {
     ++pCmd->batchSize;
   }
 
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  assert(pCmd->numOfClause == 1);
   
   if (pCmd->pDataBlocks->nSize > 0) {
     // merge according to vgid
@@ -448,6 +448,8 @@ static int insertStmtExecute(STscStmt* stmt) {
   SSqlRes *pRes = &pSql->res;
   pRes->numOfRows = 0;
   pRes->numOfTotal = 0;
+  pRes->numOfTotalInCurrentClause = 0;
+  
   pRes->qhandle = 0;
   pSql->thandle = NULL;
 

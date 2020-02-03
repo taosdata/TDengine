@@ -734,7 +734,7 @@ int isCommentLine(char *line) {
 void source_file(TAOS *con, char *fptr) {
   wordexp_t full_path;
   int       read_len = 0;
-  char *    cmd = malloc(MAX_COMMAND_SIZE);
+  char *    cmd = calloc(1, MAX_COMMAND_SIZE);
   size_t    cmd_len = 0;
   char *    line = NULL;
   size_t    line_len = 0;

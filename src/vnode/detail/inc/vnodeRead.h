@@ -35,19 +35,19 @@ typedef struct {
   int32_t fileId;
 } SPositionInfo;
 
-typedef struct SQueryLoadBlockInfo {
+typedef struct SLoadDataBlockInfo {
   int32_t fileListIndex; /* index of this file in files list of this vnode */
   int32_t fileId;
   int32_t slotIdx;
   int32_t sid;
   bool    tsLoaded;      // if timestamp column of current block is loaded or not
-} SQueryLoadBlockInfo;
+} SLoadDataBlockInfo;
 
-typedef struct SQueryLoadCompBlockInfo {
+typedef struct SLoadCompBlockInfo {
   int32_t sid; /* meter sid */
   int32_t fileId;
   int32_t fileListIndex;
-} SQueryLoadCompBlockInfo;
+} SLoadCompBlockInfo;
 
 /*
  * the header file info for one vnode
@@ -112,7 +112,31 @@ typedef struct SQueryFilesInfo {
   char dbFilePathPrefix[PATH_MAX];
 } SQueryFilesInfo;
 
-typedef struct RuntimeEnvironment {
+typedef struct STimeWindow {
+  TSKEY skey;
+  TSKEY ekey;
+} STimeWindow;
+
+typedef struct SWindowStatus {
+  STimeWindow window;
+  bool closed;
+} SWindowStatus;
+
+typedef struct SSlidingWindowInfo {
+  SOutputRes*         pResult;    // reference to SQuerySupporter->pResult
+  SWindowStatus*      pStatus;    // current query window closed or not?
+  void*               hashList;   // hash list for quick access
+  int16_t             type;       // data type for hash key
+  int32_t             capacity;   // max capacity
+  int32_t             curIndex;   // current start active index
+  int32_t             size;
+  
+  int64_t             startTime;  // start time of the first time window for sliding query
+  int64_t             prevSKey;   // previous (not completed) sliding window start key
+  int64_t             threshold;  // threshold for return completed results.
+} SSlidingWindowInfo;
+
+typedef struct SQueryRuntimeEnv {
   SPositionInfo       startPos; /* the start position, used for secondary/third iteration */
   SPositionInfo       endPos;   /* the last access position in query, served as the start pos of reversed order query */
   SPositionInfo       nextPos;  /* start position of the next scan */
@@ -126,20 +150,30 @@ typedef struct RuntimeEnvironment {
   SQuery*             pQuery;
   SMeterObj*          pMeterObj;
   SQLFunctionCtx*     pCtx;
-  SQueryLoadBlockInfo loadBlockInfo;         /* record current block load information */
-  SQueryLoadCompBlockInfo loadCompBlockInfo; /* record current compblock information in SQuery */
-  SQueryFilesInfo         vnodeFileInfo;
-  int16_t                 numOfRowsPerPage;
-  int16_t                 offset[TSDB_MAX_COLUMNS];
-  int16_t                 scanFlag;  // denotes reversed scan of data or not
-  SInterpolationInfo      interpoInfo;
-  SData**                 pInterpoBuf;
-  SOutputRes*             pResult;  // reference to SQuerySupporter->pResult
-  void*                   hashList;
-  int32_t                 usedIndex;  // assigned SOutputRes in list
-  STSBuf*                 pTSBuf;
-  STSCursor               cur;
-  SQueryCostSummary       summary;
+  SLoadDataBlockInfo  loadBlockInfo;         /* record current block load information */
+  SLoadCompBlockInfo  loadCompBlockInfo; /* record current compblock information in SQuery */
+  SQueryFilesInfo     vnodeFileInfo;
+  int16_t             numOfRowsPerPage;
+  int16_t             offset[TSDB_MAX_COLUMNS];
+  int16_t             scanFlag;  // denotes reversed scan of data or not
+  SInterpolationInfo  interpoInfo;
+  SData**             pInterpoBuf;
+  
+  SSlidingWindowInfo   swindowResInfo;
+  
+  STSBuf*             pTSBuf;
+  STSCursor           cur;
+  SQueryCostSummary   summary;
+  
+  STimeWindow         intervalWindow;  // the complete time window, not affected by the actual data distribution
+  
+  /*
+   * Temporarily hold the in-memory cache block info during scan cache blocks
+   * Here we do not use the cacheblock info from pMeterObj, simple because it may change anytime
+   * during the query by the subumit/insert handling threads.
+   * So we keep a copy of the support structure as well as the cache block data itself.
+   */
+  SCacheBlock         cacheBlock;
 } SQueryRuntimeEnv;
 
 /* intermediate result during multimeter query involves interval */
@@ -172,7 +206,7 @@ typedef struct SMeterDataInfo {
 } SMeterDataInfo;
 
 typedef struct SMeterQuerySupportObj {
-  void* pMeterObj;
+  void* pMetersHashTable;   // meter table hash list
 
   SMeterSidExtInfo** pMeterSidExtInfo;
   int32_t            numOfMeters;
@@ -229,7 +263,6 @@ typedef struct _qinfo {
   int            killed;
   struct _qinfo *prev, *next;
   SQuery         query;
-  int            num;
   int            totalPoints;
   int            pointsRead;
   int            pointsReturned;
@@ -262,7 +295,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo* pQInfo, SQuery* pQuery, void* param)
 void vnodeDecMeterRefcnt(SQInfo* pQInfo);
 
 /* sql query handle in dnode */
-void vnodeSingleMeterQuery(SSchedMsg* pMsg);
+void vnodeSingleTableQuery(SSchedMsg* pMsg);
 
 /*
  * handle multi-meter query process

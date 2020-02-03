@@ -25,6 +25,8 @@
 #include "vnode.h"
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
+#include "hash.h"
+#include "hashutil.h"
 
 int (*pQueryFunc[])(SMeterObj *, SQuery *) = {vnodeQueryFromCache, vnodeQueryFromFile};
 
@@ -265,6 +267,7 @@ static SQInfo *vnodeAllocateQInfoEx(SQueryMeterMsg *pQueryMsg, SSqlGroupbyExpr *
 
   pQuery->pGroupbyExpr = pGroupbyExpr;
   pQuery->nAggTimeInterval = pQueryMsg->nAggTimeInterval;
+  pQuery->slidingTime = pQueryMsg->slidingTime;
   pQuery->interpoType = pQueryMsg->interpoType;
   pQuery->intervalTimeUnit = pQueryMsg->intervalTimeUnit;
 
@@ -390,11 +393,6 @@ __clean_memory:
   return NULL;
 }
 
-//static void vnodeFreeQInfoInQueueImpl(SSchedMsg *pMsg) {
-//  SQInfo *pQInfo = (SQInfo *)pMsg->ahandle;
-//  vnodeFreeQInfo(pQInfo, true);
-//}
-
 void vnodeFreeQInfoInQueue(void *param) {
   SQInfo *pQInfo = (SQInfo *)param;
 
@@ -404,15 +402,6 @@ void vnodeFreeQInfoInQueue(void *param) {
   dTrace("QInfo:%p set kill flag to free QInfo");
   
   vnodeDecRefCount(pQInfo);
-  
-//  dTrace("QInfo:%p set kill flag and add to queue, stop query ASAP", pQInfo);
-//  SSchedMsg schedMsg = {0};
-//  schedMsg.fp = vnodeFreeQInfoInQueueImpl;
-
-//  schedMsg.msg = NULL;
-//  schedMsg.thandle = (void *)1;
-//  schedMsg.ahandle = param;
-//  taosScheduleTask(queryQhandle, &schedMsg);
 }
 
 void vnodeFreeQInfo(void *param, bool decQueryRef) {
@@ -616,7 +605,7 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   bool       isProjQuery = vnodeIsProjectionQuery(pSqlExprs, pQueryMsg->numOfOutputCols);
 
   // todo pass the correct error code
-  if (isProjQuery) {
+  if (isProjQuery && pQueryMsg->tsLen == 0) {
     pQInfo = vnodeAllocateQInfo(pQueryMsg, pMeterObj, pSqlExprs);
   } else {
     pQInfo = vnodeAllocateQInfoEx(pQueryMsg, pGroupbyExpr, pSqlExprs, pMetersObj[0]);
@@ -641,7 +630,6 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   pQuery->lastKey = pQuery->skey;
 
   pQInfo->fp = pQueryFunc[pQueryMsg->order];
-  pQInfo->num = pQueryMsg->num;
 
   if (sem_init(&(pQInfo->dataReady), 0, 0) != 0) {
     dError("QInfo:%p vid:%d sid:%d meterId:%s, init dataReady sem failed, reason:%s", pQInfo, pMeterObj->vnode,
@@ -652,7 +640,9 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
 
   SSchedMsg schedMsg = {0};
 
-  if (!isProjQuery) {
+  if (isProjQuery && pQueryMsg->tsLen == 0) {
+    schedMsg.fp = vnodeQueryData;
+  } else {
     if (vnodeParametersSafetyCheck(pQuery) == false) {
       *code = TSDB_CODE_APP_ERROR;
       goto _error;
@@ -661,8 +651,9 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     SMeterQuerySupportObj *pSupporter = (SMeterQuerySupportObj *)calloc(1, sizeof(SMeterQuerySupportObj));
     pSupporter->numOfMeters = 1;
 
-    pSupporter->pMeterObj = taosInitIntHash(pSupporter->numOfMeters, POINTER_BYTES, taosHashInt);
-    taosAddIntHash(pSupporter->pMeterObj, pMetersObj[0]->sid, (char *)&pMetersObj[0]);
+    pSupporter->pMetersHashTable = taosInitHashTable(pSupporter->numOfMeters, taosIntHash_32, false);
+    taosAddToHashTable(pSupporter->pMetersHashTable, (const char*) &pMetersObj[0]->sid, sizeof(pMeterObj[0].sid),
+        (char *)&pMetersObj[0], POINTER_BYTES);
 
     pSupporter->pSidSet = NULL;
     pSupporter->subgroupIdx = -1;
@@ -688,9 +679,7 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
       return pQInfo;
     }
 
-    schedMsg.fp = vnodeSingleMeterQuery;
-  } else {
-    schedMsg.fp = vnodeQueryData;
+    schedMsg.fp = vnodeSingleTableQuery;
   }
 
   /*
@@ -740,7 +729,6 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   pQuery->ekey = pQueryMsg->ekey;
 
   pQInfo->fp = pQueryFunc[pQueryMsg->order];
-  pQInfo->num = pQueryMsg->num;
 
   if (sem_init(&(pQInfo->dataReady), 0, 0) != 0) {
     dError("QInfo:%p vid:%d sid:%d id:%s, init dataReady sem failed, reason:%s", pQInfo, pMetersObj[0]->vnode,
@@ -754,9 +742,10 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   SMeterQuerySupportObj *pSupporter = (SMeterQuerySupportObj *)calloc(1, sizeof(SMeterQuerySupportObj));
   pSupporter->numOfMeters = pQueryMsg->numOfSids;
 
-  pSupporter->pMeterObj = taosInitIntHash(pSupporter->numOfMeters, POINTER_BYTES, taosHashInt);
+  pSupporter->pMetersHashTable = taosInitHashTable(pSupporter->numOfMeters, taosIntHash_32, false);
   for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
-    taosAddIntHash(pSupporter->pMeterObj, pMetersObj[i]->sid, (char *)&pMetersObj[i]);
+    taosAddToHashTable(pSupporter->pMetersHashTable, (const char*) &pMetersObj[i]->sid, sizeof(pMetersObj[i]->sid), (char *)&pMetersObj[i],
+                       POINTER_BYTES);
   }
 
   int32_t sidElemLen = pQueryMsg->tagLength + sizeof(SMeterSidExtInfo);
@@ -911,7 +900,7 @@ int vnodeSaveQueryResult(void *handle, char *data, int32_t *size) {
 
       if (pQInfo->pMeterQuerySupporter != NULL) {
         if (pQInfo->pMeterQuerySupporter->pSidSet == NULL) {
-          schedMsg.fp = vnodeSingleMeterQuery;
+          schedMsg.fp = vnodeSingleTableQuery;
         } else {  // group by tag
           schedMsg.fp = vnodeMultiMeterQuery;
         }
@@ -981,14 +970,14 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
   pQueryMsg->ekey = htobe64(pQueryMsg->ekey);
 #endif
 
-  pQueryMsg->num = htonl(pQueryMsg->num);
-
   pQueryMsg->order = htons(pQueryMsg->order);
   pQueryMsg->orderColId = htons(pQueryMsg->orderColId);
 
   pQueryMsg->queryType = htons(pQueryMsg->queryType);
 
   pQueryMsg->nAggTimeInterval = htobe64(pQueryMsg->nAggTimeInterval);
+  pQueryMsg->slidingTime = htobe64(pQueryMsg->slidingTime);
+  
   pQueryMsg->numOfTagsCols = htons(pQueryMsg->numOfTagsCols);
   pQueryMsg->numOfCols = htons(pQueryMsg->numOfCols);
   pQueryMsg->numOfOutputCols = htons(pQueryMsg->numOfOutputCols);

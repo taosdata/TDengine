@@ -195,9 +195,9 @@ static int32_t vnodeBuildExprFromArithmeticStr(SSqlFunctionExpr* pExpr, SQueryMe
   num = i + 1;
   pBinaryExprInfo->pReqColumns = malloc(sizeof(SColIndexEx) * num);
 
-  for (int32_t i = 0; i < num; ++i) {
-    SColIndexEx* pColIndex = &pBinaryExprInfo->pReqColumns[i];
-    pColIndex->colId = ids[i];
+  for (int32_t k = 0; k < num; ++k) {
+    SColIndexEx* pColIndex = &pBinaryExprInfo->pReqColumns[k];
+    pColIndex->colId = ids[k];
   }
 
   pBinaryExprInfo->numOfCols = num;
@@ -252,7 +252,7 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
       if (pColumnIndexExInfo->colIdx >= pQueryMsg->numOfTagsCols) {
         *code = TSDB_CODE_INVALID_QUERY_MSG;
         tfree(pExprs);
-        break;
+        return NULL;
       }
 
       type = pTagSchema[pColumnIndexExInfo->colIdx].type;
@@ -264,7 +264,7 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
 
         if (*code != TSDB_CODE_SUCCESS) {
           tfree(pExprs);
-          break;
+          return NULL;
         }
 
         type = TSDB_DATA_TYPE_DOUBLE;
@@ -539,18 +539,25 @@ bool vnodeIsProjectionQuery(SSqlFunctionExpr* pExpr, int32_t numOfOutput) {
  * 3. insert has nothing to do with the query processing.
  */
 int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSids, SMeterObj** pMeterObjList,
-                              int32_t* numOfInc) {
+                              int32_t* numOfIncTables) {
   SVnodeObj* pVnode = &vnodeList[pQueryMsg->vnode];
 
   int32_t num = 0;
+  int32_t index = 0;
+  
   int32_t code = TSDB_CODE_SUCCESS;
 
   for (int32_t i = 0; i < pQueryMsg->numOfSids; ++i) {
     SMeterObj* pMeter = pVnode->meterList[pSids[i]->sid];
 
+    /*
+     * If table is missing or is in dropping status, config it from management node, and ignore it
+     * during query processing. The error code of TSDB_CODE_NOT_ACTIVE_TABLE will never return to client.
+     * The missing table needs to be removed from pSids list
+     */
     if (pMeter == NULL || vnodeIsMeterState(pMeter, TSDB_METER_STATE_DROPPING)) {
-      code = TSDB_CODE_NOT_ACTIVE_TABLE;
-      dError("qmsg:%p, vid:%d sid:%d, not there or will be dropped", pQueryMsg, pQueryMsg->vnode, pSids[i]->sid);
+      dWarn("qmsg:%p, vid:%d sid:%d, not there or will be dropped, ignore this table in query", pQueryMsg,
+          pQueryMsg->vnode, pSids[i]->sid);
       
       vnodeSendMeterCfgMsg(pQueryMsg->vnode, pSids[i]->sid);
       continue;
@@ -572,9 +579,11 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSid
      * vnodeIsSafeToDeleteMeter will wait for this function complete, and then it can
      * check if the numOfQueries is 0 or not.
      */
-    pMeterObjList[(*numOfInc)++] = pMeter;
+    pMeterObjList[(*numOfIncTables)++] = pMeter;
     atomic_fetch_add_32(&pMeter->numOfQueries, 1);
-
+    
+    pSids[index++] = pSids[i];
+    
     // output for meter more than one query executed
     if (pMeter->numOfQueries > 1) {
       dTrace("qmsg:%p, vid:%d sid:%d id:%s, inc query ref, numOfQueries:%d", pQueryMsg, pMeter->vnode, pMeter->sid,
@@ -583,16 +592,19 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSid
     }
   }
 
-  dTrace("qmsg:%p, query meters: %d, inc query ref %d, numOfQueries on %d meters are 1", pQueryMsg,
-         pQueryMsg->numOfSids, *numOfInc, (*numOfInc) - num);
+  dTrace("qmsg:%p, query meters: %d, inc query ref %d, numOfQueries on %d meters are 1, queried meters:%d after "
+         "filter missing meters", pQueryMsg, pQueryMsg->numOfSids, *numOfIncTables, (*numOfIncTables) - num, index);
 
+  assert(pQueryMsg->numOfSids >= (*numOfIncTables) && pQueryMsg->numOfSids >= index);
+  
+  pQueryMsg->numOfSids = index;
   return code;
 }
 
-void vnodeDecQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterObj** pMeterObjList, int32_t numOfInc) {
+void vnodeDecQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterObj** pMeterObjList, int32_t numOfIncTables) {
   int32_t num = 0;
 
-  for (int32_t i = 0; i < numOfInc; ++i) {
+  for (int32_t i = 0; i < numOfIncTables; ++i) {
     SMeterObj* pMeter = pMeterObjList[i];
 
     if (pMeter != NULL) {  // here, do not need to lock to perform operations
@@ -606,7 +618,7 @@ void vnodeDecQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterObj** pMeterObjList,
     }
   }
 
-  dTrace("qmsg:%p, dec query ref for %d meters, numOfQueries on %d meters are 0", pQueryMsg, numOfInc, numOfInc - num);
+  dTrace("qmsg:%p, dec query ref for %d meters, numOfQueries on %d meters are 0", pQueryMsg, numOfIncTables, numOfIncTables - num);
 }
 
 void vnodeUpdateQueryColumnIndex(SQuery* pQuery, SMeterObj* pMeterObj) {

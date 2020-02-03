@@ -164,12 +164,12 @@ void tVariantDestroy(tVariant *pVar) {
   if (pVar == NULL) return;
 
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
-    free(pVar->pz);
-    pVar->pz = NULL;
+    tfree(pVar->pz);
+    pVar->nLen = 0;
   }
 }
 
-void tVariantAssign(tVariant *pDst, tVariant *pSrc) {
+void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
 
   *pDst = *pSrc;

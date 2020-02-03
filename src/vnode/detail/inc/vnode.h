@@ -239,10 +239,19 @@ typedef struct SQuery {
   int         lfd;     // only for query in file, last file handle
   SCompBlock *pBlock;  // only for query in file
   SField **   pFields;
+  
   int         numOfBlocks;      // only for query in file
   int         blockBufferSize;  // length of pBlock buffer
   int         currentSlot;
   int         firstSlot;
+  
+  /*
+   * the two parameters are utilized to handle the data missing situation, caused by import operation.
+   * When the commit slot is the first slot, and commitPoints != 0
+   */
+  int32_t     commitSlot;   // which slot is committed,
+  int32_t     commitPoint;  // starting point for next commit
+  
   int         slot;
   int         pos;
   TSKEY       key;
@@ -251,6 +260,7 @@ typedef struct SQuery {
   TSKEY       skey;
   TSKEY       ekey;
   int64_t     nAggTimeInterval;
+  int64_t     slidingTime;       // sliding time for sliding window query
   char        intervalTimeUnit;  // interval data type, used for daytime revise
   int8_t      precision;
   int16_t     numOfOutputCols;

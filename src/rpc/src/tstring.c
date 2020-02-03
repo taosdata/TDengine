@@ -231,7 +231,7 @@ char *tsError[] = {"success",
                    "batch size too big",
                    "timestamp out of range",     //105
                    "invalid query message",
-                   "timestamp disordered in cache block",
+                   "too many results from vnodes for sort",
                    "timestamp disordered in file block",
                    "invalid commit log",
                    "no disk space on server",    //110

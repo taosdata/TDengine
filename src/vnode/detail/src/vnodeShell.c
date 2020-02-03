@@ -311,7 +311,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (pVnode->cfg.maxSessions == 0) {
     dError("qmsg:%p,vid:%d is not activated yet", pQueryMsg, pQueryMsg->vnode);
     vnodeSendVpeerCfgMsg(pQueryMsg->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_TABLE;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _query_over;
   }
 
@@ -355,7 +355,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   assert(incNumber <= pQueryMsg->numOfSids);
   pthread_mutex_unlock(&pVnode->vmutex);
 
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS || pQueryMsg->numOfSids == 0) { // all the meters may have been dropped.
     goto _query_over;
   }
 
@@ -511,7 +511,8 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
 
   assert(code != TSDB_CODE_ACTION_IN_PROGRESS);
   
-  if (numOfRows == 0 && (pRetrieve->qhandle == (uint64_t)pObj->qhandle) && (code != TSDB_CODE_ACTION_IN_PROGRESS) && pRetrieve->qhandle != NULL) {
+  if (numOfRows == 0 && (pRetrieve->qhandle == (uint64_t)pObj->qhandle) && (code != TSDB_CODE_ACTION_IN_PROGRESS) &&
+     pRetrieve->qhandle != 0) {
     dTrace("QInfo:%p %s free qhandle code:%d", pObj->qhandle, __FUNCTION__, code);
     vnodeDecRefCount(pObj->qhandle);
     pObj->qhandle = NULL;
@@ -623,6 +624,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   SShellSubmitMsg *pSubmit = &shellSubmit;
   SShellSubmitBlock *pBlocks = NULL;
 
+  pSubmit->import = htons(pSubmit->import);
   pSubmit->vnode = htons(pSubmit->vnode);
   pSubmit->numOfSid = htonl(pSubmit->numOfSid);
 

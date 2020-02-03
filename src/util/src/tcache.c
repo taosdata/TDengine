@@ -20,6 +20,7 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "hashutil.h"
 
 #define HASH_MAX_CAPACITY   (1024*1024*16)
 #define HASH_VALUE_IN_TRASH (-1)
@@ -901,5 +902,46 @@ void taosCleanUpDataCache(void *handle) {
   }
 
   pObj->deleting = 1;
-  return;
+}
+
+void* taosGetDataFromExists(void* handle, void* data) {
+  SCacheObj *pObj = (SCacheObj *)handle;
+  if (pObj == NULL || data == NULL) return NULL;
+  
+  size_t     offset = offsetof(SDataNode, data);
+  SDataNode *ptNode = (SDataNode *)((char *)data - offset);
+  
+  if (ptNode->signature != (uint64_t) ptNode) {
+    pError("key: %p the data from cache is invalid", ptNode);
+    return NULL;
+  }
+  
+  int32_t ref = atomic_add_fetch_32(&ptNode->refCount, 1);
+  pTrace("%p add ref data in cache, refCnt:%d", data, ref)
+  
+  // the data if referenced by at least one object, so the reference count must be greater than the value of 2.
+  assert(ref >= 2);
+  return data;
+}
+
+void* taosTransferDataInCache(void* handle, void** data) {
+  SCacheObj *pObj = (SCacheObj *)handle;
+  if (pObj == NULL || data == NULL) return NULL;
+  
+  size_t     offset = offsetof(SDataNode, data);
+  SDataNode *ptNode = (SDataNode *)((char *)(*data) - offset);
+  
+  if (ptNode->signature != (uint64_t) ptNode) {
+    pError("key: %p the data from cache is invalid", ptNode);
+    return NULL;
+  }
+  
+  assert(ptNode->refCount >= 1);
+  
+  char* d = *data;
+  
+  // clear its reference to old area
+  *data = NULL;
+  
+  return d;
 }

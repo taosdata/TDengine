@@ -80,6 +80,7 @@ extern short tsNumOfVnodesPerCore;
 extern short tsNumOfTotalVnodes;
 extern short tsCheckHeaderFile;
 extern uint32_t tsPublicIpInt;
+extern short tsAffectedRowsMod;
 
 extern int tsSessionsPerVnode;
 extern int tsAverageCacheBlocks;
@@ -126,6 +127,7 @@ extern int tsEnableMonitorModule;
 extern int tsRestRowLimit;
 extern int tsCompressMsgSize;
 extern int tsMaxSQLStringLen;
+extern int tsMaxNumOfOrderedResults;
 
 extern char tsSocketType[4];
 
@@ -135,6 +137,7 @@ extern int tsMinIntervalTime;
 extern int tsMaxStreamComputDelay;
 extern int tsStreamCompStartDelay;
 extern int tsStreamCompRetryDelay;
+extern float tsStreamComputDelayRatio;   // the delayed computing ration of the whole time window
 
 extern int     tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;

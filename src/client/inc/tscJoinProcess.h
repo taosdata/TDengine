@@ -27,7 +27,7 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql);
 void tscGetQualifiedTSList(SSqlObj* pSql, SJoinSubquerySupporter* p1, SJoinSubquerySupporter* p2, int32_t* num);
 
 void tscSetupOutputColumnIndex(SSqlObj* pSql);
-int32_t tscLaunchSecondSubquery(SSqlObj* pSql);
+int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql);
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code);
 
 SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, int32_t index);
@@ -121,7 +121,7 @@ STSBuf* tsBufCreate(bool autoDelete);
 STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete);
 STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_t len, int32_t tsOrder);
 
-void tsBufDestory(STSBuf* pTSBuf);
+void* tsBufDestory(STSBuf* pTSBuf);
 
 void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData, int32_t len);
 int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeIdx);
