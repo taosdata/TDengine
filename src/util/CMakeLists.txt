@@ -103,7 +103,7 @@ ELSEIF(TD_DARWIN_64)
 ENDIF()
 
 IF (TD_CLUSTER) 
-  TARGET_LINK_LIBRARIES(tutil tutil_cluster)
+  TARGET_LINK_LIBRARIES(tutil mstorage)
 ENDIF ()
 
 
