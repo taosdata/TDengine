@@ -87,6 +87,12 @@ short tsCheckHeaderFile = 0;
 int tsSessionsPerVnode = 1000;
 int tsCacheBlockSize = 16384;  // 256 columns
 int tsAverageCacheBlocks = TSDB_DEFAULT_AVG_BLOCKS;
+/**
+ * Change the meaning of affected rows:
+ * 0: affected rows not include those duplicate records
+ * 1: affected rows include those duplicate records
+ */
+short tsAffectedRowsMod = 0;
 
 int   tsRowsInFileBlock = 4096;
 float tsFileBlockMinPercent = 0.05;
@@ -539,6 +545,9 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "alternativeRole", &tsAlternativeRole, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
                      0, 2, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "affectedRowsMod", &tsAffectedRowsMod, TSDB_CFG_VTYPE_SHORT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
   // 0-any, 1-mgmt, 2-dnode
 
   // timer
