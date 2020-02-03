@@ -3426,8 +3426,11 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   tscSetResultPointer(pQueryInfo, pRes);
 
   if (pSql->pSubscription != NULL) {
-    TAOS_FIELD *pField = tscFieldInfoGetField(pCmd, pCmd->fieldsInfo.numOfOutputCols - 1);
-    int16_t     offset = tscFieldInfoGetOffset(pCmd, pCmd->fieldsInfo.numOfOutputCols - 1);
+    int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutputCols;
+    
+    TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, numOfCols - 1);
+    int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
+    
     char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
 
     int32_t numOfMeters = htonl(*(int32_t*)p);
