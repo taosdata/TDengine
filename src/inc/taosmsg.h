@@ -490,6 +490,7 @@ typedef struct SColumnInfo {
 typedef struct SMeterSidExtInfo {
   int32_t sid;
   int64_t uid;
+  TSKEY   key;   // key for subscription
   char    tags[];
 } SMeterSidExtInfo;
 

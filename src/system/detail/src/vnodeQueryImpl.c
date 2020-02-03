@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "hash.h"
 #include "hashutil.h"
-#include "os.h"
 #include "taosmsg.h"
 #include "textbuffer.h"
 #include "ttime.h"
@@ -5072,10 +5072,11 @@ static void doSetTagValueInParam(tTagSchema *pTagSchema, int32_t tagColIdx, SMet
   SSchema *pCol = &pTagSchema->pSchema[tagColIdx];
 
   tVariantDestroy(param);
-  tVariantCreateFromBinary(param, pStr, pCol->bytes, pCol->type);
 
   if (isNull(pStr, pCol->type)) {
     param->nType = TSDB_DATA_TYPE_NULL;
+  } else {
+    tVariantCreateFromBinary(param, pStr, pCol->bytes, pCol->type);
   }
 }
 
@@ -6561,12 +6562,12 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     int32_t ret = validateCompBlockInfoSegment(pQInfo, filePath, pMeterObj->vnode, &compInfo,
                                                pMeterDataInfo[j]->offsetInHeaderFile);
     if (ret != TSDB_CODE_SUCCESS) {  // file corrupted
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       return TSDB_CODE_FILE_CORRUPTED;
     }
 
     if (compInfo.numOfBlocks <= 0 || compInfo.uid != pMeterDataInfo[j]->pMeterObj->uid) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       continue;
     }
 
@@ -6574,10 +6575,13 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     size_t  bufferSize = size + sizeof(TSCKSUM);
 
     pMeterDataInfo[j]->numOfBlocks = compInfo.numOfBlocks;
-    pMeterDataInfo[j]->pBlock = calloc(1, bufferSize);
-    if (pMeterDataInfo[j]->pBlock == NULL) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
+    char* p = realloc(pMeterDataInfo[j]->pBlock, bufferSize);
+    if (p == NULL) {
+      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    } else {
+      memset(p, 0, bufferSize);
+      pMeterDataInfo[j]->pBlock = (SCompBlock*) p;
     }
 
     read(pVnodeFileInfo->headerFd, pMeterDataInfo[j]->pBlock, bufferSize);
@@ -6589,7 +6593,7 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     ret = validateCompBlockSegment(pQInfo, filePath, &compInfo, (char *)pMeterDataInfo[j]->pBlock, pMeterObj->vnode,
                                    checksum);
     if (ret != TSDB_CODE_SUCCESS) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
+      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       return TSDB_CODE_FILE_CORRUPTED;
     }
 
@@ -6613,8 +6617,8 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     }
 
     if (!setValidDataBlocks(pMeterDataInfo[j], end)) {
-      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, j);
-
+      clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
+      
       pQInfo->killed = 1;  // set query kill, abort current query since no memory available
       return TSDB_CODE_SERV_OUT_OF_MEMORY;
     }

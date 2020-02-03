@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "tscUtil.h"
 #include "hash.h"
-#include "os.h"
 #include "taosmsg.h"
 #include "tcache.h"
 #include "tkey.h"
@@ -425,6 +425,21 @@ void tscFreeResData(SSqlObj* pSql) {
   tscDestroyResPointerInfo(pRes);
 }
 
+void tscFreeSqlResult(SSqlObj* pSql) {
+  tfree(pSql->res.pRsp);
+  pSql->res.row = 0;
+  pSql->res.numOfRows = 0;
+  pSql->res.numOfTotal = 0;
+
+  pSql->res.numOfGroups = 0;
+  tfree(pSql->res.pGroupRec);
+
+  tscDestroyLocalReducer(pSql);
+
+  tscDestroyResPointerInfo(&pSql->res);
+  tfree(pSql->res.pColumnIndex);
+}
+
 void tscFreeSqlObjPartial(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     return;
@@ -445,9 +460,8 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   pthread_mutex_lock(&pObj->mutex);
   tfree(pSql->sqlstr);
   pthread_mutex_unlock(&pObj->mutex);
-  
-  tscFreeResData(pSql);
-  
+
+  tscFreeSqlResult(pSql);
   tfree(pSql->pSubs);
   pSql->numOfSubs = 0;
 
@@ -855,7 +869,7 @@ void tscFieldInfoSetValFromField(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIE
 }
 
 void tscFieldInfoUpdateVisible(SFieldInfo* pFieldInfo, int32_t index, bool visible) {
-  if (index < 0 || index > pFieldInfo->numOfOutputCols) {
+  if (index < 0 || index >= pFieldInfo->numOfOutputCols) {
     return;
   }
 

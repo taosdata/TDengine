@@ -278,6 +278,7 @@ typedef struct {
   int                   rspType;
   int                   rspLen;
   uint64_t              qhandle;
+  int64_t               uid;
   int64_t               useconds;
   int64_t               offset;  // offset value from vnode during projection query of stable
   int                   row;
@@ -324,6 +325,7 @@ typedef struct _sql_obj {
   uint32_t          queryId;
   void *            thandle;
   void *            pStream;
+  void *            pSubscription;
   char *            sqlstr;
   char              retry;
   char              maxRetry;
@@ -409,6 +411,12 @@ void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
 void tscFreeSqlCmdData(SSqlCmd *pCmd);
 void tscFreeResData(SSqlObj* pSql);
+
+/**
+ * free query result of the sql object
+ * @param pObj
+ */
+void tscFreeSqlResult(SSqlObj* pSql);
 
 /**
  * only free part of resources allocated during query.
