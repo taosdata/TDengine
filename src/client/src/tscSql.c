@@ -63,19 +63,17 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
     }
   }
 
-#ifdef CLUSTER
   if (ip && ip[0]) {
+    tscMgmtIpList.numOfIps = 4;
+    strcpy(tscMgmtIpList.ipstr[0], ip);
+    tscMgmtIpList.ip[0] = inet_addr(ip);
     strcpy(tscMgmtIpList.ipstr[1], ip);
     tscMgmtIpList.ip[1] = inet_addr(ip);
+    strcpy(tscMgmtIpList.ipstr[2], tsMasterIp);
+    tscMgmtIpList.ip[2] = inet_addr(tsMasterIp);
+    strcpy(tscMgmtIpList.ipstr[3], tsSecondIp);
+    tscMgmtIpList.ip[3] = inet_addr(tsSecondIp);
   }
-#else
-  if (ip && ip[0]) {
-    if (ip != tsMasterIp) {
-      strcpy(tsMasterIp, ip);
-    }
-    tsServerIp = inet_addr(ip);
-  }
-#endif
 
   pObj = (STscObj *)malloc(sizeof(STscObj));
   if (NULL == pObj) {
@@ -175,11 +173,6 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
-#ifndef CLUSTER
-  if (ip == NULL) {
-    ip = tsMasterIp;
-  }
-#endif
   return taos_connect_imp(ip, user, pass, db, port, fp, param, taos);
 }
 
@@ -344,7 +337,7 @@ int taos_fetch_block_impl(TAOS_RES *res, TAOS_ROW *rows) {
   SSqlRes *pRes = &pSql->res;
   STscObj *pObj = pSql->pTscObj;
 
-  if (pRes->qhandle == 0 || pObj->pSql != pSql) {
+  if (pRes->qhandle == 0) {
     *rows = NULL;
     return 0;
   }
@@ -694,7 +687,7 @@ int taos_select_db(TAOS *taos, const char *db) {
   return taos_query(taos, sql);
 }
 
-void taos_free_result(TAOS_RES *res) {
+void taos_free_result_imp(TAOS_RES* res, int keepCmd) {
   if (res == NULL) return;
 
   SSqlObj *pSql = (SSqlObj *)res;
@@ -712,6 +705,8 @@ void taos_free_result(TAOS_RES *res) {
       pSql->thandle = NULL;
       tscFreeSqlObj(pSql);
       tscTrace("%p Async SqlObj is freed by app", pSql);
+    } else if (keepCmd) {
+      tscFreeSqlResult(pSql);
     } else {
       tscFreeSqlObjPartial(pSql);
     }
@@ -761,8 +756,13 @@ void taos_free_result(TAOS_RES *res) {
        * Then this object will be reused and no free operation is required.
        */
       pSql->thandle = NULL;
-      tscFreeSqlObjPartial(pSql);
-      tscTrace("%p sql result is freed by app", pSql);
+      if (keepCmd) {
+        tscFreeSqlResult(pSql);
+        tscTrace("%p sql result is freed by app while sql command is kept", pSql);
+      } else {
+        tscFreeSqlObjPartial(pSql);
+        tscTrace("%p sql result is freed by app", pSql);
+      }
     }
   } else {
     // if no free resource msg is sent to vnode, we free this object immediately.
@@ -772,11 +772,18 @@ void taos_free_result(TAOS_RES *res) {
       assert(pRes->numOfRows == 0 || (pCmd->command > TSDB_SQL_LOCAL));
       tscFreeSqlObj(pSql);
       tscTrace("%p Async sql result is freed by app", pSql);
+    } else if (keepCmd) {
+      tscFreeSqlResult(pSql);
+      tscTrace("%p sql result is freed while sql command is kept", pSql);
     } else {
       tscFreeSqlObjPartial(pSql);
       tscTrace("%p sql result is freed", pSql);
     }
   }
+}
+
+void taos_free_result(TAOS_RES *res) {
+  taos_free_result_imp(res, 0);
 }
 
 int taos_errno(TAOS *taos) {
@@ -861,61 +868,63 @@ void taos_stop_query(TAOS_RES *res) {
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
   int len = 0;
   for (int i = 0; i < num_fields; ++i) {
+    if (i > 0) {
+      str[len++] = ' ';
+    }
+
     if (row[i] == NULL) {
-      len += sprintf(str + len, "%s ", TSDB_DATA_NULL_STR);
+      len += sprintf(str + len, "%s", TSDB_DATA_NULL_STR);
       continue;
     }
 
     switch (fields[i].type) {
       case TSDB_DATA_TYPE_TINYINT:
-        len += sprintf(str + len, "%d ", *((char *)row[i]));
+        len += sprintf(str + len, "%d", *((char *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_SMALLINT:
-        len += sprintf(str + len, "%d ", *((short *)row[i]));
+        len += sprintf(str + len, "%d", *((short *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_INT:
-        len += sprintf(str + len, "%d ", *((int *)row[i]));
+        len += sprintf(str + len, "%d", *((int *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BIGINT:
-        len += sprintf(str + len, "%" PRId64 " ", *((int64_t *)row[i]));
+        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_FLOAT: {
         float fv = 0;
         fv = GET_FLOAT_VAL(row[i]);
-        len += sprintf(str + len, "%f ", fv);
+        len += sprintf(str + len, "%f", fv);
       }
         break;
 
       case TSDB_DATA_TYPE_DOUBLE:{
         double dv = 0;
         dv = GET_DOUBLE_VAL(row[i]);
-        len += sprintf(str + len, "%lf ", dv);
+        len += sprintf(str + len, "%lf", dv);
       }
-        break;
 
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR: {
-        /* limit the max length of string to no greater than the maximum length,
-         * in case of not null-terminated string */
-        size_t xlen = strlen(row[i]);
-        size_t trueLen = MIN(xlen, fields[i].bytes);
-
-        memcpy(str + len, (char *)row[i], trueLen);
-
-        str[len + trueLen] = ' ';
-        len += (trueLen + 1);
-      } break;
+          size_t xlen = 0;
+          for (xlen = 0; xlen <= fields[i].bytes; xlen++) {
+            char c = ((char*)row[i])[xlen];
+            if (c == 0) break;
+            str[len++] = c;
+          }
+          str[len] = 0;
+        }
+        break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
-        len += sprintf(str + len, "%" PRId64 " ", *((int64_t *)row[i]));
+        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BOOL:
-        len += sprintf(str + len, "%d ", *((int8_t *)row[i]));
+        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
       default:
         break;
     }

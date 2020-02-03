@@ -24,20 +24,10 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   #set version of .so
   #VERSION    so version
   #SOVERSION  api version
-  IF (TD_LITE)
-    execute_process(COMMAND chmod 777 ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh)
-    execute_process(COMMAND ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh ${TD_COMMUNITY_DIR}/src/util/src/version.c
-          OUTPUT_VARIABLE
-          VERSION_INFO)
-    MESSAGE(STATUS "build lite version ${VERSION_INFO}")
-  ELSE ()
-    execute_process(COMMAND chmod 777 ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh)
-    execute_process(COMMAND ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh ${TD_COMMUNITY_DIR}/src/util/src/version.c
-            OUTPUT_VARIABLE
-            VERSION_INFO)
-    MESSAGE(STATUS "build cluster version ${VERSION_INFO}")
-  ENDIF ()
-
+  execute_process(COMMAND chmod 777 ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh)
+  execute_process(COMMAND ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh ${TD_COMMUNITY_DIR}/src/util/src/version.c
+        OUTPUT_VARIABLE
+        VERSION_INFO)
   MESSAGE(STATUS "build version ${VERSION_INFO}")
   SET_TARGET_PROPERTIES(taos PROPERTIES VERSION ${VERSION_INFO} SOVERSION 1)
   
@@ -57,6 +47,7 @@ ELSEIF (TD_WINDOWS_64)
   TARGET_LINK_LIBRARIES(taos trpc)
 
 ELSEIF (TD_DARWIN_64)
+  SET(CMAKE_MACOSX_RPATH 1)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/linux)
 
   ADD_LIBRARY(taos_static STATIC ${SRC})
@@ -66,6 +57,17 @@ ELSEIF (TD_DARWIN_64)
   # generate dynamic library (*.dylib)
   ADD_LIBRARY(taos SHARED ${SRC})
   TARGET_LINK_LIBRARIES(taos trpc tutil pthread m)
-  
+
+  SET_TARGET_PROPERTIES(taos PROPERTIES CLEAN_DIRECT_OUTPUT 1)
+
+  #set version of .so
+  #VERSION    so version
+  #SOVERSION  api version
+  execute_process(COMMAND chmod 777 ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh)
+  execute_process(COMMAND ${TD_COMMUNITY_DIR}/packaging/tools/get_version.sh ${TD_COMMUNITY_DIR}/src/util/src/version.c
+      OUTPUT_VARIABLE
+      VERSION_INFO)
+  MESSAGE(STATUS "build version ${VERSION_INFO}")
+  SET_TARGET_PROPERTIES(taos PROPERTIES VERSION ${VERSION_INFO} SOVERSION 1)
 ENDIF ()
 

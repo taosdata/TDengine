@@ -54,6 +54,7 @@ extern char tsDirectory[];
 extern char dataDir[];
 extern char logDir[];
 extern char scriptDir[];
+extern char osName[];
 
 extern char  tsMasterIp[];
 extern char  tsSecondIp[];
@@ -78,7 +79,6 @@ extern char  tsPrivateIp[];
 extern short tsNumOfVnodesPerCore;
 extern short tsNumOfTotalVnodes;
 extern short tsCheckHeaderFile;
-extern uint32_t tsServerIp;
 extern uint32_t tsPublicIpInt;
 extern short tsAffectedRowsMod;
 

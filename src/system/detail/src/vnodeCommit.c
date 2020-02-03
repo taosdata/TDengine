@@ -51,7 +51,7 @@ int vnodeOpenCommitLog(int vnode, uint64_t firstV) {
   int64_t length = statbuf.st_size;
 
   if (length != pVnode->mappingSize) {
-    dError("vid:%d, logfd:%d, alloc file size:%ld not equal to mapping size:%ld", vnode, pVnode->logFd, length,
+    dError("vid:%d, logfd:%d, alloc file size:%" PRId64 " not equal to mapping size:%" PRId64, vnode, pVnode->logFd, length,
            pVnode->mappingSize);
     goto _err_log_open;
   }

@@ -268,11 +268,11 @@ static void tscSetRetryTimer(SSqlStream *pStream, SSqlObj *pSql, int64_t timer) 
       tscTrace("%p stream:%p, etime:%" PRId64 " is too old, exceeds the max retention time window:%" PRId64 ", stop the stream",
                pStream->pSql, pStream, pStream->stime, pStream->etime);
       // TODO : How to terminate stream here
-      taos_close_stream(pStream);
       if (pStream->callback) {
         // Callback function from upper level
         pStream->callback(pStream->param);
       }
+      taos_close_stream(pStream);
       return;
     }
 
@@ -302,24 +302,24 @@ static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
       tscTrace("%p stream:%p, stime:%" PRId64 " is larger than end time: %" PRId64 ", stop the stream", pStream->pSql, pStream,
                pStream->stime, pStream->etime);
       // TODO : How to terminate stream here
-      taos_close_stream(pStream);
       if (pStream->callback) {
         // Callback function from upper level
         pStream->callback(pStream->param);
       }
+      taos_close_stream(pStream);
       return;
     }
   } else {
     pStream->stime += pStream->slidingTime;
     if ((pStream->stime - pStream->interval) >= pStream->etime) {
-      tscTrace("%p stream:%p, stime:%ld is larger than end time: %ld, stop the stream", pStream->pSql, pStream,
+      tscTrace("%p stream:%p, stime:%" PRId64 " is larger than end time: %" PRId64 ", stop the stream", pStream->pSql, pStream,
                pStream->stime, pStream->etime);
       // TODO : How to terminate stream here
-      taos_close_stream(pStream);
       if (pStream->callback) {
         // Callback function from upper level
         pStream->callback(pStream->param);
       }
+      taos_close_stream(pStream);
       return;
     }
 
@@ -353,7 +353,7 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   int64_t minIntervalTime =
       (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMinIntervalTime * 1000L : tsMinIntervalTime;
   if (pCmd->nAggTimeInterval < minIntervalTime) {
-    tscWarn("%p stream:%p, original sample interval:%ld too small, reset to:%" PRId64 "", pSql, pStream,
+    tscWarn("%p stream:%p, original sample interval:%" PRId64 " too small, reset to:%" PRId64, pSql, pStream,
             pCmd->nAggTimeInterval, minIntervalTime);
     pCmd->nAggTimeInterval = minIntervalTime;
   }

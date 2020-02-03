@@ -725,7 +725,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, char type) {
           *((int64_t *)payload) = TSDB_DATA_DOUBLE_NULL;
           return 0;
         } else {
-          double  value;
+          double  value = 0;
           int32_t ret;
           ret = convertToDouble(pVariant->pz, pVariant->nLen, &value);
           if ((errno == ERANGE && value == -1) || (ret != 0)) {

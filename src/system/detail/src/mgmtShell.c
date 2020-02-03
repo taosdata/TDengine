@@ -257,7 +257,7 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
       pRsp->code = TSDB_CODE_DB_NOT_SELECTED;
     pMsg++;
   } else {
-    mTrace("%s, uid:%lld meter meta is retrieved", pInfo->meterId, pMeterObj->uid);
+    mTrace("%s, uid:%" PRIu64 " meter meta is retrieved", pInfo->meterId, pMeterObj->uid);
     pRsp->code = 0;
     pMsg += sizeof(STaosRsp);
     *pMsg = TSDB_IE_TYPE_META;
@@ -402,7 +402,7 @@ int mgmtProcessMultiMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     if (pMeterObj == NULL || (pDbObj == NULL)) {
       continue;
     } else {
-      mTrace("%s, uid:%lld sversion:%d meter meta is retrieved", tblName, pMeterObj->uid, pMeterObj->sversion);
+      mTrace("%s, uid:%" PRIu64 " sversion:%d meter meta is retrieved", tblName, pMeterObj->uid, pMeterObj->sversion);
       pMeta = (SMultiMeterMeta *)pCurMeter;
 
       memcpy(pMeta->meterId, tblName, strlen(tblName));
@@ -446,7 +446,7 @@ int mgmtProcessMultiMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
         if (pVgroup == NULL) {
           pRsp->code = TSDB_CODE_INVALID_TABLE;
           pNewMsg++;
-          mError("%s, uid:%lld sversion:%d vgId:%d pVgroup is NULL", tblName, pMeterObj->uid, pMeterObj->sversion,
+          mError("%s, uid:%" PRIu64 " sversion:%d vgId:%d pVgroup is NULL", tblName, pMeterObj->uid, pMeterObj->sversion,
                  pMeterObj->gid.vgId);
           goto _error_exit_code;
         }
@@ -1078,7 +1078,7 @@ int mgmtProcessCreateTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
       STabObj* pMeter = mgmtGetMeter(pCreate->meterId);
       assert(pMeter != NULL);
       
-      mWarn("table:%s, table already created, failed to create table, ts:%lld, code:%d", pCreate->meterId,
+      mWarn("table:%s, table already created, failed to create table, ts:%" PRId64 ", code:%d", pCreate->meterId,
             pMeter->createdTime, code);
     } else {  // other errors
       mError("table:%s, failed to create table, code:%d", pCreate->meterId, code);
@@ -1202,21 +1202,28 @@ int mgmtProcessHeartBeatMsg(char *cont, int contLen, SConnObj *pConn) {
   pConn->streamId = 0;
   pHBRsp->killConnection = pConn->killConnection;
 
-#ifdef CLUSTER
   if (pConn->usePublicIp) {
-    int size = pSdbPublicIpList->numOfIps * 4;
-    pHBRsp->ipList.numOfIps = pSdbPublicIpList->numOfIps;
-    memcpy(pHBRsp->ipList.ip, pSdbPublicIpList->ip, size);
-    pMsg += sizeof(SHeartBeatRsp) + size;
+    if (pSdbPublicIpList != NULL) {
+      int size = pSdbPublicIpList->numOfIps * 4;
+      pHBRsp->ipList.numOfIps = pSdbPublicIpList->numOfIps;
+      memcpy(pHBRsp->ipList.ip, pSdbPublicIpList->ip, size);
+      pMsg += sizeof(SHeartBeatRsp) + size;
+    } else {
+      pHBRsp->ipList.numOfIps = 0;
+      pMsg += sizeof(SHeartBeatRsp);
+    }
+
   } else {
-    int size = pSdbIpList->numOfIps * 4;
-    pHBRsp->ipList.numOfIps = pSdbIpList->numOfIps;
-    memcpy(pHBRsp->ipList.ip, pSdbIpList->ip, size);
-    pMsg += sizeof(SHeartBeatRsp) + size;
+    if (pSdbIpList != NULL) {
+      int size = pSdbIpList->numOfIps * 4;
+      pHBRsp->ipList.numOfIps = pSdbIpList->numOfIps;
+      memcpy(pHBRsp->ipList.ip, pSdbIpList->ip, size);
+      pMsg += sizeof(SHeartBeatRsp) + size;
+    } else {
+      pHBRsp->ipList.numOfIps = 0;
+      pMsg += sizeof(SHeartBeatRsp);
+    }
   }
-#else
-  pMsg += sizeof(SHeartBeatRsp);
-#endif
   msgLen = pMsg - pStart;
 
   taosSendMsgToPeer(pConn->thandle, pStart, msgLen);
@@ -1334,15 +1341,22 @@ _rsp:
     pConnectRsp->superAuth = pConn->superAuth;
     pMsg += sizeof(SConnectRsp);
 
-#ifdef CLUSTER
-    int size = pSdbPublicIpList->numOfIps * 4 + sizeof(SIpList);
-    if (pConn->usePublicIp) {
-      memcpy(pMsg, pSdbPublicIpList, size);
+    int size;
+    if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
+      size = pSdbPublicIpList->numOfIps * 4 + sizeof(SIpList);
+      if (pConn->usePublicIp) {
+        memcpy(pMsg, pSdbPublicIpList, size);
+      } else {
+        memcpy(pMsg, pSdbIpList, size);
+      }
     } else {
-      memcpy(pMsg, pSdbIpList, size);
+      SIpList tmpIpList;
+      tmpIpList.numOfIps = 0;
+      size = tmpIpList.numOfIps * 4 + sizeof(SIpList);
+      memcpy(pMsg, &tmpIpList, size);
     }
+
     pMsg += size;
-#endif
 
     // set the time resolution: millisecond or microsecond
     *((uint32_t *)pMsg) = tsTimePrecision;

@@ -1,6 +1,6 @@
 {
   "name": "TDengine",
-  "id": "tdengine",
+  "id": "taosdata-tdengine-datasource",
   "type": "datasource",
 
   "partials": {
@@ -24,8 +24,8 @@
       {"name": "GitHub", "url": "https://github.com/taosdata/TDengine/tree/develop/src/connector/grafana/tdengine"},
       {"name": "AGPL 3.0", "url": "https://github.com/taosdata/TDengine/tree/develop/src/connector/grafana/tdengine/LICENSE"}
     ],
-    "version": "1.6.0",
-    "updated": "2019-11-12"
+    "version": "1.0.0",
+    "updated": "2020-01-13"
   },
 
   "dependencies": {

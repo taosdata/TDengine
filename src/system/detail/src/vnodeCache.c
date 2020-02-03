@@ -653,8 +653,8 @@ int vnodeQueryFromCache(SMeterObj *pObj, SQuery *pQuery) {
       for (int32_t j = startPos; j < pCacheBlock->numOfPoints; ++j) {
         TSKEY key = vnodeGetTSInCacheBlock(pCacheBlock, j);
         if (key < startkey || key > endkey) {
-          dError("vid:%d sid:%d id:%s, timestamp in cache slot is disordered. slot:%d, pos:%d, ts:%lld, block "
-                 "range:%lld-%lld", pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startkey, endkey);
+          dError("vid:%d sid:%d id:%s, timestamp in cache slot is disordered. slot:%d, pos:%d, ts:%" PRId64 ", block "
+                 "range:%" PRId64 "-%" PRId64, pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startkey, endkey);
           tfree(ids);
           return -TSDB_CODE_FILE_BLOCK_TS_DISORDERED;
         }
@@ -678,8 +678,8 @@ int vnodeQueryFromCache(SMeterObj *pObj, SQuery *pQuery) {
       for (int32_t j = startPos; j >= 0; --j) {
         TSKEY key = vnodeGetTSInCacheBlock(pCacheBlock, j);
         if (key < startkey || key > endkey) {
-          dError("vid:%d sid:%d id:%s, timestamp in cache slot is disordered. slot:%d, pos:%d, ts:%lld, block "
-                 "range:%lld-%lld", pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startkey, endkey);
+          dError("vid:%d sid:%d id:%s, timestamp in cache slot is disordered. slot:%d, pos:%d, ts:%" PRId64 ", block "
+                 "range:%" PRId64 "-%" PRId64, pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startkey, endkey);
           tfree(ids);
           return -TSDB_CODE_FILE_BLOCK_TS_DISORDERED;
         }
@@ -962,10 +962,11 @@ void vnodeSetCommitQuery(SMeterObj *pObj, SQuery *pQuery) {
 
   if (firstKey < pQuery->skey) {
     pQuery->over = 1;
-    dTrace("vid:%d sid:%d id:%s, first key is small, keyFirst:%ld commitFirstKey:%ld",
+    dTrace("vid:%d sid:%d id:%s, first key is small, keyFirst:%" PRId64 " commitFirstKey:%" PRId64 "",
         pObj->vnode, pObj->sid, pObj->meterId, firstKey, pQuery->skey);
     pthread_mutex_lock(&(pVnode->vmutex));
     if (firstKey < pVnode->firstKey) pVnode->firstKey = firstKey;
+    assert(pVnode->firstKey > 0);
     pthread_mutex_unlock(&(pVnode->vmutex));
   }
 }
@@ -1013,7 +1014,7 @@ int vnodeSyncRetrieveCache(int vnode, int fd) {
     if (taosWriteMsg(fd, &(pObj->lastKeyOnFile), sizeof(pObj->lastKeyOnFile)) <= 0) return -1;
     if (taosWriteMsg(fd, &(pInfo->commitPoint), sizeof(pInfo->commitPoint)) <= 0) return -1;
 
-    dTrace("vid:%d sid:%d id:%s, send lastKey:%lld lastKeyOnFile:%lld", vnode, sid, pObj->meterId, pObj->lastKey,
+    dTrace("vid:%d sid:%d id:%s, send lastKey:%" PRId64 " lastKeyOnFile:%" PRId64, vnode, sid, pObj->meterId, pObj->lastKey,
            pObj->lastKeyOnFile);
 
     slot = pInfo->commitSlot;
@@ -1033,7 +1034,7 @@ int vnodeSyncRetrieveCache(int vnode, int fd) {
         if (taosWriteMsg(fd, pBlock->offset[col], pObj->schema[col].bytes * points) <= 0) return -1;
 
       TSKEY lastKey = *((TSKEY *)(pBlock->offset[0] + pObj->schema[0].bytes * (points - 1)));
-      dTrace("vid:%d sid:%d id:%s, cache block is sent, points:%d lastKey:%ld", vnode, sid, pObj->meterId, points,
+      dTrace("vid:%d sid:%d id:%s, cache block is sent, points:%d lastKey:%" PRId64, vnode, sid, pObj->meterId, points,
              lastKey);
 
       blocksSent++;
@@ -1097,7 +1098,7 @@ int vnodeSyncRestoreCache(int vnode, int fd) {
     if (taosReadMsg(fd, &(pObj->lastKeyOnFile), sizeof(pObj->lastKeyOnFile)) <= 0) return -1;
     if (taosReadMsg(fd, &(pInfo->commitPoint), sizeof(pInfo->commitPoint)) <= 0) return -1;
 
-    dTrace("vid:%d sid:%d id:%s, commitPoint:%d lastKeyOnFile:%ld", vnode, sid, pObj->meterId, pInfo->commitPoint,
+    dTrace("vid:%d sid:%d id:%s, commitPoint:%d lastKeyOnFile:%" PRId64, vnode, sid, pObj->meterId, pInfo->commitPoint,
            pObj->lastKeyOnFile);
 
     if (vnodeList[pObj->vnode].lastKey < pObj->lastKey) vnodeList[pObj->vnode].lastKey = pObj->lastKey;
@@ -1135,7 +1136,7 @@ int vnodeSyncRestoreCache(int vnode, int fd) {
       if (vnodeList[pObj->vnode].firstKey > *(TSKEY *)(pBlock->offset[0]))
         vnodeList[pObj->vnode].firstKey = *(TSKEY *)(pBlock->offset[0]);
 
-      dTrace("vid:%d sid:%d id:%s, cache block is received, points:%d lastKey:%ld", vnode, sid, pObj->meterId, points,
+      dTrace("vid:%d sid:%d id:%s, cache block is received, points:%d lastKey:%" PRId64, vnode, sid, pObj->meterId, points,
              pObj->lastKey);
     }
   }

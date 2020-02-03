@@ -28,109 +28,149 @@ struct termios oldtio;
 
 extern int wcwidth(wchar_t c);
 void insertChar(Command *cmd, char *c, int size);
-const char *argp_program_version = version;
-const char *argp_program_bug_address = "<support@taosdata.com>";
-static char doc[] = "";
-static char args_doc[] = "";
-static struct argp_option options[] = {
-  {"host",       'h', "HOST",       0,                   "TDEngine server IP address to connect. The default host is localhost."},
-  {"password",   'p', "PASSWORD",   OPTION_ARG_OPTIONAL, "The password to use when connecting to the server."},
-  {"port",       'P', "PORT",       0,                   "The TCP/IP port number to use for the connection."},
-  {"user",       'u', "USER",       0,                   "The TDEngine user name to use when connecting to the server."},
-  {"config-dir", 'c', "CONFIG_DIR", 0,                   "Configuration directory."},
-  {"commands",   's', "COMMANDS",   0,                   "Commands to run without enter the shell."},
-  {"raw-time",   'r', 0,            0,                   "Output time as uint64_t."},
-  {"file",       'f', "FILE",       0,                   "Script to run without enter the shell."},
-  {"directory",  'D', "DIRECTORY",  0,                   "Use multi-thread to import all SQL files in the directory separately."},
-  {"thread",     'T', "THREADNUM",  0,                   "Number of threads when using multi-thread to import data."},
-  {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
-  {"timezone",   't', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
-  {0}};
 
-static error_t parse_opt(int key, char *arg, struct argp_state *state) {
-  /* Get the input argument from argp_parse, which we
-  know is a pointer to our arguments structure. */
-  struct arguments *arguments = state->input;
-  wordexp_t full_path;
 
-  switch (key) {
-    case 'h':
-      arguments->host = arg;
-      break;
-    case 'p':
-      arguments->is_use_passwd = true;
-      if (arg) arguments->password = arg;
-      break;
-    case 'P':
-      tsMgmtShellPort = atoi(arg);
-      break;
-    case 't':
-      arguments->timezone = arg;
-      break;
-    case 'u':
-      arguments->user = arg;
-      break;
-    case 'c':
-      if (wordexp(arg, &full_path, 0) != 0) {
-        fprintf(stderr, "Invalid path %s\n", arg);
-        return -1;
-      }
-      strcpy(configDir, full_path.we_wordv[0]);
-      wordfree(&full_path);
-      break;
-    case 's':
-      arguments->commands = arg;
-      break;
-    case 'r':
-      arguments->is_raw_time = true;
-      break;
-    case 'f':
-      if (wordexp(arg, &full_path, 0) != 0) {
-        fprintf(stderr, "Invalid path %s\n", arg);
-        return -1;
-      }
-      strcpy(arguments->file, full_path.we_wordv[0]);
-      wordfree(&full_path);
-      break;
-    case 'D':
-      if (wordexp(arg, &full_path, 0) != 0) {
-        fprintf(stderr, "Invalid path %s\n", arg);
-        return -1;
-      }
-      strcpy(arguments->dir, full_path.we_wordv[0]);
-      wordfree(&full_path);
-      break;
-    case 'T':
-      arguments->threadNum = atoi(arg);
-      break;
-    case 'd':
-      arguments->database = arg;
-      break;
-    case OPT_ABORT:
-      arguments->abort = 1;
-      break;
-    default:
-      return ARGP_ERR_UNKNOWN;
-  }
-  return 0;
+void printHelp() {
+  char indent[10] = "        ";
+  printf("taos shell is used to test the TDEngine database\n");
+
+  printf("%s%s\n", indent, "-h");
+  printf("%s%s%s\n", indent, indent, "TDEngine server IP address to connect. The default host is localhost.");
+  printf("%s%s\n", indent, "-p");
+  printf("%s%s%s\n", indent, indent, "The password to use when connecting to the server.");
+  printf("%s%s\n", indent, "-P");
+  printf("%s%s%s\n", indent, indent, "The TCP/IP port number to use for the connection");
+  printf("%s%s\n", indent, "-u");
+  printf("%s%s%s\n", indent, indent, "The TDEngine user name to use when connecting to the server.");
+  printf("%s%s\n", indent, "-c");
+  printf("%s%s%s\n", indent, indent, "Configuration directory.");
+  printf("%s%s\n", indent, "-s");
+  printf("%s%s%s\n", indent, indent, "Commands to run without enter the shell.");
+  printf("%s%s\n", indent, "-r");
+  printf("%s%s%s\n", indent, indent, "Output time as unsigned long..");
+  printf("%s%s\n", indent, "-f");
+  printf("%s%s%s\n", indent, indent, "Script to run without enter the shell.");
+  printf("%s%s\n", indent, "-d");
+  printf("%s%s%s\n", indent, indent, "Database to use when connecting to the server.");
+  printf("%s%s\n", indent, "-t");
+  printf("%s%s%s\n", indent, indent, "Time zone of the shell, default is local.");
+  printf("%s%s\n", indent, "-D");
+  printf("%s%s%s\n", indent, indent, "Use multi-thread to import all SQL files in the directory separately.");
+  printf("%s%s\n", indent, "-T");
+  printf("%s%s%s\n", indent, indent, "Number of threads when using multi-thread to import data.");
+
+  exit(EXIT_SUCCESS);
 }
 
-/* Our argp parser. */
-static struct argp argp = {options, parse_opt, args_doc, doc};
-
 void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
-  static char verType[32] = {0};
-  sprintf(verType, "version: %s\n", version);
-
-  argp_program_version = verType;
-  
-  argp_parse(&argp, argc, argv, 0, 0, arguments);
-  if (arguments->abort) {
-    #ifndef _ALPINE
-      error(10, 0, "ABORTED");
-    #else
-      abort();
-    #endif
+  wordexp_t full_path;
+  for (int i = 1; i < argc; i++) {
+    // for host
+    if (strcmp(argv[i], "-h") == 0) {
+      if (i < argc - 1) {
+        arguments->host = argv[++i];
+      } else {
+        fprintf(stderr, "option -h requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+      // for password
+    else if (strcmp(argv[i], "-p") == 0) {
+      arguments->is_use_passwd = true;
+    }
+      // for management port
+    else if (strcmp(argv[i], "-P") == 0) {
+      if (i < argc - 1) {
+        tsMgmtShellPort = atoi(argv[++i]);
+      } else {
+        fprintf(stderr, "option -P requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+      // for user
+    else if (strcmp(argv[i], "-u") == 0) {
+      if (i < argc - 1) {
+        arguments->user = argv[++i];
+      } else {
+        fprintf(stderr, "option -u requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    } else if (strcmp(argv[i], "-c") == 0) {
+      if (i < argc - 1) {
+        strcpy(configDir, argv[++i]);
+      } else {
+        fprintf(stderr, "Option -c requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    } else if (strcmp(argv[i], "-s") == 0) {
+      if (i < argc - 1) {
+        arguments->commands = argv[++i];
+      } else {
+        fprintf(stderr, "option -s requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    } else if (strcmp(argv[i], "-r") == 0) {
+      arguments->is_raw_time = true;
+    }
+      // For temperory batch commands to run TODO
+    else if (strcmp(argv[i], "-f") == 0) {
+      if (i < argc - 1) {
+        strcpy(arguments->file, argv[++i]);
+      } else {
+        fprintf(stderr, "option -f requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+      // for default database
+    else if (strcmp(argv[i], "-d") == 0) {
+      if (i < argc - 1) {
+        arguments->database = argv[++i];
+      } else {
+        fprintf(stderr, "option -d requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+      // For time zone
+    else if (strcmp(argv[i], "-t") == 0) {
+      if (i < argc - 1) {
+        arguments->timezone = argv[++i];
+      } else {
+        fprintf(stderr, "option -t requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+      // For import directory
+    else if (strcmp(argv[i], "-D") == 0) {
+      if (i < argc - 1) {
+        if (wordexp(argv[++i], &full_path, 0) != 0) {
+          fprintf(stderr, "Invalid path %s\n", argv[i]);
+          exit(EXIT_FAILURE);
+        }
+        strcpy(arguments->dir, full_path.we_wordv[0]);
+        wordfree(&full_path);
+      } else {
+        fprintf(stderr, "option -D requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+      // For time zone
+    else if (strcmp(argv[i], "-T") == 0) {
+      if (i < argc - 1) {
+        arguments->threadNum = atoi(argv[++i]);
+      } else {
+        fprintf(stderr, "option -T requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+      // For temperory command TODO
+    else if (strcmp(argv[i], "--help") == 0) {
+      printHelp();
+      exit(EXIT_FAILURE);
+    } else {
+      fprintf(stderr, "wrong options\n");
+      printHelp();
+      exit(EXIT_FAILURE);
+    }
   }
 }
 
@@ -290,22 +330,22 @@ void *shellLoopQuery(void *arg) {
 
   pthread_cleanup_push(cleanup_handler, NULL);
 
-  char *command = malloc(MAX_COMMAND_SIZE);
-  if (command == NULL){
-    tscError("failed to malloc command");
-    return NULL;
-  }
-  while (1) {
-    // Read command from shell.
+    char *command = malloc(MAX_COMMAND_SIZE);
+    if (command == NULL){
+      tscError("failed to malloc command");
+      return NULL;
+    }
+    while (1) {
+      // Read command from shell.
 
-    memset(command, 0, MAX_COMMAND_SIZE);
-    set_terminal_mode();
-    shellReadCommand(con, command);
-    reset_terminal_mode();
+      memset(command, 0, MAX_COMMAND_SIZE);
+      set_terminal_mode();
+      shellReadCommand(con, command);
+      reset_terminal_mode();
 
-    // Run the command
-    shellRunCommand(con, command);
-  }
+      // Run the command
+      shellRunCommand(con, command);
+    }
 
   pthread_cleanup_pop(1);
 

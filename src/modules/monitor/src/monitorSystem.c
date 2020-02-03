@@ -217,9 +217,7 @@ void monitorInitDatabaseCb(void *param, TAOS_RES *result, int code) {
     if (monitor->cmdIndex == MONITOR_CMD_CREATE_TB_LOG) {
       taosLogFp = monitorSaveLog;
       taosLogSqlFp = monitorExecuteSQL;
-#ifdef CLUSTER
       taosLogAcctFp = monitorSaveAcctLog;
-#endif
       monitorLPrint("dnode:%s is started", tsPrivateIp);
     }
     monitor->cmdIndex++;

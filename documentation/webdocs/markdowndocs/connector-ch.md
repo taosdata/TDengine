@@ -164,27 +164,36 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 
 ### C/C++ 数据订阅接口
 
-订阅API目前支持订阅一张表，并通过定期轮询的方式不断获取写入表中的最新数据。 
+订阅API目前支持订阅一张或多张表，并通过定期轮询的方式不断获取写入表中的最新数据。 
 
-- `TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char *db, char *table, int64_t time, int mseconds)`
+* `TAOS_SUB *taos_subscribe(TAOS* taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval)`
 
-  该API用来启动订阅，需要提供的参数包含：TDengine管理主节点的IP地址、用户名、密码、数据库、数据库表的名字；time是开始订阅消息的时间，是从1970年1月1日起计算的毫秒数，为长整型, 如果设为0，表示从当前时间开始订阅；mseconds为查询数据库更新的时间间隔，单位为毫秒，建议设为1000毫秒。返回值为一指向TDengine_SUB结构的指针，如果返回为空，表示失败。
+  该函数负责启动订阅服务，成功时返回订阅对象，失败时返回 `NULL`，其参数为：
+  * taos：已经建立好的数据库连接
+  * restart：如果订阅已经存在，是重新开始，还是继续之前的订阅
+  * topic：订阅的主题（即名称），此参数是订阅的唯一标识
+  * sql：订阅的查询语句，此语句只能是 `select` 语句，只应查询原始数据，只能按时间正序查询数据
+  * fp：收到查询结果时的回调函数（稍后介绍函数原型），只在异步调用时使用，同步调用时此参数应该传 `NULL`
+  * param：调用回调函数时的附加参数，系统API将其原样传递到回调函数，不进行任何处理
+  * interval：轮询周期，单位为毫秒。异步调用时，将根据此参数周期性的调用回调函数，为避免对系统性能造成影响，不建议将此参数设置的过小；同步调用时，如两次调用`taos_consume`的间隔小于此周期，API将会阻塞，直到时间间隔超过此周期。
 
-- `TAOS_ROW taos_consume(TAOS_SUB *tsub)`
+* `typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code)`
 
-  该API用来获取最新消息，应用程序一般会将其置于一个无限循环语句中。其中参数tsub是taos_subscribe的返回值。如果数据库有新的记录，该API将返回，返回参数是一行记录。如果没有新的记录，该API将阻塞。如果返回值为空，说明系统出错，需要检查系统是否还在正常运行。
+  异步模式下，回调函数的原型，其参数为：
+  * tsub：订阅对象
+  * res：查询结果集，注意结果集中可能没有记录
+  * param：调用 `taos_subscribe`时客户程序提供的附加参数
+  * code：错误码
 
-- `void taos_unsubscribe(TAOS_SUB *tsub)`
 
-  该API用于取消订阅，参数tsub是taos_subscribe的返回值。应用程序退出时，需要调用该API，否则有资源泄露。
+* `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
-- `int taos_num_subfields(TAOS_SUB *tsub)`
+  同步模式下，该函数用来获取订阅的结果。 用户应用程序将其置于一个循环之中。 如两次调用`taos_consume`的间隔小于订阅的轮询周期，API将会阻塞，直到时间间隔超过此周期。 如果数据库有新记录到达，该API将返回该最新的记录，否则返回一个没有记录的空结果集。 如果返回值为 `NULL`，说明系统出错。 异步模式下，用户程序不应调用此API。
 
-  该API用来获取返回的一排数据中数据的列数
+* `void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress)`
 
-- `TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub)`
+  取消订阅。 如参数 `keepProgress` 不为0，API会保留订阅的进度信息，后续调用 `taos_subscribe` 时可以基于此进度继续；否则将删除进度信息，后续只能重新开始读取数据。
 
-  该API用来获取每列数据的属性（数据类型、名字、字节数），与taos_num_subfields配合使用，可用来解析返回的一排数据。
 
 ##  Java Connector
 
@@ -198,38 +207,38 @@ TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API �
 * taos.dll
     在 windows 系统中安装完客户端之后，驱动包依赖的 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
     
-> 注意：在 windows 环境开发时需要安装 TDengine 对应的 windows 版本客户端，由于目前没有提供 Linux 环境单独的客户端，需要安装 TDengine 才能使用。
+> 注意：在 windows 环境开发时需要安装 TDengine 对应的 [windows 客户端][14]，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端][15] 连接远程 TDengine Server。
 
 TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一致，但时序空间数据库与关系对象型数据库服务的对象和技术特征的差异导致 taos-jdbcdriver 并未完全实现 JDBC 标准规范。在使用时需要注意以下几点：
 
 * TDengine 不提供针对单条数据记录的删除和修改的操作，驱动中也没有支持相关方法。
 * 由于不支持删除和修改，所以也不支持事务操作。
 * 目前不支持表间的 union 操作。
-* 目前不支持嵌套查询(nested query)，`对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet还没关闭的情况下执行了新的查询，TSDBJDBCDriver 则会自动关闭上一个 ResultSet`。
+* 目前不支持嵌套查询(nested query)，对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet还没关闭的情况下执行了新的查询，TSDBJDBCDriver 则会自动关闭上一个 ResultSet。
 
 
 ## TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
-| taos-jdbcdriver 版本 | TDengine 版本 | JDK 版本 | 
-| --- | --- | --- | 
+| taos-jdbcdriver 版本 | TDengine 版本 | JDK 版本 |
+| --- | --- | --- |
 | 1.0.3 | 1.6.1.x 及以上 | 1.8.x |
-| 1.0.2 | 1.6.1.x 及以上 | 1.8.x |  
-| 1.0.1 | 1.6.1.x 及以上 | 1.8.x |  
+| 1.0.2 | 1.6.1.x 及以上 | 1.8.x |
+| 1.0.1 | 1.6.1.x 及以上 | 1.8.x |
 
 ## TDengine DataType 和 Java DataType
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine DataType | Java DataType | 
-| --- | --- | 
-| TIMESTAMP | java.sql.Timestamp | 
-| INT | java.lang.Integer | 
-| BIGINT | java.lang.Long |  
-| FLOAT | java.lang.Float |  
-| DOUBLE | java.lang.Double | 
+| TDengine DataType | Java DataType |
+| --- | --- |
+| TIMESTAMP | java.sql.Timestamp |
+| INT | java.lang.Integer |
+| BIGINT | java.lang.Long |
+| FLOAT | java.lang.Float |
+| DOUBLE | java.lang.Double |
 | SMALLINT, TINYINT |java.lang.Short  |
-| BOOL | java.lang.Boolean | 
-| BINARY, NCHAR | java.lang.String | 
+| BOOL | java.lang.Boolean |
+| BINARY, NCHAR | java.lang.String |
 
 ## 如何获取 TAOS-JDBCDriver
 
@@ -579,13 +588,34 @@ data = c1.fetchall()
 numOfRows = c1.rowcount
 numOfCols = len(c1.description)
 for irow in range(numOfRows):
-  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2])
+  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
   
 # 直接使用cursor 循环拉取查询结果
 c1.execute('select * from tb')
 for data in c1:
   print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])
 ```
+
+* 创建订阅
+```python
+# 创建一个主题为 'test' 消费周期为1000毫秒的订阅
+# 第一个参数为 True 表示重新开始订阅，如为 False 且之前创建过主题为 'test' 的订阅，则表示继续消费此订阅的数据，而不是重新开始消费所有数据
+sub = conn.subscribe(True, "test", "select * from meters;", 1000)
+```
+
+* 消费订阅的数据
+```python
+data = sub.consume()
+for d in data:
+    print(d)
+```
+
+* 取消订阅
+```python
+sub.close()
+```
+
+
 * 关闭连接
 ```python
 c1.close()
@@ -807,6 +837,8 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 ## Go Connector
 
+### linux环境
+
 #### 安装TDengine
 
 Go的连接器使用到了 libtaos.so 和taos.h，因此，在使用Go连接器之前，需要在程序运行的机器上安装TDengine以获得相关的驱动文件。
@@ -867,7 +899,14 @@ taosSql驱动包内采用cgo模式，调用了TDengine的C/C++同步接口，与
 
 3. 创建表、写入和查询数据
 
-在创建好了数据库后，就可以开始创建表和写入查询数据了。这些操作的基本思路都是首先组装SQL语句，然后调用db.Exec执行，并检查错误信息和执行相应的处理。可以参考上面的样例代码
+在创建好了数据库后，就可以开始创建表和写入查询数据了。这些操作的基本思路都是首先组装SQL语句，然后调用db.Exec执行，并检查错误信息和执行相应的处理。可以参考上面的样例代码。
+
+### windows环境
+
+在windows上使用Go，请参考 
+[TDengine GO windows驱动的编译和使用](https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows%E9%A9%B1%E5%8A%A8%E7%9A%84%E7%BC%96%E8%AF%91/)
+
+
 
 ## Node.js Connector
 
@@ -1054,6 +1093,8 @@ https://gitee.com/maikebing/Maikebing.EntityFrameworkCore.Taos
 ├───├── jdbc
 ├───└── python
 ├── driver
+├───├── libtaos.dll
+├───├── libtaos.dll.a
 ├───├── taos.dll
 ├───├── taos.exp
 ├───└── taos.lib
@@ -1078,8 +1119,8 @@ https://gitee.com/maikebing/Maikebing.EntityFrameworkCore.Taos
 
 + Client可执行文件: C:/TDengine/taos.exe 
 + 配置文件: C:/TDengine/cfg/taos.cfg
-+ C驱动程序目录: C:/TDengine/driver
-+ C驱动程序头文件: C:/TDengine/include
++ 驱动程序目录: C:/TDengine/driver
++ 驱动程序头文件: C:/TDengine/include
 + JDBC驱动程序目录: C:/TDengine/connector/jdbc
 + GO驱动程序目录：C:/TDengine/connector/go
 + Python驱动程序目录：C:/TDengine/connector/python
@@ -1106,6 +1147,14 @@ taos -h <ServerIP>
 
 TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序使用时，需要包含TDengine头文件taos.h，连接时需要链接TDengine库taos.lib，运行时将taos.dll放到可执行文件目录下。
 
+#### Go接口注意事项
+
+TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序使用时，除了需要Go的驱动包（C:\TDengine\connector\go）外，还需要包含TDengine头文件taos.h，连接时需要链接TDengine库libtaos.dll、libtaos.dll.a（C:\TDengine\driver），运行时将libtaos.dll、libtaos.dll.a放到可执行文件目录下。
+
+使用参考请见：
+
+[TDengine GO windows驱动的编译和使用](https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows%E9%A9%B1%E5%8A%A8%E7%9A%84%E7%BC%96%E8%AF%91/)
+
 #### JDBC接口注意事项
 
 在Windows系统上，应用程序可以使用JDBC接口来操纵数据库，使用JDBC接口的注意事项如下：
@@ -1121,6 +1170,49 @@ TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序
 
 + 将Windows开发包(taos.dll)放置到system32目录下。
 
+## Mac客户端及程序接口
+
+### 客户端安装
+
+在Mac操作系统下，TDengine提供64位的Mac客户端([2月10日起提供下载](https://www.taosdata.com/cn/all-downloads/#tdengine_mac-list))，客户端安装程序为.tar.gz文件，解压并运行其中的install_client.sh后即可完成安装，安装路径为/usr/loca/taos。客户端目录结构如下：
+
+```
+├── cfg
+├───└── taos.cfg
+├── connector
+├───├── go
+├───├── grafana
+├───├── jdbc
+├───└── python
+├── driver
+├───├── libtaos.1.6.5.1.dylib
+├── examples
+├───├── bash
+├───├── c
+├───├── C#
+├───├── go
+├───├── JDBC
+├───├── lua
+├───├── matlab
+├───├── nodejs
+├───├── python
+├───├── R
+├───└── rust
+├── include
+├───└── taos.h
+└── bin
+├───└── taos
+```
+
+其中，最常用的文件列出如下：
+
++ Client可执行文件: /usr/local/taos/bin/taos 软连接到 /usr/local/bin/taos
++ 配置文件: /usr/local/taos/cfg/taos.cfg 软连接到 /etc/taos/taos.cfg
++ 驱动程序目录: /usr/local/taos/driver/libtaos.1.6.5.1.dylib 软连接到 /usr/local/lib/libtaos.dylib
++ 驱动程序头文件: /usr/local/taos/include/taos.h 软连接到 /usr/local/include/taos.h
++ 日志目录（第一次运行程序时生成）：~/TDengineLog
+
+
 
 [1]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
 [2]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
@@ -1135,3 +1227,5 @@ TDengine在Window系统上提供的API与Linux系统是相同的， 应用程序
 [11]:  https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
 [12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
 [13]: https://www.taosdata.com/cn/documentation/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
+[14]: https://www.taosdata.com/cn/documentation/connector/#Windows%E5%AE%A2%E6%88%B7%E7%AB%AF%E5%8F%8A%E7%A8%8B%E5%BA%8F%E6%8E%A5%E5%8F%A3
+[15]: https://www.taosdata.com/cn/getting-started/#%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B

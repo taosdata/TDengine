@@ -56,11 +56,7 @@ int tscEmbedded = 0;
  */
 int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
-#ifdef CLUSTER
 char  tsMasterIp[TSDB_IPv4ADDR_LEN] = {0};
-#else
-char  tsMasterIp[TSDB_IPv4ADDR_LEN] = "127.0.0.1";
-#endif
 char  tsSecondIp[TSDB_IPv4ADDR_LEN] = {0};
 uint16_t tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
 uint16_t tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
@@ -450,7 +446,7 @@ static void doInitGlobalConfig() {
 
   // ip address
   tsInitConfigOption(cfg++, "masterIp", tsMasterIp, TSDB_CFG_VTYPE_IPSTR,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_CLUSTER,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
                      0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "secondIp", tsSecondIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_CLUSTER,
@@ -796,11 +792,9 @@ static void doInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG,
                      0, 1, 0, TSDB_CFG_UTYPE_NONE);
 
-#ifdef CLUSTER
   tsInitConfigOption(cfg++, "anyIp", &tsAnyIp, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
                      0, 1, 0, TSDB_CFG_UTYPE_NONE);
-#endif
 
   // version info
   tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING,

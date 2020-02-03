@@ -48,6 +48,7 @@ static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 extern int  tsTscEnableRecordSql;
 extern int  tsNumOfLogLines;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
+void deltaToUtcInitOnce();
 
 void tscCheckDiskUsage(void *para, void *unused) {
   taosGetDisk();
@@ -60,6 +61,7 @@ void taos_init_imp() {
   SRpcInit    rpcInit;
 
   srand(taosGetTimestampSec());
+  deltaToUtcInitOnce();
 
   if (tscEmbedded == 0) {
     /*
@@ -93,7 +95,6 @@ void taos_init_imp() {
     taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
   }
   
-#ifdef CLUSTER
   tscMgmtIpList.numOfIps = 2;
   strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
   tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
@@ -106,7 +107,6 @@ void taos_init_imp() {
     strcpy(tscMgmtIpList.ipstr[2], tsSecondIp);
     tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
   }
-#endif
 
   tscInitMsgs();
   slaveIndex = rand();

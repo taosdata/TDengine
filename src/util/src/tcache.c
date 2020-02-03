@@ -587,8 +587,8 @@ void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, i
     pNode = taosAddToCacheImpl(pObj, key, keyLen, pData, dataSize, keepTime * 1000L);
     if (NULL != pNode) {
       pTrace(
-          "key:%s %p added into cache, slot:%d, addTime:%lld, expireTime:%lld, cache total:%d, "
-          "size:%lldbytes, collision:%d",
+          "key:%s %p added into cache, slot:%d, addTime:%" PRIu64 ", expireTime:%" PRIu64 ", cache total:%d, "
+          "size:%" PRId64 " bytes, collision:%d",
           pNode->key, pNode, HASH_INDEX(pNode->hashVal, pObj->capacity), pNode->addTime, pNode->time, pObj->size,
           pObj->totalSize, pObj->statistics.numOfCollision);
     }
@@ -711,7 +711,7 @@ void *taosUpdateDataFromCache(void *handle, char *key, char *pData, int size, in
           pObj->totalSize);
   } else {
     pNew = taosUpdateCacheImpl(pObj, pNode, key, keyLen, pData, size, duration * 1000L);
-    pTrace("key:%s updated.expireTime:%lld.refCnt:%d", key, pNode->time, pNode->refCount);
+    pTrace("key:%s updated.expireTime:%" PRIu64 ".refCnt:%d", key, pNode->time, pNode->refCount);
   }
 
   __cache_unlock(pObj);

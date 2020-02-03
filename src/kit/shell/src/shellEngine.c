@@ -21,28 +21,13 @@
 #include "shellCommand.h"
 #include "ttime.h"
 #include "tutil.h"
+#include "taoserror.h"
 
 #include <regex.h>
 
 /**************** Global variables ****************/
-#ifdef WINDOWS
-  char    CLIENT_VERSION[] = "Welcome to the TDengine shell from windows, client version:%s ";
-#elif defined(DARWIN)
-  char    CLIENT_VERSION[] = "Welcome to the TDengine shell from mac, client version:%s ";
-#else
-  #ifdef CLUSTER
-    char    CLIENT_VERSION[] = "Welcome to the TDengine shell from linux, enterprise client version:%s ";
-  #else
-    char    CLIENT_VERSION[] = "Welcome to the TDengine shell from linux, community client version:%s ";
-  #endif
-#endif
-
-#ifdef CLUSTER
- char      SERVER_VERSION[] = "enterprise server version:%s\nCopyright (c) 2017 by TAOS Data, Inc. All rights reserved.\n\n";
-#else
- char      SERVER_VERSION[] = "community server version:%s\nCopyright (c) 2017 by TAOS Data, Inc. All rights reserved.\n\n";
-#endif
-
+char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2017 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
 char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
@@ -54,7 +39,7 @@ History   history;
  */
 TAOS *shellInit(struct arguments *args) {
   printf("\n");
-  printf(CLIENT_VERSION, taos_get_client_info());
+  printf(CLIENT_VERSION, osName, taos_get_client_info());
   fflush(stdout);
 
   // set options before initializing
@@ -111,15 +96,13 @@ TAOS *shellInit(struct arguments *args) {
     exit(EXIT_SUCCESS);
   }
 
-#ifdef LINUX
+#ifndef WINDOWS
   if (args->dir[0] != 0) {
     source_dir(con, args);
     taos_close(con);
     exit(EXIT_SUCCESS);
   }
 #endif
-
-  printf(SERVER_VERSION, taos_get_server_info(con));
 
   return con;
 }
@@ -817,11 +800,16 @@ void source_file(TAOS *con, char *fptr) {
 }
 
 void shellGetGrantInfo(void *con) {
-#ifdef CLUSTER
   char sql[] = "show grants";
 
-  if (taos_query(con, sql)) {
-    fprintf(stdout, "\n");
+  int code = taos_query(con, sql);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_OPS_NOT_SUPPORT) {
+      fprintf(stdout, "Server is Community Edition, version is %s\n\n", taos_get_server_info(con));
+    } else {
+      fprintf(stderr, "Failed to check Server Edition, Reason:%d:%s\n\n", taos_errno(con), taos_errstr(con));
+    }
     return;
   }
 
@@ -843,18 +831,18 @@ void shellGetGrantInfo(void *con) {
       exit(0);
     }
 
-    char version[32] = {0};
+    char serverVersion[32] = {0};
     char expiretime[32] = {0};
     char expired[32] = {0};
 
-    memcpy(version, row[0], fields[0].bytes);
+    memcpy(serverVersion, row[0], fields[0].bytes);
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
 
     if (strcmp(expiretime, "unlimited") == 0) {
-      fprintf(stdout, "This is the %s version and will never expire.\n", version);
+      fprintf(stdout, "Server is Enterprise %s Edition, version is %s and will never expire.\n", serverVersion, taos_get_server_info(con));
     } else {
-      fprintf(stdout, "This is the %s version and will expire at %s.\n", version, expiretime);
+      fprintf(stdout, "Server is Enterprise %s Edition, version is %s and will expire at %s.\n", serverVersion, taos_get_server_info(con), expiretime);
     }
 
     taos_free_result(result);
@@ -862,5 +850,4 @@ void shellGetGrantInfo(void *con) {
   }
 
   fprintf(stdout, "\n");
-#endif
 }

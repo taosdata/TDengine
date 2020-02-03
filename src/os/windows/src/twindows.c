@@ -37,6 +37,7 @@ char tsDirectory[TSDB_FILENAME_LEN] = "C:/TDengine/data";
 char logDir[TSDB_FILENAME_LEN] = "C:/TDengine/log";
 char dataDir[TSDB_FILENAME_LEN] = "C:/TDengine/data";
 char scriptDir[TSDB_FILENAME_LEN] = "C:/TDengine/script";
+char osName[] = "Windows";
 
 bool taosCheckPthreadValid(pthread_t thread) {
   return thread.p != NULL;

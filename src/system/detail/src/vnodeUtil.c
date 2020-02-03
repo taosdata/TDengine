@@ -556,7 +556,7 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSid
       continue;
     } else if (pMeter->uid != pSids[i]->uid || pMeter->sid != pSids[i]->sid) {
       code = TSDB_CODE_TABLE_ID_MISMATCH;
-      dError("qmsg:%p, vid:%d sid:%d id:%s uid:%lld, id mismatch. sid:%d uid:%lld in msg", pQueryMsg,
+      dError("qmsg:%p, vid:%d sid:%d id:%s uid:%" PRIu64 ", id mismatch. sid:%d uid:%" PRId64 " in msg", pQueryMsg,
           pQueryMsg->vnode, pMeter->sid, pMeter->meterId, pMeter->uid, pSids[i]->sid, pSids[i]->uid);
       
       vnodeSendMeterCfgMsg(pQueryMsg->vnode, pSids[i]->sid);

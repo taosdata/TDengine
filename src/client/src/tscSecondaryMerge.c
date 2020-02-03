@@ -212,7 +212,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
       tscTrace("%p load data from disk into memory, orderOfVnode:%d, total:%d", pSqlObjAddr, i + 1, idx + 1);
       tExtMemBufferLoadData(pMemBuffer[i], &(pDS->filePage), j, 0);
 #ifdef _DEBUG_VIEW
-      printf("load data page into mem for build loser tree: %ld rows\n", pDS->filePage.numOfElems);
+      printf("load data page into mem for build loser tree: %" PRIu64 " rows\n", pDS->filePage.numOfElems);
       SSrcColumnInfo colInfo[256] = {0};
       tscGetSrcColumnInfo(colInfo, pCmd);
 
@@ -342,7 +342,7 @@ static int32_t tscFlushTmpBufferImpl(tExtMemBuffer *pMemoryBuf, tOrderDescriptor
   }
 
 #ifdef _DEBUG_VIEW
-  printf("%ld rows data flushed to disk after been sorted:\n", pPage->numOfElems);
+  printf("%" PRIu64 " rows data flushed to disk after been sorted:\n", pPage->numOfElems);
   tColModelDisplay(pDesc->pSchema, pPage->data, pPage->numOfElems, pPage->numOfElems);
 #endif
 
@@ -601,7 +601,9 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
     rlen += pExpr->resBytes;
   }
 
-  int32_t capacity = nBufferSizes / rlen;
+  int32_t capacity = 0;
+  if (0 != rlen) capacity = nBufferSizes / rlen;
+  
   pModel = tColModelCreate(pSchema, pCmd->fieldsInfo.numOfOutputCols, capacity);
 
   for (int32_t i = 0; i < pMeterMetaInfo->pMetricMeta->numOfVnodes; ++i) {

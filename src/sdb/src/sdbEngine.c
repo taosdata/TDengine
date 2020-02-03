@@ -24,6 +24,8 @@
 extern char   version[];
 const int16_t sdbFileVersion = 0;
 int           sdbExtConns = 0;
+SIpList      *pSdbIpList = NULL;
+SIpList      *pSdbPublicIpList = NULL;
 
 #ifdef CLUSTER
 int           sdbMaster = 0;
@@ -373,22 +375,22 @@ int64_t sdbInsertRow(void *handle, void *row, int rowSize) {
          */
         pTable->id++;
         sdbVersion++;
-        sdbPrint("table:%s, record:%s already exist, think it successed, sdbVersion:%ld id:%d",
+        sdbPrint("table:%s, record:%s already exist, think it successed, sdbVersion:%" PRId64 " id:%" PRId64,
                 pTable->name, taosIpStr(*(int32_t *)row), sdbVersion, pTable->id);
         return 0;
       } else {
         switch (pTable->keyType) {
           case SDB_KEYTYPE_STRING:
-            sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, (char *)row, sdbVersion, pTable->id);
+            sdbError("table:%s, failed to insert record:%s sdbVersion:%" PRId64 " id:%" PRId64 , pTable->name, (char *)row, sdbVersion, pTable->id);
             break;
           case SDB_KEYTYPE_UINT32: //dnodes or mnodes
-            sdbError("table:%s, failed to insert record:%s sdbVersion:%ld id:%d", pTable->name, taosIpStr(*(int32_t *)row), sdbVersion, pTable->id);
+            sdbError("table:%s, failed to insert record:%s sdbVersion:%" PRId64 " id:%" PRId64, pTable->name, taosIpStr(*(int32_t *)row), sdbVersion, pTable->id);
             break;
           case SDB_KEYTYPE_AUTO:
-            sdbError("table:%s, failed to insert record:%d sdbVersion:%ld id:%d", pTable->name, *(int32_t *)row, sdbVersion, pTable->id);
+            sdbError("table:%s, failed to insert record:%d sdbVersion:%" PRId64 " id:%" PRId64, pTable->name, *(int32_t *)row, sdbVersion, pTable->id);
             break;
           default:
-            sdbError("table:%s, failed to insert record sdbVersion:%ld id:%d", pTable->name, sdbVersion, pTable->id);
+            sdbError("table:%s, failed to insert record sdbVersion:%" PRId64 " id:%" PRId64, pTable->name, sdbVersion, pTable->id);
             break;
         }
         return -1;
@@ -452,19 +454,19 @@ int64_t sdbInsertRow(void *handle, void *row, int rowSize) {
     pTable->numOfRows++;
     switch (pTable->keyType) {
       case SDB_KEYTYPE_STRING:
-        sdbTrace("table:%s, a record is inserted:%s, sdbVersion:%ld id:%ld rowSize:%d numOfRows:%d fileSize:%ld",
+        sdbTrace("table:%s, a record is inserted:%s, sdbVersion:%" PRId64 " id:%" PRId64 " rowSize:%d numOfRows:%d fileSize:%" PRId64,
                 pTable->name, (char *)row, sdbVersion, rowHead->id, rowHead->rowSize, pTable->numOfRows, pTable->size);
         break;
       case SDB_KEYTYPE_UINT32: //dnodes or mnodes
-        sdbTrace("table:%s, a record is inserted:%s, sdbVersion:%ld id:%ld rowSize:%d numOfRows:%d fileSize:%ld",
+        sdbTrace("table:%s, a record is inserted:%s, sdbVersion:%" PRId64 " id:%" PRId64 " rowSize:%d numOfRows:%d fileSize:%" PRId64,
                  pTable->name, taosIpStr(*(int32_t *)row), sdbVersion, rowHead->id, rowHead->rowSize, pTable->numOfRows, pTable->size);
         break;
       case SDB_KEYTYPE_AUTO:
-        sdbTrace("table:%s, a record is inserted:%d, sdbVersion:%ld id:%ld rowSize:%d numOfRows:%d fileSize:%ld",
+        sdbTrace("table:%s, a record is inserted:%d, sdbVersion:%" PRId64 " id:%" PRId64 " rowSize:%d numOfRows:%d fileSize:%" PRId64,
                 pTable->name, *(int32_t *)row, sdbVersion, rowHead->id, rowHead->rowSize, pTable->numOfRows, pTable->size);
         break;
       default:
-        sdbTrace("table:%s, a record is inserted, sdbVersion:%ld id:%ld rowSize:%d numOfRows:%d fileSize:%ld",
+        sdbTrace("table:%s, a record is inserted, sdbVersion:%" PRId64 " id:%" PRId64 " rowSize:%d numOfRows:%d fileSize:%" PRId64,
                 pTable->name, sdbVersion, rowHead->id, rowHead->rowSize, pTable->numOfRows, pTable->size);
         break;
     }
@@ -555,19 +557,19 @@ int sdbDeleteRow(void *handle, void *row) {
     sdbAddIntoUpdateList(pTable, SDB_TYPE_DELETE, pMetaRow);
     switch (pTable->keyType) {
       case SDB_KEYTYPE_STRING:
-        sdbTrace("table:%s, a record is deleted:%s, sdbVersion:%ld id:%ld numOfRows:%d",
+        sdbTrace("table:%s, a record is deleted:%s, sdbVersion:%" PRId64 " id:%" PRId64 " numOfRows:%d",
                 pTable->name, (char *)row, sdbVersion, pTable->id, pTable->numOfRows);
         break;
       case SDB_KEYTYPE_UINT32:  //dnodes or mnodes
-        sdbTrace("table:%s, a record is deleted:%s, sdbVersion:%ld id:%ld numOfRows:%d",
+        sdbTrace("table:%s, a record is deleted:%s, sdbVersion:%" PRId64 " id:%" PRId64 " numOfRows:%d",
                  pTable->name, taosIpStr(*(int32_t *)row), sdbVersion, pTable->id, pTable->numOfRows);
         break;
       case SDB_KEYTYPE_AUTO:
-        sdbTrace("table:%s, a record is deleted:%d, sdbVersion:%ld id:%ld numOfRows:%d",
+        sdbTrace("table:%s, a record is deleted:%d, sdbVersion:%" PRId64 " id:%" PRId64 " numOfRows:%d",
                 pTable->name, *(int32_t *)row, sdbVersion, pTable->id, pTable->numOfRows);
         break;
       default:
-        sdbTrace("table:%s, a record is deleted, sdbVersion:%ld id:%ld numOfRows:%d",
+        sdbTrace("table:%s, a record is deleted, sdbVersion:%" PRId64 " id:%" PRId64 " numOfRows:%d",
                 pTable->name, sdbVersion, pTable->id, pTable->numOfRows);
         break;
     }
@@ -602,19 +604,19 @@ int sdbUpdateRow(void *handle, void *row, int updateSize, char isUpdated) {
   if (pMeta == NULL) {
     switch (pTable->keyType) {
       case SDB_KEYTYPE_STRING:
-        sdbError("table:%s, failed to update record:%s, record is not there, sdbVersion:%ld id:%d",
+        sdbError("table:%s, failed to update record:%s, record is not there, sdbVersion:%" PRId64 " id:%" PRId64,
                 pTable->name, (char *) row, sdbVersion, pTable->id);
         break;
       case SDB_KEYTYPE_UINT32: //dnodes or mnodes
-        sdbError("table:%s, failed to update record:%s, record is not there, sdbVersion:%ld id:%d",
+        sdbError("table:%s, failed to update record:%s, record is not there, sdbVersion:%" PRId64 " id:%" PRId64,
                 pTable->name, taosIpStr(*(int32_t *) row), sdbVersion, pTable->id);
         break;
       case SDB_KEYTYPE_AUTO:
-        sdbError("table:%s, failed to update record:%d, record is not there, sdbVersion:%ld id:%d",
+        sdbError("table:%s, failed to update record:%d, record is not there, sdbVersion:%" PRId64 " id:%" PRId64,
                 pTable->name, *(int32_t *) row, sdbVersion, pTable->id);
         break;
       default:
-        sdbError("table:%s, failed to update record, record is not there, sdbVersion:%ld id:%d",
+        sdbError("table:%s, failed to update record, record is not there, sdbVersion:%" PRId64 " id:%" PRId64,
                 pTable->name, sdbVersion, pTable->id);
         break;
     }
@@ -674,19 +676,19 @@ int sdbUpdateRow(void *handle, void *row, int updateSize, char isUpdated) {
 
     switch (pTable->keyType) {
       case SDB_KEYTYPE_STRING:
-        sdbTrace("table:%s, a record is updated:%s, sdbVersion:%ld id:%ld numOfRows:%d",
+        sdbTrace("table:%s, a record is updated:%s, sdbVersion:%" PRId64 " id:%" PRId64 " numOfRows:%" PRId64,
                 pTable->name, (char *)row, sdbVersion, pTable->id, pTable->numOfRows);
         break;
       case SDB_KEYTYPE_UINT32: //dnodes or mnodes
-        sdbTrace("table:%s, a record is updated:%s, sdbVersion:%ld id:%ld numOfRows:%d",
+        sdbTrace("table:%s, a record is updated:%s, sdbVersion:%" PRId64 " id:%" PRId64 " numOfRows:%" PRId64,
                  pTable->name, taosIpStr(*(int32_t *)row), sdbVersion, pTable->id, pTable->numOfRows);
         break;
       case SDB_KEYTYPE_AUTO:
-        sdbTrace("table:%s, a record is updated:%d, sdbVersion:%ld id:%ld numOfRows:%d",
+        sdbTrace("table:%s, a record is updated:%d, sdbVersion:%" PRId64 " id:%" PRId64 " numOfRows:%" PRId64,
                 pTable->name, *(int32_t *)row, sdbVersion, pTable->id, pTable->numOfRows);
         break;
       default:
-        sdbTrace("table:%s, a record is updated, sdbVersion:%ld id:%ld numOfRows:%d", pTable->name, sdbVersion,
+        sdbTrace("table:%s, a record is updated, sdbVersion:%" PRId64 " id:%" PRId64 " numOfRows:%" PRId64, pTable->name, sdbVersion,
                  pTable->id, pTable->numOfRows);
         break;
     }
@@ -795,7 +797,7 @@ void sdbCloseTable(void *handle) {
   pthread_mutex_destroy(&pTable->mutex);
 
   sdbNumOfTables--;
-  sdbTrace("table:%s is closed, id:%ld numOfTables:%d", pTable->name, pTable->id, sdbNumOfTables);
+  sdbTrace("table:%s is closed, id:%" PRId64 " numOfTables:%d", pTable->name, pTable->id, sdbNumOfTables);
 
   tfree(pTable->update);
   tfree(pTable);
@@ -899,7 +901,7 @@ void sdbResetTable(SSdbTable *pTable) {
 
   tfree(rowHead);
 
-  sdbPrint("table:%s is updated, sdbVerion:%ld id:%ld", pTable->name, sdbVersion, pTable->id);
+  sdbPrint("table:%s is updated, sdbVerion:%" PRId64 " id:%" PRId64, pTable->name, sdbVersion, pTable->id);
 }
 
 // TODO:A problem here :use snapshot file to sync another node will cause
