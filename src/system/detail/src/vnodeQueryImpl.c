@@ -4525,10 +4525,11 @@ static void doSetTagValueInParam(tTagSchema *pTagSchema, int32_t tagColIdx, SMet
   SSchema *pCol = &pTagSchema->pSchema[tagColIdx];
 
   tVariantDestroy(param);
-  tVariantCreateFromBinary(param, pStr, pCol->bytes, pCol->type);
 
   if (isNull(pStr, pCol->type)) {
     param->nType = TSDB_DATA_TYPE_NULL;
+  } else {
+    tVariantCreateFromBinary(param, pStr, pCol->bytes, pCol->type);
   }
 }
 
@@ -5993,10 +5994,13 @@ int32_t getDataBlocksForMeters(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
     size_t  bufferSize = size + sizeof(TSCKSUM);
     
     pMeterDataInfo[j]->numOfBlocks = compInfo.numOfBlocks;
-    pMeterDataInfo[j]->pBlock = calloc(1, bufferSize);
-    if (pMeterDataInfo[j]->pBlock == NULL) {
+    char* p = realloc(pMeterDataInfo[j]->pBlock, bufferSize);
+    if (p == NULL) {
       clearAllMeterDataBlockInfo(pMeterDataInfo, 0, numOfMeters);
       return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    } else {
+      memset(p, 0, bufferSize);
+      pMeterDataInfo[j]->pBlock = (SCompBlock*) p;
     }
   
     read(pVnodeFileInfo->headerFd, pMeterDataInfo[j]->pBlock, bufferSize);
