@@ -104,7 +104,7 @@ int mgmtProcessCreateDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *)pMsg;
   int              code = 0;
 
-  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_CREATE_PNODE_RSP);
+  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_CREATE_DNODE_RSP);
 
   if (strcmp(pConn->pUser->user, "root") != 0) {
     code = TSDB_CODE_NO_RIGHTS;
@@ -115,7 +115,7 @@ int mgmtProcessCreateDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     }
   }
 
-  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_PNODE_RSP, code);
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_DNODE_RSP, code);
 
   return 0;
 }
@@ -168,7 +168,7 @@ int mgmtProcessDropDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   SDropDnodeMsg *pDrop = (SDropDnodeMsg *)pMsg;
   int            code = 0;
 
-  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_DROP_PNODE_RSP);
+  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_DROP_DNODE_RSP);
 
   if (strcmp(pConn->pUser->user, "root") != 0) {
     code = TSDB_CODE_NO_RIGHTS;
@@ -176,7 +176,7 @@ int mgmtProcessDropDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     code = mgmtDropDnodeByIp(inet_addr(pDrop->ip));
   }
 
-  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_PNODE_RSP, code);
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_DNODE_RSP, code);
 
   if (code == 0) {
     mLPrint("dnode:%s set to removing state by %s", pDrop->ip, pConn->pUser->user);
