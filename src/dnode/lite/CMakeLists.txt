@@ -10,8 +10,8 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   INCLUDE_DIRECTORIES(${TD_OS_DIR}/inc)
   INCLUDE_DIRECTORIES(inc)
   AUX_SOURCE_DIRECTORY(src SRC)
-  ADD_LIBRARY(mlite ${SRC})
-  TARGET_LINK_LIBRARIES(mlite trpc tutil sdb pthread)
+  ADD_LIBRARY(dlite ${SRC})
+  TARGET_LINK_LIBRARIES(dlite trpc tutil sdb pthread)
 ENDIF ()
 
 
