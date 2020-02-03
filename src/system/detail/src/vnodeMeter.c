@@ -605,6 +605,11 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     vnodeSendMeterCfgMsg(pObj->vnode, pObj->sid);
     code = TSDB_CODE_ACTION_IN_PROGRESS;
     return code;
+  } else if (pObj->sversion > sversion) {
+    dTrace("vid:%d sid:%d id:%s, client schema out of date, sql is invalid. client sversion:%d vnode sversion:%d",
+        pObj->vnode, pObj->sid, pObj->meterId, pObj->sversion, sversion);
+    code = TSDB_CODE_INVALID_SQL;
+    return code;
   }
 
   pData = pSubmit->payLoad;

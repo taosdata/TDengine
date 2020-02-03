@@ -130,6 +130,10 @@ int tsEnableMonitorModule = 1;
 int tsRestRowLimit = 10240;
 int tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 
+// the maximum number of results for projection query on super table that are returned from
+// one virtual node, to order according to timestamp
+int tsMaxNumOfOrderedResults = 100000;
+
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
  * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
@@ -140,18 +144,29 @@ int tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
  */
 int tsCompressMsgSize = -1;
 
-char tsSocketType[4] = "udp";      // use UDP by default[option: udp, tcp]
-int tsTimePrecision = TSDB_TIME_PRECISION_MILLI;  // time precision, millisecond by default
-int tsMinSlidingTime = 10;                        // 10 ms for sliding time, the value will changed in
-                                                  // case of time precision changed
-int tsMinIntervalTime = 10;                       // 10 ms for interval time range, changed accordingly
-int tsMaxStreamComputDelay = 20000;               // 20sec, the maximum value of stream
-                                                  // computing delay, changed accordingly
-int tsStreamCompStartDelay = 10000;               // 10sec, the first stream computing delay
-                                                  // time after system launched successfully,
-                                                  // changed accordingly
-int tsStreamCompRetryDelay = 10;                  // the stream computing delay time after
-                                                  // executing failed, change accordingly
+// use UDP by default[option: udp, tcp]
+char tsSocketType[4] = "udp";
+
+// time precision, millisecond by default
+int tsTimePrecision = TSDB_TIME_PRECISION_MILLI;
+
+// 10 ms for sliding time, the value will changed in case of time precision changed
+int tsMinSlidingTime = 10;
+
+// 10 ms for interval time range, changed accordingly
+int tsMinIntervalTime = 10;
+
+// 20sec, the maximum value of stream computing delay, changed accordingly
+int tsMaxStreamComputDelay = 20000;
+
+// 10sec, the first stream computing delay time after system launched successfully, changed accordingly
+int tsStreamCompStartDelay = 10000;
+
+// the stream computing delay time after executing failed, change accordingly
+int tsStreamCompRetryDelay = 10;
+
+// The delayed computing ration. 10% of the whole computing time window by default.
+float tsStreamComputDelayRatio = 0.1;
 
 int     tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
@@ -622,9 +637,12 @@ static void doInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      1000, 1000000000, 0, TSDB_CFG_UTYPE_MS);
   tsInitConfigOption(cfg++, "retryStreamCompDelay", &tsStreamCompRetryDelay, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
-                     10, 1000000000, 0, TSDB_CFG_UTYPE_MS);
-
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 1000000000, 0, TSDB_CFG_UTYPE_MS);
+  
+  
+  tsInitConfigOption(cfg++, "streamCompDelayRatio", &tsStreamComputDelayRatio, TSDB_CFG_VTYPE_FLOAT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0.1, 0.9, 0, TSDB_CFG_UTYPE_NONE);
+  
   tsInitConfigOption(cfg++, "clog", &tsCommitLog, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      0, 1, 0, TSDB_CFG_UTYPE_NONE);
@@ -666,6 +684,10 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "maxSQLLength", &tsMaxSQLStringLen, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
                      TSDB_MAX_SQL_LEN, TSDB_MAX_ALLOWED_SQL_LEN, 0, TSDB_CFG_UTYPE_BYTE);
+  
+  tsInitConfigOption(cfg++, "maxNumOfOrderedRes", &tsMaxNumOfOrderedResults, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
+                     TSDB_MAX_SQL_LEN, TSDB_MAX_ALLOWED_SQL_LEN, 0, TSDB_CFG_UTYPE_NONE);
   
   // locale & charset
   tsInitConfigOption(cfg++, "timezone", tsTimezone, TSDB_CFG_VTYPE_STRING,

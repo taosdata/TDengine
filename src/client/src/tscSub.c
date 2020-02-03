@@ -26,6 +26,7 @@
 #include "tutil.h"
 #include "tscUtil.h"
 #include "tcache.h"
+#include "tscProfile.h"
 
 typedef struct SSubscriptionProgress {
   int64_t uid;
@@ -162,7 +163,7 @@ static void tscProcessSubscriptionTimer(void *handle, void *tmrId) {
 
 
 int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
-  int code = (uint8_t)tsParseSql(pSub->pSql, pObj->acctId, pObj->db, false);
+  int code = (uint8_t)tsParseSql(pSub->pSql, false);
   if (code != TSDB_CODE_SUCCESS) {
     tscError("failed to parse sql statement: %s", pSub->topic);
     return 0;
@@ -174,7 +175,7 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
     return 0;
   }
 
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0);
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
   int numOfMeters = 0;
   if (!UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
     SMetricMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
@@ -374,16 +375,18 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
       if (!tscUpdateSubscription(pSub->taos, pSub)) return NULL;
       tscTrace("meter synchronization completed");
     } else {
-      uint16_t type = pSql->cmd.type;
+      SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+      
+      uint16_t type = pQueryInfo->type;
       taos_free_result_imp(pSql, 1);
       pRes->numOfRows = 1;
       pRes->numOfTotal = 0;
       pRes->qhandle = 0;
       pSql->thandle = NULL;
       pSql->cmd.command = TSDB_SQL_SELECT;
-      pSql->cmd.type = type;
+      pQueryInfo->type = type;
 
-      tscGetMeterMetaInfo(&pSql->cmd, 0)->vnodeIndex = 0;
+      tscGetMeterMetaInfo(&pSql->cmd, 0, 0)->vnodeIndex = 0;
     }
 
     tscDoQuery(pSql);

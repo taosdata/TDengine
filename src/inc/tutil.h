@@ -102,8 +102,8 @@ extern "C" {
   #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
   #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
 
-  float  taos_align_get_float(char* pBuf);
-  double taos_align_get_double(char* pBuf);
+  float  taos_align_get_float(const char* pBuf);
+  double taos_align_get_double(const char* pBuf);
 
   //#define __float_align_declear()  float __underlyFloat = 0.0;
   //#define __float_align_declear()
@@ -161,15 +161,6 @@ int64_t str2int64(char *str);
 int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath);
 
 int32_t taosInitTimer(void (*callback)(int), int32_t ms);
-
-/**
- * murmur hash algorithm
- * @key  usually string
- * @len  key length
- * @seed hash seed
- * @out  an int32 value
- */
-uint32_t MurmurHash3_32(const void *key, int32_t len);
 
 bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len);
 

@@ -630,7 +630,14 @@ int vnodeQueryFromCache(SMeterObj *pObj, SQuery *pQuery) {
         setNullN(pData, type, bytes, pCacheBlock->numOfPoints);
       } else {
         pRead = pCacheBlock->offset[colIdx] + startPos * bytes;
-        memcpy(pData, pRead, numOfReads * bytes);
+        
+        if (QUERY_IS_ASC_QUERY(pQuery)) {
+          memcpy(pData, pRead, numOfReads * bytes);
+        } else {
+          for(int32_t j = 0; j < numOfReads; ++j) {
+            memcpy(pData + bytes * j, pRead + (numOfReads - 1 - j) * bytes, bytes);
+          }
+        }
       }
     }
     numOfQualifiedPoints = numOfReads;
@@ -668,8 +675,7 @@ int vnodeQueryFromCache(SMeterObj *pObj, SQuery *pQuery) {
         }
 
         ids[numOfQualifiedPoints] = j;
-        if (++numOfQualifiedPoints == numOfReads) {
-          // qualified data are enough
+        if (++numOfQualifiedPoints == numOfReads) { // qualified data are enough
           break;
         }
       }
@@ -691,23 +697,22 @@ int vnodeQueryFromCache(SMeterObj *pObj, SQuery *pQuery) {
         if (!vnodeFilterData(pQuery, &numOfActualRead, j)) {
           continue;
         }
-
-        ids[numOfReads - numOfQualifiedPoints - 1] = j;
-        if (++numOfQualifiedPoints == numOfReads) {
-          // qualified data are enough
+  
+        ids[numOfQualifiedPoints] = j;
+        if (++numOfQualifiedPoints == numOfReads) { // qualified data are enough
           break;
         }
       }
     }
 
-    int32_t start = QUERY_IS_ASC_QUERY(pQuery) ? 0 : numOfReads - numOfQualifiedPoints;
+//    int32_t start = QUERY_IS_ASC_QUERY(pQuery) ? 0 : numOfReads - numOfQualifiedPoints;
     for (int32_t j = 0; j < numOfQualifiedPoints; ++j) {
       for (int32_t col = 0; col < pQuery->numOfOutputCols; ++col) {
         int16_t colIndex = pQuery->pSelectExpr[col].pBase.colInfo.colIdx;
 
         int32_t bytes = pObj->schema[colIndex].bytes;
         pData = pQuery->sdata[col]->data + (pQuery->pointsOffset + j) * bytes;
-        pRead = pCacheBlock->offset[colIndex] + ids[j + start] * bytes;
+        pRead = pCacheBlock->offset[colIndex] + ids[j/* + start*/] * bytes;
 
         memcpy(pData, pRead, bytes);
       }

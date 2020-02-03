@@ -1640,11 +1640,15 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
       pData = pQuery->sdata[i]->data + pQuery->pointsOffset * bytes;
       pRead = sdata[colBufferIndex]->data + startPos * bytes;
 
-      memcpy(pData, pRead, numOfReads * bytes);
+      if (QUERY_IS_ASC_QUERY(pQuery)) {
+        memcpy(pData, pRead, numOfReads * bytes);
+      } else { //reversed copy to output buffer
+        for(int32_t j = 0; j < numOfReads; ++j) {
+          memcpy(pData + bytes * j, pRead + (numOfReads - 1 - j) * bytes, bytes);
+        }
+      }
     }
-
     numOfQualifiedPoints = numOfReads;
-
   } else {
     // check each data one by one set the input column data
     for (int32_t k = 0; k < pQuery->numOfFilterCols; ++k) {
@@ -1675,8 +1679,7 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
         }
 
         ids[numOfQualifiedPoints] = j;
-        if (++numOfQualifiedPoints == numOfReads) {
-          // qualified data are enough
+        if (++numOfQualifiedPoints == numOfReads) { // qualified data are enough
           break;
         }
       }
@@ -1698,22 +1701,21 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
         if (!vnodeFilterData(pQuery, &numOfActualRead, j)) {
           continue;
         }
-
-        ids[numOfReads - numOfQualifiedPoints - 1] = j;
-        if (++numOfQualifiedPoints == numOfReads) {
-          // qualified data are enough
+  
+        ids[numOfQualifiedPoints] = j;
+        if (++numOfQualifiedPoints == numOfReads) { // qualified data are enough
           break;
         }
       }
     }
 
-    int32_t start = QUERY_IS_ASC_QUERY(pQuery) ? 0 : numOfReads - numOfQualifiedPoints;
+//    int32_t start = QUERY_IS_ASC_QUERY(pQuery) ? 0 : numOfReads - numOfQualifiedPoints;
     for (int32_t j = 0; j < numOfQualifiedPoints; ++j) {
       for (int32_t col = 0; col < pQuery->numOfOutputCols; ++col) {
         int16_t colIndexInBuffer = pQuery->pSelectExpr[col].pBase.colInfo.colIdxInBuf;
         int32_t bytes = GET_COLUMN_BYTES(pQuery, col);
         pData = pQuery->sdata[col]->data + (pQuery->pointsOffset + j) * bytes;
-        pRead = sdata[colIndexInBuffer]->data + ids[j + start] * bytes;
+        pRead = sdata[colIndexInBuffer]->data + ids[j/* + start*/] * bytes;
 
         memcpy(pData, pRead, bytes);
       }
