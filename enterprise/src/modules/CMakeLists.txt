@@ -1,5 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
-ADD_SUBDIRECTORY(http)
-ADD_SUBDIRECTORY(sdb_replication)
+ADD_SUBDIRECTORY(admin)
+ADD_SUBDIRECTORY(mnode_replicaiton)
+ADD_SUBDIRECTORY(multilevel_storage)
+ADD_SUBDIRECTORY(vnode_replication)
