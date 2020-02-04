@@ -652,7 +652,16 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
 
   SColumnList ids = getColumnList(1, 0, PRIMARYKEY_TIMESTAMP_COL_INDEX);
 
-  return insertResultField(pQueryInfo, 0, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP, aAggs[TSDB_FUNC_TS].aName);
+  int32_t ret = insertResultField(pQueryInfo, 0, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP, aAggs[TSDB_FUNC_TS].aName);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+  
+  if (setSlidingClause(pQueryInfo, pQuerySql) != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_INVALID_SQL;
+  }
+  
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t setSlidingClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
@@ -675,6 +684,8 @@ int32_t setSlidingClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
     if (pQueryInfo->nSlidingTime > pQueryInfo->nAggTimeInterval) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
     }
+  } else {
+    pSliding->n = pQueryInfo->nAggTimeInterval;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -5394,10 +5405,6 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     }
   }
 
-  if (setSlidingClause(pQueryInfo, pQuerySql) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_INVALID_SQL;
-  }
-
   // set the created table[stream] name
   if (setMeterID(pMeterMetaInfo, pzTableName, pSql) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
@@ -5581,29 +5588,29 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg2);
   }
   
-  // set sliding value, the query time range needs to be decide in the first place
-  SSQLToken* pSliding = &pQuerySql->sliding;
-  if (pSliding->n != 0) {
-    if (!tscEmbedded && pCmd->inStream == 0 && hasDefaultQueryTimeRange(pQueryInfo)) {  // sliding only allowed in stream
-      const char* msg = "time range expected for sliding window query";
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
-    }
-    
-    getTimestampInUsFromStr(pSliding->z, pSliding->n, &pQueryInfo->nSlidingTime);
-    if (pMeterMetaInfo->pMeterMeta->precision == TSDB_TIME_PRECISION_MILLI) {
-      pQueryInfo->nSlidingTime /= 1000;
-    }
-    
-    if (pQueryInfo->nSlidingTime < tsMinSlidingTime) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg3);
-    }
-    
-    if (pQueryInfo->nSlidingTime > pQueryInfo->nAggTimeInterval) {
-      return invalidSqlErrMsg(pQueryInfo->msg, msg4);
-    }
-  } else {
-    pQueryInfo->nSlidingTime = -1;
-  }
+//  // set sliding value, the query time range needs to be decide in the first place
+//  SSQLToken* pSliding = &pQuerySql->sliding;
+//  if (pSliding->n != 0) {
+//    if (!tscEmbedded && pCmd->inStream == 0 && hasDefaultQueryTimeRange(pQueryInfo)) {  // sliding only allowed in stream
+//      const char* msg = "time range expected for sliding window query";
+//      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+//    }
+//
+//    getTimestampInUsFromStr(pSliding->z, pSliding->n, &pQueryInfo->nSlidingTime);
+//    if (pMeterMetaInfo->pMeterMeta->precision == TSDB_TIME_PRECISION_MILLI) {
+//      pQueryInfo->nSlidingTime /= 1000;
+//    }
+//
+//    if (pQueryInfo->nSlidingTime < tsMinSlidingTime) {
+//      return invalidSqlErrMsg(pQueryInfo->msg, msg3);
+//    }
+//
+//    if (pQueryInfo->nSlidingTime > pQueryInfo->nAggTimeInterval) {
+//      return invalidSqlErrMsg(pQueryInfo->msg, msg4);
+//    }
+//  } else {
+//    pQueryInfo->nSlidingTime = -1;
+//  }
 
   // in case of join query, time range is required.
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {

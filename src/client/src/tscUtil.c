@@ -214,6 +214,10 @@ bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (pMeterMetaInfo == NULL || pMeterMetaInfo->pMetricMeta == NULL) {
     return false;
   }
+  
+  if ((pQueryInfo->type & TSDB_QUERY_TYPE_FREE_RESOURCE) == TSDB_QUERY_TYPE_FREE_RESOURCE) {
+    return false;
+  }
 
   // for ordered projection query, iterate all qualified vnodes sequentially
   if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, tableIndex)) {
