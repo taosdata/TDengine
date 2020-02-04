@@ -32,6 +32,5 @@ if $data00 != $numOfRows then
   return -1
 endi
 
-
 #system rm -f $inFileName     # invalid shell
 system rm -f ~/data.csv

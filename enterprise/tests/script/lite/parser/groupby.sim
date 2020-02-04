@@ -180,7 +180,7 @@ if $data03 != 0 then
 endi
 
 print $data04
-if $data04 != 0.0000 then
+if $data04 != 0.00000 then
   return -1
 endi
 
@@ -201,7 +201,8 @@ if $data13 != 1 then
   return -1
 endi
 
-if $data14 != 1.0000 then
+print data14 = $data14
+if $data14 != 1.00000 then
   return -1
 endi
 

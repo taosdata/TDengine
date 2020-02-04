@@ -126,6 +126,7 @@ sql connect
 sleep 3000
 sql use $db
 
+#return 
 ##### repeat test after server restart
 print ====== repeat test after restarting server
 $loop = 1

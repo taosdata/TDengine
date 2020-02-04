@@ -38,7 +38,7 @@ void doParse(char *s, bool val) {
 
     tSQLParse(&pSQLInfo, s);
 
-    assert(pSQLInfo.validSql == val);
+    assert(pSQLInfo.valid == val);
     if (val == false) {
         printf("error msg: %s\n", pSQLInfo.pzErrMsg);
     }
