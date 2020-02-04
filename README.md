@@ -52,7 +52,7 @@ aarch64:
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
 
 aarch32:
-cmake .. -DCPUTYPE=aarch64 && cmake --build .
+cmake .. -DCPUTYPE=aarch32 && cmake --build .
 ```
 
 # Quick Run
