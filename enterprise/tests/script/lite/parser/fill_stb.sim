@@ -106,9 +106,12 @@ $val = $val - 1
 if $rows != $val then
   return -1
 endi
+
+print $data11
 if $data11 != -1 then
   return -1
 endi
+
 if $data12 != -2 then
   return -1
 endi
@@ -205,6 +208,8 @@ endi
 if $data01 != 0 then
   return -1
 endi
+
+print data02: $data02
 if $data02 != -1.000000000 then
   return -1
 endi

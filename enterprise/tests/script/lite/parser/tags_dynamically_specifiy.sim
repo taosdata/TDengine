@@ -61,11 +61,10 @@ if $data05 != 100 then
   return -1
 endi
 
-if $data06 != 100.1235 then
-  print "expect: 100.1235, act: $data06"
+if $data06 != 100.12346 then
+  print "expect: 100.12346, act: $data06"
   return -1
 endi
-
 
 sql create table stby (ts timestamp, c1 binary(10), c2 int, c3 float) tags (t1 binary(10), t2 int, t3 float)
 sql reset query cache
