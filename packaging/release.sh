@@ -212,7 +212,7 @@ cd ${curr_dir}
 #echo "osinfo: ${osinfo}"
 
 if [ "$osType" != "Darwin" ]; then
-    if [ "$verMode" != "cluster" ]; then
+    if [[ "$verMode" != "cluster" ]] && [[ "$cpuType" == "x64" ]]; then
         echo "====do deb package for the ubuntu system===="
         output_dir="${top_dir}/debs"
         if [ -d ${output_dir} ]; then
