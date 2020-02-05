@@ -1110,8 +1110,7 @@ static void tscHandleSubRetrievalError(SRetrieveSupport *trsupport, SSqlObj *pSq
   }
 
   // all subqueries are failed
-  tscError("%p retrieve from %d vnode(s) completed,code:%d.FAILED.", pPObj, pState->numOfTotal,
-           pState->code);
+  tscError("%p retrieve from %d vnode(s) completed,code:%d.FAILED.", pPObj, pState->numOfTotal, pState->code);
   pPObj->res.code = -(pState->code);
 
   // release allocated resource

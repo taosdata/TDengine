@@ -26,7 +26,7 @@
     int32_t step = ((_ord) == TSQL_SO_ASC) ? 1 : -1;                                                  \
                                                                                                       \
     if ((len1) == (len2)) {                                                                           \
-      for (; i < (len2) && i >= 0; i += step, (out) += step) {                                        \
+      for (; i < (len2) && i >= 0; i += step, (out) += 1) {                                        \
         if (isNull((char *)&((left)[i]), _left_type) || isNull((char *)&((right)[i]), _right_type)) { \
           setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
           continue;                                                                                   \
@@ -34,7 +34,7 @@
         *(out) = (double)(left)[i] op(right)[i];                                                      \
       }                                                                                               \
     } else if ((len1) == 1) {                                                                         \
-      for (; i >= 0 && i < (len2); i += step, (out) += step) {                                        \
+      for (; i >= 0 && i < (len2); i += step, (out) += 1) {                                        \
         if (isNull((char *)(left), _left_type) || isNull((char *)&(right)[i], _right_type)) {         \
           setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
           continue;                                                                                   \
@@ -42,7 +42,7 @@
         *(out) = (double)(left)[0] op(right)[i];                                                      \
       }                                                                                               \
     } else if ((len2) == 1) {                                                                         \
-      for (; i >= 0 && i < (len1); i += step, (out) += step) {                                        \
+      for (; i >= 0 && i < (len1); i += step, (out) += 1) {                                        \
         if (isNull((char *)&(left)[i], _left_type) || isNull((char *)(right), _right_type)) {         \
           setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
           continue;                                                                                   \
@@ -58,7 +58,7 @@
     int32_t step = (_ord == TSQL_SO_ASC) ? 1 : -1;                                                    \
                                                                                                       \
     if (len1 == (len2)) {                                                                             \
-      for (; i >= 0 && i < (len2); i += step, (out) += step) {                                        \
+      for (; i >= 0 && i < (len2); i += step, (out) += 1) {                                        \
         if (isNull((char *)&(left[i]), _left_type) || isNull((char *)&(right[i]), _right_type)) {     \
           setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
           continue;                                                                                   \
@@ -66,7 +66,7 @@
         *(out) = (double)(left)[i] - ((int64_t)(((double)(left)[i]) / (right)[i])) * (right)[i];      \
       }                                                                                               \
     } else if (len1 == 1) {                                                                           \
-      for (; i >= 0 && i < (len2); i += step, (out) += step) {                                        \
+      for (; i >= 0 && i < (len2); i += step, (out) += 1) {                                        \
         if (isNull((char *)(left), _left_type) || isNull((char *)&((right)[i]), _right_type)) {       \
           setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
           continue;                                                                                   \
@@ -74,7 +74,7 @@
         *(out) = (double)(left)[0] - ((int64_t)(((double)(left)[0]) / (right)[i])) * (right)[i];      \
       }                                                                                               \
     } else if ((len2) == 1) {                                                                         \
-      for (; i >= 0 && i < len1; i += step, (out) += step) {                                          \
+      for (; i >= 0 && i < len1; i += step, (out) += 1) {                                          \
         if (isNull((char *)&((left)[i]), _left_type) || isNull((char *)(right), _right_type)) {       \
           setNull((char *)(out), _res_type, tDataTypeDesc[_res_type].nSize);                          \
           continue;                                                                                   \
@@ -112,7 +112,7 @@ void calc_fn_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -121,7 +121,7 @@ void calc_fn_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRi
       *pOutput = (double)pLeft[i] + pRight[i];
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -130,7 +130,7 @@ void calc_fn_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRi
       *pOutput = (double)pLeft[0] + pRight[i];
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step, pOutput += step) {
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
         setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -310,7 +310,7 @@ void calc_fn_i32_i32_sub(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)&(pOutput[i]), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -318,7 +318,7 @@ void calc_fn_i32_i32_sub(void *left, void *right, int32_t numLeft, int32_t numRi
       *pOutput = (double)pLeft[i] - pRight[i];
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -326,7 +326,7 @@ void calc_fn_i32_i32_sub(void *left, void *right, int32_t numLeft, int32_t numRi
       *pOutput = (double)pLeft[0] - pRight[i];
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step, pOutput += step) {
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
       if (isNull((char *)&pLeft[i], TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
         setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -521,7 +521,7 @@ void calc_fn_i32_i32_multi(void *left, void *right, int32_t numLeft, int32_t num
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -530,7 +530,7 @@ void calc_fn_i32_i32_multi(void *left, void *right, int32_t numLeft, int32_t num
       *pOutput = (double)pLeft[i] * pRight[i];
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -539,7 +539,7 @@ void calc_fn_i32_i32_multi(void *left, void *right, int32_t numLeft, int32_t num
       *pOutput = (double)pLeft[0] * pRight[i];
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step, pOutput += step) {
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
         setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -719,7 +719,7 @@ void calc_fn_i32_i32_div(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -728,7 +728,7 @@ void calc_fn_i32_i32_div(void *left, void *right, int32_t numLeft, int32_t numRi
       *pOutput = (double)pLeft[i] / pRight[i];
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -737,7 +737,7 @@ void calc_fn_i32_i32_div(void *left, void *right, int32_t numLeft, int32_t numRi
       *pOutput = (double)pLeft[0] / pRight[i];
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step, pOutput += step) {
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
         setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -933,7 +933,7 @@ void calc_fn_i32_i32_rem(void *left, void *right, int32_t numLeft, int32_t numRi
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -942,7 +942,7 @@ void calc_fn_i32_i32_rem(void *left, void *right, int32_t numLeft, int32_t numRi
       *pOutput = (double)pLeft[i] - ((int64_t)(((double)pLeft[i]) / pRight[i])) * pRight[i];
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -951,7 +951,7 @@ void calc_fn_i32_i32_rem(void *left, void *right, int32_t numLeft, int32_t numRi
       *pOutput = (double)pLeft[0] - ((int64_t)(((double)pLeft[0]) / pRight[i])) * pRight[i];
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step, pOutput += step) {
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
         setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -991,7 +991,7 @@ void calc_fn_i32_d_rem(void *left, void *right, int32_t numLeft, int32_t numRigh
   int32_t step = (order == TSQL_SO_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)(pOutput), TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -1000,7 +1000,7 @@ void calc_fn_i32_d_rem(void *left, void *right, int32_t numLeft, int32_t numRigh
       *pOutput = (double)pLeft[i] - ((int64_t)(((double)pLeft[i]) / pRight[i])) * pRight[i];
     }
   } else if (numLeft == 1) {
-    for (; i >= 0 && i < numRight; i += step, pOutput += step) {
+    for (; i >= 0 && i < numRight; i += step, pOutput += 1) {
       if (isNull((char *)(pLeft), TSDB_DATA_TYPE_INT) || isNull((char *)&(pRight[i]), TSDB_DATA_TYPE_INT)) {
         setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
@@ -1009,7 +1009,7 @@ void calc_fn_i32_d_rem(void *left, void *right, int32_t numLeft, int32_t numRigh
       *pOutput = (double)pLeft[0] - ((int64_t)(((double)pLeft[0]) / pRight[i])) * pRight[i];
     }
   } else if (numRight == 1) {
-    for (; i >= 0 && i < numLeft; i += step, pOutput += step) {
+    for (; i >= 0 && i < numLeft; i += step, pOutput += 1) {
       if (isNull((char *)&(pLeft[i]), TSDB_DATA_TYPE_INT) || isNull((char *)(pRight), TSDB_DATA_TYPE_INT)) {
         setNull((char *)pOutput, TSDB_DATA_TYPE_DOUBLE, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
         continue;
