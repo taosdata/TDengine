@@ -1999,7 +1999,7 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SAlterUserMsg *pAlterMsg;
+  SCreateUserMsg *pAlterMsg;
   char *         pMsg, *pStart;
 
   SSqlCmd *pCmd = &pSql->cmd;
@@ -2009,16 +2009,18 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SUserInfo *pUser = &pInfo->pDCLInfo->user;
   strncpy(pAlterMsg->user, pUser->user.z, pUser->user.n);
+  
   pAlterMsg->flag = pUser->type;
 
   if (pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
     pAlterMsg->privilege = (char)pCmd->count;
   } else if (pUser->type == TSDB_ALTER_USER_PASSWD) {
     strncpy(pAlterMsg->pass, pUser->passwd.z, pUser->passwd.n);
+  } else { // create user password info
+    strncpy(pAlterMsg->pass, pUser->passwd.z, pUser->passwd.n);
   }
 
-  pMsg += sizeof(SAlterUserMsg);
-
+  pMsg += sizeof(SCreateUserMsg);
   pCmd->payloadLen = pMsg - pStart;
 
   if (pUser->type == TSDB_ALTER_USER_PASSWD || pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
