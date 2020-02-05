@@ -564,10 +564,6 @@ char *taosIpStr(uint32_t ipInt) {
   return ipStr;
 }
 
-#ifndef CLUSTER
-void taosCleanupTier() {}
-#endif
-
 FORCE_INLINE float taos_align_get_float(const char* pBuf) {
   float fv = 0; 
   *(int32_t*)(&fv) = *(int32_t*)pBuf;

@@ -13,26 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODEMGMT_H
-#define TDENGINE_VNODEMGMT_H
+#ifndef TDENGINE_DNODE_SERVICE_H
+#define TDENGINE_DNODE_SERVICE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
-  char  id[20];
-  char  sid;
-  void *thandle;
-  int   mgmtIndex;
-  char  status;  // 0:offline, 1:online
-} SMgmtObj;
-
-int vnodeProcessCreateMeterRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj);
-int vnodeProcessRemoveMeterRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj);
+void (*dnodeParseParameterK)();
+void dnodeParseParameterKComImp();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_VNODEMGMT_H
+#endif

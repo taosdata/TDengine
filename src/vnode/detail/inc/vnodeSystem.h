@@ -20,19 +20,7 @@
 extern "C" {
 #endif
 
-void vnodeCleanUpSystem();
 
-void vnodePrintSystemInfo();
-
-int vnodeInitSystem();
-
-int vnodeCfgDynamicOptions(char *msg);
-
-int vnodeInitStore();
-
-int vnodeInitPeer(int numOfThreads);
-
-int dnodeInitMgmtConn();
 
 #ifdef __cplusplus
 }

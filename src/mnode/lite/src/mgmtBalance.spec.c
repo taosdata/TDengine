@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mgmtBalance.h"
 #include "vnodeStatus.h"
+#include "dnodeModule.h"
 
 void mgmtStartBalanceTimer(int64_t mseconds) {}
 

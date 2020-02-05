@@ -22,6 +22,9 @@
 #include "tsdb.h"
 #include "vnode.h"
 
+void (*dnodeParseParameterK)() = NULL;
+void dnodeParseParameterKComImp() {}
+
 /* Termination handler */
 void signal_handler(int signum, siginfo_t *sigInfo, void *context) {
   if (signum == SIGUSR1) {
@@ -110,3 +113,5 @@ int main(int argc, char *argv[]) {
     sleep(1000);
   }
 }
+
+

@@ -18,12 +18,13 @@
 #include "os.h"
 
 #include "dnodeSystem.h"
+#include "dnodeMgmt.h"
+
 #include "taosmsg.h"
 #include "trpc.h"
 #include "tsched.h"
 #include "tsystem.h"
 #include "vnode.h"
-#include "vnodeMgmt.h"
 #include "vnodeSystem.h"
 #include "vnodeUtil.h"
 #include "vnodeStatus.h"
@@ -42,16 +43,93 @@ void vnodeUpdateHeadFile(int vnode, int oldTables, int newTables);
 void vnodeOpenVnode(int vnode);
 void vnodeCleanUpOneVnode(int vnode);
 
-int vnodeSaveCreateMsgIntoQueue(SVnodeObj *pVnode, char *pMsg, int msgLen);
 
-char *taosBuildRspMsgToMnodeWithSize(SMgmtObj *pObj, char type, int size);
-char *taosBuildReqMsgToMnodeWithSize(SMgmtObj *pObj, char type, int size);
-char *taosBuildRspMsgToMnode(SMgmtObj *pObj, char type);
-char *taosBuildReqMsgToMnode(SMgmtObj *pObj, char type);
-int   taosSendSimpleRspToMnode(SMgmtObj *pObj, char rsptype, char code);
-int   taosSendMsgToMnode(SMgmtObj *pObj, char *msg, int msgLen);
+char *(*taosBuildRspMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size) = NULL;
+char *(*taosBuildReqMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size) = NULL;
+char *(*taosBuildRspMsgToMnode)(SMgmtObj *pObj, char type) = NULL;
+char *(*taosBuildReqMsgToMnode)(SMgmtObj *pObj, char type) = NULL;
+int (*taosSendMsgToMnode)(SMgmtObj *pObj, char *msg, int msgLen) = NULL;
+int (*taosSendSimpleRspToMnode)(SMgmtObj *pObj, char rsptype, char code) = NULL;
+void (*dnodeInitMgmtIp)() = NULL;
+int (*dnodeInitMgmtConn)() = NULL;
 
-void dnodeProcessMsgFromMgmtImp(char *content, int msgLen, int msgType, SMgmtObj *pObj) {
+char *taosBuildRspMsgToMnodeWithSizeEdgeImp(SMgmtObj *pObj, char type, int size) {
+  char *pStart = (char *)malloc(size);
+  if (pStart == NULL) {
+    return NULL;
+  }
+
+  *pStart = type;
+  return pStart + 1;
+}
+
+char *taosBuildReqMsgToMnodeWithSizeEdgeImp(SMgmtObj *pObj, char type, int size) {
+  char *pStart = (char *)malloc(size);
+  if (pStart == NULL) {
+    return NULL;
+  }
+
+  *pStart = type;
+  return pStart + 1;
+}
+
+char *taosBuildRspMsgToMnodeEdgeImp(SMgmtObj *pObj, char type) {
+  return taosBuildRspMsgToMnodeWithSize(pObj, type, 256);
+}
+
+char *taosBuildReqMsgToMnodeEdgeImp(SMgmtObj *pObj, char type) {
+  return taosBuildReqMsgToMnodeWithSize(pObj, type, 256);
+}
+
+int taosSendMsgToMnodeEdgeImp(SMgmtObj *pObj, char *msg, int msgLen) {
+  dTrace("msg:%s is sent to mnode", taosMsg[(uint8_t)(*(msg-1))]);
+
+  /*
+   * Lite version has no message header, so minus one
+   */
+  SSchedMsg schedMsg;
+  schedMsg.fp = mgmtProcessMsgFromDnodeSpec;
+  schedMsg.msg = msg - 1;
+  schedMsg.ahandle = NULL;
+  schedMsg.thandle = NULL;
+  taosScheduleTask(dmQhandle, &schedMsg);
+
+  return 0;
+}
+
+int taosSendSimpleRspToMnodeEdgeImp(SMgmtObj *pObj, char rsptype, char code) {
+  char *pStart = taosBuildRspMsgToMnode(0, rsptype);
+  if (pStart == NULL) {
+    return 0;
+  }
+
+  *pStart = code;
+  taosSendMsgToMnode(0, pStart, code);
+
+  return 0;
+}
+
+void* dnodeProcessMsgFromMgmtEdgeImp(SSchedMsg *sched) {
+  char  msgType = *sched->msg;
+  char *content = sched->msg + 1;
+
+  dTrace("msg:%s is received from mgmt", taosMsg[(uint8_t)msgType]);
+
+  dnodeDistributeMsgFromMgmt(content, 0, msgType, 0);
+
+  free(sched->msg);
+
+  return NULL;
+}
+
+int dnodeInitMgmtConnEdgeImp() {
+  return 0;
+}
+
+void dnodeInitMgmtIpEdgeImp() {}
+
+
+void dnodeDistributeMsgFromMgmt(char *content, int msgLen, int msgType, SMgmtObj *pObj) {
   if (msgType == TSDB_MSG_TYPE_CREATE) {
     vnodeProcessCreateMeterRequest(content, msgLen, pObj);
   } else if (msgType == TSDB_MSG_TYPE_VPEERS) {
@@ -116,12 +194,12 @@ int vnodeProcessCreateMeterRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
     goto _over;
   }
 
-  if (pVnode->syncStatus == TSDB_VN_SYNC_STATUS_SYNCING) {
-    code = vnodeSaveCreateMsgIntoQueue(pVnode, pMsg, msgLen);
-    dTrace("vid:%d, create msg is saved into sync queue", vid);
-  } else {
+//  if (pVnode->syncStatus == TSDB_VN_SYNC_STATUS_SYNCING) {
+//    code = vnodeSaveCreateMsgIntoQueue(pVnode, pMsg, msgLen);
+//    dTrace("vid:%d, create msg is saved into sync queue", vid);
+//  } else {
     code = vnodeProcessCreateMeterMsg(pMsg, msgLen);
-  }
+//  }
 
 _over:
   taosSendSimpleRspToMnode(pObj, TSDB_MSG_TYPE_CREATE_RSP, code);
@@ -512,3 +590,4 @@ int vnodeSendMeterCfgMsg(int vnode, int sid) {
   msgLen = pMsg - pStart;
   return taosSendMsgToMnode(pObj, pStart, msgLen);
 }
+

@@ -21,7 +21,6 @@
 #include "ttime.h"
 #include "tutil.h"
 #include "vnode.h"
-#include "vnodeMgmt.h"
 #include "vnodeShell.h"
 #include "vnodeUtil.h"
 #include "vnodeStatus.h"

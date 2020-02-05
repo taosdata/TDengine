@@ -13,29 +13,49 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_PLUGIN_H
-#define TDENGINE_DNODE_PLUGIN_H
+#ifndef TDENGINE_DNODE_MODULE_H
+#define TDENGINE_DNODE_MODULE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <pthread.h>
 
-#include "tsched.h"
-#include "mgmt.h"
+#define tsetModuleStatus(mod) \
+  { tsModuleStatus |= (1 << mod); }
+#define tclearModuleStatus(mod) \
+  { tsModuleStatus &= ~(1 << mod); }
 
-char *(*taosBuildRspMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size);
-char *(*taosBuildReqMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size);
-char *(*taosBuildRspMsgToMnode)(SMgmtObj *pObj, char type);
-char *(*taosBuildReqMsgToMnode)(SMgmtObj *pObj, char type);
-int (*taosSendMsgToMnode)(SMgmtObj *pObj, char *msg, int msgLen);
-int (*taosSendSimpleRspToMnode)(SMgmtObj *pObj, char rsptype, char code);
+enum _module {
+  TSDB_MOD_MGMT,
+  TSDB_MOD_HTTP,
+  TSDB_MOD_MONITOR,
+  TSDB_MOD_MAX
+};
 
-void (*dnodeInitMgmtIp)();
-void (*dnodeProcessMsgFromMgmt)(SSchedMsg *sched);
-int (*dnodeInitMgmtConn)();
+typedef struct {
+  char  *name;
+  int  (*initFp)();
+  void (*cleanUpFp)();
+  int  (*startFp)();
+  void (*stopFp)();
+  int    num;
+  int    curNum;
+  int    equalVnodeNum;
+} SModule;
+
+extern uint32_t tsModuleStatus;
+extern SModule tsModule[];
+
+void dnodeAllocModules();
+int32_t dnodeInitModules();
+void dnodeCleanUpModules();
+
+extern void (*dnodeStartModules)();
+void dnodeStartModulesEdgeImp();
 
 #ifdef __cplusplus
 }

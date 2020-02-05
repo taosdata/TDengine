@@ -21,6 +21,7 @@
 #include "mgmt.h"
 #include "tschemautil.h"
 #include "vnodeStatus.h"
+#include "dnodeModule.h"
 
 bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType);
 int  mgmtGetDnodesNum();

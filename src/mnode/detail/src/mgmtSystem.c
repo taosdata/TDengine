@@ -20,6 +20,7 @@
 #include "mgmt.h"
 #include "tsdb.h"
 #include "mgmtSystem.h"
+#include "dnodeModule.h"
 
 // global, not configurable
 char               mgmtDirectory[128];

@@ -304,7 +304,7 @@ typedef struct {
 extern int        tsMeterSizeOnFile;
 extern uint32_t   tsRebootTime;
 extern void **    rpcQhandle;
-extern void *     dmQhandle;
+
 extern void *     queryQhandle;
 extern int        tsVnodePeers;
 extern int        tsMaxVnode;
@@ -524,7 +524,6 @@ SConnSec *vnodeGetMeterSec(int vnode, int sid);
 int  vnodeCreateMeterObjFile(int vnode);
 
 // mgmt
-int dnodeInitMgmtConn();
 
 void vnodeCleanUpMgmt();
 

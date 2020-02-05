@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mgmt.h"
 #include "vnodeStatus.h"
+#include "dnodeModule.h"
 
 SDnodeObj       dnodeObj;
 extern uint32_t tsRebootTime;

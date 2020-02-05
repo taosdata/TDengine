@@ -40,6 +40,7 @@ void mgmtDoStatistic(void *handle, void *tmrId);
 
 void mgmtStartMgmtTimer();
 
+int mgmtStartSystem();
 void mgmtStopSystem();
 
 void mgmtCleanUpSystem();

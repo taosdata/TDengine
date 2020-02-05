@@ -29,6 +29,6 @@ typedef struct {
   int httpReqNum;
 } SCountInfo;
 
-extern void (*monitorCountReqFp)(SCountInfo *info);
+extern void (*mnodeCountRequestFp)(SCountInfo *info);
 
 #endif

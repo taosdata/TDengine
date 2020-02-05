@@ -28,7 +28,7 @@
 extern void *dmQhandle;
 void * mgmtStatusTimer = NULL;
 void   mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *pObj);
-void   dnodeProcessMsgFromMgmt(SSchedMsg *sched);
+void*   dnodeProcessMsgFromMgmtEdgeImp(SSchedMsg *sched);
 
 char *taosBuildRspMsgToDnodeWithSize(SDnodeObj *pObj, char type, int size) {
   char *pStart = (char *)malloc(size);
@@ -67,7 +67,7 @@ int taosSendMsgToDnode(SDnodeObj *pObj, char *msg, int msgLen) {
    * Lite version has no message header, so minus one
    */
   SSchedMsg schedMsg;
-  schedMsg.fp = dnodeProcessMsgFromMgmt;
+  schedMsg.fp = dnodeProcessMsgFromMgmtEdgeImp;
   schedMsg.msg = msg - 1;
   schedMsg.ahandle = NULL;
   schedMsg.thandle = NULL;

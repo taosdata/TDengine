@@ -15,83 +15,62 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
-#include "mgmt.h"
-#include "vnode.h"
-
+#include "tsdb.h"
+#include "tlog.h"
+#include "ttimer.h"
+#include "dnodeMgmt.h"
+#include "dnodeModule.h"
+#include "dnodeService.h"
 #include "dnodeSystem.h"
-#include "httpSystem.h"
 #include "monitorSystem.h"
-#include "tcrc32c.h"
-#include "tglobalcfg.h"
+#include "httpSystem.h"
+#include "mgmtSystem.h"
+
 #include "vnode.h"
 
-SModule         tsModule[TSDB_MOD_MAX] = {0};
-uint32_t        tsModuleStatus = 0;
 pthread_mutex_t dmutex;
 extern int      vnodeSelectReqNum;
 extern int      vnodeInsertReqNum;
 void *          tsStatusTimer = NULL;
 bool            tsDnodeStopping = false;
 
-int  dnodeCheckConfig();
-void dnodeCountRequest(SCountInfo *info);
+// internal global, not configurable
+void *   vnodeTmrCtrl;
+void **  rpcQhandle;
+void *   dmQhandle;
+void *   queryQhandle;
+int      tsVnodePeers = TSDB_VNODES_SUPPORT - 1;
+int      tsMaxQueues;
+uint32_t tsRebootTime;
+int    (*dnodeInitStorage)() = NULL;
+void   (*dnodeCleanupStorage)() = NULL;
+int    (*dnodeCheckSystem)() = NULL;
 
-void dnodeInitModules() {
-  tsModule[TSDB_MOD_MGMT].name = "mgmt";
-  tsModule[TSDB_MOD_MGMT].initFp = mgmtInitSystem;
-  tsModule[TSDB_MOD_MGMT].cleanUpFp = mgmtCleanUpSystem;
-  tsModule[TSDB_MOD_MGMT].startFp = mgmtStartSystem;
-  tsModule[TSDB_MOD_MGMT].stopFp = mgmtStopSystem;
-  tsModule[TSDB_MOD_MGMT].num = tsNumOfMPeers;
-  tsModule[TSDB_MOD_MGMT].curNum = 0;
-  tsModule[TSDB_MOD_MGMT].equalVnodeNum = tsMgmtEqualVnodeNum;
-
-  tsModule[TSDB_MOD_HTTP].name = "http";
-  tsModule[TSDB_MOD_HTTP].initFp = httpInitSystem;
-  tsModule[TSDB_MOD_HTTP].cleanUpFp = httpCleanUpSystem;
-  tsModule[TSDB_MOD_HTTP].startFp = httpStartSystem;
-  tsModule[TSDB_MOD_HTTP].stopFp = httpStopSystem;
-  tsModule[TSDB_MOD_HTTP].num = (tsEnableHttpModule == 1) ? -1 : 0;
-  tsModule[TSDB_MOD_HTTP].curNum = 0;
-  tsModule[TSDB_MOD_HTTP].equalVnodeNum = 0;
-
-  tsModule[TSDB_MOD_MONITOR].name = "monitor";
-  tsModule[TSDB_MOD_MONITOR].initFp = monitorInitSystem;
-  tsModule[TSDB_MOD_MONITOR].cleanUpFp = monitorCleanUpSystem;
-  tsModule[TSDB_MOD_MONITOR].startFp = monitorStartSystem;
-  tsModule[TSDB_MOD_MONITOR].stopFp = monitorStopSystem;
-  tsModule[TSDB_MOD_MONITOR].num = (tsEnableMonitorModule == 1) ? -1 : 0;
-  tsModule[TSDB_MOD_MONITOR].curNum = 0;
-  tsModule[TSDB_MOD_MONITOR].equalVnodeNum = 0;
-}
+int32_t dnodeInitRpcQHandle();
+int32_t dnodeInitQueryQHandle();
+int32_t dnodeInitTmrCtl();
+void dnodeInitPlugin();
+void dnodeCountRequestImp(SCountInfo *info);
 
 void dnodeCleanUpSystem() {
-  if (tsDnodeStopping) return;
-  tsDnodeStopping = true;
+  if (tsDnodeStopping) {
+    return;
+  } else {
+    tsDnodeStopping = true;
+  }
 
   if (tsStatusTimer != NULL) {
     taosTmrStopA(&tsStatusTimer);
     tsStatusTimer = NULL;
   }
 
-  for (int mod = 1; mod < TSDB_MOD_MAX; ++mod) {
-    if (tsModule[mod].num != 0 && tsModule[mod].stopFp) {
-      (*tsModule[mod].stopFp)();
-    }
-    if (tsModule[mod].num != 0 && tsModule[mod].cleanUpFp) {
-      (*tsModule[mod].cleanUpFp)();
-    }
-  }
-
-  if (tsModule[TSDB_MOD_MGMT].num != 0 && tsModule[TSDB_MOD_MGMT].cleanUpFp) {
-    (*tsModule[TSDB_MOD_MGMT].cleanUpFp)();
-  }
+  dnodeCleanUpModules();
 
   vnodeCleanUpVnodes();
 
   taosCloseLogger();
-  taosCleanupTier();
+
+  dnodeCleanupStorage();
 }
 
 void dnodeCheckDbRunning(const char* dir) {
@@ -109,6 +88,8 @@ int dnodeInitSystem() {
   char        temp[128];
   struct stat dirstat;
 
+  dnodeInitPlugin();
+
   taosResolveCRC();
 
   tsRebootTime = taosGetTimestampSec();
@@ -117,10 +98,14 @@ int dnodeInitSystem() {
   // Read global configuration.
   tsReadGlobalLogConfig();
 
-  if (stat(logDir, &dirstat) < 0) mkdir(logDir, 0755);
+  if (stat(logDir, &dirstat) < 0) {
+    mkdir(logDir, 0755);
+  }
 
   sprintf(temp, "%s/taosdlog", logDir);
-  if (taosInitLog(temp, tsNumOfLogLines, 1) < 0) printf("failed to init log file\n");
+  if (taosInitLog(temp, tsNumOfLogLines, 1) < 0) {
+    printf("failed to init log file\n");
+  }
 
   if (!tsReadGlobalConfig()) {  // TODO : Change this function
     tsPrintGlobalConfig();
@@ -128,7 +113,7 @@ int dnodeInitSystem() {
     return -1;
   }
 
-  if (taosCreateTierDirectory() != 0) {
+  if (dnodeInitStorage() != 0) {
     dError("TDengine init tier directory failed");
     return -1;
   }
@@ -136,93 +121,93 @@ int dnodeInitSystem() {
   dnodeInitMgmtIp();
 
   tsPrintGlobalConfig();
+
   dPrint("Server IP address is:%s", tsPrivateIp);
 
   taosSetCoreDump();
 
   signal(SIGPIPE, SIG_IGN);
 
-  dnodeInitModules();
+  dnodeAllocModules();
+
   pthread_mutex_init(&dmutex, NULL);
 
   dPrint("starting to initialize TDengine ...");
 
-  vnodeInitQHandle();
-  if (dnodeInitSystemSpec() < 0) {
+  if (dnodeInitRpcQHandle() < 0) {
+    dError("failed to init query qhandle, exit");
+    return -1;
+  }
+
+  if (dnodeCheckSystem() < 0) {
     return -1;
   }
   
-  for (int mod = 0; mod < TSDB_MOD_MAX; ++mod) {
-    if (tsModule[mod].num != 0 && tsModule[mod].initFp) {
-      if ((*tsModule[mod].initFp)() != 0) {
-        dError("TDengine initialization failed");
-        return -1;
-      }
-    }
-  }
-
-  if (vnodeInitSystem() != 0) {
-    dError("TDengine vnodes initialization failed");
+  if (dnodeInitModules() < 0) {
     return -1;
   }
 
-  monitorCountReqFp = dnodeCountRequest;
+  if (dnodeInitTmrCtl() < 0) {
+    dError("failed to init timer, exit");
+    return -1;
+  }
 
-  dnodeStartModuleSpec();
+  if (dnodeInitQueryQHandle() < 0) {
+    dError("failed to init query qhandle, exit");
+    return -1;
+  }
+
+  if (vnodeInitStore() < 0) {
+    dError("failed to init vnode storage");
+    return -1;
+  }
+
+  int numOfThreads = (1.0 - tsRatioOfQueryThreads) * tsNumOfCores * tsNumOfThreadsPerCore / 2.0;
+  if (numOfThreads < 1) numOfThreads = 1;
+  if (vnodeInitPeer(numOfThreads) < 0) {
+    dError("failed to init vnode peer communication");
+    return -1;
+  }
+
+  if (dnodeInitMgmtConn() < 0) {
+    dError("failed to init communication to mgmt");
+    return -1;
+  }
+
+  if (vnodeInitShell() < 0) {
+    dError("failed to init communication to shell");
+    return -1;
+  }
+
+  if (vnodeInitVnodes() < 0) {
+    dError("failed to init store");
+    return -1;
+  }
+
+  mnodeCountRequestFp = dnodeCountRequestImp;
+
+  dnodeStartModules();
 
   dPrint("TDengine is initialized successfully");
 
   return 0;
 }
 
-void dnodeProcessModuleStatus(uint32_t status) {
-  if (tsDnodeStopping) return;
-
-  int news = status;
-  int olds = tsModuleStatus;
-
-  for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-    int newStatus = news & (1 << moduleType);
-    int oldStatus = olds & (1 << moduleType);
-
-    if (oldStatus > 0) {
-      if (newStatus == 0) {
-        if (tsModule[moduleType].stopFp) {
-          dPrint("module:%s is stopped on this node", tsModule[moduleType].name);
-          (*tsModule[moduleType].stopFp)();
-        }
-      }
-    } else if (oldStatus == 0) {
-      if (newStatus > 0) {
-        if (tsModule[moduleType].startFp) {
-          dPrint("module:%s is started on this node", tsModule[moduleType].name);
-          (*tsModule[moduleType].startFp)();
-        }
-      }
-    } else {
-    }
-  }
-  tsModuleStatus = status;
-}
-
 void dnodeResetSystem() {
   dPrint("reset the system ...");
-  for (int vnode = 0; vnode < TSDB_MAX_VNODES; ++vnode) vnodeRemoveVnode(vnode);
+  for (int vnode = 0; vnode < TSDB_MAX_VNODES; ++vnode) {
+    vnodeRemoveVnode(vnode);
+  }
   mgmtStopSystem();
 }
 
-void dnodeCountRequest(SCountInfo *info) {
+void dnodeCountRequestImp(SCountInfo *info) {
   httpGetReqCount(&info->httpReqNum);
   info->selectReqNum = atomic_exchange_32(&vnodeSelectReqNum, 0);
   info->insertReqNum = atomic_exchange_32(&vnodeInsertReqNum, 0);
 }
 
-
-//spec
-
-extern SModule tsModule[TSDB_MOD_MAX];
-
-int taosCreateTierDirectory() {
+int dnodeInitStorageComImp() {
   struct stat dirstat;
   strcpy(tsDirectory, dataDir);
   if (stat(dataDir, &dirstat) < 0) {
@@ -244,16 +229,67 @@ int taosCreateTierDirectory() {
   return 0;
 }
 
-int dnodeInitSystemSpec() { return 0; }
+void dnodeCleanupStorageComImp() {}
 
-void dnodeStartModuleSpec() {
-  for (int mod = 1; mod < TSDB_MOD_MAX; ++mod) {
-    if (tsModule[mod].num != 0 && tsModule[mod].startFp) {
-      if ((*tsModule[mod].startFp)() != 0) {
-        dError("failed to start module:%d", mod);
-      }
-    }
+int32_t dnodeInitQueryQHandle() {
+  int numOfThreads = tsRatioOfQueryThreads * tsNumOfCores * tsNumOfThreadsPerCore;
+  if (numOfThreads < 1) {
+    numOfThreads = 1;
   }
+
+  int32_t maxQueueSize = tsNumOfVnodesPerCore * tsNumOfCores * tsSessionsPerVnode;
+  dTrace("query task queue initialized, max slot:%d, task threads:%d", maxQueueSize,numOfThreads);
+
+  queryQhandle = taosInitSchedulerWithInfo(maxQueueSize, numOfThreads, "query", vnodeTmrCtrl);
+
+  return 0;
 }
 
-void dnodeParseParameterK() {}
+int32_t dnodeInitTmrCtl() {
+  vnodeTmrCtrl = taosTmrInit(TSDB_MAX_VNODES * (tsVnodePeers + 10) + tsSessionsPerVnode + 1000, 200, 60000, "DND-vnode");
+  if (vnodeTmrCtrl == NULL) {
+    dError("failed to init timer, exit");
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t dnodeInitRpcQHandle() {
+  tsMaxQueues = (1.0 - tsRatioOfQueryThreads)*tsNumOfCores*tsNumOfThreadsPerCore / 2.0;
+  if (tsMaxQueues < 1) tsMaxQueues = 1;
+
+  rpcQhandle = malloc(tsMaxQueues*sizeof(void *));
+
+  for (int i=0; i< tsMaxQueues; ++i )
+    rpcQhandle[i] = taosInitScheduler(tsSessionsPerVnode, 1, "dnode");
+
+  dmQhandle = taosInitScheduler(tsSessionsPerVnode, 1, "mgmt");
+
+  return 0;
+}
+
+
+int dnodeCheckSystemComImp() {
+  return 0;
+}
+
+void dnodeInitPlugin() {
+  dnodeInitMgmtConn = dnodeInitMgmtConnEdgeImp;
+  dnodeInitMgmtIp = dnodeInitMgmtIpEdgeImp;
+
+  taosBuildRspMsgToMnodeWithSize = taosBuildRspMsgToMnodeWithSizeEdgeImp;
+  taosBuildReqMsgToMnodeWithSize = taosBuildReqMsgToMnodeWithSizeEdgeImp;
+  taosBuildRspMsgToMnode = taosBuildRspMsgToMnodeEdgeImp;
+  taosBuildReqMsgToMnode = taosBuildReqMsgToMnodeEdgeImp;
+  taosSendMsgToMnode = taosSendMsgToMnodeEdgeImp;
+  taosSendSimpleRspToMnode = taosSendSimpleRspToMnodeEdgeImp;
+
+  dnodeParseParameterK = dnodeParseParameterKComImp;
+  dnodeCheckSystem = dnodeCheckSystemComImp;
+  dnodeInitStorage = dnodeInitStorageComImp;
+  dnodeCleanupStorage = dnodeCleanupStorageComImp;
+  dnodeStartModules = dnodeStartModulesEdgeImp;
+}
+
+

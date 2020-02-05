@@ -13,59 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODESYSTEM_H
-#define TDENGINE_DNODESYSTEM_H
+#ifndef TDENGINE_DNODE_SYSTEM_H
+#define TDENGINE_DNODE_SYSTEM_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <pthread.h>
 
-#define tsetModuleStatus(mod) \
-  { tsModuleStatus |= (1 << mod); }
-#define tclearModuleStatus(mod) \
-  { tsModuleStatus &= ~(1 << mod); }
-
-enum _module { TSDB_MOD_MGMT, TSDB_MOD_HTTP, TSDB_MOD_MONITOR, TSDB_MOD_MAX };
-
-typedef struct {
-  char  *name;
-  int  (*initFp)();
-  void (*cleanUpFp)();
-  int  (*startFp)();
-  void (*stopFp)();
-  int    num;
-  int    curNum;
-  int    equalVnodeNum;
-} SModule;
-
-extern uint32_t        tsModuleStatus;
-extern SModule         tsModule[];
 extern pthread_mutex_t dmutex;
+extern bool tsDnodeStopping;
+extern int  (*dnodeInitStorage)();
+extern void (*dnodeCleanupStorage)();
+extern int  (*dnodeCheckSystem)();
 
-void dnodeCleanUpSystem();
 int  dnodeInitSystem();
-int  dnodeInitSystemSpec();
-void dnodeStartModuleSpec();
-void dnodeParseParameterK();
-void dnodeProcessModuleStatus(uint32_t status);
-void dnodeResetSystem();
+void dnodeCleanUpSystem();
 void dnodeCheckDbRunning(const char* dir);
 
-void vnodeCleanUpSystem();
-int  vnodeInitSystem();
-void dnodeInitMgmtIp();
-void vnodeInitQHandle();
 
-int  mgmtInitSystem();
-void mgmtCleanUpSystem();
-int  mgmtStartSystem();
-void mgmtStopSystem();
-
-int  taosCreateTierDirectory();
-void taosCleanupTier();
+void vnodePrintSystemInfo();
+int vnodeCfgDynamicOptions(char *msg);
+int vnodeInitStore();
+int vnodeInitPeer(int numOfThreads);
 
 #ifdef __cplusplus
 }
