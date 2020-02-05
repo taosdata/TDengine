@@ -754,6 +754,8 @@ void taos_free_result_imp(TAOS_RES* res, int keepCmd) {
         pSql->pStream == NULL && pMeterMetaInfo->pMeterMeta != NULL))) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
 
+    tscTrace("%p code:%d, numOfRows:%d, command:%d", pSql, pRes->code, pRes->numOfRows, pCmd->command);
+    
     void *fp = pSql->fp;
     if (fp != NULL) {
       pSql->freed = 1;
