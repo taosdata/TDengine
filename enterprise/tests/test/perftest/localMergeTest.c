@@ -10,7 +10,7 @@
 const int32_t PAGE_SIZE = 4096;
 const int32_t NUM_OF_COLS = 2;
 
-void *generateColumnFormatData(int32_t numOfRows, int32_t rowLen, tColModel *pModel) {
+void *generateColumnFormatData(int32_t numOfRows, int32_t rowLen, SColumnModel *pModel) {
     char *data = (char *) malloc(numOfRows * rowLen);
     assert(data != NULL);
 
@@ -30,7 +30,7 @@ void *generateColumnFormatData(int32_t numOfRows, int32_t rowLen, tColModel *pMo
     return data;
 }
 
-void *generateMultiColumnFormatData(int32_t numOfRows, int32_t rowLen, tColModel *pModel) {
+void *generateMultiColumnFormatData(int32_t numOfRows, int32_t rowLen, SColumnModel *pModel) {
     char *data = (char *) calloc(1, numOfRows * rowLen);
     assert(data != NULL);
 
@@ -110,7 +110,7 @@ int32_t getRowLen(TAOS_FIELD *pField, int32_t numOfCols) {
     return ret;
 }
 
-void initSQLCmd(SSqlCmd *pCmd, tColModel *pModel) {
+void initSQLCmd(SSqlCmd *pCmd, SColumnModel *pModel) {
     pCmd->numOfCols = NUM_OF_COLS;
     memcpy(pCmd->offset, pModel->colOffset, sizeof(int16_t) * NUM_OF_COLS);
     memcpy(pCmd->fields, pModel->pFields, sizeof(TAOS_FIELD) * NUM_OF_COLS);
@@ -126,7 +126,7 @@ void initSQLCmd(SSqlCmd *pCmd, tColModel *pModel) {
     pSql->exprs[1].functionId = 21;
 }
 
-void initMultiTagSQLCmd(SSqlCmd *pSql, tColModel *pModel, int32_t numOfCols) {
+void initMultiTagSQLCmd(SSqlCmd *pSql, SColumnModel *pModel, int32_t numOfCols) {
     pSql->numOfCols = numOfCols;
     pSql->nOutputCols = numOfCols;
     memcpy(pSql->offset, pModel->colOffset, sizeof(int16_t) * numOfCols);
@@ -162,7 +162,7 @@ void initMultiTagSQLCmd(SSqlCmd *pSql, tColModel *pModel, int32_t numOfCols) {
     tscSqlExprInsert(pCmd, 1, 21, 1, TSDB_DATA_TYPE_INT, pModel->pFields[1].bytes);
 }
 
-void initMultiTagSQLCmd(SSqlCmd *pCmd, tColModel *pModel, int32_t numOfCols) {
+void initMultiTagSQLCmd(SSqlCmd *pCmd, SColumnModel *pModel, int32_t numOfCols) {
     pCmd->numOfCols = numOfCols;
     pCmd->nOutputCols = numOfCols;
     memcpy(pCmd->offset, pModel->colOffset, sizeof(int16_t) * numOfCols);
@@ -194,7 +194,7 @@ void initMultiTagSQLCmd(SSqlCmd *pCmd, tColModel *pModel, int32_t numOfCols) {
 
 tExtMemBuffer **createExtBuffer(int32_t rowLen) {
     tExtMemBuffer **pMemoryBuf = (tExtMemBuffer **) malloc(POINTER_BYTES * 1);
-    tExtMemBufferCreate(&(pMemoryBuf[0]), 128 * 1024, rowLen, "/tmp/tVnode_buffer_bd.d");
+    pMemoryBuf[0] = createExtMemBuffer(128 * 1024, rowLen);
 
     pMemoryBuf[0]->flushModel = MULTIPLE_APPEND_MODEL;
     return pMemoryBuf;
@@ -225,8 +225,8 @@ static void singleTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
 
     // tmp buffer size, should larger than a single page
     int32_t maxElemsCapacity = MAX_AVAIL_BUFFER / rowLen;
-    tColModel model = {maxElemsCapacity, NUM_OF_COLS, colOffset, pField};
-    tColModel reModel = {maxElemsCapacity, NUM_OF_COLS, colOffset, pField};
+    SColumnModel model = {maxElemsCapacity, NUM_OF_COLS, colOffset, pField};
+    SColumnModel reModel = {maxElemsCapacity, NUM_OF_COLS, colOffset, pField};
 
     void *pData = generateColumnFormatData(numOfRows, rowLen, &model);
     tColModelDisplay(&model, pData, numOfRows, numOfRows);
@@ -249,7 +249,7 @@ static void singleTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
     SSqlRes *pRes = &pObj->res;
     SSqlCmd *pCmd = &pObj->cmd;
 
-    model.maxCapacity = pMemoryBuf[0]->nPageSize / rowLen;
+    model.maxCapacity = pMemoryBuf[0]->pageSize / rowLen;
     printf("create loser tree!\n----------------------------------------\n");
 
     initSQLCmd(pCmd, &model);
@@ -274,7 +274,7 @@ static void multiTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
 
     // tmp buffer size, should larger than a single page
     int32_t maxElemsCapacity = MAX_AVAIL_BUFFER / rowLen;
-    tColModel* model = malloc(sizeof(tColModel));//{maxElemsCapacity, numCols, colOffset, pField};
+    SColumnModel* model = malloc(sizeof(SColumnModel));//{maxElemsCapacity, numCols, colOffset, pField};
     model->maxCapacity = maxElemsCapacity;
     model->numOfCols = numCols;
     model->colOffset = colOffset;
@@ -282,8 +282,8 @@ static void multiTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
 
     tOrderDescriptor* pOrderDesc = tOrderDesCreate(starCmpCol, tListLen(starCmpCol), model);
 
-    tColModel* resModel = malloc(sizeof(tColModel));
-    memmove(resModel, model, sizeof(tColModel));
+    SColumnModel* resModel = malloc(sizeof(SColumnModel));
+    memmove(resModel, model, sizeof(SColumnModel));
 
     void *pData = generateMultiColumnFormatData(numOfRows, rowLen, model);
     tColModelDisplay(model, pData, numOfRows, numOfRows);
@@ -303,7 +303,7 @@ static void multiTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
     SSqlRes *pRes = &pObj->res;
     SSqlCmd *pCmd = &pObj->cmd;
 
-    model->maxCapacity = (pMemoryBuf[0]->nPageSize-sizeof(tFilePage)) / rowLen;
+    model->maxCapacity = (pMemoryBuf[0]->pageSize-sizeof(tFilePage)) / rowLen;
     printf("create loser tree!\n----------------------------------------\n");
 
     initMultiTagSQLCmd(pCmd, model, numCols);
@@ -319,7 +319,7 @@ static void multiTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
     tfree(inputBuffer);
     tfree(pCmd->pGroupbyExpr);
 
-//    tExtMemBufferDestroy(pMemoryBuf);
+//    destoryExtMemBuffer(pMemoryBuf);
     tfree(*pMemoryBuf);
 
     tOrderDescDestroy(pOrderDesc);

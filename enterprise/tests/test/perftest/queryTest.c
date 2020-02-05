@@ -450,7 +450,9 @@ int main(int argc, char **argv) {
     }
     
     executeSQL(conn, "use test", NULL);
-    createEnvironment(conn, 5, 5, 100000, 30);
+    executeSQL(conn, "create user abc pass 'abc'", NULL);
+    
+//    createEnvironment(conn, 5, 5, 100000, 30);
 //    executeSQL(conn, "select count(*) from lm_tb0 where ts >=1537146000000 and ts <= 1537151400000 interval(20m) sliding(10m)", NULL);
 //    executeSQL(conn, "select first(ts), last(ts) from lm_tb0", NULL);
 //    executeSQL(conn, "CREATE database TU1", NULL);

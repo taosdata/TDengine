@@ -47,7 +47,7 @@ void intDataTest() {
             {TSDB_DATA_TYPE_INT, "k", sizeof(int32_t)},
     };
 
-    tColModel* pModel = tColModelCreate(field, 1, 1000);
+    SColumnModel* pModel = createColumnModel(field, 1, 1000);
     tOrderDescriptor* pDesc = tOrderDesCreate(colOffset, 1, pModel, TSQL_SO_ASC);
 
     pBucket = createIntDataBucket(-1, 1, 1 << 20, pDesc);
@@ -74,7 +74,7 @@ void intDataTest() {
     assert(result - 49999.5 < DBL_EPSILON);
     printf("%lf\n", result);
 
-    tColModelDestroy(pModel);
+    destroyColumnModel(pModel);
     tOrderDescDestroy(&pDesc);
     tMemBucketDestroy(pBucket);
 }
@@ -90,7 +90,7 @@ void bigintDataTest() {
             {TSDB_DATA_TYPE_BIGINT, "k", sizeof(int64_t)},
     };
 
-    tColModel* pModel = tColModelCreate(field, 1, 1000);
+    SColumnModel* pModel = createColumnModel(field, 1, 1000);
     tOrderDescriptor* pDesc = tOrderDesCreate(orderIdx, 1, pModel, TSQL_SO_ASC);
 
     pBucket = createBigIntDataBucket(-1000, 1000, 1 << 20, pDesc);
@@ -107,7 +107,7 @@ void bigintDataTest() {
     result = getPercentile(pBucket, 75);
     assert(result == 5000.0);
 
-    tColModelDestroy(pModel);
+    destroyColumnModel(pModel);
     tOrderDescDestroy(&pDesc);
     tMemBucketDestroy(pBucket);
 }
@@ -148,7 +148,7 @@ void createShortDataArrays(int32_t start, int32_t end) {
     SSchema field[1] = {
             {TSDB_DATA_TYPE_DOUBLE, "k", sizeof(double)},
     };
-    tColModel* pModel = tColModelCreate(field, 1, 1000);
+    SColumnModel* pModel = createColumnModel(field, 1, 1000);
     tOrderDescriptor* pDesc = tOrderDesCreate(orderIdx, 1, pModel, TSQL_SO_ASC);
 
     tMemBucket *pBucket = NULL;
@@ -191,7 +191,7 @@ void createShortDataArrays(int32_t start, int32_t end) {
 
     printf("result is: %lf\n", result);
 
-    tColModelDestroy(pModel);
+    destroyColumnModel(pModel);
     tOrderDescDestroy(&pDesc);
     tMemBucketDestroy(pBucket);
 }
@@ -204,7 +204,7 @@ void doubleDataTest() {
             {TSDB_DATA_TYPE_DOUBLE, "k", sizeof(double)},
     };
     tMemBucket *pBucket = NULL;
-    tColModel* pModel = tColModelCreate(field, 1, 1000);
+    SColumnModel* pModel = createColumnModel(field, 1, 1000);
     tOrderDescriptor* pDesc = tOrderDesCreate(orderIdx, 1, pModel, TSQL_SO_ASC);
 
     double result = 0;
@@ -245,7 +245,7 @@ void doubleDataTest() {
 
     printf("result is: %lf\n", result);
 
-    tColModelDestroy(pModel);
+    destroyColumnModel(pModel);
     tOrderDescDestroy(&pDesc);
 
     tMemBucketDestroy(pBucket);
@@ -263,7 +263,7 @@ void largeDataTest() {
             {TSDB_DATA_TYPE_DOUBLE, "k", sizeof(double)},
     };
 
-    tColModel* pModel = tColModelCreate(field, 1, 1000);
+    SColumnModel* pModel = createColumnModel(field, 1, 1000);
     tOrderDescriptor* pDesc = tOrderDesCreate(orderIdx, 1, pModel, TSQL_SO_ASC);
 
     tMemBucket *pBucket = NULL;
@@ -282,7 +282,7 @@ void largeDataTest() {
     printf("total elapsed time: %lld\n sec.", -start + tv.tv_sec);
     printf("the result of %d is: %lf\n", 50, result);
 
-    tColModelDestroy(pModel);
+    destroyColumnModel(pModel);
     tOrderDescDestroy(&pDesc);
     tMemBucketDestroy(pBucket);
 }
@@ -308,7 +308,7 @@ void qsortTest() {
 
     const int32_t numOfOrderCols = 1;
     int32_t orderColIdx = 0;
-    tColModel* pModel = tColModelCreate(field, 1, 1000);
+    SColumnModel* pModel = createColumnModel(field, 1, 1000);
     tOrderDescriptor* pDesc = tOrderDesCreate(&orderColIdx, numOfOrderCols, pModel, TSQL_SO_ASC);
 
     tColDataQSort(pDesc, num, 0, num - 1, d, TSQL_SO_ASC);
@@ -318,7 +318,7 @@ void qsortTest() {
     }
     printf("\n");
 
-    tColModelDestroy(pModel);
+    destroyColumnModel(pModel);
     tOrderDescDestroy(&pDesc);
 }
 
