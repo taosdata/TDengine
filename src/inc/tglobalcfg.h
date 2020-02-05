@@ -80,6 +80,7 @@ extern short tsNumOfTotalVnodes;
 extern short tsCheckHeaderFile;
 extern uint32_t tsServerIp;
 extern uint32_t tsPublicIpInt;
+extern short tsAffectedRowsMod;
 
 extern int tsSessionsPerVnode;
 extern int tsAverageCacheBlocks;
