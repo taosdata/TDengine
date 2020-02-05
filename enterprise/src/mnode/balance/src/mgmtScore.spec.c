@@ -19,6 +19,7 @@
 #include "mgmtBalance.h"
 #include "tschemautil.h"
 #include "ttime.h"
+#include "dnodeModule.h"
 
 int         mgmtOrderedDnodesSize = 0;
 int         mgmtOrderedDnodesMallocSize = 0;

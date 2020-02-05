@@ -29,6 +29,7 @@
 #include "dnodeSystem.h"
 #include "mgmt.h"
 #include "tsdb.h"
+#include "dnodeModule.h"
 
 extern void *      mgmtStatisticTimer;
 extern void *      pDnodeConn;

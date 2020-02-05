@@ -22,6 +22,7 @@
 #include "mgmtProfile.h"
 #include "taosmsg.h"
 #include "tlog.h"
+#include "dnodeModule.h"
 
 #define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
 

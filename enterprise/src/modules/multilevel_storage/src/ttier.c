@@ -37,7 +37,7 @@ int taosInitTier() {
   return 0;
 }
 
-void taosCleanupTier() {
+void dnodeCleanupStorageClusterImp() {
   taosCleanUpStrHash(diskTier.diskHash);
   for (int8_t tierid = 0; tierid < diskTier.numOfTiers; tierid++)
     for (int8_t did = 0; did < diskTier.tiers[tierid].numOfDisks; did++) tfree(diskTier.tiers[tierid].disks[did]);

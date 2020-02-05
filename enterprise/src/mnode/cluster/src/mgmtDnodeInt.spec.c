@@ -21,6 +21,7 @@
 #include "mgmt.h"
 #include "mgmtBalance.h"
 #include "tutil.h"
+#include "dnodeModule.h"
 
 void *     pDnodeConn = NULL;
 SDnodeObj *dnodeList = NULL;

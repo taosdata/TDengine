@@ -23,6 +23,7 @@
 #include "mgmt.h"
 #include "tschemautil.h"
 #include "vnodeStatus.h"
+#include "dnodeModule.h"
 
 void *dnodeSdb = NULL;
 int   tsDnodeUpdateSize;

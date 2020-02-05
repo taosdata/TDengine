@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mgmtBalance.h"
+#include "dnodeModule.h"
 
 #define LB_MODULE_UNLIMIT -1
 

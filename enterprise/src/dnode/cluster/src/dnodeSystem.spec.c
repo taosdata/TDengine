@@ -31,6 +31,8 @@
 #include "ttier.h"
 #include "vnode.h"
 
+#include "dnodeModule.h"
+
 extern SModule  tsModule[TSDB_MOD_MAX];
 extern uint32_t tsModuleStatus;
 bool     tsClusterExist = false;
@@ -38,13 +40,11 @@ extern pthread_mutex_t dmutex;
 extern int      vnodeSelectReqNum;
 extern int      vnodeInsertReqNum;
 extern void *   tsStatusTimer;
-extern bool     tsDnodeStopping;
 
 int  dnodeCheckConfig();
-void dnodeCountRequest(SCountInfo *info);
 char *grantGetMachineSerials();
 
-int taosCreateTierDirectory() {
+int dnodeInitStorageClusterImp() {
   char   fileName[128];
   SDisk *disk = NULL;
 
@@ -74,7 +74,7 @@ int taosCreateTierDirectory() {
   return 0;
 }
 
-int dnodeInitSystemSpec() {
+int dnodeCheckSystemClusterImp() {
   char cfgFile[256];
   sprintf(cfgFile, "%s/taos.cfg", configDir);
   grantActiveSystem(cfgFile);
@@ -92,7 +92,7 @@ int dnodeInitSystemSpec() {
   return 0;
 }
 
-void dnodeStartModuleSpec() {
+void dnodeStartModulesClusterImp() {
 }
 
 void dnodeParseParameterK() {

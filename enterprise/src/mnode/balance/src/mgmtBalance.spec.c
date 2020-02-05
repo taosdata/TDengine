@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mgmtBalance.h"
 #include "vnodeStatus.h"
+#include "dnodeModule.h"
 
 /*
  * once sdb work as mater, then mgmtAccessSquence reset to zero, increase mgmtAccessSquence every balance interval

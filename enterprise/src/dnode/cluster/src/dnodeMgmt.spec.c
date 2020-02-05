@@ -19,12 +19,13 @@
 #include <unistd.h>
 
 #include "dnodeSystem.h"
+#include "dnodeMgmt.h"
 #include "taosmsg.h"
 #include "vnode.h"
-#include "vnodeMgmt.h"
 #include "vnodeSystem.h"
 #include "vnodeUtil.h"
 #include "vnodeStatus.h"
+#include "dnodeModule.h"
 
 extern SMgmtObj mgmtObj;
 extern void*tsStatusTimer;
@@ -34,40 +35,40 @@ SMgmtIpList mgmtIpList;
 SMgmtIpList mgmtPublicIpList;
 char        mgmtIpStr[TSDB_MAX_MGMT_IPS][20] = {0};
 
-void vnodeInitMgmtIp();
 void vnodeSaveMgmtIp();
 void grantSendMsgToMgmt();
 void vnodeSendStatusMsgToMgmt(void *handle, void *tmrId);
 int  vnodeProcessStatusRspMsg(char *msg, int msgLen, SMgmtObj *pObj);
 int  vnodeProcessCreateMeterMsg(char *pMsg, int msgLen);
 int  vnodeProcessCfgDnodeRequest(char *cont, int contLen, SMgmtObj *pMgmtObj);
-void*vnodeProcessMsgFromMgmt(char *content, int msgLen, int msgType, SMgmtObj *pObj);
+void dnodeDistributeMsgFromMgmt(char *content, int msgLen, int msgType, SMgmtObj *pObj);
 
-char *taosBuildRspMsgToMnodeWithSize(SMgmtObj *pObj, char type, int size) {
+
+char *taosBuildRspMsgToMnodeWithSizeClusterImp(SMgmtObj *pObj, char type, int size) {
   return taosBuildRspMsgWithSize(pObj->thandle, type, size);
 }
 
-char *taosBuildReqMsgToMnodeWithSize(SMgmtObj *pObj, char type, int size) {
+char *taosBuildReqMsgToMnodeWithSizeClusterImp(SMgmtObj *pObj, char type, int size) {
   return taosBuildReqMsgWithSize(pObj->thandle, type, size);
 }
 
-char *taosBuildRspMsgToMnode(SMgmtObj *pObj, char type) {
+char *taosBuildRspMsgToMnodeClusterImp(SMgmtObj *pObj, char type) {
   return taosBuildRspMsgToMnodeWithSize(pObj, type, 256);
 }
 
-char *taosBuildReqMsgToMnode(SMgmtObj *pObj, char type) {
+char *taosBuildReqMsgToMnodeClusterImp(SMgmtObj *pObj, char type) {
   return taosBuildReqMsgToMnodeWithSize(pObj, type, 256);
 }
 
-int taosSendSimpleRspToMnode(SMgmtObj *pObj, char rsptype, char code) {
+int taosSendSimpleRspToMnodeClusterImp(SMgmtObj *pObj, char rsptype, char code) {
   return taosSendSimpleRsp(pObj->thandle, rsptype, code);
 }
 
-int taosSendMsgToMnode(SMgmtObj *pObj, char *msg, int msgLen) {
+int taosSendMsgToMnodeClusterImp(SMgmtObj *pObj, char *msg, int msgLen) {
   return taosSendMsgToPeer(pObj->thandle, msg, msgLen);
 }
 
-void *vnodeProcessMsgFromMgmtSpec(char *msg, void *ahandle, void *thandle) {
+void *dnodeProcessMsgFromMgmtClusterImp(char *msg, void *ahandle, void *thandle) {
   SMgmtObj *pObj = (SMgmtObj *)ahandle;
   SIntMsg * pMsg = (SIntMsg *)msg;
 
@@ -94,13 +95,13 @@ void *vnodeProcessMsgFromMgmtSpec(char *msg, void *ahandle, void *thandle) {
   } else if (pMsg->msgType == TSDB_MSG_TYPE_CFG_PNODE) {
     vnodeProcessCfgDnodeRequest((char *)(pMsg->content), pMsg->msgLen - sizeof(SIntMsg), pObj);
   } else {
-    vnodeProcessMsgFromMgmt((char *)(pMsg->content), pMsg->msgLen - sizeof(SIntMsg), pMsg->msgType, pObj);
+    dnodeDistributeMsgFromMgmt((char *)(pMsg->content), pMsg->msgLen - sizeof(SIntMsg), pMsg->msgType, pObj);
   }
 
   return pObj;
 }
 
-int vnodeInitMgmt() {
+int dnodeInitMgmtConnClusterImp() {
   SMgmtObj *pObj;
   SRpcInit  rpcInit;
 
@@ -115,7 +116,7 @@ int vnodeInitMgmt() {
   rpcInit.localPort = 0;
   rpcInit.label = "DND-mgmt";
   rpcInit.numOfThreads = 1;
-  rpcInit.fp = vnodeProcessMsgFromMgmtSpec;
+  rpcInit.fp = dnodeProcessMsgFromMgmtClusterImp;
   rpcInit.bits = 4;
   rpcInit.numOfChanns = 1;
   rpcInit.sessionsPerChann = 10;
@@ -672,7 +673,7 @@ bool vnodeSeekMgmtIp(FILE *fp) {
   }
 }
 
-void vnodeInitMgmtIp() {
+void dnodeInitMgmtIpClusterImp() {
   FILE *       fp;
   char         fn[128];
   SMgmtIpList *pIpList = &mgmtIpList;
