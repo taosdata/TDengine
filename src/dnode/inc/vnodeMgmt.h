@@ -13,29 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_SYSTEM_H
-#define TDENGINE_DNODE_SYSTEM_H
+#ifndef TDENGINE_VNODE_MGMT_H
+#define TDENGINE_VNODE_MGMT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <stdint.h>
-#include <stdbool.h>
-#include <pthread.h>
-
-extern pthread_mutex_t dmutex;
-extern bool tsDnodeStopping;
-extern int  (*dnodeInitStorage)();
-extern void (*dnodeCleanupStorage)();
-extern int  (*dnodeCheckSystem)();
-
-int  dnodeInitSystem();
-void dnodeCleanUpSystem();
-void dnodeCheckDbRunning(const char* dir);
-
-int vnodeInitStore();
-int vnodeInitPeer(int numOfThreads);
 
 #ifdef __cplusplus
 }
