@@ -5453,8 +5453,6 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   const char* msg0 = "invalid table name";
   const char* msg1 = "table name too long";
   const char* msg2 = "point interpolation query needs timestamp";
-  const char* msg3 = "sliding value too small";
-  const char* msg4 = "sliding value no larger than the interval value";
   const char* msg5 = "fill only available for interval query";
   const char* msg6 = "start(end) time of query range required or time range too large";
   const char* msg7 = "illegal number of tables in from clause";
@@ -5587,30 +5585,6 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   if (!hasTimestampForPointInterpQuery(pQueryInfo)) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg2);
   }
-  
-//  // set sliding value, the query time range needs to be decide in the first place
-//  SSQLToken* pSliding = &pQuerySql->sliding;
-//  if (pSliding->n != 0) {
-//    if (!tscEmbedded && pCmd->inStream == 0 && hasDefaultQueryTimeRange(pQueryInfo)) {  // sliding only allowed in stream
-//      const char* msg = "time range expected for sliding window query";
-//      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
-//    }
-//
-//    getTimestampInUsFromStr(pSliding->z, pSliding->n, &pQueryInfo->nSlidingTime);
-//    if (pMeterMetaInfo->pMeterMeta->precision == TSDB_TIME_PRECISION_MILLI) {
-//      pQueryInfo->nSlidingTime /= 1000;
-//    }
-//
-//    if (pQueryInfo->nSlidingTime < tsMinSlidingTime) {
-//      return invalidSqlErrMsg(pQueryInfo->msg, msg3);
-//    }
-//
-//    if (pQueryInfo->nSlidingTime > pQueryInfo->nAggTimeInterval) {
-//      return invalidSqlErrMsg(pQueryInfo->msg, msg4);
-//    }
-//  } else {
-//    pQueryInfo->nSlidingTime = -1;
-//  }
 
   // in case of join query, time range is required.
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {

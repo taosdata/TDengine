@@ -27,6 +27,7 @@
 #include "ttime.h"
 #include "ttypes.h"
 #include "tutil.h"
+#include "tpercentile.h"
 
 #define GET_INPUT_CHAR(x) (((char *)((x)->aInputElemBuf)) + ((x)->startOffset) * ((x)->inputBytes))
 #define GET_INPUT_CHAR_INDEX(x, y) (GET_INPUT_CHAR(x) + (y) * (x)->inputBytes)
@@ -2416,7 +2417,7 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   SSchema      field[1] = {{pCtx->inputType, "dummyCol", 0, pCtx->inputBytes}};
 
-  tColModel *pModel = tColModelCreate(field, 1, 1000);
+  SColumnModel *pModel = createColumnModel(field, 1, 1000);
   int32_t    orderIdx = 0;
 
   // tOrderDesc object

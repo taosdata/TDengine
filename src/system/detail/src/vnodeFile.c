@@ -127,7 +127,7 @@ int vnodeCreateHeadDataFile(int vnode, int fileId, char *headName, char *dataNam
   if (symlink(dDataName, dataName) != 0) return -1;
   if (symlink(dLastName, lastName) != 0) return -1;
 
-  dPrint("vid:%d, fileId:%d, empty header file:%s dataFile:%s lastFile:%s on disk:%s is created ",
+  dPrint("vid:%d, fileId:%d, empty header file:%s file:%s lastFile:%s on disk:%s is created ",
           vnode, fileId, headName, dataName, lastName, path);
 
   return 0;

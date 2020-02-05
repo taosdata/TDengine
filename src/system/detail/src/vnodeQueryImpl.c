@@ -589,7 +589,7 @@ static void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, int64_t StartQue
                           char *primaryColumnData, int32_t size, int32_t functionId, SField *pField, bool hasNull,
                           int32_t blockStatus, void *param, int32_t scanFlag);
 
-void        createGroupResultBuf(SQuery *pQuery, SOutputRes *pOneResult, bool isMetricQuery);
+void        createGroupResultBuf(SQuery *pQuery, SOutputRes *pOneResult, bool isSTableQuery);
 static void destroyGroupResultBuf(SOutputRes *pOneOutputRes, int32_t nOutputCols);
 
 static int32_t binarySearchForBlockImpl(SCompBlock *pBlock, int32_t numOfBlocks, TSKEY skey, int32_t order) {
@@ -2499,7 +2499,7 @@ static void setCtxTagColumnInfo(SQuery *pQuery, SQueryRuntimeEnv *pRuntimeEnv) {
 }
 
 static int32_t setupQueryRuntimeEnv(SMeterObj *pMeterObj, SQuery *pQuery, SQueryRuntimeEnv *pRuntimeEnv,
-                                    SSchema *pTagsSchema, int16_t order, bool isMetricQuery) {
+                                    tTagSchema *pTagsSchema, int16_t order, bool isSTableQuery) {
   dTrace("QInfo:%p setup runtime env", GET_QINFO_ADDR(pQuery));
 
   pRuntimeEnv->pMeterObj = pMeterObj;
@@ -2520,8 +2520,10 @@ static int32_t setupQueryRuntimeEnv(SMeterObj *pMeterObj, SQuery *pQuery, SQuery
     SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
 
     if (TSDB_COL_IS_TAG(pSqlFuncMsg->colInfo.flag)) {  // process tag column info
-      pCtx->inputType = pTagsSchema[pColIndexEx->colIdx].type;
-      pCtx->inputBytes = pTagsSchema[pColIndexEx->colIdx].bytes;
+      SSchema* pSchema = getColumnModelSchema(pTagsSchema, pColIndexEx->colIdx);
+      
+      pCtx->inputType = pSchema->type;
+      pCtx->inputBytes = pSchema->bytes;
     } else {
       pCtx->inputType = GET_COLUMN_TYPE(pQuery, i);
       pCtx->inputBytes = GET_COLUMN_BYTES(pQuery, i);
@@ -2567,11 +2569,11 @@ static int32_t setupQueryRuntimeEnv(SMeterObj *pMeterObj, SQuery *pQuery, SQuery
 
     // set the intermediate result output buffer
     SResultInfo *pResInfo = &pRuntimeEnv->resultInfo[i];
-    setResultInfoBuf(pResInfo, pQuery->pSelectExpr[i].interResBytes, isMetricQuery);
+    setResultInfoBuf(pResInfo, pQuery->pSelectExpr[i].interResBytes, isSTableQuery);
   }
 
   // if it is group by normal column, do not set output buffer, the output buffer is pResult
-  if (!isGroupbyNormalCol(pQuery->pGroupbyExpr) && !isMetricQuery) {
+  if (!isGroupbyNormalCol(pQuery->pGroupbyExpr) && !isSTableQuery) {
     resetCtxOutputBuf(pRuntimeEnv);
   }
 
@@ -4120,7 +4122,7 @@ static void allocMemForInterpo(SMeterQuerySupportObj *pSupporter, SQuery *pQuery
   }
 }
 
-static int32_t allocateOutputBufForGroup(SMeterQuerySupportObj *pSupporter, SQuery *pQuery, bool isMetricQuery) {
+static int32_t allocateOutputBufForGroup(SMeterQuerySupportObj *pSupporter, SQuery *pQuery, bool isSTableQuery) {
   int32_t slot = 0;
 
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || (pQuery->nAggTimeInterval > 0 && pQuery->slidingTime > 0)) {
@@ -4142,14 +4144,14 @@ static int32_t allocateOutputBufForGroup(SMeterQuerySupportObj *pSupporter, SQue
      * for single table top/bottom query, the output for group by normal column, the output rows is
      * equals to the maximum rows, instead of 1.
      */
-    if (!isMetricQuery && isTopBottomQuery(pQuery)) {
+    if (!isSTableQuery && isTopBottomQuery(pQuery)) {
       assert(pQuery->numOfOutputCols > 1);
 
       SSqlFunctionExpr *pExpr = &pQuery->pSelectExpr[1];
       pOneRes->nAlloc = pExpr->pBase.arg[0].argValue.i64;
     }
 
-    createGroupResultBuf(pQuery, pOneRes, isMetricQuery);
+    createGroupResultBuf(pQuery, pOneRes, isSTableQuery);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4498,12 +4500,12 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
   pQuery->lastKey = pQuery->skey;
 
   // create runtime environment
-  SSchema *pTagSchema = NULL;
+//  SSchema *pColumnModel = NULL;
 
-  tTagSchema *pTagSchemaInfo = pSupporter->pSidSet->pTagSchema;
-  if (pTagSchemaInfo != NULL) {
-    pTagSchema = pTagSchemaInfo->pSchema;
-  }
+  tTagSchema *pTagSchemaInfo = pSupporter->pSidSet->pColumnModel;
+//  if (pTagSchemaInfo != NULL) {
+//    pColumnModel = pTagSchemaInfo->pSchema;
+//  }
 
   // get one queried meter
   SMeterObj *pMeter = getMeterObj(pSupporter->pMetersHashTable, pSupporter->pSidSet->pSids[0]->sid);
@@ -4517,7 +4519,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
     tsBufSetTraverseOrder(pRuntimeEnv->pTSBuf, order);
   }
 
-  int32_t ret = setupQueryRuntimeEnv(pMeter, pQuery, &pSupporter->runtimeEnv, pTagSchema, TSQL_SO_ASC, true);
+  int32_t ret = setupQueryRuntimeEnv(pMeter, pQuery, &pSupporter->runtimeEnv, pTagSchemaInfo, TSQL_SO_ASC, true);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
@@ -5065,10 +5067,10 @@ static void doSetTagValueInParam(tTagSchema *pTagSchema, int32_t tagColIdx, SMet
                                  tVariant *param) {
   assert(tagColIdx >= 0);
 
-  int32_t *fieldValueOffset = pTagSchema->colOffset;
-
-  void *   pStr = (char *)pMeterSidInfo->tags + fieldValueOffset[tagColIdx];
-  SSchema *pCol = &pTagSchema->pSchema[tagColIdx];
+  int16_t offset = getColumnModelOffset(pTagSchema, tagColIdx);
+  
+  void *   pStr = (char *)pMeterSidInfo->tags + offset;
+  SSchema *pCol = getColumnModelSchema(pTagSchema, tagColIdx);
 
   tVariantDestroy(param);
 
@@ -5081,7 +5083,7 @@ static void doSetTagValueInParam(tTagSchema *pTagSchema, int32_t tagColIdx, SMet
 
 void vnodeSetTagValueInParam(tSidSet *pSidSet, SQueryRuntimeEnv *pRuntimeEnv, SMeterSidExtInfo *pMeterSidInfo) {
   SQuery *    pQuery = pRuntimeEnv->pQuery;
-  tTagSchema *pTagSchema = pSidSet->pTagSchema;
+  tTagSchema *pTagSchema = pSidSet->pColumnModel;
 
   SSqlFuncExprMsg *pFuncMsg = &pQuery->pSelectExpr[0].pBase;
   if (pQuery->numOfOutputCols == 1 && pFuncMsg->functionId == TSDB_FUNC_TS_COMP) {
@@ -5691,7 +5693,7 @@ void enableFunctForMasterScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order) {
   pQuery->order.order = (pQuery->order.order ^ 1);
 }
 
-void createGroupResultBuf(SQuery *pQuery, SOutputRes *pOneResult, bool isMetricQuery) {
+void createGroupResultBuf(SQuery *pQuery, SOutputRes *pOneResult, bool isSTableQuery) {
   int32_t numOfOutput = pQuery->numOfOutputCols;
 
   pOneResult->resultInfo = calloc((size_t)numOfOutput, sizeof(SResultInfo));
@@ -5704,7 +5706,7 @@ void createGroupResultBuf(SQuery *pQuery, SOutputRes *pOneResult, bool isMetricQ
     pOneResult->result[i] = malloc(sizeof(tFilePage) + size * pOneResult->nAlloc);
     pOneResult->result[i]->numOfElems = 0;
 
-    setResultInfoBuf(pResInfo, (int32_t)size, isMetricQuery);
+    setResultInfoBuf(pResInfo, (int32_t)size, isSTableQuery);
   }
 }
 
@@ -7580,7 +7582,7 @@ int32_t saveResult(SMeterQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQue
     sc[1].bytes = 8;
 
     UNUSED(sc);
-    tColModel *cm = tColModelCreate(sc, pQuery->numOfOutputCols, pRuntimeEnv->numOfRowsPerPage);
+    SColumnModel *cm = createColumnModel(sc, pQuery->numOfOutputCols, pRuntimeEnv->numOfRowsPerPage);
 
 //    if (outputPage->numOfElems + numOfResult >= pRuntimeEnv->numOfRowsPerPage)
         tColModelDisplay(cm, outputPage->data, outputPage->numOfElems, pRuntimeEnv->numOfRowsPerPage);
@@ -7717,7 +7719,7 @@ static void applyIntervalQueryOnBlock(SMeterQuerySupportObj *pSupporter, SMeterD
 
     saveIntervalQueryRange(pRuntimeEnv, pMeterQueryInfo);
   } else {
-    doApplyIntervalQueryOnBlock(pSupporter, pMeterQueryInfo, pBlockInfo, pPrimaryKey, pFields, searchFn);
+    doApplyIntervalQueryOnBlock_rv(pSupporter, pMeterQueryInfo, pBlockInfo, pPrimaryKey, pFields, searchFn);
   }
 }
 
@@ -7802,7 +7804,7 @@ static int32_t resultInterpolate(SQInfo *pQInfo, tFilePage **data, tFilePage **p
     pSchema[i].type = pQuery->pSelectExpr[i].resType;
   }
 
-  tColModel *pModel = tColModelCreate(pSchema, pQuery->numOfOutputCols, pQuery->pointsToRead);
+  SColumnModel *pModel = createColumnModel(pSchema, pQuery->numOfOutputCols, pQuery->pointsToRead);
 
   char *  srcData[TSDB_MAX_COLUMNS] = {0};
   int32_t functions[TSDB_MAX_COLUMNS] = {0};
@@ -7816,7 +7818,7 @@ static int32_t resultInterpolate(SQInfo *pQInfo, tFilePage **data, tFilePage **p
                                          pQuery->nAggTimeInterval, (int64_t *)pDataSrc[0]->data, pModel, srcData,
                                          pQuery->defaultVal, functions, pRuntimeEnv->pMeterObj->pointsPerFileBlock);
 
-  tColModelDestroy(pModel);
+  destroyColumnModel(pModel);
   free(pSchema);
 
   return numOfRes;

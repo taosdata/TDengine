@@ -442,22 +442,22 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
 
   if (code == TSDB_CODE_SUCCESS) {
     size = vnodeGetResultSize((void *)(pRetrieve->qhandle), &numOfRows);
-  }
-
-  // buffer size for progress information, including meter count,
-  // and for each meter, including 'uid' and 'TSKEY'.
-  int progressSize = 0;
-  if (pQInfo->pMeterQuerySupporter != NULL)
-    progressSize = pQInfo->pMeterQuerySupporter->numOfMeters * (sizeof(int64_t) + sizeof(TSKEY)) + sizeof(int32_t);
-  else if (pQInfo->pObj != NULL)
-    progressSize = sizeof(int64_t) + sizeof(TSKEY) + sizeof(int32_t);
-
-  pStart = taosBuildRspMsgWithSize(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, progressSize + size + 100);
-  if (pStart == NULL) {
-    taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
-    goto _exit;
-  }
   
+    // buffer size for progress information, including meter count,
+    // and for each meter, including 'uid' and 'TSKEY'.
+    int progressSize = 0;
+    if (pQInfo->pMeterQuerySupporter != NULL)
+      progressSize = pQInfo->pMeterQuerySupporter->numOfMeters * (sizeof(int64_t) + sizeof(TSKEY)) + sizeof(int32_t);
+    else if (pQInfo->pObj != NULL)
+      progressSize = sizeof(int64_t) + sizeof(TSKEY) + sizeof(int32_t);
+  
+    pStart = taosBuildRspMsgWithSize(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, progressSize + size + 100);
+    if (pStart == NULL) {
+      taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
+      goto _exit;
+    }
+  }
+
   pMsg = pStart;
 
   *pMsg = code;
@@ -485,26 +485,28 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
 
   // write the progress information of each meter to response
   // this is required by subscriptions
-  if (pQInfo->pMeterQuerySupporter != NULL && pQInfo->pMeterQuerySupporter->pMeterSidExtInfo != NULL) {
-    *((int32_t*)pMsg) = htonl(pQInfo->pMeterQuerySupporter->numOfMeters);
-    pMsg += sizeof(int32_t);
-    for (int32_t i = 0; i < pQInfo->pMeterQuerySupporter->numOfMeters; i++) {
-      *((int64_t*)pMsg) = htobe64(pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[i]->uid);
+  if (numOfRows > 0 && code == TSDB_CODE_SUCCESS) {
+    if (pQInfo->pMeterQuerySupporter != NULL && pQInfo->pMeterQuerySupporter->pMeterSidExtInfo != NULL) {
+      *((int32_t *)pMsg) = htonl(pQInfo->pMeterQuerySupporter->numOfMeters);
+      pMsg += sizeof(int32_t);
+      for (int32_t i = 0; i < pQInfo->pMeterQuerySupporter->numOfMeters; i++) {
+        *((int64_t *)pMsg) = htobe64(pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[i]->uid);
+        pMsg += sizeof(int64_t);
+        *((TSKEY *)pMsg) = htobe64(pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[i]->key);
+        pMsg += sizeof(TSKEY);
+      }
+    } else if (pQInfo->pObj != NULL) {
+      *((int32_t *)pMsg) = htonl(1);
+      pMsg += sizeof(int32_t);
+      *((int64_t *)pMsg) = htobe64(pQInfo->pObj->uid);
       pMsg += sizeof(int64_t);
-      *((TSKEY*)pMsg) = htobe64(pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[i]->key);
+      if (pQInfo->pointsRead > 0) {
+        *((TSKEY *)pMsg) = htobe64(pQInfo->query.lastKey + 1);
+      } else {
+        *((TSKEY *)pMsg) = htobe64(pQInfo->query.lastKey);
+      }
       pMsg += sizeof(TSKEY);
     }
-  } else if (pQInfo->pObj != NULL) {
-    *((int32_t*)pMsg) = htonl(1);
-    pMsg += sizeof(int32_t);
-    *((int64_t*)pMsg) = htobe64(pQInfo->pObj->uid);
-    pMsg += sizeof(int64_t);
-    if (pQInfo->pointsRead > 0) {
-      *((TSKEY*)pMsg) = htobe64(pQInfo->query.lastKey + 1);
-    } else {
-      *((TSKEY*)pMsg) = htobe64(pQInfo->query.lastKey);
-    }
-    pMsg += sizeof(TSKEY);
   }
 
   msgLen = pMsg - pStart;
