@@ -13,29 +13,5 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODESYSTEM_H
-#define TDENGINE_VNODESYSTEM_H
+#define _DEFAULT_SOURCE
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void vnodeCleanUpSystem();
-
-void vnodePrintSystemInfo();
-
-int vnodeInitSystem();
-
-int vnodeCfgDynamicOptions(char *msg);
-
-int vnodeInitStore();
-
-int vnodeInitPeer(int numOfThreads);
-
-int dnodeInitMgmtConn();
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif  // TDENGINE_VNODESYSTEM_H

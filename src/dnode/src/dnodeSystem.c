@@ -133,7 +133,7 @@ int dnodeInitSystem() {
     return -1;
   }
 
-  vnodeInitMgmtIp();
+  dnodeInitMgmtIp();
 
   tsPrintGlobalConfig();
   dPrint("Server IP address is:%s", tsPrivateIp);
@@ -216,3 +216,44 @@ void dnodeCountRequest(SCountInfo *info) {
   info->selectReqNum = atomic_exchange_32(&vnodeSelectReqNum, 0);
   info->insertReqNum = atomic_exchange_32(&vnodeInsertReqNum, 0);
 }
+
+
+//spec
+
+extern SModule tsModule[TSDB_MOD_MAX];
+
+int taosCreateTierDirectory() {
+  struct stat dirstat;
+  strcpy(tsDirectory, dataDir);
+  if (stat(dataDir, &dirstat) < 0) {
+    mkdir(dataDir, 0755);
+  }
+
+  char fileName[128];
+
+  sprintf(fileName, "%s/tsdb", tsDirectory);
+  mkdir(fileName, 0755);
+
+  sprintf(fileName, "%s/data", tsDirectory);
+  mkdir(fileName, 0755);
+
+  sprintf(mgmtDirectory, "%s/mgmt", tsDirectory);
+  sprintf(tsDirectory, "%s/tsdb", dataDir);
+  dnodeCheckDbRunning(dataDir);
+
+  return 0;
+}
+
+int dnodeInitSystemSpec() { return 0; }
+
+void dnodeStartModuleSpec() {
+  for (int mod = 1; mod < TSDB_MOD_MAX; ++mod) {
+    if (tsModule[mod].num != 0 && tsModule[mod].startFp) {
+      if ((*tsModule[mod].startFp)() != 0) {
+        dError("failed to start module:%d", mod);
+      }
+    }
+  }
+}
+
+void dnodeParseParameterK() {}

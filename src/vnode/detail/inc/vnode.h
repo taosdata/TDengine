@@ -524,7 +524,7 @@ SConnSec *vnodeGetMeterSec(int vnode, int sid);
 int  vnodeCreateMeterObjFile(int vnode);
 
 // mgmt
-int vnodeInitMgmt();
+int dnodeInitMgmtConn();
 
 void vnodeCleanUpMgmt();
 

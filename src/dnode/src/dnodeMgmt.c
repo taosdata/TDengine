@@ -51,7 +51,7 @@ char *taosBuildReqMsgToMnode(SMgmtObj *pObj, char type);
 int   taosSendSimpleRspToMnode(SMgmtObj *pObj, char rsptype, char code);
 int   taosSendMsgToMnode(SMgmtObj *pObj, char *msg, int msgLen);
 
-void vnodeProcessMsgFromMgmt(char *content, int msgLen, int msgType, SMgmtObj *pObj) {
+void dnodeProcessMsgFromMgmtImp(char *content, int msgLen, int msgType, SMgmtObj *pObj) {
   if (msgType == TSDB_MSG_TYPE_CREATE) {
     vnodeProcessCreateMeterRequest(content, msgLen, pObj);
   } else if (msgType == TSDB_MSG_TYPE_VPEERS) {

@@ -56,7 +56,7 @@ void dnodeCheckDbRunning(const char* dir);
 
 void vnodeCleanUpSystem();
 int  vnodeInitSystem();
-void vnodeInitMgmtIp();
+void dnodeInitMgmtIp();
 void vnodeInitQHandle();
 
 int  mgmtInitSystem();

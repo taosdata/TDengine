@@ -80,7 +80,7 @@ int vnodeInitSystem() {
     return -1;
   }
 
-  if (vnodeInitMgmt() < 0) {
+  if (dnodeInitMgmtConn() < 0) {
     dError("failed to init communication to mgmt");
     return -1;
   }

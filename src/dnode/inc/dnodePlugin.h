@@ -13,29 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODESYSTEM_H
-#define TDENGINE_VNODESYSTEM_H
+#ifndef TDENGINE_DNODE_PLUGIN_H
+#define TDENGINE_DNODE_PLUGIN_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void vnodeCleanUpSystem();
+#include <stdint.h>
+#include <pthread.h>
 
-void vnodePrintSystemInfo();
+#include "tsched.h"
+#include "mgmt.h"
 
-int vnodeInitSystem();
+char *(*taosBuildRspMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size);
+char *(*taosBuildReqMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size);
+char *(*taosBuildRspMsgToMnode)(SMgmtObj *pObj, char type);
+char *(*taosBuildReqMsgToMnode)(SMgmtObj *pObj, char type);
+int (*taosSendMsgToMnode)(SMgmtObj *pObj, char *msg, int msgLen);
+int (*taosSendSimpleRspToMnode)(SMgmtObj *pObj, char rsptype, char code);
 
-int vnodeCfgDynamicOptions(char *msg);
-
-int vnodeInitStore();
-
-int vnodeInitPeer(int numOfThreads);
-
-int dnodeInitMgmtConn();
+void (*dnodeInitMgmtIp)();
+void (*dnodeProcessMsgFromMgmt)(SSchedMsg *sched);
+int (*dnodeInitMgmtConn)();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_VNODESYSTEM_H
+#endif
