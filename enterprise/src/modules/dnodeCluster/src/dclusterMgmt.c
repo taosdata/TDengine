@@ -101,7 +101,7 @@ void *dnodeProcessMsgFromMgmtClusterImp(char *msg, void *ahandle, void *thandle)
   return pObj;
 }
 
-int dnodeInitMgmtConnClusterImp() {
+int dnodeInitMgmtClusterImp() {
   SMgmtObj *pObj;
   SRpcInit  rpcInit;
 
