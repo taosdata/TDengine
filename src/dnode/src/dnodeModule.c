@@ -23,9 +23,6 @@
 #include "httpSystem.h"
 #include "mgmtSystem.h"
 
-#include "dcluster.h"
-#include "mstorage.h"
-
 SModule tsModule[TSDB_MOD_MAX] = {0};
 uint32_t tsModuleStatus = 0;
 

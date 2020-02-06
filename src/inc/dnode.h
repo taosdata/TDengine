@@ -23,12 +23,30 @@ extern "C" {
 #include <stdint.h>
 #include <pthread.h>
 
+typedef struct {
+  char  id[20];
+  char  sid;
+  void *thandle;
+  int   mgmtIndex;
+  char  status;  // 0:offline, 1:online
+} SMgmtObj;
+
+// global variables
 extern pthread_mutex_t dmutex;
 
 // dnodeCluster
 extern void (*dnodeStartModules)();
 extern void (*dnodeParseParameterK)();
 extern int32_t (*dnodeCheckSystem)();
+extern char *(*taosBuildRspMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size);
+extern char *(*taosBuildReqMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size);
+extern char *(*taosBuildRspMsgToMnode)(SMgmtObj *pObj, char type);
+extern char *(*taosBuildReqMsgToMnode)(SMgmtObj *pObj, char type);
+extern int (*taosSendMsgToMnode)(SMgmtObj *pObj, char *msg, int msgLen);
+extern int (*taosSendSimpleRspToMnode)(SMgmtObj *pObj, char rsptype, char code);
+extern void (*dnodeInitMgmtIp)();
+extern int (*dnodeInitMgmt)();
+
 
 // multilevelStorage
 extern int32_t (*dnodeInitStorage)();

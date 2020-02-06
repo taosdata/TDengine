@@ -36,7 +36,7 @@
     mnodeAccountInit();
     mnodeBalanceInit();
     mnodeClusterInit();
-    mnodeReplicaInit();
+    sdbReplicaInit();
     multilevelStorageInit();
     vnodeClusterInit();
     vnodeReplicaInit();
