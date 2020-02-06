@@ -31,6 +31,7 @@ typedef struct STSDBRepo
     void *pTableDict;
 
     /* Map from super tableName->table
+     * TODO: may use dict
      */
     void *pSTableDict;
 
