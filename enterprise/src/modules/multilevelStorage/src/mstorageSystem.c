@@ -16,18 +16,19 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tlog.h"
-#include "dnode.h"
+#include "tutil.h"
+#include "shash.h"
 #include "tglobalcfg.h"
+#include "dnode.h"
 #include "mstorageTier.h"
 #include "mstorageSystem.h"
 
-
 int32_t mstorageInitSystem() {
-  dnodeInitStorage = mstorageInitDirectory;
-  dnodeCleanupStorage = ;
+  dnodeInitStorage = mstorageInitStorage;
+  dnodeCleanupStorage = mstorageCleanupStorage;
 }
 
-int32_t mstorageInitDirectory() {
+int32_t mstorageInitStorage() {
   char   fileName[128];
   SDisk *disk = NULL;
 
@@ -55,4 +56,14 @@ int32_t mstorageInitDirectory() {
   dnodeCheckDbRunning(disk->path);
 
   return 0;
+}
+
+void mstorageCleanupStorage() {
+  taosCleanUpStrHash(diskTier.diskHash);
+  for (int8_t tierid = 0; tierid < diskTier.numOfTiers; tierid++)
+    for (int8_t did = 0; did < diskTier.tiers[tierid].numOfDisks; did++) {
+      tfree(diskTier.tiers[tierid].disks[did]);
+    }
+
+  pthread_mutex_destroy(&(diskTier.tierMutex));
 }

@@ -23,10 +23,8 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
-  
-#include "dnodeModule.h"
 
-SModule dclusterInit();
+void dclusterInit();
 bool dclusterIsClusterExist();
 
 #ifdef __cplusplus

@@ -14,11 +14,10 @@
  */
 
 #include "os.h"
-
 #include "shash.h"
 #include "tlog.h"
-#include "ttier.h"
 #include "tutil.h"
+#include "mstorageTier.h"
 
 STierInfo diskTier;
 
@@ -35,14 +34,6 @@ int taosInitTier() {
   }
 
   return 0;
-}
-
-void dnodeCleanupStorageClusterImp() {
-  taosCleanUpStrHash(diskTier.diskHash);
-  for (int8_t tierid = 0; tierid < diskTier.numOfTiers; tierid++)
-    for (int8_t did = 0; did < diskTier.tiers[tierid].numOfDisks; did++) tfree(diskTier.tiers[tierid].disks[did]);
-
-  pthread_mutex_destroy(&(diskTier.tierMutex));
 }
 
 SDisk *taosGetDiskByID(TIERID tid, DISKID did) {

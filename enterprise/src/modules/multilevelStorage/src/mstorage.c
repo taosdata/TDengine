@@ -19,14 +19,7 @@
 #include "mstorage.h"
 #include "mstorageSystem.h"
 
-SModule mstorageInit() {
-  SModule module;
-  module.name = "mstorage";
-  module.initFp = mstorageInitSystem;
-  module.cleanUpFp = NULL;
-  module.startFp = NULL;
-  module.stopFp = NULL;
-  module.num = -1;
-  module.curNum = 0;
-  module.equalVnodeNum = 0;
+void mstorageInit() {
+  dnodeInitStorage = mstorageInitStorage;
+  dnodeCleanupStorage = mstorageCleanupStorage;
 }

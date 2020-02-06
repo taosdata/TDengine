@@ -20,16 +20,6 @@
 #include "dclusterMgmt.h"
 #include "dclusterSystem.h"
 
-SModule dclusterInit() {
-  SModule module;
-  module.name = "dcluster";
-  module.initFp = dclusterInitSystem;
-  module.cleanUpFp = NULL;
-  module.startFp = NULL;
-  module.stopFp = NULL;
-  module.num = -1;
-  module.curNum = 0;
-  module.equalVnodeNum = 0;
-
+void dclusterInit() {
   dnodeParseParameterK = dclusterParseParameterK;
 }

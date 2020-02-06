@@ -24,9 +24,7 @@ extern "C" {
 #include <stdbool.h>
 #include <pthread.h>
 
-#include "dnodeModule.h"
-
-SModule mstorageInit();
+void mstorageInit();
 
 #ifdef __cplusplus
 }

@@ -23,7 +23,8 @@ extern "C" {
 #include <stdint.h>
 
 int32_t mstorageInitSystem();
-int32_t mstorageInitDirectory();
+int32_t mstorageInitStorage();
+void mstorageCleanupStorage();
 
 #ifdef __cplusplus
 }

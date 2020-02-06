@@ -47,8 +47,6 @@ bool taosValidTierInfo();
 
 int taosInitTier();
 
-void dnodeCleanupStorageClusterImp();
-
 int taosAddMountPoint(char *path, TIERID tierid);
 
 DISKID taosAllocDiskOnTier(TIERID tierid);
