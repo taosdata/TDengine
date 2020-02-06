@@ -34,6 +34,10 @@ typedef struct STSDBRepo
      */
     void *pSTableDict;
 
+    /* File Store
+     */
+    void *pFileStore;
+
     pthread_mutext_t tsdbMutex;
 
 } STSDBRepo;
