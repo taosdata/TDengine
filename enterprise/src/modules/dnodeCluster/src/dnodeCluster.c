@@ -16,9 +16,20 @@
 #define _DEFAULT_SOURCE
 
 #include "dnodeCluster.h"
+#include "dnodeMgmtClusterImp.h"
+#include "dnodeSystemClusterImp.h"
 
 SModule dnodeClusterInit() {
-  
+  SModule module;
+  module.name = "dcluster";
+  module.initFp = mgmtInitSystem;
+  module.cleanUpFp = mgmtCleanUpSystem;
+  module.startFp = mgmtStartSystem;
+  module.stopFp = mgmtStopSystem;
+  module.num = tsNumOfMPeers;
+  module.curNum = 0;
+  module.equalVnodeNum = tsMgmtEqualVnodeNum;
+
 }
 
 #include "mgmt.h"
