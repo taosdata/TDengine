@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_VNODE_CLUSTER_H
-#define TDENGINE_MODULE_VNODE_CLUSTER_H
+#ifndef TDENGINE_MODULE_MNODE_ACCOUNT_H
+#define TDENGINE_MODULE_MNODE_ACCOUNT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,7 +24,7 @@ extern "C" {
 #include <stdbool.h>
 #include <pthread.h>
 
-void vclusterInit();
+void mnodeAccountInit();
 
 #ifdef __cplusplus
 }

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_MULTILEVEL_STORAGE_H
-#define TDENGINE_MODULE_MULTILEVEL_STORAGE_H
+#ifndef TDENGINE_MODULE_DNODE_CLUSTER_H
+#define TDENGINE_MODULE_DNODE_CLUSTER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,7 +24,8 @@ extern "C" {
 #include <stdbool.h>
 #include <pthread.h>
 
-void mstorageInit();
+void dnodeClusterInit();
+bool dclusterIsClusterExist();
 
 #ifdef __cplusplus
 }

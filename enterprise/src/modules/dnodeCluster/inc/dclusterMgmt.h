@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_DC_MGMT_H
-#define TDENGINE_MODULE_DC_MGMT_H
+#ifndef TDENGINE_MODULE_DNODE_CLUSTER_MGMT_H
+#define TDENGINE_MODULE_DNODE_CLUSTER_MGMT_H
 
 #ifdef __cplusplus
 extern "C" {

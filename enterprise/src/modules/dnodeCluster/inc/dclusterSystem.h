@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_DC_SYSTEM_H
-#define TDENGINE_MODULE_DC_SYSTEM_H
+#ifndef TDENGINE_MODULE_DNODE_CLUSTER_SYSTEM_H
+#define TDENGINE_MODULE_DNODE_CLUSTER_SYSTEM_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +22,6 @@ extern "C" {
 
 #include <stdint.h>
 
-int32_t dclusterInitSystem();
 void dclusterParseParameterK();
 
 #ifdef __cplusplus

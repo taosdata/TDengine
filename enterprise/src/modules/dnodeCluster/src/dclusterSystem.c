@@ -19,6 +19,7 @@
 #include "taos.h"
 #include "tlog.h"
 
+#include "dnode.h"
 #include "dnodeModule.h"
 #include "dclusterSystem.h"
 #include "dclusterMgmt.h"
@@ -30,36 +31,6 @@ static bool tsClusterExist = false;
 
 bool dclusterIsClusterExist() {
   return tsClusterExist;
-}
-
-int dnodeInitStorageClusterImp() {
-  char   fileName[128];
-  SDisk *disk = NULL;
-
-  for (TIERID tid = 0; tid < diskTier.numOfTiers; tid++) {
-    for (DISKID did = 0; did < diskTier.tiers[tid].numOfDisks; did++) {
-      disk = taosGetDiskByID(tid, did);
-      assert(disk != NULL);
-
-      if (tid == 0 && did == 0) {
-        sprintf(fileName, "%s/tsdb", disk->path);
-        mkdir(fileName, 0755);
-      }
-      sprintf(fileName, "%s/data", disk->path);
-      mkdir(fileName, 0755);
-    }
-  }
-
-  disk = taosGetDiskByID(0, 0);
-  if (disk == NULL) {
-    return -1;
-  }
-
-  sprintf(mgmtDirectory, "%s/mgmt", disk->path);
-  sprintf(tsDirectory, "%s/tsdb", disk->path);
-  dnodeCheckDbRunning(disk->path);
-
-  return 0;
 }
 
 int dnodeCheckSystemClusterImp() {
@@ -80,10 +51,9 @@ int dnodeCheckSystemClusterImp() {
   return 0;
 }
 
-void dnodeStartModulesClusterImp() {
-}
+void dclusterStartModules() {}
 
-void dnodeParseParameterKClusterImp() {
+void dclusterParseParameterK() {
   char *key = grantGetMachineSerials();
   if (key != NULL) {
     fprintf(stdout, "machine code: %s \n", key);
@@ -189,4 +159,9 @@ int32_t dnodeCheckConfig() {
   taos_close(con);
 
   return check;
+}
+
+void dnodeClusterInit() {
+  dnodeParseParameterK = dclusterParseParameterK;
+  dnodeStartModules = dclusterStartModules;
 }

@@ -13,13 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
+#ifndef TDENGINE_MODULE_VNODE_REPLICA_H
+#define TDENGINE_MODULE_VNODE_REPLICA_H
 
-#include "dnode.h"
-#include "dcluster.h"
-#include "dclusterMgmt.h"
-#include "dclusterSystem.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void dclusterInit() {
-  dnodeParseParameterK = dclusterParseParameterK;
+#include <stdint.h>
+#include <stdbool.h>
+#include <pthread.h>
+
+void vnodeReplicaInit();
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif
