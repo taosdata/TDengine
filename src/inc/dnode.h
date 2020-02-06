@@ -13,12 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_SERVICE_H
-#define TDENGINE_DNODE_SERVICE_H
+#ifndef TDENGINE_DNODE_H
+#define TDENGINE_DNODE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include <stdint.h>
+#include <pthread.h>
+
+extern pthread_mutex_t dmutex;
+
+// dnodeCluster
+extern void (*dnodeStartModules)();
+extern void (*dnodeParseParameterK)();
+extern int32_t (*dnodeCheckSystem)();
+
+// multilevelStorage
+extern int32_t (*dnodeInitStorage)();
+extern void (*dnodeCleanupStorage)();
+
+void dnodeCheckDbRunning(const char* dir);
 
 #ifdef __cplusplus
 }

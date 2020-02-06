@@ -18,6 +18,7 @@
 #include "tsdb.h"
 #include "tlog.h"
 #include "ttimer.h"
+#include "dnode.h"
 #include "dnodeMgmt.h"
 #include "dnodeModule.h"
 #include "dnodeService.h"
@@ -285,11 +286,9 @@ void dnodeInitPlugin() {
   taosSendMsgToMnode = taosSendMsgToMnodeEdgeImp;
   taosSendSimpleRspToMnode = taosSendSimpleRspToMnodeEdgeImp;
 
-  dnodeParseParameterK = dnodeParseParameterKComImp;
   dnodeCheckSystem = dnodeCheckSystemComImp;
   dnodeInitStorage = dnodeInitStorageComImp;
   dnodeCleanupStorage = dnodeCleanupStorageComImp;
-  dnodeStartModules = dnodeStartModulesEdgeImp;
 }
 
 
