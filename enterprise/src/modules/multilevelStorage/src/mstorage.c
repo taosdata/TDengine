@@ -13,20 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_DC_SYSTEM_H
-#define TDENGINE_MODULE_DC_SYSTEM_H
+#define _DEFAULT_SOURCE
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "dnode.h"
+#include "mstorage.h"
+#include "mstorageSystem.h"
 
-#include <stdint.h>
-
-int32_t dclusterInitSystem();
-void dclusterParseParameterK();
-
-#ifdef __cplusplus
+SModule mstorageInit() {
+  SModule module;
+  module.name = "mstorage";
+  module.initFp = mstorageInitSystem;
+  module.cleanUpFp = NULL;
+  module.startFp = NULL;
+  module.stopFp = NULL;
+  module.num = -1;
+  module.curNum = 0;
+  module.equalVnodeNum = 0;
 }
-#endif
-
-#endif

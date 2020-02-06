@@ -3,6 +3,6 @@ PROJECT(TDengine)
 
 ADD_SUBDIRECTORY(admin)
 ADD_SUBDIRECTORY(mnode_replicaiton)
-ADD_SUBDIRECTORY(multilevel_storage)
+ADD_SUBDIRECTORY(multilevelStorage)
 ADD_SUBDIRECTORY(vnode_replication)
 ADD_SUBDIRECTORY(dnodeCluster)

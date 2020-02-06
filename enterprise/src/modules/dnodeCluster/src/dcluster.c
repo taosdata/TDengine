@@ -13,20 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_DC_SYSTEM_H
-#define TDENGINE_MODULE_DC_SYSTEM_H
+#define _DEFAULT_SOURCE
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "dnode.h"
+#include "dcluster.h"
+#include "dclusterMgmt.h"
+#include "dclusterSystem.h"
 
-#include <stdint.h>
+SModule dclusterInit() {
+  SModule module;
+  module.name = "dcluster";
+  module.initFp = dclusterInitSystem;
+  module.cleanUpFp = NULL;
+  module.startFp = NULL;
+  module.stopFp = NULL;
+  module.num = -1;
+  module.curNum = 0;
+  module.equalVnodeNum = 0;
 
-int32_t dclusterInitSystem();
-void dclusterParseParameterK();
-
-#ifdef __cplusplus
+  dnodeParseParameterK = dclusterParseParameterK;
 }
-#endif
-
-#endif

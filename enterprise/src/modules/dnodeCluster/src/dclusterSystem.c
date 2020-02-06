@@ -14,35 +14,23 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <pthread.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 
-#include "mgmt.h"
-#include "vnode.h"
-
-#include "dnodeSystem.h"
-#include "httpSystem.h"
-#include "monitorSystem.h"
-#include "tcrc32c.h"
-#include "tglobalcfg.h"
-#include "ttier.h"
-#include "vnode.h"
+#include "os.h"
+#include "taos.h"
+#include "tlog.h"
 
 #include "dnodeModule.h"
+#include "dclusterSystem.h"
+#include "dclusterMgmt.h"
 
-extern SModule  tsModule[TSDB_MOD_MAX];
-extern uint32_t tsModuleStatus;
-bool     tsClusterExist = false;
-extern pthread_mutex_t dmutex;
-extern int      vnodeSelectReqNum;
-extern int      vnodeInsertReqNum;
-extern void *   tsStatusTimer;
-
-int  dnodeCheckConfig();
+int32_t  dnodeCheckConfig();
 char *grantGetMachineSerials();
+
+static bool tsClusterExist = false;
+
+bool dclusterIsClusterExist() {
+  return tsClusterExist;
+}
 
 int dnodeInitStorageClusterImp() {
   char   fileName[128];
@@ -95,7 +83,7 @@ int dnodeCheckSystemClusterImp() {
 void dnodeStartModulesClusterImp() {
 }
 
-void dnodeParseParameterK() {
+void dnodeParseParameterKClusterImp() {
   char *key = grantGetMachineSerials();
   if (key != NULL) {
     fprintf(stdout, "machine code: %s \n", key);
@@ -105,8 +93,7 @@ void dnodeParseParameterK() {
   exit(EXIT_SUCCESS);
 }
 
-
-int dnodeCheckConfig() {
+int32_t dnodeCheckConfig() {
   taos_init();
 
   if (strcmp(tsMasterIp, tsPrivateIp) == 0 || strcmp(tsMasterIp, tsPublicIp) == 0 ||

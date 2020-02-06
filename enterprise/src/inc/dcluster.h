@@ -13,17 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_DC_SYSTEM_H
-#define TDENGINE_MODULE_DC_SYSTEM_H
+#ifndef TDENGINE_MODULE_DNODE_CLUSTER_H
+#define TDENGINE_MODULE_DNODE_CLUSTER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
+#include <pthread.h>
+  
+#include "dnodeModule.h"
 
-int32_t dclusterInitSystem();
-void dclusterParseParameterK();
+SModule dclusterInit();
+bool dclusterIsClusterExist();
 
 #ifdef __cplusplus
 }
