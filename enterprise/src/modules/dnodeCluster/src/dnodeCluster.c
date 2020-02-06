@@ -16,13 +16,13 @@
 #define _DEFAULT_SOURCE
 
 #include "dnodeCluster.h"
-#include "dnodeMgmtClusterImp.h"
-#include "dnodeSystemClusterImp.h"
+#include "dcMgmt.h"
+#include "dcSystem.h"
 
 SModule dnodeClusterInit() {
   SModule module;
   module.name = "dcluster";
-  module.initFp = mgmtInitSystem;
+  module.initFp = dnodeInit;
   module.cleanUpFp = mgmtCleanUpSystem;
   module.startFp = mgmtStartSystem;
   module.stopFp = mgmtStopSystem;

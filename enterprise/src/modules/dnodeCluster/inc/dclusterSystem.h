@@ -13,17 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_DNODE_SYSTEM_CLUSTER_IMP_H
-#define TDENGINE_MODULE_DNODE_SYSTEM_CLUSTER_IMP_H
+#ifndef TDENGINE_MODULE_DC_SYSTEM_H
+#define TDENGINE_MODULE_DC_SYSTEM_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t dnodeInitSystemClusterImp();
-int32_t dnodeStartSystemClusterImp();
-void dnodeStopSystemClusterImp();
-void dnodeCleanUpSystemClusterImp();
+int32_t dcInitSystem();
+int32_t dcStartSystem();
+void dcStopSystem();
+void dcCleanUpSystem();
 
 #ifdef __cplusplus
 }
