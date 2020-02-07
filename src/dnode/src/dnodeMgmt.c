@@ -17,6 +17,7 @@
 
 #include "os.h"
 
+#include "dnode.h"
 #include "dnodeSystem.h"
 #include "dnodeMgmt.h"
 
@@ -43,17 +44,7 @@ void vnodeUpdateHeadFile(int vnode, int oldTables, int newTables);
 void vnodeOpenVnode(int vnode);
 void vnodeCleanUpOneVnode(int vnode);
 
-
-char *(*taosBuildRspMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size) = NULL;
-char *(*taosBuildReqMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size) = NULL;
-char *(*taosBuildRspMsgToMnode)(SMgmtObj *pObj, char type) = NULL;
-char *(*taosBuildReqMsgToMnode)(SMgmtObj *pObj, char type) = NULL;
-int (*taosSendMsgToMnode)(SMgmtObj *pObj, char *msg, int msgLen) = NULL;
-int (*taosSendSimpleRspToMnode)(SMgmtObj *pObj, char rsptype, char code) = NULL;
-void (*dnodeInitMgmtIp)() = NULL;
-int (*dnodeInitMgmtConn)() = NULL;
-
-char *taosBuildRspMsgToMnodeWithSizeEdgeImp(SMgmtObj *pObj, char type, int size) {
+char *taosBuildRspMsgToMnodeWithSizeImp(SMgmtObj *pObj, char type, int size) {
   char *pStart = (char *)malloc(size);
   if (pStart == NULL) {
     return NULL;
@@ -62,8 +53,9 @@ char *taosBuildRspMsgToMnodeWithSizeEdgeImp(SMgmtObj *pObj, char type, int size)
   *pStart = type;
   return pStart + 1;
 }
+char *(*taosBuildRspMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size) = taosBuildRspMsgToMnodeWithSizeImp;
 
-char *taosBuildReqMsgToMnodeWithSizeEdgeImp(SMgmtObj *pObj, char type, int size) {
+char *taosBuildReqMsgToMnodeWithSizeImp(SMgmtObj *pObj, char type, int size) {
   char *pStart = (char *)malloc(size);
   if (pStart == NULL) {
     return NULL;
@@ -72,16 +64,19 @@ char *taosBuildReqMsgToMnodeWithSizeEdgeImp(SMgmtObj *pObj, char type, int size)
   *pStart = type;
   return pStart + 1;
 }
+char *(*taosBuildReqMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size) = taosBuildReqMsgToMnodeWithSizeImp;
 
-char *taosBuildRspMsgToMnodeEdgeImp(SMgmtObj *pObj, char type) {
-  return taosBuildRspMsgToMnodeWithSize(pObj, type, 256);
+char *taosBuildRspMsgToMnodeImp(SMgmtObj *pObj, char type) {
+  return taosBuildRspMsgToMnodeWithSizeImp(pObj, type, 256);
 }
+char *(*taosBuildRspMsgToMnode)(SMgmtObj *pObj, char type) = taosBuildRspMsgToMnodeImp;
 
-char *taosBuildReqMsgToMnodeEdgeImp(SMgmtObj *pObj, char type) {
-  return taosBuildReqMsgToMnodeWithSize(pObj, type, 256);
+char *taosBuildReqMsgToMnodeImp(SMgmtObj *pObj, char type) {
+  return taosBuildReqMsgToMnodeWithSizeImp(pObj, type, 256);
 }
+char *(*taosBuildReqMsgToMnode)(SMgmtObj *pObj, char type) = taosBuildReqMsgToMnodeImp;
 
-int taosSendMsgToMnodeEdgeImp(SMgmtObj *pObj, char *msg, int msgLen) {
+int taosSendMsgToMnodeImp(SMgmtObj *pObj, char *msg, int msgLen) {
   dTrace("msg:%s is sent to mnode", taosMsg[(uint8_t)(*(msg-1))]);
 
   /*
@@ -96,8 +91,9 @@ int taosSendMsgToMnodeEdgeImp(SMgmtObj *pObj, char *msg, int msgLen) {
 
   return 0;
 }
+int (*taosSendMsgToMnode)(SMgmtObj *pObj, char *msg, int msgLen) = taosSendMsgToMnodeImp;
 
-int taosSendSimpleRspToMnodeEdgeImp(SMgmtObj *pObj, char rsptype, char code) {
+int taosSendSimpleRspToMnodeImp(SMgmtObj *pObj, char rsptype, char code) {
   char *pStart = taosBuildRspMsgToMnode(0, rsptype);
   if (pStart == NULL) {
     return 0;
@@ -108,8 +104,15 @@ int taosSendSimpleRspToMnodeEdgeImp(SMgmtObj *pObj, char rsptype, char code) {
 
   return 0;
 }
+int (*taosSendSimpleRspToMnode)(SMgmtObj *pObj, char rsptype, char code) = taosSendSimpleRspToMnodeImp;
 
-void* dnodeProcessMsgFromMgmtEdgeImp(SSchedMsg *sched) {
+int32_t dnodeInitMgmtImp() { return 0; }
+int32_t (*dnodeInitMgmt)() = dnodeInitMgmtImp;
+
+void dnodeInitMgmtIpImp() {}
+void (*dnodeInitMgmtIp)() = dnodeInitMgmtIpImp;
+
+void* dnodeProcessMsgFromMgmtImp(SSchedMsg *sched) {
   char  msgType = *sched->msg;
   char *content = sched->msg + 1;
 
@@ -121,13 +124,6 @@ void* dnodeProcessMsgFromMgmtEdgeImp(SSchedMsg *sched) {
 
   return NULL;
 }
-
-int dnodeInitMgmtConnEdgeImp() {
-  return 0;
-}
-
-void dnodeInitMgmtIpEdgeImp() {}
-
 
 void dnodeDistributeMsgFromMgmt(char *content, int msgLen, int msgType, SMgmtObj *pObj) {
   if (msgType == TSDB_MSG_TYPE_CREATE) {

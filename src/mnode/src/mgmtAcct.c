@@ -19,6 +19,11 @@
 #include "mgmt.h"
 #include "tschemautil.h"
 
+extern void *userSdb;
+extern void *dbSdb;
+SAcctObj     acctObj;
+
+
 int mgmtGetAcctsNum();
 SShowObj *mgmtGetNextAcct(SShowObj *pShow, SAcctObj **pAcct);
 
@@ -126,3 +131,58 @@ int mgmtRemoveConnFromAcct(SConnObj *pConn) {
 
   return 0;
 }
+
+/*
+ * Edge Version Implementation
+ */
+
+int mgmtInitAcctsImp() { return 0; }
+int (*mgmtInitAccts)() = mgmtInitAcctsImp;
+
+void mgmtCreateRootAcct() {}
+
+SAcctObj *mgmtGetAcct(char *name) { return &acctObj; }
+
+int mgmtCheckUserLimit(SAcctObj *pAcct) {
+  int numOfUsers = sdbGetNumOfRows(userSdb);
+  if (numOfUsers >= tsMaxUsers) {
+    mWarn("numOfUsers:%d, exceed tsMaxUsers:%d", numOfUsers, tsMaxUsers);
+    return TSDB_CODE_TOO_MANY_USERS;
+  }
+  return 0;
+}
+
+int mgmtCheckDbLimit(SAcctObj *pAcct) {
+  int numOfDbs = sdbGetNumOfRows(dbSdb);
+  if (numOfDbs >= tsMaxDbs) {
+    mWarn("numOfDbs:%d, exceed tsMaxDbs:%d", numOfDbs, tsMaxDbs);
+    return TSDB_CODE_TOO_MANY_DATABSES;
+  }
+  return 0;
+}
+
+int mgmtCheckMeterLimit(SAcctObj *pAcct) { return 0; }
+
+int mgmtCheckUserGrant() { return 0; }
+
+int mgmtCheckDbGrant() { return 0; }
+
+int mgmtCheckMeterGrant() { return 0; }
+
+void grantAddTimeSeries(uint32_t timeSeriesNum) {}
+
+void mgmtCheckAcct() {
+  SAcctObj *pAcct = &acctObj;
+  pAcct->acctId = 0;
+  strcpy(pAcct->user, "root");
+
+  mgmtCreateUser(pAcct, "root", "taosdata");
+  mgmtCreateUser(pAcct, "monitor", tsInternalPass);
+  mgmtCreateUser(pAcct, "_root", tsInternalPass);
+}
+
+void mgmtCleanUpAccts() {}
+
+int mgmtGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+
+int mgmtRetrieveAccts(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }

@@ -25,7 +25,6 @@
 
 SModule tsModule[TSDB_MOD_MAX] = {0};
 uint32_t tsModuleStatus = 0;
-void (*dnodeStartModules)() = NULL;
 
 void dnodeAllocModules() {
   tsModule[TSDB_MOD_MGMT].name = "mgmt";
@@ -116,7 +115,7 @@ int32_t dnodeInitModules() {
   return 0;
 }
 
-void dnodeStartModulesEdgeImp() {
+void dnodeStartModulesImp() {
   for (int mod = 1; mod < TSDB_MOD_MAX; ++mod) {
     if (tsModule[mod].num != 0 && tsModule[mod].startFp) {
       if ((*tsModule[mod].startFp)() != 0) {
@@ -129,3 +128,4 @@ void dnodeStartModulesEdgeImp() {
     (*tsModule[TSDB_MOD_MGMT].cleanUpFp)();
   }
 }
+void (*dnodeStartModules)() = dnodeStartModulesImp;

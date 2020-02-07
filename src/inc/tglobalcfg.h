@@ -262,6 +262,9 @@ SGlobalConfig *tsGetConfigOption(const char *option);
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
+extern char          mgmtDirectory[];
+
+
 #ifdef __cplusplus
 }
 #endif

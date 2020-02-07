@@ -33,6 +33,8 @@ enum _module {
   TSDB_MOD_MGMT,
   TSDB_MOD_HTTP,
   TSDB_MOD_MONITOR,
+  TSDB_MOD_DCLUSTER,
+  TSDB_MOD_MSTORAGE,
   TSDB_MOD_MAX
 };
 
@@ -53,9 +55,6 @@ extern SModule tsModule[];
 void dnodeAllocModules();
 int32_t dnodeInitModules();
 void dnodeCleanUpModules();
-
-extern void (*dnodeStartModules)();
-void dnodeStartModulesEdgeImp();
 
 #ifdef __cplusplus
 }

@@ -18,9 +18,9 @@
 #include "tsdb.h"
 #include "tlog.h"
 #include "ttimer.h"
+#include "dnode.h"
 #include "dnodeMgmt.h"
 #include "dnodeModule.h"
-#include "dnodeService.h"
 #include "dnodeSystem.h"
 #include "monitorSystem.h"
 #include "httpSystem.h"
@@ -42,14 +42,10 @@ void *   queryQhandle;
 int      tsVnodePeers = TSDB_VNODES_SUPPORT - 1;
 int      tsMaxQueues;
 uint32_t tsRebootTime;
-int    (*dnodeInitStorage)() = NULL;
-void   (*dnodeCleanupStorage)() = NULL;
-int    (*dnodeCheckSystem)() = NULL;
 
 int32_t dnodeInitRpcQHandle();
 int32_t dnodeInitQueryQHandle();
 int32_t dnodeInitTmrCtl();
-void dnodeInitPlugin();
 void dnodeCountRequestImp(SCountInfo *info);
 
 void dnodeCleanUpSystem() {
@@ -87,8 +83,6 @@ void dnodeCheckDbRunning(const char* dir) {
 int dnodeInitSystem() {
   char        temp[128];
   struct stat dirstat;
-
-  dnodeInitPlugin();
 
   taosResolveCRC();
 
@@ -169,7 +163,7 @@ int dnodeInitSystem() {
     return -1;
   }
 
-  if (dnodeInitMgmtConn() < 0) {
+  if (dnodeInitMgmt() < 0) {
     dError("failed to init communication to mgmt");
     return -1;
   }
@@ -207,7 +201,7 @@ void dnodeCountRequestImp(SCountInfo *info) {
   info->insertReqNum = atomic_exchange_32(&vnodeInsertReqNum, 0);
 }
 
-int dnodeInitStorageComImp() {
+int dnodeInitStorageImp() {
   struct stat dirstat;
   strcpy(tsDirectory, dataDir);
   if (stat(dataDir, &dirstat) < 0) {
@@ -228,8 +222,10 @@ int dnodeInitStorageComImp() {
 
   return 0;
 }
+int32_t (*dnodeInitStorage)() = dnodeInitStorageImp;
 
-void dnodeCleanupStorageComImp() {}
+void dnodeCleanupStorageImp() {}
+void (*dnodeCleanupStorage)() = dnodeCleanupStorageImp;
 
 int32_t dnodeInitQueryQHandle() {
   int numOfThreads = tsRatioOfQueryThreads * tsNumOfCores * tsNumOfThreadsPerCore;
@@ -270,26 +266,7 @@ int32_t dnodeInitRpcQHandle() {
 }
 
 
-int dnodeCheckSystemComImp() {
-  return 0;
-}
-
-void dnodeInitPlugin() {
-  dnodeInitMgmtConn = dnodeInitMgmtConnEdgeImp;
-  dnodeInitMgmtIp = dnodeInitMgmtIpEdgeImp;
-
-  taosBuildRspMsgToMnodeWithSize = taosBuildRspMsgToMnodeWithSizeEdgeImp;
-  taosBuildReqMsgToMnodeWithSize = taosBuildReqMsgToMnodeWithSizeEdgeImp;
-  taosBuildRspMsgToMnode = taosBuildRspMsgToMnodeEdgeImp;
-  taosBuildReqMsgToMnode = taosBuildReqMsgToMnodeEdgeImp;
-  taosSendMsgToMnode = taosSendMsgToMnodeEdgeImp;
-  taosSendSimpleRspToMnode = taosSendSimpleRspToMnodeEdgeImp;
-
-  dnodeParseParameterK = dnodeParseParameterKComImp;
-  dnodeCheckSystem = dnodeCheckSystemComImp;
-  dnodeInitStorage = dnodeInitStorageComImp;
-  dnodeCleanupStorage = dnodeCleanupStorageComImp;
-  dnodeStartModules = dnodeStartModulesEdgeImp;
-}
+int dnodeCheckSystemImp() { return 0; }
+int (*dnodeCheckSystem)() = dnodeCheckSystemImp;
 
 

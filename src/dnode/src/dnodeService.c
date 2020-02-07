@@ -14,16 +14,37 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #include "os.h"
-
-#include "dnodeSystem.h"
 #include "tglobalcfg.h"
 #include "tsdb.h"
 #include "vnode.h"
+#include "dnodeSystem.h"
 
-void (*dnodeParseParameterK)() = NULL;
-void dnodeParseParameterKComImp() {}
+#ifdef CLUSTER
+  #include "dnodeCluster.h"
+  #include "httpAdmin.h"
+  #include "mnodeAccount.h"
+  #include "mnodeBalance.h"
+  #include "mnodeCluster.h"
+  #include "mnodeReplica.h"
+  #include "multilevelStorage.h"
+  #include "vnodeCluster.h"
+  #include "vnodeReplica.h"
+  void init() {
+    dnodeClusterInit();
+    httpAdminInit();
+    mnodeAccountInit();
+    mnodeBalanceInit();
+    mnodeClusterInit();
+    sdbReplicaInit();
+    multilevelStorageInit();
+    vnodeClusterInit();
+    vnodeReplicaInit();
+  }
+#endif
+
+void dnodeParseParameterKImp() {}
+void (*dnodeParseParameterK)() = dnodeParseParameterKImp;
 
 /* Termination handler */
 void signal_handler(int signum, siginfo_t *sigInfo, void *context) {

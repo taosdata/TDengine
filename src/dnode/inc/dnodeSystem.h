@@ -26,9 +26,6 @@ extern "C" {
 
 extern pthread_mutex_t dmutex;
 extern bool tsDnodeStopping;
-extern int  (*dnodeInitStorage)();
-extern void (*dnodeCleanupStorage)();
-extern int  (*dnodeCheckSystem)();
 
 int  dnodeInitSystem();
 void dnodeCleanUpSystem();
