@@ -5,8 +5,9 @@ typedef void cache_pool_t;
 
 typedef struct SCacheBlock
 {
-
     SCacheBlock *next;
+    SCacheBlock *prev;
+    char data[];
 } SCacheBlock;
 
 
