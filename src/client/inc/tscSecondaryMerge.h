@@ -90,14 +90,14 @@ typedef struct SSubqueryState {
 } SSubqueryState;
 
 typedef struct SRetrieveSupport {
-  tExtMemBuffer **  pExtMemBuffer;    // for build loser tree
+  tExtMemBuffer **  pExtMemBuffer;     // for build loser tree
   tOrderDescriptor *pOrderDescriptor;
-  SColumnModel *       pFinalColModel;   // colModel for final result
+  SColumnModel *    pFinalColModel;    // colModel for final result
   SSubqueryState *  pState;
   int32_t           subqueryIndex;     // index of current vnode in vnode list
   SSqlObj *         pParentSqlObj;
-  tFilePage *       localBuffer;  // temp buffer, there is a buffer for each vnode to
-  uint32_t          numOfRetry;   // record the number of retry times
+  tFilePage *       localBuffer;       // temp buffer, there is a buffer for each vnode to
+  uint32_t          numOfRetry;        // record the number of retry times
   pthread_mutex_t   queryMutex;
 } SRetrieveSupport;
 

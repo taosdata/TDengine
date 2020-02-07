@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "tresultBuf.h"
 
 #include "tinterpolation.h"
 #include "vnodeTagMgmt.h"
@@ -182,8 +183,8 @@ typedef struct SMeterQueryInfo {
   int64_t      skey;
   int64_t      ekey;
   int32_t      numOfRes;
-  uint32_t     numOfPages;
-  uint32_t     numOfAlloc;
+//  uint32_t     numOfPages;
+//  uint32_t     numOfAlloc;
   int32_t      reverseIndex;    // reversed output indicator, start from (numOfRes-1)
   int16_t      reverseFillRes;  // denote if reverse fill the results in supplementary scan required or not
   int16_t      queryRangeSet;   // denote if the query range is set, only available for interval query
@@ -191,7 +192,9 @@ typedef struct SMeterQueryInfo {
   int64_t      tag;
   STSCursor    cur;
   SResultInfo* resultInfo;
-  uint32_t*    pageList;
+//  uint32_t*    pageList;
+//  SIDList      pageIdList;
+  int32_t      sid; // for retrieve the page id list
 } SMeterQueryInfo;
 
 typedef struct SMeterDataInfo {
@@ -235,15 +238,15 @@ typedef struct SMeterQuerySupportObj {
    */
   int32_t meterIdx;
 
-  int32_t meterOutputFd;
-  int32_t lastPageId;
-  int32_t numOfPages;
+//  int32_t meterOutputFd;
+//  int32_t lastPageId;
+//  int32_t numOfPages;
   int32_t numOfGroupResultPages;
   int32_t groupResultSize;
-
-  char*   meterOutputMMapBuf;
-  int64_t bufSize;
-  char    extBufFile[256];  // external file name
+  SQueryResultBuf* pResultBuf;
+//  char*   meterOutputMMapBuf;
+//  int64_t bufSize;
+//  char    extBufFile[256];  // external file name
 
   SMeterDataInfo* pMeterDataInfo;
 

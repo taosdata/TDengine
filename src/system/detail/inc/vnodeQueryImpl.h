@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODEQUERYUTIL_H
-#define TDENGINE_VNODEQUERYUTIL_H
+#ifndef TDENGINE_VNODEQUERYIMPL_H
+#define TDENGINE_VNODEQUERYIMPL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -120,7 +120,7 @@ typedef enum {
 typedef int (*__block_search_fn_t)(char* data, int num, int64_t key, int order);
 
 static FORCE_INLINE SMeterObj* getMeterObj(void* hashHandle, int32_t sid) {
-  return *(SMeterObj**)taosGetDataFromHash(hashHandle, (const char*) &sid, sizeof(sid));
+  return *(SMeterObj**)taosGetDataFromHashTable(hashHandle, (const char*) &sid, sizeof(sid));
 }
 
 bool isQueryKilled(SQuery* pQuery);
@@ -209,7 +209,7 @@ int32_t vnodeGetHeaderFile(SQueryRuntimeEnv *pRuntimeEnv, int32_t fileIndex);
  * @param ekey
  * @return
  */
-SMeterQueryInfo* createMeterQueryInfo(SQuery* pQuery, TSKEY skey, TSKEY ekey);
+SMeterQueryInfo* createMeterQueryInfo(SQuery* pQuery, int32_t sid, TSKEY skey, TSKEY ekey);
 
 /**
  * Destroy meter query info
@@ -224,7 +224,7 @@ void destroyMeterQueryInfo(SMeterQueryInfo *pMeterQueryInfo, int32_t numOfCols);
  * @param skey
  * @param ekey
  */
-void changeMeterQueryInfoForSuppleQuery(SMeterQueryInfo *pMeterQueryInfo, TSKEY skey, TSKEY ekey);
+void changeMeterQueryInfoForSuppleQuery(SQueryResultBuf* pResultBuf, SMeterQueryInfo *pMeterQueryInfo, TSKEY skey, TSKEY ekey);
 
 /**
  * add the new allocated disk page to meter query info
@@ -289,4 +289,4 @@ void closeAllSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo);
 }
 #endif
 
-#endif  // TDENGINE_VNODEQUERYUTIL_H
+#endif  // TDENGINE_VNODEQUERYIMPL_H

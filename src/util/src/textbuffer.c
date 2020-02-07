@@ -135,11 +135,11 @@ static bool allocFlushoutInfoEntries(SFileInfo *pFileMeta) {
 }
 
 static bool tExtMemBufferAlloc(tExtMemBuffer *pMemBuffer) {
+  /*
+   * the in-mem buffer is full.
+   * To flush data to disk to accommodate more data
+   */
   if (pMemBuffer->numOfInMemPages > 0 && pMemBuffer->numOfInMemPages == pMemBuffer->inMemCapacity) {
-    /*
-     * the in-mem buffer is full.
-     * To flush data to disk to accommodate more data
-     */
     if (!tExtMemBufferFlush(pMemBuffer)) {
       return false;
     }
@@ -147,7 +147,7 @@ static bool tExtMemBufferAlloc(tExtMemBuffer *pMemBuffer) {
 
   /*
    * We do not recycle the file page structure. And in flush data operations, all
-   * filepage that are full of data are destroyed after data being flushed to disk.
+   * file page that are full of data are destroyed after data being flushed to disk.
    *
    * The memory buffer pages may be recycle in order to avoid unnecessary memory
    * allocation later.
@@ -189,9 +189,9 @@ int16_t tExtMemBufferPut(tExtMemBuffer *pMemBuffer, void *data, int32_t numOfRow
     pLast = pMemBuffer->pTail;
   }
 
-  if (pLast->item.numOfElems + numOfRows <= pMemBuffer->numOfElemsPerPage) {
-    // enough space for records
+  if (pLast->item.numOfElems + numOfRows <= pMemBuffer->numOfElemsPerPage) { // enough space for records
     tColModelAppend(pMemBuffer->pColumnModel, &pLast->item, data, 0, numOfRows, numOfRows);
+    
     pMemBuffer->numOfElemsInBuffer += numOfRows;
     pMemBuffer->numOfTotalElems += numOfRows;
   } else {
@@ -205,8 +205,7 @@ int16_t tExtMemBufferPut(tExtMemBuffer *pMemBuffer, void *data, int32_t numOfRow
     int32_t remain = numOfRows - numOfRemainEntries;
 
     while (remain > 0) {
-      if (!tExtMemBufferAlloc(pMemBuffer)) {
-        // failed to allocate memory buffer
+      if (!tExtMemBufferAlloc(pMemBuffer)) { // failed to allocate memory buffer
         return -1;
       }
 
@@ -252,7 +251,7 @@ static bool tExtMemBufferUpdateFlushoutInfo(tExtMemBuffer *pMemBuffer) {
     pFlushoutInfo->numOfPages = pMemBuffer->numOfInMemPages;
     pFileMeta->flushoutData.nLength += 1;
   } else {
-    // always update the first flushout array in single_flush_model
+    // always update the first flush out array in single_flush_model
     pFileMeta->flushoutData.nLength = 1;
     tFlushoutInfo *pFlushoutInfo = &pFileMeta->flushoutData.pFlushoutInfo[0];
     pFlushoutInfo->numOfPages += pMemBuffer->numOfInMemPages;
@@ -320,9 +319,7 @@ void tExtMemBufferClear(tExtMemBuffer *pMemBuffer) {
     return;
   }
 
-  /*
-   * release all data in memory buffer
-   */
+  //release all data in memory buffer
   tFilePagesItem *first = pMemBuffer->pHead;
   while (first != NULL) {
     tFilePagesItem *ptmp = first;
@@ -335,6 +332,7 @@ void tExtMemBufferClear(tExtMemBuffer *pMemBuffer) {
 
   pMemBuffer->numOfElemsInBuffer = 0;
   pMemBuffer->numOfInMemPages = 0;
+  
   pMemBuffer->pHead = NULL;
   pMemBuffer->pTail = NULL;
 
@@ -586,7 +584,7 @@ static void median(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
   char *endx = COLMODEL_GET_VAL(data, pDescriptor->pColumnModel, numOfRows, end, f);
 
   int32_t colIdx = pDescriptor->orderIdx.pData[0];
-  tSortDataPrint(pDescriptor->pColumnModel->pFields[colIdx].type, "before", startx, midx, endx);
+  tSortDataPrint(pDescriptor->pColumnModel->pFields[colIdx].field.type, "before", startx, midx, endx);
 #endif
 
   if (compareFn(pDescriptor, numOfRows, midIdx, start, data) == 1) {
@@ -607,7 +605,7 @@ static void median(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
   midx = COLMODEL_GET_VAL(data, pDescriptor->pColumnModel, numOfRows, midIdx, f);
   startx = COLMODEL_GET_VAL(data, pDescriptor->pColumnModel, numOfRows, start, f);
   endx = COLMODEL_GET_VAL(data, pDescriptor->pColumnModel, numOfRows, end, f);
-  tSortDataPrint(pDescriptor->pColumnModel->pFields[colIdx].type, "after", startx, midx, endx);
+  tSortDataPrint(pDescriptor->pColumnModel->pFields[colIdx].field.type, "after", startx, midx, endx);
 #endif
 }
 
@@ -661,15 +659,15 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
   }
 
 #ifdef _DEBUG_VIEW
-  printf("before sort:\n");
-  tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
+//  printf("before sort:\n");
+//  tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
 #endif
 
   int32_t s = start, e = end;
   median(pDescriptor, numOfRows, start, end, data, compareFn);
 
 #ifdef _DEBUG_VIEW
-  printf("%s called: %d\n", __FUNCTION__, qsort_call++);
+//  printf("%s called: %d\n", __FUNCTION__, qsort_call++);
 #endif
 
   UNUSED(qsort_call);
@@ -695,7 +693,7 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
     }
 
 #ifdef _DEBUG_VIEW
-    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
+//    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
 #endif
 
     while (s < e) {
@@ -714,7 +712,7 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
       swap(pDescriptor->pColumnModel, numOfRows, s, data, e);
     }
 #ifdef _DEBUG_VIEW
-    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
+//    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
 #endif
   }
 
@@ -731,7 +729,7 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
     rightx += (end - end_same);
 
 #ifdef _DEBUG_VIEW
-    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
+//    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
 #endif
   }
 
@@ -748,7 +746,7 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
     leftx -= (start_same - start);
 
 #ifdef _DEBUG_VIEW
-    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
+//    tRowModelDisplay(pDescriptor, numOfRows, data, end - start + 1);
 #endif
   }
 

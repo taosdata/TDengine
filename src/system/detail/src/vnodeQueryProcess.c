@@ -132,7 +132,7 @@ static void queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMeterInfo) {
       pRuntimeEnv->pMeterObj = pMeterObj;
 
       if (pMeterInfo[k].pMeterQInfo == NULL) {
-        pMeterInfo[k].pMeterQInfo = createMeterQueryInfo(pQuery, pSupporter->rawSKey, pSupporter->rawEKey);
+        pMeterInfo[k].pMeterQInfo = createMeterQueryInfo(pQuery, pMeterObj->sid, pSupporter->rawSKey, pSupporter->rawEKey);
       }
 
       if (pMeterInfo[k].pMeterObj == NULL) {  // no data in disk for this meter, set its pointer
@@ -858,7 +858,9 @@ static void doOrderedScan(SQInfo *pQInfo) {
 static void setupMeterQueryInfoForSupplementQuery(SMeterQuerySupportObj *pSupporter) {
   for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
     SMeterQueryInfo *pMeterQueryInfo = pSupporter->pMeterDataInfo[i].pMeterQInfo;
-    changeMeterQueryInfoForSuppleQuery(pMeterQueryInfo, pSupporter->rawSKey, pSupporter->rawEKey);
+    SQueryResultBuf* pResultBuf = pSupporter->pResultBuf;
+    
+    changeMeterQueryInfoForSuppleQuery(pResultBuf, pMeterQueryInfo, pSupporter->rawSKey, pSupporter->rawEKey);
   }
 }
 

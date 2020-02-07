@@ -387,18 +387,19 @@ int32_t tscFlushTmpBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tF
 
 int32_t saveToBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tFilePage *pPage, void *data,
                      int32_t numOfRows, int32_t orderType) {
-  if (pPage->numOfElems + numOfRows <= pDesc->pColumnModel->capacity) {
-    tColModelAppend(pDesc->pColumnModel, pPage, data, 0, numOfRows, numOfRows);
+  SColumnModel *pModel = pDesc->pColumnModel;
+  
+  if (pPage->numOfElems + numOfRows <= pModel->capacity) {
+    tColModelAppend(pModel, pPage, data, 0, numOfRows, numOfRows);
     return 0;
   }
 
-  SColumnModel *pModel = pDesc->pColumnModel;
-
-  int32_t numOfRemainEntries = pDesc->pColumnModel->capacity - pPage->numOfElems;
+  // current buffer is overflow, flush data to extensive buffer
+  int32_t numOfRemainEntries = pModel->capacity - pPage->numOfElems;
   tColModelAppend(pModel, pPage, data, 0, numOfRemainEntries, numOfRows);
 
-  /* current buffer is full, need to flushed to disk */
-  assert(pPage->numOfElems == pDesc->pColumnModel->capacity);
+  // current buffer is full, need to flushed to disk
+  assert(pPage->numOfElems == pModel->capacity);
   int32_t ret = tscFlushTmpBuffer(pMemoryBuf, pDesc, pPage, orderType);
   if (ret != 0) {
     return -1;
