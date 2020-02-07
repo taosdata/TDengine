@@ -53,7 +53,7 @@ int32_t dnodeConfigVnode(int vid, SVnodeCfg *cfg);
 /*
  * Modify vnode replication information
  */
-int32_t dnodeConfigVnodePeers(int vid, SVpeerCfg *cfg);
+int32_t dnodeConfigVnodePeers(int vid, /*SVpeerCfgMsg *cfg*/);
 
 /*
  * Remove vnode from local repository
@@ -64,6 +64,7 @@ int32_t dnodeDropVnode(int vid);
  * Get the vnode object that has been opened
  */
 tsdb_repo_t* dnodeGetVnode(int vid);
+
 
 #ifdef __cplusplus
 }

@@ -20,6 +20,32 @@
 extern "C" {
 #endif
 
+/*
+ * Check if table already exists
+ */
+int32_t dnodeCheckTableExist(int vid, int sid, int64_t uid);
+
+/*
+ * Create table with specified configuration and open it
+ */
+int32_t dnodeCreateTable(int vid, int sid, SMeterObj *table);
+
+/*
+ * Modify table configuration information
+ */
+int32_t dnodeAlterTable(int vid, SMeterObj *table);
+
+/*
+ * Remove table from local repository
+ */
+int32_t dnodeDropTable(int vid, int sid, int64_t uid);
+
+/*
+ * Write data based on dnode
+ */
+int32_t dnodeWriteData(SShellSubmitMsg *msg);
+
+
 #ifdef __cplusplus
 }
 #endif
