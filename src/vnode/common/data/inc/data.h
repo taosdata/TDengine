@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "schema.h"
+
 /* The row data should in the form of
  */
 

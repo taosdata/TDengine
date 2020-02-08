@@ -4,11 +4,19 @@
 #include <stdint.h>
 
 #include "cache.h"
+#include "dlist.h"
 
+typedef struct {
+  int64_t      blockId;
+  SCacheBlock *pBlock
+} STSDBCacheBlock;
+
+// Use a doublely linked list to implement this
 typedef struct STSDBCache {
-    int64_t blockId;  // A block ID counter
-    SCacheBlock *blockList;
+  int64_t blockId;  // A block ID counter
+  SDList *cacheList;
 } STSDBCache;
 
+STSDBCache *tsdbCreateCache();
 
-#endif // _TD_TSDBCACHE_H_
+#endif  // _TD_TSDBCACHE_H_
