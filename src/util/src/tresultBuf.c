@@ -173,7 +173,12 @@ tFilePage* getNewDataBuf(SQueryResultBuf* pResultBuf, int32_t groupId, int32_t* 
   *pageId = (pResultBuf->allocateId++);
   registerPageId(pResultBuf, groupId, *pageId);
 
-  return getResultBufferPageById(pResultBuf, *pageId);
+  tFilePage* page = getResultBufferPageById(pResultBuf, *pageId);
+  
+  // clear memory for the new page
+  memset(page, 0, DEFAULT_INTERN_BUF_SIZE);
+  
+  return page;
 }
 
 int32_t getNumOfRowsPerPage(SQueryResultBuf* pResultBuf) { return pResultBuf->numOfRowsPerPage; }
