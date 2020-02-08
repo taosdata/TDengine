@@ -73,7 +73,7 @@ void *mgmtAcctAction(char action, void *row, char *str, int size, int *ssize) {
   return NULL;
 }
 
-int mgmtInitAccts() {
+int macctInitAccts() {
   void *    pNode = NULL;
   SAcctObj *pAcct = NULL;
   int       numOfAccts = 0;
@@ -113,9 +113,9 @@ int mgmtInitAccts() {
   return 0;
 }
 
-SAcctObj *mgmtGetAcct(char *name) { return (SAcctObj *)sdbGetRow(acctSdb, name); }
+SAcctObj *macctGetAcct(char *name) { return (SAcctObj *)sdbGetRow(acctSdb, name); }
 
-int mgmtCheckUserLimit(SAcctObj *pAcct) {
+int macctCheckUserLimit(SAcctObj *pAcct) {
   int numOfUsers = sdbGetNumOfRows(userSdb);
   if (numOfUsers >= tsMaxUsers || pAcct->acctInfo.numOfUsers >= pAcct->cfg.maxUsers) {
     mWarn("numOfUsers:%d, exceed tsMaxUsers:%d or account numOfUsers: %d, exceed account maxUsers: %d",
@@ -125,7 +125,7 @@ int mgmtCheckUserLimit(SAcctObj *pAcct) {
   return 0;
 }
 
-int mgmtCheckDbLimit(SAcctObj *pAcct) {
+int macctCheckDbLimit(SAcctObj *pAcct) {
   int numOfDbs = sdbGetNumOfRows(dbSdb);
   if (numOfDbs >= tsMaxDbs || pAcct->acctInfo.numOfDbs >= pAcct->cfg.maxDbs) {
     mWarn("numOfDbs:%d, exceed tsMaxDbs:%d or account numOfDbs: %d, exceed account maxDbs:%d",
@@ -135,34 +135,12 @@ int mgmtCheckDbLimit(SAcctObj *pAcct) {
   return 0;
 }
 
-int mgmtCheckMeterLimit(SAcctObj *pAcct, SCreateTableMsg *pCreate) {
+int macctCheckTableLimit(SAcctObj *pAcct, SCreateTableMsg *pCreate) {
   if (pAcct->acctInfo.numOfTimeSeries + pCreate->numOfColumns - 1 > pAcct->cfg.maxTimeSeries) {
     mWarn("Time series is not enough, account numOfTimeSeries: %d, account maxTimeSeries: %d, required time series: %d",
           pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries, pCreate->numOfColumns);
     return TSDB_CODE_NOT_ENOUGH_TIME_SERIES;
   }
-  return 0;
-}
-
-int mgmtCheckUserGrant() {
-  return grantCheckUsers();
-}
-
-int mgmtCheckDbGrant() {
-  return grantCheckDatabases();
-}
-
-int mgmtCheckMeterGrant(SCreateTableMsg *pCreate, STabObj * pMeter) {
-  if (grantCheckExpired()) {
-    mError("failed to create meter:%s, reason:grant expired", pMeter->meterId);
-    return TSDB_CODE_GRANT_EXPIRED;
-  }
-
-  if (pCreate->numOfTags == 0) {
-    int grantCode = grantCheckTimeSeries(pMeter->numOfColumns);
-    if (grantCode != 0) return grantCode;
-  }
-
   return 0;
 }
 
@@ -345,7 +323,7 @@ int mgmtDropAcct(char *name) {
   return 0;
 }
 
-void mgmtCheckAcct() {
+void macctCheckAcct() {
   int numOfRows = 0;
 
   numOfRows = sdbGetNumOfRows(acctSdb);
@@ -354,15 +332,15 @@ void mgmtCheckAcct() {
     mTrace("no any accounts, create the root acct");
     mgmtCreateAcct("root", "taosdata", NULL);
 
-    SAcctObj *pAcct = mgmtGetAcct("root");
+    SAcctObj *pAcct = macctGetAcct("root");
     mgmtCreateUser(pAcct, "monitor", tsInternalPass);
     mgmtCreateUser(pAcct, "_root", tsInternalPass);
   }
 }
 
-void mgmtCleanUpAccts() { sdbCloseTable(acctSdb); }
+void macctCleanUpAccts() { sdbCloseTable(acctSdb); }
 
-int mgmtGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int macctGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   int cols = 0;
 
   if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
@@ -429,7 +407,7 @@ int mgmtGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtRetrieveAccts(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
+int macctRetrieveAccts(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   int       numOfRows = 0;
   SAcctObj *pAcct = NULL;
   char *    pWrite;
@@ -603,7 +581,7 @@ int mgmtUpdateAcct(SAcctObj *pAcct) { return sdbUpdateRow(acctSdb, pAcct, 0, 1);
 int mgmtAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
   SAcctObj *pAcct = NULL;
 
-  pAcct = mgmtGetAcct(name);
+  pAcct = macctGetAcct(name);
   if (pAcct == NULL) {
     mTrace("account: %s not exists", name);
     return TSDB_CODE_INVALID_ACCT;
@@ -706,7 +684,7 @@ int64_t mgmtGetAcctStatistic(SAcctObj *pAcct) {
   return totalStorage;
 }
 
-void mgmtCreateRootAcct() {
+void macctCreateRootAcct() {
   SAcctObj *pAcct;
 
   int numOfAccts = sdbGetNumOfRows(acctSdb);
@@ -732,4 +710,17 @@ void mgmtCreateRootAcct() {
     pAcct->createdTime = taosGetTimestampMs();
     sdbInsertRow(acctSdb, pAcct, 0);
   }
+}
+
+void mnodeAccountInit() {
+  mgmtInitAccts = macctInitAccts();
+  mgmtGetAcct = macctGetAcct()
+  mgmtCreateRootAcct = macctCreateRootAcct;
+  mgmtCheckUserLimit = macctCheckUserLimit;
+  mgmtCheckDbLimit = macctCheckUserLimit;
+  mgmtCheckTableLimit = macctCheckTableLimit;
+  mgmtCheckAcct = macctCheckAcct;
+  mgmtCleanUpAccts = macctCleanUpAccts;
+  mgmtGetAcctMeta = macctGetAcctMeta;
+  mgmtRetrieveAccts = macctRetrieveAccts;
 }
