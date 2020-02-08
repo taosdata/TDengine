@@ -18,6 +18,7 @@
 
 #include "dnodeSystem.h"
 #include "mgmt.h"
+#include "mgmtGrant.h"
 #include "mgmtProfile.h"
 #include "taosmsg.h"
 #include "tlog.h"
@@ -561,7 +562,7 @@ int mgmtProcessCreateDbMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   pCreate->blocksPerMeter = htons(pCreate->blocksPerMeter);
   pCreate->rowsInFileBlock = htonl(pCreate->rowsInFileBlock);
 
-  if (grantCheckExpired()) {
+  if (mgmtCheckExpired()) {
     code = TSDB_CODE_GRANT_EXPIRED;
   } else if (!pConn->writeAuth) {
     code = TSDB_CODE_NO_RIGHTS;
@@ -1290,7 +1291,7 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     goto _rsp;
   }
 
-  if (grantCheckExpired()) {
+  if (mgmtCheckExpired()) {
     code = TSDB_CODE_GRANT_EXPIRED;
     goto _rsp;
   }

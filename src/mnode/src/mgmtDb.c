@@ -17,6 +17,7 @@
 #include "os.h"
 
 #include "mgmt.h"
+#include "mgmtGrant.h"
 #include "mgmtBalance.h"
 #include "mgmtUtil.h"
 #include "tschemautil.h"
@@ -37,7 +38,6 @@ void *mgmtDbActionAfterBatchUpdate(void *row, char *str, int size, int *ssize);
 void *mgmtDbActionReset(void *row, char *str, int size, int *ssize);
 void *mgmtDbActionDestroy(void *row, char *str, int size, int *ssize);
 
-int mgmtCheckDbGrant();
 int mgmtCheckDbLimit(SAcctObj *pAcct);
 
 void mgmtDbActionInit() {

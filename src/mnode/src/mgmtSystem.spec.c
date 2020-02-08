@@ -36,10 +36,8 @@ void mgmtStopSystem() {}
 
 void mgmtCleanUpRedirect() {}
 
-bool grantCheckExpired() { return false; }
 
 int grantGetGrantsMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
 
 int grantRetrieveGrants(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }
 
-void grantRestoreTimeSeries(uint32_t timeseries) {}

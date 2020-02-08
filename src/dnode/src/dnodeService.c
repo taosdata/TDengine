@@ -26,10 +26,11 @@
   #include "mnodeAccount.h"
   #include "mnodeBalance.h"
   #include "mnodeCluster.h"
-  #include "mnodeReplica.h"
+  #include "sdbReplica.h"
   #include "multilevelStorage.h"
   #include "vnodeCluster.h"
   #include "vnodeReplica.h"
+  #include "dnodeGrant.h"
   void init() {
     dnodeClusterInit();
     httpAdminInit();
@@ -40,6 +41,7 @@
     multilevelStorageInit();
     vnodeClusterInit();
     vnodeReplicaInit();
+    dnodeGrantInit();
   }
 #endif
 

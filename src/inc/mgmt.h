@@ -273,25 +273,6 @@ int  mgmtInitShell();
 void mgmtCleanUpShell();
 int mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, uint8_t *secret, uint8_t *ckey);
 
-// acct API
-int       mgmtInitAccts();
-SAcctObj *mgmtGetAcct(char *name);
-int mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg);
-int mgmtUpdateAcct(SAcctObj *pAcct);
-int mgmtDropAcct(char *name);
-int mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb);
-int mgmtRemoveDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
-int mgmtAddUserIntoAcct(SAcctObj *pAcct, SUserObj *pUser);
-int mgmtRemoveUserFromAcct(SAcctObj *pAcct, SUserObj *pUser);
-int mgmtAddConnIntoAcct(SConnObj *pConn);
-int mgmtRemoveConnFromAcct(SConnObj *pConn);
-int mgmtGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveAccts(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-void mgmtCheckAcct();
-void mgmtCleanUpAccts();
-int  mgmtAlterAcct(char *name, char *pass, SAcctCfg *pCfg);
-int64_t mgmtGetAcctStatistic(SAcctObj *pAcct);
-
 // user API
 int       mgmtInitUsers();
 SUserObj *mgmtGetUser(char *name);
@@ -357,26 +338,6 @@ SSchema *mgmtGetMeterSchema(STabObj *pMeter);  // get schema for a meter
 bool mgmtMeterCreateFromMetric(STabObj *pMeterObj);
 bool mgmtIsMetric(STabObj *pMeterObj);
 bool mgmtIsNormalMeter(STabObj *pMeterObj);
-
-// grant API
-void grantActiveSystem(const char* cfgFile);
-void grantSendMsgToMgmt();
-void grantReset();
-void grantUpdate(void *pGrant);
-bool grantCheckExpired();
-void grantRestoreTimeSeries(uint32_t timeseries);
-void grantAddTimeSeries(uint32_t timeseries);
-int  grantCheckTimeSeries(uint32_t timeseries);
-void grantResetCurStorage(uint64_t totalStorage);
-int grantCheckStorage();
-int grantCheckDatabases();
-int grantCheckUsers();
-int grantCheckAccts();
-int grantCheckDnodes();
-int grantCheckConns();
-int grantCheckStreams();
-int grantCheckCpuCores();
-int grantCheckQueryTime();
 
 // dnode API
 int        mgmtInitDnodes();

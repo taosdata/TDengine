@@ -15,14 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
 #include "mgmt.h"
+#include "mgmtAcct.h"
 #include "tschemautil.h"
 
 extern void *userSdb;
 extern void *dbSdb;
 SAcctObj     acctObj;
-
 
 int mgmtGetAcctsNum();
 SShowObj *mgmtGetNextAcct(SShowObj *pShow, SAcctObj **pAcct);
@@ -132,18 +131,16 @@ int mgmtRemoveConnFromAcct(SConnObj *pConn) {
   return 0;
 }
 
-/*
- * Edge Version Implementation
- */
+int32_t mgmtInitAcctsImp() { return 0; }
+int32_t (*mgmtInitAccts)() = mgmtInitAcctsImp;
 
-int mgmtInitAcctsImp() { return 0; }
-int (*mgmtInitAccts)() = mgmtInitAcctsImp;
+void mgmtCreateRootAcctImp() {}
+void (*mgmtCreateRootAcct)() = mgmtCreateRootAcctImp;
 
-void mgmtCreateRootAcct() {}
+SAcctObj *mgmtGetAcctImp(char *acctName) { return &acctObj; }
+SAcctObj* (*mgmtGetAcct)(char *acctName) = mgmtGetAcctImp;
 
-SAcctObj *mgmtGetAcct(char *name) { return &acctObj; }
-
-int mgmtCheckUserLimit(SAcctObj *pAcct) {
+int32_t mgmtCheckUserLimitImp(SAcctObj *pAcct) {
   int numOfUsers = sdbGetNumOfRows(userSdb);
   if (numOfUsers >= tsMaxUsers) {
     mWarn("numOfUsers:%d, exceed tsMaxUsers:%d", numOfUsers, tsMaxUsers);
@@ -151,8 +148,9 @@ int mgmtCheckUserLimit(SAcctObj *pAcct) {
   }
   return 0;
 }
+int32_t (*mgmtCheckUserLimit)(SAcctObj *pAcct) = mgmtCheckUserLimitImp;
 
-int mgmtCheckDbLimit(SAcctObj *pAcct) {
+int32_t mgmtCheckDbLimitImp(SAcctObj *pAcct) {
   int numOfDbs = sdbGetNumOfRows(dbSdb);
   if (numOfDbs >= tsMaxDbs) {
     mWarn("numOfDbs:%d, exceed tsMaxDbs:%d", numOfDbs, tsMaxDbs);
@@ -160,18 +158,12 @@ int mgmtCheckDbLimit(SAcctObj *pAcct) {
   }
   return 0;
 }
+int32_t (*mgmtCheckDbLimit)(SAcctObj *pAcct) = mgmtCheckDbLimitImp;
 
-int mgmtCheckMeterLimit(SAcctObj *pAcct) { return 0; }
+int32_t mgmtCheckTableLimitImp(SAcctObj *pAcct) { return 0; }
+int32_t (*mgmtCheckTableLimit)(SAcctObj *pAcct) = mgmtCheckTableLimitImp;
 
-int mgmtCheckUserGrant() { return 0; }
-
-int mgmtCheckDbGrant() { return 0; }
-
-int mgmtCheckMeterGrant() { return 0; }
-
-void grantAddTimeSeries(uint32_t timeSeriesNum) {}
-
-void mgmtCheckAcct() {
+void mgmtCheckAcctImp() {
   SAcctObj *pAcct = &acctObj;
   pAcct->acctId = 0;
   strcpy(pAcct->user, "root");
@@ -180,9 +172,13 @@ void mgmtCheckAcct() {
   mgmtCreateUser(pAcct, "monitor", tsInternalPass);
   mgmtCreateUser(pAcct, "_root", tsInternalPass);
 }
+void (*mgmtCheckAcct)() = mgmtCheckAcctImp;
 
-void mgmtCleanUpAccts() {}
+void mgmtCleanUpAcctsImp() {}
+void (*mgmtCleanUpAccts)() = mgmtCleanUpAcctsImp;
 
-int mgmtGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t mgmtGetAcctMetaImp(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t (*mgmtGetAcctMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = mgmtGetAcctMetaImp;
 
-int mgmtRetrieveAccts(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }
+int32_t mgmtRetrieveAcctsImp(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }
+int32_t (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int rows, SConnObj *pConn) = mgmtRetrieveAcctsImp;

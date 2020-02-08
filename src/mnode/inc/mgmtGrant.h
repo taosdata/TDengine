@@ -13,7 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "mgmt.h"
+#ifndef TDENGINE_MGMT_GRANT_H
+#define TDENGINE_MGMT_GTANT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+#include <stdint.h>
+#include <stdbool.h>
+
+extern bool    (*mgmtCheckExpired)();
+extern void    (*mgmtAddTimeSeries)(uint32_t timeSeriesNum);
+extern void    (*mgmtRestoreTimeSeries)(uint32_t timeseries);
+extern int32_t (*mgmtCheckTimeSeries)(uint32_t timeseries);
+extern int32_t (*mgmtCheckUserGrant)();
+extern int32_t (*mgmtCheckDbGrant)();
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

@@ -17,6 +17,8 @@
 #include "os.h"
 
 #include "mgmt.h"
+#include "mgmtAcct.h"
+#include "mgmtGrant.h"
 #include "mgmtUtil.h"
 #include "taosmsg.h"
 #include "tast.h"
@@ -91,8 +93,7 @@ int32_t mgmtMeterDropColumnByName(STabObj *pMeter, const char *name);
 static int dropMeterImp(SDbObj *pDb, STabObj * pMeter, SAcctObj *pAcct);
 static void dropAllMetersOfMetric(SDbObj *pDb, STabObj * pMetric, SAcctObj *pAcct);
 
-int mgmtCheckMeterLimit(SAcctObj *pAcct, SCreateTableMsg *pCreate);
-int mgmtCheckMeterGrant(SCreateTableMsg *pCreate, STabObj * pMeter);
+int mgmtCheckTableLimit(SAcctObj *pAcct, SCreateTableMsg *pCreate);
 
 void mgmtMeterActionInit() {
   mgmtMeterActionFp[SDB_TYPE_INSERT] = mgmtMeterActionInsert;
@@ -540,7 +541,7 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
 
   pAcct = mgmtGetAcct(pDb->cfg.acct);
   assert(pAcct != NULL);
-  int code = mgmtCheckMeterLimit(pAcct, pCreate);
+  int code = mgmtCheckTableLimit(pAcct, pCreate);
   if (code != 0) {
     mError("table:%s, exceed the limit", pCreate->meterId);
     return code;
@@ -636,10 +637,17 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
     return TSDB_CODE_FAILED_TO_LOCK_RESOURCES;
   }
 
-  code = mgmtCheckMeterGrant(pCreate, pMeter);
-  if (code != 0) {
-    mError("table:%s, grant expired", pCreate->meterId);
-    return code;
+  if (mgmtCheckExpired()) {
+    mError("failed to create meter:%s, reason:grant expired", pMeter->meterId);
+    return TSDB_CODE_GRANT_EXPIRED;
+  }
+
+  if (pCreate->numOfTags == 0) {
+    int grantCode = mgmtCheckTimeSeries(pMeter->numOfColumns);
+    if (grantCode != 0) {
+      mError("table:%s, grant expired", pCreate->meterId);
+      return grantCode;
+    }
   }
 
   if (pCreate->numOfTags == 0) {  // handle normal meter creation
@@ -704,7 +712,7 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
     mTrace("table:%s, send create table msg to dnode, vgId:%d, sid:%d, vnode:%d",
            pMeter->meterId, pMeter->gid.vgId, pMeter->gid.sid, pVgroup->vnodeGid[0].vnode);
 
-    grantAddTimeSeries(pMeter->numOfColumns - 1);
+    mgmtAddTimeSeries(pMeter->numOfColumns - 1);
     mgmtSendCreateMsgToVgroup(pMeter, pVgroup);
   }
 
@@ -805,7 +813,7 @@ static int dropMeterImp(SDbObj *pDb, STabObj * pMeter, SAcctObj *pAcct) {
   pVgroup = mgmtGetVgroup(pMeter->gid.vgId);
   if (pVgroup == NULL) return TSDB_CODE_OTHERS;
 
-  grantRestoreTimeSeries(pMeter->numOfColumns - 1);
+  mgmtRestoreTimeSeries(pMeter->numOfColumns - 1);
   mgmtSendRemoveMeterMsgToDnode(pMeter, pVgroup);
   sdbDeleteRow(meterSdb, pMeter);
 

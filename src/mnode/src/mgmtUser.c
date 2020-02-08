@@ -17,6 +17,8 @@
 #include "os.h"
 
 #include "mgmt.h"
+#include "mgmtGrant.h"
+#include "mgmtAcct.h"
 #include "tschemautil.h"
 #include "ttime.h"
 
@@ -35,10 +37,6 @@ void *mgmtUserActionAfterBatchUpdate(void *row, char *str, int size, int *ssize)
 void *mgmtUserActionReset(void *row, char *str, int size, int *ssize);
 void *mgmtUserActionDestroy(void *row, char *str, int size, int *ssize);
 
-SAcctObj *mgmtGetAcct(char *name);
-void mgmtCreateRootAcct();
-int mgmtCheckUserLimit(SAcctObj *pAcct);
-int mgmtCheckUserGrant();
 
 void mgmtUserActionInit() {
   mgmtUserActionFp[SDB_TYPE_INSERT] = mgmtUserActionInsert;
