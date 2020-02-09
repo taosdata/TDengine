@@ -19,18 +19,10 @@ typedef struct SQueryResultBuf {
   int32_t  numOfPages;
   int64_t  totalBufSize;
   int32_t  fd;                  // data file fd
-  int32_t  ifd;                 // index file fd
   int32_t  allocateId;          // allocated page id
   int32_t  incStep;             // minimum allocated pages
   char*    pBuf;                // mmap buffer pointer
   char*    path;                // file path
-  
-  char*    ipath;               // index file path
-  int32_t* pIndexData;          // index file data
-  
-  char*    internBuf;           // intern buf
-  int32_t  internfd;            // intern fd
-  char*    internpath;
   
   uint32_t numOfAllocGroupIds;  // number of allocated id list
   void*    idsTable;            // id hash table
