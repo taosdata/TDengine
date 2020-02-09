@@ -683,7 +683,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
     }
   
     resetCtxOutputBuf(pRuntimeEnv);
-    resetSlidingWindowInfo(&pRuntimeEnv->swindowResInfo, pQuery->numOfOutputCols);
+    resetSlidingWindowInfo(pRuntimeEnv, &pRuntimeEnv->swindowResInfo);
     
     while (pSupporter->meterIdx < pSupporter->numOfMeters) {
       int32_t k = pSupporter->meterIdx;
@@ -1088,7 +1088,7 @@ static void vnodeSingleMeterIntervalMainLooper(SMeterQuerySupportObj *pSupporter
            (pQuery->skey >= pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery)));
 
     initCtxOutputBuf(pRuntimeEnv);
-    clearCompletedSlidingWindows(&pRuntimeEnv->swindowResInfo, pQuery->numOfOutputCols);
+    clearCompletedSlidingWindows(pRuntimeEnv);
     
     vnodeScanAllData(pRuntimeEnv);
     if (isQueryKilled(pQuery)) {

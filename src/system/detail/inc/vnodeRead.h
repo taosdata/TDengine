@@ -165,7 +165,7 @@ typedef struct SQueryRuntimeEnv {
   SInterpolationInfo  interpoInfo;
   SData**             pInterpoBuf;
   
-  SSlidingWindowInfo   swindowResInfo;
+  SSlidingWindowInfo  swindowResInfo;
   
   STSBuf*             pTSBuf;
   STSCursor           cur;

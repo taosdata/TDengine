@@ -276,11 +276,11 @@ void displayInterResult(SData** pdata, SQuery* pQuery, int32_t numOfRows);
 
 void vnodePrintQueryStatistics(SMeterQuerySupportObj* pSupporter);
 
-void clearGroupResultBuf(SOutputRes* pOneOutputRes, int32_t nOutputCols);
-void copyGroupResultBuf(SOutputRes* dst, const SOutputRes* src, int32_t nOutputCols);
+void clearGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SOutputRes *pOneOutputRes);
+void copyGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SOutputRes* dst, const SOutputRes* src);
 
-void resetSlidingWindowInfo(SSlidingWindowInfo* pSlidingWindowInfo, int32_t numOfCols);
-void clearCompletedSlidingWindows(SSlidingWindowInfo* pSlidingWindowInfo, int32_t numOfCols);
+void resetSlidingWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SSlidingWindowInfo* pSlidingWindowInfo);
+void clearCompletedSlidingWindows(SQueryRuntimeEnv* pRuntimeEnv);
 int32_t numOfClosedSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo);
 void closeSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo, int32_t slot);
 void closeAllSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo);
