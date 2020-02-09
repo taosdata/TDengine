@@ -85,10 +85,15 @@ typedef struct SQueryCostSummary {
   int64_t tmpBufferInDisk;  // size of buffer for intermediate result
 } SQueryCostSummary;
 
+typedef struct SPosInfo {
+  int64_t pageId;
+  int32_t rowId;
+} SPosInfo;
+
 typedef struct SOutputRes {
   uint16_t     numOfRows;
   int32_t      nAlloc;
-  tFilePage**  result;
+  SPosInfo     pos;
   SResultInfo* resultInfo;
 } SOutputRes;
 
@@ -175,16 +180,17 @@ typedef struct SQueryRuntimeEnv {
    * So we keep a copy of the support structure as well as the cache block data itself.
    */
   SCacheBlock         cacheBlock;
+  
+  SQueryResultBuf*    pResultBuf;
+  bool                stableQuery;  // is super table query or not
 } SQueryRuntimeEnv;
 
-/* intermediate result during multimeter query involves interval */
+/* intermediate pos during multimeter query involves interval */
 typedef struct SMeterQueryInfo {
   int64_t      lastKey;
   int64_t      skey;
   int64_t      ekey;
   int32_t      numOfRes;
-//  uint32_t     numOfPages;
-//  uint32_t     numOfAlloc;
   int32_t      reverseIndex;    // reversed output indicator, start from (numOfRes-1)
   int16_t      reverseFillRes;  // denote if reverse fill the results in supplementary scan required or not
   int16_t      queryRangeSet;   // denote if the query range is set, only available for interval query
@@ -192,8 +198,6 @@ typedef struct SMeterQueryInfo {
   int64_t      tag;
   STSCursor    cur;
   SResultInfo* resultInfo;
-//  uint32_t*    pageList;
-//  SIDList      pageIdList;
   int32_t      sid; // for retrieve the page id list
 } SMeterQueryInfo;
 
@@ -238,16 +242,8 @@ typedef struct SMeterQuerySupportObj {
    */
   int32_t meterIdx;
 
-//  int32_t meterOutputFd;
-//  int32_t lastPageId;
-//  int32_t numOfPages;
   int32_t numOfGroupResultPages;
   int32_t groupResultSize;
-  SQueryResultBuf* pResultBuf;
-//  char*   meterOutputMMapBuf;
-//  int64_t bufSize;
-//  char    extBufFile[256];  // external file name
-
   SMeterDataInfo* pMeterDataInfo;
 
   TSKEY* tsList;

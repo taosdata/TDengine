@@ -858,7 +858,7 @@ static void doOrderedScan(SQInfo *pQInfo) {
 static void setupMeterQueryInfoForSupplementQuery(SMeterQuerySupportObj *pSupporter) {
   for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
     SMeterQueryInfo *pMeterQueryInfo = pSupporter->pMeterDataInfo[i].pMeterQInfo;
-    SQueryResultBuf* pResultBuf = pSupporter->pResultBuf;
+    SQueryResultBuf* pResultBuf = pSupporter->runtimeEnv.pResultBuf;
     
     changeMeterQueryInfoForSuppleQuery(pResultBuf, pMeterQueryInfo, pSupporter->rawSKey, pSupporter->rawEKey);
   }
