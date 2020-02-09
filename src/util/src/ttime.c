@@ -44,7 +44,7 @@
  * An encoding of midnight at the end of the day as 24:00:00 - ie. midnight
  * tomorrow - (allowable under ISO 8601) is supported.
  */
-int64_t mktime64(const unsigned int year0, const unsigned int mon0,
+int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
 		const unsigned int day, const unsigned int hour,
 		const unsigned int min, const unsigned int sec)
 {
@@ -330,7 +330,7 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
   /* mktime will be affected by TZ, set by using taos_options */
   //int64_t seconds = mktime(&tm);
   //int64_t seconds = (int64_t)user_mktime(&tm);
-  int64_t seconds = mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
   
   int64_t fraction = 0;
 
