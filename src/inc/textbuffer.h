@@ -28,9 +28,6 @@ extern "C" {
 #define MAX_TMPFILE_PATH_LENGTH PATH_MAX
 #define INITIAL_ALLOCATION_BUFFER_SIZE 64
 
-// forward declaration
-struct tTagSchema;
-
 typedef enum EXT_BUFFER_FLUSH_MODEL {
   /*
    * all data that have been flushed to disk is belonged to the same group
