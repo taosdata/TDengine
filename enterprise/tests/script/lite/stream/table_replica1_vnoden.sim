@@ -57,6 +57,7 @@ $tb = $tbPrefix . $i
 
 sql select count(*) from $tb interval(1d)
 print select count(*) from $tb interval(1d) ===> $data00 $data01
+print $rowNum
 if $data01 != $rowNum then 
   return -1
 endi
@@ -196,8 +197,8 @@ $st = $stPrefix . as
 sql create table $st as select count(tbcol) as c from $tb interval(1d)
 
 print =============== step16
-print sleep 22 seconds
-sleep 22000 
+print sleep 60 seconds
+sleep 60000
 
 print =============== step17
 $st = $stPrefix . c1

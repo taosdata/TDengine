@@ -82,8 +82,8 @@ print =============== step3
 system sh/exec.sh -n dnode2 -s stop
 
 print =============== step4
-print sleep 22 seconds
-sleep 22000 
+print sleep 60 seconds
+sleep 60000
 
 print =============== step5
 $st = $stPrefix . c1
@@ -174,8 +174,8 @@ print =============== step9
 system sh/exec.sh -n dnode1 -s stop
 
 print =============== step10
-print sleep 22 seconds
-sleep 22000 
+print sleep 60 seconds
+sleep 60000
 
 print =============== step11
 $st = $stPrefix . c1

@@ -202,7 +202,7 @@ if $data13 != 1 then
 endi
 
 print data14 = $data14
-if $data14 != 1.00000 then
+if $data14 != 1.00001 then
   return -1
 endi
 

@@ -147,8 +147,8 @@ if $rows != 16 then
 endi
 
 print =============== step3
-print sleep 22 seconds
-sleep 22000 
+print sleep 60 seconds
+sleep 60000
 
 $i = 0
 $mt = $mtPrefix . $i
@@ -227,8 +227,8 @@ endi
 
 print rows0=>$r0 rows3=>$r3 rows6=>$r6  rows9=>$r9
 print =============== step5
-print sleep 22 seconds
-sleep 22000 
+print sleep 60 seconds
+sleep 60000
 
 print =============== step6
 $i = 0
