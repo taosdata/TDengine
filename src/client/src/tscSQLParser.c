@@ -685,7 +685,7 @@ int32_t setSlidingClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
     }
   } else {
-    pSliding->n = pQueryInfo->nAggTimeInterval;
+    pQueryInfo->nSlidingTime = -1;
   }
 
   return TSDB_CODE_SUCCESS;
