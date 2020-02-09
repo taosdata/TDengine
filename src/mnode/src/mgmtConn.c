@@ -14,9 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #include "os.h"
-
 #include "mgmt.h"
 #include "taosmsg.h"
 #include "tschemautil.h"

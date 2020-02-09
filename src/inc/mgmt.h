@@ -376,16 +376,6 @@ int grantRetrieveGrants(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 int  mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int  mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
-// dnode balance api
-int  mgmtInitBalance();
-void mgmtCleanupBalance();
-int  mgmtAllocVnodes(SVgObj *pVgroup);
-int  mgmtSetDnodeShellRemoving(SDnodeObj *pDnode);
-void mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
-void mgmtStartBalanceTimer(int64_t mseconds);
-void mgmtSetDnodeOfflineOnSdbChanged();
-void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbStatus, int srcIp);
-bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode);
 
 void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
 int mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
