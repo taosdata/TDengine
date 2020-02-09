@@ -3194,7 +3194,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
     GET_RES_INFO(pCtx)->numOfRes += forwardStep;
 
     pCtx->aOutputBuf += forwardStep * pCtx->outputBytes;
-    pCtx->ptsOutputBuf += forwardStep * TSDB_KEYSIZE;
+    pCtx->ptsOutputBuf = (char*)pCtx->ptsOutputBuf + forwardStep * TSDB_KEYSIZE;
   }
 }
 
