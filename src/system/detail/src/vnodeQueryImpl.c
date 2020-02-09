@@ -7245,7 +7245,8 @@ static void doApplyIntervalQueryOnBlock_rv(SMeterQuerySupportObj *pSupporter, SM
     
     // while the interval time window is less than the time range gap between two points, nextKey may be greater than
     // pSupporter->rawEKey
-    if (pQuery->ekey == pSupporter->rawEKey || nextKey > pSupporter->rawEKey) {
+    if (pQuery->ekey == pSupporter->rawEKey || (nextKey > pSupporter->rawEKey && QUERY_IS_ASC_QUERY(pQuery)) ||
+        (nextKey < pSupporter->rawEKey && !QUERY_IS_ASC_QUERY(pQuery))) {
       /* whole query completed, save result and abort */
       saveResult(pSupporter, pMeterQueryInfo, pMeterQueryInfo->lastResRows);
     
