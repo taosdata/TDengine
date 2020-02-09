@@ -1,7 +1,9 @@
 #if !defined(_TD_TYPE_H_)
 #define _TD_TYPE_H_
 
-typedef enum {
+#include <stdint.h>
+
+typedef enum : uint8_t {
     TD_DATATYPE_INVLD = 0,
     TD_DATATYPE_BOOL,
     TD_DATATYPE_TINYINT,

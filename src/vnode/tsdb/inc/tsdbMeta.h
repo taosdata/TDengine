@@ -51,6 +51,9 @@ typedef struct STable {
 
   // Tag values for this table
   char *pTagVal;
+
+  // Cached data
+  SSkipList *pData;
 } STable;
 
 #define TSDB_GET_TABLE_ID(pTable) (((STable *)pTable)->tid).tableId
