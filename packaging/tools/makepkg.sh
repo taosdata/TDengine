@@ -111,7 +111,7 @@ cd ${release_dir}
 if [ "$verMode" == "cluster" ]; then
   pkg_name=${install_dir}-${version}-${osType}-${cpuType}
 elif [ "$verMode" == "lite" ]; then
-  pkg_name=${install_dir}-edge-${version}-${osType}-${cpuType}
+  pkg_name=${install_dir}-${version}-${osType}-${cpuType}
 else
   echo "unknow verMode, nor cluster or lite"
   exit 1
