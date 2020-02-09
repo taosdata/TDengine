@@ -32,15 +32,6 @@ extern "C" {
  * Note:
  * 1. we implement a quick sort algorithm, may remove it later.
  */
-
-//typedef struct tTagSchema {
-//  struct SSchema *pSchema;
-//  int32_t         numOfCols;
-//  int32_t         colOffset[];
-//} tTagSchema;
-
-typedef SColumnModel tTagSchema;
-
 typedef struct tSidSet {
   int32_t            numOfSids;
   int32_t            numOfSubSet;
@@ -55,8 +46,6 @@ typedef int32_t (*__ext_compar_fn_t)(const void *p1, const void *p2, void *param
 
 tSidSet *tSidSetCreate(struct SMeterSidExtInfo **pMeterSidExtInfo, int32_t numOfMeters, SSchema *pSchema,
                        int32_t numOfTags, SColIndexEx *colList, int32_t numOfOrderCols);
-
-//tTagSchema *tCreateTagSchema(SSchema *pSchema, int32_t numOfTagCols);
 
 int32_t *calculateSubGroup(void **pSids, int32_t numOfMeters, int32_t *numOfSubset, tOrderDescriptor *pOrderDesc,
                            __ext_compar_fn_t compareFn);

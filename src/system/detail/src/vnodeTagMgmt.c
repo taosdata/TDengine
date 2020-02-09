@@ -27,7 +27,7 @@
 #define GET_TAG_VAL_POINTER(s, col, sc, t) ((t *)(&((s)->tags[getColumnModelOffset(sc, col)])))
 #define GET_TAG_VAL(s, col, sc, t) (*GET_TAG_VAL_POINTER(s, col, sc, t))
 
-static void tTagsPrints(SMeterSidExtInfo *pMeterInfo, tTagSchema *pSchema, SColumnOrderInfo *pOrder);
+static void tTagsPrints(SMeterSidExtInfo *pMeterInfo, SColumnModel *pSchema, SColumnOrderInfo *pOrder);
 
 static void tSidSetDisplay(tSidSet *pSets);
 
@@ -241,25 +241,6 @@ int32_t *calculateSubGroup(void **pSids, int32_t numOfMeters, int32_t *numOfSubs
   return starterPos;
 }
 
-//tTagSchema *tCreateTagSchema(SSchema *pSchema, int32_t numOfTagCols) {
-//  if (numOfTagCols == 0 || pSchema == NULL) {
-//    return NULL;
-//  }
-//
-//  tTagSchema *pColumnModel =
-//      (tTagSchema *)calloc(1, sizeof(tTagSchema) + numOfTagCols * sizeof(int32_t) + sizeof(SSchema) * numOfTagCols);
-//
-//  pColumnModel->colOffset[0] = 0;
-//  pColumnModel->numOfCols = numOfTagCols;
-//  for (int32_t i = 1; i < numOfTagCols; ++i) {
-//    pColumnModel->colOffset[i] = (pColumnModel->colOffset[i - 1] + pSchema[i - 1].bytes);
-//  }
-//
-//  pColumnModel->pSchema = (SSchema *)&(pColumnModel->colOffset[numOfTagCols]);
-//  memcpy(pColumnModel->pSchema, pSchema, sizeof(SSchema) * numOfTagCols);
-//  return pColumnModel;
-//}
-
 tSidSet *tSidSetCreate(struct SMeterSidExtInfo **pMeterSidExtInfo, int32_t numOfMeters, SSchema *pSchema,
                        int32_t numOfTags, SColIndexEx *colList, int32_t numOfCols) {
   tSidSet *pSidSet = (tSidSet *)calloc(1, sizeof(tSidSet) + numOfCols * sizeof(int16_t));
@@ -296,7 +277,7 @@ void tSidSetDestroy(tSidSet **pSets) {
   }
 }
 
-void tTagsPrints(SMeterSidExtInfo *pMeterInfo, tTagSchema *pSchema, SColumnOrderInfo *pOrder) {
+void tTagsPrints(SMeterSidExtInfo *pMeterInfo, SColumnModel *pSchema, SColumnOrderInfo *pOrder) {
   if (pSchema == NULL) {
     return;
   }
