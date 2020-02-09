@@ -27,10 +27,6 @@ int32_t createResultBuf(SQueryResultBuf** pResultBuf, int32_t size, int32_t rowS
   pResBuf->fd = open(pResBuf->path, O_CREAT | O_RDWR, 0666);
   
   memset(path, 0, tListLen(path));
-  getTmpfilePath("tsdb_q_i", path);
-  pResBuf->internpath = strdup(path);
-  
-  pResBuf->internfd = open(pResBuf->internpath, O_CREAT|O_RDWR, 0666);
 
   if (!FD_VALID(pResBuf->fd)) {
     pError("failed to create tmp file: %s on disk. %s", pResBuf->path, strerror(errno));
