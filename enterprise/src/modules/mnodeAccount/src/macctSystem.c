@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include <arpa/inet.h>
 
-#include "mgmt.h"
+#include "mnode.h"
 #include "tschemautil.h"
 
 #define TSDB_MIN_USERS_PER_ACCT 2

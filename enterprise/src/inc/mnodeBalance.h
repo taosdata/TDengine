@@ -26,6 +26,49 @@ extern "C" {
 
 void mnodeBalanceInit();
 
+int  mgmtSetDnodeShellRemoving(SDnodeObj *pDnode);
+void mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
+void mgmtSetDnodeOfflineOnSdbChanged();
+
+
+
+void mgmtCreateDnodeOrderList();
+
+void mgmtReleaseDnodeOrderList();
+
+void mgmtMakeDnodeOrderList();
+
+void mgmtCalcSystemScore();
+
+float mgmtTryCalcDnodeScore(SDnodeObj *pDnode, int extraVnode);
+
+bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode);
+
+bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode);
+
+bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType);
+
+void mgmtMonitorDnodeModule();
+
+void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
+
+int mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
+
+void mgmtMonitorVgroups();
+
+void mgmtMonitorDnodes();
+
+void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode);
+
+extern void *      dnodeSdb;
+extern void *      vgSdb;
+extern void *      balanceTimer;
+extern int         mgmtOrderedDnodesSize;
+extern int         mgmtOrderedDnodesMallocSize;
+extern SDnodeObj **mgmtOrderedDnodes;
+extern uint32_t    mgmtAccessSquence;
+extern SMgmtIpList mgmtIpList;
+
 #ifdef __cplusplus
 }
 #endif

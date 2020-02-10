@@ -18,7 +18,7 @@
 #include <arpa/inet.h>
 
 #include "dnodeSystem.h"
-#include "mgmt.h"
+#include "mnode.h"
 #include "mgmtProfile.h"
 #include "taosmsg.h"
 #include "tlog.h"

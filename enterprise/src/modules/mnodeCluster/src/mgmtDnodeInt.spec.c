@@ -18,7 +18,7 @@
 #include <endian.h>
 
 #include "dnodeSystem.h"
-#include "mgmt.h"
+#include "mnode.h"
 #include "mgmtBalance.h"
 #include "tutil.h"
 #include "dnodeModule.h"

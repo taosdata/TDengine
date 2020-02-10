@@ -27,7 +27,7 @@
 #include <unistd.h>
 
 #include "dnodeSystem.h"
-#include "mgmt.h"
+#include "mnode.h"
 #include "tsdb.h"
 #include "dnodeModule.h"
 

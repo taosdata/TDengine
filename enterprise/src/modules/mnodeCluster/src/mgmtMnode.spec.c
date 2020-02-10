@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 
-#include "mgmt.h"
+#include "mnode.h"
 #include "sdb.h"
 #include "tschemautil.h"
 

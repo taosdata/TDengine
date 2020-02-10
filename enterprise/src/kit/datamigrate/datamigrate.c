@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <libgen.h>
 
-#include "mgmt.h"
+#include "mnode.h"
 #include "vnode.h"
 #include "tsdb.h"
 
