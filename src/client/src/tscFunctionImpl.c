@@ -1878,7 +1878,8 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
   tVariantCreateFromBinary(&val, pData, tDataTypeDesc[type].nSize, type);
 
   tValuePair **pList = pInfo->res;
-
+  assert(pList != NULL);
+  
   if (pInfo->num < maxLen) {
     if (pInfo->num == 0 ||
         ((type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) &&

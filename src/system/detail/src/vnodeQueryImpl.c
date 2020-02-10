@@ -4461,6 +4461,8 @@ int32_t vnodeQuerySingleMeterPrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, SMete
 
   // the pQuery->skey is changed during normalizedFirstQueryRange, so set the newest lastkey value
   pQuery->lastKey = pQuery->skey;
+  pRuntimeEnv->stableQuery = false;
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4600,7 +4602,8 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
   TSKEY revisedStime = taosGetIntervalStartTimestamp(pSupporter->rawSKey, pQuery->nAggTimeInterval,
                                                      pQuery->intervalTimeUnit, pQuery->precision);
   taosInitInterpoInfo(&pRuntimeEnv->interpoInfo, pQuery->order.order, revisedStime, 0, 0);
-
+  pRuntimeEnv->stableQuery = true;
+  
   return TSDB_CODE_SUCCESS;
 }
 
