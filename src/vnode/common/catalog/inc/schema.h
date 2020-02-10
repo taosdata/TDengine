@@ -7,8 +7,9 @@
 #include "type.h"
 
 typedef struct _scolumn {
-  td_datatype_t type;
-  int32_t bytes;
+  tstring_t colName;      // column name
+  td_datatype_t type;     // data type
+  int32_t bytes;          // number of bytes
 } SColumn;
 
 typedef struct SSchema {
@@ -18,6 +19,7 @@ typedef struct SSchema {
 
 // Column with version
 typedef struct {
+  tstring_t colName;
   td_datatype_t type;
   int32_t colId;
   int32_t bytes;
@@ -27,7 +29,7 @@ typedef struct {
 typedef struct {
   int32_t version;      // Schema with version
   int32_t numOfCols;
-  int32_t columnId;
+  int32_t numOfTags;
   SVColumn *columns;
 } SVSchema;
 

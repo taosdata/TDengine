@@ -18,8 +18,15 @@ typedef struct {
 
 typedef struct {
   tstring_t fname;
-  SFileInfo;
+  SFileInfo fInfo;
 } SFILE;
+
+typedef struct {
+  int64_t offset;
+  int64_t skey;
+  int64_t ekey;
+  int16_t numOfBlocks;
+} SDataBlock;
 
 tstring_t tdGetHeadFileName(/* TODO */);
 tstring_t tdGetDataFileName(/* TODO */);
