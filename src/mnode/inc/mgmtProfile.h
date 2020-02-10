@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "mgmt.h"
+#include "mnode.h"
 
 int mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 

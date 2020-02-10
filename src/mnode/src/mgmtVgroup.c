@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#include "mgmt.h"
+#include "mnode.h"
 #include "tschemautil.h"
 #include "tlog.h"
 #include "vnodeStatus.h"

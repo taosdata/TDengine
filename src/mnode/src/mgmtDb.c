@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#include "mgmt.h"
+#include "mnode.h"
 #include "mgmtGrant.h"
 #include "mgmtBalance.h"
 #include "mgmtUtil.h"

@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include <arpa/inet.h>
-#include "mgmt.h"
+#include "mnode.h"
 
 int mgmtCheckRedirectMsg(SConnObj *pConn, int msgType) { return 0; }
 

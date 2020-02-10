@@ -17,7 +17,7 @@
 #include <arpa/inet.h>
 
 #include "dnodeSystem.h"
-#include "mgmt.h"
+#include "mnode.h"
 
 extern void *mgmtTmr;
 extern void *mgmtStatusTimer;

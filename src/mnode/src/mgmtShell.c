@@ -17,7 +17,7 @@
 #include "os.h"
 
 #include "dnodeSystem.h"
-#include "mgmt.h"
+#include "mnode.h"
 #include "mgmtGrant.h"
 #include "mgmtProfile.h"
 #include "taosmsg.h"

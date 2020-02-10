@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "mgmt.h"
+#include "mnode.h"
 #include "tglobalcfg.h"
 #include "vnodeStatus.h"
 #include "ttime.h"

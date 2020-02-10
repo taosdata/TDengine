@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mgmt.h"
+#include "mnode.h"
 
 int mgmtGetMnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
 
