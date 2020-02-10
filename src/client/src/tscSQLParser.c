@@ -1072,11 +1072,11 @@ int32_t setObjFullName(char* fullName, const char* account, SSQLToken* pDB, SSQL
     *xlen = totalLen;
   }
 
-  if (totalLen < TSDB_METER_ID_LEN) {
+  if (totalLen < TSDB_TABLE_ID_LEN) {
     fullName[totalLen] = 0;
   }
 
-  return (totalLen <= TSDB_METER_ID_LEN) ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_SQL;
+  return (totalLen <= TSDB_TABLE_ID_LEN) ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_SQL;
 }
 
 static void extractColumnNameFromString(tSQLExprItem* pItem) {
@@ -1901,7 +1901,7 @@ int32_t getMeterIndex(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColumnInd
   }
 
   pIndex->tableIndex = COLUMN_INDEX_INITIAL_VAL;
-  char tableName[TSDB_METER_ID_LEN + 1] = {0};
+  char tableName[TSDB_TABLE_ID_LEN + 1] = {0};
 
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
@@ -3365,7 +3365,7 @@ static int32_t setTableCondForMetricQuery(SQueryInfo* pQueryInfo, const char* ac
   SStringBuilder sb1 = {0};
   taosStringBuilderAppendStringLen(&sb1, QUERY_COND_REL_PREFIX_IN, QUERY_COND_REL_PREFIX_IN_LEN);
 
-  char db[TSDB_METER_ID_LEN] = {0};
+  char db[TSDB_TABLE_ID_LEN] = {0};
 
   // remove the duplicated input table names
   int32_t num = 0;
@@ -3389,7 +3389,7 @@ static int32_t setTableCondForMetricQuery(SQueryInfo* pQueryInfo, const char* ac
       taosStringBuilderAppendStringLen(&sb1, TBNAME_LIST_SEP, 1);
     }
 
-    char      idBuf[TSDB_METER_ID_LEN + 1] = {0};
+    char      idBuf[TSDB_TABLE_ID_LEN + 1] = {0};
     int32_t   xlen = strlen(segments[i]);
     SSQLToken t = {.z = segments[i], .n = xlen, .type = TK_STRING};
 
@@ -5300,7 +5300,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   // get meter meta from mnode
-  strncpy(pCreateTable->usingInfo.tagdata.name, pStableMeterMetaInfo->name, TSDB_METER_ID_LEN);
+  strncpy(pCreateTable->usingInfo.tagdata.name, pStableMeterMetaInfo->name, TSDB_TABLE_ID_LEN);
   tVariantList* pList = pInfo->pCreateTableInfo->usingInfo.pTagVals;
 
   int32_t code = tscGetMeterMeta(pSql, pStableMeterMetaInfo);

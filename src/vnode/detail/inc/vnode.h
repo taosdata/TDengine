@@ -158,7 +158,7 @@ typedef struct SColumn {
 
 typedef struct _meter_obj {
   uint64_t uid;
-  char     meterId[TSDB_METER_ID_LEN];
+  char     meterId[TSDB_TABLE_ID_LEN];
   int      sid;
   short    vnode;
   short    numOfColumns;

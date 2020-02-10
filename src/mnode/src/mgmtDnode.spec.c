@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mgmt.h"
+#include "mnode.h"
 #include "vnodeStatus.h"
 #include "dnodeModule.h"
 

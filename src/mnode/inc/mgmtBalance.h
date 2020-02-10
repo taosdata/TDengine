@@ -13,60 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMTBALANCE_H
-#define TDENGINE_MGMTBALANCE_H
+#ifndef TDENGINE_MGMT_BALANCE_H
+#define TDENGINE_MGMT_BALANCE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "os.h"
-
-#include "dnodeSystem.h"
-#include "mgmt.h"
+#include "mnode.h"
 #include "tglobalcfg.h"
 #include "vnodeStatus.h"
 #include "ttime.h"
 
-void mgmtCreateDnodeOrderList();
-
-void mgmtReleaseDnodeOrderList();
-
-void mgmtMakeDnodeOrderList();
-
-void mgmtCalcSystemScore();
-
-float mgmtTryCalcDnodeScore(SDnodeObj *pDnode, int extraVnode);
-
-bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode);
-
-bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode);
-
-bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType);
-
-void mgmtMonitorDnodeModule();
-
-void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
-
-int mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
-
-void mgmtMonitorVgroups();
-
-void mgmtMonitorDnodes();
-
-void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode);
-
-extern void *      dnodeSdb;
-extern void *      vgSdb;
-extern void *      balanceTimer;
-extern int         mgmtOrderedDnodesSize;
-extern int         mgmtOrderedDnodesMallocSize;
-extern SDnodeObj **mgmtOrderedDnodes;
-extern uint32_t    mgmtAccessSquence;
-extern SMgmtIpList mgmtIpList;
+extern void    (*mgmtStartBalanceTimer)(int64_t mseconds);
+extern int32_t (*mgmtInitBalance)();
+extern void    (*mgmtCleanupBalance)();
+extern int32_t (*mgmtAllocVnodes)(SVgObj *pVgroup);
+extern bool    (*mgmtCheckModuleInDnode)(SDnodeObj *pDnode, int moduleType);
+extern char*   (*mgmtGetVnodeStatus)(SVgObj *pVgroup, SVnodeGid *pVnode);
+extern bool    (*mgmtCheckVnodeReady)(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode);
+extern void    (*mgmtUpdateDnodeState)(SDnodeObj *pDnode, int lbStatus);
+extern void    (*mgmtUpdateVgroupState)(SVgObj *pVgroup, int lbStatus, int srcIp);
+extern bool    (*mgmtAddVnode)(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_MGMTBALANCE_H
+#endif

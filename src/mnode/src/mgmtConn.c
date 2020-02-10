@@ -14,15 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #include "os.h"
-
-#include "mgmt.h"
+#include "mnode.h"
 #include "taosmsg.h"
 #include "tschemautil.h"
 
 typedef struct {
-  char     user[TSDB_METER_ID_LEN];
+  char     user[TSDB_TABLE_ID_LEN];
   uint64_t stime;
   uint32_t ip;
   uint16_t port;

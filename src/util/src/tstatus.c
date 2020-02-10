@@ -14,8 +14,7 @@
  */
 
 #include "taosmsg.h"
-#include "tsdb.h"
-#include "vnodeStatus.h"
+#include "tstatus.h"
 
 const char* taosGetVgroupStatusStr(int32_t vgroupStatus) {
   switch (vgroupStatus) {

@@ -186,15 +186,15 @@ void vnodeUpdateStreamRole(SVnodeObj *pVnode) {
 
 // Callback function called from client
 void vnodeCloseStreamCallback(void *param) {
-  SMeterObj *pMeter = (SMeterObj *)param;
+  SMeterObj *pTable = (SMeterObj *)param;
   SVnodeObj *pVnode = NULL;
 
-  if (pMeter == NULL || pMeter->sqlLen == 0) return;
-  pVnode = vnodeList + pMeter->vnode;
+  if (pTable == NULL || pTable->sqlLen == 0) return;
+  pVnode = vnodeList + pTable->vnode;
 
-  pMeter->sqlLen = 0;
-  pMeter->pSql = NULL;
-  pMeter->pStream = NULL;
+  pTable->sqlLen = 0;
+  pTable->pSql = NULL;
+  pTable->pStream = NULL;
 
   pVnode->numOfStreams--;
 
@@ -203,5 +203,5 @@ void vnodeCloseStreamCallback(void *param) {
     pVnode->dbConn = NULL;
   }
 
-  vnodeSaveMeterObjToFile(pMeter);
+  vnodeSaveMeterObjToFile(pTable);
 }

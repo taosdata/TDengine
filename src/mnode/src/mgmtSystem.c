@@ -17,7 +17,7 @@
 #include "os.h"
 
 #include "dnodeSystem.h"
-#include "mgmt.h"
+#include "mnode.h"
 #include "tsdb.h"
 #include "mgmtSystem.h"
 #include "dnodeModule.h"

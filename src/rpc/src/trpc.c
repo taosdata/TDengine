@@ -722,7 +722,7 @@ int taosSetSecurityInfo(int chann, int sid, char *id, int spi, int encrypt, char
     pConn->encrypt = encrypt;
     memcpy(pConn->secret, pConn->secret, TSDB_KEY_LEN);
     memcpy(pConn->cipheringKey, ckey, TSDB_KEY_LEN);
-    memcpy(pConn->meterId, id, TSDB_METER_ID_LEN);
+    memcpy(pConn->meterId, id, TSDB_TABLE_ID_LEN);
   */
   return -1;
 }

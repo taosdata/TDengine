@@ -15,71 +15,54 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
-#include "mgmt.h"
+#include "mnode.h"
 #include "mgmtUtil.h"
-#include "textbuffer.h"
 #include "tschemautil.h"
-#include "tsqlfunction.h"
-#include "vnodeTagMgmt.h"
 
-extern int cksumsize;
-
-uint64_t mgmtGetCheckSum(FILE* fp, int offset) {
-  uint64_t checksum = 0;
-  uint64_t data;
-  int      bytes;
-
-  while (1) {
-    data = 0;
-    bytes = fread(&data, sizeof(data), 1, fp);
-
-    if (bytes != sizeof(data)) break;
-
-    checksum += data;
-  }
-
-  return checksum;
+bool mgmtTableCreateFromSuperTable(STabObj* pTableObj) {
+  return pTableObj->tableType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE;
 }
 
-bool mgmtMeterCreateFromMetric(STabObj* pMeterObj) { return pMeterObj->meterType == TSDB_METER_MTABLE; }
+bool mgmtIsSuperTable(STabObj* pTableObj) {
+  return pTableObj->tableType == TSDB_TABLE_TYPE_SUPER_TABLE;
+}
 
-bool mgmtIsMetric(STabObj* pMeterObj) { return pMeterObj->meterType == TSDB_METER_METRIC; }
-
-bool mgmtIsNormalMeter(STabObj* pMeterObj) { return !mgmtIsMetric(pMeterObj); }
+bool mgmtIsNormalTable(STabObj* pTableObj) {
+  return !mgmtIsSuperTable(pTableObj);
+}
 
 /**
  * TODO: the tag offset value should be kept in memory to avoid dynamically calculating the value
  *
- * @param pMeter
+ * @param pTable
  * @param col
  * @param pTagColSchema
  * @return
  */
-char* mgmtMeterGetTag(STabObj* pMeter, int32_t col, SSchema* pTagColSchema) {
-  if (!mgmtMeterCreateFromMetric(pMeter)) {
+char* mgmtTableGetTag(STabObj* pTable, int32_t col, SSchema* pTagColSchema) {
+  if (!mgmtTableCreateFromSuperTable(pTable)) {
     return NULL;
   }
 
-  STabObj* pMetric = mgmtGetMeter(pMeter->pTagData);
-  int32_t  offset = mgmtGetTagsLength(pMetric, col) + TSDB_METER_ID_LEN;
+  STabObj* pSuperTable = mgmtGetTable(pTable->pTagData);
+  int32_t  offset = mgmtGetTagsLength(pSuperTable, col) + TSDB_TABLE_ID_LEN;
   assert(offset > 0);
 
   if (pTagColSchema != NULL) {
-    *pTagColSchema = ((SSchema*)pMetric->schema)[pMetric->numOfColumns + col];
+    *pTagColSchema = ((SSchema*)pSuperTable->schema)[pSuperTable->numOfColumns + col];
   }
 
-  return (pMeter->pTagData + offset);
+  return (pTable->pTagData + offset);
 }
 
-int32_t mgmtGetTagsLength(STabObj* pMetric, int32_t col) {  // length before column col
-  assert(mgmtIsMetric(pMetric) && col >= 0);
+int32_t mgmtGetTagsLength(STabObj* pSuperTable, int32_t col) {  // length before column col
+  assert(mgmtIsSuperTable(pSuperTable) && col >= 0);
 
   int32_t len = 0;
-  int32_t tagColumnIndexOffset = pMetric->numOfColumns;
+  int32_t tagColumnIndexOffset = pSuperTable->numOfColumns;
 
-  for (int32_t i = 0; i < pMetric->numOfTags && i < col; ++i) {
-    len += ((SSchema*)pMetric->schema)[tagColumnIndexOffset + i].bytes;
+  for (int32_t i = 0; i < pSuperTable->numOfTags && i < col; ++i) {
+    len += ((SSchema*)pSuperTable->schema)[tagColumnIndexOffset + i].bytes;
   }
 
   return len;

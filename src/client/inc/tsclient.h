@@ -54,7 +54,7 @@ typedef struct SMeterMetaInfo {
    * 2. keep the vnode index for multi-vnode insertion
    */
   int32_t vnodeIndex;
-  char    name[TSDB_METER_ID_LEN + 1];    // table(super table) name
+  char    name[TSDB_TABLE_ID_LEN + 1];    // table(super table) name
   int16_t numOfTags;                      // total required tags in query, including groupby tags
   int16_t tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
 } SMeterMetaInfo;
@@ -119,7 +119,7 @@ typedef struct SCond {
 } SCond;
 
 typedef struct SJoinNode {
-  char     meterId[TSDB_METER_ID_LEN];
+  char     meterId[TSDB_TABLE_ID_LEN];
   uint64_t uid;
   int16_t  tagCol;
 } SJoinNode;
@@ -154,7 +154,7 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct STableDataBlocks {
-  char    meterId[TSDB_METER_ID_LEN];
+  char    meterId[TSDB_TABLE_ID_LEN];
   int8_t  tsSource;     // where does the UNIX timestamp come from, server or client
   bool    ordered;      // if current rows are ordered or not
   int64_t vgid;         // virtual group id
@@ -302,7 +302,7 @@ typedef struct _tsc_obj {
   char             user[TSDB_USER_LEN];
   char             pass[TSDB_KEY_LEN];
   char             acctId[TSDB_DB_NAME_LEN];
-  char             db[TSDB_METER_ID_LEN];
+  char             db[TSDB_TABLE_ID_LEN];
   char             sversion[TSDB_VERSION_LEN];
   char             writeAuth : 1;
   char             superAuth : 1;

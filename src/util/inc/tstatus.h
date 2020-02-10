@@ -16,11 +16,13 @@
 #ifndef TDENGINE_TSTATUS_H
 #define TDENGINE_TSTATUS_H
 
-#include "taoserror.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+  
+#include <stdint.h>
+#include <stdbool.h>
+#include "taoserror.h"
 
 enum _TSDB_VG_STATUS {
   TSDB_VG_STATUS_READY = TSDB_CODE_SUCCESS,

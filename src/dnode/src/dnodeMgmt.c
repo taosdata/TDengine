@@ -312,7 +312,7 @@ int vnodeProcessCreateMeterMsg(char *pMsg, int msgLen) {
   pObj->vnode = pCreate->vnode;
   pObj->sid = pCreate->sid;
   pObj->uid = pCreate->uid;
-  memcpy(pObj->meterId, pCreate->meterId, TSDB_METER_ID_LEN);
+  memcpy(pObj->meterId, pCreate->meterId, TSDB_TABLE_ID_LEN);
   pObj->numOfColumns = pCreate->numOfColumns;
   pObj->timeStamp = pCreate->timeStamp;
   pObj->sversion = htonl(pCreate->sversion);
@@ -377,7 +377,7 @@ int vnodeProcessRemoveMeterRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj) {
   pObj = vnodeList[pRemove->vnode].meterList[pRemove->sid];
   if (pObj == NULL) goto _remove_over;
 
-  if (memcmp(pObj->meterId, pRemove->meterId, TSDB_METER_ID_LEN) != 0) {
+  if (memcmp(pObj->meterId, pRemove->meterId, TSDB_TABLE_ID_LEN) != 0) {
     dWarn("vid:%d sid:%d id:%s, remove ID:%s, meter ID not matched", pObj->vnode, pObj->sid, pObj->meterId,
           pRemove->meterId);
     goto _remove_over;

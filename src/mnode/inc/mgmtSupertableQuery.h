@@ -13,9 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
+#ifndef TBASE_MNODE_SUPER_TABLE_QUERY_H
+#define TBASE_MNODE_SUPER_TABLE_QUERY_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 #include "mnode.h"
 
-int mgmtGetMnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t mgmtRetrieveMetersFromSuperTable(SSuperTableMetaMsg* pInfo, int32_t tableIndex, tQueryResultset* pRes);
+int32_t mgmtDoJoin(SSuperTableMetaMsg* pSuperTableMetaMsg, tQueryResultset* pRes);
+void    mgmtReorganizeMetersInMetricMeta(SSuperTableMetaMsg* pInfo, int32_t index, tQueryResultset* pRes);
 
-int mgmtRetrieveMnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }
+
+#endif

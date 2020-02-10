@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#include "mgmt.h"
+#include "mnode.h"
 #include "tschemautil.h"
 #include "tlog.h"
 #include "vnodeStatus.h"
@@ -168,13 +168,13 @@ SVgObj *mgmtCreateVgroup(SDbObj *pDb) {
 }
 
 int mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
-  STabObj *pMeter;
+  STabObj *pTable;
 
   if (pVgroup->numOfMeters > 0) {
     for (int i = 0; i < pDb->cfg.maxSessions; ++i) {
       if (pVgroup->meterList != NULL) {
-        pMeter = pVgroup->meterList[i];
-        if (pMeter) mgmtDropMeter(pDb, pMeter->meterId, 0);
+        pTable = pVgroup->meterList[i];
+        if (pTable) mgmtDropMeter(pDb, pTable->meterId, 0);
       }
     }
   }
@@ -239,14 +239,14 @@ int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
 
   int      maxReplica = 0;
   SVgObj  *pVgroup    = NULL;
-  STabObj *pMeter     = NULL;
+  STabObj *pTable     = NULL;
   if (pShow->payloadLen > 0 ) {
-    pMeter = mgmtGetMeter(pShow->payload);
-    if (NULL == pMeter) {
+    pTable = mgmtGetTable(pShow->payload);
+    if (NULL == pTable) {
       return TSDB_CODE_INVALID_METER_ID;
     }
 
-    pVgroup = mgmtGetVgroup(pMeter->gid.vgId);
+    pVgroup = mgmtGetVgroup(pTable->gid.vgId);
     if (NULL == pVgroup) return TSDB_CODE_INVALID_METER_ID;
     
     maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
@@ -292,7 +292,7 @@ int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  if (NULL == pMeter) {
+  if (NULL == pTable) {
     pShow->numOfRows = pDb->numOfVgroups;
     pShow->pNode = pDb->pHead;
   } else {

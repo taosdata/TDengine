@@ -253,7 +253,7 @@ typedef struct SMeterQuerySupportObj {
 typedef struct _qinfo {
   uint64_t       signature;
   int32_t        refCount;  // QInfo reference count, when the value is 0, it can be released safely
-  char           user[TSDB_METER_ID_LEN + 1];
+  char           user[TSDB_TABLE_ID_LEN + 1];
   char           sql[TSDB_SHOW_SQL_LEN];
   uint8_t        stream;
   uint16_t       port;

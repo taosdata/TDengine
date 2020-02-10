@@ -18,7 +18,7 @@
 #include "os.h"
 
 #include "dnodeSystem.h"
-#include "mgmt.h"
+#include "mnode.h"
 #include "tschemautil.h"
 #include "vnodeStatus.h"
 #include "dnodeModule.h"

@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#include "mgmt.h"
+#include "mnode.h"
 #include "mgmtProfile.h"
 #include "taosmsg.h"
 #include "tschemautil.h"
@@ -24,7 +24,7 @@
 typedef struct {
   uint32_t ip;
   uint16_t port;
-  char     user[TSDB_METER_ID_LEN];
+  char     user[TSDB_TABLE_ID_LEN];
 } SCDesc;
 
 typedef struct {

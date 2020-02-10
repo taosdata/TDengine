@@ -13,9 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
+#ifndef TBASE_MNODE_TABLE_H
+#define TBASE_MNODE_TABLE_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 #include "mnode.h"
 
-int mgmtGetMnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t mgmtFindTagCol(STabObj * pTable, const char * tagName);
 
-int mgmtRetrieveMnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }
+#endif

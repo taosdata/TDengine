@@ -657,7 +657,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   dataBuf->size = startOffset;
   dataBuf->tsSource = -1;
 
-  strncpy(dataBuf->meterId, name, TSDB_METER_ID_LEN);
+  strncpy(dataBuf->meterId, name, TSDB_TABLE_ID_LEN);
 
   /*
    * The metermeta may be released since the metermeta cache are completed clean by other thread
@@ -1810,7 +1810,7 @@ SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, SM
   assert(pMeterMetaInfo != NULL);
 
   if (name != NULL) {
-    assert(strlen(name) <= TSDB_METER_ID_LEN);
+    assert(strlen(name) <= TSDB_TABLE_ID_LEN);
     strcpy(pMeterMetaInfo->name, name);
   }
 

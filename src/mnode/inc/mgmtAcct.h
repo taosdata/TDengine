@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "mgmt.h"
+#include "mnode.h"
 
 int32_t mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg);
 int32_t mgmtUpdateAcct(SAcctObj *pAcct);

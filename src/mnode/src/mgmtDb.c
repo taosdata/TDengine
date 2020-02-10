@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#include "mgmt.h"
+#include "mnode.h"
 #include "mgmtGrant.h"
 #include "mgmtBalance.h"
 #include "mgmtUtil.h"
@@ -116,7 +116,7 @@ int mgmtInitDbs() {
 SDbObj *mgmtGetDb(char *db) { return (SDbObj *)sdbGetRow(dbSdb, db); }
 
 SDbObj *mgmtGetDbByMeterId(char *meterId) {
-  char db[TSDB_METER_ID_LEN], *pos;
+  char db[TSDB_TABLE_ID_LEN], *pos;
 
   pos = strstr(meterId, TS_PATH_DELIMITER);
   pos = strstr(pos + 1, TS_PATH_DELIMITER);
