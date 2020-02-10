@@ -976,11 +976,21 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
+      #ifdef _TD_ARM_32_
+      float fv = GET_FLOAT_VAL(src);
+      SET_FLOAT_VAL_ALIGN(val, &fv);
+      #else
       *((float *)val) = GET_FLOAT_VAL(src);
+      #endif
       break;
     };
     case TSDB_DATA_TYPE_DOUBLE: {
+      #ifdef _TD_ARM_32_
+      double dv = GET_DOUBLE_VAL(src);
+      SET_DOUBLE_VAL_ALIGN(val, &dv);
+      #else
       *((double *)val) = GET_DOUBLE_VAL(src);
+      #endif
       break;
     };
     case TSDB_DATA_TYPE_TIMESTAMP:
