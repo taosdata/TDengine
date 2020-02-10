@@ -84,8 +84,8 @@ static int32_t tabObjResultComparator(const void* p1, const void* p2, void* para
       schema.type = TSDB_DATA_TYPE_BINARY;
       schema.bytes = TSDB_METER_ID_LEN;
     } else {
-      f1 = mgmtMeterGetTag(pNode1, colIdx, NULL);
-      f2 = mgmtMeterGetTag(pNode2, colIdx, &schema);
+      f1 = mgmtTableGetTag(pNode1, colIdx, NULL);
+      f2 = mgmtTableGetTag(pNode2, colIdx, &schema);
       assert(schema.type == pOrderDesc->pTagSchema->pSchema[colIdx].type);
     }
 
@@ -134,7 +134,7 @@ void mgmtReorganizeMetersInMetricMeta(SMetricMetaMsg* pMetricMetaMsg, int32_t ta
 
   SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pMetricMetaMsg + pMetricMetaMsg->metaElem[tableIndex]);
 
-  STabObj* pMetric = mgmtGetMeter(pElem->meterId);
+  STabObj* pMetric = mgmtGetTable(pElem->meterId);
   SSchema* pTagSchema = (SSchema*)(pMetric->schema + pMetric->numOfColumns * sizeof(SSchema));
 
   /*
@@ -181,7 +181,7 @@ static void mgmtRetrieveByMeterName(tQueryResultset* pRes, char* str, STabObj* p
   pRes->num = 0;
 
   for (pToken = strsep(&str, sep); pToken != NULL; pToken = strsep(&str, sep)) {
-    STabObj* pMeterObj = mgmtGetMeter(pToken);
+    STabObj* pMeterObj = mgmtGetTable(pToken);
     if (pMeterObj == NULL) {
       mWarn("metric:%s error in metric query expression, invalid meter id:%s", pMetric->meterId, pToken);
       continue;
@@ -193,7 +193,7 @@ static void mgmtRetrieveByMeterName(tQueryResultset* pRes, char* str, STabObj* p
     }
 
     /* not a table created from metric, ignore */
-    if (pMeterObj->meterType != TSDB_METER_MTABLE) {
+    if (pMeterObj->meterType != TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
       continue;
     }
 
@@ -201,7 +201,7 @@ static void mgmtRetrieveByMeterName(tQueryResultset* pRes, char* str, STabObj* p
      * queried meter not belongs to this metric, ignore, metric does not have
      * uid, so compare according to meterid
      */
-    STabObj* parentMetric = mgmtGetMeter(pMeterObj->pTagData);
+    STabObj* parentMetric = mgmtGetTable(pMeterObj->pTagData);
     if (strncasecmp(parentMetric->meterId, pMetric->meterId, TSDB_METER_ID_LEN) != 0 ||
         (parentMetric->uid != pMetric->uid)) {
       continue;
@@ -256,7 +256,7 @@ UNUSED_FUNC static bool mgmtJoinFilterCallback(tSkipListNode* pNode, void* param
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
 
   SSchema s = {0};
-  char*   v = mgmtMeterGetTag((STabObj*)pNode->pData, pSupporter->colIndex, &s);
+  char*   v = mgmtTableGetTag((STabObj*)pNode->pData, pSupporter->colIndex, &s);
 
   for (int32_t i = 0; i < pSupporter->size; ++i) {
     int32_t ret = doCompare(v, pSupporter->val[i], pSupporter->type, s.bytes);
@@ -288,7 +288,7 @@ static void orderResult(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes, i
   tOrderDescriptor* descriptor =
       (tOrderDescriptor*)calloc(1, sizeof(tOrderDescriptor) + sizeof(int32_t) * 1);  // only one column for join
 
-  STabObj* pMetric = mgmtGetMeter(pElem->meterId);
+  STabObj* pMetric = mgmtGetTable(pElem->meterId);
   SSchema* pTagSchema = (SSchema*)(pMetric->schema + pMetric->numOfColumns * sizeof(SSchema));
 
   descriptor->pTagSchema = tCreateTagSchema(pTagSchema, pMetric->numOfTags);
@@ -311,8 +311,8 @@ static int32_t mgmtCheckForDuplicateTagValue(tQueryResultset* pRes, int32_t inde
     STabObj* pObj1 = pRes[index].pRes[k - 1];
     STabObj* pObj2 = pRes[index].pRes[k];
 
-    char* val1 = mgmtMeterGetTag(pObj1, tagCol, &s);
-    char* val2 = mgmtMeterGetTag(pObj2, tagCol, NULL);
+    char* val1 = mgmtTableGetTag(pObj1, tagCol, &s);
+    char* val2 = mgmtTableGetTag(pObj2, tagCol, NULL);
 
     if (doCompare(val1, val2, s.type, s.bytes) == 0) {
       return TSDB_CODE_DUPLICATE_TAGS;
@@ -354,8 +354,8 @@ int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes) {
   strcpy(right, cond + TSDB_METER_ID_LEN + sizeof(int16_t));
   int16_t rightTagColIndex = *(int16_t*)(cond + TSDB_METER_ID_LEN * 2 + sizeof(int16_t));
 
-  STabObj* pLeftMetric = mgmtGetMeter(left);
-  STabObj* pRightMetric = mgmtGetMeter(right);
+  STabObj* pLeftMetric = mgmtGetTable(left);
+  STabObj* pRightMetric = mgmtGetTable(right);
 
   // decide the pRes belongs to
   int32_t leftIndex = 0;
@@ -363,7 +363,7 @@ int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes) {
 
   for (int32_t i = 0; i < pMetricMetaMsg->numOfMeters; ++i) {
     STabObj* pObj = (STabObj*)pRes[i].pRes[0];
-    STabObj* pMetric1 = mgmtGetMeter(pObj->pTagData);
+    STabObj* pMetric1 = mgmtGetTable(pObj->pTagData);
     if (pMetric1 == pLeftMetric) {
       leftIndex = i;
     } else if (pMetric1 == pRightMetric) {
@@ -391,8 +391,8 @@ int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes) {
     STabObj* pLeftObj = pRes[leftIndex].pRes[i];
     STabObj* pRightObj = pRes[rightIndex].pRes[j];
 
-    char* v1 = mgmtMeterGetTag(pLeftObj, leftTagColIndex, &s);
-    char* v2 = mgmtMeterGetTag(pRightObj, rightTagColIndex, NULL);
+    char* v1 = mgmtTableGetTag(pLeftObj, leftTagColIndex, &s);
+    char* v2 = mgmtTableGetTag(pRightObj, rightTagColIndex, NULL);
 
     int32_t ret = doCompare(v1, v2, s.type, s.bytes);
     if (ret == 0) {  // qualified
@@ -729,7 +729,7 @@ static int32_t mgmtFilterMeterByIndex(STabObj* pMetric, tQueryResultset* pRes, c
 
 int mgmtRetrieveMetersFromMetric(SMetricMetaMsg* pMsg, int32_t tableIndex, tQueryResultset* pRes) {
   SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pMsg + pMsg->metaElem[tableIndex]);
-  STabObj*            pMetric = mgmtGetMeter(pElem->meterId);
+  STabObj*            pMetric = mgmtGetTable(pElem->meterId);
   char*               pCond = NULL;
   char*               tmpTableNameCond = NULL;
 

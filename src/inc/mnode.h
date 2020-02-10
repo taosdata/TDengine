@@ -324,20 +324,17 @@ void mgmtCleanUpVgroups();
 
 // meter API
 int      mgmtInitMeters();
-STabObj *mgmtGetMeter(char *meterId);
-STabObj *mgmtGetMeterInfo(char *src, char *tags[]);
+STabObj *mgmtGetTable(char *meterId);
+STabObj *mgmtGetTableInfo(char *src, char *tags[]);
 int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SMetricMetaMsg *pInfo);
 int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate);
 int mgmtDropMeter(SDbObj *pDb, char *meterId, int ignore);
 int mgmtAlterMeter(SDbObj *pDb, SAlterTableMsg *pAlter);
-int mgmtGetMeterMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 void     mgmtCleanUpMeters();
-SSchema *mgmtGetMeterSchema(STabObj *pMeter);  // get schema for a meter
+SSchema *mgmtGetTableSchema(STabObj *pMeter);  // get schema for a meter
 
-bool mgmtMeterCreateFromMetric(STabObj *pMeterObj);
-bool mgmtIsMetric(STabObj *pMeterObj);
-bool mgmtIsNormalMeter(STabObj *pMeterObj);
 
 // dnode API
 int        mgmtInitDnodes();

@@ -241,7 +241,7 @@ int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   SVgObj  *pVgroup    = NULL;
   STabObj *pMeter     = NULL;
   if (pShow->payloadLen > 0 ) {
-    pMeter = mgmtGetMeter(pShow->payload);
+    pMeter = mgmtGetTable(pShow->payload);
     if (NULL == pMeter) {
       return TSDB_CODE_INVALID_METER_ID;
     }

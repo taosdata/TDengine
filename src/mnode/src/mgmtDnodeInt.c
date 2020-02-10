@@ -206,7 +206,7 @@ char *mgmtBuildCreateMeterIe(STabObj *pMeter, char *pMsg, int vnode) {
   */
   pCreateMeter->sversion = htonl(pMeter->sversion);
   pCreateMeter->numOfColumns = htons(pMeter->numOfColumns);
-  SSchema *pSchema = mgmtGetMeterSchema(pMeter);
+  SSchema *pSchema = mgmtGetTableSchema(pMeter);
 
   for (int i = 0; i < pMeter->numOfColumns; ++i) {
     pCreateMeter->schema[i].type = pSchema[i].type;

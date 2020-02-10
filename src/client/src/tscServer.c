@@ -2991,7 +2991,7 @@ int tscProcessMeterMetaRsp(SSqlObj *pSql) {
   int32_t  tagLen = 0;
   SSchema *pTagsSchema = tsGetTagSchema(pMeta);
 
-  if (pMeta->meterType == TSDB_METER_MTABLE) {
+  if (pMeta->meterType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
     for (int32_t i = 0; i < pMeta->numOfTags; ++i) {
       tagLen += pTagsSchema[i].bytes;
     }
@@ -3106,7 +3106,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
     int32_t  tagLen = 0;
     SSchema *pTagsSchema = tsGetTagSchema(pMeta);
 
-    if (pMeta->meterType == TSDB_METER_MTABLE) {
+    if (pMeta->meterType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
       for (int32_t j = 0; j < pMeta->numOfTags; ++j) {
         tagLen += pTagsSchema[j].bytes;
       }

@@ -109,7 +109,7 @@ void mgmtMeterActionInit() {
 }
 
 static int32_t mgmtGetReqTagsLength(STabObj *pMetric, int16_t *cols, int32_t numOfCols) {
-  assert(mgmtIsMetric(pMetric) && numOfCols >= 0 && numOfCols <= TSDB_MAX_TAGS + 1);
+  assert(mgmtIsSuperTable(pMetric) && numOfCols >= 0 && numOfCols <= TSDB_MAX_TAGS + 1);
 
   int32_t len = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -142,7 +142,7 @@ void *mgmtMeterActionReset(void *row, char *str, int size, int *ssize) {
   pMeter->schema = (char *)realloc(pMeter->schema, pMeter->schemaSize);
   memcpy(pMeter->schema, str + tsize, pMeter->schemaSize);
 
-  if (mgmtMeterCreateFromMetric(pMeter)) {
+  if (mgmtTableCreateFromSuperTable(pMeter)) {
     pMeter->pTagData = pMeter->schema;
   }
 
@@ -164,7 +164,7 @@ void *mgmtMeterActionInsert(void *row, char *str, int size, int *ssize) {
 
   pMeter = (STabObj *)row;
 
-  if (mgmtIsNormalMeter(pMeter)) {
+  if (mgmtIsNormalTable(pMeter)) {
     pVgroup = mgmtGetVgroup(pMeter->gid.vgId);
     if (pVgroup == NULL) {
       mError("id:%s not in vgroup:%d", pMeter->meterId, pMeter->gid.vgId);
@@ -185,17 +185,17 @@ void *mgmtMeterActionInsert(void *row, char *str, int size, int *ssize) {
     }
   }
 
-  if (mgmtMeterCreateFromMetric(pMeter)) {
+  if (mgmtTableCreateFromSuperTable(pMeter)) {
     pMeter->pTagData = (char *)pMeter->schema;
-    pMetric = mgmtGetMeter(pMeter->pTagData);
+    pMetric = mgmtGetTable(pMeter->pTagData);
     assert(pMetric != NULL);
   }
 
-  if (pMeter->meterType == TSDB_METER_STABLE) {
+  if (pMeter->meterType == TSDB_TABLE_TYPE_STREAM_TABLE) {
     pMeter->pSql = (char *)pMeter->schema + sizeof(SSchema) * pMeter->numOfColumns;
   }
 
-  if (mgmtIsNormalMeter(pMeter)) {
+  if (mgmtIsNormalTable(pMeter)) {
     if (pMetric) mgmtAddMeterIntoMetric(pMetric, pMeter);
 
     if (!sdbMaster) {
@@ -233,7 +233,7 @@ void *mgmtMeterActionDelete(void *row, char *str, int size, int *ssize) {
 
   pMeter = (STabObj *)row;
 
-  if (mgmtIsNormalMeter(pMeter)) {
+  if (mgmtIsNormalTable(pMeter)) {
     if (pMeter->gid.vgId == 0) {
       return NULL;
     }
@@ -251,13 +251,13 @@ void *mgmtMeterActionDelete(void *row, char *str, int size, int *ssize) {
     }
   }
 
-  if (mgmtMeterCreateFromMetric(pMeter)) {
+  if (mgmtTableCreateFromSuperTable(pMeter)) {
     pMeter->pTagData = (char *)pMeter->schema;
-    pMetric = mgmtGetMeter(pMeter->pTagData);
+    pMetric = mgmtGetTable(pMeter->pTagData);
     assert(pMetric != NULL);
   }
 
-  if (mgmtIsNormalMeter(pMeter)) {
+  if (mgmtIsNormalTable(pMeter)) {
     if (pMetric) mgmtRemoveMeterFromMetric(pMetric, pMeter);
 
     pVgroup->meterList[pMeter->gid.sid] = NULL;
@@ -285,7 +285,7 @@ void *mgmtMeterActionUpdate(void *row, char *str, int size, int *ssize) {
   STabObj *pNew = (STabObj *)str;
 
   if (pNew->isDirty) {
-    pMetric = mgmtGetMeter(pMeter->pTagData);
+    pMetric = mgmtGetTable(pMeter->pTagData);
     removeMeterFromMetricIndex(pMetric, pMeter);
   }
   mgmtMeterActionReset(pMeter, str, size, NULL);
@@ -353,7 +353,7 @@ void *mgmtMeterActionBatchUpdate(void *row, char *str, int size, int *ssize) {
   STabObj *             pMeter = (STabObj *)row;
   SMeterBatchUpdateMsg *msg = (SMeterBatchUpdateMsg *)str;
 
-  if (mgmtIsMetric(pMeter)) {
+  if (mgmtIsSuperTable(pMeter)) {
     if (msg->type == SDB_TYPE_INSERT) {  // Insert schema
       uint32_t total_cols = pMeter->numOfColumns + pMeter->numOfTags;
       pMeter->schema = realloc(pMeter->schema, (total_cols + msg->cols) * sizeof(SSchema));
@@ -378,7 +378,7 @@ void *mgmtMeterActionBatchUpdate(void *row, char *str, int size, int *ssize) {
 
     return pMeter->pHead;
 
-  } else if (mgmtMeterCreateFromMetric(pMeter)) {
+  } else if (mgmtTableCreateFromSuperTable(pMeter)) {
     if (msg->type == SDB_TYPE_INSERT) {
       SSchema *schemas = (SSchema *)msg->data;
       int      total_size = 0;
@@ -452,7 +452,7 @@ int mgmtInitMeters() {
   while (1) {
     pNode = sdbFetchRow(meterSdb, pNode, (void **)&pMeter);
     if (pMeter == NULL) break;
-    if (mgmtIsMetric(pMeter)) pMeter->numOfMeters = 0;
+    if (mgmtIsSuperTable(pMeter)) pMeter->numOfMeters = 0;
   }
 
   pNode = NULL;
@@ -470,7 +470,7 @@ int mgmtInitMeters() {
       continue;
     }
 
-    if (mgmtIsNormalMeter(pMeter)) {
+    if (mgmtIsNormalTable(pMeter)) {
       pVgroup = mgmtGetVgroup(pMeter->gid.vgId);
 
       if (pVgroup == NULL) {
@@ -501,13 +501,13 @@ int mgmtInitMeters() {
       pVgroup->meterList[pMeter->gid.sid] = pMeter;
       taosIdPoolMarkStatus(pVgroup->idPool, pMeter->gid.sid, 1);
 
-      if (pMeter->meterType == TSDB_METER_STABLE) {
+      if (pMeter->meterType == TSDB_TABLE_TYPE_STREAM_TABLE) {
         pMeter->pSql = (char *)pMeter->schema + sizeof(SSchema) * pMeter->numOfColumns;
       }
 
-      if (mgmtMeterCreateFromMetric(pMeter)) {
+      if (mgmtTableCreateFromSuperTable(pMeter)) {
         pMeter->pTagData = (char *)pMeter->schema;  // + sizeof(SSchema)*pMeter->numOfColumns;
-        pMetric = mgmtGetMeter(pMeter->pTagData);
+        pMetric = mgmtGetTable(pMeter->pTagData);
         if (pMetric) mgmtAddMeterIntoMetric(pMetric, pMeter);
       }
 
@@ -524,7 +524,7 @@ int mgmtInitMeters() {
   return 0;
 }
 
-STabObj *mgmtGetMeter(char *meterId) { return (STabObj *)sdbGetRow(meterSdb, meterId); }
+STabObj *mgmtGetTable(char *meterId) { return (STabObj *)sdbGetRow(meterSdb, meterId); }
 
 int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
   STabObj * pMeter = NULL;
@@ -548,7 +548,7 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
   }
 
   // does table exist?
-  pMeter = mgmtGetMeter(pCreate->meterId);
+  pMeter = mgmtGetTable(pCreate->meterId);
   if (pMeter) {
     if (pCreate->igExists) {
       return TSDB_CODE_SUCCESS;
@@ -563,9 +563,9 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
   memset(pMeter, 0, sizeof(STabObj));
 
   if (pCreate->numOfColumns == 0 && pCreate->numOfTags == 0) {  // MTABLE
-    pMeter->meterType = TSDB_METER_MTABLE;
+    pMeter->meterType = TSDB_TABLE_TYPE_CREATE_FROM_STABLE;
     char *pTagData = (char *)pCreate->schema;  // it is a tag key
-    pMetric = mgmtGetMeter(pTagData);
+    pMetric = mgmtGetTable(pTagData);
     if (pMetric == NULL) {
       mError("table:%s, corresponding super table does not exist", pCreate->meterId);
       return TSDB_CODE_INVALID_TABLE;
@@ -615,16 +615,16 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
     }
 
     if (pCreate->sqlLen > 0) {
-      pMeter->meterType = TSDB_METER_STABLE;
+      pMeter->meterType = TSDB_TABLE_TYPE_STREAM_TABLE;
       pMeter->pSql = pMeter->schema + numOfCols * sizeof(SSchema);
       memcpy(pMeter->pSql, (char *)(pCreate->schema) + numOfCols * sizeof(SSchema), pCreate->sqlLen);
       pMeter->pSql[pCreate->sqlLen - 1] = 0;
       mTrace("table:%s, stream sql len:%d sql:%s", pCreate->meterId, pCreate->sqlLen, pMeter->pSql);
     } else {
       if (pCreate->numOfTags > 0) {
-        pMeter->meterType = TSDB_METER_METRIC;
+        pMeter->meterType = TSDB_TABLE_TYPE_SUPER_TABLE;
       } else {
-        pMeter->meterType = TSDB_METER_OTABLE;
+        pMeter->meterType = TSDB_TABLE_TYPE_NORMAL_TABLE;
       }
     }
   }
@@ -723,7 +723,7 @@ int mgmtDropMeter(SDbObj *pDb, char *meterId, int ignore) {
   STabObj * pMeter;
   SAcctObj *pAcct;
 
-  pMeter = mgmtGetMeter(meterId);
+  pMeter = mgmtGetTable(meterId);
   if (pMeter == NULL) {
     if (ignore) {
       return TSDB_CODE_SUCCESS;
@@ -739,7 +739,7 @@ int mgmtDropMeter(SDbObj *pDb, char *meterId, int ignore) {
     return TSDB_CODE_MONITOR_DB_FORBEIDDEN;
   }
 
-  if (mgmtIsNormalMeter(pMeter)) {
+  if (mgmtIsNormalTable(pMeter)) {
     return dropMeterImp(pDb, pMeter, pAcct);
   } else {
     // remove a metric
@@ -762,7 +762,7 @@ int mgmtDropMeter(SDbObj *pDb, char *meterId, int ignore) {
 int mgmtAlterMeter(SDbObj *pDb, SAlterTableMsg *pAlter) {
   STabObj *pMeter;
 
-  pMeter = mgmtGetMeter(pAlter->meterId);
+  pMeter = mgmtGetTable(pAlter->meterId);
   if (pMeter == NULL) {
     return TSDB_CODE_INVALID_TABLE;
   }
@@ -771,7 +771,7 @@ int mgmtAlterMeter(SDbObj *pDb, SAlterTableMsg *pAlter) {
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) return TSDB_CODE_MONITOR_DB_FORBEIDDEN;
 
   if (pAlter->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
-    if (!mgmtIsNormalMeter(pMeter) || !mgmtMeterCreateFromMetric(pMeter)) {
+    if (!mgmtIsNormalTable(pMeter) || !mgmtTableCreateFromSuperTable(pMeter)) {
       return TSDB_CODE_OPS_NOT_SUPPORT;
     }
   }
@@ -927,7 +927,7 @@ int mgmtRemoveMeterFromMetric(STabObj *pMetric, STabObj *pMeter) {
 
 void mgmtCleanUpMeters() { sdbCloseTable(meterSdb); }
 
-int mgmtGetMeterMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   int cols = 0;
 
   SDbObj *pDb = NULL;
@@ -974,16 +974,16 @@ int mgmtGetMeterMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-SSchema *mgmtGetMeterSchema(STabObj *pMeter) {
+SSchema *mgmtGetTableSchema(STabObj *pMeter) {
   if (pMeter == NULL) {
     return NULL;
   }
 
-  if (!mgmtMeterCreateFromMetric(pMeter)) {
+  if (!mgmtTableCreateFromSuperTable(pMeter)) {
     return (SSchema *)pMeter->schema;
   }
 
-  STabObj *pMetric = mgmtGetMeter(pMeter->pTagData);
+  STabObj *pMetric = mgmtGetTable(pMeter->pTagData);
   assert(pMetric != NULL);
 
   return (SSchema *)pMetric->schema;
@@ -1001,7 +1001,7 @@ static int32_t mgmtSerializeTagValue(char* pMsg, STabObj* pMeter, int16_t* tagsI
       offset += TSDB_METER_NAME_LEN;
     } else {
       SSchema s = {0};
-      char *  tag = mgmtMeterGetTag(pMeter, tagsId[j], &s);
+      char *  tag = mgmtTableGetTag(pMeter, tagsId[j], &s);
       
       memcpy(pMsg + offset, tag, (size_t)s.bytes);
       offset += s.bytes;
@@ -1201,9 +1201,9 @@ int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SMetricMetaMsg *pMetr
 
   for (int32_t i = 0; i < pMetricMetaMsg->numOfMeters; ++i) {
     SMetricMetaElemMsg *pElem = doConvertMetricMetaMsg(pMetricMetaMsg, i);
-    STabObj *           pMetric = mgmtGetMeter(pElem->meterId);
+    STabObj *           pMetric = mgmtGetTable(pElem->meterId);
 
-    if (!mgmtIsMetric(pMetric)) {
+    if (!mgmtIsSuperTable(pMetric)) {
       ret = TSDB_CODE_NOT_SUPER_TABLE;
       break;
     }
@@ -1218,7 +1218,7 @@ int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SMetricMetaMsg *pMetr
 
     for (int32_t i = 0; i < pMetricMetaMsg->numOfMeters; ++i) {
         SMetricMetaElemMsg *pElem = (SMetricMetaElemMsg*) ((char *) pMetricMetaMsg + pMetricMetaMsg->metaElem[i]);
-        STabObj *pMetric = mgmtGetMeter(pElem->meterId);
+        STabObj *pMetric = mgmtGetTable(pElem->meterId);
 
         if (pMetric->pSkipList->nSize > num) {
             index = i;
@@ -1294,7 +1294,7 @@ int mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
     pShow->pNode = sdbFetchRow(meterSdb, pShow->pNode, (void **)&pMeter);
     if (pMeter == NULL) break;
 
-    if (mgmtIsMetric(pMeter)) continue;
+    if (mgmtIsSuperTable(pMeter)) continue;
 
     // not belong to current db
     if (strncmp(pMeter->meterId, prefix, prefixLen)) continue;
@@ -1455,7 +1455,7 @@ int mgmtRetrieveMetrics(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
 }
 
 int32_t mgmtFindTagCol(STabObj *pMetric, const char *tagName) {
-  if (!mgmtIsMetric(pMetric)) return -1;
+  if (!mgmtIsSuperTable(pMetric)) return -1;
 
   SSchema *schema = NULL;
 
@@ -1474,7 +1474,7 @@ int32_t mgmtMeterModifyTagNameByCol(STabObj *pMetric, uint32_t col, const char *
 
   uint32_t len = strlen(nname);
 
-  if (pMetric == NULL || (!mgmtIsMetric(pMetric)) || col >= pMetric->numOfTags || len >= TSDB_COL_NAME_LEN ||
+  if (pMetric == NULL || (!mgmtIsSuperTable(pMetric)) || col >= pMetric->numOfTags || len >= TSDB_COL_NAME_LEN ||
       mgmtFindTagCol(pMetric, nname) >= 0)
     return TSDB_CODE_APP_ERROR;
 
@@ -1503,7 +1503,7 @@ int32_t mgmtMeterModifyTagNameByCol(STabObj *pMetric, uint32_t col, const char *
 }
 
 int32_t mgmtMeterModifyTagNameByName(STabObj *pMetric, const char *oname, const char *nname) {
-  if (pMetric == NULL || (!mgmtIsMetric(pMetric))) return TSDB_CODE_APP_ERROR;
+  if (pMetric == NULL || (!mgmtIsSuperTable(pMetric))) return TSDB_CODE_APP_ERROR;
 
   int index = mgmtFindTagCol(pMetric, oname);
   if (index < 0) {
@@ -1517,9 +1517,9 @@ int32_t mgmtMeterModifyTagNameByName(STabObj *pMetric, const char *oname, const 
 
 int32_t mgmtMeterModifyTagValueByCol(STabObj *pMeter, int col, const char *nContent) {
   int rowSize = 0;
-  if (pMeter == NULL || nContent == NULL || (!mgmtMeterCreateFromMetric(pMeter))) return TSDB_CODE_APP_ERROR;
+  if (pMeter == NULL || nContent == NULL || (!mgmtTableCreateFromSuperTable(pMeter))) return TSDB_CODE_APP_ERROR;
 
-  STabObj *pMetric = mgmtGetMeter(pMeter->pTagData);
+  STabObj *pMetric = mgmtGetTable(pMeter->pTagData);
   assert(pMetric != NULL);
 
   if (col < 0 || col > pMetric->numOfTags) return TSDB_CODE_APP_ERROR;
@@ -1561,10 +1561,10 @@ int32_t mgmtMeterModifyTagValueByCol(STabObj *pMeter, int col, const char *nCont
 }
 
 int32_t mgmtMeterModifyTagValueByName(STabObj *pMeter, char *tagName, char *nContent) {
-  if (pMeter == NULL || tagName == NULL || nContent == NULL || (!mgmtMeterCreateFromMetric(pMeter)))
+  if (pMeter == NULL || tagName == NULL || nContent == NULL || (!mgmtTableCreateFromSuperTable(pMeter)))
     return TSDB_CODE_INVALID_MSG_TYPE;
 
-  STabObj *pMetric = mgmtGetMeter(pMeter->pTagData);
+  STabObj *pMetric = mgmtGetTable(pMeter->pTagData);
   if (pMetric == NULL) return TSDB_CODE_APP_ERROR;
 
   int col = mgmtFindTagCol(pMetric, tagName);
@@ -1574,7 +1574,7 @@ int32_t mgmtMeterModifyTagValueByName(STabObj *pMeter, char *tagName, char *nCon
 }
 
 int32_t mgmtMeterAddTags(STabObj *pMetric, SSchema schema[], int ntags) {
-  if (pMetric == NULL || (!mgmtIsMetric(pMetric))) return TSDB_CODE_INVALID_TABLE;
+  if (pMetric == NULL || (!mgmtIsSuperTable(pMetric))) return TSDB_CODE_INVALID_TABLE;
 
   if (pMetric->numOfTags + ntags > TSDB_MAX_TAGS) return TSDB_CODE_APP_ERROR;
 
@@ -1615,7 +1615,7 @@ int32_t mgmtMeterAddTags(STabObj *pMetric, SSchema schema[], int ntags) {
 }
 
 int32_t mgmtMeterDropTagByCol(STabObj *pMetric, int col) {
-  if (pMetric == NULL || (!mgmtIsMetric(pMetric)) || col <= 0 || col >= pMetric->numOfTags) return TSDB_CODE_APP_ERROR;
+  if (pMetric == NULL || (!mgmtIsSuperTable(pMetric)) || col <= 0 || col >= pMetric->numOfTags) return TSDB_CODE_APP_ERROR;
 
   // Pack message to do batch update
   uint32_t              size = sizeof(SMeterBatchUpdateMsg) + sizeof(SchemaUnit);
@@ -1643,7 +1643,7 @@ int32_t mgmtMeterDropTagByCol(STabObj *pMetric, int col) {
 }
 
 int32_t mgmtMeterDropTagByName(STabObj *pMetric, char *name) {
-  if (pMetric == NULL || (!mgmtIsMetric(pMetric))) {
+  if (pMetric == NULL || (!mgmtIsSuperTable(pMetric))) {
     mTrace("Failed to drop tag name: %s from table: %s", name, pMetric->meterId);
     return TSDB_CODE_INVALID_TABLE;
   }
@@ -1657,7 +1657,7 @@ int32_t mgmtFindColumnIndex(STabObj *pMeter, const char *colName) {
   STabObj *pMetric = NULL;
   SSchema *schema = NULL;
 
-  if (pMeter->meterType == TSDB_METER_OTABLE || pMeter->meterType == TSDB_METER_METRIC) {
+  if (pMeter->meterType == TSDB_TABLE_TYPE_NORMAL_TABLE || pMeter->meterType == TSDB_TABLE_TYPE_SUPER_TABLE) {
     schema = (SSchema *)pMeter->schema;
     for (int32_t i = 0; i < pMeter->numOfColumns; i++) {
       if (strcasecmp(schema[i].name, colName) == 0) {
@@ -1665,8 +1665,8 @@ int32_t mgmtFindColumnIndex(STabObj *pMeter, const char *colName) {
       }
     }
 
-  } else if (pMeter->meterType == TSDB_METER_MTABLE) {
-    pMetric = mgmtGetMeter(pMeter->pTagData);
+  } else if (pMeter->meterType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
+    pMetric = mgmtGetTable(pMeter->pTagData);
     if (pMetric == NULL) {
       mError("MTable not belongs to any metric, meter: %s", pMeter->meterId);
       return -1;
@@ -1686,7 +1686,7 @@ int32_t mgmtMeterAddColumn(STabObj *pMeter, SSchema schema[], int ncols) {
   SAcctObj *pAcct = NULL;
   SDbObj *  pDb = NULL;
 
-  if (pMeter == NULL || pMeter->meterType == TSDB_METER_MTABLE || pMeter->meterType == TSDB_METER_STABLE || ncols <= 0)
+  if (pMeter == NULL || pMeter->meterType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE || pMeter->meterType == TSDB_TABLE_TYPE_STREAM_TABLE || ncols <= 0)
     return TSDB_CODE_APP_ERROR;
 
   // ASSUMPTION: no two tags are the same
@@ -1707,9 +1707,9 @@ int32_t mgmtMeterAddColumn(STabObj *pMeter, SSchema schema[], int ncols) {
 
   pMeter->schema = realloc(pMeter->schema, pMeter->schemaSize + sizeof(SSchema) * ncols);
 
-  if (pMeter->meterType == TSDB_METER_OTABLE) {
+  if (pMeter->meterType == TSDB_TABLE_TYPE_NORMAL_TABLE) {
     memcpy(pMeter->schema + pMeter->schemaSize, schema, sizeof(SSchema) * ncols);
-  } else if (pMeter->meterType == TSDB_METER_METRIC) {
+  } else if (pMeter->meterType == TSDB_TABLE_TYPE_SUPER_TABLE) {
     memmove(pMeter->schema + sizeof(SSchema) * (pMeter->numOfColumns + ncols),
             pMeter->schema + sizeof(SSchema) * pMeter->numOfColumns, sizeof(SSchema) * pMeter->numOfTags);
     memcpy(pMeter->schema + sizeof(SSchema) * pMeter->numOfColumns, schema, sizeof(SSchema) * ncols);
@@ -1721,13 +1721,13 @@ int32_t mgmtMeterAddColumn(STabObj *pMeter, SSchema schema[], int ncols) {
   pMeter->schemaSize += sizeof(SSchema) * ncols;
   pMeter->numOfColumns += ncols;
   pMeter->sversion++;
-  if (mgmtIsNormalMeter(pMeter))
+  if (mgmtIsNormalTable(pMeter))
     pAcct->acctInfo.numOfTimeSeries += ncols;
   else
     pAcct->acctInfo.numOfTimeSeries += (ncols * pMeter->numOfMeters);
   sdbUpdateRow(meterSdb, pMeter, 0, 1);
 
-  if (pMeter->meterType == TSDB_METER_METRIC) {
+  if (pMeter->meterType == TSDB_TABLE_TYPE_SUPER_TABLE) {
     for (STabObj *pObj = pMeter->pHead; pObj != NULL; pObj = pObj->next) {
       pObj->numOfColumns++;
       pObj->nextColId = pMeter->nextColId;
@@ -1743,7 +1743,7 @@ int32_t mgmtMeterDropColumnByName(STabObj *pMeter, const char *name) {
   SAcctObj *pAcct = NULL;
   SDbObj *  pDb = NULL;
 
-  if (pMeter == NULL || pMeter->meterType == TSDB_METER_MTABLE || pMeter->meterType == TSDB_METER_STABLE)
+  if (pMeter == NULL || pMeter->meterType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE || pMeter->meterType == TSDB_TABLE_TYPE_STREAM_TABLE)
     return TSDB_CODE_APP_ERROR;
 
   int32_t index = mgmtFindColumnIndex(pMeter, name);
@@ -1761,16 +1761,16 @@ int32_t mgmtMeterDropColumnByName(STabObj *pMeter, const char *name) {
     return TSDB_CODE_APP_ERROR;
   }
 
-  if (pMeter->meterType == TSDB_METER_OTABLE) {
+  if (pMeter->meterType == TSDB_TABLE_TYPE_NORMAL_TABLE) {
     memmove(pMeter->schema + sizeof(SSchema) * index, pMeter->schema + sizeof(SSchema) * (index + 1),
             sizeof(SSchema) * (pMeter->numOfColumns - index - 1));
-  } else if (pMeter->meterType == TSDB_METER_METRIC) {
+  } else if (pMeter->meterType == TSDB_TABLE_TYPE_SUPER_TABLE) {
     memmove(pMeter->schema + sizeof(SSchema) * index, pMeter->schema + sizeof(SSchema) * (index + 1),
             sizeof(SSchema) * (pMeter->numOfColumns + pMeter->numOfTags - index - 1));
   }
   pMeter->schemaSize -= sizeof(SSchema);
   pMeter->numOfColumns--;
-  if (mgmtIsNormalMeter(pMeter))
+  if (mgmtIsNormalTable(pMeter))
     pAcct->acctInfo.numOfTimeSeries--;
   else
     pAcct->acctInfo.numOfTimeSeries -= (pMeter->numOfMeters);
@@ -1779,7 +1779,7 @@ int32_t mgmtMeterDropColumnByName(STabObj *pMeter, const char *name) {
   pMeter->sversion++;
   sdbUpdateRow(meterSdb, pMeter, 0, 1);
 
-  if (pMeter->meterType == TSDB_METER_METRIC) {
+  if (pMeter->meterType == TSDB_TABLE_TYPE_SUPER_TABLE) {
     for (STabObj *pObj = pMeter->pHead; pObj != NULL; pObj = pObj->next) {
       pObj->numOfColumns--;
       pObj->sversion = pMeter->sversion;

@@ -35,13 +35,4 @@ int32_t mgmtGetTagsLength(STabObj* pMetric, int32_t col);
 bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
 int32_t mgmtCheckDBParams(SCreateDbMsg *pCreate);
 
-int32_t mgmtFindTagCol(STabObj * pMetric, const char * tagName);
-
-int32_t mgmtRetrieveMetersFromMetric(SMetricMetaMsg* pInfo, int32_t tableIndex, tQueryResultset* pRes);
-int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes);
-void mgmtReorganizeMetersInMetricMeta(SMetricMetaMsg* pInfo, int32_t index, tQueryResultset* pRes);
-
-bool tSkipListNodeFilterCallback(const void *pNode, void *param);
-
-
 #endif

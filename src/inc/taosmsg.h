@@ -181,11 +181,14 @@ enum _mgmt_table {
 
 #define TSDB_KILL_MSG_LEN              30
 
-#define TSDB_METER_METRIC              0  // metric
-#define TSDB_METER_MTABLE              1  // table created from metric
-#define TSDB_METER_OTABLE              2  // ordinary table
-#define TSDB_METER_STABLE              3  // table created from stream computing
-#define TSDB_MAX_METER_TYPES           4
+enum {
+  TSDB_TABLE_TYPE_SUPER_TABLE        = 0,  // super table
+  TSDB_TABLE_TYPE_CREATE_FROM_STABLE = 1,  // table created from super table
+  TSDB_TABLE_TYPE_NORMAL_TABLE       = 2,  // ordinary table
+  TSDB_TABLE_TYPE_STREAM_TABLE       = 3,  // table created from stream computing
+  TSDB_TABLE_TYPE_MAX                = 4
+} ETableType;
+
 
 #define TSDB_VN_READ_ACCCESS  ((char)0x1)
 #define TSDB_VN_WRITE_ACCCESS ((char)0x2)

@@ -157,7 +157,7 @@ bool mgmtCheckMeterMetaMsgType(char *pMsg) {
   SMeterInfoMsg *pInfo = (SMeterInfoMsg *)pMsg;
 
   int16_t  autoCreate = htons(pInfo->createFlag);
-  STabObj *pMeterObj = mgmtGetMeter(pInfo->meterId);
+  STabObj *pMeterObj = mgmtGetTable(pInfo->meterId);
 
   // If table does not exists and autoCreate flag is set, we add the handler into another task queue, namely tranQueue
   bool addIntoTranQueue = (pMeterObj == NULL && autoCreate == 1);
@@ -199,7 +199,7 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     goto _exit_code;
   }
 
-  pMeterObj = mgmtGetMeter(pInfo->meterId);
+  pMeterObj = mgmtGetTable(pInfo->meterId);
 
   // on demand create table from super table if meter does not exists
   if (pMeterObj == NULL && pInfo->createFlag == 1) {
@@ -243,7 +243,7 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
       goto _exit_code;
     }
 
-    pMeterObj = mgmtGetMeter(pInfo->meterId);
+    pMeterObj = mgmtGetTable(pInfo->meterId);
   }
 
   if ((pStart = mgmtAllocMsg(pConn, size, &pMsg, &pRsp)) == NULL) {
@@ -279,10 +279,10 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     pMsg += sizeof(SMeterMeta);
     pSchema = (SSchema *)pMsg;  // schema locates at the end of SMeterMeta struct
 
-    if (mgmtMeterCreateFromMetric(pMeterObj)) {
+    if (mgmtTableCreateFromSuperTable(pMeterObj)) {
       assert(pMeterObj->numOfTags == 0);
 
-      STabObj *pMetric = mgmtGetMeter(pMeterObj->pTagData);
+      STabObj *pMetric = mgmtGetTable(pMeterObj->pTagData);
       uint32_t numOfTotalCols = (uint32_t)pMetric->numOfTags + pMetric->numOfColumns;
 
       pMeta->numOfTags = pMetric->numOfTags;  // update the numOfTags info
@@ -302,7 +302,7 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
       pMsg += numOfTotalCols * sizeof(SSchema);
     }
 
-    if (mgmtIsNormalMeter(pMeterObj)) {
+    if (mgmtIsNormalTable(pMeterObj)) {
       pVgroup = mgmtGetVgroup(pMeterObj->gid.vgId);
       if (pVgroup == NULL) {
         pRsp->code = TSDB_CODE_INVALID_TABLE;
@@ -397,7 +397,7 @@ int mgmtProcessMultiMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     }
 
     // get meter schema, and fill into resp payload
-    pMeterObj = mgmtGetMeter(tblName);
+    pMeterObj = mgmtGetTable(tblName);
     pDbObj = mgmtGetDbByMeterId(tblName);
 
     if (pMeterObj == NULL || (pDbObj == NULL)) {
@@ -419,10 +419,10 @@ int mgmtProcessMultiMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
       pCurMeter += sizeof(SMultiMeterMeta);
       pSchema = (SSchema *)pCurMeter;  // schema locates at the end of SMeterMeta struct
 
-      if (mgmtMeterCreateFromMetric(pMeterObj)) {
+      if (mgmtTableCreateFromSuperTable(pMeterObj)) {
         assert(pMeterObj->numOfTags == 0);
 
-        STabObj *pMetric = mgmtGetMeter(pMeterObj->pTagData);
+        STabObj *pMetric = mgmtGetTable(pMeterObj->pTagData);
         uint32_t numOfTotalCols = (uint32_t)pMetric->numOfTags + pMetric->numOfColumns;
 
         pMeta->meta.numOfTags = pMetric->numOfTags;  // update the numOfTags info
@@ -442,7 +442,7 @@ int mgmtProcessMultiMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
         pCurMeter += numOfTotalCols * sizeof(SSchema);
       }
 
-      if (mgmtIsNormalMeter(pMeterObj)) {
+      if (mgmtIsNormalTable(pMeterObj)) {
         pVgroup = mgmtGetVgroup(pMeterObj->gid.vgId);
         if (pVgroup == NULL) {
           pRsp->code = TSDB_CODE_INVALID_TABLE;
@@ -509,7 +509,7 @@ int mgmtProcessMetricMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   }
 
   SMetricMetaElemMsg *pElem = (SMetricMetaElemMsg *)(((char *)pMetricMetaMsg) + pMetricMetaMsg->metaElem[0]);
-  pMetric = mgmtGetMeter(pElem->meterId);
+  pMetric = mgmtGetTable(pElem->meterId);
 
   SDbObj *pDb = NULL;
   if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
@@ -880,7 +880,7 @@ int mgmtProcessUseDbMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 }
 
 int (*mgmtGetMetaFp[])(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = {
-    mgmtGetAcctMeta,   mgmtGetUserMeta,   mgmtGetDbMeta,     mgmtGetMeterMeta,  mgmtGetDnodeMeta,
+    mgmtGetAcctMeta,   mgmtGetUserMeta,   mgmtGetDbMeta,     mgmtGetTableMeta,  mgmtGetDnodeMeta,
     mgmtGetMnodeMeta,  mgmtGetVgroupMeta, mgmtGetMetricMeta, mgmtGetModuleMeta, mgmtGetQueryMeta,
     mgmtGetStreamMeta, mgmtGetConfigMeta, mgmtGetConnsMeta,  mgmtGetScoresMeta, grantGetGrantsMeta,
     mgmtGetVnodeMeta,
@@ -1076,7 +1076,7 @@ int mgmtProcessCreateTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   } else if (code != TSDB_CODE_SUCCESS) {
     if (code == TSDB_CODE_TABLE_ALREADY_EXIST) {  // table already created when the second attempt to create table
       
-      STabObj* pMeter = mgmtGetMeter(pCreate->meterId);
+      STabObj* pMeter = mgmtGetTable(pCreate->meterId);
       assert(pMeter != NULL);
       
       mWarn("table:%s, table already created, failed to create table, ts:%" PRId64 ", code:%d", pCreate->meterId,
