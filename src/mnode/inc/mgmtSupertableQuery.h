@@ -13,14 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TBASE_MNODE_TABLE_H
-#define TBASE_MNODE_TABLE_H
+#ifndef TBASE_MNODE_SUPER_TABLE_QUERY_H
+#define TBASE_MNODE_SUPER_TABLE_QUERY_H
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include "mnode.h"
 
-int32_t mgmtFindTagCol(STabObj * pTable, const char * tagName);
+int32_t mgmtRetrieveMetersFromSuperTable(SSuperTableMetaMsg* pInfo, int32_t tableIndex, tQueryResultset* pRes);
+int32_t mgmtDoJoin(SSuperTableMetaMsg* pSuperTableMetaMsg, tQueryResultset* pRes);
+void    mgmtReorganizeMetersInMetricMeta(SSuperTableMetaMsg* pInfo, int32_t index, tQueryResultset* pRes);
+
 
 #endif

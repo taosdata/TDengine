@@ -301,7 +301,7 @@ typedef struct {
   uint64_t uid;
   char     spi;
   char     encrypt;
-  char     meterId[TSDB_METER_ID_LEN];
+  char     meterId[TSDB_TABLE_ID_LEN];
   char     secret[TSDB_KEY_LEN];
   char     cipheringKey[TSDB_KEY_LEN];
   uint64_t timeStamp;
@@ -314,7 +314,7 @@ typedef struct {
 } SCreateMsg;
 
 typedef struct {
-  char  db[TSDB_METER_ID_LEN];
+  char  db[TSDB_TABLE_ID_LEN];
   uint8_t ignoreNotExists;
 } SDropDbMsg, SUseDbMsg;
 
@@ -327,7 +327,7 @@ typedef struct {
 } SShowTableMsg;
 
 typedef struct {
-  char meterId[TSDB_METER_ID_LEN];
+  char meterId[TSDB_TABLE_ID_LEN];
   char igExists;
 
   short numOfTags;
@@ -341,12 +341,12 @@ typedef struct {
 } SCreateTableMsg;
 
 typedef struct {
-  char meterId[TSDB_METER_ID_LEN];
+  char meterId[TSDB_TABLE_ID_LEN];
   char igNotExists;
 } SDropTableMsg;
 
 typedef struct {
-  char    meterId[TSDB_METER_ID_LEN];
+  char    meterId[TSDB_TABLE_ID_LEN];
   short   type; /* operation type   */
   char    tagVal[TSDB_MAX_BYTES_PER_ROW];
   short   numOfCols; /* number of schema */
@@ -355,7 +355,7 @@ typedef struct {
 
 typedef struct {
   char clientVersion[TSDB_VERSION_LEN];
-  char db[TSDB_METER_ID_LEN];
+  char db[TSDB_TABLE_ID_LEN];
 } SConnectMsg;
 
 typedef struct {
@@ -386,7 +386,7 @@ typedef struct {
 } SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {
-  char db[TSDB_METER_ID_LEN];
+  char db[TSDB_TABLE_ID_LEN];
 } SMgmtHead;
 
 typedef struct {
@@ -400,7 +400,7 @@ typedef struct {
   short    vnode;
   int32_t  sid;
   uint64_t uid;
-  char     meterId[TSDB_METER_ID_LEN];
+  char     meterId[TSDB_TABLE_ID_LEN];
 } SRemoveMeterMsg;
 
 typedef struct {
@@ -604,7 +604,7 @@ typedef struct {
    * the message is too large, so it may will overwrite the cfg information in meterobj.v*
    * recover to origin codes
    */
-  //char     db[TSDB_METER_ID_LEN+2]; // 8bytes align
+  //char     db[TSDB_TABLE_ID_LEN+2]; // 8bytes align
   char     db[TSDB_DB_NAME_LEN];
   uint32_t vgId;
   int32_t  maxSessions;
@@ -695,7 +695,7 @@ typedef struct {
 } SVPeersMsg;
 
 typedef struct {
-  char  meterId[TSDB_METER_ID_LEN];
+  char  meterId[TSDB_TABLE_ID_LEN];
   short createFlag;
   char  tags[];
 } SMeterInfoMsg;
@@ -708,7 +708,7 @@ typedef struct {
 typedef struct {
   int16_t elemLen;
 
-  char    meterId[TSDB_METER_ID_LEN];
+  char    meterId[TSDB_TABLE_ID_LEN];
   int16_t orderIndex;
   int16_t orderType;  // used in group by xx order by xxx
 
@@ -732,7 +732,7 @@ typedef struct {
   int32_t join;
   int32_t joinCondLen;  // for join condition
   int32_t metaElem[TSDB_MAX_JOIN_TABLE_NUM];
-} SMetricMetaMsg;
+} SSuperTableMetaMsg;
 
 typedef struct {
   SVPeerDesc vpeerDesc[TSDB_VNODES_SUPPORT];
@@ -751,7 +751,7 @@ typedef struct {
 typedef struct SMeterMeta {
   uint8_t numOfTags : 6;
   uint8_t precision : 2;
-  uint8_t meterType : 4;
+  uint8_t tableType : 4;
   uint8_t index : 4;  // used locally
 
   int16_t numOfColumns;
@@ -767,12 +767,12 @@ typedef struct SMeterMeta {
 } SMeterMeta;
 
 typedef struct SMultiMeterMeta {
-  char       meterId[TSDB_METER_ID_LEN];  // note: This field must be at the front
+  char       meterId[TSDB_TABLE_ID_LEN];  // note: This field must be at the front
   SMeterMeta meta;
 } SMultiMeterMeta;
 
 typedef struct {
-  char name[TSDB_METER_ID_LEN];
+  char name[TSDB_TABLE_ID_LEN];
   char data[TSDB_MAX_TAGS_LEN];
 } STagData;
 

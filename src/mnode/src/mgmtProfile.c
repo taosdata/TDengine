@@ -24,7 +24,7 @@
 typedef struct {
   uint32_t ip;
   uint16_t port;
-  char     user[TSDB_METER_ID_LEN];
+  char     user[TSDB_TABLE_ID_LEN];
 } SCDesc;
 
 typedef struct {

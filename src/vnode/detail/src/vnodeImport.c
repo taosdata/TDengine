@@ -1236,12 +1236,12 @@ _error_merge:
     }                                                 \
   }
 
-int isCacheEnd(SBlockIter iter, SMeterObj *pMeter) {
-  SCacheInfo *pInfo = (SCacheInfo *)(pMeter->pCache);
+int isCacheEnd(SBlockIter iter, SMeterObj *pTable) {
+  SCacheInfo *pInfo = (SCacheInfo *)(pTable->pCache);
   int         slot = 0;
   int         pos = 0;
 
-  if (pInfo->cacheBlocks[pInfo->currentSlot]->numOfPoints == pMeter->pointsPerBlock) {
+  if (pInfo->cacheBlocks[pInfo->currentSlot]->numOfPoints == pTable->pointsPerBlock) {
     slot = (pInfo->currentSlot + 1) % (pInfo->maxBlocks);
     pos = 0;
   } else {

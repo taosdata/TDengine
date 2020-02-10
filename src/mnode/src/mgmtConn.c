@@ -20,7 +20,7 @@
 #include "tschemautil.h"
 
 typedef struct {
-  char     user[TSDB_METER_ID_LEN];
+  char     user[TSDB_TABLE_ID_LEN];
   uint64_t stime;
   uint32_t ip;
   uint16_t port;

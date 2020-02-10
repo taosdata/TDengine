@@ -4506,7 +4506,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
   }
 
   // get one queried meter
-  SMeterObj *pMeter = getMeterObj(pSupporter->pMetersHashTable, pSupporter->pSidSet->pSids[0]->sid);
+  SMeterObj *pTable = getMeterObj(pSupporter->pMetersHashTable, pSupporter->pSidSet->pSids[0]->sid);
 
   pRuntimeEnv->pTSBuf = param;
   pRuntimeEnv->cur.vnodeIndex = -1;
@@ -4517,18 +4517,18 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
     tsBufSetTraverseOrder(pRuntimeEnv->pTSBuf, order);
   }
 
-  int32_t ret = setupQueryRuntimeEnv(pMeter, pQuery, &pSupporter->runtimeEnv, pTagSchema, TSQL_SO_ASC, true);
+  int32_t ret = setupQueryRuntimeEnv(pTable, pQuery, &pSupporter->runtimeEnv, pTagSchema, TSQL_SO_ASC, true);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
-  ret = allocateRuntimeEnvBuf(pRuntimeEnv, pMeter);
+  ret = allocateRuntimeEnvBuf(pRuntimeEnv, pTable);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
   tSidSetSort(pSupporter->pSidSet);
-  vnodeRecordAllFiles(pQInfo, pMeter->vnode);
+  vnodeRecordAllFiles(pQInfo, pTable->vnode);
 
   if ((ret = allocateOutputBufForGroup(pSupporter, pQuery, true)) != TSDB_CODE_SUCCESS) {
     return ret;
@@ -4595,12 +4595,12 @@ void vnodeDecMeterRefcnt(SQInfo *pQInfo) {
   } else {
     int32_t num = 0;
     for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
-      SMeterObj *pMeter = getMeterObj(pSupporter->pMetersHashTable, pSupporter->pSidSet->pSids[i]->sid);
-      atomic_fetch_sub_32(&(pMeter->numOfQueries), 1);
+      SMeterObj *pTable = getMeterObj(pSupporter->pMetersHashTable, pSupporter->pSidSet->pSids[i]->sid);
+      atomic_fetch_sub_32(&(pTable->numOfQueries), 1);
 
-      if (pMeter->numOfQueries > 0) {
-        dTrace("QInfo:%p vid:%d sid:%d meterId:%s, query is over, numOfQueries:%d", pQInfo, pMeter->vnode, pMeter->sid,
-               pMeter->meterId, pMeter->numOfQueries);
+      if (pTable->numOfQueries > 0) {
+        dTrace("QInfo:%p vid:%d sid:%d meterId:%s, query is over, numOfQueries:%d", pQInfo, pTable->vnode, pTable->sid,
+               pTable->meterId, pTable->numOfQueries);
         num++;
       }
     }

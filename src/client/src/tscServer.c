@@ -2685,7 +2685,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // fill head info
   SMgmtHead *pMgmt = (SMgmtHead *)(pCmd->payload + tsRpcHeadSize);
-  memset(pMgmt->db, 0, TSDB_METER_ID_LEN);  // server don't need the db
+  memset(pMgmt->db, 0, TSDB_TABLE_ID_LEN);  // server don't need the db
 
   SMultiMeterInfoMsg *pInfoMsg = (SMultiMeterInfoMsg *)(pCmd->payload + tsRpcHeadSize + sizeof(SMgmtHead));
   pInfoMsg->numOfMeters = htonl((int32_t)pCmd->count);
@@ -2709,7 +2709,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 static int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
   const int32_t defaultSize =
-      minMsgSize() + sizeof(SMetricMetaMsg) + sizeof(SMgmtHead) + sizeof(int16_t) * TSDB_MAX_TAGS;
+      minMsgSize() + sizeof(SSuperTableMetaMsg) + sizeof(SMgmtHead) + sizeof(int16_t) * TSDB_MAX_TAGS;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
   int32_t n = 0;
@@ -2722,7 +2722,7 @@ static int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
     tagLen += strlen(pQueryInfo->tagCond.tbnameCond.cond) * TSDB_NCHAR_SIZE;
   }
 
-  int32_t joinCondLen = (TSDB_METER_ID_LEN + sizeof(int16_t)) * 2;
+  int32_t joinCondLen = (TSDB_TABLE_ID_LEN + sizeof(int16_t)) * 2;
   int32_t elemSize = sizeof(SMetricMetaElemMsg) * pQueryInfo->numOfTables;
 
   int32_t len = tagLen + joinCondLen + elemSize + defaultSize;
@@ -2731,7 +2731,7 @@ static int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
 }
 
 int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SMetricMetaMsg *pMetaMsg;
+  SSuperTableMetaMsg *pMetaMsg;
   char *          pMsg, *pStart;
   int             msgLen = 0;
   int             tableIndex = 0;
@@ -2757,25 +2757,25 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pMsg += sizeof(SMgmtHead);
 
-  pMetaMsg = (SMetricMetaMsg *)pMsg;
+  pMetaMsg = (SSuperTableMetaMsg *)pMsg;
   pMetaMsg->numOfMeters = htonl(pQueryInfo->numOfTables);
 
-  pMsg += sizeof(SMetricMetaMsg);
+  pMsg += sizeof(SSuperTableMetaMsg);
 
   int32_t offset = pMsg - (char *)pMetaMsg;
   pMetaMsg->join = htonl(offset);
 
   // todo refactor
-  pMetaMsg->joinCondLen = htonl((TSDB_METER_ID_LEN + sizeof(int16_t)) * 2);
+  pMetaMsg->joinCondLen = htonl((TSDB_TABLE_ID_LEN + sizeof(int16_t)) * 2);
 
-  memcpy(pMsg, pTagCond->joinInfo.left.meterId, TSDB_METER_ID_LEN);
-  pMsg += TSDB_METER_ID_LEN;
+  memcpy(pMsg, pTagCond->joinInfo.left.meterId, TSDB_TABLE_ID_LEN);
+  pMsg += TSDB_TABLE_ID_LEN;
 
   *(int16_t *)pMsg = pTagCond->joinInfo.left.tagCol;
   pMsg += sizeof(int16_t);
 
-  memcpy(pMsg, pTagCond->joinInfo.right.meterId, TSDB_METER_ID_LEN);
-  pMsg += TSDB_METER_ID_LEN;
+  memcpy(pMsg, pTagCond->joinInfo.right.meterId, TSDB_TABLE_ID_LEN);
+  pMsg += TSDB_TABLE_ID_LEN;
 
   *(int16_t *)pMsg = pTagCond->joinInfo.right.tagCol;
   pMsg += sizeof(int16_t);
@@ -2991,7 +2991,7 @@ int tscProcessMeterMetaRsp(SSqlObj *pSql) {
   int32_t  tagLen = 0;
   SSchema *pTagsSchema = tsGetTagSchema(pMeta);
 
-  if (pMeta->meterType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
+  if (pMeta->tableType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
     for (int32_t i = 0; i < pMeta->numOfTags; ++i) {
       tagLen += pTagsSchema[i].bytes;
     }
@@ -3106,7 +3106,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
     int32_t  tagLen = 0;
     SSchema *pTagsSchema = tsGetTagSchema(pMeta);
 
-    if (pMeta->meterType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
+    if (pMeta->tableType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
       for (int32_t j = 0; j < pMeta->numOfTags; ++j) {
         tagLen += pTagsSchema[j].bytes;
       }
@@ -3304,7 +3304,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
 }
 
 int tscProcessConnectRsp(SSqlObj *pSql) {
-  char         temp[TSDB_METER_ID_LEN * 2];
+  char         temp[TSDB_TABLE_ID_LEN * 2];
   SConnectRsp *pConnect;
 
   STscObj *pObj = pSql->pTscObj;

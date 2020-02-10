@@ -24,7 +24,7 @@
 void  mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *pObj);
 int   mgmtSendVPeersMsg(SVgObj *pVgroup);
 char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode);
-char *mgmtBuildCreateMeterIe(STabObj *pMeter, char *pMsg, int vnode);
+char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int vnode);
 
 /*
  * functions for communicate between dnode and mnode
@@ -39,7 +39,7 @@ int   taosSendMsgToDnode(SDnodeObj *pObj, char *msg, int msgLen);
 int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   char *        pMsg, *pStart;
   int           msgLen = 0;
-  STabObj *     pMeter = NULL;
+  STabObj *     pTable = NULL;
   SMeterCfgMsg *pCfg = (SMeterCfgMsg *)cont;
   SVgObj *      pVgroup;
 
@@ -63,13 +63,13 @@ int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
     int vgId = pObj->vload[vnode].vgId;
 
     pVgroup = mgmtGetVgroup(vgId);
-    if (pVgroup) pMeter = pVgroup->meterList[sid];
+    if (pVgroup) pTable = pVgroup->meterList[sid];
   }
 
-  if (pMeter) {
+  if (pTable) {
     *pMsg = 0;  // code
     pMsg++;
-    pMsg = mgmtBuildCreateMeterIe(pMeter, pMsg, vnode);
+    pMsg = mgmtBuildCreateMeterIe(pTable, pMsg, vnode);
   } else {
     mTrace("dnode:%s, vnode:%d sid:%d, meter not there", taosIpStr(pObj->privateIp), vnode, sid);
     *pMsg = TSDB_CODE_INVALID_METER_ID;
@@ -187,48 +187,48 @@ void mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *
   }
 }
 
-char *mgmtBuildCreateMeterIe(STabObj *pMeter, char *pMsg, int vnode) {
+char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int vnode) {
   SCreateMsg *pCreateMeter;
 
   pCreateMeter = (SCreateMsg *)pMsg;
   pCreateMeter->vnode = htons(vnode);
-  pCreateMeter->sid = htonl(pMeter->gid.sid);
-  pCreateMeter->uid = pMeter->uid;
-  memcpy(pCreateMeter->meterId, pMeter->meterId, TSDB_METER_ID_LEN);
+  pCreateMeter->sid = htonl(pTable->gid.sid);
+  pCreateMeter->uid = pTable->uid;
+  memcpy(pCreateMeter->meterId, pTable->meterId, TSDB_TABLE_ID_LEN);
 
   // pCreateMeter->lastCreate = htobe64(pVgroup->lastCreate);
-  pCreateMeter->timeStamp = htobe64(pMeter->createdTime);
+  pCreateMeter->timeStamp = htobe64(pTable->createdTime);
   /*
       pCreateMeter->spi = pSec->spi;
       pCreateMeter->encrypt = pSec->encrypt;
       memcpy(pCreateMeter->cipheringKey, pSec->cipheringKey, TSDB_KEY_LEN);
       memcpy(pCreateMeter->secret, pSec->secret, TSDB_KEY_LEN);
   */
-  pCreateMeter->sversion = htonl(pMeter->sversion);
-  pCreateMeter->numOfColumns = htons(pMeter->numOfColumns);
-  SSchema *pSchema = mgmtGetTableSchema(pMeter);
+  pCreateMeter->sversion = htonl(pTable->sversion);
+  pCreateMeter->numOfColumns = htons(pTable->numOfColumns);
+  SSchema *pSchema = mgmtGetTableSchema(pTable);
 
-  for (int i = 0; i < pMeter->numOfColumns; ++i) {
+  for (int i = 0; i < pTable->numOfColumns; ++i) {
     pCreateMeter->schema[i].type = pSchema[i].type;
     /* strcpy(pCreateMeter->schema[i].name, pSchema[i].name); */
     pCreateMeter->schema[i].bytes = htons(pSchema[i].bytes);
     pCreateMeter->schema[i].colId = htons(pSchema[i].colId);
   }
 
-  pMsg = ((char *)(pCreateMeter->schema)) + pMeter->numOfColumns * sizeof(SMColumn);
+  pMsg = ((char *)(pCreateMeter->schema)) + pTable->numOfColumns * sizeof(SMColumn);
   pCreateMeter->sqlLen = 0;
 
-  if (pMeter->pSql) {
-    int len = strlen(pMeter->pSql) + 1;
+  if (pTable->pSql) {
+    int len = strlen(pTable->pSql) + 1;
     pCreateMeter->sqlLen = htons(len);
-    strcpy(pMsg, pMeter->pSql);
+    strcpy(pMsg, pTable->pSql);
     pMsg += len;
   }
 
   return pMsg;
 }
 
-int mgmtSendCreateMsgToVgroup(STabObj *pMeter, SVgObj *pVgroup) {
+int mgmtSendCreateMsgToVgroup(STabObj *pTable, SVgObj *pVgroup) {
   char *     pMsg, *pStart;
   int        i, msgLen = 0;
   SDnodeObj *pObj;
@@ -244,7 +244,7 @@ int mgmtSendCreateMsgToVgroup(STabObj *pMeter, SVgObj *pVgroup) {
 
     pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_CREATE, 64000);
     if (pStart == NULL) continue;
-    pMsg = mgmtBuildCreateMeterIe(pMeter, pStart, pVgroup->vnodeGid[i].vnode);
+    pMsg = mgmtBuildCreateMeterIe(pTable, pStart, pVgroup->vnodeGid[i].vnode);
     msgLen = pMsg - pStart;
 
     taosSendMsgToDnode(pObj, pStart, msgLen);
@@ -255,7 +255,7 @@ int mgmtSendCreateMsgToVgroup(STabObj *pMeter, SVgObj *pVgroup) {
   return 0;
 }
 
-int mgmtSendRemoveMeterMsgToDnode(STabObj *pMeter, SVgObj *pVgroup) {
+int mgmtSendRemoveMeterMsgToDnode(STabObj *pTable, SVgObj *pVgroup) {
   SRemoveMeterMsg *pRemove;
   char *           pMsg, *pStart;
   int              i, msgLen = 0;
@@ -277,8 +277,8 @@ int mgmtSendRemoveMeterMsgToDnode(STabObj *pMeter, SVgObj *pVgroup) {
 
     pRemove = (SRemoveMeterMsg *)pMsg;
     pRemove->vnode = htons(pVgroup->vnodeGid[i].vnode);
-    pRemove->sid = htonl(pMeter->gid.sid);
-    memcpy(pRemove->meterId, pMeter->meterId, TSDB_METER_ID_LEN);
+    pRemove->sid = htonl(pTable->gid.sid);
+    memcpy(pRemove->meterId, pTable->meterId, TSDB_TABLE_ID_LEN);
 
     pMsg += sizeof(SRemoveMeterMsg);
     msgLen = pMsg - pStart;
@@ -287,7 +287,7 @@ int mgmtSendRemoveMeterMsgToDnode(STabObj *pMeter, SVgObj *pVgroup) {
 
     tinet_ntoa(ipstr, pVgroup->vnodeGid[i].ip);
     mTrace("dnode:%s vid:%d, send remove meter msg, sid:%d status:%d", ipstr, pVgroup->vnodeGid[i].vnode,
-           pMeter->gid.sid, pObj->status);
+           pTable->gid.sid, pObj->status);
   }
 
   pVgroup->lastRemove = timeStamp;
@@ -295,7 +295,7 @@ int mgmtSendRemoveMeterMsgToDnode(STabObj *pMeter, SVgObj *pVgroup) {
   return 0;
 }
 
-int mgmtSendAlterStreamMsgToDnode(STabObj *pMeter, SVgObj *pVgroup) {
+int mgmtSendAlterStreamMsgToDnode(STabObj *pTable, SVgObj *pVgroup) {
   SAlterStreamMsg *pAlter;
   char *           pMsg, *pStart;
   int              i, msgLen = 0;
@@ -313,9 +313,9 @@ int mgmtSendAlterStreamMsgToDnode(STabObj *pMeter, SVgObj *pVgroup) {
 
     pAlter = (SAlterStreamMsg *)pMsg;
     pAlter->vnode = htons(pVgroup->vnodeGid[i].vnode);
-    pAlter->sid = htonl(pMeter->gid.sid);
-    pAlter->uid = pMeter->uid;
-    pAlter->status = pMeter->status;
+    pAlter->sid = htonl(pTable->gid.sid);
+    pAlter->uid = pTable->uid;
+    pAlter->status = pTable->status;
 
     pMsg += sizeof(SAlterStreamMsg);
     msgLen = pMsg - pStart;

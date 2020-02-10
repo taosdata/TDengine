@@ -23,6 +23,12 @@
 #include "tsqlfunction.h"
 #include "vnodeTagMgmt.h"
 
+typedef struct SSyntaxTreeFilterSupporter {
+  SSchema* pTagSchema;
+  int32_t  numOfTags;
+  int32_t  optr;
+} SSyntaxTreeFilterSupporter;
+
 typedef struct SJoinSupporter {
   void**  val;
   void**  pTabObjs;
@@ -41,6 +47,7 @@ typedef struct SMeterNameFilterSupporter {
 } SMeterNameFilterSupporter;
 
 static void tansformQueryResult(tQueryResultset* pRes);
+static bool tSkipListNodeFilterCallback(const void *pNode, void *param);
 
 static int32_t tabObjVGIDComparator(const void* pLeft, const void* pRight) {
   STabObj* p1 = *(STabObj**)pLeft;
@@ -82,7 +89,7 @@ static int32_t tabObjResultComparator(const void* p1, const void* p2, void* para
       f1 = pNode1->meterId;
       f2 = pNode2->meterId;
       schema.type = TSDB_DATA_TYPE_BINARY;
-      schema.bytes = TSDB_METER_ID_LEN;
+      schema.bytes = TSDB_TABLE_ID_LEN;
     } else {
       f1 = mgmtTableGetTag(pNode1, colIdx, NULL);
       f2 = mgmtTableGetTag(pNode2, colIdx, &schema);
@@ -104,15 +111,15 @@ static int32_t tabObjResultComparator(const void* p1, const void* p2, void* para
  * update the tag order index according to the tags column index. The tags column index needs to be checked one-by-one,
  * since the normal columns may be passed to server for handling the group by on status column.
  *
- * @param pMetricMetaMsg
+ * @param pSuperTableMetaMsg
  * @param tableIndex
  * @param pOrderIndexInfo
  * @param numOfTags
  */
-static void mgmtUpdateOrderTagColIndex(SMetricMetaMsg* pMetricMetaMsg, int32_t tableIndex, tOrderIdx* pOrderIndexInfo,
+static void mgmtUpdateOrderTagColIndex(SSuperTableMetaMsg* pSuperTableMetaMsg, int32_t tableIndex, tOrderIdx* pOrderIndexInfo,
      int32_t numOfTags) {
-  SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pMetricMetaMsg + pMetricMetaMsg->metaElem[tableIndex]);
-  SColIndexEx* groupColumnList = (SColIndexEx*)((char*)pMetricMetaMsg + pElem->groupbyTagColumnList);
+  SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pSuperTableMetaMsg + pSuperTableMetaMsg->metaElem[tableIndex]);
+  SColIndexEx* groupColumnList = (SColIndexEx*)((char*)pSuperTableMetaMsg + pElem->groupbyTagColumnList);
   
   int32_t numOfGroupbyTags = 0;
   for (int32_t i = 0; i < pElem->numOfGroupCols; ++i) {
@@ -127,12 +134,12 @@ static void mgmtUpdateOrderTagColIndex(SMetricMetaMsg* pMetricMetaMsg, int32_t t
 }
 
 // todo merge sort function with losertree used
-void mgmtReorganizeMetersInMetricMeta(SMetricMetaMsg* pMetricMetaMsg, int32_t tableIndex, tQueryResultset* pRes) {
+void mgmtReorganizeMetersInMetricMeta(SSuperTableMetaMsg* pSuperTableMetaMsg, int32_t tableIndex, tQueryResultset* pRes) {
   if (pRes->num <= 0) {  // no result, no need to pagination
     return;
   }
 
-  SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pMetricMetaMsg + pMetricMetaMsg->metaElem[tableIndex]);
+  SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pSuperTableMetaMsg + pSuperTableMetaMsg->metaElem[tableIndex]);
 
   STabObj* pMetric = mgmtGetTable(pElem->meterId);
   SSchema* pTagSchema = (SSchema*)(pMetric->schema + pMetric->numOfColumns * sizeof(SSchema));
@@ -149,7 +156,7 @@ void mgmtReorganizeMetersInMetricMeta(SMetricMetaMsg* pMetricMetaMsg, int32_t ta
   int32_t* startPos = NULL;
   int32_t  numOfSubset = 1;
   
-  mgmtUpdateOrderTagColIndex(pMetricMetaMsg, tableIndex, &descriptor->orderIdx, pMetric->numOfTags);
+  mgmtUpdateOrderTagColIndex(pSuperTableMetaMsg, tableIndex, &descriptor->orderIdx, pMetric->numOfTags);
   if (descriptor->orderIdx.numOfOrderedCols > 0) {
     tQSortEx(pRes->pRes, POINTER_BYTES, 0, pRes->num - 1, descriptor, tabObjResultComparator);
     startPos = calculateSubGroup(pRes->pRes, pRes->num, &numOfSubset, descriptor, tabObjResultComparator);
@@ -193,7 +200,7 @@ static void mgmtRetrieveByMeterName(tQueryResultset* pRes, char* str, STabObj* p
     }
 
     /* not a table created from metric, ignore */
-    if (pMeterObj->meterType != TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
+    if (pMeterObj->tableType != TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
       continue;
     }
 
@@ -202,7 +209,7 @@ static void mgmtRetrieveByMeterName(tQueryResultset* pRes, char* str, STabObj* p
      * uid, so compare according to meterid
      */
     STabObj* parentMetric = mgmtGetTable(pMeterObj->pTagData);
-    if (strncasecmp(parentMetric->meterId, pMetric->meterId, TSDB_METER_ID_LEN) != 0 ||
+    if (strncasecmp(parentMetric->meterId, pMetric->meterId, TSDB_TABLE_ID_LEN) != 0 ||
         (parentMetric->uid != pMetric->uid)) {
       continue;
     }
@@ -214,13 +221,13 @@ static void mgmtRetrieveByMeterName(tQueryResultset* pRes, char* str, STabObj* p
 static bool mgmtTablenameFilterCallback(tSkipListNode* pNode, void* param) {
   SMeterNameFilterSupporter* pSupporter = (SMeterNameFilterSupporter*)param;
 
-  char name[TSDB_METER_ID_LEN] = {0};
+  char name[TSDB_TABLE_ID_LEN] = {0};
 
   // pattern compare for meter name
   STabObj* pMeterObj = (STabObj*)pNode->pData;
   extractTableName(pMeterObj->meterId, name);
 
-  return patternMatch(pSupporter->pattern, name, TSDB_METER_ID_LEN, &pSupporter->info) == TSDB_PATTERN_MATCH;
+  return patternMatch(pSupporter->pattern, name, TSDB_TABLE_ID_LEN, &pSupporter->info) == TSDB_PATTERN_MATCH;
 }
 
 static void mgmtRetrieveFromLikeOptr(tQueryResultset* pRes, const char* str, STabObj* pMetric) {
@@ -282,8 +289,8 @@ UNUSED_FUNC static bool mgmtJoinFilterCallback(tSkipListNode* pNode, void* param
   return false;
 }
 
-static void orderResult(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes, int16_t colIndex, int32_t tableIndex) {
-  SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pMetricMetaMsg + pMetricMetaMsg->metaElem[tableIndex]);
+static void orderResult(SSuperTableMetaMsg* pSuperTableMetaMsg, tQueryResultset* pRes, int16_t colIndex, int32_t tableIndex) {
+  SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pSuperTableMetaMsg + pSuperTableMetaMsg->metaElem[tableIndex]);
 
   tOrderDescriptor* descriptor =
       (tOrderDescriptor*)calloc(1, sizeof(tOrderDescriptor) + sizeof(int32_t) * 1);  // only one column for join
@@ -322,13 +329,13 @@ static int32_t mgmtCheckForDuplicateTagValue(tQueryResultset* pRes, int32_t inde
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes) {
-  if (pMetricMetaMsg->numOfMeters == 1) {
+int32_t mgmtDoJoin(SSuperTableMetaMsg* pSuperTableMetaMsg, tQueryResultset* pRes) {
+  if (pSuperTableMetaMsg->numOfMeters == 1) {
     return TSDB_CODE_SUCCESS;
   }
 
   bool allEmpty = false;
-  for (int32_t i = 0; i < pMetricMetaMsg->numOfMeters; ++i) {
+  for (int32_t i = 0; i < pSuperTableMetaMsg->numOfMeters; ++i) {
     if (pRes[i].num == 0) {  // all results are empty if one of them is empty
       allEmpty = true;
       break;
@@ -336,7 +343,7 @@ int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes) {
   }
 
   if (allEmpty) {
-    for (int32_t i = 0; i < pMetricMetaMsg->numOfMeters; ++i) {
+    for (int32_t i = 0; i < pSuperTableMetaMsg->numOfMeters; ++i) {
       pRes[i].num = 0;
       tfree(pRes[i].pRes);
     }
@@ -344,15 +351,15 @@ int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes) {
     return TSDB_CODE_SUCCESS;
   }
 
-  char* cond = (char*)pMetricMetaMsg + pMetricMetaMsg->join;
+  char* cond = (char*)pSuperTableMetaMsg + pSuperTableMetaMsg->join;
 
-  char left[TSDB_METER_ID_LEN + 1] = {0};
+  char left[TSDB_TABLE_ID_LEN + 1] = {0};
   strcpy(left, cond);
-  int16_t leftTagColIndex = *(int16_t*)(cond + TSDB_METER_ID_LEN);
+  int16_t leftTagColIndex = *(int16_t*)(cond + TSDB_TABLE_ID_LEN);
 
-  char right[TSDB_METER_ID_LEN + 1] = {0};
-  strcpy(right, cond + TSDB_METER_ID_LEN + sizeof(int16_t));
-  int16_t rightTagColIndex = *(int16_t*)(cond + TSDB_METER_ID_LEN * 2 + sizeof(int16_t));
+  char right[TSDB_TABLE_ID_LEN + 1] = {0};
+  strcpy(right, cond + TSDB_TABLE_ID_LEN + sizeof(int16_t));
+  int16_t rightTagColIndex = *(int16_t*)(cond + TSDB_TABLE_ID_LEN * 2 + sizeof(int16_t));
 
   STabObj* pLeftMetric = mgmtGetTable(left);
   STabObj* pRightMetric = mgmtGetTable(right);
@@ -361,7 +368,7 @@ int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes) {
   int32_t leftIndex = 0;
   int32_t rightIndex = 0;
 
-  for (int32_t i = 0; i < pMetricMetaMsg->numOfMeters; ++i) {
+  for (int32_t i = 0; i < pSuperTableMetaMsg->numOfMeters; ++i) {
     STabObj* pObj = (STabObj*)pRes[i].pRes[0];
     STabObj* pMetric1 = mgmtGetTable(pObj->pTagData);
     if (pMetric1 == pLeftMetric) {
@@ -371,8 +378,8 @@ int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes) {
     }
   }
 
-  orderResult(pMetricMetaMsg, &pRes[leftIndex], leftTagColIndex, leftIndex);
-  orderResult(pMetricMetaMsg, &pRes[rightIndex], rightTagColIndex, rightIndex);
+  orderResult(pSuperTableMetaMsg, &pRes[leftIndex], leftTagColIndex, leftIndex);
+  orderResult(pSuperTableMetaMsg, &pRes[rightIndex], rightTagColIndex, rightIndex);
 
   int32_t i = 0;
   int32_t j = 0;
@@ -727,7 +734,7 @@ static int32_t mgmtFilterMeterByIndex(STabObj* pMetric, tQueryResultset* pRes, c
   return TSDB_CODE_SUCCESS;
 }
 
-int mgmtRetrieveMetersFromMetric(SMetricMetaMsg* pMsg, int32_t tableIndex, tQueryResultset* pRes) {
+int32_t mgmtRetrieveMetersFromSuperTable(SSuperTableMetaMsg* pMsg, int32_t tableIndex, tQueryResultset* pRes) {
   SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pMsg + pMsg->metaElem[tableIndex]);
   STabObj*            pMetric = mgmtGetTable(pElem->meterId);
   char*               pCond = NULL;
@@ -806,11 +813,11 @@ int mgmtRetrieveMetersFromMetric(SMetricMetaMsg* pMsg, int32_t tableIndex, tQuer
 }
 
 // todo refactor!!!!!
-static char* getTagValueFromMeter(STabObj* pMeter, int32_t offset, int32_t len, char* param) {
+static char* getTagValueFromMeter(STabObj* pTable, int32_t offset, int32_t len, char* param) {
   if (offset == TSDB_TBNAME_COLUMN_INDEX) {
-    extractTableName(pMeter->meterId, param);
+    extractTableName(pTable->meterId, param);
   } else {
-    char* tags = pMeter->pTagData + offset + TSDB_METER_ID_LEN;  // tag start position
+    char* tags = pTable->pTagData + offset + TSDB_TABLE_ID_LEN;  // tag start position
     memcpy(param, tags, len);  // make sure the value is null-terminated string
   }
   
@@ -820,11 +827,11 @@ static char* getTagValueFromMeter(STabObj* pMeter, int32_t offset, int32_t len, 
 bool tSkipListNodeFilterCallback(const void* pNode, void* param) {
   
   tQueryInfo* pInfo = (tQueryInfo*)param;
-  STabObj*    pMeter = (STabObj*)(((tSkipListNode*)pNode)->pData);
+  STabObj*    pTable = (STabObj*)(((tSkipListNode*)pNode)->pData);
 
   char   buf[TSDB_MAX_TAGS_LEN] = {0};
   
-  char*  val = getTagValueFromMeter(pMeter, pInfo->offset, pInfo->sch.bytes, buf);
+  char*  val = getTagValueFromMeter(pTable, pInfo->offset, pInfo->sch.bytes, buf);
   int8_t type = pInfo->sch.type;
 
   int32_t ret = 0;

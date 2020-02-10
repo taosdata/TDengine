@@ -1047,7 +1047,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   }
 
   char *nextStr;
-  char  tblName[TSDB_METER_ID_LEN];
+  char  tblName[TSDB_TABLE_ID_LEN];
   int   payloadLen = 0;
   char *pMsg = pCmd->payload;
   while (1) {

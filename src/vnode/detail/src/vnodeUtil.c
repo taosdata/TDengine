@@ -527,7 +527,7 @@ bool vnodeIsProjectionQuery(SSqlFunctionExpr* pExpr, int32_t numOfOutput) {
 }
 
 /*
- * the pMeter->state may be changed by vnodeIsSafeToDeleteMeter and import/update processor, the check of
+ * the pTable->state may be changed by vnodeIsSafeToDeleteMeter and import/update processor, the check of
  * the state will not always be correct.
  *
  * The import/update/deleting is actually blocked by current query processing if the check of meter state is
@@ -548,30 +548,30 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSid
   int32_t code = TSDB_CODE_SUCCESS;
 
   for (int32_t i = 0; i < pQueryMsg->numOfSids; ++i) {
-    SMeterObj* pMeter = pVnode->meterList[pSids[i]->sid];
+    SMeterObj* pTable = pVnode->meterList[pSids[i]->sid];
 
     /*
      * If table is missing or is in dropping status, config it from management node, and ignore it
      * during query processing. The error code of TSDB_CODE_NOT_ACTIVE_TABLE will never return to client.
      * The missing table needs to be removed from pSids list
      */
-    if (pMeter == NULL || vnodeIsMeterState(pMeter, TSDB_METER_STATE_DROPPING)) {
+    if (pTable == NULL || vnodeIsMeterState(pTable, TSDB_METER_STATE_DROPPING)) {
       dWarn("qmsg:%p, vid:%d sid:%d, not there or will be dropped, ignore this table in query", pQueryMsg,
           pQueryMsg->vnode, pSids[i]->sid);
       
       vnodeSendMeterCfgMsg(pQueryMsg->vnode, pSids[i]->sid);
       continue;
-    } else if (pMeter->uid != pSids[i]->uid || pMeter->sid != pSids[i]->sid) {
+    } else if (pTable->uid != pSids[i]->uid || pTable->sid != pSids[i]->sid) {
       code = TSDB_CODE_TABLE_ID_MISMATCH;
       dError("qmsg:%p, vid:%d sid:%d id:%s uid:%" PRIu64 ", id mismatch. sid:%d uid:%" PRId64 " in msg", pQueryMsg,
-          pQueryMsg->vnode, pMeter->sid, pMeter->meterId, pMeter->uid, pSids[i]->sid, pSids[i]->uid);
+          pQueryMsg->vnode, pTable->sid, pTable->meterId, pTable->uid, pSids[i]->sid, pSids[i]->uid);
       
       vnodeSendMeterCfgMsg(pQueryMsg->vnode, pSids[i]->sid);
       continue;
-    } else if (pMeter->state > TSDB_METER_STATE_INSERTING) { //update or import
+    } else if (pTable->state > TSDB_METER_STATE_INSERTING) { //update or import
       code = TSDB_CODE_ACTION_IN_PROGRESS;
       dTrace("qmsg:%p, vid:%d sid:%d id:%s, it is in state:%s, wait!", pQueryMsg, pQueryMsg->vnode, pSids[i]->sid,
-             pMeter->meterId, taosGetTableStatusStr(pMeter->state));
+             pTable->meterId, taosGetTableStatusStr(pTable->state));
       continue;
     }
     
@@ -579,15 +579,15 @@ int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSid
      * vnodeIsSafeToDeleteMeter will wait for this function complete, and then it can
      * check if the numOfQueries is 0 or not.
      */
-    pMeterObjList[(*numOfIncTables)++] = pMeter;
-    atomic_fetch_add_32(&pMeter->numOfQueries, 1);
+    pMeterObjList[(*numOfIncTables)++] = pTable;
+    atomic_fetch_add_32(&pTable->numOfQueries, 1);
     
     pSids[index++] = pSids[i];
     
     // output for meter more than one query executed
-    if (pMeter->numOfQueries > 1) {
-      dTrace("qmsg:%p, vid:%d sid:%d id:%s, inc query ref, numOfQueries:%d", pQueryMsg, pMeter->vnode, pMeter->sid,
-             pMeter->meterId, pMeter->numOfQueries);
+    if (pTable->numOfQueries > 1) {
+      dTrace("qmsg:%p, vid:%d sid:%d id:%s, inc query ref, numOfQueries:%d", pQueryMsg, pTable->vnode, pTable->sid,
+             pTable->meterId, pTable->numOfQueries);
       num++;
     }
   }
@@ -605,14 +605,14 @@ void vnodeDecQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterObj** pMeterObjList,
   int32_t num = 0;
 
   for (int32_t i = 0; i < numOfIncTables; ++i) {
-    SMeterObj* pMeter = pMeterObjList[i];
+    SMeterObj* pTable = pMeterObjList[i];
 
-    if (pMeter != NULL) {  // here, do not need to lock to perform operations
-      atomic_fetch_sub_32(&pMeter->numOfQueries, 1);
+    if (pTable != NULL) {  // here, do not need to lock to perform operations
+      atomic_fetch_sub_32(&pTable->numOfQueries, 1);
 
-      if (pMeter->numOfQueries > 0) {
-        dTrace("qmsg:%p, vid:%d sid:%d id:%s dec query ref, numOfQueries:%d", pQueryMsg, pMeter->vnode, pMeter->sid,
-               pMeter->meterId, pMeter->numOfQueries);
+      if (pTable->numOfQueries > 0) {
+        dTrace("qmsg:%p, vid:%d sid:%d id:%s dec query ref, numOfQueries:%d", pQueryMsg, pTable->vnode, pTable->sid,
+               pTable->meterId, pTable->numOfQueries);
         num++;
       }
     }

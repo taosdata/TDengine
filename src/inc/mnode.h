@@ -95,7 +95,7 @@ typedef struct {
 } SMeterGid;
 
 typedef struct _tab_obj {
-  char      meterId[TSDB_METER_ID_LEN + 1];
+  char      meterId[TSDB_TABLE_ID_LEN + 1];
   uint64_t  uid;
   SMeterGid gid;
 
@@ -106,7 +106,7 @@ typedef struct _tab_obj {
   int32_t numOfColumns;
   int32_t schemaSize;
   short   nextColId;
-  char    meterType : 4;
+  char    tableType : 4;
   char    status : 3;
   char    isDirty : 1;  // if the table change tag column 1 value
   char    reserved[15];
@@ -116,7 +116,7 @@ typedef struct _tab_obj {
   tSkipList *      pSkipList;
   struct _tab_obj *pHead;  // for metric, a link list for all meters created
                            // according to this metric
-  char *pTagData;          // TSDB_METER_ID_LEN(metric_name)+
+  char *pTagData;          // TSDB_TABLE_ID_LEN(metric_name)+
                            // tags_value1/tags_value2/tags_value3
   struct _tab_obj *prev, *next;
   char *           pSql;   // pointer to SQL, for SC, null-terminated string
@@ -262,8 +262,8 @@ extern SDnodeObj dnodeObj;
 // dnodeInt API
 int  mgmtInitDnodeInt();
 void mgmtCleanUpDnodeInt();
-int mgmtSendCreateMsgToVgroup(STabObj *pMeter, SVgObj *pVgroup);
-int mgmtSendRemoveMeterMsgToDnode(STabObj *pMeter, SVgObj *pVgroup);
+int mgmtSendCreateMsgToVgroup(STabObj *pTable, SVgObj *pVgroup);
+int mgmtSendRemoveMeterMsgToDnode(STabObj *pTable, SVgObj *pVgroup);
 int mgmtSendVPeersMsg(SVgObj *pVgroup);
 int mgmtSendFreeVnodeMsg(SVgObj *pVgroup);
 int mgmtSendOneFreeVnodeMsg(SVnodeGid *pVnodeGid);
@@ -284,8 +284,8 @@ int mgmtRetrieveUsers(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 void mgmtCleanUpUsers();
 
 // metric API
-int mgmtAddMeterIntoMetric(STabObj *pMetric, STabObj *pMeter);
-int mgmtRemoveMeterFromMetric(STabObj *pMetric, STabObj *pMeter);
+int mgmtAddMeterIntoMetric(STabObj *pMetric, STabObj *pTable);
+int mgmtRemoveMeterFromMetric(STabObj *pMetric, STabObj *pTable);
 int mgmtGetMetricMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int mgmtRetrieveMetrics(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
@@ -326,14 +326,14 @@ void mgmtCleanUpVgroups();
 int      mgmtInitMeters();
 STabObj *mgmtGetTable(char *meterId);
 STabObj *mgmtGetTableInfo(char *src, char *tags[]);
-int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SMetricMetaMsg *pInfo);
+int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SSuperTableMetaMsg *pInfo);
 int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate);
 int mgmtDropMeter(SDbObj *pDb, char *meterId, int ignore);
 int mgmtAlterMeter(SDbObj *pDb, SAlterTableMsg *pAlter);
 int mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 void     mgmtCleanUpMeters();
-SSchema *mgmtGetTableSchema(STabObj *pMeter);  // get schema for a meter
+SSchema *mgmtGetTableSchema(STabObj *pTable);  // get schema for a meter
 
 
 // dnode API

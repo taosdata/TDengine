@@ -15,19 +15,16 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
 #include "mnode.h"
 #include "mgmtUtil.h"
-#include "textbuffer.h"
 #include "tschemautil.h"
-#include "tsqlfunction.h"
 
 bool mgmtTableCreateFromSuperTable(STabObj* pTableObj) {
-  return pTableObj->meterType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE;
+  return pTableObj->tableType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE;
 }
 
 bool mgmtIsSuperTable(STabObj* pTableObj) {
-  return pTableObj->meterType == TSDB_TABLE_TYPE_SUPER_TABLE;
+  return pTableObj->tableType == TSDB_TABLE_TYPE_SUPER_TABLE;
 }
 
 bool mgmtIsNormalTable(STabObj* pTableObj) {
@@ -37,7 +34,7 @@ bool mgmtIsNormalTable(STabObj* pTableObj) {
 /**
  * TODO: the tag offset value should be kept in memory to avoid dynamically calculating the value
  *
- * @param pMeter
+ * @param pTable
  * @param col
  * @param pTagColSchema
  * @return
@@ -48,7 +45,7 @@ char* mgmtTableGetTag(STabObj* pTable, int32_t col, SSchema* pTagColSchema) {
   }
 
   STabObj* pSuperTable = mgmtGetTable(pTable->pTagData);
-  int32_t  offset = mgmtGetTagsLength(pSuperTable, col) + TSDB_METER_ID_LEN;
+  int32_t  offset = mgmtGetTagsLength(pSuperTable, col) + TSDB_TABLE_ID_LEN;
   assert(offset > 0);
 
   if (pTagColSchema != NULL) {

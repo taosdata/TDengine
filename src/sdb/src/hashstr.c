@@ -19,7 +19,7 @@
 #define MAX_STR_LEN 40
 
 typedef struct _str_node_t {
-  char                string[TSDB_METER_ID_LEN];
+  char                string[TSDB_TABLE_ID_LEN];
   int                 hash;
   struct _str_node_t *prev;
   struct _str_node_t *next;

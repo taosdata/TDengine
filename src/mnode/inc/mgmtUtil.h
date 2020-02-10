@@ -11,37 +11,22 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-
-#include "tast.h"
+ */
 
 #ifndef TBASE_MNODE_UTIL_H
 #define TBASE_MNODE_UTIL_H
 
-bool mgmtTableCreateFromSuperTable(STabObj *pTableObj);
-bool mgmtIsSuperTable(STabObj *pTableObj);
-bool mgmtIsNormalTable(STabObj *pTableObj);
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include "mnode.h"
 
-typedef struct SSyntaxTreeFilterSupporter {
-  SSchema* pTagSchema;
-  int32_t  numOfTags;
-  int32_t  optr;
-} SSyntaxTreeFilterSupporter;
-
-char*   mgmtTableGetTag(STabObj* pMeter, int32_t col, SSchema* pTagColSchema);
-int32_t mgmtGetTagsLength(STabObj* pMetric, int32_t col);
+bool    mgmtTableCreateFromSuperTable(STabObj *pTableObj);
+bool    mgmtIsSuperTable(STabObj *pTableObj);
+bool    mgmtIsNormalTable(STabObj *pTableObj);
+char*   mgmtTableGetTag(STabObj* pTable, int32_t col, SSchema* pTagColSchema);
+int32_t mgmtGetTagsLength(STabObj* pSuperTable, int32_t col);
 bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
 int32_t mgmtCheckDBParams(SCreateDbMsg *pCreate);
-
-int32_t mgmtFindTagCol(STabObj * pMetric, const char * tagName);
-
-int32_t mgmtRetrieveMetersFromMetric(SMetricMetaMsg* pInfo, int32_t tableIndex, tQueryResultset* pRes);
-int32_t mgmtDoJoin(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes);
-void mgmtReorganizeMetersInMetricMeta(SMetricMetaMsg* pInfo, int32_t index, tQueryResultset* pRes);
-
-bool tSkipListNodeFilterCallback(const void *pNode, void *param);
-
 
 #endif
