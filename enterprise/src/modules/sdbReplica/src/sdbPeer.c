@@ -922,7 +922,7 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
 
 void sdbCheckPeerStatus(void *param, void *tmrId) {
   SSdbPeer *   pPeer = (SSdbPeer *)param;
-  char         meterId[TSDB_METER_ID_LEN];
+  char         meterId[TSDB_TABLE_ID_LEN];
   char *       pStart, *pMsg;
   int          msgLen;
   SRpcConnInit connInit;

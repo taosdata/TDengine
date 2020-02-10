@@ -427,7 +427,7 @@ int vnodeRebuildCreateMsg(int vid, int sid, char *msg) {
   pCreate->vnode = htons(vid);
   pCreate->sid = htonl(sid);
   pCreate->numOfColumns = htons(pObj->numOfColumns);
-  memcpy(pCreate->meterId, pObj->meterId, TSDB_METER_ID_LEN);
+  memcpy(pCreate->meterId, pObj->meterId, TSDB_TABLE_ID_LEN);
   pCreate->timeStamp = htobe64(pObj->timeStamp);
   pCreate->uid = pObj->uid;
   pCreate->sqlLen = htons(pObj->sqlLen);

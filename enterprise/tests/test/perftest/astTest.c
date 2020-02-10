@@ -147,12 +147,12 @@ static void initSchema(SSchema *schema, int32_t numOfCols) {
 static void addOneNode(SSchema *pSchema, int32_t tagsLen, tSkipList *pSkipList,
                        char *meterId, int32_t a, double b, char *c, int64_t d, int16_t e, int8_t f, float g,
                        bool h, int32_t numOfTags) {
-    STabObj *pMeter = calloc(1, sizeof(STabObj));
-    pMeter->numOfTags = numOfTags;
-    pMeter->pTagData = calloc(1, tagsLen + TSDB_METER_ID_LEN);
-    strcpy(pMeter->meterId, meterId);
+    STabObj *pTable = calloc(1, sizeof(STabObj));
+    pTable->numOfTags = numOfTags;
+    pTable->pTagData = calloc(1, tagsLen + TSDB_TABLE_ID_LEN);
+    strcpy(pTable->meterId, meterId);
 
-    char *tags = pMeter->pTagData + TSDB_METER_ID_LEN;
+    char *tags = pTable->pTagData + TSDB_TABLE_ID_LEN;
     int32_t offset = 0;
 
     *(int32_t *) tags = a;
@@ -179,18 +179,18 @@ static void addOneNode(SSchema *pSchema, int32_t tagsLen, tSkipList *pSkipList,
     *(int8_t *) (tags + offset) = h ? 1 : 0;
 
     tSkipListKey pKey = tSkipListCreateKey(pSchema[0].type, tags, pSchema[0].bytes);
-    tSkipListPut(pSkipList, pMeter, &pKey, 1);
+    tSkipListPut(pSkipList, pTable, &pKey, 1);
 }
 
 static void addOneNode_binary(SSchema *pSchema, int32_t tagsLen, tSkipList *pSkipList,
                               char *meterId, int32_t a, double b, char *c, int64_t d, int16_t e, int8_t f, float g,
                               bool h, int32_t numOfTags) {
-    STabObj *pMeter = calloc(1, sizeof(STabObj));
-    pMeter->numOfTags = numOfTags;
-    pMeter->pTagData = calloc(1, tagsLen + TSDB_METER_ID_LEN);
-    strcpy(pMeter->meterId, meterId);
+    STabObj *pTable = calloc(1, sizeof(STabObj));
+    pTable->numOfTags = numOfTags;
+    pTable->pTagData = calloc(1, tagsLen + TSDB_TABLE_ID_LEN);
+    strcpy(pTable->meterId, meterId);
 
-    char *tags = pMeter->pTagData + TSDB_METER_ID_LEN;
+    char *tags = pTable->pTagData + TSDB_TABLE_ID_LEN;
     int32_t offset = 0;
     memcpy(tags, c, pSchema[0].bytes);
 
@@ -216,7 +216,7 @@ static void addOneNode_binary(SSchema *pSchema, int32_t tagsLen, tSkipList *pSki
     *(int8_t *) (tags + offset) = h ? 1 : 0;
 
     tSkipListKey pKey = tSkipListCreateKey(pSchema[0].type, tags, pSchema[0].bytes);
-    tSkipListPut(pSkipList, pMeter, &pKey, 1);
+    tSkipListPut(pSkipList, pTable, &pKey, 1);
     tSkipListDestroyKey(&pKey);
 }
 
@@ -225,9 +225,9 @@ static void dropMeter(tSkipList *pSkipList) {
     int32_t num = tSkipListIterateList(pSkipList, &pRes, NULL, NULL);
     for (int32_t i = 0; i < num; ++i) {
         tSkipListNode *pNode = pRes[i];
-        STabObj *pMeter = (STabObj *) pNode->pData;
-        free(pMeter->pTagData);
-        free(pMeter);
+        STabObj *pTable = (STabObj *) pNode->pData;
+        free(pTable->pTagData);
+        free(pTable);
         pNode->pData = NULL;
     }
     free(pRes);

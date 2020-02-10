@@ -32,7 +32,7 @@ uint32_t   tsPrivateIp4;
 void *mgmtProcessMsgFromDnodeSpec(char *msg, void *ahandle, void *thandle);
 int   mgmtSendVPeersMsg(SVgObj *pVgroup);
 char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode);
-char *mgmtBuildCreateMeterIe(STabObj *pMeter, char *pMsg, int vnode);
+char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int vnode);
 void  mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *pObj);
 
 /*

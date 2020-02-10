@@ -43,7 +43,7 @@ typedef struct {
   int         fileId;
   int         numOfFiles;
   SVnodeCfg   cfg;
-  SMeterObj **pMeter;
+  SMeterObj **pTable;
 } SVnodeInfo;
 
 struct arguments {
@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
       closedir(dir2);
 
       for (int i = 0; i < pInfo->cfg.maxSessions; i++)
-        if (pInfo->pMeter[i] != NULL) free(pInfo->pMeter[i]);
+        if (pInfo->pTable[i] != NULL) free(pInfo->pTable[i]);
       free(pInfo);
     }
   } else {
@@ -286,8 +286,8 @@ SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir) {  // Open meterOb
   size = sizeof(SMeterObj) + 256 * sizeof(SColumn) + 256 * 16 + sizeof(TSCKSUM);
   buff = malloc(size);
 
-  pInfo->pMeter = (SMeterObj **)calloc(pInfo->cfg.maxSessions, sizeof(SMeterObj *));
-  if (pInfo->pMeter == NULL) {
+  pInfo->pTable = (SMeterObj **)calloc(pInfo->cfg.maxSessions, sizeof(SMeterObj *));
+  if (pInfo->pTable == NULL) {
     goto _error_meterObj;
   }
 
@@ -307,10 +307,10 @@ SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir) {  // Open meterOb
       }
 
       if (pSaveObj->meterId[0] == 0) continue;
-      pInfo->pMeter[sid] = (SMeterObj *)malloc(sizeof(SMeterObj) + pSaveObj->sqlLen + 1);
-      memcpy(pInfo->pMeter[sid], pSaveObj, offsetof(SMeterObj, reserved));
-      fprintf(reportFP, "sid: %d, uid: %" PRIu64 ", numOfColumns:%d meterId:%s\n", sid, pInfo->pMeter[sid]->uid,
-              pInfo->pMeter[sid]->numOfColumns, pInfo->pMeter[sid]->meterId);
+      pInfo->pTable[sid] = (SMeterObj *)malloc(sizeof(SMeterObj) + pSaveObj->sqlLen + 1);
+      memcpy(pInfo->pTable[sid], pSaveObj, offsetof(SMeterObj, reserved));
+      fprintf(reportFP, "sid: %d, uid: %" PRIu64 ", numOfColumns:%d meterId:%s\n", sid, pInfo->pTable[sid]->uid,
+              pInfo->pTable[sid]->numOfColumns, pInfo->pTable[sid]->meterId);
 
     } else {
       fprintf(reportFP, "ERROR in meterobj file record, sid:%d\n", sid);
@@ -475,7 +475,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
 
   size = 0;
   for (int i = 0; i < pCfg->maxSessions; i++) {// loop over table
-    if (pInfo->pMeter[i] == NULL || pHeader[i].compInfoOffset == 0) continue;
+    if (pInfo->pTable[i] == NULL || pHeader[i].compInfoOffset == 0) continue;
     if (pHeader[i].compInfoOffset < 0 || pHeader[i].compInfoOffset > hfsize) {
       fprintf(reportFP, "ERROR!!! i:%d compInfoOffset:%" PRId64 "\n", i, pHeader[i].compInfoOffset);
       fileHasError = 1;
@@ -496,7 +496,7 @@ void checkFile(char *headFile, SVnodeInfo *pInfo, char *vnodeDirName, char *head
       fprintf(stderr, "failed to read SCompInfo part of meter sid:%d from head file:%s, reason:%s\n", i, headFile, strerror(errno));
       continue;
     }
-    if (!printCompInfo(&compInfo, pInfo->pMeter[i]->uid, reportFP)) {// check the SCompInfo part
+    if (!printCompInfo(&compInfo, pInfo->pTable[i]->uid, reportFP)) {// check the SCompInfo part
       fileHasError = 1;
       *err = 1;
       if (repairFd > 0) {
