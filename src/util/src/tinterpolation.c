@@ -37,7 +37,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char
      * here we revised the start time of day according to the local time zone,
      * but in case of DST, the start time of one day need to be dynamically decided.
      *
-     * TODO dynmaically decide the start time of a day
+     * TODO dynamically decide the start time of a day
      */
 
 #if defined(WINDOWS) && _MSC_VER >= 1900
@@ -77,12 +77,24 @@ void taosInitInterpoInfo(SInterpolationInfo* pInterpoInfo, int32_t order, int64_
   tfree(pInterpoInfo->prevValues);
 }
 
+// the SInterpolationInfo itself will not be released
+void taosDestoryInterpoInfo(SInterpolationInfo *pInterpoInfo) {
+  if (pInterpoInfo == NULL) {
+    return;
+  }
+  
+  tfree(pInterpoInfo->prevValues);
+  tfree(pInterpoInfo->nextValues);
+  
+  tfree(pInterpoInfo->pTags);
+}
+
 void taosInterpoSetStartInfo(SInterpolationInfo* pInterpoInfo, int32_t numOfRawDataInRows, int32_t type) {
   if (type == TSDB_INTERPO_NONE) {
     return;
   }
 
-  pInterpoInfo->rowIdx = INTERPOL_IS_ASC_INTERPOL(pInterpoInfo) ? 0 : numOfRawDataInRows - 1;
+  pInterpoInfo->rowIdx = 0;//INTERPOL_IS_ASC_INTERPOL(pInterpoInfo) ? 0 : numOfRawDataInRows - 1;
   pInterpoInfo->numOfRawDataInRows = numOfRawDataInRows;
 }
 
@@ -106,14 +118,14 @@ int32_t taosGetNumOfResWithoutLimit(SInterpolationInfo* pInterpoInfo, int64_t* p
   if (numOfAvailRawData > 0) {
     int32_t finalNumOfResult = 0;
 
-    if (pInterpoInfo->order == TSQL_SO_ASC) {
+//    if (pInterpoInfo->order == TSQL_SO_ASC) {
       // get last timestamp, calculate the result size
       int64_t lastKey = pPrimaryKeyArray[pInterpoInfo->numOfRawDataInRows - 1];
-      finalNumOfResult = (int32_t)((lastKey - pInterpoInfo->startTimestamp) / nInterval) + 1;
-    } else {  // todo error less than one!!!
-      TSKEY lastKey = pPrimaryKeyArray[0];
-      finalNumOfResult = (int32_t)((pInterpoInfo->startTimestamp - lastKey) / nInterval) + 1;
-    }
+      finalNumOfResult = (int32_t)(labs(lastKey - pInterpoInfo->startTimestamp) / nInterval) + 1;
+//    } else {  // todo error less than one!!!
+//      TSKEY lastKey = pPrimaryKeyArray[0];
+//      finalNumOfResult = (int32_t)((pInterpoInfo->startTimestamp - lastKey) / nInterval) + 1;
+//    }
 
     assert(finalNumOfResult >= numOfAvailRawData);
     return finalNumOfResult;
@@ -186,11 +198,11 @@ int taosDoLinearInterpolation(int32_t type, SPoint* point1, SPoint* point2, SPoi
 }
 
 static char* getPos(char* data, int32_t bytes, int32_t order, int32_t capacity, int32_t index) {
-  if (order == TSQL_SO_ASC) {
+//  if (order == TSQL_SO_ASC) {
     return data + index * bytes;
-  } else {
-    return data + (capacity - index - 1) * bytes;
-  }
+//  } else {
+//    return data + (capacity - index - 1) * bytes;
+//  }
 }
 
 static void setTagsValueInInterpolation(tFilePage** data, char** pTags, tColModel* pModel, int32_t order, int32_t start,
@@ -283,8 +295,8 @@ static void doInterpoResultImpl(SInterpolationInfo* pInterpoInfo, int16_t interp
 
 int32_t taosDoInterpoResult(SInterpolationInfo* pInterpoInfo, int16_t interpoType, tFilePage** data,
                             int32_t numOfRawDataInRows, int32_t outputRows, int64_t nInterval,
-                            int64_t* pPrimaryKeyArray, tColModel* pModel, char** srcData, int64_t* defaultVal,
-                            int32_t* functionIDs, int32_t bufSize) {
+                            const int64_t* pPrimaryKeyArray, tColModel* pModel, char** srcData, int64_t* defaultVal,
+                            const int32_t* functionIDs, int32_t bufSize) {
   int32_t num = 0;
   pInterpoInfo->numOfCurrentInterpo = 0;
 
@@ -385,7 +397,7 @@ int32_t taosDoInterpoResult(SInterpolationInfo* pInterpoInfo, int16_t interpoTyp
       }
 
       pInterpoInfo->startTimestamp += (nInterval * step);
-      pInterpoInfo->rowIdx += step;
+      pInterpoInfo->rowIdx += 1;
       num += 1;
 
       if ((pInterpoInfo->rowIdx >= pInterpoInfo->numOfRawDataInRows && INTERPOL_IS_ASC_INTERPOL(pInterpoInfo)) ||

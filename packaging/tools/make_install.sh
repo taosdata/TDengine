@@ -9,19 +9,37 @@ set -e
 # -----------------------Variables definition---------------------
 source_dir=$1
 binary_dir=$2
-script_dir=$(dirname $(readlink -f "$0"))
+osType=$3
+
+if [ "$osType" != "Darwin" ]; then
+    script_dir=$(dirname $(readlink -f "$0"))
+else
+    script_dir=${source_dir}/packaging/tools
+fi
+
 # Dynamic directory
 data_dir="/var/lib/taos"
-log_dir="/var/log/taos"
+
+if [ "$osType" != "Darwin" ]; then
+    log_dir="/var/log/taos"
+else
+    log_dir="~/TDengineLog"
+fi
 
 data_link_dir="/usr/local/taos/data"
 log_link_dir="/usr/local/taos/log"
 
 cfg_install_dir="/etc/taos"
 
-bin_link_dir="/usr/bin"
-lib_link_dir="/usr/lib"
-inc_link_dir="/usr/include"
+if [ "$osType" != "Darwin" ]; then
+    bin_link_dir="/usr/bin"
+    lib_link_dir="/usr/lib"
+    inc_link_dir="/usr/include"
+else
+    bin_link_dir="/usr/local/bin"
+    lib_link_dir="/usr/local/lib"
+    inc_link_dir="/usr/local/include"
+fi
 
 #install main path
 install_main_dir="/usr/local/taos"
@@ -43,58 +61,61 @@ if command -v sudo > /dev/null; then
     csudo="sudo"
 fi
 
-initd_mod=0
-service_mod=2
-if pidof systemd &> /dev/null; then
-    service_mod=0
-elif $(which service &> /dev/null); then    
-    service_mod=1
-    service_config_dir="/etc/init.d" 
-    if $(which chkconfig &> /dev/null); then
-         initd_mod=1 
-    elif $(which insserv &> /dev/null); then
-        initd_mod=2
-    elif $(which update-rc.d &> /dev/null); then
-        initd_mod=3
+if [ "$osType" != "Darwin" ]; then
+
+    initd_mod=0
+    service_mod=2
+    if pidof systemd &> /dev/null; then
+        service_mod=0
+    elif $(which service &> /dev/null); then
+        service_mod=1
+        service_config_dir="/etc/init.d" 
+        if $(which chkconfig &> /dev/null); then
+            initd_mod=1 
+        elif $(which insserv &> /dev/null); then
+            initd_mod=2
+        elif $(which update-rc.d &> /dev/null); then
+            initd_mod=3
+        else
+            service_mod=2
+        fi
     else
         service_mod=2
     fi
-else 
-    service_mod=2
-fi
 
-
-# get the operating system type for using the corresponding init file
-# ubuntu/debian(deb), centos/fedora(rpm), others: opensuse, redhat, ..., no verification
-#osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
-osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
-#echo "osinfo: ${osinfo}"
-os_type=0
-if echo $osinfo | grep -qwi "ubuntu" ; then
-  echo "this is ubuntu system"
-  os_type=1
-elif echo $osinfo | grep -qwi "debian" ; then
-  echo "this is debian system"
-  os_type=1
-elif echo $osinfo | grep -qwi "Kylin" ; then
-  echo "this is Kylin system"
-  os_type=1
-elif  echo $osinfo | grep -qwi "centos" ; then
-  echo "this is centos system"
-  os_type=2
-elif echo $osinfo | grep -qwi "fedora" ; then
-  echo "this is fedora system"
-  os_type=2
-else
-  echo "this is other linux system"
-  os_type=0
+    # get the operating system type for using the corresponding init file
+    # ubuntu/debian(deb), centos/fedora(rpm), others: opensuse, redhat, ..., no verification
+    #osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
+    osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
+    #echo "osinfo: ${osinfo}"
+    os_type=0
+    if echo $osinfo | grep -qwi "ubuntu" ; then
+        echo "this is ubuntu system"
+        os_type=1
+    elif echo $osinfo | grep -qwi "debian" ; then
+        echo "this is debian system"
+        os_type=1
+    elif echo $osinfo | grep -qwi "Kylin" ; then
+        echo "this is Kylin system"
+        os_type=1
+    elif  echo $osinfo | grep -qwi "centos" ; then
+        echo "this is centos system"
+        os_type=2
+    elif echo $osinfo | grep -qwi "fedora" ; then
+        echo "this is fedora system"
+        os_type=2
+    else
+        echo "${osinfo}: This is an officially unverified linux system, If there are any problems with the installation and operation, "
+        echo "please feel free to contact taosdata.com for support."
+        os_type=1
+    fi
 fi
 
 function kill_taosd() {
-  pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    ${csudo} kill -9 $pid   || :
-  fi
+    pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+    if [ -n "$pid" ]; then
+        ${csudo} kill -9 $pid   || :
+    fi
 }
 
 function install_main_path() {
@@ -107,37 +128,62 @@ function install_main_path() {
     ${csudo} mkdir -p ${install_main_dir}/driver
     ${csudo} mkdir -p ${install_main_dir}/examples
     ${csudo} mkdir -p ${install_main_dir}/include
-    ${csudo} mkdir -p ${install_main_dir}/init.d
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} mkdir -p ${install_main_dir}/init.d
+    fi
 }
 
 function install_bin() {
     # Remove links
-    ${csudo} rm -f ${bin_link_dir}/taos     || :
-    ${csudo} rm -f ${bin_link_dir}/taosd    || :
-    ${csudo} rm -f ${bin_link_dir}/taosdemo || :
-    ${csudo} rm -f ${bin_link_dir}/taosdump || :
-    ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
+    ${csudo} rm -f ${bin_link_dir}/taos         || :
 
-    ${csudo} cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin 
-    ${csudo} cp -r ${script_dir}/remove.sh   ${install_main_dir}/bin       
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} rm -f ${bin_link_dir}/taosd    || :
+        ${csudo} rm -f ${bin_link_dir}/taosdemo || :
+        ${csudo} rm -f ${bin_link_dir}/taosdump || :
+    fi
+
+    ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
+
+    ${csudo} cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin
+
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} cp -r ${script_dir}/remove.sh   ${install_main_dir}/bin
+    else
+        ${csudo} cp -r ${script_dir}/remove_client.sh   ${install_main_dir}/bin
+    fi
     ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
     [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos         || :
-    [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd       || : 
-    [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
-    [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || : 
-    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
+
+    if [ "$osType" != "Darwin" ]; then
+        [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
+        [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+        [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
+    fi
+
+    if [ "$osType" != "Darwin" ]; then
+        [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
+    else
+        [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos  || :
+    fi
 }
 
 function install_lib() {
     # Remove links
-    ${csudo} rm -f ${lib_link_dir}/libtaos.*     || :    
+    ${csudo} rm -f ${lib_link_dir}/libtaos.*     || :
     
     versioninfo=$(${script_dir}/get_version.sh ${source_dir}/src/util/src/version.c)
-    ${csudo} cp ${binary_dir}/build/lib/libtaos.so.${versioninfo} ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
-    ${csudo} ln -sf ${install_main_dir}/driver/libtaos.so.${versioninfo} ${lib_link_dir}/libtaos.so.1
-    ${csudo} ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} cp ${binary_dir}/build/lib/libtaos.so.${versioninfo} ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.so.${versioninfo} ${lib_link_dir}/libtaos.so.1
+        ${csudo} ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+    else
+        ${csudo} cp ${binary_dir}/build/lib/libtaos.${versioninfo}.dylib ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.${versioninfo}.dylib ${lib_link_dir}/libtaos.1.dylib
+        ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
+    fi
 }
 
 function install_header() {
@@ -163,8 +209,13 @@ function install_config() {
 
 function install_log() {  
     ${csudo} rm -rf ${log_dir}  || :
-    ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
-    
+
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
+    else
+        mkdir -p ${log_dir} && chmod 777 ${log_dir}
+    fi
+
     ${csudo} ln -s ${log_dir} ${install_main_dir}/log
 }
 
@@ -291,7 +342,9 @@ function install_service() {
 function update_TDengine() {
     echo -e "${GREEN}Start to update TDEngine...${NC}"
     # Stop the service if running
-    if pidof taosd &> /dev/null; then
+
+    if [ "$osType" != "Darwin" ]; then
+      if pidof taosd &> /dev/null; then
         if ((${service_mod}==0)); then
             ${csudo} systemctl stop taosd || :
         elif ((${service_mod}==1)); then
@@ -300,6 +353,7 @@ function update_TDengine() {
             kill_taosd
         fi
         sleep 1
+      fi
     fi
     
     install_main_path
@@ -310,32 +364,54 @@ function update_TDengine() {
     install_connector
     install_examples
     install_bin
-    install_service
+
+    if [ "$osType" != "Darwin" ]; then
+        install_service
+    fi
+
     install_config
 
-     echo
-     echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
-     echo
-     echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-     if ((${service_mod}==0)); then
-         echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
-     elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
-      else
-          echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
-      fi
+    if [ "$osType" != "Darwin" ]; then
+        echo
+        echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+        echo
 
-    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-    echo
-    echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+        echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+        if ((${service_mod}==0)); then
+            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+        elif ((${service_mod}==1)); then
+            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
+        else
+            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
+        fi
+
+        echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+        echo
+        echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+    else
+        echo
+        echo -e "\033[44;32;1mTDengine Client is updated successfully!${NC}"
+        echo
+
+        echo -e "${GREEN_DARK}To access TDengine Client   ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+        echo
+        echo -e "\033[44;32;1mTDengine Client is updated successfully!${NC}"
+    fi
 }
 
 function install_TDengine() {
     # Start to install
-    echo -e "${GREEN}Start to install TDEngine...${NC}"
-	
+    if [ "$osType" != "Darwin" ]; then
+        echo -e "${GREEN}Start to install TDEngine...${NC}"
+	else
+	    echo -e "${GREEN}Start to install TDEngine Client ...${NC}"
+    fi
+
 	install_main_path
-    install_data
+
+	if [ "$osType" != "Darwin" ]; then
+        install_data
+    fi
     install_log 
     install_header
     install_lib
@@ -343,30 +419,41 @@ function install_TDengine() {
     install_examples
 
     install_bin
-    install_service
-    install_config	
-    # Ask if to start the service
-    echo
-    echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
-    echo
-    echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-    if ((${service_mod}==0)); then
-        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
-    elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start TDengine    ${NC}: ${csudo} service taosd start${NC}"
-    else
-        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
+
+    if [ "$osType" != "Darwin" ]; then
+        install_service
     fi
 
-    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-    echo
-    echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+    install_config	
+
+    if [ "$osType" != "Darwin" ]; then
+        # Ask if to start the service
+        echo
+        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+        echo
+        echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+        if ((${service_mod}==0)); then
+            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+        elif ((${service_mod}==1)); then
+                echo -e "${GREEN_DARK}To start TDengine    ${NC}: ${csudo} service taosd start${NC}"
+        else
+            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
+        fi
+
+        echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+        echo
+        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+    else
+        echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+        echo
+        echo -e "\033[44;32;1mTDengine Client is installed successfully!${NC}"
+    fi
 }
 
 ## ==============================Main program starts from here============================
 echo source directory: $1
 echo binary directory: $2
-if [ -x ${bin_dir}/taosd ]; then
+if [ -x ${bin_dir}/taos ]; then
     update_TDengine
 else
     install_TDengine

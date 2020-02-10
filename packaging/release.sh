@@ -3,7 +3,7 @@
 # Generate the deb package for ubunt, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
-# set -x
+#set -x
 
 # releash.sh -v [cluster | lite]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta]
 
@@ -46,8 +46,17 @@ done
 echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType}"
 
 curr_dir=$(pwd)
-script_dir="$(dirname $(readlink -f $0))"
-top_dir="$(readlink -f ${script_dir}/..)"
+
+if [ "$osType" != "Darwin" ]; then
+    script_dir="$(dirname $(readlink -f $0))"
+    top_dir="$(readlink -f ${script_dir}/..)"
+else
+    script_dir=`dirname $0`
+    cd ${script_dir}
+    script_dir="$(pwd)"
+    top_dir=${script_dir}/..
+fi
+
 versioninfo="${top_dir}/src/util/src/version.c"
 
 csudo=""
@@ -147,7 +156,14 @@ build_time=$(date +"%F %R")
 echo "char version[64] = \"${version}\";"                             > ${versioninfo}
 echo "char compatible_version[64] = \"${compatible_version}\";"      >> ${versioninfo}
 echo "char gitinfo[128] = \"$(git rev-parse --verify HEAD)\";"       >> ${versioninfo}
-echo "char gitinfoOfInternal[128] = \"\";"                           >> ${versioninfo}
+if [ "$verMode" != "cluster" ]; then
+  echo "char gitinfoOfInternal[128] = \"\";"                         >> ${versioninfo}
+else
+  enterprise_dir="${top_dir}/../enterprise"
+  cd ${enterprise_dir}
+  echo "char gitinfoOfInternal[128] = \"$(git rev-parse --verify HEAD)\";"  >> ${versioninfo}
+  cd ${curr_dir}
+fi
 echo "char buildinfo[512] = \"Built by ${USER} at ${build_time}\";"  >> ${versioninfo}
 echo ""                                                              >> ${versioninfo}
 tmp_version=$(echo $version | tr -s "." "_")
@@ -167,15 +183,23 @@ if [ -d ${compile_dir} ]; then
     ${csudo} rm -rf ${compile_dir}
 fi
 
-${csudo} mkdir -p ${compile_dir}
+if [ "$osType" != "Darwin" ]; then
+    ${csudo} mkdir -p ${compile_dir}
+else
+    mkdir -p ${compile_dir}
+fi
 cd ${compile_dir}
 
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
-  cmake ../ -DCPUTYPE=${cpuType}
+    if [ "$verMode" != "cluster" ]; then
+        cmake ../ -DCPUTYPE=${cpuType}
+    else
+	    cmake ../../ -DCPUTYPE=${cpuType}
+    fi
 else
-  echo "input cpuType=${cpuType} error!!!"
-  exit 1
+    echo "input cpuType=${cpuType} error!!!"
+    exit 1
 fi
 
 make
@@ -187,28 +211,36 @@ cd ${curr_dir}
 #osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
 #echo "osinfo: ${osinfo}"
 
-echo "====do deb package for the ubuntu system===="
-output_dir="${top_dir}/debs"
-if [ -d ${output_dir} ]; then
-  ${csudo} rm -rf ${output_dir}
-fi  
-${csudo} mkdir -p ${output_dir} 
-cd ${script_dir}/deb
-${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${version} ${cpuType} ${osType} ${verMode} ${verType}
-  
-echo "====do rpm package for the centos system===="
-output_dir="${top_dir}/rpms"
-if [ -d ${output_dir} ]; then
-  ${csudo} rm -rf ${output_dir}
-fi
-${csudo} mkdir -p ${output_dir}  
-cd ${script_dir}/rpm
-${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version} ${cpuType} ${osType} ${verMode} ${verType}
+if [ "$osType" != "Darwin" ]; then
+    if [[ "$verMode" != "cluster" ]] && [[ "$cpuType" == "x64" ]]; then
+        echo "====do deb package for the ubuntu system===="
+        output_dir="${top_dir}/debs"
+        if [ -d ${output_dir} ]; then
+            ${csudo} rm -rf ${output_dir}
+        fi
+        ${csudo} mkdir -p ${output_dir}
+        cd ${script_dir}/deb
+        ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${version} ${cpuType} ${osType} ${verMode} ${verType}
 
-echo "====do tar.gz package for all systems===="  
-cd ${script_dir}/tools
-${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
-${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
+        echo "====do rpm package for the centos system===="
+        output_dir="${top_dir}/rpms"
+        if [ -d ${output_dir} ]; then
+            ${csudo} rm -rf ${output_dir}
+        fi
+        ${csudo} mkdir -p ${output_dir}
+        cd ${script_dir}/rpm
+        ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${version} ${cpuType} ${osType} ${verMode} ${verType}
+    fi
+	
+    echo "====do tar.gz package for all systems===="
+    cd ${script_dir}/tools
+    
+	${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
+	${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
+else
+    cd ${script_dir}/tools
+    ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
+fi
 
 # 4. Clean up temporary compile directories
 #${csudo} rm -rf ${compile_dir}

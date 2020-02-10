@@ -1,9 +1,8 @@
 {
   "name": "TDengine",
-  "private": true,
+  "private": false,
   "version": "1.0.0",
   "description": "grafana datasource plugin for tdengine",
-  "main": "index.js",
   "scripts": {
     "build": "./node_modules/grunt-cli/bin/grunt",
     "test": "./node_modules/grunt-cli/bin/grunt mochaTest"
@@ -12,7 +11,7 @@
     "type": "git",
     "url": "git+https://github.com/taosdata/TDengine.git"
   },
-  "author": "",
+  "author": "https://www.taosdata.com",
   "license": "AGPL 3.0",
   "bugs": {
     "url": "https://github.com/taosdata/TDengine/issues"

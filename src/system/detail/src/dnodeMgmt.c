@@ -153,7 +153,7 @@ int vnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
   }
 
   if (pAlter->sid >= pVnode->cfg.maxSessions || pAlter->sid < 0) {
-    dError("vid:%d sid:%d uid:%ld, sid is out of range", pAlter->vnode, pAlter->sid, pAlter->uid);
+    dError("vid:%d sid:%d uid:%" PRIu64 ", sid is out of range", pAlter->vnode, pAlter->sid, pAlter->uid);
     code = TSDB_CODE_INVALID_TABLE_ID;
     goto _over;
   }
@@ -415,10 +415,10 @@ int vnodeProcessVPeerCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
     int32_t *pint = (int32_t *)pRsp->more;
     int      vnode = htonl(*pint);
     if (vnode < TSDB_MAX_VNODES && vnodeList[vnode].lastKey != 0) {
-      dError("vnode:%d not configured, it shall be empty");
+      dError("vnode:%d not configured, it shall be empty, code:%d", vnode, pRsp->code);
       vnodeRemoveVnode(vnode);
     } else {
-      dTrace("vnode:%d is invalid", vnode);
+      dError("vnode:%d is invalid, code:%d", vnode, pRsp->code);
     }
   }
 

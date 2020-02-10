@@ -163,14 +163,13 @@ void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t t
 void tVariantDestroy(tVariant *pVar) {
   if (pVar == NULL) return;
 
-  if ((pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) && pVar->nLen > 0) {
-    free(pVar->pz);
-    pVar->pz = NULL;
+  if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
+    tfree(pVar->pz);
     pVar->nLen = 0;
   }
 }
 
-void tVariantAssign(tVariant *pDst, tVariant *pSrc) {
+void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
 
   *pDst = *pSrc;
@@ -726,7 +725,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, char type) {
           *((int64_t *)payload) = TSDB_DATA_DOUBLE_NULL;
           return 0;
         } else {
-          double  value;
+          double  value = 0;
           int32_t ret;
           ret = convertToDouble(pVariant->pz, pVariant->nLen, &value);
           if ((errno == ERANGE && value == -1) || (ret != 0)) {
@@ -977,11 +976,21 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
+      #ifdef _TD_ARM_32_
+      float fv = GET_FLOAT_VAL(src);
+      SET_FLOAT_VAL_ALIGN(val, &fv);
+      #else
       *((float *)val) = GET_FLOAT_VAL(src);
+      #endif
       break;
     };
     case TSDB_DATA_TYPE_DOUBLE: {
+      #ifdef _TD_ARM_32_
+      double dv = GET_DOUBLE_VAL(src);
+      SET_DOUBLE_VAL_ALIGN(val, &dv);
+      #else
       *((double *)val) = GET_DOUBLE_VAL(src);
+      #endif
       break;
     };
     case TSDB_DATA_TYPE_TIMESTAMP:

@@ -119,7 +119,7 @@ int vnodeFindKeyInCache(SImportInfo *pImport, int order) {
     if (pInfo->commitPoint >= pObj->pointsPerBlock) pImport->slot = (pImport->slot + 1) % pInfo->maxBlocks;
     pImport->pos = 0;
     pImport->key = 0;
-    dTrace("vid:%d sid:%d id:%s, key:%ld, import to head of cache", pObj->vnode, pObj->sid, pObj->meterId, key);
+    dTrace("vid:%d sid:%d id:%s, key:%" PRId64 ", import to head of cache", pObj->vnode, pObj->sid, pObj->meterId, key);
     code = 0;
   } else {
     pImport->slot = query.slot;
@@ -184,8 +184,8 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   vnodeGetValidDataRange(pObj->vnode, now, &minKey, &maxKey);
   if (firstKey < minKey || firstKey > maxKey || lastKey < minKey || lastKey > maxKey) {
     dError(
-        "vid:%d sid:%d id:%s, invalid timestamp to import, rows:%d firstKey: %ld lastKey: %ld minAllowedKey:%ld "
-        "maxAllowedKey:%ld",
+        "vid:%d sid:%d id:%s, invalid timestamp to import, rows:%d firstKey: %" PRId64 " lastKey: %" PRId64 " minAllowedKey:%" PRId64 " "
+        "maxAllowedKey:%" PRId64,
         pObj->vnode, pObj->sid, pObj->meterId, rows, firstKey, lastKey, minKey, maxKey);
     return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
   }
@@ -221,7 +221,7 @@ int vnodeImportPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     
     SImportInfo import = {0};
 
-    dTrace("vid:%d sid:%d id:%s, try to import %d rows data, firstKey:%ld, lastKey:%ld, object lastKey:%ld",
+    dTrace("vid:%d sid:%d id:%s, try to import %d rows data, firstKey:%" PRId64 ", lastKey:%" PRId64 ", object lastKey:%" PRId64,
            pObj->vnode, pObj->sid, pObj->meterId, rows, firstKey, lastKey, pObj->lastKey);
     
     import.firstKey = firstKey;
@@ -491,7 +491,7 @@ static int vnodeLoadNeededBlockData(SMeterObj *pObj, SImportHandle *pHandle, int
 
     lseek(dfd, pBlock->offset, SEEK_SET);
     if (read(dfd, (void *)(pHandle->pField), pHandle->pFieldSize) < 0) {
-      dError("vid:%d sid:%d meterId:%s, failed to read data file, size:%ld reason:%s", pVnode->vnode, pObj->sid,
+      dError("vid:%d sid:%d meterId:%s, failed to read data file, size:%zu reason:%s", pVnode->vnode, pObj->sid,
              pObj->meterId, pHandle->pFieldSize, strerror(errno));
       *code = TSDB_CODE_FILE_CORRUPTED;
       return -1;
@@ -610,7 +610,7 @@ static int vnodeCloseImportFiles(SMeterObj *pObj, SImportHandle *pHandle) {
       lseek(pVnode->nfd, 0, SEEK_END);
       lseek(pVnode->hfd, pHandle->nextNo0Offset, SEEK_SET);
       if (tsendfile(pVnode->nfd, pVnode->hfd, NULL, pHandle->hfSize - pHandle->nextNo0Offset) < 0) {
-        dError("vid:%d sid:%d meterId:%s, failed to sendfile, size:%ld, reason:%s", pObj->vnode, pObj->sid,
+        dError("vid:%d sid:%d meterId:%s, failed to sendfile, size:%" PRId64 ", reason:%s", pObj->vnode, pObj->sid,
                pObj->meterId, pHandle->hfSize - pHandle->nextNo0Offset, strerror(errno));
         return -1;
       }
@@ -627,7 +627,7 @@ static int vnodeCloseImportFiles(SMeterObj *pObj, SImportHandle *pHandle) {
     taosCalcChecksumAppend(0, (uint8_t *)(pHandle->pHeader), pHandle->pHeaderSize);
     lseek(pVnode->nfd, TSDB_FILE_HEADER_LEN, SEEK_SET);
     if (twrite(pVnode->nfd, (void *)(pHandle->pHeader), pHandle->pHeaderSize) < 0) {
-      dError("vid:%d sid:%d meterId:%s, failed to wirte SCompHeader part, size:%ld, reason:%s", pObj->vnode, pObj->sid,
+      dError("vid:%d sid:%d meterId:%s, failed to wirte SCompHeader part, size:%zu, reason:%s", pObj->vnode, pObj->sid,
              pObj->meterId, pHandle->pHeaderSize, strerror(errno));
       return -1;
     }
@@ -911,6 +911,7 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
             blockIter.nextKey = maxFileKey + 1;
           } else {  // Case 3. need to search the block for slot and pos
             if (key == minKey || key == maxKey) {
+              if (tsAffectedRowsMod) pointsImported++;
               payloadIter++;
               continue;
             }
@@ -939,6 +940,7 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
             } while (left < right);
 
             if (key == blockMinKey || key == blockMaxKey) {  // duplicate key
+              if (tsAffectedRowsMod) pointsImported++;
               payloadIter++;
               continue;
             }
@@ -955,6 +957,7 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
 
             if (key == importHandle.pBlocks[blockIter.slot].keyFirst ||
                 key == importHandle.pBlocks[blockIter.slot].keyLast) {
+              if (tsAffectedRowsMod) pointsImported++;
               payloadIter++;
               continue;
             }
@@ -976,6 +979,7 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
                   importHandle.data[PRIMARYKEY_TIMESTAMP_COL_INDEX]->data, pBlock->numOfPoints, key, TSQL_SO_ASC);
               assert(pos != 0);
               if (KEY_AT_INDEX(importHandle.data[PRIMARYKEY_TIMESTAMP_COL_INDEX]->data, sizeof(TSKEY), pos) == key) {
+                if (tsAffectedRowsMod) pointsImported++;
                 payloadIter++;
                 continue;
               }
@@ -1106,6 +1110,7 @@ static int vnodeMergeDataIntoFile(SImportInfo *pImport, const char *payload, int
               if (KEY_AT_INDEX(payload, pObj->bytesPerPoint, payloadIter) ==
                   KEY_AT_INDEX(importHandle.data[PRIMARYKEY_TIMESTAMP_COL_INDEX]->data, sizeof(TSKEY),
                                blockIter.pos)) {  // duplicate key
+                if (tsAffectedRowsMod) pointsImported++;
                 payloadIter++;
                 continue;
               } else if (KEY_AT_INDEX(payload, pObj->bytesPerPoint, payloadIter) <
@@ -1320,7 +1325,10 @@ int vnodeImportDataToCache(SImportInfo *pImport, const char *payload, const int 
   pImport->lastKey = lastKey;
   for (payloadIter = 0; payloadIter < rows; payloadIter++) {
     TSKEY key = KEY_AT_INDEX(payload, pObj->bytesPerPoint, payloadIter);
-    if (key == pObj->lastKey) continue;
+    if (key == pObj->lastKey) {
+      if (tsAffectedRowsMod) rowsImported++;
+      continue;
+    }
     if (key > pObj->lastKey) {  // Just as insert
       pImport->slot = pInfo->currentSlot;
       pImport->pos = pInfo->cacheBlocks[pImport->slot]->numOfPoints;
@@ -1333,11 +1341,12 @@ int vnodeImportDataToCache(SImportInfo *pImport, const char *payload, const int 
       }
 
       if (pImport->firstKey != pImport->key) break;
+      if (tsAffectedRowsMod) rowsImported++;
     }
   }
 
   if (payloadIter == rows) {
-    pImport->importedRows = 0;
+    pImport->importedRows += rowsImported;
     code = 0;
     goto _exit;
   }
@@ -1470,6 +1479,7 @@ int vnodeImportDataToCache(SImportInfo *pImport, const char *payload, const int 
         payloadIter++;
 
       } else {
+        if (tsAffectedRowsMod) rowsImported++;
         payloadIter++;
         continue;
       }
@@ -1518,7 +1528,7 @@ int vnodeImportDataToFiles(SImportInfo *pImport, char *payload, const int rows) 
 
     assert(nrows > 0);
 
-    dTrace("vid:%d sid:%d meterId:%s, %d rows of data will be imported to file %d, srow:%d firstKey:%ld lastKey:%ld",
+    dTrace("vid:%d sid:%d meterId:%s, %d rows of data will be imported to file %d, srow:%d firstKey:%" PRId64 " lastKey:%" PRId64,
            pObj->vnode, pObj->sid, pObj->meterId, nrows, fid, srow, KEY_AT_INDEX(payload, pObj->bytesPerPoint, srow),
            KEY_AT_INDEX(payload, pObj->bytesPerPoint, (srow + nrows - 1)));
 

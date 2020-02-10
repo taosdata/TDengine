@@ -197,7 +197,7 @@ int vnodeCreateNeccessaryFiles(SVnodeObj *pVnode) {
   numOfFiles = (pVnode->lastKeyOnFile - pVnode->commitFirstKey) / tsMsPerDay[(uint8_t)pVnode->cfg.precision] / pCfg->daysPerFile;
   if (pVnode->commitFirstKey > pVnode->lastKeyOnFile) numOfFiles = -1;
 
-  dTrace("vid:%d, commitFirstKey:%ld lastKeyOnFile:%ld numOfFiles:%d fileId:%d vnodeNumOfFiles:%d", pVnode->vnode,
+  dTrace("vid:%d, commitFirstKey:%" PRId64 " lastKeyOnFile:%" PRId64 " numOfFiles:%d fileId:%d vnodeNumOfFiles:%d", pVnode->vnode,
          pVnode->commitFirstKey, pVnode->lastKeyOnFile, numOfFiles, pVnode->fileId, pVnode->numOfFiles);
 
   if (numOfFiles >= pVnode->numOfFiles) {
@@ -251,7 +251,7 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
 
   fileId = pVnode->commitFileId;
 
-  dTrace("vid:%d, commit fileId:%d, commitLastKey:%ld, vnodeLastKey:%ld, lastKeyOnFile:%ld numOfFiles:%d",
+  dTrace("vid:%d, commit fileId:%d, commitLastKey:%" PRId64 ", vnodeLastKey:%" PRId64 ", lastKeyOnFile:%" PRId64 " numOfFiles:%d",
       vnode, fileId, pVnode->commitLastKey, pVnode->lastKey, pVnode->lastKeyOnFile, pVnode->numOfFiles);
 
   int minSize = sizeof(SCompHeader) * pVnode->cfg.maxSessions + sizeof(TSCKSUM) + TSDB_FILE_HEADER_LEN;
@@ -506,7 +506,7 @@ void *vnodeCommitMultiToFile(SVnodeObj *pVnode, int ssid, int esid) {
   SVnodeHeadInfo   headInfo;
   uint8_t *        pOldCompBlocks;
 
-  dPrint("vid:%d, committing to file, firstKey:%ld lastKey:%ld ssid:%d esid:%d", vnode, pVnode->firstKey,
+  dPrint("vid:%d, committing to file, firstKey:%" PRId64 " lastKey:%" PRId64 " ssid:%d esid:%d", vnode, pVnode->firstKey,
          pVnode->lastKey, ssid, esid);
   if (pVnode->lastKey == 0) goto _over;
 
@@ -573,7 +573,7 @@ _again:
   memset(&query, 0, sizeof(query));
 
   if (vnodeOpenCommitFiles(pVnode, ssid) < 0) goto _over;
-  dTrace("vid:%d, start to commit, commitFirstKey:%ld commitLastKey:%ld", vnode, pVnode->commitFirstKey,
+  dTrace("vid:%d, start to commit, commitFirstKey:%" PRId64 " commitLastKey:%" PRId64, vnode, pVnode->commitFirstKey,
          pVnode->commitLastKey);
 
   headLen = 0;
@@ -642,7 +642,7 @@ _again:
                 read(pVnode->hfd, &pMeter->lastBlock, sizeof(SCompBlock));
               }
             } else {
-              dTrace("vid:%d sid:%d id:%s, uid:%ld is not matched w/ old:%ld, old data will be thrown away",
+              dTrace("vid:%d sid:%d id:%s, uid:%" PRIu64 " is not matched with old:%" PRIu64 ", old data will be thrown away",
                   vnode, sid, pObj->meterId, pObj->uid, compInfo.uid);
               pMeter->oldNumOfBlocks = 0;
             }
@@ -683,7 +683,7 @@ _again:
     query.sdata = data;
     vnodeSetCommitQuery(pObj, &query);
 
-    dTrace("vid:%d sid:%d id:%s, start to commit, startKey:%lld slot:%d pos:%d", pObj->vnode, pObj->sid, pObj->meterId,
+    dTrace("vid:%d sid:%d id:%s, start to commit, startKey:%" PRId64 " slot:%d pos:%d", pObj->vnode, pObj->sid, pObj->meterId,
            pObj->lastKeyOnFile, query.slot, query.pos);
 
     pointsRead = 0;
@@ -760,7 +760,7 @@ _again:
       pMeter->newNumOfBlocks++;
       pMeter->committedPoints += (pointsRead - pointsReadLast);
 
-      dTrace("vid:%d sid:%d id:%s, pointsRead:%d, pointsReadLast:%d lastKey:%lld, "
+      dTrace("vid:%d sid:%d id:%s, pointsRead:%d, pointsReadLast:%d lastKey:%" PRId64 ", "
              "slot:%d pos:%d newNumOfBlocks:%d headLen:%d",
           pObj->vnode, pObj->sid, pObj->meterId, pointsRead, pointsReadLast, pObj->lastKeyOnFile, query.slot, query.pos,
           pMeter->newNumOfBlocks, headLen);
@@ -771,7 +771,7 @@ _again:
       pointsReadLast = 0;
     }
 
-    dTrace("vid:%d sid:%d id:%s, %d points are committed, lastKey:%lld slot:%d pos:%d newNumOfBlocks:%d",
+    dTrace("vid:%d sid:%d id:%s, %d points are committed, lastKey:%" PRId64 " slot:%d pos:%d newNumOfBlocks:%d",
         pObj->vnode, pObj->sid, pObj->meterId, pMeter->committedPoints, pObj->lastKeyOnFile, query.slot, query.pos,
         pMeter->newNumOfBlocks);
 
@@ -1093,7 +1093,7 @@ int vnodeReadColumnToMem(int fd, SCompBlock *pBlock, SField **fields, int col, c
   }
 
   if (len <= 0) {
-    dError("failed to read col:%d, offset:%ld, reason:%s", col, tfields[col].offset, strerror(errno));
+    dError("failed to read col:%d, offset:%d, reason:%s", col, (int32_t)(tfields[col].offset), strerror(errno));
     return -1;
   }
 
@@ -1218,7 +1218,7 @@ int vnodeWriteBlockToFile(SMeterObj *pObj, SCompBlock *pCompBlock, SData *data[]
   int dfd = pVnode->dfd;
 
   if (pCompBlock->last && (points < pObj->pointsPerFileBlock * tsFileBlockMinPercent)) {
-    dTrace("vid:%d sid:%d id:%s, points:%d are written to last block, block stime: %ld, block etime: %ld",
+    dTrace("vid:%d sid:%d id:%s, points:%d are written to last block, block stime: %" PRId64 ", block etime: %" PRId64,
            pObj->vnode, pObj->sid, pObj->meterId, points, *((TSKEY *)(data[0]->data)),
            *((TSKEY * )(data[0]->data + (points - 1) * pObj->schema[0].bytes)));
     pCompBlock->last = 1;
@@ -1303,7 +1303,7 @@ int vnodeWriteBlockToFile(SMeterObj *pObj, SCompBlock *pCompBlock, SData *data[]
     pCompBlock->len += wlen;
   }
 
-  dTrace("vid:%d, vnode compStorage size is: %ld", pObj->vnode, pVnode->vnodeStatistic.compStorage);
+  dTrace("vid:%d, vnode compStorage size is: %" PRId64, pObj->vnode, pVnode->vnodeStatistic.compStorage);
 
   pCompBlock->algorithm = pCfg->compression;
   pCompBlock->numOfPoints = points;
@@ -1355,7 +1355,7 @@ int vnodeSearchPointInFile(SMeterObj *pObj, SQuery *pQuery) {
     if (pQuery->skey < oldest) pQuery->skey = oldest;
   }
 
-  dTrace("vid:%d sid:%d id:%s, skey:%ld ekey:%ld oldest:%ld latest:%ld fileId:%d numOfFiles:%d",
+  dTrace("vid:%d sid:%d id:%s, skey:%" PRId64 " ekey:%" PRId64 " oldest:%" PRId64 " latest:%" PRId64 " fileId:%d numOfFiles:%d",
          pObj->vnode, pObj->sid, pObj->meterId, pQuery->skey, pQuery->ekey, oldest, latest, pVnode->fileId,
          pVnode->numOfFiles);
 
@@ -1383,7 +1383,7 @@ int vnodeSearchPointInFile(SMeterObj *pObj, SQuery *pQuery) {
 
     firstSlot = 0;
     lastSlot = pQuery->numOfBlocks - 1;
-    numOfBlocks = pQuery->numOfBlocks;
+    //numOfBlocks = pQuery->numOfBlocks;
     if (QUERY_IS_ASC_QUERY(pQuery) && pBlock[lastSlot].keyLast < pQuery->skey) continue;
     if (!QUERY_IS_ASC_QUERY(pQuery) && pBlock[firstSlot].keyFirst > pQuery->skey) continue;
 
@@ -1640,11 +1640,15 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
       pData = pQuery->sdata[i]->data + pQuery->pointsOffset * bytes;
       pRead = sdata[colBufferIndex]->data + startPos * bytes;
 
-      memcpy(pData, pRead, numOfReads * bytes);
+      if (QUERY_IS_ASC_QUERY(pQuery)) {
+        memcpy(pData, pRead, numOfReads * bytes);
+      } else { //reversed copy to output buffer
+        for(int32_t j = 0; j < numOfReads; ++j) {
+          memcpy(pData + bytes * j, pRead + (numOfReads - 1 - j) * bytes, bytes);
+        }
+      }
     }
-
     numOfQualifiedPoints = numOfReads;
-
   } else {
     // check each data one by one set the input column data
     for (int32_t k = 0; k < pQuery->numOfFilterCols; ++k) {
@@ -1659,8 +1663,8 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
       for (int32_t j = startPos; j < pBlock->numOfPoints; j -= step) {
         TSKEY key = vnodeGetTSInDataBlock(pQuery, j, startPositionFactor);
         if (key < startKey || key > endKey) {
-          dError("vid:%d sid:%d id:%s, timestamp in file block disordered. slot:%d, pos:%d, ts:%lld, block "
-                 "range:%lld-%lld", pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startKey, endKey);
+          dError("vid:%d sid:%d id:%s, timestamp in file block disordered. slot:%d, pos:%d, ts:%" PRId64 ", block "
+                 "range:%" PRId64 "-%" PRId64, pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startKey, endKey);
           tfree(ids);
           return -TSDB_CODE_FILE_BLOCK_TS_DISORDERED;
         }
@@ -1675,8 +1679,7 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
         }
 
         ids[numOfQualifiedPoints] = j;
-        if (++numOfQualifiedPoints == numOfReads) {
-          // qualified data are enough
+        if (++numOfQualifiedPoints == numOfReads) { // qualified data are enough
           break;
         }
       }
@@ -1684,8 +1687,8 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
       for (int32_t j = pQuery->pos; j >= 0; --j) {
         TSKEY key = vnodeGetTSInDataBlock(pQuery, j, startPositionFactor);
         if (key < startKey || key > endKey) {
-          dError("vid:%d sid:%d id:%s, timestamp in file block disordered. slot:%d, pos:%d, ts:%lld, block "
-                 "range:%lld-%lld", pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startKey, endKey);
+          dError("vid:%d sid:%d id:%s, timestamp in file block disordered. slot:%d, pos:%d, ts:%" PRId64 ", block "
+                 "range:%" PRId64 "-%" PRId64, pObj->vnode, pObj->sid, pObj->meterId, pQuery->slot, j, key, startKey, endKey);
           tfree(ids);
           return -TSDB_CODE_FILE_BLOCK_TS_DISORDERED;
         }
@@ -1698,22 +1701,21 @@ int vnodeQueryFromFile(SMeterObj *pObj, SQuery *pQuery) {
         if (!vnodeFilterData(pQuery, &numOfActualRead, j)) {
           continue;
         }
-
-        ids[numOfReads - numOfQualifiedPoints - 1] = j;
-        if (++numOfQualifiedPoints == numOfReads) {
-          // qualified data are enough
+  
+        ids[numOfQualifiedPoints] = j;
+        if (++numOfQualifiedPoints == numOfReads) { // qualified data are enough
           break;
         }
       }
     }
 
-    int32_t start = QUERY_IS_ASC_QUERY(pQuery) ? 0 : numOfReads - numOfQualifiedPoints;
+//    int32_t start = QUERY_IS_ASC_QUERY(pQuery) ? 0 : numOfReads - numOfQualifiedPoints;
     for (int32_t j = 0; j < numOfQualifiedPoints; ++j) {
       for (int32_t col = 0; col < pQuery->numOfOutputCols; ++col) {
         int16_t colIndexInBuffer = pQuery->pSelectExpr[col].pBase.colInfo.colIdxInBuf;
         int32_t bytes = GET_COLUMN_BYTES(pQuery, col);
         pData = pQuery->sdata[col]->data + (pQuery->pointsOffset + j) * bytes;
-        pRead = sdata[colIndexInBuffer]->data + ids[j + start] * bytes;
+        pRead = sdata[colIndexInBuffer]->data + ids[j/* + start*/] * bytes;
 
         memcpy(pData, pRead, bytes);
       }
@@ -1823,7 +1825,7 @@ int vnodeUpdateFileMagic(int vnode, int fileId) {
 }
 
 int vnodeInitFile(int vnode) {
-  int        code = 0;
+  int        code = TSDB_CODE_SUCCESS;
   SVnodeObj *pVnode = vnodeList + vnode;
 
   pVnode->maxFiles = pVnode->cfg.daysToKeep / pVnode->cfg.daysPerFile + 1;

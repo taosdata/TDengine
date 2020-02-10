@@ -516,20 +516,20 @@ tMemBucket* tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
 
   if (pDesc->pSchema->numOfCols != 1 || pDesc->pSchema->colOffset[0] != 0) {
     pError("MemBucket:%p,only consecutive data is allowed,invalid numOfCols:%d or offset:%d",
-           *pBucket, pDesc->pSchema->numOfCols, pDesc->pSchema->colOffset[0]);
+           pBucket, pDesc->pSchema->numOfCols, pDesc->pSchema->colOffset[0]);
     tfree(pBucket);
     return NULL;
   }
 
   if (pDesc->pSchema->pFields[0].type != dataType) {
-    pError("MemBucket:%p,data type is not consistent,%d in schema, %d in param", *pBucket,
+    pError("MemBucket:%p,data type is not consistent,%d in schema, %d in param", pBucket,
            pDesc->pSchema->pFields[0].type, dataType);
     tfree(pBucket);
     return NULL;
   }
 
   if (pBucket->numOfTotalPages < pBucket->nTotalSlots) {
-    pWarn("MemBucket:%p,total buffer pages %d are not enough for all slots", *pBucket, pBucket->numOfTotalPages);
+    pWarn("MemBucket:%p,total buffer pages %d are not enough for all slots", pBucket, pBucket->numOfTotalPages);
   }
 
   pBucket->pSegs = (tMemBucketSegment *)malloc(pBucket->numOfSegs * sizeof(tMemBucketSegment));
@@ -540,7 +540,7 @@ tMemBucket* tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
     pBucket->pSegs[i].pBoundingEntries = NULL;
   }
 
-  pTrace("MemBucket:%p,created,buffer size:%d,elem size:%d", *pBucket, pBucket->numOfTotalPages * DEFAULT_PAGE_SIZE,
+  pTrace("MemBucket:%p,created,buffer size:%d,elem size:%d", pBucket, pBucket->numOfTotalPages * DEFAULT_PAGE_SIZE,
          pBucket->nElemSize);
 
   return pBucket;
@@ -1258,6 +1258,7 @@ static tFilePage *loadIntoBucketFromDisk(tMemBucket *pMemBucket, int32_t segIdx,
 
       for (uint32_t j = 0; j < pFlushInfo->numOfPages; ++j) {
         ret = fread(pPage, pMemBuffer->nPageSize, 1, pMemBuffer->dataFile);
+        UNUSED(ret);
         assert(pPage->numOfElems > 0);
 
         tColModelAppend(pDesc->pSchema, buffer, pPage->data, 0, pPage->numOfElems, pPage->numOfElems);
@@ -1602,7 +1603,7 @@ void tColModelAppend(tColModel *dstModel, tFilePage *dstPage, void *srcData, int
 
 tOrderDescriptor *tOrderDesCreate(int32_t *orderColIdx, int32_t numOfOrderCols, tColModel *pModel,
                                   int32_t tsOrderType) {
-  tOrderDescriptor *desc = (tOrderDescriptor *)malloc(sizeof(tOrderDescriptor) + sizeof(int32_t) * numOfOrderCols);
+  tOrderDescriptor *desc = (tOrderDescriptor *)calloc(1, sizeof(tOrderDescriptor) + sizeof(int32_t) * numOfOrderCols);
   if (desc == NULL) {
     return NULL;
   }
@@ -1917,6 +1918,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
           for (uint32_t jx = 0; jx < pFlushInfo->numOfPages; ++jx) {
             ret = fread(pPage, pMemBuffer->nPageSize, 1, pMemBuffer->dataFile);
+            UNUSED(ret);
             tMemBucketPut(pMemBucket, pPage->data, pPage->numOfElems);
           }
 

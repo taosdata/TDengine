@@ -453,7 +453,7 @@ void tHistogramPrint(SHistogramInfo* pHisto) {
 
   for (int32_t i = 0; i < pHisto->numOfEntries; ++i) {
     SHistBin* pEntry = (SHistBin*)pNode->pData;
-    printf("%d: (%f, %lld)\n", i + 1, pEntry->val, pEntry->num);
+    printf("%d: (%f, %" PRId64 ")\n", i + 1, pEntry->val, pEntry->num);
     pNode = pNode->pForward[0];
   }
 #endif

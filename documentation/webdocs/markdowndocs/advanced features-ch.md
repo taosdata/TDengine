@@ -63,28 +63,11 @@ CREATE TABLE QUERY_RES
 ## 数据订阅(Publisher/Subscriber)
 基于数据天然的时间序列特性，TDengine的数据写入（insert）与消息系统的数据发布（pub）逻辑上一致，均可视为系统中插入一条带时间戳的新记录。同时，TDengine在内部严格按照数据时间序列单调递增的方式保存数据。本质上来说，TDengine中里每一张表均可视为一个标准的消息队列。
 
-TDengine内嵌支持轻量级的消息订阅与推送服务。使用系统提供的API，用户可订阅数据库中的某一张表（或超级表）。订阅的逻辑和操作状态的维护均是由客户端完成，客户端定时轮询服务器是否有新的记录到达，有新的记录到达就会将结果反馈到客户。
+TDengine内嵌支持轻量级的消息订阅与推送服务。使用系统提供的API，用户可使用普通查询语句订阅数据库中的一张或多张表。订阅的逻辑和操作状态的维护均是由客户端完成，客户端定时轮询服务器是否有新的记录到达，有新的记录到达就会将结果反馈到客户。
 
 TDengine的订阅与推送服务的状态是客户端维持，TDengine服务器并不维持。因此如果应用重启，从哪个时间点开始获取最新数据，由应用决定。
 
-#### API说明
-
-使用订阅的功能，主要API如下：
-
-<ul>
-<li><p><code>TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char *db, char *table, int64_t time, int mseconds)</code></p><p>该函数负责启动订阅服务。其中参数说明：</p></li><ul>
-<li><p>host：主机IP地址</p></li>
-<li><p>user：数据库登录用户名</p></li>
-<li><p>pass：密码</p></li>
-<li><p>db：数据库名称</p></li>
-<li><p>table：(超级) 表的名称</p></li>
-<li><p>time：启动时间，Unix Epoch时间，单位为毫秒。从1970年1月1日起计算的毫秒数。如果设为0，表示从当前时间开始订阅</p></li>
-<li><p>mseconds：查询数据库更新的时间间隔，单位为毫秒。一般设置为1000毫秒。返回值为指向TDengine_SUB 结构的指针，如果返回为空，表示失败。</p></li>
-</ul><li><p><code>TAOS_ROW taos_consume(TAOS_SUB *tsub)</code>
-</p><p>该函数用来获取订阅的结果，用户应用程序将其置于一个无限循环语句。如果数据库有新记录到达，该API将返回该最新的记录。如果没有新的记录，该API将阻塞。如果返回值为空，说明系统出错。参数说明：</p></li><ul><li><p>tsub：taos_subscribe的结构体指针。</p></li></ul><li><p><code>void taos_unsubscribe(TAOS_SUB *tsub)</code></p><p>取消订阅。应用程序退出时，务必调用该函数以避免资源泄露。</p></li>
-<li><p><code>int taos_num_subfields(TAOS_SUB *tsub)</code></p><p>获取返回的一行记录中数据包含多少列。</p></li>
-<li><p><code>TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub)</code></p><p>获取每列数据的属性（数据类型、名字、长度），与taos_num_subfileds配合使用，可解析返回的每行数据。</p></li></ul>
-示例代码：请看安装包中的的示范程序
+订阅相关API请见 [连接器](https://www.taosdata.com/cn/documentation/connector/)。
 
 ## 缓存 (Cache)
 TDengine采用时间驱动缓存管理策略（First-In-First-Out，FIFO），又称为写驱动的缓存管理机制。这种策略有别于读驱动的数据缓存模式（Least-Recent-Use，LRU），直接将最近写入的数据保存在系统的缓存中。当缓存达到临界值的时候，将最早的数据批量写入磁盘。一般意义上来说，对于物联网数据的使用，用户最为关心最近产生的数据，即当前状态。TDengine充分利用了这一特性，将最近到达的（当前状态）数据保存在缓存中。

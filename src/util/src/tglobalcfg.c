@@ -56,11 +56,7 @@ int tscEmbedded = 0;
  */
 int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
-#ifdef CLUSTER
 char  tsMasterIp[TSDB_IPv4ADDR_LEN] = {0};
-#else
-char  tsMasterIp[TSDB_IPv4ADDR_LEN] = "127.0.0.1";
-#endif
 char  tsSecondIp[TSDB_IPv4ADDR_LEN] = {0};
 uint16_t tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
 uint16_t tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
@@ -84,9 +80,20 @@ short tsNumOfVnodesPerCore = 8;
 short tsNumOfTotalVnodes = 0;
 short tsCheckHeaderFile = 0;
 
+#ifdef _TD_ARM_32_
+int tsSessionsPerVnode = 100;
+#else
 int tsSessionsPerVnode = 1000;
+#endif
+
 int tsCacheBlockSize = 16384;  // 256 columns
 int tsAverageCacheBlocks = TSDB_DEFAULT_AVG_BLOCKS;
+/**
+ * Change the meaning of affected rows:
+ * 0: affected rows not include those duplicate records
+ * 1: affected rows include those duplicate records
+ */
+short tsAffectedRowsMod = 0;
 
 int   tsRowsInFileBlock = 4096;
 float tsFileBlockMinPercent = 0.05;
@@ -128,6 +135,10 @@ int tsEnableMonitorModule = 1;
 int tsRestRowLimit = 10240;
 int tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 
+// the maximum number of results for projection query on super table that are returned from
+// one virtual node, to order according to timestamp
+int tsMaxNumOfOrderedResults = 100000;
+
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
  * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
@@ -138,18 +149,29 @@ int tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
  */
 int tsCompressMsgSize = -1;
 
-char tsSocketType[4] = "udp";      // use UDP by default[option: udp, tcp]
-int tsTimePrecision = TSDB_TIME_PRECISION_MILLI;  // time precision, millisecond by default
-int tsMinSlidingTime = 10;                        // 10 ms for sliding time, the value will changed in
-                                                  // case of time precision changed
-int tsMinIntervalTime = 10;                       // 10 ms for interval time range, changed accordingly
-int tsMaxStreamComputDelay = 20000;               // 20sec, the maximum value of stream
-                                                  // computing delay, changed accordingly
-int tsStreamCompStartDelay = 10000;               // 10sec, the first stream computing delay
-                                                  // time after system launched successfully,
-                                                  // changed accordingly
-int tsStreamCompRetryDelay = 10;                  // the stream computing delay time after
-                                                  // executing failed, change accordingly
+// use UDP by default[option: udp, tcp]
+char tsSocketType[4] = "udp";
+
+// time precision, millisecond by default
+int tsTimePrecision = TSDB_TIME_PRECISION_MILLI;
+
+// 10 ms for sliding time, the value will changed in case of time precision changed
+int tsMinSlidingTime = 10;
+
+// 10 ms for interval time range, changed accordingly
+int tsMinIntervalTime = 10;
+
+// 20sec, the maximum value of stream computing delay, changed accordingly
+int tsMaxStreamComputDelay = 20000;
+
+// 10sec, the first stream computing delay time after system launched successfully, changed accordingly
+int tsStreamCompStartDelay = 10000;
+
+// the stream computing delay time after executing failed, change accordingly
+int tsStreamCompRetryDelay = 10;
+
+// The delayed computing ration. 10% of the whole computing time window by default.
+float tsStreamComputDelayRatio = 0.1;
 
 int     tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
@@ -444,7 +466,7 @@ static void doInitGlobalConfig() {
 
   // ip address
   tsInitConfigOption(cfg++, "masterIp", tsMasterIp, TSDB_CFG_VTYPE_IPSTR,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_CLUSTER,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT,
                      0, 0, TSDB_IPv4ADDR_LEN, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "secondIp", tsSecondIp, TSDB_CFG_VTYPE_IPSTR,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_CLUSTER,
@@ -539,6 +561,9 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "alternativeRole", &tsAlternativeRole, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
                      0, 2, 0, TSDB_CFG_UTYPE_NONE);
+  tsInitConfigOption(cfg++, "affectedRowsMod", &tsAffectedRowsMod, TSDB_CFG_VTYPE_SHORT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT,
+                     0, 1, 0, TSDB_CFG_UTYPE_NONE);
   // 0-any, 1-mgmt, 2-dnode
 
   // timer
@@ -617,9 +642,12 @@ static void doInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      1000, 1000000000, 0, TSDB_CFG_UTYPE_MS);
   tsInitConfigOption(cfg++, "retryStreamCompDelay", &tsStreamCompRetryDelay, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
-                     10, 1000000000, 0, TSDB_CFG_UTYPE_MS);
-
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 10, 1000000000, 0, TSDB_CFG_UTYPE_MS);
+  
+  
+  tsInitConfigOption(cfg++, "streamCompDelayRatio", &tsStreamComputDelayRatio, TSDB_CFG_VTYPE_FLOAT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 0.1, 0.9, 0, TSDB_CFG_UTYPE_NONE);
+  
   tsInitConfigOption(cfg++, "clog", &tsCommitLog, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      0, 1, 0, TSDB_CFG_UTYPE_NONE);
@@ -661,6 +689,10 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "maxSQLLength", &tsMaxSQLStringLen, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
                      TSDB_MAX_SQL_LEN, TSDB_MAX_ALLOWED_SQL_LEN, 0, TSDB_CFG_UTYPE_BYTE);
+  
+  tsInitConfigOption(cfg++, "maxNumOfOrderedRes", &tsMaxNumOfOrderedResults, TSDB_CFG_VTYPE_INT,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW,
+                     TSDB_MAX_SQL_LEN, TSDB_MAX_ALLOWED_SQL_LEN, 0, TSDB_CFG_UTYPE_NONE);
   
   // locale & charset
   tsInitConfigOption(cfg++, "timezone", tsTimezone, TSDB_CFG_VTYPE_STRING,
@@ -787,11 +819,9 @@ static void doInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG,
                      0, 1, 0, TSDB_CFG_UTYPE_NONE);
 
-#ifdef CLUSTER
   tsInitConfigOption(cfg++, "anyIp", &tsAnyIp, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG,
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLUSTER,
                      0, 1, 0, TSDB_CFG_UTYPE_NONE);
-#endif
 
   // version info
   tsInitConfigOption(cfg++, "gitinfo", gitinfo, TSDB_CFG_VTYPE_STRING,
@@ -1108,9 +1138,9 @@ void tsSetAllDebugFlag() {
  * In case that the setLocale failed to be executed, the right charset needs to be set.
  */
 void tsSetLocale() {
-  char msgLocale[] = "Invalid locale:%s, please set the valid locale in config file";
-  char msgCharset[] = "Invalid charset:%s, please set the valid charset in config file";
-  char msgCharset1[] = "failed to get charset, please set the valid charset in config file";
+  char msgLocale[] = "Invalid locale:%s, please set the valid locale in config file\n";
+  char msgCharset[] = "Invalid charset:%s, please set the valid charset in config file\n";
+  char msgCharset1[] = "failed to get charset, please set the valid charset in config file\n";
 
   char *locale = setlocale(LC_CTYPE, tsLocale);
 

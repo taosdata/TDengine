@@ -24,6 +24,97 @@
 #include "ttime.h"
 #include "tutil.h"
 
+/*
+ * mktime64 - Converts date to seconds.
+ * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
+ * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
+ * => year=1980, mon=12, day=31, hour=23, min=59, sec=59.
+ *
+ * [For the Julian calendar (which was used in Russia before 1917,
+ * Britain & colonies before 1752, anywhere else before 1582,
+ * and is still in use by some communities) leave out the
+ * -year/100+year/400 terms, and add 10.]
+ *
+ * This algorithm was first published by Gauss (I think).
+ *
+ * A leap second can be indicated by calling this function with sec as
+ * 60 (allowable under ISO 8601).  The leap second is treated the same
+ * as the following second since they don't exist in UNIX time.
+ *
+ * An encoding of midnight at the end of the day as 24:00:00 - ie. midnight
+ * tomorrow - (allowable under ISO 8601) is supported.
+ */
+int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
+		const unsigned int day, const unsigned int hour,
+		const unsigned int min, const unsigned int sec)
+{
+	unsigned int mon = mon0, year = year0;
+
+	/* 1..12 -> 11,12,1..10 */
+	if (0 >= (int) (mon -= 2)) {
+		mon += 12;	/* Puts Feb last since it has leap day */
+		year -= 1;
+	}
+
+  int64_t res = (((((int64_t) (year/4 - year/100 + year/400 + 367*mon/12 + day) +
+		  year*365 - 719499)*24 + hour)*60 + min)*60 + sec);
+
+	return (res + timezone);
+}
+// ==== mktime() kernel code =================//
+static int64_t m_deltaUtc = 0;
+void deltaToUtcInitOnce() {  
+  struct tm tm = {0};
+  
+  (void)strptime("1970-01-01 00:00:00", (const char *)("%Y-%m-%d %H:%M:%S"), &tm);
+  m_deltaUtc = (int64_t)mktime(&tm);
+  //printf("====delta:%lld\n\n", seconds);	
+  return;
+}
+
+int64_t user_mktime(struct tm * tm)
+{
+#define TAOS_MINUTE   60
+#define TAOS_HOUR     (60*TAOS_MINUTE)
+#define TAOS_DAY      (24*TAOS_HOUR)
+#define TAOS_YEAR     (365*TAOS_DAY)
+  
+static int month[12] = {
+  0,
+  TAOS_DAY*(31),
+  TAOS_DAY*(31+29),
+  TAOS_DAY*(31+29+31),
+  TAOS_DAY*(31+29+31+30),
+  TAOS_DAY*(31+29+31+30+31),
+  TAOS_DAY*(31+29+31+30+31+30),
+  TAOS_DAY*(31+29+31+30+31+30+31),
+  TAOS_DAY*(31+29+31+30+31+30+31+31),
+  TAOS_DAY*(31+29+31+30+31+30+31+31+30),
+  TAOS_DAY*(31+29+31+30+31+30+31+31+30+31),
+  TAOS_DAY*(31+29+31+30+31+30+31+31+30+31+30)
+};
+
+  int64_t res;
+  int     year;
+  
+  year= tm->tm_year - 70; 
+  res= TAOS_YEAR*year + TAOS_DAY*((year+1)/4);
+  res+= month[tm->tm_mon];
+  
+  if(tm->tm_mon > 1 && ((year+2)%4)) {  
+    res-= TAOS_DAY;
+  }
+  
+  res+= TAOS_DAY*(tm->tm_mday-1);  
+  res+= TAOS_HOUR*tm->tm_hour;  
+  res+= TAOS_MINUTE*tm->tm_min;  
+  res+= tm->tm_sec;
+  
+  return res + m_deltaUtc;
+
+}
+
+
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
 static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec);
 static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
@@ -237,7 +328,10 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
   }
 
   /* mktime will be affected by TZ, set by using taos_options */
-  int64_t seconds = mktime(&tm);
+  //int64_t seconds = mktime(&tm);
+  //int64_t seconds = (int64_t)user_mktime(&tm);
+  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+  
   int64_t fraction = 0;
 
   if (*str == '.') {

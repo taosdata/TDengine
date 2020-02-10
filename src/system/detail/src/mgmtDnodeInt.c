@@ -152,19 +152,15 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
     return 0;
   }
 
-  if (pRsp->code == 0) {
+  if (pRsp->code == TSDB_CODE_SUCCESS) {
     pDb->vgStatus = TSDB_VG_STATUS_READY;
     mTrace("dnode:%s, db:%s vgroup is created in dnode", taosIpStr(pObj->privateIp), pRsp->more);
     return 0;
   }
 
-  if (pRsp->code == TSDB_CODE_VG_COMMITLOG_INIT_FAILED) {
-    pDb->vgStatus = TSDB_VG_STATUS_COMMITLOG_INIT_FAILED;
-    mError("dnode:%s, db:%s vgroup commit log init failed, code:%d", taosIpStr(pObj->privateIp), pRsp->more, pRsp->code);
-  } else {
-    pDb->vgStatus = TSDB_VG_STATUS_INIT_FAILED;
-    mError("dnode:%s, db:%s vgroup init failed, code:%d", taosIpStr(pObj->privateIp), pRsp->more, pRsp->code);
-  }
+  pDb->vgStatus = pRsp->code;
+  mError("dnode:%s, db:%s vgroup init failed, code:%d %s",
+          taosIpStr(pObj->privateIp), pRsp->more, pRsp->code, taosGetVgroupStatusStr(pDb->vgStatus));
 
   return 0;
 }
@@ -469,8 +465,11 @@ int mgmtCfgDynamicOptions(SDnodeObj *pDnode, char *msg) {
 }
 
 int mgmtSendCfgDnodeMsg(char *cont) {
+#ifdef CLUSTER
   char *     pMsg, *pStart;
   int        msgLen = 0;
+#endif
+
   SDnodeObj *pDnode;
   SCfgMsg *  pCfg = (SCfgMsg *)cont;
   uint32_t   ip;
@@ -488,6 +487,7 @@ int mgmtSendCfgDnodeMsg(char *cont) {
     return code;
   }
 
+#ifdef CLUSTER
   pStart = taosBuildReqMsg(pDnode->thandle, TSDB_MSG_TYPE_CFG_PNODE);
   if (pStart == NULL) return TSDB_CODE_NODE_OFFLINE;
   pMsg = pStart;
@@ -497,6 +497,8 @@ int mgmtSendCfgDnodeMsg(char *cont) {
 
   msgLen = pMsg - pStart;
   taosSendMsgToDnode(pDnode, pStart, msgLen);
-
+#else
+  (void)tsCfgDynamicOptions(pCfg->config);
+#endif
   return 0;
 }

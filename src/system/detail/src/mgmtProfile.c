@@ -499,10 +499,9 @@ int mgmtKillConnection(char *qidstr, SConnObj *pConn) {
   uint32_t ip = inet_addr(temp);
 
   temp = chr + 1;
-  short port = htons(atoi(temp));
-
+  uint16_t port = htons(atoi(temp));
   SAcctObj *pAcct = pConn->pAcct;
-
+  
   pthread_mutex_lock(&pAcct->mutex);
 
   pConn = pAcct->pConn;

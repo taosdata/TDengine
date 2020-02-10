@@ -77,8 +77,14 @@ int vnodeCreateMeterObjFile(int vnode) {
   sprintf(fileName, "%s/vnode%d/meterObj.v%d", tsDirectory, vnode, vnode);
   fp = fopen(fileName, "w+");
   if (fp == NULL) {
-    dError("failed to create vnode:%d file:%s", vnode, fileName);
-    return -1;
+    dError("failed to create vnode:%d file:%s, errno:%d, reason:%s", vnode, fileName, errno, strerror(errno));
+    if (errno == EACCES) {
+      return TSDB_CODE_NO_DISK_PERMISSIONS;
+    } else if (errno == ENOSPC) {
+      return TSDB_CODE_SERV_NO_DISKSPACE;
+    } else {
+      return TSDB_CODE_VG_INIT_FAILED;
+    }
   } else {
     vnodeCreateFileHeader(fp);
     vnodeUpdateVnodeFileHeader(fp, vnodeList + vnode);
@@ -93,7 +99,7 @@ int vnodeCreateMeterObjFile(int vnode) {
     fclose(fp);
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 FILE *vnodeOpenMeterObjFile(int vnode) {
@@ -271,7 +277,7 @@ int vnodeSaveVnodeCfg(int vnode, SVnodeCfg *pCfg, SVPeerDesc *pDesc) {
   /* vnodeUpdateFileCheckSum(fp); */
   fclose(fp);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int vnodeSaveVnodeInfo(int vnode) {
@@ -347,7 +353,7 @@ int vnodeRestoreMeterObj(char *buffer, int64_t length) {
 
   //  taosSetSecurityInfo(pObj->vnode, pObj->sid, pObj->meterId, pObj->spi, pObj->encrypt, pObj->secret, pObj->cipheringKey);
 
-  dTrace("vid:%d sid:%d id:%s, meter is restored, uid:%ld", pObj->vnode, pObj->sid, pObj->meterId, pObj->uid);
+  dTrace("vid:%d sid:%d id:%s, meter is restored, uid:%" PRIu64 "", pObj->vnode, pObj->sid, pObj->meterId, pObj->uid);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -487,7 +493,7 @@ int vnodeCreateMeterObj(SMeterObj *pNew, SConnSec *pSec) {
     vnodeSaveMeterObjToFile(pNew);
     // vnodeCreateMeterMgmt(pNew, pSec);
     vnodeCreateStream(pNew);
-    dTrace("vid:%d, sid:%d id:%s, meterObj is created, uid:%ld", pNew->vnode, pNew->sid, pNew->meterId, pNew->uid);
+    dTrace("vid:%d, sid:%d id:%s, meterObj is created, uid:%" PRIu64 "", pNew->vnode, pNew->sid, pNew->meterId, pNew->uid);
   }
 
   return code;
@@ -563,9 +569,17 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
 
   if (numOfPoints >= (pVnode->cfg.blocksPerMeter - 2) * pObj->pointsPerBlock) {
     code = TSDB_CODE_BATCH_SIZE_TOO_BIG;
-    dError("vid:%d sid:%d id:%s, batch size too big, it shall be smaller than:%d", pObj->vnode, pObj->sid,
-           pObj->meterId, (pVnode->cfg.blocksPerMeter - 2) * pObj->pointsPerBlock);
+    dError("vid:%d sid:%d id:%s, batch size too big, insert points:%d, it shall be smaller than:%d", pObj->vnode, pObj->sid,
+           pObj->meterId, numOfPoints, (pVnode->cfg.blocksPerMeter - 2) * pObj->pointsPerBlock);
     return code;
+  }
+
+  /*
+   * please refer to TBASE-926, data may be lost when the cache is full
+   */
+  if (source == TSDB_DATA_SOURCE_SHELL && pVnode->cfg.replications > 1) {
+    code = vnodeForwardToPeer(pObj, cont, contLen, TSDB_ACTION_INSERT, sversion);
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
 
   SCachePool *pPool = (SCachePool *)pVnode->pCachePool;
@@ -585,16 +599,16 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     if (code != TSDB_CODE_SUCCESS) return code;
   }
 
-  if (source == TSDB_DATA_SOURCE_SHELL && pVnode->cfg.replications > 1) {
-    code = vnodeForwardToPeer(pObj, cont, contLen, TSDB_ACTION_INSERT, sversion);
-    if (code != TSDB_CODE_SUCCESS) return code;
-  }
-
   if (pObj->sversion < sversion) {
     dTrace("vid:%d sid:%d id:%s, schema is changed, new:%d old:%d", pObj->vnode, pObj->sid, pObj->meterId, sversion,
            pObj->sversion);
     vnodeSendMeterCfgMsg(pObj->vnode, pObj->sid);
     code = TSDB_CODE_ACTION_IN_PROGRESS;
+    return code;
+  } else if (pObj->sversion > sversion) {
+    dTrace("vid:%d sid:%d id:%s, client schema out of date, sql is invalid. client sversion:%d vnode sversion:%d",
+        pObj->vnode, pObj->sid, pObj->meterId, pObj->sversion, sversion);
+    code = TSDB_CODE_INVALID_SQL;
     return code;
   }
 
@@ -607,7 +621,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   TSKEY minAllowedKey = (cfid - pVnode->maxFiles + 1)*pVnode->cfg.daysPerFile*tsMsPerDay[(uint8_t)pVnode->cfg.precision];
   TSKEY maxAllowedKey = (cfid + 2)*pVnode->cfg.daysPerFile*tsMsPerDay[(uint8_t)pVnode->cfg.precision] - 2;
   if (firstKey < minAllowedKey || firstKey > maxAllowedKey || lastKey < minAllowedKey || lastKey > maxAllowedKey) {
-    dError("vid:%d sid:%d id:%s, vnode lastKeyOnFile:%lld, data is out of range, numOfPoints:%d firstKey:%lld lastKey:%lld minAllowedKey:%lld maxAllowedKey:%lld",
+    dError("vid:%d sid:%d id:%s, vnode lastKeyOnFile:%" PRId64 ", data is out of range, numOfPoints:%d firstKey:%" PRId64 " lastKey:%" PRId64 " minAllowedKey:%" PRId64 " maxAllowedKey:%" PRId64,
             pObj->vnode, pObj->sid, pObj->meterId, pVnode->lastKeyOnFile, numOfPoints,firstKey, lastKey, minAllowedKey, maxAllowedKey);
     return TSDB_CODE_TIMESTAMP_OUT_OF_RANGE;
   }
@@ -626,7 +640,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
     }
 
     if (*((TSKEY *)pData) <= pObj->lastKey) {
-      dWarn("vid:%d sid:%d id:%s, received key:%ld not larger than lastKey:%ld", pObj->vnode, pObj->sid, pObj->meterId,
+      dWarn("vid:%d sid:%d id:%s, received key:%" PRId64 " not larger than lastKey:%" PRId64, pObj->vnode, pObj->sid, pObj->meterId,
             *((TSKEY *)pData), pObj->lastKey);
       pData += pObj->bytesPerPoint;
       continue;
@@ -655,6 +669,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   if (pObj->lastKey > pVnode->lastKey) pVnode->lastKey = pObj->lastKey;
 
   if (firstKey < pVnode->firstKey) pVnode->firstKey = firstKey;
+  assert(pVnode->firstKey > 0);
 
   pVnode->version++;
 
@@ -663,7 +678,7 @@ int vnodeInsertPoints(SMeterObj *pObj, char *cont, int contLen, char source, voi
   vnodeClearMeterState(pObj, TSDB_METER_STATE_INSERTING);
 
 _over:
-  dTrace("vid:%d sid:%d id:%s, %d out of %d points are inserted, lastKey:%ld source:%d, vnode total storage: %ld",
+  dTrace("vid:%d sid:%d id:%s, %d out of %d points are inserted, lastKey:%" PRId64 " source:%d, vnode total storage: %" PRId64 "",
          pObj->vnode, pObj->sid, pObj->meterId, points, numOfPoints, pObj->lastKey, source,
          pVnode->vnodeStatistic.totalStorage);
 

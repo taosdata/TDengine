@@ -657,16 +657,13 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
       return TSDB_CODE_NO_ENOUGH_DNODES;
     }
 
-    if (pDb->vgStatus == TSDB_VG_STATUS_COMMITLOG_INIT_FAILED) {
+    if (pDb->vgStatus == TSDB_VG_STATUS_NO_DISK_PERMISSIONS ||
+        pDb->vgStatus == TSDB_VG_STATUS_SERVER_NO_PACE ||
+        pDb->vgStatus == TSDB_VG_STATUS_SERV_OUT_OF_MEMORY ||
+        pDb->vgStatus == TSDB_VG_STATUS_INIT_FAILED ) {
       mgmtDestroyMeter(pMeter);
-      mError("table:%s, commit log init failed", pCreate->meterId);
-      return TSDB_CODE_VG_COMMITLOG_INIT_FAILED;
-    }
-
-    if (pDb->vgStatus == TSDB_VG_STATUS_INIT_FAILED) {
-      mgmtDestroyMeter(pMeter);
-      mError("table:%s, vgroup init failed", pCreate->meterId);
-      return TSDB_CODE_VG_INIT_FAILED;
+      mError("table:%s, vgroup init failed, reason:%d %s", pCreate->meterId, pDb->vgStatus, taosGetVgroupStatusStr(pDb->vgStatus));
+      return pDb->vgStatus;
     }
 
     if (pVgroup == NULL) {
@@ -691,7 +688,7 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
     pMeter->uid = (((uint64_t)pMeter->gid.vgId) << 40) + ((((uint64_t)pMeter->gid.sid) & ((1ul << 24) - 1ul)) << 16) +
                   ((uint64_t)sdbVersion & ((1ul << 16) - 1ul));
 
-    mTrace("table:%s, create table in vgroup, vgId:%d sid:%d vnode:%d uid:%llu db:%s",
+    mTrace("table:%s, create table in vgroup, vgId:%d sid:%d vnode:%d uid:%" PRIu64 " db:%s",
            pMeter->meterId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pMeter->uid, pDb->name);
   } else {
     pMeter->uid = (((uint64_t)pMeter->createdTime) << 16) + ((uint64_t)sdbVersion & ((1ul << 16) - 1ul));
@@ -1189,6 +1186,8 @@ int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SMetricMetaMsg *pMetr
   int32_t *        tagLen = calloc(1, sizeof(int32_t) * pMetricMetaMsg->numOfMeters);
 
   if (result == NULL || tagLen == NULL) {
+    tfree(result);
+    tfree(tagLen);
     return -1;
   }
 
@@ -1270,6 +1269,11 @@ int mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
 
   if (pDb == NULL) return 0;
+  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 && strcmp(pConn->pUser->user, "monitor") != 0 ) {
+      return 0;
+    }
+  }
 
   strcpy(prefix, pDb->name);
   strcat(prefix, TS_PATH_DELIMITER);
@@ -1386,6 +1390,16 @@ int mgmtRetrieveMetrics(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
   STabObj *pMetric = NULL;
   char *   pWrite;
   int      cols = 0;
+
+  SDbObj *pDb = NULL;
+  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+
+  if (pDb == NULL) return 0;
+  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 && strcmp(pConn->pUser->user, "monitor") != 0 ) {
+      return 0;
+    }
+  }
 
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 

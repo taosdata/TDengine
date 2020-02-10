@@ -215,7 +215,10 @@ void vnodeCloseShellVnode(int vnode) {
   if (shellList[vnode] == NULL) return;
 
   for (int i = 0; i < vnodeList[vnode].cfg.maxSessions; ++i) {
-    vnodeFreeQInfo(shellList[vnode][i].qhandle, true);
+    void* qhandle = shellList[vnode][i].qhandle;
+    if (qhandle != NULL) {
+      vnodeDecRefCount(qhandle);
+    }
   }
 
   int32_t* v = malloc(sizeof(int32_t));
@@ -308,7 +311,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (pVnode->cfg.maxSessions == 0) {
     dError("qmsg:%p,vid:%d is not activated yet", pQueryMsg, pQueryMsg->vnode);
     vnodeSendVpeerCfgMsg(pQueryMsg->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_TABLE;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _query_over;
   }
 
@@ -352,7 +355,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   assert(incNumber <= pQueryMsg->numOfSids);
   pthread_mutex_unlock(&pVnode->vmutex);
 
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS || pQueryMsg->numOfSids == 0) { // all the meters may have been dropped.
     goto _query_over;
   }
 
@@ -369,8 +372,10 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pObj->qhandle) {
     dTrace("QInfo:%p %s free qhandle", pObj->qhandle, __FUNCTION__);
-    vnodeFreeQInfo(pObj->qhandle, true);
+    void* qHandle = pObj->qhandle;
     pObj->qhandle = NULL;
+    
+    vnodeDecRefCount(qHandle);
   }
 
   if (QUERY_IS_STABLE_QUERY(pQueryMsg->queryType)) {
@@ -412,6 +417,7 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
 
   int code = 0;
   pRetrieve = (SRetrieveMeterMsg *)pMsg;
+  SQInfo* pQInfo = (SQInfo*)pRetrieve->qhandle;
   pRetrieve->free = htons(pRetrieve->free);
 
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
@@ -438,7 +444,15 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
     size = vnodeGetResultSize((void *)(pRetrieve->qhandle), &numOfRows);
   }
 
-  pStart = taosBuildRspMsgWithSize(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, size + 100);
+  // buffer size for progress information, including meter count,
+  // and for each meter, including 'uid' and 'TSKEY'.
+  int progressSize = 0;
+  if (pQInfo->pMeterQuerySupporter != NULL)
+    progressSize = pQInfo->pMeterQuerySupporter->numOfMeters * (sizeof(int64_t) + sizeof(TSKEY)) + sizeof(int32_t);
+  else if (pQInfo->pObj != NULL)
+    progressSize = sizeof(int64_t) + sizeof(TSKEY) + sizeof(int32_t);
+
+  pStart = taosBuildRspMsgWithSize(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, progressSize + size + 100);
   if (pStart == NULL) {
     taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
     goto _exit;
@@ -468,11 +482,37 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   }
 
   pMsg += size;
+
+  // write the progress information of each meter to response
+  // this is required by subscriptions
+  if (pQInfo->pMeterQuerySupporter != NULL && pQInfo->pMeterQuerySupporter->pMeterSidExtInfo != NULL) {
+    *((int32_t*)pMsg) = htonl(pQInfo->pMeterQuerySupporter->numOfMeters);
+    pMsg += sizeof(int32_t);
+    for (int32_t i = 0; i < pQInfo->pMeterQuerySupporter->numOfMeters; i++) {
+      *((int64_t*)pMsg) = htobe64(pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[i]->uid);
+      pMsg += sizeof(int64_t);
+      *((TSKEY*)pMsg) = htobe64(pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[i]->key);
+      pMsg += sizeof(TSKEY);
+    }
+  } else if (pQInfo->pObj != NULL) {
+    *((int32_t*)pMsg) = htonl(1);
+    pMsg += sizeof(int32_t);
+    *((int64_t*)pMsg) = htobe64(pQInfo->pObj->uid);
+    pMsg += sizeof(int64_t);
+    if (pQInfo->pointsRead > 0) {
+      *((TSKEY*)pMsg) = htobe64(pQInfo->query.lastKey + 1);
+    } else {
+      *((TSKEY*)pMsg) = htobe64(pQInfo->query.lastKey);
+    }
+    pMsg += sizeof(TSKEY);
+  }
+
   msgLen = pMsg - pStart;
 
   assert(code != TSDB_CODE_ACTION_IN_PROGRESS);
   
-  if (numOfRows == 0 && (pRetrieve->qhandle == (uint64_t)pObj->qhandle) && (code != TSDB_CODE_ACTION_IN_PROGRESS)) {
+  if (numOfRows == 0 && (pRetrieve->qhandle == (uint64_t)pObj->qhandle) && (code != TSDB_CODE_ACTION_IN_PROGRESS) &&
+     pRetrieve->qhandle != 0) {
     dTrace("QInfo:%p %s free qhandle code:%d", pObj->qhandle, __FUNCTION__, code);
     vnodeDecRefCount(pObj->qhandle);
     pObj->qhandle = NULL;
@@ -514,7 +554,7 @@ static int vnodeCheckSubmitBlockContext(SShellSubmitBlock *pBlocks, SVnodeObj *p
   }
 
   if (pMeterObj->uid != uid) {
-    dError("vid:%d sid:%d id:%s, uid:%lld, uid in msg:%lld, uid mismatch", pVnode->vnode, sid, pMeterObj->meterId,
+    dError("vid:%d sid:%d id:%s, uid:%" PRIu64 ", uid in msg:%" PRIu64 ", uid mismatch", pVnode->vnode, sid, pMeterObj->meterId,
            pMeterObj->uid, uid);
     return TSDB_CODE_INVALID_SUBMIT_MSG;
   }
@@ -584,6 +624,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   SShellSubmitMsg *pSubmit = &shellSubmit;
   SShellSubmitBlock *pBlocks = NULL;
 
+  pSubmit->import = htons(pSubmit->import);
   pSubmit->vnode = htons(pSubmit->vnode);
   pSubmit->numOfSid = htonl(pSubmit->numOfSid);
 

@@ -175,26 +175,34 @@ TDengine provides APIs for continuous query driven by time, which run queries pe
 
 ### C/C++ subscription API
 
-For the time being, TDengine supports subscription on one table. It is implemented through periodic pulling from a TDengine server. 
+For the time being, TDengine supports subscription on one or multiple tables. It is implemented through periodic pulling from a TDengine server. 
 
-- `TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char      *db, char *table, int64_t time, int mseconds)`
-  The API is used to start a subscription session by given a handle. The parameters required are _host_ (IP address of a TDenginer server), _user_ (username), _pass_ (password), _db_ (database to use), _table_ (table name to subscribe), _time_ (start time to subscribe, 0 for now), _mseconds_ (pulling period). If failed to open a subscription session, a _NULL_ pointer is returned.
+* `TAOS_SUB *taos_subscribe(TAOS* taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval)`
 
+  The API is used to start a subscription session, it returns the subscription object on success and `NULL` in case of failure, the parameters are:
+  * **taos**: The database connnection, which must be established already.
+  * **restart**: `Zero` to continue a subscription if it already exits, other value to start from the beginning.
+  * **topic**: The unique identifier of a subscription.
+  * **sql**: A sql statement for data query, it can only be a `select` statement, can only query for raw data, and can only query data in ascending order of the timestamp field.
+  * **fp**: A callback function to receive query result, only used in asynchronization mode and should be `NULL` in synchronization mode, please refer below for its prototype.
+  * **param**: User provided additional parameter for the callback function.
+  * **interval**: Pulling interval in millisecond. Under asynchronization mode, API will call the callback function `fp` in this interval, system performance will be impacted if this interval is too short. Under synchronization mode, if the duration between two call to `taos_consume` is less than this interval, the second call blocks until the duration exceed this interval.
 
-- `TAOS_ROW taos_consume(TAOS_SUB *tsub)`
-  The API used to get the new data from a TDengine server. It should be put in an infinite loop. The parameter _tsub_ is the handle returned by _taos_subscribe_. If new data are updated, the API will return a row of the result. Otherwise, the API is blocked until new data arrives. If _NULL_ pointer is returned, it means an error occurs.
+* `typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code)`
 
+  Prototype of the callback function, the parameters are:
+  * tsub: The subscription object.
+  * res: The query result.
+  * param: User provided additional parameter when calling `taos_subscribe`.
+  * code: Error code in case of failures.
 
-- `void taos_unsubscribe(TAOS_SUB *tsub)`
-  Stop a subscription session by the handle returned by _taos_subscribe_.
+* `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
+  The API used to get the new data from a TDengine server. It should be put in an loop. The parameter `tsub` is the handle returned by `taos_subscribe`. This API should only be called in synchronization mode. If the duration between two call to `taos_consume` is less than pulling interval, the second call blocks until the duration exceed the interval. The API returns the new rows if new data arrives, or empty rowset otherwise, and if there's an error, it returns `NULL`.
+  
+* `void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress)`
 
-- `int taos_num_subfields(TAOS_SUB *tsub)`
-  The API used to get the number of fields in a row.
-
-
-- `TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub)`
-  The API used to get the description of each column.
+  Stop a subscription session by the handle returned by `taos_subscribe`. If `keepProgress` is **not** zero, the subscription progress information is kept and can be reused in later call to `taos_subscribe`, the information is removed otherwise.
 
 ##  Java Connector
 
@@ -208,7 +216,7 @@ Since the native language of TDengine is C, the necessary TDengine library shoul
 * taos.dll (Windows)
     After TDengine client is installed, the library `taos.dll` will be automatically copied to the `C:/Windows/System32`, which is the system's default search path. 
     
-> Note: Please make sure that TDengine Windows client has been installed if developing on Windows.
+> Note: Please make sure that [TDengine Windows client][14] has been installed if developing on Windows. Now although TDengine client would be defaultly installed together with TDengine server, it can also be installed [alone][15].
 
 Since TDengine is time-series database, there are still some differences compared with traditional databases in using TDengine JDBC driver: 
 * TDengine doesn't allow to delete/modify a single record, and thus JDBC driver also has no such method. 
@@ -583,13 +591,35 @@ data = c1.fetchall()
 numOfRows = c1.rowcount
 numOfCols = len(c1.description)
 for irow in range(numOfRows):
-  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2])
+  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
   
 # use the cursor as an iterator to retrieve all returned results
 c1.execute('select * from tb')
 for data in c1:
   print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])
 ```
+
+* create a subscription
+```python
+# Create a subscription with topic 'test' and consumption interval 1000ms.
+# The first argument is True means to restart the subscription;
+# if the subscription with topic 'test' has already been created, then pass
+# False to this argument means to continue the existing subscription.
+sub = conn.subscribe(True, "test", "select * from meters;", 1000)
+```
+
+* consume a subscription
+```python
+data = sub.consume()
+for d in data:
+    print(d)
+```
+
+* close the subscription
+```python
+sub.close()
+```
+
 * close the connection
 ```python
 c1.close()
@@ -882,4 +912,5 @@ An example of using the NodeJS connector to achieve the same things but without 
 [11]:  https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
 [12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
 [13]: https://www.taosdata.com/cn/documentation/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
-
+[14]: https://www.taosdata.com/cn/documentation/connector/#Windows%E5%AE%A2%E6%88%B7%E7%AB%AF%E5%8F%8A%E7%A8%8B%E5%BA%8F%E6%8E%A5%E5%8F%A3
+[15]: https://www.taosdata.com/cn/getting-started/#%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B

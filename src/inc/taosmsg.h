@@ -74,10 +74,10 @@ extern "C" {
 #define TSDB_MSG_TYPE_CREATE_MNODE_RSP 44
 #define TSDB_MSG_TYPE_DROP_MNODE       45
 #define TSDB_MSG_TYPE_DROP_MNODE_RSP   46
-#define TSDB_MSG_TYPE_CREATE_PNODE     47
-#define TSDB_MSG_TYPE_CREATE_PNODE_RSP 48
-#define TSDB_MSG_TYPE_DROP_PNODE       49
-#define TSDB_MSG_TYPE_DROP_PNODE_RSP   50
+#define TSDB_MSG_TYPE_CREATE_DNODE     47
+#define TSDB_MSG_TYPE_CREATE_DNODE_RSP 48
+#define TSDB_MSG_TYPE_DROP_DNODE       49
+#define TSDB_MSG_TYPE_DROP_DNODE_RSP   50
 #define TSDB_MSG_TYPE_CREATE_DB        51
 #define TSDB_MSG_TYPE_CREATE_DB_RSP    52
 #define TSDB_MSG_TYPE_DROP_DB          53
@@ -147,7 +147,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_USER,
   TSDB_MGMT_TABLE_DB,
   TSDB_MGMT_TABLE_TABLE,
-  TSDB_MGMT_TABLE_PNODE,
+  TSDB_MGMT_TABLE_DNODE,
   TSDB_MGMT_TABLE_MNODE,
   TSDB_MGMT_TABLE_VGROUP,
   TSDB_MGMT_TABLE_METRIC,
@@ -312,7 +312,7 @@ typedef struct {
 
 typedef struct {
   char  db[TSDB_METER_ID_LEN];
-  short ignoreNotExists;
+  uint8_t ignoreNotExists;
 } SDropDbMsg, SUseDbMsg;
 
 typedef struct {
@@ -490,6 +490,7 @@ typedef struct SColumnInfo {
 typedef struct SMeterSidExtInfo {
   int32_t sid;
   int64_t uid;
+  TSKEY   key;   // key for subscription
   char    tags[];
 } SMeterSidExtInfo;
 
@@ -506,7 +507,6 @@ typedef struct {
   uint64_t uid;
   TSKEY    skey;
   TSKEY    ekey;
-  int32_t  num;
 
   int16_t order;
   int16_t orderColId;
@@ -515,7 +515,8 @@ typedef struct {
   char    intervalTimeUnit;  // time interval type, for revisement of interval(1d)
 
   int64_t nAggTimeInterval;  // time interval for aggregation, in million second
-
+  int64_t slidingTime;       // value for sliding window
+  
   // tag schema, used to parse tag information in pSidExtInfo
   uint64_t pTagSchema;
 

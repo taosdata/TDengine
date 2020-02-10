@@ -2,8 +2,8 @@
 #
 # Generate rpm package for centos 
 
-#set -e
-#set -x
+set -e
+# set -x
 
 #curr_dir=$(pwd)
 compile_dir=$1
@@ -66,7 +66,7 @@ cp_rpm_package ${pkg_dir}/RPMS
 if [ "$verMode" == "cluster" ]; then
   rpmname="TDengine-server-"${tdengine_ver}-${osType}-${cpuType}
 elif [ "$verMode" == "lite" ]; then
-  rpmname="TDengine-server-edge"-${tdengine_ver}-${osType}-${cpuType}
+  rpmname="TDengine-server"-${tdengine_ver}-${osType}-${cpuType}
 else
   echo "unknow verMode, nor cluster or lite"
   exit 1

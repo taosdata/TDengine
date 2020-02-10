@@ -197,7 +197,7 @@ char *tsError[] = {"success",
                    "invalid query handle",         // 70
                    "tables related to metric exist",
                    "can't drop monitor database or tables",
-                   "commit log init failed",
+                   "no disk permissions",
                    "vgroup init failed",
                    "data is already imported",     // 75
                    "not supported operation",
@@ -231,10 +231,10 @@ char *tsError[] = {"success",
                    "batch size too big",
                    "timestamp out of range",     //105
                    "invalid query message",
-                   "timestamp disordered in cache block",
+                   "too many results from vnodes for sort",
                    "timestamp disordered in file block",
                    "invalid commit log",
-                   "server no disk space",    //110
+                   "no disk space on server",    //110
                    "only super table has metric meta info",
                    "tags value not unique for join",
                    "invalid submit message",
