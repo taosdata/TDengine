@@ -24,8 +24,6 @@ taos_fetch_row_a
 taos_subscribe
 taos_consume
 taos_unsubscribe
-taos_subfields_count
-taos_fetch_subfields
 taos_open_stream
 taos_close_stream
 taos_fetch_block
