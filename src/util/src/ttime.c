@@ -24,7 +24,43 @@
 #include "ttime.h"
 #include "tutil.h"
 
+/*
+ * mktime64 - Converts date to seconds.
+ * Converts Gregorian date to seconds since 1970-01-01 00:00:00.
+ * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
+ * => year=1980, mon=12, day=31, hour=23, min=59, sec=59.
+ *
+ * [For the Julian calendar (which was used in Russia before 1917,
+ * Britain & colonies before 1752, anywhere else before 1582,
+ * and is still in use by some communities) leave out the
+ * -year/100+year/400 terms, and add 10.]
+ *
+ * This algorithm was first published by Gauss (I think).
+ *
+ * A leap second can be indicated by calling this function with sec as
+ * 60 (allowable under ISO 8601).  The leap second is treated the same
+ * as the following second since they don't exist in UNIX time.
+ *
+ * An encoding of midnight at the end of the day as 24:00:00 - ie. midnight
+ * tomorrow - (allowable under ISO 8601) is supported.
+ */
+int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
+		const unsigned int day, const unsigned int hour,
+		const unsigned int min, const unsigned int sec)
+{
+	unsigned int mon = mon0, year = year0;
 
+	/* 1..12 -> 11,12,1..10 */
+	if (0 >= (int) (mon -= 2)) {
+		mon += 12;	/* Puts Feb last since it has leap day */
+		year -= 1;
+	}
+
+  int64_t res = (((((int64_t) (year/4 - year/100 + year/400 + 367*mon/12 + day) +
+		  year*365 - 719499)*24 + hour)*60 + min)*60 + sec);
+
+	return (res + timezone);
+}
 // ==== mktime() kernel code =================//
 static int64_t m_deltaUtc = 0;
 void deltaToUtcInitOnce() {  
@@ -293,7 +329,8 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
 
   /* mktime will be affected by TZ, set by using taos_options */
   //int64_t seconds = mktime(&tm);
-  int64_t seconds = (int64_t)user_mktime(&tm);
+  //int64_t seconds = (int64_t)user_mktime(&tm);
+  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
   
   int64_t fraction = 0;
 
