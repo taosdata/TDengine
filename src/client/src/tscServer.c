@@ -901,7 +901,7 @@ int tscLaunchSTableSubqueries(SSqlObj *pSql) {
 
   tExtMemBuffer **  pMemoryBuf = NULL;
   tOrderDescriptor *pDesc = NULL;
-  tColModel *       pModel = NULL;
+  SColumnModel *       pModel = NULL;
 
   pRes->qhandle = 1;  // hack the qhandle check
 
@@ -1181,7 +1181,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     tscTrace("%p sub:%p retrieve numOfRows:%d totalNumOfRows:%d from ip:%u,vid:%d,orderOfSub:%d", pPObj, pSql,
              pRes->numOfRows, pState->numOfRetrievedRows, pSvd->ip, pSvd->vnode, idx);
     
-    if (num > tsMaxNumOfOrderedResults) {
+    if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
       tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId64 " , current:%" PRId64,
           pPObj, pSql, tsMaxNumOfOrderedResults, num);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_SORTED_RES_TOO_MANY);
@@ -1194,7 +1194,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     SSrcColumnInfo colInfo[256] = {0};
 
     tscGetSrcColumnInfo(colInfo, pQueryInfo);
-    tColModelDisplayEx(pDesc->pSchema, pRes->data, pRes->numOfRows, pRes->numOfRows, colInfo);
+    tColModelDisplayEx(pDesc->pColumnModel, pRes->data, pRes->numOfRows, pRes->numOfRows, colInfo);
 #endif
     if (tsTotalTmpDirGB != 0 && tsAvailTmpDirGB < tsMinimalTmpDirGB) {
       tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query", pPObj, pSql,
@@ -1202,6 +1202,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
       return;
     }
+    
     int32_t ret = saveToBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer, pRes->data,
                                pRes->numOfRows, pQueryInfo->groupbyExpr.orderType);
     if (ret < 0) {
@@ -1214,17 +1215,17 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
 
   } else {  // all data has been retrieved to client
     /* data in from current vnode is stored in cache and disk */
-    uint32_t numOfRowsFromVnode = trsupport->pExtMemBuffer[idx]->numOfAllElems + trsupport->localBuffer->numOfElems;
+    uint32_t numOfRowsFromVnode = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->numOfElems;
     tscTrace("%p sub:%p all data retrieved from ip:%u,vid:%d, numOfRows:%d, orderOfSub:%d", pPObj, pSql, pSvd->ip,
              pSvd->vnode, numOfRowsFromVnode, idx);
 
-    tColModelCompact(pDesc->pSchema, trsupport->localBuffer, pDesc->pSchema->maxCapacity);
+    tColModelCompact(pDesc->pColumnModel, trsupport->localBuffer, pDesc->pColumnModel->capacity);
 
 #ifdef _DEBUG_VIEW
     printf("%" PRIu64 " rows data flushed to disk:\n", trsupport->localBuffer->numOfElems);
     SSrcColumnInfo colInfo[256] = {0};
     tscGetSrcColumnInfo(colInfo, pQueryInfo);
-    tColModelDisplayEx(pDesc->pSchema, trsupport->localBuffer->data, trsupport->localBuffer->numOfElems,
+    tColModelDisplayEx(pDesc->pColumnModel, trsupport->localBuffer->data, trsupport->localBuffer->numOfElems,
                        trsupport->localBuffer->numOfElems, colInfo);
 #endif
     
@@ -1256,7 +1257,7 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
     }
 
     // all sub-queries are returned, start to local merge process
-    pDesc->pSchema->maxCapacity = trsupport->pExtMemBuffer[idx]->numOfElemsPerPage;
+    pDesc->pColumnModel->capacity = trsupport->pExtMemBuffer[idx]->numOfElemsPerPage;
 
     tscTrace("%p retrieve from %d vnodes completed.final NumOfRows:%d,start to build loser tree", pPObj,
              pState->numOfTotal, pState->numOfRetrievedRows);
@@ -1516,7 +1517,7 @@ void tscUpdateVnodeInQueryMsg(SSqlObj *pSql, char *buf) {
   char *          pStart = buf + tsRpcHeadSize;
   SQueryMeterMsg *pQueryMsg = (SQueryMeterMsg *)pStart;
 
-  if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {  // pSchema == NULL, query on meter
+  if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {  // pColumnModel == NULL, query on meter
     SMeterMeta *pMeterMeta = pMeterMetaInfo->pMeterMeta;
     pQueryMsg->vnode = htons(pMeterMeta->vpeerDesc[pSql->index].vnode);
   } else {  // query on metric

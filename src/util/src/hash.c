@@ -346,6 +346,14 @@ static void doAddToHashTable(HashObj *pObj, SHashNode *pNode) {
 //  pTrace("key:%s %p add to hash table", key, pNode);
 }
 
+int32_t taosNumElemsInHashTable(HashObj *pObj) {
+  if (pObj == NULL) {
+    return 0;
+  }
+  
+  return pObj->size;
+}
+
 /**
  * add data node into hash table
  * @param pObj    hash object
@@ -392,7 +400,7 @@ int32_t taosAddToHashTable(HashObj *pObj, const char *key, uint32_t keyLen, void
   return 0;
 }
 
-char *taosGetDataFromHash(HashObj *pObj, const char *key, uint32_t keyLen) {
+char *taosGetDataFromHashTable(HashObj *pObj, const char *key, uint32_t keyLen) {
   if (pObj->multithreadSafe) {
     __rd_lock(&pObj->lock);
   }

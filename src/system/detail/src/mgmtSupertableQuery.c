@@ -70,7 +70,7 @@ static int32_t tabObjResultComparator(const void* p1, const void* p2, void* para
   STabObj* pNode1 = (STabObj*)p1;
   STabObj* pNode2 = (STabObj*)p2;
 
-  for (int32_t i = 0; i < pOrderDesc->orderIdx.numOfOrderedCols; ++i) {
+  for (int32_t i = 0; i < pOrderDesc->orderIdx.numOfCols; ++i) {
     int32_t colIdx = pOrderDesc->orderIdx.pData[i];
 
     char* f1 = NULL;
@@ -86,7 +86,9 @@ static int32_t tabObjResultComparator(const void* p1, const void* p2, void* para
     } else {
       f1 = mgmtMeterGetTag(pNode1, colIdx, NULL);
       f2 = mgmtMeterGetTag(pNode2, colIdx, &schema);
-      assert(schema.type == pOrderDesc->pTagSchema->pSchema[colIdx].type);
+      
+      SSchema* pSchema = getColumnModelSchema(pOrderDesc->pColumnModel, colIdx);
+      assert(schema.type == pSchema->type);
     }
 
     int32_t ret = doCompare(f1, f2, schema.type, schema.bytes);
@@ -109,7 +111,7 @@ static int32_t tabObjResultComparator(const void* p1, const void* p2, void* para
  * @param pOrderIndexInfo
  * @param numOfTags
  */
-static void mgmtUpdateOrderTagColIndex(SMetricMetaMsg* pMetricMetaMsg, int32_t tableIndex, tOrderIdx* pOrderIndexInfo,
+static void mgmtUpdateOrderTagColIndex(SMetricMetaMsg* pMetricMetaMsg, int32_t tableIndex, SColumnOrderInfo* pOrderIndexInfo,
      int32_t numOfTags) {
   SMetricMetaElemMsg* pElem = (SMetricMetaElemMsg*)((char*)pMetricMetaMsg + pMetricMetaMsg->metaElem[tableIndex]);
   SColIndexEx* groupColumnList = (SColIndexEx*)((char*)pMetricMetaMsg + pElem->groupbyTagColumnList);
@@ -123,7 +125,7 @@ static void mgmtUpdateOrderTagColIndex(SMetricMetaMsg* pMetricMetaMsg, int32_t t
     }
   }
   
-  pOrderIndexInfo->numOfOrderedCols = numOfGroupbyTags;
+  pOrderIndexInfo->numOfCols = numOfGroupbyTags;
 }
 
 // todo merge sort function with losertree used
@@ -143,14 +145,14 @@ void mgmtReorganizeMetersInMetricMeta(SMetricMetaMsg* pMetricMetaMsg, int32_t ta
    */
   tOrderDescriptor* descriptor =
       (tOrderDescriptor*)calloc(1, sizeof(tOrderDescriptor) + sizeof(int32_t) * pElem->numOfGroupCols);
-  descriptor->pTagSchema = tCreateTagSchema(pTagSchema, pMetric->numOfTags);
-  descriptor->orderIdx.numOfOrderedCols = pElem->numOfGroupCols;
+  descriptor->pColumnModel = createColumnModel(pTagSchema, pMetric->numOfTags, 1);
+  descriptor->orderIdx.numOfCols = pElem->numOfGroupCols;
 
   int32_t* startPos = NULL;
   int32_t  numOfSubset = 1;
   
   mgmtUpdateOrderTagColIndex(pMetricMetaMsg, tableIndex, &descriptor->orderIdx, pMetric->numOfTags);
-  if (descriptor->orderIdx.numOfOrderedCols > 0) {
+  if (descriptor->orderIdx.numOfCols > 0) {
     tQSortEx(pRes->pRes, POINTER_BYTES, 0, pRes->num - 1, descriptor, tabObjResultComparator);
     startPos = calculateSubGroup(pRes->pRes, pRes->num, &numOfSubset, descriptor, tabObjResultComparator);
   } else {
@@ -166,7 +168,7 @@ void mgmtReorganizeMetersInMetricMeta(SMetricMetaMsg* pMetricMetaMsg, int32_t ta
    */
   qsort(pRes->pRes, (size_t)pRes->num, POINTER_BYTES, tabObjVGIDComparator);
 
-  free(descriptor->pTagSchema);
+  free(descriptor->pColumnModel);
   free(descriptor);
   free(startPos);
 }
@@ -291,15 +293,15 @@ static void orderResult(SMetricMetaMsg* pMetricMetaMsg, tQueryResultset* pRes, i
   STabObj* pMetric = mgmtGetMeter(pElem->meterId);
   SSchema* pTagSchema = (SSchema*)(pMetric->schema + pMetric->numOfColumns * sizeof(SSchema));
 
-  descriptor->pTagSchema = tCreateTagSchema(pTagSchema, pMetric->numOfTags);
+  descriptor->pColumnModel = createColumnModel(pTagSchema, pMetric->numOfTags, 1);
 
   descriptor->orderIdx.pData[0] = colIndex;
-  descriptor->orderIdx.numOfOrderedCols = 1;
+  descriptor->orderIdx.numOfCols = 1;
 
   // sort results list
   tQSortEx(pRes->pRes, POINTER_BYTES, 0, pRes->num - 1, descriptor, tabObjResultComparator);
 
-  free(descriptor->pTagSchema);
+  free(descriptor->pColumnModel);
   free(descriptor);
 }
 

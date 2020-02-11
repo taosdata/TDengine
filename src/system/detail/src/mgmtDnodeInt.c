@@ -210,7 +210,7 @@ char *mgmtBuildCreateMeterIe(STabObj *pMeter, char *pMsg, int vnode) {
 
   for (int i = 0; i < pMeter->numOfColumns; ++i) {
     pCreateMeter->schema[i].type = pSchema[i].type;
-    /* strcpy(pCreateMeter->schema[i].name, pSchema[i].name); */
+    /* strcpy(pCreateMeter->schema[i].name, pColumnModel[i].name); */
     pCreateMeter->schema[i].bytes = htons(pSchema[i].bytes);
     pCreateMeter->schema[i].colId = htons(pSchema[i].colId);
   }

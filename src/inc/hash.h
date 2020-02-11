@@ -43,10 +43,10 @@ typedef struct SHashEntry {
 
 typedef struct HashObj {
   SHashEntry **hashList;
-  uint32_t     capacity;
-  int          size;
-  _hash_fn_t   hashFp;
-  bool         multithreadSafe;  // enable lock
+  uint32_t     capacity;         // number of slots
+  int          size;             // number of elements in hash table
+  _hash_fn_t   hashFp;           // hash function
+  bool         multithreadSafe;  // enable lock or not
 
 #if defined LINUX
   pthread_rwlock_t lock;
@@ -57,11 +57,13 @@ typedef struct HashObj {
 } HashObj;
 
 void *taosInitHashTable(uint32_t capacity, _hash_fn_t fn, bool multithreadSafe);
+void  taosDeleteFromHashTable(HashObj *pObj, const char *key, uint32_t keyLen);
 
 int32_t taosAddToHashTable(HashObj *pObj, const char *key, uint32_t keyLen, void *data, uint32_t size);
-void    taosDeleteFromHashTable(HashObj *pObj, const char *key, uint32_t keyLen);
+int32_t taosNumElemsInHashTable(HashObj *pObj);
 
-char *taosGetDataFromHash(HashObj *pObj, const char *key, uint32_t keyLen);
+char *taosGetDataFromHashTable(HashObj *pObj, const char *key, uint32_t keyLen);
+
 
 void taosCleanUpHashTable(void *handle);
 

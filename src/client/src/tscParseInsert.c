@@ -321,7 +321,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SSQLToken *pToken, char *payload,
       if (pToken->type == TK_NULL) {
         *(uint32_t *)payload = TSDB_DATA_NCHAR_NULL;
       } else {
-        // if the converted output len is over than pSchema->bytes, return error: 'Argument list too long'
+        // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
         if (!taosMbsToUcs4(pToken->z, pToken->n, payload, pSchema->bytes)) {
           char buf[512] = {0};
           snprintf(buf, 512, "%s", strerror(errno));

@@ -27,6 +27,7 @@
 #include "ttime.h"
 #include "ttypes.h"
 #include "tutil.h"
+#include "tpercentile.h"
 
 #define GET_INPUT_CHAR(x) (((char *)((x)->aInputElemBuf)) + ((x)->startOffset) * ((x)->inputBytes))
 #define GET_INPUT_CHAR_INDEX(x, y) (GET_INPUT_CHAR(x) + (y) * (x)->inputBytes)
@@ -220,7 +221,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     } else if (functionId == TSDB_FUNC_TWA) {
       *type = TSDB_DATA_TYPE_DOUBLE;
       *bytes = sizeof(STwaInfo);
-      *intermediateResBytes = sizeof(STwaInfo);
+      *intermediateResBytes = *bytes;
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -271,7 +272,6 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_PERCT) {
     *type = (int16_t)TSDB_DATA_TYPE_DOUBLE;
     *bytes = (int16_t)sizeof(double);
-    //*intermediateResBytes = POINTER_BYTES;
     *intermediateResBytes = (int16_t)sizeof(double);
   } else if (functionId == TSDB_FUNC_LEASTSQR) {
     *type = TSDB_DATA_TYPE_BINARY;
@@ -1878,7 +1878,8 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
   tVariantCreateFromBinary(&val, pData, tDataTypeDesc[type].nSize, type);
 
   tValuePair **pList = pInfo->res;
-
+  assert(pList != NULL);
+  
   if (pInfo->num < maxLen) {
     if (pInfo->num == 0 ||
         ((type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) &&
@@ -2416,7 +2417,7 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
   SSchema      field[1] = {{pCtx->inputType, "dummyCol", 0, pCtx->inputBytes}};
 
-  tColModel *pModel = tColModelCreate(field, 1, 1000);
+  SColumnModel *pModel = createColumnModel(field, 1, 1000);
   int32_t    orderIdx = 0;
 
   // tOrderDesc object

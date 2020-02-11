@@ -274,7 +274,7 @@ int tSQLKeywordCode(const char* z, int n) {
     }
   }
 
-  SKeyword** pKey = (SKeyword**)taosGetDataFromHash(KeywordHashTable, key, n);
+  SKeyword** pKey = (SKeyword**)taosGetDataFromHashTable(KeywordHashTable, key, n);
   if (pKey != NULL) {
     return (*pKey)->type;
   } else {
