@@ -60,7 +60,7 @@ int mgmtInitSystem() {
   }
 }
 
-int mgmtStartCheckMgmtRunning() {
+int mgmtCheckMgmtRunning() {
 
   if (tsModuleStatus & (1 << TSDB_MOD_MGMT)) {
     return -1;

@@ -29,7 +29,6 @@ void *     dnodeHash;
 void *     dnodeIdPool;
 uint32_t   tsPrivateIp4;
 
-void *mgmtProcessMsgFromDnodeSpec(char *msg, void *ahandle, void *thandle);
 int   mgmtSendVPeersMsg(SVgObj *pVgroup);
 char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode);
 char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int vnode);
@@ -45,14 +44,6 @@ char *taosBuildRspMsgToDnodeWithSize(SDnodeObj *pObj, char type, int size) {
 
 char *taosBuildReqMsgToDnodeWithSize(SDnodeObj *pObj, char type, int size) {
   return taosBuildReqMsgWithSize(pObj->thandle, type, size);
-}
-
-char *taosBuildRspMsgToDnode(SDnodeObj *pObj, char type) {
-  return taosBuildRspMsgToDnodeWithSize(pObj, type, 256);
-}
-
-char *taosBuildReqMsgToDnode(SDnodeObj *pObj, char type) {
-  return taosBuildReqMsgToDnodeWithSize(pObj, type, 256);
 }
 
 int taosSendSimpleRspToDnode(SDnodeObj *pObj, char rsptype, char code) {

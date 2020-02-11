@@ -28,7 +28,6 @@ void mnodeBalanceInit();
 
 int  mgmtSetDnodeShellRemoving(SDnodeObj *pDnode);
 void mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
-void mgmtSetDnodeOfflineOnSdbChanged();
 
 
 
@@ -45,8 +44,6 @@ float mgmtTryCalcDnodeScore(SDnodeObj *pDnode, int extraVnode);
 bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode);
 
 bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode);
-
-bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType);
 
 void mgmtMonitorDnodeModule();
 
