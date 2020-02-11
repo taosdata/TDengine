@@ -15,15 +15,19 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
-#include "mnode.h"
+#include "mgmtDnode.h"
+#include "mgmtDb.h"
+#include "mgmtAcct.h"
 #include "mgmtGrant.h"
 #include "mgmtBalance.h"
+#include "mgmtDnodeInt.h"
 #include "mgmtUtil.h"
 #include "tschemautil.h"
-#include "vnodeStatus.h"
+#include "tstatus.h"
+#include "mnode.h"
 
 void *dbSdb = NULL;
+extern void *vgSdb;
 int   tsDbUpdateSize;
 
 void *(*mgmtDbActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
@@ -37,8 +41,6 @@ void *mgmtDbActionBatchUpdate(void *row, char *str, int size, int *ssize);
 void *mgmtDbActionAfterBatchUpdate(void *row, char *str, int size, int *ssize);
 void *mgmtDbActionReset(void *row, char *str, int size, int *ssize);
 void *mgmtDbActionDestroy(void *row, char *str, int size, int *ssize);
-
-int mgmtCheckDbLimit(SAcctObj *pAcct);
 
 void mgmtDbActionInit() {
   mgmtDbActionFp[SDB_TYPE_INSERT] = mgmtDbActionInsert;

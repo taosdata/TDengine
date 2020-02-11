@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "mnode.h"
+#include "mgmtConn.h"
 #include "taosmsg.h"
 #include "tschemautil.h"
 

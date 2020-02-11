@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_PROFILE_H
-#define TDENGINE_MGMT_PROFILE_H
+#ifndef TDENGINE_MGMT_DB_H
+#define TDENGINE_MGMT_DB_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,21 +22,13 @@ extern "C" {
 
 #include "mnode.h"
 
-int mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-
-int mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-
-int mgmtRetrieveQueries(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-
-int mgmtRetrieveStreams(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-
-int mgmtSaveQueryStreamList(char *cont, int contLen, SConnObj *pConn);
-
-int mgmtKillQuery(char *qidstr, SConnObj *pConn);
-
-int mgmtKillStream(char *qidstr, SConnObj *pConn);
-
-int mgmtKillConnection(char *qidstr, SConnObj *pConn);
+int mgmtInitDbs();
+int mgmtUpdateDb(SDbObj *pDb);
+SDbObj *mgmtGetDb(char *db);
+SDbObj *mgmtGetDbByMeterId(char *db);
+int mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate);
+int mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
+int mgmtDropDb(SDbObj *pDb);
 
 #ifdef __cplusplus
 }

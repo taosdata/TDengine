@@ -16,6 +16,10 @@
 #ifndef TBASE_MNODE_UTIL_H
 #define TBASE_MNODE_UTIL_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -28,5 +32,9 @@ char*   mgmtTableGetTag(STabObj* pTable, int32_t col, SSchema* pTagColSchema);
 int32_t mgmtGetTagsLength(STabObj* pSuperTable, int32_t col);
 bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
 int32_t mgmtCheckDBParams(SCreateDbMsg *pCreate);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

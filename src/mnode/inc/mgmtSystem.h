@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMTSYSTEM_H
-#define TDENGINE_MGMTSYSTEM_H
+#ifndef TDENGINE_MGMT_SYSTEM_H
+#define TDENGINE_MGMT_SYSTEM_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,4 +49,4 @@ void mgmtCleanUpSystem();
 }
 #endif
 
-#endif  // TDENGINE_MGMTSYSTEM_H
+#endif

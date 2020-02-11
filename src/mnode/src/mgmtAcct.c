@@ -160,8 +160,8 @@ int32_t mgmtCheckDbLimitImp(SAcctObj *pAcct) {
 }
 int32_t (*mgmtCheckDbLimit)(SAcctObj *pAcct) = mgmtCheckDbLimitImp;
 
-int32_t mgmtCheckTableLimitImp(SAcctObj *pAcct) { return 0; }
-int32_t (*mgmtCheckTableLimit)(SAcctObj *pAcct) = mgmtCheckTableLimitImp;
+int32_t mgmtCheckTableLimitImp(SAcctObj *pAcct, SCreateTableMsg *pCreate) { return 0; }
+int32_t (*mgmtCheckTableLimit)(SAcctObj *pAcct, SCreateTableMsg *pCreate) = mgmtCheckTableLimitImp;
 
 void mgmtCheckAcctImp() {
   SAcctObj *pAcct = &acctObj;

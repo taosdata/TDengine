@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "mnode.h"
+#include "tast.h"
 
 int32_t mgmtRetrieveMetersFromSuperTable(SSuperTableMetaMsg* pInfo, int32_t tableIndex, tQueryResultset* pRes);
 int32_t mgmtDoJoin(SSuperTableMetaMsg* pSuperTableMetaMsg, tQueryResultset* pRes);

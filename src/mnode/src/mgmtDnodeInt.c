@@ -16,25 +16,24 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#include "dnodeSystem.h"
 #include "mnode.h"
+#include "dnode.h"
+#include "mgmtDnodeInt.h"
 #include "mgmtBalance.h"
+#include "mgmtDnode.h"
+#include "mgmtDb.h"
 #include "tutil.h"
+#include "tstatus.h"
+#include "tsystem.h"
+#include "tsched.h"
+
+#include "dnodeSystem.h"
 
 void  mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *pObj);
 int   mgmtSendVPeersMsg(SVgObj *pVgroup);
 char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode);
 char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int vnode);
 
-/*
- * functions for communicate between dnode and mnode
- */
-char *taosBuildRspMsgToDnodeWithSize(SDnodeObj *pObj, char type, int size);
-char *taosBuildReqMsgToDnodeWithSize(SDnodeObj *pObj, char type, int size);
-char *taosBuildRspMsgToDnode(SDnodeObj *pObj, char type);
-char *taosBuildReqMsgToDnode(SDnodeObj *pObj, char type);
-int   taosSendSimpleRspToDnode(SDnodeObj *pObj, char rsptype, char code);
-int   taosSendMsgToDnode(SDnodeObj *pObj, char *msg, int msgLen);
 
 int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   char *        pMsg, *pStart;
@@ -502,3 +501,142 @@ int mgmtSendCfgDnodeMsg(char *cont) {
 #endif
   return 0;
 }
+
+
+/*
+ * functions for communicate between dnode and mnode
+ */
+
+extern void *dmQhandle;
+void * mgmtStatusTimer = NULL;
+void   mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *pObj);
+
+
+char* taosBuildRspMsgToDnodeWithSizeImp(SDnodeObj *pObj, char type, int32_t size) {
+  char *pStart = (char *)malloc(size);
+  if (pStart == NULL) {
+    return NULL;
+  }
+
+  *pStart = type;
+  return pStart + 1;
+}
+char* (*taosBuildRspMsgToDnodeWithSize)(SDnodeObj *pObj, char type, int32_t size) = taosBuildRspMsgToDnodeWithSizeImp;
+
+char* taosBuildReqMsgToDnodeWithSizeImp(SDnodeObj *pObj, char type, int32_t size) {
+  char *pStart = (char *)malloc(size);
+  if (pStart == NULL) {
+    return NULL;
+  }
+
+  *pStart = type;
+  return pStart + 1;
+}
+char* (*taosBuildReqMsgToDnodeWithSize)(SDnodeObj *pObj, char type, int32_t size) = taosBuildReqMsgToDnodeWithSizeImp;
+
+char *taosBuildRspMsgToDnode(SDnodeObj *pObj, char type) {
+  return taosBuildRspMsgToDnodeWithSize(pObj, type, 256);
+}
+
+char *taosBuildReqMsgToDnode(SDnodeObj *pObj, char type) {
+  return taosBuildReqMsgToDnodeWithSize(pObj, type, 256);
+}
+
+int32_t taosSendSimpleRspToDnodeImp(SDnodeObj *pObj, char rsptype, char code) { return 0; }
+int32_t (*taosSendSimpleRspToDnode)(SDnodeObj *pObj, char rsptype, char code) = taosSendSimpleRspToDnodeImp;
+
+int32_t taosSendMsgToDnodeImp(SDnodeObj *pObj, char *msg, int32_t msgLen) {
+  mTrace("msg:%s is sent to dnode", taosMsg[(uint8_t)(*(msg-1))]);
+
+  /*
+   * Lite version has no message header, so minus one
+   */
+  SSchedMsg schedMsg;
+  schedMsg.fp = dnodeProcessMsgFromMgmtImp;
+  schedMsg.msg = msg - 1;
+  schedMsg.ahandle = NULL;
+  schedMsg.thandle = NULL;
+  taosScheduleTask(dmQhandle, &schedMsg);
+
+  return 0;
+}
+int32_t (*taosSendMsgToDnode)(SDnodeObj *pObj, char *msg, int msgLen) = taosSendMsgToDnodeImp;
+
+
+int32_t mgmtInitDnodeIntImp() { return 0; }
+int32_t (*mgmtInitDnodeInt)() = mgmtInitDnodeIntImp;
+
+void mgmtCleanUpDnodeIntImp() {}
+void (*mgmtCleanUpDnodeInt)() = mgmtCleanUpDnodeIntImp;
+
+void mgmtProcessDnodeStatusImp(void *handle, void *tmrId) {
+/*
+  SDnodeObj *pObj = &dnodeObj;
+  pObj->openVnodes = tsOpenVnodes;
+  pObj->status = TSDB_DN_STATUS_READY;
+
+  float memoryUsedMB = 0;
+  taosGetSysMemory(&memoryUsedMB);
+  pObj->diskAvailable = tsAvailDataDirGB;
+
+  for (int vnode = 0; vnode < pObj->numOfVnodes; ++vnode) {
+    SVnodeLoad *pVload = &(pObj->vload[vnode]);
+    SVnodeObj * pVnode = vnodeList + vnode;
+
+    // wait vnode dropped
+    if (pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
+      if (vnodeList[vnode].cfg.maxSessions <= 0) {
+        pVload->dropStatus = TSDB_VN_DROP_STATUS_READY;
+        pVload->status = TSDB_VN_STATUS_OFFLINE;
+        mPrint("dnode:%s, vid:%d, drop finished", taosIpStr(pObj->privateIp), vnode);
+        taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, mgmtTmr);
+      }
+    }
+
+    if (vnodeList[vnode].cfg.maxSessions <= 0) {
+      continue;
+    }
+
+    pVload->vnode = vnode;
+    pVload->status = TSDB_VN_STATUS_MASTER;
+    pVload->totalStorage = pVnode->vnodeStatistic.totalStorage;
+    pVload->compStorage = pVnode->vnodeStatistic.compStorage;
+    pVload->pointsWritten = pVnode->vnodeStatistic.pointsWritten;
+    uint32_t vgId = pVnode->cfg.vgId;
+
+    SVgObj *pVgroup = mgmtGetVgroup(vgId);
+    if (pVgroup == NULL) {
+      mError("vgroup:%d is not there, but associated with vnode %d", vgId, vnode);
+      pVload->dropStatus = TSDB_VN_DROP_STATUS_DROPPING;
+      continue;
+    }
+
+    SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
+    if (pDb == NULL) {
+      mError("vgroup:%d not belongs to any database, vnode:%d", vgId, vnode);
+      continue;
+    }
+
+    if (pVload->vgId == 0 || pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
+      mError("vid:%d, mgmt not exist, drop it", vnode);
+      pVload->dropStatus = TSDB_VN_DROP_STATUS_DROPPING;
+    }
+  }
+
+  taosTmrReset(mgmtProcessDnodeStatus, tsStatusInterval * 1000, NULL, mgmtTmr, &mgmtStatusTimer);
+  if (mgmtStatusTimer == NULL) {
+    mError("Failed to start status timer");
+  }
+*/
+}
+void (*mgmtProcessDnodeStatus)(void *handle, void *tmrId) = mgmtProcessDnodeStatusImp;
+
+void mgmtProcessMsgFromDnodeSpecImp(SSchedMsg *sched) {
+  char  msgType = *sched->msg;
+  char *content = sched->msg + 1;
+  mTrace("msg:%s is received from dnode", taosMsg[(uint8_t)msgType]);
+
+  mgmtProcessMsgFromDnode(content, 0, msgType, mgmtGetDnode(0));
+  free(sched->msg);
+}
+void (*mgmtProcessMsgFromDnodeSpec)(SSchedMsg *sched) = mgmtProcessMsgFromDnodeSpecImp;

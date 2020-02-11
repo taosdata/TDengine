@@ -54,6 +54,9 @@ extern void (*dnodeCleanupStorage)();
 
 void dnodeCheckDbRunning(const char* dir);
 
+
+void dnodeProcessMsgFromMgmtImp(SSchedMsg *sched);
+
 #ifdef __cplusplus
 }
 #endif

@@ -17,9 +17,13 @@
 #include "os.h"
 
 #include "mnode.h"
+#include "mgmtBalance.h"
+#include "mgmtDb.h"
+#include "mgmtDnode.h"
+#include "mgmtDnodeInt.h"
 #include "tschemautil.h"
 #include "tlog.h"
-#include "vnodeStatus.h"
+#include "tstatus.h"
 
 void *       vgSdb = NULL;
 int          tsVgUpdateSize;
@@ -39,8 +43,6 @@ void *mgmtVgroupActionBatchUpdate(void *row, char *str, int size, int *ssize);
 void *mgmtVgroupActionAfterBatchUpdate(void *row, char *str, int size, int *ssize);
 void *mgmtVgroupActionReset(void *row, char *str, int size, int *ssize);
 void *mgmtVgroupActionDestroy(void *row, char *str, int size, int *ssize);
-bool mgmtCheckVnodeReady(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode);
-char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode);
 
 void mgmtVgroupActionInit() {
   mgmtVgroupActionFp[SDB_TYPE_INSERT] = mgmtVgroupActionInsert;

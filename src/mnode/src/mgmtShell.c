@@ -18,13 +18,27 @@
 
 #include "dnodeSystem.h"
 #include "mnode.h"
+#include "mgmtAcct.h"
+#include "mgmtBalance.h"
+#include "mgmtConn.h"
+#include "mgmtDb.h"
+#include "mgmtDnode.h"
 #include "mgmtGrant.h"
 #include "mgmtProfile.h"
+#include "mgmtTable.h"
+#include "mgmtUtil.h"
 #include "taosmsg.h"
 #include "tlog.h"
-#include "vnodeStatus.h"
+#include "tstatus.h"
 
 #define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
+
+typedef int32_t (*GetMateFp)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+typedef int32_t (*RetrieveMetaFp)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
+static GetMateFp* mgmtGetMetaFp;
+static RetrieveMetaFp* mgmtRetrieveFp;
+static void mgmtInitShowMsgFp();
+
 
 void *    pShellConn = NULL;
 SConnObj *connList;
@@ -61,6 +75,7 @@ int mgmtInitShell() {
   SRpcInit rpcInit;
 
   mgmtInitProcessShellMsg();
+  mgmtInitShowMsgFp();
 
   int size = sizeof(SConnObj) * tsMaxShellConns;
   connList = (SConnObj *)malloc(size);
@@ -879,19 +894,43 @@ int mgmtProcessUseDbMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int (*mgmtGetMetaFp[])(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = {
-    mgmtGetAcctMeta,   mgmtGetUserMeta,   mgmtGetDbMeta,     mgmtGetTableMeta,  mgmtGetDnodeMeta,
-    mgmtGetMnodeMeta,  mgmtGetVgroupMeta, mgmtGetMetricMeta, mgmtGetModuleMeta, mgmtGetQueryMeta,
-    mgmtGetStreamMeta, mgmtGetConfigMeta, mgmtGetConnsMeta,  mgmtGetScoresMeta, grantGetGrantsMeta,
-    mgmtGetVnodeMeta,
-};
+static void mgmtInitShowMsgFp() {
+  mgmtGetMetaFp = (GetMateFp *)malloc(TSDB_MGMT_TABLE_MAX * sizeof(GetMateFp));
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_ACCT] = mgmtGetAcctMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_USER] = mgmtGetUserMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_DB] = mgmtGetDbMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_TABLE] = mgmtGetTableMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_DNODE] = mgmtGetDnodeMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_MNODE] = mgmtGetMnodeMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_VGROUP] = mgmtGetVgroupMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_METRIC] = mgmtGetMetricMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_MODULE] = mgmtGetModuleMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_QUERIES] = mgmtGetQueryMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_STREAMS] = mgmtGetStreamMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_CONFIGS] = mgmtGetConfigMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_CONNS] = mgmtGetConnsMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_SCORES] = mgmtGetScoresMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_GRANTS] = mgmtGetGrantsMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_VNODES] = mgmtGetVnodeMeta;
 
-int (*mgmtRetrieveFp[])(SShowObj *pShow, char *data, int rows, SConnObj *pConn) = {
-    mgmtRetrieveAccts,   mgmtRetrieveUsers,   mgmtRetrieveDbs,     mgmtRetrieveMeters,  mgmtRetrieveDnodes,
-    mgmtRetrieveMnodes,  mgmtRetrieveVgroups, mgmtRetrieveMetrics, mgmtRetrieveModules, mgmtRetrieveQueries,
-    mgmtRetrieveStreams, mgmtRetrieveConfigs, mgmtRetrieveConns,   mgmtRetrieveScores,  grantRetrieveGrants,
-    mgmtRetrieveVnodes,
-};
+  mgmtRetrieveFp = (RetrieveMetaFp *)malloc(TSDB_MGMT_TABLE_MAX * sizeof(RetrieveMetaFp));
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_ACCT] = mgmtRetrieveAccts;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_USER] = mgmtRetrieveUsers;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_DB] = mgmtRetrieveDbs;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_TABLE] = mgmtRetrieveMeters;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_DNODE] = mgmtRetrieveDnodes;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_MNODE] = mgmtRetrieveMnodes;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_VGROUP] = mgmtRetrieveVgroups;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_METRIC] = mgmtRetrieveMetrics;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_MODULE] = mgmtRetrieveModules;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_QUERIES] = mgmtRetrieveQueries;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_STREAMS] = mgmtRetrieveStreams;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_CONFIGS] = mgmtRetrieveConfigs;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_CONNS] = mgmtRetrieveConns;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_SCORES] = mgmtRetrieveScores;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_GRANTS] = mgmtRetrieveGrants;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_VNODES] = mgmtRetrieveVnodes;
+}
 
 int mgmtProcessShowMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   SShowMsg *   pShowMsg = (SShowMsg *)pMsg;

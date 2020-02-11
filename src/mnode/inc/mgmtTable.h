@@ -16,11 +16,19 @@
 #ifndef TBASE_MNODE_TABLE_H
 #define TBASE_MNODE_TABLE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include "mnode.h"
 
 int32_t mgmtFindTagCol(STabObj * pTable, const char * tagName);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
