@@ -28,24 +28,25 @@ SET(CMAKE_VERBOSE_MAKEFILE ON)
 
 # Set macro definitions according to cluster version
 SET(TD_CLUSTER TRUE)
-SET(TD_LITE FALSE)
+SET(TD_EDGE FALSE)
+SET(TD_PAGMODE_LITE FALSE)
 
 #
-#   1.Generate lite version:
-#     mkdir lite; cd lite;
-#     cmake -DVERSION=lite ..
+#   1.Generate edge version:
+#     mkdir edge; cd edge;
+#     cmake -DVERSION=edge ..
 #   2.Generate cluster version:
 #     mkdir cluster; cd cluster;
 #     cmake -DVERSION=cluster ..
 #
-IF (${VERSION} MATCHES "lite")
-  MESSAGE(STATUS "Build the Lite Version")
+IF (${VERSION} MATCHES "edge")
+  MESSAGE(STATUS "Build the Edge Version")
   SET(TD_CLUSTER FALSE)
-  SET(TD_LITE TRUE)
+  SET(TD_EDGE TRUE)
 ELSEIF (${VERSION} MATCHES "cluster")
   MESSAGE(STATUS "Build the Cluster Version")
   SET(TD_CLUSTER TRUE)
-  SET(TD_LITE FALSE)
+  SET(TD_EDGE FALSE)
 ELSE ()
   MESSAGE(STATUS "No version option input, build the cluster version as default")
 ENDIF ()
