@@ -5,15 +5,20 @@
 set -e
 #set -x
 
-# releash.sh -v [cluster | lite]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta]
+# releash.sh  -v [cluster | edge]  
+#             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] 
+#             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  
+#             -V [stable | beta]
+#             -l [full | lite]
 
 # set parameters by default value
-verMode=lite     # [cluster, lite]
+verMode=edge     # [cluster, edge]
 verType=stable   # [stable, beta]
 cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]
+pagMode=full     # [full | lite]
 
-while getopts "hv:V:c:o:" arg
+while getopts "hv:V:c:o:l:" arg
 do
   case $arg in
     v)
@@ -28,12 +33,16 @@ do
       #echo "cpuType=$OPTARG"
       cpuType=$(echo $OPTARG)
       ;;
+    l)
+      #echo "pagMode=$OPTARG"
+      pagMode=$(echo $OPTARG)
+      ;;
     o)
       #echo "osType=$OPTARG"
       osType=$(echo $OPTARG)
       ;;
     h)
-      echo "Usage: `basename $0` -v [cluster | lite]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta]"
+      echo "Usage: `basename $0` -v [cluster | edge]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta] -l [full | lite]"
       exit 0
       ;;
     ?) #unknow option 
@@ -43,7 +52,7 @@ do
   esac
 done
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode}"
 
 curr_dir=$(pwd)
 
@@ -193,9 +202,9 @@ cd ${compile_dir}
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
     if [ "$verMode" != "cluster" ]; then
-        cmake ../ -DCPUTYPE=${cpuType}
+      cmake ../ -DCPUTYPE=${cpuType} -DPAGMODE=${pagMode}
     else
-	    cmake ../../ -DCPUTYPE=${cpuType}
+      cmake ../../ -DCPUTYPE=${cpuType}
     fi
 else
     echo "input cpuType=${cpuType} error!!!"
@@ -235,8 +244,8 @@ if [ "$osType" != "Darwin" ]; then
     echo "====do tar.gz package for all systems===="
     cd ${script_dir}/tools
     
-	${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
-	${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
+	${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+	${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
 else
     cd ${script_dir}/tools
     ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}

@@ -9,6 +9,7 @@ set -e
 # -----------------------Variables definition---------------------
 
 osType=Linux
+pagMode=full
 
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
@@ -180,7 +181,9 @@ function update_TDengine() {
     install_log
     install_header
     install_lib
-    install_connector
+    if [ "$pagMode" != "lite" ]; then
+      install_connector
+    fi
     install_examples
     install_bin
     install_config
@@ -205,7 +208,9 @@ function install_TDengine() {
     install_log
     install_header
     install_lib
-    install_connector
+    if [ "$pagMode" != "lite" ]; then
+      install_connector
+    fi
     install_examples
     install_bin
     install_config
