@@ -6,16 +6,36 @@
 #include "cache.h"
 #include "dlist.h"
 
+#define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16*1024*1024 /* 16M */
+
 typedef struct {
-  int64_t      blockId;
-  SCacheBlock *pBlock
+  int64_t skey;     // start key
+  int64_t ekey;     // end key
+  int32_t numOfRows // numOfRows
+} STableCacheInfo;
+
+typedef struct {
+  char *pData;
+  STableCacheInfo *pTableInfo;
+  SCacheBlock *prev;
+  SCacheBlock *next;
 } STSDBCacheBlock;
 
 // Use a doublely linked list to implement this
 typedef struct STSDBCache {
-  int64_t blockId;  // A block ID counter
+  // Number of blocks the cache is allocated
+  int32_t numOfBlocks;
   SDList *cacheList;
-} STSDBCache;
+  void *  current;
+} SCacheHandle;
+
+
+// ---- Operation on STSDBCacheBlock
+#define TSDB_CACHE_BLOCK_DATA(pBlock) ((pBlock)->pData)
+#define TSDB_CACHE_AVAIL_SPACE(pBlock) ((char *)((pBlock)->pTableInfo) - ((pBlock)->pData))
+#define TSDB_TABLE_INFO_OF_CACHE(pBlock, tableId) ((pBlock)->pTableInfo)[tableId]
+#define TSDB_NEXT_CACHE_BLOCK(pBlock) ((pBlock)->next)
+#define TSDB_PREV_CACHE_BLOCK(pBlock) ((pBlock)->prev)
 
 STSDBCache *tsdbCreateCache();
 
