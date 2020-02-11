@@ -13,9 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
+#ifndef TDENGINE_MGMT_USER_H
+#define TDENGINE_MGMT_USER_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+#include <stdbool.h>
 #include "mnode.h"
 
-int mgmtGetMnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int       mgmtInitUsers();
+SUserObj *mgmtGetUser(char *name);
+int       mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
+int       mgmtDropUser(SAcctObj *pAcct, char *name);
+int       mgmtUpdateUser(SUserObj *pUser);
+int       mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int       mgmtRetrieveUsers(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+void      mgmtCleanUpUsers();
 
-int mgmtRetrieveMnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }
+#ifdef __cplusplus
+}
+#endif
+
+#endif

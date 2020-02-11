@@ -25,7 +25,26 @@ extern "C" {
 #include <stdint.h>
 #include "mnode.h"
 
+int      mgmtInitMeters();
+STabObj *mgmtGetTable(char *meterId);
+STabObj *mgmtGetTableInfo(char *src, char *tags[]);
+int      mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SSuperTableMetaMsg *pInfo);
+int      mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate);
+int      mgmtDropMeter(SDbObj *pDb, char *meterId, int ignore);
+int      mgmtAlterMeter(SDbObj *pDb, SAlterTableMsg *pAlter);
+int      mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int      mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+void     mgmtCleanUpMeters();
+SSchema *mgmtGetTableSchema(STabObj *pTable);  // get schema for a meter
+
 int32_t mgmtFindTagCol(STabObj * pTable, const char * tagName);
+
+int mgmtAddMeterIntoMetric(STabObj *pMetric, STabObj *pTable);
+int mgmtRemoveMeterFromMetric(STabObj *pMetric, STabObj *pTable);
+int mgmtGetMetricMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int mgmtRetrieveMetrics(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+
+
 
 #ifdef __cplusplus
 }

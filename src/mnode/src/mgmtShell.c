@@ -24,9 +24,13 @@
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
 #include "mgmtGrant.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
+#include "mgmtShell.h"
 #include "mgmtTable.h"
+#include "mgmtUser.h"
 #include "mgmtUtil.h"
+#include "mgmtVgroup.h"
 #include "taosmsg.h"
 #include "tlog.h"
 #include "tstatus.h"
@@ -47,17 +51,6 @@ int     (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(char *, int, SConnObj *);
 void      mgmtInitProcessShellMsg();
 int       mgmtRedirectMsg(SConnObj *pConn, int msgType);
 int       mgmtKillQuery(char *queryId, SConnObj *pConn);
-
-int mgmtCheckRedirectMsg(SConnObj *pConn, int msgType);
-int mgmtProcessAlterAcctMsg(char *pMsg, int msgLen, SConnObj *pConn);
-int mgmtProcessCreateMnodeMsg(char *pMsg, int msgLen, SConnObj *pConn);
-int mgmtProcessCreateDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn);
-int mgmtProcessCfgMnodeMsg(char *pMsg, int msgLen, SConnObj *pConn);
-int mgmtProcessDropMnodeMsg(char *pMsg, int msgLen, SConnObj *pConn);
-int mgmtProcessDropDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn);
-int mgmtProcessDropAcctMsg(char *pMsg, int msgLen, SConnObj *pConn);
-int mgmtProcessCreateAcctMsg(char *pMsg, int msgLen, SConnObj *pConn);
-int mgmtProcessCfgDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn);
 
 void mgmtProcessTranRequest(SSchedMsg *pSchedMsg) {
   SIntMsg * pMsg = (SIntMsg *)(pSchedMsg->msg);
@@ -1537,3 +1530,43 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_STREAM] = mgmtProcessKillStreamMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_CONNECTION] = mgmtProcessKillConnectionMsg;
 }
+
+int32_t mgmtCheckRedirectMsgImp(SConnObj *pConn, int32_t msgType) {
+  return 0;
+}
+int32_t (*mgmtCheckRedirectMsg)(SConnObj *pConn, int32_t msgType) = mgmtCheckRedirectMsgImp;
+
+int32_t mgmtProcessAlterAcctMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_ACCT_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
+}
+int32_t (*mgmtProcessAlterAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessAlterAcctMsgImp;
+
+int32_t mgmtProcessCreateDnodeMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_DNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
+}
+int32_t (*mgmtProcessCreateDnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessCreateDnodeMsgImp;
+
+int32_t mgmtProcessCfgMnodeMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CFG_MNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
+}
+int32_t (*mgmtProcessCfgMnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessCfgMnodeMsgImp;
+
+int32_t mgmtProcessDropMnodeMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_MNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
+}
+int32_t (*mgmtProcessDropMnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessDropMnodeMsgImp;
+
+int32_t mgmtProcessDropDnodeMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_DNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
+}
+int32_t (*mgmtProcessDropDnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessDropDnodeMsgImp;
+
+int32_t mgmtProcessDropAcctMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_ACCT_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
+}
+int32_t (*mgmtProcessDropAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessDropAcctMsgImp;
+
+int32_t mgmtProcessCreateAcctMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_ACCT_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
+}
+int32_t (*mgmtProcessCreateAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessCreateAcctMsgImp;

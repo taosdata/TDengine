@@ -13,26 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include <arpa/inet.h>
+#ifndef TDENGINE_MGMT_VGROUP_H
+#define TDENGINE_MGMT_VGROUP_H
 
-#include "dnodeSystem.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+#include <stdbool.h>
 #include "mnode.h"
 
-extern void *mgmtTmr;
-extern void *mgmtStatusTimer;
+int     mgmtInitVgroups();
+SVgObj *mgmtGetVgroup(int vgId);
+SVgObj *mgmtCreateVgroup(SDbObj *pDb);
+int     mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup);
+void    mgmtSetVgroupIdPool();
+int     mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int     mgmtRetrieveVgroups(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+void    mgmtCleanUpVgroups();
 
-void mgmtProcessDnodeStatus(void *handle, void *tmrId);
+#ifdef __cplusplus
+}
+#endif
 
-int mgmtInitSystem() { return mgmtStartSystem(); }
-
-int32_t mgmtStartCheckMgmtRunning() { return 0; }
-
-void mgmtDoStatistic(void *handle, void *tmrId) {}
-
-void mgmtStartMgmtTimer() { taosTmrReset(mgmtProcessDnodeStatus, 500, NULL, mgmtTmr, &mgmtStatusTimer); }
-
-void mgmtStopSystem() {}
-
-void mgmtCleanUpRedirect() {}
-
+#endif

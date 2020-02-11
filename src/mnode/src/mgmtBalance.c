@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mgmtBalance.h"
+#include "mgmtDnode.h"
 #include "dnodeModule.h"
 #include "tstatus.h"
 #include "tglobalcfg.h"

@@ -387,7 +387,7 @@ int mgmtRetrieveConfigs(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
   return numOfRows;
 }
 
-int mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   int cols = 0;
 
   if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
@@ -460,7 +460,7 @@ int mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
+int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   int        numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   char *     pWrite;

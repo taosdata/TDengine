@@ -13,27 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_SYSTEM_H
-#define TDENGINE_MGMT_SYSTEM_H
+#define _DEFAULT_SOURCE
+#include "mgmtMnode.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int32_t mgmtGetMnodeMetaImp(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t (*mgmtGetMnodeMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = mgmtGetMnodeMetaImp;
 
-#include <stdint.h>
-
-int32_t mgmtStartSystem();
-void    mgmtCleanUpSystem();
-
-extern int32_t (*mgmtInitSystem)();
-extern int32_t (*mgmtCheckMgmtRunning)();
-extern void    (*mgmtDoStatistic)(void *handle, void *tmrId);
-extern void    (*mgmtStartMgmtTimer)();
-extern void    (*mgmtStopSystem)();
-extern void    (*mgmtCleanUpRedirect)();
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+int32_t mgmtRetrieveMnodesImp(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) { return 0; }
+int32_t (*mgmtRetrieveMnodes)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) = mgmtRetrieveMnodesImp;

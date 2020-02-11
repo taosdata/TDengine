@@ -13,24 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_SYSTEM_H
-#define TDENGINE_MGMT_SYSTEM_H
+#ifndef TDENGINE_MGMT_MNODE_H
+#define TDENGINE_MGMT_MNODE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
+#include "mnode.h"
 
-int32_t mgmtStartSystem();
-void    mgmtCleanUpSystem();
-
-extern int32_t (*mgmtInitSystem)();
-extern int32_t (*mgmtCheckMgmtRunning)();
-extern void    (*mgmtDoStatistic)(void *handle, void *tmrId);
-extern void    (*mgmtStartMgmtTimer)();
-extern void    (*mgmtStopSystem)();
-extern void    (*mgmtCleanUpRedirect)();
+extern int32_t (*mgmtGetMnodeMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+extern int32_t (*mgmtRetrieveMnodes)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 
 #ifdef __cplusplus
 }
