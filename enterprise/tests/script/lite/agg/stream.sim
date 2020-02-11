@@ -246,7 +246,7 @@ sql create table d4.s190 as select count(io_read), count(io_write), avg(io_read)
 
 
 print =============== step3
-print sleep 22 seconds
+print sleep 60 seconds
 sleep 50000 
 
 sql select * from d4.s001

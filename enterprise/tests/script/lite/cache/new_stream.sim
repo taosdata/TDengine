@@ -57,8 +57,8 @@ print $data00 $data01 $data02 $data03
 sql create table $st as select count(*), count(tbcol), count(tbcol2) from $mt interval(10s)
 
 print =============== step3
-print sleep 22 seconds
-sleep 22000 
+print sleep 60 seconds
+sleep 60000
 
 print =============== step4
 
@@ -91,8 +91,8 @@ while $i < $tbNum
 endw 
 
 print =============== step6
-print sleep 22 seconds
-sleep 22000 
+print sleep 60 seconds
+sleep 60000
 
 print =============== step7
 

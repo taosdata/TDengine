@@ -202,8 +202,8 @@ $st = $stPrefix . as
 sql create table $st as select count(tbcol) as c from $mt interval(1d)
 
 print =============== step13
-print sleep 22 seconds
-sleep 22000 
+print sleep 60 seconds
+sleep 60000
 
 print =============== step14
 $st = $stPrefix . c1

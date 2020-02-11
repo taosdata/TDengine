@@ -207,7 +207,7 @@ void loadDataTest() {
       break;
     }
 
-//    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
+    //    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
   }
 
   int64_t e = taosGetTimestampUs();
@@ -261,7 +261,7 @@ void TSTraverse() {
   int32_t x = 0;
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-//    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
+    //    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
   }
 
   // specify the data block with vnode and tags value
@@ -306,7 +306,7 @@ void TSTraverse() {
   // complete forwards traverse
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
-//    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
+    //    printf("%d-%lld-%lld\n", elem.vnode, elem.tag, elem.ts);
   }
 
   // specify the data block with vnode and tags value
@@ -332,7 +332,7 @@ void TSTraverse() {
 
       tsBufGetElemStartPos(pTSBuf, startVnode, --startTag);
 
-      if (startTag < 0 ) {
+      if (startTag < 0) {
         startVnode -= 1;
         startTag = 3;
       }
@@ -438,7 +438,7 @@ void mergeIdenticalVnodeBufferTest() {
   tsBufDestory(pTSBuf1);
   tsBufDestory(pTSBuf2);
 }
-}
+}  // namespace
 
 TEST(testCase, tsBufTest) {
   simpleTest();
@@ -448,7 +448,7 @@ TEST(testCase, tsBufTest) {
   loadDataTest();
   invalidFileTest();
   //  randomIncTsTest();
-//  TSTraverse();
-    mergeDiffVnodeBufferTest();
-    mergeIdenticalVnodeBufferTest();
+  TSTraverse();
+  mergeDiffVnodeBufferTest();
+  mergeIdenticalVnodeBufferTest();
 }
