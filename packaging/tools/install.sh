@@ -6,7 +6,8 @@
 set -e
 #set -x
 
-verMode=lite
+verMode=edge
+pagMode=full
 
 # -----------------------Variables definition---------------------
 script_dir=$(dirname $(readlink -f "$0"))
@@ -479,7 +480,9 @@ function update_TDengine() {
     install_log
     install_header
     install_lib
-    install_connector
+    if [ "$pagMode" != "lite" ]; then
+      install_connector
+    fi
     install_examples
     if [ -z $1 ]; then
         install_bin
@@ -554,7 +557,9 @@ function install_TDengine() {
     install_log 
     install_header
     install_lib
-    install_connector
+    if [ "$pagMode" != "lite" ]; then
+      install_connector
+    fi
     install_examples
 
     if [ -z $1 ]; then # install service and client
