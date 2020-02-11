@@ -29,4 +29,6 @@ typedef enum : uint8_t {
 #define TD_DATATYPE_NCHAR_NULL
 #define TD_DATATYPE_BINARY_NULL
 
+#define TD_IS_VALID_DATATYPE(type) (((type) > TD_DATA_TYPE_INVLD) && ((type) <= TD_DATATYPE_BINARY))
+
 #endif // _TD_TYPE_H_
