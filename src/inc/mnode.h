@@ -259,14 +259,6 @@ typedef struct {
 extern SAcctObj  acctObj;
 extern SDnodeObj dnodeObj;
 
-// dnodeInt API
-int  mgmtInitDnodeInt();
-void mgmtCleanUpDnodeInt();
-int mgmtSendCreateMsgToVgroup(STabObj *pTable, SVgObj *pVgroup);
-int mgmtSendRemoveMeterMsgToDnode(STabObj *pTable, SVgObj *pVgroup);
-int mgmtSendVPeersMsg(SVgObj *pVgroup);
-int mgmtSendFreeVnodeMsg(SVgObj *pVgroup);
-int mgmtSendOneFreeVnodeMsg(SVnodeGid *pVnodeGid);
 
 // shell API
 int  mgmtInitShell();
@@ -290,13 +282,6 @@ int mgmtGetMetricMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int mgmtRetrieveMetrics(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
 // DB API
-int mgmtInitDbs();
-int mgmtUpdateDb(SDbObj *pDb);
-SDbObj *mgmtGetDb(char *db);
-SDbObj *mgmtGetDbByMeterId(char *db);
-int mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate);
-int mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
-int mgmtDropDb(SDbObj *pDb);
 /* void    mgmtMonitorDbDrop(void *unused); */
 void mgmtMonitorDbDrop(void *unused, void *unusedt);
 int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter);
@@ -337,38 +322,12 @@ SSchema *mgmtGetTableSchema(STabObj *pTable);  // get schema for a meter
 
 
 // dnode API
-int        mgmtInitDnodes();
-SDnodeObj *mgmtGetDnode(uint32_t ip);
-int mgmtCreateDnode(uint32_t ip);
-int mgmtDropDnode(SDnodeObj *pDnode);
-int mgmtDropDnodeByIp(uint32_t ip);
-int mgmtUpdateDnode(SDnodeObj *pDnode);
-int mgmtGetNextVnode(SVnodeGid *pVnodeGid);
-void mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int numOfVnodes, int vgId);
-void mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int numOfVnodes);
-int  mgmtGetDnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int  mgmtRetrieveDnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-void mgmtCleanUpDnodes();
-int  mgmtSendCfgDnodeMsg(char *cont);
-void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode);
 
 int mgmtGetMnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int mgmtRetrieveMnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
-int mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveModules(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
-int mgmtGetConfigMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveConfigs(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
-int mgmtGetConnsMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveConns(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-
-int mgmtGetScoresMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveScores(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-
-int grantGetGrantsMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int grantRetrieveGrants(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
 int  mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int  mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
@@ -377,8 +336,6 @@ int  mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
 int mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
 
-extern int (*mgmtGetMetaFp[])(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-extern int (*mgmtRetrieveFp[])(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
 extern int tsDnodeUpdateSize;
 extern int tsVgUpdateSize;

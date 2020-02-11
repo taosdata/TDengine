@@ -22,9 +22,6 @@ extern "C" {
 
 #include "os.h"
 #include "mnode.h"
-#include "tglobalcfg.h"
-#include "vnodeStatus.h"
-#include "ttime.h"
 
 extern void    (*mgmtStartBalanceTimer)(int64_t mseconds);
 extern int32_t (*mgmtInitBalance)();

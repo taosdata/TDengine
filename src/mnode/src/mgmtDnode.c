@@ -19,14 +19,11 @@
 
 #include "dnodeSystem.h"
 #include "mnode.h"
+#include "mgmtDnode.h"
+#include "mgmtBalance.h"
 #include "tschemautil.h"
-#include "vnodeStatus.h"
+#include "tstatus.h"
 #include "dnodeModule.h"
-
-bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType);
-int  mgmtGetDnodesNum();
-void*mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode);
-bool mgmtCheckConfigShow(SGlobalConfig *cfg);
 
 void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
   int maxVnodes = pDnode->numOfCores * tsNumOfVnodesPerCore;
@@ -512,4 +509,63 @@ int mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   return numOfRows;
 }
 
+SDnodeObj       dnodeObj;
+extern uint32_t tsRebootTime;
 
+SDnodeObj* mgmtGetDnodeImp(uint32_t ip) { return &dnodeObj; }
+SDnodeObj* (*mgmtGetDnode)(uint32_t ip) = mgmtGetDnodeImp;
+
+int32_t mgmtUpdateDnodeImp(SDnodeObj *pDnode) { return 0; }
+int32_t (*mgmtUpdateDnode)(SDnodeObj *pDnode) = mgmtUpdateDnodeImp;
+
+void mgmtCleanUpDnodesImp() {}
+void (*mgmtCleanUpDnodes)() = mgmtCleanUpDnodesImp;
+
+int32_t mgmtInitDnodesImp() {
+  dnodeObj.privateIp = inet_addr(tsPrivateIp);;
+  dnodeObj.createdTime = (int64_t)tsRebootTime * 1000;
+  dnodeObj.lastReboot = tsRebootTime;
+  dnodeObj.numOfCores = (uint16_t)tsNumOfCores;
+  dnodeObj.status = TSDB_DN_STATUS_READY;
+  dnodeObj.alternativeRole = TSDB_DNODE_ROLE_ANY;
+  dnodeObj.numOfTotalVnodes = tsNumOfTotalVnodes;
+  dnodeObj.thandle = (void*)(1);  //hack way
+  if (dnodeObj.numOfVnodes == TSDB_INVALID_VNODE_NUM) {
+    mgmtSetDnodeMaxVnodes(&dnodeObj);
+    mPrint("dnode first access, set total vnodes:%d", dnodeObj.numOfVnodes);
+  }
+  return  0;
+}
+int32_t (*mgmtInitDnodes)() = mgmtInitDnodesImp;
+
+int32_t mgmtGetDnodesNumImp() { return 1; }
+int32_t (*mgmtGetDnodesNum)() = mgmtGetDnodesNumImp;
+
+void* mgmtGetNextDnodeImp(SShowObj *pShow, SDnodeObj **pDnode) {
+  if (*pDnode == NULL) {
+    *pDnode = &dnodeObj;
+  } else {
+    *pDnode = NULL;
+  }
+
+  return *pDnode;
+}
+void* (*mgmtGetNextDnode)(SShowObj *pShow, SDnodeObj **pDnode) = mgmtGetNextDnodeImp;
+
+int32_t mgmtGetScoresMetaImp(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t (*mgmtGetScoresMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = mgmtGetScoresMetaImp;
+
+int32_t mgmtRetrieveScoresImp(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }
+int32_t (*mgmtRetrieveScores)(SShowObj *pShow, char *data, int rows, SConnObj *pConn) = mgmtRetrieveScoresImp;
+
+void mgmtSetDnodeUnRemoveImp(SDnodeObj *pDnode) {}
+void (*mgmtSetDnodeUnRemove)(SDnodeObj *pDnode) = mgmtSetDnodeUnRemoveImp;
+
+bool mgmtCheckConfigShowImp(SGlobalConfig *cfg) {
+  if (cfg->cfgType & TSDB_CFG_CTYPE_B_CLUSTER)
+    return false;
+  if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT)
+    return false;
+  return true;
+}
+bool (*mgmtCheckConfigShow)(SGlobalConfig *cfg) = mgmtCheckConfigShowImp;

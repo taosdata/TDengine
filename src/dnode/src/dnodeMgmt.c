@@ -112,7 +112,7 @@ int32_t (*dnodeInitMgmt)() = dnodeInitMgmtImp;
 void dnodeInitMgmtIpImp() {}
 void (*dnodeInitMgmtIp)() = dnodeInitMgmtIpImp;
 
-void* dnodeProcessMsgFromMgmtImp(SSchedMsg *sched) {
+void dnodeProcessMsgFromMgmtImp(SSchedMsg *sched) {
   char  msgType = *sched->msg;
   char *content = sched->msg + 1;
 
@@ -121,8 +121,6 @@ void* dnodeProcessMsgFromMgmtImp(SSchedMsg *sched) {
   dnodeDistributeMsgFromMgmt(content, 0, msgType, 0);
 
   free(sched->msg);
-
-  return NULL;
 }
 
 void dnodeDistributeMsgFromMgmt(char *content, int msgLen, int msgType, SMgmtObj *pObj) {

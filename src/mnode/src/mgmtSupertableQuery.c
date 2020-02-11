@@ -15,13 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
 #include "mnode.h"
 #include "mgmtUtil.h"
 #include "textbuffer.h"
 #include "tschemautil.h"
 #include "tsqlfunction.h"
-#include "vnodeTagMgmt.h"
+#include "tast.h"
+//#include "vnodeTagMgmt.h"
 
 typedef struct SSyntaxTreeFilterSupporter {
   SSchema* pTagSchema;

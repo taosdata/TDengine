@@ -20,6 +20,9 @@
 #include "mgmtAcct.h"
 #include "mgmtGrant.h"
 #include "mgmtUtil.h"
+#include "mgmtDb.h"
+#include "mgmtDnodeInt.h"
+#include "mgmtSupertableQuery.h"
 #include "taosmsg.h"
 #include "tast.h"
 #include "textbuffer.h"
@@ -28,8 +31,7 @@
 #include "tskiplist.h"
 #include "tsqlfunction.h"
 #include "ttime.h"
-#include "vnodeTagMgmt.h"
-#include "vnodeStatus.h"
+#include "tstatus.h"
 
 extern int64_t sdbVersion;
 
@@ -92,8 +94,6 @@ int32_t mgmtMeterAddColumn(STabObj *pTable, SSchema schema[], int ncols);
 int32_t mgmtMeterDropColumnByName(STabObj *pTable, const char *name);
 static int dropMeterImp(SDbObj *pDb, STabObj * pTable, SAcctObj *pAcct);
 static void dropAllMetersOfMetric(SDbObj *pDb, STabObj * pMetric, SAcctObj *pAcct);
-
-int mgmtCheckTableLimit(SAcctObj *pAcct, SCreateTableMsg *pCreate);
 
 void mgmtMeterActionInit() {
   mgmtMeterActionFp[SDB_TYPE_INSERT] = mgmtMeterActionInsert;

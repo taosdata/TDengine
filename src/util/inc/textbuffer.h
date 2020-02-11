@@ -123,6 +123,22 @@ typedef struct tExtMemBuffer {
   EXT_BUFFER_FLUSH_MODEL flushModel;
 } tExtMemBuffer;
 
+typedef struct tTagSchema {
+  struct SSchema *pSchema;
+  int32_t         numOfCols;
+  int32_t         colOffset[];
+} tTagSchema;
+
+typedef struct tSidSet {
+  int32_t            numOfSids;
+  int32_t            numOfSubSet;
+  SMeterSidExtInfo **pSids;
+  int32_t *          starterPos;  // position of each subgroup, generated according to
+
+  tTagSchema *pTagSchema;
+  tOrderIdx   orderIdx;
+} tSidSet;
+
 void getTmpfilePath(const char *fileNamePattern, char *dstPath);
 
 /*

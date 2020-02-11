@@ -22,6 +22,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "mnode.h"
 
 extern bool    (*mgmtCheckExpired)();
 extern void    (*mgmtAddTimeSeries)(uint32_t timeSeriesNum);
@@ -29,6 +30,8 @@ extern void    (*mgmtRestoreTimeSeries)(uint32_t timeseries);
 extern int32_t (*mgmtCheckTimeSeries)(uint32_t timeseries);
 extern int32_t (*mgmtCheckUserGrant)();
 extern int32_t (*mgmtCheckDbGrant)();
+extern int32_t (*mgmtGetGrantsMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+extern int32_t (*mgmtRetrieveGrants)(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
 #ifdef __cplusplus
 }

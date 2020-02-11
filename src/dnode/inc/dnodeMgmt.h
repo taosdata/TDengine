@@ -27,7 +27,6 @@ int vnodeProcessCreateMeterRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj);
 int vnodeProcessRemoveMeterRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj);
 
 void dnodeDistributeMsgFromMgmt(char *content, int msgLen, int msgType, SMgmtObj *pObj);
-void mgmtProcessMsgFromDnodeSpec(SSchedMsg *sched);
 
 extern void *dmQhandle;
 
