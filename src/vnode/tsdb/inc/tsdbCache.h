@@ -23,6 +23,7 @@ typedef struct {
 
 // Use a doublely linked list to implement this
 typedef struct STSDBCache {
+  // Number of blocks the cache is allocated
   int32_t numOfBlocks;
   SDList *cacheList;
   void *  current;
@@ -32,7 +33,7 @@ typedef struct STSDBCache {
 // ---- Operation on STSDBCacheBlock
 #define TSDB_CACHE_BLOCK_DATA(pBlock) ((pBlock)->pData)
 #define TSDB_CACHE_AVAIL_SPACE(pBlock) ((char *)((pBlock)->pTableInfo) - ((pBlock)->pData))
-#define TSDB_TABLE_KEY_RANGE_AT_CACHE(pBlock, tableId) ((pBlock)->pTableInfo)[tableId]
+#define TSDB_TABLE_INFO_OF_CACHE(pBlock, tableId) ((pBlock)->pTableInfo)[tableId]
 #define TSDB_NEXT_CACHE_BLOCK(pBlock) ((pBlock)->next)
 #define TSDB_PREV_CACHE_BLOCK(pBlock) ((pBlock)->prev)
 

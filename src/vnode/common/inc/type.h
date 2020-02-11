@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 typedef enum : uint8_t {
-    TD_DATATYPE_INVLD = 0,
+    TD_DATATYPE_INVLD = 0, // invalid data type
     TD_DATATYPE_BOOL,
     TD_DATATYPE_TINYINT,
     TD_DATATYPE_SMALLINT,
