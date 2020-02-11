@@ -81,6 +81,11 @@ fi
 
 cd ${install_dir}
 tar -zcv -f taos.tar.gz * --remove-files  || :
+exitcode=$?
+if [ "$exitcode" != "0" ]; then
+    echo "tar taos.tar.gz error !!!"
+    exit $exitcode
+fi
 
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
@@ -148,5 +153,10 @@ else
 fi
 
 tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
+exitcode=$?
+if [ "$exitcode" != "0" ]; then
+    echo "tar ${pkg_name}.tar.gz error !!!"
+    exit $exitcode
+fi
 
 cd ${curr_dir}
