@@ -3,12 +3,20 @@
 
 #include "tsdb.h"
 #include "disk.h"
-#include "cache.h"
+#include "tsdbMeta.h"
+#include "tsdbCache.h"
 
 typedef struct STSDBRepo
 {
     // TSDB configuration
     STSDBcfg *pCfg;
+
+    // The meter meta handle of this TSDB repository
+    SMetaHandle *pMetaHandle;
+
+    // The cache Handle
+    SCacheHandle *pCacheHandle;
+
 
     /* Disk tier handle for multi-tier storage
      * 

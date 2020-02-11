@@ -9,7 +9,7 @@
 // Initially, there are 4 tables
 #define TSDB_INIT_NUMBER_OF_SUPER_TABLE 4
 
-typedef enum : uint8_t {
+typedef enum {
   TSDB_SUPER_TABLE,  // super table
   TSDB_NTABLE,       // table not created from super table
   TSDB_STABLE        // table created from super table
