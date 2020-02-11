@@ -17,6 +17,7 @@
 #include "os.h"
 #include "mnode.h"
 #include "mgmtUtil.h"
+#include "mgmtTable.h"
 #include "tschemautil.h"
 
 bool mgmtTableCreateFromSuperTable(STabObj* pTableObj) {

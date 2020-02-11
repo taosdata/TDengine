@@ -22,6 +22,8 @@
 #include "mgmtBalance.h"
 #include "mgmtDnodeInt.h"
 #include "mgmtUtil.h"
+#include "mgmtVgroup.h"
+#include "mgmtTable.h"
 #include "tschemautil.h"
 #include "tstatus.h"
 #include "mnode.h"
@@ -73,7 +75,7 @@ void mgmtGetAcctStr(char *src, char *dest) {
   *dest = 0;
 }
 
-int mgmtInitDbs() {
+int32_t mgmtInitDbs() {
   void *    pNode = NULL;
   SDbObj *  pDb = NULL;
   SAcctObj *pAcct = NULL;

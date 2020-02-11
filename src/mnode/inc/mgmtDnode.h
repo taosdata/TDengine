@@ -41,6 +41,9 @@ int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int rows, SConnObj *pCo
 int32_t mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 
+int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+
 extern int32_t    (*mgmtInitDnodes)();
 extern void       (*mgmtCleanUpDnodes)();
 extern SDnodeObj* (*mgmtGetDnode)(uint32_t ip);
@@ -51,6 +54,8 @@ extern void       (*mgmtSetDnodeUnRemove)(SDnodeObj *pDnode);
 extern int32_t    (*mgmtGetScoresMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 extern int32_t    (*mgmtRetrieveScores)(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 extern bool       (*mgmtCheckConfigShow)(SGlobalConfig *cfg);
+
+extern SDnodeObj dnodeObj;
 
 #ifdef __cplusplus
 }

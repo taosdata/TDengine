@@ -21,6 +21,8 @@
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
 #include "mgmtDnodeInt.h"
+#include "mgmtVgroup.h"
+#include "mgmtTable.h"
 #include "tschemautil.h"
 #include "tlog.h"
 #include "tstatus.h"

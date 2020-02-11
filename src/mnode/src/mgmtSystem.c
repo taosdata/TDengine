@@ -18,9 +18,18 @@
 
 #include "dnodeSystem.h"
 #include "mnode.h"
-#include "tsdb.h"
+#include "mgmtAcct.h"
+#include "mgmtBalance.h"
+#include "mgmtDb.h"
+#include "mgmtDnode.h"
+#include "mgmtDnodeInt.h"
+#include "mgmtVgroup.h"
+#include "mgmtUser.h"
 #include "mgmtSystem.h"
+#include "mgmtTable.h"
+#include "mgmtShell.h"
 #include "dnodeModule.h"
+#include "tsdb.h"
 
 // global, not configurable
 char               mgmtDirectory[128];
@@ -76,7 +85,7 @@ int mgmtStartSystem() {
     mkdir(mgmtDirectory, 0755);
   }
 
-  if (mgmtStartCheckMgmtRunning() != 0) {
+  if (mgmtCheckMgmtRunning() != 0) {
     mPrint("TDengine mgmt module already started...");
     return 0;
   }
@@ -152,3 +161,24 @@ int mgmtStartSystem() {
 
   return 0;
 }
+
+int32_t mgmtInitSystemImp() { return mgmtStartSystem(); }
+int32_t (*mgmtInitSystem)() = mgmtInitSystemImp;
+
+int32_t mgmtCheckMgmtRunningImp() { return 0; }
+int32_t (*mgmtCheckMgmtRunning)() = mgmtCheckMgmtRunningImp;
+
+void mgmtDoStatisticImp(void *handle, void *tmrId) {}
+void (*mgmtDoStatistic)(void *handle, void *tmrId) = mgmtDoStatisticImp;
+
+void mgmtStartMgmtTimerImp() {
+  taosTmrReset(mgmtProcessDnodeStatus, 500, NULL, mgmtTmr, &mgmtStatusTimer);
+}
+void (*mgmtStartMgmtTimer)() = mgmtStartMgmtTimerImp;
+
+void mgmtStopSystemImp() {}
+void (*mgmtStopSystem)() = mgmtStopSystemImp;
+
+void mgmtCleanUpRedirectImp() {}
+void (*mgmtCleanUpRedirect)() = mgmtCleanUpRedirectImp;
+

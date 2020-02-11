@@ -45,6 +45,12 @@ extern int   mgmtShellConns;
 extern int   mgmtDnodeConns;
 extern char  mgmtDirectory[];
 
+extern int tsAcctUpdateSize;
+extern int tsDbUpdateSize;
+extern int tsDnodeUpdateSize;
+extern int tsMnodeUpdateSize;
+extern int tsUserUpdateSize;
+extern int tsVgUpdateSize;
 
 typedef struct {
   uint32_t   privateIp;
@@ -256,96 +262,9 @@ typedef struct {
   char     payload[];  /* payload for wildcard match in show tables */
 } SShowObj;
 
-extern SAcctObj  acctObj;
-extern SDnodeObj dnodeObj;
-
-
-// shell API
-int  mgmtInitShell();
-void mgmtCleanUpShell();
-int mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, uint8_t *secret, uint8_t *ckey);
-
-// user API
-int       mgmtInitUsers();
-SUserObj *mgmtGetUser(char *name);
-int mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
-int mgmtDropUser(SAcctObj *pAcct, char *name);
-int mgmtUpdateUser(SUserObj *pUser);
-int mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveUsers(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-void mgmtCleanUpUsers();
-
-// metric API
-int mgmtAddMeterIntoMetric(STabObj *pMetric, STabObj *pTable);
-int mgmtRemoveMeterFromMetric(STabObj *pMetric, STabObj *pTable);
-int mgmtGetMetricMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveMetrics(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-
-// DB API
-/* void    mgmtMonitorDbDrop(void *unused); */
-void mgmtMonitorDbDrop(void *unused, void *unusedt);
-int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter);
-int mgmtUseDb(SConnObj *pConn, char *name);
-int mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup);
-int mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup);
-int mgmtRemoveVgroupFromDb(SDbObj *pDb, SVgObj *pVgroup);
-int mgmtAddMetricIntoDb(SDbObj *pDb, STabObj *pMetric);
-int mgmtRemoveMetricFromDb(SDbObj *pDb, STabObj *pMetric);
-int mgmtMoveVgroupToTail(SDbObj *pDb, SVgObj *pVgroup);
-int mgmtMoveVgroupToHead(SDbObj *pDb, SVgObj *pVgroup);
-int mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveDbs(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-void mgmtCleanUpDbs();
-
-// vGroup API
-int     mgmtInitVgroups();
-SVgObj *mgmtGetVgroup(int vgId);
-SVgObj *mgmtCreateVgroup(SDbObj *pDb);
-int  mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup);
-void mgmtSetVgroupIdPool();
-int  mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int  mgmtRetrieveVgroups(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-void mgmtCleanUpVgroups();
-
-// meter API
-int      mgmtInitMeters();
-STabObj *mgmtGetTable(char *meterId);
-STabObj *mgmtGetTableInfo(char *src, char *tags[]);
-int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SSuperTableMetaMsg *pInfo);
-int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate);
-int mgmtDropMeter(SDbObj *pDb, char *meterId, int ignore);
-int mgmtAlterMeter(SDbObj *pDb, SAlterTableMsg *pAlter);
-int mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-void     mgmtCleanUpMeters();
-SSchema *mgmtGetTableSchema(STabObj *pTable);  // get schema for a meter
-
-
-// dnode API
-
-int mgmtGetMnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveMnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-
-
-
-
-int  mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int  mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-
-
-void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
-int mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
-
-
-extern int tsDnodeUpdateSize;
-extern int tsVgUpdateSize;
-extern int tsDbUpdateSize;
-extern int tsUserUpdateSize;
-extern int tsAcctUpdateSize;
-extern int tsMnodeUpdateSize;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_MGMT_H
+#endif

@@ -22,6 +22,8 @@
 #include "mgmtBalance.h"
 #include "mgmtDnode.h"
 #include "mgmtDb.h"
+#include "mgmtVgroup.h"
+#include "mgmtTable.h"
 #include "tutil.h"
 #include "tstatus.h"
 #include "tsystem.h"

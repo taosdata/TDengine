@@ -17,6 +17,8 @@
 #include "os.h"
 #include "mnode.h"
 #include "mgmtAcct.h"
+#include "mgmtTable.h"
+#include "mgmtUser.h"
 #include "tschemautil.h"
 
 extern void *userSdb;

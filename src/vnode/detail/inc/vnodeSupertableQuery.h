@@ -13,27 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_SYSTEM_H
-#define TDENGINE_MGMT_SYSTEM_H
+#ifndef TBASE_MNODE_SUPER_TABLE_QUERY_H
+#define TBASE_MNODE_SUPER_TABLE_QUERY_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
+#include "mnode.h"
+#include "tast.h"
 
-int32_t mgmtStartSystem();
-void    mgmtCleanUpSystem();
+int32_t mgmtDoJoin(SSuperTableMetaMsg* pSuperTableMetaMsg, tQueryResultset* pRes);
+void    mgmtReorganizeMetersInMetricMeta(SSuperTableMetaMsg* pInfo, int32_t index, tQueryResultset* pRes);
 
-extern int32_t (*mgmtInitSystem)();
-extern int32_t (*mgmtCheckMgmtRunning)();
-extern void    (*mgmtDoStatistic)(void *handle, void *tmrId);
-extern void    (*mgmtStartMgmtTimer)();
-extern void    (*mgmtStopSystem)();
-extern void    (*mgmtCleanUpRedirect)();
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

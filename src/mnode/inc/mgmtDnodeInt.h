@@ -24,7 +24,8 @@ extern "C" {
 #include <stdbool.h>
 #include "mnode.h"
 
-// dnodeInt API
+extern void *mgmtStatusTimer;
+
 int mgmtSendCreateMsgToVgroup(STabObj *pTable, SVgObj *pVgroup);
 int mgmtSendRemoveMeterMsgToDnode(STabObj *pTable, SVgObj *pVgroup);
 int mgmtSendVPeersMsg(SVgObj *pVgroup);

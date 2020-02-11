@@ -17,8 +17,10 @@
 #include "os.h"
 
 #include "mnode.h"
-#include "mgmtGrant.h"
 #include "mgmtAcct.h"
+#include "mgmtUser.h"
+#include "mgmtGrant.h"
+#include "mgmtTable.h"
 #include "tschemautil.h"
 #include "ttime.h"
 
