@@ -1122,7 +1122,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
       if (addProjectionExprAndResultField(pQueryInfo, pItem) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_INVALID_SQL;
       }
-    } else if (pItem->pNode->nSQLOptr >= TK_COUNT && pItem->pNode->nSQLOptr <= TK_LAST_ROW) {
+    } else if (pItem->pNode->nSQLOptr >= TK_COUNT && pItem->pNode->nSQLOptr <= TK_AVG_IRATE) {
       // sql function in selection clause, append sql function info in pSqlCmd structure sequentially
       if (addExprAndResultField(pQueryInfo, outputIndex, pItem) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_INVALID_SQL;
@@ -1504,6 +1504,12 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
     }
     case TK_SUM:
     case TK_AVG:
+    case TK_RATE:
+    case TK_IRATE:
+    case TK_SUM_RATE:
+    case TK_SUM_IRATE:
+    case TK_AVG_RATE:
+    case TK_AVG_IRATE:
     case TK_TWA:
     case TK_MIN:
     case TK_MAX:
@@ -1956,6 +1962,24 @@ int32_t changeFunctionID(int32_t optr, int16_t* functionId) {
     case TK_AVG:
       *functionId = TSDB_FUNC_AVG;
       break;
+    case TK_RATE:
+      *functionId = TSDB_FUNC_RATE;
+      break;
+    case TK_IRATE:
+      *functionId = TSDB_FUNC_IRATE;
+      break;
+    case TK_SUM_RATE:
+      *functionId = TSDB_FUNC_SUM_RATE;
+      break;
+    case TK_SUM_IRATE:
+      *functionId = TSDB_FUNC_SUM_IRATE;
+      break;
+    case TK_AVG_RATE:
+      *functionId = TSDB_FUNC_AVG_RATE;
+      break;
+    case TK_AVG_IRATE:
+      *functionId = TSDB_FUNC_AVG_IRATE;
+      break;
     case TK_MIN:
       *functionId = TSDB_FUNC_MIN;
       break;
@@ -2149,7 +2173,8 @@ int32_t tscTansformSQLFunctionForSTableQuery(SQueryInfo* pQueryInfo) {
     int16_t functionId = aAggs[pExpr->functionId].stableFuncId;
 
     if ((functionId >= TSDB_FUNC_SUM && functionId <= TSDB_FUNC_TWA) ||
-        (functionId >= TSDB_FUNC_FIRST_DST && functionId <= TSDB_FUNC_LAST_DST)) {
+        (functionId >= TSDB_FUNC_FIRST_DST && functionId <= TSDB_FUNC_LAST_DST) ||
+        (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_AVG_IRATE)) {
       if (getResultDataInfo(pField->type, pField->bytes, functionId, pExpr->param[0].i64Key, &type, &bytes,
                             &intermediateBytes, 0, true) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_INVALID_SQL;
@@ -2912,7 +2937,7 @@ static int32_t validateSQLExpr(tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnL
       pList->ids[pList->num++] = index;
   } else if (pExpr->nSQLOptr == TK_FLOAT && (isnan(pExpr->val.dKey) || isinf(pExpr->val.dKey))) {
     return TSDB_CODE_INVALID_SQL;
-  } else if (pExpr->nSQLOptr >= TK_MIN && pExpr->nSQLOptr <= TK_LAST_ROW) {
+  } else if (pExpr->nSQLOptr >= TK_MIN && pExpr->nSQLOptr <= TK_AVG_IRATE) {
     return TSDB_CODE_INVALID_SQL;
   }
 
@@ -2966,8 +2991,8 @@ static bool isValidExpr(tSQLExpr* pLeft, tSQLExpr* pRight, int32_t optr) {
    *
    * However, columnA < 4+12 is valid
    */
-  if ((pLeft->nSQLOptr >= TK_COUNT && pLeft->nSQLOptr <= TK_LAST_ROW) ||
-      (pRight->nSQLOptr >= TK_COUNT && pRight->nSQLOptr <= TK_LAST_ROW) ||
+  if ((pLeft->nSQLOptr >= TK_COUNT && pLeft->nSQLOptr <= TK_AVG_IRATE) ||
+      (pRight->nSQLOptr >= TK_COUNT && pRight->nSQLOptr <= TK_AVG_IRATE) ||
       (pLeft->nSQLOptr >= TK_BOOL && pLeft->nSQLOptr <= TK_BINARY && pRight->nSQLOptr >= TK_BOOL &&
        pRight->nSQLOptr <= TK_BINARY)) {
     return false;
