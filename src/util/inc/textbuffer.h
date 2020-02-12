@@ -115,7 +115,6 @@ typedef struct tExtMemBuffer {
   EXT_BUFFER_FLUSH_MODEL flushModel;
 } tExtMemBuffer;
 
-<<<<<<< HEAD:src/util/inc/textbuffer.h
 typedef struct tTagSchema {
   struct SSchema *pSchema;
   int32_t         numOfCols;
@@ -128,17 +127,15 @@ typedef struct tSidSet {
   SMeterSidExtInfo **pSids;
   int32_t *          starterPos;  // position of each subgroup, generated according to
 
-  tTagSchema *pTagSchema;
-  tOrderIdx   orderIdx;
+  SColumnModel      *pColumnModel;
+  SColumnOrderInfo   orderIdx;
 } tSidSet;
 
-=======
 /**
  *
  * @param fileNamePattern
  * @param dstPath
  */
->>>>>>> develop:src/inc/textbuffer.h
 void getTmpfilePath(const char *fileNamePattern, char *dstPath);
 
 /**

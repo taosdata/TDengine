@@ -4562,11 +4562,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param)
     tsBufSetTraverseOrder(pRuntimeEnv->pTSBuf, order);
   }
 
-<<<<<<< HEAD:src/vnode/detail/src/vnodeQueryImpl.c
-  int32_t ret = setupQueryRuntimeEnv(pTable, pQuery, &pSupporter->runtimeEnv, pTagSchema, TSQL_SO_ASC, true);
-=======
   int32_t ret = setupQueryRuntimeEnv(pMeter, pQuery, &pSupporter->runtimeEnv, pTagSchemaInfo, TSQL_SO_ASC, true);
->>>>>>> develop:src/system/detail/src/vnodeQueryImpl.c
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }

@@ -32,15 +32,6 @@ extern "C" {
  * Note:
  * 1. we implement a quick sort algorithm, may remove it later.
  */
-typedef struct tSidSet {
-  int32_t            numOfSids;
-  int32_t            numOfSubSet;
-  SMeterSidExtInfo **pSids;
-  int32_t *          starterPos;  // position of each subgroup, generated according to
-
-  SColumnModel      *pColumnModel;
-  SColumnOrderInfo   orderIdx;
-} tSidSet;
 
 typedef int32_t (*__ext_compar_fn_t)(const void *p1, const void *p2, void *param);
 
