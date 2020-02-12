@@ -82,3 +82,9 @@ SVSchema *tsdbGetTableSchema(STable *pTable);
 #define TSDB_NUM_OF_SUPER_TABLES(pHandle) ((pHandle)->numOfSuperTables)
 #define TSDB_TABLE_OF_ID(pHandle, id) ((pHandle)->pTables)[id]
 #define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
+
+// Create a new meta handle with configuration
+SMetaHandle * tsdbCreateMetaHandle (int32_t numOfTables); 
+
+// Recover the meta handle from the file
+SMetaHandle * tsdbOpenMetaHandle(int fd);
