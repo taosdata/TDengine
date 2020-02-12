@@ -89,8 +89,8 @@ if $rows != 13 then
 endi
 
 print =============== step3
-print sleep 22 seconds
-sleep 22000 
+print sleep 60 seconds
+sleep 60000
 
 $i = 1
 $tb = $tbPrefix . $i
@@ -162,8 +162,8 @@ endi
 
 print rows1=>$r1 rows5=>$r5 rows8=>$r8 
 print =============== step5
-print sleep 22 seconds
-sleep 22000 
+print sleep 60 seconds
+sleep 60000
 
 print =============== step6
 $i = 1

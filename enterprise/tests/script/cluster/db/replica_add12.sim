@@ -81,7 +81,7 @@ sql alter database d1 replica 2
 sql alter database d2 replica 2
 sql alter database d3 replica 2
 sql alter database d4 replica 2
-sleep 22000
+sleep 60000
 
 print ======== step3
 $x = 0

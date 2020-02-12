@@ -97,8 +97,8 @@ if $rows != 13 then
 endi
 
 print =============== step3
-print sleep 22 seconds
-sleep 22000 
+print sleep 60 seconds
+sleep 60000
 
 
 print =============== step4
