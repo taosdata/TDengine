@@ -5,12 +5,19 @@
 
 typedef int32_t file_id_t;
 
-typedef enum : uint8_t {
-  TSDB_FILE_TYPE_HEAD,
-  TSDB_FILE_TYPE_DATA,
-  TSDB_FILE_TYPE_LAST,
-  TSDB_FILE_TYPE_META
+typedef enum {
+  TSDB_FILE_TYPE_HEAD,  // .head file type
+  TSDB_FILE_TYPE_DATA,  // .data file type
+  TSDB_FILE_TYPE_LAST,  // .last file type
+  TSDB_FILE_TYPE_META   // .meta file type
 } TSDB_FILE_TYPE;
+
+const char *tsdbFileSuffix[] = {
+  ".head",  // TSDB_FILE_TYPE_HEAD
+  ".data",  // TSDB_FILE_TYPE_DATA
+  ".last",  // TSDB_FILE_TYPE_LAST
+  ".meta"   // TSDB_FILE_TYPE_META
+};
 
 typedef struct {
   int64_t fileSize;
@@ -28,9 +35,6 @@ typedef struct {
   int16_t numOfBlocks;
 } SDataBlock;
 
-tstring_t tdGetHeadFileName(/* TODO */);
-tstring_t tdGetDataFileName(/* TODO */);
-tstring_t tdGetLastFileName(/* TODO */);
-tstring_t tdGetMetaFileName(/* TODO */);
+char *tsdbGetFileName(char *dirName, char *fname, TSDB_FILE_TYPE type);
 
 #endif  // _TD_TSDB_FILE_H_

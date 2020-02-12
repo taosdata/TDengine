@@ -15,6 +15,23 @@ static size_t tdGetEstimatedISchemaLen(SSchema *pSchema) {
   return TD_ISCHEMA_HEADER_SIZE + (size_t)TD_SCHEMA_TOTAL_COLS(pSchema) + colNameLen;
 }
 
+static void tdUpdateColumnOffsets(SSchema *pSchema) {
+  int32_t offset = 0;
+  for (size_t i = 0; i < TD_SCHEMA_NCOLS(pSchema); i++)
+  {
+    SColumn *pCol = TD_SCHEMA_COLUMN_AT(pSchema, i);
+    TD_COLUMN_OFFSET(pCol) = offset;
+    offset += rowDataLen[TD_COLUMN_TYPE(pCol)];
+  }
+
+  offset = 0;
+  for (size_t i = 0; i < TD_SCHEMA_NTAGS(pSchema); i++) {
+    SColumn *pCol = TD_SCHEMA_TAG_AT(pSchema, i);
+    TD_COLUMN_OFFSET(pCol) = offset;
+    offset += rowDataLen[TD_COLUMN_TYPE(pCol)];
+  }
+}
+
 SISchema tdConvertSchemaToInline(SSchema *pSchema) {
   size_t  len = tdGetEstimatedISchemaLen(pSchema);
   int32_t totalCols = TD_SCHEMA_TOTAL_COLS(pSchema);
@@ -61,7 +78,7 @@ int32_t tdGetColumnIdxById(SSchema *pSchema, int32_t colId) {
   for (int32_t i = 0; i < TD_SCHEMA_TOTAL_COLS(pSchema); i++) {
     SColumn *pCol = TD_SCHEMA_COLUMN_AT(pSchema, i);
     if (TD_COLUMN_ID(pCol) == colId) {
-        return i;
+      return i;
     }
   }
   return -1;

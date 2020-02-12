@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 
-#include "type.h"
 #include "schema.h"
 
 // ----------------- Data row structure
@@ -62,5 +61,7 @@ typedef char * SDataCols;
 // ---- operation on SDataCols
 #define TD_DATACOLS_LEN(pDataCols) (*(int32_t *)(pDataCols))
 #define TD_DATACOLS_NPOINTS(pDataCols) (*(int32_t *)(pDataCols + sizeof(int32_t)))
+
+// ----
 
 #endif // _TD_DATA_FORMAT_H_

@@ -4,7 +4,6 @@
 #include <stdint.h>
 
 #include "cache.h"
-#include "dlist.h"
 
 #define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16*1024*1024 /* 16M */
 
