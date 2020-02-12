@@ -130,3 +130,8 @@ The TDengine community has also kindly built some of their own connectors! Follo
 # Contribute to TDengine
 
 Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to the project.
+
+# Join TDengine WeChat Group
+
+Add WeChat “tdengine” to join the group，you can communicate with other users.
+

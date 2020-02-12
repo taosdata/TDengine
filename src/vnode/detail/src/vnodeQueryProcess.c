@@ -132,7 +132,7 @@ static void queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMeterInfo) {
       pRuntimeEnv->pMeterObj = pMeterObj;
 
       if (pMeterInfo[k].pMeterQInfo == NULL) {
-        pMeterInfo[k].pMeterQInfo = createMeterQueryInfo(pQuery, pSupporter->rawSKey, pSupporter->rawEKey);
+        pMeterInfo[k].pMeterQInfo = createMeterQueryInfo(pQuery, pMeterObj->sid, pSupporter->rawSKey, pSupporter->rawEKey);
       }
 
       if (pMeterInfo[k].pMeterObj == NULL) {  // no data in disk for this meter, set its pointer
@@ -683,7 +683,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
     }
   
     resetCtxOutputBuf(pRuntimeEnv);
-    resetSlidingWindowInfo(&pRuntimeEnv->swindowResInfo, pQuery->numOfOutputCols);
+    resetSlidingWindowInfo(pRuntimeEnv, &pRuntimeEnv->swindowResInfo);
     
     while (pSupporter->meterIdx < pSupporter->numOfMeters) {
       int32_t k = pSupporter->meterIdx;
@@ -858,7 +858,9 @@ static void doOrderedScan(SQInfo *pQInfo) {
 static void setupMeterQueryInfoForSupplementQuery(SMeterQuerySupportObj *pSupporter) {
   for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
     SMeterQueryInfo *pMeterQueryInfo = pSupporter->pMeterDataInfo[i].pMeterQInfo;
-    changeMeterQueryInfoForSuppleQuery(pMeterQueryInfo, pSupporter->rawSKey, pSupporter->rawEKey);
+    SQueryResultBuf* pResultBuf = pSupporter->runtimeEnv.pResultBuf;
+    
+    changeMeterQueryInfoForSuppleQuery(pResultBuf, pMeterQueryInfo, pSupporter->rawSKey, pSupporter->rawEKey);
   }
 }
 
@@ -1086,7 +1088,7 @@ static void vnodeSingleMeterIntervalMainLooper(SMeterQuerySupportObj *pSupporter
            (pQuery->skey >= pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery)));
 
     initCtxOutputBuf(pRuntimeEnv);
-    clearCompletedSlidingWindows(&pRuntimeEnv->swindowResInfo, pQuery->numOfOutputCols);
+    clearCompletedSlidingWindows(pRuntimeEnv);
     
     vnodeScanAllData(pRuntimeEnv);
     if (isQueryKilled(pQuery)) {

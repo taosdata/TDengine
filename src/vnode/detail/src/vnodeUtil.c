@@ -247,7 +247,7 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
 
     SColIndexEx* pColumnIndexExInfo = &pExprs[i].pBase.colInfo;
 
-    // tag column schema is kept in pQueryMsg->pTagSchema
+    // tag column schema is kept in pQueryMsg->pColumnModel
     if (TSDB_COL_IS_TAG(pColumnIndexExInfo->flag)) {
       if (pColumnIndexExInfo->colIdx >= pQueryMsg->numOfTagsCols) {
         *code = TSDB_CODE_INVALID_QUERY_MSG;

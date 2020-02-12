@@ -78,7 +78,7 @@ int32_t taosNumOfRemainPoints(SInterpolationInfo *pInterpoInfo);
  */
 int32_t taosDoInterpoResult(SInterpolationInfo *pInterpoInfo, int16_t interpoType, tFilePage **data,
                             int32_t numOfRawDataInRows, int32_t outputRows, int64_t nInterval,
-                            const int64_t *pPrimaryKeyArray, tColModel *pModel, char **srcData, int64_t *defaultVal,
+                            const int64_t *pPrimaryKeyArray, SColumnModel *pModel, char **srcData, int64_t *defaultVal,
                             const int32_t *functionIDs, int32_t bufSize);
 
 int taosDoLinearInterpolation(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);

@@ -5,7 +5,7 @@
 set -e
 #set -x
 
-verMode=lite
+verMode=edge
 
 RED='\033[0;31m'
 GREEN='\033[1;32m'

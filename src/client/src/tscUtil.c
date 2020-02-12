@@ -676,7 +676,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
                                 STableDataBlocks** dataBlocks) {
   *dataBlocks = NULL;
 
-  STableDataBlocks** t1 = (STableDataBlocks**)taosGetDataFromHash(pHashList, (const char*)&id, sizeof(id));
+  STableDataBlocks** t1 = (STableDataBlocks**)taosGetDataFromHashTable(pHashList, (const char*)&id, sizeof(id));
   if (t1 != NULL) {
     *dataBlocks = *t1;
   }

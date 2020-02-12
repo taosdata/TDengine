@@ -24,10 +24,10 @@
 #include "tast.h"
 #include "vnodeTagMgmt.h"
 
-#define GET_TAG_VAL_POINTER(s, col, sc, t) ((t *)(&((s)->tags[(sc)->colOffset[(col)]])))
+#define GET_TAG_VAL_POINTER(s, col, sc, t) ((t *)(&((s)->tags[getColumnModelOffset(sc, col)])))
 #define GET_TAG_VAL(s, col, sc, t) (*GET_TAG_VAL_POINTER(s, col, sc, t))
 
-static void tTagsPrints(SMeterSidExtInfo *pMeterInfo, tTagSchema *pSchema, tOrderIdx *pOrder);
+static void tTagsPrints(SMeterSidExtInfo *pMeterInfo, SColumnModel *pSchema, SColumnOrderInfo *pOrder);
 
 static void tSidSetDisplay(tSidSet *pSets);
 
@@ -65,7 +65,7 @@ int32_t meterSidComparator(const void *p1, const void *p2, void *param) {
   SMeterSidExtInfo *s1 = (SMeterSidExtInfo *)p1;
   SMeterSidExtInfo *s2 = (SMeterSidExtInfo *)p2;
 
-  for (int32_t i = 0; i < pOrderDesc->orderIdx.numOfOrderedCols; ++i) {
+  for (int32_t i = 0; i < pOrderDesc->orderIdx.numOfCols; ++i) {
     int32_t colIdx = pOrderDesc->orderIdx.pData[i];
 
     char *  f1 = NULL;
@@ -79,9 +79,9 @@ int32_t meterSidComparator(const void *p1, const void *p2, void *param) {
       type = TSDB_DATA_TYPE_BINARY;
       bytes = TSDB_METER_NAME_LEN;
     } else {
-      f1 = GET_TAG_VAL_POINTER(s1, colIdx, pOrderDesc->pTagSchema, char);
-      f2 = GET_TAG_VAL_POINTER(s2, colIdx, pOrderDesc->pTagSchema, char);
-      SSchema *pSchema = &pOrderDesc->pTagSchema->pSchema[colIdx];
+      f1 = GET_TAG_VAL_POINTER(s1, colIdx, pOrderDesc->pColumnModel, char);
+      f2 = GET_TAG_VAL_POINTER(s2, colIdx, pOrderDesc->pColumnModel, char);
+      SSchema *pSchema = getColumnModelSchema(pOrderDesc->pColumnModel, colIdx);
       type = pSchema->type;
       bytes = pSchema->bytes;
     }
@@ -116,9 +116,9 @@ static void median(void **pMeterSids, size_t size, int32_t s1, int32_t s2, tOrde
          compareFn(pMeterSids[s1], pMeterSids[s2], pOrderDesc) <= 0);
 
 #ifdef _DEBUG_VIEW
-  tTagsPrints(pMeterSids[s1], pOrderDesc->pTagSchema, &pOrderDesc->orderIdx);
-  tTagsPrints(pMeterSids[midIdx], pOrderDesc->pTagSchema, &pOrderDesc->orderIdx);
-  tTagsPrints(pMeterSids[s2], pOrderDesc->pTagSchema, &pOrderDesc->orderIdx);
+  tTagsPrints(pMeterSids[s1], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
+  tTagsPrints(pMeterSids[midIdx], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
+  tTagsPrints(pMeterSids[s2], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
 #endif
 }
 
@@ -241,25 +241,6 @@ int32_t *calculateSubGroup(void **pSids, int32_t numOfMeters, int32_t *numOfSubs
   return starterPos;
 }
 
-tTagSchema *tCreateTagSchema(SSchema *pSchema, int32_t numOfTagCols) {
-  if (numOfTagCols == 0 || pSchema == NULL) {
-    return NULL;
-  }
-
-  tTagSchema *pTagSchema =
-      (tTagSchema *)calloc(1, sizeof(tTagSchema) + numOfTagCols * sizeof(int32_t) + sizeof(SSchema) * numOfTagCols);
-
-  pTagSchema->colOffset[0] = 0;
-  pTagSchema->numOfCols = numOfTagCols;
-  for (int32_t i = 1; i < numOfTagCols; ++i) {
-    pTagSchema->colOffset[i] = (pTagSchema->colOffset[i - 1] + pSchema[i - 1].bytes);
-  }
-
-  pTagSchema->pSchema = (SSchema *)&(pTagSchema->colOffset[numOfTagCols]);
-  memcpy(pTagSchema->pSchema, pSchema, sizeof(SSchema) * numOfTagCols);
-  return pTagSchema;
-}
-
 tSidSet *tSidSetCreate(struct SMeterSidExtInfo **pMeterSidExtInfo, int32_t numOfMeters, SSchema *pSchema,
                        int32_t numOfTags, SColIndexEx *colList, int32_t numOfCols) {
   tSidSet *pSidSet = (tSidSet *)calloc(1, sizeof(tSidSet) + numOfCols * sizeof(int16_t));
@@ -269,8 +250,8 @@ tSidSet *tSidSetCreate(struct SMeterSidExtInfo **pMeterSidExtInfo, int32_t numOf
 
   pSidSet->numOfSids = numOfMeters;
   pSidSet->pSids = pMeterSidExtInfo;
-  pSidSet->pTagSchema = tCreateTagSchema(pSchema, numOfTags);
-  pSidSet->orderIdx.numOfOrderedCols = numOfCols;
+  pSidSet->pColumnModel = createColumnModel(pSchema, numOfTags, 1);
+  pSidSet->orderIdx.numOfCols = numOfCols;
 
   /*
    * in case of "group by tbname,normal_col", the normal_col is ignored
@@ -282,7 +263,7 @@ tSidSet *tSidSetCreate(struct SMeterSidExtInfo **pMeterSidExtInfo, int32_t numOf
     }
   }
 
-  pSidSet->orderIdx.numOfOrderedCols = numOfTagCols;
+  pSidSet->orderIdx.numOfCols = numOfTagCols;
 
   pSidSet->starterPos = NULL;
   return pSidSet;
@@ -291,19 +272,19 @@ tSidSet *tSidSetCreate(struct SMeterSidExtInfo **pMeterSidExtInfo, int32_t numOf
 void tSidSetDestroy(tSidSet **pSets) {
   if ((*pSets) != NULL) {
     tfree((*pSets)->starterPos);
-    tfree((*pSets)->pTagSchema)(*pSets)->pSids = NULL;
+    tfree((*pSets)->pColumnModel)(*pSets)->pSids = NULL;
     tfree(*pSets);
   }
 }
 
-void tTagsPrints(SMeterSidExtInfo *pMeterInfo, tTagSchema *pSchema, tOrderIdx *pOrder) {
+void tTagsPrints(SMeterSidExtInfo *pMeterInfo, SColumnModel *pSchema, SColumnOrderInfo *pOrder) {
   if (pSchema == NULL) {
     return;
   }
 
   printf("sid: %-5d tags(", pMeterInfo->sid);
 
-  for (int32_t i = 0; i < pOrder->numOfOrderedCols; ++i) {
+  for (int32_t i = 0; i < pOrder->numOfCols; ++i) {
     int32_t colIndex = pOrder->pData[i];
 
     // it is the tbname column
@@ -312,7 +293,9 @@ void tTagsPrints(SMeterSidExtInfo *pMeterInfo, tTagSchema *pSchema, tOrderIdx *p
       continue;
     }
 
-    switch (pSchema->pSchema[colIndex].type) {
+    SSchema* s = getColumnModelSchema(pSchema, colIndex);
+    
+    switch (s->type) {
       case TSDB_DATA_TYPE_INT:
         printf("%d, ", GET_TAG_VAL(pMeterInfo, colIndex, pSchema, int32_t));
         break;
@@ -336,9 +319,9 @@ void tTagsPrints(SMeterSidExtInfo *pMeterInfo, tTagSchema *pSchema, tOrderIdx *p
         break;
       case TSDB_DATA_TYPE_NCHAR: {
         char *data = GET_TAG_VAL_POINTER(pMeterInfo, colIndex, pSchema, char);
+        
         char  buffer[512] = {0};
-
-        taosUcs4ToMbs(data, pSchema->pSchema[colIndex].bytes, buffer);
+        taosUcs4ToMbs(data, s->bytes, buffer);
         printf("%s, ", buffer);
         break;
       }
@@ -370,16 +353,16 @@ static void UNUSED_FUNC tSidSetDisplay(tSidSet *pSets) {
 
     printf("the %d-th subgroup: \n", i + 1);
     for (int32_t j = s; j < e; ++j) {
-      tTagsPrints(pSets->pSids[j], pSets->pTagSchema, &pSets->orderIdx);
+      tTagsPrints(pSets->pSids[j], pSets->pColumnModel, &pSets->orderIdx);
     }
   }
 }
 
 void tSidSetSort(tSidSet *pSets) {
   pTrace("number of meters in sort: %d", pSets->numOfSids);
-  tOrderIdx *pOrderIdx = &pSets->orderIdx;
+  SColumnOrderInfo *pOrderIdx = &pSets->orderIdx;
 
-  if (pOrderIdx->numOfOrderedCols == 0 || pSets->numOfSids <= 1 || pSets->pTagSchema == NULL) { // no group by tags clause
+  if (pOrderIdx->numOfCols == 0 || pSets->numOfSids <= 1 || pSets->pColumnModel == NULL) { // no group by tags clause
     pSets->numOfSubSet = 1;
     pSets->starterPos = (int32_t *)malloc(sizeof(int32_t) * (pSets->numOfSubSet + 1));
     pSets->starterPos[0] = 0;
@@ -390,11 +373,11 @@ void tSidSetSort(tSidSet *pSets) {
 #endif
   } else {
     tOrderDescriptor *descriptor =
-        (tOrderDescriptor *)calloc(1, sizeof(tOrderDescriptor) + sizeof(int16_t) * pSets->orderIdx.numOfOrderedCols);
-    descriptor->pTagSchema = pSets->pTagSchema;
+        (tOrderDescriptor *)calloc(1, sizeof(tOrderDescriptor) + sizeof(int16_t) * pSets->orderIdx.numOfCols);
+    descriptor->pColumnModel = pSets->pColumnModel;
     descriptor->orderIdx = pSets->orderIdx;
 
-    memcpy(descriptor->orderIdx.pData, pOrderIdx->pData, sizeof(int16_t) * pSets->orderIdx.numOfOrderedCols);
+    memcpy(descriptor->orderIdx.pData, pOrderIdx->pData, sizeof(int16_t) * pSets->orderIdx.numOfCols);
 
     tQSortEx((void **)pSets->pSids, POINTER_BYTES, 0, pSets->numOfSids - 1, descriptor, meterSidComparator);
     pSets->starterPos =

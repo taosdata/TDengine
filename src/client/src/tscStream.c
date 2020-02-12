@@ -396,7 +396,9 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   int64_t minSlidingTime =
       (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMinSlidingTime * 1000L : tsMinSlidingTime;
 
-  if (pQueryInfo->nSlidingTime < minSlidingTime) {
+  if (pQueryInfo->nSlidingTime == -1) {
+    pQueryInfo->nSlidingTime = pQueryInfo->nAggTimeInterval;
+  } else if (pQueryInfo->nSlidingTime < minSlidingTime) {
     tscWarn("%p stream:%p, original sliding value:%" PRId64 " too small, reset to:%" PRId64 "", pSql, pStream,
         pQueryInfo->nSlidingTime, minSlidingTime);
 
