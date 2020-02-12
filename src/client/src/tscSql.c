@@ -395,7 +395,7 @@ static void **doSetResultRowData(SSqlObj *pSql) {
     pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i, pQueryInfo->order) + pRes->bytes[i] * pRes->row;
 
     // primary key column cannot be null in interval query, no need to check
-    if (i == 0 && pQueryInfo->nAggTimeInterval > 0) {
+    if (i == 0 && pQueryInfo->intervalTime > 0) {
       continue;
     }
 

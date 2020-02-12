@@ -198,7 +198,7 @@ typedef struct SQueryInfo {
   char     intervalTimeUnit;
 
   int64_t         etime, stime;
-  int64_t         nAggTimeInterval;  // aggregation time interval
+  int64_t         intervalTime;  // aggregation time interval
   int64_t         nSlidingTime;      // sliding window in mseconds
   SSqlGroupbyExpr groupbyExpr;       // group by tags info
 

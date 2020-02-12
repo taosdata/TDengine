@@ -266,7 +266,7 @@ static SQInfo *vnodeAllocateQInfoEx(SQueryMeterMsg *pQueryMsg, SSqlGroupbyExpr *
   }
 
   pQuery->pGroupbyExpr = pGroupbyExpr;
-  pQuery->nAggTimeInterval = pQueryMsg->nAggTimeInterval;
+  pQuery->intervalTime = pQueryMsg->intervalTime;
   pQuery->slidingTime = pQueryMsg->slidingTime;
   pQuery->interpoType = pQueryMsg->interpoType;
   pQuery->intervalTimeUnit = pQueryMsg->intervalTimeUnit;
@@ -920,8 +920,8 @@ int vnodeSaveQueryResult(void *handle, char *data, int32_t *size) {
 }
 
 static int32_t validateQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
-  if (pQueryMsg->nAggTimeInterval < 0) {
-    dError("qmsg:%p illegal value of aggTimeInterval %" PRId64 "", pQueryMsg, pQueryMsg->nAggTimeInterval);
+  if (pQueryMsg->intervalTime < 0) {
+    dError("qmsg:%p illegal value of aggTimeInterval %" PRId64 "", pQueryMsg, pQueryMsg->intervalTime);
     return -1;
   }
 
@@ -975,7 +975,7 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
 
   pQueryMsg->queryType = htons(pQueryMsg->queryType);
 
-  pQueryMsg->nAggTimeInterval = htobe64(pQueryMsg->nAggTimeInterval);
+  pQueryMsg->intervalTime = htobe64(pQueryMsg->intervalTime);
   pQueryMsg->slidingTime = htobe64(pQueryMsg->slidingTime);
   
   pQueryMsg->numOfTagsCols = htons(pQueryMsg->numOfTagsCols);
@@ -1146,7 +1146,7 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
       "offset:%" PRId64,
       pQueryMsg, pQueryMsg->numOfSids, pQueryMsg->skey, pQueryMsg->ekey, pQueryMsg->numOfGroupCols,
       pQueryMsg->numOfTagsCols, pQueryMsg->order, pQueryMsg->orderType, pQueryMsg->orderByIdx,
-      pQueryMsg->numOfOutputCols, pQueryMsg->numOfCols, pQueryMsg->nAggTimeInterval, pQueryMsg->interpoType,
+      pQueryMsg->numOfOutputCols, pQueryMsg->numOfCols, pQueryMsg->intervalTime, pQueryMsg->interpoType,
       pQueryMsg->tsLen, pQueryMsg->limit, pQueryMsg->offset);
 
   return 0;

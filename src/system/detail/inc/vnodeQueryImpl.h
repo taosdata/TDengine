@@ -170,7 +170,7 @@ void disableFunctForSuppleScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 void enableFunctForMasterScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 
 int32_t mergeMetersResultToOneGroups(SMeterQuerySupportObj* pSupporter);
-void copyFromGroupBuf(SQInfo* pQInfo, SOutputRes* result);
+void copyFromGroupBuf(SQInfo* pQInfo, SWindowResult* result);
 
 SBlockInfo getBlockBasicInfo(SQueryRuntimeEnv* pRuntimeEnv, void* pBlock, int32_t blockType);
 SCacheBlock* getCacheDataBlock(SMeterObj* pMeterObj, SQueryRuntimeEnv* pRuntimeEnv, int32_t slot);
@@ -181,18 +181,20 @@ void queryOnBlock(SMeterQuerySupportObj* pSupporter, int64_t* primaryKeys, int32
 
 int32_t vnodeFilterQualifiedMeters(SQInfo *pQInfo, int32_t vid, tSidSet *pSidSet, SMeterDataInfo *pMeterDataInfo,
                                    int32_t *numOfMeters, SMeterDataInfo ***pReqMeterDataInfo);
-int32_t vnodeGetVnodeHeaderFileIdx(int32_t* fid, SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
+int32_t vnodeGetVnodeHeaderFileIndex(int32_t* fid, SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 
 int32_t createDataBlocksInfoEx(SMeterDataInfo** pMeterDataInfo, int32_t numOfMeters,
                                SMeterDataBlockInfoEx** pDataBlockInfoEx, int32_t numOfCompBlocks,
                                int32_t* nAllocBlocksInfoSize, int64_t addr);
 void freeMeterBlockInfoEx(SMeterDataBlockInfoEx* pDataBlockInfoEx, int32_t len);
 
-void setExecutionContext(SMeterQuerySupportObj* pSupporter, SOutputRes* outputRes, int32_t meterIdx, int32_t groupIdx,
+void setExecutionContext(SMeterQuerySupportObj* pSupporter, SWindowResult* outputRes, int32_t meterIdx, int32_t groupIdx,
                          SMeterQueryInfo* sqinfo);
 int32_t setIntervalQueryExecutionContext(SMeterQuerySupportObj* pSupporter, int32_t meterIdx, SMeterQueryInfo* sqinfo);
+void doGetAlignedIntervalQueryRangeImpl(SQuery *pQuery, int64_t pKey, int64_t keyFirst, int64_t keyLast,
+                                        int64_t *actualSkey, int64_t *actualEkey, int64_t *skey, int64_t *ekey);
 
-int64_t getQueryStartPositionInCache(SQueryRuntimeEnv* pRuntimeEnv, int32_t* slot, int32_t* pos, bool ignoreQueryRange);
+  int64_t getQueryStartPositionInCache(SQueryRuntimeEnv* pRuntimeEnv, int32_t* slot, int32_t* pos, bool ignoreQueryRange);
 int64_t getNextAccessedKeyInData(SQuery* pQuery, int64_t* pPrimaryCol, SBlockInfo* pBlockInfo, int32_t blockStatus);
 
 int32_t getDataBlocksForMeters(SMeterQuerySupportObj* pSupporter, SQuery* pQuery, int32_t numOfMeters,
@@ -209,7 +211,7 @@ int32_t vnodeGetHeaderFile(SQueryRuntimeEnv *pRuntimeEnv, int32_t fileIndex);
  * @param ekey
  * @return
  */
-SMeterQueryInfo* createMeterQueryInfo(SQuery* pQuery, int32_t sid, TSKEY skey, TSKEY ekey);
+SMeterQueryInfo* createMeterQueryInfo(SMeterQuerySupportObj *pSupporter, int32_t sid, TSKEY skey, TSKEY ekey);
 
 /**
  * Destroy meter query info
@@ -224,7 +226,7 @@ void destroyMeterQueryInfo(SMeterQueryInfo *pMeterQueryInfo, int32_t numOfCols);
  * @param skey
  * @param ekey
  */
-void changeMeterQueryInfoForSuppleQuery(SQueryResultBuf* pResultBuf, SMeterQueryInfo *pMeterQueryInfo, TSKEY skey, TSKEY ekey);
+void changeMeterQueryInfoForSuppleQuery(SQueryDiskbasedResultBuf* pResultBuf, SMeterQueryInfo *pMeterQueryInfo, TSKEY skey, TSKEY ekey);
 
 /**
  * add the new allocated disk page to meter query info
@@ -276,14 +278,14 @@ void displayInterResult(SData** pdata, SQuery* pQuery, int32_t numOfRows);
 
 void vnodePrintQueryStatistics(SMeterQuerySupportObj* pSupporter);
 
-void clearGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SOutputRes *pOneOutputRes);
-void copyGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SOutputRes* dst, const SOutputRes* src);
+void clearGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pOneOutputRes);
+void copyGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult* dst, const SWindowResult* src);
 
-void resetSlidingWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SSlidingWindowInfo* pSlidingWindowInfo);
+void resetSlidingWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo* pWindowResInfo);
 void clearCompletedSlidingWindows(SQueryRuntimeEnv* pRuntimeEnv);
-int32_t numOfClosedSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo);
-void closeSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo, int32_t slot);
-void closeAllSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo);
+int32_t numOfClosedSlidingWindow(SWindowResInfo* pWindowResInfo);
+void closeSlidingWindow(SWindowResInfo* pWindowResInfo, int32_t slot);
+void closeAllSlidingWindow(SWindowResInfo* pWindowResInfo);
 
 #ifdef __cplusplus
 }

@@ -100,7 +100,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
        * in case of stable query, limit/offset is not applied here. the limit/offset is applied to the
        * final results which is acquired after the secondry merge of in the client.
        */
-      if (pLimit->offset == 0 || pQueryInfo->nAggTimeInterval > 0 || QUERY_IS_STABLE_QUERY(pQueryInfo->type)) {
+      if (pLimit->offset == 0 || pQueryInfo->intervalTime > 0 || QUERY_IS_STABLE_QUERY(pQueryInfo->type)) {
         if (*st > elem1.ts) {
           *st = elem1.ts;
         }
@@ -165,7 +165,7 @@ SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pS
   pSupporter->subqueryIndex = index;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
   
-  pSupporter->interval = pQueryInfo->nAggTimeInterval;
+  pSupporter->interval = pQueryInfo->intervalTime;
   pSupporter->limit = pQueryInfo->limit;
 
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, pSql->cmd.clauseIndex, index);
@@ -293,7 +293,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     // set the second stage sub query for join process
     pQueryInfo->type |= TSDB_QUERY_TYPE_JOIN_SEC_STAGE;
   
-    pQueryInfo->nAggTimeInterval = pSupporter->interval;
+    pQueryInfo->intervalTime = pSupporter->interval;
     pQueryInfo->groupbyExpr = pSupporter->groupbyExpr;
   
     tscColumnBaseInfoCopy(&pQueryInfo->colList, &pSupporter->colList, 0);

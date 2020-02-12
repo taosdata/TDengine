@@ -590,20 +590,20 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
 
   // interval is not null
   SSQLToken* t = &pQuerySql->interval;
-  if (getTimestampInUsFromStr(t->z, t->n, &pQueryInfo->nAggTimeInterval) != TSDB_CODE_SUCCESS) {
+  if (getTimestampInUsFromStr(t->z, t->n, &pQueryInfo->intervalTime) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_SQL;
   }
 
   // if the unit of time window value is millisecond, change the value from microsecond
   if (pMeterMetaInfo->pMeterMeta->precision == TSDB_TIME_PRECISION_MILLI) {
-    pQueryInfo->nAggTimeInterval = pQueryInfo->nAggTimeInterval / 1000;
+    pQueryInfo->intervalTime = pQueryInfo->intervalTime / 1000;
   }
 
   /* parser has filter the illegal type, no need to check here */
   pQueryInfo->intervalTimeUnit = pQuerySql->interval.z[pQuerySql->interval.n - 1];
 
   // interval cannot be less than 10 milliseconds
-  if (pQueryInfo->nAggTimeInterval < tsMinIntervalTime) {
+  if (pQueryInfo->intervalTime < tsMinIntervalTime) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg2);
   }
 
@@ -627,7 +627,7 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
    * check invalid SQL:
    * select tbname, tags_fields from super_table_name interval(1s)
    */
-  if (tscQueryMetricTags(pQueryInfo) && pQueryInfo->nAggTimeInterval > 0) {
+  if (tscQueryMetricTags(pQueryInfo) && pQueryInfo->intervalTime > 0) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
   }
 
@@ -681,11 +681,11 @@ int32_t parseSlidingClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg0);
     }
 
-    if (pQueryInfo->nSlidingTime > pQueryInfo->nAggTimeInterval) {
+    if (pQueryInfo->nSlidingTime > pQueryInfo->intervalTime) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
     }
   } else {
-    pQueryInfo->nSlidingTime = -1;
+    pQueryInfo->nSlidingTime = pQueryInfo->intervalTime;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4252,7 +4252,7 @@ int32_t validateSqlFunctionInStreamSql(SQueryInfo* pQueryInfo) {
   const char* msg0 = "sample interval can not be less than 10ms.";
   const char* msg1 = "functions not allowed in select clause";
 
-  if (pQueryInfo->nAggTimeInterval != 0 && pQueryInfo->nAggTimeInterval < 10) {
+  if (pQueryInfo->intervalTime != 0 && pQueryInfo->intervalTime < 10) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg0);
   }
 
@@ -4950,7 +4950,7 @@ static int32_t doAddGroupbyColumnsOnDemand(SQueryInfo* pQueryInfo) {
       insertResultField(pQueryInfo, pQueryInfo->fieldsInfo.numOfOutputCols, &ids, bytes, type, name);
     } else {
       // if this query is "group by" normal column, interval is not allowed
-      if (pQueryInfo->nAggTimeInterval > 0) {
+      if (pQueryInfo->intervalTime > 0) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg2);
       }
 
@@ -4983,7 +4983,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
 
   // only retrieve tags, group by is not supportted
   if (pCmd->command == TSDB_SQL_RETRIEVE_TAGS) {
-    if (pQueryInfo->groupbyExpr.numOfGroupCols > 0 || pQueryInfo->nAggTimeInterval > 0) {
+    if (pQueryInfo->groupbyExpr.numOfGroupCols > 0 || pQueryInfo->intervalTime > 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     } else {
       return TSDB_CODE_SUCCESS;
@@ -5399,7 +5399,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   if (parseIntervalClause(pQueryInfo, pQuerySql) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_SQL;
   } else {
-    if ((pQueryInfo->nAggTimeInterval > 0) &&
+    if ((pQueryInfo->intervalTime > 0) &&
         (validateFunctionsInIntervalOrGroupbyQuery(pQueryInfo) != TSDB_CODE_SUCCESS)) {
       return TSDB_CODE_INVALID_SQL;
     }
@@ -5429,7 +5429,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
    * not here.
    */
   if (pQuerySql->fillType != NULL) {
-    if (pQueryInfo->nAggTimeInterval == 0) {
+    if (pQueryInfo->intervalTime == 0) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg3);
     }
 
@@ -5541,7 +5541,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   if (parseIntervalClause(pQueryInfo, pQuerySql) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_INVALID_SQL;
   } else {
-    if ((pQueryInfo->nAggTimeInterval > 0) &&
+    if ((pQueryInfo->intervalTime > 0) &&
         (validateFunctionsInIntervalOrGroupbyQuery(pQueryInfo) != TSDB_CODE_SUCCESS)) {
       return TSDB_CODE_INVALID_SQL;
     }
@@ -5614,14 +5614,14 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
    * the columns may be increased due to group by operation
    */
   if (pQuerySql->fillType != NULL) {
-    if (pQueryInfo->nAggTimeInterval == 0 && (!tscIsPointInterpQuery(pQueryInfo))) {
+    if (pQueryInfo->intervalTime == 0 && (!tscIsPointInterpQuery(pQueryInfo))) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
     }
     
-    if (pQueryInfo->nAggTimeInterval > 0) {
+    if (pQueryInfo->intervalTime > 0) {
       int64_t timeRange = labs(pQueryInfo->stime - pQueryInfo->etime);
       // number of result is not greater than 10,000,000
-      if ((timeRange == 0) || (timeRange / pQueryInfo->nAggTimeInterval) > MAX_RETRIEVE_ROWS_IN_INTERVAL_QUERY) {
+      if ((timeRange == 0) || (timeRange / pQueryInfo->intervalTime) > MAX_RETRIEVE_ROWS_IN_INTERVAL_QUERY) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg6);
       }
     }

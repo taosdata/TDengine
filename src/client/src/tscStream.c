@@ -381,23 +381,23 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  if (pQueryInfo->nAggTimeInterval < minIntervalTime) {
+  if (pQueryInfo->intervalTime < minIntervalTime) {
     tscWarn("%p stream:%p, original sample interval:%ld too small, reset to:%" PRId64 "", pSql, pStream,
-            pQueryInfo->nAggTimeInterval, minIntervalTime);
-    pQueryInfo->nAggTimeInterval = minIntervalTime;
+            pQueryInfo->intervalTime, minIntervalTime);
+    pQueryInfo->intervalTime = minIntervalTime;
   }
 
-  pStream->interval = pQueryInfo->nAggTimeInterval;  // it shall be derived from sql string
+  pStream->interval = pQueryInfo->intervalTime;  // it shall be derived from sql string
 
   if (pQueryInfo->nSlidingTime == 0) {
-    pQueryInfo->nSlidingTime = pQueryInfo->nAggTimeInterval;
+    pQueryInfo->nSlidingTime = pQueryInfo->intervalTime;
   }
 
   int64_t minSlidingTime =
       (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMinSlidingTime * 1000L : tsMinSlidingTime;
 
   if (pQueryInfo->nSlidingTime == -1) {
-    pQueryInfo->nSlidingTime = pQueryInfo->nAggTimeInterval;
+    pQueryInfo->nSlidingTime = pQueryInfo->intervalTime;
   } else if (pQueryInfo->nSlidingTime < minSlidingTime) {
     tscWarn("%p stream:%p, original sliding value:%" PRId64 " too small, reset to:%" PRId64 "", pSql, pStream,
         pQueryInfo->nSlidingTime, minSlidingTime);
@@ -405,16 +405,16 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
     pQueryInfo->nSlidingTime = minSlidingTime;
   }
 
-  if (pQueryInfo->nSlidingTime > pQueryInfo->nAggTimeInterval) {
+  if (pQueryInfo->nSlidingTime > pQueryInfo->intervalTime) {
     tscWarn("%p stream:%p, sliding value:%" PRId64 " can not be larger than interval range, reset to:%" PRId64 "", pSql, pStream,
-            pQueryInfo->nSlidingTime, pQueryInfo->nAggTimeInterval);
+            pQueryInfo->nSlidingTime, pQueryInfo->intervalTime);
 
-    pQueryInfo->nSlidingTime = pQueryInfo->nAggTimeInterval;
+    pQueryInfo->nSlidingTime = pQueryInfo->intervalTime;
   }
 
   pStream->slidingTime = pQueryInfo->nSlidingTime;
   
-  pQueryInfo->nAggTimeInterval = 0; // clear the interval value to avoid the force time window split by query processor
+  pQueryInfo->intervalTime = 0; // clear the interval value to avoid the force time window split by query processor
   pQueryInfo->nSlidingTime = 0;
 }
 

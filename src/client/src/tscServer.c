@@ -649,7 +649,7 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     tscTagCondCopy(&pSupporter->tagCond, &pNewQueryInfo->tagCond);
 
     pNew->cmd.numOfCols = 0;
-    pNewQueryInfo->nAggTimeInterval = 0;
+    pNewQueryInfo->intervalTime = 0;
     memset(&pNewQueryInfo->limit, 0, sizeof(SLimitVal));
 
     // backup the data and clear it in the sqlcmd object
@@ -1683,12 +1683,12 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return -1;
   }
 
-  pQueryMsg->nAggTimeInterval = htobe64(pQueryInfo->nAggTimeInterval);
+  pQueryMsg->intervalTime = htobe64(pQueryInfo->intervalTime);
   pQueryMsg->intervalTimeUnit = pQueryInfo->intervalTimeUnit;
   pQueryMsg->slidingTime = htobe64(pQueryInfo->nSlidingTime);
   
-  if (pQueryInfo->nAggTimeInterval < 0) {
-    tscError("%p illegal value of aggregation time interval in query msg: %ld", pSql, pQueryInfo->nAggTimeInterval);
+  if (pQueryInfo->intervalTime < 0) {
+    tscError("%p illegal value of aggregation time interval in query msg: %ld", pSql, pQueryInfo->intervalTime);
     return -1;
   }
 
