@@ -32,7 +32,7 @@ tags (location binary(20), type int)</code></pre>
 <p>查看数据库内全部STable，及其相关信息，包括STable的名称、创建时间、列数量、标签（TAG）数量、通过该STable建表的数量。 </p></li>
 <li><p>删除超级表</p>
 <pre><code class="mysql language-mysql">DROP TABLE &lt;stable_name&gt;</code></pre>
-<p>Note: 删除STable不会级联删除通过STable创建的表；相反删除STable时要求通过该STable创建的表都已经被删除。</p></li>
+<p>Note: 删除STable时，所有通过该STable创建的表都将被删除。</p></li>
 <li><p>查看属于某STable并满足查询条件的表</p>
 <pre><code class="mysql language-mysql">SELECT TBNAME,[TAG_NAME,…] FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] …)</code></pre>
 <p>查看属于某STable并满足查询条件的表。说明：TBNAME为关键词，显示通过STable建立的子表表名，查询过程中可以使用针对标签的条件。</p>
