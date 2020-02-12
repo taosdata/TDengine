@@ -199,7 +199,6 @@ enum {
 #define TSDB_COL_JOIN                  0x2U
 
 extern char *taosMsg[];
-extern char *tsError[];
 
 #pragma pack(push, 1)
 
