@@ -126,6 +126,7 @@ static FORCE_INLINE SMeterObj* getMeterObj(void* hashHandle, int32_t sid) {
 bool isQueryKilled(SQuery* pQuery);
 bool isFixedOutputQuery(SQuery* pQuery);
 bool isPointInterpoQuery(SQuery* pQuery);
+bool isSumAvgRateQuery(SQuery *pQuery);
 bool isTopBottomQuery(SQuery* pQuery);
 bool isFirstLastRowQuery(SQuery* pQuery);
 bool isTSCompQuery(SQuery* pQuery);

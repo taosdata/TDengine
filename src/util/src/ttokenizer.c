@@ -231,6 +231,7 @@ static SKeyword keywordTable[] = {
     {"RATE",         TK_RATE},
     {"IRATE",        TK_IRATE},
     {"SUM_RATE",     TK_SUM_RATE},
+    {"SUM_IRATE",    TK_SUM_IRATE},
     {"AVG_RATE",     TK_AVG_RATE},
     {"AVG_IRATE",    TK_AVG_IRATE},
 };

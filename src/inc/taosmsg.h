@@ -684,9 +684,14 @@ typedef struct {
 } SSecIe;
 
 typedef struct {
-  uint32_t ip;
-  uint32_t vnode;
+  int32_t dnode;  //the ID of dnode
+  int32_t vnode;  //the index of vnode
 } SVPeerDesc;
+
+typedef struct {
+  int32_t numOfVPeers;
+  SVPeerDesc vpeerDesc[];
+} SVpeerDescArray;
 
 typedef struct {
   int32_t    vnode;

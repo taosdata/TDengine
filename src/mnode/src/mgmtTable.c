@@ -97,7 +97,7 @@ int32_t mgmtMeterDropColumnByName(STabObj *pTable, const char *name);
 static int dropMeterImp(SDbObj *pDb, STabObj * pTable, SAcctObj *pAcct);
 static void dropAllMetersOfMetric(SDbObj *pDb, STabObj * pMetric, SAcctObj *pAcct);
 
-void mgmtMeterActionInit() {
+static void mgmtMeterActionInit() {
   mgmtMeterActionFp[SDB_TYPE_INSERT] = mgmtMeterActionInsert;
   mgmtMeterActionFp[SDB_TYPE_DELETE] = mgmtMeterActionDelete;
   mgmtMeterActionFp[SDB_TYPE_UPDATE] = mgmtMeterActionUpdate;

@@ -398,7 +398,7 @@ static void queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo
 
       restoreIntervalQueryRange(pRuntimeEnv, pMeterQueryInfo);
 
-      if (pQuery->nAggTimeInterval == 0) {  // normal query
+      if (pQuery->nAggTimeInterval == 0 && !isSumAvgRateQuery(pQuery)) {  // normal query
         if ((pQuery->lastKey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
             (pQuery->lastKey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
           qTrace(
@@ -964,7 +964,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
     return;
   }
 
-  if (pQuery->nAggTimeInterval > 0) {
+  if (pQuery->nAggTimeInterval > 0  || isSumAvgRateQuery(pQuery)) {
     assert(pSupporter->subgroupIdx == 0 && pSupporter->numOfGroupResultPages == 0);
 
     if (mergeMetersResultToOneGroups(pSupporter) == TSDB_CODE_SUCCESS) {

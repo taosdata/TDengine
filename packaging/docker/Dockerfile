@@ -4,7 +4,7 @@ WORKDIR /root
 
 COPY tdengine.tar.gz /root/
 RUN tar -zxf tdengine.tar.gz
-WORKDIR /root/tdengine/
+WORKDIR /root/TDengine-server/
 RUN sh install.sh
 
 
