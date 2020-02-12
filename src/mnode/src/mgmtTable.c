@@ -35,6 +35,12 @@
 #include "ttime.h"
 #include "tstatus.h"
 
+#include "mgmtSuperTable.h"
+#include "mgmtChildTable.h"
+#include "mgmtNormalTable.h"
+#include "mgmtStreamTable.h"
+
+
 extern int64_t sdbVersion;
 
 #define mgmtDestroyMeter(pTable)            \
@@ -564,14 +570,23 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
   if (pTable == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
   memset(pTable, 0, sizeof(STabObj));
 
-  if (pCreate->numOfColumns == 0 && pCreate->numOfTags == 0) {  // MTABLE
-    pTable->tableType = TSDB_TABLE_TYPE_CREATE_FROM_STABLE;
-    char *pTagData = (char *)pCreate->schema;  // it is a tag key
-    pMetric = mgmtGetTable(pTagData);
-    if (pMetric == NULL) {
+  //
+  ETableType tableType = TSDB_TABLE_TYPE_MAX;
+  char *tagData = NULL;
+  int32_t tagDataSize = 0;
+
+  if (pCreate->numOfColumns == 0 && pCreate->numOfTags == 0) {
+    tableType = TSDB_TABLE_TYPE_CHILD_TABLE;
+    tagData = (char *)pCreate->schema;  // it is a tag key
+
+    SSuperTableObj *pSuperTable = mgmtGetSuperTable(tagData);
+    if (pSuperTable == NULL) {
       mError("table:%s, corresponding super table does not exist", pCreate->meterId);
       return TSDB_CODE_INVALID_TABLE;
     }
+
+    tagDataSize = mgmtGetTagsLength(pMetric, INT_MAX) + (uint32_t)TSDB_TABLE_ID_LEN;
+
 
     /*
      * for meters created according to metrics, the schema of this meter isn't needed.
@@ -1667,7 +1682,7 @@ int32_t mgmtFindColumnIndex(STabObj *pTable, const char *colName) {
       }
     }
 
-  } else if (pTable->tableType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
+  } else if (pTable->tableType == TSDB_TABLE_TYPE_CHILD_TABLE) {
     pMetric = mgmtGetTable(pTable->pTagData);
     if (pMetric == NULL) {
       mError("MTable not belongs to any metric, meter: %s", pTable->meterId);
@@ -1688,7 +1703,7 @@ int32_t mgmtMeterAddColumn(STabObj *pTable, SSchema schema[], int ncols) {
   SAcctObj *pAcct = NULL;
   SDbObj *  pDb = NULL;
 
-  if (pTable == NULL || pTable->tableType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE || pTable->tableType == TSDB_TABLE_TYPE_STREAM_TABLE || ncols <= 0)
+  if (pTable == NULL || pTable->tableType == TSDB_TABLE_TYPE_CHILD_TABLE || pTable->tableType == TSDB_TABLE_TYPE_STREAM_TABLE || ncols <= 0)
     return TSDB_CODE_APP_ERROR;
 
   // ASSUMPTION: no two tags are the same
@@ -1745,7 +1760,7 @@ int32_t mgmtMeterDropColumnByName(STabObj *pTable, const char *name) {
   SAcctObj *pAcct = NULL;
   SDbObj *  pDb = NULL;
 
-  if (pTable == NULL || pTable->tableType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE || pTable->tableType == TSDB_TABLE_TYPE_STREAM_TABLE)
+  if (pTable == NULL || pTable->tableType == TSDB_TABLE_TYPE_CHILD_TABLE || pTable->tableType == TSDB_TABLE_TYPE_STREAM_TABLE)
     return TSDB_CODE_APP_ERROR;
 
   int32_t index = mgmtFindColumnIndex(pTable, name);

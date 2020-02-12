@@ -21,7 +21,7 @@
 #include "tschemautil.h"
 
 bool mgmtTableCreateFromSuperTable(STabObj* pTableObj) {
-  return pTableObj->tableType == TSDB_TABLE_TYPE_CREATE_FROM_STABLE;
+  return pTableObj->tableType == TSDB_TABLE_TYPE_CHILD_TABLE;
 }
 
 bool mgmtIsSuperTable(STabObj* pTableObj) {

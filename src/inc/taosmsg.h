@@ -181,9 +181,9 @@ enum _mgmt_table {
 
 #define TSDB_KILL_MSG_LEN              30
 
-enum {
+typedef enum {
   TSDB_TABLE_TYPE_SUPER_TABLE        = 0,  // super table
-  TSDB_TABLE_TYPE_CREATE_FROM_STABLE = 1,  // table created from super table
+  TSDB_TABLE_TYPE_CHILD_TABLE        = 1,  // table created from super table
   TSDB_TABLE_TYPE_NORMAL_TABLE       = 2,  // ordinary table
   TSDB_TABLE_TYPE_STREAM_TABLE       = 3,  // table created from stream computing
   TSDB_TABLE_TYPE_MAX                = 4

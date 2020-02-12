@@ -98,12 +98,12 @@ typedef struct {
 typedef struct {
   int32_t sid;
   int32_t vgId;  // vnode group ID
-} SMeterGid;
+} STableGid;
 
 typedef struct _tab_obj {
   char      meterId[TSDB_TABLE_ID_LEN + 1];
   uint64_t  uid;
-  SMeterGid gid;
+  STableGid gid;
 
   int32_t sversion;     // schema version
   int64_t createdTime;

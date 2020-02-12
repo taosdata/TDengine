@@ -13,23 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TBASE_MNODE_STABLE_H
-#define TBASE_MNODE_STABLE_H
+#define _DEFAULT_SOURCE
+#include "os.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
 #include "mnode.h"
+#include "mgmtAcct.h"
+#include "mgmtGrant.h"
+#include "mgmtUtil.h"
+#include "mgmtDb.h"
+#include "mgmtDnodeInt.h"
+#include "mgmtVgroup.h"
+#include "mgmtSupertableQuery.h"
+#include "mgmtTable.h"
+#include "taosmsg.h"
+#include "tast.h"
+#include "textbuffer.h"
+#include "tschemautil.h"
+#include "tscompression.h"
+#include "tskiplist.h"
+#include "tsqlfunction.h"
+#include "ttime.h"
+#include "tstatus.h"
 
-int32_t      mgmtInitSTable();
-
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif

@@ -14,8 +14,24 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dnodeWrite.h"
+#include "os.h"
 
-int32_t dnodeCreateTable(int vid, int sid, SCreateTableMsg *table) {
+#include "mnode.h"
+#include "mgmtAcct.h"
+#include "mgmtGrant.h"
+#include "mgmtUtil.h"
+#include "mgmtDb.h"
+#include "mgmtDnodeInt.h"
+#include "mgmtVgroup.h"
+#include "mgmtSupertableQuery.h"
+#include "mgmtTable.h"
+#include "taosmsg.h"
+#include "tast.h"
+#include "textbuffer.h"
+#include "tschemautil.h"
+#include "tscompression.h"
+#include "tskiplist.h"
+#include "tsqlfunction.h"
+#include "ttime.h"
+#include "tstatus.h"
 
-}

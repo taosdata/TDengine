@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _tsdb_global_header_
-#define _tsdb_global_header_
+#ifndef TDENGINE_TAOS_DEF_H
+#define TDENGINE_TAOS_DEF_H
 
 #ifdef __cplusplus
 extern "C" {

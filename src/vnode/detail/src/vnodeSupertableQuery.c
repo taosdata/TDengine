@@ -202,7 +202,7 @@ static void mgmtRetrieveByMeterName(tQueryResultset* pRes, char* str, STabObj* p
     }
 
     /* not a table created from metric, ignore */
-    if (pMeterObj->tableType != TSDB_TABLE_TYPE_CREATE_FROM_STABLE) {
+    if (pMeterObj->tableType != TSDB_TABLE_TYPE_CHILD_TABLE) {
       continue;
     }
 
