@@ -24,7 +24,7 @@ typedef struct {
 typedef struct STSDBCache {
   // Number of blocks the cache is allocated
   int32_t numOfBlocks;
-  SDList *cacheList;
+  STSDBCacheBlock *cacheList;
   void *  current;
 } SCacheHandle;
 
@@ -36,6 +36,6 @@ typedef struct STSDBCache {
 #define TSDB_NEXT_CACHE_BLOCK(pBlock) ((pBlock)->next)
 #define TSDB_PREV_CACHE_BLOCK(pBlock) ((pBlock)->prev)
 
-STSDBCache *tsdbCreateCache();
+SCacheHandle *tsdbCreateCache(int32_t numOfBlocks);
 
 #endif  // _TD_TSDBCACHE_H_
