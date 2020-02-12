@@ -12,6 +12,7 @@ typedef struct {
   td_datatype_t type;     // Column type
   int32_t       colId;    // column ID
   int32_t       bytes;    // column bytes
+  int32_t       offset;   // point offset in a row data
   char *        colName;  // the column name
 } SColumn;
 
@@ -40,6 +41,7 @@ typedef char *SISchema;
 #define TD_COLUMN_TYPE(pCol) ((pCol)->type)     // column type
 #define TD_COLUMN_ID(pCol) ((pCol)->colId)      // column ID
 #define TD_COLUMN_BYTES(pCol) ((pCol)->bytes)   // column bytes
+#define TD_COLUMN_OFFSET(pCol) ((pCol)->offset)   // column bytes
 #define TD_COLUMN_NAME(pCol) ((pCol)->colName)  // column name
 #define TD_COLUMN_INLINE_SIZE(pCol) (sizeof(SColumn) + TD_COLUMN_NAME(pCol) + 1)
 
@@ -66,6 +68,6 @@ SISchema tdConvertSchemaToInline(SSchema *pSchema);
 int32_t tdGetColumnIdxByName(SSchema *pSchema, char *colName);
 int32_t tdGetColumnIdxById(SSchema *pSchema, int32_t colId);
 
-// ---- TODO: operations to change schema
+// ---- TODO: operations to modify schema
 
 #endif  // _TD_SCHEMA_H_
