@@ -142,7 +142,7 @@ It lists the STable's schema and tags
 DROP TABLE <stable_name>
 ```
 
-To delete a STable, all the tables created via this STable shall be deleted first, otherwise, it will fail.
+To delete a STable, all the tables created via this STable will be deleted first.
 
 ### List the Associated Tables of a STable
 

@@ -72,7 +72,7 @@ STable从属于库，一个STable只属于一个库，但一个库可以有一�
     DROP TABLE <stable_name>
     ```
 
-    Note: 删除STable不会级联删除通过STable创建的表；相反删除STable时要求通过该STable创建的表都已经被删除。
+    Note: 删除STable时，所有通过该STable创建的表都将被删除。
 
 - 查看属于某STable并满足查询条件的表
 
