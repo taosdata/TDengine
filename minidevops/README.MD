@@ -7,12 +7,10 @@
 - grafana/grafana                                         Grafana的镜像，一个广泛应用的开源可视化监控软件
 - telegraf:latest                                            一个广泛应用的开源数据采集程序
 - prom/prometheus:latest                           一个广泛应用的k8s领域的开源数据采集程序
-<<<<<<< HEAD
 
-=======
 ## 说明
 本文中的图片链接在Github上显示不出来，建议将MD文件下载后用vscode或其他md文件浏览工具进行查看
->>>>>>> 740f82af58c4ecc2deecfa36fb1de4ef5ee55efc
+
 ## 前提条件
 1. 一台linux服务器或运行linux操作系统的虚拟机或者运行MacOS的计算机
 2. 安装了Docker软件。Docker软件的安装方法请参考linux下安装Docker
