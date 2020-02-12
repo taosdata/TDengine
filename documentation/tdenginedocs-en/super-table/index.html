@@ -73,7 +73,7 @@ INTERVAL(10M)</code></pre>
 <p>It lists the STable's schema and tags</p>
 <a class='anchor' id='Drop-a-STable'></a><h3>Drop a STable</h3>
 <pre><code class="mysql language-mysql">DROP TABLE &lt;stable_name&gt;</code></pre>
-<p>To delete a STable, all the tables created via this STable shall be deleted first, otherwise, it will fail.</p>
+<p>To delete a STable, all the tables created via this STable will be deleted.</p>
 <a class='anchor' id='List-the-Associated-Tables-of-a-STable'></a><h3>List the Associated Tables of a STable</h3>
 <pre><code class="mysql language-mysql">SELECT TBNAME,[TAG_NAME, ...] FROM &lt;stable_name&gt; WHERE &lt;tag_name&gt; &lt;[=|=&lt;|&gt;=|&lt;&gt;] values..&gt; ([AND|OR] ...)</code></pre>
 <p>It will list all the tables which satisfy the tag filter conditions. The tables are all created from this specific STable. TBNAME is a new keyword introduced, it is the table name associated with the STable. </p>
