@@ -13,23 +13,44 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TBASE_MNODE_STABLE_H
-#define TBASE_MNODE_STABLE_H
+#ifndef TDENGINE_VNODE_PEER_H
+#define TDENGINE_VNODEPEER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
-#include "mnode.h"
+#include <stdbool.h>
+#include "tsdb.h"
 
-int32_t      mgmtInitSTable();
+/*
+ * Initialize the resources
+ */
+int32_t vnodeInitPeer(int numOfThreads);
 
+/*
+ * Free the resources
+ */
+void vnodeCleanUpPeers();
+
+/*
+ * Start a vnode synchronization process
+ */
+int32_t vnodeOpenPeer(int32_t vnode);
+
+/*
+ * Update the peerinfo of vnode
+ */
+int32_t vnodeConfigPeer(SVpeerDescArray msg);
+
+/*
+ * Close a vnode synchronization process
+ */
+void vnodeCleanUpPeer(int32_t vnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif  // TDENGINE_VNODEPEER_H
