@@ -67,7 +67,7 @@ TDengine内嵌支持轻量级的消息订阅与推送服务。使用系统提供
 
 TDengine的订阅与推送服务的状态是客户端维持，TDengine服务器并不维持。因此如果应用重启，从哪个时间点开始获取最新数据，由应用决定。
 
-订阅相关API请见 [连接器](https://www.taosdata.com/cn/documentation/connector/)。
+订阅相关API文档请见 [C/C++ 数据订阅接口](https://www.taosdata.com/cn/documentation/connector/#C/C++-%E6%95%B0%E6%8D%AE%E8%AE%A2%E9%98%85%E6%8E%A5%E5%8F%A3)，《[TDEngine中订阅的用途和用法](https://www.taosdata.com/blog/2020/02/12/1277.html)》则以一个示例详细介绍了这些ＡＰＩ的用法。
 
 ## 缓存 (Cache)
 TDengine采用时间驱动缓存管理策略（First-In-First-Out，FIFO），又称为写驱动的缓存管理机制。这种策略有别于读驱动的数据缓存模式（Least-Recent-Use，LRU），直接将最近写入的数据保存在系统的缓存中。当缓存达到临界值的时候，将最早的数据批量写入磁盘。一般意义上来说，对于物联网数据的使用，用户最为关心最近产生的数据，即当前状态。TDengine充分利用了这一特性，将最近到达的（当前状态）数据保存在缓存中。
