@@ -15,12 +15,12 @@ run lite/compute/sum_rate.sim
 
 
 print ============= start run sum_irate.sim
-#run lite/compute/sum_irate.sim
+run lite/compute/sum_irate.sim
 
 
 print ============= start run avg_rate.sim
-#run lite/compute/avg_rate.sim
+run lite/compute/avg_rate.sim
 
 
 print ============= start run avg_irate.sim
-#run lite/compute/avg_irate.sim
+run lite/compute/avg_irate.sim

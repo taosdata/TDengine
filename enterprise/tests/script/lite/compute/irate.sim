@@ -543,3 +543,72 @@ if $data41 != 0.000000000 then
   return -1
 endi
 
+print =============== step10-4 zero  data: 0
+$startTime = 1580601606000
+sql create table t4 using mrate tags('zero')
+sql insert into t4 values ('2020-02-02 08:00:00.000' , 5 )
+sql insert into t4 values ('2020-02-02 08:00:01.000' , 6 )
+sql insert into t4 values ('2020-02-02 08:00:02.000' , 12 )
+sql insert into t4 values ('2020-02-02 08:00:03.000' , 18 )
+sql insert into t4 values ('2020-02-02 08:00:04.000' , 0 )
+sql insert into t4 values ('2020-02-02 08:00:05.000' , 33 )
+sql insert into t4 values ('2020-02-02 08:00:06.000' , 43 )
+sql insert into t4 values ('2020-02-02 08:00:07.000' , 51 )
+sql insert into t4 values ('2020-02-02 08:00:08.000' , 64 )
+sql insert into t4 values ('2020-02-02 08:00:09.000' , 32 )
+sql insert into t4 values ('2020-02-02 08:00:10.000' , 99 )
+sql insert into t4 values ('2020-02-02 08:00:11.000' , 111 )
+sql insert into t4 values ('2020-02-02 08:00:12.000' , 123 )
+sql insert into t4 values ('2020-02-02 08:00:13.000' , 135 )
+sql insert into t4 values ('2020-02-02 08:00:14.000' , 177 )
+sql insert into t4 values ('2020-02-02 08:00:15.000' , 222 )
+sql insert into t4 values ('2020-02-02 08:00:16.000' , 333 )
+sql insert into t4 values ('2020-02-02 08:00:17.000' , 431 )
+sql insert into t4 values ('2020-02-02 08:00:18.000' , 453 )
+sql insert into t4 values ('2020-02-02 08:00:25.000' , 578 )
+sql insert into t4 values ('2020-02-02 08:00:30.000' , 0 )
+sql insert into t4 values ('2020-02-02 08:00:33.000' , 698 )
+
+sql select irate(tbcol) from t4 interval(6s);
+print ===> $data00  $data01
+print ===> $data10  $data11
+print ===> $data20  $data21
+print ===> $data30  $data31
+print ===> $data40  $data41
+print ===> $data50  $date51
+if $data01 != 33.000000000 then 
+  return -1
+endi
+if $data11 != 12.000000000 then 
+  return -1
+endi
+if $data21 != 98.000000000 then 
+  return -1
+endi
+if $data31 != 0.000000000 then 
+  return -1
+endi
+if $data41 != 0.000000000 then 
+  return -1
+endi
+if $data51 != 232.666666667 then 
+  return -1
+endi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
