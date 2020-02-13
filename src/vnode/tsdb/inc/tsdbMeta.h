@@ -88,3 +88,5 @@ SMetaHandle * tsdbCreateMetaHandle (int32_t numOfTables);
 
 // Recover the meta handle from the file
 SMetaHandle * tsdbOpenMetaHandle(int fd);
+
+int32_t tsdbCreateMeterImpl(SMetaHandle *pHandle, STableCfg *pCfg);
