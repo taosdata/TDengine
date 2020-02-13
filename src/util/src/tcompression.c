@@ -769,7 +769,7 @@ int tsDecompressTimestampImp(const char *const input, const int nelements, char 
         delta_of_delta = 0;
       } else {
         if (is_bigendian()) {
-          memcpy(&dd1 + LONG_BYTES - nbytes, input + ipos, nbytes);
+          memcpy(((char *)(&dd1)) + LONG_BYTES - nbytes, input + ipos, nbytes);
         } else {
           memcpy(&dd1, input + ipos, nbytes);
         }
@@ -794,7 +794,7 @@ int tsDecompressTimestampImp(const char *const input, const int nelements, char 
         delta_of_delta = 0;
       } else {
         if (is_bigendian()) {
-          memcpy(&dd2 + LONG_BYTES - nbytes, input + ipos, nbytes);
+          memcpy(((char *)(&dd2)) + LONG_BYTES - nbytes, input + ipos, nbytes);
         } else {
           memcpy(&dd2, input + ipos, nbytes);
         }
