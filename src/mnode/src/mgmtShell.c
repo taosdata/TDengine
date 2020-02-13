@@ -230,7 +230,7 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
            pCreateMsg->meterId, pDb, pDb->name, pMeterDb, pMeterDb->name);
     assert(pDb == pMeterDb);
 
-    int32_t code = mgmtCreateMeter(pDb, pCreateMsg);
+    int32_t code = mgmtCreateTable(pDb, pCreateMsg);
 
     char stableName[TSDB_TABLE_ID_LEN] = {0};
     strncpy(stableName, pInfo->tags, TSDB_TABLE_ID_LEN);
@@ -896,7 +896,7 @@ static void mgmtInitShowMsgFp() {
   mgmtGetMetaFp[TSDB_MGMT_TABLE_DNODE] = mgmtGetDnodeMeta;
   mgmtGetMetaFp[TSDB_MGMT_TABLE_MNODE] = mgmtGetMnodeMeta;
   mgmtGetMetaFp[TSDB_MGMT_TABLE_VGROUP] = mgmtGetVgroupMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_METRIC] = mgmtGetMetricMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_METRIC] = mgmtGetSuperTableMeta;
   mgmtGetMetaFp[TSDB_MGMT_TABLE_MODULE] = mgmtGetModuleMeta;
   mgmtGetMetaFp[TSDB_MGMT_TABLE_QUERIES] = mgmtGetQueryMeta;
   mgmtGetMetaFp[TSDB_MGMT_TABLE_STREAMS] = mgmtGetStreamMeta;
@@ -910,11 +910,11 @@ static void mgmtInitShowMsgFp() {
   mgmtRetrieveFp[TSDB_MGMT_TABLE_ACCT] = mgmtRetrieveAccts;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_USER] = mgmtRetrieveUsers;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_DB] = mgmtRetrieveDbs;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_TABLE] = mgmtRetrieveMeters;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_TABLE] = mgmtRetrieveTables;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_DNODE] = mgmtRetrieveDnodes;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_MNODE] = mgmtRetrieveMnodes;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_VGROUP] = mgmtRetrieveVgroups;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_METRIC] = mgmtRetrieveMetrics;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_METRIC] = mgmtRetrieveSuperTables;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_MODULE] = mgmtRetrieveModules;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_QUERIES] = mgmtRetrieveQueries;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_STREAMS] = mgmtRetrieveStreams;
@@ -1097,7 +1097,7 @@ int mgmtProcessCreateTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
 
     if (pDb) {
-      code = mgmtCreateMeter(pDb, pCreate);
+      code = mgmtCreateTable(pDb, pCreate);
     } else {
       code = TSDB_CODE_DB_NOT_SELECTED;
     }
@@ -1139,7 +1139,7 @@ int mgmtProcessDropTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     SDbObj *pDb = NULL;
     if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
 
-    code = mgmtDropMeter(pDb, pDrop->meterId, pDrop->igNotExists);
+    code = mgmtDropTable(pDb, pDrop->meterId, pDrop->igNotExists);
     if (code == 0) {
       mTrace("meter:%s is dropped by user:%s", pDrop->meterId, pConn->pUser->user);
       // mLPrint("meter:%s is dropped by user:%s", pDrop->meterId, pConn->pUser->user);
@@ -1177,7 +1177,7 @@ int mgmtProcessAlterTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
           pAlter->schema[i].bytes = htons(pAlter->schema[i].bytes);
         }
 
-        code = mgmtAlterMeter(pDb, pAlter);
+        code = mgmtAlterTable(pDb, pAlter);
         if (code == 0) {
           mLPrint("meter:%s is altered by %s", pAlter->meterId, pConn->pUser->user);
         }

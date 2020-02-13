@@ -26,6 +26,7 @@
 #include "tschemautil.h"
 #include "tlog.h"
 #include "tstatus.h"
+#include "taoserror.h"
 
 void *       vgSdb = NULL;
 int          tsVgUpdateSize;
@@ -128,6 +129,54 @@ int mgmtInitVgroups() {
 
 SVgObj *mgmtGetVgroup(int vgId) { return (SVgObj *)sdbGetRow(vgSdb, &vgId); }
 
+SVgObj *mgmtGetAvailVgroup(SDbObj *pDb) {
+  SVgObj *pVgroup = pDb->pHead;
+
+  if (pDb->vgStatus == TSDB_VG_STATUS_IN_PROGRESS) {
+    terrno = TSDB_CODE_ACTION_IN_PROGRESS;
+    return NULL;
+  }
+
+  if (pDb->vgStatus == TSDB_VG_STATUS_FULL) {
+    mError("db:%s, vgroup is full", pDb->name);
+    terrno = TSDB_CODE_NO_ENOUGH_DNODES;
+    return NULL;
+  }
+
+  if (pDb->vgStatus == TSDB_VG_STATUS_NO_DISK_PERMISSIONS ||
+      pDb->vgStatus == TSDB_VG_STATUS_SERVER_NO_PACE ||
+      pDb->vgStatus == TSDB_VG_STATUS_SERV_OUT_OF_MEMORY ||
+      pDb->vgStatus == TSDB_VG_STATUS_INIT_FAILED ) {
+    mError("db:%s, vgroup init failed, reason:%d %s", pDb->name, pDb->vgStatus, taosGetVgroupStatusStr(pDb->vgStatus));
+    terrno = pDb->vgStatus;
+    return NULL;
+  }
+
+  if (pVgroup == NULL) {
+    pDb->vgStatus = TSDB_VG_STATUS_IN_PROGRESS;
+    mgmtCreateVgroup(pDb);
+    mTrace("db:%s, vgroup malloced, wait for create progress finished", pDb->name);
+    terrno = TSDB_CODE_ACTION_IN_PROGRESS;
+    return NULL;
+  }
+
+  terrno = 0;
+  return pVgroup;
+}
+
+int32_t mgmtAllocateSid(SDbObj *pDb, SVgObj *pVgroup) {
+  int32_t sid = taosAllocateId(pVgroup->idPool);
+  if (sid < 0) {
+    mWarn("table:%s, vgroup:%d run out of ID, num:%d", pDb->name, pVgroup->vgId, taosIdPoolNumOfUsed(pVgroup->idPool));
+    pDb->vgStatus = TSDB_VG_STATUS_IN_PROGRESS;
+    mgmtCreateVgroup(pDb);
+    terrno = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
+
+  terrno = 0;
+  return sid;
+}
+
 void mgmtProcessVgTimer(void *handle, void *tmrId) {
   SDbObj *pDb = (SDbObj *)handle;
   if (pDb == NULL) return;
@@ -178,7 +227,7 @@ int mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
     for (int i = 0; i < pDb->cfg.maxSessions; ++i) {
       if (pVgroup->meterList != NULL) {
         pTable = pVgroup->meterList[i];
-        if (pTable) mgmtDropMeter(pDb, pTable->meterId, 0);
+        if (pTable) mgmtDropTable(pDb, pTable->meterId, 0);
       }
     }
   }

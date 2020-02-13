@@ -24,25 +24,20 @@ extern "C" {
 #include <stdbool.h>
 
 #include "taosdef.h"
-
-
-typedef struct {
-  char    superTableId[TSDB_TABLE_ID_LEN + 1];
-  int64_t uid;
-  int32_t sid;
-  int32_t vgId;
-  int32_t sversion;
-  int32_t createdTime;
-  char    reserved[7];
-  char    updateEnd[1];
-} SSuperTableObj;
+#include "mnode.h"
 
 int32_t         mgmtInitSuperTables();
 void            mgmtCleanUpSuperTables();
 int32_t         mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate);
-int32_t         mgmtDropSuperTable(SDbObj *pDb, char *meterId, int ignore);
-int32_t         mgmtAlterSuperTable(SDbObj *pDb, SAlterTableMsg *pAlter);
+int32_t         mgmtDropSuperTable(SDbObj *pDb, SSuperTableObj *pTable);
 SSuperTableObj* mgmtGetSuperTable(char *tableId);
+int32_t         mgmtFindTagCol(SSuperTableObj *pTable, const char *tagName);
+int32_t         mgmtAddSuperTableTag(SSuperTableObj *pTable, SSchema schema[], int32_t ntags);
+int32_t         mgmtDropSuperTableTag(SSuperTableObj *pTable, char *tagName);
+int32_t         mgmtModifySuperTableTagNameByName(SSuperTableObj *pTable, char *oldTagName, char *newTagName);
+int32_t         mgmtAddSuperTableColumn(SSuperTableObj *pTable, SSchema schema[], int32_t ncols);
+int32_t         mgmtDropSuperTableColumnByName(SSuperTableObj *pTable, char *colName);
+
 SSchema*        mgmtGetSuperTableSchema(SSuperTableObj *pTable);
 
 

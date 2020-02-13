@@ -24,27 +24,14 @@ extern "C" {
 #include <stdbool.h>
 #include "taosdef.h"
 
-struct SSuperTableObj;
-
-
-typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN + 1];
-  char    superTableId[TSDB_TABLE_ID_LEN + 1];
-  int64_t uid;
-  int32_t sid;
-  int32_t vgId;
-  int64_t createdTime;
-  int32_t sversion;
-  char    reserved[3];
-  char    updateEnd[1];
-  struct SSuperTableObj *superTable;
-} SChildTableObj;
+#include "mnode.h"
 
 int32_t         mgmtInitChildTables();
 void            mgmtCleanUpChildTables();
-int32_t         mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate);
-int32_t         mgmtDropChildTable(SDbObj *pDb, char *meterId, int ignore);
+int32_t         mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, int32_t vgId, int32_t sid);
+int32_t         mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable);
 int32_t         mgmtAlterChildTable(SDbObj *pDb, SAlterTableMsg *pAlter);
+int32_t         mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent);
 SChildTableObj* mgmtGetChildTable(char *tableId);
 SSchema*        mgmtGetChildTableSchema(SChildTableObj *pTable);
 

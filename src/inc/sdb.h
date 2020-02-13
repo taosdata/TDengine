@@ -136,6 +136,15 @@ void sdbCleanUpPeers();
 
 int sdbCfgNode(char *cont);
 
+int64_t sdbGetVersion();
+
+
+#define TSDB_MAX_TABLES 1000
+extern void* tsChildTableSdb;
+extern void* tsNormalTableSdb;
+extern void* tsStreamTableSdb;
+extern void* tsSuperTableSdb;
+
 #ifdef __cplusplus
 }
 #endif

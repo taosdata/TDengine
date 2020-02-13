@@ -33,6 +33,10 @@ int     mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int     mgmtRetrieveVgroups(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
 void    mgmtCleanUpVgroups();
 
+
+SVgObj *mgmtGetAvailVgroup(SDbObj *pDb);
+int32_t mgmtAllocateSid(SDbObj *pDb, SVgObj *pVgroup);
+
 #ifdef __cplusplus
 }
 #endif

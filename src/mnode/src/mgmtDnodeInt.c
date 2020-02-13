@@ -229,7 +229,7 @@ char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int vnode) {
   return pMsg;
 }
 
-int mgmtSendCreateMsgToVgroup(STabObj *pTable, SVgObj *pVgroup) {
+int mgmtSendCreateMsgToVgroup(STabObj table, SVgObj *pVgroup) {
   char *     pMsg, *pStart;
   int        i, msgLen = 0;
   SDnodeObj *pObj;

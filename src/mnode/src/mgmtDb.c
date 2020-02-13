@@ -282,7 +282,7 @@ void mgmtDropDbFromSdb(SDbObj *pDb) {
   STabObj *pMetric = pDb->pMetric;
   while (pMetric) {
     STabObj *pNext = pMetric->next;
-    mgmtDropMeter(pDb, pMetric->meterId, 0);
+    mgmtDropTable(pDb, pMetric->meterId, 0);
     pMetric = pNext;
   }
 
@@ -324,7 +324,7 @@ int mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists) {
   }
 
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-    return TSDB_CODE_MONITOR_DB_FORBEIDDEN;
+    return TSDB_CODE_MONITOR_DB_FORBEIDEN;
   }
 
   return mgmtDropDb(pDb);

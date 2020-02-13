@@ -20,6 +20,9 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+#include <stdbool.h>
+
 #include "tsdb.h"
 #include "taoserror.h"
 
@@ -295,6 +298,11 @@ typedef struct SMColumn {
 } SMColumn;
 
 typedef struct {
+  int32_t size;
+  int8_t* data;
+} SVariableMsg;
+
+typedef struct {
   short    vnode;
   int32_t  sid;
   uint64_t uid;
@@ -310,6 +318,9 @@ typedef struct {
   char     reserved[16];
   int32_t  sversion;
   SMColumn schema[];
+
+  SVariableMsg tags;
+
 } SCreateMsg;
 
 typedef struct {

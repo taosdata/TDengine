@@ -22,6 +22,11 @@ extern "C" {
 
 #include "os.h"
 
+#include "taosdef.h"
+#include "taosmsg.h"
+#include "taoserror.h"
+
+
 #include "sdb.h"
 #include "tglobalcfg.h"
 #include "thash.h"
@@ -131,6 +136,72 @@ typedef struct _tab_obj {
   char *           schema;
   // SSchema    schema[];
 } STabObj;
+
+
+typedef struct SSuperTableObj {
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  uint64_t uid;
+  int32_t  sid;
+  int32_t  vgId;
+  int64_t  createdTime;
+  int32_t  sversion;
+  int32_t  numOfTags;
+  int32_t  numOfMeters;
+  int32_t  numOfColumns;
+  int32_t  schemaSize;
+  int8_t   reserved[7];
+  int8_t   updateEnd[1];
+  int16_t  nextColId;
+  pthread_rwlock_t       rwLock;
+  tSkipList *            pSkipList;
+  struct SSuperTableObj *pHead;
+  struct SSuperTableObj *prev, *next;
+  int8_t*  schema;
+} SSuperTableObj;
+
+typedef struct {
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     superTableId[TSDB_TABLE_ID_LEN + 1];
+  uint64_t uid;
+  int32_t  sid;
+  int32_t  vgId;
+  int64_t  createdTime;
+  int8_t   reserved[7];
+  int8_t   updateEnd[1];
+  SSuperTableObj *superTable;
+} SChildTableObj;
+
+typedef struct {
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  uint64_t uid;
+  int32_t  sid;
+  int32_t  vgId;
+  int64_t  createdTime;
+  int32_t  sversion;
+  int32_t  numOfColumns;
+  int32_t  schemaSize;
+  char     reserved[3];
+  char     updateEnd[1];
+  int16_t  nextColId;
+  char*    schema;
+} SNormalTableObj;
+
+typedef struct {
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  uint64_t uid;
+  int32_t  sid;
+  int32_t  vgId;
+  int64_t  createdTime;
+  int32_t  sversion;
+  int32_t  numOfColumns;
+  int32_t  schemaSize;
+  char     reserved[3];
+  char     updateEnd[1];
+  int16_t  nextColId;
+  char*    pSql;  //null-terminated string
+  char*    schema;
+} SStreamTableObj;
+
 
 typedef struct _vg_obj {
   uint32_t        vgId;
