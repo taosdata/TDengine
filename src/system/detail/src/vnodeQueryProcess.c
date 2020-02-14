@@ -1114,11 +1114,8 @@ static void vnodeSingleMeterIntervalMainLooper(SMeterQuerySupportObj *pSupporter
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   while (1) {
-    assert((pQuery->skey <= pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-           (pQuery->skey >= pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery)));
-
     initCtxOutputBuf(pRuntimeEnv);
-    clearCompletedSlidingWindows(pRuntimeEnv);
+    clearClosedSlidingWindows(pRuntimeEnv);
     
     vnodeScanAllData(pRuntimeEnv);
     if (isQueryKilled(pQuery)) {
@@ -1141,16 +1138,17 @@ static void vnodeSingleMeterIntervalMainLooper(SMeterQuerySupportObj *pSupporter
         pQuery->limit.offset--;
       }
     } else {
-      pQuery->pointsRead += maxOutput;
-      forwardCtxOutputBuf(pRuntimeEnv, maxOutput);
+//      assert(0);
+//      pQuery->pointsRead += maxOutput;
+//      forwardCtxOutputBuf(pRuntimeEnv, maxOutput);
     }
 
     if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
       break;
     }
-
-    forwardIntervalQueryRange(pSupporter, pRuntimeEnv);
-    if (Q_STATUS_EQUAL(pQuery->over, QUERY_COMPLETED|QUERY_RESBUF_FULL)) {
+  
+    loadRequiredBlockIntoMem(pRuntimeEnv, &pRuntimeEnv->nextPos);
+    if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL)) {
       break;
     }
 
@@ -1180,7 +1178,13 @@ static void vnodeSingleTableIntervalProcessor(SQInfo *pQInfo) {
   while (1) {
     resetCtxOutputBuf(pRuntimeEnv);
     vnodeSingleMeterIntervalMainLooper(pSupporter, pRuntimeEnv);
-
+  
+    if (pQuery->intervalTime > 0) {
+      pSupporter->subgroupIdx = 0;
+      pQuery->pointsRead = 0;
+      copyFromGroupBuf(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+    }
+    
     // the offset is handled at prepare stage if no interpolation involved
     if (pQuery->interpoType == TSDB_INTERPO_NONE) {
       doRevisedResultsByLimit(pQInfo);
@@ -1208,8 +1212,9 @@ static void vnodeSingleTableIntervalProcessor(SQInfo *pQInfo) {
     }
   }
   
-  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || (pQuery->slidingTime > 0 && pQuery->intervalTime > 0)) {
-    pQInfo->pMeterQuerySupporter->subgroupIdx = 0;
+  // all data scanned, the group by normal column can return
+  if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
+    pSupporter->subgroupIdx = 0;
     pQuery->pointsRead = 0;
     copyFromGroupBuf(pQInfo, pRuntimeEnv->windowResInfo.pResult);
   }

@@ -282,7 +282,7 @@ void clearGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pOneOutpu
 void copyGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult* dst, const SWindowResult* src);
 
 void resetSlidingWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo* pWindowResInfo);
-void clearCompletedSlidingWindows(SQueryRuntimeEnv* pRuntimeEnv);
+void clearClosedSlidingWindows(SQueryRuntimeEnv* pRuntimeEnv);
 int32_t numOfClosedSlidingWindow(SWindowResInfo* pWindowResInfo);
 void closeSlidingWindow(SWindowResInfo* pWindowResInfo, int32_t slot);
 void closeAllSlidingWindow(SWindowResInfo* pWindowResInfo);

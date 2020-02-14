@@ -609,6 +609,10 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
 
   // for top/bottom + interval query, we do not add additional timestamp column in the front
   if (isTopBottomQuery(pQueryInfo)) {
+    if (parseSlidingClause(pQueryInfo, pQuerySql) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_INVALID_SQL;
+    }
+    
     return TSDB_CODE_SUCCESS;
   }
 
