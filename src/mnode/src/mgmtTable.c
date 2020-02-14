@@ -570,11 +570,11 @@ int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
     }
 
     if (pCreate->numOfColumns == 0) {
-      return mgmtCreateChildTable(pDb, pCreate, pVgroup->vgId, sid);
+      return mgmtCreateChildTable(pDb, pCreate, pVgroup, sid);
     } else if (pCreate->sqlLen > 0) {
-      return mgmtCreateStreamTable(pDb, pCreate, pVgroup->vgId, sid);
+      return mgmtCreateStreamTable(pDb, pCreate, pVgroup, sid);
     } else {
-      return mgmtCreateNormalTable(pDb, pCreate, pVgroup->vgId, sid);
+      return mgmtCreateNormalTable(pDb, pCreate, pVgroup, sid);
     }
   } else {
     return mgmtCreateSuperTable(pDb, pCreate);
@@ -755,25 +755,23 @@ int32_t mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   }
 
   pShow->numOfRows = pDb->numOfTables;
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+  pShow->rowSize   = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   return 0;
 }
 
 int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
-  int32_t  numOfRows = 0;
-  STabObj *pTable = NULL;
-  char *   pWrite;
-  int32_t  cols = 0;
-  int32_t  prefixLen;
-  int32_t  numOfRead = 0;
-  char     prefix[20] = {0};
-  int16_t  numOfColumns;
-  char *   tableId;
-  char *   superTableId;
-  int64_t  createdTime;
-  void *   pNormalTableNode;
-  void *   pChildTableNode;
+  int32_t numOfRows  = 0;
+  int32_t numOfRead  = 0;
+  int32_t cols       = 0;
+  void    *pTable    = NULL;
+  char    *pWrite    = NULL;
+
+  int16_t numOfColumns;
+  int64_t createdTime;
+  char    *tableId;
+  char    *superTableId;
+  SPatternCompareInfo info  = PATTERN_COMPARE_INFO_INITIALIZER;
 
   SDbObj *pDb = NULL;
   if (pConn->pDb != NULL) {
@@ -791,33 +789,41 @@ int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int rows, SConnObj *pCon
     }
   }
 
+  char prefix[20] = {0};
   strcpy(prefix, pDb->name);
   strcat(prefix, TS_PATH_DELIMITER);
-  prefixLen = strlen(prefix);
-
-  SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-  char meterName[TSDB_METER_NAME_LEN] = {0};
+  int32_t prefixLen = strlen(prefix);
 
   while (numOfRows < rows) {
-    pNormalTableNode = sdbFetchRow(tsNormalTableSdb, pShow->pNode, (void **) &pTable);
+    void *pNormalTableNode = sdbFetchRow(tsNormalTableSdb, pShow->pNode, (void **) &pTable);
     if (pTable != NULL) {
-      pShow->pNode = pNormalTableNode;
       SNormalTableObj *pNormalTable = (SNormalTableObj *) pTable;
-      tableId = pNormalTable->tableId;
+      pShow->pNode = pNormalTableNode;
+      tableId      = pNormalTable->tableId;
       superTableId = NULL;
-      createdTime = pNormalTable->createdTime;
+      createdTime  = pNormalTable->createdTime;
       numOfColumns = pNormalTable->numOfColumns;
     } else {
-      pChildTableNode = sdbFetchRow(tsChildTableSdb, pShow->pNode, (void **) &pTable);
+      void *pStreamTableNode = sdbFetchRow(tsStreamTableSdb, pShow->pNode, (void **) &pTable);
       if (pTable != NULL) {
-        pShow->pNode = pChildTableNode;
-        SChildTableObj *pChildTable = (SChildTableObj *) pTable;
-        tableId = pChildTable->tableId;
+        SStreamTableObj *pChildTable = (SStreamTableObj *) pTable;
+        pShow->pNode = pStreamTableNode;
+        tableId      = pChildTable->tableId;
         superTableId = NULL;
-        createdTime = pChildTable->createdTime;
-        numOfColumns = pChildTable->superTable->numOfColumns;
+        createdTime  = pChildTable->createdTime;
+        numOfColumns = pChildTable->numOfColumns;
       } else {
-        break;
+        void *pChildTableNode = sdbFetchRow(tsChildTableSdb, pShow->pNode, (void **) &pTable);
+        if (pTable != NULL) {
+          SChildTableObj *pChildTable = (SChildTableObj *) pTable;
+          pShow->pNode = pChildTableNode;
+          tableId      = pChildTable->tableId;
+          superTableId = NULL;
+          createdTime  = pChildTable->createdTime;
+          numOfColumns = pChildTable->superTable->numOfColumns;
+        } else {
+          break;
+        }
       }
     }
 
@@ -826,8 +832,9 @@ int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int rows, SConnObj *pCon
       continue;
     }
 
-    numOfRead++;
+    char meterName[TSDB_METER_NAME_LEN] = {0};
     memset(meterName, 0, tListLen(meterName));
+    numOfRead++;
 
     // pattern compare for meter name
     extractTableName(tableId, meterName);
@@ -867,19 +874,3 @@ int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int rows, SConnObj *pCon
 
   return numOfRows;
 }
-
-SSchema *mgmtGetTableSchema(STabObj *pTable) {
-  if (pTable == NULL) {
-    return NULL;
-  }
-
-  if (!mgmtTableCreateFromSuperTable(pTable)) {
-    return (SSchema *)pTable->schema;
-  }
-
-  STabObj *pMetric = mgmtGetTable(pTable->pTagData);
-  assert(pMetric != NULL);
-
-  return (SSchema *)pMetric->schema;
-}
-

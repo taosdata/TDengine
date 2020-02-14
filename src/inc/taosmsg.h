@@ -25,6 +25,7 @@ extern "C" {
 
 #include "tsdb.h"
 #include "taoserror.h"
+#include "taosdef.h"
 
 // message type
 #define TSDB_MSG_TYPE_REG              1
@@ -292,9 +293,9 @@ typedef struct SSchema {
 } SSchema;
 
 typedef struct SMColumn {
-  char  type;
-  short colId;
-  short bytes;
+  int8_t  type;
+  int16_t colId;
+  int16_t bytes;
 } SMColumn;
 
 typedef struct {
@@ -322,6 +323,44 @@ typedef struct {
   SVariableMsg tags;
 
 } SCreateMsg;
+
+typedef struct {
+  int32_t  vnode;
+  int32_t  sid;
+  uint64_t uid;
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     superTableId[TSDB_TABLE_ID_LEN + 1];
+  uint64_t createdTime;
+  int32_t  sversion;
+  int16_t  numOfColumns;
+  int16_t  numOfTags;
+  int32_t  tagDataLen;
+  int8_t   data[];
+} SCreateChildTableMsg;
+
+typedef struct {
+  int32_t  vnode;
+  int32_t  sid;
+  uint64_t uid;
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  uint64_t createdTime;
+  int32_t  sversion;
+  int16_t  numOfColumns;
+  int8_t   data[];
+} SCreateNormalTableMsg;
+
+typedef struct {
+  int32_t  vnode;
+  int32_t  sid;
+  uint64_t uid;
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  uint64_t createdTime;
+  int32_t  sversion;
+  int16_t  numOfColumns;
+  int32_t  sqlLen;
+  int8_t   data[];
+} SCreateStreamTableMsg;
+
 
 typedef struct {
   char  db[TSDB_TABLE_ID_LEN];

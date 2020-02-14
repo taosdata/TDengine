@@ -195,6 +195,7 @@ typedef struct {
   int32_t  sversion;
   int32_t  numOfColumns;
   int32_t  schemaSize;
+  int16_t  sqlLen;
   char     reserved[3];
   char     updateEnd[1];
   int16_t  nextColId;

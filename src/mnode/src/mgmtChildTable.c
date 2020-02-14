@@ -49,40 +49,68 @@ int32_t mgmtInitChildTables() {
 void mgmtCleanUpChildTables() {
 }
 
-char *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, char *pMsg, int vnode) {
-  
+int8_t *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, int8_t *pMsg, int32_t vnode, int32_t tagDataLen,
+                                     int8_t *pTagData) {
+  SCreateChildTableMsg *pCreateTable = (SCreateChildTableMsg *) pMsg;
+  memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
+  memcpy(pCreateTable->superTableId, pTable->superTable->tableId, TSDB_TABLE_ID_LEN);
+  pCreateTable->vnode        = htonl(vnode);
+  pCreateTable->sid          = htonl(pTable->sid);
+  pCreateTable->uid          = pTable->uid;
+  pCreateTable->createdTime  = htobe64(pTable->createdTime);
+  pCreateTable->sversion     = htonl(pTable->superTable->sversion);
+  pCreateTable->numOfColumns = htons(pTable->superTable->numOfColumns);
+  pCreateTable->numOfTags    = htons(pTable->superTable->numOfTags);
+
+  SSchema *pSchema  = pTable->superTable->schema;
+  int32_t totalCols = pCreateTable->numOfColumns + pCreateTable->numOfTags;
+
+  for (int32_t col = 0; col < totalCols; ++col) {
+    SMColumn *colData = &((SMColumn *) (pCreateTable->data))[col];
+    colData->type  = pSchema[col].type;
+    colData->bytes = htons(pSchema[col].bytes);
+    colData->colId = htons(pSchema[col].colId);
+  }
+
+  int32_t totalColsSize = sizeof(SMColumn *) * totalCols;
+  pMsg = pCreateTable->data + totalColsSize + tagDataLen;
+
+  memcpy(pCreateTable->data + totalColsSize, pTagData, tagDataLen);
+  pCreateTable->tagDataLen = htonl(tagDataLen);
+
+  return pMsg;
 }
 
-int32_t mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, int32_t vgId, int32_t sid) {
+int32_t mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
   int numOfTables = sdbGetNumOfRows(tsChildTableSdb);
   if (numOfTables >= tsMaxTables) {
-    mError("child table:%s, numOfTables:%d exceed maxTables:%d", pCreate->meterId, numOfTables, tsMaxTables);
+    mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->meterId, numOfTables, tsMaxTables);
     return TSDB_CODE_TOO_MANY_TABLES;
   }
 
-  char *pTagData = (char *)pCreate->schema;  // it is a tag key
+  char           *pTagData    = (char *) pCreate->schema;  // it is a tag key
   SSuperTableObj *pSuperTable = mgmtGetSuperTable(pTagData);
   if (pSuperTable == NULL) {
     mError("table:%s, corresponding super table does not exist", pCreate->meterId);
     return TSDB_CODE_INVALID_TABLE;
   }
 
-  SChildTableObj *pTable = (SChildTableObj *)calloc(sizeof(SChildTableObj), 1);
+  SChildTableObj *pTable = (SChildTableObj *) calloc(sizeof(SChildTableObj), 1);
   if (pTable == NULL) {
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
   strcpy(pTable->tableId, pCreate->meterId);
   strcpy(pTable->superTableId, pSuperTable->tableId);
   pTable->createdTime = taosGetTimestampMs();
-  pTable->superTable = pSuperTable;
-  pTable->vgId = vgId;
-  pTable->sid = sid;
-  pTable->uid = (((uint64_t) pTable->vgId) << 40) + ((((uint64_t) pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
-                ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
+  pTable->superTable  = pSuperTable;
+  pTable->vgId        = pVgroup->vgId;
+  pTable->sid         = sid;
+  pTable->uid         = (((uint64_t) pTable->vgId) << 40) + ((((uint64_t) pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
+                        ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
 
   SVariableMsg tags = {0};
-  tags.size = mgmtGetTagsLength(pSuperTable, INT_MAX) + (uint32_t)TSDB_TABLE_ID_LEN;
-  tags.data = (char *)calloc(1, tags.size);
+  tags.size = mgmtGetTagsLength(pSuperTable, INT_MAX) + (uint32_t) TSDB_TABLE_ID_LEN;
+  tags.data = (char *) calloc(1, tags.size);
   if (tags.data == NULL) {
     free(pTable);
     mError("table:%s, corresponding super table schema is null", pCreate->meterId);
@@ -96,10 +124,13 @@ int32_t mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, int32_t vgId
   }
 
   mgmtAddTimeSeries(pTable->superTable->numOfColumns - 1);
-  mgmtSendCreateMsgToVgroup(pTable, pVgroup);
 
-  mTrace("table:%s, create table in vgroup, vgId:%d sid:%d vnode:%d uid:%" PRIu64 " db:%s",
-         pTable->tableId, vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid, pDb->name);
+  mgmtSendCreateChildTableMsg(pTable, pVgroup, tags.size, tags.data);
+
+  mTrace("table:%s, create table in vgroup, vgId:%d sid:%d vnode:%d uid:%"
+             PRIu64
+             " db:%s",
+         pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid, pDb->name);
 
   return 0;
 }

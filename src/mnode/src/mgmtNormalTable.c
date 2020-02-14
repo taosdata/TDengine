@@ -47,29 +47,55 @@ void mgmtCleanUpNormalTables() {
   sdbCloseTable(tsNormalTableSdb);
 }
 
-int32_t mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, int32_t vgId, int32_t sid) {
+int8_t *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, int8_t *pMsg, int32_t vnode) {
+  SCreateNormalTableMsg *pCreateTable = (SCreateNormalTableMsg *) pMsg;
+  memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
+  pCreateTable->vnode        = htobe32(vnode);
+  pCreateTable->sid          = htobe32(pTable->sid);
+  pCreateTable->uid          = htobe64(pTable->uid);
+  pCreateTable->createdTime  = htobe64(pTable->createdTime);
+  pCreateTable->sversion     = htobe32(pTable->sversion);
+  pCreateTable->numOfColumns = htobe16(pTable->numOfColumns);
+
+  SSchema *pSchema  = pTable->schema;
+  int32_t totalCols = pCreateTable->numOfColumns;
+
+  for (int32_t col = 0; col < totalCols; ++col) {
+    SMColumn *colData = &((SMColumn *) (pCreateTable->data))[col];
+    colData->type  = pSchema[col].type;
+    colData->bytes = htons(pSchema[col].bytes);
+    colData->colId = htons(pSchema[col].colId);
+  }
+
+  int32_t totalColsSize = sizeof(SMColumn *) * totalCols;
+  pMsg = pCreateTable->data + totalColsSize;
+
+  return pMsg;
+}
+
+int32_t mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
   int numOfTables = sdbGetNumOfRows(tsChildTableSdb);
   if (numOfTables >= TSDB_MAX_TABLES) {
     mError("normal table:%s, numOfTables:%d exceed maxTables:%d", pCreate->meterId, numOfTables, TSDB_MAX_TABLES);
     return TSDB_CODE_TOO_MANY_TABLES;
   }
 
-  SNormalTableObj *pTable = (SNormalTableObj *)calloc(sizeof(SNormalTableObj), 1);
+  SNormalTableObj *pTable = (SNormalTableObj *) calloc(sizeof(SNormalTableObj), 1);
   if (pTable == NULL) {
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
   strcpy(pTable->tableId, pCreate->meterId);
-  pTable->createdTime = taosGetTimestampMs();
-  pTable->vgId = vgId;
-  pTable->sid = sid;
-  pTable->uid = (((uint64_t)pTable->createdTime) << 16) + ((uint64_t)sdbGetVersion() & ((1ul << 16) - 1ul));
-  pTable->sversion = 0;
+  pTable->createdTime  = taosGetTimestampMs();
+  pTable->vgId         = pVgroup->vgId;
+  pTable->sid          = sid;
+  pTable->uid          = (((uint64_t) pTable->createdTime) << 16) + ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
+  pTable->sversion     = 0;
   pTable->numOfColumns = pCreate->numOfColumns;
 
   int numOfCols = pCreate->numOfColumns + pCreate->numOfTags;
   pTable->schemaSize = numOfCols * sizeof(SSchema);
-  pTable->schema = (int8_t *)calloc(1, pTable->schemaSize);
+  pTable->schema     = (int8_t *) calloc(1, pTable->schemaSize);
   if (pTable->schema == NULL) {
     free(pTable);
     mError("table:%s, no schema input", pCreate->meterId);
@@ -79,7 +105,7 @@ int32_t mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, int32_t vgI
 
   pTable->nextColId = 0;
   for (int col = 0; col < pCreate->numOfColumns; col++) {
-    SSchema *tschema = (SSchema *)pTable->schema;
+    SSchema *tschema   = (SSchema *) pTable->schema;
     tschema[col].colId = pTable->nextColId++;
   }
 
@@ -88,14 +114,14 @@ int32_t mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, int32_t vgI
     return TSDB_CODE_SDB_ERROR;
   }
 
-//  mTrace("table:%s, send create table msg to dnode, vgId:%d, sid:%d, vnode:%d",
-//         pTable->meterId, pTable->gid.vgId, pTable->gid.sid, pVgroup->vnodeGid[0].vnode);
-//
-//  mgmtAddTimeSeries(pTable->numOfColumns - 1);
-//  mgmtSendCreateMsgToVgroup(pTable, pVgroup);
+  mgmtAddTimeSeries(pTable->numOfColumns - 1);
 
-  mTrace("table:%s, create table in vgroup, vgId:%d sid:%d vnode:%d uid:%" PRIu64 " db:%s",
-         pTable->meterId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid, pDb->name);
+  mgmtSendCreateNormalTableMsg(pTable, pVgroup);
+
+  mTrace("table:%s, create table in vgroup, vgId:%d sid:%d vnode:%d uid:%"
+             PRIu64
+             " db:%s",
+         pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid, pDb->name);
 
   return 0;
 }

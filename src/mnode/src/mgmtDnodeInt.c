@@ -31,6 +31,11 @@
 
 #include "dnodeSystem.h"
 
+
+#include "mgmtChildTable.h"
+#include "mgmtNormalTable.h"
+#include "mgmtStreamTable.h"
+
 void  mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *pObj);
 int   mgmtSendVPeersMsg(SVgObj *pVgroup);
 char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode);
@@ -229,30 +234,75 @@ char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int vnode) {
   return pMsg;
 }
 
-int mgmtSendCreateMsgToVgroup(STabObj table, SVgObj *pVgroup) {
-  char *     pMsg, *pStart;
-  int        i, msgLen = 0;
-  SDnodeObj *pObj;
-  uint64_t   timeStamp;
+int32_t mgmtSendCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup, int32_t tagDataLen, int8_t *pTagData) {
+  uint64_t timeStamp = taosGetTimestampMs();
 
-  timeStamp = taosGetTimestampMs();
+  for (int32_t index = 0; index < pVgroup->numOfVnodes; ++index) {
+    SDnodeObj *pObj = mgmtGetDnode(pVgroup->vnodeGid[index].ip);
+    if (pObj == NULL) {
+      continue;
+    }
 
-  for (i = 0; i < pVgroup->numOfVnodes; ++i) {
-    //if (pVgroup->vnodeGid[i].ip == 0) continue;
+    int8_t *pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_CREATE, 64000);
+    if (pStart == NULL) {
+      continue;
+    }
 
-    pObj = mgmtGetDnode(pVgroup->vnodeGid[i].ip);
-    if (pObj == NULL) continue;
-
-    pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_CREATE, 64000);
-    if (pStart == NULL) continue;
-    pMsg = mgmtBuildCreateMeterIe(pTable, pStart, pVgroup->vnodeGid[i].vnode);
-    msgLen = pMsg - pStart;
+    int8_t *pMsg = mgmtBuildCreateChildTableMsg(pTable, pStart, pVgroup->vnodeGid[index].vnode, tagDataLen, pTagData);
+    int32_t msgLen = pMsg - pStart;
 
     taosSendMsgToDnode(pObj, pStart, msgLen);
   }
 
   pVgroup->lastCreate = timeStamp;
+  return 0;
+}
 
+int32_t mgmtSendCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj *pVgroup) {
+  uint64_t timeStamp = taosGetTimestampMs();
+
+  for (int32_t index = 0; index < pVgroup->numOfVnodes; ++index) {
+    SDnodeObj *pObj = mgmtGetDnode(pVgroup->vnodeGid[index].ip);
+    if (pObj == NULL) {
+      continue;
+    }
+
+    int8_t *pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_CREATE, 64000);
+    if (pStart == NULL) {
+      continue;
+    }
+
+    int8_t *pMsg = mgmtBuildCreateStreamTableMsg(pTable, pStart, pVgroup->vnodeGid[index].vnode);
+    int32_t msgLen = pMsg - pStart;
+
+    taosSendMsgToDnode(pObj, pStart, msgLen);
+  }
+
+  pVgroup->lastCreate = timeStamp;
+  return 0;
+}
+
+int32_t mgmtSendCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup) {
+  uint64_t timeStamp = taosGetTimestampMs();
+
+  for (int32_t index = 0; index < pVgroup->numOfVnodes; ++index) {
+    SDnodeObj *pObj = mgmtGetDnode(pVgroup->vnodeGid[index].ip);
+    if (pObj == NULL) {
+      continue;
+    }
+
+    int8_t *pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_CREATE, 64000);
+    if (pStart == NULL) {
+      continue;
+    }
+
+    int8_t *pMsg = mgmtBuildCreateNormalTableMsg(pTable, pStart, pVgroup->vnodeGid[index].vnode);
+    int32_t msgLen = pMsg - pStart;
+
+    taosSendMsgToDnode(pObj, pStart, msgLen);
+  }
+
+  pVgroup->lastCreate = timeStamp;
   return 0;
 }
 

@@ -28,14 +28,13 @@ extern "C" {
 
 int32_t         mgmtInitChildTables();
 void            mgmtCleanUpChildTables();
-int32_t         mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, int32_t vgId, int32_t sid);
+int32_t         mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
 int32_t         mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable);
 int32_t         mgmtAlterChildTable(SDbObj *pDb, SAlterTableMsg *pAlter);
 int32_t         mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent);
 SChildTableObj* mgmtGetChildTable(char *tableId);
 SSchema*        mgmtGetChildTableSchema(SChildTableObj *pTable);
-
-
+int8_t *        mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, int8_t *pMsg, int32_t vnode, int32_t tagDataLen, int8_t *pTagData);
 
 #ifdef __cplusplus
 }

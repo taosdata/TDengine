@@ -26,7 +26,10 @@ extern "C" {
 
 extern void *mgmtStatusTimer;
 
-int mgmtSendCreateMsgToVgroup(STabObj *pTable, SVgObj *pVgroup);
+int32_t mgmtSendCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup, int32_t tagDataLen, int8_t *pTagData);
+int32_t mgmtSendCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup);
+int32_t mgmtSendCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj *pVgroup);
+
 int mgmtSendRemoveMeterMsgToDnode(STabObj *pTable, SVgObj *pVgroup);
 int mgmtSendVPeersMsg(SVgObj *pVgroup);
 int mgmtSendFreeVnodeMsg(SVgObj *pVgroup);
