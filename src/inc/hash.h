@@ -16,6 +16,10 @@
 #ifndef TDENGINE_HASH_H
 #define TDENGINE_HASH_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "hashutil.h"
 
 #define HASH_MAX_CAPACITY (1024 * 1024 * 16)
@@ -64,11 +68,12 @@ int32_t taosNumElemsInHashTable(HashObj *pObj);
 
 char *taosGetDataFromHashTable(HashObj *pObj, const char *key, uint32_t keyLen);
 
-
 void taosCleanUpHashTable(void *handle);
 
 int32_t taosGetHashMaxOverflowLength(HashObj *pObj);
 
-int32_t taosCheckHashTable(HashObj *pObj);
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // TDENGINE_HASH_H

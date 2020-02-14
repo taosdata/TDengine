@@ -340,10 +340,6 @@ static void doAddToHashTable(HashObj *pObj, SHashNode *pNode) {
   
   pEntry->num++;
   pObj->size++;
-  
-//  char key[512] = {0};
-//  memcpy(key, pNode->key, MIN(512, pNode->keyLen));
-//  pTrace("key:%s %p add to hash table", key, pNode);
 }
 
 int32_t taosNumElemsInHashTable(HashObj *pObj) {
@@ -524,30 +520,4 @@ int32_t taosGetHashMaxOverflowLength(HashObj* pObj) {
   }
   
   return num;
-}
-
-int32_t taosCheckHashTable(HashObj *pObj) {
-  for(int32_t i = 0; i < pObj->capacity; ++i) {
-    SHashEntry *pEntry = pObj->hashList[i];
-    
-    SHashNode* pNode = pEntry->next;
-    if (pNode != NULL) {
-      assert(pEntry == pNode->prev1);
-      int32_t num = 1;
-      
-      SHashNode* pNext = pNode->next;
-      
-      while(pNext) {
-        assert(pNext->prev == pNode);
-        
-        pNode = pNext;
-        pNext = pNext->next;
-        num ++;
-      }
-      
-      assert(num == pEntry->num);
-    }
-  }
-  
-  return 0;
 }
