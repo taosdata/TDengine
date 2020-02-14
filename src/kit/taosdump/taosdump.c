@@ -32,7 +32,7 @@
 #include "taosmsg.h"
 #include "tglobalcfg.h"
 #include "tsclient.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tutil.h"
 
 #define COMMAND_SIZE 65536

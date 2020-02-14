@@ -1,6 +1,6 @@
 #include <stdlib.h>
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tsdbMeta.h"
 
 SMetaHandle *tsdbCreateMetaHandle(int32_t numOfTables) {

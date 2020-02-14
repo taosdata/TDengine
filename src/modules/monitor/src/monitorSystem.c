@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include "monitorSystem.h"
 #include "tsclient.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tsystem.h"
 #include "ttime.h"
 #include "ttimer.h"

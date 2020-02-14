@@ -30,7 +30,7 @@
 
 #include "tglobalcfg.h"
 #include "tlog.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tutil.h"
 
 char configDir[TSDB_FILENAME_LEN] = "/etc/taos";

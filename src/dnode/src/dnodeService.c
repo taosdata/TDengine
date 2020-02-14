@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobalcfg.h"
-#include "tsdb.h"
 #include "vnode.h"
 #include "dnodeSystem.h"
 

@@ -16,7 +16,7 @@
 #ifndef _taos_udp_header_
 #define _taos_udp_header_
 
-#include "tsdb.h"
+#include "taosdef.h"
 
 void *taosInitUdpServer(char *ip, uint16_t port, char *label, int, void *fp, void *shandle);
 void *taosInitUdpClient(char *ip, uint16_t port, char *label, int, void *fp, void *shandle);

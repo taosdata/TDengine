@@ -21,7 +21,7 @@
 #include "tmd5.h"
 #include "tmempool.h"
 #include "trpc.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tsocket.h"
 #include "ttcpclient.h"
 #include "ttcpserver.h"

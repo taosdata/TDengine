@@ -77,7 +77,6 @@ extern "C" {
 #include <wctype.h>
 #include <inttypes.h>
 
-
 #define taosCloseSocket(x) \
   {                        \
     if (FD_VALID(x)) {     \

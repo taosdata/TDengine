@@ -30,7 +30,7 @@
 
 #include "tglobalcfg.h"
 #include "tlog.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tutil.h"
 #include "ttimer.h"
 

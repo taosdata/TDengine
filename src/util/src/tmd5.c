@@ -37,7 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "tsdb.h"
+#include "taosdef.h"
 
 /* forward declaration */
 static void Transform(uint32_t *buf, uint32_t *in);

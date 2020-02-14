@@ -22,7 +22,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "tsdb.h"
+#include "taosdef.h"
 
 /*
  * Initialize the resources

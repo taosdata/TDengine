@@ -16,7 +16,7 @@
 #ifndef _taos_tcp_server_header_
 #define _taos_tcp_server_header_
 
-#include "tsdb.h"
+#include "taosdef.h"
 
 void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
 void taosCleanUpTcpServer(void *param);

@@ -22,7 +22,7 @@
 #include <unistd.h>
 
 #include "tmempool.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 typedef struct _long_hash_t {
   uint32_t             key;

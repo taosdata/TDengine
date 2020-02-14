@@ -19,7 +19,7 @@
 #include "stdbool.h"
 #include "taos.h"
 #include "tlog.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "stdbool.h"
 
 #define MAX_USERNAME_SIZE      64

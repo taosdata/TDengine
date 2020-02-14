@@ -34,7 +34,7 @@ extern "C" {
 #include "tlog.h"
 #include "tmempool.h"
 #include "trpc.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tskiplist.h"
 #include "tsocket.h"
 #include "ttime.h"

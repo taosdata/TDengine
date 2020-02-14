@@ -25,7 +25,7 @@
 
 #include "os.h"
 #include "tlog.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tglobalcfg.h"
 
 #include <intrin.h>

@@ -23,7 +23,7 @@ extern "C" {
 #include "os.h"
 #include "tmd5.h"
 #include "tcrc32c.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 #ifndef STDERR_FILENO
 #define STDERR_FILENO (2)

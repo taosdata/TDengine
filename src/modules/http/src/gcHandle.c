@@ -16,7 +16,7 @@
 #include "gcHandle.h"
 #include "cJSON.h"
 #include "gcJson.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 static HttpDecodeMethod gcDecodeMethod = {"grafana", gcProcessRequest};
 static HttpEncodeMethod gcHeartBeatMethod = {NULL, gcSendHeartBeatResp, NULL, NULL, NULL, NULL, NULL, NULL};

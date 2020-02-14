@@ -20,7 +20,7 @@
 #include "pthread.h"
 #include "semaphore.h"
 #include "tmempool.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tutil.h"
 #include "zlib.h"
 

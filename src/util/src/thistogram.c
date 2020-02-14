@@ -17,7 +17,7 @@
 #include "taosmsg.h"
 #include "thistogram.h"
 #include "tlosertree.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 /**
  *

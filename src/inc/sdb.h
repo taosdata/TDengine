@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "taosmsg.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 extern uint16_t    tsMgmtMgmtPort;
 extern uint16_t    tsMgmtSyncPort;

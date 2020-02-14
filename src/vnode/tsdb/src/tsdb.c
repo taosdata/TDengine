@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "tsdb.h"
+#include "taosdef.h"
 // #include "disk.h"
 #include "tsdbCache.h"
 #include "tsdbMeta.h"

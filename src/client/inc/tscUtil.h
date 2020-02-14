@@ -27,7 +27,7 @@ extern "C" {
 #include "textbuffer.h"
 #include "tscSecondaryMerge.h"
 #include "tsclient.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 #define UTIL_METER_IS_SUPERTABLE(metaInfo) \
   (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->tableType == TSDB_TABLE_TYPE_SUPER_TABLE))

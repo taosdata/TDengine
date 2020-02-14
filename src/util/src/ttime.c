@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "ttime.h"
 #include "tutil.h"
 

@@ -22,7 +22,7 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "tsdb.h"
+#include "taosdef.h"
 
 extern int  (*startMonitor)();
 extern void (*stopMonitor)();

@@ -18,7 +18,7 @@
 #include "tcache.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tsocket.h"
 #include "tsystem.h"
 #include "ttime.h"

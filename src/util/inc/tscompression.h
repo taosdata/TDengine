@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "tsdb.h"
+#include "taosdef.h"
 
 #define BITS_PER_BYTE 8
 // Masks

@@ -20,7 +20,7 @@
 #include "tscSQLParser.h"
 #include "tscSyntaxtreefunction.h"
 #include "tschemautil.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tskiplist.h"
 #include "tsqldef.h"
 #include "tsqlfunction.h"

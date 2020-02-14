@@ -27,7 +27,7 @@ extern "C" {
 #include "tlog.h"
 #include "tscCache.h"
 #include "tscSQLParser.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
 

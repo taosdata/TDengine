@@ -28,7 +28,7 @@ extern "C" {
 #include "tmempool.h"
 #include "trpc.h"
 #include "tsclient.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tsocket.h"
 #include "ttime.h"
 #include "ttimer.h"

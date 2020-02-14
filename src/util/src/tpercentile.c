@@ -16,7 +16,7 @@
 #include "os.h"
 
 #include "taosmsg.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tlog.h"
 #include "ttypes.h"
 #include "tpercentile.h"

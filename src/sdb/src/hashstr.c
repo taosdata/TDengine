@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 #define MAX_STR_LEN 40
 

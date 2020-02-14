@@ -29,7 +29,7 @@
 #include "mgmtTable.h"
 #include "mgmtShell.h"
 #include "dnodeModule.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 // global, not configurable
 char               mgmtDirectory[128];

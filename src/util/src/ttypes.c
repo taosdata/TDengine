@@ -14,7 +14,7 @@
  */
 #include "os.h"
 #include "taos.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tsqldef.h"
 #include "ttypes.h"
 #include "tutil.h"

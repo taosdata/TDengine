@@ -50,7 +50,7 @@
 #include "os.h"
 #include "lz4.h"
 #include "tscompression.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "ttypes.h"
 
 const int TEST_NUMBER = 1;

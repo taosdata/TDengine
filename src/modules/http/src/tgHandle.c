@@ -17,7 +17,7 @@
 #include "shash.h"
 #include "taosmsg.h"
 #include "tgJson.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 /*
  * taos.telegraf.cfg formats like

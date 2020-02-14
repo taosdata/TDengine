@@ -15,7 +15,7 @@
 #include "os.h"
 
 #include "tlog.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tskiplist.h"
 #include "tutil.h"
 

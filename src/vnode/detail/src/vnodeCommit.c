@@ -16,7 +16,7 @@
 #define _GNU_SOURCE /* See feature_test_macros(7) */
 #include "os.h"
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "vnode.h"
 #include "vnodeUtil.h"
 #include "vnodeStatus.h"

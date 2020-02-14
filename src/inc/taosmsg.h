@@ -23,7 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "taoserror.h"
 #include "taosdef.h"
 

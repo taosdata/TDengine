@@ -4,7 +4,7 @@
 
 #include <pthread.h>
 
-#include "tsdb.h"
+#include "taosdef.h"
 
 // Initially, there are 4 tables
 #define TSDB_INIT_NUMBER_OF_SUPER_TABLE 4

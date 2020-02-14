@@ -22,7 +22,7 @@ extern "C" {
 
 #include <stdint.h>
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "taosmsg.h"
 
 /*
