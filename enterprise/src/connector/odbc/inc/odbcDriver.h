@@ -21,7 +21,7 @@
 #include "taos.h"
 #include "tsclient.h"
 #include "tlog.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 #ifndef SQL_API
 #define SQL_API

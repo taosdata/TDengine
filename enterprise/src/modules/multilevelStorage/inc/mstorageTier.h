@@ -8,7 +8,7 @@ extern "C" {
 #include <pthread.h>
 #include <stdint.h>
 
-#include "tsdb.h"
+#include "taosdef.h"
 
 #define TIERID int8_t
 #define DISKID int8_t

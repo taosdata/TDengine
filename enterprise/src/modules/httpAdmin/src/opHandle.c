@@ -13,7 +13,7 @@
 #include "cJSON.h"
 #include "opJson.h"
 #include "taosmsg.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 static HttpDecodeMethod opDecodeMethod = {"opentsdb", opProcessRequest};
 static HttpEncodeMethod opPutSummaryMethod = {NULL,

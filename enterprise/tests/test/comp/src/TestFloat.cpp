@@ -7,7 +7,7 @@
 #include <fstream>
 #include <time.h>
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tsCompression.h"
 #include "TestFloat.h"
 

@@ -28,7 +28,7 @@
 
 #include "dnodeSystem.h"
 #include "mnode.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "dnodeModule.h"
 
 extern void *      mgmtStatisticTimer;

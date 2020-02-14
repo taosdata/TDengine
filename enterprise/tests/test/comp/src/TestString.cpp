@@ -3,7 +3,7 @@
 #include <cstring>
 #include <iomanip>
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "TestString.h"
 #include "tsCompression.h"
 

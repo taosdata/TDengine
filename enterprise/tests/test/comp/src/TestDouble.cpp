@@ -6,7 +6,7 @@
 #include <cmath>
 #include <fstream>
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tsCompression.h"
 #include "TestDouble.h"
 

@@ -14,7 +14,7 @@
 #include "tglobalcfg.h"
 #include "tlog.h"
 #include "ihash.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "taosmsg.h"
 #include "tutil.h"
   

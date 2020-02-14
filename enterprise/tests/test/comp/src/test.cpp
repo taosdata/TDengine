@@ -10,7 +10,7 @@
 #include <regex>
 #include <string.h>
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tsCompression.h"
 #include "TestTimestamp.h"
 #include "TestBool.h"

@@ -6,7 +6,7 @@
 #include <time.h>
 
 #include "taosmsg.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tskiplist.h"
 #include "ttime.h"
 #include "tutil.h"

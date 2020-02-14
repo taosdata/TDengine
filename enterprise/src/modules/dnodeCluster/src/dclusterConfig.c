@@ -24,7 +24,7 @@
 #include "tglobalcfg.h"
 #include "tkey.h"
 #include "tlog.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tsocket.h"
 #include "tsystem.h"
 #include "ttier.h"

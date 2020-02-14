@@ -4,7 +4,7 @@
 
 #include "taos.h"
 #include "tresultBuf.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 namespace {
 // simple test

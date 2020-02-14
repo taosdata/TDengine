@@ -2,7 +2,7 @@
 #include <stdbool.h>
 
 #include "tast.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "taosmsg.h"
 #include "tskiplist.h"
 #include "../../../../community/src/system/detail/inc/mgmt.h"

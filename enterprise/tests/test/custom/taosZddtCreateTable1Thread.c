@@ -15,7 +15,7 @@
 #include "tlog.h"
 #include "ihash.h"
 #include "shash.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "taosmsg.h"
 #include "tutil.h"
 

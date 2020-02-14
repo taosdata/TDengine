@@ -3,7 +3,7 @@
 #include <iostream>
 
 #include "taos.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 #include "testCommon.h"
 #include "tscJoinProcess.h"

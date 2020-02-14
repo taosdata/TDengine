@@ -8,7 +8,7 @@
 #include <time.h>
 #include <typeinfo>
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "TestInt.h"
 #include "tsCompression.h"
 

@@ -5,7 +5,7 @@
 #include <iomanip>
 #include <time.h>
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "TestBool.h"
 #include "tsCompression.h"
 

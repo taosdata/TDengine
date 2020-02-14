@@ -13,7 +13,7 @@
 
 #include "mnode.h"
 #include "vnode.h"
-#include "tsdb.h"
+#include "taosdef.h"
 
 #define SDB_DELIMITER 0xFFF00F00
 

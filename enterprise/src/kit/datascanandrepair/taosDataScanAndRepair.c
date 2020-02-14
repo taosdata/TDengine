@@ -19,7 +19,7 @@
 #include <unistd.h>
 
 #include "tchecksum.h"
-#include "tsdb.h"
+#include "taosdef.h"
 #include "tutil.h"
 #include "vnode.h"
 #include "vnodeFile.h"

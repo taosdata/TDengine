@@ -10,7 +10,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-#include "tsdb.h"
+#include "taosdef.h"
 #include "TestTimestamp.h"
 #include "tsCompression.h"
 
