@@ -1655,7 +1655,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
             SSchema* pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
 
             // functions can not be applied to tags
-            if (index.columnIndex >= pMeterMetaInfo->pMeterMeta->numOfColumns) {
+            if ((index.columnIndex >= pMeterMetaInfo->pMeterMeta->numOfColumns) || (index.columnIndex < 0)) {
               return invalidSqlErrMsg(pQueryInfo->msg, msg6);
             }
 
