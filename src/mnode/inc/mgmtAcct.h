@@ -45,6 +45,10 @@ extern void      (*mgmtCleanUpAccts)();
 extern int32_t   (*mgmtGetAcctMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 extern int32_t   (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 
+
+
+void mgmtAddMeterStatisticToAcct(SAcctObj *pAcct, int numOfColumns);
+
 #ifdef __cplusplus
 }
 #endif

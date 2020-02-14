@@ -23,7 +23,6 @@
 #include "mgmtDb.h"
 #include "mgmtDnodeInt.h"
 #include "mgmtVgroup.h"
-#include "mgmtSupertableQuery.h"
 #include "mgmtTable.h"
 #include "taosmsg.h"
 #include "tast.h"
@@ -38,6 +37,178 @@
 
 #include "sdb.h"
 #include "mgmtNormalTable.h"
+
+
+void *tsSuperTableSdb;
+void *(*mgmtNormalTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
+
+void *mgmtNormalTableActionInsert(void *row, char *str, int size, int *ssize);
+void *mgmtNormalTableActionDelete(void *row, char *str, int size, int *ssize);
+void *mgmtNormalTableActionUpdate(void *row, char *str, int size, int *ssize);
+void *mgmtNormalTableActionEncode(void *row, char *str, int size, int *ssize);
+void *mgmtNormalTableActionDecode(void *row, char *str, int size, int *ssize);
+void *mgmtNormalTableActionReset(void *row, char *str, int size, int *ssize);
+void *mgmtNormalTableActionDestroy(void *row, char *str, int size, int *ssize);
+
+static void mgmtDestroyNormalTable(SNormalTableObj *pTable) {
+  free(pTable->schema);
+  free(pTable);
+}
+
+static void mgmtNormalTableActionInit() {
+  mgmtNormalTableActionFp[SDB_TYPE_INSERT] = mgmtNormalTableActionInsert;
+  mgmtNormalTableActionFp[SDB_TYPE_DELETE] = mgmtNormalTableActionDelete;
+  mgmtNormalTableActionFp[SDB_TYPE_UPDATE] = mgmtNormalTableActionUpdate;
+  mgmtNormalTableActionFp[SDB_TYPE_ENCODE] = mgmtNormalTableActionEncode;
+  mgmtNormalTableActionFp[SDB_TYPE_DECODE] = mgmtNormalTableActionDecode;
+  mgmtNormalTableActionFp[SDB_TYPE_RESET] = mgmtNormalTableActionReset;
+  mgmtNormalTableActionFp[SDB_TYPE_DESTROY] = mgmtNormalTableActionDestroy;
+}
+
+void *mgmtNormalTableActionReset(void *row, char *str, int size, int *ssize) {
+  SNormalTableObj *pTable = (SNormalTableObj *) row;
+  int tsize = pTable->updateEnd - (int8_t *) pTable;
+  memcpy(pTable, str, tsize);
+  return NULL;
+}
+
+void *mgmtNormalTableActionDestroy(void *row, char *str, int size, int *ssize) {
+  SNormalTableObj *pTable = (SNormalTableObj *)row;
+  mgmtDestroyNormalTable(pTable);
+  return NULL;
+}
+
+void *mgmtNormalTableActionInsert(void *row, char *str, int size, int *ssize) {
+  SNormalTableObj *pTable = (SNormalTableObj *) row;
+
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
+    mError("id:%s not in vgroup:%d", pTable->tableId, pTable->vgId);
+    return NULL;
+  }
+
+  SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
+  if (pDb == NULL) {
+    mError("vgroup:%d not in DB:%s", pVgroup->vgId, pVgroup->dbName);
+    return NULL;
+  }
+
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  if (pAcct == NULL) {
+    mError("account not exists");
+    return NULL;
+  }
+
+  if (!sdbMaster) {
+    int sid = taosAllocateId(pVgroup->idPool);
+    if (sid != pTable->sid) {
+      mError("sid:%d is not matched from the master:%d", sid, pTable->sid);
+      return NULL;
+    }
+  }
+
+  pAcct->acctInfo.numOfTimeSeries += (pTable->numOfColumns - 1);
+  pVgroup->numOfMeters++;
+  pDb->numOfTables++;
+  pVgroup->meterList[pTable->sid] = pTable;
+
+  if (pVgroup->numOfMeters >= pDb->cfg.maxSessions - 1 && pDb->numOfVgroups > 1) {
+    mgmtMoveVgroupToTail(pDb, pVgroup);
+  }
+
+  return NULL;
+}
+
+void *mgmtNormalTableActionDelete(void *row, char *str, int size, int *ssize) {
+  SNormalTableObj *pTable = (SNormalTableObj *) row;
+  if (pTable->vgId == 0) {
+    return NULL;
+  }
+
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
+    mError("id:%s not in vgroup:%d", pTable->tableId, pTable->vgId);
+    return NULL;
+  }
+
+  SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
+  if (pDb == NULL) {
+    mError("vgroup:%d not in DB:%s", pVgroup->vgId, pVgroup->dbName);
+    return NULL;
+  }
+
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  if (pAcct == NULL) {
+    mError("account not exists");
+    return NULL;
+  }
+
+  pAcct->acctInfo.numOfTimeSeries -= (pTable->numOfColumns - 1);
+  pVgroup->meterList[pTable->sid] = NULL;
+  pVgroup->numOfMeters--;
+  pDb->numOfTables--;
+  taosFreeId(pVgroup->idPool, pTable->sid);
+
+  if (pVgroup->numOfMeters > 0) {
+    mgmtMoveVgroupToHead(pDb, pVgroup);
+  }
+
+  return NULL;
+}
+
+void *mgmtNormalTableActionUpdate(void *row, char *str, int size, int *ssize) {
+  return mgmtNormalTableActionReset(row, str, size, NULL);
+}
+
+void *mgmtNormalTableActionEncode(void *row, char *str, int size, int *ssize) {
+  SNormalTableObj *pTable = (SNormalTableObj *) row;
+  assert(row != NULL && str != NULL);
+
+  int tsize = pTable->updateEnd - (int8_t *) pTable;
+  if (size < tsize + pTable->schemaSize + 1) {
+    *ssize = -1;
+    return NULL;
+  }
+
+  memcpy(str, pTable, tsize);
+  memcpy(str + tsize, pTable->schema, pTable->schemaSize);
+  *ssize = tsize + pTable->schemaSize;
+
+  return NULL;
+}
+
+void *mgmtNormalTableActionDecode(void *row, char *str, int size, int *ssize) {
+  assert(str != NULL);
+
+  SNormalTableObj *pTable = (SNormalTableObj *)malloc(sizeof(SNormalTableObj));
+  if (pTable == NULL) {
+    return NULL;
+  }
+  memset(pTable, 0, sizeof(STabObj));
+
+  int tsize = pTable->updateEnd - (int8_t *)pTable;
+  if (size < tsize) {
+    mgmtDestroyNormalTable(pTable);
+    return NULL;
+  }
+  memcpy(pTable, str, tsize);
+
+  pTable->schema = (char *)malloc(pTable->schemaSize);
+  if (pTable->schema == NULL) {
+    mgmtDestroyNormalTable(pTable);
+    return NULL;
+  }
+
+  memcpy(pTable->schema, str + tsize, pTable->schemaSize);
+  return (void *)pTable;
+}
+
+void *mgmtNormalTableAction(char action, void *row, char *str, int size, int *ssize) {
+  if (mgmtNormalTableActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtNormalTableActionFp[(uint8_t)action]))(row, str, size, ssize);
+  }
+  return NULL;
+}
 
 int32_t mgmtInitNormalTables() {
   return 0;

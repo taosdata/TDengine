@@ -23,7 +23,6 @@
 #include "mgmtDb.h"
 #include "mgmtDnodeInt.h"
 #include "mgmtVgroup.h"
-#include "mgmtStreamtableQuery.h"
 #include "mgmtTable.h"
 #include "taosmsg.h"
 #include "tast.h"
@@ -38,6 +37,190 @@
 
 #include "sdb.h"
 #include "mgmtStreamTable.h"
+
+
+void *tsSuperTableSdb;
+void *(*mgmtStreamTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
+
+void *mgmtStreamTableActionInsert(void *row, char *str, int size, int *ssize);
+void *mgmtStreamTableActionDelete(void *row, char *str, int size, int *ssize);
+void *mgmtStreamTableActionUpdate(void *row, char *str, int size, int *ssize);
+void *mgmtStreamTableActionEncode(void *row, char *str, int size, int *ssize);
+void *mgmtStreamTableActionDecode(void *row, char *str, int size, int *ssize);
+void *mgmtStreamTableActionReset(void *row, char *str, int size, int *ssize);
+void *mgmtStreamTableActionDestroy(void *row, char *str, int size, int *ssize);
+
+static void mgmtDestroyStreamTable(SStreamTableObj *pTable) {
+  free(pTable->schema);
+  free(pTable->pSql);
+  free(pTable);
+}
+
+static void mgmtStreamTableActionInit() {
+  mgmtStreamTableActionFp[SDB_TYPE_INSERT] = mgmtStreamTableActionInsert;
+  mgmtStreamTableActionFp[SDB_TYPE_DELETE] = mgmtStreamTableActionDelete;
+  mgmtStreamTableActionFp[SDB_TYPE_UPDATE] = mgmtStreamTableActionUpdate;
+  mgmtStreamTableActionFp[SDB_TYPE_ENCODE] = mgmtStreamTableActionEncode;
+  mgmtStreamTableActionFp[SDB_TYPE_DECODE] = mgmtStreamTableActionDecode;
+  mgmtStreamTableActionFp[SDB_TYPE_RESET] = mgmtStreamTableActionReset;
+  mgmtStreamTableActionFp[SDB_TYPE_DESTROY] = mgmtStreamTableActionDestroy;
+}
+
+void *mgmtStreamTableActionReset(void *row, char *str, int size, int *ssize) {
+  SStreamTableObj *pTable = (SStreamTableObj *) row;
+  int tsize = pTable->updateEnd - (int8_t *) pTable;
+  memcpy(pTable, str, tsize);
+  pTable->schema = (char *) realloc(pTable->schema, pTable->schemaSize);
+  memcpy(pTable->schema, str + tsize, pTable->schemaSize);
+  pTable->pSql = (char *) realloc(pTable->pSql, pTable->sqlLen);
+  memcpy(pTable->pSql, str + tsize + pTable->schemaSize, pTable->sqlLen);
+  return NULL;
+}
+
+void *mgmtStreamTableActionDestroy(void *row, char *str, int size, int *ssize) {
+  SSuperTableObj *pTable = (STabObj *)row;
+  mgmtDestroyStreamTable(pTable);
+  return NULL;
+}
+
+void *mgmtStreamTableActionInsert(void *row, char *str, int size, int *ssize) {
+  SNormalTableObj *pTable = (SNormalTableObj *) row;
+
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
+    mError("id:%s not in vgroup:%d", pTable->tableId, pTable->vgId);
+    return NULL;
+  }
+
+  SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
+  if (pDb == NULL) {
+    mError("vgroup:%d not in DB:%s", pVgroup->vgId, pVgroup->dbName);
+    return NULL;
+  }
+
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  if (pAcct == NULL) {
+    mError("account not exists");
+    return NULL;
+  }
+
+  if (!sdbMaster) {
+    int sid = taosAllocateId(pVgroup->idPool);
+    if (sid != pTable->sid) {
+      mError("sid:%d is not matched from the master:%d", sid, pTable->sid);
+      return NULL;
+    }
+  }
+
+  pAcct->acctInfo.numOfTimeSeries += (pTable->numOfColumns - 1);
+  pVgroup->numOfMeters++;
+  pDb->numOfTables++;
+  pVgroup->meterList[pTable->sid] = pTable;
+
+  if (pVgroup->numOfMeters >= pDb->cfg.maxSessions - 1 && pDb->numOfVgroups > 1) {
+    mgmtMoveVgroupToTail(pDb, pVgroup);
+  }
+
+  return NULL;
+}
+
+void *mgmtStreamTableActionDelete(void *row, char *str, int size, int *ssize) {
+  SNormalTableObj *pTable = (SNormalTableObj *) row;
+  if (pTable->vgId == 0) {
+    return NULL;
+  }
+
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
+    mError("id:%s not in vgroup:%d", pTable->tableId, pTable->vgId);
+    return NULL;
+  }
+
+  SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
+  if (pDb == NULL) {
+    mError("vgroup:%d not in DB:%s", pVgroup->vgId, pVgroup->dbName);
+    return NULL;
+  }
+
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  if (pAcct == NULL) {
+    mError("account not exists");
+    return NULL;
+  }
+
+  pAcct->acctInfo.numOfTimeSeries -= (pTable->numOfColumns - 1);
+  pVgroup->meterList[pTable->sid] = NULL;
+  pVgroup->numOfMeters--;
+  pDb->numOfTables--;
+  taosFreeId(pVgroup->idPool, pTable->sid);
+
+  if (pVgroup->numOfMeters > 0) {
+    mgmtMoveVgroupToHead(pDb, pVgroup);
+  }
+
+  return NULL;
+}
+
+void *mgmtStreamTableActionUpdate(void *row, char *str, int size, int *ssize) {
+  return mgmtStreamTableActionReset(row, str, size, NULL);
+}
+
+void *mgmtStreamTableActionEncode(void *row, char *str, int size, int *ssize) {
+  SStreamTableObj *pTable = (SStreamTableObj *) row;
+  assert(row != NULL && str != NULL);
+
+  int tsize = pTable->updateEnd - (int8_t *) pTable;
+  if (size < tsize + pTable->schemaSize + pTable->sqlLen + 1) {
+    *ssize = -1;
+    return NULL;
+  }
+
+  memcpy(str, pTable, tsize);
+  memcpy(str + tsize, pTable->schema, pTable->schemaSize);
+  memcpy(str + tsize + pTable->schemaSize, pTable->pSql, pTable->sqlLen);
+  *ssize = tsize + pTable->schemaSize + pTable->sqlLen;
+
+  return NULL;
+}
+
+void *mgmtStreamTableActionDecode(void *row, char *str, int size, int *ssize) {
+  assert(str != NULL);
+
+  SStreamTableObj *pTable = (SStreamTableObj *)malloc(sizeof(SNormalTableObj));
+  if (pTable == NULL) {
+    return NULL;
+  }
+  memset(pTable, 0, sizeof(STabObj));
+
+  int tsize = pTable->updateEnd - (int8_t *)pTable;
+  if (size < tsize) {
+    mgmtDestroyStreamTable(pTable);
+    return NULL;
+  }
+  memcpy(pTable, str, tsize);
+
+  pTable->schema = (char *)malloc(pTable->schemaSize);
+  if (pTable->schema == NULL) {
+    mgmtDestroyStreamTable(pTable);
+    return NULL;
+  }
+  memcpy(pTable->schema, str + tsize, pTable->schemaSize);
+
+  pTable->pSql = (char *)malloc(pTable->sqlLen);
+  if (pTable->pSql == NULL) {
+    mgmtDestroyStreamTable(pTable);
+    return NULL;
+  }
+  memcpy(pTable->pSql, str + tsize + pTable->schemaSize, pTable->sqlLen);
+  return (void *)pTable;
+}
+
+void *mgmtStreamTableAction(char action, void *row, char *str, int size, int *ssize) {
+  if (mgmtStreamTableActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtStreamTableActionFp[(uint8_t)action]))(row, str, size, ssize);
+  }
+  return NULL;
+}
 
 int32_t mgmtInitStreamTables() {
   return 0;

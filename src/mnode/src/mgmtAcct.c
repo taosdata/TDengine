@@ -184,3 +184,9 @@ int32_t (*mgmtGetAcctMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) 
 
 int32_t mgmtRetrieveAcctsImp(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }
 int32_t (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int rows, SConnObj *pConn) = mgmtRetrieveAcctsImp;
+
+
+
+void mgmtAddMeterStatisticToAcct(SAcctObj *pAcct, int numOfColumns) {
+  pAcct->acctInfo.numOfTimeSeries += (numOfColumns - 1);
+}

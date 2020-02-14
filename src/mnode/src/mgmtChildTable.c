@@ -23,7 +23,6 @@
 #include "mgmtDb.h"
 #include "mgmtDnodeInt.h"
 #include "mgmtVgroup.h"
-#include "mgmtSupertableQuery.h"
 #include "mgmtTable.h"
 #include "taosmsg.h"
 #include "tast.h"
@@ -38,9 +37,167 @@
 #include "sdb.h"
 
 #include "mgmtChildTable.h"
-#include "mgmtSuperTable.h"
+#include "mgmtChildTable.h"
 
 
+
+void *tsChildTableSdb;
+void *(*mgmtChildTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
+
+void *mgmtChildTableActionInsert(void *row, char *str, int size, int *ssize);
+void *mgmtChildTableActionDelete(void *row, char *str, int size, int *ssize);
+void *mgmtChildTableActionUpdate(void *row, char *str, int size, int *ssize);
+void *mgmtChildTableActionEncode(void *row, char *str, int size, int *ssize);
+void *mgmtChildTableActionDecode(void *row, char *str, int size, int *ssize);
+void *mgmtChildTableActionReset(void *row, char *str, int size, int *ssize);
+void *mgmtChildTableActionDestroy(void *row, char *str, int size, int *ssize);
+
+static void mgmtDestroyChildTable(SChildTableObj *pTable) {
+  free(pTable);
+}
+
+static void mgmtChildTableActionInit() {
+  mgmtChildTableActionFp[SDB_TYPE_INSERT] = mgmtChildTableActionInsert;
+  mgmtChildTableActionFp[SDB_TYPE_DELETE] = mgmtChildTableActionDelete;
+  mgmtChildTableActionFp[SDB_TYPE_UPDATE] = mgmtChildTableActionUpdate;
+  mgmtChildTableActionFp[SDB_TYPE_ENCODE] = mgmtChildTableActionEncode;
+  mgmtChildTableActionFp[SDB_TYPE_DECODE] = mgmtChildTableActionDecode;
+  mgmtChildTableActionFp[SDB_TYPE_RESET] = mgmtChildTableActionReset;
+  mgmtChildTableActionFp[SDB_TYPE_DESTROY] = mgmtChildTableActionDestroy;
+}
+
+void *mgmtChildTableActionReset(void *row, char *str, int size, int *ssize) {
+  return NULL;
+}
+
+void *mgmtChildTableActionDestroy(void *row, char *str, int size, int *ssize) {
+  SChildTableObj *pTable = (SChildTableObj *)row;
+  mgmtDestroyChildTable(pTable);
+  return NULL;
+}
+
+void *mgmtChildTableActionInsert(void *row, char *str, int size, int *ssize) {
+  SChildTableObj *pTable = (SChildTableObj *) row;
+
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
+    mError("id:%s not in vgroup:%d", pTable->tableId, pTable->vgId);
+    return NULL;
+  }
+
+  SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
+  if (pDb == NULL) {
+    mError("vgroup:%d not in DB:%s", pVgroup->vgId, pVgroup->dbName);
+    return NULL;
+  }
+
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  if (pAcct == NULL) {
+    mError("account not exists");
+    return NULL;
+  }
+
+
+  if (!sdbMaster) {
+    int sid = taosAllocateId(pVgroup->idPool);
+    if (sid != pTable->sid) {
+      mError("sid:%d is not matched from the master:%d", sid, pTable->sid);
+      return NULL;
+    }
+  }
+
+  mgmtAddMeterIntoMetric(pTable->superTableId, pTable);
+
+  pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
+  pVgroup->numOfMeters++;
+  pDb->numOfTables++;
+  pVgroup->meterList[pTable->sid] = pTable;
+
+  if (pVgroup->numOfMeters >= pDb->cfg.maxSessions - 1 && pDb->numOfVgroups > 1) {
+    mgmtMoveVgroupToTail(pDb, pVgroup);
+  }
+
+  return NULL;
+}
+
+void *mgmtChildTableActionDelete(void *row, char *str, int size, int *ssize) {
+  SChildTableObj *pTable = (SChildTableObj *) row;
+  if (pTable->vgId == 0) {
+    return NULL;
+  }
+
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
+    mError("id:%s not in vgroup:%d", pTable->tableId, pTable->vgId);
+    return NULL;
+  }
+
+  SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
+  if (pDb == NULL) {
+    mError("vgroup:%d not in DB:%s", pVgroup->vgId, pVgroup->dbName);
+    return NULL;
+  }
+
+  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  if (pAcct == NULL) {
+    mError("account not exists");
+    return NULL;
+  }
+
+  pAcct->acctInfo.numOfTimeSeries -= (pTable->superTable->numOfColumns - 1);
+  pVgroup->meterList[pTable->sid] = NULL;
+  pVgroup->numOfMeters--;
+  pDb->numOfTables--;
+  taosFreeId(pVgroup->idPool, pTable->sid);
+
+  mgmtRemoveMeterFromMetric(pTable->superTable, pTable);
+
+  if (pVgroup->numOfMeters > 0) {
+    mgmtMoveVgroupToHead(pDb, pVgroup);
+  }
+
+  return NULL;
+}
+
+void *mgmtChildTableActionUpdate(void *row, char *str, int size, int *ssize) {
+  return mgmtChildTableActionReset(row, str, size, NULL);
+}
+
+void *mgmtChildTableActionEncode(void *row, char *str, int size, int *ssize) {
+  SChildTableObj *pTable = (SChildTableObj *) row;
+  assert(row != NULL && str != NULL);
+
+  int tsize = pTable->updateEnd - (int8_t *) pTable;
+  memcpy(str, pTable, tsize);
+
+  return NULL;
+}
+
+void *mgmtChildTableActionDecode(void *row, char *str, int size, int *ssize) {
+  assert(str != NULL);
+
+  SChildTableObj *pTable = (SChildTableObj *)malloc(sizeof(SChildTableObj));
+  if (pTable == NULL) {
+    return NULL;
+  }
+  memset(pTable, 0, sizeof(STabObj));
+
+  int tsize = pTable->updateEnd - (int8_t *)pTable;
+  if (size < tsize) {
+    mgmtDestroyChildTable(pTable);
+    return NULL;
+  }
+  memcpy(pTable, str, tsize);
+
+  return (void *)pTable;
+}
+
+void *mgmtChildTableAction(char action, void *row, char *str, int size, int *ssize) {
+  if (mgmtChildTableActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtChildTableActionFp[(uint8_t)action]))(row, str, size, ssize);
+  }
+  return NULL;
+}
 
 int32_t mgmtInitChildTables() {
   return 0;
