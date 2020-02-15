@@ -319,9 +319,6 @@ typedef struct {
   char     reserved[16];
   int32_t  sversion;
   SMColumn schema[];
-
-  SVariableMsg tags;
-
 } SCreateMsg;
 
 typedef struct {

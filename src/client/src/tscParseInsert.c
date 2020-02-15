@@ -1071,7 +1071,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
         }
         
         // todo add to return
-        tscError("async insert parse error, code:%d, %s", code, tsError[code]);
+        tscError("async insert parse error, code:%d, %s", code, tstrerror(code));
         pSql->asyncTblPos = NULL;
       }
       

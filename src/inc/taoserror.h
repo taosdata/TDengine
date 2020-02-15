@@ -20,6 +20,9 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+#include <stdbool.h>
+
 #ifdef TAOS_ERROR_C
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) {.val = (0x80000000 | ((mod)<<16) | (code)), .str=(msg)},
 #else

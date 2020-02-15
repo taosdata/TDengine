@@ -451,7 +451,7 @@ void httpJsonPairStatus(JsonBuf* buf, int code) {
       } else if (code == TSDB_CODE_INVALID_TABLE) {
         httpJsonPair(buf, "desc", 4, "failed to create table", 22);
       } else
-        httpJsonPair(buf, "desc", 4, tsError[code], (int)strlen(tsError[code]));
+        httpJsonPair(buf, "desc", 4, tstrerror(code), (int)strlen(tstrerror(code)));
     }
   }
 }

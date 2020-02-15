@@ -849,7 +849,7 @@ char *taos_errstr(TAOS *taos) {
   STscObj *pObj = (STscObj *)taos;
   uint8_t  code;
 
-  if (pObj == NULL || pObj->signature != pObj) return tsError[globalCode];
+  if (pObj == NULL || pObj->signature != pObj) return tstrerror(globalCode);
 
   SSqlObj* pSql = pObj->pSql;
   
@@ -862,7 +862,7 @@ char *taos_errstr(TAOS *taos) {
   if (hasAdditionalErrorInfo(code, &pSql->cmd)) {
     return pSql->cmd.payload;
   } else {
-    return tsError[code];
+    return tstrerror(code);
   }
 }
 
