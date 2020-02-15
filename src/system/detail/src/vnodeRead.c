@@ -670,7 +670,7 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
       tsBufNextPos(pTSBuf);
     }
 
-    if (((*code) = vnodeQuerySingleMeterPrepare(pQInfo, pQInfo->pObj, pSupporter, pTSBuf)) != TSDB_CODE_SUCCESS) {
+    if (((*code) = vnodeQuerySingleTablePrepare(pQInfo, pQInfo->pObj, pSupporter, pTSBuf)) != TSDB_CODE_SUCCESS) {
       goto _error;
     }
 

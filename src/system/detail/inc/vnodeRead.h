@@ -197,7 +197,6 @@ typedef struct SMeterQueryInfo {
   int16_t      lastResRows;
   int64_t      tag;
   STSCursor    cur;
-  SWindowResult*  pWindowRes;
   int32_t      sid; // for retrieve the page id list
   
   SWindowResInfo windowResInfo;
@@ -279,7 +278,7 @@ typedef struct _qinfo {
   int (*fp)(SMeterObj*, SQuery*);
 } SQInfo;
 
-int32_t vnodeQuerySingleMeterPrepare(SQInfo* pQInfo, SMeterObj* pMeterObj, SMeterQuerySupportObj* pSMultiMeterObj,
+int32_t vnodeQuerySingleTablePrepare(SQInfo* pQInfo, SMeterObj* pMeterObj, SMeterQuerySupportObj* pSMultiMeterObj,
                                      void* param);
 
 void vnodeQueryFreeQInfoEx(SQInfo* pQInfo);

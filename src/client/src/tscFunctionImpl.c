@@ -2162,7 +2162,7 @@ static STopBotInfo *getTopBotOutputInfo(SQLFunctionCtx *pCtx) {
   // only the first_stage_merge is directly written data into final output buffer
   if (pResInfo->superTableQ && pCtx->currentStage != SECONDARY_STAGE_MERGE) {
     return (STopBotInfo*) pCtx->aOutputBuf;
-  } else {  // for normal table query and super table at the secondary_stage, result is written to intermediate buffer
+  } else {  // during normal table query and super table at the secondary_stage, result is written to intermediate buffer
     return pResInfo->interResultBuf;
   }
 }

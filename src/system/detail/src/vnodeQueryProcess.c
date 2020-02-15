@@ -241,7 +241,7 @@ static void queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMeterInfo) {
                pRuntimeEnv->blockStatus);
 
         totalBlocks++;
-        queryOnBlock(pSupporter, primaryKeys, pRuntimeEnv->blockStatus, &binfo, &pMeterInfo[k], NULL, searchFn);
+        queryOnBlock(pSupporter, pRuntimeEnv->blockStatus, &binfo, &pMeterInfo[k], NULL, searchFn);
 
         if (ALL_CACHE_BLOCKS_CHECKED(pQuery)) {
           break;
@@ -447,24 +447,8 @@ static void queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo
                (pBlock->keyFirst >= pQuery->ekey && pBlock->keyLast <= pQuery->lastKey && !QUERY_IS_ASC_QUERY(pQuery)));
       }
 
-      
       if (pQuery->intervalTime > 0 && pQuery->slidingTime > 0) {
-        assert(pMeterQueryInfo->lastKey <= nextKey && QUERY_IS_ASC_QUERY(pQuery));
-        
-        pMeterQueryInfo->lastKey = nextKey;
-        pQuery->lastKey = nextKey;
-        if (pMeterQueryInfo->windowResInfo.prevSKey == 0) {
-          // normalize the window prev time window
-  
-          TSKEY skey1, ekey1;
-          TSKEY windowSKey = 0, windowEKey = 0;
-          TSKEY skey2 = MIN(pSupporter->rawSKey, pSupporter->rawEKey);
-          TSKEY ekey2 = MAX(pSupporter->rawSKey, pSupporter->rawEKey);
-          
-          doGetAlignedIntervalQueryRangeImpl(pQuery, nextKey, skey2, ekey2, &skey1, &ekey1, &windowSKey, &windowEKey);
-  
-          pMeterQueryInfo->windowResInfo.prevSKey = windowSKey;
-        }
+        setIntervalQueryRange(pMeterQueryInfo, pSupporter, nextKey);
         
         ret = setIntervalQueryExecutionContext(pSupporter, pOneMeterDataInfo->meterOrderIdx, pMeterQueryInfo);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -474,8 +458,7 @@ static void queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo
         }
       }
       
-      queryOnBlock(pSupporter, primaryKeys, pRuntimeEnv->blockStatus, &binfo, pOneMeterDataInfo, pInfoEx->pBlock.fields,
-                   searchFn);
+      queryOnBlock(pSupporter, pRuntimeEnv->blockStatus, &binfo, pOneMeterDataInfo, pInfoEx->pBlock.fields, searchFn);
     }
 
     tfree(pReqMeterDataInfo);
@@ -711,7 +694,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
     }
   
     resetCtxOutputBuf(pRuntimeEnv);
-    resetSlidingWindowInfo(pRuntimeEnv, &pRuntimeEnv->windowResInfo);
+    resetTimeWindowInfo(pRuntimeEnv, &pRuntimeEnv->windowResInfo);
     
     while (pSupporter->meterIdx < pSupporter->numOfMeters) {
       int32_t k = pSupporter->meterIdx;
@@ -1115,7 +1098,7 @@ static void vnodeSingleMeterIntervalMainLooper(SMeterQuerySupportObj *pSupporter
 
   while (1) {
     initCtxOutputBuf(pRuntimeEnv);
-    clearClosedSlidingWindows(pRuntimeEnv);
+    clearClosedTimeWindow(pRuntimeEnv);
     
     vnodeScanAllData(pRuntimeEnv);
     if (isQueryKilled(pQuery)) {
@@ -1124,8 +1107,6 @@ static void vnodeSingleMeterIntervalMainLooper(SMeterQuerySupportObj *pSupporter
 
     assert(!Q_STATUS_EQUAL(pQuery->over, QUERY_NOT_COMPLETED));
 
-    // clear tag, used to decide if the whole interval query is completed or not
-    pQuery->over &= (~QUERY_COMPLETED);
     doFinalizeResult(pRuntimeEnv);
 
     int64_t maxOutput = getNumOfResult(pRuntimeEnv);
@@ -1143,7 +1124,7 @@ static void vnodeSingleMeterIntervalMainLooper(SMeterQuerySupportObj *pSupporter
 //      forwardCtxOutputBuf(pRuntimeEnv, maxOutput);
     }
 
-    if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
+    if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK|QUERY_COMPLETED)) {
       break;
     }
   

@@ -175,8 +175,7 @@ void copyFromGroupBuf(SQInfo* pQInfo, SWindowResult* result);
 SBlockInfo getBlockBasicInfo(SQueryRuntimeEnv* pRuntimeEnv, void* pBlock, int32_t blockType);
 SCacheBlock* getCacheDataBlock(SMeterObj* pMeterObj, SQueryRuntimeEnv* pRuntimeEnv, int32_t slot);
 
-void queryOnBlock(SMeterQuerySupportObj* pSupporter, int64_t* primaryKeys, int32_t blockStatus,
-                  SBlockInfo* pBlockBasicInfo, SMeterDataInfo* pDataHeadInfoEx, SField* pFields,
+void queryOnBlock(SMeterQuerySupportObj* pSupporter, int32_t blockStatus, SBlockInfo* pBlockBasicInfo, SMeterDataInfo* pDataHeadInfoEx, SField* pFields,
                   __block_search_fn_t searchFn);
 
 int32_t vnodeFilterQualifiedMeters(SQInfo *pQInfo, int32_t vid, tSidSet *pSidSet, SMeterDataInfo *pMeterDataInfo,
@@ -278,14 +277,17 @@ void displayInterResult(SData** pdata, SQuery* pQuery, int32_t numOfRows);
 
 void vnodePrintQueryStatistics(SMeterQuerySupportObj* pSupporter);
 
-void clearGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pOneOutputRes);
-void copyGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult* dst, const SWindowResult* src);
+void clearTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pOneOutputRes);
+void copyTimeWindowResBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult* dst, const SWindowResult* src);
 
-void resetSlidingWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo* pWindowResInfo);
-void clearClosedSlidingWindows(SQueryRuntimeEnv* pRuntimeEnv);
-int32_t numOfClosedSlidingWindow(SWindowResInfo* pWindowResInfo);
-void closeSlidingWindow(SWindowResInfo* pWindowResInfo, int32_t slot);
-void closeAllSlidingWindow(SWindowResInfo* pWindowResInfo);
+int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t size, int32_t threshold, int16_t type);
+
+void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRuntimeEnv);
+void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo* pWindowResInfo);
+void clearClosedTimeWindow(SQueryRuntimeEnv* pRuntimeEnv);
+int32_t numOfClosedTimeWindow(SWindowResInfo* pWindowResInfo);
+void closeTimeWindow(SWindowResInfo* pWindowResInfo, int32_t slot);
+void closeAllTimeWindow(SWindowResInfo* pWindowResInfo);
 
 #ifdef __cplusplus
 }
