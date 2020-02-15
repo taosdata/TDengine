@@ -15,39 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tlog.h"
 #include "tglobalcfg.h"
-#include "vnode.h"
 #include "dnodeSystem.h"
 
-#ifdef CLUSTER
-  #include "dnodeCluster.h"
-  #include "httpAdmin.h"
-  #include "mnodeAccount.h"
-  #include "mnodeBalance.h"
-  #include "mnodeCluster.h"
-  #include "sdbReplica.h"
-  #include "multilevelStorage.h"
-  #include "vnodeCluster.h"
-  #include "vnodeReplica.h"
-  #include "dnodeGrant.h"
-  void init() {
-    dnodeClusterInit();
-    httpAdminInit();
-    mnodeAccountInit();
-    mnodeBalanceInit();
-    mnodeClusterInit();
-    sdbReplicaInit();
-    multilevelStorageInit();
-    vnodeClusterInit();
-    vnodeReplicaInit();
-    dnodeGrantInit();
-  }
-#endif
-
-void dnodeParseParameterKImp() {}
-void (*dnodeParseParameterK)() = dnodeParseParameterKImp;
-
-/* Termination handler */
+/*
+ * Termination handler
+ */
 void signal_handler(int signum, siginfo_t *sigInfo, void *context) {
   if (signum == SIGUSR1) {
     tsCfgDynamicOptions("debugFlag 135");
@@ -70,6 +44,8 @@ void signal_handler(int signum, siginfo_t *sigInfo, void *context) {
 }
 
 int main(int argc, char *argv[]) {
+  dnodeInitPlugins();
+
   // Set global configuration file
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {

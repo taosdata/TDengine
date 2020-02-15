@@ -33,7 +33,7 @@ int32_t dnodeOpenVnodes();
 /*
  * Close all Vnodes that have been created and opened
  */
-int32_t dnodeCloseVnodes();
+int32_t dnodeCleanupVnodes();
 
 /*
  * Check if vnode already exists
@@ -43,7 +43,8 @@ int32_t dnodeCheckVnodeExist(int vid);
 /*
  * Create vnode with specified configuration and open it
  */
-tsdb_repo_t* dnodeCreateVnode(int vid, SVnodeCfg *cfg);
+//tsdb_repo_t* dnodeCreateVnode(int vid, SVnodeCfg *cfg);
+void* dnodeCreateVnode(int vid, SVnodeCfg *cfg);
 
 /*
  * Modify vnode configuration information
@@ -53,7 +54,7 @@ int32_t dnodeConfigVnode(int vid, SVnodeCfg *cfg);
 /*
  * Modify vnode replication information
  */
-int32_t dnodeConfigVnodePeers(int vid, /*SVpeerCfgMsg *cfg*/);
+int32_t dnodeConfigVnodePeers(int vid/*, SVpeerCfgMsg *cfg*/);
 
 /*
  * Remove vnode from local repository
@@ -63,8 +64,8 @@ int32_t dnodeDropVnode(int vid);
 /*
  * Get the vnode object that has been opened
  */
-tsdb_repo_t* dnodeGetVnode(int vid);
-
+//tsdb_repo_t* dnodeGetVnode(int vid);
+void* dnodeGetVnode(int vid);
 
 #ifdef __cplusplus
 }

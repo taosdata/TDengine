@@ -20,6 +20,26 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+#include <stdint.h>
+#include "dnode.h"
+
+typedef struct {
+  int      sid;
+  int      vnode;
+  uint32_t ip;
+  uint16_t port;
+  int32_t  count;             // track the number of imports
+  int32_t  code;              // track the code of imports
+  int32_t  numOfTotalPoints;  // track the total number of points imported
+  void    *thandle;           // handle from TAOS layer
+  void    *qhandle;
+} SShellObj;
+
+int32_t dnodeInitShell();
+
+//SDnodeStatisInfo dnodeGetStatisInfo()
+
 #ifdef __cplusplus
 }
 #endif

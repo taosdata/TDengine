@@ -27,7 +27,7 @@ extern "C" {
 /*
  * Initialize the resources
  */
-int32_t vnodeInitPeer(int numOfThreads);
+int32_t vnodeInitPeers(int numOfThreads);
 
 /*
  * Free the resources

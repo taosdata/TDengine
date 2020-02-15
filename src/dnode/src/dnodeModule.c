@@ -71,7 +71,7 @@ void dnodeCleanUpModules() {
 }
 
 void dnodeProcessModuleStatus(uint32_t status) {
-  if (tsDnodeStopping) {
+  if (tsDnodeRunStatus) {
     return;
   }
 

@@ -302,7 +302,6 @@ typedef struct {
 
 // internal globals
 extern int        tsMeterSizeOnFile;
-extern uint32_t   tsRebootTime;
 extern void **    rpcQhandle;
 
 extern void *     queryQhandle;

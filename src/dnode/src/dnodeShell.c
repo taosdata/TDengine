@@ -15,33 +15,29 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
+#include "taoserror.h"
+#include "taosdef.h"
 #include "taosmsg.h"
-#include "vnode.h"
-#include "vnodeShell.h"
+#include "tlog.h"
 #include "tschemautil.h"
-
 #include "textbuffer.h"
 #include "trpc.h"
-#include "tscJoinProcess.h"
-#include "vnode.h"
-#include "vnodeRead.h"
-#include "vnodeUtil.h"
-#include "vnodeStore.h"
-#include "vnodeStatus.h"
+#include "dnode.h"
+#include "dnodeSystem.h"
+#include "dnodeShell.h"
 
-extern int tsMaxQueues;
 
-void *      pShellServer = NULL;
-SShellObj **shellList = NULL;
 
-int vnodeProcessRetrieveRequest(char *pMsg, int msgLen, SShellObj *pObj);
-int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj);
-int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj);
+int32_t vnodeProcessRetrieveRequest(char *pMsg, int msgLen, SShellObj *pObj);
+int32_t vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj);
+int32_t vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj);
+
 static void vnodeProcessBatchSubmitTimer(void *param, void *tmrId);
 
-int vnodeSelectReqNum = 0;
-int vnodeInsertReqNum = 0;
+static void *pShellServer = NULL;
+static SShellObj **shellList       = NULL;
+static int32_t   dnodeSelectReqNum = 0;
+static int32_t   dnodeInsertReqNum = 0;
 
 typedef struct {
   int32_t import;
@@ -131,7 +127,7 @@ void *vnodeProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
   return pObj;
 }
 
-int vnodeInitShell() {
+int32_t dnodeInitShell() {
   int      size;
   SRpcInit rpcInit;
 
@@ -399,7 +395,7 @@ _query_over:
     vnodeFreeColumnInfo(&pQueryMsg->colList[i]);
   }
 
-  atomic_fetch_add_32(&vnodeSelectReqNum, 1);
+  atomic_fetch_add_32(&dnodeSelectReqNum, 1);
   return ret;
 }
 
@@ -700,7 +696,7 @@ _submit_over:
     ret = vnodeSendShellSubmitRspMsg(pObj, code, pObj->numOfTotalPoints);
   }
 
-  atomic_fetch_add_32(&vnodeInsertReqNum, 1);
+  atomic_fetch_add_32(&dnodeInsertReqNum, 1);
   return ret;
 }
 
@@ -728,4 +724,16 @@ static void vnodeProcessBatchSubmitTimer(void *param, void *tmrId) {
     tfree(param);
     vnodeSendShellSubmitRspMsg(pShell, code, pShell->numOfTotalPoints);
   }
+}
+
+
+SDnodeStatisInfo dnodeGetStatisInfo() {
+  SDnodeStatisInfo info = {0};
+  if (dnodeGetRunStatus() == TSDB_DNODE_RUN_STATUS_RUNING) {
+    info.httpReqNum = httpGetReqCount();
+    info.selectReqNum = atomic_exchange_32(&dnodeSelectReqNum, 0);
+    info.insertReqNum = atomic_exchange_32(&dnodeInsertReqNum, 0);
+  }
+
+  return info;
 }

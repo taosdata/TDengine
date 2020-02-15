@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "dnodeWrite.h"
-
 #include "taoserror.h"
 
 int32_t dnodeCheckTableExist(char *tableId) {
@@ -26,7 +25,7 @@ int32_t dnodeWriteData(SShellSubmitMsg *msg) {
   return 0;
 }
 
-int32_t dnodeCreateNormalTable(SCreateNormalTableMsg *table); {
+int32_t dnodeCreateNormalTable(SCreateNormalTableMsg *table) {
   return 0;
 }
 
