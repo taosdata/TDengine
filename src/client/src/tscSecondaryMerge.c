@@ -765,22 +765,22 @@ void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SQueryInfo*
 }
 
 // todo merge with following function
-static void reversedCopyResultToDstBuf(SQueryInfo* pQueryInfo, SSqlRes *pRes, tFilePage *pFinalDataPage) {
-  
-  for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
-    TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
-
-    int32_t offset = tscFieldInfoGetOffset(pQueryInfo, i);
-    char *  src = pFinalDataPage->data + (pRes->numOfRows - 1) * pField->bytes + pRes->numOfRows * offset;
-    char *  dst = pRes->data + pRes->numOfRows * offset;
-
-    for (int32_t j = 0; j < pRes->numOfRows; ++j) {
-      memcpy(dst, src, (size_t)pField->bytes);
-      dst += pField->bytes;
-      src -= pField->bytes;
-    }
-  }
-}
+//static void reversedCopyResultToDstBuf(SQueryInfo* pQueryInfo, SSqlRes *pRes, tFilePage *pFinalDataPage) {
+//
+//  for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
+//    TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
+//
+//    int32_t offset = tscFieldInfoGetOffset(pQueryInfo, i);
+//    char *  src = pFinalDataPage->data + (pRes->numOfRows - 1) * pField->bytes + pRes->numOfRows * offset;
+//    char *  dst = pRes->data + pRes->numOfRows * offset;
+//
+//    for (int32_t j = 0; j < pRes->numOfRows; ++j) {
+//      memcpy(dst, src, (size_t)pField->bytes);
+//      dst += pField->bytes;
+//      src -= pField->bytes;
+//    }
+//  }
+//}
 
 static void reversedCopyFromInterpolationToDstBuf(SQueryInfo* pQueryInfo, SSqlRes *pRes, tFilePage **pResPages, SLocalReducer *pLocalReducer) {
   assert(0);

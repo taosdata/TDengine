@@ -697,12 +697,15 @@ static int32_t first_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY
     return BLK_DATA_NO_NEEDED;
   }
 
-  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-  if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
-  } else {  // data in current block is not earlier than current result
-    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-  }
+  // result buffer has not been set yet.
+  return BLK_DATA_ALL_NEEDED;
+  //todo optimize the filter info
+//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+//  if (pInfo->hasResult != DATA_SET_FLAG) {
+//    return BLK_DATA_ALL_NEEDED;
+//  } else {  // data in current block is not earlier than current result
+//    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+//  }
 }
 
 static int32_t last_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId,
@@ -1415,7 +1418,9 @@ static void stddev_next_step(SQLFunctionCtx *pCtx) {
      */
     pStd->stage++;
     avg_finalizer(pCtx);
-
+  
+    pResInfo->initialized = true; // set it initialized to avoid re-initialization
+    
     // save average value into tmpBuf, for second stage scan
     SAvgInfo *pAvg = pResInfo->interResultBuf;
 
@@ -2078,6 +2083,7 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   TSKEY *output = pCtx->ptsOutputBuf;
   for (int32_t i = 0; i < len; ++i, output += step) {
     *output = tvp[i]->timestamp;
+    printf("-------------%lld\n", *output);
   }
 
   // set the corresponding tag data for each record

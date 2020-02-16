@@ -648,7 +648,7 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
       goto _error;
     }
 
-    SMeterQuerySupportObj *pSupporter = (SMeterQuerySupportObj *)calloc(1, sizeof(SMeterQuerySupportObj));
+    STableQuerySupportObj *pSupporter = (STableQuerySupportObj *)calloc(1, sizeof(STableQuerySupportObj));
     pSupporter->numOfMeters = 1;
 
     pSupporter->pMetersHashTable = taosInitHashTable(pSupporter->numOfMeters, taosIntHash_32, false);
@@ -659,7 +659,7 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     pSupporter->subgroupIdx = -1;
     pSupporter->pMeterSidExtInfo = NULL;
 
-    pQInfo->pMeterQuerySupporter = pSupporter;
+    pQInfo->pTableQuerySupporter = pSupporter;
 
     STSBuf *pTSBuf = NULL;
     if (pQueryMsg->tsLen > 0) {
@@ -670,7 +670,7 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
       tsBufNextPos(pTSBuf);
     }
 
-    if (((*code) = vnodeQuerySingleTablePrepare(pQInfo, pQInfo->pObj, pSupporter, pTSBuf)) != TSDB_CODE_SUCCESS) {
+    if (((*code) = vnodeQueryTablePrepare(pQInfo, pQInfo->pObj, pSupporter, pTSBuf)) != TSDB_CODE_SUCCESS) {
       goto _error;
     }
 
@@ -739,7 +739,7 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
 
   SSchedMsg schedMsg = {0};
 
-  SMeterQuerySupportObj *pSupporter = (SMeterQuerySupportObj *)calloc(1, sizeof(SMeterQuerySupportObj));
+  STableQuerySupportObj *pSupporter = (STableQuerySupportObj *)calloc(1, sizeof(STableQuerySupportObj));
   pSupporter->numOfMeters = pQueryMsg->numOfSids;
 
   pSupporter->pMetersHashTable = taosInitHashTable(pSupporter->numOfMeters, taosIntHash_32, false);
@@ -784,7 +784,7 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
                                         (SSchema *)pQueryMsg->pTagSchema, pQueryMsg->numOfTagsCols, NULL, 0);
   }
 
-  pQInfo->pMeterQuerySupporter = pSupporter;
+  pQInfo->pTableQuerySupporter = pSupporter;
 
   STSBuf *pTSBuf = NULL;
   if (pQueryMsg->tsLen > 0) {
@@ -794,7 +794,7 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     tsBufResetPos(pTSBuf);
   }
 
-  if (((*code) = vnodeMultiMeterQueryPrepare(pQInfo, pQuery, pTSBuf)) != TSDB_CODE_SUCCESS) {
+  if (((*code) = vnodeSTableQueryPrepare(pQInfo, pQuery, pTSBuf)) != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
@@ -898,8 +898,8 @@ int vnodeSaveQueryResult(void *handle, char *data, int32_t *size) {
       
       SSchedMsg schedMsg = {0};
 
-      if (pQInfo->pMeterQuerySupporter != NULL) {
-        if (pQInfo->pMeterQuerySupporter->pSidSet == NULL) {
+      if (pQInfo->pTableQuerySupporter != NULL) {
+        if (pQInfo->pTableQuerySupporter->pSidSet == NULL) {
           schedMsg.fp = vnodeSingleTableQuery;
         } else {  // group by tag
           schedMsg.fp = vnodeMultiMeterQuery;

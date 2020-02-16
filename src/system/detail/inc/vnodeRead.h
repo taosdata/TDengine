@@ -101,7 +101,6 @@ typedef struct SWindowStatus {
 
 typedef struct SWindowResult {
   uint16_t     numOfRows;
-  int16_t      nAlloc;
   SPosInfo     pos;         // Position of current result in disk-based output buffer
   SResultInfo* resultInfo;  // For each result column, there is a resultInfo
   STimeWindow  window;      // The time window that current result covers.
@@ -191,8 +190,8 @@ typedef struct SMeterQueryInfo {
   int64_t      skey;
   int64_t      ekey;
   int32_t      numOfRes;
-  int32_t      reverseIndex;    // reversed output indicator, start from (numOfRes-1)
-  int16_t      reverseFillRes;  // denote if reverse fill the results in supplementary scan required or not
+//  int32_t      reverseIndex;    // reversed output indicator, start from (numOfRes-1)
+//  int16_t      reverseFillRes;  // denote if reverse fill the results in supplementary scan required or not
   int16_t      queryRangeSet;   // denote if the query range is set, only available for interval query
   int16_t      lastResRows;
   int64_t      tag;
@@ -213,7 +212,7 @@ typedef struct SMeterDataInfo {
   SMeterQueryInfo* pMeterQInfo;
 } SMeterDataInfo;
 
-typedef struct SMeterQuerySupportObj {
+typedef struct STableQuerySupportObj {
   void* pMetersHashTable;   // meter table hash list
 
   SMeterSidExtInfo** pMeterSidExtInfo;
@@ -248,7 +247,7 @@ typedef struct SMeterQuerySupportObj {
   SMeterDataInfo* pMeterDataInfo;
 
   TSKEY* tsList;
-} SMeterQuerySupportObj;
+} STableQuerySupportObj;
 
 typedef struct _qinfo {
   uint64_t       signature;
@@ -274,18 +273,18 @@ typedef struct _qinfo {
   SMeterObj*     pObj;
   sem_t          dataReady;
 
-  SMeterQuerySupportObj* pMeterQuerySupporter;
+  STableQuerySupportObj* pTableQuerySupporter;
   int (*fp)(SMeterObj*, SQuery*);
 } SQInfo;
 
-int32_t vnodeQuerySingleTablePrepare(SQInfo* pQInfo, SMeterObj* pMeterObj, SMeterQuerySupportObj* pSMultiMeterObj,
+int32_t vnodeQueryTablePrepare(SQInfo* pQInfo, SMeterObj* pMeterObj, STableQuerySupportObj* pSMultiMeterObj,
                                      void* param);
 
 void vnodeQueryFreeQInfoEx(SQInfo* pQInfo);
 
 bool vnodeParametersSafetyCheck(SQuery* pQuery);
 
-int32_t vnodeMultiMeterQueryPrepare(SQInfo* pQInfo, SQuery* pQuery, void* param);
+int32_t vnodeSTableQueryPrepare(SQInfo* pQInfo, SQuery* pQuery, void* param);
 
 /**
  * decrease the numofQuery of each table that is queried, enable the

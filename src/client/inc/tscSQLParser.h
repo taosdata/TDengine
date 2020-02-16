@@ -112,7 +112,7 @@ typedef struct SLimitVal {
 } SLimitVal;
 
 typedef struct SOrderVal {
-  int32_t order;
+  uint32_t order;
   int32_t orderColId;
 } SOrderVal;
 
