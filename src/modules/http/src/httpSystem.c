@@ -146,10 +146,9 @@ void httpCleanUpSystem() {
 #endif
 }
 
-void httpGetReqCount(int32_t *httpReqestNum) {
+int32_t httpGetReqCount() {
   if (httpServer != NULL) {
-    *httpReqestNum = atomic_exchange_32(&httpServer->requestNum, 0);
-  } else {
-    *httpReqestNum = 0;
+    return atomic_exchange_32(&httpServer->requestNum, 0);
   }
+  return 0;
 }

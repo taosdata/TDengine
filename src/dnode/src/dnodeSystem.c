@@ -16,43 +16,78 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
+#include "taoserror.h"
+#include "tcrc32c.h"
 #include "tlog.h"
+#include "ttime.h"
 #include "ttimer.h"
+#include "tutil.h"
+#include "http.h"
 #include "dnode.h"
 #include "dnodeMgmt.h"
 #include "dnodeModule.h"
+#include "dnodeShell.h"
 #include "dnodeSystem.h"
-#include "monitorSystem.h"
-#include "httpSystem.h"
-#include "mgmtSystem.h"
+#include "dnodeVnodeMgmt.h"
 
-#include "vnode.h"
+#ifdef CLUSTER
+#include "dnodeCluster.h"
+#include "httpAdmin.h"
+#include "mnodeAccount.h"
+#include "mnodeBalance.h"
+#include "mnodeCluster.h"
+#include "sdbReplica.h"
+#include "multilevelStorage.h"
+#include "vnodeCluster.h"
+#include "vnodeReplica.h"
+#include "dnodeGrant.h"
+#endif
 
-pthread_mutex_t dmutex;
-extern int      vnodeSelectReqNum;
-extern int      vnodeInsertReqNum;
-void *          tsStatusTimer = NULL;
-bool            tsDnodeStopping = false;
+static pthread_mutex_t tsDnodeMutex;
+static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
 
-// internal global, not configurable
-void *   vnodeTmrCtrl;
-void **  rpcQhandle;
-void *   dmQhandle;
-void *   queryQhandle;
-int      tsVnodePeers = TSDB_VNODES_SUPPORT - 1;
-int      tsMaxQueues;
+static int32_t dnodeInitRpcQHandle();
+static int32_t dnodeInitQueryQHandle();
+static int32_t dnodeInitTmrCtl();
+
+void     *tsStatusTimer = NULL;
+void     *vnodeTmrCtrl;
+void     **rpcQhandle;
+void     *dmQhandle;
+void     *queryQhandle;
+int32_t  tsVnodePeers   = TSDB_VNODES_SUPPORT - 1;
+int32_t  tsMaxQueues;
 uint32_t tsRebootTime;
 
-int32_t dnodeInitRpcQHandle();
-int32_t dnodeInitQueryQHandle();
-int32_t dnodeInitTmrCtl();
-void dnodeCountRequestImp(SCountInfo *info);
+static void dnodeInitVnodesLock() {
+  pthread_mutex_init(&tsDnodeMutex, NULL);
+}
+
+void dnodeLockVnodes() {
+  pthread_mutex_lock(&tsDnodeMutex);
+}
+
+void dnodeUnLockVnodes() {
+  pthread_mutex_unlock(&tsDnodeMutex);
+}
+
+static void dnodeCleanVnodesLock() {
+  pthread_mutex_destroy(&tsDnodeMutex);
+}
+
+SDnodeRunStatus dnodeGetRunStatus() {
+  return tsDnodeRunStatus;
+}
+
+void dnodeSetRunStatus(SDnodeRunStatus status) {
+  tsDnodeRunStatus = status;
+}
 
 void dnodeCleanUpSystem() {
-  if (tsDnodeStopping) {
+  if (dnodeGetRunStatus() == TSDB_DNODE_RUN_STATUS_STOPPED) {
     return;
   } else {
-    tsDnodeStopping = true;
+    dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
   }
 
   if (tsStatusTimer != NULL) {
@@ -61,33 +96,48 @@ void dnodeCleanUpSystem() {
   }
 
   dnodeCleanUpModules();
-
-  vnodeCleanUpVnodes();
-
+  dnodeCleanupVnodes();
   taosCloseLogger();
-
   dnodeCleanupStorage();
+  dnodeCleanVnodesLock();
 }
 
-void dnodeCheckDbRunning(const char* dir) {
+void dnodeCheckDataDirOpenned(const char *dir) {
   char filepath[256] = {0};
   sprintf(filepath, "%s/.running", dir);
-  int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
-  int ret = flock(fd, LOCK_EX | LOCK_NB);
+  int32_t fd  = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  int32_t ret = flock(fd, LOCK_EX | LOCK_NB);
   if (ret != 0) {
     dError("failed to lock file:%s ret:%d, database may be running, quit", filepath, ret);
     exit(0);
   }
 }
 
-int dnodeInitSystem() {
+void dnodeInitPlugins() {
+#ifdef CLUSTER
+  dnodeClusterInit();
+  httpAdminInit();
+  mnodeAccountInit();
+  mnodeBalanceInit();
+  mnodeClusterInit();
+  sdbReplicaInit();
+  multilevelStorageInit();
+  vnodeClusterInit();
+  vnodeReplicaInit();
+  dnodeGrantInit();
+#endif
+}
+
+int32_t dnodeInitSystem() {
   char        temp[128];
   struct stat dirstat;
+
+  dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_INITIALIZE);
 
   taosResolveCRC();
 
   tsRebootTime = taosGetTimestampSec();
-  tscEmbedded = 1;
+  tscEmbedded  = 1;
 
   // Read global configuration.
   tsReadGlobalLogConfig();
@@ -124,7 +174,7 @@ int dnodeInitSystem() {
 
   dnodeAllocModules();
 
-  pthread_mutex_init(&dmutex, NULL);
+  dnodeInitVnodesLock();
 
   dPrint("starting to initialize TDengine ...");
 
@@ -136,7 +186,7 @@ int dnodeInitSystem() {
   if (dnodeCheckSystem() < 0) {
     return -1;
   }
-  
+
   if (dnodeInitModules() < 0) {
     return -1;
   }
@@ -151,14 +201,14 @@ int dnodeInitSystem() {
     return -1;
   }
 
-  if (vnodeInitStore() < 0) {
+  if (dnodeOpenVnodes() < 0) {
     dError("failed to init vnode storage");
     return -1;
   }
 
-  int numOfThreads = (1.0 - tsRatioOfQueryThreads) * tsNumOfCores * tsNumOfThreadsPerCore / 2.0;
+  int32_t numOfThreads = (1.0 - tsRatioOfQueryThreads) * tsNumOfCores * tsNumOfThreadsPerCore / 2.0;
   if (numOfThreads < 1) numOfThreads = 1;
-  if (vnodeInitPeer(numOfThreads) < 0) {
+  if (dnodeInitPeers(numOfThreads) < 0) {
     dError("failed to init vnode peer communication");
     return -1;
   }
@@ -168,40 +218,21 @@ int dnodeInitSystem() {
     return -1;
   }
 
-  if (vnodeInitShell() < 0) {
+  if (dnodeInitShell() < 0) {
     dError("failed to init communication to shell");
     return -1;
   }
 
-  if (vnodeInitVnodes() < 0) {
-    dError("failed to init store");
-    return -1;
-  }
-
-  mnodeCountRequestFp = dnodeCountRequestImp;
-
   dnodeStartModules();
+
+  dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_RUNING);
 
   dPrint("TDengine is initialized successfully");
 
   return 0;
 }
 
-void dnodeResetSystem() {
-  dPrint("reset the system ...");
-  for (int vnode = 0; vnode < TSDB_MAX_VNODES; ++vnode) {
-    vnodeRemoveVnode(vnode);
-  }
-  mgmtStopSystem();
-}
-
-void dnodeCountRequestImp(SCountInfo *info) {
-  httpGetReqCount(&info->httpReqNum);
-  info->selectReqNum = atomic_exchange_32(&vnodeSelectReqNum, 0);
-  info->insertReqNum = atomic_exchange_32(&vnodeInsertReqNum, 0);
-}
-
-int dnodeInitStorageImp() {
+int32_t dnodeInitStorageImp() {
   struct stat dirstat;
   strcpy(tsDirectory, dataDir);
   if (stat(dataDir, &dirstat) < 0) {
@@ -218,31 +249,34 @@ int dnodeInitStorageImp() {
 
   sprintf(mgmtDirectory, "%s/mgmt", tsDirectory);
   sprintf(tsDirectory, "%s/tsdb", dataDir);
-  dnodeCheckDbRunning(dataDir);
+  dnodeCheckDataDirOpenned(dataDir);
 
   return 0;
 }
+
 int32_t (*dnodeInitStorage)() = dnodeInitStorageImp;
 
 void dnodeCleanupStorageImp() {}
+
 void (*dnodeCleanupStorage)() = dnodeCleanupStorageImp;
 
-int32_t dnodeInitQueryQHandle() {
-  int numOfThreads = tsRatioOfQueryThreads * tsNumOfCores * tsNumOfThreadsPerCore;
+static int32_t dnodeInitQueryQHandle() {
+  int32_t numOfThreads = tsRatioOfQueryThreads * tsNumOfCores * tsNumOfThreadsPerCore;
   if (numOfThreads < 1) {
     numOfThreads = 1;
   }
 
   int32_t maxQueueSize = tsNumOfVnodesPerCore * tsNumOfCores * tsSessionsPerVnode;
-  dTrace("query task queue initialized, max slot:%d, task threads:%d", maxQueueSize,numOfThreads);
+  dTrace("query task queue initialized, max slot:%d, task threads:%d", maxQueueSize, numOfThreads);
 
   queryQhandle = taosInitSchedulerWithInfo(maxQueueSize, numOfThreads, "query", vnodeTmrCtrl);
 
   return 0;
 }
 
-int32_t dnodeInitTmrCtl() {
-  vnodeTmrCtrl = taosTmrInit(TSDB_MAX_VNODES * (tsVnodePeers + 10) + tsSessionsPerVnode + 1000, 200, 60000, "DND-vnode");
+static int32_t dnodeInitTmrCtl() {
+  vnodeTmrCtrl = taosTmrInit(TSDB_MAX_VNODES * (tsVnodePeers + 10) + tsSessionsPerVnode + 1000, 200, 60000,
+                             "DND-vnode");
   if (vnodeTmrCtrl == NULL) {
     dError("failed to init timer, exit");
     return -1;
@@ -251,22 +285,39 @@ int32_t dnodeInitTmrCtl() {
   return 0;
 }
 
-int32_t dnodeInitRpcQHandle() {
-  tsMaxQueues = (1.0 - tsRatioOfQueryThreads)*tsNumOfCores*tsNumOfThreadsPerCore / 2.0;
-  if (tsMaxQueues < 1) tsMaxQueues = 1;
+static int32_t dnodeInitRpcQHandle() {
+  tsMaxQueues = (1.0 - tsRatioOfQueryThreads) * tsNumOfCores * tsNumOfThreadsPerCore / 2.0;
+  if (tsMaxQueues < 1) {
+    tsMaxQueues = 1;
+  }
 
-  rpcQhandle = malloc(tsMaxQueues*sizeof(void *));
+  rpcQhandle = malloc(tsMaxQueues * sizeof(void *));
 
-  for (int i=0; i< tsMaxQueues; ++i )
+  for (int32_t i = 0; i < tsMaxQueues; ++i) {
     rpcQhandle[i] = taosInitScheduler(tsSessionsPerVnode, 1, "dnode");
+  }
 
   dmQhandle = taosInitScheduler(tsSessionsPerVnode, 1, "mgmt");
 
   return 0;
 }
 
+int32_t dnodeCheckSystemImp() {
+  return 0;
+}
 
-int dnodeCheckSystemImp() { return 0; }
-int (*dnodeCheckSystem)() = dnodeCheckSystemImp;
+int32_t (*dnodeCheckSystem)() = dnodeCheckSystemImp;
+
+void dnodeParseParameterKImp() {}
+
+void (*dnodeParseParameterK)() = dnodeParseParameterKImp;
+
+int32_t dnodeInitPeersImp(int32_t numOfThreads) {
+  return 0;
+}
+
+int32_t (*dnodeInitPeers)(int32_t numOfThreads) = dnodeInitPeersImp;
+
+
 
 

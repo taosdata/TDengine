@@ -77,7 +77,7 @@ void monitorSaveAcctLog(char *acctId, int64_t currentPointsPerSecond, int64_t ma
                         int64_t totalOutbound, int64_t maxOutbound, int64_t totalDbs, int64_t maxDbs,
                         int64_t totalUsers, int64_t maxUsers, int64_t totalStreams, int64_t maxStreams,
                         int64_t totalConns, int64_t maxConns, int8_t accessState);
-void (*mnodeCountRequestFp)(SCountInfo *info) = NULL;
+void (*mnodeCountRequestFp)(SDnodeStatisInfo *info) = NULL;
 void monitorExecuteSQL(char *sql);
 
 void monitorCheckDiskUsage(void *para, void *unused) {
@@ -333,7 +333,7 @@ int monitorBuildBandSql(char *sql) {
 }
 
 int monitorBuildReqSql(char *sql) {
-  SCountInfo info;
+  SDnodeStatisInfo info;
   info.httpReqNum = info.insertReqNum = info.selectReqNum = 0;
   (*mnodeCountRequestFp)(&info);
 

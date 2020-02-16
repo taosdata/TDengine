@@ -23,7 +23,7 @@ extern "C" {
 /*
  * Dnode handle read messages
  * The processing result is returned by callback function with pShellObj parameter
-*/
+ */
 int32_t dnodeReadData(SQueryMeterMsg *msg, void *pShellObj, void (*callback)(SQueryMeterRsp *rspMsg, void *pShellObj));
 
 #ifdef __cplusplus

@@ -22,18 +22,6 @@ extern "C" {
 
 #include "os.h"
 
-typedef struct {
-  int      sid;
-  int      vnode;
-  uint32_t ip;
-  uint16_t port;
-  int      count;             // track the number of imports
-  int      code;              // track the code of imports
-  int      numOfTotalPoints;  // track the total number of points imported
-  void *   thandle;           // handle from TAOS layer
-  void *   qhandle;
-} SShellObj;
-
 #ifdef __cplusplus
 }
 #endif

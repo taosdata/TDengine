@@ -42,4 +42,6 @@
 #define httpLWarn(...) taosLogWarn(__VA_ARGS__) httpWarn(__VA_ARGS__)
 #define httpLPrint(...) taosLogPrint(__VA_ARGS__) httpPrint(__VA_ARGS__)
 
+int32_t httpGetReqCount();
+
 #endif

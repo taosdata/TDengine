@@ -18,13 +18,13 @@
 
 const char* taosGetVgroupStatusStr(int32_t vgroupStatus) {
   switch (vgroupStatus) {
-    case TSDB_VG_STATUS_READY:                 return tsError[vgroupStatus];
-    case TSDB_VG_STATUS_IN_PROGRESS:           return tsError[vgroupStatus];
-    case TSDB_VG_STATUS_NO_DISK_PERMISSIONS:   return tsError[vgroupStatus];
-    case TSDB_VG_STATUS_SERVER_NO_PACE:        return tsError[vgroupStatus];
-    case TSDB_VG_STATUS_SERV_OUT_OF_MEMORY:    return tsError[vgroupStatus];
-    case TSDB_VG_STATUS_INIT_FAILED:           return tsError[vgroupStatus];
-    case TSDB_VG_STATUS_FULL:                  return tsError[vgroupStatus];
+    case TSDB_VG_STATUS_READY:                 return tstrerror(vgroupStatus);
+    case TSDB_VG_STATUS_IN_PROGRESS:           return tstrerror(vgroupStatus);
+    case TSDB_VG_STATUS_NO_DISK_PERMISSIONS:   return tstrerror(vgroupStatus);
+    case TSDB_VG_STATUS_SERVER_NO_PACE:        return tstrerror(vgroupStatus);
+    case TSDB_VG_STATUS_SERV_OUT_OF_MEMORY:    return tstrerror(vgroupStatus);
+    case TSDB_VG_STATUS_INIT_FAILED:           return tstrerror(vgroupStatus);
+    case TSDB_VG_STATUS_FULL:                  return tstrerror(vgroupStatus);
     default:                                   return "undefined";
   }
 }

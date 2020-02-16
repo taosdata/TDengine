@@ -20,6 +20,5 @@ int  httpInitSystem();
 int  httpStartSystem();
 void httpStopSystem();
 void httpCleanUpSystem();
-void httpGetReqCount(int32_t *httpConns);
 
 #endif

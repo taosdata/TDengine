@@ -15,7 +15,45 @@
 
 #define _DEFAULT_SOURCE
 #include "dnodeWrite.h"
+#include "taoserror.h"
 
-int32_t dnodeCreateTable(int vid, int sid, SCreateTableMsg *table) {
-
+int32_t dnodeCheckTableExist(char *tableId) {
+  return 0;
 }
+
+int32_t dnodeWriteData(SShellSubmitMsg *msg) {
+  return 0;
+}
+
+int32_t dnodeCreateNormalTable(SCreateNormalTableMsg *table) {
+  return 0;
+}
+
+int32_t dnodeCreateStreamTable(SCreateStreamTableMsg *table) {
+  return 0;
+}
+
+int32_t dnodeCreateChildTable(SCreateChildTableMsg *table) {
+  return 0;
+}
+
+int32_t dnodeAlterNormalTable(SCreateNormalTableMsg *table) {
+  return 0;
+}
+
+int32_t dnodeAlterStreamTable(SCreateStreamTableMsg *table) {
+  return 0;
+}
+
+int32_t dnodeAlterChildTable(SCreateChildTableMsg *table) {
+  return 0;
+}
+
+int32_t dnodeDropSuperTable(int vid, int sid, int64_t uid) {
+  return 0;
+}
+
+int32_t dnodeDropTable(int vid, int sid, int64_t uid) {
+  return 0;
+}
+

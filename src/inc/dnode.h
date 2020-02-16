@@ -22,6 +22,13 @@ extern "C" {
 
 #include <stdint.h>
 #include <pthread.h>
+#include "tsched.h"
+
+typedef struct {
+  int32_t selectReqNum;
+  int32_t insertReqNum;
+  int32_t httpReqNum;
+} SDnodeStatisInfo;
 
 typedef struct {
   char  id[20];
@@ -32,7 +39,7 @@ typedef struct {
 } SMgmtObj;
 
 // global variables
-extern pthread_mutex_t dmutex;
+extern uint32_t tsRebootTime;
 
 // dnodeCluster
 extern void (*dnodeStartModules)();
@@ -52,10 +59,14 @@ extern int (*dnodeInitMgmt)();
 extern int32_t (*dnodeInitStorage)();
 extern void (*dnodeCleanupStorage)();
 
-void dnodeCheckDbRunning(const char* dir);
-
+void dnodeCheckDataDirOpenned(const char* dir);
 
 void dnodeProcessMsgFromMgmtImp(SSchedMsg *sched);
+
+
+void dnodeLockVnodes();
+void dnodeUnLockVnodes();
+SDnodeStatisInfo dnodeGetStatisInfo();
 
 #ifdef __cplusplus
 }

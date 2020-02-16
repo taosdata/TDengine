@@ -23,12 +23,6 @@ int  monitorStartSystem();
 void monitorStopSystem();
 void monitorCleanUpSystem();
 
-typedef struct {
-  int selectReqNum;
-  int insertReqNum;
-  int httpReqNum;
-} SCountInfo;
-
-extern void (*mnodeCountRequestFp)(SCountInfo *info);
+extern void (*mnodeCountRequestFp)(SDnodeStatisInfo *info);
 
 #endif

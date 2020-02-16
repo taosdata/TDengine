@@ -26,30 +26,57 @@ extern "C" {
 #include "taosmsg.h"
 
 /*
+ * Write data based on dnode
+ * If >= 0, it is affect rows
+ * If < 0, get error code from terrno
+ */
+int32_t dnodeWriteData(SShellSubmitMsg *msg);
+
+/*
  * Check if table already exists
  */
-int32_t dnodeCheckTableExist(int vid, int sid, int64_t uid);
+int32_t dnodeCheckTableExist(char *tableId);
 
 /*
- * Create table with specified configuration and open it
+ * Create noraml table with specified configuration and open it
  */
-int32_t dnodeCreateTable(int vid, int sid, SCreateMsg *table);
+int32_t dnodeCreateNormalTable(SCreateNormalTableMsg *table);
 
 /*
- * Modify table configuration information
+ * Create stream table with specified configuration and open it
  */
-int32_t dnodeAlterTable(int vid, SMeterObj *table);
+int32_t dnodeCreateStreamTable(SCreateStreamTableMsg *table);
+
+/*
+ * Create child table with specified configuration and open it
+ */
+int32_t dnodeCreateChildTable(SCreateChildTableMsg *table);
+
+/*
+ * Modify normal table configuration information
+ *
+ */
+int32_t dnodeAlterNormalTable(SCreateNormalTableMsg *table);
+
+/*
+ * Modify stream table configuration information
+ */
+int32_t dnodeAlterStreamTable(SCreateStreamTableMsg *table);
+
+/*
+ * Modify child table configuration information
+ */
+int32_t dnodeAlterChildTable(SCreateChildTableMsg *table);
+
+/*
+ * Remove all child tables of supertable from local repository
+ */
+int32_t dnodeDropSuperTable(int vid, int sid, int64_t uid);
 
 /*
  * Remove table from local repository
  */
 int32_t dnodeDropTable(int vid, int sid, int64_t uid);
-
-/*
- * Write data based on dnode
- */
-int32_t dnodeWriteData(SShellSubmitMsg *msg);
-
 
 #ifdef __cplusplus
 }

@@ -23,16 +23,31 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include "dnode.h"
 
-extern pthread_mutex_t dmutex;
-extern bool tsDnodeStopping;
+typedef enum {
+  TSDB_DNODE_RUN_STATUS_INITIALIZE,
+  TSDB_DNODE_RUN_STATUS_RUNING,
+  TSDB_DNODE_RUN_STATUS_STOPPED
+} SDnodeRunStatus;
 
-int  dnodeInitSystem();
+extern int32_t (*dnodeInitPeers)(int32_t numOfThreads);
+extern int32_t (*dnodeCheckSystem)();
+extern int32_t (*dnodeInitStorage)();
+extern void (*dnodeCleanupStorage)();
+extern void (*dnodeParseParameterK)();
+extern int32_t tsMaxQueues;
+
+
+int32_t dnodeInitSystem();
 void dnodeCleanUpSystem();
-void dnodeCheckDbRunning(const char* dir);
+void dnodeInitPlugins();
 
-int vnodeInitStore();
-int vnodeInitPeer(int numOfThreads);
+SDnodeRunStatus dnodeGetRunStatus();
+void dnodeSetRunStatus(SDnodeRunStatus status);
+void dnodeCheckDataDirOpenned(const char *dir);
+void dnodeLockVnodes();
+void dnodeUnLockVnodes();
 
 #ifdef __cplusplus
 }
