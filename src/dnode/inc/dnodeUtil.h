@@ -13,27 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_MGMT_H
-#define TDENGINE_DNODE_MGMT_H
+#ifndef TDENGINE_DNODE_UTIL_H
+#define TDENGINE_DNODE_UTIL_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include <stdbool.h>
-#include "tsched.h"
-#include "dnode.h"
+#include <stdint.h>
+#include "taosdef.h"
+#include "taosmsg.h"
+#include "tstatus.h"
 
-int vnodeProcessCreateMeterRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj);
-int vnodeProcessRemoveMeterRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj);
+EVnodeStatus dnodeGetVnodeStatus(int32_t vnode);
 
-void dnodeDistributeMsgFromMgmt(char *content, int msgLen, int msgType, SMgmtObj *pObj);
+bool dnodeCheckVnodeExist(int32_t vnode);
 
-extern void *dmQhandle;
-
-void dnodeSendVpeerCfgMsg(int32_t vnode);
-void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid);
+void *dnodeGetVnodeObj(int32_t vnode);
 
 #ifdef __cplusplus
 }

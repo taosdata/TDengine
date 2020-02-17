@@ -548,7 +548,7 @@ int vnodeProcessCfgDnodeRequest(char *cont, int contLen, SMgmtObj *pMgmtObj) {
   return 0;
 }
 
-void vnodeSendVpeerCfgMsg(int vnode) {
+void dnodeSendVpeerCfgMsg(int32_t vnode) {
   char *        pMsg, *pStart;
   int           msgLen;
   SVpeerCfgMsg *pCfg;
@@ -566,7 +566,7 @@ void vnodeSendVpeerCfgMsg(int vnode) {
   taosSendMsgToMnode(pObj, pStart, msgLen);
 }
 
-int vnodeSendMeterCfgMsg(int vnode, int sid) {
+void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
   char *        pMsg, *pStart;
   int           msgLen;
   SMeterCfgMsg *pCfg;

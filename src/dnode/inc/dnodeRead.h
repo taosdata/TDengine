@@ -20,11 +20,23 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+#include <stdint.h>
+#include "taosdef.h"
+#include "taosmsg.h"
+#include "dnodeShell.h"
+
+void dnodeFreeQInfoInQueue(SShellObj *pShellObj);
+
 /*
  * Dnode handle read messages
  * The processing result is returned by callback function with pShellObj parameter
  */
 int32_t dnodeReadData(SQueryMeterMsg *msg, void *pShellObj, void (*callback)(SQueryMeterRsp *rspMsg, void *pShellObj));
+
+typedef void (*SDnodeRetrieveCallbackFp)(int32_t code, SRetrieveMeterRsp *pRetrieveRspMsg, void *pShellObj);
+
+void dnodeRetrieveData(SRetrieveMeterMsg *pMsg, int32_t msgLen, void *pShellObj, SDnodeRetrieveCallbackFp callback);
 
 #ifdef __cplusplus
 }

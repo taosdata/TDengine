@@ -40,7 +40,7 @@ void *             mgmtStatisticTimer = NULL;
 int                mgmtShellConns = 0;
 int                mgmtDnodeConns = 0;
 extern void *      pShellConn;
-extern void **     rpcQhandle;
+extern void **     tsRpcQhandle;
 extern SMgmtIpList mgmtIpList;
 extern SMgmtIpList mgmtPublicIpList;
 extern char        mgmtIpStr[TSDB_MAX_MGMT_IPS][20];

@@ -26,11 +26,13 @@ extern "C" {
 #include "taosmsg.h"
 
 /*
- * Write data based on dnode
- * If >= 0, it is affect rows
- * If < 0, get error code from terrno
+ * Write data based on dnode, the detail result can be fetched from rsponse
+ *   pSubmitMsg: Data to be written
+ *   pShellObj:  Used to pass a communication handle
+ *   callback:   Pass the write result through a callback function, possibly in a different thread space
+ *               rsp: will not be freed by callback function
  */
-int32_t dnodeWriteData(SShellSubmitMsg *msg);
+void dnodeWriteData(SShellSubmitMsg *pMsg, void *pShellObj, void (*callback)(SShellSubmitRspMsg *rsp, void *pShellObj));
 
 /*
  * Check if table already exists

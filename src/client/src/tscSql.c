@@ -660,7 +660,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   }
 
   // projection query on metric, pipeline retrieve data from vnode list,
-  // instead of two-stage mergevnodeProcessMsgFromShell free qhandle
+  // instead of two-stage mergednodeProcessMsgFromShell free qhandle
   nRows = taos_fetch_block_impl(res, rows);
 
   // current subclause is completed, try the next subclause

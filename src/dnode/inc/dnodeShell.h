@@ -26,7 +26,6 @@ extern "C" {
 
 typedef struct {
   int      sid;
-  int      vnode;
   uint32_t ip;
   uint16_t port;
   int32_t  count;             // track the number of imports
@@ -37,6 +36,8 @@ typedef struct {
 } SShellObj;
 
 int32_t dnodeInitShell();
+
+void dnodeCleanupShell();
 
 //SDnodeStatisInfo dnodeGetStatisInfo()
 
