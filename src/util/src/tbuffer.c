@@ -13,7 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define TBUFFER_DEFINE_OPERATION(type, name) \
+#include <stdlib.h>
+#include <memory.h>
+#include <assert.h>
+
+#define TBUFFER_DEFINE_FUNCTION(type, name) \
   type tbufRead##name(SBuffer* buf) {            \
     type ret;                                    \
     tbufReadToBuffer(buf, &ret, sizeof(type));   \
@@ -38,7 +42,8 @@ size_t tbufTell(SBuffer* buf) {
 
 size_t tbufSeekTo(SBuffer* buf, size_t pos) {
   if (pos > buf->size) {
-    longjmp(buf->jb, 1);
+    // TODO: update error code, other tbufThrowError need to be changed too
+    tbufThrowError(buf, 1);
   }
   size_t old = buf->pos;
   buf->pos = pos;
@@ -49,18 +54,20 @@ size_t tbufSkip(SBuffer* buf, size_t size) {
   return tbufSeekTo(buf, buf->pos + size);
 }
 
+void tbufClose(SBuffer* buf, bool keepData) {
+  if (!keepData) {
+    free(buf->data);
+  }
+  buf->data = NULL;
+  buf->pos = 0;
+  buf->size = 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // read functions
 
-void tbufInitRead(SBuffer* buf, void* data, size_t size) {
-  buf->buf = (char*)data;
-  buf->pos = 0;
-  // empty buffer is not an error, but read an empty buffer is
-  buf->size = (data == NULL) ? 0 : size;
-}
-
 char* tbufRead(SBuffer* buf, size_t size) {
-  char* ret = buf->buf + buf->pos;
+  char* ret = buf->data + buf->pos;
   tbufSkip(buf, size);
   return ret;
 }
@@ -72,8 +79,8 @@ void tbufReadToBuffer(SBuffer* buf, void* dst, size_t size) {
 }
 
 const char* tbufReadString(SBuffer* buf, size_t* len) {
-  uint16_t l = tbufReadUint16();
-  char*    ret = buf->buf + buf->pos;
+  uint16_t l = tbufReadUint16(buf);
+  char*    ret = buf->data + buf->pos;
   tbufSkip(buf, l + 1);
   ret[l] = 0;  // ensure the string end with '\0'
   if (len != NULL) {
@@ -83,9 +90,12 @@ const char* tbufReadString(SBuffer* buf, size_t* len) {
 }
 
 size_t tbufReadToString(SBuffer* buf, char* dst, size_t size) {
+  assert(dst != NULL);
   size_t      len;
   const char* str = tbufReadString(buf, &len);
-  if (len >= size) len = size - 1;
+  if (len >= size) {
+    len = size - 1;
+  }
   memcpy(dst, str, len);
   dst[len] = 0;
   return len;
@@ -98,57 +108,53 @@ size_t tbufReadToString(SBuffer* buf, char* dst, size_t size) {
 void tbufEnsureCapacity(SBuffer* buf, size_t size) {
   size += buf->pos;
   if (size > buf->size) {
-    char*  nbuf = NULL;
     size_t nsize = size + buf->size;
-    nbuf = realloc(buf->buf, nsize);
-    if (nbuf == NULL) {
-      longjmp(buf->jb, 2);
+    char* data = realloc(buf->data, nsize);
+    if (data == NULL) {
+      tbufThrowError(buf, 2);
     }
-    buf->buf = nbuf;
+    buf->data = data;
     buf->size = nsize;
   }
 }
 
-void tbufInitWrite(SBuffer* buf, size_t size) {
-    buf->buf = NULL;
-    buf->pos = 0;
-    buf->size = 0;
-    tbufEnsureCapacity(buf, size);
-}
-
-char* tbufGetResult(SBuffer* buf, bool takeOver) {
-		char* ret = buf->buf;
+char* tbufGetData(SBuffer* buf, bool takeOver) {
+		char* ret = buf->data;
 		if (takeOver) {
       buf->pos = 0;
       buf->size = 0;
-			buf->buf = NULL;
+			buf->data = NULL;
     }
 		return ret;
 }
 
-void tbufUninitWrite(SBuffer* buf) {
-    free(buf->buf);
+void tbufEndWrite(SBuffer* buf) {
+    free(buf->data);
+    buf->data = NULL;
+    buf->pos = 0;
+    buf->size = 0;
 }
 
 void tbufWrite(SBuffer* buf, const void* data, size_t size) {
-  tbufEnsureCapacity(size);
-  memcpy(buf->buf + buf->pos, data, size);
+  assert(data != NULL);
+  tbufEnsureCapacity(buf, size);
+  memcpy(buf->data + buf->pos, data, size);
   buf->pos += size;
 }
 
 void tbufWriteAt(SBuffer* buf, size_t pos, const void* data, size_t size) {
+  assert(data != NULL);
   // this function can only be called to fill the gap on previous writes,
   // so 'pos + size <= buf->pos' must be true
-  if (pos + size > buf->pos) {
-    longjmp(buf->jb, 3);
-  }
-  memcpy(buf->buf + pos, data, size);
+  assert(pos + size <= buf->pos);
+  memcpy(buf->data + pos, data, size);
 }
 
 void tbufWriteStringLen(SBuffer* buf, const char* str, size_t len) {
-  if (len > 0xffff) {
-    longjmp(buf->jb , 4);
-  }
+  // maximum string length is 65535, if longer string is required
+  // this function and the corresponding read function need to be
+  // revised.
+  assert(len <= 0xffff);
   tbufWriteUint16(buf, (uint16_t)len);
   tbufWrite(buf, str, len + 1);
 }
