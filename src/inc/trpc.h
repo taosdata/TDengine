@@ -19,10 +19,6 @@
 extern "C" {
 #endif
 
-#include "taosmsg.h"
-#include "tsched.h"
-#include "tglobalcfg.h"
-
 #define TAOS_CONN_UDPS     0
 #define TAOS_CONN_UDPC     1
 #define TAOS_CONN_TCPS     2
