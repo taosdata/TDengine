@@ -52,9 +52,9 @@ static int32_t dnodeInitTmrCtl();
 
 void     *tsStatusTimer = NULL;
 void     *vnodeTmrCtrl;
-void     **rpcQhandle;
+void     **tsRpcQhandle;
 void     *dmQhandle;
-void     *queryQhandle;
+void     *tsQueryQhandle;
 int32_t  tsVnodePeers   = TSDB_VNODES_SUPPORT - 1;
 int32_t  tsMaxQueues;
 uint32_t tsRebootTime;
@@ -95,6 +95,7 @@ void dnodeCleanUpSystem() {
     tsStatusTimer = NULL;
   }
 
+  dnodeCleanupShell();
   dnodeCleanUpModules();
   dnodeCleanupVnodes();
   taosCloseLogger();
@@ -269,7 +270,7 @@ static int32_t dnodeInitQueryQHandle() {
   int32_t maxQueueSize = tsNumOfVnodesPerCore * tsNumOfCores * tsSessionsPerVnode;
   dTrace("query task queue initialized, max slot:%d, task threads:%d", maxQueueSize, numOfThreads);
 
-  queryQhandle = taosInitSchedulerWithInfo(maxQueueSize, numOfThreads, "query", vnodeTmrCtrl);
+  tsQueryQhandle = taosInitSchedulerWithInfo(maxQueueSize, numOfThreads, "query", vnodeTmrCtrl);
 
   return 0;
 }
@@ -291,10 +292,10 @@ static int32_t dnodeInitRpcQHandle() {
     tsMaxQueues = 1;
   }
 
-  rpcQhandle = malloc(tsMaxQueues * sizeof(void *));
+  tsRpcQhandle = malloc(tsMaxQueues * sizeof(void *));
 
   for (int32_t i = 0; i < tsMaxQueues; ++i) {
-    rpcQhandle[i] = taosInitScheduler(tsSessionsPerVnode, 1, "dnode");
+    tsRpcQhandle[i] = taosInitScheduler(tsSessionsPerVnode, 1, "dnode");
   }
 
   dmQhandle = taosInitScheduler(tsSessionsPerVnode, 1, "mgmt");

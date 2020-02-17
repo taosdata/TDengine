@@ -271,6 +271,7 @@ typedef struct {
 } SSubmitMsg;
 
 typedef struct {
+  int32_t  vnode;
   int32_t  sid;
   int32_t  sversion;
   uint64_t uid;
@@ -279,11 +280,27 @@ typedef struct {
 } SShellSubmitBlock;
 
 typedef struct {
-  short   import;
-  short   vnode;
+  int8_t  import;
+  int8_t  reserved[3];
   int32_t numOfSid; /* total number of sid */
   char    blks[];   /* numOfSid blocks, each blocks for one meter */
 } SShellSubmitMsg;
+
+typedef struct {
+  int32_t vnode; // vnode index of failed block
+  int32_t sid;   // table index of failed block
+  int32_t code;  // errorcode while write data to vnode, such as not created, dropped, no space, invalid table
+} SShellSubmitRspBlock;
+
+typedef struct {
+  int32_t code;         // 0-success, 1-inprogress, > 1 error code
+  int32_t numOfRows;    // number of records the client is trying to write
+  int32_t affectedRows; // number of records actually written
+  int32_t failedRows;   // number of failed records (exclude duplicate records)
+  int32_t numOfFailedBlocks;
+  SShellSubmitRspBlock *failedBlocks;
+} SShellSubmitRspMsg;
+
 
 typedef struct SSchema {
   uint8_t  type;

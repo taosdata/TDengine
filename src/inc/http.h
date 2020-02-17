@@ -16,6 +16,10 @@
 #ifndef TDENGINE_HTTP_H
 #define TDENGINE_HTTP_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "tglobalcfg.h"
 #include "tlog.h"
 
@@ -43,5 +47,9 @@
 #define httpLPrint(...) taosLogPrint(__VA_ARGS__) httpPrint(__VA_ARGS__)
 
 int32_t httpGetReqCount();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
