@@ -59,7 +59,8 @@ typedef struct {
   int16_t   index; 
   int16_t   numOfIps;
   uint16_t  port;
-  char      ipStr[TSDB_MAX_MPEERS][40];
+  uint32_t  ip[TSDB_MAX_MPEERS];
+  char      ipStr[TSDB_MAX_MPEERS][TSDB_IPv4ADDR_LEN];
 } SRpcIpSet;
 
 void *rpcOpen(SRpcInit *pRpc);

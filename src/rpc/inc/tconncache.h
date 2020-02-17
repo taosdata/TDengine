@@ -13,23 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSCCACHE_H
-#define TDENGINE_TSCCACHE_H
+#ifndef TDENGINE_CONN_CACHE_H
+#define TDENGINE_CONN_CACHE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void *taosOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, int64_t keepTimer);
-
-void taosCloseConnCache(void *handle);
-
-void *taosAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, char *user);
-
+void  taosCloseConnCache(void *handle);
+void  taosAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, char *user);
 void *taosGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TSCACHE_H
+#endif  // TDENGINE_CONN_CACHE_H
