@@ -67,10 +67,6 @@ static int32_t getNextDataFileCompInfo(SQueryRuntimeEnv *pRuntimeEnv, SMeterObj 
 
 static void setWindowResOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SWindowResult *pResult);
 
-// static void getAlignedIntervalQueryRange(SQueryRuntimeEnv *pRuntimeEnv, TSKEY keyInData, TSKEY skey, TSKEY ekey);
-
-// static int32_t saveResult(STableQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryInfo, int32_t numOfResult);
-
 static void    resetMergeResultBuf(SQuery *pQuery, SQLFunctionCtx *pCtx);
 static int32_t flushFromResultBuf(STableQuerySupportObj *pSupporter, const SQuery *pQuery,
                                   const SQueryRuntimeEnv *pRuntimeEnv);
@@ -78,8 +74,6 @@ static void    validateTimestampForSupplementResult(SQueryRuntimeEnv *pRuntimeEn
 static void    getBasicCacheInfoSnapshot(SQuery *pQuery, SCacheInfo *pCacheInfo, int32_t vid);
 static TSKEY   getQueryPositionForCacheInvalid(SQueryRuntimeEnv *pRuntimeEnv, __block_search_fn_t searchFn);
 static bool    functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t functionId);
-void           doGetAlignedIntervalQueryRangeImpl(SQuery *pQuery, int64_t pKey, int64_t keyFirst, int64_t keyLast,
-                                                  int64_t *actualSkey, int64_t *actualEkey, int64_t *skey, int64_t *ekey);
 static void    getNextTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow *pTimeWindow);
 
 static int32_t getGroupResultId(int32_t groupIndex) {
@@ -3248,42 +3242,6 @@ void doGetAlignedIntervalQueryRangeImpl(SQuery *pQuery, int64_t pKey, int64_t ke
   }
 }
 
-// static void getAlignedIntervalQueryRange(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key, TSKEY skey, TSKEY ekey) {
-//  SQuery *pQuery = pRuntimeEnv->pQuery;
-//  if (pQuery->intervalTime == 0 /* || (pQuery->intervalTime > 0 && pQuery->slidingTime > 0)*/) {
-//    return;
-//  }
-//
-//  TSKEY skey2 = MIN(skey, ekey);
-//  TSKEY ekey2 = MAX(skey, ekey);
-//
-//  // the actual first query range in skey1 and ekey1
-//  TSKEY skey1, ekey1;
-//
-//  TSKEY windowSKey = 0, windowEKey = 0;
-//  doGetAlignedIntervalQueryRangeImpl(pQuery, key, skey2, ekey2, &skey1, &ekey1, &windowSKey, &windowEKey);
-//
-//  if (QUERY_IS_ASC_QUERY(pQuery)) {
-//    pQuery->skey = skey1;
-//    pQuery->ekey = ekey1;
-//
-//    pRuntimeEnv->intervalWindow = (STimeWindow){.skey = windowSKey, .ekey = windowEKey};
-//
-//    assert(pQuery->skey <= pQuery->ekey &&
-//           pRuntimeEnv->intervalWindow.skey + (pQuery->intervalTime - 1) == pRuntimeEnv->intervalWindow.ekey);
-//  } else {
-//    pQuery->skey = ekey1;
-//    pQuery->ekey = skey1;
-//
-//    pRuntimeEnv->intervalWindow = (STimeWindow){.skey = windowEKey, .ekey = windowSKey};
-//
-//    assert(pQuery->skey >= pQuery->ekey &&
-//           pRuntimeEnv->intervalWindow.skey - (pQuery->intervalTime - 1) == pRuntimeEnv->intervalWindow.ekey);
-//  }
-//
-//  pQuery->lastKey = pQuery->skey;
-//}
-
 static void getOneRowFromDataBlock(SQueryRuntimeEnv *pRuntimeEnv, char **dst, int32_t pos) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
@@ -4146,9 +4104,7 @@ static bool forwardQueryStartPosIfNeeded(SQInfo *pQInfo, STableQuerySupportObj *
         // time window ended in current data block
         if (win.ekey <= blockInfo.keyLast) {
           pQuery->limit.offset -= 1;
-          if (pQuery->limit.offset == 0) {
-            int32_t k = 1;
-          }
+
           if (win.ekey == blockInfo.keyLast) {
             moveToNextBlock(pRuntimeEnv, step, searchFn, false);
             if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
@@ -5342,39 +5298,6 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
 static void updatelastkey(SQuery *pQuery, SMeterQueryInfo *pMeterQInfo) { pMeterQInfo->lastKey = pQuery->lastKey; }
 
-// void queryOnBlock(STableQuerySupportObj *pSupporter, int32_t blockStatus, SBlockInfo *pBlockBasicInfo,
-//                  SMeterDataInfo *pMeterDataInfo, SField *pFields, __block_search_fn_t searchFn) {
-//  /* cache blocks may be assign to other meter, abort */
-//
-//
-////  SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
-////  SQuery *          pQuery = pRuntimeEnv->pQuery;
-//
-////  TSKEY *primaryKeys = (TSKEY *)pRuntimeEnv->primaryColBuffer->data;
-//
-//  //  if (pQuery->intervalTime == 0) {  // not interval query
-//  //    assert(0);
-//  //
-//  //    int32_t numOfRes = 0;
-//  //    applyFunctionsOnBlock(pRuntimeEnv, pBlockBasicInfo, primaryKeys, pFields, searchFn, &numOfRes,
-//  //                          &pMeterDataInfo->pMeterQInfo->windowResInfo);  ///????bug
-//  //
-//  //    // note: only fixed number of output for each group by operation
-//  //    if (numOfRes > 0) {                                                                   //???
-//  //      pRuntimeEnv->windowResInfo.pResult[pMeterDataInfo->groupIdx].numOfRows = numOfRes;  ////????bug
-//  //    }
-//  //
-//  //    // used to decide the correct start position in cache after check all data in files
-//  //    updatelastkey(pQuery, pMeterDataInfo->pMeterQInfo);
-//  //    if (pRuntimeEnv->pTSBuf != NULL) {
-//  //      pMeterDataInfo->pMeterQInfo->cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);
-//  //    }
-//  //
-//  //  } else {
-//  applyIntervalQueryOnBlock(pSupporter, pMeterDataInfo, pBlockBasicInfo, pFields, searchFn);
-//  //  }
-//}
-
 /*
  * set tag value in SQLFunctionCtx
  * e.g.,tag information into input buffer
@@ -5907,36 +5830,6 @@ void setMeterDataInfo(SMeterDataInfo *pMeterDataInfo, SMeterObj *pMeterObj, int3
   pMeterDataInfo->meterOrderIdx = meterIdx;
 }
 
-// int32_t doCloseAllOpenedResults(STableQuerySupportObj *pSupporter) {
-//  SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
-//  SQuery *          pQuery = pRuntimeEnv->pQuery;
-//
-//  /* for interval query, close all unclosed results */
-//  if (pQuery->intervalTime > 0) {
-//    SMeterDataInfo *pMeterInfo = pSupporter->pMeterDataInfo;
-//    for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
-//      if (pMeterInfo[i].pMeterQInfo != NULL && pMeterInfo[i].pMeterQInfo->lastResRows > 0) {
-//        int32_t index = pMeterInfo[i].meterOrderIdx;
-//
-//        pRuntimeEnv->pMeterObj = getMeterObj(pSupporter->pMetersHashTable, pSupporter->pSidSet->pSids[index]->sid);
-//        assert(pRuntimeEnv->pMeterObj == pMeterInfo[i].pMeterObj);
-//
-//        int32_t ret = setIntervalQueryExecutionContext(pSupporter, i, pMeterInfo[i].pMeterQInfo);
-//        if (ret != TSDB_CODE_SUCCESS) {
-//          return ret;
-//        }
-//
-//        ret = saveResult(pSupporter, pMeterInfo[i].pMeterQInfo, pMeterInfo[i].pMeterQInfo->lastResRows);
-//        if (ret != TSDB_CODE_SUCCESS) {
-//          return ret;
-//        }
-//      }
-//    }
-//  }
-//
-//  return TSDB_CODE_SUCCESS;
-//}
-
 void disableFunctForSuppleScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
@@ -6425,47 +6318,6 @@ int64_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv) {
 
   return maxOutput;
 }
-
-// static int32_t getNextIntervalQueryRange(STableQuerySupportObj *pSupporter, SQueryRuntimeEnv *pRuntimeEnv,
-//                                         int64_t *skey, int64_t *ekey) {
-//  SQuery *pQuery = pRuntimeEnv->pQuery;
-//
-//  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
-//
-//  *skey = pRuntimeEnv->intervalWindow.skey + (pQuery->slidingTime * factor);
-//  *ekey = pRuntimeEnv->intervalWindow.ekey + (pQuery->slidingTime * factor);
-//
-//  if (pQuery->slidingTime > 0) {
-//    if (QUERY_IS_ASC_QUERY(pQuery)) {
-//      // the next sliding window is not contained in the query time range
-//      if (*skey < pSupporter->rawSKey) {
-//        *skey = pSupporter->rawSKey;
-//      }
-//
-//      if (*skey > pSupporter->rawEKey) {
-//        return QUERY_COMPLETED;
-//      }
-//
-//      if (*ekey > pSupporter->rawEKey) {
-//        *ekey = pSupporter->rawEKey;
-//      }
-//    } else {
-//      if (*skey > pSupporter->rawSKey) {
-//        *skey = pSupporter->rawSKey;
-//      }
-//
-//      if (*skey < pSupporter->rawEKey) {
-//        return QUERY_COMPLETED;
-//      }
-//
-//      if (*ekey < pSupporter->rawEKey) {
-//        *ekey = pSupporter->rawEKey;
-//      }
-//    }
-//  }
-//
-//  return QUERY_NOT_COMPLETED;
-//}
 
 /*
  * forward the query range for next interval query
@@ -7164,67 +7016,6 @@ static char *getOutputResPos(SQueryRuntimeEnv *pRuntimeEnv, tFilePage *pData, in
          pRuntimeEnv->pCtx[col].outputBytes * row;
 }
 
-// void setCtxOutputPointerForSupplementScan(STableQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryInfo) {
-//  SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
-//  SQuery *          pQuery = pRuntimeEnv->pQuery;
-//
-//  int32_t    index = pMeterQueryInfo->reverseIndex;
-//  tFilePage *pData = NULL;
-//  int32_t    i = 0;
-//
-//  SQueryDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
-//
-//  // find the position for this output result
-//  SIDList list = getDataBufPagesIdList(pResultBuf, pMeterQueryInfo->sid);
-//  for (; i < list.size; ++i) {
-//    pData = getResultBufferPageById(pResultBuf, list.pData[i]);
-//    if (index <= pData->numOfElems) {
-//      break;
-//    }
-//
-//    index -= pData->numOfElems;
-//  }
-//
-//  assert(index >= 0);
-//
-//  /*
-//   * if it is the first records in master scan, no next results exist, so no need to init the result buffer
-//   * all data are processed and save to buffer during supplementary scan.
-//   */
-//  if (index == 0) {
-//    return;
-//  }
-//
-//  for (int32_t k = 0; k < pQuery->numOfOutputCols; ++k) {
-//    SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[k];
-//
-//    pCtx->aOutputBuf = getOutputResPos(pRuntimeEnv, pData, index - 1, k);
-//    SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-//    if (pResInfo->complete) {
-//      continue;
-//    }
-//
-//    int32_t functId = pQuery->pSelectExpr[k].pBase.functionId;
-//
-//    // setup runtime environment
-//    if ((QUERY_IS_ASC_QUERY(pQuery) && functId == TSDB_FUNC_FIRST_DST) ||
-//        (!QUERY_IS_ASC_QUERY(pQuery) && functId == TSDB_FUNC_LAST_DST)) {
-//      if (pMeterQueryInfo->lastResRows == 0) {
-//        pCtx->currentStage = 0;
-//
-//        resetResultInfo(pResInfo);
-//        aAggs[functId].init(pCtx);
-//      }
-//    }
-//  }
-//
-//  // the first column is always the timestamp for interval query
-//  TSKEY      ts = *(TSKEY *)pRuntimeEnv->pCtx[0].aOutputBuf;
-//  SMeterObj *pMeterObj = pRuntimeEnv->pMeterObj;
-//  qTrace("QInfo:%p vid:%d sid:%d id:%s, set output result pointer, ts:%" PRId64 ", index:%d", GET_QINFO_ADDR(pQuery),
-//         pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, ts, pMeterQueryInfo->reverseIndex);
-//}
-
 void validateTimestampForSupplementResult(SQueryRuntimeEnv *pRuntimeEnv, int64_t numOfIncrementRes) {
   SQuery *        pQuery = pRuntimeEnv->pQuery;
   SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
@@ -7279,26 +7070,7 @@ int32_t setIntervalQueryExecutionContext(STableQuerySupportObj *pSupporter, int3
     return -1;
   }
 
-  //    if (pMeterQueryInfo->lastResRows == 0) {
   initCtxOutputBuf(pRuntimeEnv);
-  //    }
-
-  //  } else {
-  //    if (pMeterQueryInfo->reverseFillRes) {
-  //      setCtxOutputPointerForSupplementScan(pSupporter, pMeterQueryInfo);
-  //    } else {
-  //      /*
-  //       * set output buffer for reverse scan data blocks
-  //       * find the correct output position of existed results during
-  //       *
-  //       * If the master scan does not produce any results, new spaces needed to be allocated during supplement scan
-  //       */
-  //      if (setOutputBufferForIntervalQuery(pRuntimeEnv, pMeterQueryInfo) != TSDB_CODE_SUCCESS) {
-  //        return -1;
-  //      }
-  //    }
-  //  }
-
   vnodeSetTagValueInParam(pSupporter->pSidSet, pRuntimeEnv, pSupporter->pMeterSidExtInfo[meterIdx]);
 
   // both the master and supplement scan needs to set the correct ts comp start position
@@ -7317,108 +7089,6 @@ int32_t setIntervalQueryExecutionContext(STableQuerySupportObj *pSupporter, int3
 
   return 0;
 }
-
-// static void doApplyIntervalQueryOnBlock_rv(STableQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryInfo,
-//                                           SBlockInfo *pBlockInfo, int64_t *pPrimaryCol, SField *pFields,
-//                                           __block_search_fn_t searchFn) {
-//  SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
-//  SQuery *          pQuery = pRuntimeEnv->pQuery;
-//  int32_t           factor = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
-//
-//  while (1) {
-//    int64_t nextKey = -1;
-//    int32_t numOfRes = 0;
-//
-//    int32_t steps = applyFunctionsOnBlock(pRuntimeEnv, pBlockInfo, pPrimaryCol, pFields, searchFn, &numOfRes,
-//                                          &pMeterQueryInfo->windowResInfo);
-//    assert(steps > 0);
-//
-//    // NOTE: in case of stable query, only ONE(or ZERO) row of result generated for each query range
-//    if (pMeterQueryInfo->lastResRows == 0) {
-//      pMeterQueryInfo->lastResRows = numOfRes;
-//    } else {
-//      assert(pMeterQueryInfo->lastResRows == 1);
-//    }
-//
-//    int32_t pos = pQuery->pos + steps * factor;
-//
-//    // query does not reach the end of current block
-//    if ((pos < pBlockInfo->size && QUERY_IS_ASC_QUERY(pQuery)) || (pos >= 0 && !QUERY_IS_ASC_QUERY(pQuery))) {
-//      nextKey = pPrimaryCol[pos];
-//    } else {
-//      assert((pQuery->lastKey > pBlockInfo->keyLast && QUERY_IS_ASC_QUERY(pQuery)) ||
-//             (pQuery->lastKey < pBlockInfo->keyFirst && !QUERY_IS_ASC_QUERY(pQuery)));
-//    }
-//
-//    // all data satisfy current query are checked, query completed
-//    bool completed = false;
-//    if (QUERY_IS_ASC_QUERY(pQuery)) {
-//      completed = (pQuery->lastKey > pQuery->ekey);
-//    } else {
-//      completed = (pQuery->lastKey < pQuery->ekey);
-//    }
-//
-//    /*
-//     * 1. there may be more date that satisfy current query interval, other than
-//     *    current block, we need to try next data blocks
-//     * 2. query completed, since it reaches the upper bound of the main query range
-//     */
-//    if (!completed) {
-//      /*
-//       * Data that satisfy current query range may locate in current block and blocks that are directly right
-//       * next to current block. Therefore, we need to keep the query range(interval) unchanged until reaching
-//       * the direct next data block, while only forwards the pQuery->lastKey.
-//       *
-//       * With the information of the directly next data block, whether locates in cache or disk,
-//       * current interval query being completed or not can be decided.
-//       */
-//      saveIntervalQueryRange(pRuntimeEnv, pMeterQueryInfo);
-//
-//      if (QUERY_IS_ASC_QUERY(pQuery)) {
-//        assert(pQuery->lastKey > pBlockInfo->keyLast && pQuery->lastKey <= pQuery->ekey);
-//      } else {
-//        assert(pQuery->lastKey < pBlockInfo->keyFirst && pQuery->lastKey >= pQuery->ekey);
-//      }
-//
-//      break;
-//    }
-//
-//    assert(completed);
-//
-//    // while the interval time window is less than the time range gap between two points, nextKey may be greater than
-//    // pSupporter->rawEKey
-//    if (pQuery->ekey == pSupporter->rawEKey || (nextKey > pSupporter->rawEKey && QUERY_IS_ASC_QUERY(pQuery)) ||
-//        (nextKey < pSupporter->rawEKey && !QUERY_IS_ASC_QUERY(pQuery))) {
-//      /* whole query completed, save result and abort */
-//      saveResult(pSupporter, pMeterQueryInfo, pMeterQueryInfo->lastResRows);
-//
-//      // save the pQuery->lastKey for retrieve data in cache, actually, there will be no qualified data in cache.
-//      saveIntervalQueryRange(pRuntimeEnv, pMeterQueryInfo);
-//
-//      return;
-//    } else if ((QUERY_IS_ASC_QUERY(pQuery) && pQuery->ekey == pBlockInfo->keyLast) ||
-//               (!QUERY_IS_ASC_QUERY(pQuery) && pQuery->ekey == pBlockInfo->keyFirst)) {
-//      /* current interval query is completed, set the next query range on other data blocks if exist */
-//      saveIntervalQueryRange(pRuntimeEnv, pMeterQueryInfo);
-//      return;
-//    }
-//
-//    saveResult(pSupporter, pMeterQueryInfo, pMeterQueryInfo->lastResRows);
-//
-//    assert(pos >= 0 && pos < pBlockInfo->size);
-//    assert((nextKey >= pQuery->lastKey && QUERY_IS_ASC_QUERY(pQuery)) ||
-//           (nextKey <= pQuery->lastKey && !QUERY_IS_ASC_QUERY(pQuery)));
-//
-//    /* still in the same block to query */
-//    getAlignedIntervalQueryRange(pRuntimeEnv, nextKey, pSupporter->rawSKey, pSupporter->rawEKey);
-//    saveIntervalQueryRange(pRuntimeEnv, pMeterQueryInfo);
-//
-//    int32_t newPos = searchFn((char *)pPrimaryCol, pBlockInfo->size, pQuery->skey, pQuery->order.order);
-//    assert(newPos == pQuery->pos + steps * factor);
-//
-//    pQuery->pos = newPos;
-//  }
-//}
 
 int64_t getNextAccessedKeyInData(SQuery *pQuery, int64_t *pPrimaryCol, SBlockInfo *pBlockInfo, int32_t blockStatus) {
   assert(pQuery->pos >= 0 && pQuery->pos <= pBlockInfo->size - 1);
@@ -7695,98 +7365,6 @@ static void validateResultBuf(STableQuerySupportObj *pSupporter, SMeterQueryInfo
     assert(pRuntimeEnv->pCtx[i].aOutputBuf - newOutput->data < DEFAULT_INTERN_BUF_SIZE);
   }
 }
-
-// int32_t saveResult(STableQuerySupportObj *pSupporter, SMeterQueryInfo *pMeterQueryInfo, int32_t numOfResult) {
-//  SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
-//  SQuery *          pQuery = pRuntimeEnv->pQuery;
-//
-//  // no results generated, do nothing for master scan
-//  if (numOfResult <= 0) {
-//    if (IS_MASTER_SCAN(pRuntimeEnv)) {
-//      return TSDB_CODE_SUCCESS;
-//    } else {
-//      /*
-//       * There is a case that no result generated during the the supplement scan, and during the main
-//       * scan also no result generated. The index can be backwards moved.
-//       *
-//       * However, if during the main scan, there is a result generated, such as applies count to timestamp, which
-//       * always generates a result, but applies last query to a NULL column may fail to generate results during the
-//       * supplement scan.
-//       *
-//       * NOTE:
-//       * nStartQueryTimestamp is the actually timestamp of current interval, if the actually interval timestamp
-//       * equals to the recorded timestamp that is acquired during the master scan, backwards one step even
-//       * there is no results during the supplementary scan.
-//       */
-//      TSKEY ts = *(TSKEY *)pRuntimeEnv->pCtx[0].aOutputBuf;
-//      if (ts == pRuntimeEnv->pCtx[0].nStartQueryTimestamp && pMeterQueryInfo->reverseIndex > 0) {
-//        assert(pMeterQueryInfo->numOfRes >= 0 && pMeterQueryInfo->reverseIndex > 0 &&
-//               pMeterQueryInfo->reverseIndex <= pMeterQueryInfo->numOfRes);
-//
-//        // backward one step from the previous position, the start position is (pMeterQueryInfo->numOfRows-1);
-//        pMeterQueryInfo->reverseIndex -= 1;
-//        setCtxOutputPointerForSupplementScan(pSupporter, pMeterQueryInfo);
-//      }
-//
-//      return TSDB_CODE_SUCCESS;
-//    }
-//  }
-//
-//  assert(pMeterQueryInfo->lastResRows == 1);
-//  numOfResult = 1;
-//  pMeterQueryInfo->lastResRows = 0;
-//
-//  if (IS_SUPPLEMENT_SCAN(pRuntimeEnv) && pMeterQueryInfo->reverseFillRes == 1) {
-//    assert(pMeterQueryInfo->numOfRes > 0 && pMeterQueryInfo->reverseIndex > 0 &&
-//           pMeterQueryInfo->reverseIndex <= pMeterQueryInfo->numOfRes);
-//    // backward one step from the previous position, the start position is (pMeterQueryInfo->numOfRows-1);
-//    pMeterQueryInfo->reverseIndex -= 1;
-//    setCtxOutputPointerForSupplementScan(pSupporter, pMeterQueryInfo);
-//  } else {
-//    SIDList list = getDataBufPagesIdList(pRuntimeEnv->pResultBuf, pMeterQueryInfo->sid);
-//
-//    int32_t    pageId = getLastPageId(&list);
-//    tFilePage *pData = getResultBufferPageById(pRuntimeEnv->pResultBuf, pageId);
-//
-//    // in handling records occuring around '1970-01-01', the aligned start timestamp may be 0.
-//    TSKEY ts = *(TSKEY *)getOutputResPos(pRuntimeEnv, pData, pData->numOfElems, 0);
-//
-//    SMeterObj *pMeterObj = pRuntimeEnv->pMeterObj;
-//    qTrace("QInfo:%p vid:%d sid:%d id:%s, save results, ts:%" PRId64 ", total:%d", GET_QINFO_ADDR(pQuery),
-//           pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, ts, pMeterQueryInfo->numOfRes + 1);
-//
-//    pData->numOfElems += numOfResult;
-//    pMeterQueryInfo->numOfRes += numOfResult;
-//    assert(pData->numOfElems <= pRuntimeEnv->numOfRowsPerPage);
-//
-//    if (setOutputBufferForIntervalQuery(pRuntimeEnv, pMeterQueryInfo) != TSDB_CODE_SUCCESS) {
-//      return -1;
-//    }
-//
-//    for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-//      //      resetResultInfo(&pMeterQueryInfo->resultInfo[i]);
-//    }
-//
-//    validateResultBuf(pSupporter, pMeterQueryInfo);
-//    initCtxOutputBuf(pRuntimeEnv);
-//#if 0
-//    SSchema sc[TSDB_MAX_COLUMNS] = {0};
-//    sc[0].type = TSDB_DATA_TYPE_BIGINT;
-//    sc[0].bytes = 8;
-//
-//    sc[1].type = TSDB_DATA_TYPE_BIGINT;
-//    sc[1].bytes = 8;
-//
-//    UNUSED(sc);
-//    SColumnModel *cm = createColumnModel(sc, pQuery->numOfOutputCols, pRuntimeEnv->numOfRowsPerPage);
-//
-////    if (outputPage->numOfElems + numOfResult >= pRuntimeEnv->numOfRowsPerPage)
-//        tColModelDisplay(cm, outputPage->data, outputPage->numOfElems, pRuntimeEnv->numOfRowsPerPage);
-//#endif
-//  }
-//
-//  return TSDB_CODE_SUCCESS;
-//}
 
 static int32_t getNumOfSubset(STableQuerySupportObj *pSupporter) {
   SQuery *pQuery = pSupporter->runtimeEnv.pQuery;
