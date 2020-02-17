@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "cache.h"
+// #include "cache.h"
 
 #define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16*1024*1024 /* 16M */
 
@@ -13,21 +13,20 @@ typedef struct {
   int32_t numOfRows // numOfRows
 } STableCacheInfo;
 
-typedef struct {
-  char *pData;
-  STableCacheInfo *pTableInfo;
-  SCacheBlock *prev;
-  SCacheBlock *next;
+typedef struct _tsdb_cache_block {
+  char *                    pData;
+  STableCacheInfo *         pTableInfo;
+  struct _tsdb_cache_block *prev;
+  struct _tsdb_cache_block *next;
 } STSDBCacheBlock;
 
 // Use a doublely linked list to implement this
 typedef struct STSDBCache {
   // Number of blocks the cache is allocated
-  int32_t numOfBlocks;
+  int32_t          numOfBlocks;
   STSDBCacheBlock *cacheList;
-  void *  current;
+  void *           current;
 } SCacheHandle;
-
 
 // ---- Operation on STSDBCacheBlock
 #define TSDB_CACHE_BLOCK_DATA(pBlock) ((pBlock)->pData)

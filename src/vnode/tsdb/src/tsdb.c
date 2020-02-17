@@ -2,14 +2,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "taosdef.h"
+// #include "taosdef.h"
 // #include "disk.h"
+#include "tsdb.h"
 #include "tsdbCache.h"
 #include "tsdbMeta.h"
 
 typedef struct STSDBRepo {
   // TSDB configuration
-  STSDBcfg *pCfg;
+  STSDBCfg *pCfg;
 
   // The meter meta handle of this TSDB repository
   SMetaHandle *pMetaHandle;
@@ -18,12 +19,12 @@ typedef struct STSDBRepo {
   SCacheHandle *pCacheHandle;
 
   // Disk tier handle for multi-tier storage
-  SDiskTier *pDiskTier;
+  void *pDiskTier;
 
   // File Store
   void *pFileStore;
 
-  pthread_mutext_t tsdbMutex;
+  pthread_mutex_t tsdbMutex;
 
 } STSDBRepo;
 

@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "cache.h"
+// #include "cache.h"
 #include "schema.h"
 
 #define TSDB_VERSION_MAJOR 1
@@ -17,6 +17,21 @@
 typedef void    tsdb_repo_t;  // use void to hide implementation details from outside
 typedef int32_t table_id_t;   // table ID type in this repository
 typedef int16_t tsdb_id_t;    // TSDB repository ID
+
+// Submit message
+typedef struct {
+  int32_t numOfTables;
+  char    data[];
+} SSubmitMsg;
+
+// Submit message for one table
+typedef struct {
+  table_id_t tableId;       // table ID to insert
+  int32_t    sversion;      // data schema version
+  int32_t    numOfRows;     // number of rows data
+  int64_t    uid;           // table UID to insert
+  char       data[];
+} SSubmitBlock;
 
 // Retention policy.
 typedef struct {
@@ -54,7 +69,7 @@ typedef struct {
   SDataShardPolicy dataShardPolicy;
   SBlockRowsPolicy blockRowsPolicy;
   SRetentionPolicy retentionPlicy;  // retention configuration
-  SCachePool *     cachePool;       // the cache pool the repository to use
+  void *           cachePool;       // the cache pool the repository to use
 } STSDBCfg;
 
 // the TSDB repository info
@@ -205,6 +220,9 @@ typedef struct STimeWindow {
   int64_t ekey;
 } STimeWindow;
 
+typedef struct {
+} SColumnFilterInfo;
+
 // query condition to build vnode iterator
 typedef struct STSDBQueryCond {
   STimeWindow       twindow;
@@ -236,6 +254,10 @@ typedef struct STableIDList {
   STableId *tableIds;
   int32_t   num;
 } STableIDList;
+
+typedef struct {
+
+} SFields;
 
 /**
  * Get the data block iterator, starting from position according to the query condition

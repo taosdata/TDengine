@@ -51,7 +51,7 @@ SISchema tdConvertSchemaToInline(SSchema *pSchema) {
   char *pName = TD_ISCHEMA_COL_NAMES(pISchema);
   for (int32_t i = 0; i < totalCols; i++) {
     SColumn *pCol = TD_SCHEMA_COLUMN_AT(TD_ISCHEMA_SCHEMA(pISchema), i);
-    char *   colName = TD_COLUMN_NAME(TD_SCHEMA_COLUMN_AT(pSchema, i), i);
+    char *   colName = TD_COLUMN_NAME(TD_SCHEMA_COLUMN_AT(pSchema, i));
 
     TD_COLUMN_NAME(pCol) = pName;
 

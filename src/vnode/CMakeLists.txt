@@ -1,4 +1,7 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-PROJECT(TDengine)
+cmake_minimum_required(VERSION 2.8)
 
-ADD_SUBDIRECTORY(detail)
+project(tsdb)
+
+add_subdirectory(common)
+
+add_subdirectory(tsdb)
