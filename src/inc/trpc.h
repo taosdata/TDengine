@@ -43,7 +43,7 @@ typedef struct {
   uint16_t localPort;                   // local port
   char *label;                          // for debug purpose
   int   numOfThreads;                   // number of threads to handle connections
-  void *(*fp)(char type, char *pCont, int contLen, void *handle, int index);  // function to process the incoming msg
+  void *(*fp)(char type, void *pCont, int contLen, void *handle, int index);  // function to process the incoming msg
   int   sessions;                       // number of sessions allowed
   int   connType;                       // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int   idleTime;                       // milliseconds, 0 means idle timer is disabled
@@ -58,13 +58,14 @@ typedef struct {
 typedef struct {
   int16_t   index; 
   int16_t   numOfIps;
-  uint32_t  ip[TSDB_MAX_REPLICA];
+  uint16_t  port;
+  char      ipStr[TSDB_MAX_MPEERS][40];
 } SRpcIpSet;
 
 void *rpcOpen(SRpcInit *pRpc);
 void  rpcClose(void *);
-char *rpcMallocCont(int contLen);
-void  rpcFreeCont(char *pCont);
+void *rpcMallocCont(int contLen);
+void  rpcFreeCont(void *pCont);
 void  rpcSendRequest(void *thandle, SRpcIpSet ipSet, char msgType, void *pCont, int contLen, void *ahandle);
 void  rpcSendResponse(void *pConn, void *pCont, int contLen);
 void  rpcSendSimpleRsp(void *pConn, int32_t code);

@@ -18,10 +18,10 @@
 #include "tglobalcfg.h"
 #include "tlog.h"
 #include "tmempool.h"
-#include "tsclient.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "tcache.h"
 
 typedef struct _c_hash_t {
   uint32_t          ip;
