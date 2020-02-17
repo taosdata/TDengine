@@ -18,6 +18,21 @@ typedef void    tsdb_repo_t;  // use void to hide implementation details from ou
 typedef int32_t table_id_t;   // table ID type in this repository
 typedef int16_t tsdb_id_t;    // TSDB repository ID
 
+// Submit message
+typedef struct {
+  int32_t numOfTables;
+  char    data[];
+} SSubmitMsg;
+
+// Submit message for one table
+typedef struct {
+  table_id_t tableId;       // table ID to insert
+  int32_t    sversion;      // data schema version
+  int32_t    numOfRows;     // number of rows data
+  int64_t    uid;           // table UID to insert
+  char       data[];
+} SSubmitBlock;
+
 // Retention policy.
 typedef struct {
   // TODO: Need a more fancy description
