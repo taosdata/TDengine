@@ -1839,10 +1839,6 @@ static int32_t blockwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t
       return 0;
     }
   
-    if (win.skey == 1433955937630) {
-      int32_t k = 1;
-    }
-    
     TSKEY ekey = QUERY_IS_ASC_QUERY(pQuery) ? win.ekey : win.skey;
     forwardStep = getNumOfRowsInTimeWindow(pQuery, pBlockInfo, primaryKeyCol, pQuery->pos, ekey, searchFn, false);
 
@@ -1859,10 +1855,6 @@ static int32_t blockwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t
         break;
       }
 
-      if (nextWin.skey == 1433955937630) {
-        int32_t k = 1;
-      }
-      
       // null data, failed to allocate more memory buffer
       int32_t sid = pRuntimeEnv->pMeterObj->sid;
       if (setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, sid, &nextWin) != TSDB_CODE_SUCCESS) {
