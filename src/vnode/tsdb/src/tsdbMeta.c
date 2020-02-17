@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
-#include "taosdef.h"
+// #include "taosdef.h"
+#include "tsdb.h"
 #include "tsdbMeta.h"
 
 SMetaHandle *tsdbCreateMetaHandle(int32_t numOfTables) {
@@ -11,7 +12,7 @@ SMetaHandle *tsdbCreateMetaHandle(int32_t numOfTables) {
 
   pMetahandle->numOfTables = 0;
   pMetahandle->numOfSuperTables = 0;
-  pMetahandle->pTables = calloc(sizeof(STable *) * numOfTables);
+  pMetahandle->pTables = calloc(sizeof(STable *), numOfTables);
   if (pMetahandle->pTables == NULL) {
     free(pMetahandle);
     return NULL;

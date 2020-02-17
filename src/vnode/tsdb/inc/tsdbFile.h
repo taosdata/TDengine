@@ -1,7 +1,8 @@
 #if !defined(_TD_TSDB_FILE_H_)
 #define _TD_TSDB_FILE_H_
 
-#include "tstring.h"
+#include <stdint.h>
+// #include "tstring.h"
 
 typedef int32_t file_id_t;
 
@@ -24,7 +25,7 @@ typedef struct {
 } SFileInfo;
 
 typedef struct {
-  tstring_t fname;
+  char *    fname;
   SFileInfo fInfo;
 } SFILE;
 

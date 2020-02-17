@@ -4,7 +4,7 @@
 
 #include <pthread.h>
 
-#include "taosdef.h"
+// #include "taosdef.h"
 
 // Initially, there are 4 tables
 #define TSDB_INIT_NUMBER_OF_SUPER_TABLE 4
@@ -30,7 +30,7 @@ typedef struct STable {
   // For TSDB_SUPER_TABLE, it is the schema including tags
   // For TSDB_NTABLE, it is only the schema, not including tags
   // For TSDB_STABLE, it is NULL
-  SVSchema *pSchema;
+  SSchema *pSchema;
 
   // Tag value for this table
   // For TSDB_SUPER_TABLE and TSDB_NTABLE, it is NULL
@@ -75,7 +75,7 @@ typedef struct {
 #define TSDB_TABLE_CACHE_DATA(pTable) ((pTable)->content.pData)
 #define TSDB_SUPER_TABLE_INDEX(pTable) ((pTable)->content.pIndex)
 
-SVSchema *tsdbGetTableSchema(STable *pTable);
+SSchema *tsdbGetTableSchema(STable *pTable);
 
 // ---- Operation on SMetaHandle
 #define TSDB_NUM_OF_TABLES(pHandle) ((pHandle)->numOfTables)

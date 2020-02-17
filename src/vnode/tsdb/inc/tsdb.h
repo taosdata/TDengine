@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "cache.h"
+// #include "cache.h"
 #include "schema.h"
 
 #define TSDB_VERSION_MAJOR 1
@@ -69,7 +69,7 @@ typedef struct {
   SDataShardPolicy dataShardPolicy;
   SBlockRowsPolicy blockRowsPolicy;
   SRetentionPolicy retentionPlicy;  // retention configuration
-  SCachePool *     cachePool;       // the cache pool the repository to use
+  void *           cachePool;       // the cache pool the repository to use
 } STSDBCfg;
 
 // the TSDB repository info
@@ -220,6 +220,9 @@ typedef struct STimeWindow {
   int64_t ekey;
 } STimeWindow;
 
+typedef struct {
+} SColumnFilterInfo;
+
 // query condition to build vnode iterator
 typedef struct STSDBQueryCond {
   STimeWindow       twindow;
@@ -251,6 +254,10 @@ typedef struct STableIDList {
   STableId *tableIds;
   int32_t   num;
 } STableIDList;
+
+typedef struct {
+
+} SFields;
 
 /**
  * Get the data block iterator, starting from position according to the query condition
