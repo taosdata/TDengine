@@ -56,7 +56,7 @@ typedef enum {
    * the program will call this function again, if this status is set.
    * used to transfer from QUERY_RESBUF_FULL
    */
-  QUERY_NOT_COMPLETED = 0x1,
+  QUERY_NOT_COMPLETED = 0x1u,
 
   /*
    * output buffer is full, so, the next query will be employed,
@@ -66,7 +66,7 @@ typedef enum {
    * this status is only exist in group-by clause and
    * diff/add/division/multiply/ query.
    */
-  QUERY_RESBUF_FULL = 0x2,
+  QUERY_RESBUF_FULL = 0x2u,
 
   /*
    * query is over
@@ -76,14 +76,13 @@ typedef enum {
    * 2. when the query range on timestamp is satisfied, it is also denoted as
    * query_compeleted
    */
-  QUERY_COMPLETED = 0x4,
+  QUERY_COMPLETED = 0x4u,
 
   /*
    * all data has been scanned, so current search is stopped,
    * At last, the function will transfer this status to QUERY_COMPLETED
    */
-  QUERY_NO_DATA_TO_CHECK = 0x8,
-
+  QUERY_NO_DATA_TO_CHECK = 0x8u,
 } vnodeQueryStatus;
 
 typedef struct SPointInterpoSupporter {
@@ -170,7 +169,7 @@ void    disableFunctForSuppleScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 void    enableFunctForMasterScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 
 int32_t mergeMetersResultToOneGroups(STableQuerySupportObj* pSupporter);
-void    copyFromGroupBuf(SQInfo* pQInfo, SWindowResult* result);
+void    copyFromWindowResToSData(SQInfo* pQInfo, SWindowResult* result);
 
 SBlockInfo   getBlockBasicInfo(SQueryRuntimeEnv* pRuntimeEnv, void* pBlock, int32_t blockType);
 SCacheBlock* getCacheDataBlock(SMeterObj* pMeterObj, SQueryRuntimeEnv* pRuntimeEnv, int32_t slot);
@@ -291,6 +290,8 @@ int32_t initWindowResInfo(SWindowResInfo* pWindowResInfo, SQueryRuntimeEnv* pRun
 
 void    cleanupTimeWindowInfo(SWindowResInfo* pWindowResInfo, SQueryRuntimeEnv* pRuntimeEnv);
 void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SWindowResInfo* pWindowResInfo);
+void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num);
+
 void    clearClosedTimeWindow(SQueryRuntimeEnv* pRuntimeEnv);
 int32_t numOfClosedTimeWindow(SWindowResInfo* pWindowResInfo);
 void    closeTimeWindow(SWindowResInfo* pWindowResInfo, int32_t slot);

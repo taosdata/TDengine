@@ -663,7 +663,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
      * we need to return it to client in the first place.
      */
     if (pSupporter->subgroupIdx > 0) {
-      copyFromGroupBuf(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+      copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
       pQInfo->pointsRead += pQuery->pointsRead;
 
       if (pQuery->pointsRead > 0) {
@@ -814,7 +814,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
 
     pQInfo->pTableQuerySupporter->subgroupIdx = 0;
     pQuery->pointsRead = 0;
-    copyFromGroupBuf(pQInfo, pWindowResInfo->pResult);
+    copyFromWindowResToSData(pQInfo, pWindowResInfo->pResult);
   }
 
   pQInfo->pointsRead += pQuery->pointsRead;
@@ -915,7 +915,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
       displayInterResult(pQuery->sdata, pQuery, pQuery->sdata[0]->len);
 #endif
     } else {
-      copyFromGroupBuf(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+      copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
     }
 
     pQInfo->pointsRead += pQuery->pointsRead;
@@ -979,7 +979,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
 #endif
     }
   } else {  // not a interval query
-    copyFromGroupBuf(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+    copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
   }
 
   // handle the limitation of output buffer
@@ -1090,7 +1090,6 @@ static void vnodeSingleMeterIntervalMainLooper(STableQuerySupportObj *pSupporter
 
   while (1) {
     initCtxOutputBuf(pRuntimeEnv);
-    clearClosedTimeWindow(pRuntimeEnv);
 
     vnodeScanAllData(pRuntimeEnv);
     if (isQueryKilled(pQuery)) {
@@ -1101,18 +1100,19 @@ static void vnodeSingleMeterIntervalMainLooper(STableQuerySupportObj *pSupporter
 
     doFinalizeResult(pRuntimeEnv);
 
-    int64_t maxOutput = getNumOfResult(pRuntimeEnv);
+//    int64_t maxOutput = getNumOfResult(pRuntimeEnv);
 
     // here we can ignore the records in case of no interpolation
+    // todo handle offset, in case of top/bottom interval query
     if ((pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTSBuf != NULL) && pQuery->limit.offset > 0 &&
         pQuery->interpoType == TSDB_INTERPO_NONE) {
       // maxOutput <= 0, means current query does not generate any results
-      // todo handle offset, in case of top/bottom interval query
-      if (maxOutput > 0) {
-        pQuery->limit.offset--;
-      }
+      int32_t numOfClosed = numOfClosedTimeWindow(&pRuntimeEnv->windowResInfo);
+      
+      int32_t c =  MIN(numOfClosed, pQuery->limit.offset);
+      clearFirstNTimeWindow(pRuntimeEnv, c);
+      pQuery->limit.offset -= c;
     } else {
-      //      assert(0);
       //      pQuery->pointsRead += maxOutput;
       //      forwardCtxOutputBuf(pRuntimeEnv, maxOutput);
     }
@@ -1126,16 +1126,16 @@ static void vnodeSingleMeterIntervalMainLooper(STableQuerySupportObj *pSupporter
       break;
     }
 
-    /*
-     * the scan limitation mechanism is upon here,
-     * 1. since there is only one(k) record is generated in one scan operation
-     * 2. remain space is not sufficient for next query output, abort
-     */
-    if ((pQuery->pointsRead % pQuery->pointsToRead == 0 && pQuery->pointsRead != 0) ||
-        ((pQuery->pointsRead + maxOutput) > pQuery->pointsToRead)) {
-      setQueryStatus(pQuery, QUERY_RESBUF_FULL);
-      break;
-    }
+//    /*
+//     * the scan limitation mechanism is upon here,
+//     * 1. since there is only one(k) record is generated in one scan operation
+//     * 2. remain space is not sufficient for next query output, abort
+//     */
+//    if ((pQuery->pointsRead % pQuery->pointsToRead == 0 && pQuery->pointsRead != 0) ||
+//        ((pQuery->pointsRead + maxOutput) > pQuery->pointsToRead)) {
+//      setQueryStatus(pQuery, QUERY_RESBUF_FULL);
+//      break;
+//    }
   }
 }
 
@@ -1154,9 +1154,11 @@ static void vnodeSingleTableIntervalProcessor(SQInfo *pQInfo) {
     vnodeSingleMeterIntervalMainLooper(pSupporter, pRuntimeEnv);
 
     if (pQuery->intervalTime > 0) {
-      pSupporter->subgroupIdx = 0;
+      pSupporter->subgroupIdx = 0;  // always start from 0
       pQuery->pointsRead = 0;
-      copyFromGroupBuf(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+      copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+      
+      clearFirstNTimeWindow(pRuntimeEnv, pSupporter->subgroupIdx);
     }
 
     // the offset is handled at prepare stage if no interpolation involved
@@ -1190,7 +1192,7 @@ static void vnodeSingleTableIntervalProcessor(SQInfo *pQInfo) {
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
     pSupporter->subgroupIdx = 0;
     pQuery->pointsRead = 0;
-    copyFromGroupBuf(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+    copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
   }
 
   pQInfo->pointsRead += pQuery->pointsRead;
@@ -1220,12 +1222,13 @@ void vnodeSingleTableQuery(SSchedMsg *pMsg) {
 
   SQuery *   pQuery = &pQInfo->query;
   SMeterObj *pMeterObj = pQInfo->pObj;
+  STableQuerySupportObj* pSupporter = pQInfo->pTableQuerySupporter;
+  SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
+  
+  assert(pRuntimeEnv->pMeterObj == pMeterObj);
 
   dTrace("vid:%d sid:%d id:%s, query thread is created, numOfQueries:%d, QInfo:%p", pMeterObj->vnode, pMeterObj->sid,
          pMeterObj->meterId, pMeterObj->numOfQueries, pQInfo);
-
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->pTableQuerySupporter->runtimeEnv;
-  assert(pRuntimeEnv->pMeterObj == pMeterObj);
 
   if (vnodeHasRemainResults(pQInfo)) {
     /*
@@ -1258,12 +1261,16 @@ void vnodeSingleTableQuery(SSchedMsg *pMsg) {
   // here we have scan all qualified data in both data file and cache
   if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK | QUERY_COMPLETED)) {
     // continue to get push data from the group result
-    if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
+    if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || pQuery->intervalTime > 0) {
       pQuery->pointsRead = 0;
-      if (pQInfo->pTableQuerySupporter->subgroupIdx > 0) {
-        copyFromGroupBuf(pQInfo, pQInfo->pTableQuerySupporter->runtimeEnv.windowResInfo.pResult);
+      pSupporter->subgroupIdx = 0;  // always start from 0
+      
+      if (pRuntimeEnv->windowResInfo.size > 0) {
+        copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
         pQInfo->pointsRead += pQuery->pointsRead;
-
+  
+        clearFirstNTimeWindow(pRuntimeEnv, pSupporter->subgroupIdx);
+        
         if (pQuery->pointsRead > 0) {
           dTrace("QInfo:%p vid:%d sid:%d id:%s, %d points returned %d from group results, totalRead:%d totalReturn:%d",
                  pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead, pQInfo->pointsRead,
@@ -1281,7 +1288,7 @@ void vnodeSingleTableQuery(SSchedMsg *pMsg) {
     dTrace("QInfo:%p vid:%d sid:%d id:%s, query over, %d points are returned", pQInfo, pMeterObj->vnode, pMeterObj->sid,
            pMeterObj->meterId, pQInfo->pointsRead);
 
-    vnodePrintQueryStatistics(pQInfo->pTableQuerySupporter);
+    vnodePrintQueryStatistics(pSupporter);
     sem_post(&pQInfo->dataReady);
 
     vnodeDecRefCount(pQInfo);
