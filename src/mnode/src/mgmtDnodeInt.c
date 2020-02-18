@@ -50,16 +50,16 @@ int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   SVgObj *      pVgroup;
 
   if (!sdbMaster) {
-    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_METER_CFG_RSP, TSDB_CODE_REDIRECT);
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_TABLE_CFG_RSP, TSDB_CODE_REDIRECT);
     return 0;
   }
 
   int vnode = htonl(pCfg->vnode);
   int sid = htonl(pCfg->sid);
 
-  pStart = taosBuildRspMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_METER_CFG_RSP, 64000);
+  pStart = taosBuildRspMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_TABLE_CFG_RSP, 64000);
   if (pStart == NULL) {
-    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_METER_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_TABLE_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return 0;
   }
 
@@ -100,15 +100,15 @@ int mgmtProcessVpeerCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   SVgObj *      pVgroup = NULL;
 
   if (!sdbMaster) {
-    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VPEER_CFG_RSP, TSDB_CODE_REDIRECT);
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VNODE_CFG_RSP, TSDB_CODE_REDIRECT);
     return 0;
   }
 
   int vnode = htonl(pCfg->vnode);
 
-  pStart = taosBuildRspMsgToDnode(pObj, TSDB_MSG_TYPE_VPEER_CFG_RSP);
+  pStart = taosBuildRspMsgToDnode(pObj, TSDB_MSG_TYPE_VNODE_CFG_RSP);
   if (pStart == NULL) {
-    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VPEER_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VNODE_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return 0;
   }
   pMsg = pStart;
@@ -142,7 +142,7 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
   STaosRsp *pRsp = (STaosRsp *)msg;
 
   if (!sdbMaster) {
-    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VPEERS_RSP, TSDB_CODE_REDIRECT);
+    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_DNODE_VPEERS_RSP, TSDB_CODE_REDIRECT);
     return 0;
   }
 
@@ -172,19 +172,19 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
 }
 
 void mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *pObj) {
-  if (msgType == TSDB_MSG_TYPE_METER_CFG) {
+  if (msgType == TSDB_MSG_TYPE_TABLE_CFG) {
     mgmtProcessMeterCfgMsg(content, msgLen - sizeof(SIntMsg), pObj);
-  } else if (msgType == TSDB_MSG_TYPE_VPEER_CFG) {
+  } else if (msgType == TSDB_MSG_TYPE_VNODE_CFG) {
     mgmtProcessVpeerCfgMsg(content, msgLen - sizeof(SIntMsg), pObj);
-  } else if (msgType == TSDB_MSG_TYPE_CREATE_RSP) {
+  } else if (msgType == TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE_RSP) {
     mgmtProcessCreateRsp(content, msgLen - sizeof(SIntMsg), pObj);
   } else if (msgType == TSDB_MSG_TYPE_REMOVE_RSP) {
     // do nothing
-  } else if (msgType == TSDB_MSG_TYPE_VPEERS_RSP) {
+  } else if (msgType == TSDB_MSG_TYPE_DNODE_VPEERS_RSP) {
     mgmtProcessVPeersRsp(content, msgLen - sizeof(SIntMsg), pObj);
-  } else if (msgType == TSDB_MSG_TYPE_FREE_VNODE_RSP) {
+  } else if (msgType == TSDB_MSG_TYPE_DNODE_FREE_VNODE_RSP) {
     mgmtProcessFreeVnodeRsp(content, msgLen - sizeof(SIntMsg), pObj);
-  } else if (msgType == TSDB_MSG_TYPE_CFG_PNODE_RSP) {
+  } else if (msgType == TSDB_MSG_TYPE_DNODE_CFG_RSP) {
     // do nothing;
   } else if (msgType == TSDB_MSG_TYPE_ALTER_STREAM_RSP) {
     // do nothing;
@@ -243,7 +243,7 @@ int32_t mgmtSendCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup, int
       continue;
     }
 
-    int8_t *pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_CREATE, 64000);
+    int8_t *pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE, 64000);
     if (pStart == NULL) {
       continue;
     }
@@ -267,7 +267,7 @@ int32_t mgmtSendCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj *pVgroup) {
       continue;
     }
 
-    int8_t *pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_CREATE, 64000);
+    int8_t *pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE, 64000);
     if (pStart == NULL) {
       continue;
     }
@@ -291,7 +291,7 @@ int32_t mgmtSendCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup) {
       continue;
     }
 
-    int8_t *pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_CREATE, 64000);
+    int8_t *pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE, 64000);
     if (pStart == NULL) {
       continue;
     }
@@ -322,7 +322,7 @@ int mgmtSendRemoveMeterMsgToDnode(STabObj *pTable, SVgObj *pVgroup) {
     pObj = mgmtGetDnode(pVgroup->vnodeGid[i].ip);
     if (pObj == NULL) continue;
 
-    pStart = taosBuildReqMsgToDnode(pObj, TSDB_MSG_TYPE_REMOVE);
+    pStart = taosBuildReqMsgToDnode(pObj, TSDB_MSG_TYPE_DNODE_REMOVE_CHILD_TABLE);
     if (pStart == NULL) continue;
     pMsg = pStart;
 
@@ -428,7 +428,7 @@ int mgmtSendVPeersMsg(SVgObj *pVgroup) {
     mgmtUpdateDnode(pDnode);
 
     if (pDnode->thandle && pVgroup->numOfVnodes >= 1) {
-      pStart = taosBuildReqMsgToDnode(pDnode, TSDB_MSG_TYPE_VPEERS);
+      pStart = taosBuildReqMsgToDnode(pDnode, TSDB_MSG_TYPE_DNODE_VPEERS);
       if (pStart == NULL) continue;
       pMsg = mgmtBuildVpeersIe(pStart, pVgroup, pVgroup->vnodeGid[i].vnode);
       msgLen = pMsg - pStart;
@@ -457,7 +457,7 @@ int mgmtSendOneFreeVnodeMsg(SVnodeGid *pVnodeGid) {
     return -1;
   }
 
-  pStart = taosBuildReqMsgToDnode(pDnode, TSDB_MSG_TYPE_FREE_VNODE);
+  pStart = taosBuildReqMsgToDnode(pDnode, TSDB_MSG_TYPE_DNODE_FREE_VNODE);
   if (pStart == NULL) return -1;
   pMsg = pStart;
 
@@ -539,7 +539,7 @@ int mgmtSendCfgDnodeMsg(char *cont) {
   }
 
 #ifdef CLUSTER
-  pStart = taosBuildReqMsg(pDnode->thandle, TSDB_MSG_TYPE_CFG_PNODE);
+  pStart = taosBuildReqMsg(pDnode->thandle, TSDB_MSG_TYPE_DNODE_CFG);
   if (pStart == NULL) return TSDB_CODE_NODE_OFFLINE;
   pMsg = pStart;
 
