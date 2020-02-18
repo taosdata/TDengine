@@ -31,43 +31,41 @@
 static int (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(int8_t *pCont, int32_t contLen, void *pConn);
 static void dnodeInitProcessShellMsg();
 
-void taosSendMsgToMnodeImpFp(SSchedMsg *sched) {
-  char  msgType = *sched->msg;
-  char *content = sched->msg + sizeof(int32_t);
+void dnodeSendMsgToMnodeImpFp(SSchedMsg *sched) {
+  int8_t  msgType = *(sched->msg - 1);
+  int8_t  *pCont  = sched->msg;
+  int32_t contLen = (int32_t) sched->ahandle;
+  void    *pConn  = NULL;
 
-  mgmtProcessMsgFromDnode(content, 0, msgType, NULL);
+  mgmtProcessMsgFromDnode(pCont, contLen, msgType, pConn);
   rpcFreeCont(sched->msg);
 }
 
-int32_t taosSendMsgToMnodeImp(int8_t *msg, int32_t msgLen) {
-  dTrace("msg:%s is sent to mnode", taosMsg[(int32_t)(*(msg-sizeof(int32_t)))]);
+int32_t dnodeSendMsgToMnodeImp(int8_t *pCont, int32_t contLen, int8_t msgType) {
+  dTrace("msg:%s is sent to mnode", taosMsg[msgType]);
+  *(pCont-1) = msgType;
 
-  /*
-   * Lite version has no message header, so minus one
-   */
   SSchedMsg schedMsg;
-  schedMsg.fp = taosSendMsgToMnodeImpFp;
-  schedMsg.msg = msg - sizeof(int32_t);
-  schedMsg.ahandle = NULL;
+  schedMsg.fp      = dnodeSendMsgToMnodeImpFp;
+  schedMsg.msg     = pCont;
+  schedMsg.ahandle = (void*)contLen;
   schedMsg.thandle = NULL;
   taosScheduleTask(tsDnodeMgmtQhandle, &schedMsg);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
-int32_t (*taosSendMsgToMnode)(char *msg, int32_t msgLen) = taosSendMsgToMnodeImp;
 
-int32_t taosSendSimpleRspToMnodeImp(int32_t rsptype, int32_t code) {
-  char *pStart = taosBuildRspMsgToMnode(0, rsptype);
-  if (pStart == NULL) {
-    return 0;
-  }
+int32_t (*dnodeSendMsgToMnode)(int8_t *pCont, int32_t contLen, int8_t msgType) = dnodeSendMsgToMnodeImp;
 
-  *pStart = code;
-  taosSendMsgToMnode(0, pStart, code);
+int32_t dnodeSendSimpleRspToMnodeImp(int32_t msgType, int32_t code) {
+  int8_t *pCont = rpcMallocCont(sizeof(int32_t));
+  *(int32_t *) pCont = code;
 
-  return 0;
+  dnodeSendMsgToMnodeImp(pCont, sizeof(int32_t), msgType);
+  return TSDB_CODE_SUCCESS;
 }
-int (*taosSendSimpleRspToMnode)(int32_t rsptype, int32_t code) = taosSendSimpleRspToMnodeImp;
+
+int32_t (*dnodeSendSimpleRspToMnode)(int32_t msgType, int32_t code) = dnodeSendSimpleRspToMnodeImp;
 
 int32_t dnodeInitMgmtImp() {
   dnodeInitProcessShellMsg();
@@ -80,17 +78,7 @@ void dnodeInitMgmtIpImp() {}
 
 void (*dnodeInitMgmtIp)() = dnodeInitMgmtIpImp;
 
-void dnodeProcessMsgFromMgmtImp(SSchedMsg *sched) {
-  int32_t msgType  = *(int32_t*)(sched->msg);
-  int8_t  *content = sched->msg + sizeof(int32_t);
-
-  dTrace("msg:%s is received from mnode", taosMsg[msgType]);
-  dnodeDistributeMsgFromMgmt(content, 0, msgType, NULL);
-
-  free(sched->msg);
-}
-
-void dnodeDistributeMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn) {
+void dnodeProcessMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn) {
   if (msgType < 0 || msgType >= TSDB_MSG_TYPE_MAX) {
     dError("invalid msg type:%d", msgType);
   } else {
@@ -202,7 +190,7 @@ void dnodeSendVpeerCfgMsg(int32_t vnode) {
   }
 
   cfg->vnode = htonl(vnode);
-  taosSendMsgToMnode(cfg, sizeof(SMeterCfgMsg));
+  dnodeSendMsgToMnode(cfg, sizeof(SMeterCfgMsg));
 }
 
 void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
@@ -212,7 +200,7 @@ void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
   }
 
   cfg->vnode = htonl(vnode);
-  taosSendMsgToMnode(cfg, sizeof(SMeterCfgMsg));
+  dnodeSendMsgToMnode(cfg, sizeof(SMeterCfgMsg));
 }
 
 void dnodeInitProcessShellMsg() {

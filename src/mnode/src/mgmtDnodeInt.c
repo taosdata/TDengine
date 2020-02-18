@@ -50,7 +50,7 @@ int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   SVgObj *      pVgroup;
 
   if (!sdbMaster) {
-    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_TABLE_CFG_RSP, TSDB_CODE_REDIRECT);
+    mgmtSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_TABLE_CFG_RSP, TSDB_CODE_REDIRECT);
     return 0;
   }
 
@@ -59,7 +59,7 @@ int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
 
   pStart = taosBuildRspMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_TABLE_CFG_RSP, 64000);
   if (pStart == NULL) {
-    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_TABLE_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
+    mgmtSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_TABLE_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return 0;
   }
 
@@ -88,7 +88,7 @@ int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   }
 
   msgLen = pMsg - pStart;
-  taosSendMsgToDnode(pObj, pStart, msgLen);
+  mgmtSendMsgToDnode(pObj, pStart, msgLen);
 
   return 0;
 }
@@ -100,7 +100,7 @@ int mgmtProcessVpeerCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   SVgObj *      pVgroup = NULL;
 
   if (!sdbMaster) {
-    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VNODE_CFG_RSP, TSDB_CODE_REDIRECT);
+    mgmtSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VNODE_CFG_RSP, TSDB_CODE_REDIRECT);
     return 0;
   }
 
@@ -108,7 +108,7 @@ int mgmtProcessVpeerCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
 
   pStart = taosBuildRspMsgToDnode(pObj, TSDB_MSG_TYPE_VNODE_CFG_RSP);
   if (pStart == NULL) {
-    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VNODE_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
+    mgmtSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_VNODE_CFG_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return 0;
   }
   pMsg = pStart;
@@ -129,7 +129,7 @@ int mgmtProcessVpeerCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
   }
 
   msgLen = pMsg - pStart;
-  taosSendMsgToDnode(pObj, pStart, msgLen);
+  mgmtSendMsgToDnode(pObj, pStart, msgLen);
 
   return 0;
 }
@@ -142,7 +142,7 @@ int mgmtProcessVPeersRsp(char *msg, int msgLen, SDnodeObj *pObj) {
   STaosRsp *pRsp = (STaosRsp *)msg;
 
   if (!sdbMaster) {
-    taosSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_DNODE_VPEERS_RSP, TSDB_CODE_REDIRECT);
+    mgmtSendSimpleRspToDnode(pObj, TSDB_MSG_TYPE_DNODE_VPEERS_RSP, TSDB_CODE_REDIRECT);
     return 0;
   }
 
@@ -251,7 +251,7 @@ int32_t mgmtSendCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup, int
     int8_t *pMsg = mgmtBuildCreateChildTableMsg(pTable, pStart, pVgroup->vnodeGid[index].vnode, tagDataLen, pTagData);
     int32_t msgLen = pMsg - pStart;
 
-    taosSendMsgToDnode(pObj, pStart, msgLen);
+    mgmtSendMsgToDnode(pObj, pStart, msgLen);
   }
 
   pVgroup->lastCreate = timeStamp;
@@ -275,7 +275,7 @@ int32_t mgmtSendCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj *pVgroup) {
     int8_t *pMsg = mgmtBuildCreateStreamTableMsg(pTable, pStart, pVgroup->vnodeGid[index].vnode);
     int32_t msgLen = pMsg - pStart;
 
-    taosSendMsgToDnode(pObj, pStart, msgLen);
+    mgmtSendMsgToDnode(pObj, pStart, msgLen);
   }
 
   pVgroup->lastCreate = timeStamp;
@@ -299,7 +299,7 @@ int32_t mgmtSendCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup) {
     int8_t *pMsg = mgmtBuildCreateNormalTableMsg(pTable, pStart, pVgroup->vnodeGid[index].vnode);
     int32_t msgLen = pMsg - pStart;
 
-    taosSendMsgToDnode(pObj, pStart, msgLen);
+    mgmtSendMsgToDnode(pObj, pStart, msgLen);
   }
 
   pVgroup->lastCreate = timeStamp;
@@ -334,7 +334,7 @@ int mgmtSendRemoveMeterMsgToDnode(STabObj *pTable, SVgObj *pVgroup) {
     pMsg += sizeof(SDRemoveTableMsg);
     msgLen = pMsg - pStart;
 
-    taosSendMsgToDnode(pObj, pStart, msgLen);
+    mgmtSendMsgToDnode(pObj, pStart, msgLen);
 
     tinet_ntoa(ipstr, pVgroup->vnodeGid[i].ip);
     mTrace("dnode:%s vid:%d, send remove meter msg, sid:%d status:%d", ipstr, pVgroup->vnodeGid[i].vnode,
@@ -371,7 +371,7 @@ int mgmtSendAlterStreamMsgToDnode(STabObj *pTable, SVgObj *pVgroup) {
     pMsg += sizeof(SAlterStreamMsg);
     msgLen = pMsg - pStart;
 
-    taosSendMsgToDnode(pObj, pStart, msgLen);
+    mgmtSendMsgToDnode(pObj, pStart, msgLen);
   }
 
   return 0;
@@ -433,7 +433,7 @@ int mgmtSendVPeersMsg(SVgObj *pVgroup) {
       pMsg = mgmtBuildVpeersIe(pStart, pVgroup, pVgroup->vnodeGid[i].vnode);
       msgLen = pMsg - pStart;
 
-      taosSendMsgToDnode(pDnode, pStart, msgLen);
+      mgmtSendMsgToDnode(pDnode, pStart, msgLen);
     }
   }
 
@@ -467,7 +467,7 @@ int mgmtSendOneFreeVnodeMsg(SVnodeGid *pVnodeGid) {
   pMsg += sizeof(SFreeVnodeMsg);
 
   msgLen = pMsg - pStart;
-  taosSendMsgToDnode(pDnode, pStart, msgLen);
+  mgmtSendMsgToDnode(pDnode, pStart, msgLen);
 
   return 0;
 }
@@ -547,7 +547,7 @@ int mgmtSendCfgDnodeMsg(char *cont) {
   pMsg += sizeof(SCfgMsg);
 
   msgLen = pMsg - pStart;
-  taosSendMsgToDnode(pDnode, pStart, msgLen);
+  mgmtSendMsgToDnode(pDnode, pStart, msgLen);
 #else
   (void)tsCfgDynamicOptions(pCfg->config);
 #endif
@@ -564,56 +564,41 @@ void * mgmtStatusTimer = NULL;
 void   mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *pObj);
 
 
-char* taosBuildRspMsgToDnodeWithSizeImp(SDnodeObj *pObj, char type, int32_t size) {
-  char *pStart = (char *)malloc(size);
-  if (pStart == NULL) {
-    return NULL;
-  }
+void mgmtSendMsgToDnodeImpFp(SSchedMsg *sched) {
+  int8_t  msgType = *(sched->msg - 1);
+  int8_t  *pCont  = sched->msg;
+  int32_t contLen = (int32_t) sched->ahandle;
+  void    *pConn  = NULL;
 
-  *pStart = type;
-  return pStart + 1;
-}
-char* (*taosBuildRspMsgToDnodeWithSize)(SDnodeObj *pObj, char type, int32_t size) = taosBuildRspMsgToDnodeWithSizeImp;
-
-char* taosBuildReqMsgToDnodeWithSizeImp(SDnodeObj *pObj, char type, int32_t size) {
-  char *pStart = (char *)malloc(size);
-  if (pStart == NULL) {
-    return NULL;
-  }
-
-  *pStart = type;
-  return pStart + 1;
-}
-char* (*taosBuildReqMsgToDnodeWithSize)(SDnodeObj *pObj, char type, int32_t size) = taosBuildReqMsgToDnodeWithSizeImp;
-
-char *taosBuildRspMsgToDnode(SDnodeObj *pObj, char type) {
-  return taosBuildRspMsgToDnodeWithSize(pObj, type, 256);
+  dnodeProcessMsgFromMgmt(pCont, contLen, msgType, pConn);
+  rpcFreeCont(sched->msg);
 }
 
-char *taosBuildReqMsgToDnode(SDnodeObj *pObj, char type) {
-  return taosBuildReqMsgToDnodeWithSize(pObj, type, 256);
-}
+int32_t mgmtSendMsgToDnodeImp(int8_t *pCont, int32_t contLen, int8_t msgType) {
+  mTrace("msg:%s is sent to dnode", taosMsg[msgType]);
+  *(pCont-1) = msgType;
 
-int32_t taosSendSimpleRspToDnodeImp(SDnodeObj *pObj, char rsptype, char code) { return 0; }
-int32_t (*taosSendSimpleRspToDnode)(SDnodeObj *pObj, char rsptype, char code) = taosSendSimpleRspToDnodeImp;
-
-int32_t taosSendMsgToDnodeImp(SDnodeObj *pObj, char *msg, int32_t msgLen) {
-  mTrace("msg:%s is sent to dnode", taosMsg[(uint8_t)(*(msg-1))]);
-
-  /*
-   * Lite version has no message header, so minus one
-   */
   SSchedMsg schedMsg;
-  schedMsg.fp = dnodeProcessMsgFromMgmtImp;
-  schedMsg.msg = msg - 1;
-  schedMsg.ahandle = NULL;
+  schedMsg.fp      = mgmtSendMsgToDnodeImpFp;
+  schedMsg.msg     = pCont;
+  schedMsg.ahandle = (void*)contLen;
   schedMsg.thandle = NULL;
   taosScheduleTask(tsDnodeMgmtQhandle, &schedMsg);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
-int32_t (*taosSendMsgToDnode)(SDnodeObj *pObj, char *msg, int msgLen) = taosSendMsgToDnodeImp;
 
+int32_t (*mgmtSendMsgToDnode)(SDnodeObj *pObj, char *msg, int msgLen) = mgmtSendMsgToDnodeImp;
+
+int32_t mgmtSendSimpleRspToDnodeImp(int32_t msgType, int32_t code) {
+  int8_t *pCont = rpcMallocCont(sizeof(int32_t));
+  *(int32_t *) pCont = code;
+
+  mgmtSendMsgToDnodeImp(pCont, sizeof(int32_t), msgType);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t (*mgmtSendSimpleRspToDnode)(int32_t msgType, int32_t code) = mgmtSendSimpleRspToDnodeImp;
 
 int32_t mgmtInitDnodeIntImp() { return 0; }
 int32_t (*mgmtInitDnodeInt)() = mgmtInitDnodeIntImp;

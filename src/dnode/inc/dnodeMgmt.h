@@ -26,7 +26,7 @@ extern "C" {
 #include "dnode.h"
 
 
-void dnodeDistributeMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
+void dnodeProcessMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
 
 extern void *tsDnodeMgmtQhandle;
 
