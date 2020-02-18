@@ -545,7 +545,7 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
      * There is not response callback function for submit response.
      * The actual inserted number of points is the first number.
      */
-    if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT_RSP) {
+    if (pMsg->msgType == TSDB_MSG_TYPE_DNODE_SUBMIT_RSP) {
       pRes->numOfRows += *(int32_t *)pRes->pRsp;
 
       tscTrace("%p cmd:%d code:%d, inserted rows:%d, rsp len:%d", pSql, pCmd->command, pRes->code,
@@ -1464,7 +1464,7 @@ int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sizeof(pQueryInfo->type);
 
   pSql->cmd.payloadLen = pMsg - pStart;
-  pSql->cmd.msgType = TSDB_MSG_TYPE_RETRIEVE;
+  pSql->cmd.msgType = TSDB_MSG_TYPE_DNODE_RETRIEVE;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1503,7 +1503,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pShellMsg->numOfSid = htonl(pSql->cmd.numOfTablesInSubmit);  // number of meters to be inserted
 
   // pSql->cmd.payloadLen is set during parse sql routine, so we do not use it here
-  pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
+  pSql->cmd.msgType = TSDB_MSG_TYPE_DNODE_SUBMIT;
   tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pMeterMeta->vpeerDesc[pMeterMeta->index].ip),
            htons(pShellMsg->vnode));
   
@@ -1900,7 +1900,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   tscTrace("%p msg built success,len:%d bytes", pSql, msgLen);
   pCmd->payloadLen = msgLen;
-  pSql->cmd.msgType = TSDB_MSG_TYPE_QUERY;
+  pSql->cmd.msgType = TSDB_MSG_TYPE_DNODE_QUERY;
 
   assert(msgLen + minMsgSize() <= size);
 
@@ -2041,7 +2041,7 @@ int32_t tscBuildCfgDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sizeof(SCfgMsg);
 
   pCmd->payloadLen = pMsg - pStart;
-  pCmd->msgType = TSDB_MSG_TYPE_CFG_PNODE;
+  pCmd->msgType = TSDB_MSG_TYPE_DNODE_CFG;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2480,7 +2480,7 @@ int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   msgLen = pMsg - pStart;
   pCmd->payloadLen = msgLen;
-  pCmd->msgType = TSDB_MSG_TYPE_RETRIEVE;
+  pCmd->msgType = TSDB_MSG_TYPE_DNODE_RETRIEVE;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2660,7 +2660,7 @@ int tscBuildMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   msgLen = pMsg - pStart;
   pCmd->payloadLen = msgLen;
-  pCmd->msgType = TSDB_MSG_TYPE_METERINFO;
+  pCmd->msgType = TSDB_MSG_TYPE_TABLE_META;
 
   tfree(tmpData);
 
@@ -2698,7 +2698,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tfree(tmpData);
 
   pCmd->payloadLen += sizeof(SMgmtHead) + sizeof(SMultiMeterInfoMsg);
-  pCmd->msgType = TSDB_MSG_TYPE_MULTI_METERINFO;
+  pCmd->msgType = TSDB_MSG_TYPE_MULTI_TABLE_META;
 
   assert(pCmd->payloadLen + minMsgSize() <= pCmd->allocSize);
 
@@ -2866,7 +2866,7 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   msgLen = pMsg - pStart;
   pCmd->payloadLen = msgLen;
-  pCmd->msgType = TSDB_MSG_TYPE_METRIC_META;
+  pCmd->msgType = TSDB_MSG_TYPE_STABLE_META;
   assert(msgLen + minMsgSize() <= size);
   
   return TSDB_CODE_SUCCESS;

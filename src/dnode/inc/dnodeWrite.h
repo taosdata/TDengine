@@ -27,17 +27,12 @@ extern "C" {
 
 /*
  * Write data based on dnode, the detail result can be fetched from rsponse
- *   pSubmitMsg: Data to be written
- *   pShellObj:  Used to pass a communication handle
- *   callback:   Pass the write result through a callback function, possibly in a different thread space
- *               rsp: will not be freed by callback function
+ *   pSubmit:  Data to be written
+ *   pConn:    Communication handle
+ *   callback: Pass the write result through a callback function, possibly in a different thread space
+ *             rsp: will not be freed by callback function
  */
-void dnodeWriteData(SShellSubmitMsg *pMsg, void *pShellObj, void (*callback)(SShellSubmitRspMsg *rsp, void *pShellObj));
-
-/*
- * Check if table already exists
- */
-int32_t dnodeCheckTableExist(char *tableId);
+void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pConn, void (*callback)(SShellSubmitRspMsg *rsp, void *pConn));
 
 /*
  * Create noraml table with specified configuration and open it

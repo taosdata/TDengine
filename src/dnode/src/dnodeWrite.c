@@ -19,18 +19,14 @@
 #include "tlog.h"
 #include "dnodeWrite.h"
 
-int32_t dnodeCheckTableExist(char *tableId) {
-  return 0;
-}
-
-void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pShellObj, void (*callback)(SShellSubmitRspMsg *, void *)) {
+void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pConn, void (*callback)(SShellSubmitRspMsg *rsp, void *pConn)) {
   SShellSubmitRspMsg result = {0};
 
   int32_t numOfSid = htonl(pSubmit->numOfSid);
   if (numOfSid <= 0) {
     dError("invalid num of tables:%d", numOfSid);
     result.code = TSDB_CODE_INVALID_QUERY_MSG;
-    callback(&result, pShellObj);
+    callback(&result, pConn);
   }
 
   //TODO: submit implementation

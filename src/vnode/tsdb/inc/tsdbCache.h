@@ -10,7 +10,7 @@
 typedef struct {
   int64_t skey;     // start key
   int64_t ekey;     // end key
-  int32_t numOfRows // numOfRows
+  int32_t numOfRows; // numOfRows
 } STableCacheInfo;
 
 typedef struct _tsdb_cache_block {

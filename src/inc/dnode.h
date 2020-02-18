@@ -25,8 +25,8 @@ extern "C" {
 #include "tsched.h"
 
 typedef struct {
-  int32_t selectReqNum;
-  int32_t insertReqNum;
+  int32_t queryReqNum;
+  int32_t submitReqNum;
   int32_t httpReqNum;
 } SDnodeStatisInfo;
 

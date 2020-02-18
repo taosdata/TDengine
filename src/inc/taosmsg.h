@@ -28,114 +28,118 @@ extern "C" {
 #include "taosdef.h"
 
 // message type
-#define TSDB_MSG_TYPE_REG              1
-#define TSDB_MSG_TYPE_REG_RSP          2
-#define TSDB_MSG_TYPE_SUBMIT           3
-#define TSDB_MSG_TYPE_SUBMIT_RSP       4
-#define TSDB_MSG_TYPE_NWCHANGE         5
-#define TSDB_MSG_TYPE_NWCHANGE_RSP     6
-#define TSDB_MSG_TYPE_DELIVER          7
-#define TSDB_MSG_TYPE_DELIVER_RSP      8
+#define TSDB_MSG_TYPE_REG                           1
+#define TSDB_MSG_TYPE_REG_RSP                       2
+#define TSDB_MSG_TYPE_DNODE_SUBMIT                  3
+#define TSDB_MSG_TYPE_DNODE_SUBMIT_RSP              4
+#define TSDB_MSG_TYPE_DNODE_QUERY                   5
+#define TSDB_MSG_TYPE_DNODE_QUERY_RSP               6
+#define TSDB_MSG_TYPE_DNODE_RETRIEVE                7
+#define TSDB_MSG_TYPE_DNODE_RETRIEVE_RSP            8
+#define TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE      9
+#define TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE_RSP  10
+#define TSDB_MSG_TYPE_DNODE_CREATE_NORMAL_TABLE     11
+#define TSDB_MSG_TYPE_DNODE_CREATE_NORMAL_TABLE_RSP 12
+#define TSDB_MSG_TYPE_DNODE_CREATE_STREAM_TABLE     13
+#define TSDB_MSG_TYPE_DNODE_CREATE_STREAM_TABLE_RSP 14
+#define TSDB_MSG_TYPE_DNODE_CREATE_SUPER_TABLE      15
+#define TSDB_MSG_TYPE_DNODE_CREATE_SUPER_TABLE_RSP  16
+#define TSDB_MSG_TYPE_DNODE_REMOVE_CHILD_TABLE      17
+#define TSDB_MSG_TYPE_DNODE_REMOVE_CHILD_TABLE_RSP  18
+#define TSDB_MSG_TYPE_DNODE_REMOVE_NORMAL_TABLE     19
+#define TSDB_MSG_TYPE_DNODE_REMOVE_NORMAL_TABLE_RSP 20
+#define TSDB_MSG_TYPE_DNODE_REMOVE_STREAM_TABLE     21
+#define TSDB_MSG_TYPE_DNODE_REMOVE_STREAM_TABLE_RSP 22
+#define TSDB_MSG_TYPE_DNODE_REMOVE_SUPER_TABLE      23
+#define TSDB_MSG_TYPE_DNODE_REMOVE_SUPER_TABLE_RSP  24
+#define TSDB_MSG_TYPE_DNODE_ALTER_CHILD_TABLE       25
+#define TSDB_MSG_TYPE_DNODE_ALTER_CHILD_TABLE_RSP   26
+#define TSDB_MSG_TYPE_DNODE_ALTER_NORMAL_TABLE      27
+#define TSDB_MSG_TYPE_DNODE_ALTER_NORMAL_TABLE_RSP  28
+#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM_TABLE      29
+#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM_TABLE_RSP  30
+#define TSDB_MSG_TYPE_DNODE_ALTER_SUPER_TABLE       31
+#define TSDB_MSG_TYPE_DNODE_ALTER_SUPER_TABLE_RSP   32
+#define TSDB_MSG_TYPE_DNODE_VPEERS                  33
+#define TSDB_MSG_TYPE_DNODE_VPEERS_RSP              34
+#define TSDB_MSG_TYPE_DNODE_FREE_VNODE              35
+#define TSDB_MSG_TYPE_DNODE_FREE_VNODE_RSP          36
+#define TSDB_MSG_TYPE_DNODE_CFG                     37
+#define TSDB_MSG_TYPE_DNODE_CFG_RSP                 38
+#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM            39
+#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM_RSP        40
 
-#define TSDB_MSG_TYPE_CREATE           9
-#define TSDB_MSG_TYPE_CREATE_RSP       10
-#define TSDB_MSG_TYPE_REMOVE           11
-#define TSDB_MSG_TYPE_REMOVE_RSP       12
-#define TSDB_MSG_TYPE_VPEERS           13
-#define TSDB_MSG_TYPE_VPEERS_RSP       14
-#define TSDB_MSG_TYPE_FREE_VNODE       15
-#define TSDB_MSG_TYPE_FREE_VNODE_RSP   16
-#define TSDB_MSG_TYPE_VPEER_CFG        17
-#define TSDB_MSG_TYPE_VPEER_CFG_RSP    18
-#define TSDB_MSG_TYPE_METER_CFG        19
-#define TSDB_MSG_TYPE_METER_CFG_RSP    20
-
-#define TSDB_MSG_TYPE_VPEER_FWD        21
-#define TSDB_MSG_TYPE_VPEER_FWD_RSP    22
-#define TSDB_MSG_TYPE_SYNC             23
-#define TSDB_MSG_TYPE_SYNC_RSP         24
-
-#define TSDB_MSG_TYPE_INSERT           25
-#define TSDB_MSG_TYPE_INSERT_RSP       26
-#define TSDB_MSG_TYPE_QUERY            27
-#define TSDB_MSG_TYPE_QUERY_RSP        28
-#define TSDB_MSG_TYPE_RETRIEVE         29
-#define TSDB_MSG_TYPE_RETRIEVE_RSP     30
-
-#define TSDB_MSG_TYPE_CONNECT          31
-#define TSDB_MSG_TYPE_CONNECT_RSP      32
-#define TSDB_MSG_TYPE_CREATE_ACCT      33
-#define TSDB_MSG_TYPE_CREATE_ACCT_RSP  34
-#define TSDB_MSG_TYPE_CREATE_USER      35
-#define TSDB_MSG_TYPE_CREATE_USER_RSP  36
-#define TSDB_MSG_TYPE_DROP_ACCT        37
-#define TSDB_MSG_TYPE_DROP_ACCT_RSP    38
-#define TSDB_MSG_TYPE_DROP_USER        39
-#define TSDB_MSG_TYPE_DROP_USER_RSP    40
-#define TSDB_MSG_TYPE_ALTER_USER       41
-#define TSDB_MSG_TYPE_ALTER_USER_RSP   42
-#define TSDB_MSG_TYPE_CREATE_MNODE     43
-#define TSDB_MSG_TYPE_CREATE_MNODE_RSP 44
-#define TSDB_MSG_TYPE_DROP_MNODE       45
-#define TSDB_MSG_TYPE_DROP_MNODE_RSP   46
-#define TSDB_MSG_TYPE_CREATE_DNODE     47
-#define TSDB_MSG_TYPE_CREATE_DNODE_RSP 48
-#define TSDB_MSG_TYPE_DROP_DNODE       49
-#define TSDB_MSG_TYPE_DROP_DNODE_RSP   50
-#define TSDB_MSG_TYPE_CREATE_DB        51
-#define TSDB_MSG_TYPE_CREATE_DB_RSP    52
-#define TSDB_MSG_TYPE_DROP_DB          53
-#define TSDB_MSG_TYPE_DROP_DB_RSP      54
-#define TSDB_MSG_TYPE_USE_DB           55
-#define TSDB_MSG_TYPE_USE_DB_RSP       56
-#define TSDB_MSG_TYPE_CREATE_TABLE     57
-#define TSDB_MSG_TYPE_CREATE_TABLE_RSP 58
-
-#define TSDB_MSG_TYPE_DROP_TABLE       59
-#define TSDB_MSG_TYPE_DROP_TABLE_RSP   60
-#define TSDB_MSG_TYPE_METERINFO        61
-#define TSDB_MSG_TYPE_METERINFO_RSP    62
-#define TSDB_MSG_TYPE_METRIC_META      63
-#define TSDB_MSG_TYPE_METRIC_META_RSP  64
-#define TSDB_MSG_TYPE_SHOW             65
-#define TSDB_MSG_TYPE_SHOW_RSP         66
-
-#define TSDB_MSG_TYPE_FORWARD          67
-#define TSDB_MSG_TYPE_FORWARD_RSP      68
-
-#define TSDB_MSG_TYPE_CFG_PNODE        69
-#define TSDB_MSG_TYPE_CFG_PNODE_RSP    70
-#define TSDB_MSG_TYPE_CFG_MNODE        71
-#define TSDB_MSG_TYPE_CFG_MNODE_RSP    72
-
-#define TSDB_MSG_TYPE_KILL_QUERY       73
-#define TSDB_MSG_TYPE_KILL_QUERY_RSP   74
-#define TSDB_MSG_TYPE_KILL_STREAM      75
-#define TSDB_MSG_TYPE_KILL_STREAM_RSP  76
-#define TSDB_MSG_TYPE_KILL_CONNECTION  77
-#define TSDB_MSG_TYPE_KILL_CONNECTION_RSP 78
-
-#define TSDB_MSG_TYPE_ALTER_STREAM     79
-#define TSDB_MSG_TYPE_ALTER_STREAM_RSP 80
-#define TSDB_MSG_TYPE_ALTER_TABLE      81
-#define TSDB_MSG_TYPE_ALTER_TABLE_RSP  82
-#define TSDB_MSG_TYPE_ALTER_DB         83
-#define TSDB_MSG_TYPE_ALTER_DB_RSP     84
-
-#define TSDB_MSG_TYPE_MULTI_METERINFO  85
-#define TSDB_MSG_TYPE_MULTI_METERINFO_RSP 86
-
-#define TSDB_MSG_TYPE_HEARTBEAT        91
-#define TSDB_MSG_TYPE_HEARTBEAT_RSP    92
-#define TSDB_MSG_TYPE_STATUS           93
-#define TSDB_MSG_TYPE_STATUS_RSP       94
-#define TSDB_MSG_TYPE_GRANT            95
-#define TSDB_MSG_TYPE_GRANT_RSP        96
-
-#define TSDB_MSG_TYPE_ALTER_ACCT       97
-#define TSDB_MSG_TYPE_ALTER_ACCT_RSP   98
-
-#define TSDB_MSG_TYPE_MAX              101
+#define TSDB_MSG_TYPE_SDB_SYNC             41
+#define TSDB_MSG_TYPE_SDB_SYNC_RSP         42
+#define TSDB_MSG_TYPE_SDB_FORWARD          43
+#define TSDB_MSG_TYPE_SDB_FORWARD_RSP      44
+#define TSDB_MSG_TYPE_CONNECT              51
+#define TSDB_MSG_TYPE_CONNECT_RSP          52
+#define TSDB_MSG_TYPE_CREATE_ACCT          53
+#define TSDB_MSG_TYPE_CREATE_ACCT_RSP      54
+#define TSDB_MSG_TYPE_ALTER_ACCT           55
+#define TSDB_MSG_TYPE_ALTER_ACCT_RSP       56
+#define TSDB_MSG_TYPE_DROP_ACCT            57
+#define TSDB_MSG_TYPE_DROP_ACCT_RSP        58
+#define TSDB_MSG_TYPE_CREATE_USER          59
+#define TSDB_MSG_TYPE_CREATE_USER_RSP      60
+#define TSDB_MSG_TYPE_ALTER_USER           61
+#define TSDB_MSG_TYPE_ALTER_USER_RSP       62
+#define TSDB_MSG_TYPE_DROP_USER            63
+#define TSDB_MSG_TYPE_DROP_USER_RSP        64
+#define TSDB_MSG_TYPE_CREATE_MNODE         65
+#define TSDB_MSG_TYPE_CREATE_MNODE_RSP     66
+#define TSDB_MSG_TYPE_DROP_MNODE           67
+#define TSDB_MSG_TYPE_DROP_MNODE_RSP       68
+#define TSDB_MSG_TYPE_CREATE_DNODE         69
+#define TSDB_MSG_TYPE_CREATE_DNODE_RSP     70
+#define TSDB_MSG_TYPE_DROP_DNODE           71
+#define TSDB_MSG_TYPE_DROP_DNODE_RSP       72
+#define TSDB_MSG_TYPE_ALTER_DNODE          73
+#define TSDB_MSG_TYPE_ALTER_DNODE_RSP      74
+#define TSDB_MSG_TYPE_CREATE_DB            75
+#define TSDB_MSG_TYPE_CREATE_DB_RSP        76
+#define TSDB_MSG_TYPE_DROP_DB              77
+#define TSDB_MSG_TYPE_DROP_DB_RSP          78
+#define TSDB_MSG_TYPE_USE_DB               79
+#define TSDB_MSG_TYPE_USE_DB_RSP           80
+#define TSDB_MSG_TYPE_ALTER_DB             81
+#define TSDB_MSG_TYPE_ALTER_DB_RSP         82
+#define TSDB_MSG_TYPE_CREATE_TABLE         83
+#define TSDB_MSG_TYPE_CREATE_TABLE_RSP     84
+#define TSDB_MSG_TYPE_DROP_TABLE           85
+#define TSDB_MSG_TYPE_DROP_TABLE_RSP       86
+#define TSDB_MSG_TYPE_ALTER_TABLE          87
+#define TSDB_MSG_TYPE_ALTER_TABLE_RSP      88
+#define TSDB_MSG_TYPE_VNODE_CFG            89
+#define TSDB_MSG_TYPE_VNODE_CFG_RSP        90
+#define TSDB_MSG_TYPE_TABLE_CFG            91
+#define TSDB_MSG_TYPE_TABLE_CFG_RSP        92
+#define TSDB_MSG_TYPE_TABLE_META           93
+#define TSDB_MSG_TYPE_TABLE_META_RSP       94
+#define TSDB_MSG_TYPE_STABLE_META          95
+#define TSDB_MSG_TYPE_STABLE_META_RSP      96
+#define TSDB_MSG_TYPE_MULTI_TABLE_META     97
+#define TSDB_MSG_TYPE_MULTI_TABLE_META_RSP 98
+#define TSDB_MSG_TYPE_ALTER_STREAM         99
+#define TSDB_MSG_TYPE_ALTER_STREAM_RSP     100
+#define TSDB_MSG_TYPE_SHOW                 101
+#define TSDB_MSG_TYPE_SHOW_RSP             102
+#define TSDB_MSG_TYPE_CFG_MNODE            103
+#define TSDB_MSG_TYPE_CFG_MNODE_RSP        104
+#define TSDB_MSG_TYPE_KILL_QUERY           105
+#define TSDB_MSG_TYPE_KILL_QUERY_RSP       106
+#define TSDB_MSG_TYPE_KILL_STREAM          107
+#define TSDB_MSG_TYPE_KILL_STREAM_RSP      108
+#define TSDB_MSG_TYPE_KILL_CONNECTION      109
+#define TSDB_MSG_TYPE_KILL_CONNECTION_RSP  110
+#define TSDB_MSG_TYPE_HEARTBEAT            111
+#define TSDB_MSG_TYPE_HEARTBEAT_RSP        112
+#define TSDB_MSG_TYPE_STATUS               113
+#define TSDB_MSG_TYPE_STATUS_RSP           114
+#define TSDB_MSG_TYPE_GRANT                115
+#define TSDB_MSG_TYPE_GRANT_RSP            116
+#define TSDB_MSG_TYPE_MAX                  117
 
 // IE type
 #define TSDB_IE_TYPE_SEC               1
@@ -287,20 +291,20 @@ typedef struct {
 } SShellSubmitMsg;
 
 typedef struct {
+  int32_t index; // index of failed block in submit blocks
   int32_t vnode; // vnode index of failed block
   int32_t sid;   // table index of failed block
   int32_t code;  // errorcode while write data to vnode, such as not created, dropped, no space, invalid table
 } SShellSubmitRspBlock;
 
 typedef struct {
-  int32_t code;         // 0-success, 1-inprogress, > 1 error code
+  int32_t code;         // 0-success, > 0 error code
   int32_t numOfRows;    // number of records the client is trying to write
   int32_t affectedRows; // number of records actually written
   int32_t failedRows;   // number of failed records (exclude duplicate records)
   int32_t numOfFailedBlocks;
   SShellSubmitRspBlock *failedBlocks;
 } SShellSubmitRspMsg;
-
 
 typedef struct SSchema {
   uint8_t  type;

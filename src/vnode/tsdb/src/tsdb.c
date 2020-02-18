@@ -1,9 +1,14 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 // #include "taosdef.h"
 // #include "disk.h"
+#include "tsdbFile.h"
 #include "tsdb.h"
 #include "tsdbCache.h"
 #include "tsdbMeta.h"
@@ -33,6 +38,11 @@ typedef struct STSDBRepo {
 
 // Check the correctness of the TSDB configuration
 static int32_t tsdbCheckCfg(STSDBCfg *pCfg) {
+  if (pCfg->rootDir == NULL) return -1;
+
+  if (access(pCfg->rootDir, F_OK|R_OK|W_OK) == -1) {
+    return -1;
+  }
   // TODO
   return 0;
 }
@@ -42,6 +52,7 @@ tsdb_repo_t *tsdbCreateRepo(STSDBCfg *pCfg, int32_t *error) {
   err = tsdbCheckCfg(pCfg);
   if (err != 0) {
     // TODO: deal with the error here
+    return NULL;
   }
 
   STSDBRepo *pRepo = (STSDBRepo *)malloc(sizeof(STSDBRepo));
@@ -64,6 +75,12 @@ tsdb_repo_t *tsdbCreateRepo(STSDBCfg *pCfg, int32_t *error) {
     // TODO: free the object and return error
     return NULL;
   }
+
+  // Create the Meta data file and data directory
+
+  char *pTsdbMetaFName = tsdbGetFileName(pCfg->rootDir, "tsdb", TSDB_FILE_TYPE_META);
+  // int fd = open(pTsdbMetaFName, )
+  // if (open)
 
   return (tsdb_repo_t *)pRepo;
 }

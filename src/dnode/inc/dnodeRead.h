@@ -24,19 +24,37 @@ extern "C" {
 #include <stdint.h>
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "dnodeShell.h"
-
-void dnodeFreeQInfoInQueue(SShellObj *pShellObj);
 
 /*
- * Dnode handle read messages
- * The processing result is returned by callback function with pShellObj parameter
+ * Clear query information associated with this connection
  */
-int32_t dnodeReadData(SQueryMeterMsg *msg, void *pShellObj, void (*callback)(SQueryMeterRsp *rspMsg, void *pShellObj));
+void dnodeFreeQInfo(void *pConn);
 
-typedef void (*SDnodeRetrieveCallbackFp)(int32_t code, SRetrieveMeterRsp *pRetrieveRspMsg, void *pShellObj);
+/*
+ * Clear all query informations
+ */
+void dnodeFreeQInfos();
 
-void dnodeRetrieveData(SRetrieveMeterMsg *pMsg, int32_t msgLen, void *pShellObj, SDnodeRetrieveCallbackFp callback);
+/*
+ * handle query message, and the result is returned by callback function
+ */
+void dnodeQueryData(SQueryMeterMsg *pQuery, void *pConn, void (*callback)(int32_t code, void *pQInfo, void *pConn));
+
+/*
+ * Dispose retrieve msg, and the result will passed through callback function
+ */
+typedef void (*SDnodeRetrieveCallbackFp)(int32_t code, void *pQInfo, void *pConn);
+void dnodeRetrieveData(SRetrieveMeterMsg *pRetrieve, void *pConn, SDnodeRetrieveCallbackFp callbackFp);
+
+/*
+ * Fill retrieve result according to query info
+ */
+int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveMeterRsp *retrievalRsp);
+
+/*
+ * Get the size of retrieve result according to query info
+ */
+int32_t dnodeGetRetrieveDataSize(void *pQInfo);
 
 #ifdef __cplusplus
 }
