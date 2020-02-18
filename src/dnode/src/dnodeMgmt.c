@@ -22,27 +22,27 @@
 #include "dnodeMgmt.h"
 
 #include "taosmsg.h"
+#include "tlog.h"
 #include "trpc.h"
 #include "tsched.h"
 #include "tsystem.h"
-#include "vnode.h"
-#include "vnodeSystem.h"
-#include "vnodeUtil.h"
-#include "vnodeStatus.h"
 
 SMgmtObj mgmtObj;
 extern uint64_t tsCreatedTime;
 
-int vnodeProcessVPeersMsg(char *msg, int msgLen, SMgmtObj *pMgmtObj);
+int dnodeProcessVPeersMsg(char *msg, int msgLen, SMgmtObj *pMgmtObj);
 int vnodeProcessCreateMeterMsg(char *pMsg, int msgLen);
-int vnodeProcessFreeVnodeRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj);
-int vnodeProcessVPeerCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj);
-int vnodeProcessMeterCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj);
-int vnodeProcessCfgDnodeRequest(char *cont, int contLen, SMgmtObj *pMgmtObj);
-int vnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj);
+int dnodeProcessFreeVnodeRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj);
+int dnodeProcessVPeerCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj);
+int dnodeProcessTableCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj);
+int dnodeProcessDnodeCfgRequest(char *cont, int contLen, SMgmtObj *pMgmtObj);
+int dnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj);
 void vnodeUpdateHeadFile(int vnode, int oldTables, int newTables);
 void vnodeOpenVnode(int vnode);
 void vnodeCleanUpOneVnode(int vnode);
+
+static int (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(int8_t *pCont, int32_t contLen, void *pConn);
+static void dnodeInitProcessShellMsg();
 
 char *taosBuildRspMsgToMnodeWithSizeImp(SMgmtObj *pObj, char type, int size) {
   char *pStart = (char *)malloc(size);
@@ -106,48 +106,40 @@ int taosSendSimpleRspToMnodeImp(SMgmtObj *pObj, char rsptype, char code) {
 }
 int (*taosSendSimpleRspToMnode)(SMgmtObj *pObj, char rsptype, char code) = taosSendSimpleRspToMnodeImp;
 
-int32_t dnodeInitMgmtImp() { return 0; }
+int32_t dnodeInitMgmtImp() {
+  dnodeInitProcessShellMsg();
+  return 0;
+}
+
 int32_t (*dnodeInitMgmt)() = dnodeInitMgmtImp;
 
 void dnodeInitMgmtIpImp() {}
+
 void (*dnodeInitMgmtIp)() = dnodeInitMgmtIpImp;
 
 void dnodeProcessMsgFromMgmtImp(SSchedMsg *sched) {
-  char  msgType = *sched->msg;
-  char *content = sched->msg + 1;
+  int32_t msgType  = *(int32_t*)(sched->msg);
+  int8_t  *content = sched->msg + sizeof(int32_t);
 
-  dTrace("msg:%s is received from mgmt", taosMsg[(uint8_t)msgType]);
-
-  dnodeDistributeMsgFromMgmt(content, 0, msgType, 0);
+  dTrace("msg:%s is received from mgmt", taosMsg[msgType]);
+  dnodeDistributeMsgFromMgmt(content, 0, msgType, NULL);
 
   free(sched->msg);
 }
 
-void dnodeDistributeMsgFromMgmt(char *content, int msgLen, int msgType, SMgmtObj *pObj) {
-  if (msgType == TSDB_MSG_TYPE_CREATE) {
-    vnodeProcessCreateMeterRequest(content, msgLen, pObj);
-  } else if (msgType == TSDB_MSG_TYPE_VPEERS) {
-    vnodeProcessVPeersMsg(content, msgLen, pObj);
-  } else if (msgType == TSDB_MSG_TYPE_VPEER_CFG_RSP) {
-    vnodeProcessVPeerCfgRsp(content, msgLen, pObj);
-  } else if (msgType == TSDB_MSG_TYPE_METER_CFG_RSP) {
-    vnodeProcessMeterCfgRsp(content, msgLen, pObj);
-  } else if (msgType == TSDB_MSG_TYPE_REMOVE) {
-    vnodeProcessRemoveMeterRequest(content, msgLen, pObj);
-  } else if (msgType == TSDB_MSG_TYPE_FREE_VNODE) {
-    vnodeProcessFreeVnodeRequest(content, msgLen, pObj);
-  } else if (msgType == TSDB_MSG_TYPE_CFG_PNODE) {
-    vnodeProcessCfgDnodeRequest(content, msgLen, pObj);
-  } else if (msgType == TSDB_MSG_TYPE_ALTER_STREAM) {
-    vnodeProcessAlterStreamRequest(content, msgLen, pObj);
-  } else if (msgType == TSDB_MSG_TYPE_GRANT_RSP) {
-    // do nothing
+void dnodeDistributeMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn) {
+  if (msgType < 0 || msgType >= TSDB_MSG_TYPE_MAX) {
+    dError("invalid msg type:%d", msgType);
   } else {
-    dError("%s is not processed", taosMsg[msgType]);
+    if (dnodeProcessShellMsgFp[msgType]) {
+      (*dnodeProcessShellMsgFp[msgType])(pConn, contLen, pConn);
+    } else {
+      dError("%s is not processed", taosMsg[msgType]);
+    }
   }
 }
 
-int vnodeProcessMeterCfgRsp(char *pMsg, int msgLen, SMgmtObj *pObj) {
+int dnodeProcessTableCfgRsp(char *pMsg, int msgLen, SMgmtObj *pObj) {
   int code = *pMsg;
 
   if (code == 0) {
@@ -166,7 +158,7 @@ int vnodeProcessMeterCfgRsp(char *pMsg, int msgLen, SMgmtObj *pObj) {
   return 0;
 }
 
-int vnodeProcessCreateMeterRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
+int dnodeProcessCreateTableRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
   SCreateMsg *pCreate;
   int         code = 0;
   int         vid;
@@ -196,12 +188,12 @@ int vnodeProcessCreateMeterRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
 //  }
 
 _over:
-  taosSendSimpleRspToMnode(pObj, TSDB_MSG_TYPE_CREATE_RSP, code);
+  taosSendSimpleRspToMnode(pObj, TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE_RSP, code);
 
   return code;
 }
 
-int vnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
+int dnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
   SAlterStreamMsg *pAlter;
   int              code = 0;
   int              vid, sid;
@@ -356,7 +348,7 @@ _create_over:
   return code;
 }
 
-int vnodeProcessRemoveMeterRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj) {
+int dnodeProcessRemoveTableRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj) {
   SMeterObj *      pObj;
   SRemoveMeterMsg *pRemove;
   int              code = 0;
@@ -476,7 +468,7 @@ int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   return 0;
 }
 
-int vnodeProcessVPeerCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
+int dnodeProcessVPeerCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   STaosRsp *pRsp;
 
   pRsp = (STaosRsp *)msg;
@@ -497,7 +489,7 @@ int vnodeProcessVPeerCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   return 0;
 }
 
-int vnodeProcessVPeersMsg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
+int dnodeProcessVPeersMsg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   int code = 0;
 
   code = vnodeProcessVPeerCfg(msg, msgLen, pMgmtObj);
@@ -506,7 +498,7 @@ int vnodeProcessVPeersMsg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   STaosRsp *  pRsp;
   SVPeersMsg *pVPeersMsg = (SVPeersMsg *)msg;
 
-  pStart = taosBuildRspMsgToMnode(pMgmtObj, TSDB_MSG_TYPE_VPEERS_RSP);
+  pStart = taosBuildRspMsgToMnode(pMgmtObj, TSDB_MSG_TYPE_DNODE_VPEERS_RSP);
   if (pStart == NULL) return -1;
 
   pRsp = (STaosRsp *)pStart;
@@ -519,7 +511,7 @@ int vnodeProcessVPeersMsg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
   return code;
 }
 
-int vnodeProcessFreeVnodeRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj) {
+int dnodeProcessFreeVnodeRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj) {
   SFreeVnodeMsg *pFree;
 
   pFree = (SFreeVnodeMsg *)pMsg;
@@ -534,16 +526,16 @@ int vnodeProcessFreeVnodeRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj) {
   int32_t code = vnodeRemoveVnode(pFree->vnode);
   assert(code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS);
 
-  taosSendSimpleRspToMnode(pMgmtObj, TSDB_MSG_TYPE_FREE_VNODE_RSP, code);
+  taosSendSimpleRspToMnode(pMgmtObj, TSDB_MSG_TYPE_DNODE_FREE_VNODE_RSP, code);
   return 0;
 }
 
-int vnodeProcessCfgDnodeRequest(char *cont, int contLen, SMgmtObj *pMgmtObj) {
+int dnodeProcessDnodeCfgRequest(char *cont, int contLen, SMgmtObj *pMgmtObj) {
   SCfgMsg *pCfg = (SCfgMsg *)cont;
 
   int code = tsCfgDynamicOptions(pCfg->config);
 
-  taosSendSimpleRspToMnode(pMgmtObj, TSDB_MSG_TYPE_CFG_PNODE_RSP, code);
+  taosSendSimpleRspToMnode(pMgmtObj, TSDB_MSG_TYPE_DNODE_CFG_RSP, code);
 
   return 0;
 }
@@ -554,7 +546,7 @@ void dnodeSendVpeerCfgMsg(int32_t vnode) {
   SVpeerCfgMsg *pCfg;
   SMgmtObj *    pObj = &mgmtObj;
 
-  pStart = taosBuildReqMsgToMnode(pObj, TSDB_MSG_TYPE_VPEER_CFG);
+  pStart = taosBuildReqMsgToMnode(pObj, TSDB_MSG_TYPE_VNODE_CFG);
   if (pStart == NULL) return;
   pMsg = pStart;
 
@@ -572,7 +564,7 @@ void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
   SMeterCfgMsg *pCfg;
   SMgmtObj *    pObj = &mgmtObj;
 
-  pStart = taosBuildReqMsgToMnode(pObj, TSDB_MSG_TYPE_METER_CFG);
+  pStart = taosBuildReqMsgToMnode(pObj, TSDB_MSG_TYPE_TABLE_CFG);
   if (pStart == NULL) return -1;
   pMsg = pStart;
 
@@ -585,3 +577,18 @@ void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
   return taosSendMsgToMnode(pObj, pStart, msgLen);
 }
 
+
+void dnodeInitProcessShellMsg() {
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE] = dnodeProcessCreateTableRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_NORMAL_TABLE] = dnodeProcessCreateTableRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_STREAM_TABLE] = dnodeProcessCreateTableRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_REMOVE_CHILD_TABLE] = dnodeProcessRemoveTableRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_REMOVE_NORMAL_TABLE] = dnodeProcessRemoveTableRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_REMOVE_STREAM_TABLE] = dnodeProcessRemoveTableRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_VPEERS] = dnodeProcessVPeersMsg;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_FREE_VNODE] = dnodeProcessFreeVnodeRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_CFG] = dnodeProcessDnodeCfgRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_ALTER_STREAM] = dnodeProcessAlterStreamRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_VNODE_CFG_RSP] = dnodeProcessVPeerCfgRsp;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_TABLE_CFG_RSP] = dnodeProcessTableCfgRsp;
+}

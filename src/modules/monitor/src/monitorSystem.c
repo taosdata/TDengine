@@ -334,10 +334,10 @@ int monitorBuildBandSql(char *sql) {
 
 int monitorBuildReqSql(char *sql) {
   SDnodeStatisInfo info;
-  info.httpReqNum = info.insertReqNum = info.selectReqNum = 0;
+  info.httpReqNum = info.submitReqNum = info.queryReqNum = 0;
   (*mnodeCountRequestFp)(&info);
 
-  return sprintf(sql, ", %d, %d, %d)", info.httpReqNum, info.selectReqNum, info.insertReqNum);
+  return sprintf(sql, ", %d, %d, %d)", info.httpReqNum, info.queryReqNum, info.submitReqNum);
 }
 
 int monitorBuildIoSql(char *sql) {

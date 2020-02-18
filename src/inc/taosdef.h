@@ -238,6 +238,9 @@ extern "C" {
 #define TSQL_SO_ASC   1
 #define TSQL_SO_DESC  0
 
+#define TSDB_SESSIONS_PER_VNODE (300)
+#define TSDB_SESSIONS_PER_DNODE (TSDB_SESSIONS_PER_VNODE * TSDB_MAX_VNODES)
+
 #ifdef __cplusplus
 }
 #endif

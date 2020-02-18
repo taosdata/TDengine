@@ -118,7 +118,7 @@ bool tscQueryOnMetric(SSqlCmd* pCmd) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
   return ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY) == TSDB_QUERY_TYPE_STABLE_QUERY) &&
-         (pCmd->msgType == TSDB_MSG_TYPE_QUERY);
+         (pCmd->msgType == TSDB_MSG_TYPE_DNODE_QUERY);
 }
 
 bool tscQueryMetricTags(SQueryInfo* pQueryInfo) {
