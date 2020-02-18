@@ -78,7 +78,7 @@ int mgmtProcessMeterCfgMsg(char *cont, int contLen, SDnodeObj *pObj) {
     pMsg = mgmtBuildCreateMeterIe(pTable, pMsg, vnode);
   } else {
     mTrace("dnode:%s, vnode:%d sid:%d, meter not there", taosIpStr(pObj->privateIp), vnode, sid);
-    *pMsg = TSDB_CODE_INVALID_METER_ID;
+    *pMsg = TSDB_CODE_INVALID_TABLE_ID;
     pMsg++;
 
     *(int32_t *)pMsg = htonl(vnode);
@@ -307,7 +307,7 @@ int32_t mgmtSendCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup) {
 }
 
 int mgmtSendRemoveMeterMsgToDnode(STabObj *pTable, SVgObj *pVgroup) {
-  SRemoveMeterMsg *pRemove;
+  SDRemoveTableMsg *pRemove;
   char *           pMsg, *pStart;
   int              i, msgLen = 0;
   SDnodeObj *      pObj;
@@ -326,12 +326,12 @@ int mgmtSendRemoveMeterMsgToDnode(STabObj *pTable, SVgObj *pVgroup) {
     if (pStart == NULL) continue;
     pMsg = pStart;
 
-    pRemove = (SRemoveMeterMsg *)pMsg;
+    pRemove = (SDRemoveTableMsg *)pMsg;
     pRemove->vnode = htons(pVgroup->vnodeGid[i].vnode);
     pRemove->sid = htonl(pTable->gid.sid);
     memcpy(pRemove->meterId, pTable->meterId, TSDB_TABLE_ID_LEN);
 
-    pMsg += sizeof(SRemoveMeterMsg);
+    pMsg += sizeof(SDRemoveTableMsg);
     msgLen = pMsg - pStart;
 
     taosSendMsgToDnode(pObj, pStart, msgLen);
@@ -559,7 +559,7 @@ int mgmtSendCfgDnodeMsg(char *cont) {
  * functions for communicate between dnode and mnode
  */
 
-extern void *dmQhandle;
+extern void *tsDnodeMgmtQhandle;
 void * mgmtStatusTimer = NULL;
 void   mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *pObj);
 
@@ -608,7 +608,7 @@ int32_t taosSendMsgToDnodeImp(SDnodeObj *pObj, char *msg, int32_t msgLen) {
   schedMsg.msg = msg - 1;
   schedMsg.ahandle = NULL;
   schedMsg.thandle = NULL;
-  taosScheduleTask(dmQhandle, &schedMsg);
+  taosScheduleTask(tsDnodeMgmtQhandle, &schedMsg);
 
   return 0;
 }
@@ -682,13 +682,3 @@ void mgmtProcessDnodeStatusImp(void *handle, void *tmrId) {
 */
 }
 void (*mgmtProcessDnodeStatus)(void *handle, void *tmrId) = mgmtProcessDnodeStatusImp;
-
-void mgmtProcessMsgFromDnodeSpecImp(SSchedMsg *sched) {
-  char  msgType = *sched->msg;
-  char *content = sched->msg + 1;
-  mTrace("msg:%s is received from dnode", taosMsg[(uint8_t)msgType]);
-
-  mgmtProcessMsgFromDnode(content, 0, msgType, mgmtGetDnode(0));
-  free(sched->msg);
-}
-void (*mgmtProcessMsgFromDnodeSpec)(SSchedMsg *sched) = mgmtProcessMsgFromDnodeSpecImp;

@@ -25,12 +25,10 @@ extern "C" {
 #include "tsched.h"
 #include "dnode.h"
 
-int dnodeProcessCreateTableRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj);
-int dnodeProcessRemoveTableRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj);
 
 void dnodeDistributeMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
 
-extern void *dmQhandle;
+extern void *tsDnodeMgmtQhandle;
 
 void dnodeSendVpeerCfgMsg(int32_t vnode);
 void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid);

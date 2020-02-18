@@ -14,4 +14,20 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
+#include "tlog.h"
+#include "taoserror.h"
+#include "dnodeVnodeMgmt.h"
+
+EVnodeStatus dnodeGetVnodeStatus(int32_t vnode) {
+  return TSDB_VN_STATUS_MASTER;
+}
+
+bool dnodeCheckVnodeExist(int32_t vnode) {
+  return true;
+}
+
+bool dnodeCheckTableExist(int32_t vnode, int32_t sid, int64_t uid) {
+  return true;
+}
 

@@ -29,7 +29,7 @@
 #include "dnodeRead.h"
 #include "dnodeSystem.h"
 #include "dnodeShell.h"
-#include "dnodeUtil.h"
+#include "dnodeVnodeMgmt.h"
 #include "dnodeWrite.h"
 
 static void dnodeProcessRetrieveRequest(int8_t *pCont, int32_t contLen, void *pConn);

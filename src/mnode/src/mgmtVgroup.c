@@ -296,11 +296,11 @@ int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   if (pShow->payloadLen > 0 ) {
     pTable = mgmtGetTable(pShow->payload);
     if (NULL == pTable) {
-      return TSDB_CODE_INVALID_METER_ID;
+      return TSDB_CODE_INVALID_TABLE_ID;
     }
 
     pVgroup = mgmtGetVgroup(pTable->gid.vgId);
-    if (NULL == pVgroup) return TSDB_CODE_INVALID_METER_ID;
+    if (NULL == pVgroup) return TSDB_CODE_INVALID_TABLE_ID;
     
     maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
   } else {

@@ -16,84 +16,47 @@
 #define _DEFAULT_SOURCE
 
 #include "os.h"
-
-#include "dnode.h"
-#include "dnodeSystem.h"
-#include "dnodeMgmt.h"
-
 #include "taosmsg.h"
 #include "tlog.h"
 #include "trpc.h"
 #include "tsched.h"
 #include "tsystem.h"
-
-SMgmtObj mgmtObj;
-extern uint64_t tsCreatedTime;
-
-int dnodeProcessVPeersMsg(char *msg, int msgLen, SMgmtObj *pMgmtObj);
-int vnodeProcessCreateMeterMsg(char *pMsg, int msgLen);
-int dnodeProcessFreeVnodeRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj);
-int dnodeProcessVPeerCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj);
-int dnodeProcessTableCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj);
-int dnodeProcessDnodeCfgRequest(char *cont, int contLen, SMgmtObj *pMgmtObj);
-int dnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj);
-void vnodeUpdateHeadFile(int vnode, int oldTables, int newTables);
-void vnodeOpenVnode(int vnode);
-void vnodeCleanUpOneVnode(int vnode);
+#include "mnode.h"
+#include "dnode.h"
+#include "dnodeSystem.h"
+#include "dnodeMgmt.h"
+#include "dnodeWrite.h"
+#include "dnodeVnodeMgmt.h"
 
 static int (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(int8_t *pCont, int32_t contLen, void *pConn);
 static void dnodeInitProcessShellMsg();
 
-char *taosBuildRspMsgToMnodeWithSizeImp(SMgmtObj *pObj, char type, int size) {
-  char *pStart = (char *)malloc(size);
-  if (pStart == NULL) {
-    return NULL;
-  }
+void taosSendMsgToMnodeImpFp(SSchedMsg *sched) {
+  char  msgType = *sched->msg;
+  char *content = sched->msg + sizeof(int32_t);
 
-  *pStart = type;
-  return pStart + 1;
+  mgmtProcessMsgFromDnode(content, 0, msgType, NULL);
+  rpcFreeCont(sched->msg);
 }
-char *(*taosBuildRspMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size) = taosBuildRspMsgToMnodeWithSizeImp;
 
-char *taosBuildReqMsgToMnodeWithSizeImp(SMgmtObj *pObj, char type, int size) {
-  char *pStart = (char *)malloc(size);
-  if (pStart == NULL) {
-    return NULL;
-  }
-
-  *pStart = type;
-  return pStart + 1;
-}
-char *(*taosBuildReqMsgToMnodeWithSize)(SMgmtObj *pObj, char type, int size) = taosBuildReqMsgToMnodeWithSizeImp;
-
-char *taosBuildRspMsgToMnodeImp(SMgmtObj *pObj, char type) {
-  return taosBuildRspMsgToMnodeWithSizeImp(pObj, type, 256);
-}
-char *(*taosBuildRspMsgToMnode)(SMgmtObj *pObj, char type) = taosBuildRspMsgToMnodeImp;
-
-char *taosBuildReqMsgToMnodeImp(SMgmtObj *pObj, char type) {
-  return taosBuildReqMsgToMnodeWithSizeImp(pObj, type, 256);
-}
-char *(*taosBuildReqMsgToMnode)(SMgmtObj *pObj, char type) = taosBuildReqMsgToMnodeImp;
-
-int taosSendMsgToMnodeImp(SMgmtObj *pObj, char *msg, int msgLen) {
-  dTrace("msg:%s is sent to mnode", taosMsg[(uint8_t)(*(msg-1))]);
+int32_t taosSendMsgToMnodeImp(int8_t *msg, int32_t msgLen) {
+  dTrace("msg:%s is sent to mnode", taosMsg[(int32_t)(*(msg-sizeof(int32_t)))]);
 
   /*
    * Lite version has no message header, so minus one
    */
   SSchedMsg schedMsg;
-  schedMsg.fp = mgmtProcessMsgFromDnodeSpec;
-  schedMsg.msg = msg - 1;
+  schedMsg.fp = taosSendMsgToMnodeImpFp;
+  schedMsg.msg = msg - sizeof(int32_t);
   schedMsg.ahandle = NULL;
   schedMsg.thandle = NULL;
-  taosScheduleTask(dmQhandle, &schedMsg);
+  taosScheduleTask(tsDnodeMgmtQhandle, &schedMsg);
 
   return 0;
 }
-int (*taosSendMsgToMnode)(SMgmtObj *pObj, char *msg, int msgLen) = taosSendMsgToMnodeImp;
+int32_t (*taosSendMsgToMnode)(char *msg, int32_t msgLen) = taosSendMsgToMnodeImp;
 
-int taosSendSimpleRspToMnodeImp(SMgmtObj *pObj, char rsptype, char code) {
+int32_t taosSendSimpleRspToMnodeImp(int32_t rsptype, int32_t code) {
   char *pStart = taosBuildRspMsgToMnode(0, rsptype);
   if (pStart == NULL) {
     return 0;
@@ -104,7 +67,7 @@ int taosSendSimpleRspToMnodeImp(SMgmtObj *pObj, char rsptype, char code) {
 
   return 0;
 }
-int (*taosSendSimpleRspToMnode)(SMgmtObj *pObj, char rsptype, char code) = taosSendSimpleRspToMnodeImp;
+int (*taosSendSimpleRspToMnode)(int32_t rsptype, int32_t code) = taosSendSimpleRspToMnodeImp;
 
 int32_t dnodeInitMgmtImp() {
   dnodeInitProcessShellMsg();
@@ -121,7 +84,7 @@ void dnodeProcessMsgFromMgmtImp(SSchedMsg *sched) {
   int32_t msgType  = *(int32_t*)(sched->msg);
   int8_t  *content = sched->msg + sizeof(int32_t);
 
-  dTrace("msg:%s is received from mgmt", taosMsg[msgType]);
+  dTrace("msg:%s is received from mnode", taosMsg[msgType]);
   dnodeDistributeMsgFromMgmt(content, 0, msgType, NULL);
 
   free(sched->msg);
@@ -139,444 +102,118 @@ void dnodeDistributeMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType,
   }
 }
 
-int dnodeProcessTableCfgRsp(char *pMsg, int msgLen, SMgmtObj *pObj) {
-  int code = *pMsg;
+int32_t dnodeProcessTableCfgRsp(char *pMsg, int msgLen, SMgmtObj *pObj) {
+  int32_t code = htonl(*((int32_t *) pMsg));
 
-  if (code == 0) {
-    vnodeProcessCreateMeterMsg(pMsg + 1, msgLen - 1);
+  if (code == TSDB_CODE_SUCCESS) {
+    SDCreateTableMsg *table = (SDCreateTableMsg *) (pMsg + sizeof(int32_t));
+    return dnodeCreateTable(table);
+  } else if (code == TSDB_CODE_INVALID_TABLE_ID) {
+    SDRemoveTableMsg *table = (SDRemoveTableMsg *) (pMsg + sizeof(int32_t));
+    int32_t vnode = htonl(table->vnode);
+    int32_t sid = htonl(table->sid);
+    uint64_t uid = htobe64(table->uid);
+    dError("vnode:%d, sid:%d table is not configured, remove it", vnode, sid);
+    return dnodeDropTable(vnode, sid, uid);
   } else {
-    STaosRsp *pRsp;
-    pRsp = (STaosRsp *)pMsg;
-    int32_t *pint = (int32_t *)pRsp->more;
-    int      vnode = htonl(*pint);
-    int      sid = htonl(*(pint + 1));
-    dError("vid:%d, sid:%d, code:%d, meter is not configured, remove it", vnode, sid, code);
-    int ret = vnodeRemoveMeterObj(vnode, sid);
-    dTrace("vid:%d, sid:%d, meter delete ret:%d", vnode, sid, ret);
+    dError("code:%d invalid message", code);
+    return TSDB_CODE_INVALID_MSG;
   }
-
-  return 0;
 }
 
-int dnodeProcessCreateTableRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
-  SCreateMsg *pCreate;
-  int         code = 0;
-  int         vid;
-  SVnodeObj * pVnode;
+int32_t dnodeProcessCreateTableRequest(int8_t *pCont, int32_t contLen, void *pConn) {
+  SDCreateTableMsg *table = (SDCreateTableMsg *) pCont;
+  int32_t code = dnodeCreateTable(table);
+  rpcSendSimpleRsp(pConn, code);
+  return code;
+}
 
-  pCreate = (SCreateMsg *)pMsg;
-  vid = htons(pCreate->vnode);
+int32_t dnodeProcessAlterStreamRequest(int8_t *pCont, int32_t contLen, void *pConn) {
+  SDCreateTableMsg *table = (SDCreateTableMsg *) pCont;
+  int32_t code = dnodeCreateTable(table);
+  rpcSendSimpleRsp(pConn, code);
+  return code;
+}
 
-  if (vid >= TSDB_MAX_VNODES || vid < 0) {
-    dError("vid:%d, vnode is out of range", vid);
-    code = TSDB_CODE_INVALID_VNODE_ID;
-    goto _over;
+int32_t dnodeProcessRemoveTableRequest(int8_t *pCont, int32_t contLen, void *pConn) {
+  SDRemoveTableMsg *table = (SDRemoveTableMsg *) pCont;
+  int32_t vnode = htonl(table->vnode);
+  int32_t sid = htonl(table->sid);
+  uint64_t uid = htobe64(table->uid);
+
+  dPrint("vnode:%d, sid:%d table is not configured, remove it", vnode, sid);
+  int32_t code = dnodeDropTable(vnode, sid, uid);
+  rpcSendSimpleRsp(pConn, code);
+  return code;
+}
+
+int32_t dnodeProcessVPeerCfgRsp(int8_t *pCont, int32_t contLen, void *pConn) {
+  int32_t code = htonl(*((int32_t *) pCont));
+
+  if (code == TSDB_CODE_SUCCESS) {
+    SVPeersMsg *vpeer = (SVPeersMsg *) (pCont + sizeof(int32_t));
+    int32_t vnode  = htonl(vpeer->vnode);
+    return dnodeCreateVnode(vnode, vpeer);
+  } else if (code == TSDB_CODE_INVALID_VNODE_ID) {
+    SFreeVnodeMsg *vpeer = (SFreeVnodeMsg *) (pCont + sizeof(int32_t));
+    int32_t vnode = htonl(vpeer->vnode);
+    dError("vnode:%d, not exist, remove it", vnode);
+    return dnodeDropVnode(vnode);
+  } else {
+    dError("code:%d invalid message", code);
+    return TSDB_CODE_INVALID_MSG;
   }
+}
 
-  pVnode = vnodeList + vid;
-  if (pVnode->cfg.maxSessions <= 0) {
-    dError("vid:%d, not activated", vid);
-    code = TSDB_CODE_NOT_ACTIVE_VNODE;
-    goto _over;
-  }
+int32_t dnodeProcessVPeersMsg(int8_t *pCont, int32_t contLen, void *pConn) {
+  SVPeersMsg *vpeer = (SVPeersMsg *) pCont;
+  int32_t vnode = htonl(vpeer->vnode);
 
-//  if (pVnode->syncStatus == TSDB_VN_SYNC_STATUS_SYNCING) {
-//    code = vnodeSaveCreateMsgIntoQueue(pVnode, pMsg, msgLen);
-//    dTrace("vid:%d, create msg is saved into sync queue", vid);
-//  } else {
-    code = vnodeProcessCreateMeterMsg(pMsg, msgLen);
-//  }
+  dPrint("vnode:%d, start to config", vnode);
 
-_over:
-  taosSendSimpleRspToMnode(pObj, TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE_RSP, code);
+  int32_t code = dnodeCreateVnode(vnode, vpeer);
+  rpcSendSimpleRsp(pConn, code);
+  return code;
+}
+
+int32_t dnodeProcessFreeVnodeRequest(int8_t *pCont, int32_t contLen, void *pConn) {
+  SFreeVnodeMsg *vpeer = (SFreeVnodeMsg *) pCont;
+  int32_t vnode = htonl(vpeer->vnode);
+
+  dPrint("vnode:%d, remove it", vnode);
+
+  int32_t code = dnodeDropVnode(vnode);
+  rpcSendSimpleRsp(pConn, code);
 
   return code;
 }
 
-int dnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
-  SAlterStreamMsg *pAlter;
-  int              code = 0;
-  int              vid, sid;
-  SVnodeObj *      pVnode;
-
-  pAlter = (SAlterStreamMsg *)pMsg;
-  vid = htons(pAlter->vnode);
-  sid = htonl(pAlter->sid);
-
-  if (vid >= TSDB_MAX_VNODES || vid < 0) {
-    dError("vid:%d, vnode is out of range", vid);
-    code = TSDB_CODE_INVALID_VNODE_ID;
-    goto _over;
-  }
-
-  pVnode = vnodeList + vid;
-  if (pVnode->cfg.maxSessions <= 0 || pVnode->pCachePool == NULL) {
-    dError("vid:%d is not activated yet", pAlter->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_VNODE;
-    goto _over;
-  }
-
-  if (pAlter->sid >= pVnode->cfg.maxSessions || pAlter->sid < 0) {
-    dError("vid:%d sid:%d uid:%" PRIu64 ", sid is out of range", pAlter->vnode, pAlter->sid, pAlter->uid);
-    code = TSDB_CODE_INVALID_TABLE_ID;
-    goto _over;
-  }
-
-  SMeterObj *pMeterObj = vnodeList[vid].meterList[sid];
-  if (pMeterObj == NULL || sid != pMeterObj->sid || vid != pMeterObj->vnode) {
-    dError("vid:%d sid:%d, not active table", vid, sid);
-    code = TSDB_CODE_NOT_ACTIVE_TABLE;
-    goto _over;
-  }
-
-  pMeterObj->status = pAlter->status;
-  if (pMeterObj->status == 1) {
-    if (pAlter->stime > pMeterObj->lastKey)  // starting time can be specified
-      pMeterObj->lastKey = pAlter->stime;
-    vnodeCreateStream(pMeterObj);
-  } else {
-    vnodeRemoveStream(pMeterObj);
-  }
-
-  vnodeSaveMeterObjToFile(pMeterObj);
-
-_over:
-  taosSendSimpleRspToMnode(pObj, TSDB_MSG_TYPE_ALTER_STREAM_RSP, code);
-
+int32_t dnodeProcessDnodeCfgRequest(int8_t *pCont, int32_t contLen, void *pConn) {
+  SCfgMsg *pCfg = (SCfgMsg *)pCont;
+  int32_t code = tsCfgDynamicOptions(pCfg->config);
+  rpcSendSimpleRsp(pConn, code);
   return code;
-}
-
-int vnodeProcessCreateMeterMsg(char *pMsg, int msgLen) {
-  int         code;
-  SMeterObj * pObj = NULL;
-  SConnSec    connSec;
-  SCreateMsg *pCreate = (SCreateMsg *)pMsg;
-
-  pCreate->vnode = htons(pCreate->vnode);
-  pCreate->sid = htonl(pCreate->sid);
-  pCreate->lastCreate = htobe64(pCreate->lastCreate);
-  pCreate->timeStamp = htobe64(pCreate->timeStamp);
-
-  if (pCreate->vnode >= TSDB_MAX_VNODES || pCreate->vnode < 0) {
-    dError("vid:%d is out of range", pCreate->vnode);
-    code = TSDB_CODE_INVALID_VNODE_ID;
-    goto _create_over;
-  }
-
-  SVnodeObj *pVnode = vnodeList + pCreate->vnode;
-  if (pVnode->pCachePool == NULL) {
-    dError("vid:%d is not activated yet", pCreate->vnode);
-    vnodeSendVpeerCfgMsg(pCreate->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_VNODE;
-    goto _create_over;
-  }
-
-  if (pCreate->sid >= pVnode->cfg.maxSessions || pCreate->sid < 0) {
-    dError("vid:%d sid:%d id:%s, sid is out of range", pCreate->vnode, pCreate->sid, pCreate->meterId);
-    code = TSDB_CODE_INVALID_TABLE_ID;
-    goto _create_over;
-  }
-
-  pCreate->numOfColumns = htons(pCreate->numOfColumns);
-  if (pCreate->numOfColumns <= 0) {
-    dTrace("vid:%d sid:%d id:%s, numOfColumns is out of range", pCreate->vnode, pCreate->sid, pCreate->meterId);
-    code = TSDB_CODE_OTHERS;
-    goto _create_over;
-  }
-
-  pCreate->sqlLen = htons(pCreate->sqlLen);
-  pObj = (SMeterObj *)calloc(1, sizeof(SMeterObj) + pCreate->sqlLen + 1);
-  if (pObj == NULL) {
-    dError("vid:%d sid:%d id:%s, no memory to allocate meterObj", pCreate->vnode, pCreate->sid, pCreate->meterId);
-    code = TSDB_CODE_NO_RESOURCE;
-    goto _create_over;
-  }
-
-  /*
-   * memory alignment may cause holes in SColumn struct which are not assigned any value
-   * therefore, we could not use memcmp to compare whether two SColumns are equal or not.
-   * So, we need to set the memory to 0 when allocating memory.
-   */
-  pObj->schema = (SColumn *)calloc(1, pCreate->numOfColumns * sizeof(SColumn));
-
-  pObj->vnode = pCreate->vnode;
-  pObj->sid = pCreate->sid;
-  pObj->uid = pCreate->uid;
-  memcpy(pObj->meterId, pCreate->meterId, TSDB_TABLE_ID_LEN);
-  pObj->numOfColumns = pCreate->numOfColumns;
-  pObj->timeStamp = pCreate->timeStamp;
-  pObj->sversion = htonl(pCreate->sversion);
-  pObj->maxBytes = 0;
-
-  for (int i = 0; i < pObj->numOfColumns; ++i) {
-    pObj->schema[i].type = pCreate->schema[i].type;
-    pObj->schema[i].bytes = htons(pCreate->schema[i].bytes);
-    pObj->schema[i].colId = htons(pCreate->schema[i].colId);
-    pObj->bytesPerPoint += pObj->schema[i].bytes;
-    if (pObj->maxBytes < pObj->schema[i].bytes) pObj->maxBytes = pObj->schema[i].bytes;
-  }
-
-  if (pCreate->sqlLen > 0) {
-    pObj->sqlLen = pCreate->sqlLen;
-    pObj->pSql = ((char *)pObj) + sizeof(SMeterObj);
-    memcpy(pObj->pSql, (char *)pCreate->schema + pCreate->numOfColumns * sizeof(SMColumn), pCreate->sqlLen);
-    pObj->pSql[pCreate->sqlLen] = 0;
-  }
-
-  pObj->pointsPerFileBlock = pVnode->cfg.rowsInFileBlock;
-
-  if (sizeof(TSKEY) != pObj->schema[0].bytes) {
-    dError("key length is not matched, required key length:%d", sizeof(TSKEY));
-    code = TSDB_CODE_OTHERS;
-    goto _create_over;
-  }
-
-  // security info shall be saved here
-  connSec.spi = pCreate->spi;
-  connSec.encrypt = pCreate->encrypt;
-  memcpy(connSec.secret, pCreate->secret, TSDB_KEY_LEN);
-  memcpy(connSec.cipheringKey, pCreate->cipheringKey, TSDB_KEY_LEN);
-
-  code = vnodeCreateMeterObj(pObj, &connSec);
-
-_create_over:
-  if (code != TSDB_CODE_SUCCESS) {
-    dTrace("vid:%d sid:%d id:%s, failed to create meterObj", pCreate->vnode, pCreate->sid, pCreate->meterId);
-    tfree(pObj);
-  }
-
-  return code;
-}
-
-int dnodeProcessRemoveTableRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj) {
-  SMeterObj *      pObj;
-  SRemoveMeterMsg *pRemove;
-  int              code = 0;
-
-  pRemove = (SRemoveMeterMsg *)pMsg;
-  pRemove->vnode = htons(pRemove->vnode);
-  pRemove->sid = htonl(pRemove->sid);
-
-  if (pRemove->vnode < 0 || pRemove->vnode >= TSDB_MAX_VNODES) {
-    dWarn("vid:%d sid:%d, already removed", pRemove->vnode, pRemove->sid);
-    goto _remove_over;
-  }
-
-  if (vnodeList[pRemove->vnode].meterList == NULL) goto _remove_over;
-
-  pObj = vnodeList[pRemove->vnode].meterList[pRemove->sid];
-  if (pObj == NULL) goto _remove_over;
-
-  if (memcmp(pObj->meterId, pRemove->meterId, TSDB_TABLE_ID_LEN) != 0) {
-    dWarn("vid:%d sid:%d id:%s, remove ID:%s, meter ID not matched", pObj->vnode, pObj->sid, pObj->meterId,
-          pRemove->meterId);
-    goto _remove_over;
-  }
-
-  if (vnodeRemoveMeterObj(pRemove->vnode, pRemove->sid) == TSDB_CODE_ACTION_IN_PROGRESS) {
-    code = TSDB_CODE_ACTION_IN_PROGRESS;
-    goto _remove_over;
-  }
-
-  dTrace("vid:%d sid:%d id:%s, meterObj is removed", pRemove->vnode, pRemove->sid, pRemove->meterId);
-
-_remove_over:
-  taosSendSimpleRspToMnode(pMgmtObj, TSDB_MSG_TYPE_REMOVE_RSP, code);
-  return 0;
-}
-
-int vnodeProcessVPeerCfg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
-  SVPeersMsg *pMsg = (SVPeersMsg *)msg;
-  int         i, vnode;
-
-  vnode = htonl(pMsg->vnode);
-  if (vnode >= TSDB_MAX_VNODES) {
-    dError("vid:%d, vnode is out of range", vnode);
-    return -1;
-  }
-
-  if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_CREATING) {
-    dTrace("vid:%d, vnode is still under creating", vnode);
-    return 0;
-  }
-
-  SVnodeCfg *pCfg = &pMsg->cfg;
-  pCfg->vgId = htonl(pCfg->vgId);
-  pCfg->maxSessions = htonl(pCfg->maxSessions);
-  pCfg->cacheBlockSize = htonl(pCfg->cacheBlockSize);
-  pCfg->cacheNumOfBlocks.totalBlocks = htonl(pCfg->cacheNumOfBlocks.totalBlocks);
-  pCfg->daysPerFile = htonl(pCfg->daysPerFile);
-  pCfg->daysToKeep1 = htonl(pCfg->daysToKeep1);
-  pCfg->daysToKeep2 = htonl(pCfg->daysToKeep2);
-  pCfg->daysToKeep = htonl(pCfg->daysToKeep);
-  pCfg->commitTime = htonl(pCfg->commitTime);
-  pCfg->blocksPerMeter = htons(pCfg->blocksPerMeter);
-  pCfg->rowsInFileBlock = htonl(pCfg->rowsInFileBlock);
-
-  if (pCfg->replications > 0) {
-    dPrint("vid:%d, vpeer cfg received, replica:%d session:%d, vnodeList replica:%d session:%d, acct:%s db:%s",
-        vnode, pCfg->replications, pCfg->maxSessions, vnodeList[vnode].cfg.replications, vnodeList[vnode].cfg.maxSessions,
-        pCfg->acct, pCfg->db);
-    for (i = 0; i < pCfg->replications; ++i) {
-      pMsg->vpeerDesc[i].vnode = htonl(pMsg->vpeerDesc[i].vnode);
-      pMsg->vpeerDesc[i].ip = htonl(pMsg->vpeerDesc[i].ip);
-      dPrint("vid:%d, vpeer:%d ip:0x%x vid:%d ", vnode, i, pMsg->vpeerDesc[i].ip, pMsg->vpeerDesc[i].vnode);
-    }
-  }
-
-  if (vnodeList[vnode].cfg.maxSessions == 0) {
-    dPrint("vid:%d, vnode is empty", vnode);
-    if (pCfg->maxSessions > 0) {
-      if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_OFFLINE) {
-        dPrint("vid:%d, status:%s, start to create vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
-        return vnodeCreateVnode(vnode, pCfg, pMsg->vpeerDesc);
-      } else {
-        dPrint("vid:%d, status:%s, cannot preform create vnode operation", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
-        return TSDB_CODE_INVALID_VNODE_STATUS;
-      }
-    }
-  } else {
-    dPrint("vid:%d, vnode is not empty", vnode);
-    if (pCfg->maxSessions > 0) {
-      if (vnodeList[vnode].vnodeStatus == TSDB_VN_STATUS_DELETING) {
-        dPrint("vid:%d, status:%s, wait vnode delete finished", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
-      } else {
-        dPrint("vid:%d, status:%s, start to update vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
-
-        if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
-          vnodeCleanUpOneVnode(vnode);
-        }
-
-        vnodeConfigVPeers(vnode, pCfg->replications, pMsg->vpeerDesc);
-        vnodeSaveVnodeCfg(vnode, pCfg, pMsg->vpeerDesc);
-
-        /*
-        if (pCfg->maxSessions != vnodeList[vnode].cfg.maxSessions) {
-          vnodeUpdateHeadFile(vnode, vnodeList[vnode].cfg.maxSessions, pCfg->maxSessions);
-          vnodeList[vnode].cfg.maxSessions = pCfg->maxSessions;
-          vnodeOpenVnode(vnode);
-        }
-        */
-      }
-      return 0;
-    } else {
-      dPrint("vid:%d, status:%s, start to delete vnode", vnode, taosGetVnodeStatusStr(vnodeList[vnode].vnodeStatus));
-      vnodeRemoveVnode(vnode);
-    }
-  }
-
-  return 0;
-}
-
-int dnodeProcessVPeerCfgRsp(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
-  STaosRsp *pRsp;
-
-  pRsp = (STaosRsp *)msg;
-
-  if (pRsp->code == 0) {
-    vnodeProcessVPeerCfg(pRsp->more, msgLen - sizeof(STaosRsp), pMgmtObj);
-  } else {
-    int32_t *pint = (int32_t *)pRsp->more;
-    int      vnode = htonl(*pint);
-    if (vnode < TSDB_MAX_VNODES && vnodeList[vnode].lastKey != 0) {
-      dError("vnode:%d not configured, it shall be empty, code:%d", vnode, pRsp->code);
-      vnodeRemoveVnode(vnode);
-    } else {
-      dError("vnode:%d is invalid, code:%d", vnode, pRsp->code);
-    }
-  }
-
-  return 0;
-}
-
-int dnodeProcessVPeersMsg(char *msg, int msgLen, SMgmtObj *pMgmtObj) {
-  int code = 0;
-
-  code = vnodeProcessVPeerCfg(msg, msgLen, pMgmtObj);
-
-  char *      pStart;
-  STaosRsp *  pRsp;
-  SVPeersMsg *pVPeersMsg = (SVPeersMsg *)msg;
-
-  pStart = taosBuildRspMsgToMnode(pMgmtObj, TSDB_MSG_TYPE_DNODE_VPEERS_RSP);
-  if (pStart == NULL) return -1;
-
-  pRsp = (STaosRsp *)pStart;
-  pRsp->code = code;
-  memcpy(pRsp->more, pVPeersMsg->cfg.db, TSDB_DB_NAME_LEN);
-
-  msgLen = sizeof(STaosRsp) + TSDB_DB_NAME_LEN;
-  taosSendMsgToMnode(pMgmtObj, pStart, msgLen);
-
-  return code;
-}
-
-int dnodeProcessFreeVnodeRequest(char *pMsg, int msgLen, SMgmtObj *pMgmtObj) {
-  SFreeVnodeMsg *pFree;
-
-  pFree = (SFreeVnodeMsg *)pMsg;
-  pFree->vnode = htons(pFree->vnode);
-
-  if (pFree->vnode < 0 || pFree->vnode >= TSDB_MAX_VNODES) {
-    dWarn("vid:%d, out of range", pFree->vnode);
-    return -1;
-  }
-
-  dTrace("vid:%d, receive free vnode message", pFree->vnode);
-  int32_t code = vnodeRemoveVnode(pFree->vnode);
-  assert(code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS);
-
-  taosSendSimpleRspToMnode(pMgmtObj, TSDB_MSG_TYPE_DNODE_FREE_VNODE_RSP, code);
-  return 0;
-}
-
-int dnodeProcessDnodeCfgRequest(char *cont, int contLen, SMgmtObj *pMgmtObj) {
-  SCfgMsg *pCfg = (SCfgMsg *)cont;
-
-  int code = tsCfgDynamicOptions(pCfg->config);
-
-  taosSendSimpleRspToMnode(pMgmtObj, TSDB_MSG_TYPE_DNODE_CFG_RSP, code);
-
-  return 0;
 }
 
 void dnodeSendVpeerCfgMsg(int32_t vnode) {
-  char *        pMsg, *pStart;
-  int           msgLen;
-  SVpeerCfgMsg *pCfg;
-  SMgmtObj *    pObj = &mgmtObj;
+  SVpeerCfgMsg *cfg = (SVpeerCfgMsg *) rpcMallocCont(sizeof(SVpeerCfgMsg));
+  if (cfg == NULL) {
+    return;
+  }
 
-  pStart = taosBuildReqMsgToMnode(pObj, TSDB_MSG_TYPE_VNODE_CFG);
-  if (pStart == NULL) return;
-  pMsg = pStart;
-
-  pCfg = (SVpeerCfgMsg *)pMsg;
-  pCfg->vnode = htonl(vnode);
-  pMsg += sizeof(SVpeerCfgMsg);
-
-  msgLen = pMsg - pStart;
-  taosSendMsgToMnode(pObj, pStart, msgLen);
+  cfg->vnode = htonl(vnode);
+  taosSendMsgToMnode(cfg, sizeof(SMeterCfgMsg));
 }
 
 void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
-  char *        pMsg, *pStart;
-  int           msgLen;
-  SMeterCfgMsg *pCfg;
-  SMgmtObj *    pObj = &mgmtObj;
+  SMeterCfgMsg *cfg = (SMeterCfgMsg *) rpcMallocCont(sizeof(SMeterCfgMsg));
+  if (cfg == NULL) {
+    return;
+  }
 
-  pStart = taosBuildReqMsgToMnode(pObj, TSDB_MSG_TYPE_TABLE_CFG);
-  if (pStart == NULL) return -1;
-  pMsg = pStart;
-
-  pCfg = (SMeterCfgMsg *)pMsg;
-  pCfg->vnode = htonl(vnode);
-  pCfg->sid = htonl(sid);
-  pMsg += sizeof(SMeterCfgMsg);
-
-  msgLen = pMsg - pStart;
-  return taosSendMsgToMnode(pObj, pStart, msgLen);
+  cfg->vnode = htonl(vnode);
+  taosSendMsgToMnode(cfg, sizeof(SMeterCfgMsg));
 }
-
 
 void dnodeInitProcessShellMsg() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE] = dnodeProcessCreateTableRequest;

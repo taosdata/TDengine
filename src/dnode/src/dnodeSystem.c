@@ -53,7 +53,7 @@ static int32_t dnodeInitTmrCtl();
 void     *tsStatusTimer = NULL;
 void     *vnodeTmrCtrl;
 void     **tsRpcQhandle;
-void     *dmQhandle;
+void     *tsDnodeMgmtQhandle;
 void     *tsQueryQhandle;
 int32_t  tsVnodePeers   = TSDB_VNODES_SUPPORT - 1;
 int32_t  tsMaxQueues;
@@ -298,7 +298,7 @@ static int32_t dnodeInitRpcQHandle() {
     tsRpcQhandle[i] = taosInitScheduler(tsSessionsPerVnode, 1, "dnode");
   }
 
-  dmQhandle = taosInitScheduler(tsSessionsPerVnode, 1, "mgmt");
+  tsDnodeMgmtQhandle = taosInitScheduler(tsSessionsPerVnode, 1, "mgmt");
 
   return 0;
 }

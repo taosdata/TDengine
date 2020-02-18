@@ -1034,7 +1034,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   pCmd->command = TSDB_SQL_MULTI_META;
   pCmd->count = 0;
 
-  int   code = TSDB_CODE_INVALID_METER_ID;
+  int   code = TSDB_CODE_INVALID_TABLE_ID;
   char *str = (char *)tblNameList;
 
   SQueryInfo *pQueryInfo = NULL;
@@ -1070,7 +1070,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
 
     // Check if the table name available or not
     if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {
-      code = TSDB_CODE_INVALID_METER_ID;
+      code = TSDB_CODE_INVALID_TABLE_ID;
       sprintf(pCmd->payload, "table name is invalid");
       return code;
     }
@@ -1080,7 +1080,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
     }
 
     if (++pCmd->count > TSDB_MULTI_METERMETA_MAX_NUM) {
-      code = TSDB_CODE_INVALID_METER_ID;
+      code = TSDB_CODE_INVALID_TABLE_ID;
       sprintf(pCmd->payload, "tables over the max number");
       return code;
     }

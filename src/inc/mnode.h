@@ -335,6 +335,7 @@ typedef struct {
   char     payload[];  /* payload for wildcard match in show tables */
 } SShowObj;
 
+void mgmtProcessMsgFromDnode(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
 
 #ifdef __cplusplus
 }

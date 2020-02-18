@@ -313,72 +313,28 @@ typedef struct SSchema {
   short bytes;
 } SSchema;
 
-typedef struct SMColumn {
+typedef struct {
   int8_t  type;
   int16_t colId;
   int16_t bytes;
-} SMColumn;
-
-typedef struct {
-  int32_t size;
-  int8_t* data;
-} SVariableMsg;
-
-typedef struct {
-  short    vnode;
-  int32_t  sid;
-  uint64_t uid;
-  char     spi;
-  char     encrypt;
-  char     meterId[TSDB_TABLE_ID_LEN];
-  char     secret[TSDB_KEY_LEN];
-  char     cipheringKey[TSDB_KEY_LEN];
-  uint64_t timeStamp;
-  uint64_t lastCreate;
-  short    numOfColumns;
-  short    sqlLen;  // SQL string is after schema
-  char     reserved[16];
-  int32_t  sversion;
-  SMColumn schema[];
-} SCreateMsg;
+} SDTableColumn;
 
 typedef struct {
   int32_t  vnode;
   int32_t  sid;
   uint64_t uid;
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
-  char     superTableId[TSDB_TABLE_ID_LEN + 1];
-  uint64_t createdTime;
+  uint64_t superTableUid;
+  int32_t  tableType;
   int32_t  sversion;
   int16_t  numOfColumns;
   int16_t  numOfTags;
   int32_t  tagDataLen;
-  int8_t   data[];
-} SCreateChildTableMsg;
-
-typedef struct {
-  int32_t  vnode;
-  int32_t  sid;
-  uint64_t uid;
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  int32_t  sqlDataLen;
   uint64_t createdTime;
-  int32_t  sversion;
-  int16_t  numOfColumns;
-  int8_t   data[];
-} SCreateNormalTableMsg;
-
-typedef struct {
-  int32_t  vnode;
-  int32_t  sid;
-  uint64_t uid;
   char     tableId[TSDB_TABLE_ID_LEN + 1];
-  uint64_t createdTime;
-  int32_t  sversion;
-  int16_t  numOfColumns;
-  int32_t  sqlLen;
+  char     superTableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   data[];
-} SCreateStreamTableMsg;
-
+} SDCreateTableMsg;
 
 typedef struct {
   char  db[TSDB_TABLE_ID_LEN];
@@ -468,10 +424,10 @@ typedef struct {
   int32_t  sid;
   uint64_t uid;
   char     meterId[TSDB_TABLE_ID_LEN];
-} SRemoveMeterMsg;
+} SDRemoveTableMsg;
 
 typedef struct {
-  short vnode;
+  int32_t vnode;
 } SFreeVnodeMsg;
 
 typedef struct SColIndexEx {
@@ -923,11 +879,11 @@ typedef struct {
 } SKillQuery, SKillStream, SKillConnection;
 
 typedef struct {
-  short    vnode;
+  int32_t  vnode;
   int32_t  sid;
   uint64_t uid;
   uint64_t stime;  // stream starting time
-  char     status;
+  int32_t  status;
 } SAlterStreamMsg;
 
 #pragma pack(pop)

@@ -21,9 +21,10 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-
+#include <stdbool.h>
 #include "taosdef.h"
 #include "taosmsg.h"
+#include "tstatus.h"
 
 /*
  * Open all Vnodes in the local data directory
@@ -38,34 +39,34 @@ int32_t dnodeCleanupVnodes();
 /*
  * Check if vnode already exists
  */
-int32_t dnodeCheckVnodeExist(int vid);
+bool dnodeCheckVnodeExist(int32_t vid);
 
 /*
  * Create vnode with specified configuration and open it
+ * if exist, config it
  */
-//tsdb_repo_t* dnodeCreateVnode(int vid, SVnodeCfg *cfg);
-void* dnodeCreateVnode(int vid, SVnodeCfg *cfg);
-
-/*
- * Modify vnode configuration information
- */
-int32_t dnodeConfigVnode(int vid, SVnodeCfg *cfg);
-
-/*
- * Modify vnode replication information
- */
-int32_t dnodeConfigVnodePeers(int vid/*, SVpeerCfgMsg *cfg*/);
+void* dnodeCreateVnode(int32_t vnode, SVPeersMsg *cfg);
 
 /*
  * Remove vnode from local repository
  */
-int32_t dnodeDropVnode(int vid);
+int32_t dnodeDropVnode(int32_t vnode);
 
 /*
  * Get the vnode object that has been opened
  */
 //tsdb_repo_t* dnodeGetVnode(int vid);
 void* dnodeGetVnode(int vid);
+
+/*
+ * get the status of vnode
+ */
+EVnodeStatus dnodeGetVnodeStatus(int32_t vnode);
+
+/*
+ * Check if vnode already exists, and table exist in this vnode
+ */
+bool dnodeCheckTableExist(int32_t vnode, int32_t sid, int64_t uid);
 
 #ifdef __cplusplus
 }
