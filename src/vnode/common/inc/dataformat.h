@@ -46,6 +46,7 @@ typedef char * SDataCols;
 // ----------------- Data column structure
 
 // ---- operation on SDataRow;
+#define TD_DATA_ROW_HEADER_SIZE  sizeof(int32_t)
 #define TD_DATAROW_LEN(pDataRow) (*(int32_t *)(pDataRow))
 #define TD_DATAROW_DATA(pDataRow) ((pDataRow) + sizeof(int32_t))
 
@@ -63,5 +64,9 @@ typedef char * SDataCols;
 #define TD_DATACOLS_NPOINTS(pDataCols) (*(int32_t *)(pDataCols + sizeof(int32_t)))
 
 // ----
+/**
+ * Get the maximum
+ */
+int32_t tdGetMaxDataRowSize(SSchema *pSchema);
 
 #endif // _TD_DATA_FORMAT_H_
