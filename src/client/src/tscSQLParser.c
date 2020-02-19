@@ -900,7 +900,7 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
     return false;
   }
 
-  if (pTagField->type < TSDB_DATA_TYPE_BOOL && pTagField->type > TSDB_DATA_TYPE_NCHAR) {
+  if ((pTagField->type < TSDB_DATA_TYPE_BOOL) || (pTagField->type > TSDB_DATA_TYPE_NCHAR)) {
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
     return false;
   }
@@ -1655,7 +1655,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
             SSchema* pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
 
             // functions can not be applied to tags
-            if (index.columnIndex >= pMeterMetaInfo->pMeterMeta->numOfColumns) {
+            if ((index.columnIndex >= pMeterMetaInfo->pMeterMeta->numOfColumns) || (index.columnIndex < 0)) {
               return invalidSqlErrMsg(pQueryInfo->msg, msg6);
             }
 
