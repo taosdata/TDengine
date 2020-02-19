@@ -211,6 +211,7 @@ static void queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMeterInfo) {
           setExecutionContext(pSupporter, pRuntimeEnv->windowResInfo.pResult, k, pMeterInfo[k].groupIdx,
                               pMeterQueryInfo);
         } else {
+          setIntervalQueryRange(pMeterQueryInfo, pSupporter, key);
           int32_t ret = setIntervalQueryExecutionContext(pSupporter, k, pMeterQueryInfo);
           if (ret != TSDB_CODE_SUCCESS) {
             pQInfo->killed = 1;
@@ -230,7 +231,7 @@ static void queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMeterInfo) {
                pRuntimeEnv->blockStatus);
 
         totalBlocks++;
-        applyIntervalQueryOnBlock(pSupporter, &pMeterInfo[k], &binfo, NULL, searchFn);
+        stableApplyFunctionsOnBlock(pSupporter, &pMeterInfo[k], &binfo, NULL, searchFn);
 
         if (ALL_CACHE_BLOCKS_CHECKED(pQuery)) {
           break;
@@ -431,7 +432,6 @@ static void queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo
                             pOneMeterDataInfo->groupIdx, pMeterQueryInfo);
       } else /* if (pQuery->intervalTime > 0)*/ {  // interval query
         setIntervalQueryRange(pMeterQueryInfo, pSupporter, nextKey);
-
         ret = setIntervalQueryExecutionContext(pSupporter, pOneMeterDataInfo->meterOrderIdx, pMeterQueryInfo);
         if (ret != TSDB_CODE_SUCCESS) {
           tfree(pReqMeterDataInfo);  // error code has been set
@@ -440,7 +440,7 @@ static void queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo
         }
       }
   
-      applyIntervalQueryOnBlock(pSupporter, pOneMeterDataInfo, &binfo, pInfoEx->pBlock.fields, searchFn);
+      stableApplyFunctionsOnBlock(pSupporter, pOneMeterDataInfo, &binfo, pInfoEx->pBlock.fields, searchFn);
     }
 
     tfree(pReqMeterDataInfo);

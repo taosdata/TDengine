@@ -2795,7 +2795,7 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     int32_t condLen = 0;
     if (pTagCond->numOfTagCond > 0) {
       SCond *pCond = tsGetMetricQueryCondPos(pTagCond, uid);
-      if (pCond != NULL) {
+      if (pCond != NULL && pCond->cond != NULL) {
         condLen = strlen(pCond->cond) + 1;
 
         bool ret = taosMbsToUcs4(pCond->cond, condLen, pMsg, condLen * TSDB_NCHAR_SIZE);

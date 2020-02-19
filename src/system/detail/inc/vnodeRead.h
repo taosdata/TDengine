@@ -190,10 +190,7 @@ typedef struct SMeterQueryInfo {
   int64_t      skey;
   int64_t      ekey;
   int32_t      numOfRes;
-//  int32_t      reverseIndex;    // reversed output indicator, start from (numOfRes-1)
-//  int16_t      reverseFillRes;  // denote if reverse fill the results in supplementary scan required or not
   int16_t      queryRangeSet;   // denote if the query range is set, only available for interval query
-  int16_t      lastResRows;
   int64_t      tag;
   STSCursor    cur;
   int32_t      sid; // for retrieve the page id list

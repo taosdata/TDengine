@@ -178,7 +178,7 @@ SCacheBlock* getCacheDataBlock(SMeterObj* pMeterObj, SQueryRuntimeEnv* pRuntimeE
 // SMeterDataInfo* pDataHeadInfoEx, SField* pFields,
 //                  __block_search_fn_t searchFn);
 
-void applyIntervalQueryOnBlock(STableQuerySupportObj* pSupporter, SMeterDataInfo* pMeterDataInfo,
+void stableApplyFunctionsOnBlock(STableQuerySupportObj* pSupporter, SMeterDataInfo* pMeterDataInfo,
                                SBlockInfo* pBlockInfo, SField* pFields, __block_search_fn_t searchFn);
 
 int32_t vnodeFilterQualifiedMeters(SQInfo* pQInfo, int32_t vid, tSidSet* pSidSet, SMeterDataInfo* pMeterDataInfo,
