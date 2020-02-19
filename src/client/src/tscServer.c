@@ -31,9 +31,13 @@
 
 #define TSC_MGMT_VNODE 999
 
-SIpStrList tscMgmtIpList;
+SRpcIpSet  tscMgmtIpList;
 int        tsMasterIndex = 0;
 int        tsSlaveIndex = 1;
+
+//temp
+SRpcIpSet  tscMgmtIpSet;
+SRpcIpSet  tscDnodeIpSet;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
@@ -53,7 +57,7 @@ void tscPrintMgmtIp() {
     tscError("invalid mgmt IP list:%d", tscMgmtIpList.numOfIps);
   } else {
     for (int i = 0; i < tscMgmtIpList.numOfIps; ++i) {
-      tscTrace("mgmt index:%d ip:%s", i, tscMgmtIpList.ipstr[i]);
+      tscTrace("mgmt index:%d ip:%s", i, tscMgmtIpList.ipStr[i]);
     }
   }
 }
@@ -62,7 +66,7 @@ void tscSetMgmtIpListFromCluster(SIpList *pIpList) {
   tscMgmtIpList.numOfIps = pIpList->numOfIps;
   if (memcmp(tscMgmtIpList.ip, pIpList->ip, pIpList->numOfIps * 4) != 0) {
     for (int i = 0; i < pIpList->numOfIps; ++i) {
-      tinet_ntoa(tscMgmtIpList.ipstr[i], pIpList->ip[i]);
+      tinet_ntoa(tscMgmtIpList.ipStr[i], pIpList->ip[i]);
       tscMgmtIpList.ip[i] = pIpList->ip[i];
     }
     tscTrace("cluster mgmt IP list:");
@@ -73,9 +77,9 @@ void tscSetMgmtIpListFromCluster(SIpList *pIpList) {
 void tscSetMgmtIpListFromEdge() {
   if (tscMgmtIpList.numOfIps != 2) {
     tscMgmtIpList.numOfIps = 2;
-    strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
+    strcpy(tscMgmtIpList.ipStr[0], tsMasterIp);
     tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
-    strcpy(tscMgmtIpList.ipstr[1], tsMasterIp);
+    strcpy(tscMgmtIpList.ipStr[1], tsMasterIp);
     tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
     tscTrace("edge mgmt IP list:");
     tscPrintMgmtIp();
@@ -168,7 +172,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
   if (tscShouldFreeHeatBeat(pObj->pHb)) {
     tscTrace("%p free HB object and release connection, pConn:%p", pObj, pObj->pHb->thandle);
-    taosCloseRpcConn(pObj->pHb->thandle);
+    //taosCloseRpcConn(pObj->pHb->thandle);
 
     tscFreeSqlObj(pObj->pHb);
     tscCloseTscObj(pObj);
@@ -177,6 +181,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
   tscProcessSql(pObj->pHb);
 }
+
 
 void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
   STscObj *pTscObj = pSql->pTscObj;
@@ -187,23 +192,24 @@ void tscGetConnToMgmt(SSqlObj *pSql, uint8_t *pCode) {
     if (pSql->cmd.command > TSDB_SQL_READ && pSql->index == 0) pSql->index = 1;
     void *thandle = taosGetConnFromCache(tscConnCache, tscMgmtIpList.ip[pSql->index], TSC_MGMT_VNODE, pTscObj->user);
 
-    if (thandle == NULL) {
-      SRpcConnInit connInit;
-      memset(&connInit, 0, sizeof(connInit));
-      connInit.cid = 0;
-      connInit.sid = 0;
-      connInit.meterId = pSql->pTscObj->user;
-      connInit.peerId = 0;
-      connInit.shandle = pTscMgmtConn;
-      connInit.ahandle = pSql;
-      connInit.peerPort = tsMgmtShellPort;
-      connInit.spi = 1;
-      connInit.encrypt = 0;
-      connInit.secret = pSql->pTscObj->pass;
-      
-      connInit.peerIp = tscMgmtIpList.ipstr[pSql->index];
-      thandle = taosOpenRpcConn(&connInit, pCode);
-    }
+
+//    if (thandle == NULL) {
+//      SRpcConnInit connInit;
+//      memset(&connInit, 0, sizeof(connInit));
+//      connInit.cid = 0;
+//      connInit.sid = 0;
+//      connInit.meterId = pSql->pTscObj->user;
+//      connInit.peerId = 0;
+//      connInit.shandle = pTscMgmtConn;
+//      connInit.ahandle = pSql;
+//      connInit.peerPort = tsMgmtShellPort;
+//      connInit.spi = 1;
+//      connInit.encrypt = 0;
+//      connInit.secret = pSql->pTscObj->pass;
+//
+//      connInit.peerIp = tscMgmtIpList.ipstr[pSql->index];
+//      thandle = taosOpenRpcConn(&connInit, pCode);
+//    }
 
     pSql->thandle = thandle;
     pSql->ip = tscMgmtIpList.ip[pSql->index];
@@ -267,23 +273,23 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
     void *thandle =
         taosGetConnFromCache(tscConnCache, pVPeersDesc[pSql->index].ip, pVPeersDesc[pSql->index].vnode, pTscObj->user);
 
-    if (thandle == NULL) {
-      SRpcConnInit connInit;
-      tinet_ntoa(ipstr, pVPeersDesc[pSql->index].ip);
-      memset(&connInit, 0, sizeof(connInit));
-      connInit.cid = vidIndex;
-      connInit.sid = 0;
-      connInit.spi = 0;
-      connInit.encrypt = 0;
-      connInit.meterId = pSql->pTscObj->user;
-      connInit.peerId = htonl((pVPeersDesc[pSql->index].vnode << TSDB_SHELL_VNODE_BITS));
-      connInit.shandle = pVnodeConn;
-      connInit.ahandle = pSql;
-      connInit.peerIp = ipstr;
-      connInit.peerPort = tsVnodeShellPort;
-      thandle = taosOpenRpcConn(&connInit, pCode);
-      vidIndex = (vidIndex + 1) % tscNumOfThreads;
-    }
+//    if (thandle == NULL) {
+//      SRpcConnInit connInit;
+//      tinet_ntoa(ipstr, pVPeersDesc[pSql->index].ip);
+//      memset(&connInit, 0, sizeof(connInit));
+//      connInit.cid = vidIndex;
+//      connInit.sid = 0;
+//      connInit.spi = 0;
+//      connInit.encrypt = 0;
+//      connInit.meterId = pSql->pTscObj->user;
+//      connInit.peerId = htonl((pVPeersDesc[pSql->index].vnode << TSDB_SHELL_VNODE_BITS));
+//      connInit.shandle = pVnodeConn;
+//      connInit.ahandle = pSql;
+//      connInit.peerIp = ipstr;
+//      connInit.peerPort = tsVnodeShellPort;
+//      thandle = taosOpenRpcConn(&connInit, pCode);
+//      vidIndex = (vidIndex + 1) % tscNumOfThreads;
+//    }
 
     pSql->thandle = thandle;
     pSql->ip = pVPeersDesc[pSql->index].ip;
@@ -291,6 +297,8 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
     tscTrace("%p vnode:%d ip:%p index:%d is picked up, pConn:%p", pSql, pVPeersDesc[pSql->index].vnode,
              pVPeersDesc[pSql->index].ip, pSql->index, pSql->thandle);
 
+    //TODO fetch from vpeerdesc
+    pSql->ipSet = tscMgmtIpSet;
     break;
   }
 
@@ -326,25 +334,29 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     size_t totalLen = pSql->cmd.payloadLen + tsRpcHeadSize + sizeof(STaosDigest);
 
     // the memory will be released by taosProcessResponse, so no memory leak here
-    char *buf = malloc(totalLen);
-    if (NULL == buf) {
+    char *pStart = rpcMallocCont(pSql->cmd.payloadLen);
+    if (NULL == pStart) {
       tscError("%p msg:%s malloc fail", pSql, taosMsg[pSql->cmd.msgType]);
       return TSDB_CODE_CLI_OUT_OF_MEMORY;
     }
-    memcpy(buf, pSql->cmd.payload, totalLen);
+    memcpy(pStart, pSql->cmd.payload + tsRpcHeadSize, pSql->cmd.payloadLen);
 
     tscTrace("%p msg:%s is sent to server", pSql, taosMsg[pSql->cmd.msgType]);
 
-    char *pStart = taosBuildReqHeader(pSql->thandle, pSql->cmd.msgType, buf);
     if (pStart) {
       /*
        * this SQL object may be released by other thread due to the completion of this query even before the log
        * is dumped to log file. So the signature needs to be kept in a local variable.
        */
       uint64_t signature = (uint64_t)pSql->signature;
-      if (tscUpdateVnodeMsg[pSql->cmd.command]) (*tscUpdateVnodeMsg[pSql->cmd.command])(pSql, buf);
+      //if (tscUpdateVnodeMsg[pSql->cmd.command]) (*tscUpdateVnodeMsg[pSql->cmd.command])(pSql, pStart);
 
-      int ret = taosSendMsgToPeerH(pSql->thandle, pStart, pSql->cmd.payloadLen, pSql);
+      int ret;
+      if (pSql->cmd.command < TSDB_SQL_MGMT)
+        ret = rpcSendRequest(pTscMgmtConn, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
+      else
+        ret = rpcSendRequest(pVnodeConn, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
+
       if (ret >= 0) {
         code = 0;
       }

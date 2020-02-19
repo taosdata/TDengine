@@ -23,3 +23,6 @@ ENDIF ()
 
 ADD_LIBRARY(trpc ${SRC})
 TARGET_LINK_LIBRARIES(trpc tutil)
+
+ADD_SUBDIRECTORY(test)
+

@@ -21,6 +21,7 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "taosdef.h"
 
 #define TAOS_CONN_UDPS     0
 #define TAOS_CONN_UDPC     1
