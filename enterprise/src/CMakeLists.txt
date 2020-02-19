@@ -3,4 +3,4 @@ PROJECT(TDengine)
 
 ADD_SUBDIRECTORY(modules)
 ADD_SUBDIRECTORY(kit)
-ADD_SUBDIRECTORY(connector/subscriber)
+#ADD_SUBDIRECTORY(connector/subscriber)
