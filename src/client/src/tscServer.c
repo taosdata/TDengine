@@ -2915,6 +2915,7 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql) {
         memcpy(pMsg, pTagCond->tbnameCond.cond, len);
       }
 	    
+      pElem->tableCondLen = htonl(len);
       pMsg += len;
     }
 
