@@ -153,7 +153,6 @@ void    doSkipResults(SQueryRuntimeEnv* pRuntimeEnv);
 void    doFinalizeResult(SQueryRuntimeEnv* pRuntimeEnv);
 int64_t getNumOfResult(SQueryRuntimeEnv* pRuntimeEnv);
 
-void forwardIntervalQueryRange(STableQuerySupportObj* pSupporter, SQueryRuntimeEnv* pRuntimeEnv);
 void forwardQueryStartPosition(SQueryRuntimeEnv* pRuntimeEnv);
 
 bool normalizedFirstQueryRange(bool dataInDisk, bool dataInCache, STableQuerySupportObj* pSupporter,
@@ -171,12 +170,10 @@ void    enableFunctForMasterScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 int32_t mergeMetersResultToOneGroups(STableQuerySupportObj* pSupporter);
 void    copyFromWindowResToSData(SQInfo* pQInfo, SWindowResult* result);
 
-SBlockInfo   getBlockBasicInfo(SQueryRuntimeEnv* pRuntimeEnv, void* pBlock, int32_t blockType);
-SCacheBlock* getCacheDataBlock(SMeterObj* pMeterObj, SQueryRuntimeEnv* pRuntimeEnv, int32_t slot);
+SBlockInfo getBlockInfo(SQueryRuntimeEnv *pRuntimeEnv);
+SBlockInfo getBlockBasicInfo(SQueryRuntimeEnv *pRuntimeEnv, void* pBlock, int32_t type);
 
-// void queryOnBlock(STableQuerySupportObj* pSupporter, int32_t blockStatus, SBlockInfo* pBlockBasicInfo,
-// SMeterDataInfo* pDataHeadInfoEx, SField* pFields,
-//                  __block_search_fn_t searchFn);
+SCacheBlock* getCacheDataBlock(SMeterObj* pMeterObj, SQueryRuntimeEnv* pRuntimeEnv, int32_t slot);
 
 void stableApplyFunctionsOnBlock(STableQuerySupportObj* pSupporter, SMeterDataInfo* pMeterDataInfo,
                                SBlockInfo* pBlockInfo, SField* pFields, __block_search_fn_t searchFn);
@@ -190,14 +187,13 @@ int32_t createDataBlocksInfoEx(SMeterDataInfo** pMeterDataInfo, int32_t numOfMet
                                int32_t* nAllocBlocksInfoSize, int64_t addr);
 void    freeMeterBlockInfoEx(SMeterDataBlockInfoEx* pDataBlockInfoEx, int32_t len);
 
-void    setExecutionContext(STableQuerySupportObj* pSupporter, SWindowResult* outputRes, int32_t meterIdx,
-                            int32_t groupIdx, SMeterQueryInfo* sqinfo);
-int32_t setIntervalQueryExecutionContext(STableQuerySupportObj* pSupporter, int32_t meterIdx, SMeterQueryInfo* sqinfo);
+void    setExecutionContext(STableQuerySupportObj* pSupporter, SMeterQueryInfo* pMeterQueryInfo, int32_t meterIdx,
+                            int32_t groupIdx, TSKEY nextKey);
+int32_t setAdditionalInfo(STableQuerySupportObj *pSupporter, int32_t meterIdx, SMeterQueryInfo *pMeterQueryInfo);
 void    doGetAlignedIntervalQueryRangeImpl(SQuery* pQuery, int64_t pKey, int64_t keyFirst, int64_t keyLast,
                                            int64_t* actualSkey, int64_t* actualEkey, int64_t* skey, int64_t* ekey);
 
 int64_t getQueryStartPositionInCache(SQueryRuntimeEnv* pRuntimeEnv, int32_t* slot, int32_t* pos, bool ignoreQueryRange);
-int64_t getNextAccessedKeyInData(SQuery* pQuery, int64_t* pPrimaryCol, SBlockInfo* pBlockInfo, int32_t blockStatus);
 
 int32_t getDataBlocksForMeters(STableQuerySupportObj* pSupporter, SQuery* pQuery, int32_t numOfMeters,
                                const char* filePath, SMeterDataInfo** pMeterDataInfo, uint32_t* numOfBlocks);

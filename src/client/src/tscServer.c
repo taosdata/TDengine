@@ -2817,11 +2817,14 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       offset = pMsg - (char *)pMetaMsg;
 
       pElem->tableCond = htonl(offset);
-
-      uint32_t len = strlen(pTagCond->tbnameCond.cond);
+      
+      uint32_t len = 0;
+      if (pTagCond->tbnameCond.cond != NULL) {
+        len = strlen(pTagCond->tbnameCond.cond);
+        memcpy(pMsg, pTagCond->tbnameCond.cond, len);
+      }
+      
       pElem->tableCondLen = htonl(len);
-
-      memcpy(pMsg, pTagCond->tbnameCond.cond, len);
       pMsg += len;
     }
 
