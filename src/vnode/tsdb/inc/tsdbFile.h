@@ -29,12 +29,12 @@ typedef struct {
   SFileInfo fInfo;
 } SFILE;
 
-typedef struct {
-  int64_t offset;
-  int64_t skey;
-  int64_t ekey;
-  int16_t numOfBlocks;
-} SDataBlock;
+// typedef struct {
+//   int64_t offset;
+//   int64_t skey;
+//   int64_t ekey;
+//   int16_t numOfBlocks;
+// } SDataBlock;
 
 char *tsdbGetFileName(char *dirName, char *fname, TSDB_FILE_TYPE type);
 

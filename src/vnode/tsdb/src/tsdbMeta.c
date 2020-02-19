@@ -29,9 +29,14 @@ SMetaHandle *tsdbCreateMetaHandle(int32_t numOfTables) {
   return pMetahandle;
 }
 
+int32_t tsdbFreeMetaHandle(SMetaHandle *pMetaHandle) {
+  // TODO
+
+}
+
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg) { return 0; }
 
-int32_t tsdbCreateMeterImpl(SMetaHandle *pHandle, STableCfg *pCfg) {
+int32_t tsdbCreateTableImpl(SMetaHandle *pHandle, STableCfg *pCfg) {
   if (tsdbCheckTableCfg(pCfg) < 0) {
     return -1;
   }
@@ -46,4 +51,15 @@ int32_t tsdbCreateMeterImpl(SMetaHandle *pHandle, STableCfg *pCfg) {
 
   // TODO: add name to it
   return 0;
+}
+
+SMetaHandle * tsdbOpenMetaHandle(char *tsdbDir) {
+  // Open meta file for reading
+
+  SMetaHandle *pHandle = (SMetaHandle *)malloc(sizeof(SMetaHandle));
+  if (pHandle == NULL) {
+    return NULL;
+  }
+
+  return pHandle;
 }

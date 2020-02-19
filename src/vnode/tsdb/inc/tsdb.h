@@ -21,6 +21,7 @@ typedef int16_t tsdb_id_t;    // TSDB repository ID
 // Submit message
 typedef struct {
   int32_t numOfTables;
+  int32_t compressed;
   char    data[];
 } SSubmitMsg;
 
@@ -111,49 +112,44 @@ typedef struct {
 /**
  * Create a new TSDB repository
  * @param pCfg the TSDB repository configuration, upper layer to free the pointer
- * @param error the error number to set when failure occurs
  *
  * @return a TSDB repository handle on success, NULL for failure and the error number is set
  */
-tsdb_repo_t *tsdbCreateRepo(STSDBCfg *pCfg, int32_t *error);
+tsdb_repo_t *tsdbCreateRepo(STSDBCfg *pCfg);
 
 /**
  * Close and free all resources taken by the repository
- * @param pRepo the TSDB repository handle. The interface will free the handle too, so upper
+ * @param repo the TSDB repository handle. The interface will free the handle too, so upper
  *              layer do NOT need to free the repo handle again.
- * @param error the error number to set when failure occurs
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbDropRepo(tsdb_repo_t *pRepo, int32_t *error);
+int32_t tsdbDropRepo(tsdb_repo_t *repo);
 
 /**
  * Open an existing TSDB storage repository
  * @param tsdbDir the existing TSDB root directory
- * @param error the error number to set when failure occurs
  *
  * @return a TSDB repository handle on success, NULL for failure and the error number is set
  */
-tsdb_repo_t *tsdbOpenRepo(char *tsdbDir, int32_t *error);
+tsdb_repo_t *tsdbOpenRepo(char *tsdbDir);
 
 /**
  * Close a TSDB repository. Only free memory resources, and keep the files.
- * @param pRepo the opened TSDB repository handle. The interface will free the handle too, so upper
+ * @param repo the opened TSDB repository handle. The interface will free the handle too, so upper
  *              layer do NOT need to free the repo handle again.
- * @param error the error number to set when failure occurs
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbCloseRepo(tsdb_repo_t *pRepo, int32_t *error);
+int32_t tsdbCloseRepo(tsdb_repo_t *repo);
 
 /**
  * Change the configuration of a repository
  * @param pCfg the repository configuration, the upper layer should free the pointer
- * @param error the error number to set when failure occurs
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbConfigRepo(STSDBCfg *pCfg, int32_t *error);
+int32_t tsdbConfigRepo(tsdb_repo_t repo, STSDBCfg *pCfg);
 
 /**
  * Get the TSDB repository information, including some statistics
@@ -163,20 +159,19 @@ int32_t tsdbConfigRepo(STSDBCfg *pCfg, int32_t *error);
  * @return a info struct handle on success, NULL for failure and the error number is set. The upper
  *         layers should free the info handle themselves or memory leak will occur
  */
-STSDBRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo, int32_t *error);
+STSDBRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo);
 
 // -- For table manipulation
 
 /**
  * Create/Alter a table in a TSDB repository handle
- * @param pRepo the TSDB repository handle
+ * @param repo the TSDB repository handle
  * @param pCfg the table configurations, the upper layer should free the pointer
- * @param error the error number to set when failure occurs
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbCreateTable(tsdb_repo_t *pRepo, STableCfg *pCfg, int32_t *error);
-int32_t tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg, int32_t *error);
+int32_t tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg);
+int32_t tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
 
 /**
  * Drop a table in a repository and free all the resources it takes
