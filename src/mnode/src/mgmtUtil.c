@@ -31,34 +31,32 @@ bool mgmtIsSuperTable(STabObj* pTableObj) {
 bool mgmtIsNormalTable(STabObj* pTableObj) {
   return !mgmtIsSuperTable(pTableObj);
 }
+//
+///**
+// * TODO: the tag offset value should be kept in memory to avoid dynamically calculating the value
+// *
+// * @param pTable
+// * @param col
+// * @param pTagColSchema
+// * @return
+// */
+//char* mgmtTableGetTag(STabObj* pTable, int32_t col, SSchema* pTagColSchema) {
+//  if (!mgmtTableCreateFromSuperTable(pTable)) {
+//    return NULL;
+//  }
+//
+//  STabObj* pSuperTable = mgmtGetTable(pTable->pTagData);
+//  int32_t  offset = mgmtGetTagsLength(pSuperTable, col) + TSDB_TABLE_ID_LEN;
+//  assert(offset > 0);
+//
+//  if (pTagColSchema != NULL) {
+//    *pTagColSchema = ((SSchema*)pSuperTable->schema)[pSuperTable->numOfColumns + col];
+//  }
+//
+//  return (pTable->pTagData + offset);
+//}
 
-/**
- * TODO: the tag offset value should be kept in memory to avoid dynamically calculating the value
- *
- * @param pTable
- * @param col
- * @param pTagColSchema
- * @return
- */
-char* mgmtTableGetTag(STabObj* pTable, int32_t col, SSchema* pTagColSchema) {
-  if (!mgmtTableCreateFromSuperTable(pTable)) {
-    return NULL;
-  }
-
-  STabObj* pSuperTable = mgmtGetTable(pTable->pTagData);
-  int32_t  offset = mgmtGetTagsLength(pSuperTable, col) + TSDB_TABLE_ID_LEN;
-  assert(offset > 0);
-
-  if (pTagColSchema != NULL) {
-    *pTagColSchema = ((SSchema*)pSuperTable->schema)[pSuperTable->numOfColumns + col];
-  }
-
-  return (pTable->pTagData + offset);
-}
-
-int32_t mgmtGetTagsLength(STabObj* pSuperTable, int32_t col) {  // length before column col
-  assert(mgmtIsSuperTable(pSuperTable) && col >= 0);
-
+int32_t mgmtGetTagsLength(SSuperTableObj* pSuperTable, int32_t col) {  // length before column col
   int32_t len = 0;
   int32_t tagColumnIndexOffset = pSuperTable->numOfColumns;
 

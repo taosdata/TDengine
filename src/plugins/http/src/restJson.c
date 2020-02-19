@@ -18,7 +18,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
-
+#include "tlog.h"
 #include "httpJson.h"
 #include "restHandle.h"
 #include "restJson.h"

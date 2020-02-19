@@ -152,9 +152,7 @@ typedef struct SSuperTableObj {
   int8_t   reserved[7];
   int8_t   updateEnd[1];
 
-
   pthread_rwlock_t rwLock;
-  struct SSuperTableObj *prev, *next;
   int16_t  nextColId;
 
   int8_t   *schema;
@@ -217,11 +215,11 @@ typedef struct _vg_obj {
   int32_t         lbIp;
   int32_t         lbTime;
   int8_t          lbStatus;
-  int8_t            reserved[16];
-  int8_t            updateEnd[1];
+  int8_t          reserved[16];
+  int8_t          updateEnd[1];
   struct _vg_obj *prev, *next;
   void *          idPool;
-  STabObj **      meterList;
+  void **         meterList;
 } SVgObj;
 
 typedef struct _db_obj {

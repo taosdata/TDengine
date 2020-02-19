@@ -18,6 +18,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "dnode.h"
 #include "monitorSystem.h"
 #include "tsclient.h"
 #include "taosdef.h"

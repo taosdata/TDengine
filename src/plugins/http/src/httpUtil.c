@@ -26,6 +26,7 @@
 
 #include "shash.h"
 #include "taos.h"
+#include "tlog.h"
 
 bool httpCheckUsedbSql(char *sql) {
   if (strstr(sql, "use ") != NULL) {

@@ -50,7 +50,7 @@ void* dnodeProcessMsgFromShell(int8_t msgType, void *pCont, int32_t contLen, voi
   }
 
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
-    rpcSendSimpleRsp(handle, TSDB_CODE_NOT_READY);
+    rpcSendResponse(handle, TSDB_CODE_NOT_READY, 0, 0);
     dTrace("conn:%p, query msg is ignored since dnode not running", handle);
     return NULL;
   }
@@ -83,7 +83,7 @@ int32_t dnodeInitShell() {
   rpcInit.localPort    = tsVnodeShellPort;
   rpcInit.label        = "DND-shell";
   rpcInit.numOfThreads = numOfThreads;
-  rpcInit.fp           = dnodeProcessMsgFromShell;
+  rpcInit.cfp           = dnodeProcessMsgFromShell;
   rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
   rpcInit.connType     = TAOS_CONN_SOCKET_TYPE_S();
   rpcInit.idleTime     = tsShellActivityTimer * 2000;
@@ -118,7 +118,7 @@ void dnodeProcessQueryRequestCb(int code, void *pQInfo, void *pConn) {
   queryRsp->code    = htonl(code);
   queryRsp->qhandle = (uint64_t) (pQInfo);
 
-  rpcSendResponse(pConn, queryRsp, contLen);
+  rpcSendResponse(pConn, TSDB_CODE_SUCCESS, queryRsp, contLen);
 }
 
 static void dnodeProcessQueryRequest(int8_t *pCont, int32_t contLen, void *pConn) {
@@ -134,7 +134,7 @@ void dnodeProcessRetrieveRequestCb(int32_t code, void *pQInfo, void *pConn) {
 
   assert(pConn != NULL);
   if (code != TSDB_CODE_SUCCESS) {
-    rpcSendSimpleRsp(pConn, code);
+    rpcSendResponse(pConn, code, 0, 0);
     return;
   }
 
@@ -142,13 +142,13 @@ void dnodeProcessRetrieveRequestCb(int32_t code, void *pQInfo, void *pConn) {
   int32_t contLen = dnodeGetRetrieveDataSize(pQInfo);
   SRetrieveMeterRsp *retrieveRsp = (SRetrieveMeterRsp *) rpcMallocCont(contLen);
   if (retrieveRsp == NULL) {
-    rpcSendSimpleRsp(pConn, TSDB_CODE_SERV_OUT_OF_MEMORY);
+    rpcSendResponse(pConn, TSDB_CODE_SERV_OUT_OF_MEMORY, 0, 0);
     return;
   }
 
   code = dnodeGetRetrieveData(pQInfo, retrieveRsp);
   if (code != TSDB_CODE_SUCCESS) {
-    rpcSendSimpleRsp(pConn, TSDB_CODE_INVALID_QHANDLE);
+    rpcSendResponse(pConn, TSDB_CODE_INVALID_QHANDLE, 0, 0);
   }
 
   retrieveRsp->numOfRows = htonl(retrieveRsp->numOfRows);
@@ -156,7 +156,7 @@ void dnodeProcessRetrieveRequestCb(int32_t code, void *pQInfo, void *pConn) {
   retrieveRsp->offset    = htobe64(retrieveRsp->offset);
   retrieveRsp->useconds  = htobe64(retrieveRsp->useconds);
 
-  rpcSendResponse(pConn, retrieveRsp, contLen);
+  rpcSendResponse(pConn, TSDB_CODE_SUCCESS, retrieveRsp, contLen);
 }
 
 static void dnodeProcessRetrieveRequest(int8_t *pCont, int32_t contLen, void *pConn) {
@@ -170,14 +170,14 @@ void dnodeProcessShellSubmitRequestCb(SShellSubmitRspMsg *result, void *pConn) {
   assert(result != NULL);
 
   if (result->code != 0) {
-    rpcSendSimpleRsp(pConn, result->code);
+    rpcSendResponse(pConn, result->code, 0, 0);
     return;
   }
 
   int32_t contLen = sizeof(SShellSubmitRspMsg) + result->numOfFailedBlocks * sizeof(SShellSubmitRspBlock);
   SShellSubmitRspMsg *submitRsp = (SShellSubmitRspMsg *) rpcMallocCont(contLen);
   if (submitRsp == NULL) {
-    rpcSendSimpleRsp(pConn, TSDB_CODE_SERV_OUT_OF_MEMORY);
+    rpcSendResponse(pConn, TSDB_CODE_SERV_OUT_OF_MEMORY, 0, 0);
     return;
   }
 
@@ -202,7 +202,7 @@ void dnodeProcessShellSubmitRequestCb(SShellSubmitRspMsg *result, void *pConn) {
   submitRsp->failedRows        = htonl(submitRsp->failedRows);
   submitRsp->numOfFailedBlocks = htonl(submitRsp->numOfFailedBlocks);
 
-  rpcSendResponse(pConn, submitRsp, contLen);
+  rpcSendResponse(pConn, TSDB_CODE_SUCCESS, submitRsp, contLen);
 }
 
 static void dnodeProcessShellSubmitRequest(int8_t *pCont, int32_t contLen, void *pConn) {

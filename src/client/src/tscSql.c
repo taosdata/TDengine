@@ -65,11 +65,8 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 
   if (ip && ip[0]) {
     tscMgmtIpList.numOfIps = 3;
-    strcpy(tscMgmtIpList.ipStr[0], ip);
     tscMgmtIpList.ip[0] = inet_addr(ip);
-    strcpy(tscMgmtIpList.ipStr[1], tsMasterIp);
     tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
-    strcpy(tscMgmtIpList.ipStr[2], tsSecondIp);
     tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
     tscMgmtIpList.index = 0;
     tscMgmtIpList.port = tsMgmtShellPort;
@@ -907,7 +904,7 @@ void taos_stop_query(TAOS_RES *res) {
     return;
   }
 
-  taosStopRpcConn(pSql->thandle);
+  //taosStopRpcConn(pSql->thandle);
   tscTrace("%p query is cancelled", res);
 }
 

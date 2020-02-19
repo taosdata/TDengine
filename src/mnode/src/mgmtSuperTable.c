@@ -93,7 +93,7 @@ void *mgmtSuperTableActionReset(void *row, char *str, int size, int *ssize) {
   SSuperTableObj *pTable = (SSuperTableObj *) row;
   int tsize = pTable->updateEnd - (int8_t *) pTable;
   memcpy(pTable, str, tsize);
-  pTable->schema = (char *) realloc(pTable->schema, pTable->schemaSize);
+  pTable->schema = realloc(pTable->schema, pTable->schemaSize);
   memcpy(pTable->schema, str + tsize, pTable->schemaSize);
   return NULL;
 }
@@ -105,20 +105,10 @@ void *mgmtSuperTableActionDestroy(void *row, char *str, int size, int *ssize) {
 }
 
 void *mgmtSuperTableActionInsert(void *row, char *str, int size, int *ssize) {
-  SSuperTableObj *pTable = (SSuperTableObj *) row;
-  SDbObj *pDb = mgmtGetDbByMeterId(pTable->tableId);
-  if (pDb) {
-    mgmtAddMetricIntoDb(pDb, pTable);
-  }
   return NULL;
 }
 
 void *mgmtSuperTableActionDelete(void *row, char *str, int size, int *ssize) {
-  SSuperTableObj *pTable = (SSuperTableObj *) row;
-  SDbObj *pDb = mgmtGetDbByMeterId(pTable->tableId);
-  if (pDb) {
-    mgmtRemoveMetricFromDb(pDb, pTable);
-  }
   return NULL;
 }
 
@@ -159,7 +149,7 @@ void *mgmtSuperTableActionDecode(void *row, char *str, int size, int *ssize) {
   }
   memcpy(pTable, str, tsize);
 
-  pTable->schema = (char *)malloc(pTable->schemaSize);
+  pTable->schema = malloc(pTable->schemaSize);
   if (pTable->schema == NULL) {
     mgmtDestroySuperTable(pTable);
     return NULL;
@@ -179,95 +169,38 @@ void *mgmtSuperTableAction(char action, void *row, char *str, int size, int *ssi
 int32_t mgmtInitSuperTables() {
   void *    pNode = NULL;
   void *    pLastNode = NULL;
-  SVgObj *  pVgroup = NULL;
-  STabObj * pTable = NULL;
-  STabObj * pMetric = NULL;
-  SDbObj *  pDb = NULL;
-  SAcctObj *pAcct = NULL;
+  SSuperTableObj * pTable = NULL;
 
   // TODO: Make sure this function only run once
   mgmtSuperTableActionInit();
 
   tsSuperTableSdb = sdbOpenTable(tsMaxTables, sizeof(STabObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_MAX_SQL_LEN,
                           "meters", SDB_KEYTYPE_STRING, mgmtDirectory, mgmtSuperTableAction);
-  if (meterSdb == NULL) {
+  if (tsSuperTableSdb == NULL) {
     mError("failed to init meter data");
     return -1;
   }
 
   pNode = NULL;
   while (1) {
-    pNode = sdbFetchRow(meterSdb, pNode, (void **)&pTable);
-    if (pTable == NULL) break;
-    if (mgmtIsSuperTable(pTable)) pTable->numOfMeters = 0;
-  }
+    pNode = sdbFetchRow(tsSuperTableSdb, pNode, (void **)&pTable);
+    if (pTable == NULL) {
+      break;
+    }
 
-  pNode = NULL;
-  while (1) {
-    pLastNode = pNode;
-    pNode = sdbFetchRow(meterSdb, pNode, (void **)&pTable);
-    if (pTable == NULL) break;
-
-    pDb = mgmtGetDbByMeterId(pTable->meterId);
+    SDbObj *pDb = mgmtGetDbByMeterId(pTable->tableId);
     if (pDb == NULL) {
-      mError("meter:%s, failed to get db, discard it", pTable->meterId, pTable->gid.vgId, pTable->gid.sid);
-      pTable->gid.vgId = 0;
-      sdbDeleteRow(meterSdb, pTable);
+      mError("super table:%s, failed to get db, discard it", pTable->tableId);
+      sdbDeleteRow(tsSuperTableSdb, pTable);
       pNode = pLastNode;
       continue;
     }
-
-    if (mgmtIsNormalTable(pTable)) {
-      pVgroup = mgmtGetVgroup(pTable->gid.vgId);
-
-      if (pVgroup == NULL) {
-        mError("meter:%s, failed to get vgroup:%d sid:%d, discard it", pTable->meterId, pTable->gid.vgId, pTable->gid.sid);
-        pTable->gid.vgId = 0;
-        sdbDeleteRow(meterSdb, pTable);
-        pNode = pLastNode;
-        continue;
-      }
-
-      if (strcmp(pVgroup->dbName, pDb->name) != 0) {
-        mError("meter:%s, db:%s not match with vgroup:%d db:%s sid:%d, discard it",
-               pTable->meterId, pDb->name, pTable->gid.vgId, pVgroup->dbName, pTable->gid.sid);
-        pTable->gid.vgId = 0;
-        sdbDeleteRow(meterSdb, pTable);
-        pNode = pLastNode;
-        continue;
-      }
-
-      if ( pVgroup->meterList == NULL) {
-        mError("meter:%s, vgroup:%d meterlist is null", pTable->meterId, pTable->gid.vgId);
-        pTable->gid.vgId = 0;
-        sdbDeleteRow(meterSdb, pTable);
-        pNode = pLastNode;
-        continue;
-      }
-
-      pVgroup->meterList[pTable->gid.sid] = pTable;
-      taosIdPoolMarkStatus(pVgroup->idPool, pTable->gid.sid, 1);
-
-      if (pTable->tableType == TSDB_TABLE_TYPE_STREAM_TABLE) {
-        pTable->pSql = (char *)pTable->schema + sizeof(SSchema) * pTable->numOfColumns;
-      }
-
-      if (mgmtTableCreateFromSuperTable(pTable)) {
-        pTable->pTagData = (char *)pTable->schema;  // + sizeof(SSchema)*pTable->numOfColumns;
-        pMetric = mgmtGetTable(pTable->pTagData);
-        if (pMetric) mgmtAddMeterIntoMetric(pMetric, pTable);
-      }
-
-      pAcct = mgmtGetAcct(pDb->cfg.acct);
-      if (pAcct) mgmtAddMeterStatisticToAcct(pTable, pAcct);
-    } else {
-      if (pDb) mgmtAddMetricIntoDb(pDb, pTable);
-    }
+    pTable->numOfMeters = 0;
   }
 
   mgmtSetVgroupIdPool();
 
-  mTrace("meter is initialized");
+  mTrace("super table is initialized");
   return 0;
 }
 
@@ -321,11 +254,8 @@ int32_t mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
 }
 
 int32_t mgmtDropSuperTable(SDbObj *pDb, SSuperTableObj *pSuperTable) {
-  SChildTableObj *pMetric;
-  while ((pMetric = pSuperTable->pHead) != NULL) {
-    mgmtDropChildTable(pDb, pMetric);
-  }
-  sdbDeleteRow(tsSuperTableSdb, pMetric);
+  //TODO drop all child tables
+  return sdbDeleteRow(tsSuperTableSdb, pSuperTable);
 }
 
 SSuperTableObj* mgmtGetSuperTable(char *tableId) {
@@ -477,7 +407,7 @@ int32_t mgmtModifySuperTableTagNameByName(SSuperTableObj *pMetric, char *oldTagN
 }
 
 
-static int32_t mgmtFindSuperTableColumnIndex(SNormalTableObj *pMetric, char *colName) {
+static int32_t mgmtFindSuperTableColumnIndex(SSuperTableObj *pMetric, char *colName) {
   SSchema *schema = (SSchema *) pMetric->schema;
   for (int32_t i = 0; i < pMetric->numOfColumns; i++) {
     if (strcasecmp(schema[i].name, colName) == 0) {
@@ -650,7 +580,7 @@ int mgmtRetrieveSuperTables(SShowObj *pShow, char *data, int rows, SConnObj *pCo
   while (numOfRows < rows) {
     pTable = (SSuperTableObj *)pShow->pNode;
     if (pTable == NULL) break;
-    pShow->pNode = (void *)pTable->next;
+    //pShow->pNode = (void *)pTable->next;
 
     if (strncmp(pTable->tableId, prefix, prefixLen)) {
       continue;
@@ -706,8 +636,6 @@ int mgmtAddMeterIntoMetric(STabObj *pMetric, STabObj *pTable) {
   pMetric->pHead = pTable;
   pMetric->numOfMeters++;
 
-  addMeterIntoMetricIndex(pMetric, pTable);
-
   pthread_rwlock_unlock(&(pMetric->rwLock));
 
   return 0;
@@ -723,8 +651,6 @@ int mgmtRemoveMeterFromMetric(STabObj *pMetric, STabObj *pTable) {
   if (pTable->prev == NULL) pMetric->pHead = pTable->next;
 
   pMetric->numOfMeters--;
-
-  removeMeterFromMetricIndex(pMetric, pTable);
 
   pthread_rwlock_unlock(&(pMetric->rwLock));
 

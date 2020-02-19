@@ -9,9 +9,8 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   INCLUDE_DIRECTORIES(inc)
   AUX_SOURCE_DIRECTORY(src SRC)
 
-  ADD_LIBRARY(dnode ${SRC})
-  #ADD_EXECUTABLE(taosd ${SRC})
-  #TARGET_LINK_LIBRARIES(taosd mnode sdb vnode taos_static monitor http)
+  ADD_EXECUTABLE(taosd ${SRC})
+  TARGET_LINK_LIBRARIES(taosd mnode sdb taos_static monitor http)
 
   #IF (TD_CLUSTER)
   #  TARGET_LINK_LIBRARIES(taosd dcluster)

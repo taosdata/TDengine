@@ -44,21 +44,6 @@
 
 extern int64_t sdbVersion;
 
-
-void *meterSdb = NULL;
-void *(*mgmtMeterActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
-
-int32_t mgmtMeterAddTags(STabObj *pMetric, SSchema schema[], int ntags);
-static void removeMeterFromMetricIndex(STabObj *pMetric, STabObj *pTable);
-static void addMeterIntoMetricIndex(STabObj *pMetric, STabObj *pTable);
-int32_t mgmtMeterDropTagByName(STabObj *pMetric, char *name);
-int32_t mgmtMeterModifyTagNameByName(STabObj *pMetric, const char *oname, const char *nname);
-int32_t mgmtMeterModifyTagValueByName(STabObj *pTable, char *tagName, char *nContent);
-int32_t mgmtMeterAddColumn(STabObj *pTable, SSchema schema[], int ncols);
-int32_t mgmtMeterDropColumnByName(STabObj *pTable, const char *name);
-static int dropMeterImp(SDbObj *pDb, STabObj * pTable, SAcctObj *pAcct);
-static void dropAllMetersOfMetric(SDbObj *pDb, STabObj * pMetric, SAcctObj *pAcct);
-
 static int32_t mgmtGetReqTagsLength(STabObj *pMetric, int16_t *cols, int32_t numOfCols) {
   assert(mgmtIsSuperTable(pMetric) && numOfCols >= 0 && numOfCols <= TSDB_MAX_TAGS + 1);
 
@@ -87,98 +72,27 @@ static void mgmtVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_
 }
 
 int mgmtInitMeters() {
-  void *    pNode = NULL;
-  void *    pLastNode = NULL;
-  SVgObj *  pVgroup = NULL;
-  STabObj * pTable = NULL;
-  STabObj * pMetric = NULL;
-  SDbObj *  pDb = NULL;
-  SAcctObj *pAcct = NULL;
-
-  // TODO: Make sure this function only run once
-  mgmtMeterActionInit();
-
-  meterSdb = sdbOpenTable(tsMaxTables, sizeof(STabObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_MAX_SQL_LEN,
-                          "meters", SDB_KEYTYPE_STRING, mgmtDirectory, mgmtMeterAction);
-  if (meterSdb == NULL) {
-    mError("failed to init meter data");
-    return -1;
+  int32_t code = mgmtInitSuperTables();
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  pNode = NULL;
-  while (1) {
-    pNode = sdbFetchRow(meterSdb, pNode, (void **)&pTable);
-    if (pTable == NULL) break;
-    if (mgmtIsSuperTable(pTable)) pTable->numOfMeters = 0;
+  code = mgmtInitNormalTables();
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  pNode = NULL;
-  while (1) {
-    pLastNode = pNode;
-    pNode = sdbFetchRow(meterSdb, pNode, (void **)&pTable);
-    if (pTable == NULL) break;
-
-    pDb = mgmtGetDbByMeterId(pTable->meterId);
-    if (pDb == NULL) {
-      mError("meter:%s, failed to get db, discard it", pTable->meterId, pTable->gid.vgId, pTable->gid.sid);
-      pTable->gid.vgId = 0;
-      sdbDeleteRow(meterSdb, pTable);
-      pNode = pLastNode;
-      continue;
-    }
-
-    if (mgmtIsNormalTable(pTable)) {
-      pVgroup = mgmtGetVgroup(pTable->gid.vgId);
-
-      if (pVgroup == NULL) {
-        mError("meter:%s, failed to get vgroup:%d sid:%d, discard it", pTable->meterId, pTable->gid.vgId, pTable->gid.sid);
-        pTable->gid.vgId = 0;
-        sdbDeleteRow(meterSdb, pTable);
-        pNode = pLastNode;
-        continue;
-      }
-
-      if (strcmp(pVgroup->dbName, pDb->name) != 0) {
-        mError("meter:%s, db:%s not match with vgroup:%d db:%s sid:%d, discard it",
-               pTable->meterId, pDb->name, pTable->gid.vgId, pVgroup->dbName, pTable->gid.sid);
-        pTable->gid.vgId = 0;
-        sdbDeleteRow(meterSdb, pTable);
-        pNode = pLastNode;
-        continue;
-      }
-
-      if ( pVgroup->meterList == NULL) {
-        mError("meter:%s, vgroup:%d meterlist is null", pTable->meterId, pTable->gid.vgId);
-        pTable->gid.vgId = 0;
-        sdbDeleteRow(meterSdb, pTable);
-        pNode = pLastNode;
-        continue;
-      }
-
-      pVgroup->meterList[pTable->gid.sid] = pTable;
-      taosIdPoolMarkStatus(pVgroup->idPool, pTable->gid.sid, 1);
-
-      if (pTable->tableType == TSDB_TABLE_TYPE_STREAM_TABLE) {
-        pTable->pSql = (char *)pTable->schema + sizeof(SSchema) * pTable->numOfColumns;
-      }
-
-      if (mgmtTableCreateFromSuperTable(pTable)) {
-        pTable->pTagData = (char *)pTable->schema;  // + sizeof(SSchema)*pTable->numOfColumns;
-        pMetric = mgmtGetTable(pTable->pTagData);
-        if (pMetric) mgmtAddMeterIntoMetric(pMetric, pTable);
-      }
-
-      pAcct = mgmtGetAcct(pDb->cfg.acct);
-      if (pAcct) mgmtAddMeterStatisticToAcct(pTable, pAcct);
-    } else {
-      if (pDb) mgmtAddMetricIntoDb(pDb, pTable);
-    }
+  code = mgmtInitStreamTables();
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  mgmtSetVgroupIdPool();
+  code = mgmtInitChildTables();
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
-  mTrace("meter is initialized");
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 STableObj mgmtGetTable(char *tableId) {
@@ -208,6 +122,11 @@ STableObj mgmtGetTable(char *tableId) {
     return table;
   }
 
+  return table;
+}
+
+STableObj mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
+  STableObj table = {0};
   return table;
 }
 
@@ -293,7 +212,7 @@ int mgmtDropTable(SDbObj *pDb, char *tableId, int ignore) {
 }
 
 int mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter) {
-  STableObj table = mgmtGetTable(tableId);
+  STableObj table = mgmtGetTable(pAlter->meterId);
   if (table.obj == NULL) {
     return TSDB_CODE_INVALID_TABLE;
   }
@@ -503,9 +422,9 @@ int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int rows, SConnObj *pCon
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (pTable->pTagData) {
-      extractTableName(superTableId, pWrite);
-    }
+//    if (pTable->pTagData) {
+//      extractTableName(superTableId, pWrite);
+//    }
     cols++;
 
     numOfRows++;

@@ -22,6 +22,7 @@
 #include "taosmsg.h"
 #include "tgHandle.h"
 #include "tgJson.h"
+#include "tlog.h"
 
 void tgInitQueryJson(HttpContext *pContext) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
