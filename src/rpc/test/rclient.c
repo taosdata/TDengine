@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 void processMsg(char type, void *pCont, int contLen, void *ahandle, int32_t code) {
-  dPrint("response is received, type:%d, contLen:%d code:%d, ahandle:%p", type, contLen, code, ahandle);
+  dPrint("response is received, type:%d, contLen:%d code:%x, ahandle:%p", type, contLen, code, ahandle);
 }
 
 int32_t main(int32_t argc, char *argv[]) {
