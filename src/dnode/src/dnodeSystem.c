@@ -19,6 +19,7 @@
 #include "taoserror.h"
 #include "tcrc32c.h"
 #include "tlog.h"
+#include "tsched.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"

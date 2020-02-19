@@ -13,16 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __MONITOR_SYSTEM_H__
-#define __MONITOR_SYSTEM_H__
+#ifndef TDENGINE_MONITOR_SYSTEM_H
+#define TDENGINE_MONITOR_SYSTEM_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdbool.h>
+#include <stdint.h>
 
-int  monitorInitSystem();
-int  monitorStartSystem();
+int32_t monitorInitSystem();
+int32_t monitorStartSystem();
 void monitorStopSystem();
 void monitorCleanUpSystem();
 
-extern void (*mnodeCountRequestFp)(SDnodeStatisInfo *info);
+#ifdef __cplusplus
+}
+#endif
 
 #endif

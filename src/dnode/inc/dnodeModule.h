@@ -56,6 +56,8 @@ void dnodeAllocModules();
 int32_t dnodeInitModules();
 void dnodeCleanUpModules();
 
+extern void (*dnodeStartModules)();
+
 #ifdef __cplusplus
 }
 #endif

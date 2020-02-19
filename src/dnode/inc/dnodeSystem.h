@@ -22,8 +22,6 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <pthread.h>
-#include "dnode.h"
 
 typedef enum {
   TSDB_DNODE_RUN_STATUS_INITIALIZE,
@@ -40,7 +38,6 @@ extern int32_t tsMaxQueues;
 extern void ** tsRpcQhandle;
 extern void *tsQueryQhandle;
 extern void *tsDnodeMgmtQhandle;
-
 
 int32_t dnodeInitSystem();
 void dnodeCleanUpSystem();

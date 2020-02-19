@@ -565,9 +565,9 @@ void   mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj
 
 
 void mgmtSendMsgToDnodeImpFp(SSchedMsg *sched) {
-  int8_t  msgType = *(sched->msg - 1);
+  int8_t  msgType = *(int8_t *) (sched->msg - sizeof(int32_t) - sizeof(int8_t));
+  int32_t contLen = *(int32_t *) (sched->msg - sizeof(int8_t));
   int8_t  *pCont  = sched->msg;
-  int32_t contLen = (int32_t) sched->ahandle;
   void    *pConn  = NULL;
 
   dnodeProcessMsgFromMgmt(pCont, contLen, msgType, pConn);
@@ -576,13 +576,13 @@ void mgmtSendMsgToDnodeImpFp(SSchedMsg *sched) {
 
 int32_t mgmtSendMsgToDnodeImp(int8_t *pCont, int32_t contLen, int8_t msgType) {
   mTrace("msg:%s is sent to dnode", taosMsg[msgType]);
-  *(pCont-1) = msgType;
+  *(int8_t *) (pCont - sizeof(int32_t) - sizeof(int8_t)) = msgType;
+  *(int32_t *) (pCont - sizeof(int8_t))                  = contLen;
 
-  SSchedMsg schedMsg;
-  schedMsg.fp      = mgmtSendMsgToDnodeImpFp;
-  schedMsg.msg     = pCont;
-  schedMsg.ahandle = (void*)contLen;
-  schedMsg.thandle = NULL;
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp  = mgmtSendMsgToDnodeImpFp;
+  schedMsg.msg = pCont;
+
   taosScheduleTask(tsDnodeMgmtQhandle, &schedMsg);
 
   return TSDB_CODE_SUCCESS;

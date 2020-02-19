@@ -14,7 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #include "os.h"
 #include "taosmsg.h"
 #include "tlog.h"
@@ -28,13 +27,13 @@
 #include "dnodeWrite.h"
 #include "dnodeVnodeMgmt.h"
 
-static int (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(int8_t *pCont, int32_t contLen, void *pConn);
+static int32_t (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);
 static void dnodeInitProcessShellMsg();
 
 void dnodeSendMsgToMnodeImpFp(SSchedMsg *sched) {
-  int8_t  msgType = *(sched->msg - 1);
+  int8_t  msgType = *(int8_t *) (sched->msg - sizeof(int32_t) - sizeof(int8_t));
+  int32_t contLen = *(int32_t *) (sched->msg - sizeof(int8_t));
   int8_t  *pCont  = sched->msg;
-  int32_t contLen = (int32_t) sched->ahandle;
   void    *pConn  = NULL;
 
   mgmtProcessMsgFromDnode(pCont, contLen, msgType, pConn);
@@ -43,13 +42,13 @@ void dnodeSendMsgToMnodeImpFp(SSchedMsg *sched) {
 
 int32_t dnodeSendMsgToMnodeImp(int8_t *pCont, int32_t contLen, int8_t msgType) {
   dTrace("msg:%s is sent to mnode", taosMsg[msgType]);
-  *(pCont-1) = msgType;
+  *(int8_t *) (pCont - sizeof(int32_t) - sizeof(int8_t)) = msgType;
+  *(int32_t *) (pCont - sizeof(int8_t))                  = contLen;
 
-  SSchedMsg schedMsg;
-  schedMsg.fp      = dnodeSendMsgToMnodeImpFp;
-  schedMsg.msg     = pCont;
-  schedMsg.ahandle = (void*)contLen;
-  schedMsg.thandle = NULL;
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp  = dnodeSendMsgToMnodeImpFp;
+  schedMsg.msg = pCont;
+
   taosScheduleTask(tsDnodeMgmtQhandle, &schedMsg);
 
   return TSDB_CODE_SUCCESS;
@@ -57,7 +56,7 @@ int32_t dnodeSendMsgToMnodeImp(int8_t *pCont, int32_t contLen, int8_t msgType) {
 
 int32_t (*dnodeSendMsgToMnode)(int8_t *pCont, int32_t contLen, int8_t msgType) = dnodeSendMsgToMnodeImp;
 
-int32_t dnodeSendSimpleRspToMnodeImp(int32_t msgType, int32_t code) {
+int32_t dnodeSendSimpleRspToMnodeImp(void *pConn, int32_t msgType, int32_t code) {
   int8_t *pCont = rpcMallocCont(sizeof(int32_t));
   *(int32_t *) pCont = code;
 
@@ -65,7 +64,7 @@ int32_t dnodeSendSimpleRspToMnodeImp(int32_t msgType, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t (*dnodeSendSimpleRspToMnode)(int32_t msgType, int32_t code) = dnodeSendSimpleRspToMnodeImp;
+int32_t (*dnodeSendSimpleRspToMnode)(void *pConn, int32_t msgType, int32_t code) = dnodeSendSimpleRspToMnodeImp;
 
 int32_t dnodeInitMgmtImp() {
   dnodeInitProcessShellMsg();
@@ -83,24 +82,24 @@ void dnodeProcessMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, vo
     dError("invalid msg type:%d", msgType);
   } else {
     if (dnodeProcessShellMsgFp[msgType]) {
-      (*dnodeProcessShellMsgFp[msgType])(pCont, contLen, pConn);
+      (*dnodeProcessShellMsgFp[msgType])(pCont, contLen, msgType, pConn);
     } else {
       dError("%s is not processed", taosMsg[msgType]);
     }
   }
 }
 
-int32_t dnodeProcessTableCfgRsp(char *pMsg, int msgLen, SMgmtObj *pObj) {
-  int32_t code = htonl(*((int32_t *) pMsg));
+int32_t dnodeProcessTableCfgRsp(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) {
+  int32_t code = htonl(*((int32_t *) pCont));
 
   if (code == TSDB_CODE_SUCCESS) {
-    SDCreateTableMsg *table = (SDCreateTableMsg *) (pMsg + sizeof(int32_t));
+    SDCreateTableMsg *table = (SDCreateTableMsg *) (pCont + sizeof(int32_t));
     return dnodeCreateTable(table);
   } else if (code == TSDB_CODE_INVALID_TABLE_ID) {
-    SDRemoveTableMsg *table = (SDRemoveTableMsg *) (pMsg + sizeof(int32_t));
-    int32_t vnode = htonl(table->vnode);
-    int32_t sid = htonl(table->sid);
-    uint64_t uid = htobe64(table->uid);
+    SDRemoveTableMsg *table = (SDRemoveTableMsg *) (pCont + sizeof(int32_t));
+    int32_t  vnode = htonl(table->vnode);
+    int32_t  sid   = htonl(table->sid);
+    uint64_t uid   = htobe64(table->uid);
     dError("vnode:%d, sid:%d table is not configured, remove it", vnode, sid);
     return dnodeDropTable(vnode, sid, uid);
   } else {
@@ -109,21 +108,21 @@ int32_t dnodeProcessTableCfgRsp(char *pMsg, int msgLen, SMgmtObj *pObj) {
   }
 }
 
-int32_t dnodeProcessCreateTableRequest(int8_t *pCont, int32_t contLen, void *pConn) {
+int32_t dnodeProcessCreateTableRequest(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) {
   SDCreateTableMsg *table = (SDCreateTableMsg *) pCont;
   int32_t code = dnodeCreateTable(table);
-  rpcSendSimpleRsp(pConn, code);
+  dnodeSendSimpleRspToMnode(pConn, msgType + 1, code);
   return code;
 }
 
-int32_t dnodeProcessAlterStreamRequest(int8_t *pCont, int32_t contLen, void *pConn) {
-  SDCreateTableMsg *table = (SDCreateTableMsg *) pCont;
-  int32_t code = dnodeCreateTable(table);
-  rpcSendSimpleRsp(pConn, code);
+int32_t dnodeProcessAlterStreamRequest(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) {
+  SAlterStreamMsg *stream = (SAlterStreamMsg *) pCont;
+  int32_t code = dnodeCreateStream(stream);
+  dnodeSendSimpleRspToMnode(pConn, msgType + 1, code);
   return code;
 }
 
-int32_t dnodeProcessRemoveTableRequest(int8_t *pCont, int32_t contLen, void *pConn) {
+int32_t dnodeProcessRemoveTableRequest(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) {
   SDRemoveTableMsg *table = (SDRemoveTableMsg *) pCont;
   int32_t vnode = htonl(table->vnode);
   int32_t sid = htonl(table->sid);
@@ -131,11 +130,11 @@ int32_t dnodeProcessRemoveTableRequest(int8_t *pCont, int32_t contLen, void *pCo
 
   dPrint("vnode:%d, sid:%d table is not configured, remove it", vnode, sid);
   int32_t code = dnodeDropTable(vnode, sid, uid);
-  rpcSendSimpleRsp(pConn, code);
+  dnodeSendSimpleRspToMnode(pConn, msgType + 1, code);
   return code;
 }
 
-int32_t dnodeProcessVPeerCfgRsp(int8_t *pCont, int32_t contLen, void *pConn) {
+int32_t dnodeProcessVPeerCfgRsp(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) {
   int32_t code = htonl(*((int32_t *) pCont));
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -153,33 +152,33 @@ int32_t dnodeProcessVPeerCfgRsp(int8_t *pCont, int32_t contLen, void *pConn) {
   }
 }
 
-int32_t dnodeProcessVPeersMsg(int8_t *pCont, int32_t contLen, void *pConn) {
+int32_t dnodeProcessVPeersMsg(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) {
   SVPeersMsg *vpeer = (SVPeersMsg *) pCont;
   int32_t vnode = htonl(vpeer->vnode);
 
   dPrint("vnode:%d, start to config", vnode);
 
   int32_t code = dnodeCreateVnode(vnode, vpeer);
-  rpcSendSimpleRsp(pConn, code);
+  dnodeSendSimpleRspToMnode(pConn, msgType + 1, code);
   return code;
 }
 
-int32_t dnodeProcessFreeVnodeRequest(int8_t *pCont, int32_t contLen, void *pConn) {
+int32_t dnodeProcessFreeVnodeRequest(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) {
   SFreeVnodeMsg *vpeer = (SFreeVnodeMsg *) pCont;
   int32_t vnode = htonl(vpeer->vnode);
 
   dPrint("vnode:%d, remove it", vnode);
 
   int32_t code = dnodeDropVnode(vnode);
-  rpcSendSimpleRsp(pConn, code);
+  dnodeSendSimpleRspToMnode(pConn, msgType + 1, code);
 
   return code;
 }
 
-int32_t dnodeProcessDnodeCfgRequest(int8_t *pCont, int32_t contLen, void *pConn) {
+int32_t dnodeProcessDnodeCfgRequest(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) {
   SCfgMsg *pCfg = (SCfgMsg *)pCont;
   int32_t code = tsCfgDynamicOptions(pCfg->config);
-  rpcSendSimpleRsp(pConn, code);
+  dnodeSendSimpleRspToMnode(pConn, msgType + 1, code);
   return code;
 }
 
@@ -190,7 +189,7 @@ void dnodeSendVpeerCfgMsg(int32_t vnode) {
   }
 
   cfg->vnode = htonl(vnode);
-  dnodeSendMsgToMnode(cfg, sizeof(SVpeerCfgMsg), TSDB_MSG_TYPE_VNODE_CFG);
+  dnodeSendMsgToMnode((int8_t*)cfg, sizeof(SVpeerCfgMsg), TSDB_MSG_TYPE_VNODE_CFG);
 }
 
 void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
@@ -200,20 +199,16 @@ void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
   }
 
   cfg->vnode = htonl(vnode);
-  dnodeSendMsgToMnode(cfg, sizeof(SMeterCfgMsg), TSDB_MSG_TYPE_TABLE_CFG);
+  dnodeSendMsgToMnode((int8_t*)cfg, sizeof(SMeterCfgMsg), TSDB_MSG_TYPE_TABLE_CFG);
 }
 
 void dnodeInitProcessShellMsg() {
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE] = dnodeProcessCreateTableRequest;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_NORMAL_TABLE] = dnodeProcessCreateTableRequest;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_STREAM_TABLE] = dnodeProcessCreateTableRequest;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_REMOVE_CHILD_TABLE] = dnodeProcessRemoveTableRequest;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_REMOVE_NORMAL_TABLE] = dnodeProcessRemoveTableRequest;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_REMOVE_STREAM_TABLE] = dnodeProcessRemoveTableRequest;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_VPEERS] = dnodeProcessVPeersMsg;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_FREE_VNODE] = dnodeProcessFreeVnodeRequest;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_CFG] = dnodeProcessDnodeCfgRequest;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_ALTER_STREAM] = dnodeProcessAlterStreamRequest;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_VNODE_CFG_RSP] = dnodeProcessVPeerCfgRsp;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_TABLE_CFG_RSP] = dnodeProcessTableCfgRsp;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_TABLE] = dnodeProcessCreateTableRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_REMOVE_TABLE] = dnodeProcessRemoveTableRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_VPEERS]       = dnodeProcessVPeersMsg;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_FREE_VNODE]   = dnodeProcessFreeVnodeRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_DNODE_CFG]          = dnodeProcessDnodeCfgRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_ALTER_STREAM]       = dnodeProcessAlterStreamRequest;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_VNODE_CFG_RSP]      = dnodeProcessVPeerCfgRsp;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_TABLE_CFG_RSP]      = dnodeProcessTableCfgRsp;
 }

@@ -22,7 +22,6 @@ extern "C" {
 
 #include <stdint.h>
 #include <pthread.h>
-#include "tsched.h"
 
 typedef struct {
   int32_t queryReqNum;
@@ -48,19 +47,19 @@ extern int32_t (*dnodeCheckSystem)();
 extern void (*dnodeInitMgmtIp)();
 extern int (*dnodeInitMgmt)();
 
+// dnodeMgmt
+void dnodeProcessMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
+extern int32_t (*dnodeSendMsgToMnode)(int8_t *pCont, int32_t contLen, int8_t msgType);
+extern int32_t (*dnodeSendSimpleRspToMnode)(void *pConn, int32_t msgType, int32_t code);
 
-int32_t (*dnodeSendMsgToMnode)(int8_t *pCont, int32_t contLen, int8_t msgType);
-int32_t (*dnodeSendSimpleRspToMnode)(int32_t msgType, int32_t code);
-
+// dnodeModule
+extern void (*dnodeStartModules)();
 
 // multilevelStorage
 extern int32_t (*dnodeInitStorage)();
 extern void (*dnodeCleanupStorage)();
 
 void dnodeCheckDataDirOpenned(const char* dir);
-
-void dnodeProcessMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
-
 
 void dnodeLockVnodes();
 void dnodeUnLockVnodes();

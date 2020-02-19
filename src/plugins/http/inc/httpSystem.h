@@ -16,9 +16,19 @@
 #ifndef TDENGINE_HTTP_SYSTEM_H
 #define TDENGINE_HTTP_SYSTEM_H
 
-int  httpInitSystem();
-int  httpStartSystem();
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+
+int32_t httpInitSystem();
+int32_t httpStartSystem();
 void httpStopSystem();
 void httpCleanUpSystem();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

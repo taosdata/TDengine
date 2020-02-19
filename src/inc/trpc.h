@@ -42,7 +42,7 @@ typedef struct {
   uint16_t localPort;                   // local port
   char *label;                          // for debug purpose
   int   numOfThreads;                   // number of threads to handle connections
-  void *(*fp)(char type, void *pCont, int contLen, void *handle, int index);  // function to process the incoming msg
+  void *(*fp)(int8_t type, void *pCont, int32_t contLen, void *handle, int32_t index);  // function to process the incoming msg
   int   sessions;                       // number of sessions allowed
   int   connType;                       // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int   idleTime;                       // milliseconds, 0 means idle timer is disabled

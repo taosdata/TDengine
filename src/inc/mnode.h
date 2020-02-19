@@ -336,16 +336,13 @@ typedef struct {
 } SShowObj;
 
 
-extern int32_t (*mgmtInitSystem)();
-extern void (*mgmtStopSystem)();
-
+//mgmtSystem
 int32_t mgmtStartSystem();
 void mgmtCleanUpSystem();
 void mgmtProcessMsgFromDnode(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
-
-
-extern void    (*mgmtCleanUpRedirect)();
-
+extern int32_t (*mgmtInitSystem)();
+extern void (*mgmtStopSystem)();
+extern void (*mgmtCleanUpRedirect)();
 
 #ifdef __cplusplus
 }

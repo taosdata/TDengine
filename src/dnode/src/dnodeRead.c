@@ -17,6 +17,7 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tlog.h"
+#include "tsched.h"
 #include "dnode.h"
 #include "dnodeRead.h"
 #include "dnodeSystem.h"
@@ -32,14 +33,14 @@ void dnodeQueryData(SQueryMeterMsg *pQuery, void *pConn, void (*callback)(int32_
 }
 
 static void dnodeExecuteRetrieveData(SSchedMsg *pSched) {
-  SRetrieveMeterMsg *pRetrieve = (SRetrieveMeterMsg *)pSched->msg;
+  //SRetrieveMeterMsg *pRetrieve = (SRetrieveMeterMsg *)pSched->msg;
   SDnodeRetrieveCallbackFp callback = (SDnodeRetrieveCallbackFp)pSched->thandle;
   void *pConn = pSched->ahandle;
 
   //examples
   int32_t code = TSDB_CODE_INVALID_QHANDLE;
   void *pQInfo = NULL; //get from pConn
-  (*callback)(code, NULL, pConn);
+  (*callback)(code, pQInfo, pConn);
 
   //TODO build response here
 
@@ -47,8 +48,8 @@ static void dnodeExecuteRetrieveData(SSchedMsg *pSched) {
 }
 
 void dnodeRetrieveData(SRetrieveMeterMsg *pRetrieve, void *pConn, SDnodeRetrieveCallbackFp callbackFp) {
-  int8_t *msg = malloc(sizeof(pRetrieve));
-  memcpy(msg, pRetrieve, sizeof(pRetrieve));
+  int8_t *msg = malloc(sizeof(SRetrieveMeterMsg));
+  memcpy(msg, pRetrieve, sizeof(SRetrieveMeterMsg));
 
   SSchedMsg schedMsg;
   schedMsg.msg     = msg;
@@ -62,6 +63,8 @@ int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveMeterRsp *retrievalRsp) {
   return 0;
 }
 
-int32_t dnodeGetRetrieveDataSize(void *pQInfo) {}
+int32_t dnodeGetRetrieveDataSize(void *pQInfo) {
+  return 0;
+}
 
 

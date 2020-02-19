@@ -59,6 +59,8 @@ int32_t dnodeCreateStream(SAlterStreamMsg *stream) {
   }
 
   //TODO create or remove stream
+
+  return 0;
 }
 
 /*

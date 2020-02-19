@@ -45,7 +45,7 @@ bool dnodeCheckVnodeExist(int32_t vid);
  * Create vnode with specified configuration and open it
  * if exist, config it
  */
-void* dnodeCreateVnode(int32_t vnode, SVPeersMsg *cfg);
+int32_t dnodeCreateVnode(int32_t vnode, SVPeersMsg *cfg);
 
 /*
  * Remove vnode from local repository

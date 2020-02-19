@@ -13,11 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __MONITOR_H__
-#define __MONITOR_H__
+#ifndef TDENGINE_MONITOR_H
+#define TDENGINE_MONITOR_H
 
-#include "tglobalcfg.h"
-#include "tlog.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+#include <stdint.h>
+
+int32_t monitorInitSystem();
+int32_t monitorStartSystem();
+void monitorStopSystem();
+void monitorCleanUpSystem();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

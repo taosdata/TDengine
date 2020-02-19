@@ -20,11 +20,13 @@
 extern "C" {
 #endif
 
-#include "tglobalcfg.h"
-#include "tlog.h"
-
+#include <stdint.h>
 
 int32_t httpGetReqCount();
+int32_t httpInitSystem();
+int32_t httpStartSystem();
+void httpStopSystem();
+void httpCleanUpSystem();
 
 #ifdef __cplusplus
 }
