@@ -1,0 +1,238 @@
+system sh/stop_dnodes.sh
+system sh/ip.sh -i 1 -s up
+system sh/deploy.sh -n dnode1 -m 192.168.0.1 -i 192.168.0.1
+system sh/cfg.sh -n dnode1 -c commitLog -v 0
+system sh/exec.sh -n dnode1 -s start
+sleep 3000
+sql connect
+
+$dbPrefix = db
+$tbPrefix = tb
+$mtPrefix = mt
+$tbNum = 6
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1: create db, supertable, subtable, and insert data
+$i = 0
+$db = db
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tag1 int, tag2 int, tag3 int)
+
+sql create table tb1 using $mt tags( 1, 20, 30 )
+sql create table tb2 using $mt tags( 2, 20, 31 )
+sql create table tb3 using $mt tags( 3, 21, 30 )
+sql create table tb4 using $mt tags( 4, 21, 31 )
+sql create table tb5 using $mt tags( 5, 22, 30 )
+sql create table tb6 using $mt tags( 6, 22, 31 )
+
+# 2020-02-02 08:00:00.000
+$startTime = 1580601600000
+$i = 1
+$tbNum = $tbNum + 1
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+ 
+  $x = 0
+  $y = 0
+  while $x < $rowNum
+    $ms = $x . s
+    sql insert into $tb values ($startTime + $ms , $y ) 
+    $x = $x + 1
+    $y = $y + 2
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 500
+
+print =============== step2
+print ===> sql select  avg_irate(tbcol) from $mt interval(5s)
+sql select  avg_irate(tbcol) from $mt interval(5s)
+print ===> $data00  $data01
+print ===> $data10  $data11
+print ===> $data20  $data21
+print ===> $data30  $data31
+print ===> $data40  $data41
+print ===> $data50  $date51
+if $data01 != 2.000000000 then 
+  return -1
+endi
+if $data11 != 2.000000000 then 
+  return -1
+endi
+if $data21 != 2.000000000 then 
+  return -1
+endi
+if $data31 != 2.000000000 then 
+  return -1
+endi
+
+print ===> sql select  avg_irate(tbcol) from $mt where ts >= '2020-02-02 08:00:05.000' interval(5s)
+sql select  avg_irate(tbcol) from $mt where ts > '2020-02-02 08:00:05.000' interval(5s)
+print ===> $data00  $data01
+print ===> $data10  $data11
+print ===> $data20  $data21
+print ===> $data30  $data31
+print ===> $data40  $data41
+print ===> $data50  $date51
+if $data01 != 2.000000000 then 
+  return -1
+endi
+if $data11 != 2.000000000 then 
+  return -1
+endi
+if $data21 != 2.000000000 then 
+  return -1
+endi
+
+print ===== sql select  avg_irate(tbcol) from $mt where ts >= '2020-02-02 08:00:05.000' and ts < '2020-02-02 08:00:13.000'  interval(5s)
+sql select  avg_irate(tbcol) from $mt where ts >= '2020-02-02 08:00:05.000' and ts < '2020-02-02 08:00:13.000'  interval(5s)
+print ===> $data00  $data01
+print ===> $data10  $data11
+print ===> $data20  $data21
+print ===> $data30  $data31
+print ===> $data40  $data41
+print ===> $data50  $date51
+if $data01 != 2.000000000 then 
+  return -1
+endi
+if $data11 != 2.000000000 then 
+  return -1
+endi
+
+print ====== sql select  avg_irate(tbcol) from $mt where ts > '2020-02-02 08:00:06.000' and ts < '2020-02-02 08:00:13.000'  interval(5s) group by tag2
+sql select  avg_irate(tbcol) from $mt where ts > '2020-02-02 08:00:06.000' and ts < '2020-02-02 08:00:13.000'  interval(5s) group by tag2
+print ===> $data00  $data01    $data02
+print ===> $data10  $data11    $data12
+print ===> $data20  $data21    $data22
+print ===> $data30  $data31    $data32
+print ===> $data40  $data41    $data42
+print ===> $data50  $date51    $date52
+if $data01 != 2.000000000 then 
+  return -1
+endi
+if $data02 != 20 then 
+  return -1
+endi
+if $data11 != 2.000000000 then 
+  return -1
+endi
+if $data12 != 20 then 
+  return -1
+endi
+if $data21 != 2.000000000 then 
+  return -1
+endi
+if $data22 != 21 then 
+  return -1
+endi
+
+if $data31 != 2.000000000 then 
+  return -1
+endi
+if $data32 != 21 then 
+  return -1
+endi
+
+if $data41 != 2.000000000 then 
+  return -1
+endi
+if $data42 != 22 then 
+  return -1
+endi
+
+if $data51 != 2.000000000 then 
+  return -1
+endi
+if $data52 != 22 then 
+  return -1
+endi
+
+print =============== zero  data: 0
+$startTime = 1580601606000
+sql create table mzero (ts timestamp, tbcol int) TAGS(tgcol binary(8))
+
+sql create table t4 using mzero tags('zero')
+sql create table t5 using mzero tags('zero')
+
+sql insert into t4 values ('2020-02-02 08:00:00.000' , 5 )
+sql insert into t4 values ('2020-02-02 08:00:01.000' , 6 )
+sql insert into t4 values ('2020-02-02 08:00:02.000' , 12 )
+sql insert into t4 values ('2020-02-02 08:00:03.000' , 18 )
+sql insert into t4 values ('2020-02-02 08:00:04.000' , 0 )
+sql insert into t4 values ('2020-02-02 08:00:05.000' , 33 )
+sql insert into t4 values ('2020-02-02 08:00:06.000' , 43 )
+sql insert into t4 values ('2020-02-02 08:00:07.000' , 51 )
+sql insert into t4 values ('2020-02-02 08:00:08.000' , 64 )
+sql insert into t4 values ('2020-02-02 08:00:09.000' , 32 )
+sql insert into t4 values ('2020-02-02 08:00:10.000' , 99 )
+sql insert into t4 values ('2020-02-02 08:00:11.000' , 111 )
+sql insert into t4 values ('2020-02-02 08:00:12.000' , 123 )
+sql insert into t4 values ('2020-02-02 08:00:13.000' , 135 )
+sql insert into t4 values ('2020-02-02 08:00:14.000' , 177 )
+sql insert into t4 values ('2020-02-02 08:00:15.000' , 222 )
+sql insert into t4 values ('2020-02-02 08:00:16.000' , 333 )
+sql insert into t4 values ('2020-02-02 08:00:17.000' , 431 )
+sql insert into t4 values ('2020-02-02 08:00:18.000' , 453 )
+sql insert into t4 values ('2020-02-02 08:00:25.000' , 578 )
+sql insert into t4 values ('2020-02-02 08:00:30.000' , 0 )
+sql insert into t4 values ('2020-02-02 08:00:33.000' , 698 )
+
+sql insert into t5 values ('2020-02-02 08:00:00.000' , 5 )
+sql insert into t5 values ('2020-02-02 08:00:01.000' , 6 )
+sql insert into t5 values ('2020-02-02 08:00:02.000' , 12 )
+sql insert into t5 values ('2020-02-02 08:00:03.000' , 18 )
+sql insert into t5 values ('2020-02-02 08:00:04.000' , 0 )
+sql insert into t5 values ('2020-02-02 08:00:05.000' , 33 )
+sql insert into t5 values ('2020-02-02 08:00:06.000' , 43 )
+sql insert into t5 values ('2020-02-02 08:00:07.000' , 51 )
+sql insert into t5 values ('2020-02-02 08:00:08.000' , 64 )
+sql insert into t5 values ('2020-02-02 08:00:09.000' , 32 )
+sql insert into t5 values ('2020-02-02 08:00:10.000' , 99 )
+sql insert into t5 values ('2020-02-02 08:00:11.000' , 111 )
+sql insert into t5 values ('2020-02-02 08:00:12.000' , 123 )
+sql insert into t5 values ('2020-02-02 08:00:13.000' , 135 )
+sql insert into t5 values ('2020-02-02 08:00:14.000' , 177 )
+sql insert into t5 values ('2020-02-02 08:00:15.000' , 222 )
+sql insert into t5 values ('2020-02-02 08:00:16.000' , 333 )
+sql insert into t5 values ('2020-02-02 08:00:17.000' , 431 )
+sql insert into t5 values ('2020-02-02 08:00:18.000' , 453 )
+sql insert into t5 values ('2020-02-02 08:00:25.000' , 578 )
+sql insert into t5 values ('2020-02-02 08:00:30.000' , 0 )
+sql insert into t5 values ('2020-02-02 08:00:33.000' , 698 )
+
+sql select avg_irate(tbcol) from mzero interval(6s);
+print ===> $data00  $data01
+print ===> $data10  $data11
+print ===> $data20  $data21
+print ===> $data30  $data31
+print ===> $data40  $data41
+print ===> $data50  $date51
+if $data01 != 33.000000000 then 
+  return -1
+endi
+if $data11 != 12.000000000 then 
+  return -1
+endi
+if $data21 != 98.000000000 then 
+  return -1
+endi
+if $data31 != 0.000000000 then 
+  return -1
+endi
+if $data41 != 0.000000000 then 
+  return -1
+endi
+if $data51 != 232.666666667 then 
+  return -1
+endi
+
+
+

@@ -1,0 +1,26 @@
+print ============= start run rate.sim
+run lite/compute/rate.sim
+
+print ============= restart server to commit data into disk and again run rate.sim
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 3000
+
+run lite/compute/rate.sim
+
+print ============= start run irate.sim
+run lite/compute/irate.sim
+
+print ============= start run sum_rate.sim
+run lite/compute/sum_rate.sim
+
+
+print ============= start run sum_irate.sim
+run lite/compute/sum_irate.sim
+
+
+print ============= start run avg_rate.sim
+run lite/compute/avg_rate.sim
+
+
+print ============= start run avg_irate.sim
+run lite/compute/avg_irate.sim
