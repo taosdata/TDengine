@@ -26,7 +26,7 @@ extern "C" {
 #ifdef TAOS_ERROR_C
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) {.val = (0x80000000 | ((mod)<<16) | (code)), .str=(msg)},
 #else
-#define TAOS_DEFINE_ERROR(name, mod, code, msg) const int32_t name = (0x80000000 | ((mod)<<16) | (code));
+#define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = (0x80000000 | ((mod)<<16) | (code));
 #endif
  
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
@@ -161,6 +161,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VNODE_STATUS,       0, 116, "invalid vnode s
 TAOS_DEFINE_ERROR(TSDB_CODE_FAILED_TO_LOCK_RESOURCES,   0, 117, "failed to lock resources")
 TAOS_DEFINE_ERROR(TSDB_CODE_TABLE_ID_MISMATCH,          0, 118, "table id mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_QUERY_CACHE_ERASED,         0, 119, "query cache erased")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG,                0, 120, "invalid message")
 
 #ifdef TAOS_ERROR_C
 };

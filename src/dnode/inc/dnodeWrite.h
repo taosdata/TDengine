@@ -35,45 +35,26 @@ extern "C" {
 void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pConn, void (*callback)(SShellSubmitRspMsg *rsp, void *pConn));
 
 /*
- * Create noraml table with specified configuration and open it
+ * Create table with specified configuration and open it
+ * if table already exist, update its schema and tag
  */
-int32_t dnodeCreateNormalTable(SCreateNormalTableMsg *table);
-
-/*
- * Create stream table with specified configuration and open it
- */
-int32_t dnodeCreateStreamTable(SCreateStreamTableMsg *table);
-
-/*
- * Create child table with specified configuration and open it
- */
-int32_t dnodeCreateChildTable(SCreateChildTableMsg *table);
-
-/*
- * Modify normal table configuration information
- *
- */
-int32_t dnodeAlterNormalTable(SCreateNormalTableMsg *table);
-
-/*
- * Modify stream table configuration information
- */
-int32_t dnodeAlterStreamTable(SCreateStreamTableMsg *table);
-
-/*
- * Modify child table configuration information
- */
-int32_t dnodeAlterChildTable(SCreateChildTableMsg *table);
-
-/*
- * Remove all child tables of supertable from local repository
- */
-int32_t dnodeDropSuperTable(int vid, int sid, int64_t uid);
+int32_t dnodeCreateTable(SDCreateTableMsg *table);
 
 /*
  * Remove table from local repository
  */
-int32_t dnodeDropTable(int vid, int sid, int64_t uid);
+int32_t dnodeDropTable(int32_t vnode, int32_t sid, uint64_t uid);
+
+/*
+ * Create stream
+ * if stream already exist, update it
+ */
+int32_t dnodeCreateStream(SAlterStreamMsg *stream);
+
+/*
+ * Remove all child tables of supertable from local repository
+ */
+int32_t dnodeDropSuperTable(uint64_t stableUid);
 
 #ifdef __cplusplus
 }

@@ -13,13 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "dnodeUtil.h"
+#ifndef TDENGINE_MONITOR_SYSTEM_H
+#define TDENGINE_MONITOR_SYSTEM_H
 
-EVnodeStatus dnodeGetVnodeStatus(int32_t vnode) {
-  return TSDB_VN_STATUS_MASTER;
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-bool dnodeCheckVnodeExist(int32_t vnode) {
-  return true;
+#include <stdbool.h>
+#include <stdint.h>
+
+int32_t monitorInitSystem();
+int32_t monitorStartSystem();
+void monitorStopSystem();
+void monitorCleanUpSystem();
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif

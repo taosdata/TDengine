@@ -30,6 +30,7 @@
 #include "lz4.h"
 #include "tconncache.h"
 #include "trpc.h"
+#include "taoserror.h"
 
 #define RPC_MSG_OVERHEAD (sizeof(SRpcReqContext) + sizeof(SRpcHeader) + sizeof(SRpcDigest)) 
 #define rpcHeaderFromCont(cont) ((SRpcHeader *) (cont - sizeof(SRpcHeader)))

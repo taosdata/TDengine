@@ -30,6 +30,7 @@ extern "C" {
 #include "taosdef.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
+#include "trpc.h"
 
 #define TSC_GET_RESPTR_BASE(res, _queryinfo, col, ord)                     \
   (res->data + tscFieldInfoGetOffset(_queryinfo, col) * res->numOfRows)
@@ -324,6 +325,7 @@ typedef struct _sql_obj {
   int64_t           stime;
   uint32_t          queryId;
   void *            thandle;
+  SRpcIpSet         ipSet;
   void *            pStream;
   void *            pSubscription;
   char *            sqlstr;
@@ -370,12 +372,6 @@ typedef struct _sstream {
   void (*callback)(void *);  // Callback function when stream is stopped from client level
   struct _sstream *prev, *next;
 } SSqlStream;
-
-typedef struct {
-  char     numOfIps;
-  uint32_t ip[TSDB_MAX_MGMT_IPS];
-  char     ipstr[TSDB_MAX_MGMT_IPS][TSDB_IPv4ADDR_LEN];
-} SIpStrList;
 
 // tscSql API
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
@@ -461,7 +457,7 @@ extern void *     tscQhandle;
 extern int        tscKeepConn[];
 extern int        tsInsertHeadSize;
 extern int        tscNumOfThreads;
-extern SIpStrList tscMgmtIpList;
+extern SRpcIpSet  tscMgmtIpList;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int numOfRows);
 

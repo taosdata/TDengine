@@ -16,10 +16,18 @@
 #ifndef _rpc_hash_ip_header_
 #define _rpc_hash_ip_header_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void *taosOpenIpHash(int maxSessions);
 void taosCloseIpHash(void *handle);
 void *taosAddIpHash(void *handle, void *pData, uint32_t ip, uint16_t port);
 void taosDeleteIpHash(void *handle, uint32_t ip, uint16_t port);
 void *taosGetIpHash(void *handle, uint32_t ip, uint16_t port);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

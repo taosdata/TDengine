@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "tlog.h"
 #include "dnodeWrite.h"
+#include "dnodeVnodeMgmt.h"
 
 void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pConn, void (*callback)(SShellSubmitRspMsg *rsp, void *pConn)) {
   SShellSubmitRspMsg result = {0};
@@ -32,35 +33,40 @@ void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pConn, void (*callback)(SShe
   //TODO: submit implementation
 }
 
-int32_t dnodeCreateNormalTable(SCreateNormalTableMsg *table) {
+int32_t dnodeCreateTable(SDCreateTableMsg *table) {
+  return TSDB_CODE_SUCCESS;
+}
+
+
+/*
+ * Remove table from local repository
+ */
+int32_t dnodeDropTable(int32_t vnode, int32_t sid, uint64_t uid) {
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Create stream
+ * if stream already exist, update it
+ */
+int32_t dnodeCreateStream(SAlterStreamMsg *stream) {
+  int32_t vnode = htonl(stream->vnode);
+  int32_t sid = htonl(stream->sid);
+  uint64_t uid = htobe64(stream->uid);
+
+  if (!dnodeCheckTableExist(vnode, sid, uid)) {
+    return TSDB_CODE_INVALID_TABLE;
+  }
+
+  //TODO create or remove stream
+
   return 0;
 }
 
-int32_t dnodeCreateStreamTable(SCreateStreamTableMsg *table) {
-  return 0;
-}
-
-int32_t dnodeCreateChildTable(SCreateChildTableMsg *table) {
-  return 0;
-}
-
-int32_t dnodeAlterNormalTable(SCreateNormalTableMsg *table) {
-  return 0;
-}
-
-int32_t dnodeAlterStreamTable(SCreateStreamTableMsg *table) {
-  return 0;
-}
-
-int32_t dnodeAlterChildTable(SCreateChildTableMsg *table) {
-  return 0;
-}
-
-int32_t dnodeDropSuperTable(int vid, int sid, int64_t uid) {
-  return 0;
-}
-
-int32_t dnodeDropTable(int vid, int sid, int64_t uid) {
-  return 0;
+/*
+ * Remove all child tables of supertable from local repository
+ */
+int32_t dnodeDropSuperTable(uint64_t stableUid) {
+  return TSDB_CODE_SUCCESS;
 }
 

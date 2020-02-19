@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "lodash": "^4.17.13",
-    "yarn": "^1.21.1"
+    "yarn": "^1.22.0"
   },
   "homepage": "https://github.com/taosdata/TDengine/tree/develop/src/connector/grafana/tdengine"
 }

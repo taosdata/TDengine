@@ -17,41 +17,41 @@
 #include "os.h"
 #include "tlog.h"
 #include "tglobalcfg.h"
+#include "mnode.h"
+#include "http.h"
+#include "monitor.h"
 #include "dnodeModule.h"
 #include "dnodeSystem.h"
-#include "monitorSystem.h"
-#include "httpSystem.h"
-#include "mgmtSystem.h"
 
-SModule tsModule[TSDB_MOD_MAX] = {0};
-uint32_t tsModuleStatus = 0;
+SModule  tsModule[TSDB_MOD_MAX] = {0};
+uint32_t tsModuleStatus         = 0;
 
 void dnodeAllocModules() {
-  tsModule[TSDB_MOD_MGMT].name = "mgmt";
-  tsModule[TSDB_MOD_MGMT].initFp = mgmtInitSystem;
-  tsModule[TSDB_MOD_MGMT].cleanUpFp = mgmtCleanUpSystem;
-  tsModule[TSDB_MOD_MGMT].startFp = mgmtStartSystem;
-  tsModule[TSDB_MOD_MGMT].stopFp = mgmtStopSystem;
-  tsModule[TSDB_MOD_MGMT].num = tsNumOfMPeers;
-  tsModule[TSDB_MOD_MGMT].curNum = 0;
+  tsModule[TSDB_MOD_MGMT].name          = "mgmt";
+  tsModule[TSDB_MOD_MGMT].initFp        = mgmtInitSystem;
+  tsModule[TSDB_MOD_MGMT].cleanUpFp     = mgmtCleanUpSystem;
+  tsModule[TSDB_MOD_MGMT].startFp       = mgmtStartSystem;
+  tsModule[TSDB_MOD_MGMT].stopFp        = mgmtStopSystem;
+  tsModule[TSDB_MOD_MGMT].num           = tsNumOfMPeers;
+  tsModule[TSDB_MOD_MGMT].curNum        = 0;
   tsModule[TSDB_MOD_MGMT].equalVnodeNum = tsMgmtEqualVnodeNum;
 
-  tsModule[TSDB_MOD_HTTP].name = "http";
-  tsModule[TSDB_MOD_HTTP].initFp = httpInitSystem;
-  tsModule[TSDB_MOD_HTTP].cleanUpFp = httpCleanUpSystem;
-  tsModule[TSDB_MOD_HTTP].startFp = httpStartSystem;
-  tsModule[TSDB_MOD_HTTP].stopFp = httpStopSystem;
-  tsModule[TSDB_MOD_HTTP].num = (tsEnableHttpModule == 1) ? -1 : 0;
-  tsModule[TSDB_MOD_HTTP].curNum = 0;
+  tsModule[TSDB_MOD_HTTP].name          = "http";
+  tsModule[TSDB_MOD_HTTP].initFp        = httpInitSystem;
+  tsModule[TSDB_MOD_HTTP].cleanUpFp     = httpCleanUpSystem;
+  tsModule[TSDB_MOD_HTTP].startFp       = httpStartSystem;
+  tsModule[TSDB_MOD_HTTP].stopFp        = httpStopSystem;
+  tsModule[TSDB_MOD_HTTP].num           = (tsEnableHttpModule == 1) ? -1 : 0;
+  tsModule[TSDB_MOD_HTTP].curNum        = 0;
   tsModule[TSDB_MOD_HTTP].equalVnodeNum = 0;
 
-  tsModule[TSDB_MOD_MONITOR].name = "monitor";
-  tsModule[TSDB_MOD_MONITOR].initFp = monitorInitSystem;
-  tsModule[TSDB_MOD_MONITOR].cleanUpFp = monitorCleanUpSystem;
-  tsModule[TSDB_MOD_MONITOR].startFp = monitorStartSystem;
-  tsModule[TSDB_MOD_MONITOR].stopFp = monitorStopSystem;
-  tsModule[TSDB_MOD_MONITOR].num = (tsEnableMonitorModule == 1) ? -1 : 0;
-  tsModule[TSDB_MOD_MONITOR].curNum = 0;
+  tsModule[TSDB_MOD_MONITOR].name          = "monitor";
+  tsModule[TSDB_MOD_MONITOR].initFp        = monitorInitSystem;
+  tsModule[TSDB_MOD_MONITOR].cleanUpFp     = monitorCleanUpSystem;
+  tsModule[TSDB_MOD_MONITOR].startFp       = monitorStartSystem;
+  tsModule[TSDB_MOD_MONITOR].stopFp        = monitorStopSystem;
+  tsModule[TSDB_MOD_MONITOR].num           = (tsEnableMonitorModule == 1) ? -1 : 0;
+  tsModule[TSDB_MOD_MONITOR].curNum        = 0;
   tsModule[TSDB_MOD_MONITOR].equalVnodeNum = 0;
 }
 
@@ -71,7 +71,7 @@ void dnodeCleanUpModules() {
 }
 
 void dnodeProcessModuleStatus(uint32_t status) {
-  if (tsDnodeRunStatus) {
+  if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
     return;
   }
 
@@ -112,7 +112,7 @@ int32_t dnodeInitModules() {
     }
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 void dnodeStartModulesImp() {
@@ -128,4 +128,5 @@ void dnodeStartModulesImp() {
     (*tsModule[TSDB_MOD_MGMT].cleanUpFp)();
   }
 }
+
 void (*dnodeStartModules)() = dnodeStartModulesImp;

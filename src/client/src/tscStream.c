@@ -19,7 +19,7 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
-
+#include "tsched.h"
 #include "taosmsg.h"
 #include "tscUtil.h"
 #include "tsclient.h"

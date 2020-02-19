@@ -26,30 +26,8 @@ char *taosMsg[] = {
     "create-table",
     "create-table-rsp",        //10
 
-    "create-normal-table",
-    "create-normal-table-rsp",
-    "create-stream-table",
-    "create-stream-table-rsp",
-    "create-super-table",
-    "create-super-table-rsp",
     "remove-table",
     "remove-table-rsp",
-    "remove-normal-table",
-    "remove-normal-table-rsp",  //20
-
-    "remove-stream-table",
-    "remove-stream-table-rsp",
-    "remove-super-table",
-    "remove-super-table-rsp",
-    "alter-table",
-    "alter-table-rsp",
-    "alter-normal-table",
-    "alter-normal-table-rsp",
-    "alter-stream-table",
-    "alter-stream-table-rsp",  //30
-
-    "alter-super-table",
-    "alter-super-table-rsp",
     "vpeers",
     "vpeers-rsp",
     "free-vnode",
@@ -57,7 +35,7 @@ char *taosMsg[] = {
     "cfg-dnode",
     "cfg-dnode-rsp",
     "alter-stream",
-    "alter-stream-rsp",        //40
+    "alter-stream-rsp",        //20
 
     "sync",
     "sync-rsp",
@@ -68,7 +46,7 @@ char *taosMsg[] = {
     "",
     "",
     "",
-    "",                        //50
+    "",                        //30
 
     "connect",
     "connect-rsp",
@@ -79,7 +57,7 @@ char *taosMsg[] = {
     "drop-acct",
     "drop-acct-rsp",
     "create-user",
-    "create-user-rsp",         //60
+    "create-user-rsp",         //40
 
     "alter-user",
     "alter-user-rsp",
@@ -90,7 +68,7 @@ char *taosMsg[] = {
     "drop-mnode",
     "drop-mnode-rsp",
     "create-dnode",
-    "create-dnode-rsp",        //70
+    "create-dnode-rsp",        //50
 
     "drop-dnode",
     "drop-dnode-rsp",
@@ -101,7 +79,7 @@ char *taosMsg[] = {
     "drop-db",
     "drop-db-rsp",
     "use-db",
-    "use-db-rsp",              //80
+    "use-db-rsp",              //60
 
     "alter-db",
     "alter-db-rsp",
@@ -112,7 +90,7 @@ char *taosMsg[] = {
     "alter-table",
     "alter-table-rsp",
     "cfg-vnode",
-    "cfg-vnode-rsp",           //90
+    "cfg-vnode-rsp",           //70
 
     "cfg-table",
     "cfg-table-rsp",
@@ -123,7 +101,7 @@ char *taosMsg[] = {
     "multi-table-meta",
     "multi-table-meta-rsp",
     "alter-stream",
-    "alter-stream-rsp",        //100
+    "alter-stream-rsp",        //80
 
     "show",
     "show-rsp",
@@ -134,7 +112,7 @@ char *taosMsg[] = {
     "kill-stream",
     "kill-stream-rsp",
     "kill-connection",
-    "kill-connectoin-rsp",     //110
+    "kill-connectoin-rsp",     //90
 
     "heart-beat",
     "heart-beat-rsp",

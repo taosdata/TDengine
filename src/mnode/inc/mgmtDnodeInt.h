@@ -38,14 +38,11 @@ int mgmtSendOneFreeVnodeMsg(SVnodeGid *pVnodeGid);
 char *taosBuildRspMsgToDnode(SDnodeObj *pObj, char type);
 char *taosBuildReqMsgToDnode(SDnodeObj *pObj, char type);
 
-extern char*   (*taosBuildRspMsgToDnodeWithSize)(SDnodeObj *pObj, char type, int32_t size);
-extern char*   (*taosBuildReqMsgToDnodeWithSize)(SDnodeObj *pObj, char type, int32_t size);
-extern int32_t (*taosSendSimpleRspToDnode)(SDnodeObj *pObj, char rsptype, char code);
-extern int32_t (*taosSendMsgToDnode)(SDnodeObj *pObj, char *msg, int32_t msgLen);
+extern int32_t (*mgmtSendSimpleRspToDnode)(int32_t msgType, int32_t code);
+extern int32_t (*mgmtSendMsgToDnode)(SDnodeObj *pObj, char *msg, int msgLen);
 extern int32_t (*mgmtInitDnodeInt)();
 extern void    (*mgmtCleanUpDnodeInt)();
 extern void    (*mgmtProcessDnodeStatus)(void *handle, void *tmrId);
-extern void    (*mgmtProcessMsgFromDnodeSpec)(SSchedMsg *sched);
 
 
 #ifdef __cplusplus

@@ -64,15 +64,15 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
   }
 
   if (ip && ip[0]) {
-    tscMgmtIpList.numOfIps = 4;
-    strcpy(tscMgmtIpList.ipstr[0], ip);
+    tscMgmtIpList.numOfIps = 3;
+    strcpy(tscMgmtIpList.ipStr[0], ip);
     tscMgmtIpList.ip[0] = inet_addr(ip);
-    strcpy(tscMgmtIpList.ipstr[1], ip);
-    tscMgmtIpList.ip[1] = inet_addr(ip);
-    strcpy(tscMgmtIpList.ipstr[2], tsMasterIp);
-    tscMgmtIpList.ip[2] = inet_addr(tsMasterIp);
-    strcpy(tscMgmtIpList.ipstr[3], tsSecondIp);
-    tscMgmtIpList.ip[3] = inet_addr(tsSecondIp);
+    strcpy(tscMgmtIpList.ipStr[1], tsMasterIp);
+    tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
+    strcpy(tscMgmtIpList.ipStr[2], tsSecondIp);
+    tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
+    tscMgmtIpList.index = 0;
+    tscMgmtIpList.port = tsMgmtShellPort;
   }
 
   pObj = (STscObj *)malloc(sizeof(STscObj));
@@ -1034,7 +1034,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   pCmd->command = TSDB_SQL_MULTI_META;
   pCmd->count = 0;
 
-  int   code = TSDB_CODE_INVALID_METER_ID;
+  int   code = TSDB_CODE_INVALID_TABLE_ID;
   char *str = (char *)tblNameList;
 
   SQueryInfo *pQueryInfo = NULL;
@@ -1070,7 +1070,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
 
     // Check if the table name available or not
     if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {
-      code = TSDB_CODE_INVALID_METER_ID;
+      code = TSDB_CODE_INVALID_TABLE_ID;
       sprintf(pCmd->payload, "table name is invalid");
       return code;
     }
@@ -1080,7 +1080,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
     }
 
     if (++pCmd->count > TSDB_MULTI_METERMETA_MAX_NUM) {
-      code = TSDB_CODE_INVALID_METER_ID;
+      code = TSDB_CODE_INVALID_TABLE_ID;
       sprintf(pCmd->payload, "tables over the max number");
       return code;
     }

@@ -28,118 +28,97 @@ extern "C" {
 #include "taosdef.h"
 
 // message type
-#define TSDB_MSG_TYPE_REG                           1
-#define TSDB_MSG_TYPE_REG_RSP                       2
-#define TSDB_MSG_TYPE_DNODE_SUBMIT                  3
-#define TSDB_MSG_TYPE_DNODE_SUBMIT_RSP              4
-#define TSDB_MSG_TYPE_DNODE_QUERY                   5
-#define TSDB_MSG_TYPE_DNODE_QUERY_RSP               6
-#define TSDB_MSG_TYPE_DNODE_RETRIEVE                7
-#define TSDB_MSG_TYPE_DNODE_RETRIEVE_RSP            8
-#define TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE      9
-#define TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE_RSP  10
-#define TSDB_MSG_TYPE_DNODE_CREATE_NORMAL_TABLE     11
-#define TSDB_MSG_TYPE_DNODE_CREATE_NORMAL_TABLE_RSP 12
-#define TSDB_MSG_TYPE_DNODE_CREATE_STREAM_TABLE     13
-#define TSDB_MSG_TYPE_DNODE_CREATE_STREAM_TABLE_RSP 14
-#define TSDB_MSG_TYPE_DNODE_CREATE_SUPER_TABLE      15
-#define TSDB_MSG_TYPE_DNODE_CREATE_SUPER_TABLE_RSP  16
-#define TSDB_MSG_TYPE_DNODE_REMOVE_CHILD_TABLE      17
-#define TSDB_MSG_TYPE_DNODE_REMOVE_CHILD_TABLE_RSP  18
-#define TSDB_MSG_TYPE_DNODE_REMOVE_NORMAL_TABLE     19
-#define TSDB_MSG_TYPE_DNODE_REMOVE_NORMAL_TABLE_RSP 20
-#define TSDB_MSG_TYPE_DNODE_REMOVE_STREAM_TABLE     21
-#define TSDB_MSG_TYPE_DNODE_REMOVE_STREAM_TABLE_RSP 22
-#define TSDB_MSG_TYPE_DNODE_REMOVE_SUPER_TABLE      23
-#define TSDB_MSG_TYPE_DNODE_REMOVE_SUPER_TABLE_RSP  24
-#define TSDB_MSG_TYPE_DNODE_ALTER_CHILD_TABLE       25
-#define TSDB_MSG_TYPE_DNODE_ALTER_CHILD_TABLE_RSP   26
-#define TSDB_MSG_TYPE_DNODE_ALTER_NORMAL_TABLE      27
-#define TSDB_MSG_TYPE_DNODE_ALTER_NORMAL_TABLE_RSP  28
-#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM_TABLE      29
-#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM_TABLE_RSP  30
-#define TSDB_MSG_TYPE_DNODE_ALTER_SUPER_TABLE       31
-#define TSDB_MSG_TYPE_DNODE_ALTER_SUPER_TABLE_RSP   32
-#define TSDB_MSG_TYPE_DNODE_VPEERS                  33
-#define TSDB_MSG_TYPE_DNODE_VPEERS_RSP              34
-#define TSDB_MSG_TYPE_DNODE_FREE_VNODE              35
-#define TSDB_MSG_TYPE_DNODE_FREE_VNODE_RSP          36
-#define TSDB_MSG_TYPE_DNODE_CFG                     37
-#define TSDB_MSG_TYPE_DNODE_CFG_RSP                 38
-#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM            39
-#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM_RSP        40
-
-#define TSDB_MSG_TYPE_SDB_SYNC             41
-#define TSDB_MSG_TYPE_SDB_SYNC_RSP         42
-#define TSDB_MSG_TYPE_SDB_FORWARD          43
-#define TSDB_MSG_TYPE_SDB_FORWARD_RSP      44
-#define TSDB_MSG_TYPE_CONNECT              51
-#define TSDB_MSG_TYPE_CONNECT_RSP          52
-#define TSDB_MSG_TYPE_CREATE_ACCT          53
-#define TSDB_MSG_TYPE_CREATE_ACCT_RSP      54
-#define TSDB_MSG_TYPE_ALTER_ACCT           55
-#define TSDB_MSG_TYPE_ALTER_ACCT_RSP       56
-#define TSDB_MSG_TYPE_DROP_ACCT            57
-#define TSDB_MSG_TYPE_DROP_ACCT_RSP        58
-#define TSDB_MSG_TYPE_CREATE_USER          59
-#define TSDB_MSG_TYPE_CREATE_USER_RSP      60
-#define TSDB_MSG_TYPE_ALTER_USER           61
-#define TSDB_MSG_TYPE_ALTER_USER_RSP       62
-#define TSDB_MSG_TYPE_DROP_USER            63
-#define TSDB_MSG_TYPE_DROP_USER_RSP        64
-#define TSDB_MSG_TYPE_CREATE_MNODE         65
-#define TSDB_MSG_TYPE_CREATE_MNODE_RSP     66
-#define TSDB_MSG_TYPE_DROP_MNODE           67
-#define TSDB_MSG_TYPE_DROP_MNODE_RSP       68
-#define TSDB_MSG_TYPE_CREATE_DNODE         69
-#define TSDB_MSG_TYPE_CREATE_DNODE_RSP     70
-#define TSDB_MSG_TYPE_DROP_DNODE           71
-#define TSDB_MSG_TYPE_DROP_DNODE_RSP       72
-#define TSDB_MSG_TYPE_ALTER_DNODE          73
-#define TSDB_MSG_TYPE_ALTER_DNODE_RSP      74
-#define TSDB_MSG_TYPE_CREATE_DB            75
-#define TSDB_MSG_TYPE_CREATE_DB_RSP        76
-#define TSDB_MSG_TYPE_DROP_DB              77
-#define TSDB_MSG_TYPE_DROP_DB_RSP          78
-#define TSDB_MSG_TYPE_USE_DB               79
-#define TSDB_MSG_TYPE_USE_DB_RSP           80
-#define TSDB_MSG_TYPE_ALTER_DB             81
-#define TSDB_MSG_TYPE_ALTER_DB_RSP         82
-#define TSDB_MSG_TYPE_CREATE_TABLE         83
-#define TSDB_MSG_TYPE_CREATE_TABLE_RSP     84
-#define TSDB_MSG_TYPE_DROP_TABLE           85
-#define TSDB_MSG_TYPE_DROP_TABLE_RSP       86
-#define TSDB_MSG_TYPE_ALTER_TABLE          87
-#define TSDB_MSG_TYPE_ALTER_TABLE_RSP      88
-#define TSDB_MSG_TYPE_VNODE_CFG            89
-#define TSDB_MSG_TYPE_VNODE_CFG_RSP        90
-#define TSDB_MSG_TYPE_TABLE_CFG            91
-#define TSDB_MSG_TYPE_TABLE_CFG_RSP        92
-#define TSDB_MSG_TYPE_TABLE_META           93
-#define TSDB_MSG_TYPE_TABLE_META_RSP       94
-#define TSDB_MSG_TYPE_STABLE_META          95
-#define TSDB_MSG_TYPE_STABLE_META_RSP      96
-#define TSDB_MSG_TYPE_MULTI_TABLE_META     97
-#define TSDB_MSG_TYPE_MULTI_TABLE_META_RSP 98
-#define TSDB_MSG_TYPE_ALTER_STREAM         99
-#define TSDB_MSG_TYPE_ALTER_STREAM_RSP     100
-#define TSDB_MSG_TYPE_SHOW                 101
-#define TSDB_MSG_TYPE_SHOW_RSP             102
-#define TSDB_MSG_TYPE_CFG_MNODE            103
-#define TSDB_MSG_TYPE_CFG_MNODE_RSP        104
-#define TSDB_MSG_TYPE_KILL_QUERY           105
-#define TSDB_MSG_TYPE_KILL_QUERY_RSP       106
-#define TSDB_MSG_TYPE_KILL_STREAM          107
-#define TSDB_MSG_TYPE_KILL_STREAM_RSP      108
-#define TSDB_MSG_TYPE_KILL_CONNECTION      109
-#define TSDB_MSG_TYPE_KILL_CONNECTION_RSP  110
-#define TSDB_MSG_TYPE_HEARTBEAT            111
-#define TSDB_MSG_TYPE_HEARTBEAT_RSP        112
-#define TSDB_MSG_TYPE_STATUS               113
-#define TSDB_MSG_TYPE_STATUS_RSP           114
-#define TSDB_MSG_TYPE_GRANT                115
-#define TSDB_MSG_TYPE_GRANT_RSP            116
-#define TSDB_MSG_TYPE_MAX                  117
+#define TSDB_MSG_TYPE_REG                    1
+#define TSDB_MSG_TYPE_REG_RSP                2
+#define TSDB_MSG_TYPE_DNODE_SUBMIT           3
+#define TSDB_MSG_TYPE_DNODE_SUBMIT_RSP       4
+#define TSDB_MSG_TYPE_DNODE_QUERY            5
+#define TSDB_MSG_TYPE_DNODE_QUERY_RSP        6
+#define TSDB_MSG_TYPE_DNODE_RETRIEVE         7
+#define TSDB_MSG_TYPE_DNODE_RETRIEVE_RSP     8
+#define TSDB_MSG_TYPE_DNODE_CREATE_TABLE     9
+#define TSDB_MSG_TYPE_DNODE_CREATE_TABLE_RSP 10
+#define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE     11
+#define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE_RSP 12
+#define TSDB_MSG_TYPE_DNODE_VPEERS           13
+#define TSDB_MSG_TYPE_DNODE_VPEERS_RSP       14
+#define TSDB_MSG_TYPE_DNODE_FREE_VNODE       15
+#define TSDB_MSG_TYPE_DNODE_FREE_VNODE_RSP   16
+#define TSDB_MSG_TYPE_DNODE_CFG              17
+#define TSDB_MSG_TYPE_DNODE_CFG_RSP          18
+#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM     19
+#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM_RSP 20
+#define TSDB_MSG_TYPE_SDB_SYNC               21
+#define TSDB_MSG_TYPE_SDB_SYNC_RSP           22
+#define TSDB_MSG_TYPE_SDB_FORWARD            23
+#define TSDB_MSG_TYPE_SDB_FORWARD_RSP        24
+#define TSDB_MSG_TYPE_CONNECT                31
+#define TSDB_MSG_TYPE_CONNECT_RSP            32
+#define TSDB_MSG_TYPE_CREATE_ACCT            33
+#define TSDB_MSG_TYPE_CREATE_ACCT_RSP        34
+#define TSDB_MSG_TYPE_ALTER_ACCT             35
+#define TSDB_MSG_TYPE_ALTER_ACCT_RSP         36
+#define TSDB_MSG_TYPE_DROP_ACCT              37
+#define TSDB_MSG_TYPE_DROP_ACCT_RSP          38
+#define TSDB_MSG_TYPE_CREATE_USER            39
+#define TSDB_MSG_TYPE_CREATE_USER_RSP        40
+#define TSDB_MSG_TYPE_ALTER_USER             41
+#define TSDB_MSG_TYPE_ALTER_USER_RSP         42
+#define TSDB_MSG_TYPE_DROP_USER              43
+#define TSDB_MSG_TYPE_DROP_USER_RSP          44
+#define TSDB_MSG_TYPE_CREATE_MNODE           45
+#define TSDB_MSG_TYPE_CREATE_MNODE_RSP       46
+#define TSDB_MSG_TYPE_DROP_MNODE             47
+#define TSDB_MSG_TYPE_DROP_MNODE_RSP         48
+#define TSDB_MSG_TYPE_CREATE_DNODE           49
+#define TSDB_MSG_TYPE_CREATE_DNODE_RSP       50
+#define TSDB_MSG_TYPE_DROP_DNODE             51
+#define TSDB_MSG_TYPE_DROP_DNODE_RSP         52
+#define TSDB_MSG_TYPE_ALTER_DNODE            53
+#define TSDB_MSG_TYPE_ALTER_DNODE_RSP        54
+#define TSDB_MSG_TYPE_CREATE_DB              55
+#define TSDB_MSG_TYPE_CREATE_DB_RSP          56
+#define TSDB_MSG_TYPE_DROP_DB                57
+#define TSDB_MSG_TYPE_DROP_DB_RSP            58
+#define TSDB_MSG_TYPE_USE_DB                 59
+#define TSDB_MSG_TYPE_USE_DB_RSP             60
+#define TSDB_MSG_TYPE_ALTER_DB               61
+#define TSDB_MSG_TYPE_ALTER_DB_RSP           62
+#define TSDB_MSG_TYPE_CREATE_TABLE           63
+#define TSDB_MSG_TYPE_CREATE_TABLE_RSP       64
+#define TSDB_MSG_TYPE_DROP_TABLE             65
+#define TSDB_MSG_TYPE_DROP_TABLE_RSP         66
+#define TSDB_MSG_TYPE_ALTER_TABLE            67
+#define TSDB_MSG_TYPE_ALTER_TABLE_RSP        68
+#define TSDB_MSG_TYPE_VNODE_CFG              69
+#define TSDB_MSG_TYPE_VNODE_CFG_RSP          70
+#define TSDB_MSG_TYPE_TABLE_CFG              71
+#define TSDB_MSG_TYPE_TABLE_CFG_RSP          72
+#define TSDB_MSG_TYPE_TABLE_META             73
+#define TSDB_MSG_TYPE_TABLE_META_RSP         74
+#define TSDB_MSG_TYPE_STABLE_META            75
+#define TSDB_MSG_TYPE_STABLE_META_RSP        76
+#define TSDB_MSG_TYPE_MULTI_TABLE_META       77
+#define TSDB_MSG_TYPE_MULTI_TABLE_META_RSP   78
+#define TSDB_MSG_TYPE_ALTER_STREAM           79
+#define TSDB_MSG_TYPE_ALTER_STREAM_RSP       80
+#define TSDB_MSG_TYPE_SHOW                   81
+#define TSDB_MSG_TYPE_SHOW_RSP               82
+#define TSDB_MSG_TYPE_CFG_MNODE              83
+#define TSDB_MSG_TYPE_CFG_MNODE_RSP          84
+#define TSDB_MSG_TYPE_KILL_QUERY             85
+#define TSDB_MSG_TYPE_KILL_QUERY_RSP         86
+#define TSDB_MSG_TYPE_KILL_STREAM            87
+#define TSDB_MSG_TYPE_KILL_STREAM_RSP        88
+#define TSDB_MSG_TYPE_KILL_CONNECTION        89
+#define TSDB_MSG_TYPE_KILL_CONNECTION_RSP    90
+#define TSDB_MSG_TYPE_HEARTBEAT              91
+#define TSDB_MSG_TYPE_HEARTBEAT_RSP          92
+#define TSDB_MSG_TYPE_STATUS                 93
+#define TSDB_MSG_TYPE_STATUS_RSP             94
+#define TSDB_MSG_TYPE_GRANT                  95
+#define TSDB_MSG_TYPE_GRANT_RSP              96
+#define TSDB_MSG_TYPE_MAX                    97
 
 // IE type
 #define TSDB_IE_TYPE_SEC               1
@@ -313,72 +292,28 @@ typedef struct SSchema {
   short bytes;
 } SSchema;
 
-typedef struct SMColumn {
+typedef struct {
   int8_t  type;
   int16_t colId;
   int16_t bytes;
-} SMColumn;
-
-typedef struct {
-  int32_t size;
-  int8_t* data;
-} SVariableMsg;
-
-typedef struct {
-  short    vnode;
-  int32_t  sid;
-  uint64_t uid;
-  char     spi;
-  char     encrypt;
-  char     meterId[TSDB_TABLE_ID_LEN];
-  char     secret[TSDB_KEY_LEN];
-  char     cipheringKey[TSDB_KEY_LEN];
-  uint64_t timeStamp;
-  uint64_t lastCreate;
-  short    numOfColumns;
-  short    sqlLen;  // SQL string is after schema
-  char     reserved[16];
-  int32_t  sversion;
-  SMColumn schema[];
-} SCreateMsg;
+} SDTableColumn;
 
 typedef struct {
   int32_t  vnode;
   int32_t  sid;
   uint64_t uid;
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
-  char     superTableId[TSDB_TABLE_ID_LEN + 1];
-  uint64_t createdTime;
+  uint64_t superTableUid;
+  int32_t  tableType;
   int32_t  sversion;
   int16_t  numOfColumns;
   int16_t  numOfTags;
   int32_t  tagDataLen;
-  int8_t   data[];
-} SCreateChildTableMsg;
-
-typedef struct {
-  int32_t  vnode;
-  int32_t  sid;
-  uint64_t uid;
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  int32_t  sqlDataLen;
   uint64_t createdTime;
-  int32_t  sversion;
-  int16_t  numOfColumns;
-  int8_t   data[];
-} SCreateNormalTableMsg;
-
-typedef struct {
-  int32_t  vnode;
-  int32_t  sid;
-  uint64_t uid;
   char     tableId[TSDB_TABLE_ID_LEN + 1];
-  uint64_t createdTime;
-  int32_t  sversion;
-  int16_t  numOfColumns;
-  int32_t  sqlLen;
+  char     superTableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   data[];
-} SCreateStreamTableMsg;
-
+} SDCreateTableMsg;
 
 typedef struct {
   char  db[TSDB_TABLE_ID_LEN];
@@ -468,10 +403,10 @@ typedef struct {
   int32_t  sid;
   uint64_t uid;
   char     meterId[TSDB_TABLE_ID_LEN];
-} SRemoveMeterMsg;
+} SDRemoveTableMsg;
 
 typedef struct {
-  short vnode;
+  int32_t vnode;
 } SFreeVnodeMsg;
 
 typedef struct SColIndexEx {
@@ -753,6 +688,7 @@ typedef struct {
 typedef struct {
   int32_t dnode;  //the ID of dnode
   int32_t vnode;  //the index of vnode
+  uint32_t ip;
 } SVPeerDesc;
 
 typedef struct {
@@ -923,11 +859,11 @@ typedef struct {
 } SKillQuery, SKillStream, SKillConnection;
 
 typedef struct {
-  short    vnode;
+  int32_t  vnode;
   int32_t  sid;
   uint64_t uid;
   uint64_t stime;  // stream starting time
-  char     status;
+  int32_t  status;
 } SAlterStreamMsg;
 
 #pragma pack(pop)

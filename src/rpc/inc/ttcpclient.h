@@ -16,6 +16,10 @@
 #ifndef _taos_tcp_client_header_
 #define _taos_tcp_client_header_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "taosdef.h"
 
 void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp, void *shandle);
@@ -23,5 +27,9 @@ void taosCleanUpTcpClient(void *chandle);
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port);
 void taosCloseTcpClientConnection(void *chandle);
 int taosSendTcpClientData(uint32_t ip, uint16_t port, char *data, int len, void *chandle);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

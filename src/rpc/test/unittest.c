@@ -13,21 +13,34 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
+//#define _DEFAULT_SOURCE
 #include "os.h"
 #include "tlog.h"
-#include "taoserror.h"
-#include "dnodeVnodeMgmt.h"
+#include "trpc.h"
+#include <stdint.h>
 
-EVnodeStatus dnodeGetVnodeStatus(int32_t vnode) {
-  return TSDB_VN_STATUS_MASTER;
+int32_t main(int32_t argc, char *argv[]) {
+  dPrint("unit test for rpc module");
+
+  SRpcInit rpcInit;
+  memset(&rpcInit, 0, sizeof(rpcInit));
+  rpcInit.localIp      = "0.0.0.0";
+  rpcInit.localPort    = 7000;
+  rpcInit.label        = "unittest";
+  rpcInit.numOfThreads = 1;
+  rpcInit.fp           = NULL;
+  rpcInit.sessions     = 1000;
+  rpcInit.connType     = TAOS_CONN_SOCKET_TYPE_S();
+  rpcInit.idleTime     = 2000;
+
+  void *pConn = rpcOpen(&rpcInit);
+  if (pConn != NULL) {
+    dPrint("conection is opened");
+  } else {
+    dError("failed to initialize rpc");
+  }
+
+  return 0;
 }
 
-bool dnodeCheckVnodeExist(int32_t vnode) {
-  return true;
-}
-
-bool dnodeCheckTableExist(int32_t vnode, int32_t sid, int64_t uid) {
-  return true;
-}
 

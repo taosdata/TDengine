@@ -16,6 +16,10 @@
 #ifndef _taos_udp_header_
 #define _taos_udp_header_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "taosdef.h"
 
 void *taosInitUdpServer(char *ip, uint16_t port, char *label, int, void *fp, void *shandle);
@@ -29,5 +33,9 @@ int taosMsgHdrSize(void *hdr);
 void taosSendMsgHdr(void *hdr, int fd);
 void taosInitMsgHdr(void **hdr, void *dest, int maxPkts);
 void taosSetMsgHdrData(void *hdr, char *data, int dataLen);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

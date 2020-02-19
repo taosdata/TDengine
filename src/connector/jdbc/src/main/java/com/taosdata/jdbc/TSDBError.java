@@ -48,7 +48,7 @@ public enum TSDBError {
     TSDB_CODE_INVALID_VALUE(24, "invalid value"),
     TSDB_CODE_REDIRECT(25, "service not available"),
     TSDB_CODE_ALREADY_THERE(26, "already there"),
-    TSDB_CODE_INVALID_METER_ID(27, "invalid meter ID"),
+    TSDB_CODE_INVALID_TABLE_ID(27, "invalid meter ID"),
     TSDB_CODE_INVALID_SQL(28, "invalid SQL"), // this message often comes with additional info which will vary based on the specific error situation
     TSDB_CODE_NETWORK_UNAVAIL(29, "failed to connect to server"),
     TSDB_CODE_INVALID_MSG_LEN(30, "invalid msg len"),

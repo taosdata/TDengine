@@ -13,24 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_UTIL_H
-#define TDENGINE_DNODE_UTIL_H
+#ifndef TDENGINE_MONITOR_H
+#define TDENGINE_MONITOR_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdbool.h>
 #include <stdint.h>
-#include "taosdef.h"
-#include "taosmsg.h"
-#include "tstatus.h"
 
-EVnodeStatus dnodeGetVnodeStatus(int32_t vnode);
-
-bool dnodeCheckVnodeExist(int32_t vnode);
-
-void *dnodeGetVnodeObj(int32_t vnode);
+int32_t monitorInitSystem();
+int32_t monitorStartSystem();
+void monitorStopSystem();
+void monitorCleanUpSystem();
 
 #ifdef __cplusplus
 }

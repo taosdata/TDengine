@@ -25,6 +25,7 @@
 #include "tscSQLParser.h"
 #include "tutil.h"
 #include "tnote.h"
+#include "tsched.h"
 
 static void tscProcessFetchRow(SSchedMsg *pMsg);
 static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOfRows);

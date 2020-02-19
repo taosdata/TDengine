@@ -19,6 +19,10 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+#include <stdint.h>
+#include "taosdef.h"
+
 #define TAOS_CONN_UDPS     0
 #define TAOS_CONN_UDPC     1
 #define TAOS_CONN_TCPS     2
@@ -35,8 +39,8 @@ extern "C" {
 extern int tsRpcHeadSize;
 
 typedef struct {
-  int8_t    index; 
-  int8_t    numOfIps;
+  int16_t   index; 
+  int16_t   numOfIps;
   uint16_t  port;
   uint32_t  ip[TSDB_MAX_MPEERS];
 } SRpcIpSet;

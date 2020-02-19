@@ -29,7 +29,7 @@
 #include "dnodeRead.h"
 #include "dnodeSystem.h"
 #include "dnodeShell.h"
-#include "dnodeUtil.h"
+#include "dnodeVnodeMgmt.h"
 #include "dnodeWrite.h"
 
 static void dnodeProcessRetrieveRequest(int8_t *pCont, int32_t contLen, void *pConn);
@@ -40,19 +40,19 @@ static void    *tsDnodeShellServer = NULL;
 static int32_t tsDnodeQueryReqNum  = 0;
 static int32_t tsDnodeSubmitReqNum = 0;
 
-void dnodeProcessMsgFromShell(int32_t msgType, void *pCont, int32_t contLen, void *handle, int32_t index) {
+void* dnodeProcessMsgFromShell(int8_t msgType, void *pCont, int32_t contLen, void *handle, int32_t index) {
   assert(handle != NULL);
 
   if (pCont == NULL || contLen == 0) {
     dnodeFreeQInfo(handle);
     dTrace("conn:%p, free query info", handle);
-    return;
+    return NULL;
   }
 
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
     rpcSendSimpleRsp(handle, TSDB_CODE_NOT_READY);
     dTrace("conn:%p, query msg is ignored since dnode not running", handle);
-    return;
+    return NULL;
   }
 
   dTrace("conn:%p, msg:%s is received", handle, taosMsg[msgType]);
@@ -66,6 +66,8 @@ void dnodeProcessMsgFromShell(int32_t msgType, void *pCont, int32_t contLen, voi
   } else {
     dError("conn:%p, msg:%s is not processed", handle, taosMsg[msgType]);
   }
+
+  return NULL;
 }
 
 int32_t dnodeInitShell() {

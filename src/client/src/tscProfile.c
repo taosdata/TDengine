@@ -279,7 +279,7 @@ void tscKillConnection(STscObj *pObj) {
 
   SSqlObj *pSql = pObj->sqlList;
   while (pSql) {
-    taosStopRpcConn(pSql->thandle);
+    //taosStopRpcConn(pSql->thandle);
     pSql = pSql->next;
   }
 
