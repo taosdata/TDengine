@@ -83,7 +83,7 @@ void dnodeProcessMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, vo
     dError("invalid msg type:%d", msgType);
   } else {
     if (dnodeProcessShellMsgFp[msgType]) {
-      (*dnodeProcessShellMsgFp[msgType])(pConn, contLen, pConn);
+      (*dnodeProcessShellMsgFp[msgType])(pCont, contLen, pConn);
     } else {
       dError("%s is not processed", taosMsg[msgType]);
     }
@@ -190,7 +190,7 @@ void dnodeSendVpeerCfgMsg(int32_t vnode) {
   }
 
   cfg->vnode = htonl(vnode);
-  dnodeSendMsgToMnode(cfg, sizeof(SMeterCfgMsg));
+  dnodeSendMsgToMnode(cfg, sizeof(SVpeerCfgMsg), TSDB_MSG_TYPE_VNODE_CFG);
 }
 
 void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
@@ -200,7 +200,7 @@ void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
   }
 
   cfg->vnode = htonl(vnode);
-  dnodeSendMsgToMnode(cfg, sizeof(SMeterCfgMsg));
+  dnodeSendMsgToMnode(cfg, sizeof(SMeterCfgMsg), TSDB_MSG_TYPE_TABLE_CFG);
 }
 
 void dnodeInitProcessShellMsg() {

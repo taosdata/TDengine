@@ -13,22 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_MGMT_H
-#define TDENGINE_DNODE_MGMT_H
+#ifndef __MONITOR_H__
+#define __MONITOR_H__
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "tglobalcfg.h"
+#include "tlog.h"
 
-#include <stdint.h>
-#include <stdbool.h>
-
-void dnodeProcessMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
-void dnodeSendVpeerCfgMsg(int32_t vnode);
-void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

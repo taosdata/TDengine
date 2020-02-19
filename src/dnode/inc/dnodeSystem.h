@@ -39,6 +39,8 @@ extern void (*dnodeParseParameterK)();
 extern int32_t tsMaxQueues;
 extern void ** tsRpcQhandle;
 extern void *tsQueryQhandle;
+extern void *tsDnodeMgmtQhandle;
+
 
 int32_t dnodeInitSystem();
 void dnodeCleanUpSystem();

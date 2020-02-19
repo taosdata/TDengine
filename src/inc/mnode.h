@@ -335,7 +335,17 @@ typedef struct {
   char     payload[];  /* payload for wildcard match in show tables */
 } SShowObj;
 
+
+extern int32_t (*mgmtInitSystem)();
+extern void (*mgmtStopSystem)();
+
+int32_t mgmtStartSystem();
+void mgmtCleanUpSystem();
 void mgmtProcessMsgFromDnode(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
+
+
+extern void    (*mgmtCleanUpRedirect)();
+
 
 #ifdef __cplusplus
 }

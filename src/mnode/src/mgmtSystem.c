@@ -162,7 +162,10 @@ int mgmtStartSystem() {
   return 0;
 }
 
-int32_t mgmtInitSystemImp() { return mgmtStartSystem(); }
+int32_t mgmtInitSystemImp() {
+  return mgmtStartSystem();
+}
+
 int32_t (*mgmtInitSystem)() = mgmtInitSystemImp;
 
 int32_t mgmtCheckMgmtRunningImp() { return 0; }
@@ -177,6 +180,7 @@ void mgmtStartMgmtTimerImp() {
 void (*mgmtStartMgmtTimer)() = mgmtStartMgmtTimerImp;
 
 void mgmtStopSystemImp() {}
+
 void (*mgmtStopSystem)() = mgmtStopSystemImp;
 
 void mgmtCleanUpRedirectImp() {}

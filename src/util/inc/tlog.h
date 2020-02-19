@@ -197,6 +197,48 @@ extern uint32_t cdebugFlag;
 #define mLWarn(...) taosLogWarn(__VA_ARGS__) mWarn(__VA_ARGS__)
 #define mLPrint(...) taosLogPrint(__VA_ARGS__) mPrint(__VA_ARGS__)
 
+#define httpError(...)                       \
+  if (httpDebugFlag & DEBUG_ERROR) {         \
+    tprintf("ERROR HTP ", 255, __VA_ARGS__); \
+  }
+#define httpWarn(...)                                  \
+  if (httpDebugFlag & DEBUG_WARN) {                    \
+    tprintf("WARN  HTP ", httpDebugFlag, __VA_ARGS__); \
+  }
+#define httpTrace(...)                           \
+  if (httpDebugFlag & DEBUG_TRACE) {             \
+    tprintf("HTP ", httpDebugFlag, __VA_ARGS__); \
+  }
+#define httpDump(...)                                        \
+  if (httpDebugFlag & DEBUG_TRACE) {                         \
+    taosPrintLongString("HTP ", httpDebugFlag, __VA_ARGS__); \
+  }
+#define httpPrint(...) \
+  { tprintf("HTP ", 255, __VA_ARGS__); }
+
+#define httpLError(...) taosLogError(__VA_ARGS__) httpError(__VA_ARGS__)
+#define httpLWarn(...) taosLogWarn(__VA_ARGS__) httpWarn(__VA_ARGS__)
+#define httpLPrint(...) taosLogPrint(__VA_ARGS__) httpPrint(__VA_ARGS__)
+
+#define monitorError(...)                    \
+  if (monitorDebugFlag & DEBUG_ERROR) {      \
+    tprintf("ERROR MON ", 255, __VA_ARGS__); \
+  }
+#define monitorWarn(...)                                  \
+  if (monitorDebugFlag & DEBUG_WARN) {                    \
+    tprintf("WARN  MON ", monitorDebugFlag, __VA_ARGS__); \
+  }
+#define monitorTrace(...)                           \
+  if (monitorDebugFlag & DEBUG_TRACE) {             \
+    tprintf("MON ", monitorDebugFlag, __VA_ARGS__); \
+  }
+#define monitorPrint(...) \
+  { tprintf("MON ", 255, __VA_ARGS__); }
+
+#define monitorLError(...) taosLogError(__VA_ARGS__) monitorError(__VA_ARGS__)
+#define monitorLWarn(...) taosLogWarn(__VA_ARGS__) monitorWarn(__VA_ARGS__)
+#define monitorLPrint(...) taosLogPrint(__VA_ARGS__) monitorPrint(__VA_ARGS__)
+
 #ifdef __cplusplus
 }
 #endif
