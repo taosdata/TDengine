@@ -36,5 +36,6 @@ typedef struct STSDBCache {
 #define TSDB_PREV_CACHE_BLOCK(pBlock) ((pBlock)->prev)
 
 SCacheHandle *tsdbCreateCache(int32_t numOfBlocks);
+int32_t tsdbFreeCache(SCacheHandle *pHandle);
 
 #endif  // _TD_TSDBCACHE_H_

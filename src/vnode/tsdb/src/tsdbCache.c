@@ -13,3 +13,6 @@ SCacheHandle *tsdbCreateCache(int32_t numOfBlocks) {
     return pCacheHandle;
 
 }
+
+int32_t tsdbFreeCache(SCacheHandle *pHandle) {
+}
