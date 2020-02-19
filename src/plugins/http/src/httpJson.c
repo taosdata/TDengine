@@ -25,6 +25,8 @@
 #include "httpJson.h"
 #include "httpResp.h"
 #include "taosmsg.h"
+#include "tlog.h"
+#include "taoserror.h"
 
 #define MAX_NUM_STR_SZ 25
 
@@ -451,7 +453,7 @@ void httpJsonPairStatus(JsonBuf* buf, int code) {
       } else if (code == TSDB_CODE_INVALID_TABLE) {
         httpJsonPair(buf, "desc", 4, "failed to create table", 22);
       } else
-        httpJsonPair(buf, "desc", 4, tstrerror(code), (int)strlen(tstrerror(code)));
+        httpJsonPair(buf, "desc", 4, (char*)tstrerror(code), (int)strlen(tstrerror(code)));
     }
   }
 }

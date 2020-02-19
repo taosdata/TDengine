@@ -28,8 +28,6 @@ int mgmtUseDb(SConnObj *pConn, char *name);
 int mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup);
 int mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup);
 int mgmtRemoveVgroupFromDb(SDbObj *pDb, SVgObj *pVgroup);
-int mgmtAddMetricIntoDb(SDbObj *pDb, STabObj *pMetric);
-int mgmtRemoveMetricFromDb(SDbObj *pDb, STabObj *pMetric);
 int mgmtMoveVgroupToTail(SDbObj *pDb, SVgObj *pVgroup);
 int mgmtMoveVgroupToHead(SDbObj *pDb, SVgObj *pVgroup);
 int mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);

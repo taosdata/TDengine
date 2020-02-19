@@ -34,7 +34,7 @@ int32_t          mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *
 SNormalTableObj* mgmtGetNormalTable(char *tableId);
 SSchema*        mgmtGetNormalTableSchema(SNormalTableObj *pTable);
 
-int8_t *         mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, int8_t *pMsg, int32_t vnode);
+int8_t *         mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, int32_t vnode);
 
 #ifdef __cplusplus
 }

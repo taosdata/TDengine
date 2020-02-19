@@ -15,6 +15,7 @@
 
 #include "restHandle.h"
 #include "restJson.h"
+#include "tlog.h"
 
 static HttpDecodeMethod restDecodeMethod = {"rest", restProcessRequest};
 static HttpDecodeMethod restDecodeMethod2 = {"restful", restProcessRequest};
@@ -70,8 +71,7 @@ bool restProcessSqlRequest(HttpContext* pContext, int timestampFmt) {
 
   /*
    * for async test
-   * /
-  /*
+   *
   if (httpCheckUsedbSql(sql)) {
     httpSendErrorResp(pContext, HTTP_NO_EXEC_USEDB);
     return false;

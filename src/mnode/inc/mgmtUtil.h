@@ -28,8 +28,7 @@ extern "C" {
 bool    mgmtTableCreateFromSuperTable(STabObj *pTableObj);
 bool    mgmtIsSuperTable(STabObj *pTableObj);
 bool    mgmtIsNormalTable(STabObj *pTableObj);
-char*   mgmtTableGetTag(STabObj* pTable, int32_t col, SSchema* pTagColSchema);
-int32_t mgmtGetTagsLength(STabObj* pSuperTable, int32_t col);
+int32_t mgmtGetTagsLength(SSuperTableObj* pSuperTable, int32_t col);
 bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
 int32_t mgmtCheckDBParams(SCreateDbMsg *pCreate);
 

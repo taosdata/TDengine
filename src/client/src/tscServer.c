@@ -57,7 +57,7 @@ void tscPrintMgmtIp() {
     tscError("invalid mgmt IP list:%d", tscMgmtIpList.numOfIps);
   } else {
     for (int i = 0; i < tscMgmtIpList.numOfIps; ++i) {
-      tscTrace("mgmt index:%d ip:%s", i, tscMgmtIpList.ipStr[i]);
+      tscTrace("mgmt index:%d ip:%d", i, tscMgmtIpList.ip[i]);
     }
   }
 }
@@ -66,7 +66,7 @@ void tscSetMgmtIpListFromCluster(SIpList *pIpList) {
   tscMgmtIpList.numOfIps = pIpList->numOfIps;
   if (memcmp(tscMgmtIpList.ip, pIpList->ip, pIpList->numOfIps * 4) != 0) {
     for (int i = 0; i < pIpList->numOfIps; ++i) {
-      tinet_ntoa(tscMgmtIpList.ipStr[i], pIpList->ip[i]);
+      //tinet_ntoa(tscMgmtIpList.ipStr[i], pIpList->ip[i]);
       tscMgmtIpList.ip[i] = pIpList->ip[i];
     }
     tscTrace("cluster mgmt IP list:");
@@ -77,9 +77,7 @@ void tscSetMgmtIpListFromCluster(SIpList *pIpList) {
 void tscSetMgmtIpListFromEdge() {
   if (tscMgmtIpList.numOfIps != 2) {
     tscMgmtIpList.numOfIps = 2;
-    strcpy(tscMgmtIpList.ipStr[0], tsMasterIp);
     tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
-    strcpy(tscMgmtIpList.ipStr[1], tsMasterIp);
     tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
     tscTrace("edge mgmt IP list:");
     tscPrintMgmtIp();
@@ -351,17 +349,14 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       uint64_t signature = (uint64_t)pSql->signature;
       //if (tscUpdateVnodeMsg[pSql->cmd.command]) (*tscUpdateVnodeMsg[pSql->cmd.command])(pSql, pStart);
 
-      int ret;
-      if (pSql->cmd.command < TSDB_SQL_MGMT)
-        ret = rpcSendRequest(pTscMgmtConn, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
-      else
-        ret = rpcSendRequest(pVnodeConn, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
-
-      if (ret >= 0) {
-        code = 0;
+      if (pSql->cmd.command < TSDB_SQL_MGMT) {
+        rpcSendRequest(pTscMgmtConn, tscMgmtIpList, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
+      } else {
+        SRpcIpSet rpcSet = tscMgmtIpList;
+        rpcSendRequest(pVnodeConn, rpcSet, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
       }
 
-      tscTrace("%p send msg ret:%d code:%d sig:%p", pSql, ret, code, signature);
+      tscTrace("%p send msg code:%d sig:%p", pSql, code, signature);
     }
   }
 
@@ -1327,7 +1322,7 @@ void tscKillMetricQuery(SSqlObj *pSql) {
      * sub-queries not correctly released and master sql object of metric query reaches an abnormal state.
      */
     pSql->pSubs[i]->res.code = TSDB_CODE_QUERY_CANCELLED;
-    taosStopRpcConn(pSql->pSubs[i]->thandle);
+    //taosStopRpcConn(pSql->pSubs[i]->thandle);
   }
 
   pSql->numOfSubs = 0;
@@ -1491,9 +1486,9 @@ void tscUpdateVnodeInSubmitMsg(SSqlObj *pSql, char *buf) {
   pMsg = buf + tsRpcHeadSize;
 
   pShellMsg = (SShellSubmitMsg *)pMsg;
-  pShellMsg->vnode = htons(pMeterMeta->vpeerDesc[pSql->index].vnode);
-  tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pMeterMeta->vpeerDesc[pSql->index].ip),
-           htons(pShellMsg->vnode));
+  //pShellMsg->vnode = htons(pMeterMeta->vpeerDesc[pSql->index].vnode);
+  //tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pMeterMeta->vpeerDesc[pSql->index].ip),
+  //         htons(pShellMsg->vnode));
 }
 
 int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
@@ -1511,13 +1506,13 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pShellMsg = (SShellSubmitMsg *)pMsg;
 
   pShellMsg->import = htons(TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT) ? 0 : 1);
-  pShellMsg->vnode = htons(pMeterMeta->vpeerDesc[pMeterMeta->index].vnode);
+  //pShellMsg->vnode = htons(pMeterMeta->vpeerDesc[pMeterMeta->index].vnode);
   pShellMsg->numOfSid = htonl(pSql->cmd.numOfTablesInSubmit);  // number of meters to be inserted
 
   // pSql->cmd.payloadLen is set during parse sql routine, so we do not use it here
   pSql->cmd.msgType = TSDB_MSG_TYPE_DNODE_SUBMIT;
-  tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pMeterMeta->vpeerDesc[pMeterMeta->index].ip),
-           htons(pShellMsg->vnode));
+  //tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pMeterMeta->vpeerDesc[pMeterMeta->index].ip),
+  //         htons(pShellMsg->vnode));
   
   return TSDB_CODE_SUCCESS;
 }

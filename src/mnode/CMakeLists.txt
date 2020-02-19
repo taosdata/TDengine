@@ -11,7 +11,7 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   AUX_SOURCE_DIRECTORY(src SRC)
 
   ADD_LIBRARY(mnode ${SRC})
-  #TARGET_LINK_LIBRARIES(mnode trpc tutil sdb pthread)
+  TARGET_LINK_LIBRARIES(mnode trpc tutil sdb pthread)
 
   #IF (TD_CLUSTER)
   #  TARGET_LINK_LIBRARIES(mnode mcluster)

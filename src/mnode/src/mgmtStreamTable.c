@@ -39,7 +39,7 @@
 #include "mgmtStreamTable.h"
 
 
-void *tsSuperTableSdb;
+void *tsStreamTableSdb;
 void *(*mgmtStreamTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
 
 void *mgmtStreamTableActionInsert(void *row, char *str, int size, int *ssize);
@@ -78,7 +78,7 @@ void *mgmtStreamTableActionReset(void *row, char *str, int size, int *ssize) {
 }
 
 void *mgmtStreamTableActionDestroy(void *row, char *str, int size, int *ssize) {
-  SSuperTableObj *pTable = (STabObj *)row;
+  SStreamTableObj *pTable = (SStreamTableObj *)row;
   mgmtDestroyStreamTable(pTable);
   return NULL;
 }
@@ -230,7 +230,7 @@ void mgmtCleanUpStreamTables() {
 }
 
 int8_t *mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, int8_t *pMsg, int32_t vnode) {
-  SCreateStreamTableMsg *pCreateTable = (SCreateStreamTableMsg *) pMsg;
+  SDCreateTableMsg *pCreateTable = (SDCreateTableMsg *) pMsg;
   memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
   pCreateTable->vnode        = htonl(vnode);
   pCreateTable->sid          = htonl(pTable->sid);
@@ -238,23 +238,23 @@ int8_t *mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, int8_t *pMsg, int
   pCreateTable->createdTime  = htobe64(pTable->createdTime);
   pCreateTable->sversion     = htonl(pTable->sversion);
   pCreateTable->numOfColumns = htons(pTable->numOfColumns);
-  pCreateTable->sqlLen       = htons(pTable->sqlLen);
+  //pCreateTable->sqlLen       = htons(pTable->sqlLen);
 
   SSchema *pSchema  = pTable->schema;
   int32_t totalCols = pCreateTable->numOfColumns;
 
-  for (int32_t col = 0; col < totalCols; ++col) {
-    SMColumn *colData = &((SMColumn *) (pCreateTable->data))[col];
-    colData->type  = pSchema[col].type;
-    colData->bytes = htons(pSchema[col].bytes);
-    colData->colId = htons(pSchema[col].colId);
-  }
+//  for (int32_t col = 0; col < totalCols; ++col) {
+//    SMColumn *colData = &((SMColumn *) (pCreateTable->data))[col];
+//    colData->type  = pSchema[col].type;
+//    colData->bytes = htons(pSchema[col].bytes);
+//    colData->colId = htons(pSchema[col].colId);
+//  }
 
-  int32_t totalColsSize = sizeof(SMColumn *) * totalCols;
-  pMsg = pCreateTable->data + totalColsSize + pTable->sqlLen;
+//  int32_t totalColsSize = sizeof(SMColumn *) * totalCols;
+//  pMsg = pCreateTable->data + totalColsSize + pTable->sqlLen;
 
-  char *sql = pTable->schema + pTable->schemaSize;
-  memcpy(pCreateTable->data + totalColsSize, pTable->sqlLen, sql);
+//  char *sql = pTable->schema + pTable->schemaSize;
+//  memcpy(pCreateTable->data + totalColsSize, pTable->sqlLen, sql);
 
   return pMsg;
 }
@@ -345,6 +345,6 @@ int32_t mgmtDropStreamTable(SDbObj *pDb, SStreamTableObj *pTable) {
   return 0;
 }
 
-SStreamTableObj* mgmtGetStreamTable(char *tableId); {
+SStreamTableObj* mgmtGetStreamTable(char *tableId) {
   return (SStreamTableObj *)sdbGetRow(tsStreamTableSdb, tableId);
 }

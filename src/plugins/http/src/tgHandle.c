@@ -18,6 +18,7 @@
 #include "taosmsg.h"
 #include "tgJson.h"
 #include "taosdef.h"
+#include "tlog.h"
 
 /*
  * taos.telegraf.cfg formats like

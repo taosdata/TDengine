@@ -27,6 +27,7 @@
 #include "tschemautil.h"
 #include "tstatus.h"
 #include "mnode.h"
+#include "taoserror.h"
 
 void *dbSdb = NULL;
 extern void *vgSdb;
@@ -324,7 +325,7 @@ int mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists) {
   }
 
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-    return TSDB_CODE_MONITOR_DB_FORBEIDEN;
+    return TSDB_CODE_MONITOR_DB_FORBIDDEN;
   }
 
   return mgmtDropDb(pDb);
@@ -476,33 +477,6 @@ int mgmtMoveVgroupToHead(SDbObj *pDb, SVgObj *pVgroup) {
   mgmtRemoveVgroupFromDb(pDb, pVgroup);
   mgmtAddVgroupIntoDb(pDb, pVgroup);
 
-  return 0;
-}
-
-int mgmtAddMetricIntoDb(SDbObj *pDb, STabObj *pMetric) {
-  pMetric->next = pDb->pMetric;
-  pMetric->prev = NULL;
-
-  if (pDb->pMetric) pDb->pMetric->prev = pMetric;
-
-  pDb->pMetric = pMetric;
-  pDb->numOfMetrics++;
-
-  return 0;
-}
-
-int mgmtRemoveMetricFromDb(SDbObj *pDb, STabObj *pMetric) {
-  if (pMetric->prev) pMetric->prev->next = pMetric->next;
-
-  if (pMetric->next) pMetric->next->prev = pMetric->prev;
-
-  if (pMetric->prev == NULL) pDb->pMetric = pMetric->next;
-
-  pDb->numOfMetrics--;
-
-  if (pMetric->pSkipList != NULL) {
-    pMetric->pSkipList = tSkipListDestroy(pMetric->pSkipList);
-  }
   return 0;
 }
 

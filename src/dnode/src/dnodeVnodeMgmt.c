@@ -19,12 +19,32 @@
 #include "taoserror.h"
 #include "dnodeVnodeMgmt.h"
 
-EVnodeStatus dnodeGetVnodeStatus(int32_t vnode) {
-  return TSDB_VN_STATUS_MASTER;
+int32_t dnodeOpenVnodes() {
+  return 0;
+}
+
+int32_t dnodeCleanupVnodes() {
+  return 0;
 }
 
 bool dnodeCheckVnodeExist(int32_t vnode) {
   return true;
+}
+
+int32_t dnodeCreateVnode(int32_t vnode, SVPeersMsg *cfg) {
+  return 0;
+}
+
+int32_t dnodeDropVnode(int32_t vnode) {
+  return 0;
+}
+
+void* dnodeGetVnode(int vid) {
+  return NULL;
+}
+
+EVnodeStatus dnodeGetVnodeStatus(int32_t vnode) {
+  return TSDB_VN_STATUS_MASTER;
 }
 
 bool dnodeCheckTableExist(int32_t vnode, int32_t sid, int64_t uid) {

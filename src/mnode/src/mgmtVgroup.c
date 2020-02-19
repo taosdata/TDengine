@@ -74,7 +74,7 @@ int mgmtInitVgroups() {
   mgmtVgroupActionInit();
 
   SVgObj tObj;
-  tsVgUpdateSize = tObj.updateEnd - (char *)&tObj;
+  tsVgUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
   vgSdb = sdbOpenTable(tsMaxVGroups, sizeof(SVgObj), "vgroups", SDB_KEYTYPE_AUTO, mgmtDirectory, mgmtVgroupAction);
   if (vgSdb == NULL) {
@@ -294,14 +294,14 @@ int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   SVgObj  *pVgroup    = NULL;
   STabObj *pTable     = NULL;
   if (pShow->payloadLen > 0 ) {
-    pTable = mgmtGetTable(pShow->payload);
-    if (NULL == pTable) {
-      return TSDB_CODE_INVALID_TABLE_ID;
-    }
-
-    pVgroup = mgmtGetVgroup(pTable->gid.vgId);
-    if (NULL == pVgroup) return TSDB_CODE_INVALID_TABLE_ID;
-    
+//    pTable = mgmtGetTable(pShow->payload);
+//    if (NULL == pTable) {
+//      return TSDB_CODE_INVALID_TABLE_ID;
+//    }
+//
+//    pVgroup = mgmtGetVgroup(pTable->gid.vgId);
+//    if (NULL == pVgroup) return TSDB_CODE_INVALID_TABLE_ID;
+//
     maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
   } else {
     SVgObj *pVgroup = pDb->pHead;
@@ -476,7 +476,7 @@ void *mgmtVgroupActionUpdate(void *row, char *str, int size, int *ssize) {
 }
 void *mgmtVgroupActionEncode(void *row, char *str, int size, int *ssize) {
   SVgObj *pVgroup = (SVgObj *)row;
-  int     tsize = pVgroup->updateEnd - (char *)pVgroup;
+  int     tsize = pVgroup->updateEnd - (int8_t *)pVgroup;
   if (size < tsize) {
     *ssize = -1;
   } else {
@@ -491,7 +491,7 @@ void *mgmtVgroupActionDecode(void *row, char *str, int size, int *ssize) {
   if (pVgroup == NULL) return NULL;
   memset(pVgroup, 0, sizeof(SVgObj));
 
-  int tsize = pVgroup->updateEnd - (char *)pVgroup;
+  int tsize = pVgroup->updateEnd - (int8_t *)pVgroup;
   memcpy(pVgroup, str, tsize);
 
   return (void *)pVgroup;
@@ -501,7 +501,7 @@ void *mgmtVgroupActionBatchUpdate(void *row, char *str, int size, int *ssize) { 
 void *mgmtVgroupActionAfterBatchUpdate(void *row, char *str, int size, int *ssize) { return NULL; }
 void *mgmtVgroupActionReset(void *row, char *str, int size, int *ssize) {
   SVgObj *pVgroup = (SVgObj *)row;
-  int     tsize = pVgroup->updateEnd - (char *)pVgroup;
+  int     tsize = pVgroup->updateEnd - (int8_t *)pVgroup;
 
   memcpy(pVgroup, str, tsize);
 

@@ -19,6 +19,8 @@
 #include "httpCode.h"
 #include "httpJson.h"
 #include "taosmsg.h"
+#include "tlog.h"
+#include "taoserror.h"
 
 const char *httpKeepAliveStr[] = {"", "Connection: Keep-Alive\r\n", "Connection: Close\r\n"};
 
@@ -182,7 +184,7 @@ void httpSendErrorResp(HttpContext *pContext, int errNo) { httpSendErrorRespWith
 
 void httpSendTaosdErrorResp(HttpContext *pContext, int errCode) {
   int httpCode = 400;
-  httpSendErrorRespImp(pContext, httpCode, "Bad Request", errCode, tstrerror(errCode));
+  httpSendErrorRespImp(pContext, httpCode, "Bad Request", errCode, (char*)tstrerror(errCode));
 }
 
 void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char* errMsg) {

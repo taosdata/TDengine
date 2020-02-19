@@ -32,6 +32,7 @@
 #include "httpHandle.h"
 #include "restHandle.h"
 #include "tgHandle.h"
+#include "tlog.h"
 
 #ifdef CLUSTER
   void adminInitHandle(HttpServer* pServer);

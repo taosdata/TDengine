@@ -20,6 +20,7 @@
 #include "mgmtTable.h"
 #include "mgmtUser.h"
 #include "tschemautil.h"
+#include "taoserror.h"
 
 extern void *userSdb;
 extern void *dbSdb;
@@ -156,7 +157,7 @@ int32_t mgmtCheckDbLimitImp(SAcctObj *pAcct) {
   int numOfDbs = sdbGetNumOfRows(dbSdb);
   if (numOfDbs >= tsMaxDbs) {
     mWarn("numOfDbs:%d, exceed tsMaxDbs:%d", numOfDbs, tsMaxDbs);
-    return TSDB_CODE_TOO_MANY_DATABSES;
+    return TSDB_CODE_TOO_MANY_DATABASES;
   }
   return 0;
 }

@@ -99,12 +99,10 @@ void taos_init_imp() {
   tscMgmtIpList.index = 0;
   tscMgmtIpList.port = tsMgmtShellPort;
   tscMgmtIpList.numOfIps = 1;
-  strcpy(tscMgmtIpList.ipStr[0], tsMasterIp);
   tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
 
   if (tsSecondIp[0]) {
     tscMgmtIpList.numOfIps = 2;
-    strcpy(tscMgmtIpList.ipStr[1], tsSecondIp);
     tscMgmtIpList.ip[1] = inet_addr(tsSecondIp);
   }
 
@@ -131,7 +129,7 @@ void taos_init_imp() {
   rpcInit.localPort = 0;
   rpcInit.label = "TSC-vnode";
   rpcInit.numOfThreads = tscNumOfThreads;
-  rpcInit.fp = tscProcessMsgFromServer;
+  rpcInit.afp = tscProcessMsgFromServer;
   rpcInit.sessions = tsMaxVnodeConnections;
   rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
   pVnodeConn = rpcOpen(&rpcInit);
@@ -145,7 +143,7 @@ void taos_init_imp() {
   rpcInit.localPort = 0;
   rpcInit.label = "TSC-mgmt";
   rpcInit.numOfThreads = 1;
-  rpcInit.fp = tscProcessMsgFromServer;
+  rpcInit.afp = tscProcessMsgFromServer;
   rpcInit.sessions = tsMaxMgmtConnections;
   rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
   pTscMgmtConn = rpcOpen(&rpcInit);

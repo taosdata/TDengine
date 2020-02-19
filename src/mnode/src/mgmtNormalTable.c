@@ -39,7 +39,7 @@
 #include "mgmtNormalTable.h"
 
 
-void *tsSuperTableSdb;
+void *tsNormalTableSdb;
 void *(*mgmtNormalTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
 
 void *mgmtNormalTableActionInsert(void *row, char *str, int size, int *ssize);
@@ -218,8 +218,9 @@ void mgmtCleanUpNormalTables() {
   sdbCloseTable(tsNormalTableSdb);
 }
 
-int8_t *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, int8_t *pMsg, int32_t vnode) {
-  SCreateNormalTableMsg *pCreateTable = (SCreateNormalTableMsg *) pMsg;
+int8_t *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, int32_t vnode) {
+  int8_t *pMsg = NULL;
+  SDCreateTableMsg *pCreateTable = (SDCreateTableMsg *) pMsg;
   memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
   pCreateTable->vnode        = htobe32(vnode);
   pCreateTable->sid          = htobe32(pTable->sid);
@@ -231,15 +232,15 @@ int8_t *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, int8_t *pMsg, int
   SSchema *pSchema  = pTable->schema;
   int32_t totalCols = pCreateTable->numOfColumns;
 
-  for (int32_t col = 0; col < totalCols; ++col) {
-    SMColumn *colData = &((SMColumn *) (pCreateTable->data))[col];
-    colData->type  = pSchema[col].type;
-    colData->bytes = htons(pSchema[col].bytes);
-    colData->colId = htons(pSchema[col].colId);
-  }
+//  for (int32_t col = 0; col < totalCols; ++col) {
+//    SMColumn *colData = &((SMColumn *) (pCreateTable->data))[col];
+//    colData->type  = pSchema[col].type;
+//    colData->bytes = htons(pSchema[col].bytes);
+//    colData->colId = htons(pSchema[col].colId);
+//  }
 
-  int32_t totalColsSize = sizeof(SMColumn *) * totalCols;
-  pMsg = pCreateTable->data + totalColsSize;
+//  int32_t totalColsSize = sizeof(SMColumn *) * totalCols;
+//  pMsg = pCreateTable->data + totalColsSize;
 
   return pMsg;
 }

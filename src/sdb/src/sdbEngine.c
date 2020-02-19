@@ -53,6 +53,10 @@ SSdbTable *tableList[20];
 int        sdbNumOfTables;
 int64_t    sdbVersion;
 
+int64_t sdbGetVersion() {
+  return sdbVersion;
+};
+
 void sdbFinishCommit(void *handle) {
   SSdbTable *pTable = (SSdbTable *)handle;
   uint32_t   sdbEcommit = SDB_ENDCOMMIT;

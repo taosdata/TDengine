@@ -26,6 +26,7 @@
 #include "taos.h"
 #include "ttime.h"
 #include "ttimer.h"
+#include "tlog.h"
 
 void httpAccessSession(HttpContext *pContext) {
   HttpServer *server = pContext->pThread->pServer;

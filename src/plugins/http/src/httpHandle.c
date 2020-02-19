@@ -27,6 +27,7 @@
 #include "tglobalcfg.h"
 #include "tsocket.h"
 #include "ttimer.h"
+#include "tlog.h"
 
 void httpToLowerUrl(char* url) {
   /*ignore case */
