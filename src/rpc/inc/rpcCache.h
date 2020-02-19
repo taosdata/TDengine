@@ -13,23 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _taos_tcp_client_header_
-#define _taos_tcp_client_header_
+#ifndef TDENGINE_RPC_CACHE_H
+#define TDENGINE_RPC_CACHE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "taosdef.h"
-
-void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp, void *shandle);
-void taosCleanUpTcpClient(void *chandle);
-void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port);
-void taosCloseTcpClientConnection(void *chandle);
-int taosSendTcpClientData(uint32_t ip, uint16_t port, char *data, int len, void *chandle);
+void *rpcOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, int64_t keepTimer);
+void  rpcCloseConnCache(void *handle);
+void  rpcAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, char *user);
+void *rpcGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif  // TDENGINE_RPC_CACHE_H

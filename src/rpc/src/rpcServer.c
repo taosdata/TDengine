@@ -14,12 +14,12 @@
  */
 
 #include "os.h"
-#include "taosmsg.h"
 #include "tlog.h"
 #include "tlog.h"
 #include "tsocket.h"
-#include "ttcpserver.h"
 #include "tutil.h"
+#include "rpcServer.h"
+#include "rpcHead.h"
 
 #define TAOS_IPv4ADDR_LEN 16
 #ifndef EPOLLWAKEUP
@@ -184,16 +184,16 @@ static void taosProcessTcpData(void *param) {
       }
 
       void *buffer = malloc(1024);
-      int   headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(STaosHeader));
+      int   headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(SRpcHead));
 
-      if (headLen != sizeof(STaosHeader)) {
+      if (headLen != sizeof(SRpcHead)) {
         tError("%s read error, headLen:%d, errno:%d", pThreadObj->label, headLen, errno);
         taosCleanUpFdObj(pFdObj);
         tfree(buffer);
         continue;
       }
 
-      int dataLen = (int32_t)htonl((uint32_t)((STaosHeader *)buffer)->msgLen);
+      int dataLen = (int32_t)htonl((uint32_t)((SRpcHead *)buffer)->msgLen);
       if (dataLen > 1024) buffer = realloc(buffer, (size_t)dataLen);
 
       int leftLen = dataLen - headLen;

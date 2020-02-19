@@ -200,37 +200,6 @@ typedef struct {
 } SMgmtIpList;
 
 typedef struct {
-  char     version : 4;
-  char     comp : 4;
-  char     tcp : 2;
-  char     spi : 3;
-  char     encrypt : 3;
-  uint16_t tranId;
-  uint32_t uid;  // for unique ID inside a client
-  uint32_t sourceId;
-
-  // internal part
-  uint32_t destId;
-  uint32_t destIp;
-  char     meterId[TSDB_UNI_LEN];
-  uint16_t port;  // for UDP only
-  char     empty[1];
-  uint8_t  msgType;
-  int32_t  msgLen;
-  uint8_t  content[0];
-} STaosHeader;
-
-typedef struct {
-  uint32_t timeStamp;
-  uint8_t  auth[TSDB_AUTH_LEN];
-} STaosDigest;
-
-typedef struct {
-  unsigned char code;
-  char          more[];
-} STaosRsp, SMsgReply;
-
-typedef struct {
   uint32_t customerId;
   uint32_t osId;
   uint32_t appId;

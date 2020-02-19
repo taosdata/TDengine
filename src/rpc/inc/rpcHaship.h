@@ -20,11 +20,11 @@
 extern "C" {
 #endif
 
-void *taosOpenIpHash(int maxSessions);
-void taosCloseIpHash(void *handle);
-void *taosAddIpHash(void *handle, void *pData, uint32_t ip, uint16_t port);
-void taosDeleteIpHash(void *handle, uint32_t ip, uint16_t port);
-void *taosGetIpHash(void *handle, uint32_t ip, uint16_t port);
+void *rpcOpenIpHash(int maxSessions);
+void  rpcCloseIpHash(void *handle);
+void *rpcAddIpHash(void *handle, void *pData, uint32_t ip, uint16_t port);
+void  rpcDeleteIpHash(void *handle, uint32_t ip, uint16_t port);
+void *rpcGetIpHash(void *handle, uint32_t ip, uint16_t port);
 
 #ifdef __cplusplus
 }

@@ -17,8 +17,9 @@
 #include "taosmsg.h"
 #include "tlog.h"
 #include "tsocket.h"
-#include "ttcpclient.h"
 #include "tutil.h"
+#include "rpcClient.h"
+#include "rpcHead.h"
 
 #ifndef EPOLLWAKEUP
 #define EPOLLWAKEUP (1u << 29)
@@ -152,15 +153,15 @@ static void *taosReadTcpData(void *param) {
         continue;
       }
 
-      int headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(STaosHeader));
-      if (headLen != sizeof(STaosHeader)) {
+      int headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(SRpcHead));
+      if (headLen != sizeof(SRpcHead)) {
         tError("%s read error, headLen:%d", pTcp->label, headLen);
         tfree(buffer);
         taosCleanUpTcpFdObj(pFdObj);
         continue;
       }
 
-      int dataLen = (int32_t)htonl((uint32_t)((STaosHeader *)buffer)->msgLen);
+      int dataLen = (int32_t)htonl((uint32_t)((SRpcHead *)buffer)->msgLen);
       if (dataLen > 1024) {
         void *b = realloc(buffer, (size_t)dataLen);
         if (NULL == b) {

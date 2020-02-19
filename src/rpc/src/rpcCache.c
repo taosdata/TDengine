@@ -21,7 +21,7 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "tconncache.h"
+#include "rpcCache.h"
 
 typedef struct _c_hash_t {
   uint32_t          ip;

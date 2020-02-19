@@ -14,23 +14,24 @@
  */
 
 #include "os.h"
-#include "shash.h"
-#include "taosmsg.h"
 #include "tidpool.h"
 #include "tlog.h"
 #include "tmd5.h"
 #include "tmempool.h"
-#include "tsocket.h"
-#include "ttcpclient.h"
-#include "ttcpserver.h"
 #include "ttime.h"
 #include "ttimer.h"
-#include "tudp.h"
 #include "tutil.h"
 #include "lz4.h"
-#include "tconncache.h"
-#include "trpc.h"
 #include "taoserror.h"
+#include "tsocket.h"
+#include "shash.h"
+#include "taosmsg.h"
+#include "rpcUdp.h"
+#include "rpcCache.h"
+#include "rpcClient.h"
+#include "rpcServer.h"
+#include "rpcHead.h"
+#include "trpc.h"
 
 #define RPC_MSG_OVERHEAD (sizeof(SRpcReqContext) + sizeof(SRpcHead) + sizeof(SRpcDigest)) 
 #define rpcHeadFromCont(cont) ((SRpcHead *) (cont - sizeof(SRpcHead)))
@@ -51,11 +52,11 @@ typedef struct {
   char     meterId[TSDB_UNI_LEN]; // meter ID
   char     spi;       // security parameter index
   char     encrypt;   // encrypt algorithm
-  uint8_t  secret[TSDB_KEY_LEN]; // secret for the link
-  uint8_t  ckey[TSDB_KEY_LEN];   // ciphering key 
+  char     secret[TSDB_KEY_LEN]; // secret for the link
+  char     ckey[TSDB_KEY_LEN];   // ciphering key 
 
   void   (*cfp)(char type, void *pCont, int contLen, void *ahandle, int32_t code);
-  int    (*afp)(char *meterId, char *spi, char *encrypt, uint8_t *secret, uint8_t *ckey); 
+  int    (*afp)(char *meterId, char *spi, char *encrypt, char *secret, char *ckey); 
   void   (*ufp)(void *ahandle, SRpcIpSet ipSet);
 
   void     *idPool;   // handle to ID pool
@@ -88,8 +89,8 @@ typedef struct _RpcConn {
   char      meterId[TSDB_UNI_LEN]; // user ID for the link
   char      spi;     // security parameter index
   char      encrypt; // encryption, 0:1 
-  uint8_t   secret[TSDB_KEY_LEN]; // secret for the link
-  uint8_t   ckey[TSDB_KEY_LEN];   // ciphering key 
+  char      secret[TSDB_KEY_LEN]; // secret for the link
+  char      ckey[TSDB_KEY_LEN];   // ciphering key 
   uint16_t  localPort;      // for UDP only
   uint32_t  peerUid;        // peer UID
   uint32_t  peerIp;         // peer IP
@@ -113,39 +114,6 @@ typedef struct _RpcConn {
   SRpcInfo *pRpc;       // the associated SRpcInfo
   SRpcReqContext *pContext; // request context
 } SRpcConn;
-
-#pragma pack(push, 1)
-
-typedef struct {
-  char     version:4; // RPC version
-  char     comp:4;    // compression algorithm, 0:no compression 1:lz4
-  char     tcp:2;     // tcp flag 
-  char     spi:3;     // security parameter index
-  char     encrypt:3; // encrypt algorithm, 0: no encryption
-  uint16_t tranId;    // transcation ID
-  uint32_t uid;       // for unique ID inside a client
-  uint32_t sourceId;  // source ID, an index for connection list  
-  uint32_t destId;    // destination ID, an index for connection list
-  char     meterId[TSDB_UNI_LEN]; 
-  uint16_t port;      // for UDP only, port may be changed
-  char     empty[1];  // reserved
-  uint8_t  msgType;   // message type  
-  int32_t  msgLen;    // message length including the header iteslf
-  int32_t  code;
-  uint8_t  content[0]; // message body starts from here
-} SRpcHead;
-
-typedef struct {
-  int32_t  reserved;
-  int32_t  contLen;
-} SRpcComp;
-
-typedef struct {
-  uint32_t timeStamp;
-  uint8_t  auth[TSDB_AUTH_LEN];
-} SRpcDigest;
-
-#pragma pack(pop)
 
 int tsRpcProgressTime = 10;  // milliseocnds
 
@@ -196,7 +164,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, char *meterId, char *hash
 static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, char *meterId, char *hashstr);
 
 static void  rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext);
-static void  rpcSendQuickRsp(SRpcConn *pConn, char code);
+static void  rpcSendQuickRsp(SRpcConn *pConn, int32_t code);
 static void  rpcSendErrorMsgToPeer(SRpcInfo *pRpc, char *pMsg, int32_t code, uint32_t ip, uint16_t port, void *chandle);
 static void  rpcSendMsgToPeer(SRpcConn *pConn, void *data, int dataLen);
 
@@ -509,10 +477,11 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
 }
 
 static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, char *meterId, char *hashstr) {
-  SRpcConn *pConn;
+  SRpcConn *pConn = NULL;
 
   // check if it is already allocated
-  pConn = *(SRpcConn **)(taosGetStrHashData(pRpc->hash, hashstr));
+  SRpcConn **ppConn = (SRpcConn **)(taosGetStrHashData(pRpc->hash, hashstr));
+  if (ppConn) pConn = *ppConn;
   if (pConn) return pConn;
 
   int sid = taosAllocateId(pRpc->idPool);
@@ -537,7 +506,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, char *meterId, char *hash
 
   if (pConn) {
     taosAddStrHash(pRpc->hash, hashstr, (char *)&pConn);
-    tTrace("%s pConn:%p, rpc connection is allocated, sid:%d id:%s", pRpc->label, pConn, sid);
+    tTrace("%s pConn:%p, rpc connection is allocated, sid:%d id:%s", pRpc->label, pConn, sid, pConn->meterId);
   }
 
   return pConn;
@@ -660,7 +629,7 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int rpcProcessHead(SRpcInfo *pRpc, SRpcConn **ppConn, void *data, int dataLen, uint32_t ip) {
+static int32_t rpcProcessHead(SRpcInfo *pRpc, SRpcConn **ppConn, void *data, int dataLen, uint32_t ip) {
   int32_t    sid, code = 0;
   SRpcConn * pConn = NULL;
   char       hashstr[40] = {0};
@@ -724,7 +693,7 @@ static void *rpcProcessMsgFromPeer(void *data, int dataLen, uint32_t ip, uint16_
   SRpcHead  *pHead = (SRpcHead *)data;
   SRpcInfo  *pRpc = (SRpcInfo *)shandle;
   SRpcConn  *pConn = NULL;
-  uint8_t    code = 0;
+  int32_t    code = 0;
 
   tDump(data, dataLen);
 
@@ -750,7 +719,7 @@ static void *rpcProcessMsgFromPeer(void *data, int dataLen, uint32_t ip, uint16_
   pthread_mutex_unlock(&pRpc->mutex);
 
   if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16)) {
-    tTrace("%s pConn:%p, %s received from 0x%x:%hu, parse code:%u len:%d source:0x%08x dest:0x%08x tranId:%d",
+    tTrace("%s pConn:%p, %s received from 0x%x:%hu, parse code:%x len:%d source:0x%08x dest:0x%08x tranId:%d",
         pRpc->label, pConn, taosMsg[pHead->msgType], ip, port, code, 
         dataLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
@@ -763,7 +732,7 @@ static void *rpcProcessMsgFromPeer(void *data, int dataLen, uint32_t ip, uint16_
     if (code != 0) { // parsing error
       if ( rpcIsReq(pHead->msgType) ) {
         rpcSendErrorMsgToPeer(pRpc, data, code, ip, port, chandle);
-        tTrace("%s pConn:%p, %s is sent with error code:%u", pRpc->label, pConn, taosMsg[pHead->msgType+1], code);
+        tTrace("%s pConn:%p, %s is sent with error code:%x", pRpc->label, pConn, taosMsg[pHead->msgType+1], code);
       } 
     } else { // parsing OK
       rpcProcessIncomingMsg(pConn, pHead);
@@ -804,7 +773,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
   }
 }
 
-static void rpcSendQuickRsp(SRpcConn *pConn, char code) {
+static void rpcSendQuickRsp(SRpcConn *pConn, int32_t code) {
   char       msg[RPC_MSG_OVERHEAD];
   SRpcHead  *pHead;
 
@@ -1131,7 +1100,7 @@ static int rpcAddAuthPart(SRpcConn *pConn, char *msg, int msgLen) {
     pDigest->timeStamp = htonl(taosGetTimestampSec());
     msgLen += sizeof(SRpcDigest);
     pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
-    rpcBuildAuthHead((uint8_t *)pHead, msgLen - TSDB_AUTH_LEN, pDigest->auth, pConn->secret);
+    rpcBuildAuthHead((uint8_t *)pHead, msgLen - TSDB_AUTH_LEN, pDigest->auth, (uint8_t *)pConn->secret);
   } else {
     pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
   }
@@ -1142,7 +1111,7 @@ static int rpcAddAuthPart(SRpcConn *pConn, char *msg, int msgLen) {
 static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
   SRpcHead *pHead = (SRpcHead *)msg;
   SRpcInfo *pRpc = pConn->pRpc;
-  int       code = 0;
+  int32_t   code = 0;
 
   if (pConn->spi == 0 ) return 0;
 
@@ -1158,7 +1127,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
              delta, htonl(pDigest->timeStamp));
       code = TSDB_CODE_INVALID_TIME_STAMP;
     } else {
-      if (rpcAuthenticateMsg((uint8_t *)pHead, msgLen - TSDB_AUTH_LEN, pDigest->auth, pConn->secret) < 0) {
+      if (rpcAuthenticateMsg((uint8_t *)pHead, msgLen - TSDB_AUTH_LEN, pDigest->auth, (uint8_t *)pConn->secret) < 0) {
         tError("%s pConn:%p, authentication failed, msg discarded", pRpc->label, pConn);
         code = TSDB_CODE_AUTH_FAILURE;
       } else {

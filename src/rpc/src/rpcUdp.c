@@ -14,15 +14,15 @@
  */
 
 #include "os.h"
-#include "taosmsg.h"
-#include "thash.h"
-#include "thaship.h"
 #include "tlog.h"
 #include "tsocket.h"
 #include "tsystem.h"
 #include "ttimer.h"
-#include "tudp.h"
 #include "tutil.h"
+#include "thash.h"
+#include "rpcHaship.h"
+#include "rpcUdp.h"
+#include "rpcHead.h"
 
 #define RPC_MAX_UDP_CONNS 256
 #define RPC_MAX_UDP_PKTS 1000
@@ -104,6 +104,41 @@ typedef struct {
   uint64_t hash;
 } SHandleViaTcp;
 
+void taosFreeMsgHdr(void *hdr) {
+  struct msghdr *msgHdr = (struct msghdr *)hdr;
+  free(msgHdr->msg_iov);
+}
+
+int taosMsgHdrSize(void *hdr) {
+  struct msghdr *msgHdr = (struct msghdr *)hdr;
+  return (int)msgHdr->msg_iovlen;
+}
+
+void taosSendMsgHdr(void *hdr, int fd) {
+  struct msghdr *msgHdr = (struct msghdr *)hdr;
+  sendmsg(fd, msgHdr, 0);
+  msgHdr->msg_iovlen = 0;
+}
+
+void taosInitMsgHdr(void **hdr, void *dest, int maxPkts) {
+  struct msghdr *msgHdr = (struct msghdr *)malloc(sizeof(struct msghdr));
+  memset(msgHdr, 0, sizeof(struct msghdr));
+  *hdr = msgHdr;
+  struct sockaddr_in *destAdd = (struct sockaddr_in *)dest;
+
+  msgHdr->msg_name = destAdd;
+  msgHdr->msg_namelen = sizeof(struct sockaddr_in);
+  int size = (int)sizeof(struct iovec) * maxPkts;
+  msgHdr->msg_iov = (struct iovec *)malloc((size_t)size);
+  memset(msgHdr->msg_iov, 0, (size_t)size);
+}
+
+void taosSetMsgHdrData(void *hdr, char *data, int dataLen) {
+  struct msghdr *msgHdr = (struct msghdr *)hdr;
+  msgHdr->msg_iov[msgHdr->msg_iovlen].iov_base = data;
+  msgHdr->msg_iov[msgHdr->msg_iovlen].iov_len = (size_t)dataLen;
+  msgHdr->msg_iovlen++;
+}
 bool taosCheckHandleViaTcpValid(SHandleViaTcp *handleViaTcp) {
   return handleViaTcp->hash == taosHashUInt64(handleViaTcp->handle);
 }
@@ -134,8 +169,8 @@ void taosProcessMonitorTimer(void *param, void *tmrId) {
 }
 
 void *taosReadTcpData(void *argv) {
-  SMonitor *   pMonitor = (SMonitor *)argv;
-  STaosHeader *pHead = (STaosHeader *)pMonitor->data;
+  SMonitor   *pMonitor = (SMonitor *)argv;
+  SRpcHead   *pHead = (SRpcHead *)pMonitor->data;
   SPacketInfo *pInfo = (SPacketInfo *)pHead->content;
   SUdpConnSet *pSet = pMonitor->pSet;
   int          retLen, fd;
@@ -189,7 +224,7 @@ void *taosReadTcpData(void *argv) {
   return NULL;
 }
 
-int taosReceivePacketViaTcp(uint32_t ip, STaosHeader *pHead, SUdpConn *pConn) {
+int taosReceivePacketViaTcp(uint32_t ip, SRpcHead *pHead, SUdpConn *pConn) {
   SUdpConnSet *  pSet = pConn->pSet;
   SPacketInfo *  pInfo = (SPacketInfo *)pHead->content;
   int            code = 0;
@@ -200,7 +235,7 @@ int taosReceivePacketViaTcp(uint32_t ip, STaosHeader *pHead, SUdpConn *pConn) {
          pHead->sourceId, pHead->destId, pHead->tranId);
 
   SMonitor *pMonitor = (SMonitor *)calloc(1, sizeof(SMonitor));
-  pMonitor->dataLen = sizeof(STaosHeader) + sizeof(SPacketInfo);
+  pMonitor->dataLen = sizeof(SRpcHead) + sizeof(SPacketInfo);
   memcpy(pMonitor->data, pHead, (size_t)pMonitor->dataLen);
   pMonitor->pSet = pSet;
   pMonitor->ip = ip;
@@ -225,7 +260,7 @@ void *taosRecvUdpData(void *param) {
   unsigned int       addLen, dataLen;
   SUdpConn *         pConn = (SUdpConn *)param;
   uint16_t           port;
-  int                minSize = sizeof(STaosHeader);
+  int                minSize = sizeof(SRpcHead);
 
   memset(&sourceAdd, 0, sizeof(sourceAdd));
   addLen = sizeof(sourceAdd);
@@ -237,7 +272,7 @@ void *taosRecvUdpData(void *param) {
     tTrace("%s msg is recv from 0x%x:%hu len:%d", pConn->label, sourceAdd.sin_addr.s_addr, ntohs(sourceAdd.sin_port),
            dataLen);
 
-    if (dataLen < sizeof(STaosHeader)) {
+    if (dataLen < sizeof(SRpcHead)) {
       tError("%s recvfrom failed, reason:%s\n", pConn->label, strerror(errno));
       continue;
     }
@@ -250,7 +285,7 @@ void *taosRecvUdpData(void *param) {
     char *msg = pConn->buffer;
     while (processedLen < (int)dataLen) {
       leftLen = dataLen - processedLen;
-      STaosHeader *pHead = (STaosHeader *)msg;
+      SRpcHead *pHead = (SRpcHead *)msg;
       msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
       if (leftLen < minSize || msgLen > leftLen || msgLen < minSize) {
         tError("%s msg is messed up, dataLen:%d processedLen:%d count:%d msgLen:%d", pConn->label, dataLen,
@@ -259,7 +294,7 @@ void *taosRecvUdpData(void *param) {
       }
 
       if (pHead->tcp == 1) {
-        taosReceivePacketViaTcp(sourceAdd.sin_addr.s_addr, (STaosHeader *)msg, pConn);
+        taosReceivePacketViaTcp(sourceAdd.sin_addr.s_addr, (SRpcHead *)msg, pConn);
       } else {
         char *data = malloc((size_t)msgLen);
         memcpy(data, msg, (size_t)msgLen);
@@ -282,7 +317,7 @@ void *taosTransferDataViaTcp(void *argv) {
   int          connFd = pTransfer->fd;
   int          msgLen, retLen, leftLen;
   uint64_t     handle;
-  STaosHeader *pHeader = NULL, head;
+  SRpcHead    *pHead = NULL, head;
   SUdpConnSet *pSet = pTransfer->pSet;
 
   SHandleViaTcp handleViaTcp;
@@ -308,8 +343,8 @@ void *taosTransferDataViaTcp(void *argv) {
   if (handle == 0) {
     // receive a packet from client
     tTrace("%s data will be received via TCP from 0x%x:%hu", pSet->label, pTransfer->ip, pTransfer->port);
-    retLen = taosReadMsg(connFd, &head, sizeof(STaosHeader));
-    if (retLen != (int)sizeof(STaosHeader)) {
+    retLen = taosReadMsg(connFd, &head, sizeof(SRpcHead));
+    if (retLen != (int)sizeof(SRpcHead)) {
       tError("%s failed to read msg header, retLen:%d", pSet->label, retLen);
     } else {
       SMonitor *pMonitor = (SMonitor *)calloc(1, sizeof(SMonitor));
@@ -319,10 +354,10 @@ void *taosTransferDataViaTcp(void *argv) {
         free(pTransfer);
         return NULL;
       }
-      pMonitor->dataLen = sizeof(STaosHeader);
+      pMonitor->dataLen = sizeof(SRpcHead);
       memcpy(pMonitor->data, &head, (size_t)pMonitor->dataLen);
-      ((STaosHeader *)pMonitor->data)->msgLen = (int32_t)htonl(sizeof(STaosHeader));
-      ((STaosHeader *)pMonitor->data)->tcp = 1;
+      ((SRpcHead *)pMonitor->data)->msgLen = (int32_t)htonl(sizeof(SRpcHead));
+      ((SRpcHead *)pMonitor->data)->tcp = 1;
       pMonitor->ip = pTransfer->ip;
       pMonitor->port = head.port;
       pMonitor->pSet = pSet;
@@ -337,8 +372,8 @@ void *taosTransferDataViaTcp(void *argv) {
         return NULL;
       }
 
-      leftLen = msgLen - (int)sizeof(STaosHeader);
-      retLen = taosReadMsg(connFd, buffer + sizeof(STaosHeader), leftLen);
+      leftLen = msgLen - (int)sizeof(SRpcHead);
+      retLen = taosReadMsg(connFd, buffer + sizeof(SRpcHead), leftLen);
       pMonitor->pSet = NULL;
 
       if (retLen != leftLen) {
@@ -349,7 +384,7 @@ void *taosTransferDataViaTcp(void *argv) {
                pTransfer->port, msgLen);
         pSet->index = (pSet->index + 1) % pSet->threads;
         SUdpConn *pConn = pSet->udpConn + pSet->index;
-        memcpy(buffer, &head, sizeof(STaosHeader));
+        memcpy(buffer, &head, sizeof(SRpcHead));
         (*pSet->fp)(buffer, msgLen, pTransfer->ip, head.port, pSet->shandle, NULL, pConn);
       }
 
@@ -358,11 +393,11 @@ void *taosTransferDataViaTcp(void *argv) {
   } else {
     // send a packet to client
     tTrace("%s send packet to client via TCP, handle:0x%x", pSet->label, handle);
-    pHeader = (STaosHeader *)handle;
-    msgLen = (int32_t)htonl((uint32_t)pHeader->msgLen);
+    pHead = (SRpcHead *)handle;
+    msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
 
-    if (pHeader->tcp != 0 || msgLen < 1024) {
-      tError("%s invalid handle:%p, connection shall be closed", pSet->label, pHeader);
+    if (pHead->tcp != 0 || msgLen < 1024) {
+      tError("%s invalid handle:%p, connection shall be closed", pSet->label, pHead);
     } else {
       SMonitor *pMonitor = (SMonitor *)calloc(1, sizeof(SMonitor));
       if (NULL == pMonitor) {
@@ -371,12 +406,12 @@ void *taosTransferDataViaTcp(void *argv) {
         free(pTransfer);
         return NULL;
       }
-      pMonitor->dataLen = sizeof(STaosHeader);
+      pMonitor->dataLen = sizeof(SRpcHead);
       memcpy(pMonitor->data, (void *)handle, (size_t)pMonitor->dataLen);
-      STaosHeader *pThead = (STaosHeader *)pMonitor->data;
+      SRpcHead *pThead = (SRpcHead *)pMonitor->data;
       pThead->tcp = 1;
-      pThead->msgType = (char)(pHeader->msgType - 1);
-      pThead->msgLen = (int32_t)htonl(sizeof(STaosHeader));
+      pThead->msgType = (char)(pHead->msgType - 1);
+      pThead->msgLen = (int32_t)htonl(sizeof(SRpcHead));
       uint32_t id = pThead->sourceId; pThead->sourceId = pThead->destId; pThead->destId = id;
       pMonitor->ip = pTransfer->ip;
       pMonitor->port = pTransfer->port;
@@ -522,7 +557,7 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
     pConn->pSet = pSet;
     pConn->signature = pConn;
     if (tsUdpDelay) {
-      pConn->hash = taosOpenIpHash(RPC_MAX_UDP_CONNS);
+      pConn->hash = rpcOpenIpHash(RPC_MAX_UDP_CONNS);
       pthread_mutex_init(&pConn->mutex, NULL);
       pConn->tmrCtrl = pSet->tmrCtrl;
     }
@@ -575,7 +610,7 @@ void taosCleanUpUdpConnection(void *handle) {
     pthread_cancel(pConn->thread);
     taosCloseSocket(pConn->fd);
     if (pConn->hash) {
-      taosCloseIpHash(pConn->hash);
+      rpcCloseIpHash(pConn->hash);
       pthread_mutex_destroy(&pConn->mutex);
     }
   }
@@ -608,7 +643,7 @@ void *taosOpenUdpConnection(void *shandle, void *thandle, char *ip, uint16_t por
 
 void taosRemoveUdpBuf(SUdpBuf *pBuf) {
   taosTmrStopA(&pBuf->timer);
-  taosDeleteIpHash(pBuf->pConn->hash, pBuf->ip, pBuf->port);
+  rpcDeleteIpHash(pBuf->pConn->hash, pBuf->ip, pBuf->port);
 
   // tTrace("%s UDP buffer to:0x%lld:%d is removed", pBuf->pConn->label,
   // pBuf->ip, pBuf->port);
@@ -671,13 +706,13 @@ int taosSendPacketViaTcp(uint32_t ip, uint16_t port, char *data, int dataLen, vo
   int          code = -1, retLen, msgLen;
   char         ipstr[64];
   char         buffer[128];
-  STaosHeader *pHead;
+  SRpcHead    *pHead;
 
   if (pSet->server) {
     // send from server
 
-    pHead = (STaosHeader *)buffer;
-    memcpy(pHead, data, sizeof(STaosHeader));
+    pHead = (SRpcHead *)buffer;
+    memcpy(pHead, data, sizeof(SRpcHead));
     pHead->tcp = 1;
 
     SPacketInfo *pInfo = (SPacketInfo *)pHead->content;
@@ -685,7 +720,7 @@ int taosSendPacketViaTcp(uint32_t ip, uint16_t port, char *data, int dataLen, vo
     pInfo->port   = pSet->port;
     pInfo->msgLen = pHead->msgLen;
 
-    msgLen = sizeof(STaosHeader) + sizeof(SPacketInfo);
+    msgLen = sizeof(SRpcHead) + sizeof(SPacketInfo);
     pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
     code = taosSendUdpData(ip, port, buffer, msgLen, chandle);
     tTrace("%s data from server will be sent via TCP:%hu, msgType:%d, length:%d, handle:0x%x", pSet->label, pInfo->port,
@@ -696,16 +731,16 @@ int taosSendPacketViaTcp(uint32_t ip, uint16_t port, char *data, int dataLen, vo
     tTrace("%s data will be sent via TCP from client", pSet->label);
 
     // send a UDP header first to set up the connection
-    pHead = (STaosHeader *)buffer;
-    memcpy(pHead, data, sizeof(STaosHeader));
+    pHead = (SRpcHead *)buffer;
+    memcpy(pHead, data, sizeof(SRpcHead));
 
     pHead->tcp = 2;
 
-    msgLen = sizeof(STaosHeader);
+    msgLen = sizeof(SRpcHead);
     pHead->msgLen = (int32_t)htonl(msgLen);
     code = taosSendUdpData(ip, port, buffer, msgLen, chandle);
 
-    //pHead = (STaosHeader *)data;
+    //pHead = (SRpcHead *)data;
 
     tinet_ntoa(ipstr, ip);
     int fd = taosOpenTcpClientSocket(ipstr, pConn->port, tsLocalIp);
@@ -762,10 +797,10 @@ int taosSendUdpData(uint32_t ip, uint16_t port, char *data, int dataLen, void *c
 
   pthread_mutex_lock(&pConn->mutex);
 
-  pBuf = (SUdpBuf *)taosGetIpHash(pConn->hash, ip, port);
+  pBuf = (SUdpBuf *)rpcGetIpHash(pConn->hash, ip, port);
   if (pBuf == NULL) {
     pBuf = taosCreateUdpBuf(pConn, ip, port);
-    taosAddIpHash(pConn->hash, pBuf, ip, port);
+    rpcAddIpHash(pConn->hash, pBuf, ip, port);
   }
 
   if ((pBuf->totalLen + dataLen > RPC_MAX_UDP_SIZE) || (taosMsgHdrSize(pBuf->msgHdr) >= RPC_MAX_UDP_PKTS)) {

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _taos_udp_header_
-#define _taos_udp_header_
+#ifndef _rpc_client_header_
+#define _rpc_client_header_
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,17 +22,11 @@ extern "C" {
 
 #include "taosdef.h"
 
-void *taosInitUdpServer(char *ip, uint16_t port, char *label, int, void *fp, void *shandle);
-void *taosInitUdpClient(char *ip, uint16_t port, char *label, int, void *fp, void *shandle);
-void taosCleanUpUdpConnection(void *handle);
-int taosSendUdpData(uint32_t ip, uint16_t port, char *data, int dataLen, void *chandle);
-void *taosOpenUdpConnection(void *shandle, void *thandle, char *ip, uint16_t port);
-
-void taosFreeMsgHdr(void *hdr);
-int taosMsgHdrSize(void *hdr);
-void taosSendMsgHdr(void *hdr, int fd);
-void taosInitMsgHdr(void **hdr, void *dest, int maxPkts);
-void taosSetMsgHdrData(void *hdr, char *data, int dataLen);
+void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp, void *shandle);
+void taosCleanUpTcpClient(void *chandle);
+void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port);
+void taosCloseTcpClientConnection(void *chandle);
+int taosSendTcpClientData(uint32_t ip, uint16_t port, char *data, int len, void *chandle);
 
 #ifdef __cplusplus
 }

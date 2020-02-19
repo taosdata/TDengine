@@ -32,7 +32,7 @@ typedef struct {
   int       maxSessions;
 } SHashObj;
 
-int taosHashIp(void *handle, uint32_t ip, uint16_t port) {
+int rpcHashIp(void *handle, uint32_t ip, uint16_t port) {
   SHashObj *pObj = (SHashObj *)handle;
   int       hash = 0;
 
@@ -45,7 +45,7 @@ int taosHashIp(void *handle, uint32_t ip, uint16_t port) {
   return hash;
 }
 
-void *taosAddIpHash(void *handle, void *data, uint32_t ip, uint16_t port) {
+void *rpcAddIpHash(void *handle, void *data, uint32_t ip, uint16_t port) {
   int       hash;
   SIpHash * pNode;
   SHashObj *pObj;
@@ -53,7 +53,7 @@ void *taosAddIpHash(void *handle, void *data, uint32_t ip, uint16_t port) {
   pObj = (SHashObj *)handle;
   if (pObj == NULL || pObj->maxSessions == 0) return NULL;
 
-  hash = taosHashIp(pObj, ip, port);
+  hash = rpcHashIp(pObj, ip, port);
   pNode = (SIpHash *)taosMemPoolMalloc(pObj->ipHashMemPool);
   pNode->ip = ip;
   pNode->port = port;
@@ -68,7 +68,7 @@ void *taosAddIpHash(void *handle, void *data, uint32_t ip, uint16_t port) {
   return pObj;
 }
 
-void taosDeleteIpHash(void *handle, uint32_t ip, uint16_t port) {
+void rpcDeleteIpHash(void *handle, uint32_t ip, uint16_t port) {
   int       hash;
   SIpHash * pNode;
   SHashObj *pObj;
@@ -76,7 +76,7 @@ void taosDeleteIpHash(void *handle, uint32_t ip, uint16_t port) {
   pObj = (SHashObj *)handle;
   if (pObj == NULL || pObj->maxSessions == 0) return;
 
-  hash = taosHashIp(pObj, ip, port);
+  hash = rpcHashIp(pObj, ip, port);
 
   pNode = pObj->ipHashList[hash];
   while (pNode) {
@@ -100,7 +100,7 @@ void taosDeleteIpHash(void *handle, uint32_t ip, uint16_t port) {
   }
 }
 
-void *taosGetIpHash(void *handle, uint32_t ip, uint16_t port) {
+void *rpcGetIpHash(void *handle, uint32_t ip, uint16_t port) {
   int       hash;
   SIpHash * pNode;
   SHashObj *pObj;
@@ -108,7 +108,7 @@ void *taosGetIpHash(void *handle, uint32_t ip, uint16_t port) {
   pObj = (SHashObj *)handle;
   if (pObj == NULL || pObj->maxSessions == 0) return NULL;
 
-  hash = taosHashIp(pObj, ip, port);
+  hash = rpcHashIp(pObj, ip, port);
   pNode = pObj->ipHashList[hash];
 
   while (pNode) {
@@ -124,7 +124,7 @@ void *taosGetIpHash(void *handle, uint32_t ip, uint16_t port) {
   return NULL;
 }
 
-void *taosOpenIpHash(int maxSessions) {
+void *rpcOpenIpHash(int maxSessions) {
   SIpHash **ipHashList;
   mpool_h   ipHashMemPool;
   SHashObj *pObj;
@@ -152,7 +152,7 @@ void *taosOpenIpHash(int maxSessions) {
   return pObj;
 }
 
-void taosCloseIpHash(void *handle) {
+void rpcCloseIpHash(void *handle) {
   SHashObj *pObj;
 
   pObj = (SHashObj *)handle;
