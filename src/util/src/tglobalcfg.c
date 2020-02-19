@@ -209,7 +209,7 @@ char tsLocale[TSDB_LOCALE_LEN] = {0};
 char tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 
 int tsNumOfLogLines = 10000000;
-uint32_t rpcDebugFlag = 131;
+uint32_t rpcDebugFlag = 135;
 uint32_t ddebugFlag = 131;
 uint32_t mdebugFlag = 135;
 uint32_t sdbDebugFlag = 135;

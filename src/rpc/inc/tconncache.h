@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
-void *taosOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, int64_t keepTimer);
-void  taosCloseConnCache(void *handle);
-void  taosAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, char *user);
-void *taosGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user);
+void *rpcOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, int64_t keepTimer);
+void  rpcCloseConnCache(void *handle);
+void  rpcAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, char *user);
+void *rpcGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user);
 
 #ifdef __cplusplus
 }

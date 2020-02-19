@@ -40,13 +40,13 @@ typedef struct {
   int *           count;
   int64_t         keepTimer;
   pthread_mutex_t mutex;
-  void (*cleanFp)(void *);
-  void *tmrCtrl;
-  void *pTimer;
+  void          (*cleanFp)(void *);
+  void           *tmrCtrl;
+  void           *pTimer;
 } SConnCache;
 
-int taosHashConn(void *handle, uint32_t ip, uint16_t port, char *user) {
-  SConnCache *pObj = (SConnCache *)handle;
+int rpcHashConn(void *handle, uint32_t ip, uint16_t port, char *user) {
+  SConnCache *pCache = (SConnCache *)handle;
   int         hash = 0;
   // size_t    user_len = strlen(user);
 
@@ -58,109 +58,109 @@ int taosHashConn(void *handle, uint32_t ip, uint16_t port, char *user) {
     user++;
   }
 
-  hash = hash % pObj->maxSessions;
+  hash = hash % pCache->maxSessions;
 
   return hash;
 }
 
-void taosRemoveExpiredNodes(SConnCache *pObj, SConnHash *pNode, int hash, uint64_t time) {
-  if (time < pObj->keepTimer + pNode->time) return;
+void rpcRemoveExpiredNodes(SConnCache *pCache, SConnHash *pNode, int hash, uint64_t time) {
+  if (pNode == NULL || (time < pCache->keepTimer + pNode->time) ) return;
 
   SConnHash *pPrev = pNode->prev, *pNext;
 
   while (pNode) {
-    (*pObj->cleanFp)(pNode->data);
+    (*pCache->cleanFp)(pNode->data);
     pNext = pNode->next;
-    pObj->total--;
-    pObj->count[hash]--;
-    tscTrace("%p ip:0x%x:%hu:%d:%p removed, connections in cache:%d", pNode->data, pNode->ip, pNode->port, hash, pNode,
-             pObj->count[hash]);
-    taosMemPoolFree(pObj->connHashMemPool, (char *)pNode);
+    pCache->total--;
+    pCache->count[hash]--;
+    tTrace("%p ip:0x%x:%hu:%d:%p removed, connections in cache:%d", pNode->data, pNode->ip, pNode->port, hash, pNode,
+             pCache->count[hash]);
+    taosMemPoolFree(pCache->connHashMemPool, (char *)pNode);
     pNode = pNext;
   }
 
   if (pPrev)
     pPrev->next = NULL;
   else
-    pObj->connHashList[hash] = NULL;
+    pCache->connHashList[hash] = NULL;
 }
 
-void taosAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, char *user) {
+void rpcAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, char *user) {
   int         hash;
   SConnHash * pNode;
-  SConnCache *pObj;
+  SConnCache *pCache;
 
   uint64_t time = taosGetTimestampMs();
 
-  pObj = (SConnCache *)handle;
-  assert(pObj); 
+  pCache = (SConnCache *)handle;
+  assert(pCache); 
   assert(data);
 
-  hash = taosHashConn(pObj, ip, port, user);
-  pNode = (SConnHash *)taosMemPoolMalloc(pObj->connHashMemPool);
+  hash = rpcHashConn(pCache, ip, port, user);
+  pNode = (SConnHash *)taosMemPoolMalloc(pCache->connHashMemPool);
   pNode->ip = ip;
   pNode->port = port;
   pNode->data = data;
   pNode->prev = NULL;
   pNode->time = time;
 
-  pthread_mutex_lock(&pObj->mutex);
+  pthread_mutex_lock(&pCache->mutex);
 
-  pNode->next = pObj->connHashList[hash];
-  if (pObj->connHashList[hash] != NULL) (pObj->connHashList[hash])->prev = pNode;
-  pObj->connHashList[hash] = pNode;
+  pNode->next = pCache->connHashList[hash];
+  if (pCache->connHashList[hash] != NULL) (pCache->connHashList[hash])->prev = pNode;
+  pCache->connHashList[hash] = pNode;
 
-  pObj->total++;
-  pObj->count[hash]++;
-  taosRemoveExpiredNodes(pObj, pNode->next, hash, time);
+  pCache->total++;
+  pCache->count[hash]++;
+  rpcRemoveExpiredNodes(pCache, pNode->next, hash, time);
 
-  pthread_mutex_unlock(&pObj->mutex);
+  pthread_mutex_unlock(&pCache->mutex);
 
-  tscTrace("%p ip:0x%x:%hu:%d:%p added, connections in cache:%d", data, ip, port, hash, pNode, pObj->count[hash]);
+  tTrace("%p ip:0x%x:%hu:%d:%p added, connections in cache:%d", data, ip, port, hash, pNode, pCache->count[hash]);
 
   return;
 }
 
-void taosCleanConnCache(void *handle, void *tmrId) {
+void rpcCleanConnCache(void *handle, void *tmrId) {
   int         hash;
   SConnHash * pNode;
-  SConnCache *pObj;
+  SConnCache *pCache;
 
-  pObj = (SConnCache *)handle;
-  if (pObj == NULL || pObj->maxSessions == 0) return;
-  if (pObj->pTimer != tmrId) return;
+  pCache = (SConnCache *)handle;
+  if (pCache == NULL || pCache->maxSessions == 0) return;
+  if (pCache->pTimer != tmrId) return;
 
   uint64_t time = taosGetTimestampMs();
 
-  for (hash = 0; hash < pObj->maxSessions; ++hash) {
-    pthread_mutex_lock(&pObj->mutex);
-    pNode = pObj->connHashList[hash];
-    taosRemoveExpiredNodes(pObj, pNode, hash, time);
-    pthread_mutex_unlock(&pObj->mutex);
+  for (hash = 0; hash < pCache->maxSessions; ++hash) {
+    pthread_mutex_lock(&pCache->mutex);
+    pNode = pCache->connHashList[hash];
+    rpcRemoveExpiredNodes(pCache, pNode, hash, time);
+    pthread_mutex_unlock(&pCache->mutex);
   }
 
-  // tscTrace("timer, total connections in cache:%d", pObj->total);
-  taosTmrReset(taosCleanConnCache, pObj->keepTimer * 2, pObj, pObj->tmrCtrl, &pObj->pTimer);
+  // tTrace("timer, total connections in cache:%d", pCache->total);
+  taosTmrReset(rpcCleanConnCache, pCache->keepTimer * 2, pCache, pCache->tmrCtrl, &pCache->pTimer);
 }
 
-void *taosGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user) {
+void *rpcGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user) {
   int         hash;
   SConnHash * pNode;
-  SConnCache *pObj;
+  SConnCache *pCache;
   void *      pData = NULL;
 
-  pObj = (SConnCache *)handle;
-  assert(pObj); 
+  pCache = (SConnCache *)handle;
+  assert(pCache); 
 
   uint64_t time = taosGetTimestampMs();
 
-  hash = taosHashConn(pObj, ip, port, user);
-  pthread_mutex_lock(&pObj->mutex);
+  hash = rpcHashConn(pCache, ip, port, user);
+  pthread_mutex_lock(&pCache->mutex);
 
-  pNode = pObj->connHashList[hash];
+  pNode = pCache->connHashList[hash];
   while (pNode) {
-    if (time >= pObj->keepTimer + pNode->time) {
-      taosRemoveExpiredNodes(pObj, pNode, hash, time);
+    if (time >= pCache->keepTimer + pNode->time) {
+      rpcRemoveExpiredNodes(pCache, pNode, hash, time);
       pNode = NULL;
       break;
     }
@@ -171,12 +171,12 @@ void *taosGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user)
   }
 
   if (pNode) {
-    taosRemoveExpiredNodes(pObj, pNode->next, hash, time);
+    rpcRemoveExpiredNodes(pCache, pNode->next, hash, time);
 
     if (pNode->prev) {
       pNode->prev->next = pNode->next;
     } else {
-      pObj->connHashList[hash] = pNode->next;
+      pCache->connHashList[hash] = pNode->next;
     }
 
     if (pNode->next) {
@@ -184,24 +184,24 @@ void *taosGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user)
     }
 
     pData = pNode->data;
-    taosMemPoolFree(pObj->connHashMemPool, (char *)pNode);
-    pObj->total--;
-    pObj->count[hash]--;
+    taosMemPoolFree(pCache->connHashMemPool, (char *)pNode);
+    pCache->total--;
+    pCache->count[hash]--;
   }
 
-  pthread_mutex_unlock(&pObj->mutex);
+  pthread_mutex_unlock(&pCache->mutex);
 
   if (pData) {
-    tscTrace("%p ip:0x%x:%hu:%d:%p retrieved, connections in cache:%d", pData, ip, port, hash, pNode, pObj->count[hash]);
+    tTrace("%p ip:0x%x:%hu:%d:%p retrieved, connections in cache:%d", pData, ip, port, hash, pNode, pCache->count[hash]);
   }
 
   return pData;
 }
 
-void *taosOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, int64_t keepTimer) {
+void *rpcOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, int64_t keepTimer) {
   SConnHash **connHashList;
   mpool_h     connHashMemPool;
-  SConnCache *pObj;
+  SConnCache *pCache;
 
   connHashMemPool = taosMemPoolInit(maxSessions, sizeof(SConnHash));
   if (connHashMemPool == 0) return NULL;
@@ -212,48 +212,48 @@ void *taosOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl,
     return NULL;
   }
 
-  pObj = malloc(sizeof(SConnCache));
-  if (pObj == NULL) {
+  pCache = malloc(sizeof(SConnCache));
+  if (pCache == NULL) {
     taosMemPoolCleanUp(connHashMemPool);
     free(connHashList);
     return NULL;
   }
-  memset(pObj, 0, sizeof(SConnCache));
+  memset(pCache, 0, sizeof(SConnCache));
 
-  pObj->count = calloc(sizeof(int), maxSessions);
-  pObj->total = 0;
-  pObj->keepTimer = keepTimer;
-  pObj->maxSessions = maxSessions;
-  pObj->connHashMemPool = connHashMemPool;
-  pObj->connHashList = connHashList;
-  pObj->cleanFp = cleanFp;
-  pObj->tmrCtrl = tmrCtrl;
-  taosTmrReset(taosCleanConnCache, pObj->keepTimer * 2, pObj, pObj->tmrCtrl, &pObj->pTimer);
+  pCache->count = calloc(sizeof(int), maxSessions);
+  pCache->total = 0;
+  pCache->keepTimer = keepTimer;
+  pCache->maxSessions = maxSessions;
+  pCache->connHashMemPool = connHashMemPool;
+  pCache->connHashList = connHashList;
+  pCache->cleanFp = cleanFp;
+  pCache->tmrCtrl = tmrCtrl;
+  taosTmrReset(rpcCleanConnCache, pCache->keepTimer * 2, pCache, pCache->tmrCtrl, &pCache->pTimer);
 
-  pthread_mutex_init(&pObj->mutex, NULL);
+  pthread_mutex_init(&pCache->mutex, NULL);
 
-  return pObj;
+  return pCache;
 }
 
-void taosCloseConnCache(void *handle) {
-  SConnCache *pObj;
+void rpcCloseConnCache(void *handle) {
+  SConnCache *pCache;
 
-  pObj = (SConnCache *)handle;
-  if (pObj == NULL || pObj->maxSessions == 0) return;
+  pCache = (SConnCache *)handle;
+  if (pCache == NULL || pCache->maxSessions == 0) return;
 
-  pthread_mutex_lock(&pObj->mutex);
+  pthread_mutex_lock(&pCache->mutex);
 
-  taosTmrStopA(&(pObj->pTimer));
+  taosTmrStopA(&(pCache->pTimer));
 
-  if (pObj->connHashMemPool) taosMemPoolCleanUp(pObj->connHashMemPool);
+  if (pCache->connHashMemPool) taosMemPoolCleanUp(pCache->connHashMemPool);
 
-  tfree(pObj->connHashList);
-  tfree(pObj->count)
+  tfree(pCache->connHashList);
+  tfree(pCache->count)
 
-      pthread_mutex_unlock(&pObj->mutex);
+      pthread_mutex_unlock(&pCache->mutex);
 
-  pthread_mutex_destroy(&pObj->mutex);
+  pthread_mutex_destroy(&pCache->mutex);
 
-  memset(pObj, 0, sizeof(SConnCache));
-  free(pObj);
+  memset(pCache, 0, sizeof(SConnCache));
+  free(pCache);
 }

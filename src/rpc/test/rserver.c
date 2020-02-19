@@ -27,18 +27,23 @@ void processMsg(char type, void *pCont, int contLen, void *ahandle, int32_t code
 }
 
 int32_t main(int32_t argc, char *argv[]) {
+  taosInitLog("server.log", 100000, 10);
+
   dPrint("unit test for rpc module");
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp      = "0.0.0.0";
   rpcInit.localPort    = 7000;
-  rpcInit.label        = "unittest";
+  rpcInit.label        = "APP";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp           = processMsg;
+  rpcInit.cfp          = processMsg;
   rpcInit.sessions     = 1000;
   rpcInit.connType     = TAOS_CONN_UDPS;
   rpcInit.idleTime     = 2000;
+  rpcInit.meterId      = "jefftao";
+  rpcInit.secret       = "password";
+  rpcInit.ckey         = "key";
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
