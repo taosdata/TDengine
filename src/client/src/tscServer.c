@@ -2886,7 +2886,7 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql) {
     int32_t condLen = 0;
     if (pTagCond->numOfTagCond > 0) {
       SCond *pCond = tsGetMetricQueryCondPos(pTagCond, uid);
-      if (pCond != NULL) {
+      if (pCond != NULL && pCond->cond != NULL) {
         condLen = strlen(pCond->cond) + 1;
         
         bool ret = taosMbsToUcs4(pCond->cond, condLen, pMsg, condLen * TSDB_NCHAR_SIZE);
@@ -2909,10 +2909,12 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql) {
 
       pElem->tableCond = htonl(offset);
       
-      uint32_t len = strlen(pTagCond->tbnameCond.cond);
-      pElem->tableCondLen = htonl(len);
-
-      memcpy(pMsg, pTagCond->tbnameCond.cond, len);
+      uint32_t len = 0;
+      if (pTagCond->tbnameCond.cond != NULL) {
+        len = strlen(pTagCond->tbnameCond.cond);
+        memcpy(pMsg, pTagCond->tbnameCond.cond, len);
+      }
+	    
       pMsg += len;
     }
 
