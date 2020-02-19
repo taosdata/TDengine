@@ -849,10 +849,11 @@ static void doOrderedScan(SQInfo *pQInfo) {
 }
 
 static void setupMeterQueryInfoForSupplementQuery(STableQuerySupportObj *pSupporter) {
+  SQuery* pQuery = pSupporter->runtimeEnv.pQuery;
+  
   for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
-    SMeterQueryInfo *         pMeterQueryInfo = pSupporter->pMeterDataInfo[i].pMeterQInfo;
-    SQueryDiskbasedResultBuf *pResultBuf = pSupporter->runtimeEnv.pResultBuf;
-    changeMeterQueryInfoForSuppleQuery(pResultBuf, pMeterQueryInfo, pSupporter->rawSKey, pSupporter->rawEKey);
+    SMeterQueryInfo *pMeterQueryInfo = pSupporter->pMeterDataInfo[i].pMeterQInfo;
+    changeMeterQueryInfoForSuppleQuery(pQuery, pMeterQueryInfo, pSupporter->rawSKey, pSupporter->rawEKey);
   }
 }
 

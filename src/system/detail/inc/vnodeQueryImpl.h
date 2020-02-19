@@ -228,7 +228,7 @@ void destroyMeterQueryInfo(SMeterQueryInfo* pMeterQueryInfo, int32_t numOfCols);
  * @param skey
  * @param ekey
  */
-void changeMeterQueryInfoForSuppleQuery(SQueryDiskbasedResultBuf* pResultBuf, SMeterQueryInfo* pMeterQueryInfo,
+void changeMeterQueryInfoForSuppleQuery(SQuery* pQuery, SMeterQueryInfo* pMeterQueryInfo,
                                         TSKEY skey, TSKEY ekey);
 
 /**
