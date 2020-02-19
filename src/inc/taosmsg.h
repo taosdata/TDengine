@@ -688,6 +688,7 @@ typedef struct {
 typedef struct {
   int32_t dnode;  //the ID of dnode
   int32_t vnode;  //the index of vnode
+  uint32_t ip;
 } SVPeerDesc;
 
 typedef struct {

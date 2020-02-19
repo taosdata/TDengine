@@ -24,8 +24,9 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
-
+#include "tsched.h"
 #include "tsclient.h"
+
 // global, not configurable
 void *  pVnodeConn;
 void *  pVMeterConn;
@@ -94,18 +95,17 @@ void taos_init_imp() {
   if (tsTscEnableRecordSql != 0) {
     taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
   }
-  
-  tscMgmtIpList.numOfIps = 2;
-  strcpy(tscMgmtIpList.ipstr[0], tsMasterIp);
+
+  tscMgmtIpList.index = 0;
+  tscMgmtIpList.port = tsMgmtShellPort;
+  tscMgmtIpList.numOfIps = 1;
+  strcpy(tscMgmtIpList.ipStr[0], tsMasterIp);
   tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
 
-  strcpy(tscMgmtIpList.ipstr[1], tsMasterIp);
-  tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
-
   if (tsSecondIp[0]) {
-    tscMgmtIpList.numOfIps = 3;
-    strcpy(tscMgmtIpList.ipstr[2], tsSecondIp);
-    tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
+    tscMgmtIpList.numOfIps = 2;
+    strcpy(tscMgmtIpList.ipStr[1], tsSecondIp);
+    tscMgmtIpList.ip[1] = inet_addr(tsSecondIp);
   }
 
   tscInitMsgs();
@@ -132,26 +132,12 @@ void taos_init_imp() {
   rpcInit.label = "TSC-vnode";
   rpcInit.numOfThreads = tscNumOfThreads;
   rpcInit.fp = tscProcessMsgFromServer;
-  rpcInit.bits = 20;
-  rpcInit.numOfChanns = tscNumOfThreads;
-  rpcInit.sessionsPerChann = tsMaxVnodeConnections / tscNumOfThreads;
-  rpcInit.idMgmt = TAOS_ID_FREE;
-  rpcInit.noFree = 0;
+  rpcInit.sessions = tsMaxVnodeConnections;
   rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
-  rpcInit.qhandle = tscQhandle;
-  pVnodeConn = taosOpenRpc(&rpcInit);
+  pVnodeConn = rpcOpen(&rpcInit);
   if (pVnodeConn == NULL) {
     tscError("failed to init connection to vnode");
     return;
-  }
-
-  for (int i = 0; i < tscNumOfThreads; ++i) {
-    int retVal = taosOpenRpcChann(pVnodeConn, i, rpcInit.sessionsPerChann);
-    if (0 != retVal) {
-      tError("TSC-vnode, failed to open rpc chann");
-      taosCloseRpc(pVnodeConn);
-      return;
-    }
   }
 
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -160,14 +146,9 @@ void taos_init_imp() {
   rpcInit.label = "TSC-mgmt";
   rpcInit.numOfThreads = 1;
   rpcInit.fp = tscProcessMsgFromServer;
-  rpcInit.bits = 20;
-  rpcInit.numOfChanns = 1;
-  rpcInit.sessionsPerChann = tsMaxMgmtConnections;
-  rpcInit.idMgmt = TAOS_ID_FREE;
-  rpcInit.noFree = 0;
+  rpcInit.sessions = tsMaxMgmtConnections;
   rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
-  rpcInit.qhandle = tscQhandle;
-  pTscMgmtConn = taosOpenRpc(&rpcInit);
+  pTscMgmtConn = rpcOpen(&rpcInit);
   if (pTscMgmtConn == NULL) {
     tscError("failed to init connection to mgmt");
     return;
@@ -183,7 +164,7 @@ void taos_init_imp() {
 
   if (tscCacheHandle == NULL) tscCacheHandle = taosInitDataCache(tsMaxMeterConnections / 2, tscTmr, refreshTime);
 
-  tscConnCache = taosOpenConnCache(tsMaxMeterConnections * 2, taosCloseRpcConn, tscTmr, tsShellActivityTimer * 1000);
+  tscConnCache = taosOpenConnCache(tsMaxMeterConnections * 2, NULL/*taosCloseRpcConn*/, tscTmr, tsShellActivityTimer * 1000);
 
   initialized = 1;
   tscTrace("client is initialized successfully");

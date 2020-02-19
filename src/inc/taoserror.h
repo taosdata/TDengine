@@ -26,7 +26,7 @@ extern "C" {
 #ifdef TAOS_ERROR_C
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) {.val = (0x80000000 | ((mod)<<16) | (code)), .str=(msg)},
 #else
-#define TAOS_DEFINE_ERROR(name, mod, code, msg) const int32_t name = (0x80000000 | ((mod)<<16) | (code));
+#define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = (0x80000000 | ((mod)<<16) | (code));
 #endif
  
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
