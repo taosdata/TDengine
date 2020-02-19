@@ -68,14 +68,16 @@ typedef struct {
 } SRpcInfo;
 
 typedef struct {
-  SRpcIpSet ipSet;
-  void     *ahandle;    // handle provided by app
   SRpcInfo *pRpc;       // associated SRpcInfo
+  SRpcIpSet ipSet;      // ip list provided by app
+  void     *ahandle;    // handle provided by app
   char      msgType;    // message type
-  char     *pCont;      // content provided by app
-  int       contLen;    // content length
-  int       numOfRetry; // number of retry for different servers
+  uint8_t  *pCont;      // content provided by app
+  int32_t   contLen;    // content length
   int32_t   code;       // error code
+  int16_t   numOfTry;   // number of try for different servers
+  int8_t    oldIndex;   // server IP index passed by app
+  int8_t    redirect;   // flag to indicate redirect
   char      msg[0];     // RpcHeader starts from here
 } SRpcReqContext;
 
@@ -130,6 +132,11 @@ typedef struct {
   int32_t  code;
   uint8_t  content[0]; // message body starts from here
 } SRpcHeader;
+
+typedef struct {
+  int32_t  reserved;
+  int32_t  contLen;
+} SRpcComp;
 
 typedef struct {
   uint32_t timeStamp;
@@ -333,6 +340,7 @@ void rpcSendRequest(void *shandle, SRpcIpSet ipSet, char type, void *pCont, int 
   pContext->contLen = contLen;
   pContext->pCont = pCont;
   pContext->msgType = type;
+  pContext->oldIndex = ipSet.index;
 
   rpcSendReqToServer(pRpc, pContext);
 
@@ -779,11 +787,15 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHeader *pHeader) {
     taosAddConnIntoCache(pRpc->pCache, pConn, pConn->peerIp, pConn->peerPort, pConn->meterId);    
 
     if (code == TSDB_CODE_REDIRECT) {
+      pContext->redirect = 1;
+      pContext->numOfTry = 0;
       memcpy(&pContext->ipSet, pHeader->content, sizeof(pContext->ipSet));
       rpcSendReqToServer(pRpc, pContext);
     } else {
       rpcFreeOutMsg(rpcHeaderFromCont(pContext->pCont)); // free the request msg
-      (*(pRpc->cfp))(pHeader->msgType, pCont, contLen, pContext->ahandle, pContext->ipSet.index);
+      if ( pContext->ipSet.index != pContext->oldIndex || pContext->redirect ) 
+        (*pRpc->ufp)(pContext->ahandle, pContext->ipSet);
+      (*pRpc->cfp)(pHeader->msgType, pCont, contLen, pContext->ahandle, pContext->ipSet.index);
     }
   }
 }
@@ -853,6 +865,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   int          msgLen = rpcMsgLenFromCont(pContext->contLen);
   char         msgType = pContext->msgType;
 
+  pContext->numOfTry++;
   SRpcConn *pConn = rpcSetConnToServer(pRpc, pContext->ipSet);
   if (pConn == NULL) {
     pContext->code = terrno;
@@ -922,7 +935,7 @@ static void rpcProcessConnError(void *param, void *id) {
   SRpcReqContext *pContext = (SRpcReqContext *)param;
   SRpcInfo *pRpc = pContext->pRpc;
 
-  if ( pContext->numOfRetry >= pContext->ipSet.numOfIps ) {
+  if ( pContext->numOfTry >= pContext->ipSet.numOfIps ) {
     rpcFreeOutMsg(rpcHeaderFromCont(pContext->pCont)); // free the request msg
     (*(pRpc->cfp))(pContext->msgType+1, NULL, 0, pContext->ahandle, pContext->code);  
   } else {
@@ -1003,11 +1016,6 @@ static void rpcFreeOutMsg(void *msg) {
   char *req = ((char *)msg) - sizeof(SRpcReqContext);
   free(req);
 }
-
-typedef struct {
-  int32_t  reserved;
-  int32_t  contLen;
-} SRpcComp;
 
 static int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen) {
   SRpcHeader  *pHeader = rpcHeaderFromCont(pCont);

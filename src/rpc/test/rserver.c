@@ -19,6 +19,13 @@
 #include "trpc.h"
 #include <stdint.h>
 
+void processMsg(char type, void *pCont, int contLen, void *ahandle, int32_t code) {
+  dPrint("request is received, type:%d, contLen:%d", type, contLen);
+  void *rsp = rpcMallocCont(128);
+  rpcSendResponse(ahandle, 1, rsp, 128);
+  rpcFreeCont(pCont);
+}
+
 int32_t main(int32_t argc, char *argv[]) {
   dPrint("unit test for rpc module");
 
@@ -28,17 +35,28 @@ int32_t main(int32_t argc, char *argv[]) {
   rpcInit.localPort    = 7000;
   rpcInit.label        = "unittest";
   rpcInit.numOfThreads = 1;
-  rpcInit.fp           = NULL;
+  rpcInit.cfp           = processMsg;
   rpcInit.sessions     = 1000;
-  rpcInit.connType     = TAOS_CONN_SOCKET_TYPE_S();
+  rpcInit.connType     = TAOS_CONN_UDPS;
   rpcInit.idleTime     = 2000;
 
-  void *pConn = rpcOpen(&rpcInit);
-  if (pConn != NULL) {
-    dPrint("conection is opened");
-  } else {
+  void *pRpc = rpcOpen(&rpcInit);
+  if (pRpc == NULL) {
     dError("failed to initialize rpc");
+    return -1;
   }
+
+/*
+  SRpcIpSet ipSet;
+  ipSet.numOfIps = 2;
+  ipSet.index = 0;
+  ipSet.ip[0] = inet_addr("127.0.0.1");
+  ipSet.ip[1] = inet_addr("192.168.0.1");
+*/
+
+  dPrint("server is running...");
+
+  getchar();
 
   return 0;
 }
