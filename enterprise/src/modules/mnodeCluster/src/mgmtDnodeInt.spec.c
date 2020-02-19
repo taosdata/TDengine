@@ -46,11 +46,11 @@ char *taosBuildReqMsgToDnodeWithSize(SDnodeObj *pObj, char type, int size) {
   return taosBuildReqMsgWithSize(pObj->thandle, type, size);
 }
 
-int taosSendSimpleRspToDnode(SDnodeObj *pObj, char rsptype, char code) {
+int mgmtSendSimpleRspToDnode(SDnodeObj *pObj, char rsptype, char code) {
   return taosSendSimpleRsp(pObj->thandle, rsptype, code);
 }
 
-int taosSendMsgToDnode(SDnodeObj *pObj, char *msg, int msgLen) {
+int mgmtSendMsgToDnode(SDnodeObj *pObj, char *msg, int msgLen) {
   return taosSendMsgToPeer(pObj->thandle, msg, msgLen);
 }
 

@@ -34,7 +34,7 @@
 extern void *      mgmtStatisticTimer;
 extern void *      pDnodeConn;
 extern void *      pShellConn;
-extern void **     rpcQhandle;
+extern void **     tsRpcQhandle;
 extern SMgmtIpList mgmtIpList;
 extern SMgmtIpList mgmtPublicIpList;
 extern char        mgmtIpStr[TSDB_MAX_MGMT_IPS][20];
@@ -123,7 +123,7 @@ int mgmtInitRedirect() {
   rpcInit.sessionsPerChann = 100;
   rpcInit.idMgmt = TAOS_ID_FREE;
   rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
-  rpcInit.qhandle = rpcQhandle[0];
+  rpcInit.qhandle = tsRpcQhandle[0];
 
   pDnodeConn = taosOpenRpc(&rpcInit);
   if (pDnodeConn == NULL) {
@@ -142,7 +142,7 @@ int mgmtInitRedirect() {
   rpcInit.sessionsPerChann = 100;
   rpcInit.idMgmt = TAOS_ID_FREE;
   rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
-  rpcInit.qhandle = rpcQhandle[0];
+  rpcInit.qhandle = tsRpcQhandle[0];
 
   pShellConn = taosOpenRpc(&rpcInit);
   if (pShellConn == NULL) {

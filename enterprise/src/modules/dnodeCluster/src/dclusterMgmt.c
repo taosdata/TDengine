@@ -39,9 +39,9 @@ void vnodeSaveMgmtIp();
 void grantSendMsgToMgmt();
 void vnodeSendStatusMsgToMgmt(void *handle, void *tmrId);
 int  vnodeProcessStatusRspMsg(char *msg, int msgLen, SMgmtObj *pObj);
-int  vnodeProcessCreateMeterMsg(char *pMsg, int msgLen);
-int  vnodeProcessCfgDnodeRequest(char *cont, int contLen, SMgmtObj *pMgmtObj);
-void dnodeDistributeMsgFromMgmt(char *content, int msgLen, int msgType, SMgmtObj *pObj);
+int  dnodeProcessCreateTableMsg(char *pMsg, int msgLen);
+int  dnodeProcessDnodeCfgRequest(char *cont, int contLen, SMgmtObj *pMgmtObj);
+void dnodeProcessMsgFromMgmt(char *content, int msgLen, int msgType, SMgmtObj *pObj);
 
 
 char *taosBuildRspMsgToMnodeWithSizeClusterImp(SMgmtObj *pObj, char type, int size) {
@@ -60,11 +60,11 @@ char *taosBuildReqMsgToMnodeClusterImp(SMgmtObj *pObj, char type) {
   return taosBuildReqMsgToMnodeWithSize(pObj, type, 256);
 }
 
-int taosSendSimpleRspToMnodeClusterImp(SMgmtObj *pObj, char rsptype, char code) {
+int dnodeSendSimpleRspToMnodeClusterImp(SMgmtObj *pObj, char rsptype, char code) {
   return taosSendSimpleRsp(pObj->thandle, rsptype, code);
 }
 
-int taosSendMsgToMnodeClusterImp(SMgmtObj *pObj, char *msg, int msgLen) {
+int dnodeSendMsgToMnodeClusterImp(SMgmtObj *pObj, char *msg, int msgLen) {
   return taosSendMsgToPeer(pObj->thandle, msg, msgLen);
 }
 
@@ -92,10 +92,10 @@ void *dnodeProcessMsgFromMgmtClusterImp(char *msg, void *ahandle, void *thandle)
 
   if (pMsg->msgType == TSDB_MSG_TYPE_STATUS_RSP) {
     vnodeProcessStatusRspMsg((char *) (pMsg->content), pMsg->msgLen - sizeof(SIntMsg), pObj);
-  } else if (pMsg->msgType == TSDB_MSG_TYPE_CFG_PNODE) {
-    vnodeProcessCfgDnodeRequest((char *)(pMsg->content), pMsg->msgLen - sizeof(SIntMsg), pObj);
+  } else if (pMsg->msgType == TSDB_MSG_TYPE_DNODE_CFG) {
+    dnodeProcessDnodeCfgRequest((char *)(pMsg->content), pMsg->msgLen - sizeof(SIntMsg), pObj);
   } else {
-    dnodeDistributeMsgFromMgmt((char *)(pMsg->content), pMsg->msgLen - sizeof(SIntMsg), pMsg->msgType, pObj);
+    dnodeProcessMsgFromMgmt((char *)(pMsg->content), pMsg->msgLen - sizeof(SIntMsg), pMsg->msgType, pObj);
   }
 
   return pObj;
@@ -122,7 +122,7 @@ int dnodeInitMgmtClusterImp() {
   rpcInit.sessionsPerChann = 10;
   rpcInit.idMgmt = TAOS_ID_FREE;
   rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
-  rpcInit.qhandle = dmQhandle;
+  rpcInit.qhandle = tsDnodeMgmtQhandle;
 
   taosTmrReset(vnodeSendStatusMsgToMgmt, 500, pObj, vnodeTmrCtrl, &tsStatusTimer);
 
@@ -149,7 +149,7 @@ char *vnodeProcessOneBufferedCreateMsg(char *offset) {
   memcpy(&msgLen, offset, sizeof(msgLen));
   offset += sizeof(msgLen);
 
-  vnodeProcessCreateMeterMsg(offset, msgLen);
+  dnodeProcessCreateTableMsg(offset, msgLen);
   offset += msgLen;
 
   return offset;
@@ -224,7 +224,7 @@ int vnodeSaveCreateMsgIntoQueue(SVnodeObj *pVnode, char *pMsg, int msgLen) {
       dTrace("vid:%d, create req is queued", pVnode->vnode);
     }
   } else {
-    code = vnodeProcessCreateMeterMsg(pMsg, msgLen);
+    code = dnodeProcessCreateTableMsg(pMsg, msgLen);
   }
 
   pthread_mutex_unlock(&pQueue->qmutex);
@@ -588,7 +588,7 @@ int vnodeRestoreMissedCreateMsg(int vnode, int fd) {
 
     dTrace("vid:%d, fd:%d missed create is restored, vnode:%d len:%d", vnode, fd, pCreate->vnode, len);
 
-    vnodeProcessCreateMeterMsg(msg, len);
+    dnodeProcessCreateTableMsg(msg, len);
   }
 
   dTrace("vid:%d, fd:%d to restore missed create msg finished", vnode, fd);

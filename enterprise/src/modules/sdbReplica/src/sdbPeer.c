@@ -530,7 +530,7 @@ void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
               pPeer->ipstr, taosGetSdbRoleStr(pPeer->role), taosGetSdbStatusStr(pPeer->status), pSelf->numOfMnodes);
 
       int outType = taosGetOutType(pPeer->thandle);
-      if (outType == TSDB_MSG_TYPE_FORWARD) {
+      if (outType == TSDB_MSG_TYPE_SDB_FORWARD) {
         sdbCode = TSDB_CODE_OTHERS;
         sem_post(&sdbSem);
       }
@@ -589,15 +589,15 @@ void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
 
   taosTmrStopA(&pPeer->hbTimer);
 
-  if (pMsg->msgType == TSDB_MSG_TYPE_SYNC) {
+  if (pMsg->msgType == TSDB_MSG_TYPE_SDB_SYNC) {
     ret = sdbProcessSyncRequest((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
-  } else if (pMsg->msgType == TSDB_MSG_TYPE_SYNC_RSP) {
+  } else if (pMsg->msgType == TSDB_MSG_TYPE_SDB_SYNC_RSP) {
     ret = 0;
   } else if (pMsg->msgType == TSDB_MSG_TYPE_HEARTBEAT) {
     ret = sdbProcessHeartBeatFromPeer((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_HEARTBEAT_RSP) {
     ret = sdbProcessHeartBeatRspFromPeer((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
-  } else if (pMsg->msgType == TSDB_MSG_TYPE_FORWARD) {
+  } else if (pMsg->msgType == TSDB_MSG_TYPE_SDB_FORWARD) {
     SSchedMsg schedMsg;
     schedMsg.msg = malloc(pMsg->msgLen);
     memcpy(schedMsg.msg, pMsg, pMsg->msgLen);
@@ -608,7 +608,7 @@ void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
 
     taosScheduleTask(mgmtTranQhandle, &schedMsg);
     ret = 0;
-  } else if (pMsg->msgType == TSDB_MSG_TYPE_FORWARD_RSP) {
+  } else if (pMsg->msgType == TSDB_MSG_TYPE_SDB_FORWARD_RSP) {
     ret = sdbProcessForwardRspMsg((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
   } else if (pMsg->msgType == TSDB_MSG_TYPE_CFG_MNODE) {
     ret = sdbProcessCfgMnodeMsg((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);
@@ -1159,7 +1159,7 @@ int sdbProcessSyncRequest(char *msg, int msgLen, SSdbPeer *pPeer) {
   }
 
 _sync_req_over:
-  taosSendSimpleRsp(pPeer->thandle, TSDB_MSG_TYPE_SYNC_RSP, code);
+  taosSendSimpleRsp(pPeer->thandle, TSDB_MSG_TYPE_SDB_SYNC_RSP, code);
 
   return code;
 }
@@ -1290,7 +1290,7 @@ void *sdbAcceptSyncTcpConnection(void *argv) {
 
   char *    pStart, *pMsg;
   SSdbSync *pSync;
-  pStart = taosBuildReqMsg(pPeer->thandle, TSDB_MSG_TYPE_SYNC);
+  pStart = taosBuildReqMsg(pPeer->thandle, TSDB_MSG_TYPE_SDB_SYNC);
   if (pStart == NULL) goto _sync_over;
 
   pMsg = pStart;
@@ -1467,7 +1467,7 @@ int sdbForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int dataLen)
   for (int i = 1; i < SDB_MAX_PEERS; ++i) {
     pPeer = sdbPeer[i];
     if (pPeer && pPeer->status != SDB_STATUS_OFFLINE && pPeer->status != SDB_STATUS_DELETED) {
-      pStart = taosBuildReqMsgWithSize(pPeer->thandle, TSDB_MSG_TYPE_FORWARD,
+      pStart = taosBuildReqMsgWithSize(pPeer->thandle, TSDB_MSG_TYPE_SDB_FORWARD,
                                        dataLen + sizeof(SForwardMsg) + sizeof(STaosHeader) + 64);
       if (pStart == NULL) continue;
       pMsg = pStart;
@@ -1563,7 +1563,7 @@ int sdbProcessForwardMsg(char *cont, int contLen, SSdbPeer *pPeer) {
     sdbError("data from %s are thrown away, self status:%d", pPeer->ipstr, pSelf->status);
   }
 
-  taosSendSimpleRsp(pPeer->thandle, TSDB_MSG_TYPE_FORWARD_RSP, 0);
+  taosSendSimpleRsp(pPeer->thandle, TSDB_MSG_TYPE_SDB_FORWARD_RSP, 0);
 
   return 0;
 }
