@@ -17,10 +17,15 @@
 #include "os.h"
 #include "tlog.h"
 #include "trpc.h"
+#include "taoserror.h"
 #include <stdint.h>
 
 void processMsg(char type, void *pCont, int contLen, void *ahandle, int32_t code) {
-  dPrint("response is received, type:%d, contLen:%d code:%x, ahandle:%p", type, contLen, code, ahandle);
+  dPrint("response is received, type:%d, contLen:%d code:%x:%s", type, contLen, code, tstrerror(code));
+}
+
+void processUpdate(void *handle, SRpcIpSet *pIpSet) {
+  dPrint("ip set is changed, index:%d", pIpSet->index);
 }
 
 int32_t main(int32_t argc, char *argv[]) {
@@ -35,6 +40,7 @@ int32_t main(int32_t argc, char *argv[]) {
   rpcInit.label        = "APP";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = processMsg;
+  rpcInit.ufp          = processUpdate;
   rpcInit.sessions     = 1000;
   rpcInit.connType     = TAOS_CONN_UDPC;
   rpcInit.idleTime     = 2000;
@@ -52,11 +58,11 @@ int32_t main(int32_t argc, char *argv[]) {
   ipSet.numOfIps = 2;
   ipSet.index = 0;
   ipSet.port = 7000;
-  ipSet.ip[0] = inet_addr("127.0.0.1");
-  ipSet.ip[1] = inet_addr("192.168.0.1");
+  ipSet.ip[0] = inet_addr("192.168.0.1");
+  ipSet.ip[1] = inet_addr("127.0.0.1");
 
   void *cont = rpcMallocCont(100); 
-  rpcSendRequest(pRpc, ipSet, 1, cont, 100, 1);
+  rpcSendRequest(pRpc, &ipSet, 1, cont, 100, 1);
 
   getchar();
 

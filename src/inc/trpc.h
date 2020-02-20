@@ -65,7 +65,7 @@ typedef struct {
   void (*cfp)(char type, void *pCont, int contLen, void *ahandle, int32_t code);  
 
   // call back to process notify the ipSet changes
-  void (*ufp)(void *ahandle, SRpcIpSet ipSet);
+  void (*ufp)(void *ahandle, SRpcIpSet *pIpSet);
 
   // call back to retrieve the client auth info 
   int  (*afp)(char *meterId, char *spi, char *encrypt, char *secret, char *ckey); 
@@ -75,9 +75,9 @@ void *rpcOpen(SRpcInit *pRpc);
 void  rpcClose(void *);
 void *rpcMallocCont(int contLen);
 void  rpcFreeCont(void *pCont);
-void  rpcSendRequest(void *thandle, SRpcIpSet ipSet, char msgType, void *pCont, int contLen, void *ahandle);
+void  rpcSendRequest(void *thandle, SRpcIpSet *pIpSet, char msgType, void *pCont, int contLen, void *ahandle);
 void  rpcSendResponse(void *pConn, int32_t code, void *pCont, int contLen);
-void  rpcSendRedirectRsp(void *pConn, SRpcIpSet ipSet); 
+void  rpcSendRedirectRsp(void *pConn, SRpcIpSet *pIpSet); 
 
 
 #ifdef __cplusplus

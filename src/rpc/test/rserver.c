@@ -22,7 +22,17 @@
 void processMsg(char type, void *pCont, int contLen, void *ahandle, int32_t code) {
   dPrint("request is received, type:%d, contLen:%d", type, contLen);
   void *rsp = rpcMallocCont(128);
-  rpcSendResponse(ahandle, 1, rsp, 128);
+
+  //rpcSendResponse(ahandle, 1, rsp, 128);
+
+  SRpcIpSet ipSet;
+  ipSet.numOfIps = 1;
+  ipSet.index = 0;
+  ipSet.port = 7000;
+  ipSet.ip[0] = inet_addr("192.168.0.2");
+
+  rpcSendRedirectRsp(ahandle, &ipSet);
+
   rpcFreeCont(pCont);
 }
 

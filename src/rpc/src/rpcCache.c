@@ -73,7 +73,7 @@ void rpcRemoveExpiredNodes(SConnCache *pCache, SConnHash *pNode, int hash, uint6
     pNext = pNode->next;
     pCache->total--;
     pCache->count[hash]--;
-    tTrace("%p ip:0x%x:%hu:%d:%p removed, connections in cache:%d", pNode->data, pNode->ip, pNode->port, hash, pNode,
+    tTrace("%p ip:0x%x:%hu:%d:%p removed from cache, connections:%d", pNode->data, pNode->ip, pNode->port, hash, pNode,
              pCache->count[hash]);
     taosMemPoolFree(pCache->connHashMemPool, (char *)pNode);
     pNode = pNext;
@@ -116,7 +116,7 @@ void rpcAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, c
 
   pthread_mutex_unlock(&pCache->mutex);
 
-  tTrace("%p ip:0x%x:%hu:%d:%p added, connections in cache:%d", data, ip, port, hash, pNode, pCache->count[hash]);
+  tTrace("%p ip:0x%x:%hu:%d:%p added into cache, connections:%d", data, ip, port, hash, pNode, pCache->count[hash]);
 
   return;
 }
@@ -192,7 +192,7 @@ void *rpcGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user) 
   pthread_mutex_unlock(&pCache->mutex);
 
   if (pData) {
-    tTrace("%p ip:0x%x:%hu:%d:%p retrieved, connections in cache:%d", pData, ip, port, hash, pNode, pCache->count[hash]);
+    tTrace("%p ip:0x%x:%hu:%d:%p retrieved from cache, connections:%d", pData, ip, port, hash, pNode, pCache->count[hash]);
   }
 
   return pData;
