@@ -32,8 +32,8 @@ typedef struct {
 } STableObj;
 
 int      mgmtInitMeters();
-STableObj mgmtGetTable(char *tableId);
-STableObj mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid);
+STableInfo* mgmtGetTable(char *tableId);
+STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid);
 
 STabObj *mgmtGetTableInfo(char *src, char *tags[]);
 int      mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SSuperTableMetaMsg *pInfo);

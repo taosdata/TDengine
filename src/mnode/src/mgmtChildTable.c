@@ -111,7 +111,7 @@ void *mgmtChildTableActionInsert(void *row, char *str, int size, int *ssize) {
   pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
   pVgroup->numOfMeters++;
   pDb->numOfTables++;
-  pVgroup->meterList[pTable->sid] = pTable;
+  pVgroup->tableList[pTable->sid] = pTable;
 
   if (pVgroup->numOfMeters >= pDb->cfg.maxSessions - 1 && pDb->numOfVgroups > 1) {
     mgmtMoveVgroupToTail(pDb, pVgroup);
@@ -145,7 +145,7 @@ void *mgmtChildTableActionDelete(void *row, char *str, int size, int *ssize) {
   }
 
   pAcct->acctInfo.numOfTimeSeries -= (pTable->superTable->numOfColumns - 1);
-  pVgroup->meterList[pTable->sid] = NULL;
+  pVgroup->tableList[pTable->sid] = NULL;
   pVgroup->numOfMeters--;
   pDb->numOfTables--;
   taosFreeId(pVgroup->idPool, pTable->sid);

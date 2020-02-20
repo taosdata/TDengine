@@ -87,19 +87,19 @@ int32_t mgmtProcessMeterCfgMsg(int8_t *pCont, int32_t contLen, void *pConn) {
   int32_t      vnode = htonl(cfg->vnode);
   int32_t      sid   = htonl(cfg->sid);
 
-  STableObj table = mgmtGetTableByPos(0, vnode, sid);
-  if (table.obj == NULL) {
+  STableInfo *pTable = mgmtGetTableByPos(0, vnode, sid);
+  if (pTable == NULL) {
     mgmtSendSimpleRspToDnode(pConn, TSDB_MSG_TYPE_TABLE_CFG_RSP, TSDB_CODE_INVALID_TABLE);
     return TSDB_CODE_INVALID_TABLE_ID;
   }
 
   int8_t *pCreateTableMsg = NULL;
-  if (table.type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
-    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)table.obj, vnode);
-  } else if (table.type == TSDB_TABLE_TYPE_CHILD_TABLE) {
-    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)table.obj, vnode);
-  } else if (table.type == TSDB_TABLE_TYPE_STREAM_TABLE) {
-    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)table.obj, vnode);
+  if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)pTable, vnode);
+  } else if (pTable->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
+    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)pTable, vnode);
+  } else if (pTable->type == TSDB_TABLE_TYPE_STREAM_TABLE) {
+    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)pTable, vnode);
   } else {}
 
   if (pCreateTableMsg != NULL) {

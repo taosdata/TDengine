@@ -133,9 +133,18 @@ typedef struct _tab_obj {
   // SSchema    schema[];
 } STabObj;
 
+typedef struct {
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  int8_t   type;
+  uint64_t uid;
+  int32_t  sid;
+  int32_t  vgId;
+  int64_t  createdTime;
+} STableInfo;
 
 typedef struct SSuperTableObj {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
+  int8_t   type;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
@@ -156,11 +165,12 @@ typedef struct SSuperTableObj {
 
 typedef struct {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
-  char     superTableId[TSDB_TABLE_ID_LEN + 1];
+  int8_t   type;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
   int64_t  createdTime;
+  char     superTableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   reserved[7];
   int8_t   updateEnd[1];
   SSuperTableObj *superTable;
@@ -168,6 +178,7 @@ typedef struct {
 
 typedef struct {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
+  int8_t   type;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
@@ -183,6 +194,7 @@ typedef struct {
 
 typedef struct {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
+  int8_t   type;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
@@ -197,7 +209,6 @@ typedef struct {
   char*    pSql;  //null-terminated string
   char*    schema;
 } SStreamTableObj;
-
 
 typedef struct _vg_obj {
   uint32_t        vgId;
@@ -215,7 +226,7 @@ typedef struct _vg_obj {
   int8_t          updateEnd[1];
   struct _vg_obj *prev, *next;
   void *          idPool;
-  void **         meterList;
+  STableInfo **   tableList;
 } SVgObj;
 
 typedef struct _db_obj {

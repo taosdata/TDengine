@@ -167,7 +167,7 @@ bool mgmtCheckMeterMetaMsgType(char *pMsg) {
   SMeterInfoMsg *pInfo = (SMeterInfoMsg *)pMsg;
 
   int16_t   autoCreate = htons(pInfo->createFlag);
-  STableObj table      = mgmtGetTable(pInfo->meterId);
+  STableInfo *table      = mgmtGetTable(pInfo->meterId);
 
   // If table does not exists and autoCreate flag is set, we add the handler into another task queue, namely tranQueue
 //  bool addIntoTranQueue = (pMeterObj == NULL && autoCreate == 1);

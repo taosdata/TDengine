@@ -95,44 +95,37 @@ int mgmtInitMeters() {
   return TSDB_CODE_SUCCESS;
 }
 
-STableObj mgmtGetTable(char *tableId) {
-  STableObj table = {.type = TSDB_TABLE_TYPE_MAX, .obj = NULL};
-
-  table.obj = mgmtGetSuperTable(tableId);
-  if (table.obj != NULL) {
-    table.type = TSDB_TABLE_TYPE_SUPER_TABLE;
-    return table;
+STableInfo* mgmtGetTable(char *tableId) {
+  STableInfo *tableInfo = (STableInfo *) mgmtGetSuperTable(tableId);
+  if (tableInfo != NULL) {
+    return tableInfo;
   }
 
-  table.obj = mgmtGetNormalTable(tableId);
-  if (table.obj != NULL) {
-    table.type = TSDB_TABLE_TYPE_NORMAL_TABLE;
-    return table;
+  tableInfo = (STableInfo *) mgmtGetNormalTable(tableId);
+  if (tableInfo != NULL) {
+    return tableInfo;
   }
 
-  table.obj = mgmtGetStreamTable(tableId);
-  if (table.obj != NULL) {
-    table.type = TSDB_TABLE_TYPE_STREAM_TABLE;
-    return table;
+  tableInfo = (STableInfo *) mgmtGetStreamTable(tableId);
+  if (tableInfo != NULL) {
+    return tableInfo;
   }
 
-  table.obj = mgmtGetNormalTable(tableId);
-  if (table.obj != NULL) {
-    table.type = TSDB_TABLE_TYPE_CHILD_TABLE;
-    return table;
+  tableInfo = (STableInfo *) mgmtGetNormalTable(tableId);
+  if (tableInfo != NULL) {
+    return tableInfo;
   }
 
-  return table;
+  return NULL;
 }
 
-STableObj mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
-  STableObj table = {0};
-  return table;
+STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
+  return NULL;
 }
 
 int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
-  STableObj table = mgmtGetTable(pCreate->meterId);
-  if (table.obj != NULL) {
+  STableInfo *table = mgmtGetTable(pCreate->meterId);
+  if (table != NULL) {
     if (pCreate->igExists) {
       return TSDB_CODE_SUCCESS;
     } else {
@@ -183,8 +176,8 @@ int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
 }
 
 int mgmtDropTable(SDbObj *pDb, char *tableId, int ignore) {
-  STableObj table = mgmtGetTable(tableId);
-  if (table.obj == NULL) {
+  STableInfo *table = mgmtGetTable(tableId);
+  if (table == NULL) {
     if (ignore) {
       return TSDB_CODE_SUCCESS;
     } else {
@@ -197,23 +190,23 @@ int mgmtDropTable(SDbObj *pDb, char *tableId, int ignore) {
     return TSDB_CODE_MONITOR_DB_FORBIDDEN;
   }
 
-  switch (table.type) {
+  switch (table->type) {
     case TSDB_TABLE_TYPE_SUPER_TABLE:
-      return mgmtDropSuperTable(pDb, table.obj);
+      return mgmtDropSuperTable(pDb, table);
     case TSDB_TABLE_TYPE_CHILD_TABLE:
-      return mgmtDropChildTable(pDb, table.obj);
+      return mgmtDropChildTable(pDb, table);
     case TSDB_TABLE_TYPE_STREAM_TABLE:
-      return mgmtDropStreamTable(pDb, table.obj);
+      return mgmtDropStreamTable(pDb, table);
     case TSDB_TABLE_TYPE_NORMAL_TABLE:
-      return mgmtDropNormalTable(pDb, table.obj);
+      return mgmtDropNormalTable(pDb, table);
     default:
       return TSDB_CODE_INVALID_TABLE;
   }
 }
 
 int mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter) {
-  STableObj table = mgmtGetTable(pAlter->meterId);
-  if (table.obj == NULL) {
+  STableInfo *table = mgmtGetTable(pAlter->meterId);
+  if (table == NULL) {
     return TSDB_CODE_INVALID_TABLE;
   }
 
@@ -232,32 +225,32 @@ int mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter) {
   // todo add
   /* mgmtMeterAddTags */
   if (pAlter->type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN) {
-    if (table.type == TSDB_TABLE_TYPE_SUPER_TABLE) {
-      return mgmtAddSuperTableTag(table.obj, pAlter->schema, 1);
+    if (table->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+      return mgmtAddSuperTableTag(table, pAlter->schema, 1);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_DROP_TAG_COLUMN) {
-    if (table.type == TSDB_TABLE_TYPE_SUPER_TABLE) {
-      return mgmtDropSuperTableTag(table.obj, pAlter->schema[0].name);
+    if (table->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+      return mgmtDropSuperTableTag(table, pAlter->schema[0].name);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
-    if (table.type == TSDB_TABLE_TYPE_SUPER_TABLE) {
-      return mgmtModifySuperTableTagNameByName(table.obj, pAlter->schema[0].name, pAlter->schema[1].name);
+    if (table->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+      return mgmtModifySuperTableTagNameByName(table, pAlter->schema[0].name, pAlter->schema[1].name);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
-    if (table.type == TSDB_TABLE_TYPE_CHILD_TABLE) {
-      return mgmtModifyChildTableTagValueByName(table.obj, pAlter->schema[0].name, pAlter->tagVal);
+    if (table->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
+      return mgmtModifyChildTableTagValueByName(table, pAlter->schema[0].name, pAlter->tagVal);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_ADD_COLUMN) {
-    if (table.type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
-      return mgmtAddNormalTableColumn(table.obj, pAlter->schema, 1);
-    } else if (table.type == TSDB_TABLE_TYPE_SUPER_TABLE) {
-      return mgmtAddSuperTableColumn(table.obj, pAlter->schema, 1);
+    if (table->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+      return mgmtAddNormalTableColumn(table, pAlter->schema, 1);
+    } else if (table->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+      return mgmtAddSuperTableColumn(table, pAlter->schema, 1);
     } else {}
   } else if (pAlter->type == TSDB_ALTER_TABLE_DROP_COLUMN) {
-    if (table.type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
-      return mgmtDropNormalTableColumnByName(table.obj, pAlter->schema[0].name);
-    } else if (table.type == TSDB_TABLE_TYPE_SUPER_TABLE) {
-      return mgmtDropSuperTableColumnByName(table.obj, pAlter->schema[0].name);
+    if (table->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+      return mgmtDropNormalTableColumnByName(table, pAlter->schema[0].name);
+    } else if (table->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+      return mgmtDropSuperTableColumnByName(table, pAlter->schema[0].name);
     } else {}
   } else {}
 
