@@ -39,7 +39,13 @@ int32_t* taosGetErrno() {
 static int tsCompareTaosError(const void* a, const void* b) {
   const STaosError* x = (const STaosError*)a;
   const STaosError* y = (const STaosError*)b;
-  return x->val - y->val;
+  if (x->val < y->val) {
+    return -1;
+  }
+  if (x->val > y->val) {
+    return 1;
+  }
+  return 0;
 }
 
 static pthread_once_t tsErrorInit = PTHREAD_ONCE_INIT;
@@ -53,20 +59,22 @@ const char* tstrerror(int32_t err) {
 
   // this is a system errno
   if ((err & 0x00ff0000) == 0x00ff0000) {
-      return strerror(err & 0x0000ffff);
+    return strerror(err & 0x0000ffff);
   }
 
-  int s = 0, e = sizeof(errors)/sizeof(errors[0]);
+  size_t s = 0, e = sizeof(errors)/sizeof(errors[0]);
   while (s < e) {
-      int mid = (s + e) / 2;
-      if (err > errors[mid].val) {
-          s = mid + 1;
-      } else if (err < errors[mid].val) {
-          e = mid;
-      } else if (err == errors[mid].val) {
-          return errors[mid].str;
-      }
+    size_t mid = (s + e) / 2;
+    int32_t val = errors[mid].val;
+    if (err > val) {
+      s = mid + 1;
+    } else if (err < val) {
+      e = mid;
+    } else if (err == val) {
+      return errors[mid].str;
+    } else {
       break;
+    }
   }
 
   return "";
