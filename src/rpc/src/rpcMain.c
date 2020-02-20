@@ -769,7 +769,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
       rpcFreeOutMsg(rpcHeadFromCont(pContext->pCont)); // free the request msg
       if ( pRpc->ufp && (pContext->ipSet.index != pContext->oldIndex || pContext->redirect) ) 
         (*pRpc->ufp)(pContext->ahandle, pContext->ipSet);  // notify the update of ipSet
-      (*pRpc->cfp)(pHead->msgType, pCont, contLen, pContext->ahandle, pContext->ipSet.index);
+      (*pRpc->cfp)(pHead->msgType, pCont, contLen, pContext->ahandle, code);
     }
   }
 }
