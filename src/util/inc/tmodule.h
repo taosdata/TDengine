@@ -20,55 +20,37 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+#include <stdbool.h>
 #include <pthread.h>
-#include <semaphore.h>
-#include "os.h"
 
-typedef struct _msg_header {
-  int mid; /* message ID */
-  int cid; /* call ID */
-  int tid; /* transaction ID */
-  //  int   len;           /* length of msg */
-  char *msg; /* content holder */
-} msg_header_t, msg_t;
+enum _module {
+  TSDB_MOD_MGMT,
+  TSDB_MOD_HTTP,
+  TSDB_MOD_MONITOR,
+  TSDB_MOD_DCLUSTER,
+  TSDB_MOD_MSTORAGE,
+  TSDB_MOD_MAX
+};
 
-typedef struct {
-  char *          name;   /* module name */
-  pthread_t       thread; /* thread ID */
-  tsem_t          emptySem;
-  tsem_t          fullSem;
-  int             fullSlot;
-  int             emptySlot;
-  int             debugFlag;
-  int             queueSize;
-  int             msgSize;
-  pthread_mutex_t queueMutex;
-  pthread_mutex_t stmMutex;
-  msg_t *         queue;
-
-  int (*processMsg)(msg_t *);
-
-  int (*init)();
-
-  void (*cleanUp)();
-} module_t;
+#define tsetModuleStatus(mod) \
+  { tsModuleStatus |= (1 << mod); }
+#define tclearModuleStatus(mod) \
+  { tsModuleStatus &= ~(1 << mod); }
 
 typedef struct {
-  short         len;
-  unsigned char data[0];
-} sim_data_t;
+  char  *name;
+  int  (*initFp)();
+  void (*cleanUpFp)();
+  int  (*startFp)();
+  void (*stopFp)();
+  int    num;
+  int    curNum;
+  int    equalVnodeNum;
+} SModule;
 
-extern int      maxCid;
-extern module_t moduleObj[];
-extern char *   msgName[];
-
-extern int taosSendMsgToModule(module_t *mod_p, int cid, int mid, int tid, char *msg);
-
-extern char *taosDisplayModuleStatus(int moduleNum);
-
-extern int taosInitModule(module_t *);
-
-extern void taosCleanUpModule(module_t *);
+extern uint32_t tsModuleStatus;
+extern SModule tsModule[];
 
 #ifdef __cplusplus
 }

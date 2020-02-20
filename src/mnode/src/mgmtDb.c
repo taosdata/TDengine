@@ -15,35 +15,33 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "mgmtDnode.h"
-#include "mgmtDb.h"
-#include "mgmtAcct.h"
-#include "mgmtGrant.h"
-#include "mgmtBalance.h"
-#include "mgmtDnodeInt.h"
-#include "mgmtUtil.h"
-#include "mgmtVgroup.h"
-#include "mgmtTable.h"
+#include "taoserror.h"
 #include "tschemautil.h"
 #include "tstatus.h"
 #include "mnode.h"
-#include "taoserror.h"
+#include "mgmtAcct.h"
+#include "mgmtBalance.h"
+#include "mgmtDb.h"
+#include "mgmtDnode.h"
+#include "mgmtDnodeInt.h"
+#include "mgmtGrant.h"
+#include "mgmtTable.h"
+#include "mgmtUtil.h"
+#include "mgmtVgroup.h"
+
+extern void *tsVgroupSdb;
 
 void *tsDbSdb = NULL;
-extern void *vgSdb;
-int   tsDbUpdateSize;
+int32_t tsDbUpdateSize;
 
-void *(*mgmtDbActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
-void *mgmtDbActionInsert(void *row, char *str, int size, int *ssize);
-void *mgmtDbActionDelete(void *row, char *str, int size, int *ssize);
-void *mgmtDbActionUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtDbActionEncode(void *row, char *str, int size, int *ssize);
-void *mgmtDbActionDecode(void *row, char *str, int size, int *ssize);
-void *mgmtDbActionBeforeBatchUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtDbActionBatchUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtDbActionAfterBatchUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtDbActionReset(void *row, char *str, int size, int *ssize);
-void *mgmtDbActionDestroy(void *row, char *str, int size, int *ssize);
+void *(*mgmtDbActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtDbActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtDbActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtDbActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtDbActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtDbActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtDbActionReset(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtDbActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
 
 void mgmtDbActionInit() {
   mgmtDbActionFp[SDB_TYPE_INSERT] = mgmtDbActionInsert;
@@ -51,29 +49,15 @@ void mgmtDbActionInit() {
   mgmtDbActionFp[SDB_TYPE_UPDATE] = mgmtDbActionUpdate;
   mgmtDbActionFp[SDB_TYPE_ENCODE] = mgmtDbActionEncode;
   mgmtDbActionFp[SDB_TYPE_DECODE] = mgmtDbActionDecode;
-  mgmtDbActionFp[SDB_TYPE_BEFORE_BATCH_UPDATE] = mgmtDbActionBeforeBatchUpdate;
-  mgmtDbActionFp[SDB_TYPE_BATCH_UPDATE] = mgmtDbActionBatchUpdate;
-  mgmtDbActionFp[SDB_TYPE_AFTER_BATCH_UPDATE] = mgmtDbActionAfterBatchUpdate;
   mgmtDbActionFp[SDB_TYPE_RESET] = mgmtDbActionReset;
   mgmtDbActionFp[SDB_TYPE_DESTROY] = mgmtDbActionDestroy;
 }
 
-void *mgmtDbAction(char action, void *row, char *str, int size, int *ssize) {
+void *mgmtDbAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
   if (mgmtDbActionFp[(uint8_t)action] != NULL) {
     return (*(mgmtDbActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
-}
-
-void mgmtGetAcctStr(char *src, char *dest) {
-  char *pos = strstr(src, TS_PATH_DELIMITER);
-  while ((pos != NULL) && (*src != *pos)) {
-    *dest = *src;
-    src++;
-    dest++;
-  }
-
-  *dest = 0;
 }
 
 int32_t mgmtInitDbs() {
@@ -118,9 +102,11 @@ int32_t mgmtInitDbs() {
   return 0;
 }
 
-SDbObj *mgmtGetDb(char *db) { return (SDbObj *)sdbGetRow(tsDbSdb, db); }
+SDbObj *mgmtGetDb(char *db) {
+  return (SDbObj *)sdbGetRow(tsDbSdb, db);
+}
 
-SDbObj *mgmtGetDbByMeterId(char *meterId) {
+SDbObj *mgmtGetDbByTableId(char *meterId) {
   char db[TSDB_TABLE_ID_LEN], *pos;
 
   pos = strstr(meterId, TS_PATH_DELIMITER);
@@ -131,7 +117,7 @@ SDbObj *mgmtGetDbByMeterId(char *meterId) {
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
 
-int mgmtCheckDbParams(SCreateDbMsg *pCreate) {
+int32_t mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   // assign default parameters
   if (pCreate->maxSessions < 0) pCreate->maxSessions = tsSessionsPerVnode;      //
   if (pCreate->cacheBlockSize < 0) pCreate->cacheBlockSize = tsCacheBlockSize;  //
@@ -176,16 +162,13 @@ int mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
-int mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
-  SDbObj *pDb;
-  int code;
-
-  code = mgmtCheckDbLimit(pAcct);
+int32_t mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
+  int32_t code = mgmtCheckDbLimit(pAcct);
   if (code != 0) {
     return code;
   }
 
-  pDb = (SDbObj *)sdbGetRow(tsDbSdb, pCreate->db);
+  SDbObj *pDb = (SDbObj *)sdbGetRow(tsDbSdb, pCreate->db);
   if (pDb != NULL) {
     return TSDB_CODE_DB_ALREADY_EXIST;
   }
@@ -215,14 +198,16 @@ int mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
   return code;
 }
 
-int mgmtUpdateDb(SDbObj *pDb) { return sdbUpdateRow(tsDbSdb, pDb, tsDbUpdateSize, 1); }
+int32_t mgmtUpdateDb(SDbObj *pDb) {
+  return sdbUpdateRow(tsDbSdb, pDb, tsDbUpdateSize, 1);
+}
 
-int mgmtSetDbDropping(SDbObj *pDb) {
+int32_t mgmtSetDbDropping(SDbObj *pDb) {
   if (pDb->dropStatus == TSDB_DB_STATUS_DROP_FROM_SDB) return 0;
 
   SVgObj *pVgroup = pDb->pHead;
   while (pVgroup != NULL) {
-    for (int i = 0; i < pVgroup->numOfVnodes; i++) {
+    for (int32_t i = 0; i < pVgroup->numOfVnodes; i++) {
       SVnodeGid *pVnodeGid = pVgroup->vnodeGid + i;
       SDnodeObj *pDnode = mgmtGetDnode(pVnodeGid->ip);
       if (pDnode == NULL) continue;
@@ -257,7 +242,7 @@ int mgmtSetDbDropping(SDbObj *pDb) {
 bool mgmtCheckDropDbFinished(SDbObj *pDb) {
   SVgObj *pVgroup = pDb->pHead;
   while (pVgroup) {
-    for (int i = 0; i < pVgroup->numOfVnodes; i++) {
+    for (int32_t i = 0; i < pVgroup->numOfVnodes; i++) {
       SVnodeGid *pVnodeGid = pVgroup->vnodeGid + i;
       SDnodeObj *pDnode = mgmtGetDnode(pVnodeGid->ip);
 
@@ -292,7 +277,7 @@ void mgmtDropDbFromSdb(SDbObj *pDb) {
   mPrint("db:%s database drop finished", pDb->name);
 }
 
-int mgmtDropDb(SDbObj *pDb) {
+int32_t mgmtDropDb(SDbObj *pDb) {
   if (pDb->dropStatus == TSDB_DB_STATUS_DROPPING) {
     bool finished = mgmtCheckDropDbFinished(pDb);
     if (!finished) {
@@ -309,15 +294,14 @@ int mgmtDropDb(SDbObj *pDb) {
     mgmtDropDbFromSdb(pDb);
     return 0;
   } else {
-    int code = mgmtSetDbDropping(pDb);
+    int32_t code = mgmtSetDbDropping(pDb);
     if (code != 0) return code;
     return TSDB_CODE_ACTION_IN_PROGRESS;
   }
 }
 
-int mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists) {
-  SDbObj *pDb;
-  pDb = (SDbObj *)sdbGetRow(tsDbSdb, name);
+int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists) {
+  SDbObj *pDb = (SDbObj *)sdbGetRow(tsDbSdb, name);
   if (pDb == NULL) {
     if (ignoreNotExists) return TSDB_CODE_SUCCESS;
     mWarn("db:%s is not there", name);
@@ -344,17 +328,16 @@ void mgmtMonitorDbDrop(void *unused, void *unusedt) {
   }
 }
 
-int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
-  SDbObj *pDb;
-  int     code = TSDB_CODE_SUCCESS;
+int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
+  int32_t code = TSDB_CODE_SUCCESS;
 
-  pDb = (SDbObj *)sdbGetRow(tsDbSdb, pAlter->db);
+  SDbObj *pDb = (SDbObj *) sdbGetRow(tsDbSdb, pAlter->db);
   if (pDb == NULL) {
     mTrace("db:%s is not exist", pAlter->db);
     return TSDB_CODE_INVALID_DB;
   }
 
-  int oldReplicaNum = pDb->cfg.replications;
+  int32_t oldReplicaNum = pDb->cfg.replications;
   if (pAlter->daysToKeep > 0) {
     mTrace("db:%s daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, pAlter->daysToKeep);
     pDb->cfg.daysToKeep = pAlter->daysToKeep;
@@ -400,7 +383,7 @@ int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
     }
     if (pAlter->maxSessions > 0) {
       //rebuild meterList in mgmtVgroup.c
-      sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 0);
+      sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 0);
     }
     mgmtSendVPeersMsg(pVgroup);
     pVgroup = pVgroup->next;
@@ -410,9 +393,9 @@ int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
   return code;
 }
 
-int mgmtUseDb(SConnObj *pConn, char *name) {
-  SDbObj *pDb;
-  int     code = TSDB_CODE_INVALID_DB;
+int32_t mgmtUseDb(SConnObj *pConn, char *name) {
+  SDbObj  *pDb;
+  int32_t code = TSDB_CODE_INVALID_DB;
 
   // here change the default db for connect.
   pDb = mgmtGetDb(name);
@@ -424,12 +407,11 @@ int mgmtUseDb(SConnObj *pConn, char *name) {
   return code;
 }
 
-int mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup) {
+int32_t mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup) {
   pVgroup->next = pDb->pHead;
   pVgroup->prev = NULL;
 
   if (pDb->pHead) pDb->pHead->prev = pVgroup;
-
   if (pDb->pTail == NULL) pDb->pTail = pVgroup;
 
   pDb->pHead = pVgroup;
@@ -438,12 +420,11 @@ int mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup) {
   return 0;
 }
 
-int mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup) {
+int32_t mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup) {
   pVgroup->next = NULL;
   pVgroup->prev = pDb->pTail;
 
   if (pDb->pTail) pDb->pTail->next = pVgroup;
-
   if (pDb->pHead == NULL) pDb->pHead = pVgroup;
 
   pDb->pTail = pVgroup;
@@ -452,46 +433,36 @@ int mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup) {
   return 0;
 }
 
-int mgmtRemoveVgroupFromDb(SDbObj *pDb, SVgObj *pVgroup) {
+int32_t mgmtRemoveVgroupFromDb(SDbObj *pDb, SVgObj *pVgroup) {
   if (pVgroup->prev) pVgroup->prev->next = pVgroup->next;
-
   if (pVgroup->next) pVgroup->next->prev = pVgroup->prev;
-
   if (pVgroup->prev == NULL) pDb->pHead = pVgroup->next;
-
   if (pVgroup->next == NULL) pDb->pTail = pVgroup->prev;
-
   pDb->numOfVgroups--;
 
   return 0;
 }
 
-int mgmtMoveVgroupToTail(SDbObj *pDb, SVgObj *pVgroup) {
+int32_t mgmtMoveVgroupToTail(SDbObj *pDb, SVgObj *pVgroup) {
   mgmtRemoveVgroupFromDb(pDb, pVgroup);
   mgmtAddVgroupIntoDbTail(pDb, pVgroup);
 
   return 0;
 }
 
-int mgmtMoveVgroupToHead(SDbObj *pDb, SVgObj *pVgroup) {
+int32_t mgmtMoveVgroupToHead(SDbObj *pDb, SVgObj *pVgroup) {
   mgmtRemoveVgroupFromDb(pDb, pVgroup);
   mgmtAddVgroupIntoDb(pDb, pVgroup);
 
   return 0;
 }
 
-int mgmtShowTables(SAcctObj *pAcct, char *db) {
-  int code;
-
-  code = 0;
-
-  return code;
+void mgmtCleanUpDbs() {
+  sdbCloseTable(tsDbSdb);
 }
 
-void mgmtCleanUpDbs() { sdbCloseTable(tsDbSdb); }
-
-int mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int cols = 0;
+int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+  int32_t cols = 0;
 
   SSchema *pSchema = tsGetSchema(pMeta);
 
@@ -619,11 +590,12 @@ int mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  //  pShow->numOfRows = sdbGetNumOfRows (tsDbSdb);
   pShow->numOfRows = pConn->pAcct->acctInfo.numOfDbs;
   pShow->pNode = pConn->pAcct->pHead;
 
@@ -636,11 +608,11 @@ char *mgmtGetDbStr(char *src) {
   return ++pos;
 }
 
-int mgmtRetrieveDbs(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
-  int     numOfRows = 0;
+int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+  int32_t numOfRows = 0;
   SDbObj *pDb = NULL;
   char *  pWrite;
-  int     cols = 0;
+  int32_t cols = 0;
 
   while (numOfRows < rows) {
     pDb = (SDbObj *)pShow->pNode;
@@ -753,8 +725,8 @@ int mgmtRetrieveDbs(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   return numOfRows;
 }
 
-void *mgmtDbActionInsert(void *row, char *str, int size, int *ssize) {
-  SDbObj *  pDb = (SDbObj *)row;
+void *mgmtDbActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
+  SDbObj *pDb = (SDbObj *) row;
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
 
   pDb->pHead = NULL;
@@ -767,19 +739,22 @@ void *mgmtDbActionInsert(void *row, char *str, int size, int *ssize) {
 
   return NULL;
 }
-void *mgmtDbActionDelete(void *row, char *str, int size, int *ssize) {
-  SDbObj *  pDb = (SDbObj *)row;
+
+void *mgmtDbActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
+  SDbObj *pDb = (SDbObj *) row;
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   mgmtRemoveDbFromAcct(pAcct, pDb);
 
   return NULL;
 }
-void *mgmtDbActionUpdate(void *row, char *str, int size, int *ssize) {
+
+void *mgmtDbActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
   return mgmtDbActionReset(row, str, size, ssize);
 }
-void *mgmtDbActionEncode(void *row, char *str, int size, int *ssize) {
-  SDbObj *pDb = (SDbObj *)row;
-  int     tsize = pDb->updateEnd - (char *)pDb;
+
+void *mgmtDbActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
+  SDbObj  *pDb  = (SDbObj *) row;
+  int32_t tsize = pDb->updateEnd - (char *) pDb;
   if (size < tsize) {
     *ssize = -1;
   } else {
@@ -789,27 +764,26 @@ void *mgmtDbActionEncode(void *row, char *str, int size, int *ssize) {
 
   return NULL;
 }
-void *mgmtDbActionDecode(void *row, char *str, int size, int *ssize) {
-  SDbObj *pDb = (SDbObj *)malloc(sizeof(SDbObj));
+void *mgmtDbActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
+  SDbObj *pDb = (SDbObj *) malloc(sizeof(SDbObj));
   if (pDb == NULL) return NULL;
   memset(pDb, 0, sizeof(SDbObj));
 
-  int tsize = pDb->updateEnd - (char *)pDb;
+  int32_t tsize = pDb->updateEnd - (char *)pDb;
   memcpy(pDb, str, tsize);
 
   return (void *)pDb;
 }
-void *mgmtDbActionBeforeBatchUpdate(void *row, char *str, int size, int *ssize) { return NULL; }
-void *mgmtDbActionBatchUpdate(void *row, char *str, int size, int *ssize) { return NULL; }
-void *mgmtDbActionAfterBatchUpdate(void *row, char *str, int size, int *ssize) { return NULL; }
-void *mgmtDbActionReset(void *row, char *str, int size, int *ssize) {
-  SDbObj *pDb = (SDbObj *)row;
-  int     tsize = pDb->updateEnd - (char *)pDb;
+
+void *mgmtDbActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
+  SDbObj  *pDb  = (SDbObj *) row;
+  int32_t tsize = pDb->updateEnd - (char *) pDb;
   memcpy(pDb, str, tsize);
 
   return NULL;
 }
-void *mgmtDbActionDestroy(void *row, char *str, int size, int *ssize) {
+
+void *mgmtDbActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
   tfree(row);
   return NULL;
 }

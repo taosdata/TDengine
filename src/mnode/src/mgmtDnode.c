@@ -14,19 +14,18 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #include "os.h"
-
-#include "dnodeSystem.h"
+#include "tmodule.h"
+#include "tschemautil.h"
+#include "tstatus.h"
 #include "mnode.h"
 #include "mgmtDnode.h"
 #include "mgmtBalance.h"
-#include "tschemautil.h"
-#include "tstatus.h"
-#include "dnodeModule.h"
+
+SDnodeObj tsDnodeObj;
 
 void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
-  int maxVnodes = pDnode->numOfCores * tsNumOfVnodesPerCore;
+  int32_t maxVnodes = pDnode->numOfCores * tsNumOfVnodesPerCore;
   maxVnodes = maxVnodes > TSDB_MAX_VNODES ? TSDB_MAX_VNODES : maxVnodes;
   maxVnodes = maxVnodes < TSDB_MIN_VNODES ? TSDB_MIN_VNODES : maxVnodes;
   if (pDnode->numOfTotalVnodes != 0) {
@@ -39,19 +38,14 @@ void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
   pDnode->numOfVnodes = maxVnodes;
   pDnode->numOfFreeVnodes = maxVnodes;
   pDnode->openVnodes = 0;
-
-#ifdef CLUSTER
   pDnode->status = TSDB_DN_STATUS_OFFLINE;
-#else
-  pDnode->status = TSDB_DN_STATUS_READY;
-#endif
 }
 
 void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode) {
-  int totalVnodes = 0;
+  int32_t totalVnodes = 0;
 
   mTrace("dnode:%s, begin calc free vnodes", taosIpStr(pDnode->privateIp));
-  for (int i = 0; i < pDnode->numOfVnodes; ++i) {
+  for (int32_t i = 0; i < pDnode->numOfVnodes; ++i) {
     SVnodeLoad *pVload = pDnode->vload + i;
     if (pVload->vgId != 0) {
       mTrace("%d-dnode:%s, calc free vnodes, exist vnode:%d, vgroup:%d, state:%d %s, dropstate:%d %s, syncstatus:%d %s",
@@ -68,10 +62,10 @@ void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode) {
           taosIpStr(pDnode->privateIp), pDnode->numOfVnodes, pDnode->numOfFreeVnodes, totalVnodes);
 }
 
-void mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int numOfVnodes, int vgId) {
+void mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes, int32_t vgId) {
   SDnodeObj *pDnode;
 
-  for (int i = 0; i < numOfVnodes; ++i) {
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
     pDnode = mgmtGetDnode(vnodeGid[i].ip);
     if (pDnode) {
       SVnodeLoad *pVload = pDnode->vload + vnodeGid[i].vnode;
@@ -86,10 +80,10 @@ void mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int numOfVnodes, int vgId) {
   }
 }
 
-void mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int numOfVnodes) {
+void mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes) {
   SDnodeObj *pDnode;
 
-  for (int i = 0; i < numOfVnodes; ++i) {
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
     pDnode = mgmtGetDnode(vnodeGid[i].ip);
     if (pDnode) {
       SVnodeLoad *pVload = pDnode->vload + vnodeGid[i].vnode;
@@ -102,8 +96,8 @@ void mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int numOfVnodes) {
   }
 }
 
-int mgmtGetDnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int cols = 0;
+int32_t mgmtGetDnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+  int32_t cols = 0;
 
   if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
@@ -155,7 +149,7 @@ int mgmtGetDnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
   pShow->numOfRows = mgmtGetDnodesNum();
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
@@ -164,12 +158,12 @@ int mgmtGetDnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtRetrieveDnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
-  int        numOfRows = 0;
-  SDnodeObj *pDnode = NULL;
-  char *     pWrite;
-  int        cols = 0;
-  char       ipstr[20];
+int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+  int32_t   numOfRows = 0;
+  SDnodeObj *pDnode   = NULL;
+  char      *pWrite;
+  int32_t   cols      = 0;
+  char      ipstr[20];
 
   while (numOfRows < rows) {
     pShow->pNode = mgmtGetNextDnode(pShow, (SDnodeObj **)&pDnode);
@@ -214,8 +208,8 @@ int mgmtRetrieveDnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   return numOfRows;
 }
 
-int mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int cols = 0;
+int32_t mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+  int32_t cols = 0;
 
   if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
@@ -243,14 +237,16 @@ int mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
 
   pShow->numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   while (1) {
     pShow->pNode = mgmtGetNextDnode(pShow, (SDnodeObj **)&pDnode);
     if (pDnode == NULL) break;
-    for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
       if (mgmtCheckModuleInDnode(pDnode, moduleType)) {
         pShow->numOfRows++;
       }
@@ -263,18 +259,18 @@ int mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtRetrieveModules(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
-  int        numOfRows = 0;
+int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+  int32_t    numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
-  int        cols = 0;
+  int32_t    cols = 0;
   char       ipstr[20];
 
   while (numOfRows < rows) {
     pShow->pNode = mgmtGetNextDnode(pShow, (SDnodeObj **)&pDnode);
     if (pDnode == NULL) break;
 
-    for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
       if (!mgmtCheckModuleInDnode(pDnode, moduleType)) {
         continue;
       }
@@ -302,8 +298,8 @@ int mgmtRetrieveModules(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
   return numOfRows;
 }
 
-int mgmtGetConfigMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int cols = 0;
+int32_t mgmtGetConfigMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+  int32_t cols = 0;
 
   if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
@@ -325,10 +321,10 @@ int mgmtGetConfigMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
   pShow->numOfRows = 0;
-  for (int i = tsGlobalConfigNum - 1; i >= 0; --i) {
+  for (int32_t i = tsGlobalConfigNum - 1; i >= 0; --i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
     if (!mgmtCheckConfigShow(cfg)) continue;
     pShow->numOfRows++;
@@ -340,15 +336,15 @@ int mgmtGetConfigMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtRetrieveConfigs(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
-  int numOfRows = 0;
+int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+  int32_t numOfRows = 0;
 
-  for (int i = tsGlobalConfigNum - 1; i >= 0 && numOfRows < rows; --i) {
+  for (int32_t i = tsGlobalConfigNum - 1; i >= 0 && numOfRows < rows; --i) {
     SGlobalConfig *cfg = tsGlobalConfig + i;
     if (!mgmtCheckConfigShow(cfg)) continue;
 
     char *pWrite;
-    int   cols = 0;
+    int32_t   cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     snprintf(pWrite, TSDB_CFG_OPTION_LEN, "%s", cfg->option);
@@ -388,7 +384,7 @@ int mgmtRetrieveConfigs(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
 }
 
 int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int cols = 0;
+  int32_t cols = 0;
 
   if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
@@ -422,7 +418,7 @@ int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
   // TODO: if other thread drop dnode ????
   SDnodeObj *pDnode = NULL;
@@ -435,7 +431,7 @@ int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
 
     SVnodeLoad* pVnode;
     pShow->numOfRows = 0;
-    for (int i = 0 ; i < TSDB_MAX_VNODES; i++) {
+    for (int32_t i = 0 ; i < TSDB_MAX_VNODES; i++) {
       pVnode = &pDnode->vload[i];
       if (0 != pVnode->vgId) {
         pShow->numOfRows++;
@@ -460,11 +456,11 @@ int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
-  int        numOfRows = 0;
+int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+  int32_t        numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
-  int        cols = 0;
+  int32_t        cols = 0;
 
   if (0 == rows) return 0;
 
@@ -473,7 +469,7 @@ int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pCon
     pDnode = (SDnodeObj *)(pShow->pNode);
     if (pDnode != NULL) {
       SVnodeLoad* pVnode;
-      for (int i = 0 ; i < TSDB_MAX_VNODES; i++) {
+      for (int32_t i = 0 ; i < TSDB_MAX_VNODES; i++) {
         pVnode = &pDnode->vload[i];
         if (0 == pVnode->vgId) {
           continue;
@@ -509,56 +505,76 @@ int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pCon
   return numOfRows;
 }
 
-SDnodeObj       dnodeObj;
-extern uint32_t tsRebootTime;
+SDnodeObj *mgmtGetDnodeImp(uint32_t ip) {
+  return &tsDnodeObj;
+}
 
-SDnodeObj* mgmtGetDnodeImp(uint32_t ip) { return &dnodeObj; }
-SDnodeObj* (*mgmtGetDnode)(uint32_t ip) = mgmtGetDnodeImp;
+SDnodeObj *(*mgmtGetDnode)(uint32_t ip) = mgmtGetDnodeImp;
 
-int32_t mgmtUpdateDnodeImp(SDnodeObj *pDnode) { return 0; }
+int32_t mgmtUpdateDnodeImp(SDnodeObj *pDnode) {
+  return 0;
+}
+
 int32_t (*mgmtUpdateDnode)(SDnodeObj *pDnode) = mgmtUpdateDnodeImp;
 
-void mgmtCleanUpDnodesImp() {}
+void mgmtCleanUpDnodesImp() {
+}
+
 void (*mgmtCleanUpDnodes)() = mgmtCleanUpDnodesImp;
 
 int32_t mgmtInitDnodesImp() {
-  dnodeObj.privateIp = inet_addr(tsPrivateIp);;
-  dnodeObj.createdTime = (int64_t)tsRebootTime * 1000;
-  dnodeObj.lastReboot = tsRebootTime;
-  dnodeObj.numOfCores = (uint16_t)tsNumOfCores;
-  dnodeObj.status = TSDB_DN_STATUS_READY;
-  dnodeObj.alternativeRole = TSDB_DNODE_ROLE_ANY;
-  dnodeObj.numOfTotalVnodes = tsNumOfTotalVnodes;
-  dnodeObj.thandle = (void*)(1);  //hack way
-  if (dnodeObj.numOfVnodes == TSDB_INVALID_VNODE_NUM) {
-    mgmtSetDnodeMaxVnodes(&dnodeObj);
-    mPrint("dnode first access, set total vnodes:%d", dnodeObj.numOfVnodes);
+  tsDnodeObj.privateIp        = inet_addr(tsPrivateIp);;
+  tsDnodeObj.createdTime      = taosGetTimestampMs();
+  tsDnodeObj.lastReboot       = taosGetTimestampSec();
+  tsDnodeObj.numOfCores       = (uint16_t) tsNumOfCores;
+  tsDnodeObj.status           = TSDB_DN_STATUS_READY;
+  tsDnodeObj.alternativeRole  = TSDB_DNODE_ROLE_ANY;
+  tsDnodeObj.numOfTotalVnodes = tsNumOfTotalVnodes;
+  tsDnodeObj.thandle          = (void *) (1);  //hack way
+  if (tsDnodeObj.numOfVnodes == TSDB_INVALID_VNODE_NUM) {
+    mgmtSetDnodeMaxVnodes(&tsDnodeObj);
+    mPrint("dnode first access, set total vnodes:%d", tsDnodeObj.numOfVnodes);
   }
-  return  0;
+
+  tsDnodeObj.status = TSDB_DN_STATUS_READY;
+  return 0;
 }
+
 int32_t (*mgmtInitDnodes)() = mgmtInitDnodesImp;
 
-int32_t mgmtGetDnodesNumImp() { return 1; }
+int32_t mgmtGetDnodesNumImp() {
+  return 1;
+}
+
 int32_t (*mgmtGetDnodesNum)() = mgmtGetDnodesNumImp;
 
-void* mgmtGetNextDnodeImp(SShowObj *pShow, SDnodeObj **pDnode) {
+void *mgmtGetNextDnodeImp(SShowObj *pShow, SDnodeObj **pDnode) {
   if (*pDnode == NULL) {
-    *pDnode = &dnodeObj;
+    *pDnode = &tsDnodeObj;
   } else {
     *pDnode = NULL;
   }
 
   return *pDnode;
 }
-void* (*mgmtGetNextDnode)(SShowObj *pShow, SDnodeObj **pDnode) = mgmtGetNextDnodeImp;
 
-int32_t mgmtGetScoresMetaImp(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+void *(*mgmtGetNextDnode)(SShowObj *pShow, SDnodeObj **pDnode) = mgmtGetNextDnodeImp;
+
+int32_t mgmtGetScoresMetaImp(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
 int32_t (*mgmtGetScoresMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = mgmtGetScoresMetaImp;
 
-int32_t mgmtRetrieveScoresImp(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }
-int32_t (*mgmtRetrieveScores)(SShowObj *pShow, char *data, int rows, SConnObj *pConn) = mgmtRetrieveScoresImp;
+int32_t mgmtRetrieveScoresImp(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+  return 0;
+}
 
-void mgmtSetDnodeUnRemoveImp(SDnodeObj *pDnode) {}
+int32_t (*mgmtRetrieveScores)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) = mgmtRetrieveScoresImp;
+
+void mgmtSetDnodeUnRemoveImp(SDnodeObj *pDnode) {
+}
+
 void (*mgmtSetDnodeUnRemove)(SDnodeObj *pDnode) = mgmtSetDnodeUnRemoveImp;
 
 bool mgmtCheckConfigShowImp(SGlobalConfig *cfg) {
@@ -568,4 +584,5 @@ bool mgmtCheckConfigShowImp(SGlobalConfig *cfg) {
     return false;
   return true;
 }
+
 bool (*mgmtCheckConfigShow)(SGlobalConfig *cfg) = mgmtCheckConfigShowImp;

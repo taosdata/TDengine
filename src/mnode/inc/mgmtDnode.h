@@ -28,21 +28,21 @@ int32_t mgmtCreateDnode(uint32_t ip);
 int32_t mgmtDropDnode(SDnodeObj *pDnode);
 int32_t mgmtDropDnodeByIp(uint32_t ip);
 int32_t mgmtGetNextVnode(SVnodeGid *pVnodeGid);
-void    mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int numOfVnodes, int vgId);
-void    mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int numOfVnodes);
+void    mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes, int32_t vgId);
+void    mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes);
 int32_t mgmtGetDnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 int32_t mgmtSendCfgDnodeMsg(char *cont);
 void    mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode);
 
 int32_t mgmtGetConfigMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 
 int32_t mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 
 int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 
 extern int32_t    (*mgmtInitDnodes)();
 extern void       (*mgmtCleanUpDnodes)();
@@ -52,10 +52,10 @@ extern void*      (*mgmtGetNextDnode)(SShowObj *pShow, SDnodeObj **pDnode);
 extern int32_t    (*mgmtUpdateDnode)(SDnodeObj *pDnode);
 extern void       (*mgmtSetDnodeUnRemove)(SDnodeObj *pDnode);
 extern int32_t    (*mgmtGetScoresMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-extern int32_t    (*mgmtRetrieveScores)(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+extern int32_t    (*mgmtRetrieveScores)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 extern bool       (*mgmtCheckConfigShow)(SGlobalConfig *cfg);
 
-extern SDnodeObj dnodeObj;
+extern SDnodeObj tsDnodeObj;
 
 #ifdef __cplusplus
 }

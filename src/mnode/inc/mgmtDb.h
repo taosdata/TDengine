@@ -22,26 +22,25 @@ extern "C" {
 
 #include "mnode.h"
 
-void mgmtMonitorDbDrop(void *unused, void *unusedt);
-int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter);
-int mgmtUseDb(SConnObj *pConn, char *name);
-int mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup);
-int mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup);
-int mgmtRemoveVgroupFromDb(SDbObj *pDb, SVgObj *pVgroup);
-int mgmtMoveVgroupToTail(SDbObj *pDb, SVgObj *pVgroup);
-int mgmtMoveVgroupToHead(SDbObj *pDb, SVgObj *pVgroup);
-int mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveDbs(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
-void mgmtCleanUpDbs();
-
+void    mgmtMonitorDbDrop(void *unused, void *unusedt);
+int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter);
+int32_t mgmtUseDb(SConnObj *pConn, char *name);
+int32_t mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup);
+int32_t mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup);
+int32_t mgmtRemoveVgroupFromDb(SDbObj *pDb, SVgObj *pVgroup);
+int32_t mgmtMoveVgroupToTail(SDbObj *pDb, SVgObj *pVgroup);
+int32_t mgmtMoveVgroupToHead(SDbObj *pDb, SVgObj *pVgroup);
+int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
+void    mgmtCleanUpDbs();
 
 int32_t mgmtInitDbs();
-int     mgmtUpdateDb(SDbObj *pDb);
+int32_t mgmtUpdateDb(SDbObj *pDb);
 SDbObj *mgmtGetDb(char *db);
-SDbObj *mgmtGetDbByMeterId(char *db);
-int     mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate);
-int     mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
-int     mgmtDropDb(SDbObj *pDb);
+SDbObj *mgmtGetDbByTableId(char *db);
+int32_t mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate);
+int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
+int32_t mgmtDropDb(SDbObj *pDb);
 
 #ifdef __cplusplus
 }

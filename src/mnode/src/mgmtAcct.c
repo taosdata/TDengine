@@ -24,7 +24,7 @@
 
 extern void *tsUserSdb;
 extern void *tsDbSdb;
-SAcctObj     acctObj;
+static SAcctObj tsAcctObj;
 
 int32_t mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb) {
   pthread_mutex_lock(&pAcct->mutex);
@@ -103,7 +103,7 @@ int32_t mgmtInitAcctsImp() {
 int32_t (*mgmtInitAccts)() = mgmtInitAcctsImp;
 
 SAcctObj *mgmtGetAcctImp(char *acctName) {
-  return &acctObj;
+  return &tsAcctObj;
 }
 
 SAcctObj *(*mgmtGetAcct)(char *acctName) = mgmtGetAcctImp;
@@ -137,7 +137,7 @@ int32_t mgmtCheckTableLimitImp(SAcctObj *pAcct, SCreateTableMsg *pCreate) {
 int32_t (*mgmtCheckTableLimit)(SAcctObj *pAcct, SCreateTableMsg *pCreate) = mgmtCheckTableLimitImp;
 
 void mgmtCheckAcctImp() {
-  SAcctObj *pAcct = &acctObj;
+  SAcctObj *pAcct = &tsAcctObj;
   pAcct->acctId = 0;
   strcpy(pAcct->user, "root");
 

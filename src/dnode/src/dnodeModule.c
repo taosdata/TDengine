@@ -16,15 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tlog.h"
+#include "tmodule.h"
 #include "tglobalcfg.h"
 #include "mnode.h"
 #include "http.h"
 #include "monitor.h"
 #include "dnodeModule.h"
 #include "dnodeSystem.h"
-
-SModule  tsModule[TSDB_MOD_MAX] = {0};
-uint32_t tsModuleStatus         = 0;
 
 void dnodeAllocModules() {
   tsModule[TSDB_MOD_MGMT].name          = "mgmt";

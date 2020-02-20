@@ -352,7 +352,7 @@ int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SSchema schema[], int 
     }
   }
 
-  SDbObj *pDb = mgmtGetDbByMeterId(pTable->tableId);
+  SDbObj *pDb = mgmtGetDbByTableId(pTable->tableId);
   if (pDb == NULL) {
     mError("table: %s not belongs to any database", pTable->tableId);
     return TSDB_CODE_APP_ERROR;
@@ -388,7 +388,7 @@ int32_t mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *colName) 
     return TSDB_CODE_APP_ERROR;
   }
 
-  SDbObj *pDb = mgmtGetDbByMeterId(pTable->tableId);
+  SDbObj *pDb = mgmtGetDbByTableId(pTable->tableId);
   if (pDb == NULL) {
     mError("table: %s not belongs to any database", pTable->tableId);
     return TSDB_CODE_APP_ERROR;

@@ -538,7 +538,7 @@ void (*mgmtCleanUpDnodeInt)() = mgmtCleanUpDnodeIntImp;
 
 void mgmtProcessDnodeStatusImp(void *handle, void *tmrId) {
 /*
-  SDnodeObj *pObj = &dnodeObj;
+  SDnodeObj *pObj = &tsDnodeObj;
   pObj->openVnodes = tsOpenVnodes;
   pObj->status = TSDB_DN_STATUS_READY;
 

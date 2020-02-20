@@ -229,7 +229,7 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 //    memcpy(pCreateMsg->schema, pInfo->tags, sizeof(STagData));
 //    strcpy(pCreateMsg->meterId, pInfo->meterId);
 //
-//    SDbObj* pMeterDb = mgmtGetDbByMeterId(pCreateMsg->meterId);
+//    SDbObj* pMeterDb = mgmtGetDbByTableId(pCreateMsg->meterId);
 //    mTrace("meter:%s, pConnDb:%p, pConnDbName:%s, pMeterDb:%p, pMeterDbName:%s",
 //           pCreateMsg->meterId, pDb, pDb->name, pMeterDb, pMeterDb->name);
 //    assert(pDb == pMeterDb);
@@ -411,7 +411,7 @@ int mgmtProcessMultiMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 //
 //    // get meter schema, and fill into resp payload
 //    pMeterObj = mgmtGetTable(tblName);
-//    pDbObj = mgmtGetDbByMeterId(tblName);
+//    pDbObj = mgmtGetDbByTableId(tblName);
 //
 //    if (pMeterObj == NULL || (pDbObj == NULL)) {
 //      continue;

@@ -24,34 +24,6 @@ extern "C" {
 #include <stdbool.h>
 #include <pthread.h>
 
-#define tsetModuleStatus(mod) \
-  { tsModuleStatus |= (1 << mod); }
-#define tclearModuleStatus(mod) \
-  { tsModuleStatus &= ~(1 << mod); }
-
-enum _module {
-  TSDB_MOD_MGMT,
-  TSDB_MOD_HTTP,
-  TSDB_MOD_MONITOR,
-  TSDB_MOD_DCLUSTER,
-  TSDB_MOD_MSTORAGE,
-  TSDB_MOD_MAX
-};
-
-typedef struct {
-  char  *name;
-  int  (*initFp)();
-  void (*cleanUpFp)();
-  int  (*startFp)();
-  void (*stopFp)();
-  int    num;
-  int    curNum;
-  int    equalVnodeNum;
-} SModule;
-
-extern uint32_t tsModuleStatus;
-extern SModule tsModule[];
-
 void dnodeAllocModules();
 int32_t dnodeInitModules();
 void dnodeCleanUpModules();

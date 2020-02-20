@@ -188,7 +188,7 @@ int32_t mgmtInitSuperTables() {
       break;
     }
 
-    SDbObj *pDb = mgmtGetDbByMeterId(pTable->tableId);
+    SDbObj *pDb = mgmtGetDbByTableId(pTable->tableId);
     if (pDb == NULL) {
       mError("super table:%s, failed to get db, discard it", pTable->tableId);
       sdbDeleteRow(tsSuperTableSdb, pTable);
@@ -429,7 +429,7 @@ int32_t mgmtAddSuperTableColumn(SSuperTableObj *pMetric, SSchema schema[], int n
     }
   }
 
-  SDbObj *pDb = mgmtGetDbByMeterId(pMetric->tableId);
+  SDbObj *pDb = mgmtGetDbByTableId(pMetric->tableId);
   if (pDb == NULL) {
     mError("meter: %s not belongs to any database", pMetric->tableId);
     return TSDB_CODE_APP_ERROR;
@@ -468,7 +468,7 @@ int32_t mgmtDropSuperTableColumnByName(SSuperTableObj *pMetric, char *colName) {
     return TSDB_CODE_APP_ERROR;
   }
 
-  SDbObj *pDb = mgmtGetDbByMeterId(pMetric->tableId);
+  SDbObj *pDb = mgmtGetDbByTableId(pMetric->tableId);
   if (pDb == NULL) {
     mError("table: %s not belongs to any database", pMetric->tableId);
     return TSDB_CODE_APP_ERROR;
