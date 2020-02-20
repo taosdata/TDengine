@@ -85,6 +85,8 @@ void dnodeSetRunStatus(SDnodeRunStatus status) {
 }
 
 void dnodeCleanUpSystem() {
+  tclearModuleStatus(TSDB_MOD_MGMT);
+
   if (dnodeGetRunStatus() == TSDB_DNODE_RUN_STATUS_STOPPED) {
     return;
   } else {
@@ -131,29 +133,27 @@ void dnodeInitPlugins() {
 }
 
 int32_t dnodeInitSystem() {
-  char        temp[128];
-  struct stat dirstat;
-
-  dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_INITIALIZE);
-
-  taosResolveCRC();
-
   tsRebootTime = taosGetTimestampSec();
   tscEmbedded  = 1;
+
+  dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_INITIALIZE);
+  taosResolveCRC();
 
   // Read global configuration.
   tsReadGlobalLogConfig();
 
+  struct stat dirstat;
   if (stat(logDir, &dirstat) < 0) {
     mkdir(logDir, 0755);
   }
 
+  char temp[128];
   sprintf(temp, "%s/taosdlog", logDir);
   if (taosInitLog(temp, tsNumOfLogLines, 1) < 0) {
     printf("failed to init log file\n");
   }
 
-  if (!tsReadGlobalConfig()) {  // TODO : Change this function
+  if (!tsReadGlobalConfig()) {
     tsPrintGlobalConfig();
     dError("TDengine read global config failed");
     return -1;
@@ -249,7 +249,7 @@ int32_t dnodeInitStorageImp() {
   sprintf(fileName, "%s/data", tsDirectory);
   mkdir(fileName, 0755);
 
-  sprintf(mgmtDirectory, "%s/mgmt", tsDirectory);
+  sprintf(tsMgmtDirectory, "%s/mgmt", tsDirectory);
   sprintf(tsDirectory, "%s/tsdb", dataDir);
   dnodeCheckDataDirOpenned(dataDir);
 

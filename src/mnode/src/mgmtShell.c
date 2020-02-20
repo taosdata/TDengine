@@ -46,7 +46,7 @@ static RetrieveMetaFp* mgmtRetrieveFp;
 static void mgmtInitShowMsgFp();
 
 
-void *    pShellConn = NULL;
+void *    tsShellConn = NULL;
 SConnObj *connList;
 void *    mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle);
 int     (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(char *, int, SConnObj *);
@@ -95,8 +95,8 @@ int mgmtInitShell() {
   rpcInit.idleTime = tsShellActivityTimer * 2000;
   rpcInit.afp = mgmtRetriveUserAuthInfo;
 
-  pShellConn = rpcOpen(&rpcInit);
-  if (pShellConn == NULL) {
+  tsShellConn = rpcOpen(&rpcInit);
+  if (tsShellConn == NULL) {
     mError("failed to init tcp connection to shell");
     return -1;
   }
@@ -105,9 +105,9 @@ int mgmtInitShell() {
 }
 
 void mgmtCleanUpShell() {
-  if (pShellConn) {
-    rpcClose(pShellConn);
-    pShellConn = NULL;
+  if (tsShellConn) {
+    rpcClose(tsShellConn);
+    tsShellConn = NULL;
   }
   tfree(connList);
 }
@@ -1489,7 +1489,7 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
 //          schedMsg.tfp = NULL;
 //          schedMsg.thandle = pConn;
 //
-//          taosScheduleTask(mgmtTranQhandle, &schedMsg);
+//          taosScheduleTask(tsMgmtTranQhandle, &schedMsg);
 //        } else {
 //          mError("%s from shell is not processed", taosMsg[pMsg->msgType]);
 //        }

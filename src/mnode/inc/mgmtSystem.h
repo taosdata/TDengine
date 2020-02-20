@@ -28,7 +28,6 @@ void    mgmtCleanUpSystem();
 extern int32_t (*mgmtInitSystem)();
 extern int32_t (*mgmtCheckMgmtRunning)();
 extern void    (*mgmtDoStatistic)(void *handle, void *tmrId);
-extern void    (*mgmtStartMgmtTimer)();
 extern void    (*mgmtStopSystem)();
 extern void    (*mgmtCleanUpRedirect)();
 

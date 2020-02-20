@@ -556,7 +556,7 @@ void mgmtProcessDnodeStatusImp(void *handle, void *tmrId) {
         pVload->dropStatus = TSDB_VN_DROP_STATUS_READY;
         pVload->status = TSDB_VN_STATUS_OFFLINE;
         mPrint("dnode:%s, vid:%d, drop finished", taosIpStr(pObj->privateIp), vnode);
-        taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, mgmtTmr);
+        taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, tsMgmtTmr);
       }
     }
 
@@ -590,7 +590,7 @@ void mgmtProcessDnodeStatusImp(void *handle, void *tmrId) {
     }
   }
 
-  taosTmrReset(mgmtProcessDnodeStatus, tsStatusInterval * 1000, NULL, mgmtTmr, &mgmtStatusTimer);
+  taosTmrReset(mgmtProcessDnodeStatus, tsStatusInterval * 1000, NULL, tsMgmtTmr, &mgmtStatusTimer);
   if (mgmtStatusTimer == NULL) {
     mError("Failed to start status timer");
   }

@@ -564,7 +564,7 @@ extern int (*pDecompFunc[])(const char *const input, int compressedSize, const i
 
 // global variable and APIs provided by mgmt
 extern char          mgmtStatus;
-extern char          mgmtDirectory[];
+extern char          tsMgmtDirectory[];
 extern const int16_t vnodeFileVersion;
 
 #ifdef __cplusplus

@@ -76,7 +76,7 @@ int mgmtInitVgroups() {
   SVgObj tObj;
   tsVgUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
-  vgSdb = sdbOpenTable(tsMaxVGroups, sizeof(SVgObj), "vgroups", SDB_KEYTYPE_AUTO, mgmtDirectory, mgmtVgroupAction);
+  vgSdb = sdbOpenTable(tsMaxVGroups, sizeof(SVgObj), "vgroups", SDB_KEYTYPE_AUTO, tsMgmtDirectory, mgmtVgroupAction);
   if (vgSdb == NULL) {
     mError("failed to init vgroup data");
     return -1;
@@ -205,7 +205,7 @@ SVgObj *mgmtCreateVgroup(SDbObj *pDb) {
     mError("db:%s, no enough free dnode to alloc %d vnodes", pDb->name, pVgroup->numOfVnodes);
     free(pVgroup);
     pDb->vgStatus = TSDB_VG_STATUS_FULL;
-    taosTmrReset(mgmtProcessVgTimer, 5000, pDb, mgmtTmr, &pDb->vgTimer);
+    taosTmrReset(mgmtProcessVgTimer, 5000, pDb, tsMgmtTmr, &pDb->vgTimer);
     return NULL;
   }
 

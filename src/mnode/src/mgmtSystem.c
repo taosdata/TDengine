@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
-#include "dnodeSystem.h"
+#include "taosdef.h"
+#include "tsched.h"
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtBalance.h"
@@ -29,60 +29,39 @@
 #include "mgmtTable.h"
 #include "mgmtShell.h"
 #include "dnodeModule.h"
-#include "taosdef.h"
 
-// global, not configurable
-char               mgmtDirectory[128];
-void *             mgmtTmr;
-void *             mgmtQhandle = NULL;
-void *             mgmtTranQhandle = NULL;
-void *             mgmtStatisticTimer = NULL;
-int                mgmtShellConns = 0;
-int                mgmtDnodeConns = 0;
-extern void *      pShellConn;
-extern void **     tsRpcQhandle;
-extern SMgmtIpList mgmtIpList;
-extern SMgmtIpList mgmtPublicIpList;
-extern char        mgmtIpStr[TSDB_MAX_MGMT_IPS][20];
-extern void *      acctSdb;
+char tsMgmtDirectory[128] = {0};
+void *tsMgmtTmr           = NULL;
+void *tsMgmtTranQhandle   = NULL;
+void *tsMgmtStatisTimer   = NULL;
 
 void mgmtCleanUpSystem() {
-  if (tsModuleStatus & (1 << TSDB_MOD_MGMT)) {
-    mTrace("mgmt is running, clean it up");
-    taosTmrStopA(&mgmtStatisticTimer);
-    sdbCleanUpPeers();
-    mgmtCleanupBalance();
-    mgmtCleanUpDnodeInt();
-    mgmtCleanUpShell();
-    mgmtCleanUpMeters();
-    mgmtCleanUpVgroups();
-    mgmtCleanUpDbs();
-    mgmtCleanUpDnodes();
-    mgmtCleanUpUsers();
-    mgmtCleanUpAccts();
-    taosTmrCleanUp(mgmtTmr);
-    taosCleanUpScheduler(mgmtQhandle);
-    taosCleanUpScheduler(mgmtTranQhandle);
-  } else {
-    mgmtCleanUpRedirect();
-  }
+  mPrint("starting to clean up mgmt");
 
-  mgmtTmr = NULL;
-  mgmtQhandle = NULL;
-  mgmtShellConns = 0;
-  mgmtDnodeConns = 0;
-  tclearModuleStatus(TSDB_MOD_MGMT);
-  pShellConn = NULL;
+  taosTmrStopA(&tsMgmtStatisTimer);
+  mgmtCleanUpRedirect();
+  sdbCleanUpPeers();
+  mgmtCleanupBalance();
+  mgmtCleanUpDnodeInt();
+  mgmtCleanUpShell();
+  mgmtCleanUpMeters();
+  mgmtCleanUpVgroups();
+  mgmtCleanUpDbs();
+  mgmtCleanUpDnodes();
+  mgmtCleanUpUsers();
+  mgmtCleanUpAccts();
+  taosTmrCleanUp(tsMgmtTmr);
+  taosCleanUpScheduler(tsMgmtTranQhandle);
 
-  mTrace("mgmt is cleaned up");
+  mPrint("mgmt is cleaned up");
 }
 
-int mgmtStartSystem() {
+int32_t mgmtStartSystem() {
   mPrint("starting to initialize TDengine mgmt ...");
 
   struct stat dirstat;
-  if (stat(mgmtDirectory, &dirstat) < 0) {
-    mkdir(mgmtDirectory, 0755);
+  if (stat(tsMgmtDirectory, &dirstat) < 0) {
+    mkdir(tsMgmtDirectory, 0755);
   }
 
   if (mgmtCheckMgmtRunning() != 0) {
@@ -90,14 +69,10 @@ int mgmtStartSystem() {
     return 0;
   }
 
-  int numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 2.0;
-  if (numOfThreads < 1) numOfThreads = 1;
-  mgmtQhandle = taosInitScheduler(tsMaxDnodes + tsMaxShellConns, numOfThreads, "mnode");
+  tsMgmtTranQhandle = taosInitScheduler(tsMaxDnodes + tsMaxShellConns, 1, "mnodeT");
 
-  mgmtTranQhandle = taosInitScheduler(tsMaxDnodes + tsMaxShellConns, 1, "mnodeT");
-
-  mgmtTmr = taosTmrInit((tsMaxDnodes + tsMaxShellConns) * 3, 200, 3600000, "MND");
-  if (mgmtTmr == NULL) {
+  tsMgmtTmr = taosTmrInit((tsMaxDnodes + tsMaxShellConns) * 3, 200, 3600000, "MND");
+  if (tsMgmtTmr == NULL) {
     mError("failed to init timer, exit");
     return -1;
   }
@@ -142,7 +117,7 @@ int mgmtStartSystem() {
     return -1;
   }
 
-  if (sdbInitPeers(mgmtDirectory) < 0) {
+  if (sdbInitPeers(tsMgmtDirectory) < 0) {
     mError("failed to init peers");
     return -1;
   }
@@ -153,9 +128,7 @@ int mgmtStartSystem() {
 
   mgmtCheckAcct();
 
-  taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, mgmtTmr, &mgmtStatisticTimer);
-
-  mgmtStartMgmtTimer();
+  taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 
   mPrint("TDengine mgmt is initialized successfully");
 
@@ -163,26 +136,31 @@ int mgmtStartSystem() {
 }
 
 int32_t mgmtInitSystemImp() {
-  return mgmtStartSystem();
+  int32_t code = mgmtStartSystem();
+  if (code != 0) {
+    return code;
+  }
+
+  taosTmrReset(mgmtProcessDnodeStatus, 500, NULL, tsMgmtTmr, &mgmtStatusTimer);
+  return code;
 }
 
 int32_t (*mgmtInitSystem)() = mgmtInitSystemImp;
 
-int32_t mgmtCheckMgmtRunningImp() { return 0; }
+int32_t mgmtCheckMgmtRunningImp() {
+  return 0;
+}
+
 int32_t (*mgmtCheckMgmtRunning)() = mgmtCheckMgmtRunningImp;
 
 void mgmtDoStatisticImp(void *handle, void *tmrId) {}
-void (*mgmtDoStatistic)(void *handle, void *tmrId) = mgmtDoStatisticImp;
 
-void mgmtStartMgmtTimerImp() {
-  taosTmrReset(mgmtProcessDnodeStatus, 500, NULL, mgmtTmr, &mgmtStatusTimer);
-}
-void (*mgmtStartMgmtTimer)() = mgmtStartMgmtTimerImp;
+void (*mgmtDoStatistic)(void *handle, void *tmrId) = mgmtDoStatisticImp;
 
 void mgmtStopSystemImp() {}
 
 void (*mgmtStopSystem)() = mgmtStopSystemImp;
 
 void mgmtCleanUpRedirectImp() {}
-void (*mgmtCleanUpRedirect)() = mgmtCleanUpRedirectImp;
 
+void (*mgmtCleanUpRedirect)() = mgmtCleanUpRedirectImp;

@@ -43,12 +43,9 @@ extern "C" {
 
 // internal globals
 extern char  version[];
-extern void *mgmtTmr;
-extern void *mgmtQhandle;
-extern void *mgmtTranQhandle;
-extern int   mgmtShellConns;
-extern int   mgmtDnodeConns;
-extern char  mgmtDirectory[];
+extern void *tsMgmtTmr;
+extern void *tsMgmtTranQhandle;
+extern char  tsMgmtDirectory[];
 
 extern int tsAcctUpdateSize;
 extern int tsDbUpdateSize;

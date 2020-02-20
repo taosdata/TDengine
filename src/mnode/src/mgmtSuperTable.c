@@ -175,7 +175,7 @@ int32_t mgmtInitSuperTables() {
   mgmtSuperTableActionInit();
 
   tsSuperTableSdb = sdbOpenTable(tsMaxTables, sizeof(STabObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_MAX_SQL_LEN,
-                          "meters", SDB_KEYTYPE_STRING, mgmtDirectory, mgmtSuperTableAction);
+                          "meters", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtSuperTableAction);
   if (tsSuperTableSdb == NULL) {
     mError("failed to init meter data");
     return -1;

@@ -68,7 +68,7 @@ int mgmtInitUsers() {
 
   mgmtUserActionInit();
 
-  userSdb = sdbOpenTable(tsMaxUsers, sizeof(SUserObj), "user", SDB_KEYTYPE_STRING, mgmtDirectory, mgmtUserAction);
+  userSdb = sdbOpenTable(tsMaxUsers, sizeof(SUserObj), "user", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtUserAction);
   if (userSdb == NULL) {
     mError("failed to init user data");
     return -1;

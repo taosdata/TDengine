@@ -83,7 +83,7 @@ int32_t mgmtInitDbs() {
 
   mgmtDbActionInit();
 
-  dbSdb = sdbOpenTable(tsMaxDbs, sizeof(SDbObj), "db", SDB_KEYTYPE_STRING, mgmtDirectory, mgmtDbAction);
+  dbSdb = sdbOpenTable(tsMaxDbs, sizeof(SDbObj), "db", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtDbAction);
   if (dbSdb == NULL) {
     mError("failed to init db data");
     return -1;
