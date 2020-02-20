@@ -137,25 +137,25 @@ static uint32_t mgmtSetMeterTagValue(char *pTags, STabObj *pMetric, STabObj *pMe
   return tagsLen;
 }
 
-static char *mgmtAllocMsg(SConnObj *pConn, int32_t size, char **pMsg, STaosRsp **pRsp) {
+//static char *mgmtAllocMsg(SConnObj *pConn, int32_t size, char **pMsg, STaosRsp **pRsp) {
 //  char *pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_TABLE_META_RSP, size);
 //  if (pStart == NULL) return 0;
 //  *pMsg = pStart;
 //  *pRsp = (STaosRsp *)(*pMsg);
 //
 //  return pStart;
-  return 0;
-}
+//  return 0;
+//}
 
-static char *mgmtForMultiAllocMsg(SConnObj *pConn, int32_t size, char **pMsg, STaosRsp **pRsp) {
+//static char *mgmtForMultiAllocMsg(SConnObj *pConn, int32_t size, char **pMsg, STaosRsp **pRsp) {
 //  char *pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_MULTI_TABLE_META_RSP, size);
 //  if (pStart == NULL) return 0;
 //  *pMsg = pStart;
 //  *pRsp = (STaosRsp *)(*pMsg);
 //
 //  return pStart;
-  return 0;
-}
+//  return 0;
+//}
 
 /**
  * check if we need to add mgmtProcessMeterMetaMsg into tranQueue, which will be executed one-by-one.

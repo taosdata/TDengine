@@ -50,7 +50,7 @@ TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid);
 void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts);
 void tscSaveSubscriptionProgress(void* sub);
 
-static int32_t minMsgSize() { return tsRpcHeadSize + sizeof(STaosDigest); }
+static int32_t minMsgSize() { return tsRpcHeadSize + 100; }
 
 void tscPrintMgmtIp() {
   if (tscMgmtIpList.numOfIps <= 0) {
@@ -329,7 +329,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
      * message body by using "if (pHeader->msgType & 1)" may cause the segment fault.
      *
      */
-    size_t totalLen = pSql->cmd.payloadLen + tsRpcHeadSize + sizeof(STaosDigest);
+    size_t totalLen = pSql->cmd.payloadLen + tsRpcHeadSize + 100;
 
     // the memory will be released by taosProcessResponse, so no memory leak here
     char *pStart = rpcMallocCont(pSql->cmd.payloadLen);
@@ -350,10 +350,10 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       //if (tscUpdateVnodeMsg[pSql->cmd.command]) (*tscUpdateVnodeMsg[pSql->cmd.command])(pSql, pStart);
 
       if (pSql->cmd.command < TSDB_SQL_MGMT) {
-        rpcSendRequest(pTscMgmtConn, tscMgmtIpList, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
+        rpcSendRequest(pTscMgmtConn, &tscMgmtIpList, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
       } else {
         SRpcIpSet rpcSet = tscMgmtIpList;
-        rpcSendRequest(pVnodeConn, rpcSet, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
+        rpcSendRequest(pVnodeConn, &rpcSet, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
       }
 
       tscTrace("%p send msg code:%d sig:%p", pSql, code, signature);

@@ -600,7 +600,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
    * the dataBlock only includes the RPC Header buffer and actual submit messsage body, space for digest needs
    * additional space.
    */
-  int ret = tscAllocPayload(pCmd, pDataBlock->nAllocSize + sizeof(STaosDigest));
+  int ret = tscAllocPayload(pCmd, pDataBlock->nAllocSize + 100);
   if (TSDB_CODE_SUCCESS != ret) {
     return ret;
   }
@@ -613,7 +613,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
    */
   pCmd->payloadLen = pDataBlock->nAllocSize - tsRpcHeadSize;
 
-  assert(pCmd->allocSize >= pCmd->payloadLen + tsRpcHeadSize + sizeof(STaosDigest));
+  assert(pCmd->allocSize >= pCmd->payloadLen + tsRpcHeadSize + 100);
   return TSDB_CODE_SUCCESS;
 }
 
