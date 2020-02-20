@@ -26,7 +26,6 @@ extern "C" {
 
 int  mgmtInitShell();
 void mgmtCleanUpShell();
-int mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, uint8_t *secret, uint8_t *ckey);
 
 extern int32_t (*mgmtCheckRedirectMsg)(SConnObj *pConn, int32_t msgType);
 extern int32_t (*mgmtProcessAlterAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);

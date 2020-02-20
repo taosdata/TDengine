@@ -152,8 +152,8 @@ int32_t mgmtInitSuperTables() {
 
   mgmtSuperTableActionInit();
 
-  tsSuperTableSdb = sdbOpenTable(tsMaxTables, sizeof(STabObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_MAX_SQL_LEN,
-                          "stable", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtSuperTableAction);
+  tsSuperTableSdb = sdbOpenTable(tsMaxTables, sizeof(STabObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
+                          "stables", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtSuperTableAction);
   if (tsSuperTableSdb == NULL) {
     mError("failed to init super table data");
     return -1;
@@ -585,14 +585,10 @@ int32_t mgmtRetrieveSuperTables(SShowObj *pShow, char *data, int32_t rows, SConn
   return numOfRows;
 }
 
-int32_t mgmtAddMeterIntoMetric(SSuperTableObj *pStable, SChildTableObj *pTable) {
-  if (pTable != NULL && pStable != NULL) return -1;
+void mgmtAddTableIntoSuperTable(SSuperTableObj *pStable) {
   pStable->numOfTables++;
-  return 0;
 }
 
-int32_t mgmtRemoveMeterFromMetric(SSuperTableObj *pStable, SChildTableObj *pTable) {
-  if (pTable != NULL && pStable != NULL) return -1;
+void mgmtRemoveTableFromSuperTable(SSuperTableObj *pStable) {
   pStable->numOfTables--;
-  return 0;
 }

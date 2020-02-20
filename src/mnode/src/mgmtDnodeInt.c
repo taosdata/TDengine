@@ -95,11 +95,11 @@ int32_t mgmtProcessMeterCfgMsg(int8_t *pCont, int32_t contLen, void *pConn) {
 
   int8_t *pCreateTableMsg = NULL;
   if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
-    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)pTable, vnode);
+    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)pTable);
   } else if (pTable->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
-    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)pTable, vnode);
+    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)pTable);
   } else if (pTable->type == TSDB_TABLE_TYPE_STREAM_TABLE) {
-    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)pTable, vnode);
+    pCreateTableMsg = mgmtBuildCreateNormalTableMsg((SNormalTableObj *)pTable);
   } else {}
 
   if (pCreateTableMsg != NULL) {
@@ -210,7 +210,7 @@ void mgmtProcessMsgFromDnode(int8_t *pCont, int32_t contLen, int32_t msgType, vo
   }
 }
 
-int32_t mgmtSendCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup, int32_t tagDataLen, int8_t *pTagData) {
+int32_t mgmtSendCreateTableMsg(SChildTableObj *pTable, SVgObj *pVgroup) {
 //  uint64_t timeStamp = taosGetTimestampMs();
 //
 //  for (int32_t index = 0; index < pVgroup->numOfVnodes; ++index) {
@@ -280,9 +280,10 @@ int32_t mgmtSendCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup) {
 //
 //  pVgroup->lastCreate = timeStamp;
 //  return 0;
+  return 0;
 }
 
-int mgmtSendRemoveMeterMsgToDnode(STabObj *pTable, SVgObj *pVgroup) {
+int mgmtSendRemoveMeterMsgToDnode(STableInfo *pTable, SVgObj *pVgroup) {
 //  SDRemoveTableMsg *pRemove;
 //  char *           pMsg, *pStart;
 //  int              i, msgLen = 0;

@@ -209,7 +209,7 @@ SVgObj *mgmtCreateVgroup(SDbObj *pDb) {
 int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
   STableInfo *pTable;
 
-  if (pVgroup->numOfMeters > 0) {
+  if (pVgroup->numOfTables > 0) {
     for (int32_t i = 0; i < pDb->cfg.maxSessions; ++i) {
       if (pVgroup->tableList != NULL) {
         pTable = pVgroup->tableList[i];
@@ -235,11 +235,11 @@ void mgmtSetVgroupIdPool() {
     if (pVgroup == NULL || pVgroup->idPool == 0) break;
 
     taosIdPoolSetFreeList(pVgroup->idPool);
-    pVgroup->numOfMeters = taosIdPoolNumOfUsed(pVgroup->idPool);
+    pVgroup->numOfTables = taosIdPoolNumOfUsed(pVgroup->idPool);
 
     pDb = mgmtGetDb(pVgroup->dbName);
-    pDb->numOfTables += pVgroup->numOfMeters;
-    if (pVgroup->numOfMeters >= pDb->cfg.maxSessions - 1)
+    pDb->numOfTables += pVgroup->numOfTables;
+    if (pVgroup->numOfTables >= pDb->cfg.maxSessions - 1)
       mgmtAddVgroupIntoDbTail(pDb, pVgroup);
     else
       mgmtAddVgroupIntoDb(pDb, pVgroup);
@@ -374,7 +374,7 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, SConnObj 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pVgroup->numOfMeters;
+    *(int32_t *)pWrite = pVgroup->numOfTables;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -422,7 +422,7 @@ void *mgmtVgroupActionInsert(void *row, char *str, int32_t size, int32_t *ssize)
   int32_t tsize = sizeof(STableInfo *) * pDb->cfg.maxSessions;
   pVgroup->tableList = (STableInfo **)malloc(tsize);
   memset(pVgroup->tableList, 0, tsize);
-  pVgroup->numOfMeters = 0;
+  pVgroup->numOfTables = 0;
   pVgroup->idPool = taosInitIdPool(pDb->cfg.maxSessions);
   mgmtAddVgroupIntoDb(pDb, pVgroup);
   mgmtSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes, pVgroup->vgId);

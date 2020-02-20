@@ -38,8 +38,6 @@ int32_t         mgmtModifySuperTableTagNameByName(SSuperTableObj *pTable, char *
 int32_t         mgmtAddSuperTableColumn(SSuperTableObj *pTable, SSchema schema[], int32_t ncols);
 int32_t         mgmtDropSuperTableColumnByName(SSuperTableObj *pTable, char *colName);
 
-SSchema*        mgmtGetSuperTableSchema(SSuperTableObj *pTable);
-
 #ifdef __cplusplus
 }
 #endif

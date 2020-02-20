@@ -15,15 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
-#include "mnode.h"
-#include "mgmtAcct.h"
-#include "mgmtGrant.h"
-#include "mgmtUtil.h"
-#include "mgmtDb.h"
-#include "mgmtDnodeInt.h"
-#include "mgmtVgroup.h"
-#include "mgmtTable.h"
 #include "taosmsg.h"
 #include "tast.h"
 #include "textbuffer.h"
@@ -33,22 +24,28 @@
 #include "tsqlfunction.h"
 #include "ttime.h"
 #include "tstatus.h"
-
-
-#include "sdb.h"
+#include "tutil.h"
+#include "mnode.h"
+#include "mgmtAcct.h"
+#include "mgmtDb.h"
+#include "mgmtDnodeInt.h"
+#include "mgmtGrant.h"
 #include "mgmtNormalTable.h"
-
+#include "mgmtSuperTable.h"
+#include "mgmtTable.h"
+#include "mgmtUtil.h"
+#include "mgmtVgroup.h"
 
 void *tsNormalTableSdb;
-void *(*mgmtNormalTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
+void *(*mgmtNormalTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
 
-void *mgmtNormalTableActionInsert(void *row, char *str, int size, int *ssize);
-void *mgmtNormalTableActionDelete(void *row, char *str, int size, int *ssize);
-void *mgmtNormalTableActionUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtNormalTableActionEncode(void *row, char *str, int size, int *ssize);
-void *mgmtNormalTableActionDecode(void *row, char *str, int size, int *ssize);
-void *mgmtNormalTableActionReset(void *row, char *str, int size, int *ssize);
-void *mgmtNormalTableActionDestroy(void *row, char *str, int size, int *ssize);
+void *mgmtNormalTableActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtNormalTableActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtNormalTableActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtNormalTableActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtNormalTableActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtNormalTableActionReset(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtNormalTableActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
 
 static void mgmtDestroyNormalTable(SNormalTableObj *pTable) {
   free(pTable->schema);
@@ -65,20 +62,20 @@ static void mgmtNormalTableActionInit() {
   mgmtNormalTableActionFp[SDB_TYPE_DESTROY] = mgmtNormalTableActionDestroy;
 }
 
-void *mgmtNormalTableActionReset(void *row, char *str, int size, int *ssize) {
+void *mgmtNormalTableActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   SNormalTableObj *pTable = (SNormalTableObj *) row;
-  int tsize = pTable->updateEnd - (int8_t *) pTable;
+  int32_t tsize = pTable->updateEnd - (int8_t *) pTable;
   memcpy(pTable, str, tsize);
   return NULL;
 }
 
-void *mgmtNormalTableActionDestroy(void *row, char *str, int size, int *ssize) {
+void *mgmtNormalTableActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
   SNormalTableObj *pTable = (SNormalTableObj *)row;
   mgmtDestroyNormalTable(pTable);
   return NULL;
 }
 
-void *mgmtNormalTableActionInsert(void *row, char *str, int size, int *ssize) {
+void *mgmtNormalTableActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
   SNormalTableObj *pTable = (SNormalTableObj *) row;
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
@@ -100,7 +97,7 @@ void *mgmtNormalTableActionInsert(void *row, char *str, int size, int *ssize) {
   }
 
   if (!sdbMaster) {
-    int sid = taosAllocateId(pVgroup->idPool);
+    int32_t sid = taosAllocateId(pVgroup->idPool);
     if (sid != pTable->sid) {
       mError("sid:%d is not matched from the master:%d", sid, pTable->sid);
       return NULL;
@@ -108,18 +105,18 @@ void *mgmtNormalTableActionInsert(void *row, char *str, int size, int *ssize) {
   }
 
   pAcct->acctInfo.numOfTimeSeries += (pTable->numOfColumns - 1);
-  pVgroup->numOfMeters++;
+  pVgroup->numOfTables++;
   pDb->numOfTables++;
-  pVgroup->tableList[pTable->sid] = pTable;
+  pVgroup->tableList[pTable->sid] =  (STableInfo *) pTable;
 
-  if (pVgroup->numOfMeters >= pDb->cfg.maxSessions - 1 && pDb->numOfVgroups > 1) {
+  if (pVgroup->numOfTables >= pDb->cfg.maxSessions - 1 && pDb->numOfVgroups > 1) {
     mgmtMoveVgroupToTail(pDb, pVgroup);
   }
 
   return NULL;
 }
 
-void *mgmtNormalTableActionDelete(void *row, char *str, int size, int *ssize) {
+void *mgmtNormalTableActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
   SNormalTableObj *pTable = (SNormalTableObj *) row;
   if (pTable->vgId == 0) {
     return NULL;
@@ -145,65 +142,67 @@ void *mgmtNormalTableActionDelete(void *row, char *str, int size, int *ssize) {
 
   pAcct->acctInfo.numOfTimeSeries -= (pTable->numOfColumns - 1);
   pVgroup->tableList[pTable->sid] = NULL;
-  pVgroup->numOfMeters--;
+  pVgroup->numOfTables--;
   pDb->numOfTables--;
   taosFreeId(pVgroup->idPool, pTable->sid);
 
-  if (pVgroup->numOfMeters > 0) {
+  if (pVgroup->numOfTables > 0) {
     mgmtMoveVgroupToHead(pDb, pVgroup);
   }
 
   return NULL;
 }
 
-void *mgmtNormalTableActionUpdate(void *row, char *str, int size, int *ssize) {
+void *mgmtNormalTableActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
   return mgmtNormalTableActionReset(row, str, size, NULL);
 }
 
-void *mgmtNormalTableActionEncode(void *row, char *str, int size, int *ssize) {
+void *mgmtNormalTableActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
   SNormalTableObj *pTable = (SNormalTableObj *) row;
   assert(row != NULL && str != NULL);
 
-  int tsize = pTable->updateEnd - (int8_t *) pTable;
-  if (size < tsize + pTable->schemaSize + 1) {
+  int32_t tsize = pTable->updateEnd - (int8_t *) pTable;
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  if (size < tsize + schemaSize + 1) {
     *ssize = -1;
     return NULL;
   }
 
   memcpy(str, pTable, tsize);
-  memcpy(str + tsize, pTable->schema, pTable->schemaSize);
-  *ssize = tsize + pTable->schemaSize;
+  memcpy(str + tsize, pTable->schema, schemaSize);
+  *ssize = tsize + schemaSize;
 
   return NULL;
 }
 
-void *mgmtNormalTableActionDecode(void *row, char *str, int size, int *ssize) {
+void *mgmtNormalTableActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
   assert(str != NULL);
 
   SNormalTableObj *pTable = (SNormalTableObj *)malloc(sizeof(SNormalTableObj));
   if (pTable == NULL) {
     return NULL;
   }
-  memset(pTable, 0, sizeof(STabObj));
+  memset(pTable, 0, sizeof(SNormalTableObj));
 
-  int tsize = pTable->updateEnd - (int8_t *)pTable;
+  int32_t tsize = pTable->updateEnd - (int8_t *)pTable;
   if (size < tsize) {
     mgmtDestroyNormalTable(pTable);
     return NULL;
   }
   memcpy(pTable, str, tsize);
 
-  pTable->schema = (char *)malloc(pTable->schemaSize);
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  pTable->schema = (SSchema *)malloc(schemaSize);
   if (pTable->schema == NULL) {
     mgmtDestroyNormalTable(pTable);
     return NULL;
   }
 
-  memcpy(pTable->schema, str + tsize, pTable->schemaSize);
+  memcpy(pTable->schema, str + tsize, schemaSize);
   return (void *)pTable;
 }
 
-void *mgmtNormalTableAction(char action, void *row, char *str, int size, int *ssize) {
+void *mgmtNormalTableAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
   if (mgmtNormalTableActionFp[(uint8_t)action] != NULL) {
     return (*(mgmtNormalTableActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
@@ -211,6 +210,38 @@ void *mgmtNormalTableAction(char action, void *row, char *str, int size, int *ss
 }
 
 int32_t mgmtInitNormalTables() {
+  void *pNode = NULL;
+  void *pLastNode = NULL;
+  SChildTableObj *pTable = NULL;
+
+  mgmtNormalTableActionInit();
+
+  tsNormalTableSdb = sdbOpenTable(tsMaxTables, sizeof(SNormalTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
+                                 "ntables", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtNormalTableAction);
+  if (tsNormalTableSdb == NULL) {
+    mError("failed to init normal table data");
+    return -1;
+  }
+
+  pNode = NULL;
+  while (1) {
+    pNode = sdbFetchRow(tsNormalTableSdb, pNode, (void **)&pTable);
+    if (pTable == NULL) {
+      break;
+    }
+
+    SDbObj *pDb = mgmtGetDbByTableId(pTable->tableId);
+    if (pDb == NULL) {
+      mError("normal table:%s, failed to get db, discard it", pTable->tableId);
+      sdbDeleteRow(tsNormalTableSdb, pTable);
+      pNode = pLastNode;
+      continue;
+    }
+  }
+
+  mgmtSetVgroupIdPool();
+
+  mTrace("normal table is initialized");
   return 0;
 }
 
@@ -218,19 +249,19 @@ void mgmtCleanUpNormalTables() {
   sdbCloseTable(tsNormalTableSdb);
 }
 
-int8_t *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, int32_t vnode) {
-  int8_t *pMsg = NULL;
-  SDCreateTableMsg *pCreateTable = (SDCreateTableMsg *) pMsg;
-  memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
-  pCreateTable->vnode        = htobe32(vnode);
-  pCreateTable->sid          = htobe32(pTable->sid);
-  pCreateTable->uid          = htobe64(pTable->uid);
-  pCreateTable->createdTime  = htobe64(pTable->createdTime);
-  pCreateTable->sversion     = htobe32(pTable->sversion);
-  pCreateTable->numOfColumns = htobe16(pTable->numOfColumns);
-
-  SSchema *pSchema  = pTable->schema;
-  int32_t totalCols = pCreateTable->numOfColumns;
+int8_t *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable) {
+//  int8_t *pMsg = NULL;
+//  SDCreateTableMsg *pCreateTable = (SDCreateTableMsg *) pMsg;
+//  memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
+//  pCreateTable->vnode        = htobe32(vnode);
+//  pCreateTable->sid          = htobe32(pTable->sid);
+//  pCreateTable->uid          = htobe64(pTable->uid);
+//  pCreateTable->createdTime  = htobe64(pTable->createdTime);
+//  pCreateTable->sversion     = htobe32(pTable->sversion);
+//  pCreateTable->numOfColumns = htobe16(pTable->numOfColumns);
+//
+//  SSchema *pSchema  = pTable->schema;
+//  int32_t totalCols = pCreateTable->numOfColumns;
 
 //  for (int32_t col = 0; col < totalCols; ++col) {
 //    SMColumn *colData = &((SMColumn *) (pCreateTable->data))[col];
@@ -242,11 +273,12 @@ int8_t *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, int32_t vnode) {
 //  int32_t totalColsSize = sizeof(SMColumn *) * totalCols;
 //  pMsg = pCreateTable->data + totalColsSize;
 
-  return pMsg;
+//  return pMsg;
+  return NULL;
 }
 
 int32_t mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
-  int numOfTables = sdbGetNumOfRows(tsChildTableSdb);
+  int32_t numOfTables = sdbGetNumOfRows(tsChildTableSdb);
   if (numOfTables >= TSDB_MAX_TABLES) {
     mError("normal table:%s, numOfTables:%d exceed maxTables:%d", pCreate->meterId, numOfTables, TSDB_MAX_TABLES);
     return TSDB_CODE_TOO_MANY_TABLES;
@@ -265,9 +297,9 @@ int32_t mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVg
   pTable->sversion     = 0;
   pTable->numOfColumns = pCreate->numOfColumns;
 
-  int numOfCols = pCreate->numOfColumns + pCreate->numOfTags;
-  pTable->schemaSize = numOfCols * sizeof(SSchema);
-  pTable->schema     = (int8_t *) calloc(1, pTable->schemaSize);
+  int32_t numOfCols = pCreate->numOfColumns + pCreate->numOfTags;
+  int32_t schemaSize = numOfCols * sizeof(SSchema);
+  pTable->schema     = (SSchema *) calloc(1, schemaSize);
   if (pTable->schema == NULL) {
     free(pTable);
     mError("table:%s, no schema input", pCreate->meterId);
@@ -276,7 +308,7 @@ int32_t mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVg
   memcpy(pTable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
   pTable->nextColId = 0;
-  for (int col = 0; col < pCreate->numOfColumns; col++) {
+  for (int32_t col = 0; col < pCreate->numOfColumns; col++) {
     SSchema *tschema   = (SSchema *) pTable->schema;
     tschema[col].colId = pTable->nextColId++;
   }
@@ -315,11 +347,11 @@ int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
 
   mgmtRestoreTimeSeries(pTable->numOfColumns - 1);
 
-  mgmtSendRemoveMeterMsgToDnode(pTable, pVgroup);
+  mgmtSendRemoveMeterMsgToDnode((STableInfo *) pTable, pVgroup);
 
   sdbDeleteRow(tsChildTableSdb, pTable);
 
-  if (pVgroup->numOfMeters <= 0) {
+  if (pVgroup->numOfTables <= 0) {
     mgmtDropVgroup(pDb, pVgroup);
   }
 
@@ -341,12 +373,12 @@ static int32_t mgmtFindNormalTableColumnIndex(SNormalTableObj *pTable, char *col
   return -1;
 }
 
-int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SSchema schema[], int ncols) {
+int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SSchema schema[], int32_t ncols) {
   if (ncols <= 0) {
     return TSDB_CODE_APP_ERROR;
   }
 
-  for (int i = 0; i < ncols; i++) {
+  for (int32_t i = 0; i < ncols; i++) {
     if (mgmtFindNormalTableColumnIndex(pTable, schema[i].name) > 0) {
       return TSDB_CODE_APP_ERROR;
     }
@@ -364,16 +396,16 @@ int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SSchema schema[], int 
     return TSDB_CODE_APP_ERROR;
   }
 
-  pTable->schema = realloc(pTable->schema, pTable->schemaSize + sizeof(SSchema) * ncols);
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  pTable->schema = realloc(pTable->schema, schemaSize + sizeof(SSchema) * ncols);
 
-  memcpy(pTable->schema + pTable->schemaSize, schema, sizeof(SSchema) * ncols);
+  memcpy(pTable->schema + schemaSize, schema, sizeof(SSchema) * ncols);
 
   SSchema *tschema = (SSchema *) (pTable->schema + sizeof(SSchema) * pTable->numOfColumns);
-  for (int i = 0; i < ncols; i++) {
+  for (int32_t i = 0; i < ncols; i++) {
     tschema[i].colId = pTable->nextColId++;
   }
 
-  pTable->schemaSize += sizeof(SSchema) * ncols;
   pTable->numOfColumns += ncols;
   pTable->sversion++;
   pAcct->acctInfo.numOfTimeSeries += ncols;
@@ -403,10 +435,7 @@ int32_t mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *colName) 
   memmove(pTable->schema + sizeof(SSchema) * col, pTable->schema + sizeof(SSchema) * (col + 1),
           sizeof(SSchema) * (pTable->numOfColumns - col - 1));
 
-
-  pTable->schemaSize -= sizeof(SSchema);
   pTable->numOfColumns--;
-  pTable->schema = realloc(pTable->schema, pTable->schemaSize);
   pTable->sversion++;
 
   pAcct->acctInfo.numOfTimeSeries--;

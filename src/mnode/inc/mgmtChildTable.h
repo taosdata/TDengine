@@ -33,8 +33,7 @@ int32_t         mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable);
 int32_t         mgmtAlterChildTable(SDbObj *pDb, SAlterTableMsg *pAlter);
 int32_t         mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent);
 SChildTableObj* mgmtGetChildTable(char *tableId);
-SSchema*        mgmtGetChildTableSchema(SChildTableObj *pTable);
-int8_t *        mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, int8_t *pMsg, int32_t vnode, int32_t tagDataLen, int8_t *pTagData);
+int8_t *        mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup);
 
 #ifdef __cplusplus
 }

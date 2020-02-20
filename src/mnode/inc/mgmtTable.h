@@ -37,8 +37,8 @@ int32_t  mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int32_t  mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 void     mgmtCleanUpMeters();
 
-int32_t mgmtAddMeterIntoMetric(SSuperTableObj *pMetric, SChildTableObj *pTable);
-int32_t mgmtRemoveMeterFromMetric(SSuperTableObj *pMetric, SChildTableObj *pTable);
+void    mgmtAddTableIntoSuperTable(SSuperTableObj *pStable);
+void    mgmtRemoveTableFromSuperTable(SSuperTableObj *pStable);
 int32_t mgmtGetSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int32_t mgmtRetrieveSuperTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 

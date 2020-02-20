@@ -15,15 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
-#include "mnode.h"
-#include "mgmtAcct.h"
-#include "mgmtGrant.h"
-#include "mgmtUtil.h"
-#include "mgmtDb.h"
-#include "mgmtDnodeInt.h"
-#include "mgmtVgroup.h"
-#include "mgmtTable.h"
 #include "taosmsg.h"
 #include "tast.h"
 #include "textbuffer.h"
@@ -33,26 +24,32 @@
 #include "tsqlfunction.h"
 #include "ttime.h"
 #include "tstatus.h"
-
-
-#include "sdb.h"
+#include "tutil.h"
+#include "mnode.h"
+#include "mgmtAcct.h"
+#include "mgmtDb.h"
+#include "mgmtDnodeInt.h"
+#include "mgmtGrant.h"
 #include "mgmtStreamTable.h"
-
+#include "mgmtSuperTable.h"
+#include "mgmtTable.h"
+#include "mgmtUtil.h"
+#include "mgmtVgroup.h"
 
 void *tsStreamTableSdb;
-void *(*mgmtStreamTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
+void *(*mgmtStreamTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
 
-void *mgmtStreamTableActionInsert(void *row, char *str, int size, int *ssize);
-void *mgmtStreamTableActionDelete(void *row, char *str, int size, int *ssize);
-void *mgmtStreamTableActionUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtStreamTableActionEncode(void *row, char *str, int size, int *ssize);
-void *mgmtStreamTableActionDecode(void *row, char *str, int size, int *ssize);
-void *mgmtStreamTableActionReset(void *row, char *str, int size, int *ssize);
-void *mgmtStreamTableActionDestroy(void *row, char *str, int size, int *ssize);
+void *mgmtStreamTableActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtStreamTableActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtStreamTableActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtStreamTableActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtStreamTableActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtStreamTableActionReset(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtStreamTableActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
 
 static void mgmtDestroyStreamTable(SStreamTableObj *pTable) {
   free(pTable->schema);
-  free(pTable->pSql);
+  free(pTable->sql);
   free(pTable);
 }
 
@@ -66,24 +63,27 @@ static void mgmtStreamTableActionInit() {
   mgmtStreamTableActionFp[SDB_TYPE_DESTROY] = mgmtStreamTableActionDestroy;
 }
 
-void *mgmtStreamTableActionReset(void *row, char *str, int size, int *ssize) {
+void *mgmtStreamTableActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   SStreamTableObj *pTable = (SStreamTableObj *) row;
-  int tsize = pTable->updateEnd - (int8_t *) pTable;
+  int32_t tsize = pTable->updateEnd - (int8_t *) pTable;
   memcpy(pTable, str, tsize);
-  pTable->schema = (char *) realloc(pTable->schema, pTable->schemaSize);
-  memcpy(pTable->schema, str + tsize, pTable->schemaSize);
-  pTable->pSql = (char *) realloc(pTable->pSql, pTable->sqlLen);
-  memcpy(pTable->pSql, str + tsize + pTable->schemaSize, pTable->sqlLen);
+
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  pTable->schema = (SSchema *) realloc(pTable->schema, schemaSize);
+  memcpy(pTable->schema, str + tsize, schemaSize);
+
+  pTable->sql = (char *) realloc(pTable->sql, pTable->sqlLen);
+  memcpy(pTable->sql, str + tsize + schemaSize, pTable->sqlLen);
   return NULL;
 }
 
-void *mgmtStreamTableActionDestroy(void *row, char *str, int size, int *ssize) {
+void *mgmtStreamTableActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
   SStreamTableObj *pTable = (SStreamTableObj *)row;
   mgmtDestroyStreamTable(pTable);
   return NULL;
 }
 
-void *mgmtStreamTableActionInsert(void *row, char *str, int size, int *ssize) {
+void *mgmtStreamTableActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
   SNormalTableObj *pTable = (SNormalTableObj *) row;
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
@@ -105,7 +105,7 @@ void *mgmtStreamTableActionInsert(void *row, char *str, int size, int *ssize) {
   }
 
   if (!sdbMaster) {
-    int sid = taosAllocateId(pVgroup->idPool);
+    int32_t sid = taosAllocateId(pVgroup->idPool);
     if (sid != pTable->sid) {
       mError("sid:%d is not matched from the master:%d", sid, pTable->sid);
       return NULL;
@@ -113,18 +113,18 @@ void *mgmtStreamTableActionInsert(void *row, char *str, int size, int *ssize) {
   }
 
   pAcct->acctInfo.numOfTimeSeries += (pTable->numOfColumns - 1);
-  pVgroup->numOfMeters++;
+  pVgroup->numOfTables++;
   pDb->numOfTables++;
-  pVgroup->tableList[pTable->sid] = pTable;
+  pVgroup->tableList[pTable->sid] = (STableInfo *) pTable;
 
-  if (pVgroup->numOfMeters >= pDb->cfg.maxSessions - 1 && pDb->numOfVgroups > 1) {
+  if (pVgroup->numOfTables >= pDb->cfg.maxSessions - 1 && pDb->numOfVgroups > 1) {
     mgmtMoveVgroupToTail(pDb, pVgroup);
   }
 
   return NULL;
 }
 
-void *mgmtStreamTableActionDelete(void *row, char *str, int size, int *ssize) {
+void *mgmtStreamTableActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
   SNormalTableObj *pTable = (SNormalTableObj *) row;
   if (pTable->vgId == 0) {
     return NULL;
@@ -150,40 +150,41 @@ void *mgmtStreamTableActionDelete(void *row, char *str, int size, int *ssize) {
 
   pAcct->acctInfo.numOfTimeSeries -= (pTable->numOfColumns - 1);
   pVgroup->tableList[pTable->sid] = NULL;
-  pVgroup->numOfMeters--;
+  pVgroup->numOfTables--;
   pDb->numOfTables--;
   taosFreeId(pVgroup->idPool, pTable->sid);
 
-  if (pVgroup->numOfMeters > 0) {
+  if (pVgroup->numOfTables > 0) {
     mgmtMoveVgroupToHead(pDb, pVgroup);
   }
 
   return NULL;
 }
 
-void *mgmtStreamTableActionUpdate(void *row, char *str, int size, int *ssize) {
+void *mgmtStreamTableActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
   return mgmtStreamTableActionReset(row, str, size, NULL);
 }
 
-void *mgmtStreamTableActionEncode(void *row, char *str, int size, int *ssize) {
+void *mgmtStreamTableActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
   SStreamTableObj *pTable = (SStreamTableObj *) row;
   assert(row != NULL && str != NULL);
 
-  int tsize = pTable->updateEnd - (int8_t *) pTable;
-  if (size < tsize + pTable->schemaSize + pTable->sqlLen + 1) {
+  int32_t tsize = pTable->updateEnd - (int8_t *) pTable;
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  if (size < tsize + schemaSize + pTable->sqlLen + 1) {
     *ssize = -1;
     return NULL;
   }
 
   memcpy(str, pTable, tsize);
-  memcpy(str + tsize, pTable->schema, pTable->schemaSize);
-  memcpy(str + tsize + pTable->schemaSize, pTable->pSql, pTable->sqlLen);
-  *ssize = tsize + pTable->schemaSize + pTable->sqlLen;
+  memcpy(str + tsize, pTable->schema, schemaSize);
+  memcpy(str + tsize + schemaSize, pTable->sql, pTable->sqlLen);
+  *ssize = tsize + schemaSize + pTable->sqlLen;
 
   return NULL;
 }
 
-void *mgmtStreamTableActionDecode(void *row, char *str, int size, int *ssize) {
+void *mgmtStreamTableActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
   assert(str != NULL);
 
   SStreamTableObj *pTable = (SStreamTableObj *)malloc(sizeof(SNormalTableObj));
@@ -192,30 +193,31 @@ void *mgmtStreamTableActionDecode(void *row, char *str, int size, int *ssize) {
   }
   memset(pTable, 0, sizeof(STabObj));
 
-  int tsize = pTable->updateEnd - (int8_t *)pTable;
+  int32_t tsize = pTable->updateEnd - (int8_t *)pTable;
   if (size < tsize) {
     mgmtDestroyStreamTable(pTable);
     return NULL;
   }
   memcpy(pTable, str, tsize);
 
-  pTable->schema = (char *)malloc(pTable->schemaSize);
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  pTable->schema = (SSchema *)malloc(schemaSize);
   if (pTable->schema == NULL) {
     mgmtDestroyStreamTable(pTable);
     return NULL;
   }
-  memcpy(pTable->schema, str + tsize, pTable->schemaSize);
+  memcpy(pTable->schema, str + tsize, schemaSize);
 
-  pTable->pSql = (char *)malloc(pTable->sqlLen);
-  if (pTable->pSql == NULL) {
+  pTable->sql = (char *)malloc(pTable->sqlLen);
+  if (pTable->sql == NULL) {
     mgmtDestroyStreamTable(pTable);
     return NULL;
   }
-  memcpy(pTable->pSql, str + tsize + pTable->schemaSize, pTable->sqlLen);
+  memcpy(pTable->sql, str + tsize + schemaSize, pTable->sqlLen);
   return (void *)pTable;
 }
 
-void *mgmtStreamTableAction(char action, void *row, char *str, int size, int *ssize) {
+void *mgmtStreamTableAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
   if (mgmtStreamTableActionFp[(uint8_t)action] != NULL) {
     return (*(mgmtStreamTableActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
@@ -223,25 +225,57 @@ void *mgmtStreamTableAction(char action, void *row, char *str, int size, int *ss
 }
 
 int32_t mgmtInitStreamTables() {
+  void *pNode = NULL;
+  void *pLastNode = NULL;
+  SChildTableObj *pTable = NULL;
+
+  mgmtStreamTableActionInit();
+
+  tsStreamTableSdb = sdbOpenTable(tsMaxTables, sizeof(SStreamTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_MAX_SQL_LEN,
+                                  "streams", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtStreamTableAction);
+  if (tsStreamTableSdb == NULL) {
+    mError("failed to init stream table data");
+    return -1;
+  }
+
+  pNode = NULL;
+  while (1) {
+    pNode = sdbFetchRow(tsStreamTableSdb, pNode, (void **)&pTable);
+    if (pTable == NULL) {
+      break;
+    }
+
+    SDbObj *pDb = mgmtGetDbByTableId(pTable->tableId);
+    if (pDb == NULL) {
+      mError("stream table:%s, failed to get db, discard it", pTable->tableId);
+      sdbDeleteRow(tsStreamTableSdb, pTable);
+      pNode = pLastNode;
+      continue;
+    }
+  }
+
+  mgmtSetVgroupIdPool();
+
+  mTrace("stream table is initialized");
   return 0;
 }
 
 void mgmtCleanUpStreamTables() {
 }
 
-int8_t *mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, int8_t *pMsg, int32_t vnode) {
-  SDCreateTableMsg *pCreateTable = (SDCreateTableMsg *) pMsg;
-  memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
-  pCreateTable->vnode        = htonl(vnode);
-  pCreateTable->sid          = htonl(pTable->sid);
-  pCreateTable->uid          = pTable->uid;
-  pCreateTable->createdTime  = htobe64(pTable->createdTime);
-  pCreateTable->sversion     = htonl(pTable->sversion);
-  pCreateTable->numOfColumns = htons(pTable->numOfColumns);
-  //pCreateTable->sqlLen       = htons(pTable->sqlLen);
-
-  SSchema *pSchema  = pTable->schema;
-  int32_t totalCols = pCreateTable->numOfColumns;
+int8_t *mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj  *pVgroup) {
+//  SDCreateTableMsg *pCreateTable = (SDCreateTableMsg *) pMsg;
+//  memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
+//  pCreateTable->vnode        = htonl(vnode);
+//  pCreateTable->sid          = htonl(pTable->sid);
+//  pCreateTable->uid          = pTable->uid;
+//  pCreateTable->createdTime  = htobe64(pTable->createdTime);
+//  pCreateTable->sversion     = htonl(pTable->sversion);
+//  pCreateTable->numOfColumns = htons(pTable->numOfColumns);
+//  //pCreateTable->sqlLen       = htons(pTable->sqlLen);
+//
+//  SSchema *pSchema  = pTable->schema;
+//  int32_t totalCols = pCreateTable->numOfColumns;
 
 //  for (int32_t col = 0; col < totalCols; ++col) {
 //    SMColumn *colData = &((SMColumn *) (pCreateTable->data))[col];
@@ -256,11 +290,12 @@ int8_t *mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, int8_t *pMsg, int
 //  char *sql = pTable->schema + pTable->schemaSize;
 //  memcpy(pCreateTable->data + totalColsSize, pTable->sqlLen, sql);
 
-  return pMsg;
+//  return pMsg;
+  return NULL;
 }
 
 int32_t mgmtCreateStreamTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
-  int numOfTables = sdbGetNumOfRows(tsStreamTableSdb);
+  int32_t numOfTables = sdbGetNumOfRows(tsStreamTableSdb);
   if (numOfTables >= TSDB_MAX_TABLES) {
     mError("stream table:%s, numOfTables:%d exceed maxTables:%d", pCreate->meterId, numOfTables, TSDB_MAX_TABLES);
     return TSDB_CODE_TOO_MANY_TABLES;
@@ -279,9 +314,9 @@ int32_t mgmtCreateStreamTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVg
   pTable->sversion     = 0;
   pTable->numOfColumns = pCreate->numOfColumns;
 
-  int numOfCols = pCreate->numOfColumns + pCreate->numOfTags;
-  pTable->schemaSize = numOfCols * sizeof(SSchema) + pCreate->sqlLen;
-  pTable->schema     = (int8_t *) calloc(1, pTable->schemaSize);
+  int32_t numOfCols = pCreate->numOfColumns + pCreate->numOfTags;
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  pTable->schema     = (SSchema *) calloc(1, schemaSize);
   if (pTable->schema == NULL) {
     free(pTable);
     mError("table:%s, no schema input", pCreate->meterId);
@@ -290,15 +325,15 @@ int32_t mgmtCreateStreamTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVg
   memcpy(pTable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
   pTable->nextColId = 0;
-  for (int col = 0; col < pCreate->numOfColumns; col++) {
+  for (int32_t col = 0; col < pCreate->numOfColumns; col++) {
     SSchema *tschema   = (SSchema *) pTable->schema;
     tschema[col].colId = pTable->nextColId++;
   }
 
-  pTable->pSql = pTable->schema + numOfCols * sizeof(SSchema);
-  memcpy(pTable->pSql, (char *) (pCreate->schema) + numOfCols * sizeof(SSchema), pCreate->sqlLen);
-  pTable->pSql[pCreate->sqlLen - 1] = 0;
-  mTrace("table:%s, stream sql len:%d sql:%s", pCreate->meterId, pCreate->sqlLen, pTable->pSql);
+  pTable->sql = (char*)(pTable->schema + numOfCols * sizeof(SSchema));
+  memcpy(pTable->sql, (char *) (pCreate->schema) + numOfCols * sizeof(SSchema), pCreate->sqlLen);
+  pTable->sql[pCreate->sqlLen - 1] = 0;
+  mTrace("table:%s, stream sql len:%d sql:%s", pCreate->meterId, pCreate->sqlLen, pTable->sql);
 
   if (sdbInsertRow(tsStreamTableSdb, pTable, 0) < 0) {
     mError("table:%s, update sdb error", pCreate->meterId);
@@ -334,11 +369,11 @@ int32_t mgmtDropStreamTable(SDbObj *pDb, SStreamTableObj *pTable) {
 
   mgmtRestoreTimeSeries(pTable->numOfColumns - 1);
 
-  mgmtSendRemoveMeterMsgToDnode(pTable, pVgroup);
+  mgmtSendRemoveMeterMsgToDnode((STableInfo *) pTable, pVgroup);
 
   sdbDeleteRow(tsChildTableSdb, pTable);
 
-  if (pVgroup->numOfMeters <= 0) {
+  if (pVgroup->numOfTables <= 0) {
     mgmtDropVgroup(pDb, pVgroup);
   }
 

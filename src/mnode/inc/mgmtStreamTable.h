@@ -22,7 +22,6 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
-
 #include "mnode.h"
 
 int32_t         mgmtInitStreamTables();
@@ -31,11 +30,7 @@ int32_t         mgmtCreateStreamTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVg
 int32_t         mgmtDropStreamTable(SDbObj *pDb, SStreamTableObj *pTable);
 int32_t         mgmtAlterStreamTable(SDbObj *pDb, SAlterTableMsg *pAlter);
 SStreamTableObj* mgmtGetStreamTable(char *tableId);
-SSchema*        mgmtGetStreamTableSchema(SStreamTableObj *pTable);
-
-int8_t *        mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, int8_t *pMsg, int32_t vnode);
-
-
+int8_t *        mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj *pVgroup);
 
 #ifdef __cplusplus
 }

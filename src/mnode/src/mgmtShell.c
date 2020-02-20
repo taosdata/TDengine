@@ -45,10 +45,10 @@ static GetMateFp* mgmtGetMetaFp;
 static RetrieveMetaFp* mgmtRetrieveFp;
 static void mgmtInitShowMsgFp();
 
-
 void *    tsShellConn = NULL;
 SConnObj *connList;
-void *    mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle);
+void      mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *ahandle, int32_t code);
+int       mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 int     (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(char *, int, SConnObj *);
 void      mgmtInitProcessShellMsg();
 int       mgmtRedirectMsg(SConnObj *pConn, int msgType);
@@ -164,20 +164,21 @@ static uint32_t mgmtSetMeterTagValue(char *pTags, STabObj *pMetric, STabObj *pMe
  * @return
  */
 bool mgmtCheckMeterMetaMsgType(char *pMsg) {
-  SMeterInfoMsg *pInfo = (SMeterInfoMsg *)pMsg;
+//  SMeterInfoMsg *pInfo = (SMeterInfoMsg *)pMsg;
+//
+//  int16_t   autoCreate = htons(pInfo->createFlag);
+//  STableInfo *table      = mgmtGetTable(pInfo->meterId);
 
-  int16_t   autoCreate = htons(pInfo->createFlag);
-  STableInfo *table      = mgmtGetTable(pInfo->meterId);
-
-  // If table does not exists and autoCreate flag is set, we add the handler into another task queue, namely tranQueue
+// If table does not exists and autoCreate flag is set, we add the handler into another task queue, namely tranQueue
 //  bool addIntoTranQueue = (pMeterObj == NULL && autoCreate == 1);
 //  if (addIntoTranQueue) {
 //    mTrace("meter:%s auto created task added", pInfo->meterId);
 //  }
 
-  bool addIntoTranQueue = true;
+//  bool addIntoTranQueue = true;
 
-  return addIntoTranQueue;
+//  return addIntoTranQueue;
+  return 0;
 }
 
 int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
@@ -1296,7 +1297,7 @@ void mgmtEstablishConn(SConnObj *pConn) {
 //  mgmtAddConnIntoAcct(pConn);
 }
 
-int mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, uint8_t *secret, uint8_t *ckey) {
+int mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   SUserObj *pUser = NULL;
 
   *spi = 0;
@@ -1421,7 +1422,7 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   return 0;
 }
 
-void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
+void mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *ahandle, int32_t code) {
 //  SIntMsg * pMsg = (SIntMsg *)msg;
 //  SConnObj *pConn = (SConnObj *)ahandle;
 //
@@ -1506,7 +1507,6 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
 //  }
 //
 //  return pConn;
-  return NULL;
 }
 
 void mgmtInitProcessShellMsg() {

@@ -181,11 +181,10 @@ typedef struct {
   int64_t  createdTime;
   int32_t  sversion;
   int32_t  numOfColumns;
-  int32_t  schemaSize;
-  int8_t     reserved[3];
-  int8_t     updateEnd[1];
+  int8_t   reserved[3];
+  int8_t   updateEnd[1];
   int16_t  nextColId;
-  char*    schema;
+  SSchema* schema;
 } SNormalTableObj;
 
 typedef struct {
@@ -197,13 +196,12 @@ typedef struct {
   int64_t  createdTime;
   int32_t  sversion;
   int32_t  numOfColumns;
-  int32_t  schemaSize;
   int16_t  sqlLen;
-  int8_t     reserved[3];
-  int8_t     updateEnd[1];
+  int8_t   reserved[3];
+  int8_t   updateEnd[1];
   int16_t  nextColId;
-  char*    pSql;  //null-terminated string
-  char*    schema;
+  char*    sql;  //null-terminated string
+  SSchema* schema;
 } SStreamTableObj;
 
 typedef struct _vg_obj {
@@ -214,7 +212,7 @@ typedef struct _vg_obj {
   uint64_t        lastRemove;
   int32_t         numOfVnodes;
   SVnodeGid       vnodeGid[TSDB_VNODES_SUPPORT];
-  int32_t         numOfMeters;
+  int32_t         numOfTables;
   int32_t         lbIp;
   int32_t         lbTime;
   int8_t          lbStatus;
