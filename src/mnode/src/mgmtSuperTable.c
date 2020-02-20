@@ -23,7 +23,6 @@
 #include "mgmtDb.h"
 #include "mgmtDnodeInt.h"
 #include "mgmtVgroup.h"
-#include "mgmtSupertableQuery.h"
 #include "mgmtTable.h"
 #include "taosmsg.h"
 #include "tast.h"

@@ -101,7 +101,7 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (mgmtInitMeters() < 0) {
+  if (mgmtInitTables() < 0) {
     mError("failed to init meters");
     return -1;
   }

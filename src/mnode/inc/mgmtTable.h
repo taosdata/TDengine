@@ -25,30 +25,23 @@ extern "C" {
 #include <stdint.h>
 #include "mnode.h"
 
-
-typedef struct {
-  ETableType type;
-  void*      obj;
-} STableObj;
-
-int      mgmtInitMeters();
+int32_t     mgmtInitTables();
 STableInfo* mgmtGetTable(char *tableId);
 STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid);
 
-STabObj *mgmtGetTableInfo(char *src, char *tags[]);
-int      mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SSuperTableMetaMsg *pInfo);
-int      mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate);
-int      mgmtDropTable(SDbObj *pDb, char *meterId, int ignore);
-int      mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter);
-int      mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int      mgmtRetrieveTables(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+int32_t  mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SSuperTableMetaMsg *pInfo);
+int32_t  mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate);
+int32_t  mgmtDropTable(SDbObj *pDb, char *meterId, int32_t ignore);
+int32_t  mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter);
+int32_t  mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int32_t  mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 void     mgmtCleanUpMeters();
 SSchema *mgmtGetTableSchema(STabObj *pTable);  // get schema for a meter
 
-int mgmtAddMeterIntoMetric(STabObj *pMetric, STabObj *pTable);
-int mgmtRemoveMeterFromMetric(STabObj *pMetric, STabObj *pTable);
-int mgmtGetSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveSuperTables(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+int32_t mgmtAddMeterIntoMetric(STabObj *pMetric, STabObj *pTable);
+int32_t mgmtRemoveMeterFromMetric(STabObj *pMetric, STabObj *pTable);
+int32_t mgmtGetSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int32_t mgmtRetrieveSuperTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 
 
 

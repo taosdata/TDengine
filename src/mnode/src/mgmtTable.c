@@ -15,16 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
-#include "mnode.h"
-#include "mgmtAcct.h"
-#include "mgmtGrant.h"
-#include "mgmtUtil.h"
-#include "mgmtDb.h"
-#include "mgmtDnodeInt.h"
-#include "mgmtVgroup.h"
-#include "mgmtSupertableQuery.h"
-#include "mgmtTable.h"
+#include "taoserror.h"
 #include "taosmsg.h"
 #include "tast.h"
 #include "textbuffer.h"
@@ -32,46 +23,23 @@
 #include "tscompression.h"
 #include "tskiplist.h"
 #include "tsqlfunction.h"
-#include "ttime.h"
 #include "tstatus.h"
-
-#include "mgmtSuperTable.h"
+#include "ttime.h"
+#include "mnode.h"
+#include "mgmtAcct.h"
 #include "mgmtChildTable.h"
+#include "mgmtDb.h"
+#include "mgmtDnode.h"
+#include "mgmtDnodeInt.h"
+#include "mgmtGrant.h"
 #include "mgmtNormalTable.h"
 #include "mgmtStreamTable.h"
+#include "mgmtSuperTable.h"
+#include "mgmtTable.h"
+#include "mgmtUtil.h"
+#include "mgmtVgroup.h"
 
-#include "taoserror.h"
-
-extern int64_t sdbVersion;
-
-static int32_t mgmtGetReqTagsLength(STabObj *pMetric, int16_t *cols, int32_t numOfCols) {
-  assert(mgmtIsSuperTable(pMetric) && numOfCols >= 0 && numOfCols <= TSDB_MAX_TAGS + 1);
-
-  int32_t len = 0;
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    assert(cols[i] < pMetric->numOfTags);
-    if (cols[i] == -1) {
-      len += TSDB_METER_NAME_LEN;
-    } else {
-      len += ((SSchema *)pMetric->schema)[pMetric->numOfColumns + cols[i]].bytes;
-    }
-  }
-
-  return len;
-}
-
-/*
- * remove the hole in result set
- */
-static void mgmtVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
-  if (rows < capacity) {
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      memmove(data + pShow->offset[i] * rows, data + pShow->offset[i] * capacity, pShow->bytes[i] * rows);
-    }
-  }
-}
-
-int mgmtInitMeters() {
+int32_t mgmtInitTables() {
   int32_t code = mgmtInitSuperTables();
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -120,12 +88,21 @@ STableInfo* mgmtGetTable(char *tableId) {
 }
 
 STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
+  SDnodeObj *pObj = mgmtGetDnode(dnodeIp);
+  if (pObj != NULL && vnode >= 0 && vnode < pObj->numOfVnodes) {
+    int32_t vgId = pObj->vload[vnode].vgId;
+    SVgObj *pVgroup = mgmtGetVgroup(vgId);
+    if (pVgroup) {
+      return pVgroup->tableList[sid];
+    }
+  }
+
   return NULL;
 }
 
 int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
-  STableInfo *table = mgmtGetTable(pCreate->meterId);
-  if (table != NULL) {
+  STableInfo *pTable = mgmtGetTable(pCreate->meterId);
+  if (pTable != NULL) {
     if (pCreate->igExists) {
       return TSDB_CODE_SUCCESS;
     } else {
@@ -135,7 +112,7 @@ int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
 
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   assert(pAcct != NULL);
-  int code = mgmtCheckTableLimit(pAcct, pCreate);
+  int32_t code = mgmtCheckTableLimit(pAcct, pCreate);
   if (code != 0) {
     mError("table:%s, exceed the limit", pCreate->meterId);
     return code;
@@ -147,7 +124,7 @@ int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
   }
 
   if (pCreate->numOfTags == 0) {
-    int grantCode = mgmtCheckTimeSeries(pCreate->numOfColumns);
+    int32_t grantCode = mgmtCheckTimeSeries(pCreate->numOfColumns);
     if (grantCode != 0) {
       mError("table:%s, grant expired", pCreate->meterId);
       return grantCode;
@@ -175,9 +152,9 @@ int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
   }
 }
 
-int mgmtDropTable(SDbObj *pDb, char *tableId, int ignore) {
-  STableInfo *table = mgmtGetTable(tableId);
-  if (table == NULL) {
+int32_t mgmtDropTable(SDbObj *pDb, char *tableId, int32_t ignore) {
+  STableInfo *pTable = mgmtGetTable(tableId);
+  if (pTable == NULL) {
     if (ignore) {
       return TSDB_CODE_SUCCESS;
     } else {
@@ -185,72 +162,61 @@ int mgmtDropTable(SDbObj *pDb, char *tableId, int ignore) {
     }
   }
 
-  // 0.log
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
     return TSDB_CODE_MONITOR_DB_FORBIDDEN;
   }
 
-  switch (table->type) {
+  switch (pTable->type) {
     case TSDB_TABLE_TYPE_SUPER_TABLE:
-      return mgmtDropSuperTable(pDb, table);
+      return mgmtDropSuperTable(pDb, (SSuperTableObj *) pTable);
     case TSDB_TABLE_TYPE_CHILD_TABLE:
-      return mgmtDropChildTable(pDb, table);
+      return mgmtDropChildTable(pDb, (SChildTableObj *) pTable);
     case TSDB_TABLE_TYPE_STREAM_TABLE:
-      return mgmtDropStreamTable(pDb, table);
+      return mgmtDropStreamTable(pDb, (SStreamTableObj *) pTable);
     case TSDB_TABLE_TYPE_NORMAL_TABLE:
-      return mgmtDropNormalTable(pDb, table);
+      return mgmtDropNormalTable(pDb, (SNormalTableObj *) pTable);
     default:
       return TSDB_CODE_INVALID_TABLE;
   }
 }
 
-int mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter) {
-  STableInfo *table = mgmtGetTable(pAlter->meterId);
-  if (table == NULL) {
+int32_t mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter) {
+  STableInfo *pTable = mgmtGetTable(pAlter->meterId);
+  if (pTable == NULL) {
     return TSDB_CODE_INVALID_TABLE;
   }
 
-  // 0.log
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
     return TSDB_CODE_MONITOR_DB_FORBIDDEN;
   }
 
-//  if (pAlter->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
-//    return mgmtUpdate
-//    if (!mgmtIsNormalTable(pTable) || !mgmtTableCreateFromSuperTable(pTable)) {
-//      return TSDB_CODE_OPS_NOT_SUPPORT;
-//    }
-//  }
-
-  // todo add
-  /* mgmtMeterAddTags */
   if (pAlter->type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN) {
-    if (table->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
-      return mgmtAddSuperTableTag(table, pAlter->schema, 1);
+    if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+      return mgmtAddSuperTableTag((SSuperTableObj *) pTable, pAlter->schema, 1);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_DROP_TAG_COLUMN) {
-    if (table->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
-      return mgmtDropSuperTableTag(table, pAlter->schema[0].name);
+    if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+      return mgmtDropSuperTableTag((SSuperTableObj *) pTable, pAlter->schema[0].name);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
-    if (table->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
-      return mgmtModifySuperTableTagNameByName(table, pAlter->schema[0].name, pAlter->schema[1].name);
+    if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+      return mgmtModifySuperTableTagNameByName((SSuperTableObj *) pTable, pAlter->schema[0].name, pAlter->schema[1].name);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
-    if (table->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
-      return mgmtModifyChildTableTagValueByName(table, pAlter->schema[0].name, pAlter->tagVal);
+    if (pTable->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
+      return mgmtModifyChildTableTagValueByName((SChildTableObj *) pTable, pAlter->schema[0].name, pAlter->tagVal);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_ADD_COLUMN) {
-    if (table->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
-      return mgmtAddNormalTableColumn(table, pAlter->schema, 1);
-    } else if (table->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
-      return mgmtAddSuperTableColumn(table, pAlter->schema, 1);
+    if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+      return mgmtAddNormalTableColumn((SNormalTableObj *) pTable, pAlter->schema, 1);
+    } else if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+      return mgmtAddSuperTableColumn((SSuperTableObj *) pTable, pAlter->schema, 1);
     } else {}
   } else if (pAlter->type == TSDB_ALTER_TABLE_DROP_COLUMN) {
-    if (table->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
-      return mgmtDropNormalTableColumnByName(table, pAlter->schema[0].name);
-    } else if (table->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
-      return mgmtDropSuperTableColumnByName(table, pAlter->schema[0].name);
+    if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+      return mgmtDropNormalTableColumnByName((SNormalTableObj *) pTable, pAlter->schema[0].name);
+    } else if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+      return mgmtDropSuperTableColumnByName((SSuperTableObj *) pTable, pAlter->schema[0].name);
     } else {}
   } else {}
 
@@ -316,7 +282,18 @@ int32_t mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
+/*
+ * remove the hole in result set
+ */
+static void mgmtVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
+  if (rows < capacity) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      memmove(data + pShow->offset[i] * rows, data + pShow->offset[i] * capacity, pShow->bytes[i] * rows);
+    }
+  }
+}
+
+int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
   int32_t numOfRows  = 0;
   int32_t numOfRead  = 0;
   int32_t cols       = 0;
@@ -327,7 +304,7 @@ int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int rows, SConnObj *pCon
   int64_t createdTime;
   char    *tableId;
   char    *superTableId;
-  SPatternCompareInfo info  = PATTERN_COMPARE_INFO_INITIALIZER;
+  SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 
   SDbObj *pDb = NULL;
   if (pConn->pDb != NULL) {
@@ -415,9 +392,9 @@ int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int rows, SConnObj *pCon
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-//    if (pTable->pTagData) {
-//      extractTableName(superTableId, pWrite);
-//    }
+    if (superTableId != NULL) {
+      extractTableName(superTableId, pWrite);
+    }
     cols++;
 
     numOfRows++;
