@@ -31,7 +31,7 @@ void            mgmtCleanUpSuperTables();
 int32_t         mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate);
 int32_t         mgmtDropSuperTable(SDbObj *pDb, SSuperTableObj *pTable);
 SSuperTableObj* mgmtGetSuperTable(char *tableId);
-int32_t         mgmtFindTagCol(SSuperTableObj *pTable, const char *tagName);
+int32_t         mgmtFindSuperTableTagIndex(SSuperTableObj *pTable, const char *tagName);
 int32_t         mgmtAddSuperTableTag(SSuperTableObj *pTable, SSchema schema[], int32_t ntags);
 int32_t         mgmtDropSuperTableTag(SSuperTableObj *pTable, char *tagName);
 int32_t         mgmtModifySuperTableTagNameByName(SSuperTableObj *pTable, char *oldTagName, char *newTagName);
@@ -39,9 +39,6 @@ int32_t         mgmtAddSuperTableColumn(SSuperTableObj *pTable, SSchema schema[]
 int32_t         mgmtDropSuperTableColumnByName(SSuperTableObj *pTable, char *colName);
 
 SSchema*        mgmtGetSuperTableSchema(SSuperTableObj *pTable);
-
-
-
 
 #ifdef __cplusplus
 }

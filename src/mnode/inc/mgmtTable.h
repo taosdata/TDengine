@@ -36,10 +36,9 @@ int32_t  mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter);
 int32_t  mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int32_t  mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 void     mgmtCleanUpMeters();
-SSchema *mgmtGetTableSchema(STabObj *pTable);  // get schema for a meter
 
-int32_t mgmtAddMeterIntoMetric(STabObj *pMetric, STabObj *pTable);
-int32_t mgmtRemoveMeterFromMetric(STabObj *pMetric, STabObj *pTable);
+int32_t mgmtAddMeterIntoMetric(SSuperTableObj *pMetric, SChildTableObj *pTable);
+int32_t mgmtRemoveMeterFromMetric(SSuperTableObj *pMetric, SChildTableObj *pTable);
 int32_t mgmtGetSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 int32_t mgmtRetrieveSuperTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 

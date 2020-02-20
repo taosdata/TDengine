@@ -323,7 +323,7 @@ SChildTableObj* mgmtGetChildTable(char *tableId) {
 }
 
 int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent) {
-//  int col = mgmtFindTagCol(pTable->superTable, tagName);
+//  int col = mgmtFindSuperTableTagIndex(pTable->superTable, tagName);
 //  if (col < 0 || col > pTable->superTable->numOfTags) {
 //    return TSDB_CODE_APP_ERROR;
 //  }

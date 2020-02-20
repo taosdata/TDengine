@@ -150,17 +150,13 @@ typedef struct SSuperTableObj {
   int32_t  vgId;
   int64_t  createdTime;
   int32_t  sversion;
-  int32_t  numOfTags;
-  int32_t  numOfMeters;
+  int32_t  numOfTables;
   int32_t  numOfColumns;
-  int32_t  schemaSize;
+  int32_t  numOfTags;
   int8_t   reserved[7];
   int8_t   updateEnd[1];
-
-  pthread_rwlock_t rwLock;
   int16_t  nextColId;
-
-  int8_t   *schema;
+  SSchema  *schema;
 } SSuperTableObj;
 
 typedef struct {
@@ -244,7 +240,6 @@ typedef struct _db_obj {
   char    reserved[16];
   char    updateEnd[1];
 
-  STabObj *       pMetric;
   struct _db_obj *prev, *next;
   SVgObj *        pHead;  // empty vgroup first
   SVgObj *        pTail;  // empty vgroup end

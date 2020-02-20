@@ -86,7 +86,6 @@ int32_t mgmtInitDbs() {
     pDb->numOfMetrics = 0;
     pDb->vgStatus = TSDB_VG_STATUS_READY;
     pDb->vgTimer = NULL;
-    pDb->pMetric = NULL;
     pAcct = mgmtGetAcct(pDb->cfg.acct);
     if (pAcct != NULL)
       mgmtAddDbIntoAcct(pAcct, pDb);
@@ -265,12 +264,12 @@ bool mgmtCheckDropDbFinished(SDbObj *pDb) {
 void mgmtDropDbFromSdb(SDbObj *pDb) {
   while (pDb->pHead) mgmtDropVgroup(pDb, pDb->pHead);
 
-  STabObj *pMetric = pDb->pMetric;
-  while (pMetric) {
-    STabObj *pNext = pMetric->next;
-    mgmtDropTable(pDb, pMetric->meterId, 0);
-    pMetric = pNext;
-  }
+//  SSuperTableObj *pMetric = pDb->pSTable;
+//  while (pMetric) {
+//    SSuperTableObj *pNext = pMetric->next;
+//    mgmtDropTable(pDb, pMetric->meterId, 0);
+//    pMetric = pNext;
+//  }
 
   mPrint("db:%s all meters drop finished", pDb->name);
   sdbDeleteRow(tsDbSdb, pDb);
@@ -734,7 +733,6 @@ void *mgmtDbActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
   pDb->numOfVgroups = 0;
   pDb->numOfTables = 0;
   pDb->vgTimer = NULL;
-  pDb->pMetric = NULL;
   mgmtAddDbIntoAcct(pAcct, pDb);
 
   return NULL;
