@@ -30,9 +30,9 @@
 
 void *       vgSdb = NULL;
 int          tsVgUpdateSize;
-extern void *dbSdb;
+extern void *tsDbSdb;
 extern void *acctSdb;
-extern void *userSdb;
+extern void *tsUserSdb;
 extern void *dnodeSdb;
 
 void *(*mgmtVgroupActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);

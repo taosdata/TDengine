@@ -28,7 +28,6 @@
 #include "mgmtSystem.h"
 #include "mgmtTable.h"
 #include "mgmtShell.h"
-#include "dnodeModule.h"
 
 char tsMgmtDirectory[128] = {0};
 void *tsMgmtTmr           = NULL;

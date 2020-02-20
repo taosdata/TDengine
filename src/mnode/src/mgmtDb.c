@@ -29,7 +29,7 @@
 #include "mnode.h"
 #include "taoserror.h"
 
-void *dbSdb = NULL;
+void *tsDbSdb = NULL;
 extern void *vgSdb;
 int   tsDbUpdateSize;
 
@@ -83,14 +83,14 @@ int32_t mgmtInitDbs() {
 
   mgmtDbActionInit();
 
-  dbSdb = sdbOpenTable(tsMaxDbs, sizeof(SDbObj), "db", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtDbAction);
-  if (dbSdb == NULL) {
+  tsDbSdb = sdbOpenTable(tsMaxDbs, sizeof(SDbObj), "db", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtDbAction);
+  if (tsDbSdb == NULL) {
     mError("failed to init db data");
     return -1;
   }
 
   while (1) {
-    pNode = sdbFetchRow(dbSdb, pNode, (void **)&pDb);
+    pNode = sdbFetchRow(tsDbSdb, pNode, (void **)&pDb);
     if (pDb == NULL) break;
 
     pDb->pHead = NULL;
@@ -118,7 +118,7 @@ int32_t mgmtInitDbs() {
   return 0;
 }
 
-SDbObj *mgmtGetDb(char *db) { return (SDbObj *)sdbGetRow(dbSdb, db); }
+SDbObj *mgmtGetDb(char *db) { return (SDbObj *)sdbGetRow(tsDbSdb, db); }
 
 SDbObj *mgmtGetDbByMeterId(char *meterId) {
   char db[TSDB_TABLE_ID_LEN], *pos;
@@ -128,7 +128,7 @@ SDbObj *mgmtGetDbByMeterId(char *meterId) {
   memset(db, 0, sizeof(db));
   strncpy(db, meterId, pos - meterId);
 
-  return (SDbObj *)sdbGetRow(dbSdb, db);
+  return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
 
 int mgmtCheckDbParams(SCreateDbMsg *pCreate) {
@@ -185,7 +185,7 @@ int mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
     return code;
   }
 
-  pDb = (SDbObj *)sdbGetRow(dbSdb, pCreate->db);
+  pDb = (SDbObj *)sdbGetRow(tsDbSdb, pCreate->db);
   if (pDb != NULL) {
     return TSDB_CODE_DB_ALREADY_EXIST;
   }
@@ -207,7 +207,7 @@ int mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
   pDb->createdTime = taosGetTimestampMs();
   pDb->cfg = *pCreate;
 
-  if (sdbInsertRow(dbSdb, pDb, 0) < 0) {
+  if (sdbInsertRow(tsDbSdb, pDb, 0) < 0) {
     code = TSDB_CODE_SDB_ERROR;
     tfree(pDb);
   }
@@ -215,7 +215,7 @@ int mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
   return code;
 }
 
-int mgmtUpdateDb(SDbObj *pDb) { return sdbUpdateRow(dbSdb, pDb, tsDbUpdateSize, 1); }
+int mgmtUpdateDb(SDbObj *pDb) { return sdbUpdateRow(tsDbSdb, pDb, tsDbUpdateSize, 1); }
 
 int mgmtSetDbDropping(SDbObj *pDb) {
   if (pDb->dropStatus == TSDB_DB_STATUS_DROP_FROM_SDB) return 0;
@@ -288,7 +288,7 @@ void mgmtDropDbFromSdb(SDbObj *pDb) {
   }
 
   mPrint("db:%s all meters drop finished", pDb->name);
-  sdbDeleteRow(dbSdb, pDb);
+  sdbDeleteRow(tsDbSdb, pDb);
   mPrint("db:%s database drop finished", pDb->name);
 }
 
@@ -317,7 +317,7 @@ int mgmtDropDb(SDbObj *pDb) {
 
 int mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists) {
   SDbObj *pDb;
-  pDb = (SDbObj *)sdbGetRow(dbSdb, name);
+  pDb = (SDbObj *)sdbGetRow(tsDbSdb, name);
   if (pDb == NULL) {
     if (ignoreNotExists) return TSDB_CODE_SUCCESS;
     mWarn("db:%s is not there", name);
@@ -336,7 +336,7 @@ void mgmtMonitorDbDrop(void *unused, void *unusedt) {
   SDbObj *pDb = NULL;
 
   while (1) {
-    pNode = sdbFetchRow(dbSdb, pNode, (void **)&pDb);
+    pNode = sdbFetchRow(tsDbSdb, pNode, (void **)&pDb);
     if (pDb == NULL) break;
     if (pDb->dropStatus != TSDB_DB_STATUS_DROPPING) continue;
     mgmtDropDb(pDb);
@@ -348,7 +348,7 @@ int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
   SDbObj *pDb;
   int     code = TSDB_CODE_SUCCESS;
 
-  pDb = (SDbObj *)sdbGetRow(dbSdb, pAlter->db);
+  pDb = (SDbObj *)sdbGetRow(tsDbSdb, pAlter->db);
   if (pDb == NULL) {
     mTrace("db:%s is not exist", pAlter->db);
     return TSDB_CODE_INVALID_DB;
@@ -385,7 +385,7 @@ int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
     return TSDB_CODE_INVALID_OPTION;
   }
 
-  if (sdbUpdateRow(dbSdb, pDb, tsDbUpdateSize, 1) < 0) {
+  if (sdbUpdateRow(tsDbSdb, pDb, tsDbUpdateSize, 1) < 0) {
     return TSDB_CODE_SDB_ERROR;
   }
 
@@ -488,7 +488,7 @@ int mgmtShowTables(SAcctObj *pAcct, char *db) {
   return code;
 }
 
-void mgmtCleanUpDbs() { sdbCloseTable(dbSdb); }
+void mgmtCleanUpDbs() { sdbCloseTable(tsDbSdb); }
 
 int mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   int cols = 0;
@@ -623,7 +623,7 @@ int mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  //  pShow->numOfRows = sdbGetNumOfRows (dbSdb);
+  //  pShow->numOfRows = sdbGetNumOfRows (tsDbSdb);
   pShow->numOfRows = pConn->pAcct->acctInfo.numOfDbs;
   pShow->pNode = pConn->pAcct->pHead;
 

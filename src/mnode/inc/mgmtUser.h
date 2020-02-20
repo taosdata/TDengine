@@ -24,13 +24,13 @@ extern "C" {
 #include <stdbool.h>
 #include "mnode.h"
 
-int       mgmtInitUsers();
+int32_t   mgmtInitUsers();
 SUserObj *mgmtGetUser(char *name);
-int       mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
-int       mgmtDropUser(SAcctObj *pAcct, char *name);
-int       mgmtUpdateUser(SUserObj *pUser);
-int       mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int       mgmtRetrieveUsers(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+int32_t   mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
+int32_t   mgmtDropUser(SAcctObj *pAcct, char *name);
+int32_t   mgmtUpdateUser(SUserObj *pUser);
+int32_t   mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int32_t   mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
 void      mgmtCleanUpUsers();
 
 #ifdef __cplusplus

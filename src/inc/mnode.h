@@ -51,7 +51,6 @@ extern int tsAcctUpdateSize;
 extern int tsDbUpdateSize;
 extern int tsDnodeUpdateSize;
 extern int tsMnodeUpdateSize;
-extern int tsUserUpdateSize;
 extern int tsVgUpdateSize;
 
 typedef struct {

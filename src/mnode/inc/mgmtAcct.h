@@ -22,21 +22,13 @@ extern "C" {
 
 #include "mnode.h"
 
-int32_t mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg);
-int32_t mgmtUpdateAcct(SAcctObj *pAcct);
-int32_t mgmtDropAcct(char *name);
 int32_t mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb);
 int32_t mgmtRemoveDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
 int32_t mgmtAddUserIntoAcct(SAcctObj *pAcct, SUserObj *pUser);
 int32_t mgmtRemoveUserFromAcct(SAcctObj *pAcct, SUserObj *pUser);
-int32_t mgmtAddConnIntoAcct(SConnObj *pConn);
-int32_t mgmtRemoveConnFromAcct(SConnObj *pConn);
-int32_t mgmtAlterAcct(char *name, char *pass, SAcctCfg *pCfg);
-int64_t mgmtGetAcctStatistic(SAcctObj *pAcct);
 
 extern int32_t   (*mgmtInitAccts)();
 extern SAcctObj* (*mgmtGetAcct)(char *acctName);
-extern void      (*mgmtCreateRootAcct)();
 extern int32_t   (*mgmtCheckUserLimit)(SAcctObj *pAcct);
 extern int32_t   (*mgmtCheckDbLimit)(SAcctObj *pAcct);
 extern int32_t   (*mgmtCheckTableLimit)(SAcctObj *pAcct, SCreateTableMsg *pCreate);
@@ -44,10 +36,6 @@ extern void      (*mgmtCheckAcct)();
 extern void      (*mgmtCleanUpAccts)();
 extern int32_t   (*mgmtGetAcctMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
 extern int32_t   (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
-
-
-
-void mgmtAddMeterStatisticToAcct(SAcctObj *pAcct, int numOfColumns);
 
 #ifdef __cplusplus
 }

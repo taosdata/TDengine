@@ -15,69 +15,58 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
+#include "tschemautil.h"
+#include "ttime.h"
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtUser.h"
 #include "mgmtGrant.h"
 #include "mgmtTable.h"
-#include "tschemautil.h"
-#include "ttime.h"
 
-void *userSdb = NULL;
-int   tsUserUpdateSize;
+void *tsUserSdb = NULL;
 
-void *(*mgmtUserActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
-void *mgmtUserActionInsert(void *row, char *str, int size, int *ssize);
-void *mgmtUserActionDelete(void *row, char *str, int size, int *ssize);
-void *mgmtUserActionUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtUserActionEncode(void *row, char *str, int size, int *ssize);
-void *mgmtUserActionDecode(void *row, char *str, int size, int *ssize);
-void *mgmtUserActionBeforeBatchUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtUserActionBatchUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtUserActionAfterBatchUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtUserActionReset(void *row, char *str, int size, int *ssize);
-void *mgmtUserActionDestroy(void *row, char *str, int size, int *ssize);
-
+void *(*mgmtUserActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtUserActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtUserActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtUserActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtUserActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtUserActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtUserActionReset(void *row, char *str, int32_t size, int32_t *ssize);
+void *mgmtUserActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
 
 void mgmtUserActionInit() {
-  mgmtUserActionFp[SDB_TYPE_INSERT] = mgmtUserActionInsert;
-  mgmtUserActionFp[SDB_TYPE_DELETE] = mgmtUserActionDelete;
-  mgmtUserActionFp[SDB_TYPE_UPDATE] = mgmtUserActionUpdate;
-  mgmtUserActionFp[SDB_TYPE_ENCODE] = mgmtUserActionEncode;
-  mgmtUserActionFp[SDB_TYPE_DECODE] = mgmtUserActionDecode;
-  mgmtUserActionFp[SDB_TYPE_BEFORE_BATCH_UPDATE] = mgmtUserActionBeforeBatchUpdate;
-  mgmtUserActionFp[SDB_TYPE_BATCH_UPDATE] = mgmtUserActionBatchUpdate;
-  mgmtUserActionFp[SDB_TYPE_AFTER_BATCH_UPDATE] = mgmtUserActionAfterBatchUpdate;
-  mgmtUserActionFp[SDB_TYPE_RESET] = mgmtUserActionReset;
+  mgmtUserActionFp[SDB_TYPE_INSERT]  = mgmtUserActionInsert;
+  mgmtUserActionFp[SDB_TYPE_DELETE]  = mgmtUserActionDelete;
+  mgmtUserActionFp[SDB_TYPE_UPDATE]  = mgmtUserActionUpdate;
+  mgmtUserActionFp[SDB_TYPE_ENCODE]  = mgmtUserActionEncode;
+  mgmtUserActionFp[SDB_TYPE_DECODE]  = mgmtUserActionDecode;
+  mgmtUserActionFp[SDB_TYPE_RESET]   = mgmtUserActionReset;
   mgmtUserActionFp[SDB_TYPE_DESTROY] = mgmtUserActionDestroy;
 }
 
-void *mgmtUserAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtUserActionFp[(uint8_t)action] != NULL) {
-    return (*(mgmtUserActionFp[(uint8_t)action]))(row, str, size, ssize);
+void *mgmtUserAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
+  if (mgmtUserActionFp[(uint8_t) action] != NULL) {
+    return (*(mgmtUserActionFp[(uint8_t) action]))(row, str, size, ssize);
   }
   return NULL;
 }
 
-int mgmtInitUsers() {
-  void *    pNode = NULL;
-  SUserObj *pUser = NULL;
-  SAcctObj *pAcct = NULL;
-  int       numOfUsers = 0;
+int32_t mgmtInitUsers() {
+  void     *pNode     = NULL;
+  SUserObj *pUser     = NULL;
+  SAcctObj *pAcct     = NULL;
+  int32_t  numOfUsers = 0;
 
   mgmtUserActionInit();
 
-  userSdb = sdbOpenTable(tsMaxUsers, sizeof(SUserObj), "user", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtUserAction);
-  if (userSdb == NULL) {
+  tsUserSdb = sdbOpenTable(tsMaxUsers, sizeof(SUserObj), "user", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtUserAction);
+  if (tsUserSdb == NULL) {
     mError("failed to init user data");
     return -1;
   }
 
-  mgmtCreateRootAcct();
-
   while (1) {
-    pNode = sdbFetchRow(userSdb, pNode, (void **)&pUser);
+    pNode = sdbFetchRow(tsUserSdb, pNode, (void **)&pUser);
     if (pUser == NULL) break;
 
     pUser->prev = NULL;
@@ -89,27 +78,28 @@ int mgmtInitUsers() {
     numOfUsers++;
   }
 
-  SUserObj tObj;
-  tsUserUpdateSize = tObj.updateEnd - (char *)&tObj;
-
   mTrace("user data is initialized");
   return 0;
 }
 
-SUserObj *mgmtGetUser(char *name) { return (SUserObj *)sdbGetRow(userSdb, name); }
+SUserObj *mgmtGetUser(char *name) {
+  return (SUserObj *)sdbGetRow(tsUserSdb, name);
+}
 
-int mgmtUpdateUser(SUserObj *pUser) { return sdbUpdateRow(userSdb, pUser, 0, 1); }
+int32_t mgmtUpdateUser(SUserObj *pUser) {
+  return sdbUpdateRow(tsUserSdb, pUser, 0, 1);
+}
 
-int mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
+int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   SUserObj *pUser;
-  int code;
+  int32_t code;
 
   code = mgmtCheckUserLimit(pAcct);
   if (code != 0) {
     return code;
   }
 
-  pUser = (SUserObj *)sdbGetRow(userSdb, name);
+  pUser = (SUserObj *)sdbGetRow(tsUserSdb, name);
   if (pUser != NULL) {
     mWarn("user:%s is already there", name);
     return TSDB_CODE_USER_ALREADY_EXIST;
@@ -133,37 +123,38 @@ int mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   }
 
   code = TSDB_CODE_SUCCESS;
-  if (sdbInsertRow(userSdb, pUser, 0) < 0) {
+  if (sdbInsertRow(tsUserSdb, pUser, 0) < 0) {
     tfree(pUser);
     code = TSDB_CODE_SDB_ERROR;
   }
 
-  //  mgmtAddUserIntoAcct(pAcct, pUser);
-
   return code;
 }
 
-int mgmtDropUser(SAcctObj *pAcct, char *name) {
+int32_t mgmtDropUser(SAcctObj *pAcct, char *name) {
   SUserObj *pUser;
 
-  pUser = (SUserObj *)sdbGetRow(userSdb, name);
+  pUser = (SUserObj *)sdbGetRow(tsUserSdb, name);
   if (pUser == NULL) {
     mWarn("user:%s is not there", name);
     return TSDB_CODE_INVALID_USER;
   }
 
-  if (strcmp(pAcct->user, pUser->acct) != 0) return TSDB_CODE_NO_RIGHTS;
+  if (strcmp(pAcct->user, pUser->acct) != 0) {
+    return TSDB_CODE_NO_RIGHTS;
+  }
 
-  //  mgmtRemoveUserFromAcct(pAcct, pUser);
-  sdbDeleteRow(userSdb, pUser);
+  sdbDeleteRow(tsUserSdb, pUser);
 
   return 0;
 }
 
-void mgmtCleanUpUsers() { sdbCloseTable(userSdb); }
+void mgmtCleanUpUsers() {
+  sdbCloseTable(tsUserSdb);
+}
 
-int mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int      cols = 0;
+int32_t mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+  int32_t      cols = 0;
   SSchema *pSchema = tsGetSchema(pMeta);
 
   pShow->bytes[cols] = TSDB_USER_LEN;
@@ -188,9 +179,8 @@ int mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
-  //  pShow->numOfRows = sdbGetNumOfRows (userSdb);
   pShow->numOfRows = pConn->pAcct->acctInfo.numOfUsers;
   pShow->pNode = pConn->pAcct->pUser;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
@@ -198,14 +188,13 @@ int mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtRetrieveUsers(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
-  int       numOfRows = 0;
+int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+  int32_t       numOfRows = 0;
   SUserObj *pUser = NULL;
   char *    pWrite;
-  int       cols = 0;
+  int32_t       cols = 0;
 
   while (numOfRows < rows) {
-    //    pShow->pNode = sdbFetchRow(userSdb, pShow->pNode, (void **)&pUser);
     pUser = (SUserObj *)pShow->pNode;
     if (pUser == NULL) break;
     pShow->pNode = (void *)pUser->next;
@@ -236,26 +225,29 @@ int mgmtRetrieveUsers(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   return numOfRows;
 }
 
-void *mgmtUserActionInsert(void *row, char *str, int size, int *ssize) {
+void *mgmtUserActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *)row;
   SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
   mgmtAddUserIntoAcct(pAcct, pUser);
 
   return NULL;
 }
-void *mgmtUserActionDelete(void *row, char *str, int size, int *ssize) {
+
+void *mgmtUserActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *)row;
   SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
   mgmtRemoveUserFromAcct(pAcct, pUser);
 
   return NULL;
 }
-void *mgmtUserActionUpdate(void *row, char *str, int size, int *ssize) {
+
+void *mgmtUserActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
   return mgmtUserActionReset(row, str, size, ssize);
 }
-void *mgmtUserActionEncode(void *row, char *str, int size, int *ssize) {
+
+void *mgmtUserActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *)row;
-  int       tsize = pUser->updateEnd - (char *)pUser;
+  int32_t       tsize = pUser->updateEnd - (char *)pUser;
   if (size < tsize) {
     *ssize = -1;
   } else {
@@ -264,27 +256,26 @@ void *mgmtUserActionEncode(void *row, char *str, int size, int *ssize) {
   }
   return NULL;
 }
-void *mgmtUserActionDecode(void *row, char *str, int size, int *ssize) {
+
+void *mgmtUserActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *)malloc(sizeof(SUserObj));
   if (pUser == NULL) return NULL;
   memset(pUser, 0, sizeof(SUserObj));
 
-  int tsize = pUser->updateEnd - (char *)pUser;
+  int32_t tsize = pUser->updateEnd - (char *)pUser;
   memcpy(pUser, str, tsize);
   return (void *)pUser;
 }
-void *mgmtUserActionBeforeBatchUpdate(void *row, char *str, int size, int *ssize) { return NULL; }
-void *mgmtUserActionBatchUpdate(void *row, char *str, int size, int *ssize) { return NULL; }
-void *mgmtUserActionAfterBatchUpdate(void *row, char *str, int size, int *ssize) { return NULL; }
-void *mgmtUserActionReset(void *row, char *str, int size, int *ssize) {
+
+void *mgmtUserActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *)row;
-  int       tsize = pUser->updateEnd - (char *)pUser;
+  int32_t       tsize = pUser->updateEnd - (char *)pUser;
   memcpy(pUser, str, tsize);
 
   return NULL;
 }
 
-void *mgmtUserActionDestroy(void *row, char *str, int size, int *ssize) {
+void *mgmtUserActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
   tfree(row);
   return NULL;
 }
