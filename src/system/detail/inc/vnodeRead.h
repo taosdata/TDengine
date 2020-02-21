@@ -160,7 +160,7 @@ typedef struct SQueryRuntimeEnv {
   SQueryFilesInfo     vnodeFileInfo;
   int16_t             numOfRowsPerPage;
   int16_t             offset[TSDB_MAX_COLUMNS];
-  int16_t             scanFlag;  // denotes reversed scan of data or not
+  uint16_t            scanFlag;  // denotes reversed scan of data or not
   SInterpolationInfo  interpoInfo;
   SData**             pInterpoBuf;
   
