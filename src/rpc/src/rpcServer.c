@@ -101,8 +101,8 @@ static void taosCleanUpFdObj(SFdObj *pFdObj) {
   // notify the upper layer, so it will clean the associated context
   if (pFdObj->thandle) (*(pThreadObj->processData))(NULL, 0, 0, 0, pThreadObj->shandle, pFdObj->thandle, NULL);
 
-  tTrace("%s TCP thread:%d, FD is cleaned up, numOfFds:%d", pThreadObj->label, pThreadObj->threadId,
-         pThreadObj->numOfFds);
+  tTrace("%s TCP thread:%d, FD:%p is cleaned up, numOfFds:%d", pThreadObj->label, pThreadObj->threadId,
+         pFdObj, pThreadObj->numOfFds);
 
   memset(pFdObj, 0, sizeof(SFdObj));
 
@@ -292,8 +292,8 @@ void taosAcceptTcpConnection(void *arg) {
 
     pthread_mutex_unlock(&(pThreadObj->threadMutex));
 
-    tTrace("%s TCP thread:%d, a new connection, ip:%s port:%hu, numOfFds:%d", pServerObj->label, pThreadObj->threadId,
-           pFdObj->ipstr, pFdObj->port, pThreadObj->numOfFds);
+    tTrace("%s TCP thread:%d, a new connection from %s:%hu, FD:%p, numOfFds:%d", pServerObj->label, 
+           pThreadObj->threadId, pFdObj->ipstr, pFdObj->port, pFdObj, pThreadObj->numOfFds);
 
     // pick up next thread for next connection
     threadId++;

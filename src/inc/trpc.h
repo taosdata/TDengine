@@ -46,6 +46,12 @@ typedef struct {
 } SRpcIpSet;
 
 typedef struct {
+  uint32_t  sourceIp;
+  uint16_t  sourcePort;
+  char     *user;
+} SRpcConnInfo;
+
+typedef struct {
   char *localIp;      // local IP used
   uint16_t localPort; // local port
   char *label;        // for debug purpose
@@ -55,7 +61,7 @@ typedef struct {
   int   idleTime;     // milliseconds, 0 means idle timer is disabled
 
   // the following is for client security only
-  char *meterId;      // meter ID
+  char *user;         // user name
   char  spi;          // security parameter index
   char  encrypt;      // encrypt algorithm
   char *secret;       // key for authentication
@@ -78,7 +84,7 @@ void  rpcFreeCont(void *pCont);
 void  rpcSendRequest(void *thandle, SRpcIpSet *pIpSet, char msgType, void *pCont, int contLen, void *ahandle);
 void  rpcSendResponse(void *pConn, int32_t code, void *pCont, int contLen);
 void  rpcSendRedirectRsp(void *pConn, SRpcIpSet *pIpSet); 
-
+void  rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 
 #ifdef __cplusplus
 }
