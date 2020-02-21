@@ -94,6 +94,7 @@ typedef struct _RpcConn {
   uint16_t  localPort;      // for UDP only
   uint32_t  peerUid;        // peer UID
   uint32_t  peerIp;         // peer IP
+  uint32_t  destIp;         // server destination IP to handle NAT 
   uint16_t  peerPort;       // peer port
   char      peerIpstr[TSDB_IPv4ADDR_LEN];  // peer IP string
   uint16_t  tranId;         // outgoing transcation ID, for build message
@@ -389,8 +390,9 @@ void rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   SRpcConn  *pConn = (SRpcConn *)thandle;
   SRpcInfo  *pRpc = pConn->pRpc;
 
-  pInfo->sourceIp = pConn->peerIp;
-  pInfo->sourcePort = pConn->peerPort;
+  pInfo->clientIp = pConn->peerIp;
+  pInfo->clientPort = pConn->peerPort;
+  pInfo->serverIp = pConn->destIp;
   strcpy(pInfo->user, pConn->user);
 }
 
@@ -546,6 +548,7 @@ SRpcConn *rpcSetConnToServer(SRpcInfo *pRpc, SRpcIpSet ipSet) {
     char ipstr[20] = {0};
     tinet_ntoa(ipstr, ipSet.ip[ipSet.index]);
     pConn = rpcOpenConn(pRpc, ipstr, ipSet.port);
+    pConn->destIp = ipSet.ip[ipSet.index];
   } 
 
   return pConn;
@@ -772,11 +775,13 @@ static void *rpcProcessMsgFromPeer(void *msg, int msgLen, uint32_t ip, uint16_t 
 
 static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
   SRpcInfo *pRpc = pConn->pRpc;
+
   pHead = rpcDecompressRpcMsg(pHead);
-  int       contLen = rpcContLenFromMsg(pHead->msgLen);
-  uint8_t  *pCont = pHead->content;
+  int     contLen = rpcContLenFromMsg(pHead->msgLen);
+  uint8_t *pCont = pHead->content;
    
   if ( rpcIsReq(pHead->msgType) ) {
+    pConn->destIp = pHead->destIp;
     taosTmrReset(rpcProcessProgressTimer, tsRpcTimer/2, pConn, pRpc->tmrCtrl, &pConn->pTimer);
     (*(pRpc->cfp))(pHead->msgType, pCont, contLen, pConn, 0);
   } else {
@@ -886,6 +891,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   pHead->tranId = pConn->tranId;
   pHead->sourceId = pConn->ownId;
   pHead->destId = pConn->peerId;
+  pHead->destIp = pConn->destIp;
   pHead->port = 0;
   pHead->uid = (uint32_t)((int64_t)pConn + (int64_t)getpid());
   memcpy(pHead->user, pConn->user, tListLen(pHead->user));

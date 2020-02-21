@@ -46,8 +46,9 @@ typedef struct {
 } SRpcIpSet;
 
 typedef struct {
-  uint32_t  sourceIp;
-  uint16_t  sourcePort;
+  uint32_t  clientIp;
+  uint16_t  clientPort;
+  uint32_t  serverIp;
   char     *user;
 } SRpcConnInfo;
 
