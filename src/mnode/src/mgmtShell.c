@@ -1315,32 +1315,32 @@ int32_t mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secr
 
 int32_t mgmtProcessConnectMsg(int8_t type, void *pCont, int32_t contLen, void *ahandle, int32_t code) {
   SCMConnectMsg *pConnectMsg = (SCMConnectMsg *) pCont;
-  uint32_t destIp = 0;
-  uint32_t srcIp = 0;
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(ahandle, &connInfo);
 
-  SUserObj *pUser = mgmtGetUser(pConnectMsg->head.userId);
+  SUserObj *pUser = mgmtGetUser(connInfo.user);
   if (pUser == NULL) {
-    mLError("user:%s login from %s to %s, code:%d", pConnectMsg->head.userId, taosIpStr(srcIp), taosIpStr(destIp), code);
+    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
     return TSDB_CODE_INVALID_USER;
   }
 
   if (mgmtCheckExpired()) {
-    mLError("user:%s login from %s to %s, code:%d", pConnectMsg->head.userId, taosIpStr(srcIp), taosIpStr(destIp), code);
+    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
     rpcSendResponse(ahandle, TSDB_CODE_GRANT_EXPIRED, NULL, 0);
     return TSDB_CODE_GRANT_EXPIRED;
   }
 
   SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
   if (pAcct == NULL) {
-    mLError("user:%s login from %s to %s, code:%d", pConnectMsg->head.userId, taosIpStr(srcIp), taosIpStr(destIp), code);
+    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_ACCT, NULL, 0);
     return TSDB_CODE_INVALID_ACCT;
   }
 
   code = taosCheckVersion(pConnectMsg->clientVersion, version, 3);
   if (code != TSDB_CODE_SUCCESS) {
-    mLError("user:%s login from %s to %s, code:%d", pConnectMsg->head.userId, taosIpStr(srcIp), taosIpStr(destIp), code);
+    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
     rpcSendResponse(ahandle, code, NULL, 0);
     return code;
   }
@@ -1350,7 +1350,7 @@ int32_t mgmtProcessConnectMsg(int8_t type, void *pCont, int32_t contLen, void *a
     sprintf(dbName, "%x%s%s", pAcct->acctId, TS_PATH_DELIMITER, pConnectMsg->db);
     SDbObj *pDb = mgmtGetDb(dbName);
     if (pDb == NULL) {
-      mLError("user:%s login from %s to %s, code:%d", pConnectMsg->head.userId, taosIpStr(srcIp), taosIpStr(destIp), code);
+      mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
       rpcSendResponse(ahandle, TSDB_CODE_INVALID_DB, NULL, 0);
       return TSDB_CODE_INVALID_DB;
     }
@@ -1358,22 +1358,21 @@ int32_t mgmtProcessConnectMsg(int8_t type, void *pCont, int32_t contLen, void *a
 
   SCMConnectRsp *pConnectRsp = rpcMallocCont(sizeof(SCMConnectRsp));
   if (pConnectRsp == NULL) {
-    mLError("user:%s login from %s to %s, code:%d", pConnectMsg->head.userId, taosIpStr(srcIp), taosIpStr(destIp), code);
+    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
     rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
   sprintf(pConnectRsp->acctId, "%x", pAcct->acctId);
   strcpy(pConnectRsp->serverVersion, version);
-  pConnectRsp->writeAuth = pConn->writeAuth;
-  pConnectRsp->superAuth = pConn->superAuth;
+  pConnectRsp->writeAuth = pUser->writeAuth;
+  pConnectRsp->superAuth = pUser->superAuth;
 
   pConnectRsp->index = 0;
-  pConnectRsp->usePublicIp = (destIp == tsPublicIpInt ? 1 : 0);
   if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
     pConnectRsp->numOfIps = htons(pSdbPublicIpList->numOfIps);
     pConnectRsp->port = htons(tsMgmtShellPort);
-    if (pConnectRsp->usePublicIp) {
+    if (connInfo.serverIp == tsPublicIpInt) {
       for (int i = 0; i < pSdbPublicIpList->numOfIps; ++i) {
         pConnectRsp->ip[i] = htonl(pSdbPublicIpList->ip[i]);
       }
@@ -1387,7 +1386,7 @@ int32_t mgmtProcessConnectMsg(int8_t type, void *pCont, int32_t contLen, void *a
     pConnectRsp->port = htons(tsMgmtShellPort);
   }
 
-  mLPrint("user:%s login from %s to %s, code:%d", pConnectMsg->head.userId, taosIpStr(srcIp), taosIpStr(destIp), code);
+  mLPrint("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -254,8 +254,6 @@ typedef struct _user_obj {
   char              reserved[16];
   char              updateEnd[1];
   struct _user_obj *prev, *next;
-  int8_t            writeAuth;
-  int8_t            superAuth;
 } SUserObj;
 
 typedef struct {

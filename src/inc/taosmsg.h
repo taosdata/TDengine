@@ -342,13 +342,11 @@ typedef struct {
   char     serverVersion[TSDB_MSG_DEF_VERSION_LEN];
   int8_t   writeAuth;
   int8_t   superAuth;
-  int8_t   usePublicIp;
   int16_t  index;
   int16_t  numOfIps;
   uint16_t port;
   uint32_t ip[TSDB_MSG_DEF_MAX_MPEERS];
 } SCMConnectRsp;
-
 
 typedef struct {
   int32_t maxUsers;

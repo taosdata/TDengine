@@ -2601,7 +2601,7 @@ int tscProcessRetrieveMetricRsp(SSqlObj *pSql) {
 int tscProcessEmptyResultRsp(SSqlObj *pSql) { return tscLocalResultCommonBuilder(pSql, 0); }
 
 int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SConnectMsg *pConnect;
+  SCMConnectMsg *pConnect;
   char *       pMsg, *pStart;
 
   SSqlCmd *pCmd = &pSql->cmd;
@@ -2609,7 +2609,7 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg = pCmd->payload + tsRpcHeadSize;
   pStart = pMsg;
 
-  pConnect = (SConnectMsg *)pMsg;
+  pConnect = (SCMConnectMsg *)pMsg;
 
   char *db;  // ugly code to move the space
   db = strstr(pObj->db, TS_PATH_DELIMITER);
@@ -2618,7 +2618,7 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   strcpy(pConnect->clientVersion, version);
 
-  pMsg += sizeof(SConnectMsg);
+  pMsg += sizeof(SCMConnectMsg);
 
   pCmd->payloadLen = pMsg - pStart;
   pCmd->msgType = TSDB_MSG_TYPE_CONNECT;
@@ -3312,13 +3312,11 @@ int tscProcessShowRsp(SSqlObj *pSql) {
 }
 
 int tscProcessConnectRsp(SSqlObj *pSql) {
-  char         temp[TSDB_TABLE_ID_LEN * 2];
-  SConnectRsp *pConnect;
-
+  char temp[TSDB_TABLE_ID_LEN * 2];
   STscObj *pObj = pSql->pTscObj;
   SSqlRes *pRes = &pSql->res;
 
-  pConnect = (SConnectRsp *)pRes->pRsp;
+  SCMConnectRsp *pConnect = (SCMConnectRsp *)pRes->pRsp;
   strcpy(pObj->acctId, pConnect->acctId);  // copy acctId from response
   int32_t len = sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
 
@@ -3326,11 +3324,11 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   strncpy(pObj->db, temp, tListLen(pObj->db));
   
   SIpList *    pIpList;
-  char *rsp = pRes->pRsp + sizeof(SConnectRsp);
+  char *rsp = pRes->pRsp + sizeof(SCMConnectRsp);
   pIpList = (SIpList *)rsp;
   tscSetMgmtIpList(pIpList);
 
-  strcpy(pObj->sversion, pConnect->version);
+  strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;
   pObj->superAuth = pConnect->superAuth;
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, pObj, tscTmr, &pObj->pTimer);
