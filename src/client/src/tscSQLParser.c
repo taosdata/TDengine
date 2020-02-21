@@ -3859,10 +3859,11 @@ int32_t parseFillClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySQL) {
 
       for (int32_t i = numOfFillVal; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
         TAOS_FIELD* pFields = tscFieldInfoGetField(pQueryInfo, i);
-        tVariantDump(&lastItem->pVar, (char*)&pQueryInfo->defaultVal[i], pFields->type);
 
         if (pFields->type == TSDB_DATA_TYPE_BINARY || pFields->type == TSDB_DATA_TYPE_NCHAR) {
           setNull((char*)(&pQueryInfo->defaultVal[i]), pFields->type, pFields->bytes);
+        } else {
+          tVariantDump(&lastItem->pVar, (char*)&pQueryInfo->defaultVal[i], pFields->type);
         }
       }
     }

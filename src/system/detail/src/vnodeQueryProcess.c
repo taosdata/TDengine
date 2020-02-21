@@ -424,7 +424,7 @@ static void queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo
         // if data block is not loaded, it must be the intermediate blocks
         assert((pBlock->keyFirst >= pQuery->lastKey && pBlock->keyLast <= pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
                (pBlock->keyFirst >= pQuery->ekey && pBlock->keyLast <= pQuery->lastKey && !QUERY_IS_ASC_QUERY(pQuery)));
-        nextKey = QUERY_IS_ASC_QUERY(pQuery)? pBlock->keyFirst:pBlock->keyLast;
+        nextKey = QUERY_IS_ASC_QUERY(pQuery) ? pBlock->keyFirst : pBlock->keyLast;
       }
 
       if (pQuery->intervalTime == 0) {
@@ -1091,17 +1091,14 @@ static void vnodeSingleMeterIntervalMainLooper(STableQuerySupportObj *pSupporter
 
   while (1) {
     initCtxOutputBuf(pRuntimeEnv);
-
     vnodeScanAllData(pRuntimeEnv);
+    
     if (isQueryKilled(pQuery)) {
       return;
     }
 
     assert(!Q_STATUS_EQUAL(pQuery->over, QUERY_NOT_COMPLETED));
-
     doFinalizeResult(pRuntimeEnv);
-
-    //    int64_t maxOutput = getNumOfResult(pRuntimeEnv);
 
     // here we can ignore the records in case of no interpolation
     // todo handle offset, in case of top/bottom interval query
@@ -1113,30 +1110,17 @@ static void vnodeSingleMeterIntervalMainLooper(STableQuerySupportObj *pSupporter
       int32_t c = MIN(numOfClosed, pQuery->limit.offset);
       clearFirstNTimeWindow(pRuntimeEnv, c);
       pQuery->limit.offset -= c;
-    } else {
-      //      pQuery->pointsRead += maxOutput;
-      //      forwardCtxOutputBuf(pRuntimeEnv, maxOutput);
     }
 
     if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK | QUERY_COMPLETED)) {
       break;
     }
 
+    // load the data block for the next retrieve
     loadRequiredBlockIntoMem(pRuntimeEnv, &pRuntimeEnv->nextPos);
     if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL)) {
       break;
     }
-
-    //    /*
-    //     * the scan limitation mechanism is upon here,
-    //     * 1. since there is only one(k) record is generated in one scan operation
-    //     * 2. remain space is not sufficient for next query output, abort
-    //     */
-    //    if ((pQuery->pointsRead % pQuery->pointsToRead == 0 && pQuery->pointsRead != 0) ||
-    //        ((pQuery->pointsRead + maxOutput) > pQuery->pointsToRead)) {
-    //      setQueryStatus(pQuery, QUERY_RESBUF_FULL);
-    //      break;
-    //    }
   }
 }
 
@@ -1262,7 +1246,9 @@ void vnodeSingleTableQuery(SSchedMsg *pMsg) {
   // here we have scan all qualified data in both data file and cache
   if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK | QUERY_COMPLETED)) {
     // continue to get push data from the group result
-    if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || pQuery->intervalTime > 0) {
+    if (isGroupbyNormalCol(pQuery->pGroupbyExpr) ||
+        (pQuery->intervalTime > 0 && pQInfo->pointsReturned < pQuery->limit.limit)) {
+      //todo limit the output for interval query?
       pQuery->pointsRead = 0;
       pSupporter->subgroupIdx = 0;  // always start from 0
 
