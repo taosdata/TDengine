@@ -485,7 +485,7 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
 
   // write the progress information of each meter to response
   // this is required by subscriptions
-  if (numOfRows > 0 && code == TSDB_CODE_SUCCESS) {
+  if (pQInfo != NULL ) {
     if (pQInfo->pMeterQuerySupporter != NULL && pQInfo->pMeterQuerySupporter->pMeterSidExtInfo != NULL) {
       *((int32_t *)pMsg) = htonl(pQInfo->pMeterQuerySupporter->numOfMeters);
       pMsg += sizeof(int32_t);
