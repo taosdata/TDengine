@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "mnode.h"
-#include "mgmtUtil.h"
 #include "textbuffer.h"
 #include "tschemautil.h"
 #include "tsqlfunction.h"

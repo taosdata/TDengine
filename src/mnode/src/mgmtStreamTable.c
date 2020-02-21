@@ -33,7 +33,6 @@
 #include "mgmtStreamTable.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
-#include "mgmtUtil.h"
 #include "mgmtVgroup.h"
 
 void *tsStreamTableSdb;

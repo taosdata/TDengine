@@ -29,7 +29,6 @@
 #include "mgmtShell.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
-#include "mgmtUtil.h"
 #include "mgmtVgroup.h"
 #include "taosmsg.h"
 #include "tlog.h"

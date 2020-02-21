@@ -41,6 +41,7 @@ SDbObj *mgmtGetDbByTableId(char *db);
 int32_t mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate);
 int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
 int32_t mgmtDropDb(SDbObj *pDb);
+bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
 
 #ifdef __cplusplus
 }

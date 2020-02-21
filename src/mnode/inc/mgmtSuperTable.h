@@ -37,6 +37,7 @@ int32_t         mgmtDropSuperTableTag(SSuperTableObj *pTable, char *tagName);
 int32_t         mgmtModifySuperTableTagNameByName(SSuperTableObj *pTable, char *oldTagName, char *newTagName);
 int32_t         mgmtAddSuperTableColumn(SSuperTableObj *pTable, SSchema schema[], int32_t ncols);
 int32_t         mgmtDropSuperTableColumnByName(SSuperTableObj *pTable, char *colName);
+int32_t         mgmtGetTagsLength(SSuperTableObj* pSuperTable, int32_t col);
 
 #ifdef __cplusplus
 }
