@@ -24,7 +24,7 @@ extern "C" {
 #include <stdbool.h>
 #include "mnode.h"
 
-int  mgmtInitShell();
+int32_t  mgmtInitShell();
 void mgmtCleanUpShell();
 
 extern int32_t (*mgmtCheckRedirectMsg)(SConnObj *pConn, int32_t msgType);

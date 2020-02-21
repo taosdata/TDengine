@@ -187,6 +187,13 @@ typedef enum {
 
 extern char *taosMsg[];
 
+#define TSDB_MSG_DEF_MAX_MPEERS        5
+#define TSDB_MSG_DEF_VERSION_LEN       64
+#define TSDB_MSG_DEF_DB_LEN            128
+#define TSDB_MSG_DEF_USER_LEN          128
+#define TSDB_MSG_DEF_TABLE_LEN         128
+#define TSDB_MSG_DEF_ACCT_LEN          128
+
 #pragma pack(push, 1)
 
 typedef struct {
@@ -325,9 +332,23 @@ typedef struct {
 } SAlterTableMsg;
 
 typedef struct {
-  char clientVersion[TSDB_VERSION_LEN];
-  char db[TSDB_TABLE_ID_LEN];
-} SConnectMsg;
+  char clientVersion[TSDB_MSG_DEF_VERSION_LEN];
+  char msgVersion[TSDB_MSG_DEF_VERSION_LEN];
+  char db[TSDB_MSG_DEF_DB_LEN];
+} SCMConnectMsg;
+
+typedef struct {
+  char     acctId[TSDB_MSG_DEF_ACCT_LEN];
+  char     serverVersion[TSDB_MSG_DEF_VERSION_LEN];
+  int8_t   writeAuth;
+  int8_t   superAuth;
+  int8_t   usePublicIp;
+  int16_t  index;
+  int16_t  numOfIps;
+  uint16_t port;
+  uint32_t ip[TSDB_MSG_DEF_MAX_MPEERS];
+} SCMConnectRsp;
+
 
 typedef struct {
   int32_t maxUsers;
@@ -359,13 +380,6 @@ typedef struct {
 typedef struct {
   char db[TSDB_TABLE_ID_LEN];
 } SMgmtHead;
-
-typedef struct {
-  char acctId[TSDB_ACCT_LEN];
-  char version[TSDB_VERSION_LEN];
-  char writeAuth;
-  char superAuth;
-} SConnectRsp;
 
 typedef struct {
   short    vnode;
