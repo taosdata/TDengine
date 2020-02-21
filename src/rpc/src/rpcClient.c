@@ -72,7 +72,8 @@ static void taosCleanUpTcpFdObj(STcpFd *pFdObj) {
 
   pTcp->numOfFds--;
 
-  if (pTcp->numOfFds < 0) tError("%s number of TCP FDs shall never be negative", pTcp->label);
+  if (pTcp->numOfFds < 0) 
+    tError("%s number of TCP FDs shall never be negative, FD:%p", pTcp->label, pFdObj);
 
   // remove from the FdObject list
 
@@ -91,7 +92,7 @@ static void taosCleanUpTcpFdObj(STcpFd *pFdObj) {
   // notify the upper layer to clean the associated context
   if (pFdObj->thandle) (*(pTcp->processData))(NULL, 0, 0, 0, pTcp->shandle, pFdObj->thandle, NULL);
 
-  tTrace("%s TCP FD is cleaned up, numOfFds:%d", pTcp->label, pTcp->numOfFds);
+  tTrace("%s TCP is cleaned up, FD:%p numOfFds:%d", pTcp->label, pFdObj, pTcp->numOfFds);
 
   memset(pFdObj, 0, sizeof(STcpFd));
 
@@ -302,7 +303,7 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16
 
   pthread_mutex_unlock(&(pTcp->mutex));
 
-  tTrace("%s TCP connection to ip:%s port:%hu is created, numOfFds:%d", pTcp->label, ip, port, pTcp->numOfFds);
+  tTrace("%s TCP connection to %s:%hu is created, FD:%p numOfFds:%d", pTcp->label, ip, port, pFdObj, pTcp->numOfFds);
 
   return pFdObj;
 }

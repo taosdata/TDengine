@@ -32,7 +32,7 @@ typedef struct {
   uint32_t uid;       // for unique ID inside a client
   uint32_t sourceId;  // source ID, an index for connection list  
   uint32_t destId;    // destination ID, an index for connection list
-  char     meterId[TSDB_UNI_LEN];
+  char     user[TSDB_UNI_LEN];
   uint16_t port;      // for UDP only, port may be changed
   char     empty[1];  // reserved
   uint8_t  msgType;   // message type  
