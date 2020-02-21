@@ -2138,19 +2138,30 @@ void closeAllTimeWindow(SWindowResInfo *pWindowResInfo) {
   }
 }
 
-static int32_t setGroupResultFromKey(SQueryRuntimeEnv *pRuntimeEnv, char *pData, int16_t type, int16_t bytes) {
+static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, char *pData, int16_t type, int16_t bytes) {
   if (isNull(pData, type)) {  // ignore the null value
     return -1;
   }
-
+  
+  int32_t GROUPRESULTID = 1;
+  
+  SQueryDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
+  
   SWindowResult *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, &pRuntimeEnv->windowResInfo, pData, bytes);
   if (pWindowRes == NULL) {
     return -1;
   }
 
+  // not assign result buffer yet, add new result buffer
+  if (pWindowRes->pos.pageId == -1) {
+    int32_t ret = addNewWindowResultBuf(pWindowRes, pResultBuf, GROUPRESULTID, pRuntimeEnv->numOfRowsPerPage);
+    if (ret != 0) {
+      return -1;
+    }
+  }
+  
   setWindowResOutputBuf(pRuntimeEnv, pWindowRes);
   initCtxOutputBuf(pRuntimeEnv);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2368,7 +2379,7 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
       if (groupbyStateValue) {
         char *stateVal = groupbyColumnData + bytes * offset;
 
-        int32_t ret = setGroupResultFromKey(pRuntimeEnv, stateVal, type, bytes);
+        int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, stateVal, type, bytes);
         if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
           continue;
         }
@@ -2495,7 +2506,7 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SBlockI
   }
 
   TSKEY lastKey = (QUERY_IS_ASC_QUERY(pQuery)) ? pBlockInfo->keyLast : pBlockInfo->keyFirst;
-  doCheckQueryCompleted(pRuntimeEnv, lastKey, pWindowResInfo);
+  doCheckQueryCompleted(pRuntimeEnv, lastKey, pWindowResInfo); //todo refactor merge
 
   // interval query with limit applied
   if (isIntervalQuery(pQuery) && pQuery->limit.limit > 0 &&
@@ -4815,12 +4826,6 @@ int32_t vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
     }
 
     initWindowResInfo(&pRuntimeEnv->windowResInfo, pRuntimeEnv, 512, 4096, type);
-    //    }
-    //  } else {
-    //    ret = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, pSupporter->numOfMeters, pQuery->rowSize);
-    //    if (ret != TSDB_CODE_SUCCESS) {
-    //      return ret;
-    //    }
   }
 
   pRuntimeEnv->numOfRowsPerPage = getNumOfRowsInResultPage(pQuery, true);
@@ -5702,7 +5707,7 @@ int32_t doMergeMetersResultsToGroupRes(STableQuerySupportObj *pSupporter, SQuery
     char *b = getPosInResultPage(pRuntimeEnv, PRIMARYKEY_TIMESTAMP_COL_INDEX, pWindowRes);
     TSKEY ts = GET_INT64_VAL(b);
 
-    assert(ts > 0 && ts == pWindowRes->window.skey);
+    assert(ts == pWindowRes->window.skey);
     int64_t num = getNumOfResultWindowRes(pRuntimeEnv, pWindowRes);
     if (num <= 0) {
       cs.position[pos] += 1;
@@ -6243,7 +6248,7 @@ void vnodeScanAllData(SQueryRuntimeEnv *pRuntimeEnv) {
 void doFinalizeResult(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
-  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || (isIntervalQuery(pQuery) && pQuery->slidingTime > 0)) {
+  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || isIntervalQuery(pQuery)) {
     // for each group result, call the finalize function for each column
     SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
     if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
@@ -6313,48 +6318,6 @@ int64_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv) {
 
   return maxOutput;
 }
-
-/*
- * forward the query range for next interval query
- */
-// void forwardIntervalQueryRange(STableQuerySupportObj *pSupporter, SQueryRuntimeEnv *pRuntimeEnv) {
-//  SQuery *pQuery = pRuntimeEnv->pQuery;
-//  if (pQuery->slidingTime > 0 && isIntervalQuery(pQuery)) {
-//    if ((QUERY_IS_ASC_QUERY(pQuery) && pQuery->lastKey >= pQuery->ekey) ||
-//        (!QUERY_IS_ASC_QUERY(pQuery) && pQuery->lastKey <= pQuery->ekey)) {
-//      setQueryStatus(pQuery, QUERY_COMPLETED);
-//    } else {
-//      /*TSKEY nextTimestamp =*/loadRequiredBlockIntoMem(pRuntimeEnv, &pRuntimeEnv->nextPos);
-//    }
-//
-//    return;
-//  }
-//
-//  //  int32_t r = getNextIntervalQueryRange(pSupporter, pRuntimeEnv, &pQuery->skey, &pQuery->ekey);
-//  //  if (r == QUERY_COMPLETED) {
-//  //    setQueryStatus(pQuery, QUERY_COMPLETED);
-//  //    return;
-//  //  }
-//  //
-//  //  getNextTimeWindow(pRuntimeEnv, &pRuntimeEnv->intervalWindow);
-//  //
-//  //  /* ensure the search in cache will return right position */
-//  //  pQuery->lastKey = pQuery->skey;
-//  //
-//  //  TSKEY nextTimestamp = loadRequiredBlockIntoMem(pRuntimeEnv, &pRuntimeEnv->nextPos);
-//  //  if ((nextTimestamp > pSupporter->rawEKey && QUERY_IS_ASC_QUERY(pQuery)) ||
-//  //      (nextTimestamp < pSupporter->rawEKey && !QUERY_IS_ASC_QUERY(pQuery)) ||
-//  //      Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
-//  //    setQueryStatus(pQuery, QUERY_COMPLETED);
-//  //    return;
-//  //  }
-//  //
-//  //  // bridge the gap in group by time function
-//  //  if ((nextTimestamp > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-//  //      (nextTimestamp < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
-//  //    getAlignedIntervalQueryRange(pRuntimeEnv, nextTimestamp, pSupporter->rawSKey, pSupporter->rawEKey);
-//  //  }
-//}
 
 static int32_t offsetComparator(const void *pLeft, const void *pRight) {
   SMeterDataInfo **pLeft1 = (SMeterDataInfo **)pLeft;
@@ -7072,7 +7035,7 @@ void setIntervalQueryRange(SMeterQueryInfo *pMeterQueryInfo, STableQuerySupportO
     SWindowResInfo *pWindowResInfo = &pMeterQueryInfo->windowResInfo;
 
     doGetAlignedIntervalQueryRangeImpl(pQuery, win.skey, win.skey, win.ekey, &skey1, &ekey1, &windowSKey, &windowEKey);
-    pWindowResInfo->startTime = windowSKey;
+    pWindowResInfo->startTime = windowSKey; // windowSKey may be 0 in case of 1970 timestamp
 //    assert(pWindowResInfo->startTime > 0);
 
     if (pWindowResInfo->prevSKey == 0) {

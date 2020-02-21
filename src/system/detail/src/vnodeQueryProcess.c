@@ -1174,10 +1174,11 @@ static void vnodeSingleTableIntervalProcessor(SQInfo *pQInfo) {
   }
 
   // all data scanned, the group by normal column can return
-  if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
+  if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {//todo refactor with merge interval time result
     pSupporter->subgroupIdx = 0;
     pQuery->pointsRead = 0;
     copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
+    clearFirstNTimeWindow(pRuntimeEnv, pSupporter->subgroupIdx);
   }
 
   pQInfo->pointsRead += pQuery->pointsRead;

@@ -100,10 +100,11 @@ extern "C" {
 #define TOP_BOTTOM_QUERY_LIMIT 100
 
 enum {
-  MASTER_SCAN           = 0x0,
-  SUPPLEMENTARY_SCAN    = 0x1,
-  FIRST_STAGE_MERGE     = 0x10,
-  SECONDARY_STAGE_MERGE = 0x20,
+  MASTER_SCAN           = 0x0u,
+  SUPPLEMENTARY_SCAN    = 0x1u,
+  REPEAT_SCAN           = 0x2u,  //repeat scan belongs to the master scan
+  FIRST_STAGE_MERGE     = 0x10u,
+  SECONDARY_STAGE_MERGE = 0x20u,
 };
 
 #define QUERY_IS_STABLE_QUERY(type) (((type)&TSDB_QUERY_TYPE_STABLE_QUERY) != 0)
@@ -164,7 +165,7 @@ typedef struct SQLFunctionCtx {
   int32_t startOffset;
   int32_t size;      // number of rows
   int32_t order;     // asc|desc
-  int32_t scanFlag;  // TODO merge with currentStage
+  uint32_t scanFlag;  // TODO merge with currentStage
 
   int16_t inputType;
   int16_t inputBytes;

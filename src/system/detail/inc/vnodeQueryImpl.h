@@ -111,8 +111,8 @@ typedef enum {
   DISK_DATA_DISCARDED = 0x01,
 } vnodeDiskLoadStatus;
 
-#define IS_MASTER_SCAN(runtime) ((runtime)->scanFlag == MASTER_SCAN)
-#define IS_SUPPLEMENT_SCAN(runtime) (!IS_MASTER_SCAN(runtime))
+#define IS_MASTER_SCAN(runtime) (((runtime)->scanFlag & 1u) == MASTER_SCAN)
+#define IS_SUPPLEMENT_SCAN(runtime) ((runtime)->scanFlag == SUPPLEMENTARY_SCAN)
 #define SET_SUPPLEMENT_SCAN_FLAG(runtime) ((runtime)->scanFlag = SUPPLEMENTARY_SCAN)
 #define SET_MASTER_SCAN_FLAG(runtime) ((runtime)->scanFlag = MASTER_SCAN)
 

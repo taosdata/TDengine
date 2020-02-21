@@ -714,12 +714,13 @@ static int32_t last_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY 
     return BLK_DATA_NO_NEEDED;
   }
 
-  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-  if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
-  } else {
-    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-  }
+  return BLK_DATA_ALL_NEEDED;
+//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+//  if (pInfo->hasResult != DATA_SET_FLAG) {
+//    return BLK_DATA_ALL_NEEDED;
+//  } else {
+//    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+//  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
