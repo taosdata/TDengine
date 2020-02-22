@@ -26,7 +26,7 @@ void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp,
 void taosCleanUpTcpClient(void *chandle);
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port);
 void taosCloseTcpClientConnection(void *chandle);
-int taosSendTcpClientData(uint32_t ip, uint16_t port, char *data, int len, void *chandle);
+int  taosSendTcpClientData(uint32_t ip, uint16_t port, void *data, int len, void *chandle);
 
 #ifdef __cplusplus
 }

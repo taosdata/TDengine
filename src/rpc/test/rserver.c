@@ -60,7 +60,6 @@ void processRequestMsg(char type, void *pCont, int contLen, void *thandle, int32
 
 int main(int argc, char *argv[]) {
   SRpcInit rpcInit;
-  char     socketType[20] = "udp";
   char     dataName[20] = "server.data";
 
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -73,9 +72,7 @@ int main(int argc, char *argv[]) {
   rpcInit.idleTime     = 2000;
 
   for (int i=1; i<argc; ++i) {
-    if ( strcmp(argv[i], "-c")==0 && i < argc-1 ) {
-      strcpy(socketType, argv[++i]);
-    } else if (strcmp(argv[i], "-p")==0 && i < argc-1) {
+    if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       rpcInit.localPort = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i")==0 && i < argc-1) {
       strcpy(rpcInit.localIp, argv[++i]); 
@@ -93,7 +90,6 @@ int main(int argc, char *argv[]) {
       rpcDebugFlag = atoi(argv[++i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
-      printf("  [-c ctype]: connection type:udp or tcp, default is:%s\n", socketType);
       printf("  [-i ip]: server IP address, default is:%s\n", rpcInit.localIp);
       printf("  [-p port]: server port number, default is:%d\n", rpcInit.localPort);
       printf("  [-t threads]: number of threads, default is:%d\n", rpcInit.numOfThreads);
@@ -107,7 +103,7 @@ int main(int argc, char *argv[]) {
     }
   } 
 
-  rpcInit.connType = strcasecmp(socketType, "udp") == 0 ? TAOS_CONN_UDPS : TAOS_CONN_TCPS;
+  rpcInit.connType = TAOS_CONN_SERVER;
 
   taosInitLog("server.log", 100000, 10);
 
