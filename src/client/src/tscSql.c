@@ -36,11 +36,6 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 
   taos_init();
 
-  if (pTscMgmtConn == NULL || pVnodeConn == NULL) {
-    globalCode = TSDB_CODE_APP_ERROR;
-    return NULL;
-  }
-
   if (user == NULL) {
     globalCode = TSDB_CODE_INVALID_ACCT;
     return NULL;
@@ -61,6 +56,11 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
       globalCode = TSDB_CODE_INVALID_PASS;
       return NULL;
     }
+  }
+
+  if (tscInitRpc(user, pass) != 0) {
+    globalCode = TSDB_CODE_NETWORK_UNAVAIL;
+    return NULL;
   }
 
   if (ip && ip[0]) {

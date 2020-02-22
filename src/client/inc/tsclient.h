@@ -371,6 +371,8 @@ typedef struct _sstream {
   struct _sstream *prev, *next;
 } SSqlStream;
 
+int32_t tscInitRpc(const char *user, const char *secret);
+
 // tscSql API
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
 

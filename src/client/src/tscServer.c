@@ -166,8 +166,6 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 
   if (tscShouldFreeHeatBeat(pObj->pHb)) {
     tscTrace("%p free HB object and release connection", pObj);
-    //taosCloseRpcConn(pObj->pHb->thandle);
-
     tscFreeSqlObj(pObj->pHb);
     tscCloseTscObj(pObj);
     return;

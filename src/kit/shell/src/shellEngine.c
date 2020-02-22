@@ -800,6 +800,8 @@ void source_file(TAOS *con, char *fptr) {
 }
 
 void shellGetGrantInfo(void *con) {
+  return;
+
   char sql[] = "show grants";
 
   int code = taos_query(con, sql);

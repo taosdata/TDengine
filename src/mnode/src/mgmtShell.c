@@ -1230,20 +1230,18 @@ int32_t mgmtProcessHeartBeatMsg(void *pCont, int32_t contLen, void *ahandle) {
 }
 
 int32_t mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  SUserObj *pUser = mgmtGetUser(user);
-  if (pUser == NULL) {
-    *spi = 0;
-    *encrypt = 0;
-    *ckey = 0;
-    *secret = 0;
-    return TSDB_CODE_INVALID_USER;
-  }
-
   *spi = 0;
   *encrypt = 0;
   *ckey = 0;
-  memcpy(secret, pUser->pass, TSDB_KEY_LEN);
-  return TSDB_CODE_SUCCESS;
+
+  SUserObj *pUser = mgmtGetUser(user);
+  if (pUser == NULL) {
+    *secret = 0;
+    return TSDB_CODE_INVALID_USER;
+  } else {
+    memcpy(secret, pUser->pass, TSDB_KEY_LEN);
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 static int32_t mgmtProcessConnectMsg(void *pCont, int32_t contLen, void *thandle) {
