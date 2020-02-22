@@ -14,69 +14,71 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-
-#include "mnode.h"
+#include "os.h"
+#include "taosdef.h"
+#include "taoserror.h"
 #include "tschemautil.h"
+#include "mnode.h"
+#include "grant.h"
+#include "mgmtAcct.h"
+#include "mgmtDb.h"
+#include "mgmtDnode.h"
+#include "mgmtUser.h"
 
-#define TSDB_MIN_USERS_PER_ACCT 2
-#define TSDB_MAX_USERS_PER_ACCT 10
-#define TSDB_MIN_DBS_PER_ACCT 1
-#define TSDB_MAX_DBS_PER_ACCT 64
-#define TSDB_MIN_TIMESERIES_PER_ACCT 10
-#define TSDB_MAX_TIMESERIES_PER_ACCT INT32_MAX
+#define TSDB_MIN_USERS_PER_ACCT       2
+#define TSDB_MAX_USERS_PER_ACCT       10
+#define TSDB_MIN_DBS_PER_ACCT         1
+#define TSDB_MAX_DBS_PER_ACCT         64
+#define TSDB_MIN_TIMESERIES_PER_ACCT  10
+#define TSDB_MAX_TIMESERIES_PER_ACCT  INT32_MAX
 #define TSDB_MIN_CONNECTIONS_PER_ACCT 10
 #define TSDB_MAX_CONNECTIONS_PER_ACCT 1024
-#define TSDB_MIN_STREAMS_PER_ACCT 10
-#define TSDB_MAX_STREAMS_PER_ACCT 1000
-#define TSDB_MIN_SPOINTS_PER_ACCT 5000
-#define TSDB_MAX_SPOINTS_PER_ACCT 10000000
-#define TSDB_MIN_STORAGE_PER_ACCT 0  // 1G
-#define TSDB_MAX_STORAGE_PER_ACCT INT64_MAX
-#define TSDB_MIN_QUERYTIME_PER_ACCT 3600  // 1 hour
-#define TSDB_MAX_QUERYTIME_PER_ACCT INT64_MAX
+#define TSDB_MIN_STREAMS_PER_ACCT     10
+#define TSDB_MAX_STREAMS_PER_ACCT     1000
+#define TSDB_MIN_SPOINTS_PER_ACCT     5000
+#define TSDB_MAX_SPOINTS_PER_ACCT     10000000
+#define TSDB_MIN_STORAGE_PER_ACCT     0  // 1G
+#define TSDB_MAX_STORAGE_PER_ACCT     INT64_MAX
+#define TSDB_MIN_QUERYTIME_PER_ACCT   3600  // 1 hour
+#define TSDB_MAX_QUERYTIME_PER_ACCT   INT64_MAX
 
 void *       tsAcctSdb = NULL;
+int32_t      tsAcctUpdateSize;
 extern void *tsUserSdb;
 extern void *tsDbSdb;
-int          tsAcctUpdateSize;
 
-void *(*mgmtAcctActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
-void *mgmtAcctActionInsert(void *row, char *str, int size, int *ssize);
-void *mgmtAcctActionDelete(void *row, char *str, int size, int *ssize);
-void *mgmtAcctActionUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtAcctActionEncode(void *row, char *str, int size, int *ssize);
-void *mgmtAcctActionDecode(void *row, char *str, int size, int *ssize);
-void *mgmtAcctActionBeforeBatchUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtAcctActionBatchUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtAcctActionAfterBatchUpdate(void *row, char *str, int size, int *ssize);
-void *mgmtAcctActionReset(void *row, char *str, int size, int *ssize);
-void *mgmtAcctActionDestroy(void *row, char *str, int size, int *ssize);
+static void mgmtCreateRootAcct();
+static void mgmtCheckAcct();
+static void *(*mgmtAcctActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtAcctActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtAcctActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtAcctActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtAcctActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtAcctActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtAcctActionReset(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtAcctActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
 
-void mgmtAcctActionInit() {
+static void mgmtAcctActionInit() {
   mgmtAcctActionFp[SDB_TYPE_INSERT] = mgmtAcctActionInsert;
   mgmtAcctActionFp[SDB_TYPE_DELETE] = mgmtAcctActionDelete;
   mgmtAcctActionFp[SDB_TYPE_UPDATE] = mgmtAcctActionUpdate;
   mgmtAcctActionFp[SDB_TYPE_ENCODE] = mgmtAcctActionEncode;
   mgmtAcctActionFp[SDB_TYPE_DECODE] = mgmtAcctActionDecode;
-  mgmtAcctActionFp[SDB_TYPE_BEFORE_BATCH_UPDATE] = mgmtAcctActionBeforeBatchUpdate;
-  mgmtAcctActionFp[SDB_TYPE_BATCH_UPDATE] = mgmtAcctActionBatchUpdate;
-  mgmtAcctActionFp[SDB_TYPE_AFTER_BATCH_UPDATE] = mgmtAcctActionAfterBatchUpdate;
   mgmtAcctActionFp[SDB_TYPE_RESET] = mgmtAcctActionReset;
   mgmtAcctActionFp[SDB_TYPE_DESTROY] = mgmtAcctActionDestroy;
 }
 
-void *mgmtAcctAction(char action, void *row, char *str, int size, int *ssize) {
+static void *mgmtAcctAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
   if (mgmtAcctActionFp[(uint8_t)action] != NULL) {
     return (*(mgmtAcctActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }
 
-int macctInitAccts() {
+static int32_t mgmtInitAcctsImp() {
   void *    pNode = NULL;
   SAcctObj *pAcct = NULL;
-  int       numOfAccts = 0;
+  int32_t   numOfAccts = 0;
 
   mgmtAcctActionInit();
 
@@ -107,18 +109,21 @@ int macctInitAccts() {
   }
 
   SAcctObj tObj;
-  tsAcctUpdateSize = tObj.updateEnd - (char *)&tObj;
+  tsAcctUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
-  macctCheckAcct();
+  mgmtCreateRootAcct();
+  mgmtCheckAcct();
 
   mTrace("account is initialized");
   return 0;
 }
 
-SAcctObj *macctGetAcct(char *name) { return (SAcctObj *)sdbGetRow(tsAcctSdb, name); }
+static SAcctObj *mgmtGetAcctImp(char *name) {
+  return (SAcctObj *)sdbGetRow(tsAcctSdb, name);
+}
 
-int macctCheckUserLimit(SAcctObj *pAcct) {
-  int numOfUsers = sdbGetNumOfRows(tsUserSdb);
+static int32_t mgmtCheckUserLimitImp(SAcctObj *pAcct) {
+  int32_t numOfUsers = sdbGetNumOfRows(tsUserSdb);
   if (numOfUsers >= tsMaxUsers || pAcct->acctInfo.numOfUsers >= pAcct->cfg.maxUsers) {
     mWarn("numOfUsers:%d, exceed tsMaxUsers:%d or account numOfUsers: %d, exceed account maxUsers: %d",
           numOfUsers, tsMaxUsers, pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
@@ -127,17 +132,17 @@ int macctCheckUserLimit(SAcctObj *pAcct) {
   return 0;
 }
 
-int macctCheckDbLimit(SAcctObj *pAcct) {
-  int numOfDbs = sdbGetNumOfRows(tsDbSdb);
+static int32_t mgmtCheckDbLimitImp(SAcctObj *pAcct) {
+  int32_t numOfDbs = sdbGetNumOfRows(tsDbSdb);
   if (numOfDbs >= tsMaxDbs || pAcct->acctInfo.numOfDbs >= pAcct->cfg.maxDbs) {
     mWarn("numOfDbs:%d, exceed tsMaxDbs:%d or account numOfDbs: %d, exceed account maxDbs:%d",
           numOfDbs, tsMaxDbs, pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
-    return TSDB_CODE_TOO_MANY_DATABSES;
+    return TSDB_CODE_TOO_MANY_DATABASES;
   }
   return 0;
 }
 
-int macctCheckTableLimit(SAcctObj *pAcct, SCreateTableMsg *pCreate) {
+static int32_t mgmtCheckTableLimitImp(SAcctObj *pAcct, SCreateTableMsg *pCreate) {
   if (pAcct->acctInfo.numOfTimeSeries + pCreate->numOfColumns - 1 > pAcct->cfg.maxTimeSeries) {
     mWarn("Time series is not enough, account numOfTimeSeries: %d, account maxTimeSeries: %d, required time series: %d",
           pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries, pCreate->numOfColumns);
@@ -146,8 +151,7 @@ int macctCheckTableLimit(SAcctObj *pAcct, SCreateTableMsg *pCreate) {
   return 0;
 }
 
-int mgmtCheckAcctParams(SAcctCfg *pCfg) {
-  // TODO
+static int32_t mgmtCheckAcctParams(SAcctCfg *pCfg) {
   if (pCfg == NULL) return 0;
   if (pCfg->maxUsers <= 0) pCfg->maxUsers = TSDB_MAX_USERS_PER_ACCT;
   if (pCfg->maxUsers < TSDB_MIN_USERS_PER_ACCT) pCfg->maxUsers = TSDB_MIN_USERS_PER_ACCT;
@@ -232,10 +236,10 @@ int mgmtCheckAcctParams(SAcctCfg *pCfg) {
   return 0;
 }
 
-int mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
+int32_t mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   SAcctObj *pAcct;
 
-  int numOfAccts = sdbGetNumOfRows(tsAcctSdb);
+  int32_t numOfAccts = sdbGetNumOfRows(tsAcctSdb);
   if (numOfAccts >= tsMaxAccounts) {
     mWarn("numOfAccts:%d, exceed tsMaxAccounts:%d", numOfAccts, tsMaxAccounts);
     return TSDB_CODE_TOO_MANY_ACCTS;
@@ -246,7 +250,7 @@ int mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
     return TSDB_CODE_ACCT_ALREADY_EXIST;
   }
 
-  int numOfUsers = sdbGetNumOfRows(tsUserSdb);
+  int32_t numOfUsers = sdbGetNumOfRows(tsUserSdb);
   if (numOfUsers >= tsMaxUsers) {
     mWarn("numOfUsers:%d, exceed tsMaxUsers:%d", numOfUsers, tsMaxUsers);
     return TSDB_CODE_TOO_MANY_USERS;
@@ -285,10 +289,10 @@ int mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   pAcct->acctId = sdbGetId(tsAcctSdb);
   pAcct->createdTime = taosGetTimestampMs();
 
-  int grantCode = grantCheckAccts();
+  int32_t grantCode = grantCheckAccts();
   if (grantCode != 0) return grantCode;
 
-  int code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
   if (sdbInsertRow(tsAcctSdb, pAcct, 0) < 0) {
     code = TSDB_CODE_SDB_ERROR;
     tfree(pAcct);
@@ -304,7 +308,7 @@ int mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   return code;
 }
 
-int mgmtDropAcct(char *name) {
+int32_t mgmtDropAcct(char *name) {
   SAcctObj *pAcct;
 
   pAcct = (SAcctObj *)sdbGetRow(tsAcctSdb, name);
@@ -325,8 +329,8 @@ int mgmtDropAcct(char *name) {
   return 0;
 }
 
-void macctCheckAcct() {
-  int numOfRows = 0;
+static void mgmtCheckAcct() {
+  int32_t numOfRows = 0;
 
   numOfRows = sdbGetNumOfRows(tsAcctSdb);
 
@@ -334,18 +338,23 @@ void macctCheckAcct() {
     mTrace("no any accounts, create the root acct");
     mgmtCreateAcct("root", "taosdata", NULL);
 
-    SAcctObj *pAcct = macctGetAcct("root");
+    SAcctObj *pAcct = mgmtGetAcct("root");
     mgmtCreateUser(pAcct, "monitor", tsInternalPass);
     mgmtCreateUser(pAcct, "_root", tsInternalPass);
   }
 }
 
-void macctCleanUpAccts() { sdbCloseTable(tsAcctSdb); }
+static void mgmtCleanUpAcctsImp() {
+  sdbCloseTable(tsAcctSdb);
+}
 
-int macctGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
-  int cols = 0;
+static int32_t mgmtGetAcctMetaImp(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
 
-  if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  int32_t cols = 0;
+
+  if (strcmp(pUser->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
   pShow->bytes[cols] = TSDB_METER_NAME_LEN;
   SSchema *pSchema = tsGetSchema(pMeta);
@@ -401,7 +410,7 @@ int macctGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
   pShow->numOfRows = sdbGetNumOfRows(tsAcctSdb);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
@@ -409,11 +418,11 @@ int macctGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int macctRetrieveAccts(SShowObj *pShow, char *data, int rows, void *pConn) {
-  int       numOfRows = 0;
+static int32_t mgmtRetrieveAcctsImp(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  int32_t       numOfRows = 0;
   SAcctObj *pAcct = NULL;
   char *    pWrite;
-  int       cols = 0;
+  int32_t       cols = 0;
 
   while (numOfRows < rows) {
     pShow->pNode = sdbFetchRow(tsAcctSdb, pShow->pNode, (void **)&pAcct);
@@ -465,7 +474,7 @@ int macctRetrieveAccts(SShowObj *pShow, char *data, int rows, void *pConn) {
   return numOfRows;
 }
 
-void *mgmtAcctActionInsert(void *row, char *str, int size, int *ssize) {
+static void *mgmtAcctActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
   SAcctObj *pAcct = (SAcctObj *)row;
   pAcct->pHead = NULL;
   pAcct->pUser = NULL;
@@ -474,13 +483,18 @@ void *mgmtAcctActionInsert(void *row, char *str, int size, int *ssize) {
 
   return NULL;
 }
-void *mgmtAcctActionDelete(void *row, char *str, int size, int *ssize) { return NULL; }
-void *mgmtAcctActionUpdate(void *row, char *str, int size, int *ssize) {
+
+static void *mgmtAcctActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
+  return NULL;
+}
+
+static void *mgmtAcctActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
   return mgmtAcctActionReset(row, str, size, ssize);
 }
-void *mgmtAcctActionEncode(void *row, char *str, int size, int *ssize) {
-  SAcctObj *pAcct = (SAcctObj *)row;
-  int       tsize = pAcct->updateEnd - (char *)pAcct;
+
+static void *mgmtAcctActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
+  SAcctObj *pAcct = (SAcctObj *) row;
+  int32_t  tsize  = pAcct->updateEnd - (int8_t *) pAcct;
   if (size < tsize) {
     *ssize = -1;
   } else {
@@ -490,30 +504,30 @@ void *mgmtAcctActionEncode(void *row, char *str, int size, int *ssize) {
 
   return NULL;
 }
-void *mgmtAcctActionDecode(void *row, char *str, int size, int *ssize) {
+
+static void *mgmtAcctActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
   SAcctObj *pAcct = (SAcctObj *)malloc(sizeof(SAcctObj));
   if (pAcct == NULL) return NULL;
   memset(pAcct, 0, sizeof(SAcctObj));
 
-  int tsize = pAcct->updateEnd - (char *)pAcct;
+  int32_t tsize = pAcct->updateEnd - (int8_t *) pAcct;
   memcpy(pAcct, str, tsize);
   return (void *)pAcct;
 }
-void *mgmtAcctActionBeforeBatchUpdate(void *row, char *str, int size, int *ssize) { return NULL; }
-void *mgmtAcctActionBatchUpdate(void *row, char *str, int size, int *ssize) { return NULL; }
-void *mgmtAcctActionAfterBatchUpdate(void *row, char *str, int size, int *ssize) { return NULL; }
-void *mgmtAcctActionReset(void *row, char *str, int size, int *ssize) {
+
+static void *mgmtAcctActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   SAcctObj *pAcct = (SAcctObj *)row;
-  int       tsize = pAcct->updateEnd - (char *)pAcct;
+  int32_t   tsize = pAcct->updateEnd - (int8_t *)pAcct;
   memcpy(pAcct, str, tsize);
   return NULL;
 }
-void *mgmtAcctActionDestroy(void *row, char *str, int size, int *ssize) {
+
+static void *mgmtAcctActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
   tfree(row);
   return NULL;
 }
 
-int mgmtCheckAlterAcctParams(SAcctObj *pAcct, SAcctCfg *pCfg) {
+static int32_t mgmtCheckAlterAcctParams(SAcctObj *pAcct, SAcctCfg *pCfg) {
   if (pCfg->maxUsers >= 0 && (pCfg->maxUsers < TSDB_MIN_USERS_PER_ACCT || pCfg->maxUsers > TSDB_MAX_USERS_PER_ACCT)) {
     mWarn("Invalid acct parameter maxUsers: %d, range: %d--%d", pCfg->maxUsers, TSDB_MIN_USERS_PER_ACCT,
           TSDB_MAX_USERS_PER_ACCT);
@@ -578,12 +592,14 @@ int mgmtCheckAlterAcctParams(SAcctObj *pAcct, SAcctCfg *pCfg) {
   return 0;
 }
 
-int mgmtUpdateAcct(SAcctObj *pAcct) { return sdbUpdateRow(tsAcctSdb, pAcct, 0, 1); }
+static int32_t mgmtUpdateAcct(SAcctObj *pAcct) {
+  return sdbUpdateRow(tsAcctSdb, pAcct, 0, 1);
+}
 
-int mgmtAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
+int32_t mgmtAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
   SAcctObj *pAcct = NULL;
 
-  pAcct = macctGetAcct(name);
+  pAcct = mgmtGetAcct(name);
   if (pAcct == NULL) {
     mTrace("account: %s not exists", name);
     return TSDB_CODE_INVALID_ACCT;
@@ -634,7 +650,6 @@ int mgmtAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
     pAcct->cfg.accessState = pCfg->accessState;
   }
 
-  // TODO : Update account on disk
   mgmtUpdateAcct(pAcct);
 
   return TSDB_CODE_SUCCESS;
@@ -657,7 +672,7 @@ int64_t mgmtGetAcctStatistic(SAcctObj *pAcct) {
     pVgroup = pDb->pHead;
     while (pVgroup != NULL) {
       // TODO:
-      for (int i = 0; i < pVgroup->numOfVnodes; i++) {
+      for (int32_t i = 0; i < pVgroup->numOfVnodes; i++) {
         SDnodeObj *pDnode = mgmtGetDnode(pVgroup->vnodeGid[i].ip);
         if (pDnode == NULL) continue;
         totalStorage += pDnode->vload[pVgroup->vnodeGid[i].vnode].totalStorage;
@@ -686,11 +701,11 @@ int64_t mgmtGetAcctStatistic(SAcctObj *pAcct) {
   return totalStorage;
 }
 
-void macctCreateRootAcct() {
+static void mgmtCreateRootAcct() {
   SAcctObj *pAcct;
 
-  int numOfAccts = sdbGetNumOfRows(tsAcctSdb);
-  int numOfUsers = sdbGetNumOfRows(tsUserSdb);
+  int32_t numOfAccts = sdbGetNumOfRows(tsAcctSdb);
+  int32_t numOfUsers = sdbGetNumOfRows(tsUserSdb);
 
   if (numOfAccts == 0 && numOfUsers > 0) {
     pAcct = malloc(sizeof(SAcctObj));
@@ -714,15 +729,13 @@ void macctCreateRootAcct() {
   }
 }
 
-void mnodeAccountInit() {
-  mgmtInitAccts = macctInitAccts();
-  mgmtGetAcct = macctGetAcct()
-  mgmtCreateRootAcct = macctCreateRootAcct;
-  mgmtCheckUserLimit = macctCheckUserLimit;
-  mgmtCheckDbLimit = macctCheckUserLimit;
-  mgmtCheckTableLimit = macctCheckTableLimit;
-  mgmtCheckAcct = macctCheckAcct;
-  mgmtCleanUpAccts = macctCleanUpAccts;
-  mgmtGetAcctMeta = macctGetAcctMeta;
-  mgmtRetrieveAccts = macctRetrieveAccts;
+void acctInit() {
+  mgmtInitAccts       = mgmtInitAcctsImp;
+  mgmtCleanUpAccts    = mgmtCleanUpAcctsImp;
+  mgmtGetAcct         = mgmtGetAcctImp;
+  mgmtCheckUserLimit  = mgmtCheckUserLimitImp;
+  mgmtCheckDbLimit    = mgmtCheckDbLimitImp;
+  mgmtCheckTableLimit = mgmtCheckTableLimitImp;
+  mgmtGetAcctMeta     = mgmtGetAcctMetaImp;
+  mgmtRetrieveAccts   = mgmtRetrieveAcctsImp;
 }

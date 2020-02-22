@@ -24,7 +24,11 @@ extern "C" {
 #include <stdbool.h>
 #include <pthread.h>
 
-void mnodeAccountInit();
+void acctInit();
+int32_t mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg);
+int32_t mgmtDropAcct(char *name);
+int32_t mgmtAlterAcct(char *name, char *pass, SAcctCfg *pCfg);
+int64_t mgmtGetAcctStatistic(SAcctObj *pAcct);
 
 #ifdef __cplusplus
 }

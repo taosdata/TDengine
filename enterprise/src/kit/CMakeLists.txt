@@ -2,6 +2,6 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
 IF (TD_CLUSTER)
-  ADD_SUBDIRECTORY(datamigrate)
-  ADD_SUBDIRECTORY(datascanandrepair)
+#  ADD_SUBDIRECTORY(datamigrate)
+#  ADD_SUBDIRECTORY(datascanandrepair)
 ENDIF()
