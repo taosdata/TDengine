@@ -70,54 +70,54 @@ int32_t  mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtGetQueries(SShowObj *pShow, SConnObj *pConn) {
-  SAcctObj *  pAcct = pConn->pAcct;
-  SQueryShow *pQueryShow;
-
-  pthread_mutex_lock(&pAcct->mutex);
-
-  pQueryShow = malloc(sizeof(SCMQueryDesc) * pAcct->acctInfo.numOfQueries + sizeof(SQueryShow));
-  pQueryShow->numOfQueries = 0;
-  pQueryShow->index = 0;
-  pQueryShow->connInfo = NULL;
-  pQueryShow->cdesc = NULL;
-
-  if (pAcct->acctInfo.numOfQueries > 0) {
-    pQueryShow->connInfo = (SCDesc *)malloc(pAcct->acctInfo.numOfConns * sizeof(SCDesc));
-    pQueryShow->cdesc = (SCDesc **)malloc(pAcct->acctInfo.numOfQueries * sizeof(SCDesc *));
-
-    pConn = pAcct->pConn;
-    SCMQueryDesc * pQdesc = pQueryShow->qdesc;
-    SCDesc * pCDesc = pQueryShow->connInfo;
-    SCDesc **ppCDesc = pQueryShow->cdesc;
-
-    while (pConn) {
-      if (pConn->pQList && pConn->pQList->numOfQueries > 0) {
-        pCDesc->ip = pConn->ip;
-        pCDesc->port = pConn->port;
-        strcpy(pCDesc->user, pConn->pUser->user);
-
-        memcpy(pQdesc, pConn->pQList->qdesc, sizeof(SCMQueryDesc) * pConn->pQList->numOfQueries);
-        pQdesc += pConn->pQList->numOfQueries;
-        pQueryShow->numOfQueries += pConn->pQList->numOfQueries;
-        for (int32_t i = 0; i < pConn->pQList->numOfQueries; ++i, ++ppCDesc) *ppCDesc = pCDesc;
-
-        pCDesc++;
-      }
-      pConn = pConn->next;
-    }
-  }
-
-  pthread_mutex_unlock(&pAcct->mutex);
-
-  // sorting based on useconds
-
-  pShow->pNode = pQueryShow;
+int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
+//  SAcctObj *  pAcct = pConn->pAcct;
+//  SQueryShow *pQueryShow;
+//
+//  pthread_mutex_lock(&pAcct->mutex);
+//
+//  pQueryShow = malloc(sizeof(SCMQueryDesc) * pAcct->acctInfo.numOfQueries + sizeof(SQueryShow));
+//  pQueryShow->numOfQueries = 0;
+//  pQueryShow->index = 0;
+//  pQueryShow->connInfo = NULL;
+//  pQueryShow->cdesc = NULL;
+//
+//  if (pAcct->acctInfo.numOfQueries > 0) {
+//    pQueryShow->connInfo = (SCDesc *)malloc(pAcct->acctInfo.numOfConns * sizeof(SCDesc));
+//    pQueryShow->cdesc = (SCDesc **)malloc(pAcct->acctInfo.numOfQueries * sizeof(SCDesc *));
+//
+//    pConn = pAcct->pConn;
+//    SCMQueryDesc * pQdesc = pQueryShow->qdesc;
+//    SCDesc * pCDesc = pQueryShow->connInfo;
+//    SCDesc **ppCDesc = pQueryShow->cdesc;
+//
+//    while (pConn) {
+//      if (pConn->pQList && pConn->pQList->numOfQueries > 0) {
+//        pCDesc->ip = pConn->ip;
+//        pCDesc->port = pConn->port;
+//        strcpy(pCDesc->user, pConn->pUser->user);
+//
+//        memcpy(pQdesc, pConn->pQList->qdesc, sizeof(SCMQueryDesc) * pConn->pQList->numOfQueries);
+//        pQdesc += pConn->pQList->numOfQueries;
+//        pQueryShow->numOfQueries += pConn->pQList->numOfQueries;
+//        for (int32_t i = 0; i < pConn->pQList->numOfQueries; ++i, ++ppCDesc) *ppCDesc = pCDesc;
+//
+//        pCDesc++;
+//      }
+//      pConn = pConn->next;
+//    }
+//  }
+//
+//  pthread_mutex_unlock(&pAcct->mutex);
+//
+//  // sorting based on useconds
+//
+//  pShow->pNode = pQueryShow;
 
   return 0;
 }
 
-int32_t mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SSchema *pSchema = tsGetSchema(pMeta);
@@ -166,60 +166,60 @@ int32_t mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtKillQuery(char *qidstr, SConnObj *pConn) {
-  char *temp, *chr, idstr[64];
-  strcpy(idstr, qidstr);
-
-  temp = idstr;
-  chr = strchr(temp, ':');
-  if (chr == NULL) goto _error;
-  *chr = 0;
-  uint32_t ip = inet_addr(temp);
-
-  temp = chr + 1;
-  chr = strchr(temp, ':');
-  if (chr == NULL) goto _error;
-  *chr = 0;
-  uint16_t port = htons(atoi(temp));
-
-  temp = chr + 1;
-  uint32_t queryId = atoi(temp);
-
-  SAcctObj *pAcct = pConn->pAcct;
-
-  pthread_mutex_lock(&pAcct->mutex);
-
-  pConn = pAcct->pConn;
-  while (pConn) {
-    if (pConn->ip == ip && pConn->port == port && pConn->pQList) {
-      int32_t     i;
-      SCMQueryDesc *pQDesc = pConn->pQList->qdesc;
-      for (i = 0; i < pConn->pQList->numOfQueries; ++i, ++pQDesc) {
-        if (pQDesc->queryId == queryId) break;
-      }
-
-      if (i < pConn->pQList->numOfQueries) break;
-    }
-
-    pConn = pConn->next;
-  }
-
-  if (pConn) pConn->queryId = queryId;
-
-  pthread_mutex_unlock(&pAcct->mutex);
-
-  if (pConn == NULL || pConn->pQList == NULL || pConn->pQList->numOfQueries == 0) goto _error;
-
-  mTrace("query:%s is there, kill it", qidstr);
-  return 0;
-
-_error:
-  mTrace("query:%s is not there", qidstr);
+int32_t mgmtKillQuery(char *qidstr, void *pConn) {
+//  char *temp, *chr, idstr[64];
+//  strcpy(idstr, qidstr);
+//
+//  temp = idstr;
+//  chr = strchr(temp, ':');
+//  if (chr == NULL) goto _error;
+//  *chr = 0;
+//  uint32_t ip = inet_addr(temp);
+//
+//  temp = chr + 1;
+//  chr = strchr(temp, ':');
+//  if (chr == NULL) goto _error;
+//  *chr = 0;
+//  uint16_t port = htons(atoi(temp));
+//
+//  temp = chr + 1;
+//  uint32_t queryId = atoi(temp);
+//
+//  SAcctObj *pAcct = pConn->pAcct;
+//
+//  pthread_mutex_lock(&pAcct->mutex);
+//
+//  pConn = pAcct->pConn;
+//  while (pConn) {
+//    if (pConn->ip == ip && pConn->port == port && pConn->pQList) {
+//      int32_t     i;
+//      SCMQueryDesc *pQDesc = pConn->pQList->qdesc;
+//      for (i = 0; i < pConn->pQList->numOfQueries; ++i, ++pQDesc) {
+//        if (pQDesc->queryId == queryId) break;
+//      }
+//
+//      if (i < pConn->pQList->numOfQueries) break;
+//    }
+//
+//    pConn = pConn->next;
+//  }
+//
+//  if (pConn) pConn->queryId = queryId;
+//
+//  pthread_mutex_unlock(&pAcct->mutex);
+//
+//  if (pConn == NULL || pConn->pQList == NULL || pConn->pQList->numOfQueries == 0) goto _error;
+//
+//  mTrace("query:%s is there, kill it", qidstr);
+//  return 0;
+//
+//_error:
+//  mTrace("query:%s is not there", qidstr);
 
   return TSDB_CODE_INVALID_QUERY_ID;
 }
 
-int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t   numOfRows = 0;
   char *pWrite;
   int32_t   cols = 0;
@@ -269,54 +269,54 @@ int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, SConnObj 
   return numOfRows;
 }
 
-int32_t mgmtGetStreams(SShowObj *pShow, SConnObj *pConn) {
-  SAcctObj *   pAcct = pConn->pAcct;
-  SStreamShow *pStreamShow;
-
-  pthread_mutex_lock(&pAcct->mutex);
-
-  pStreamShow = malloc(sizeof(SCMStreamDesc) * pAcct->acctInfo.numOfStreams + sizeof(SQueryShow));
-  pStreamShow->numOfStreams = 0;
-  pStreamShow->index = 0;
-  pStreamShow->connInfo = NULL;
-  pStreamShow->cdesc = NULL;
-
-  if (pAcct->acctInfo.numOfStreams > 0) {
-    pStreamShow->connInfo = (SCDesc *)malloc(pAcct->acctInfo.numOfConns * sizeof(SCDesc));
-    pStreamShow->cdesc = (SCDesc **)malloc(pAcct->acctInfo.numOfStreams * sizeof(SCDesc *));
-
-    pConn = pAcct->pConn;
-    SCMStreamDesc * pSdesc = pStreamShow->sdesc;
-    SCDesc * pCDesc = pStreamShow->connInfo;
-    SCDesc **ppCDesc = pStreamShow->cdesc;
-
-    while (pConn) {
-      if (pConn->pSList && pConn->pSList->numOfStreams > 0) {
-        pCDesc->ip = pConn->ip;
-        pCDesc->port = pConn->port;
-        strcpy(pCDesc->user, pConn->pUser->user);
-
-        memcpy(pSdesc, pConn->pSList->sdesc, sizeof(SCMStreamDesc) * pConn->pSList->numOfStreams);
-        pSdesc += pConn->pSList->numOfStreams;
-        pStreamShow->numOfStreams += pConn->pSList->numOfStreams;
-        for (int32_t i = 0; i < pConn->pSList->numOfStreams; ++i, ++ppCDesc) *ppCDesc = pCDesc;
-
-        pCDesc++;
-      }
-      pConn = pConn->next;
-    }
-  }
-
-  pthread_mutex_unlock(&pAcct->mutex);
-
-  // sorting based on useconds
-
-  pShow->pNode = pStreamShow;
+int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
+//  SAcctObj *   pAcct = pConn->pAcct;
+//  SStreamShow *pStreamShow;
+//
+//  pthread_mutex_lock(&pAcct->mutex);
+//
+//  pStreamShow = malloc(sizeof(SCMStreamDesc) * pAcct->acctInfo.numOfStreams + sizeof(SQueryShow));
+//  pStreamShow->numOfStreams = 0;
+//  pStreamShow->index = 0;
+//  pStreamShow->connInfo = NULL;
+//  pStreamShow->cdesc = NULL;
+//
+//  if (pAcct->acctInfo.numOfStreams > 0) {
+//    pStreamShow->connInfo = (SCDesc *)malloc(pAcct->acctInfo.numOfConns * sizeof(SCDesc));
+//    pStreamShow->cdesc = (SCDesc **)malloc(pAcct->acctInfo.numOfStreams * sizeof(SCDesc *));
+//
+//    pConn = pAcct->pConn;
+//    SCMStreamDesc * pSdesc = pStreamShow->sdesc;
+//    SCDesc * pCDesc = pStreamShow->connInfo;
+//    SCDesc **ppCDesc = pStreamShow->cdesc;
+//
+//    while (pConn) {
+//      if (pConn->pSList && pConn->pSList->numOfStreams > 0) {
+//        pCDesc->ip = pConn->ip;
+//        pCDesc->port = pConn->port;
+//        strcpy(pCDesc->user, pConn->pUser->user);
+//
+//        memcpy(pSdesc, pConn->pSList->sdesc, sizeof(SCMStreamDesc) * pConn->pSList->numOfStreams);
+//        pSdesc += pConn->pSList->numOfStreams;
+//        pStreamShow->numOfStreams += pConn->pSList->numOfStreams;
+//        for (int32_t i = 0; i < pConn->pSList->numOfStreams; ++i, ++ppCDesc) *ppCDesc = pCDesc;
+//
+//        pCDesc++;
+//      }
+//      pConn = pConn->next;
+//    }
+//  }
+//
+//  pthread_mutex_unlock(&pAcct->mutex);
+//
+//  // sorting based on useconds
+//
+//  pShow->pNode = pStreamShow;
 
   return 0;
 }
 
-int32_t mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t      cols = 0;
   SSchema *pSchema = tsGetSchema(pMeta);
 
@@ -376,7 +376,7 @@ int32_t mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t   numOfRows = 0;
   char *pWrite;
   int32_t   cols = 0;
@@ -434,101 +434,101 @@ int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, SConnObj 
   return numOfRows;
 }
 
-int32_t mgmtKillStream(char *qidstr, SConnObj *pConn) {
-  char *temp, *chr, idstr[64];
-  strcpy(idstr, qidstr);
-
-  temp = idstr;
-  chr = strchr(temp, ':');
-  if (chr == NULL) goto _error;
-  *chr = 0;
-  uint32_t ip = inet_addr(temp);
-
-  temp = chr + 1;
-  chr = strchr(temp, ':');
-  if (chr == NULL) goto _error;
-  *chr = 0;
-  uint16_t port = htons(atoi(temp));
-
-  temp = chr + 1;
-  uint32_t streamId = atoi(temp);
-
-  SAcctObj *pAcct = pConn->pAcct;
-
-  pthread_mutex_lock(&pAcct->mutex);
-
-  pConn = pAcct->pConn;
-  while (pConn) {
-    if (pConn->ip == ip && pConn->port == port && pConn->pSList) {
-      int32_t     i;
-      SCMStreamDesc *pSDesc = pConn->pSList->sdesc;
-      for (i = 0; i < pConn->pSList->numOfStreams; ++i, ++pSDesc) {
-        if (pSDesc->streamId == streamId) break;
-      }
-
-      if (i < pConn->pSList->numOfStreams) break;
-    }
-
-    pConn = pConn->next;
-  }
-
-  if (pConn) pConn->streamId = streamId;
-
-  pthread_mutex_unlock(&pAcct->mutex);
-
-  if (pConn == NULL || pConn->pSList == NULL || pConn->pSList->numOfStreams == 0) goto _error;
-
-  mTrace("stream:%s is there, kill it", qidstr);
-  return 0;
-
-_error:
-  mTrace("stream:%s is not there", qidstr);
+int32_t mgmtKillStream(char *qidstr, void *pConn) {
+//  char *temp, *chr, idstr[64];
+//  strcpy(idstr, qidstr);
+//
+//  temp = idstr;
+//  chr = strchr(temp, ':');
+//  if (chr == NULL) goto _error;
+//  *chr = 0;
+//  uint32_t ip = inet_addr(temp);
+//
+//  temp = chr + 1;
+//  chr = strchr(temp, ':');
+//  if (chr == NULL) goto _error;
+//  *chr = 0;
+//  uint16_t port = htons(atoi(temp));
+//
+//  temp = chr + 1;
+//  uint32_t streamId = atoi(temp);
+//
+//  SAcctObj *pAcct = pConn->pAcct;
+//
+//  pthread_mutex_lock(&pAcct->mutex);
+//
+//  pConn = pAcct->pConn;
+//  while (pConn) {
+//    if (pConn->ip == ip && pConn->port == port && pConn->pSList) {
+//      int32_t     i;
+//      SCMStreamDesc *pSDesc = pConn->pSList->sdesc;
+//      for (i = 0; i < pConn->pSList->numOfStreams; ++i, ++pSDesc) {
+//        if (pSDesc->streamId == streamId) break;
+//      }
+//
+//      if (i < pConn->pSList->numOfStreams) break;
+//    }
+//
+//    pConn = pConn->next;
+//  }
+//
+//  if (pConn) pConn->streamId = streamId;
+//
+//  pthread_mutex_unlock(&pAcct->mutex);
+//
+//  if (pConn == NULL || pConn->pSList == NULL || pConn->pSList->numOfStreams == 0) goto _error;
+//
+//  mTrace("stream:%s is there, kill it", qidstr);
+//  return 0;
+//
+//_error:
+//  mTrace("stream:%s is not there", qidstr);
 
   return TSDB_CODE_INVALID_STREAM_ID;
 }
 
-int32_t mgmtKillConnection(char *qidstr, SConnObj *pConn) {
-  SConnObj *pConn1 = NULL;
-  char *    temp, *chr, idstr[64];
-  strcpy(idstr, qidstr);
-
-  temp = idstr;
-  chr = strchr(temp, ':');
-  if (chr == NULL) goto _error;
-  *chr = 0;
-  uint32_t ip = inet_addr(temp);
-
-  temp = chr + 1;
-  uint16_t port = htons(atoi(temp));
-  SAcctObj *pAcct = pConn->pAcct;
-  
-  pthread_mutex_lock(&pAcct->mutex);
-
-  pConn = pAcct->pConn;
-  while (pConn) {
-    if (pConn->ip == ip && pConn->port == port) {
-      // there maybe two connections from a shell
-      if (pConn1 == NULL)
-        pConn1 = pConn;
-      else
-        break;
-    }
-
-    pConn = pConn->next;
-  }
-
-  if (pConn1) pConn1->killConnection = 1;
-  if (pConn) pConn->killConnection = 1;
-
-  pthread_mutex_unlock(&pAcct->mutex);
-
-  if (pConn1 == NULL) goto _error;
-
-  mTrace("connection:%s is there, kill it", qidstr);
-  return 0;
-
-_error:
-  mTrace("connection:%s is not there", qidstr);
+int32_t mgmtKillConnection(char *qidstr, void *pConn) {
+//  void *pConn1 = NULL;
+//  char *    temp, *chr, idstr[64];
+//  strcpy(idstr, qidstr);
+//
+//  temp = idstr;
+//  chr = strchr(temp, ':');
+//  if (chr == NULL) goto _error;
+//  *chr = 0;
+//  uint32_t ip = inet_addr(temp);
+//
+//  temp = chr + 1;
+//  uint16_t port = htons(atoi(temp));
+//  SAcctObj *pAcct = pConn->pAcct;
+//
+//  pthread_mutex_lock(&pAcct->mutex);
+//
+//  pConn = pAcct->pConn;
+//  while (pConn) {
+//    if (pConn->ip == ip && pConn->port == port) {
+//      // there maybe two connections from a shell
+//      if (pConn1 == NULL)
+//        pConn1 = pConn;
+//      else
+//        break;
+//    }
+//
+//    pConn = pConn->next;
+//  }
+//
+//  if (pConn1) pConn1->killConnection = 1;
+//  if (pConn) pConn->killConnection = 1;
+//
+//  pthread_mutex_unlock(&pAcct->mutex);
+//
+//  if (pConn1 == NULL) goto _error;
+//
+//  mTrace("connection:%s is there, kill it", qidstr);
+//  return 0;
+//
+//_error:
+//  mTrace("connection:%s is not there", qidstr);
 
   return TSDB_CODE_INVALID_CONNECTION;
 }

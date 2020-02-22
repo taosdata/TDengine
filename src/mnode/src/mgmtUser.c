@@ -153,75 +153,75 @@ void mgmtCleanUpUsers() {
   sdbCloseTable(tsUserSdb);
 }
 
-int32_t mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int32_t      cols = 0;
-  SSchema *pSchema = tsGetSchema(pMeta);
-
-  pShow->bytes[cols] = TSDB_USER_LEN;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 6;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "privilege");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pMeta->numOfColumns = htons(cols);
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-
-  pShow->numOfRows = pConn->pAcct->acctInfo.numOfUsers;
-  pShow->pNode = pConn->pAcct->pUser;
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+int32_t mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+//  int32_t      cols = 0;
+//  SSchema *pSchema = tsGetSchema(pMeta);
+//
+//  pShow->bytes[cols] = TSDB_USER_LEN;
+//  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+//  strcpy(pSchema[cols].name, "name");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pShow->bytes[cols] = 6;
+//  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+//  strcpy(pSchema[cols].name, "privilege");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pShow->bytes[cols] = 8;
+//  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+//  strcpy(pSchema[cols].name, "created time");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pMeta->numOfColumns = htons(cols);
+//  pShow->numOfColumns = cols;
+//
+//  pShow->offset[0] = 0;
+//  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+//
+//  pShow->numOfRows = pConn->pAcct->acctInfo.numOfUsers;
+//  pShow->pNode = pConn->pAcct->pUser;
+//  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   return 0;
 }
 
-int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t       numOfRows = 0;
-  SUserObj *pUser = NULL;
-  char *    pWrite;
-  int32_t       cols = 0;
-
-  while (numOfRows < rows) {
-    pUser = (SUserObj *)pShow->pNode;
-    if (pUser == NULL) break;
-    pShow->pNode = (void *)pUser->next;
-
-    cols = 0;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pUser->user);
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (pUser->superAuth) {
-      strcpy(pWrite, "super");
-    } else if (pUser->writeAuth) {
-      strcpy(pWrite, "write");
-    } else {
-      strcpy(pWrite, "read");
-    }
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pUser->createdTime;
-    cols++;
-
-    numOfRows++;
-  }
-  pShow->numOfReads += numOfRows;
+//  SUserObj *pUser = NULL;
+//  char *    pWrite;
+//  int32_t       cols = 0;
+//
+//  while (numOfRows < rows) {
+//    pUser = (SUserObj *)pShow->pNode;
+//    if (pUser == NULL) break;
+//    pShow->pNode = (void *)pUser->next;
+//
+//    cols = 0;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    strcpy(pWrite, pUser->user);
+//    cols++;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    if (pUser->superAuth) {
+//      strcpy(pWrite, "super");
+//    } else if (pUser->writeAuth) {
+//      strcpy(pWrite, "write");
+//    } else {
+//      strcpy(pWrite, "read");
+//    }
+//    cols++;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    *(int64_t *)pWrite = pUser->createdTime;
+//    cols++;
+//
+//    numOfRows++;
+//  }
+//  pShow->numOfReads += numOfRows;
   return numOfRows;
 }
 
@@ -278,4 +278,10 @@ void *mgmtUserActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
 void *mgmtUserActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
   tfree(row);
   return NULL;
+}
+
+SUserObj *mgmtGetUserFromConn(void *pConn) {
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(pConn, &connInfo);
+  return mgmtGetUser(connInfo.user);
 }

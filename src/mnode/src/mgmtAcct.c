@@ -153,14 +153,14 @@ void mgmtCleanUpAcctsImp() {
 
 void (*mgmtCleanUpAccts)() = mgmtCleanUpAcctsImp;
 
-int32_t mgmtGetAcctMetaImp(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetAcctMetaImp(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
-int32_t (*mgmtGetAcctMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = mgmtGetAcctMetaImp;
+int32_t (*mgmtGetAcctMeta)(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) = mgmtGetAcctMetaImp;
 
-int32_t mgmtRetrieveAcctsImp(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveAcctsImp(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   return 0;
 }
 
-int32_t (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) = mgmtRetrieveAcctsImp;
+int32_t (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int32_t rows, void *pConn) = mgmtRetrieveAcctsImp;

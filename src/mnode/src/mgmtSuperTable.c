@@ -457,130 +457,130 @@ int32_t mgmtDropSuperTableColumnByName(SSuperTableObj *pStable, char *colName) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtGetSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int32_t cols = 0;
-
-  SDbObj *pDb = NULL;
-  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
-
-  if (pDb == NULL) return TSDB_CODE_DB_NOT_SELECTED;
-
-  SSchema *pSchema = tsGetSchema(pMeta);
-
-  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created_time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "columns");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "tags");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "tables");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pMeta->numOfColumns = htons(cols);
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-
-  pShow->numOfRows = pDb->numOfMetrics;
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+int32_t mgmtGetSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+//  int32_t cols = 0;
+//
+//  SDbObj *pDb = NULL;
+//  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+//
+//  if (pDb == NULL) return TSDB_CODE_DB_NOT_SELECTED;
+//
+//  SSchema *pSchema = tsGetSchema(pMeta);
+//
+//  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
+//  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+//  strcpy(pSchema[cols].name, "name");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pShow->bytes[cols] = 8;
+//  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+//  strcpy(pSchema[cols].name, "created_time");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pShow->bytes[cols] = 2;
+//  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+//  strcpy(pSchema[cols].name, "columns");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pShow->bytes[cols] = 2;
+//  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+//  strcpy(pSchema[cols].name, "tags");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pShow->bytes[cols] = 4;
+//  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+//  strcpy(pSchema[cols].name, "tables");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pMeta->numOfColumns = htons(cols);
+//  pShow->numOfColumns = cols;
+//
+//  pShow->offset[0] = 0;
+//  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+//
+//  pShow->numOfRows = pDb->numOfMetrics;
+//  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   return 0;
 }
 
-int32_t mgmtRetrieveSuperTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t         numOfRows = 0;
-  char *          pWrite;
-  int32_t         cols = 0;
-  SSuperTableObj *pTable = NULL;
-  char            prefix[20] = {0};
-  int32_t         prefixLen;
-
-  SDbObj *pDb = NULL;
-  if (pConn->pDb != NULL) {
-    pDb = mgmtGetDb(pConn->pDb->name);
-  }
-
-  if (pDb == NULL) {
-    return 0;
-  }
-
-  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-    if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 && strcmp(pConn->pUser->user, "monitor") != 0 ) {
-      return 0;
-    }
-  }
-
-  strcpy(prefix, pDb->name);
-  strcat(prefix, TS_PATH_DELIMITER);
-  prefixLen = strlen(prefix);
-
-  SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-  char metricName[TSDB_METER_NAME_LEN] = {0};
-
-  while (numOfRows < rows) {
-    pTable = (SSuperTableObj *)pShow->pNode;
-    if (pTable == NULL) break;
-    //pShow->pNode = (void *)pTable->next;
-
-    if (strncmp(pTable->tableId, prefix, prefixLen)) {
-      continue;
-    }
-
-    memset(metricName, 0, tListLen(metricName));
-    extractTableName(pTable->tableId, metricName);
-
-    if (pShow->payloadLen > 0 &&
-        patternMatch(pShow->payload, metricName, TSDB_METER_NAME_LEN, &info) != TSDB_PATTERN_MATCH)
-      continue;
-
-    cols = 0;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    extractTableName(pTable->tableId, pWrite);
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pTable->createdTime;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pTable->numOfColumns;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pTable->numOfTags;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pTable->numOfTables;
-    cols++;
-
-    numOfRows++;
-  }
-
-  pShow->numOfReads += numOfRows;
+//  char *          pWrite;
+//  int32_t         cols = 0;
+//  SSuperTableObj *pTable = NULL;
+//  char            prefix[20] = {0};
+//  int32_t         prefixLen;
+//
+//  SDbObj *pDb = NULL;
+//  if (pConn->pDb != NULL) {
+//    pDb = mgmtGetDb(pConn->pDb->name);
+//  }
+//
+//  if (pDb == NULL) {
+//    return 0;
+//  }
+//
+//  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+//    if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 && strcmp(pConn->pUser->user, "monitor") != 0 ) {
+//      return 0;
+//    }
+//  }
+//
+//  strcpy(prefix, pDb->name);
+//  strcat(prefix, TS_PATH_DELIMITER);
+//  prefixLen = strlen(prefix);
+//
+//  SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
+//  char metricName[TSDB_METER_NAME_LEN] = {0};
+//
+//  while (numOfRows < rows) {
+//    pTable = (SSuperTableObj *)pShow->pNode;
+//    if (pTable == NULL) break;
+//    //pShow->pNode = (void *)pTable->next;
+//
+//    if (strncmp(pTable->tableId, prefix, prefixLen)) {
+//      continue;
+//    }
+//
+//    memset(metricName, 0, tListLen(metricName));
+//    extractTableName(pTable->tableId, metricName);
+//
+//    if (pShow->payloadLen > 0 &&
+//        patternMatch(pShow->payload, metricName, TSDB_METER_NAME_LEN, &info) != TSDB_PATTERN_MATCH)
+//      continue;
+//
+//    cols = 0;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    extractTableName(pTable->tableId, pWrite);
+//    cols++;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    *(int64_t *)pWrite = pTable->createdTime;
+//    cols++;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    *(int16_t *)pWrite = pTable->numOfColumns;
+//    cols++;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    *(int16_t *)pWrite = pTable->numOfTags;
+//    cols++;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    *(int32_t *)pWrite = pTable->numOfTables;
+//    cols++;
+//
+//    numOfRows++;
+//  }
+//
+//  pShow->numOfReads += numOfRows;
   return numOfRows;
 }
 

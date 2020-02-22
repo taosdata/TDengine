@@ -27,7 +27,7 @@ extern "C" {
 int32_t  mgmtInitShell();
 void mgmtCleanUpShell();
 
-extern int32_t (*mgmtCheckRedirectMsg)(SConnObj *pConn, int32_t msgType);
+extern int32_t (*mgmtCheckRedirectMsg)(void *pConn, int32_t msgType);
 extern int32_t (*mgmtProcessAlterAcctMsg)(void *pCont, int32_t contLen, void *ahandle);
 extern int32_t (*mgmtProcessCreateDnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
 extern int32_t (*mgmtProcessCfgMnodeMsg)(void *pCont, int32_t contLen, void *ahandle);

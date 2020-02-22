@@ -22,21 +22,21 @@ extern "C" {
 
 #include "mnode.h"
 
-int32_t mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int32_t mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
 
-int32_t mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int32_t mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
 
-int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
+int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
+int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 int32_t mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg);
 
-int32_t mgmtKillQuery(char *qidstr, SConnObj *pConn);
+int32_t mgmtKillQuery(char *qidstr, void *pConn);
 
-int32_t mgmtKillStream(char *qidstr, SConnObj *pConn);
+int32_t mgmtKillStream(char *qidstr, void *pConn);
 
-int32_t mgmtKillConnection(char *qidstr, SConnObj *pConn);
+int32_t mgmtKillConnection(char *qidstr, void *pConn);
 
 #ifdef __cplusplus
 }

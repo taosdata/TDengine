@@ -22,8 +22,8 @@ extern "C" {
 
 #include "mnode.h"
 
-int mgmtGetConnsMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveConns(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+int mgmtGetConnsMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
+int mgmtRetrieveConns(SShowObj *pShow, char *data, int rows, void *pConn);
 
 #ifdef __cplusplus
 }

@@ -26,6 +26,7 @@
 #include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
 #include "mgmtTable.h"
+#include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
 extern void *tsVgroupSdb;
@@ -472,20 +473,6 @@ int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
   return code;
 }
 
-int32_t mgmtUseDb(SConnObj *pConn, char *name) {
-  SDbObj  *pDb;
-  int32_t code = TSDB_CODE_INVALID_DB;
-
-  // here change the default db for connect.
-  pDb = mgmtGetDb(name);
-  if (pDb) {
-    pConn->pDb = pDb;
-    code = 0;
-  }
-
-  return code;
-}
-
 int32_t mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup) {
   pVgroup->next = pDb->pHead;
   pVgroup->prev = NULL;
@@ -540,10 +527,12 @@ void mgmtCleanUpDbs() {
   sdbCloseTable(tsDbSdb);
 }
 
-int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SSchema *pSchema = tsGetSchema(pMeta);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
 
   pShow->bytes[cols] = TSDB_DB_NAME_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -564,7 +553,7 @@ int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   cols++;
 
 #ifndef __CLOUD_VERSION__
-  if (strcmp(pConn->pAcct->user, "root") == 0) {
+  if (strcmp(pUser->user, "root") == 0) {
 #endif
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
@@ -576,7 +565,7 @@ int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
 #endif
 
 #ifndef __CLOUD_VERSION__
-  if (strcmp(pConn->pAcct->user, "root") == 0) {
+  if (strcmp(pUser->user, "root") == 0) {
 #endif
     pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
@@ -600,7 +589,7 @@ int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   cols++;
 
 #ifndef __CLOUD_VERSION__
-  if (strcmp(pConn->pAcct->user, "root") == 0) {
+  if (strcmp(pUser->user, "root") == 0) {
 #endif
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
@@ -675,8 +664,8 @@ int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  pShow->numOfRows = pConn->pAcct->acctInfo.numOfDbs;
-  pShow->pNode = pConn->pAcct->pHead;
+  pShow->numOfRows = pUser->pAcct->acctInfo.numOfDbs;
+  pShow->pNode = pUser->pAcct->pHead;
 
   return 0;
 }
@@ -687,18 +676,20 @@ char *mgmtGetDbStr(char *src) {
   return ++pos;
 }
 
-int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
   SDbObj *pDb = NULL;
   char *  pWrite;
   int32_t cols = 0;
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
 
   while (numOfRows < rows) {
     pDb = (SDbObj *)pShow->pNode;
     if (pDb == NULL) break;
     pShow->pNode = (void *)pDb->next;
     if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-      if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 && strcmp(pConn->pUser->user, "monitor") != 0 ) {
+      if (strcmp(pUser->user, "root") != 0 && strcmp(pUser->user, "_root") != 0 && strcmp(pUser->user, "monitor") != 0 ) {
         continue;
       }
     }
@@ -718,7 +709,7 @@ int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pCo
     cols++;
 
 #ifndef __CLOUD_VERSION__
-    if (strcmp(pConn->pAcct->user, "root") == 0) {
+    if (strcmp(pUser->user, "root") == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int32_t *)pWrite = pDb->numOfVgroups;
@@ -728,7 +719,7 @@ int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pCo
 #endif
 
 #ifndef __CLOUD_VERSION__
-    if (strcmp(pConn->pAcct->user, "root") == 0) {
+    if (strcmp(pUser->user, "root") == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int16_t *)pWrite = pDb->cfg.replications;
@@ -746,7 +737,7 @@ int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pCo
     cols++;
 
 #ifndef __CLOUD_VERSION__
-    if (strcmp(pConn->pAcct->user, "root") == 0) {
+    if (strcmp(pUser->user, "root") == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int32_t *)pWrite = pDb->cfg.maxSessions - 1;  // table num can be created should minus 1

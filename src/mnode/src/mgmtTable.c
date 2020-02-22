@@ -229,54 +229,54 @@ void mgmtCleanUpMeters() {
   mgmtCleanUpSuperTables();
 }
 
-int32_t mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int32_t cols = 0;
-
-  SDbObj *pDb = NULL;
-  if (pConn->pDb != NULL) {
-    pDb = mgmtGetDb(pConn->pDb->name);
-  }
-
-  if (pDb == NULL) {
-    return TSDB_CODE_DB_NOT_SELECTED;
-  }
-
-  SSchema *pSchema = tsGetSchema(pMeta);
-
-  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "table_name");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created_time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "columns");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "stable");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pMeta->numOfColumns = htons(cols);
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) {
-    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-  }
-
-  pShow->numOfRows = pDb->numOfTables;
-  pShow->rowSize   = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+int32_t mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+//  int32_t cols = 0;
+//
+//  SDbObj *pDb = NULL;
+//  if (pConn->pDb != NULL) {
+//    pDb = mgmtGetDb(pConn->pDb->name);
+//  }
+//
+//  if (pDb == NULL) {
+//    return TSDB_CODE_DB_NOT_SELECTED;
+//  }
+//
+//  SSchema *pSchema = tsGetSchema(pMeta);
+//
+//  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
+//  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+//  strcpy(pSchema[cols].name, "table_name");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pShow->bytes[cols] = 8;
+//  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+//  strcpy(pSchema[cols].name, "created_time");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pShow->bytes[cols] = 2;
+//  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+//  strcpy(pSchema[cols].name, "columns");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
+//  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+//  strcpy(pSchema[cols].name, "stable");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pMeta->numOfColumns = htons(cols);
+//  pShow->numOfColumns = cols;
+//
+//  pShow->offset[0] = 0;
+//  for (int32_t i = 1; i < cols; ++i) {
+//    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+//  }
+//
+//  pShow->numOfRows = pDb->numOfTables;
+//  pShow->rowSize   = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   return 0;
 }
@@ -292,117 +292,117 @@ static void mgmtVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_
   }
 }
 
-int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows  = 0;
-  int32_t numOfRead  = 0;
-  int32_t cols       = 0;
-  void    *pTable    = NULL;
-  char    *pWrite    = NULL;
-
-  int16_t numOfColumns;
-  int64_t createdTime;
-  char    *tableId;
-  char    *superTableId;
-  SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-
-  SDbObj *pDb = NULL;
-  if (pConn->pDb != NULL) {
-    pDb = mgmtGetDb(pConn->pDb->name);
-  }
-
-  if (pDb == NULL) {
-    return 0;
-  }
-
-  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-    if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 &&
-        strcmp(pConn->pUser->user, "monitor") != 0) {
-      return 0;
-    }
-  }
-
-  char prefix[20] = {0};
-  strcpy(prefix, pDb->name);
-  strcat(prefix, TS_PATH_DELIMITER);
-  int32_t prefixLen = strlen(prefix);
-
-  while (numOfRows < rows) {
-    void *pNormalTableNode = sdbFetchRow(tsNormalTableSdb, pShow->pNode, (void **) &pTable);
-    if (pTable != NULL) {
-      SNormalTableObj *pNormalTable = (SNormalTableObj *) pTable;
-      pShow->pNode = pNormalTableNode;
-      tableId      = pNormalTable->tableId;
-      superTableId = NULL;
-      createdTime  = pNormalTable->createdTime;
-      numOfColumns = pNormalTable->numOfColumns;
-    } else {
-      void *pStreamTableNode = sdbFetchRow(tsStreamTableSdb, pShow->pNode, (void **) &pTable);
-      if (pTable != NULL) {
-        SStreamTableObj *pChildTable = (SStreamTableObj *) pTable;
-        pShow->pNode = pStreamTableNode;
-        tableId      = pChildTable->tableId;
-        superTableId = NULL;
-        createdTime  = pChildTable->createdTime;
-        numOfColumns = pChildTable->numOfColumns;
-      } else {
-        void *pChildTableNode = sdbFetchRow(tsChildTableSdb, pShow->pNode, (void **) &pTable);
-        if (pTable != NULL) {
-          SChildTableObj *pChildTable = (SChildTableObj *) pTable;
-          pShow->pNode = pChildTableNode;
-          tableId      = pChildTable->tableId;
-          superTableId = NULL;
-          createdTime  = pChildTable->createdTime;
-          numOfColumns = pChildTable->superTable->numOfColumns;
-        } else {
-          break;
-        }
-      }
-    }
-
-    // not belong to current db
-    if (strncmp(tableId, prefix, prefixLen)) {
-      continue;
-    }
-
-    char meterName[TSDB_METER_NAME_LEN] = {0};
-    memset(meterName, 0, tListLen(meterName));
-    numOfRead++;
-
-    // pattern compare for meter name
-    extractTableName(tableId, meterName);
-
-    if (pShow->payloadLen > 0 &&
-        patternMatch(pShow->payload, meterName, TSDB_METER_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
-      continue;
-    }
-
-    cols = 0;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strncpy(pWrite, meterName, TSDB_METER_NAME_LEN);
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *) pWrite = createdTime;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *) pWrite = numOfColumns;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (superTableId != NULL) {
-      extractTableName(superTableId, pWrite);
-    }
-    cols++;
-
-    numOfRows++;
-  }
-
-  pShow->numOfReads += numOfRead;
-  const int32_t NUM_OF_COLUMNS = 4;
-
-  mgmtVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+//  int32_t numOfRead  = 0;
+//  int32_t cols       = 0;
+//  void    *pTable    = NULL;
+//  char    *pWrite    = NULL;
+//
+//  int16_t numOfColumns;
+//  int64_t createdTime;
+//  char    *tableId;
+//  char    *superTableId;
+//  SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
+//
+//  SDbObj *pDb = NULL;
+//  if (pConn->pDb != NULL) {
+//    pDb = mgmtGetDb(pConn->pDb->name);
+//  }
+//
+//  if (pDb == NULL) {
+//    return 0;
+//  }
+//
+//  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+//    if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 &&
+//        strcmp(pConn->pUser->user, "monitor") != 0) {
+//      return 0;
+//    }
+//  }
+//
+//  char prefix[20] = {0};
+//  strcpy(prefix, pDb->name);
+//  strcat(prefix, TS_PATH_DELIMITER);
+//  int32_t prefixLen = strlen(prefix);
+//
+//  while (numOfRows < rows) {
+//    void *pNormalTableNode = sdbFetchRow(tsNormalTableSdb, pShow->pNode, (void **) &pTable);
+//    if (pTable != NULL) {
+//      SNormalTableObj *pNormalTable = (SNormalTableObj *) pTable;
+//      pShow->pNode = pNormalTableNode;
+//      tableId      = pNormalTable->tableId;
+//      superTableId = NULL;
+//      createdTime  = pNormalTable->createdTime;
+//      numOfColumns = pNormalTable->numOfColumns;
+//    } else {
+//      void *pStreamTableNode = sdbFetchRow(tsStreamTableSdb, pShow->pNode, (void **) &pTable);
+//      if (pTable != NULL) {
+//        SStreamTableObj *pChildTable = (SStreamTableObj *) pTable;
+//        pShow->pNode = pStreamTableNode;
+//        tableId      = pChildTable->tableId;
+//        superTableId = NULL;
+//        createdTime  = pChildTable->createdTime;
+//        numOfColumns = pChildTable->numOfColumns;
+//      } else {
+//        void *pChildTableNode = sdbFetchRow(tsChildTableSdb, pShow->pNode, (void **) &pTable);
+//        if (pTable != NULL) {
+//          SChildTableObj *pChildTable = (SChildTableObj *) pTable;
+//          pShow->pNode = pChildTableNode;
+//          tableId      = pChildTable->tableId;
+//          superTableId = NULL;
+//          createdTime  = pChildTable->createdTime;
+//          numOfColumns = pChildTable->superTable->numOfColumns;
+//        } else {
+//          break;
+//        }
+//      }
+//    }
+//
+//    // not belong to current db
+//    if (strncmp(tableId, prefix, prefixLen)) {
+//      continue;
+//    }
+//
+//    char meterName[TSDB_METER_NAME_LEN] = {0};
+//    memset(meterName, 0, tListLen(meterName));
+//    numOfRead++;
+//
+//    // pattern compare for meter name
+//    extractTableName(tableId, meterName);
+//
+//    if (pShow->payloadLen > 0 &&
+//        patternMatch(pShow->payload, meterName, TSDB_METER_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
+//      continue;
+//    }
+//
+//    cols = 0;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    strncpy(pWrite, meterName, TSDB_METER_NAME_LEN);
+//    cols++;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    *(int64_t *) pWrite = createdTime;
+//    cols++;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    *(int16_t *) pWrite = numOfColumns;
+//    cols++;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    if (superTableId != NULL) {
+//      extractTableName(superTableId, pWrite);
+//    }
+//    cols++;
+//
+//    numOfRows++;
+//  }
+//
+//  pShow->numOfReads += numOfRead;
+//  const int32_t NUM_OF_COLUMNS = 4;
+//
+//  mgmtVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
 
   return numOfRows;
 }

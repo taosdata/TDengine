@@ -244,6 +244,8 @@ typedef struct _db_obj {
   void *          vgTimer;
 } SDbObj;
 
+struct _acctObj;
+
 typedef struct _user_obj {
   char              user[TSDB_USER_LEN + 1];
   char              pass[TSDB_KEY_LEN];
@@ -254,6 +256,9 @@ typedef struct _user_obj {
   char              reserved[16];
   char              updateEnd[1];
   struct _user_obj *prev, *next;
+  struct _acctObj * pAcct;
+  SCMQqueryList *   pQList;  // query list
+  SCMStreamList *   pSList;  // stream list
 } SUserObj;
 
 typedef struct {
@@ -274,7 +279,7 @@ typedef struct {
   char    accessState;  // Checked by mgmt heartbeat message
 } SAcctInfo;
 
-typedef struct {
+typedef struct _acctObj {
   char      user[TSDB_USER_LEN + 1];
   char      pass[TSDB_KEY_LEN];
   SAcctCfg  cfg;
@@ -289,28 +294,6 @@ typedef struct {
   struct _connObj *pConn;
   pthread_mutex_t  mutex;
 } SAcctObj;
-
-typedef struct _connObj {
-  SAcctObj *       pAcct;
-  SDbObj *         pDb;
-  SUserObj *       pUser;
-  char             user[TSDB_USER_LEN];
-  uint64_t         stime;               // login time
-  char             superAuth : 1;       // super user flag
-  char             writeAuth : 1;       // write flag
-  char             killConnection : 1;  // kill the connection flag
-  uint8_t          usePublicIp : 1;     // if the connection request is publicIp
-  uint8_t          reserved : 4;
-  uint32_t         queryId;             // query ID to be killed
-  uint32_t         streamId;            // stream ID to be killed
-  uint32_t         ip;                  // shell IP
-  uint16_t         port;                // shell port
-  void *           thandle;
-  SCMQqueryList *         pQList;  // query list
-  SCMStreamList *         pSList;  // stream list
-  uint64_t         qhandle;
-  struct _connObj *prev, *next;
-} SConnObj;
 
 typedef struct {
   char spi;

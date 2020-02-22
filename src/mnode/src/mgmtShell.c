@@ -38,33 +38,44 @@
 
 #define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
 
-typedef int32_t (*GetMateFp)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-typedef int32_t (*RetrieveMetaFp)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
+typedef int32_t (*GetMateFp)(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
+typedef int32_t (*RetrieveMetaFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static GetMateFp* mgmtGetMetaFp;
 static RetrieveMetaFp* mgmtRetrieveFp;
 static void mgmtInitShowMsgFp();
 
 void *    tsShellConn = NULL;
-SConnObj *connList;
 
 static void mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *ahandle, int32_t code);
 static int32_t (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(void *pCont, int32_t contLen, void *ahandle);
 static int32_t mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-void      mgmtInitProcessShellMsg();
-int32_t       mgmtRedirectMsg(SConnObj *pConn, int32_t msgType);
-int32_t       mgmtKillQuery(char *queryId, SConnObj *pConn);
+void    mgmtInitProcessShellMsg();
+int32_t mgmtKillQuery(char *queryId, void *pConn);
 
-void mgmtProcessTranRequest(SSchedMsg *pSchedMsg) {
-  SIntMsg * pMsg = (SIntMsg *)(pSchedMsg->msg);
-  SConnObj *pConn = (SConnObj *)(pSchedMsg->thandle);
+void mgmtProcessTranRequest(SSchedMsg *sched) {
+  int8_t  msgType = *(int8_t *) (sched->msg);
+  int32_t contLen = *(int32_t *) (sched->msg  + sizeof(int8_t));
+  int8_t  *pCont  = sched->msg + sizeof(int32_t) + sizeof(int8_t);
+  void    *pConn  = sched->thandle;
 
-  char *cont = (char *)pMsg->content + sizeof(SMgmtHead);
-  int32_t   contLen = pMsg->msgLen - sizeof(SIntMsg) - sizeof(SMgmtHead);
+  (*mgmtProcessShellMsg[msgType])(pCont, contLen, pConn);
+  if (sched->msg) {
+    free(sched->msg);
+  }
+}
 
-  if (pConn->pAcct) (*mgmtProcessShellMsg[pMsg->msgType])(cont, contLen, pConn);
+void mgmtAddToTranRequest(int8_t type, void *pCont, int contLen, void *ahandle) {
+  SSchedMsg schedMsg;
+  schedMsg.msg = malloc(contLen + sizeof(int32_t) + sizeof(int8_t));
+  schedMsg.fp = mgmtProcessTranRequest;
+  schedMsg.tfp = NULL;
+  schedMsg.thandle = ahandle;
+  *(int8_t *) (schedMsg.msg) = type;
+  *(int32_t *) (schedMsg.msg + sizeof(int8_t)) = contLen;
+  memcpy(schedMsg.msg, pCont + sizeof(int32_t) + sizeof(int8_t), contLen);
 
-  if (pSchedMsg->msg) free(pSchedMsg->msg);
+  taosScheduleTask(tsMgmtTranQhandle, &schedMsg);
 }
 
 int32_t mgmtInitShell() {
@@ -72,14 +83,6 @@ int32_t mgmtInitShell() {
 
   mgmtInitProcessShellMsg();
   mgmtInitShowMsgFp();
-
-  int32_t size = sizeof(SConnObj) * tsMaxShellConns;
-  connList = (SConnObj *)malloc(size);
-  if (connList == NULL) {
-    mError("failed to malloc for connList to shell");
-    return -1;
-  }
-  memset(connList, 0, size);
 
   int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 4.0;
   if (numOfThreads < 1) numOfThreads = 1;
@@ -110,7 +113,6 @@ void mgmtCleanUpShell() {
     rpcClose(tsShellConn);
     tsShellConn = NULL;
   }
-  tfree(connList);
 }
 
 static void mgmtSetSchemaFromMeters(SSchema *pSchema, STabObj *pMeterObj, uint32_t numOfCols) {
@@ -137,27 +139,6 @@ static uint32_t mgmtSetMeterTagValue(char *pTags, STabObj *pMetric, STabObj *pMe
   memcpy(pTags, tagVal, tagsLen);
   return tagsLen;
 }
-
-//static char *mgmtAllocMsg(SConnObj *pConn, int32_t size, char **pMsg, STaosRsp **pRsp) {
-//  char *pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_TABLE_META_RSP, size);
-//  if (pStart == NULL) return 0;
-//  *pMsg = pStart;
-//  *pRsp = (STaosRsp *)(*pMsg);
-//
-//  return pStart;
-//  return 0;
-//}
-
-//static char *mgmtForMultiAllocMsg(SConnObj *pConn, int32_t size, char **pMsg, STaosRsp **pRsp) {
-//  char *pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_MULTI_TABLE_META_RSP, size);
-//  if (pStart == NULL) return 0;
-//  *pMsg = pStart;
-//  *pRsp = (STaosRsp *)(*pMsg);
-//
-//  return pStart;
-//  return 0;
-//}
-
 
 int32_t mgmtProcessMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SMeterInfoMsg *pInfo = (SMeterInfoMsg *)pMsg;
@@ -1380,13 +1361,7 @@ static void mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *a
     (*mgmtProcessShellMsg[(int8_t)type])(pCont, contLen, ahandle);
   } else {
     if (mgmtProcessShellMsg[(int8_t)type]) {
-      SSchedMsg schedMsg;
-      schedMsg.msg = malloc(contLen);
-      memcpy(schedMsg.msg, pCont, contLen);
-      schedMsg.fp = mgmtProcessTranRequest;
-      schedMsg.tfp = NULL;
-      schedMsg.thandle = ahandle;
-      taosScheduleTask(tsMgmtTranQhandle, &schedMsg);
+      mgmtAddToTranRequest((int8_t)type, pCont, contLen, ahandle);
     } else {
       mError("%s from shell is not processed", taosMsg[(int8_t)type]);
     }
@@ -1427,10 +1402,10 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_CONNECTION] = mgmtProcessKillConnectionMsg;
 }
 
-int32_t mgmtCheckRedirectMsgImp(SConnObj *pConn, int32_t msgType) {
+int32_t mgmtCheckRedirectMsgImp(void *pConn, int32_t msgType) {
   return 0;
 }
-int32_t (*mgmtCheckRedirectMsg)(SConnObj *pConn, int32_t msgType) = mgmtCheckRedirectMsgImp;
+int32_t (*mgmtCheckRedirectMsg)(void *pConn, int32_t msgType) = mgmtCheckRedirectMsgImp;
 
 int32_t mgmtProcessAlterAcctMsgImp(void *pCont, int32_t contLen, void *ahandle) {
   //return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_ACCT_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
