@@ -49,9 +49,9 @@ typedef struct {
   int      connType;
   char     label[12];
 
-  char     user[TSDB_UNI_LEN]; // meter ID
-  char     spi;       // security parameter index
-  char     encrypt;   // encrypt algorithm
+  char     user[TSDB_UNI_LEN];   // meter ID
+  char     spi;                  // security parameter index
+  char     encrypt;              // encrypt algorithm
   char     secret[TSDB_KEY_LEN]; // secret for the link
   char     ckey[TSDB_KEY_LEN];   // ciphering key 
 
@@ -62,7 +62,8 @@ typedef struct {
   void     *idPool;   // handle to ID pool
   void     *tmrCtrl;  // handle to timer
   void     *hash;     // handle returned by hash utility
-  void     *shandle;  // returned handle from lower layer during initialization
+  void     *tcphandle;// returned handle from TCP initialization
+  void     *udphandle;// returned handle from UDP initialization
   void     *pCache;   // connection cache
   pthread_mutex_t  mutex;
   struct _RpcConn *connList;  // connection list
@@ -79,6 +80,7 @@ typedef struct {
   int16_t   numOfTry;   // number of try for different servers
   int8_t    oldIndex;   // server IP index passed by app
   int8_t    redirect;   // flag to indicate redirect
+  int8_t    connType;   // connection type
   char      msg[0];     // RpcHead starts from here
 } SRpcReqContext;
 
@@ -113,6 +115,8 @@ typedef struct _RpcConn {
   char     *pReqMsg;    // request message including header
   int       reqMsgLen;  // request message length
   SRpcInfo *pRpc;       // the associated SRpcInfo
+  int       connType;   // connection type
+  int64_t   lockedBy;   // lock for connection
   SRpcReqContext *pContext; // request context
 } SRpcConn;
 
@@ -122,9 +126,16 @@ int tsRpcProgressTime = 10;  // milliseocnds
 int tsRpcMaxRetry;
 int tsRpcHeadSize;
 
+// server:0 client:1  tcp:2 udp:0
+#define RPC_CONN_UDPS   0
+#define RPC_CONN_UDPC   1
+#define RPC_CONN_TCPS   2
+#define RPC_CONN_TCPC   3
+#define RPC_CONN_TCP    2
+
 void *(*taosInitConn[])(char *ip, uint16_t port, char *label, int threads, void *fp, void *shandle) = {
-    taosInitUdpServer, 
-    taosInitUdpClient, 
+    taosInitUdpConnection,
+    taosInitUdpConnection,
     taosInitTcpServer, 
     taosInitTcpClient
 };
@@ -136,7 +147,7 @@ void (*taosCleanUpConn[])(void *thandle) = {
     taosCleanUpTcpClient
 };
 
-int (*taosSendData[])(uint32_t ip, uint16_t port, char *data, int len, void *chandle) = {
+int (*taosSendData[])(uint32_t ip, uint16_t port, void *data, int len, void *chandle) = {
     taosSendUdpData, 
     taosSendUdpData, 
     taosSendTcpServerData, 
@@ -157,19 +168,19 @@ void (*taosCloseConn[])(void *chandle) = {
     taosCloseTcpClientConnection
 };
 
-static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort);
+static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort, int8_t connType);
 static void      rpcCloseConn(void *thandle);
-static SRpcConn *rpcSetConnToServer(SRpcInfo *pRpc, SRpcIpSet ipSet);
+static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext);
 static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc);
 static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, char *user, char *hashstr);
 static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, char *user, char *hashstr);
 
 static void  rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext);
 static void  rpcSendQuickRsp(SRpcConn *pConn, int32_t code);
-static void  rpcSendErrorMsgToPeer(SRpcInfo *pRpc, char *pMsg, int32_t code, uint32_t ip, uint16_t port, void *chandle);
+static void  rpcSendErrorMsgToPeer(SRecvInfo *pRecv, int32_t code);
 static void  rpcSendMsgToPeer(SRpcConn *pConn, void *data, int dataLen);
 
-static void *rpcProcessMsgFromPeer(void *msg, int msgLen, uint32_t ip, uint16_t port, void *shandle, void *thandle, void *chandle);
+static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv);
 static void  rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead);
 static void  rpcProcessConnError(void *param, void *id);
 static void  rpcProcessRetryTimer(void *, void *);
@@ -181,6 +192,8 @@ static int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen);
 static SRpcHead *rpcDecompressRpcMsg(SRpcHead *pHead);
 static int   rpcAddAuthPart(SRpcConn *pConn, char *msg, int msgLen);
 static int   rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen);
+static void  rpcLockConn(SRpcConn *pConn);
+static void  rpcUnlockConn(SRpcConn *pConn);
 
 void *rpcOpen(SRpcInit *pInit) {
   SRpcInfo *pRpc;
@@ -194,7 +207,8 @@ void *rpcOpen(SRpcInit *pInit) {
   if(pInit->label) strcpy(pRpc->label, pInit->label);
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
-  pRpc->numOfThreads = pInit->numOfThreads>TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS:pInit->numOfThreads;
+  // pRpc->numOfThreads = pInit->numOfThreads>TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS:pInit->numOfThreads;
+  pRpc->numOfThreads = 1;
   if (pInit->localIp) strcpy(pRpc->localIp, pInit->localIp);
   pRpc->localPort = pInit->localPort;
   pRpc->afp = pInit->afp;
@@ -207,9 +221,12 @@ void *rpcOpen(SRpcInit *pInit) {
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
 
-  pRpc->shandle = (*taosInitConn[pRpc->connType])(pRpc->localIp, pRpc->localPort, pRpc->label, 
+  pRpc->tcphandle = (*taosInitConn[pRpc->connType|RPC_CONN_TCP])(pRpc->localIp, pRpc->localPort, pRpc->label, 
                                                   pRpc->numOfThreads, rpcProcessMsgFromPeer, pRpc);
-  if (pRpc->shandle == NULL) {
+  pRpc->udphandle = (*taosInitConn[pRpc->connType])(pRpc->localIp, pRpc->localPort, pRpc->label, 
+                                                  pRpc->numOfThreads, rpcProcessMsgFromPeer, pRpc);
+
+  if (pRpc->tcphandle == NULL || pRpc->udphandle == NULL) {
     tError("%s failed to init network, %s:%d", pRpc->label, pRpc->localIp, pRpc->localPort);
     rpcClose(pRpc);
     return NULL;
@@ -237,18 +254,20 @@ void *rpcOpen(SRpcInit *pInit) {
     return NULL;
   }
 
-  pRpc->hash = taosInitStrHash(pRpc->sessions, sizeof(pRpc), taosHashString);
-  if (pRpc->hash == NULL) {
-    tError("%s failed to init string hash", pRpc->label);
-    rpcClose(pRpc);
-    return NULL;
-  }
-
-  pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, tsShellActivityTimer*1000); 
-  if ( pRpc->pCache == NULL ) {
-    tError("%s failed to init connection cache", pRpc->label);
-    rpcClose(pRpc);
-    return NULL;
+  if (pRpc->connType == TAOS_CONN_SERVER) {
+    pRpc->hash = taosInitStrHash(pRpc->sessions, sizeof(pRpc), taosHashString);
+    if (pRpc->hash == NULL) {
+      tError("%s failed to init string hash", pRpc->label);
+      rpcClose(pRpc);
+      return NULL;
+    }
+  } else {
+    pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, tsShellActivityTimer*1000); 
+    if ( pRpc->pCache == NULL ) {
+      tError("%s failed to init connection cache", pRpc->label);
+      rpcClose(pRpc);
+      return NULL;
+    }
   }
 
   pthread_mutex_init(&pRpc->mutex, NULL);
@@ -261,7 +280,8 @@ void *rpcOpen(SRpcInit *pInit) {
 void rpcClose(void *param) {
   SRpcInfo *pRpc = (SRpcInfo *)param;
 
-  (*taosCleanUpConn[pRpc->connType])(pRpc->shandle);
+  (*taosCleanUpConn[pRpc->connType | RPC_CONN_TCP])(pRpc->tcphandle);
+  (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
 
   for (int i = 0; i < pRpc->sessions; ++i) {
     if (pRpc->connList[i].user[0]) {
@@ -313,6 +333,16 @@ void rpcSendRequest(void *shandle, SRpcIpSet *pIpSet, char type, void *pCont, in
   pContext->msgType = type;
   pContext->oldIndex = pIpSet->index;
 
+  pContext->connType = RPC_CONN_UDPC; 
+  if (contLen > 16000) pContext->connType = RPC_CONN_TCPC;
+
+  // connection type is application specific. 
+  // for TDengine, all the query, show commands shall have TCP connection
+  if (type == TSDB_MSG_TYPE_DNODE_QUERY || type == TSDB_MSG_TYPE_DNODE_RETRIEVE ||
+      type == TSDB_MSG_TYPE_STABLE_META || type == TSDB_MSG_TYPE_MULTI_TABLE_META ||
+      type == TSDB_MSG_TYPE_SHOW ) 
+    pContext->connType = RPC_CONN_TCPC;
+  
   rpcSendReqToServer(pRpc, pContext);
 
   return;
@@ -334,11 +364,11 @@ void rpcSendResponse(void *handle, int32_t code, void *pCont, int contLen) {
   contLen = rpcCompressRpcMsg(pCont, contLen);
   msgLen = rpcMsgLenFromCont(contLen);
 
-  pthread_mutex_lock(&pRpc->mutex);
+  rpcLockConn(pConn);
 
   if ( pConn->inType == 0 || pConn->user[0] == 0 ) {
     tTrace("%s %p, connection is already released, rsp wont be sent", pRpc->label, pConn);
-    pthread_mutex_lock(&pRpc->mutex);
+    rpcUnlockConn(pConn);
     return;
   }
 
@@ -346,7 +376,6 @@ void rpcSendResponse(void *handle, int32_t code, void *pCont, int contLen) {
   pHead->version = 1;
   pHead->msgType = pConn->inType+1;
   pHead->spi = 0;
-  pHead->tcp = 0;
   pHead->encrypt = 0;
   pHead->tranId = pConn->inTranId;
   pHead->sourceId = pConn->ownId;
@@ -364,7 +393,7 @@ void rpcSendResponse(void *handle, int32_t code, void *pCont, int contLen) {
   pConn->rspMsgLen = msgLen;
   if (pHead->content[0] == TSDB_CODE_ACTION_IN_PROGRESS) pConn->inTranId--;
 
-  pthread_mutex_unlock(&pRpc->mutex);
+  rpcUnlockConn(pConn);
 
   taosTmrStopA(&pConn->pTimer);
   rpcSendMsgToPeer(pConn, msg, msgLen);
@@ -388,7 +417,6 @@ void rpcSendRedirectRsp(void *thandle, SRpcIpSet *pIpSet) {
 
 void rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   SRpcConn  *pConn = (SRpcConn *)thandle;
-  SRpcInfo  *pRpc = pConn->pRpc;
 
   pInfo->clientIp = pConn->peerIp;
   pInfo->clientPort = pConn->peerPort;
@@ -396,7 +424,7 @@ void rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   strcpy(pInfo->user, pConn->user);
 }
 
-static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort) {
+static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort, int8_t connType) {
   SRpcConn *pConn;
 
   pConn = rpcAllocateClientConn(pRpc); 
@@ -406,12 +434,14 @@ static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort)
     pConn->peerIp = inet_addr(peerIpStr);
     pConn->peerPort = peerPort;
     strcpy(pConn->user, pRpc->user);
+    pConn->connType = connType;
 
-    if (taosOpenConn[pRpc->connType]) {
-      pConn->chandle = (*taosOpenConn[pRpc->connType])(pRpc->shandle, pConn, pConn->peerIpstr, pConn->peerPort);
+    if (taosOpenConn[connType]) {
+      void *shandle = (connType & RPC_CONN_TCP)? pRpc->tcphandle:pRpc->udphandle;
+      pConn->chandle = (*taosOpenConn[connType])(shandle, pConn, pConn->peerIpstr, pConn->peerPort);
       if (pConn->chandle) {
-        tTrace("%s %p, rpc connection is set up, sid:%d id:%s ip:%s:%hu localPort:%d", pRpc->label, 
-                pConn, pConn->sid, pRpc->user, pConn->peerIpstr, pConn->peerPort, pConn->localPort);
+        tTrace("%s %p, rpc connection is set up, sid:%d id:%s ip:%s:%hu connType:%d", pRpc->label, 
+                pConn, pConn->sid, pRpc->user, pConn->peerIpstr, pConn->peerPort, pConn->connType);
       } else {
         tError("%s %p, failed to set up connection to ip:%s:%hu", pRpc->label, pConn, 
                 pConn->peerIpstr, pConn->peerPort);
@@ -429,18 +459,18 @@ static void rpcCloseConn(void *thandle) {
   SRpcConn *pConn = (SRpcConn *)thandle;
   SRpcInfo *pRpc = pConn->pRpc;
 
-  pthread_mutex_lock(&pRpc->mutex);
+  rpcLockConn(pConn);
 
   if (pConn->user[0]) {
     pConn->user[0] = 0;
-    if (taosCloseConn[pRpc->connType]) (*taosCloseConn[pRpc->connType])(pConn->chandle);
+    if (taosCloseConn[pConn->connType]) (*taosCloseConn[pConn->connType])(pConn->chandle);
 
     taosTmrStopA(&pConn->pTimer);
     taosTmrStopA(&pConn->pIdleTimer);
 
-    if ( pRpc->connType == TAOS_CONN_UDPS || pRpc->connType == TAOS_CONN_TCPS) {
+    if ( pRpc->connType == TAOS_CONN_SERVER) {
       char hashstr[40] = {0};
-      sprintf(hashstr, "%x:%x:%x", pConn->peerIp, pConn->peerUid, pConn->peerId);
+      sprintf(hashstr, "%x:%x:%x:%d", pConn->peerIp, pConn->peerUid, pConn->peerId, pConn->connType);
       taosDeleteStrHash(pRpc->hash, hashstr);
       rpcFreeOutMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
       pConn->pRspMsg = NULL;
@@ -458,7 +488,7 @@ static void rpcCloseConn(void *thandle) {
     tTrace("%s %p, rpc connection is closed", pRpc->label, pConn);
   }
 
-  pthread_mutex_unlock(&pRpc->mutex);
+  rpcUnlockConn(pConn);
 }
 
 static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
@@ -540,15 +570,17 @@ static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, char *user, char *hashst
   return pConn;
 }
 
-SRpcConn *rpcSetConnToServer(SRpcInfo *pRpc, SRpcIpSet ipSet) {
-  SRpcConn *pConn;
+static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext) {
+  SRpcConn   *pConn;
+  SRpcInfo   *pRpc = pContext->pRpc;
+  SRpcIpSet  *pIpSet = &pContext->ipSet;
 
-  pConn = rpcGetConnFromCache(pRpc->pCache, ipSet.ip[ipSet.index], ipSet.port, pRpc->user);
+  pConn = rpcGetConnFromCache(pRpc->pCache, pIpSet->ip[pIpSet->index], pIpSet->port, pRpc->user);
   if ( pConn == NULL ) {
     char ipstr[20] = {0};
-    tinet_ntoa(ipstr, ipSet.ip[ipSet.index]);
-    pConn = rpcOpenConn(pRpc, ipstr, ipSet.port);
-    pConn->destIp = ipSet.ip[ipSet.index];
+    tinet_ntoa(ipstr, pIpSet->ip[pIpSet->index]);
+    pConn = rpcOpenConn(pRpc, ipstr, pIpSet->port, pContext->connType);
+    if (pConn) pConn->destIp = pIpSet->ip[pIpSet->index];
   } 
 
   return pConn;
@@ -618,7 +650,7 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
   taosTmrStopA(&pConn->pTimer);
   pConn->retry = 0;
 
-  if (*pHead->content == TSDB_CODE_ACTION_IN_PROGRESS || pHead->tcp) {
+  if (*pHead->content == TSDB_CODE_ACTION_IN_PROGRESS) {
     if (pConn->tretry <= tsRpcMaxRetry) {
       pConn->tretry++;
       tTrace("%s %p, peer is still processing the transaction", pRpc->label, pConn);
@@ -638,13 +670,12 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t rpcProcessHead(SRpcInfo *pRpc, SRpcConn **ppConn, void *data, int dataLen, uint32_t ip) {
-  int32_t    sid, code = 0;
-  SRpcConn * pConn = NULL;
+static SRpcConn *rpcProcessHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
+  int32_t    sid;
+  SRpcConn  *pConn = NULL;
   char       hashstr[40] = {0};
 
-  *ppConn = NULL;
-  SRpcHead *pHead = (SRpcHead *)data;
+  SRpcHead *pHead = (SRpcHead *)pRecv->msg;
 
   sid = htonl(pHead->destId);
   pHead->code = htonl(pHead->code);
@@ -652,50 +683,57 @@ static int32_t rpcProcessHead(SRpcInfo *pRpc, SRpcConn **ppConn, void *data, int
 
   if (pHead->msgType >= TSDB_MSG_TYPE_MAX || pHead->msgType <= 0) {
     tTrace("%s sid:%d, invalid message type:%d", pRpc->label, sid, pHead->msgType);
-    return TSDB_CODE_INVALID_MSG_TYPE;
+    terrno = TSDB_CODE_INVALID_MSG_TYPE; return NULL;
   }
 
-  if (dataLen != pHead->msgLen) {
+  if (pRecv->msgLen != pHead->msgLen) {
     tTrace("%s sid:%d, %s has invalid length, dataLen:%d, msgLen:%d", pRpc->label, sid,
-           taosMsg[pHead->msgType], dataLen, pHead->msgLen);
-    return TSDB_CODE_INVALID_MSG_LEN;
+           taosMsg[pHead->msgType], pRecv->msgLen, pHead->msgLen);
+    terrno = TSDB_CODE_INVALID_MSG_LEN; return NULL;
   }
 
   if (sid < 0 || sid >= pRpc->sessions) {
     tTrace("%s sid:%d, sid is out of range, max sid:%d, %s discarded", pRpc->label, sid,
            pRpc->sessions, taosMsg[pHead->msgType]);
-    return TSDB_CODE_INVALID_SESSION_ID;
+    terrno = TSDB_CODE_INVALID_SESSION_ID; return NULL;
   }
 
-  if (sid == 0) sprintf(hashstr, "%x:%x:%x", ip, pHead->uid, pHead->sourceId);
+  if (sid == 0) sprintf(hashstr, "%x:%x:%x:%d", pRecv->ip, pHead->uid, pHead->sourceId, pRecv->connType);
   pConn = rpcGetConnObj(pRpc, sid, pHead->user, hashstr);
-  if (pConn == NULL ) return terrno;
+  if (pConn == NULL) return NULL;
 
-  *ppConn = pConn;
+  rpcLockConn(pConn);
   sid = pConn->sid;
 
+  pConn->chandle = pRecv->chandle;
+  if (pConn->peerIp != pRecv->ip) {
+    pConn->peerIp = pRecv->ip;
+    char ipstr[20] = {0};
+    tinet_ntoa(ipstr, pRecv->ip);
+    strcpy(pConn->peerIpstr, ipstr);
+  }
+  
+  if (pRecv->port) pConn->peerPort = pRecv->port;
+  if (pHead->port)  pConn->peerPort = pHead->port; 
   if (pHead->uid) pConn->peerUid = pHead->uid;
 
-  if (pHead->tcp) {
-    tTrace("%s %p, content will be transfered via TCP", pRpc->label, pConn);
-    if (pConn->outType) taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
-    return TSDB_CODE_ALREADY_PROCESSED;
+  terrno = rpcCheckAuthentication(pConn, (char *)pHead, pRecv->msgLen);
+  if (terrno == 0) {
+    if (pHead->msgType != TSDB_MSG_TYPE_REG && pHead->encrypt) {
+      // decrypt here
+    }
+
+    if ( rpcIsReq(pHead->msgType) ) {
+      terrno = rpcProcessReqHead(pConn, pHead);
+      pConn->connType = pRecv->connType;
+    } else {
+      terrno = rpcProcessRspHead(pConn, pHead);
+    }
   }
 
-  code = rpcCheckAuthentication(pConn, (char *)pHead, dataLen);
-  if ( code != 0 ) return code;
+  rpcUnlockConn(pConn);
 
-  if (pHead->msgType != TSDB_MSG_TYPE_REG && pHead->encrypt) {
-    // decrypt here
-  }
-
-  if ( rpcIsReq(pHead->msgType) ) {
-    code = rpcProcessReqHead(pConn, pHead);
-  } else {
-    code = rpcProcessRspHead(pConn, pHead);
-  }
-
-  return code;
+  return pConn;
 }
 
 static void rpcProcessBrokenLink(SRpcConn *pConn) {
@@ -713,45 +751,29 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
   rpcCloseConn(pConn);
 }
 
-static void *rpcProcessMsgFromPeer(void *msg, int msgLen, uint32_t ip, uint16_t port, void *shandle, void *thandle, void *chandle) {
-  SRpcHead  *pHead = (SRpcHead *)msg;
-  SRpcInfo  *pRpc = (SRpcInfo *)shandle;
-  SRpcConn  *pConn = (SRpcConn *)thandle;
+static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
+  SRpcHead  *pHead = (SRpcHead *)pRecv->msg;
+  SRpcInfo  *pRpc = (SRpcInfo *)pRecv->shandle;
+  SRpcConn  *pConn = (SRpcConn *)pRecv->thandle;
   int32_t    code = 0;
 
-  tDump(msg, msgLen);
+  tDump(pRecv->msg, pRecv->msgLen);
 
-  if (ip==0 && pConn) {
+  // underlying UDP layer does not know it is server or client
+  pRecv->connType = pRecv->connType | pRpc->connType; 
+
+  if (pRecv->ip==0 && pConn) {
     rpcProcessBrokenLink(pConn); 
-    tfree(msg);
+    tfree(pRecv->msg);
     return NULL;
   }
 
-  pthread_mutex_lock(&pRpc->mutex);
-
-  code = rpcProcessHead(pRpc, &pConn, msg, msgLen, ip);
-
-  if (pConn) {
-    // update connection info
-    pConn->chandle = chandle;
-    if (pConn->peerIp != ip) {
-      pConn->peerIp = ip;
-      char ipstr[20] = {0};
-      tinet_ntoa(ipstr, ip);
-      strcpy(pConn->peerIpstr, ipstr);
-    }
-  
-    if (port) pConn->peerPort = port;
-    if (pHead->port)  // port maybe changed by the peer
-      pConn->peerPort = pHead->port;
-  }
-
-  pthread_mutex_unlock(&pRpc->mutex);
+  pConn = rpcProcessHead(pRpc, pRecv);
 
   if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16)) {
     tTrace("%s %p, %s received from 0x%x:%hu, parse code:%x len:%d source:0x%08x dest:0x%08x tranId:%d",
-        pRpc->label, pConn, taosMsg[pHead->msgType], ip, port, code, 
-        msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
+        pRpc->label, pConn, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, code, 
+        pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 
   if (pConn && pRpc->idleTime) {
@@ -761,7 +783,7 @@ static void *rpcProcessMsgFromPeer(void *msg, int msgLen, uint32_t ip, uint16_t 
   if (code != TSDB_CODE_ALREADY_PROCESSED) {
     if (code != 0) { // parsing error
       if ( rpcIsReq(pHead->msgType) ) {
-        rpcSendErrorMsgToPeer(pRpc, msg, code, ip, port, chandle);
+        rpcSendErrorMsgToPeer(pRecv, code);
         tTrace("%s %p, %s is sent with error code:%x", pRpc->label, pConn, taosMsg[pHead->msgType+1], code);
       } 
     } else { // parsing OK
@@ -769,7 +791,7 @@ static void *rpcProcessMsgFromPeer(void *msg, int msgLen, uint32_t ip, uint16_t 
     }
   }
 
-  if ( code != 0 ) free (msg);
+  if ( code != 0 ) free (pRecv->msg);
   return pConn;
 }
 
@@ -816,7 +838,6 @@ static void rpcSendQuickRsp(SRpcConn *pConn, int32_t code) {
   pHead->version = 1;
   pHead->msgType = pConn->inType+1;
   pHead->spi = 0;
-  pHead->tcp = 0;
   pHead->encrypt = 0;
   pHead->tranId = pConn->inTranId;
   pHead->sourceId = pConn->ownId;
@@ -828,19 +849,18 @@ static void rpcSendQuickRsp(SRpcConn *pConn, int32_t code) {
   rpcSendMsgToPeer(pConn, msg, 0);
 }
 
-static void rpcSendErrorMsgToPeer(SRpcInfo *pRpc, char *pMsg, int32_t code, uint32_t ip, uint16_t port, void *chandle) {
+static void rpcSendErrorMsgToPeer(SRecvInfo *pRecv, int32_t code) {
   SRpcHead  *pRecvHead, *pReplyHead;
   char       msg[sizeof(SRpcHead) + sizeof(SRpcDigest) + sizeof(uint32_t) ];
-  uint32_t     timeStamp;
-  int          msgLen;
+  uint32_t   timeStamp;
+  int        msgLen;
 
-  pRecvHead = (SRpcHead *)pMsg;
+  pRecvHead = (SRpcHead *)pRecv->msg;
   pReplyHead = (SRpcHead *)msg;
 
   memset(msg, 0, sizeof(SRpcHead));
   pReplyHead->version = pRecvHead->version;
   pReplyHead->msgType = (char)(pRecvHead->msgType + 1);
-  pReplyHead->tcp = 0;
   pReplyHead->spi = 0;
   pReplyHead->encrypt = 0;
   pReplyHead->tranId = pRecvHead->tranId;
@@ -860,7 +880,7 @@ static void rpcSendErrorMsgToPeer(SRpcInfo *pRpc, char *pMsg, int32_t code, uint
   }
 
   pReplyHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
-  (*taosSendData[pRpc->connType])(ip, port, msg, msgLen, chandle);
+  (*taosSendData[pRecv->connType])(pRecv->ip, pRecv->port, msg, msgLen, pRecv->chandle);
 
   return; 
 }
@@ -872,19 +892,18 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   char       msgType = pContext->msgType;
 
   pContext->numOfTry++;
-  SRpcConn *pConn = rpcSetConnToServer(pRpc, pContext->ipSet);
+  SRpcConn *pConn = rpcSetupConnToServer(pContext);
   if (pConn == NULL) {
     pContext->code = terrno;
     taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
     return;
   }
 
-  pthread_mutex_lock(&pRpc->mutex);
+  rpcLockConn(pConn);
 
   // set the message header  
   pHead->version = 1;
   pHead->msgType = msgType;
-  pHead->tcp = 0;
   pHead->encrypt = 0;
   pConn->tranId++;
   if ( pConn->tranId == 0 ) pConn->tranId++;
@@ -903,10 +922,10 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   pConn->reqMsgLen = msgLen;
   pConn->pContext = pContext;
 
-  pthread_mutex_unlock(&pRpc->mutex);
+  rpcUnlockConn(pConn);
 
   rpcSendMsgToPeer(pConn, msg, msgLen);
-  //taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
+  taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
 }
 
 static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
@@ -928,7 +947,7 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
           (uint8_t)pHead->content[0], msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 
-  writtenLen = (*taosSendData[pRpc->connType])(pConn->peerIp, pConn->peerPort, (char *)pHead, msgLen, pConn->chandle);
+  writtenLen = (*taosSendData[pConn->connType])(pConn->peerIp, pConn->peerPort, pHead, msgLen, pConn->chandle);
 
   if (writtenLen != msgLen) {
     tError("%s %p, failed to send, dataLen:%d writtenLen:%d, reason:%s", pRpc->label, pConn, 
@@ -960,7 +979,7 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
   SRpcInfo *pRpc = pConn->pRpc;
   int       reportDisc = 0;
 
-  pthread_mutex_lock(&pRpc->mutex);
+  rpcLockConn(pConn);
 
   if (pConn->outType && pConn->user[0]) {
     tTrace("%s %p, expected %s is not received", pRpc->label, pConn, taosMsg[(int)pConn->outType + 1]);
@@ -982,7 +1001,7 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
     tTrace("%s %p, retry timer not processed", pRpc->label, pConn);
   }
 
-  pthread_mutex_unlock(&pRpc->mutex);
+  rpcUnlockConn(pConn);
 
   if (reportDisc && pConn->pContext) { 
     pConn->pContext->code = TSDB_CODE_NETWORK_UNAVAIL;
@@ -1007,7 +1026,7 @@ static void rpcProcessProgressTimer(void *param, void *tmrId) {
   SRpcConn *pConn = (SRpcConn *)param;
   SRpcInfo *pRpc = pConn->pRpc;
 
-  pthread_mutex_lock(&pRpc->mutex);
+  rpcLockConn(pConn);
 
   if (pConn->inType && pConn->user[0]) {
     tTrace("%s %p, progress timer expired, send progress", pRpc->label, pConn);
@@ -1017,7 +1036,7 @@ static void rpcProcessProgressTimer(void *param, void *tmrId) {
     tTrace("%s %p, progress timer:%p not processed", pRpc->label, pConn, tmrId);
   }
 
-  pthread_mutex_unlock(&pRpc->mutex);
+  rpcUnlockConn(pConn);
 }
 
 static void rpcFreeOutMsg(void *msg) {
@@ -1180,4 +1199,20 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
   return code;
 }
 
+static void rpcLockConn(SRpcConn *pConn) {
+  int64_t tid = taosGetPthreadId();
+  int       i = 0;
+  while (atomic_val_compare_exchange_64(&(pConn->lockedBy), 0, tid) != 0) {
+    if (++i % 1000 == 0) {
+      sched_yield();
+    }
+  }
+}
+
+static void rpcUnlockConn(SRpcConn *pConn) {
+  int64_t tid = taosGetPthreadId();
+  if (atomic_val_compare_exchange_64(&(pConn->lockedBy), tid, 0) != tid) {
+    assert(false);
+  }
+}
 

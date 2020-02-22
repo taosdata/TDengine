@@ -85,7 +85,6 @@ int main(int argc, char *argv[]) {
   int      msgSize = 128;
   int      numOfReqs = 0;
   int      appThreads = 1;
-  char     socketType[20] = "udp";
   char     serverIp[40] = "127.0.0.1";
   struct   timeval systemTime;
   int64_t  startTime, endTime;
@@ -113,9 +112,7 @@ int main(int argc, char *argv[]) {
   rpcInit.ckey         = "key";
 
   for (int i=1; i<argc; ++i) { 
-    if ( strcmp(argv[i], "-c")==0 && i < argc-1 ) {
-      strcpy(socketType, argv[++i]); 
-    } else if (strcmp(argv[i], "-p")==0 && i < argc-1) {
+    if (strcmp(argv[i], "-p")==0 && i < argc-1) {
       ipSet.port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") ==0 && i < argc-1) {
       ipSet.ip[0] = inet_addr(argv[++i]); 
@@ -138,7 +135,6 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
-      printf("  [-c ctype]: connection type:udp or tpc, default is:%s\n", socketType);
       printf("  [-i ip]: first server IP address, default is:%s\n", serverIp);
       printf("  [-p port]: server port number, default is:%d\n", ipSet.port);
       printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
@@ -154,7 +150,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  rpcInit.connType = strcasecmp(socketType, "udp") == 0 ? TAOS_CONN_UDPC : TAOS_CONN_TCPC;
+  rpcInit.connType = TAOS_CONN_CLIENT;
   taosInitLog("client.log", 100000, 10);
 
   void *pRpc = rpcOpen(&rpcInit);
