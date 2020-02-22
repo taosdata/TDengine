@@ -51,20 +51,20 @@ typedef struct {
   int   connType;     // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int   idleTime;     // milliseconds, 0 means idle timer is disabled
 
-  // the following is for client security only
+  // the following is for client app ecurity only
   char *user;         // user name
   char  spi;          // security parameter index
   char  encrypt;      // encrypt algorithm
   char *secret;       // key for authentication
   char *ckey;         // ciphering key
 
-  // call back to process incoming msg
-  void (*cfp)(char type, void *pCont, int contLen, void *ahandle, int32_t code);  
+  // call back to process incoming msg, code shall be ignored by server app
+  void (*cfp)(char type, void *pCont, int contLen, void *handle, int32_t code);  
 
-  // call back to process notify the ipSet changes
+  // call back to process notify the ipSet changes, for client app only
   void (*ufp)(void *ahandle, SRpcIpSet *pIpSet);
 
-  // call back to retrieve the client auth info 
+  // call back to retrieve the client auth info, for server app only 
   int  (*afp)(char *meterId, char *spi, char *encrypt, char *secret, char *ckey); 
 } SRpcInit;
 

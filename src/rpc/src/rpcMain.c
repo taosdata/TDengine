@@ -49,9 +49,9 @@ typedef struct {
   int      connType;
   char     label[12];
 
-  char     user[TSDB_UNI_LEN]; // meter ID
-  char     spi;       // security parameter index
-  char     encrypt;   // encrypt algorithm
+  char     user[TSDB_UNI_LEN];   // meter ID
+  char     spi;                  // security parameter index
+  char     encrypt;              // encrypt algorithm
   char     secret[TSDB_KEY_LEN]; // secret for the link
   char     ckey[TSDB_KEY_LEN];   // ciphering key 
 
@@ -169,7 +169,7 @@ void (*taosCloseConn[])(void *chandle) = {
 
 static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort, int8_t connType);
 static void      rpcCloseConn(void *thandle);
-static SRpcConn *rpcSetConnToServer(SRpcReqContext *pContext);
+static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext);
 static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc);
 static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, char *user, char *hashstr);
 static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, char *user, char *hashstr);
@@ -567,7 +567,7 @@ static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, char *user, char *hashst
   return pConn;
 }
 
-SRpcConn *rpcSetConnToServer(SRpcReqContext *pContext) {
+static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext) {
   SRpcConn   *pConn;
   SRpcInfo   *pRpc = pContext->pRpc;
   SRpcIpSet  *pIpSet = &pContext->ipSet;
@@ -888,7 +888,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   char       msgType = pContext->msgType;
 
   pContext->numOfTry++;
-  SRpcConn *pConn = rpcSetConnToServer(pContext);
+  SRpcConn *pConn = rpcSetupConnToServer(pContext);
   if (pConn == NULL) {
     pContext->code = terrno;
     taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
@@ -921,7 +921,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   pthread_mutex_unlock(&pRpc->mutex);
 
   rpcSendMsgToPeer(pConn, msg, msgLen);
-  //taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
+  taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
 }
 
 static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
