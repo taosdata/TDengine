@@ -36,11 +36,6 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 
   taos_init();
 
-  if (pTscMgmtConn == NULL || pVnodeConn == NULL) {
-    globalCode = TSDB_CODE_APP_ERROR;
-    return NULL;
-  }
-
   if (user == NULL) {
     globalCode = TSDB_CODE_INVALID_ACCT;
     return NULL;
@@ -63,14 +58,29 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
     }
   }
 
+  if (tscInitRpc(user, pass) != 0) {
+    globalCode = TSDB_CODE_NETWORK_UNAVAIL;
+    return NULL;
+  }
+
   if (ip && ip[0]) {
-    tscMgmtIpList.numOfIps = 3;
-    tscMgmtIpList.ip[0] = inet_addr(ip);
-    tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
-    tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
     tscMgmtIpList.index = 0;
     tscMgmtIpList.port = tsMgmtShellPort;
+    tscMgmtIpList.numOfIps = 1;
+    tscMgmtIpList.ip[0] = inet_addr(ip);
+
+    if (tsMasterIp[0] && strcmp(ip, tsMasterIp) != 0) {
+      tscMgmtIpList.numOfIps = 2;
+      tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
+    }
+
+    if (tsSecondIp[0] && strcmp(tsSecondIp, tsMasterIp) != 0) {
+      tscMgmtIpList.numOfIps = 3;
+      tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
+    }
   }
+
+  tscMgmtIpList.port = port ? port : tsMgmtShellPort;
 
   pObj = (STscObj *)malloc(sizeof(STscObj));
   if (NULL == pObj) {
@@ -208,7 +218,6 @@ int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
    * to free connection, which may cause segment fault, when the parse phrase is not even successfully executed.
    */
   pRes->qhandle = 0;
-  pSql->thandle = NULL;
 
   if (pRes->code == TSDB_CODE_SUCCESS) {
     tscDoQuery(pSql);
@@ -713,7 +722,6 @@ void taos_free_result_imp(TAOS_RES* res, int keepCmd) {
     /* Query rsp is not received from vnode, so the qhandle is NULL */
     tscTrace("%p qhandle is null, abort free, fp:%p", pSql, pSql->fp);
     if (pSql->fp != NULL) {
-      pSql->thandle = NULL;
       tscFreeSqlObj(pSql);
       tscTrace("%p Async SqlObj is freed by app", pSql);
     } else if (keepCmd) {
@@ -774,7 +782,6 @@ void taos_free_result_imp(TAOS_RES* res, int keepCmd) {
        *
        * Then this object will be reused and no free operation is required.
        */
-      pSql->thandle = NULL;
       if (keepCmd) {
         tscFreeSqlResult(pSql);
         tscTrace("%p sql result is freed by app while sql command is kept", pSql);
@@ -785,7 +792,6 @@ void taos_free_result_imp(TAOS_RES* res, int keepCmd) {
     }
   } else {
     // if no free resource msg is sent to vnode, we free this object immediately.
-    pSql->thandle = NULL;
 
     if (pSql->fp) {
       assert(pRes->numOfRows == 0 || (pCmd->command > TSDB_SQL_LOCAL));
@@ -896,11 +902,6 @@ void taos_stop_query(TAOS_RES *res) {
   }
 
   if (pSql->cmd.command >= TSDB_SQL_LOCAL) {
-    return;
-  }
-
-  if (pSql->thandle == NULL) {
-    tscTrace("%p no connection, abort cancel", res);
     return;
   }
 
@@ -1147,7 +1148,6 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
    * to free connection, which may cause segment fault, when the parse phrase is not even successfully executed.
    */
   pRes->qhandle = 0;
-  pSql->thandle = NULL;
   free(str);
 
   if (pRes->code != TSDB_CODE_SUCCESS) {

@@ -34,8 +34,8 @@ extern int32_t   (*mgmtCheckDbLimit)(SAcctObj *pAcct);
 extern int32_t   (*mgmtCheckTableLimit)(SAcctObj *pAcct, SCreateTableMsg *pCreate);
 extern void      (*mgmtCheckAcct)();
 extern void      (*mgmtCleanUpAccts)();
-extern int32_t   (*mgmtGetAcctMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-extern int32_t   (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
+extern int32_t   (*mgmtGetAcctMeta)(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
+extern int32_t   (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 #ifdef __cplusplus
 }

@@ -248,168 +248,168 @@ void mgmtSetVgroupIdPool() {
 
 void mgmtCleanUpVgroups() { sdbCloseTable(tsVgroupSdb); }
 
-int32_t mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int32_t cols = 0;
-
-  SDbObj *pDb = NULL;
-  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
-
-  if (pDb == NULL) return TSDB_CODE_DB_NOT_SELECTED;
-
-  SSchema *pSchema = tsGetSchema(pMeta);
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "vgId");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "meters");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 9;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "vgroup status");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  int32_t maxReplica = 0;
-  SVgObj  *pVgroup   = NULL;
-  STableInfo *pTable = NULL;
-  if (pShow->payloadLen > 0 ) {
-    pTable = mgmtGetTable(pShow->payload);
-    if (NULL == pTable) {
-      return TSDB_CODE_INVALID_TABLE_ID;
-    }
-
-    pVgroup = mgmtGetVgroup(pTable->vgId);
-    if (NULL == pVgroup) return TSDB_CODE_INVALID_TABLE_ID;
-
-    maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
-  } else {
-    SVgObj *pVgroup = pDb->pHead;
-    while (pVgroup != NULL) {
-      maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
-      pVgroup = pVgroup->next;
-    }
-  }
-
-  for (int32_t i = 0; i < maxReplica; ++i) {
-    pShow->bytes[cols] = 16;
-    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "ip");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
-
-    pShow->bytes[cols] = 2;
-    pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-    strcpy(pSchema[cols].name, "vnode");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
-
-    pShow->bytes[cols] = 9;
-    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "vnode status");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
-
-    pShow->bytes[cols] = 16;
-    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "public ip");
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
-    cols++;
-  }
-
-  pMeta->numOfColumns = htons(cols);
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-
-  if (NULL == pTable) {
-    pShow->numOfRows = pDb->numOfVgroups;
-    pShow->pNode = pDb->pHead;
-  } else {
-    pShow->numOfRows = 1;
-    pShow->pNode = pVgroup;
-  }
+int32_t mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+//  int32_t cols = 0;
+//
+//  SDbObj *pDb = NULL;
+//  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+//
+//  if (pDb == NULL) return TSDB_CODE_DB_NOT_SELECTED;
+//
+//  SSchema *pSchema = tsGetSchema(pMeta);
+//
+//  pShow->bytes[cols] = 4;
+//  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+//  strcpy(pSchema[cols].name, "vgId");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pShow->bytes[cols] = 4;
+//  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+//  strcpy(pSchema[cols].name, "meters");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  pShow->bytes[cols] = 9;
+//  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+//  strcpy(pSchema[cols].name, "vgroup status");
+//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//  cols++;
+//
+//  int32_t maxReplica = 0;
+//  SVgObj  *pVgroup   = NULL;
+//  STableInfo *pTable = NULL;
+//  if (pShow->payloadLen > 0 ) {
+//    pTable = mgmtGetTable(pShow->payload);
+//    if (NULL == pTable) {
+//      return TSDB_CODE_INVALID_TABLE_ID;
+//    }
+//
+//    pVgroup = mgmtGetVgroup(pTable->vgId);
+//    if (NULL == pVgroup) return TSDB_CODE_INVALID_TABLE_ID;
+//
+//    maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
+//  } else {
+//    SVgObj *pVgroup = pDb->pHead;
+//    while (pVgroup != NULL) {
+//      maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
+//      pVgroup = pVgroup->next;
+//    }
+//  }
+//
+//  for (int32_t i = 0; i < maxReplica; ++i) {
+//    pShow->bytes[cols] = 16;
+//    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+//    strcpy(pSchema[cols].name, "ip");
+//    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//    cols++;
+//
+//    pShow->bytes[cols] = 2;
+//    pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+//    strcpy(pSchema[cols].name, "vnode");
+//    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//    cols++;
+//
+//    pShow->bytes[cols] = 9;
+//    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+//    strcpy(pSchema[cols].name, "vnode status");
+//    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//    cols++;
+//
+//    pShow->bytes[cols] = 16;
+//    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+//    strcpy(pSchema[cols].name, "public ip");
+//    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//    cols++;
+//  }
+//
+//  pMeta->numOfColumns = htons(cols);
+//  pShow->numOfColumns = cols;
+//
+//  pShow->offset[0] = 0;
+//  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+//
+//  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+//
+//  if (NULL == pTable) {
+//    pShow->numOfRows = pDb->numOfVgroups;
+//    pShow->pNode = pDb->pHead;
+//  } else {
+//    pShow->numOfRows = 1;
+//    pShow->pNode = pVgroup;
+//  }
 
   return 0;
 }
 
-int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
-  SVgObj *pVgroup = NULL;
-  char *  pWrite;
-  int32_t cols = 0;
-  char    ipstr[20];
-
-  int32_t maxReplica = 0;
-
-  SDbObj *pDb = NULL;
-  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
-  assert(pDb != NULL);
-
-  pVgroup = pDb->pHead;
-  while (pVgroup != NULL) {
-    maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
-    pVgroup = pVgroup->next;
-  }
-
-  while (numOfRows < rows) {
-    //    pShow->pNode = sdbFetchRow(tsVgroupSdb, pShow->pNode, (void **)&pVgroup);
-    pVgroup = (SVgObj *)pShow->pNode;
-    if (pVgroup == NULL) break;
-    pShow->pNode = (void *)pVgroup->next;
-
-    cols = 0;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pVgroup->vgId;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pVgroup->numOfTables;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, taosGetVgroupLbStatusStr(pVgroup->lbStatus));
-    cols++;
-
-    for (int32_t i = 0; i < maxReplica; ++i) {
-      tinet_ntoa(ipstr, pVgroup->vnodeGid[i].ip);
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, ipstr);
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int16_t *)pWrite = pVgroup->vnodeGid[i].vnode;
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      if (pVgroup->vnodeGid[i].ip != 0) {
-        char *vnodeStatus = mgmtGetVnodeStatus(pVgroup, pVgroup->vnodeGid + i);
-        strcpy(pWrite, vnodeStatus);
-      } else {
-        strcpy(pWrite, "null");
-      }
-      cols++;
-
-      tinet_ntoa(ipstr, pVgroup->vnodeGid[i].publicIp);
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, ipstr);
-      cols++;
-    }
-
-    numOfRows++;
-  }
-
-  pShow->numOfReads += numOfRows;
+//  SVgObj *pVgroup = NULL;
+//  char *  pWrite;
+//  int32_t cols = 0;
+//  char    ipstr[20];
+//
+//  int32_t maxReplica = 0;
+//
+//  SDbObj *pDb = NULL;
+//  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+//  assert(pDb != NULL);
+//
+//  pVgroup = pDb->pHead;
+//  while (pVgroup != NULL) {
+//    maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
+//    pVgroup = pVgroup->next;
+//  }
+//
+//  while (numOfRows < rows) {
+//    //    pShow->pNode = sdbFetchRow(tsVgroupSdb, pShow->pNode, (void **)&pVgroup);
+//    pVgroup = (SVgObj *)pShow->pNode;
+//    if (pVgroup == NULL) break;
+//    pShow->pNode = (void *)pVgroup->next;
+//
+//    cols = 0;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    *(int32_t *)pWrite = pVgroup->vgId;
+//    cols++;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    *(int32_t *)pWrite = pVgroup->numOfTables;
+//    cols++;
+//
+//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//    strcpy(pWrite, taosGetVgroupLbStatusStr(pVgroup->lbStatus));
+//    cols++;
+//
+//    for (int32_t i = 0; i < maxReplica; ++i) {
+//      tinet_ntoa(ipstr, pVgroup->vnodeGid[i].ip);
+//      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//      strcpy(pWrite, ipstr);
+//      cols++;
+//
+//      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//      *(int16_t *)pWrite = pVgroup->vnodeGid[i].vnode;
+//      cols++;
+//
+//      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//      if (pVgroup->vnodeGid[i].ip != 0) {
+//        char *vnodeStatus = mgmtGetVnodeStatus(pVgroup, pVgroup->vnodeGid + i);
+//        strcpy(pWrite, vnodeStatus);
+//      } else {
+//        strcpy(pWrite, "null");
+//      }
+//      cols++;
+//
+//      tinet_ntoa(ipstr, pVgroup->vnodeGid[i].publicIp);
+//      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//      strcpy(pWrite, ipstr);
+//      cols++;
+//    }
+//
+//    numOfRows++;
+//  }
+//
+//  pShow->numOfReads += numOfRows;
   return numOfRows;
 }
 

@@ -26,6 +26,7 @@ extern "C" {
 #include "taosdef.h"
 #include "taoserror.h"
 #include "taosdef.h"
+#include "trpc.h"
 
 // message type
 #define TSDB_MSG_TYPE_REG                    1
@@ -187,24 +188,7 @@ typedef enum {
 
 extern char *taosMsg[];
 
-#define TSDB_MSG_DEF_MAX_MPEERS        5
-#define TSDB_MSG_DEF_VERSION_LEN       64
-#define TSDB_MSG_DEF_DB_LEN            128
-#define TSDB_MSG_DEF_USER_LEN          128
-#define TSDB_MSG_DEF_TABLE_LEN         128
-#define TSDB_MSG_DEF_ACCT_LEN          128
-
 #pragma pack(push, 1)
-
-typedef struct {
-  char     numOfIps;
-  uint32_t ip[];
-} SIpList;
-
-typedef struct {
-  char     numOfIps;
-  uint32_t ip[TSDB_MAX_MGMT_IPS];
-} SMgmtIpList;
 
 typedef struct {
   uint32_t customerId;
@@ -332,20 +316,17 @@ typedef struct {
 } SAlterTableMsg;
 
 typedef struct {
-  char clientVersion[TSDB_MSG_DEF_VERSION_LEN];
-  char msgVersion[TSDB_MSG_DEF_VERSION_LEN];
-  char db[TSDB_MSG_DEF_DB_LEN];
+  char clientVersion[TSDB_VERSION_LEN];
+  char msgVersion[TSDB_VERSION_LEN];
+  char db[TSDB_TABLE_ID_LEN];
 } SCMConnectMsg;
 
 typedef struct {
-  char     acctId[TSDB_MSG_DEF_ACCT_LEN];
-  char     serverVersion[TSDB_MSG_DEF_VERSION_LEN];
-  int8_t   writeAuth;
-  int8_t   superAuth;
-  int16_t  index;
-  int16_t  numOfIps;
-  uint16_t port;
-  uint32_t ip[TSDB_MSG_DEF_MAX_MPEERS];
+  char      acctId[TSDB_ACCT_LEN];
+  char      serverVersion[TSDB_VERSION_LEN];
+  int8_t    writeAuth;
+  int8_t    superAuth;
+  SRpcIpSet ipList;
 } SCMConnectRsp;
 
 typedef struct {
@@ -800,18 +781,11 @@ typedef struct {
 } SCfgMsg;
 
 typedef struct {
-  uint32_t queryId;
-  uint32_t streamId;
-  char     killConnection;
-  SIpList  ipList;
-} SHeartBeatRsp;
-
-typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
   uint32_t queryId;
   int64_t  useconds;
   int64_t  stime;
-} SQDesc;
+} SCMQueryDesc;
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
@@ -822,17 +796,29 @@ typedef struct {
   int64_t  stime;
   int64_t  slidingTime;
   int64_t  interval;
-} SSDesc;
+} SCMStreamDesc;
 
 typedef struct {
   int32_t numOfQueries;
-  SQDesc  qdesc[];
-} SQList;
+  SCMQueryDesc  qdesc[];
+} SCMQqueryList;
 
 typedef struct {
   int32_t numOfStreams;
-  SSDesc  sdesc[];
-} SSList;
+  SCMStreamDesc  sdesc[];
+} SCMStreamList;
+
+typedef struct {
+  SCMQqueryList qlist;
+  SCMStreamList slist;
+} SCMHeartBeatMsg;
+
+typedef struct {
+  uint32_t  queryId;
+  uint32_t  streamId;
+  int8_t    killConnection;
+  SRpcIpSet ipList;
+} SCMHeartBeatRsp;
 
 typedef struct {
   uint64_t handle;

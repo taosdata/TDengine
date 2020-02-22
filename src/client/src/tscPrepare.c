@@ -451,7 +451,6 @@ static int insertStmtExecute(STscStmt* stmt) {
   pRes->numOfTotalInCurrentClause = 0;
   
   pRes->qhandle = 0;
-  pSql->thandle = NULL;
 
   tscDoQuery(pSql);
 

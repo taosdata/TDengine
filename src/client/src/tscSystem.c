@@ -45,6 +45,7 @@ int     tsInsertHeadSize;
 extern int            tscEmbedded;
 int                   tscNumOfThreads;
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
+static pthread_mutex_t tscMutex;
 
 extern int  tsTscEnableRecordSql;
 extern int  tsNumOfLogLines;
@@ -56,11 +57,64 @@ void tscCheckDiskUsage(void *para, void *unused) {
   taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
 
+int32_t tscInitRpc(const char *user, const char *secret) {
+  SRpcInit rpcInit;
+  char secretEncrypt[32] = {0};
+  taosEncryptPass((uint8_t *)secret, strlen(secret), secretEncrypt);
+
+  pthread_mutex_lock(&tscMutex);
+  if (pVnodeConn == NULL) {
+    memset(&rpcInit, 0, sizeof(rpcInit));
+    rpcInit.localIp = tsLocalIp;
+    rpcInit.localPort = 0;
+    rpcInit.label = "TSC-vnode";
+    rpcInit.numOfThreads = tscNumOfThreads;
+    rpcInit.cfp = tscProcessMsgFromServer;
+    rpcInit.sessions = tsMaxVnodeConnections;
+    rpcInit.connType = TAOS_CONN_CLIENT;
+    rpcInit.user = user;
+    rpcInit.ckey = "key";
+    rpcInit.secret = secretEncrypt;
+
+    pVnodeConn = rpcOpen(&rpcInit);
+    if (pVnodeConn == NULL) {
+      tscError("failed to init connection to vnode");
+      pthread_mutex_unlock(&tscMutex);
+      return -1;
+    }
+  }
+
+  if (pTscMgmtConn == NULL) {
+    memset(&rpcInit, 0, sizeof(rpcInit));
+    rpcInit.localIp = tsLocalIp;
+    rpcInit.localPort = 0;
+    rpcInit.label = "TSC-mgmt";
+    rpcInit.numOfThreads = 1;
+    rpcInit.cfp = tscProcessMsgFromServer;
+    rpcInit.sessions = tsMaxMgmtConnections;
+    rpcInit.connType = TAOS_CONN_CLIENT;
+    rpcInit.idleTime = 2000;
+    rpcInit.user = "root";
+    rpcInit.ckey = "key";
+    rpcInit.secret = secretEncrypt;
+
+    pTscMgmtConn = rpcOpen(&rpcInit);
+    if (pTscMgmtConn == NULL) {
+      tscError("failed to init connection to mgmt");
+      pthread_mutex_unlock(&tscMutex);
+      return -1;
+    }
+  }
+
+  pthread_mutex_unlock(&tscMutex);
+  return 0;
+}
+
 void taos_init_imp() {
   char        temp[128];
   struct stat dirstat;
-  SRpcInit    rpcInit;
 
+  pthread_mutex_init(&tscMutex, NULL);
   srand(taosGetTimestampSec());
   deltaToUtcInitOnce();
 
@@ -101,7 +155,7 @@ void taos_init_imp() {
   tscMgmtIpList.numOfIps = 1;
   tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
 
-  if (tsSecondIp[0]) {
+  if (tsSecondIp[0] && strcmp(tsSecondIp, tsMasterIp) != 0) {
     tscMgmtIpList.numOfIps = 2;
     tscMgmtIpList.ip[1] = inet_addr(tsSecondIp);
   }
@@ -121,34 +175,6 @@ void taos_init_imp() {
   tscQhandle = taosInitScheduler(queueSize, tscNumOfThreads, "tsc");
   if (NULL == tscQhandle) {
     tscError("failed to init scheduler");
-    return;
-  }
-
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp = tsLocalIp;
-  rpcInit.localPort = 0;
-  rpcInit.label = "TSC-vnode";
-  rpcInit.numOfThreads = tscNumOfThreads;
-  rpcInit.afp = tscProcessMsgFromServer;
-  rpcInit.sessions = tsMaxVnodeConnections;
-  rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
-  pVnodeConn = rpcOpen(&rpcInit);
-  if (pVnodeConn == NULL) {
-    tscError("failed to init connection to vnode");
-    return;
-  }
-
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp = tsLocalIp;
-  rpcInit.localPort = 0;
-  rpcInit.label = "TSC-mgmt";
-  rpcInit.numOfThreads = 1;
-  rpcInit.afp = tscProcessMsgFromServer;
-  rpcInit.sessions = tsMaxMgmtConnections;
-  rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
-  pTscMgmtConn = rpcOpen(&rpcInit);
-  if (pTscMgmtConn == NULL) {
-    tscError("failed to init connection to mgmt");
     return;
   }
 
@@ -319,10 +345,10 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       assert(cfg != NULL);
     
       if (cfg->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
-        if (strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_UDP) != 0 && strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_TCP) != 0) {
-          tscError("only 'tcp' or 'udp' allowed for configuring the socket type");
-          return -1;
-        }
+//        if (strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_UDP) != 0 && strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_TCP) != 0) {
+//          tscError("only 'tcp' or 'udp' allowed for configuring the socket type");
+//          return -1;
+//        }
 
         strncpy(tsSocketType, pStr, tListLen(tsSocketType));
         cfg->cfgStatus = TSDB_CFG_CSTATUS_OPTION;

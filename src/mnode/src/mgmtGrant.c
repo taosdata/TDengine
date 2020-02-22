@@ -37,9 +37,9 @@ int32_t (*mgmtCheckTimeSeries)(uint32_t timeseries) = mgmtCheckTimeSeriesImp;
 bool mgmtCheckExpiredImp() { return false; }
 bool (*mgmtCheckExpired)() = mgmtCheckExpiredImp;
 
-int32_t mgmtGetGrantsMetaImp(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
-int32_t (*mgmtGetGrantsMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = mgmtGetGrantsMetaImp;
+int32_t mgmtGetGrantsMetaImp(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t (*mgmtGetGrantsMeta)(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) = mgmtGetGrantsMetaImp;
 
-int32_t mgmtRetrieveGrantsImp(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }
-int32_t (*mgmtRetrieveGrants)(SShowObj *pShow, char *data, int rows, SConnObj *pConn) = mgmtRetrieveGrantsImp;
+int32_t mgmtRetrieveGrantsImp(SShowObj *pShow, char *data, int rows, void *pConn) { return 0; }
+int32_t (*mgmtRetrieveGrants)(SShowObj *pShow, char *data, int rows, void *pConn) = mgmtRetrieveGrantsImp;
 

@@ -796,6 +796,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
 }
 
 static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
+
   SRpcInfo *pRpc = pConn->pRpc;
 
   pHead = rpcDecompressRpcMsg(pHead);

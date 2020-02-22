@@ -21,6 +21,7 @@
 #include "mnode.h"
 #include "mgmtDnode.h"
 #include "mgmtBalance.h"
+#include "mgmtUser.h"
 
 SDnodeObj tsDnodeObj;
 
@@ -96,10 +97,13 @@ void mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes) {
   }
 }
 
-int32_t mgmtGetDnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetDnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
+
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
   SSchema *pSchema = tsGetSchema(pMeta);
 
@@ -158,7 +162,7 @@ int32_t mgmtGetDnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t   numOfRows = 0;
   SDnodeObj *pDnode   = NULL;
   char      *pWrite;
@@ -208,10 +212,13 @@ int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, SConnObj *
   return numOfRows;
 }
 
-int32_t mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
+
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
   SSchema *pSchema = tsGetSchema(pMeta);
 
@@ -259,7 +266,7 @@ int32_t mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t    numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
@@ -298,10 +305,13 @@ int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, SConnObj 
   return numOfRows;
 }
 
-int32_t mgmtGetConfigMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetConfigMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
+
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
   SSchema *pSchema = tsGetSchema(pMeta);
 
@@ -336,7 +346,7 @@ int32_t mgmtGetConfigMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
 
   for (int32_t i = tsGlobalConfigNum - 1; i >= 0 && numOfRows < rows; --i) {
@@ -383,10 +393,11 @@ int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, SConnObj 
   return numOfRows;
 }
 
-int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
-
-  if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
   SSchema *pSchema = tsGetSchema(pMeta);
 
@@ -456,7 +467,7 @@ int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t        numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
@@ -560,17 +571,17 @@ void *mgmtGetNextDnodeImp(SShowObj *pShow, SDnodeObj **pDnode) {
 
 void *(*mgmtGetNextDnode)(SShowObj *pShow, SDnodeObj **pDnode) = mgmtGetNextDnodeImp;
 
-int32_t mgmtGetScoresMetaImp(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetScoresMetaImp(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
-int32_t (*mgmtGetScoresMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = mgmtGetScoresMetaImp;
+int32_t (*mgmtGetScoresMeta)(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) = mgmtGetScoresMetaImp;
 
-int32_t mgmtRetrieveScoresImp(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveScoresImp(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   return 0;
 }
 
-int32_t (*mgmtRetrieveScores)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) = mgmtRetrieveScoresImp;
+int32_t (*mgmtRetrieveScores)(SShowObj *pShow, char *data, int32_t rows, void *pConn) = mgmtRetrieveScoresImp;
 
 void mgmtSetDnodeUnRemoveImp(SDnodeObj *pDnode) {
 }

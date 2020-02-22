@@ -27,14 +27,14 @@ extern "C" {
 int32_t  mgmtInitShell();
 void mgmtCleanUpShell();
 
-extern int32_t (*mgmtCheckRedirectMsg)(SConnObj *pConn, int32_t msgType);
-extern int32_t (*mgmtProcessAlterAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessCreateDnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessCfgMnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessDropMnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessDropDnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessDropAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessCreateAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
+extern int32_t (*mgmtCheckRedirectMsg)(void *pConn, int32_t msgType);
+extern int32_t (*mgmtProcessAlterAcctMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern int32_t (*mgmtProcessCreateDnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern int32_t (*mgmtProcessCfgMnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern int32_t (*mgmtProcessDropMnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern int32_t (*mgmtProcessDropDnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern int32_t (*mgmtProcessDropAcctMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern int32_t (*mgmtProcessCreateAcctMsg)(void *pCont, int32_t contLen, void *ahandle);
 
 #ifdef __cplusplus
 }
