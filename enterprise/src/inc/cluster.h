@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_DNODE_CLUSTER_H
-#define TDENGINE_MODULE_DNODE_CLUSTER_H
+#ifndef TDENGINE_MODULE_CLUSTER_H
+#define TDENGINE_MODULE_CLUSTER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +26,8 @@ extern "C" {
 
 void dnodeClusterInit();
 bool dclusterIsClusterExist();
+void mnodeClusterInit();
+
 
 #ifdef __cplusplus
 }
