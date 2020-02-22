@@ -59,6 +59,10 @@ int64_t sdbGetVersion() {
 };
 
 int32_t sdbGetRunStatus() {
+  if (!tsIsCluster) {
+    return SDB_STATUS_SERVING;
+  }
+
   if (sdbInited == NULL) {
     return SDB_STATUS_OFFLINE;
   }

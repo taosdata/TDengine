@@ -85,7 +85,7 @@ int32_t dnodeInitShell() {
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.cfp           = dnodeProcessMsgFromShell;
   rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
-  rpcInit.connType     = TAOS_CONN_SOCKET_TYPE_S();
+  rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 2000;
 
   tsDnodeShellServer = rpcOpen(&rpcInit);

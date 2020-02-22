@@ -39,7 +39,7 @@ typedef struct {
   uint32_t  clientIp;
   uint16_t  clientPort;
   uint32_t  serverIp;
-  char     *user;
+  char      user[TSDB_USER_LEN];
 } SRpcConnInfo;
 
 typedef struct {

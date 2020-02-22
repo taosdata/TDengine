@@ -87,15 +87,17 @@ int32_t mgmtInitShell() {
   int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 4.0;
   if (numOfThreads < 1) numOfThreads = 1;
 
-  memset(&rpcInit, 0, sizeof(rpcInit));
+  //TODO
+  numOfThreads = 1;
 
-  rpcInit.localIp = tsAnyIp ? "0.0.0.0" : tsPrivateIp;;
+  memset(&rpcInit, 0, sizeof(rpcInit));
+    rpcInit.localIp = tsAnyIp ? "0.0.0.0" : tsPrivateIp;;
   rpcInit.localPort = tsMgmtShellPort;
   rpcInit.label = "MND-shell";
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.cfp = mgmtProcessMsgFromShell;
   rpcInit.sessions = tsMaxShellConns;
-  rpcInit.connType = TAOS_CONN_SOCKET_TYPE_S();
+  rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 2000;
   rpcInit.afp = mgmtRetriveUserAuthInfo;
 
@@ -1237,17 +1239,17 @@ int32_t mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secr
     return TSDB_CODE_INVALID_USER;
   }
 
-  *spi = 1;
+  *spi = 0;
   *encrypt = 0;
   *ckey = 0;
   memcpy(secret, pUser->pass, TSDB_KEY_LEN);
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtProcessConnectMsg(void *pCont, int32_t contLen, void *ahandle) {
+static int32_t mgmtProcessConnectMsg(void *pCont, int32_t contLen, void *thandle) {
   SCMConnectMsg *pConnectMsg = (SCMConnectMsg *) pCont;
   SRpcConnInfo connInfo;
-  rpcGetConnInfo(ahandle, &connInfo);
+  rpcGetConnInfo(thandle, &connInfo);
   int32_t code;
 
   SUserObj *pUser = mgmtGetUser(connInfo.user);
@@ -1311,16 +1313,14 @@ static int32_t mgmtProcessConnectMsg(void *pCont, int32_t contLen, void *ahandle
 connect_over:
   if (code != TSDB_CODE_SUCCESS) {
     mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
-    rpcSendResponse(ahandle, code, NULL, 0);
+    rpcSendResponse(thandle, code, NULL, 0);
   } else {
     mLPrint("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
-    rpcSendResponse(ahandle, code, pConnectRsp, sizeof(pConnectRsp));
+    rpcSendResponse(thandle, code, pConnectRsp, sizeof(SCMConnectRsp));
   }
 
-  rpcFreeCont(pCont);
   return code;
 }
-
 
 /**
  * check if we need to add mgmtProcessMeterMetaMsg into tranQueue, which will be executed one-by-one.
@@ -1354,6 +1354,7 @@ static void mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *a
   if (sdbGetRunStatus() != SDB_STATUS_SERVING) {
     mTrace("shell msg is ignored since SDB is not ready");
     rpcSendResponse(ahandle, TSDB_CODE_NOT_READY, NULL, 0);
+    rpcFreeCont(pCont);
     return;
   }
 
@@ -1366,6 +1367,7 @@ static void mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *a
       mError("%s from shell is not processed", taosMsg[(int8_t)type]);
     }
   }
+  rpcFreeCont(pCont);
 }
 
 void mgmtInitProcessShellMsg() {

@@ -177,47 +177,28 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 }
 
 int tscSendMsgToServer(SSqlObj *pSql) {
-  uint8_t code = TSDB_CODE_NETWORK_UNAVAIL;
-
-  /*
-   * the total length of message
-   * rpc header + actual message body + digest
-   *
-   * the pSql object may be released automatically during insert procedure, in which the access of
-   * message body by using "if (pHeader->msgType & 1)" may cause the segment fault.
-   *
-   */
-
-  // the memory will be released by taosProcessResponse, so no memory leak here
-  char *pStart = rpcMallocCont(pSql->cmd.payloadLen);
-  if (NULL == pStart) {
+  char *pMsg = rpcMallocCont(pSql->cmd.payloadLen);
+  if (NULL == pMsg) {
     tscError("%p msg:%s malloc fail", pSql, taosMsg[pSql->cmd.msgType]);
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  tscTrace("%p msg:%s is sent to server", pSql, taosMsg[pSql->cmd.msgType]);
+  tscPrint("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList->port);
 
-  if (pStart) {
-    /*
-     * this SQL object may be released by other thread due to the completion of this query even before the log
-     * is dumped to log file. So the signature needs to be kept in a local variable.
-     */
-    uint64_t signature = (uint64_t) pSql->signature;
-    //if (tscUpdateVnodeMsg[pSql->cmd.command]) (*tscUpdateVnodeMsg[pSql->cmd.command])(pSql, pStart);
+  memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
 
-    if (pSql->cmd.command < TSDB_SQL_MGMT) {
-      rpcSendRequest(pTscMgmtConn, pSql->ipList, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
-    } else {
-      rpcSendRequest(pVnodeConn, pSql->ipList, pSql->cmd.msgType, pStart, pSql->cmd.payloadLen, pSql);
-    }
-
-    tscTrace("%p send msg code:%d sig:%p", pSql, code, signature);
+  pSql->ipList->ip[0] = inet_addr("192.168.0.1");
+  if (pSql->cmd.command < TSDB_SQL_MGMT) {
+    rpcSendRequest(pVnodeConn, pSql->ipList, pSql->cmd.msgType, pMsg, pSql->cmd.payloadLen, pSql);
+  } else {
+    rpcSendRequest(pTscMgmtConn, pSql->ipList, pSql->cmd.msgType, pMsg, pSql->cmd.payloadLen, pSql);
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 void tscProcessMsgFromServer(char type, void *pCont, int contLen, void *ahandle, int32_t code) {
+  tscPrint("response is received, pCont:%p, code:%d", pCont, code);
   SSqlObj *pSql = (SSqlObj *)ahandle;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("%p sql is already released, signature:%p", pSql, pSql->signature);
@@ -237,48 +218,47 @@ void tscProcessMsgFromServer(char type, void *pCont, int contLen, void *ahandle,
     return;
   }
 
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  if (code == TSDB_CODE_NOT_ACTIVE_TABLE || code == TSDB_CODE_INVALID_TABLE_ID ||
-      code == TSDB_CODE_INVALID_VNODE_ID || code == TSDB_CODE_NOT_ACTIVE_VNODE ||
-      code == TSDB_CODE_NETWORK_UNAVAIL || code == TSDB_CODE_NOT_ACTIVE_SESSION ||
-      code == TSDB_CODE_TABLE_ID_MISMATCH) {
-    /*
-     * not_active_table: 1. the virtual node may fail to create table, since the procedure of create table is asynchronized,
-     *                   the virtual node may have not create table till now, so try again by using the new metermeta.
-     *                   2. this requested table may have been removed by other client, so we need to renew the
-     *                   metermeta here.
-     *
-     * not_active_vnode: current vnode is move to other node due to node balance procedure or virtual node have been
-     *                   removed. So, renew metermeta and try again.
-     * not_active_session: db has been move to other node, the vnode does not exist on this dnode anymore.
-     */
-    if (pCmd->command == TSDB_SQL_CONNECT) {
-      code = TSDB_CODE_NETWORK_UNAVAIL;
-      rpcFreeCont(pCont);
-      return;
-    } else if (pCmd->command == TSDB_SQL_HB) {
-      code = TSDB_CODE_NOT_READY;
-      rpcFreeCont(pCont);
-      return;
-    } else {
-      tscTrace("%p it shall renew meter meta, code:%d", pSql, code);
-
-      pSql->maxRetry = TSDB_VNODES_SUPPORT * 2;
-      pSql->res.code = (uint8_t)code;  // keep the previous error code
-
-      code = tscRenewMeterMeta(pSql, pMeterMetaInfo->name);
-
-      if (pMeterMetaInfo->pMeterMeta) {
-        tscSendMsgToServer(pSql);
+  if (pCont == NULL) {
+    code = TSDB_CODE_NETWORK_UNAVAIL;
+  } else {
+    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+    if (code == TSDB_CODE_NOT_ACTIVE_TABLE || code == TSDB_CODE_INVALID_TABLE_ID ||
+        code == TSDB_CODE_INVALID_VNODE_ID || code == TSDB_CODE_NOT_ACTIVE_VNODE ||
+        code == TSDB_CODE_NETWORK_UNAVAIL || code == TSDB_CODE_NOT_ACTIVE_SESSION ||
+        code == TSDB_CODE_TABLE_ID_MISMATCH) {
+      /*
+       * not_active_table: 1. the virtual node may fail to create table, since the procedure of create table is asynchronized,
+       *                   the virtual node may have not create table till now, so try again by using the new metermeta.
+       *                   2. this requested table may have been removed by other client, so we need to renew the
+       *                   metermeta here.
+       *
+       * not_active_vnode: current vnode is move to other node due to node balance procedure or virtual node have been
+       *                   removed. So, renew metermeta and try again.
+       * not_active_session: db has been move to other node, the vnode does not exist on this dnode anymore.
+       */
+      if (pCmd->command == TSDB_SQL_CONNECT) {
+        code = TSDB_CODE_NETWORK_UNAVAIL;
         rpcFreeCont(pCont);
         return;
+      } else if (pCmd->command == TSDB_SQL_HB) {
+        code = TSDB_CODE_NOT_READY;
+        rpcFreeCont(pCont);
+        return;
+      } else {
+        tscTrace("%p it shall renew meter meta, code:%d", pSql, code);
+
+        pSql->maxRetry = TSDB_VNODES_SUPPORT * 2;
+        pSql->res.code = (uint8_t) code;  // keep the previous error code
+
+        code = tscRenewMeterMeta(pSql, pMeterMetaInfo->name);
+
+        if (pMeterMetaInfo->pMeterMeta) {
+          tscSendMsgToServer(pSql);
+          rpcFreeCont(pCont);
+          return;
+        }
       }
     }
-  }
-
-  if (code != TSDB_CODE_SUCCESS){  // for other error set and return to invoker
-    rpcFreeCont(pCont);
-    return;
   }
 
   pSql->retry = 0;
@@ -2359,27 +2339,24 @@ int tscProcessRetrieveMetricRsp(SSqlObj *pSql) {
 int tscProcessEmptyResultRsp(SSqlObj *pSql) { return tscLocalResultCommonBuilder(pSql, 0); }
 
 int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SCMConnectMsg *pConnect;
-  char *       pMsg, *pStart;
-
-  SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
-  pMsg = pCmd->payload + tsRpcHeadSize;
-  pStart = pMsg;
+  SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->msgType = TSDB_MSG_TYPE_CONNECT;
+  pCmd->payloadLen = sizeof(SCMConnectMsg);
 
-  pConnect = (SCMConnectMsg *)pMsg;
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
+
+  SCMConnectMsg *pConnect = (SCMConnectMsg*)pCmd->payload;
 
   char *db;  // ugly code to move the space
   db = strstr(pObj->db, TS_PATH_DELIMITER);
   db = (db == NULL) ? pObj->db : db + 1;
   strcpy(pConnect->db, db);
-
   strcpy(pConnect->clientVersion, version);
-
-  pMsg += sizeof(SCMConnectMsg);
-
-  pCmd->payloadLen = pMsg - pStart;
-  pCmd->msgType = TSDB_MSG_TYPE_CONNECT;
+  strcpy(pConnect->msgVersion, "");
 
   return TSDB_CODE_SUCCESS;
 }

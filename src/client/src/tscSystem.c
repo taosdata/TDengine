@@ -101,7 +101,7 @@ void taos_init_imp() {
   tscMgmtIpList.numOfIps = 1;
   tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
 
-  if (tsSecondIp[0]) {
+  if (tsSecondIp[0] && strcmp(tsSecondIp, tsMasterIp) != 0) {
     tscMgmtIpList.numOfIps = 2;
     tscMgmtIpList.ip[1] = inet_addr(tsSecondIp);
   }
@@ -125,13 +125,13 @@ void taos_init_imp() {
   }
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp = tsLocalIp;
+  rpcInit.localIp = "0.0.0.0";//tsLocalIp;
   rpcInit.localPort = 0;
   rpcInit.label = "TSC-vnode";
   rpcInit.numOfThreads = tscNumOfThreads;
-  rpcInit.afp = tscProcessMsgFromServer;
+  rpcInit.cfp = tscProcessMsgFromServer;
   rpcInit.sessions = tsMaxVnodeConnections;
-  rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
+  rpcInit.connType = TAOS_CONN_CLIENT;
   pVnodeConn = rpcOpen(&rpcInit);
   if (pVnodeConn == NULL) {
     tscError("failed to init connection to vnode");
@@ -139,13 +139,21 @@ void taos_init_imp() {
   }
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp = tsLocalIp;
+  rpcInit.localIp = "0.0.0.0";//tsLocalIp;
   rpcInit.localPort = 0;
   rpcInit.label = "TSC-mgmt";
   rpcInit.numOfThreads = 1;
-  rpcInit.afp = tscProcessMsgFromServer;
+  rpcInit.cfp = tscProcessMsgFromServer;
   rpcInit.sessions = tsMaxMgmtConnections;
-  rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
+  rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.idleTime = 2000;
+  rpcInit.user         = "root";
+  rpcInit.ckey         = "key";
+
+  char secret[32] = {0};
+  taosEncryptPass((uint8_t *)"taosdata", strlen("taosdata"), secret);
+  rpcInit.secret = secret;
+
   pTscMgmtConn = rpcOpen(&rpcInit);
   if (pTscMgmtConn == NULL) {
     tscError("failed to init connection to mgmt");
@@ -319,10 +327,10 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       assert(cfg != NULL);
     
       if (cfg->cfgStatus <= TSDB_CFG_CSTATUS_OPTION) {
-        if (strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_UDP) != 0 && strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_TCP) != 0) {
-          tscError("only 'tcp' or 'udp' allowed for configuring the socket type");
-          return -1;
-        }
+//        if (strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_UDP) != 0 && strcasecmp(pStr, TAOS_SOCKET_TYPE_NAME_TCP) != 0) {
+//          tscError("only 'tcp' or 'udp' allowed for configuring the socket type");
+//          return -1;
+//        }
 
         strncpy(tsSocketType, pStr, tListLen(tsSocketType));
         cfg->cfgStatus = TSDB_CFG_CSTATUS_OPTION;

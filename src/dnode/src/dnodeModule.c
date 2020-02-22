@@ -121,10 +121,6 @@ void dnodeStartModulesImp() {
       }
     }
   }
-
-  if (tsModule[TSDB_MOD_MGMT].num != 0 && tsModule[TSDB_MOD_MGMT].cleanUpFp) {
-    (*tsModule[TSDB_MOD_MGMT].cleanUpFp)();
-  }
 }
 
 void (*dnodeStartModules)() = dnodeStartModulesImp;

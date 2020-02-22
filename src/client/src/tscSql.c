@@ -64,11 +64,17 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
   }
 
   if (ip && ip[0]) {
-    tscMgmtIpList.numOfIps = 2;
     tscMgmtIpList.index = 0;
+    tscMgmtIpList.port = tsMgmtShellPort;
+    tscMgmtIpList.numOfIps = 1;
     tscMgmtIpList.ip[0] = inet_addr(ip);
-    tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
-    if (tsSecondIp[0]) {
+
+    if (tsMasterIp[0] && strcmp(ip, tsMasterIp) != 0) {
+      tscMgmtIpList.numOfIps = 2;
+      tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
+    }
+
+    if (tsSecondIp[0] && strcmp(tsSecondIp, tsMasterIp) != 0) {
       tscMgmtIpList.numOfIps = 3;
       tscMgmtIpList.ip[2] = inet_addr(tsSecondIp);
     }
