@@ -182,7 +182,7 @@ All the keywords in a SQL statement are case-insensitive, but strings values are
     ```
 
 Note: 1. For a table, the new record must have a timestamp bigger than the last data record, otherwise, it will be discarded and not inserted. If the timestamp is 0, the time stamp will be set to the system time on the server.
-      2.The timestamp of the oldest record allowed to be inserted is relative to the current server time, minus the configured keep value (the number of days the data is retained), and the timestamp of the earliest record allowed to be inserted is relative to the current server time, plus the configured days value (the time span in which the data file stores data, in days). Both keep and days can be specified when creating the database. The default values are 3650 days and 10 days, respectively.
+      2.The timestamp of the oldest record allowed to be inserted is relative to the current server time, minus the configured keep value (the number of days the data is retained), and the timestamp of the latest record allowed to be inserted is relative to the current server time, plus the configured days value (the time span in which the data file stores data, in days). Both keep and days can be specified when creating the database. The default values are 3650 days and 10 days, respectively.
  
 **IMPORT**: If you do want to insert a historical data record into a table, use IMPORT command instead of INSERT. IMPORT has the same syntax as INSERT. 
 
