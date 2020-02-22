@@ -299,17 +299,16 @@ void rpcClose(void *param) {
   tfree(pRpc);
 }
 
-void *rpcMallocCont(int size) {
-  char *pMsg = NULL;
+void *rpcMallocCont(int contLen) {
+  int size = contLen + RPC_MSG_OVERHEAD;
 
-  size += RPC_MSG_OVERHEAD;
-  pMsg = (char *)calloc(1, (size_t)size);
-  if (pMsg == NULL) {
+  char *start = (char *)calloc(1, (size_t)size);
+  if (start == NULL) {
     tError("failed to malloc msg, size:%d", size);
     return NULL;
   }
 
-  return pMsg + sizeof(SRpcReqContext) + sizeof(SRpcHead);
+  return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
 void rpcFreeCont(void *cont) {
@@ -317,6 +316,24 @@ void rpcFreeCont(void *cont) {
     char *msg = ((char *)cont) - sizeof(SRpcHead);
     free(msg);
   }
+}
+
+void *rpcReallocCont(void *ptr, int contLen) {
+  if (ptr == NULL) return rpcMallocCont(contLen);
+
+  char *start = ((char *)ptr) - sizeof(SRpcReqContext) - sizeof(SRpcHead);
+  if (contLen == 0 ) {
+    free(start); 
+  }
+
+  int size = contLen + RPC_MSG_OVERHEAD;
+  start = realloc(start, size);
+  if (start == NULL) {
+    tError("failed to realloc cont, size:%d", size);
+    return NULL;
+  } 
+
+  return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
 }
 
 void rpcSendRequest(void *shandle, SRpcIpSet *pIpSet, char type, void *pCont, int contLen, void *ahandle) {
