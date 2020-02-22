@@ -25,7 +25,7 @@ extern "C" {
 void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
 void taosCleanUpTcpServer(void *param);
 void taosCloseTcpServerConnection(void *param);
-int taosSendTcpServerData(uint32_t ip, uint16_t port, char *data, int len, void *chandle);
+int  taosSendTcpServerData(uint32_t ip, uint16_t port, void *data, int len, void *chandle);
 
 #ifdef __cplusplus
 }

@@ -23,18 +23,8 @@ extern "C" {
 #include <stdint.h>
 #include "taosdef.h"
 
-#define TAOS_CONN_UDPS     0
-#define TAOS_CONN_UDPC     1
-#define TAOS_CONN_TCPS     2
-#define TAOS_CONN_TCPC     3
-#define TAOS_CONN_HTTPS    4
-#define TAOS_CONN_HTTPC    5
-
-#define TAOS_SOCKET_TYPE_NAME_TCP  "tcp"
-#define TAOS_SOCKET_TYPE_NAME_UDP  "udp"
-
-#define TAOS_CONN_SOCKET_TYPE_S()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDPS:TAOS_CONN_TCPS)
-#define TAOS_CONN_SOCKET_TYPE_C()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDPC:TAOS_CONN_TCPC)
+#define TAOS_CONN_SERVER   0
+#define TAOS_CONN_CLIENT   1
 
 extern int tsRpcHeadSize;
 
