@@ -325,7 +325,7 @@ typedef struct _sql_obj {
   int64_t           stime;
   uint32_t          queryId;
   void *            thandle;
-  SRpcIpSet         ipSet;
+  SRpcIpSet        *ipSet;
   void *            pStream;
   void *            pSubscription;
   char *            sqlstr;

@@ -31,12 +31,10 @@
 
 #define TSC_MGMT_VNODE 999
 
-SRpcIpSet  tscMgmtIpList;
 int        tsMasterIndex = 0;
 int        tsSlaveIndex = 1;
 
-//temp
-SRpcIpSet  tscMgmtIpSet;
+SRpcIpSet  tscMgmtIpList;
 SRpcIpSet  tscDnodeIpSet;
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
@@ -62,29 +60,27 @@ void tscPrintMgmtIp() {
   }
 }
 
-void tscSetMgmtIpListFromCluster(SIpList *pIpList) {
-  tscMgmtIpList.numOfIps = pIpList->numOfIps;
-  if (memcmp(tscMgmtIpList.ip, pIpList->ip, pIpList->numOfIps * 4) != 0) {
-    for (int i = 0; i < pIpList->numOfIps; ++i) {
-      //tinet_ntoa(tscMgmtIpList.ipStr[i], pIpList->ip[i]);
-      tscMgmtIpList.ip[i] = pIpList->ip[i];
-    }
-    tscTrace("cluster mgmt IP list:");
-    tscPrintMgmtIp();
+void tscSetMgmtIpListFromCluster(SRpcIpSet *pIpList) {
+  tscMgmtIpList.numOfIps = htons(pIpList->numOfIps);
+  tscMgmtIpList.index = htons(pIpList->index);
+  tscMgmtIpList.port = htons(pIpList->port);
+  for (int32_t i = 0; i <tscMgmtIpList.numOfIps; ++i) {
+    tscMgmtIpList.ip[i] = pIpList->ip[i];
   }
 }
 
 void tscSetMgmtIpListFromEdge() {
-  if (tscMgmtIpList.numOfIps != 2) {
-    tscMgmtIpList.numOfIps = 2;
+  if (tscMgmtIpList.numOfIps != 1) {
+    tscMgmtIpList.numOfIps = 1;
+    tscMgmtIpList.index = 0;
+    tscMgmtIpList.port = tsMgmtShellPort;
     tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
-    tscMgmtIpList.ip[1] = inet_addr(tsMasterIp);
     tscTrace("edge mgmt IP list:");
     tscPrintMgmtIp();
   }
 }
 
-void tscSetMgmtIpList(SIpList *pIpList) {
+void tscSetMgmtIpList(SRpcIpSet *pIpList) {
   /*
     * The iplist returned by the cluster edition is the current management nodes
     * and the iplist returned by the edge edition is empty
@@ -120,8 +116,8 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   SSqlRes *pRes = &pSql->res;
 
   if (code == 0) {
-    SHeartBeatRsp *pRsp = (SHeartBeatRsp *)pRes->pRsp;
-    SIpList *      pIpList = &pRsp->ipList;
+    SCMHeartBeatRsp *pRsp = (SCMHeartBeatRsp *)pRes->pRsp;
+    SRpcIpSet *      pIpList = &pRsp->ipList;
     tscSetMgmtIpList(pIpList);
 
     if (pRsp->killConnection) {
@@ -296,7 +292,7 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
              pVPeersDesc[pSql->index].ip, pSql->index, pSql->thandle);
 
     //TODO fetch from vpeerdesc
-    pSql->ipSet = tscMgmtIpSet;
+    pSql->ipSet = &tscMgmtIpList;
     break;
   }
 
@@ -364,17 +360,17 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 }
 
 void tscProcessMgmtRedirect(SSqlObj *pSql, uint8_t *cont) {
-  SIpList *pIpList = (SIpList *)(cont);
-  tscSetMgmtIpList(pIpList);
-
-  if (pSql->cmd.command < TSDB_SQL_READ) {
-    tsMasterIndex = 0;
-    pSql->index = 0;
-  } else {
-    pSql->index++;
-  }
-
-  tscPrintMgmtIp();
+//  SIpList *pIpList = (SIpList *)(cont);
+//  tscSetMgmtIpList(pIpList);
+//
+//  if (pSql->cmd.command < TSDB_SQL_READ) {
+//    tsMasterIndex = 0;
+//    pSql->index = 0;
+//  } else {
+//    pSql->index++;
+//  }
+//
+//  tscPrintMgmtIp();
 }
 
 void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
@@ -2884,18 +2880,18 @@ int tscEstimateHeartBeatMsgLength(SSqlObj *pSql) {
   STscObj *pObj = pSql->pTscObj;
 
   size += tsRpcHeadSize + sizeof(SMgmtHead);
-  size += sizeof(SQList);
+  size += sizeof(SCMQqueryList);
 
   SSqlObj *tpSql = pObj->sqlList;
   while (tpSql) {
-    size += sizeof(SQDesc);
+    size += sizeof(SCMQueryDesc);
     tpSql = tpSql->next;
   }
 
-  size += sizeof(SSList);
+  size += sizeof(SCMStreamList);
   SSqlStream *pStream = pObj->streamList;
   while (pStream) {
-    size += sizeof(SSDesc);
+    size += sizeof(SCMStreamDesc);
     pStream = pStream->next;
   }
 
@@ -3323,10 +3319,10 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   assert(len <= tListLen(pObj->db));
   strncpy(pObj->db, temp, tListLen(pObj->db));
   
-  SIpList *    pIpList;
-  char *rsp = pRes->pRsp + sizeof(SCMConnectRsp);
-  pIpList = (SIpList *)rsp;
-  tscSetMgmtIpList(pIpList);
+//  SIpList *    pIpList;
+//  char *rsp = pRes->pRsp + sizeof(SCMConnectRsp);
+//  pIpList = (SIpList *)rsp;
+//  tscSetMgmtIpList(pIpList);
 
   strcpy(pObj->sversion, pConnect->serverVersion);
   pObj->writeAuth = pConnect->writeAuth;

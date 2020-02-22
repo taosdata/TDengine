@@ -28,55 +28,55 @@ typedef struct {
 } SCDesc;
 
 typedef struct {
-  int      index;
-  int      numOfQueries;
+  int32_t      index;
+  int32_t      numOfQueries;
   SCDesc * connInfo;
   SCDesc **cdesc;
-  SQDesc   qdesc[];
+  SCMQueryDesc   qdesc[];
 } SQueryShow;
 
 typedef struct {
-  int      index;
-  int      numOfStreams;
+  int32_t      index;
+  int32_t      numOfStreams;
   SCDesc * connInfo;
   SCDesc **cdesc;
-  SSDesc   sdesc[];
+  SCMStreamDesc   sdesc[];
 } SStreamShow;
 
-int mgmtSaveQueryStreamList(char *cont, int contLen, SConnObj *pConn) {
-  SAcctObj *pAcct = pConn->pAcct;
+int32_t  mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg) {
+//  SAcctObj *pAcct = pConn->pAcct;
+//
+//  if (contLen <= 0 || pAcct == NULL) {
+//    return 0;
+//  }
+//
+//  pthread_mutex_lock(&pAcct->mutex);
+//
+//  if (pConn->pQList) {
+//    pAcct->acctInfo.numOfQueries -= pConn->pQList->numOfQueries;
+//    pAcct->acctInfo.numOfStreams -= pConn->pSList->numOfStreams;
+//  }
+//
+//  pConn->pQList = realloc(pConn->pQList, contLen);
+//  memcpy(pConn->pQList, cont, contLen);
+//
+//  pConn->pSList = (SCMStreamList *)(((char *)pConn->pQList) + pConn->pQList->numOfQueries * sizeof(SCMQueryDesc) + sizeof(SCMQqueryList));
+//
+//  pAcct->acctInfo.numOfQueries += pConn->pQList->numOfQueries;
+//  pAcct->acctInfo.numOfStreams += pConn->pSList->numOfStreams;
+//
+//  pthread_mutex_unlock(&pAcct->mutex);
 
-  if (contLen <= 0 || pAcct == NULL) {
-    return 0;
-  }
-
-  pthread_mutex_lock(&pAcct->mutex);
-
-  if (pConn->pQList) {
-    pAcct->acctInfo.numOfQueries -= pConn->pQList->numOfQueries;
-    pAcct->acctInfo.numOfStreams -= pConn->pSList->numOfStreams;
-  }
-
-  pConn->pQList = realloc(pConn->pQList, contLen);
-  memcpy(pConn->pQList, cont, contLen);
-
-  pConn->pSList = (SSList *)(((char *)pConn->pQList) + pConn->pQList->numOfQueries * sizeof(SQDesc) + sizeof(SQList));
-
-  pAcct->acctInfo.numOfQueries += pConn->pQList->numOfQueries;
-  pAcct->acctInfo.numOfStreams += pConn->pSList->numOfStreams;
-
-  pthread_mutex_unlock(&pAcct->mutex);
-
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
-int mgmtGetQueries(SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetQueries(SShowObj *pShow, SConnObj *pConn) {
   SAcctObj *  pAcct = pConn->pAcct;
   SQueryShow *pQueryShow;
 
   pthread_mutex_lock(&pAcct->mutex);
 
-  pQueryShow = malloc(sizeof(SQDesc) * pAcct->acctInfo.numOfQueries + sizeof(SQueryShow));
+  pQueryShow = malloc(sizeof(SCMQueryDesc) * pAcct->acctInfo.numOfQueries + sizeof(SQueryShow));
   pQueryShow->numOfQueries = 0;
   pQueryShow->index = 0;
   pQueryShow->connInfo = NULL;
@@ -87,7 +87,7 @@ int mgmtGetQueries(SShowObj *pShow, SConnObj *pConn) {
     pQueryShow->cdesc = (SCDesc **)malloc(pAcct->acctInfo.numOfQueries * sizeof(SCDesc *));
 
     pConn = pAcct->pConn;
-    SQDesc * pQdesc = pQueryShow->qdesc;
+    SCMQueryDesc * pQdesc = pQueryShow->qdesc;
     SCDesc * pCDesc = pQueryShow->connInfo;
     SCDesc **ppCDesc = pQueryShow->cdesc;
 
@@ -97,10 +97,10 @@ int mgmtGetQueries(SShowObj *pShow, SConnObj *pConn) {
         pCDesc->port = pConn->port;
         strcpy(pCDesc->user, pConn->pUser->user);
 
-        memcpy(pQdesc, pConn->pQList->qdesc, sizeof(SQDesc) * pConn->pQList->numOfQueries);
+        memcpy(pQdesc, pConn->pQList->qdesc, sizeof(SCMQueryDesc) * pConn->pQList->numOfQueries);
         pQdesc += pConn->pQList->numOfQueries;
         pQueryShow->numOfQueries += pConn->pQList->numOfQueries;
-        for (int i = 0; i < pConn->pQList->numOfQueries; ++i, ++ppCDesc) *ppCDesc = pCDesc;
+        for (int32_t i = 0; i < pConn->pQList->numOfQueries; ++i, ++ppCDesc) *ppCDesc = pCDesc;
 
         pCDesc++;
       }
@@ -117,8 +117,8 @@ int mgmtGetQueries(SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int cols = 0;
+int32_t mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+  int32_t cols = 0;
 
   SSchema *pSchema = tsGetSchema(pMeta);
 
@@ -156,7 +156,7 @@ int mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
   pShow->numOfRows = 1000000;
   pShow->pNode = NULL;
@@ -166,7 +166,7 @@ int mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtKillQuery(char *qidstr, SConnObj *pConn) {
+int32_t mgmtKillQuery(char *qidstr, SConnObj *pConn) {
   char *temp, *chr, idstr[64];
   strcpy(idstr, qidstr);
 
@@ -192,8 +192,8 @@ int mgmtKillQuery(char *qidstr, SConnObj *pConn) {
   pConn = pAcct->pConn;
   while (pConn) {
     if (pConn->ip == ip && pConn->port == port && pConn->pQList) {
-      int     i;
-      SQDesc *pQDesc = pConn->pQList->qdesc;
+      int32_t     i;
+      SCMQueryDesc *pQDesc = pConn->pQList->qdesc;
       for (i = 0; i < pConn->pQList->numOfQueries; ++i, ++pQDesc) {
         if (pQDesc->queryId == queryId) break;
       }
@@ -219,17 +219,17 @@ _error:
   return TSDB_CODE_INVALID_QUERY_ID;
 }
 
-int mgmtRetrieveQueries(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
-  int   numOfRows = 0;
+int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+  int32_t   numOfRows = 0;
   char *pWrite;
-  int   cols = 0;
+  int32_t   cols = 0;
 
   SQueryShow *pQueryShow = (SQueryShow *)pShow->pNode;
 
   if (rows > pQueryShow->numOfQueries - pQueryShow->index) rows = pQueryShow->numOfQueries - pQueryShow->index;
 
   while (numOfRows < rows) {
-    SQDesc *pNode = pQueryShow->qdesc + pQueryShow->index;
+    SCMQueryDesc *pNode = pQueryShow->qdesc + pQueryShow->index;
     SCDesc *pCDesc = pQueryShow->cdesc[pQueryShow->index];
     cols = 0;
 
@@ -269,13 +269,13 @@ int mgmtRetrieveQueries(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
   return numOfRows;
 }
 
-int mgmtGetStreams(SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetStreams(SShowObj *pShow, SConnObj *pConn) {
   SAcctObj *   pAcct = pConn->pAcct;
   SStreamShow *pStreamShow;
 
   pthread_mutex_lock(&pAcct->mutex);
 
-  pStreamShow = malloc(sizeof(SSDesc) * pAcct->acctInfo.numOfStreams + sizeof(SQueryShow));
+  pStreamShow = malloc(sizeof(SCMStreamDesc) * pAcct->acctInfo.numOfStreams + sizeof(SQueryShow));
   pStreamShow->numOfStreams = 0;
   pStreamShow->index = 0;
   pStreamShow->connInfo = NULL;
@@ -286,7 +286,7 @@ int mgmtGetStreams(SShowObj *pShow, SConnObj *pConn) {
     pStreamShow->cdesc = (SCDesc **)malloc(pAcct->acctInfo.numOfStreams * sizeof(SCDesc *));
 
     pConn = pAcct->pConn;
-    SSDesc * pSdesc = pStreamShow->sdesc;
+    SCMStreamDesc * pSdesc = pStreamShow->sdesc;
     SCDesc * pCDesc = pStreamShow->connInfo;
     SCDesc **ppCDesc = pStreamShow->cdesc;
 
@@ -296,10 +296,10 @@ int mgmtGetStreams(SShowObj *pShow, SConnObj *pConn) {
         pCDesc->port = pConn->port;
         strcpy(pCDesc->user, pConn->pUser->user);
 
-        memcpy(pSdesc, pConn->pSList->sdesc, sizeof(SSDesc) * pConn->pSList->numOfStreams);
+        memcpy(pSdesc, pConn->pSList->sdesc, sizeof(SCMStreamDesc) * pConn->pSList->numOfStreams);
         pSdesc += pConn->pSList->numOfStreams;
         pStreamShow->numOfStreams += pConn->pSList->numOfStreams;
-        for (int i = 0; i < pConn->pSList->numOfStreams; ++i, ++ppCDesc) *ppCDesc = pCDesc;
+        for (int32_t i = 0; i < pConn->pSList->numOfStreams; ++i, ++ppCDesc) *ppCDesc = pCDesc;
 
         pCDesc++;
       }
@@ -316,8 +316,8 @@ int mgmtGetStreams(SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int      cols = 0;
+int32_t mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+  int32_t      cols = 0;
   SSchema *pSchema = tsGetSchema(pMeta);
 
   pShow->bytes[cols] = TSDB_USER_LEN;
@@ -366,7 +366,7 @@ int mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
   pShow->numOfRows = 1000000;
   pShow->pNode = NULL;
@@ -376,17 +376,17 @@ int mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtRetrieveStreams(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
-  int   numOfRows = 0;
+int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+  int32_t   numOfRows = 0;
   char *pWrite;
-  int   cols = 0;
+  int32_t   cols = 0;
 
   SStreamShow *pStreamShow = (SStreamShow *)pShow->pNode;
 
   if (rows > pStreamShow->numOfStreams - pStreamShow->index) rows = pStreamShow->numOfStreams - pStreamShow->index;
 
   while (numOfRows < rows) {
-    SSDesc *pNode = pStreamShow->sdesc + pStreamShow->index;
+    SCMStreamDesc *pNode = pStreamShow->sdesc + pStreamShow->index;
     SCDesc *pCDesc = pStreamShow->cdesc[pStreamShow->index];
     cols = 0;
 
@@ -434,7 +434,7 @@ int mgmtRetrieveStreams(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
   return numOfRows;
 }
 
-int mgmtKillStream(char *qidstr, SConnObj *pConn) {
+int32_t mgmtKillStream(char *qidstr, SConnObj *pConn) {
   char *temp, *chr, idstr[64];
   strcpy(idstr, qidstr);
 
@@ -460,8 +460,8 @@ int mgmtKillStream(char *qidstr, SConnObj *pConn) {
   pConn = pAcct->pConn;
   while (pConn) {
     if (pConn->ip == ip && pConn->port == port && pConn->pSList) {
-      int     i;
-      SSDesc *pSDesc = pConn->pSList->sdesc;
+      int32_t     i;
+      SCMStreamDesc *pSDesc = pConn->pSList->sdesc;
       for (i = 0; i < pConn->pSList->numOfStreams; ++i, ++pSDesc) {
         if (pSDesc->streamId == streamId) break;
       }
@@ -487,7 +487,7 @@ _error:
   return TSDB_CODE_INVALID_STREAM_ID;
 }
 
-int mgmtKillConnection(char *qidstr, SConnObj *pConn) {
+int32_t mgmtKillConnection(char *qidstr, SConnObj *pConn) {
   SConnObj *pConn1 = NULL;
   char *    temp, *chr, idstr[64];
   strcpy(idstr, qidstr);

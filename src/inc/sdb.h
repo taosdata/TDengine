@@ -37,8 +37,8 @@ extern int      sdbExtConns;
 extern int      sdbMaster;
 extern uint32_t sdbPublicIp;
 extern uint32_t sdbMasterStartTime;
-extern SIpList *pSdbIpList;
-extern SIpList *pSdbPublicIpList;
+extern SRpcIpSet *pSdbIpList;
+extern SRpcIpSet *pSdbPublicIpList;
 
 extern void (*sdbWorkAsMasterCallback)();  // this function pointer will be set by taosd
 
@@ -71,8 +71,6 @@ enum _sdbaction {
   SDB_MAX_ACTION_TYPES
 };
 
-#ifdef CLUSTER
-
 #define SDB_MAX_PEERS 4
 typedef struct {
   uint32_t ip;
@@ -102,8 +100,6 @@ void sdbUpdateIpList();
 extern SSdbPeer *sdbPeer[];
 #define sdbInited (sdbPeer[0])
 #define sdbStatus (sdbPeer[0]->status)
-
-#endif
 
 void *sdbOpenTable(int maxRows, int32_t maxRowSize, char *name, uint8_t keyType, char *directory,
                    void *(*appTool)(char, void *, char *, int, int *));
@@ -138,6 +134,7 @@ int sdbCfgNode(char *cont);
 
 int64_t sdbGetVersion();
 
+int32_t sdbGetRunStatus();
 
 #define TSDB_MAX_TABLES 1000
 extern void* tsChildTableSdb;

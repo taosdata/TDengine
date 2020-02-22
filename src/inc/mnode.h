@@ -306,8 +306,8 @@ typedef struct _connObj {
   uint32_t         ip;                  // shell IP
   uint16_t         port;                // shell port
   void *           thandle;
-  SQList *         pQList;  // query list
-  SSList *         pSList;  // stream list
+  SCMQqueryList *         pQList;  // query list
+  SCMStreamList *         pSList;  // stream list
   uint64_t         qhandle;
   struct _connObj *prev, *next;
 } SConnObj;

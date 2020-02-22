@@ -24,8 +24,9 @@
 extern char   version[];
 const int16_t sdbFileVersion = 0;
 int           sdbExtConns = 0;
-SIpList      *pSdbIpList = NULL;
-SIpList      *pSdbPublicIpList = NULL;
+SRpcIpSet    *pSdbIpList = NULL;
+SRpcIpSet    *pSdbPublicIpList = NULL;
+SSdbPeer *    sdbPeer[SDB_MAX_PEERS];  // first slot for self
 
 #ifdef CLUSTER
 int           sdbMaster = 0;
@@ -56,6 +57,13 @@ int64_t    sdbVersion;
 int64_t sdbGetVersion() {
   return sdbVersion;
 };
+
+int32_t sdbGetRunStatus() {
+  if (sdbInited == NULL) {
+    return SDB_STATUS_OFFLINE;
+  }
+  return sdbStatus;
+}
 
 void sdbFinishCommit(void *handle) {
   SSdbTable *pTable = (SSdbTable *)handle;

@@ -46,9 +46,11 @@ static void mgmtInitShowMsgFp();
 
 void *    tsShellConn = NULL;
 SConnObj *connList;
-void      mgmtProcessMsgFromShell(char type, void *pCont, int32_t contLen, void *ahandle, int32_t code);
-int32_t       mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
-int32_t     (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(char *, int32_t, SConnObj *);
+
+static void mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *ahandle, int32_t code);
+static int32_t (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(void *pCont, int32_t contLen, void *ahandle);
+static int32_t mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
+
 void      mgmtInitProcessShellMsg();
 int32_t       mgmtRedirectMsg(SConnObj *pConn, int32_t msgType);
 int32_t       mgmtKillQuery(char *queryId, SConnObj *pConn);
@@ -156,31 +158,8 @@ static uint32_t mgmtSetMeterTagValue(char *pTags, STabObj *pMetric, STabObj *pMe
 //  return 0;
 //}
 
-/**
- * check if we need to add mgmtProcessMeterMetaMsg into tranQueue, which will be executed one-by-one.
- *
- * @param pMsg
- * @return
- */
-bool mgmtCheckMeterMetaMsgType(char *pMsg) {
-//  SMeterInfoMsg *pInfo = (SMeterInfoMsg *)pMsg;
-//
-//  int16_t   autoCreate = htons(pInfo->createFlag);
-//  STableInfo *table      = mgmtGetTable(pInfo->meterId);
 
-// If table does not exists and autoCreate flag is set, we add the handler into another task queue, namely tranQueue
-//  bool addIntoTranQueue = (pMeterObj == NULL && autoCreate == 1);
-//  if (addIntoTranQueue) {
-//    mTrace("meter:%s auto created task added", pInfo->meterId);
-//  }
-
-//  bool addIntoTranQueue = true;
-
-//  return addIntoTranQueue;
-  return 0;
-}
-
-int32_t mgmtProcessMeterMetaMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SMeterInfoMsg *pInfo = (SMeterInfoMsg *)pMsg;
 //  STabObj *      pMeterObj = NULL;
 //  SVgObj *       pVgroup = NULL;
@@ -352,7 +331,7 @@ int32_t mgmtProcessMeterMetaMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
  *                |                                                                                          |                       |
  *              pStart                                                                                   pCurMeter                 pTail
  **/
-int32_t mgmtProcessMultiMeterMetaMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessMultiMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SDbObj *          pDbObj    = NULL;
 //  STabObj *         pMeterObj = NULL;
 //  SVgObj *          pVgroup   = NULL;
@@ -507,7 +486,7 @@ int32_t mgmtProcessMultiMeterMetaMsg(char *pMsg, int32_t msgLen, SConnObj *pConn
   return 0;
 }
 
-int32_t mgmtProcessMetricMetaMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessMetricMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SSuperTableMetaMsg *pSuperTableMetaMsg = (SSuperTableMetaMsg *)pMsg;
 //  STabObj *       pMetric;
 //  STaosRsp *      pRsp;
@@ -558,7 +537,7 @@ int32_t mgmtProcessMetricMetaMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessCreateDbMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessCreateDbMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SCreateDbMsg *pCreate = (SCreateDbMsg *)pMsg;
 //  int32_t           code = 0;
 //
@@ -593,12 +572,12 @@ int32_t mgmtProcessCreateDbMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessCreateMnodeMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessCreateMnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  return rpcSendResponse(pConn->thandle, TSDB_MSG_TYPE_CREATE_MNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
   return 0;
 }
 
-int32_t mgmtProcessAlterDbMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessAlterDbMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SAlterDbMsg *pAlter = (SAlterDbMsg *)pMsg;
 //  int32_t          code = 0;
 //
@@ -624,7 +603,7 @@ int32_t mgmtProcessAlterDbMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessKillQueryMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessKillQueryMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  int32_t         code = 0;
 //  SKillQuery *pKill = (SKillQuery *)pMsg;
 //
@@ -639,7 +618,7 @@ int32_t mgmtProcessKillQueryMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessKillStreamMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessKillStreamMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  int32_t          code = 0;
 //  SKillStream *pKill = (SKillStream *)pMsg;
 //
@@ -654,7 +633,7 @@ int32_t mgmtProcessKillStreamMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessKillConnectionMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessKillConnectionMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  int32_t              code = 0;
 //  SKillConnection *pKill = (SKillConnection *)pMsg;
 //
@@ -669,7 +648,7 @@ int32_t mgmtProcessKillConnectionMsg(char *pMsg, int32_t msgLen, SConnObj *pConn
   return 0;
 }
 
-int32_t mgmtProcessCreateUserMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessCreateUserMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SCreateUserMsg *pCreate = (SCreateUserMsg *)pMsg;
 //  int32_t             code = 0;
 //
@@ -691,7 +670,7 @@ int32_t mgmtProcessCreateUserMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessAlterUserMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessAlterUserMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SAlterUserMsg *pAlter = (SAlterUserMsg *)pMsg;
 //  int32_t            code = 0;
 //  SUserObj *     pUser;
@@ -803,7 +782,7 @@ int32_t mgmtProcessAlterUserMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessDropUserMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessDropUserMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SDropUserMsg *pDrop = (SDropUserMsg *)pMsg;
 //  int32_t           code = 0;
 //  SUserObj *    pUser;
@@ -862,7 +841,7 @@ int32_t mgmtProcessDropUserMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessDropDbMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessDropDbMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SDropDbMsg *pDrop = (SDropDbMsg *)pMsg;
 //  int32_t         code;
 //
@@ -883,7 +862,7 @@ int32_t mgmtProcessDropDbMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessUseDbMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessUseDbMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SUseDbMsg *pUse = (SUseDbMsg *)pMsg;
 //  int32_t        code;
 //
@@ -933,7 +912,7 @@ static void mgmtInitShowMsgFp() {
   mgmtRetrieveFp[TSDB_MGMT_TABLE_VNODES] = mgmtRetrieveVnodes;
 }
 
-int32_t mgmtProcessShowMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessShowMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SShowMsg *   pShowMsg = (SShowMsg *)pMsg;
 //  STaosRsp *   pRsp;
 //  char *       pStart;
@@ -992,7 +971,7 @@ int32_t mgmtProcessShowMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessRetrieveMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessRetrieveMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SRetrieveMeterMsg *pRetrieve;
 //  SRetrieveMeterRsp *pRsp;
 //  int32_t                rowsToRead = 0, size = 0, rowsRead = 0;
@@ -1080,7 +1059,7 @@ int32_t mgmtProcessRetrieveMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessCreateTableMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessCreateTableMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SCreateTableMsg *pCreate = (SCreateTableMsg *)pMsg;
 //  int32_t              code;
 //  SSchema *        pSchema;
@@ -1135,7 +1114,7 @@ int32_t mgmtProcessCreateTableMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessDropTableMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessDropTableMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SDropTableMsg *pDrop = (SDropTableMsg *)pMsg;
 //  int32_t            code;
 //
@@ -1161,7 +1140,7 @@ int32_t mgmtProcessDropTableMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessAlterTableMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessAlterTableMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  SAlterTableMsg *pAlter = (SAlterTableMsg *)pMsg;
 //  int32_t             code;
 //
@@ -1202,7 +1181,7 @@ int32_t mgmtProcessAlterTableMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int32_t mgmtProcessCfgDnodeMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessCfgDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
 //  int32_t      code = 0;
 //  SCfgMsg *pCfg = (SCfgMsg *)pMsg;
 //
@@ -1220,80 +1199,51 @@ int32_t mgmtProcessCfgDnodeMsg(char *pMsg, int32_t msgLen, SConnObj *pConn) {
 //
 //  if (code == 0) mTrace("dnode:%s is configured by %s", pCfg->ip, pConn->pUser->user);
 //
-//  return 0;
-//}
-//
-//int32_t mgmtProcessHeartBeatMsg(char *cont, int32_t contLen, SConnObj *pConn) {
-//  char *    pStart, *pMsg;
-//  int32_t       msgLen;
-//  STaosRsp *pRsp;
-//
-//  mgmtSaveQueryStreamList(cont, contLen, pConn);
-//
-//  pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_HEARTBEAT_RSP, 128);
-//  if (pStart == NULL) return 0;
-//  pMsg = pStart;
-//  pRsp = (STaosRsp *)pMsg;
-//  pRsp->code = 0;
-//  pMsg = (char *)pRsp->more;
-//
-//  SHeartBeatRsp *pHBRsp = (SHeartBeatRsp *)pRsp->more;
-//  pHBRsp->queryId = pConn->queryId;
-//  pConn->queryId = 0;
-//  pHBRsp->streamId = pConn->streamId;
-//  pHBRsp->streamId = pConn->streamId;
-//  pConn->streamId = 0;
-//  pHBRsp->killConnection = pConn->killConnection;
-//
-//  if (pConn->usePublicIp) {
-//    if (pSdbPublicIpList != NULL) {
-//      int32_t size = pSdbPublicIpList->numOfIps * 4;
-//      pHBRsp->ipList.numOfIps = pSdbPublicIpList->numOfIps;
-//      memcpy(pHBRsp->ipList.ip, pSdbPublicIpList->ip, size);
-//      pMsg += sizeof(SHeartBeatRsp) + size;
-//    } else {
-//      pHBRsp->ipList.numOfIps = 0;
-//      pMsg += sizeof(SHeartBeatRsp);
-//    }
-//
-//  } else {
-//    if (pSdbIpList != NULL) {
-//      int32_t size = pSdbIpList->numOfIps * 4;
-//      pHBRsp->ipList.numOfIps = pSdbIpList->numOfIps;
-//      memcpy(pHBRsp->ipList.ip, pSdbIpList->ip, size);
-//      pMsg += sizeof(SHeartBeatRsp) + size;
-//    } else {
-//      pHBRsp->ipList.numOfIps = 0;
-//      pMsg += sizeof(SHeartBeatRsp);
-//    }
-//  }
-//  msgLen = pMsg - pStart;
-//
-//  taosSendMsgToPeer(pConn->thandle, pStart, msgLen);
-
   return 0;
 }
 
-void mgmtEstablishConn(SConnObj *pConn) {
-//  atomic_fetch_add_32(&mgmtShellConns, 1);
-//  atomic_fetch_add_32(&sdbExtConns, 1);
-//  pConn->stime = taosGetTimestampMs();
-//
-//  if (strcmp(pConn->pUser->user, "root") == 0) {
-//    pConn->superAuth = 1;
-//    pConn->writeAuth = 1;
-//  } else {
-//    pConn->superAuth = pConn->pUser->superAuth;
-//    pConn->writeAuth = pConn->pUser->writeAuth;
-//    if (pConn->superAuth) {
-//      pConn->writeAuth = 1;
-//    }
-//  }
-//
-//  int32_t tempint32;
-//  uint32_t tempuint32;
-//  taosGetRpcConnInfo(pConn->thandle, &tempuint32, &pConn->ip, &pConn->port, &tempint32, &tempint32);
-//  mgmtAddConnIntoAcct(pConn);
+int32_t mgmtProcessHeartBeatMsg(void *pCont, int32_t contLen, void *ahandle) {
+  SCMHeartBeatMsg *pHBMsg = (SCMHeartBeatMsg *) pCont;
+  mgmtSaveQueryStreamList(pHBMsg);
+
+  SCMHeartBeatRsp *pHBRsp = (SCMHeartBeatRsp *) rpcMallocCont(contLen);
+  if (pHBRsp == NULL) {
+    rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
+    rpcFreeCont(pCont);
+    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  }
+
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(ahandle, &connInfo);
+
+  pHBRsp->ipList.index = 0;
+  pHBRsp->ipList.port = htons(tsMgmtShellPort);
+  pHBRsp->ipList.numOfIps = 0;
+  if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
+    pHBRsp->ipList.numOfIps = htons(pSdbPublicIpList->numOfIps);
+    if (connInfo.serverIp == tsPublicIpInt) {
+      for (int i = 0; i < pSdbPublicIpList->numOfIps; ++i) {
+        pHBRsp->ipList.ip[i] = htonl(pSdbPublicIpList->ip[i]);
+      }
+    } else {
+      for (int i = 0; i < pSdbIpList->numOfIps; ++i) {
+        pHBRsp->ipList.ip[i] = htonl(pSdbIpList->ip[i]);
+      }
+    }
+  }
+
+  /*
+   * TODO
+   * Dispose kill stream or kill query message
+   */
+  pHBRsp->queryId = 0;
+  pHBRsp->streamId = 0;
+  pHBRsp->killConnection = 0;
+
+  rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pHBRsp, sizeof(SCMHeartBeatMsg));
+  rpcFreeCont(pCont);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
@@ -1313,36 +1263,32 @@ int32_t mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secr
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtProcessConnectMsg(int8_t type, void *pCont, int32_t contLen, void *ahandle, int32_t code) {
+static int32_t mgmtProcessConnectMsg(void *pCont, int32_t contLen, void *ahandle) {
   SCMConnectMsg *pConnectMsg = (SCMConnectMsg *) pCont;
   SRpcConnInfo connInfo;
   rpcGetConnInfo(ahandle, &connInfo);
+  int32_t code;
 
   SUserObj *pUser = mgmtGetUser(connInfo.user);
   if (pUser == NULL) {
-    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
-    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    code = TSDB_CODE_INVALID_USER;
+    goto connect_over;
   }
 
   if (mgmtCheckExpired()) {
-    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
-    rpcSendResponse(ahandle, TSDB_CODE_GRANT_EXPIRED, NULL, 0);
-    return TSDB_CODE_GRANT_EXPIRED;
+    code = TSDB_CODE_GRANT_EXPIRED;
+    goto connect_over;
   }
 
   SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
   if (pAcct == NULL) {
-    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
-    rpcSendResponse(ahandle, TSDB_CODE_INVALID_ACCT, NULL, 0);
-    return TSDB_CODE_INVALID_ACCT;
+    code = TSDB_CODE_INVALID_ACCT;
+    goto connect_over;
   }
 
   code = taosCheckVersion(pConnectMsg->clientVersion, version, 3);
   if (code != TSDB_CODE_SUCCESS) {
-    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
-    rpcSendResponse(ahandle, code, NULL, 0);
-    return code;
+    goto connect_over;
   }
 
   if (pConnectMsg->db[0]) {
@@ -1350,131 +1296,101 @@ int32_t mgmtProcessConnectMsg(int8_t type, void *pCont, int32_t contLen, void *a
     sprintf(dbName, "%x%s%s", pAcct->acctId, TS_PATH_DELIMITER, pConnectMsg->db);
     SDbObj *pDb = mgmtGetDb(dbName);
     if (pDb == NULL) {
-      mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
-      rpcSendResponse(ahandle, TSDB_CODE_INVALID_DB, NULL, 0);
-      return TSDB_CODE_INVALID_DB;
+      code = TSDB_CODE_INVALID_DB;
+      goto connect_over;
     }
   }
 
   SCMConnectRsp *pConnectRsp = rpcMallocCont(sizeof(SCMConnectRsp));
   if (pConnectRsp == NULL) {
-    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
-    rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    code = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    goto connect_over;
   }
 
   sprintf(pConnectRsp->acctId, "%x", pAcct->acctId);
   strcpy(pConnectRsp->serverVersion, version);
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
-
-  pConnectRsp->index = 0;
+  pConnectRsp->ipList.index = 0;
+  pConnectRsp->ipList.port = htons(tsMgmtShellPort);
+  pConnectRsp->ipList.numOfIps = 0;
   if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
-    pConnectRsp->numOfIps = htons(pSdbPublicIpList->numOfIps);
-    pConnectRsp->port = htons(tsMgmtShellPort);
+    pConnectRsp->ipList.numOfIps = htons(pSdbPublicIpList->numOfIps);
     if (connInfo.serverIp == tsPublicIpInt) {
       for (int i = 0; i < pSdbPublicIpList->numOfIps; ++i) {
-        pConnectRsp->ip[i] = htonl(pSdbPublicIpList->ip[i]);
+        pConnectRsp->ipList.ip[i] = htonl(pSdbPublicIpList->ip[i]);
       }
     } else {
       for (int i = 0; i < pSdbIpList->numOfIps; ++i) {
-        pConnectRsp->ip[i] = htonl(pSdbIpList->ip[i]);
+        pConnectRsp->ipList.ip[i] = htonl(pSdbIpList->ip[i]);
       }
     }
-  } else {
-    pConnectRsp->numOfIps = 0;
-    pConnectRsp->port = htons(tsMgmtShellPort);
   }
 
-  mLPrint("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
-  return TSDB_CODE_SUCCESS;
+connect_over:
+  if (code != TSDB_CODE_SUCCESS) {
+    mLError("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
+    rpcSendResponse(ahandle, code, NULL, 0);
+  } else {
+    mLPrint("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
+    rpcSendResponse(ahandle, code, pConnectRsp, sizeof(pConnectRsp));
+  }
+
+  rpcFreeCont(pCont);
+  return code;
 }
 
-void mgmtProcessMsgFromShell(char type, void *pCont, int32_t contLen, void *ahandle, int32_t code) {
-//  SIntMsg * pMsg = (SIntMsg *)msg;
-//  SConnObj *pConn = (SConnObj *)ahandle;
-//
-//  if (msg == NULL) {
-//    if (pConn) {
-//      mgmtRemoveConnFromAcct(pConn);
-//      atomic_fetch_sub_32(&mgmtShellConns, 1);
-//      atomic_fetch_sub_32(&sdbExtConns, 1);
-//      mTrace("connection from %s is closed", pConn->pUser->user);
-//      memset(pConn, 0, sizeof(SConnObj));
-//    }
-//
-//    return NULL;
-//  }
-//
-//#ifdef CLUSTER
-//  if (sdbInited == NULL || sdbStatus != SDB_STATUS_SERVING) {
-//    taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_NOT_READY);
-//    mTrace("shell msg is ignored since SDB is not ready");
-//  }
-//#endif
-//
-//  if (pConn == NULL) {
-//    pConn = connList + pMsg->destId;
-//    pConn->thandle = thandle;
-//    strcpy(pConn->user, pMsg->meterId);
-//    pConn->usePublicIp = (pMsg->destIp == tsPublicIpInt ? 1 : 0);
-//    mTrace("pConn:%p is rebuild, destIp:%s publicIp:%s usePublicIp:%u",
-//            pConn, taosIpStr(pMsg->destIp), taosIpStr(tsPublicIpInt), pConn->usePublicIp);
-//  }
-//
-//  if (pMsg->msgType == TSDB_MSG_TYPE_CONNECT) {
-//    (*mgmtProcessShellMsg[pMsg->msgType])((char *)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pConn);
-//  } else {
-//    SMgmtHead *pHead = (SMgmtHead *)pMsg->content;
-//    if (pConn->pAcct == NULL) {
-//      pConn->pUser = mgmtGetUser(pConn->user);
-//      if (pConn->pUser) {
-//        pConn->pAcct = mgmtGetAcct(pConn->pUser->acct);
-//        mgmtEstablishConn(pConn);
-//        mTrace("login from:%x:%hu", pConn->ip, htons(pConn->port));
-//      }
-//    }
-//
-//    if (pConn->pAcct) {
-//      if (pConn->pDb == NULL || strncmp(pConn->pDb->name, pHead->db, tListLen(pConn->pDb->name)) != 0) {
-//        pConn->pDb = mgmtGetDb(pHead->db);
-//      }
-//
-//      char *cont = (char *)pMsg->content + sizeof(SMgmtHead);
-//      int32_t   contLen = pMsg->msgLen - sizeof(SIntMsg) - sizeof(SMgmtHead);
-//
-//      // read-only request can be executed concurrently
-//      if ((pMsg->msgType == TSDB_MSG_TYPE_TABLE_META && (!mgmtCheckMeterMetaMsgType(cont))) ||
-//          pMsg->msgType == TSDB_MSG_TYPE_STABLE_META || pMsg->msgType == TSDB_MSG_TYPE_DNODE_RETRIEVE ||
-//          pMsg->msgType == TSDB_MSG_TYPE_SHOW || pMsg->msgType == TSDB_MSG_TYPE_MULTI_TABLE_META) {
-//        (*mgmtProcessShellMsg[pMsg->msgType])(cont, contLen, pConn);
-//      } else {
-//        if (mgmtProcessShellMsg[pMsg->msgType]) {
-//          SSchedMsg schedMsg;
-//          schedMsg.msg = malloc(pMsg->msgLen);  // Message to deal with
-//          memcpy(schedMsg.msg, pMsg, pMsg->msgLen);
-//
-//          schedMsg.fp = mgmtProcessTranRequest;
-//          schedMsg.tfp = NULL;
-//          schedMsg.thandle = pConn;
-//
-//          taosScheduleTask(tsMgmtTranQhandle, &schedMsg);
-//        } else {
-//          mError("%s from shell is not processed", taosMsg[pMsg->msgType]);
-//        }
-//      }
-//    } else {
-//      taosSendSimpleRsp(thandle, pMsg->msgType + 1, TSDB_CODE_DISCONNECTED);
-//    }
-//  }
-//
-//  if (pConn->pAcct == NULL) {
-//    taosCloseRpcConn(pConn->thandle);
-//    memset(pConn, 0, sizeof(SConnObj));  // close the connection;
-//    pConn = NULL;
-//  }
-//
-//  return pConn;
+
+/**
+ * check if we need to add mgmtProcessMeterMetaMsg into tranQueue, which will be executed one-by-one.
+ */
+static bool mgmtCheckMeterMetaMsgType(void *pMsg) {
+  SMeterInfoMsg *pInfo = (SMeterInfoMsg *) pMsg;
+  int16_t autoCreate = htons(pInfo->createFlag);
+  STableInfo *pTable = mgmtGetTable(pInfo->meterId);
+
+  // If table does not exists and autoCreate flag is set, we add the handler into task queue
+  bool addIntoTranQueue = (pTable == NULL && autoCreate == 1);
+  if (addIntoTranQueue) {
+    mTrace("meter:%s auto created task added", pInfo->meterId);
+  }
+
+  return addIntoTranQueue;
+}
+
+static bool mgmtCheckMsgReadOnly(int8_t type, void *pCont) {
+  if ((type == TSDB_MSG_TYPE_TABLE_META && (!mgmtCheckMeterMetaMsgType(pCont)))  ||
+       type == TSDB_MSG_TYPE_STABLE_META || type == TSDB_MSG_TYPE_DNODE_RETRIEVE ||
+       type == TSDB_MSG_TYPE_SHOW || type == TSDB_MSG_TYPE_MULTI_TABLE_META      ||
+       type == TSDB_MSG_TYPE_CONNECT) {
+    return true;
+  }
+
+  return false;
+}
+
+static void mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *ahandle, int32_t code) {
+  if (sdbGetRunStatus() != SDB_STATUS_SERVING) {
+    mTrace("shell msg is ignored since SDB is not ready");
+    rpcSendResponse(ahandle, TSDB_CODE_NOT_READY, NULL, 0);
+    return;
+  }
+
+  if (mgmtCheckMsgReadOnly(type, pCont)) {
+    (*mgmtProcessShellMsg[(int8_t)type])(pCont, contLen, ahandle);
+  } else {
+    if (mgmtProcessShellMsg[(int8_t)type]) {
+      SSchedMsg schedMsg;
+      schedMsg.msg = malloc(contLen);
+      memcpy(schedMsg.msg, pCont, contLen);
+      schedMsg.fp = mgmtProcessTranRequest;
+      schedMsg.tfp = NULL;
+      schedMsg.thandle = ahandle;
+      taosScheduleTask(tsMgmtTranQhandle, &schedMsg);
+    } else {
+      mError("%s from shell is not processed", taosMsg[(int8_t)type]);
+    }
+  }
 }
 
 void mgmtInitProcessShellMsg() {
@@ -1499,7 +1415,7 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_DNODE_RETRIEVE] = mgmtProcessRetrieveMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_SHOW] = mgmtProcessShowMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_CONNECT] = mgmtProcessConnectMsg;
-//  mgmtProcessShellMsg[TSDB_MSG_TYPE_HEARTBEAT] = mgmtProcessHeartBeatMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_HEARTBEAT] = mgmtProcessHeartBeatMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_DNODE] = mgmtProcessCreateDnodeMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_DNODE] = mgmtProcessDropDnodeMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_MNODE] = mgmtProcessCreateMnodeMsg;
@@ -1516,44 +1432,44 @@ int32_t mgmtCheckRedirectMsgImp(SConnObj *pConn, int32_t msgType) {
 }
 int32_t (*mgmtCheckRedirectMsg)(SConnObj *pConn, int32_t msgType) = mgmtCheckRedirectMsgImp;
 
-int32_t mgmtProcessAlterAcctMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessAlterAcctMsgImp(void *pCont, int32_t contLen, void *ahandle) {
   //return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_ACCT_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
   return 0;
 }
-int32_t (*mgmtProcessAlterAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessAlterAcctMsgImp;
+int32_t (*mgmtProcessAlterAcctMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessAlterAcctMsgImp;
 
-int32_t mgmtProcessCreateDnodeMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessCreateDnodeMsgImp(void *pCont, int32_t contLen, void *ahandle) {
   //return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_DNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
   return 0;
 }
-int32_t (*mgmtProcessCreateDnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessCreateDnodeMsgImp;
+int32_t (*mgmtProcessCreateDnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessCreateDnodeMsgImp;
 
-int32_t mgmtProcessCfgMnodeMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessCfgMnodeMsgImp(void *pCont, int32_t contLen, void *ahandle) {
   //return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CFG_MNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
   return 0;
 }
-int32_t (*mgmtProcessCfgMnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessCfgMnodeMsgImp;
+int32_t (*mgmtProcessCfgMnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessCfgMnodeMsgImp;
 
-int32_t mgmtProcessDropMnodeMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessDropMnodeMsgImp(void *pCont, int32_t contLen, void *ahandle) {
   //return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_MNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
   return 0;
 }
-int32_t (*mgmtProcessDropMnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessDropMnodeMsgImp;
+int32_t (*mgmtProcessDropMnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessDropMnodeMsgImp;
 
-int32_t mgmtProcessDropDnodeMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessDropDnodeMsgImp(void *pCont, int32_t contLen, void *ahandle) {
   //return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_DNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
   return 0;
 }
-int32_t (*mgmtProcessDropDnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessDropDnodeMsgImp;
+int32_t (*mgmtProcessDropDnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessDropDnodeMsgImp;
 
-int32_t mgmtProcessDropAcctMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessDropAcctMsgImp(void *pCont, int32_t contLen, void *ahandle) {
 //  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_ACCT_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
   return 0;
 }
-int32_t (*mgmtProcessDropAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessDropAcctMsgImp;
+int32_t (*mgmtProcessDropAcctMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessDropAcctMsgImp;
 
-int32_t mgmtProcessCreateAcctMsgImp(char *pMsg, int32_t msgLen, SConnObj *pConn) {
+int32_t mgmtProcessCreateAcctMsgImp(void *pCont, int32_t contLen, void *ahandle) {
 //  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_ACCT_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
   return 0;
 }
-int32_t (*mgmtProcessCreateAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn) = mgmtProcessCreateAcctMsgImp;
+int32_t (*mgmtProcessCreateAcctMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessCreateAcctMsgImp;
