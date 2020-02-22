@@ -324,14 +324,12 @@ typedef struct _sql_obj {
   short             vnode;
   int64_t           stime;
   uint32_t          queryId;
-  void *            thandle;
-  SRpcIpSet        *ipSet;
   void *            pStream;
   void *            pSubscription;
   char *            sqlstr;
   char              retry;
   char              maxRetry;
-  uint8_t           index;
+  SRpcIpSet        *ipList;
   char              freed : 4;
   char              listed : 4;
   tsem_t            rspSem;
@@ -379,8 +377,8 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
 void tscInitMsgs();
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
-void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle);
-int   tscProcessSql(SSqlObj *pSql);
+void tscProcessMsgFromServer(char type, void *pCont, int contLen, void *ahandle, int32_t code);
+int  tscProcessSql(SSqlObj *pSql);
 
 void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows);
 

@@ -382,7 +382,6 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
       pRes->numOfRows = 1;
       pRes->numOfTotal = 0;
       pRes->qhandle = 0;
-      pSql->thandle = NULL;
       pSql->cmd.command = TSDB_SQL_SELECT;
       pQueryInfo->type = type;
 

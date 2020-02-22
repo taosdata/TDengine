@@ -145,7 +145,7 @@ void tscKillQuery(STscObj *pObj, uint32_t killId) {
 
   if (pSql == NULL) return;
 
-  tscTrace("%p query is killed, queryId:%d thandle:%p", pSql, killId, pSql->thandle);
+  tscTrace("%p query is killed, queryId:%d", pSql, killId);
   taos_stop_query(pSql);
 }
 

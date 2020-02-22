@@ -318,13 +318,6 @@ void tscProcessAsyncRes(SSchedMsg *pMsg) {
   int cmd = pCmd->command;
   int code = pRes->code ? -pRes->code : pRes->numOfRows;
 
-  if ((tscKeepConn[cmd] == 0 || (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS)) &&
-      pSql->pStream == NULL) {
-    if (pSql->thandle) taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pTscObj->user);
-
-    pSql->thandle = NULL;
-  }
-
   // in case of async insert, restore the user specified callback function
   bool shouldFree = tscShouldFreeAsyncSqlObj(pSql);
 
@@ -454,8 +447,8 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
       tscTrace("%p failed to renew meterMeta", pSql);
       tsem_post(&pSql->rspSem);
     } else {
-      tscTrace("%p renew meterMeta successfully, command:%d, code:%d, thandle:%p, retry:%d",
-          pSql, pSql->cmd.command, pSql->res.code, pSql->thandle, pSql->retry);
+      tscTrace("%p renew meterMeta successfully, command:%d, code:%d, retry:%d",
+          pSql, pSql->cmd.command, pSql->res.code, pSql->retry);
   
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
       assert(pMeterMetaInfo->pMeterMeta == NULL);
