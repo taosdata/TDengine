@@ -41,12 +41,13 @@
 #define rpcIsReq(type) (type & 1U)
 
 typedef struct {
-  int      sessions;
-  int      numOfThreads;
-  int      idleTime;  // milliseconds;
+  int      sessions;     // number of sessions allowed
+  int      numOfThreads; // number of threads to process incoming messages
+  int      idleTime;     // milliseconds;
   char     localIp[TSDB_IPv4ADDR_LEN];
   uint16_t localPort;
-  int      connType;
+  int8_t   connType;
+  int      index;        // for UDP server only, round robin for multiple threads
   char     label[12];
 
   char     user[TSDB_UNI_LEN];   // meter ID
@@ -78,7 +79,7 @@ typedef struct {
   int32_t   contLen;    // content length
   int32_t   code;       // error code
   int16_t   numOfTry;   // number of try for different servers
-  int8_t    oldIndex;   // server IP index passed by app
+  int8_t    oldInUse;   // server IP inUse passed by app
   int8_t    redirect;   // flag to indicate redirect
   int8_t    connType;   // connection type
   char      msg[0];     // RpcHead starts from here
@@ -115,7 +116,7 @@ typedef struct _RpcConn {
   char     *pReqMsg;    // request message including header
   int       reqMsgLen;  // request message length
   SRpcInfo *pRpc;       // the associated SRpcInfo
-  int       connType;   // connection type
+  int8_t    connType;   // connection type
   int64_t   lockedBy;   // lock for connection
   SRpcReqContext *pContext; // request context
 } SRpcConn;
@@ -172,8 +173,8 @@ static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort,
 static void      rpcCloseConn(void *thandle);
 static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext);
 static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc);
-static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, char *user, char *hashstr);
-static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, char *user, char *hashstr);
+static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv);
+static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, SRecvInfo *pRecv);
 
 static void  rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext);
 static void  rpcSendQuickRsp(SRpcConn *pConn, int32_t code);
@@ -207,8 +208,7 @@ void *rpcOpen(SRpcInit *pInit) {
   if(pInit->label) strcpy(pRpc->label, pInit->label);
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
-  // pRpc->numOfThreads = pInit->numOfThreads>TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS:pInit->numOfThreads;
-  pRpc->numOfThreads = 1;
+  pRpc->numOfThreads = pInit->numOfThreads>TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS:pInit->numOfThreads;
   if (pInit->localIp) strcpy(pRpc->localIp, pInit->localIp);
   pRpc->localPort = pInit->localPort;
   pRpc->afp = pInit->afp;
@@ -331,7 +331,7 @@ void rpcSendRequest(void *shandle, SRpcIpSet *pIpSet, char type, void *pCont, in
   pContext->contLen = contLen;
   pContext->pCont = pCont;
   pContext->msgType = type;
-  pContext->oldIndex = pIpSet->index;
+  pContext->oldInUse = pIpSet->inUse;
 
   pContext->connType = RPC_CONN_UDPC; 
   if (contLen > 16000) pContext->connType = RPC_CONN_TCPC;
@@ -381,6 +381,7 @@ void rpcSendResponse(void *handle, int32_t code, void *pCont, int contLen) {
   pHead->sourceId = pConn->ownId;
   pHead->destId = pConn->peerId;
   pHead->uid = 0;
+  pHead->port = htons(pConn->localPort);
   pHead->code = htonl(code);
   memcpy(pHead->user, pConn->user, tListLen(pHead->user));
 
@@ -514,8 +515,12 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
   return pConn;
 }
 
-static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, char *user, char *hashstr) {
+static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   SRpcConn *pConn = NULL;
+  char      hashstr[40];
+  SRpcHead *pHead = (SRpcHead *)pRecv->msg;
+
+  sprintf(hashstr, "%x:%x:%x:%d", pRecv->ip, pHead->uid, pHead->sourceId, pRecv->connType);
 
   // check if it is already allocated
   SRpcConn **ppConn = (SRpcConn **)(taosGetStrHashData(pRpc->hash, hashstr));
@@ -529,12 +534,12 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, char *user, char *hashstr
   } else {
     pConn = pRpc->connList + sid;
     memset(pConn, 0, sizeof(SRpcConn));
-    memcpy(pConn->user, user, tListLen(pConn->user));
+    memcpy(pConn->user, pHead->user, tListLen(pConn->user));
     pConn->pRpc = pRpc;
     pConn->sid = sid;
     pConn->tranId = (uint16_t)(rand() & 0xFFFF);
     pConn->ownId = htonl(pConn->sid);
-    if (pRpc->afp && (*pRpc->afp)(user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey)) {
+    if (pRpc->afp && (*pRpc->afp)(pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey)) {
       tWarn("%s %p, user not there", pRpc->label, pConn);
       taosFreeId(pRpc->idPool, sid);   // sid shall be released
       terrno = TSDB_CODE_INVALID_USER;
@@ -543,25 +548,33 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, char *user, char *hashstr
   }      
 
   if (pConn) {
+    if (pRecv->connType == RPC_CONN_UDPS && pRpc->numOfThreads > 1) {
+      // UDP server, assign to new connection
+      pRpc->index = (pRpc->index+1) % pRpc->numOfThreads;
+      pConn->localPort = (pRpc->localPort + pRpc->index);
+    }
+
     taosAddStrHash(pRpc->hash, hashstr, (char *)&pConn);
-    tTrace("%s %p, rpc connection is allocated, sid:%d id:%s", pRpc->label, pConn, sid, pConn->user);
+    tTrace("%s %p, rpc connection is allocated, sid:%d id:%s port:%u", 
+           pRpc->label, pConn, sid, pConn->user, pConn->localPort);
   }
 
   return pConn;
 }
 
-static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, char *user, char *hashstr) {
+static SRpcConn *rpcGetConnObj(SRpcInfo *pRpc, int sid, SRecvInfo *pRecv) {
   SRpcConn *pConn = NULL;  
+  SRpcHead *pHead = (SRpcHead *)pRecv->msg;
 
   if (sid) {
     pConn = pRpc->connList + sid;
   } else {
-    pConn = rpcAllocateServerConn(pRpc, user, hashstr);
+    pConn = rpcAllocateServerConn(pRpc, pRecv);
   } 
 
   if (pConn) {
-    if (memcmp(pConn->user, user, tListLen(pConn->user)) != 0) {
-      tTrace("%s %p, user:%s is not matched, received:%s", pRpc->label, pConn, pConn->user, user);
+    if (memcmp(pConn->user, pHead->user, tListLen(pConn->user)) != 0) {
+      tTrace("%s %p, user:%s is not matched, received:%s", pRpc->label, pConn, pConn->user, pHead->user);
       terrno = TSDB_CODE_MISMATCHED_METER_ID;
       pConn = NULL;
     }
@@ -575,13 +588,15 @@ static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext) {
   SRpcInfo   *pRpc = pContext->pRpc;
   SRpcIpSet  *pIpSet = &pContext->ipSet;
 
-  pConn = rpcGetConnFromCache(pRpc->pCache, pIpSet->ip[pIpSet->index], pIpSet->port, pRpc->user);
+  pConn = rpcGetConnFromCache(pRpc->pCache, pIpSet->ip[pIpSet->inUse], pIpSet->port, pContext->connType);
   if ( pConn == NULL ) {
     char ipstr[20] = {0};
-    tinet_ntoa(ipstr, pIpSet->ip[pIpSet->index]);
+    tinet_ntoa(ipstr, pIpSet->ip[pIpSet->inUse]);
     pConn = rpcOpenConn(pRpc, ipstr, pIpSet->port, pContext->connType);
-    if (pConn) pConn->destIp = pIpSet->ip[pIpSet->index];
-  } 
+    if (pConn) pConn->destIp = pIpSet->ip[pIpSet->inUse];
+  } else {
+    tTrace("%s %p, connection is retrieved from cache", pRpc->label, pConn);
+  }
 
   return pConn;
 }
@@ -670,16 +685,16 @@ static int rpcProcessRspHead(SRpcConn *pConn, SRpcHead *pHead) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SRpcConn *rpcProcessHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
+static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   int32_t    sid;
   SRpcConn  *pConn = NULL;
-  char       hashstr[40] = {0};
 
   SRpcHead *pHead = (SRpcHead *)pRecv->msg;
 
   sid = htonl(pHead->destId);
   pHead->code = htonl(pHead->code);
   pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
+  pHead->port = htons(pHead->port);
 
   if (pHead->msgType >= TSDB_MSG_TYPE_MAX || pHead->msgType <= 0) {
     tTrace("%s sid:%d, invalid message type:%d", pRpc->label, sid, pHead->msgType);
@@ -698,8 +713,7 @@ static SRpcConn *rpcProcessHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     terrno = TSDB_CODE_INVALID_SESSION_ID; return NULL;
   }
 
-  if (sid == 0) sprintf(hashstr, "%x:%x:%x:%d", pRecv->ip, pHead->uid, pHead->sourceId, pRecv->connType);
-  pConn = rpcGetConnObj(pRpc, sid, pHead->user, hashstr);
+  pConn = rpcGetConnObj(pRpc, sid, pRecv);
   if (pConn == NULL) return NULL;
 
   rpcLockConn(pConn);
@@ -714,7 +728,7 @@ static SRpcConn *rpcProcessHead(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   }
   
   if (pRecv->port) pConn->peerPort = pRecv->port;
-  if (pHead->port)  pConn->peerPort = pHead->port; 
+  if (pHead->port) pConn->peerPort = pHead->port; 
   if (pHead->uid) pConn->peerUid = pHead->uid;
 
   terrno = rpcCheckAuthentication(pConn, (char *)pHead, pRecv->msgLen);
@@ -755,12 +769,11 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   SRpcHead  *pHead = (SRpcHead *)pRecv->msg;
   SRpcInfo  *pRpc = (SRpcInfo *)pRecv->shandle;
   SRpcConn  *pConn = (SRpcConn *)pRecv->thandle;
-  int32_t    code = 0;
 
   tDump(pRecv->msg, pRecv->msgLen);
 
   // underlying UDP layer does not know it is server or client
-  pRecv->connType = pRecv->connType | pRpc->connType; 
+  pRecv->connType = pRecv->connType | pRpc->connType;  
 
   if (pRecv->ip==0 && pConn) {
     rpcProcessBrokenLink(pConn); 
@@ -768,30 +781,31 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
     return NULL;
   }
 
-  pConn = rpcProcessHead(pRpc, pRecv);
+  terrno = 0;
+  pConn = rpcProcessMsgHead(pRpc, pRecv);
 
   if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16)) {
-    tTrace("%s %p, %s received from 0x%x:%hu, parse code:%x len:%d source:0x%08x dest:0x%08x tranId:%d",
-        pRpc->label, pConn, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, code, 
-        pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
+    tTrace("%s %p, %s received from 0x%x:%hu, parse code:%x len:%d source:0x%08x dest:0x%08x tranId:%d port:%hu",
+        pRpc->label, pConn, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, 
+        pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId, pHead->port);
   }
 
   if (pConn && pRpc->idleTime) {
     taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
   }
 
-  if (code != TSDB_CODE_ALREADY_PROCESSED) {
-    if (code != 0) { // parsing error
+  if (terrno != TSDB_CODE_ALREADY_PROCESSED) {
+    if (terrno != 0) { // parsing error
       if ( rpcIsReq(pHead->msgType) ) {
-        rpcSendErrorMsgToPeer(pRecv, code);
-        tTrace("%s %p, %s is sent with error code:%x", pRpc->label, pConn, taosMsg[pHead->msgType+1], code);
+        rpcSendErrorMsgToPeer(pRecv, terrno);
+        tTrace("%s %p, %s is sent with error code:%x", pRpc->label, pConn, taosMsg[pHead->msgType+1], terrno);
       } 
     } else { // parsing OK
       rpcProcessIncomingMsg(pConn, pHead);
     }
   }
 
-  if ( code != 0 ) free (pRecv->msg);
+  if ( terrno ) free (pRecv->msg);
   return pConn;
 }
 
@@ -811,7 +825,8 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
     int32_t code = pHead->code;
     SRpcReqContext *pContext = pConn->pContext;
     pConn->pContext = NULL;
-    rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerIp, pConn->peerPort, pConn->user);    
+    // for UDP, port may be changed by server, the port in ipSet shall be used for cache
+    rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerIp, pContext->ipSet.port, pConn->connType);    
 
     if (code == TSDB_CODE_REDIRECT) {
       pContext->redirect = 1;
@@ -820,7 +835,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
       tTrace("%s %p, redirect is received, numOfIps:%d", pRpc->label, pConn, pContext->ipSet.numOfIps);
       rpcSendReqToServer(pRpc, pContext);
     } else {
-      if ( pRpc->ufp && (pContext->ipSet.index != pContext->oldIndex || pContext->redirect) ) 
+      if ( pRpc->ufp && (pContext->ipSet.inUse != pContext->oldInUse || pContext->redirect) ) 
         (*pRpc->ufp)(pContext->ahandle, &pContext->ipSet);  // notify the update of ipSet
       (*pRpc->cfp)(pHead->msgType, pCont, contLen, pContext->ahandle, code);
       rpcFreeOutMsg(rpcHeadFromCont(pContext->pCont)); // free the request msg
@@ -968,8 +983,8 @@ static void rpcProcessConnError(void *param, void *id) {
     (*(pRpc->cfp))(pContext->msgType+1, NULL, 0, pContext->ahandle, pContext->code);  
   } else {
     // move to next IP 
-    pContext->ipSet.index++;
-    pContext->ipSet.index = pContext->ipSet.index % pContext->ipSet.numOfIps;
+    pContext->ipSet.inUse++;
+    pContext->ipSet.inUse = pContext->ipSet.inUse % pContext->ipSet.numOfIps;
     rpcSendReqToServer(pRpc, pContext);
   }
 }

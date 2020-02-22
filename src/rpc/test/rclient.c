@@ -51,7 +51,7 @@ void processResponse(char type, void *pCont, int contLen, void *ahandle, int32_t
 void processUpdateIpSet(void *handle, SRpcIpSet *pIpSet) {
   SInfo *pInfo = (SInfo *)handle;
 
-  tTrace("thread:%d, ip set is changed, index:%d", pInfo->index, pIpSet->index);
+  tTrace("thread:%d, ip set is changed, index:%d", pInfo->index, pIpSet->inUse);
   pInfo->ipSet = *pIpSet;
 }
 
@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
 
   // server info
   ipSet.numOfIps = 1;
-  ipSet.index = 0;
+  ipSet.inUse = 0;
   ipSet.port = 7000;
   ipSet.ip[0] = inet_addr(serverIp);
   ipSet.ip[1] = inet_addr("192.168.0.1");
@@ -189,7 +189,7 @@ int main(int argc, char *argv[]) {
   float usedTime = (endTime - startTime)/1000.0;  // mseconds
 
   tPrint("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs*appThreads);
-  tPrint("Performance: %.3f requests per second, msgSize:%d bytes", 1000*numOfReqs*appThreads/usedTime, msgSize);
+  tPrint("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0*numOfReqs*appThreads/usedTime, msgSize);
 
   taosCloseLog();
 
