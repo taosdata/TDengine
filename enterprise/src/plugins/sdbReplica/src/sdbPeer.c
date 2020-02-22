@@ -32,13 +32,13 @@
 #define MAX_TRY_WAIT_TIMES 2000
 #define TRY_WAIT_TIME_IN_MS 1
 
-extern void *mgmtTranQhandle;
+extern void *tsMgmtTranQhandle;
 void *       pPeerConn = NULL;  // for mnode-mnode communication
 void *       sdbTmr;
 void *       mnodeSdb;
 void *       sdbRoleTimer;
 int          sdbNumOfPeers = 0;
-SSdbPeer *   sdbPeer[SDB_MAX_PEERS];  // first slot for self
+extern SSdbPeer *   sdbPeer[SDB_MAX_PEERS];  // first slot for self
 STranQueue   sdbQueue;
 int          sdbCode = 0;
 sem_t        sdbSem;
@@ -606,7 +606,7 @@ void *sdbProcessMsgFromPeer(char *msg, void *ahandle, void *thandle) {
     schedMsg.ahandle = pPeer;
     schedMsg.thandle = NULL;
 
-    taosScheduleTask(mgmtTranQhandle, &schedMsg);
+    taosScheduleTask(tsMgmtTranQhandle, &schedMsg);
     ret = 0;
   } else if (pMsg->msgType == TSDB_MSG_TYPE_SDB_FORWARD_RSP) {
     ret = sdbProcessForwardRspMsg((char*)pMsg->content, pMsg->msgLen - sizeof(SIntMsg), pPeer);

@@ -21,7 +21,7 @@
 
 void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType) {
   pDnode->moduleStatus |= (1 << moduleType);
-  sdbUpdateRow(dnodeSdb, pDnode, tsDnodeUpdateSize, 1);
+  sdbUpdateRow(tsDnodeSdb, pDnode, tsDnodeUpdateSize, 1);
 
   if (moduleType == TSDB_MOD_MGMT) {
     sdbAddPeer(pDnode->privateIp, pDnode->publicIp, 0);
@@ -31,7 +31,7 @@ void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType) {
 
 int mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int moduleType) {
   pDnode->moduleStatus &= ~(1 << moduleType);
-  sdbUpdateRow(dnodeSdb, pDnode, tsDnodeUpdateSize, 1);
+  sdbUpdateRow(tsDnodeSdb, pDnode, tsDnodeUpdateSize, 1);
 
   if (moduleType == TSDB_MOD_MGMT) {
     int code = sdbRemovePeerByIp(pDnode->privateIp);
@@ -62,7 +62,7 @@ void mgmtStartModuleInAllDnodes(int moduleType) {
   SDnodeObj *pDnode = NULL;
 
   while (1) {
-    pNode = sdbFetchRow(dnodeSdb, pNode, (void **)&pDnode);
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
     if (pDnode == NULL) break;
 
     if (mgmtCheckModuleInDnode(pDnode, moduleType)) {
@@ -137,7 +137,7 @@ void mgmtMonitorDnodeModule() {
 
   // dnode loop
   while (1) {
-    pNode = sdbFetchRow(dnodeSdb, pNode, (void **)&pDnode);
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
     if (pDnode == NULL) break;
 
     if (mgmtCheckDnodeInRemoveState(pDnode)) {

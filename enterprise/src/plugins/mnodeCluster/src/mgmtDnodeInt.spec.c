@@ -72,7 +72,6 @@ int mgmtInitDnodeInt() {
   rpcInit.idMgmt = TAOS_ID_FREE;
   rpcInit.connType = TAOS_CONN_SOCKET_TYPE_S();
   rpcInit.idleTime = tsStatusInterval * 3000;
-  rpcInit.qhandle = mgmtQhandle;
 
   pDnodeConn = taosOpenRpc(&rpcInit);
   if (pDnodeConn == NULL) {
@@ -136,7 +135,7 @@ void mgmtUpdateVgroupPublicIp(uint32_t privateIp, uint32_t oldPublicIp, uint32_t
   void *  pNode = NULL;
   SVgObj *pVgroup = NULL;
   while (1) {
-    pNode = sdbFetchRow(vgSdb, pNode, (void **)&pVgroup);
+    pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
     if (pVgroup == NULL) break;
 
     for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
@@ -145,7 +144,7 @@ void mgmtUpdateVgroupPublicIp(uint32_t privateIp, uint32_t oldPublicIp, uint32_t
         mPrint("vgroup:%d, index:%d vnode:%d ip:%s change publicIp from %s to %s", pVgroup->vgId, i, vnodeGid->vnode,
                taosIpStr(privateIp), taosIpStr(vnodeGid->publicIp), taosIpStr(newPublicIp));
         vnodeGid->publicIp = newPublicIp;
-        sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
+        sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 1);
       }
     }
   }
@@ -227,7 +226,7 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
         pVload->status = TSDB_VN_STATUS_OFFLINE;
         mgmtUpdateDnode(pObj);
         mPrint("dnode:%s, vid:%d, drop finished", taosIpStr(pObj->privateIp), vnode);
-        taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, mgmtTmr);
+        taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, tsMgmtTmr);
       }
     } else if (pVload->vgId == 0) {
       /*

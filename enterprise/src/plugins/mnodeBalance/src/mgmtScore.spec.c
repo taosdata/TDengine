@@ -134,7 +134,7 @@ void mgmtReleaseDnodeOrderList() {
 }
 
 void mgmtAllocDnodeOrderList() {
-  mgmtOrderedDnodesSize = sdbGetNumOfRows(dnodeSdb);
+  mgmtOrderedDnodesSize = sdbGetNumOfRows(tsDnodeSdb);
 
   if (mgmtOrderedDnodesMallocSize <= mgmtOrderedDnodesSize) {
     mgmtOrderedDnodesMallocSize = mgmtOrderedDnodesSize * 2;
@@ -158,7 +158,7 @@ void mgmtMakeDnodeOrderList() {
   // fill and order
   int dnodeIndex = 0;
   while (dnodeIndex < mgmtOrderedDnodesSize) {
-    pNode = sdbFetchRow(dnodeSdb, pNode, (void **)&pDnode);
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
     if (pDnode == NULL) break;
     mgmtCalcDnodeScore(pDnode);
 
@@ -174,7 +174,7 @@ void mgmtMakeDnodeOrderList() {
   }
 }
 
-int mgmtGetScoresMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int mgmtGetScoresMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int cols = 0;
 
   if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
@@ -241,14 +241,14 @@ int mgmtGetScoresMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->offset[0] = 0;
   for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
-  pShow->numOfRows = sdbGetNumOfRows(dnodeSdb);
+  pShow->numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pNode = NULL;
 
   return 0;
 }
 
-int mgmtRetrieveScores(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
+int mgmtRetrieveScores(SShowObj *pShow, char *data, int rows, void *pConn) {
   int        numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
@@ -256,7 +256,7 @@ int mgmtRetrieveScores(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   char       ipstr[20];
 
   while (numOfRows < rows) {
-    pShow->pNode = sdbFetchRow(dnodeSdb, pShow->pNode, (void **)&pDnode);
+    pShow->pNode = sdbFetchRow(tsDnodeSdb, pShow->pNode, (void **)&pDnode);
     if (pDnode == NULL) break;
 
     int systemScore = mgmtCalcCpuScore(pDnode) + mgmtCalcMemoryScore(pDnode) + mgmtCalcDiskScore(pDnode) +

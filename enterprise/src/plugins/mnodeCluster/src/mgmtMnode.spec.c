@@ -19,7 +19,7 @@
 #include "sdb.h"
 #include "tschemautil.h"
 
-int mgmtGetMnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int mgmtGetMnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int cols = 0;
 
   if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
@@ -68,7 +68,7 @@ int mgmtGetMnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtRetrieveMnodes(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
+int mgmtRetrieveMnodes(SShowObj *pShow, char *data, int rows, void *pConn) {
   int       numOfRows = 0;
   SSdbPeer *pMnode = NULL;
   char *    pWrite;

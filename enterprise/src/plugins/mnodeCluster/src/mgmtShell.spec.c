@@ -27,10 +27,10 @@
 #define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
 
 void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle);
-int (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(char *, int, SConnObj *);
+int (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(char *, int, void *);
 void  mgmtInitProcessShellMsg();
 
-int mgmtRedirectMsg(SConnObj *pConn, int msgType) {
+int mgmtRedirectMsg(void *pConn, int msgType) {
   char *    pStart, *pMsg;
   int       size, msgLen;
   STaosRsp *pRsp;
@@ -59,7 +59,7 @@ int mgmtRedirectMsg(SConnObj *pConn, int msgType) {
   return 0;
 }
 
-int mgmtCheckRedirectMsg(SConnObj *pConn, int msgType) {
+int mgmtCheckRedirectMsg(void *pConn, int msgType) {
   if (!sdbMaster) {
     mgmtRedirectMsg(pConn, msgType);
     return 1;
@@ -68,7 +68,7 @@ int mgmtCheckRedirectMsg(SConnObj *pConn, int msgType) {
   }
 }
 
-int mgmtProcessAlterAcctMsg(char *pMsg, int msgLen, SConnObj *pConn) {
+int mgmtProcessAlterAcctMsg(char *pMsg, int msgLen, void *pConn) {
   SAlterAcctMsg *pAlter = NULL;
   int            code = 0;
 
@@ -101,7 +101,7 @@ int mgmtProcessAlterAcctMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtProcessCreateDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
+int mgmtProcessCreateDnodeMsg(char *pMsg, int msgLen, void *pConn) {
   SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *)pMsg;
   int              code = 0;
 
@@ -121,7 +121,7 @@ int mgmtProcessCreateDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtProcessCfgMnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
+int mgmtProcessCfgMnodeMsg(char *pMsg, int msgLen, void *pConn) {
   int      code = 0;
   SCfgMsg *pCfg = (SCfgMsg *)pMsg;
 
@@ -140,7 +140,7 @@ int mgmtProcessCfgMnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtProcessDropMnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
+int mgmtProcessDropMnodeMsg(char *pMsg, int msgLen, void *pConn) {
   SDropMnodeMsg *pDrop = (SDropMnodeMsg *)pMsg;
   int            code = 0;
 
@@ -165,7 +165,7 @@ int mgmtProcessDropMnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtProcessDropDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
+int mgmtProcessDropDnodeMsg(char *pMsg, int msgLen, void *pConn) {
   SDropDnodeMsg *pDrop = (SDropDnodeMsg *)pMsg;
   int            code = 0;
 
@@ -186,7 +186,7 @@ int mgmtProcessDropDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtProcessDropAcctMsg(char *pMsg, int msgLen, SConnObj *pConn) {
+int mgmtProcessDropAcctMsg(char *pMsg, int msgLen, void *pConn) {
   SDropAcctMsg *pDrop = (SDropAcctMsg *)pMsg;
   int           code = 0;
 
@@ -208,7 +208,7 @@ int mgmtProcessDropAcctMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtProcessCreateAcctMsg(char *pMsg, int msgLen, SConnObj *pConn) {
+int mgmtProcessCreateAcctMsg(char *pMsg, int msgLen, void *pConn) {
   SCreateAcctMsg *pCreate = (SCreateAcctMsg *)pMsg;
   int             code = 0;
 

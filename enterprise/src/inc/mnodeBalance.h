@@ -57,8 +57,8 @@ void mgmtMonitorDnodes();
 
 void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode);
 
-extern void *      dnodeSdb;
-extern void *      vgSdb;
+extern void *      tsDnodeSdb;
+extern void *      tsVgroupSdb;
 extern void *      balanceTimer;
 extern int         mgmtOrderedDnodesSize;
 extern int         mgmtOrderedDnodesMallocSize;

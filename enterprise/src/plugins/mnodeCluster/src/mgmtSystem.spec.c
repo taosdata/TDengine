@@ -31,15 +31,15 @@
 #include "taosdef.h"
 #include "dnodeModule.h"
 
-extern void *      mgmtStatisticTimer;
+extern void *      tsMgmtStatisTimer;
 extern void *      pDnodeConn;
-extern void *      pShellConn;
+extern void *      tsShellConn;
 extern void **     tsRpcQhandle;
 extern SMgmtIpList mgmtIpList;
 extern SMgmtIpList mgmtPublicIpList;
 extern char        mgmtIpStr[TSDB_MAX_MGMT_IPS][20];
 extern bool        tsClusterExist;
-extern void *      acctSdb;
+extern void *      tsAcctSdb;
 
 int   mgmtInitRedirect();
 void  mgmtCleanUpRedirect();
@@ -51,7 +51,7 @@ int mgmtInitSystem() {
   struct stat dirstat;
   sdbWorkAsMasterCallback = mgmtSdbWorkAsMasterCallback;
 
-  if (stat(mgmtDirectory, &dirstat) && strcmp(tsMasterIp, tsPrivateIp)) {
+  if (stat(tsMgmtDirectory, &dirstat) && strcmp(tsMasterIp, tsPrivateIp)) {
     return mgmtInitRedirect();
   } else if (tsClusterExist) {
     return mgmtInitRedirect();
@@ -77,17 +77,14 @@ int mgmtCheckMgmtRunning() {
   return 0;
 }
 
-void mgmtStartMgmtTimer() {
-}
-
 void mgmtDoStatistic(void *handle, void *tmrId) {
   SAcctObj *pAcct = NULL;
   void *    pNode = NULL;
 
-  if (acctSdb != NULL) {
+  if (tsAcctSdb != NULL) {
     int64_t totalStorage = 0;
     while (1) {
-      pNode = sdbFetchRow(acctSdb, pNode, (void **)&pAcct);
+      pNode = sdbFetchRow(tsAcctSdb, pNode, (void **)&pAcct);
       if (pAcct == NULL) break;
       totalStorage += mgmtGetAcctStatistic(pAcct);
     }
@@ -95,7 +92,7 @@ void mgmtDoStatistic(void *handle, void *tmrId) {
     grantResetCurStorage(totalStorage);
   }
 
-  taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, mgmtTmr, &mgmtStatisticTimer);
+  taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 }
 
 void mgmtStopSystem() {
@@ -105,7 +102,7 @@ void mgmtStopSystem() {
   }
 
   mgmtCleanUpSystem();
-  remove(mgmtDirectory);
+  remove(tsMgmtDirectory);
   mgmtInitRedirect();
 }
 
@@ -144,8 +141,8 @@ int mgmtInitRedirect() {
   rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
   rpcInit.qhandle = tsRpcQhandle[0];
 
-  pShellConn = taosOpenRpc(&rpcInit);
-  if (pShellConn == NULL) {
+  tsShellConn = taosOpenRpc(&rpcInit);
+  if (tsShellConn == NULL) {
     mError("failed to init tcp connection to shell");
     return -1;
   }
@@ -158,8 +155,8 @@ void mgmtCleanUpRedirect() {
   if (pDnodeConn) taosCloseRpc(pDnodeConn);
   pDnodeConn = NULL;
 
-  if (pShellConn) taosCloseRpc(pShellConn);
-  pShellConn = NULL;
+  if (tsShellConn) taosCloseRpc(tsShellConn);
+  tsShellConn = NULL;
 }
 
 void *mgmtRedirectAllMsgs(char *msg, void *ahandle, void *thandle) {

@@ -25,7 +25,7 @@
 #include "vnodeStatus.h"
 #include "dnodeModule.h"
 
-void *dnodeSdb = NULL;
+void *tsDnodeSdb = NULL;
 int   tsDnodeUpdateSize;
 
 extern uint32_t mgmtAccessSquence;
@@ -70,25 +70,25 @@ int mgmtInitDnodes() {
 
   mgmtDnodeActionInit();
 
-  dnodeSdb = sdbOpenTable(tsMaxDnodes, sizeof(SDnodeObj), "dnodes", SDB_KEYTYPE_UINT32, mgmtDirectory, mgmtDnodeAction);
-  if (dnodeSdb == NULL) {
+  tsDnodeSdb = sdbOpenTable(tsMaxDnodes, sizeof(SDnodeObj), "dnodes", SDB_KEYTYPE_UINT32, tsMgmtDirectory, mgmtDnodeAction);
+  if (tsDnodeSdb == NULL) {
     mError("failed to init dnode data");
     return -1;
   }
 
-  numOfRows = sdbGetNumOfRows(dnodeSdb);
+  numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfRows <= 0) {
     if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
       mgmtCreateDnode(inet_addr(tsPrivateIp));
       pDnode = mgmtGetDnode(inet_addr(tsPrivateIp));
       pDnode->moduleStatus |= (1 << TSDB_MOD_MGMT);
-      sdbUpdateRow(dnodeSdb, pDnode, tsDnodeUpdateSize, 1);
+      sdbUpdateRow(tsDnodeSdb, pDnode, tsDnodeUpdateSize, 1);
     }
   }
 
   numOfRows = 0;
   while (1) {
-    pNode = sdbFetchRow(dnodeSdb, pNode, (void **)&pDnode);
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
     if (pDnode == NULL) break;
 
     pDnode->status = TSDB_METER_STATE_OFFLINE;
@@ -107,13 +107,13 @@ int mgmtInitDnodes() {
   return 0;
 }
 
-SDnodeObj *mgmtGetDnode(uint32_t ip) { return (SDnodeObj *)sdbGetRow(dnodeSdb, &ip); }
+SDnodeObj *mgmtGetDnode(uint32_t ip) { return (SDnodeObj *)sdbGetRow(tsDnodeSdb, &ip); }
 
 int mgmtCreateDnode(uint32_t ip) {
   SDnodeObj *pDnode;
   int        size;
 
-  int numOfDnodes = sdbGetNumOfRows(dnodeSdb);
+  int numOfDnodes = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfDnodes >= tsMaxDnodes) {
     mWarn("numOfDnodes:%d, exceed tsMaxDnodes:%d", numOfDnodes, tsMaxDnodes);
     return TSDB_CODE_TOO_MANY_DNODES;
@@ -132,7 +132,7 @@ int mgmtCreateDnode(uint32_t ip) {
   pDnode->lastAccess = mgmtAccessSquence;
 
   int code = TSDB_CODE_SUCCESS;
-  if (sdbInsertRow(dnodeSdb, pDnode, 0) < 0) {
+  if (sdbInsertRow(tsDnodeSdb, pDnode, 0) < 0) {
     code = TSDB_CODE_SDB_ERROR;
     tfree(pDnode);
   }
@@ -145,7 +145,7 @@ int mgmtDropDnode(SDnodeObj *pDnode) {
   tinet_ntoa(ipstr, pDnode->privateIp);
 
   mgmtUnSetModuleInDnode(pDnode, TSDB_MOD_MGMT);
-  sdbDeleteRow(dnodeSdb, pDnode);
+  sdbDeleteRow(tsDnodeSdb, pDnode);
   mLPrint("dnode:%s is dropped from cluster", ipstr);
 
   return 0;
@@ -154,7 +154,7 @@ int mgmtDropDnode(SDnodeObj *pDnode) {
 int mgmtDropDnodeByIp(uint32_t ip) {
   SDnodeObj *pDnode;
 
-  pDnode = sdbGetRow(dnodeSdb, &ip);
+  pDnode = sdbGetRow(tsDnodeSdb, &ip);
   if (pDnode == NULL) return TSDB_CODE_INVALID_VALUE;
 
   if (pDnode->privateIp == mgmtIpList.ip[0]) {
@@ -165,16 +165,16 @@ int mgmtDropDnodeByIp(uint32_t ip) {
   return mgmtSetDnodeShellRemoving(pDnode);
 }
 
-int mgmtUpdateDnode(SDnodeObj *pDnode) { return sdbUpdateRow(dnodeSdb, pDnode, 0, 1); }
+int mgmtUpdateDnode(SDnodeObj *pDnode) { return sdbUpdateRow(tsDnodeSdb, pDnode, 0, 1); }
 
-void mgmtCleanUpDnodes() { sdbCloseTable(dnodeSdb); }
+void mgmtCleanUpDnodes() { sdbCloseTable(tsDnodeSdb); }
 
 int mgmtGetDnodesNum() {
-  return sdbGetNumOfRows(dnodeSdb);
+  return sdbGetNumOfRows(tsDnodeSdb);
 }
 
 void *mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode) {
-  return sdbFetchRow(dnodeSdb, pShow->pNode, (void**)pDnode);
+  return sdbFetchRow(tsDnodeSdb, pShow->pNode, (void**)pDnode);
 }
 
 void *mgmtDnodeActionInsert(void *row, char *str, int size, int *ssize) {

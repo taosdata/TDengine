@@ -32,14 +32,14 @@ void mgmtUnLockBalance() { pthread_mutex_unlock(&balanceMutex); }
 
 void mgmtUpdateDnodeState(SDnodeObj *pDnode, int lbStatus) {
   pDnode->lbStatus = lbStatus;
-  sdbUpdateRow(dnodeSdb, pDnode, tsDnodeUpdateSize, 1);
+  sdbUpdateRow(tsDnodeSdb, pDnode, tsDnodeUpdateSize, 1);
 }
 
 void mgmtUpdateVgroupState(SVgObj *pVgroup, int lbStatus, int srcIp) {
   pVgroup->lbTime = taosGetTimestampSec();
   pVgroup->lbStatus = lbStatus;
   pVgroup->lbIp = srcIp;
-  sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
+  sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 1);
 }
 
 /**
@@ -233,7 +233,7 @@ void mgmtDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
     mTrace("dnode:%s, vgroup:%d, vnode:%d exist after drop", taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vgId, pVgroup->vnodeGid[i].vnode);
   }
 
-  sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
+  sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 1);
 
   mgmtSendOneFreeVnodeMsg(&pBackupVnodeGid);
   mgmtSendVPeersMsg(pVgroup);
@@ -262,7 +262,7 @@ void mgmtAppendVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
     mError("dnode:%s, not in dnode DB!!!", taosIpStr(pVnodeGid->ip));
   }
 
-  sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
+  sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 1);
 
   for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
     mTrace("%d-dnode:%s, vgroup:%d, vnode:%d exist after addition", i, taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vgId, pVgroup->vnodeGid[i].vnode);
@@ -621,7 +621,7 @@ void mgmtSetDnodeOfflineOnSdbChanged() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
   while (1) {
-    pNode = sdbFetchRow(dnodeSdb, pNode, (void **)&pDnode);
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
     if (pDnode == NULL) break;
 
     mPrint("dnode:%s set access:%d to 0", taosIpStr(pDnode->privateIp), pDnode->lastAccess);
@@ -659,13 +659,13 @@ void mgmtProcessBalanceTimer(void *handle, void *tmrId) {
   balanceTimer = NULL;
   mgmtStartBalance((int64_t)handle);
   if (balanceTimer == NULL) {
-    taosTmrReset(mgmtProcessBalanceTimer, tsBalanceMonitorInterval * 1000, NULL, mgmtTmr, &balanceTimer);
+    taosTmrReset(mgmtProcessBalanceTimer, tsBalanceMonitorInterval * 1000, NULL, tsMgmtTmr, &balanceTimer);
   }
 }
 
 void mgmtStartBalanceTimer(int64_t mseconds) {
   mTrace("balance function will be called after %d mseconds", mseconds);
-  taosTmrReset((TAOS_TMR_CALLBACK)mgmtProcessBalanceTimer, mseconds, (void *)mseconds, mgmtTmr, &balanceTimer);
+  taosTmrReset((TAOS_TMR_CALLBACK)mgmtProcessBalanceTimer, mseconds, (void *)mseconds, tsMgmtTmr, &balanceTimer);
 }
 
 void mgmtMonitorVgroups() {
@@ -675,7 +675,7 @@ void mgmtMonitorVgroups() {
   int64_t curTime = time(NULL);
 
   while (1) {
-    pNode = sdbFetchRow(vgSdb, pNode, (void **)&pVgroup);
+    pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
     if (pVgroup == NULL) break;
     if (pVgroup->lbStatus == TSDB_VG_LB_STATUS_READY) continue;
     if (pVgroup->lbTime + 5 * tsStatusInterval >= curTime) continue;
@@ -711,7 +711,7 @@ void mgmtMontiorDnodeOffline(SDnodeObj *pDnode) {
   if (mgmtCheckDnodeInRemoveState(pDnode)) return;
   if (pDnode->lastAccess + tsOfflineThreshold > mgmtAccessSquence) return;
   if (pDnode->privateIp == mgmtIpList.ip[0]) return;
-  if (sdbGetNumOfRows(dnodeSdb) <= 1) return;
+  if (sdbGetNumOfRows(tsDnodeSdb) <= 1) return;
 
   mLPrint("dnode:%s set to removing state for it offline:%d seconds",
           taosIpStr(pDnode->privateIp), mgmtAccessSquence - pDnode->lastAccess);
@@ -795,7 +795,7 @@ void mgmtMonitorDnodes() {
   bool       hasRemovingDnode = false;
 
   while (1) {
-    pNode = sdbFetchRow(dnodeSdb, pNode, (void **)&pDnode);
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
     if (pDnode == NULL) break;
 
     mgmtMontiorDnodeOffline(pDnode);
@@ -860,7 +860,7 @@ int mgmtSetDnodeShellRemoving(SDnodeObj *pDnode) {
   void *pNode = NULL;
   SDnodeObj *pTempDnode = NULL;
   while (1) {
-    pNode = sdbFetchRow(dnodeSdb, pNode, (void **) &pTempDnode);
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **) &pTempDnode);
     if (pTempDnode == NULL) break;
     if (pTempDnode == pDnode) continue;
 

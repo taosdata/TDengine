@@ -51,7 +51,7 @@ int32_t mstorageInitStorage() {
     return -1;
   }
 
-  sprintf(mgmtDirectory, "%s/mgmt", disk->path);
+  sprintf(tsMgmtDirectory, "%s/mgmt", disk->path);
   sprintf(tsDirectory, "%s/tsdb", disk->path);
   dnodeCheckDataDirOpenned(disk->path);
 

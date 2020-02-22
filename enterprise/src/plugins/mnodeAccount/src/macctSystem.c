@@ -36,9 +36,9 @@
 #define TSDB_MIN_QUERYTIME_PER_ACCT 3600  // 1 hour
 #define TSDB_MAX_QUERYTIME_PER_ACCT INT64_MAX
 
-void *       acctSdb = NULL;
-extern void *userSdb;
-extern void *dbSdb;
+void *       tsAcctSdb = NULL;
+extern void *tsUserSdb;
+extern void *tsDbSdb;
 int          tsAcctUpdateSize;
 
 void *(*mgmtAcctActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int size, int *ssize);
@@ -80,14 +80,14 @@ int macctInitAccts() {
 
   mgmtAcctActionInit();
 
-  acctSdb = sdbOpenTable(tsMaxAccounts, sizeof(SAcctObj), "account", SDB_KEYTYPE_STRING, mgmtDirectory, mgmtAcctAction);
-  if (acctSdb == NULL) {
+  tsAcctSdb = sdbOpenTable(tsMaxAccounts, sizeof(SAcctObj), "account", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtAcctAction);
+  if (tsAcctSdb == NULL) {
     mError("failed to init account data");
     return -1;
   }
 
   while (1) {
-    pNode = sdbFetchRow(acctSdb, pNode, (void **)&pAcct);
+    pNode = sdbFetchRow(tsAcctSdb, pNode, (void **)&pAcct);
     if (pAcct == NULL) break;
 
     pAcct->pHead = NULL;
@@ -109,14 +109,16 @@ int macctInitAccts() {
   SAcctObj tObj;
   tsAcctUpdateSize = tObj.updateEnd - (char *)&tObj;
 
+  macctCheckAcct();
+
   mTrace("account is initialized");
   return 0;
 }
 
-SAcctObj *macctGetAcct(char *name) { return (SAcctObj *)sdbGetRow(acctSdb, name); }
+SAcctObj *macctGetAcct(char *name) { return (SAcctObj *)sdbGetRow(tsAcctSdb, name); }
 
 int macctCheckUserLimit(SAcctObj *pAcct) {
-  int numOfUsers = sdbGetNumOfRows(userSdb);
+  int numOfUsers = sdbGetNumOfRows(tsUserSdb);
   if (numOfUsers >= tsMaxUsers || pAcct->acctInfo.numOfUsers >= pAcct->cfg.maxUsers) {
     mWarn("numOfUsers:%d, exceed tsMaxUsers:%d or account numOfUsers: %d, exceed account maxUsers: %d",
           numOfUsers, tsMaxUsers, pAcct->acctInfo.numOfUsers, pAcct->cfg.maxUsers);
@@ -126,7 +128,7 @@ int macctCheckUserLimit(SAcctObj *pAcct) {
 }
 
 int macctCheckDbLimit(SAcctObj *pAcct) {
-  int numOfDbs = sdbGetNumOfRows(dbSdb);
+  int numOfDbs = sdbGetNumOfRows(tsDbSdb);
   if (numOfDbs >= tsMaxDbs || pAcct->acctInfo.numOfDbs >= pAcct->cfg.maxDbs) {
     mWarn("numOfDbs:%d, exceed tsMaxDbs:%d or account numOfDbs: %d, exceed account maxDbs:%d",
           numOfDbs, tsMaxDbs, pAcct->acctInfo.numOfDbs, pAcct->cfg.maxDbs);
@@ -233,24 +235,24 @@ int mgmtCheckAcctParams(SAcctCfg *pCfg) {
 int mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
   SAcctObj *pAcct;
 
-  int numOfAccts = sdbGetNumOfRows(acctSdb);
+  int numOfAccts = sdbGetNumOfRows(tsAcctSdb);
   if (numOfAccts >= tsMaxAccounts) {
     mWarn("numOfAccts:%d, exceed tsMaxAccounts:%d", numOfAccts, tsMaxAccounts);
     return TSDB_CODE_TOO_MANY_ACCTS;
   }
 
-  pAcct = (SAcctObj *)sdbGetRow(acctSdb, name);
+  pAcct = (SAcctObj *)sdbGetRow(tsAcctSdb, name);
   if (pAcct != NULL) {
     return TSDB_CODE_ACCT_ALREADY_EXIST;
   }
 
-  int numOfUsers = sdbGetNumOfRows(userSdb);
+  int numOfUsers = sdbGetNumOfRows(tsUserSdb);
   if (numOfUsers >= tsMaxUsers) {
     mWarn("numOfUsers:%d, exceed tsMaxUsers:%d", numOfUsers, tsMaxUsers);
     return TSDB_CODE_TOO_MANY_USERS;
   }
 
-  SUserObj *pUser = (SUserObj *)sdbGetRow(userSdb, name);
+  SUserObj *pUser = (SUserObj *)sdbGetRow(tsUserSdb, name);
   if (pUser != NULL) {
     mWarn("user:%s is already there", name);
     return TSDB_CODE_USER_ALREADY_EXIST;
@@ -280,14 +282,14 @@ int mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
                             .maxOutbound = 0,
                             .accessState = TSDB_VN_ALL_ACCCESS};
   }
-  pAcct->acctId = sdbGetId(acctSdb);
+  pAcct->acctId = sdbGetId(tsAcctSdb);
   pAcct->createdTime = taosGetTimestampMs();
 
   int grantCode = grantCheckAccts();
   if (grantCode != 0) return grantCode;
 
   int code = TSDB_CODE_SUCCESS;
-  if (sdbInsertRow(acctSdb, pAcct, 0) < 0) {
+  if (sdbInsertRow(tsAcctSdb, pAcct, 0) < 0) {
     code = TSDB_CODE_SDB_ERROR;
     tfree(pAcct);
   } else {
@@ -305,7 +307,7 @@ int mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg) {
 int mgmtDropAcct(char *name) {
   SAcctObj *pAcct;
 
-  pAcct = (SAcctObj *)sdbGetRow(acctSdb, name);
+  pAcct = (SAcctObj *)sdbGetRow(tsAcctSdb, name);
   if (pAcct == NULL) {
     mWarn("account:%s is not there", name);
     return TSDB_CODE_INVALID_ACCT;
@@ -318,7 +320,7 @@ int mgmtDropAcct(char *name) {
   while (pAcct->pUser) mgmtDropUser(pAcct, pAcct->pUser->user);
 
   pthread_mutex_destroy(&pAcct->mutex);
-  sdbDeleteRow(acctSdb, pAcct);
+  sdbDeleteRow(tsAcctSdb, pAcct);
 
   return 0;
 }
@@ -326,7 +328,7 @@ int mgmtDropAcct(char *name) {
 void macctCheckAcct() {
   int numOfRows = 0;
 
-  numOfRows = sdbGetNumOfRows(acctSdb);
+  numOfRows = sdbGetNumOfRows(tsAcctSdb);
 
   if (numOfRows == 0) {
     mTrace("no any accounts, create the root acct");
@@ -338,9 +340,9 @@ void macctCheckAcct() {
   }
 }
 
-void macctCleanUpAccts() { sdbCloseTable(acctSdb); }
+void macctCleanUpAccts() { sdbCloseTable(tsAcctSdb); }
 
-int macctGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int macctGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int cols = 0;
 
   if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
@@ -401,20 +403,20 @@ int macctGetAcctMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->offset[0] = 0;
   for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
-  pShow->numOfRows = sdbGetNumOfRows(acctSdb);
+  pShow->numOfRows = sdbGetNumOfRows(tsAcctSdb);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   return 0;
 }
 
-int macctRetrieveAccts(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
+int macctRetrieveAccts(SShowObj *pShow, char *data, int rows, void *pConn) {
   int       numOfRows = 0;
   SAcctObj *pAcct = NULL;
   char *    pWrite;
   int       cols = 0;
 
   while (numOfRows < rows) {
-    pShow->pNode = sdbFetchRow(acctSdb, pShow->pNode, (void **)&pAcct);
+    pShow->pNode = sdbFetchRow(tsAcctSdb, pShow->pNode, (void **)&pAcct);
     if (pAcct == NULL) break;
 
     cols = 0;
@@ -576,7 +578,7 @@ int mgmtCheckAlterAcctParams(SAcctObj *pAcct, SAcctCfg *pCfg) {
   return 0;
 }
 
-int mgmtUpdateAcct(SAcctObj *pAcct) { return sdbUpdateRow(acctSdb, pAcct, 0, 1); }
+int mgmtUpdateAcct(SAcctObj *pAcct) { return sdbUpdateRow(tsAcctSdb, pAcct, 0, 1); }
 
 int mgmtAlterAcct(char *name, char *pass, SAcctCfg *pCfg) {
   SAcctObj *pAcct = NULL;
@@ -687,8 +689,8 @@ int64_t mgmtGetAcctStatistic(SAcctObj *pAcct) {
 void macctCreateRootAcct() {
   SAcctObj *pAcct;
 
-  int numOfAccts = sdbGetNumOfRows(acctSdb);
-  int numOfUsers = sdbGetNumOfRows(userSdb);
+  int numOfAccts = sdbGetNumOfRows(tsAcctSdb);
+  int numOfUsers = sdbGetNumOfRows(tsUserSdb);
 
   if (numOfAccts == 0 && numOfUsers > 0) {
     pAcct = malloc(sizeof(SAcctObj));
@@ -706,9 +708,9 @@ void macctCreateRootAcct() {
                             .maxInbound = 0,
                             .maxOutbound = 0,
                             .accessState = TSDB_VN_ALL_ACCCESS};
-    pAcct->acctId = sdbGetId(acctSdb);
+    pAcct->acctId = sdbGetId(tsAcctSdb);
     pAcct->createdTime = taosGetTimestampMs();
-    sdbInsertRow(acctSdb, pAcct, 0);
+    sdbInsertRow(tsAcctSdb, pAcct, 0);
   }
 }
 
