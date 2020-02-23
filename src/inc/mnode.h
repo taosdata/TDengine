@@ -257,8 +257,8 @@ typedef struct _user_obj {
   char              updateEnd[1];
   struct _user_obj *prev, *next;
   struct _acctObj * pAcct;
-  SQqueryList *   pQList;  // query list
-  SStreamList *   pSList;  // stream list
+  SCMQqueryList *   pQList;  // query list
+  SCMStreamList *   pSList;  // stream list
 } SUserObj;
 
 typedef struct {
@@ -282,7 +282,7 @@ typedef struct {
 typedef struct _acctObj {
   char      user[TSDB_USER_LEN];
   char      pass[TSDB_KEY_LEN];
-  SAcctCfg  cfg;
+  SCMAcctCfg  cfg;
   int32_t   acctId;
   int64_t   createdTime;
   int8_t    reserved[15];

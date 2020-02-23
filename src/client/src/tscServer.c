@@ -116,7 +116,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   SSqlRes *pRes = &pSql->res;
 
   if (code == 0) {
-    SHeartBeatRsp *pRsp = (SHeartBeatRsp *)pRes->pRsp;
+    SCMHeartBeatRsp *pRsp = (SCMHeartBeatRsp *)pRes->pRsp;
     SRpcIpSet *      pIpList = &pRsp->ipList;
     tscSetMgmtIpList(pIpList);
 
@@ -1693,13 +1693,13 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->payloadLen = sizeof(SCreateAcctMsg);
+  pCmd->payloadLen = sizeof(SCMCreateAcctMsg);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("%p failed to malloc for query msg", pSql);
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  SCreateAcctMsg *pAlterMsg = (SCreateAcctMsg *)pCmd->payload;
+  SCMCreateAcctMsg *pAlterMsg = (SCMCreateAcctMsg *)pCmd->payload;
 
   SSQLToken *pName = &pInfo->pDCLInfo->user.user;
   SSQLToken *pPwd = &pInfo->pDCLInfo->user.passwd;
@@ -1737,13 +1737,13 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SCreateUserMsg *pAlterMsg;
+  SCMCreateUserMsg *pAlterMsg;
   char *         pMsg, *pStart;
 
   SSqlCmd *pCmd = &pSql->cmd;
 
   pMsg = doBuildMsgHeader(pSql, &pStart);
-  pAlterMsg = (SCreateUserMsg *)pMsg;
+  pAlterMsg = (SCMCreateUserMsg *)pMsg;
 
   SUserInfo *pUser = &pInfo->pDCLInfo->user;
   strncpy(pAlterMsg->user, pUser->user.z, pUser->user.n);
@@ -1758,7 +1758,7 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     strncpy(pAlterMsg->pass, pUser->passwd.z, pUser->passwd.n);
   }
 
-  pMsg += sizeof(SCreateUserMsg);
+  pMsg += sizeof(SCMCreateUserMsg);
   pCmd->payloadLen = pMsg - pStart;
 
   if (pUser->type == TSDB_ALTER_USER_PASSWD || pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
@@ -1871,18 +1871,18 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildDropAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SDropUserMsg *pDropMsg;
+  SCMDropUserMsg *pDropMsg;
   char *        pMsg, *pStart;
 
   SSqlCmd *pCmd = &pSql->cmd;
 
   pMsg = doBuildMsgHeader(pSql, &pStart);
-  pDropMsg = (SDropUserMsg *)pMsg;
+  pDropMsg = (SCMDropUserMsg *)pMsg;
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
   strcpy(pDropMsg->user, pMeterMetaInfo->name);
 
-  pMsg += sizeof(SDropUserMsg);
+  pMsg += sizeof(SCMDropUserMsg);
 
   pCmd->payloadLen = pMsg - pStart;
   pCmd->msgType = TSDB_MSG_TYPE_DROP_USER;
@@ -2334,14 +2334,14 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STscObj *pObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->msgType = TSDB_MSG_TYPE_CONNECT;
-  pCmd->payloadLen = sizeof(SConnectMsg);
+  pCmd->payloadLen = sizeof(SCMConnectMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("%p failed to malloc for query msg", pSql);
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  SConnectMsg *pConnect = (SConnectMsg*)pCmd->payload;
+  SCMConnectMsg *pConnect = (SCMConnectMsg*)pCmd->payload;
 
   char *db;  // ugly code to move the space
   db = strstr(pObj->db, TS_PATH_DELIMITER);
@@ -2611,18 +2611,18 @@ int tscEstimateHeartBeatMsgLength(SSqlObj *pSql) {
   STscObj *pObj = pSql->pTscObj;
 
   size += tsRpcHeadSize + sizeof(SMgmtHead);
-  size += sizeof(SQqueryList);
+  size += sizeof(SCMQqueryList);
 
   SSqlObj *tpSql = pObj->sqlList;
   while (tpSql) {
-    size += sizeof(SQueryDesc);
+    size += sizeof(SCMQueryDesc);
     tpSql = tpSql->next;
   }
 
-  size += sizeof(SStreamList);
+  size += sizeof(SCMStreamList);
   SSqlStream *pStream = pObj->streamList;
   while (pStream) {
-    size += sizeof(SStreamDesc);
+    size += sizeof(SCMStreamDesc);
     pStream = pStream->next;
   }
 
@@ -3043,7 +3043,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   STscObj *pObj = pSql->pTscObj;
   SSqlRes *pRes = &pSql->res;
 
-  SConnectRsp *pConnect = (SConnectRsp *)pRes->pRsp;
+  SCMConnectRsp *pConnect = (SCMConnectRsp *)pRes->pRsp;
   strcpy(pObj->acctId, pConnect->acctId);  // copy acctId from response
   int32_t len = sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
 
@@ -3051,7 +3051,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   strncpy(pObj->db, temp, tListLen(pObj->db));
   
 //  SIpList *    pIpList;
-//  char *rsp = pRes->pRsp + sizeof(SConnectRsp);
+//  char *rsp = pRes->pRsp + sizeof(SCMConnectRsp);
 //  pIpList = (SIpList *)rsp;
 //  tscSetMgmtIpList(pIpList);
 

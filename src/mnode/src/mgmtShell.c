@@ -645,7 +645,7 @@ int32_t mgmtProcessCreateUserMsg(void *pCont, int32_t contLen, void *ahandle) {
 
   int32_t code;
   if (pUser->superAuth) {
-    SCreateUserMsg *pCreate = pCont;
+    SCMCreateUserMsg *pCreate = pCont;
     code = mgmtCreateUser(pUser->pAcct, pCreate->user, pCreate->pass);
     if (code == TSDB_CODE_SUCCESS) {
       mLPrint("user:%s is created by %s", pCreate->user, pUser->user);
@@ -669,7 +669,7 @@ int32_t mgmtProcessAlterUserMsg(void *pCont, int32_t contLen, void *ahandle) {
     return TSDB_CODE_INVALID_USER;
   }
 
-  SAlterUserMsg *pAlter = pCont;
+  SCMAlterUserMsg *pAlter = pCont;
   SUserObj *pUser = mgmtGetUser(pAlter->user);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
@@ -776,7 +776,7 @@ int32_t mgmtProcessDropUserMsg(void *pCont, int32_t contLen, void *ahandle) {
     return TSDB_CODE_INVALID_USER;
   }
 
-  SDropUserMsg *pDrop = pCont;
+  SCMDropUserMsg *pDrop = pCont;
   SUserObj *pUser = mgmtGetUser(pDrop->user);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
@@ -1181,10 +1181,10 @@ int32_t mgmtProcessCfgDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
 }
 
 int32_t mgmtProcessHeartBeatMsg(void *pCont, int32_t contLen, void *ahandle) {
-  SHeartBeatMsg *pHBMsg = (SHeartBeatMsg *) pCont;
+  SCMHeartBeatMsg *pHBMsg = (SCMHeartBeatMsg *) pCont;
   mgmtSaveQueryStreamList(pHBMsg);
 
-  SHeartBeatRsp *pHBRsp = (SHeartBeatRsp *) rpcMallocCont(contLen);
+  SCMHeartBeatRsp *pHBRsp = (SCMHeartBeatRsp *) rpcMallocCont(contLen);
   if (pHBRsp == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
     rpcFreeCont(pCont);
@@ -1218,7 +1218,7 @@ int32_t mgmtProcessHeartBeatMsg(void *pCont, int32_t contLen, void *ahandle) {
   pHBRsp->streamId = 0;
   pHBRsp->killConnection = 0;
 
-  rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pHBRsp, sizeof(SHeartBeatMsg));
+  rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pHBRsp, sizeof(SCMHeartBeatMsg));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1238,7 +1238,7 @@ int32_t mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secr
 }
 
 static int32_t mgmtProcessConnectMsg(void *pCont, int32_t contLen, void *thandle) {
-  SConnectMsg *pConnectMsg = (SConnectMsg *) pCont;
+  SCMConnectMsg *pConnectMsg = (SCMConnectMsg *) pCont;
   SRpcConnInfo connInfo;
   rpcGetConnInfo(thandle, &connInfo);
   int32_t code;
@@ -1275,7 +1275,7 @@ static int32_t mgmtProcessConnectMsg(void *pCont, int32_t contLen, void *thandle
     }
   }
 
-  SConnectRsp *pConnectRsp = rpcMallocCont(sizeof(SConnectRsp));
+  SCMConnectRsp *pConnectRsp = rpcMallocCont(sizeof(SCMConnectRsp));
   if (pConnectRsp == NULL) {
     code = TSDB_CODE_SERV_OUT_OF_MEMORY;
     goto connect_over;
@@ -1307,7 +1307,7 @@ connect_over:
     rpcSendResponse(thandle, code, NULL, 0);
   } else {
     mLPrint("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
-    rpcSendResponse(thandle, code, pConnectRsp, sizeof(SConnectRsp));
+    rpcSendResponse(thandle, code, pConnectRsp, sizeof(SCMConnectRsp));
   }
 
   return code;
