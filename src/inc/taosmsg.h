@@ -245,18 +245,12 @@ typedef struct {
   SShellSubmitRspBlock *failedBlocks;
 } SShellSubmitRspMsg;
 
-typedef struct SCMSchema {
+typedef struct SSchema {
   uint8_t  type;
   char  name[TSDB_COL_NAME_LEN];
   short colId;
   short bytes;
-} SCMSchema;
-
-typedef struct {
-  int8_t  type;
-  int16_t colId;
-  int16_t bytes;
-} SDTableColumn;
+} SSchema;
 
 typedef struct {
   int32_t  vnode;
@@ -277,7 +271,7 @@ typedef struct {
 
 typedef struct {
   char db[TSDB_DB_NAME_LEN];
-} SCMShowTableMsg;
+} SShowTableMsg;
 
 typedef struct {
   char      tableId[TSDB_TABLE_ID_LEN];
@@ -287,8 +281,8 @@ typedef struct {
   int16_t   numOfColumns;
   int16_t   sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
   int16_t   reserved[16];
-  SCMSchema schema[];
-} SCMCreateTableMsg;
+  SSchema schema[];
+} SCreateTableMsg;
 
 typedef struct {
   char   meterId[TSDB_TABLE_ID_LEN];
@@ -302,14 +296,14 @@ typedef struct {
   int16_t type; /* operation type   */
   char    tagVal[TSDB_MAX_BYTES_PER_ROW];
   int8_t  numOfCols; /* number of schema */
-  SCMSchema schema[];
+  SSchema schema[];
 } SAlterTableMsg;
 
 typedef struct {
   char clientVersion[TSDB_VERSION_LEN];
   char msgVersion[TSDB_VERSION_LEN];
   char db[TSDB_TABLE_ID_LEN];
-} SCMConnectMsg;
+} SConnectMsg;
 
 typedef struct {
   char      acctId[TSDB_ACCT_LEN];
@@ -317,7 +311,7 @@ typedef struct {
   int8_t    writeAuth;
   int8_t    superAuth;
   SRpcIpSet ipList;
-} SCMConnectRsp;
+} SConnectRsp;
 
 typedef struct {
   int32_t maxUsers;
@@ -331,24 +325,24 @@ typedef struct {
   int64_t maxInbound;
   int64_t maxOutbound;
   int8_t  accessState;   // Configured only by command
-} SCMAcctCfg;
+} SAcctCfg;
 
 typedef struct {
   char       user[TSDB_USER_LEN];
   char       pass[TSDB_KEY_LEN];
-  SCMAcctCfg cfg;
-} SCMCreateAcctMsg, SCMAlterAcctMsg;
+  SAcctCfg cfg;
+} SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {
   char user[TSDB_USER_LEN];
-} SCMDropUserMsg, SCMDropAcctMsg;
+} SDropUserMsg, SDropAcctMsg;
 
 typedef struct {
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_KEY_LEN];
   int8_t privilege;
   int8_t flag;
-} SCMCreateUserMsg, SCMAlterUserMsg;
+} SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {
   char db[TSDB_TABLE_ID_LEN];
@@ -582,12 +576,12 @@ typedef struct {
   int8_t  loadLatest;  // load into mem or not
   uint8_t precision;   // time resolution
   int8_t  reserved[16];
-} SVnodeCfg, SCMCreateDbMsg, SDbCfg, SCMAlterDbMsg;
+} SVnodeCfg, SCreateDbMsg, SDbCfg, SAlterDbMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_ID_LEN];
   uint8_t ignoreNotExists;
-} SCMDropDbMsg, SCMUseDbMsg;
+} SDropDbMsg, SUseDbMsg;
 
 // IMPORTANT: sizeof(SVnodeStatisticInfo) should not exceed
 // TSDB_FILE_HEADER_LEN/4 - TSDB_FILE_HEADER_VERSION_SIZE
@@ -744,19 +738,19 @@ typedef struct {
  * payloadLen is the length of payload
  */
 typedef struct {
-  char     type;
+  int8_t  type;
   uint16_t payloadLen;
   char     payload[];
 } SShowMsg;
 
 typedef struct {
-  char ip[20];
-} SCMCreateMnodeMsg, SCMDropMnodeMsg, SCMCreateDnodeMsg, SCMDropDnodeMsg;
-
-typedef struct {
   uint64_t   qhandle;
   SMeterMeta meterMeta;
-} SShowRspMsg;
+} SShowRsp;
+
+typedef struct {
+  char ip[20];
+} SCreateMnodeMsg, SDropMnodeMsg, SCreateDnodeMsg, SDropDnodeMsg;
 
 typedef struct {
   int32_t vnode;
@@ -770,14 +764,14 @@ typedef struct {
 typedef struct {
   char ip[32];
   char config[64];
-} SCMCfgDnodeMsg;
+} SCfgDnodeMsg;
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
   uint32_t queryId;
   int64_t  useconds;
   int64_t  stime;
-} SCMQueryDesc;
+} SQueryDesc;
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
@@ -788,33 +782,33 @@ typedef struct {
   int64_t  stime;
   int64_t  slidingTime;
   int64_t  interval;
-} SCMStreamDesc;
+} SStreamDesc;
 
 typedef struct {
   int32_t numOfQueries;
-  SCMQueryDesc  qdesc[];
-} SCMQqueryList;
+  SQueryDesc  qdesc[];
+} SQqueryList;
 
 typedef struct {
   int32_t numOfStreams;
-  SCMStreamDesc  sdesc[];
-} SCMStreamList;
+  SStreamDesc  sdesc[];
+} SStreamList;
 
 typedef struct {
-  SCMQqueryList qlist;
-  SCMStreamList slist;
-} SCMHeartBeatMsg;
+  SQqueryList qlist;
+  SStreamList slist;
+} SHeartBeatMsg;
 
 typedef struct {
   uint32_t  queryId;
   uint32_t  streamId;
   int8_t    killConnection;
   SRpcIpSet ipList;
-} SCMHeartBeatRsp;
+} SHeartBeatRsp;
 
 typedef struct {
   char queryId[TSDB_KILL_MSG_LEN];
-} SCMKillQueryMsg, SCMKillStreamMsg, SKillConnectionMsg;
+} SKillQueryMsg, SKillStreamMsg, SKillConnectionMsg;
 
 typedef struct {
   int32_t  vnode;

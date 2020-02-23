@@ -176,7 +176,7 @@ int32_t dnodeProcessFreeVnodeRequest(int8_t *pCont, int32_t contLen, int8_t msgT
 }
 
 int32_t dnodeProcessDnodeCfgRequest(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) {
-  SCMCfgDnodeMsg *pCfg = (SCMCfgDnodeMsg *)pCont;
+  SCfgDnodeMsg *pCfg = (SCfgDnodeMsg *)pCont;
   int32_t code = tsCfgDynamicOptions(pCfg->config);
   dnodeSendSimpleRspToMnode(pConn, msgType + 1, code);
   return code;

@@ -133,11 +133,11 @@ static int32_t mgmtCheckDbLimitImp(SAcctObj *pAcct) {
 
 int32_t (*mgmtCheckDbLimit)(SAcctObj *pAcct) = mgmtCheckDbLimitImp;
 
-static int32_t mgmtCheckTableLimitImp(SAcctObj *pAcct, SCMCreateTableMsg *pCreate) {
+static int32_t mgmtCheckTableLimitImp(SAcctObj *pAcct, SCreateTableMsg *pCreate) {
   return 0;
 }
 
-int32_t (*mgmtCheckTableLimit)(SAcctObj *pAcct, SCMCreateTableMsg *pCreate) = mgmtCheckTableLimitImp;
+int32_t (*mgmtCheckTableLimit)(SAcctObj *pAcct, SCreateTableMsg *pCreate) = mgmtCheckTableLimitImp;
 
 static void mgmtCleanUpAcctsImp() {
 }

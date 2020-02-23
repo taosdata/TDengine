@@ -85,7 +85,7 @@ static int32_t tscMaxLengthOfTagsFields(SSqlObj *pSql) {
   }
 
   char *   pTagValue = tsGetTagsValue(pMeta);
-  SCMSchema *pTagsSchema = tsGetTagSchema(pMeta);
+  SSchema *pTagsSchema = tsGetTagSchema(pMeta);
 
   int32_t len = getToStringLength(pTagValue, pTagsSchema[0].bytes, pTagsSchema[0].type);
 
@@ -125,7 +125,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
   }
 
   tscInitResObjForLocalQuery(pSql, totalNumOfRows, rowLen);
-  SCMSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = tsGetSchema(pMeta);
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, 0);
@@ -286,7 +286,7 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
   SMetricMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
-  SCMSchema *    pSchema = tsGetTagSchema(pMeterMetaInfo->pMeterMeta);
+  SSchema *    pSchema = tsGetTagSchema(pMeterMetaInfo->pMeterMeta);
 
   int32_t vOffset[TSDB_MAX_COLUMNS] = {0};
 

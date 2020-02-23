@@ -233,7 +233,7 @@ void mgmtCleanUpChildTables() {
 }
 
 int8_t *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup) {
-//  SCMCreateTableMsg *pCreateTable = (SCMCreateTableMsg *) pMsg;
+//  SCreateTableMsg *pCreateTable = (SCreateTableMsg *) pMsg;
 //  memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
 //  memcpy(pCreateTable->superTableId, pTable->superTable->tableId, TSDB_TABLE_ID_LEN);
 //  pCreateTable->vnode        = htonl(vnode);
@@ -244,7 +244,7 @@ int8_t *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup) {
 //  pCreateTable->numOfColumns = htons(pTable->superTable->numOfColumns);
 //  pCreateTable->numOfTags    = htons(pTable->superTable->numOfTags);
 //
-//  SCMSchema *pSchema  = pTable->superTable->schema;
+//  SSchema *pSchema  = pTable->superTable->schema;
 //  int32_t totalCols = pCreateTable->numOfColumns + pCreateTable->numOfTags;
 //
 //  for (int32_t col = 0; col < totalCols; ++col) {
@@ -263,7 +263,7 @@ int8_t *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup) {
   return NULL;
 }
 
-int32_t mgmtCreateChildTable(SDbObj *pDb, SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
+int32_t mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
   int32_t numOfTables = sdbGetNumOfRows(tsChildTableSdb);
   if (numOfTables >= tsMaxTables) {
     mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, tsMaxTables);
@@ -291,7 +291,7 @@ int32_t mgmtCreateChildTable(SDbObj *pDb, SCMCreateTableMsg *pCreate, SVgObj *pV
                         ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
 
   int32_t size = mgmtGetTagsLength(pSuperTable, INT_MAX) + (uint32_t) TSDB_TABLE_ID_LEN;
-  SCMSchema * schema = (SCMSchema *) calloc(1, size);
+  SSchema * schema = (SSchema *) calloc(1, size);
   if (schema == NULL) {
     free(pTable);
     mError("table:%s, corresponding super table schema is null", pCreate->tableId);
@@ -355,7 +355,7 @@ int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName
 //  return TSDB_CODE_SUCCESS;
 
 //  int32_t rowSize = 0;
-//  SCMSchema *schema = (SCMSchema *)(pSuperTable->schema + (pSuperTable->numOfColumns + col) * sizeof(SCMSchema));
+//  SSchema *schema = (SSchema *)(pSuperTable->schema + (pSuperTable->numOfColumns + col) * sizeof(SSchema));
 //
 //  if (col == 0) {
 //    pTable->isDirty = 1;

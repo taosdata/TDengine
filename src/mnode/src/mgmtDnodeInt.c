@@ -499,7 +499,7 @@ int mgmtSendCfgDnodeMsg(char *cont) {
 #endif
 
   SDnodeObj *pDnode;
-  SCMCfgDnodeMsg *  pCfg = (SCMCfgDnodeMsg *)cont;
+  SCfgDnodeMsg *  pCfg = (SCfgDnodeMsg *)cont;
   uint32_t   ip;
 
   ip = inet_addr(pCfg->ip);
@@ -520,8 +520,8 @@ int mgmtSendCfgDnodeMsg(char *cont) {
   if (pStart == NULL) return TSDB_CODE_NODE_OFFLINE;
   pMsg = pStart;
 
-  memcpy(pMsg, cont, sizeof(SCMCfgDnodeMsg));
-  pMsg += sizeof(SCMCfgDnodeMsg);
+  memcpy(pMsg, cont, sizeof(SCfgDnodeMsg));
+  pMsg += sizeof(SCfgDnodeMsg);
 
   msgLen = pMsg - pStart;
   mgmtSendMsgToDnode(pDnode, pStart, msgLen);

@@ -161,7 +161,7 @@ void *mgmtNormalTableActionEncode(void *row, char *str, int32_t size, int32_t *s
   assert(row != NULL && str != NULL);
 
   int32_t tsize = pTable->updateEnd - (int8_t *) pTable;
-  int32_t schemaSize = pTable->numOfColumns * sizeof(SCMSchema);
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
   if (size < tsize + schemaSize + 1) {
     *ssize = -1;
     return NULL;
@@ -190,8 +190,8 @@ void *mgmtNormalTableActionDecode(void *row, char *str, int32_t size, int32_t *s
   }
   memcpy(pTable, str, tsize);
 
-  int32_t schemaSize = pTable->numOfColumns * sizeof(SCMSchema);
-  pTable->schema = (SCMSchema *)malloc(schemaSize);
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  pTable->schema = (SSchema *)malloc(schemaSize);
   if (pTable->schema == NULL) {
     mgmtDestroyNormalTable(pTable);
     return NULL;
@@ -215,7 +215,7 @@ int32_t mgmtInitNormalTables() {
 
   mgmtNormalTableActionInit();
 
-  tsNormalTableSdb = sdbOpenTable(tsMaxTables, sizeof(SNormalTableObj) + sizeof(SCMSchema) * TSDB_MAX_COLUMNS,
+  tsNormalTableSdb = sdbOpenTable(tsMaxTables, sizeof(SNormalTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
                                  "ntables", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtNormalTableAction);
   if (tsNormalTableSdb == NULL) {
     mError("failed to init normal table data");
@@ -259,7 +259,7 @@ int8_t *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable) {
 //  pCreateTable->sversion     = htobe32(pTable->sversion);
 //  pCreateTable->numOfColumns = htobe16(pTable->numOfColumns);
 //
-//  SCMSchema *pSchema  = pTable->schema;
+//  SSchema *pSchema  = pTable->schema;
 //  int32_t totalCols = pCreateTable->numOfColumns;
 
 //  for (int32_t col = 0; col < totalCols; ++col) {
@@ -276,7 +276,7 @@ int8_t *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable) {
   return NULL;
 }
 
-int32_t mgmtCreateNormalTable(SDbObj *pDb, SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
+int32_t mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
   int32_t numOfTables = sdbGetNumOfRows(tsChildTableSdb);
   if (numOfTables >= TSDB_MAX_TABLES) {
     mError("normal table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_TABLES);
@@ -297,18 +297,18 @@ int32_t mgmtCreateNormalTable(SDbObj *pDb, SCMCreateTableMsg *pCreate, SVgObj *p
   pTable->numOfColumns = pCreate->numOfColumns;
 
   int32_t numOfCols = pCreate->numOfColumns + pCreate->numOfTags;
-  int32_t schemaSize = numOfCols * sizeof(SCMSchema);
-  pTable->schema     = (SCMSchema *) calloc(1, schemaSize);
+  int32_t schemaSize = numOfCols * sizeof(SSchema);
+  pTable->schema     = (SSchema *) calloc(1, schemaSize);
   if (pTable->schema == NULL) {
     free(pTable);
     mError("table:%s, no schema input", pCreate->tableId);
     return TSDB_CODE_INVALID_TABLE;
   }
-  memcpy(pTable->schema, pCreate->schema, numOfCols * sizeof(SCMSchema));
+  memcpy(pTable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
   pTable->nextColId = 0;
   for (int32_t col = 0; col < pCreate->numOfColumns; col++) {
-    SCMSchema *tschema   = (SCMSchema *) pTable->schema;
+    SSchema *tschema   = (SSchema *) pTable->schema;
     tschema[col].colId = pTable->nextColId++;
   }
 
@@ -362,7 +362,7 @@ SNormalTableObj* mgmtGetNormalTable(char *tableId) {
 }
 
 static int32_t mgmtFindNormalTableColumnIndex(SNormalTableObj *pTable, char *colName) {
-  SCMSchema *schema = (SCMSchema *) pTable->schema;
+  SSchema *schema = (SSchema *) pTable->schema;
   for (int32_t i = 0; i < pTable->numOfColumns; i++) {
     if (strcasecmp(schema[i].name, colName) == 0) {
       return i;
@@ -372,7 +372,7 @@ static int32_t mgmtFindNormalTableColumnIndex(SNormalTableObj *pTable, char *col
   return -1;
 }
 
-int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SCMSchema schema[], int32_t ncols) {
+int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SSchema schema[], int32_t ncols) {
   if (ncols <= 0) {
     return TSDB_CODE_APP_ERROR;
   }
@@ -395,12 +395,12 @@ int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SCMSchema schema[], in
     return TSDB_CODE_APP_ERROR;
   }
 
-  int32_t schemaSize = pTable->numOfColumns * sizeof(SCMSchema);
-  pTable->schema = realloc(pTable->schema, schemaSize + sizeof(SCMSchema) * ncols);
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  pTable->schema = realloc(pTable->schema, schemaSize + sizeof(SSchema) * ncols);
 
-  memcpy(pTable->schema + schemaSize, schema, sizeof(SCMSchema) * ncols);
+  memcpy(pTable->schema + schemaSize, schema, sizeof(SSchema) * ncols);
 
-  SCMSchema *tschema = (SCMSchema *) (pTable->schema + sizeof(SCMSchema) * pTable->numOfColumns);
+  SSchema *tschema = (SSchema *) (pTable->schema + sizeof(SSchema) * pTable->numOfColumns);
   for (int32_t i = 0; i < ncols; i++) {
     tschema[i].colId = pTable->nextColId++;
   }
@@ -431,8 +431,8 @@ int32_t mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *colName) 
     return TSDB_CODE_APP_ERROR;
   }
 
-  memmove(pTable->schema + sizeof(SCMSchema) * col, pTable->schema + sizeof(SCMSchema) * (col + 1),
-          sizeof(SCMSchema) * (pTable->numOfColumns - col - 1));
+  memmove(pTable->schema + sizeof(SSchema) * col, pTable->schema + sizeof(SSchema) * (col + 1),
+          sizeof(SSchema) * (pTable->numOfColumns - col - 1));
 
   pTable->numOfColumns--;
   pTable->sversion++;

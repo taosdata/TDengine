@@ -130,7 +130,7 @@ typedef struct _tab_obj {
   char *           pReserve1;
   char *           pReserve2;
   char *           schema;
-  // SCMSchema    schema[];
+  // SSchema    schema[];
 } STabObj;
 
 typedef struct {
@@ -156,7 +156,7 @@ typedef struct SSuperTableObj {
   int8_t   reserved[7];
   int8_t   updateEnd[1];
   int16_t  nextColId;
-  SCMSchema  *schema;
+  SSchema  *schema;
 } SSuperTableObj;
 
 typedef struct {
@@ -184,7 +184,7 @@ typedef struct {
   int8_t   reserved[3];
   int8_t   updateEnd[1];
   int16_t  nextColId;
-  SCMSchema* schema;
+  SSchema* schema;
 } SNormalTableObj;
 
 typedef struct {
@@ -201,7 +201,7 @@ typedef struct {
   int8_t   updateEnd[1];
   int16_t  nextColId;
   char*    sql;  //null-terminated string
-  SCMSchema* schema;
+  SSchema* schema;
 } SStreamTableObj;
 
 typedef struct _vg_obj {
@@ -257,8 +257,8 @@ typedef struct _user_obj {
   char              updateEnd[1];
   struct _user_obj *prev, *next;
   struct _acctObj * pAcct;
-  SCMQqueryList *   pQList;  // query list
-  SCMStreamList *   pSList;  // stream list
+  SQqueryList *   pQList;  // query list
+  SStreamList *   pSList;  // stream list
 } SUserObj;
 
 typedef struct {
@@ -282,7 +282,7 @@ typedef struct {
 typedef struct _acctObj {
   char      user[TSDB_USER_LEN];
   char      pass[TSDB_KEY_LEN];
-  SCMAcctCfg  cfg;
+  SAcctCfg  cfg;
   int32_t   acctId;
   int64_t   createdTime;
   int8_t    reserved[15];

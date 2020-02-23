@@ -160,7 +160,7 @@ void mgmtCleanUpUsers() {
 
 int32_t mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
 //  int32_t      cols = 0;
-//  SCMSchema *pSchema = tsGetSchema(pMeta);
+//  SSchema *pSchema = tsGetSchema(pMeta);
 //
 //  pShow->bytes[cols] = TSDB_USER_LEN;
 //  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;

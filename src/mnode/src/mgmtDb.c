@@ -116,7 +116,7 @@ SDbObj *mgmtGetDbByTableId(char *meterId) {
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
 
-int32_t mgmtCheckDBParams(SCMCreateDbMsg *pCreate) {
+int32_t mgmtCheckDBParams(SCreateDbMsg *pCreate) {
   if (pCreate->commitLog < 0 || pCreate->commitLog > 1) {
     mError("invalid db option commitLog: %d, only 0 or 1 allowed", pCreate->commitLog);
     return TSDB_CODE_INVALID_OPTION;
@@ -189,7 +189,7 @@ int32_t mgmtCheckDBParams(SCMCreateDbMsg *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtCheckDbParams(SCMCreateDbMsg *pCreate) {
+int32_t mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   // assign default parameters
   if (pCreate->maxSessions < 0) pCreate->maxSessions = tsSessionsPerVnode;      //
   if (pCreate->cacheBlockSize < 0) pCreate->cacheBlockSize = tsCacheBlockSize;  //
@@ -234,7 +234,7 @@ int32_t mgmtCheckDbParams(SCMCreateDbMsg *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
+int32_t mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
   int32_t code = mgmtCheckDbLimit(pAcct);
   if (code != 0) {
     return code;
@@ -408,7 +408,7 @@ void mgmtMonitorDbDrop(void *unused, void *unusedt) {
   }
 }
 
-int32_t mgmtAlterDb(SAcctObj *pAcct, SCMAlterDbMsg *pAlter) {
+int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   SDbObj *pDb = (SDbObj *) sdbGetRow(tsDbSdb, pAlter->db);
@@ -530,7 +530,7 @@ void mgmtCleanUpDbs() {
 int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SCMSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = tsGetSchema(pMeta);
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 

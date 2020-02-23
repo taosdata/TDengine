@@ -110,7 +110,7 @@ bool tscQueryMetricTags(SQueryInfo* pQueryInfo);
 bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd);
 
 void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId, SColumnIndex* pIndex,
-                                  SCMSchema* pColSchema, int16_t isTag);
+                                  SSchema* pColSchema, int16_t isTag);
 
 void addRequiredTagColumn(SQueryInfo* pQueryInfo, int32_t tagColIndex, int32_t tableIndex);
 
@@ -124,7 +124,7 @@ void tscGetDBInfoFromMeterId(char* meterId, char* db);
 
 int tscAllocPayload(SSqlCmd* pCmd, int size);
 
-void tscFieldInfoSetValFromSchema(SFieldInfo* pFieldInfo, int32_t index, SCMSchema* pSchema);
+void tscFieldInfoSetValFromSchema(SFieldInfo* pFieldInfo, int32_t index, SSchema* pSchema);
 void tscFieldInfoSetValFromField(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* pField);
 void tscFieldInfoSetValue(SFieldInfo* pFieldInfo, int32_t index, int8_t type, const char* name, int16_t bytes);
 void tscFieldInfoUpdateVisible(SFieldInfo* pFieldInfo, int32_t index, bool visible);

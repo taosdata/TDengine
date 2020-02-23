@@ -99,7 +99,7 @@ STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
   return NULL;
 }
 
-int32_t mgmtCreateTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
+int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
   STableInfo *pTable = mgmtGetTable(pCreate->tableId);
   if (pTable != NULL) {
     if (pCreate->igExists) {
@@ -241,7 +241,7 @@ int32_t mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
 //    return TSDB_CODE_DB_NOT_SELECTED;
 //  }
 //
-//  SCMSchema *pSchema = tsGetSchema(pMeta);
+//  SSchema *pSchema = tsGetSchema(pMeta);
 //
 //  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
 //  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;

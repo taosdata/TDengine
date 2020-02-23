@@ -468,7 +468,7 @@ int32_t compare_a(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
         return ret;
       }
     } else {
-      SCMSchema *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
+      SSchema *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
       int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->type, pSchema->bytes);
       if (ret == 0) {
         continue;
@@ -500,7 +500,7 @@ int32_t compare_d(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
         return ret;
       }
     } else {
-      SCMSchema *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
+      SSchema *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
       int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->type, pSchema->bytes);
       if (ret == 0) {
         continue;
@@ -527,7 +527,7 @@ static void swap(SColumnModel *pColumnModel, int32_t count, int32_t s1, char *da
     void *first = COLMODEL_GET_VAL(data1, pColumnModel, count, s1, i);
     void *second = COLMODEL_GET_VAL(data1, pColumnModel, count, s2, i);
 
-    SCMSchema* pSchema = &pColumnModel->pFields[i].field;
+    SSchema* pSchema = &pColumnModel->pFields[i].field;
     tsDataSwap(first, second, pSchema->type, pSchema->bytes);
   }
 }
@@ -762,16 +762,16 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
 /*
  * deep copy of sschema
  */
-SColumnModel *createColumnModel(SCMSchema *fields, int32_t numOfCols, int32_t blockCapacity) {
-  SColumnModel *pColumnModel = (SColumnModel *)calloc(1, sizeof(SColumnModel) + numOfCols * sizeof(SCMSchemaEx));
+SColumnModel *createColumnModel(SSchema *fields, int32_t numOfCols, int32_t blockCapacity) {
+  SColumnModel *pColumnModel = (SColumnModel *)calloc(1, sizeof(SColumnModel) + numOfCols * sizeof(SSchemaEx));
   if (pColumnModel == NULL) {
     return NULL;
   }
 
-  pColumnModel->pFields = (SCMSchemaEx *)(&pColumnModel[1]);
+  pColumnModel->pFields = (SSchemaEx *)(&pColumnModel[1]);
   
   for(int32_t i = 0; i < numOfCols; ++i) {
-    SCMSchemaEx* pSchemaEx = &pColumnModel->pFields[i];
+    SSchemaEx* pSchemaEx = &pColumnModel->pFields[i];
     pSchemaEx->field = fields[i];
     pSchemaEx->offset = pColumnModel->rowSize;
     
@@ -789,15 +789,15 @@ SColumnModel *cloneColumnModel(SColumnModel *pSrc) {
     return NULL;
   }
   
-  SColumnModel *pColumnModel = (SColumnModel *)calloc(1, sizeof(SColumnModel) + pSrc->numOfCols * sizeof(SCMSchemaEx));
+  SColumnModel *pColumnModel = (SColumnModel *)calloc(1, sizeof(SColumnModel) + pSrc->numOfCols * sizeof(SSchemaEx));
   if (pColumnModel == NULL) {
     return NULL;
   }
   
   *pColumnModel = *pSrc;
   
-  pColumnModel->pFields = (SCMSchemaEx*) (&pColumnModel[1]);
-  memcpy(pColumnModel->pFields, pSrc->pFields, pSrc->numOfCols * sizeof(SCMSchemaEx));
+  pColumnModel->pFields = (SSchemaEx*) (&pColumnModel[1]);
+  memcpy(pColumnModel->pFields, pSrc->pFields, pSrc->numOfCols * sizeof(SSchemaEx));
   
   return pColumnModel;
 }
@@ -1005,14 +1005,14 @@ void tColModelCompact(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxE
 
   /* start from the second column */
   for (int32_t i = 1; i < pModel->numOfCols; ++i) {
-    SCMSchemaEx* pSchemaEx = &pModel->pFields[i];
+    SSchemaEx* pSchemaEx = &pModel->pFields[i];
     memmove(inputBuffer->data + pSchemaEx->offset * inputBuffer->numOfElems,
             inputBuffer->data + pSchemaEx->offset * maxElemsCapacity,
             pSchemaEx->field.bytes * inputBuffer->numOfElems);
   }
 }
 
-SCMSchema* getColumnModelSchema(SColumnModel *pColumnModel, int32_t index) {
+SSchema* getColumnModelSchema(SColumnModel *pColumnModel, int32_t index) {
   assert(pColumnModel != NULL && index >= 0 && index < pColumnModel->numOfCols);
   return &pColumnModel->pFields[index].field;
 }
@@ -1034,7 +1034,7 @@ void tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t blockC
   /* start from the second column */
   for (int32_t i = 0; i < pModel->numOfCols; ++i) {
     int16_t offset = getColumnModelOffset(pModel, i);
-    SCMSchema* pSchema = getColumnModelSchema(pModel, i);
+    SSchema* pSchema = getColumnModelSchema(pModel, i);
     
     char *startPos = inputBuffer->data + offset * blockCapacity + s * pSchema->bytes;
     char *endPos = startPos + pSchema->bytes * removed;

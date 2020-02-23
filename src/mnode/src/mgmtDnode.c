@@ -105,7 +105,7 @@ int32_t mgmtGetDnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
 
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
-  SCMSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = tsGetSchema(pMeta);
 
   pShow->bytes[cols] = 16;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -220,7 +220,7 @@ int32_t mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
 
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
-  SCMSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = tsGetSchema(pMeta);
 
   pShow->bytes[cols] = 16;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -313,7 +313,7 @@ int32_t mgmtGetConfigMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
 
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
-  SCMSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = tsGetSchema(pMeta);
 
   pShow->bytes[cols] = TSDB_CFG_OPTION_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -399,7 +399,7 @@ int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   if (pUser == NULL) return 0;
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
-  SCMSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = tsGetSchema(pMeta);
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;

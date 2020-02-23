@@ -32,7 +32,7 @@ typedef struct {
   int32_t      numOfQueries;
   SCDesc * connInfo;
   SCDesc **cdesc;
-  SCMQueryDesc   qdesc[];
+  SQueryDesc   qdesc[];
 } SQueryShow;
 
 typedef struct {
@@ -40,10 +40,10 @@ typedef struct {
   int32_t      numOfStreams;
   SCDesc * connInfo;
   SCDesc **cdesc;
-  SCMStreamDesc   sdesc[];
+  SStreamDesc   sdesc[];
 } SStreamShow;
 
-int32_t  mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg) {
+int32_t  mgmtSaveQueryStreamList(SHeartBeatMsg *pHBMsg) {
 //  SAcctObj *pAcct = pConn->pAcct;
 //
 //  if (contLen <= 0 || pAcct == NULL) {
@@ -60,7 +60,7 @@ int32_t  mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg) {
 //  pConn->pQList = realloc(pConn->pQList, contLen);
 //  memcpy(pConn->pQList, cont, contLen);
 //
-//  pConn->pSList = (SCMStreamList *)(((char *)pConn->pQList) + pConn->pQList->numOfQueries * sizeof(SCMQueryDesc) + sizeof(SCMQqueryList));
+//  pConn->pSList = (SStreamList *)(((char *)pConn->pQList) + pConn->pQList->numOfQueries * sizeof(SQueryDesc) + sizeof(SQqueryList));
 //
 //  pAcct->acctInfo.numOfQueries += pConn->pQList->numOfQueries;
 //  pAcct->acctInfo.numOfStreams += pConn->pSList->numOfStreams;
@@ -76,7 +76,7 @@ int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
 //
 //  pthread_mutex_lock(&pAcct->mutex);
 //
-//  pQueryShow = malloc(sizeof(SCMQueryDesc) * pAcct->acctInfo.numOfQueries + sizeof(SQueryShow));
+//  pQueryShow = malloc(sizeof(SQueryDesc) * pAcct->acctInfo.numOfQueries + sizeof(SQueryShow));
 //  pQueryShow->numOfQueries = 0;
 //  pQueryShow->index = 0;
 //  pQueryShow->connInfo = NULL;
@@ -87,7 +87,7 @@ int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
 //    pQueryShow->cdesc = (SCDesc **)malloc(pAcct->acctInfo.numOfQueries * sizeof(SCDesc *));
 //
 //    pConn = pAcct->pConn;
-//    SCMQueryDesc * pQdesc = pQueryShow->qdesc;
+//    SQueryDesc * pQdesc = pQueryShow->qdesc;
 //    SCDesc * pCDesc = pQueryShow->connInfo;
 //    SCDesc **ppCDesc = pQueryShow->cdesc;
 //
@@ -97,7 +97,7 @@ int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
 //        pCDesc->port = pConn->port;
 //        strcpy(pCDesc->user, pConn->pUser->user);
 //
-//        memcpy(pQdesc, pConn->pQList->qdesc, sizeof(SCMQueryDesc) * pConn->pQList->numOfQueries);
+//        memcpy(pQdesc, pConn->pQList->qdesc, sizeof(SQueryDesc) * pConn->pQList->numOfQueries);
 //        pQdesc += pConn->pQList->numOfQueries;
 //        pQueryShow->numOfQueries += pConn->pQList->numOfQueries;
 //        for (int32_t i = 0; i < pConn->pQList->numOfQueries; ++i, ++ppCDesc) *ppCDesc = pCDesc;
@@ -120,7 +120,7 @@ int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
 int32_t mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SCMSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = tsGetSchema(pMeta);
 
   pShow->bytes[cols] = TSDB_USER_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -193,7 +193,7 @@ int32_t mgmtKillQuery(char *qidstr, void *pConn) {
 //  while (pConn) {
 //    if (pConn->ip == ip && pConn->port == port && pConn->pQList) {
 //      int32_t     i;
-//      SCMQueryDesc *pQDesc = pConn->pQList->qdesc;
+//      SQueryDesc *pQDesc = pConn->pQList->qdesc;
 //      for (i = 0; i < pConn->pQList->numOfQueries; ++i, ++pQDesc) {
 //        if (pQDesc->queryId == queryId) break;
 //      }
@@ -229,7 +229,7 @@ int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pCo
   if (rows > pQueryShow->numOfQueries - pQueryShow->index) rows = pQueryShow->numOfQueries - pQueryShow->index;
 
   while (numOfRows < rows) {
-    SCMQueryDesc *pNode = pQueryShow->qdesc + pQueryShow->index;
+    SQueryDesc *pNode = pQueryShow->qdesc + pQueryShow->index;
     SCDesc *pCDesc = pQueryShow->cdesc[pQueryShow->index];
     cols = 0;
 
@@ -275,7 +275,7 @@ int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
 //
 //  pthread_mutex_lock(&pAcct->mutex);
 //
-//  pStreamShow = malloc(sizeof(SCMStreamDesc) * pAcct->acctInfo.numOfStreams + sizeof(SQueryShow));
+//  pStreamShow = malloc(sizeof(SStreamDesc) * pAcct->acctInfo.numOfStreams + sizeof(SQueryShow));
 //  pStreamShow->numOfStreams = 0;
 //  pStreamShow->index = 0;
 //  pStreamShow->connInfo = NULL;
@@ -286,7 +286,7 @@ int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
 //    pStreamShow->cdesc = (SCDesc **)malloc(pAcct->acctInfo.numOfStreams * sizeof(SCDesc *));
 //
 //    pConn = pAcct->pConn;
-//    SCMStreamDesc * pSdesc = pStreamShow->sdesc;
+//    SStreamDesc * pSdesc = pStreamShow->sdesc;
 //    SCDesc * pCDesc = pStreamShow->connInfo;
 //    SCDesc **ppCDesc = pStreamShow->cdesc;
 //
@@ -296,7 +296,7 @@ int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
 //        pCDesc->port = pConn->port;
 //        strcpy(pCDesc->user, pConn->pUser->user);
 //
-//        memcpy(pSdesc, pConn->pSList->sdesc, sizeof(SCMStreamDesc) * pConn->pSList->numOfStreams);
+//        memcpy(pSdesc, pConn->pSList->sdesc, sizeof(SStreamDesc) * pConn->pSList->numOfStreams);
 //        pSdesc += pConn->pSList->numOfStreams;
 //        pStreamShow->numOfStreams += pConn->pSList->numOfStreams;
 //        for (int32_t i = 0; i < pConn->pSList->numOfStreams; ++i, ++ppCDesc) *ppCDesc = pCDesc;
@@ -318,7 +318,7 @@ int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
 
 int32_t mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t      cols = 0;
-  SCMSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = tsGetSchema(pMeta);
 
   pShow->bytes[cols] = TSDB_USER_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -386,7 +386,7 @@ int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pCo
   if (rows > pStreamShow->numOfStreams - pStreamShow->index) rows = pStreamShow->numOfStreams - pStreamShow->index;
 
   while (numOfRows < rows) {
-    SCMStreamDesc *pNode = pStreamShow->sdesc + pStreamShow->index;
+    SStreamDesc *pNode = pStreamShow->sdesc + pStreamShow->index;
     SCDesc *pCDesc = pStreamShow->cdesc[pStreamShow->index];
     cols = 0;
 
@@ -461,7 +461,7 @@ int32_t mgmtKillStream(char *qidstr, void *pConn) {
 //  while (pConn) {
 //    if (pConn->ip == ip && pConn->port == port && pConn->pSList) {
 //      int32_t     i;
-//      SCMStreamDesc *pSDesc = pConn->pSList->sdesc;
+//      SStreamDesc *pSDesc = pConn->pSList->sdesc;
 //      for (i = 0; i < pConn->pSList->numOfStreams; ++i, ++pSDesc) {
 //        if (pSDesc->streamId == streamId) break;
 //      }

@@ -67,8 +67,8 @@ void *mgmtStreamTableActionReset(void *row, char *str, int32_t size, int32_t *ss
   int32_t tsize = pTable->updateEnd - (int8_t *) pTable;
   memcpy(pTable, str, tsize);
 
-  int32_t schemaSize = pTable->numOfColumns * sizeof(SCMSchema);
-  pTable->schema = (SCMSchema *) realloc(pTable->schema, schemaSize);
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  pTable->schema = (SSchema *) realloc(pTable->schema, schemaSize);
   memcpy(pTable->schema, str + tsize, schemaSize);
 
   pTable->sql = (char *) realloc(pTable->sql, pTable->sqlLen);
@@ -169,7 +169,7 @@ void *mgmtStreamTableActionEncode(void *row, char *str, int32_t size, int32_t *s
   assert(row != NULL && str != NULL);
 
   int32_t tsize = pTable->updateEnd - (int8_t *) pTable;
-  int32_t schemaSize = pTable->numOfColumns * sizeof(SCMSchema);
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
   if (size < tsize + schemaSize + pTable->sqlLen + 1) {
     *ssize = -1;
     return NULL;
@@ -199,8 +199,8 @@ void *mgmtStreamTableActionDecode(void *row, char *str, int32_t size, int32_t *s
   }
   memcpy(pTable, str, tsize);
 
-  int32_t schemaSize = pTable->numOfColumns * sizeof(SCMSchema);
-  pTable->schema = (SCMSchema *)malloc(schemaSize);
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  pTable->schema = (SSchema *)malloc(schemaSize);
   if (pTable->schema == NULL) {
     mgmtDestroyStreamTable(pTable);
     return NULL;
@@ -230,7 +230,7 @@ int32_t mgmtInitStreamTables() {
 
   mgmtStreamTableActionInit();
 
-  tsStreamTableSdb = sdbOpenTable(tsMaxTables, sizeof(SStreamTableObj) + sizeof(SCMSchema) * TSDB_MAX_COLUMNS + TSDB_MAX_SQL_LEN,
+  tsStreamTableSdb = sdbOpenTable(tsMaxTables, sizeof(SStreamTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_MAX_SQL_LEN,
                                   "streams", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtStreamTableAction);
   if (tsStreamTableSdb == NULL) {
     mError("failed to init stream table data");
@@ -273,7 +273,7 @@ int8_t *mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj  *pVgroup)
 //  pCreateTable->numOfColumns = htons(pTable->numOfColumns);
 //  //pCreateTable->sqlLen       = htons(pTable->sqlLen);
 //
-//  SCMSchema *pSchema  = pTable->schema;
+//  SSchema *pSchema  = pTable->schema;
 //  int32_t totalCols = pCreateTable->numOfColumns;
 
 //  for (int32_t col = 0; col < totalCols; ++col) {
@@ -293,7 +293,7 @@ int8_t *mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj  *pVgroup)
   return NULL;
 }
 
-int32_t mgmtCreateStreamTable(SDbObj *pDb, SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
+int32_t mgmtCreateStreamTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
   int32_t numOfTables = sdbGetNumOfRows(tsStreamTableSdb);
   if (numOfTables >= TSDB_MAX_TABLES) {
     mError("stream table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_TABLES);
@@ -314,23 +314,23 @@ int32_t mgmtCreateStreamTable(SDbObj *pDb, SCMCreateTableMsg *pCreate, SVgObj *p
   pTable->numOfColumns = pCreate->numOfColumns;
 
   int32_t numOfCols = pCreate->numOfColumns + pCreate->numOfTags;
-  int32_t schemaSize = pTable->numOfColumns * sizeof(SCMSchema);
-  pTable->schema     = (SCMSchema *) calloc(1, schemaSize);
+  int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+  pTable->schema     = (SSchema *) calloc(1, schemaSize);
   if (pTable->schema == NULL) {
     free(pTable);
     mError("table:%s, no schema input", pCreate->tableId);
     return TSDB_CODE_INVALID_TABLE;
   }
-  memcpy(pTable->schema, pCreate->schema, numOfCols * sizeof(SCMSchema));
+  memcpy(pTable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
   pTable->nextColId = 0;
   for (int32_t col = 0; col < pCreate->numOfColumns; col++) {
-    SCMSchema *tschema   = (SCMSchema *) pTable->schema;
+    SSchema *tschema   = (SSchema *) pTable->schema;
     tschema[col].colId = pTable->nextColId++;
   }
 
-  pTable->sql = (char*)(pTable->schema + numOfCols * sizeof(SCMSchema));
-  memcpy(pTable->sql, (char *) (pCreate->schema) + numOfCols * sizeof(SCMSchema), pCreate->sqlLen);
+  pTable->sql = (char*)(pTable->schema + numOfCols * sizeof(SSchema));
+  memcpy(pTable->sql, (char *) (pCreate->schema) + numOfCols * sizeof(SSchema), pCreate->sqlLen);
   pTable->sql[pCreate->sqlLen - 1] = 0;
   mTrace("table:%s, stream sql len:%d sql:%s", pCreate->tableId, pCreate->sqlLen, pTable->sql);
 

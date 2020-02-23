@@ -30,7 +30,7 @@ STableInfo* mgmtGetTable(char *tableId);
 STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid);
 
 int32_t  mgmtRetrieveMetricMeta(void *pConn, char **pStart, SSuperTableMetaMsg *pInfo);
-int32_t  mgmtCreateTable(SDbObj *pDb, SCMCreateTableMsg *pCreate);
+int32_t  mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate);
 int32_t  mgmtDropTable(SDbObj *pDb, char *meterId, int32_t ignore);
 int32_t  mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter);
 int32_t  mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);

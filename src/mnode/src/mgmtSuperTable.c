@@ -66,7 +66,7 @@ void *mgmtSuperTableActionReset(void *row, char *str, int32_t size, int32_t *ssi
   int32_t tsize = pTable->updateEnd - (int8_t *) pTable;
   memcpy(pTable, str, tsize);
 
-  int32_t schemaSize = sizeof(SCMSchema) * (pTable->numOfColumns + pTable->numOfTags);
+  int32_t schemaSize = sizeof(SSchema) * (pTable->numOfColumns + pTable->numOfTags);
   pTable->schema = realloc(pTable->schema, schemaSize);
   memcpy(pTable->schema, str + tsize, schemaSize);
 
@@ -96,7 +96,7 @@ void *mgmtSuperTableActionEncode(void *row, char *str, int32_t size, int32_t *ss
   assert(row != NULL && str != NULL);
 
   int32_t tsize = pTable->updateEnd - (int8_t *) pTable;
-  int32_t schemaSize = sizeof(SCMSchema) * (pTable->numOfColumns + pTable->numOfTags);
+  int32_t schemaSize = sizeof(SSchema) * (pTable->numOfColumns + pTable->numOfTags);
 
   if (size < tsize + schemaSize + 1) {
     *ssize = -1;
@@ -126,7 +126,7 @@ void *mgmtSuperTableActionDecode(void *row, char *str, int32_t size, int32_t *ss
   }
   memcpy(pTable, str, tsize);
 
-  int32_t schemaSize = sizeof(SCMSchema) * (pTable->numOfColumns + pTable->numOfTags);
+  int32_t schemaSize = sizeof(SSchema) * (pTable->numOfColumns + pTable->numOfTags);
   pTable->schema = malloc(schemaSize);
   if (pTable->schema == NULL) {
     mgmtDestroySuperTable(pTable);
@@ -151,7 +151,7 @@ int32_t mgmtInitSuperTables() {
 
   mgmtSuperTableActionInit();
 
-  tsSuperTableSdb = sdbOpenTable(tsMaxTables, sizeof(STabObj) + sizeof(SCMSchema) * TSDB_MAX_COLUMNS,
+  tsSuperTableSdb = sdbOpenTable(tsMaxTables, sizeof(STabObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
                           "stables", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtSuperTableAction);
   if (tsSuperTableSdb == NULL) {
     mError("failed to init super table data");
@@ -184,7 +184,7 @@ int32_t mgmtInitSuperTables() {
 void mgmtCleanUpSuperTables() {
 }
 
-int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
+int32_t mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
   int32_t numOfTables = sdbGetNumOfRows(tsSuperTableSdb);
   if (numOfTables >= TSDB_MAX_TABLES) {
     mError("super table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_TABLES);
@@ -207,18 +207,18 @@ int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
   pStable->numOfTables = 0;
 
   int32_t numOfCols = pCreate->numOfColumns + pCreate->numOfTags;
-  int32_t schemaSize = numOfCols * sizeof(SCMSchema);
-  pStable->schema = (SCMSchema *)calloc(1, schemaSize);
+  int32_t schemaSize = numOfCols * sizeof(SSchema);
+  pStable->schema = (SSchema *)calloc(1, schemaSize);
   if (pStable->schema == NULL) {
     free(pStable);
     mError("table:%s, no schema input", pCreate->tableId);
     return TSDB_CODE_INVALID_TABLE;
   }
-  memcpy(pStable->schema, pCreate->schema, numOfCols * sizeof(SCMSchema));
+  memcpy(pStable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
   pStable->nextColId = 0;
   for (int32_t col = 0; col < pCreate->numOfColumns; col++) {
-    SCMSchema *tschema = (SCMSchema *)pStable->schema;
+    SSchema *tschema = (SSchema *)pStable->schema;
     tschema[col].colId = pStable->nextColId++;
   }
 
@@ -241,7 +241,7 @@ SSuperTableObj* mgmtGetSuperTable(char *tableId) {
 
 int32_t mgmtFindSuperTableTagIndex(SSuperTableObj *pStable, const char *tagName) {
   for (int32_t i = 0; i < pStable->numOfTags; i++) {
-    SCMSchema *schema = (SCMSchema *)(pStable->schema + (pStable->numOfColumns + i) * sizeof(SCMSchema));
+    SSchema *schema = (SSchema *)(pStable->schema + (pStable->numOfColumns + i) * sizeof(SSchema));
     if (strcasecmp(tagName, schema->name) == 0) {
       return i;
     }
@@ -250,7 +250,7 @@ int32_t mgmtFindSuperTableTagIndex(SSuperTableObj *pStable, const char *tagName)
   return -1;
 }
 
-int32_t mgmtAddSuperTableTag(SSuperTableObj *pStable, SCMSchema schema[], int32_t ntags) {
+int32_t mgmtAddSuperTableTag(SSuperTableObj *pStable, SSchema schema[], int32_t ntags) {
   if (pStable->numOfTags + ntags > TSDB_MAX_TAGS) {
     return TSDB_CODE_APP_ERROR;
   }
@@ -276,14 +276,14 @@ int32_t mgmtAddSuperTableTag(SSuperTableObj *pStable, SCMSchema schema[], int32_
     return TSDB_CODE_APP_ERROR;
   }
 
-  int32_t schemaSize = sizeof(SCMSchema) * (pStable->numOfTags + pStable->numOfColumns);
-  pStable->schema = realloc(pStable->schema, schemaSize + sizeof(SCMSchema) * ntags);
+  int32_t schemaSize = sizeof(SSchema) * (pStable->numOfTags + pStable->numOfColumns);
+  pStable->schema = realloc(pStable->schema, schemaSize + sizeof(SSchema) * ntags);
 
-  memmove(pStable->schema + sizeof(SCMSchema) * (pStable->numOfColumns + ntags),
-          pStable->schema + sizeof(SCMSchema) * pStable->numOfColumns, sizeof(SCMSchema) * pStable->numOfTags);
-  memcpy(pStable->schema + sizeof(SCMSchema) * pStable->numOfColumns, schema, sizeof(SCMSchema) * ntags);
+  memmove(pStable->schema + sizeof(SSchema) * (pStable->numOfColumns + ntags),
+          pStable->schema + sizeof(SSchema) * pStable->numOfColumns, sizeof(SSchema) * pStable->numOfTags);
+  memcpy(pStable->schema + sizeof(SSchema) * pStable->numOfColumns, schema, sizeof(SSchema) * ntags);
 
-  SCMSchema *tschema = (SCMSchema *) (pStable->schema + sizeof(SCMSchema) * pStable->numOfColumns);
+  SSchema *tschema = (SSchema *) (pStable->schema + sizeof(SSchema) * pStable->numOfColumns);
   for (int32_t i = 0; i < ntags; i++) {
     tschema[i].colId = pStable->nextColId++;
   }
@@ -316,13 +316,13 @@ int32_t mgmtDropSuperTableTag(SSuperTableObj *pStable, char *tagName) {
     return TSDB_CODE_APP_ERROR;
   }
 
-  memmove(pStable->schema + sizeof(SCMSchema) * col, pStable->schema + sizeof(SCMSchema) * (col + 1),
-          sizeof(SCMSchema) * (pStable->numOfColumns + pStable->numOfTags - col - 1));
+  memmove(pStable->schema + sizeof(SSchema) * col, pStable->schema + sizeof(SSchema) * (col + 1),
+          sizeof(SSchema) * (pStable->numOfColumns + pStable->numOfTags - col - 1));
 
   pStable->numOfTags--;
   pStable->sversion++;
 
-  int32_t schemaSize = sizeof(SCMSchema) * (pStable->numOfTags + pStable->numOfColumns);
+  int32_t schemaSize = sizeof(SSchema) * (pStable->numOfTags + pStable->numOfColumns);
   pStable->schema = realloc(pStable->schema, schemaSize);
 
   sdbUpdateRow(tsSuperTableSdb, pStable, 0, 1);
@@ -346,7 +346,7 @@ int32_t mgmtModifySuperTableTagNameByName(SSuperTableObj *pStable, char *oldTagN
   }
 
   // update
-  SCMSchema *schema = (SCMSchema *) (pStable->schema + (pStable->numOfColumns + col) * sizeof(SCMSchema));
+  SSchema *schema = (SSchema *) (pStable->schema + (pStable->numOfColumns + col) * sizeof(SSchema));
   strncpy(schema->name, newTagName, TSDB_COL_NAME_LEN);
 
   // Encode string
@@ -370,7 +370,7 @@ int32_t mgmtModifySuperTableTagNameByName(SSuperTableObj *pStable, char *oldTagN
 }
 
 static int32_t mgmtFindSuperTableColumnIndex(SSuperTableObj *pStable, char *colName) {
-  SCMSchema *schema = (SCMSchema *) pStable->schema;
+  SSchema *schema = (SSchema *) pStable->schema;
   for (int32_t i = 0; i < pStable->numOfColumns; i++) {
     if (strcasecmp(schema[i].name, colName) == 0) {
       return i;
@@ -380,7 +380,7 @@ static int32_t mgmtFindSuperTableColumnIndex(SSuperTableObj *pStable, char *colN
   return -1;
 }
 
-int32_t mgmtAddSuperTableColumn(SSuperTableObj *pStable, SCMSchema schema[], int32_t ncols) {
+int32_t mgmtAddSuperTableColumn(SSuperTableObj *pStable, SSchema schema[], int32_t ncols) {
   if (ncols <= 0) {
     return TSDB_CODE_APP_ERROR;
   }
@@ -403,14 +403,14 @@ int32_t mgmtAddSuperTableColumn(SSuperTableObj *pStable, SCMSchema schema[], int
     return TSDB_CODE_APP_ERROR;
   }
 
-  int32_t schemaSize = sizeof(SCMSchema) * (pStable->numOfTags + pStable->numOfColumns);
-  pStable->schema = realloc(pStable->schema, schemaSize + sizeof(SCMSchema) * ncols);
+  int32_t schemaSize = sizeof(SSchema) * (pStable->numOfTags + pStable->numOfColumns);
+  pStable->schema = realloc(pStable->schema, schemaSize + sizeof(SSchema) * ncols);
 
-  memmove(pStable->schema + sizeof(SCMSchema) * (pStable->numOfColumns + ncols),
-          pStable->schema + sizeof(SCMSchema) * pStable->numOfColumns, sizeof(SCMSchema) * pStable->numOfTags);
-  memcpy(pStable->schema + sizeof(SCMSchema) * pStable->numOfColumns, schema, sizeof(SCMSchema) * ncols);
+  memmove(pStable->schema + sizeof(SSchema) * (pStable->numOfColumns + ncols),
+          pStable->schema + sizeof(SSchema) * pStable->numOfColumns, sizeof(SSchema) * pStable->numOfTags);
+  memcpy(pStable->schema + sizeof(SSchema) * pStable->numOfColumns, schema, sizeof(SSchema) * ncols);
 
-  SCMSchema *tschema = (SCMSchema *) (pStable->schema + sizeof(SCMSchema) * pStable->numOfColumns);
+  SSchema *tschema = (SSchema *) (pStable->schema + sizeof(SSchema) * pStable->numOfColumns);
   for (int32_t i = 0; i < ncols; i++) {
     tschema[i].colId = pStable->nextColId++;
   }
@@ -442,13 +442,13 @@ int32_t mgmtDropSuperTableColumnByName(SSuperTableObj *pStable, char *colName) {
     return TSDB_CODE_APP_ERROR;
   }
 
-  memmove(pStable->schema + sizeof(SCMSchema) * col, pStable->schema + sizeof(SCMSchema) * (col + 1),
-          sizeof(SCMSchema) * (pStable->numOfColumns + pStable->numOfTags - col - 1));
+  memmove(pStable->schema + sizeof(SSchema) * col, pStable->schema + sizeof(SSchema) * (col + 1),
+          sizeof(SSchema) * (pStable->numOfColumns + pStable->numOfTags - col - 1));
 
   pStable->numOfColumns--;
   pStable->sversion++;
 
-  int32_t schemaSize = sizeof(SCMSchema) * (pStable->numOfTags + pStable->numOfColumns);
+  int32_t schemaSize = sizeof(SSchema) * (pStable->numOfTags + pStable->numOfColumns);
   pStable->schema = realloc(pStable->schema, schemaSize);
 
   pAcct->acctInfo.numOfTimeSeries -= (pStable->numOfTables);
@@ -465,7 +465,7 @@ int32_t mgmtGetSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
 //
 //  if (pDb == NULL) return TSDB_CODE_DB_NOT_SELECTED;
 //
-//  SCMSchema *pSchema = tsGetSchema(pMeta);
+//  SSchema *pSchema = tsGetSchema(pMeta);
 //
 //  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
 //  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -597,7 +597,7 @@ int32_t mgmtGetTagsLength(SSuperTableObj* pSuperTable, int32_t col) {  // length
   int32_t tagColumnIndexOffset = pSuperTable->numOfColumns;
 
   for (int32_t i = 0; i < pSuperTable->numOfTags && i < col; ++i) {
-    len += ((SCMSchema*)pSuperTable->schema)[tagColumnIndexOffset + i].bytes;
+    len += ((SSchema*)pSuperTable->schema)[tagColumnIndexOffset + i].bytes;
   }
 
   return len;

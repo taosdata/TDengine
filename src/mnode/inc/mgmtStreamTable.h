@@ -26,7 +26,7 @@ extern "C" {
 
 int32_t         mgmtInitStreamTables();
 void            mgmtCleanUpStreamTables();
-int32_t         mgmtCreateStreamTable(SDbObj *pDb, SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
+int32_t         mgmtCreateStreamTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
 int32_t         mgmtDropStreamTable(SDbObj *pDb, SStreamTableObj *pTable);
 int32_t         mgmtAlterStreamTable(SDbObj *pDb, SAlterTableMsg *pAlter);
 SStreamTableObj* mgmtGetStreamTable(char *tableId);

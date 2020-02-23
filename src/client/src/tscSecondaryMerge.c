@@ -68,7 +68,7 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SSqlRes *pRes, SLocalReducer *pRedu
 
     // input buffer hold only one point data
     int16_t offset = getColumnModelOffset(pDesc->pColumnModel, i);
-    SCMSchema* pSchema = getColumnModelSchema(pDesc->pColumnModel, i);
+    SSchema* pSchema = getColumnModelSchema(pDesc->pColumnModel, i);
     
     pCtx->aInputElemBuf = pReducer->pTempBuffer->data + offset;
 
@@ -336,7 +336,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     pInterpoInfo->pTags[0] = (char *)pInterpoInfo->pTags + POINTER_BYTES * pQueryInfo->groupbyExpr.numOfGroupCols;
     for (int32_t i = 1; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
-      SCMSchema* pSchema = getColumnModelSchema(pReducer->resColModel, startIndex + i - 1);
+      SSchema* pSchema = getColumnModelSchema(pReducer->resColModel, startIndex + i - 1);
       pInterpoInfo->pTags[i] = pSchema->bytes + pInterpoInfo->pTags[i - 1];
     }
   } else {
@@ -599,7 +599,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  SCMSchema *  pSchema = NULL;
+  SSchema *  pSchema = NULL;
   SColumnModel *pModel = NULL;
   *pFinalModel = NULL;
 
@@ -613,7 +613,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
     return pRes->code;
   }
 
-  pSchema = (SCMSchema *)calloc(1, sizeof(SCMSchema) * pQueryInfo->fieldsInfo.numOfOutputCols);
+  pSchema = (SSchema *)calloc(1, sizeof(SSchema) * pQueryInfo->fieldsInfo.numOfOutputCols);
   if (pSchema == NULL) {
     tscError("%p failed to allocate memory", pSql);
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
@@ -647,7 +647,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
     return pRes->code;
   }
 
-  memset(pSchema, 0, sizeof(SCMSchema) * pQueryInfo->fieldsInfo.numOfOutputCols);
+  memset(pSchema, 0, sizeof(SSchema) * pQueryInfo->fieldsInfo.numOfOutputCols);
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
     TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
 
@@ -985,7 +985,7 @@ static void savePreviousRow(SLocalReducer *pLocalReducer, tFilePage *tmpBuffer) 
 
   // copy to previous temp buffer
   for (int32_t i = 0; i < pColumnModel->numOfCols; ++i) {
-    SCMSchema* pSchema = getColumnModelSchema(pColumnModel, i);
+    SSchema* pSchema = getColumnModelSchema(pColumnModel, i);
     int16_t offset = getColumnModelOffset(pColumnModel, i);
     
     memcpy(pLocalReducer->prevRowOfInput + offset, tmpBuffer->data + offset, pSchema->bytes);
@@ -1208,7 +1208,7 @@ bool doGenerateFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool no
 
   for (int32_t i = 0; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
     int16_t offset = getColumnModelOffset(pModel, startIndex + i);
-    SCMSchema* pSchema = getColumnModelSchema(pModel, startIndex + i);
+    SSchema* pSchema = getColumnModelSchema(pModel, startIndex + i);
     
     memcpy(pInterpoInfo->pTags[i],
            pLocalReducer->pBufForInterpo + offset * pResBuf->numOfElems, pSchema->bytes);

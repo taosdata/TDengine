@@ -28,7 +28,7 @@ extern "C" {
 #include "ttypes.h"
 
 struct tSQLBinaryExpr;
-struct SCMSchema;
+struct SSchema;
 struct tSkipList;
 struct tSkipListNode;
 
@@ -49,7 +49,7 @@ typedef struct tQueryInfo {
   int32_t       offset;   // offset value in tags
   int32_t       colIdx;   // index of column in schema
   uint8_t       optr;     // expression operator
-  SCMSchema       sch;      // schema of tags
+  SSchema       sch;      // schema of tags
   tVariant      q;        // query condition value on the specific schema, filter expression
   __compar_fn_t compare;  // filter function
 } tQueryInfo;
@@ -65,7 +65,7 @@ typedef struct tSQLSyntaxNode {
   int16_t colId;  // for schema, the id of column
   union {
     struct tSQLBinaryExpr *pExpr;
-    struct SCMSchema *       pSchema;
+    struct SSchema *       pSchema;
     tVariant *             pVal;
   };
 } tSQLSyntaxNode;
@@ -88,7 +88,7 @@ typedef struct tQueryResultset {
   int64_t num;
 } tQueryResultset;
 
-void tSQLBinaryExprFromString(tSQLBinaryExpr **pExpr, SCMSchema *pSchema, int32_t numOfCols, char *src, int32_t len);
+void tSQLBinaryExprFromString(tSQLBinaryExpr **pExpr, SSchema *pSchema, int32_t numOfCols, char *src, int32_t len);
 
 void tSQLBinaryExprToString(tSQLBinaryExpr *pExpr, char *dst, int32_t *len);
 

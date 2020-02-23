@@ -30,7 +30,7 @@ int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pCo
 
 int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-int32_t mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg);
+int32_t mgmtSaveQueryStreamList(SHeartBeatMsg *pHBMsg);
 
 int32_t mgmtKillQuery(char *qidstr, void *pConn);
 

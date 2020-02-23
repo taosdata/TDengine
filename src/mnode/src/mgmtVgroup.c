@@ -256,7 +256,7 @@ int32_t mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
 //
 //  if (pDb == NULL) return TSDB_CODE_DB_NOT_SELECTED;
 //
-//  SCMSchema *pSchema = tsGetSchema(pMeta);
+//  SSchema *pSchema = tsGetSchema(pMeta);
 //
 //  pShow->bytes[cols] = 4;
 //  pSchema[cols].type = TSDB_DATA_TYPE_INT;
