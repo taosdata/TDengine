@@ -141,3 +141,13 @@ int mgmtRetrieveConns(SShowObj *pShow, char *data, int rows, void *pConn) {
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
+
+bool mgmtCheckQhandle(uint64_t qhandle) {
+  return true;
+}
+
+void mgmtSaveQhandle(void *qhandle) {
+}
+
+void mgmtFreeQhandle(void *qhandle) {
+}

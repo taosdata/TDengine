@@ -302,6 +302,7 @@ typedef struct {
 
 typedef struct {
   char     type;
+  char     db[TSDB_DB_NAME_LEN];
   void *   pNode;
   short    numOfColumns;
   int      rowSize;
@@ -313,7 +314,6 @@ typedef struct {
   uint16_t payloadLen; /* length of payload*/
   char     payload[];  /* payload for wildcard match in show tables */
 } SShowObj;
-
 
 //mgmtSystem
 int32_t mgmtStartSystem();

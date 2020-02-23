@@ -59,7 +59,7 @@ void* dnodeProcessMsgFromShell(int8_t msgType, void *pCont, int32_t contLen, voi
 
   if (msgType == TSDB_MSG_TYPE_DNODE_QUERY) {
     dnodeProcessQueryRequest(pCont, contLen, handle);
-  } else if (msgType == TSDB_MSG_TYPE_DNODE_RETRIEVE) {
+  } else if (msgType == TSDB_MSG_TYPE_RETRIEVE) {
     dnodeProcessRetrieveRequest(pCont, contLen, handle);
   } else if (msgType == TSDB_MSG_TYPE_DNODE_SUBMIT) {
     dnodeProcessShellSubmitRequest(pCont, contLen, handle);

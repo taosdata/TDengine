@@ -35,8 +35,8 @@ extern "C" {
 #define TSDB_MSG_TYPE_DNODE_SUBMIT_RSP       4
 #define TSDB_MSG_TYPE_DNODE_QUERY            5
 #define TSDB_MSG_TYPE_DNODE_QUERY_RSP        6
-#define TSDB_MSG_TYPE_DNODE_RETRIEVE         7
-#define TSDB_MSG_TYPE_DNODE_RETRIEVE_RSP     8
+#define TSDB_MSG_TYPE_RETRIEVE               7
+#define TSDB_MSG_TYPE_RETRIEVE_RSP           8
 #define TSDB_MSG_TYPE_DNODE_CREATE_TABLE     9
 #define TSDB_MSG_TYPE_DNODE_CREATE_TABLE_RSP 10
 #define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE     11
@@ -268,10 +268,6 @@ typedef struct {
   char     superTableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   data[];
 } SDCreateTableMsg;
-
-typedef struct {
-  char db[TSDB_DB_NAME_LEN];
-} SShowTableMsg;
 
 typedef struct {
   char      tableId[TSDB_TABLE_ID_LEN];
@@ -738,7 +734,8 @@ typedef struct {
  * payloadLen is the length of payload
  */
 typedef struct {
-  int8_t  type;
+  int8_t   type;
+  char     db[TSDB_DB_NAME_LEN];
   uint16_t payloadLen;
   char     payload[];
 } SShowMsg;
@@ -749,7 +746,7 @@ typedef struct {
 } SShowRsp;
 
 typedef struct {
-  char ip[20];
+  char ip[32];
 } SCreateMnodeMsg, SDropMnodeMsg, SCreateDnodeMsg, SDropDnodeMsg;
 
 typedef struct {

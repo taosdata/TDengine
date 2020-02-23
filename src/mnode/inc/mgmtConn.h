@@ -25,6 +25,10 @@ extern "C" {
 int mgmtGetConnsMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
 int mgmtRetrieveConns(SShowObj *pShow, char *data, int rows, void *pConn);
 
+bool mgmtCheckQhandle(uint64_t qhandle);
+void mgmtSaveQhandle(void *qhandle);
+void mgmtFreeQhandle(void *qhandle);
+
 #ifdef __cplusplus
 }
 #endif

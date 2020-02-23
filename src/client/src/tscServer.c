@@ -1205,7 +1205,7 @@ int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sizeof(pQueryInfo->type);
 
   pSql->cmd.payloadLen = pMsg - pStart;
-  pSql->cmd.msgType = TSDB_MSG_TYPE_DNODE_RETRIEVE;
+  pSql->cmd.msgType = TSDB_MSG_TYPE_RETRIEVE;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1918,7 +1918,7 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
 
-  int32_t size = minMsgSize() + sizeof(SMgmtHead) + sizeof(SShowTableMsg) + pCmd->payloadLen + TSDB_EXTRA_PAYLOAD_SIZE;
+  int32_t size = minMsgSize() + sizeof(SMgmtHead) + sizeof(SShowMsg) + pCmd->payloadLen + TSDB_EXTRA_PAYLOAD_SIZE;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for show msg", pSql);
     return -1;
@@ -1951,7 +1951,7 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       strncpy(pShowMsg->payload, pPattern->z, pPattern->n);
       pShowMsg->payloadLen = htons(pPattern->n);
     }
-    pMsg += (sizeof(SShowTableMsg) + pPattern->n);
+    pMsg += (sizeof(SShowMsg) + pPattern->n);
   } else {
     SSQLToken *pIpAddr = &pShowInfo->prefix;
     assert(pIpAddr->n > 0 && pIpAddr->type > 0);
@@ -1959,7 +1959,7 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     strncpy(pShowMsg->payload, pIpAddr->z, pIpAddr->n);
     pShowMsg->payloadLen = htons(pIpAddr->n);
 
-    pMsg += (sizeof(SShowTableMsg) + pIpAddr->n);
+    pMsg += (sizeof(SShowMsg) + pIpAddr->n);
   }
 
   pCmd->payloadLen = pMsg - pStart;
@@ -2216,7 +2216,7 @@ int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   msgLen = pMsg - pStart;
   pCmd->payloadLen = msgLen;
-  pCmd->msgType = TSDB_MSG_TYPE_DNODE_RETRIEVE;
+  pCmd->msgType = TSDB_MSG_TYPE_RETRIEVE;
 
   return TSDB_CODE_SUCCESS;
 }
