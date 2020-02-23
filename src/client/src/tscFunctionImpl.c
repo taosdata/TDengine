@@ -2437,7 +2437,7 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
   }
 
   SResultInfo *pResInfo = GET_RES_INFO(pCtx);
-  SSchema      field[1] = {{pCtx->inputType, "dummyCol", 0, pCtx->inputBytes}};
+  SCMSchema      field[1] = {{pCtx->inputType, "dummyCol", 0, pCtx->inputBytes}};
 
   SColumnModel *pModel = createColumnModel(field, 1, 1000);
   int32_t    orderIdx = 0;

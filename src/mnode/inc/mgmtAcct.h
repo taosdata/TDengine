@@ -32,7 +32,7 @@ extern void      (*mgmtCleanUpAccts)();
 extern SAcctObj* (*mgmtGetAcct)(char *acctName);
 extern int32_t   (*mgmtCheckUserLimit)(SAcctObj *pAcct);
 extern int32_t   (*mgmtCheckDbLimit)(SAcctObj *pAcct);
-extern int32_t   (*mgmtCheckTableLimit)(SAcctObj *pAcct, SCreateTableMsg *pCreate);
+extern int32_t   (*mgmtCheckTableLimit)(SAcctObj *pAcct, SCMCreateTableMsg *pCreate);
 extern int32_t   (*mgmtGetAcctMeta)(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
 extern int32_t   (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 

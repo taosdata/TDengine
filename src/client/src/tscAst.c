@@ -40,10 +40,10 @@
  *
  */
 
-static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken *pToken);
+static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SCMSchema *pSchema, int32_t numOfCols, SSQLToken *pToken);
 static void            tSQLSyntaxNodeDestroy(tSQLSyntaxNode *pNode, void (*fp)(void *));
 
-static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i);
+static tSQLSyntaxNode *createSyntaxTree(SCMSchema *pSchema, int32_t numOfCols, char *str, int32_t *i);
 static void            destroySyntaxTree(tSQLSyntaxNode *);
 
 static uint8_t isQueryOnPrimaryKey(const char *primaryColumnName, const tSQLSyntaxNode *pLeft,
@@ -101,7 +101,7 @@ static void reviseBinaryExprIfNecessary(tSQLSyntaxNode **pLeft, tSQLSyntaxNode *
   }
 }
 
-static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols, SSQLToken *pToken) {
+static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SCMSchema *pSchema, int32_t numOfCols, SSQLToken *pToken) {
   /* if the token is not a value, return false */
   if (pToken->type == TK_RP || (pToken->type != TK_INTEGER && pToken->type != TK_FLOAT && pToken->type != TK_ID &&
                                 pToken->type != TK_TBNAME && pToken->type != TK_STRING && pToken->type != TK_BOOL)) {
@@ -127,15 +127,15 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
       }
     }
 
-    nodeSize += sizeof(SSchema);
+    nodeSize += sizeof(SCMSchema);
 
     pNode = calloc(1, nodeSize);
-    pNode->pSchema = (struct SSchema *)((char *)pNode + sizeof(tSQLSyntaxNode));
+    pNode->pSchema = (struct SCMSchema *)((char *)pNode + sizeof(tSQLSyntaxNode));
     pNode->nodeType = TSQL_NODE_COL;
 
     if (pToken->type == TK_ID) {
       pNode->colId = (int16_t)pSchema[i].colId;
-      memcpy(pNode->pSchema, &pSchema[i], sizeof(SSchema));
+      memcpy(pNode->pSchema, &pSchema[i], sizeof(SCMSchema));
     } else {
       pNode->colId = -1;
       pNode->pSchema->type = TSDB_DATA_TYPE_BINARY;
@@ -193,7 +193,7 @@ static uint8_t getBinaryExprOptr(SSQLToken *pToken) {
 }
 
 // previous generated expr is reduced as the left child
-static tSQLSyntaxNode *parseRemainStr(char *pstr, tSQLBinaryExpr *pExpr, SSchema *pSchema, int32_t optr,
+static tSQLSyntaxNode *parseRemainStr(char *pstr, tSQLBinaryExpr *pExpr, SCMSchema *pSchema, int32_t optr,
                                       int32_t numOfCols, int32_t *i) {
   // set the previous generated node as the left child of new root
   tSQLSyntaxNode *pLeft = malloc(sizeof(tSQLSyntaxNode));
@@ -238,7 +238,7 @@ uint8_t isQueryOnPrimaryKey(const char *primaryColumnName, const tSQLSyntaxNode 
   }
 }
 
-static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i) {
+static tSQLSyntaxNode *createSyntaxTree(SCMSchema *pSchema, int32_t numOfCols, char *str, int32_t *i) {
   SSQLToken t0;
 
   t0 = tStrGetToken(str, i, false, 0, NULL);
@@ -337,7 +337,7 @@ static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, cha
   }
 }
 
-void tSQLBinaryExprFromString(tSQLBinaryExpr **pExpr, SSchema *pSchema, int32_t numOfCols, char *src, int32_t len) {
+void tSQLBinaryExprFromString(tSQLBinaryExpr **pExpr, SCMSchema *pSchema, int32_t numOfCols, char *src, int32_t len) {
   *pExpr = NULL;
   if (len <= 0 || src == NULL || pSchema == NULL || numOfCols <= 0) {
     return;

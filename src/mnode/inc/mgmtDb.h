@@ -23,7 +23,7 @@ extern "C" {
 #include "mnode.h"
 
 void    mgmtMonitorDbDrop(void *unused, void *unusedt);
-int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter);
+int32_t mgmtAlterDb(SAcctObj *pAcct, SCMAlterDbMsg *pAlter);
 int32_t mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup);
 int32_t mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup);
 int32_t mgmtRemoveVgroupFromDb(SDbObj *pDb, SVgObj *pVgroup);
@@ -37,7 +37,7 @@ int32_t mgmtInitDbs();
 int32_t mgmtUpdateDb(SDbObj *pDb);
 SDbObj *mgmtGetDb(char *db);
 SDbObj *mgmtGetDbByTableId(char *db);
-int32_t mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate);
+int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
 int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
 int32_t mgmtDropDb(SDbObj *pDb);
 bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);

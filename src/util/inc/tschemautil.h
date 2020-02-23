@@ -26,7 +26,7 @@ extern "C" {
 
 #define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 
-struct SSchema;
+struct SCMSchema;
 
 /**
  * check if the schema is valid or not, including following aspects:
@@ -40,14 +40,14 @@ struct SSchema;
  * @param numOfCols
  * @return
  */
-bool isValidSchema(struct SSchema *pSchema, int32_t numOfCols);
+bool isValidSchema(struct SCMSchema *pSchema, int32_t numOfCols);
 
-struct SSchema *tsGetSchema(SMeterMeta *pMeta);
+struct SCMSchema *tsGetSchema(SMeterMeta *pMeta);
 
-struct SSchema *tsGetTagSchema(SMeterMeta *pMeta);
+struct SCMSchema *tsGetTagSchema(SMeterMeta *pMeta);
 
-struct SSchema *tsGetColumnSchema(SMeterMeta *pMeta, int32_t startCol);
-struct SSchema tsGetTbnameColumnSchema();
+struct SCMSchema *tsGetColumnSchema(SMeterMeta *pMeta, int32_t startCol);
+struct SCMSchema tsGetTbnameColumnSchema();
 
 char *tsGetTagsValue(SMeterMeta *pMeta);
 

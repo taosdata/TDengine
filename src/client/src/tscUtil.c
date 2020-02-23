@@ -856,7 +856,7 @@ static void setValueImpl(TAOS_FIELD* pField, int8_t type, const char* name, int1
   pField->bytes = bytes;
 }
 
-void tscFieldInfoSetValFromSchema(SFieldInfo* pFieldInfo, int32_t index, SSchema* pSchema) {
+void tscFieldInfoSetValFromSchema(SFieldInfo* pFieldInfo, int32_t index, SCMSchema* pSchema) {
   ensureSpace(pFieldInfo, pFieldInfo->numOfOutputCols + 1);
   evic(pFieldInfo, index);
 
@@ -1079,7 +1079,7 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
   if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     pExpr->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
   } else {
-    SSchema* pSchema = tsGetColumnSchema(pMeterMetaInfo->pMeterMeta, pColIndex->columnIndex);
+    SCMSchema* pSchema = tsGetColumnSchema(pMeterMetaInfo->pMeterMeta, pColIndex->columnIndex);
     pExpr->colInfo.colId = pSchema->colId;
   }
 
@@ -1509,7 +1509,7 @@ bool tscValidateColumnId(SMeterMetaInfo* pMeterMetaInfo, int32_t colId) {
     return true;
   }
 
-  SSchema* pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
+  SCMSchema* pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
   int32_t  numOfTotal = pMeterMetaInfo->pMeterMeta->numOfTags + pMeterMetaInfo->pMeterMeta->numOfColumns;
 
   for (int32_t i = 0; i < numOfTotal; ++i) {
@@ -1555,14 +1555,14 @@ void tscTagCondRelease(STagCond* pCond) {
 
 void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo) {
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-  SSchema*        pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
+  SCMSchema*        pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
 
   for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     pColInfo[i].functionId = pExpr->functionId;
 
     if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
-      SSchema* pTagSchema = tsGetTagSchema(pMeterMetaInfo->pMeterMeta);
+      SCMSchema* pTagSchema = tsGetTagSchema(pMeterMetaInfo->pMeterMeta);
       int16_t  actualTagIndex = pMeterMetaInfo->tagColumnIndex[pExpr->colInfo.colIdx];
 
       pColInfo[i].type = (actualTagIndex != -1) ? pTagSchema[actualTagIndex].type : TSDB_DATA_TYPE_BINARY;

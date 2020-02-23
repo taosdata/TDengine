@@ -130,7 +130,7 @@ typedef struct _tab_obj {
   char *           pReserve1;
   char *           pReserve2;
   char *           schema;
-  // SSchema    schema[];
+  // SCMSchema    schema[];
 } STabObj;
 
 typedef struct {
@@ -156,7 +156,7 @@ typedef struct SSuperTableObj {
   int8_t   reserved[7];
   int8_t   updateEnd[1];
   int16_t  nextColId;
-  SSchema  *schema;
+  SCMSchema  *schema;
 } SSuperTableObj;
 
 typedef struct {
@@ -184,7 +184,7 @@ typedef struct {
   int8_t   reserved[3];
   int8_t   updateEnd[1];
   int16_t  nextColId;
-  SSchema* schema;
+  SCMSchema* schema;
 } SNormalTableObj;
 
 typedef struct {
@@ -201,7 +201,7 @@ typedef struct {
   int8_t   updateEnd[1];
   int16_t  nextColId;
   char*    sql;  //null-terminated string
-  SSchema* schema;
+  SCMSchema* schema;
 } SStreamTableObj;
 
 typedef struct _vg_obj {

@@ -120,7 +120,7 @@ int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
 int32_t mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SCMSchema *pSchema = tsGetSchema(pMeta);
 
   pShow->bytes[cols] = TSDB_USER_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -318,7 +318,7 @@ int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
 
 int32_t mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t      cols = 0;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SCMSchema *pSchema = tsGetSchema(pMeta);
 
   pShow->bytes[cols] = TSDB_USER_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;

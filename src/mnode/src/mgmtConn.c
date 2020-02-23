@@ -71,7 +71,7 @@ int mgmtGetConnsMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   int cols = 0;
 
   pShow->bytes[cols] = TSDB_METER_NAME_LEN;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SCMSchema *pSchema = tsGetSchema(pMeta);
 
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "user");

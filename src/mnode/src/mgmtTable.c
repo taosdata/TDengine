@@ -99,8 +99,8 @@ STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
   return NULL;
 }
 
-int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
-  STableInfo *pTable = mgmtGetTable(pCreate->meterId);
+int32_t mgmtCreateTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
+  STableInfo *pTable = mgmtGetTable(pCreate->tableId);
   if (pTable != NULL) {
     if (pCreate->igExists) {
       return TSDB_CODE_SUCCESS;
@@ -113,19 +113,19 @@ int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
   assert(pAcct != NULL);
   int32_t code = mgmtCheckTableLimit(pAcct, pCreate);
   if (code != 0) {
-    mError("table:%s, exceed the limit", pCreate->meterId);
+    mError("table:%s, exceed the limit", pCreate->tableId);
     return code;
   }
 
   if (mgmtCheckExpired()) {
-    mError("failed to create meter:%s, reason:grant expired", pCreate->meterId);
+    mError("failed to create meter:%s, reason:grant expired", pCreate->tableId);
     return TSDB_CODE_GRANT_EXPIRED;
   }
 
   if (pCreate->numOfTags == 0) {
     int32_t grantCode = mgmtCheckTimeSeries(pCreate->numOfColumns);
     if (grantCode != 0) {
-      mError("table:%s, grant expired", pCreate->meterId);
+      mError("table:%s, grant expired", pCreate->tableId);
       return grantCode;
     }
 
@@ -180,7 +180,7 @@ int32_t mgmtDropTable(SDbObj *pDb, char *tableId, int32_t ignore) {
 }
 
 int32_t mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter) {
-  STableInfo *pTable = mgmtGetTable(pAlter->meterId);
+  STableInfo *pTable = mgmtGetTable(pAlter->tableId);
   if (pTable == NULL) {
     return TSDB_CODE_INVALID_TABLE;
   }
@@ -241,7 +241,7 @@ int32_t mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
 //    return TSDB_CODE_DB_NOT_SELECTED;
 //  }
 //
-//  SSchema *pSchema = tsGetSchema(pMeta);
+//  SCMSchema *pSchema = tsGetSchema(pMeta);
 //
 //  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
 //  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;

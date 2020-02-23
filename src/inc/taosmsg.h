@@ -245,12 +245,12 @@ typedef struct {
   SShellSubmitRspBlock *failedBlocks;
 } SShellSubmitRspMsg;
 
-typedef struct SSchema {
+typedef struct SCMSchema {
   uint8_t  type;
   char  name[TSDB_COL_NAME_LEN];
   short colId;
   short bytes;
-} SSchema;
+} SCMSchema;
 
 typedef struct {
   int8_t  type;
@@ -276,39 +276,33 @@ typedef struct {
 } SDCreateTableMsg;
 
 typedef struct {
-  char  db[TSDB_TABLE_ID_LEN];
-  uint8_t ignoreNotExists;
-} SDropDbMsg, SUseDbMsg;
-
-typedef struct {
   char db[TSDB_DB_NAME_LEN];
-} SShowTableMsg;
+} SCMShowTableMsg;
 
 typedef struct {
-  char meterId[TSDB_TABLE_ID_LEN];
-  char igExists;
-
-  short numOfTags;
-
-  short numOfColumns;
-  short sqlLen;  // the length of SQL, it starts after schema , sql is a
-  // null-terminated string
-  char reserved[16];
-
-  SSchema schema[];
-} SCreateTableMsg;
+  char      tableId[TSDB_TABLE_ID_LEN];
+  char      db[TSDB_DB_NAME_LEN];
+  int8_t    igExists;
+  int16_t   numOfTags;
+  int16_t   numOfColumns;
+  int16_t   sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
+  int16_t   reserved[16];
+  SCMSchema schema[];
+} SCMCreateTableMsg;
 
 typedef struct {
-  char meterId[TSDB_TABLE_ID_LEN];
-  char igNotExists;
+  char   meterId[TSDB_TABLE_ID_LEN];
+  char   db[TSDB_DB_NAME_LEN];
+  int8_t igNotExists;
 } SDropTableMsg;
 
 typedef struct {
-  char    meterId[TSDB_TABLE_ID_LEN];
-  short   type; /* operation type   */
+  char    tableId[TSDB_TABLE_ID_LEN];
+  char    db[TSDB_DB_NAME_LEN];
+  int16_t type; /* operation type   */
   char    tagVal[TSDB_MAX_BYTES_PER_ROW];
-  short   numOfCols; /* number of schema */
-  SSchema schema[];
+  int8_t  numOfCols; /* number of schema */
+  SCMSchema schema[];
 } SAlterTableMsg;
 
 typedef struct {
@@ -561,14 +555,11 @@ typedef struct {
   char     accessState;
 } SVnodeAccess;
 
-// NOTE: sizeof(SVnodeCfg) < TSDB_FILE_HEADER_LEN/4
+/*
+ * NOTE: sizeof(SVnodeCfg) < TSDB_FILE_HEADER_LEN / 4
+ */
 typedef struct {
   char     acct[TSDB_USER_LEN];
-  /*
-   * the message is too large, so it may will overwrite the cfg information in meterobj.v*
-   * recover to origin codes
-   */
-  //char     db[TSDB_TABLE_ID_LEN+2]; // 8bytes align
   char     db[TSDB_DB_NAME_LEN];
   uint32_t vgId;
   int32_t  maxSessions;
@@ -578,24 +569,25 @@ typedef struct {
     float   fraction;
   } cacheNumOfBlocks;
   int32_t daysPerFile;
-
   int32_t daysToKeep1;
   int32_t daysToKeep2;
   int32_t daysToKeep;
-
   int32_t commitTime;
   int32_t rowsInFileBlock;
   int16_t blocksPerMeter;
-  char    compression;
-  char    commitLog;
-  char    replications;
-
-  char repStrategy;
-  char loadLatest;  // load into mem or not
+  int8_t  compression;
+  int8_t  commitLog;
+  int8_t  replications;
+  int8_t  repStrategy;
+  int8_t  loadLatest;  // load into mem or not
   uint8_t precision;   // time resolution
+  int8_t  reserved[16];
+} SVnodeCfg, SCMCreateDbMsg, SDbCfg, SCMAlterDbMsg;
 
-  char reserved[16];
-} SVnodeCfg, SCreateDbMsg, SDbCfg, SAlterDbMsg;
+typedef struct {
+  char    db[TSDB_TABLE_ID_LEN];
+  uint8_t ignoreNotExists;
+} SCMDropDbMsg, SCMUseDbMsg;
 
 // IMPORTANT: sizeof(SVnodeStatisticInfo) should not exceed
 // TSDB_FILE_HEADER_LEN/4 - TSDB_FILE_HEADER_VERSION_SIZE
@@ -759,7 +751,7 @@ typedef struct {
 
 typedef struct {
   char ip[20];
-} SCreateMnodeMsg, SDropMnodeMsg, SCreateDnodeMsg, SDropDnodeMsg;
+} SCMCreateMnodeMsg, SCMDropMnodeMsg, SCMCreateDnodeMsg, SCMDropDnodeMsg;
 
 typedef struct {
   uint64_t   qhandle;
@@ -776,9 +768,9 @@ typedef struct {
 } SVpeerCfgMsg;
 
 typedef struct {
-  char ip[20];
-  char config[60];
-} SCfgMsg;
+  char ip[32];
+  char config[64];
+} SCMCfgDnodeMsg;
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
@@ -821,9 +813,8 @@ typedef struct {
 } SCMHeartBeatRsp;
 
 typedef struct {
-  uint64_t handle;
-  char     queryId[TSDB_KILL_MSG_LEN];
-} SKillQuery, SKillStream, SKillConnection;
+  char queryId[TSDB_KILL_MSG_LEN];
+} SCMKillQueryMsg, SCMKillStreamMsg, SKillConnectionMsg;
 
 typedef struct {
   int32_t  vnode;

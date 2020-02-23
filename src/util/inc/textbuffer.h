@@ -72,16 +72,16 @@ typedef struct tFilePagesItem {
   tFilePage              item;
 } tFilePagesItem;
 
-typedef struct SSchemaEx {
-  struct SSchema field;
+typedef struct SCMSchemaEx {
+  struct SCMSchema field;
   int16_t        offset;
-} SSchemaEx;
+} SCMSchemaEx;
 
 typedef struct SColumnModel {
   int32_t    capacity;
   int32_t    numOfCols;
   int16_t    rowSize;
-  SSchemaEx *pFields;
+  SCMSchemaEx *pFields;
 } SColumnModel;
 
 typedef struct SColumnOrderInfo {
@@ -116,7 +116,7 @@ typedef struct tExtMemBuffer {
 } tExtMemBuffer;
 
 typedef struct tTagSchema {
-  struct SSchema *pSchema;
+  struct SCMSchema *pSchema;
   int32_t         numOfCols;
   int32_t         colOffset[];
 } tTagSchema;
@@ -198,7 +198,7 @@ bool tExtMemBufferIsAllDataInMem(tExtMemBuffer *pMemBuffer);
  * @param blockCapacity
  * @return
  */
-SColumnModel *createColumnModel(SSchema *fields, int32_t numOfCols, int32_t blockCapacity);
+SColumnModel *createColumnModel(SCMSchema *fields, int32_t numOfCols, int32_t blockCapacity);
 
 /**
  *
@@ -219,7 +219,7 @@ void destroyColumnModel(SColumnModel *pModel);
 void tColModelCompact(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity);
 
 void     tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxCapacity, int32_t s, int32_t e);
-SSchema *getColumnModelSchema(SColumnModel *pColumnModel, int32_t index);
+SCMSchema *getColumnModelSchema(SColumnModel *pColumnModel, int32_t index);
 
 int16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t index);
 

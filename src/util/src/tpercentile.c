@@ -297,7 +297,7 @@ tMemBucket *tMemBucketCreate(int32_t totalSlots, int32_t nBufferSize, int16_t nE
     return NULL;
   }
 
-  SSchema* pSchema = getColumnModelSchema(pDesc->pColumnModel, 0);
+  SCMSchema* pSchema = getColumnModelSchema(pDesc->pColumnModel, 0);
   if (pSchema->type != dataType) {
     pError("MemBucket:%p,data type is not consistent,%d in schema, %d in param", pBucket, pSchema->type, dataType);
     tfree(pBucket);

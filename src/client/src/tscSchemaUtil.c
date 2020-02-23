@@ -20,7 +20,7 @@
 #include "ttypes.h"
 #include "tutil.h"
 
-bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
+bool isValidSchema(struct SCMSchema* pSchema, int32_t numOfCols) {
   if (!VALIDNUMOFCOLS(numOfCols)) {
     return false;
   }
@@ -64,14 +64,14 @@ bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
   return (rowLen <= TSDB_MAX_BYTES_PER_ROW);
 }
 
-struct SSchema* tsGetSchema(SMeterMeta* pMeta) {
+struct SCMSchema* tsGetSchema(SMeterMeta* pMeta) {
   if (pMeta == NULL) {
     return NULL;
   }
   return tsGetColumnSchema(pMeta, 0);
 }
 
-struct SSchema* tsGetTagSchema(SMeterMeta* pMeta) {
+struct SCMSchema* tsGetTagSchema(SMeterMeta* pMeta) {
   if (pMeta == NULL || pMeta->numOfTags == 0) {
     return NULL;
   }
@@ -79,12 +79,12 @@ struct SSchema* tsGetTagSchema(SMeterMeta* pMeta) {
   return tsGetColumnSchema(pMeta, pMeta->numOfColumns);
 }
 
-struct SSchema* tsGetColumnSchema(SMeterMeta* pMeta, int32_t startCol) {
-  return (SSchema*)(((char*)pMeta + sizeof(SMeterMeta)) + startCol * sizeof(SSchema));
+struct SCMSchema* tsGetColumnSchema(SMeterMeta* pMeta, int32_t startCol) {
+  return (SCMSchema*)(((char*)pMeta + sizeof(SMeterMeta)) + startCol * sizeof(SCMSchema));
 }
 
-struct SSchema tsGetTbnameColumnSchema() {
-  struct SSchema s = {.colId = TSDB_TBNAME_COLUMN_INDEX, .type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_METER_NAME_LEN};
+struct SCMSchema tsGetTbnameColumnSchema() {
+  struct SCMSchema s = {.colId = TSDB_TBNAME_COLUMN_INDEX, .type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_METER_NAME_LEN};
   strcpy(s.name, TSQL_TBNAME_L);
   
   return s;
@@ -96,7 +96,7 @@ struct SSchema tsGetTbnameColumnSchema() {
  * +--------------------+
  * |SMeterMeta Body data|  sizeof(SMeterMeta)
  * +--------------------+
- * |Schema data         |  numOfTotalColumns * sizeof(SSchema)
+ * |Schema data         |  numOfTotalColumns * sizeof(SCMSchema)
  * +--------------------+
  * |Tags data           |  tag_col_1.bytes + tag_col_2.bytes + ....
  * +--------------------+
@@ -106,7 +106,7 @@ struct SSchema tsGetTbnameColumnSchema() {
  */
 char* tsGetTagsValue(SMeterMeta* pMeta) {
   int32_t  numOfTotalCols = pMeta->numOfColumns + pMeta->numOfTags;
-  uint32_t offset = sizeof(SMeterMeta) + numOfTotalCols * sizeof(SSchema);
+  uint32_t offset = sizeof(SMeterMeta) + numOfTotalCols * sizeof(SCMSchema);
 
   return ((char*)pMeta + offset);
 }
@@ -120,10 +120,10 @@ bool tsMeterMetaIdentical(SMeterMeta* p1, SMeterMeta* p2) {
     return true;
   }
 
-  size_t size = sizeof(SMeterMeta) + p1->numOfColumns * sizeof(SSchema);
+  size_t size = sizeof(SMeterMeta) + p1->numOfColumns * sizeof(SCMSchema);
 
   for (int32_t i = 0; i < p1->numOfTags; ++i) {
-    SSchema* pColSchema = tsGetColumnSchema(p1, i + p1->numOfColumns);
+    SCMSchema* pColSchema = tsGetColumnSchema(p1, i + p1->numOfColumns);
     size += pColSchema->bytes;
   }
 
