@@ -209,16 +209,16 @@ void tscKillStream(STscObj *pObj, uint32_t killId) {
 }
 
 char *tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj) {
-  SCMQqueryList *pQList = (SCMQqueryList *)pMsg;
+  SQqueryList *pQList = (SQqueryList *)pMsg;
   char *  pMax = pMsg + TSDB_PAYLOAD_SIZE - 256;
 
-  SCMQueryDesc *pQdesc = pQList->qdesc;
+  SQueryDesc *pQdesc = pQList->qdesc;
   pQList->numOfQueries = 0;
 
   // We extract the lock to tscBuildHeartBeatMsg function.
   /* pthread_mutex_lock (&pObj->mutex); */
 
-  pMsg += sizeof(SCMQqueryList);
+  pMsg += sizeof(SQqueryList);
   SSqlObj *pSql = pObj->sqlList;
   while (pSql) {
     /*
@@ -239,15 +239,15 @@ char *tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj) {
     pQList->numOfQueries++;
     pQdesc++;
     pSql = pSql->next;
-    pMsg += sizeof(SCMQueryDesc);
+    pMsg += sizeof(SQueryDesc);
     if (pMsg > pMax) break;
   }
 
-  SCMStreamList *pSList = (SCMStreamList *)pMsg;
-  SCMStreamDesc *pSdesc = pSList->sdesc;
+  SStreamList *pSList = (SStreamList *)pMsg;
+  SStreamDesc *pSdesc = pSList->sdesc;
   pSList->numOfStreams = 0;
 
-  pMsg += sizeof(SCMStreamList);
+  pMsg += sizeof(SStreamList);
   SSqlStream *pStream = pObj->streamList;
   while (pStream) {
     strncpy(pSdesc->sql, pStream->pSql->sqlstr, TSDB_SHOW_SQL_LEN - 1);
@@ -265,7 +265,7 @@ char *tscBuildQueryStreamDesc(char *pMsg, STscObj *pObj) {
     pSList->numOfStreams++;
     pSdesc++;
     pStream = pStream->next;
-    pMsg += sizeof(SCMStreamDesc);
+    pMsg += sizeof(SStreamDesc);
     if (pMsg > pMax) break;
   }
 

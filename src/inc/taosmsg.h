@@ -315,7 +315,7 @@ typedef struct {
   char clientVersion[TSDB_VERSION_LEN];
   char msgVersion[TSDB_VERSION_LEN];
   char db[TSDB_TABLE_ID_LEN];
-} SCMConnectMsg;
+} SConnectMsg;
 
 typedef struct {
   char      acctId[TSDB_ACCT_LEN];
@@ -323,7 +323,7 @@ typedef struct {
   int8_t    writeAuth;
   int8_t    superAuth;
   SRpcIpSet ipList;
-} SCMConnectRsp;
+} SConnectRsp;
 
 typedef struct {
   int32_t maxUsers;
@@ -337,24 +337,24 @@ typedef struct {
   int64_t maxInbound;
   int64_t maxOutbound;
   int8_t  accessState;   // Configured only by command
-} SCMAcctCfg;
+} SAcctCfg;
 
 typedef struct {
   char       user[TSDB_USER_LEN];
   char       pass[TSDB_KEY_LEN];
-  SCMAcctCfg cfg;
-} SCMCreateAcctMsg, SCMAlterAcctMsg;
+  SAcctCfg cfg;
+} SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {
   char user[TSDB_USER_LEN];
-} SCMDropUserMsg, SCMDropAcctMsg;
+} SDropUserMsg, SDropAcctMsg;
 
 typedef struct {
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_KEY_LEN];
   int8_t privilege;
   int8_t flag;
-} SCMCreateUserMsg, SCMAlterUserMsg;
+} SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {
   char db[TSDB_TABLE_ID_LEN];
@@ -785,7 +785,7 @@ typedef struct {
   uint32_t queryId;
   int64_t  useconds;
   int64_t  stime;
-} SCMQueryDesc;
+} SQueryDesc;
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
@@ -796,29 +796,29 @@ typedef struct {
   int64_t  stime;
   int64_t  slidingTime;
   int64_t  interval;
-} SCMStreamDesc;
+} SStreamDesc;
 
 typedef struct {
   int32_t numOfQueries;
-  SCMQueryDesc  qdesc[];
-} SCMQqueryList;
+  SQueryDesc  qdesc[];
+} SQqueryList;
 
 typedef struct {
   int32_t numOfStreams;
-  SCMStreamDesc  sdesc[];
-} SCMStreamList;
+  SStreamDesc  sdesc[];
+} SStreamList;
 
 typedef struct {
-  SCMQqueryList qlist;
-  SCMStreamList slist;
-} SCMHeartBeatMsg;
+  SQqueryList qlist;
+  SStreamList slist;
+} SHeartBeatMsg;
 
 typedef struct {
   uint32_t  queryId;
   uint32_t  streamId;
   int8_t    killConnection;
   SRpcIpSet ipList;
-} SCMHeartBeatRsp;
+} SHeartBeatRsp;
 
 typedef struct {
   uint64_t handle;

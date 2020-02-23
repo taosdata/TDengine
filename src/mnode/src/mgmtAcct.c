@@ -155,3 +155,14 @@ static int32_t mgmtRetrieveAcctsImp(SShowObj *pShow, char *data, int32_t rows, v
 }
 
 int32_t (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int32_t rows, void *pConn) = mgmtRetrieveAcctsImp;
+
+SAcctObj *mgmtGetAcctFromConn(void *pConn) {
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(pConn, &connInfo);
+  SUserObj *pUser =  mgmtGetUser(connInfo.user);
+  if(pUser != NULL) {
+    return pUser->pAcct;
+  }
+
+  return NULL;
+}
