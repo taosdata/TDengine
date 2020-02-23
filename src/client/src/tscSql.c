@@ -34,6 +34,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
                        void (*fp)(void *, TAOS_RES *, int), void *param, void **taos) {
   STscObj *pObj;
 
+
   taos_init();
 
   if (user == NULL) {

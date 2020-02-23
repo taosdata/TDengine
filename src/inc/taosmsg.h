@@ -281,10 +281,6 @@ typedef struct {
 } SDropDbMsg, SUseDbMsg;
 
 typedef struct {
-  char user[TSDB_USER_LEN];
-} SDropUserMsg, SDropAcctMsg;
-
-typedef struct {
   char db[TSDB_DB_NAME_LEN];
 } SShowTableMsg;
 
@@ -340,21 +336,25 @@ typedef struct {
   int64_t maxQueryTime;  // In unit of hour
   int64_t maxInbound;
   int64_t maxOutbound;
-  char    accessState;  // Configured only by command
-} SAcctCfg;
+  int8_t  accessState;   // Configured only by command
+} SCMAcctCfg;
 
 typedef struct {
-  char     user[TSDB_USER_LEN];
-  char     pass[TSDB_KEY_LEN];
-  SAcctCfg cfg;
-} SCreateAcctMsg, SAlterAcctMsg;
+  char       user[TSDB_USER_LEN];
+  char       pass[TSDB_KEY_LEN];
+  SCMAcctCfg cfg;
+} SCMCreateAcctMsg, SCMAlterAcctMsg;
 
 typedef struct {
   char user[TSDB_USER_LEN];
-  char pass[TSDB_KEY_LEN];
-  char privilege;
-  char flag;
-} SCreateUserMsg, SAlterUserMsg;
+} SCMDropUserMsg, SCMDropAcctMsg;
+
+typedef struct {
+  char   user[TSDB_USER_LEN];
+  char   pass[TSDB_KEY_LEN];
+  int8_t privilege;
+  int8_t flag;
+} SCMCreateUserMsg, SCMAlterUserMsg;
 
 typedef struct {
   char db[TSDB_TABLE_ID_LEN];

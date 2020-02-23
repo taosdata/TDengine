@@ -60,6 +60,8 @@ void mgmtProcessTranRequest(SSchedMsg *sched) {
   void    *pConn  = sched->thandle;
 
   (*mgmtProcessShellMsg[msgType])(pCont, contLen, pConn);
+  //rpcSendResponse(pConn, 12, NULL, 0);
+
   if (sched->msg) {
     free(sched->msg);
   }
@@ -73,7 +75,7 @@ void mgmtAddToTranRequest(int8_t type, void *pCont, int contLen, void *ahandle) 
   schedMsg.thandle = ahandle;
   *(int8_t *) (schedMsg.msg) = type;
   *(int32_t *) (schedMsg.msg + sizeof(int8_t)) = contLen;
-  memcpy(schedMsg.msg, pCont + sizeof(int32_t) + sizeof(int8_t), contLen);
+  memcpy(schedMsg.msg + sizeof(int32_t) + sizeof(int8_t), pCont, contLen);
 
   taosScheduleTask(tsMgmtTranQhandle, &schedMsg);
 }
@@ -632,7 +634,7 @@ int32_t mgmtProcessKillConnectionMsg(void *pCont, int32_t contLen, void *ahandle
 }
 
 int32_t mgmtProcessCreateUserMsg(void *pCont, int32_t contLen, void *ahandle) {
-//  SCreateUserMsg *pCreate = (SCreateUserMsg *)pMsg;
+//  SCMCreateUserMsg *pCreate = (SCMCreateUserMsg *)pMsg;
 //  int32_t             code = 0;
 //
 //  if (mgmtCheckRedirectMsg(pConn, TSDB_MSG_TYPE_CREATE_USER_RSP) != 0) {
@@ -654,7 +656,7 @@ int32_t mgmtProcessCreateUserMsg(void *pCont, int32_t contLen, void *ahandle) {
 }
 
 int32_t mgmtProcessAlterUserMsg(void *pCont, int32_t contLen, void *ahandle) {
-//  SAlterUserMsg *pAlter = (SAlterUserMsg *)pMsg;
+//  SCMAlterUserMsg *pAlter = (SCMAlterUserMsg *)pMsg;
 //  int32_t            code = 0;
 //  SUserObj *     pUser;
 //  SUserObj *     pOperUser;
@@ -766,7 +768,7 @@ int32_t mgmtProcessAlterUserMsg(void *pCont, int32_t contLen, void *ahandle) {
 }
 
 int32_t mgmtProcessDropUserMsg(void *pCont, int32_t contLen, void *ahandle) {
-//  SDropUserMsg *pDrop = (SDropUserMsg *)pMsg;
+//  SCMDropUserMsg *pDrop = (SCMDropUserMsg *)pMsg;
 //  int32_t           code = 0;
 //  SUserObj *    pUser;
 //  SUserObj *    pOperUser;
@@ -1407,44 +1409,15 @@ int32_t mgmtCheckRedirectMsgImp(void *pConn, int32_t msgType) {
 }
 int32_t (*mgmtCheckRedirectMsg)(void *pConn, int32_t msgType) = mgmtCheckRedirectMsgImp;
 
-int32_t mgmtProcessAlterAcctMsgImp(void *pCont, int32_t contLen, void *ahandle) {
-  //return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_ACCT_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
+static int32_t mgmtProcessUnSupportMsg(void *pCont, int32_t contLen, void *ahandle) {
+  rpcSendResponse(ahandle, TSDB_CODE_OPS_NOT_SUPPORT, NULL, 0);
   return 0;
 }
-int32_t (*mgmtProcessAlterAcctMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessAlterAcctMsgImp;
 
-int32_t mgmtProcessCreateDnodeMsgImp(void *pCont, int32_t contLen, void *ahandle) {
-  //return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_DNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
-  return 0;
-}
-int32_t (*mgmtProcessCreateDnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessCreateDnodeMsgImp;
-
-int32_t mgmtProcessCfgMnodeMsgImp(void *pCont, int32_t contLen, void *ahandle) {
-  //return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CFG_MNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
-  return 0;
-}
-int32_t (*mgmtProcessCfgMnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessCfgMnodeMsgImp;
-
-int32_t mgmtProcessDropMnodeMsgImp(void *pCont, int32_t contLen, void *ahandle) {
-  //return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_MNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
-  return 0;
-}
-int32_t (*mgmtProcessDropMnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessDropMnodeMsgImp;
-
-int32_t mgmtProcessDropDnodeMsgImp(void *pCont, int32_t contLen, void *ahandle) {
-  //return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_DNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
-  return 0;
-}
-int32_t (*mgmtProcessDropDnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessDropDnodeMsgImp;
-
-int32_t mgmtProcessDropAcctMsgImp(void *pCont, int32_t contLen, void *ahandle) {
-//  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_ACCT_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
-  return 0;
-}
-int32_t (*mgmtProcessDropAcctMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessDropAcctMsgImp;
-
-int32_t mgmtProcessCreateAcctMsgImp(void *pCont, int32_t contLen, void *ahandle) {
-//  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_ACCT_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
-  return 0;
-}
-int32_t (*mgmtProcessCreateAcctMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessCreateAcctMsgImp;
+int32_t (*mgmtProcessAlterAcctMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessUnSupportMsg;
+int32_t (*mgmtProcessCreateDnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessUnSupportMsg;
+int32_t (*mgmtProcessCfgMnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessUnSupportMsg;
+int32_t (*mgmtProcessDropMnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessUnSupportMsg;
+int32_t (*mgmtProcessDropDnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessUnSupportMsg;
+int32_t (*mgmtProcessDropAcctMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessUnSupportMsg;
+int32_t (*mgmtProcessCreateAcctMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessUnSupportMsg;

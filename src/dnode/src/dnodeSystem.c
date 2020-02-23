@@ -33,16 +33,12 @@
 #include "dnodeVnodeMgmt.h"
 
 #ifdef CLUSTER
-#include "dnodeCluster.h"
-#include "httpAdmin.h"
-#include "mnodeAccount.h"
-#include "mnodeBalance.h"
-#include "mnodeCluster.h"
-#include "sdbReplica.h"
-#include "multilevelStorage.h"
-#include "vnodeCluster.h"
-#include "vnodeReplica.h"
-#include "dnodeGrant.h"
+#include "acct.h"
+#include "admin.h"
+#include "cluster.h"
+#include "grant.h"
+#include "replica.h"
+#include "storage.h"
 #endif
 
 static pthread_mutex_t tsDnodeMutex;
@@ -120,16 +116,7 @@ void dnodeCheckDataDirOpenned(const char *dir) {
 
 void dnodeInitPlugins() {
 #ifdef CLUSTER
-  dnodeClusterInit();
-  httpAdminInit();
-  mnodeAccountInit();
-  mnodeBalanceInit();
-  mnodeClusterInit();
-  sdbReplicaInit();
-  multilevelStorageInit();
-  vnodeClusterInit();
-  vnodeReplicaInit();
-  dnodeGrantInit();
+  acctInit();
 #endif
 }
 

@@ -78,6 +78,11 @@ int32_t mgmtInitUsers() {
     numOfUsers++;
   }
 
+  pAcct = mgmtGetAcct("root");
+  mgmtCreateUser(pAcct, "root", "taosdata");
+  mgmtCreateUser(pAcct, "monitor", tsInternalPass);
+  mgmtCreateUser(pAcct, "_root", tsInternalPass);
+
   mTrace("user data is initialized");
   return 0;
 }

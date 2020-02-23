@@ -430,6 +430,9 @@ void tscFreeResData(SSqlObj* pSql) {
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
+  //TODO not free
+  return;
+
   tfree(pSql->res.pRsp);
   pSql->res.row = 0;
   pSql->res.numOfRows = 0;

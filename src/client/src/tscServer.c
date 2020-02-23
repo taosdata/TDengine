@@ -196,7 +196,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 }
 
 void tscProcessMsgFromServer(char type, void *pCont, int contLen, void *ahandle, int32_t code) {
-  tscPrint("response is received, pCont:%p, code:%d", pCont, code);
+  tscPrint("response:%d is received, pCont:%p, contLen:%d code:%d", type, pCont, contLen, code);
   SSqlObj *pSql = (SSqlObj *)ahandle;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("%p sql is already released, signature:%p", pSql, pSql->signature);
@@ -1692,23 +1692,20 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SCreateAcctMsg *pAlterMsg;
-  char *          pMsg, *pStart;
-  int             msgLen = 0;
-
   SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SCMCreateAcctMsg);
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
 
-  pMsg = doBuildMsgHeader(pSql, &pStart);
-
-  pAlterMsg = (SCreateAcctMsg *)pMsg;
+  SCMCreateAcctMsg *pAlterMsg = (SCMCreateAcctMsg *)pCmd->payload;
 
   SSQLToken *pName = &pInfo->pDCLInfo->user.user;
   SSQLToken *pPwd = &pInfo->pDCLInfo->user.passwd;
 
   strncpy(pAlterMsg->user, pName->z, pName->n);
   strncpy(pAlterMsg->pass, pPwd->z, pPwd->n);
-
-  pMsg += sizeof(SCreateAcctMsg);
 
   SCreateAcctSQL *pAcctOpt = &pInfo->pDCLInfo->acctOpt;
 
@@ -1735,21 +1732,18 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
-  msgLen = pMsg - pStart;
-  pCmd->payloadLen = msgLen;
-
   pCmd->msgType = TSDB_MSG_TYPE_CREATE_ACCT;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SCreateUserMsg *pAlterMsg;
+  SCMCreateUserMsg *pAlterMsg;
   char *         pMsg, *pStart;
 
   SSqlCmd *pCmd = &pSql->cmd;
 
   pMsg = doBuildMsgHeader(pSql, &pStart);
-  pAlterMsg = (SCreateUserMsg *)pMsg;
+  pAlterMsg = (SCMCreateUserMsg *)pMsg;
 
   SUserInfo *pUser = &pInfo->pDCLInfo->user;
   strncpy(pAlterMsg->user, pUser->user.z, pUser->user.n);
@@ -1764,7 +1758,7 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     strncpy(pAlterMsg->pass, pUser->passwd.z, pUser->passwd.n);
   }
 
-  pMsg += sizeof(SCreateUserMsg);
+  pMsg += sizeof(SCMCreateUserMsg);
   pCmd->payloadLen = pMsg - pStart;
 
   if (pUser->type == TSDB_ALTER_USER_PASSWD || pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
@@ -1877,18 +1871,18 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildDropAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SDropUserMsg *pDropMsg;
+  SCMDropUserMsg *pDropMsg;
   char *        pMsg, *pStart;
 
   SSqlCmd *pCmd = &pSql->cmd;
 
   pMsg = doBuildMsgHeader(pSql, &pStart);
-  pDropMsg = (SDropUserMsg *)pMsg;
+  pDropMsg = (SCMDropUserMsg *)pMsg;
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
   strcpy(pDropMsg->user, pMeterMetaInfo->name);
 
-  pMsg += sizeof(SDropUserMsg);
+  pMsg += sizeof(SCMDropUserMsg);
 
   pCmd->payloadLen = pMsg - pStart;
   pCmd->msgType = TSDB_MSG_TYPE_DROP_USER;

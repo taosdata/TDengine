@@ -247,7 +247,7 @@ typedef struct _db_obj {
 struct _acctObj;
 
 typedef struct _user_obj {
-  char              user[TSDB_USER_LEN + 1];
+  char              user[TSDB_USER_LEN];
   char              pass[TSDB_KEY_LEN];
   char              acct[TSDB_USER_LEN];
   int64_t           createdTime;
@@ -275,23 +275,21 @@ typedef struct {
   int64_t totalPoints;
   int64_t inblound;
   int64_t outbound;
-  TSKEY   sKey;
-  char    accessState;  // Checked by mgmt heartbeat message
+  int64_t sKey;
+  int8_t  accessState;   // Checked by mgmt heartbeat message
 } SAcctInfo;
 
 typedef struct _acctObj {
-  char      user[TSDB_USER_LEN + 1];
+  char      user[TSDB_USER_LEN];
   char      pass[TSDB_KEY_LEN];
-  SAcctCfg  cfg;
+  SCMAcctCfg  cfg;
   int32_t   acctId;
   int64_t   createdTime;
-  char      reserved[15];
-  char      updateEnd[1];
+  int8_t    reserved[15];
+  int8_t    updateEnd[1];
   SAcctInfo acctInfo;
-
   SDbObj *         pHead;
   SUserObj *       pUser;
-  struct _connObj *pConn;
   pthread_mutex_t  mutex;
 } SAcctObj;
 
