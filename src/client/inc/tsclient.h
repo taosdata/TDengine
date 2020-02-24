@@ -270,7 +270,7 @@ typedef struct SResRec {
 struct STSBuf;
 
 typedef struct {
-  uint8_t               code;
+  int32_t               code;
   int64_t               numOfRows;   // num of results in current retrieved
   int64_t               numOfTotal;  // num of total results
   int64_t               numOfTotalInCurrentClause;  // num of total result in current subclause

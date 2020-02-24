@@ -196,7 +196,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 }
 
 void tscProcessMsgFromServer(char type, void *pCont, int contLen, void *ahandle, int32_t code) {
-  tscPrint("response:%d is received, pCont:%p, contLen:%d code:%d", type, pCont, contLen, code);
+  tscPrint("response:%s is received, len:%d error:%s", taosMsg[(uint8_t)type], contLen, tstrerror(code));
   SSqlObj *pSql = (SSqlObj *)ahandle;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("%p sql is already released, signature:%p", pSql, pSql->signature);
@@ -272,7 +272,7 @@ void tscProcessMsgFromServer(char type, void *pCont, int contLen, void *ahandle,
 
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED) {
     assert(type == pCmd->msgType + 1);
-    pRes->code = (int8_t)code;
+    pRes->code = (int32_t)code;
     pRes->rspType = type;
     pRes->rspLen = contLen;
 
@@ -1737,17 +1737,19 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SCreateUserMsg *pAlterMsg;
-  char *         pMsg, *pStart;
-
+  STscObj *pObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SCreateUserMsg);
 
-  pMsg = doBuildMsgHeader(pSql, &pStart);
-  pAlterMsg = (SCreateUserMsg *)pMsg;
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
+
+  SCreateUserMsg *pAlterMsg = (SCreateUserMsg*)pCmd->payload;
 
   SUserInfo *pUser = &pInfo->pDCLInfo->user;
   strncpy(pAlterMsg->user, pUser->user.z, pUser->user.n);
-  
   pAlterMsg->flag = pUser->type;
 
   if (pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
@@ -1757,9 +1759,6 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   } else { // create user password info
     strncpy(pAlterMsg->pass, pUser->passwd.z, pUser->passwd.n);
   }
-
-  pMsg += sizeof(SCreateUserMsg);
-  pCmd->payloadLen = pMsg - pStart;
 
   if (pUser->type == TSDB_ALTER_USER_PASSWD || pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
     pCmd->msgType = TSDB_MSG_TYPE_ALTER_USER;
@@ -1871,21 +1870,19 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildDropAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SDropUserMsg *pDropMsg;
-  char *        pMsg, *pStart;
-
+  STscObj *pObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SDropUserMsg);
+  pCmd->msgType = TSDB_MSG_TYPE_DROP_USER;
 
-  pMsg = doBuildMsgHeader(pSql, &pStart);
-  pDropMsg = (SDropUserMsg *)pMsg;
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
 
+  SDropUserMsg *pDropMsg = (SDropUserMsg*)pCmd->payload;
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
   strcpy(pDropMsg->user, pMeterMetaInfo->name);
-
-  pMsg += sizeof(SDropUserMsg);
-
-  pCmd->payloadLen = pMsg - pStart;
-  pCmd->msgType = TSDB_MSG_TYPE_DROP_USER;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1911,38 +1908,27 @@ int32_t tscBuildUseDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SShowMsg *pShowMsg;
-  char *    pMsg, *pStart;
-  int       msgLen = 0;
-
-  SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
+  SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->msgType = TSDB_MSG_TYPE_SHOW;
+  pCmd->payloadLen = sizeof(SShowMsg) + 100;
 
-  int32_t size = minMsgSize() + sizeof(SMgmtHead) + sizeof(SShowMsg) + pCmd->payloadLen + TSDB_EXTRA_PAYLOAD_SIZE;
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
-    tscError("%p failed to malloc for show msg", pSql);
-    return -1;
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  pMsg = pCmd->payload + tsRpcHeadSize;
-  pStart = pMsg;
-
-  SMgmtHead *pMgmt = (SMgmtHead *)pMsg;
+  SShowMsg *pShowMsg = (SShowMsg*)pCmd->payload;
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  size_t          nameLen = strlen(pMeterMetaInfo->name);
-
+  size_t nameLen = strlen(pMeterMetaInfo->name);
   if (nameLen > 0) {
-    strcpy(pMgmt->db, pMeterMetaInfo->name);  // prefix is set here
+    strcpy(pShowMsg->db, pMeterMetaInfo->name);  // prefix is set here
   } else {
-    strcpy(pMgmt->db, pObj->db);
+    strcpy(pShowMsg->db, pObj->db);
   }
 
-  pMsg += sizeof(SMgmtHead);
-
-  pShowMsg = (SShowMsg *)pMsg;
   SShowInfo *pShowInfo = &pInfo->pDCLInfo->showOpt;
-
   pShowMsg->type = pShowInfo->showType;
 
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
@@ -1951,22 +1937,15 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       strncpy(pShowMsg->payload, pPattern->z, pPattern->n);
       pShowMsg->payloadLen = htons(pPattern->n);
     }
-    pMsg += (sizeof(SShowMsg) + pPattern->n);
   } else {
     SSQLToken *pIpAddr = &pShowInfo->prefix;
     assert(pIpAddr->n > 0 && pIpAddr->type > 0);
 
     strncpy(pShowMsg->payload, pIpAddr->z, pIpAddr->n);
     pShowMsg->payloadLen = htons(pIpAddr->n);
-
-    pMsg += (sizeof(SShowMsg) + pIpAddr->n);
   }
 
-  pCmd->payloadLen = pMsg - pStart;
-  pCmd->msgType = TSDB_MSG_TYPE_SHOW;
-
-  assert(msgLen + minMsgSize() <= size);
-
+  pCmd->payloadLen = sizeof(SShowMsg) + pShowMsg->payloadLen;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2186,37 +2165,20 @@ int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  char *pMsg, *pStart;
-  int   msgLen = 0;
-
-  SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
-  pMsg = pCmd->payload + tsRpcHeadSize;
-  pStart = pMsg;
+  SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->msgType = TSDB_MSG_TYPE_RETRIEVE;
+  pCmd->payloadLen = sizeof(SRetrieveTableMsg);
 
-  SMgmtHead *pMgmt = (SMgmtHead *)pMsg;
-
-  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-  size_t          nameLen = strlen(pMeterMetaInfo->name);
-
-  if (nameLen > 0) {
-    strcpy(pMgmt->db, pMeterMetaInfo->name);
-  } else {
-    strcpy(pMgmt->db, pObj->db);
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  pMsg += sizeof(SMgmtHead);
-
-  *((uint64_t *)pMsg) = pSql->res.qhandle;
-  pMsg += sizeof(pSql->res.qhandle);
-
-  *((uint16_t *)pMsg) = htons(pQueryInfo->type);
-  pMsg += sizeof(pQueryInfo->type);
-
-  msgLen = pMsg - pStart;
-  pCmd->payloadLen = msgLen;
-  pCmd->msgType = TSDB_MSG_TYPE_RETRIEVE;
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SRetrieveTableMsg *pRetrieveMsg = (SRetrieveTableMsg*)pCmd->payload;
+  pRetrieveMsg->qhandle = htobe64(pSql->res.qhandle);
+  pRetrieveMsg->free = htons(pQueryInfo->type);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2999,6 +2961,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
   pShow = (SShowRsp *)pRes->pRsp;
+  pShow->qhandle = htobe64(pShow->qhandle);
   pRes->qhandle = pShow->qhandle;
 
   tscResetForNextRetrieve(pRes);

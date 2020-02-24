@@ -82,11 +82,13 @@ struct arguments args = {
 int main(int argc, char* argv[]) {
   /*setlocale(LC_ALL, "en_US.UTF-8"); */
   //
-  void *taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
-  printf("ok\n");
-  taos_query(taos, "create account a pass 'b'");
-  while (1) {
-    sleep(1000);
+  if (argc != 1) {
+    printf("=== this a test for debug usage\n");
+    void *taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
+    taos_query(taos, "drop user a");
+    while (1) {
+      sleep(1000);
+    }
   }
   //
 

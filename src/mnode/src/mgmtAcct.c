@@ -73,6 +73,7 @@ int32_t mgmtAddUserIntoAcct(SAcctObj *pAcct, SUserObj *pUser) {
 
   pAcct->pUser = pUser;
   pAcct->acctInfo.numOfUsers++;
+  pUser->pAcct = pAcct;
   pthread_mutex_unlock(&pAcct->mutex);
 
   return 0;

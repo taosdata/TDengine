@@ -1108,7 +1108,10 @@ static void mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *a
       mError("%s from shell is not processed", taosMsg[(int8_t)type]);
     }
   }
-  rpcFreeCont(pCont);
+
+  //TODO free may be cause segment fault
+  //
+  // rpcFreeCont(pCont);
 }
 
 void mgmtInitProcessShellMsg() {

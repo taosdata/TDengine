@@ -251,14 +251,14 @@ typedef struct _user_obj {
   char              pass[TSDB_KEY_LEN];
   char              acct[TSDB_USER_LEN];
   int64_t           createdTime;
-  char              superAuth : 1;
-  char              writeAuth : 1;
-  char              reserved[16];
-  char              updateEnd[1];
+  int8_t            superAuth;
+  int8_t            writeAuth;
+  int8_t            reserved[16];
+  int8_t            updateEnd[1];
   struct _user_obj *prev, *next;
   struct _acctObj * pAcct;
-  SQqueryList *   pQList;  // query list
-  SStreamList *   pSList;  // stream list
+  SQqueryList *     pQList;  // query list
+  SStreamList *     pSList;  // stream list
 } SUserObj;
 
 typedef struct {
@@ -301,15 +301,15 @@ typedef struct {
 } SSecInfo;
 
 typedef struct {
-  char     type;
+  int8_t   type;
   char     db[TSDB_DB_NAME_LEN];
   void *   pNode;
-  short    numOfColumns;
-  int      rowSize;
-  int      numOfRows;
-  int      numOfReads;
-  short    offset[TSDB_MAX_COLUMNS];
-  short    bytes[TSDB_MAX_COLUMNS];
+  int16_t  numOfColumns;
+  int32_t  rowSize;
+  int32_t  numOfRows;
+  int32_t  numOfReads;
+  int16_t  offset[TSDB_MAX_COLUMNS];
+  int16_t  bytes[TSDB_MAX_COLUMNS];
   void *   signature;
   uint16_t payloadLen; /* length of payload*/
   char     payload[];  /* payload for wildcard match in show tables */
