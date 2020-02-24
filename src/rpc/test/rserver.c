@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
       rpcInit.localPort = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i")==0 && i < argc-1) {
       strcpy(rpcInit.localIp, argv[++i]); 
-    } else if (strcmp(argv[i], "-n")==0 && i < argc-1) {
+    } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
       rpcInit.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m")==0 && i < argc-1) {
       msgSize = atoi(argv[++i]);
@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-i ip]: server IP address, default is:%s\n", rpcInit.localIp);
       printf("  [-p port]: server port number, default is:%d\n", rpcInit.localPort);
-      printf("  [-t threads]: number of threads, default is:%d\n", rpcInit.numOfThreads);
+      printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
       printf("  [-s sessions]: number of sessions, default is:%d\n", rpcInit.sessions);
       printf("  [-m msgSize]: message body size, default is:%d\n", msgSize);
       printf("  [-o compSize]: compression message size, default is:%d\n", tsCompressMsgSize);
@@ -103,6 +103,7 @@ int main(int argc, char *argv[]) {
     }
   } 
 
+  tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
 
   taosInitLog("server.log", 100000, 10);

@@ -29,8 +29,8 @@ extern "C" {
 extern int tsRpcHeadSize;
 
 typedef struct {
-  int16_t   index; 
-  int16_t   numOfIps;
+  int8_t    inUse; 
+  int8_t    numOfIps;
   uint16_t  port;
   uint32_t  ip[TSDB_MAX_MPEERS];
 } SRpcIpSet;
@@ -43,13 +43,13 @@ typedef struct {
 } SRpcConnInfo;
 
 typedef struct {
-  char *localIp;      // local IP used
+  char  *localIp;      // local IP used
   uint16_t localPort; // local port
-  char *label;        // for debug purpose
-  int   numOfThreads; // number of threads to handle connections
-  int   sessions;     // number of sessions allowed
-  int   connType;     // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
-  int   idleTime;     // milliseconds, 0 means idle timer is disabled
+  char  *label;        // for debug purpose
+  int    numOfThreads; // number of threads to handle connections
+  int    sessions;     // number of sessions allowed
+  int8_t connType;     // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
+  int    idleTime;     // milliseconds, 0 means idle timer is disabled
 
   // the following is for client app ecurity only
   char *user;         // user name
@@ -72,6 +72,7 @@ void *rpcOpen(SRpcInit *pRpc);
 void  rpcClose(void *);
 void *rpcMallocCont(int contLen);
 void  rpcFreeCont(void *pCont);
+void *rpcReallocCont(void *ptr, int contLen);
 void  rpcSendRequest(void *thandle, SRpcIpSet *pIpSet, char msgType, void *pCont, int contLen, void *ahandle);
 void  rpcSendResponse(void *pConn, int32_t code, void *pCont, int contLen);
 void  rpcSendRedirectRsp(void *pConn, SRpcIpSet *pIpSet); 
