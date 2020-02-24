@@ -174,7 +174,7 @@ void mgmtMakeDnodeOrderList() {
   }
 }
 
-int mgmtGetScoresMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int cols = 0;
 
   if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;

@@ -361,7 +361,7 @@ SDnodeObj *mgmtProcessNewConnection(char *msg) {
   SIntMsg *  pMsg = (SIntMsg *)msg;
   SDnodeObj *pObj;
 
-  ip = inet_addr(pMsg->meterId);
+  ip = inet_addr(pMsg->tableId);
   pObj = mgmtGetDnode(ip);
 
   if (pObj == NULL) {
@@ -369,7 +369,7 @@ SDnodeObj *mgmtProcessNewConnection(char *msg) {
       mgmtCreateDnode(ip);
       pObj = mgmtGetDnode(ip);
       if (pObj == NULL) {
-        mTrace("no resource for connection from:%s", pMsg->meterId);
+        mTrace("no resource for connection from:%s", pMsg->tableId);
       } else {
         pObj->numOfVnodes = TSDB_INVALID_VNODE_NUM;
         pObj->numOfFreeVnodes = TSDB_INVALID_VNODE_NUM;
@@ -377,7 +377,7 @@ SDnodeObj *mgmtProcessNewConnection(char *msg) {
         mgmtUpdateDnode(pObj);
       }
     } else {
-      mTrace("ip:%s not configured", pMsg->meterId);
+      mTrace("ip:%s not configured", pMsg->tableId);
     }
   } else {
     if (pObj->thandle) {
@@ -388,7 +388,7 @@ SDnodeObj *mgmtProcessNewConnection(char *msg) {
       mTrace(
           "dnode:%s, connection is already there, close it first, "
           "connections:%d",
-          pMsg->meterId, mgmtDnodeConns, pMsg->msgType);
+          pMsg->tableId, mgmtDnodeConns, pMsg->msgType);
     }
   }
 
@@ -422,7 +422,7 @@ void *mgmtProcessMsgFromDnodeSpec(char *msg, void *ahandle, void *thandle) {
     pObj->thandle = thandle;
     __sync_fetch_and_add(&mgmtDnodeConns, 1);
     __sync_fetch_and_add(&sdbExtConns, 1);
-    mTrace("dnode:%s, connection is up, connections:%d, msgType:%d", pMsg->meterId, mgmtDnodeConns, pMsg->msgType);
+    mTrace("dnode:%s, connection is up, connections:%d, msgType:%d", pMsg->tableId, mgmtDnodeConns, pMsg->msgType);
   }
 
   // reset the timer
@@ -430,7 +430,7 @@ void *mgmtProcessMsgFromDnodeSpec(char *msg, void *ahandle, void *thandle) {
     pObj->thandle = NULL;
     __sync_fetch_and_sub(&mgmtDnodeConns, 1);
     __sync_fetch_and_sub(&sdbExtConns, 1);
-    mWarn("dnode:%s shall be dropped since not configured, connections:%d", pMsg->meterId, mgmtDnodeConns);
+    mWarn("dnode:%s shall be dropped since not configured, connections:%d", pMsg->tableId, mgmtDnodeConns);
     return NULL;
   }
 

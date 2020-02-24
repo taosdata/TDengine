@@ -876,7 +876,7 @@ int vnodeProcessForwardFromVMeter(int vid, SVMsgHeader *pHeader, char *cont, SVn
 
   if (pVnode->vnodeStatus == TSDB_VN_STATUS_OFFLINE ||
       (pVnode->vnodeStatus == TSDB_VN_STATUS_UNSYNCED && pVnode->syncStatus < TSDB_VN_SYNC_STATUS_SYNC_CACHE)) {
-    dTrace("vid:%d sid:%d id:%s, forward not processed since in state:%d", vid, sid, pObj->meterId,
+    dTrace("vid:%d sid:%d id:%s, forward not processed since in state:%d", vid, sid, pObj->tableId,
            pVnode->vnodeStatus);
     return code;
   }
@@ -890,7 +890,7 @@ int vnodeProcessForwardFromVMeter(int vid, SVMsgHeader *pHeader, char *cont, SVn
 
   if (pVnode->syncStatus == TSDB_VN_SYNC_STATUS_SYNC_CACHE) {
     if (pQueue->bufferSize - (pQueue->offset - pQueue->buffer) < contLen + 100) {
-      dError("vid:%d sid:%d id:%s, sync queue size:%d is small, sync shall restart", vid, sid, pObj->meterId,
+      dError("vid:%d sid:%d id:%s, sync queue size:%d is small, sync shall restart", vid, sid, pObj->tableId,
              pQueue->bufferSize);
       vnodeCancelSync(vid);
     } else {
@@ -899,16 +899,16 @@ int vnodeProcessForwardFromVMeter(int vid, SVMsgHeader *pHeader, char *cont, SVn
       memcpy(pQueue->offset, cont, contLen);
       pQueue->offset += contLen;
       pQueue->trans++;
-      dTrace("vid:%d sid:%d id:%s, forward is saved into sync queue", vid, sid, pObj->meterId);
+      dTrace("vid:%d sid:%d id:%s, forward is saved into sync queue", vid, sid, pObj->tableId);
     }
   } else if (pVnode->vnodeStatus >= TSDB_VN_STATUS_SLAVE) {
-    dTrace("vid:%d sid:%d id:%s, forward is processed since sync is over ", vid, sid, pObj->meterId);
+    dTrace("vid:%d sid:%d id:%s, forward is processed since sync is over ", vid, sid, pObj->tableId);
     pVnode->version = pHeader->lastVersion;
     TSKEY now = taosGetTimestamp(pVnode->cfg.precision);
     (*vnodeProcessAction[(uint8_t)pHeader->action])(pObj, cont, contLen, TSDB_DATA_SOURCE_QUEUE, NULL, pHeader->sversion,
                                            &insertPoints, now);
   } else {
-    dTrace("vid:%d sid:%d id:%s, forward is thrown away during sync, status:%d", vid, sid, pObj->meterId,
+    dTrace("vid:%d sid:%d id:%s, forward is thrown away during sync, status:%d", vid, sid, pObj->tableId,
            pVnode->vnodeStatus);
   }
 

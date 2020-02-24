@@ -253,7 +253,7 @@ void vnodeSendStatusMsgToMgmt(void *handle, void *tmrId) {
     connInit.sid = 0;
     connInit.spi = 0;
     connInit.encrypt = 0;
-    connInit.meterId = pObj->id;
+    connInit.tableId = pObj->id;
     connInit.peerId = 0;
     connInit.shandle = pDnodeMgmtConn;
     connInit.ahandle = pObj;
@@ -427,7 +427,7 @@ int vnodeRebuildCreateMsg(int vid, int sid, char *msg) {
   pCreate->vnode = htons(vid);
   pCreate->sid = htonl(sid);
   pCreate->numOfColumns = htons(pObj->numOfColumns);
-  memcpy(pCreate->meterId, pObj->meterId, TSDB_TABLE_ID_LEN);
+  memcpy(pCreate->tableId, pObj->tableId, TSDB_TABLE_ID_LEN);
   pCreate->timeStamp = htobe64(pObj->timeStamp);
   pCreate->uid = pObj->uid;
   pCreate->sqlLen = htons(pObj->sqlLen);
@@ -489,7 +489,7 @@ int vnodeRetrieveMissedCreateMsg(int vnode, int fd, uint64_t stime) {
         goto _exit;
       }
 
-      dTrace("vid:%d sid:%d id:%s, meterObj is sent to peer, len:%d", vnode, sid, pObj->meterId, len);
+      dTrace("vid:%d sid:%d id:%s, meterObj is sent to peer, len:%d", vnode, sid, pObj->tableId, len);
     }
   }
 
@@ -531,7 +531,7 @@ int vnodeRetrieveMissedRemoveMsg(int vid, int fd, uint64_t stime) {
         dError("vid:%d, fd:%d failed to retrieve missed remove msg sid:%d, writeLen:%d reason:%s", vid, fd, sid, writeLen, strerror(errno));
         return -1;
       }
-      dTrace("vid:%d sid:%d id:%s, removed meterObj is sent to peer", vid, sid, pObj->meterId);
+      dTrace("vid:%d sid:%d id:%s, removed meterObj is sent to peer", vid, sid, pObj->tableId);
     }
   }
 

@@ -741,7 +741,7 @@ int sdbProcessHeartBeatRspFromPeer(char *msg, int msgLen, SSdbPeer *pPeer) {
 
 int sdbProcessCfgMnodeMsg(char *cont, int contLen, SSdbPeer *pPeer) {
   char *   pStart, *pMsg;
-  SCfgMsg *pCfg = (SCfgMsg *)cont;
+  SCfgDnodeMsg *pCfg = (SCfgDnodeMsg *)cont;
 
   pStart = taosBuildRspMsg(pPeer->thandle, TSDB_MSG_TYPE_CFG_MNODE_RSP);
   if (pStart == NULL) return -1;
@@ -922,7 +922,7 @@ void sdbCheckRoleStatus(void *param, void *tmrId) {
 
 void sdbCheckPeerStatus(void *param, void *tmrId) {
   SSdbPeer *   pPeer = (SSdbPeer *)param;
-  char         meterId[TSDB_TABLE_ID_LEN];
+  char         tableId[TSDB_TABLE_ID_LEN];
   char *       pStart, *pMsg;
   int          msgLen;
   SRpcConnInit connInit;
@@ -933,14 +933,14 @@ void sdbCheckPeerStatus(void *param, void *tmrId) {
   if (pSelf == NULL || pSelf->status == SDB_STATUS_DELETED) return;
 
   if (pPeer->thandle == NULL) {
-    memset(meterId, 0, sizeof(meterId));
-    strcpy(meterId, sdbPrivateIp);
+    memset(tableId, 0, sizeof(tableId));
+    strcpy(tableId, sdbPrivateIp);
     memset(&connInit, 0, sizeof(connInit));
     connInit.cid = 0;
     connInit.sid = 0;
     connInit.spi = 0;
     connInit.encrypt = 0;
-    connInit.meterId = meterId;
+    connInit.tableId = tableId;
     connInit.peerId = 0;
     connInit.shandle = pPeerConn;
     connInit.ahandle = pPeer;
@@ -1569,7 +1569,7 @@ int sdbProcessForwardMsg(char *cont, int contLen, SSdbPeer *pPeer) {
 }
 
 int sdbCfgNode(char *cont) {
-  SCfgMsg * pCfg = (SCfgMsg *)cont;
+  SCfgDnodeMsg * pCfg = (SCfgDnodeMsg *)cont;
   int       code = TSDB_CODE_NODE_OFFLINE;
   SSdbPeer *pPeer;
   char *    pMsg, *pStart;
@@ -1585,8 +1585,8 @@ int sdbCfgNode(char *cont) {
     pStart = taosBuildReqMsg(pPeer->thandle, TSDB_MSG_TYPE_CFG_MNODE);
     if (pStart) {
       pMsg = pStart;
-      memcpy(pMsg, cont, sizeof(SCfgMsg));
-      pMsg += sizeof(SCfgMsg);
+      memcpy(pMsg, cont, sizeof(SCfgDnodeMsg));
+      pMsg += sizeof(SCfgDnodeMsg);
 
       int msgLen = pMsg - pStart;
       code = taosSendMsgToPeer(pPeer->thandle, pStart, msgLen);

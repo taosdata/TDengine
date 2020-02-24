@@ -348,7 +348,7 @@ static void mgmtCleanUpAcctsImp() {
   sdbCloseTable(tsAcctSdb);
 }
 
-static int32_t mgmtGetAcctMetaImp(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetAcctMetaImp(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 

@@ -145,12 +145,12 @@ static void initSchema(SSchema *schema, int32_t numOfCols) {
 }
 
 static void addOneNode(SSchema *pSchema, int32_t tagsLen, tSkipList *pSkipList,
-                       char *meterId, int32_t a, double b, char *c, int64_t d, int16_t e, int8_t f, float g,
+                       char *tableId, int32_t a, double b, char *c, int64_t d, int16_t e, int8_t f, float g,
                        bool h, int32_t numOfTags) {
     STabObj *pTable = calloc(1, sizeof(STabObj));
     pTable->numOfTags = numOfTags;
     pTable->pTagData = calloc(1, tagsLen + TSDB_TABLE_ID_LEN);
-    strcpy(pTable->meterId, meterId);
+    strcpy(pTable->tableId, tableId);
 
     char *tags = pTable->pTagData + TSDB_TABLE_ID_LEN;
     int32_t offset = 0;
@@ -183,12 +183,12 @@ static void addOneNode(SSchema *pSchema, int32_t tagsLen, tSkipList *pSkipList,
 }
 
 static void addOneNode_binary(SSchema *pSchema, int32_t tagsLen, tSkipList *pSkipList,
-                              char *meterId, int32_t a, double b, char *c, int64_t d, int16_t e, int8_t f, float g,
+                              char *tableId, int32_t a, double b, char *c, int64_t d, int16_t e, int8_t f, float g,
                               bool h, int32_t numOfTags) {
     STabObj *pTable = calloc(1, sizeof(STabObj));
     pTable->numOfTags = numOfTags;
     pTable->pTagData = calloc(1, tagsLen + TSDB_TABLE_ID_LEN);
-    strcpy(pTable->meterId, meterId);
+    strcpy(pTable->tableId, tableId);
 
     char *tags = pTable->pTagData + TSDB_TABLE_ID_LEN;
     int32_t offset = 0;
@@ -295,10 +295,10 @@ static void testQueryStr(SSchema *schema, int32_t numOfCols, char *sql, tSkipLis
     bool findResult = false;
     for (int32_t i = 0; i < result.num; ++i) {
         STabObj *pm = (STabObj *) result.pRes[i];
-        printf("meterid:%s,\t", pm->meterId);
+        printf("meterid:%s,\t", pm->tableId);
 
         for(int32_t j =0; j<pResult->numOfResult; ++j) {
-            if (strcmp(pm->meterId, pResult->resultName[j]) == 0) {
+            if (strcmp(pm->tableId, pResult->resultName[j]) == 0) {
                 findResult = true;
                 break;
             }

@@ -24,7 +24,7 @@
 #include "tlog.h"
 #include "dnodeModule.h"
 
-#define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
+#define MAX_LEN_OF_METER_META (sizeof(SMultiTableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
 
 void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle);
 int (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(char *, int, void *);
@@ -61,7 +61,7 @@ int mgmtRedirectMsg(void *pConn, int msgType) {
 
 int mgmtCheckRedirectMsg(void *pConn, int msgType) {
   if (!sdbMaster) {
-    mgmtRedirectMsg(pConn, msgType);
+    rpcSendRedirectRsp(pConn, msgType);
     return 1;
   } else {
     return 0;
@@ -123,7 +123,7 @@ int mgmtProcessCreateDnodeMsg(char *pMsg, int msgLen, void *pConn) {
 
 int mgmtProcessCfgMnodeMsg(char *pMsg, int msgLen, void *pConn) {
   int      code = 0;
-  SCfgMsg *pCfg = (SCfgMsg *)pMsg;
+  SCfgDnodeMsg *pCfg = (SCfgDnodeMsg *)pMsg;
 
   if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_CFG_MNODE_RSP);
 

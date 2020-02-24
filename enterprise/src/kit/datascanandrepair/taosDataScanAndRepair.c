@@ -306,11 +306,11 @@ SVnodeInfo *loadVnodeInfo(char *meterObjFile, char *vnodeDir) {  // Open meterOb
         continue;
       }
 
-      if (pSaveObj->meterId[0] == 0) continue;
+      if (pSaveObj->tableId[0] == 0) continue;
       pInfo->pTable[sid] = (SMeterObj *)malloc(sizeof(SMeterObj) + pSaveObj->sqlLen + 1);
       memcpy(pInfo->pTable[sid], pSaveObj, offsetof(SMeterObj, reserved));
-      fprintf(reportFP, "sid: %d, uid: %" PRIu64 ", numOfColumns:%d meterId:%s\n", sid, pInfo->pTable[sid]->uid,
-              pInfo->pTable[sid]->numOfColumns, pInfo->pTable[sid]->meterId);
+      fprintf(reportFP, "sid: %d, uid: %" PRIu64 ", numOfColumns:%d tableId:%s\n", sid, pInfo->pTable[sid]->uid,
+              pInfo->pTable[sid]->numOfColumns, pInfo->pTable[sid]->tableId);
 
     } else {
       fprintf(reportFP, "ERROR in meterobj file record, sid:%d\n", sid);
@@ -814,7 +814,7 @@ void printVnodeCfg(FILE *fp, SVnodeCfg *pCfg) {
   fprintf(fp, "daysToKeep2:     %d\n", pCfg->daysToKeep2);
   fprintf(fp, "daysToKeep:      %d\n", pCfg->daysToKeep);
   fprintf(fp, "rowsInFileBlock: %d\n", pCfg->rowsInFileBlock);
-  fprintf(fp, "blocksPerMeter:  %d\n", pCfg->blocksPerMeter);
+  fprintf(fp, "blocksPerTable:  %d\n", pCfg->blocksPerTable);
   fprintf(fp, "precision:       %d\n", pCfg->precision);
   fprintf(fp, "================================\n\n");
 }

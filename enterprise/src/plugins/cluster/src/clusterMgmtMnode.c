@@ -19,7 +19,7 @@
 #include "sdb.h"
 #include "tschemautil.h"
 
-int mgmtGetMnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int mgmtGetMnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int cols = 0;
 
   if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;

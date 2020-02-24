@@ -33,7 +33,7 @@
 
 extern void *      tsMgmtStatisTimer;
 extern void *      pDnodeConn;
-extern void *      tsShellConn;
+extern void *      tsShellConnServer;
 extern void **     tsRpcQhandle;
 extern SMgmtIpList mgmtIpList;
 extern SMgmtIpList mgmtPublicIpList;
@@ -141,8 +141,8 @@ int mgmtInitRedirect() {
   rpcInit.connType = TAOS_CONN_SOCKET_TYPE_C();
   rpcInit.qhandle = tsRpcQhandle[0];
 
-  tsShellConn = taosOpenRpc(&rpcInit);
-  if (tsShellConn == NULL) {
+  tsShellConnServer = taosOpenRpc(&rpcInit);
+  if (tsShellConnServer == NULL) {
     mError("failed to init tcp connection to shell");
     return -1;
   }
@@ -155,8 +155,8 @@ void mgmtCleanUpRedirect() {
   if (pDnodeConn) taosCloseRpc(pDnodeConn);
   pDnodeConn = NULL;
 
-  if (tsShellConn) taosCloseRpc(tsShellConn);
-  tsShellConn = NULL;
+  if (tsShellConnServer) taosCloseRpc(tsShellConnServer);
+  tsShellConnServer = NULL;
 }
 
 void *mgmtRedirectAllMsgs(char *msg, void *ahandle, void *thandle) {
