@@ -42,6 +42,7 @@ int32_t mgmtAddSuperTableColumn(SSuperTableObj *pTable, SSchema schema[], int32_
 int32_t mgmtDropSuperTableColumnByName(SSuperTableObj *pTable, char *colName);
 
 int32_t mgmtGetSuperTableMeta(SDbObj *pDb, SSuperTableObj *pTable, STableMeta *pMeta, bool usePublicIp);
+void *  mgmtGetSuperTableVgroup(SSuperTableObj *pStable);
 
 int32_t mgmtFindSuperTableTagIndex(SSuperTableObj *pTable, const char *tagName);
 int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTable);

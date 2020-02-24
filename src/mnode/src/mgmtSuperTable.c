@@ -29,6 +29,7 @@
 #include "mgmtAcct.h"
 #include "mgmtChildTable.h"
 #include "mgmtDb.h"
+#include "mgmtDnode.h"
 #include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
 #include "mgmtSuperTable.h"
@@ -237,6 +238,13 @@ int32_t mgmtDropSuperTable(SDbObj *pDb, SSuperTableObj *pSuperTable) {
 
 void* mgmtGetSuperTable(char *tableId) {
   return sdbGetRow(tsSuperTableSdb, tableId);
+}
+
+void *mgmtGetSuperTableVgroup(SSuperTableObj *pStable) {
+  SSuperTableInfoRsp *rsp = rpcMallocCont(sizeof(SSuperTableInfoRsp) + sizeof(uint32_t) * mgmtGetDnodesNum());
+  rsp->numOfDnodes = 1;
+  rsp->dnodeIps[0] = 0;
+  return rsp;
 }
 
 int32_t mgmtFindSuperTableTagIndex(SSuperTableObj *pStable, const char *tagName) {

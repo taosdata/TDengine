@@ -616,7 +616,6 @@ typedef struct {
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
   int16_t createFlag;
   char    tags[];
 } STableInfoMsg;
@@ -625,6 +624,15 @@ typedef struct {
   int32_t numOfTables;
   char    tableIds[];
 } SMultiTableInfoMsg;
+
+typedef struct {
+  char    tableId[TSDB_TABLE_ID_LEN];
+} SSuperTableInfoMsg;
+
+typedef struct {
+  int32_t  numOfDnodes;
+  uint32_t dnodeIps[];
+} SSuperTableInfoRsp;
 
 typedef struct {
   int16_t elemLen;

@@ -132,7 +132,7 @@ int32_t mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
   STableInfoMsg *pInfo = pCont;
   pInfo->createFlag = htons(pInfo->createFlag);
 
-  SDbObj *pDb = mgmtGetDb(pInfo->db);
+  SDbObj* pDb = mgmtGetDbByTableId(pInfo->tableId);
   if (pDb == NULL || pDb->dropStatus != TSDB_DB_STATUS_READY) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_DB, NULL, 0);
     return TSDB_CODE_INVALID_DB;
@@ -191,7 +191,7 @@ int32_t mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtProcessMultiMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
+int32_t mgmtProcessMultiTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
   SRpcConnInfo connInfo;
   rpcGetConnInfo(ahandle, &connInfo);
 
@@ -247,6 +247,30 @@ int32_t mgmtProcessMultiMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle
 
   rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pMultiMeta, pMultiMeta->contLen);
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t mgmtProcessSuperTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(ahandle, &connInfo);
+
+  bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
+
+  SSuperTableInfoMsg *pInfo = pCont;
+  STableInfo *pTable = mgmtGetSuperTable(pInfo->tableId);
+  if (pTable == NULL) {
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_TABLE, NULL, 0);
+    return TSDB_CODE_INVALID_TABLE;
+  }
+
+  SSuperTableInfoRsp *pRsp = mgmtGetSuperTableVgroup((SSuperTableObj *) pTable);
+  if (pRsp != NULL) {
+    int32_t msgLen = sizeof(SSuperTableObj) + htonl(pRsp->numOfDnodes) * sizeof(int32_t);
+    rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pRsp, msgLen);
+    return TSDB_CODE_SUCCESS;
+  } else {
+    rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, NULL, 0);
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 int32_t mgmtProcessCreateDbMsg(void *pCont, int32_t contLen, void *ahandle) {
@@ -1115,8 +1139,8 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_SHOW]             = mgmtProcessShowMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_RETRIEVE]         = mgmtProcessRetrieveMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_TABLE_META]       = mgmtProcessTableMetaMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_MULTI_TABLE_META] = mgmtProcessMultiMeterMetaMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_STABLE_META]      = mgmtProcessUnSupportMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_MULTI_TABLE_META] = mgmtProcessMultiTableMetaMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_STABLE_META]      = mgmtProcessSuperTableMetaMsg;
 }
 
 static int32_t mgmtCheckRedirectMsgImp(void *pConn) {
