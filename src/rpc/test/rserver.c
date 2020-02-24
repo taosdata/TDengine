@@ -27,9 +27,12 @@ void processRequestMsg(char type, void *pCont, int contLen, void *thandle, int32
   static int num = 0;
   tTrace("request is received, type:%d, contLen:%d", type, contLen);
 
-  if (dataFd >=0) 
-    write(dataFd, pCont, contLen);
-
+  if (dataFd >=0) {
+    if ( write(dataFd, pCont, contLen) <0 ) {
+      tPrint("failed to write data file, reason:%s", strerror(errno));
+    }
+  }
+      
   if (commit >=2) {
     ++num;
     if ( fsync(dataFd) < 0 ) {
@@ -117,7 +120,7 @@ int main(int argc, char *argv[]) {
   tPrint("RPC server is running, ctrl-c to exit");
 
   if (commit) {
-    dataFd = open(dataName, O_APPEND | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);  
+    dataFd = open(dataName, O_APPEND | O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);  
     if (dataFd<0) 
       tPrint("failed to open data file, reason:%s", strerror(errno));
   }

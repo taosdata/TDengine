@@ -802,7 +802,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   pConn = rpcProcessMsgHead(pRpc, pRecv);
 
   if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16)) {
-    tTrace("%s %p, %s received from 0x%x:%hu, parse code:%x len:%d source:0x%08x dest:0x%08x tranId:%d port:%hu",
+    tTrace("%s %p, %s received from 0x%x:%hu, parse code:%x len:%d sig:0x%08x:0x%08x:%d",
         pRpc->label, pConn, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, 
         pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId, pHead->port);
   }
@@ -969,12 +969,12 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
 
   if ( rpcIsReq(pHead->msgType)) {
     if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16))
-      tTrace("%s %p, %s is sent to %s:%hu, len:%d source:0x%08x dest:0x%08x tranId:%d",
+      tTrace("%s %p, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d",
              pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerIpstr,
              pConn->peerPort, msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   } else {
     if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16))
-      tTrace( "%s %p, %s is sent to %s:%hu, code:%u len:%d source:0x%08x dest:0x%08x tranId:%d",
+      tTrace( "%s %p, %s is sent to %s:%hu, code:%u len:%d sig:0x%08x:0x%08x:%d",
           pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerIpstr, pConn->peerPort, 
           (uint8_t)pHead->content[0], msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
