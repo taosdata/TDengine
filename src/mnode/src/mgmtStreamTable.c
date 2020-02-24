@@ -379,6 +379,47 @@ int32_t mgmtDropStreamTable(SDbObj *pDb, SStreamTableObj *pTable) {
   return 0;
 }
 
-SStreamTableObj* mgmtGetStreamTable(char *tableId) {
-  return (SStreamTableObj *)sdbGetRow(tsStreamTableSdb, tableId);
+void* mgmtGetStreamTable(char *tableId) {
+  return sdbGetRow(tsStreamTableSdb, tableId);
+}
+
+static int32_t mgmtSetSchemaFromStreamTable(SSchema *pSchema, SStreamTableObj *pTable) {
+  int32_t numOfCols = pTable->numOfColumns;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    strcpy(pSchema->name, pTable->schema[i].name);
+    pSchema->type  = pTable->schema[i].type;
+    pSchema->bytes = htons(pTable->schema[i].bytes);
+    pSchema->colId = htons(pTable->schema[i].colId);
+    pSchema++;
+  }
+
+  return numOfCols * sizeof(SSchema);
+}
+
+int32_t mgmtGetStreamTableMeta(SDbObj *pDb, SStreamTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp) {
+  pMeta->uid          = htobe64(pTable->uid);
+  pMeta->sid          = htonl(pTable->sid);
+  pMeta->vgid         = htonl(pTable->vgId);
+  pMeta->sversion     = htons(pTable->sversion);
+  pMeta->precision    = pDb->cfg.precision;
+  pMeta->numOfTags    = 0;
+  pMeta->numOfColumns = htons(pTable->numOfColumns);
+  pMeta->tableType    = pTable->type;
+  pMeta->contLen      = sizeof(SMeterMeta) + mgmtSetSchemaFromStreamTable(pMeta->schema, pTable);
+
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
+    return TSDB_CODE_INVALID_TABLE;
+  }
+  for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
+    if (usePublicIp) {
+      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].publicIp;
+      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    } else {
+      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].ip;
+      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }

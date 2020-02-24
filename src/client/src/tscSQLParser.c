@@ -2867,7 +2867,7 @@ static int32_t getJoinCondInfo(SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
 
   pLeft->uid = pMeterMetaInfo->pMeterMeta->uid;
   pLeft->tagCol = tagColIndex;
-  strcpy(pLeft->meterId, pMeterMetaInfo->name);
+  strcpy(pLeft->tableId, pMeterMetaInfo->name);
 
   index = (SColumnIndex)COLUMN_INDEX_INITIALIZER;
   if (getColumnIndexByName(&pExpr->pRight->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
@@ -2879,7 +2879,7 @@ static int32_t getJoinCondInfo(SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
 
   pRight->uid = pMeterMetaInfo->pMeterMeta->uid;
   pRight->tagCol = tagColIndex;
-  strcpy(pRight->meterId, pMeterMetaInfo->name);
+  strcpy(pRight->tableId, pMeterMetaInfo->name);
 
   pTagCond->joinInfo.hasJoin = true;
   return TSDB_CODE_SUCCESS;

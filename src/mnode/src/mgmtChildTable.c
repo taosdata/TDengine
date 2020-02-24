@@ -340,8 +340,8 @@ int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
   return 0;
 }
 
-SChildTableObj* mgmtGetChildTable(char *tableId) {
-  return (SChildTableObj *)sdbGetRow(tsChildTableSdb, tableId);
+void* mgmtGetChildTable(char *tableId) {
+  return sdbGetRow(tsChildTableSdb, tableId);
 }
 
 int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent) {
@@ -392,3 +392,30 @@ int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName
   return 0;
 }
 
+int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp) {
+  pMeta->uid          = htobe64(pTable->uid);
+  pMeta->sid          = htonl(pTable->sid);
+  pMeta->vgid         = htonl(pTable->vgId);
+  pMeta->sversion     = htons(pTable->superTable->sversion);
+  pMeta->precision    = pDb->cfg.precision;
+  pMeta->numOfTags    = pTable->superTable->numOfTags;
+  pMeta->numOfColumns = htons(pTable->superTable->numOfColumns);
+  pMeta->tableType    = pTable->type;
+  pMeta->contLen      = sizeof(SMeterMeta) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable->superTable);
+
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
+    return TSDB_CODE_INVALID_TABLE;
+  }
+  for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
+    if (usePublicIp) {
+      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].publicIp;
+      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    } else {
+      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].ip;
+      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}

@@ -1838,7 +1838,7 @@ int32_t tscBuildDropTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pDropTableMsg = (SDropTableMsg *)pMsg;
 
-  strcpy(pDropTableMsg->meterId, pMeterMetaInfo->name);
+  strcpy(pDropTableMsg->tableId, pMeterMetaInfo->name);
 
   pDropTableMsg->igNotExists = pInfo->pDCLInfo->existsCheck ? 1 : 0;
   pMsg += sizeof(SDropTableMsg);
@@ -2353,7 +2353,7 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int tscBuildMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SMeterInfoMsg *pInfoMsg;
+  STableInfoMsg *pInfoMsg;
   char *         pMsg, *pStart;
   int            msgLen = 0;
 
@@ -2381,10 +2381,10 @@ int tscBuildMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pMsg += sizeof(SMgmtHead);
 
-  pInfoMsg = (SMeterInfoMsg *)pMsg;
-  strcpy(pInfoMsg->meterId, pMeterMetaInfo->name);
+  pInfoMsg = (STableInfoMsg *)pMsg;
+  strcpy(pInfoMsg->tableId, pMeterMetaInfo->name);
   pInfoMsg->createFlag = htons(pSql->cmd.createOnDemand ? 1 : 0);
-  pMsg += sizeof(SMeterInfoMsg);
+  pMsg += sizeof(STableInfoMsg);
 
   if (pSql->cmd.createOnDemand) {
     memcpy(pInfoMsg->tags, tmpData, sizeof(STagData));
@@ -2403,7 +2403,7 @@ int tscBuildMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 /**
  *  multi meter meta req pkg format:
- *  | SMgmtHead | SMultiMeterInfoMsg | meterId0 | meterId1 | meterId2 | ......
+ *  | SMgmtHead | SMultiTableInfoMsg | tableId0 | tableId1 | tableId2 | ......
  *      no used         4B
  **/
 int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
@@ -2421,16 +2421,16 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SMgmtHead *pMgmt = (SMgmtHead *)(pCmd->payload + tsRpcHeadSize);
   memset(pMgmt->db, 0, TSDB_TABLE_ID_LEN);  // server don't need the db
 
-  SMultiMeterInfoMsg *pInfoMsg = (SMultiMeterInfoMsg *)(pCmd->payload + tsRpcHeadSize + sizeof(SMgmtHead));
-  pInfoMsg->numOfMeters = htonl((int32_t)pCmd->count);
+  SMultiTableInfoMsg *pInfoMsg = (SMultiTableInfoMsg *)(pCmd->payload + tsRpcHeadSize + sizeof(SMgmtHead));
+  pInfoMsg->numOfTables = htonl((int32_t)pCmd->count);
 
   if (pCmd->payloadLen > 0) {
-    memcpy(pInfoMsg->meterId, tmpData, pCmd->payloadLen);
+    memcpy(pInfoMsg->tableIds, tmpData, pCmd->payloadLen);
   }
 
   tfree(tmpData);
 
-  pCmd->payloadLen += sizeof(SMgmtHead) + sizeof(SMultiMeterInfoMsg);
+  pCmd->payloadLen += sizeof(SMgmtHead) + sizeof(SMultiTableInfoMsg);
   pCmd->msgType = TSDB_MSG_TYPE_MULTI_TABLE_META;
 
   assert(pCmd->payloadLen + minMsgSize() <= pCmd->allocSize);
@@ -2502,13 +2502,13 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   // todo refactor
   pMetaMsg->joinCondLen = htonl((TSDB_TABLE_ID_LEN + sizeof(int16_t)) * 2);
 
-  memcpy(pMsg, pTagCond->joinInfo.left.meterId, TSDB_TABLE_ID_LEN);
+  memcpy(pMsg, pTagCond->joinInfo.left.tableId, TSDB_TABLE_ID_LEN);
   pMsg += TSDB_TABLE_ID_LEN;
 
   *(int16_t *)pMsg = pTagCond->joinInfo.left.tagCol;
   pMsg += sizeof(int16_t);
 
-  memcpy(pMsg, pTagCond->joinInfo.right.meterId, TSDB_TABLE_ID_LEN);
+  memcpy(pMsg, pTagCond->joinInfo.right.tableId, TSDB_TABLE_ID_LEN);
   pMsg += TSDB_TABLE_ID_LEN;
 
   *(int16_t *)pMsg = pTagCond->joinInfo.right.tagCol;
@@ -2590,7 +2590,7 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       }
     }
 
-    strcpy(pElem->meterId, pMeterMetaInfo->name);
+    strcpy(pElem->tableId, pMeterMetaInfo->name);
     pElem->numOfTags = htons(pMeterMetaInfo->numOfTags);
 
     int16_t len = pMsg - (char *)pElem;
@@ -2751,7 +2751,7 @@ int tscProcessMeterMetaRsp(SSqlObj *pSql) {
 
 /**
  *  multi meter meta rsp pkg format:
- *  | STaosRsp | ieType | SMultiMeterInfoMsg | SMeterMeta0 | SSchema0 | SMeterMeta1 | SSchema1 | SMeterMeta2 | SSchema2
+ *  | STaosRsp | ieType | SMultiTableInfoMsg | SMeterMeta0 | SSchema0 | SMeterMeta1 | SSchema1 | SMeterMeta2 | SSchema2
  *  |...... 1B        1B            4B
  **/
 int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
@@ -2772,13 +2772,13 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
 
   rsp++;
 
-  SMultiMeterInfoMsg *pInfo = (SMultiMeterInfoMsg *)rsp;
-  totalNum = htonl(pInfo->numOfMeters);
-  rsp += sizeof(SMultiMeterInfoMsg);
+  SMultiTableInfoMsg *pInfo = (SMultiTableInfoMsg *)rsp;
+  totalNum = htonl(pInfo->numOfTables);
+  rsp += sizeof(SMultiTableInfoMsg);
 
   for (i = 0; i < totalNum; i++) {
     SMultiMeterMeta *pMultiMeta = (SMultiMeterMeta *)rsp;
-    SMeterMeta *     pMeta = &pMultiMeta->meta;
+    SMeterMeta *     pMeta = &pMultiMeta->metas;
 
     pMeta->sid = htonl(pMeta->sid);
     pMeta->sversion = htons(pMeta->sversion);
@@ -2850,7 +2850,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
     int32_t size = (int32_t)(rsp - ((char *)pMeta));  // Consistent with SMeterMeta in cache
 
     pMeta->index = 0;
-    (void)taosAddDataIntoCache(tscCacheHandle, pMultiMeta->meterId, (char *)pMeta, size, tsMeterMetaKeepTimer);
+    (void)taosAddDataIntoCache(tscCacheHandle, pMeta->tableId, (char *)pMeta, size, tsMeterMetaKeepTimer);
   }
 
   pSql->res.code = TSDB_CODE_SUCCESS;
@@ -3312,10 +3312,10 @@ static void tscWaitingForCreateTable(SSqlCmd *pCmd) {
 /**
  * in renew metermeta, do not retrieve metadata in cache.
  * @param pSql          sql object
- * @param meterId       meter id
+ * @param tableId       meter id
  * @return              status code
  */
-int tscRenewMeterMeta(SSqlObj *pSql, char *meterId) {
+int tscRenewMeterMeta(SSqlObj *pSql, char *tableId) {
   int code = 0;
 
   // handle metric meta renew process

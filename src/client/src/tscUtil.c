@@ -56,7 +56,7 @@ void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* str, uint64_t uid) {
 
   char join[512] = {0};
   if (pTagCond->joinInfo.hasJoin) {
-    sprintf(join, "%s,%s", pTagCond->joinInfo.left.meterId, pTagCond->joinInfo.right.meterId);
+    sprintf(join, "%s,%s", pTagCond->joinInfo.left.tableId, pTagCond->joinInfo.right.tableId);
   }
 
   // estimate the buffer size
@@ -156,13 +156,13 @@ bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd) {
   return false;
 }
 
-void tscGetDBInfoFromMeterId(char* meterId, char* db) {
-  char* st = strstr(meterId, TS_PATH_DELIMITER);
+void tscGetDBInfoFromMeterId(char* tableId, char* db) {
+  char* st = strstr(tableId, TS_PATH_DELIMITER);
   if (st != NULL) {
     char* end = strstr(st + 1, TS_PATH_DELIMITER);
     if (end != NULL) {
-      memcpy(db, meterId, (end - meterId));
-      db[end - meterId] = 0;
+      memcpy(db, tableId, (end - tableId));
+      db[end - tableId] = 0;
       return;
     }
   }
@@ -590,12 +590,12 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
 
   // set the correct metermeta object, the metermeta has been locked in pDataBlocks, so it must be in the cache
   if (pMeterMetaInfo->pMeterMeta != pDataBlock->pMeterMeta) {
-    strcpy(pMeterMetaInfo->name, pDataBlock->meterId);
+    strcpy(pMeterMetaInfo->name, pDataBlock->tableId);
     taosRemoveDataFromCache(tscCacheHandle, (void**)&(pMeterMetaInfo->pMeterMeta), false);
 
     pMeterMetaInfo->pMeterMeta = taosTransferDataInCache(tscCacheHandle, (void**)&pDataBlock->pMeterMeta);
   } else {
-    assert(strncmp(pMeterMetaInfo->name, pDataBlock->meterId, tListLen(pDataBlock->meterId)) == 0);
+    assert(strncmp(pMeterMetaInfo->name, pDataBlock->tableId, tListLen(pDataBlock->tableId)) == 0);
   }
 
   /*
@@ -660,7 +660,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   dataBuf->size = startOffset;
   dataBuf->tsSource = -1;
 
-  strncpy(dataBuf->meterId, name, TSDB_TABLE_ID_LEN);
+  strncpy(dataBuf->tableId, name, TSDB_TABLE_ID_LEN);
 
   /*
    * The metermeta may be released since the metermeta cache are completed clean by other thread
@@ -709,7 +709,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     STableDataBlocks* dataBuf = NULL;
     int32_t           ret =
         tscGetDataBlockFromList(pVnodeDataBlockHashList, pVnodeDataBlockList, pOneTableBlock->vgid, TSDB_PAYLOAD_SIZE,
-                                tsInsertHeadSize, 0, pOneTableBlock->meterId, pOneTableBlock->pMeterMeta, &dataBuf);
+                                tsInsertHeadSize, 0, pOneTableBlock->tableId, pOneTableBlock->pMeterMeta, &dataBuf);
     if (ret != TSDB_CODE_SUCCESS) {
       tscError("%p failed to prepare the data block buffer for merging table data, code:%d", pSql, ret);
       taosCleanUpHashTable(pVnodeDataBlockHashList);
@@ -743,7 +743,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
 
     char* e = (char*)pBlocks->payLoad + pOneTableBlock->rowSize*(pBlocks->numOfRows-1);
     
-    tscTrace("%p meterId:%s, sid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pSql, pOneTableBlock->meterId, pBlocks->sid,
+    tscTrace("%p tableId:%s, sid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pSql, pOneTableBlock->tableId, pBlocks->sid,
              pBlocks->numOfRows, pBlocks->sversion, GET_INT64_VAL(pBlocks->payLoad), GET_INT64_VAL(e));
 
     pBlocks->sid = htonl(pBlocks->sid);

@@ -235,8 +235,8 @@ int32_t mgmtDropSuperTable(SDbObj *pDb, SSuperTableObj *pSuperTable) {
   return sdbDeleteRow(tsSuperTableSdb, pSuperTable);
 }
 
-SSuperTableObj* mgmtGetSuperTable(char *tableId) {
-  return (SSuperTableObj *)sdbGetRow(tsSuperTableSdb, tableId);
+void* mgmtGetSuperTable(char *tableId) {
+  return sdbGetRow(tsSuperTableSdb, tableId);
 }
 
 int32_t mgmtFindSuperTableTagIndex(SSuperTableObj *pStable, const char *tagName) {
@@ -457,7 +457,7 @@ int32_t mgmtDropSuperTableColumnByName(SSuperTableObj *pStable, char *colName) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtGetSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetShowSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
 //  int32_t cols = 0;
 //
 //  SDbObj *pDb = NULL;
@@ -509,7 +509,7 @@ int32_t mgmtGetSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtRetrieveSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t         numOfRows = 0;
 //  char *          pWrite;
 //  int32_t         cols = 0;
@@ -602,3 +602,45 @@ int32_t mgmtGetTagsLength(SSuperTableObj* pSuperTable, int32_t col) {  // length
 
   return len;
 }
+
+int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTable) {
+  int32_t numOfCols = pTable->numOfColumns + pTable->numOfTags;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    strcpy(pSchema->name, pTable->schema[i].name);
+    pSchema->type  = pTable->schema[i].type;
+    pSchema->bytes = htons(pTable->schema[i].bytes);
+    pSchema->colId = htons(pTable->schema[i].colId);
+    pSchema++;
+  }
+
+  return (pTable->numOfColumns + pTable->numOfTags) * sizeof(SSchema);
+}
+
+int32_t mgmtGetSuperTableMeta(SDbObj *pDb, SSuperTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp) {
+  pMeta->uid          = htobe64(pTable->uid);
+  pMeta->sid          = htonl(pTable->sid);
+  pMeta->vgid         = htonl(pTable->vgId);
+  pMeta->sversion     = htons(pTable->sversion);
+  pMeta->precision    = pDb->cfg.precision;
+  pMeta->numOfTags    = pTable->numOfTags;
+  pMeta->numOfColumns = htons(pTable->numOfColumns);
+  pMeta->tableType    = pTable->type;
+  pMeta->contLen      = sizeof(SMeterMeta) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable);
+
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
+    return TSDB_CODE_INVALID_TABLE;
+  }
+  for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
+    if (usePublicIp) {
+      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].publicIp;
+      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    } else {
+      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].ip;
+      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+

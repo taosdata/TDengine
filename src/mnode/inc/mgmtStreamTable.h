@@ -24,13 +24,17 @@ extern "C" {
 #include <stdbool.h>
 #include "mnode.h"
 
-int32_t         mgmtInitStreamTables();
-void            mgmtCleanUpStreamTables();
-int32_t         mgmtCreateStreamTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
-int32_t         mgmtDropStreamTable(SDbObj *pDb, SStreamTableObj *pTable);
-int32_t         mgmtAlterStreamTable(SDbObj *pDb, SAlterTableMsg *pAlter);
-SStreamTableObj* mgmtGetStreamTable(char *tableId);
-int8_t *        mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj *pVgroup);
+int32_t mgmtInitStreamTables();
+void    mgmtCleanUpStreamTables();
+
+void *  mgmtGetStreamTable(char *tableId);
+
+int32_t mgmtCreateStreamTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
+int32_t mgmtDropStreamTable(SDbObj *pDb, SStreamTableObj *pTable);
+int32_t mgmtAlterStreamTable(SDbObj *pDb, SAlterTableMsg *pAlter);
+int8_t *mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj *pVgroup);
+
+int32_t mgmtGetStreamTableMeta(SDbObj *pDb, SStreamTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp);
 
 #ifdef __cplusplus
 }

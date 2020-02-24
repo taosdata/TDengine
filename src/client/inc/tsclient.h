@@ -120,7 +120,7 @@ typedef struct SCond {
 } SCond;
 
 typedef struct SJoinNode {
-  char     meterId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_ID_LEN];
   uint64_t uid;
   int16_t  tagCol;
 } SJoinNode;
@@ -155,7 +155,7 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct STableDataBlocks {
-  char    meterId[TSDB_TABLE_ID_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN];
   int8_t  tsSource;     // where does the UNIX timestamp come from, server or client
   bool    ordered;      // if current rows are ordered or not
   int64_t vgid;         // virtual group id
@@ -384,7 +384,7 @@ int  tscProcessSql(SSqlObj *pSql);
 
 void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows);
 
-int  tscRenewMeterMeta(SSqlObj *pSql, char *meterId);
+int  tscRenewMeterMeta(SSqlObj *pSql, char *tableId);
 void tscQueueAsyncRes(SSqlObj *pSql);
 
 void tscQueueAsyncError(void(*fp), void *param);

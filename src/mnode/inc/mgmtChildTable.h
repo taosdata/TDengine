@@ -26,14 +26,18 @@ extern "C" {
 
 #include "mnode.h"
 
-int32_t         mgmtInitChildTables();
-void            mgmtCleanUpChildTables();
-int32_t         mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
-int32_t         mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable);
-int32_t         mgmtAlterChildTable(SDbObj *pDb, SAlterTableMsg *pAlter);
-int32_t         mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent);
-SChildTableObj* mgmtGetChildTable(char *tableId);
-int8_t *        mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup);
+int32_t mgmtInitChildTables();
+void    mgmtCleanUpChildTables();
+
+void *  mgmtGetChildTable(char *tableId);
+
+int32_t mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
+int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable);
+int32_t mgmtAlterChildTable(SDbObj *pDb, SAlterTableMsg *pAlter);
+int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent);
+int8_t *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup);
+
+int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp);
 
 #ifdef __cplusplus
 }

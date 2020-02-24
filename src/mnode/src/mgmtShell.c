@@ -24,16 +24,21 @@
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtBalance.h"
+#include "mgmtChildTable.h"
 #include "mgmtConn.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
 #include "mgmtGrant.h"
 #include "mgmtMnode.h"
+#include "mgmtNormalTable.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
+#include "mgmtStreamTable.h"
+#include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
+
 
 #define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
 
@@ -113,407 +118,135 @@ void mgmtCleanUpShell() {
   }
 }
 
-static void mgmtSetSchemaFromMeters(SSchema *pSchema, STabObj *pMeterObj, uint32_t numOfCols) {
-  SSchema *pMeterSchema = (SSchema *)(pMeterObj->schema);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    strcpy(pSchema->name, pMeterSchema[i].name);
-    pSchema->type  = pMeterSchema[i].type;
-    pSchema->bytes = htons(pMeterSchema[i].bytes);
-    pSchema->colId = htons(pMeterSchema[i].colId);
-    pSchema++;
-  }
-}
-
-static uint32_t mgmtSetMeterTagValue(char *pTags, STabObj *pMetric, STabObj *pMeterObj) {
-  SSchema *pTagSchema = (SSchema *)(pMetric->schema + pMetric->numOfColumns * sizeof(SSchema));
-
-  char *tagVal = pMeterObj->pTagData + TSDB_TABLE_ID_LEN;  // tag start position
-
-  uint32_t tagsLen = 0;
-  for (int32_t i = 0; i < pMetric->numOfTags; ++i) {
-    tagsLen += pTagSchema[i].bytes;
-  }
-
-  memcpy(pTags, tagVal, tagsLen);
-  return tagsLen;
-}
-
 int32_t mgmtProcessMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
-//  SMeterInfoMsg *pInfo = (SMeterInfoMsg *)pMsg;
-//  STabObj *      pMeterObj = NULL;
-//  SVgObj *       pVgroup = NULL;
-//  SMeterMeta *   pMeta = NULL;
-//  SSchema *      pSchema = NULL;
-//  STaosRsp *     pRsp = NULL;
-//  char *         pStart = NULL;
-//
-//  pInfo->createFlag = htons(pInfo->createFlag);
-//
-//  int32_t size = sizeof(STaosHeader) + sizeof(STaosRsp) + sizeof(SMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS +
-//             sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN + TSDB_EXTRA_PAYLOAD_SIZE;
-//
-//  SDbObj *pDb = NULL;
-//  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
-//
-//  // todo db check should be extracted
-//  if (pDb == NULL || (pDb != NULL && pDb->dropStatus != TSDB_DB_STATUS_READY)) {
-//
-//    if ((pStart = mgmtAllocMsg(pConn, size, &pMsg, &pRsp)) == NULL) {
-//      taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_TABLE_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
-//	  return 0;
-//    }
-//
-//    pRsp->code = TSDB_CODE_INVALID_DB;
-//    pMsg++;
-//
-//    goto _exit_code;
-//  }
-//
-//  pMeterObj = mgmtGetTable(pInfo->meterId);
-//
-//  // on demand create table from super table if meter does not exists
-//  if (pMeterObj == NULL && pInfo->createFlag == 1) {
-//    // write operation needs to redirect to master mnode
-//    if (mgmtCheckRedirectMsg(pConn, TSDB_MSG_TYPE_TABLE_META_RSP) != 0) {
-//      return 0;
-//    }
-//
-//    SCreateTableMsg *pCreateMsg = calloc(1, sizeof(SCreateTableMsg) + sizeof(STagData));
-//    if (pCreateMsg == NULL) {
-//      taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_TABLE_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
-//      return 0;
-//    }
-//
-//    memcpy(pCreateMsg->schema, pInfo->tags, sizeof(STagData));
-//    strcpy(pCreateMsg->meterId, pInfo->meterId);
-//
-//    SDbObj* pMeterDb = mgmtGetDbByTableId(pCreateMsg->meterId);
-//    mTrace("table:%s, pConnDb:%p, pConnDbName:%s, pMeterDb:%p, pMeterDbName:%s",
-//           pCreateMsg->meterId, pDb, pDb->name, pMeterDb, pMeterDb->name);
-//    assert(pDb == pMeterDb);
-//
-//    int32_t code = mgmtCreateTable(pDb, pCreateMsg);
-//
-//    char stableName[TSDB_TABLE_ID_LEN] = {0};
-//    strncpy(stableName, pInfo->tags, TSDB_TABLE_ID_LEN);
-//    mTrace("table:%s is automatically created by %s from %s, code:%d", pCreateMsg->meterId, pConn->pUser->user,
-//           stableName, code);
-//
-//    tfree(pCreateMsg);
-//
-//    if (code != TSDB_CODE_SUCCESS) {
-//      if ((pStart = mgmtAllocMsg(pConn, size, &pMsg, &pRsp)) == NULL) {
-// 	    taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_TABLE_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
-// 	    return 0;
-//      }
-//
-//      pRsp->code = code;
-//      pMsg++;
-//
-//      goto _exit_code;
-//    }
-//
-//    pMeterObj = mgmtGetTable(pInfo->meterId);
-//  }
-//
-//  if ((pStart = mgmtAllocMsg(pConn, size, &pMsg, &pRsp)) == NULL) {
-//    taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_TABLE_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
-//    return 0;
-//  }
-//
-//  if (pMeterObj == NULL) {
-//    if (pDb)
-//      pRsp->code = TSDB_CODE_INVALID_TABLE;
-//    else
-//      pRsp->code = TSDB_CODE_DB_NOT_SELECTED;
-//    pMsg++;
-//  } else {
-//    mTrace("%s, uid:%" PRIu64 " meter meta is retrieved", pInfo->meterId, pMeterObj->uid);
-//    pRsp->code = 0;
-//    pMsg += sizeof(STaosRsp);
-//    *pMsg = TSDB_IE_TYPE_META;
-//    pMsg++;
-//
-//    pMeta = (SMeterMeta *)pMsg;
-//    pMeta->uid = htobe64(pMeterObj->uid);
-//    pMeta->sid = htonl(pMeterObj->gid.sid);
-//    pMeta->vgid = htonl(pMeterObj->gid.vgId);
-//    pMeta->sversion = htons(pMeterObj->sversion);
-//
-//    pMeta->precision = pDb->cfg.precision;
-//
-//    pMeta->numOfTags = pMeterObj->numOfTags;
-//    pMeta->numOfColumns = htons(pMeterObj->numOfColumns);
-//    pMeta->tableType = pMeterObj->tableType;
-//
-//    pMsg += sizeof(SMeterMeta);
-//    pSchema = (SSchema *)pMsg;  // schema locates at the end of SMeterMeta struct
-//
-//    if (mgmtTableCreateFromSuperTable(pMeterObj)) {
-//      assert(pMeterObj->numOfTags == 0);
-//
-//      STabObj *pMetric = mgmtGetTable(pMeterObj->pTagData);
-//      uint32_t numOfTotalCols = (uint32_t)pMetric->numOfTags + pMetric->numOfColumns;
-//
-//      pMeta->numOfTags = pMetric->numOfTags;  // update the numOfTags info
-//      mgmtSetSchemaFromMeters(pSchema, pMetric, numOfTotalCols);
-//      pMsg += numOfTotalCols * sizeof(SSchema);
-//
-//      // for meters created from metric, we need the metric tag schema to parse the tag data
-//      int32_t tagsLen = mgmtSetMeterTagValue(pMsg, pMetric, pMeterObj);
-//      pMsg += tagsLen;
-//    } else {
-//      /*
-//       * for metrics, or meters that are not created from metric, set the schema directly
-//       * for meters created from metric, we use the schema of metric instead
-//       */
-//      uint32_t numOfTotalCols = (uint32_t)pMeterObj->numOfTags + pMeterObj->numOfColumns;
-//      mgmtSetSchemaFromMeters(pSchema, pMeterObj, numOfTotalCols);
-//      pMsg += numOfTotalCols * sizeof(SSchema);
-//    }
-//
-//    if (mgmtIsNormalTable(pMeterObj)) {
-//      pVgroup = mgmtGetVgroup(pMeterObj->gid.vgId);
-//      if (pVgroup == NULL) {
-//        pRsp->code = TSDB_CODE_INVALID_TABLE;
-//        goto _exit_code;
-//      }
-//      for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-//        if (pConn->usePublicIp) {
-//          pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
-//          pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-//        } else {
-//          pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].ip;
-//          pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-//        }
-//      }
-//    }
-//  }
-//
-//_exit_code:
-//  msgLen = pMsg - pStart;
-//
-//  taosSendMsgToPeer(pConn->thandle, pStart, msgLen);
-//
-//  return msgLen;
-  return 0;
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(ahandle, &connInfo);
+
+  bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
+  SUserObj *pUser = mgmtGetUser(connInfo.user);
+  if (pUser == NULL) {
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
+    return TSDB_CODE_INVALID_USER;
+  }
+
+  STableInfoMsg *pInfo = pCont;
+  pInfo->createFlag = htons(pInfo->createFlag);
+
+  SDbObj *pDb = mgmtGetDb(pInfo->db);
+  if (pDb == NULL || pDb->dropStatus != TSDB_DB_STATUS_READY) {
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_DB, NULL, 0);
+    return TSDB_CODE_INVALID_DB;
+  }
+
+  STableInfo *pTable = mgmtGetTable(pInfo->tableId);
+
+  // on demand create table from super table if meter does not exists
+  if (pTable == NULL && pInfo->createFlag == 1) {
+    // write operation needs to redirect to master mnode
+    if (mgmtCheckRedirectMsg(ahandle) != 0) {
+      return TSDB_CODE_REDIRECT;
+    }
+
+    SCreateTableMsg *pCreateMsg = calloc(1, sizeof(SCreateTableMsg) + sizeof(STagData));
+    if (pCreateMsg == NULL) {
+      rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
+      return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    }
+
+    memcpy(pCreateMsg->schema, pInfo->tags, sizeof(STagData));
+    strcpy(pCreateMsg->tableId, pInfo->tableId);
+
+    int32_t code = mgmtCreateTable(pDb, pCreateMsg);
+
+    char stableName[TSDB_TABLE_ID_LEN] = {0};
+    strncpy(stableName, pInfo->tags, TSDB_TABLE_ID_LEN);
+    mTrace("table:%s is auto created by %s from %s, code:%d", pCreateMsg->tableId, pUser->user, stableName, code);
+
+    tfree(pCreateMsg);
+
+    if (code != TSDB_CODE_SUCCESS) {
+      rpcSendResponse(ahandle, code, NULL, 0);
+      return code;
+    }
+
+    pTable = mgmtGetTable(pInfo->tableId);
+  }
+
+  if (pTable == NULL) {
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_TABLE, NULL, 0);
+    return TSDB_CODE_INVALID_TABLE;
+  }
+
+  SMeterMeta *pMeta = rpcMallocCont(sizeof(SMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
+  int32_t code = mgmtGetTableMeta(pDb, pTable, pMeta, usePublicIp);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    rpcFreeCont(pMeta);
+    rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, NULL, 0);
+  } else {
+    pMeta->contLen = htons(pMeta->contLen);
+    rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pMeta, pMeta->contLen);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
-/**
- *  multi meter meta rsp pkg format:
- *  | STaosRsp | ieType | SMultiMeterInfoMsg | SMeterMeta0 | SSchema0 | SMeterMeta1 | SSchema1 | SMeterMeta2 | SSchema2
- *      1B         1B            4B
- *
- *  | STaosHeader | STaosRsp | ieType | SMultiMeterInfoMsg | SMeterMeta0 | SSchema0 | SMeterMeta1 | SSchema1 | ......................|
- *                ^                                                                                          ^                       ^
- *                |<--------------------------------------size-----------------------------------------------|---------------------->|
- *                |                                                                                          |                       |
- *              pStart                                                                                   pCurMeter                 pTail
- **/
 int32_t mgmtProcessMultiMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
-//  SDbObj *          pDbObj    = NULL;
-//  STabObj *         pMeterObj = NULL;
-//  SVgObj *          pVgroup   = NULL;
-//  SMultiMeterMeta * pMeta     = NULL;
-//  SSchema *         pSchema   = NULL;
-//  STaosRsp *        pRsp      = NULL;
-//  char *            pStart    = NULL;
-//
-//  SMultiMeterInfoMsg * pInfo = (SMultiMeterInfoMsg *)pMsg;
-//  char *                 str = pMsg + sizeof(SMultiMeterInfoMsg);
-//  pInfo->numOfMeters         = htonl(pInfo->numOfMeters);
-//
-//  int32_t size = 4*1024*1024; // first malloc 4 MB, subsequent reallocation as twice
-//
-//  char *pNewMsg;
-//  if ((pStart = mgmtForMultiAllocMsg(pConn, size, &pNewMsg, &pRsp)) == NULL) {
-//    taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_MULTI_TABLE_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
-//    return 0;
-//  }
-//
-//  int32_t totalNum = 0;
-//  char  tblName[TSDB_TABLE_ID_LEN];
-//  char* nextStr;
-//
-//  char* pCurMeter  = pStart + sizeof(STaosRsp) + sizeof(SMultiMeterInfoMsg) + 1;  // 1: ie type byte
-//  char* pTail      = pStart + size;
-//
-//  while (str - pMsg < msgLen) {
-//    nextStr = strchr(str, ',');
-//    if (nextStr == NULL) {
-//      break;
-//    }
-//
-//    memcpy(tblName, str, nextStr - str);
-//    tblName[nextStr - str] = '\0';
-//    str = nextStr + 1;
-//
-//    // judge whether the remaining memory is adequate
-//    if ((pTail - pCurMeter) < MAX_LEN_OF_METER_META) {
-//      char* pMsgHdr = pStart - sizeof(STaosHeader);
-//      size *= 2;
-//      pMsgHdr = (char*)realloc(pMsgHdr, size);
-//      if (NULL == pMsgHdr) {
-//        char* pTmp = pStart - sizeof(STaosHeader);
-//        tfree(pTmp);
-//        taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_MULTI_TABLE_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
-//        break;
-//      }
-//
-//      pCurMeter = (char*)pMsgHdr + sizeof(STaosHeader) + (pCurMeter - pStart);
-//      pStart    = (char*)pMsgHdr + sizeof(STaosHeader);
-//      pNewMsg   = pStart;
-//      pRsp      = (STaosRsp *)pStart;
-//      pTail     = pMsgHdr + size;
-//    }
-//
-//    // get meter schema, and fill into resp payload
-//    pMeterObj = mgmtGetTable(tblName);
-//    pDbObj = mgmtGetDbByTableId(tblName);
-//
-//    if (pMeterObj == NULL || (pDbObj == NULL)) {
-//      continue;
-//    } else {
-//      mTrace("%s, uid:%" PRIu64 " sversion:%d meter meta is retrieved", tblName, pMeterObj->uid, pMeterObj->sversion);
-//      pMeta = (SMultiMeterMeta *)pCurMeter;
-//
-//      memcpy(pMeta->meterId, tblName, strlen(tblName));
-//      pMeta->meta.uid = htobe64(pMeterObj->uid);
-//      pMeta->meta.sid = htonl(pMeterObj->gid.sid);
-//      pMeta->meta.vgid = htonl(pMeterObj->gid.vgId);
-//      pMeta->meta.sversion = htons(pMeterObj->sversion);
-//      pMeta->meta.precision = pDbObj->cfg.precision;
-//      pMeta->meta.numOfTags = pMeterObj->numOfTags;
-//      pMeta->meta.numOfColumns = htons(pMeterObj->numOfColumns);
-//      pMeta->meta.tableType = pMeterObj->tableType;
-//
-//      pCurMeter += sizeof(SMultiMeterMeta);
-//      pSchema = (SSchema *)pCurMeter;  // schema locates at the end of SMeterMeta struct
-//
-//      if (mgmtTableCreateFromSuperTable(pMeterObj)) {
-//        assert(pMeterObj->numOfTags == 0);
-//
-//        STabObj *pMetric = mgmtGetTable(pMeterObj->pTagData);
-//        uint32_t numOfTotalCols = (uint32_t)pMetric->numOfTags + pMetric->numOfColumns;
-//
-//        pMeta->meta.numOfTags = pMetric->numOfTags;  // update the numOfTags info
-//        mgmtSetSchemaFromMeters(pSchema, pMetric, numOfTotalCols);
-//        pCurMeter += numOfTotalCols * sizeof(SSchema);
-//
-//        // for meters created from metric, we need the metric tag schema to parse the tag data
-//        int32_t tagsLen = mgmtSetMeterTagValue(pCurMeter, pMetric, pMeterObj);
-//        pCurMeter += tagsLen;
-//      } else {
-//        /*
-//         * for metrics, or meters that are not created from metric, set the schema directly
-//         * for meters created from metric, we use the schema of metric instead
-//         */
-//        uint32_t numOfTotalCols = (uint32_t)pMeterObj->numOfTags + pMeterObj->numOfColumns;
-//        mgmtSetSchemaFromMeters(pSchema, pMeterObj, numOfTotalCols);
-//        pCurMeter += numOfTotalCols * sizeof(SSchema);
-//      }
-//
-//      if (mgmtIsNormalTable(pMeterObj)) {
-//        pVgroup = mgmtGetVgroup(pMeterObj->gid.vgId);
-//        if (pVgroup == NULL) {
-//          pRsp->code = TSDB_CODE_INVALID_TABLE;
-//          pNewMsg++;
-//          mError("%s, uid:%" PRIu64 " sversion:%d vgId:%d pVgroup is NULL", tblName, pMeterObj->uid, pMeterObj->sversion,
-//                 pMeterObj->gid.vgId);
-//          goto _error_exit_code;
-//        }
-//
-//        for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-//          if (pConn->usePublicIp) {
-//            pMeta->meta.vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
-//            pMeta->meta.vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-//          } else {
-//            pMeta->meta.vpeerDesc[i].ip = pVgroup->vnodeGid[i].ip;
-//            pMeta->meta.vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-//          }
-//        }
-//      }
-//    }
-//
-//    totalNum++;
-//    if (totalNum > pInfo->numOfMeters) {
-//      pNewMsg++;
-//      break;
-//    }
-//  }
-//
-//  // fill rsp code, ieType
-//  msgLen = pCurMeter - pNewMsg;
-//
-//  pRsp->code = 0;
-//  pNewMsg += sizeof(STaosRsp);
-//  *pNewMsg = TSDB_IE_TYPE_META;
-//  pNewMsg++;
-//
-//  SMultiMeterInfoMsg *pRspInfo = (SMultiMeterInfoMsg *)pNewMsg;
-//
-//  pRspInfo->numOfMeters = htonl(totalNum);
-//  goto _exit_code;
-//
-//_error_exit_code:
-//  msgLen = pNewMsg - pStart;
-//
-//_exit_code:
-//  taosSendMsgToPeer(pConn->thandle, pStart, msgLen);
-//
-//  return msgLen;
-  return 0;
-}
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(ahandle, &connInfo);
 
-int32_t mgmtProcessMetricMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
-//  SSuperTableMetaMsg *pSuperTableMetaMsg = (SSuperTableMetaMsg *)pMsg;
-//  STabObj *       pMetric;
-//  STaosRsp *      pRsp;
-//  char *          pStart;
-//
-//  pSuperTableMetaMsg->numOfMeters = htonl(pSuperTableMetaMsg->numOfMeters);
-//
-//  pSuperTableMetaMsg->join = htonl(pSuperTableMetaMsg->join);
-//  pSuperTableMetaMsg->joinCondLen = htonl(pSuperTableMetaMsg->joinCondLen);
-//
-//  for (int32_t i = 0; i < pSuperTableMetaMsg->numOfMeters; ++i) {
-//    pSuperTableMetaMsg->metaElem[i] = htonl(pSuperTableMetaMsg->metaElem[i]);
-//  }
-//
-//  SMetricMetaElemMsg *pElem = (SMetricMetaElemMsg *)(((char *)pSuperTableMetaMsg) + pSuperTableMetaMsg->metaElem[0]);
-//  pMetric = mgmtGetTable(pElem->meterId);
-//
-//  SDbObj *pDb = NULL;
-//  if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
-//
-//  if (pMetric == NULL || (pDb != NULL && pDb->dropStatus != TSDB_DB_STATUS_READY)) {
-//    pStart = taosBuildRspMsg(pConn->thandle, TSDB_MSG_TYPE_STABLE_META_RSP);
-//    if (pStart == NULL) {
-//      taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_STABLE_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
-//      return 0;
-//    }
-//
-//    pMsg = pStart;
-//    pRsp = (STaosRsp *)pMsg;
-//    if (pDb)
-//      pRsp->code = TSDB_CODE_INVALID_TABLE;
-//    else
-//      pRsp->code = TSDB_CODE_DB_NOT_SELECTED;
-//    pMsg++;
-//
-//    msgLen = pMsg - pStart;
-//  } else {
-//    msgLen = mgmtRetrieveMetricMeta(pConn, &pStart, pSuperTableMetaMsg);
-//    if (msgLen <= 0) {
-//      taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_STABLE_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
-//      return 0;
-//    }
-//  }
-//
-//  taosSendMsgToPeer(pConn->thandle, pStart, msgLen);
-//
-//  return msgLen;
-  return 0;
+  bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
+  SUserObj *pUser = mgmtGetUser(connInfo.user);
+  if (pUser == NULL) {
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
+    return TSDB_CODE_INVALID_USER;
+  }
+
+  SMultiTableInfoMsg *pInfo = pCont;
+  pInfo->numOfTables = htonl(pInfo->numOfTables);
+
+  int32_t totalMallocLen = 4*1024*1024; // first malloc 4 MB, subsequent reallocation as twice
+  SMultiMeterMeta *pMultiMeta = rpcMallocCont(totalMallocLen);
+  if (pMultiMeta == NULL) {
+    rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
+    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  }
+
+  pMultiMeta->contLen = sizeof(SMultiMeterMeta);
+  pMultiMeta->numOfTables = 0;
+
+  for (int t = 0; t < pInfo->numOfTables; ++t) {
+    char *tableId = (char*)(pInfo->tableIds + t * TSDB_TABLE_ID_LEN);
+    STableInfo *pTable = mgmtGetTable(tableId);
+    if (pTable == NULL) continue;
+
+    SDbObj *pDb = mgmtGetDbByTableId(tableId);
+    if (pDb == NULL) continue;
+
+    int availLen = totalMallocLen - pMultiMeta->contLen;
+    if (availLen <= sizeof(SMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS) {
+      //TODO realloc
+      //totalMallocLen *= 2;
+      //pMultiMeta = rpcReMalloc(pMultiMeta, totalMallocLen);
+      //if (pMultiMeta == NULL) {
+      ///  rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
+      //  return TSDB_CODE_SERV_OUT_OF_MEMORY;
+      //} else {
+      //  t--;
+      //  continue;
+      //}
+    }
+
+    SMeterMeta *pMeta = (SMeterMeta *)(pMultiMeta->metas + pMultiMeta->contLen);
+    int32_t code = mgmtGetTableMeta(pDb, pTable, pMeta, usePublicIp);
+    if (code == TSDB_CODE_SUCCESS) {
+      pMultiMeta->numOfTables ++;
+      pMultiMeta->contLen += pMeta->contLen;
+    }
+  }
+
+  rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pMultiMeta, pMultiMeta->contLen);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mgmtProcessCreateDbMsg(void *pCont, int32_t contLen, void *ahandle) {
@@ -873,40 +606,40 @@ int32_t mgmtProcessDropDbMsg(void *pCont, int32_t contLen, void *ahandle) {
 
 static void mgmtInitShowMsgFp() {
   mgmtGetMetaFp = (GetMateFp *)malloc(TSDB_MGMT_TABLE_MAX * sizeof(GetMateFp));
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_ACCT] = mgmtGetAcctMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_USER] = mgmtGetUserMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_DB] = mgmtGetDbMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_TABLE] = mgmtGetTableMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_DNODE] = mgmtGetDnodeMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_MNODE] = mgmtGetMnodeMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_VGROUP] = mgmtGetVgroupMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_METRIC] = mgmtGetSuperTableMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_MODULE] = mgmtGetModuleMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_ACCT]    = mgmtGetAcctMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_USER]    = mgmtGetUserMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_DB]      = mgmtGetDbMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_TABLE]   = mgmtGetShowTableMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_DNODE]   = mgmtGetDnodeMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_MNODE]   = mgmtGetMnodeMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_VGROUP]  = mgmtGetVgroupMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_METRIC]  = mgmtGetShowSuperTableMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_MODULE]  = mgmtGetModuleMeta;
   mgmtGetMetaFp[TSDB_MGMT_TABLE_QUERIES] = mgmtGetQueryMeta;
   mgmtGetMetaFp[TSDB_MGMT_TABLE_STREAMS] = mgmtGetStreamMeta;
   mgmtGetMetaFp[TSDB_MGMT_TABLE_CONFIGS] = mgmtGetConfigMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_CONNS] = mgmtGetConnsMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_SCORES] = mgmtGetScoresMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_GRANTS] = mgmtGetGrantsMeta;
-  mgmtGetMetaFp[TSDB_MGMT_TABLE_VNODES] = mgmtGetVnodeMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_CONNS]   = mgmtGetConnsMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_SCORES]  = mgmtGetScoresMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_GRANTS]  = mgmtGetGrantsMeta;
+  mgmtGetMetaFp[TSDB_MGMT_TABLE_VNODES]  = mgmtGetVnodeMeta;
 
   mgmtRetrieveFp = (RetrieveMetaFp *)malloc(TSDB_MGMT_TABLE_MAX * sizeof(RetrieveMetaFp));
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_ACCT] = mgmtRetrieveAccts;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_USER] = mgmtRetrieveUsers;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_DB] = mgmtRetrieveDbs;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_TABLE] = mgmtRetrieveTables;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_DNODE] = mgmtRetrieveDnodes;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_MNODE] = mgmtRetrieveMnodes;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_VGROUP] = mgmtRetrieveVgroups;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_METRIC] = mgmtRetrieveSuperTables;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_MODULE] = mgmtRetrieveModules;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_ACCT]    = mgmtRetrieveAccts;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_USER]    = mgmtRetrieveUsers;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_DB]      = mgmtRetrieveDbs;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_TABLE]   = mgmtRetrieveShowTables;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_DNODE]   = mgmtRetrieveDnodes;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_MNODE]   = mgmtRetrieveMnodes;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_VGROUP]  = mgmtRetrieveVgroups;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_METRIC]  = mgmtRetrieveShowSuperTables;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_MODULE]  = mgmtRetrieveModules;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_QUERIES] = mgmtRetrieveQueries;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_STREAMS] = mgmtRetrieveStreams;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_CONFIGS] = mgmtRetrieveConfigs;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_CONNS] = mgmtRetrieveConns;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_SCORES] = mgmtRetrieveScores;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_GRANTS] = mgmtRetrieveGrants;
-  mgmtRetrieveFp[TSDB_MGMT_TABLE_VNODES] = mgmtRetrieveVnodes;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_CONNS]   = mgmtRetrieveConns;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_SCORES]  = mgmtRetrieveScores;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_GRANTS]  = mgmtRetrieveGrants;
+  mgmtRetrieveFp[TSDB_MGMT_TABLE_VNODES]  = mgmtRetrieveVnodes;
 }
 
 int32_t mgmtProcessShowMsg(void *pCont, int32_t contLen, void *ahandle) {
@@ -1084,9 +817,9 @@ int32_t mgmtProcessDropTableMsg(void *pCont, int32_t contLen, void *ahandle) {
   } else {
     SDbObj *pDb = mgmtGetDb(pDrop->db);
     if (pDb) {
-      code = mgmtDropTable(pDb, pDrop->meterId, pDrop->igNotExists);
+      code = mgmtDropTable(pDb, pDrop->tableId, pDrop->igNotExists);
       if (code == TSDB_CODE_SUCCESS) {
-        mTrace("table:%s is dropped by user:%s", pDrop->meterId, pUser->user);
+        mTrace("table:%s is dropped by user:%s", pDrop->tableId, pUser->user);
       }
     } else {
       code = TSDB_CODE_DB_NOT_SELECTED;
@@ -1310,14 +1043,14 @@ connect_over:
  * check if we need to add mgmtProcessMeterMetaMsg into tranQueue, which will be executed one-by-one.
  */
 static bool mgmtCheckMeterMetaMsgType(void *pMsg) {
-  SMeterInfoMsg *pInfo = (SMeterInfoMsg *) pMsg;
+  STableInfoMsg *pInfo = (STableInfoMsg *) pMsg;
   int16_t autoCreate = htons(pInfo->createFlag);
-  STableInfo *pTable = mgmtGetTable(pInfo->meterId);
+  STableInfo *pTable = mgmtGetTable(pInfo->tableId);
 
   // If table does not exists and autoCreate flag is set, we add the handler into task queue
   bool addIntoTranQueue = (pTable == NULL && autoCreate == 1);
   if (addIntoTranQueue) {
-    mTrace("table:%s auto created task added", pInfo->meterId);
+    mTrace("table:%s auto created task added", pInfo->tableId);
   }
 
   return addIntoTranQueue;
@@ -1380,10 +1113,10 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_STREAM]      = mgmtProcessKillStreamMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_CONNECTION]  = mgmtProcessKillConnectionMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_SHOW]             = mgmtProcessShowMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_RETRIEVE]   = mgmtProcessRetrieveMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_RETRIEVE]         = mgmtProcessRetrieveMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_TABLE_META]       = mgmtProcessMeterMetaMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_STABLE_META]      = mgmtProcessMetricMetaMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_MULTI_TABLE_META] = mgmtProcessMultiMeterMetaMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_STABLE_META]      = mgmtProcessUnSupportMsg;
 }
 
 static int32_t mgmtCheckRedirectMsgImp(void *pConn) {

@@ -357,8 +357,8 @@ int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
   return 0;
 }
 
-SNormalTableObj* mgmtGetNormalTable(char *tableId) {
-  return (SNormalTableObj *)sdbGetRow(tsNormalTableSdb, tableId);
+void* mgmtGetNormalTable(char *tableId) {
+  return sdbGetRow(tsNormalTableSdb, tableId);
 }
 
 static int32_t mgmtFindNormalTableColumnIndex(SNormalTableObj *pTable, char *colName) {
@@ -442,3 +442,45 @@ int32_t mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *colName) 
 
   return TSDB_CODE_SUCCESS;
 }
+
+static int32_t mgmtSetSchemaFromNormalTable(SSchema *pSchema, SNormalTableObj *pTable) {
+  int32_t numOfCols = pTable->numOfColumns;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    strcpy(pSchema->name, pTable->schema[i].name);
+    pSchema->type  = pTable->schema[i].type;
+    pSchema->bytes = htons(pTable->schema[i].bytes);
+    pSchema->colId = htons(pTable->schema[i].colId);
+    pSchema++;
+  }
+
+  return numOfCols * sizeof(SSchema);
+}
+
+int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp) {
+  pMeta->uid          = htobe64(pTable->uid);
+  pMeta->sid          = htonl(pTable->sid);
+  pMeta->vgid         = htonl(pTable->vgId);
+  pMeta->sversion     = htons(pTable->sversion);
+  pMeta->precision    = pDb->cfg.precision;
+  pMeta->numOfTags    = 0;
+  pMeta->numOfColumns = htons(pTable->numOfColumns);
+  pMeta->tableType    = pTable->type;
+  pMeta->contLen      = sizeof(SMeterMeta) + mgmtSetSchemaFromNormalTable(pMeta->schema, pTable);
+
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
+    return TSDB_CODE_INVALID_TABLE;
+  }
+  for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
+    if (usePublicIp) {
+      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].publicIp;
+      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    } else {
+      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].ip;
+      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+

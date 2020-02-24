@@ -1544,7 +1544,7 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
       continue;
     }
 
-    strncpy(pMeterMetaInfo->name, pDataBlock->meterId, TSDB_TABLE_ID_LEN);
+    strncpy(pMeterMetaInfo->name, pDataBlock->tableId, TSDB_TABLE_ID_LEN);
     memset(pDataBlock->pData, 0, pDataBlock->nAllocSize);
 
     int32_t ret = tscGetMeterMeta(pSql, pMeterMetaInfo);

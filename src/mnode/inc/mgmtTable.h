@@ -28,20 +28,18 @@ extern "C" {
 int32_t     mgmtInitTables();
 STableInfo* mgmtGetTable(char *tableId);
 STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid);
+int32_t     mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, SMeterMeta *pMeta, bool usePublicIp);
 
 int32_t  mgmtRetrieveMetricMeta(void *pConn, char **pStart, SSuperTableMetaMsg *pInfo);
 int32_t  mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate);
 int32_t  mgmtDropTable(SDbObj *pDb, char *meterId, int32_t ignore);
 int32_t  mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter);
-int32_t  mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
-int32_t  mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+int32_t  mgmtGetShowTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
+int32_t  mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 void     mgmtCleanUpMeters();
 
 void    mgmtAddTableIntoSuperTable(SSuperTableObj *pStable);
 void    mgmtRemoveTableFromSuperTable(SSuperTableObj *pStable);
-int32_t mgmtGetSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
-int32_t mgmtRetrieveSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-
 
 
 #ifdef __cplusplus

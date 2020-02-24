@@ -277,11 +277,11 @@ typedef struct {
   int16_t   numOfColumns;
   int16_t   sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
   int16_t   reserved[16];
-  SSchema schema[];
+  SSchema   schema[];
 } SCreateTableMsg;
 
 typedef struct {
-  char   meterId[TSDB_TABLE_ID_LEN];
+  char   tableId[TSDB_TABLE_ID_LEN];
   char   db[TSDB_DB_NAME_LEN];
   int8_t igNotExists;
 } SDropTableMsg;
@@ -348,7 +348,7 @@ typedef struct {
   short    vnode;
   int32_t  sid;
   uint64_t uid;
-  char     meterId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_ID_LEN];
 } SDRemoveTableMsg;
 
 typedef struct {
@@ -615,7 +615,7 @@ typedef struct {
 typedef struct {
   uint32_t destId;
   uint32_t destIp;
-  char     meterId[TSDB_UNI_LEN];
+  char     tableId[TSDB_UNI_LEN];
   char     empty[3];
   uint8_t  msgType;
   int32_t  msgLen;
@@ -647,20 +647,21 @@ typedef struct {
 } SVPeersMsg;
 
 typedef struct {
-  char  meterId[TSDB_TABLE_ID_LEN];
-  short createFlag;
-  char  tags[];
-} SMeterInfoMsg;
+  char    tableId[TSDB_TABLE_ID_LEN];
+  char    db[TSDB_DB_NAME_LEN];
+  int16_t createFlag;
+  char    tags[];
+} STableInfoMsg;
 
 typedef struct {
-  int32_t numOfMeters;
-  char    meterId[];
-} SMultiMeterInfoMsg;
+  int32_t numOfTables;
+  char    tableIds[];
+} SMultiTableInfoMsg;
 
 typedef struct {
   int16_t elemLen;
 
-  char    meterId[TSDB_TABLE_ID_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN];
   int16_t orderIndex;
   int16_t orderType;  // used in group by xx order by xxx
 
@@ -701,26 +702,26 @@ typedef struct {
 } SMetricMeta;
 
 typedef struct SMeterMeta {
+  char    tableId[TSDB_TABLE_ID_LEN];  // note: This field must be at the front
+  int32_t contLen;
   uint8_t numOfTags : 6;
   uint8_t precision : 2;
   uint8_t tableType : 4;
   uint8_t index : 4;  // used locally
-
   int16_t numOfColumns;
-
   int16_t rowSize;  // used locally, calculated in client
   int16_t sversion;
-
   SVPeerDesc vpeerDesc[TSDB_VNODES_SUPPORT];
-
   int32_t  sid;
   int32_t  vgid;
   uint64_t uid;
+  SSchema  schema[];
 } SMeterMeta;
 
 typedef struct SMultiMeterMeta {
-  char       meterId[TSDB_TABLE_ID_LEN];  // note: This field must be at the front
-  SMeterMeta meta;
+  int32_t    numOfTables;
+  int32_t    contLen;
+  SMeterMeta metas[];
 } SMultiMeterMeta;
 
 typedef struct {

@@ -23,15 +23,19 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include "mnode.h"
-  
-int32_t          mgmtInitNormalTables();
-void             mgmtCleanUpNormalTables();
-int32_t          mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
-int32_t          mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable);
-int32_t          mgmtAddNormalTableColumn(SNormalTableObj *pTable, SSchema schema[], int32_t ncols);
-int32_t          mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *colName);
-SNormalTableObj* mgmtGetNormalTable(char *tableId);
-int8_t *         mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable);
+
+int32_t mgmtInitNormalTables();
+void    mgmtCleanUpNormalTables();
+
+void *  mgmtGetNormalTable(char *tableId);
+
+int32_t mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
+int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable);
+int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SSchema schema[], int32_t ncols);
+int32_t mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *colName);
+int8_t *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable);
+
+int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp);
 
 #ifdef __cplusplus
 }

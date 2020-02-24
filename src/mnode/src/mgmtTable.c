@@ -99,6 +99,24 @@ STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
   return NULL;
 }
 
+int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, SMeterMeta *pMeta, bool usePublicIp) {
+  if (pTable->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
+    mgmtGetChildTableMeta(pDb, (SChildTableObj *) pTable, pMeta, usePublicIp);
+  } else if (pTable->type == TSDB_TABLE_TYPE_STREAM_TABLE) {
+    mgmtGetStreamTableMeta(pDb, (SStreamTableObj *) pTable, pMeta, usePublicIp);
+  } else if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+    mgmtGetNormalTableMeta(pDb, (SNormalTableObj *) pTable, pMeta, usePublicIp);
+  } else if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+    mgmtGetSuperTableMeta(pDb, (SSuperTableObj *) pTable, pMeta, usePublicIp);
+  } else {
+    mTrace("%s, uid:%" PRIu64 " table meta retrieve failed, invalid type", pTable->tableId, pTable->uid);
+    return TSDB_CODE_INVALID_TABLE;
+  }
+
+  mTrace("%s, uid:%" PRIu64 " table meta is retrieved", pTable->tableId, pTable->uid);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
   STableInfo *pTable = mgmtGetTable(pCreate->tableId);
   if (pTable != NULL) {
@@ -229,7 +247,7 @@ void mgmtCleanUpMeters() {
   mgmtCleanUpSuperTables();
 }
 
-int32_t mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetShowTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
 //  int32_t cols = 0;
 //
 //  SDbObj *pDb = NULL;
@@ -292,7 +310,7 @@ static void mgmtVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_
   }
 }
 
-int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows  = 0;
 //  int32_t numOfRead  = 0;
 //  int32_t cols       = 0;
