@@ -67,7 +67,10 @@ int32_t mgmtInitDbs() {
 
   mgmtDbActionInit();
 
-  tsDbSdb = sdbOpenTable(tsMaxDbs, sizeof(SDbObj), "db", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtDbAction);
+  SDbObj tObj;
+  tsDbUpdateSize = tObj.updateEnd - (char *)&tObj;
+
+  tsDbSdb = sdbOpenTable(tsMaxDbs, tsDbUpdateSize, "db", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtDbAction);
   if (tsDbSdb == NULL) {
     mError("failed to init db data");
     return -1;
@@ -93,9 +96,6 @@ int32_t mgmtInitDbs() {
       mError("db:%s acct:%s info not exist in sdb", pDb->name, pDb->cfg.acct);
     }
   }
-
-  SDbObj tObj;
-  tsDbUpdateSize = tObj.updateEnd - (char *)&tObj;
 
   mTrace("db data is initialized");
   return 0;
@@ -823,12 +823,11 @@ void *mgmtDbActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
 
 void *mgmtDbActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
   SDbObj  *pDb  = (SDbObj *) row;
-  int32_t tsize = pDb->updateEnd - (char *) pDb;
-  if (size < tsize) {
+  if (size < tsDbUpdateSize) {
     *ssize = -1;
   } else {
-    memcpy(str, pDb, tsize);
-    *ssize = tsize;
+    memcpy(str, pDb, tsDbUpdateSize);
+    *ssize = tsDbUpdateSize;
   }
 
   return NULL;
@@ -838,16 +837,14 @@ void *mgmtDbActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
   if (pDb == NULL) return NULL;
   memset(pDb, 0, sizeof(SDbObj));
 
-  int32_t tsize = pDb->updateEnd - (char *)pDb;
-  memcpy(pDb, str, tsize);
+  memcpy(pDb, str, tsDbUpdateSize);
 
   return (void *)pDb;
 }
 
 void *mgmtDbActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   SDbObj  *pDb  = (SDbObj *) row;
-  int32_t tsize = pDb->updateEnd - (char *) pDb;
-  memcpy(pDb, str, tsize);
+  memcpy(pDb, str, tsDbUpdateSize);
 
   return NULL;
 }

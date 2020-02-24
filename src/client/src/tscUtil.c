@@ -801,6 +801,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
     pCmd->payload = (char*)malloc(size);
     if (pCmd->payload == NULL) return TSDB_CODE_CLI_OUT_OF_MEMORY;
     pCmd->allocSize = size;
+    memset(pCmd->payload, 0, pCmd->allocSize);
   } else {
     if (pCmd->allocSize < size) {
       char* b = realloc(pCmd->payload, size);
@@ -810,7 +811,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
     }
   }
 
-  memset(pCmd->payload, 0, pCmd->allocSize);
+  //memset(pCmd->payload, 0, pCmd->allocSize);
   assert(pCmd->allocSize >= size);
 
   return TSDB_CODE_SUCCESS;

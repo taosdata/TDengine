@@ -82,10 +82,11 @@ struct arguments args = {
 int main(int argc, char* argv[]) {
   /*setlocale(LC_ALL, "en_US.UTF-8"); */
   //
-  if (argc != 1) {
+  if (argc == 1)
+  {
     printf("=== this a test for debug usage\n");
     void *taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
-    taos_query(taos, "drop user a");
+    taos_query(taos, "create database db");
     while (1) {
       sleep(1000);
     }

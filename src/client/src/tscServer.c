@@ -40,7 +40,6 @@ SRpcIpSet  tscDnodeIpSet;
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
 int (*tscProcessMsgRsp[TSDB_SQL_MAX])(SSqlObj *pSql);
-char *doBuildMsgHeader(SSqlObj *pSql, char **pStart);
 void (*tscUpdateVnodeMsg[TSDB_SQL_MAX])(SSqlObj *pSql, char *buf);
 void tscProcessActivityTimer(void *handle, void *tmrId);
 int tscKeepConn[TSDB_SQL_MAX] = {0};
@@ -1651,41 +1650,34 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildCreateDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SCreateDbMsg *pCreateDbMsg;
-  char *        pMsg, *pStart;
-
   SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SCreateDbMsg);
+  pCmd->msgType = TSDB_MSG_TYPE_CREATE_DB;
 
-  pMsg = doBuildMsgHeader(pSql, &pStart);
-  pCreateDbMsg = (SCreateDbMsg *)pMsg;
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
+
+  SCreateDbMsg *pCreateDbMsg = (SCreateDbMsg*)pCmd->payload;
 
   assert(pCmd->numOfClause == 1);
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  
   strncpy(pCreateDbMsg->db, pMeterMetaInfo->name, tListLen(pCreateDbMsg->db));
-  pMsg += sizeof(SCreateDbMsg);
-
-  pCmd->payloadLen = pMsg - pStart;
-  pCmd->msgType = TSDB_MSG_TYPE_CREATE_DB;
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SCreateDnodeMsg *pCreate;
-
-  char *pMsg, *pStart;
-
   SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SCreateDnodeMsg);
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
 
-  pMsg = doBuildMsgHeader(pSql, &pStart);
-
-  pCreate = (SCreateDnodeMsg *)pMsg;
+  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *)pCmd->payload;
   strncpy(pCreate->ip, pInfo->pDCLInfo->a[0].z, pInfo->pDCLInfo->a[0].n);
-
-  pMsg += sizeof(SCreateDnodeMsg);
-
-  pCmd->payloadLen = pMsg - pStart;
   pCmd->msgType = TSDB_MSG_TYPE_CREATE_DNODE;
 
   return TSDB_CODE_SUCCESS;
@@ -1737,7 +1729,6 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  STscObj *pObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCreateUserMsg);
 
@@ -1770,107 +1761,71 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildCfgDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  char *   pStart = NULL;
   SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SCfgDnodeMsg);
 
-  char *pMsg = doBuildMsgHeader(pSql, &pStart);
-  pMsg += sizeof(SCfgDnodeMsg);
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
 
-  pCmd->payloadLen = pMsg - pStart;
   pCmd->msgType = TSDB_MSG_TYPE_DNODE_CFG;
-
   return TSDB_CODE_SUCCESS;
 }
 
-char *doBuildMsgHeader(SSqlObj *pSql, char **pStart) {
-  SSqlCmd *pCmd = &pSql->cmd;
-  STscObj *pObj = pSql->pTscObj;
-
-  char *pMsg = pCmd->payload + tsRpcHeadSize;
-  *pStart = pMsg;
-
-  SMgmtHead *pMgmt = (SMgmtHead *)pMsg;
-  strcpy(pMgmt->db, pObj->db);
-
-  pMsg += sizeof(SMgmtHead);
-
-  return pMsg;
-}
-
 int32_t tscBuildDropDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SDropDbMsg *pDropDbMsg;
-  char *      pMsg, *pStart;
-
   SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SDropDbMsg);
 
-  pMsg = doBuildMsgHeader(pSql, &pStart);
-  pDropDbMsg = (SDropDbMsg *)pMsg;
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
+
+  SDropDbMsg *pDropDbMsg = (SDropDbMsg*)pCmd->payload;
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
   strncpy(pDropDbMsg->db, pMeterMetaInfo->name, tListLen(pDropDbMsg->db));
   pDropDbMsg->ignoreNotExists = pInfo->pDCLInfo->existsCheck ? 1 : 0;
 
-  pMsg += sizeof(SDropDbMsg);
-
-  pCmd->payloadLen = pMsg - pStart;
   pCmd->msgType = TSDB_MSG_TYPE_DROP_DB;
-
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscBuildDropTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SDropTableMsg *pDropTableMsg;
-  char *         pMsg, *pStart;
-  int            msgLen = 0;
-
   SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SDropTableMsg);
 
-  //pMsg = doBuildMsgHeader(pSql, &pStart);
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
+
+  SDropTableMsg *pDropTableMsg = (SDropTableMsg*)pCmd->payload;
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-
-  pMsg   = pCmd->payload + tsRpcHeadSize;
-  pStart = pMsg;
-
-  SMgmtHead *pMgmt = (SMgmtHead *)pMsg;
-  tscGetDBInfoFromMeterId(pMeterMetaInfo->name, pMgmt->db);
-  pMsg += sizeof(SMgmtHead);
-
-  pDropTableMsg = (SDropTableMsg *)pMsg;
-
   strcpy(pDropTableMsg->tableId, pMeterMetaInfo->name);
 
-  pDropTableMsg->igNotExists = pInfo->pDCLInfo->existsCheck ? 1 : 0;
-  pMsg += sizeof(SDropTableMsg);
-
-  msgLen = pMsg - pStart;
-  pCmd->payloadLen = msgLen;
   pCmd->msgType = TSDB_MSG_TYPE_DROP_TABLE;
-
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SDropDnodeMsg *pDrop;
-  char *         pMsg, *pStart;
+  SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SDropDnodeMsg);
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
 
-  SSqlCmd *       pCmd = &pSql->cmd;
+  SDropDnodeMsg *pDrop = (SDropDnodeMsg *)pCmd->payload;
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-
-  pMsg = doBuildMsgHeader(pSql, &pStart);
-  pDrop = (SDropDnodeMsg *)pMsg;
-
   strcpy(pDrop->ip, pMeterMetaInfo->name);
-
-  pMsg += sizeof(SDropDnodeMsg);
-
-  pCmd->payloadLen = pMsg - pStart;
   pCmd->msgType = TSDB_MSG_TYPE_DROP_DNODE;
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscBuildDropAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  STscObj *pObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SDropUserMsg);
   pCmd->msgType = TSDB_MSG_TYPE_DROP_USER;
@@ -1888,20 +1843,17 @@ int32_t tscBuildDropAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildUseDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SUseDbMsg *pUseDbMsg;
-  char *     pMsg, *pStart;
-
   SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SUseDbMsg);
 
-  pMsg = doBuildMsgHeader(pSql, &pStart);
-  pUseDbMsg = (SUseDbMsg *)pMsg;
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
 
+  SUseDbMsg *pUseDbMsg = (SUseDbMsg*)pCmd->payload;
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
   strcpy(pUseDbMsg->db, pMeterMetaInfo->name);
-
-  pMsg += sizeof(SUseDbMsg);
-
-  pCmd->payloadLen = pMsg - pStart;
   pCmd->msgType = TSDB_MSG_TYPE_USE_DB;
 
   return TSDB_CODE_SUCCESS;
@@ -1950,20 +1902,16 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int32_t tscBuildKillMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SKillQueryMsg *pKill;
-  char *      pMsg, *pStart;
-
   SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SKillQueryMsg);
 
-  pMsg = doBuildMsgHeader(pSql, &pStart);
-  pKill = (SKillQueryMsg *)pMsg;
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
 
+  SKillQueryMsg *pKill = (SKillQueryMsg*)pCmd->payload;
   strncpy(pKill->queryId, pInfo->pDCLInfo->ip.z, pInfo->pDCLInfo->ip.n);
-
-  pMsg += sizeof(SKillQueryMsg);
-
-  pCmd->payloadLen = pMsg - pStart;
-
   switch (pCmd->command) {
     case TSDB_SQL_KILL_QUERY:
       pCmd->msgType = TSDB_MSG_TYPE_KILL_QUERY;
@@ -1998,12 +1946,9 @@ int tscEstimateCreateTableMsgLength(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SCreateTableMsg *pCreateTableMsg;
-  char *           pMsg, *pStart;
   int              msgLen = 0;
   SSchema *        pSchema;
   int              size = 0;
-
   SSqlCmd *pCmd = &pSql->cmd;
 
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
@@ -2016,18 +1961,12 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  pMsg = pCmd->payload + tsRpcHeadSize;
-  pStart = pMsg;
 
-  SMgmtHead *pMgmt = (SMgmtHead *)pMsg;
+  SCreateTableMsg *pCreateTableMsg = (SCreateTableMsg *)pCmd->payload;
+  strcpy(pCreateTableMsg->tableId, pMeterMetaInfo->name);
 
   // use dbinfo from table id without modifying current db info
-  tscGetDBInfoFromMeterId(pMeterMetaInfo->name, pMgmt->db);
-
-  pMsg += sizeof(SMgmtHead);
-
-  pCreateTableMsg = (SCreateTableMsg *)pMsg;
-  strcpy(pCreateTableMsg->tableId, pMeterMetaInfo->name);
+  tscGetDBInfoFromMeterId(pMeterMetaInfo->name, pCreateTableMsg->db);
 
   SCreateTableSQL *pCreateTable = pInfo->pCreateTableInfo;
 
@@ -2037,7 +1976,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCreateTableMsg->numOfTags = htons(pCmd->count);
 
   pCreateTableMsg->sqlLen = 0;
-  pMsg = (char *)pCreateTableMsg->schema;
+  char *pMsg = (char *)pCreateTableMsg->schema;
 
   int8_t type = pInfo->pCreateTableInfo->type;
   if (type == TSQL_CREATE_TABLE_FROM_STABLE) {  // create by using super table, tags value
@@ -2068,7 +2007,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   tscClearFieldInfo(&pQueryInfo->fieldsInfo);
 
-  msgLen = pMsg - pStart;
+  msgLen = pMsg - (char*)pCreateTableMsg;
   pCmd->payloadLen = msgLen;
   pCmd->msgType = TSDB_MSG_TYPE_CREATE_TABLE;
 
@@ -2099,16 +2038,12 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return -1;
   }
 
-  pMsg = pCmd->payload + tsRpcHeadSize;
-  pStart = pMsg;
+  pAlterTableMsg = (SAlterTableMsg *)pCmd->payload;
 
-  SMgmtHead *pMgmt = (SMgmtHead *)pMsg;
-  tscGetDBInfoFromMeterId(pMeterMetaInfo->name, pMgmt->db);
-  pMsg += sizeof(SMgmtHead);
+  tscGetDBInfoFromMeterId(pMeterMetaInfo->name, pAlterTableMsg->db);
 
   SAlterTableSQL *pAlterInfo = pInfo->pAlterInfo;
 
-  pAlterTableMsg = (SAlterTableMsg *)pMsg;
   strcpy(pAlterTableMsg->tableId, pMeterMetaInfo->name);
   pAlterTableMsg->type = htons(pAlterInfo->type);
 
@@ -2127,7 +2062,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pMsg = (char *)pSchema;
 
-  msgLen = pMsg - pStart;
+  msgLen = pMsg - (char*)pAlterTableMsg;
   pCmd->payloadLen = msgLen;
   pCmd->msgType = TSDB_MSG_TYPE_ALTER_TABLE;
 
@@ -2137,35 +2072,23 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SAlterDbMsg *pAlterDbMsg;
-  char *       pMsg, *pStart;
-  int          msgLen = 0;
-
-  SSqlCmd *       pCmd = &pSql->cmd;
-  STscObj *       pObj = pSql->pTscObj;
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-
-  pStart = pCmd->payload + tsRpcHeadSize;
-  pMsg = pStart;
-
-  SMgmtHead *pMgmt = (SMgmtHead *)pMsg;
-  strcpy(pMgmt->db, pObj->db);
-  pMsg += sizeof(SMgmtHead);
-
-  pAlterDbMsg = (SAlterDbMsg *)pMsg;
-  strcpy(pAlterDbMsg->db, pMeterMetaInfo->name);
-
-  pMsg += sizeof(SAlterDbMsg);
-
-  msgLen = pMsg - pStart;
-  pCmd->payloadLen = msgLen;
+  SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SAlterDbMsg);
   pCmd->msgType = TSDB_MSG_TYPE_ALTER_DB;
+
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
+  }
+
+  SAlterDbMsg *pAlterDbMsg = (SAlterDbMsg*)pCmd->payload;
+  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  strcpy(pAlterDbMsg->db, pMeterMetaInfo->name);
 
   return TSDB_CODE_SUCCESS;
 }
 
 int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  STscObj *pObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->msgType = TSDB_MSG_TYPE_RETRIEVE;
   pCmd->payloadLen = sizeof(SRetrieveTableMsg);
@@ -2316,7 +2239,7 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int tscBuildMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableInfoMsg *pInfoMsg;
-  char *         pMsg, *pStart;
+  char *         pMsg;
   int            msgLen = 0;
 
   char *tmpData = 0;
@@ -2335,25 +2258,18 @@ int tscBuildMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
-  pMsg = pCmd->payload + tsRpcHeadSize;
-  pStart = pMsg;
-
-  SMgmtHead *pMgmt = (SMgmtHead *)pMsg;
-  tscGetDBInfoFromMeterId(pMeterMetaInfo->name, pMgmt->db);
-
-  pMsg += sizeof(SMgmtHead);
-
-  pInfoMsg = (STableInfoMsg *)pMsg;
+  pInfoMsg = (STableInfoMsg *)pCmd->payload;
   strcpy(pInfoMsg->tableId, pMeterMetaInfo->name);
   pInfoMsg->createFlag = htons(pSql->cmd.createOnDemand ? 1 : 0);
-  pMsg += sizeof(STableInfoMsg);
+
+  pMsg = (char*)pInfoMsg + sizeof(STableInfoMsg);
 
   if (pSql->cmd.createOnDemand) {
     memcpy(pInfoMsg->tags, tmpData, sizeof(STagData));
     pMsg += sizeof(STagData);
   }
 
-  msgLen = pMsg - pStart;
+  msgLen = pMsg - (char*)pInfoMsg;
   pCmd->payloadLen = msgLen;
   pCmd->msgType = TSDB_MSG_TYPE_TABLE_META;
 
@@ -3429,9 +3345,9 @@ int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
 }
 
 void tscInitMsgs() {
-  tscBuildMsg[TSDB_SQL_SELECT] = tscBuildQueryMsg;
-  tscBuildMsg[TSDB_SQL_INSERT] = tscBuildSubmitMsg;
-  tscBuildMsg[TSDB_SQL_FETCH] = tscBuildRetrieveMsg;
+  tscBuildMsg[TSDB_SQL_SELECT] = tscBuildQueryMsg;//
+  tscBuildMsg[TSDB_SQL_INSERT] = tscBuildSubmitMsg;//
+  tscBuildMsg[TSDB_SQL_FETCH] = tscBuildRetrieveMsg;//
 
   tscBuildMsg[TSDB_SQL_CREATE_DB] = tscBuildCreateDbMsg;
   tscBuildMsg[TSDB_SQL_CREATE_USER] = tscBuildUserMsg;
