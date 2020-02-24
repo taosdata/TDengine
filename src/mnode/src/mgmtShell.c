@@ -944,7 +944,7 @@ int32_t mgmtProcessHeartBeatMsg(void *pCont, int32_t contLen, void *ahandle) {
   SRpcConnInfo connInfo;
   rpcGetConnInfo(ahandle, &connInfo);
 
-  pHBRsp->ipList.index = 0;
+  pHBRsp->ipList.inUse = 0;
   pHBRsp->ipList.port = htons(tsMgmtShellPort);
   pHBRsp->ipList.numOfIps = 0;
   if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
@@ -1035,7 +1035,7 @@ static int32_t mgmtProcessConnectMsg(void *pCont, int32_t contLen, void *thandle
   strcpy(pConnectRsp->serverVersion, version);
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
-  pConnectRsp->ipList.index = 0;
+  pConnectRsp->ipList.inUse = 0;
   pConnectRsp->ipList.port = htons(tsMgmtShellPort);
   pConnectRsp->ipList.numOfIps = 0;
   if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {

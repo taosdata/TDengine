@@ -24,6 +24,7 @@
 #include "mgmtTable.h"
 
 void *tsUserSdb = NULL;
+static int32_t tsUserUpdateSize = 0;
 
 void *(*mgmtUserActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
 void *mgmtUserActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
@@ -59,7 +60,10 @@ int32_t mgmtInitUsers() {
 
   mgmtUserActionInit();
 
-  tsUserSdb = sdbOpenTable(tsMaxUsers, sizeof(SUserObj), "user", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtUserAction);
+  SUserObj tObj;
+  tsUserUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
+
+  tsUserSdb = sdbOpenTable(tsMaxUsers, tsUserUpdateSize, "user", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtUserAction);
   if (tsUserSdb == NULL) {
     mError("failed to init user data");
     return -1;
@@ -265,12 +269,11 @@ void *mgmtUserActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
 void *mgmtUserActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *) row;
 
-  int32_t tsize = pUser->updateEnd - (int8_t *) pUser;
-  if (size < tsize) {
+  if (size < tsUserUpdateSize) {
     *ssize = -1;
   } else {
-    memcpy(str, pUser, tsize);
-    *ssize = tsize;
+    memcpy(str, pUser, tsUserUpdateSize);
+    *ssize = tsUserUpdateSize;
   }
 
   return NULL;
@@ -281,8 +284,7 @@ void *mgmtUserActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
   if (pUser == NULL) return NULL;
   memset(pUser, 0, sizeof(SUserObj));
 
-  int32_t tsize = pUser->updateEnd - (int8_t *) pUser;
-  memcpy(pUser, str, tsize);
+  memcpy(pUser, str, tsUserUpdateSize);
 
   return (void *)pUser;
 }
@@ -290,8 +292,7 @@ void *mgmtUserActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
 void *mgmtUserActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *)row;
 
-  int32_t tsize = pUser->updateEnd - (int8_t *) pUser;
-  memcpy(pUser, str, tsize);
+  memcpy(pUser, str, tsUserUpdateSize);
 
   return NULL;
 }

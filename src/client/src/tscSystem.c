@@ -150,7 +150,7 @@ void taos_init_imp() {
     taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
   }
 
-  tscMgmtIpList.index = 0;
+  tscMgmtIpList.inUse = 0;
   tscMgmtIpList.port = tsMgmtShellPort;
   tscMgmtIpList.numOfIps = 1;
   tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);

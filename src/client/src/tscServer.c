@@ -62,7 +62,7 @@ void tscPrintMgmtIp() {
 
 void tscSetMgmtIpListFromCluster(SRpcIpSet *pIpList) {
   tscMgmtIpList.numOfIps = htons(pIpList->numOfIps);
-  tscMgmtIpList.index = htons(pIpList->index);
+  tscMgmtIpList.inUse = htons(pIpList->inUse);
   tscMgmtIpList.port = htons(pIpList->port);
   for (int32_t i = 0; i <tscMgmtIpList.numOfIps; ++i) {
     tscMgmtIpList.ip[i] = pIpList->ip[i];
@@ -72,7 +72,7 @@ void tscSetMgmtIpListFromCluster(SRpcIpSet *pIpList) {
 void tscSetMgmtIpListFromEdge() {
   if (tscMgmtIpList.numOfIps != 1) {
     tscMgmtIpList.numOfIps = 1;
-    tscMgmtIpList.index = 0;
+    tscMgmtIpList.inUse = 0;
     tscMgmtIpList.port = tsMgmtShellPort;
     tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
     tscTrace("edge mgmt IP list:");

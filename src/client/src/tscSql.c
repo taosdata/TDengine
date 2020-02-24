@@ -65,7 +65,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
   }
 
   if (ip && ip[0]) {
-    tscMgmtIpList.index = 0;
+    tscMgmtIpList.inUse = 0;
     tscMgmtIpList.port = tsMgmtShellPort;
     tscMgmtIpList.numOfIps = 1;
     tscMgmtIpList.ip[0] = inet_addr(ip);
