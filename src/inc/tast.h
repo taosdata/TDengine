@@ -103,6 +103,8 @@ void tSQLBinaryExprCalcTraverse(tSQLBinaryExpr *pExprs, int32_t numOfRows, char 
 void tSQLBinaryExprTrv(tSQLBinaryExpr *pExprs, int32_t *val, int16_t *ids);
 void tQueryResultClean(tQueryResultset *pRes);
 
+uint8_t getBinaryExprOptr(SSQLToken *pToken);
+
 #ifdef __cplusplus
 }
 #endif

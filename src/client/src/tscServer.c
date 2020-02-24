@@ -901,7 +901,7 @@ int tscLaunchSTableSubqueries(SSqlObj *pSql) {
 
   tExtMemBuffer **  pMemoryBuf = NULL;
   tOrderDescriptor *pDesc = NULL;
-  SColumnModel *       pModel = NULL;
+  SColumnModel *    pModel = NULL;
 
   pRes->qhandle = 1;  // hack the qhandle check
 
@@ -1685,7 +1685,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pQueryMsg->intervalTime = htobe64(pQueryInfo->intervalTime);
   pQueryMsg->intervalTimeUnit = pQueryInfo->intervalTimeUnit;
-  pQueryMsg->slidingTime = htobe64(pQueryInfo->nSlidingTime);
+  pQueryMsg->slidingTime = htobe64(pQueryInfo->slidingTime);
   
   if (pQueryInfo->intervalTime < 0) {
     tscError("%p illegal value of aggregation time interval in query msg: %ld", pSql, pQueryInfo->intervalTime);
@@ -1768,7 +1768,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SSqlFuncExprMsg *pSqlFuncExpr = (SSqlFuncExprMsg *)pMsg;
 
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < tscSqlExprNumOfExprs(pQueryInfo); ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
     if (pExpr->functionId == TSDB_FUNC_ARITHM) {
@@ -1787,7 +1787,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
     pSqlFuncExpr->functionId = htons(pExpr->functionId);
     pSqlFuncExpr->numOfParams = htons(pExpr->numOfParams);
-    pMsg += sizeof(SSqlFuncExprMsg);
+    pMsg += (sizeof(SSqlFuncExprMsg) - TSDB_COL_NAME_LEN);
 
     for (int32_t j = 0; j < pExpr->numOfParams; ++j) {
       pSqlFuncExpr->arg[j].argType = htons((uint16_t)pExpr->param[j].nType);

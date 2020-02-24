@@ -284,7 +284,7 @@ void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows) {
   }
   
   for (int i = 0; i < pCmd->numOfCols; ++i)
-    pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i, pQueryInfo->order) + pRes->bytes[i] * pRes->row;
+    pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pRes->bytes[i] * pRes->row;
   pRes->row++;
 
   (*pSql->fetchFp)(pSql->param, pSql, pSql->res.tsrow);
@@ -298,7 +298,7 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   for (int i = 0; i < pCmd->numOfCols; ++i) {
-    pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i, pQueryInfo->order) + pRes->bytes[i] * pRes->row;
+    pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pRes->bytes[i] * pRes->row;
   }
   
   pRes->row++;

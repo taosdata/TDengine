@@ -1056,7 +1056,7 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
     pExprMsg->functionId = htons(pExprMsg->functionId);
     pExprMsg->numOfParams = htons(pExprMsg->numOfParams);
 
-    pMsg += sizeof(SSqlFuncExprMsg);
+    pMsg += (sizeof(SSqlFuncExprMsg) - TSDB_COL_NAME_LEN);
 
     for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
       pExprMsg->arg[j].argType = htons(pExprMsg->arg[j].argType);

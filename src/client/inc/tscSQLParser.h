@@ -86,14 +86,15 @@ enum _sql_cmd {
   TSDB_SQL_MAX   //48
 };
 
-#define MAX_TOKEN_LEN 30
-
-// token type
 enum {
   TSQL_NODE_TYPE_EXPR = 0x1,
   TSQL_NODE_TYPE_ID = 0x2,
   TSQL_NODE_TYPE_VALUE = 0x4,
 };
+
+#define NON_ARITHMEIC_EXPR 0
+#define NORMAL_ARITHMETIC 1
+#define AGG_ARIGHTMEIC    2
 
 extern char tTokenTypeSwitcher[13];
 

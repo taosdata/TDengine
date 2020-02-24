@@ -417,6 +417,7 @@ typedef struct SColIndexEx {
   int16_t  colIdx;
   int16_t  colIdxInBuf;
   uint16_t flag;         // denote if it is a tag or not
+  char     name[TSDB_COL_NAME_LEN];
 } SColIndexEx;
 
 /* sql function msg, to describe the message to vnode about sql function

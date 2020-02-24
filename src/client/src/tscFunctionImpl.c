@@ -3297,7 +3297,7 @@ static void arithmetic_function(SQLFunctionCtx *pCtx) {
   tSQLBinaryExprCalcTraverse(sas->pExpr->pBinExprInfo.pBinExpr, pCtx->size, pCtx->aOutputBuf, sas, pCtx->order,
                              arithmetic_callback_function);
 
-  pCtx->aOutputBuf += pCtx->outputBytes * pCtx->size/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
+  pCtx->aOutputBuf += pCtx->outputBytes * pCtx->size;
   pCtx->param[1].pz = NULL;
 }
 

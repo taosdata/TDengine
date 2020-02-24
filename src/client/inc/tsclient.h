@@ -31,9 +31,8 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 
-#define TSC_GET_RESPTR_BASE(res, _queryinfo, col, ord)                     \
-  (res->data + tscFieldInfoGetOffset(_queryinfo, col) * res->numOfRows)
-  
+#define TSC_GET_RESPTR_BASE(res, _queryinfo, col) (res->data + ((_queryinfo)->fieldsInfo.pSqlExpr[col]->offset) * res->numOfRows)
+
 // forward declaration
 struct SSqlInfo;
 
@@ -70,13 +69,19 @@ typedef struct SSqlExpr {
   int16_t     interResBytes;  // inter result buffer size
   int16_t     numOfParams;    // argument value of each function
   tVariant    param[3];       // parameters are not more than 3
+  int32_t     offset;         // sub result column value of arithmetic expression.
 } SSqlExpr;
+
+typedef struct SColumnIndex {
+  int16_t tableIndex;
+  int16_t columnIndex;
+} SColumnIndex;
 
 typedef struct SFieldInfo {
   int16_t     numOfOutputCols;  // number of column in result
   int16_t     numOfAlloc;       // allocated size
   TAOS_FIELD *pFields;
-  short *     pOffset;
+//  short *     pOffset;
 
   /*
    * define if this column is belong to the queried result, it may be add by parser to faciliate
@@ -85,7 +90,9 @@ typedef struct SFieldInfo {
    * NOTE: these hidden columns always locate at the end of the output columns
    */
   bool *  pVisibleCols;
-  int32_t numOfHiddenCols;  // the number of column not belongs to the queried result columns
+  int32_t numOfHiddenCols;   // the number of column not belongs to the queried result columns
+  SSqlFunctionExpr** pExpr;  // used for aggregation arithmetic express,such as count(*)+count(*)
+  SSqlExpr** pSqlExpr;
 } SFieldInfo;
 
 typedef struct SSqlExprInfo {
@@ -93,11 +100,6 @@ typedef struct SSqlExprInfo {
   int16_t   numOfExprs;
   SSqlExpr *pExprs;
 } SSqlExprInfo;
-
-typedef struct SColumnIndex {
-  int16_t tableIndex;
-  int16_t columnIndex;
-} SColumnIndex;
 
 typedef struct SColumnBase {
   SColumnIndex       colIndex;
@@ -163,7 +165,7 @@ typedef struct STableDataBlocks {
 
   int32_t  rowSize;  // row size for current table
   uint32_t nAllocSize;
-  uint32_t headerSize;    // header for metadata (submit metadata)
+  uint32_t headerSize;  // header for metadata (submit metadata)
   uint32_t size;
 
   /*
@@ -199,8 +201,8 @@ typedef struct SQueryInfo {
 
   int64_t         etime, stime;
   int64_t         intervalTime;  // aggregation time interval
-  int64_t         nSlidingTime;      // sliding window in mseconds
-  SSqlGroupbyExpr groupbyExpr;       // group by tags info
+  int64_t         slidingTime;   // sliding window in mseconds
+  SSqlGroupbyExpr groupbyExpr;   // group by tags info
 
   SColumnBaseInfo  colList;
   SFieldInfo       fieldsInfo;
@@ -216,9 +218,9 @@ typedef struct SQueryInfo {
   int64_t *        defaultVal;   // default value for interpolation
   char *           msg;          // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;  // limit for current sub clause
-  
+
   // offset value in the original sql expression, NOT sent to virtual node, only applied at client side
-  int64_t          prjOffset;
+  int64_t prjOffset;
 } SQueryInfo;
 
 // data source from sql string or from file
@@ -269,29 +271,29 @@ typedef struct SResRec {
 struct STSBuf;
 
 typedef struct {
-  uint8_t               code;
-  int64_t               numOfRows;   // num of results in current retrieved
-  int64_t               numOfTotal;  // num of total results
-  int64_t               numOfTotalInCurrentClause;  // num of total result in current subclause
-  
-  char *                pRsp;
-  int                   rspType;
-  int                   rspLen;
-  uint64_t              qhandle;
-  int64_t               uid;
-  int64_t               useconds;
-  int64_t               offset;  // offset value from vnode during projection query of stable
-  int                   row;
-  int16_t               numOfnchar;
-  int16_t               precision;
-  int32_t               numOfGroups;
-  SResRec *             pGroupRec;
-  char *                data;
-  short *               bytes;
-  void **               tsrow;
-  char **               buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
+  uint8_t       code;
+  int64_t       numOfRows;                  // num of results in current retrieved
+  int64_t       numOfTotal;                 // num of total results
+  int64_t       numOfTotalInCurrentClause;  // num of total result in current subclause
+  char *        pRsp;
+  int           rspType;
+  int           rspLen;
+  uint64_t      qhandle;
+  int64_t       uid;
+  int64_t       useconds;
+  int64_t       offset;  // offset value from vnode during projection query of stable
+  int           row;
+  int16_t       numOfnchar;
+  int16_t       precision;
+  int32_t       numOfGroups;
+  SResRec *     pGroupRec;
+  char *        data;
+  short *       bytes;
+  void **       tsrow;
+  char **       buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
+  SColumnIndex *pColumnIndex;
+
   struct SLocalReducer *pLocalReducer;
-  SColumnIndex *        pColumnIndex;
 } SSqlRes;
 
 typedef struct _tsc_obj {
@@ -410,13 +412,13 @@ int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
 void tscFreeSqlCmdData(SSqlCmd *pCmd);
-void tscFreeResData(SSqlObj* pSql);
+void tscFreeResData(SSqlObj *pSql);
 
 /**
  * free query result of the sql object
  * @param pObj
  */
-void tscFreeSqlResult(SSqlObj* pSql);
+void tscFreeSqlResult(SSqlObj *pSql);
 
 /**
  * only free part of resources allocated during query.

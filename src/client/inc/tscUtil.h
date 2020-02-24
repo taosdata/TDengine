@@ -128,6 +128,8 @@ void tscFieldInfoSetValFromSchema(SFieldInfo* pFieldInfo, int32_t index, SSchema
 void tscFieldInfoSetValFromField(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* pField);
 void tscFieldInfoSetValue(SFieldInfo* pFieldInfo, int32_t index, int8_t type, const char* name, int16_t bytes);
 void tscFieldInfoUpdateVisible(SFieldInfo* pFieldInfo, int32_t index, bool visible);
+void tscFieldInfoSetExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlExpr* pExpr);
+void tscFieldInfoSetBinExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlFunctionExpr* pExpr);
 
 void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo);
 void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo);
@@ -149,6 +151,7 @@ SSqlExpr* tscSqlExprInsertEmpty(SQueryInfo* pQueryInfo, int32_t index, int16_t f
 
 SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int16_t size);
+int32_t   tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo);
 
 SSqlExpr* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index);
 void      tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t uid);
