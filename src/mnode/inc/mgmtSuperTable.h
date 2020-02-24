@@ -30,7 +30,7 @@ int32_t mgmtInitSuperTables();
 void    mgmtCleanUpSuperTables();
 
 void *  mgmtGetSuperTable(char *tableId);
-int32_t mgmtGetShowSuperTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
+int32_t mgmtGetShowSuperTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 int32_t mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate);
@@ -41,7 +41,7 @@ int32_t mgmtModifySuperTableTagNameByName(SSuperTableObj *pTable, char *oldTagNa
 int32_t mgmtAddSuperTableColumn(SSuperTableObj *pTable, SSchema schema[], int32_t ncols);
 int32_t mgmtDropSuperTableColumnByName(SSuperTableObj *pTable, char *colName);
 
-int32_t mgmtGetSuperTableMeta(SDbObj *pDb, SSuperTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp);
+int32_t mgmtGetSuperTableMeta(SDbObj *pDb, SSuperTableObj *pTable, STableMeta *pMeta, bool usePublicIp);
 
 int32_t mgmtFindSuperTableTagIndex(SSuperTableObj *pTable, const char *tagName);
 int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTable);

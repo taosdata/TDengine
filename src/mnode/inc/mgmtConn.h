@@ -22,7 +22,7 @@ extern "C" {
 
 #include "mnode.h"
 
-int mgmtGetConnsMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
+int mgmtGetConnsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int mgmtRetrieveConns(SShowObj *pShow, char *data, int rows, void *pConn);
 
 bool mgmtCheckQhandle(uint64_t qhandle);

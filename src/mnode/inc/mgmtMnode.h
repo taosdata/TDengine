@@ -24,7 +24,7 @@ extern "C" {
 #include <stdbool.h>
 #include "mnode.h"
 
-extern int32_t (*mgmtGetMnodeMeta)(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
+extern int32_t (*mgmtGetMnodeMeta)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 extern int32_t (*mgmtRetrieveMnodes)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 #ifdef __cplusplus

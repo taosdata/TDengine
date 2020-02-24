@@ -65,7 +65,7 @@ typedef struct {
   void (*ufp)(void *ahandle, SRpcIpSet *pIpSet);
 
   // call back to retrieve the client auth info, for server app only 
-  int  (*afp)(char *meterId, char *spi, char *encrypt, char *secret, char *ckey); 
+  int  (*afp)(char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
 } SRpcInit;
 
 void *rpcOpen(SRpcInit *pRpc);

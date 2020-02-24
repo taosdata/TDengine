@@ -191,29 +191,6 @@ extern char *taosMsg[];
 #pragma pack(push, 1)
 
 typedef struct {
-  uint32_t customerId;
-  uint32_t osId;
-  uint32_t appId;
-  char     hwId[TSDB_UNI_LEN];
-  char     hwVersion[TSDB_VERSION_LEN];
-  char     osVersion[TSDB_VERSION_LEN];
-  char     appVersion[TSDB_VERSION_LEN];
-  char     sdkVersion[TSDB_VERSION_LEN];
-  char     name[TSDB_UNI_LEN];
-  char     street[TSDB_STREET_LEN];
-  char     city[TSDB_CITY_LEN];
-  char     state[TSDB_STATE_LEN];
-  char     country[TSDB_COUNTRY_LEN];
-  uint32_t longitude;
-  uint32_t latitude;
-} SRegMsg;
-
-typedef struct {
-  short numOfRows;
-  char  payLoad[];
-} SSubmitMsg;
-
-typedef struct {
   int32_t  vnode;
   int32_t  sid;
   int32_t  sversion;
@@ -226,7 +203,7 @@ typedef struct {
   int8_t  import;
   int8_t  reserved[3];
   int32_t numOfSid; /* total number of sid */
-  char    blks[];   /* numOfSid blocks, each blocks for one meter */
+  char    blks[];   /* numOfSid blocks, each blocks for one table */
 } SShellSubmitMsg;
 
 typedef struct {
@@ -360,7 +337,7 @@ typedef struct SColIndexEx {
   /*
    * colIdx is the index of column in latest schema of table
    * it is available in the client side. Also used to determine
-   * whether current meter schema is up-to-date.
+   * whether current table schema is up-to-date.
    *
    * colIdxInBuf is used to denote the index of column in pQuery->colList,
    * this value is invalid in client side, as well as in cache block of vnode either.
@@ -438,22 +415,22 @@ typedef struct SColumnInfo {
 /*
  * enable vnode to understand how to group several tables with different tag;
  */
-typedef struct SMeterSidExtInfo {
+typedef struct STableSidExtInfo {
   int32_t sid;
   int64_t uid;
   TSKEY   key;   // key for subscription
   char    tags[];
-} SMeterSidExtInfo;
+} STableSidExtInfo;
 
 /*
  * the outputCols is equalled to or larger than numOfCols
- * e.g., select min(colName), max(colName), avg(colName) from meter_name
+ * e.g., select min(colName), max(colName), avg(colName) from table
  * the outputCols will be 3 while the numOfCols is 1.
  */
 typedef struct {
   int16_t  vnode;
   int32_t  numOfSids;
-  uint64_t pSidExtInfo;  // meter id & tag info ptr, in windows pointer may
+  uint64_t pSidExtInfo;  // table id & tag info ptr, in windows pointer may
 
   uint64_t uid;
   TSKEY    skey;
@@ -498,26 +475,17 @@ typedef struct {
   int32_t     tsNumOfBlocks;  // ts comp block numbers
   int32_t     tsOrder;        // ts comp block order
   SColumnInfo colList[];
-} SQueryMeterMsg;
+} SQueryTableMsg;
 
 typedef struct {
   char     code;
   uint64_t qhandle;
-} SQueryMeterRsp;
-
-typedef struct {
-  TSKEY   skey;
-  TSKEY   ekey;
-  int32_t num;
-  short   order;
-  short   numOfCols;
-  short   colList[];
-} SQueryMsg;
+} SQueryTableRsp;
 
 typedef struct {
   uint64_t qhandle;
   uint16_t free;
-} SRetrieveMeterMsg;
+} SRetrieveTableMsg;
 
 typedef struct {
   int32_t numOfRows;
@@ -525,7 +493,7 @@ typedef struct {
   int64_t offset;  // updated offset value for multi-vnode projection query
   int64_t useconds;
   char    data[];
-} SRetrieveMeterRsp;
+} SRetrieveTableRsp;
 
 typedef struct {
   uint32_t vnode;
@@ -564,7 +532,7 @@ typedef struct {
   int32_t daysToKeep;
   int32_t commitTime;
   int32_t rowsInFileBlock;
-  int16_t blocksPerMeter;
+  int16_t blocksPerTable;
   int8_t  compression;
   int8_t  commitLog;
   int8_t  replications;
@@ -678,10 +646,10 @@ typedef struct {
 
   int16_t numOfGroupCols;  // num of group by columns
   int32_t groupbyTagColumnList;
-} SMetricMetaElemMsg;
+} SSuperTableMetaElemMsg;
 
 typedef struct {
-  int32_t numOfMeters;
+  int32_t numOfTables;
   int32_t join;
   int32_t joinCondLen;  // for join condition
   int32_t metaElem[TSDB_MAX_JOIN_TABLE_NUM];
@@ -691,17 +659,17 @@ typedef struct {
   SVPeerDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int16_t    index;  // used locally
   int32_t    numOfSids;
-  int32_t    pSidExtInfoList[];  // offset value of SMeterSidExtInfo
+  int32_t    pSidExtInfoList[];  // offset value of STableSidExtInfo
 } SVnodeSidList;
 
 typedef struct {
-  int32_t  numOfMeters;
+  int32_t  numOfTables;
   int32_t  numOfVnodes;
   uint16_t tagLen; /* tag value length */
-  int32_t  list[]; /* offset of SVnodeSidList, compared to the SMetricMeta struct */
-} SMetricMeta;
+  int32_t  list[]; /* offset of SVnodeSidList, compared to the SSuperTableMeta struct */
+} SSuperTableMeta;
 
-typedef struct SMeterMeta {
+typedef struct STableMeta {
   char    tableId[TSDB_TABLE_ID_LEN];  // note: This field must be at the front
   int32_t contLen;
   uint8_t numOfTags : 6;
@@ -716,13 +684,13 @@ typedef struct SMeterMeta {
   int32_t  vgid;
   uint64_t uid;
   SSchema  schema[];
-} SMeterMeta;
+} STableMeta;
 
-typedef struct SMultiMeterMeta {
+typedef struct SMultiTableMeta {
   int32_t    numOfTables;
   int32_t    contLen;
-  SMeterMeta metas[];
-} SMultiMeterMeta;
+  STableMeta metas[];
+} SMultiTableMeta;
 
 typedef struct {
   char name[TSDB_TABLE_ID_LEN];
@@ -743,7 +711,7 @@ typedef struct {
 
 typedef struct {
   uint64_t   qhandle;
-  SMeterMeta meterMeta;
+  STableMeta tableMeta;
 } SShowRsp;
 
 typedef struct {
@@ -753,7 +721,7 @@ typedef struct {
 typedef struct {
   int32_t vnode;
   int32_t sid;
-} SMeterCfgMsg;
+} STableCfgMsg;
 
 typedef struct {
   int32_t vnode;

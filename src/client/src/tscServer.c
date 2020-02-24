@@ -1215,7 +1215,7 @@ void tscUpdateVnodeInSubmitMsg(SSqlObj *pSql, char *buf) {
   char *           pMsg;
   SMeterMetaInfo * pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
-  SMeterMeta *pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta *pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   pMsg = buf + tsRpcHeadSize;
 
@@ -1233,7 +1233,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
-  SMeterMeta *pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta *pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   pStart = pSql->cmd.payload + tsRpcHeadSize;
   pMsg = pStart;
@@ -1258,13 +1258,13 @@ void tscUpdateVnodeInQueryMsg(SSqlObj *pSql, char *buf) {
 //  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
 //
 //  char *          pStart = buf + tsRpcHeadSize;
-//  SQueryMeterMsg *pQueryMsg = (SQueryMeterMsg *)pStart;
+//  SQueryTableMsg *pQueryMsg = (SQueryTableMsg *)pStart;
 //
 //  if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {  // pColumnModel == NULL, query on meter
-//    SMeterMeta *pMeterMeta = pMeterMetaInfo->pMeterMeta;
+//    STableMeta *pMeterMeta = pMeterMetaInfo->pMeterMeta;
 //    pQueryMsg->vnode = htons(pMeterMeta->vpeerDesc[pSql->index].vnode);
 //  } else {  // query on metric
-//    SMetricMeta *  pMetricMeta = pMeterMetaInfo->pMetricMeta;
+//    SSuperTableMeta *  pMetricMeta = pMeterMetaInfo->pMetricMeta;
 //    SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
 //    pQueryMsg->vnode = htons(pVnodeSidList->vpeerDesc[pSql->index].vnode);
 //  }
@@ -1285,14 +1285,14 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
 
   // meter query without tags values
   if (!UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
-    return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryMeterMsg) + srcColListSize + exprSize;
+    return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize;
   }
 
-  SMetricMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
+  SSuperTableMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
 
   SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
 
-  int32_t meterInfoSize = (pMetricMeta->tagLen + sizeof(SMeterSidExtInfo)) * pVnodeSidList->numOfSids;
+  int32_t meterInfoSize = (pMetricMeta->tagLen + sizeof(STableSidExtInfo)) * pVnodeSidList->numOfSids;
   int32_t outputColumnSize = pQueryInfo->fieldsInfo.numOfOutputCols * sizeof(SSqlFuncExprMsg);
 
   int32_t size = meterInfoSize + outputColumnSize + srcColListSize + exprSize + MIN_QUERY_MSG_PKT_SIZE;
@@ -1303,34 +1303,34 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   return size;
 }
 
-static char *doSerializeTableInfo(SSqlObj *pSql, int32_t numOfMeters, int32_t vnodeId, char *pMsg) {
+static char *doSerializeTableInfo(SSqlObj *pSql, int32_t numOfTables, int32_t vnodeId, char *pMsg) {
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
-  SMeterMeta * pMeterMeta = pMeterMetaInfo->pMeterMeta;
-  SMetricMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
+  STableMeta * pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  SSuperTableMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
 
-  tscTrace("%p vid:%d, query on %d meters", pSql, htons(vnodeId), numOfMeters);
+  tscTrace("%p vid:%d, query on %d meters", pSql, htons(vnodeId), numOfTables);
   if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
 #ifdef _DEBUG_VIEW
     tscTrace("%p sid:%d, uid:%" PRIu64, pSql, pMeterMetaInfo->pMeterMeta->sid, pMeterMetaInfo->pMeterMeta->uid);
 #endif
-    SMeterSidExtInfo *pMeterInfo = (SMeterSidExtInfo *)pMsg;
+    STableSidExtInfo *pMeterInfo = (STableSidExtInfo *)pMsg;
     pMeterInfo->sid = htonl(pMeterMeta->sid);
     pMeterInfo->uid = htobe64(pMeterMeta->uid);
     pMeterInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pMeterMeta->uid));
-    pMsg += sizeof(SMeterSidExtInfo);
+    pMsg += sizeof(STableSidExtInfo);
   } else {
     SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
 
-    for (int32_t i = 0; i < numOfMeters; ++i) {
-      SMeterSidExtInfo *pMeterInfo = (SMeterSidExtInfo *)pMsg;
-      SMeterSidExtInfo *pQueryMeterInfo = tscGetMeterSidInfo(pVnodeSidList, i);
+    for (int32_t i = 0; i < numOfTables; ++i) {
+      STableSidExtInfo *pMeterInfo = (STableSidExtInfo *)pMsg;
+      STableSidExtInfo *pQueryMeterInfo = tscGetMeterSidInfo(pVnodeSidList, i);
 
       pMeterInfo->sid = htonl(pQueryMeterInfo->sid);
       pMeterInfo->uid = htobe64(pQueryMeterInfo->uid);
       pMeterInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pQueryMeterInfo->uid));
       
-      pMsg += sizeof(SMeterSidExtInfo);
+      pMsg += sizeof(STableSidExtInfo);
 
       memcpy(pMsg, pQueryMeterInfo->tags, pMetricMeta->tagLen);
       pMsg += pMetricMeta->tagLen;
@@ -1359,16 +1359,16 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   char *          pStart = pCmd->payload + tsRpcHeadSize;
 
-  SMeterMeta * pMeterMeta = pMeterMetaInfo->pMeterMeta;
-  SMetricMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
+  STableMeta * pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  SSuperTableMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
 
-  SQueryMeterMsg *pQueryMsg = (SQueryMeterMsg *)pStart;
+  SQueryTableMsg *pQueryMsg = (SQueryTableMsg *)pStart;
 
   int32_t msgLen = 0;
-  int32_t numOfMeters = 0;
+  int32_t numOfTables = 0;
 
   if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
-    numOfMeters = 1;
+    numOfTables = 1;
 
     tscTrace("%p query on vnode: %d, number of sid:%d, meter id: %s", pSql,
              pMeterMeta->vpeerDesc[pMeterMeta->index].vnode, 1, pMeterMetaInfo->name);
@@ -1385,17 +1385,17 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
     uint32_t       vnodeId = pVnodeSidList->vpeerDesc[pVnodeSidList->index].vnode;
 
-    numOfMeters = pVnodeSidList->numOfSids;
-    if (numOfMeters <= 0) {
-      tscError("%p vid:%d,error numOfMeters in query message:%d", pSql, vnodeId, numOfMeters);
+    numOfTables = pVnodeSidList->numOfSids;
+    if (numOfTables <= 0) {
+      tscError("%p vid:%d,error numOfTables in query message:%d", pSql, vnodeId, numOfTables);
       return -1;  // error
     }
 
-    tscTrace("%p query on vid:%d, number of sid:%d", pSql, vnodeId, numOfMeters);
+    tscTrace("%p query on vid:%d, number of sid:%d", pSql, vnodeId, numOfTables);
     pQueryMsg->vnode = htons(vnodeId);
   }
 
-  pQueryMsg->numOfSids = htonl(numOfMeters);
+  pQueryMsg->numOfSids = htonl(numOfTables);
   pQueryMsg->numOfTagsCols = htons(pMeterMetaInfo->numOfTags);
 
   if (pQueryInfo->order.order == TSQL_SO_ASC) {
@@ -1566,7 +1566,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->colNameLen = htonl(len);
 
   // serialize the table info (sid, uid, tags)
-  pMsg = doSerializeTableInfo(pSql, numOfMeters, htons(pQueryMsg->vnode), pMsg);
+  pMsg = doSerializeTableInfo(pSql, numOfTables, htons(pQueryMsg->vnode), pMsg);
 
   // only include the required tag column schema. If a tag is not required, it won't be sent to vnode
   if (pMeterMetaInfo->numOfTags > 0) {
@@ -2295,7 +2295,7 @@ int tscProcessTagRetrieveRsp(SSqlObj *pSql) {
 
   int32_t numOfRes = 0;
   if (tscSqlExprGet(pQueryInfo, 0)->functionId == TSDB_FUNC_TAGPRJ) {
-    numOfRes = pMeterMetaInfo->pMetricMeta->numOfMeters;
+    numOfRes = pMeterMetaInfo->pMetricMeta->numOfTables;
   } else {
     numOfRes = 1;  // for count function, there is only one output.
   }
@@ -2435,7 +2435,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   assert(pCmd->payloadLen + minMsgSize() <= pCmd->allocSize);
 
-  tscTrace("%p build load multi-metermeta msg completed, numOfMeters:%d, msg size:%d", pSql, pCmd->count,
+  tscTrace("%p build load multi-metermeta msg completed, numOfTables:%d, msg size:%d", pSql, pCmd->count,
            pCmd->payloadLen);
 
   return pCmd->payloadLen;
@@ -2457,7 +2457,7 @@ static int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
   }
 
   int32_t joinCondLen = (TSDB_TABLE_ID_LEN + sizeof(int16_t)) * 2;
-  int32_t elemSize = sizeof(SMetricMetaElemMsg) * pQueryInfo->numOfTables;
+  int32_t elemSize = sizeof(SSuperTableMetaElemMsg) * pQueryInfo->numOfTables;
 
   int32_t len = tagLen + joinCondLen + elemSize + defaultSize;
 
@@ -2492,7 +2492,7 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sizeof(SMgmtHead);
 
   pMetaMsg = (SSuperTableMetaMsg *)pMsg;
-  pMetaMsg->numOfMeters = htonl(pQueryInfo->numOfTables);
+  pMetaMsg->numOfTables = htonl(pQueryInfo->numOfTables);
 
   pMsg += sizeof(SSuperTableMetaMsg);
 
@@ -2521,8 +2521,8 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     offset = pMsg - (char *)pMetaMsg;
     pMetaMsg->metaElem[i] = htonl(offset);
 
-    SMetricMetaElemMsg *pElem = (SMetricMetaElemMsg *)pMsg;
-    pMsg += sizeof(SMetricMetaElemMsg);
+    SSuperTableMetaElemMsg *pElem = (SSuperTableMetaElemMsg *)pMsg;
+    pMsg += sizeof(SSuperTableMetaElemMsg);
 
     // convert to unicode before sending to mnode for metric query
     int32_t condLen = 0;
@@ -2663,7 +2663,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int tscProcessMeterMetaRsp(SSqlObj *pSql) {
-  SMeterMeta *pMeta;
+  STableMeta *pMeta;
   SSchema *   pSchema;
   uint8_t     ieType;
 
@@ -2676,7 +2676,7 @@ int tscProcessMeterMetaRsp(SSqlObj *pSql) {
   }
 
   rsp++;
-  pMeta = (SMeterMeta *)rsp;
+  pMeta = (STableMeta *)rsp;
 
   pMeta->sid = htonl(pMeta->sid);
   pMeta->sversion = htons(pMeta->sversion);
@@ -2705,7 +2705,7 @@ int tscProcessMeterMetaRsp(SSqlObj *pSql) {
   }
 
   pMeta->rowSize = 0;
-  rsp += sizeof(SMeterMeta);
+  rsp += sizeof(STableMeta);
   pSchema = (SSchema *)rsp;
 
   int32_t numOfTotalCols = pMeta->numOfColumns + pMeta->numOfTags;
@@ -2741,7 +2741,7 @@ int tscProcessMeterMetaRsp(SSqlObj *pSql) {
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
   assert(pMeterMetaInfo->pMeterMeta == NULL);
 
-  pMeterMetaInfo->pMeterMeta = (SMeterMeta *)taosAddDataIntoCache(tscCacheHandle, pMeterMetaInfo->name, (char *)pMeta,
+  pMeterMetaInfo->pMeterMeta = (STableMeta *)taosAddDataIntoCache(tscCacheHandle, pMeterMetaInfo->name, (char *)pMeta,
                                                                   size, tsMeterMetaKeepTimer);
   // todo handle out of memory case
   if (pMeterMetaInfo->pMeterMeta == NULL) return 0;
@@ -2777,8 +2777,8 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
   rsp += sizeof(SMultiTableInfoMsg);
 
   for (i = 0; i < totalNum; i++) {
-    SMultiMeterMeta *pMultiMeta = (SMultiMeterMeta *)rsp;
-    SMeterMeta *     pMeta = &pMultiMeta->metas;
+    SMultiTableMeta *pMultiMeta = (SMultiTableMeta *)rsp;
+    STableMeta *     pMeta = &pMultiMeta->metas;
 
     pMeta->sid = htonl(pMeta->sid);
     pMeta->sversion = htons(pMeta->sversion);
@@ -2820,7 +2820,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
     }
 
     pMeta->rowSize = 0;
-    rsp += sizeof(SMultiMeterMeta);
+    rsp += sizeof(SMultiTableMeta);
     pSchema = (SSchema *)rsp;
 
     int32_t numOfTotalCols = pMeta->numOfColumns + pMeta->numOfTags;
@@ -2847,7 +2847,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
     }
 
     rsp += tagLen;
-    int32_t size = (int32_t)(rsp - ((char *)pMeta));  // Consistent with SMeterMeta in cache
+    int32_t size = (int32_t)(rsp - ((char *)pMeta));  // Consistent with STableMeta in cache
 
     pMeta->index = 0;
     (void)taosAddDataIntoCache(tscCacheHandle, pMeta->tableId, (char *)pMeta, size, tsMeterMetaKeepTimer);
@@ -2860,7 +2860,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
 }
 
 int tscProcessMetricMetaRsp(SSqlObj *pSql) {
-  SMetricMeta *pMeta;
+  SSuperTableMeta *pMeta;
   uint8_t      ieType;
   void **      metricMetaList = NULL;
   int32_t *    sizes = NULL;
@@ -2891,16 +2891,16 @@ int tscProcessMetricMetaRsp(SSqlObj *pSql) {
   }
 
   for (int32_t k = 0; k < num; ++k) {
-    pMeta = (SMetricMeta *)rsp;
+    pMeta = (SSuperTableMeta *)rsp;
 
     size_t size = (size_t)pSql->res.rspLen - 1;
-    rsp = rsp + sizeof(SMetricMeta);
+    rsp = rsp + sizeof(SSuperTableMeta);
 
-    pMeta->numOfMeters = htonl(pMeta->numOfMeters);
+    pMeta->numOfTables = htonl(pMeta->numOfTables);
     pMeta->numOfVnodes = htonl(pMeta->numOfVnodes);
     pMeta->tagLen = htons(pMeta->tagLen);
 
-    size += pMeta->numOfVnodes * sizeof(SVnodeSidList *) + pMeta->numOfMeters * sizeof(SMeterSidExtInfo *);
+    size += pMeta->numOfVnodes * sizeof(SVnodeSidList *) + pMeta->numOfTables * sizeof(STableSidExtInfo *);
 
     char *pBuf = calloc(1, size);
     if (pBuf == NULL) {
@@ -2908,14 +2908,14 @@ int tscProcessMetricMetaRsp(SSqlObj *pSql) {
       goto _error_clean;
     }
 
-    SMetricMeta *pNewMetricMeta = (SMetricMeta *)pBuf;
+    SSuperTableMeta *pNewMetricMeta = (SSuperTableMeta *)pBuf;
     metricMetaList[k] = pNewMetricMeta;
 
-    pNewMetricMeta->numOfMeters = pMeta->numOfMeters;
+    pNewMetricMeta->numOfTables = pMeta->numOfTables;
     pNewMetricMeta->numOfVnodes = pMeta->numOfVnodes;
     pNewMetricMeta->tagLen = pMeta->tagLen;
 
-    pBuf = pBuf + sizeof(SMetricMeta) + pNewMetricMeta->numOfVnodes * sizeof(SVnodeSidList *);
+    pBuf = pBuf + sizeof(SSuperTableMeta) + pNewMetricMeta->numOfVnodes * sizeof(SVnodeSidList *);
 
     for (int32_t i = 0; i < pMeta->numOfVnodes; ++i) {
       SVnodeSidList *pSidLists = (SVnodeSidList *)rsp;
@@ -2924,18 +2924,18 @@ int tscProcessMetricMetaRsp(SSqlObj *pSql) {
       pNewMetricMeta->list[i] = pBuf - (char *)pNewMetricMeta;  // offset value
       SVnodeSidList *pLists = (SVnodeSidList *)pBuf;
 
-      tscTrace("%p metricmeta:vid:%d,numOfMeters:%d", pSql, i, pLists->numOfSids);
+      tscTrace("%p metricmeta:vid:%d,numOfTables:%d", pSql, i, pLists->numOfSids);
 
-      pBuf += sizeof(SVnodeSidList) + sizeof(SMeterSidExtInfo *) * pSidLists->numOfSids;
+      pBuf += sizeof(SVnodeSidList) + sizeof(STableSidExtInfo *) * pSidLists->numOfSids;
       rsp += sizeof(SVnodeSidList);
 
-      size_t elemSize = sizeof(SMeterSidExtInfo) + pNewMetricMeta->tagLen;
+      size_t elemSize = sizeof(STableSidExtInfo) + pNewMetricMeta->tagLen;
       for (int32_t j = 0; j < pSidLists->numOfSids; ++j) {
         pLists->pSidExtInfoList[j] = pBuf - (char *)pLists;
         memcpy(pBuf, rsp, elemSize);
 
-        ((SMeterSidExtInfo *)pBuf)->uid = htobe64(((SMeterSidExtInfo *)pBuf)->uid);
-        ((SMeterSidExtInfo *)pBuf)->sid = htonl(((SMeterSidExtInfo *)pBuf)->sid);
+        ((STableSidExtInfo *)pBuf)->uid = htobe64(((STableSidExtInfo *)pBuf)->uid);
+        ((STableSidExtInfo *)pBuf)->sid = htonl(((STableSidExtInfo *)pBuf)->sid);
 
         rsp += elemSize;
         pBuf += elemSize;
@@ -2959,7 +2959,7 @@ int tscProcessMetricMetaRsp(SSqlObj *pSql) {
     // release the used metricmeta
     taosRemoveDataFromCache(tscCacheHandle, (void **)&(pMeterMetaInfo->pMetricMeta), false);
 
-    pMeterMetaInfo->pMetricMeta = (SMetricMeta *)taosAddDataIntoCache(tscCacheHandle, name, (char *)metricMetaList[i],
+    pMeterMetaInfo->pMetricMeta = (SSuperTableMeta *)taosAddDataIntoCache(tscCacheHandle, name, (char *)metricMetaList[i],
                                                                       sizes[i], tsMetricMetaKeepTimer);
     tfree(metricMetaList[i]);
 
@@ -2986,7 +2986,7 @@ _error_clean:
  * current process do not use the cache at all
  */
 int tscProcessShowRsp(SSqlObj *pSql) {
-  SMeterMeta * pMeta;
+  STableMeta * pMeta;
   SShowRsp *pShow;
   SSchema *    pSchema;
   char         key[20];
@@ -3002,11 +3002,11 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   pRes->qhandle = pShow->qhandle;
 
   tscResetForNextRetrieve(pRes);
-  pMeta = &(pShow->meterMeta);
+  pMeta = &(pShow->tableMeta);
 
   pMeta->numOfColumns = ntohs(pMeta->numOfColumns);
 
-  pSchema = (SSchema *)((char *)pMeta + sizeof(SMeterMeta));
+  pSchema = (SSchema *)((char *)pMeta + sizeof(STableMeta));
   pMeta->sid = ntohs(pMeta->sid);
   for (int i = 0; i < pMeta->numOfColumns; ++i) {
     pSchema->bytes = htons(pSchema->bytes);
@@ -3018,9 +3018,9 @@ int tscProcessShowRsp(SSqlObj *pSql) {
 
   taosRemoveDataFromCache(tscCacheHandle, (void *)&(pMeterMetaInfo->pMeterMeta), false);
 
-  int32_t size = pMeta->numOfColumns * sizeof(SSchema) + sizeof(SMeterMeta);
+  int32_t size = pMeta->numOfColumns * sizeof(SSchema) + sizeof(STableMeta);
   pMeterMetaInfo->pMeterMeta =
-      (SMeterMeta *)taosAddDataIntoCache(tscCacheHandle, key, (char *)pMeta, size, tsMeterMetaKeepTimer);
+      (STableMeta *)taosAddDataIntoCache(tscCacheHandle, key, (char *)pMeta, size, tsMeterMetaKeepTimer);
   pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutputCols;
   SSchema *pMeterSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
 
@@ -3078,7 +3078,7 @@ int tscProcessDropDbRsp(SSqlObj *UNUSED_PARAM(pSql)) {
 int tscProcessDropTableRsp(SSqlObj *pSql) {
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
 
-  SMeterMeta *pMeterMeta = taosGetDataFromCache(tscCacheHandle, pMeterMetaInfo->name);
+  STableMeta *pMeterMeta = taosGetDataFromCache(tscCacheHandle, pMeterMetaInfo->name);
   if (pMeterMeta == NULL) {
     /* not in cache, abort */
     return 0;
@@ -3105,7 +3105,7 @@ int tscProcessDropTableRsp(SSqlObj *pSql) {
 int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
 
-  SMeterMeta *pMeterMeta = taosGetDataFromCache(tscCacheHandle, pMeterMetaInfo->name);
+  STableMeta *pMeterMeta = taosGetDataFromCache(tscCacheHandle, pMeterMetaInfo->name);
   if (pMeterMeta == NULL) { /* not in cache, abort */
     return 0;
   }
@@ -3147,7 +3147,7 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
 
-  SRetrieveMeterRsp *pRetrieve = (SRetrieveMeterRsp *)pRes->pRsp;
+  SRetrieveTableRsp *pRetrieve = (SRetrieveTableRsp *)pRes->pRsp;
 
   pRes->numOfRows = htonl(pRetrieve->numOfRows);
   pRes->precision = htons(pRetrieve->precision);
@@ -3166,9 +3166,9 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
     
     char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
 
-    int32_t numOfMeters = htonl(*(int32_t*)p);
+    int32_t numOfTables = htonl(*(int32_t*)p);
     p += sizeof(int32_t);
-    for (int i = 0; i < numOfMeters; i++) {
+    for (int i = 0; i < numOfTables; i++) {
       int64_t uid = htobe64(*(int64_t*)p);
       p += sizeof(int64_t);
       TSKEY key = htobe64(*(TSKEY*)p);
@@ -3189,7 +3189,7 @@ int tscProcessRetrieveRspFromLocal(SSqlObj *pSql) {
   SSqlCmd *   pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
-  SRetrieveMeterRsp *pRetrieve = (SRetrieveMeterRsp *)pRes->pRsp;
+  SRetrieveTableRsp *pRetrieve = (SRetrieveTableRsp *)pRes->pRsp;
 
   pRes->numOfRows = htonl(pRetrieve->numOfRows);
   pRes->data = pRetrieve->data;
@@ -3232,7 +3232,7 @@ static int32_t doGetMeterMetaFromServer(SSqlObj *pSql, SMeterMetaInfo *pMeterMet
 
   strcpy(pNewMeterMetaInfo->name, pMeterMetaInfo->name);
   memcpy(pNew->cmd.payload, pSql->cmd.payload, TSDB_DEFAULT_PAYLOAD_SIZE);  // tag information if table does not exists.
-  tscTrace("%p new pSqlObj:%p to get meterMeta", pSql, pNew);
+  tscTrace("%p new pSqlObj:%p to get tableMeta", pSql, pNew);
 
   if (pSql->fp == NULL) {
     tsem_init(&pNew->rspSem, 0, 0);
@@ -3274,11 +3274,11 @@ int tscGetMeterMeta(SSqlObj *pSql, SMeterMetaInfo *pMeterMetaInfo) {
     taosRemoveDataFromCache(tscCacheHandle, (void **)&(pMeterMetaInfo->pMeterMeta), false);
   }
   
-  pMeterMetaInfo->pMeterMeta = (SMeterMeta *)taosGetDataFromCache(tscCacheHandle, pMeterMetaInfo->name);
+  pMeterMetaInfo->pMeterMeta = (STableMeta *)taosGetDataFromCache(tscCacheHandle, pMeterMetaInfo->name);
   if (pMeterMetaInfo->pMeterMeta != NULL) {
-    SMeterMeta *pMeterMeta = pMeterMetaInfo->pMeterMeta;
+    STableMeta *pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
-    tscTrace("%p retrieve meterMeta from cache, the number of columns:%d, numOfTags:%d", pSql, pMeterMeta->numOfColumns,
+    tscTrace("%p retrieve tableMeta from cache, the number of columns:%d, numOfTags:%d", pSql, pMeterMeta->numOfColumns,
              pMeterMeta->numOfTags);
 
     return TSDB_CODE_SUCCESS;
@@ -3374,7 +3374,7 @@ int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
 
     taosRemoveDataFromCache(tscCacheHandle, (void **)&(pMeterMetaInfo->pMetricMeta), false);
 
-    SMetricMeta *ppMeta = (SMetricMeta *)taosGetDataFromCache(tscCacheHandle, tagstr);
+    SSuperTableMeta *ppMeta = (SSuperTableMeta *)taosGetDataFromCache(tscCacheHandle, tagstr);
     if (ppMeta == NULL) {
       required = true;
       break;
@@ -3402,7 +3402,7 @@ int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SMeterMetaInfo *pMMInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
 
-    SMeterMeta *pMeterMeta = taosGetDataFromCache(tscCacheHandle, pMMInfo->name);
+    STableMeta *pMeterMeta = taosGetDataFromCache(tscCacheHandle, pMMInfo->name);
     tscAddMeterMetaInfo(pNewQueryInfo, pMMInfo->name, pMeterMeta, NULL, pMMInfo->numOfTags, pMMInfo->tagColumnIndex);
   }
 
@@ -3448,7 +3448,7 @@ int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
 #endif
     
         taosRemoveDataFromCache(tscCacheHandle, (void **)&(pMeterMetaInfo->pMetricMeta), false);
-        pMeterMetaInfo->pMetricMeta = (SMetricMeta *)taosGetDataFromCache(tscCacheHandle, tagstr);
+        pMeterMetaInfo->pMetricMeta = (SSuperTableMeta *)taosGetDataFromCache(tscCacheHandle, tagstr);
       }
     }
 

@@ -38,18 +38,18 @@ void dnodeFreeQInfos();
 /*
  * handle query message, and the result is returned by callback function
  */
-void dnodeQueryData(SQueryMeterMsg *pQuery, void *pConn, void (*callback)(int32_t code, void *pQInfo, void *pConn));
+void dnodeQueryData(SQueryTableMsg *pQuery, void *pConn, void (*callback)(int32_t code, void *pQInfo, void *pConn));
 
 /*
  * Dispose retrieve msg, and the result will passed through callback function
  */
 typedef void (*SDnodeRetrieveCallbackFp)(int32_t code, void *pQInfo, void *pConn);
-void dnodeRetrieveData(SRetrieveMeterMsg *pRetrieve, void *pConn, SDnodeRetrieveCallbackFp callbackFp);
+void dnodeRetrieveData(SRetrieveTableMsg *pRetrieve, void *pConn, SDnodeRetrieveCallbackFp callbackFp);
 
 /*
  * Fill retrieve result according to query info
  */
-int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveMeterRsp *retrievalRsp);
+int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveTableRsp *retrievalRsp);
 
 /*
  * Get the size of retrieve result according to query info

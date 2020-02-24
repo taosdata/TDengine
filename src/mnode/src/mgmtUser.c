@@ -158,7 +158,7 @@ void mgmtCleanUpUsers() {
   sdbCloseTable(tsUserSdb);
 }
 
-int32_t mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetUserMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
 //  int32_t      cols = 0;
 //  SSchema *pSchema = tsGetSchema(pMeta);
 //

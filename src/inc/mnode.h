@@ -102,14 +102,14 @@ typedef struct {
 } STableGid;
 
 typedef struct _tab_obj {
-  char      meterId[TSDB_TABLE_ID_LEN + 1];
+  char      tableId[TSDB_TABLE_ID_LEN + 1];
   uint64_t  uid;
   STableGid gid;
 
   int32_t sversion;     // schema version
   int64_t createdTime;
   int32_t numOfTags;    // for metric
-  int32_t numOfMeters;  // for metric
+  int32_t numOfTables;  // for metric
   int32_t numOfColumns;
   int32_t schemaSize;
   short   nextColId;

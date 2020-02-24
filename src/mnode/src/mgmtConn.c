@@ -67,7 +67,7 @@ int mgmtGetConns(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int mgmtGetConnsMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int mgmtGetConnsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int cols = 0;
 
   pShow->bytes[cols] = TSDB_METER_NAME_LEN;

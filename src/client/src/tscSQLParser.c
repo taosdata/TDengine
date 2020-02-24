@@ -883,7 +883,7 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   assert(pCmd->numOfClause == 1);
   
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  SMeterMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   // no more than 6 tags
   if (pMeterMeta->numOfTags == TSDB_MAX_TAGS) {
@@ -953,7 +953,7 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
 
   assert(pCmd->numOfClause == 1);
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  SMeterMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   // no more max columns
   if (pMeterMeta->numOfColumns >= TSDB_MAX_COLUMNS ||
@@ -1215,7 +1215,7 @@ int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnLi
 
 SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t colIdx, int32_t tableIndex) {
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
-  SMeterMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   SSchema* pSchema = tsGetColumnSchema(pMeterMeta, colIdx);
   int32_t  numOfCols = pMeterMeta->numOfColumns;
@@ -1267,7 +1267,7 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
   SSqlExpr* pExpr = doAddProjectCol(pQueryInfo, startPos, pIndex->columnIndex, pIndex->tableIndex);
 
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, pIndex->tableIndex);
-  SMeterMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   SSchema* pSchema = tsGetColumnSchema(pMeterMeta, pIndex->columnIndex);
 
@@ -1306,7 +1306,7 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, pIndex->tableIndex);
 
   int32_t     numOfTotalColumns = 0;
-  SMeterMeta* pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta* pMeterMeta = pMeterMetaInfo->pMeterMeta;
   SSchema*    pSchema = tsGetSchema(pMeterMeta);
 
   if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
@@ -1368,7 +1368,7 @@ int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprItem* pI
       tscAddSpecialColumnForSelect(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, true);
     } else {
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
-      SMeterMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
+      STableMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
       if (index.columnIndex >= pMeterMeta->numOfColumns && UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
         return invalidSqlErrMsg(pQueryInfo->msg, msg1);
@@ -1835,7 +1835,7 @@ static bool isTablenameToken(SSQLToken* token) {
 }
 
 static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SSQLToken* pToken) {
-  SMeterMeta* pMeterMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index)->pMeterMeta;
+  STableMeta* pMeterMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index)->pMeterMeta;
 
   int32_t  numOfCols = pMeterMeta->numOfColumns + pMeterMeta->numOfTags;
   SSchema* pSchema = tsGetSchema(pMeterMeta);
@@ -2360,7 +2360,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
   }
 
-  SMeterMeta* pMeterMeta = NULL;
+  STableMeta* pMeterMeta = NULL;
   SSchema*    pSchema = NULL;
   SSchema     s = tsGetTbnameColumnSchema();
 
@@ -2704,7 +2704,7 @@ enum {
 static int32_t extractColumnFilterInfo(SQueryInfo* pQueryInfo, SColumnIndex* pIndex, tSQLExpr* pExpr, int32_t sqlOptr) {
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, pIndex->tableIndex);
 
-  SMeterMeta* pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta* pMeterMeta = pMeterMetaInfo->pMeterMeta;
   SSchema*    pSchema = tsGetColumnSchema(pMeterMeta, pIndex->columnIndex);
 
   const char* msg1 = "non binary column not support like operator";
@@ -2927,7 +2927,7 @@ static int32_t validateSQLExpr(tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnL
       }
 
       // if column is timestamp, bool, binary, nchar, not support arithmetic, so return invalid sql
-      SMeterMeta* pMeterMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex)->pMeterMeta;
+      STableMeta* pMeterMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex)->pMeterMeta;
       SSchema* pSchema = tsGetSchema(pMeterMeta) + index.columnIndex;
       if ((pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) || (pSchema->type == TSDB_DATA_TYPE_BOOL)
         || (pSchema->type == TSDB_DATA_TYPE_BINARY) || (pSchema->type == TSDB_DATA_TYPE_NCHAR)){
@@ -3140,7 +3140,7 @@ static int32_t handleExprInQueryCond(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, S
   assert(isExprDirectParentOfLeaftNode(*pExpr));
 
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
-  SMeterMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {  // query on time range
     if (!validateJoinExprNode(pQueryInfo, *pExpr, &index)) {
@@ -3485,7 +3485,7 @@ static int32_t getTimeRangeFromExpr(SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
     }
 
     SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
-    SMeterMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
+    STableMeta*     pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
     tSQLExpr* pRight = pExpr->pRight;
 
@@ -4086,7 +4086,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     return ret;
   }
 
-  SMeterMeta* pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta* pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   if (pAlterSQL->type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_DROP_TAG_COLUMN ||
       pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
@@ -4534,8 +4534,8 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
     }
 
     // No tables included. No results generated. Query results are empty.
-    SMetricMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
-    if (pMeterMetaInfo->pMeterMeta == NULL || pMetricMeta == NULL || pMetricMeta->numOfMeters == 0) {
+    SSuperTableMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
+    if (pMeterMetaInfo->pMeterMeta == NULL || pMetricMeta == NULL || pMetricMeta->numOfTables == 0) {
       tscTrace("%p no table in metricmeta, no output result", pSql);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
     }
@@ -4629,7 +4629,7 @@ static int32_t setTimePrecisionOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreate
 }
 
 static void setCreateDBOption(SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
-  pMsg->blocksPerMeter = htons(pCreateDb->numOfBlocksPerTable);
+  pMsg->blocksPerTable = htons(pCreateDb->numOfBlocksPerTable);
   pMsg->compression = pCreateDb->compressionLevel;
 
   pMsg->commitLog = (char)pCreateDb->commitLog;

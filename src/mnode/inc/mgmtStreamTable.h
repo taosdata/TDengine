@@ -34,7 +34,7 @@ int32_t mgmtDropStreamTable(SDbObj *pDb, SStreamTableObj *pTable);
 int32_t mgmtAlterStreamTable(SDbObj *pDb, SAlterTableMsg *pAlter);
 int8_t *mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj *pVgroup);
 
-int32_t mgmtGetStreamTableMeta(SDbObj *pDb, SStreamTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp);
+int32_t mgmtGetStreamTableMeta(SDbObj *pDb, SStreamTableObj *pTable, STableMeta *pMeta, bool usePublicIp);
 
 #ifdef __cplusplus
 }

@@ -99,7 +99,7 @@ STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
   return NULL;
 }
 
-int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, SMeterMeta *pMeta, bool usePublicIp) {
+int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, bool usePublicIp) {
   if (pTable->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
     mgmtGetChildTableMeta(pDb, (SChildTableObj *) pTable, pMeta, usePublicIp);
   } else if (pTable->type == TSDB_TABLE_TYPE_STREAM_TABLE) {
@@ -247,7 +247,7 @@ void mgmtCleanUpMeters() {
   mgmtCleanUpSuperTables();
 }
 
-int32_t mgmtGetShowTableMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetShowTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
 //  int32_t cols = 0;
 //
 //  SDbObj *pDb = NULL;

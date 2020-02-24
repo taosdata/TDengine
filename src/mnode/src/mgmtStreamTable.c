@@ -396,7 +396,7 @@ static int32_t mgmtSetSchemaFromStreamTable(SSchema *pSchema, SStreamTableObj *p
   return numOfCols * sizeof(SSchema);
 }
 
-int32_t mgmtGetStreamTableMeta(SDbObj *pDb, SStreamTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp) {
+int32_t mgmtGetStreamTableMeta(SDbObj *pDb, SStreamTableObj *pTable, STableMeta *pMeta, bool usePublicIp) {
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sid          = htonl(pTable->sid);
   pMeta->vgid         = htonl(pTable->vgId);
@@ -405,7 +405,7 @@ int32_t mgmtGetStreamTableMeta(SDbObj *pDb, SStreamTableObj *pTable, SMeterMeta 
   pMeta->numOfTags    = 0;
   pMeta->numOfColumns = htons(pTable->numOfColumns);
   pMeta->tableType    = pTable->type;
-  pMeta->contLen      = sizeof(SMeterMeta) + mgmtSetSchemaFromStreamTable(pMeta->schema, pTable);
+  pMeta->contLen      = sizeof(STableMeta) + mgmtSetSchemaFromStreamTable(pMeta->schema, pTable);
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {

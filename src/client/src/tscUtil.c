@@ -170,13 +170,13 @@ void tscGetDBInfoFromMeterId(char* tableId, char* db) {
   db[0] = 0;
 }
 
-SVnodeSidList* tscGetVnodeSidList(SMetricMeta* pMetricmeta, int32_t vnodeIdx) {
+SVnodeSidList* tscGetVnodeSidList(SSuperTableMeta* pMetricmeta, int32_t vnodeIdx) {
   if (pMetricmeta == NULL) {
     tscError("illegal metricmeta");
     return 0;
   }
 
-  if (pMetricmeta->numOfVnodes == 0 || pMetricmeta->numOfMeters == 0) {
+  if (pMetricmeta->numOfVnodes == 0 || pMetricmeta->numOfTables == 0) {
     return 0;
   }
 
@@ -190,7 +190,7 @@ SVnodeSidList* tscGetVnodeSidList(SMetricMeta* pMetricmeta, int32_t vnodeIdx) {
   return (SVnodeSidList*)(pMetricmeta->list[vnodeIdx] + (char*)pMetricmeta);
 }
 
-SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
+STableSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
   if (pSidList == NULL) {
     tscError("illegal sidlist");
     return 0;
@@ -202,7 +202,7 @@ SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
     tscError("illegal sidIdx:%d, reset to 0, sidIdx range:%d-%d", idx, 0, sidRange);
     idx = 0;
   }
-  return (SMeterSidExtInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
+  return (STableSidExtInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
 }
 
 bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
@@ -583,7 +583,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   SSqlCmd* pCmd = &pSql->cmd;
   assert(pDataBlock->pMeterMeta != NULL);
 
-  pCmd->numOfTablesInSubmit = pDataBlock->numOfMeters;
+  pCmd->numOfTablesInSubmit = pDataBlock->numOfTables;
 
   assert(pCmd->numOfClause == 1);
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
@@ -639,7 +639,7 @@ void tscFreeUnusedDataBlocks(SDataBlockList* pList) {
  * @return
  */
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
-                           SMeterMeta* pMeterMeta, STableDataBlocks** dataBlocks) {
+                           STableMeta* pMeterMeta, STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
     tscError("failed to allocated memory, reason:%s", strerror(errno));
@@ -675,7 +675,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
 }
 
 int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
-                                int32_t startOffset, int32_t rowSize, const char* tableId, SMeterMeta* pMeterMeta,
+                                int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pMeterMeta,
                                 STableDataBlocks** dataBlocks) {
   *dataBlocks = NULL;
 
@@ -754,7 +754,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     memcpy(dataBuf->pData + dataBuf->size, pOneTableBlock->pData, pOneTableBlock->size);
 
     dataBuf->size += pOneTableBlock->size;
-    dataBuf->numOfMeters += 1;
+    dataBuf->numOfTables += 1;
   }
 
   tscDestroyBlockArrayList(pTableDataBlockList);
@@ -1799,8 +1799,8 @@ void tscFreeSubqueryInfo(SSqlCmd* pCmd) {
   tfree(pCmd->pQueryInfo);
 }
 
-SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, SMeterMeta* pMeterMeta,
-                                    SMetricMeta* pMetricMeta, int16_t numOfTags, int16_t* tags) {
+SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pMeterMeta,
+                                    SSuperTableMeta* pMetricMeta, int16_t numOfTags, int16_t* tags) {
   void* pAlloc = realloc(pQueryInfo->pMeterInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
   if (pAlloc == NULL) {
     return NULL;
@@ -1986,16 +1986,16 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   SMeterMetaInfo* pFinalInfo = NULL;
 
   if (pPrevSql == NULL) {
-    SMeterMeta*  pMeterMeta = taosGetDataFromCache(tscCacheHandle, name);
-    SMetricMeta* pMetricMeta = taosGetDataFromCache(tscCacheHandle, key);
+    STableMeta*  pMeterMeta = taosGetDataFromCache(tscCacheHandle, name);
+    SSuperTableMeta* pMetricMeta = taosGetDataFromCache(tscCacheHandle, key);
 
     pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pMeterMeta, pMetricMeta, pMeterMetaInfo->numOfTags,
                                      pMeterMetaInfo->tagColumnIndex);
   } else {  // transfer the ownership of pMeterMeta/pMetricMeta to the newly create sql object.
     SMeterMetaInfo* pPrevInfo = tscGetMeterMetaInfo(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 
-    SMeterMeta*  pPrevMeterMeta = taosTransferDataInCache(tscCacheHandle, (void**)&pPrevInfo->pMeterMeta);
-    SMetricMeta* pPrevMetricMeta = taosTransferDataInCache(tscCacheHandle, (void**)&pPrevInfo->pMetricMeta);
+    STableMeta*  pPrevMeterMeta = taosTransferDataInCache(tscCacheHandle, (void**)&pPrevInfo->pMeterMeta);
+    SSuperTableMeta* pPrevMetricMeta = taosTransferDataInCache(tscCacheHandle, (void**)&pPrevInfo->pMetricMeta);
 
     pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pPrevMeterMeta, pPrevMetricMeta, pMeterMetaInfo->numOfTags,
                                      pMeterMetaInfo->tagColumnIndex);

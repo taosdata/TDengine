@@ -383,16 +383,16 @@ int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName
 //  if (pTable->isDirty) pTable->isDirty = 0;
 //
 //  if (ret < 0) {
-//    mError("Failed to modify tag column %d of table %s", col, pTable->meterId);
+//    mError("Failed to modify tag column %d of table %s", col, pTable->tableId);
 //    return TSDB_CODE_APP_ERROR;
 //  }
 //
-//  mTrace("Succeed to modify tag column %d of table %s", col, pTable->meterId);
+//  mTrace("Succeed to modify tag column %d of table %s", col, pTable->tableId);
 //  return TSDB_CODE_SUCCESS;
   return 0;
 }
 
-int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp) {
+int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *pMeta, bool usePublicIp) {
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sid          = htonl(pTable->sid);
   pMeta->vgid         = htonl(pTable->vgId);
@@ -401,7 +401,7 @@ int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, SMeterMeta *p
   pMeta->numOfTags    = pTable->superTable->numOfTags;
   pMeta->numOfColumns = htons(pTable->superTable->numOfColumns);
   pMeta->tableType    = pTable->type;
-  pMeta->contLen      = sizeof(SMeterMeta) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable->superTable);
+  pMeta->contLen      = sizeof(STableMeta) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable->superTable);
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {

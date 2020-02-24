@@ -29,7 +29,7 @@ SVgObj *mgmtGetVgroup(int32_t vgId);
 SVgObj *mgmtCreateVgroup(SDbObj *pDb);
 int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup);
 void    mgmtSetVgroupIdPool();
-int32_t mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
+int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 void    mgmtCleanUpVgroups();
 

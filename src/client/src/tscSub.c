@@ -44,7 +44,7 @@ typedef struct SSub {
   int                     interval;
   TAOS_SUBSCRIBE_CALLBACK fp;
   void *                  param;
-  int                     numOfMeters;
+  int                     numOfTables;
   SSubscriptionProgress * progress;
 } SSub;
 
@@ -62,7 +62,7 @@ TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid) {
     return 0;
 
   SSub* pSub = (SSub*)sub;
-  for (int s = 0, e = pSub->numOfMeters; s < e;) {
+  for (int s = 0, e = pSub->numOfTables; s < e;) {
     int m = (s + e) / 2;
     SSubscriptionProgress* p = pSub->progress + m;
     if (p->uid > uid)
@@ -81,7 +81,7 @@ void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts) {
     return;
 
   SSub* pSub = (SSub*)sub;
-  for (int s = 0, e = pSub->numOfMeters; s < e;) {
+  for (int s = 0, e = pSub->numOfTables; s < e;) {
     int m = (s + e) / 2;
     SSubscriptionProgress* p = pSub->progress + m;
     if (p->uid > uid)
@@ -176,43 +176,43 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
 
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
-  int numOfMeters = 0;
+  int numOfTables = 0;
   if (!UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
-    SMetricMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
+    SSuperTableMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
     for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
       SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
-      numOfMeters += pVnodeSidList->numOfSids;
+      numOfTables += pVnodeSidList->numOfSids;
     }
   }
 
-  SSubscriptionProgress* progress = (SSubscriptionProgress*)calloc(numOfMeters, sizeof(SSubscriptionProgress));
+  SSubscriptionProgress* progress = (SSubscriptionProgress*)calloc(numOfTables, sizeof(SSubscriptionProgress));
   if (progress == NULL) {
     tscError("failed to allocate memory for progress: %s", pSub->topic);
     return 0;
   }
 
   if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
-    numOfMeters = 1;
+    numOfTables = 1;
     int64_t uid = pMeterMetaInfo->pMeterMeta->uid;
     progress[0].uid = uid;
     progress[0].key = tscGetSubscriptionProgress(pSub, uid);
   } else {
-    SMetricMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
-    numOfMeters = 0;
+    SSuperTableMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
+    numOfTables = 0;
     for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
       SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
       for (int32_t j = 0; j < pVnodeSidList->numOfSids; j++) {
-        SMeterSidExtInfo *pMeterInfo = tscGetMeterSidInfo(pVnodeSidList, j);
+        STableSidExtInfo *pMeterInfo = tscGetMeterSidInfo(pVnodeSidList, j);
         int64_t uid = pMeterInfo->uid;
-        progress[numOfMeters].uid = uid;
-        progress[numOfMeters++].key = tscGetSubscriptionProgress(pSub, uid);
+        progress[numOfTables].uid = uid;
+        progress[numOfTables++].key = tscGetSubscriptionProgress(pSub, uid);
       }
     }
-    qsort(progress, numOfMeters, sizeof(SSubscriptionProgress), tscCompareSubscriptionProgress);
+    qsort(progress, numOfTables, sizeof(SSubscriptionProgress), tscCompareSubscriptionProgress);
   }
 
   free(pSub->progress);
-  pSub->numOfMeters = numOfMeters;
+  pSub->numOfTables = numOfTables;
   pSub->progress = progress;
 
   pSub->lastSyncTime = taosGetTimestampMs();
@@ -257,9 +257,9 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
     return 0;
   }
 
-  int numOfMeters = atoi(buf);
-  SSubscriptionProgress* progress = calloc(numOfMeters, sizeof(SSubscriptionProgress));
-  for (int i = 0; i < numOfMeters; i++) {
+  int numOfTables = atoi(buf);
+  SSubscriptionProgress* progress = calloc(numOfTables, sizeof(SSubscriptionProgress));
+  for (int i = 0; i < numOfTables; i++) {
     if (fgets(buf, sizeof(buf), fp) == NULL) {
       fclose(fp);
       free(progress);
@@ -273,10 +273,10 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
 
   fclose(fp);
 
-  qsort(progress, numOfMeters, sizeof(SSubscriptionProgress), tscCompareSubscriptionProgress);
-  pSub->numOfMeters = numOfMeters;
+  qsort(progress, numOfTables, sizeof(SSubscriptionProgress), tscCompareSubscriptionProgress);
+  pSub->numOfTables = numOfTables;
   pSub->progress = progress;
-  tscTrace("subscription progress loaded, %d tables: %s", numOfMeters, pSub->topic);
+  tscTrace("subscription progress loaded, %d tables: %s", numOfTables, pSub->topic);
   return 1;
 }
 
@@ -297,8 +297,8 @@ void tscSaveSubscriptionProgress(void* sub) {
   }
 
   fputs(pSub->pSql->sqlstr, fp);
-  fprintf(fp, "\n%d\n", pSub->numOfMeters);
-  for (int i = 0; i < pSub->numOfMeters; i++) {
+  fprintf(fp, "\n%d\n", pSub->numOfTables);
+  for (int i = 0; i < pSub->numOfTables; i++) {
     int64_t uid = pSub->progress[i].uid;
     TSKEY key = pSub->progress[i].key;
     fprintf(fp, "%" PRId64 ":%" PRId64 "\n", uid, key);

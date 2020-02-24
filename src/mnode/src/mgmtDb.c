@@ -105,13 +105,13 @@ SDbObj *mgmtGetDb(char *db) {
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
 
-SDbObj *mgmtGetDbByTableId(char *meterId) {
+SDbObj *mgmtGetDbByTableId(char *tableId) {
   char db[TSDB_TABLE_ID_LEN], *pos;
 
-  pos = strstr(meterId, TS_PATH_DELIMITER);
+  pos = strstr(tableId, TS_PATH_DELIMITER);
   pos = strstr(pos + 1, TS_PATH_DELIMITER);
   memset(db, 0, sizeof(db));
-  strncpy(db, meterId, pos - meterId);
+  strncpy(db, tableId, pos - tableId);
 
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
@@ -217,16 +217,16 @@ int32_t mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   }
 
   // calculate the blocks per table
-  if (pCreate->blocksPerMeter < 0) {
-    pCreate->blocksPerMeter = pCreate->cacheNumOfBlocks.totalBlocks / 4;
+  if (pCreate->blocksPerTable < 0) {
+    pCreate->blocksPerTable = pCreate->cacheNumOfBlocks.totalBlocks / 4;
   }
   
-  if (pCreate->blocksPerMeter > pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4) {
-    pCreate->blocksPerMeter = pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4;
+  if (pCreate->blocksPerTable > pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4) {
+    pCreate->blocksPerTable = pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4;
   }
   
-  if (pCreate->blocksPerMeter < TSDB_MIN_AVG_BLOCKS) {
-    pCreate->blocksPerMeter = TSDB_MIN_AVG_BLOCKS;
+  if (pCreate->blocksPerTable < TSDB_MIN_AVG_BLOCKS) {
+    pCreate->blocksPerTable = TSDB_MIN_AVG_BLOCKS;
   }
 
   pCreate->maxSessions++;
@@ -340,7 +340,7 @@ void mgmtDropDbFromSdb(SDbObj *pDb) {
 //  SSuperTableObj *pMetric = pDb->pSTable;
 //  while (pMetric) {
 //    SSuperTableObj *pNext = pMetric->next;
-//    mgmtDropTable(pDb, pMetric->meterId, 0);
+//    mgmtDropTable(pDb, pMetric->tableId, 0);
 //    pMetric = pNext;
 //  }
 
@@ -527,7 +527,7 @@ void mgmtCleanUpDbs() {
   sdbCloseTable(tsDbSdb);
 }
 
-int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SSchema *pSchema = tsGetSchema(pMeta);
@@ -760,7 +760,7 @@ int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn) 
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int16_t *)pWrite = pDb->cfg.blocksPerMeter;
+      *(int16_t *)pWrite = pDb->cfg.blocksPerTable;
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

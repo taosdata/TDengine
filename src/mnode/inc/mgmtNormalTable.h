@@ -35,7 +35,7 @@ int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SSchema schema[], int3
 int32_t mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *colName);
 int8_t *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable);
 
-int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, SMeterMeta *pMeta, bool usePublicIp);
+int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, STableMeta *pMeta, bool usePublicIp);
 
 #ifdef __cplusplus
 }

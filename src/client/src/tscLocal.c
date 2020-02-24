@@ -77,7 +77,7 @@ static int32_t getToStringLength(const char *pData, int32_t length, int32_t type
  * length((uint64_t) 123456789011) > 12, greater than sizsof(uint64_t)
  */
 static int32_t tscMaxLengthOfTagsFields(SSqlObj *pSql) {
-  SMeterMeta *pMeta = tscGetMeterMetaInfo(&pSql->cmd, 0, 0)->pMeterMeta;
+  STableMeta *pMeta = tscGetMeterMetaInfo(&pSql->cmd, 0, 0)->pMeterMeta;
 
   if (pMeta->tableType == TSDB_TABLE_TYPE_SUPER_TABLE || pMeta->tableType == TSDB_TABLE_TYPE_NORMAL_TABLE ||
       pMeta->tableType == TSDB_TABLE_TYPE_STREAM_TABLE) {
@@ -109,7 +109,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-  SMeterMeta *    pMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta *    pMeta = pMeterMetaInfo->pMeterMeta;
 
   /*
    * tagValueCnt is to denote the number of tags columns for meter, not metric. and is to show the column data.
@@ -285,7 +285,7 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
   
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
-  SMetricMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
+  SSuperTableMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
   SSchema *    pSchema = tsGetTagSchema(pMeterMetaInfo->pMeterMeta);
 
   int32_t vOffset[TSDB_MAX_COLUMNS] = {0};
@@ -299,7 +299,7 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
     }
   }
 
-  int32_t totalNumOfResults = pMetricMeta->numOfMeters;
+  int32_t totalNumOfResults = pMetricMeta->numOfTables;
   int32_t rowLen = tscGetResRowLength(pQueryInfo);
 
   tscInitResObjForLocalQuery(pSql, totalNumOfResults, rowLen);
@@ -309,7 +309,7 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
     SVnodeSidList *pSidList = (SVnodeSidList *)((char *)pMetricMeta + pMetricMeta->list[i]);
 
     for (int32_t j = 0; j < pSidList->numOfSids; ++j) {
-      SMeterSidExtInfo *pSidExt = tscGetMeterSidInfo(pSidList, j);
+      STableSidExtInfo *pSidExt = tscGetMeterSidInfo(pSidList, j);
       
       for (int32_t k = 0; k < pQueryInfo->fieldsInfo.numOfOutputCols; ++k) {
         SColIndexEx *pColIndex = &tscSqlExprGet(pQueryInfo, k)->colInfo;
@@ -336,7 +336,7 @@ static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   
-  SMetricMeta *pMetricMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0)->pMetricMeta;
+  SSuperTableMeta *pMetricMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0)->pMetricMeta;
   int32_t      totalNumOfResults = 1;  // count function only produce one result
   int32_t      rowLen = tscGetResRowLength(pQueryInfo);
 
@@ -351,7 +351,7 @@ static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
         TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, k);
 
         memcpy(pRes->data + tscFieldInfoGetOffset(pQueryInfo, i) * totalNumOfResults + pField->bytes * rowIdx,
-               &pMetricMeta->numOfMeters, sizeof(pMetricMeta->numOfMeters));
+               &pMetricMeta->numOfTables, sizeof(pMetricMeta->numOfTables));
       } else {
         tscError("not support operations");
         continue;
@@ -368,7 +368,7 @@ static int tscProcessQueryTags(SSqlObj *pSql) {
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   
-  SMeterMeta *pMeterMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0)->pMeterMeta;
+  STableMeta *pMeterMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0)->pMeterMeta;
   if (pMeterMeta == NULL || pMeterMeta->numOfTags == 0 || pMeterMeta->numOfColumns == 0) {
     strcpy(pCmd->payload, "invalid table");
     pSql->res.code = TSDB_CODE_INVALID_TABLE;

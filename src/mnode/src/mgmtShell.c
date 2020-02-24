@@ -40,9 +40,9 @@
 #include "mgmtVgroup.h"
 
 
-#define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
+#define MAX_LEN_OF_METER_META (sizeof(SMultiTableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
 
-typedef int32_t (*GetMateFp)(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
+typedef int32_t (*GetMateFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 typedef int32_t (*RetrieveMetaFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static GetMateFp* mgmtGetMetaFp;
 static RetrieveMetaFp* mgmtRetrieveFp;
@@ -118,7 +118,7 @@ void mgmtCleanUpShell() {
   }
 }
 
-int32_t mgmtProcessMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
+int32_t mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
   SRpcConnInfo connInfo;
   rpcGetConnInfo(ahandle, &connInfo);
 
@@ -177,7 +177,7 @@ int32_t mgmtProcessMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
     return TSDB_CODE_INVALID_TABLE;
   }
 
-  SMeterMeta *pMeta = rpcMallocCont(sizeof(SMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
+  STableMeta *pMeta = rpcMallocCont(sizeof(STableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
   int32_t code = mgmtGetTableMeta(pDb, pTable, pMeta, usePublicIp);
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -206,13 +206,13 @@ int32_t mgmtProcessMultiMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle
   pInfo->numOfTables = htonl(pInfo->numOfTables);
 
   int32_t totalMallocLen = 4*1024*1024; // first malloc 4 MB, subsequent reallocation as twice
-  SMultiMeterMeta *pMultiMeta = rpcMallocCont(totalMallocLen);
+  SMultiTableMeta *pMultiMeta = rpcMallocCont(totalMallocLen);
   if (pMultiMeta == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
-  pMultiMeta->contLen = sizeof(SMultiMeterMeta);
+  pMultiMeta->contLen = sizeof(SMultiTableMeta);
   pMultiMeta->numOfTables = 0;
 
   for (int t = 0; t < pInfo->numOfTables; ++t) {
@@ -224,7 +224,7 @@ int32_t mgmtProcessMultiMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle
     if (pDb == NULL) continue;
 
     int availLen = totalMallocLen - pMultiMeta->contLen;
-    if (availLen <= sizeof(SMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS) {
+    if (availLen <= sizeof(STableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS) {
       //TODO realloc
       //totalMallocLen *= 2;
       //pMultiMeta = rpcReMalloc(pMultiMeta, totalMallocLen);
@@ -237,7 +237,7 @@ int32_t mgmtProcessMultiMeterMetaMsg(void *pCont, int32_t contLen, void *ahandle
       //}
     }
 
-    SMeterMeta *pMeta = (SMeterMeta *)(pMultiMeta->metas + pMultiMeta->contLen);
+    STableMeta *pMeta = (STableMeta *)(pMultiMeta->metas + pMultiMeta->contLen);
     int32_t code = mgmtGetTableMeta(pDb, pTable, pMeta, usePublicIp);
     if (code == TSDB_CODE_SUCCESS) {
       pMultiMeta->numOfTables ++;
@@ -269,7 +269,7 @@ int32_t mgmtProcessCreateDbMsg(void *pCont, int32_t contLen, void *ahandle) {
   pCreate->daysToKeep1     = htonl(pCreate->daysToKeep1);
   pCreate->daysToKeep2     = htonl(pCreate->daysToKeep2);
   pCreate->commitTime      = htonl(pCreate->commitTime);
-  pCreate->blocksPerMeter  = htons(pCreate->blocksPerMeter);
+  pCreate->blocksPerTable  = htons(pCreate->blocksPerTable);
   pCreate->rowsInFileBlock = htonl(pCreate->rowsInFileBlock);
   // pCreate->cacheNumOfBlocks = htonl(pCreate->cacheNumOfBlocks);
 
@@ -673,7 +673,7 @@ int32_t mgmtProcessShowMsg(void *pCont, int32_t contLen, void *ahandle) {
 
     mgmtSaveQhandle(pShow);
     pShowRsp->qhandle = htobe64((uint64_t) pShow);
-    code = (*mgmtGetMetaFp[(uint8_t) pShowMsg->type])(&pShowRsp->meterMeta, pShow, ahandle);
+    code = (*mgmtGetMetaFp[(uint8_t) pShowMsg->type])(&pShowRsp->tableMeta, pShow, ahandle);
     if (code == 0) {
       size = sizeof(SShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
     } else {
@@ -691,7 +691,7 @@ int32_t mgmtProcessRetrieveMsg(void *pCont, int32_t contLen, void *ahandle) {
   int32_t rowsToRead = 0;
   int32_t size = 0;
   int32_t rowsRead = 0;
-  SRetrieveMeterMsg *pRetrieve = (SRetrieveMeterMsg *)pCont;
+  SRetrieveTableMsg *pRetrieve = (SRetrieveTableMsg *)pCont;
   pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
 
   /*
@@ -726,7 +726,7 @@ int32_t mgmtProcessRetrieveMsg(void *pCont, int32_t contLen, void *ahandle) {
   }
 
   size += 100;
-  SRetrieveMeterRsp *pRsp = rpcMallocCont(size);
+  SRetrieveTableRsp *pRsp = rpcMallocCont(size);
 
   // if free flag is set, client wants to clean the resources
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE)
@@ -1040,7 +1040,7 @@ connect_over:
 }
 
 /**
- * check if we need to add mgmtProcessMeterMetaMsg into tranQueue, which will be executed one-by-one.
+ * check if we need to add mgmtProcessTableMetaMsg into tranQueue, which will be executed one-by-one.
  */
 static bool mgmtCheckMeterMetaMsgType(void *pMsg) {
   STableInfoMsg *pInfo = (STableInfoMsg *) pMsg;
@@ -1114,7 +1114,7 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_CONNECTION]  = mgmtProcessKillConnectionMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_SHOW]             = mgmtProcessShowMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_RETRIEVE]         = mgmtProcessRetrieveMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_TABLE_META]       = mgmtProcessMeterMetaMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_TABLE_META]       = mgmtProcessTableMetaMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_MULTI_TABLE_META] = mgmtProcessMultiMeterMetaMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_STABLE_META]      = mgmtProcessUnSupportMsg;
 }

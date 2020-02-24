@@ -193,13 +193,13 @@ void dnodeSendVpeerCfgMsg(int32_t vnode) {
 }
 
 void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
-  SMeterCfgMsg *cfg = (SMeterCfgMsg *) rpcMallocCont(sizeof(SMeterCfgMsg));
+  STableCfgMsg *cfg = (STableCfgMsg *) rpcMallocCont(sizeof(STableCfgMsg));
   if (cfg == NULL) {
     return;
   }
 
   cfg->vnode = htonl(vnode);
-  dnodeSendMsgToMnode((int8_t*)cfg, sizeof(SMeterCfgMsg), TSDB_MSG_TYPE_TABLE_CFG);
+  dnodeSendMsgToMnode((int8_t*)cfg, sizeof(STableCfgMsg), TSDB_MSG_TYPE_TABLE_CFG);
 }
 
 void dnodeInitProcessShellMsg() {

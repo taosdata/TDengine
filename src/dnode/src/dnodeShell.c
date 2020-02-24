@@ -107,8 +107,8 @@ void dnodeCleanupShell() {
 }
 
 void dnodeProcessQueryRequestCb(int code, void *pQInfo, void *pConn) {
-  int32_t contLen = sizeof(SQueryMeterRsp);
-  SQueryMeterRsp *queryRsp = (SQueryMeterRsp *) rpcMallocCont(contLen);
+  int32_t contLen = sizeof(SQueryTableRsp);
+  SQueryTableRsp *queryRsp = (SQueryTableRsp *) rpcMallocCont(contLen);
   if (queryRsp == NULL) {
     return;
   }
@@ -125,7 +125,7 @@ static void dnodeProcessQueryRequest(int8_t *pCont, int32_t contLen, void *pConn
   atomic_fetch_add_32(&tsDnodeQueryReqNum, 1);
   dTrace("conn:%p, start to query data", pConn);
 
-  SQueryMeterMsg *pQuery = (SQueryMeterMsg *) pCont;
+  SQueryTableMsg *pQuery = (SQueryTableMsg *) pCont;
   dnodeQueryData(pQuery, pConn, dnodeProcessQueryRequestCb);
 }
 
@@ -140,7 +140,7 @@ void dnodeProcessRetrieveRequestCb(int32_t code, void *pQInfo, void *pConn) {
 
   assert(pQInfo != NULL);
   int32_t contLen = dnodeGetRetrieveDataSize(pQInfo);
-  SRetrieveMeterRsp *retrieveRsp = (SRetrieveMeterRsp *) rpcMallocCont(contLen);
+  SRetrieveTableRsp *retrieveRsp = (SRetrieveTableRsp *) rpcMallocCont(contLen);
   if (retrieveRsp == NULL) {
     rpcSendResponse(pConn, TSDB_CODE_SERV_OUT_OF_MEMORY, 0, 0);
     return;
@@ -162,7 +162,7 @@ void dnodeProcessRetrieveRequestCb(int32_t code, void *pQInfo, void *pConn) {
 static void dnodeProcessRetrieveRequest(int8_t *pCont, int32_t contLen, void *pConn) {
   dTrace("conn:%p, start to retrieve data", pConn);
 
-  SRetrieveMeterMsg *pRetrieve = (SRetrieveMeterMsg *) pCont;
+  SRetrieveTableMsg *pRetrieve = (SRetrieveTableMsg *) pCont;
   dnodeRetrieveData(pRetrieve, pConn, dnodeProcessRetrieveRequestCb);
 }
 

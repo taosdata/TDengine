@@ -83,7 +83,7 @@ int32_t mgmtProcessMeterCfgMsg(int8_t *pCont, int32_t contLen, void *pConn) {
     return TSDB_CODE_REDIRECT;
   }
 
-  SMeterCfgMsg *cfg  = (SMeterCfgMsg *) pConn;
+  STableCfgMsg *cfg  = (STableCfgMsg *) pConn;
   int32_t      vnode = htonl(cfg->vnode);
   int32_t      sid   = htonl(cfg->sid);
 
@@ -306,7 +306,7 @@ int mgmtSendRemoveMeterMsgToDnode(STableInfo *pTable, SVgObj *pVgroup) {
 //    pRemove = (SDRemoveTableMsg *)pMsg;
 //    pRemove->vnode = htons(pVgroup->vnodeGid[i].vnode);
 //    pRemove->sid = htonl(pTable->gid.sid);
-//    memcpy(pRemove->meterId, pTable->meterId, TSDB_TABLE_ID_LEN);
+//    memcpy(pRemove->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
 //
 //    pMsg += sizeof(SDRemoveTableMsg);
 //    msgLen = pMsg - pStart;
@@ -372,7 +372,7 @@ char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode) {
   pCfg->daysToKeep2 = htonl(pCfg->daysToKeep2);
   pCfg->daysToKeep = htonl(pCfg->daysToKeep);
   pCfg->commitTime = htonl(pCfg->commitTime);
-  pCfg->blocksPerMeter = htons(pCfg->blocksPerMeter);
+  pCfg->blocksPerTable = htons(pCfg->blocksPerTable);
   pCfg->replications = (char)pVgroup->numOfVnodes;
   pCfg->rowsInFileBlock = htonl(pCfg->rowsInFileBlock);
 

@@ -117,7 +117,7 @@ int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetQueryMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SSchema *pSchema = tsGetSchema(pMeta);
@@ -316,7 +316,7 @@ int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetStreamMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t      cols = 0;
   SSchema *pSchema = tsGetSchema(pMeta);
 

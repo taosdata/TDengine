@@ -29,7 +29,7 @@ int32_t mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup);
 int32_t mgmtRemoveVgroupFromDb(SDbObj *pDb, SVgObj *pVgroup);
 int32_t mgmtMoveVgroupToTail(SDbObj *pDb, SVgObj *pVgroup);
 int32_t mgmtMoveVgroupToHead(SDbObj *pDb, SVgObj *pVgroup);
-int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
+int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 void    mgmtCleanUpDbs();
 

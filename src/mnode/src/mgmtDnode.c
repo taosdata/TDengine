@@ -97,7 +97,7 @@ void mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes) {
   }
 }
 
-int32_t mgmtGetDnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetDnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
@@ -212,7 +212,7 @@ int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pCon
   return numOfRows;
 }
 
-int32_t mgmtGetModuleMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetModuleMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
@@ -305,7 +305,7 @@ int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pCo
   return numOfRows;
 }
 
-int32_t mgmtGetConfigMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetConfigMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
@@ -393,7 +393,7 @@ int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pCo
   return numOfRows;
 }
 
-int32_t mgmtGetVnodeMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
@@ -571,11 +571,11 @@ void *mgmtGetNextDnodeImp(SShowObj *pShow, SDnodeObj **pDnode) {
 
 void *(*mgmtGetNextDnode)(SShowObj *pShow, SDnodeObj **pDnode) = mgmtGetNextDnodeImp;
 
-int32_t mgmtGetScoresMetaImp(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetScoresMetaImp(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
-int32_t (*mgmtGetScoresMeta)(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) = mgmtGetScoresMetaImp;
+int32_t (*mgmtGetScoresMeta)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = mgmtGetScoresMetaImp;
 
 int32_t mgmtRetrieveScoresImp(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   return 0;

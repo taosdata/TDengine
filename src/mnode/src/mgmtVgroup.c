@@ -248,7 +248,7 @@ void mgmtSetVgroupIdPool() {
 
 void mgmtCleanUpVgroups() { sdbCloseTable(tsVgroupSdb); }
 
-int32_t mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
 //  int32_t cols = 0;
 //
 //  SDbObj *pDb = NULL;

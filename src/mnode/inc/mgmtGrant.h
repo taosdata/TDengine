@@ -30,7 +30,7 @@ extern void    (*mgmtRestoreTimeSeries)(uint32_t timeseries);
 extern int32_t (*mgmtCheckTimeSeries)(uint32_t timeseries);
 extern int32_t (*mgmtCheckUserGrant)();
 extern int32_t (*mgmtCheckDbGrant)();
-extern int32_t (*mgmtGetGrantsMeta)(SMeterMeta *pMeta, SShowObj *pShow, void *pConn);
+extern int32_t (*mgmtGetGrantsMeta)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 extern int32_t (*mgmtRetrieveGrants)(SShowObj *pShow, char *data, int rows, void *pConn);
 
 #ifdef __cplusplus

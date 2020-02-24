@@ -47,8 +47,8 @@ typedef struct SSqlGroupbyExpr {
 } SSqlGroupbyExpr;
 
 typedef struct SMeterMetaInfo {
-  SMeterMeta * pMeterMeta;   // metermeta
-  SMetricMeta *pMetricMeta;  // metricmeta
+  STableMeta * pMeterMeta;   // metermeta
+  SSuperTableMeta *pMetricMeta;  // metricmeta
 
   /*
    * 1. keep the vnode index during the multi-vnode super table projection query
@@ -160,7 +160,7 @@ typedef struct STableDataBlocks {
   bool    ordered;      // if current rows are ordered or not
   int64_t vgid;         // virtual group id
   int64_t prevTS;       // previous timestamp, recorded to decide if the records array is ts ascending
-  int32_t numOfMeters;  // number of tables in current submit block
+  int32_t numOfTables;  // number of tables in current submit block
 
   int32_t  rowSize;  // row size for current table
   uint32_t nAllocSize;
@@ -171,7 +171,7 @@ typedef struct STableDataBlocks {
    * the metermeta for current table, the metermeta will be used during submit stage, keep a ref
    * to avoid it to be removed from cache
    */
-  SMeterMeta *pMeterMeta;
+  STableMeta *pMeterMeta;
 
   union {
     char *filename;

@@ -26,14 +26,14 @@ void dnodeFreeQInfo(void *pConn) {}
 
 void dnodeFreeQInfos() {}
 
-void dnodeQueryData(SQueryMeterMsg *pQuery, void *pConn, void (*callback)(int32_t code, void *pQInfo, void *pConn)) {
+void dnodeQueryData(SQueryTableMsg *pQuery, void *pConn, void (*callback)(int32_t code, void *pQInfo, void *pConn)) {
   void *pQInfo = NULL;
   int code = TSDB_CODE_SUCCESS;
   callback(code, pConn, pQInfo);
 }
 
 static void dnodeExecuteRetrieveData(SSchedMsg *pSched) {
-  //SRetrieveMeterMsg *pRetrieve = (SRetrieveMeterMsg *)pSched->msg;
+  //SRetrieveTableMsg *pRetrieve = (SRetrieveTableMsg *)pSched->msg;
   SDnodeRetrieveCallbackFp callback = (SDnodeRetrieveCallbackFp)pSched->thandle;
   void *pConn = pSched->ahandle;
 
@@ -47,9 +47,9 @@ static void dnodeExecuteRetrieveData(SSchedMsg *pSched) {
   free(pSched->msg);
 }
 
-void dnodeRetrieveData(SRetrieveMeterMsg *pRetrieve, void *pConn, SDnodeRetrieveCallbackFp callbackFp) {
-  int8_t *msg = malloc(sizeof(SRetrieveMeterMsg));
-  memcpy(msg, pRetrieve, sizeof(SRetrieveMeterMsg));
+void dnodeRetrieveData(SRetrieveTableMsg *pRetrieve, void *pConn, SDnodeRetrieveCallbackFp callbackFp) {
+  int8_t *msg = malloc(sizeof(SRetrieveTableMsg));
+  memcpy(msg, pRetrieve, sizeof(SRetrieveTableMsg));
 
   SSchedMsg schedMsg;
   schedMsg.msg     = msg;
@@ -59,7 +59,7 @@ void dnodeRetrieveData(SRetrieveMeterMsg *pRetrieve, void *pConn, SDnodeRetrieve
   taosScheduleTask(tsQueryQhandle, &schedMsg);
 }
 
-int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveMeterRsp *retrievalRsp) {
+int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveTableRsp *retrievalRsp) {
   return 0;
 }
 
