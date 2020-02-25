@@ -17,24 +17,35 @@
 #include "os.h"
 #include "tlog.h"
 #include "trpc.h"
+#include "tqueue.h"
 #include <stdint.h>
 
 int msgSize = 128;
 int commit = 0;
 int dataFd = -1;
+void *qhandle = NULL;
 
-void processRequestMsg(char type, void *pCont, int contLen, void *thandle, int32_t code) {
+void processShellMsg(int numOfMsgs, SRpcMsg *pMsg) {
   static int num = 0;
-  tTrace("request is received, type:%d, contLen:%d", type, contLen);
 
-  if (dataFd >=0) {
-    if ( write(dataFd, pCont, contLen) <0 ) {
-      tPrint("failed to write data file, reason:%s", strerror(errno));
+  tTrace("%d shell msgs are received", numOfMsgs);
+
+  for (int i=0; i<numOfMsgs; ++i) {
+  
+    if (dataFd >=0) {
+      if ( write(dataFd, pMsg->msg, pMsg->msgLen) <0 ) {
+        tPrint("failed to write data file, reason:%s", strerror(errno));
+      }
     }
+   
+    void *rsp = rpcMallocCont(msgSize);
+    rpcSendResponse(pMsg->handle, 1, rsp, msgSize);
+    rpcFreeCont(pMsg->msg);
+    pMsg++;
   }
-      
+   
   if (commit >=2) {
-    ++num;
+    num += numOfMsgs;
     if ( fsync(dataFd) < 0 ) {
       tPrint("failed to flush data to file, reason:%s", strerror(errno));
     }
@@ -44,9 +55,6 @@ void processRequestMsg(char type, void *pCont, int contLen, void *thandle, int32
     }
   }
 
-  void *rsp = rpcMallocCont(msgSize);
-
-  rpcSendResponse(thandle, 1, rsp, msgSize);
 
 /*
   SRpcIpSet ipSet;
@@ -58,7 +66,17 @@ void processRequestMsg(char type, void *pCont, int contLen, void *thandle, int32
   rpcSendRedirectRsp(ahandle, &ipSet);
 */
 
-  rpcFreeCont(pCont);
+}
+
+void processRequestMsg(char type, void *pCont, int contLen, void *thandle, int32_t code) {
+  tTrace("request is received, type:%d, contLen:%d", type, contLen);
+  SRpcMsg rpcMsg;
+  rpcMsg.msg = pCont;
+  rpcMsg.msgLen = contLen;
+  rpcMsg.code = code;
+  rpcMsg.handle = thandle;
+  rpcMsg.type = type;
+  taosPutIntoMsgQueue(qhandle, &rpcMsg); 
 }
 
 int main(int argc, char *argv[]) {
@@ -91,6 +109,7 @@ int main(int argc, char *argv[]) {
       commit = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       rpcDebugFlag = atoi(argv[++i]);
+      uDebugFlag = rpcDebugFlag;
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-i ip]: server IP address, default is:%s\n", rpcInit.localIp);
@@ -124,6 +143,8 @@ int main(int argc, char *argv[]) {
     if (dataFd<0) 
       tPrint("failed to open data file, reason:%s", strerror(errno));
   }
+
+  qhandle = taosInitMsgQueue(1000, processShellMsg, "SER");
 
   // loop forever
   while(1) {
