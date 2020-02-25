@@ -86,7 +86,7 @@ int32_t mgmtInitDbs() {
     pDb->next = NULL;
     pDb->numOfTables = 0;
     pDb->numOfVgroups = 0;
-    pDb->numOfMetrics = 0;
+    pDb->numOfSuperTables = 0;
     pDb->vgStatus = TSDB_VG_STATUS_READY;
     pDb->vgTimer = NULL;
     pAcct = mgmtGetAcct(pDb->cfg.acct);
@@ -852,4 +852,19 @@ void *mgmtDbActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
 void *mgmtDbActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
   tfree(row);
   return NULL;
+}
+
+void mgmtAddSuperTableIntoDb(SDbObj *pDb) {
+  atomic_add_fetch_32(&pDb->numOfSuperTables, 1);
+}
+
+void mgmtRemoveSuperTableFromDb(SDbObj *pDb) {
+  atomic_add_fetch_32(&pDb->numOfSuperTables, -1);
+}
+void mgmtAddTableIntoDb(SDbObj *pDb) {
+  atomic_add_fetch_32(&pDb->numOfTables, 1);
+}
+
+void mgmtRemoveTableFromDb(SDbObj *pDb) {
+  atomic_add_fetch_32(&pDb->numOfTables, -1);
 }

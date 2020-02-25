@@ -84,7 +84,7 @@ struct SSchema* tsGetColumnSchema(STableMeta* pMeta, int32_t startCol) {
 }
 
 struct SSchema tsGetTbnameColumnSchema() {
-  struct SSchema s = {.colId = TSDB_TBNAME_COLUMN_INDEX, .type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_METER_NAME_LEN};
+  struct SSchema s = {.colId = TSDB_TBNAME_COLUMN_INDEX, .type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_TABLE_NAME_LEN};
   strcpy(s.name, TSQL_TBNAME_L);
   
   return s;

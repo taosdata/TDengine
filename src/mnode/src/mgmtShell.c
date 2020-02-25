@@ -688,7 +688,7 @@ int32_t mgmtProcessShowMsg(void *pCont, int32_t contLen, void *ahandle) {
     SShowObj *pShow = (SShowObj *) calloc(1, sizeof(SShowObj) + htons(pShowMsg->payloadLen));
     pShow->signature = pShow;
     pShow->type      = pShowMsg->type;
-    strcpy(pShow->db, pShow->db);
+    strcpy(pShow->db, pShowMsg->db);
     mTrace("pShow:%p is allocated", pShow);
 
     // set the table name query condition
@@ -805,20 +805,12 @@ int32_t mgmtProcessCreateTableMsg(void *pCont, int32_t contLen, void *ahandle) {
     SDbObj *pDb = mgmtGetDb(pCreate->db);
     if (pDb) {
       code = mgmtCreateTable(pDb, pCreate);
-      if (code == TSDB_CODE_TABLE_ALREADY_EXIST) {
-        if (pCreate->igExists) {
-          code = TSDB_CODE_SUCCESS;
-        }
-      }
     } else {
       code = TSDB_CODE_DB_NOT_SELECTED;
     }
   }
 
-  if (code != TSDB_CODE_SUCCESS) {
-    rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, NULL, 0);
-  }
-
+  rpcSendResponse(ahandle, code, NULL, 0);
   return code;
 }
 

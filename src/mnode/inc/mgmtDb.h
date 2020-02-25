@@ -42,6 +42,11 @@ int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
 int32_t mgmtDropDb(SDbObj *pDb);
 bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
 
+void mgmtAddSuperTableIntoDb(SDbObj *pDb);
+void mgmtRemoveSuperTableFromDb(SDbObj *pDb);
+void mgmtAddTableIntoDb(SDbObj *pDb);
+void mgmtRemoveTableFromDb(SDbObj *pDb);
+
 #ifdef __cplusplus
 }
 #endif

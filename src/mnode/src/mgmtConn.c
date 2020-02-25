@@ -70,7 +70,7 @@ int mgmtGetConns(SShowObj *pShow, void *pConn) {
 int mgmtGetConnsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int cols = 0;
 
-  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
   SSchema *pSchema = tsGetSchema(pMeta);
 
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;

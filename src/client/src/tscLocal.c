@@ -293,7 +293,7 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
   for (int32_t f = 1; f < pMeterMetaInfo->numOfTags; ++f) {
     int16_t tagColumnIndex = pMeterMetaInfo->tagColumnIndex[f - 1];
     if (tagColumnIndex == -1) {
-      vOffset[f] = vOffset[f - 1] + TSDB_METER_NAME_LEN;
+      vOffset[f] = vOffset[f - 1] + TSDB_TABLE_NAME_LEN;
     } else {
       vOffset[f] = vOffset[f - 1] + pSchema[tagColumnIndex].bytes;
     }

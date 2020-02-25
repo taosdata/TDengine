@@ -236,6 +236,7 @@ int32_t mgmtInitNormalTables() {
       pNode = pLastNode;
       continue;
     }
+    mgmtAddTableIntoDb(pDb);
   }
 
   mgmtSetVgroupIdPool();
@@ -326,6 +327,7 @@ int32_t mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVg
              " db:%s",
          pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid, pDb->name);
 
+  mgmtAddTableIntoDb(pDb);
   return 0;
 }
 
@@ -354,6 +356,7 @@ int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
     mgmtDropVgroup(pDb, pVgroup);
   }
 
+  mgmtRemoveTableFromDb(pDb);
   return 0;
 }
 

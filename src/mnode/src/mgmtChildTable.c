@@ -221,6 +221,8 @@ int32_t mgmtInitChildTables() {
       pNode = pLastNode;
       continue;
     }
+
+    mgmtAddTableIntoDb(pDb);
   }
 
   mgmtSetVgroupIdPool();
@@ -305,12 +307,12 @@ int32_t mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgr
   }
 
   mgmtAddTimeSeries(pTable->superTable->numOfColumns - 1);
-
   mgmtSendCreateTableMsg(pTable, pVgroup);
 
   mTrace("table:%s, create table in vgroup, vgId:%d sid:%d vnode:%d uid:%" PRIu64 " db:%s",
          pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid, pDb->name);
 
+  mgmtAddTableIntoDb(pDb);
   return 0;
 }
 
@@ -337,6 +339,7 @@ int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
     mgmtDropVgroup(pDb, pVgroup);
   }
 
+  mgmtRemoveTableFromDb(pDb);
   return 0;
 }
 

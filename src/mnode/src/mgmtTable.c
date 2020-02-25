@@ -248,53 +248,48 @@ void mgmtCleanUpMeters() {
 }
 
 int32_t mgmtGetShowTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
-//  int32_t cols = 0;
-//
-//  SDbObj *pDb = NULL;
-//  if (pConn->pDb != NULL) {
-//    pDb = mgmtGetDb(pConn->pDb->name);
-//  }
-//
-//  if (pDb == NULL) {
-//    return TSDB_CODE_DB_NOT_SELECTED;
-//  }
-//
-//  SSchema *pSchema = tsGetSchema(pMeta);
-//
-//  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
-//  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-//  strcpy(pSchema[cols].name, "table_name");
-//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-//  cols++;
-//
-//  pShow->bytes[cols] = 8;
-//  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-//  strcpy(pSchema[cols].name, "created_time");
-//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-//  cols++;
-//
-//  pShow->bytes[cols] = 2;
-//  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-//  strcpy(pSchema[cols].name, "columns");
-//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-//  cols++;
-//
-//  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
-//  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-//  strcpy(pSchema[cols].name, "stable");
-//  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-//  cols++;
-//
-//  pMeta->numOfColumns = htons(cols);
-//  pShow->numOfColumns = cols;
-//
-//  pShow->offset[0] = 0;
-//  for (int32_t i = 1; i < cols; ++i) {
-//    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-//  }
-//
-//  pShow->numOfRows = pDb->numOfTables;
-//  pShow->rowSize   = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+  SDbObj *pDb = mgmtGetDb(pShow->db);
+  if (pDb == NULL) {
+    return TSDB_CODE_DB_NOT_SELECTED;
+  }
+
+  int32_t cols = 0;
+  SSchema *pSchema = tsGetSchema(pMeta);
+
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "table_name");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "created_time");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 2;
+  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+  strcpy(pSchema[cols].name, "columns");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "stable");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pMeta->numOfColumns = htons(cols);
+  pShow->numOfColumns = cols;
+
+  pShow->offset[0] = 0;
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
+
+  pShow->numOfRows = pDb->numOfTables;
+  pShow->rowSize   = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   return 0;
 }
@@ -382,7 +377,7 @@ int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *
 //      continue;
 //    }
 //
-//    char meterName[TSDB_METER_NAME_LEN] = {0};
+//    char meterName[TSDB_TABLE_NAME_LEN] = {0};
 //    memset(meterName, 0, tListLen(meterName));
 //    numOfRead++;
 //
@@ -390,14 +385,14 @@ int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *
 //    extractTableName(tableId, meterName);
 //
 //    if (pShow->payloadLen > 0 &&
-//        patternMatch(pShow->payload, meterName, TSDB_METER_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
+//        patternMatch(pShow->payload, meterName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
 //      continue;
 //    }
 //
 //    cols = 0;
 //
 //    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-//    strncpy(pWrite, meterName, TSDB_METER_NAME_LEN);
+//    strncpy(pWrite, meterName, TSDB_TABLE_NAME_LEN);
 //    cols++;
 //
 //    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

@@ -101,40 +101,8 @@ typedef struct {
   int32_t vgId;  // vnode group ID
 } STableGid;
 
-typedef struct _tab_obj {
-  char      tableId[TSDB_TABLE_ID_LEN + 1];
-  uint64_t  uid;
-  STableGid gid;
-
-  int32_t sversion;     // schema version
-  int64_t createdTime;
-  int32_t numOfTags;    // for metric
-  int32_t numOfTables;  // for metric
-  int32_t numOfColumns;
-  int32_t schemaSize;
-  short   nextColId;
-  char    tableType : 4;
-  char    status : 3;
-  char    isDirty : 1;  // if the table change tag column 1 value
-  char    reserved[15];
-  char    updateEnd[1];
-
-  pthread_rwlock_t rwLock;
-  tSkipList *      pSkipList;
-  struct _tab_obj *pHead;  // for metric, a link list for all meters created
-                           // according to this metric
-  char *pTagData;          // TSDB_TABLE_ID_LEN(metric_name)+
-                           // tags_value1/tags_value2/tags_value3
-  struct _tab_obj *prev, *next;
-  char *           pSql;   // pointer to SQL, for SC, null-terminated string
-  char *           pReserve1;
-  char *           pReserve2;
-  char *           schema;
-  // SSchema    schema[];
-} STabObj;
-
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     tableId[TSDB_TABLE_ID_LEN];
   int8_t   type;
   uint64_t uid;
   int32_t  sid;
@@ -142,38 +110,40 @@ typedef struct {
   int64_t  createdTime;
 } STableInfo;
 
+struct _vg_obj;
+
 typedef struct SSuperTableObj {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     tableId[TSDB_TABLE_ID_LEN];
   int8_t   type;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
   int64_t  createdTime;
   int32_t  sversion;
-  int32_t  numOfTables;
   int32_t  numOfColumns;
   int32_t  numOfTags;
   int8_t   reserved[7];
   int8_t   updateEnd[1];
+  int32_t  numOfTables;
   int16_t  nextColId;
-  SSchema  *schema;
+  SSchema *schema;
 } SSuperTableObj;
 
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     tableId[TSDB_TABLE_ID_LEN];
   int8_t   type;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
   int64_t  createdTime;
-  char     superTableId[TSDB_TABLE_ID_LEN + 1];
+  char     superTableId[TSDB_TABLE_ID_LEN];
   int8_t   reserved[7];
   int8_t   updateEnd[1];
   SSuperTableObj *superTable;
 } SChildTableObj;
 
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     tableId[TSDB_TABLE_ID_LEN];
   int8_t   type;
   uint64_t uid;
   int32_t  sid;
@@ -188,7 +158,7 @@ typedef struct {
 } SNormalTableObj;
 
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     tableId[TSDB_TABLE_ID_LEN];
   int8_t   type;
   uint64_t uid;
   int32_t  sid;
@@ -224,24 +194,20 @@ typedef struct _vg_obj {
 } SVgObj;
 
 typedef struct _db_obj {
-  /*
-   * this length will cause the storage structure to change, rollback
-   */
-  char    name[TSDB_DB_NAME_LEN + 1];
+  char    name[TSDB_DB_NAME_LEN];
   int64_t createdTime;
   SDbCfg  cfg;
-  int32_t numOfVgroups;
-  int32_t numOfTables;
-  int32_t numOfMetrics;
-  uint8_t vgStatus;
-  uint8_t dropStatus;
+  int8_t  dropStatus;
   char    reserved[16];
   char    updateEnd[1];
-
   struct _db_obj *prev, *next;
-  SVgObj *        pHead;  // empty vgroup first
-  SVgObj *        pTail;  // empty vgroup end
-  void *          vgTimer;
+  int32_t numOfVgroups;
+  int32_t numOfTables;
+  int32_t numOfSuperTables;
+  int32_t vgStatus;
+  SVgObj *pHead;  // empty vgroup first
+  SVgObj *pTail;  // empty vgroup end
+  void *  vgTimer;
 } SDbObj;
 
 struct _acctObj;

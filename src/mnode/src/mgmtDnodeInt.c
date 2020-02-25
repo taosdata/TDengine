@@ -37,7 +37,7 @@
 void  mgmtProcessMsgFromDnode(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
 int   mgmtSendVPeersMsg(SVgObj *pVgroup);
 char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode);
-char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int vnode);
+//char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int vnode);
 extern void *tsDnodeMgmtQhandle;
 void * mgmtStatusTimer = NULL;
 
@@ -323,7 +323,7 @@ int mgmtSendRemoveMeterMsgToDnode(STableInfo *pTable, SVgObj *pVgroup) {
   return 0;
 }
 
-int mgmtSendAlterStreamMsgToDnode(STabObj *pTable, SVgObj *pVgroup) {
+int mgmtSendAlterStreamMsgToDnode(void *pTable, SVgObj *pVgroup) {
 //  SAlterStreamMsg *pAlter;
 //  char *           pMsg, *pStart;
 //  int              i, msgLen = 0;

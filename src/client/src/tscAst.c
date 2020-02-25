@@ -139,7 +139,7 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
     } else {
       pNode->colId = -1;
       pNode->pSchema->type = TSDB_DATA_TYPE_BINARY;
-      pNode->pSchema->bytes = TSDB_METER_NAME_LEN;
+      pNode->pSchema->bytes = TSDB_TABLE_NAME_LEN;
       strcpy(pNode->pSchema->name, TSQL_TBNAME_L);
       pNode->pSchema->colId = -1;
     }

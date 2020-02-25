@@ -190,7 +190,7 @@ void *mgmtStreamTableActionDecode(void *row, char *str, int32_t size, int32_t *s
   if (pTable == NULL) {
     return NULL;
   }
-  memset(pTable, 0, sizeof(STabObj));
+  memset(pTable, 0, sizeof(SStreamTableObj));
 
   int32_t tsize = pTable->updateEnd - (int8_t *)pTable;
   if (size < tsize) {
@@ -251,6 +251,7 @@ int32_t mgmtInitStreamTables() {
       pNode = pLastNode;
       continue;
     }
+    mgmtAddTableIntoDb(pDb);
   }
 
   mgmtSetVgroupIdPool();
@@ -348,6 +349,7 @@ int32_t mgmtCreateStreamTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVg
              " db:%s",
          pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid, pDb->name);
 
+  mgmtAddTableIntoDb(pDb);
   return 0;
 }
 
@@ -376,6 +378,7 @@ int32_t mgmtDropStreamTable(SDbObj *pDb, SStreamTableObj *pTable) {
     mgmtDropVgroup(pDb, pVgroup);
   }
 
+  mgmtRemoveTableFromDb(pDb);
   return 0;
 }
 

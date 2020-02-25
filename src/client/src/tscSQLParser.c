@@ -363,7 +363,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      if (pToken->n > TSDB_METER_NAME_LEN) {
+      if (pToken->n > TSDB_TABLE_NAME_LEN) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -1054,12 +1054,12 @@ int32_t setObjFullName(char* fullName, const char* account, SSQLToken* pDB, SSQL
       totalLen += 1;
 
       /* here we only check the table name length limitation */
-      if (tableName->n > TSDB_METER_NAME_LEN) {
+      if (tableName->n > TSDB_TABLE_NAME_LEN) {
         return TSDB_CODE_INVALID_SQL;
       }
     } else {  // pDB == NULL, the db prefix name is specified in tableName
       /* the length limitation includes tablename + dbname + sep */
-      if (tableName->n > TSDB_METER_NAME_LEN + TSDB_DB_NAME_LEN + tListLen(TS_PATH_DELIMITER)) {
+      if (tableName->n > TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + tListLen(TS_PATH_DELIMITER)) {
         return TSDB_CODE_INVALID_SQL;
       }
     }
@@ -1361,7 +1361,7 @@ int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprItem* pI
     }
 
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-      SSchema colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_METER_NAME_LEN};
+      SSchema colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_TABLE_NAME_LEN};
       strcpy(colSchema.name, TSQL_TBNAME_L);
 
       pQueryInfo->type = TSDB_QUERY_TYPE_STABLE_QUERY;
@@ -2085,7 +2085,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
-      if (pCmd->payloadLen > TSDB_METER_NAME_LEN) {
+      if (pCmd->payloadLen > TSDB_TABLE_NAME_LEN) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
     }
@@ -2679,7 +2679,7 @@ static int32_t tablenameListToString(tSQLExpr* pExpr, /*char* str*/ SStringBuild
       taosStringBuilderAppendString(sb, TBNAME_LIST_SEP);
     }
 
-    if (pSub->val.nLen <= 0 || pSub->val.nLen > TSDB_METER_NAME_LEN) {
+    if (pSub->val.nLen <= 0 || pSub->val.nLen > TSDB_TABLE_NAME_LEN) {
       return TSDB_CODE_INVALID_SQL;
     }
   }
@@ -4951,7 +4951,7 @@ static int32_t doAddGroupbyColumnsOnDemand(SQueryInfo* pQueryInfo) {
     int16_t colIndex = pColIndex->colIdx;
     if (pColIndex->colIdx == TSDB_TBNAME_COLUMN_INDEX) {
       type = TSDB_DATA_TYPE_BINARY;
-      bytes = TSDB_METER_NAME_LEN;
+      bytes = TSDB_TABLE_NAME_LEN;
       name = TSQL_TBNAME_L;
     } else {
       colIndex = (TSDB_COL_IS_TAG(pColIndex->flag)) ? pMeterMetaInfo->pMeterMeta->numOfColumns + pColIndex->colIdx
