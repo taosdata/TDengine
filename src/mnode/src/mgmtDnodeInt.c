@@ -46,7 +46,7 @@ void mgmtSendMsgToDnodeImpFp(SSchedMsg *sched) {
   int8_t  *pCont  = sched->msg;
   void    *pConn  = NULL;
 
-  dnodeProcessMsgFromMgmt(pCont, contLen, msgType, pConn);
+  dnodeProcessMsgFromMgmt(msgType, pCont, contLen, pConn, TSDB_CODE_SUCCESS);
   rpcFreeCont(sched->msg);
 }
 
@@ -187,6 +187,7 @@ int mgmtProcessVPeersRsp(int8_t *pCont, int32_t contLen, void *pConn) {
 
   return 0;
 }
+
 void mgmtProcessMsgFromDnode(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn) {
   if (msgType == TSDB_MSG_TYPE_TABLE_CFG) {
     mgmtProcessMeterCfgMsg(pCont, contLen, pConn);

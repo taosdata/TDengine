@@ -573,6 +573,11 @@ typedef struct {
 } SStatusMsg;
 
 typedef struct {
+  int32_t   code;
+  SRpcIpSet ipList;
+} SStatusRsp;
+
+typedef struct {
   uint32_t moduleStatus;
   uint32_t createdTime;
   uint32_t numOfVnodes;

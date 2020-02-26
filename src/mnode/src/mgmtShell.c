@@ -91,7 +91,7 @@ int32_t mgmtInitShell() {
   }
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;;
+  rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
   rpcInit.localPort    = tsMgmtShellPort;
   rpcInit.label        = "MND-shell";
   rpcInit.numOfThreads = numOfThreads;

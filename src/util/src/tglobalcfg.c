@@ -60,7 +60,7 @@ char  tsMasterIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsSecondIp[TSDB_IPv4ADDR_LEN] = {0};
 uint16_t tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
 uint16_t tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
-uint16_t tsMgmtVnodePort = 6040;   // udp[6040-6044] tcp[6040]
+uint16_t tsMgmtDnodePort = 6040;   // udp[6040-6044] tcp[6040]
 uint16_t tsVnodeVnodePort = 6045;  // tcp[6045]
 uint16_t tsMgmtMgmtPort = 6050;    // udp, numOfVnodes fixed to 1, range udp[6050]
 uint16_t tsMgmtSyncPort = 6050;    // tcp, range tcp[6050]
@@ -494,7 +494,7 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "vnodeShellPort", &tsVnodeShellPort, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
                      1, 65535, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "mgmtVnodePort", &tsMgmtVnodePort, TSDB_CFG_VTYPE_SHORT,
+  tsInitConfigOption(cfg++, "mgmtVnodePort", &tsMgmtDnodePort, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
                      1, 65535, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "vnodeVnodePort", &tsVnodeVnodePort, TSDB_CFG_VTYPE_SHORT,
