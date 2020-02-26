@@ -275,6 +275,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pSubQueryInfo->tsBuf = NULL;
   
     // free result for async object will also free sqlObj
+    assert(pSubQueryInfo->exprsInfo.numOfExprs == 1); // ts_comp query only requires one resutl columns
     taos_free_result(pPrevSub);
   
     SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, pSupporter, NULL);
@@ -299,18 +300,20 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     tscColumnBaseInfoCopy(&pQueryInfo->colList, &pSupporter->colList, 0);
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
   
-    tscSqlExprCopy(&pQueryInfo->exprsInfo, &pSupporter->exprsInfo, pSupporter->uid);
+    tscSqlExprCopy(&pQueryInfo->exprsInfo, &pSupporter->exprsInfo, pSupporter->uid, false);
     tscFieldInfoCopyAll(&pQueryInfo->fieldsInfo, &pSupporter->fieldsInfo);
-  
+    
+    pSupporter->exprsInfo.numOfExprs = 0;
+    pSupporter->fieldsInfo.numOfOutputCols = 0;
+    
     /*
      * if the first column of the secondary query is not ts function, add this function.
      * Because this column is required to filter with timestamp after intersecting.
      */
-    if (pSupporter->exprsInfo.pExprs[0].functionId != TSDB_FUNC_TS) {
+    if (pSupporter->exprsInfo.pExprs[0]->functionId != TSDB_FUNC_TS) {
       tscAddTimestampColumn(pQueryInfo, TSDB_FUNC_TS, 0);
     }
   
-    // todo refactor function name
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     assert(pNew->numOfSubs == 0 && pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
   

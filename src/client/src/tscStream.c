@@ -246,8 +246,6 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
         int32_t retry = tsProjectExecInterval;
         tscError("%p stream:%p, retrieve no data, code:%d, retry in %" PRId64 "ms", pSql, pStream, numOfRows, retry);
 
-        tscClearSqlMetaInfoForce(&(pStream->pSql->cmd));
-        
         tscSetRetryTimer(pStream, pStream->pSql, retry);
         return;
       }

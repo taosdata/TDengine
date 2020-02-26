@@ -96,9 +96,9 @@ typedef struct SFieldInfo {
 } SFieldInfo;
 
 typedef struct SSqlExprInfo {
-  int16_t   numOfAlloc;
-  int16_t   numOfExprs;
-  SSqlExpr *pExprs;
+  int16_t    numOfAlloc;
+  int16_t    numOfExprs;
+  SSqlExpr** pExprs;
 } SSqlExprInfo;
 
 typedef struct SColumnBase {
@@ -283,12 +283,11 @@ typedef struct {
   int64_t       useconds;
   int64_t       offset;  // offset value from vnode during projection query of stable
   int           row;
-  int16_t       numOfnchar;
+  int16_t       numOfCols;
   int16_t       precision;
   int32_t       numOfGroups;
   SResRec *     pGroupRec;
   char *        data;
-  short *       bytes;
   void **       tsrow;
   char **       buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex *pColumnIndex;
@@ -405,8 +404,6 @@ int taos_retrieve(TAOS_RES *res);
  */
 int32_t tscTansformSQLFunctionForSTableQuery(SQueryInfo *pQueryInfo);
 void    tscRestoreSQLFunctionForMetricQuery(SQueryInfo *pQueryInfo);
-
-void tscClearSqlMetaInfoForce(SSqlCmd *pCmd);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);

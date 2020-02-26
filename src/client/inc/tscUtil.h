@@ -154,7 +154,7 @@ SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
 int32_t   tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo);
 
 SSqlExpr* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index);
-void      tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t uid);
+void      tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t uid, bool deepcopy);
 void*     tscSqlExprDestroy(SSqlExpr* pExpr);
 void      tscSqlExprInfoDestroy(SSqlExprInfo* pExprInfo);
 

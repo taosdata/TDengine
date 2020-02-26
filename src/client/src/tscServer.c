@@ -643,9 +643,9 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     tscColumnBaseInfoUpdateTableIndex(&pNewQueryInfo->colList, 0);
     tscColumnBaseInfoCopy(&pSupporter->colList, &pNewQueryInfo->colList, 0);
 
-    tscSqlExprCopy(&pSupporter->exprsInfo, &pNewQueryInfo->exprsInfo, pSupporter->uid);
-
+    tscSqlExprCopy(&pSupporter->exprsInfo, &pNewQueryInfo->exprsInfo, pSupporter->uid, false);
     tscFieldInfoCopyAll(&pSupporter->fieldsInfo, &pNewQueryInfo->fieldsInfo);
+    
     tscTagCondCopy(&pSupporter->tagCond, &pNewQueryInfo->tagCond);
 
     pNew->cmd.numOfCols = 0;
@@ -656,6 +656,10 @@ int32_t tscLaunchJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSubquerySu
     pSupporter->groupbyExpr = pNewQueryInfo->groupbyExpr;
     memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SSqlGroupbyExpr));
 
+    // this data needs to be transfer to support struct
+    pNewQueryInfo->fieldsInfo.numOfOutputCols = 0;
+    pNewQueryInfo->exprsInfo.numOfExprs = 0;
+    
     // set the ts,tags that involved in join, as the output column of intermediate result
     tscClearSubqueryInfo(&pNew->cmd);
 
@@ -1537,7 +1541,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
 
   int32_t srcColListSize = pQueryInfo->colList.numOfCols * sizeof(SColumnInfo);
 
-  int32_t         exprSize = sizeof(SSqlFuncExprMsg) * pQueryInfo->fieldsInfo.numOfOutputCols;
+  int32_t         exprSize = sizeof(SSqlFuncExprMsg) * pQueryInfo->exprsInfo.numOfExprs;
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
   // meter query without tags values
@@ -1546,11 +1550,10 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   }
 
   SMetricMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
-
   SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pMeterMetaInfo->vnodeIndex);
 
   int32_t meterInfoSize = (pMetricMeta->tagLen + sizeof(SMeterSidExtInfo)) * pVnodeSidList->numOfSids;
-  int32_t outputColumnSize = pQueryInfo->fieldsInfo.numOfOutputCols * sizeof(SSqlFuncExprMsg);
+  int32_t outputColumnSize = pQueryInfo->exprsInfo.numOfExprs * sizeof(SSqlFuncExprMsg);
 
   int32_t size = meterInfoSize + outputColumnSize + srcColListSize + exprSize + MIN_QUERY_MSG_PKT_SIZE;
   if (pQueryInfo->tsBuf != NULL) {
@@ -1787,7 +1790,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
     pSqlFuncExpr->functionId = htons(pExpr->functionId);
     pSqlFuncExpr->numOfParams = htons(pExpr->numOfParams);
-    pMsg += (sizeof(SSqlFuncExprMsg) - TSDB_COL_NAME_LEN);
+    pMsg += sizeof(SSqlFuncExprMsg);
 
     for (int32_t j = 0; j < pExpr->numOfParams; ++j) {
       pSqlFuncExpr->arg[j].argType = htons((uint16_t)pExpr->param[j].nType);
@@ -1862,6 +1865,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
       *((int16_t *)pMsg) += pCol->flag;
       pMsg += sizeof(pCol->flag);
+      
+      memcpy(pMsg, pCol->name, tListLen(pCol->name));
+      pMsg += tListLen(pCol->name);
     }
   }
 
@@ -2491,16 +2497,8 @@ static int tscSetResultPointer(SQueryInfo *pQueryInfo, SSqlRes *pRes) {
   }
 
   for (int i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
-    TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
-    int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, i);
-
-    pRes->bytes[i] = pField->bytes;
-//    if (pQueryInfo->order.order == TSQL_SO_DESC) {
-//      pRes->bytes[i] = -pRes->bytes[i];
-//      pRes->tsrow[i] = ((pRes->data + offset * pRes->numOfRows) + (pRes->numOfRows - 1) * pField->bytes);
-//    } else {
-      pRes->tsrow[i] = (pRes->data + offset * pRes->numOfRows);
-//    }
+    int16_t offset = tscFieldInfoGetOffset(pQueryInfo, i);
+    pRes->tsrow[i] = (pRes->data + offset * pRes->numOfRows);
   }
 
   return 0;
@@ -2725,8 +2723,10 @@ static int32_t tscEstimateMetricMetaMsgSize(SSqlCmd *pCmd) {
 
   int32_t joinCondLen = (TSDB_METER_ID_LEN + sizeof(int16_t)) * 2;
   int32_t elemSize = sizeof(SMetricMetaElemMsg) * pQueryInfo->numOfTables;
+  
+  int32_t colSize = pQueryInfo->groupbyExpr.numOfGroupCols*sizeof(SColIndexEx);
 
-  int32_t len = tagLen + joinCondLen + elemSize + defaultSize;
+  int32_t len = tagLen + joinCondLen + elemSize + colSize + defaultSize;
 
   return MAX(len, TSDB_DEFAULT_PAYLOAD_SIZE);
 }
@@ -2854,6 +2854,7 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
           pDestCol->colIdx = htons(pCol->colIdx);
           pDestCol->colId = htons(pDestCol->colId);
           pDestCol->flag = htons(pDestCol->flag);
+          strncpy(pDestCol->name, pCol->name, tListLen(pCol->name));
 
           pMsg += sizeof(SColIndexEx);
         }
@@ -3291,6 +3292,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   int32_t size = pMeta->numOfColumns * sizeof(SSchema) + sizeof(SMeterMeta);
   pMeterMetaInfo->pMeterMeta =
       (SMeterMeta *)taosAddDataIntoCache(tscCacheHandle, key, (char *)pMeta, size, tsMeterMetaKeepTimer);
+  
   pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutputCols;
   SSchema *pMeterSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
 
@@ -3301,6 +3303,9 @@ int tscProcessShowRsp(SSqlObj *pSql) {
     index.columnIndex = i;
     tscColumnBaseInfoInsert(pQueryInfo, &index);
     tscFieldInfoSetValFromSchema(&pQueryInfo->fieldsInfo, i, &pMeterSchema[i]);
+    
+    pQueryInfo->fieldsInfo.pSqlExpr[i] = tscSqlExprInsert(pQueryInfo, i, TSDB_FUNC_TS_DUMMY, &index,
+                     pMeterSchema[i].type, pMeterSchema[i].bytes, pMeterSchema[i].bytes);
   }
 
   tscFieldInfoCalOffset(pQueryInfo);

@@ -441,7 +441,10 @@ static void **doSetResultRowData(SSqlObj *pSql) {
   int32_t num = 0;
   for (int i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
     if (pQueryInfo->fieldsInfo.pSqlExpr[i] != NULL) {
-      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pRes->bytes[i] * pRes->row;
+      SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[i];
+      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pExpr->resBytes * pRes->row;
+    } else {
+      assert(0);
     }
 
     // primary key column cannot be null in interval query, no need to check

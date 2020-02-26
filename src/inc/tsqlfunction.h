@@ -298,6 +298,9 @@ void getStatistics(char *priData, char *data, int32_t size, int32_t numOfRow, in
 
 bool top_bot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, char *minval, char *maxval);
 
+bool stableQueryFunctChanged(int32_t funcId);
+
+
 void resetResultInfo(SResultInfo *pResInfo);
 void initResultInfo(SResultInfo *pResInfo);
 void setResultInfoBuf(SResultInfo *pResInfo, int32_t size, bool superTable);

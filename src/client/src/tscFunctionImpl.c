@@ -300,6 +300,10 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   return TSDB_CODE_SUCCESS;
 }
 
+bool stableQueryFunctChanged(int32_t funcId) {
+  return (aAggs[funcId].stableFuncId != funcId);
+}
+
 /**
  * the numOfRes should be kept, since it may be used later
  * and allow the ResultInfo to be re initialized
@@ -3558,6 +3562,7 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
   }
   
   GET_RES_INFO(pCtx)->numOfRes = 1;  // todo add test case
+  doFinalizer(pCtx);
 }
 
 /*
