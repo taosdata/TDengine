@@ -231,7 +231,7 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
 
   SSqlCmd *       pCmd = &pSql->cmd;
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-
+  
   if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {  // multiple vnode query
     SVnodeSidList *vnodeList = tscGetVnodeSidList(pMeterMetaInfo->pMetricMeta, pMeterMetaInfo->vnodeIndex);
     if (vnodeList != NULL) {
@@ -254,6 +254,8 @@ void tscGetConnToVnode(SSqlObj *pSql, uint8_t *pCode) {
 
   while (pSql->retry < pSql->maxRetry) {
     (pSql->retry)++;
+    pSql->index = pSql->index%TSDB_VNODES_SUPPORT;
+    
     char ipstr[40] = {0};
     if (pVPeersDesc[pSql->index].ip == 0) {
       /*

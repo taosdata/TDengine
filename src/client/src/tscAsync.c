@@ -283,8 +283,15 @@ void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows) {
     return;
   }
   
-  for (int i = 0; i < pCmd->numOfCols; ++i)
-    pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pRes->bytes[i] * pRes->row;
+  for (int i = 0; i < pCmd->numOfCols; ++i){
+    SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[i];
+    if (pExpr != NULL) {
+      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pExpr->resBytes * pRes->row;
+    } else {
+      //todo add
+    }
+  }
+  
   pRes->row++;
 
   (*pSql->fetchFp)(pSql->param, pSql, pSql->res.tsrow);
@@ -298,7 +305,12 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   for (int i = 0; i < pCmd->numOfCols; ++i) {
-    pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pRes->bytes[i] * pRes->row;
+    SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[i];
+    if (pExpr != NULL) {
+      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pExpr->resBytes * pRes->row;
+    } else {
+      //todo add
+    }
   }
   
   pRes->row++;

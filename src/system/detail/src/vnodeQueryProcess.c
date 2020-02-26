@@ -947,12 +947,6 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
   dTrace("QInfo:%p main scan completed, elapsed time: %lldms, supplementary scan start, order:%d", pQInfo, et - st,
          pQuery->order.order ^ 1);
 
-  // failed to save all intermediate results into disk, abort further query processing
-  //  if (doCloseAllOpenedResults(pSupporter) != TSDB_CODE_SUCCESS) {
-  //    dError("QInfo:%p failed to save intermediate results, abort further query processing", pQInfo);
-  //    return;
-  //  }
-
   if (pQuery->intervalTime > 0) {
     for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
       SMeterQueryInfo *pMeterQueryInfo = pSupporter->pMeterDataInfo[i].pMeterQInfo;

@@ -203,6 +203,9 @@ SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
     tscError("illegal sidIdx:%d, reset to 0, sidIdx range:%d-%d", idx, 0, sidRange);
     idx = 0;
   }
+  
+  assert(pSidList->pSidExtInfoList[idx] >= 0);
+  
   return (SMeterSidExtInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
 }
 
