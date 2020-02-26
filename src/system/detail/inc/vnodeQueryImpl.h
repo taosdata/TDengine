@@ -164,8 +164,7 @@ void pointInterpSupporterDestroy(SPointInterpoSupporter* pPointInterpSupport);
 void pointInterpSupporterSetData(SQInfo* pQInfo, SPointInterpoSupporter* pPointInterpSupport);
 
 int64_t loadRequiredBlockIntoMem(SQueryRuntimeEnv* pRuntimeEnv, SPositionInfo* position);
-int32_t doCloseAllOpenedResults(STableQuerySupportObj* pSupporter);
-void    disableFunctForSuppleScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
+void    disableFunctForSuppleScan(STableQuerySupportObj* pSupporter, int32_t order);
 void    enableFunctForMasterScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 
 int32_t mergeMetersResultToOneGroups(STableQuerySupportObj* pSupporter);
@@ -237,13 +236,6 @@ void changeMeterQueryInfoForSuppleQuery(SQuery* pQuery, SMeterQueryInfo* pMeterQ
  */
 tFilePage* addDataPageForMeterQueryInfo(SQuery* pQuery, SMeterQueryInfo* pMeterQueryInfo,
                                         STableQuerySupportObj* pSupporter);
-
-/**
- * save the query range data into SMeterQueryInfo
- * @param pRuntimeEnv
- * @param pMeterQueryInfo
- */
-void saveIntervalQueryRange(SQueryRuntimeEnv* pRuntimeEnv, SMeterQueryInfo* pMeterQueryInfo);
 
 /**
  * restore the query range data from SMeterQueryInfo to runtime environment

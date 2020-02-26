@@ -869,7 +869,7 @@ static void doMultiMeterSupplementaryScan(SQInfo *pQInfo) {
   }
 
   SET_SUPPLEMENT_SCAN_FLAG(pRuntimeEnv);
-  disableFunctForSuppleScan(pRuntimeEnv, pQuery->order.order);
+  disableFunctForSuppleScan(pSupporter, pQuery->order.order);
 
   if (pRuntimeEnv->pTSBuf != NULL) {
     pRuntimeEnv->pTSBuf->cur.order = pRuntimeEnv->pTSBuf->cur.order ^ 1;
