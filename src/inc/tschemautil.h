@@ -47,12 +47,13 @@ struct SSchema *tsGetSchema(SMeterMeta *pMeta);
 struct SSchema *tsGetTagSchema(SMeterMeta *pMeta);
 
 struct SSchema *tsGetColumnSchema(SMeterMeta *pMeta, int32_t startCol);
+struct SSchema tsGetTbnameColumnSchema();
 
 char *tsGetTagsValue(SMeterMeta *pMeta);
 
 bool tsMeterMetaIdentical(SMeterMeta *p1, SMeterMeta *p2);
 
-void extractMeterName(char *meterId, char *name);
+void extractTableName(char *meterId, char *name);
 
 SSQLToken extractDBName(char *meterId, char *name);
 

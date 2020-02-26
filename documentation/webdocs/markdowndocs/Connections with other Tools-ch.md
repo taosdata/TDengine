@@ -34,7 +34,7 @@ TDengine能够与开源数据可视化系统[Grafana](https://www.grafana.com/)�
 
 ### 安装Grafana
 
-目前TDengine支持Grafana 5.2.4以上的版本。用户可以根据当前的操作系统，到Grafana官网下载安装包，并执行安装。下载地址如下：https://grafana.com/grafana/download
+目前TDengine支持Grafana 5.2.4以上的版本。用户可以根据当前的操作系统，到Grafana官网下载安装包，并执行安装。下载地址如下：https://grafana.com/grafana/download。
 
 ### 配置Grafana
 
@@ -42,43 +42,60 @@ TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafana目录�
 
 以CentOS 7.2操作系统为例，将tdengine目录拷贝到/var/lib/grafana/plugins目录下，重新启动grafana即可。
 
-### 使用Grafana
+### 使用 Grafana
 
-用户可以直接通过localhost:3000的网址，登录Grafana服务器(用户名/密码:admin/admin)，配置TDengine数据源，如下图所示，此时可以在下拉列表中看到TDengine数据源。 
+#### 配置数据源
 
-![img](../assets/clip_image001.png)
+用户可以直接通过 localhost:3000 的网址，登录 Grafana 服务器(用户名/密码:admin/admin)，通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
 
-TDengine数据源中的HTTP配置里面的Host地址要设置为TDengine集群的中任意一台服务器的IP地址与TDengine RESTful接口的端口号(6020)。假设TDengine数据库与Grafana部署在同一机器，那么应输入：http://localhost:6020。
+![img](../assets/add_datasource1.jpg)
 
-此外，还需配置登录TDengine的用户名与密码，然后点击下图中的Save&Test按钮保存。  
+点击 `Add data source` 可进入新增数据源页面，在查询框中输入 TDengine 可选择添加，如下图所示：
 
-![img](../assets/clip_image001-2474914.png)
+![img](../assets/add_datasource2.jpg)
 
-  
+进入数据源配置页面，按照默认提示修改相应配置即可：
 
-然后，就可以在Grafana的数据源列表中看到刚创建好的TDengine的数据源：
+![img](../assets/add_datasource3.jpg)
 
-![img](../assets/clip_image001-2474939.png)
+* Host： TDengine 集群的中任意一台服务器的 IP 地址与 TDengine RESTful 接口的端口号(6020)，默认 http://localhost:6020。
+* User：TDengine 用户名。
+* Password：TDengine 用户密码。
 
- 
+点击 `Save & Test` 进行测试，成功会有如下提示：
 
-基于上面的步骤，就可以在创建Dashboard的时候使用TDengine数据源，如下图所示： 
+![img](../assets/add_datasource4.jpg)
 
-![img](../assets/clip_image001-2474961.png)
+#### 创建 Dashboard
 
- 
+回到主界面创建 Dashboard，点击 Add Query 进入面板查询页面：
 
-然后，可以点击Add Query按钮增加一个新查询。
+![img](../assets/create_dashboard1.jpg)
 
-在INPUT SQL输入框中输入查询SQL语句，该SQL语句的结果集应为两行多列的曲线数据，例如SELECT count(*) FROM sys.cpu WHERE ts>=from and ts<​to interval(interval)。其中，from、to和interval为TDengine插件的内置变量，表示从Grafana插件面板获取的查询范围和时间间隔。
+如上图所示，在 Query 中选中 `TDengine` 数据源，在下方查询框可输入相应 sql 进行查询，具体说明如下：
 
-ALIAS BY输入框为查询的别名，点击GENERATE SQL 按钮可以获取发送给TDengine的SQL语句。如下图所示： 
+* INPUT SQL：输入要查询的语句（该 SQL 语句的结果集应为两列多行），例如：`select avg(mem_system) from log.dn where  ts >= $from and ts < $to interval($interval)` ，其中，from、to 和 interval 为 TDengine插件的内置变量，表示从Grafana插件面板获取的查询范围和时间间隔。除了内置变量外，`也支持可以使用自定义模板变量`。
+* ALIAS BY：可设置当前查询别名。 
+* GENERATE SQL： 点击该按钮会自动替换相应变量，并生成最终执行的语句。
+    
+按照默认提示查询当前 TDengine 部署所在服务器指定间隔系统内存平均使用量如下：
 
-![img](../assets/clip_image001-2474987.png)
+![img](../assets/create_dashboard2.jpg)
 
- 
+> 关于如何使用Grafana创建相应的监测界面以及更多有关使用Grafana的信息，请参考Grafana官方的[文档](https://grafana.com/docs/)。
 
-关于如何使用Grafana创建相应的监测界面以及更多有关使用Grafana的信息，请参考Grafana官方的[文档](https://grafana.com/docs/)。
+#### 导入 Dashboard
+
+在 Grafana 插件目录 /usr/local/taos/connector/grafana/tdengine/dashboard/ 下提供了一个 `tdengine-grafana.json` 可导入的 dashboard。
+
+点击左侧 `Import` 按钮，并上传 `tdengine-grafana.json` 文件：
+
+![img](../assets/import_dashboard1.jpg)
+
+导入完成之后可看到如下效果：
+
+![img](../assets/import_dashboard2.jpg)
+
 
 ## Matlab
 

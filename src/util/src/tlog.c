@@ -45,6 +45,7 @@ typedef struct {
 uint32_t uDebugFlag = 131;  // all the messages
 short tsAsyncLog = 1;
 
+static pid_t       logPid = 0;
 static SLogBuff *logHandle = NULL;
 static int       taosLogFileNum = 1;
 static int       taosLogMaxLines = 0;
@@ -82,6 +83,11 @@ int taosStartLog() {
 }
 
 int taosInitLog(char *logName, int numOfLogLines, int maxFiles) {
+
+#ifdef LINUX
+  logPid = (pid_t)syscall(SYS_gettid);
+#endif
+
   logHandle = taosLogBuffNew(TSDB_DEFAULT_LOG_BUF_SIZE);
   if (logHandle == NULL) return -1;
 
@@ -306,8 +312,8 @@ char *tprefix(char *prefix) {
   sprintf(prefix, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
           ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
 #else
-  sprintf(prefix, "%02d/%02d %02d:%02d:%02d.%06d 0x%lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
-          ptm->tm_sec, (int)timeSecs.tv_usec, pthread_self());
+  sprintf(prefix, "%02d/%02d %02d:%02d:%02d.%06d %d 0x%lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
+          ptm->tm_sec, (int)timeSecs.tv_usec, logPid, pthread_self());
 #endif
   return prefix;
 }
@@ -333,8 +339,8 @@ void tprintf(const char *const flags, int dflag, const char *const format, ...) 
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
 #else
-  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
-                ptm->tm_sec, (int)timeSecs.tv_usec, pthread_self());
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
+                ptm->tm_sec, (int)timeSecs.tv_usec, logPid, pthread_self());
 #endif
   len += sprintf(buffer + len, "%s", flags);
 
@@ -424,8 +430,8 @@ void taosPrintLongString(const char *const flags, int dflag, const char *const f
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%lld ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int)timeSecs.tv_usec, taosGetPthreadId());
 #else
-  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
-                ptm->tm_sec, (int)timeSecs.tv_usec, pthread_self());
+  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %d %lx ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min,
+                ptm->tm_sec, (int)timeSecs.tv_usec, logPid, pthread_self());
 #endif
   len += sprintf(buffer + len, "%s", flags);
 

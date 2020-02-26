@@ -26,6 +26,7 @@
 int indicator = 1;
 struct termios oldtio;
 
+extern int wcwidth(wchar_t c);
 void insertChar(Command *cmd, char *c, int size);
 const char *argp_program_version = version;
 const char *argp_program_bug_address = "<support@taosdata.com>";
@@ -118,18 +119,18 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
 void shellParseArgument(int argc, char *argv[], struct arguments *arguments) {
-  char verType[32] = {0};
-  #ifdef CLUSTER
-    sprintf(verType, "enterprise version: %s\n", version);
-  #else
-    sprintf(verType, "community version: %s\n", version);
-  #endif
-  
+  static char verType[32] = {0};
+  sprintf(verType, "version: %s\n", version);
+
   argp_program_version = verType;
   
   argp_parse(&argp, argc, argv, 0, 0, arguments);
   if (arguments->abort) {
-    error(10, 0, "ABORTED");
+    #ifndef _ALPINE
+      error(10, 0, "ABORTED");
+    #else
+      abort();
+    #endif
   }
 }
 
@@ -290,7 +291,10 @@ void *shellLoopQuery(void *arg) {
   pthread_cleanup_push(cleanup_handler, NULL);
 
   char *command = malloc(MAX_COMMAND_SIZE);
-
+  if (command == NULL){
+    tscError("failed to malloc command");
+    return NULL;
+  }
   while (1) {
     // Read command from shell.
 
@@ -299,10 +303,8 @@ void *shellLoopQuery(void *arg) {
     shellReadCommand(con, command);
     reset_terminal_mode();
 
-    if (command != NULL) {
-      // Run the command
-      shellRunCommand(con, command);
-    }
+    // Run the command
+    shellRunCommand(con, command);
   }
 
   pthread_cleanup_pop(1);

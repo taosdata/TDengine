@@ -3,6 +3,6 @@ PROJECT(TDengine)
 
 ADD_SUBDIRECTORY(detail)
 
-IF (TD_LITE)
+IF (TD_EDGE)
   ADD_SUBDIRECTORY(lite)
 ENDIF ()

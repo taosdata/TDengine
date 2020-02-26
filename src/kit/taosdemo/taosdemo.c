@@ -17,7 +17,11 @@
 
 #include <argp.h>
 #include <assert.h>
+#include <inttypes.h>
+
+#ifndef _ALPINE
 #include <error.h>
+#endif
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdbool.h>
@@ -32,8 +36,6 @@
 #include "taos.h"
 
 extern char configDir[];
-
-#pragma GCC diagnostic ignored "-Wmissing-braces"
 
 #define BUFFER_SIZE      65536
 #define MAX_DB_NAME_SIZE 64
@@ -267,30 +269,35 @@ double getCurrentTime();
 void callBack(void *param, TAOS_RES *res, int code);
 
 int main(int argc, char *argv[]) {
-  struct arguments arguments = {NULL,
-                                0,
-                                "root",
-                                "taosdata",
-                                "test",
-                                "t",
-                                false,
-                                false,
-                                "./output.txt",
-                                0,
-                                "int",
+  struct arguments arguments = {NULL,            // host
+                                0,               // port
+                                "root",          // user
+                                "taosdata",      // password
+                                "test",          // database
+                                "t",             // tb_prefix
+                                false,           // use_metric
+                                false,           // insert_only
+                                "./output.txt",  // output_file
+                                0,               // mode
+                                {
+                                "int",           // datatype
                                 "",
                                 "",
                                 "",
                                 "",
                                 "",
                                 "",
-                                "",
-                                8,
-                                1,
-                                1,
-                                1,
-                                1,
-                                50000};
+                                ""
+                                },
+                                8,               // len_of_binary
+                                1,               // num_of_CPR
+                                1,               // num_of_connections
+                                1,               // num_of_RPR
+                                1,               // num_of_tables
+                                50000,           // num_of_DPT
+                                0,               // abort
+                                NULL             // arg_list
+                                };
 
   /* Parse our arguments; every option seen by parse_opt will be
      reflected in arguments. */
@@ -306,7 +313,13 @@ int main(int argc, char *argv[]) {
 
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-  if (arguments.abort) error(10, 0, "ABORTED");
+  if (arguments.abort) {
+    #ifndef _ALPINE
+      error(10, 0, "ABORTED");
+    #else
+      abort();
+    #endif
+  }
   
   enum MODE query_mode = arguments.mode;
   char *ip_addr = arguments.host;
@@ -339,6 +352,11 @@ int main(int argc, char *argv[]) {
   }
 
   FILE *fp = fopen(arguments.output_file, "a");
+  if (NULL == fp) {
+    fprintf(stderr, "Failed to open %s for writing\n", arguments.output_file);
+    return 1;
+  };
+  
   time_t tTime = time(NULL);
   struct tm tm = *localtime(&tTime);
 
@@ -558,7 +576,7 @@ void *readTable(void *sarg) {
     double totalT = 0;
     int count = 0;
     for (int i = 0; i < num_of_tables; i++) {
-      sprintf(command, "select %s from %s%d where ts>= %ld", aggreFunc[j], tb_prefix, i, sTime);
+      sprintf(command, "select %s from %s%d where ts>= %" PRId64, aggreFunc[j], tb_prefix, i, sTime);
 
       double t = getCurrentTime();
       if (taos_query(taos, command) != 0) {
@@ -801,7 +819,7 @@ double getCurrentTime() {
 void generateData(char *res, char **data_type, int num_of_cols, int64_t timestamp, int len_of_binary) {
   memset(res, 0, MAX_DATA_SIZE);
   char *pstr = res;
-  pstr += sprintf(pstr, "(%ld", timestamp);
+  pstr += sprintf(pstr, "(%" PRId64, timestamp);
   int c = 0;
 
   for (; c < MAX_NUM_DATATYPE; c++) {
@@ -818,7 +836,7 @@ void generateData(char *res, char **data_type, int num_of_cols, int64_t timestam
     } else if (strcasecmp(data_type[i % c], "int") == 0) {
       pstr += sprintf(pstr, ", %d", (int)(rand() % 10)); 
     } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
-      pstr += sprintf(pstr, ", %ld", rand() % 2147483648);
+      pstr += sprintf(pstr, ", %" PRId64, rand() % 2147483648);
     } else if (strcasecmp(data_type[i % c], "float") == 0) {
       pstr += sprintf(pstr, ", %10.4f", (float)(rand() / 1000));
     } else if (strcasecmp(data_type[i % c], "double") == 0) {
@@ -830,7 +848,7 @@ void generateData(char *res, char **data_type, int num_of_cols, int64_t timestam
     } else if (strcasecmp(data_type[i % c], "binary") == 0) {
       char s[len_of_binary];
       rand_string(s, len_of_binary);
-      pstr += sprintf(pstr, ", %s", s);
+      pstr += sprintf(pstr, ", \"%s\"", s);
     }
   }
 

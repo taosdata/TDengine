@@ -22,7 +22,7 @@
 #include "tstrbuild.h"
 
 
-int tsParseInsertSql(SSqlObj *pSql, char *sql, char *acct, char *db);
+int tsParseInsertSql(SSqlObj *pSql);
 int taos_query_imp(STscObj* pObj, SSqlObj* pSql);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,7 +75,6 @@ static int normalStmtAddPart(SNormalStmt* stmt, bool isParam, char* str, uint32_
   if (isParam) {
     ++stmt->numParams;
   }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -122,11 +121,11 @@ static int normalStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
         break;
 
       case TSDB_DATA_TYPE_FLOAT:
-        var->dKey = *(float*)tb->buffer;
+        var->dKey = GET_FLOAT_VAL(tb->buffer);
         break;
 
       case TSDB_DATA_TYPE_DOUBLE:
-        var->dKey = *(double*)tb->buffer;
+        var->dKey = GET_DOUBLE_VAL(tb->buffer);
         break;
 
       case TSDB_DATA_TYPE_BINARY:
@@ -386,12 +385,11 @@ static int insertStmtAddBatch(STscStmt* stmt) {
 }
 
 static int insertStmtPrepare(STscStmt* stmt) {
-  STscObj* taos = stmt->taos;
   SSqlObj *pSql = stmt->pSql;
   pSql->cmd.numOfParams = 0;
   pSql->cmd.batchSize = 0;
 
-  return tsParseInsertSql(pSql, pSql->sqlstr, taos->acctId, taos->db);
+  return tsParseInsertSql(pSql);
 }
 
 static int insertStmtReset(STscStmt* pStmt) {
@@ -409,7 +407,9 @@ static int insertStmtReset(STscStmt* pStmt) {
     }
   }
   pCmd->batchSize = 0;
-  pCmd->vnodeIdx = 0;
+  
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  pMeterMetaInfo->vnodeIndex = 0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -422,6 +422,9 @@ static int insertStmtExecute(STscStmt* stmt) {
     ++pCmd->batchSize;
   }
 
+  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  assert(pCmd->numOfClause == 1);
+  
   if (pCmd->pDataBlocks->nSize > 0) {
     // merge according to vgid
     int code = tscMergeTableDataBlocks(stmt->pSql, pCmd->pDataBlocks);
@@ -436,7 +439,7 @@ static int insertStmtExecute(STscStmt* stmt) {
     }
 
     // set the next sent data vnode index in data block arraylist
-    pCmd->vnodeIdx = 1;
+    pMeterMetaInfo->vnodeIndex = 1;
   } else {
     pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   }
@@ -445,6 +448,8 @@ static int insertStmtExecute(STscStmt* stmt) {
   SSqlRes *pRes = &pSql->res;
   pRes->numOfRows = 0;
   pRes->numOfTotal = 0;
+  pRes->numOfTotalInCurrentClause = 0;
+  
   pRes->qhandle = 0;
   pSql->thandle = NULL;
 

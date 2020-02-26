@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "tresultBuf.h"
 
 #include "tinterpolation.h"
 #include "vnodeTagMgmt.h"
@@ -35,24 +36,25 @@ typedef struct {
   int32_t fileId;
 } SPositionInfo;
 
-typedef struct SQueryLoadBlockInfo {
+typedef struct SLoadDataBlockInfo {
   int32_t fileListIndex; /* index of this file in files list of this vnode */
   int32_t fileId;
   int32_t slotIdx;
   int32_t sid;
-} SQueryLoadBlockInfo;
+  bool    tsLoaded;      // if timestamp column of current block is loaded or not
+} SLoadDataBlockInfo;
 
-typedef struct SQueryLoadCompBlockInfo {
+typedef struct SLoadCompBlockInfo {
   int32_t sid; /* meter sid */
   int32_t fileId;
   int32_t fileListIndex;
-} SQueryLoadCompBlockInfo;
+} SLoadCompBlockInfo;
 
 /*
  * the header file info for one vnode
  */
 typedef struct SHeaderFileInfo {
-  int32_t fileID;        // file id
+  int32_t fileID;  // file id
 } SHeaderFileInfo;
 
 typedef struct SQueryCostSummary {
@@ -83,10 +85,15 @@ typedef struct SQueryCostSummary {
   int64_t tmpBufferInDisk;  // size of buffer for intermediate result
 } SQueryCostSummary;
 
+typedef struct SPosInfo {
+  int64_t pageId;
+  int32_t rowId;
+} SPosInfo;
+
 typedef struct SOutputRes {
   uint16_t     numOfRows;
   int32_t      nAlloc;
-  tFilePage**  result;
+  SPosInfo     pos;
   SResultInfo* resultInfo;
 } SOutputRes;
 
@@ -100,19 +107,42 @@ typedef struct SQueryFilesInfo {
   int32_t          current;     // the memory mapped header file, NOTE: only one header file can be mmap.
   int32_t          vnodeId;
   
-  int32_t          headerFd;    // header file fd
-  char*            pHeaderFileData; // mmap header files
-  int64_t          headFileSize;
+  int32_t          headerFd;         // header file fd
+  int64_t          headerFileSize;
   int32_t          dataFd;
   int32_t          lastFd;
-  
-  char             headerFilePath[PATH_MAX];  // current opened header file name
-  char             dataFilePath[PATH_MAX];    // current opened data file name
-  char             lastFilePath[PATH_MAX];    // current opened last file path
-  char             dbFilePathPrefix[PATH_MAX];
+
+  char headerFilePath[PATH_MAX];  // current opened header file name
+  char dataFilePath[PATH_MAX];    // current opened data file name
+  char lastFilePath[PATH_MAX];    // current opened last file path
+  char dbFilePathPrefix[PATH_MAX];
 } SQueryFilesInfo;
 
-typedef struct RuntimeEnvironment {
+typedef struct STimeWindow {
+  TSKEY skey;
+  TSKEY ekey;
+} STimeWindow;
+
+typedef struct SWindowStatus {
+  STimeWindow window;
+  bool closed;
+} SWindowStatus;
+
+typedef struct SSlidingWindowInfo {
+  SOutputRes*         pResult;    // reference to SQuerySupporter->pResult
+  SWindowStatus*      pStatus;    // current query window closed or not?
+  void*               hashList;   // hash list for quick access
+  int16_t             type;       // data type for hash key
+  int32_t             capacity;   // max capacity
+  int32_t             curIndex;   // current start active index
+  int32_t             size;
+  
+  int64_t             startTime;  // start time of the first time window for sliding query
+  int64_t             prevSKey;   // previous (not completed) sliding window start key
+  int64_t             threshold;  // threshold for return completed results.
+} SSlidingWindowInfo;
+
+typedef struct SQueryRuntimeEnv {
   SPositionInfo       startPos; /* the start position, used for secondary/third iteration */
   SPositionInfo       endPos;   /* the last access position in query, served as the start pos of reversed order query */
   SPositionInfo       nextPos;  /* start position of the next scan */
@@ -126,30 +156,41 @@ typedef struct RuntimeEnvironment {
   SQuery*             pQuery;
   SMeterObj*          pMeterObj;
   SQLFunctionCtx*     pCtx;
-  SQueryLoadBlockInfo loadBlockInfo;         /* record current block load information */
-  SQueryLoadCompBlockInfo loadCompBlockInfo; /* record current compblock information in SQuery */
-  SQueryFilesInfo         vnodeFileInfo;
-  int16_t            numOfRowsPerPage;
-  int16_t            offset[TSDB_MAX_COLUMNS];
-  int16_t            scanFlag;  // denotes reversed scan of data or not
-  SInterpolationInfo interpoInfo;
-  SData**            pInterpoBuf;
-  SOutputRes*        pResult;  // reference to SQuerySupporter->pResult
-  void*              hashList;
-  int32_t            usedIndex;  // assigned SOutputRes in list
-  STSBuf*            pTSBuf;
-  STSCursor          cur;
-  SQueryCostSummary  summary;
+  SLoadDataBlockInfo  loadBlockInfo;         /* record current block load information */
+  SLoadCompBlockInfo  loadCompBlockInfo; /* record current compblock information in SQuery */
+  SQueryFilesInfo     vnodeFileInfo;
+  int16_t             numOfRowsPerPage;
+  int16_t             offset[TSDB_MAX_COLUMNS];
+  int16_t             scanFlag;  // denotes reversed scan of data or not
+  SInterpolationInfo  interpoInfo;
+  SData**             pInterpoBuf;
+  
+  SSlidingWindowInfo  swindowResInfo;
+  
+  STSBuf*             pTSBuf;
+  STSCursor           cur;
+  SQueryCostSummary   summary;
+  
+  STimeWindow         intervalWindow;  // the complete time window, not affected by the actual data distribution
+  
+  /*
+   * Temporarily hold the in-memory cache block info during scan cache blocks
+   * Here we do not use the cacheblock info from pMeterObj, simple because it may change anytime
+   * during the query by the subumit/insert handling threads.
+   * So we keep a copy of the support structure as well as the cache block data itself.
+   */
+  SCacheBlock         cacheBlock;
+  
+  SQueryResultBuf*    pResultBuf;
+  bool                stableQuery;  // is super table query or not
 } SQueryRuntimeEnv;
 
-/* intermediate result during multimeter query involves interval */
+/* intermediate pos during multimeter query involves interval */
 typedef struct SMeterQueryInfo {
   int64_t      lastKey;
   int64_t      skey;
   int64_t      ekey;
   int32_t      numOfRes;
-  uint32_t     numOfPages;
-  uint32_t     numOfAlloc;
   int32_t      reverseIndex;    // reversed output indicator, start from (numOfRes-1)
   int16_t      reverseFillRes;  // denote if reverse fill the results in supplementary scan required or not
   int16_t      queryRangeSet;   // denote if the query range is set, only available for interval query
@@ -157,23 +198,22 @@ typedef struct SMeterQueryInfo {
   int64_t      tag;
   STSCursor    cur;
   SResultInfo* resultInfo;
-  uint32_t*    pageList;
+  int32_t      sid; // for retrieve the page id list
 } SMeterQueryInfo;
 
 typedef struct SMeterDataInfo {
   uint64_t     offsetInHeaderFile;
   int32_t      numOfBlocks;
   int32_t      start;  // start block index
-  SCompBlock** pBlock;
+  SCompBlock*  pBlock;
   int32_t      meterOrderIdx;
   SMeterObj*   pMeterObj;
-  int32_t      groupIdx;  // group id in meter list
-
+  int32_t      groupIdx;    // group id in meter list
   SMeterQueryInfo* pMeterQInfo;
 } SMeterDataInfo;
 
 typedef struct SMeterQuerySupportObj {
-  void* pMeterObj;
+  void* pMetersHashTable;   // meter table hash list
 
   SMeterSidExtInfo** pMeterSidExtInfo;
   int32_t            numOfMeters;
@@ -202,26 +242,16 @@ typedef struct SMeterQuerySupportObj {
    */
   int32_t meterIdx;
 
-  int32_t meterOutputFd;
-  int32_t lastPageId;
-  int32_t numOfPages;
   int32_t numOfGroupResultPages;
   int32_t groupResultSize;
-
-  char*   meterOutputMMapBuf;
-  int64_t bufSize;
-  char    extBufFile[256];  // external file name
-
   SMeterDataInfo* pMeterDataInfo;
 
-  TSKEY*  tsList;
-  int32_t tsNum;
-
+  TSKEY* tsList;
 } SMeterQuerySupportObj;
 
 typedef struct _qinfo {
-  uint64_t signature;
-
+  uint64_t       signature;
+  int32_t        refCount;  // QInfo reference count, when the value is 0, it can be released safely
   char           user[TSDB_METER_ID_LEN + 1];
   char           sql[TSDB_SHOW_SQL_LEN];
   uint8_t        stream;
@@ -231,24 +261,20 @@ typedef struct _qinfo {
   int64_t        useconds;
   int            killed;
   struct _qinfo *prev, *next;
+  SQuery         query;
+  int            totalPoints;
+  int            pointsRead;
+  int            pointsReturned;
+  int            pointsInterpo;
+  int            code;
+  char           bufIndex;
+  char           changed;
+  char           over;
+  SMeterObj*     pObj;
+  sem_t          dataReady;
 
-  SQuery     query;
-  int        num;
-  int        totalPoints;
-  int        pointsRead;
-  int        pointsReturned;
-  int        pointsInterpo;
-  int        code;
-  char       bufIndex;
-  char       changed;
-  char       over;
-  SMeterObj* pObj;
-
-  int (*fp)(SMeterObj*, SQuery*);
-
-  sem_t                  dataReady;
   SMeterQuerySupportObj* pMeterQuerySupporter;
-
+  int (*fp)(SMeterObj*, SQuery*);
 } SQInfo;
 
 int32_t vnodeQuerySingleMeterPrepare(SQInfo* pQInfo, SMeterObj* pMeterObj, SMeterQuerySupportObj* pSMultiMeterObj,
@@ -268,7 +294,7 @@ int32_t vnodeMultiMeterQueryPrepare(SQInfo* pQInfo, SQuery* pQuery, void* param)
 void vnodeDecMeterRefcnt(SQInfo* pQInfo);
 
 /* sql query handle in dnode */
-void vnodeSingleMeterQuery(SSchedMsg* pMsg);
+void vnodeSingleTableQuery(SSchedMsg* pMsg);
 
 /*
  * handle multi-meter query process

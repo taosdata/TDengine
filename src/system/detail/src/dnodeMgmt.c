@@ -26,7 +26,7 @@
 #include "vnodeMgmt.h"
 #include "vnodeSystem.h"
 #include "vnodeUtil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 SMgmtObj mgmtObj;
 extern uint64_t tsCreatedTime;
@@ -153,7 +153,7 @@ int vnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
   }
 
   if (pAlter->sid >= pVnode->cfg.maxSessions || pAlter->sid < 0) {
-    dError("vid:%d sid:%d uid:%ld, sid is out of range", pAlter->vnode, pAlter->sid, pAlter->uid);
+    dError("vid:%d sid:%d uid:%" PRIu64 ", sid is out of range", pAlter->vnode, pAlter->sid, pAlter->uid);
     code = TSDB_CODE_INVALID_TABLE_ID;
     goto _over;
   }

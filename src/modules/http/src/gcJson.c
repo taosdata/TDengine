@@ -121,7 +121,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
   }
   cmd->numOfRows += numOfRows;
 
-  for (int i = 0; i < numOfRows; ++i) {
+  for (int k = 0; k < numOfRows; ++k) {
     TAOS_ROW row = taos_fetch_row(result);
 
     // for group by
@@ -161,6 +161,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
         if(i < num_fields - 1 ){
             len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, ", ");
         }
+
       }
       len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "}");
 

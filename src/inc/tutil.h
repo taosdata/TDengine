@@ -37,8 +37,8 @@ extern "C" {
 #define tfree(x) \
   {              \
     if (x) {     \
-      free(x);   \
-      x = NULL;  \
+      free((void*)(x));   \
+      x = 0;  \
     }            \
   }
 
@@ -102,8 +102,8 @@ extern "C" {
   #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
   #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
 
-  float  taos_align_get_float(char* pBuf);
-  double taos_align_get_double(char* pBuf);
+  float  taos_align_get_float(const char* pBuf);
+  double taos_align_get_double(const char* pBuf);
 
   //#define __float_align_declear()  float __underlyFloat = 0.0;
   //#define __float_align_declear()
@@ -162,22 +162,13 @@ int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstP
 
 int32_t taosInitTimer(void (*callback)(int), int32_t ms);
 
-/**
- * murmur hash algorithm
- * @key  usually string
- * @len  key length
- * @seed hash seed
- * @out  an int32 value
- */
-uint32_t MurmurHash3_32(const void *key, int32_t len);
-
 bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len);
 
 int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes);
 
 bool taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
 
-bool taosValidateEncodec(char *encodec);
+bool taosValidateEncodec(const char *encodec);
 
 bool taosGetVersionNumber(char *versionStr, int *versionNubmer);
 
@@ -189,7 +180,11 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, unsigned int inLen, cha
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
 
+int taosCheckVersion(char *input_client_version, char *input_server_version, int compared_segments);
+
 char *taosIpStr(uint32_t ipInt);
+
+uint32_t ip2uint(const char *const ip_addr);
 
 #define TAOS_ALLOC_MODE_DEFAULT 0
 #define TAOS_ALLOC_MODE_RANDOM_FAIL 1

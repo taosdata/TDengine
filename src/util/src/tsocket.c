@@ -19,8 +19,6 @@
 #include "tsocket.h"
 #include "tutil.h"
 
-unsigned int ip2uint(const char *const ip_addr);
-
 /*
  * Function to get the public ip address of current machine. If get IP
  * successfully, return 0, else, return -1. The return values is ip.
@@ -105,7 +103,7 @@ int taosGetPublicIp(char *const ip) {
 }
 
 // Function converting an IP address string to an unsigned int.
-unsigned int ip2uint(const char *const ip_addr) {
+uint32_t ip2uint(const char *const ip_addr) {
   char ip_addr_cpy[20];
   char ip[5];
 
@@ -518,7 +516,7 @@ int taosCopyFds(int sfd, int dfd, int64_t len) {
 
     int retLen = taosReadMsg(sfd, temp, (int)readLen);
     if (readLen != retLen) {
-      pError("read error, readLen:%d retLen:%d len:%ld leftLen:%ld, reason:%s", readLen, retLen, len, leftLen,
+      pError("read error, readLen:%d retLen:%d len:%" PRId64 " leftLen:%" PRId64 ", reason:%s", readLen, retLen, len, leftLen,
              strerror(errno));
       return -1;
     }
@@ -526,7 +524,7 @@ int taosCopyFds(int sfd, int dfd, int64_t len) {
     writeLen = taosWriteMsg(dfd, temp, readLen);
 
     if (readLen != writeLen) {
-      pError("copy error, readLen:%d writeLen:%d len:%ld leftLen:%ld, reason:%s", readLen, writeLen, len, leftLen,
+      pError("copy error, readLen:%d writeLen:%d len:%" PRId64 " leftLen:%" PRId64 ", reason:%s", readLen, writeLen, len, leftLen,
              strerror(errno));
       return -1;
     }

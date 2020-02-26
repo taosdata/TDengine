@@ -24,7 +24,7 @@ int mgmtProcessAlterAcctMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 }
 
 int mgmtProcessCreateDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
-  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_PNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
+  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_DNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
 }
 
 int mgmtProcessCfgMnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
@@ -36,7 +36,7 @@ int mgmtProcessDropMnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 }
 
 int mgmtProcessDropDnodeMsg(char *pMsg, int msgLen, SConnObj *pConn) {
-  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_PNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
+  return taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_DNODE_RSP, TSDB_CODE_OPS_NOT_SUPPORT);
 }
 
 int mgmtProcessDropAcctMsg(char *pMsg, int msgLen, SConnObj *pConn) {

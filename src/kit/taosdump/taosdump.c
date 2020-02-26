@@ -15,7 +15,9 @@
 
 #include <argp.h>
 #include <assert.h>
-#include <error.h>
+#ifndef _ALPINE
+  #include <error.h>
+#endif
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -335,7 +337,13 @@ int main(int argc, char *argv[]) {
      reflected in arguments. */
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-  if (arguments.abort) error(10, 0, "ABORTED");
+  if (arguments.abort) {
+    #ifndef _ALPINE
+      error(10, 0, "ABORTED");
+    #else
+      abort();
+    #endif
+  }
 
   if (taosCheckParam(&arguments) < 0) {
     exit(EXIT_FAILURE);
@@ -789,7 +797,10 @@ int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FI
   if (metric != NULL && metric[0] != '\0') {  // dump metric definition
     count = taosGetTableDes(metric, tableDes);
 
-    if (count < 0) return -1;
+    if (count < 0) {
+      free(tableDes);
+      return -1;
+    }
 
     taosDumpCreateTableClause(tableDes, count, arguments, fp);
 
@@ -797,17 +808,25 @@ int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FI
 
     count = taosGetTableDes(table, tableDes);
 
-    if (count < 0) return -1;
+    if (count < 0) {
+      free(tableDes);
+      return -1;
+    }
 
     taosDumpCreateMTableClause(tableDes, metric, count, arguments, fp);
 
   } else {  // dump table definition
     count = taosGetTableDes(table, tableDes);
 
-    if (count < 0) return -1;
+    if (count < 0) {
+      free(tableDes);
+      return -1;
+    }
 
     taosDumpCreateTableClause(tableDes, count, arguments, fp);
   }
+
+  free(tableDes);
 
   return taosDumpTableData(fp, table, arguments);
 }
@@ -871,7 +890,7 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments) {
 
   if (arguments->schemaonly) return 0;
 
-  sprintf(command, "select * from %s where _c0 >= %ld and _c0 <= %ld order by _c0 asc", tbname, arguments->start_time,
+  sprintf(command, "select * from %s where _c0 >= %" PRId64 " and _c0 <= %" PRId64 " order by _c0 asc", tbname, arguments->start_time,
           arguments->end_time);
   if (taos_query(taos, command) != 0) {
     fprintf(stderr, "failed to run command %s, reason: %s\n", command, taos_errstr(taos));
@@ -925,13 +944,13 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments) {
           pstr += sprintf(pstr, "%d", *((int *)row[col]));
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          pstr += sprintf(pstr, "%ld", *((int64_t *)row[col]));
+          pstr += sprintf(pstr, "%" PRId64 "", *((int64_t *)row[col]));
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          pstr += sprintf(pstr, "%f", *((float *)row[col]));
+          pstr += sprintf(pstr, "%f", GET_FLOAT_VAL(row[col]));
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          pstr += sprintf(pstr, "%f", *((double *)row[col]));
+          pstr += sprintf(pstr, "%f", GET_DOUBLE_VAL(row[col]));
           break;
         case TSDB_DATA_TYPE_BINARY:
           *(pstr++) = '\'';
@@ -944,7 +963,7 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments) {
           pstr += sprintf(pstr, "\'%s\'", tbuf);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          pstr += sprintf(pstr, "%ld", *(int64_t *)row[col]);
+          pstr += sprintf(pstr, "%" PRId64 "", *(int64_t *)row[col]);
           break;
         default:
           break;
@@ -1126,7 +1145,7 @@ int taosDumpIn(struct arguments *arguments) {
         }
         taosReplaceCtrlChar(tcommand);
         if (taos_query(taos, tcommand) != 0)
-          fprintf(stderr, "linenu: %ld  failed to run command %s reason:%s \ncontinue...\n", linenu, command,
+          fprintf(stderr, "linenu: %" PRId64 " failed to run command %s reason:%s \ncontinue...\n", linenu, command,
                   taos_errstr(taos));
 
         pstr = command;
@@ -1174,7 +1193,7 @@ int taosDumpIn(struct arguments *arguments) {
       }
       taosReplaceCtrlChar(tcommand);
       if (taos_query(taos, tcommand) != 0)
-        fprintf(stderr, "linenu:%ld failed to run command %s reason: %s \ncontinue...\n", linenu, command,
+        fprintf(stderr, "linenu:%" PRId64 " failed to run command %s reason: %s \ncontinue...\n", linenu, command,
                 taos_errstr(taos));
     }
 
@@ -1197,7 +1216,7 @@ int taosDumpIn(struct arguments *arguments) {
     }
     taosReplaceCtrlChar(lcommand);
     if (taos_query(taos, tcommand) != 0)
-      fprintf(stderr, "linenu:%ld failed to run command %s reason:%s \ncontinue...\n", linenu, command,
+      fprintf(stderr, "linenu:%" PRId64 " failed to run command %s reason:%s \ncontinue...\n", linenu, command,
               taos_errstr(taos));
   }
 

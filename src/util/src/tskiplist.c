@@ -12,11 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include <float.h>
-#include <math.h>
-#include <stdbool.h>
-#include <stdlib.h>
+#include "os.h"
 
 #include "tlog.h"
 #include "tsdb.h"
@@ -570,7 +566,7 @@ int32_t tSkipListIterateList(tSkipList *pSkipList, tSkipListNode ***pRes, bool (
     char* tmp = realloc((*pRes), num * POINTER_BYTES);
     assert(tmp != NULL);
 
-    *pRes = tmp;
+    *pRes = (tSkipListNode**)tmp;
   }
 
   return num;
@@ -688,7 +684,7 @@ void tSkipListPrint(tSkipList *pSkipList, int16_t nlevel) {
       case TSDB_DATA_TYPE_SMALLINT:
       case TSDB_DATA_TYPE_TINYINT:
       case TSDB_DATA_TYPE_BIGINT:
-        fprintf(stdout, "%d: %lld \n", id++, p->key.i64Key);
+        fprintf(stdout, "%d: %" PRId64 " \n", id++, p->key.i64Key);
         break;
       case TSDB_DATA_TYPE_BINARY:
         fprintf(stdout, "%d: %s \n", id++, p->key.pz);

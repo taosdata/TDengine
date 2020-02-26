@@ -32,6 +32,8 @@ typedef struct _sched_msg {
 
 void *taosInitScheduler(int queueSize, int numOfThreads, const char *label);
 
+void *taosInitSchedulerWithInfo(int queueSize, int numOfThreads, const char *label, void *tmrCtrl);
+
 int taosScheduleTask(void *qhandle, SSchedMsg *pMsg);
 
 void taosCleanUpScheduler(void *param);

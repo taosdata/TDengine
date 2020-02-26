@@ -63,28 +63,11 @@ CREATE TABLE QUERY_RES
 ## 数据订阅(Publisher/Subscriber)
 基于数据天然的时间序列特性，TDengine的数据写入（insert）与消息系统的数据发布（pub）逻辑上一致，均可视为系统中插入一条带时间戳的新记录。同时，TDengine在内部严格按照数据时间序列单调递增的方式保存数据。本质上来说，TDengine中里每一张表均可视为一个标准的消息队列。
 
-TDengine内嵌支持轻量级的消息订阅与推送服务。使用系统提供的API，用户可订阅数据库中的某一张表（或超级表）。订阅的逻辑和操作状态的维护均是由客户端完成，客户端定时轮询服务器是否有新的记录到达，有新的记录到达就会将结果反馈到客户。
+TDengine内嵌支持轻量级的消息订阅与推送服务。使用系统提供的API，用户可使用普通查询语句订阅数据库中的一张或多张表。订阅的逻辑和操作状态的维护均是由客户端完成，客户端定时轮询服务器是否有新的记录到达，有新的记录到达就会将结果反馈到客户。
 
 TDengine的订阅与推送服务的状态是客户端维持，TDengine服务器并不维持。因此如果应用重启，从哪个时间点开始获取最新数据，由应用决定。
 
-#### API说明
-
-使用订阅的功能，主要API如下：
-
-<ul>
-<li><p><code>TAOS_SUB *taos_subscribe(char *host, char *user, char *pass, char *db, char *table, int64_t time, int mseconds)</code></p><p>该函数负责启动订阅服务。其中参数说明：</p></li><ul>
-<li><p>host：主机IP地址</p></li>
-<li><p>user：数据库登录用户名</p></li>
-<li><p>pass：密码</p></li>
-<li><p>db：数据库名称</p></li>
-<li><p>table：(超级) 表的名称</p></li>
-<li><p>time：启动时间，Unix Epoch时间，单位为毫秒。从1970年1月1日起计算的毫秒数。如果设为0，表示从当前时间开始订阅</p></li>
-<li><p>mseconds：查询数据库更新的时间间隔，单位为毫秒。一般设置为1000毫秒。返回值为指向TDengine_SUB 结构的指针，如果返回为空，表示失败。</p></li>
-</ul><li><p><code>TAOS_ROW taos_consume(TAOS_SUB *tsub)</code>
-</p><p>该函数用来获取订阅的结果，用户应用程序将其置于一个无限循环语句。如果数据库有新记录到达，该API将返回该最新的记录。如果没有新的记录，该API将阻塞。如果返回值为空，说明系统出错。参数说明：</p></li><ul><li><p>tsub：taos_subscribe的结构体指针。</p></li></ul><li><p><code>void taos_unsubscribe(TAOS_SUB *tsub)</code></p><p>取消订阅。应用程序退出时，务必调用该函数以避免资源泄露。</p></li>
-<li><p><code>int taos_num_subfields(TAOS_SUB *tsub)</code></p><p>获取返回的一行记录中数据包含多少列。</p></li>
-<li><p><code>TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub)</code></p><p>获取每列数据的属性（数据类型、名字、长度），与taos_num_subfileds配合使用，可解析返回的每行数据。</p></li></ul>
-示例代码：请看安装包中的的示范程序
+订阅相关API文档请见 [C/C++ 数据订阅接口](https://www.taosdata.com/cn/documentation/connector/#C/C++-%E6%95%B0%E6%8D%AE%E8%AE%A2%E9%98%85%E6%8E%A5%E5%8F%A3)，《[TDEngine中订阅的用途和用法](https://www.taosdata.com/blog/2020/02/12/1277.html)》则以一个示例详细介绍了这些ＡＰＩ的用法。
 
 ## 缓存 (Cache)
 TDengine采用时间驱动缓存管理策略（First-In-First-Out，FIFO），又称为写驱动的缓存管理机制。这种策略有别于读驱动的数据缓存模式（Least-Recent-Use，LRU），直接将最近写入的数据保存在系统的缓存中。当缓存达到临界值的时候，将最早的数据批量写入磁盘。一般意义上来说，对于物联网数据的使用，用户最为关心最近产生的数据，即当前状态。TDengine充分利用了这一特性，将最近到达的（当前状态）数据保存在缓存中。
@@ -93,7 +76,7 @@ TDengine通过查询函数向用户提供毫秒级的数据获取能力。直接
 
 TDengine分配固定大小的内存空间作为缓存空间，缓存空间可根据应用的需求和硬件资源配置。通过适当的设置缓存空间，TDengine可以提供极高性能的写入和查询的支持。TDengine中每个虚拟节点（virtual node）创建时分配独立的缓存池。每个虚拟节点管理自己的缓存池，不同虚拟节点间不共享缓存池。每个虚拟节点内部所属的全部表共享该虚拟节点的缓存池。
 
-TDengine将内存池按块划分进行管理，数据在内存块里按照列式存储。一个vnode的内存池是在vnode创建时按块分配好的，而且每个内存块按照先进先出的原则进行管理。一张表所需要的内存块是从vnode的内存池中进行分配的，块的大小由系统配置参数cache决定。每张表最大内存块的数目由配置参数tblocks决定，每张表平均的内存块的个数由配置参数ablocks决定。因此对于一个vnode, 总的内存大小为: cache*ablocks*tables。内存块参数cache不宜过小，一个cache block需要能存储至少几十条以上记录，才会有效率。参数ablocks最小为2，保证每张表平均至少能分配两个内存块。
+TDengine将内存池按块划分进行管理，数据在内存块里按照列式存储。一个vnode的内存池是在vnode创建时按块分配好的，而且每个内存块按照先进先出的原则进行管理。一张表所需要的内存块是从vnode的内存池中进行分配的，块的大小由系统配置参数cache决定。每张表最大内存块的数目由配置参数tblocks决定，每张表平均的内存块的个数由配置参数ablocks决定。因此对于一个vnode, 总的内存大小为: `cache * ablocks * tables`。内存块参数cache不宜过小，一个cache block需要能存储至少几十条以上记录，才会有效率。参数ablocks最小为2，保证每张表平均至少能分配两个内存块。
 
 你可以通过函数last_row快速获取一张表或一张超级表的最后一条记录，这样很便于在大屏显示各设备的实时状态或采集值。例如：
 

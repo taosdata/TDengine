@@ -21,13 +21,7 @@
 #include "mgmtProfile.h"
 #include "taosmsg.h"
 #include "tlog.h"
-#include "tstatus.h"
-
-#pragma GCC diagnostic push
-
-#pragma GCC diagnostic ignored "-Woverflow"
-#pragma GCC diagnostic ignored "-Wpointer-sign"
-#pragma GCC diagnostic ignored "-Wint-conversion"
+#include "vnodeStatus.h"
 
 #define MAX_LEN_OF_METER_META (sizeof(SMultiMeterMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
 
@@ -79,11 +73,8 @@ int mgmtInitShell() {
   if (numOfThreads < 1) numOfThreads = 1;
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-#ifdef CLUSTER
-  rpcInit.localIp = tsInternalIp;
-#else
-  rpcInit.localIp = "0.0.0.0";
-#endif
+
+  rpcInit.localIp = tsAnyIp ? "0.0.0.0" : tsPrivateIp;;
   rpcInit.localPort = tsMgmtShellPort;
   rpcInit.label = "MND-shell";
   rpcInit.numOfThreads = numOfThreads;
@@ -266,7 +257,7 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
       pRsp->code = TSDB_CODE_DB_NOT_SELECTED;
     pMsg++;
   } else {
-    mTrace("%s, uid:%lld meter meta is retrieved", pInfo->meterId, pMeterObj->uid);
+    mTrace("%s, uid:%" PRIu64 " meter meta is retrieved", pInfo->meterId, pMeterObj->uid);
     pRsp->code = 0;
     pMsg += sizeof(STaosRsp);
     *pMsg = TSDB_IE_TYPE_META;
@@ -317,8 +308,13 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
         goto _exit_code;
       }
       for (int i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-        pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
-        pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+        if (pConn->usePublicIp) {
+          pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
+          pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+        } else {
+          pMeta->vpeerDesc[i].ip = pVgroup->vnodeGid[i].ip;
+          pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+        }
       }
     }
   }
@@ -406,7 +402,7 @@ int mgmtProcessMultiMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     if (pMeterObj == NULL || (pDbObj == NULL)) {
       continue;
     } else {
-      mTrace("%s, uid:%lld sversion:%d meter meta is retrieved", tblName, pMeterObj->uid, pMeterObj->sversion);
+      mTrace("%s, uid:%" PRIu64 " sversion:%d meter meta is retrieved", tblName, pMeterObj->uid, pMeterObj->sversion);
       pMeta = (SMultiMeterMeta *)pCurMeter;
 
       memcpy(pMeta->meterId, tblName, strlen(tblName));
@@ -450,14 +446,19 @@ int mgmtProcessMultiMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
         if (pVgroup == NULL) {
           pRsp->code = TSDB_CODE_INVALID_TABLE;
           pNewMsg++;
-          mError("%s, uid:%lld sversion:%d vgId:%d pVgroup is NULL", tblName, pMeterObj->uid, pMeterObj->sversion,
+          mError("%s, uid:%" PRIu64 " sversion:%d vgId:%d pVgroup is NULL", tblName, pMeterObj->uid, pMeterObj->sversion,
                  pMeterObj->gid.vgId);
           goto _error_exit_code;
         }
 
         for (int i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-          pMeta->meta.vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
-          pMeta->meta.vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+          if (pConn->usePublicIp) {
+            pMeta->meta.vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
+            pMeta->meta.vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+          } else {
+            pMeta->meta.vpeerDesc[i].ip = pVgroup->vnodeGid[i].ip;
+            pMeta->meta.vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+          }
         }
       }
     }
@@ -529,7 +530,7 @@ int mgmtProcessMetricMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
     msgLen = pMsg - pStart;
   } else {
-    msgLen = mgmtRetrieveMetricMeta(pConn->thandle, &pStart, pMetricMetaMsg);
+    msgLen = mgmtRetrieveMetricMeta(pConn, &pStart, pMetricMetaMsg);
     if (msgLen <= 0) {
       taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_METRIC_META_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
       return 0;
@@ -720,7 +721,7 @@ int mgmtProcessAlterUserMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
     if (hasRight) {
       memset(pUser->pass, 0, sizeof(pUser->pass));
-      taosEncryptPass(pAlter->pass, strlen(pAlter->pass), pUser->pass);
+      taosEncryptPass((uint8_t*)pAlter->pass, strlen(pAlter->pass), pUser->pass);
       code = mgmtUpdateUser(pUser);
       mLPrint("user:%s password is altered by %s, code:%d", pAlter->user, pConn->pUser->user, code);
     } else {
@@ -899,7 +900,7 @@ int mgmtProcessShowMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   SShowRspMsg *pShowRsp;
   SShowObj *   pShow = NULL;
 
-  if (pShowMsg->type == TSDB_MGMT_TABLE_PNODE || TSDB_MGMT_TABLE_GRANTS || TSDB_MGMT_TABLE_SCORES) {
+  if (pShowMsg->type == TSDB_MGMT_TABLE_DNODE || TSDB_MGMT_TABLE_GRANTS || TSDB_MGMT_TABLE_SCORES) {
     if (mgmtCheckRedirectMsg(pConn, TSDB_MSG_TYPE_SHOW_RSP) != 0) {
       return 0;
     }
@@ -933,11 +934,11 @@ int mgmtProcessShowMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     pShowRsp->qhandle = (uint64_t)pShow;  // qhandle;
     pConn->qhandle = pShowRsp->qhandle;
 
-    code = (*mgmtGetMetaFp[pShowMsg->type])(&pShowRsp->meterMeta, pShow, pConn);
+    code = (*mgmtGetMetaFp[(uint8_t)pShowMsg->type])(&pShowRsp->meterMeta, pShow, pConn);
     if (code == 0) {
       pMsg += sizeof(SShowRspMsg) + sizeof(SSchema) * pShow->numOfColumns;
     } else {
-      mError("pShow:%p, type:%d %s, failed to get Meta, code:%d", pShow, pShowMsg->type, taosMsg[pShowMsg->type], code);
+      mError("pShow:%p, type:%d %s, failed to get Meta, code:%d", pShow, pShowMsg->type, taosMsg[(uint8_t)pShowMsg->type], code);
       free(pShow);
     }
   }
@@ -1008,7 +1009,7 @@ int mgmtProcessRetrieveMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
     // if free flag is set, client wants to clean the resources
     if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE)
-      rowsRead = (*mgmtRetrieveFp[pShow->type])(pShow, pRsp->data, rowsToRead, pConn);
+      rowsRead = (*mgmtRetrieveFp[(uint8_t)pShow->type])(pShow, pRsp->data, rowsToRead, pConn);
 
     if (rowsRead < 0) {
       rowsRead = 0;
@@ -1024,7 +1025,7 @@ int mgmtProcessRetrieveMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   taosSendMsgToPeer(pConn->thandle, pStart, msgLen);
 
   if (rowsToRead == 0) {
-    uintptr_t oldSign = atomic_val_compare_exchange_ptr(&pShow->signature, pShow, 0);
+    uintptr_t oldSign = (uintptr_t)atomic_val_compare_exchange_ptr(&pShow->signature, pShow, 0);
     if (oldSign != (uintptr_t)pShow) {
       return msgLen;
     }
@@ -1071,12 +1072,19 @@ int mgmtProcessCreateTableMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   if (code == 1) {
     //mTrace("table:%s, wait vgroup create finish", pCreate->meterId, code);
-  }
-  else if (code != 0) {
-    mError("table:%s, failed to create table, code:%d", pCreate->meterId, code);
+  } else if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_TABLE_ALREADY_EXIST) {  // table already created when the second attempt to create table
+      
+      STabObj* pMeter = mgmtGetMeter(pCreate->meterId);
+      assert(pMeter != NULL);
+      
+      mWarn("table:%s, table already created, failed to create table, ts:%" PRId64 ", code:%d", pCreate->meterId,
+            pMeter->createdTime, code);
+    } else {  // other errors
+      mError("table:%s, failed to create table, code:%d", pCreate->meterId, code);
+    }
   } else {
     mTrace("table:%s, table is created by %s", pCreate->meterId, pConn->pUser->user);
-    //mLPrint("meter:%s is created by %s", pCreate->meterId, pConn->pUser->user);
   }
 
   taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_TABLE_RSP, code);
@@ -1194,14 +1202,28 @@ int mgmtProcessHeartBeatMsg(char *cont, int contLen, SConnObj *pConn) {
   pConn->streamId = 0;
   pHBRsp->killConnection = pConn->killConnection;
 
-#ifdef CLUSTER
-  int size = pSdbPublicIpList->numOfIps * 4;
-  pHBRsp->ipList.numOfIps = pSdbPublicIpList->numOfIps;
-  memcpy(pHBRsp->ipList.ip, pSdbPublicIpList->ip, size);
-  pMsg += sizeof(SHeartBeatRsp) + size;
-#else
-  pMsg += sizeof(SHeartBeatRsp);
-#endif
+  if (pConn->usePublicIp) {
+    if (pSdbPublicIpList != NULL) {
+      int size = pSdbPublicIpList->numOfIps * 4;
+      pHBRsp->ipList.numOfIps = pSdbPublicIpList->numOfIps;
+      memcpy(pHBRsp->ipList.ip, pSdbPublicIpList->ip, size);
+      pMsg += sizeof(SHeartBeatRsp) + size;
+    } else {
+      pHBRsp->ipList.numOfIps = 0;
+      pMsg += sizeof(SHeartBeatRsp);
+    }
+
+  } else {
+    if (pSdbIpList != NULL) {
+      int size = pSdbIpList->numOfIps * 4;
+      pHBRsp->ipList.numOfIps = pSdbIpList->numOfIps;
+      memcpy(pHBRsp->ipList.ip, pSdbIpList->ip, size);
+      pMsg += sizeof(SHeartBeatRsp) + size;
+    } else {
+      pHBRsp->ipList.numOfIps = 0;
+      pMsg += sizeof(SHeartBeatRsp);
+    }
+  }
   msgLen = pMsg - pStart;
 
   taosSendMsgToPeer(pConn->thandle, pStart, msgLen);
@@ -1225,8 +1247,9 @@ void mgmtEstablishConn(SConnObj *pConn) {
     }
   }
 
-  uint32_t temp;
-  taosGetRpcConnInfo(pConn->thandle, &temp, &pConn->ip, &pConn->port, &temp, &temp);
+  int32_t tempint32;
+  uint32_t tempuint32;
+  taosGetRpcConnInfo(pConn->thandle, &tempuint32, &pConn->ip, &pConn->port, &tempint32, &tempint32);
   mgmtAddConnIntoAcct(pConn);
 }
 
@@ -1274,6 +1297,12 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   pAcct = mgmtGetAcct(pUser->acct);
 
+  code = taosCheckVersion(pConnectMsg->clientVersion, version, 3);
+  if (code != 0) {
+    mError("invalid client version:%s", pConnectMsg->clientVersion);
+    goto _rsp;
+  }
+
   if (pConnectMsg->db[0]) {
     sprintf(dbName, "%x%s%s", pAcct->acctId, TS_PATH_DELIMITER, pConnectMsg->db);
     pDb = mgmtGetDb(dbName);
@@ -1294,7 +1323,7 @@ int mgmtProcessConnectMsg(char *pMsg, int msgLen, SConnObj *pConn) {
   pConn->pDb = pDb;
   pConn->pUser = pUser;
   mgmtEstablishConn(pConn);
-
+  
 _rsp:
   pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_CONNECT_RSP, 128);
   if (pStart == NULL) return 0;
@@ -1312,11 +1341,22 @@ _rsp:
     pConnectRsp->superAuth = pConn->superAuth;
     pMsg += sizeof(SConnectRsp);
 
-#ifdef CLUSTER
-    int size = pSdbPublicIpList->numOfIps * 4 + sizeof(SIpList);
-    memcpy(pMsg, pSdbPublicIpList, size);
+    int size;
+    if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
+      size = pSdbPublicIpList->numOfIps * 4 + sizeof(SIpList);
+      if (pConn->usePublicIp) {
+        memcpy(pMsg, pSdbPublicIpList, size);
+      } else {
+        memcpy(pMsg, pSdbIpList, size);
+      }
+    } else {
+      SIpList tmpIpList;
+      tmpIpList.numOfIps = 0;
+      size = tmpIpList.numOfIps * 4 + sizeof(SIpList);
+      memcpy(pMsg, &tmpIpList, size);
+    }
+
     pMsg += size;
-#endif
 
     // set the time resolution: millisecond or microsecond
     *((uint32_t *)pMsg) = tsTimePrecision;
@@ -1364,6 +1404,9 @@ void *mgmtProcessMsgFromShell(char *msg, void *ahandle, void *thandle) {
     pConn = connList + pMsg->destId;
     pConn->thandle = thandle;
     strcpy(pConn->user, pMsg->meterId);
+    pConn->usePublicIp = (pMsg->destIp == tsPublicIpInt ? 1 : 0);
+    mTrace("pConn:%p is rebuild, destIp:%s publicIp:%s usePublicIp:%u",
+            pConn, taosIpStr(pMsg->destIp), taosIpStr(tsPublicIpInt), pConn->usePublicIp);
   }
 
   if (pMsg->msgType == TSDB_MSG_TYPE_CONNECT) {
@@ -1444,8 +1487,8 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_SHOW] = mgmtProcessShowMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_CONNECT] = mgmtProcessConnectMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_HEARTBEAT] = mgmtProcessHeartBeatMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_PNODE] = mgmtProcessCreateDnodeMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_PNODE] = mgmtProcessDropDnodeMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_DNODE] = mgmtProcessCreateDnodeMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_DNODE] = mgmtProcessDropDnodeMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_MNODE] = mgmtProcessCreateMnodeMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_MNODE] = mgmtProcessDropMnodeMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_CFG_MNODE] = mgmtProcessCfgMnodeMsg;
@@ -1454,5 +1497,3 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_STREAM] = mgmtProcessKillStreamMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_CONNECTION] = mgmtProcessKillConnectionMsg;
 }
-
-#pragma GCC diagnostic pop

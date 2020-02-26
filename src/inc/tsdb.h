@@ -100,6 +100,7 @@ extern "C" {
 #define TSDB_COL_NAME_LEN         64
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 16
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
+#define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 6mb
 
 #define TSDB_MAX_BYTES_PER_ROW    TSDB_MAX_COLUMNS * 16
 #define TSDB_MAX_TAGS_LEN         512
@@ -189,6 +190,7 @@ extern "C" {
 #define TSDB_MAX_TABLES_PER_VNODE       220000
 
 #define TSDB_MAX_JOIN_TABLE_NUM         5
+#define TSDB_MAX_UNION_CLAUSE           5
 
 #define TSDB_MAX_BINARY_LEN            (TSDB_MAX_BYTES_PER_ROW-TSDB_KEYSIZE)
 #define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_BYTES_PER_ROW-TSDB_KEYSIZE)
@@ -210,7 +212,7 @@ extern "C" {
 
 #define TSDB_MAX_RPC_THREADS            5
 
-#define TSDB_QUERY_TYPE_QUERY                          0         // normal query
+#define TSDB_QUERY_TYPE_NON_TYPE                       0x00U     // none type
 #define TSDB_QUERY_TYPE_FREE_RESOURCE                  0x01U     // free qhandle at vnode
 
 /*
@@ -225,6 +227,13 @@ extern "C" {
 #define TSDB_QUERY_TYPE_JOIN_QUERY                     0x20U    // join query
 #define TSDB_QUERY_TYPE_PROJECTION_QUERY               0x40U    // select *,columns... query
 #define TSDB_QUERY_TYPE_JOIN_SEC_STAGE                 0x80U    // join sub query at the second stage
+
+#define TSDB_QUERY_TYPE_INSERT                        0x100U    // insert type
+#define TSDB_QUERY_TYPE_IMPORT                        0x200U    // import data
+
+#define TSDB_QUERY_HAS_TYPE(x, _type)         (((x) & (_type)) != 0)
+#define TSDB_QUERY_SET_TYPE(x, _type)         ((x) |= (_type))
+#define TSDB_QUERY_RESET_TYPE(x)              ((x) = TSDB_QUERY_TYPE_NON_TYPE)
 
 #define TSQL_SO_ASC   1
 #define TSQL_SO_DESC  0

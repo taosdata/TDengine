@@ -20,6 +20,7 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "hashutil.h"
 
 #define HASH_MAX_CAPACITY   (1024*1024*16)
 #define HASH_VALUE_IN_TRASH (-1)
@@ -587,8 +588,8 @@ void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, i
     pNode = taosAddToCacheImpl(pObj, key, keyLen, pData, dataSize, keepTime * 1000L);
     if (NULL != pNode) {
       pTrace(
-          "key:%s %p added into cache, slot:%d, addTime:%lld, expireTime:%lld, cache total:%d, "
-          "size:%lldbytes, collision:%d",
+          "key:%s %p added into cache, slot:%d, addTime:%" PRIu64 ", expireTime:%" PRIu64 ", cache total:%d, "
+          "size:%" PRId64 " bytes, collision:%d",
           pNode->key, pNode, HASH_INDEX(pNode->hashVal, pObj->capacity), pNode->addTime, pNode->time, pObj->size,
           pObj->totalSize, pObj->statistics.numOfCollision);
     }
@@ -711,7 +712,7 @@ void *taosUpdateDataFromCache(void *handle, char *key, char *pData, int size, in
           pObj->totalSize);
   } else {
     pNew = taosUpdateCacheImpl(pObj, pNode, key, keyLen, pData, size, duration * 1000L);
-    pTrace("key:%s updated.expireTime:%lld.refCnt:%d", key, pNode->time, pNode->refCount);
+    pTrace("key:%s updated.expireTime:%" PRIu64 ".refCnt:%d", key, pNode->time, pNode->refCount);
   }
 
   __cache_unlock(pObj);
@@ -901,5 +902,46 @@ void taosCleanUpDataCache(void *handle) {
   }
 
   pObj->deleting = 1;
-  return;
+}
+
+void* taosGetDataFromExists(void* handle, void* data) {
+  SCacheObj *pObj = (SCacheObj *)handle;
+  if (pObj == NULL || data == NULL) return NULL;
+  
+  size_t     offset = offsetof(SDataNode, data);
+  SDataNode *ptNode = (SDataNode *)((char *)data - offset);
+  
+  if (ptNode->signature != (uint64_t) ptNode) {
+    pError("key: %p the data from cache is invalid", ptNode);
+    return NULL;
+  }
+  
+  int32_t ref = atomic_add_fetch_32(&ptNode->refCount, 1);
+  pTrace("%p add ref data in cache, refCnt:%d", data, ref)
+  
+  // the data if referenced by at least one object, so the reference count must be greater than the value of 2.
+  assert(ref >= 2);
+  return data;
+}
+
+void* taosTransferDataInCache(void* handle, void** data) {
+  SCacheObj *pObj = (SCacheObj *)handle;
+  if (pObj == NULL || data == NULL) return NULL;
+  
+  size_t     offset = offsetof(SDataNode, data);
+  SDataNode *ptNode = (SDataNode *)((char *)(*data) - offset);
+  
+  if (ptNode->signature != (uint64_t) ptNode) {
+    pError("key: %p the data from cache is invalid", ptNode);
+    return NULL;
+  }
+  
+  assert(ptNode->refCount >= 1);
+  
+  char* d = *data;
+  
+  // clear its reference to old area
+  *data = NULL;
+  
+  return d;
 }

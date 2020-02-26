@@ -60,6 +60,13 @@ extern "C" {
 #define TSDB_FUNC_LAST_DST     26
 #define TSDB_FUNC_INTERP       27
 
+#define TSDB_FUNC_RATE         28
+#define TSDB_FUNC_IRATE        29
+#define TSDB_FUNC_SUM_RATE     30
+#define TSDB_FUNC_SUM_IRATE    31
+#define TSDB_FUNC_AVG_RATE     32
+#define TSDB_FUNC_AVG_IRATE    33
+
 #define TSDB_FUNCSTATE_SO           0x1U    // single output
 #define TSDB_FUNCSTATE_MO           0x2U    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
 #define TSDB_FUNCSTATE_STREAM       0x4U    // function avail for stream
@@ -162,8 +169,8 @@ typedef struct SExtTagsInfo {
 // sql function runtime context
 typedef struct SQLFunctionCtx {
   int32_t startOffset;
-  int32_t size;
-  int32_t order;
+  int32_t size;      // number of rows
+  int32_t order;     // asc|desc
   int32_t scanFlag;  // TODO merge with currentStage
 
   int16_t inputType;
@@ -227,8 +234,6 @@ typedef struct SPatternCompareInfo {
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *len, int16_t *interResBytes, int16_t extLength, bool isSuperTable);
 
-SResultInfo *getResultSupportInfo(SQLFunctionCtx *pCtx);
-
 int patternMatch(const char *zPattern, const char *zString, size_t size, const SPatternCompareInfo *pInfo);
 
 int WCSPatternMatch(const wchar_t *zPattern, const wchar_t *zString, size_t size, const SPatternCompareInfo *pInfo);
@@ -289,10 +294,10 @@ typedef struct STwaInfo {
 } STwaInfo;
 
 /* global sql function array */
-extern struct SQLAggFuncElem aAggs[28];
+extern struct SQLAggFuncElem aAggs[];
 
 /* compatible check array list */
-extern int32_t funcCompatDefList[28];
+extern int32_t funcCompatDefList[];
 
 void getStatistics(char *priData, char *data, int32_t size, int32_t numOfRow, int32_t type, int64_t *min, int64_t *max,
                    int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int32_t *numOfNull);

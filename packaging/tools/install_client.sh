@@ -7,18 +7,36 @@ set -e
 #set -x
 
 # -----------------------Variables definition---------------------
-script_dir=$(dirname $(readlink -m "$0"))
-# Dynamic directory
-data_dir="/var/lib/taos"
-log_dir="/var/log/taos"
+
+osType=Linux
+pagMode=full
+
+if [ "$osType" != "Darwin" ]; then
+    script_dir=$(dirname $(readlink -f "$0"))
+    # Dynamic directory
+    data_dir="/var/lib/taos"
+    log_dir="/var/log/taos"
+else
+    script_dir=`dirname $0`
+    cd ${script_dir}
+    script_dir="$(pwd)"
+    data_dir="/var/lib/taos"
+    log_dir="~/TDengineLog"
+fi
 
 log_link_dir="/usr/local/taos/log"
 
 cfg_install_dir="/etc/taos"
 
-bin_link_dir="/usr/bin"
-lib_link_dir="/usr/lib"
-inc_link_dir="/usr/include"
+if [ "$osType" != "Darwin" ]; then
+    bin_link_dir="/usr/bin"
+    lib_link_dir="/usr/lib"
+    inc_link_dir="/usr/include"
+else
+    bin_link_dir="/usr/local/bin"
+    lib_link_dir="/usr/local/lib"
+    inc_link_dir="/usr/local/include"
+fi
 
 #install main path
 install_main_dir="/usr/local/taos"
@@ -26,6 +44,8 @@ install_main_dir="/usr/local/taos"
 # old bin dir
 bin_dir="/usr/local/taos/bin"
 
+# v1.5 jar dir
+v15_java_app_dir="/usr/local/lib/taos"
 
 # Color setting
 RED='\033[0;31m'
@@ -51,9 +71,9 @@ function kill_client() {
 function install_main_path() {
     #create install main dir and all sub dir
     ${csudo} rm -rf ${install_main_dir}    || :
-    ${csudo} mkdir -p ${install_main_dir}  
+    ${csudo} mkdir -p ${install_main_dir}
     ${csudo} mkdir -p ${install_main_dir}/cfg
-    ${csudo} mkdir -p ${install_main_dir}/bin    
+    ${csudo} mkdir -p ${install_main_dir}/bin
     ${csudo} mkdir -p ${install_main_dir}/connector
     ${csudo} mkdir -p ${install_main_dir}/driver
     ${csudo} mkdir -p ${install_main_dir}/examples
@@ -61,51 +81,60 @@ function install_main_path() {
 }
 
 function install_bin() {
-    # Remove links
-    ${csudo} rm -f ${bin_link_dir}/taos     || :
-    ${csudo} rm -f ${bin_link_dir}/taosdump || :
-    ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
+  # Remove links
+  ${csudo} rm -f ${bin_link_dir}/taos         || :
+  if [ "$osType" == "Darwin" ]; then
+      ${csudo} rm -f ${bin_link_dir}/taosdump || :
+  fi
+  ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
 
-    ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
+  ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
-    [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos             || :
-    [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
-    [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos || :
+  [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                 || :
+  if [ "$osType" == "Darwin" ]; then
+      [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+  fi
+  [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos || :
 }
 
 function clean_lib() {
-    sudo rm -f /usr/lib/libtaos.so || :
+    sudo rm -f /usr/lib/libtaos.* || :
     sudo rm -rf ${lib_dir} || :
 }
 
 function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
+    ${csudo} rm -rf ${v15_java_app_dir}                         || :
 
-    ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*  
-    
-    ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
-    ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
-    
+    ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
+        ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+    else
+        ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
+        ${csudo} ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
+    fi
 }
 
 function install_header() {
     ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
-    ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
+    ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function install_config() {
     #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
-    
+
     if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
         [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo} cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
-    fi 
-    
+    fi
+
     ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
 }
@@ -113,8 +142,12 @@ function install_config() {
 
 function install_log() {
     ${csudo} rm -rf ${log_dir}  || :
-    ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
-    
+
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
+    else
+        mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
+    fi
     ${csudo} ln -s ${log_dir} ${install_main_dir}/log
 }
 
@@ -142,17 +175,19 @@ function update_TDengine() {
         kill_client
         sleep 1
     fi
-    
+
     install_main_path
 
     install_log
     install_header
     install_lib
-    install_connector
+    if [ "$pagMode" != "lite" ]; then
+      install_connector
+    fi
     install_examples
     install_bin
     install_config
-    
+
     echo
     echo -e "\033[44;32;1mTDengine client is updated successfully!${NC}"
 
@@ -168,16 +203,18 @@ function install_TDengine() {
     tar -zxf taos.tar.gz
 
     echo -e "${GREEN}Start to install TDengine client...${NC}"
-    
-	  install_main_path
-    install_log 
+
+	install_main_path
+    install_log
     install_header
     install_lib
-    install_connector
+    if [ "$pagMode" != "lite" ]; then
+      install_connector
+    fi
     install_examples
     install_bin
     install_config
- 
+
     echo
     echo -e "\033[44;32;1mTDengine client is installed successfully!${NC}"
 
@@ -191,8 +228,8 @@ function install_TDengine() {
   if [ -e ${bin_dir}/taosd ]; then
       echo -e "\033[44;32;1mThere are already installed TDengine server, so don't need install client!${NC}"
       exit 0
-  fi  
-  
+  fi
+
   if [ -x ${bin_dir}/taos ]; then
       update_flag=1
       update_TDengine

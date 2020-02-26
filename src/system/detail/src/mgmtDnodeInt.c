@@ -210,7 +210,7 @@ char *mgmtBuildCreateMeterIe(STabObj *pMeter, char *pMsg, int vnode) {
 
   for (int i = 0; i < pMeter->numOfColumns; ++i) {
     pCreateMeter->schema[i].type = pSchema[i].type;
-    /* strcpy(pCreateMeter->schema[i].name, pSchema[i].name); */
+    /* strcpy(pCreateMeter->schema[i].name, pColumnModel[i].name); */
     pCreateMeter->schema[i].bytes = htons(pSchema[i].bytes);
     pCreateMeter->schema[i].colId = htons(pSchema[i].colId);
   }
@@ -465,8 +465,11 @@ int mgmtCfgDynamicOptions(SDnodeObj *pDnode, char *msg) {
 }
 
 int mgmtSendCfgDnodeMsg(char *cont) {
+#ifdef CLUSTER
   char *     pMsg, *pStart;
   int        msgLen = 0;
+#endif
+
   SDnodeObj *pDnode;
   SCfgMsg *  pCfg = (SCfgMsg *)cont;
   uint32_t   ip;
@@ -484,6 +487,7 @@ int mgmtSendCfgDnodeMsg(char *cont) {
     return code;
   }
 
+#ifdef CLUSTER
   pStart = taosBuildReqMsg(pDnode->thandle, TSDB_MSG_TYPE_CFG_PNODE);
   if (pStart == NULL) return TSDB_CODE_NODE_OFFLINE;
   pMsg = pStart;
@@ -493,6 +497,8 @@ int mgmtSendCfgDnodeMsg(char *cont) {
 
   msgLen = pMsg - pStart;
   taosSendMsgToDnode(pDnode, pStart, msgLen);
-
+#else
+  (void)tsCfgDynamicOptions(pCfg->config);
+#endif
   return 0;
 }

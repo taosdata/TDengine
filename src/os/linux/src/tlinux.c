@@ -39,6 +39,7 @@ char tsDirectory[TSDB_FILENAME_LEN] = "/var/lib/taos";
 char dataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
 char logDir[TSDB_FILENAME_LEN] = "/var/log/taos";
 char scriptDir[TSDB_FILENAME_LEN] = "/etc/taos";
+char osName[] = "Linux";
 
 int64_t str2int64(char *str) {
   char *endptr = NULL;
@@ -234,8 +235,15 @@ void *taosProcessAlarmSignal(void *tharg) {
 
   timer_t         timerId;
   struct sigevent sevent;
-  sevent.sigev_notify = SIGEV_THREAD_ID;
-  sevent._sigev_un._tid = syscall(__NR_gettid);
+
+  #ifdef _ALPINE
+    sevent.sigev_notify = SIGEV_THREAD;
+    sevent.sigev_value.sival_int = syscall(__NR_gettid);
+  #else
+    sevent.sigev_notify = SIGEV_THREAD_ID;
+    sevent._sigev_un._tid = syscall(__NR_gettid);
+  #endif
+  
   sevent.sigev_signo = SIGALRM;
 
   if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
@@ -264,7 +272,6 @@ void *taosProcessAlarmSignal(void *tharg) {
     callback(0);
   }
 
-  assert(0);
   return NULL;
 }
 

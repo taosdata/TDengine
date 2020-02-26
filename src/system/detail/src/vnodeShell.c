@@ -28,9 +28,8 @@
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
 #include "vnodeStore.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
-#pragma GCC diagnostic ignored "-Wint-conversion"
 extern int tsMaxQueues;
 
 void *      pShellServer = NULL;
@@ -146,11 +145,9 @@ int vnodeInitShell() {
   if (numOfThreads < 1) numOfThreads = 1;
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-#ifdef CLUSTER  
-  rpcInit.localIp = tsInternalIp;
-#else
-  rpcInit.localIp = "0.0.0.0";
-#endif
+
+  rpcInit.localIp = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
+
   rpcInit.localPort = tsVnodeShellPort;
   rpcInit.label = "DND-shell";
   rpcInit.numOfThreads = numOfThreads;
@@ -218,7 +215,10 @@ void vnodeCloseShellVnode(int vnode) {
   if (shellList[vnode] == NULL) return;
 
   for (int i = 0; i < vnodeList[vnode].cfg.maxSessions; ++i) {
-    vnodeFreeQInfo(shellList[vnode][i].qhandle, true);
+    void* qhandle = shellList[vnode][i].qhandle;
+    if (qhandle != NULL) {
+      vnodeDecRefCount(qhandle);
+    }
   }
 
   int32_t* v = malloc(sizeof(int32_t));
@@ -301,7 +301,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   }
 
   if (pQueryMsg->vnode >= TSDB_MAX_VNODES || pQueryMsg->vnode < 0) {
-    dTrace("qmsg:%p,vid:%d is out of range", pQueryMsg, pQueryMsg->vnode);
+    dError("qmsg:%p,vid:%d is out of range", pQueryMsg, pQueryMsg->vnode);
     code = TSDB_CODE_INVALID_TABLE_ID;
     goto _query_over;
   }
@@ -311,33 +311,32 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   if (pVnode->cfg.maxSessions == 0) {
     dError("qmsg:%p,vid:%d is not activated yet", pQueryMsg, pQueryMsg->vnode);
     vnodeSendVpeerCfgMsg(pQueryMsg->vnode);
-    code = TSDB_CODE_NOT_ACTIVE_TABLE;
+    code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _query_over;
   }
 
   if (!(pVnode->accessState & TSDB_VN_READ_ACCCESS)) {
+    dError("qmsg:%p,vid:%d access not allowed", pQueryMsg, pQueryMsg->vnode);
     code = TSDB_CODE_NO_READ_ACCESS;
     goto _query_over;
   }
-
-  if (pQueryMsg->pSidExtInfo == 0) {
-    dTrace("qmsg:%p,SQueryMeterMsg wrong format", pQueryMsg);
-    code = TSDB_CODE_INVALID_QUERY_MSG;
-    goto _query_over;
-  }
-
+  
   if (pVnode->meterList == NULL) {
     dError("qmsg:%p,vid:%d has been closed", pQueryMsg, pQueryMsg->vnode);
     code = TSDB_CODE_NOT_ACTIVE_VNODE;
     goto _query_over;
   }
 
+  if (pQueryMsg->pSidExtInfo == 0) {
+    dError("qmsg:%p,SQueryMeterMsg wrong format", pQueryMsg);
+    code = TSDB_CODE_INVALID_QUERY_MSG;
+    goto _query_over;
+  }
+
   pSids = (SMeterSidExtInfo **)pQueryMsg->pSidExtInfo;
   for (int32_t i = 0; i < pQueryMsg->numOfSids; ++i) {
     if (pSids[i]->sid >= pVnode->cfg.maxSessions || pSids[i]->sid < 0) {
-      dTrace("qmsg:%p sid:%d is out of range, valid range:[%d,%d]", pQueryMsg, pSids[i]->sid, 0,
-             pVnode->cfg.maxSessions);
-
+      dError("qmsg:%p sid:%d out of range, valid range:[%d,%d]", pQueryMsg, pSids[i]->sid, 0, pVnode->cfg.maxSessions);
       code = TSDB_CODE_INVALID_TABLE_ID;
       goto _query_over;
     }
@@ -356,7 +355,7 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   assert(incNumber <= pQueryMsg->numOfSids);
   pthread_mutex_unlock(&pVnode->vmutex);
 
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS || pQueryMsg->numOfSids == 0) { // all the meters may have been dropped.
     goto _query_over;
   }
 
@@ -373,14 +372,16 @@ int vnodeProcessQueryRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (pObj->qhandle) {
     dTrace("QInfo:%p %s free qhandle", pObj->qhandle, __FUNCTION__);
-    vnodeFreeQInfo(pObj->qhandle, true);
+    void* qHandle = pObj->qhandle;
     pObj->qhandle = NULL;
+    
+    vnodeDecRefCount(qHandle);
   }
 
   if (QUERY_IS_STABLE_QUERY(pQueryMsg->queryType)) {
     pObj->qhandle = vnodeQueryOnMultiMeters(pMeterObjList, pGroupbyExpr, pExprs, pQueryMsg, &code);
   } else {
-    pObj->qhandle = vnodeQueryInTimeRange(pMeterObjList, pGroupbyExpr, pExprs, pQueryMsg, &code);
+    pObj->qhandle = vnodeQueryOnSingleTable(pMeterObjList, pGroupbyExpr, pExprs, pQueryMsg, &code);
   }
 
 _query_over:
@@ -393,7 +394,7 @@ _query_over:
   tfree(pMeterObjList);
   ret = vnodeSendQueryRspMsg(pObj, code, pObj->qhandle);
 
-  free(pQueryMsg->pSidExtInfo);
+  tfree(pQueryMsg->pSidExtInfo);
   for(int32_t i = 0; i < pQueryMsg->numOfCols; ++i) {
     vnodeFreeColumnInfo(&pQueryMsg->colList[i]);
   }
@@ -416,6 +417,7 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
 
   int code = 0;
   pRetrieve = (SRetrieveMeterMsg *)pMsg;
+  SQInfo* pQInfo = (SQInfo*)pRetrieve->qhandle;
   pRetrieve->free = htons(pRetrieve->free);
 
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
@@ -440,14 +442,22 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
 
   if (code == TSDB_CODE_SUCCESS) {
     size = vnodeGetResultSize((void *)(pRetrieve->qhandle), &numOfRows);
+  
+    // buffer size for progress information, including meter count,
+    // and for each meter, including 'uid' and 'TSKEY'.
+    int progressSize = 0;
+    if (pQInfo->pMeterQuerySupporter != NULL)
+      progressSize = pQInfo->pMeterQuerySupporter->numOfMeters * (sizeof(int64_t) + sizeof(TSKEY)) + sizeof(int32_t);
+    else if (pQInfo->pObj != NULL)
+      progressSize = sizeof(int64_t) + sizeof(TSKEY) + sizeof(int32_t);
+  
+    pStart = taosBuildRspMsgWithSize(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, progressSize + size + 100);
+    if (pStart == NULL) {
+      taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
+      goto _exit;
+    }
   }
 
-  pStart = taosBuildRspMsgWithSize(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, size + 100);
-  if (pStart == NULL) {
-    taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
-    goto _exit;
-  }
-  
   pMsg = pStart;
 
   *pMsg = code;
@@ -458,7 +468,7 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   pRsp->precision = htons(timePrec);
 
   if (code == TSDB_CODE_SUCCESS) {
-    pRsp->offset = htobe64(vnodeGetOffsetVal(pRetrieve->qhandle));
+    pRsp->offset = htobe64(vnodeGetOffsetVal((void*)pRetrieve->qhandle));
     pRsp->useconds = htobe64(((SQInfo *)(pRetrieve->qhandle))->useconds);
   } else {
     pRsp->offset = 0;
@@ -472,11 +482,41 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   }
 
   pMsg += size;
+
+  // write the progress information of each meter to response
+  // this is required by subscriptions
+  if (pQInfo != NULL ) {
+    if (pQInfo->pMeterQuerySupporter != NULL && pQInfo->pMeterQuerySupporter->pMeterSidExtInfo != NULL) {
+      *((int32_t *)pMsg) = htonl(pQInfo->pMeterQuerySupporter->numOfMeters);
+      pMsg += sizeof(int32_t);
+      for (int32_t i = 0; i < pQInfo->pMeterQuerySupporter->numOfMeters; i++) {
+        *((int64_t *)pMsg) = htobe64(pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[i]->uid);
+        pMsg += sizeof(int64_t);
+        *((TSKEY *)pMsg) = htobe64(pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[i]->key);
+        pMsg += sizeof(TSKEY);
+      }
+    } else if (pQInfo->pObj != NULL) {
+      *((int32_t *)pMsg) = htonl(1);
+      pMsg += sizeof(int32_t);
+      *((int64_t *)pMsg) = htobe64(pQInfo->pObj->uid);
+      pMsg += sizeof(int64_t);
+      if (pQInfo->pointsRead > 0) {
+        *((TSKEY *)pMsg) = htobe64(pQInfo->query.lastKey + 1);
+      } else {
+        *((TSKEY *)pMsg) = htobe64(pQInfo->query.lastKey);
+      }
+      pMsg += sizeof(TSKEY);
+    }
+  }
+
   msgLen = pMsg - pStart;
 
-  if (numOfRows == 0 && (pRetrieve->qhandle == (uint64_t)pObj->qhandle) && (code != TSDB_CODE_ACTION_IN_PROGRESS)) {
+  assert(code != TSDB_CODE_ACTION_IN_PROGRESS);
+  
+  if (numOfRows == 0 && (pRetrieve->qhandle == (uint64_t)pObj->qhandle) && (code != TSDB_CODE_ACTION_IN_PROGRESS) &&
+     pRetrieve->qhandle != 0) {
     dTrace("QInfo:%p %s free qhandle code:%d", pObj->qhandle, __FUNCTION__, code);
-    vnodeFreeQInfoInQueue(pObj->qhandle);
+    vnodeDecRefCount(pObj->qhandle);
     pObj->qhandle = NULL;
   }
 
@@ -484,8 +524,6 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
 
 _exit:
   free(pSched->msg);
-
-  return;
 }
 
 int vnodeProcessRetrieveRequest(char *pMsg, int msgLen, SShellObj *pObj) {
@@ -518,7 +556,7 @@ static int vnodeCheckSubmitBlockContext(SShellSubmitBlock *pBlocks, SVnodeObj *p
   }
 
   if (pMeterObj->uid != uid) {
-    dError("vid:%d sid:%d id:%s, uid:%lld, uid in msg:%lld, uid mismatch", pVnode->vnode, sid, pMeterObj->meterId,
+    dError("vid:%d sid:%d id:%s, uid:%" PRIu64 ", uid in msg:%" PRIu64 ", uid mismatch", pVnode->vnode, sid, pMeterObj->meterId,
            pMeterObj->uid, uid);
     return TSDB_CODE_INVALID_SUBMIT_MSG;
   }
@@ -588,6 +626,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
   SShellSubmitMsg *pSubmit = &shellSubmit;
   SShellSubmitBlock *pBlocks = NULL;
 
+  pSubmit->import = htons(pSubmit->import);
   pSubmit->vnode = htons(pSubmit->vnode);
   pSubmit->numOfSid = htonl(pSubmit->numOfSid);
 
@@ -618,7 +657,7 @@ int vnodeProcessShellSubmitRequest(char *pMsg, int msgLen, SShellObj *pObj) {
 
   if (tsAvailDataDirGB < tsMinimalDataDirGB) {
     dError("server disk space remain %.3f GB, need at least %.3f GB, stop writing", tsAvailDataDirGB, tsMinimalDataDirGB);
-    code = TSDB_CODE_SERVER_NO_SPACE;
+    code = TSDB_CODE_SERV_NO_DISKSPACE;
     goto _submit_over;
   }
 

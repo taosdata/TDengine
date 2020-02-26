@@ -20,14 +20,6 @@
 extern "C" {
 #endif
 
-#include <errno.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-
 #include "os.h"
 #include "taos.h"
 #include "taosmsg.h"
@@ -39,88 +31,30 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 
-#define TSC_GET_RESPTR_BASE(res, cmd, col, ord)                     \
-  ((res->data + tscFieldInfoGetOffset(cmd, col) * res->numOfRows) + \
-   (1 - ord.order) * (res->numOfRows - 1) * tscFieldInfoGetField(cmd, col)->bytes)
-
-enum _sql_cmd {
-  TSDB_SQL_SELECT,
-  TSDB_SQL_FETCH,
-  TSDB_SQL_INSERT,
-
-  TSDB_SQL_MGMT,  // the SQL below is for mgmt node
-  TSDB_SQL_CREATE_DB,
-  TSDB_SQL_CREATE_TABLE,
-  TSDB_SQL_DROP_DB,
-  TSDB_SQL_DROP_TABLE,
-  TSDB_SQL_CREATE_ACCT,
-  TSDB_SQL_CREATE_USER,
-  TSDB_SQL_DROP_ACCT,  // 10
-  TSDB_SQL_DROP_USER,
-  TSDB_SQL_ALTER_USER,
-  TSDB_SQL_ALTER_ACCT,
-  TSDB_SQL_ALTER_TABLE,
-  TSDB_SQL_ALTER_DB,
-  TSDB_SQL_CREATE_MNODE,
-  TSDB_SQL_DROP_MNODE,
-  TSDB_SQL_CREATE_DNODE,
-  TSDB_SQL_DROP_DNODE,
-  TSDB_SQL_CFG_DNODE,  // 20
-  TSDB_SQL_CFG_MNODE,
-  TSDB_SQL_SHOW,
-  TSDB_SQL_RETRIEVE,
-  TSDB_SQL_KILL_QUERY,
-  TSDB_SQL_KILL_STREAM,
-  TSDB_SQL_KILL_CONNECTION,
-
-  TSDB_SQL_READ,  // SQL below is for read operation
-  TSDB_SQL_CONNECT,
-  TSDB_SQL_USE_DB,
-  TSDB_SQL_META,  // 30
-  TSDB_SQL_METRIC,
-  TSDB_SQL_MULTI_META,
-  TSDB_SQL_HB,
-
-  TSDB_SQL_LOCAL,  // SQL below for client local
-  TSDB_SQL_DESCRIBE_TABLE,
-  TSDB_SQL_RETRIEVE_METRIC,
-  TSDB_SQL_METRIC_JOIN_RETRIEVE,
-  TSDB_SQL_RETRIEVE_TAGS,
-  /*
-   * build empty result instead of accessing dnode to fetch result
-   * reset the client cache
-   */
-  TSDB_SQL_RETRIEVE_EMPTY_RESULT,
-
-  TSDB_SQL_RESET_CACHE,  // 40
-  TSDB_SQL_SERV_STATUS,
-  TSDB_SQL_CURRENT_DB,
-  TSDB_SQL_SERV_VERSION,
-  TSDB_SQL_CLI_VERSION,
-  TSDB_SQL_CURRENT_USER,
-  TSDB_SQL_CFG_LOCAL,
-
-  TSDB_SQL_MAX
-};
-
+#define TSC_GET_RESPTR_BASE(res, _queryinfo, col, ord)                     \
+  (res->data + tscFieldInfoGetOffset(_queryinfo, col) * res->numOfRows)
+  
 // forward declaration
 struct SSqlInfo;
 
 typedef struct SSqlGroupbyExpr {
-  int16_t tableIndex;
-
+  int16_t     tableIndex;
   int16_t     numOfGroupCols;
   SColIndexEx columnInfo[TSDB_MAX_TAGS];  // group by columns information
-
-  int16_t orderIndex;  // order by column index
-  int16_t orderType;   // order by type: asc/desc
+  int16_t     orderIndex;                 // order by column index
+  int16_t     orderType;                  // order by type: asc/desc
 } SSqlGroupbyExpr;
 
 typedef struct SMeterMetaInfo {
   SMeterMeta * pMeterMeta;   // metermeta
   SMetricMeta *pMetricMeta;  // metricmeta
 
-  char    name[TSDB_METER_ID_LEN + 1];
+  /*
+   * 1. keep the vnode index during the multi-vnode super table projection query
+   * 2. keep the vnode index for multi-vnode insertion
+   */
+  int32_t vnodeIndex;
+  char    name[TSDB_METER_ID_LEN + 1];    // table(super table) name
   int16_t numOfTags;                      // total required tags in query, including groupby tags
   int16_t tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
 } SMeterMetaInfo;
@@ -179,16 +113,9 @@ typedef struct SColumnBaseInfo {
 
 struct SLocalReducer;
 
-// todo move to utility
-typedef struct SString {
-  int32_t alloc;
-  int32_t n;
-  char *  z;
-} SString;
-
 typedef struct SCond {
   uint64_t uid;
-  SString  cond;
+  char *   cond;
 } SCond;
 
 typedef struct SJoinNode {
@@ -227,18 +154,24 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct STableDataBlocks {
-  char   meterId[TSDB_METER_ID_LEN];
-  int8_t tsSource;
-  bool   ordered;
+  char    meterId[TSDB_METER_ID_LEN];
+  int8_t  tsSource;     // where does the UNIX timestamp come from, server or client
+  bool    ordered;      // if current rows are ordered or not
+  int64_t vgid;         // virtual group id
+  int64_t prevTS;       // previous timestamp, recorded to decide if the records array is ts ascending
+  int32_t numOfMeters;  // number of tables in current submit block
 
-  int64_t vgid;
-  int64_t prevTS;
-
-  int32_t numOfMeters;
-
-  int32_t  rowSize;
+  int32_t  rowSize;  // row size for current table
   uint32_t nAllocSize;
+  uint32_t headerSize;    // header for metadata (submit metadata)
   uint32_t size;
+
+  /*
+   * the metermeta for current table, the metermeta will be used during submit stage, keep a ref
+   * to avoid it to be removed from cache
+   */
+  SMeterMeta *pMeterMeta;
+
   union {
     char *filename;
     char *pData;
@@ -252,60 +185,76 @@ typedef struct STableDataBlocks {
 
 typedef struct SDataBlockList {
   int32_t            idx;
-  int32_t            nSize;
-  int32_t            nAlloc;
+  uint32_t           nSize;
+  uint32_t           nAlloc;
   char *             userParam; /* user assigned parameters for async query */
   void *             udfp;      /* user defined function pointer, used in async model */
   STableDataBlocks **pData;
 } SDataBlockList;
 
-typedef struct {
-  SOrderVal order;
-  int       command;
-  int       count;// TODO refactor
+typedef struct SQueryInfo {
+  int16_t  command;  // the command may be different for each subclause, so keep it seperately.
+  uint16_t type;     // query/insert/import type
+  char     intervalTimeUnit;
 
-  union {
-    bool   existsCheck;       // check if the table exists
-    int8_t showType;          // show command type
-  };
-  
-  int8_t          isInsertFromFile;  // load data from file or not
-  bool            import;     // import/insert type
-  char            msgType;
-  uint16_t        type;  // query type
-  char            intervalTimeUnit;
   int64_t         etime, stime;
   int64_t         nAggTimeInterval;  // aggregation time interval
   int64_t         nSlidingTime;      // sliding window in mseconds
   SSqlGroupbyExpr groupbyExpr;       // group by tags info
 
-  /*
-   * use to keep short request msg and error msg, in such case, SSqlCmd->payload == SSqlCmd->ext;
-   * create table/query/insert operations will exceed the TSDB_SQLCMD_SIZE.
-   *
-   * In such cases, allocate the memory dynamically, and need to free the memory
-   */
-  uint32_t        allocSize;
-  char *          payload;
-  int             payloadLen;
-  short           numOfCols;
-  SColumnBaseInfo colList;
-  SFieldInfo      fieldsInfo;
-  SSqlExprInfo    exprsInfo;
-  SLimitVal       limit;
-  SLimitVal       slimit;
-  int64_t         globalLimit;
-  STagCond        tagCond;
-  int16_t         vnodeIdx;     // vnode index in pMetricMeta for metric query
-  int16_t         interpoType;  // interpolate type
-  int16_t         numOfTables;
-
-  // submit data blocks branched according to vnode
-  SDataBlockList * pDataBlocks;
+  SColumnBaseInfo  colList;
+  SFieldInfo       fieldsInfo;
+  SSqlExprInfo     exprsInfo;
+  SLimitVal        limit;
+  SLimitVal        slimit;
+  STagCond         tagCond;
+  SOrderVal        order;
+  int16_t          interpoType;  // interpolate type
+  int16_t          numOfTables;
   SMeterMetaInfo **pMeterInfo;
   struct STSBuf *  tsBuf;
-  // todo use dynamic allocated memory for defaultVal
-  int64_t defaultVal[TSDB_MAX_COLUMNS];  // default value for interpolation
+  int64_t *        defaultVal;   // default value for interpolation
+  char *           msg;          // pointer to the pCmd->payload to keep error message temporarily
+  int64_t          clauseLimit;  // limit for current sub clause
+  
+  // offset value in the original sql expression, NOT sent to virtual node, only applied at client side
+  int64_t          prjOffset;
+} SQueryInfo;
+
+// data source from sql string or from file
+enum {
+  DATA_FROM_SQL_STRING = 1,
+  DATA_FROM_DATA_FILE = 2,
+};
+
+typedef struct {
+  int     command;
+  uint8_t msgType;
+
+  union {
+    bool   existsCheck;     // check if the table exists or not
+    bool   inStream;        // denote if current sql is executed in stream or not
+    bool   createOnDemand;  // if the table is missing, on-the-fly create it. during getmeterMeta
+    int8_t dataSourceType;  // load data from file or not
+  };
+
+  union {
+    int32_t count;
+    int32_t numOfTablesInSubmit;
+  };
+
+  int32_t  clauseIndex;  // index of multiple subclause query
+  int8_t   isParseFinish;
+  short    numOfCols;
+  uint32_t allocSize;
+  char *   payload;
+  int      payloadLen;
+
+  SQueryInfo **pQueryInfo;
+  int32_t      numOfClause;
+
+  // submit data blocks branched according to vnode
+  SDataBlockList *pDataBlocks;
 
   // for parameter ('?') binding and batch processing
   int32_t batchSize;
@@ -321,12 +270,15 @@ struct STSBuf;
 
 typedef struct {
   uint8_t               code;
-  int                   numOfRows;   // num of results in current retrieved
-  int                   numOfTotal;  // num of total results
+  int64_t               numOfRows;   // num of results in current retrieved
+  int64_t               numOfTotal;  // num of total results
+  int64_t               numOfTotalInCurrentClause;  // num of total result in current subclause
+  
   char *                pRsp;
   int                   rspType;
   int                   rspLen;
   uint64_t              qhandle;
+  int64_t               uid;
   int64_t               useconds;
   int64_t               offset;  // offset value from vnode during projection query of stable
   int                   row;
@@ -366,28 +318,27 @@ typedef struct _sql_obj {
   STscObj *pTscObj;
   void (*fp)();
   void (*fetchFp)();
-  void *   param;
-  uint32_t ip;
-  short    vnode;
-  int64_t  stime;
-  uint32_t queryId;
-  void *   thandle;
-  void *   pStream;
-  char *   sqlstr;
-  char     retry;
-  char     maxRetry;
-  char     index;
-  char     freed : 4;
-  char     listed : 4;
-  tsem_t   rspSem;
-  tsem_t   emptyRspSem;
-
-  SSqlCmd cmd;
-  SSqlRes res;
-
-  char              numOfSubs;
-  char*             asyncTblPos;
-  void*             pTableHashList;  
+  void *            param;
+  uint32_t          ip;
+  short             vnode;
+  int64_t           stime;
+  uint32_t          queryId;
+  void *            thandle;
+  void *            pStream;
+  void *            pSubscription;
+  char *            sqlstr;
+  char              retry;
+  char              maxRetry;
+  uint8_t           index;
+  char              freed : 4;
+  char              listed : 4;
+  tsem_t            rspSem;
+  tsem_t            emptyRspSem;
+  SSqlCmd           cmd;
+  SSqlRes           res;
+  uint8_t           numOfSubs;
+  char *            asyncTblPos;
+  void *            pTableHashList;
   struct _sql_obj **pSubs;
   struct _sql_obj * prev, *next;
 } SSqlObj;
@@ -427,9 +378,11 @@ typedef struct {
 } SIpStrList;
 
 // tscSql API
-int tsParseSql(SSqlObj *pSql, char *acct, char *db, bool multiVnodeInsertion);
+int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
 
-void  tscInitMsgs();
+void tscInitMsgs();
+extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
+
 void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle);
 int   tscProcessSql(SSqlObj *pSql);
 
@@ -448,15 +401,22 @@ int taos_retrieve(TAOS_RES *res);
  * transfer function for metric query in stream computing, the function need to be change
  * before send query message to vnode
  */
-int32_t tscTansformSQLFunctionForMetricQuery(SSqlCmd *pCmd);
-void    tscRestoreSQLFunctionForMetricQuery(SSqlCmd *pCmd);
+int32_t tscTansformSQLFunctionForSTableQuery(SQueryInfo *pQueryInfo);
+void    tscRestoreSQLFunctionForMetricQuery(SQueryInfo *pQueryInfo);
 
 void tscClearSqlMetaInfoForce(SSqlCmd *pCmd);
 
-int32_t tscCreateResPointerInfo(SSqlCmd *pCmd, SSqlRes *pRes);
+int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void    tscDestroyResPointerInfo(SSqlRes *pRes);
 
 void tscFreeSqlCmdData(SSqlCmd *pCmd);
+void tscFreeResData(SSqlObj* pSql);
+
+/**
+ * free query result of the sql object
+ * @param pObj
+ */
+void tscFreeSqlResult(SSqlObj* pSql);
 
 /**
  * only free part of resources allocated during query.
@@ -474,11 +434,15 @@ void tscFreeSqlObj(SSqlObj *pObj);
 
 void tscCloseTscObj(STscObj *pObj);
 
-void    tscProcessMultiVnodesInsert(SSqlObj *pSql);
-void    tscProcessMultiVnodesInsertForFile(SSqlObj *pSql);
-void    tscKillMetricQuery(SSqlObj *pSql);
-void    tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
-bool    tscIsUpdateQuery(STscObj *pObj);
+void tscProcessMultiVnodesInsert(SSqlObj *pSql);
+void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql);
+void tscKillMetricQuery(SSqlObj *pSql);
+void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
+bool tscIsUpdateQuery(STscObj *pObj);
+bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
+
+char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
+
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
 // transfer SSqlInfo to SqlCmd struct
@@ -498,6 +462,8 @@ extern int        tscKeepConn[];
 extern int        tsInsertHeadSize;
 extern int        tscNumOfThreads;
 extern SIpStrList tscMgmtIpList;
+
+typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int numOfRows);
 
 #ifdef __cplusplus
 }

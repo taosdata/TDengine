@@ -84,7 +84,6 @@ int shellDumpResult(TAOS* con, char* fname, int* error_no, bool printMode);
 void shellPrintNChar(char* str, int width, bool printMode);
 void shellGetGrantInfo(void *con);
 int isCommentLine(char *line);
-#define max(a, b) ((int)(a) < (int)(b) ? (int)(b) : (int)(a))
 
 /**************** Global variable declarations ****************/
 extern char           PROMPT_HEADER[];

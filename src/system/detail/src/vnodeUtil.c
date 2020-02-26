@@ -22,8 +22,7 @@
 #include "vnode.h"
 #include "vnodeDataFilterFunc.h"
 #include "vnodeUtil.h"
-
-#pragma GCC diagnostic ignored "-Wint-conversion"
+#include "vnodeStatus.h"
 
 int vnodeCheckFileIntegrity(FILE* fp) {
   /*
@@ -196,9 +195,9 @@ static int32_t vnodeBuildExprFromArithmeticStr(SSqlFunctionExpr* pExpr, SQueryMe
   num = i + 1;
   pBinaryExprInfo->pReqColumns = malloc(sizeof(SColIndexEx) * num);
 
-  for (int32_t i = 0; i < num; ++i) {
-    SColIndexEx* pColIndex = &pBinaryExprInfo->pReqColumns[i];
-    pColIndex->colId = ids[i];
+  for (int32_t k = 0; k < num; ++k) {
+    SColIndexEx* pColIndex = &pBinaryExprInfo->pReqColumns[k];
+    pColIndex->colId = ids[k];
   }
 
   pBinaryExprInfo->numOfCols = num;
@@ -248,12 +247,12 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
 
     SColIndexEx* pColumnIndexExInfo = &pExprs[i].pBase.colInfo;
 
-    // tag column schema is kept in pQueryMsg->pTagSchema
+    // tag column schema is kept in pQueryMsg->pColumnModel
     if (TSDB_COL_IS_TAG(pColumnIndexExInfo->flag)) {
       if (pColumnIndexExInfo->colIdx >= pQueryMsg->numOfTagsCols) {
         *code = TSDB_CODE_INVALID_QUERY_MSG;
         tfree(pExprs);
-        break;
+        return NULL;
       }
 
       type = pTagSchema[pColumnIndexExInfo->colIdx].type;
@@ -265,7 +264,7 @@ SSqlFunctionExpr* vnodeCreateSqlFunctionExpr(SQueryMeterMsg* pQueryMsg, int32_t*
 
         if (*code != TSDB_CODE_SUCCESS) {
           tfree(pExprs);
-          break;
+          return NULL;
         }
 
         type = TSDB_DATA_TYPE_DOUBLE;
@@ -540,52 +539,72 @@ bool vnodeIsProjectionQuery(SSqlFunctionExpr* pExpr, int32_t numOfOutput) {
  * 3. insert has nothing to do with the query processing.
  */
 int32_t vnodeIncQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterSidExtInfo** pSids, SMeterObj** pMeterObjList,
-                              int32_t* numOfInc) {
+                              int32_t* numOfIncTables) {
   SVnodeObj* pVnode = &vnodeList[pQueryMsg->vnode];
 
   int32_t num = 0;
+  int32_t index = 0;
+  
   int32_t code = TSDB_CODE_SUCCESS;
 
   for (int32_t i = 0; i < pQueryMsg->numOfSids; ++i) {
     SMeterObj* pMeter = pVnode->meterList[pSids[i]->sid];
 
-    if (pMeter == NULL || (pMeter->state > TSDB_METER_STATE_INSERT)) {
-      if (pMeter == NULL || vnodeIsMeterState(pMeter, TSDB_METER_STATE_DELETING)) {
-        code = TSDB_CODE_NOT_ACTIVE_TABLE;
-        dError("qmsg:%p, vid:%d sid:%d, not there or will be dropped", pQueryMsg, pQueryMsg->vnode, pSids[i]->sid);
-        vnodeSendMeterCfgMsg(pQueryMsg->vnode, pSids[i]->sid);
-      } else {//update or import
-        code = TSDB_CODE_ACTION_IN_PROGRESS;
-        dTrace("qmsg:%p, vid:%d sid:%d id:%s, it is in state:%d, wait!", pQueryMsg, pQueryMsg->vnode, pSids[i]->sid,
-               pMeter->meterId, pMeter->state);
-      }
-    } else {
-      /*
-       * vnodeIsSafeToDeleteMeter will wait for this function complete, and then it can
-       * check if the numOfQueries is 0 or not.
-       */
-      pMeterObjList[(*numOfInc)++] = pMeter;
-      atomic_fetch_add_32(&pMeter->numOfQueries, 1);
-
-      // output for meter more than one query executed
-      if (pMeter->numOfQueries > 1) {
-        dTrace("qmsg:%p, vid:%d sid:%d id:%s, inc query ref, numOfQueries:%d", pQueryMsg, pMeter->vnode, pMeter->sid,
-               pMeter->meterId, pMeter->numOfQueries);
-        num++;
-      }
+    /*
+     * If table is missing or is in dropping status, config it from management node, and ignore it
+     * during query processing. The error code of TSDB_CODE_NOT_ACTIVE_TABLE will never return to client.
+     * The missing table needs to be removed from pSids list
+     */
+    if (pMeter == NULL || vnodeIsMeterState(pMeter, TSDB_METER_STATE_DROPPING)) {
+      dWarn("qmsg:%p, vid:%d sid:%d, not there or will be dropped, ignore this table in query", pQueryMsg,
+          pQueryMsg->vnode, pSids[i]->sid);
+      
+      vnodeSendMeterCfgMsg(pQueryMsg->vnode, pSids[i]->sid);
+      continue;
+    } else if (pMeter->uid != pSids[i]->uid || pMeter->sid != pSids[i]->sid) {
+      code = TSDB_CODE_TABLE_ID_MISMATCH;
+      dError("qmsg:%p, vid:%d sid:%d id:%s uid:%" PRIu64 ", id mismatch. sid:%d uid:%" PRId64 " in msg", pQueryMsg,
+          pQueryMsg->vnode, pMeter->sid, pMeter->meterId, pMeter->uid, pSids[i]->sid, pSids[i]->uid);
+      
+      vnodeSendMeterCfgMsg(pQueryMsg->vnode, pSids[i]->sid);
+      continue;
+    } else if (pMeter->state > TSDB_METER_STATE_INSERTING) { //update or import
+      code = TSDB_CODE_ACTION_IN_PROGRESS;
+      dTrace("qmsg:%p, vid:%d sid:%d id:%s, it is in state:%s, wait!", pQueryMsg, pQueryMsg->vnode, pSids[i]->sid,
+             pMeter->meterId, taosGetTableStatusStr(pMeter->state));
+      continue;
+    }
+    
+    /*
+     * vnodeIsSafeToDeleteMeter will wait for this function complete, and then it can
+     * check if the numOfQueries is 0 or not.
+     */
+    pMeterObjList[(*numOfIncTables)++] = pMeter;
+    atomic_fetch_add_32(&pMeter->numOfQueries, 1);
+    
+    pSids[index++] = pSids[i];
+    
+    // output for meter more than one query executed
+    if (pMeter->numOfQueries > 1) {
+      dTrace("qmsg:%p, vid:%d sid:%d id:%s, inc query ref, numOfQueries:%d", pQueryMsg, pMeter->vnode, pMeter->sid,
+             pMeter->meterId, pMeter->numOfQueries);
+      num++;
     }
   }
 
-  dTrace("qmsg:%p, query meters: %d, inc query ref %d, numOfQueries on %d meters are 1", pQueryMsg,
-         pQueryMsg->numOfSids, *numOfInc, (*numOfInc) - num);
+  dTrace("qmsg:%p, query meters: %d, inc query ref %d, numOfQueries on %d meters are 1, queried meters:%d after "
+         "filter missing meters", pQueryMsg, pQueryMsg->numOfSids, *numOfIncTables, (*numOfIncTables) - num, index);
 
+  assert(pQueryMsg->numOfSids >= (*numOfIncTables) && pQueryMsg->numOfSids >= index);
+  
+  pQueryMsg->numOfSids = index;
   return code;
 }
 
-void vnodeDecQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterObj** pMeterObjList, int32_t numOfInc) {
+void vnodeDecQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterObj** pMeterObjList, int32_t numOfIncTables) {
   int32_t num = 0;
 
-  for (int32_t i = 0; i < numOfInc; ++i) {
+  for (int32_t i = 0; i < numOfIncTables; ++i) {
     SMeterObj* pMeter = pMeterObjList[i];
 
     if (pMeter != NULL) {  // here, do not need to lock to perform operations
@@ -599,7 +618,7 @@ void vnodeDecQueryRefCount(SQueryMeterMsg* pQueryMsg, SMeterObj** pMeterObjList,
     }
   }
 
-  dTrace("qmsg:%p, dec query ref for %d meters, numOfQueries on %d meters are 0", pQueryMsg, numOfInc, numOfInc - num);
+  dTrace("qmsg:%p, dec query ref for %d meters, numOfQueries on %d meters are 0", pQueryMsg, numOfIncTables, numOfIncTables - num);
 }
 
 void vnodeUpdateQueryColumnIndex(SQuery* pQuery, SMeterObj* pMeterObj) {
@@ -654,7 +673,7 @@ void vnodeClearMeterState(SMeterObj* pMeterObj, int32_t state) {
 bool vnodeIsMeterState(SMeterObj* pMeterObj, int32_t state) {
   if (state == TSDB_METER_STATE_READY) {
     return pMeterObj->state == TSDB_METER_STATE_READY;
-  } else if (state == TSDB_METER_STATE_DELETING) {
+  } else if (state == TSDB_METER_STATE_DROPPING) {
     return pMeterObj->state >= state;
   } else {
     return (((pMeterObj->state) & state) == state);
@@ -666,7 +685,7 @@ void vnodeSetMeterDeleting(SMeterObj* pMeterObj) {
     return;
   }
 
-  pMeterObj->state |= TSDB_METER_STATE_DELETING;
+  pMeterObj->state |= TSDB_METER_STATE_DROPPING;
 }
 
 int32_t vnodeSetMeterInsertImportStateEx(SMeterObj* pObj, int32_t st) {
@@ -674,7 +693,7 @@ int32_t vnodeSetMeterInsertImportStateEx(SMeterObj* pObj, int32_t st) {
   
   int32_t state = vnodeSetMeterState(pObj, st);
   if (state != TSDB_METER_STATE_READY) {//return to denote import is not performed
-    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPING)) {
       dTrace("vid:%d sid:%d id:%s, meter is deleted, state:%d", pObj->vnode, pObj->sid, pObj->meterId,
              pObj->state);
       code = TSDB_CODE_NOT_ACTIVE_TABLE;
@@ -692,17 +711,17 @@ int32_t vnodeSetMeterInsertImportStateEx(SMeterObj* pObj, int32_t st) {
 bool vnodeIsSafeToDeleteMeter(SVnodeObj* pVnode, int32_t sid) {
   SMeterObj* pObj = pVnode->meterList[sid];
 
-  if (pObj == NULL || vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETED)) {
+  if (pObj == NULL || vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPED)) {
     return true;
   }
 
-  int32_t prev = vnodeSetMeterState(pObj, TSDB_METER_STATE_DELETING);
+  int32_t prev = vnodeSetMeterState(pObj, TSDB_METER_STATE_DROPPING);
 
   /*
    * if the meter is not in ready/deleting state, it must be in insert/import/update,
    * set the deleting state and wait the procedure to be completed
    */
-  if (prev != TSDB_METER_STATE_READY && prev < TSDB_METER_STATE_DELETING) {
+  if (prev != TSDB_METER_STATE_READY && prev < TSDB_METER_STATE_DROPPING) {
     vnodeSetMeterDeleting(pObj);
 
     dWarn("vid:%d sid:%d id:%s, can not be deleted, state:%d, wait", pObj->vnode, pObj->sid, pObj->meterId, prev);
@@ -712,7 +731,7 @@ bool vnodeIsSafeToDeleteMeter(SVnodeObj* pVnode, int32_t sid) {
   bool ready = true;
 
   /*
-   * the query will be stopped ASAP, since the state of meter is set to TSDB_METER_STATE_DELETING,
+   * the query will be stopped ASAP, since the state of meter is set to TSDB_METER_STATE_DROPPING,
    * and new query will abort since the meter is deleted.
    */
   pthread_mutex_lock(&pVnode->vmutex);

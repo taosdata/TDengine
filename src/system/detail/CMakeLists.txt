@@ -16,10 +16,14 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
 
   ADD_EXECUTABLE(taosd ${SRC})
 
-  TARGET_LINK_LIBRARIES(taosd taos_static trpc tutil sdb monitor pthread http)
+  IF (TD_PAGMODE_LITE)
+    TARGET_LINK_LIBRARIES(taosd taos trpc tutil sdb monitor pthread http)
+  ELSE ()
+    TARGET_LINK_LIBRARIES(taosd taos_static trpc tutil sdb monitor pthread http)
+  ENDIF ()
 
-  IF (TD_LITE)
-    TARGET_LINK_LIBRARIES(taosd taosd_lite)
+  IF (TD_EDGE)
+    TARGET_LINK_LIBRARIES(taosd taosd_edge)
   ELSE ()
     TARGET_LINK_LIBRARIES(taosd taosd_cluster)
   ENDIF ()

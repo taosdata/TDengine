@@ -19,7 +19,7 @@
 #include "mgmt.h"
 #include "tschemautil.h"
 #include "tlog.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 void *       vgSdb = NULL;
 int          tsVgUpdateSize;
@@ -56,8 +56,8 @@ void mgmtVgroupActionInit() {
 }
 
 void *mgmtVgroupAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtVgroupActionFp[action] != NULL) {
-    return (*(mgmtVgroupActionFp[action]))(row, str, size, ssize);
+  if (mgmtVgroupActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtVgroupActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }
@@ -103,13 +103,17 @@ int mgmtInitVgroups() {
     }
     
     taosIdPoolReinit(pVgroup->idPool);
-#ifdef CLUSTER
-    if (pVgroup->vnodeGid[0].publicIp == 0) {
-      pVgroup->vnodeGid[0].publicIp = inet_addr(tsPublicIp);
-      pVgroup->vnodeGid[0].ip = inet_addr(tsPrivateIp);
-      sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
+
+    if (tsIsCluster) {
+      /*
+       * Upgrade from open source version to cluster version for the first time
+       */
+      if (pVgroup->vnodeGid[0].publicIp == 0) {
+        pVgroup->vnodeGid[0].publicIp = inet_addr(tsPublicIp);
+        pVgroup->vnodeGid[0].ip = inet_addr(tsPrivateIp);
+        sdbUpdateRow(vgSdb, pVgroup, tsVgUpdateSize, 1);
+      }
     }
-#endif
 
     mgmtSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes, pVgroup->vgId);
   }
@@ -233,11 +237,25 @@ int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  int     maxReplica = 0;
-  SVgObj *pVgroup = pDb->pHead;
-  while (pVgroup != NULL) {
+  int      maxReplica = 0;
+  SVgObj  *pVgroup    = NULL;
+  STabObj *pMeter     = NULL;
+  if (pShow->payloadLen > 0 ) {
+    pMeter = mgmtGetMeter(pShow->payload);
+    if (NULL == pMeter) {
+      return TSDB_CODE_INVALID_METER_ID;
+    }
+
+    pVgroup = mgmtGetVgroup(pMeter->gid.vgId);
+    if (NULL == pVgroup) return TSDB_CODE_INVALID_METER_ID;
+    
     maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
-    pVgroup = pVgroup->next;
+  } else {
+    SVgObj *pVgroup = pDb->pHead;
+    while (pVgroup != NULL) {
+      maxReplica = pVgroup->numOfVnodes > maxReplica ? pVgroup->numOfVnodes : maxReplica;
+      pVgroup = pVgroup->next;
+    }
   }
 
   for (int i = 0; i < maxReplica; ++i) {
@@ -272,9 +290,15 @@ int mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pShow->offset[0] = 0;
   for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
-  pShow->numOfRows = pDb->numOfVgroups;
-  pShow->pNode = pDb->pHead;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+
+  if (NULL == pMeter) {
+    pShow->numOfRows = pDb->numOfVgroups;
+    pShow->pNode = pDb->pHead;
+  } else {
+    pShow->numOfRows = 1;
+    pShow->pNode = pVgroup;
+  }
 
   return 0;
 }
@@ -290,6 +314,7 @@ int mgmtRetrieveVgroups(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
 
   SDbObj *pDb = NULL;
   if (pConn->pDb != NULL) pDb = mgmtGetDb(pConn->pDb->name);
+  assert(pDb != NULL);
 
   pVgroup = pDb->pHead;
   while (pVgroup != NULL) {

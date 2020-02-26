@@ -25,7 +25,7 @@ extern "C" {
 #include "dnodeSystem.h"
 #include "mgmt.h"
 #include "tglobalcfg.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 #include "ttime.h"
 
 void mgmtCreateDnodeOrderList();
