@@ -2110,7 +2110,6 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   TSKEY *output = pCtx->ptsOutputBuf;
   for (int32_t i = 0; i < len; ++i, output += step) {
     *output = tvp[i]->timestamp;
-    printf("-------------%lld\n", *output);
   }
 
   // set the corresponding tag data for each record

@@ -22,6 +22,7 @@
 #include "tstoken.h"
 #include "tstrbuild.h"
 #include "ttime.h"
+#include "tast.h"
 
 #include "tscSQLParser.h"
 #include "tscUtil.h"
