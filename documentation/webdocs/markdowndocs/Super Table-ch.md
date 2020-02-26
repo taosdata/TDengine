@@ -1,6 +1,6 @@
 # 超级表STable：多表聚合
 
-TDengine要求每个数据采集点单独建表，这样能极大提高数据的插入/查询性能，但是导致系统中表的数量猛增，让应用对表的维护以及聚合、统计操作难度加大。为降低应用的开发难度，TDengine引入了超级表STable (Super Table)的概念。
+TDengine要求每个数据采集点单独建表。独立建表的模式能够避免写入过程中的同步加锁，因此能够极大地提升数据的插入/查询性能。但是独立建表意味着系统中表的数量与采集点的数量在同一个量级。如果采集点众多，将导致系统中表的数量也非常庞大，让应用对表的维护以及聚合、统计操作难度加大。为降低应用的开发难度，TDengine引入了超级表(Super Table, 简称为STable)的概念。
 
 ## 什么是超级表
 
@@ -9,14 +9,14 @@ STable是同一类型数据采集点的抽象，是同类型采集实例的集�
 TDengine扩展标准SQL语法用于定义STable，使用关键词tags指定标签信息。语法如下：
 
 ```mysql
-CREATE TABLE <stable_name> (<field_name> TIMESTAMP, field_name1 field_type,…)   TAGS(tag_name tag_type, …) 
+CREATE TABLE <stable_name> (<field_name> TIMESTAMP, field_name1 field_type,…) TAGS(tag_name tag_type, …) 
 ```
 
-其中tag_name是标签名，tag_type是标签的数据类型。标签可以使用时间戳之外的其他TDengine支持的数据类型，标签的个数最多为6个，名字不能与系统关键词相同，也不能与其他列名相同。如：
+其中tag_name是标签名，tag_type是标签的数据类型。标签可以使用时间戳之外的其他TDengine支持的数据类型，标签的个数最多为32个，名字不能与系统关键词相同，也不能与其他列名相同。如：
 
 ```mysql
-create table thermometer (ts timestamp, degree float) 
-tags (location binary(20), type int)
+CREATE TABLE thermometer (ts timestamp, degree float) 
+TAGS (location binary(20), type int)
 ```
 
 上述SQL创建了一个名为thermometer的STable，带有标签location和标签type。
@@ -30,7 +30,7 @@ CREATE TABLE <tb_name> USING <stb_name> TAGS (tag_value1,...)
 沿用上面温度计的例子，使用超级表thermometer建立单个温度计数据表的语句如下：
 
 ```mysql
-create table t1 using thermometer tags ('beijing', 10)
+CREATE TABLE t1 USING thermometer TAGS ('beijing', 10)
 ```
 
 上述SQL以thermometer为模板，创建了名为t1的表，这张表的Schema就是thermometer的Schema，但标签location值为'beijing'，标签type值为10。
@@ -72,7 +72,7 @@ STable从属于库，一个STable只属于一个库，但一个库可以有一�
     DROP TABLE <stable_name>
     ```
 
-    Note: 删除STable不会级联删除通过STable创建的表；相反删除STable时要求通过该STable创建的表都已经被删除。
+    Note: 删除STable时，所有通过该STable创建的表都将被删除。
 
 - 查看属于某STable并满足查询条件的表
 

@@ -2663,8 +2663,9 @@ void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, int64_t startQueryTimes
     // store the first&last timestamp into the intermediate buffer [1], the true
     // value may be null but timestamp will never be null
     pCtx->ptsList = (int64_t *)(primaryColumnData + startOffset * TSDB_KEYSIZE);
-  } else if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_TWA ||
-             functionId == TSDB_FUNC_DIFF) {
+  } else if (functionId == TSDB_FUNC_TOP      || functionId == TSDB_FUNC_BOTTOM ||
+             functionId == TSDB_FUNC_TWA      || functionId == TSDB_FUNC_DIFF ||
+             (functionId >= TSDB_FUNC_RATE    && functionId <= TSDB_FUNC_AVG_IRATE)) {
     /*
      * leastsquares function needs two columns of input, currently, the x value of linear equation is set to
      * timestamp column, and the y-value is the column specified in pQuery->pSelectExpr[i].colIdxInBuffer
@@ -2953,6 +2954,22 @@ bool isPointInterpoQuery(SQuery *pQuery) {
 }
 
 // TODO REFACTOR:MERGE WITH CLIENT-SIDE FUNCTION
+bool isSumAvgRateQuery(SQuery *pQuery) {
+  for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+    int32_t functionId = pQuery->pSelectExpr[i].pBase.functionId;
+    if (functionId == TSDB_FUNC_TS) {
+      continue;
+    }
+
+    if (functionId == TSDB_FUNC_SUM_RATE || functionId == TSDB_FUNC_SUM_IRATE ||
+        functionId == TSDB_FUNC_AVG_RATE || functionId == TSDB_FUNC_AVG_IRATE) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool isTopBottomQuery(SQuery *pQuery) {
   for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
     int32_t functionId = pQuery->pSelectExpr[i].pBase.functionId;

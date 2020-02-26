@@ -27,7 +27,6 @@
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "tast.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
@@ -908,7 +907,7 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
     return false;
   }
 
-  if (pTagField->type < TSDB_DATA_TYPE_BOOL && pTagField->type > TSDB_DATA_TYPE_NCHAR) {
+  if ((pTagField->type < TSDB_DATA_TYPE_BOOL) || (pTagField->type > TSDB_DATA_TYPE_NCHAR)) {
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
     return false;
   }
@@ -1572,6 +1571,12 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
     }
     case TK_SUM:
     case TK_AVG:
+    case TK_RATE:
+    case TK_IRATE:
+    case TK_SUM_RATE:
+    case TK_SUM_IRATE:
+    case TK_AVG_RATE:
+    case TK_AVG_IRATE:
     case TK_TWA:
     case TK_MIN:
     case TK_MAX:
@@ -1724,7 +1729,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
             SSchema* pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
 
             // functions can not be applied to tags
-            if (index.columnIndex >= pMeterMetaInfo->pMeterMeta->numOfColumns) {
+            if ((index.columnIndex >= pMeterMetaInfo->pMeterMeta->numOfColumns) || (index.columnIndex < 0)) {
               return invalidSqlErrMsg(pQueryInfo->msg, msg6);
             }
 
@@ -2037,6 +2042,24 @@ int32_t changeFunctionID(int32_t optr, int16_t* functionId) {
     case TK_AVG:
       *functionId = TSDB_FUNC_AVG;
       break;
+    case TK_RATE:
+      *functionId = TSDB_FUNC_RATE;
+      break;
+    case TK_IRATE:
+      *functionId = TSDB_FUNC_IRATE;
+      break;
+    case TK_SUM_RATE:
+      *functionId = TSDB_FUNC_SUM_RATE;
+      break;
+    case TK_SUM_IRATE:
+      *functionId = TSDB_FUNC_SUM_IRATE;
+      break;
+    case TK_AVG_RATE:
+      *functionId = TSDB_FUNC_AVG_RATE;
+      break;
+    case TK_AVG_IRATE:
+      *functionId = TSDB_FUNC_AVG_IRATE;
+      break;
     case TK_MIN:
       *functionId = TSDB_FUNC_MIN;
       break;
@@ -2231,7 +2254,8 @@ int32_t tscTansformSQLFunctionForSTableQuery(SQueryInfo* pQueryInfo) {
     SSchema* pSrcSchema = tsGetColumnSchema(pMeterMetaInfo->pMeterMeta, colIndex);
     
     if ((functionId >= TSDB_FUNC_SUM && functionId <= TSDB_FUNC_TWA) ||
-        (functionId >= TSDB_FUNC_FIRST_DST && functionId <= TSDB_FUNC_LAST_DST)) {
+        (functionId >= TSDB_FUNC_FIRST_DST && functionId <= TSDB_FUNC_LAST_DST) ||
+        (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_AVG_IRATE)) {
       if (getResultDataInfo(pSrcSchema->type, pSrcSchema->bytes, functionId, pExpr->param[0].i64Key, &type, &bytes,
                             &intermediateBytes, 0, true) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_INVALID_SQL;
@@ -2257,7 +2281,7 @@ void tscRestoreSQLFunctionForMetricQuery(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
     SSqlExpr*   pExpr = tscSqlExprGet(pQueryInfo, i);
     SSchema* pSchema = tsGetColumnSchema(pMeterMetaInfo->pMeterMeta, pExpr->colInfo.colIdx);
-                      
+    
 //    if (/*(pExpr->functionId >= TSDB_FUNC_FIRST_DST && pExpr->functionId <= TSDB_FUNC_LAST_DST) ||
 //        (pExpr->functionId >= TSDB_FUNC_SUM && pExpr->functionId <= TSDB_FUNC_MAX) ||
 //        pExpr->functionId == TSDB_FUNC_LAST_ROW*/) {
@@ -3086,8 +3110,8 @@ static bool isValidExpr(tSQLExpr* pLeft, tSQLExpr* pRight, int32_t optr) {
    *
    * However, columnA < 4+12 is valid
    */
-  if ((pLeft->nSQLOptr >= TK_COUNT && pLeft->nSQLOptr <= TK_LAST_ROW) ||
-      (pRight->nSQLOptr >= TK_COUNT && pRight->nSQLOptr <= TK_LAST_ROW) ||
+  if ((pLeft->nSQLOptr >= TK_COUNT && pLeft->nSQLOptr <= TK_AVG_IRATE) ||
+      (pRight->nSQLOptr >= TK_COUNT && pRight->nSQLOptr <= TK_AVG_IRATE) ||
       (pLeft->nSQLOptr >= TK_BOOL && pLeft->nSQLOptr <= TK_BINARY && pRight->nSQLOptr >= TK_BOOL &&
        pRight->nSQLOptr <= TK_BINARY)) {
     return false;

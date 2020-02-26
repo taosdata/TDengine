@@ -72,10 +72,10 @@ sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
 
 if [ "$verMode" == "cluster" ]; then
   debname="TDengine-server-"${tdengine_ver}-${osType}-${cpuType}
-elif [ "$verMode" == "lite" ]; then
+elif [ "$verMode" == "edge" ]; then
   debname="TDengine-server"-${tdengine_ver}-${osType}-${cpuType}
 else
-  echo "unknow verMode, nor cluster or lite"
+  echo "unknow verMode, nor cluster or edge"
   exit 1
 fi
 

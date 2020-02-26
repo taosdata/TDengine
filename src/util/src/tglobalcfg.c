@@ -80,7 +80,12 @@ short tsNumOfVnodesPerCore = 8;
 short tsNumOfTotalVnodes = 0;
 short tsCheckHeaderFile = 0;
 
+#ifdef _TD_ARM_32_
+int tsSessionsPerVnode = 100;
+#else
 int tsSessionsPerVnode = 1000;
+#endif
+
 int tsCacheBlockSize = 16384;  // 256 columns
 int tsAverageCacheBlocks = TSDB_DEFAULT_AVG_BLOCKS;
 /**

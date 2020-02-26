@@ -239,8 +239,8 @@ char *taosBuildReqHeader(void *param, char type, char *msg) {
   pHeader->spi = 0;
   pHeader->tcp = 0;
   pHeader->encrypt = 0;
-  pHeader->tranId = atomic_add_fetch_32(&pConn->tranId, 1);
-  if (pHeader->tranId == 0) pHeader->tranId = atomic_add_fetch_32(&pConn->tranId, 1);
+  pHeader->tranId = atomic_add_fetch_16(&pConn->tranId, 1);
+  if (pHeader->tranId == 0) pHeader->tranId = atomic_add_fetch_16(&pConn->tranId, 1);
 
   pHeader->sourceId = pConn->ownId;
   pHeader->destId = pConn->peerId;

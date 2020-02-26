@@ -45,13 +45,15 @@ mkdir build && cd build
 cmake .. && cmake --build .
 ```
 
-if compiling on an ARM processor(aarch64 or aarch32), you need add one parameter:
+To compile on an ARM processor (aarch64 or aarch32), please add option CPUTYPE as below:
 
-```cmd
 aarch64:
+```cmd
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
+```
 
 aarch32:
+```cmd
 cmake .. -DCPUTYPE=aarch32 && cmake --build .
 ```
 
@@ -128,3 +130,8 @@ The TDengine community has also kindly built some of their own connectors! Follo
 # Contribute to TDengine
 
 Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to the project.
+
+# Join TDengine WeChat Group
+
+Add WeChat “tdengine” to join the group，you can communicate with other users.
+
