@@ -463,7 +463,7 @@ int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
     }
     if (pAlter->maxSessions > 0) {
       //rebuild meterList in mgmtVgroup.c
-      sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 0);
+      mgmtUpdateVgroup(pVgroup);
     }
     mgmtSendVPeersMsg(pVgroup);
     pVgroup = pVgroup->next;

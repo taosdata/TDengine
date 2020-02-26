@@ -25,8 +25,8 @@ extern "C" {
 #include "mnode.h"
 
 extern bool    (*mgmtCheckExpired)();
-extern void    (*mgmtAddTimeSeries)(uint32_t timeSeriesNum);
-extern void    (*mgmtRestoreTimeSeries)(uint32_t timeseries);
+extern void    (*mgmtAddTimeSeries)(SAcctObj *pAcct, uint32_t timeSeriesNum);
+extern void    (*mgmtRestoreTimeSeries)(SAcctObj *pAcct, uint32_t timeseries);
 extern int32_t (*mgmtCheckTimeSeries)(uint32_t timeseries);
 extern int32_t (*mgmtCheckUserGrant)();
 extern int32_t (*mgmtCheckDbGrant)();

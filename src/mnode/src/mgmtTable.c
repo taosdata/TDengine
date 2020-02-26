@@ -33,10 +33,13 @@
 #include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
 #include "mgmtNormalTable.h"
-#include "mgmtStreamTable.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
+#include "mgmtUser.h"
 #include "mgmtVgroup.h"
+
+extern void *tsNormalTableSdb;
+extern void *tsChildTableSdb;
 
 int32_t mgmtInitTables() {
   int32_t code = mgmtInitSuperTables();
@@ -49,15 +52,12 @@ int32_t mgmtInitTables() {
     return code;
   }
 
-  code = mgmtInitStreamTables();
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
   code = mgmtInitChildTables();
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
+  mgmtSetVgroupIdPool();
 
   return TSDB_CODE_SUCCESS;
 }
@@ -73,12 +73,7 @@ STableInfo* mgmtGetTable(char *tableId) {
     return tableInfo;
   }
 
-  tableInfo = (STableInfo *) mgmtGetStreamTable(tableId);
-  if (tableInfo != NULL) {
-    return tableInfo;
-  }
-
-  tableInfo = (STableInfo *) mgmtGetNormalTable(tableId);
+  tableInfo = (STableInfo *) mgmtGetChildTable(tableId);
   if (tableInfo != NULL) {
     return tableInfo;
   }
@@ -102,8 +97,6 @@ STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
 int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, bool usePublicIp) {
   if (pTable->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
     mgmtGetChildTableMeta(pDb, (SChildTableObj *) pTable, pMeta, usePublicIp);
-  } else if (pTable->type == TSDB_TABLE_TYPE_STREAM_TABLE) {
-    mgmtGetStreamTableMeta(pDb, (SStreamTableObj *) pTable, pMeta, usePublicIp);
   } else if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
     mgmtGetNormalTableMeta(pDb, (SNormalTableObj *) pTable, pMeta, usePublicIp);
   } else if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
@@ -147,22 +140,17 @@ int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
       return grantCode;
     }
 
-    SVgObj *pVgroup = mgmtGetAvailVgroup(pDb);
+    int32_t sid;
+    SVgObj *pVgroup = mgmtGetAvailVgroup(pDb, &sid);
     if (pVgroup == NULL) {
-      return terrno;
-    }
-
-    int32_t sid = mgmtAllocateSid(pDb, pVgroup);
-    if (sid < 0) {
-      return terrno;
-    }
-
-    if (pCreate->numOfColumns == 0) {
-      return mgmtCreateChildTable(pDb, pCreate, pVgroup, sid);
-    } else if (pCreate->sqlLen > 0) {
-      return mgmtCreateStreamTable(pDb, pCreate, pVgroup, sid);
+      // process it in a callback function
+      return TSDB_CODE_ACTION_IN_PROGRESS;
     } else {
-      return mgmtCreateNormalTable(pDb, pCreate, pVgroup, sid);
+      if (pCreate->numOfColumns == 0) {
+        return mgmtCreateChildTable(pDb, pCreate, pVgroup, sid);
+      } else {
+        return mgmtCreateNormalTable(pDb, pCreate, pVgroup, sid);
+      }
     }
   } else {
     return mgmtCreateSuperTable(pDb, pCreate);
@@ -188,8 +176,6 @@ int32_t mgmtDropTable(SDbObj *pDb, char *tableId, int32_t ignore) {
       return mgmtDropSuperTable(pDb, (SSuperTableObj *) pTable);
     case TSDB_TABLE_TYPE_CHILD_TABLE:
       return mgmtDropChildTable(pDb, (SChildTableObj *) pTable);
-    case TSDB_TABLE_TYPE_STREAM_TABLE:
-      return mgmtDropStreamTable(pDb, (SStreamTableObj *) pTable);
     case TSDB_TABLE_TYPE_NORMAL_TABLE:
       return mgmtDropNormalTable(pDb, (SNormalTableObj *) pTable);
     default:
@@ -242,7 +228,6 @@ int32_t mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter) {
 
 void mgmtCleanUpMeters() {
   mgmtCleanUpNormalTables();
-  mgmtCleanUpStreamTables();
   mgmtCleanUpChildTables();
   mgmtCleanUpSuperTables();
 }
@@ -306,116 +291,102 @@ static void mgmtVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_
 }
 
 int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  SDbObj *pDb = mgmtGetDb(pShow->db);
+  if (pDb == NULL) return 0;
+
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
+
+  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    if (strcmp(pUser->user, "root") != 0 && strcmp(pUser->user, "_root") != 0 &&
+        strcmp(pUser->user, "monitor") != 0) {
+      return 0;
+    }
+  }
+
   int32_t numOfRows  = 0;
-//  int32_t numOfRead  = 0;
-//  int32_t cols       = 0;
-//  void    *pTable    = NULL;
-//  char    *pWrite    = NULL;
-//
-//  int16_t numOfColumns;
-//  int64_t createdTime;
-//  char    *tableId;
-//  char    *superTableId;
-//  SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-//
-//  SDbObj *pDb = NULL;
-//  if (pConn->pDb != NULL) {
-//    pDb = mgmtGetDb(pConn->pDb->name);
-//  }
-//
-//  if (pDb == NULL) {
-//    return 0;
-//  }
-//
-//  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-//    if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 &&
-//        strcmp(pConn->pUser->user, "monitor") != 0) {
-//      return 0;
-//    }
-//  }
-//
-//  char prefix[20] = {0};
-//  strcpy(prefix, pDb->name);
-//  strcat(prefix, TS_PATH_DELIMITER);
-//  int32_t prefixLen = strlen(prefix);
-//
-//  while (numOfRows < rows) {
-//    void *pNormalTableNode = sdbFetchRow(tsNormalTableSdb, pShow->pNode, (void **) &pTable);
-//    if (pTable != NULL) {
-//      SNormalTableObj *pNormalTable = (SNormalTableObj *) pTable;
-//      pShow->pNode = pNormalTableNode;
-//      tableId      = pNormalTable->tableId;
-//      superTableId = NULL;
-//      createdTime  = pNormalTable->createdTime;
-//      numOfColumns = pNormalTable->numOfColumns;
-//    } else {
-//      void *pStreamTableNode = sdbFetchRow(tsStreamTableSdb, pShow->pNode, (void **) &pTable);
-//      if (pTable != NULL) {
-//        SStreamTableObj *pChildTable = (SStreamTableObj *) pTable;
-//        pShow->pNode = pStreamTableNode;
-//        tableId      = pChildTable->tableId;
-//        superTableId = NULL;
-//        createdTime  = pChildTable->createdTime;
-//        numOfColumns = pChildTable->numOfColumns;
-//      } else {
-//        void *pChildTableNode = sdbFetchRow(tsChildTableSdb, pShow->pNode, (void **) &pTable);
-//        if (pTable != NULL) {
-//          SChildTableObj *pChildTable = (SChildTableObj *) pTable;
-//          pShow->pNode = pChildTableNode;
-//          tableId      = pChildTable->tableId;
-//          superTableId = NULL;
-//          createdTime  = pChildTable->createdTime;
-//          numOfColumns = pChildTable->superTable->numOfColumns;
-//        } else {
-//          break;
-//        }
-//      }
-//    }
-//
-//    // not belong to current db
-//    if (strncmp(tableId, prefix, prefixLen)) {
-//      continue;
-//    }
-//
-//    char meterName[TSDB_TABLE_NAME_LEN] = {0};
-//    memset(meterName, 0, tListLen(meterName));
-//    numOfRead++;
-//
-//    // pattern compare for meter name
-//    extractTableName(tableId, meterName);
-//
-//    if (pShow->payloadLen > 0 &&
-//        patternMatch(pShow->payload, meterName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
-//      continue;
-//    }
-//
-//    cols = 0;
-//
-//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-//    strncpy(pWrite, meterName, TSDB_TABLE_NAME_LEN);
-//    cols++;
-//
-//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-//    *(int64_t *) pWrite = createdTime;
-//    cols++;
-//
-//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-//    *(int16_t *) pWrite = numOfColumns;
-//    cols++;
-//
-//    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-//    if (superTableId != NULL) {
-//      extractTableName(superTableId, pWrite);
-//    }
-//    cols++;
-//
-//    numOfRows++;
-//  }
-//
-//  pShow->numOfReads += numOfRead;
-//  const int32_t NUM_OF_COLUMNS = 4;
-//
-//  mgmtVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
+  int32_t numOfRead  = 0;
+  int32_t cols       = 0;
+  void    *pTable    = NULL;
+  char    *pWrite    = NULL;
+  char    prefix[20] = {0};
+  SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
+
+  strcpy(prefix, pDb->name);
+  strcat(prefix, TS_PATH_DELIMITER);
+  int32_t prefixLen = strlen(prefix);
+
+  while (numOfRows < rows) {
+    int16_t numOfColumns      = 0;
+    int64_t createdTime       = 0;
+    char    *tableId          = NULL;
+    char    *superTableId     = NULL;
+    void    *pNormalTableNode = sdbFetchRow(tsNormalTableSdb, pShow->pNode, (void **) &pTable);
+    if (pTable != NULL) {
+      SNormalTableObj *pNormalTable = (SNormalTableObj *) pTable;
+      pShow->pNode = pNormalTableNode;
+      tableId      = pNormalTable->tableId;
+      superTableId = NULL;
+      createdTime  = pNormalTable->createdTime;
+      numOfColumns = pNormalTable->numOfColumns;
+    } else {
+      void *pChildTableNode = sdbFetchRow(tsChildTableSdb, pShow->pNode, (void **) &pTable);
+      if (pTable != NULL) {
+        SChildTableObj *pChildTable = (SChildTableObj *) pTable;
+        pShow->pNode = pChildTableNode;
+        tableId      = pChildTable->tableId;
+        superTableId = pChildTable->superTableId;
+        createdTime  = pChildTable->createdTime;
+        numOfColumns = pChildTable->superTable->numOfColumns;
+      } else {
+        break;
+      }
+    }
+
+    // not belong to current db
+    if (strncmp(tableId, prefix, prefixLen)) {
+      continue;
+    }
+
+    char tableName[TSDB_TABLE_NAME_LEN] = {0};
+    memset(tableName, 0, tListLen(tableName));
+    numOfRead++;
+
+    // pattern compare for meter name
+    extractTableName(tableId, tableName);
+
+    if (pShow->payloadLen > 0 &&
+        patternMatch(pShow->payload, tableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
+      continue;
+    }
+
+    cols = 0;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    strncpy(pWrite, tableName, TSDB_TABLE_NAME_LEN);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *) pWrite = createdTime;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *) pWrite = numOfColumns;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    if (superTableId != NULL) {
+      extractTableName(superTableId, pWrite);
+    }
+    cols++;
+
+    numOfRows++;
+  }
+
+  pShow->numOfReads += numOfRead;
+  const int32_t NUM_OF_COLUMNS = 4;
+
+  mgmtVacuumResult(data, NUM_OF_COLUMNS, numOfRows, rows, pShow);
 
   return numOfRows;
 }

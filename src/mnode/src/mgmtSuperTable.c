@@ -37,17 +37,17 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-void *tsSuperTableSdb;
-int32_t tsSuperTableUpdateSize;
-void *(*mgmtSuperTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
+static void *tsSuperTableSdb;
+static int32_t tsSuperTableUpdateSize;
 
-void *mgmtSuperTableActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtSuperTableActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtSuperTableActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtSuperTableActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtSuperTableActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtSuperTableActionReset(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtSuperTableActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
+static void *(*mgmtSuperTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtSuperTableActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtSuperTableActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtSuperTableActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtSuperTableActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtSuperTableActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtSuperTableActionReset(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtSuperTableActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
 
 static void mgmtDestroySuperTable(SSuperTableObj *pTable) {
   free(pTable->schema);
@@ -55,22 +55,25 @@ static void mgmtDestroySuperTable(SSuperTableObj *pTable) {
 }
 
 static void mgmtSuperTableActionInit() {
-  mgmtSuperTableActionFp[SDB_TYPE_INSERT] = mgmtSuperTableActionInsert;
-  mgmtSuperTableActionFp[SDB_TYPE_DELETE] = mgmtSuperTableActionDelete;
-  mgmtSuperTableActionFp[SDB_TYPE_UPDATE] = mgmtSuperTableActionUpdate;
-  mgmtSuperTableActionFp[SDB_TYPE_ENCODE] = mgmtSuperTableActionEncode;
-  mgmtSuperTableActionFp[SDB_TYPE_DECODE] = mgmtSuperTableActionDecode;
-  mgmtSuperTableActionFp[SDB_TYPE_RESET] = mgmtSuperTableActionReset;
+  SSuperTableObj tObj;
+  tsSuperTableUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
+
+  mgmtSuperTableActionFp[SDB_TYPE_INSERT]  = mgmtSuperTableActionInsert;
+  mgmtSuperTableActionFp[SDB_TYPE_DELETE]  = mgmtSuperTableActionDelete;
+  mgmtSuperTableActionFp[SDB_TYPE_UPDATE]  = mgmtSuperTableActionUpdate;
+  mgmtSuperTableActionFp[SDB_TYPE_ENCODE]  = mgmtSuperTableActionEncode;
+  mgmtSuperTableActionFp[SDB_TYPE_DECODE]  = mgmtSuperTableActionDecode;
+  mgmtSuperTableActionFp[SDB_TYPE_RESET]   = mgmtSuperTableActionReset;
   mgmtSuperTableActionFp[SDB_TYPE_DESTROY] = mgmtSuperTableActionDestroy;
 }
 
 void *mgmtSuperTableActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   SSuperTableObj *pTable = (SSuperTableObj *) row;
-  memcpy(pTable, str, tsDbUpdateSize);
+  memcpy(pTable, str, tsSuperTableUpdateSize);
 
   int32_t schemaSize = sizeof(SSchema) * (pTable->numOfColumns + pTable->numOfTags);
   pTable->schema = realloc(pTable->schema, schemaSize);
-  memcpy(pTable->schema, str + tsDbUpdateSize, schemaSize);
+  memcpy(pTable->schema, str + tsSuperTableUpdateSize, schemaSize);
 
   return NULL;
 }
@@ -82,10 +85,20 @@ void *mgmtSuperTableActionDestroy(void *row, char *str, int32_t size, int32_t *s
 }
 
 void *mgmtSuperTableActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
+  STableInfo *pTable = (STableInfo *) row;
+  SDbObj     *pDb    = mgmtGetDbByTableId(pTable->tableId);
+  if (pDb) {
+    mgmtAddSuperTableIntoDb(pDb);
+  }
   return NULL;
 }
 
 void *mgmtSuperTableActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
+  STableInfo *pTable = (STableInfo *) row;
+  SDbObj     *pDb    = mgmtGetDbByTableId(pTable->tableId);
+  if (pDb) {
+    mgmtRemoveSuperTableFromDb(pDb);
+  }
   return NULL;
 }
 
@@ -114,7 +127,7 @@ void *mgmtSuperTableActionEncode(void *row, char *str, int32_t size, int32_t *ss
 void *mgmtSuperTableActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
   assert(str != NULL);
 
-  SSuperTableObj *pTable = (SSuperTableObj *)malloc(sizeof(SSuperTableObj));
+  SSuperTableObj *pTable = (SSuperTableObj *) malloc(sizeof(SSuperTableObj));
   if (pTable == NULL) {
     return NULL;
   }
@@ -134,35 +147,33 @@ void *mgmtSuperTableActionDecode(void *row, char *str, int32_t size, int32_t *ss
   }
 
   memcpy(pTable->schema, str + tsSuperTableUpdateSize, schemaSize);
-  return (void *)pTable;
+  return (void *) pTable;
 }
 
 void *mgmtSuperTableAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
-  if (mgmtSuperTableActionFp[(uint8_t)action] != NULL) {
-    return (*(mgmtSuperTableActionFp[(uint8_t)action]))(row, str, size, ssize);
+  if (mgmtSuperTableActionFp[(uint8_t) action] != NULL) {
+    return (*(mgmtSuperTableActionFp[(uint8_t) action]))(row, str, size, ssize);
   }
   return NULL;
 }
 
 int32_t mgmtInitSuperTables() {
-  void *    pNode = NULL;
-  void *    pLastNode = NULL;
-  SSuperTableObj * pTable = NULL;
+  void *pNode     = NULL;
+  void *pLastNode = NULL;
+  SSuperTableObj *pTable = NULL;
 
   mgmtSuperTableActionInit();
-  SSuperTableObj tObj;
-  tsSuperTableUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
   tsSuperTableSdb = sdbOpenTable(tsMaxTables, tsSuperTableUpdateSize + sizeof(SSchema) * TSDB_MAX_COLUMNS,
                           "stables", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtSuperTableAction);
   if (tsSuperTableSdb == NULL) {
-    mError("failed to init super table data");
+    mError("failed to init stables data");
     return -1;
   }
 
   pNode = NULL;
   while (1) {
-    pNode = sdbFetchRow(tsSuperTableSdb, pNode, (void **)&pTable);
+    pNode = sdbFetchRow(tsSuperTableSdb, pNode, (void **) &pTable);
     if (pTable == NULL) {
       break;
     }
@@ -178,9 +189,7 @@ int32_t mgmtInitSuperTables() {
     mgmtAddSuperTableIntoDb(pDb);
   }
 
-  mgmtSetVgroupIdPool();
-
-  mTrace("super table is initialized");
+  mTrace("stables is initialized");
   return 0;
 }
 
@@ -190,8 +199,8 @@ void mgmtCleanUpSuperTables() {
 
 int32_t mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
   int32_t numOfTables = sdbGetNumOfRows(tsSuperTableSdb);
-  if (numOfTables >= TSDB_MAX_TABLES) {
-    mError("super table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_TABLES);
+  if (numOfTables >= TSDB_MAX_SUPER_TABLES) {
+    mError("stable:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_SUPER_TABLES);
     return TSDB_CODE_TOO_MANY_TABLES;
   }
 
@@ -201,6 +210,7 @@ int32_t mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
   }
 
   strcpy(pStable->tableId, pCreate->tableId);
+  pStable->type        = TSDB_TABLE_TYPE_SUPER_TABLE;
   pStable->createdTime = taosGetTimestampMs();
   pStable->vgId = 0;
   pStable->sid = 0;
@@ -214,7 +224,7 @@ int32_t mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
   pStable->schema = (SSchema *)calloc(1, schemaSize);
   if (pStable->schema == NULL) {
     free(pStable);
-    mError("table:%s, no schema input", pCreate->tableId);
+    mError("stable:%s, no schema input", pCreate->tableId);
     return TSDB_CODE_INVALID_TABLE;
   }
   memcpy(pStable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
@@ -230,7 +240,6 @@ int32_t mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
     return TSDB_CODE_SDB_ERROR;
   }
 
-  mgmtAddSuperTableIntoDb(pDb);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -633,20 +642,6 @@ int32_t mgmtGetSuperTableMeta(SDbObj *pDb, SSuperTableObj *pTable, STableMeta *p
   pMeta->numOfColumns = htons(pTable->numOfColumns);
   pMeta->tableType    = pTable->type;
   pMeta->contLen      = sizeof(STableMeta) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable);
-
-  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
-  if (pVgroup == NULL) {
-    return TSDB_CODE_INVALID_TABLE;
-  }
-  for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-    if (usePublicIp) {
-      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].publicIp;
-      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-    } else {
-      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].ip;
-      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-    }
-  }
 
   return TSDB_CODE_SUCCESS;
 }

@@ -47,11 +47,7 @@ extern void *tsMgmtTmr;
 extern void *tsMgmtTranQhandle;
 extern char  tsMgmtDirectory[];
 
-extern int tsAcctUpdateSize;
 extern int tsDbUpdateSize;
-extern int tsDnodeUpdateSize;
-extern int tsMnodeUpdateSize;
-extern int tsVgUpdateSize;
 
 typedef struct {
   uint32_t   privateIp;
@@ -102,7 +98,7 @@ typedef struct {
 } STableGid;
 
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   type;
   uint64_t uid;
   int32_t  sid;
@@ -113,7 +109,7 @@ typedef struct {
 struct _vg_obj;
 
 typedef struct SSuperTableObj {
-  char     tableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   type;
   uint64_t uid;
   int32_t  sid;
@@ -130,35 +126,20 @@ typedef struct SSuperTableObj {
 } SSuperTableObj;
 
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   type;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
   int64_t  createdTime;
-  char     superTableId[TSDB_TABLE_ID_LEN];
+  char     superTableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   reserved[7];
   int8_t   updateEnd[1];
   SSuperTableObj *superTable;
 } SChildTableObj;
 
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN];
-  int8_t   type;
-  uint64_t uid;
-  int32_t  sid;
-  int32_t  vgId;
-  int64_t  createdTime;
-  int32_t  sversion;
-  int32_t  numOfColumns;
-  int8_t   reserved[3];
-  int8_t   updateEnd[1];
-  int16_t  nextColId;
-  SSchema* schema;
-} SNormalTableObj;
-
-typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   type;
   uint64_t uid;
   int32_t  sid;
@@ -169,14 +150,14 @@ typedef struct {
   int16_t  sqlLen;
   int8_t   reserved[3];
   int8_t   updateEnd[1];
-  int16_t  nextColId;
   char*    sql;  //null-terminated string
+  int16_t  nextColId;
   SSchema* schema;
-} SStreamTableObj;
+} SNormalTableObj;
 
 typedef struct _vg_obj {
   uint32_t        vgId;
-  char            dbName[TSDB_DB_NAME_LEN];
+  char            dbName[TSDB_DB_NAME_LEN + 1];
   int64_t         createdTime;
   uint64_t        lastCreate;
   uint64_t        lastRemove;
@@ -194,7 +175,7 @@ typedef struct _vg_obj {
 } SVgObj;
 
 typedef struct _db_obj {
-  char    name[TSDB_DB_NAME_LEN];
+  char    name[TSDB_DB_NAME_LEN + 1];
   int64_t createdTime;
   SDbCfg  cfg;
   int8_t  dropStatus;
@@ -213,9 +194,9 @@ typedef struct _db_obj {
 struct _acctObj;
 
 typedef struct _user_obj {
-  char              user[TSDB_USER_LEN];
-  char              pass[TSDB_KEY_LEN];
-  char              acct[TSDB_USER_LEN];
+  char              user[TSDB_USER_LEN + 1];
+  char              pass[TSDB_KEY_LEN + 1];
+  char              acct[TSDB_USER_LEN + 1];
   int64_t           createdTime;
   int8_t            superAuth;
   int8_t            writeAuth;
@@ -246,8 +227,8 @@ typedef struct {
 } SAcctInfo;
 
 typedef struct _acctObj {
-  char      user[TSDB_USER_LEN];
-  char      pass[TSDB_KEY_LEN];
+  char      user[TSDB_USER_LEN + 1];
+  char      pass[TSDB_KEY_LEN + 1];
   SAcctCfg  cfg;
   int32_t   acctId;
   int64_t   createdTime;
@@ -260,15 +241,8 @@ typedef struct _acctObj {
 } SAcctObj;
 
 typedef struct {
-  char spi;
-  char encrypt;
-  char secret[TSDB_KEY_LEN];
-  char cipheringKey[TSDB_KEY_LEN];
-} SSecInfo;
-
-typedef struct {
   int8_t   type;
-  char     db[TSDB_DB_NAME_LEN];
+  char     db[TSDB_DB_NAME_LEN + 1];
   void *   pNode;
   int16_t  numOfColumns;
   int32_t  rowSize;

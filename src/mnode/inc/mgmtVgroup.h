@@ -25,16 +25,21 @@ extern "C" {
 #include "mnode.h"
 
 int32_t mgmtInitVgroups();
+void    mgmtCleanUpVgroups();
 SVgObj *mgmtGetVgroup(int32_t vgId);
+
 SVgObj *mgmtCreateVgroup(SDbObj *pDb);
 int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup);
-void    mgmtSetVgroupIdPool();
+void    mgmtUpdateVgroup(SVgObj *pVgroup);
+
 int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-void    mgmtCleanUpVgroups();
 
-SVgObj *mgmtGetAvailVgroup(SDbObj *pDb);
-int32_t mgmtAllocateSid(SDbObj *pDb, SVgObj *pVgroup);
+void    mgmtSetVgroupIdPool();
+SVgObj *mgmtGetAvailVgroup(SDbObj *pDb, int32_t *sid);
+
+void    mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable);
+void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable);
 
 #ifdef __cplusplus
 }

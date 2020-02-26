@@ -224,7 +224,7 @@ typedef struct {
 
 typedef struct SSchema {
   uint8_t type;
-  char    name[TSDB_COL_NAME_LEN];
+  char    name[TSDB_COL_NAME_LEN + 1];
   int16_t colId;
   int16_t bytes;
 } SSchema;
@@ -247,8 +247,8 @@ typedef struct {
 } SDCreateTableMsg;
 
 typedef struct {
-  char      tableId[TSDB_TABLE_ID_LEN];
-  char      db[TSDB_DB_NAME_LEN];
+  char      tableId[TSDB_TABLE_ID_LEN + 1];
+  char      db[TSDB_DB_NAME_LEN + 1];
   int8_t    igExists;
   int16_t   numOfTags;
   int16_t   numOfColumns;
@@ -258,14 +258,14 @@ typedef struct {
 } SCreateTableMsg;
 
 typedef struct {
-  char   tableId[TSDB_TABLE_ID_LEN];
-  char   db[TSDB_DB_NAME_LEN];
+  char   tableId[TSDB_TABLE_ID_LEN + 1];
+  char   db[TSDB_DB_NAME_LEN + 1];
   int8_t igNotExists;
 } SDropTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN];
-  char    db[TSDB_DB_NAME_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
+  char    db[TSDB_DB_NAME_LEN + 1];
   int16_t type; /* operation type   */
   char    tagVal[TSDB_MAX_BYTES_PER_ROW];
   int8_t  numOfCols; /* number of schema */
@@ -275,11 +275,11 @@ typedef struct {
 typedef struct {
   char clientVersion[TSDB_VERSION_LEN];
   char msgVersion[TSDB_VERSION_LEN];
-  char db[TSDB_TABLE_ID_LEN];
+  char db[TSDB_TABLE_ID_LEN + 1];
 } SConnectMsg;
 
 typedef struct {
-  char      acctId[TSDB_ACCT_LEN];
+  char      acctId[TSDB_ACCT_LEN + 1];
   char      serverVersion[TSDB_VERSION_LEN];
   int8_t    writeAuth;
   int8_t    superAuth;
@@ -301,24 +301,24 @@ typedef struct {
 } SAcctCfg;
 
 typedef struct {
-  char       user[TSDB_USER_LEN];
-  char       pass[TSDB_KEY_LEN];
+  char       user[TSDB_USER_LEN + 1];
+  char       pass[TSDB_KEY_LEN + 1];
   SAcctCfg cfg;
 } SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {
-  char user[TSDB_USER_LEN];
+  char user[TSDB_USER_LEN + 1];
 } SDropUserMsg, SDropAcctMsg;
 
 typedef struct {
-  char   user[TSDB_USER_LEN];
-  char   pass[TSDB_KEY_LEN];
+  char   user[TSDB_USER_LEN + 1];
+  char   pass[TSDB_KEY_LEN + 1];
   int8_t privilege;
   int8_t flag;
 } SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {
-  char db[TSDB_TABLE_ID_LEN];
+  char db[TSDB_TABLE_ID_LEN + 1];
 } SMgmtHead;
 
 typedef struct {
@@ -444,7 +444,7 @@ typedef struct {
 
   int64_t nAggTimeInterval;  // time interval for aggregation, in million second
   int64_t slidingTime;       // value for sliding window
-  
+
   // tag schema, used to parse tag information in pSidExtInfo
   uint64_t pTagSchema;
 
@@ -517,8 +517,8 @@ typedef struct {
  * NOTE: sizeof(SVnodeCfg) < TSDB_FILE_HEADER_LEN / 4
  */
 typedef struct {
-  char     acct[TSDB_USER_LEN];
-  char     db[TSDB_DB_NAME_LEN];
+  char     acct[TSDB_USER_LEN + 1];
+  char     db[TSDB_DB_NAME_LEN + 1];
   uint32_t vgId;
   int32_t  maxSessions;
   int32_t  cacheBlockSize;
@@ -543,7 +543,7 @@ typedef struct {
 } SVnodeCfg, SCreateDbMsg, SDbCfg, SAlterDbMsg;
 
 typedef struct {
-  char    db[TSDB_TABLE_ID_LEN];
+  char    db[TSDB_TABLE_ID_LEN + 1];
   uint8_t ignoreNotExists;
 } SDropDbMsg, SUseDbMsg;
 
@@ -583,7 +583,7 @@ typedef struct {
 typedef struct {
   uint32_t destId;
   uint32_t destIp;
-  char     tableId[TSDB_UNI_LEN];
+  char     tableId[TSDB_UNI_LEN + 1];
   char     empty[3];
   uint8_t  msgType;
   int32_t  msgLen;
@@ -615,7 +615,7 @@ typedef struct {
 } SVPeersMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
   int16_t createFlag;
   char    tags[];
 } STableInfoMsg;
@@ -626,7 +626,7 @@ typedef struct {
 } SMultiTableInfoMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
 } SSuperTableInfoMsg;
 
 typedef struct {
@@ -637,7 +637,7 @@ typedef struct {
 typedef struct {
   int16_t elemLen;
 
-  char    tableId[TSDB_TABLE_ID_LEN];
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
   int16_t orderIndex;
   int16_t orderType;  // used in group by xx order by xxx
 
@@ -678,7 +678,7 @@ typedef struct {
 } SSuperTableMeta;
 
 typedef struct STableMeta {
-  char    tableId[TSDB_TABLE_ID_LEN];  // note: This field must be at the front
+  char    tableId[TSDB_TABLE_ID_LEN + 1];  // note: This field must be at the front
   int32_t contLen;
   uint8_t numOfTags : 6;
   uint8_t precision : 2;
@@ -701,7 +701,7 @@ typedef struct SMultiTableMeta {
 } SMultiTableMeta;
 
 typedef struct {
-  char name[TSDB_TABLE_ID_LEN];
+  char name[TSDB_TABLE_ID_LEN + 1];
   char data[TSDB_MAX_TAGS_LEN];
 } STagData;
 
@@ -712,7 +712,7 @@ typedef struct {
  */
 typedef struct {
   int8_t   type;
-  char     db[TSDB_DB_NAME_LEN];
+  char     db[TSDB_DB_NAME_LEN + 1];
   uint16_t payloadLen;
   char     payload[];
 } SShowMsg;
@@ -741,14 +741,14 @@ typedef struct {
 } SCfgDnodeMsg;
 
 typedef struct {
-  char     sql[TSDB_SHOW_SQL_LEN];
+  char     sql[TSDB_SHOW_SQL_LEN + 1];
   uint32_t queryId;
   int64_t  useconds;
   int64_t  stime;
 } SQueryDesc;
 
 typedef struct {
-  char     sql[TSDB_SHOW_SQL_LEN];
+  char     sql[TSDB_SHOW_SQL_LEN + 1];
   uint32_t streamId;
   int64_t  num;  // number of computing/cycles
   int64_t  useconds;
@@ -781,7 +781,7 @@ typedef struct {
 } SHeartBeatRsp;
 
 typedef struct {
-  char queryId[TSDB_KILL_MSG_LEN];
+  char queryId[TSDB_KILL_MSG_LEN + 1];
 } SKillQueryMsg, SKillStreamMsg, SKillConnectionMsg;
 
 typedef struct {

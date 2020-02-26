@@ -32,7 +32,6 @@
 #include "dnodeSystem.h"
 #include "mgmtChildTable.h"
 #include "mgmtNormalTable.h"
-#include "mgmtStreamTable.h"
 
 void  mgmtProcessMsgFromDnode(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
 int   mgmtSendVPeersMsg(SVgObj *pVgroup);
@@ -234,29 +233,6 @@ int32_t mgmtSendCreateTableMsg(SChildTableObj *pTable, SVgObj *pVgroup) {
   return 0;
 }
 
-int32_t mgmtSendCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj *pVgroup) {
-//  uint64_t timeStamp = taosGetTimestampMs();
-//
-//  for (int32_t index = 0; index < pVgroup->numOfVnodes; ++index) {
-//    SDnodeObj *pObj = mgmtGetDnode(pVgroup->vnodeGid[index].ip);
-//    if (pObj == NULL) {
-//      continue;
-//    }
-//
-//    int8_t *pStart = taosBuildReqMsgToDnodeWithSize(pObj, TSDB_MSG_TYPE_DNODE_CREATE_CHILD_TABLE, 64000);
-//    if (pStart == NULL) {
-//      continue;
-//    }
-//
-//    int8_t *pMsg = mgmtBuildCreateStreamTableMsg(pTable, pStart, pVgroup->vnodeGid[index].vnode);
-//    int32_t msgLen = pMsg - pStart;
-//
-//    mgmtSendMsgToDnode(pObj, pStart, msgLen);
-//  }
-//
-//  pVgroup->lastCreate = timeStamp;
-  return 0;
-}
 
 int32_t mgmtSendCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup) {
 //  uint64_t timeStamp = taosGetTimestampMs();

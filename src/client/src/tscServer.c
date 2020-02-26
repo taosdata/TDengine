@@ -2545,21 +2545,13 @@ int tscProcessMeterMetaRsp(SSqlObj *pSql) {
   SSchema *   pSchema;
   uint8_t     ieType;
 
-  char *rsp = pSql->res.pRsp;
-
-  ieType = *rsp;
-  if (ieType != TSDB_IE_TYPE_META) {
-    tscError("invalid ie type:%d", ieType);
-    return TSDB_CODE_INVALID_IE;
-  }
-
-  rsp++;
-  pMeta = (STableMeta *)rsp;
+  pMeta = (STableMeta *)pSql->res.pRsp;
 
   pMeta->sid = htonl(pMeta->sid);
   pMeta->sversion = htons(pMeta->sversion);
   pMeta->vgid = htonl(pMeta->vgid);
   pMeta->uid = htobe64(pMeta->uid);
+  pMeta->contLen = htons(pMeta->contLen);
 
   if (pMeta->sid < 0 || pMeta->vgid < 0) {
     tscError("invalid meter vgid:%d, sid%d", pMeta->vgid, pMeta->sid);
@@ -2583,8 +2575,7 @@ int tscProcessMeterMetaRsp(SSqlObj *pSql) {
   }
 
   pMeta->rowSize = 0;
-  rsp += sizeof(STableMeta);
-  pSchema = (SSchema *)rsp;
+  pSchema = (SSchema *)(pSql->res.pRsp + sizeof(STableMeta));
 
   int32_t numOfTotalCols = pMeta->numOfColumns + pMeta->numOfTags;
   for (int i = 0; i < numOfTotalCols; ++i) {
@@ -2598,29 +2589,29 @@ int tscProcessMeterMetaRsp(SSqlObj *pSql) {
     pSchema++;
   }
 
-  rsp += numOfTotalCols * sizeof(SSchema);
-
-  int32_t  tagLen = 0;
-  SSchema *pTagsSchema = tsGetTagSchema(pMeta);
-
-  if (pMeta->tableType == TSDB_TABLE_TYPE_CHILD_TABLE) {
-    for (int32_t i = 0; i < pMeta->numOfTags; ++i) {
-      tagLen += pTagsSchema[i].bytes;
-    }
-  }
-
-  rsp += tagLen;
-  int32_t size = (int32_t)(rsp - (char *)pMeta);
+//  rsp += numOfTotalCols * sizeof(SSchema);
+//
+//  int32_t  tagLen = 0;
+//  SSchema *pTagsSchema = tsGetTagSchema(pMeta);
+//
+//  if (pMeta->tableType == TSDB_TABLE_TYPE_CHILD_TABLE) {
+//    for (int32_t i = 0; i < pMeta->numOfTags; ++i) {
+//      tagLen += pTagsSchema[i].bytes;
+//    }
+//  }
+//
+//  rsp += tagLen;
+//  int32_t size = (int32_t)(rsp - (char *)pMeta);
 
   // pMeta->index = rand() % TSDB_VNODES_SUPPORT;
-  pMeta->index = 0;
+//  pMeta->index = 0;
 
   // todo add one more function: taosAddDataIfNotExists();
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
   assert(pMeterMetaInfo->pMeterMeta == NULL);
 
   pMeterMetaInfo->pMeterMeta = (STableMeta *)taosAddDataIntoCache(tscCacheHandle, pMeterMetaInfo->name, (char *)pMeta,
-                                                                  size, tsMeterMetaKeepTimer);
+                                                                  pMeta->contLen, tsMeterMetaKeepTimer);
   // todo handle out of memory case
   if (pMeterMetaInfo->pMeterMeta == NULL) return 0;
 

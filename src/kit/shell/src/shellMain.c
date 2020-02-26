@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
   {
     printf("=== this a test for debug usage\n");
     void *taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
-    taos_query(taos, "create database db");
+    taos_query(taos, "create table d1.c2 using d1.st2 tags(1)");
     while (1) {
       sleep(1000);
     }

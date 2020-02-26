@@ -136,11 +136,8 @@ int64_t sdbGetVersion();
 
 int32_t sdbGetRunStatus();
 
-#define TSDB_MAX_TABLES 1000
-extern void* tsChildTableSdb;
-extern void* tsNormalTableSdb;
-extern void* tsStreamTableSdb;
-extern void* tsSuperTableSdb;
+#define TSDB_MAX_NORMAL_TABLES 10000
+#define TSDB_MAX_SUPER_TABLES  1000
 
 #ifdef __cplusplus
 }

@@ -33,7 +33,6 @@
 #include "mgmtNormalTable.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
-#include "mgmtStreamTable.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
@@ -180,7 +179,7 @@ int32_t mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
   STableMeta *pMeta = rpcMallocCont(sizeof(STableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
   int32_t code = mgmtGetTableMeta(pDb, pTable, pMeta, usePublicIp);
 
-  if (code == TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS) {
     rpcFreeCont(pMeta);
     rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, NULL, 0);
   } else {
@@ -253,7 +252,7 @@ int32_t mgmtProcessSuperTableMetaMsg(void *pCont, int32_t contLen, void *ahandle
   SRpcConnInfo connInfo;
   rpcGetConnInfo(ahandle, &connInfo);
 
-  bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
+//  bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
 
   SSuperTableInfoMsg *pInfo = pCont;
   STableInfo *pTable = mgmtGetSuperTable(pInfo->tableId);
@@ -810,7 +809,9 @@ int32_t mgmtProcessCreateTableMsg(void *pCont, int32_t contLen, void *ahandle) {
     }
   }
 
-  rpcSendResponse(ahandle, code, NULL, 0);
+  if (code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    rpcSendResponse(ahandle, code, NULL, 0);
+  }
   return code;
 }
 
