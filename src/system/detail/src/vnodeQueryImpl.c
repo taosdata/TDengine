@@ -3945,9 +3945,9 @@ static void changeExecuteScanOrder(SQuery *pQuery, bool metricQuery) {
   // in case of point-interpolation query, use asc order scan
   char msg[] =
       "QInfo:%p scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%" PRId64 "-%" PRId64
-      ", "
-      "new qrange:%" PRId64 "-%" PRId64;
+      ", new qrange:%" PRId64 "-%" PRId64;
 
+  // todo handle the case the the order irrelevant query type mixed up with order critical query type
   // descending order query for last_row query
   if (isFirstLastRowQuery(pQuery)) {
     dTrace("QInfo:%p scan order changed for last_row query, old:%d, new:%d", GET_QINFO_ADDR(pQuery),
@@ -5881,7 +5881,21 @@ void disableFunctForTableSuppleScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order
   }
 
   SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
-  doDisableFunctsForSupplementaryScan(pQuery, pWindowResInfo, order);
+  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || isIntervalQuery(pQuery)) {
+    doDisableFunctsForSupplementaryScan(pQuery, pWindowResInfo, order);
+  } else { // for simple result of table query,
+    for (int32_t j = 0; j < pQuery->numOfOutputCols; ++j) {
+      int32_t functId = pQuery->pSelectExpr[j].pBase.functionId;
+      SQLFunctionCtx* pCtx = &pRuntimeEnv->pCtx[j];
+      
+      if (((functId == TSDB_FUNC_FIRST || functId == TSDB_FUNC_FIRST_DST) && order == TSQL_SO_DESC) ||
+          ((functId == TSDB_FUNC_LAST || functId == TSDB_FUNC_LAST_DST) && order == TSQL_SO_ASC)) {
+        pCtx->resultInfo->complete = false;
+      } else if (functId != TSDB_FUNC_TS && functId != TSDB_FUNC_TAG) {
+        pCtx->resultInfo->complete = true;
+      }
+    }
+  }
 
   pQuery->order.order = pQuery->order.order ^ 1u;
 }

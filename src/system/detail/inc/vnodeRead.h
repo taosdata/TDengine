@@ -146,7 +146,7 @@ typedef struct SQueryRuntimeEnv {
   SPositionInfo       endPos;   /* the last access position in query, served as the start pos of reversed order query */
   SPositionInfo       nextPos;  /* start position of the next scan */
   SData*              colDataBuffer[TSDB_MAX_COLUMNS];
-  SResultInfo*        resultInfo;
+  SResultInfo*        resultInfo;   // todo refactor to merge with SWindowResInfo
   uint8_t             blockStatus;  // Indicate if data block is loaded, the block is first/last/internal block
   int32_t             unzipBufSize;
   SData*              primaryColBuffer;
