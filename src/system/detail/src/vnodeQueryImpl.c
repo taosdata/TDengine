@@ -2891,7 +2891,6 @@ static int64_t getOldestKey(int32_t numOfFiles, int64_t fileId, SVnodeCfg *pCfg)
 }
 
 bool isQueryKilled(SQuery *pQuery) {
-  return false;
   SQInfo *pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);
 
   /*
@@ -5878,13 +5877,13 @@ void disableFunctForTableSuppleScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order
 
   // group by normal columns and interval query on normal table
   for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-    pRuntimeEnv->pCtx[i].order = (pRuntimeEnv->pCtx[i].order) ^ 1;
+    pRuntimeEnv->pCtx[i].order = (pRuntimeEnv->pCtx[i].order) ^ 1u;
   }
 
   SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
   doDisableFunctsForSupplementaryScan(pQuery, pWindowResInfo, order);
 
-  pQuery->order.order = pQuery->order.order ^ 1;
+  pQuery->order.order = pQuery->order.order ^ 1u;
 }
 
 void disableFunctForSuppleScan(STableQuerySupportObj *pSupporter, int32_t order) {
@@ -5900,24 +5899,24 @@ void disableFunctForSuppleScan(STableQuerySupportObj *pSupporter, int32_t order)
     }
   } else {
     for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-      pRuntimeEnv->pCtx[i].order = (pRuntimeEnv->pCtx[i].order) ^ 1;
+      pRuntimeEnv->pCtx[i].order = (pRuntimeEnv->pCtx[i].order) ^ 1u;
     }
 
     SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
     doDisableFunctsForSupplementaryScan(pQuery, pWindowResInfo, order);
   }
 
-  pQuery->order.order = pQuery->order.order ^ 1;
+  pQuery->order.order = (pQuery->order.order) ^ 1u;
 }
 
 void enableFunctForMasterScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-    pRuntimeEnv->pCtx[i].order = (pRuntimeEnv->pCtx[i].order) ^ 1;
+    pRuntimeEnv->pCtx[i].order = (pRuntimeEnv->pCtx[i].order) ^ 1u;
   }
 
-  pQuery->order.order = (pQuery->order.order ^ 1);
+  pQuery->order.order = (pQuery->order.order) ^ 1u;
 }
 
 void createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, SPosInfo *posInfo) {
@@ -6045,7 +6044,7 @@ void forwardCtxOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, int64_t output) {
        *
        * diff function is handled in multi-output function
        */
-      pRuntimeEnv->pCtx[j].ptsOutputBuf += TSDB_KEYSIZE * output /* * factor*/;
+      pRuntimeEnv->pCtx[j].ptsOutputBuf += TSDB_KEYSIZE * output;
     }
 
     resetResultInfo(pRuntimeEnv->pCtx[j].resultInfo);
@@ -6121,7 +6120,7 @@ static void queryStatusSave(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatus *pStatus
   pStatus->cur = tsBufGetCursor(pRuntimeEnv->pTSBuf);  // save the cursor
 
   if (pRuntimeEnv->pTSBuf) {
-    pRuntimeEnv->pTSBuf->cur.order ^= 1;
+    pRuntimeEnv->pTSBuf->cur.order ^= 1u;
     tsBufNextPos(pRuntimeEnv->pTSBuf);
   }
 

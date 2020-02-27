@@ -1324,8 +1324,6 @@ void tscKillMetricQuery(SSqlObj *pSql) {
     taosStopRpcConn(pSql->pSubs[i]->thandle);
   }
 
-  pSql->numOfSubs = 0;
-
   /*
    * 1. if the subqueries are not launched or partially launched, we need to waiting the launched
    * query return to successfully free allocated resources.
@@ -1571,7 +1569,7 @@ static char *doSerializeTableInfo(SSqlObj *pSql, int32_t numOfMeters, int32_t vn
   SMeterMeta * pMeterMeta = pMeterMetaInfo->pMeterMeta;
   SMetricMeta *pMetricMeta = pMeterMetaInfo->pMetricMeta;
 
-  tscTrace("%p vid:%d, query on %d meters", pSql, htons(vnodeId), numOfMeters);
+  tscTrace("%p vid:%d, query on %d meters", pSql, vnodeId, numOfMeters);
   if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
 #ifdef _DEBUG_VIEW
     tscTrace("%p sid:%d, uid:%" PRIu64, pSql, pMeterMetaInfo->pMeterMeta->sid, pMeterMetaInfo->pMeterMeta->uid);
