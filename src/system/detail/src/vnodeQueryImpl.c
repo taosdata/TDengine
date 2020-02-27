@@ -5873,7 +5873,6 @@ static void doDisableFunctsForSupplementaryScan(SQuery *pQuery, SWindowResInfo *
 
 void disableFunctForTableSuppleScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
-  assert(!pRuntimeEnv->stableQuery);
 
   // group by normal columns and interval query on normal table
   for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
