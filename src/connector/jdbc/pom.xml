@@ -4,7 +4,7 @@
 
 	<groupId>com.taosdata.jdbc</groupId>
 	<artifactId>taos-jdbcdriver</artifactId>
-	<version>1.0.2</version>
+	<version>1.0.3</version>
 	<packaging>jar</packaging>
 
 	<name>JDBCDriver</name>
