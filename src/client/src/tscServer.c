@@ -1301,8 +1301,6 @@ void tscKillMetricQuery(SSqlObj *pSql) {
     taosStopRpcConn(pSql->pSubs[i]->thandle);
   }
 
-  pSql->numOfSubs = 0;
-
   /*
    * 1. if the subqueries are not launched or partially launched, we need to waiting the launched
    * query return to successfully free allocated resources.
