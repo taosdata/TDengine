@@ -49,7 +49,7 @@ extern int32_t (*dnodeCheckSystem)();
 // dnodeSystem
 extern void *tsDnodeMgmtQhandle;
 
-void dnodeProcessMsgFromMgmt(char msgType, void *pCont, int contLen, void *pConn, int32_t code);
+void dnodeProcessMsgFromMgmt(int8_t msgType, void *pCont, int32_t contLen, void *pConn, int32_t code);
 
 // dnodeModule
 extern void (*dnodeStartModules)();

@@ -26,7 +26,7 @@ extern "C" {
 int32_t dnodeInitMgmt();
 void dnodeInitMgmtIp();
 
-void dnodeProcessMsgFromMgmt(char msgType, void *pCont, int contLen, void *pConn, int32_t code);
+void dnodeProcessMsgFromMgmt(int8_t msgType, void *pCont, int32_t contLen, void *pConn, int32_t code);
 void dnodeSendMsgToMnode(int8_t msgType, void *pCont, int32_t contLen);
 void dnodeSendRspToMnode(void *pConn, int8_t msgType, int32_t code, void *pCont, int32_t contLen);
 

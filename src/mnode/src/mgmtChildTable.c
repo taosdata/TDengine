@@ -31,6 +31,7 @@
 #include "mgmtDb.h"
 #include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
+#include "mgmtProfile.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
@@ -339,19 +340,16 @@ int32_t mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgr
     mError("table:%s, corresponding super table schema is null", pCreate->tableId);
     return TSDB_CODE_INVALID_TABLE;
   }
- // memcpy(schema, pTagData + TSDB_TABLE_ID_LEN + 1, size);
 
   if (sdbInsertRow(tsChildTableSdb, pTable, 0) < 0) {
     mError("table:%s, update sdb error", pCreate->tableId);
     return TSDB_CODE_SDB_ERROR;
   }
 
-  mgmtSendCreateTableMsg(pTable, pVgroup);
-
   mTrace("table:%s, create table in vgroup, vgId:%d sid:%d vnode:%d uid:%" PRIu64 " db:%s",
          pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid, pDb->name);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
@@ -360,7 +358,7 @@ int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
     return TSDB_CODE_OTHERS;
   }
 
-  mgmtSendRemoveTableMsg((STableInfo *) pTable, pVgroup);
+//  mgmtSendRemoveTableMsg((STableInfo *) pTable, pVgroup);
 
   sdbDeleteRow(tsChildTableSdb, pTable);
 

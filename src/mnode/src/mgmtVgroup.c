@@ -216,8 +216,6 @@ SVgObj *mgmtCreateVgroup(SDbObj *pDb) {
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i)
     mTrace("vgroup:%d, dnode:%s vnode:%d is created", pVgroup->vgId, taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vnodeGid[i].vnode);
 
-  mgmtSendVPeersMsg(pVgroup);
-
   return pVgroup;
 }
 
@@ -234,7 +232,7 @@ int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
   }
 
   mTrace("vgroup:%d, db:%s replica:%d is deleted", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
-  mgmtSendFreeVnodesMsg(pVgroup);
+//  mgmtSendFreeVnodesMsg(pVgroup);
   sdbDeleteRow(tsVgroupSdb, pVgroup);
 
   return 0;
@@ -578,6 +576,6 @@ SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup) {
 }
 
 SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip) {
-  SRpcIpSet ipSet = {.ip = ip, .numOfIps = 1, .inUse = 0, .port = tsMgmtDnodePort + 1};
+  SRpcIpSet ipSet = {.ip[0] = ip, .numOfIps = 1, .inUse = 0, .port = tsMgmtDnodePort + 1};
   return ipSet;
 }

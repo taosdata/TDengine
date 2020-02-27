@@ -33,6 +33,7 @@
 #include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
 #include "mgmtNormalTable.h"
+#include "mgmtProfile.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
@@ -110,7 +111,7 @@ int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, boo
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
+int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate, void *thandle) {
   STableInfo *pTable = mgmtGetTable(pCreate->tableId);
   if (pTable != NULL) {
     if (pCreate->igExists) {
@@ -143,13 +144,30 @@ int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
     int32_t sid;
     SVgObj *pVgroup = mgmtGetAvailVgroup(pDb, &sid);
     if (pVgroup == NULL) {
-      // process it in a callback function
-      return TSDB_CODE_ACTION_IN_PROGRESS;
+      code = mgmtCreateVgroup(pDb);
+      if (code == TSDB_CODE_SUCCESS) {
+        SProcessInfo *info = calloc(1, sizeof(SProcessInfo));
+        info->type = TSDB_PROCESS_CREATE_VGROUP_AND_TABLE;
+        info->ahandle = pTable;
+        info->thandle = thandle;
+        SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
+        mgmtSendCreateVgroupMsg(pVgroup, &ipSet, info);
+        return TSDB_CODE_ACTION_IN_PROGRESS;
+      }
     } else {
       if (pCreate->numOfColumns == 0) {
-        return mgmtCreateChildTable(pDb, pCreate, pVgroup, sid);
+        code = mgmtCreateChildTable(pDb, pCreate, pVgroup, sid);
       } else {
-        return mgmtCreateNormalTable(pDb, pCreate, pVgroup, sid);
+        code = mgmtCreateNormalTable(pDb, pCreate, pVgroup, sid);
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        SProcessInfo *info = calloc(1, sizeof(SProcessInfo));
+        info->type = TSDB_PROCESS_CREATE_TABLE;
+        info->ahandle = pTable;
+        info->thandle = thandle;
+        SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
+        mgmtSendCreateTableMsg(pTable, &ipSet, info);
+        return TSDB_CODE_ACTION_IN_PROGRESS;
       }
     }
   } else {

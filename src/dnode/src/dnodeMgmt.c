@@ -43,11 +43,11 @@ static void dnodeSendMsgToMnodeQueueFp(SSchedMsg *sched) {
   void    *handle = sched->ahandle;
   int8_t  *pCont   = sched->msg;
 
-  mgmtProcessMsgFromDnode(pCont, contLen, handle, code);
+  mgmtProcessMsgFromDnode(msgType, pCont, contLen, handle, code);
   rpcFreeCont(sched->msg);
 }
 
-void dnodeSendMsgToMnode(int8_t msgType, void *pCont, int32_t contLen, void *ahandle) {
+void dnodeSendMsgToMnode(int8_t msgType, void *pCont, int32_t contLen) {
   dTrace("msg:%s is sent to mnode", taosMsg[msgType]);
   if (dnodeSendMsgToMnodeFp) {
     dnodeSendMsgToMnodeFp(msgType, pCont, contLen);
@@ -55,7 +55,6 @@ void dnodeSendMsgToMnode(int8_t msgType, void *pCont, int32_t contLen, void *aha
     SSchedMsg schedMsg = {0};
     schedMsg.fp      = dnodeSendMsgToMnodeQueueFp;
     schedMsg.msg     = pCont;
-    schedMsg.ahandle = ahandle;
     *(int32_t *) (pCont - 4) = contLen;
     *(int32_t *) (pCont - 8) = TSDB_CODE_SUCCESS;
     *(int8_t *)  (pCont - 9) = msgType;
@@ -69,7 +68,7 @@ void dnodeSendRspToMnode(void *pConn, int8_t msgType, int32_t code, void *pCont,
     dnodeSendRspToMnodeFp(pConn, code, pCont, contLen);
   } else {
     SSchedMsg schedMsg = {0};
-    schedMsg.fp  = dnodeSendMsgToMnodeFp;
+    schedMsg.fp  = dnodeSendMsgToMnodeQueueFp;
     schedMsg.msg = pCont;
     *(int32_t *) (pCont - 4) = contLen;
     *(int32_t *) (pCont - 8) = code;
@@ -93,7 +92,7 @@ void dnodeInitMgmtIp() {
   }
 }
 
-void dnodeProcessMsgFromMgmt(char msgType, void *pCont, int contLen, void *handle, int32_t code) {
+void dnodeProcessMsgFromMgmt(int8_t msgType, void *pCont, int32_t contLen, void *pConn, int32_t code) {
   if (msgType < 0 || msgType >= TSDB_MSG_TYPE_MAX) {
     dError("invalid msg type:%d", msgType);
   } else {
@@ -221,7 +220,7 @@ void dnodeSendVpeerCfgMsg(int32_t vnode) {
   }
 
   cfg->vnode = htonl(vnode);
-  dnodeSendMsgToMnode((int8_t*)cfg, sizeof(SVpeerCfgMsg), TSDB_MSG_TYPE_VNODE_CFG);
+  dnodeSendMsgToMnode(TSDB_MSG_TYPE_VNODE_CFG, cfg, sizeof(SVpeerCfgMsg));
 }
 
 void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
@@ -231,7 +230,7 @@ void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
   }
 
   cfg->vnode = htonl(vnode);
-  dnodeSendMsgToMnode((int8_t*)cfg, sizeof(STableCfgMsg), TSDB_MSG_TYPE_TABLE_CFG);
+  dnodeSendMsgToMnode(TSDB_MSG_TYPE_TABLE_CFG, cfg, sizeof(STableCfgMsg));
 }
 
 void dnodeInitProcessShellMsg() {

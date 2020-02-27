@@ -38,6 +38,23 @@ int32_t mgmtKillStream(char *qidstr, void *pConn);
 
 int32_t mgmtKillConnection(char *qidstr, void *pConn);
 
+enum {
+  TSDB_PROCESS_CREATE_TABLE,
+  TSDB_PROCESS_CREATE_VGROUP,
+  TSDB_PROCESS_CREATE_VGROUP_AND_TABLE,
+  TSDB_PROCESS_CREATE_VNODE,
+  TSDB_PROCESS_TABLE_CFG,
+};
+
+typedef struct {
+  void    *thandle;  // come from uplayer
+  void    *ahandle;  // object to process
+  void    *cont;     // additional information of object to process
+  int32_t type;      // the type of sync process
+  int32_t received;  // num of received, such as numOfVnodes
+  int32_t contLen;   // the length of additional information
+} SProcessInfo;
+
 #ifdef __cplusplus
 }
 #endif

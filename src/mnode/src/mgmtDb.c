@@ -295,7 +295,7 @@ int32_t mgmtSetDbDropping(SDbObj *pDb) {
         }
       }
     }
-    mgmtSendFreeVnodesMsg(pVgroup);
+//    mgmtSendFreeVnodesMsg(pVgroup);
     pVgroup = pVgroup->next;
   }
 
@@ -465,7 +465,7 @@ int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
       //rebuild meterList in mgmtVgroup.c
       mgmtUpdateVgroup(pVgroup);
     }
-    mgmtSendVPeersMsg(pVgroup);
+//    mgmtSendCreateVnodeMsg(pVgroup);
     pVgroup = pVgroup->next;
   }
   mgmtStartBalanceTimer(10);

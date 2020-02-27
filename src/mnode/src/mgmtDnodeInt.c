@@ -26,10 +26,11 @@
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
 #include "mgmtDnodeInt.h"
+#include "mgmtProfile.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
 
-void (*mgmtSendMsgToDnodeFp)(int8_t msgType, void *pCont, int32_t contLen, void *ahandle) = NULL;
+void (*mgmtSendMsgToDnodeFp)(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle) = NULL;
 void (*mgmtSendRspToDnodeFp)(void *handle, int32_t code, void *pCont, int32_t contLen) = NULL;
 void *mgmtStatusTimer = NULL;
 
@@ -44,10 +45,10 @@ static void mgmtSendMsgToDnodeQueueFp(SSchedMsg *sched) {
   rpcFreeCont(sched->msg);
 }
 
-void mgmtSendMsgToDnode(int8_t msgType, void *pCont, int32_t contLen, void *ahandle) {
+void mgmtSendMsgToDnode(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle) {
   mTrace("msg:%s is sent to dnode", taosMsg[msgType]);
   if (mgmtSendMsgToDnodeFp) {
-    mgmtSendMsgToDnodeFp(msgType, pCont, contLen, ahandle);
+    mgmtSendMsgToDnodeFp(ipSet, msgType, pCont, contLen, ahandle);
   } else {
     SSchedMsg schedMsg = {0};
     schedMsg.fp      = mgmtSendMsgToDnodeQueueFp;
@@ -75,7 +76,7 @@ void mgmtSendRspToDnode(void *pConn, int8_t msgType, int32_t code, void *pCont, 
   }
 }
 
-static void mgmtProcessTableCfgMsg(int8_t msgType, int8_t *pCont, int32_t contLen, void *pConn) {
+static void mgmtProcessTableCfgMsg(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle) {
   STableCfgMsg *pCfg = (STableCfgMsg *) pCont;
   pCfg->dnode = htonl(pCfg->dnode);
   pCfg->vnode = htonl(pCfg->vnode);
@@ -84,19 +85,21 @@ static void mgmtProcessTableCfgMsg(int8_t msgType, int8_t *pCont, int32_t contLe
 
   if (!sdbMaster) {
     mError("dnode:%s, vnode:%d, sid:%d, not master, redirect it", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
-    mgmtSendRspToDnode(pConn, msgType + 1, TSDB_CODE_REDIRECT, NULL, 0);
+    mgmtSendRspToDnode(thandle, msgType + 1, TSDB_CODE_REDIRECT, NULL, 0);
     return;
   }
 
   STableInfo *pTable = mgmtGetTableByPos(pCfg->dnode, pCfg->vnode, pCfg->sid);
   if (pTable == NULL) {
     mError("dnode:%s, vnode:%d, sid:%d, table not found", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
-    mgmtSendRspToDnode(pConn, msgType + 1, TSDB_CODE_INVALID_TABLE, NULL, 0);
+    mgmtSendRspToDnode(thandle, msgType + 1, TSDB_CODE_INVALID_TABLE, NULL, 0);
     return;
   }
 
-  mgmtSendRspToDnode(pConn, msgType + 1, TSDB_CODE_SUCCESS, NULL, 0);
-  mgmtSendCreateTableMsg(pTable, NULL);
+  mgmtSendRspToDnode(thandle, msgType + 1, TSDB_CODE_SUCCESS, NULL, 0);
+
+  SRpcIpSet ipSet = mgmtGetIpSetFromIp(pCfg->dnode);
+  mgmtSendCreateTableMsg(pTable, &ipSet, NULL);
 }
 
 static void mgmtProcessVnodeCfgMsg(int8_t msgType, int8_t *pCont, int32_t contLen, void *pConn) {
@@ -117,11 +120,22 @@ static void mgmtProcessVnodeCfgMsg(int8_t msgType, int8_t *pCont, int32_t contLe
   }
 
   mgmtSendRspToDnode(pConn, msgType + 1, TSDB_CODE_SUCCESS, NULL, 0);
-  mgmtSendVPeersMsg(pVgroup, pCfg->vnode, NULL);
+
+  SRpcIpSet ipSet = mgmtGetIpSetFromIp(pCfg->dnode);
+  mgmtSendCreateVnodeMsg(pVgroup, pCfg->vnode, &ipSet, NULL);
 }
 
 static void mgmtProcessCreateTableRsp(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle, int32_t code) {
   mTrace("create table rsp received, handle:%p code:%d", thandle, code);
+  if (thandle == NULL) return;
+
+  SProcessInfo *info = thandle;
+  if (info->type == TSDB_PROCESS_CREATE_TABLE) {
+    rpcSendResponse(info->thandle, code, NULL, 0);
+  } else {
+    mError("create table rsp received, handle:%p code:%d, invalid type:%d", info->type);
+    rpcSendResponse(info->thandle, TSDB_CODE_INVALID_MSG, NULL, 0);
+  }
 }
 
 static void mgmtProcessRemoveTableRsp(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle, int32_t code) {
@@ -132,8 +146,59 @@ static void mgmtProcessFreeVnodeRsp(int8_t msgType, int8_t *pCont, int32_t contL
   mTrace("free vnode rsp received, handle:%p code:%d", thandle, code);
 }
 
-static void mgmtProcessVPeersRsp(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle, int32_t code) {
-  mTrace("vpeers rsp received, handle:%p code:%d", thandle, code);
+static void mgmtProcessCreateVnodeRsp(int8_t msgType, int8_t *pCont, int32_t contLen, void *ahandle, int32_t code) {
+  mTrace("create vnode received, vgroup_info:%p code:%d", ahandle, code);
+  if (ahandle == NULL) {
+    rpcFreeCont(pCont);
+    return;
+  }
+
+  SProcessInfo *vgroup_info = ahandle;
+  assert(vgroup_info->type == TSDB_PROCESS_CREATE_VGROUP);
+
+  vgroup_info->received++;
+  SVgObj *pVgroup = vgroup_info->ahandle;
+  mTrace("vgroup:%d, received:%d numOfVnodes:%d table_info:%p",
+         pVgroup->vgId, vgroup_info->received, pVgroup->numOfVnodes, vgroup_info->thandle);
+  if (vgroup_info->received == pVgroup->numOfVnodes) {
+    SProcessInfo *table_info = vgroup_info->thandle;
+    assert(table_info->type == TSDB_PROCESS_CREATE_VGROUP_AND_TABLE);
+
+    STableInfo       *pTable = table_info->ahandle;
+    SProcessInfo *info   = calloc(1, sizeof(SProcessInfo));
+    info->type    = TSDB_PROCESS_CREATE_TABLE;
+    info->thandle = table_info->thandle;
+    info->ahandle = pTable;
+    SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
+    mgmtSendCreateTableMsg(pTable, &ipSet, info);
+
+    free(vgroup_info);
+    free(table_info);
+  }
+
+  rpcFreeCont(pCont);
+}
+
+void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *table_info) {
+  SProcessInfo *vgroup_info = calloc(1, sizeof(SProcessInfo));
+  vgroup_info->type    = TSDB_PROCESS_CREATE_VGROUP;
+  vgroup_info->thandle = table_info;
+  vgroup_info->ahandle = pVgroup;
+
+  mTrace("vgroup:%d, send create all vnodes msg, table_info:%p vgroup_info:%p ", pVgroup->vgId, table_info, vgroup_info);
+  for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
+    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
+    mgmtSendCreateVnodeMsg(pVgroup, pVgroup->vnodeGid[i].vnode, &ipSet, vgroup_info);
+  }
+}
+
+void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *vgroup_info) {
+  mTrace("vgroup:%d, send create vnode:%d msg, vgroup_info:%p", pVgroup->vgId, vnode, vgroup_info);
+
+  SVPeersMsg *pVpeer = mgmtBuildVpeersMsg(pVgroup, vnode);
+  if (pVpeer != NULL) {
+    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DNODE_VPEERS, pVpeer, sizeof(SVPeersMsg), vgroup_info);
+  }
 }
 
 void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *handle, int32_t code) {
@@ -146,45 +211,36 @@ void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *h
   } else if (msgType == TSDB_MSG_TYPE_DNODE_REMOVE_TABLE_RSP) {
     mgmtProcessRemoveTableRsp(msgType, pCont, contLen, handle, code);
   } else if (msgType == TSDB_MSG_TYPE_DNODE_VPEERS_RSP) {
-    mgmtProcessVPeersRsp(msgType, pCont, contLen, handle, code);
+    mgmtProcessCreateVnodeRsp(msgType, pCont, contLen, handle, code);
   } else if (msgType == TSDB_MSG_TYPE_DNODE_FREE_VNODE_RSP) {
     mgmtProcessFreeVnodeRsp(msgType, pCont, contLen, handle, code);
   } else if (msgType == TSDB_MSG_TYPE_DNODE_CFG_RSP) {
   } else if (msgType == TSDB_MSG_TYPE_ALTER_STREAM_RSP) {
   } else {
-    mError("%s from dnode is not processed", taosMsg[msgType]);
+    mError("%s from dnode is not processed", taosMsg[(int8_t)msgType]);
   }
 }
 
-void mgmtSendCreateTableMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *handle) {
+void mgmtSendCreateTableMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle) {
   mTrace("table:%s, sid:%d send create table msg, handle:%p", pTable->tableId, pTable->sid);
 
   SDCreateTableMsg *pCreate = mgmtBuildCreateTableMsg(pTable);
   if (pCreate != NULL) {
-    mgmtSendMsgToDnode(TSDB_MSG_TYPE_DNODE_CREATE_TABLE, pCreate, htonl(pCreate->contLen), handle);
+    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DNODE_CREATE_TABLE, pCreate, htonl(pCreate->contLen), ahandle);
   }
 }
 
-void mgmtSendRemoveTableMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *handle) {
+void mgmtSendRemoveTableMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle) {
   mTrace("table:%s, sid:%d send remove table msg, handle:%p", pTable->tableId, pTable->sid);
 
   SDRemoveTableMsg *pRemove = mgmtBuildRemoveTableMsg(pTable);
   if (pRemove != NULL) {
-    mgmtSendMsgToDnode(TSDB_MSG_TYPE_DNODE_REMOVE_TABLE, pRemove, sizeof(SDRemoveTableMsg), handle);
+    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DNODE_REMOVE_TABLE, pRemove, sizeof(SDRemoveTableMsg), ahandle);
   }
 }
 
-void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *handle) {
+void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle) {
   mTrace("table:%s, sid:%d send alter stream msg, handle:%p", pTable->tableId, pTable->sid);
-}
-
-void mgmtSendVPeersMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *handle) {
-  mTrace("vgroup:%d, vnode:%d send vpeer msg, handle:%p", pVgroup->vgId, vnode, handle);
-
-  SVPeersMsg *pVpeer = mgmtBuildVpeersMsg(pVgroup, vnode);
-  if (pVpeer != NULL) {
-    mgmtSendMsgToDnode(TSDB_MSG_TYPE_DNODE_VPEERS, pVpeer, sizeof(SVPeersMsg), handle);
-  }
 }
 
 void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *handle) {
@@ -193,14 +249,14 @@ void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *handle) {
   SFreeVnodeMsg *pFreeVnode = rpcMallocCont(sizeof(SFreeVnodeMsg));
   if (pFreeVnode != NULL) {
     pFreeVnode->vnode = htonl(vnode);
-    mgmtSendMsgToDnode(TSDB_MSG_TYPE_DNODE_FREE_VNODE, pFreeVnode, sizeof(SFreeVnodeMsg), handle);
+    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DNODE_FREE_VNODE, pFreeVnode, sizeof(SFreeVnodeMsg), handle);
   }
 }
 
 void mgmtSendFreeVnodesMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *handle) {
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
-    mgmtSendOneFreeVnodeMsg(pVgroup->vnodeGid + i, &ipSet, handle);
+    mgmtSendOneFreeVnodeMsg(pVgroup->vnodeGid[i].vnode, &ipSet, handle);
   }
 }
 

@@ -26,18 +26,19 @@ extern "C" {
 
 extern void *mgmtStatusTimer;
 
-void mgmtSendCreateTableMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *handle);
-void mgmtSendRemoveTableMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *handle);
-void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *handle);
-void mgmtSendVPeersMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *handle);
-void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *handle);
+void mgmtSendCreateTableMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle);
+void mgmtSendRemoveTableMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle);
+void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle);
+void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
+void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle);
+void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
 
 
 extern int32_t (*mgmtInitDnodeInt)();
 extern void    (*mgmtCleanUpDnodeInt)();
 extern void    (*mgmtProcessDnodeStatus)(void *handle, void *tmrId);
 
-void mgmtSendMsgToDnode(int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
+void mgmtSendMsgToDnode(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
 void mgmtSendRspToDnode(void *pConn, int8_t msgType, int32_t code, void *pCont, int32_t contLen);
 
 #ifdef __cplusplus

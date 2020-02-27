@@ -155,7 +155,7 @@ int32_t mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
     memcpy(pCreateMsg->schema, pInfo->tags, sizeof(STagData));
     strcpy(pCreateMsg->tableId, pInfo->tableId);
 
-    int32_t code = mgmtCreateTable(pDb, pCreateMsg);
+    int32_t code = mgmtCreateTable(pDb, pCreateMsg, NULL);
 
     char stableName[TSDB_TABLE_ID_LEN] = {0};
     strncpy(stableName, pInfo->tags, TSDB_TABLE_ID_LEN);
@@ -803,7 +803,7 @@ int32_t mgmtProcessCreateTableMsg(void *pCont, int32_t contLen, void *ahandle) {
 
     SDbObj *pDb = mgmtGetDb(pCreate->db);
     if (pDb) {
-      code = mgmtCreateTable(pDb, pCreate);
+      code = mgmtCreateTable(pDb, pCreate, ahandle);
     } else {
       code = TSDB_CODE_DB_NOT_SELECTED;
     }

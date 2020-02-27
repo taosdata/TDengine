@@ -273,7 +273,7 @@ int32_t mgmtInitNormalTables() {
       continue;
     }
 
-    mgmtAddTableIntoVgroup(pVgroup, pTable);
+    mgmtAddTableIntoVgroup(pVgroup, (STableInfo *)pTable);
     //pVgroup->tableList[pTable->sid] = (STableInfo*)pTable;
     taosIdPoolMarkStatus(pVgroup->idPool, pTable->sid, 1);
 
@@ -373,12 +373,10 @@ int32_t mgmtCreateNormalTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVg
     return TSDB_CODE_SDB_ERROR;
   }
 
-  mgmtSendCreateNormalTableMsg(pTable, pVgroup);
-
   mTrace("table:%s, create table in vgroup, vgId:%d sid:%d vnode:%d uid:%" PRIu64 " db:%s",
          pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid, pDb->name);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
@@ -387,7 +385,7 @@ int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
     return TSDB_CODE_OTHERS;
   }
 
-  mgmtSendRemoveTableMsg((STableInfo *) pTable, pVgroup);
+//  mgmtSendRemoveTableMsg((STableInfo *) pTable, pVgroup);
 
   sdbDeleteRow(tsNormalTableSdb, pTable);
 
