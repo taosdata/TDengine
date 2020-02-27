@@ -872,7 +872,7 @@ static void doMultiMeterSupplementaryScan(SQInfo *pQInfo) {
   disableFunctForSuppleScan(pSupporter, pQuery->order.order);
 
   if (pRuntimeEnv->pTSBuf != NULL) {
-    pRuntimeEnv->pTSBuf->cur.order = pRuntimeEnv->pTSBuf->cur.order ^ 1;
+    pRuntimeEnv->pTSBuf->cur.order = pRuntimeEnv->pTSBuf->cur.order ^ 1u;
   }
 
   SWAP(pSupporter->rawSKey, pSupporter->rawEKey, TSKEY);
@@ -945,7 +945,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
   doOrderedScan(pQInfo);
   int64_t et = taosGetTimestampMs();
   dTrace("QInfo:%p main scan completed, elapsed time: %lldms, supplementary scan start, order:%d", pQInfo, et - st,
-         pQuery->order.order ^ 1);
+         pQuery->order.order ^ 1u);
 
   if (pQuery->intervalTime > 0) {
     for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {

@@ -1861,7 +1861,7 @@ static int32_t blockwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t
   }
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
-  if (isIntervalQuery(pQuery) && pQuery->slidingTime > 0) {
+  if (isIntervalQuery(pQuery)) {
     int32_t offset = GET_COL_DATA_POS(pQuery, 0, step);
     TSKEY   ts = primaryKeyCol[offset];
 
@@ -2423,7 +2423,7 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, int32_t *
    * because the results of group by normal column is put into intermediate buffer.
    */
   int32_t num = 0;
-  if (!groupbyStateValue && !(isIntervalQuery(pQuery) && pQuery->slidingTime > 0)) {
+  if (!groupbyStateValue && !isIntervalQuery(pQuery)) {
     num = getNumOfResult(pRuntimeEnv) - prevNumOfRes;
   }
 
@@ -3945,9 +3945,9 @@ static void changeExecuteScanOrder(SQuery *pQuery, bool metricQuery) {
   // in case of point-interpolation query, use asc order scan
   char msg[] =
       "QInfo:%p scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%" PRId64 "-%" PRId64
-      ", "
-      "new qrange:%" PRId64 "-%" PRId64;
+      ", new qrange:%" PRId64 "-%" PRId64;
 
+  // todo handle the case the the order irrelevant query type mixed up with order critical query type
   // descending order query for last_row query
   if (isFirstLastRowQuery(pQuery)) {
     dTrace("QInfo:%p scan order changed for last_row query, old:%d, new:%d", GET_QINFO_ADDR(pQuery),
@@ -4588,7 +4588,7 @@ int32_t vnodeQueryTablePrepare(SQInfo *pQInfo, SMeterObj *pMeterObj, STableQuery
   vnodeRecordAllFiles(pQInfo, pMeterObj->vnode);
 
   pRuntimeEnv->numOfRowsPerPage = getNumOfRowsInResultPage(pQuery, false);
-  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || (isIntervalQuery(pQuery) && pQuery->slidingTime > 0)) {
+  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || isIntervalQuery(pQuery)) {
     int32_t rows = getInitialPageNum(pSupporter);
 
     code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, rows, pQuery->rowSize);
@@ -4731,9 +4731,9 @@ void vnodeQueryFreeQInfoEx(SQInfo *pQInfo) {
   }
 
   if (pSupporter->pSidSet != NULL || isGroupbyNormalCol(pQInfo->query.pGroupbyExpr) ||
-      (isIntervalQuery(pQuery) && pQuery->slidingTime > 0)) {
+      isIntervalQuery(pQuery)) {
     int32_t size = 0;
-    if (isGroupbyNormalCol(pQInfo->query.pGroupbyExpr) || (isIntervalQuery(pQuery) && pQuery->slidingTime > 0)) {
+    if (isGroupbyNormalCol(pQInfo->query.pGroupbyExpr) || isIntervalQuery(pQuery)) {
       size = 10000;
     } else if (pSupporter->pSidSet != NULL) {
       size = pSupporter->pSidSet->numOfSubSet;
@@ -5873,7 +5873,6 @@ static void doDisableFunctsForSupplementaryScan(SQuery *pQuery, SWindowResInfo *
 
 void disableFunctForTableSuppleScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
-  assert(!pRuntimeEnv->stableQuery);
 
   // group by normal columns and interval query on normal table
   for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
@@ -5881,7 +5880,21 @@ void disableFunctForTableSuppleScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order
   }
 
   SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
-  doDisableFunctsForSupplementaryScan(pQuery, pWindowResInfo, order);
+  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || isIntervalQuery(pQuery)) {
+    doDisableFunctsForSupplementaryScan(pQuery, pWindowResInfo, order);
+  } else { // for simple result of table query,
+    for (int32_t j = 0; j < pQuery->numOfOutputCols; ++j) {
+      int32_t functId = pQuery->pSelectExpr[j].pBase.functionId;
+      SQLFunctionCtx* pCtx = &pRuntimeEnv->pCtx[j];
+      
+      if (((functId == TSDB_FUNC_FIRST || functId == TSDB_FUNC_FIRST_DST) && order == TSQL_SO_DESC) ||
+          ((functId == TSDB_FUNC_LAST || functId == TSDB_FUNC_LAST_DST) && order == TSQL_SO_ASC)) {
+        pCtx->resultInfo->complete = false;
+      } else if (functId != TSDB_FUNC_TS && functId != TSDB_FUNC_TAG) {
+        pCtx->resultInfo->complete = true;
+      }
+    }
+  }
 
   pQuery->order.order = pQuery->order.order ^ 1u;
 }
@@ -5889,7 +5902,11 @@ void disableFunctForTableSuppleScan(SQueryRuntimeEnv *pRuntimeEnv, int32_t order
 void disableFunctForSuppleScan(STableQuerySupportObj *pSupporter, int32_t order) {
   SQueryRuntimeEnv *pRuntimeEnv = &pSupporter->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
-
+  
+  for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+    pRuntimeEnv->pCtx[i].order = (pRuntimeEnv->pCtx[i].order) ^ 1u;
+  }
+  
   if (isIntervalQuery(pQuery)) {
     for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
       SMeterQueryInfo *pMeterQueryInfo = pSupporter->pMeterDataInfo[i].pMeterQInfo;
@@ -5898,10 +5915,6 @@ void disableFunctForSuppleScan(STableQuerySupportObj *pSupporter, int32_t order)
       doDisableFunctsForSupplementaryScan(pQuery, pWindowResInfo, order);
     }
   } else {
-    for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-      pRuntimeEnv->pCtx[i].order = (pRuntimeEnv->pCtx[i].order) ^ 1u;
-    }
-
     SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
     doDisableFunctsForSupplementaryScan(pQuery, pWindowResInfo, order);
   }
@@ -6193,7 +6206,7 @@ bool needScanDataBlocksAgain(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   bool    toContinue = false;
 
-  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || (isIntervalQuery(pQuery) && pQuery->slidingTime > 0)) {
+  if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || isIntervalQuery(pQuery)) {
     // for each group result, call the finalize function for each column
     SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
 
@@ -6530,7 +6543,7 @@ void changeMeterQueryInfoForSuppleQuery(SQuery *pQuery, SMeterQueryInfo *pMeterQ
   SWAP(pMeterQueryInfo->skey, pMeterQueryInfo->ekey, TSKEY);
   pMeterQueryInfo->lastKey = pMeterQueryInfo->skey;
 
-  pMeterQueryInfo->cur.order = pMeterQueryInfo->cur.order ^ 1;
+  pMeterQueryInfo->cur.order = pMeterQueryInfo->cur.order ^ 1u;
   pMeterQueryInfo->cur.vnodeIndex = -1;
 }
 
@@ -7115,7 +7128,7 @@ int32_t LoadDatablockOnDemand(SCompBlock *pBlock, SField **pFields, uint8_t *blk
                                           pQuery->pSelectExpr[i].pBase.colInfo.colId, *blkStatus);
       }
 
-      if (pRuntimeEnv->pTSBuf > 0 || (isIntervalQuery(pQuery) && pQuery->slidingTime > 0)) {
+      if (pRuntimeEnv->pTSBuf > 0 || isIntervalQuery(pQuery)) {
         req |= BLK_DATA_ALL_NEEDED;
       }
     }
