@@ -116,65 +116,25 @@ SVgObj *mgmtGetVgroup(int32_t vgId) {
   return (SVgObj *)sdbGetRow(tsVgroupSdb, &vgId);
 }
 
-//TODO: temp way for debug usage
-SVgObj *mgmtGetAvailVgroup(SDbObj *pDb, int32_t *sid) {
-  SVgObj *pVgroup = pDb->pHead;
-
-  if (pVgroup == NULL) {
-    pVgroup = mgmtCreateVgroup(pDb);
+int32_t mgmtAllocateSid(SDbObj *pDb, SVgObj *pVgroup) {
+  int32_t sid = taosAllocateId(pVgroup->idPool);
+  if (sid < 0) {
+    mWarn("table:%s, vgroup:%d run out of ID, num:%d", pDb->name, pVgroup->vgId, taosIdPoolNumOfUsed(pVgroup->idPool));
+    pDb->vgStatus = TSDB_VG_STATUS_IN_PROGRESS;
+    mgmtCreateVgroup(pDb);
+    terrno = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
-  *sid = taosAllocateId(pVgroup->idPool);
-  return pVgroup;
-
-//  if (pDb->vgStatus)
-//
-//  if (pDb->vgStatus == TSDB_VG_STATUS_IN_PROGRESS) {
-//    terrno = TSDB_CODE_ACTION_IN_PROGRESS;
-//    return NULL;
-//  }
-//
-//  if (pDb->vgStatus == TSDB_VG_STATUS_FULL) {
-//    mError("db:%s, vgroup is full", pDb->name);
-//    terrno = TSDB_CODE_NO_ENOUGH_DNODES;
-//    return NULL;
-//  }
-//
-//  if (pDb->vgStatus == TSDB_VG_STATUS_NO_DISK_PERMISSIONS ||
-//      pDb->vgStatus == TSDB_VG_STATUS_SERVER_NO_PACE ||
-//      pDb->vgStatus == TSDB_VG_STATUS_SERV_OUT_OF_MEMORY ||
-//      pDb->vgStatus == TSDB_VG_STATUS_INIT_FAILED ) {
-//    mError("db:%s, vgroup init failed, reason:%d %s", pDb->name, pDb->vgStatus, taosGetVgroupStatusStr(pDb->vgStatus));
-//    terrno = pDb->vgStatus;
-//    return NULL;
-//  }
-//
-//  if (pVgroup == NULL) {
-//    //TODO
-//    //pDb->vgStatus = TSDB_VG_STATUS_IN_PROGRESS;
-//    pDb->vgStatus = TSDB_VG_STATUS_READY;
-//    mgmtCreateVgroup(pDb);
-//    mTrace("db:%s, vgroup malloced, wait for create progress finished", pDb->name);
-//    terrno = TSDB_CODE_ACTION_IN_PROGRESS;
-//    return NULL;
-//  }
-//
-//  terrno = 0;
-//  return pVgroup;
+  terrno = 0;
+  return sid;
 }
 
-//int32_t mgmtAllocateSid(SDbObj *pDb, SVgObj *pVgroup) {
-//  int32_t sid = taosAllocateId(pVgroup->idPool);
-//  if (sid < 0) {
-//    mWarn("table:%s, vgroup:%d run out of ID, num:%d", pDb->name, pVgroup->vgId, taosIdPoolNumOfUsed(pVgroup->idPool));
-//    pDb->vgStatus = TSDB_VG_STATUS_IN_PROGRESS;
-//    mgmtCreateVgroup(pDb);
-//    terrno = TSDB_CODE_ACTION_IN_PROGRESS;
-//  }
-//
-//  terrno = 0;
-//  return sid;
-//}
+/*
+ * TODO: check if there is enough sids
+ */
+SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb) {
+  return pDb->pHead;
+}
 
 void mgmtProcessVgTimer(void *handle, void *tmrId) {
   SDbObj *pDb = (SDbObj *)handle;

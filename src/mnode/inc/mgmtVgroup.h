@@ -37,7 +37,7 @@ int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 void    mgmtSetVgroupIdPool();
-SVgObj *mgmtGetAvailVgroup(SDbObj *pDb, int32_t *sid);
+SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb);
 
 void    mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable);
 void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable);

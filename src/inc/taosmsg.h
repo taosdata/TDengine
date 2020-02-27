@@ -230,21 +230,27 @@ typedef struct SSchema {
 } SSchema;
 
 typedef struct {
-  int32_t  vnode;
-  int32_t  sid;
-  uint64_t uid;
-  uint64_t superTableUid;
-  int32_t  tableType;
-  int32_t  sversion;
-  int16_t  numOfColumns;
-  int16_t  numOfTags;
-  int32_t  tagDataLen;
-  int32_t  sqlDataLen;
-  int32_t  contLen;
-  uint64_t createdTime;
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
-  char     superTableId[TSDB_TABLE_ID_LEN + 1];
-  char     data[];
+  int32_t  vnode;  //the index of vnode
+  uint32_t ip;
+} SVPeerDesc;
+
+typedef struct {
+  int8_t     tableType;
+  int16_t    numOfColumns;
+  int16_t    numOfTags;
+  int32_t    sid;
+  int32_t    sversion;
+  int32_t    tagDataLen;
+  int32_t    sqlDataLen;
+  int32_t    contLen;
+  int32_t    numOfVPeers;
+  uint64_t   uid;
+  uint64_t   superTableUid;
+  uint64_t   createdTime;
+  SVPeerDesc vpeerDesc[TSDB_MAX_MPEERS];
+  char       tableId[TSDB_TABLE_ID_LEN + 1];
+  char       superTableId[TSDB_TABLE_ID_LEN + 1];
+  char       data[];
 } SDCreateTableMsg;
 
 typedef struct {
@@ -606,12 +612,6 @@ typedef struct {
   char secret[TSDB_KEY_LEN];  // key is changed if updated
   char cipheringKey[TSDB_KEY_LEN];
 } SSecIe;
-
-typedef struct {
-  uint32_t dnode;  //the ip of dnode
-  int32_t  vnode;  //the index of vnode
-  uint32_t ip;
-} SVPeerDesc;
 
 typedef struct {
   int32_t numOfVPeers;

@@ -31,7 +31,7 @@ STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid);
 int32_t     mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, bool usePublicIp);
 
 int32_t  mgmtRetrieveMetricMeta(void *pConn, char **pStart, SSuperTableMetaMsg *pInfo);
-int32_t  mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate, void *thandle);
+void  mgmtCreateTable(SCreateTableMsg *pCreate, int32_t contLen, void *thandle);
 int32_t  mgmtDropTable(SDbObj *pDb, char *tableId, int32_t ignore);
 int32_t  mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter);
 int32_t  mgmtGetShowTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
@@ -40,8 +40,8 @@ void     mgmtCleanUpMeters();
 
 void    mgmtAddTableIntoSuperTable(SSuperTableObj *pStable);
 void    mgmtRemoveTableFromSuperTable(SSuperTableObj *pStable);
+void    mgmtSetTableDirty(STableInfo *pTable, bool isDirty);
 
-SDCreateTableMsg *mgmtBuildCreateTableMsg(STableInfo *pTable);
 SDRemoveTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable);
 SDRemoveSuperTableMsg *mgmtBuildRemoveSuperTableMsg(STableInfo *pTable);
 

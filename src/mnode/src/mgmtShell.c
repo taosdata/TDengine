@@ -51,9 +51,9 @@ void *tsShellConnServer = NULL;
 
 static void mgmtInitProcessShellMsg();
 static void mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *ahandle, int32_t code);
-static int32_t (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(void *pCont, int32_t contLen, void *ahandle);
-static int32_t mgmtProcessUnSupportMsg(void *pCont, int32_t contLen, void *ahandle);
-static int32_t mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
+static void (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(void *pCont, int32_t contLen, void *ahandle);
+static void mgmtProcessUnSupportMsg(void *pCont, int32_t contLen, void *ahandle);
+static int  mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
 void mgmtProcessTranRequest(SSchedMsg *sched) {
   int8_t  msgType = *(int8_t *) (sched->msg);
@@ -117,7 +117,7 @@ void mgmtCleanUpShell() {
   }
 }
 
-int32_t mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
+void mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
   SRpcConnInfo connInfo;
   rpcGetConnInfo(ahandle, &connInfo);
 
@@ -125,7 +125,7 @@ int32_t mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
   SUserObj *pUser = mgmtGetUser(connInfo.user);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   STableInfoMsg *pInfo = pCont;
@@ -134,7 +134,7 @@ int32_t mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
   SDbObj* pDb = mgmtGetDbByTableId(pInfo->tableId);
   if (pDb == NULL || pDb->dropStatus != TSDB_DB_STATUS_READY) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_DB, NULL, 0);
-    return TSDB_CODE_INVALID_DB;
+    return;
   }
 
   STableInfo *pTable = mgmtGetTable(pInfo->tableId);
@@ -142,38 +142,33 @@ int32_t mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
   // on demand create table from super table if meter does not exists
   if (pTable == NULL && pInfo->createFlag == 1) {
     // write operation needs to redirect to master mnode
-    if (mgmtCheckRedirectMsg(ahandle) != 0) {
-      return TSDB_CODE_REDIRECT;
+    if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+      return;
     }
 
     SCreateTableMsg *pCreateMsg = calloc(1, sizeof(SCreateTableMsg) + sizeof(STagData));
     if (pCreateMsg == NULL) {
       rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
-      return TSDB_CODE_SERV_OUT_OF_MEMORY;
+      return;
     }
 
     memcpy(pCreateMsg->schema, pInfo->tags, sizeof(STagData));
     strcpy(pCreateMsg->tableId, pInfo->tableId);
 
-    int32_t code = mgmtCreateTable(pDb, pCreateMsg, NULL);
+    mgmtCreateTable(pCreateMsg, contLen, NULL);
 
     char stableName[TSDB_TABLE_ID_LEN] = {0};
     strncpy(stableName, pInfo->tags, TSDB_TABLE_ID_LEN);
-    mTrace("table:%s is auto created by %s from %s, code:%d", pCreateMsg->tableId, pUser->user, stableName, code);
+    mTrace("table:%s is auto created by %s from %s", pCreateMsg->tableId, pUser->user, stableName);
 
     tfree(pCreateMsg);
-
-    if (code != TSDB_CODE_SUCCESS) {
-      rpcSendResponse(ahandle, code, NULL, 0);
-      return code;
-    }
 
     pTable = mgmtGetTable(pInfo->tableId);
   }
 
   if (pTable == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_TABLE, NULL, 0);
-    return TSDB_CODE_INVALID_TABLE;
+    return;
   }
 
   STableMeta *pMeta = rpcMallocCont(sizeof(STableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
@@ -186,11 +181,9 @@ int32_t mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
     pMeta->contLen = htons(pMeta->contLen);
     rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pMeta, pMeta->contLen);
   }
-
-  return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtProcessMultiTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
+void mgmtProcessMultiTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
   SRpcConnInfo connInfo;
   rpcGetConnInfo(ahandle, &connInfo);
 
@@ -198,7 +191,7 @@ int32_t mgmtProcessMultiTableMetaMsg(void *pCont, int32_t contLen, void *ahandle
   SUserObj *pUser = mgmtGetUser(connInfo.user);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   SMultiTableInfoMsg *pInfo = pCont;
@@ -208,7 +201,7 @@ int32_t mgmtProcessMultiTableMetaMsg(void *pCont, int32_t contLen, void *ahandle
   SMultiTableMeta *pMultiMeta = rpcMallocCont(totalMallocLen);
   if (pMultiMeta == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return;
   }
 
   pMultiMeta->contLen = sizeof(SMultiTableMeta);
@@ -245,10 +238,9 @@ int32_t mgmtProcessMultiTableMetaMsg(void *pCont, int32_t contLen, void *ahandle
   }
 
   rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pMultiMeta, pMultiMeta->contLen);
-  return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtProcessSuperTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
+void mgmtProcessSuperTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
   SRpcConnInfo connInfo;
   rpcGetConnInfo(ahandle, &connInfo);
 
@@ -258,29 +250,27 @@ int32_t mgmtProcessSuperTableMetaMsg(void *pCont, int32_t contLen, void *ahandle
   STableInfo *pTable = mgmtGetSuperTable(pInfo->tableId);
   if (pTable == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_TABLE, NULL, 0);
-    return TSDB_CODE_INVALID_TABLE;
+    return;
   }
 
   SSuperTableInfoRsp *pRsp = mgmtGetSuperTableVgroup((SSuperTableObj *) pTable);
   if (pRsp != NULL) {
     int32_t msgLen = sizeof(SSuperTableObj) + htonl(pRsp->numOfDnodes) * sizeof(int32_t);
     rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pRsp, msgLen);
-    return TSDB_CODE_SUCCESS;
   } else {
     rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, NULL, 0);
-    return TSDB_CODE_SUCCESS;
   }
 }
 
-int32_t mgmtProcessCreateDbMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessCreateDbMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   SCreateDbMsg *pCreate = (SCreateDbMsg *) pCont;
@@ -309,18 +299,17 @@ int32_t mgmtProcessCreateDbMsg(void *pCont, int32_t contLen, void *ahandle) {
   }
 
   rpcSendResponse(ahandle, code, NULL, 0);
-  return code;
 }
 
-int32_t mgmtProcessAlterDbMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessAlterDbMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   SAlterDbMsg *pAlter = (SAlterDbMsg *) pCont;
@@ -339,18 +328,17 @@ int32_t mgmtProcessAlterDbMsg(void *pCont, int32_t contLen, void *ahandle) {
   }
 
   rpcSendResponse(ahandle, code, NULL, 0);
-  return code;
 }
 
-int32_t mgmtProcessKillQueryMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessKillQueryMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   SKillQueryMsg *pKill = (SKillQueryMsg *) pCont;
@@ -363,18 +351,17 @@ int32_t mgmtProcessKillQueryMsg(void *pCont, int32_t contLen, void *ahandle) {
   }
 
   rpcSendResponse(ahandle, code, NULL, 0);
-  return code;
 }
 
-int32_t mgmtProcessKillStreamMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessKillStreamMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   SKillStreamMsg *pKill = (SKillStreamMsg *) pCont;
@@ -387,18 +374,17 @@ int32_t mgmtProcessKillStreamMsg(void *pCont, int32_t contLen, void *ahandle) {
   }
 
   rpcSendResponse(ahandle, code, NULL, 0);
-  return code;
 }
 
-int32_t mgmtProcessKillConnectionMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessKillConnectionMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   SKillConnectionMsg *pKill = (SKillConnectionMsg *) pCont;
@@ -411,18 +397,17 @@ int32_t mgmtProcessKillConnectionMsg(void *pCont, int32_t contLen, void *ahandle
   }
 
   rpcSendResponse(ahandle, code, NULL, 0);
-  return code;
 }
 
-int32_t mgmtProcessCreateUserMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessCreateUserMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   int32_t code;
@@ -437,30 +422,29 @@ int32_t mgmtProcessCreateUserMsg(void *pCont, int32_t contLen, void *ahandle) {
   }
 
   rpcSendResponse(ahandle, code, NULL, 0);
-  return code;
 }
 
-int32_t mgmtProcessAlterUserMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessAlterUserMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return;
   }
 
   SUserObj *pOperUser = mgmtGetUserFromConn(ahandle);
   if (pOperUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   SAlterUserMsg *pAlter = pCont;
   SUserObj *pUser = mgmtGetUser(pAlter->user);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
     rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
-    return TSDB_CODE_NO_RIGHTS;
+    return;
   }
 
   int code;
@@ -490,7 +474,7 @@ int32_t mgmtProcessAlterUserMsg(void *pCont, int32_t contLen, void *ahandle) {
     }
 
     rpcSendResponse(ahandle, code, NULL, 0);
-    return code;
+    return;
   }
 
   if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
@@ -539,35 +523,34 @@ int32_t mgmtProcessAlterUserMsg(void *pCont, int32_t contLen, void *ahandle) {
     }
 
     rpcSendResponse(ahandle, code, NULL, 0);
-    return code;
+    return;
   }
 
   code = TSDB_CODE_NO_RIGHTS;
   rpcSendResponse(ahandle, code, NULL, 0);
-  return code;
 }
 
-int32_t mgmtProcessDropUserMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessDropUserMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return ;
   }
 
   SUserObj *pOperUser = mgmtGetUserFromConn(ahandle);
   if (pOperUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return ;
   }
 
   SDropUserMsg *pDrop = pCont;
   SUserObj *pUser = mgmtGetUser(pDrop->user);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return ;
   }
 
   if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
     rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
-    return TSDB_CODE_NO_RIGHTS;
+    return ;
   }
 
   bool hasRight = false;
@@ -598,18 +581,17 @@ int32_t mgmtProcessDropUserMsg(void *pCont, int32_t contLen, void *ahandle) {
   }
 
   rpcSendResponse(ahandle, code, NULL, 0);
-  return code;
 }
 
-int32_t mgmtProcessDropDbMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessDropDbMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return ;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return ;
   }
 
   int32_t code;
@@ -624,7 +606,6 @@ int32_t mgmtProcessDropDbMsg(void *pCont, int32_t contLen, void *ahandle) {
   }
 
   rpcSendResponse(ahandle, code, NULL, 0);
-  return code;
 }
 
 static void mgmtInitShowMsgFp() {
@@ -665,11 +646,11 @@ static void mgmtInitShowMsgFp() {
   mgmtRetrieveFp[TSDB_MGMT_TABLE_VNODES]  = mgmtRetrieveVnodes;
 }
 
-int32_t mgmtProcessShowMsg(void *pCont, int32_t contLen, void *ahandle) {
+void mgmtProcessShowMsg(void *pCont, int32_t contLen, void *ahandle) {
   SShowMsg *pShowMsg = pCont;
   if (pShowMsg->type == TSDB_MGMT_TABLE_DNODE || TSDB_MGMT_TABLE_GRANTS || TSDB_MGMT_TABLE_SCORES) {
-    if (mgmtCheckRedirectMsg(ahandle) != 0) {
-      return TSDB_CODE_REDIRECT;
+    if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+      return;
     }
   }
 
@@ -677,7 +658,7 @@ int32_t mgmtProcessShowMsg(void *pCont, int32_t contLen, void *ahandle) {
   SShowRsp *pShowRsp = rpcMallocCont(size);
   if (pShowRsp == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return;
   }
 
   int32_t code;
@@ -707,10 +688,9 @@ int32_t mgmtProcessShowMsg(void *pCont, int32_t contLen, void *ahandle) {
   }
 
   rpcSendResponse(ahandle, code, pShowRsp, size);
-  return code;
 }
 
-int32_t mgmtProcessRetrieveMsg(void *pCont, int32_t contLen, void *ahandle) {
+void mgmtProcessRetrieveMsg(void *pCont, int32_t contLen, void *ahandle) {
   int32_t rowsToRead = 0;
   int32_t size = 0;
   int32_t rowsRead = 0;
@@ -724,14 +704,14 @@ int32_t mgmtProcessRetrieveMsg(void *pCont, int32_t contLen, void *ahandle) {
   if (!mgmtCheckQhandle(pRetrieve->qhandle)) {
     mError("retrieve:%p, qhandle:%p is invalid", pRetrieve, pRetrieve->qhandle);
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_QHANDLE, NULL, 0);
-    return TSDB_CODE_INVALID_QHANDLE;
+    return;
   }
 
   SShowObj *pShow = (SShowObj *)pRetrieve->qhandle;
   if (pShow->signature != (void *)pShow) {
     mError("pShow:%p, signature:%p, query memory is corrupted", pShow, pShow->signature);
     rpcSendResponse(ahandle, TSDB_CODE_MEMORY_CORRUPTED, NULL, 0);
-    return TSDB_CODE_MEMORY_CORRUPTED;
+    return;
   } else {
     if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
       rowsToRead = pShow->numOfRows - pShow->numOfReads;
@@ -758,7 +738,7 @@ int32_t mgmtProcessRetrieveMsg(void *pCont, int32_t contLen, void *ahandle) {
   if (rowsRead < 0) {
     rowsRead = 0;  // TSDB_CODE_ACTION_IN_PROGRESS;
     rpcFreeCont(pRsp);
-    return TSDB_CODE_ACTION_IN_PROGRESS;
+    return;
   }
 
   pRsp->numOfRows = htonl(rowsRead);
@@ -769,61 +749,51 @@ int32_t mgmtProcessRetrieveMsg(void *pCont, int32_t contLen, void *ahandle) {
   if (rowsToRead == 0) {
     mgmtFreeQhandle(pShow);
   }
-
-  return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtProcessCreateTableMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessCreateTableMsg(void *pCont, int32_t contLen, void *ahandle) {
+  SCreateTableMsg *pCreate = (SCreateTableMsg *) pCont;
+  pCreate->numOfColumns = htons(pCreate->numOfColumns);
+  pCreate->numOfTags    = htons(pCreate->numOfTags);
+  pCreate->sqlLen       = htons(pCreate->sqlLen);
+
+  SSchema *pSchema = pCreate->schema;
+  for (int32_t i = 0; i < pCreate->numOfColumns + pCreate->numOfTags; ++i) {
+    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->colId = i;
+    pSchema++;
+  }
+
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    mError("table:%s, failed to create table, need redirect message", pCreate->tableId);
+    return;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
+    mError("table:%s, failed to create table, invalid user", pCreate->tableId);
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
-
-  SCreateTableMsg *pCreate = (SCreateTableMsg *) pCont;
-  SSchema *pSchema;
-  int32_t code;
 
   if (!pUser->writeAuth) {
-    code = TSDB_CODE_NO_RIGHTS;
-  } else {
-    pCreate->numOfColumns = htons(pCreate->numOfColumns);
-    pCreate->numOfTags = htons(pCreate->numOfTags);
-    pCreate->sqlLen = htons(pCreate->sqlLen);
-    pSchema = pCreate->schema;
-    for (int32_t i = 0; i < pCreate->numOfColumns + pCreate->numOfTags; ++i) {
-      pSchema->bytes = htons(pSchema->bytes);
-      pSchema->colId = i;
-      pSchema++;
-    }
-
-    SDbObj *pDb = mgmtGetDb(pCreate->db);
-    if (pDb) {
-      code = mgmtCreateTable(pDb, pCreate, ahandle);
-    } else {
-      code = TSDB_CODE_DB_NOT_SELECTED;
-    }
+    mError("table:%s, failed to create table, no rights", pCreate->tableId);
+    rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
+    return;
   }
 
-  if (code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    rpcSendResponse(ahandle, code, NULL, 0);
-  }
-  return code;
+  mgmtCreateTable(pCreate, contLen, ahandle);
 }
 
-int32_t mgmtProcessDropTableMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessDropTableMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   SDropTableMsg *pDrop = (SDropTableMsg *) pCont;
@@ -846,18 +816,17 @@ int32_t mgmtProcessDropTableMsg(void *pCont, int32_t contLen, void *ahandle) {
   if (code != TSDB_CODE_SUCCESS) {
     rpcSendResponse(ahandle, code, NULL, 0);
   }
-  return code;
 }
 
-int32_t mgmtProcessAlterTableMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessAlterTableMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   SAlterTableMsg *pAlter = (SAlterTableMsg *) pCont;
@@ -892,18 +861,17 @@ int32_t mgmtProcessAlterTableMsg(void *pCont, int32_t contLen, void *ahandle) {
   if (code != TSDB_CODE_SUCCESS) {
     rpcSendResponse(ahandle, code, NULL, 0);
   }
-  return code;
 }
 
-int32_t mgmtProcessCfgDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != 0) {
-    return TSDB_CODE_REDIRECT;
+void mgmtProcessCfgDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return TSDB_CODE_INVALID_USER;
+    return;
   }
 
   SCfgDnodeMsg *pCfg = (SCfgDnodeMsg *)pCont;
@@ -920,10 +888,9 @@ int32_t mgmtProcessCfgDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
   }
 
   rpcSendResponse(ahandle, code, NULL, 0);
-  return code;
 }
 
-int32_t mgmtProcessHeartBeatMsg(void *pCont, int32_t contLen, void *ahandle) {
+void mgmtProcessHeartBeatMsg(void *pCont, int32_t contLen, void *ahandle) {
   SHeartBeatMsg *pHBMsg = (SHeartBeatMsg *) pCont;
   mgmtSaveQueryStreamList(pHBMsg);
 
@@ -931,7 +898,7 @@ int32_t mgmtProcessHeartBeatMsg(void *pCont, int32_t contLen, void *ahandle) {
   if (pHBRsp == NULL) {
     rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
     rpcFreeCont(pCont);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return;
   }
 
   SRpcConnInfo connInfo;
@@ -962,10 +929,9 @@ int32_t mgmtProcessHeartBeatMsg(void *pCont, int32_t contLen, void *ahandle) {
   pHBRsp->killConnection = 0;
 
   rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pHBRsp, sizeof(SHeartBeatMsg));
-  return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+int mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   *spi = 0;
   *encrypt = 0;
   *ckey = 0;
@@ -980,7 +946,7 @@ int32_t mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secr
   }
 }
 
-static int32_t mgmtProcessConnectMsg(void *pCont, int32_t contLen, void *thandle) {
+static void mgmtProcessConnectMsg(void *pCont, int32_t contLen, void *thandle) {
   SConnectMsg *pConnectMsg = (SConnectMsg *) pCont;
   SRpcConnInfo connInfo;
   rpcGetConnInfo(thandle, &connInfo);
@@ -1052,8 +1018,6 @@ connect_over:
     mLPrint("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
     rpcSendResponse(thandle, code, pConnectRsp, sizeof(SConnectRsp));
   }
-
-  return code;
 }
 
 /**
@@ -1145,15 +1109,14 @@ static int32_t mgmtCheckRedirectMsgImp(void *pConn) {
 
 int32_t (*mgmtCheckRedirectMsg)(void *pConn) = mgmtCheckRedirectMsgImp;
 
-static int32_t mgmtProcessUnSupportMsg(void *pCont, int32_t contLen, void *ahandle) {
+static void mgmtProcessUnSupportMsg(void *pCont, int32_t contLen, void *ahandle) {
   rpcSendResponse(ahandle, TSDB_CODE_OPS_NOT_SUPPORT, NULL, 0);
-  return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
-int32_t (*mgmtProcessAlterAcctMsg)(void *pCont, int32_t contLen, void *ahandle)   = mgmtProcessUnSupportMsg;
-int32_t (*mgmtProcessCreateDnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessUnSupportMsg;
-int32_t (*mgmtProcessCfgMnodeMsg)(void *pCont, int32_t contLen, void *ahandle)    = mgmtProcessUnSupportMsg;
-int32_t (*mgmtProcessDropMnodeMsg)(void *pCont, int32_t contLen, void *ahandle)   = mgmtProcessUnSupportMsg;
-int32_t (*mgmtProcessDropDnodeMsg)(void *pCont, int32_t contLen, void *ahandle)   = mgmtProcessUnSupportMsg;
-int32_t (*mgmtProcessDropAcctMsg)(void *pCont, int32_t contLen, void *ahandle)    = mgmtProcessUnSupportMsg;
-int32_t (*mgmtProcessCreateAcctMsg)(void *pCont, int32_t contLen, void *ahandle)  = mgmtProcessUnSupportMsg;
+void (*mgmtProcessAlterAcctMsg)(void *pCont, int32_t contLen, void *ahandle)   = mgmtProcessUnSupportMsg;
+void (*mgmtProcessCreateDnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessUnSupportMsg;
+void (*mgmtProcessCfgMnodeMsg)(void *pCont, int32_t contLen, void *ahandle)    = mgmtProcessUnSupportMsg;
+void (*mgmtProcessDropMnodeMsg)(void *pCont, int32_t contLen, void *ahandle)   = mgmtProcessUnSupportMsg;
+void (*mgmtProcessDropDnodeMsg)(void *pCont, int32_t contLen, void *ahandle)   = mgmtProcessUnSupportMsg;
+void (*mgmtProcessDropAcctMsg)(void *pCont, int32_t contLen, void *ahandle)    = mgmtProcessUnSupportMsg;
+void (*mgmtProcessCreateAcctMsg)(void *pCont, int32_t contLen, void *ahandle)  = mgmtProcessUnSupportMsg;

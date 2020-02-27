@@ -38,7 +38,7 @@ void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pConn, void (*callback)(SShe
  * Create table with specified configuration and open it
  * if table already exist, update its schema and tag
  */
-int32_t dnodeCreateTable(SDCreateTableMsg *table);
+int32_t dnodeCreateTable(SDCreateTableMsg *pTable);
 
 /*
  * Remove table from local repository

@@ -31,11 +31,11 @@ void    mgmtCleanUpChildTables();
 
 void *  mgmtGetChildTable(char *tableId);
 
-int32_t mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
+int32_t mgmtCreateChildTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
+                             SDCreateTableMsg **pDCreateOut, STableInfo **pTableOut);
 int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable);
 int32_t mgmtAlterChildTable(SDbObj *pDb, SAlterTableMsg *pAlter);
 int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent);
-SCreateTableMsg *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable);
 
 int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *pMeta, bool usePublicIp);
 
