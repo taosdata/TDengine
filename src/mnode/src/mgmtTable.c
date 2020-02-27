@@ -390,3 +390,31 @@ int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *
 
   return numOfRows;
 }
+
+SDCreateTableMsg *mgmtBuildCreateTableMsg(STableInfo *pTable) {
+  SDCreateTableMsg *pCreate = NULL;
+  if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+    pCreate = mgmtBuildCreateNormalTableMsg((SNormalTableObj *) pTable);
+  } else if (pTable->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
+    pCreate = mgmtBuildCreateChildTableMsg((SChildTableObj *) pTable);
+  } else if (pTable->type == TSDB_TABLE_TYPE_STREAM_TABLE) {
+    pCreate = mgmtBuildCreateNormalTableMsg((SNormalTableObj *) pTable);
+  } else {
+  }
+
+  return pCreate;
+}
+
+SDRemoveTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable) {
+  SDRemoveTableMsg *pRemove = NULL;
+  if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+    pRemove = mgmtBuildCreateNormalTableMsg((SNormalTableObj *) pTable);
+  } else if (pTable->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
+    pRemove = mgmtBuildCreateChildTableMsg((SChildTableObj *) pTable);
+  } else if (pTable->type == TSDB_TABLE_TYPE_STREAM_TABLE) {
+    pRemove = mgmtBuildCreateNormalTableMsg((SNormalTableObj *) pTable);
+  } else {
+  }
+
+  return pRemove;
+}

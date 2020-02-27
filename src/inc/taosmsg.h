@@ -240,10 +240,11 @@ typedef struct {
   int16_t  numOfTags;
   int32_t  tagDataLen;
   int32_t  sqlDataLen;
+  int32_t  contLen;
   uint64_t createdTime;
   char     tableId[TSDB_TABLE_ID_LEN + 1];
   char     superTableId[TSDB_TABLE_ID_LEN + 1];
-  int8_t   data[];
+  char     data[];
 } SDCreateTableMsg;
 
 typedef struct {
@@ -325,8 +326,12 @@ typedef struct {
   short    vnode;
   int32_t  sid;
   uint64_t uid;
-  char     tableId[TSDB_TABLE_ID_LEN];
+  char     tableId[TSDB_TABLE_ID_LEN + 1];
 } SDRemoveTableMsg;
+
+typedef struct {
+  char tableId[TSDB_TABLE_ID_LEN + 1];
+} SDRemoveSuperTableMsg;
 
 typedef struct {
   int32_t vnode;
@@ -603,8 +608,8 @@ typedef struct {
 } SSecIe;
 
 typedef struct {
-  int32_t dnode;  //the ID of dnode
-  int32_t vnode;  //the index of vnode
+  uint32_t dnode;  //the ip of dnode
+  int32_t  vnode;  //the index of vnode
   uint32_t ip;
 } SVPeerDesc;
 
@@ -616,7 +621,7 @@ typedef struct {
 typedef struct {
   int32_t    vnode;
   SVnodeCfg  cfg;
-  SVPeerDesc vpeerDesc[];
+  SVPeerDesc vpeerDesc[TSDB_MAX_MPEERS];
 } SVPeersMsg;
 
 typedef struct {
@@ -732,11 +737,13 @@ typedef struct {
 } SCreateMnodeMsg, SDropMnodeMsg, SCreateDnodeMsg, SDropDnodeMsg;
 
 typedef struct {
-  int32_t vnode;
-  int32_t sid;
+  uint32_t dnode;
+  int32_t  vnode;
+  int32_t  sid;
 } STableCfgMsg;
 
 typedef struct {
+  uint32_t dnode;
   int32_t vnode;
 } SVpeerCfgMsg;
 

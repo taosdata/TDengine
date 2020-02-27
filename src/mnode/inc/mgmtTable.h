@@ -41,6 +41,9 @@ void     mgmtCleanUpMeters();
 void    mgmtAddTableIntoSuperTable(SSuperTableObj *pStable);
 void    mgmtRemoveTableFromSuperTable(SSuperTableObj *pStable);
 
+SDCreateTableMsg *mgmtBuildCreateTableMsg(STableInfo *pTable);
+SDRemoveTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable);
+SDRemoveSuperTableMsg *mgmtBuildRemoveSuperTableMsg(STableInfo *pTable);
 
 #ifdef __cplusplus
 }

@@ -31,44 +31,49 @@ void    (*dnodeInitMgmtIpFp)() = NULL;
 int32_t (*dnodeInitMgmtFp)() = NULL;
 void    (*dnodeProcessStatusRspFp)(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) = NULL;
 void    (*dnodeSendMsgToMnodeFp)(int8_t msgType, void *pCont, int32_t contLen) = NULL;
+void    (*dnodeSendRspToMnodeFp)(void *handle, int32_t code, void *pCont, int contLen) = NULL;
 
 static int32_t (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);
 static void dnodeInitProcessShellMsg();
 
 static void dnodeSendMsgToMnodeQueueFp(SSchedMsg *sched) {
-  int8_t  msgType = *(int8_t *) (sched->msg - sizeof(int32_t) - sizeof(int8_t));
-  int32_t contLen = *(int32_t *) (sched->msg - sizeof(int8_t));
-  int8_t  *pCont  = sched->msg;
-  void    *pConn  = NULL;
+  int32_t contLen = *(int32_t *) (sched->msg - 4);
+  int32_t code    = *(int32_t *) (sched->msg - 8);
+  int8_t  msgType = *(int8_t  *) (sched->msg - 9);
+  void    *handle = sched->ahandle;
+  int8_t  *pCont   = sched->msg;
 
-  mgmtProcessMsgFromDnode(pCont, contLen, msgType, pConn);
+  mgmtProcessMsgFromDnode(pCont, contLen, handle, code);
   rpcFreeCont(sched->msg);
 }
 
-void dnodeSendMsgToMnode(int8_t msgType, void *pCont, int32_t contLen) {
+void dnodeSendMsgToMnode(int8_t msgType, void *pCont, int32_t contLen, void *ahandle) {
   dTrace("msg:%s is sent to mnode", taosMsg[msgType]);
   if (dnodeSendMsgToMnodeFp) {
     dnodeSendMsgToMnodeFp(msgType, pCont, contLen);
   } else {
     SSchedMsg schedMsg = {0};
-    schedMsg.fp  = dnodeSendMsgToMnodeQueueFp;
-    schedMsg.msg = pCont;
-    *(int8_t *) (pCont - sizeof(int32_t) - sizeof(int8_t)) = msgType;
-    *(int32_t *) (pCont - sizeof(int8_t)) = contLen;
+    schedMsg.fp      = dnodeSendMsgToMnodeQueueFp;
+    schedMsg.msg     = pCont;
+    schedMsg.ahandle = ahandle;
+    *(int32_t *) (pCont - 4) = contLen;
+    *(int32_t *) (pCont - 8) = TSDB_CODE_SUCCESS;
+    *(int8_t *)  (pCont - 9) = msgType;
     taosScheduleTask(tsDnodeMgmtQhandle, &schedMsg);
   }
 }
 
 void dnodeSendRspToMnode(void *pConn, int8_t msgType, int32_t code, void *pCont, int32_t contLen) {
   dTrace("rsp:%s is sent to mnode", taosMsg[msgType]);
-  if (tsIsCluster) {
-    rpcSendResponse(pConn, code, pCont, contLen);
+  if (dnodeSendRspToMnodeFp) {
+    dnodeSendRspToMnodeFp(pConn, code, pCont, contLen);
   } else {
     SSchedMsg schedMsg = {0};
     schedMsg.fp  = dnodeSendMsgToMnodeFp;
     schedMsg.msg = pCont;
-    *(int8_t *) (pCont - sizeof(int32_t) - sizeof(int8_t)) = msgType;
-    *(int32_t *) (pCont - sizeof(int8_t)) = contLen;
+    *(int32_t *) (pCont - 4) = contLen;
+    *(int32_t *) (pCont - 8) = code;
+    *(int8_t *)  (pCont - 9) = msgType;
     taosScheduleTask(tsDnodeMgmtQhandle, &schedMsg);
   }
 }
@@ -88,7 +93,7 @@ void dnodeInitMgmtIp() {
   }
 }
 
-void dnodeProcessMsgFromMgmt(char msgType, void *pCont, int contLen, void *pConn, int32_t code) {
+void dnodeProcessMsgFromMgmt(char msgType, void *pCont, int contLen, void *handle, int32_t code) {
   if (msgType < 0 || msgType >= TSDB_MSG_TYPE_MAX) {
     dError("invalid msg type:%d", msgType);
   } else {

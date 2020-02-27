@@ -273,7 +273,7 @@ void mgmtCleanUpChildTables() {
   sdbCloseTable(tsChildTableSdb);
 }
 
-int8_t *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup) {
+SCreateTableMsg *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable) {
 //  SCreateTableMsg *pCreateTable = (SCreateTableMsg *) pMsg;
 //  memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
 //  memcpy(pCreateTable->superTableId, pTable->superTable->tableId, TSDB_TABLE_ID_LEN);
@@ -360,7 +360,7 @@ int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
     return TSDB_CODE_OTHERS;
   }
 
-  mgmtSendRemoveMeterMsgToDnode((STableInfo *) pTable, pVgroup);
+  mgmtSendRemoveTableMsg((STableInfo *) pTable, pVgroup);
 
   sdbDeleteRow(tsChildTableSdb, pTable);
 

@@ -22,6 +22,7 @@
 #include "mgmtDnode.h"
 #include "mgmtBalance.h"
 #include "mgmtUser.h"
+#include "mgmtVgroup.h"
 
 SDnodeObj tsDnodeObj;
 
@@ -597,3 +598,4 @@ bool mgmtCheckConfigShowImp(SGlobalConfig *cfg) {
 }
 
 bool (*mgmtCheckConfigShow)(SGlobalConfig *cfg) = mgmtCheckConfigShowImp;
+

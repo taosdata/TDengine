@@ -258,10 +258,12 @@ typedef struct {
 //mgmtSystem
 int32_t mgmtStartSystem();
 void mgmtCleanUpSystem();
-void mgmtProcessMsgFromDnode(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
+void mgmtProcessMsgFromDnode(char msgType, void *pCont, int contLen, void *pConn, int32_t code);
 extern int32_t (*mgmtInitSystem)();
 extern void (*mgmtStopSystem)();
 extern void (*mgmtCleanUpRedirect)();
+
+
 
 #ifdef __cplusplus
 }

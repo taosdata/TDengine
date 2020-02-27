@@ -234,7 +234,7 @@ int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
   }
 
   mTrace("vgroup:%d, db:%s replica:%d is deleted", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
-  mgmtSendFreeVnodeMsg(pVgroup);
+  mgmtSendFreeVnodesMsg(pVgroup);
   sdbDeleteRow(tsVgroupSdb, pVgroup);
 
   return 0;
@@ -520,4 +520,64 @@ void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable) {
   if (pTable->sid >= 0)
     pVgroup->tableList[pTable->sid] = NULL;
   taosFreeId(pVgroup->idPool, pTable->sid);
+}
+
+SVPeersMsg *mgmtBuildVpeersMsg(SVgObj *pVgroup, int32_t vnode) {
+  SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
+  if (pDb == NULL) return NULL;
+
+  SVPeersMsg *pVPeers = rpcMallocCont(sizeof(SVPeersMsg));
+  if (pVPeers == NULL) return NULL;
+
+  pVPeers->vnode = htonl(vnode);
+  pVPeers->cfg   = pDb->cfg;
+
+  SVnodeCfg *pCfg = &pVPeers->cfg;
+  pCfg->vgId                         = htonl(pVgroup->vgId);
+  pCfg->maxSessions                  = htonl(pCfg->maxSessions);
+  pCfg->cacheBlockSize               = htonl(pCfg->cacheBlockSize);
+  pCfg->cacheNumOfBlocks.totalBlocks = htonl(pCfg->cacheNumOfBlocks.totalBlocks);
+  pCfg->daysPerFile                  = htonl(pCfg->daysPerFile);
+  pCfg->daysToKeep1                  = htonl(pCfg->daysToKeep1);
+  pCfg->daysToKeep2                  = htonl(pCfg->daysToKeep2);
+  pCfg->daysToKeep                   = htonl(pCfg->daysToKeep);
+  pCfg->commitTime                   = htonl(pCfg->commitTime);
+  pCfg->blocksPerTable               = htons(pCfg->blocksPerTable);
+  pCfg->replications                 = (char) pVgroup->numOfVnodes;
+  pCfg->rowsInFileBlock              = htonl(pCfg->rowsInFileBlock);
+
+  SVPeerDesc *vpeerDesc = pVPeers->vpeerDesc;
+  for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {
+    vpeerDesc[j].ip = htonl(pVgroup->vnodeGid[j].ip);
+    vpeerDesc[j].vnode = htonl(pVgroup->vnodeGid[j].vnode);
+  }
+
+  return pVPeers;
+}
+
+SVgObj *mgmtGetVgroupByVnode(uint32_t dnode, int32_t vnode) {
+  if (vnode < 0 || vnode >= TSDB_MAX_VNODES) {
+    return NULL;
+  }
+
+  SDnodeObj *pDnode = mgmtGetDnode(dnode);
+  if (pDnode == NULL) {
+    return NULL;
+  }
+
+  int32_t vgId = pDnode->vload[vnode].vgId;
+  return mgmtGetVgroup(vgId);
+}
+
+SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup) {
+  SRpcIpSet ipSet = {.numOfIps = pVgroup->numOfVnodes, .inUse = 0, .port = tsMgmtDnodePort + 1};
+  for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
+    ipSet.ip[i] = pVgroup->vnodeGid[i].ip;
+  }
+  return ipSet;
+}
+
+SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip) {
+  SRpcIpSet ipSet = {.ip = ip, .numOfIps = 1, .inUse = 0, .port = tsMgmtDnodePort + 1};
+  return ipSet;
 }

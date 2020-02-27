@@ -35,7 +35,7 @@ int32_t mgmtCreateChildTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgr
 int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable);
 int32_t mgmtAlterChildTable(SDbObj *pDb, SAlterTableMsg *pAlter);
 int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent);
-int8_t *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup);
+SCreateTableMsg *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable);
 
 int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *pMeta, bool usePublicIp);
 

@@ -27,6 +27,7 @@ extern "C" {
 int32_t mgmtInitVgroups();
 void    mgmtCleanUpVgroups();
 SVgObj *mgmtGetVgroup(int32_t vgId);
+SVgObj *mgmtGetVgroupByVnode(uint32_t dnode, int32_t vnode);
 
 SVgObj *mgmtCreateVgroup(SDbObj *pDb);
 int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup);
@@ -40,6 +41,11 @@ SVgObj *mgmtGetAvailVgroup(SDbObj *pDb, int32_t *sid);
 
 void    mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable);
 void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable);
+
+SVPeersMsg *mgmtBuildVpeersMsg(SVgObj *pVgroup, int32_t vnode);
+
+SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup);
+SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip);
 
 #ifdef __cplusplus
 }

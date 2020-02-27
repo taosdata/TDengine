@@ -57,6 +57,7 @@ extern bool       (*mgmtCheckConfigShow)(SGlobalConfig *cfg);
 
 extern SDnodeObj tsDnodeObj;
 
+
 #ifdef __cplusplus
 }
 #endif

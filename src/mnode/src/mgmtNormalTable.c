@@ -387,7 +387,7 @@ int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
     return TSDB_CODE_OTHERS;
   }
 
-  mgmtSendRemoveMeterMsgToDnode((STableInfo *) pTable, pVgroup);
+  mgmtSendRemoveTableMsg((STableInfo *) pTable, pVgroup);
 
   sdbDeleteRow(tsNormalTableSdb, pTable);
 
