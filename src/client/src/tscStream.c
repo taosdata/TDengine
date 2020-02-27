@@ -246,8 +246,6 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
         int32_t retry = tsProjectExecInterval;
         tscError("%p stream:%p, retrieve no data, code:%d, retry in %" PRId64 "ms", pSql, pStream, numOfRows, retry);
 
-        tscClearSqlMetaInfoForce(&(pStream->pSql->cmd));
-        
         tscSetRetryTimer(pStream, pStream->pSql, retry);
         return;
       }
@@ -381,41 +379,41 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  if (pQueryInfo->nAggTimeInterval < minIntervalTime) {
+  if (pQueryInfo->intervalTime < minIntervalTime) {
     tscWarn("%p stream:%p, original sample interval:%ld too small, reset to:%" PRId64 "", pSql, pStream,
-            pQueryInfo->nAggTimeInterval, minIntervalTime);
-    pQueryInfo->nAggTimeInterval = minIntervalTime;
+            pQueryInfo->intervalTime, minIntervalTime);
+    pQueryInfo->intervalTime = minIntervalTime;
   }
 
-  pStream->interval = pQueryInfo->nAggTimeInterval;  // it shall be derived from sql string
+  pStream->interval = pQueryInfo->intervalTime;  // it shall be derived from sql string
 
-  if (pQueryInfo->nSlidingTime == 0) {
-    pQueryInfo->nSlidingTime = pQueryInfo->nAggTimeInterval;
+  if (pQueryInfo->slidingTime == 0) {
+    pQueryInfo->slidingTime = pQueryInfo->intervalTime;
   }
 
   int64_t minSlidingTime =
       (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMinSlidingTime * 1000L : tsMinSlidingTime;
 
-  if (pQueryInfo->nSlidingTime == -1) {
-    pQueryInfo->nSlidingTime = pQueryInfo->nAggTimeInterval;
-  } else if (pQueryInfo->nSlidingTime < minSlidingTime) {
+  if (pQueryInfo->slidingTime == -1) {
+    pQueryInfo->slidingTime = pQueryInfo->intervalTime;
+  } else if (pQueryInfo->slidingTime < minSlidingTime) {
     tscWarn("%p stream:%p, original sliding value:%" PRId64 " too small, reset to:%" PRId64 "", pSql, pStream,
-        pQueryInfo->nSlidingTime, minSlidingTime);
+        pQueryInfo->slidingTime, minSlidingTime);
 
-    pQueryInfo->nSlidingTime = minSlidingTime;
+    pQueryInfo->slidingTime = minSlidingTime;
   }
 
-  if (pQueryInfo->nSlidingTime > pQueryInfo->nAggTimeInterval) {
+  if (pQueryInfo->slidingTime > pQueryInfo->intervalTime) {
     tscWarn("%p stream:%p, sliding value:%" PRId64 " can not be larger than interval range, reset to:%" PRId64 "", pSql, pStream,
-            pQueryInfo->nSlidingTime, pQueryInfo->nAggTimeInterval);
+            pQueryInfo->slidingTime, pQueryInfo->intervalTime);
 
-    pQueryInfo->nSlidingTime = pQueryInfo->nAggTimeInterval;
+    pQueryInfo->slidingTime = pQueryInfo->intervalTime;
   }
 
-  pStream->slidingTime = pQueryInfo->nSlidingTime;
+  pStream->slidingTime = pQueryInfo->slidingTime;
   
-  pQueryInfo->nAggTimeInterval = 0; // clear the interval value to avoid the force time window split by query processor
-  pQueryInfo->nSlidingTime = 0;
+  pQueryInfo->intervalTime = 0; // clear the interval value to avoid the force time window split by query processor
+  pQueryInfo->slidingTime = 0;
 }
 
 static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, int64_t stime) {

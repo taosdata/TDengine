@@ -446,8 +446,8 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
     // buffer size for progress information, including meter count,
     // and for each meter, including 'uid' and 'TSKEY'.
     int progressSize = 0;
-    if (pQInfo->pMeterQuerySupporter != NULL)
-      progressSize = pQInfo->pMeterQuerySupporter->numOfMeters * (sizeof(int64_t) + sizeof(TSKEY)) + sizeof(int32_t);
+    if (pQInfo->pTableQuerySupporter != NULL)
+      progressSize = pQInfo->pTableQuerySupporter->numOfMeters * (sizeof(int64_t) + sizeof(TSKEY)) + sizeof(int32_t);
     else if (pQInfo->pObj != NULL)
       progressSize = sizeof(int64_t) + sizeof(TSKEY) + sizeof(int32_t);
   
@@ -486,13 +486,13 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
   // write the progress information of each meter to response
   // this is required by subscriptions
   if (pQInfo != NULL ) {
-    if (pQInfo->pMeterQuerySupporter != NULL && pQInfo->pMeterQuerySupporter->pMeterSidExtInfo != NULL) {
-      *((int32_t *)pMsg) = htonl(pQInfo->pMeterQuerySupporter->numOfMeters);
+    if (pQInfo->pTableQuerySupporter != NULL && pQInfo->pTableQuerySupporter->pMeterSidExtInfo != NULL) {
+      *((int32_t *)pMsg) = htonl(pQInfo->pTableQuerySupporter->numOfMeters);
       pMsg += sizeof(int32_t);
-      for (int32_t i = 0; i < pQInfo->pMeterQuerySupporter->numOfMeters; i++) {
-        *((int64_t *)pMsg) = htobe64(pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[i]->uid);
+      for (int32_t i = 0; i < pQInfo->pTableQuerySupporter->numOfMeters; i++) {
+        *((int64_t *)pMsg) = htobe64(pQInfo->pTableQuerySupporter->pMeterSidExtInfo[i]->uid);
         pMsg += sizeof(int64_t);
-        *((TSKEY *)pMsg) = htobe64(pQInfo->pMeterQuerySupporter->pMeterSidExtInfo[i]->key);
+        *((TSKEY *)pMsg) = htobe64(pQInfo->pTableQuerySupporter->pMeterSidExtInfo[i]->key);
         pMsg += sizeof(TSKEY);
       }
     } else if (pQInfo->pObj != NULL) {
