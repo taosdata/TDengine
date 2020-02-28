@@ -49,12 +49,12 @@ int32_t dnodeDropTable(SDRemoveTableMsg *pTable);
  * Create stream
  * if stream already exist, update it
  */
-int32_t dnodeCreateStream(SAlterStreamMsg *stream);
+int32_t dnodeCreateStream(SDAlterStreamMsg *pStream);
 
 /*
  * Remove all child tables of supertable from local repository
  */
-int32_t dnodeDropSuperTable(uint64_t stableUid);
+int32_t dnodeDropSuperTable(SDRemoveSuperTableMsg *pStable);
 
 #ifdef __cplusplus
 }

@@ -40,34 +40,32 @@ static void    *tsDnodeShellServer = NULL;
 static int32_t tsDnodeQueryReqNum  = 0;
 static int32_t tsDnodeSubmitReqNum = 0;
 
-void* dnodeProcessMsgFromShell(int8_t msgType, void *pCont, int32_t contLen, void *handle, int32_t index) {
+void dnodeProcessMsgFromShell(char msgType, void *pCont, int contLen, void *handle, int32_t code) {
   assert(handle != NULL);
 
   if (pCont == NULL || contLen == 0) {
     dnodeFreeQInfo(handle);
     dTrace("conn:%p, free query info", handle);
-    return NULL;
+    return;
   }
 
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
     rpcSendResponse(handle, TSDB_CODE_NOT_READY, 0, 0);
     dTrace("conn:%p, query msg is ignored since dnode not running", handle);
-    return NULL;
+    return;
   }
 
-  dTrace("conn:%p, msg:%s is received", handle, taosMsg[msgType]);
+  dTrace("conn:%p, msg:%s is received", handle, taosMsg[(int8_t)msgType]);
 
-  if (msgType == TSDB_MSG_TYPE_DNODE_QUERY) {
+  if (msgType == TSDB_MSG_TYPE_QUERY) {
     dnodeProcessQueryRequest(pCont, contLen, handle);
   } else if (msgType == TSDB_MSG_TYPE_RETRIEVE) {
     dnodeProcessRetrieveRequest(pCont, contLen, handle);
-  } else if (msgType == TSDB_MSG_TYPE_DNODE_SUBMIT) {
+  } else if (msgType == TSDB_MSG_TYPE_SUBMIT) {
     dnodeProcessShellSubmitRequest(pCont, contLen, handle);
   } else {
-    dError("conn:%p, msg:%s is not processed", handle, taosMsg[msgType]);
+    dError("conn:%p, msg:%s is not processed", handle, taosMsg[(int8_t)msgType]);
   }
-
-  return NULL;
 }
 
 int32_t dnodeInitShell() {
@@ -83,7 +81,7 @@ int32_t dnodeInitShell() {
   rpcInit.localPort    = tsVnodeShellPort;
   rpcInit.label        = "DND-shell";
   rpcInit.numOfThreads = numOfThreads;
-  rpcInit.cfp           = dnodeProcessMsgFromShell;
+  rpcInit.cfp          = dnodeProcessMsgFromShell;
   rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 2000;
@@ -187,9 +185,9 @@ void dnodeProcessShellSubmitRequestCb(SShellSubmitRspMsg *result, void *pConn) {
   for (int i = 0; i < submitRsp->numOfFailedBlocks; ++i) {
     SShellSubmitRspBlock *block = &submitRsp->failedBlocks[i];
     if (block->code == TSDB_CODE_NOT_ACTIVE_VNODE || block->code == TSDB_CODE_INVALID_VNODE_ID) {
-      dnodeSendVpeerCfgMsg(block->vnode);
+      dnodeSendVnodeCfgMsg(block->vnode);
     } else if (block->code == TSDB_CODE_INVALID_TABLE_ID || block->code == TSDB_CODE_NOT_ACTIVE_TABLE) {
-      dnodeSendMeterCfgMsg(block->vnode, block->sid);
+      dnodeSendTableCfgMsg(block->vnode, block->sid);
     }
     block->index = htonl(block->index);
     block->vnode = htonl(block->vnode);

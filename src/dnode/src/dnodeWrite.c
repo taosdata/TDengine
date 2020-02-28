@@ -22,6 +22,8 @@
 #include "dnodeVnodeMgmt.h"
 
 void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pConn, void (*callback)(SShellSubmitRspMsg *rsp, void *pConn)) {
+  dTrace("submit msg is disposed, affectrows:1");
+
   SShellSubmitRspMsg result = {0};
 
   int32_t numOfSid = htonl(pSubmit->numOfSid);
@@ -31,7 +33,11 @@ void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pConn, void (*callback)(SShe
     callback(&result, pConn);
   }
 
-  //TODO: submit implementation
+  result.code = 0;
+  result.numOfRows = 1;
+  result.affectedRows = 1;
+  result.numOfFailedBlocks = 0;
+  callback(&result, pConn);
 }
 
 int32_t dnodeCreateTable(SDCreateTableMsg *pTable) {
@@ -65,7 +71,6 @@ int32_t dnodeCreateTable(SDCreateTableMsg *pTable) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 /*
  * Remove table from local repository
  */
@@ -78,24 +83,16 @@ int32_t dnodeDropTable(SDRemoveTableMsg *pTable) {
  * Create stream
  * if stream already exist, update it
  */
-int32_t dnodeCreateStream(SAlterStreamMsg *stream) {
-  int32_t vnode = htonl(stream->vnode);
-  int32_t sid = htonl(stream->sid);
-  uint64_t uid = htobe64(stream->uid);
-
-  if (!dnodeCheckTableExist(vnode, sid, uid)) {
-    return TSDB_CODE_INVALID_TABLE;
-  }
-
-  //TODO create or remove stream
-
-  return 0;
+int32_t dnodeCreateStream(SDAlterStreamMsg *pStream) {
+  dPrint("stream:%s, is created, ", pStream->tableId);
+  return TSDB_CODE_SUCCESS;
 }
 
 /*
  * Remove all child tables of supertable from local repository
  */
-int32_t dnodeDropSuperTable(uint64_t stableUid) {
+int32_t dnodeDropSuperTable(SDRemoveSuperTableMsg *pStable) {
+  dPrint("stable:%s, is removed", pStable->tableId);
   return TSDB_CODE_SUCCESS;
 }
 

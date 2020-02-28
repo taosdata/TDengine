@@ -31,20 +31,20 @@ extern "C" {
 // message type
 #define TSDB_MSG_TYPE_REG                    1
 #define TSDB_MSG_TYPE_REG_RSP                2
-#define TSDB_MSG_TYPE_SUBMIT                 3
-#define TSDB_MSG_TYPE_SUBMIT_RSP             4
-#define TSDB_MSG_TYPE_QUERY                  5
-#define TSDB_MSG_TYPE_QUERY_RSP              6
+#define TSDB_MSG_TYPE_DNODE_SUBMIT           3
+#define TSDB_MSG_TYPE_DNODE_SUBMIT_RSP       4
+#define TSDB_MSG_TYPE_DNODE_QUERY            5
+#define TSDB_MSG_TYPE_DNODE_QUERY_RSP        6
 #define TSDB_MSG_TYPE_RETRIEVE               7
 #define TSDB_MSG_TYPE_RETRIEVE_RSP           8
 #define TSDB_MSG_TYPE_DNODE_CREATE_TABLE     9
 #define TSDB_MSG_TYPE_DNODE_CREATE_TABLE_RSP 10
 #define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE     11
 #define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE_RSP 12
-#define TSDB_MSG_TYPE_CREATE_VNODE           13
-#define TSDB_MSG_TYPE_CREATE_VNODE_RSP       14
-#define TSDB_MSG_TYPE_FREE_VNODE             15
-#define TSDB_MSG_TYPE_FREE_VNODE_RSP         16
+#define TSDB_MSG_TYPE_DNODE_CREATE_VNODE           13
+#define TSDB_MSG_TYPE_DNODE_VPEERS_RSP       14
+#define TSDB_MSG_TYPE_DNODE_FREE_VNODE       15
+#define TSDB_MSG_TYPE_DNODE_FREE_VNODE_RSP   16
 #define TSDB_MSG_TYPE_DNODE_CFG              17
 #define TSDB_MSG_TYPE_DNODE_CFG_RSP          18
 #define TSDB_MSG_TYPE_DNODE_ALTER_STREAM     19
@@ -200,8 +200,8 @@ typedef struct {
 } SShellSubmitBlock;
 
 typedef struct {
-  int16_t import;
-  int16_t vnode;
+  int8_t  import;
+  int8_t  reserved[3];
   int32_t numOfSid; /* total number of sid */
   char    blks[];   /* numOfSid blocks, each blocks for one table */
 } SShellSubmitMsg;

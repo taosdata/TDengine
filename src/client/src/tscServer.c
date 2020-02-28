@@ -294,7 +294,7 @@ void tscProcessMsgFromServer(char type, void *pCont, int contLen, void *ahandle,
      * There is not response callback function for submit response.
      * The actual inserted number of points is the first number.
      */
-    if (type == TSDB_MSG_TYPE_DNODE_SUBMIT_RSP) {
+    if (type == TSDB_MSG_TYPE_SUBMIT_RSP) {
       pRes->numOfRows += *(int32_t *)pRes->pRsp;
 
       tscTrace("%p cmd:%d code:%d, inserted rows:%d, rsp len:%d", pSql, pCmd->command, pRes->code,
@@ -512,8 +512,6 @@ int tscProcessSql(SSqlObj *pSql) {
       return pSql->res.code;
     }
 
-    //TODO change the connect info in metadata
-    return TSDB_CODE_OTHERS;
 //    if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
 //      pSql->index = pMeterMetaInfo->pMeterMeta->index;
 //    } else {  // it must be the parent SSqlObj for super table query
@@ -1240,14 +1238,14 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pShellMsg = (SShellSubmitMsg *)pMsg;
 
   pShellMsg->import = htons(TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT) ? 0 : 1);
-  //pShellMsg->vnode = htons(pMeterMeta->vpeerDesc[pMeterMeta->index].vnode);
+  pShellMsg->vnode = 0; //htons(pMeterMeta->vpeerDesc[pMeterMeta->index].vnode);
   pShellMsg->numOfSid = htonl(pSql->cmd.numOfTablesInSubmit);  // number of meters to be inserted
 
   // pSql->cmd.payloadLen is set during parse sql routine, so we do not use it here
-  pSql->cmd.msgType = TSDB_MSG_TYPE_DNODE_SUBMIT;
-  //tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pMeterMeta->vpeerDesc[pMeterMeta->index].ip),
-  //         htons(pShellMsg->vnode));
-  
+  pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
+  tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pMeterMeta->vpeerDesc[pMeterMeta->index].ip),
+           htons(pShellMsg->vnode));
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1642,9 +1640,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   tscTrace("%p msg built success,len:%d bytes", pSql, msgLen);
   pCmd->payloadLen = msgLen;
-  pSql->cmd.msgType = TSDB_MSG_TYPE_DNODE_QUERY;
+  pSql->cmd.msgType = TSDB_MSG_TYPE_QUERY;
 
   assert(msgLen + minMsgSize() <= size);
+
+  memmove(pSql->cmd.payload, pStart, pSql->cmd.payloadLen - tsRpcHeadSize);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3337,9 +3337,9 @@ int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
 }
 
 void tscInitMsgs() {
-  tscBuildMsg[TSDB_SQL_SELECT] = tscBuildQueryMsg;//
-  tscBuildMsg[TSDB_SQL_INSERT] = tscBuildSubmitMsg;//
-  tscBuildMsg[TSDB_SQL_FETCH] = tscBuildRetrieveMsg;//
+  tscBuildMsg[TSDB_SQL_SELECT] = tscBuildQueryMsg;
+  tscBuildMsg[TSDB_SQL_INSERT] = tscBuildSubmitMsg;
+  tscBuildMsg[TSDB_SQL_FETCH] = tscBuildRetrieveMsg;
 
   tscBuildMsg[TSDB_SQL_CREATE_DB] = tscBuildCreateDbMsg;
   tscBuildMsg[TSDB_SQL_CREATE_USER] = tscBuildUserMsg;

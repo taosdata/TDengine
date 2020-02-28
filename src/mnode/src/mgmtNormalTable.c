@@ -395,7 +395,7 @@ int32_t mgmtCreateNormalTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj 
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
-  *pTableOut = pTable;
+  *pTableOut = (STableInfo *) pTable;
 
   mTrace("table:%s, create table in vgroup, vgroup:%d sid:%d vnode:%d uid:%" PRIu64 ,
          pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid);
@@ -564,6 +564,7 @@ int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, STableMeta 
       pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
     }
   }
+  pMeta->numOfVpeers = pVgroup->numOfVnodes;
 
   return TSDB_CODE_SUCCESS;
 }

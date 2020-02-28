@@ -359,7 +359,7 @@ int32_t mgmtCreateChildTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
-  *pTableOut = pTable;
+  *pTableOut = (STableInfo *) pTable;
 
   mTrace("table:%s, create table in vgroup, vgroup:%d sid:%d vnode:%d uid:%" PRIu64 ,
          pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid);
@@ -467,6 +467,7 @@ int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *p
   pMeta->numOfColumns = htons(pTable->superTable->numOfColumns);
   pMeta->tableType    = pTable->type;
   pMeta->contLen      = sizeof(STableMeta) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable->superTable);
+  strcpy(pMeta->tableId, pTable->tableId);
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
@@ -481,6 +482,7 @@ int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *p
       pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
     }
   }
+  pMeta->numOfVpeers = pVgroup->numOfVnodes;
 
   return TSDB_CODE_SUCCESS;
 }

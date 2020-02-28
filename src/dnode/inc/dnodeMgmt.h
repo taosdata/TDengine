@@ -30,8 +30,8 @@ void dnodeProcessMsgFromMgmt(int8_t msgType, void *pCont, int32_t contLen, void 
 void dnodeSendMsgToMnode(int8_t msgType, void *pCont, int32_t contLen);
 void dnodeSendRspToMnode(void *pConn, int8_t msgType, int32_t code, void *pCont, int32_t contLen);
 
-void dnodeSendVpeerCfgMsg(int32_t vnode);
-void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid);
+void dnodeSendVnodeCfgMsg(int32_t vnode);
+void dnodeSendTableCfgMsg(int32_t vnode, int32_t sid);
 
 
 

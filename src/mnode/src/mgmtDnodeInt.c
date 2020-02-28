@@ -106,8 +106,9 @@ static void mgmtProcessTableCfgMsg(int8_t msgType, int8_t *pCont, int32_t contLe
 
   mgmtSendRspToDnode(thandle, msgType + 1, TSDB_CODE_SUCCESS, NULL, 0);
 
+  //TODO
   SRpcIpSet ipSet = mgmtGetIpSetFromIp(pCfg->dnode);
-  mgmtSendCreateTableMsg(pTable, &ipSet, NULL);
+  mgmtSendCreateTableMsg(NULL, &ipSet, NULL);
 }
 
 static void mgmtProcessVnodeCfgMsg(int8_t msgType, int8_t *pCont, int32_t contLen, void *pConn) {
@@ -216,7 +217,7 @@ void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, vo
   mTrace("vgroup:%d, send create vnode:%d msg, ahandle:%p", pVgroup->vgId, vnode, ahandle);
   SCreateVnodeMsg *pVpeer = mgmtBuildVpeersMsg(pVgroup, vnode);
   if (pVpeer != NULL) {
-    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DNODE_CREATE_VNODE, pVpeer, sizeof(SCreateVnodeMsg), ahandle);
+    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_CREATE_VNODE, pVpeer, sizeof(SCreateVnodeMsg), ahandle);
   }
 }
 
@@ -226,7 +227,7 @@ void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *p
     return;
   }
 
-  mTrace("msg:%d:%s is received from dnode, pConn:%p", msgType, taosMsg[msgType], pConn);
+  mTrace("msg:%d:%s is received from dnode, pConn:%p", msgType, taosMsg[(int8_t)msgType], pConn);
 
   if (msgType == TSDB_MSG_TYPE_TABLE_CFG) {
     mgmtProcessTableCfgMsg(msgType, pCont, contLen, pConn);
@@ -236,9 +237,9 @@ void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *p
     mgmtProcessCreateTableRsp(msgType, pCont, contLen, pConn, code);
   } else if (msgType == TSDB_MSG_TYPE_DNODE_REMOVE_TABLE_RSP) {
     mgmtProcessRemoveTableRsp(msgType, pCont, contLen, pConn, code);
-  } else if (msgType == TSDB_MSG_TYPE_DNODE_VPEERS_RSP) {
+  } else if (msgType == TSDB_MSG_TYPE_CREATE_VNODE_RSP) {
     mgmtProcessCreateVnodeRsp(msgType, pCont, contLen, pConn, code);
-  } else if (msgType == TSDB_MSG_TYPE_DNODE_FREE_VNODE_RSP) {
+  } else if (msgType == TSDB_MSG_TYPE_FREE_VNODE_RSP) {
     mgmtProcessFreeVnodeRsp(msgType, pCont, contLen, pConn, code);
   } else if (msgType == TSDB_MSG_TYPE_DNODE_CFG_RSP) {
   } else if (msgType == TSDB_MSG_TYPE_ALTER_STREAM_RSP) {
@@ -261,7 +262,7 @@ void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *ahandle) {
   SFreeVnodeMsg *pFreeVnode = rpcMallocCont(sizeof(SFreeVnodeMsg));
   if (pFreeVnode != NULL) {
     pFreeVnode->vnode = htonl(vnode);
-    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DNODE_FREE_VNODE, pFreeVnode, sizeof(SFreeVnodeMsg), ahandle);
+    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_FREE_VNODE, pFreeVnode, sizeof(SFreeVnodeMsg), ahandle);
   }
 }
 
