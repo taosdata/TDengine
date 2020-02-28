@@ -177,9 +177,9 @@ void dnodeProcessAlterStreamRequest(void *pCont, int32_t contLen, int8_t msgType
 
 void dnodeProcessRemoveTableRequest(void *pCont, int32_t contLen, int8_t msgType, void *pConn) {
   SDRemoveTableMsg *pTable = pCont;
-  pTable->sid   = htonl(pTable->sid);
+  pTable->sid         = htonl(pTable->sid);
   pTable->numOfVPeers = htonl(pTable->numOfVPeers);
-  pTable->uid   = htobe64(pTable->uid);
+  pTable->uid         = htobe64(pTable->uid);
 
   for (int i = 0; i < pTable->numOfVPeers; ++i) {
     pTable->vpeerDesc[i].ip    = htonl(pTable->vpeerDesc[i].ip);
@@ -194,9 +194,8 @@ void dnodeProcessVPeerCfgRsp(void *pCont, int32_t contLen, int8_t msgType, void 
   int32_t code = htonl(*((int32_t *) pCont));
 
   if (code == TSDB_CODE_SUCCESS) {
-    SVPeersMsg *vpeer = (SVPeersMsg *) (pCont + sizeof(int32_t));
-    int32_t vnode  = htonl(vpeer->vnode);
-    dnodeCreateVnode(vnode, vpeer);
+    SCreateVnodeMsg *pVnode = (SCreateVnodeMsg *) (pCont + sizeof(int32_t));
+    dnodeCreateVnode(pVnode);
   } else if (code == TSDB_CODE_INVALID_VNODE_ID) {
     SFreeVnodeMsg *vpeer = (SFreeVnodeMsg *) (pCont + sizeof(int32_t));
     int32_t vnode = htonl(vpeer->vnode);
@@ -207,22 +206,15 @@ void dnodeProcessVPeerCfgRsp(void *pCont, int32_t contLen, int8_t msgType, void 
   }
 }
 
-void dnodeProcessVPeersMsg(void *pCont, int32_t contLen, int8_t msgType, void *pConn) {
-  SVPeersMsg *vpeer = (SVPeersMsg *) pCont;
-  int32_t vnode = htonl(vpeer->vnode);
-
-  dPrint("vnode:%d, start to config", vnode);
-
-  int32_t code = dnodeCreateVnode(vnode, vpeer);
+void dnodeProcessCreateVnodeRequest(void *pCont, int32_t contLen, int8_t msgType, void *pConn) {
+  SCreateVnodeMsg *pVnode = (SCreateVnodeMsg *) pCont;
+  int32_t code = dnodeCreateVnode(pVnode);
   dnodeSendRspToMnode(pConn, msgType + 1, code, NULL, 0);
 }
 
 void dnodeProcessFreeVnodeRequest(void *pCont, int32_t contLen, int8_t msgType, void *pConn) {
-  SFreeVnodeMsg *vpeer = (SFreeVnodeMsg *) pCont;
-  int32_t vnode = htonl(vpeer->vnode);
-
-  dPrint("vnode:%d, remove it", vnode);
-
+  SFreeVnodeMsg *pVnode = (SFreeVnodeMsg *) pCont;
+  int32_t vnode = htonl(pVnode->vnode);
   int32_t code = dnodeDropVnode(vnode);
   dnodeSendRspToMnode(pConn, msgType + 1, code, NULL, 0);
 }
@@ -256,7 +248,7 @@ void dnodeSendMeterCfgMsg(int32_t vnode, int32_t sid) {
 void dnodeInitProcessShellMsg() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_TABLE] = dnodeProcessCreateTableRequest;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_DNODE_REMOVE_TABLE] = dnodeProcessRemoveTableRequest;
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_DNODE_VPEERS]       = dnodeProcessVPeersMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_VNODE]       = dnodeProcessCreateVnodeRequest;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_DNODE_FREE_VNODE]   = dnodeProcessFreeVnodeRequest;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_DNODE_CFG]          = dnodeProcessDnodeCfgRequest;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_ALTER_STREAM]       = dnodeProcessAlterStreamRequest;

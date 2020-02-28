@@ -41,7 +41,7 @@ extern "C" {
 #define TSDB_MSG_TYPE_DNODE_CREATE_TABLE_RSP 10
 #define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE     11
 #define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE_RSP 12
-#define TSDB_MSG_TYPE_DNODE_VPEERS           13
+#define TSDB_MSG_TYPE_DNODE_CREATE_VNODE           13
 #define TSDB_MSG_TYPE_DNODE_VPEERS_RSP       14
 #define TSDB_MSG_TYPE_DNODE_FREE_VNODE       15
 #define TSDB_MSG_TYPE_DNODE_FREE_VNODE_RSP   16
@@ -266,7 +266,6 @@ typedef struct {
 
 typedef struct {
   char   tableId[TSDB_TABLE_ID_LEN + 1];
-  char   db[TSDB_DB_NAME_LEN + 1];
   int8_t igNotExists;
 } SDropTableMsg;
 
@@ -623,7 +622,7 @@ typedef struct {
   int32_t    vnode;
   SVnodeCfg  cfg;
   SVPeerDesc vpeerDesc[TSDB_MAX_MPEERS];
-} SVPeersMsg;
+} SCreateVnodeMsg;
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];

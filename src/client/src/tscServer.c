@@ -1804,6 +1804,7 @@ int32_t tscBuildDropTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SDropTableMsg *pDropTableMsg = (SDropTableMsg*)pCmd->payload;
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
   strcpy(pDropTableMsg->tableId, pMeterMetaInfo->name);
+  pDropTableMsg->igNotExists = pInfo->pDCLInfo->existsCheck ? 1 : 0;
 
   pCmd->msgType = TSDB_MSG_TYPE_DROP_TABLE;
   return TSDB_CODE_SUCCESS;

@@ -192,10 +192,12 @@ int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
   }
 
   mTrace("vgroup:%d, db:%s replica:%d is deleted", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
-//  mgmtSendFreeVnodesMsg(pVgroup);
+
+  mgmtSendRemoveVgroupMsg(pVgroup, NULL);
+
   sdbDeleteRow(tsVgroupSdb, pVgroup);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 void mgmtSetVgroupIdPool() {
@@ -480,11 +482,11 @@ void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable) {
   taosFreeId(pVgroup->idPool, pTable->sid);
 }
 
-SVPeersMsg *mgmtBuildVpeersMsg(SVgObj *pVgroup, int32_t vnode) {
+SCreateVnodeMsg *mgmtBuildVpeersMsg(SVgObj *pVgroup, int32_t vnode) {
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
   if (pDb == NULL) return NULL;
 
-  SVPeersMsg *pVPeers = rpcMallocCont(sizeof(SVPeersMsg));
+  SCreateVnodeMsg *pVPeers = rpcMallocCont(sizeof(SCreateVnodeMsg));
   if (pVPeers == NULL) return NULL;
 
   pVPeers->vnode = htonl(vnode);

@@ -311,7 +311,7 @@ static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgrou
     pSchema++;
   }
 
-  memcpy(pCreateTable->data + totalCols * sizeof(SSchema), pTagData, tagDataLen);
+  memcpy(pCreateTable + sizeof(SCreateTableMsg) + totalCols * sizeof(SSchema), pTagData, tagDataLen);
 
   return pCreateTable;
 }
@@ -380,6 +380,7 @@ int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
+  strcpy(pRemove->tableId, pTable->tableId);
   pRemove->sid = htonl(pTable->sid);
   pRemove->uid = htobe64(pTable->uid);
 

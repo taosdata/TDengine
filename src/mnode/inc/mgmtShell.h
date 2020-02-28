@@ -36,6 +36,21 @@ extern void (*mgmtProcessDropDnodeMsg)(void *pCont, int32_t contLen, void *ahand
 extern void (*mgmtProcessDropAcctMsg)(void *pCont, int32_t contLen, void *ahandle);
 extern void (*mgmtProcessCreateAcctMsg)(void *pCont, int32_t contLen, void *ahandle);
 
+/*
+ * If table not exist, will create it
+ */
+void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle);
+
+/*
+ * If vgroup not exist, will create vgroup
+ */
+void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta);
+
+/*
+ * If vgroup create returned, will then create table
+ */
+void mgmtProcessCreateVgroup(SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta);
+
 #ifdef __cplusplus
 }
 #endif

@@ -295,7 +295,7 @@ int32_t mgmtSetDbDropping(SDbObj *pDb) {
         }
       }
     }
-//    mgmtSendFreeVnodesMsg(pVgroup);
+//    mgmtSendRemoveVgroupMsg(pVgroup);
     pVgroup = pVgroup->next;
   }
 
@@ -355,7 +355,7 @@ int32_t mgmtDropDb(SDbObj *pDb) {
     if (!finished) {
       SVgObj *pVgroup = pDb->pHead;
       while (pVgroup != NULL) {
-        mgmtSendFreeVnodesMsg(pVgroup);
+        mgmtSendRemoveVgroupMsg(pVgroup, NULL);
         pVgroup = pVgroup->next;
       }
       return TSDB_CODE_ACTION_IN_PROGRESS;

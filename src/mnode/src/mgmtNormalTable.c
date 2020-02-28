@@ -416,6 +416,7 @@ int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
+  strcpy(pRemove->tableId, pTable->tableId);
   pRemove->sid = htonl(pTable->sid);
   pRemove->uid = htobe64(pTable->uid);
 

@@ -27,6 +27,7 @@
 #include "mgmtDnode.h"
 #include "mgmtDnodeInt.h"
 #include "mgmtProfile.h"
+#include "mgmtShell.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
 
@@ -137,7 +138,7 @@ static void mgmtProcessCreateTableRsp(int8_t msgType, int8_t *pCont, int32_t con
   if (thandle == NULL) return;
 
   SProcessInfo *info = thandle;
-  assert(info->type == TSDB_PROCESS_CREATE_TABLE);
+  assert(info->type == TSDB_PROCESS_CREATE_TABLE || info->type == TSDB_PROCESS_CREATE_TABLE_GET_META);
   STableInfo *pTable = info->ahandle;
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -148,7 +149,17 @@ static void mgmtProcessCreateTableRsp(int8_t msgType, int8_t *pCont, int32_t con
     mgmtSetTableDirty(pTable, false);
   }
 
-  rpcSendResponse(info->thandle, code, NULL, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    rpcSendResponse(info->thandle, code, NULL, 0);
+  } else {
+    if (info->type == TSDB_PROCESS_CREATE_TABLE_GET_META) {
+      mTrace("table:%s, start to process get meta", pTable->tableId);
+      mgmtProcessGetTableMeta(pTable, thandle);
+    } else {
+      rpcSendResponse(info->thandle, code, NULL, 0);
+    }
+  }
+
   free(info);
 }
 
@@ -169,7 +180,7 @@ void mgmtSendRemoveTableMsg(SDRemoveTableMsg *pRemove, SRpcIpSet *ipSet, void *a
 }
 
 static void mgmtProcessFreeVnodeRsp(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle, int32_t code) {
-  mTrace("free vnode rsp received, handle:%p code:%d", thandle, code);
+  mTrace("free vnode rsp received, thandle:%p code:%d", thandle, code);
 }
 
 static void mgmtProcessCreateVnodeRsp(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle, int32_t code) {
@@ -177,13 +188,18 @@ static void mgmtProcessCreateVnodeRsp(int8_t msgType, int8_t *pCont, int32_t con
   if (thandle == NULL) return;
 
   SProcessInfo *info = thandle;
-  assert(info->type == TSDB_PROCESS_CREATE_VGROUP);
+  assert(info->type == TSDB_PROCESS_CREATE_VGROUP || info->type == TSDB_PROCESS_CREATE_VGROUP_GET_META);
   info->received++;
   SVgObj *pVgroup = info->ahandle;
 
+  bool isGetMeta = false;
+  if (info->type == TSDB_PROCESS_CREATE_VGROUP_GET_META) {
+    isGetMeta = true;
+  }
+
   mTrace("vgroup:%d, received:%d numOfVnodes:%d", pVgroup->vgId, info->received, pVgroup->numOfVnodes);
   if (info->received == pVgroup->numOfVnodes) {
-    mgmtProcessCreateTable(pVgroup, info->cont, info->contLen, info->thandle);
+    mgmtProcessCreateTable(pVgroup, info->cont, info->contLen, info->thandle, isGetMeta);
     free(info);
   }
 }
@@ -198,9 +214,9 @@ void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
 
 void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle) {
   mTrace("vgroup:%d, send create vnode:%d msg, ahandle:%p", pVgroup->vgId, vnode, ahandle);
-  SVPeersMsg *pVpeer = mgmtBuildVpeersMsg(pVgroup, vnode);
+  SCreateVnodeMsg *pVpeer = mgmtBuildVpeersMsg(pVgroup, vnode);
   if (pVpeer != NULL) {
-    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DNODE_VPEERS, pVpeer, sizeof(SVPeersMsg), ahandle);
+    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DNODE_CREATE_VNODE, pVpeer, sizeof(SCreateVnodeMsg), ahandle);
   }
 }
 
@@ -236,23 +252,25 @@ void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *p
 
 
 void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle) {
-  mTrace("table:%s, sid:%d send alter stream msg, handle:%p", pTable->tableId, pTable->sid);
+  mTrace("table:%s, sid:%d send alter stream msg, ahandle:%p", pTable->tableId, pTable->sid, ahandle);
 }
 
-void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *handle) {
-  mTrace("vnode:%d send free vnode msg, handle:%p", vnode, handle);
+void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *ahandle) {
+  mTrace("vnode:%d send free vnode msg, ahandle:%p", vnode, ahandle);
 
   SFreeVnodeMsg *pFreeVnode = rpcMallocCont(sizeof(SFreeVnodeMsg));
   if (pFreeVnode != NULL) {
     pFreeVnode->vnode = htonl(vnode);
-    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DNODE_FREE_VNODE, pFreeVnode, sizeof(SFreeVnodeMsg), handle);
+    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DNODE_FREE_VNODE, pFreeVnode, sizeof(SFreeVnodeMsg), ahandle);
   }
 }
 
-void mgmtSendFreeVnodesMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *handle) {
+void mgmtSendRemoveVgroupMsg(SVgObj *pVgroup, void *ahandle) {
+  mTrace("vgroup:%d send free vgroup msg, ahandle:%p", pVgroup->vgId, ahandle);
+
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
-    mgmtSendOneFreeVnodeMsg(pVgroup->vnodeGid[i].vnode, &ipSet, handle);
+    mgmtSendOneFreeVnodeMsg(pVgroup->vnodeGid[i].vnode, &ipSet, ahandle);
   }
 }
 

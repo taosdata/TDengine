@@ -28,6 +28,7 @@
 #include "mgmtConn.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
+#include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
 #include "mgmtMnode.h"
 #include "mgmtNormalTable.h"
@@ -38,22 +39,19 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-
-#define MAX_LEN_OF_METER_META (sizeof(SMultiTableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS + sizeof(SSchema) * TSDB_MAX_TAGS + TSDB_MAX_TAGS_LEN)
-
 typedef int32_t (*GetMateFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 typedef int32_t (*RetrieveMetaFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static GetMateFp* mgmtGetMetaFp;
-static RetrieveMetaFp* mgmtRetrieveFp;
+static GetMateFp      mgmtGetMetaFp[TSDB_MGMT_TABLE_MAX]  = {0};
+static RetrieveMetaFp mgmtRetrieveFp[TSDB_MGMT_TABLE_MAX] = {0};
+
 static void mgmtInitShowMsgFp();
-
-void *tsShellConnServer = NULL;
-
 static void mgmtInitProcessShellMsg();
 static void mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *ahandle, int32_t code);
 static void (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(void *pCont, int32_t contLen, void *ahandle);
 static void mgmtProcessUnSupportMsg(void *pCont, int32_t contLen, void *ahandle);
 static int  mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
+
+void *tsShellConnServer = NULL;
 
 void mgmtProcessTranRequest(SSchedMsg *sched) {
   int8_t  msgType = *(int8_t *) (sched->msg);
@@ -118,68 +116,44 @@ void mgmtCleanUpShell() {
 }
 
 void mgmtProcessTableMetaMsg(void *pCont, int32_t contLen, void *ahandle) {
-  SRpcConnInfo connInfo;
-  rpcGetConnInfo(ahandle, &connInfo);
+  STableInfoMsg *pInfo = pCont;
+  pInfo->createFlag = htons(pInfo->createFlag);
 
-  bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
-  SUserObj *pUser = mgmtGetUser(connInfo.user);
+  SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
+    mError("table:%s, failed to get table meta, invalid user", pInfo->tableId);
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
     return;
   }
 
-  STableInfoMsg *pInfo = pCont;
-  pInfo->createFlag = htons(pInfo->createFlag);
-
-  SDbObj* pDb = mgmtGetDbByTableId(pInfo->tableId);
-  if (pDb == NULL || pDb->dropStatus != TSDB_DB_STATUS_READY) {
-    rpcSendResponse(ahandle, TSDB_CODE_INVALID_DB, NULL, 0);
-    return;
-  }
-
   STableInfo *pTable = mgmtGetTable(pInfo->tableId);
-
-  // on demand create table from super table if meter does not exists
-  if (pTable == NULL && pInfo->createFlag == 1) {
-    // write operation needs to redirect to master mnode
-    if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
-      return;
-    }
-
-    SCreateTableMsg *pCreateMsg = calloc(1, sizeof(SCreateTableMsg) + sizeof(STagData));
-    if (pCreateMsg == NULL) {
-      rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
-      return;
-    }
-
-    memcpy(pCreateMsg->schema, pInfo->tags, sizeof(STagData));
-    strcpy(pCreateMsg->tableId, pInfo->tableId);
-
-    mgmtCreateTable(pCreateMsg, contLen, NULL);
-
-    char stableName[TSDB_TABLE_ID_LEN] = {0};
-    strncpy(stableName, pInfo->tags, TSDB_TABLE_ID_LEN);
-    mTrace("table:%s is auto created by %s from %s", pCreateMsg->tableId, pUser->user, stableName);
-
-    tfree(pCreateMsg);
-
-    pTable = mgmtGetTable(pInfo->tableId);
-  }
-
   if (pTable == NULL) {
-    rpcSendResponse(ahandle, TSDB_CODE_INVALID_TABLE, NULL, 0);
-    return;
-  }
+    if (pInfo->createFlag != 1) {
+      mError("table:%s, failed to get table meta, table not exist", pInfo->tableId);
+      rpcSendResponse(ahandle, TSDB_CODE_INVALID_TABLE, NULL, 0);
+      return;
+    } else {
+      // on demand create table from super table if table does not exists
+      if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+        mError("table:%s, failed to create table while get meta info, need redirect message", pInfo->tableId);
+        return;
+      }
 
-  STableMeta *pMeta = rpcMallocCont(sizeof(STableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
-  int32_t code = mgmtGetTableMeta(pDb, pTable, pMeta, usePublicIp);
+      SCreateTableMsg *pCreateMsg = rpcMallocCont(sizeof(SCreateTableMsg) + sizeof(STagData));
+      if (pCreateMsg == NULL) {
+        mError("table:%s, failed to create table while get meta info, no enough memory", pInfo->tableId);
+        rpcSendResponse(ahandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
+        return;
+      }
 
-  if (code != TSDB_CODE_SUCCESS) {
-    rpcFreeCont(pMeta);
-    rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, NULL, 0);
+      memcpy(pCreateMsg->schema, pInfo->tags, sizeof(STagData));
+      strcpy(pCreateMsg->tableId, pInfo->tableId);
+
+      mError("table:%s, start to create table while get meta info", pInfo->tableId);
+      mgmtCreateTable(pCreateMsg, contLen, ahandle, true);
+    }
   } else {
-    pMeta->contLen = htons(pMeta->contLen);
-    rpcSendResponse(ahandle, TSDB_CODE_SUCCESS, pMeta, pMeta->contLen);
+    mgmtProcessGetTableMeta(pTable, ahandle);
   }
 }
 
@@ -609,7 +583,6 @@ void mgmtProcessDropDbMsg(void *pCont, int32_t contLen, void *ahandle) {
 }
 
 static void mgmtInitShowMsgFp() {
-  mgmtGetMetaFp = (GetMateFp *)malloc(TSDB_MGMT_TABLE_MAX * sizeof(GetMateFp));
   mgmtGetMetaFp[TSDB_MGMT_TABLE_ACCT]    = mgmtGetAcctMeta;
   mgmtGetMetaFp[TSDB_MGMT_TABLE_USER]    = mgmtGetUserMeta;
   mgmtGetMetaFp[TSDB_MGMT_TABLE_DB]      = mgmtGetDbMeta;
@@ -627,7 +600,6 @@ static void mgmtInitShowMsgFp() {
   mgmtGetMetaFp[TSDB_MGMT_TABLE_GRANTS]  = mgmtGetGrantsMeta;
   mgmtGetMetaFp[TSDB_MGMT_TABLE_VNODES]  = mgmtGetVnodeMeta;
 
-  mgmtRetrieveFp = (RetrieveMetaFp *)malloc(TSDB_MGMT_TABLE_MAX * sizeof(RetrieveMetaFp));
   mgmtRetrieveFp[TSDB_MGMT_TABLE_ACCT]    = mgmtRetrieveAccts;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_USER]    = mgmtRetrieveUsers;
   mgmtRetrieveFp[TSDB_MGMT_TABLE_DB]      = mgmtRetrieveDbs;
@@ -782,7 +754,7 @@ void mgmtProcessCreateTableMsg(void *pCont, int32_t contLen, void *ahandle) {
     return;
   }
 
-  int32_t code = mgmtCreateTable(pCreate, contLen, ahandle);
+  int32_t code = mgmtCreateTable(pCreate, contLen, ahandle, false);
   if (code != TSDB_CODE_ACTION_IN_PROGRESS) {
     rpcSendResponse(ahandle, code, NULL, 0);
   }
@@ -809,9 +781,9 @@ void mgmtProcessDropTableMsg(void *pCont, int32_t contLen, void *ahandle) {
     return;
   }
 
-  SDbObj *pDb = mgmtGetDb(pDrop->db);
+  SDbObj *pDb = mgmtGetDbByTableId(pDrop->tableId);
   if (pDb == NULL) {
-    mError("table:%s, failed to drop table, db:%s not selected", pDrop->tableId, pDrop->db);
+    mError("table:%s, failed to drop table, db not selected", pDrop->tableId);
     rpcSendResponse(ahandle, TSDB_CODE_DB_NOT_SELECTED, NULL, 0);
     return;
   }
@@ -1105,6 +1077,111 @@ void mgmtInitProcessShellMsg() {
   mgmtProcessShellMsg[TSDB_MSG_TYPE_TABLE_META]       = mgmtProcessTableMetaMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_MULTI_TABLE_META] = mgmtProcessMultiTableMetaMsg;
   mgmtProcessShellMsg[TSDB_MSG_TYPE_STABLE_META]      = mgmtProcessSuperTableMetaMsg;
+}
+
+void mgmtProcessCreateVgroup(SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta) {
+  SDbObj *pDb = mgmtGetDb(pCreate->db);
+  if (pDb == NULL) {
+    mError("table:%s, failed to create vgroup, db not found", pCreate->tableId);
+    rpcSendResponse(thandle, TSDB_CODE_INVALID_DB, NULL, 0);
+    return;
+  }
+
+  SVgObj *pVgroup = mgmtCreateVgroup(pDb);
+  if (pVgroup == NULL) {
+    mError("table:%s, failed to alloc vnode to vgroup", pCreate->tableId);
+    rpcSendResponse(thandle, TSDB_CODE_NO_ENOUGH_DNODES, NULL, 0);
+    return;
+  }
+
+  void *cont = rpcMallocCont(contLen);
+  if (cont == NULL) {
+    mError("table:%s, failed to create table, can not alloc memory", pCreate->tableId);
+    rpcSendResponse(thandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
+    return;
+  }
+
+  memcpy(cont, pCreate, contLen);
+
+  SProcessInfo *info = calloc(1, sizeof(SProcessInfo));
+  info->type    = TSDB_PROCESS_CREATE_VGROUP;
+  info->thandle = thandle;
+  info->ahandle = pVgroup;
+  info->cont    = cont;
+  info->contLen = contLen;
+
+  if (isGetMeta) {
+    info->type = TSDB_PROCESS_CREATE_VGROUP_GET_META;
+  }
+
+  mgmtSendCreateVgroupMsg(pVgroup, info);
+}
+
+void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta) {
+  assert(pVgroup != NULL);
+
+  int32_t sid = taosAllocateId(pVgroup->idPool);
+  if (sid < 0) {
+    mTrace("table:%s, no enough sid in vgroup:%d, start to create a new vgroup", pCreate->tableId, pVgroup->vgId);
+    mgmtProcessCreateVgroup(pCreate, contLen, thandle, isGetMeta);
+    return;
+  }
+
+  int32_t code;
+  STableInfo *pTable;
+  SDCreateTableMsg *pDCreate = NULL;
+
+  if (pCreate->numOfColumns == 0) {
+    mTrace("table:%s, start to create child table, vgroup:%d sid:%d", pCreate->tableId, pVgroup->vgId, sid);
+    code = mgmtCreateChildTable(pCreate, contLen, pVgroup, sid, &pDCreate, &pTable);
+  } else {
+    mTrace("table:%s, start to create normal table, vgroup:%d sid:%d", pCreate->tableId, pVgroup->vgId, sid);
+    code = mgmtCreateNormalTable(pCreate, contLen, pVgroup, sid, &pDCreate, &pTable);
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    mTrace("table:%s, failed to create table in vgroup:%d sid:%d ", pCreate->tableId, pVgroup->vgId, sid);
+    rpcSendResponse(thandle, code, NULL, 0);
+    return;
+  }
+
+  assert(pDCreate != NULL);
+  assert(pTable != NULL);
+
+  SProcessInfo *info = calloc(1, sizeof(SProcessInfo));
+  info->type    = TSDB_PROCESS_CREATE_TABLE;
+  info->thandle = thandle;
+  info->ahandle = pTable;
+  SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
+  if (isGetMeta) {
+    info->type = TSDB_PROCESS_CREATE_TABLE_GET_META;
+  }
+
+  mgmtSendCreateTableMsg(pDCreate, &ipSet, info);
+}
+
+void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle) {
+  SDbObj* pDb = mgmtGetDbByTableId(pTable->tableId);
+  if (pDb == NULL || pDb->dropStatus != TSDB_DB_STATUS_READY) {
+    mError("table:%s, failed to get table meta, db not selected", pTable->tableId);
+    rpcSendResponse(thandle, TSDB_CODE_DB_NOT_SELECTED, NULL, 0);
+    return;
+  }
+
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(thandle, &connInfo);
+  bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
+
+  STableMeta *pMeta = rpcMallocCont(sizeof(STableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
+  int32_t code = mgmtGetTableMeta(pDb, pTable, pMeta, usePublicIp);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    rpcFreeCont(pMeta);
+    rpcSendResponse(thandle, TSDB_CODE_SUCCESS, NULL, 0);
+  } else {
+    pMeta->contLen = htons(pMeta->contLen);
+    rpcSendResponse(thandle, TSDB_CODE_SUCCESS, pMeta, pMeta->contLen);
+  }
 }
 
 static int32_t mgmtCheckRedirectMsgImp(void *pConn) {

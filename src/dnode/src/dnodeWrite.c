@@ -70,7 +70,7 @@ int32_t dnodeCreateTable(SDCreateTableMsg *pTable) {
  * Remove table from local repository
  */
 int32_t dnodeDropTable(SDRemoveTableMsg *pTable) {
-  dPrint("table:%s, sid:%d will be removed", pTable->tableId, pTable->sid);
+  dPrint("table:%s, sid:%d is removed", pTable->tableId, pTable->sid);
   return TSDB_CODE_SUCCESS;
 }
 

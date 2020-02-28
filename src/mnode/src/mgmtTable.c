@@ -34,6 +34,7 @@
 #include "mgmtGrant.h"
 #include "mgmtNormalTable.h"
 #include "mgmtProfile.h"
+#include "mgmtShell.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
@@ -111,81 +112,7 @@ int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, boo
   return TSDB_CODE_SUCCESS;
 }
 
-void mgmtProcessCreateVgroup(SCreateTableMsg *pCreate, int32_t contLen, void *thandle) {
-  SDbObj *pDb = mgmtGetDb(pCreate->db);
-  if (pDb == NULL) {
-    mError("table:%s, failed to create vgroup, db not found", pCreate->tableId);
-    rpcSendResponse(thandle, TSDB_CODE_INVALID_DB, NULL, 0);
-    return;
-  }
-
-  SVgObj *pVgroup = mgmtCreateVgroup(pDb);
-  if (pVgroup == NULL) {
-    mError("table:%s, failed to alloc vnode to vgroup", pCreate->tableId);
-    rpcSendResponse(thandle, TSDB_CODE_NO_ENOUGH_DNODES, NULL, 0);
-    return;
-  }
-
-  void *cont = rpcMallocCont(contLen);
-  if (cont == NULL) {
-    mError("table:%s, failed to create table, can not alloc memory", pCreate->tableId);
-    rpcSendResponse(thandle, TSDB_CODE_SERV_OUT_OF_MEMORY, NULL, 0);
-    return;
-  }
-
-  memcpy(cont, pCreate, contLen);
-
-  SProcessInfo *info = calloc(1, sizeof(SProcessInfo));
-  info->type    = TSDB_PROCESS_CREATE_VGROUP;
-  info->thandle = thandle;
-  info->ahandle = pVgroup;
-  info->cont    = cont;
-  info->contLen = contLen;
-
-  mgmtSendCreateVgroupMsg(pVgroup, info);
-}
-
-void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t contLen, void *thandle) {
-  assert(pVgroup != NULL);
-
-  int32_t sid = taosAllocateId(pVgroup->idPool);
-  if (sid < 0) {
-    mTrace("table:%s, no enough sid in vgroup:%d, start to create a new vgroup", pCreate->tableId, pVgroup->vgId);
-    mgmtProcessCreateVgroup(pCreate, contLen, thandle);
-    return;
-  }
-
-  int32_t code;
-  STableInfo *pTable;
-  SDCreateTableMsg *pDCreate = NULL;
-
-  if (pCreate->numOfColumns == 0) {
-    mTrace("table:%s, start to create child table, vgroup:%d sid:%d", pCreate->tableId, pVgroup->vgId, sid);
-    code = mgmtCreateChildTable(pCreate, contLen, pVgroup, sid, &pDCreate, &pTable);
-  } else {
-    mTrace("table:%s, start to create normal table, vgroup:%d sid:%d", pCreate->tableId, pVgroup->vgId, sid);
-    code = mgmtCreateNormalTable(pCreate, contLen, pVgroup, sid, &pDCreate, &pTable);
-  }
-
-  if (code != TSDB_CODE_SUCCESS) {
-    mTrace("table:%s, failed to create table in vgroup:%d sid:%d ", pCreate->tableId, pVgroup->vgId, sid);
-    rpcSendResponse(thandle, code, NULL, 0);
-    return;
-  }
-
-  assert(pDCreate != NULL);
-  assert(pTable != NULL);
-
-  SProcessInfo *info = calloc(1, sizeof(SProcessInfo));
-  info->type    = TSDB_PROCESS_CREATE_TABLE;
-  info->thandle = thandle;
-  info->ahandle = pTable;
-  SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
-
-  mgmtSendCreateTableMsg(pDCreate, &ipSet, info);
-}
-
-int32_t mgmtCreateTable(SCreateTableMsg *pCreate, int32_t contLen, void *thandle) {
+int32_t mgmtCreateTable(SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta) {
   SDbObj *pDb = mgmtGetDb(pCreate->db);
   if (pDb == NULL) {
     mError("table:%s, failed to create table, db not selected", pCreate->tableId);
@@ -232,10 +159,10 @@ int32_t mgmtCreateTable(SCreateTableMsg *pCreate, int32_t contLen, void *thandle
   SVgObj *pVgroup = mgmtGetAvailableVgroup(pDb);
   if (pVgroup == NULL) {
     mTrace("table:%s, no avaliable vgroup, start to create a new one", pCreate->tableId);
-    mgmtProcessCreateVgroup(pCreate, contLen, thandle);
+    mgmtProcessCreateVgroup(pCreate, contLen, thandle, isGetMeta);
   } else {
     mTrace("table:%s, try to create table in vgroup:%d", pCreate->tableId, pVgroup->vgId);
-    mgmtProcessCreateTable(pVgroup, pCreate, contLen, thandle);
+    mgmtProcessCreateTable(pVgroup, pCreate, contLen, thandle, isGetMeta);
   }
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
@@ -495,3 +422,4 @@ SDRemoveTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable) {
 void mgmtSetTableDirty(STableInfo *pTable, bool isDirty) {
   pTable->dirty = isDirty;
 }
+

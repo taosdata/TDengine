@@ -28,8 +28,8 @@ char *taosMsg[] = {
 
     "remove-table",
     "remove-table-rsp",
-    "vpeers",
-    "vpeers-rsp",
+    "create-vnode",
+    "create-vnode-rsp",
     "free-vnode",
     "free-vnode-rsp",
     "cfg-dnode",

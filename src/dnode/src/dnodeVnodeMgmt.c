@@ -31,11 +31,13 @@ bool dnodeCheckVnodeExist(int32_t vnode) {
   return true;
 }
 
-int32_t dnodeCreateVnode(int32_t vnode, SVPeersMsg *cfg) {
+int32_t dnodeCreateVnode(SCreateVnodeMsg *pVnode) {
+  dPrint("vnode:%d, is created", htonl(pVnode->vnode));
   return 0;
 }
 
 int32_t dnodeDropVnode(int32_t vnode) {
+  dPrint("vnode:%d, is dropped", vnode);
   return 0;
 }
 

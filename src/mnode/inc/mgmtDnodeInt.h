@@ -32,7 +32,7 @@ void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle)
 void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
 void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
-
+void mgmtSendRemoveVgroupMsg(SVgObj *pVgroup, void *ahandle);
 
 extern int32_t (*mgmtInitDnodeInt)();
 extern void    (*mgmtCleanUpDnodeInt)();
