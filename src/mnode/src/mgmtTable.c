@@ -164,7 +164,7 @@ void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t c
     code = mgmtCreateChildTable(pCreate, contLen, pVgroup, sid, &pDCreate, &pTable);
   } else {
     mTrace("table:%s, start to create normal table, vgroup:%d sid:%d", pCreate->tableId, pVgroup->vgId, sid);
-    code = mgmtCreateNormalTable(pCreate, pVgroup, sid, &pDCreate, &pTable);
+    code = mgmtCreateNormalTable(pCreate, contLen, pVgroup, sid, &pDCreate, &pTable);
   }
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -178,31 +178,29 @@ void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t c
 
   SProcessInfo *info = calloc(1, sizeof(SProcessInfo));
   info->type    = TSDB_PROCESS_CREATE_TABLE;
-  info->ahandle = pTable;
   info->thandle = thandle;
+  info->ahandle = pTable;
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
 
   mgmtSendCreateTableMsg(pDCreate, &ipSet, info);
 }
 
-void mgmtCreateTable(SCreateTableMsg *pCreate, int32_t contLen, void *thandle) {
+int32_t mgmtCreateTable(SCreateTableMsg *pCreate, int32_t contLen, void *thandle) {
   SDbObj *pDb = mgmtGetDb(pCreate->db);
   if (pDb == NULL) {
     mError("table:%s, failed to create table, db not selected", pCreate->tableId);
-    rpcSendResponse(thandle, TSDB_CODE_DB_NOT_SELECTED, NULL, 0);
-    return;
+    return TSDB_CODE_DB_NOT_SELECTED;
   }
 
   STableInfo *pTable = mgmtGetTable(pCreate->tableId);
   if (pTable != NULL) {
     if (pCreate->igExists) {
-      mTrace("table:%s, table is alredy exist, think it success", pCreate->tableId);
-      rpcSendResponse(thandle, TSDB_CODE_SUCCESS, NULL, 0);
+      mTrace("table:%s, table is already exist, think it success", pCreate->tableId);
+      return TSDB_CODE_SUCCESS;
     } else {
       mError("table:%s, failed to create table, table already exist", pCreate->tableId);
-      rpcSendResponse(thandle, TSDB_CODE_TABLE_ALREADY_EXIST, NULL, 0);
+      return TSDB_CODE_TABLE_ALREADY_EXIST;
     }
-    return;
   }
 
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
@@ -211,60 +209,70 @@ void mgmtCreateTable(SCreateTableMsg *pCreate, int32_t contLen, void *thandle) {
   int32_t code = mgmtCheckTableLimit(pAcct, pCreate);
   if (code != TSDB_CODE_SUCCESS) {
     mError("table:%s, failed to create table, table num exceed the limit", pCreate->tableId);
-    rpcSendResponse(thandle, code, NULL, 0);
-    return;
+    return code;
   }
 
   if (mgmtCheckExpired()) {
     mError("table:%s, failed to create table, grant expired", pCreate->tableId);
-    rpcSendResponse(thandle, TSDB_CODE_GRANT_EXPIRED, NULL, 0);
-    return;
+    return TSDB_CODE_GRANT_EXPIRED;
   }
 
   if (pCreate->numOfTags != 0) {
-    mTrace("table:%s, start to create super table, tags:%d columns:%d", pCreate->tableId, pCreate->numOfTags, pCreate->numOfColumns);
-    mgmtCreateSuperTable(pDb, pCreate);
-    return;
+    mTrace("table:%s, start to create super table, tags:%d columns:%d",
+        pCreate->tableId, pCreate->numOfTags, pCreate->numOfColumns);
+    return mgmtCreateSuperTable(pDb, pCreate);
   }
 
   code = mgmtCheckTimeSeries(pCreate->numOfColumns);
   if (code != TSDB_CODE_SUCCESS) {
     mError("table:%s, failed to create table, timeseries exceed the limit", pCreate->tableId);
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   SVgObj *pVgroup = mgmtGetAvailableVgroup(pDb);
   if (pVgroup == NULL) {
-    mTrace("table:%s, no avaliable vgroup, start to create a new one", pCreate->tableId, pVgroup->vgId);
+    mTrace("table:%s, no avaliable vgroup, start to create a new one", pCreate->tableId);
     mgmtProcessCreateVgroup(pCreate, contLen, thandle);
   } else {
     mTrace("table:%s, try to create table in vgroup:%d", pCreate->tableId, pVgroup->vgId);
     mgmtProcessCreateTable(pVgroup, pCreate, contLen, thandle);
   }
+
+  return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
 int32_t mgmtDropTable(SDbObj *pDb, char *tableId, int32_t ignore) {
   STableInfo *pTable = mgmtGetTable(tableId);
   if (pTable == NULL) {
     if (ignore) {
+      mTrace("table:%s, table is not exist, think it success", tableId);
       return TSDB_CODE_SUCCESS;
     } else {
+      mError("table:%s, failed to create table, table not exist", tableId);
       return TSDB_CODE_INVALID_TABLE;
     }
   }
 
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    mError("table:%s, failed to create table, in monitor database", tableId);
     return TSDB_CODE_MONITOR_DB_FORBIDDEN;
   }
 
   switch (pTable->type) {
     case TSDB_TABLE_TYPE_SUPER_TABLE:
+      mTrace("table:%s, start to drop super table", tableId);
       return mgmtDropSuperTable(pDb, (SSuperTableObj *) pTable);
     case TSDB_TABLE_TYPE_CHILD_TABLE:
+      mTrace("table:%s, start to drop child table", tableId);
       return mgmtDropChildTable(pDb, (SChildTableObj *) pTable);
     case TSDB_TABLE_TYPE_NORMAL_TABLE:
+      mTrace("table:%s, start to drop normal table", tableId);
+      return mgmtDropNormalTable(pDb, (SNormalTableObj *) pTable);
+    case TSDB_TABLE_TYPE_STREAM_TABLE:
+      mTrace("table:%s, start to drop stream table", tableId);
       return mgmtDropNormalTable(pDb, (SNormalTableObj *) pTable);
     default:
+      mError("table:%s, invalid table type:%d", tableId, pTable->type);
       return TSDB_CODE_INVALID_TABLE;
   }
 }

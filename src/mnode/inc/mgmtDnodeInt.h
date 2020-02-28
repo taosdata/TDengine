@@ -27,10 +27,10 @@ extern "C" {
 extern void *mgmtStatusTimer;
 
 void mgmtSendCreateTableMsg(SDCreateTableMsg *pCreate, SRpcIpSet *ipSet, void *ahandle);
-void mgmtSendRemoveTableMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle);
+void mgmtSendRemoveTableMsg(SDRemoveTableMsg *pRemove, SRpcIpSet *ipSet, void *ahandle);
 void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle);
 void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
-void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *table_info);
+void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
 
 

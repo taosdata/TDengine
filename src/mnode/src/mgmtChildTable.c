@@ -370,18 +370,38 @@ int32_t mgmtCreateChildTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *
 int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
+    mError("table:%s, failed to drop child table, vgroup not exist", pTable->tableId);
     return TSDB_CODE_OTHERS;
   }
 
-//  mgmtSendRemoveTableMsg((STableInfo *) pTable, pVgroup);
+  SDRemoveTableMsg *pRemove = rpcMallocCont(sizeof(SDRemoveTableMsg));
+  if (pRemove == NULL) {
+    mError("table:%s, failed to drop child table, no enough memory", pTable->tableId);
+    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+  }
 
-  sdbDeleteRow(tsChildTableSdb, pTable);
+  pRemove->sid = htonl(pTable->sid);
+  pRemove->uid = htobe64(pTable->uid);
+
+  pRemove->numOfVPeers = htonl(pVgroup->numOfVnodes);
+  for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
+    pRemove->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].ip);
+    pRemove->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+  }
+
+  SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
+  mgmtSendRemoveTableMsg(pRemove, &ipSet, NULL);
+
+  if (sdbDeleteRow(tsChildTableSdb, pTable) < 0) {
+    mError("table:%s, update ctables sdb error", pTable->tableId);
+    return TSDB_CODE_SDB_ERROR;
+  }
 
   if (pVgroup->numOfTables <= 0) {
     mgmtDropVgroup(pDb, pVgroup);
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 void* mgmtGetChildTable(char *tableId) {

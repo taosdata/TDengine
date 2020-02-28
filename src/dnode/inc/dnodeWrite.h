@@ -43,7 +43,7 @@ int32_t dnodeCreateTable(SDCreateTableMsg *pTable);
 /*
  * Remove table from local repository
  */
-int32_t dnodeDropTable(int32_t vnode, int32_t sid, uint64_t uid);
+int32_t dnodeDropTable(SDRemoveTableMsg *pTable);
 
 /*
  * Create stream

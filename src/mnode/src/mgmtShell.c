@@ -782,38 +782,42 @@ void mgmtProcessCreateTableMsg(void *pCont, int32_t contLen, void *ahandle) {
     return;
   }
 
-  mgmtCreateTable(pCreate, contLen, ahandle);
+  int32_t code = mgmtCreateTable(pCreate, contLen, ahandle);
+  if (code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    rpcSendResponse(ahandle, code, NULL, 0);
+  }
 }
 
 void mgmtProcessDropTableMsg(void *pCont, int32_t contLen, void *ahandle) {
+  SDropTableMsg *pDrop = (SDropTableMsg *) pCont;
+
   if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    mError("table:%s, failed to drop table, need redirect message", pDrop->tableId);
     return;
   }
 
   SUserObj *pUser = mgmtGetUserFromConn(ahandle);
   if (pUser == NULL) {
+    mError("table:%s, failed to drop table, invalid user", pDrop->tableId);
     rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
     return;
   }
 
-  SDropTableMsg *pDrop = (SDropTableMsg *) pCont;
-  int32_t code;
-
   if (!pUser->writeAuth) {
-    code = TSDB_CODE_NO_RIGHTS;
-  } else {
-    SDbObj *pDb = mgmtGetDb(pDrop->db);
-    if (pDb) {
-      code = mgmtDropTable(pDb, pDrop->tableId, pDrop->igNotExists);
-      if (code == TSDB_CODE_SUCCESS) {
-        mTrace("table:%s is dropped by user:%s", pDrop->tableId, pUser->user);
-      }
-    } else {
-      code = TSDB_CODE_DB_NOT_SELECTED;
-    }
+    mError("table:%s, failed to drop table, no rights", pDrop->tableId);
+    rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
+    return;
   }
 
-  if (code != TSDB_CODE_SUCCESS) {
+  SDbObj *pDb = mgmtGetDb(pDrop->db);
+  if (pDb == NULL) {
+    mError("table:%s, failed to drop table, db:%s not selected", pDrop->tableId, pDrop->db);
+    rpcSendResponse(ahandle, TSDB_CODE_DB_NOT_SELECTED, NULL, 0);
+    return;
+  }
+
+  int32_t code = mgmtDropTable(pDb, pDrop->tableId, pDrop->igNotExists);
+  if (code != TSDB_CODE_ACTION_IN_PROGRESS) {
     rpcSendResponse(ahandle, code, NULL, 0);
   }
 }

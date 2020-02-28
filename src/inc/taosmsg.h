@@ -329,10 +329,11 @@ typedef struct {
 } SMgmtHead;
 
 typedef struct {
-  short    vnode;
-  int32_t  sid;
-  uint64_t uid;
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  int32_t    sid;
+  int32_t    numOfVPeers;
+  uint64_t   uid;
+  SVPeerDesc vpeerDesc[TSDB_MAX_MPEERS];
+  char       tableId[TSDB_TABLE_ID_LEN + 1];
 } SDRemoveTableMsg;
 
 typedef struct {

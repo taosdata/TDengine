@@ -608,17 +608,6 @@ void mgmtRemoveTableFromSuperTable(SSuperTableObj *pStable) {
   pStable->numOfTables--;
 }
 
-int32_t mgmtGetTagsLength(SSuperTableObj* pSuperTable, int32_t col) {  // length before column col
-  int32_t len = 0;
-  int32_t tagColumnIndexOffset = pSuperTable->numOfColumns;
-
-  for (int32_t i = 0; i < pSuperTable->numOfTags && i < col; ++i) {
-    len += ((SSchema*)pSuperTable->schema)[tagColumnIndexOffset + i].bytes;
-  }
-
-  return len;
-}
-
 int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTable) {
   int32_t numOfCols = pTable->numOfColumns + pTable->numOfTags;
   for (int32_t i = 0; i < numOfCols; ++i) {

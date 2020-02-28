@@ -46,7 +46,6 @@ void *  mgmtGetSuperTableVgroup(SSuperTableObj *pStable);
 
 int32_t mgmtFindSuperTableTagIndex(SSuperTableObj *pTable, const char *tagName);
 int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTable);
-int32_t mgmtGetTagsLength(SSuperTableObj *pSuperTable, int32_t col);
 
 #ifdef __cplusplus
 }
