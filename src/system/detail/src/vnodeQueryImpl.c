@@ -5288,7 +5288,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
   }  // while(1)
 
-  if (isIntervalQuery(pQuery)) {
+  if (isIntervalQuery(pQuery) && IS_MASTER_SCAN(pRuntimeEnv)) {
     if (Q_STATUS_EQUAL(pQuery->over, QUERY_COMPLETED | QUERY_NO_DATA_TO_CHECK)) {
       closeAllTimeWindow(&pRuntimeEnv->windowResInfo);
     } else if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL)) {  // check if window needs to be closed
@@ -6219,15 +6219,25 @@ bool needScanDataBlocksAgain(SQueryRuntimeEnv *pRuntimeEnv) {
       setWindowResOutputBuf(pRuntimeEnv, pResult);
 
       for (int32_t j = 0; j < pQuery->numOfOutputCols; ++j) {
-        aAggs[pQuery->pSelectExpr[j].pBase.functionId].xNextStep(&pRuntimeEnv->pCtx[j]);
+        int16_t functId = pQuery->pSelectExpr[j].pBase.functionId;
+        if (functId == TSDB_FUNC_TS) {
+          continue;
+        }
+        
+        aAggs[functId].xNextStep(&pRuntimeEnv->pCtx[j]);
         SResultInfo *pResInfo = GET_RES_INFO(&pRuntimeEnv->pCtx[j]);
-
+        
         toContinue |= (!pResInfo->complete);
       }
     }
   } else {
     for (int32_t j = 0; j < pQuery->numOfOutputCols; ++j) {
-      aAggs[pQuery->pSelectExpr[j].pBase.functionId].xNextStep(&pRuntimeEnv->pCtx[j]);
+      int16_t functId = pQuery->pSelectExpr[j].pBase.functionId;
+      if (functId == TSDB_FUNC_TS) {
+        continue;
+      }
+      
+      aAggs[functId].xNextStep(&pRuntimeEnv->pCtx[j]);
       SResultInfo *pResInfo = GET_RES_INFO(&pRuntimeEnv->pCtx[j]);
 
       toContinue |= (!pResInfo->complete);
@@ -6243,13 +6253,23 @@ void vnodeScanAllData(SQueryRuntimeEnv *pRuntimeEnv) {
 
   /* store the start query position */
   savePointPosition(&pRuntimeEnv->startPos, pQuery->fileId, pQuery->slot, pQuery->pos);
+  int64_t oldSkey = pQuery->skey;
+  int64_t oldEkey = pQuery->ekey;
+  
   int64_t skey = pQuery->lastKey;
+  int32_t status = pQuery->over;
+  
   SET_MASTER_SCAN_FLAG(pRuntimeEnv);
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
 
   while (1) {
     doScanAllDataBlocks(pRuntimeEnv);
 
     if (!needScanDataBlocksAgain(pRuntimeEnv)) {
+      // restore the status
+      if (pRuntimeEnv->scanFlag == REPEAT_SCAN) {
+        pQuery->over = status;
+      }
       break;
     }
 
@@ -6260,8 +6280,11 @@ void vnodeScanAllData(SQueryRuntimeEnv *pRuntimeEnv) {
     TSKEY key = loadRequiredBlockIntoMem(pRuntimeEnv, &pRuntimeEnv->startPos);
     assert((QUERY_IS_ASC_QUERY(pQuery) && key >= pQuery->skey) || (!QUERY_IS_ASC_QUERY(pQuery) && key <= pQuery->skey));
 
-    setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
+    status = pQuery->over;
+    pQuery->ekey = pQuery->lastKey - step;
     pQuery->lastKey = pQuery->skey;
+    
+    setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
     pRuntimeEnv->scanFlag = REPEAT_SCAN;
 
     /* check if query is killed or not */
@@ -6271,13 +6294,17 @@ void vnodeScanAllData(SQueryRuntimeEnv *pRuntimeEnv) {
     }
   }
 
-  int64_t newSkey = pQuery->skey;
+  // no need to set the end key
+  int64_t curLastKey = pQuery->lastKey;
   pQuery->skey = skey;
-
+  pQuery->ekey = pQuery->lastKey - step;
+  
   doSingleMeterSupplementScan(pRuntimeEnv);
 
   //   update the pQuery->skey/pQuery->ekey to limit the scan scope of sliding query during supplementary scan
-  pQuery->skey = newSkey;
+  pQuery->skey = oldSkey;
+  pQuery->ekey = oldEkey;
+  pQuery->lastKey = curLastKey;
 }
 
 void doFinalizeResult(SQueryRuntimeEnv *pRuntimeEnv) {

@@ -4623,18 +4623,9 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
           return invalidSqlErrMsg(pQueryInfo->msg, msg3);
         }
 
+        // for projection query on super table, all queries are subqueries
         if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-          //        if (pQueryInfo->order.orderColId >= 0) {
-          //          if (pQueryInfo->limit.limit == -1) {
-          //            return invalidSqlErrMsg(pQueryInfo->msg, msg4);
-          //          } else if (pQueryInfo->limit.limit > 10000) { // the result set can not be larger than 10000
-          //            //todo use global config parameter
-          //            return invalidSqlErrMsg(pQueryInfo->msg, msg5);
-          //          }
-          //        }
-
-          pQueryInfo->type |=
-              TSDB_QUERY_TYPE_SUBQUERY;  // for projection query on super table, all queries are subqueries
+          pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
         }
       }
     }
