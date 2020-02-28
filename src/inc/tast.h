@@ -26,6 +26,7 @@ extern "C" {
 
 #include "taosmsg.h"
 #include "ttypes.h"
+#include "os.h"
 
 struct tSQLBinaryExpr;
 struct SSchema;
