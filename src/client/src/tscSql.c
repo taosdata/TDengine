@@ -404,14 +404,14 @@ static char *getArithemicInputSrc(void *param, char *name, int32_t colId) {
   SSqlFunctionExpr *  pExpr = pSupport->pExpr;
 
   int32_t index = -1;
-  for (int32_t i = 0; i < pExpr->pBinExprInfo.numOfCols; ++i) {
-    if (strcmp(name, pExpr->pBinExprInfo.pReqColumns[i].name) == 0) {
+  for (int32_t i = 0; i < pExpr->binExprInfo.numOfCols; ++i) {
+    if (strcmp(name, pExpr->binExprInfo.pReqColumns[i].name) == 0) {
       index = i;
       break;
     }
   }
 
-  assert(index >= 0 && index < pExpr->pBinExprInfo.numOfCols);
+  assert(index >= 0 && index < pExpr->binExprInfo.numOfCols);
   return pSupport->data[index] + pSupport->offset * pSupport->elemSize[index];
 }
 
@@ -428,23 +428,11 @@ static void **doSetResultRowData(SSqlObj *pSql) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
-  //todo refactor move away
-  for(int32_t k = 0; k < pQueryInfo->exprsInfo.numOfExprs; ++k) {
-    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, k);
-    
-    if (k > 0) {
-      SSqlExpr* pPrev = tscSqlExprGet(pQueryInfo, k - 1);
-      pExpr->offset = pPrev->offset + pPrev->resBytes;
-    }
-  }
-  
   int32_t num = 0;
   for (int i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
     if (pQueryInfo->fieldsInfo.pSqlExpr[i] != NULL) {
       SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[i];
       pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pExpr->resBytes * pRes->row;
-    } else {
-      assert(0);
     }
 
     // primary key column cannot be null in interval query, no need to check
@@ -461,21 +449,21 @@ static void **doSetResultRowData(SSqlObj *pSql) {
       sas->offset = 0;
       sas->pExpr = pQueryInfo->fieldsInfo.pExpr[i];
       
-      sas->numOfCols = sas->pExpr->pBinExprInfo.numOfCols;
+      sas->numOfCols = sas->pExpr->binExprInfo.numOfCols;
       
       if (pRes->buffer[i] == NULL) {
         pRes->buffer[i] = malloc(tscFieldInfoGetField(pQueryInfo, i)->bytes);
       }
       
       for(int32_t k = 0; k < sas->numOfCols; ++k) {
-        int32_t columnIndex = sas->pExpr->pBinExprInfo.pReqColumns[k].colIdxInBuf;
+        int32_t columnIndex = sas->pExpr->binExprInfo.pReqColumns[k].colIdxInBuf;
         SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, columnIndex);
         
         sas->elemSize[k] = pExpr->resBytes;
         sas->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
       }
 
-      tSQLBinaryExprCalcTraverse(sas->pExpr->pBinExprInfo.pBinExpr, 1, pRes->buffer[i], sas, TSQL_SO_ASC, getArithemicInputSrc);
+      tSQLBinaryExprCalcTraverse(sas->pExpr->binExprInfo.pBinExpr, 1, pRes->buffer[i], sas, TSQL_SO_ASC, getArithemicInputSrc);
       pRes->tsrow[i] = pRes->buffer[i];
       
       free(sas); //todo optimization

@@ -908,6 +908,9 @@ void tscFieldInfoSetValue(SFieldInfo* pFieldInfo, int32_t index, int8_t type, co
 
   pFieldInfo->pVisibleCols[index] = true;
   pFieldInfo->numOfOutputCols++;
+  
+  pFieldInfo->pExpr[index] = NULL;
+  pFieldInfo->pSqlExpr[index] = NULL;
 }
 
 void tscFieldInfoSetExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlExpr* pExpr) {
@@ -922,33 +925,6 @@ void tscFieldInfoSetBinExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlFunctionE
 
 void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo) {
   SSqlExprInfo* pExprInfo = &pQueryInfo->exprsInfo;
-  pExprInfo->pExprs[0]->offset = 0;
-  
-  for (int32_t i = 1; i < pExprInfo->numOfExprs; ++i) {
-    pExprInfo->pExprs[i]->offset = pExprInfo->pExprs[i - 1]->offset + pExprInfo->pExprs[i - 1]->resBytes;
-  }
-}
-
-void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo) {
-//  SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
-//  if (pFieldInfo->numOfOutputCols == 0) {
-//    return;
-//  }
-//
-//  pFieldInfo->pOffset[0] = 0;
-//
-//  /*
-//   * the retTypeLen is used to store the intermediate result length
-//   * for potential secondary merge exists
-//   */
-//  for (int32_t i = 1; i < pFieldInfo->numOfOutputCols; ++i) {
-//    pFieldInfo->pOffset[i] = pFieldInfo->pOffset[i - 1] + tscSqlExprGet(pQueryInfo, i - 1)->resBytes;
-//  }
-  SSqlExprInfo* pExprInfo = &pQueryInfo->exprsInfo;
-  if (pExprInfo->numOfExprs == 0) {
-    return;
-  }
-  
   pExprInfo->pExprs[0]->offset = 0;
   
   for (int32_t i = 1; i < pExprInfo->numOfExprs; ++i) {
@@ -1049,10 +1025,11 @@ void tscClearFieldInfo(SFieldInfo* pFieldInfo) {
   tfree(pFieldInfo->pSqlExpr);
   
   for(int32_t i = 0; i < pFieldInfo->numOfOutputCols; ++i) {
-    if (pFieldInfo->pExpr[i] != NULL) {
-      tSQLBinaryExprDestroy(&pFieldInfo->pExpr[i]->pBinExprInfo.pBinExpr, NULL);
-      tfree(pFieldInfo->pExpr[i]->pBinExprInfo.pReqColumns);
-      tfree(pFieldInfo->pExpr[i]);
+    SSqlFunctionExpr* pExpr = pFieldInfo->pExpr[i];
+    if (pExpr != NULL) {
+      tSQLBinaryExprDestroy(&pExpr->binExprInfo.pBinExpr, NULL);
+      tfree(pExpr->binExprInfo.pReqColumns);
+      tfree(pExpr);
     }
   }
   
@@ -2042,8 +2019,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
         }
       }
     }
-    
-    tscFieldInfoUpdateOffsetForInterResult(pNewQueryInfo);
+  
+    tscFieldInfoCalOffset(pNewQueryInfo);
   }
 
   pNew->fp = fp;

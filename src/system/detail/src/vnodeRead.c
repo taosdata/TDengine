@@ -453,7 +453,7 @@ void vnodeFreeQInfo(void *param, bool decQueryRef) {
 
   if (pQuery->pSelectExpr != NULL) {
     for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-      SSqlBinaryExprInfo *pBinExprInfo = &pQuery->pSelectExpr[i].pBinExprInfo;
+      SSqlBinaryExprInfo *pBinExprInfo = &pQuery->pSelectExpr[i].binExprInfo;
 
       if (pBinExprInfo->numOfCols > 0) {
         tfree(pBinExprInfo->pReqColumns);
