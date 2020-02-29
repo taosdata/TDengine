@@ -399,7 +399,6 @@ static void doCloseQueryFiles(SQueryFilesInfo *pVnodeFileInfo) {
     assert(pVnodeFileInfo->current < pVnodeFileInfo->numOfFiles && pVnodeFileInfo->current >= 0);
 
     pVnodeFileInfo->headerFileSize = -1;
-
     doCloseQueryFileInfoFD(pVnodeFileInfo);
   }
 
@@ -458,11 +457,12 @@ static int vnodeGetCompBlockInfo(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntim
   SHeaderFileInfo *pHeadeFileInfo = &pRuntimeEnv->vnodeFileInfo.pFileInfo[fileIndex];
 
   int64_t st = taosGetTimestampUs();
-
-  if (vnodeIsCompBlockInfoLoaded(pRuntimeEnv, pMeterObj, fileIndex)) {
+  
+  // if the corresponding data/header files are already closed, re-open them here
+  if (vnodeIsCompBlockInfoLoaded(pRuntimeEnv, pMeterObj, fileIndex) &&
+      pRuntimeEnv->vnodeFileInfo.current == fileIndex) {
     dTrace("QInfo:%p vid:%d sid:%d id:%s, fileId:%d compBlock info is loaded, not reload", GET_QINFO_ADDR(pQuery),
            pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pHeadeFileInfo->fileID);
-
     return pQuery->numOfBlocks;
   }
 
