@@ -40,12 +40,12 @@ typedef struct {
   char            label[12];  // copy from udpConnSet;
   pthread_t       thread;
   pthread_mutex_t mutex;
-  void *          tmrCtrl;  // copy from UdpConnSet;
-  void *          hash;
-  void *          shandle;  // handle passed by upper layer during server initialization
-  void *          pSet;
-  void            *(*processData)(SRecvInfo *pRecv);
-  char            buffer[RPC_MAX_UDP_SIZE];  // buffer to receive data
+  void           *tmrCtrl;  // copy from UdpConnSet;
+  void           *hash;
+  void           *shandle;  // handle passed by upper layer during server initialization
+  void           *pSet;
+  void         *(*processData)(SRecvInfo *pRecv);
+  char           *buffer;  // buffer to receive data
 } SUdpConn;
 
 typedef struct {
@@ -96,15 +96,15 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
   pSet->fp = fp;
   strcpy(pSet->label, label);
 
-  //  if ( tsUdpDelay ) {
-  char udplabel[12];
-  sprintf(udplabel, "%s.b", label);
-  pSet->tmrCtrl = taosTmrInit(RPC_MAX_UDP_CONNS * threads, 5, 5000, udplabel);
-  if (pSet->tmrCtrl == NULL) {
-    tError("%s failed to initialize tmrCtrl") taosCleanUpUdpConnection(pSet);
-    return NULL;
+  if ( tsUdpDelay ) {
+    char udplabel[12];
+    sprintf(udplabel, "%s.b", label);
+    pSet->tmrCtrl = taosTmrInit(RPC_MAX_UDP_CONNS * threads, 5, 5000, udplabel);
+    if (pSet->tmrCtrl == NULL) {
+      tError("%s failed to initialize tmrCtrl") taosCleanUpUdpConnection(pSet);
+      return NULL;
+    }
   }
-  //  }
 
   pthread_attr_init(&thAttr);
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
@@ -120,6 +120,13 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
       return NULL;
     }
 
+    pConn->buffer = malloc(RPC_MAX_UDP_SIZE);
+    if (NULL == pConn->buffer) {
+      tError("%s failed to malloc recv buffer", label);
+      taosCleanUpUdpConnection(pSet);
+      return NULL;
+    }
+
     struct sockaddr_in sin;
     unsigned int       addrlen = sizeof(sin);
     if (getsockname(pConn->fd, (struct sockaddr *)&sin, &addrlen) == 0 && sin.sin_family == AF_INET &&
@@ -128,14 +135,6 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
     }
 
     strcpy(pConn->label, label);
-
-    if (pthread_create(&pConn->thread, &thAttr, taosRecvUdpData, pConn) != 0) {
-      tError("%s failed to create thread to process UDP data, reason:%s", label, strerror(errno));
-      taosCloseSocket(pConn->fd);
-      taosCleanUpUdpConnection(pSet);
-      return NULL;
-    }
-
     pConn->shandle = shandle;
     pConn->processData = fp;
     pConn->index = i;
@@ -146,6 +145,14 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
       pthread_mutex_init(&pConn->mutex, NULL);
       pConn->tmrCtrl = pSet->tmrCtrl;
     }
+
+    if (pthread_create(&pConn->thread, &thAttr, taosRecvUdpData, pConn) != 0) {
+      tError("%s failed to create thread to process UDP data, reason:%s", label, strerror(errno));
+      taosCloseSocket(pConn->fd);
+      taosCleanUpUdpConnection(pSet);
+      return NULL;
+    }
+
     ++pSet->threads;
   }
 
@@ -164,6 +171,7 @@ void taosCleanUpUdpConnection(void *handle) {
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
     pConn->signature = NULL;
+    free(pConn->buffer);
     pthread_cancel(pConn->thread);
     taosCloseSocket(pConn->fd);
     if (pConn->hash) {
@@ -210,7 +218,7 @@ static void *taosRecvUdpData(void *param) {
   tTrace("%s UDP thread is created, index:%d", pConn->label, pConn->index);
 
   while (1) {
-    dataLen = recvfrom(pConn->fd, pConn->buffer, sizeof(pConn->buffer), 0, (struct sockaddr *)&sourceAdd, &addLen);
+    dataLen = recvfrom(pConn->fd, pConn->buffer, RPC_MAX_UDP_SIZE, 0, (struct sockaddr *)&sourceAdd, &addLen);
     tTrace("%s msg is recv from 0x%x:%hu len:%d", pConn->label, sourceAdd.sin_addr.s_addr, ntohs(sourceAdd.sin_port),
            dataLen);
 
@@ -235,9 +243,15 @@ static void *taosRecvUdpData(void *param) {
         break;
       }
 
-      char *data = malloc((size_t)msgLen);
-      memcpy(data, msg, (size_t)msgLen);
-      recvInfo.msg = data;
+      char *tmsg = malloc((size_t)msgLen + tsRpcOverhead);
+      if (NULL == tmsg) {
+        tError("%s failed to allocate memory, size:%d", pConn->label, msgLen);
+        break;
+      }
+
+      tmsg += tsRpcOverhead;  // overhead for SRpcReqContext
+      memcpy(tmsg, msg, (size_t)msgLen);
+      recvInfo.msg = tmsg;
       recvInfo.msgLen = msgLen;
       recvInfo.ip = sourceAdd.sin_addr.s_addr;
       recvInfo.port = port;

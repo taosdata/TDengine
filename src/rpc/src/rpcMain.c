@@ -126,6 +126,7 @@ int tsRpcProgressTime = 10;  // milliseocnds
 // not configurable
 int tsRpcMaxRetry;
 int tsRpcHeadSize;
+int tsRpcOverhead;
 
 // server:0 client:1  tcp:2 udp:0
 #define RPC_CONN_UDPS   0
@@ -188,7 +189,7 @@ static void  rpcProcessRetryTimer(void *, void *);
 static void  rpcProcessIdleTimer(void *param, void *tmrId);
 static void  rpcProcessProgressTimer(void *param, void *tmrId);
 
-static void  rpcFreeOutMsg(void *msg);
+static void  rpcFreeMsg(void *msg);
 static int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen);
 static SRpcHead *rpcDecompressRpcMsg(SRpcHead *pHead);
 static int   rpcAddAuthPart(SRpcConn *pConn, char *msg, int msgLen);
@@ -201,6 +202,7 @@ void *rpcOpen(SRpcInit *pInit) {
 
   tsRpcMaxRetry = tsRpcMaxTime * 1000 / tsRpcProgressTime;
   tsRpcHeadSize = RPC_MSG_OVERHEAD; 
+  tsRpcOverhead = sizeof(SRpcReqContext);
 
   pRpc = (SRpcInfo *)calloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) return NULL;
@@ -313,8 +315,8 @@ void *rpcMallocCont(int contLen) {
 
 void rpcFreeCont(void *cont) {
   if ( cont ) {
-    char *msg = ((char *)cont) - sizeof(SRpcHead);
-    free(msg);
+    char *temp = ((char *)cont) - sizeof(SRpcHead) - sizeof(SRpcReqContext);
+    free(temp);
   }
 }
 
@@ -351,7 +353,7 @@ void rpcSendRequest(void *shandle, SRpcIpSet *pIpSet, char type, void *pCont, in
   pContext->oldInUse = pIpSet->inUse;
 
   pContext->connType = RPC_CONN_UDPC; 
-  if (contLen > 16000) pContext->connType = RPC_CONN_TCPC;
+  if (contLen > tsRpcMaxUdpSize) pContext->connType = RPC_CONN_TCPC;
 
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
@@ -406,7 +408,7 @@ void rpcSendResponse(void *handle, int32_t code, void *pCont, int contLen) {
   pConn->inType = 0;
 
   // response message is released until new response is sent
-  rpcFreeOutMsg(pConn->pRspMsg); 
+  rpcFreeMsg(pConn->pRspMsg); 
   pConn->pRspMsg = msg;
   pConn->rspMsgLen = msgLen;
   if (pHead->content[0] == TSDB_CODE_ACTION_IN_PROGRESS) pConn->inTranId--;
@@ -442,6 +444,13 @@ void rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
 
   assert(pConn->user[0]);
   strcpy(pInfo->user, pConn->user);
+}
+
+static void rpcFreeMsg(void *msg) {
+  if ( msg ) {
+    char *temp = (char *)msg - sizeof(SRpcReqContext);
+    free(temp);
+  }
 }
 
 static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerIpStr, uint16_t peerPort, int8_t connType) {
@@ -492,7 +501,7 @@ static void rpcCloseConn(void *thandle) {
       char hashstr[40] = {0};
       sprintf(hashstr, "%x:%x:%x:%d", pConn->peerIp, pConn->peerUid, pConn->peerId, pConn->connType);
       taosDeleteStrHash(pRpc->hash, hashstr);
-      rpcFreeOutMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
+      rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
       pConn->pRspMsg = NULL;
       pConn->inType = 0;
       pConn->inTranId = 0;
@@ -804,7 +813,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   pConn = rpcProcessMsgHead(pRpc, pRecv);
 
   if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16)) {
-    tTrace("%s %p, %s received from 0x%x:%hu, parse code:%x len:%d source:0x%08x dest:0x%08x tranId:%d port:%hu",
+    tTrace("%s %p, %s received from 0x%x:%hu, parse code:%x len:%d sig:0x%08x:0x%08x:%d",
         pRpc->label, pConn, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, 
         pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId, pHead->port);
   }
@@ -824,7 +833,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
     }
   }
 
-  if ( terrno ) free (pRecv->msg);
+  if (terrno) rpcFreeMsg(pRecv->msg);
   return pConn;
 }
 
@@ -858,7 +867,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
       if ( pRpc->ufp && (pContext->ipSet.inUse != pContext->oldInUse || pContext->redirect) ) 
         (*pRpc->ufp)(pContext->ahandle, &pContext->ipSet);  // notify the update of ipSet
       (*pRpc->cfp)(pHead->msgType, pCont, contLen, pContext->ahandle, code);
-      rpcFreeOutMsg(rpcHeadFromCont(pContext->pCont)); // free the request msg
+      rpcFreeCont(pContext->pCont); // free the request msg
     }
   }
 }
@@ -972,12 +981,12 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
 
   if ( rpcIsReq(pHead->msgType)) {
     if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16))
-      tTrace("%s %p, %s is sent to %s:%hu, len:%d source:0x%08x dest:0x%08x tranId:%d",
+      tTrace("%s %p, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d",
              pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerIpstr,
              pConn->peerPort, msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   } else {
     if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16))
-      tTrace( "%s %p, %s is sent to %s:%hu, code:%u len:%d source:0x%08x dest:0x%08x tranId:%d",
+      tTrace( "%s %p, %s is sent to %s:%hu, code:%u len:%d sig:0x%08x:0x%08x:%d",
           pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerIpstr, pConn->peerPort, 
           (uint8_t)pHead->content[0], msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
@@ -999,8 +1008,8 @@ static void rpcProcessConnError(void *param, void *id) {
   tTrace("%s connection error happens", pRpc->label);
 
   if ( pContext->numOfTry >= pContext->ipSet.numOfIps ) {
-    rpcFreeOutMsg(rpcHeadFromCont(pContext->pCont)); // free the request msg
     (*(pRpc->cfp))(pContext->msgType+1, NULL, 0, pContext->ahandle, pContext->code);  
+    rpcFreeCont(pContext->pCont); // free the request msg
   } else {
     // move to next IP 
     pContext->ipSet.inUse++;
@@ -1130,7 +1139,8 @@ static SRpcHead *rpcDecompressRpcMsg(SRpcHead *pHead) {
     int contLen = htonl(pComp->contLen);
   
     // prepare the temporary buffer to decompress message
-    pNewHead = (SRpcHead *)malloc(contLen + RPC_MSG_OVERHEAD);
+    char *temp = (char *)malloc(contLen + RPC_MSG_OVERHEAD);
+    pNewHead = (SRpcHead *)(temp + sizeof(SRpcReqContext)); // reserve SRpcReqContext
   
     if (pNewHead) {
       int compLen = rpcContLenFromMsg(pHead->msgLen) - overhead;
@@ -1139,7 +1149,7 @@ static SRpcHead *rpcDecompressRpcMsg(SRpcHead *pHead) {
     
       memcpy(pNewHead, pHead, sizeof(SRpcHead));
       pNewHead->msgLen = rpcMsgLenFromCont(origLen);
-      free(pHead); // free the compressed message buffer
+      rpcFreeMsg(pHead); // free the compressed message buffer
       pHead = pNewHead; 
       tTrace("decompress rpc msg, compLen:%d, after:%d", compLen, contLen);
     } else {
