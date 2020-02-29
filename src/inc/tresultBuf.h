@@ -88,7 +88,7 @@ int32_t getNumOfResultBufGroupId(SQueryDiskbasedResultBuf* pResultBuf);
  * destroy result buffer
  * @param pResultBuf
  */
-void destroyResultBuf(SQueryDiskbasedResultBuf* pResultBuf);
+void destroyDiskbasedResultBuf(SQueryDiskbasedResultBuf* pResultBuf);
 
 /**
  *

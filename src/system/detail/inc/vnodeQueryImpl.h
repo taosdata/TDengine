@@ -277,9 +277,9 @@ void copyTimeWindowResBuf(SQueryRuntimeEnv* pRuntimeEnv, SWindowResult* dst, con
 int32_t initWindowResInfo(SWindowResInfo* pWindowResInfo, SQueryRuntimeEnv* pRuntimeEnv, int32_t size,
                           int32_t threshold, int16_t type);
 
-void    cleanupTimeWindowInfo(SWindowResInfo* pWindowResInfo, SQueryRuntimeEnv* pRuntimeEnv);
+void    cleanupTimeWindowInfo(SWindowResInfo* pWindowResInfo, int32_t numOfCols);
 void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SWindowResInfo* pWindowResInfo);
-void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num);
+void    clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num);
 
 void    clearClosedTimeWindow(SQueryRuntimeEnv* pRuntimeEnv);
 int32_t numOfClosedTimeWindow(SWindowResInfo* pWindowResInfo);
