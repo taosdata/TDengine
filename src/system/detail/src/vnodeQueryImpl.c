@@ -1740,7 +1740,8 @@ static void doBlockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SWindowStat
       pCtx[k].nStartQueryTimestamp = pWin->skey;
       pCtx[k].size = forwardStep;
       pCtx[k].startOffset = (QUERY_IS_ASC_QUERY(pQuery)) ? startPos : startPos - (forwardStep - 1);
-
+      pCtx[k].ptsList = (TSKEY *)((char*)pRuntimeEnv->primaryColBuffer->data + pCtx[k].startOffset * TSDB_KEYSIZE);
+  
       int32_t functionId = pQuery->pSelectExpr[k].pBase.functionId;
       if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
         aAggs[functionId].xFunction(&pCtx[k]);
@@ -2041,7 +2042,7 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   return TSDB_CODE_SUCCESS;
 }
 
-void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRuntimeEnv) {
+void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo, int32_t numOfCols) {
   if (pWindowResInfo == NULL || pWindowResInfo->capacity == 0) {
     assert(pWindowResInfo->hashList == NULL && pWindowResInfo->pResult == NULL);
     return;
@@ -2049,7 +2050,7 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRu
 
   for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
     SWindowResult *pResult = &pWindowResInfo->pResult[i];
-    destroyTimeWindowRes(pResult, pRuntimeEnv->pQuery->numOfOutputCols);
+    destroyTimeWindowRes(pResult, numOfCols);
   }
 
   taosCleanUpHashTable(pWindowResInfo->hashList);
@@ -2854,16 +2855,18 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
     return;
   }
 
-  dTrace("QInfo:%p teardown runtime env", GET_QINFO_ADDR(pRuntimeEnv->pQuery));
-  for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfCols; ++i) {
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  
+  dTrace("QInfo:%p teardown runtime env", GET_QINFO_ADDR(pQuery));
+  for (int32_t i = 0; i < pQuery->numOfCols; ++i) {
     tfree(pRuntimeEnv->colDataBuffer[i]);
   }
 
   tfree(pRuntimeEnv->secondaryUnzipBuffer);
-  cleanupTimeWindowInfo(&pRuntimeEnv->windowResInfo, pRuntimeEnv);
+  cleanupTimeWindowInfo(&pRuntimeEnv->windowResInfo, pQuery->numOfOutputCols);
 
   if (pRuntimeEnv->pCtx != NULL) {
-    for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutputCols; ++i) {
+    for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
       SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
 
       for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
@@ -2881,7 +2884,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   tfree(pRuntimeEnv->unzipBuffer);
 
-  if (pRuntimeEnv->pQuery && (!PRIMARY_TSCOL_LOADED(pRuntimeEnv->pQuery))) {
+  if (pQuery && (!PRIMARY_TSCOL_LOADED(pQuery))) {
     tfree(pRuntimeEnv->primaryColBuffer);
   }
 
@@ -2895,7 +2898,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   taosDestoryInterpoInfo(&pRuntimeEnv->interpoInfo);
 
   if (pRuntimeEnv->pInterpoBuf != NULL) {
-    for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutputCols; ++i) {
+    for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
       tfree(pRuntimeEnv->pInterpoBuf[i]);
     }
 
@@ -5869,10 +5872,13 @@ int32_t doMergeMetersResultsToGroupRes(STableQuerySupportObj *pSupporter, SQuery
   tfree(pTree);
   tfree(pTableList);
   tfree(posList);
-  tfree(pResultInfo);
 
   pSupporter->offset = 0;
-
+  for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+    tfree(pResultInfo[i].interResultBuf);
+  }
+  
+  tfree(pResultInfo);
   return pSupporter->numOfGroupResultPages;
 }
 
@@ -6626,13 +6632,8 @@ void destroyMeterQueryInfo(SMeterQueryInfo *pMeterQueryInfo, int32_t numOfCols) 
   if (pMeterQueryInfo == NULL) {
     return;
   }
-
-  //  free(pMeterQueryInfo->pageList);
-  //  for (int32_t i = 0; i < numOfCols; ++i) {
-  //    tfree(pMeterQueryInfo->[i].interResultBuf);
-  //  }
-
-  //  free(pMeterQueryInfo->resultInfo);
+  
+  cleanupTimeWindowInfo(&pMeterQueryInfo->windowResInfo, numOfCols);
   free(pMeterQueryInfo);
 }
 
