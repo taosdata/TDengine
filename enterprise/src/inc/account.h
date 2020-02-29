@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_MNODE_ACCOUNT_H
-#define TDENGINE_MODULE_MNODE_ACCOUNT_H
+#ifndef TDENGINE_PLUGIN_ACCOUNT_H
+#define TDENGINE_PLUGIN_ACCOUNT_H
 
 #ifdef __cplusplus
 extern "C" {
