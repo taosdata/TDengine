@@ -585,7 +585,7 @@ static void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, int64_t StartQue
 
 void createQueryResultInfo(SQuery *pQuery, SWindowResult *pResultRow, bool isSTableQuery, SPosInfo *posInfo);
 
-static void destroyTimeWindowRes(SWindowResult *pOneOutputRes, int32_t nOutputCols);
+static void destroyTimeWindowRes(SWindowResult *pWindowRes, int32_t nOutputCols);
 
 static int32_t binarySearchForBlockImpl(SCompBlock *pBlock, int32_t numOfBlocks, TSKEY skey, int32_t order) {
   int32_t firstSlot = 0;
@@ -2020,10 +2020,6 @@ static bool needToLoadDataBlock(SQuery *pQuery, SField *pField, SQLFunctionCtx *
 
 int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t size,
                           int32_t threshold, int16_t type) {
-  if (size < threshold) {
-    size = threshold;
-  }
-
   pWindowResInfo->capacity = size;
   pWindowResInfo->threshold = threshold;
 
@@ -2037,7 +2033,7 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
 
   // use the pointer arraylist
   pWindowResInfo->pResult = calloc(threshold, sizeof(SWindowResult));
-  for (int32_t i = 0; i < threshold; ++i) {
+  for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
     SPosInfo posInfo = {-1, -1};
     createQueryResultInfo(pRuntimeEnv->pQuery, &pWindowResInfo->pResult[i], pRuntimeEnv->stableQuery, &posInfo);
   }
@@ -2051,7 +2047,7 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRu
     return;
   }
 
-  for (int32_t i = 0; i < pWindowResInfo->size; ++i) {
+  for (int32_t i = 0; i < pWindowResInfo->capacity; ++i) {
     SWindowResult *pResult = &pWindowResInfo->pResult[i];
     destroyTimeWindowRes(pResult, pRuntimeEnv->pQuery->numOfOutputCols);
   }
@@ -2905,7 +2901,8 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
     tfree(pRuntimeEnv->pInterpoBuf);
   }
-
+  
+  destroyDiskbasedResultBuf(pRuntimeEnv->pResultBuf);
   pRuntimeEnv->pTSBuf = tsBufDestory(pRuntimeEnv->pTSBuf);
 }
 
@@ -4516,19 +4513,19 @@ static void allocMemForInterpo(STableQuerySupportObj *pSupporter, SQuery *pQuery
 
 static int32_t getInitialPageNum(STableQuerySupportObj *pSupporter) {
   SQuery *pQuery = pSupporter->runtimeEnv.pQuery;
-
+  int32_t INITIAL_RESULT_ROWS_VALUE = 16;
+  
   int32_t num = 0;
 
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr)) {
     num = 128;
   } else if (isIntervalQuery(pQuery)) {  // time window query, allocate one page for each table
-    num = pSupporter->numOfMeters;
+    num = MAX(pSupporter->numOfMeters, INITIAL_RESULT_ROWS_VALUE);
   } else {  // for super table query, one page for each subset
     num = pSupporter->pSidSet->numOfSubSet;
   }
 
   assert(num > 0);
-
   return num;
 }
 
@@ -4826,20 +4823,6 @@ void vnodeQueryFreeQInfoEx(SQInfo *pQInfo) {
   if (pSupporter->pMetersHashTable != NULL) {
     taosCleanUpHashTable(pSupporter->pMetersHashTable);
     pSupporter->pMetersHashTable = NULL;
-  }
-
-  if (pSupporter->pSidSet != NULL || isGroupbyNormalCol(pQInfo->query.pGroupbyExpr) ||
-      isIntervalQuery(pQuery)) {
-    int32_t size = 0;
-    if (isGroupbyNormalCol(pQInfo->query.pGroupbyExpr) || isIntervalQuery(pQuery)) {
-      size = 10000;
-    } else if (pSupporter->pSidSet != NULL) {
-      size = pSupporter->pSidSet->numOfSubSet;
-    }
-
-    for (int32_t i = 0; i < size; ++i) {
-      //      destroyTimeWindowRes(&pSupporter->pResult[i], pQInfo->query.numOfOutputCols);
-    }
   }
 
   tSidSetDestroy(&pSupporter->pSidSet);

@@ -189,7 +189,7 @@ SIDList getDataBufPagesIdList(SQueryDiskbasedResultBuf* pResultBuf, int32_t grou
   }
 }
 
-void destroyResultBuf(SQueryDiskbasedResultBuf* pResultBuf) {
+void destroyDiskbasedResultBuf(SQueryDiskbasedResultBuf* pResultBuf) {
   if (pResultBuf == NULL) {
     return;
   }
