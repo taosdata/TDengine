@@ -1,13 +1,13 @@
-#ifndef TDENGINE_TTIER_H
-#define TDENGINE_TTIER_H
+#ifndef TDENGINE_STORAGE_TIER_H
+#define TDENGINE_STORAGE_TIER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <pthread.h>
 #include <stdint.h>
-
+#include <stdbool.h>
+#include <pthread.h>
 #include "taosdef.h"
 
 #define TIERID int8_t
@@ -15,7 +15,6 @@ extern "C" {
 
 #define TSDB_MAX_TIER 3
 #define TSDB_MAX_TIER_MOUNT 16
-#define TSDB_FREE_DISK_LIMIT 268435456  // 256M
 
 typedef struct {
   TIERID tid;  // tier ID
@@ -24,9 +23,9 @@ typedef struct {
 
 typedef struct {
   SDiskID diskId;
-  int32_t numOfFiles;  // number of files on this disk
-  char    path[TSDB_FILENAME_LEN];
+  int32_t numOfFiles;      // number of files on this disk
   int64_t availableSpace;  // available spaces on this mount point in bytes.
+  char    path[TSDB_FILENAME_LEN];
 } SDisk;
 
 typedef struct {
@@ -35,32 +34,21 @@ typedef struct {
 } STier;
 
 typedef struct {
+  int8_t numOfTiers;
+  STier  tiers[TSDB_MAX_TIER];
+  void  *diskHash;  // Hash list to decide if a disk is added more than one time.
   pthread_mutex_t tierMutex;
-  int8_t          numOfTiers;
-  STier           tiers[TSDB_MAX_TIER];
-  void *          diskHash;  // Hash list to decide if a disk is added more than one time.
 } STierInfo;
 
-extern STierInfo diskTier;
+extern STierInfo tsStorageDiskTier;
 
-bool taosValidTierInfo();
-
-int taosInitTier();
-
-int taosAddMountPoint(char *path, TIERID tierid);
-
-DISKID taosAllocDiskOnTier(TIERID tierid);
-
-SDisk *taosGetDiskByID(TIERID tid, DISKID did);
-
-SDisk *taosGetDiskByPath(char *path);
-
-SDisk *taosGetDiskFromHeadFile(char *headFile);
-
-void taosPrintTierInfo();
+bool    storageValidTierInfo();
+int32_t storageAllocDiskTier();
+int32_t storageAddMountPoint(char *path, TIERID tierid);
+SDisk * storageGetDiskByID(TIERID tid, DISKID did);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TTIER_H
+#endif

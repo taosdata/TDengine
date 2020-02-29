@@ -20,10 +20,18 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+#include <stdbool.h>
+
 void storageInit();
 
-extern void (*tsReadStorageConfig)();
+// config storage
+extern bool (*tsReadStorageConfig)();
 extern void (*tsPrintStorageConfig)();
+
+// init & clean storage
+extern int32_t (*dnodeInitStorage)();
+extern void (*dnodeCleanupStorage)();
 
 #ifdef __cplusplus
 }

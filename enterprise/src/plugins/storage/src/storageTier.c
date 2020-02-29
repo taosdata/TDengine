@@ -13,22 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
 #include "shash.h"
 #include "tlog.h"
 #include "tutil.h"
-#include "mstorageTier.h"
+#include "storageTier.h"
 
-STierInfo diskTier;
+STierInfo tsStorageDiskTier;
 
-int taosInitTier() {
-  memset(&diskTier, 0, sizeof(STierInfo));
-  pthread_mutex_init(&diskTier.tierMutex, NULL);
+int32_t storageAllocDiskTier() {
+  memset(&tsStorageDiskTier, 0, sizeof(STierInfo));
+  pthread_mutex_init(&tsStorageDiskTier.tierMutex, NULL);
 
-  // TODO : Change the taosHashString function here to be a correct hash
-  // function
-  diskTier.diskHash = taosInitStrHash(TSDB_MAX_TIER_MOUNT * TSDB_MAX_TIER, sizeof(SDiskID), taosHashString);
-  if (diskTier.diskHash == NULL) {
+  tsStorageDiskTier.diskHash = taosInitStrHash(TSDB_MAX_TIER_MOUNT * TSDB_MAX_TIER, sizeof(SDiskID), taosHashString);
+  if (tsStorageDiskTier.diskHash == NULL) {
     pError("failed to init disk tier hash");
     return -1;
   }
@@ -36,46 +35,43 @@ int taosInitTier() {
   return 0;
 }
 
-SDisk *taosGetDiskByID(TIERID tid, DISKID did) {
-  if (tid >= TSDB_MAX_TIER || did >= diskTier.tiers[tid].numOfDisks) return NULL;
+SDisk *storageGetDiskByID(TIERID tid, DISKID did) {
+  if (tid >= TSDB_MAX_TIER || did >= tsStorageDiskTier.tiers[tid].numOfDisks) {
+    return NULL;
+  }
 
-  return diskTier.tiers[tid].disks[did];
+  return tsStorageDiskTier.tiers[tid].disks[did];
 }
 
-SDisk *taosGetDiskByPath(char *path) {
+SDisk *storageGetDiskByPath(char *path) {
   char dPath[TSDB_FILENAME_LEN] = "\0";
-
   strcpy(dPath, path);
 
-  SDiskID *diskId = (SDiskID *)taosGetStrHashData(diskTier.diskHash, dPath);
-
+  SDiskID *diskId = (SDiskID *)taosGetStrHashData(tsStorageDiskTier.diskHash, dPath);
   if (diskId == NULL) return NULL;
 
-  return taosGetDiskByID(diskId->tid, diskId->did);
+  return storageGetDiskByID(diskId->tid, diskId->did);
 }
 
-int getDiskInfo(SDisk *disk) {
+int32_t storageGetDiskInfo(SDisk *disk) {
   assert(disk != NULL);
 
   struct statvfs diskStat;
-
   if (statvfs(disk->path, &diskStat) < 0) {
     pError("failed to get disk info, path: %s numOfFiles: %d", disk->path, disk->numOfFiles);
     return -1;
   }
 
   disk->availableSpace = diskStat.f_bfree * diskStat.f_bsize;
-
   return 0;
 }
 
-int taosAddMountPoint(char *path, TIERID tierid) {
+int32_t storageAddMountPoint(char *path, TIERID tierid) {
   SDisk *   disk = NULL;
   wordexp_t full_path;
   SDiskID   diskId;
-  int       old_uDebugFlag = uDebugFlag;
+  int32_t   old_uDebugFlag = uDebugFlag;
 
-  // Supress UTL debug information
   uDebugFlag = 131;
 
   // -1 means tid = 0 and did = 0
@@ -87,7 +83,7 @@ int taosAddMountPoint(char *path, TIERID tierid) {
   }
 
   if (tierid == -1) {
-    if (taosGetDiskByID(0, 0) != NULL) {
+    if (storageGetDiskByID(0, 0) != NULL) {
       pError("Failed to add path %s since tid 0 and did 0 disk already there", path);
       uDebugFlag = old_uDebugFlag;
       return -1;
@@ -108,8 +104,7 @@ int taosAddMountPoint(char *path, TIERID tierid) {
     }
   }
 
-  // check if path is a valid path (if path exists and if it already added in
-  // tiers)
+  // check if path is a valid path (if path exists and if it already added in tiers)
   if (wordexp(path, &full_path, 0) != 0) {
     pError("Invalid path %s", path);
     uDebugFlag = old_uDebugFlag;
@@ -125,7 +120,7 @@ int taosAddMountPoint(char *path, TIERID tierid) {
     return -1;
   }
 
-  if (diskTier.tiers[tierid].numOfDisks >= TSDB_MAX_TIER_MOUNT) {
+  if (tsStorageDiskTier.tiers[tierid].numOfDisks >= TSDB_MAX_TIER_MOUNT) {
     pError("tier %s is full, failed to add mount point %s", tierid, path);
     wordfree(&full_path);
     uDebugFlag = old_uDebugFlag;
@@ -141,52 +136,52 @@ int taosAddMountPoint(char *path, TIERID tierid) {
   strcpy(disk->path, full_path.we_wordv[0]);
   wordfree(&full_path);
 
-  if (taosGetStrHashData(diskTier.diskHash, disk->path) != NULL) {
+  if (taosGetStrHashData(tsStorageDiskTier.diskHash, disk->path) != NULL) {
     pError("failed to add path %s to tier %d since it is already there", path, tierid);
     tfree(disk);
     uDebugFlag = old_uDebugFlag;
     return -1;
   }
 
-  diskId = (SDiskID){.tid = tierid, .did = diskTier.tiers[tierid].numOfDisks};
+  diskId = (SDiskID){.tid = tierid, .did = tsStorageDiskTier.tiers[tierid].numOfDisks};
 
-  taosAddStrHash(diskTier.diskHash, disk->path, (char *)(&diskId));
+  taosAddStrHash(tsStorageDiskTier.diskHash, disk->path, (char *)(&diskId));
 
-  if (diskTier.tiers[tierid].numOfDisks == 0) diskTier.numOfTiers++;
+  if (tsStorageDiskTier.tiers[tierid].numOfDisks == 0) tsStorageDiskTier.numOfTiers++;
 
   disk->diskId = diskId;
-  getDiskInfo(disk);
+  storageGetDiskInfo(disk);
 
-  diskTier.tiers[tierid].disks[diskTier.tiers[tierid].numOfDisks++] = disk;
+  tsStorageDiskTier.tiers[tierid].disks[tsStorageDiskTier.tiers[tierid].numOfDisks++] = disk;
 
-  pTrace("disk %s is added to diskTier, tid: %d did: %d", path, tierid, diskId.did);
+  pTrace("disk %s is added to tsStorageDiskTier, tid: %d did: %d", path, tierid, diskId.did);
 
   uDebugFlag = old_uDebugFlag;
 
   return 0;
 }
 
-void updateTierDiskInfo(TIERID tierid) {
+void storageUpdateTierDiskInfo(TIERID tierid) {
   STier *tier;
-  tier = diskTier.tiers + tierid;
+  tier = tsStorageDiskTier.tiers + tierid;
 
-  for (int i = 0; i < tier->numOfDisks; i++) getDiskInfo(tier->disks[i]);
+  for (int32_t i = 0; i < tier->numOfDisks; i++) storageGetDiskInfo(tier->disks[i]);
 }
 
-DISKID taosAllocDiskOnTier(TIERID tierid) {
+DISKID storageAllocDiskOnTier(TIERID tierid) {
   DISKID  did = -1;
   int32_t numOfFiles = INT_MAX;
   SDisk **disks = NULL;
 
-  if (tierid < 0 || tierid >= TSDB_MAX_TIER || diskTier.tiers[tierid].numOfDisks == 0) return -1;
+  if (tierid < 0 || tierid >= TSDB_MAX_TIER || tsStorageDiskTier.tiers[tierid].numOfDisks == 0) return -1;
 
-  disks = diskTier.tiers[tierid].disks;
+  disks = tsStorageDiskTier.tiers[tierid].disks;
 
-  updateTierDiskInfo(tierid);
+  storageUpdateTierDiskInfo(tierid);
 
-  pthread_mutex_lock(&diskTier.tierMutex);
+  pthread_mutex_lock(&tsStorageDiskTier.tierMutex);
 
-  for (DISKID i = 0; i < diskTier.tiers[tierid].numOfDisks; i++) {
+  for (DISKID i = 0; i < tsStorageDiskTier.tiers[tierid].numOfDisks; i++) {
     if (disks[i]->numOfFiles < numOfFiles) {
       did = i;
       numOfFiles = disks[i]->numOfFiles;
@@ -195,31 +190,31 @@ DISKID taosAllocDiskOnTier(TIERID tierid) {
 
   __sync_fetch_and_add(&(disks[did]->numOfFiles), 1);
 
-  pthread_mutex_unlock(&diskTier.tierMutex);
+  pthread_mutex_unlock(&tsStorageDiskTier.tierMutex);
 
   pTrace("Allocate disk tier %d did %d", tierid, did);
 
   return did;
 }
 
-bool taosValidTierInfo() {
-  if (diskTier.numOfTiers == 0) {
-    if (taosAddMountPoint(tsDirectory, 0) < 0) return false;
+bool storageValidTierInfo() {
+  if (tsStorageDiskTier.numOfTiers == 0) {
+    if (storageAddMountPoint(tsDirectory, 0) < 0) return false;
     return true;
   }
 
-  if (taosGetDiskByID(0, 0) == NULL) return false;
+  if (storageGetDiskByID(0, 0) == NULL) return false;
 
-  for (int i = 0; i < diskTier.numOfTiers; i++) {
-    if (diskTier.tiers[i].numOfDisks == 0) {
-      pError("tier %d has %d disks", i, diskTier.tiers[i].numOfDisks) return false;
+  for (int32_t i = 0; i < tsStorageDiskTier.numOfTiers; i++) {
+    if (tsStorageDiskTier.tiers[i].numOfDisks == 0) {
+      pError("tier %d has %d disks", i, tsStorageDiskTier.tiers[i].numOfDisks) return false;
     }
   }
 
   return true;
 }
 
-SDisk *taosGetDiskFromHeadFile(char *headFile) {
+SDisk *storageGetDiskFromHeadFile(char *headFile) {
   char dpath[TSDB_FILENAME_LEN] = "\0";
   char path[TSDB_FILENAME_LEN] = "\0";
 
@@ -227,30 +222,9 @@ SDisk *taosGetDiskFromHeadFile(char *headFile) {
 
   if (readlink(headFile, dpath, TSDB_FILENAME_LEN) < 0) return NULL;
 
-  for (int i = 0; i < 3; i++) dirname(dpath);
+  for (int32_t i = 0; i < 3; i++) dirname(dpath);
 
   strcpy(path, dpath);
 
-  return taosGetDiskByPath(path);
-}
-
-void taosPrintTierInfo() {
-  char optionBuffer[128];
-  char blank[TSDB_CFG_PRINT_LEN];
-  int  optionLen;
-  int  blankLen;
-
-  for (int i = 0; i < diskTier.numOfTiers; ++i) {
-    STier *tier = &diskTier.tiers[i];
-    for (int j = 0; j < tier->numOfDisks; ++j) {
-      SDisk *disk = tier->disks[j];
-
-      optionLen = sprintf(optionBuffer, "disk%d-%d", disk->diskId.tid, disk->diskId.did);
-      blankLen = TSDB_CFG_PRINT_LEN - optionLen;
-      blankLen = blankLen < 0 ? 0 : blankLen;
-      memset(blank, ' ', TSDB_CFG_PRINT_LEN);
-      blank[blankLen] = 0;
-      pPrint(" %s:%s%s", optionBuffer, blank, disk->path);
-    }
-  }
+  return storageGetDiskByPath(path);
 }
