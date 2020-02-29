@@ -1148,10 +1148,11 @@ SCacheBlock *getCacheDataBlock(SMeterObj *pMeterObj, SQueryRuntimeEnv *pRuntimeE
 
   SCacheBlock *pNewBlock = &pRuntimeEnv->cacheBlock;
 
-  // the commit data points will be ignored
   int32_t offset = 0;
   int32_t numOfPoints = pNewBlock->numOfPoints;
-  if (pQuery->firstSlot == pQuery->commitSlot) {
+  
+  // the commit data points will be ignored
+  if (slot == pQuery->commitSlot) {
     assert(pQuery->commitPoint >= 0 && pQuery->commitPoint <= pNewBlock->numOfPoints);
 
     offset = pQuery->commitPoint;
