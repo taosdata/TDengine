@@ -122,7 +122,6 @@ typedef struct _RpcConn {
 } SRpcConn;
 
 int tsRpcProgressTime = 10;  // milliseocnds
-int tsRpcMaxUdpSize = 15000; // bytes;
 
 // not configurable
 int tsRpcMaxRetry;

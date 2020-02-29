@@ -27,7 +27,6 @@ extern "C" {
 #define TAOS_CONN_CLIENT   1
 
 extern int tsRpcHeadSize;
-extern int tsRpcMaxUdpSize;
 
 typedef struct {
   int8_t    inUse; 

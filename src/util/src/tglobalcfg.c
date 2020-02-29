@@ -199,6 +199,7 @@ int   tsIsCluster = 0;
 
 int tsRpcTimer = 300;
 int tsRpcMaxTime = 600;      // seconds;
+int tsRpcMaxUdpSize = 15000;  // bytes
 
 char tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
 int  tsMonitorInterval = 30;  // seconds
