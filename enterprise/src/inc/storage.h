@@ -13,18 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_MULTILEVEL_STORAGE_H
-#define TDENGINE_MODULE_MULTILEVEL_STORAGE_H
+#ifndef TDENGINE_PLUGIN_STORAGE_H
+#define TDENGINE_PLUGIN_STORAGE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <pthread.h>
+void storageInit();
 
-void multilevelStorageInit();
+extern void (*tsReadStorageConfig)();
+extern void (*tsPrintStorageConfig)();
 
 #ifdef __cplusplus
 }
