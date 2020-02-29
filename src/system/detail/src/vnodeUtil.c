@@ -157,7 +157,7 @@ static int32_t id_compar(const void* left, const void* right) {
 }
 
 static int32_t vnodeBuildExprFromArithmeticStr(SSqlFunctionExpr* pExpr, SQueryMeterMsg* pQueryMsg) {
-  SSqlBinaryExprInfo* pBinaryExprInfo = &pExpr->pBinExprInfo;
+  SSqlBinaryExprInfo* pBinaryExprInfo = &pExpr->binExprInfo;
   SColumnInfo*   pColMsg = pQueryMsg->colList;
 
   tSQLBinaryExpr* pBinExpr = NULL;
@@ -377,15 +377,15 @@ void vnodeUpdateFilterColumnIndex(SQuery* pQuery) {
   }
   
   for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-    SSqlBinaryExprInfo* pBinExprInfo = &pQuery->pSelectExpr[i].pBinExprInfo;
-    if (pBinExprInfo->pBinExpr == NULL) {
+    SSqlBinaryExprInfo* binExprInfo = &pQuery->pSelectExpr[i].binExprInfo;
+    if (binExprInfo->pBinExpr == NULL) {
       continue;
     }
     
-    for (int16_t j = 0; j < pBinExprInfo->numOfCols; ++j) {
+    for (int16_t j = 0; j < binExprInfo->numOfCols; ++j) {
       for (int32_t k = 0; k < pQuery->numOfCols; ++k) {
-        if (pBinExprInfo->pReqColumns[j].colId == pQuery->colList[k].data.colId) {
-          pBinExprInfo->pReqColumns[j].colIdxInBuf = pQuery->colList[k].colIdxInBuf;
+        if (binExprInfo->pReqColumns[j].colId == pQuery->colList[k].data.colId) {
+          binExprInfo->pReqColumns[j].colIdxInBuf = pQuery->colList[k].colIdxInBuf;
           assert(pQuery->colList[k].colIdxInBuf == k);
           break;
         }

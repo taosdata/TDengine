@@ -446,7 +446,7 @@ typedef struct SSqlBinaryExprInfo {
 
 typedef struct SSqlFunctionExpr {
   SSqlFuncExprMsg    pBase;
-  SSqlBinaryExprInfo pBinExprInfo;
+  SSqlBinaryExprInfo binExprInfo;
   int16_t            resBytes;
   int16_t            resType;
   int16_t            interResBytes;
