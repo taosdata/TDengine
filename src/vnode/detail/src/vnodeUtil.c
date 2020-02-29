@@ -372,18 +372,22 @@ void vnodeUpdateFilterColumnIndex(SQuery* pQuery) {
   }
 
   // set the column index in buffer for arithmetic operation
-  if (pQuery->pSelectExpr != NULL) {
-    for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
-      SSqlBinaryExprInfo* pBinExprInfo = &pQuery->pSelectExpr[i].pBinExprInfo;
-      if (pBinExprInfo->pBinExpr != NULL) {
-        for (int16_t j = 0; j < pBinExprInfo->numOfCols; ++j) {
-          for (int32_t k = 0; k < pQuery->numOfCols; ++k) {
-            if (pBinExprInfo->pReqColumns[j].colId == pQuery->colList[k].data.colId) {
-              pBinExprInfo->pReqColumns[j].colIdxInBuf = pQuery->colList[k].colIdxInBuf;
-              assert(pQuery->colList[k].colIdxInBuf == k);
-              break;
-            }
-          }
+  if (pQuery->pSelectExpr == NULL) {
+    return;
+  }
+  
+  for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
+    SSqlBinaryExprInfo* pBinExprInfo = &pQuery->pSelectExpr[i].pBinExprInfo;
+    if (pBinExprInfo->pBinExpr == NULL) {
+      continue;
+    }
+    
+    for (int16_t j = 0; j < pBinExprInfo->numOfCols; ++j) {
+      for (int32_t k = 0; k < pQuery->numOfCols; ++k) {
+        if (pBinExprInfo->pReqColumns[j].colId == pQuery->colList[k].data.colId) {
+          pBinExprInfo->pReqColumns[j].colIdxInBuf = pQuery->colList[k].colIdxInBuf;
+          assert(pQuery->colList[k].colIdxInBuf == k);
+          break;
         }
       }
     }

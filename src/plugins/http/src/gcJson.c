@@ -127,42 +127,43 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
     // for group by
     if (groupFields != -1) {
       char target[HTTP_GC_TARGET_SIZE];
+      int len;
+      len = snprintf(target,HTTP_GC_TARGET_SIZE,"%s{",aliasBuffer);
+      for (int i = dataFields + 1; i<num_fields; i++){
+          switch (fields[i].type) {
+          case TSDB_DATA_TYPE_BOOL:
+          case TSDB_DATA_TYPE_TINYINT:
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%d", fields[i].name, *((int8_t *)row[i]));
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%d", fields[i].name, *((int16_t *)row[i]));
+            break;
+          case TSDB_DATA_TYPE_INT:
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%d,", fields[i].name, *((int32_t *)row[i]));
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%ld", fields[i].name, *((int64_t *)row[i]));
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%.5f", fields[i].name, *((float *)row[i]));
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%.9f", fields[i].name, *((double *)row[i]));
+            break;
+          case TSDB_DATA_TYPE_BINARY:
+          case TSDB_DATA_TYPE_NCHAR:
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%s", fields[i].name, (char *)row[i]);
+            break;
+          default:
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%s", fields[i].name, "-");
+            break;
+        }
+        if(i < num_fields - 1 ){
+            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, ", ");
+        }
 
-      switch (fields[groupFields].type) {
-        case TSDB_DATA_TYPE_BOOL:
-        case TSDB_DATA_TYPE_TINYINT:
-          snprintf(target, HTTP_GC_TARGET_SIZE, "%s%d", aliasBuffer, *((int8_t *)row[groupFields]));
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          snprintf(target, HTTP_GC_TARGET_SIZE, "%s%d", aliasBuffer, *((int16_t *)row[groupFields]));
-          break;
-        case TSDB_DATA_TYPE_INT:
-          snprintf(target, HTTP_GC_TARGET_SIZE, "%s%d", aliasBuffer, *((int32_t *)row[groupFields]));
-          break;
-        case TSDB_DATA_TYPE_BIGINT:
-          snprintf(target, HTTP_GC_TARGET_SIZE, "%s%ld", aliasBuffer, *((int64_t *)row[groupFields]));
-          break;
-        case TSDB_DATA_TYPE_FLOAT:
-          snprintf(target, HTTP_GC_TARGET_SIZE, "%s%.5f", aliasBuffer, *((float *)row[groupFields]));
-          break;
-        case TSDB_DATA_TYPE_DOUBLE:
-          snprintf(target, HTTP_GC_TARGET_SIZE, "%s%.9f", aliasBuffer, *((double *)row[groupFields]));
-          break;
-        case TSDB_DATA_TYPE_BINARY:
-        case TSDB_DATA_TYPE_NCHAR:
-          snprintf(target, HTTP_GC_TARGET_SIZE, "%s%s", aliasBuffer, (char *)row[groupFields]);
-          break;
-        case TSDB_DATA_TYPE_TIMESTAMP:
-          if (precision == TSDB_TIME_PRECISION_MILLI) {
-            snprintf(target, HTTP_GC_TARGET_SIZE, "%s%ld", aliasBuffer, *((int64_t *) row[groupFields]));
-          } else {
-            snprintf(target, HTTP_GC_TARGET_SIZE, "%s%ld", aliasBuffer, *((int64_t *) row[groupFields]) / 1000);
-          }
-          break;
-        default:
-          snprintf(target, HTTP_GC_TARGET_SIZE, "%s%s", aliasBuffer, "-");
-          break;
       }
+      len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "}");
 
       if (strcmp(target, targetBuffer) != 0) {
         // first target not write this section

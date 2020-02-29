@@ -158,7 +158,7 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
   return pNode;
 }
 
-static uint8_t getBinaryExprOptr(SSQLToken *pToken) {
+uint8_t getBinaryExprOptr(SSQLToken *pToken) {
   switch (pToken->type) {
     case TK_LT:
       return TSDB_RELATION_LESS;
@@ -183,6 +183,7 @@ static uint8_t getBinaryExprOptr(SSQLToken *pToken) {
     case TK_STAR:
       return TSDB_BINARY_OP_MULTIPLY;
     case TK_SLASH:
+    case TK_DIVIDE:
       return TSDB_BINARY_OP_DIVIDE;
     case TK_REM:
       return TSDB_BINARY_OP_REMAINDER;

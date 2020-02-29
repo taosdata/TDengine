@@ -25,7 +25,7 @@ extern "C" {
 #include "hash.h"
 #include "hashutil.h"
 
-#define GET_QINFO_ADDR(x)    ((char*)(x)-offsetof(SQInfo, query))
+#define GET_QINFO_ADDR(x) ((char*)(x)-offsetof(SQInfo, query))
 #define Q_STATUS_EQUAL(p, s) (((p) & (s)) != 0)
 
 /*
@@ -33,10 +33,10 @@ extern "C" {
  * The page size should be sufficient for at least one output result or intermediate result.
  * Some intermediate results may be extremely large, such as top/bottom(100) query.
  */
-#define DEFAULT_INTERN_BUF_SIZE            16384L
+#define DEFAULT_INTERN_BUF_SIZE 16384L
 
-#define INIT_ALLOCATE_DISK_PAGES           60L
-#define DEFAULT_DATA_FILE_MAPPING_PAGES    2L
+#define INIT_ALLOCATE_DISK_PAGES 60L
+#define DEFAULT_DATA_FILE_MAPPING_PAGES 2L
 #define DEFAULT_DATA_FILE_MMAP_WINDOW_SIZE (DEFAULT_DATA_FILE_MAPPING_PAGES * DEFAULT_INTERN_BUF_SIZE)
 
 #define IO_ENGINE_MMAP 0
@@ -56,7 +56,7 @@ typedef enum {
    * the program will call this function again, if this status is set.
    * used to transfer from QUERY_RESBUF_FULL
    */
-  QUERY_NOT_COMPLETED = 0x1,
+  QUERY_NOT_COMPLETED = 0x1u,
 
   /*
    * output buffer is full, so, the next query will be employed,
@@ -66,7 +66,7 @@ typedef enum {
    * this status is only exist in group-by clause and
    * diff/add/division/multiply/ query.
    */
-  QUERY_RESBUF_FULL = 0x2,
+  QUERY_RESBUF_FULL = 0x2u,
 
   /*
    * query is over
@@ -76,14 +76,13 @@ typedef enum {
    * 2. when the query range on timestamp is satisfied, it is also denoted as
    * query_compeleted
    */
-  QUERY_COMPLETED = 0x4,
+  QUERY_COMPLETED = 0x4u,
 
   /*
    * all data has been scanned, so current search is stopped,
    * At last, the function will transfer this status to QUERY_COMPLETED
    */
-  QUERY_NO_DATA_TO_CHECK = 0x8,
-
+  QUERY_NO_DATA_TO_CHECK = 0x8u,
 } vnodeQueryStatus;
 
 typedef struct SPointInterpoSupporter {
@@ -112,15 +111,15 @@ typedef enum {
   DISK_DATA_DISCARDED = 0x01,
 } vnodeDiskLoadStatus;
 
-#define IS_MASTER_SCAN(runtime) ((runtime)->scanFlag == MASTER_SCAN)
-#define IS_SUPPLEMENT_SCAN(runtime) (!IS_MASTER_SCAN(runtime))
+#define IS_MASTER_SCAN(runtime) (((runtime)->scanFlag & 1u) == MASTER_SCAN)
+#define IS_SUPPLEMENT_SCAN(runtime) ((runtime)->scanFlag == SUPPLEMENTARY_SCAN)
 #define SET_SUPPLEMENT_SCAN_FLAG(runtime) ((runtime)->scanFlag = SUPPLEMENTARY_SCAN)
 #define SET_MASTER_SCAN_FLAG(runtime) ((runtime)->scanFlag = MASTER_SCAN)
 
 typedef int (*__block_search_fn_t)(char* data, int num, int64_t key, int order);
 
 static FORCE_INLINE SMeterObj* getMeterObj(void* hashHandle, int32_t sid) {
-  return *(SMeterObj**)taosGetDataFromHashTable(hashHandle, (const char*) &sid, sizeof(sid));
+  return *(SMeterObj**)taosGetDataFromHashTable(hashHandle, (const char*)&sid, sizeof(sid));
 }
 
 bool isQueryKilled(SQuery* pQuery);
@@ -130,7 +129,7 @@ bool isSumAvgRateQuery(SQuery *pQuery);
 bool isTopBottomQuery(SQuery* pQuery);
 bool isFirstLastRowQuery(SQuery* pQuery);
 bool isTSCompQuery(SQuery* pQuery);
-bool notHasQueryTimeRange(SQuery *pQuery);
+bool notHasQueryTimeRange(SQuery* pQuery);
 
 bool needSupplementaryScan(SQuery* pQuery);
 bool onDemandLoadDatablock(SQuery* pQuery, int16_t queryRangeSet);
@@ -149,16 +148,15 @@ void vnodeScanAllData(SQueryRuntimeEnv* pRuntimeEnv);
 
 int32_t vnodeQueryResultInterpolate(SQInfo* pQInfo, tFilePage** pDst, tFilePage** pDataSrc, int32_t numOfRows,
                                     int32_t* numOfInterpo);
-void copyResToQueryResultBuf(SMeterQuerySupportObj* pSupporter, SQuery* pQuery);
+void    copyResToQueryResultBuf(STableQuerySupportObj* pSupporter, SQuery* pQuery);
 
-void doSkipResults(SQueryRuntimeEnv* pRuntimeEnv);
-void doFinalizeResult(SQueryRuntimeEnv* pRuntimeEnv);
+void    doSkipResults(SQueryRuntimeEnv* pRuntimeEnv);
+void    doFinalizeResult(SQueryRuntimeEnv* pRuntimeEnv);
 int64_t getNumOfResult(SQueryRuntimeEnv* pRuntimeEnv);
 
-void forwardIntervalQueryRange(SMeterQuerySupportObj* pSupporter, SQueryRuntimeEnv* pRuntimeEnv);
 void forwardQueryStartPosition(SQueryRuntimeEnv* pRuntimeEnv);
 
-bool normalizedFirstQueryRange(bool dataInDisk, bool dataInCache, SMeterQuerySupportObj* pSupporter,
+bool normalizedFirstQueryRange(bool dataInDisk, bool dataInCache, STableQuerySupportObj* pSupporter,
                                SPointInterpoSupporter* pPointInterpSupporter, int64_t* key);
 
 void pointInterpSupporterInit(SQuery* pQuery, SPointInterpoSupporter* pInterpoSupport);
@@ -166,41 +164,42 @@ void pointInterpSupporterDestroy(SPointInterpoSupporter* pPointInterpSupport);
 void pointInterpSupporterSetData(SQInfo* pQInfo, SPointInterpoSupporter* pPointInterpSupport);
 
 int64_t loadRequiredBlockIntoMem(SQueryRuntimeEnv* pRuntimeEnv, SPositionInfo* position);
-int32_t doCloseAllOpenedResults(SMeterQuerySupportObj* pSupporter);
-void disableFunctForSuppleScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
-void enableFunctForMasterScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
+void    disableFunctForSuppleScan(STableQuerySupportObj* pSupporter, int32_t order);
+void    enableFunctForMasterScan(SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 
-int32_t mergeMetersResultToOneGroups(SMeterQuerySupportObj* pSupporter);
-void copyFromGroupBuf(SQInfo* pQInfo, SOutputRes* result);
+int32_t mergeMetersResultToOneGroups(STableQuerySupportObj* pSupporter);
+void    copyFromWindowResToSData(SQInfo* pQInfo, SWindowResult* result);
 
-SBlockInfo getBlockBasicInfo(SQueryRuntimeEnv* pRuntimeEnv, void* pBlock, int32_t blockType);
+SBlockInfo getBlockInfo(SQueryRuntimeEnv *pRuntimeEnv);
+SBlockInfo getBlockBasicInfo(SQueryRuntimeEnv *pRuntimeEnv, void* pBlock, int32_t type);
+
 SCacheBlock* getCacheDataBlock(SMeterObj* pMeterObj, SQueryRuntimeEnv* pRuntimeEnv, int32_t slot);
 
-void queryOnBlock(SMeterQuerySupportObj* pSupporter, int64_t* primaryKeys, int32_t blockStatus,
-                  SBlockInfo* pBlockBasicInfo, SMeterDataInfo* pDataHeadInfoEx, SField* pFields,
-                  __block_search_fn_t searchFn);
+void stableApplyFunctionsOnBlock(STableQuerySupportObj* pSupporter, SMeterDataInfo* pMeterDataInfo,
+                               SBlockInfo* pBlockInfo, SField* pFields, __block_search_fn_t searchFn);
 
-int32_t vnodeFilterQualifiedMeters(SQInfo *pQInfo, int32_t vid, tSidSet *pSidSet, SMeterDataInfo *pMeterDataInfo,
-                                   int32_t *numOfMeters, SMeterDataInfo ***pReqMeterDataInfo);
-int32_t vnodeGetVnodeHeaderFileIdx(int32_t* fid, SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
+int32_t vnodeFilterQualifiedMeters(SQInfo* pQInfo, int32_t vid, tSidSet* pSidSet, SMeterDataInfo* pMeterDataInfo,
+                                   int32_t* numOfMeters, SMeterDataInfo*** pReqMeterDataInfo);
+int32_t vnodeGetVnodeHeaderFileIndex(int32_t* fid, SQueryRuntimeEnv* pRuntimeEnv, int32_t order);
 
 int32_t createDataBlocksInfoEx(SMeterDataInfo** pMeterDataInfo, int32_t numOfMeters,
                                SMeterDataBlockInfoEx** pDataBlockInfoEx, int32_t numOfCompBlocks,
                                int32_t* nAllocBlocksInfoSize, int64_t addr);
-void freeMeterBlockInfoEx(SMeterDataBlockInfoEx* pDataBlockInfoEx, int32_t len);
+void    freeMeterBlockInfoEx(SMeterDataBlockInfoEx* pDataBlockInfoEx, int32_t len);
 
-void setExecutionContext(SMeterQuerySupportObj* pSupporter, SOutputRes* outputRes, int32_t meterIdx, int32_t groupIdx,
-                         SMeterQueryInfo* sqinfo);
-int32_t setIntervalQueryExecutionContext(SMeterQuerySupportObj* pSupporter, int32_t meterIdx, SMeterQueryInfo* sqinfo);
+void    setExecutionContext(STableQuerySupportObj* pSupporter, SMeterQueryInfo* pMeterQueryInfo, int32_t meterIdx,
+                            int32_t groupIdx, TSKEY nextKey);
+int32_t setAdditionalInfo(STableQuerySupportObj *pSupporter, int32_t meterIdx, SMeterQueryInfo *pMeterQueryInfo);
+void    doGetAlignedIntervalQueryRangeImpl(SQuery* pQuery, int64_t pKey, int64_t keyFirst, int64_t keyLast,
+                                           int64_t* actualSkey, int64_t* actualEkey, int64_t* skey, int64_t* ekey);
 
 int64_t getQueryStartPositionInCache(SQueryRuntimeEnv* pRuntimeEnv, int32_t* slot, int32_t* pos, bool ignoreQueryRange);
-int64_t getNextAccessedKeyInData(SQuery* pQuery, int64_t* pPrimaryCol, SBlockInfo* pBlockInfo, int32_t blockStatus);
 
-int32_t getDataBlocksForMeters(SMeterQuerySupportObj* pSupporter, SQuery* pQuery, int32_t numOfMeters,
-                                const char* filePath, SMeterDataInfo** pMeterDataInfo, uint32_t* numOfBlocks);
+int32_t getDataBlocksForMeters(STableQuerySupportObj* pSupporter, SQuery* pQuery, int32_t numOfMeters,
+                               const char* filePath, SMeterDataInfo** pMeterDataInfo, uint32_t* numOfBlocks);
 int32_t LoadDatablockOnDemand(SCompBlock* pBlock, SField** pFields, uint8_t* blkStatus, SQueryRuntimeEnv* pRuntimeEnv,
                               int32_t fileIdx, int32_t slotIdx, __block_search_fn_t searchFn, bool onDemand);
-int32_t vnodeGetHeaderFile(SQueryRuntimeEnv *pRuntimeEnv, int32_t fileIndex);
+int32_t vnodeGetHeaderFile(SQueryRuntimeEnv* pRuntimeEnv, int32_t fileIndex);
 
 /**
  * Create SMeterQueryInfo.
@@ -210,14 +209,14 @@ int32_t vnodeGetHeaderFile(SQueryRuntimeEnv *pRuntimeEnv, int32_t fileIndex);
  * @param ekey
  * @return
  */
-SMeterQueryInfo* createMeterQueryInfo(SQuery* pQuery, int32_t sid, TSKEY skey, TSKEY ekey);
+SMeterQueryInfo* createMeterQueryInfo(STableQuerySupportObj* pSupporter, int32_t sid, TSKEY skey, TSKEY ekey);
 
 /**
  * Destroy meter query info
  * @param pMeterQInfo
  * @param numOfCols
  */
-void destroyMeterQueryInfo(SMeterQueryInfo *pMeterQueryInfo, int32_t numOfCols);
+void destroyMeterQueryInfo(SMeterQueryInfo* pMeterQueryInfo, int32_t numOfCols);
 
 /**
  * change the meter query info for supplement scan
@@ -225,7 +224,8 @@ void destroyMeterQueryInfo(SMeterQueryInfo *pMeterQueryInfo, int32_t numOfCols);
  * @param skey
  * @param ekey
  */
-void changeMeterQueryInfoForSuppleQuery(SQueryResultBuf* pResultBuf, SMeterQueryInfo *pMeterQueryInfo, TSKEY skey, TSKEY ekey);
+void changeMeterQueryInfoForSuppleQuery(SQuery* pQuery, SMeterQueryInfo* pMeterQueryInfo,
+                                        TSKEY skey, TSKEY ekey);
 
 /**
  * add the new allocated disk page to meter query info
@@ -234,14 +234,8 @@ void changeMeterQueryInfoForSuppleQuery(SQueryResultBuf* pResultBuf, SMeterQuery
  * @param pMeterQueryInfo
  * @param pSupporter
  */
-tFilePage* addDataPageForMeterQueryInfo(SQuery* pQuery, SMeterQueryInfo *pMeterQueryInfo, SMeterQuerySupportObj *pSupporter);
-
-/**
- * save the query range data into SMeterQueryInfo
- * @param pRuntimeEnv
- * @param pMeterQueryInfo
- */
-void saveIntervalQueryRange(SQueryRuntimeEnv* pRuntimeEnv, SMeterQueryInfo* pMeterQueryInfo);
+tFilePage* addDataPageForMeterQueryInfo(SQuery* pQuery, SMeterQueryInfo* pMeterQueryInfo,
+                                        STableQuerySupportObj* pSupporter);
 
 /**
  * restore the query range data from SMeterQueryInfo to runtime environment
@@ -258,7 +252,7 @@ void restoreIntervalQueryRange(SQueryRuntimeEnv* pRuntimeEnv, SMeterQueryInfo* p
  * @param pSupporter
  * @param key
  */
-void setIntervalQueryRange(SMeterQueryInfo *pMeterQueryInfo, SMeterQuerySupportObj* pSupporter, int64_t key);
+void setIntervalQueryRange(SMeterQueryInfo* pMeterQueryInfo, STableQuerySupportObj* pSupporter, int64_t key);
 
 /**
  * set the meter data information
@@ -275,16 +269,22 @@ void vnodeCheckIfDataExists(SQueryRuntimeEnv* pRuntimeEnv, SMeterObj* pMeterObj,
 
 void displayInterResult(SData** pdata, SQuery* pQuery, int32_t numOfRows);
 
-void vnodePrintQueryStatistics(SMeterQuerySupportObj* pSupporter);
+void vnodePrintQueryStatistics(STableQuerySupportObj* pSupporter);
 
-void clearGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SOutputRes *pOneOutputRes);
-void copyGroupResultBuf(SQueryRuntimeEnv *pRuntimeEnv, SOutputRes* dst, const SOutputRes* src);
+void clearTimeWindowResBuf(SQueryRuntimeEnv* pRuntimeEnv, SWindowResult* pOneOutputRes);
+void copyTimeWindowResBuf(SQueryRuntimeEnv* pRuntimeEnv, SWindowResult* dst, const SWindowResult* src);
 
-void resetSlidingWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SSlidingWindowInfo* pSlidingWindowInfo);
-void clearCompletedSlidingWindows(SQueryRuntimeEnv* pRuntimeEnv);
-int32_t numOfClosedSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo);
-void closeSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo, int32_t slot);
-void closeAllSlidingWindow(SSlidingWindowInfo* pSlidingWindowInfo);
+int32_t initWindowResInfo(SWindowResInfo* pWindowResInfo, SQueryRuntimeEnv* pRuntimeEnv, int32_t size,
+                          int32_t threshold, int16_t type);
+
+void    cleanupTimeWindowInfo(SWindowResInfo* pWindowResInfo, SQueryRuntimeEnv* pRuntimeEnv);
+void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SWindowResInfo* pWindowResInfo);
+void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num);
+
+void    clearClosedTimeWindow(SQueryRuntimeEnv* pRuntimeEnv);
+int32_t numOfClosedTimeWindow(SWindowResInfo* pWindowResInfo);
+void    closeTimeWindow(SWindowResInfo* pWindowResInfo, int32_t slot);
+void    closeAllTimeWindow(SWindowResInfo* pWindowResInfo);
 
 #ifdef __cplusplus
 }

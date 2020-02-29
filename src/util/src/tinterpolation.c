@@ -13,9 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <stdint.h>
-
 #include "os.h"
 #include "taosmsg.h"
 #include "textbuffer.h"
@@ -47,7 +44,7 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char
     char**  tzname = _tzname;
 #endif
 
-    int64_t t = (precision == TSDB_TIME_PRECISION_MILLI)?MILLISECOND_PER_SECOND:MILLISECOND_PER_SECOND*1000L;
+    int64_t t = (precision == TSDB_TIME_PRECISION_MILLI) ? MILLISECOND_PER_SECOND : MILLISECOND_PER_SECOND * 1000L;
 
     int64_t revStartime = (startTime / timeRange) * timeRange + timezone * t;
     int64_t revEndtime = revStartime + timeRange - 1;
@@ -78,14 +75,14 @@ void taosInitInterpoInfo(SInterpolationInfo* pInterpoInfo, int32_t order, int64_
 }
 
 // the SInterpolationInfo itself will not be released
-void taosDestoryInterpoInfo(SInterpolationInfo *pInterpoInfo) {
+void taosDestoryInterpoInfo(SInterpolationInfo* pInterpoInfo) {
   if (pInterpoInfo == NULL) {
     return;
   }
-  
+
   tfree(pInterpoInfo->prevValues);
   tfree(pInterpoInfo->nextValues);
-  
+
   tfree(pInterpoInfo->pTags);
 }
 
@@ -94,7 +91,7 @@ void taosInterpoSetStartInfo(SInterpolationInfo* pInterpoInfo, int32_t numOfRawD
     return;
   }
 
-  pInterpoInfo->rowIdx = 0;//INTERPOL_IS_ASC_INTERPOL(pInterpoInfo) ? 0 : numOfRawDataInRows - 1;
+  pInterpoInfo->rowIdx = 0;
   pInterpoInfo->numOfRawDataInRows = numOfRawDataInRows;
 }
 
@@ -118,14 +115,9 @@ int32_t taosGetNumOfResWithoutLimit(SInterpolationInfo* pInterpoInfo, int64_t* p
   if (numOfAvailRawData > 0) {
     int32_t finalNumOfResult = 0;
 
-//    if (pInterpoInfo->order == TSQL_SO_ASC) {
-      // get last timestamp, calculate the result size
-      int64_t lastKey = pPrimaryKeyArray[pInterpoInfo->numOfRawDataInRows - 1];
-      finalNumOfResult = (int32_t)(labs(lastKey - pInterpoInfo->startTimestamp) / nInterval) + 1;
-//    } else {  // todo error less than one!!!
-//      TSKEY lastKey = pPrimaryKeyArray[0];
-//      finalNumOfResult = (int32_t)((pInterpoInfo->startTimestamp - lastKey) / nInterval) + 1;
-//    }
+    // get last timestamp, calculate the result size
+    int64_t lastKey = pPrimaryKeyArray[pInterpoInfo->numOfRawDataInRows - 1];
+    finalNumOfResult = (int32_t)(labs(lastKey - pInterpoInfo->startTimestamp) / nInterval) + 1;
 
     assert(finalNumOfResult >= numOfAvailRawData);
     return finalNumOfResult;
@@ -140,7 +132,9 @@ int32_t taosGetNumOfResWithoutLimit(SInterpolationInfo* pInterpoInfo, int64_t* p
   }
 }
 
-bool taosHasRemainsDataForInterpolation(SInterpolationInfo* pInterpoInfo) { return taosNumOfRemainPoints(pInterpoInfo) > 0; }
+bool taosHasRemainsDataForInterpolation(SInterpolationInfo* pInterpoInfo) {
+  return taosNumOfRemainPoints(pInterpoInfo) > 0;
+}
 
 int32_t taosNumOfRemainPoints(SInterpolationInfo* pInterpoInfo) {
   if (pInterpoInfo->rowIdx == -1 || pInterpoInfo->numOfRawDataInRows == 0) {
@@ -197,28 +191,22 @@ int taosDoLinearInterpolation(int32_t type, SPoint* point1, SPoint* point2, SPoi
   return 0;
 }
 
-static char* getPos(char* data, int32_t bytes, int32_t order, int32_t capacity, int32_t index) {
-//  if (order == TSQL_SO_ASC) {
-    return data + index * bytes;
-//  } else {
-//    return data + (capacity - index - 1) * bytes;
-//  }
-}
+static char* getPos(char* data, int32_t bytes, int32_t index) { return data + index * bytes; }
 
-static void setTagsValueInInterpolation(tFilePage** data, char** pTags, SColumnModel* pModel, int32_t order, int32_t start,
-                                        int32_t capacity, int32_t num) {
+static void setTagsValueInInterpolation(tFilePage** data, char** pTags, SColumnModel* pModel, int32_t order,
+                                        int32_t start, int32_t capacity, int32_t num) {
   for (int32_t j = 0, i = start; i < pModel->numOfCols; ++i, ++j) {
     SSchema* pSchema = getColumnModelSchema(pModel, i);
-    
-    char* val1 = getPos(data[i]->data, pSchema->bytes, order, capacity, num);
+
+    char* val1 = getPos(data[i]->data, pSchema->bytes, num);
     assignVal(val1, pTags[j], pSchema->bytes, pSchema->type);
   }
 }
 
 static void doInterpoResultImpl(SInterpolationInfo* pInterpoInfo, int16_t interpoType, tFilePage** data,
-                                SColumnModel* pModel, int32_t* num, char** srcData, int64_t nInterval, int64_t* defaultVal,
-                                int64_t currentTimestamp, int32_t capacity, int32_t numOfTags, char** pTags,
-                                bool outOfBound) {
+                                SColumnModel* pModel, int32_t* num, char** srcData, int64_t nInterval,
+                                int64_t* defaultVal, int64_t currentTimestamp, int32_t capacity, int32_t numOfTags,
+                                char** pTags, bool outOfBound) {
   char** prevValues = &pInterpoInfo->prevValues;
   char** nextValues = &pInterpoInfo->nextValues;
 
@@ -226,7 +214,7 @@ static void doInterpoResultImpl(SInterpolationInfo* pInterpoInfo, int16_t interp
 
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pInterpoInfo->order);
 
-  char* val = getPos(data[0]->data, TSDB_KEYSIZE, pInterpoInfo->order, capacity, *num);
+  char* val = getPos(data[0]->data, TSDB_KEYSIZE, *num);
   *(TSKEY*)val = pInterpoInfo->startTimestamp;
 
   int32_t numOfValCols = pModel->numOfCols - numOfTags;
@@ -237,9 +225,9 @@ static void doInterpoResultImpl(SInterpolationInfo* pInterpoInfo, int16_t interp
     if (pInterpolationData != NULL) {
       for (int32_t i = 1; i < numOfValCols; ++i) {
         SSchema* pSchema = getColumnModelSchema(pModel, i);
-        int16_t offset = getColumnModelOffset(pModel, i);
-        
-        char* val1 = getPos(data[i]->data, pSchema->bytes, pInterpoInfo->order, capacity, *num);
+        int16_t  offset = getColumnModelOffset(pModel, i);
+
+        char* val1 = getPos(data[i]->data, pSchema->bytes, *num);
 
         if (isNull(pInterpolationData + offset, pSchema->type)) {
           setNull(val1, pSchema->type, pSchema->bytes);
@@ -250,8 +238,8 @@ static void doInterpoResultImpl(SInterpolationInfo* pInterpoInfo, int16_t interp
     } else { /* no prev value yet, set the value for null */
       for (int32_t i = 1; i < numOfValCols; ++i) {
         SSchema* pSchema = getColumnModelSchema(pModel, i);
-  
-        char* val1 = getPos(data[i]->data, pSchema->bytes, pInterpoInfo->order, capacity, *num);
+
+        char* val1 = getPos(data[i]->data, pSchema->bytes, *num);
         setNull(val1, pSchema->type, pSchema->bytes);
       }
     }
@@ -262,10 +250,10 @@ static void doInterpoResultImpl(SInterpolationInfo* pInterpoInfo, int16_t interp
     if (*prevValues != NULL && !outOfBound) {
       for (int32_t i = 1; i < numOfValCols; ++i) {
         SSchema* pSchema = getColumnModelSchema(pModel, i);
-        int16_t offset = getColumnModelOffset(pModel, i);
-        
+        int16_t  offset = getColumnModelOffset(pModel, i);
+
         int16_t type = pSchema->type;
-        char*   val1 = getPos(data[i]->data, pSchema->bytes, pInterpoInfo->order, capacity, *num);
+        char*   val1 = getPos(data[i]->data, pSchema->bytes, *num);
 
         if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BOOL) {
           setNull(val1, type, pSchema->bytes);
@@ -283,8 +271,8 @@ static void doInterpoResultImpl(SInterpolationInfo* pInterpoInfo, int16_t interp
     } else {
       for (int32_t i = 1; i < numOfValCols; ++i) {
         SSchema* pSchema = getColumnModelSchema(pModel, i);
-        
-        char* val1 = getPos(data[i]->data, pSchema->bytes, pInterpoInfo->order, capacity, *num);
+
+        char* val1 = getPos(data[i]->data, pSchema->bytes, *num);
         setNull(val1, pSchema->type, pSchema->bytes);
       }
 
@@ -293,8 +281,8 @@ static void doInterpoResultImpl(SInterpolationInfo* pInterpoInfo, int16_t interp
   } else { /* default value interpolation */
     for (int32_t i = 1; i < numOfValCols; ++i) {
       SSchema* pSchema = getColumnModelSchema(pModel, i);
-  
-      char* val1 = getPos(data[i]->data, pSchema->bytes, pInterpoInfo->order, capacity, *num);
+
+      char* val1 = getPos(data[i]->data, pSchema->bytes, *num);
       assignVal(val1, (char*)&defaultVal[i], pSchema->bytes, pSchema->type);
     }
 
@@ -305,6 +293,20 @@ static void doInterpoResultImpl(SInterpolationInfo* pInterpoInfo, int16_t interp
   pInterpoInfo->numOfCurrentInterpo++;
 
   (*num) += 1;
+}
+
+static void initBeforeAfterDataBuf(SColumnModel* pModel, char** nextValues) {
+  if (*nextValues != NULL) {
+    return;
+  }
+  
+  *nextValues = calloc(1, pModel->rowSize);
+  for (int i = 1; i < pModel->numOfCols; i++) {
+    int16_t  offset = getColumnModelOffset(pModel, i);
+    SSchema* pSchema = getColumnModelSchema(pModel, i);
+    
+    setNull(*nextValues + offset, pSchema->type, pSchema->bytes);
+  }
 }
 
 int32_t taosDoInterpoResult(SInterpolationInfo* pInterpoInfo, int16_t interpoType, tFilePage** data,
@@ -341,71 +343,58 @@ int32_t taosDoInterpoResult(SInterpolationInfo* pInterpoInfo, int16_t interpoTyp
       if ((pInterpoInfo->startTimestamp < currentTimestamp && INTERPOL_IS_ASC_INTERPOL(pInterpoInfo)) ||
           (pInterpoInfo->startTimestamp > currentTimestamp && !INTERPOL_IS_ASC_INTERPOL(pInterpoInfo))) {
         /* set the next value for interpolation */
-        if (*nextValues == NULL) {
-          *nextValues = calloc(1, pModel->rowSize);
-          for (int i = 1; i < pModel->numOfCols; i++) {
-            int16_t offset = getColumnModelOffset(pModel, i);
-            SSchema* pSchema = getColumnModelSchema(pModel, i);
-            
-            setNull(*nextValues + offset, pSchema->type, pSchema->bytes);
-          }
-        }
-
+        initBeforeAfterDataBuf(pModel, nextValues);
+        
         int32_t offset = pInterpoInfo->rowIdx;
         for (int32_t tlen = 0, i = 0; i < pModel->numOfCols - numOfTags; ++i) {
           SSchema* pSchema = getColumnModelSchema(pModel, i);
-          
+
           memcpy(*nextValues + tlen, srcData[i] + offset * pSchema->bytes, pSchema->bytes);
           tlen += pSchema->bytes;
         }
       }
 
-      while (((pInterpoInfo->startTimestamp < currentTimestamp && INTERPOL_IS_ASC_INTERPOL(pInterpoInfo)) ||
-              (pInterpoInfo->startTimestamp > currentTimestamp && !INTERPOL_IS_ASC_INTERPOL(pInterpoInfo))) &&
-             num < outputRows) {
-        doInterpoResultImpl(pInterpoInfo, interpoType, data, pModel, &num, srcData, nInterval, defaultVal,
-                            currentTimestamp, bufSize, numOfTags, pTags, false);
-      }
-
-      /* output buffer is full, abort */
-      if ((num == outputRows && INTERPOL_IS_ASC_INTERPOL(pInterpoInfo)) ||
-          (num < 0 && !INTERPOL_IS_ASC_INTERPOL(pInterpoInfo))) {
-        pInterpoInfo->numOfTotalInterpo += pInterpoInfo->numOfCurrentInterpo;
-        return outputRows;
-      }
-
-      if (pInterpoInfo->startTimestamp == currentTimestamp) {
-        if (*prevValues == NULL) {
-          *prevValues = calloc(1, pModel->rowSize);
-          for (int i = 1; i < pModel->numOfCols; i++) {
-            int16_t offset = getColumnModelOffset(pModel, i);
-            SSchema* pSchema = getColumnModelSchema(pModel, i);
-            
-            setNull(*prevValues + offset, pSchema->type, pSchema->bytes);
-          }
+      if (((pInterpoInfo->startTimestamp < currentTimestamp && INTERPOL_IS_ASC_INTERPOL(pInterpoInfo)) ||
+           (pInterpoInfo->startTimestamp > currentTimestamp && !INTERPOL_IS_ASC_INTERPOL(pInterpoInfo))) &&
+          num < outputRows) {
+        while (((pInterpoInfo->startTimestamp < currentTimestamp && INTERPOL_IS_ASC_INTERPOL(pInterpoInfo)) ||
+                (pInterpoInfo->startTimestamp > currentTimestamp && !INTERPOL_IS_ASC_INTERPOL(pInterpoInfo))) &&
+               num < outputRows) {
+          doInterpoResultImpl(pInterpoInfo, interpoType, data, pModel, &num, srcData, nInterval, defaultVal,
+                              currentTimestamp, bufSize, numOfTags, pTags, false);
         }
 
+        /* output buffer is full, abort */
+        if ((num == outputRows && INTERPOL_IS_ASC_INTERPOL(pInterpoInfo)) ||
+            (num < 0 && !INTERPOL_IS_ASC_INTERPOL(pInterpoInfo))) {
+          pInterpoInfo->numOfTotalInterpo += pInterpoInfo->numOfCurrentInterpo;
+          return outputRows;
+        }
+      } else {
+        assert(pInterpoInfo->startTimestamp == currentTimestamp);
+        
+        initBeforeAfterDataBuf(pModel, prevValues);
+        
         // assign rows to dst buffer
         int32_t i = 0;
         for (int32_t tlen = 0; i < pModel->numOfCols - numOfTags; ++i) {
-          int16_t offset = getColumnModelOffset(pModel, i);
+          int16_t  offset = getColumnModelOffset(pModel, i);
           SSchema* pSchema = getColumnModelSchema(pModel, i);
-          
-          char* val1 = getPos(data[i]->data, pSchema->bytes, pInterpoInfo->order, bufSize, num);
 
+          char* val1 = getPos(data[i]->data, pSchema->bytes, num);
+          char* src = srcData[i] + pInterpoInfo->rowIdx * pSchema->bytes;
+          
           if (i == 0 ||
-              (functionIDs[i] != TSDB_FUNC_COUNT &&
-               !isNull(srcData[i] + pInterpoInfo->rowIdx * pSchema->bytes, pSchema->type)) ||
-              (functionIDs[i] == TSDB_FUNC_COUNT &&
-               *(int64_t*)(srcData[i] + pInterpoInfo->rowIdx * pSchema->bytes) != 0)) {
-            
-            assignVal(val1, srcData[i] + pInterpoInfo->rowIdx * pSchema->bytes, pSchema->bytes, pSchema->type);
-            memcpy(*prevValues + tlen, srcData[i] + pInterpoInfo->rowIdx * pSchema->bytes, pSchema->bytes);
-          } else {  // i > 0 and isNULL, do interpolation
+              (functionIDs[i] != TSDB_FUNC_COUNT && !isNull(src, pSchema->type)) ||
+              (functionIDs[i] == TSDB_FUNC_COUNT && *(int64_t*)(src) != 0)) {
+            assignVal(val1, src, pSchema->bytes, pSchema->type);
+            memcpy(*prevValues + tlen, src, pSchema->bytes);
+          } else {  // i > 0 and data is null , do interpolation
             if (interpoType == TSDB_INTERPO_PREV) {
               assignVal(val1, *prevValues + offset, pSchema->bytes, pSchema->type);
             } else if (interpoType == TSDB_INTERPO_LINEAR) {
-              // TODO:
+              assignVal(val1, src, pSchema->bytes, pSchema->type);
+              memcpy(*prevValues + tlen, src, pSchema->bytes);
             } else {
               assignVal(val1, (char*)&defaultVal[i], pSchema->bytes, pSchema->type);
             }
@@ -416,11 +405,11 @@ int32_t taosDoInterpoResult(SInterpolationInfo* pInterpoInfo, int16_t interpoTyp
         /* set the tag value for final result */
         setTagsValueInInterpolation(data, pTags, pModel, pInterpoInfo->order, pModel->numOfCols - numOfTags, bufSize,
                                     num);
-      }
 
-      pInterpoInfo->startTimestamp += (nInterval * step);
-      pInterpoInfo->rowIdx += 1;
-      num += 1;
+        pInterpoInfo->startTimestamp += (nInterval * step);
+        pInterpoInfo->rowIdx += 1;
+        num += 1;
+      }
 
       if ((pInterpoInfo->rowIdx >= pInterpoInfo->numOfRawDataInRows && INTERPOL_IS_ASC_INTERPOL(pInterpoInfo)) ||
           (pInterpoInfo->rowIdx < 0 && !INTERPOL_IS_ASC_INTERPOL(pInterpoInfo)) || num >= outputRows) {

@@ -359,6 +359,7 @@ typedef struct SColIndexEx {
   int16_t  colIdx;
   int16_t  colIdxInBuf;
   uint16_t flag;         // denote if it is a tag or not
+  char     name[TSDB_COL_NAME_LEN];
 } SColIndexEx;
 
 /* sql function msg, to describe the message to vnode about sql function
@@ -456,7 +457,7 @@ typedef struct {
   int16_t numOfCols;         // the number of columns will be load from vnode
   char    intervalTimeUnit;  // time interval type, for revisement of interval(1d)
 
-  int64_t nAggTimeInterval;  // time interval for aggregation, in million second
+  int64_t intervalTime;  // time interval for aggregation, in million second
   int64_t slidingTime;       // value for sliding window
 
   // tag schema, used to parse tag information in pSidExtInfo
