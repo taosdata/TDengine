@@ -1785,7 +1785,19 @@ static int32_t getNextQualifiedWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow
       return -1;
     }
 
-    TSKEY   startKey = QUERY_IS_ASC_QUERY(pQuery) ? pNextWin->skey : pNextWin->ekey;
+    TSKEY   startKey = -1;
+    if (QUERY_IS_ASC_QUERY(pQuery)) {
+      startKey = pNextWin->skey;
+      if (startKey < pQuery->skey) {
+        startKey = pQuery->skey;
+      }
+    } else {
+      startKey = pNextWin->ekey;
+      if (startKey > pQuery->skey) {
+        startKey = pQuery->skey;
+      }
+    }
+    
     int32_t startPos = searchFn((char *)primaryKeys, pBlockInfo->size, startKey, pQuery->order.order);
 
     /*
@@ -6345,6 +6357,7 @@ void vnodeScanAllData(SQueryRuntimeEnv *pRuntimeEnv) {
   
   int64_t skey = pQuery->lastKey;
   int32_t status = pQuery->over;
+  int32_t activeSlot = pRuntimeEnv->windowResInfo.curIndex;
   
   SET_MASTER_SCAN_FLAG(pRuntimeEnv);
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
@@ -6370,6 +6383,7 @@ void vnodeScanAllData(SQueryRuntimeEnv *pRuntimeEnv) {
     status = pQuery->over;
     pQuery->ekey = pQuery->lastKey - step;
     pQuery->lastKey = pQuery->skey;
+    pRuntimeEnv->windowResInfo.curIndex = activeSlot;
     
     setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
     pRuntimeEnv->scanFlag = REPEAT_SCAN;
