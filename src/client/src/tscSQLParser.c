@@ -4596,9 +4596,11 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
   // handle the limit offset value, validate the limit
   pQueryInfo->limit = pQuerySql->limit;
   pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
-
   pQueryInfo->slimit = pQuerySql->slimit;
-
+  
+  tscTrace("%p limit:%d, offset:%" PRId64 " slimit:%d, soffset:%" PRId64, pSql, pQueryInfo->limit.limit,
+      pQueryInfo->limit.offset, pQueryInfo->slimit.limit, pQueryInfo->slimit.offset);
+  
   if (pQueryInfo->slimit.offset < 0 || pQueryInfo->limit.offset < 0) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg0);
   }
@@ -4631,7 +4633,7 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
     }
 
     if (pQueryInfo->slimit.limit == 0) {
-      tscTrace("%p limit 0, no output result", pSql);
+      tscTrace("%p slimit 0, no output result", pSql);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
       return TSDB_CODE_SUCCESS;
     }

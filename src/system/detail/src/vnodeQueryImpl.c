@@ -1784,12 +1784,12 @@ static int32_t getNextQualifiedWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow
       continue;
     }
 
-    if (pNextWin->ekey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) {
-      pNextWin->ekey = pQuery->ekey;
-    }
-    if (pNextWin->skey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery)) {
-      pNextWin->skey = pQuery->ekey;
-    }
+//    if (pNextWin->ekey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) {
+//      pNextWin->ekey = pQuery->ekey;
+//    }
+//    if (pNextWin->skey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery)) {
+//      pNextWin->skey = pQuery->ekey;
+//    }
 
     return startPos;
   }
@@ -4112,65 +4112,135 @@ static bool forwardQueryStartPosIfNeeded(SQInfo *pQInfo, STableQuerySupportObj *
 
       while (pQuery->limit.offset > 0) {
         SBlockInfo blockInfo = getBlockInfo(pRuntimeEnv);
-
-        // time window ended in current data block
-        if (win.ekey <= blockInfo.keyLast) {
-          pQuery->limit.offset -= 1;
-
-          if (win.ekey == blockInfo.keyLast) {
-            moveToNextBlock(pRuntimeEnv, step, searchFn, false);
-            if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
-              break;
-            }
-
-            // next block does not included in time range, abort query
-            blockInfo = getBlockInfo(pRuntimeEnv);
-            if ((blockInfo.keyFirst > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-                (blockInfo.keyLast < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
-              setQueryStatus(pQuery, QUERY_COMPLETED);
-              break;
-            }
-
-            // set the window that start from the next data block
-            win = getActiveTimeWindow(pWindowResInfo, blockInfo.keyFirst, pQuery);
-          } else {
-            // the time window is closed in current data block, load disk file block into memory to
-            // check the next time window
-            if (IS_DISK_DATA_BLOCK(pQuery)) {
-              getTimestampInDiskBlock(pRuntimeEnv, 0);
-            }
-
-            STimeWindow nextWin = win;
-            int32_t     startPos =
-                getNextQualifiedWindow(pRuntimeEnv, &nextWin, pWindowResInfo, &blockInfo, primaryKey, searchFn);
-
-            if (startPos < 0) {  // failed to find the qualified time window
-              assert((nextWin.skey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-                     (nextWin.ekey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery)));
-
-              setQueryStatus(pQuery, QUERY_COMPLETED);
-              break;
-            } else {  // set the abort info
-              pQuery->pos = startPos;
-              pQuery->lastKey = primaryKey[startPos];
-              win = nextWin;
-            }
+        
+        STimeWindow tw = win;
+        getNextTimeWindow(pQuery, &tw);
+        
+        // next time window starts from current data block
+        if ((tw.skey <= blockInfo.keyLast && QUERY_IS_ASC_QUERY(pQuery)) ||
+            (tw.ekey >= blockInfo.keyFirst && !QUERY_IS_ASC_QUERY(pQuery))) {
+          
+          // query completed
+          if ((tw.skey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+              (tw.ekey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
+            setQueryStatus(pQuery, QUERY_COMPLETED);
+            break;
           }
 
+          // check its position in this block to make sure this time window covers data.
+          if (IS_DISK_DATA_BLOCK(pQuery)) {
+            getTimestampInDiskBlock(pRuntimeEnv, 0);
+          }
+
+          tw = win;
+          int32_t startPos = getNextQualifiedWindow(pRuntimeEnv, &tw, pWindowResInfo, &blockInfo, primaryKey, searchFn);
+          assert(startPos > 0);
+
+          pQuery->limit.offset -= 1;
+  
+          // set the abort info
+          pQuery->pos = startPos;
+          pQuery->lastKey = primaryKey[startPos];
+          win = tw;
           continue;
+        } else {
+          moveToNextBlock(pRuntimeEnv, step, searchFn, false);
+          if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
+            break;
+          }
+  
+          blockInfo = getBlockInfo(pRuntimeEnv);
+          if ((blockInfo.keyFirst > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+              (blockInfo.keyLast < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
+            setQueryStatus(pQuery, QUERY_COMPLETED);
+            break;
+          }
+  
+          // set the window that start from the next data block
+          TSKEY key = (QUERY_IS_ASC_QUERY(pQuery))? blockInfo.keyFirst:blockInfo.keyLast;
+          STimeWindow n = getActiveTimeWindow(pWindowResInfo, key, pQuery);
+          
+          // next data block are still covered by current time window
+          if (n.skey == win.skey && n.ekey == win.ekey) {
+            // do nothing
+          } else {
+            pQuery->limit.offset -= 1;
+  
+            // query completed
+            if ((n.skey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+                (n.ekey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
+              setQueryStatus(pQuery, QUERY_COMPLETED);
+              break;
+            }
+  
+            // set the abort info
+            pQuery->pos = QUERY_IS_ASC_QUERY(pQuery)? 0:blockInfo.size-1;
+            pQuery->lastKey = QUERY_IS_ASC_QUERY(pQuery)? blockInfo.keyFirst:blockInfo.keyLast;
+            win = n;
+  
+            if (pQuery->limit.offset == 0 && IS_DISK_DATA_BLOCK(pQuery)) {
+              getTimestampInDiskBlock(pRuntimeEnv, 0);
+            }
+          }
         }
-
-        moveToNextBlock(pRuntimeEnv, step, searchFn, false);
-        if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
-          break;
-        }
-
-        blockInfo = getBlockInfo(pRuntimeEnv);
-        if ((blockInfo.keyFirst > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-            (blockInfo.keyLast < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
-          setQueryStatus(pQuery, QUERY_COMPLETED);
-          break;
-        }
+        
+//        if (win.ekey <= blockInfo.keyLast) {
+//          pQuery->limit.offset -= 1;
+//
+//          if (win.ekey == blockInfo.keyLast) {
+//            moveToNextBlock(pRuntimeEnv, step, searchFn, false);
+//            if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
+//              break;
+//            }
+//
+//            // next block does not included in time range, abort query
+//            blockInfo = getBlockInfo(pRuntimeEnv);
+//            if ((blockInfo.keyFirst > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+//                (blockInfo.keyLast < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
+//              setQueryStatus(pQuery, QUERY_COMPLETED);
+//              break;
+//            }
+//
+//            // set the window that start from the next data block
+//            win = getActiveTimeWindow(pWindowResInfo, blockInfo.keyFirst, pQuery);
+//          } else {
+//            // the time window is closed in current data block, load disk file block into memory to
+//            // check the next time window
+//            if (IS_DISK_DATA_BLOCK(pQuery)) {
+//              getTimestampInDiskBlock(pRuntimeEnv, 0);
+//            }
+//
+//            STimeWindow nextWin = win;
+//            int32_t     startPos =
+//                getNextQualifiedWindow(pRuntimeEnv, &nextWin, pWindowResInfo, &blockInfo, primaryKey, searchFn);
+//
+//            if (startPos < 0) {  // failed to find the qualified time window
+//              assert((nextWin.skey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+//                     (nextWin.ekey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery)));
+//
+//              setQueryStatus(pQuery, QUERY_COMPLETED);
+//              break;
+//            } else {  // set the abort info
+//              pQuery->pos = startPos;
+//              pQuery->lastKey = primaryKey[startPos];
+//              win = nextWin;
+//            }
+//          }
+//
+//          continue;
+//        }
+//
+//        moveToNextBlock(pRuntimeEnv, step, searchFn, false);
+//        if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)) {
+//          break;
+//        }
+//
+//        blockInfo = getBlockInfo(pRuntimeEnv);
+//        if ((blockInfo.keyFirst > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+//            (blockInfo.keyLast < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
+//          setQueryStatus(pQuery, QUERY_COMPLETED);
+//          break;
+//        }
       }
 
       if (Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK | QUERY_COMPLETED) || pQuery->limit.offset > 0) {
@@ -5291,6 +5361,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   if (isIntervalQuery(pQuery) && IS_MASTER_SCAN(pRuntimeEnv)) {
     if (Q_STATUS_EQUAL(pQuery->over, QUERY_COMPLETED | QUERY_NO_DATA_TO_CHECK)) {
       closeAllTimeWindow(&pRuntimeEnv->windowResInfo);
+      pRuntimeEnv->windowResInfo.curIndex = pRuntimeEnv->windowResInfo.size - 1;
     } else if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL)) {  // check if window needs to be closed
       SBlockInfo blockInfo = getBlockInfo(pRuntimeEnv);
 
