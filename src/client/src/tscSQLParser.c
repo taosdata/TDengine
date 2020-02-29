@@ -5717,7 +5717,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
   // no result due to invalid query time range
   if (pQueryInfo->stime > pQueryInfo->etime) {
-    pCmd->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
     return TSDB_CODE_SUCCESS;
   }
 
