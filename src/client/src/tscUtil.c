@@ -215,7 +215,16 @@ bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   }
 
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
-  if (pMeterMetaInfo == NULL || pMeterMetaInfo->pMetricMeta == NULL) {
+  if (pMeterMetaInfo == NULL) {
+    return false;
+  }
+  
+  // for select query super table, the metricmeta can not be null in any cases.
+  if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
+    assert(pMeterMetaInfo->pMetricMeta != NULL);
+  }
+  
+  if (pMeterMetaInfo->pMetricMeta == NULL) {
     return false;
   }
   
