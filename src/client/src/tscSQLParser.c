@@ -584,9 +584,14 @@ static bool isTopBottomQuery(SQueryInfo* pQueryInfo) {
 int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   const char* msg1 = "invalid query expression";
   const char* msg2 = "interval cannot be less than 10 ms";
-
+  const char* msg3 = "interval required";
+  
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
+  if (pQuerySql->interval.type == 0 && pQuerySql->sliding.type != 0) {
+    return invalidSqlErrMsg(pQueryInfo->msg, msg3);
+  }
+  
   if (pQuerySql->interval.type == 0 || pQuerySql->interval.n == 0) {
     return TSDB_CODE_SUCCESS;
   }
