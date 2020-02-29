@@ -56,7 +56,7 @@ int32_t dnodeDropVnode(int32_t vnode);
  * Get the vnode object that has been opened
  */
 //tsdb_repo_t* dnodeGetVnode(int vid);
-void* dnodeGetVnode(int vid);
+void* dnodeGetVnode(int32_t vnode);
 
 /*
  * get the status of vnode

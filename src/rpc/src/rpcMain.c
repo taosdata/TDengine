@@ -439,6 +439,8 @@ void rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   pInfo->clientIp = pConn->peerIp;
   pInfo->clientPort = pConn->peerPort;
   pInfo->serverIp = pConn->destIp;
+
+  assert(pConn->user[0]);
   strcpy(pInfo->user, pConn->user);
 }
 

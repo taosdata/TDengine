@@ -26,16 +26,6 @@ extern "C" {
 #include "taosmsg.h"
 
 /*
- * Clear query information associated with this connection
- */
-void dnodeFreeQInfo(void *pConn);
-
-/*
- * Clear all query informations
- */
-void dnodeFreeQInfos();
-
-/*
  * handle query message, and the result is returned by callback function
  */
 void dnodeQueryData(SQueryTableMsg *pQuery, void *pConn, void (*callback)(int32_t code, void *pQInfo, void *pConn));
@@ -49,7 +39,7 @@ void dnodeRetrieveData(SRetrieveTableMsg *pRetrieve, void *pConn, SDnodeRetrieve
 /*
  * Fill retrieve result according to query info
  */
-int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveTableRsp *retrievalRsp);
+int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveTableRsp *pRetrieve);
 
 /*
  * Get the size of retrieve result according to query info

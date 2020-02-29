@@ -293,7 +293,7 @@ void mgmtCleanUpNormalTables() {
 
 static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup) {
   int32_t totalCols = pTable->numOfColumns;
-  int32_t contLen   = sizeof(SCreateTableMsg) + totalCols * sizeof(SSchema) + pTable->sqlLen;
+  int32_t contLen   = sizeof(SDCreateTableMsg) + totalCols * sizeof(SSchema) + pTable->sqlLen;
 
   SDCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
   if (pCreateTable == NULL) {
@@ -327,7 +327,7 @@ static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgr
     pSchema++;
   }
 
-  memcpy(pCreateTable->data + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
+  memcpy(pCreateTable + sizeof(SDCreateTableMsg) + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
 
   return pCreateTable;
 }

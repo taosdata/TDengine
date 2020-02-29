@@ -22,33 +22,32 @@
 #include "dnodeRead.h"
 #include "dnodeSystem.h"
 
-void dnodeFreeQInfo(void *pConn) {}
-
-void dnodeFreeQInfos() {}
-
 void dnodeQueryData(SQueryTableMsg *pQuery, void *pConn, void (*callback)(int32_t code, void *pQInfo, void *pConn)) {
-  void *pQInfo = NULL;
-  int code = TSDB_CODE_SUCCESS;
-  callback(code, pConn, pQInfo);
+  dTrace("conn:%p, query msg is disposed", pConn);
+  void *pQInfo = 100;
+  callback(TSDB_CODE_SUCCESS, pQInfo, pConn);
 }
 
 static void dnodeExecuteRetrieveData(SSchedMsg *pSched) {
-  //SRetrieveTableMsg *pRetrieve = (SRetrieveTableMsg *)pSched->msg;
   SDnodeRetrieveCallbackFp callback = (SDnodeRetrieveCallbackFp)pSched->thandle;
+  SRetrieveTableMsg *pRetrieve = pSched->msg;
   void *pConn = pSched->ahandle;
 
-  //examples
-  int32_t code = TSDB_CODE_INVALID_QHANDLE;
-  void *pQInfo = NULL; //get from pConn
-  (*callback)(code, pQInfo, pConn);
+  dTrace("conn:%p, retrieve msg is disposed, qhandle:%" PRId64, pConn, pRetrieve->qhandle);
 
-  //TODO build response here
+  //examples
+  int32_t code = TSDB_CODE_SUCCESS;
+  void *pQInfo = (void*)pRetrieve->qhandle;
+
+  (*callback)(code, pQInfo, pConn);
 
   free(pSched->msg);
 }
 
 void dnodeRetrieveData(SRetrieveTableMsg *pRetrieve, void *pConn, SDnodeRetrieveCallbackFp callbackFp) {
-  int8_t *msg = malloc(sizeof(SRetrieveTableMsg));
+  dTrace("conn:%p, retrieve msg is received", pConn);
+
+  void *msg = malloc(sizeof(SRetrieveTableMsg));
   memcpy(msg, pRetrieve, sizeof(SRetrieveTableMsg));
 
   SSchedMsg schedMsg;
@@ -59,12 +58,15 @@ void dnodeRetrieveData(SRetrieveTableMsg *pRetrieve, void *pConn, SDnodeRetrieve
   taosScheduleTask(tsQueryQhandle, &schedMsg);
 }
 
-int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveTableRsp *retrievalRsp) {
+int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveTableRsp *pRetrieve) {
+  dTrace("qInfo:%p, data is retrieved");
+  pRetrieve->numOfRows = 0;
   return 0;
 }
 
 int32_t dnodeGetRetrieveDataSize(void *pQInfo) {
-  return 0;
+  dTrace("qInfo:%p, contLen is 100");
+  return 100;
 }
 
 

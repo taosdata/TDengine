@@ -180,14 +180,16 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  tscPrint("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList->port);
-
-  memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
-
   pSql->ipList->ip[0] = inet_addr("192.168.0.1");
   if (pSql->cmd.command < TSDB_SQL_MGMT) {
+    pSql->ipList->port = tsVnodeShellPort;
+    tscPrint("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList->port);
+    memcpy(pMsg, pSql->cmd.payload + tsRpcHeadSize, pSql->cmd.payloadLen);
     rpcSendRequest(pVnodeConn, pSql->ipList, pSql->cmd.msgType, pMsg, pSql->cmd.payloadLen, pSql);
   } else {
+    pSql->ipList->port = tsMgmtShellPort;
+    tscPrint("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList->port);
+    memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
     rpcSendRequest(pTscMgmtConn, pSql->ipList, pSql->cmd.msgType, pMsg, pSql->cmd.payloadLen, pSql);
   }
 
@@ -295,8 +297,14 @@ void tscProcessMsgFromServer(char type, void *pCont, int contLen, void *ahandle,
      * The actual inserted number of points is the first number.
      */
     if (type == TSDB_MSG_TYPE_SUBMIT_RSP) {
-      pRes->numOfRows += *(int32_t *)pRes->pRsp;
+      SShellSubmitRspMsg *pMsg = pRes->pRsp;
+      pMsg->code = htonl(pMsg->code);
+      pMsg->numOfRows = htonl(pMsg->numOfRows);
+      pMsg->affectedRows = htonl(pMsg->affectedRows);
+      pMsg->failedRows = htonl(pMsg->failedRows);
+      pMsg->numOfFailedBlocks = htonl(pMsg->numOfFailedBlocks);
 
+      pRes->numOfRows += pMsg->affectedRows;
       tscTrace("%p cmd:%d code:%d, inserted rows:%d, rsp len:%d", pSql, pCmd->command, pRes->code,
                *(int32_t *)pRes->pRsp, pRes->rspLen);
     } else {
@@ -512,6 +520,8 @@ int tscProcessSql(SSqlObj *pSql) {
       return pSql->res.code;
     }
 
+    // temp
+    pSql->ipList = &tscMgmtIpList;
 //    if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
 //      pSql->index = pMeterMetaInfo->pMeterMeta->index;
 //    } else {  // it must be the parent SSqlObj for super table query
@@ -1194,11 +1204,12 @@ int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pStart = pSql->cmd.payload + tsRpcHeadSize;
   pMsg = pStart;
 
-  *((uint64_t *)pMsg) = pSql->res.qhandle;
+  SRetrieveTableMsg *pRetrieveMsg = (SShellSubmitMsg *)pMsg;
+  pRetrieveMsg->qhandle = htobe64(pSql->res.qhandle);
   pMsg += sizeof(pSql->res.qhandle);
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  *((uint16_t *)pMsg) = htons(pQueryInfo->type);
+  pRetrieveMsg->free = htons(pQueryInfo->type);
   pMsg += sizeof(pQueryInfo->type);
 
   pSql->cmd.payloadLen = pMsg - pStart;
@@ -1245,6 +1256,8 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
   tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pMeterMeta->vpeerDesc[pMeterMeta->index].ip),
            htons(pShellMsg->vnode));
+
+  pSql->cmd.payloadLen = sizeof(SShellSubmitMsg);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1643,8 +1656,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pSql->cmd.msgType = TSDB_MSG_TYPE_QUERY;
 
   assert(msgLen + minMsgSize() <= size);
-
-  memmove(pSql->cmd.payload, pStart, pSql->cmd.payloadLen - tsRpcHeadSize);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3007,7 +3018,10 @@ int tscProcessAlterDbMsgRsp(SSqlObj *pSql) {
 int tscProcessQueryRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
-  pRes->qhandle = *((uint64_t *)pRes->pRsp);
+  SQueryTableRsp *pQuery = (SRetrieveTableRsp *)pRes->pRsp;
+  pQuery->qhandle = htobe64(pQuery->qhandle);
+  pRes->qhandle = pQuery->qhandle;
+
   pRes->data = NULL;
   tscResetForNextRetrieve(pRes);
   return 0;

@@ -184,6 +184,10 @@ static void mgmtProcessFreeVnodeRsp(int8_t msgType, int8_t *pCont, int32_t contL
   mTrace("free vnode rsp received, thandle:%p code:%d", thandle, code);
 }
 
+static void mgmtProcessDropStableRsp(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle, int32_t code) {
+  mTrace("drop stable rsp received, thandle:%p code:%d", thandle, code);
+}
+
 static void mgmtProcessCreateVnodeRsp(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle, int32_t code) {
   mTrace("create vnode rsp received, thandle:%p code:%d", thandle, code);
   if (thandle == NULL) return;
@@ -241,6 +245,8 @@ void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *p
     mgmtProcessCreateVnodeRsp(msgType, pCont, contLen, pConn, code);
   } else if (msgType == TSDB_MSG_TYPE_FREE_VNODE_RSP) {
     mgmtProcessFreeVnodeRsp(msgType, pCont, contLen, pConn, code);
+  } else if (msgType == TSDB_MSG_TYPE_DROP_STABLE) {
+    mgmtProcessDropStableRsp(msgType, pCont, contLen, pConn, code);
   } else if (msgType == TSDB_MSG_TYPE_DNODE_CFG_RSP) {
   } else if (msgType == TSDB_MSG_TYPE_ALTER_STREAM_RSP) {
   } else {

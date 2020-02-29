@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
   {
     printf("=== this a test for debug usage\n");
     void *taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
-    taos_query(taos, "insert into d1.t14 values(now, 1)");
+    taos_query(taos, "select * from d1.t6");
     while (1) {
       sleep(1000);
     }

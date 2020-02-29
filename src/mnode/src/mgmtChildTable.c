@@ -276,7 +276,7 @@ void mgmtCleanUpChildTables() {
 
 static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup, void *pTagData, int32_t tagDataLen) {
   int32_t totalCols = pTable->superTable->numOfColumns + pTable->superTable->numOfTags;
-  int32_t contLen   = sizeof(SCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen;
+  int32_t contLen   = sizeof(SDCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen;
 
   SDCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
   if (pCreateTable == NULL) {
@@ -311,7 +311,7 @@ static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgrou
     pSchema++;
   }
 
-  memcpy(pCreateTable + sizeof(SCreateTableMsg) + totalCols * sizeof(SSchema), pTagData, tagDataLen);
+  memcpy(pCreateTable + sizeof(SDCreateTableMsg) + totalCols * sizeof(SSchema), pTagData, tagDataLen);
 
   return pCreateTable;
 }

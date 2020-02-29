@@ -53,6 +53,8 @@ extern "C" {
 #define TSDB_MSG_TYPE_SDB_SYNC_RSP           22
 #define TSDB_MSG_TYPE_SDB_FORWARD            23
 #define TSDB_MSG_TYPE_SDB_FORWARD_RSP        24
+#define TSDB_MSG_TYPE_DROP_STABLE            25
+#define TSDB_MSG_TYPE_DROP_STABLE_RSP        26
 #define TSDB_MSG_TYPE_CONNECT                31
 #define TSDB_MSG_TYPE_CONNECT_RSP            32
 #define TSDB_MSG_TYPE_CREATE_ACCT            33
@@ -261,7 +263,7 @@ typedef struct {
   int16_t   numOfColumns;
   int16_t   sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
   int16_t   reserved[16];
-  SSchema   schema[];
+  char      schema[];
 } SCreateTableMsg;
 
 typedef struct {
