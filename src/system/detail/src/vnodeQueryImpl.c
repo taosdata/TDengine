@@ -1737,12 +1737,16 @@ static void doBlockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SWindowStat
 
   if (IS_MASTER_SCAN(pRuntimeEnv) || pStatus->closed) {
     for (int32_t k = 0; k < pQuery->numOfOutputCols; ++k) {
+      int32_t functionId = pQuery->pSelectExpr[k].pBase.functionId;
+      
       pCtx[k].nStartQueryTimestamp = pWin->skey;
       pCtx[k].size = forwardStep;
       pCtx[k].startOffset = (QUERY_IS_ASC_QUERY(pQuery)) ? startPos : startPos - (forwardStep - 1);
-      pCtx[k].ptsList = (TSKEY *)((char*)pRuntimeEnv->primaryColBuffer->data + pCtx[k].startOffset * TSDB_KEYSIZE);
   
-      int32_t functionId = pQuery->pSelectExpr[k].pBase.functionId;
+      if ((aAggs[functionId].nStatus & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
+        pCtx[k].ptsList = (TSKEY *)((char*)pRuntimeEnv->primaryColBuffer->data + pCtx[k].startOffset * TSDB_KEYSIZE);
+      }
+  
       if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
         aAggs[functionId].xFunction(&pCtx[k]);
       }
