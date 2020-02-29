@@ -8,16 +8,14 @@
 *  expressly provided by the written permission from Jianhui Tao
 *
 * ****************************************************************/
-
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "tlog.h"
+#include "taosmsg.h"
 #include "httpJson.h"
 #include "httpResp.h"
 #include "opHandle.h"
 #include "opJson.h"
-#include "taosmsg.h"
 
 void opInitPutDetailJson(HttpContext *pContext) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);

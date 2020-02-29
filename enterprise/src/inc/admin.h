@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_HTTP_ADMIN_H
-#define TDENGINE_MODULE_HTTP_ADMIN_H
+#ifndef TDENGINE_PLUGIN_ADMIN_H
+#define TDENGINE_PLUGIN_ADMIN_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,9 +22,8 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <pthread.h>
 
-void httpAdminInit();
+void adminInit();
 
 #ifdef __cplusplus
 }

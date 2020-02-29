@@ -12,9 +12,9 @@
 #ifndef TDENGINE_OP_JSON_H
 #define TDENGINE_OP_JSON_H
 
+#include "taos.h"
 #include "httpHandle.h"
 #include "httpJson.h"
-#include "taos.h"
 
 void opInitPutDetailJson(HttpContext *pContext);
 void opCleanPutDetailJson(HttpContext *pContext);

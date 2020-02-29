@@ -11,10 +11,11 @@
 
 #ifndef TDENGINE_ADMIN_JSON_H
 #define TDENGINE_ADMIN_JSON_H
+
 #include <stdbool.h>
+#include "taos.h"
 #include "httpHandle.h"
 #include "httpJson.h"
-#include "taos.h"
 
 #define ADMIN_JSON_SUCCESS "succ"
 #define ADMIN_JSON_SUCCESS_LEN 4

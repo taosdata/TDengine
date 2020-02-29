@@ -9,16 +9,13 @@
  *
  * ****************************************************************/
 
-#include <stdint.h>
-#include <string.h>
-#include <sys/time.h>
-#include <time.h>
-#include <unistd.h>
-
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "tlog.h"
+#include "tglobalcfg.h"
+#include "httpJson.h"
 #include "adminHandle.h"
 #include "adminJson.h"
-#include "httpJson.h"
-#include "tglobalcfg.h"
 
 void adminStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);

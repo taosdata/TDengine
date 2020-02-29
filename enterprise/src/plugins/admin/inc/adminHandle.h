@@ -12,11 +12,6 @@
 #ifndef TDENGINE_ADMIN_HANDLE_H
 #define TDENGINE_ADMIN_HANDLE_H
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-
 #include "http.h"
 #include "httpCode.h"
 #include "httpHandle.h"

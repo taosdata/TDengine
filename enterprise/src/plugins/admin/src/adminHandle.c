@@ -8,11 +8,12 @@
  *  expressly provided by the written permission from Jianhui Tao
  *
  * ****************************************************************/
-
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "tlog.h"
+#include "tglobalcfg.h"
 #include "adminHandle.h"
 #include "adminJson.h"
-#include "tglobalcfg.h"
-#include "tlog.h"
 
 static HttpDecodeMethod adminDecodeMethod = {"admin", adminProcessRequest};
 static HttpEncodeMethod adminEncodeSqlMethod = {

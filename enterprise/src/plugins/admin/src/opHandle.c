@@ -8,12 +8,14 @@
  *  expressly provided by the written permission from Jianhui Tao
  *
  * ****************************************************************/
-
-#include "opHandle.h"
-#include "cJSON.h"
-#include "opJson.h"
+#define _DEFAULT_SOURCE
+#include "os.h"
 #include "taosmsg.h"
 #include "taosdef.h"
+#include "tlog.h"
+#include "cJSON.h"
+#include "opJson.h"
+#include "opHandle.h"
 
 static HttpDecodeMethod opDecodeMethod = {"opentsdb", opProcessRequest};
 static HttpEncodeMethod opPutSummaryMethod = {NULL,
