@@ -236,6 +236,7 @@ static void *taosReadTcpData(void *param) {
   STcpFd            *pFdObj;
   struct epoll_event events[maxTcpEvents];
   SRecvInfo          recvInfo;
+  SRpcHead           rpcHead;
 
   while (1) {
     pthread_mutex_lock(&pTcp->mutex);
@@ -260,37 +261,24 @@ static void *taosReadTcpData(void *param) {
         continue;
       }
 
-      void *buffer = malloc(1024);
-      if (NULL == buffer) {
-        tTrace("%s TCP malloc(size:1024) fail\n", pTcp->label);
-        taosCleanUpTcpFdObj(pFdObj);
-        continue;
-      }
-
-      int headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(SRpcHead));
+      int headLen = taosReadMsg(pFdObj->fd, &rpcHead, sizeof(SRpcHead));
       if (headLen != sizeof(SRpcHead)) {
         tError("%s read error, headLen:%d", pTcp->label, headLen);
-        tfree(buffer);
         taosCleanUpTcpFdObj(pFdObj);
         continue;
       }
 
-      int dataLen = (int32_t)htonl((uint32_t)((SRpcHead *)buffer)->msgLen);
-      if (dataLen > 1024) {
-        void *b = realloc(buffer, (size_t)dataLen);
-        if (NULL == b) {
-          tTrace("%s TCP malloc(size:%d) fail\n", pTcp->label, dataLen);
-          tfree(buffer);
-          taosCleanUpTcpFdObj(pFdObj);
-          continue;
-        }
-        buffer = b;
+      int32_t msgLen = (int32_t)htonl((uint32_t)rpcHead.msgLen);
+      char   *buffer = (char *)malloc((size_t)msgLen + tsRpcOverhead);
+      if (NULL == buffer) {
+        tTrace("%s TCP malloc(size:%d) fail\n", pTcp->label, msgLen);
+        taosCleanUpTcpFdObj(pFdObj);
+        continue;
       }
 
-      int leftLen = dataLen - headLen;
-      int retLen = taosReadMsg(pFdObj->fd, buffer + headLen, leftLen);
-
-      // tTrace("%s TCP data is received, ip:%s port:%u len:%d", pTcp->label, pFdObj->ipstr, pFdObj->port, dataLen);
+      char    *msg = buffer + tsRpcOverhead;
+      int32_t  leftLen = msgLen - headLen;
+      int32_t  retLen = taosReadMsg(pFdObj->fd, msg + headLen, leftLen);
 
       if (leftLen != retLen) {
         tError("%s read error, leftLen:%d retLen:%d", pTcp->label, leftLen, retLen);
@@ -299,8 +287,11 @@ static void *taosReadTcpData(void *param) {
         continue;
       }
 
-      recvInfo.msg = buffer;
-      recvInfo.msgLen = dataLen;
+      // tTrace("%s TCP data is received, ip:%s:%u len:%d", pTcp->label, pFdObj->ipstr, pFdObj->port, msgLen);
+
+      memcpy(msg, &rpcHead, sizeof(SRpcHead));
+      recvInfo.msg = msg;
+      recvInfo.msgLen = msgLen;
       recvInfo.ip = pFdObj->ip;
       recvInfo.port = pFdObj->port;
       recvInfo.shandle = pTcp->shandle;

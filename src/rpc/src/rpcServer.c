@@ -191,8 +191,9 @@ static void taosProcessTcpData(void *param) {
   int                i, fdNum;
   SFdObj *           pFdObj;
   struct epoll_event events[maxEvents];
-  SRecvInfo         recvInfo;
+  SRecvInfo          recvInfo;
   pThreadObj = (SThreadObj *)param;
+  SRpcHead           rpcHead;
 
   while (1) {
     pthread_mutex_lock(&pThreadObj->threadMutex);
@@ -219,24 +220,24 @@ static void taosProcessTcpData(void *param) {
         continue;
       }
 
-      void *buffer = malloc(1024);
-      int   headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(SRpcHead));
-
+      int32_t headLen = taosReadMsg(pFdObj->fd, &rpcHead, sizeof(SRpcHead));
       if (headLen != sizeof(SRpcHead)) {
         tError("%s read error, headLen:%d, errno:%d", pThreadObj->label, headLen, errno);
         taosCleanUpFdObj(pFdObj);
-        tfree(buffer);
         continue;
       }
 
-      int dataLen = (int32_t)htonl((uint32_t)((SRpcHead *)buffer)->msgLen);
-      if (dataLen > 1024) buffer = realloc(buffer, (size_t)dataLen);
+      int32_t msgLen = (int32_t)htonl((uint32_t)rpcHead.msgLen);
+      char   *buffer = malloc(msgLen + tsRpcOverhead);
+      if ( NULL == buffer) {
+        tError("%s TCP malloc(size:%d) fail\n", pThreadObj->label, msgLen);
+        taosCleanUpFdObj(pFdObj);
+        continue;
+      }
 
-      int leftLen = dataLen - headLen;
-      int retLen = taosReadMsg(pFdObj->fd, buffer + headLen, leftLen);
-
-      // tTrace("%s TCP data is received, ip:%s port:%u len:%d",
-      // pThreadObj->label, pFdObj->ipstr, pFdObj->port, dataLen);
+      char   *msg = buffer + tsRpcOverhead;
+      int32_t leftLen = msgLen - headLen;
+      int32_t retLen = taosReadMsg(pFdObj->fd, msg + headLen, leftLen);
 
       if (leftLen != retLen) {
         tError("%s read error, leftLen:%d retLen:%d", pThreadObj->label, leftLen, retLen);
@@ -245,8 +246,11 @@ static void taosProcessTcpData(void *param) {
         continue;
       }
 
-      recvInfo.msg = buffer;
-      recvInfo.msgLen = dataLen;
+      // tTrace("%s TCP data is received, ip:%s:%u len:%d", pTcp->label, pFdObj->ipstr, pFdObj->port, msgLen);
+
+      memcpy(msg, &rpcHead, sizeof(SRpcHead));
+      recvInfo.msg = msg;
+      recvInfo.msgLen = msgLen;
       recvInfo.ip = pFdObj->ip;
       recvInfo.port = pFdObj->port;
       recvInfo.shandle = pThreadObj->shandle;

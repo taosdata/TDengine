@@ -26,6 +26,8 @@ extern "C" {
 #define RPC_CONN_TCPC   3
 #define RPC_CONN_TCP    2
 
+extern int tsRpcOverhead;
+
 typedef struct {
   void    *msg;
   int      msgLen;
