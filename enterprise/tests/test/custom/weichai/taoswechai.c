@@ -102,8 +102,8 @@ struct arguments {
   char database[TSDB_DB_NAME_LEN + 1];
   int ablocks;
   int cache;
-  char stable[TSDB_METER_NAME_LEN + 1];
-  char prefix[TSDB_METER_NAME_LEN + 1];
+  char stable[TSDB_TABLE_NAME_LEN + 1];
+  char prefix[TSDB_TABLE_NAME_LEN + 1];
   int batch;
   int writeMode;
   int debugFlag;

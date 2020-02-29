@@ -29,30 +29,11 @@ void *     dnodeHash;
 void *     dnodeIdPool;
 uint32_t   tsPrivateIp4;
 
-int   mgmtSendVPeersMsg(SVgObj *pVgroup);
-char *mgmtBuildVpeersIe(char *pMsg, SVgObj *pVgroup, int vnode);
+int   mgmtSendCreateVnodeMsg(SVgObj *pVgroup);
+char *mgmtBuildVpeersMsg(char *pMsg, SVgObj *pVgroup, int vnode);
 char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int vnode);
 void  mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *pObj);
 
-/*
- * Communication function between dnode and mnode
- * Cluster version via network communication
- */
-char *taosBuildRspMsgToDnodeWithSize(SDnodeObj *pObj, char type, int size) {
-  return taosBuildRspMsgWithSize(pObj->thandle, type, size);
-}
-
-char *taosBuildReqMsgToDnodeWithSize(SDnodeObj *pObj, char type, int size) {
-  return taosBuildReqMsgWithSize(pObj->thandle, type, size);
-}
-
-int mgmtSendSimpleRspToDnode(SDnodeObj *pObj, char rsptype, char code) {
-  return taosSendSimpleRsp(pObj->thandle, rsptype, code);
-}
-
-int mgmtSendMsgToDnode(SDnodeObj *pObj, char *msg, int msgLen) {
-  return taosSendMsgToPeer(pObj->thandle, msg, msgLen);
-}
 
 int mgmtInitDnodeInt() {
   SRpcInit rpcInit;
@@ -62,7 +43,7 @@ int mgmtInitDnodeInt() {
 
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp = tsPrivateIp;
-  rpcInit.localPort = tsMgmtVnodePort;
+  rpcInit.localPort = tsMgmtDnodePort;
   rpcInit.label = "MND-dnode";
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.fp = mgmtProcessMsgFromDnodeSpec;

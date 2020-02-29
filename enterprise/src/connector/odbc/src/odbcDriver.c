@@ -595,8 +595,8 @@ odbcPrimaryKeys(SQLHSTMT stmt, char *cat, char *schema, char *table)
     strcpy(taosStmt->dbc->dbname, cat);
   }
   if (table != NULL) {
-    strncpy(taosStmt->dbc->tbname, table, TSDB_METER_NAME_LEN);
-    taosStmt->dbc->tbname[TSDB_METER_NAME_LEN] = 0;
+    strncpy(taosStmt->dbc->tbname, table, TSDB_TABLE_NAME_LEN);
+    taosStmt->dbc->tbname[TSDB_TABLE_NAME_LEN] = 0;
   }
 
   if (strlen(taosStmt->dbc->dbname) != 0) {
@@ -2375,7 +2375,7 @@ odbcGetInfo(SQLHDBC dbc, SQLUSMALLINT type, SQLPOINTER val, SQLSMALLINT valMax, 
 #endif
 #ifdef SQL_MAX_IDENTIFIER_LEN  
   case SQL_MAX_IDENTIFIER_LEN:        //checked
-    *((SQLUSMALLINT *)val) = TSDB_METER_NAME_LEN;
+    *((SQLUSMALLINT *)val) = TSDB_TABLE_NAME_LEN;
     *valLen = sizeof(SQLUSMALLINT);
     break;
 #endif
@@ -2415,7 +2415,7 @@ odbcGetInfo(SQLHDBC dbc, SQLUSMALLINT type, SQLPOINTER val, SQLSMALLINT valMax, 
     strmak(val, "", valMax, valLen);
     break;
   case SQL_MAX_TABLE_NAME_LEN:        //checked
-    *((SQLSMALLINT *)val) = TSDB_METER_NAME_LEN;
+    *((SQLSMALLINT *)val) = TSDB_TABLE_NAME_LEN;
     *valLen = sizeof(SQLSMALLINT);
   case SQL_MAX_COLUMN_NAME_LEN:       //checked
     *((SQLSMALLINT *)val) = TSDB_COL_NAME_LEN;
@@ -4354,10 +4354,10 @@ odbcExecuteSql(STMT *s)
 
     (s->cols + 0)->fieldSize = TSDB_DB_NAME_LEN;
     (s->cols + 1)->fieldSize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldSize = TSDB_METER_NAME_LEN;
+    (s->cols + 2)->fieldSize = TSDB_TABLE_NAME_LEN;
     (s->cols + 3)->fieldSize = TSDB_COL_NAME_LEN;
     (s->cols + 4)->fieldSize = s->fields[1].bytes;
-    (s->cols + 5)->fieldSize = TSDB_METER_NAME_LEN;
+    (s->cols + 5)->fieldSize = TSDB_TABLE_NAME_LEN;
     (s->cols + 6)->fieldSize = s->fields[2].bytes;
     (s->cols + 7)->fieldSize = 4;
     (s->cols + 8)->fieldSize = 2;
@@ -4392,10 +4392,10 @@ odbcExecuteSql(STMT *s)
     
     (s->cols + 0)->fieldDisplaySize = TSDB_DB_NAME_LEN;
     (s->cols + 1)->fieldDisplaySize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldDisplaySize = TSDB_METER_NAME_LEN;
+    (s->cols + 2)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
     (s->cols + 3)->fieldDisplaySize = TSDB_COL_NAME_LEN;
     (s->cols + 4)->fieldDisplaySize = 4;
-    (s->cols + 5)->fieldDisplaySize = TSDB_METER_NAME_LEN;
+    (s->cols + 5)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
     (s->cols + 6)->fieldDisplaySize = 5;
     (s->cols + 7)->fieldDisplaySize = 5;
     (s->cols + 8)->fieldDisplaySize = 5;
@@ -4441,9 +4441,9 @@ odbcExecuteSql(STMT *s)
     strcpy((s->cols + 4)->fieldName, "REMARKS");
     (s->cols + 0)->fieldSize = TSDB_DB_NAME_LEN;
     (s->cols + 1)->fieldSize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldSize = TSDB_METER_NAME_LEN;
-    (s->cols + 3)->fieldSize = TSDB_METER_NAME_LEN;
-    (s->cols + 4)->fieldSize = TSDB_METER_NAME_LEN;
+    (s->cols + 2)->fieldSize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 3)->fieldSize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 4)->fieldSize = TSDB_TABLE_NAME_LEN;
     (s->cols + 0)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 1)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 2)->fieldType = TSDB_DATA_TYPE_BINARY;
@@ -4451,9 +4451,9 @@ odbcExecuteSql(STMT *s)
     (s->cols + 4)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 0)->fieldDisplaySize = TSDB_DB_NAME_LEN;
     (s->cols + 1)->fieldDisplaySize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldDisplaySize = TSDB_METER_NAME_LEN;
-    (s->cols + 3)->fieldDisplaySize = TSDB_METER_NAME_LEN;
-    (s->cols + 4)->fieldDisplaySize = TSDB_METER_NAME_LEN;
+    (s->cols + 2)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 3)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 4)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
     (s->cols + 0)->fieldScale = 0;
     (s->cols + 1)->fieldScale = 0;
     (s->cols + 2)->fieldScale = 0;
@@ -4469,10 +4469,10 @@ odbcExecuteSql(STMT *s)
     strcpy((s->cols + 5)->fieldName, "PK_NAME");
     (s->cols + 0)->fieldSize = TSDB_DB_NAME_LEN;
     (s->cols + 1)->fieldSize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldSize = TSDB_METER_NAME_LEN;
-    (s->cols + 3)->fieldSize = TSDB_METER_NAME_LEN;
+    (s->cols + 2)->fieldSize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 3)->fieldSize = TSDB_TABLE_NAME_LEN;
     (s->cols + 4)->fieldSize = 5;
-    (s->cols + 5)->fieldSize = TSDB_METER_NAME_LEN;
+    (s->cols + 5)->fieldSize = TSDB_TABLE_NAME_LEN;
     (s->cols + 0)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 1)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 2)->fieldType = TSDB_DATA_TYPE_BINARY;
@@ -4481,10 +4481,10 @@ odbcExecuteSql(STMT *s)
     (s->cols + 5)->fieldType = TSDB_DATA_TYPE_BINARY;
     (s->cols + 0)->fieldDisplaySize = TSDB_DB_NAME_LEN;
     (s->cols + 1)->fieldDisplaySize = TSDB_DB_NAME_LEN;
-    (s->cols + 2)->fieldDisplaySize = TSDB_METER_NAME_LEN;
-    (s->cols + 3)->fieldDisplaySize = TSDB_METER_NAME_LEN;
+    (s->cols + 2)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
+    (s->cols + 3)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
     (s->cols + 4)->fieldDisplaySize = 5;
-    (s->cols + 5)->fieldDisplaySize = TSDB_METER_NAME_LEN;
+    (s->cols + 5)->fieldDisplaySize = TSDB_TABLE_NAME_LEN;
     (s->cols + 0)->fieldScale = 0;
     (s->cols + 1)->fieldScale = 0;
     (s->cols + 2)->fieldScale = 0;
@@ -4665,8 +4665,8 @@ odbcColumns(SQLHSTMT stmt, char *cat, char *schema, char *table, char *columns)
     strcpy(taosStmt->dbc->dbname, cat);
   }
   if (table != NULL) {
-    strncpy(taosStmt->dbc->tbname, table, TSDB_METER_NAME_LEN);
-    taosStmt->dbc->tbname[TSDB_METER_NAME_LEN] = 0;
+    strncpy(taosStmt->dbc->tbname, table, TSDB_TABLE_NAME_LEN);
+    taosStmt->dbc->tbname[TSDB_TABLE_NAME_LEN] = 0;
   }
 
   if (strlen(taosStmt->dbc->dbname) != 0) {

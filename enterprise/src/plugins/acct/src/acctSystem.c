@@ -48,7 +48,6 @@ extern void *tsUserSdb;
 extern void *tsDbSdb;
 
 static void mgmtCreateRootAcct();
-static void mgmtCheckAcct();
 static void *(*mgmtAcctActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtAcctActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtAcctActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
@@ -64,7 +63,7 @@ static void mgmtAcctActionInit() {
   mgmtAcctActionFp[SDB_TYPE_UPDATE] = mgmtAcctActionUpdate;
   mgmtAcctActionFp[SDB_TYPE_ENCODE] = mgmtAcctActionEncode;
   mgmtAcctActionFp[SDB_TYPE_DECODE] = mgmtAcctActionDecode;
-  mgmtAcctActionFp[SDB_TYPE_RESET] = mgmtAcctActionReset;
+  mgmtAcctActionFp[SDB_TYPE_RESET]  = mgmtAcctActionReset;
   mgmtAcctActionFp[SDB_TYPE_DESTROY] = mgmtAcctActionDestroy;
 }
 
@@ -81,6 +80,8 @@ static int32_t mgmtInitAcctsImp() {
   int32_t   numOfAccts = 0;
 
   mgmtAcctActionInit();
+  SAcctObj tObj;
+  tsAcctUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
   tsAcctSdb = sdbOpenTable(tsMaxAccounts, sizeof(SAcctObj), "account", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtAcctAction);
   if (tsAcctSdb == NULL) {
@@ -108,11 +109,7 @@ static int32_t mgmtInitAcctsImp() {
     numOfAccts++;
   }
 
-  SAcctObj tObj;
-  tsAcctUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
-
   mgmtCreateRootAcct();
-  mgmtCheckAcct();
 
   mTrace("account is initialized");
   return 0;
@@ -329,21 +326,6 @@ int32_t mgmtDropAcct(char *name) {
   return 0;
 }
 
-static void mgmtCheckAcct() {
-  int32_t numOfRows = 0;
-
-  numOfRows = sdbGetNumOfRows(tsAcctSdb);
-
-  if (numOfRows == 0) {
-    mTrace("no any accounts, create the root acct");
-    mgmtCreateAcct("root", "taosdata", NULL);
-
-    SAcctObj *pAcct = mgmtGetAcct("root");
-    mgmtCreateUser(pAcct, "monitor", tsInternalPass);
-    mgmtCreateUser(pAcct, "_root", tsInternalPass);
-  }
-}
-
 static void mgmtCleanUpAcctsImp() {
   sdbCloseTable(tsAcctSdb);
 }
@@ -356,7 +338,7 @@ static int32_t mgmtGetAcctMetaImp(STableMeta *pMeta, SShowObj *pShow, void *pCon
 
   if (strcmp(pUser->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
-  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
   SSchema *pSchema = tsGetSchema(pMeta);
 
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -494,12 +476,11 @@ static void *mgmtAcctActionUpdate(void *row, char *str, int32_t size, int32_t *s
 
 static void *mgmtAcctActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
   SAcctObj *pAcct = (SAcctObj *) row;
-  int32_t  tsize  = pAcct->updateEnd - (int8_t *) pAcct;
-  if (size < tsize) {
+  if (size < tsAcctUpdateSize) {
     *ssize = -1;
   } else {
-    memcpy(str, pAcct, tsize);
-    *ssize = tsize;
+    memcpy(str, pAcct, tsAcctUpdateSize);
+    *ssize = tsAcctUpdateSize;
   }
 
   return NULL;
@@ -510,15 +491,13 @@ static void *mgmtAcctActionDecode(void *row, char *str, int32_t size, int32_t *s
   if (pAcct == NULL) return NULL;
   memset(pAcct, 0, sizeof(SAcctObj));
 
-  int32_t tsize = pAcct->updateEnd - (int8_t *) pAcct;
-  memcpy(pAcct, str, tsize);
+  memcpy(pAcct, str, tsAcctUpdateSize);
   return (void *)pAcct;
 }
 
 static void *mgmtAcctActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   SAcctObj *pAcct = (SAcctObj *)row;
-  int32_t   tsize = pAcct->updateEnd - (int8_t *)pAcct;
-  memcpy(pAcct, str, tsize);
+  memcpy(pAcct, str, tsAcctUpdateSize);
   return NULL;
 }
 

@@ -111,7 +111,7 @@ int mgmtInitRedirect() {
 
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp = tsPrivateIp;
-  rpcInit.localPort = tsMgmtVnodePort;
+  rpcInit.localPort = tsMgmtDnodePort;
   rpcInit.label = "MND-dnode";
   rpcInit.numOfThreads = 1;
   rpcInit.fp = mgmtRedirectAllMsgs;

@@ -334,7 +334,7 @@ void gsShrinkTableName(char *name, int len, char *target)
       name[i] = '_';
   }
 
-  if (len < TSDB_METER_NAME_LEN - 1) {
+  if (len < TSDB_TABLE_NAME_LEN - 1) {
     strncpy(target + 1, name, len);
     target[0] = gsTablePrefix[0];
     return;

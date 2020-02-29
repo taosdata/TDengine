@@ -24,9 +24,20 @@ extern "C" {
 #include <stdbool.h>
 #include <pthread.h>
 
-void dnodeClusterInit();
-bool dclusterIsClusterExist();
-void mnodeClusterInit();
+void clusterInit();
+
+// dnodeSystem
+extern int32_t (*dnodeInitMgmtFp)();
+extern void (*dnodeInitMgmtIpFp)();
+
+// dnodeMgmt
+extern void (*dnodeSendMsgToMnodeFp)(int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
+extern void (*dnodeSendRspToMnodeFp)(void *handle, int32_t code, void *pCont, int contLen);
+extern void (*dnodeProcessStatusRspFp)(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);
+
+// mgmtDnodeInt
+extern void (*mgmtSendMsgToDnodeFp)(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
+extern void (*mgmtSendRspToDnodeFp)(void *handle, int32_t code, void *pCont, int contLen);
 
 
 #ifdef __cplusplus

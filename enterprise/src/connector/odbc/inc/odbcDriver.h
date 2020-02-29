@@ -69,7 +69,7 @@ typedef struct dbc {
   char dbname[TSDB_DB_NAME_LEN + 1];
   char user[TSDB_USER_LEN + 1];
   char pwd[TSDB_PASSWORD_LEN + 1];
-  char tbname[TSDB_METER_NAME_LEN + 1];  //for sql columns
+  char tbname[TSDB_TABLE_NAME_LEN + 1];  //for sql columns
   
   int naterr;
   SQLCHAR logmsg[MAX_ERROR_LEN + 1];

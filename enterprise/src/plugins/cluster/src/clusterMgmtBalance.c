@@ -236,7 +236,7 @@ void mgmtDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
   sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 1);
 
   mgmtSendOneFreeVnodeMsg(&pBackupVnodeGid);
-  mgmtSendVPeersMsg(pVgroup);
+  mgmtSendCreateVnodeMsg(pVgroup);
 }
 
 /**
@@ -268,7 +268,7 @@ void mgmtAppendVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
     mTrace("%d-dnode:%s, vgroup:%d, vnode:%d exist after addition", i, taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vgId, pVgroup->vnodeGid[i].vnode);
   }
 
-  mgmtSendVPeersMsg(pVgroup);
+  mgmtSendCreateVnodeMsg(pVgroup);
 }
 
 void mgmtSwapVnodeGid(SVnodeGid *pVnodeGid1, SVnodeGid *pVnodeGid2) {

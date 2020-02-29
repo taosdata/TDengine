@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+void dnodeInitMgmtImp();
+void dnodeInitMgmtIpImp();
+void dnodeSendMsgToMnodeImp(int8_t msgType, void *pCont, int32_t contLen) = NULL;
+int32_t dnodeProcessStatusRspImp(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);
+
 #ifdef __cplusplus
 }
 #endif

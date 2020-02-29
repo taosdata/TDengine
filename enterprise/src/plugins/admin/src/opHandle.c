@@ -100,7 +100,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_NULL);
     return false;
   }
-  if (strlen(name->valuestring) >= TSDB_METER_NAME_LEN - 10) {
+  if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 10) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_LONG);
     return false;
   }
@@ -490,7 +490,7 @@ bool opProcessPutSummaryMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_NULL);
     return false;
   }
-  if (strlen(name->valuestring) >= TSDB_METER_NAME_LEN - 10) {
+  if (strlen(name->valuestring) >= TSDB_TABLE_NAME_LEN - 10) {
     httpSendErrorResp(pContext, HTTP_OP_METRIC_NAME_LONG);
     return false;
   }
