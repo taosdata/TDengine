@@ -94,6 +94,7 @@ typedef struct _RpcConn {
   char      encrypt; // encryption, 0:1 
   char      secret[TSDB_KEY_LEN]; // secret for the link
   char      ckey[TSDB_KEY_LEN];   // ciphering key 
+  char      secured;              // if set to 1, no authentication
   uint16_t  localPort;      // for UDP only
   uint32_t  peerUid;        // peer UID
   uint32_t  peerIp;         // peer IP
@@ -264,7 +265,7 @@ void *rpcOpen(SRpcInit *pInit) {
       return NULL;
     }
   } else {
-    pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, tsShellActivityTimer*1000); 
+    pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, pRpc->idleTime); 
     if ( pRpc->pCache == NULL ) {
       tError("%s failed to init connection cache", pRpc->label);
       rpcClose(pRpc);
@@ -417,6 +418,7 @@ void rpcSendResponse(void *handle, int32_t code, void *pCont, int contLen) {
 
   taosTmrStopA(&pConn->pTimer);
   rpcSendMsgToPeer(pConn, msg, msgLen);
+  pConn->secured = 1; // connection shall be secured
 
   return;
 }
@@ -811,7 +813,8 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId, pHead->port);
   }
 
-  if (pConn && pRpc->idleTime) {
+  if (pRpc->connType == TAOS_CONN_SERVER && pConn && pRpc->idleTime) {  
+    // only for server, starts the idle timer. For client, it is started by cache mgmt
     taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
   }
 
@@ -1023,8 +1026,8 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
     pConn->retry++;
 
     if (pConn->retry < 4) {
-      tTrace("%s %p, re-send msg:%s to %s:%hu retry:%d", pRpc->label, pConn, 
-             taosMsg[pConn->outType], pConn->peerIpstr, pConn->peerPort, pConn->retry);
+      tTrace("%s %p, re-send msg:%s to %s:%hud", pRpc->label, pConn, 
+             taosMsg[pConn->outType], pConn->peerIpstr, pConn->peerPort);
       rpcSendMsgToPeer(pConn, pConn->pReqMsg, pConn->reqMsgLen);      
       taosTmrReset(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl, &pConn->pTimer);
     } else {
@@ -1176,7 +1179,7 @@ static void rpcBuildAuthHead(void *pMsg, int msgLen, void *pAuth, void *pKey) {
 static int rpcAddAuthPart(SRpcConn *pConn, char *msg, int msgLen) {
   SRpcHead *pHead = (SRpcHead *)msg;
 
-  if (pConn->spi) {
+  if (pConn->spi && pConn->secured == 0) {
     // add auth part
     pHead->spi = pConn->spi;
     SRpcDigest *pDigest = (SRpcDigest *)(msg + msgLen);
@@ -1185,6 +1188,7 @@ static int rpcAddAuthPart(SRpcConn *pConn, char *msg, int msgLen) {
     pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
     rpcBuildAuthHead(pHead, msgLen - TSDB_AUTH_LEN, pDigest->auth, pConn->secret);
   } else {
+    pHead->spi = 0;
     pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
   }
 
@@ -1194,9 +1198,10 @@ static int rpcAddAuthPart(SRpcConn *pConn, char *msg, int msgLen) {
 static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
   SRpcHead *pHead = (SRpcHead *)msg;
   SRpcInfo *pRpc = pConn->pRpc;
-  int32_t   code = 0;
+  int       code = 0;
 
-  if (pConn->spi == 0) {
+  if ((pConn->secured && pHead->spi == 0) || (pHead->spi == 0 && pConn->spi == 0)){
+    // secured link, or no authentication 
     pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
     return 0;
   }
@@ -1211,7 +1216,6 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
   }
  
   code = 0;
-
   if (pHead->spi == pConn->spi) {
     // authentication
     SRpcDigest *pDigest = (SRpcDigest *)((char *)pHead + msgLen - sizeof(SRpcDigest));
@@ -1228,6 +1232,8 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
         code = TSDB_CODE_AUTH_FAILURE;
       } else {
         pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen) - sizeof(SRpcDigest);
+        if ( !rpcIsReq(pHead->msgType) ) pConn->secured = 1;  // link is secured for client
+        tTrace("%s %p, message is authenticated", pRpc->label, pConn);
       }
     }
   } else {
@@ -1240,7 +1246,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
 
 static void rpcLockConn(SRpcConn *pConn) {
   int64_t tid = taosGetPthreadId();
-  int       i = 0;
+  int     i = 0;
   while (atomic_val_compare_exchange_64(&(pConn->lockedBy), 0, tid) != 0) {
     if (++i % 1000 == 0) {
       sched_yield();
