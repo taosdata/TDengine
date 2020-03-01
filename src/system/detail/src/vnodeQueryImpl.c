@@ -4951,6 +4951,7 @@ int32_t vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
  */
 void vnodeDecMeterRefcnt(SQInfo *pQInfo) {
   STableQuerySupportObj *pSupporter = pQInfo->pTableQuerySupporter;
+  assert(pSupporter->numOfMeters >= 1);
 
   if (pSupporter == NULL || pSupporter->numOfMeters == 1) {
     atomic_fetch_sub_32(&pQInfo->pObj->numOfQueries, 1);
