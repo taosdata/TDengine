@@ -68,6 +68,26 @@ void processShellMsg(int numOfMsgs, SRpcMsg *pMsg) {
 
 }
 
+int retrieveAuthInfo(char *meterId, char *spi, char *encrypt, char *secret, char *ckey) {
+  // app shall retrieve the auth info based on meterID from DB or a data file
+  // demo code here only for simple demo
+  int ret = 0;
+
+  if (strcmp(meterId, "michael") == 0) {
+    *spi = 1;
+    *encrypt = 0;
+    strcpy(secret, "mypassword");
+    strcpy(ckey, "key");
+  } else if (strcmp(meterId, "jeff") == 0) {
+    *spi = 0;
+    *encrypt = 0;
+  } else {
+    ret = -1;  // user not there
+  }
+
+  return ret;
+}
+
 void processRequestMsg(char type, void *pCont, int contLen, void *thandle, int32_t code) {
   tTrace("request is received, type:%d, contLen:%d", type, contLen);
   SRpcMsg rpcMsg;
@@ -91,6 +111,7 @@ int main(int argc, char *argv[]) {
   rpcInit.cfp          = processRequestMsg;
   rpcInit.sessions     = 1000;
   rpcInit.idleTime     = 2000;
+  rpcInit.afp          = retrieveAuthInfo;
 
   for (int i=1; i<argc; ++i) {
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {

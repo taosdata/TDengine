@@ -285,9 +285,9 @@ int taosSendUdpData(uint32_t ip, uint16_t port, void *data, int dataLen, void *c
     destAdd.sin_addr.s_addr = ip;
     destAdd.sin_port = htons(port);
 
+    //tTrace("%s msg is sent to 0x%x:%hu len:%d ret:%d localPort:%hu chandle:0x%x", pConn->label, destAdd.sin_addr.s_addr,
+    //       port, dataLen, ret, pConn->localPort, chandle);
     int ret = (int)sendto(pConn->fd, data, (size_t)dataLen, 0, (struct sockaddr *)&destAdd, sizeof(destAdd));
-    tTrace("%s msg is sent to 0x%x:%hu len:%d ret:%d localPort:%hu chandle:0x%x", pConn->label, destAdd.sin_addr.s_addr,
-           port, dataLen, ret, pConn->localPort, chandle);
 
     return ret;
   }
