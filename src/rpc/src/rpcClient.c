@@ -45,158 +45,17 @@ typedef struct _tcp_client {
   int             numOfFds;
   char            label[12];
   char            ipstr[20];
-  void *          shandle;  // handle passed by upper layer during server initialization
-  void *(*processData)(char *data, int dataLen, unsigned int ip, uint16_t port, void *shandle, void *thandle,
-                       void *chandle);
-  // char   buffer[128000];
+  void           *shandle;  // handle passed by upper layer during server initialization
+  void           *(*processData)(SRecvInfo *pRecv);
 } STcpClient;
 
 #define maxTcpEvents 100
 
-static void taosCleanUpTcpFdObj(STcpFd *pFdObj) {
-  STcpClient *pTcp;
-
-  if (pFdObj == NULL) return;
-  if (pFdObj->signature != pFdObj) return;
-
-  pTcp = pFdObj->pTcp;
-  if (pTcp == NULL) {
-    tError("double free TcpFdObj!!!!");
-    return;
-  }
-
-  epoll_ctl(pTcp->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
-  close(pFdObj->fd);
-
-  pthread_mutex_lock(&pTcp->mutex);
-
-  pTcp->numOfFds--;
-
-  if (pTcp->numOfFds < 0) tError("%s number of TCP FDs shall never be negative", pTcp->label);
-
-  // remove from the FdObject list
-
-  if (pFdObj->prev) {
-    (pFdObj->prev)->next = pFdObj->next;
-  } else {
-    pTcp->pHead = pFdObj->next;
-  }
-
-  if (pFdObj->next) {
-    (pFdObj->next)->prev = pFdObj->prev;
-  }
-
-  pthread_mutex_unlock(&pTcp->mutex);
-
-  // notify the upper layer to clean the associated context
-  if (pFdObj->thandle) (*(pTcp->processData))(NULL, 0, 0, 0, pTcp->shandle, pFdObj->thandle, NULL);
-
-  tTrace("%s TCP FD is cleaned up, numOfFds:%d", pTcp->label, pTcp->numOfFds);
-
-  memset(pFdObj, 0, sizeof(STcpFd));
-
-  tfree(pFdObj);
-}
-
-void taosCleanUpTcpClient(void *chandle) {
-  STcpClient *pTcp = (STcpClient *)chandle;
-  if (pTcp == NULL) return;
-
-  while (pTcp->pHead) {
-    taosCleanUpTcpFdObj(pTcp->pHead);
-    pTcp->pHead = pTcp->pHead->next;
-  }
-
-  close(pTcp->pollFd);
-
-  pthread_cancel(pTcp->thread);
-  pthread_join(pTcp->thread, NULL);
-
-  // tTrace (":%s, all connections are cleaned up", pTcp->label);
-
-  tfree(pTcp);
-}
-
-static void *taosReadTcpData(void *param) {
-  STcpClient *       pTcp = (STcpClient *)param;
-  int                i, fdNum;
-  STcpFd *           pFdObj;
-  struct epoll_event events[maxTcpEvents];
-
-  while (1) {
-    pthread_mutex_lock(&pTcp->mutex);
-    if (pTcp->numOfFds < 1) pthread_cond_wait(&pTcp->fdReady, &pTcp->mutex);
-    pthread_mutex_unlock(&pTcp->mutex);
-
-    fdNum = epoll_wait(pTcp->pollFd, events, maxTcpEvents, -1);
-    if (fdNum < 0) continue;
-
-    for (i = 0; i < fdNum; ++i) {
-      pFdObj = events[i].data.ptr;
-
-      if (events[i].events & EPOLLERR) {
-        tTrace("%s TCP error happened on FD\n", pTcp->label);
-        taosCleanUpTcpFdObj(pFdObj);
-        continue;
-      }
-
-      if (events[i].events & EPOLLHUP) {
-        tTrace("%s TCP FD hang up\n", pTcp->label);
-        taosCleanUpTcpFdObj(pFdObj);
-        continue;
-      }
-
-      void *buffer = malloc(1024);
-      if (NULL == buffer) {
-        tTrace("%s TCP malloc(size:1024) fail\n", pTcp->label);
-        taosCleanUpTcpFdObj(pFdObj);
-        continue;
-      }
-
-      int headLen = taosReadMsg(pFdObj->fd, buffer, sizeof(SRpcHead));
-      if (headLen != sizeof(SRpcHead)) {
-        tError("%s read error, headLen:%d", pTcp->label, headLen);
-        tfree(buffer);
-        taosCleanUpTcpFdObj(pFdObj);
-        continue;
-      }
-
-      int dataLen = (int32_t)htonl((uint32_t)((SRpcHead *)buffer)->msgLen);
-      if (dataLen > 1024) {
-        void *b = realloc(buffer, (size_t)dataLen);
-        if (NULL == b) {
-          tTrace("%s TCP malloc(size:%d) fail\n", pTcp->label, dataLen);
-          tfree(buffer);
-          taosCleanUpTcpFdObj(pFdObj);
-          continue;
-        }
-        buffer = b;
-      }
-
-      int leftLen = dataLen - headLen;
-      int retLen = taosReadMsg(pFdObj->fd, buffer + headLen, leftLen);
-
-      // tTrace("%s TCP data is received, ip:%s port:%u len:%d", pTcp->label, pFdObj->ipstr, pFdObj->port, dataLen);
-
-      if (leftLen != retLen) {
-        tError("%s read error, leftLen:%d retLen:%d", pTcp->label, leftLen, retLen);
-        tfree(buffer);
-        taosCleanUpTcpFdObj(pFdObj);
-        continue;
-      }
-
-      pFdObj->thandle =
-          (*(pTcp->processData))(buffer, dataLen, pFdObj->ip, pFdObj->port, pTcp->shandle, pFdObj->thandle, pFdObj);
-
-      if (pFdObj->thandle == NULL) taosCleanUpTcpFdObj(pFdObj);
-    }
-  }
-
-  return NULL;
-}
+static void taosCleanUpTcpFdObj(STcpFd *pFdObj);
+static void *taosReadTcpData(void *param);
 
 void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp, void *shandle) {
-  STcpClient *   pTcp;
+  STcpClient    *pTcp;
   pthread_attr_t thattr;
 
   pTcp = (STcpClient *)malloc(sizeof(STcpClient));
@@ -235,12 +94,23 @@ void *taosInitTcpClient(char *ip, uint16_t port, char *label, int num, void *fp,
   return pTcp;
 }
 
-void taosCloseTcpClientConnection(void *chandle) {
-  STcpFd *pFdObj = (STcpFd *)chandle;
+void taosCleanUpTcpClient(void *chandle) {
+  STcpClient *pTcp = (STcpClient *)chandle;
+  if (pTcp == NULL) return;
 
-  if (pFdObj == NULL) return;
+  while (pTcp->pHead) {
+    taosCleanUpTcpFdObj(pTcp->pHead);
+    pTcp->pHead = pTcp->pHead->next;
+  }
 
-  taosCleanUpTcpFdObj(pFdObj);
+  close(pTcp->pollFd);
+
+  pthread_cancel(pTcp->thread);
+  pthread_join(pTcp->thread, NULL);
+
+  // tTrace (":%s, all connections are cleaned up", pTcp->label);
+
+  tfree(pTcp);
 }
 
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16_t port) {
@@ -250,16 +120,7 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16
   struct in_addr     destIp;
   int                fd;
 
-  /*
-    if ( (strcmp(ip, "127.0.0.1") == 0 ) || (strcmp(ip, "localhost") == 0 ) ) {
-      fd = taosOpenUDClientSocket(ip, port);
-    } else {
-      fd = taosOpenTcpClientSocket(ip, port, pTcp->ipstr);
-    }
-  */
-
   fd = taosOpenTcpClientSocket(ip, port, pTcp->ipstr);
-
   if (fd <= 0) return NULL;
 
   pFdObj = (STcpFd *)malloc(sizeof(STcpFd));
@@ -290,27 +151,161 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, char *ip, uint16
 
   // notify the data process, add into the FdObj list
   pthread_mutex_lock(&(pTcp->mutex));
-
   pFdObj->next = pTcp->pHead;
-
   if (pTcp->pHead) (pTcp->pHead)->prev = pFdObj;
-
   pTcp->pHead = pFdObj;
-
   pTcp->numOfFds++;
   pthread_cond_signal(&pTcp->fdReady);
-
   pthread_mutex_unlock(&(pTcp->mutex));
 
-  tTrace("%s TCP connection to ip:%s port:%hu is created, numOfFds:%d", pTcp->label, ip, port, pTcp->numOfFds);
+  tTrace("%s TCP connection to %s:%hu is created, FD:%p numOfFds:%d", pTcp->label, ip, port, pFdObj, pTcp->numOfFds);
 
   return pFdObj;
 }
 
-int taosSendTcpClientData(uint32_t ip, uint16_t port, char *data, int len, void *chandle) {
+void taosCloseTcpClientConnection(void *chandle) {
+  STcpFd *pFdObj = (STcpFd *)chandle;
+
+  if (pFdObj == NULL) return;
+
+  taosCleanUpTcpFdObj(pFdObj);
+}
+
+int taosSendTcpClientData(uint32_t ip, uint16_t port, void *data, int len, void *chandle) {
   STcpFd *pFdObj = (STcpFd *)chandle;
 
   if (chandle == NULL) return -1;
 
   return (int)send(pFdObj->fd, data, (size_t)len, 0);
 }
+
+static void taosCleanUpTcpFdObj(STcpFd *pFdObj) {
+  STcpClient *pTcp;
+  SRecvInfo   recvInfo;
+
+  if (pFdObj == NULL) return;
+  if (pFdObj->signature != pFdObj) return;
+
+  pTcp = pFdObj->pTcp;
+  if (pTcp == NULL) {
+    tError("double free TcpFdObj!!!!");
+    return;
+  }
+
+  epoll_ctl(pTcp->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
+  close(pFdObj->fd);
+
+  pthread_mutex_lock(&pTcp->mutex);
+
+  pTcp->numOfFds--;
+
+  if (pTcp->numOfFds < 0) 
+    tError("%s number of TCP FDs shall never be negative, FD:%p", pTcp->label, pFdObj);
+
+  if (pFdObj->prev) {
+    (pFdObj->prev)->next = pFdObj->next;
+  } else {
+    pTcp->pHead = pFdObj->next;
+  }
+
+  if (pFdObj->next) {
+    (pFdObj->next)->prev = pFdObj->prev;
+  }
+
+  pthread_mutex_unlock(&pTcp->mutex);
+
+  recvInfo.msg = NULL;
+  recvInfo.msgLen = 0;
+  recvInfo.ip = 0;
+  recvInfo.port = 0;
+  recvInfo.shandle = pTcp->shandle;
+  recvInfo.thandle = pFdObj->thandle;;
+  recvInfo.chandle = NULL;
+  recvInfo.connType = RPC_CONN_TCP;
+
+  if (pFdObj->thandle) (*(pTcp->processData))(&recvInfo);
+  tTrace("%s TCP is cleaned up, FD:%p numOfFds:%d", pTcp->label, pFdObj, pTcp->numOfFds);
+
+  memset(pFdObj, 0, sizeof(STcpFd));
+  tfree(pFdObj);
+}
+
+static void *taosReadTcpData(void *param) {
+  STcpClient        *pTcp = (STcpClient *)param;
+  int                i, fdNum;
+  STcpFd            *pFdObj;
+  struct epoll_event events[maxTcpEvents];
+  SRecvInfo          recvInfo;
+  SRpcHead           rpcHead;
+
+  while (1) {
+    pthread_mutex_lock(&pTcp->mutex);
+    if (pTcp->numOfFds < 1) pthread_cond_wait(&pTcp->fdReady, &pTcp->mutex);
+    pthread_mutex_unlock(&pTcp->mutex);
+
+    fdNum = epoll_wait(pTcp->pollFd, events, maxTcpEvents, -1);
+    if (fdNum < 0) continue;
+
+    for (i = 0; i < fdNum; ++i) {
+      pFdObj = events[i].data.ptr;
+
+      if (events[i].events & EPOLLERR) {
+        tTrace("%s TCP error happened on FD\n", pTcp->label);
+        taosCleanUpTcpFdObj(pFdObj);
+        continue;
+      }
+
+      if (events[i].events & EPOLLHUP) {
+        tTrace("%s TCP FD hang up\n", pTcp->label);
+        taosCleanUpTcpFdObj(pFdObj);
+        continue;
+      }
+
+      int headLen = taosReadMsg(pFdObj->fd, &rpcHead, sizeof(SRpcHead));
+      if (headLen != sizeof(SRpcHead)) {
+        tError("%s read error, headLen:%d", pTcp->label, headLen);
+        taosCleanUpTcpFdObj(pFdObj);
+        continue;
+      }
+
+      int32_t msgLen = (int32_t)htonl((uint32_t)rpcHead.msgLen);
+      char   *buffer = (char *)malloc((size_t)msgLen + tsRpcOverhead);
+      if (NULL == buffer) {
+        tTrace("%s TCP malloc(size:%d) fail\n", pTcp->label, msgLen);
+        taosCleanUpTcpFdObj(pFdObj);
+        continue;
+      }
+
+      char    *msg = buffer + tsRpcOverhead;
+      int32_t  leftLen = msgLen - headLen;
+      int32_t  retLen = taosReadMsg(pFdObj->fd, msg + headLen, leftLen);
+
+      if (leftLen != retLen) {
+        tError("%s read error, leftLen:%d retLen:%d", pTcp->label, leftLen, retLen);
+        tfree(buffer);
+        taosCleanUpTcpFdObj(pFdObj);
+        continue;
+      }
+
+      // tTrace("%s TCP data is received, ip:%s:%u len:%d", pTcp->label, pFdObj->ipstr, pFdObj->port, msgLen);
+
+      memcpy(msg, &rpcHead, sizeof(SRpcHead));
+      recvInfo.msg = msg;
+      recvInfo.msgLen = msgLen;
+      recvInfo.ip = pFdObj->ip;
+      recvInfo.port = pFdObj->port;
+      recvInfo.shandle = pTcp->shandle;
+      recvInfo.thandle = pFdObj->thandle;;
+      recvInfo.chandle = pFdObj;
+      recvInfo.connType = RPC_CONN_TCP;
+
+      pFdObj->thandle = (*(pTcp->processData))(&recvInfo);
+
+      if (pFdObj->thandle == NULL) taosCleanUpTcpFdObj(pFdObj);
+    }
+  }
+
+  return NULL;
+}
+
+

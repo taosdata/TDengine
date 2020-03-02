@@ -47,11 +47,7 @@ extern void *tsMgmtTmr;
 extern void *tsMgmtTranQhandle;
 extern char  tsMgmtDirectory[];
 
-extern int tsAcctUpdateSize;
 extern int tsDbUpdateSize;
-extern int tsDnodeUpdateSize;
-extern int tsMnodeUpdateSize;
-extern int tsVgUpdateSize;
 
 typedef struct {
   uint32_t   privateIp;
@@ -101,62 +97,34 @@ typedef struct {
   int32_t vgId;  // vnode group ID
 } STableGid;
 
-typedef struct _tab_obj {
-  char      meterId[TSDB_TABLE_ID_LEN + 1];
-  uint64_t  uid;
-  STableGid gid;
-
-  int32_t sversion;     // schema version
-  int64_t createdTime;
-  int32_t numOfTags;    // for metric
-  int32_t numOfMeters;  // for metric
-  int32_t numOfColumns;
-  int32_t schemaSize;
-  short   nextColId;
-  char    tableType : 4;
-  char    status : 3;
-  char    isDirty : 1;  // if the table change tag column 1 value
-  char    reserved[15];
-  char    updateEnd[1];
-
-  pthread_rwlock_t rwLock;
-  tSkipList *      pSkipList;
-  struct _tab_obj *pHead;  // for metric, a link list for all meters created
-                           // according to this metric
-  char *pTagData;          // TSDB_TABLE_ID_LEN(metric_name)+
-                           // tags_value1/tags_value2/tags_value3
-  struct _tab_obj *prev, *next;
-  char *           pSql;   // pointer to SQL, for SC, null-terminated string
-  char *           pReserve1;
-  char *           pReserve2;
-  char *           schema;
-  // SSchema    schema[];
-} STabObj;
-
 typedef struct {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   type;
+  int8_t   dirty;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
   int64_t  createdTime;
 } STableInfo;
 
+struct _vg_obj;
+
 typedef struct SSuperTableObj {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   type;
+  int8_t   dirty;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
   int64_t  createdTime;
   int32_t  sversion;
-  int32_t  numOfTables;
   int32_t  numOfColumns;
   int32_t  numOfTags;
   int8_t   reserved[7];
   int8_t   updateEnd[1];
+  int32_t  numOfTables;
   int16_t  nextColId;
-  SSchema  *schema;
+  SSchema *schema;
 } SSuperTableObj;
 
 typedef struct {
@@ -181,32 +149,17 @@ typedef struct {
   int64_t  createdTime;
   int32_t  sversion;
   int32_t  numOfColumns;
+  int16_t  sqlLen;
   int8_t   reserved[3];
   int8_t   updateEnd[1];
+  char*    sql;  //null-terminated string
   int16_t  nextColId;
   SSchema* schema;
 } SNormalTableObj;
 
-typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
-  int8_t   type;
-  uint64_t uid;
-  int32_t  sid;
-  int32_t  vgId;
-  int64_t  createdTime;
-  int32_t  sversion;
-  int32_t  numOfColumns;
-  int16_t  sqlLen;
-  int8_t   reserved[3];
-  int8_t   updateEnd[1];
-  int16_t  nextColId;
-  char*    sql;  //null-terminated string
-  SSchema* schema;
-} SStreamTableObj;
-
 typedef struct _vg_obj {
   uint32_t        vgId;
-  char            dbName[TSDB_DB_NAME_LEN];
+  char            dbName[TSDB_DB_NAME_LEN + 1];
   int64_t         createdTime;
   uint64_t        lastCreate;
   uint64_t        lastRemove;
@@ -224,36 +177,37 @@ typedef struct _vg_obj {
 } SVgObj;
 
 typedef struct _db_obj {
-  /*
-   * this length will cause the storage structure to change, rollback
-   */
   char    name[TSDB_DB_NAME_LEN + 1];
   int64_t createdTime;
   SDbCfg  cfg;
-  int32_t numOfVgroups;
-  int32_t numOfTables;
-  int32_t numOfMetrics;
-  uint8_t vgStatus;
-  uint8_t dropStatus;
+  int8_t  dropStatus;
   char    reserved[16];
   char    updateEnd[1];
-
   struct _db_obj *prev, *next;
-  SVgObj *        pHead;  // empty vgroup first
-  SVgObj *        pTail;  // empty vgroup end
-  void *          vgTimer;
+  int32_t numOfVgroups;
+  int32_t numOfTables;
+  int32_t numOfSuperTables;
+  int32_t vgStatus;
+  SVgObj *pHead;  // empty vgroup first
+  SVgObj *pTail;  // empty vgroup end
+  void *  vgTimer;
 } SDbObj;
+
+struct _acctObj;
 
 typedef struct _user_obj {
   char              user[TSDB_USER_LEN + 1];
-  char              pass[TSDB_KEY_LEN];
-  char              acct[TSDB_USER_LEN];
+  char              pass[TSDB_KEY_LEN + 1];
+  char              acct[TSDB_USER_LEN + 1];
   int64_t           createdTime;
-  char              superAuth : 1;
-  char              writeAuth : 1;
-  char              reserved[16];
-  char              updateEnd[1];
+  int8_t            superAuth;
+  int8_t            writeAuth;
+  int8_t            reserved[16];
+  int8_t            updateEnd[1];
   struct _user_obj *prev, *next;
+  struct _acctObj * pAcct;
+  SQqueryList *     pQList;  // query list
+  SStreamList *     pSList;  // stream list
 } SUserObj;
 
 typedef struct {
@@ -270,77 +224,48 @@ typedef struct {
   int64_t totalPoints;
   int64_t inblound;
   int64_t outbound;
-  TSKEY   sKey;
-  char    accessState;  // Checked by mgmt heartbeat message
+  int64_t sKey;
+  int8_t  accessState;   // Checked by mgmt heartbeat message
 } SAcctInfo;
 
-typedef struct {
+typedef struct _acctObj {
   char      user[TSDB_USER_LEN + 1];
-  char      pass[TSDB_KEY_LEN];
+  char      pass[TSDB_KEY_LEN + 1];
   SAcctCfg  cfg;
   int32_t   acctId;
   int64_t   createdTime;
-  char      reserved[15];
-  char      updateEnd[1];
+  int8_t    reserved[15];
+  int8_t    updateEnd[1];
   SAcctInfo acctInfo;
-
   SDbObj *         pHead;
   SUserObj *       pUser;
-  struct _connObj *pConn;
   pthread_mutex_t  mutex;
 } SAcctObj;
 
-typedef struct _connObj {
-  SAcctObj *       pAcct;
-  SDbObj *         pDb;
-  SUserObj *       pUser;
-  char             user[TSDB_USER_LEN];
-  uint64_t         stime;               // login time
-  char             superAuth : 1;       // super user flag
-  char             writeAuth : 1;       // write flag
-  char             killConnection : 1;  // kill the connection flag
-  uint8_t          usePublicIp : 1;     // if the connection request is publicIp
-  uint8_t          reserved : 4;
-  uint32_t         queryId;             // query ID to be killed
-  uint32_t         streamId;            // stream ID to be killed
-  uint32_t         ip;                  // shell IP
-  uint16_t         port;                // shell port
-  void *           thandle;
-  SQList *         pQList;  // query list
-  SSList *         pSList;  // stream list
-  uint64_t         qhandle;
-  struct _connObj *prev, *next;
-} SConnObj;
-
 typedef struct {
-  char spi;
-  char encrypt;
-  char secret[TSDB_KEY_LEN];
-  char cipheringKey[TSDB_KEY_LEN];
-} SSecInfo;
-
-typedef struct {
-  char     type;
+  int8_t   type;
+  char     db[TSDB_DB_NAME_LEN + 1];
   void *   pNode;
-  short    numOfColumns;
-  int      rowSize;
-  int      numOfRows;
-  int      numOfReads;
-  short    offset[TSDB_MAX_COLUMNS];
-  short    bytes[TSDB_MAX_COLUMNS];
+  int16_t  numOfColumns;
+  int32_t  rowSize;
+  int32_t  numOfRows;
+  int32_t  numOfReads;
+  int16_t  offset[TSDB_MAX_COLUMNS];
+  int16_t  bytes[TSDB_MAX_COLUMNS];
   void *   signature;
   uint16_t payloadLen; /* length of payload*/
   char     payload[];  /* payload for wildcard match in show tables */
 } SShowObj;
 
-
 //mgmtSystem
 int32_t mgmtStartSystem();
 void mgmtCleanUpSystem();
-void mgmtProcessMsgFromDnode(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
+void mgmtProcessMsgFromDnode(char msgType, void *pCont, int contLen, void *pConn, int32_t code);
 extern int32_t (*mgmtInitSystem)();
 extern void (*mgmtStopSystem)();
 extern void (*mgmtCleanUpRedirect)();
+
+
 
 #ifdef __cplusplus
 }

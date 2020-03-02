@@ -73,6 +73,7 @@ int32_t mgmtAddUserIntoAcct(SAcctObj *pAcct, SUserObj *pUser) {
 
   pAcct->pUser = pUser;
   pAcct->acctInfo.numOfUsers++;
+  pUser->pAcct = pAcct;
   pthread_mutex_unlock(&pAcct->mutex);
 
   return 0;
@@ -97,18 +98,21 @@ int32_t mgmtRemoveUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) {
 }
 
 int32_t mgmtInitAcctsImp() {
+  SAcctObj *pAcct = &tsAcctObj;
+  pAcct->acctId = 0;
+  strcpy(pAcct->user, "root");
   return 0;
 }
 
 int32_t (*mgmtInitAccts)() = mgmtInitAcctsImp;
 
-SAcctObj *mgmtGetAcctImp(char *acctName) {
+static SAcctObj *mgmtGetAcctImp(char *acctName) {
   return &tsAcctObj;
 }
 
 SAcctObj *(*mgmtGetAcct)(char *acctName) = mgmtGetAcctImp;
 
-int32_t mgmtCheckUserLimitImp(SAcctObj *pAcct) {
+static int32_t mgmtCheckUserLimitImp(SAcctObj *pAcct) {
   int32_t numOfUsers = sdbGetNumOfRows(tsUserSdb);
   if (numOfUsers >= tsMaxUsers) {
     mWarn("numOfUsers:%d, exceed tsMaxUsers:%d", numOfUsers, tsMaxUsers);
@@ -119,7 +123,7 @@ int32_t mgmtCheckUserLimitImp(SAcctObj *pAcct) {
 
 int32_t (*mgmtCheckUserLimit)(SAcctObj *pAcct) = mgmtCheckUserLimitImp;
 
-int32_t mgmtCheckDbLimitImp(SAcctObj *pAcct) {
+static int32_t mgmtCheckDbLimitImp(SAcctObj *pAcct) {
   int32_t numOfDbs = sdbGetNumOfRows(tsDbSdb);
   if (numOfDbs >= tsMaxDbs) {
     mWarn("numOfDbs:%d, exceed tsMaxDbs:%d", numOfDbs, tsMaxDbs);
@@ -130,37 +134,36 @@ int32_t mgmtCheckDbLimitImp(SAcctObj *pAcct) {
 
 int32_t (*mgmtCheckDbLimit)(SAcctObj *pAcct) = mgmtCheckDbLimitImp;
 
-int32_t mgmtCheckTableLimitImp(SAcctObj *pAcct, SCreateTableMsg *pCreate) {
+static int32_t mgmtCheckTableLimitImp(SAcctObj *pAcct, SCreateTableMsg *pCreate) {
   return 0;
 }
 
 int32_t (*mgmtCheckTableLimit)(SAcctObj *pAcct, SCreateTableMsg *pCreate) = mgmtCheckTableLimitImp;
 
-void mgmtCheckAcctImp() {
-  SAcctObj *pAcct = &tsAcctObj;
-  pAcct->acctId = 0;
-  strcpy(pAcct->user, "root");
-
-  mgmtCreateUser(pAcct, "root", "taosdata");
-  mgmtCreateUser(pAcct, "monitor", tsInternalPass);
-  mgmtCreateUser(pAcct, "_root", tsInternalPass);
-}
-
-void (*mgmtCheckAcct)() = mgmtCheckAcctImp;
-
-void mgmtCleanUpAcctsImp() {
+static void mgmtCleanUpAcctsImp() {
 }
 
 void (*mgmtCleanUpAccts)() = mgmtCleanUpAcctsImp;
 
-int32_t mgmtGetAcctMetaImp(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+static int32_t mgmtGetAcctMetaImp(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
-int32_t (*mgmtGetAcctMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = mgmtGetAcctMetaImp;
+int32_t (*mgmtGetAcctMeta)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = mgmtGetAcctMetaImp;
 
-int32_t mgmtRetrieveAcctsImp(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+static int32_t mgmtRetrieveAcctsImp(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   return 0;
 }
 
-int32_t (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) = mgmtRetrieveAcctsImp;
+int32_t (*mgmtRetrieveAccts)(SShowObj *pShow, char *data, int32_t rows, void *pConn) = mgmtRetrieveAcctsImp;
+
+SAcctObj *mgmtGetAcctFromConn(void *pConn) {
+  SRpcConnInfo connInfo;
+  rpcGetConnInfo(pConn, &connInfo);
+  SUserObj *pUser =  mgmtGetUser(connInfo.user);
+  if(pUser != NULL) {
+    return pUser->pAcct;
+  }
+
+  return NULL;
+}

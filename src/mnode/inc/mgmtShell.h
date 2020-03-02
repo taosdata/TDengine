@@ -24,17 +24,32 @@ extern "C" {
 #include <stdbool.h>
 #include "mnode.h"
 
-int  mgmtInitShell();
+int32_t  mgmtInitShell();
 void mgmtCleanUpShell();
 
-extern int32_t (*mgmtCheckRedirectMsg)(SConnObj *pConn, int32_t msgType);
-extern int32_t (*mgmtProcessAlterAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessCreateDnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessCfgMnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessDropMnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessDropDnodeMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessDropAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
-extern int32_t (*mgmtProcessCreateAcctMsg)(char *pMsg, int32_t msgLen, SConnObj *pConn);
+extern int32_t (*mgmtCheckRedirectMsg)(void *pConn);
+extern void (*mgmtProcessAlterAcctMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern void (*mgmtProcessCreateDnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern void (*mgmtProcessCfgMnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern void (*mgmtProcessDropMnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern void (*mgmtProcessDropDnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern void (*mgmtProcessDropAcctMsg)(void *pCont, int32_t contLen, void *ahandle);
+extern void (*mgmtProcessCreateAcctMsg)(void *pCont, int32_t contLen, void *ahandle);
+
+/*
+ * If table not exist, will create it
+ */
+void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle);
+
+/*
+ * If vgroup not exist, will create vgroup
+ */
+void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta);
+
+/*
+ * If vgroup create returned, will then create table
+ */
+void mgmtProcessCreateVgroup(SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta);
 
 #ifdef __cplusplus
 }

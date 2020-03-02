@@ -100,7 +100,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSubquerySupporter* pSuppor
        * in case of stable query, limit/offset is not applied here. the limit/offset is applied to the
        * final results which is acquired after the secondry merge of in the client.
        */
-      if (pLimit->offset == 0 || pQueryInfo->nAggTimeInterval > 0 || QUERY_IS_STABLE_QUERY(pQueryInfo->type)) {
+      if (pLimit->offset == 0 || pQueryInfo->intervalTime > 0 || QUERY_IS_STABLE_QUERY(pQueryInfo->type)) {
         if (*st > elem1.ts) {
           *st = elem1.ts;
         }
@@ -165,7 +165,7 @@ SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pS
   pSupporter->subqueryIndex = index;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
   
-  pSupporter->interval = pQueryInfo->nAggTimeInterval;
+  pSupporter->interval = pQueryInfo->intervalTime;
   pSupporter->limit = pQueryInfo->limit;
 
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, pSql->cmd.clauseIndex, index);
@@ -275,6 +275,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pSubQueryInfo->tsBuf = NULL;
   
     // free result for async object will also free sqlObj
+    assert(pSubQueryInfo->exprsInfo.numOfExprs == 1); // ts_comp query only requires one resutl columns
     taos_free_result(pPrevSub);
   
     SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, pSupporter, NULL);
@@ -293,24 +294,26 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     // set the second stage sub query for join process
     pQueryInfo->type |= TSDB_QUERY_TYPE_JOIN_SEC_STAGE;
   
-    pQueryInfo->nAggTimeInterval = pSupporter->interval;
+    pQueryInfo->intervalTime = pSupporter->interval;
     pQueryInfo->groupbyExpr = pSupporter->groupbyExpr;
   
     tscColumnBaseInfoCopy(&pQueryInfo->colList, &pSupporter->colList, 0);
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
   
-    tscSqlExprCopy(&pQueryInfo->exprsInfo, &pSupporter->exprsInfo, pSupporter->uid);
+    tscSqlExprCopy(&pQueryInfo->exprsInfo, &pSupporter->exprsInfo, pSupporter->uid, false);
     tscFieldInfoCopyAll(&pQueryInfo->fieldsInfo, &pSupporter->fieldsInfo);
-  
+    
+    pSupporter->exprsInfo.numOfExprs = 0;
+    pSupporter->fieldsInfo.numOfOutputCols = 0;
+    
     /*
      * if the first column of the secondary query is not ts function, add this function.
      * Because this column is required to filter with timestamp after intersecting.
      */
-    if (pSupporter->exprsInfo.pExprs[0].functionId != TSDB_FUNC_TS) {
+    if (pSupporter->exprsInfo.pExprs[0]->functionId != TSDB_FUNC_TS) {
       tscAddTimestampColumn(pQueryInfo, TSDB_FUNC_TS, 0);
     }
   
-    // todo refactor function name
     SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
     assert(pNew->numOfSubs == 0 && pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
   

@@ -16,14 +16,14 @@
 #define _DEFAULT_SOURCE
 #include "mgmtMnode.h"
 
-int32_t mgmtGetMnodeMetaImp(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetMnodeMetaImp(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
-int32_t (*mgmtGetMnodeMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = mgmtGetMnodeMetaImp;
+int32_t (*mgmtGetMnodeMeta)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = mgmtGetMnodeMetaImp;
 
-int32_t mgmtRetrieveMnodesImp(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveMnodesImp(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   return 0;
 }
 
-int32_t (*mgmtRetrieveMnodes)(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) = mgmtRetrieveMnodesImp;
+int32_t (*mgmtRetrieveMnodes)(SShowObj *pShow, char *data, int32_t rows, void *pConn) = mgmtRetrieveMnodesImp;

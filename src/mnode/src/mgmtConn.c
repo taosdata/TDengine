@@ -32,45 +32,45 @@ typedef struct {
   SConnInfo connInfo[];
 } SConnShow;
 
-int mgmtGetConns(SShowObj *pShow, SConnObj *pConn) {
-  SAcctObj * pAcct = pConn->pAcct;
-  SConnShow *pConnShow;
-
-  pthread_mutex_lock(&pAcct->mutex);
-
-  pConnShow = malloc(sizeof(SConnInfo) * pAcct->acctInfo.numOfConns + sizeof(SConnShow));
-  pConnShow->index = 0;
-  pConnShow->numOfConns = 0;
-
-  if (pAcct->acctInfo.numOfConns > 0) {
-    pConn = pAcct->pConn;
-    SConnInfo *pConnInfo = pConnShow->connInfo;
-
-    while (pConn && pConn->pUser) {
-      strcpy(pConnInfo->user, pConn->pUser->user);
-      pConnInfo->ip = pConn->ip;
-      pConnInfo->port = pConn->port;
-      pConnInfo->stime = pConn->stime;
-
-      pConnShow->numOfConns++;
-      pConnInfo++;
-      pConn = pConn->next;
-    }
-  }
-
-  pthread_mutex_unlock(&pAcct->mutex);
-
-  // sorting based on useconds
-
-  pShow->pNode = pConnShow;
+int mgmtGetConns(SShowObj *pShow, void *pConn) {
+//  SAcctObj * pAcct = pConn->pAcct;
+//  SConnShow *pConnShow;
+//
+//  pthread_mutex_lock(&pAcct->mutex);
+//
+//  pConnShow = malloc(sizeof(SConnInfo) * pAcct->acctInfo.numOfConns + sizeof(SConnShow));
+//  pConnShow->index = 0;
+//  pConnShow->numOfConns = 0;
+//
+//  if (pAcct->acctInfo.numOfConns > 0) {
+//    pConn = pAcct->pConn;
+//    SConnInfo *pConnInfo = pConnShow->connInfo;
+//
+//    while (pConn && pConn->pUser) {
+//      strcpy(pConnInfo->user, pConn->pUser->user);
+//      pConnInfo->ip = pConn->ip;
+//      pConnInfo->port = pConn->port;
+//      pConnInfo->stime = pConn->stime;
+//
+//      pConnShow->numOfConns++;
+//      pConnInfo++;
+//      pConn = pConn->next;
+//    }
+//  }
+//
+//  pthread_mutex_unlock(&pAcct->mutex);
+//
+//  // sorting based on useconds
+//
+//  pShow->pNode = pConnShow;
 
   return 0;
 }
 
-int mgmtGetConnsMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int mgmtGetConnsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int cols = 0;
 
-  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
   SSchema *pSchema = tsGetSchema(pMeta);
 
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -104,7 +104,7 @@ int mgmtGetConnsMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   return 0;
 }
 
-int mgmtRetrieveConns(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
+int mgmtRetrieveConns(SShowObj *pShow, char *data, int rows, void *pConn) {
   int   numOfRows = 0;
   char *pWrite;
   int   cols = 0;
@@ -140,4 +140,14 @@ int mgmtRetrieveConns(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
 
   pShow->numOfReads += numOfRows;
   return numOfRows;
+}
+
+bool mgmtCheckQhandle(uint64_t qhandle) {
+  return true;
+}
+
+void mgmtSaveQhandle(void *qhandle) {
+}
+
+void mgmtFreeQhandle(void *qhandle) {
 }

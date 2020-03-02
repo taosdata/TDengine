@@ -322,6 +322,10 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   return TSDB_CODE_SUCCESS;
 }
 
+bool stableQueryFunctChanged(int32_t funcId) {
+  return (aAggs[funcId].stableFuncId != funcId);
+}
+
 /**
  * the numOfRes should be kept, since it may be used later
  * and allow the ResultInfo to be re initialized
@@ -719,12 +723,15 @@ static int32_t first_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY
     return BLK_DATA_NO_NEEDED;
   }
 
-  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-  if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
-  } else {  // data in current block is not earlier than current result
-    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-  }
+  // result buffer has not been set yet.
+  return BLK_DATA_ALL_NEEDED;
+  //todo optimize the filter info
+//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+//  if (pInfo->hasResult != DATA_SET_FLAG) {
+//    return BLK_DATA_ALL_NEEDED;
+//  } else {  // data in current block is not earlier than current result
+//    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+//  }
 }
 
 static int32_t last_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId,
@@ -733,12 +740,13 @@ static int32_t last_dist_data_req_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY 
     return BLK_DATA_NO_NEEDED;
   }
 
-  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-  if (pInfo->hasResult != DATA_SET_FLAG) {
-    return BLK_DATA_ALL_NEEDED;
-  } else {
-    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-  }
+  return BLK_DATA_ALL_NEEDED;
+//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+//  if (pInfo->hasResult != DATA_SET_FLAG) {
+//    return BLK_DATA_ALL_NEEDED;
+//  } else {
+//    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+//  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -1437,7 +1445,9 @@ static void stddev_next_step(SQLFunctionCtx *pCtx) {
      */
     pStd->stage++;
     avg_finalizer(pCtx);
-
+  
+    pResInfo->initialized = true; // set it initialized to avoid re-initialization
+    
     // save average value into tmpBuf, for second stage scan
     SAvgInfo *pAvg = pResInfo->interResultBuf;
 
@@ -2184,7 +2194,7 @@ static STopBotInfo *getTopBotOutputInfo(SQLFunctionCtx *pCtx) {
   // only the first_stage_merge is directly written data into final output buffer
   if (pResInfo->superTableQ && pCtx->currentStage != SECONDARY_STAGE_MERGE) {
     return (STopBotInfo*) pCtx->aOutputBuf;
-  } else {  // for normal table query and super table at the secondary_stage, result is written to intermediate buffer
+  } else {  // during normal table query and super table at the secondary_stage, result is written to intermediate buffer
     return pResInfo->interResultBuf;
   }
 }
@@ -3312,7 +3322,7 @@ static void arithmetic_function(SQLFunctionCtx *pCtx) {
   tSQLBinaryExprCalcTraverse(sas->pExpr->pBinExprInfo.pBinExpr, pCtx->size, pCtx->aOutputBuf, sas, pCtx->order,
                              arithmetic_callback_function);
 
-  pCtx->aOutputBuf += pCtx->outputBytes * pCtx->size/* * GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
+  pCtx->aOutputBuf += pCtx->outputBytes * pCtx->size;
   pCtx->param[1].pz = NULL;
 }
 
@@ -3573,6 +3583,7 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
   }
   
   GET_RES_INFO(pCtx)->numOfRes = 1;  // todo add test case
+  doFinalizer(pCtx);
 }
 
 /*

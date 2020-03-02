@@ -20,24 +20,44 @@
 extern "C" {
 #endif
 
+#define RPC_CONN_UDPS   0
+#define RPC_CONN_UDPC   1
+#define RPC_CONN_TCPS   2
+#define RPC_CONN_TCPC   3
+#define RPC_CONN_TCP    2
+
+extern int tsRpcOverhead;
+
+typedef struct {
+  void    *msg;
+  int      msgLen;
+  uint32_t ip; 
+  uint16_t port;
+  int      connType;
+  void    *shandle;
+  void    *thandle;
+  void    *chandle;
+} SRecvInfo;
+
 #pragma pack(push, 1)
 
 typedef struct {
   char     version:4; // RPC version
   char     comp:4;    // compression algorithm, 0:no compression 1:lz4
-  char     tcp:2;     // tcp flag 
+  char     resflag:2; // reserved bits
   char     spi:3;     // security parameter index
   char     encrypt:3; // encrypt algorithm, 0: no encryption
   uint16_t tranId;    // transcation ID
   uint32_t uid;       // for unique ID inside a client
   uint32_t sourceId;  // source ID, an index for connection list  
   uint32_t destId;    // destination ID, an index for connection list
-  char     meterId[TSDB_UNI_LEN];
+  uint32_t destIp;    // destination IP address, for NAT scenario
+  char     user[TSDB_UNI_LEN]; // user ID 
   uint16_t port;      // for UDP only, port may be changed
   char     empty[1];  // reserved
   uint8_t  msgType;   // message type  
   int32_t  msgLen;    // message length including the header iteslf
-  int32_t  code;
+  int32_t  code;      // code in response message
   uint8_t  content[0]; // message body starts from here
 } SRpcHead;
 
@@ -52,6 +72,7 @@ typedef struct {
 } SRpcDigest;
 
 #pragma pack(pop)
+
 
 #ifdef __cplusplus
 }

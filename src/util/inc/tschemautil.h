@@ -42,20 +42,20 @@ struct SSchema;
  */
 bool isValidSchema(struct SSchema *pSchema, int32_t numOfCols);
 
-struct SSchema *tsGetSchema(SMeterMeta *pMeta);
+struct SSchema *tsGetSchema(STableMeta *pMeta);
 
-struct SSchema *tsGetTagSchema(SMeterMeta *pMeta);
+struct SSchema *tsGetTagSchema(STableMeta *pMeta);
 
-struct SSchema *tsGetColumnSchema(SMeterMeta *pMeta, int32_t startCol);
+struct SSchema *tsGetColumnSchema(STableMeta *pMeta, int32_t startCol);
 struct SSchema tsGetTbnameColumnSchema();
 
-char *tsGetTagsValue(SMeterMeta *pMeta);
+char *tsGetTagsValue(STableMeta *pMeta);
 
-bool tsMeterMetaIdentical(SMeterMeta *p1, SMeterMeta *p2);
+bool tsMeterMetaIdentical(STableMeta *p1, STableMeta *p2);
 
-void extractTableName(char *meterId, char *name);
+void extractTableName(char *tableId, char *name);
 
-SSQLToken extractDBName(char *meterId, char *name);
+SSQLToken extractDBName(char *tableId, char *name);
 
 void extractTableNameFromToken(SSQLToken *pToken, SSQLToken* pTable);
 

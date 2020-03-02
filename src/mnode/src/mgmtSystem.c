@@ -125,8 +125,6 @@ int32_t mgmtStartSystem() {
     mError("failed to init dnode balance")
   }
 
-  mgmtCheckAcct();
-
   taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 
   mPrint("TDengine mgmt is initialized successfully");

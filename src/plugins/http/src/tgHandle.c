@@ -199,7 +199,7 @@ void tgParseSchemaMetric(cJSON *metric) {
         goto ParseEnd;
       }
       int nameLen = (int)strlen(field->valuestring);
-      if (nameLen == 0 || nameLen > TSDB_METER_NAME_LEN) {
+      if (nameLen == 0 || nameLen > TSDB_TABLE_NAME_LEN) {
         parsedOk = false;
         goto ParseEnd;
       }
@@ -395,7 +395,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
     httpSendErrorResp(pContext, HTTP_TG_METRIC_NAME_NULL);
     return false;
   }
-  if (nameLen >= TSDB_METER_NAME_LEN - 7) {
+  if (nameLen >= TSDB_TABLE_NAME_LEN - 7) {
     httpSendErrorResp(pContext, HTTP_TG_METRIC_NAME_LONG);
     return false;
   }
@@ -484,7 +484,7 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
     return false;
   }
 
-  if (strlen(host->valuestring) >= TSDB_METER_NAME_LEN) {
+  if (strlen(host->valuestring) >= TSDB_TABLE_NAME_LEN) {
     httpSendErrorResp(pContext, HTTP_TG_TABLE_SIZE);
     return false;
   }

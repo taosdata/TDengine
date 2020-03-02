@@ -284,8 +284,15 @@ void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows) {
     return;
   }
   
-  for (int i = 0; i < pCmd->numOfCols; ++i)
-    pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i, pQueryInfo->order) + pRes->bytes[i] * pRes->row;
+  for (int i = 0; i < pCmd->numOfCols; ++i){
+    SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[i];
+    if (pExpr != NULL) {
+      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pExpr->resBytes * pRes->row;
+    } else {
+      //todo add
+    }
+  }
+  
   pRes->row++;
 
   (*pSql->fetchFp)(pSql->param, pSql, pSql->res.tsrow);
@@ -299,7 +306,12 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
   for (int i = 0; i < pCmd->numOfCols; ++i) {
-    pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i, pQueryInfo->order) + pRes->bytes[i] * pRes->row;
+    SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[i];
+    if (pExpr != NULL) {
+      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pExpr->resBytes * pRes->row;
+    } else {
+      //todo add
+    }
   }
   
   pRes->row++;
@@ -317,13 +329,6 @@ void tscProcessAsyncRes(SSchedMsg *pMsg) {
   // pCmd may be released, so cache pCmd->command
   int cmd = pCmd->command;
   int code = pRes->code ? -pRes->code : pRes->numOfRows;
-
-  if ((tscKeepConn[cmd] == 0 || (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS)) &&
-      pSql->pStream == NULL) {
-    if (pSql->thandle) taosAddConnIntoCache(tscConnCache, pSql->thandle, pSql->ip, pSql->vnode, pTscObj->user);
-
-    pSql->thandle = NULL;
-  }
 
   // in case of async insert, restore the user specified callback function
   bool shouldFree = tscShouldFreeAsyncSqlObj(pSql);
@@ -451,11 +456,11 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
     if (code != 0) {
       code = abs(code);
       pRes->code = code;
-      tscTrace("%p failed to renew meterMeta", pSql);
+      tscTrace("%p failed to renew tableMeta", pSql);
       tsem_post(&pSql->rspSem);
     } else {
-      tscTrace("%p renew meterMeta successfully, command:%d, code:%d, thandle:%p, retry:%d",
-          pSql, pSql->cmd.command, pSql->res.code, pSql->thandle, pSql->retry);
+      tscTrace("%p renew tableMeta successfully, command:%d, code:%d, retry:%d",
+          pSql, pSql->cmd.command, pSql->res.code, pSql->retry);
   
       SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
       assert(pMeterMetaInfo->pMeterMeta == NULL);
@@ -553,7 +558,7 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
     tscTansformSQLFunctionForSTableQuery(pQueryInfo);
     tscIncStreamExecutionCount(pSql->pStream);
   } else {
-    tscTrace("%p get meterMeta/metricMeta successfully", pSql);
+    tscTrace("%p get tableMeta/metricMeta successfully", pSql);
   }
 
   tscDoQuery(pSql);

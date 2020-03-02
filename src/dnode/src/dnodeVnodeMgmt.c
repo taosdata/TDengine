@@ -20,34 +20,42 @@
 #include "dnodeVnodeMgmt.h"
 
 int32_t dnodeOpenVnodes() {
-  return 0;
+  dPrint("open all vnodes");
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t dnodeCleanupVnodes() {
-  return 0;
+  dPrint("clean all vnodes");
+  return TSDB_CODE_SUCCESS;
 }
 
 bool dnodeCheckVnodeExist(int32_t vnode) {
+  dPrint("vnode:%d, check vnode exist", vnode);
   return true;
 }
 
-int32_t dnodeCreateVnode(int32_t vnode, SVPeersMsg *cfg) {
-  return 0;
+int32_t dnodeCreateVnode(SCreateVnodeMsg *pVnode) {
+  dPrint("vnode:%d, is created", htonl(pVnode->vnode));
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t dnodeDropVnode(int32_t vnode) {
-  return 0;
+  dPrint("vnode:%d, is dropped", vnode);
+  return TSDB_CODE_SUCCESS;
 }
 
-void* dnodeGetVnode(int vid) {
+void* dnodeGetVnode(int32_t vnode) {
+  dPrint("vnode:%d, get vnode");
   return NULL;
 }
 
 EVnodeStatus dnodeGetVnodeStatus(int32_t vnode) {
+  dPrint("vnode:%d, get vnode status");
   return TSDB_VN_STATUS_MASTER;
 }
 
 bool dnodeCheckTableExist(int32_t vnode, int32_t sid, int64_t uid) {
+  dPrint("vnode:%d, sid:%d, check table exist");
   return true;
 }
 

@@ -25,11 +25,15 @@ int32_t (*mgmtCheckUserGrant)() = mgmtCheckUserGrantImp;
 int32_t mgmtCheckDbGrantImp() { return 0; }
 int32_t (*mgmtCheckDbGrant)() = mgmtCheckDbGrantImp;
 
-void mgmtAddTimeSeriesImp(uint32_t timeSeriesNum) {}
-void (*mgmtAddTimeSeries)(uint32_t timeSeriesNum) = mgmtAddTimeSeriesImp;
+void mgmtAddTimeSeriesImp(SAcctObj *pAcct, uint32_t timeSeriesNum) {
+  pAcct->acctInfo.numOfTimeSeries += timeSeriesNum;
+}
+void (*mgmtAddTimeSeries)(SAcctObj *pAcct, uint32_t timeSeriesNum) = mgmtAddTimeSeriesImp;
 
-void mgmtRestoreTimeSeriesImp(uint32_t timeSeriesNum) {}
-void (*mgmtRestoreTimeSeries)(uint32_t timeSeriesNum) = mgmtRestoreTimeSeriesImp;
+void mgmtRestoreTimeSeriesImp(SAcctObj *pAcct, uint32_t timeSeriesNum) {
+  pAcct->acctInfo.numOfTimeSeries -= timeSeriesNum;
+}
+void (*mgmtRestoreTimeSeries)(SAcctObj *pAcct, uint32_t timeSeriesNum) = mgmtRestoreTimeSeriesImp;
 
 int32_t mgmtCheckTimeSeriesImp(uint32_t timeseries) { return 0; }
 int32_t (*mgmtCheckTimeSeries)(uint32_t timeseries) = mgmtCheckTimeSeriesImp;
@@ -37,9 +41,9 @@ int32_t (*mgmtCheckTimeSeries)(uint32_t timeseries) = mgmtCheckTimeSeriesImp;
 bool mgmtCheckExpiredImp() { return false; }
 bool (*mgmtCheckExpired)() = mgmtCheckExpiredImp;
 
-int32_t mgmtGetGrantsMetaImp(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
-int32_t (*mgmtGetGrantsMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) = mgmtGetGrantsMetaImp;
+int32_t mgmtGetGrantsMetaImp(STableMeta *pMeta, SShowObj *pShow, void *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t (*mgmtGetGrantsMeta)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = mgmtGetGrantsMetaImp;
 
-int32_t mgmtRetrieveGrantsImp(SShowObj *pShow, char *data, int rows, SConnObj *pConn) { return 0; }
-int32_t (*mgmtRetrieveGrants)(SShowObj *pShow, char *data, int rows, SConnObj *pConn) = mgmtRetrieveGrantsImp;
+int32_t mgmtRetrieveGrantsImp(SShowObj *pShow, char *data, int rows, void *pConn) { return 0; }
+int32_t (*mgmtRetrieveGrants)(SShowObj *pShow, char *data, int rows, void *pConn) = mgmtRetrieveGrantsImp;
 

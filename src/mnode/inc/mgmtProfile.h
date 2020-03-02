@@ -22,21 +22,37 @@ extern "C" {
 
 #include "mnode.h"
 
-int mgmtGetQueryMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int32_t mgmtGetQueryMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 
-int mgmtGetStreamMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
+int32_t mgmtGetStreamMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 
-int mgmtRetrieveQueries(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-int mgmtRetrieveStreams(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-int mgmtSaveQueryStreamList(char *cont, int contLen, SConnObj *pConn);
+int32_t mgmtSaveQueryStreamList(SHeartBeatMsg *pHBMsg);
 
-int mgmtKillQuery(char *qidstr, SConnObj *pConn);
+int32_t mgmtKillQuery(char *qidstr, void *pConn);
 
-int mgmtKillStream(char *qidstr, SConnObj *pConn);
+int32_t mgmtKillStream(char *qidstr, void *pConn);
 
-int mgmtKillConnection(char *qidstr, SConnObj *pConn);
+int32_t mgmtKillConnection(char *qidstr, void *pConn);
+
+enum {
+  TSDB_PROCESS_CREATE_VGROUP,
+  TSDB_PROCESS_CREATE_VGROUP_GET_META,
+  TSDB_PROCESS_CREATE_TABLE,
+  TSDB_PROCESS_CREATE_TABLE_GET_META,
+};
+
+typedef struct {
+  void    *thandle;  // come from uplayer
+  void    *ahandle;  // object to process
+  void    *cont;     // additional information of object to process
+  int32_t type;      // the type of sync process
+  int32_t received;  // num of received, such as numOfVnodes
+  int32_t contLen;   // the length of additional information
+} SProcessInfo;
 
 #ifdef __cplusplus
 }

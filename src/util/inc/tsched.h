@@ -25,7 +25,7 @@ typedef struct _sched_msg {
 
   void (*tfp)(void *, void *);
 
-  int8_t *msg;
+  void *msg;
   void *ahandle;
   void *thandle;
 } SSchedMsg;

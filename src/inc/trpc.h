@@ -23,62 +23,60 @@ extern "C" {
 #include <stdint.h>
 #include "taosdef.h"
 
-#define TAOS_CONN_UDPS     0
-#define TAOS_CONN_UDPC     1
-#define TAOS_CONN_TCPS     2
-#define TAOS_CONN_TCPC     3
-#define TAOS_CONN_HTTPS    4
-#define TAOS_CONN_HTTPC    5
-
-#define TAOS_SOCKET_TYPE_NAME_TCP  "tcp"
-#define TAOS_SOCKET_TYPE_NAME_UDP  "udp"
-
-#define TAOS_CONN_SOCKET_TYPE_S()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDPS:TAOS_CONN_TCPS)
-#define TAOS_CONN_SOCKET_TYPE_C()  ((strcasecmp(tsSocketType, TAOS_SOCKET_TYPE_NAME_UDP) == 0)? TAOS_CONN_UDPC:TAOS_CONN_TCPC)
+#define TAOS_CONN_SERVER   0
+#define TAOS_CONN_CLIENT   1
 
 extern int tsRpcHeadSize;
 
 typedef struct {
-  int16_t   index; 
-  int16_t   numOfIps;
+  int8_t    inUse; 
+  int8_t    numOfIps;
   uint16_t  port;
   uint32_t  ip[TSDB_MAX_MPEERS];
 } SRpcIpSet;
 
 typedef struct {
-  char *localIp;      // local IP used
-  uint16_t localPort; // local port
-  char *label;        // for debug purpose
-  int   numOfThreads; // number of threads to handle connections
-  int   sessions;     // number of sessions allowed
-  int   connType;     // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
-  int   idleTime;     // milliseconds, 0 means idle timer is disabled
+  uint32_t  clientIp;
+  uint16_t  clientPort;
+  uint32_t  serverIp;
+  char      user[TSDB_USER_LEN];
+} SRpcConnInfo;
 
-  // the following is for client security only
-  char *meterId;      // meter ID
+typedef struct {
+  char  *localIp;      // local IP used
+  uint16_t localPort; // local port
+  char  *label;        // for debug purpose
+  int    numOfThreads; // number of threads to handle connections
+  int    sessions;     // number of sessions allowed
+  int8_t connType;     // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
+  int    idleTime;     // milliseconds, 0 means idle timer is disabled
+
+  // the following is for client app ecurity only
+  char *user;         // user name
   char  spi;          // security parameter index
   char  encrypt;      // encrypt algorithm
   char *secret;       // key for authentication
   char *ckey;         // ciphering key
 
-  // call back to process incoming msg
-  void (*cfp)(char type, void *pCont, int contLen, void *ahandle, int32_t code);  
+  // call back to process incoming msg, code shall be ignored by server app
+  void (*cfp)(char type, void *pCont, int contLen, void *handle, int32_t code);  
 
-  // call back to process notify the ipSet changes
+  // call back to process notify the ipSet changes, for client app only
   void (*ufp)(void *ahandle, SRpcIpSet *pIpSet);
 
-  // call back to retrieve the client auth info 
-  int  (*afp)(char *meterId, char *spi, char *encrypt, char *secret, char *ckey); 
+  // call back to retrieve the client auth info, for server app only 
+  int  (*afp)(char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
 } SRpcInit;
 
 void *rpcOpen(SRpcInit *pRpc);
 void  rpcClose(void *);
 void *rpcMallocCont(int contLen);
 void  rpcFreeCont(void *pCont);
+void *rpcReallocCont(void *ptr, int contLen);
 void  rpcSendRequest(void *thandle, SRpcIpSet *pIpSet, char msgType, void *pCont, int contLen, void *ahandle);
 void  rpcSendResponse(void *pConn, int32_t code, void *pCont, int contLen);
 void  rpcSendRedirectRsp(void *pConn, SRpcIpSet *pIpSet); 
-
+void  rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 
 #ifdef __cplusplus
 }

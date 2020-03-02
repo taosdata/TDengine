@@ -44,13 +44,12 @@ extern uint32_t tsRebootTime;
 extern void (*dnodeStartModules)();
 extern void (*dnodeParseParameterK)();
 extern int32_t (*dnodeCheckSystem)();
-extern void (*dnodeInitMgmtIp)();
-extern int (*dnodeInitMgmt)();
 
-// dnodeMgmt
-void dnodeProcessMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
-extern int32_t (*dnodeSendMsgToMnode)(int8_t *pCont, int32_t contLen, int8_t msgType);
-extern int32_t (*dnodeSendSimpleRspToMnode)(void *pConn, int32_t msgType, int32_t code);
+
+// dnodeSystem
+extern void *tsDnodeMgmtQhandle;
+
+void dnodeProcessMsgFromMgmt(int8_t msgType, void *pCont, int32_t contLen, void *pConn, int32_t code);
 
 // dnodeModule
 extern void (*dnodeStartModules)();

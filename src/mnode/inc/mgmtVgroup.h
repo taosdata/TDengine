@@ -25,16 +25,27 @@ extern "C" {
 #include "mnode.h"
 
 int32_t mgmtInitVgroups();
+void    mgmtCleanUpVgroups();
 SVgObj *mgmtGetVgroup(int32_t vgId);
+SVgObj *mgmtGetVgroupByVnode(uint32_t dnode, int32_t vnode);
+
 SVgObj *mgmtCreateVgroup(SDbObj *pDb);
 int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup);
-void    mgmtSetVgroupIdPool();
-int32_t mgmtGetVgroupMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn);
-void    mgmtCleanUpVgroups();
+void    mgmtUpdateVgroup(SVgObj *pVgroup);
 
-SVgObj *mgmtGetAvailVgroup(SDbObj *pDb);
-int32_t mgmtAllocateSid(SDbObj *pDb, SVgObj *pVgroup);
+int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+
+void    mgmtSetVgroupIdPool();
+SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb);
+
+void    mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable);
+void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable);
+
+SCreateVnodeMsg *mgmtBuildVpeersMsg(SVgObj *pVgroup, int32_t vnode);
+
+SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup);
+SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip);
 
 #ifdef __cplusplus
 }

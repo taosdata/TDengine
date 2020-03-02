@@ -13,27 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TBASE_MNODE_STREAM_TABLE_H
-#define TBASE_MNODE_STREAM_TABLE_H
+#ifndef TDENGINE_TSCHED_H
+#define TDENGINE_TSCHED_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "mnode.h"
+typedef struct _sched_msg {
+  void    *msg;
+  int      msgLen;
+  int8_t   type;
+  int32_t  code;
+  void    *handle;
+} SRpcMsg;
 
-int32_t         mgmtInitStreamTables();
-void            mgmtCleanUpStreamTables();
-int32_t         mgmtCreateStreamTable(SDbObj *pDb, SCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
-int32_t         mgmtDropStreamTable(SDbObj *pDb, SStreamTableObj *pTable);
-int32_t         mgmtAlterStreamTable(SDbObj *pDb, SAlterTableMsg *pAlter);
-SStreamTableObj* mgmtGetStreamTable(char *tableId);
-int8_t *        mgmtBuildCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj *pVgroup);
+void *taosInitMsgQueue(int queueSize, void (*fp)(int num, SRpcMsg *), const char *label);
+int   taosPutIntoMsgQueue(void *qhandle, SRpcMsg *pMsg);
+void  taosCleanUpMsgQueue(void *param);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif  // TDENGINE_TSCHED_H

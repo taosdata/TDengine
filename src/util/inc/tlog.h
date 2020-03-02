@@ -101,7 +101,7 @@ extern uint32_t cdebugFlag;
 
 #define tscError(...)                               \
   if (cdebugFlag & DEBUG_ERROR) {                   \
-    tprintf("ERROR TSC ", cdebugFlag, __VA_ARGS__); \
+    tprintf("ERROR TSC ", 255, __VA_ARGS__); \
   }
 #define tscWarn(...)                                \
   if (cdebugFlag & DEBUG_WARN) {                    \

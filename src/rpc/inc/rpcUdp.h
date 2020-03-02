@@ -22,10 +22,9 @@ extern "C" {
 
 #include "taosdef.h"
 
-void *taosInitUdpServer(char *ip, uint16_t port, char *label, int, void *fp, void *shandle);
-void *taosInitUdpClient(char *ip, uint16_t port, char *label, int, void *fp, void *shandle);
+void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int, void *fp, void *shandle);
 void  taosCleanUpUdpConnection(void *handle);
-int   taosSendUdpData(uint32_t ip, uint16_t port, char *data, int dataLen, void *chandle);
+int   taosSendUdpData(uint32_t ip, uint16_t port, void *data, int dataLen, void *chandle);
 void *taosOpenUdpConnection(void *shandle, void *thandle, char *ip, uint16_t port);
 
 void  taosFreeMsgHdr(void *hdr);

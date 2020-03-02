@@ -31,20 +31,20 @@ extern "C" {
 // message type
 #define TSDB_MSG_TYPE_REG                    1
 #define TSDB_MSG_TYPE_REG_RSP                2
-#define TSDB_MSG_TYPE_SUBMIT                 3
-#define TSDB_MSG_TYPE_SUBMIT_RSP             4
-#define TSDB_MSG_TYPE_QUERY                  5
-#define TSDB_MSG_TYPE_QUERY_RSP              6
+#define TSDB_MSG_TYPE_DNODE_SUBMIT           3
+#define TSDB_MSG_TYPE_DNODE_SUBMIT_RSP       4
+#define TSDB_MSG_TYPE_DNODE_QUERY            5
+#define TSDB_MSG_TYPE_DNODE_QUERY_RSP        6
 #define TSDB_MSG_TYPE_RETRIEVE               7
 #define TSDB_MSG_TYPE_RETRIEVE_RSP           8
 #define TSDB_MSG_TYPE_DNODE_CREATE_TABLE     9
 #define TSDB_MSG_TYPE_DNODE_CREATE_TABLE_RSP 10
 #define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE     11
 #define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE_RSP 12
-#define TSDB_MSG_TYPE_CREATE_VNODE           13
-#define TSDB_MSG_TYPE_CREATE_VNODE_RSP       14
-#define TSDB_MSG_TYPE_FREE_VNODE             15
-#define TSDB_MSG_TYPE_FREE_VNODE_RSP         16
+#define TSDB_MSG_TYPE_DNODE_CREATE_VNODE           13
+#define TSDB_MSG_TYPE_DNODE_VPEERS_RSP       14
+#define TSDB_MSG_TYPE_DNODE_FREE_VNODE       15
+#define TSDB_MSG_TYPE_DNODE_FREE_VNODE_RSP   16
 #define TSDB_MSG_TYPE_DNODE_CFG              17
 #define TSDB_MSG_TYPE_DNODE_CFG_RSP          18
 #define TSDB_MSG_TYPE_DNODE_ALTER_STREAM     19
@@ -53,8 +53,6 @@ extern "C" {
 #define TSDB_MSG_TYPE_SDB_SYNC_RSP           22
 #define TSDB_MSG_TYPE_SDB_FORWARD            23
 #define TSDB_MSG_TYPE_SDB_FORWARD_RSP        24
-#define TSDB_MSG_TYPE_DROP_STABLE            25
-#define TSDB_MSG_TYPE_DROP_STABLE_RSP        26
 #define TSDB_MSG_TYPE_CONNECT                31
 #define TSDB_MSG_TYPE_CONNECT_RSP            32
 #define TSDB_MSG_TYPE_CREATE_ACCT            33
@@ -202,8 +200,8 @@ typedef struct {
 } SShellSubmitBlock;
 
 typedef struct {
-  int16_t import;
-  int16_t vnode;
+  int8_t  import;
+  int8_t  reserved[3];
   int32_t numOfSid; /* total number of sid */
   char    blks[];   /* numOfSid blocks, each blocks for one table */
 } SShellSubmitMsg;
@@ -263,7 +261,7 @@ typedef struct {
   int16_t   numOfColumns;
   int16_t   sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
   int16_t   reserved[16];
-  char      schema[];
+  SSchema   schema[];
 } SCreateTableMsg;
 
 typedef struct {
@@ -359,7 +357,6 @@ typedef struct SColIndexEx {
   int16_t  colIdx;
   int16_t  colIdxInBuf;
   uint16_t flag;         // denote if it is a tag or not
-  char     name[TSDB_COL_NAME_LEN];
 } SColIndexEx;
 
 /* sql function msg, to describe the message to vnode about sql function
@@ -457,7 +454,7 @@ typedef struct {
   int16_t numOfCols;         // the number of columns will be load from vnode
   char    intervalTimeUnit;  // time interval type, for revisement of interval(1d)
 
-  int64_t intervalTime;  // time interval for aggregation, in million second
+  int64_t nAggTimeInterval;  // time interval for aggregation, in million second
   int64_t slidingTime;       // value for sliding window
 
   // tag schema, used to parse tag information in pSidExtInfo

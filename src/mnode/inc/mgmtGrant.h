@@ -25,13 +25,13 @@ extern "C" {
 #include "mnode.h"
 
 extern bool    (*mgmtCheckExpired)();
-extern void    (*mgmtAddTimeSeries)(uint32_t timeSeriesNum);
-extern void    (*mgmtRestoreTimeSeries)(uint32_t timeseries);
+extern void    (*mgmtAddTimeSeries)(SAcctObj *pAcct, uint32_t timeSeriesNum);
+extern void    (*mgmtRestoreTimeSeries)(SAcctObj *pAcct, uint32_t timeseries);
 extern int32_t (*mgmtCheckTimeSeries)(uint32_t timeseries);
 extern int32_t (*mgmtCheckUserGrant)();
 extern int32_t (*mgmtCheckDbGrant)();
-extern int32_t (*mgmtGetGrantsMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-extern int32_t (*mgmtRetrieveGrants)(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+extern int32_t (*mgmtGetGrantsMeta)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+extern int32_t (*mgmtRetrieveGrants)(SShowObj *pShow, char *data, int rows, void *pConn);
 
 #ifdef __cplusplus
 }
