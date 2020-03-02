@@ -121,7 +121,7 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo);
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbConfigRepo(tsdb_repo_t repo, STsdbCfg *pCfg);
+int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg);
 
 /**
  * Get the TSDB repository information, including some statistics

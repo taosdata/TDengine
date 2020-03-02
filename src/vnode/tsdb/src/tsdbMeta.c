@@ -4,7 +4,7 @@
 #include "tsdb.h"
 #include "tsdbMeta.h"
 
-STsdbMeta *tsdbCreateMeta(int32_t maxNumOfTables) {
+STsdbMeta *tsdbCreateMeta(int32_t maxTables) {
   STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
   if (pMeta == NULL) {
     return NULL;
@@ -12,7 +12,7 @@ STsdbMeta *tsdbCreateMeta(int32_t maxNumOfTables) {
 
   pMeta->numOfTables = 0;
   pMeta->numOfSuperTables = 0;
-  pMeta->pTables = calloc(sizeof(STable *), numOfTables);
+  pMeta->pTables = calloc(sizeof(STable *), maxTables);
   if (pMeta->pTables == NULL) {
     free(pMeta);
     return NULL;
@@ -29,9 +29,7 @@ STsdbMeta *tsdbCreateMeta(int32_t maxNumOfTables) {
   return pMeta;
 }
 
-int32_t tsdbFreeMetaHandle(STsdbMeta *pMetaHandle) {
-  // TODO
-
+int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
 }
 
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg) { return 0; }
@@ -47,7 +45,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pHandle, STableCfg *pCfg) {
     return -1;
   }
 
-  pHandle->pTables[pCfg->tableId] = pTable;
+  pHandle->pTables[pCfg->tableId.tid] = pTable;
 
   // TODO: add name to it
   return 0;

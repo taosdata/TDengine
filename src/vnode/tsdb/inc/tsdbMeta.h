@@ -84,10 +84,10 @@ SSchema *tsdbGetTableSchema(STable *pTable);
 #define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
 
 // Create a new meta handle with configuration
-SMetaHandle * tsdbCreateMeta (int32_t numOfTables);
-int32_t       tsdbFreeMetaHandle(SMetaHandle *pMetaHandle);
+STsdbMeta * tsdbCreateMeta (int32_t maxTables);
+int32_t       tsdbFreeMeta(STsdbMeta *pMeta);
 
 // Recover the meta handle from the file
-SMetaHandle * tsdbOpenMetaHandle(char *tsdbDir);
+STsdbMeta * tsdbOpenMetaHandle(char *tsdbDir);
 
-int32_t tsdbCreateTableImpl(SMetaHandle *pHandle, STableCfg *pCfg);
+int32_t tsdbCreateTableImpl(STsdbMeta *pHandle, STableCfg *pCfg);
