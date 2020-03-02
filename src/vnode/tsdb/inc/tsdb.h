@@ -37,7 +37,6 @@ typedef struct {
 
 // the TSDB repository configuration
 typedef struct {
-  char *  rootDir;  // TSDB repository root directory, TODO: need to adjust here
   int32_t tsdbId;
   int32_t maxTables;            // maximum number of tables this repository can have
   int32_t daysPerFile;          // day per file sharding policy
@@ -45,7 +44,6 @@ typedef struct {
   int32_t maxRowsPerFileBlock;  // maximum rows per file block
   int32_t keep;                 // day of data to keep
   int64_t maxCacheSize;         // maximum cache size this TSDB can use
-  void *  cachePool;            // the cache pool the repository to use
 } STsdbCfg;
 
 // the TSDB repository info
@@ -89,7 +87,7 @@ typedef struct {
  *
  * @return a TSDB repository handle on success, NULL for failure and the error number is set
  */
-tsdb_repo_t *tsdbCreateRepo(STsdbCfg *pCfg);
+tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
 
 /**
  * Close and free all resources taken by the repository

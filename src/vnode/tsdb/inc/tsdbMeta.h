@@ -62,7 +62,7 @@ typedef struct {
   // A map of tableName->tableId
   // TODO: May use hash table
   void *pNameTableMap;
-} SMetaHandle;
+} STsdbMeta;
 
 // ---- Operation on STable
 #define TSDB_TABLE_ID(pTable) ((pTable)->tableId)
@@ -84,7 +84,7 @@ SSchema *tsdbGetTableSchema(STable *pTable);
 #define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
 
 // Create a new meta handle with configuration
-SMetaHandle * tsdbCreateMetaHandle (int32_t numOfTables);
+SMetaHandle * tsdbCreateMeta (int32_t numOfTables);
 int32_t       tsdbFreeMetaHandle(SMetaHandle *pMetaHandle);
 
 // Recover the meta handle from the file

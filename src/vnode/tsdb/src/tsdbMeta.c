@@ -4,39 +4,39 @@
 #include "tsdb.h"
 #include "tsdbMeta.h"
 
-SMetaHandle *tsdbCreateMetaHandle(int32_t numOfTables) {
-  SMetaHandle *pMetahandle = (SMetaHandle *)malloc(sizeof(SMetaHandle));
-  if (pMetahandle == NULL) {
+STsdbMeta *tsdbCreateMeta(int32_t maxNumOfTables) {
+  STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
+  if (pMeta == NULL) {
     return NULL;
   }
 
-  pMetahandle->numOfTables = 0;
-  pMetahandle->numOfSuperTables = 0;
-  pMetahandle->pTables = calloc(sizeof(STable *), numOfTables);
-  if (pMetahandle->pTables == NULL) {
-    free(pMetahandle);
+  pMeta->numOfTables = 0;
+  pMeta->numOfSuperTables = 0;
+  pMeta->pTables = calloc(sizeof(STable *), numOfTables);
+  if (pMeta->pTables == NULL) {
+    free(pMeta);
     return NULL;
   }
 
   // TODO : initialize the map
   // pMetahandle->pNameTableMap = ;
-  if (pMetahandle->pNameTableMap == NULL) {
-    free(pMetahandle->pTables);
-    free(pMetahandle);
+  if (pMeta->pNameTableMap == NULL) {
+    free(pMeta->pTables);
+    free(pMeta);
     return NULL;
   }
 
-  return pMetahandle;
+  return pMeta;
 }
 
-int32_t tsdbFreeMetaHandle(SMetaHandle *pMetaHandle) {
+int32_t tsdbFreeMetaHandle(STsdbMeta *pMetaHandle) {
   // TODO
 
 }
 
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg) { return 0; }
 
-int32_t tsdbCreateTableImpl(SMetaHandle *pHandle, STableCfg *pCfg) {
+int32_t tsdbCreateTableImpl(STsdbMeta *pHandle, STableCfg *pCfg) {
   if (tsdbCheckTableCfg(pCfg) < 0) {
     return -1;
   }
@@ -53,10 +53,10 @@ int32_t tsdbCreateTableImpl(SMetaHandle *pHandle, STableCfg *pCfg) {
   return 0;
 }
 
-SMetaHandle * tsdbOpenMetaHandle(char *tsdbDir) {
+STsdbMeta * tsdbOpenMetaHandle(char *tsdbDir) {
   // Open meta file for reading
 
-  SMetaHandle *pHandle = (SMetaHandle *)malloc(sizeof(SMetaHandle));
+  STsdbMeta *pHandle = (STsdbMeta *)malloc(sizeof(STsdbMeta));
   if (pHandle == NULL) {
     return NULL;
   }

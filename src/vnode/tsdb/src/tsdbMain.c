@@ -1,27 +1,23 @@
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 // #include "taosdef.h"
 // #include "disk.h"
-#include "tsdbFile.h"
 #include "tsdb.h"
 #include "tsdbCache.h"
+#include "tsdbFile.h"
 #include "tsdbMeta.h"
 
-enum {
-  TSDB_REPO_STATE_ACTIVE,
-  TSDB_REPO_STATE_CLOSED,
-  TSDB_REPO_STATE_CONFIGURING
-};
+enum { TSDB_REPO_STATE_ACTIVE, TSDB_REPO_STATE_CLOSED, TSDB_REPO_STATE_CONFIGURING };
 
 typedef struct _tsdb_repo {
   // TSDB configuration
-  STsdbCfg *pCfg;
+  STsdbCfg config;
 
   // The meter meta handle of this TSDB repository
   SMetaHandle *tsdbMeta;
@@ -37,31 +33,40 @@ typedef struct _tsdb_repo {
 
   pthread_mutex_t tsdbMutex;
 
+  // A limiter to monitor the resources used by tsdb
+  void *limiter;
+
   int8_t state;
 
 } STsdbRepo;
+
+static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
+static int32_t tsdbCreateRepoFiles(STsdbRepo *pRepo);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
 #define TSDB_IS_REPO_ACTIVE(pRepo) ((pRepo)->state == TSDB_REPO_STATE_ACTIVE)
 #define TSDB_IS_REPO_CLOSED(pRepo) ((pRepo)->state == TSDB_REPO_STATE_CLOSED)
 
+tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter) {
 
-tsdb_repo_t *tsdbCreateRepo(STsdbCfg *pCfg) {
+  if (rootDir == NULL) return NULL;
 
-  // Check the configuration
-  if (tsdbCheckCfg(pCfg) < 0) {
+  if (access(rootDir, F_OK|R_OK|W_OK) == -1) return NULL;
+
+  if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) {
     return NULL;
   }
 
   STsdbRepo *pRepo = (STsdbRepo *)malloc(sizeof(STsdbRepo));
   if (pRepo == NULL) {
-    // TODO: deal with error
     return NULL;
   }
 
-  // TODO: Initailize pMetahandle
-  pRepo->tsdbMeta = tsdbCreateMetaHandle(pCfg->maxTables);
+  pRepo->config = *pCfg;
+  pRepo->limiter = limiter;
+
+  pRepo->tsdbMeta = tsdbCreateMeta(pCfg->maxTables);
   if (pRepo->tsdbMeta == NULL) {
     // TODO: deal with error
     free(pRepo);
@@ -77,17 +82,14 @@ tsdb_repo_t *tsdbCreateRepo(STsdbCfg *pCfg) {
     return NULL;
   }
 
-  // Set configuration
-  pRepo->pCfg = pCfg;
-
   // Create the Meta data file and data directory
-  if (tsdbCreateFiles(pRepo) < 0) {
+  if (tsdbCreateRepoFiles(pRepo) < 0) {
     // Failed to create and save files
     tsdbFreeMetaHandle(pRepo->tsdbCache);
     free(pRepo);
     return NULL;
   }
-  
+
   pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
   return (tsdb_repo_t *)pRepo;
@@ -110,8 +112,7 @@ int32_t tsdbDropRepo(tsdb_repo_t *repo) {
 }
 
 tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
-
-  if (access(tsdbDir, F_OK|W_OK|R_OK) < 0) {
+  if (access(tsdbDir, F_OK | W_OK | R_OK) < 0) {
     return NULL;
   }
 
@@ -159,7 +160,7 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
 int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
-  pRepo->pCfg = pCfg;
+  pRepo->config = pCfg;
   // TODO
   return 0;
 }
@@ -185,18 +186,13 @@ int32_t tsdbInsertData(tsdb_repo_t *pRepo, STableId tid, char *pData, int32_t *e
   // TODO
 }
 
-// Check the correctness of the TSDB configuration
-static int32_t tsdbCheckCfg(STsdbCfg *pCfg) {
-  if (pCfg->rootDir == NULL) return -1;
-
-  if (access(pCfg->rootDir, F_OK|R_OK|W_OK) == -1) {
-    return -1;
-  }
+// Check the configuration and set default options
+static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   // TODO
   return 0;
 }
 
-static int32_t tsdbCreateFiles(STsdbRepo *pRepo) {
+static int32_t tsdbCreateRepoFiles(STsdbRepo *pRepo) {
   // TODO
 }
 
