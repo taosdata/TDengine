@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "cluster.h"
+#include "clusterDnode.h"
 #include "clusterDnodeMgmt.h"
 
 void clusterInit() {
@@ -7,4 +8,9 @@ void clusterInit() {
   dnodeInitMgmtIpFp = dnodeInitMgmtIpImp;
   dnodeProcessStatusRspFp = dnodeProcessStatusRspImp;
   dnodeSendMsgToMnodeFp = dnodeSendMsgToMnodeImp;
+
+  mgmtInitDnodes = mgmtInitDnodesFp;
+
+  mgmtInitDnodesFp = mgmtInitDnodesImp;
+  mgmtGetDnodeFp = mgmtGetDnodeFp;
 }

@@ -39,6 +39,10 @@ extern void (*dnodeProcessStatusRspFp)(int8_t *pCont, int32_t contLen, int8_t ms
 extern void (*mgmtSendMsgToDnodeFp)(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
 extern void (*mgmtSendRspToDnodeFp)(void *handle, int32_t code, void *pCont, int contLen);
 
+// mgmtDnode
+extern int32_t (*mgmtInitDnodesFp)();
+extern void *  (*mgmtGetDnodeFp)(uint32_t ip);
+
 
 #ifdef __cplusplus
 }

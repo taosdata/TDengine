@@ -21,7 +21,6 @@
 /*
  * once sdb work as mater, then mgmtAccessSquence reset to zero, increase mgmtAccessSquence every balance interval
  */
-uint32_t        mgmtAccessSquence = 0;
 pthread_mutex_t balanceMutex;
 void *          balanceTimer = NULL;
 void *          balanceMonitorTimer = NULL;
