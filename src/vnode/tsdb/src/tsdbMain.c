@@ -46,24 +46,6 @@ typedef struct _tsdb_repo {
 #define TSDB_IS_REPO_ACTIVE(pRepo) ((pRepo)->state == TSDB_REPO_STATE_ACTIVE)
 #define TSDB_IS_REPO_CLOSED(pRepo) ((pRepo)->state == TSDB_REPO_STATE_CLOSED)
 
-// Check the correctness of the TSDB configuration
-static int32_t tsdbCheckCfg(STsdbCfg *pCfg) {
-  if (pCfg->rootDir == NULL) return -1;
-
-  if (access(pCfg->rootDir, F_OK|R_OK|W_OK) == -1) {
-    return -1;
-  }
-  // TODO
-  return 0;
-}
-
-static int32_t tsdbCreateFiles(STsdbRepo *pRepo) {
-  // TODO
-}
-
-static int32_t tsdbClearFiles(STsdbRepo *pRepo) {
-  // TODO
-}
 
 tsdb_repo_t *tsdbCreateRepo(STsdbCfg *pCfg) {
 
@@ -200,5 +182,24 @@ STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid, int32_t *error) {
 }
 
 int32_t tsdbInsertData(tsdb_repo_t *pRepo, STableId tid, char *pData, int32_t *error) {
+  // TODO
+}
+
+// Check the correctness of the TSDB configuration
+static int32_t tsdbCheckCfg(STsdbCfg *pCfg) {
+  if (pCfg->rootDir == NULL) return -1;
+
+  if (access(pCfg->rootDir, F_OK|R_OK|W_OK) == -1) {
+    return -1;
+  }
+  // TODO
+  return 0;
+}
+
+static int32_t tsdbCreateFiles(STsdbRepo *pRepo) {
+  // TODO
+}
+
+static int32_t tsdbClearFiles(STsdbRepo *pRepo) {
   // TODO
 }

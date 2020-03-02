@@ -35,25 +35,6 @@ typedef struct {
   char     data[];
 } SSubmitBlock;
 
-// Retention policy.
-typedef struct {
-  // TODO: Need a more fancy description
-  int32_t keep1;
-  int32_t keep2;
-  int32_t keep3;
-} SRetentionPolicy;
-
-// Data sharding policy.
-typedef struct {
-  // TODO: Need a more fancy description
-  int32_t daysPerFile;
-} SDataShardPolicy;
-
-// Rows in file block policy
-typedef struct {
-  // TODO: Need a more fancy description
-} SBlockRowsPolicy;
-
 // the TSDB repository configuration
 typedef struct {
   char *  rootDir;  // TSDB repository root directory, TODO: need to adjust here
@@ -62,7 +43,8 @@ typedef struct {
   int32_t daysPerFile;          // day per file sharding policy
   int32_t minRowsPerFileBlock;  // minimum rows per file block
   int32_t maxRowsPerFileBlock;  // maximum rows per file block
-  int32_t keep;                 // Day of data to keep
+  int32_t keep;                 // day of data to keep
+  int64_t maxCacheSize;         // maximum cache size this TSDB can use
   void *  cachePool;            // the cache pool the repository to use
 } STsdbCfg;
 
