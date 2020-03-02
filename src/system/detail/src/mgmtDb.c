@@ -663,7 +663,22 @@ int mgmtRetrieveDbs(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   SDbObj *pDb = NULL;
   char *  pWrite;
   int     cols = 0;
-
+  
+  void* pNext = pShow->pNode;
+  while (numOfRows < rows) {
+    pDb = (SDbObj *)pNext;
+    if (pDb == NULL) break;
+    pNext = (void *)pDb->next;
+    if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+      if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 && strcmp(pConn->pUser->user, "monitor") != 0 ) {
+        rows--;
+        break;
+      }
+    }
+    numOfRows++;
+  }
+  
+  numOfRows = 0;
   while (numOfRows < rows) {
     pDb = (SDbObj *)pShow->pNode;
     if (pDb == NULL) break;

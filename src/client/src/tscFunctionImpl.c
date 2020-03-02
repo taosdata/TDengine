@@ -4566,7 +4566,7 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   pRateInfo->lastValue = v;
   pRateInfo->lastKey   = primaryKey[index];
 
-  pTrace("====%p rate_function_f() index:%d lastValue:%f lastKey:%" PRId64 " CorrectionValue:%f", pCtx, index, pRateInfo->lastValue, pRateInfo->lastKey, pRateInfo->CorrectionValue);
+  pTrace("%p rate_function_f() index:%d lastValue:%f lastKey:%" PRId64 " CorrectionValue:%f", pCtx, index, pRateInfo->lastValue, pRateInfo->lastKey, pRateInfo->CorrectionValue);
 
   SET_VAL(pCtx, 1, 1);
 
@@ -4774,7 +4774,7 @@ static void irate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   pRateInfo->lastValue = v;
   pRateInfo->lastKey   = primaryKey[index];
 
-  pTrace("====%p irate_function_f() index:%d lastValue:%f lastKey:%" PRId64 " firstValue:%f firstKey:%" PRId64, pCtx, index, pRateInfo->lastValue, pRateInfo->lastKey, pRateInfo->firstValue , pRateInfo->firstKey);
+  pTrace("%p irate_function_f() index:%d lastValue:%f lastKey:%" PRId64 " firstValue:%f firstKey:%" PRId64, pCtx, index, pRateInfo->lastValue, pRateInfo->lastKey, pRateInfo->firstValue , pRateInfo->firstKey);
 
   SET_VAL(pCtx, 1, 1);
 
