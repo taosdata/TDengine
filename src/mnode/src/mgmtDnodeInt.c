@@ -31,9 +31,14 @@
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
 
+int32_t (*mgmtInitDnodeIntFp)() = NULL;
+void (*mgmtCleanUpDnodeIntFp)() = NULL;
+
 void (*mgmtSendMsgToDnodeFp)(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle) = NULL;
 void (*mgmtSendRspToDnodeFp)(void *handle, int32_t code, void *pCont, int32_t contLen) = NULL;
 void *mgmtStatusTimer = NULL;
+
+static void mgmtProcessDnodeStatus(int8_t msgType, void *pCont, int32_t contLen, void *pConn, int32_t code);
 
 static void mgmtSendMsgToDnodeQueueFp(SSchedMsg *sched) {
   int32_t contLen  = *(int32_t *) (sched->msg - 4);
@@ -249,14 +254,16 @@ void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *p
     mgmtProcessDropStableRsp(msgType, pCont, contLen, pConn, code);
   } else if (msgType == TSDB_MSG_TYPE_DNODE_CFG_RSP) {
   } else if (msgType == TSDB_MSG_TYPE_ALTER_STREAM_RSP) {
+  } else if (msgType == TSDB_MSG_TYPE_STATUS) {
+    mgmtProcessDnodeStatus(msgType, pConn, contLen, pConn, code);
+  } else if (msgType == TSDB_MSG_TYPE_GRANT) {
+    mgmtProcessDropStableRsp(msgType, pCont, contLen, pConn, code);
   } else {
     mError("%s from dnode is not processed", taosMsg[(int8_t)msgType]);
   }
 
   //rpcFreeCont(pCont);
 }
-
-
 
 void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle) {
   mTrace("table:%s, sid:%d send alter stream msg, ahandle:%p", pTable->tableId, pTable->sid, ahandle);
@@ -317,108 +324,113 @@ int32_t mgmtCfgDynamicOptions(SDnodeObj *pDnode, char *msg) {
 }
 
 int32_t mgmtSendCfgDnodeMsg(char *cont) {
-#ifdef CLUSTER
-  char *     pMsg, *pStart;
-  int32_t        msgLen = 0;
-#endif
-
-  SDnodeObj *pDnode;
-  SCfgDnodeMsg *  pCfg = (SCfgDnodeMsg *)cont;
-  uint32_t   ip;
-
-  ip = inet_addr(pCfg->ip);
-  pDnode = mgmtGetDnode(ip);
-  if (pDnode == NULL) {
-    mError("dnode ip:%s not configured", pCfg->ip);
-    return TSDB_CODE_NOT_CONFIGURED;
-  }
-
-  mTrace("dnode:%s, dynamic option received, content:%s", taosIpStr(pDnode->privateIp), pCfg->config);
-  int32_t code = mgmtCfgDynamicOptions(pDnode, pCfg->config);
-  if (code != -1) {
-    return code;
-  }
-
-#ifdef CLUSTER
-  pStart = taosBuildReqMsg(pDnode->thandle, TSDB_MSG_TYPE_DNODE_CFG);
-  if (pStart == NULL) return TSDB_CODE_NODE_OFFLINE;
-  pMsg = pStart;
-
-  memcpy(pMsg, cont, sizeof(SCfgDnodeMsg));
-  pMsg += sizeof(SCfgDnodeMsg);
-
-  msgLen = pMsg - pStart;
-  mgmtSendMsgToDnode(pDnode, pStart, msgLen);
-#else
-  (void)tsCfgDynamicOptions(pCfg->config);
-#endif
-  return 0;
+//#ifdef CLUSTER
+//  char *     pMsg, *pStart;
+//  int32_t        msgLen = 0;
+//#endif
+//
+//  SDnodeObj *pDnode;
+//  SCfgDnodeMsg *  pCfg = (SCfgDnodeMsg *)cont;
+//  uint32_t   ip;
+//
+//  ip = inet_addr(pCfg->ip);
+//  pDnode = mgmtGetDnode(ip);
+//  if (pDnode == NULL) {
+//    mError("dnode ip:%s not configured", pCfg->ip);
+//    return TSDB_CODE_NOT_CONFIGURED;
+//  }
+//
+//  mTrace("dnode:%s, dynamic option received, content:%s", taosIpStr(pDnode->privateIp), pCfg->config);
+//  int32_t code = mgmtCfgDynamicOptions(pDnode, pCfg->config);
+//  if (code != -1) {
+//    return code;
+//  }
+//
+//#ifdef CLUSTER
+//  pStart = taosBuildReqMsg(pDnode->thandle, TSDB_MSG_TYPE_DNODE_CFG);
+//  if (pStart == NULL) return TSDB_CODE_NODE_OFFLINE;
+//  pMsg = pStart;
+//
+//  memcpy(pMsg, cont, sizeof(SCfgDnodeMsg));
+//  pMsg += sizeof(SCfgDnodeMsg);
+//
+//  msgLen = pMsg - pStart;
+//  mgmtSendMsgToDnode(pDnode, pStart, msgLen);
+//#else
+//  (void)tsCfgDynamicOptions(pCfg->config);
+//#endif
+//  return 0;
 }
 
-int32_t mgmtInitDnodeIntImp() { return 0; }
-int32_t (*mgmtInitDnodeInt)() = mgmtInitDnodeIntImp;
+int32_t mgmtInitDnodeInt() {
+ if (mgmtInitDnodeIntFp) {
+   return mgmtInitDnodeIntFp();
+ } else {
+   return 0;
+ }
+}
 
-void mgmtCleanUpDnodeIntImp() {}
-void (*mgmtCleanUpDnodeInt)() = mgmtCleanUpDnodeIntImp;
+void mgmtCleanUpDnodeInt() {
+  if (mgmtCleanUpDnodeIntFp) {
+    mgmtCleanUpDnodeIntFp();
+  }
+}
 
-void mgmtProcessDnodeStatusImp(void *handle, void *tmrId) {
-/*
-  SDnodeObj *pObj = &tsDnodeObj;
-  pObj->openVnodes = tsOpenVnodes;
+void mgmtProcessDnodeStatus(int8_t msgType, void *pCont, int32_t contLen, void *pConn, int32_t code) {
+  SStatusMsg *pStatus = (SStatusMsg *)pCont;
+
+  SDnodeObj *pObj = mgmtGetDnode(htonl(pStatus->privateIp));
+  if (pObj == NULL) {
+    mError("dnode:%s not exist", taosIpStr(pObj->privateIp));
+    mgmtSendRspToDnode(pConn, msgType + 1, TSDB_CODE_DNODE_NOT_EXIST, NULL, 0);
+    return;
+  }
+
+  pObj->lastReboot       = htonl(pStatus->lastReboot);
+  pObj->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes);
+  pObj->openVnodes       = htons(pStatus->openVnodes);
+  pObj->numOfCores       = htons(pStatus->numOfCores);
+  pObj->diskAvailable = pStatus->diskAvailable;
+  pObj->alternativeRole  = pStatus->alternativeRole;
+//
+//  if (mgmtProcessDnodeStatusFp) {
+//    mgmtProcessDnodeStatusFp(pStatus, pObj, pConn);
+//    return;
+//  }
+
   pObj->status = TSDB_DN_STATUS_READY;
 
-  float memoryUsedMB = 0;
-  taosGetSysMemory(&memoryUsedMB);
-  pObj->diskAvailable = tsAvailDataDirGB;
-
-  for (int32_t vnode = 0; vnode < pObj->numOfVnodes; ++vnode) {
-    SVnodeLoad *pVload = &(pObj->vload[vnode]);
-    SVnodeObj * pVnode = vnodeList + vnode;
-
-    // wait vnode dropped
-    if (pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
-      if (vnodeList[vnode].cfg.maxSessions <= 0) {
-        pVload->dropStatus = TSDB_VN_DROP_STATUS_READY;
-        pVload->status = TSDB_VN_STATUS_OFFLINE;
-        mPrint("dnode:%s, vid:%d, drop finished", taosIpStr(pObj->privateIp), vnode);
-        taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, tsMgmtTmr);
-      }
-    }
-
-    if (vnodeList[vnode].cfg.maxSessions <= 0) {
-      continue;
-    }
-
-    pVload->vnode = vnode;
-    pVload->status = TSDB_VN_STATUS_MASTER;
-    pVload->totalStorage = pVnode->vnodeStatistic.totalStorage;
-    pVload->compStorage = pVnode->vnodeStatistic.compStorage;
-    pVload->pointsWritten = pVnode->vnodeStatistic.pointsWritten;
-    uint32_t vgId = pVnode->cfg.vgId;
-
-    SVgObj *pVgroup = mgmtGetVgroup(vgId);
-    if (pVgroup == NULL) {
-      mError("vgroup:%d is not there, but associated with vnode %d", vgId, vnode);
-      pVload->dropStatus = TSDB_VN_DROP_STATUS_DROPPING;
-      continue;
-    }
-
-    SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
-    if (pDb == NULL) {
-      mError("vgroup:%d not belongs to any database, vnode:%d", vgId, vnode);
-      continue;
-    }
-
-    if (pVload->vgId == 0 || pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
-      mError("vid:%d, mgmt not exist, drop it", vnode);
-      pVload->dropStatus = TSDB_VN_DROP_STATUS_DROPPING;
-    }
-  }
-
-  taosTmrReset(mgmtProcessDnodeStatus, tsStatusInterval * 1000, NULL, tsMgmtTmr, &mgmtStatusTimer);
-  if (mgmtStatusTimer == NULL) {
-    mError("Failed to start status timer");
-  }
-*/
+//  // wait vnode dropped
+//  for (int32_t vnode = 0; vnode < pObj->numOfVnodes; ++vnode) {
+//    SVnodeLoad *pVload = &(pObj->vload[vnode]);
+//    if (pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
+//      bool existInDnode = false;
+//      for (int32_t j = 0; j < pObj->openVnodes; ++j) {
+//        if (htonl(pStatus->load[j].vnode) == vnode) {
+//          existInDnode = true;
+//          break;
+//        }
+//      }
+//
+//      if (!existInDnode) {
+//        pVload->dropStatus = TSDB_VN_DROP_STATUS_READY;
+//        pVload->status = TSDB_VN_STATUS_OFFLINE;
+//        mgmtUpdateDnode(pObj);
+//        mPrint("dnode:%s, vid:%d, drop finished", taosIpStr(pObj->privateIp), vnode);
+//        taosTmrStart(mgmtMonitorDbDrop, 10000, NULL, tsMgmtTmr);
+//      }
+//    } else if (pVload->vgId == 0) {
+//      /*
+//       * In some cases, vnode information may be reported abnormally, recover it
+//       */
+//      if (pVload->dropStatus != TSDB_VN_DROP_STATUS_READY || pVload->status != TSDB_VN_STATUS_OFFLINE) {
+//        mPrint("dnode:%s, vid:%d, vgroup:%d status:%s dropStatus:%s, set it to avail status",
+//               taosIpStr(pObj->privateIp), vnode, pVload->vgId, taosGetVnodeStatusStr(pVload->status),
+//               taosGetVnodeDropStatusStr(pVload->dropStatus));
+//        pVload->dropStatus = TSDB_VN_DROP_STATUS_READY;
+//        pVload->status = TSDB_VN_STATUS_OFFLINE;
+//        mgmtUpdateDnode(pObj);
+//      }
+//    }
+//  }
 }
-void (*mgmtProcessDnodeStatus)(void *handle, void *tmrId) = mgmtProcessDnodeStatusImp;

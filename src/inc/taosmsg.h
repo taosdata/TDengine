@@ -573,31 +573,33 @@ typedef struct {
 } SVnodeStatisticInfo;
 
 typedef struct {
-  uint32_t   version;
-  uint32_t   publicIp;
-  uint32_t   lastReboot;  // time stamp for last reboot
-  uint16_t   numOfCores;
-  uint8_t    alternativeRole;
-  uint8_t    reserve;
-  uint16_t   numOfTotalVnodes;  // from config file
-  uint16_t   unused;
-  float      diskAvailable;  // GB
-  uint32_t   openVnodes;
-  char       reserved[16];
-  SVnodeLoad load[];
-} SStatusMsg;
-
-typedef struct {
-  int32_t   code;
-  SRpcIpSet ipList;
-} SStatusRsp;
-
-typedef struct {
   uint32_t moduleStatus;
   uint32_t createdTime;
   uint32_t numOfVnodes;
   uint32_t reserved;
 } SDnodeState;
+
+typedef struct {
+  uint32_t   version;
+  uint32_t   privateIp;
+  uint32_t   publicIp;
+  uint32_t   lastReboot;       // time stamp for last reboot
+  uint16_t   numOfTotalVnodes; // from config file
+  uint16_t   openVnodes;
+  uint16_t   numOfCores;
+  float      diskAvailable;    // GB
+  uint8_t    alternativeRole;
+  uint8_t    reserve[15];
+  SVnodeLoad load[];
+} SStatusMsg;
+
+typedef struct {
+  int32_t      code;
+  int32_t      numOfVnodes;
+  SDnodeState  dnodeState;
+  SRpcIpSet    ipList;
+  SVnodeAccess vnodeAccess[];
+} SStatusRsp;
 
 // internal message
 typedef struct {

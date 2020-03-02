@@ -38,6 +38,7 @@ extern int32_t tsMaxQueues;
 extern void ** tsRpcQhandle;
 extern void *tsQueryQhandle;
 extern void *tsDnodeMgmtQhandle;
+extern void *tsDnodeTmr;
 
 int32_t dnodeInitSystem();
 void dnodeCleanUpSystem();

@@ -260,12 +260,10 @@ typedef struct {
 //mgmtSystem
 int32_t mgmtStartSystem();
 void mgmtCleanUpSystem();
-void mgmtProcessMsgFromDnode(char msgType, void *pCont, int contLen, void *pConn, int32_t code);
-extern int32_t (*mgmtInitSystem)();
-extern void (*mgmtStopSystem)();
 extern void (*mgmtCleanUpRedirect)();
 
 
+void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *pConn, int32_t code);
 
 #ifdef __cplusplus
 }

@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
+#include "tmodule.h"
 #include "tsched.h"
 #include "mnode.h"
 #include "mgmtAcct.h"
@@ -53,6 +54,20 @@ void mgmtCleanUpSystem() {
   taosCleanUpScheduler(tsMgmtTranQhandle);
 
   mPrint("mgmt is cleaned up");
+}
+
+int32_t mgmtCheckMgmtRunning() {
+  if (tsModuleStatus & (1 << TSDB_MOD_MGMT)) {
+    return -1;
+  }
+
+  tsetModuleStatus(TSDB_MOD_MGMT);
+
+//  strcpy(sdbMasterIp, mgmtIpStr[0]);
+  strcpy(sdbPrivateIp, tsPrivateIp);
+  sdbPublicIp = inet_addr(tsPublicIp);
+
+  return 0;
 }
 
 int32_t mgmtStartSystem() {
@@ -111,10 +126,10 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (mgmtInitShell() < 0) {
-    mError("failed to init shell");
-    return -1;
-  }
+//  if (mgmtInitShell() < 0) {
+//    mError("failed to init shell");
+//    return -1;
+//  }
 
   if (sdbInitPeers(tsMgmtDirectory) < 0) {
     mError("failed to init peers");
@@ -125,39 +140,41 @@ int32_t mgmtStartSystem() {
     mError("failed to init dnode balance")
   }
 
-  taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
+  if (mgmtDoStatistic) {
+    taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
+  }
 
   mPrint("TDengine mgmt is initialized successfully");
 
   return 0;
 }
 
-int32_t mgmtInitSystemImp() {
-  int32_t code = mgmtStartSystem();
-  if (code != 0) {
-    return code;
+int32_t mgmtInitSystem() {
+  struct stat dirstat;
+  bool directoryExist  = (stat(tsMgmtDirectory, &dirstat) == 0);
+  bool equalWithMaster = (strcmp(tsMasterIp, tsPrivateIp) == 0);
+
+  if (equalWithMaster || directoryExist) {
+    if (mgmtStartSystem() != 0) {
+      return -1;
+    }
   }
 
-  taosTmrReset(mgmtProcessDnodeStatus, 500, NULL, tsMgmtTmr, &mgmtStatusTimer);
-  return code;
-}
+  if (mgmtInitShell() < 0) {
+    mError("failed to init shell");
+    return -1;
+  }
 
-int32_t (*mgmtInitSystem)() = mgmtInitSystemImp;
-
-int32_t mgmtCheckMgmtRunningImp() {
   return 0;
 }
 
-int32_t (*mgmtCheckMgmtRunning)() = mgmtCheckMgmtRunningImp;
+void mgmtStopSystem() {
+  if (sdbMaster) {
+    mTrace("it is a master mgmt node, it could not be stopped");
+    return;
+  }
 
-void mgmtDoStatisticImp(void *handle, void *tmrId) {}
-
-void (*mgmtDoStatistic)(void *handle, void *tmrId) = mgmtDoStatisticImp;
-
-void mgmtStopSystemImp() {}
-
-void (*mgmtStopSystem)() = mgmtStopSystemImp;
-
-void mgmtCleanUpRedirectImp() {}
-
-void (*mgmtCleanUpRedirect)() = mgmtCleanUpRedirectImp;
+  mgmtCleanUpSystem();
+  remove(tsMgmtDirectory);
+//  mgmtInitRedirect();
+}

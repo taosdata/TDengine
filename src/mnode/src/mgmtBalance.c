@@ -32,7 +32,6 @@ void (*mgmtCleanupBalance)() = mgmtCleanupBalanceImp;
 
 int32_t mgmtAllocVnodesImp(SVgObj *pVgroup) {
   int        selectedVnode = -1;
-  SDnodeObj *pDnode = &tsDnodeObj;
   int        lastAllocVode = pDnode->lastAllocVnode;
 
   for (int i = 0; i < pDnode->numOfVnodes; i++) {

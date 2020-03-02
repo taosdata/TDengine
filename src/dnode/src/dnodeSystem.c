@@ -33,12 +33,12 @@
 #include "dnodeVnodeMgmt.h"
 
 #ifdef CLUSTER
-#include "acct.h"
-#include "admin.h"
-#include "cluster.h"
-#include "grant.h"
-#include "replica.h"
-#include "storage.h"
+//#include "acct.h"
+//#include "admin.h"
+//#include "cluster.h"
+//#include "grant.h"
+//#include "replica.h"
+//#include "storage.h"
 #endif
 
 static pthread_mutex_t tsDnodeMutex;
@@ -48,8 +48,7 @@ static int32_t dnodeInitRpcQHandle();
 static int32_t dnodeInitQueryQHandle();
 static int32_t dnodeInitTmrCtl();
 
-void     *tsStatusTimer = NULL;
-void     *vnodeTmrCtrl;
+void     *tsDnodeTmr;
 void     **tsRpcQhandle;
 void     *tsDnodeMgmtQhandle;
 void     *tsQueryQhandle;
@@ -90,10 +89,7 @@ void dnodeCleanUpSystem() {
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
   }
 
-  if (tsStatusTimer != NULL) {
-    taosTmrStopA(&tsStatusTimer);
-    tsStatusTimer = NULL;
-  }
+
 
   dnodeCleanupShell();
   dnodeCleanUpModules();
@@ -259,15 +255,15 @@ static int32_t dnodeInitQueryQHandle() {
   int32_t maxQueueSize = tsNumOfVnodesPerCore * tsNumOfCores * tsSessionsPerVnode;
   dTrace("query task queue initialized, max slot:%d, task threads:%d", maxQueueSize, numOfThreads);
 
-  tsQueryQhandle = taosInitSchedulerWithInfo(maxQueueSize, numOfThreads, "query", vnodeTmrCtrl);
+  tsQueryQhandle = taosInitSchedulerWithInfo(maxQueueSize, numOfThreads, "query", tsDnodeTmr);
 
   return 0;
 }
 
 static int32_t dnodeInitTmrCtl() {
-  vnodeTmrCtrl = taosTmrInit(TSDB_MAX_VNODES * (tsVnodePeers + 10) + tsSessionsPerVnode + 1000, 200, 60000,
+  tsDnodeTmr = taosTmrInit(TSDB_MAX_VNODES * (tsVnodePeers + 10) + tsSessionsPerVnode + 1000, 200, 60000,
                              "DND-vnode");
-  if (vnodeTmrCtrl == NULL) {
+  if (tsDnodeTmr == NULL) {
     dError("failed to init timer, exit");
     return -1;
   }

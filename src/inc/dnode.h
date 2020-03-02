@@ -48,17 +48,14 @@ extern int32_t (*dnodeCheckSystem)();
 
 // dnodeSystem
 extern void *tsDnodeMgmtQhandle;
+void dnodeCheckDataDirOpenned(const char* dir);
 
 void dnodeProcessMsgFromMgmt(int8_t msgType, void *pCont, int32_t contLen, void *pConn, int32_t code);
 
 // dnodeModule
 extern void (*dnodeStartModules)();
 
-// multilevelStorage
-extern int32_t (*dnodeInitStorage)();
-extern void (*dnodeCleanupStorage)();
 
-void dnodeCheckDataDirOpenned(const char* dir);
 
 void dnodeLockVnodes();
 void dnodeUnLockVnodes();
