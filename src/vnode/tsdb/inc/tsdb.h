@@ -16,8 +16,8 @@
 typedef void tsdb_repo_t;  // use void to hide implementation details from outside
 
 typedef struct {
-  int64_t    uid;      // the unique table ID
-  int32_t    tableId;  // the table ID in the repository.
+  int64_t uid;  // the unique table ID
+  int32_t tid;  // the table ID in the repository.
 } STableId;
 
 // Submit message for this TSDB
@@ -29,10 +29,10 @@ typedef struct {
 
 // Submit message for one table
 typedef struct {
-  STableId   tid;
-  int32_t    sversion;      // data schema version
-  int32_t    numOfRows;     // number of rows data
-  char       data[];
+  STableId tid;
+  int32_t  sversion;   // data schema version
+  int32_t  numOfRows;  // number of rows data
+  char     data[];
 } SSubmitBlock;
 
 // Retention policy.
@@ -52,19 +52,18 @@ typedef struct {
 // Rows in file block policy
 typedef struct {
   // TODO: Need a more fancy description
-  int32_t minRowsPerFileBlock;
-  int32_t maxRowsPerFileBlock;
 } SBlockRowsPolicy;
 
 // the TSDB repository configuration
 typedef struct {
-  char *           rootDir;  // TSDB repository root directory, TODO: need to adjust here
-  int32_t        tsdbId;
-  int32_t          maxTables;  // maximum number of tables this repository can have
-  SDataShardPolicy dataShardPolicy;
-  SBlockRowsPolicy blockRowsPolicy;
-  SRetentionPolicy retentionPlicy;  // retention configuration
-  void *           cachePool;       // the cache pool the repository to use
+  char *  rootDir;  // TSDB repository root directory, TODO: need to adjust here
+  int32_t tsdbId;
+  int32_t maxTables;            // maximum number of tables this repository can have
+  int32_t daysPerFile;          // day per file sharding policy
+  int32_t minRowsPerFileBlock;  // minimum rows per file block
+  int32_t maxRowsPerFileBlock;  // maximum rows per file block
+  int32_t keep;                 // Day of data to keep
+  void *  cachePool;            // the cache pool the repository to use
 } STsdbCfg;
 
 // the TSDB repository info
@@ -78,9 +77,8 @@ typedef struct STSDBRepoInfo {
 
 // the meter configuration
 typedef struct {
-  char *     tableName;
-  int64_t    uid;      // uid given by upper layer
-  int32_t tableId;  // table ID allocated from upper layer
+  char *   tableName;
+  STableId tableId;
 
   char *stableName;  // if not NULL, the table is created from a super table, need to make sure the super
                      // table exists in this TSDB.
@@ -99,8 +97,8 @@ typedef struct {
 typedef struct {
   STableCfg tableCfg;
   int64_t   version;
-  int64_t   tableTotalDataSize; // In bytes
-  int64_t   tableTotalDiskSize; // In bytes
+  int64_t   tableTotalDataSize;  // In bytes
+  int64_t   tableTotalDiskSize;  // In bytes
 } STableInfo;
 
 /**
@@ -201,7 +199,7 @@ int32_t tsdbInsertData(tsdb_repo_t *pRepo, STableId tid, char *pData, int32_t *e
 
 // -- FOR QUERY TIME SERIES DATA
 
-typedef void tsdb_query_handle_t; // Use void to hide implementation details
+typedef void tsdb_query_handle_t;  // Use void to hide implementation details
 
 // time window
 typedef struct STimeWindow {
@@ -245,7 +243,6 @@ typedef struct STableIDList {
 } STableIDList;
 
 typedef struct {
-
 } SFields;
 
 /**
@@ -269,7 +266,8 @@ tsdb_query_handle_t *tsdbQueryFromTableID(tsdb_repo_t *pRepo, STSDBQueryCond *pC
  * @param pTagFilterStr tag filter info
  * @return
  */
-tsdb_query_handle_t *tsdbQueryFromTagConds(tsdb_repo_t *pRepo, STSDBQueryCond *pCond, int16_t stableId, const char *pTagFilterStr);
+tsdb_query_handle_t *tsdbQueryFromTagConds(tsdb_repo_t *pRepo, STSDBQueryCond *pCond, int16_t stableId,
+                                           const char *pTagFilterStr);
 
 /**
  *  Reset to the start(end) position of current query, from which the iterator starts.

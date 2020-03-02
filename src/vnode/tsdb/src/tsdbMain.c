@@ -39,7 +39,7 @@ typedef struct _tsdb_repo {
 
   int8_t state;
 
-} STSDBRepo;
+} STsdbRepo;
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -57,11 +57,11 @@ static int32_t tsdbCheckCfg(STsdbCfg *pCfg) {
   return 0;
 }
 
-static int32_t tsdbCreateFiles(STSDBRepo *pRepo) {
+static int32_t tsdbCreateFiles(STsdbRepo *pRepo) {
   // TODO
 }
 
-static int32_t tsdbClearFiles(STSDBRepo *pRepo) {
+static int32_t tsdbClearFiles(STsdbRepo *pRepo) {
   // TODO
 }
 
@@ -72,7 +72,7 @@ tsdb_repo_t *tsdbCreateRepo(STsdbCfg *pCfg) {
     return NULL;
   }
 
-  STSDBRepo *pRepo = (STSDBRepo *)malloc(sizeof(STSDBRepo));
+  STsdbRepo *pRepo = (STsdbRepo *)malloc(sizeof(STsdbRepo));
   if (pRepo == NULL) {
     // TODO: deal with error
     return NULL;
@@ -112,7 +112,7 @@ tsdb_repo_t *tsdbCreateRepo(STsdbCfg *pCfg) {
 }
 
 int32_t tsdbDropRepo(tsdb_repo_t *repo) {
-  STSDBRepo *pRepo = (STSDBRepo *)repo;
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   pRepo->state = TSDB_REPO_STATE_CLOSED;
 
@@ -133,7 +133,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
     return NULL;
   }
 
-  STSDBRepo *pRepo = (STSDBRepo *)malloc(sizeof(STSDBRepo));
+  STsdbRepo *pRepo = (STsdbRepo *)malloc(sizeof(STsdbRepo));
   if (pRepo == NULL) {
     return NULL;
   }
@@ -156,12 +156,12 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
   return (tsdb_repo_t *)pRepo;
 }
 
-static int32_t tsdbFlushCache(STSDBRepo *pRepo) {
+static int32_t tsdbFlushCache(STsdbRepo *pRepo) {
   // TODO
 }
 
 int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
-  STSDBRepo *pRepo = (STSDBRepo *)repo;
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   tsdbFlushCache(pRepo);
 
@@ -175,7 +175,7 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
 }
 
 int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
-  STSDBRepo *pRepo = (STSDBRepo *)repo;
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   pRepo->pCfg = pCfg;
   // TODO
@@ -187,7 +187,7 @@ STSDBRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo) {
 }
 
 int32_t tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg) {
-  STSDBRepo *pRepo = (STSDBRepo *)repo;
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
   return tsdbCreateTableImpl(pRepo->tsdbMeta, pCfg);
 }
 
