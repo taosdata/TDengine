@@ -16,7 +16,7 @@ typedef enum {
 } TSDB_TABLE_TYPE;
 
 typedef struct STable {
-  tsdb_id_t       tableId;
+  int32_t       tableId;
   int64_t         uid;
   char *          tableName;
   TSDB_TABLE_TYPE type;
@@ -24,7 +24,7 @@ typedef struct STable {
   int64_t createdTime;
 
   // super table UID
-  tsdb_id_t superTableId;
+  int32_t superTableId;
 
   // Schema for this table
   // For TSDB_SUPER_TABLE, it is the schema including tags

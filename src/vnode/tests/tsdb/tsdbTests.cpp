@@ -4,7 +4,7 @@
 #include "tsdb.h"
 
 TEST(TsdbTest, createTsdbRepo) {
-    STSDBCfg *pCfg = (STSDBCfg *)malloc(sizeof(STSDBCfg));
+    STsdbCfg *pCfg = (STsdbCfg *)malloc(sizeof(STsdbCfg));
 
     free(pCfg);
 

@@ -8,17 +8,19 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// #include "cache.h"
 #include "schema.h"
 
 #define TSDB_VERSION_MAJOR 1
 #define TSDB_VERSION_MINOR 0
 
-typedef void    tsdb_repo_t;  // use void to hide implementation details from outside
-typedef int32_t table_id_t;   // table ID type in this repository
-typedef int16_t tsdb_id_t;    // TSDB repository ID
+typedef void tsdb_repo_t;  // use void to hide implementation details from outside
 
-// Submit message
+typedef struct {
+  int64_t    uid;      // the unique table ID
+  int32_t    tableId;  // the table ID in the repository.
+} STableId;
+
+// Submit message for this TSDB
 typedef struct {
   int32_t numOfTables;
   int32_t compressed;
@@ -27,10 +29,9 @@ typedef struct {
 
 // Submit message for one table
 typedef struct {
-  table_id_t tableId;       // table ID to insert
+  STableId   tid;
   int32_t    sversion;      // data schema version
   int32_t    numOfRows;     // number of rows data
-  int64_t    uid;           // table UID to insert
   char       data[];
 } SSubmitBlock;
 
@@ -55,27 +56,20 @@ typedef struct {
   int32_t maxRowsPerFileBlock;
 } SBlockRowsPolicy;
 
-// Applications trying to manipulate a table should provide both uid and tableId.
-// tableId is used for table quick access and uid for verification.
-typedef struct {
-  int64_t    uid;      // the unique table ID
-  table_id_t tableId;  // the table ID in the repository.
-} STableId;
-
 // the TSDB repository configuration
 typedef struct {
   char *           rootDir;  // TSDB repository root directory, TODO: need to adjust here
-  tsdb_id_t        tsdbId;
+  int32_t        tsdbId;
   int32_t          maxTables;  // maximum number of tables this repository can have
   SDataShardPolicy dataShardPolicy;
   SBlockRowsPolicy blockRowsPolicy;
   SRetentionPolicy retentionPlicy;  // retention configuration
   void *           cachePool;       // the cache pool the repository to use
-} STSDBCfg;
+} STsdbCfg;
 
 // the TSDB repository info
 typedef struct STSDBRepoInfo {
-  STSDBCfg tsdbCfg;
+  STsdbCfg tsdbCfg;
   int64_t  version;            // version of the repository
   int64_t  tsdbTotalDataSize;  // the original inserted data size
   int64_t  tsdbTotalDiskSize;  // the total disk size taken by this TSDB repository
@@ -86,7 +80,7 @@ typedef struct STSDBRepoInfo {
 typedef struct {
   char *     tableName;
   int64_t    uid;      // uid given by upper layer
-  table_id_t tableId;  // table ID allocated from upper layer
+  int32_t tableId;  // table ID allocated from upper layer
 
   char *stableName;  // if not NULL, the table is created from a super table, need to make sure the super
                      // table exists in this TSDB.
@@ -115,7 +109,7 @@ typedef struct {
  *
  * @return a TSDB repository handle on success, NULL for failure and the error number is set
  */
-tsdb_repo_t *tsdbCreateRepo(STSDBCfg *pCfg);
+tsdb_repo_t *tsdbCreateRepo(STsdbCfg *pCfg);
 
 /**
  * Close and free all resources taken by the repository
@@ -149,7 +143,7 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo);
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbConfigRepo(tsdb_repo_t repo, STSDBCfg *pCfg);
+int32_t tsdbConfigRepo(tsdb_repo_t repo, STsdbCfg *pCfg);
 
 /**
  * Get the TSDB repository information, including some statistics

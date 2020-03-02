@@ -21,19 +21,19 @@ enum {
 
 typedef struct _tsdb_repo {
   // TSDB configuration
-  STSDBCfg *pCfg;
+  STsdbCfg *pCfg;
 
   // The meter meta handle of this TSDB repository
-  SMetaHandle *pMetaHandle;
+  SMetaHandle *tsdbMeta;
 
   // The cache Handle
-  SCacheHandle *pCacheHandle;
+  SCacheHandle *tsdbCache;
 
   // Disk tier handle for multi-tier storage
-  void *pDiskTier;
+  void *diskTier;
 
   // File Store
-  void *pFileStore;
+  void *tsdbFiles;
 
   pthread_mutex_t tsdbMutex;
 
@@ -47,7 +47,7 @@ typedef struct _tsdb_repo {
 #define TSDB_IS_REPO_CLOSED(pRepo) ((pRepo)->state == TSDB_REPO_STATE_CLOSED)
 
 // Check the correctness of the TSDB configuration
-static int32_t tsdbCheckCfg(STSDBCfg *pCfg) {
+static int32_t tsdbCheckCfg(STsdbCfg *pCfg) {
   if (pCfg->rootDir == NULL) return -1;
 
   if (access(pCfg->rootDir, F_OK|R_OK|W_OK) == -1) {
@@ -65,7 +65,7 @@ static int32_t tsdbClearFiles(STSDBRepo *pRepo) {
   // TODO
 }
 
-tsdb_repo_t *tsdbCreateRepo(STSDBCfg *pCfg) {
+tsdb_repo_t *tsdbCreateRepo(STsdbCfg *pCfg) {
 
   // Check the configuration
   if (tsdbCheckCfg(pCfg) < 0) {
@@ -79,18 +79,18 @@ tsdb_repo_t *tsdbCreateRepo(STSDBCfg *pCfg) {
   }
 
   // TODO: Initailize pMetahandle
-  pRepo->pMetaHandle = tsdbCreateMetaHandle(pCfg->maxTables);
-  if (pRepo->pMetaHandle == NULL) {
+  pRepo->tsdbMeta = tsdbCreateMetaHandle(pCfg->maxTables);
+  if (pRepo->tsdbMeta == NULL) {
     // TODO: deal with error
     free(pRepo);
     return NULL;
   }
 
   // TODO: Initialize cache handle
-  pRepo->pCacheHandle = tsdbCreateCache(5);
-  if (pRepo->pCacheHandle == NULL) {
+  pRepo->tsdbCache = tsdbCreateCache(5);
+  if (pRepo->tsdbCache == NULL) {
     // TODO: free the object and return error
-    tsdbFreeMetaHandle(pRepo->pCacheHandle);
+    tsdbFreeMetaHandle(pRepo->tsdbCache);
     free(pRepo);
     return NULL;
   }
@@ -101,7 +101,7 @@ tsdb_repo_t *tsdbCreateRepo(STSDBCfg *pCfg) {
   // Create the Meta data file and data directory
   if (tsdbCreateFiles(pRepo) < 0) {
     // Failed to create and save files
-    tsdbFreeMetaHandle(pRepo->pCacheHandle);
+    tsdbFreeMetaHandle(pRepo->tsdbCache);
     free(pRepo);
     return NULL;
   }
@@ -117,10 +117,10 @@ int32_t tsdbDropRepo(tsdb_repo_t *repo) {
   pRepo->state = TSDB_REPO_STATE_CLOSED;
 
   // Free the metaHandle
-  tsdbFreeMetaHandle(pRepo->pMetaHandle);
+  tsdbFreeMetaHandle(pRepo->tsdbMeta);
 
   // Free the cache
-  tsdbFreeCache(pRepo->pCacheHandle);
+  tsdbFreeCache(pRepo->tsdbCache);
 
   tsdbClearFiles(pRepo);
 
@@ -139,14 +139,14 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
   }
 
   // TODO: Initialize configuration from the file
-  pRepo->pMetaHandle = tsdbOpenMetaHandle();
-  if (pRepo->pMetaHandle == NULL) {
+  pRepo->tsdbMeta = tsdbOpenMetaHandle();
+  if (pRepo->tsdbMeta == NULL) {
     free(pRepo);
     return NULL;
   }
 
-  pRepo->pCacheHandle = tsdbCreateCache(5);
-  if (pRepo->pCacheHandle == NULL) {
+  pRepo->tsdbCache = tsdbCreateCache(5);
+  if (pRepo->tsdbCache == NULL) {
     // TODO: deal with error
     return NULL;
   }
@@ -167,14 +167,14 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
 
   pRepo->state = TSDB_REPO_STATE_CLOSED;
 
-  tsdbFreeMetaHandle(pRepo->pMetaHandle);
+  tsdbFreeMetaHandle(pRepo->tsdbMeta);
 
-  tsdbFreeCache(pRepo->pMetaHandle);
+  tsdbFreeCache(pRepo->tsdbMeta);
 
   return 0;
 }
 
-int32_t tsdbConfigRepo(tsdb_repo_t *repo, STSDBCfg *pCfg) {
+int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
   STSDBRepo *pRepo = (STSDBRepo *)repo;
 
   pRepo->pCfg = pCfg;
@@ -188,7 +188,7 @@ STSDBRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo) {
 
 int32_t tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg) {
   STSDBRepo *pRepo = (STSDBRepo *)repo;
-  return tsdbCreateTableImpl(pRepo->pMetaHandle, pCfg);
+  return tsdbCreateTableImpl(pRepo->tsdbMeta, pCfg);
 }
 
 int32_t tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg) {
