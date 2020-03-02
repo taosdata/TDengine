@@ -43,6 +43,9 @@ int32_t grantCheckCpuCores();
 int32_t grantCheckQueryTime();
 int32_t  grantCheckTimeSeries(uint32_t timeseries);
 
+
+
+
 #ifdef __cplusplus
 }
 #endif

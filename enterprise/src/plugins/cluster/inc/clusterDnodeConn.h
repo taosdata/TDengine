@@ -13,16 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_DNODE_CLUSTER_MGMT_H
-#define TDENGINE_MODULE_DNODE_CLUSTER_MGMT_H
+#ifndef TDENGINE_CLUSTER_DNODE_CONN_H
+#define TDENGINE_CLUSTER_DNODE_CONN_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void dnodeInitMgmtImp();
+#include <stdbool.h>
+
+int32_t dnodeInitMgmtImp();
+void dnodeCleanUpMgmtImp();
 void dnodeInitMgmtIpImp();
-void dnodeSendMsgToMnodeImp(int8_t msgType, void *pCont, int32_t contLen) = NULL;
+
+void dnodeSendMsgToMnodeImp(int8_t msgType, void *pCont, int32_t contLen);
+void dnodeSendRspToMnode(void *handle, int32_t code, void *pCont, int contLen);
+
 int32_t dnodeProcessStatusRspImp(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);
 
 #ifdef __cplusplus

@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-void dnodeInitMgmtImp();
+int32_t dnodeInitMgmtImp();
 void dnodeInitMgmtIpImp();
 void dnodeSendMsgToMnodeImp(int8_t msgType, void *pCont, int32_t contLen) = NULL;
 int32_t dnodeProcessStatusRspImp(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);

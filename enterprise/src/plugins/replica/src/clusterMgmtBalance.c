@@ -709,7 +709,7 @@ void mgmtMontiorDnodeOffline(SDnodeObj *pDnode) {
   if (!mgmtCheckDnodeInOfflineState(pDnode)) return;
   if (mgmtCheckDnodeInRemoveState(pDnode)) return;
   if (pDnode->lastAccess + tsOfflineThreshold > mgmtAccessSquence) return;
-  if (pDnode->privateIp == mgmtIpList.ip[0]) return;
+  if (pDnode->privateIp == tsDnodeMgmtIpList.ip[0]) return;
   if (sdbGetNumOfRows(tsDnodeSdb) <= 1) return;
 
   mLPrint("dnode:%s set to removing state for it offline:%d seconds",

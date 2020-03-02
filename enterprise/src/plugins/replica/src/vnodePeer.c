@@ -83,7 +83,7 @@ int vnodeOpenPeerVnode(int vnode)
       dPrint("vid:%d, peer:%s:%d is configured by open msg", vnode, pVPeer->ipstr, pVPeer->vid);
       if (tsPrivateIp4 < pVPeer->ip) {
         dTrace("vid:%d, peer:%s:%d start check peer:%p connection", vnode, pVPeer->ipstr, pVPeer->vid, pVPeer);
-        taosTmrReset(vnodeCheckPeerConnection, 0, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
+        taosTmrReset(vnodeCheckPeerConnection, 0, pVPeer, tsDnodeTmr, &pVPeer->hbTimer);
       }
     }
   }
@@ -225,7 +225,7 @@ void vnodeConfigVPeers(int vnode, int numOfPeers, SVPeerDesc peerDesc[])
       dPrint("vid:%d, peer:%s:%d is configured by config msg", vnode, pVPeer->ipstr, pVPeer->vid);
       if (pVPeer->ip > tsPrivateIp4) {
         dTrace("vid:%d, peer:%s:%d start check peer:%p connection", vnode, pVPeer->ipstr, pVPeer->vid, pVPeer);
-        taosTmrReset(vnodeCheckPeerConnection, 0, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
+        taosTmrReset(vnodeCheckPeerConnection, 0, pVPeer, tsDnodeTmr, &pVPeer->hbTimer);
       }
       newPeers[i] = pVPeer;
     } else {
@@ -570,7 +570,7 @@ void vnodeRestartConnection(SVnodePeer *pVPeer)
   taosTmrStopA(&pVPeer->syncTimer);
 
   if (pVPeer->ip > tsPrivateIp4)
-    taosTmrReset(vnodeCheckPeerConnection, tsVnodePeerHBTimer * 1000, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
+    taosTmrReset(vnodeCheckPeerConnection, tsVnodePeerHBTimer * 1000, pVPeer, tsDnodeTmr, &pVPeer->hbTimer);
 
   pthread_mutex_unlock(&(pVnode->vmutex));
 
@@ -681,14 +681,14 @@ void vnodeSyncWithPeer(void *param, void *tmrId)
 
   if (pVnode->commitInProcess) { // if commiting in process, try to start again later
     dPrint("vid:%d, peer:%s:%d commit in process, try later", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid);
-    taosTmrReset(vnodeSyncWithPeer, 500, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
+    taosTmrReset(vnodeSyncWithPeer, 500, pVPeer, tsDnodeTmr, &pVPeer->hbTimer);
     return;
   }
 
   if (tsSyncNum >= tsPeerThreadPool.numOfThreads) {
     dPrint("vid:%d, peer:%s:%d too many sync in process, try later, tsSyncNum:%d numOfThreads:%d",
             pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, tsSyncNum, tsPeerThreadPool.numOfThreads);
-    taosTmrReset(vnodeSyncWithPeer, 500, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
+    taosTmrReset(vnodeSyncWithPeer, 500, pVPeer, tsDnodeTmr, &pVPeer->hbTimer);
     return;
   }
 
@@ -721,14 +721,14 @@ void vnodeSyncWithPeer(void *param, void *tmrId)
   if (write(pVPeer->peerFd, buffer, msgLen) != msgLen) {
     dError("vid:%d, peer:%s:%d failed to send sync req to peer, pfd:%d sfd:%d",
             pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
-    taosTmrStart(vnodeSyncNotStarted, 0, pVPeer, vnodeTmrCtrl);
+    taosTmrStart(vnodeSyncNotStarted, 0, pVPeer, tsDnodeTmr);
   } else {
     dPrint("vid:%d, peer:%s:%d sync req is sent, pfd:%d sfd:%d",
             pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->peerFd, pVPeer->syncFd);
 
     if (pVPeer->syncFd < 0) {
       dPrint("vid:%d, peer:%s:%d sfd:%d < 0, try sync later", pVPeer->ownId, pVPeer->ipstr, pVPeer->vid, pVPeer->syncFd);
-      taosTmrReset(vnodeSyncNotStarted, tsVnodePeerHBTimer * 1000, pVPeer, vnodeTmrCtrl, &pVPeer->syncTimer);
+      taosTmrReset(vnodeSyncNotStarted, tsVnodePeerHBTimer * 1000, pVPeer, tsDnodeTmr, &pVPeer->syncTimer);
     }
   }
 
@@ -1083,7 +1083,7 @@ void vnodeCheckPeerConnection(void *param, void *tmrId)
   if (connFd < 0) {
     dTrace("vid:%d, failed to open tcp socket to peer:%s:%d, retry after %d mseconds ",
             vid, pVPeer->ipstr, pVPeer->vid, tsVnodePeerHBTimer * 1000);
-    taosTmrReset(vnodeCheckPeerConnection, tsVnodePeerHBTimer * 1000, pVPeer, vnodeTmrCtrl, &pVPeer->hbTimer);
+    taosTmrReset(vnodeCheckPeerConnection, tsVnodePeerHBTimer * 1000, pVPeer, tsDnodeTmr, &pVPeer->hbTimer);
     return;
   }
 

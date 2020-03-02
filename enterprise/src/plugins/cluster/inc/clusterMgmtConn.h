@@ -20,10 +20,13 @@
 extern "C" {
 #endif
 
-void dnodeInitMgmtImp();
-void dnodeInitMgmtIpImp();
-void dnodeSendMsgToMnodeImp(int8_t msgType, void *pCont, int32_t contLen) = NULL;
-int32_t dnodeProcessStatusRspImp(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);
+#include <stdint.h>
+#include "trpc.h"
+
+int32_t mgmtInitDnodeIntImp();
+void    mgmtCleanUpDnodeIntImp();
+void    mgmtSendMsgToDnodeImp(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
+void    mgmtSendRspToDnodeImp(void *pConn, int8_t msgType, int32_t code, void *pCont, int32_t contLen);
 
 #ifdef __cplusplus
 }

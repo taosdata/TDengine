@@ -64,7 +64,7 @@ extern int         mgmtOrderedDnodesSize;
 extern int         mgmtOrderedDnodesMallocSize;
 extern SDnodeObj **mgmtOrderedDnodes;
 extern uint32_t    mgmtAccessSquence;
-extern SMgmtIpList mgmtIpList;
+extern SMgmtIpList tsDnodeMgmtIpList;
 
 #ifdef __cplusplus
 }

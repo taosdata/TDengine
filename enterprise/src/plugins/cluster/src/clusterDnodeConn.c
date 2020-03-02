@@ -16,26 +16,15 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
-
+#include "tlog.h"
 #include "dnodeSystem.h"
 #include "dnodeMgmt.h"
-#include "vnode.h"
-#include "vnodeSystem.h"
-#include "vnodeUtil.h"
-#include "vnodeStatus.h"
 #include "dnodeModule.h"
 
-static void *tsDnodeMgmtServer = NULL;
-static void *tsDnodeMgmtClient = NULL;
-static SRpcIpSet tsMgmtIpList = {0};
-static SRpcIpSet tsMgmtPublicIpList = {0};
-static uint64_t tsCreatedTime = 0;
-static char mgmtIpStr[TSDB_MAX_MGMT_IPS][20] = {0};
-
-extern SMgmtIpList mgmtIpList;
-extern SMgmtIpList mgmtPublicIpList;
-extern char        mgmtIpStr[TSDB_MAX_MGMT_IPS][20];
-
+static void      *tsDnodeMgmtServer = NULL;
+static void      *tsDnodeMgmtClient = NULL;
+static SRpcIpSet tsDnodeMgmtIpList  = {0};
+static uint64_t  tsCreatedTime      = 0;
 
 static bool dnodeSeekMgmtIp(FILE *fp);
 static void dnodeSaveMgmtIp();
@@ -44,7 +33,7 @@ static int32_t dnodeRetriveUserAuthInfo(char *user, char *spi, char *encrypt, ch
 
 extern void grantSendMsgToMgmt();
 
-void dnodeInitMgmtImp() {
+int32_t dnodeInitMgmtImp() {
   SRpcInit  rpcInit;
 
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -83,10 +72,10 @@ void dnodeInitMgmtImp() {
     return -1;
   }
 
-  taosTmrReset(dnodeSendStatusMsgToMgmt, 500, pObj, vnodeTmrCtrl, &tsStatusTimer);
+  taosTmrReset(dnodeSendStatusMsgToMgmt, 500, pObj, tsDnodeTmr, &tsStatusTimer);
 }
 
-void dnodeCleanUpMgmt() {
+void dnodeCleanUpMgmtImp() {
   if (tsDnodeMgmtServer) {
     rpcClose(tsDnodeMgmtServer);
     tsDnodeMgmtServer = NULL;
@@ -99,61 +88,9 @@ void dnodeCleanUpMgmt() {
 }
 
 void dnodeSendMsgToMnodeImp(int8_t msgType, void *pCont, int32_t contLen) {
-  rpcSendRequest(tsDnodeMgmtClient, &tsMgmtIpList, msgType, pCont, contLen;
+  rpcSendRequest(tsDnodeMgmtClient, &tsDnodeMgmtIpList, msgType, pCont, contLen;
 }
 
-void dnodeSendStatusMsgToMgmt(void *handle, void *tmrId) {
-  taosTmrReset(dnodeSendStatusMsgToMgmt, tsStatusInterval * 1000, pObj, vnodeTmrCtrl, &tsStatusTimer);
-  if (tsStatusTimer == NULL) {
-    dError("Failed to start status timer");
-    return;
-  }
-
-  int32_t contLen = tsOpenVnodes * sizeof(SVnodeLoad) + 160;
-  SStatusMsg *pStatus = rpcMallocCont(contLen);
-  if (pStatus == NULL) {
-    dError("Failed to malloc status message");
-    return;
-  }
-
-  pStatus->version = htonl(tsVersion);
-  pStatus->publicIp = htonl(inet_addr(tsPublicIp));
-  pStatus->lastReboot = htonl(tsRebootTime);
-  pStatus->numOfCores = htons((uint16_t)tsNumOfCores);
-  pStatus->alternativeRole = (uint8_t)tsAlternativeRole;
-  pStatus->numOfTotalVnodes = htons((uint16_t)tsNumOfTotalVnodes);
-  pStatus->diskAvailable = tsAvailDataDirGB;
-  pStatus->openVnodes = htonl(tsOpenVnodes);
-
-  SVnodeLoad *pLoad = (SVnodeLoad *)((char*)pStatus + sizeof(SStatusMsg));
-
-  for (int32_t vnode = 0, count = 0; vnode <= tsMaxVnode; ++vnode) {
-    if (vnodeList[vnode].cfg.maxSessions <= 0) continue;
-
-    SVnodeObj *pVnode = vnodeList + vnode;
-    pLoad->vnode = htonl(vnode);
-    pLoad->vgId = htonl(pVnode->cfg.vgId);
-    pLoad->status = (uint8_t)vnodeList[vnode].vnodeStatus;
-    pLoad->syncStatus =(uint8_t)vnodeList[vnode].syncStatus;
-    pLoad->accessState = (uint8_t)(pVnode->accessState);
-    pLoad->totalStorage = htobe64(pVnode->vnodeStatistic.totalStorage);
-    pLoad->compStorage = htobe64(pVnode->vnodeStatistic.compStorage);
-    if (pVnode->vnodeStatus == TSDB_VN_STATUS_MASTER) {
-      pLoad->pointsWritten = htobe64(pVnode->vnodeStatistic.pointsWritten);
-    } else {
-      pLoad->pointsWritten = htobe64(0);
-    }
-    pLoad++;
-
-    if (++count >= tsOpenVnodes) {
-      break;
-    }
-  }
-
-  dnodeSentMsgToMgmt(TSDB_MSG_TYPE_STATUS, pStatus, pStatus, contLen);
-
-  grantSendMsgToMgmt();
-}
 
 void dnodeProcessStatusRspImp(int8_t msgType, int8_t *pCont, int32_t contLen, void *pConn, int32_t code) {
   if (code != TSDB_CODE_REDIRECT && code != TSDB_CODE_SUCCESS) {
@@ -169,7 +106,7 @@ void dnodeProcessStatusRspImp(int8_t msgType, int8_t *pCont, int32_t contLen, vo
   SStatusRsp *pStatus = pCont;
   pStatus->ipList.port = htons(pStatus->ipList.port);
   if (pStatus->ipList.numOfIps <= 0) {
-    dError("num of mgmt ips is:%d", mgmtIpList.numOfIps);
+    dError("num of mgmt ips is:%d", tsDnodeMgmtIpList.numOfIps);
     return ;
   }
 
@@ -177,9 +114,9 @@ void dnodeProcessStatusRspImp(int8_t msgType, int8_t *pCont, int32_t contLen, vo
     pStatus->ipList[i] = htonl(pStatus->ipList[i]);
   }
 
-  if (memcmp(pStatus->ipList, tsMgmtIpList, sizeof(SRpcIpSet)) != 0) {
+  if (memcmp(pStatus->ipList, tsDnodeMgmtIpList, sizeof(SRpcIpSet)) != 0) {
     dPrint("mgmt ip list is changed, numOfIps:%d inUse:%d", pStatus->ipList.numOfIps, pStatus->ipList.inUse);
-    memcpy(pStatus->ipList, tsMgmtIpList, sizeof(SRpcIpSet));
+    memcpy(pStatus->ipList, tsDnodeMgmtIpList, sizeof(SRpcIpSet));
     for (int32_t i = 0; i < pIpList->numOfIps; ++i) {
       dPrint("mgmt IP index:%d ip:%d:%s", i, pStatus->ipList.ip[i], taosIpStr(pStatus->ipList.ip[i]));
     }
@@ -260,11 +197,11 @@ static bool dnodeSeekMgmtIp(FILE *fp) {
 void dnodeInitMgmtIpImp() {
   FILE *       fp;
   char         fn[128];
-  SMgmtIpList *pIpList = &mgmtIpList;
+  SMgmtIpList *pIpList = &tsDnodeMgmtIpList;
 
   sprintf(fn, "%s/taos.cfg", configDir);
   fp = fopen(fn, "r");
-  memset(pIpList, 0, sizeof(mgmtIpList));
+  memset(pIpList, 0, sizeof(tsDnodeMgmtIpList));
   tsCreatedTime = 0;
 
   if (fp) {
@@ -303,7 +240,7 @@ void dnodeInitMgmtIpImp() {
         if (index >= 0 && index < TSDB_MAX_MGMT_IPS && ip != INADDR_NONE) {
           pIpList->ip[index] = ip;
         } else {
-          dError("index:%d of mgmtIpList:%d:%s invalid", index, ip, ipStr);
+          dError("index:%d of tsDnodeMgmtIpList:%d:%s invalid", index, ip, ipStr);
         }
       }
     }
@@ -325,7 +262,7 @@ void dnodeInitMgmtIpImp() {
 
   if (!ipListValid) {
     dPrint("read mgmt ipList from %s failed", fn);
-    memset(pIpList, 0, sizeof(mgmtIpList));
+    memset(pIpList, 0, sizeof(tsDnodeMgmtIpList));
     pIpList->numOfIps = 1;
     pIpList->ip[0] = inet_addr(tsMasterIp);
     if (tsSecondIp[0]) {
@@ -366,10 +303,10 @@ static void dnodeSaveMgmtIp() {
     }
 
     fprintf(fp, "mgmtIpCreateTime %" PRIu64 "\n", tsCreatedTime);
-    fprintf(fp, "mgmtNumOfIps     %d\n", mgmtIpList.numOfIps);
-    for (int32_t i = 0; i < mgmtIpList.numOfIps; ++i) {
+    fprintf(fp, "mgmtNumOfIps     %d\n", tsDnodeMgmtIpList.numOfIps);
+    for (int32_t i = 0; i < tsDnodeMgmtIpList.numOfIps; ++i) {
       char ipStr[20] = {0};
-      tinet_ntoa(ipStr, mgmtIpList.ip[i]);
+      tinet_ntoa(ipStr, tsDnodeMgmtIpList.ip[i]);
       fprintf(fp, "mgmtIp %d         %s\n", i, ipStr);
     }
 

@@ -155,7 +155,7 @@ static int32_t mgmtDropDnodeByIp(uint32_t ip) {
   SDnodeObj *pDnode = sdbGetRow(tsDnodeSdb, &ip);
   if (pDnode == NULL) return TSDB_CODE_INVALID_VALUE;
 
-  if (pDnode->privateIp == mgmtIpList.ip[0]) {
+  if (pDnode->privateIp == tsDnodeMgmtIpList.ip[0]) {
     mError("dnode:%s, can't drop dnode which is master", taosIpStr(pDnode->privateIp));
     return TSDB_CODE_NO_REMOVE_MASTER;
   }
@@ -163,7 +163,7 @@ static int32_t mgmtDropDnodeByIp(uint32_t ip) {
   return mgmtSetDnodeShellRemoving(pDnode);
 }
 
-static int32_t mgmtUpdateDnode(SDnodeObj *pDnode) {
+int32_t mgmtUpdateDnodeImp(SDnodeObj *pDnode) {
   return sdbUpdateRow(tsDnodeSdb, pDnode, 0, 1);
 }
 

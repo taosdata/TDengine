@@ -29,28 +29,35 @@ void clusterInit();
 
 // dnodeSystem
 extern int32_t (*dnodeInitMgmtFp)();
+
 extern void (*dnodeInitMgmtIpFp)();
+
+extern void    (*dnodeInitMgmtIpFp)();
+extern int32_t (*dnodeInitMgmtFp)();
+extern void    (*dnodeCleanUpMgmtFp)();
 
 // dnodeMgmt
 extern void (*dnodeSendMsgToMnodeFp)(int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
 extern void (*dnodeSendRspToMnodeFp)(void *handle, int32_t code, void *pCont, int contLen);
 extern void (*dnodeProcessStatusRspFp)(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);
 
-// mgmtDnodeInt
+// mgmtDnodeInt & clusterMgmtConn
 extern int32_t (*mgmtInitDnodeIntFp)();
 extern void    (*mgmtCleanUpDnodeIntFp);
+extern void    (*mgmtSendMsgToDnodeFp)(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
+extern void    (*mgmtSendRspToDnodeFp)(void *handle, int32_t code, void *pCont, int contLen);
 
-extern void (*mgmtSendMsgToDnodeFp)(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
-extern void (*mgmtSendRspToDnodeFp)(void *handle, int32_t code, void *pCont, int contLen);
+// dnodeMgmt & clusterDnodeConn
+
 
 // mgmtDnode & clusterDnode
 extern int32_t    (*mgmtInitDnodesFp)();
 extern void       (*mgmtCleanUpDnodesFp)();
 extern SDnodeObj *(*mgmtGetDnodeFp)(uint32_t ip);
 extern int32_t    (*mgmtGetDnodesNumFp)();
+extern int32_t    (*mgmtUpdateDnodeFp)(SDnodeObj *pDnode);
 extern void *     (*mgmtGetNextDnodeFp)(SShowObj *pShow, SDnodeObj **pDnode);
-
-
+extern void       (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode);
 
 #ifdef __cplusplus
 }

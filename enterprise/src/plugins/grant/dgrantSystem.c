@@ -54,3 +54,14 @@ int dnodeCheckSystemClusterImp() {
 
   return 0;
 }
+
+
+int32_t mgmtProcessDnodeGrantMsg(unsigned char *pMsg, int32_t msgLen, SDnodeObj *pObj) {
+  grantUpdate(pMsg);
+
+  int32_t code = (sdbMaster == 1 ? 0 : TSDB_CODE_REDIRECT);
+
+  taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_GRANT_RSP, code);
+
+  return 0;
+}

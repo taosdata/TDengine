@@ -26,6 +26,10 @@ extern "C" {
 
 void sdbReplicaInit();
 
+// mgmtDnode
+extern int32_t    (*mgmtGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+extern int32_t    (*mgmtRetrieveScoresFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+
 #ifdef __cplusplus
 }
 #endif
