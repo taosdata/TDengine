@@ -242,3 +242,46 @@ bool mgmtCheckConfigShow(SGlobalConfig *cfg) {
     return false;
   return true;
 }
+
+
+int mgmtProcessCreateDnodeMsg(char *pMsg, int msgLen, void *pConn) {
+  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *)pMsg;
+  int              code = 0;
+
+  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_CREATE_DNODE_RSP);
+
+  if (strcmp(pConn->pUser->user, "root") != 0) {
+    code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    code = mgmtCreateDnode(inet_addr(pCreate->ip));
+    if (code == TSDB_CODE_SUCCESS) {
+      mLPrint("dnode:%s is created by %s", pCreate->ip, pConn->pUser->user);
+    }
+  }
+
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_DNODE_RSP, code);
+
+  return 0;
+}
+
+
+int mgmtProcessDropDnodeMsg(char *pMsg, int msgLen, void *pConn) {
+  SDropDnodeMsg *pDrop = (SDropDnodeMsg *)pMsg;
+  int            code = 0;
+
+  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_DROP_DNODE_RSP);
+
+  if (strcmp(pConn->pUser->user, "root") != 0) {
+    code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    code = mgmtDropDnodeByIp(inet_addr(pDrop->ip));
+  }
+
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_DNODE_RSP, code);
+
+  if (code == 0) {
+    mLPrint("dnode:%s set to removing state by %s", pDrop->ip, pConn->pUser->user);
+  }
+
+  return 0;
+}

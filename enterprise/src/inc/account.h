@@ -30,6 +30,8 @@ int32_t mgmtDropAcct(char *name);
 int32_t mgmtAlterAcct(char *name, char *pass, SAcctCfg *pCfg);
 int64_t mgmtGetAcctStatistic(SAcctObj *pAcct);
 
+void (*mgmtDoStatistic)(void *handle, void *tmrId);
+
 #ifdef __cplusplus
 }
 #endif

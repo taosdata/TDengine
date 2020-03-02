@@ -14,13 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <assert.h>
-#include <unistd.h>
+#include "os.h"
+#include "taosmsg.h"
 
 #include "dnodeSystem.h"
 #include "dnodeMgmt.h"
-#include "taosmsg.h"
 #include "vnode.h"
 #include "vnodeSystem.h"
 #include "vnodeUtil.h"
@@ -33,6 +31,11 @@ static SRpcIpSet tsMgmtIpList = {0};
 static SRpcIpSet tsMgmtPublicIpList = {0};
 static uint64_t tsCreatedTime = 0;
 static char mgmtIpStr[TSDB_MAX_MGMT_IPS][20] = {0};
+
+extern SMgmtIpList mgmtIpList;
+extern SMgmtIpList mgmtPublicIpList;
+extern char        mgmtIpStr[TSDB_MAX_MGMT_IPS][20];
+
 
 static bool dnodeSeekMgmtIp(FILE *fp);
 static void dnodeSaveMgmtIp();

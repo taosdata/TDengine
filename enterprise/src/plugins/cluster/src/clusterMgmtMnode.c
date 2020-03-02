@@ -108,3 +108,48 @@ int mgmtRetrieveMnodes(SShowObj *pShow, char *data, int rows, void *pConn) {
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
+
+
+int mgmtProcessCfgMnodeMsg(char *pMsg, int msgLen, void *pConn) {
+  int      code = 0;
+  SCfgDnodeMsg *pCfg = (SCfgDnodeMsg *)pMsg;
+
+  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_CFG_MNODE_RSP);
+
+  if (strcmp(pConn->pAcct->user, "root") != 0) {
+    code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    code = sdbCfgNode(pMsg);
+  }
+
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CFG_MNODE_RSP, code);
+
+  if (code == 0) mTrace("mnode:%s is configured by %s", pCfg->ip, pConn->pUser->user);
+
+  return 0;
+}
+
+int mgmtProcessDropMnodeMsg(char *pMsg, int msgLen, void *pConn) {
+  SDropMnodeMsg *pDrop = (SDropMnodeMsg *)pMsg;
+  int            code = 0;
+
+  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_DROP_MNODE_RSP);
+
+  if (strcmp(pConn->pUser->user, "root") != 0) {
+    code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    // code = sdbRemovePeerByIp(inet_addr(pDrop->ip));
+    SDnodeObj *pDnode = mgmtGetDnode(inet_addr(pDrop->ip));
+    if (pDnode != NULL) {
+      code = mgmtUnSetModuleInDnode(pDnode, TSDB_MOD_MGMT);
+    }
+  }
+
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_MNODE_RSP, code);
+
+  if (code == 0) {
+    mLPrint("Mnode:%s is dropped by %s", pDrop->ip, pConn->pUser->user);
+  }
+
+  return 0;
+}

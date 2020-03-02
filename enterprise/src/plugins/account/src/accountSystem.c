@@ -23,6 +23,7 @@
 #include "mgmtAcct.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
+#include "mgmtShell.h"
 #include "mgmtUser.h"
 
 #define TSDB_MIN_USERS_PER_ACCT       2
@@ -708,6 +709,110 @@ static void mgmtCreateRootAcct() {
   }
 }
 
+
+void mgmtDoStatisticImp(void *handle, void *tmrId) {
+  SAcctObj *pAcct = NULL;
+  void *    pNode = NULL;
+
+  if (tsAcctSdb != NULL) {
+    int64_t totalStorage = 0;
+    while (1) {
+      pNode = sdbFetchRow(tsAcctSdb, pNode, (void **)&pAcct);
+      if (pAcct == NULL) break;
+      totalStorage += mgmtGetAcctStatistic(pAcct);
+    }
+
+    grantResetCurStorage(totalStorage);
+  }
+
+  taosTmrReset(mgmtDoStatisticImp, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
+}
+
+
+void mgmtProcessAlterAcctMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    return;
+  }
+
+
+  SAlterAcctMsg *pAlter = pCont;
+  pAlter->cfg.maxUsers = htonl(pAlter->cfg.maxUsers);
+  pAlter->cfg.maxDbs = htonl(pAlter->cfg.maxDbs);
+  pAlter->cfg.maxTimeSeries = htonl(pAlter->cfg.maxTimeSeries);
+  pAlter->cfg.maxConnections = htonl(pAlter->cfg.maxConnections);
+  pAlter->cfg.maxStreams = htonl(pAlter->cfg.maxStreams);
+  pAlter->cfg.maxPointsPerSecond = htonl(pAlter->cfg.maxPointsPerSecond);
+  pAlter->cfg.maxStorage = htobe64(pAlter->cfg.maxStorage);
+  pAlter->cfg.maxQueryTime = htobe64(pAlter->cfg.maxQueryTime);
+  pAlter->cfg.maxInbound = htobe64(pAlter->cfg.maxInbound);
+  pAlter->cfg.maxOutbound = htobe64(pAlter->cfg.maxOutbound);
+
+  if (strcmp(pConn->pAcct->user, "root") != 0) {
+    code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    code = mgmtAlterAcct(pAlter->user, pAlter->pass, &(pAlter->cfg));
+    if (code == TSDB_CODE_SUCCESS) {
+      mLPrint("Account: %s is altered by %s", pAlter->user, pConn->pUser->user);
+    }
+  }
+
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_ACCT_RSP, code);
+
+  return 0;
+}
+
+int mgmtProcessDropAcctMsg(char *pMsg, int msgLen, void *pConn) {
+  SDropAcctMsg *pDrop = (SDropAcctMsg *)pMsg;
+  int           code = 0;
+
+  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_DROP_ACCT_RSP);
+
+  if (strcmp(pDrop->user, "root") == 0) {
+    code = TSDB_CODE_NO_RIGHTS;
+  } else if (strcmp(pConn->pUser->user, "root") == 0) {
+    code = mgmtDropAcct(pDrop->user);
+    if (code == 0) {
+      mLPrint("account:%s is dropped by %s", pDrop->user, pConn->pUser->user);
+    }
+  } else {
+    code = TSDB_CODE_NO_RIGHTS;
+  }
+
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_ACCT_RSP, code);
+
+  return 0;
+}
+
+int mgmtProcessCreateAcctMsg(char *pMsg, int msgLen, void *pConn) {
+  SCreateAcctMsg *pCreate = (SCreateAcctMsg *)pMsg;
+  int             code = 0;
+
+  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_CREATE_ACCT_RSP);
+
+  pCreate->cfg.maxUsers = htonl(pCreate->cfg.maxUsers);
+  pCreate->cfg.maxDbs = htonl(pCreate->cfg.maxDbs);
+  pCreate->cfg.maxTimeSeries = htonl(pCreate->cfg.maxTimeSeries);
+  pCreate->cfg.maxConnections = htonl(pCreate->cfg.maxConnections);
+  pCreate->cfg.maxStreams = htonl(pCreate->cfg.maxStreams);
+  pCreate->cfg.maxPointsPerSecond = htonl(pCreate->cfg.maxPointsPerSecond);
+  pCreate->cfg.maxStorage = htobe64(pCreate->cfg.maxStorage);
+  pCreate->cfg.maxQueryTime = htobe64(pCreate->cfg.maxQueryTime);
+
+  if (strcmp(pConn->pUser->user, "root") == 0) {
+    // TODO : Convert from server format to host format
+    code = mgmtCreateAcct(pCreate->user, pCreate->pass, &(pCreate->cfg));
+    if (code == TSDB_CODE_SUCCESS) {
+      mLPrint("account:%s is created by %s", pCreate->user, pConn->pUser->user);
+    }
+  } else {
+    code = TSDB_CODE_NO_RIGHTS;
+  }
+
+  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_ACCT_RSP, code);
+
+  return 0;
+}
+
 void acctInit() {
   mgmtInitAccts       = mgmtInitAcctsImp;
   mgmtCleanUpAccts    = mgmtCleanUpAcctsImp;
@@ -717,4 +822,5 @@ void acctInit() {
   mgmtCheckTableLimit = mgmtCheckTableLimitImp;
   mgmtGetAcctMeta     = mgmtGetAcctMetaImp;
   mgmtRetrieveAccts   = mgmtRetrieveAcctsImp;
+  mgmtDoStatistic     = mgmtDoStatisticImp;
 }

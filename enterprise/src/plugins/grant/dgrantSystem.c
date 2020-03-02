@@ -25,3 +25,32 @@ void dnodeGrantInit() {
   mgmtCheckDbGrant = grantCheckDatabases;
   mgmtCheckExpired = grantCheckExpired();
 }
+
+
+void dclusterParseParameterK() {
+  char *key = grantGetMachineSerials();
+  if (key != NULL) {
+    fprintf(stdout, "machine code: %s \n", key);
+  } else {
+    fprintf(stderr, "should generate machine code under root authority!\n");
+  }
+  exit(EXIT_SUCCESS);
+}
+
+int dnodeCheckSystemClusterImp() {
+  char cfgFile[256];
+  sprintf(cfgFile, "%s/taos.cfg", configDir);
+  grantActiveSystem(cfgFile);
+
+  /*
+   * The cluster may not have a master, so the command may always be in progress
+   */
+  /*
+  if (dnodeCheckConfig() != 0) {
+    dError("TDengine initialization failed");
+    return -1;
+  }
+  */
+
+  return 0;
+}
