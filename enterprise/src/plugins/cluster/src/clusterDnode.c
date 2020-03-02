@@ -17,8 +17,8 @@
 #include "os.h"
 #include "tschemautil.h"
 #include "dnodeSystem.h"
-#include "mnode.h"
 #include "dnodeModule.h"
+#include "clusterDnode.h"
 
 void *tsDnodeSdb = NULL;
 
@@ -189,11 +189,10 @@ static void *mgmtDnodeActionUpdate(void *row, char *str, int32_t size, int32_t *
 
 static void *mgmtDnodeActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
   SDnodeObj *pDnode = (SDnodeObj *)row;
-  int32_t        tsize = pDnode->updateEnd - (char *)pDnode;
-  if (size < tsize) {
+  if (size < tsDnodeUpdateSize) {
     *ssize = -1;
   } else {
-    memcpy(str, pDnode, tsize);
+    memcpy(str, pDnode, tsDnodeUpdateSize);
     *ssize = tsize;
   }
 
@@ -201,26 +200,15 @@ static void *mgmtDnodeActionEncode(void *row, char *str, int32_t size, int32_t *
 }
 
 void *mgmtDnodeActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
-  SDnodeObj *pDnode = (SDnodeObj *)malloc(sizeof(SDnodeObj));
-  if (pDnode == NULL) return NULL;
-  memset(pDnode, 0, sizeof(SDnodeObj));
-
-  int32_t tsize = pDnode->updateEnd - (char *)pDnode;
-  memcpy(pDnode, str, tsize);
+  SDnodeObj *pDnode = calloc(1, sizeof(SDnodeObj));
+  memcpy(pDnode, str, tsDnodeUpdateSize);
 
   return (void *)pDnode;
 }
 
-void *mgmtDnodeActionBeforeBatchUpdate(void *row, char *str, int32_t size, int32_t *ssize) { return NULL; }
-
-void *mgmtDnodeActionBatchUpdate(void *row, char *str, int32_t size, int32_t *ssize) { return NULL; }
-
-void *mgmtDnodeActionAfterBatchUpdate(void *row, char *str, int32_t size, int32_t *ssize) { return NULL; }
-
 void *mgmtDnodeActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   SDnodeObj *pDnode = (SDnodeObj *)row;
-  int32_t        tsize = pDnode->updateEnd - (char *)pDnode;
-  memcpy(pDnode, str, tsize);
+  memcpy(pDnode, str, tsDnodeUpdateSize);
 
   return NULL;
 }
@@ -230,51 +218,64 @@ void *mgmtDnodeActionDestroy(void *row, char *str, int32_t size, int32_t *ssize)
   return NULL;
 }
 
-bool mgmtCheckConfigShow(SGlobalConfig *cfg) {
-  if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW))
-    return false;
-  return true;
-}
+void mgmtProcessCreateDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
+  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *)pCont;
 
-
-int32_t mgmtProcessCreateDnodeMsg(char *pMsg, int32_t msgLen, void *pConn) {
-  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *)pMsg;
-  int32_t              code = 0;
-
-  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_CREATE_DNODE_RSP);
-
-  if (strcmp(pConn->pUser->user, "root") != 0) {
-    code = TSDB_CODE_NO_RIGHTS;
-  } else {
-    code = mgmtCreateDnode(inet_addr(pCreate->ip));
-    if (code == TSDB_CODE_SUCCESS) {
-      mLPrint("dnode:%s is created by %s", pCreate->ip, pConn->pUser->user);
-    }
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    mError("failed to create dnode:%s, redirect this message", pCreate->ip);
+    return;
   }
 
-  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_DNODE_RSP, code);
+  SUserObj *pUser = mgmtGetUserFromConn(ahandle);
+  if (pUser == NULL) {
+    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(TSDB_CODE_INVALID_USER)));
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
+    return;
+  }
 
-  return 0;
+  if (strcmp(pUser->user, "root") != 0) {
+    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(TSDB_CODE_NO_RIGHTS));
+    rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
+    return;
+  }
+
+  int32_t code = mgmtCreateDnode(inet_addr(pCreate->ip));
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("dnode:%s is created by %s", pCreate->ip, pUser->user);
+  } else {
+    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(code));
+  }
+
+  rpcSendResponse(ahandle, code, NULL, 0);
 }
 
-
-int32_t mgmtProcessDropDnodeMsg(char *pMsg, int32_t msgLen, void *pConn) {
+void mgmtProcessDropDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
   SDropDnodeMsg *pDrop = (SDropDnodeMsg *)pMsg;
-  int32_t            code = 0;
 
-  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_DROP_DNODE_RSP);
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    mError("failed to drop dnode:%s, redirect this message", pDrop->ip);
+    return;
+  }
 
-  if (strcmp(pConn->pUser->user, "root") != 0) {
-    code = TSDB_CODE_NO_RIGHTS;
+  SUserObj *pUser = mgmtGetUserFromConn(ahandle);
+  if (pUser == NULL) {
+    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(TSDB_CODE_INVALID_USER)));
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
+    return;
+  }
+
+  if (strcmp(pUser->user, "root") != 0) {
+    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(TSDB_CODE_NO_RIGHTS));
+    rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
+    return;
+  }
+
+  int32_t code = mgmtDropDnodeByIp(inet_addr(pDrop->ip));
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("dnode:%s set to removing state by %s", pDrop->ip, pUser->user);
   } else {
-    code = mgmtDropDnodeByIp(inet_addr(pDrop->ip));
+    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(code));
   }
 
-  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_DNODE_RSP, code);
-
-  if (code == 0) {
-    mLPrint("dnode:%s set to removing state by %s", pDrop->ip, pConn->pUser->user);
-  }
-
-  return 0;
+  rpcSendResponse(ahandle, code, NULL, 0);
 }

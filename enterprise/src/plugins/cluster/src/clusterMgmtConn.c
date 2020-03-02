@@ -14,8 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <endian.h>
+#include "os.h"
 
 #include "dnodeSystem.h"
 #include "mnode.h"
@@ -23,57 +22,57 @@
 #include "tutil.h"
 #include "dnodeModule.h"
 
-void *     pDnodeConn = NULL;
+static void *     tsDnodeConn = NULL;
+
 SDnodeObj *dnodeList = NULL;
 void *     dnodeHash;
 void *     dnodeIdPool;
 uint32_t   tsPrivateIp4;
 
-int   mgmtSendCreateVnodeMsg(SVgObj *pVgroup);
-char *mgmtBuildVpeersMsg(char *pMsg, SVgObj *pVgroup, int vnode);
-char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int vnode);
-void  mgmtProcessMsgFromDnode(char *content, int msgLen, int msgType, SDnodeObj *pObj);
+int32_t   mgmtSendCreateVnodeMsg(SVgObj *pVgroup);
+char *mgmtBuildVpeersMsg(char *pMsg, SVgObj *pVgroup, int32_t vnode);
+char *mgmtBuildCreateMeterIe(STabObj *pTable, char *pMsg, int32_t vnode);
+void  mgmtProcessMsgFromDnode(char *content, int32_t msgLen, int32_t msgType, SDnodeObj *pObj);
 
 
-int mgmtInitDnodeInt() {
+static int mgmtDnodeIntRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t mgmtInitDnodeIntImp() {
   SRpcInit rpcInit;
 
-  int numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 4.0;
-  if (numOfThreads < 1) numOfThreads = 1;
-
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp = tsPrivateIp;
-  rpcInit.localPort = tsMgmtDnodePort;
-  rpcInit.label = "MND-dnode";
-  rpcInit.numOfThreads = numOfThreads;
-  rpcInit.fp = mgmtProcessMsgFromDnodeSpec;
-  rpcInit.bits = 20;
-  rpcInit.numOfChanns = 1;
-  rpcInit.sessionsPerChann = tsMaxDnodes;
-  rpcInit.idMgmt = TAOS_ID_FREE;
-  rpcInit.connType = TAOS_CONN_SOCKET_TYPE_S();
-  rpcInit.idleTime = tsStatusInterval * 3000;
+  rpcInit.localIp = tsAnyIp ? "0.0.0.0" : tsPrivateIp;;
+  rpcInit.localPort    = tsMgmtDnodePort;
+  rpcInit.label        = "MND-dnode";
+  rpcInit.numOfThreads = 1;
+  rpcInit.cfp          = mgmtProcessMsgFromDnode;
+  rpcInit.sessions     = tsMaxDnodes * 2;
+  rpcInit.connType     = TAOS_CONN_SERVER;
+  rpcInit.idleTime     = tsShellActivityTimer * 2000;
+  rpcInit.afp          = mgmtDnodeIntRetrieveUserAuthInfo;
 
-  pDnodeConn = taosOpenRpc(&rpcInit);
-  if (pDnodeConn == NULL) {
-    mError("failed to init tcp connection to vnode");
+  tsDnodeConn = taosOpenRpc(&rpcInit);
+  if (tsDnodeConn == NULL) {
+    mError("failed to init tcp connection to dnode");
     return -1;
   }
 
-  tsPrivateIp4 = inet_addr(tsPrivateIp);
   return 0;
 }
 
-void mgmtCleanUpDnodeInt() {
-  if (pDnodeConn) {
-    taosCloseRpc(pDnodeConn);
+void mgmtCleanUpDnodeIntImp() {
+  if (tsDnodeConn) {
+    taosCloseRpc(tsDnodeConn);
   }
-  pDnodeConn = NULL;
+  tsDnodeConn = NULL;
 }
 
-int mgmtSendStatusRspMsg(SDnodeObj *pObj, char *pVMsg, int ssize) {
+int32_t mgmtSendStatusRspMsg(SDnodeObj *pObj, char *pVMsg, int32_t ssize) {
   char *    pMsg, *pStart;
-  int       msgLen;
+  int32_t       msgLen;
   STaosRsp *pRsp;
 
   // if SDB is not ready, dont send response
@@ -90,7 +89,7 @@ int mgmtSendStatusRspMsg(SDnodeObj *pObj, char *pVMsg, int ssize) {
   pRsp->code = sdbMaster ? 0 : TSDB_CODE_REDIRECT;
   pMsg = pRsp->more;
 
-  int size = sizeof(SIpList) + pSdbIpList->numOfIps * 4;
+  int32_t size = sizeof(SIpList) + pSdbIpList->numOfIps * 4;
   memcpy(pMsg, pSdbIpList, size);
   pMsg += size;
   memcpy(pMsg, pSdbPublicIpList, size);
@@ -119,7 +118,7 @@ void mgmtUpdateVgroupPublicIp(uint32_t privateIp, uint32_t oldPublicIp, uint32_t
     pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
     if (pVgroup == NULL) break;
 
-    for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
+    for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
       SVnodeGid *vnodeGid = pVgroup->vnodeGid + i;
       if (vnodeGid->ip == privateIp) {
         mPrint("vgroup:%d, index:%d vnode:%d ip:%s change publicIp from %s to %s", pVgroup->vgId, i, vnodeGid->vnode,
@@ -148,7 +147,7 @@ void mgmtUpdateMnodePublicIp(uint32_t privateIp, uint32_t oldPublicIp, uint32_t 
   sdbUpdateIpList();
 }
 
-int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
+int32_t mgmtProcessDnodeStatus(unsigned char *pMsg, int32_t msgLen, SDnodeObj *pObj) {
   SStatusMsg *pStatus = (SStatusMsg *)pMsg;
   char *      pVMsg = NULL;
 
@@ -185,17 +184,17 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
   pObj->openVnodes = htonl(pStatus->openVnodes);
 
   if (pObj->numOfVnodes == TSDB_INVALID_VNODE_NUM) {
-    int oldVnodes = pObj->numOfVnodes;
+    int32_t oldVnodes = pObj->numOfVnodes;
     mgmtSetDnodeMaxVnodes(pObj);
     mPrint("dnode:%s, first access, set total vnodes from %d to %d", taosIpStr(pObj->privateIp), oldVnodes, pObj->numOfVnodes);
   }
 
   // wait vnode dropped
-  for (int vnode = 0; vnode < pObj->numOfVnodes; ++vnode) {
+  for (int32_t vnode = 0; vnode < pObj->numOfVnodes; ++vnode) {
     SVnodeLoad *pVload = &(pObj->vload[vnode]);
     if (pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
       bool existInDnode = false;
-      for (int j = 0; j < pObj->openVnodes; ++j) {
+      for (int32_t j = 0; j < pObj->openVnodes; ++j) {
         if (htonl(pStatus->load[j].vnode) == vnode) {
           existInDnode = true;
           break;
@@ -227,8 +226,8 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
   // set vnode status
   pVMsg = (char *)malloc(sizeof(SVnodeAccess) * TSDB_MAX_VNODES);
   SVnodeAccess *pAccess = (SVnodeAccess *)pVMsg;
-  for (int i = 0; i < pObj->openVnodes; ++i) {
-    int vnode = htonl(pStatus->load[i].vnode);
+  for (int32_t i = 0; i < pObj->openVnodes; ++i) {
+    int32_t vnode = htonl(pStatus->load[i].vnode);
     if (vnode < 0 || vnode >= pObj->numOfVnodes) {
       mError("dnode:%s vid:%d out of range(0, %d)", taosIpStr(pObj->privateIp), vnode, pObj->numOfVnodes - 1);
       continue;
@@ -327,10 +326,10 @@ int mgmtProcessDnodeStatus(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
   return 0;
 }
 
-int mgmtProcessDnodeGrantMsg(unsigned char *pMsg, int msgLen, SDnodeObj *pObj) {
+int32_t mgmtProcessDnodeGrantMsg(unsigned char *pMsg, int32_t msgLen, SDnodeObj *pObj) {
   grantUpdate(pMsg);
 
-  int code = (sdbMaster == 1 ? 0 : TSDB_CODE_REDIRECT);
+  int32_t code = (sdbMaster == 1 ? 0 : TSDB_CODE_REDIRECT);
 
   taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_GRANT_RSP, code);
 

@@ -23,6 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include "mnode.h"
 
 void clusterInit();
 
@@ -36,12 +37,19 @@ extern void (*dnodeSendRspToMnodeFp)(void *handle, int32_t code, void *pCont, in
 extern void (*dnodeProcessStatusRspFp)(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);
 
 // mgmtDnodeInt
+extern int32_t (*mgmtInitDnodeIntFp)();
+extern void    (*mgmtCleanUpDnodeIntFp);
+
 extern void (*mgmtSendMsgToDnodeFp)(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
 extern void (*mgmtSendRspToDnodeFp)(void *handle, int32_t code, void *pCont, int contLen);
 
-// mgmtDnode
-extern int32_t (*mgmtInitDnodesFp)();
-extern void *  (*mgmtGetDnodeFp)(uint32_t ip);
+// mgmtDnode & clusterDnode
+extern int32_t    (*mgmtInitDnodesFp)();
+extern void       (*mgmtCleanUpDnodesFp)();
+extern SDnodeObj *(*mgmtGetDnodeFp)(uint32_t ip);
+extern int32_t    (*mgmtGetDnodesNumFp)();
+extern void *     (*mgmtGetNextDnodeFp)(SShowObj *pShow, SDnodeObj **pDnode);
+
 
 
 #ifdef __cplusplus

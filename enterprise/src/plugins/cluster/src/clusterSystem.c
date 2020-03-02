@@ -9,8 +9,12 @@ void clusterInit() {
   dnodeProcessStatusRspFp = dnodeProcessStatusRspImp;
   dnodeSendMsgToMnodeFp = dnodeSendMsgToMnodeImp;
 
-  mgmtInitDnodes = mgmtInitDnodesFp;
+  mgmtInitDnodeIntFp = mgmtInitDnodeIntFpImp;
+  mgmtCleanUpDnodeIntFp = mgmtCleanUpDnodeIntImp;
 
-  mgmtInitDnodesFp = mgmtInitDnodesImp;
-  mgmtGetDnodeFp = mgmtGetDnodeFp;
+  mgmtInitDnodesFp    = mgmtInitDnodesImp;
+  mgmtCleanUpDnodesFp = mgmtCleanUpDnodesImp;
+  mgmtGetDnodeFp      = mgmtGetDnodeFp;
+  mgmtGetDnodesNumFp  = mgmtGetDnodesNumImp;
+  mgmtGetNextDnodeFp  = mgmtGetNextDnodeImp;
 }

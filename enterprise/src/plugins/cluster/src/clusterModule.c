@@ -19,7 +19,7 @@
 
 #define LB_MODULE_UNLIMIT -1
 
-void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType) {
+void mgmtSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   pDnode->moduleStatus |= (1 << moduleType);
   sdbUpdateRow(tsDnodeSdb, pDnode, tsDnodeUpdateSize, 1);
 
@@ -29,25 +29,25 @@ void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType) {
   }
 }
 
-int mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int moduleType) {
+int32_t mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   pDnode->moduleStatus &= ~(1 << moduleType);
   sdbUpdateRow(tsDnodeSdb, pDnode, tsDnodeUpdateSize, 1);
 
   if (moduleType == TSDB_MOD_MGMT) {
-    int code = sdbRemovePeerByIp(pDnode->privateIp);
+    int32_t code = sdbRemovePeerByIp(pDnode->privateIp);
     mPrint("dnode:%s, drop mnode done, code:%d", taosIpStr(pDnode->privateIp), code);
     return code;
   }
   return 0;
 }
 
-bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int moduleType) {
+bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   uint32_t status = pDnode->moduleStatus & (1 << moduleType);
   return status > 0;
 }
 
 void mgmtStopRemoveStateModule(SDnodeObj *pDnode) {
-  for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
     if (!mgmtCheckModuleInDnode(pDnode, moduleType)) {
       continue;
     }
@@ -57,7 +57,7 @@ void mgmtStopRemoveStateModule(SDnodeObj *pDnode) {
   }
 }
 
-void mgmtStartModuleInAllDnodes(int moduleType) {
+void mgmtStartModuleInAllDnodes(int32_t moduleType) {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
 
@@ -82,10 +82,10 @@ void mgmtStartModuleInAllDnodes(int moduleType) {
   }
 }
 
-void mgmtStartModuleInDnode(int moduleType) {
+void mgmtStartModuleInDnode(int32_t moduleType) {
   mgmtMakeDnodeOrderList();
 
-  for (int i = mgmtOrderedDnodesSize - 1; i >= 0; --i) {
+  for (int32_t i = mgmtOrderedDnodesSize - 1; i >= 0; --i) {
     SDnodeObj *pDnode = mgmtOrderedDnodes[i];
     if (mgmtCheckDnodeInOfflineState(pDnode)) {
       continue;
@@ -110,10 +110,10 @@ void mgmtStartModuleInDnode(int moduleType) {
   }
 }
 
-void mgmtStopModuleInDnode(int moduleType) {
+void mgmtStopModuleInDnode(int32_t moduleType) {
   mgmtMakeDnodeOrderList();
 
-  for (int i = 0; i < mgmtOrderedDnodesSize; ++i) {
+  for (int32_t i = 0; i < mgmtOrderedDnodesSize; ++i) {
     SDnodeObj *pDnode = mgmtOrderedDnodes[i];
 
     if (!mgmtCheckModuleInDnode(pDnode, moduleType)) {
@@ -129,9 +129,9 @@ void mgmtStopModuleInDnode(int moduleType) {
 void mgmtMonitorDnodeModule() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
-  int        onlineDnodes = 0;
+  int32_t        onlineDnodes = 0;
 
-  for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
     tsModule[moduleType].curNum = 0;
   }
 
@@ -147,7 +147,7 @@ void mgmtMonitorDnodeModule() {
       continue;
     }
 
-    for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
       if (mgmtCheckModuleInDnode(pDnode, moduleType)) {
         tsModule[moduleType].curNum += mgmtCheckModuleInDnode(pDnode, moduleType);
       }
@@ -158,7 +158,7 @@ void mgmtMonitorDnodeModule() {
     }
   }
 
-  for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+  for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
     if (tsModule[moduleType].num == LB_MODULE_UNLIMIT) {
       mgmtStartModuleInAllDnodes(moduleType);
       continue;
@@ -169,13 +169,13 @@ void mgmtMonitorDnodeModule() {
       }
       mTrace("need add %s module, curNum:%d, expectNum:%d", tsModule[moduleType].name, tsModule[moduleType].curNum,
              tsModule[moduleType].num);
-      for (int i = tsModule[moduleType].curNum; i < tsModule[moduleType].num; ++i) {
+      for (int32_t i = tsModule[moduleType].curNum; i < tsModule[moduleType].num; ++i) {
         mgmtStartModuleInDnode(moduleType);
       }
     } else if (tsModule[moduleType].curNum > tsModule[moduleType].num) {
       mTrace("need drop %s module, curNum:%d, expectNum:%d", tsModule[moduleType].name, tsModule[moduleType].curNum,
              tsModule[moduleType].num);
-      for (int i = tsModule[moduleType].num; i < tsModule[moduleType].curNum; ++i) {
+      for (int32_t i = tsModule[moduleType].num; i < tsModule[moduleType].curNum; ++i) {
         mgmtStopModuleInDnode(moduleType);
       }
     } else {
