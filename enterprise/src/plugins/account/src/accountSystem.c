@@ -18,8 +18,8 @@
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tschemautil.h"
-#include "mnode.h"
 #include "grant.h"
+#include "account.h"
 #include "mgmtAcct.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
@@ -43,10 +43,12 @@
 #define TSDB_MIN_QUERYTIME_PER_ACCT   3600  // 1 hour
 #define TSDB_MAX_QUERYTIME_PER_ACCT   INT64_MAX
 
-void *       tsAcctSdb = NULL;
-int32_t      tsAcctUpdateSize;
 extern void *tsUserSdb;
 extern void *tsDbSdb;
+
+static void   *tsMgmtStatisTimer = NULL;
+static void   *tsAcctSdb         = NULL;
+static int32_t tsAcctUpdateSize;
 
 static void mgmtCreateRootAcct();
 static void *(*mgmtAcctActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
@@ -57,6 +59,7 @@ static void *mgmtAcctActionEncode(void *row, char *str, int32_t size, int32_t *s
 static void *mgmtAcctActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtAcctActionReset(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtAcctActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
+static int64_t mgmtGetAcctStatistic(SAcctObj *pAcct);
 
 static void mgmtAcctActionInit() {
   mgmtAcctActionFp[SDB_TYPE_INSERT] = mgmtAcctActionInsert;
@@ -73,6 +76,24 @@ static void *mgmtAcctAction(char action, void *row, char *str, int32_t size, int
     return (*(mgmtAcctActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
+}
+
+static void mgmtDoStatistic(void *handle, void *tmrId) {
+  SAcctObj *pAcct = NULL;
+  void *    pNode = NULL;
+
+  if (tsAcctSdb != NULL) {
+    int64_t totalStorage = 0;
+    while (1) {
+      pNode = sdbFetchRow(tsAcctSdb, pNode, (void **)&pAcct);
+      if (pAcct == NULL) break;
+      totalStorage += mgmtGetAcctStatistic(pAcct);
+    }
+
+    grantResetCurStorage(totalStorage);
+  }
+
+  taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 }
 
 static int32_t mgmtInitAcctsImp() {
@@ -112,6 +133,8 @@ static int32_t mgmtInitAcctsImp() {
 
   mgmtCreateRootAcct();
 
+  taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
+
   mTrace("account is initialized");
   return 0;
 }
@@ -140,10 +163,10 @@ static int32_t mgmtCheckDbLimitImp(SAcctObj *pAcct) {
   return 0;
 }
 
-static int32_t mgmtCheckTableLimitImp(SAcctObj *pAcct, SCreateTableMsg *pCreate) {
-  if (pAcct->acctInfo.numOfTimeSeries + pCreate->numOfColumns - 1 > pAcct->cfg.maxTimeSeries) {
+static int32_t mgmtCheckTableLimitImp(SAcctObj *pAcct, int32_t numOfTimeSeries) {
+  if (pAcct->acctInfo.numOfTimeSeries + numOfTimeSeries > pAcct->cfg.maxTimeSeries) {
     mWarn("Time series is not enough, account numOfTimeSeries: %d, account maxTimeSeries: %d, required time series: %d",
-          pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries, pCreate->numOfColumns);
+          pAcct->acctInfo.numOfTimeSeries, pAcct->cfg.maxTimeSeries, numOfTimeSeries);
     return TSDB_CODE_NOT_ENOUGH_TIME_SERIES;
   }
   return 0;
@@ -328,6 +351,11 @@ int32_t mgmtDropAcct(char *name) {
 }
 
 static void mgmtCleanUpAcctsImp() {
+  if (tsMgmtStatisTimer != NULL) {
+    taosTmrStopA(&tsMgmtStatisTimer);
+    tsMgmtStatisTimer = NULL;
+  }
+
   sdbCloseTable(tsAcctSdb);
 }
 
@@ -709,118 +737,17 @@ static void mgmtCreateRootAcct() {
   }
 }
 
-
-void mgmtDoStatisticImp(void *handle, void *tmrId) {
-  SAcctObj *pAcct = NULL;
-  void *    pNode = NULL;
-
-  if (tsAcctSdb != NULL) {
-    int64_t totalStorage = 0;
-    while (1) {
-      pNode = sdbFetchRow(tsAcctSdb, pNode, (void **)&pAcct);
-      if (pAcct == NULL) break;
-      totalStorage += mgmtGetAcctStatistic(pAcct);
-    }
-
-    grantResetCurStorage(totalStorage);
-  }
-
-  taosTmrReset(mgmtDoStatisticImp, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
-}
-
-
-void mgmtProcessAlterAcctMsg(void *pCont, int32_t contLen, void *ahandle) {
-  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
-    return;
-  }
-
-
-  SAlterAcctMsg *pAlter = pCont;
-  pAlter->cfg.maxUsers = htonl(pAlter->cfg.maxUsers);
-  pAlter->cfg.maxDbs = htonl(pAlter->cfg.maxDbs);
-  pAlter->cfg.maxTimeSeries = htonl(pAlter->cfg.maxTimeSeries);
-  pAlter->cfg.maxConnections = htonl(pAlter->cfg.maxConnections);
-  pAlter->cfg.maxStreams = htonl(pAlter->cfg.maxStreams);
-  pAlter->cfg.maxPointsPerSecond = htonl(pAlter->cfg.maxPointsPerSecond);
-  pAlter->cfg.maxStorage = htobe64(pAlter->cfg.maxStorage);
-  pAlter->cfg.maxQueryTime = htobe64(pAlter->cfg.maxQueryTime);
-  pAlter->cfg.maxInbound = htobe64(pAlter->cfg.maxInbound);
-  pAlter->cfg.maxOutbound = htobe64(pAlter->cfg.maxOutbound);
-
-  if (strcmp(pConn->pAcct->user, "root") != 0) {
-    code = TSDB_CODE_NO_RIGHTS;
-  } else {
-    code = mgmtAlterAcct(pAlter->user, pAlter->pass, &(pAlter->cfg));
-    if (code == TSDB_CODE_SUCCESS) {
-      mLPrint("Account: %s is altered by %s", pAlter->user, pConn->pUser->user);
-    }
-  }
-
-  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_ALTER_ACCT_RSP, code);
-
-  return 0;
-}
-
-int mgmtProcessDropAcctMsg(char *pMsg, int msgLen, void *pConn) {
-  SDropAcctMsg *pDrop = (SDropAcctMsg *)pMsg;
-  int           code = 0;
-
-  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_DROP_ACCT_RSP);
-
-  if (strcmp(pDrop->user, "root") == 0) {
-    code = TSDB_CODE_NO_RIGHTS;
-  } else if (strcmp(pConn->pUser->user, "root") == 0) {
-    code = mgmtDropAcct(pDrop->user);
-    if (code == 0) {
-      mLPrint("account:%s is dropped by %s", pDrop->user, pConn->pUser->user);
-    }
-  } else {
-    code = TSDB_CODE_NO_RIGHTS;
-  }
-
-  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_DROP_ACCT_RSP, code);
-
-  return 0;
-}
-
-int mgmtProcessCreateAcctMsg(char *pMsg, int msgLen, void *pConn) {
-  SCreateAcctMsg *pCreate = (SCreateAcctMsg *)pMsg;
-  int             code = 0;
-
-  if (!sdbMaster) return mgmtRedirectMsg(pConn, TSDB_MSG_TYPE_CREATE_ACCT_RSP);
-
-  pCreate->cfg.maxUsers = htonl(pCreate->cfg.maxUsers);
-  pCreate->cfg.maxDbs = htonl(pCreate->cfg.maxDbs);
-  pCreate->cfg.maxTimeSeries = htonl(pCreate->cfg.maxTimeSeries);
-  pCreate->cfg.maxConnections = htonl(pCreate->cfg.maxConnections);
-  pCreate->cfg.maxStreams = htonl(pCreate->cfg.maxStreams);
-  pCreate->cfg.maxPointsPerSecond = htonl(pCreate->cfg.maxPointsPerSecond);
-  pCreate->cfg.maxStorage = htobe64(pCreate->cfg.maxStorage);
-  pCreate->cfg.maxQueryTime = htobe64(pCreate->cfg.maxQueryTime);
-
-  if (strcmp(pConn->pUser->user, "root") == 0) {
-    // TODO : Convert from server format to host format
-    code = mgmtCreateAcct(pCreate->user, pCreate->pass, &(pCreate->cfg));
-    if (code == TSDB_CODE_SUCCESS) {
-      mLPrint("account:%s is created by %s", pCreate->user, pConn->pUser->user);
-    }
-  } else {
-    code = TSDB_CODE_NO_RIGHTS;
-  }
-
-  taosSendSimpleRsp(pConn->thandle, TSDB_MSG_TYPE_CREATE_ACCT_RSP, code);
-
-  return 0;
-}
-
 void acctInit() {
-  mgmtInitAccts       = mgmtInitAcctsImp;
-  mgmtCleanUpAccts    = mgmtCleanUpAcctsImp;
-  mgmtGetAcct         = mgmtGetAcctImp;
-  mgmtCheckUserLimit  = mgmtCheckUserLimitImp;
-  mgmtCheckDbLimit    = mgmtCheckDbLimitImp;
-  mgmtCheckTableLimit = mgmtCheckTableLimitImp;
-  mgmtGetAcctMeta     = mgmtGetAcctMetaImp;
-  mgmtRetrieveAccts   = mgmtRetrieveAcctsImp;
-  mgmtDoStatistic     = mgmtDoStatisticImp;
+  mgmtInitAcctsFp     = mgmtInitAcctsImp;
+  mgmtCleanUpAcctsFp  = mgmtCleanUpAcctsImp;
+  mgmtCreateAcctFp    = mgmtCreateAcct;
+  mgmtDropAcctFp      = mgmtDropAcct;
+  mgmtAlterAcctFp     = mgmtAlterAcct;
+  mgmtGetAcctMetaFp   = mgmtGetAcctMetaImp;
+  mgmtRetrieveAcctsFp = mgmtRetrieveAcctsImp;
+  mgmtGetAcctFp       = mgmtGetAcctImp;
+
+  mgmtCheckUserLimitFp       = mgmtCheckUserLimitImp;
+  mgmtCheckDbLimitFp         = mgmtCheckDbLimitImp;
+  mgmtCheckTimeSeriesLimitFp = mgmtCheckTableLimitImp;
 }

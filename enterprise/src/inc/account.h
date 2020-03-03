@@ -23,14 +23,23 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include "mnode.h"
 
 void acctInit();
-int32_t mgmtCreateAcct(char *name, char *pass, SAcctCfg *pCfg);
-int32_t mgmtDropAcct(char *name);
-int32_t mgmtAlterAcct(char *name, char *pass, SAcctCfg *pCfg);
-int64_t mgmtGetAcctStatistic(SAcctObj *pAcct);
 
-void (*mgmtDoStatistic)(void *handle, void *tmrId);
+extern int32_t (*mgmtInitAcctsFp)();
+extern void (*mgmtCleanUpAcctsFp)();
+
+extern int32_t (*mgmtCreateAcctFp)(char *name, char *pass, SAcctCfg *pCfg);
+extern int32_t (*mgmtDropAcctFp)(char *name);
+extern int32_t (*mgmtAlterAcctFp)(char *name, char *pass, SAcctCfg *pCfg);
+extern int32_t (*mgmtGetAcctMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+extern int32_t (*mgmtRetrieveAcctsFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+extern SAcctObj *(*mgmtGetAcctFp)(char *acctName);
+
+extern int32_t (*mgmtCheckUserLimitFp)(SAcctObj *pAcct);
+extern int32_t (*mgmtCheckDbLimitFp)(SAcctObj *pAcct);
+extern int32_t (*mgmtCheckTimeSeriesLimitFp)(SAcctObj *pAcct, int32_t numOfTimeSeries);
 
 #ifdef __cplusplus
 }
