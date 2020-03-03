@@ -18,6 +18,7 @@
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtGrant.h"
+#include "mgmtUser.h"
 
 int32_t (*mgmtCheckUserGrantFp)() = NULL;
 int32_t (*mgmtCheckDbGrantFp)() = NULL;
@@ -27,6 +28,7 @@ int32_t (*mgmtCheckTimeSeriesFp)(uint32_t timeseries) = NULL;
 bool    (*mgmtCheckExpiredFp)() = NULL;
 int32_t (*mgmtGetGrantsMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = NULL;
 int32_t (*mgmtRetrieveGrantsFp)(SShowObj *pShow, char *data, int rows, void *pConn) = NULL;
+void    (*mgmtUpdateGrantInfoFp)(void *pCont) = NULL;
 
 int32_t mgmtCheckUserGrant() {
   if (mgmtCheckUserGrantFp) {
@@ -76,17 +78,19 @@ bool mgmtCheckExpired() {
 
 int32_t mgmtGetGrantsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   if (mgmtGetGrantsMetaFp) {
+    SUserObj *pUser = mgmtGetUserFromConn(pConn);
+    if (pUser == NULL) return 0;
+    if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
     return mgmtGetGrantsMetaFp(pMeta, pShow, pConn);
   } else {
     return TSDB_CODE_OPS_NOT_SUPPORT;
   }
 }
 
-int32_t mgmtRetrieveGrants(SShowObj *pShow, char *data, int rows, void *pConn) {
+int32_t mgmtRetrieveGrants(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   if (mgmtRetrieveGrantsFp) {
     return mgmtRetrieveGrantsFp(pShow, data, rows, pConn);
   } else {
     return 0;
   }
 }
-

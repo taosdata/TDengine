@@ -26,6 +26,7 @@
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
 #include "mgmtDnodeInt.h"
+#include "mgmtGrant.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
 #include "mgmtTable.h"
@@ -230,6 +231,14 @@ void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, vo
   }
 }
 
+static void mgmtProcessDnodeGrantMsg(void *pCont, void *thandle) {
+  if (mgmtUpdateGrantInfoFp) {
+    mgmtUpdateGrantInfoFp(pCont);
+    mTrace("grant info is updated");
+  }
+  rpcSendResponse(thandle, TSDB_CODE_SUCCESS, NULL, 0);
+}
+
 void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *pConn, int32_t code) {
   if (msgType < 0 || msgType >= TSDB_MSG_TYPE_MAX) {
     mError("invalid msg type:%d", msgType);
@@ -255,9 +264,9 @@ void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *p
   } else if (msgType == TSDB_MSG_TYPE_DNODE_CFG_RSP) {
   } else if (msgType == TSDB_MSG_TYPE_ALTER_STREAM_RSP) {
   } else if (msgType == TSDB_MSG_TYPE_STATUS) {
-    mgmtProcessDnodeStatus(msgType, pConn, contLen, pConn, code);
+    mgmtProcessDnodeStatus(msgType, pCont, contLen, pConn, code);
   } else if (msgType == TSDB_MSG_TYPE_GRANT) {
-    mgmtProcessDropStableRsp(msgType, pCont, contLen, pConn, code);
+    mgmtProcessDnodeGrantMsg(pCont, pConn);
   } else {
     mError("%s from dnode is not processed", taosMsg[(int8_t)msgType]);
   }

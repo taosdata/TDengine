@@ -42,7 +42,6 @@ extern uint32_t tsRebootTime;
 
 // dnodeCluster
 extern void (*dnodeStartModules)();
-extern void (*dnodeParseParameterK)();
 extern int32_t (*dnodeCheckSystem)();
 
 

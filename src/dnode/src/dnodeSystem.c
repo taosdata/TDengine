@@ -294,10 +294,6 @@ int32_t dnodeCheckSystemImp() {
 
 int32_t (*dnodeCheckSystem)() = dnodeCheckSystemImp;
 
-void dnodeParseParameterKImp() {}
-
-void (*dnodeParseParameterK)() = dnodeParseParameterKImp;
-
 int32_t dnodeInitPeersImp(int32_t numOfThreads) {
   return 0;
 }
