@@ -50,6 +50,8 @@ typedef char * SDataCols;
 #define TD_DATAROW_LEN(pDataRow) (*(int32_t *)(pDataRow))
 #define TD_DATAROW_DATA(pDataRow) ((pDataRow) + sizeof(int32_t))
 
+SDataRow tdSDataRowDup(SDataRow rdata);
+
 // ---- operation on SDataRows
 #define TD_DATAROWS_LEN(pDataRows) (*(int32_t *)(pDataRows))
 #define TD_DATAROWS_ROWS(pDataRows) (*(int32_t *)(pDataRows + sizeof(int32_t)))

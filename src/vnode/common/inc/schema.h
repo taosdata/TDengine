@@ -67,6 +67,7 @@ typedef char *SISchema;
 SISchema tdConvertSchemaToInline(SSchema *pSchema);
 int32_t tdGetColumnIdxByName(SSchema *pSchema, char *colName);
 int32_t tdGetColumnIdxById(SSchema *pSchema, int32_t colId);
+SSchema *tdDupSchema(SSchema *pSchema);
 
 // ---- TODO: operations to modify schema
 

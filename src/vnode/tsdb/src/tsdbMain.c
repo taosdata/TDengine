@@ -200,13 +200,20 @@ int32_t tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg) {
   return 0;
 }
 
-STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid, int32_t *error) {
+int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tid) {
+  return 0;
+}
+
+STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid) {
   // TODO
   return NULL;
 }
 
-int32_t tsdbInsertData(tsdb_repo_t *pRepo, STableId tid, char *pData, int32_t *error) {
-  // TODO
+int32_t tsdbInsertData(tsdb_repo_t *repo, STableId tableId, char *pData) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+
+  tsdbInsertDataImpl(pRepo->tsdbMeta, tableId, pData);
+
   return 0;
 }
 

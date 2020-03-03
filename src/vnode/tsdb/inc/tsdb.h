@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "dataformat.h"
 #include "schema.h"
 
 #define TSDB_VERSION_MAJOR 1
@@ -35,8 +36,11 @@ typedef struct {
   char     data[];
 } SSubmitBlock;
 
+enum { TSDB_PRECISION_MILLI, TSDB_PRECISION_MICRO, TSDB_PRECISION_NANO };
+
 // the TSDB repository configuration
 typedef struct {
+  int8_t  precision;
   int32_t tsdbId;
   int32_t maxTables;            // maximum number of tables this repository can have
   int32_t daysPerFile;          // day per file sharding policy
@@ -57,20 +61,18 @@ typedef struct STsdbRepoInfo {
 
 // the meter configuration
 typedef struct {
-  char *   tableName;
   STableId tableId;
 
-  char *superTable;  // if not NULL, the table is created from a super table, need to make sure the super
-                     // table exists in this TSDB.
   int64_t stableUid;
+  int64_t createdTime;
 
   int32_t  numOfCols;  // number of columns. For table form super table, not includes the tag schema
   SSchema *schema;     // If numOfCols == schema_->numOfCols, it is a normal table, stableName = NULL
                        // If numOfCols < schema->numOfCols, it is a table created from super table
                        // assert(numOfCols <= schema->numOfCols);
 
-  char *tagValues;  // NULL if it is normal table
-                    // otherwise, it contains the tag values.
+  SDataRow tagValues;  // NULL if it is normal table
+                       // otherwise, it contains the tag values.
 } STableCfg;
 
 // the meter information report structure
@@ -154,7 +156,7 @@ int32_t tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tid, int32_t *error);
+int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tid);
 
 /**
  * Get the information of a table in the repository
@@ -164,7 +166,7 @@ int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tid, int32_t *error);
  *
  * @return a table information handle for success, NULL for failure and the error number is set
  */
-STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid, int32_t *error);
+STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid);
 
 // -- FOR INSERT DATA
 /**
@@ -176,7 +178,7 @@ STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid, int32_t *error);
  *
  * @return the number of points inserted, -1 for failure and the error number is set
  */
-int32_t tsdbInsertData(tsdb_repo_t *pRepo, STableId tid, char *pData, int32_t *error);
+int32_t tsdbInsertData(tsdb_repo_t *pRepo, STableId tid, char *pData);
 
 // -- FOR QUERY TIME SERIES DATA
 

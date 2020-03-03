@@ -4,6 +4,8 @@
 
 #include <pthread.h>
 
+#include "dataformat.h"
+
 // #include "taosdef.h"
 
 // Initially, there are 4 tables
@@ -16,14 +18,15 @@ typedef enum {
 } TSDB_TABLE_TYPE;
 
 typedef struct STable {
-  int32_t         tableId;
-  int64_t         uid;
+  STableId        tableId;
   TSDB_TABLE_TYPE type;
 
   int64_t createdTime;
 
-  // super table UID
-  int32_t superTableId;
+  // super table UID -1 for normal table
+  int32_t stableUid;
+
+  int32_t numOfCols;
 
   // Schema for this table
   // For TSDB_SUPER_TABLE, it is the schema including tags
@@ -34,7 +37,7 @@ typedef struct STable {
   // Tag value for this table
   // For TSDB_SUPER_TABLE and TSDB_NTABLE, it is NULL
   // For TSDB_STABLE, it is the tag value string
-  char *pTagVal;
+  SDataRow pTagVal;
 
   // Object content;
   // For TSDB_SUPER_TABLE, it is the index of tables created from it
@@ -45,10 +48,10 @@ typedef struct STable {
   } content;
 
   // A handle to deal with event
-  void *eventHandle;
+  void *eventHandler;
 
   // A handle to deal with stream
-  void *streamHandle;
+  void *streamHandler;
 
   struct STable *next;
 
@@ -56,7 +59,6 @@ typedef struct STable {
 
 typedef struct {
   int32_t          maxTables;
-  int32_t          numOfSuperTables;  // Number of super tables (#TSDB_SUPER_TABLE)
   STable **        tables;            // array of normal tables
   STable *         stables;           // linked list of super tables
   void *           tableMap;          // hash map of uid ==> STable *
@@ -89,3 +91,5 @@ int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 STsdbMeta *tsdbOpenMetaHandle(char *tsdbDir);
 
 int32_t tsdbCreateTableImpl(STsdbMeta *pHandle, STableCfg *pCfg);
+
+int32_t tsdbInsertDataImpl(STsdbMeta *pMeta, STableId tableId, char *pData);
