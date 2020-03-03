@@ -1,10 +1,27 @@
-/************************************
- * For internal usage
- ************************************/
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+#if !defined(_TSDB_META_H_)
+#define _TSDB_META_H_
 
 #include <pthread.h>
 
 #include "dataformat.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // #include "taosdef.h"
 
@@ -58,10 +75,10 @@ typedef struct STable {
 } STable;
 
 typedef struct {
-  int32_t          maxTables;
-  STable **        tables;            // array of normal tables
-  STable *         stables;           // linked list of super tables
-  void *           tableMap;          // hash map of uid ==> STable *
+  int32_t  maxTables;
+  STable **tables;    // array of normal tables
+  STable * stables;   // linked list of super tables
+  void *   tableMap;  // hash map of uid ==> STable *
 } STsdbMeta;
 
 // ---- Operation on STable
@@ -93,3 +110,9 @@ STsdbMeta *tsdbOpenMetaHandle(char *tsdbDir);
 int32_t tsdbCreateTableImpl(STsdbMeta *pHandle, STableCfg *pCfg);
 
 int32_t tsdbInsertDataImpl(STsdbMeta *pMeta, STableId tableId, char *pData);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  // _TSDB_META_H_
