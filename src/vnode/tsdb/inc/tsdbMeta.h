@@ -16,7 +16,7 @@ typedef enum {
 } TSDB_TABLE_TYPE;
 
 typedef struct STable {
-  int32_t       tableId;
+  int32_t         tableId;
   int64_t         uid;
   char *          tableName;
   TSDB_TABLE_TYPE type;
@@ -51,17 +51,16 @@ typedef struct STable {
   // A handle to deal with stream
   void *streamHandle;
 
+  struct STable *next;
+
 } STable;
 
 typedef struct {
-  int32_t numOfTables;       // Number of tables not including TSDB_SUPER_TABLE (#TSDB_NTABLE + #TSDB_STABLE)
-  int32_t numOfSuperTables;  // Number of super tables (#TSDB_SUPER_TABLE)
-  // An array of tables (TSDB_NTABLE and TSDB_STABLE) in this TSDB repository
-  STable **pTables;
-
-  // A map of tableName->tableId
-  // TODO: May use hash table
-  void *pNameTableMap;
+  int32_t          maxTables;
+  int32_t          numOfSuperTables;  // Number of super tables (#TSDB_SUPER_TABLE)
+  STable **        tables;            // array of normal tables
+  STable *         stables;           // linked list of super tables
+  void *           tableMap;          // table map of name ==> table
 } STsdbMeta;
 
 // ---- Operation on STable
@@ -84,10 +83,10 @@ SSchema *tsdbGetTableSchema(STable *pTable);
 #define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
 
 // Create a new meta handle with configuration
-STsdbMeta * tsdbCreateMeta (int32_t maxTables);
-int32_t       tsdbFreeMeta(STsdbMeta *pMeta);
+STsdbMeta *tsdbCreateMeta(int32_t maxTables);
+int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 
 // Recover the meta handle from the file
-STsdbMeta * tsdbOpenMetaHandle(char *tsdbDir);
+STsdbMeta *tsdbOpenMetaHandle(char *tsdbDir);
 
 int32_t tsdbCreateTableImpl(STsdbMeta *pHandle, STableCfg *pCfg);

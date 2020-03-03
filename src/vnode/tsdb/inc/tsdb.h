@@ -29,7 +29,7 @@ typedef struct {
 
 // Submit message for one table
 typedef struct {
-  STableId tid;
+  STableId tableId;
   int32_t  sversion;   // data schema version
   int32_t  numOfRows;  // number of rows data
   char     data[];
@@ -47,20 +47,20 @@ typedef struct {
 } STsdbCfg;
 
 // the TSDB repository info
-typedef struct STSDBRepoInfo {
+typedef struct STsdbRepoInfo {
   STsdbCfg tsdbCfg;
   int64_t  version;            // version of the repository
   int64_t  tsdbTotalDataSize;  // the original inserted data size
   int64_t  tsdbTotalDiskSize;  // the total disk size taken by this TSDB repository
   // TODO: Other informations to add
-} STSDBRepoInfo;
+} STsdbRepoInfo;
 
 // the meter configuration
 typedef struct {
   char *   tableName;
   STableId tableId;
 
-  char *stableName;  // if not NULL, the table is created from a super table, need to make sure the super
+  char *superTable;  // if not NULL, the table is created from a super table, need to make sure the super
                      // table exists in this TSDB.
   int64_t stableUid;
 
@@ -83,6 +83,7 @@ typedef struct {
 
 /**
  * Create a new TSDB repository
+ * @param rootDir the TSDB repository root directory
  * @param pCfg the TSDB repository configuration, upper layer to free the pointer
  *
  * @return a TSDB repository handle on success, NULL for failure and the error number is set
@@ -131,7 +132,7 @@ int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg);
  * @return a info struct handle on success, NULL for failure and the error number is set. The upper
  *         layers should free the info handle themselves or memory leak will occur
  */
-STSDBRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo);
+STsdbRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo);
 
 // -- For table manipulation
 

@@ -175,7 +175,7 @@ int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
   return 0;
 }
 
-STSDBRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo) {
+STsdbRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo) {
   // TODO
 }
 
