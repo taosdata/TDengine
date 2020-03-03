@@ -32,7 +32,7 @@ extern char*   (*mgmtGetVnodeStatus)(SVgObj *pVgroup, SVnodeGid *pVnode);
 extern bool    (*mgmtCheckVnodeReady)(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode);
 extern void    (*mgmtUpdateDnodeState)(SDnodeObj *pDnode, int lbStatus);
 extern void    (*mgmtUpdateVgroupState)(SVgObj *pVgroup, int lbStatus, int srcIp);
-extern bool    (*mgmtAddVnode)(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode);
+bool    mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode);
 
 #ifdef __cplusplus
 }

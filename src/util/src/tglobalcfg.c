@@ -24,6 +24,9 @@
 #include "tsystem.h"
 #include "tutil.h"
 
+void (*tsReadStorageConfig)() = NULL;
+void (*tsPrintStorageConfig)() = NULL;
+
 // monitor module api
 int  (*startMonitor)() = NULL;
 void (*stopMonitor)()  = NULL;
@@ -942,7 +945,9 @@ bool tsReadGlobalConfig() {
     fclose(fp);
   }
 
-  tsReadGlobalConfigSpec();
+  if (tsReadStorageConfig) {
+    tsReadStorageConfig();
+  }
 
   if (tsPrivateIp[0] == 0) {
     taosGetPrivateIp(tsPrivateIp);
@@ -1111,11 +1116,13 @@ void tsPrintGlobalConfig() {
     }
   }
 
-  tsPrintGlobalConfigSpec();
+  if (tsPrintStorageConfig) {
+    tsPrintStorageConfig();
+  } else {
+    pPrint(" dataDir:                %s", dataDir);
+  }
 
   tsPrintOsInfo();
-
-  pPrint("==================================");
 }
 
 void tsSetAllDebugFlag() {
@@ -1206,12 +1213,3 @@ void tsSetTimeZone() {
   pPrint("timezone format changed to %s", tsTimezone);
 }
 
-#ifndef CLUSTER
-
-bool tsReadGlobalConfigSpec() { return true; }
-
-void tsPrintGlobalConfigSpec() {
-  pPrint(" dataDir:                %s", dataDir);
-}
-
-#endif

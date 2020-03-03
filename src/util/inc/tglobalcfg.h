@@ -193,7 +193,6 @@ extern char tsCharset[64];  // default encode string
 //
 void tsReadGlobalLogConfig();
 bool tsReadGlobalConfig();
-bool tsReadGlobalConfigSpec();
 int tsCfgDynamicOptions(char *msg);
 void tsPrintGlobalConfig();
 void tsPrintGlobalConfigSpec();

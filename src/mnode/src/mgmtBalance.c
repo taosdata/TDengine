@@ -31,28 +31,28 @@ void mgmtCleanupBalanceImp() {}
 void (*mgmtCleanupBalance)() = mgmtCleanupBalanceImp;
 
 int32_t mgmtAllocVnodesImp(SVgObj *pVgroup) {
-  int        selectedVnode = -1;
-  SDnodeObj *pDnode = &tsDnodeObj;
-  int        lastAllocVode = pDnode->lastAllocVnode;
-
-  for (int i = 0; i < pDnode->numOfVnodes; i++) {
-    int vnode = (i + lastAllocVode) % pDnode->numOfVnodes;
-    if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_OFFLINE) {
-      selectedVnode = vnode;
-      break;
-    }
-  }
-
-  if (selectedVnode == -1) {
-    mError("vgroup:%d alloc vnode failed, free vnodes:%d", pVgroup->vgId, pDnode->numOfFreeVnodes);
-    return -1;
-  } else {
-    mTrace("vgroup:%d allocate vnode:%d, last allocated vnode:%d", pVgroup->vgId, selectedVnode, lastAllocVode);
-    pVgroup->vnodeGid[0].vnode = selectedVnode;
-    pDnode->lastAllocVnode = selectedVnode + 1;
-    if (pDnode->lastAllocVnode >= pDnode->numOfVnodes) pDnode->lastAllocVnode = 0;
-    return 0;
-  }
+//  int        selectedVnode = -1;
+//  int        lastAllocVode = pDnode->lastAllocVnode;
+//
+//  for (int i = 0; i < pDnode->numOfVnodes; i++) {
+//    int vnode = (i + lastAllocVode) % pDnode->numOfVnodes;
+//    if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_OFFLINE) {
+//      selectedVnode = vnode;
+//      break;
+//    }
+//  }
+//
+//  if (selectedVnode == -1) {
+//    mError("vgroup:%d alloc vnode failed, free vnodes:%d", pVgroup->vgId, pDnode->numOfFreeVnodes);
+//    return -1;
+//  } else {
+//    mTrace("vgroup:%d allocate vnode:%d, last allocated vnode:%d", pVgroup->vgId, selectedVnode, lastAllocVode);
+//    pVgroup->vnodeGid[0].vnode = selectedVnode;
+//    pDnode->lastAllocVnode = selectedVnode + 1;
+//    if (pDnode->lastAllocVnode >= pDnode->numOfVnodes) pDnode->lastAllocVnode = 0;
+//    return 0;
+//  }
+  return 0;
 }
 int32_t (*mgmtAllocVnodes)(SVgObj *pVgroup) = mgmtAllocVnodesImp;
 
@@ -84,9 +84,13 @@ void mgmtUpdateVgroupStateImp(SVgObj *pVgroup, int lbStatus, int srcIp) {
 
 void (*mgmtUpdateVgroupState)(SVgObj *pVgroup, int lbStatus, int srcIp) = mgmtUpdateVgroupStateImp;
 
-bool mgmtAddVnodeImp(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) {
-  return false;
-}
 
-bool (*mgmtAddVnode)(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) = mgmtAddVnodeImp;
+bool (*mgmtAddVnodeFp)(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) = NULL;
+bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) {
+  if (mgmtAddVnodeFp) {
+    return mgmtAddVnodeFp(pVgroup, pSrcDnode, pDestDnode);
+  } else {
+    return false;
+  }
+}
 

@@ -34,12 +34,12 @@ void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
 void mgmtSendRemoveVgroupMsg(SVgObj *pVgroup, void *ahandle);
 
-extern int32_t (*mgmtInitDnodeInt)();
-extern void    (*mgmtCleanUpDnodeInt)();
-extern void    (*mgmtProcessDnodeStatus)(void *handle, void *tmrId);
+int32_t mgmtInitDnodeInt();
+void    mgmtCleanUpDnodeInt();
 
 void mgmtSendMsgToDnode(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
 void mgmtSendRspToDnode(void *pConn, int8_t msgType, int32_t code, void *pCont, int32_t contLen);
+void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *pConn, int32_t code);
 
 #ifdef __cplusplus
 }

@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
+#include "taoserror.h"
 #include "tlog.h"
 #include "trpc.h"
 #include "tstatus.h"
@@ -51,6 +52,7 @@ static void (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(void *pCont, int32_t contL
 static void mgmtProcessUnSupportMsg(void *pCont, int32_t contLen, void *ahandle);
 static int  mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
+uint32_t        mgmtAccessSquence = 0;
 void *tsShellConnServer = NULL;
 
 void mgmtProcessTranRequest(SSchedMsg *sched) {
@@ -1047,38 +1049,6 @@ static void mgmtProcessMsgFromShell(char type, void *pCont, int contLen, void *a
   // rpcFreeCont(pCont);
 }
 
-void mgmtInitProcessShellMsg() {
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_CONNECT]          = mgmtProcessConnectMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_HEARTBEAT]        = mgmtProcessHeartBeatMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_DB]        = mgmtProcessCreateDbMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_ALTER_DB]         = mgmtProcessAlterDbMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_DB]          = mgmtProcessDropDbMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_USE_DB]           = mgmtProcessUnSupportMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_USER]      = mgmtProcessCreateUserMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_ALTER_USER]       = mgmtProcessAlterUserMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_USER]        = mgmtProcessDropUserMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_ACCT]      = mgmtProcessCreateAcctMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_ACCT]        = mgmtProcessDropAcctMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_ALTER_ACCT]       = mgmtProcessAlterAcctMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_TABLE]     = mgmtProcessCreateTableMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_TABLE]       = mgmtProcessDropTableMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_ALTER_TABLE]      = mgmtProcessAlterTableMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_DNODE]     = mgmtProcessCreateDnodeMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_DNODE]       = mgmtProcessDropDnodeMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_DNODE_CFG]        = mgmtProcessCfgDnodeMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_MNODE]     = mgmtProcessUnSupportMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_MNODE]       = mgmtProcessDropMnodeMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_CFG_MNODE]        = mgmtProcessCfgMnodeMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_QUERY]       = mgmtProcessKillQueryMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_STREAM]      = mgmtProcessKillStreamMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_CONNECTION]  = mgmtProcessKillConnectionMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_SHOW]             = mgmtProcessShowMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_RETRIEVE]         = mgmtProcessRetrieveMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_TABLE_META]       = mgmtProcessTableMetaMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_MULTI_TABLE_META] = mgmtProcessMultiTableMetaMsg;
-  mgmtProcessShellMsg[TSDB_MSG_TYPE_STABLE_META]      = mgmtProcessSuperTableMetaMsg;
-}
-
 void mgmtProcessCreateVgroup(SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta) {
   SDbObj *pDb = mgmtGetDb(pCreate->db);
   if (pDb == NULL) {
@@ -1194,10 +1164,167 @@ static void mgmtProcessUnSupportMsg(void *pCont, int32_t contLen, void *ahandle)
   rpcSendResponse(ahandle, TSDB_CODE_OPS_NOT_SUPPORT, NULL, 0);
 }
 
-void (*mgmtProcessAlterAcctMsg)(void *pCont, int32_t contLen, void *ahandle)   = mgmtProcessUnSupportMsg;
 void (*mgmtProcessCreateDnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessUnSupportMsg;
 void (*mgmtProcessCfgMnodeMsg)(void *pCont, int32_t contLen, void *ahandle)    = mgmtProcessUnSupportMsg;
 void (*mgmtProcessDropMnodeMsg)(void *pCont, int32_t contLen, void *ahandle)   = mgmtProcessUnSupportMsg;
 void (*mgmtProcessDropDnodeMsg)(void *pCont, int32_t contLen, void *ahandle)   = mgmtProcessUnSupportMsg;
-void (*mgmtProcessDropAcctMsg)(void *pCont, int32_t contLen, void *ahandle)    = mgmtProcessUnSupportMsg;
-void (*mgmtProcessCreateAcctMsg)(void *pCont, int32_t contLen, void *ahandle)  = mgmtProcessUnSupportMsg;
+
+static void mgmtProcessAlterAcctMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (!mgmtAlterAcctFp) {
+    rpcSendResponse(ahandle, TSDB_CODE_OPS_NOT_SUPPORT, NULL, 0);
+    return;
+  }
+
+  SAlterAcctMsg *pAlter = pCont;
+  pAlter->cfg.maxUsers           = htonl(pAlter->cfg.maxUsers);
+  pAlter->cfg.maxDbs             = htonl(pAlter->cfg.maxDbs);
+  pAlter->cfg.maxTimeSeries      = htonl(pAlter->cfg.maxTimeSeries);
+  pAlter->cfg.maxConnections     = htonl(pAlter->cfg.maxConnections);
+  pAlter->cfg.maxStreams         = htonl(pAlter->cfg.maxStreams);
+  pAlter->cfg.maxPointsPerSecond = htonl(pAlter->cfg.maxPointsPerSecond);
+  pAlter->cfg.maxStorage         = htobe64(pAlter->cfg.maxStorage);
+  pAlter->cfg.maxQueryTime       = htobe64(pAlter->cfg.maxQueryTime);
+  pAlter->cfg.maxInbound         = htobe64(pAlter->cfg.maxInbound);
+  pAlter->cfg.maxOutbound        = htobe64(pAlter->cfg.maxOutbound);
+
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    mError("account:%s, failed to alter account, need redirect message", pAlter->user);
+    return;
+  }
+
+  SUserObj *pUser = mgmtGetUserFromConn(ahandle);
+  if (pUser == NULL) {
+    mError("account:%s, failed to alter account, invalid user", pAlter->user);
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
+    return;
+  }
+
+  if (strcmp(pUser->user, "root") != 0) {
+    mError("account:%s, failed to alter account, no rights", pAlter->user);
+    rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
+    return;
+  }
+
+  int32_t code = mgmtAlterAcctFp(pAlter->user, pAlter->pass, &(pAlter->cfg));;
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("account:%s is altered by %s", pAlter->user, pUser->user);
+  } else {
+    mError("account:%s, failed to alter account, reason:%s", pAlter->user, tstrerror(code));
+  }
+
+  rpcSendResponse(ahandle, code, NULL, 0);
+}
+
+static void mgmtProcessDropAcctMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (!mgmtDropAcctFp) {
+    rpcSendResponse(ahandle, TSDB_CODE_OPS_NOT_SUPPORT, NULL, 0);
+    return;
+  }
+
+  SDropAcctMsg *pDrop = (SDropAcctMsg *) pCont;
+
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    mError("account:%s, failed to drop account, need redirect message", pDrop->user);
+    return;
+  }
+
+  SUserObj *pUser = mgmtGetUserFromConn(ahandle);
+  if (pUser == NULL) {
+    mError("account:%s, failed to drop account, invalid user", pDrop->user);
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
+    return;
+  }
+
+  if (strcmp(pUser->user, "root") != 0) {
+    mError("account:%s, failed to drop account, no rights", pDrop->user);
+    rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
+    return;
+  }
+
+  int32_t code = mgmtDropAcctFp(pDrop->user);
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("account:%s is dropped by %s", pDrop->user, pUser->user);
+  } else {
+    mError("account:%s, failed to drop account, reason:%s", pDrop->user, tstrerror(code));
+  }
+
+  rpcSendResponse(ahandle, code, NULL, 0);
+}
+
+static void mgmtProcessCreateAcctMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (!mgmtCreateAcctFp) {
+    rpcSendResponse(ahandle, TSDB_CODE_OPS_NOT_SUPPORT, NULL, 0);
+    return;
+  }
+
+  SCreateAcctMsg *pCreate = (SCreateAcctMsg *) pCont;
+  pCreate->cfg.maxUsers           = htonl(pCreate->cfg.maxUsers);
+  pCreate->cfg.maxDbs             = htonl(pCreate->cfg.maxDbs);
+  pCreate->cfg.maxTimeSeries      = htonl(pCreate->cfg.maxTimeSeries);
+  pCreate->cfg.maxConnections     = htonl(pCreate->cfg.maxConnections);
+  pCreate->cfg.maxStreams         = htonl(pCreate->cfg.maxStreams);
+  pCreate->cfg.maxPointsPerSecond = htonl(pCreate->cfg.maxPointsPerSecond);
+  pCreate->cfg.maxStorage         = htobe64(pCreate->cfg.maxStorage);
+  pCreate->cfg.maxQueryTime       = htobe64(pCreate->cfg.maxQueryTime);
+  pCreate->cfg.maxInbound         = htobe64(pCreate->cfg.maxInbound);
+  pCreate->cfg.maxOutbound        = htobe64(pCreate->cfg.maxOutbound);
+
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    mError("account:%s, failed to create account, need redirect message", pCreate->user);
+    return;
+  }
+
+  SUserObj *pUser = mgmtGetUserFromConn(ahandle);
+  if (pUser == NULL) {
+    mError("account:%s, failed to create account, invalid user", pCreate->user);
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
+    return;
+  }
+
+  if (strcmp(pUser->user, "root") != 0) {
+    mError("account:%s, failed to create account, no rights", pCreate->user);
+    rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
+    return;
+  }
+
+  int32_t code = mgmtCreateAcctFp(pCreate->user, pCreate->pass, &(pCreate->cfg));
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("account:%s is created by %s", pCreate->user, pUser->user);
+  } else {
+    mError("account:%s, failed to create account, reason:%s", pCreate->user, tstrerror(code));
+  }
+
+  rpcSendResponse(ahandle, code, NULL, 0);
+}
+
+void mgmtInitProcessShellMsg() {
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_CONNECT]          = mgmtProcessConnectMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_HEARTBEAT]        = mgmtProcessHeartBeatMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_DB]        = mgmtProcessCreateDbMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_ALTER_DB]         = mgmtProcessAlterDbMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_DB]          = mgmtProcessDropDbMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_USE_DB]           = mgmtProcessUnSupportMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_USER]      = mgmtProcessCreateUserMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_ALTER_USER]       = mgmtProcessAlterUserMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_USER]        = mgmtProcessDropUserMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_ACCT]      = mgmtProcessCreateAcctMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_ACCT]        = mgmtProcessDropAcctMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_ALTER_ACCT]       = mgmtProcessAlterAcctMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_TABLE]     = mgmtProcessCreateTableMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_TABLE]       = mgmtProcessDropTableMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_ALTER_TABLE]      = mgmtProcessAlterTableMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_DNODE]     = mgmtProcessCreateDnodeMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_DNODE]       = mgmtProcessDropDnodeMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_DNODE_CFG]        = mgmtProcessCfgDnodeMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_CREATE_MNODE]     = mgmtProcessUnSupportMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_DROP_MNODE]       = mgmtProcessDropMnodeMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_CFG_MNODE]        = mgmtProcessCfgMnodeMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_QUERY]       = mgmtProcessKillQueryMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_STREAM]      = mgmtProcessKillStreamMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_KILL_CONNECTION]  = mgmtProcessKillConnectionMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_SHOW]             = mgmtProcessShowMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_RETRIEVE]         = mgmtProcessRetrieveMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_TABLE_META]       = mgmtProcessTableMetaMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_MULTI_TABLE_META] = mgmtProcessMultiTableMetaMsg;
+  mgmtProcessShellMsg[TSDB_MSG_TYPE_STABLE_META]      = mgmtProcessSuperTableMetaMsg;
+}

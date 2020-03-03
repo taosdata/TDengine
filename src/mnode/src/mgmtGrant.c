@@ -18,32 +18,79 @@
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtGrant.h"
+#include "mgmtUser.h"
 
-int32_t mgmtCheckUserGrantImp() { return 0; }
-int32_t (*mgmtCheckUserGrant)() = mgmtCheckUserGrantImp;
+int32_t (*mgmtCheckUserGrantFp)() = NULL;
+int32_t (*mgmtCheckDbGrantFp)() = NULL;
+void    (*mgmtAddTimeSeriesFp)(uint32_t timeSeriesNum) = NULL;
+void    (*mgmtRestoreTimeSeriesFp)(uint32_t timeSeriesNum) = NULL;
+int32_t (*mgmtCheckTimeSeriesFp)(uint32_t timeseries) = NULL;
+bool    (*mgmtCheckExpiredFp)() = NULL;
+int32_t (*mgmtGetGrantsMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = NULL;
+int32_t (*mgmtRetrieveGrantsFp)(SShowObj *pShow, char *data, int rows, void *pConn) = NULL;
+void    (*mgmtUpdateGrantInfoFp)(void *pCont) = NULL;
 
-int32_t mgmtCheckDbGrantImp() { return 0; }
-int32_t (*mgmtCheckDbGrant)() = mgmtCheckDbGrantImp;
+int32_t mgmtCheckUserGrant() {
+  if (mgmtCheckUserGrantFp) {
+    return mgmtCheckUserGrantFp();
+  } else {
+    return 0;
+  }
+}
 
-void mgmtAddTimeSeriesImp(SAcctObj *pAcct, uint32_t timeSeriesNum) {
+int32_t mgmtCheckDbGrant() {
+  if (mgmtCheckDbGrantFp) {
+    return mgmtCheckDbGrantFp();
+  } else {
+    return 0;
+  }
+}
+
+void mgmtAddTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum) {
   pAcct->acctInfo.numOfTimeSeries += timeSeriesNum;
+  if (mgmtAddTimeSeriesFp) {
+    mgmtAddTimeSeriesFp(timeSeriesNum);
+  }
 }
-void (*mgmtAddTimeSeries)(SAcctObj *pAcct, uint32_t timeSeriesNum) = mgmtAddTimeSeriesImp;
 
-void mgmtRestoreTimeSeriesImp(SAcctObj *pAcct, uint32_t timeSeriesNum) {
+void mgmtRestoreTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum) {
   pAcct->acctInfo.numOfTimeSeries -= timeSeriesNum;
+  if (mgmtRestoreTimeSeriesFp) {
+    mgmtRestoreTimeSeriesFp(timeSeriesNum);
+  }
 }
-void (*mgmtRestoreTimeSeries)(SAcctObj *pAcct, uint32_t timeSeriesNum) = mgmtRestoreTimeSeriesImp;
 
-int32_t mgmtCheckTimeSeriesImp(uint32_t timeseries) { return 0; }
-int32_t (*mgmtCheckTimeSeries)(uint32_t timeseries) = mgmtCheckTimeSeriesImp;
+int32_t mgmtCheckTimeSeries(uint32_t timeseries) {
+  if (mgmtCheckTimeSeriesFp) {
+    return mgmtCheckTimeSeriesFp(timeseries);
+  } else {
+    return 0;
+  }
+}
 
-bool mgmtCheckExpiredImp() { return false; }
-bool (*mgmtCheckExpired)() = mgmtCheckExpiredImp;
+bool mgmtCheckExpired() {
+  if (mgmtCheckExpiredFp) {
+    return mgmtCheckExpiredFp();
+  } else {
+    return false;
+  }
+}
 
-int32_t mgmtGetGrantsMetaImp(STableMeta *pMeta, SShowObj *pShow, void *pConn) { return TSDB_CODE_OPS_NOT_SUPPORT; }
-int32_t (*mgmtGetGrantsMeta)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = mgmtGetGrantsMetaImp;
+int32_t mgmtGetGrantsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+  if (mgmtGetGrantsMetaFp) {
+    SUserObj *pUser = mgmtGetUserFromConn(pConn);
+    if (pUser == NULL) return 0;
+    if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+    return mgmtGetGrantsMetaFp(pMeta, pShow, pConn);
+  } else {
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+}
 
-int32_t mgmtRetrieveGrantsImp(SShowObj *pShow, char *data, int rows, void *pConn) { return 0; }
-int32_t (*mgmtRetrieveGrants)(SShowObj *pShow, char *data, int rows, void *pConn) = mgmtRetrieveGrantsImp;
-
+int32_t mgmtRetrieveGrants(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  if (mgmtRetrieveGrantsFp) {
+    return mgmtRetrieveGrantsFp(pShow, data, rows, pConn);
+  } else {
+    return 0;
+  }
+}
