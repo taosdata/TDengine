@@ -22,29 +22,20 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "mnode.h"
 
-void dnodeGrantInit();
-void grantActiveSystem(const char* cfgFile);
-void grantSendMsgToMgmt();
-void grantReset();
-void grantUpdate(void *pGrant);
-bool grantCheckExpired();
-void grantRestoreTimeSeries(uint32_t timeseries);
-void grantAddTimeSeries(uint32_t timeseries);
-void grantResetCurStorage(uint64_t totalStorage);
-int32_t grantCheckStorage();
-int32_t grantCheckDatabases();
-int32_t grantCheckUsers();
-int32_t grantCheckAccts();
-int32_t grantCheckDnodes();
-int32_t grantCheckConns();
-int32_t grantCheckStreams();
-int32_t grantCheckCpuCores();
-int32_t grantCheckQueryTime();
-int32_t  grantCheckTimeSeries(uint32_t timeseries);
+void grantInit();
 
-
-
+extern int32_t (*mgmtCheckUserGrantFp)();
+extern int32_t (*mgmtCheckDbGrantFp)();
+extern void    (*mgmtAddTimeSeriesFp)(uint32_t timeSeriesNum);
+extern void    (*mgmtRestoreTimeSeriesFp)(uint32_t timeSeriesNum);
+extern int32_t (*mgmtCheckTimeSeriesFp)(uint32_t timeseries);
+extern bool    (*mgmtCheckExpiredFp)();
+extern int32_t (*mgmtGetGrantsMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+extern int32_t (*mgmtRetrieveGrantsFp)(SShowObj *pShow, char *data, int rows, void *pConn);
+extern void    (*dnodeParseParameterKFp)();
+extern void    (*mgmtUpdateGrantInfoFp)(void *pCont);
 
 #ifdef __cplusplus
 }
