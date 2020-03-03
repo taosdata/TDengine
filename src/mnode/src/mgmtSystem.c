@@ -33,12 +33,11 @@
 char tsMgmtDirectory[128] = {0};
 void *tsMgmtTmr           = NULL;
 void *tsMgmtTranQhandle   = NULL;
-void *tsMgmtStatisTimer   = NULL;
+
 
 void mgmtCleanUpSystem() {
   mPrint("starting to clean up mgmt");
 
-  taosTmrStopA(&tsMgmtStatisTimer);
   mgmtCleanUpRedirect();
   sdbCleanUpPeers();
   mgmtCleanupBalance();
@@ -140,9 +139,6 @@ int32_t mgmtStartSystem() {
     mError("failed to init dnode balance")
   }
 
-  if (mgmtDoStatistic) {
-    taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
-  }
 
   mPrint("TDengine mgmt is initialized successfully");
 

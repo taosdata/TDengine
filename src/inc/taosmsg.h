@@ -309,8 +309,8 @@ typedef struct {
 } SAcctCfg;
 
 typedef struct {
-  char       user[TSDB_USER_LEN + 1];
-  char       pass[TSDB_KEY_LEN + 1];
+  char     user[TSDB_USER_LEN + 1];
+  char     pass[TSDB_KEY_LEN + 1];
   SAcctCfg cfg;
 } SCreateAcctMsg, SAlterAcctMsg;
 

@@ -28,13 +28,17 @@ static SAcctObj tsAcctObj;
 
 int32_t (*mgmtInitAcctsFp)() = NULL;
 void (*mgmtCleanUpAcctsFp)() = NULL;
-SAcctObj *(*mgmtGetAcctFp)(char *acctName) = NULL;
-int32_t (*mgmtCheckUserLimitFp)(SAcctObj *pAcct) = NULL;
-int32_t (*mgmtCheckDbLimitFp)(SAcctObj *pAcct) = NULL;
-int32_t (*mgmtCheckTableLimitFp)(SAcctObj *pAcct, SCreateTableMsg *pCreate) = NULL;
+
+int32_t (*mgmtCreateAcctFp)(char *name, char *pass, SAcctCfg *pCfg) = NULL;
+int32_t (*mgmtDropAcctFp)(char *name) = NULL;
+int32_t (*mgmtAlterAcctFp)(char *name, char *pass, SAcctCfg *pCfg) = NULL;
 int32_t (*mgmtGetAcctMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = NULL;
 int32_t (*mgmtRetrieveAcctsFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn) = NULL;
-void (*mgmtDoStatisticFp)(void *handle, void *tmrId) = NULL;
+SAcctObj *(*mgmtGetAcctFp)(char *acctName) = NULL;
+
+int32_t (*mgmtCheckUserLimitFp)(SAcctObj *pAcct) = NULL;
+int32_t (*mgmtCheckDbLimitFp)(SAcctObj *pAcct) = NULL;
+int32_t (*mgmtCheckTimeSeriesLimitFp)(SAcctObj *pAcct, int32_t numOfTimeSeries) = NULL;
 
 int32_t mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb) {
   pthread_mutex_lock(&pAcct->mutex);
@@ -152,9 +156,9 @@ int32_t mgmtCheckDbLimit(SAcctObj *pAcct) {
   }
 }
 
-int32_t mgmtCheckTableLimit(SAcctObj *pAcct, SCreateTableMsg *pCreate) {
-  if (mgmtCheckTableLimitFp) {
-    return mgmtCheckTableLimitFp(pAcct, pCreate);
+int32_t mgmtCheckTableLimit(SAcctObj *pAcct, int32_t numOfTimeSeries) {
+  if (mgmtCheckTimeSeriesLimitFp) {
+    return mgmtCheckTimeSeriesLimitFp(pAcct, numOfTimeSeries);
   } else {
     return 0;
   }
@@ -194,8 +198,3 @@ SAcctObj *mgmtGetAcctFromConn(void *pConn) {
   return NULL;
 }
 
-void mgmtDoStatistic(void *handle, void *tmrId) {
-  if (mgmtDoStatisticFp) {
-    mgmtDoStatisticFp(handle, tmrId);
-  }
-}

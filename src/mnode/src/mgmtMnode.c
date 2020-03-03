@@ -137,7 +137,7 @@ static void *mgmtGetNextMnode(SShowObj *pShow, SSdbPeer **pMnode) {
     return mgmtGetNextMnodeFp(pShow, pMnode);
   } else {
     if (*pMnode == NULL) {
-      *pMnode = &tsMnodeObj;
+      *pMnode = NULL;
     } else {
       *pMnode = NULL;
     }
