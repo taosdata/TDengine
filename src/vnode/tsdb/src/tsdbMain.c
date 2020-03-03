@@ -47,6 +47,8 @@ typedef struct _tsdb_repo {
 static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
 static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo);
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
+static int     tsdbOpenMetaFile(char *tsdbDir);
+static int     tsdbRecoverRepo(int fd, STsdbCfg *pCfg);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -131,9 +133,14 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
     return NULL;
   }
 
-  // TODO: Initialize configuration from the file
-  pRepo->tsdbMeta = tsdbCreateMeta(pRepo->config.maxTables);
-  if (pRepo->tsdbMeta == NULL) {
+  int fd = tsdbOpenMetaFile(tsdbDir);
+  if (fd < 0) {
+    free(pRepo);
+    return NULL;
+  }
+
+  if (tsdbRecoverRepo(fd, &(pRepo->config)) < 0) {
+    close(fd);
     free(pRepo);
     return NULL;
   }
@@ -144,6 +151,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
     return NULL;
   }
 
+  pRepo->rootDir = strdup(tsdbDir);
   pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
   return (tsdb_repo_t *)pRepo;
@@ -155,10 +163,11 @@ static int32_t tsdbFlushCache(STsdbRepo *pRepo) {
 
 int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
-
-  tsdbFlushCache(pRepo);
+  if (pRepo == NULL) return 0;
 
   pRepo->state = TSDB_REPO_STATE_CLOSED;
+
+  tsdbFlushCache(pRepo);
 
   tsdbFreeMeta(pRepo->tsdbMeta);
 
@@ -258,5 +267,16 @@ static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo) {
   char *metaFname = tsdbGetFileName(pRepo->rootDir, "tsdb", TSDB_FILE_TYPE_META);
   remove(metaFname);
 
+  return 0;
+}
+
+static int tsdbOpenMetaFile(char *tsdbDir) {
+  // TODO
+  return 0
+}
+
+static int tsdbRecoverRepo(int fd, STsdbCfg *pCfg) {
+  // TODO: read tsdb configuration from file
+  // recover tsdb meta
   return 0;
 }

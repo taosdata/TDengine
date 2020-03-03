@@ -3,6 +3,7 @@
 // #include "taosdef.h"
 #include "tsdb.h"
 #include "tsdbMeta.h"
+#include "hash.h"
 
 #define TSDB_MIN_TABLES 10
 #define TSDB_MAX_TABLES 100000
@@ -29,7 +30,7 @@ STsdbMeta *tsdbCreateMeta(int32_t maxTables) {
     return NULL;
   }
 
-  // TODO : initialize the map
+  pMeta->tableMap = taosInitHashTable(maxTables + maxTables / 10, taosGetDefaultHashFunction, false);
   if (pMeta->tableMap == NULL) {
     free(pMeta->tables);
     free(pMeta);
@@ -56,7 +57,8 @@ int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
     pTable = pTemp->next;
     tsdbFreeTable(pTemp);
   }
-  // TODO close the map
+
+  taosCleanUpHashTable(pMeta->tableMap);
 
   free(pMeta);
 
@@ -70,7 +72,6 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
     return -1;
   }
 
-  // TODO:
   STable *pTable = (STable *)malloc(sizeof(STable));
   if (pTable == NULL) {
     return -1;
@@ -78,7 +79,6 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
 
   pMeta->tables[pCfg->tableId.tid] = pTable;
 
-  // TODO: add name to it
   return 0;
 }
 

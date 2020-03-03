@@ -18,7 +18,6 @@ typedef enum {
 typedef struct STable {
   int32_t         tableId;
   int64_t         uid;
-  char *          tableName;
   TSDB_TABLE_TYPE type;
 
   int64_t createdTime;
@@ -60,7 +59,7 @@ typedef struct {
   int32_t          numOfSuperTables;  // Number of super tables (#TSDB_SUPER_TABLE)
   STable **        tables;            // array of normal tables
   STable *         stables;           // linked list of super tables
-  void *           tableMap;          // table map of name ==> table
+  void *           tableMap;          // hash map of uid ==> STable *
 } STsdbMeta;
 
 // ---- Operation on STable
