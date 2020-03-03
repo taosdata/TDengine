@@ -159,6 +159,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
 
 static int32_t tsdbFlushCache(STsdbRepo *pRepo) {
   // TODO
+  return 0;
 }
 
 int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
@@ -186,6 +187,7 @@ int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
 
 STsdbRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo) {
   // TODO
+  return NULL;
 }
 
 int32_t tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg) {
@@ -195,14 +197,17 @@ int32_t tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg) {
 
 int32_t tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg) {
   // TODO
+  return 0;
 }
 
 STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid, int32_t *error) {
   // TODO
+  return NULL;
 }
 
 int32_t tsdbInsertData(tsdb_repo_t *pRepo, STableId tid, char *pData, int32_t *error) {
   // TODO
+  return 0;
 }
 
 // Check the configuration and set default options
@@ -272,7 +277,7 @@ static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo) {
 
 static int tsdbOpenMetaFile(char *tsdbDir) {
   // TODO
-  return 0
+  return 0;
 }
 
 static int tsdbRecoverRepo(int fd, STsdbCfg *pCfg) {

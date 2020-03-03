@@ -14,5 +14,4 @@ SCacheHandle *tsdbCreateCache(int32_t numOfBlocks) {
 
 }
 
-int32_t tsdbFreeCache(SCacheHandle *pHandle) {
-}
+int32_t tsdbFreeCache(SCacheHandle *pHandle) { return 0; }
