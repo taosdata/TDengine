@@ -23,8 +23,14 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include "mnode.h"
 
-void mnodeBalanceInit();
+void    mgmtStartBalanceTimer(int64_t mseconds);
+int32_t mgmtInitBalance();
+void    mgmtCleanupBalance();
+int32_t mgmtAllocVnodes(SVgObj *pVgroup);
+char *  mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode);
+
 
 int  mgmtSetDnodeShellRemoving(SDnodeObj *pDnode);
 void mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
