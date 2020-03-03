@@ -279,3 +279,4 @@ void mgmtProcessDropDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
 
   rpcSendResponse(ahandle, code, NULL, 0);
 }
+

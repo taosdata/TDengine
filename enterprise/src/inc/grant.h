@@ -26,6 +26,10 @@ extern "C" {
 
 void grantInit();
 
+int grantCheckAccts();
+void grantSendMsgToMgmt();
+void grantResetCurStorage(uint64_t totalStorage);
+
 extern int32_t (*mgmtCheckUserGrantFp)();
 extern int32_t (*mgmtCheckDbGrantFp)();
 extern void    (*mgmtAddTimeSeriesFp)(uint32_t timeSeriesNum);

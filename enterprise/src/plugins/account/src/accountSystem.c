@@ -93,6 +93,7 @@ static void mgmtDoStatistic(void *handle, void *tmrId) {
     grantResetCurStorage(totalStorage);
   }
 
+  grantSendMsgToMgmt();
   taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 }
 
