@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_SDB_REPLICA_H
-#define TDENGINE_MODULE_SDB_REPLICA_H
+#ifndef TDENGINE_MODULE_MNODE_PEER_H
+#define TDENGINE_MODULE_MNODE_PEER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,7 +24,14 @@ extern "C" {
 #include <stdbool.h>
 #include <pthread.h>
 
-void sdbReplicaInit();
+void mpeerInit();
+
+// balance
+extern void    (*mgmtStartBalanceTimerFp)(int64_t mseconds);
+extern int32_t (*mgmtInitBalanceFp)();
+extern void    (*mgmtCleanupBalanceFp)();
+extern int32_t (*mgmtAllocVnodesFp)(SVgObj *pVgroup);
+extern char *  (*mgmtGetVnodeStatusFp)(SVgObj *pVgroup, SVnodeGid *pVnode);
 
 // mgmtDnode
 extern int32_t    (*mgmtGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
