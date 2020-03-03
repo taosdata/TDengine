@@ -1937,7 +1937,7 @@ _dumpin_exit_failure:
   return -1;
 }
 
-int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode) {
+int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, char* fileName) {
   int       read_len = 0;
   char *    cmd      = NULL;
   size_t    cmd_len  = 0;
@@ -1970,7 +1970,8 @@ int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode) {
 
     memcpy(cmd + cmd_len, line, read_len);
     if (taos_query(taos, cmd)) {
-      fprintf(stderr, "DB error: %s line:%d\n", taos_errstr(taos), lineNo);
+      fprintf(stderr, "DB error: %s line:%d, file:%s\n", taos_errstr(taos), lineNo, fileName);
+      fprintf(stderr, "Error SQL: %s\n", cmd);
       /* free local resouce: allocated memory/metric-meta refcnt */
       TAOS_RES *pRes = taos_use_result(taos);
       taos_free_result(pRes);
@@ -1996,7 +1997,8 @@ void* taosDumpInWorkThreadFp(void *arg)
       if (NULL == fp) {
         continue;
       }
-      taosDumpInOneFile(pThread->taosCon, fp, tsfCharset, tsArguments.encode);
+      fprintf(stderr, "Success Open input file: %s\n", SQLFileName);
+      taosDumpInOneFile(pThread->taosCon, fp, tsfCharset, tsArguments.encode, SQLFileName);
     }
   }
 
@@ -2064,10 +2066,11 @@ int taosDumpIn(struct arguments *arguments) {
       fprintf(stderr, "failed to open input file %s\n", tsDbSqlFile);
       return -1;
     }
+    fprintf(stderr, "Success Open input file: %s\n", tsDbSqlFile);
     
     taosLoadFileCharset(fp, tsfCharset);
     
-    taosDumpInOneFile(taos, fp, tsfCharset, arguments->encode);
+    taosDumpInOneFile(taos, fp, tsfCharset, arguments->encode, tsDbSqlFile);
   }
 
   taosStartDumpInWorkThreads(arguments);
