@@ -32,3 +32,7 @@ int32_t tdGetMaxDataRowSize(SSchema *pSchema) {
 }
 
 SDataRow tdSDataRowDup(SDataRow rdata) { return NULL; }
+void     tdFreeSDataRow(SDataRow rdata) {
+  if (rdata == NULL) return;
+  free(rdata);
+}

@@ -244,9 +244,15 @@ int32_t tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg) {
   return 0;
 }
 
-int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tid) { return 0; }
+int32_t tsdbDropTable(tsdb_repo_t *repo, STableId tableId) {
+  // TODO
+  if (repo == NULL) return -1;
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
 
-STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid) {
+  return tsdbDropTableImpl(pRepo->tsdbMeta, tableId);
+}
+
+STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tableId) {
   // TODO
   return NULL;
 }

@@ -182,7 +182,7 @@ int32_t tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tid);
+int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tableId);
 
 /**
  * Get the information of a table in the repository

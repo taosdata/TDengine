@@ -13,6 +13,10 @@ const int32_t rowDataLen[] = {
     sizeof(int32_t),  // TD_DATATYPE_NCHAR,
     sizeof(int32_t)   // TD_DATATYPE_BINARY
 };
+void tdFreeSchema(SSchema *pSchema) {
+  // TODO
+  return;
+}
 
 static size_t tdGetEstimatedISchemaLen(SSchema *pSchema) {
   size_t colNameLen = 0;
