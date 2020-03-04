@@ -91,8 +91,8 @@ int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pCon
     pShow->pNode = mgmtGetNextMnode(pShow, (SDnodeObj **)&pMnode);
 
 
-    pShow->pNode = sdbFetchRow(mnodeSdb, pShow->pNode, (void **)&pMnode);
-    if (pMnode == NULL) break;
+//    pShow->pNode = sdbFetchRow(mnodeSdb, pShow->pNode, (void **)&pMnode);
+//    if (pMnode == NULL) break;
 
     cols = 0;
 

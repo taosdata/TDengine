@@ -258,10 +258,10 @@ typedef struct {
 } SShowObj;
 
 //mgmtSystem
+int32_t mgmtInitSystem();
 int32_t mgmtStartSystem();
-void mgmtCleanUpSystem();
-extern void (*mgmtCleanUpRedirect)();
-
+void    mgmtCleanUpSystem();
+void    mgmtStopSystem();
 
 void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *pConn, int32_t code);
 

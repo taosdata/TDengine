@@ -21,76 +21,67 @@
 #include "mgmtBalance.h"
 #include "mgmtDnode.h"
 
-void mgmtStartBalanceTimerImp(int64_t mseconds) {}
-void (*mgmtStartBalanceTimer)(int64_t mseconds) = mgmtStartBalanceTimerImp;
+void    (*mgmtStartBalanceTimerFp)(int64_t mseconds) = NULL;
+int32_t (*mgmtInitBalanceFp)() = NULL;
+void    (*mgmtCleanupBalanceFp)() = NULL;
+int32_t (*mgmtAllocVnodesFp)(SVgObj *pVgroup) = NULL;
+char *  (*mgmtGetVnodeStatusFp)(SVgObj *pVgroup, SVnodeGid *pVnode) = NULL;
 
-int32_t mgmtInitBalanceImp() { return 0; }
-int32_t (*mgmtInitBalance)() = mgmtInitBalanceImp;
-
-void mgmtCleanupBalanceImp() {}
-void (*mgmtCleanupBalance)() = mgmtCleanupBalanceImp;
-
-int32_t mgmtAllocVnodesImp(SVgObj *pVgroup) {
-//  int        selectedVnode = -1;
-//  int        lastAllocVode = pDnode->lastAllocVnode;
-//
-//  for (int i = 0; i < pDnode->numOfVnodes; i++) {
-//    int vnode = (i + lastAllocVode) % pDnode->numOfVnodes;
-//    if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_OFFLINE) {
-//      selectedVnode = vnode;
-//      break;
-//    }
-//  }
-//
-//  if (selectedVnode == -1) {
-//    mError("vgroup:%d alloc vnode failed, free vnodes:%d", pVgroup->vgId, pDnode->numOfFreeVnodes);
-//    return -1;
-//  } else {
-//    mTrace("vgroup:%d allocate vnode:%d, last allocated vnode:%d", pVgroup->vgId, selectedVnode, lastAllocVode);
-//    pVgroup->vnodeGid[0].vnode = selectedVnode;
-//    pDnode->lastAllocVnode = selectedVnode + 1;
-//    if (pDnode->lastAllocVnode >= pDnode->numOfVnodes) pDnode->lastAllocVnode = 0;
-//    return 0;
-//  }
-  return 0;
-}
-int32_t (*mgmtAllocVnodes)(SVgObj *pVgroup) = mgmtAllocVnodesImp;
-
-bool mgmtCheckModuleInDnodeImp(SDnodeObj *pDnode, int moduleType) {
-  return tsModule[moduleType].num != 0;
-}
-
-bool (*mgmtCheckModuleInDnode)(SDnodeObj *pDnode, int moduleType) = mgmtCheckModuleInDnodeImp;
-
-char *mgmtGetVnodeStatusImp(SVgObj *pVgroup, SVnodeGid *pVnode) {
-  return "master";
-}
-
-char *(*mgmtGetVnodeStatus)(SVgObj *pVgroup, SVnodeGid *pVnode) = mgmtGetVnodeStatusImp;
-
-bool mgmtCheckVnodeReadyImp(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode) {
-  return true;
-}
-
-bool (*mgmtCheckVnodeReady)(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode) = mgmtCheckVnodeReadyImp;
-
-void mgmtUpdateDnodeStateImp(SDnodeObj *pDnode, int lbStatus) {
-}
-
-void (*mgmtUpdateDnodeState)(SDnodeObj *pDnode, int lbStatus) = mgmtUpdateDnodeStateImp;
-
-void mgmtUpdateVgroupStateImp(SVgObj *pVgroup, int lbStatus, int srcIp) {
-}
-
-void (*mgmtUpdateVgroupState)(SVgObj *pVgroup, int lbStatus, int srcIp) = mgmtUpdateVgroupStateImp;
-
-
-bool (*mgmtAddVnodeFp)(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) = NULL;
-bool mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) {
-  if (mgmtAddVnodeFp) {
-    return mgmtAddVnodeFp(pVgroup, pSrcDnode, pDestDnode);
-  } else {
-    return false;
+void mgmtStartBalanceTimer(int64_t mseconds) {
+  if (mgmtStartBalanceTimerFp) {
+    (*mgmtStartBalanceTimerFp)(mseconds);
   }
 }
 
+int32_t mgmtInitBalance() {
+  if (mgmtInitBalanceFp) {
+    return (*mgmtInitBalanceFp)();
+  } else {
+    return 0;
+  }
+}
+
+void mgmtCleanupBalance() {
+  if (mgmtCleanupBalanceFp) {
+    (*mgmtCleanupBalanceFp)();
+  }
+}
+
+int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
+  if (mgmtAllocVnodesFp) {
+    return mgmtAllocVnodesFp(pVgroup);
+  }
+
+  SDnodeObj *pDnode = mgmtGetDnode(0);
+  if (pDnode == NULL) return TSDB_CODE_OTHERS;
+
+  int selectedVnode = -1;
+  int lastAllocVode = pDnode->lastAllocVnode;
+
+  for (int i = 0; i < pDnode->numOfVnodes; i++) {
+    int vnode = (i + lastAllocVode) % pDnode->numOfVnodes;
+    if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_OFFLINE) {
+      selectedVnode = vnode;
+      break;
+    }
+  }
+
+  if (selectedVnode == -1) {
+    mError("vgroup:%d alloc vnode failed, free vnodes:%d", pVgroup->vgId, pDnode->numOfFreeVnodes);
+    return -1;
+  } else {
+    mTrace("vgroup:%d allocate vnode:%d, last allocated vnode:%d", pVgroup->vgId, selectedVnode, lastAllocVode);
+    pVgroup->vnodeGid[0].vnode = selectedVnode;
+    pDnode->lastAllocVnode     = selectedVnode + 1;
+    if (pDnode->lastAllocVnode >= pDnode->numOfVnodes) pDnode->lastAllocVnode = 0;
+    return 0;
+  }
+}
+
+char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
+  if (mgmtGetVnodeStatusFp) {
+    return (*mgmtGetVnodeStatusFp)(pVgroup, pVnode);
+  } else {
+    return "master";
+  }
+}
