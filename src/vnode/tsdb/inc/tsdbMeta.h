@@ -76,8 +76,9 @@ typedef struct STable {
 
 typedef struct {
   int32_t  maxTables;
+  int32_t  nTables;
   STable **tables;    // array of normal tables
-  STable * stables;   // linked list of super tables
+  STable * stables;   // linked list of super tables // TODO use container to implement this
   void *   tableMap;  // hash map of uid ==> STable *
 } STsdbMeta;
 

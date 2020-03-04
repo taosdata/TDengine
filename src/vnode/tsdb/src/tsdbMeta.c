@@ -6,13 +6,7 @@
 #include "tsdb.h"
 #include "tsdbMeta.h"
 
-#define TSDB_MIN_TABLES 10
-#define TSDB_MAX_TABLES 100000
-#define TSDB_DEFAULT_NSTABLES 10
-
 #define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
-
-#define IS_VALID_MAX_TABLES(maxTables) (((maxTables) >= TSDB_MIN_TABLES) && ((maxTables) <= TSDB_MAX_TABLES))
 
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
@@ -22,8 +16,6 @@ static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 
 STsdbMeta *tsdbCreateMeta(int32_t maxTables) {
-  if (!IS_VALID_MAX_TABLES(maxTables)) return NULL;
-
   STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
   if (pMeta == NULL) {
     return NULL;
