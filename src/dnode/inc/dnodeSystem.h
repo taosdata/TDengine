@@ -33,11 +33,11 @@ extern int32_t (*dnodeInitPeers)(int32_t numOfThreads);
 extern int32_t (*dnodeCheckSystem)();
 extern int32_t (*dnodeInitStorage)();
 extern void (*dnodeCleanupStorage)();
-extern void (*dnodeParseParameterK)();
 extern int32_t tsMaxQueues;
 extern void ** tsRpcQhandle;
 extern void *tsQueryQhandle;
 extern void *tsDnodeMgmtQhandle;
+extern void *tsDnodeTmr;
 
 int32_t dnodeInitSystem();
 void dnodeCleanUpSystem();

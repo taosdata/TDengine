@@ -106,11 +106,12 @@ int main(int argc, char *argv[]) {
   rpcInit.cfp          = processResponse;
   rpcInit.ufp          = processUpdateIpSet;
   rpcInit.sessions     = 100;
-  rpcInit.idleTime     = 2000;
+  rpcInit.idleTime     = tsShellActivityTimer*1000;
   rpcInit.user         = "michael";
   rpcInit.secret       = "mypassword";
   rpcInit.ckey         = "key";
   rpcInit.spi          = 1;
+  rpcInit.connType     = TAOS_CONN_CLIENT;
 
   for (int i=1; i<argc; ++i) { 
     if (strcmp(argv[i], "-p")==0 && i < argc-1) {
@@ -159,8 +160,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  rpcInit.connType = TAOS_CONN_CLIENT;
   taosInitLog("client.log", 100000, 10);
+  tPrint("rpcDebugFlag:%d", rpcDebugFlag);
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
@@ -200,7 +201,7 @@ int main(int argc, char *argv[]) {
   tPrint("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs*appThreads);
   tPrint("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0*numOfReqs*appThreads/usedTime, msgSize);
 
-  taosCloseLog();
+  taosCloseLogger();
 
   return 0;
 }

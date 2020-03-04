@@ -21,19 +21,42 @@
 #include "mgmtBalance.h"
 #include "mgmtDnode.h"
 
-void mgmtStartBalanceTimerImp(int64_t mseconds) {}
-void (*mgmtStartBalanceTimer)(int64_t mseconds) = mgmtStartBalanceTimerImp;
+void    (*mgmtStartBalanceTimerFp)(int64_t mseconds) = NULL;
+int32_t (*mgmtInitBalanceFp)() = NULL;
+void    (*mgmtCleanupBalanceFp)() = NULL;
+int32_t (*mgmtAllocVnodesFp)(SVgObj *pVgroup) = NULL;
+char *  (*mgmtGetVnodeStatusFp)(SVgObj *pVgroup, SVnodeGid *pVnode) = NULL;
 
-int32_t mgmtInitBalanceImp() { return 0; }
-int32_t (*mgmtInitBalance)() = mgmtInitBalanceImp;
+void mgmtStartBalanceTimer(int64_t mseconds) {
+  if (mgmtStartBalanceTimerFp) {
+    (*mgmtStartBalanceTimerFp)(mseconds);
+  }
+}
 
-void mgmtCleanupBalanceImp() {}
-void (*mgmtCleanupBalance)() = mgmtCleanupBalanceImp;
+int32_t mgmtInitBalance() {
+  if (mgmtInitBalanceFp) {
+    return (*mgmtInitBalanceFp)();
+  } else {
+    return 0;
+  }
+}
 
-int32_t mgmtAllocVnodesImp(SVgObj *pVgroup) {
-  int        selectedVnode = -1;
-  SDnodeObj *pDnode = &tsDnodeObj;
-  int        lastAllocVode = pDnode->lastAllocVnode;
+void mgmtCleanupBalance() {
+  if (mgmtCleanupBalanceFp) {
+    (*mgmtCleanupBalanceFp)();
+  }
+}
+
+int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
+  if (mgmtAllocVnodesFp) {
+    return mgmtAllocVnodesFp(pVgroup);
+  }
+
+  SDnodeObj *pDnode = mgmtGetDnode(0);
+  if (pDnode == NULL) return TSDB_CODE_OTHERS;
+
+  int selectedVnode = -1;
+  int lastAllocVode = pDnode->lastAllocVnode;
 
   for (int i = 0; i < pDnode->numOfVnodes; i++) {
     int vnode = (i + lastAllocVode) % pDnode->numOfVnodes;
@@ -49,44 +72,16 @@ int32_t mgmtAllocVnodesImp(SVgObj *pVgroup) {
   } else {
     mTrace("vgroup:%d allocate vnode:%d, last allocated vnode:%d", pVgroup->vgId, selectedVnode, lastAllocVode);
     pVgroup->vnodeGid[0].vnode = selectedVnode;
-    pDnode->lastAllocVnode = selectedVnode + 1;
+    pDnode->lastAllocVnode     = selectedVnode + 1;
     if (pDnode->lastAllocVnode >= pDnode->numOfVnodes) pDnode->lastAllocVnode = 0;
     return 0;
   }
 }
-int32_t (*mgmtAllocVnodes)(SVgObj *pVgroup) = mgmtAllocVnodesImp;
 
-bool mgmtCheckModuleInDnodeImp(SDnodeObj *pDnode, int moduleType) {
-  return tsModule[moduleType].num != 0;
+char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
+  if (mgmtGetVnodeStatusFp) {
+    return (*mgmtGetVnodeStatusFp)(pVgroup, pVnode);
+  } else {
+    return "master";
+  }
 }
-
-bool (*mgmtCheckModuleInDnode)(SDnodeObj *pDnode, int moduleType) = mgmtCheckModuleInDnodeImp;
-
-char *mgmtGetVnodeStatusImp(SVgObj *pVgroup, SVnodeGid *pVnode) {
-  return "master";
-}
-
-char *(*mgmtGetVnodeStatus)(SVgObj *pVgroup, SVnodeGid *pVnode) = mgmtGetVnodeStatusImp;
-
-bool mgmtCheckVnodeReadyImp(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode) {
-  return true;
-}
-
-bool (*mgmtCheckVnodeReady)(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode) = mgmtCheckVnodeReadyImp;
-
-void mgmtUpdateDnodeStateImp(SDnodeObj *pDnode, int lbStatus) {
-}
-
-void (*mgmtUpdateDnodeState)(SDnodeObj *pDnode, int lbStatus) = mgmtUpdateDnodeStateImp;
-
-void mgmtUpdateVgroupStateImp(SVgObj *pVgroup, int lbStatus, int srcIp) {
-}
-
-void (*mgmtUpdateVgroupState)(SVgObj *pVgroup, int lbStatus, int srcIp) = mgmtUpdateVgroupStateImp;
-
-bool mgmtAddVnodeImp(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) {
-  return false;
-}
-
-bool (*mgmtAddVnode)(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) = mgmtAddVnodeImp;
-

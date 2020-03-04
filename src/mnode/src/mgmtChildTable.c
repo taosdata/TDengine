@@ -442,7 +442,7 @@ int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName
 //
 //  mgmtMeterActionEncode(pTable, msg, size, &rowSize);
 //
-//  int32_t ret = sdbUpdateRow(meterSdb, msg, rowSize, 1);  // Need callback function
+//  int32_t ret = sdbUpdateRow(tsChildTableSdb, msg, rowSize, 1);  // Need callback function
 //  tfree(msg);
 //
 //  if (pTable->isDirty) pTable->isDirty = 0;

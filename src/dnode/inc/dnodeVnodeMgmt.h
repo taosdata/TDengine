@@ -58,6 +58,8 @@ int32_t dnodeDropVnode(int32_t vnode);
 //tsdb_repo_t* dnodeGetVnode(int vid);
 void* dnodeGetVnode(int32_t vnode);
 
+int32_t dnodeGetVnodesNum();
+
 /*
  * get the status of vnode
  */

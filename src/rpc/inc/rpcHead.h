@@ -48,7 +48,7 @@ typedef struct {
   char     spi:3;     // security parameter index
   char     encrypt:3; // encrypt algorithm, 0: no encryption
   uint16_t tranId;    // transcation ID
-  uint32_t uid;       // for unique ID inside a client
+  uint32_t linkUid;   // for unique connection ID assigned by client
   uint32_t sourceId;  // source ID, an index for connection list  
   uint32_t destId;    // destination ID, an index for connection list
   uint32_t destIp;    // destination IP address, for NAT scenario

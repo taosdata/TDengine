@@ -24,10 +24,6 @@ extern "C" {
 #include <stdbool.h>
 #include "mnode.h"
 
-int32_t mgmtCreateDnode(uint32_t ip);
-int32_t mgmtDropDnode(SDnodeObj *pDnode);
-int32_t mgmtDropDnodeByIp(uint32_t ip);
-int32_t mgmtGetNextVnode(SVnodeGid *pVnodeGid);
 void    mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes, int32_t vgId);
 void    mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes);
 int32_t mgmtGetDnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
@@ -38,25 +34,24 @@ void    mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode);
 int32_t mgmtGetConfigMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
+bool    mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType);
 int32_t mgmtGetModuleMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-extern int32_t    (*mgmtInitDnodes)();
-extern void       (*mgmtCleanUpDnodes)();
-extern SDnodeObj* (*mgmtGetDnode)(uint32_t ip);
-extern int32_t    (*mgmtGetDnodesNum)();
-extern void*      (*mgmtGetNextDnode)(SShowObj *pShow, SDnodeObj **pDnode);
-extern int32_t    (*mgmtUpdateDnode)(SDnodeObj *pDnode);
-extern void       (*mgmtSetDnodeUnRemove)(SDnodeObj *pDnode);
-extern int32_t    (*mgmtGetScoresMeta)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-extern int32_t    (*mgmtRetrieveScores)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-extern bool       (*mgmtCheckConfigShow)(SGlobalConfig *cfg);
+int32_t mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+int32_t mgmtRetrieveScores(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-extern SDnodeObj tsDnodeObj;
-
+int32_t mgmtInitDnodes();
+void    mgmtCleanUpDnodes();
+int32_t mgmtGetDnodesNum();
+int32_t mgmtUpdateDnode(SDnodeObj *pDnode);
+void*   mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode);
+bool    mgmtCheckConfigShow(SGlobalConfig *cfg);
+void    mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
+SDnodeObj* mgmtGetDnode(uint32_t ip);
 
 #ifdef __cplusplus
 }

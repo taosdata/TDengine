@@ -19,6 +19,8 @@
 #include "tglobalcfg.h"
 #include "dnodeSystem.h"
 
+void (*dnodeParseParameterKFp)() = NULL;
+
 /*
  * Termination handler
  */
@@ -63,7 +65,9 @@ int main(int argc, char *argv[]) {
       printf("buildinfo: %s\n", buildinfo);
       return 0;
     } else if (strcmp(argv[i], "-k") == 0) {
-      dnodeParseParameterK();
+      if (dnodeParseParameterKFp) {
+        dnodeParseParameterKFp();
+      }
 #ifdef TAOS_MEM_CHECK
     } else if (strcmp(argv[i], "--alloc-random-fail") == 0) {
       if ((i < argc - 1) && (argv[i+1][0] != '-')) {
