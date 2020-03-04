@@ -32,6 +32,7 @@ void grantResetCurStorage(uint64_t totalStorage);
 
 extern int32_t (*mgmtCheckUserGrantFp)();
 extern int32_t (*mgmtCheckDbGrantFp)();
+extern int32_t (*mgmtCheckDnodeGrantFp)();
 extern void    (*mgmtAddTimeSeriesFp)(uint32_t timeSeriesNum);
 extern void    (*mgmtRestoreTimeSeriesFp)(uint32_t timeSeriesNum);
 extern int32_t (*mgmtCheckTimeSeriesFp)(uint32_t timeseries);

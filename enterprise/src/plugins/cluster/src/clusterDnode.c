@@ -15,10 +15,15 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tmodule.h"
+#include "tstatus.h"
 #include "tschemautil.h"
+#include "mgmtGrant.h"
 #include "dnodeSystem.h"
 #include "dnodeModule.h"
 #include "clusterDnode.h"
+#include "clusterDnodeConn.h"
+#include "clusterModule.h"
 
 void *tsDnodeSdb = NULL;
 
@@ -33,6 +38,130 @@ static void *mgmtDnodeActionEncode(void *row, char *str, int32_t size, int32_t *
 static void *mgmtDnodeActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtDnodeActionReset(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtDnodeActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
+
+static void mgmtDnodeActionInit() {
+  mgmtDnodeActionFp[SDB_TYPE_INSERT] = mgmtDnodeActionInsert;
+  mgmtDnodeActionFp[SDB_TYPE_DELETE] = mgmtDnodeActionDelete;
+  mgmtDnodeActionFp[SDB_TYPE_UPDATE] = mgmtDnodeActionUpdate;
+  mgmtDnodeActionFp[SDB_TYPE_ENCODE] = mgmtDnodeActionEncode;
+  mgmtDnodeActionFp[SDB_TYPE_DECODE] = mgmtDnodeActionDecode;
+  mgmtDnodeActionFp[SDB_TYPE_RESET] = mgmtDnodeActionReset;
+  mgmtDnodeActionFp[SDB_TYPE_DESTROY] = mgmtDnodeActionDestroy;
+}
+
+static void *mgmtDnodeAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
+  if (mgmtDnodeActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtDnodeActionFp[(uint8_t)action]))(row, str, size, ssize);
+  }
+  return NULL;
+}
+
+int32_t mgmtCreateDnode(uint32_t ip) {
+  int32_t numOfDnodes = sdbGetNumOfRows(tsDnodeSdb);
+  if (numOfDnodes >= tsMaxDnodes) {
+    mWarn("numOfDnodes:%d, exceed tsMaxDnodes:%d", numOfDnodes, tsMaxDnodes);
+    return TSDB_CODE_TOO_MANY_DNODES;
+  }
+
+  int32_t grantCode = mgmtCheckDbGrant();
+  if (grantCode != 0) {
+    return grantCode;
+  }
+
+  SDnodeObj *pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
+  pDnode->privateIp       = ip;
+  pDnode->numOfVnodes     = TSDB_INVALID_VNODE_NUM;
+  pDnode->numOfFreeVnodes = TSDB_INVALID_VNODE_NUM;
+  pDnode->createdTime     = taosGetTimestampMs();
+  pDnode->lastAccess      = mgmtAccessSquence;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (sdbInsertRow(tsDnodeSdb, pDnode, 0) < 0) {
+    code = TSDB_CODE_SDB_ERROR;
+    tfree(pDnode);
+  }
+
+  return code;
+}
+
+static int32_t mgmtDropDnode(SDnodeObj *pDnode) {
+  char ipstr[20] = {0};
+  tinet_ntoa(ipstr, pDnode->privateIp);
+
+  mgmtUnSetModuleInDnode(pDnode, TSDB_MOD_MGMT);
+  sdbDeleteRow(tsDnodeSdb, pDnode);
+  mLPrint("dnode:%s is dropped from cluster", ipstr);
+
+  return 0;
+}
+
+int32_t mgmtDropDnodeByIp(uint32_t ip) {
+  SDnodeObj *pDnode = sdbGetRow(tsDnodeSdb, &ip);
+  if (pDnode == NULL) return TSDB_CODE_INVALID_VALUE;
+
+  if (pDnode->privateIp == dnodeGetMgmtIp()) {
+    mError("dnode:%s, can't drop dnode which is master", taosIpStr(pDnode->privateIp));
+    return TSDB_CODE_NO_REMOVE_MASTER;
+  }
+
+  return mgmtDropDnode(pDnode);
+  //return mgmtSetDnodeShellRemoving(pDnode);
+}
+
+int32_t mgmtUpdateDnodeImp(SDnodeObj *pDnode) {
+  return sdbUpdateRow(tsDnodeSdb, pDnode, 0, 1);
+}
+
+static void *mgmtDnodeActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
+  SDnodeObj *pDnode = (SDnodeObj *)row;
+
+  pDnode->status = TSDB_DN_STATUS_OFFLINE;
+  pDnode->numOfFreeVnodes = pDnode->numOfVnodes;
+  for (int32_t vnode = 0; vnode < pDnode->numOfVnodes; ++vnode) {
+    pDnode->vload[vnode].vgId = 0;
+  }
+
+  return NULL;
+}
+
+static void *mgmtDnodeActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
+  return NULL;
+}
+
+static void *mgmtDnodeActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
+  return mgmtDnodeActionReset(row, str, size, ssize);
+}
+
+static void *mgmtDnodeActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
+  SDnodeObj *pDnode = (SDnodeObj *)row;
+  if (size < tsDnodeUpdateSize) {
+    *ssize = -1;
+  } else {
+    memcpy(str, pDnode, tsDnodeUpdateSize);
+    *ssize = tsDnodeUpdateSize;
+  }
+
+  return NULL;
+}
+
+void *mgmtDnodeActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
+  SDnodeObj *pDnode = calloc(1, sizeof(SDnodeObj));
+  memcpy(pDnode, str, tsDnodeUpdateSize);
+
+  return (void *)pDnode;
+}
+
+void *mgmtDnodeActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
+  SDnodeObj *pDnode = (SDnodeObj *)row;
+  memcpy(pDnode, str, tsDnodeUpdateSize);
+
+  return NULL;
+}
+
+void *mgmtDnodeActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
+  tfree(row);
+  return NULL;
+}
 
 int32_t mgmtInitDnodesImp() {
   void *     pNode = NULL;
@@ -54,7 +183,7 @@ int32_t mgmtInitDnodesImp() {
   if (numOfRows <= 0) {
     if (strcmp(tsMasterIp, tsPrivateIp) == 0) {
       mgmtCreateDnode(inet_addr(tsPrivateIp));
-      pDnode = mgmtGetDnode(inet_addr(tsPrivateIp));
+      pDnode = mgmtGetDnodeImp(inet_addr(tsPrivateIp));
       pDnode->moduleStatus |= (1 << TSDB_MOD_MGMT);
       sdbUpdateRow(tsDnodeSdb, pDnode, tsDnodeUpdateSize, 1);
     }
@@ -94,189 +223,3 @@ int32_t mgmtGetDnodesNumImp() {
 void *mgmtGetNextDnodeImp(SShowObj *pShow, SDnodeObj **pDnode) {
   return sdbFetchRow(tsDnodeSdb, pShow->pNode, (void**)pDnode);
 }
-
-static void mgmtDnodeActionInit() {
-  mgmtDnodeActionFp[SDB_TYPE_INSERT] = mgmtDnodeActionInsert;
-  mgmtDnodeActionFp[SDB_TYPE_DELETE] = mgmtDnodeActionDelete;
-  mgmtDnodeActionFp[SDB_TYPE_UPDATE] = mgmtDnodeActionUpdate;
-  mgmtDnodeActionFp[SDB_TYPE_ENCODE] = mgmtDnodeActionEncode;
-  mgmtDnodeActionFp[SDB_TYPE_DECODE] = mgmtDnodeActionDecode;
-  mgmtDnodeActionFp[SDB_TYPE_RESET] = mgmtDnodeActionReset;
-  mgmtDnodeActionFp[SDB_TYPE_DESTROY] = mgmtDnodeActionDestroy;
-}
-
-static void *mgmtDnodeAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
-  if (mgmtDnodeActionFp[(uint8_t)action] != NULL) {
-    return (*(mgmtDnodeActionFp[(uint8_t)action]))(row, str, size, ssize);
-  }
-  return NULL;
-}
-
-static int32_t mgmtCreateDnode(uint32_t ip) {
-  int32_t numOfDnodes = sdbGetNumOfRows(tsDnodeSdb);
-  if (numOfDnodes >= tsMaxDnodes) {
-    mWarn("numOfDnodes:%d, exceed tsMaxDnodes:%d", numOfDnodes, tsMaxDnodes);
-    return TSDB_CODE_TOO_MANY_DNODES;
-  }
-
-  int32_t grantCode = grantCheckDnodes();
-  if (grantCode != 0) {
-    return grantCode;
-  }
-
-  SDnodeObj *pDnode = (SDnodeObj *) calloc(1, sizeof(SDnodeObj));
-  pDnode->privateIp       = ip;
-  pDnode->numOfVnodes     = TSDB_INVALID_VNODE_NUM;
-  pDnode->numOfFreeVnodes = TSDB_INVALID_VNODE_NUM;
-  pDnode->createdTime     = taosGetTimestampMs();
-  pDnode->lastAccess      = mgmtAccessSquence;
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (sdbInsertRow(tsDnodeSdb, pDnode, 0) < 0) {
-    code = TSDB_CODE_SDB_ERROR;
-    tfree(pDnode);
-  }
-
-  return code;
-}
-
-static int32_t mgmtDropDnode(SDnodeObj *pDnode) {
-  char ipstr[20] = {0};
-  tinet_ntoa(ipstr, pDnode->privateIp);
-
-  mgmtUnSetModuleInDnode(pDnode, TSDB_MOD_MGMT);
-  sdbDeleteRow(tsDnodeSdb, pDnode);
-  mLPrint("dnode:%s is dropped from cluster", ipstr);
-
-  return 0;
-}
-
-static int32_t mgmtDropDnodeByIp(uint32_t ip) {
-  SDnodeObj *pDnode = sdbGetRow(tsDnodeSdb, &ip);
-  if (pDnode == NULL) return TSDB_CODE_INVALID_VALUE;
-
-  if (pDnode->privateIp == tsDnodeMgmtIpList.ip[0]) {
-    mError("dnode:%s, can't drop dnode which is master", taosIpStr(pDnode->privateIp));
-    return TSDB_CODE_NO_REMOVE_MASTER;
-  }
-
-  return mgmtSetDnodeShellRemoving(pDnode);
-}
-
-int32_t mgmtUpdateDnodeImp(SDnodeObj *pDnode) {
-  return sdbUpdateRow(tsDnodeSdb, pDnode, 0, 1);
-}
-
-static void *mgmtDnodeActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
-  SDnodeObj *pDnode = (SDnodeObj *)row;
-
-  pDnode->status = TSDB_DN_STATUS_OFFLINE;
-  pDnode->numOfFreeVnodes = pDnode->numOfVnodes;
-  for (int32_t vnode = 0; vnode < pDnode->numOfVnodes; ++vnode) {
-    pDnode->vload[vnode].vgId = 0;
-  }
-
-  return NULL;
-}
-
-static void *mgmtDnodeActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
-  return NULL;
-}
-
-static void *mgmtDnodeActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
-  return mgmtDnodeActionReset(row, str, size, ssize);
-}
-
-static void *mgmtDnodeActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
-  SDnodeObj *pDnode = (SDnodeObj *)row;
-  if (size < tsDnodeUpdateSize) {
-    *ssize = -1;
-  } else {
-    memcpy(str, pDnode, tsDnodeUpdateSize);
-    *ssize = tsize;
-  }
-
-  return NULL;
-}
-
-void *mgmtDnodeActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
-  SDnodeObj *pDnode = calloc(1, sizeof(SDnodeObj));
-  memcpy(pDnode, str, tsDnodeUpdateSize);
-
-  return (void *)pDnode;
-}
-
-void *mgmtDnodeActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
-  SDnodeObj *pDnode = (SDnodeObj *)row;
-  memcpy(pDnode, str, tsDnodeUpdateSize);
-
-  return NULL;
-}
-
-void *mgmtDnodeActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
-  tfree(row);
-  return NULL;
-}
-
-void mgmtProcessCreateDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
-  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *)pCont;
-
-  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
-    mError("failed to create dnode:%s, redirect this message", pCreate->ip);
-    return;
-  }
-
-  SUserObj *pUser = mgmtGetUserFromConn(ahandle);
-  if (pUser == NULL) {
-    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(TSDB_CODE_INVALID_USER)));
-    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return;
-  }
-
-  if (strcmp(pUser->user, "root") != 0) {
-    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(TSDB_CODE_NO_RIGHTS));
-    rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
-    return;
-  }
-
-  int32_t code = mgmtCreateDnode(inet_addr(pCreate->ip));
-  if (code == TSDB_CODE_SUCCESS) {
-    mLPrint("dnode:%s is created by %s", pCreate->ip, pUser->user);
-  } else {
-    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(code));
-  }
-
-  rpcSendResponse(ahandle, code, NULL, 0);
-}
-
-void mgmtProcessDropDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
-  SDropDnodeMsg *pDrop = (SDropDnodeMsg *)pMsg;
-
-  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
-    mError("failed to drop dnode:%s, redirect this message", pDrop->ip);
-    return;
-  }
-
-  SUserObj *pUser = mgmtGetUserFromConn(ahandle);
-  if (pUser == NULL) {
-    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(TSDB_CODE_INVALID_USER)));
-    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
-    return;
-  }
-
-  if (strcmp(pUser->user, "root") != 0) {
-    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(TSDB_CODE_NO_RIGHTS));
-    rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
-    return;
-  }
-
-  int32_t code = mgmtDropDnodeByIp(inet_addr(pDrop->ip));
-  if (code == TSDB_CODE_SUCCESS) {
-    mLPrint("dnode:%s set to removing state by %s", pDrop->ip, pUser->user);
-  } else {
-    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(code));
-  }
-
-  rpcSendResponse(ahandle, code, NULL, 0);
-}
-

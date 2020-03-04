@@ -14,8 +14,10 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tmodule.h"
 #include "mgmtBalance.h"
 #include "dnodeModule.h"
+#include "clusterModule.h"
 
 #define LB_MODULE_UNLIMIT -1
 
@@ -39,11 +41,6 @@ int32_t mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
     return code;
   }
   return 0;
-}
-
-bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
-  uint32_t status = pDnode->moduleStatus & (1 << moduleType);
-  return status > 0;
 }
 
 void mgmtStopRemoveStateModule(SDnodeObj *pDnode) {
@@ -182,3 +179,12 @@ void mgmtMonitorDnodeModule() {
     }
   }
 }
+
+void mgmtUpdateModules(uint32_t status) {
+  if (status != tsModuleStatus) {
+    dPrint("module status is received, old:%d, new:%d", tsModuleStatus, status);
+    dnodeProcessModuleStatus(status);
+  }
+
+}
+

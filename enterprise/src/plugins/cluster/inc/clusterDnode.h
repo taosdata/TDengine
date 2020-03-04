@@ -29,6 +29,8 @@ SDnodeObj *mgmtGetDnodeImp(uint32_t ip);
 int32_t    mgmtGetDnodesNumImp();
 int32_t    mgmtUpdateDnodeImp(SDnodeObj *pDnode);
 void *     mgmtGetNextDnodeImp(SShowObj *pShow, SDnodeObj **pDnode);
+int32_t mgmtCreateDnode(uint32_t ip);
+int32_t mgmtDropDnodeByIp(uint32_t ip);
 
 #ifdef __cplusplus
 }

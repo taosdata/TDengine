@@ -17,9 +17,11 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "tlog.h"
+#include "tutil.h"
 #include "dnodeSystem.h"
 #include "dnodeMgmt.h"
 #include "dnodeModule.h"
+#include "clusterModule.h"
 
 static void      *tsDnodeMgmtServer = NULL;
 static void      *tsDnodeMgmtClient = NULL;
@@ -31,7 +33,9 @@ static void dnodeSaveMgmtIp();
 static void dnodeSendStatusMsgToMgmt(void *handle, void *tmrId);
 static int32_t dnodeRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-extern void grantSendMsgToMgmt();
+uint32_t dnodeGetMgmtIp() {
+  return tsDnodeMgmtIpList.ip[0];
+}
 
 int32_t dnodeInitMgmtImp() {
   SRpcInit  rpcInit;
@@ -71,8 +75,6 @@ int32_t dnodeInitMgmtImp() {
     tscError("failed to init connection from mgmt");
     return -1;
   }
-
-  taosTmrReset(dnodeSendStatusMsgToMgmt, 500, pObj, tsDnodeTmr, &tsStatusTimer);
 }
 
 void dnodeCleanUpMgmtImp() {
@@ -88,73 +90,72 @@ void dnodeCleanUpMgmtImp() {
 }
 
 void dnodeSendMsgToMnodeImp(int8_t msgType, void *pCont, int32_t contLen) {
-  rpcSendRequest(tsDnodeMgmtClient, &tsDnodeMgmtIpList, msgType, pCont, contLen;
+  rpcSendRequest(tsDnodeMgmtClient, &tsDnodeMgmtIpList, msgType, pCont, contLen, NULL);
 }
 
+void dnodeSendRspToMnodeImp(void *handle, int32_t code, void *pCont, int contLen) {
+  rpcSendResponse(handle, code, pCont, contLen);
+}
 
-void dnodeProcessStatusRspImp(int8_t msgType, int8_t *pCont, int32_t contLen, void *pConn, int32_t code) {
-  if (code != TSDB_CODE_REDIRECT && code != TSDB_CODE_SUCCESS) {
-    dTrace("status is rejected by mgmt node, code:%d", code);
-    return 0;
-  }
-
+void dnodeProcessStatusRspImp(void *pCont, int32_t contLen, int8_t msgType, void *pConn) {
   if (pCont == NULL || contLen == 0) {
-    dTrace("status is invalid, cont is null");
+    dTrace("status msg is invalid, cont is null");
     return;
   }
 
   SStatusRsp *pStatus = pCont;
+  pStatus->code = htonl(pStatus->code);
+  if (pStatus->code != TSDB_CODE_SUCCESS && pStatus->code != TSDB_CODE_REDIRECT) {
+    dTrace("status msg is invalid, code:%d:%s", pStatus->code, tstrerror(pStatus->code));
+    return;
+  }
+
   pStatus->ipList.port = htons(pStatus->ipList.port);
   if (pStatus->ipList.numOfIps <= 0) {
     dError("num of mgmt ips is:%d", tsDnodeMgmtIpList.numOfIps);
-    return ;
+    return;
   }
+
+  dTrace("status msg is received, code:%d", pStatus->code);
 
   for (int32_t i = 0; i < pStatus->ipList.numOfIps; ++i) {
-    pStatus->ipList[i] = htonl(pStatus->ipList[i]);
+    pStatus->ipList.ip[i] = htonl(pStatus->ipList.ip[i]);
   }
+  pStatus->ipList.port = htons(pStatus->ipList.port);
 
-  if (memcmp(pStatus->ipList, tsDnodeMgmtIpList, sizeof(SRpcIpSet)) != 0) {
+  if (memcmp(&(pStatus->ipList), &tsDnodeMgmtIpList, sizeof(SRpcIpSet)) != 0) {
     dPrint("mgmt ip list is changed, numOfIps:%d inUse:%d", pStatus->ipList.numOfIps, pStatus->ipList.inUse);
-    memcpy(pStatus->ipList, tsDnodeMgmtIpList, sizeof(SRpcIpSet));
-    for (int32_t i = 0; i < pIpList->numOfIps; ++i) {
-      dPrint("mgmt IP index:%d ip:%d:%s", i, pStatus->ipList.ip[i], taosIpStr(pStatus->ipList.ip[i]));
+    tsDnodeMgmtIpList.numOfIps = pStatus->ipList.numOfIps;
+    for (int32_t i = 0; i < pStatus->ipList.numOfIps; ++i) {
+      tsDnodeMgmtIpList.ip[i] = pStatus->ipList.ip[i];
+      dPrint("mgmt IP index:%d ip:%d:%s", i, tsDnodeMgmtIpList.ip[i], taosIpStr(tsDnodeMgmtIpList.ip[i]));
     }
-
+    tsDnodeMgmtIpList.inUse = pStatus->ipList.inUse;
+    tsDnodeMgmtIpList.port = pStatus->ipList.port;
     dnodeSaveMgmtIp();
   }
 
- SDnodeState *pState = (SDnodeState *)pMsg;
+  SDnodeState *pState = &pStatus->dnodeState;
+  pState->numOfVnodes = htonl(pState->numOfVnodes);
+  pState->moduleStatus = htonl(pState->moduleStatus);
+  pState->createdTime = htonl(pState->createdTime);
 
-    uint32_t mgmtCreatedTime = htonl(pState->createdTime);
-    if (mgmtCreatedTime > tsCreatedTime) {
-      // tsCreatedTime is save at taos.cfg
-      // and may be changed by user sometimes
-      // so we delete this logic
-      // if ( tsCreatedTime )
-      //  dnodeResetSystem();
-      tsCreatedTime = mgmtCreatedTime;
-      dnodeSaveMgmtIp();
-    }
-
-    uint32_t status = htonl(pState->moduleStatus);
-    if (status != tsModuleStatus) {
-      dPrint("module status is received, old:%d, new:%d", tsModuleStatus, status);
-      dnodeProcessModuleStatus(status);
-    }
-
-
-
-  SVnodeAccess *pAccess = NULL;
-  while (pMsg < msg + msgLen) {
-    pAccess = (SVnodeAccess *)pMsg;
-    pAccess->vnode = htonl(pAccess->vnode);
-    vnodeList[pAccess->vnode].accessState = pAccess->accessState;
-    pMsg += sizeof(SVnodeAccess);
+  if (pState->createdTime > tsCreatedTime) {
+    // tsCreatedTime is save at taos.cfg and may be changed by user sometimes
+    // so we delete this logic
+    tsCreatedTime = pStatus->dnodeState.createdTime;
+    dnodeSaveMgmtIp();
   }
-  /* } */
 
-  return 0;
+  mgmtUpdateModules(pState->moduleStatus);
+
+  SVnodeAccess *pAccess = &pStatus->vnodeAccess;
+  for (int32_t i = 0; i < pState->numOfVnodes; ++i) {
+    SVnodeAccess *pAccess = &(pStatus->vnodeAccess[i]);
+    pAccess->vnode = htonl(pAccess->vnode);
+    //TODO set vnode access state
+    //dnodeSetVnodeState(pAccess->accessState);
+  }
 }
 
 static bool dnodeSeekMgmtIp(FILE *fp) {
@@ -197,11 +198,11 @@ static bool dnodeSeekMgmtIp(FILE *fp) {
 void dnodeInitMgmtIpImp() {
   FILE *       fp;
   char         fn[128];
-  SMgmtIpList *pIpList = &tsDnodeMgmtIpList;
+  SRpcIpSet    *pIpList = &tsDnodeMgmtIpList;
 
   sprintf(fn, "%s/taos.cfg", configDir);
   fp = fopen(fn, "r");
-  memset(pIpList, 0, sizeof(tsDnodeMgmtIpList));
+  memset(pIpList, 0, sizeof(SRpcIpSet));
   tsCreatedTime = 0;
 
   if (fp) {
@@ -272,21 +273,12 @@ void dnodeInitMgmtIpImp() {
     }
   }
 
-  for (int32_t i = 0; i < pIpList->numOfIps; ++i) {
-    tinet_ntoa(mgmtIpStr[i], pIpList->ip[i]);
-  }
-
-  dPrint("%d mgmt IPs are configured:", pIpList->numOfIps);
-  for (int32_t i = 0; i < pIpList->numOfIps; ++i) {
-    dPrint("index:%d ip:%s", i, mgmtIpStr[i]);
-  }
-
-  if (pIpList->numOfIps >= 3) {
-    strcpy(tsSecondIp, mgmtIpStr[2]);
-  }
-
   if (pIpList->numOfIps >= 2) {
-    strcpy(tsMasterIp, mgmtIpStr[1]);
+    tinet_ntoa(tsSecondIp, pIpList->ip[1]);
+  }
+
+  if (pIpList->numOfIps >= 1) {
+    tinet_ntoa(tsMasterIp, pIpList->ip[0]);
   }
 }
 

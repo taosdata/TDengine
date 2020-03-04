@@ -20,16 +20,18 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
 #include <stdbool.h>
+
+uint32_t dnodeGetMgmtIp();
 
 int32_t dnodeInitMgmtImp();
 void dnodeCleanUpMgmtImp();
 void dnodeInitMgmtIpImp();
 
+void dnodeProcessStatusRspImp(void *pCont, int32_t contLen, int8_t msgType, void *pConn);
 void dnodeSendMsgToMnodeImp(int8_t msgType, void *pCont, int32_t contLen);
-void dnodeSendRspToMnode(void *handle, int32_t code, void *pCont, int contLen);
-
-int32_t dnodeProcessStatusRspImp(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);
+void dnodeSendRspToMnodeImp(void *handle, int32_t code, void *pCont, int contLen);
 
 #ifdef __cplusplus
 }

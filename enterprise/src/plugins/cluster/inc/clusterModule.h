@@ -20,10 +20,14 @@
 extern "C" {
 #endif
 
-int32_t dnodeInitMgmtImp();
-void dnodeInitMgmtIpImp();
-void dnodeSendMsgToMnodeImp(int8_t msgType, void *pCont, int32_t contLen) = NULL;
-int32_t dnodeProcessStatusRspImp(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);
+#include <stdint.h>
+#include "mnode.h"
+
+void mgmtSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType);
+int32_t mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType);
+
+void mgmtUpdateModules(uint32_t status);
+
 
 #ifdef __cplusplus
 }

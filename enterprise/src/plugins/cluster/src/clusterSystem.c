@@ -8,9 +8,10 @@ void clusterInit() {
   dnodeInitMgmtFp = dnodeInitMgmtImp;
   dnodeCleanUpMgmtFp = dnodeCleanUpMgmtImp;
   dnodeInitMgmtIpFp = dnodeInitMgmtIpImp;
-
   dnodeProcessStatusRspFp = dnodeProcessStatusRspImp;
   dnodeSendMsgToMnodeFp = dnodeSendMsgToMnodeImp;
+  dnodeSendRspToMnodeFp = dnodeSendRspToMnodeImp;
+
 
   mgmtInitDnodeIntFp = mgmtInitDnodeIntImp;
   mgmtCleanUpDnodeIntFp = mgmtCleanUpDnodeIntImp;
@@ -20,10 +21,13 @@ void clusterInit() {
   mgmtSendMsgToDnodeFp  = mgmtSendMsgToDnodeImp;
   mgmtSendRspToDnodeFp  = mgmtSendRspToDnodeImp;
 
-  mgmtInitDnodesFp    = mgmtInitDnodesImp;
-  mgmtCleanUpDnodesFp = mgmtCleanUpDnodesImp;
-  mgmtGetDnodeFp      = mgmtGetDnodeFp;
-  mgmtGetDnodesNumFp  = mgmtGetDnodesNumImp;
-  mgmtUpdateDnodeFp   = mgmtUpdateDnodeImp;
-  mgmtGetNextDnodeFp  = mgmtGetNextDnodeImp;
+  mgmtInitDnodesFp       = mgmtInitDnodesImp;
+  mgmtCleanUpDnodesFp    = mgmtCleanUpDnodesImp;
+  mgmtGetDnodeFp         = mgmtGetDnodeFp;
+  mgmtGetDnodesNumFp     = mgmtGetDnodesNumImp;
+  mgmtUpdateDnodeFp      = mgmtUpdateDnodeImp;
+  mgmtGetNextDnodeFp     = mgmtGetNextDnodeImp;
+  mgmtSetDnodeUnRemoveFp = mgmtSetDnodeUnRemoveImp;
+  mgmtCreateDnodeFp      = mgmtCreateDnode;
+  mgmtDropDnodeByIpFp    = mgmtDropDnodeByIp;
 }

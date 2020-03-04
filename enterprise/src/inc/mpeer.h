@@ -33,6 +33,12 @@ extern void    (*mgmtCleanupBalanceFp)();
 extern int32_t (*mgmtAllocVnodesFp)(SVgObj *pVgroup);
 extern char *  (*mgmtGetVnodeStatusFp)(SVgObj *pVgroup, SVnodeGid *pVnode);
 
+// mgmtMnode
+extern int32_t (*mgmtInitMnodesFp)()
+extern void    (*mgmtCleanUpMnodesFp)()
+extern int32_t (*mgmtGetMnodesNumFp)()
+extern void *  (*mgmtGetNextMnodeFp)(SShowObj *pShow, SSdbPeer **pMnode)
+
 // mgmtDnode
 extern int32_t    (*mgmtGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 extern int32_t    (*mgmtRetrieveScoresFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);

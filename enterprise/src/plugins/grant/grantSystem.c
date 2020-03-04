@@ -25,6 +25,7 @@ void grantUpdate(void *pMsg);
 bool grantCheckExpired();
 int32_t grantCheckUsers();
 int32_t grantCheckDatabases();
+int32_t grantCheckDnodes();
 int32_t grantCheckTimeSeries(uint32_t timeseries);
 int32_t grantGetGrantsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t grantRetrieveGrants(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -42,6 +43,7 @@ static void grantParseParameterK() {
 void grantInit() {
   mgmtCheckUserGrantFp    = grantCheckUsers;
   mgmtCheckDbGrantFp      = grantCheckDatabases;
+  mgmtCheckDnodeGrantFp   = grantCheckDnodes;
   mgmtAddTimeSeriesFp     = grantAddTimeSeries;
   mgmtRestoreTimeSeriesFp = grantRestoreTimeSeries;
   mgmtCheckTimeSeriesFp   = grantCheckTimeSeries;

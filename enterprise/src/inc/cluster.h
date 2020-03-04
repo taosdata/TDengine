@@ -27,19 +27,13 @@ extern "C" {
 
 void clusterInit();
 
-// dnodeSystem
-extern int32_t (*dnodeInitMgmtFp)();
-
-extern void (*dnodeInitMgmtIpFp)();
-
+// dnodeMgmt
 extern void    (*dnodeInitMgmtIpFp)();
 extern int32_t (*dnodeInitMgmtFp)();
 extern void    (*dnodeCleanUpMgmtFp)();
-
-// dnodeMgmt
+extern void (*dnodeProcessStatusRspFp)(void *pCont, int32_t contLen, int8_t msgType, void *pConn);
 extern void (*dnodeSendMsgToMnodeFp)(int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
 extern void (*dnodeSendRspToMnodeFp)(void *handle, int32_t code, void *pCont, int contLen);
-extern void (*dnodeProcessStatusRspFp)(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn);
 
 // mgmtDnodeInt & clusterMgmtConn
 extern int32_t (*mgmtInitDnodeIntFp)();
@@ -58,6 +52,8 @@ extern int32_t    (*mgmtGetDnodesNumFp)();
 extern int32_t    (*mgmtUpdateDnodeFp)(SDnodeObj *pDnode);
 extern void *     (*mgmtGetNextDnodeFp)(SShowObj *pShow, SDnodeObj **pDnode);
 extern void       (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode);
+extern int32_t    (*mgmtCreateDnodeFp)(uint32_t ip);
+extern int32_t    (*mgmtDropDnodeByIpFp)(uint32_t ip);
 
 #ifdef __cplusplus
 }

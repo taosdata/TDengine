@@ -53,10 +53,6 @@ bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode);
 
 void mgmtMonitorDnodeModule();
 
-void mgmtSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
-
-int mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int moduleType);
-
 void mgmtMonitorVgroups();
 
 void mgmtMonitorDnodes();
