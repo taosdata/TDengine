@@ -34,6 +34,7 @@ void    mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode);
 int32_t mgmtGetConfigMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
+bool    mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType);
 int32_t mgmtGetModuleMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 

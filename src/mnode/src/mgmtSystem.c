@@ -38,7 +38,6 @@ void *tsMgmtTranQhandle   = NULL;
 void mgmtCleanUpSystem() {
   mPrint("starting to clean up mgmt");
 
-  mgmtCleanUpRedirect();
   sdbCleanUpPeers();
   mgmtCleanupBalance();
   mgmtCleanUpDnodeInt();
@@ -63,8 +62,8 @@ int32_t mgmtCheckMgmtRunning() {
   tsetModuleStatus(TSDB_MOD_MGMT);
 
 //  strcpy(sdbMasterIp, mgmtIpStr[0]);
-  strcpy(sdbPrivateIp, tsPrivateIp);
-  sdbPublicIp = inet_addr(tsPublicIp);
+//  strcpy(sdbPrivateIp, tsPrivateIp);
+//  sdbPublicIp = inet_addr(tsPublicIp);
 
   return 0;
 }

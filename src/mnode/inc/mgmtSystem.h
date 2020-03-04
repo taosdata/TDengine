@@ -27,10 +27,6 @@ int32_t mgmtStartSystem();
 void    mgmtCleanUpSystem();
 void    mgmtStopSystem();
 
-
-
-extern void    (*mgmtCleanUpRedirect)();
-
 #ifdef __cplusplus
 }
 #endif

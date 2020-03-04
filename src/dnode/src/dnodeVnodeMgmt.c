@@ -59,3 +59,6 @@ bool dnodeCheckTableExist(int32_t vnode, int32_t sid, int64_t uid) {
   return true;
 }
 
+int32_t dnodeGetVnodesNum() {
+  return 1;
+}

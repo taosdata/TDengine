@@ -20,19 +20,13 @@
 extern "C" {
 #endif
 
-#include "os.h"
 #include "mnode.h"
 
-extern void    (*mgmtStartBalanceTimer)(int64_t mseconds);
-extern int32_t (*mgmtInitBalance)();
-extern void    (*mgmtCleanupBalance)();
-extern int32_t (*mgmtAllocVnodes)(SVgObj *pVgroup);
-extern bool    (*mgmtCheckModuleInDnode)(SDnodeObj *pDnode, int moduleType);
-extern char*   (*mgmtGetVnodeStatus)(SVgObj *pVgroup, SVnodeGid *pVnode);
-extern bool    (*mgmtCheckVnodeReady)(SDnodeObj *pDnode, SVgObj *pVgroup, SVnodeGid *pVnode);
-extern void    (*mgmtUpdateDnodeState)(SDnodeObj *pDnode, int lbStatus);
-extern void    (*mgmtUpdateVgroupState)(SVgObj *pVgroup, int lbStatus, int srcIp);
-bool    mgmtAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode);
+void    mgmtStartBalanceTimer(int64_t mseconds);
+int32_t mgmtInitBalance();
+void    mgmtCleanupBalance();
+int32_t mgmtAllocVnodes(SVgObj *pVgroup);
+char*   mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode);
 
 #ifdef __cplusplus
 }

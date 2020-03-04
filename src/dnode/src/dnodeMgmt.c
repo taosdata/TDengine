@@ -143,8 +143,6 @@ void dnodeSendStatusMsgToMgmt(void *handle, void *tmrId) {
 //  }
 
   dnodeSendMsgToMnode(TSDB_MSG_TYPE_STATUS, pStatus, contLen);
-
-  //grantSendMsgToMgmt();
 }
 
 

@@ -409,68 +409,69 @@ void mgmtMonitorDbDrop(void *unused, void *unusedt) {
 }
 
 int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  SDbObj *pDb = (SDbObj *) sdbGetRow(tsDbSdb, pAlter->db);
-  if (pDb == NULL) {
-    mTrace("db:%s is not exist", pAlter->db);
-    return TSDB_CODE_INVALID_DB;
-  }
-
-  int32_t oldReplicaNum = pDb->cfg.replications;
-  if (pAlter->daysToKeep > 0) {
-    mTrace("db:%s daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, pAlter->daysToKeep);
-    pDb->cfg.daysToKeep = pAlter->daysToKeep;
-  } else if (pAlter->replications > 0) {
-    mTrace("db:%s replica:%d change to %d", pDb->name, pDb->cfg.replications, pAlter->replications);
-    if (pAlter->replications < TSDB_REPLICA_MIN_NUM || pAlter->replications > TSDB_REPLICA_MAX_NUM) {
-      mError("invalid db option replica: %d valid range: %d--%d", pAlter->replications, TSDB_REPLICA_MIN_NUM, TSDB_REPLICA_MAX_NUM);
-      return TSDB_CODE_INVALID_OPTION;
-    }
-    pDb->cfg.replications = pAlter->replications;
-  } else if (pAlter->maxSessions > 0) {
-    mTrace("db:%s tables:%d change to %d", pDb->name, pDb->cfg.maxSessions, pAlter->maxSessions);
-    if (pAlter->maxSessions < TSDB_MIN_TABLES_PER_VNODE || pAlter->maxSessions > TSDB_MAX_TABLES_PER_VNODE) {
-      mError("invalid db option tables: %d valid range: %d--%d", pAlter->maxSessions, TSDB_MIN_TABLES_PER_VNODE, TSDB_MAX_TABLES_PER_VNODE);
-      return TSDB_CODE_INVALID_OPTION;
-    }
-    if (pAlter->maxSessions < pDb->cfg.maxSessions) {
-      mError("invalid db option tables: %d should larger than original:%d", pAlter->maxSessions, pDb->cfg.maxSessions);
-      return TSDB_CODE_INVALID_OPTION;
-    }
-    return TSDB_CODE_INVALID_OPTION;
-    //The modification of tables needs to rewrite the head file, so disable this option
-    //pDb->cfg.maxSessions = pAlter->maxSessions;
-  } else {
-    mError("db:%s alter msg, replica:%d, keep:%d, tables:%d, origin replica:%d keep:%d", pDb->name,
-            pAlter->replications, pAlter->maxSessions, pAlter->daysToKeep,
-            pDb->cfg.replications, pDb->cfg.daysToKeep);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-
-  if (sdbUpdateRow(tsDbSdb, pDb, tsDbUpdateSize, 1) < 0) {
-    return TSDB_CODE_SDB_ERROR;
-  }
-
-  SVgObj *pVgroup = pDb->pHead;
-  while (pVgroup != NULL) {
-    mgmtUpdateVgroupState(pVgroup, TSDB_VG_LB_STATUS_UPDATE, 0);
-    if (oldReplicaNum < pDb->cfg.replications) {
-      if (!mgmtAddVnode(pVgroup, NULL, NULL)) {
-        mWarn("db:%s vgroup:%d not enough dnode to add vnode", pAlter->db, pVgroup->vgId);
-        code = TSDB_CODE_NO_ENOUGH_DNODES;
-      }
-    }
-    if (pAlter->maxSessions > 0) {
-      //rebuild meterList in mgmtVgroup.c
-      mgmtUpdateVgroup(pVgroup);
-    }
-//    mgmtSendCreateVnodeMsg(pVgroup);
-    pVgroup = pVgroup->next;
-  }
-  mgmtStartBalanceTimer(10);
-
-  return code;
+  return 0;
+//  int32_t code = TSDB_CODE_SUCCESS;
+//
+//  SDbObj *pDb = (SDbObj *) sdbGetRow(tsDbSdb, pAlter->db);
+//  if (pDb == NULL) {
+//    mTrace("db:%s is not exist", pAlter->db);
+//    return TSDB_CODE_INVALID_DB;
+//  }
+//
+//  int32_t oldReplicaNum = pDb->cfg.replications;
+//  if (pAlter->daysToKeep > 0) {
+//    mTrace("db:%s daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, pAlter->daysToKeep);
+//    pDb->cfg.daysToKeep = pAlter->daysToKeep;
+//  } else if (pAlter->replications > 0) {
+//    mTrace("db:%s replica:%d change to %d", pDb->name, pDb->cfg.replications, pAlter->replications);
+//    if (pAlter->replications < TSDB_REPLICA_MIN_NUM || pAlter->replications > TSDB_REPLICA_MAX_NUM) {
+//      mError("invalid db option replica: %d valid range: %d--%d", pAlter->replications, TSDB_REPLICA_MIN_NUM, TSDB_REPLICA_MAX_NUM);
+//      return TSDB_CODE_INVALID_OPTION;
+//    }
+//    pDb->cfg.replications = pAlter->replications;
+//  } else if (pAlter->maxSessions > 0) {
+//    mTrace("db:%s tables:%d change to %d", pDb->name, pDb->cfg.maxSessions, pAlter->maxSessions);
+//    if (pAlter->maxSessions < TSDB_MIN_TABLES_PER_VNODE || pAlter->maxSessions > TSDB_MAX_TABLES_PER_VNODE) {
+//      mError("invalid db option tables: %d valid range: %d--%d", pAlter->maxSessions, TSDB_MIN_TABLES_PER_VNODE, TSDB_MAX_TABLES_PER_VNODE);
+//      return TSDB_CODE_INVALID_OPTION;
+//    }
+//    if (pAlter->maxSessions < pDb->cfg.maxSessions) {
+//      mError("invalid db option tables: %d should larger than original:%d", pAlter->maxSessions, pDb->cfg.maxSessions);
+//      return TSDB_CODE_INVALID_OPTION;
+//    }
+//    return TSDB_CODE_INVALID_OPTION;
+//    //The modification of tables needs to rewrite the head file, so disable this option
+//    //pDb->cfg.maxSessions = pAlter->maxSessions;
+//  } else {
+//    mError("db:%s alter msg, replica:%d, keep:%d, tables:%d, origin replica:%d keep:%d", pDb->name,
+//            pAlter->replications, pAlter->maxSessions, pAlter->daysToKeep,
+//            pDb->cfg.replications, pDb->cfg.daysToKeep);
+//    return TSDB_CODE_INVALID_OPTION;
+//  }
+//
+//  if (sdbUpdateRow(tsDbSdb, pDb, tsDbUpdateSize, 1) < 0) {
+//    return TSDB_CODE_SDB_ERROR;
+//  }
+//
+//  SVgObj *pVgroup = pDb->pHead;
+//  while (pVgroup != NULL) {
+//    mgmtUpdateVgroupState(pVgroup, TSDB_VG_LB_STATUS_UPDATE, 0);
+//    if (oldReplicaNum < pDb->cfg.replications) {
+//      if (!mgmtAddVnode(pVgroup, NULL, NULL)) {
+//        mWarn("db:%s vgroup:%d not enough dnode to add vnode", pAlter->db, pVgroup->vgId);
+//        code = TSDB_CODE_NO_ENOUGH_DNODES;
+//      }
+//    }
+//    if (pAlter->maxSessions > 0) {
+//      //rebuild meterList in mgmtVgroup.c
+//      mgmtUpdateVgroup(pVgroup);
+//    }
+////    mgmtSendCreateVnodeMsg(pVgroup);
+//    pVgroup = pVgroup->next;
+//  }
+//  mgmtStartBalanceTimer(10);
+//
+//  return code;
 }
 
 int32_t mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup) {

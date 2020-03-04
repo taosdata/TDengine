@@ -34,7 +34,7 @@ int32_t    (*mgmtGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pCon
 int32_t    (*mgmtRetrieveScoresFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn) = NULL;
 void       (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode) = NULL;
 
-static SDnodeObj tsDnodeObj;
+static SDnodeObj tsDnodeObj = {0};
 
 void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
   int32_t maxVnodes = pDnode->numOfCores * tsNumOfVnodesPerCore;
@@ -223,6 +223,11 @@ int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pCon
 
   pShow->numOfReads += numOfRows;
   return numOfRows;
+}
+
+bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
+  uint32_t status = pDnode->moduleStatus & (1 << moduleType);
+  return status > 0;
 }
 
 int32_t mgmtGetModuleMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
@@ -543,6 +548,14 @@ int32_t mgmtInitDnodes() {
     tsDnodeObj.thandle          = (void *) (1);  //hack way
     tsDnodeObj.status           = TSDB_DN_STATUS_READY;
     mgmtSetDnodeMaxVnodes(&tsDnodeObj);
+
+    tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_MGMT);
+    if (tsEnableHttpModule) {
+      tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_HTTP);
+    }
+    if (tsEnableMonitorModule) {
+      tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_MONITOR);
+    }
     return 0;
   }
 }
