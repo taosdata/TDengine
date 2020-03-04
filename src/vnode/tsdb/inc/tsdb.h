@@ -99,6 +99,17 @@ typedef struct {
 } STableInfo;
 
 /**
+ * Create a configuration for TSDB default
+ * @return a pointer to a configuration. the configuration must call tsdbFreeCfg to free memory after usage
+ */
+STsdbCfg *tsdbCreateDefaultCfg();
+
+/**
+ * Free
+ */
+void tsdbFreeCfg(STsdbCfg *pCfg);
+
+/**
  * Create a new TSDB repository
  * @param rootDir the TSDB repository root directory
  * @param pCfg the TSDB repository configuration, upper layer to free the pointer

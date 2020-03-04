@@ -10,6 +10,8 @@
 #define TSDB_MAX_TABLES 100000
 #define TSDB_DEFAULT_NSTABLES 10
 
+#define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
+
 #define IS_VALID_MAX_TABLES(maxTables) (((maxTables) >= TSDB_MIN_TABLES) && ((maxTables) <= TSDB_MAX_TABLES))
 
 static int     tsdbFreeTable(STable *pTable);
@@ -90,7 +92,8 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
       pSTable->stableUid = -1;
       pSTable->numOfCols = pCfg->numOfCols;
       pSTable->pSchema = tdDupSchema(pCfg->schema);
-      // pSTable->content.pIndex = tSkipListCreate(5, 0, 10); // TODO: change here
+      pSTable->content.pIndex =
+          tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, 0, 8, 0, 0, NULL);  // TODO: change here
       tsdbAddTable(pMeta, pSTable);
     } else {
       if (pSTable->type != TSDB_SUPER_TABLE) return NULL;
@@ -113,7 +116,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
     pTable->stableUid = -1;
     pTable->pSchema = tdDupSchema(pCfg->schema);
   }
-  // pTable->content.pData = tSkipListCreate(5, 0, 10); // TODO: change here
+  pTable->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, 0, 8, 0, 0, NULL);
 
   tsdbAddTable(pMeta, pTable);
 

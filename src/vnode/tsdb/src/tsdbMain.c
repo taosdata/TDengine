@@ -1,13 +1,14 @@
-#include <stdio.h>
+#include <dirent.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <string.h>
-#include <dirent.h>
 
 // #include "taosdef.h"
 // #include "disk.h"
@@ -15,6 +16,29 @@
 #include "tsdbCache.h"
 #include "tsdbFile.h"
 #include "tsdbMeta.h"
+
+#define TSDB_DEFAULT_PRECISION TSDB_PRECISION_MILLI  // default precision
+#define IS_VALID_PRECISION(precision) (((precision) >= TSDB_PRECISION_MILLI) && ((precision) <= TSDB_PRECISION_NANO))
+#define TSDB_MIN_ID 0
+#define TSDB_MAX_ID INT_MAX
+#define TSDB_MIN_TABLES 10
+#define TSDB_MAX_TABLES 100000
+#define TSDB_DEFAULT_TABLES 1000
+#define TSDB_DEFAULT_DAYS_PER_FILE 10
+#define TSDB_MIN_DAYS_PER_FILE 1
+#define TSDB_MAX_DAYS_PER_FILE 60
+#define TSDB_DEFAULT_MIN_ROW_FBLOCK 100
+#define TSDB_MIN_MIN_ROW_FBLOCK 10
+#define TSDB_MAX_MIN_ROW_FBLOCK 1000
+#define TSDB_DEFAULT_MAX_ROW_FBLOCK 4096
+#define TSDB_MIN_MAX_ROW_FBLOCK 200
+#define TSDB_MAX_MAX_ROW_FBLOCK 10000
+#define TSDB_DEFAULT_KEEP 3650
+#define TSDB_MIN_KEEP 1
+#define TSDB_MAX_KEEP INT_MAX
+#define TSDB_DEFAULT_CACHE_SIZE (16 * 1024 * 1024)  // 16M
+#define TSDB_MIN_CACHE_SIZE (4 * 1024 * 1024)       // 4M
+#define TSDB_MAX_CACHE_SIZE (1024 * 1024 * 1024)    // 1G
 
 enum { TSDB_REPO_STATE_ACTIVE, TSDB_REPO_STATE_CLOSED, TSDB_REPO_STATE_CONFIGURING };
 
@@ -55,11 +79,31 @@ static int     tsdbRecoverRepo(int fd, STsdbCfg *pCfg);
 #define TSDB_IS_REPO_ACTIVE(pRepo) ((pRepo)->state == TSDB_REPO_STATE_ACTIVE)
 #define TSDB_IS_REPO_CLOSED(pRepo) ((pRepo)->state == TSDB_REPO_STATE_CLOSED)
 
-tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter) {
+STsdbCfg *tsdbCreateDefaultCfg() {
+  STsdbCfg *pCfg = (STsdbCfg *)malloc(sizeof(STsdbCfg));
+  if (pCfg == NULL) return NULL;
 
+  pCfg->precision = -1;
+  pCfg->tsdbId = 0;
+  pCfg->maxTables = -1;
+  pCfg->daysPerFile = -1;
+  pCfg->minRowsPerFileBlock = -1;
+  pCfg->maxRowsPerFileBlock = -1;
+  pCfg->keep = -1;
+  pCfg->maxCacheSize = -1;
+
+  return pCfg;
+}
+
+void tsdbFreeCfg(STsdbCfg *pCfg) {
+  if (pCfg != NULL) free(pCfg);
+}
+
+
+tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter) {
   if (rootDir == NULL) return NULL;
 
-  if (access(rootDir, F_OK|R_OK|W_OK) == -1) return NULL;
+  if (access(rootDir, F_OK | R_OK | W_OK) == -1) return NULL;
 
   if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) {
     return NULL;
@@ -200,9 +244,7 @@ int32_t tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg) {
   return 0;
 }
 
-int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tid) {
-  return 0;
-}
+int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tid) { return 0; }
 
 STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid) {
   // TODO
@@ -219,14 +261,68 @@ int32_t tsdbInsertData(tsdb_repo_t *repo, STableId tableId, char *pData) {
 
 // Check the configuration and set default options
 static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
-  // TODO
+  // Check precision
+  if (pCfg->precision == -1) {
+    pCfg->precision = TSDB_DEFAULT_PRECISION;
+  } else {
+    if (!IS_VALID_PRECISION(pCfg->precision)) return -1;
+  }
+
+  // Check tsdbId
+  if (pCfg->tsdbId < 0) return -1;
+
+  // Check MaxTables
+  if (pCfg->maxTables == -1) {
+    pCfg->maxTables = TSDB_DEFAULT_TABLES;
+  } else {
+    if (pCfg->maxTables < TSDB_MIN_TABLES || pCfg->maxTables > TSDB_MAX_TABLES) return -1;
+  }
+
+  // Check daysPerFile
+  if (pCfg->daysPerFile == -1) {
+    pCfg->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
+  } else {
+    if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
+  }
+
+  // Check minRowsPerFileBlock and maxRowsPerFileBlock
+  if (pCfg->minRowsPerFileBlock == -1) {
+    pCfg->minRowsPerFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
+  } else {
+    if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK)
+      return -1;
+  }
+
+  if (pCfg->maxRowsPerFileBlock == -1) {
+    pCfg->maxRowsPerFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
+  } else {
+    if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK)
+      return -1;
+  }
+
+  if (pCfg->minRowsPerFileBlock > pCfg->maxRowsPerFileBlock) return -1;
+
+  // Check keep
+  if (pCfg->keep == -1) {
+    pCfg->keep = TSDB_DEFAULT_KEEP;
+  } else {
+    if (pCfg->keep < TSDB_MIN_KEEP || pCfg->keep > TSDB_MAX_KEEP) return -1;
+  }
+
+  // Check maxCacheSize
+  if (pCfg->maxCacheSize == -1) {
+    pCfg->maxCacheSize = TSDB_DEFAULT_CACHE_SIZE;
+  } else {
+    if (pCfg->maxCacheSize < TSDB_MIN_CACHE_SIZE || pCfg->maxCacheSize > TSDB_MAX_CACHE_SIZE) return -1;
+  }
+
   return 0;
 }
 
 static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
   char *metaFname = tsdbGetFileName(pRepo->rootDir, "tsdb", TSDB_FILE_TYPE_META);
 
-  int fd = open(metaFname, O_WRONLY|O_CREAT);
+  int fd = open(metaFname, O_WRONLY | O_CREAT);
   if (fd < 0) {
     return -1;
   }
