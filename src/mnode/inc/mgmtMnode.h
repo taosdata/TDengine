@@ -24,7 +24,10 @@ extern "C" {
 #include <stdbool.h>
 #include "mnode.h"
 
-  int32_t mgmtGetMnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+int32_t mgmtInitMnodes();
+void    mgmtCleanUpMnodes();
+
+int32_t mgmtGetMnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 #ifdef __cplusplus

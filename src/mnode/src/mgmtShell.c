@@ -26,7 +26,6 @@
 #include "mgmtAcct.h"
 #include "mgmtBalance.h"
 #include "mgmtChildTable.h"
-#include "mgmtConn.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
 #include "mgmtDnodeInt.h"
@@ -1164,10 +1163,8 @@ static void mgmtProcessUnSupportMsg(void *pCont, int32_t contLen, void *ahandle)
   rpcSendResponse(ahandle, TSDB_CODE_OPS_NOT_SUPPORT, NULL, 0);
 }
 
-void (*mgmtProcessCreateDnodeMsg)(void *pCont, int32_t contLen, void *ahandle) = mgmtProcessUnSupportMsg;
 void (*mgmtProcessCfgMnodeMsg)(void *pCont, int32_t contLen, void *ahandle)    = mgmtProcessUnSupportMsg;
 void (*mgmtProcessDropMnodeMsg)(void *pCont, int32_t contLen, void *ahandle)   = mgmtProcessUnSupportMsg;
-void (*mgmtProcessDropDnodeMsg)(void *pCont, int32_t contLen, void *ahandle)   = mgmtProcessUnSupportMsg;
 
 static void mgmtProcessAlterAcctMsg(void *pCont, int32_t contLen, void *ahandle) {
   if (!mgmtAlterAcctFp) {
@@ -1292,6 +1289,76 @@ static void mgmtProcessCreateAcctMsg(void *pCont, int32_t contLen, void *ahandle
     mLPrint("account:%s is created by %s", pCreate->user, pUser->user);
   } else {
     mError("account:%s, failed to create account, reason:%s", pCreate->user, tstrerror(code));
+  }
+
+  rpcSendResponse(ahandle, code, NULL, 0);
+}
+
+static void mgmtProcessCreateDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (!mgmtCreateDnodeFp) {
+    rpcSendResponse(ahandle, TSDB_CODE_OPS_NOT_SUPPORT, NULL, 0);
+    return;
+  }
+
+  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *)pCont;
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    mError("failed to create dnode:%s, redirect this message", pCreate->ip);
+    return;
+  }
+
+  SUserObj *pUser = mgmtGetUserFromConn(ahandle);
+  if (pUser == NULL) {
+    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(TSDB_CODE_INVALID_USER));
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
+    return;
+  }
+
+  if (strcmp(pUser->user, "root") != 0) {
+    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(TSDB_CODE_NO_RIGHTS));
+    rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
+    return;
+  }
+
+  int32_t code = (*mgmtCreateDnodeFp)(inet_addr(pCreate->ip));
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("dnode:%s is created by %s", pCreate->ip, pUser->user);
+  } else {
+    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(code));
+  }
+
+  rpcSendResponse(ahandle, code, NULL, 0);
+}
+
+static void mgmtProcessDropDnodeMsg(void *pCont, int32_t contLen, void *ahandle) {
+  if (!mgmtDropDnodeByIpFp) {
+    rpcSendResponse(ahandle, TSDB_CODE_OPS_NOT_SUPPORT, NULL, 0);
+    return;
+  }
+
+  SDropDnodeMsg *pDrop = (SDropDnodeMsg *)pCont;
+  if (mgmtCheckRedirectMsg(ahandle) != TSDB_CODE_SUCCESS) {
+    mError("failed to drop dnode:%s, redirect this message", pDrop->ip);
+    return;
+  }
+
+  SUserObj *pUser = mgmtGetUserFromConn(ahandle);
+  if (pUser == NULL) {
+    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(TSDB_CODE_INVALID_USER));
+    rpcSendResponse(ahandle, TSDB_CODE_INVALID_USER, NULL, 0);
+    return;
+  }
+
+  if (strcmp(pUser->user, "root") != 0) {
+    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(TSDB_CODE_NO_RIGHTS));
+    rpcSendResponse(ahandle, TSDB_CODE_NO_RIGHTS, NULL, 0);
+    return;
+  }
+
+  int32_t code = (*mgmtDropDnodeByIpFp)(inet_addr(pDrop->ip));
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("dnode:%s set to removing state by %s", pDrop->ip, pUser->user);
+  } else {
+    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(code));
   }
 
   rpcSendResponse(ahandle, code, NULL, 0);

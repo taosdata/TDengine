@@ -53,6 +53,9 @@ bool    mgmtCheckConfigShow(SGlobalConfig *cfg);
 void    mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
 SDnodeObj* mgmtGetDnode(uint32_t ip);
 
+extern  int32_t (*mgmtCreateDnodeFp)(uint32_t ip);
+extern  int32_t (*mgmtDropDnodeByIpFp)(uint32_t ip);
+
 #ifdef __cplusplus
 }
 #endif

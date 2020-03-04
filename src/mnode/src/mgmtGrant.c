@@ -22,6 +22,7 @@
 
 int32_t (*mgmtCheckUserGrantFp)() = NULL;
 int32_t (*mgmtCheckDbGrantFp)() = NULL;
+int32_t (*mgmtCheckDnodeGrantFp)() = NULL;
 void    (*mgmtAddTimeSeriesFp)(uint32_t timeSeriesNum) = NULL;
 void    (*mgmtRestoreTimeSeriesFp)(uint32_t timeSeriesNum) = NULL;
 int32_t (*mgmtCheckTimeSeriesFp)(uint32_t timeseries) = NULL;
@@ -32,7 +33,7 @@ void    (*mgmtUpdateGrantInfoFp)(void *pCont) = NULL;
 
 int32_t mgmtCheckUserGrant() {
   if (mgmtCheckUserGrantFp) {
-    return mgmtCheckUserGrantFp();
+    return (*mgmtCheckUserGrantFp)();
   } else {
     return 0;
   }
@@ -40,7 +41,15 @@ int32_t mgmtCheckUserGrant() {
 
 int32_t mgmtCheckDbGrant() {
   if (mgmtCheckDbGrantFp) {
-    return mgmtCheckDbGrantFp();
+    return (*mgmtCheckDbGrantFp)();
+  } else {
+    return 0;
+  }
+}
+
+int32_t mgmtCheckDnodeGrant() {
+  if (mgmtCheckDnodeGrantFp) {
+    return (*mgmtCheckDnodeGrantFp)();
   } else {
     return 0;
   }
@@ -49,20 +58,20 @@ int32_t mgmtCheckDbGrant() {
 void mgmtAddTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum) {
   pAcct->acctInfo.numOfTimeSeries += timeSeriesNum;
   if (mgmtAddTimeSeriesFp) {
-    mgmtAddTimeSeriesFp(timeSeriesNum);
+    (*mgmtAddTimeSeriesFp)(timeSeriesNum);
   }
 }
 
 void mgmtRestoreTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum) {
   pAcct->acctInfo.numOfTimeSeries -= timeSeriesNum;
   if (mgmtRestoreTimeSeriesFp) {
-    mgmtRestoreTimeSeriesFp(timeSeriesNum);
+    (*mgmtRestoreTimeSeriesFp)(timeSeriesNum);
   }
 }
 
 int32_t mgmtCheckTimeSeries(uint32_t timeseries) {
   if (mgmtCheckTimeSeriesFp) {
-    return mgmtCheckTimeSeriesFp(timeseries);
+    return (*mgmtCheckTimeSeriesFp)(timeseries);
   } else {
     return 0;
   }

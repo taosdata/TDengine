@@ -33,6 +33,9 @@ void *     (*mgmtGetNextDnodeFp)(SShowObj *pShow, SDnodeObj **pDnode) = NULL;
 int32_t    (*mgmtGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = NULL;
 int32_t    (*mgmtRetrieveScoresFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn) = NULL;
 void       (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode) = NULL;
+int32_t    (*mgmtCreateDnodeFp)(uint32_t ip) = NULL;
+int32_t    (*mgmtDropDnodeByIpFp)(uint32_t ip) = NULL;
+
 
 static SDnodeObj tsDnodeObj = {0};
 

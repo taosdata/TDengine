@@ -595,7 +595,6 @@ typedef struct {
 
 typedef struct {
   int32_t      code;
-  int32_t      numOfVnodes;
   SDnodeState  dnodeState;
   SRpcIpSet    ipList;
   SVnodeAccess vnodeAccess[];

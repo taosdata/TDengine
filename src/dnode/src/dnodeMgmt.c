@@ -30,11 +30,9 @@
 void    (*dnodeInitMgmtIpFp)() = NULL;
 int32_t (*dnodeInitMgmtFp)() = NULL;
 void    (*dnodeCleanUpMgmtFp)() = NULL;
-
-void    (*dnodeProcessStatusRspFp)(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) = NULL;
+void    (*dnodeProcessStatusRspFp)(void *pCont, int32_t contLen, int8_t msgType, void *pConn) = NULL;
 void    (*dnodeSendMsgToMnodeFp)(int8_t msgType, void *pCont, int32_t contLen) = NULL;
 void    (*dnodeSendRspToMnodeFp)(void *handle, int32_t code, void *pCont, int contLen) = NULL;
-
 
 static void *tsStatusTimer = NULL;
 static void (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(void *pCont, int32_t contLen, int8_t msgType, void *pConn);
