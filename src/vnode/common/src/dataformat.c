@@ -36,3 +36,19 @@ void     tdFreeSDataRow(SDataRow rdata) {
   if (rdata == NULL) return;
   free(rdata);
 }
+
+int32_t tdInitSDataRowsIter(SDataRows rows, SDataRowsIter *pIter) {
+  pIter->totalRows = TD_DATAROWS_ROWS(rows);
+  pIter->rowCounter = 1;
+  pIter->row = TD_DATAROWS_DATA(rows);
+}
+
+void tdRdataIterNext(SDataRowsIter *pIter) {
+  pIter->rowCounter++;
+  pIter->row = pIter->row + TD_DATAROW_LEN(pIter->row);
+}
+
+int32_t tdRdataIterEnd(SDataRowsIter *pIter) {
+  return pIter->rowCounter >= pIter->totalRows;
+
+}

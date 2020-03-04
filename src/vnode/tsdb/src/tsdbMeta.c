@@ -16,6 +16,7 @@ static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
+static int tsdbInsertRowToTable(STable *pTable, SDataRow row);
 
 STsdbMeta *tsdbCreateMeta(int32_t maxTables) {
   STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
@@ -136,16 +137,23 @@ STsdbMeta *tsdbOpenMeta(char *tsdbDir) {
   return pMeta;
 }
 
-int32_t tsdbInsertDataImpl(STsdbMeta *pMeta, STableId tableId, char *pData) {
-  STable *pTable = pMeta->tables[tableId.tid];
+int32_t tsdbInsertDataImpl(STsdbMeta *pMeta, STableId tableId, SDataRows rows) {
+  STable *pTable = tsdbGetTableByUid(pMeta, tableId.uid);
   if (pTable == NULL) {
-    // TODO: deal with the error here
-    return 0;
+    return -1;
   }
 
-  if (pTable->tableId.uid != tableId.uid) {
-    // TODO: deal with the error here
-    return 0;
+  if (TSDB_TABLE_IS_SUPER_TABLE(pTable)) return -1;
+  if (pTable->tableId.tid != tableId.tid) return -1;
+
+  // Loop to write each row
+  SDataRowsIter sdataIter;
+  tdInitSDataRowsIter(rows, &sdataIter);
+  while (!tdRdataIterEnd(&sdataIter)) {
+    // Insert the row to it
+    tsdbInsertRowToTable(pTable, sdataIter.row);
+
+    tdRdataIterNext(&sdataIter);
   }
 
   return 0;
@@ -245,6 +253,11 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
 
 static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   assert(pTable->type == TSDB_STABLE);
+  // TODO
+  return 0;
+}
+
+static int tsdbInsertRowToTable(STable *pTable, SDataRow row) {
   // TODO
   return 0;
 }

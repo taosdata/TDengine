@@ -114,7 +114,7 @@ STsdbMeta *tsdbOpenMeta(char *tsdbDir);
 int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
 int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);
 
-int32_t tsdbInsertDataImpl(STsdbMeta *pMeta, STableId tableId, char *pData);
+int32_t tsdbInsertDataImpl(STsdbMeta *pMeta, STableId tableId, SDataRows rows);
 
 #ifdef __cplusplus
 }
