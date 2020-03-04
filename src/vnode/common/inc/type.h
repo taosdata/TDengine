@@ -16,18 +16,7 @@ typedef enum {
   TD_DATATYPE_BINARY
 } td_datatype_t;
 
-const int32_t rowDataLen[] = {
-    sizeof(int8_t),   // TD_DATATYPE_BOOL,
-    sizeof(int8_t),   // TD_DATATYPE_TINYINT,
-    sizeof(int16_t),  // TD_DATATYPE_SMALLINT,
-    sizeof(int32_t),  // TD_DATATYPE_INT,
-    sizeof(int64_t),  // TD_DATATYPE_BIGINT,
-    sizeof(float),    // TD_DATATYPE_FLOAT,
-    sizeof(double),   // TD_DATATYPE_DOUBLE,
-    sizeof(int32_t),  // TD_DATATYPE_VARCHAR,
-    sizeof(int32_t),  // TD_DATATYPE_NCHAR,
-    sizeof(int32_t)   // TD_DATATYPE_BINARY
-};
+extern const int32_t rowDataLen[];
 
 // TODO: finish below
 #define TD_DATATYPE_BOOL_NULL
