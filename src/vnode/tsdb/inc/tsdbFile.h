@@ -31,12 +31,13 @@ typedef enum {
   TSDB_FILE_TYPE_META   // .meta file type
 } TSDB_FILE_TYPE;
 
-const char *tsdbFileSuffix[] = {
-  ".head",  // TSDB_FILE_TYPE_HEAD
-  ".data",  // TSDB_FILE_TYPE_DATA
-  ".last",  // TSDB_FILE_TYPE_LAST
-  ".meta"   // TSDB_FILE_TYPE_META
-};
+extern const char *tsdbFileSuffix[];
+// const char *tsdbFileSuffix[] = {
+//   ".head",  // TSDB_FILE_TYPE_HEAD
+//   ".data",  // TSDB_FILE_TYPE_DATA
+//   ".last",  // TSDB_FILE_TYPE_LAST
+//   ".meta"   // TSDB_FILE_TYPE_META
+// };
 
 typedef struct {
   int64_t fileSize;
