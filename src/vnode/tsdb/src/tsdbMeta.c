@@ -10,14 +10,14 @@
 #define TSDB_MAX_TABLES 100000
 #define TSDB_DEFAULT_NSTABLES 10
 
-#define IS_VALID_MAX_TABLES(maxTables) (((maxTables) >= TSDB_MIN_TABLES) && ((maxTables) >= TSDB_MAX_TABLES))
+#define IS_VALID_MAX_TABLES(maxTables) (((maxTables) >= TSDB_MIN_TABLES) && ((maxTables) <= TSDB_MAX_TABLES))
 
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
 static STable *tsdbGetTableByUid(int64_t uid);
 static int     tsdbAddTable(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
-static int     tsdbAddTableIntoIndex(pMeta, pTable);
+static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 
 STsdbMeta *tsdbCreateMeta(int32_t maxTables) {
   if (!IS_VALID_MAX_TABLES(maxTables)) return NULL;
@@ -176,7 +176,7 @@ static int tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable) {
   // TODO: add the table to the map
   return 0;
 }
-static int tsdbAddTableIntoIndex(pMeta, pTable) {
+static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
   // TODO
   return 0;
 }
