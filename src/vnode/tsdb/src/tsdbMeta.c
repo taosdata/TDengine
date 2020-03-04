@@ -90,7 +90,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
       pSTable->stableUid = -1;
       pSTable->numOfCols = pCfg->numOfCols;
       pSTable->pSchema = tdDupSchema(pCfg->schema);
-      pSTable->content.pIndex = tSkipListCreate(5, 0, 10); // TODO: change here
+      // pSTable->content.pIndex = tSkipListCreate(5, 0, 10); // TODO: change here
       tsdbAddTable(pMeta, pSTable);
     } else {
       if (pSTable->type != TSDB_SUPER_TABLE) return NULL;
@@ -113,7 +113,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
     pTable->stableUid = -1;
     pTable->pSchema = tdDupSchema(pCfg->schema);
   }
-  pTable->content.pData = tSkipListCreate(5, 0, 10); // TODO: change here
+  // pTable->content.pData = tSkipListCreate(5, 0, 10); // TODO: change here
 
   tsdbAddTable(pMeta, pTable);
 

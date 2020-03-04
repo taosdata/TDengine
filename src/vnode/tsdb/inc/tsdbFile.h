@@ -32,12 +32,6 @@ typedef enum {
 } TSDB_FILE_TYPE;
 
 extern const char *tsdbFileSuffix[];
-// const char *tsdbFileSuffix[] = {
-//   ".head",  // TSDB_FILE_TYPE_HEAD
-//   ".data",  // TSDB_FILE_TYPE_DATA
-//   ".last",  // TSDB_FILE_TYPE_LAST
-//   ".meta"   // TSDB_FILE_TYPE_META
-// };
 
 typedef struct {
   int64_t fileSize;
@@ -54,6 +48,8 @@ typedef struct {
 //   int64_t ekey;
 //   int16_t numOfBlocks;
 // } SDataBlock;
+
+#define IS_VALID_TSDB_FILE_TYPE(type) ((type) >= TSDB_FILE_TYPE_HEAD && (type) <= TSDB_FILE_TYPE_META)
 
 char *tsdbGetFileName(char *dirName, char *fname, TSDB_FILE_TYPE type);
 

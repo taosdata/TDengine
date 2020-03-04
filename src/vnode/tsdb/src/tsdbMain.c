@@ -241,7 +241,7 @@ static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
     return -1;
   }
 
-  sprintf(dirName, "%s/%s", pRepo->rootDir, dirName);
+  sprintf(dirName, "%s/%s", pRepo->rootDir, "tsdb");
   if (mkdir(dirName, 0755) < 0) {
     free(dirName);
     return -1;
