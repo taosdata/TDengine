@@ -206,7 +206,7 @@ static int32_t tsdbCheckTableCfg(STableCfg *pCfg) {
 }
 
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
-  return (STable *)taosGetDataFromHashTable(pMeta->tableMap, (char *)(&uid), sizeof(uid));
+  return *(STable **)taosGetDataFromHashTable(pMeta->tableMap, (char *)(&uid), sizeof(uid));
 }
 
 static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable) {
