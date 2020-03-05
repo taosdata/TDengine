@@ -176,7 +176,7 @@ for irow in range(numOfRows):
 # 直接使用cursor 循环拉取查询结果
 c1.execute('select * from tb')
 for data in c1:
-  print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2])
+  print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
 </pre></code>
 <li>关闭连接</li>
 <code><pre>
