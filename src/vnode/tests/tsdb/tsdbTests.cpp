@@ -13,5 +13,25 @@ TEST(TsdbTest, createTsdbRepo) {
 
   ASSERT_NE(pRepo, nullptr);
 
+  STableCfg config;
+  config.tableId.tid = 0;
+  config.tableId.uid = 10889498868728187539;
+  config.numOfCols = 2;
+  config.schema = (SSchema *)malloc(sizeof(SSchema) + sizeof(SColumn) * config.numOfCols);
+  config.schema->version = 0;
+  config.schema->numOfCols = 2;
+  config.schema->numOfTags = 0;
+  config.schema->colIdCounter = 1;
+  for (int i = 0; i < config.numOfCols; i++) {
+    SColumn *pCol = config.schema->columns + i;
+    pCol->type = TD_DATATYPE_BIGINT;
+    pCol->colId = config.schema->colIdCounter++;
+    pCol->offset = 10;
+    pCol->colName = strdup("col1");
+  }
+  config.tagValues = NULL;
+
+  tsdbCreateTable(pRepo, &config);
+
   tsdbCloseRepo(pRepo);
 }

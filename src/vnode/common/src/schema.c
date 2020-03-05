@@ -60,7 +60,7 @@ SISchema tdConvertSchemaToInline(SSchema *pSchema) {
 
   TD_ISCHEMA_LEN(pISchema) = (int32_t)len;
   memcpy((void *)TD_ISCHEMA_SCHEMA(pISchema), (void *)pSchema, sizeof(SSchema));
-  TD_SCHEMA_COLS(TD_ISCHEMA_SCHEMA(pISchema)) = (SColumn *)(pISchema + TD_ISCHEMA_HEADER_SIZE);
+  // TD_SCHEMA_COLS(TD_ISCHEMA_SCHEMA(pISchema)) = (SColumn *)(pISchema + TD_ISCHEMA_HEADER_SIZE);
   memcpy((void *)TD_SCHEMA_COLS(TD_ISCHEMA_SCHEMA(pISchema)), (void *)TD_SCHEMA_COLS(pSchema),
          sizeof(SColumn) * totalCols);
 

@@ -17,7 +17,6 @@ static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
-static int tsdbInsertRowToTable(STable *pTable, SDataRow row);
 
 STsdbMeta *tsdbCreateMeta(int32_t maxTables) {
   STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
@@ -95,10 +94,10 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
                                                 0, NULL);  // Allow duplicate key, no lock
       if (pSTable->content.pIndex == NULL) {
         free(pSTable);
-        return NULL;
+        return -1;
       }
     } else {
-      if (pSTable->type != TSDB_SUPER_TABLE) return NULL;
+      if (pSTable->type != TSDB_SUPER_TABLE) return -1;
     }
   }
 
@@ -173,6 +172,8 @@ int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
 
     tsdbFreeTable(pTable);
   }
+
+  return 0;
 }
 
 int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable) {
@@ -235,6 +236,7 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable) {
 
 static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
   // TODO
+  return 0;
 }
 
 static int tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable) {
@@ -254,18 +256,5 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
 static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   assert(pTable->type == TSDB_STABLE);
   // TODO
-  return 0;
-}
-
-static int tsdbInsertRowToTable(STable *pTable, SDataRow row) {
-  int32_t headSize;
-  int32_t level;
-  tSkipListRandNodeInfo(pTable->content.pIndex, &level, &headSize);
-
-  // SSkipListNode *pNode = tsdbAllocFromCache(p);
-  // if (pNode == NULL) {
-  //   return -1;
-  // }
-
   return 0;
 }

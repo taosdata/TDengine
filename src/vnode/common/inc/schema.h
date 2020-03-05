@@ -22,7 +22,7 @@ typedef struct {
   int32_t  numOfCols;
   int32_t  numOfTags;
   int32_t  colIdCounter;
-  SColumn *columns;
+  SColumn  columns[];
 } SSchema;
 
 /* Inline schema definition
