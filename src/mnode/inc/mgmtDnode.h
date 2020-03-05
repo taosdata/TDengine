@@ -50,6 +50,8 @@ int32_t mgmtGetDnodesNum();
 int32_t mgmtUpdateDnode(SDnodeObj *pDnode);
 void*   mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode);
 bool    mgmtCheckConfigShow(SGlobalConfig *cfg);
+bool    mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode);
+bool    mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode);
 void    mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
 SDnodeObj* mgmtGetDnode(uint32_t ip);
 

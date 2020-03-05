@@ -636,3 +636,17 @@ bool mgmtCheckConfigShow(SGlobalConfig *cfg) {
     return false;
   return true;
 }
+
+/**
+ * check if a dnode in remove state
+ **/
+bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode) {
+  return pDnode->lbStatus == TSDB_DN_LB_STATUS_OFFLINE_REMOVING || pDnode->lbStatus == TSDB_DN_LB_STATE_SHELL_REMOVING;
+}
+
+/**
+ * check if a dnode in offline state
+ **/
+bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) {
+  return pDnode->status == TSDB_DN_STATUS_OFFLINE;
+}
