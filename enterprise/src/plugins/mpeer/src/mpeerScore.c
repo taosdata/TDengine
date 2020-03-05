@@ -14,12 +14,23 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include "mgmtBalance.h"
+#include "os.h"
 #include "tschemautil.h"
+#include "tmodule.h"
+#include "tstatus.h"
 #include "ttime.h"
+#include "mgmtBalance.h"
+#include "mgmtDnode.h"
+#include "mpeerScore.h"
+#include "mpeerModule.h"
 #include "dnodeModule.h"
+
+extern void *tsVgroupSdb;
+extern void *tsDnodeSdb;
+extern void *tsMnodeSdb;
+extern int32_t tsVgUpdateSize;
+extern int32_t tsMnodeUpdateSize;
+extern int32_t tsDnodeUpdateSize;
 
 int         mgmtOrderedDnodesSize = 0;
 int         mgmtOrderedDnodesMallocSize = 0;
@@ -176,8 +187,6 @@ void mgmtMakeDnodeOrderList() {
 
 int mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int cols = 0;
-
-  if (strcmp(pConn->pAcct->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
   SSchema *pSchema = tsGetSchema(pMeta);
 

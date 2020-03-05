@@ -16,9 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "tmodule.h"
 #include "mgmtBalance.h"
+#include "mpeerBalance.h"
 #include "mgmtDnode.h"
 #include "dnodeModule.h"
-#include "clusterModule.h"
+#include "mpeerModule.h"
 
 #define LB_MODULE_UNLIMIT -1
 

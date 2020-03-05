@@ -9,31 +9,24 @@
  *
  * ****************************************************************/
 #define _DEFAULT_SOURCE
-#include <arpa/inet.h>
-#include <endian.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <sys/sendfile.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include "sdb.h"
-#include "sdbint.h"
+#include "os.h"
 #include "trpc.h"
+#include "tsched.h"
 #include "tsocket.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "sdb.h"
+#include "sdbint.h"
 
 #define MAX_TRY_WAIT_TIMES 2000
 #define TRY_WAIT_TIME_IN_MS 1
 
 extern void *tsMgmtTranQhandle;
-void *       pPeerConn = NULL;  // for mnode-mnode communication
+
+static void  *tsSdbServer = NULL;
+static void  *tsSdbClient = NULL;
+
 void *       sdbTmr;
 void *       mnodeSdb;
 void *       sdbRoleTimer;
@@ -78,6 +71,9 @@ int sdbProcessQueuedDbReq(char *cont, int contLen);
 void sdbUpdateIpList();
 void sdbCheckSelfRole();
 int sdbProcessCfgMnodeMsg(char *cont, int contLen, SSdbPeer *pPeer);
+
+static int32_t sdbRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
+
 
 const char *taosGetSdbRoleStr(int sdbRole) {
   switch (sdbRole) {
@@ -267,8 +263,7 @@ void sdbPeerRemoved(SSdbPeer *pPeer) {
 
   sdbPeer[i]->status = SDB_STATUS_DELETED;
   taosTmrStopA(&(pPeer->hbTimer));
-  if (pPeer->thandle) taosCloseRpcConn(pPeer->thandle);
-  // if ( pPeer->syncFd > 0 ) close(pPeer->syncFd);
+//  if (pPeer->thandle) taosCloseRpcConn(pPeer->thandle);
 
   sdbNumOfPeers--;
   sdbPrint("peer:%s is removed, numOfPeers:%d, sdbVersion:%d mnodeId:%d",
@@ -331,7 +326,7 @@ void *mgmtPeerTool(char action, void *row, char *str, int size, int *ssize) {
         sdbPeerRemoved(pPeer);
         sdbUpdateIpList();
         taosTmrStopA(&pPeer->hbTimer);
-        if (pPeer->thandle) taosCloseRpcConn(pPeer->thandle);
+//        if (pPeer->thandle) taosCloseRpcConn(pPeer->thandle);
         if (pPeer->syncFd > 0) taosCloseTcpSocket(pPeer->syncFd);
       }
       pPeer->ip = 0;
@@ -341,21 +336,6 @@ void *mgmtPeerTool(char action, void *row, char *str, int size, int *ssize) {
 
   return NULL;
 }
-
-/* void sdbPeerChanged(char type, char *row) */
-/* { */
-/*   SSdbPeer *pPeer = (SSdbPeer *)row; */
-/*    */
-/*   //if ( strcmp(pPeer->zone, sdbZone) != 0 ) return; */
-/*  */
-/*   if ( type == SDB_TYPE_DELETE ) { */
-/*     sdbPeerRemoved(pPeer); */
-/*   } else if ( type == SDB_TYPE_INSERT ) { */
-/*     sdbNewPeerAdded(pPeer); */
-/*   }  */
-/*  */
-/*   sdbUpdateIpList(); */
-/* } */
 
 int sdbInitPeers(char *directory) {
   SSdbPeer *pPeer;
@@ -371,11 +351,9 @@ int sdbInitPeers(char *directory) {
   masterIp = inet_addr(sdbMasterIp);
   memset(sdbPeer, 0, sizeof(SSdbPeer *) * SDB_MAX_PEERS);
 
-  size = sizeof(SIpList) + sizeof(uint32_t) * (SDB_MAX_PEERS + 2);
-  if (pSdbIpList == NULL) pSdbIpList = (SIpList *)malloc(size);
-  memset(pSdbIpList, 0, size);
+  if (pSdbIpList == NULL) pSdbIpList = calloc(1, sizeof(SRpcIpSet));
 
-  if (pSdbPublicIpList == NULL) pSdbPublicIpList = (SIpList *)malloc(size);
+  if (pSdbPublicIpList == NULL) pSdbPublicIpList = calloc(1, sizeof(SRpcIpSet));
   memset(pSdbPublicIpList, 0, size);
 
   pthread_mutex_init(&sdbQueue.qmutex, NULL);
@@ -453,21 +431,38 @@ int sdbInitPeers(char *directory) {
   sdbUpdateIpList();
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp = sdbPrivateIp;
-  rpcInit.localPort = tsMgmtMgmtPort;
-  rpcInit.label = "MND-SDB";
+  rpcInit.localIp      = sdbPrivateIp;
+  rpcInit.localPort    = tsMgmtMgmtPort;
+  rpcInit.label        = "MND-SDB-s";
   rpcInit.numOfThreads = 1;
-  rpcInit.fp = sdbProcessMsgFromPeer;
-  rpcInit.bits = 8;
-  rpcInit.numOfChanns = 1;
-  rpcInit.sessionsPerChann = SDB_MAX_PEERS + 1;
-  rpcInit.idMgmt = TAOS_ID_FREE;
-  rpcInit.connType = TAOS_CONN_UDPC;
-  rpcInit.qhandle = sdbQhandle;
+  rpcInit.cfp          = sdbProcessMsgFromPeer;
+  rpcInit.sessions     = 100;
+  rpcInit.connType     = TAOS_CONN_SERVER;
+  rpcInit.idleTime     = tsShellActivityTimer * 2000;
+  rpcInit.afp          = sdbRetriveUserAuthInfo;
 
-  pPeerConn = taosOpenRpc(&rpcInit);
-  if (pPeerConn == NULL) {
-    sdbError("failed to init %s connection between mnodes", tsSocketType);
+  tsSdbServer = rpcOpen(&rpcInit);
+  if (tsSdbServer == NULL) {
+    sdbError("failed to init %s sdb server");
+    return -1;
+  }
+
+  memset(&rpcInit, 0, sizeof(rpcInit));
+  rpcInit.localIp      = sdbPrivateIp;
+  rpcInit.localPort    = tsMgmtMgmtPort;
+  rpcInit.label        = "MND-SDB-c";
+  rpcInit.numOfThreads = 1;
+  rpcInit.cfp          = sdbProcessMsgFromPeer;
+  rpcInit.sessions     = 100;
+  rpcInit.connType     = TAOS_CONN_CLIENT;
+  rpcInit.idleTime     = tsShellActivityTimer * 2000;
+  rpcInit.user         = "t";
+  rpcInit.ckey         = "key";
+  rpcInit.secret       = "secret";
+
+  tsSdbClient = rpcOpen(&rpcInit);
+  if (tsSdbClient == NULL) {
+    sdbError("failed to init %s sdb client");
     return -1;
   }
 
@@ -477,7 +472,9 @@ int sdbInitPeers(char *directory) {
       taosTmrReset(sdbCheckPeerStatus, tsMgmtPeerHBTimer * 1000, pPeer, sdbTmr, &pPeer->hbTimer);
   }
 
-  if (pSelf->role != SDB_ROLE_MASTER) taosTmrReset(sdbCheckRoleStatus, tsMgmtPeerHBTimer * 3000, NULL, sdbTmr, &sdbRoleTimer);
+  if (pSelf->role != SDB_ROLE_MASTER) {
+    taosTmrReset(sdbCheckRoleStatus, tsMgmtPeerHBTimer * 3000, NULL, sdbTmr, &sdbRoleTimer);
+  }
 
   return 0;
 }
@@ -491,16 +488,26 @@ void sdbCleanUpPeers() {
     pPeer = sdbPeer[i];
     if (pPeer == NULL || pPeer->status == SDB_STATUS_DELETED) continue;
     taosTmrStopA(&pPeer->hbTimer);
-    if (pPeer->thandle) taosCloseRpcConn(pPeer->thandle);
+//    if (pPeer->thandle) taosCloseRpcConn(pPeer->thandle);
     if (pPeer->syncFd > 0) taosCloseTcpSocket(pPeer->syncFd);
     sdbPeer[i] = NULL;
   }
 
-  if (pPeerConn) taosCloseRpc(pPeerConn);
-  if (sdbTmr) taosTmrCleanUp(sdbTmr);
+  if (tsSdbServer) {
+    rpcClose(tsSdbServer);
+    tsSdbServer = NULL;
+  }
 
-  pPeerConn = NULL;
-  sdbTmr = NULL;
+  if (tsSdbClient) {
+    rpcClose(tsSdbClient);
+    tsSdbClient = NULL;
+  }
+
+  if (sdbTmr) {
+    taosTmrCleanUp(sdbTmr);
+    sdbTmr = NULL;
+  }
+
   sdbCloseTable(mnodeSdb);
   taosCleanUpScheduler(sdbQhandle);
 
@@ -942,7 +949,7 @@ void sdbCheckPeerStatus(void *param, void *tmrId) {
     connInit.encrypt = 0;
     connInit.tableId = tableId;
     connInit.peerId = 0;
-    connInit.shandle = pPeerConn;
+    connInit.shandle = tsSdbServer;
     connInit.ahandle = pPeer;
     connInit.peerIp = pPeer->ipstr;
     connInit.peerPort = tsMgmtMgmtPort;
@@ -1568,30 +1575,6 @@ int sdbProcessForwardMsg(char *cont, int contLen, SSdbPeer *pPeer) {
   return 0;
 }
 
-int sdbCfgNode(char *cont) {
-  SCfgDnodeMsg * pCfg = (SCfgDnodeMsg *)cont;
-  int       code = TSDB_CODE_NODE_OFFLINE;
-  SSdbPeer *pPeer;
-  char *    pMsg, *pStart;
-  uint32_t  ip;
-
-  ip = inet_addr(pCfg->ip);
-  pPeer = (SSdbPeer *)sdbGetRow(mnodeSdb, &ip);
-  if (pPeer == NULL || pPeer->status == SDB_STATUS_DELETED) return TSDB_CODE_NOT_CONFIGURED;
-
-  if (pPeer == pSelf) {
-    code = tsCfgDynamicOptions(pCfg->config);
-  } else {
-    pStart = taosBuildReqMsg(pPeer->thandle, TSDB_MSG_TYPE_CFG_MNODE);
-    if (pStart) {
-      pMsg = pStart;
-      memcpy(pMsg, cont, sizeof(SCfgDnodeMsg));
-      pMsg += sizeof(SCfgDnodeMsg);
-
-      int msgLen = pMsg - pStart;
-      code = taosSendMsgToPeer(pPeer->thandle, pStart, msgLen);
-    }
-  }
-
-  return code;
+static int32_t sdbRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  return TSDB_CODE_SUCCESS;
 }

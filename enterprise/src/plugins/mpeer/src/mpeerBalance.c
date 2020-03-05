@@ -14,9 +14,22 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tstatus.h"
 #include "mgmtBalance.h"
-#include "vnodeStatus.h"
-#include "dnodeModule.h"
+#include "mgmtDb.h"
+#include "mgmtDnode.h"
+#include "mgmtDnodeInt.h"
+#include "mgmtVgroup.h"
+#include "mpeerBalance.h"
+#include "clusterDnodeConn.h"
+#include "clusterDnode.h"
+
+extern void *tsVgroupSdb;
+extern void *tsDnodeSdb;
+extern void *tsMnodeSdb;
+extern int32_t tsVgUpdateSize;
+extern int32_t tsMnodeUpdateSize;
+extern int32_t tsDnodeUpdateSize;
 
 /*
  * once sdb work as mater, then mgmtAccessSquence reset to zero, increase mgmtAccessSquence every balance interval
@@ -25,9 +38,13 @@ pthread_mutex_t balanceMutex;
 void *          balanceTimer = NULL;
 void *          balanceMonitorTimer = NULL;
 
-void mgmtLockBalance() { pthread_mutex_lock(&balanceMutex); }
+void mgmtLockBalance() {
+  pthread_mutex_lock(&balanceMutex);
+}
 
-void mgmtUnLockBalance() { pthread_mutex_unlock(&balanceMutex); }
+void mgmtUnLockBalance() {
+  pthread_mutex_unlock(&balanceMutex);
+}
 
 void mgmtUpdateDnodeState(SDnodeObj *pDnode, int lbStatus) {
   pDnode->lbStatus = lbStatus;
@@ -222,8 +239,10 @@ void mgmtDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
 
   sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 1);
 
-  mgmtSendOneFreeVnodeMsg(&pBackupVnodeGid);
-  mgmtSendCreateVnodeMsg(pVgroup);
+  SRpcIpSet ipSet = mgmtGetIpSetFromIp(pBackupVnodeGid.ip);
+  mgmtSendOneFreeVnodeMsg(pBackupVnodeGid.vnode, &ipSet, NULL);
+
+  mgmtSendCreateVgroupMsg(pVgroup, NULL);
 }
 
 /**
@@ -255,7 +274,7 @@ void mgmtAppendVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
     mTrace("%d-dnode:%s, vgroup:%d, vnode:%d exist after addition", i, taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vgId, pVgroup->vnodeGid[i].vnode);
   }
 
-  mgmtSendCreateVnodeMsg(pVgroup);
+  mgmtSendCreateVgroupMsg(pVgroup, NULL);
 }
 
 void mgmtSwapVnodeGid(SVnodeGid *pVnodeGid1, SVnodeGid *pVnodeGid2) {
@@ -697,7 +716,7 @@ void mgmtMontiorDnodeOffline(SDnodeObj *pDnode) {
   if (!mgmtCheckDnodeInOfflineState(pDnode)) return;
   if (mgmtCheckDnodeInRemoveState(pDnode)) return;
   if (pDnode->lastAccess + tsOfflineThreshold > mgmtAccessSquence) return;
-  if (pDnode->privateIp == tsDnodeMgmtIpList.ip[0]) return;
+  if (pDnode->privateIp == dnodeGetMgmtIp()) return;
   if (sdbGetNumOfRows(tsDnodeSdb) <= 1) return;
 
   mLPrint("dnode:%s set to removing state for it offline:%d seconds",

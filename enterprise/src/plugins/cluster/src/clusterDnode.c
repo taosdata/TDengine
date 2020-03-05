@@ -83,7 +83,7 @@ int32_t mgmtCreateDnode(uint32_t ip) {
   return code;
 }
 
-static int32_t mgmtDropDnode(SDnodeObj *pDnode) {
+int32_t mgmtDropDnode(SDnodeObj *pDnode) {
   char ipstr[20] = {0};
   tinet_ntoa(ipstr, pDnode->privateIp);
 

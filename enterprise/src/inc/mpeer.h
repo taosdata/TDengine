@@ -23,6 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include "mnode.h"
 
 void mpeerInit();
 
@@ -32,13 +33,13 @@ extern int32_t (*mgmtInitBalanceFp)();
 extern void    (*mgmtCleanupBalanceFp)();
 extern int32_t (*mgmtAllocVnodesFp)(SVgObj *pVgroup);
 extern char *  (*mgmtGetVnodeStatusFp)(SVgObj *pVgroup, SVnodeGid *pVnode);
-extern void       (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode);
+extern void    (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode);
 
 // mgmtMnode
-extern int32_t (*mgmtInitMnodesFp)()
-extern void    (*mgmtCleanUpMnodesFp)()
-extern int32_t (*mgmtGetMnodesNumFp)()
-extern void *  (*mgmtGetNextMnodeFp)(SShowObj *pShow, SSdbPeer **pMnode)
+extern int32_t (*mgmtInitMnodesFp)();
+extern void    (*mgmtCleanUpMnodesFp)();
+extern int32_t (*mgmtGetMnodesNumFp)();
+extern void *  (*mgmtGetNextMnodeFp)(SShowObj *pShow, SSdbPeer **pMnode);
 
 // mgmtDnode
 extern int32_t    (*mgmtGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);

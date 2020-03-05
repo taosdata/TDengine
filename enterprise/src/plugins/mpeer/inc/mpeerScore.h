@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MODULE_MNODE_BALANCE_H
-#define TDENGINE_MODULE_MNODE_BALANCE_H
+#ifndef TDENGINE_MODULE_MPEER_SCORE_H
+#define TDENGINE_MODULE_MPEER_SCORE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,24 +25,11 @@ extern "C" {
 #include <pthread.h>
 #include "mnode.h"
 
-void    mgmtStartBalanceTimerImp(int64_t mseconds);
-int32_t mgmtInitBalanceImp();
-void    mgmtCleanupBalanceImp();
-int32_t mgmtAllocVnodesImp(SVgObj *pVgroup);
-char *  mgmtGetVnodeStatusImp(SVgObj *pVgroup, SVnodeGid *pVnode);
-int32_t mgmtSetDnodeShellRemovingImp(SDnodeObj *pDnode);
-void    mgmtSetDnodeUnRemoveImp(SDnodeObj *pDnode);
-
-
-
 void mgmtCreateDnodeOrderList();
-
 void mgmtReleaseDnodeOrderList();
-
 void mgmtMakeDnodeOrderList();
 
 void mgmtCalcSystemScore();
-
 float mgmtTryCalcDnodeScore(SDnodeObj *pDnode, int extraVnode);
 
 bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode);

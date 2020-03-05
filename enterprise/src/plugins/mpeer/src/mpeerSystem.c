@@ -17,6 +17,7 @@
 #include "os.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "mpeer.h"
 #include "mpeerBalance.h"
 
 void mpeerInit() {
