@@ -1,3 +1,4 @@
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/21a1f6997f3449d08b01a0514e3dc8ee)](https://app.codacy.com/manual/sangshuduo/TDengine?utm_source=github.com&utm_medium=referral&utm_content=sangshuduo/TDengine&utm_campaign=Badge_Grade_Dashboard)
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
 # What is TDengine？
