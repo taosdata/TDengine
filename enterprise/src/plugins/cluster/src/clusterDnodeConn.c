@@ -17,11 +17,11 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "tlog.h"
+#include "tsocket.h"
 #include "tutil.h"
 #include "dnodeSystem.h"
 #include "dnodeMgmt.h"
 #include "dnodeModule.h"
-#include "clusterModule.h"
 
 static void      *tsDnodeMgmtServer = NULL;
 static void      *tsDnodeMgmtClient = NULL;
@@ -30,10 +30,9 @@ static uint64_t  tsCreatedTime      = 0;
 
 static bool dnodeSeekMgmtIp(FILE *fp);
 static void dnodeSaveMgmtIp();
-static void dnodeSendStatusMsgToMgmt(void *handle, void *tmrId);
 static int32_t dnodeRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-void mgmtUpdateModulesFp(uint32_t status);
+void (*mgmtUpdateModulesFp)(uint32_t status) = NULL;
 
 uint32_t dnodeGetMgmtIp() {
   return tsDnodeMgmtIpList.ip[0];
@@ -77,6 +76,8 @@ int32_t dnodeInitMgmtImp() {
     tscError("failed to init connection from mgmt");
     return -1;
   }
+
+  return 0;
 }
 
 void dnodeCleanUpMgmtImp() {
@@ -150,10 +151,9 @@ void dnodeProcessStatusRspImp(void *pCont, int32_t contLen, int8_t msgType, void
   }
 
   if (mgmtUpdateModulesFp) {
-    (*mgmtUpdateModules)(pState->moduleStatus);
+    (*mgmtUpdateModulesFp)(pState->moduleStatus);
   }
-  
-  SVnodeAccess *pAccess = &pStatus->vnodeAccess;
+
   for (int32_t i = 0; i < pState->numOfVnodes; ++i) {
     SVnodeAccess *pAccess = &(pStatus->vnodeAccess[i]);
     pAccess->vnode = htonl(pAccess->vnode);

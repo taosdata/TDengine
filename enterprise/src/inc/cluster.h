@@ -32,7 +32,7 @@ extern void    (*dnodeInitMgmtIpFp)();
 extern int32_t (*dnodeInitMgmtFp)();
 extern void    (*dnodeCleanUpMgmtFp)();
 extern void    (*dnodeProcessStatusRspFp)(void *pCont, int32_t contLen, int8_t msgType, void *pConn);
-extern void    (*dnodeSendMsgToMnodeFp)(int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
+extern void    (*dnodeSendMsgToMnodeFp)(int8_t msgType, void *pCont, int32_t contLen);
 extern void    (*dnodeSendRspToMnodeFp)(void *handle, int32_t code, void *pCont, int contLen);
 
 // mgmtDnodeInt & clusterMgmtConn

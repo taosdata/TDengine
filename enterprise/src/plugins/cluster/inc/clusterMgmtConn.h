@@ -26,7 +26,7 @@ extern "C" {
 int32_t mgmtInitDnodeIntImp();
 void    mgmtCleanUpDnodeIntImp();
 void    mgmtSendMsgToDnodeImp(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
-void    mgmtSendRspToDnodeImp(void *pConn, int8_t msgType, int32_t code, void *pCont, int32_t contLen);
+void    mgmtSendRspToDnodeImp(void *pConn, int32_t code, void *pCont, int32_t contLen);
 
 #ifdef __cplusplus
 }

@@ -23,7 +23,6 @@
 #include "dnodeModule.h"
 #include "clusterDnode.h"
 #include "clusterDnodeConn.h"
-#include "clusterModule.h"
 
 void *tsDnodeSdb = NULL;
 
