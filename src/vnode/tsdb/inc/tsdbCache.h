@@ -44,7 +44,7 @@ typedef struct STSDBCache {
   int32_t          numOfBlocks;
   STSDBCacheBlock *cacheList;
   void *           current;
-} SCacheHandle;
+} STsdbCache;
 
 // ---- Operation on STSDBCacheBlock
 #define TSDB_CACHE_BLOCK_DATA(pBlock) ((pBlock)->pData)
@@ -53,8 +53,9 @@ typedef struct STSDBCache {
 #define TSDB_NEXT_CACHE_BLOCK(pBlock) ((pBlock)->next)
 #define TSDB_PREV_CACHE_BLOCK(pBlock) ((pBlock)->prev)
 
-SCacheHandle *tsdbCreateCache(int32_t numOfBlocks);
-int32_t tsdbFreeCache(SCacheHandle *pHandle);
+STsdbCache *tsdbCreateCache(int32_t numOfBlocks);
+int32_t tsdbFreeCache(STsdbCache *pCache);
+void *tsdbAllocFromCache(STsdbCache *pCache, int64_t bytes);
 
 #ifdef __cplusplus
 }

@@ -6,6 +6,7 @@
 #include "taosdef.h"
 #include "tsdbMeta.h"
 #include "hash.h"
+#include "tsdbCache.h"
 
 #define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
 
@@ -137,26 +138,20 @@ STsdbMeta *tsdbOpenMeta(char *tsdbDir) {
   return pMeta;
 }
 
-int32_t tsdbInsertDataImpl(STsdbMeta *pMeta, STableId tableId, SDataRows rows) {
+/**
+ * Check if a table is valid to insert.
+ * @return NULL for invalid and the pointer to the table if valid
+ */
+STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId) {
   STable *pTable = tsdbGetTableByUid(pMeta, tableId.uid);
   if (pTable == NULL) {
-    return -1;
+    return NULL;
   }
 
-  if (TSDB_TABLE_IS_SUPER_TABLE(pTable)) return -1;
-  if (pTable->tableId.tid != tableId.tid) return -1;
+  if (TSDB_TABLE_IS_SUPER_TABLE(pTable)) return NULL;
+  if (pTable->tableId.tid != tableId.tid) return NULL;
 
-  // Loop to write each row
-  SDataRowsIter sdataIter;
-  tdInitSDataRowsIter(rows, &sdataIter);
-  while (!tdRdataIterEnd(&sdataIter)) {
-    // Insert the row to it
-    tsdbInsertRowToTable(pTable, sdataIter.row);
-
-    tdRdataIterNext(&sdataIter);
-  }
-
-  return 0;
+  return pTable;
 }
 
 int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
@@ -258,6 +253,14 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
 }
 
 static int tsdbInsertRowToTable(STable *pTable, SDataRow row) {
-  // TODO
+  int32_t headSize;
+  int32_t level;
+  tSkipListRandNodeInfo(pTable->content.pIndex, &level, &headSize);
+
+  // SSkipListNode *pNode = tsdbAllocFromCache(p);
+  // if (pNode == NULL) {
+  //   return -1;
+  // }
+
   return 0;
 }

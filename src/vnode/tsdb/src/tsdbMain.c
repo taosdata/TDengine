@@ -16,6 +16,7 @@
 #include "tsdbCache.h"
 #include "tsdbFile.h"
 #include "tsdbMeta.h"
+#include "tutil.h"
 
 #define TSDB_DEFAULT_PRECISION TSDB_PRECISION_MILLI  // default precision
 #define IS_VALID_PRECISION(precision) (((precision) >= TSDB_PRECISION_MILLI) && ((precision) <= TSDB_PRECISION_NANO))
@@ -51,7 +52,7 @@ typedef struct _tsdb_repo {
   STsdbMeta *tsdbMeta;
 
   // The cache Handle
-  SCacheHandle *tsdbCache;
+  STsdbCache *tsdbCache;
 
   // Disk tier handle for multi-tier storage
   void *diskTier;
@@ -73,6 +74,7 @@ static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo);
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
 static int     tsdbOpenMetaFile(char *tsdbDir);
 static int     tsdbRecoverRepo(int fd, STsdbCfg *pCfg);
+static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlock *pBlock);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -98,7 +100,6 @@ STsdbCfg *tsdbCreateDefaultCfg() {
 void tsdbFreeCfg(STsdbCfg *pCfg) {
   if (pCfg != NULL) free(pCfg);
 }
-
 
 tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter) {
   if (rootDir == NULL) return NULL;
@@ -257,10 +258,17 @@ STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tableId) {
   return NULL;
 }
 
-int32_t tsdbInsertData(tsdb_repo_t *repo, STableId tableId, char *pData) {
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
+// TODO: need to return the number of data inserted
+int32_t tsdbInsertData(tsdb_repo_t *repo, SSubmitMsg *pMsg) {
+  STsdbRepo *   pRepo = (STsdbRepo *)repo;
+  SSubmitBlock *pBlock = pMsg->data;
 
-  tsdbInsertDataImpl(pRepo->tsdbMeta, tableId, pData);
+  for (int i = 0; i < pMsg->numOfTables; i++) {  // Loop to deal with the submit message
+    if (tsdbInsertDataToTable(repo, pBlock) < 0) {
+      return -1;
+    }
+    pBlock = ((char *)pBlock) + sizeof(SSubmitBlock) + pBlock->len;
+  }
 
   return 0;
 }
@@ -392,5 +400,30 @@ static int tsdbOpenMetaFile(char *tsdbDir) {
 static int tsdbRecoverRepo(int fd, STsdbCfg *pCfg) {
   // TODO: read tsdb configuration from file
   // recover tsdb meta
+  return 0;
+}
+
+static FORCE_INLINE int32_t tdInsertRowToTable(SDataRow row, STable *pTable) { return 0; }
+
+static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlock *pBlock) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+
+  STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, pBlock->tableId);
+  if (pTable == NULL) {
+    return -1;
+  }
+
+  SDataRows     rows = pBlock->data;
+  SDataRowsIter rDataIter, *pIter;
+
+  tdInitSDataRowsIter(rows, pIter);
+  while (!tdRdataIterEnd(pIter)) {
+    if (tdInsertRowToTable(pIter->row, pTable) < 0) {
+      // TODO: deal with the error here
+    }
+
+    tdRdataIterNext(pIter);
+  }
+
   return 0;
 }

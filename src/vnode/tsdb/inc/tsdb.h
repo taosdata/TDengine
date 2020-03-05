@@ -47,7 +47,7 @@ typedef struct {
 typedef struct {
   STableId tableId;
   int32_t  sversion;   // data schema version
-  int32_t  numOfRows;  // number of rows data
+  int32_t  len;        // message length
   char     data[];
 } SSubmitBlock;
 
@@ -198,13 +198,11 @@ STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid);
 /**
  * Insert data to a table in a repository
  * @param pRepo the TSDB repository handle
- * @param tid the table ID to insert to
  * @param pData the data to insert (will give a more specific description)
- * @param error the error number to set when failure occurs
  *
  * @return the number of points inserted, -1 for failure and the error number is set
  */
-int32_t tsdbInsertData(tsdb_repo_t *pRepo, STableId tid, char *pData);
+int32_t tsdbInsertData(tsdb_repo_t *pRepo, SSubmitMsg *pMsg);
 
 // -- FOR QUERY TIME SERIES DATA
 
