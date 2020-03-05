@@ -17,6 +17,7 @@
 #include "tsdbFile.h"
 #include "tsdbMeta.h"
 #include "tutil.h"
+#include "tskiplist.h"
 
 #define TSDB_DEFAULT_PRECISION TSDB_PRECISION_MILLI  // default precision
 #define IS_VALID_PRECISION(precision) (((precision) >= TSDB_PRECISION_MILLI) && ((precision) <= TSDB_PRECISION_NANO))
@@ -403,7 +404,25 @@ static int tsdbRecoverRepo(int fd, STsdbCfg *pCfg) {
   return 0;
 }
 
-static FORCE_INLINE int32_t tdInsertRowToTable(SDataRow row, STable *pTable) { return 0; }
+static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable) {
+  // TODO
+  int32_t level = 0;
+  int32_t headSize = 0;
+
+  // Copy row into the memory
+  SSkipListNode *pNode = tsdbAllocFromCache(pRepo->tsdbCache, headSize + TD_DATAROW_LEN(row));
+  if (pNode == NULL) {
+    // TODO: deal with allocate failure
+  }
+
+  pNode->level = level;
+  tdSDataRowCpy(row, SL_GET_NODE_DATA(pNode));
+
+  // Insert the skiplist node into the data
+  tsdbInsertRowToTableImpl(pNode, pTable);
+
+  return 0;
+}
 
 static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlock *pBlock) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
@@ -418,7 +437,7 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlock *pBlock) {
 
   tdInitSDataRowsIter(rows, pIter);
   while (!tdRdataIterEnd(pIter)) {
-    if (tdInsertRowToTable(pIter->row, pTable) < 0) {
+    if (tdInsertRowToTable(pRepo, pIter->row, pTable) < 0) {
       // TODO: deal with the error here
     }
 

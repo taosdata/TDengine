@@ -175,6 +175,11 @@ int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
   }
 }
 
+int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable) {
+  tSkipListPut(pTable->content.pData, pNode);
+  return 0;
+}
+
 static int tsdbFreeTable(STable *pTable) {
   // TODO: finish this function
   if (pTable->type == TSDB_STABLE) {

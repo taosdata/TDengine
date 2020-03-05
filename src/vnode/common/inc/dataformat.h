@@ -74,6 +74,7 @@ typedef struct {
 #define TD_DATAROW_DATA(pDataRow) ((pDataRow) + sizeof(int32_t))
 
 SDataRow tdSDataRowDup(SDataRow rdata);
+void tdSDataRowCpy(SDataRow src, void *dst);
 void tdFreeSDataRow(SDataRow rdata);
 
 // ---- operation on SDataRows

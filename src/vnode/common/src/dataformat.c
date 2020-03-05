@@ -52,3 +52,10 @@ int32_t tdRdataIterEnd(SDataRowsIter *pIter) {
   return pIter->rowCounter >= pIter->totalRows;
 
 }
+
+/**
+ * Copy it
+ */
+void tdSDataRowCpy(SDataRow src, void *dst) {
+  // TODO
+}
