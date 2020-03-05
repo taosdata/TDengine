@@ -591,6 +591,8 @@ int mgmtProcessAlterDbMsg(char *pMsg, int msgLen, SConnObj *pConn) {
 
   pAlter->daysPerFile = htonl(pAlter->daysPerFile);
   pAlter->daysToKeep = htonl(pAlter->daysToKeep);
+  pAlter->daysToKeep1 = htonl(pAlter->daysToKeep1);
+  pAlter->daysToKeep2 = htonl(pAlter->daysToKeep2);
   pAlter->maxSessions = htonl(pAlter->maxSessions) + 1;
 
   if (!pConn->writeAuth) {

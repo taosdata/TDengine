@@ -339,6 +339,26 @@ void mgmtMonitorDbDrop(void *unused, void *unusedt) {
   }
 }
 
+/**
+ * TODO do more check.
+ * check SAlterDbMsg and update it
+ * @param pAlter alter info mation
+ */
+void mgmtPrepareAlterInfo(SAlterDbMsg *pAlter)
+{
+	//force: keep1 <= keep2 <= keep and !=  -1
+	if(pAlter->daysToKeep2 == -1){
+		pAlter->daysToKeep2 =  pAlter->daysToKeep;
+	}
+	if(pAlter->daysToKeep1 == -1){
+		pAlter->daysToKeep1 = pAlter->daysToKeep2;
+	}
+
+	pAlter->daysToKeep2 = pAlter->daysToKeep2  <= pAlter->daysToKeep ? pAlter->daysToKeep2 : pAlter->daysToKeep;
+	pAlter->daysToKeep1 = pAlter->daysToKeep1  <= pAlter->daysToKeep2 ? pAlter->daysToKeep1 : pAlter->daysToKeep2;
+
+}
+
 int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
   SDbObj *pDb;
   int     code = TSDB_CODE_SUCCESS;
@@ -348,11 +368,14 @@ int mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
     mTrace("db:%s is not exist", pAlter->db);
     return TSDB_CODE_INVALID_DB;
   }
+	mgmtPrepareAlterInfo(pAlter);
 
-  int oldReplicaNum = pDb->cfg.replications;
+	int oldReplicaNum = pDb->cfg.replications;
   if (pAlter->daysToKeep > 0) {
     mTrace("db:%s daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, pAlter->daysToKeep);
     pDb->cfg.daysToKeep = pAlter->daysToKeep;
+    pDb->cfg.daysToKeep1  = pAlter->daysToKeep1;
+    pDb->cfg.daysToKeep2 = pAlter->daysToKeep2;
   } else if (pAlter->replications > 0) {
     mTrace("db:%s replica:%d change to %d", pDb->name, pDb->cfg.replications, pAlter->replications);
     if (pAlter->replications < TSDB_REPLICA_MIN_NUM || pAlter->replications > TSDB_REPLICA_MAX_NUM) {

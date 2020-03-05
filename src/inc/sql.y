@@ -247,6 +247,7 @@ alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y);}
 
 alter_db_optr(Y) ::= alter_db_optr(Z) replica(X).     { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) tables(X).      { Y = Z; Y.tablesPerVnode = strtol(X.z, NULL, 10); }
+alter_db_optr(Y) ::= alter_db_optr(Z) keep(X). 	{ Y = Z; Y.keep = X; }
 
 %type typename {TAOS_FIELD}
 typename(A) ::= ids(X).              { tSQLSetColumnType (&A, &X); }
