@@ -16,10 +16,18 @@
 #define _DEFAULT_SOURCE
 #include "tmodule.h"
 #include "mgmtBalance.h"
+#include "mgmtDnode.h"
 #include "dnodeModule.h"
 #include "clusterModule.h"
 
 #define LB_MODULE_UNLIMIT -1
+
+extern void *tsVgroupSdb;
+extern void *tsDnodeSdb;
+extern void *tsMnodeSdb;
+extern int32_t tsVgUpdateSize;
+extern int32_t tsMnodeUpdateSize;
+extern int32_t tsDnodeUpdateSize;
 
 void mgmtSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   pDnode->moduleStatus |= (1 << moduleType);

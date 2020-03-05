@@ -88,7 +88,8 @@ static int32_t mgmtDropDnode(SDnodeObj *pDnode) {
   char ipstr[20] = {0};
   tinet_ntoa(ipstr, pDnode->privateIp);
 
-  mgmtUnSetModuleInDnode(pDnode, TSDB_MOD_MGMT);
+  //TODO mpeer implementation
+  //mgmtUnSetModuleInDnode(pDnode, TSDB_MOD_MGMT);
   sdbDeleteRow(tsDnodeSdb, pDnode);
   mLPrint("dnode:%s is dropped from cluster", ipstr);
 

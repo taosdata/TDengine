@@ -32,6 +32,7 @@ extern int32_t (*mgmtInitBalanceFp)();
 extern void    (*mgmtCleanupBalanceFp)();
 extern int32_t (*mgmtAllocVnodesFp)(SVgObj *pVgroup);
 extern char *  (*mgmtGetVnodeStatusFp)(SVgObj *pVgroup, SVnodeGid *pVnode);
+extern void       (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode);
 
 // mgmtMnode
 extern int32_t (*mgmtInitMnodesFp)()

@@ -33,6 +33,8 @@ static void dnodeSaveMgmtIp();
 static void dnodeSendStatusMsgToMgmt(void *handle, void *tmrId);
 static int32_t dnodeRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
+void mgmtUpdateModulesFp(uint32_t status);
+
 uint32_t dnodeGetMgmtIp() {
   return tsDnodeMgmtIpList.ip[0];
 }
@@ -147,8 +149,10 @@ void dnodeProcessStatusRspImp(void *pCont, int32_t contLen, int8_t msgType, void
     dnodeSaveMgmtIp();
   }
 
-  mgmtUpdateModules(pState->moduleStatus);
-
+  if (mgmtUpdateModulesFp) {
+    (*mgmtUpdateModules)(pState->moduleStatus);
+  }
+  
   SVnodeAccess *pAccess = &pStatus->vnodeAccess;
   for (int32_t i = 0; i < pState->numOfVnodes; ++i) {
     SVnodeAccess *pAccess = &(pStatus->vnodeAccess[i]);

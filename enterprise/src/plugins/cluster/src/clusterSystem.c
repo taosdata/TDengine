@@ -5,29 +5,27 @@
 #include "clusterDnodeConn.h"
 
 void clusterInit() {
-  dnodeInitMgmtFp = dnodeInitMgmtImp;
-  dnodeCleanUpMgmtFp = dnodeCleanUpMgmtImp;
-  dnodeInitMgmtIpFp = dnodeInitMgmtIpImp;
+  // dnodeMgmt & clusterDnodeConn
+  dnodeInitMgmtFp         = dnodeInitMgmtImp;
+  dnodeCleanUpMgmtFp      = dnodeCleanUpMgmtImp;
+  dnodeInitMgmtIpFp       = dnodeInitMgmtIpImp;
   dnodeProcessStatusRspFp = dnodeProcessStatusRspImp;
-  dnodeSendMsgToMnodeFp = dnodeSendMsgToMnodeImp;
-  dnodeSendRspToMnodeFp = dnodeSendRspToMnodeImp;
+  dnodeSendMsgToMnodeFp   = dnodeSendMsgToMnodeImp;
+  dnodeSendRspToMnodeFp   = dnodeSendRspToMnodeImp;
 
-
-  mgmtInitDnodeIntFp = mgmtInitDnodeIntImp;
-  mgmtCleanUpDnodeIntFp = mgmtCleanUpDnodeIntImp;
-
+  // mgmtDnodeInt & clusterMgmtConn
   mgmtInitDnodeIntFp    = mgmtInitDnodeIntImp;
   mgmtCleanUpDnodeIntFp = mgmtCleanUpDnodeIntImp;
   mgmtSendMsgToDnodeFp  = mgmtSendMsgToDnodeImp;
   mgmtSendRspToDnodeFp  = mgmtSendRspToDnodeImp;
 
+  // mgmtDnode & clusterDnode
   mgmtInitDnodesFp       = mgmtInitDnodesImp;
   mgmtCleanUpDnodesFp    = mgmtCleanUpDnodesImp;
   mgmtGetDnodeFp         = mgmtGetDnodeFp;
   mgmtGetDnodesNumFp     = mgmtGetDnodesNumImp;
   mgmtUpdateDnodeFp      = mgmtUpdateDnodeImp;
   mgmtGetNextDnodeFp     = mgmtGetNextDnodeImp;
-  mgmtSetDnodeUnRemoveFp = mgmtSetDnodeUnRemoveImp;
   mgmtCreateDnodeFp      = mgmtCreateDnode;
   mgmtDropDnodeByIpFp    = mgmtDropDnodeByIp;
 }

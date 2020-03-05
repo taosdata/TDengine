@@ -28,7 +28,6 @@ int32_t mgmtUnSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType);
 
 void mgmtUpdateModules(uint32_t status);
 
-
 #ifdef __cplusplus
 }
 #endif

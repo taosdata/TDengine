@@ -25,4 +25,7 @@ void mpeerInit() {
   mgmtCleanupBalanceFp    = mgmtCleanupBalanceImp;
   mgmtAllocVnodesFp       = mgmtAllocVnodesImp;
   mgmtGetVnodeStatusFp    = mgmtGetVnodeStatusImp;
+
+  mgmtSetDnodeUnRemoveFp = mgmtSetDnodeUnRemoveImp;
+
 }

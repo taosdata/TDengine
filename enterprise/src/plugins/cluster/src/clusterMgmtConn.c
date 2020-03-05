@@ -28,7 +28,11 @@
 static void *tsMgmtConnServer = NULL;
 static void *tsMgmtConnClient = NULL;
 extern void *tsVgroupSdb;
+extern void *tsDnodeSdb;
+extern void *tsMnodeSdb;
 extern int32_t tsVgUpdateSize;
+extern int32_t tsMnodeUpdateSize;
+extern int32_t tsDnodeUpdateSize;
 
 static int mgmtDnodeIntRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   return TSDB_CODE_SUCCESS;
@@ -96,20 +100,19 @@ void mgmtCleanUpDnodeIntImp() {
   }
 }
 
-static int32_t mgmtSendStatusRspMsg(int8_t type, void *pConn, SStatusRsp *pRsp, int32_t rspLen) {
+static void mgmtSendStatusRspMsg(int8_t type, void *pConn, SStatusRsp *pRsp, int32_t rspLen) {
   pRsp->code        = htonl(pRsp->code);
   pRsp->ipList      = *pSdbIpList;
   pRsp->ipList.port = htons(pRsp->ipList.port);
-  pRsp->numOfVnodes = htonl(pRsp->numOfVnodes);
-
   for (int i = 0; i < pRsp->ipList.numOfIps; ++i) {
     pRsp->ipList.ip[i] = htonl(pRsp->ipList.ip[i]);
   }
 
-  pRsp->dnodeState.moduleStatus = htonl(pObj->moduleStatus);
-  pRsp->dnodeState.createdTime = htonl(pObj->createdTime / 1000);
+  pRsp->dnodeState.numOfVnodes  = htonl(pRsp->dnodeState.numOfVnodes);
+  pRsp->dnodeState.moduleStatus = htonl(pRsp->dnodeState.moduleStatus);
+  pRsp->dnodeState.createdTime  = htonl(pRsp->dnodeState.createdTime / 1000);
 
-  mgmtSendRspToDnode(pConn, msgType + 1, TSDB_CODE_SUCCESS, pRsp, rspLen);
+  mgmtSendRspToDnode(pConn, type + 1, TSDB_CODE_SUCCESS, pRsp, rspLen);
 }
 
 static void mgmtUpdateVgroupPublicIp(uint32_t privateIp, uint32_t oldPublicIp, uint32_t newPublicIp) {
