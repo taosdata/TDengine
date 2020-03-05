@@ -12,7 +12,6 @@
 
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
-static STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
 static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
@@ -206,7 +205,7 @@ static int32_t tsdbCheckTableCfg(STableCfg *pCfg) {
   return 0;
 }
 
-static STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
+STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
   return (STable *)taosGetDataFromHashTable(pMeta->tableMap, (char *)(&uid), sizeof(uid));
 }
 

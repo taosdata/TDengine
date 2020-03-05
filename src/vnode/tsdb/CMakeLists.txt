@@ -9,3 +9,5 @@ target_include_directories(tsdb
   PUBLIC "${CMAKE_SOURCE_DIR}/src/util/inc"
   PUBLIC "${CMAKE_SOURCE_DIR}/src/os/linux/inc"
   )
+
+add_subdirectory(tests)
