@@ -25,32 +25,26 @@ extern "C" {
 #include <pthread.h>
 #include "mnode.h"
 
-void mgmtCreateDnodeOrderList();
-void mgmtReleaseDnodeOrderList();
-void mgmtMakeDnodeOrderList();
+/*
+* Interface functions
+*/
 
-void mgmtCalcSystemScore();
-float mgmtTryCalcDnodeScore(SDnodeObj *pDnode, int extraVnode);
+int32_t balanceGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode);
+/*
+ * Internal definitions
+ */
 
-bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode);
+void balanceInitDnodeList();
+void balanceMakeDnodeList();
+void balanceReleaseDnodeList();
 
-void mgmtMonitorDnodeModule();
+void  balanceCalcSystemScore();
+float balanceTryCalcDnodeScore(SDnodeObj *pDnode, int32_t extraVnode);
 
-void mgmtMonitorVgroups();
-
-void mgmtMonitorDnodes();
-
-void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode);
-
-extern void *      tsDnodeSdb;
-extern void *      tsVgroupSdb;
-extern void *      balanceTimer;
-extern int         mgmtOrderedDnodesSize;
-extern int         mgmtOrderedDnodesMallocSize;
-extern SDnodeObj **mgmtOrderedDnodes;
-extern uint32_t    mgmtAccessSquence;
+extern int32_t     tsBalanceDnodeListSize;
+extern SDnodeObj **tsBalanceDnodeList;
 
 #ifdef __cplusplus
 }

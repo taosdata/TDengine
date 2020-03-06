@@ -89,10 +89,10 @@ void mgmtStartModuleInAllDnodes(int32_t moduleType) {
 }
 
 void mgmtStartModuleInDnode(int32_t moduleType) {
-  mgmtMakeDnodeOrderList();
+  balanceMakeDnodeList();
 
-  for (int32_t i = mgmtOrderedDnodesSize - 1; i >= 0; --i) {
-    SDnodeObj *pDnode = mgmtOrderedDnodes[i];
+  for (int32_t i = tsBalanceDnodeListSize - 1; i >= 0; --i) {
+    SDnodeObj *pDnode = tsBalanceDnodeList[i];
     if (mgmtCheckDnodeInOfflineState(pDnode)) {
       continue;
     }
@@ -117,10 +117,10 @@ void mgmtStartModuleInDnode(int32_t moduleType) {
 }
 
 void mgmtStopModuleInDnode(int32_t moduleType) {
-  mgmtMakeDnodeOrderList();
+  balanceMakeDnodeList();
 
-  for (int32_t i = 0; i < mgmtOrderedDnodesSize; ++i) {
-    SDnodeObj *pDnode = mgmtOrderedDnodes[i];
+  for (int32_t i = 0; i < tsBalanceDnodeListSize; ++i) {
+    SDnodeObj *pDnode = tsBalanceDnodeList[i];
 
     if (!mgmtCheckModuleInDnode(pDnode, moduleType)) {
       continue;
@@ -132,7 +132,8 @@ void mgmtStopModuleInDnode(int32_t moduleType) {
   }
 }
 
-void mgmtMonitorDnodeModule() {
+// TODO
+void clusterMonitorDnodeModule() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
   int32_t        onlineDnodes = 0;

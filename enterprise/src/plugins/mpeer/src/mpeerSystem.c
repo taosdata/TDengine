@@ -23,4 +23,7 @@ void mpeerInit() {
   mpeerAddMnodeFp       = mpeerAddMnode;
   mpeerRemoveMnodeFp    = mpeerRemoveMnode;
   mpeerForwardRequestFp = mpeerForwardRequest;
+  mpeerGetMnodesNumFp   = mpeerGetMnodesNum;
+  mpeerGetNextMnodeFp   = mpeerGetNextMnode;
+
 }

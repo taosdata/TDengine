@@ -26,7 +26,6 @@
 
 void *tsDnodeSdb = NULL;
 
-extern uint32_t mgmtAccessSquence;
 static int32_t tsDnodeUpdateSize = 0;
 
 static void *(*mgmtDnodeActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
@@ -72,7 +71,7 @@ int32_t mgmtCreateDnode(uint32_t ip) {
   pDnode->numOfVnodes     = TSDB_INVALID_VNODE_NUM;
   pDnode->numOfFreeVnodes = TSDB_INVALID_VNODE_NUM;
   pDnode->createdTime     = taosGetTimestampMs();
-  pDnode->lastAccess      = mgmtAccessSquence;
+  pDnode->lastAccess      = 0;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (sdbInsertRow(tsDnodeSdb, pDnode, 0) < 0) {

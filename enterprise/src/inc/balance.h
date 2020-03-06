@@ -25,25 +25,19 @@ extern "C" {
 #include <pthread.h>
 #include "mnode.h"
 
-void mpeerInit();
+void balanceInit();
 
-// balance
-extern void    (*mgmtStartBalanceTimerFp)(int64_t mseconds);
-extern int32_t (*mgmtInitBalanceFp)();
-extern void    (*mgmtCleanupBalanceFp)();
-extern int32_t (*mgmtAllocVnodesFp)(SVgObj *pVgroup);
-extern char *  (*mgmtGetVnodeStatusFp)(SVgObj *pVgroup, SVnodeGid *pVnode);
-extern void    (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode);
+extern int32_t (*balanceInitResourceFp)();
+extern void    (*balanceCleanUpResourceFp)();
 
-// mgmtMnode
-extern int32_t (*mgmtInitMnodesFp)();
-extern void    (*mgmtCleanUpMnodesFp)();
-extern int32_t (*mgmtGetMnodesNumFp)();
-extern void *  (*mgmtGetNextMnodeFp)(SShowObj *pShow, SSdbPeer **pMnode);
+extern void    (*balanceNotifyFp)();
+extern int32_t (*balanceAllocVnodesFp)(SVgObj *pVgroup);
 
-// mgmtDnode
-extern int32_t    (*mgmtGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-extern int32_t    (*mgmtRetrieveScoresFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+extern int32_t (*balanceSetDnodeRemoveStateFp)(SDnodeObj *pDnode);
+extern void    (*balanceSetDnodeUnRemoveStateFp)(SDnodeObj *pDnode);
+
+extern int32_t (*balanceGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+extern int32_t (*balanceRetrieveScoresFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 #ifdef __cplusplus
 }

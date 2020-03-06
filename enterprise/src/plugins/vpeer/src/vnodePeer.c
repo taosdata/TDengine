@@ -15,13 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
-#include "vnode.h"
-#include "vnodeUtil.h"
-#include "vnodePeer.h"
 #include "trpc.h"
-#include "dnodeSystem.h"
-#include "vnodeStatus.h"
+#include "tglobalcfg.h"
+#include "vnodePeer.h"
 
 uint32_t    tsPrivateIp4;
 int         tsSyncNum;    // number of sync in process in whole system

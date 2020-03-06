@@ -19,24 +19,22 @@
 #include "tmodule.h"
 #include "tstatus.h"
 #include "ttime.h"
-#include "mgmtBalance.h"
 #include "mgmtDnode.h"
-#include "mpeerScore.h"
-#include "mpeerModule.h"
-#include "dnodeModule.h"
+#include "balanceScore.h"
 
 extern void *tsVgroupSdb;
 extern void *tsDnodeSdb;
-extern void *tstsMnodeSdb;
 extern int32_t tsVgUpdateSize;
 extern int32_t tsMnodeUpdateSize;
 extern int32_t tsDnodeUpdateSize;
 
-int         mgmtOrderedDnodesSize = 0;
-int         mgmtOrderedDnodesMallocSize = 0;
-SDnodeObj **mgmtOrderedDnodes = NULL;
 
-int mgmtCalcCpuScore(SDnodeObj *pDnode) {
+int32_t     tsBalanceDnodeListSize = 0;
+SDnodeObj **tsBalanceDnodeList     = NULL;
+
+static int32_t tsBalanceDnodesListMallocSize = 0;
+
+static int32_t balanceCalcCpuScore(SDnodeObj *pDnode) {
   if (pDnode->cpuAvgUsage < 80)
     return 0;
   else if (pDnode->cpuAvgUsage < 90)
@@ -45,7 +43,7 @@ int mgmtCalcCpuScore(SDnodeObj *pDnode) {
     return 50;
 }
 
-int mgmtCalcMemoryScore(SDnodeObj *pDnode) {
+static int32_t balanceCalcMemoryScore(SDnodeObj *pDnode) {
   if (pDnode->memoryAvgUsage < 80)
     return 0;
   else if (pDnode->memoryAvgUsage < 90)
@@ -54,7 +52,7 @@ int mgmtCalcMemoryScore(SDnodeObj *pDnode) {
     return 50;
 }
 
-int mgmtCalcDiskScore(SDnodeObj *pDnode) {
+static int32_t balanceCalcDiskScore(SDnodeObj *pDnode) {
   if (pDnode->diskAvgUsage < 80)
     return 0;
   else if (pDnode->diskAvgUsage < 90)
@@ -63,7 +61,7 @@ int mgmtCalcDiskScore(SDnodeObj *pDnode) {
     return 50;
 }
 
-int mgmtCalcBandwidthScore(SDnodeObj *pDnode) {
+static int32_t balanceCalcBandwidthScore(SDnodeObj *pDnode) {
   if (pDnode->bandwidthUsage < 30)
     return 0;
   else if (pDnode->bandwidthUsage < 80)
@@ -72,21 +70,15 @@ int mgmtCalcBandwidthScore(SDnodeObj *pDnode) {
     return 50;
 }
 
-float mgmtCalcModuleScore(SDnodeObj *pDnode) {
+static float balanceCalcModuleScore(SDnodeObj *pDnode) {
   if (pDnode->numOfVnodes <= 1) return 0;
   if (mgmtCheckModuleInDnode(pDnode, TSDB_MOD_MGMT)) {
     return (float)tsModule[TSDB_MOD_MGMT].equalVnodeNum / pDnode->numOfVnodes * 100;
   }
   return 0;
-  // float equalVnodes = 0;
-  // for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-  //  if (mgmtCheckModuleInDnode(pDnode, moduleType)) {
-  //    equalVnodes += tsModule[moduleType].equalVnodeNum;
-  //  }
-  //}
 }
 
-float mgmtCalcVnodeScore(SDnodeObj *pDnode, int extra) {
+static float balanceCalcVnodeScore(SDnodeObj *pDnode, int32_t extra) {
   if (pDnode->numOfVnodes <= 1) return 0;
   return (float)(pDnode->numOfVnodes - pDnode->numOfFreeVnodes + extra) / pDnode->numOfVnodes * 100;
 }
@@ -97,30 +89,30 @@ float mgmtCalcVnodeScore(SDnodeObj *pDnode, int extra) {
  * 2. if the value is out of range, use border data
  * 3. otherwise use interpolation method
  **/
-void mgmtCalcDnodeScore(SDnodeObj *pDnode) {
-  pDnode->lbScore = mgmtCalcCpuScore(pDnode) + mgmtCalcMemoryScore(pDnode) + mgmtCalcDiskScore(pDnode) +
-                    mgmtCalcBandwidthScore(pDnode) + mgmtCalcModuleScore(pDnode) + mgmtCalcVnodeScore(pDnode, 0) +
+void balanceCalcDnodeScore(SDnodeObj *pDnode) {
+  pDnode->lbScore = balanceCalcCpuScore(pDnode) + balanceCalcMemoryScore(pDnode) + balanceCalcDiskScore(pDnode) +
+                    balanceCalcBandwidthScore(pDnode) + balanceCalcModuleScore(pDnode) + balanceCalcVnodeScore(pDnode, 0) +
                     pDnode->customScore;
 }
 
-float mgmtTryCalcDnodeScore(SDnodeObj *pDnode, int extra) {
-  return mgmtCalcCpuScore(pDnode) + mgmtCalcMemoryScore(pDnode) + mgmtCalcDiskScore(pDnode) +
-         mgmtCalcBandwidthScore(pDnode) + mgmtCalcModuleScore(pDnode) + mgmtCalcVnodeScore(pDnode, extra) +
+float balanceTryCalcDnodeScore(SDnodeObj *pDnode, int32_t extra) {
+  return balanceCalcCpuScore(pDnode) + balanceCalcMemoryScore(pDnode) + balanceCalcDiskScore(pDnode) +
+         balanceCalcBandwidthScore(pDnode) + balanceCalcModuleScore(pDnode) + balanceCalcVnodeScore(pDnode, extra) +
          pDnode->customScore;
 }
 
-void mgmtCreateDnodeOrderList() {
-  if (mgmtOrderedDnodes != NULL) {
-    free(mgmtOrderedDnodes);
-    mgmtOrderedDnodes = NULL;
+void balanceInitDnodeList() {
+  if (tsBalanceDnodeList != NULL) {
+    free(tsBalanceDnodeList);
+    tsBalanceDnodeList = NULL;
   }
 
-  if (mgmtOrderedDnodesMallocSize <= 0) mgmtOrderedDnodesMallocSize = 4;
-  mgmtOrderedDnodes = (SDnodeObj **)malloc(mgmtOrderedDnodesMallocSize * sizeof(SDnodeObj *));
-  memset(mgmtOrderedDnodes, 0, mgmtOrderedDnodesMallocSize * sizeof(SDnodeObj *));
+  if (tsBalanceDnodesListMallocSize <= 0) tsBalanceDnodesListMallocSize = 4;
+  tsBalanceDnodeList = (SDnodeObj **)malloc(tsBalanceDnodesListMallocSize * sizeof(SDnodeObj *));
+  memset(tsBalanceDnodeList, 0, tsBalanceDnodesListMallocSize * sizeof(SDnodeObj *));
 }
 
-void mgmtCalcSystemScore() {
+void balanceCalcSystemScore() {
   if (!tsEnableMonitorModule) return;
   if (!tsBalancePolicy) return;
 
@@ -137,22 +129,22 @@ void mgmtCalcSystemScore() {
   }
 }
 
-void mgmtReleaseDnodeOrderList() {
-  if (mgmtOrderedDnodes != NULL) {
-    free(mgmtOrderedDnodes);
-    mgmtOrderedDnodes = NULL;
+void balanceReleaseDnodeList() {
+  if (tsBalanceDnodeList != NULL) {
+    free(tsBalanceDnodeList);
+    tsBalanceDnodeList = NULL;
   }
 }
 
-void mgmtAllocDnodeOrderList() {
-  mgmtOrderedDnodesSize = sdbGetNumOfRows(tsDnodeSdb);
+static void balanceAllocDnodeOrderList() {
+  tsBalanceDnodeListSize = sdbGetNumOfRows(tsDnodeSdb);
 
-  if (mgmtOrderedDnodesMallocSize <= mgmtOrderedDnodesSize) {
-    mgmtOrderedDnodesMallocSize = mgmtOrderedDnodesSize * 2;
-    if (mgmtOrderedDnodesMallocSize <= 0) mgmtOrderedDnodesMallocSize = 4;
-    mgmtReleaseDnodeOrderList();
-    mgmtOrderedDnodes = (SDnodeObj **)malloc(mgmtOrderedDnodesMallocSize * sizeof(SDnodeObj *));
-    memset(mgmtOrderedDnodes, 0, mgmtOrderedDnodesMallocSize * sizeof(SDnodeObj *));
+  if (tsBalanceDnodesListMallocSize <= tsBalanceDnodeListSize) {
+    tsBalanceDnodesListMallocSize = tsBalanceDnodeListSize * 2;
+    if (tsBalanceDnodesListMallocSize <= 0) tsBalanceDnodesListMallocSize = 4;
+    balanceReleaseDnodeList();
+    tsBalanceDnodeList = (SDnodeObj **)malloc(tsBalanceDnodesListMallocSize * sizeof(SDnodeObj *));
+    memset(tsBalanceDnodeList, 0, tsBalanceDnodesListMallocSize * sizeof(SDnodeObj *));
   }
 }
 
@@ -161,32 +153,33 @@ void mgmtAllocDnodeOrderList() {
  * the balance score is calculate here
  * for every operation may change the score
  **/
-void mgmtMakeDnodeOrderList() {
+void balanceMakeDnodeList() {
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;
 
-  mgmtAllocDnodeOrderList();
+  balanceAllocDnodeOrderList();
+
   // fill and order
-  int dnodeIndex = 0;
-  while (dnodeIndex < mgmtOrderedDnodesSize) {
+  int32_t dnodeIndex = 0;
+  while (dnodeIndex < tsBalanceDnodeListSize) {
     pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
     if (pDnode == NULL) break;
-    mgmtCalcDnodeScore(pDnode);
+    balanceCalcDnodeScore(pDnode);
 
-    int orderIndex;
+    int32_t orderIndex;
     for (orderIndex = dnodeIndex; orderIndex > 0; --orderIndex) {
-      if (pDnode->lbScore > mgmtOrderedDnodes[orderIndex - 1]->lbScore) {
+      if (pDnode->lbScore > tsBalanceDnodeList[orderIndex - 1]->lbScore) {
         break;
       }
-      mgmtOrderedDnodes[orderIndex] = mgmtOrderedDnodes[orderIndex - 1];
+      tsBalanceDnodeList[orderIndex] = tsBalanceDnodeList[orderIndex - 1];
     }
-    mgmtOrderedDnodes[orderIndex] = pDnode;
+    tsBalanceDnodeList[orderIndex] = pDnode;
     dnodeIndex++;
   }
 }
 
-int mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
-  int cols = 0;
+int32_t balanceGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+  int32_t cols = 0;
 
   SSchema *pSchema = tsGetSchema(pMeta);
 
@@ -248,7 +241,7 @@ int mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
-  for (int i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
   pShow->numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
@@ -257,21 +250,21 @@ int mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int mgmtRetrieveScores(SShowObj *pShow, char *data, int rows, void *pConn) {
-  int        numOfRows = 0;
+int32_t balanceRetrieveScores(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  int32_t        numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
-  int        cols = 0;
+  int32_t        cols = 0;
   char       ipstr[20];
 
   while (numOfRows < rows) {
     pShow->pNode = sdbFetchRow(tsDnodeSdb, pShow->pNode, (void **)&pDnode);
     if (pDnode == NULL) break;
 
-    int systemScore = mgmtCalcCpuScore(pDnode) + mgmtCalcMemoryScore(pDnode) + mgmtCalcDiskScore(pDnode) +
-                      mgmtCalcBandwidthScore(pDnode);
-    float moduleScore = mgmtCalcModuleScore(pDnode);
-    float vnodeScore = mgmtCalcVnodeScore(pDnode, 0);
+    int32_t systemScore = balanceCalcCpuScore(pDnode) + balanceCalcMemoryScore(pDnode) + balanceCalcDiskScore(pDnode) +
+                      balanceCalcBandwidthScore(pDnode);
+    float moduleScore = balanceCalcModuleScore(pDnode);
+    float vnodeScore = balanceCalcVnodeScore(pDnode, 0);
 
     cols = 0;
 

@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include "mnode.h"
 
 void mpeerInit();
 
@@ -33,6 +34,9 @@ extern int32_t (*mpeerRemoveMnodeFp)(uint32_t privateIp);
 extern int32_t (*mpeerForwardRequestFp)(char type, void *cont, int32_t contLen);
 
 extern void    (*sdbWorkAsMasterCallback)();
+
+extern int32_t (*mpeerGetMnodesNumFp)();
+extern void *  (*mpeerGetNextMnodeFp)(SShowObj *pShow, SSdbPeer **pMnode);
 
 #ifdef __cplusplus
 }

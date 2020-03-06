@@ -300,7 +300,7 @@ void mgmtProcessDnodeStatusImp(SStatusMsg *pStatus, SDnodeObj *pObj, int32_t msg
 //    mgmtStartBalanceTimer(200);
 //  }
 //
-//  pObj->lastAccess = mgmtAccessSquence;
+//  pObj->lastAccess = balanceAccessSquence;
 //  pObj->status = TSDB_DN_STATUS_READY;
 //
 //  mgmtSendStatusRspMsg(msgType + 1, pConn, pRsp, rspLen);

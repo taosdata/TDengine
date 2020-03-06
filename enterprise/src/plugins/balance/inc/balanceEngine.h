@@ -25,45 +25,18 @@ extern "C" {
 #include <pthread.h>
 #include "mnode.h"
 
-void    mgmtStartBalanceTimerImp(int64_t mseconds);
-int32_t mgmtInitBalanceImp();
-void    mgmtCleanupBalanceImp();
-int32_t mgmtAllocVnodesImp(SVgObj *pVgroup);
-char *  mgmtGetVnodeStatusImp(SVgObj *pVgroup, SVnodeGid *pVnode);
-int32_t mgmtSetDnodeShellRemovingImp(SDnodeObj *pDnode);
-void    mgmtSetDnodeUnRemoveImp(SDnodeObj *pDnode);
+/*
+* Interface functions
+*/
 
+int32_t balanceInitResource();
+void    balanceCleanUpResource();
 
+void    balanceNotify();
+int32_t balanceAllocVnodes(SVgObj *pVgroup);
 
-void mgmtCreateDnodeOrderList();
-
-void mgmtReleaseDnodeOrderList();
-
-void mgmtMakeDnodeOrderList();
-
-void mgmtCalcSystemScore();
-
-float mgmtTryCalcDnodeScore(SDnodeObj *pDnode, int extraVnode);
-
-bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode);
-
-bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode);
-
-void mgmtMonitorDnodeModule();
-
-void mgmtMonitorVgroups();
-
-void mgmtMonitorDnodes();
-
-void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode);
-
-extern void *      tsDnodeSdb;
-extern void *      tsVgroupSdb;
-extern void *      balanceTimer;
-extern int         mgmtOrderedDnodesSize;
-extern int         mgmtOrderedDnodesMallocSize;
-extern SDnodeObj **mgmtOrderedDnodes;
-extern uint32_t    mgmtAccessSquence;
+int32_t balanceSetDnodeRemoveState(SDnodeObj *pDnode);
+void    balanceSetDnodeUnRemoveState(SDnodeObj *pDnode);
 
 #ifdef __cplusplus
 }
