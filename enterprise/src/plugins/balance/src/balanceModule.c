@@ -25,7 +25,7 @@
 
 extern void *tsVgroupSdb;
 extern void *tsDnodeSdb;
-extern void *tsMnodeSdb;
+extern void *tstsMnodeSdb;
 extern int32_t tsVgUpdateSize;
 extern int32_t tsMnodeUpdateSize;
 extern int32_t tsDnodeUpdateSize;
@@ -35,7 +35,7 @@ void mgmtSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   sdbUpdateRow(tsDnodeSdb, pDnode, tsDnodeUpdateSize, 1);
 
   if (moduleType == TSDB_MOD_MGMT) {
-    sdbAddPeer(pDnode->privateIp, pDnode->publicIp, 0);
+    mpeerAddMnode(pDnode->privateIp, pDnode->publicIp, 0);
     mPrint("dnode:%s, add mnode done", taosIpStr(pDnode->privateIp));
   }
 }

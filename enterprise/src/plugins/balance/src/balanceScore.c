@@ -27,7 +27,7 @@
 
 extern void *tsVgroupSdb;
 extern void *tsDnodeSdb;
-extern void *tsMnodeSdb;
+extern void *tstsMnodeSdb;
 extern int32_t tsVgUpdateSize;
 extern int32_t tsMnodeUpdateSize;
 extern int32_t tsDnodeUpdateSize;

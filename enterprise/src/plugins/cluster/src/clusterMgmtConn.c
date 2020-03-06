@@ -29,7 +29,7 @@ static void *tsMgmtConnServer = NULL;
 static void *tsMgmtConnClient = NULL;
 extern void *tsVgroupSdb;
 extern void *tsDnodeSdb;
-extern void *tsMnodeSdb;
+extern void *tstsMnodeSdb;
 extern int32_t tsVgUpdateSize;
 extern int32_t tsMnodeUpdateSize;
 extern int32_t tsDnodeUpdateSize;
@@ -138,17 +138,17 @@ static void mgmtUpdateMnodePublicIp(uint32_t privateIp, uint32_t oldPublicIp, ui
   void *  pNode = NULL;
   SSdbPeer *pMnode = NULL;
   while (1) {
-    pNode = sdbFetchRow(mnodeSdb, pNode, (void **)&pMnode);
+    pNode = sdbFetchRow(tsMnodeSdb, pNode, (void **)&pMnode);
     if (pMnode == NULL) break;
 
     if (pMnode->ip == privateIp) {
       mPrint("mnode:%s, change public ip from %s to %s",
               taosIpStr(pMnode->ip), taosIpStr(pMnode->publicIp), taosIpStr(newPublicIp));
       pMnode->publicIp = newPublicIp;
-      sdbUpdateRow(mnodeSdb, pMnode, tsMnodeUpdateSize, 1);
+      sdbUpdateRow(tsMnodeSdb, pMnode, tsMnodeUpdateSize, 1);
     }
   }
-  sdbUpdateIpList();
+  mpeerUpdateIpList();
 }
 
 void mgmtProcessDnodeStatusImp(SStatusMsg *pStatus, SDnodeObj *pObj, int32_t msgType, void *pConn) {

@@ -26,7 +26,7 @@
 
 extern void *tsVgroupSdb;
 extern void *tsDnodeSdb;
-extern void *tsMnodeSdb;
+extern void *tstsMnodeSdb;
 extern int32_t tsVgUpdateSize;
 extern int32_t tsMnodeUpdateSize;
 extern int32_t tsDnodeUpdateSize;
@@ -622,7 +622,7 @@ void mgmtMonitorDnodeBalanced(int mseconds) {
 // 2. reset state of dnodes to offline
 // 3. reset lastAccess of dnodes to zero
 void mgmtSetDnodeOfflineOnSdbChanged() {
-  mPrint("work as master at %d set sequence:%d to 0", sdbMasterStartTime, mgmtAccessSquence);
+  mPrint("work as master at %d set sequence:%d to 0", tsMpeerMasterStartTime, mgmtAccessSquence);
 
   void *     pNode = NULL;
   SDnodeObj *pDnode = NULL;

@@ -14,19 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "taosdef.h"
-#include "taoserror.h"
 #include "mpeer.h"
-#include "mpeerBalance.h"
+#include "mpeerEngine.h"
 
 void mpeerInit() {
-  mgmtStartBalanceTimerFp = mgmtStartBalanceTimerImp;
-  mgmtInitBalanceFp       = mgmtInitBalanceImp;
-  mgmtCleanupBalanceFp    = mgmtCleanupBalanceImp;
-  mgmtAllocVnodesFp       = mgmtAllocVnodesImp;
-  mgmtGetVnodeStatusFp    = mgmtGetVnodeStatusImp;
-
-  mgmtSetDnodeUnRemoveFp = mgmtSetDnodeUnRemoveImp;
-
+  mpeerInitMnodesFp     = mpeerInitMnodes;
+  mpeerCleanUpMnodesFp  = mpeerCleanUpMnodes;
+  mpeerAddMnodeFp       = mpeerAddMnode;
+  mpeerRemoveMnodeFp    = mpeerRemoveMnode;
+  mpeerForwardRequestFp = mpeerForwardRequest;
 }

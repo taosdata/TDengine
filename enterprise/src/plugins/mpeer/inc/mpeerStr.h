@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_PLUGIN_MPEER_H
-#define TDENGINE_PLUGIN_MPEER_H
+#ifndef TDENGINE_PLUGIN_MPEER_STR_H
+#define TDENGINE_PLUGIN_MPEER_STR_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,17 +22,10 @@ extern "C" {
 
 #include <stdint.h>
 
-void mpeerInit();
-
-extern int32_t (*mpeerInitMnodesFp)(char *directory);
-extern void    (*mpeerCleanUpMnodesFp)();
-
-extern int32_t (*mpeerAddMnodeFp)(uint32_t privateIp, uint32_t publicIp);
-extern int32_t (*mpeerRemoveMnodeFp)(uint32_t privateIp);
-
-extern int32_t (*mpeerForwardRequestFp)(char type, void *cont, int32_t contLen);
-
-extern void    (*sdbWorkAsMasterCallback)();
+const char *mpeerGetSdbRoleStr(int32_t role);
+const char *mpeerGetSdbStatusStr(int32_t status);
+const char *mpeerGetSdbTableName(int32_t table);
+const char *mpeerGetSdbOperName(int32_t oper);
 
 #ifdef __cplusplus
 }
