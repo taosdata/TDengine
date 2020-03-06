@@ -61,10 +61,6 @@ int32_t mgmtCheckMgmtRunning() {
 
   tsetModuleStatus(TSDB_MOD_MGMT);
 
-//  strcpy(sdbMasterIp, mgmtIpStr[0]);
-//  strcpy(sdbPrivateIp, tsPrivateIp);
-//  sdbPublicIp = inet_addr(tsPublicIp);
-
   return 0;
 }
 

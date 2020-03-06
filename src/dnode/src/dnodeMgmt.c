@@ -30,11 +30,9 @@
 void    (*dnodeInitMgmtIpFp)() = NULL;
 int32_t (*dnodeInitMgmtFp)() = NULL;
 void    (*dnodeCleanUpMgmtFp)() = NULL;
-
-void    (*dnodeProcessStatusRspFp)(int8_t *pCont, int32_t contLen, int8_t msgType, void *pConn) = NULL;
+void    (*dnodeProcessStatusRspFp)(void *pCont, int32_t contLen, int8_t msgType, void *pConn) = NULL;
 void    (*dnodeSendMsgToMnodeFp)(int8_t msgType, void *pCont, int32_t contLen) = NULL;
 void    (*dnodeSendRspToMnodeFp)(void *handle, int32_t code, void *pCont, int contLen) = NULL;
-
 
 static void *tsStatusTimer = NULL;
 static void (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(void *pCont, int32_t contLen, int8_t msgType, void *pConn);
@@ -173,13 +171,13 @@ void dnodeCleanUpMgmt() {
   }
 }
 
-void dnodeProcessMsgFromMgmt(int8_t msgType, void *pCont, int32_t contLen, void *pConn, int32_t code) {
+void dnodeProcessMsgFromMgmt(char msgType, void *pCont, int32_t contLen, void *pConn, int32_t code) {
   if (msgType < 0 || msgType >= TSDB_MSG_TYPE_MAX) {
     dError("invalid msg type:%d", msgType);
     return;
   }
 
-  dTrace("msg:%d:%s is received from mgmt, pConn:%p", msgType, taosMsg[msgType], pConn);
+  dTrace("msg:%d:%s is received from mgmt, pConn:%p", msgType, taosMsg[(int8_t)msgType], pConn);
 
   if (msgType == TSDB_MSG_TYPE_STATUS_RSP && dnodeProcessStatusRspFp != NULL) {
     dnodeProcessStatusRspFp(pCont, contLen, msgType, pConn);

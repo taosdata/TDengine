@@ -28,10 +28,8 @@ int32_t  mgmtInitShell();
 void mgmtCleanUpShell();
 
 extern int32_t (*mgmtCheckRedirectMsg)(void *pConn);
-extern void (*mgmtProcessCreateDnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
 extern void (*mgmtProcessCfgMnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
 extern void (*mgmtProcessDropMnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
-extern void (*mgmtProcessDropDnodeMsg)(void *pCont, int32_t contLen, void *ahandle);
 
 /*
  * If table not exist, will create it

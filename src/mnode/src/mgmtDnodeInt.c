@@ -312,7 +312,7 @@ int32_t mgmtCfgDynamicOptions(SDnodeObj *pDnode, char *msg) {
       mTrace("dnode:%s, custom score set from:%d to:%d", taosIpStr(pDnode->privateIp), pDnode->customScore, score);
       pDnode->customScore = score;
       mgmtUpdateDnode(pDnode);
-      mgmtStartBalanceTimer(15);
+      //mgmtStartBalanceTimer(15);
     }
     return TSDB_CODE_INVALID_SQL;
   } else if (strncasecmp(option, "bandwidth", 9) == 0) {
