@@ -4,7 +4,7 @@
 #include "tsdb.h"
 #include "tsdbMeta.h"
 
-TEST(TsdbTest, DISABLED_createTable)  {
+TEST(TsdbTest, createTable)  {
     STsdbMeta *pMeta = tsdbCreateMeta(100);
     ASSERT_NE(pMeta, nullptr);
 
