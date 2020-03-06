@@ -16,6 +16,7 @@
 #define _TD_DATA_FORMAT_H_
 
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "schema.h"
 
@@ -39,20 +40,27 @@ typedef void *SDataRow;
 #define dataRowTuple(r) ((char *)(r) + sizeof(int32_t))
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
 #define dataRowIdx(r, i) ((char *)(r) + i)
+#define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
 
 SDataRow tdNewDataRow(int32_t bytes);
 SDataRow tdNewDdataFromSchema(SSchema *pSchema);
 void     tdFreeDataRow(SDataRow row);
 int32_t  tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixOffset);
+void     tdDataRowCpy(void *dst, SDataRow row);
+void     tdDataRowReset(SDataRow row);
 
 /* Data rows definition, the format of it is like below:
- * +---------+---------+-----------------------+--------+-----------------------+
- * | int32_t | int32_t |                       |        |                       |
- * +---------+---------+-----------------------+--------+-----------------------+
- * |   len   |  nrows  |        SDataRow       |  ....  |        SDataRow       |
- * +---------+---------+-----------------------+--------+-----------------------+
+ * +---------+-----------------------+--------+-----------------------+
+ * | int32_t |                       |        |                       |
+ * +---------+-----------------------+--------+-----------------------+
+ * |   len   |        SDataRow       |  ....  |        SDataRow       |
+ * +---------+-----------------------+--------+-----------------------+
  */
 typedef void *SDataRows;
+
+#define dataRowsLen(rs) (*(int32_t *)(rs))
+#define dataRowsSetLen(rs, l) (dataRowsLen(rs) = (l))
+#define dataRowsInit(rs) dataRowsSetLen(rs, sizeof(int32_t))
 
 /* Data column definition
  * +---------+---------+-----------------------+

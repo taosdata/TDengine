@@ -184,7 +184,6 @@ static int tsdbFreeTable(STable *pTable) {
   // TODO: finish this function
   if (pTable->type == TSDB_STABLE) {
     tdFreeSDataRow(pTable->pTagVal);
-
   } else {
     tdFreeSchema(pTable->pSchema);
   }

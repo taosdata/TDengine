@@ -1,5 +1,3 @@
-#include <stdlib.h>
-
 #include "dataformat.h"
 
 /**
@@ -75,6 +73,15 @@ int32_t tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixO
 
   return 0;
 }
+
+/**
+ * Copy a data row to a destination
+ * ASSUMPTIONS: dst has enough room for a copy of row
+ */
+void tdDataRowCpy(void *dst, SDataRow row) { memcpy(dst, row, dataRowLen(row)); }
+void tdDataRowReset(SDataRow row) { dataRowSetLen(row, sizeof(int32_t)); }
+
+// ------ Codes below should be refactored
 
 SDataRow tdSDataRowDup(SDataRow rdata) { return NULL; }
 void     tdFreeSDataRow(SDataRow rdata) {
