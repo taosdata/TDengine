@@ -23,7 +23,6 @@
 
 extern char   version[];
 const int16_t sdbFileVersion = 0;
-int           sdbExtConns = 0;
 SRpcIpSet    *pSdbIpList = NULL;
 SRpcIpSet    *pSdbPublicIpList = NULL;
 SSdbPeer *    sdbPeer[SDB_MAX_PEERS];  // first slot for self
@@ -431,7 +430,7 @@ int64_t sdbInsertRow(void *handle, void *row, int rowSize) {
 
   pthread_mutex_lock(&pTable->mutex);
 
-  if (sdbForwardDbReqToPeer(pTable, SDB_TYPE_INSERT, rowHead->data, rowHead->rowSize) == 0) {
+  if (mpeerForwardDbReqToPeer(pTable, SDB_TYPE_INSERT, rowHead->data, rowHead->rowSize) == 0) {
     pTable->id++;
     sdbVersion++;
     if (pTable->keyType == SDB_KEYTYPE_AUTO) {
@@ -548,7 +547,7 @@ int sdbDeleteRow(void *handle, void *row) {
 
   pthread_mutex_lock(&pTable->mutex);
 
-  if (sdbForwardDbReqToPeer(pTable, SDB_TYPE_DELETE, (char *)row, rowSize) == 0) {
+  if (mpeerForwardDbReqToPeer(pTable, SDB_TYPE_DELETE, (char *)row, rowSize) == 0) {
     pTable->id++;
     sdbVersion++;
 
@@ -666,7 +665,7 @@ int sdbUpdateRow(void *handle, void *row, int updateSize, char isUpdated) {
 
   pthread_mutex_lock(&pTable->mutex);
 
-  if (sdbForwardDbReqToPeer(pTable, SDB_TYPE_UPDATE, rowHead->data, rowHead->rowSize) == 0) {
+  if (mpeerForwardDbReqToPeer(pTable, SDB_TYPE_UPDATE, rowHead->data, rowHead->rowSize) == 0) {
     pTable->id++;
     sdbVersion++;
 
@@ -745,7 +744,7 @@ int sdbBatchUpdateRow(void *handle, void *row, int rowSize) {
   }
 
   pthread_mutex_lock(&pTable->mutex);
-  if (sdbForwardDbReqToPeer(pTable, SDB_TYPE_BATCH_UPDATE, row, rowSize) == 0) {
+  if (mpeerForwardDbReqToPeer(pTable, SDB_TYPE_BATCH_UPDATE, row, rowSize) == 0) {
     /* // write action */
     /* write(pTable->fd, &action, sizeof(action)); */
     /* pTable->size += sizeof(action); */

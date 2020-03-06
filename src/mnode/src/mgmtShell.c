@@ -51,7 +51,6 @@ static void (*mgmtProcessShellMsg[TSDB_MSG_TYPE_MAX])(void *pCont, int32_t contL
 static void mgmtProcessUnSupportMsg(void *pCont, int32_t contLen, void *ahandle);
 static int  mgmtRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
-uint32_t        mgmtAccessSquence = 0;
 void *tsShellConnServer = NULL;
 
 void mgmtProcessTranRequest(SSchedMsg *sched) {

@@ -24,7 +24,7 @@ char* sdbRoleStr[] = {"unauthed", "undecided", "master", "slave", "null"};
 /*
  * Lite Version sync request is always successful
  */
-int sdbForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int dataLen) {
+int mpeerForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int dataLen) {
   return 0;
 }
 

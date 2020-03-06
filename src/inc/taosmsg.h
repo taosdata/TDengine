@@ -600,17 +600,6 @@ typedef struct {
   SVnodeAccess vnodeAccess[];
 } SStatusRsp;
 
-// internal message
-typedef struct {
-  uint32_t destId;
-  uint32_t destIp;
-  char     tableId[TSDB_UNI_LEN + 1];
-  char     empty[3];
-  uint8_t  msgType;
-  int32_t  msgLen;
-  uint8_t  content[0];
-} SIntMsg;
-
 typedef struct {
   char spi;
   char encrypt;

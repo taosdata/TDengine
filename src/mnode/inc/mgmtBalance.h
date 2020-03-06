@@ -22,7 +22,6 @@ extern "C" {
 
 #include "mnode.h"
 
-void    mgmtStartBalanceTimer(int64_t mseconds);
 int32_t mgmtInitBalance();
 void    mgmtCleanupBalance();
 int32_t mgmtAllocVnodes(SVgObj *pVgroup);

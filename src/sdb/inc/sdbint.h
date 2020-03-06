@@ -48,6 +48,21 @@
 #define sdbPrint(...) \
   { tprintf("MND-SDB ", 255, __VA_ARGS__); }
 
+#define mpeerError(...)                            \
+  if (sdbDebugFlag & DEBUG_ERROR) {              \
+    tprintf("ERROR MND-MPEER ", 255, __VA_ARGS__); \
+  }
+#define mpeerWarn(...)                                      \
+  if (sdbDebugFlag & DEBUG_WARN) {                        \
+    tprintf("WARN  MND-MPEER ", sdbDebugFlag, __VA_ARGS__); \
+  }
+#define mpeerTrace(...)                               \
+  if (sdbDebugFlag & DEBUG_TRACE) {                 \
+    tprintf("MND-MPEER ", sdbDebugFlag, __VA_ARGS__); \
+  }
+#define mpeerPrint(...) \
+  { tprintf("MND-MPEER ", 255, __VA_ARGS__); }
+
 #define sdbLError(...) taosLogError(__VA_ARGS__) sdbError(__VA_ARGS__)
 #define sdbLWarn(...) taosLogWarn(__VA_ARGS__) sdbWarn(__VA_ARGS__)
 #define sdbLPrint(...) taosLogPrint(__VA_ARGS__) sdbPrint(__VA_ARGS__)
@@ -68,11 +83,6 @@ typedef struct {
   // short  rowSize;
   char *row;
 } SSdbUpdate;
-
-typedef struct {
-  char     numOfTables;
-  uint64_t version[];
-} SSdbSync;
 
 typedef struct {
   SSdbHeader header;
@@ -110,23 +120,6 @@ typedef struct {
 } SRowHead;
 
 typedef struct {
-  char *          buffer;
-  char *          offset;
-  int             trans;
-  int             bufferSize;
-  pthread_mutex_t qmutex;
-} STranQueue;
-
-typedef struct {
-  char     status;
-  char     role;
-  char     numOfMnodes;
-  uint64_t dbVersion;
-  uint32_t numOfDnodes;
-  uint32_t publicIp;
-} SMnodeStatus;
-
-typedef struct {
   uint8_t  dbId;
   char     type;
   uint64_t version;
@@ -139,8 +132,8 @@ extern int        sdbMaxPeers;
 extern int        sdbNumOfTables;
 extern int64_t    sdbVersion;
 
-int sdbForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int dataLen);
-int sdbRetrieveRows(int fd, SSdbTable *pTable, uint64_t version);
+int mpeerForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int dataLen);
+int mpeerRetrieveRows(int fd, SSdbTable *pTable, uint64_t version);
 void sdbResetTable(SSdbTable *pTable);
 extern const int16_t sdbFileVersion;
 

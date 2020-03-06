@@ -455,9 +455,9 @@ int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
 //
 //  SVgObj *pVgroup = pDb->pHead;
 //  while (pVgroup != NULL) {
-//    mgmtUpdateVgroupState(pVgroup, TSDB_VG_LB_STATUS_UPDATE, 0);
+//    balanceUpdateVgroupState(pVgroup, TSDB_VG_LB_STATUS_UPDATE, 0);
 //    if (oldReplicaNum < pDb->cfg.replications) {
-//      if (!mgmtAddVnode(pVgroup, NULL, NULL)) {
+//      if (!balanceAddVnode(pVgroup, NULL, NULL)) {
 //        mWarn("db:%s vgroup:%d not enough dnode to add vnode", pAlter->db, pVgroup->vgId);
 //        code = TSDB_CODE_NO_ENOUGH_DNODES;
 //      }

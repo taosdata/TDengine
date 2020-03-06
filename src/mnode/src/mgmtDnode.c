@@ -609,6 +609,9 @@ void *mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode) {
 
 int32_t mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   if (mgmtGetScoresMetaFp) {
+    SUserObj *pUser = mgmtGetUserFromConn(pConn);
+    if (pUser == NULL) return 0;
+    if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
     return mgmtGetScoresMetaFp(pMeta, pShow, pConn);
   } else {
     return TSDB_CODE_OPS_NOT_SUPPORT;
