@@ -25,6 +25,11 @@ extern "C" {
 
 void adminInit();
 
+struct _http_server_obj_;
+
+extern void (*adminInitHandleFp)(struct _http_server_obj_* pServer);
+extern void (*opInitHandleFp)(struct _http_server_obj_* pServer);
+
 #ifdef __cplusplus
 }
 #endif

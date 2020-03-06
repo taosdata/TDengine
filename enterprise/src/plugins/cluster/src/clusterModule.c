@@ -16,10 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "tmodule.h"
 #include "mgmtBalance.h"
-#include "mpeerBalance.h"
 #include "mgmtDnode.h"
+#include "mgmtMnode.h"
 #include "dnodeModule.h"
-#include "mpeerModule.h"
 
 #define LB_MODULE_UNLIMIT -1
 
@@ -35,7 +34,7 @@ void mgmtSetModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   sdbUpdateRow(tsDnodeSdb, pDnode, tsDnodeUpdateSize, 1);
 
   if (moduleType == TSDB_MOD_MGMT) {
-    mpeerAddMnode(pDnode->privateIp, pDnode->publicIp, 0);
+    mgmtAddMnode(pDnode->privateIp, pDnode->publicIp);
     mPrint("dnode:%s, add mnode done", taosIpStr(pDnode->privateIp));
   }
 }
@@ -89,10 +88,13 @@ void mgmtStartModuleInAllDnodes(int32_t moduleType) {
 }
 
 void mgmtStartModuleInDnode(int32_t moduleType) {
-  balanceMakeDnodeList();
+  void *     pNode = NULL;
+  SDnodeObj *pDnode = NULL;
 
-  for (int32_t i = tsBalanceDnodeListSize - 1; i >= 0; --i) {
-    SDnodeObj *pDnode = tsBalanceDnodeList[i];
+  while (1) {
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
+    if (pDnode == NULL) break;
+
     if (mgmtCheckDnodeInOfflineState(pDnode)) {
       continue;
     }
@@ -117,10 +119,12 @@ void mgmtStartModuleInDnode(int32_t moduleType) {
 }
 
 void mgmtStopModuleInDnode(int32_t moduleType) {
-  balanceMakeDnodeList();
+  void *     pNode = NULL;
+  SDnodeObj *pDnode = NULL;
 
-  for (int32_t i = 0; i < tsBalanceDnodeListSize; ++i) {
-    SDnodeObj *pDnode = tsBalanceDnodeList[i];
+  while (1) {
+    pNode = sdbFetchRow(tsDnodeSdb, pNode, (void **)&pDnode);
+    if (pDnode == NULL) break;
 
     if (!mgmtCheckModuleInDnode(pDnode, moduleType)) {
       continue;
@@ -148,8 +152,7 @@ void clusterMonitorDnodeModule() {
     if (pDnode == NULL) break;
 
     if (mgmtCheckDnodeInRemoveState(pDnode)) {
-      mPrint("dnode:%s, status:%d, lbstatus:%s, remove all modules for it in remove state",
-          taosIpStr(pDnode->privateIp), pDnode->status, taosGetDnodeLbStatusStr(pDnode->lbStatus));
+      mPrint("dnode:%s, status:%d, remove all modules for removing", taosIpStr(pDnode->privateIp), pDnode->status);
       mgmtStopRemoveStateModule(pDnode);
       continue;
     }
@@ -190,11 +193,38 @@ void clusterMonitorDnodeModule() {
   }
 }
 
+void dnodeProcessModuleStatus(uint32_t status) {
+  int news = status;
+  int olds = tsModuleStatus;
+
+  for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+    int newStatus = news & (1 << moduleType);
+    int oldStatus = olds & (1 << moduleType);
+
+    if (oldStatus > 0) {
+      if (newStatus == 0) {
+        if (tsModule[moduleType].stopFp) {
+          dPrint("module:%s is stopped on this node", tsModule[moduleType].name);
+          (*tsModule[moduleType].stopFp)();
+        }
+      }
+    } else if (oldStatus == 0) {
+      if (newStatus > 0) {
+        if (tsModule[moduleType].startFp) {
+          dPrint("module:%s is started on this node", tsModule[moduleType].name);
+          (*tsModule[moduleType].startFp)();
+        }
+      }
+    } else {
+    }
+  }
+  tsModuleStatus = status;
+}
+
 void mgmtUpdateModules(uint32_t status) {
   if (status != tsModuleStatus) {
     dPrint("module status is received, old:%d, new:%d", tsModuleStatus, status);
     dnodeProcessModuleStatus(status);
   }
-
 }
 

@@ -23,6 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <pthread.h>
 #include "mnode.h"
+#include "sdbint.h"
 
 /*
  * Interface functions
@@ -34,7 +35,7 @@ void    mpeerCleanUpMnodes();
 int32_t mpeerAddMnode(uint32_t privateIp, uint32_t publicIp);
 int32_t mpeerRemoveMnode(uint32_t privateIp);
 
-int32_t mpeerForwardRequest(char type, void *cont, int32_t contLen);
+int32_t mpeerForwardRequest(SSdbTable *pTable, char type, void *cont, int32_t contLen);
 
 int32_t mpeerGetMnodesNum();
 void *  mpeerGetNextMnode(SShowObj *pShow, SSdbPeer **pMnode);

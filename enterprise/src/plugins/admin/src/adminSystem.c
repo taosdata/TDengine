@@ -8,22 +8,12 @@
  *  expressly provided by the written permission from Jianhui Tao
  *
  * ****************************************************************/
+#define _DEFAULT_SOURCE
+#include "admin.h"
+#include "adminHandle.h"
+#include "opHandle.h"
 
-#ifndef TDENGINE_OP_HANDLE_H
-#define TDENGINE_OP_HANDLE_H
-
-#include "http.h"
-#include "httpCode.h"
-#include "httpHandle.h"
-#include "httpResp.h"
-
-#define OP_ROOT_URL_POS 0
-#define OP_DB_URL_POS 1
-#define OP_ACTION_URL_POS 2
-#define OP_USER_URL_POS 3
-#define OP_PASS_URL_POS 4
-
-void opInitHandleImp(HttpServer* pServer);
-bool opProcessRequest(struct HttpContext* pContext);
-
-#endif
+void adminInit() {
+  adminInitHandleFp = adminInitHandleImp;
+  opInitHandleFp    = opInitHandleImp;
+}

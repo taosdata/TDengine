@@ -31,7 +31,9 @@ static HttpEncodeMethod opPutDetailMethod = {opStartPutDetailJson,           opS
                                              opBuildPutDetailAffectRowsJson, opInitPutDetailJson,  opCleanPutDetailJson,
                                              opCheckPutDetailFinished,       opSetPutDetailNextCmd};
 
-void opInitHandle(HttpServer *pServer) { httpAddMethod(pServer, &opDecodeMethod); }
+void opInitHandleImp(HttpServer *pServer) {
+  httpAddMethod(pServer, &opDecodeMethod);
+}
 
 bool opGetUserFromUrl(HttpContext *pContext) {
   HttpParser *pParser = &pContext->parser;

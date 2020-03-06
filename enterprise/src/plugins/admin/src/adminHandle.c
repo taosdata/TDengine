@@ -33,7 +33,9 @@ static HttpEncodeMethod adminEncodeSqlsMethod = {adminStartSqlsJson,
                                                  NULL,
                                                  NULL};
 
-void adminInitHandle(HttpServer* pServer) { httpAddMethod(pServer, &adminDecodeMethod); }
+void adminInitHandleImp(HttpServer* pServer) {
+  httpAddMethod(pServer, &adminDecodeMethod);
+}
 
 bool adminGetUserFromUrl(HttpContext* pContext) {
   HttpParser* pParser = &pContext->parser;

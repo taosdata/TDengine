@@ -135,6 +135,7 @@ static void mgmtUpdateVgroupPublicIp(uint32_t privateIp, uint32_t oldPublicIp, u
 }
 
 static void mgmtUpdateMnodePublicIp(uint32_t privateIp, uint32_t oldPublicIp, uint32_t newPublicIp) {
+  /*
   void *  pNode = NULL;
   SSdbPeer *pMnode = NULL;
   while (1) {
@@ -149,6 +150,7 @@ static void mgmtUpdateMnodePublicIp(uint32_t privateIp, uint32_t oldPublicIp, ui
     }
   }
   mpeerUpdateIpList();
+  */
 }
 
 void mgmtProcessDnodeStatusImp(SStatusMsg *pStatus, SDnodeObj *pObj, int32_t msgType, void *pConn) {

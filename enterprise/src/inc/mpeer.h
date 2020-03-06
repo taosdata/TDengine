@@ -23,6 +23,8 @@ extern "C" {
 #include <stdint.h>
 #include "mnode.h"
 
+struct _SSdbTable;
+
 void mpeerInit();
 
 extern int32_t (*mpeerInitMnodesFp)(char *directory);
@@ -31,7 +33,7 @@ extern void    (*mpeerCleanUpMnodesFp)();
 extern int32_t (*mpeerAddMnodeFp)(uint32_t privateIp, uint32_t publicIp);
 extern int32_t (*mpeerRemoveMnodeFp)(uint32_t privateIp);
 
-extern int32_t (*mpeerForwardRequestFp)(char type, void *cont, int32_t contLen);
+extern int32_t (*mpeerForwardRequestFp)(struct _SSdbTable *pTable, char type, void *cont, int32_t contLen);
 
 extern void    (*sdbWorkAsMasterCallback)();
 

@@ -1330,7 +1330,7 @@ int32_t mpeerProcessBufferedForwards() {
   return 0;
 }
 
-int32_t mpeerForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int32_t dataLen) {
+int32_t mpeerForwardRequest(SSdbTable *pTable, char type, void *data, int32_t dataLen) {
   SSdbPeer *   pPeer;
   int32_t      numOfSuccess = 0;
 
