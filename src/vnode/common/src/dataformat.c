@@ -58,6 +58,7 @@ int32_t tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixO
     case TD_DATATYPE_BIGINT:
     case TD_DATATYPE_FLOAT:
     case TD_DATATYPE_DOUBLE:
+    case TD_DATATYPE_TIMESTAMP:
       memcpy(dataRowIdx(row, pCol->offset + sizeof(int32_t)), value, rowDataLen[pCol->type]);
       if (dataRowLen(row) > suffixOffset + sizeof(int32_t))
         dataRowSetLen(row, dataRowLen(row) + rowDataLen[pCol->type]);

@@ -10,6 +10,7 @@ const int32_t rowDataLen[] = {
     sizeof(int64_t),  // TD_DATATYPE_BIGINT,
     sizeof(float),    // TD_DATATYPE_FLOAT,
     sizeof(double),   // TD_DATATYPE_DOUBLE,
+    sizeof(int64_t),  // TD_DATATYPE_TIMESTAMP
     sizeof(int32_t),  // TD_DATATYPE_VARCHAR,
     sizeof(int32_t),  // TD_DATATYPE_NCHAR,
     sizeof(int32_t)   // TD_DATATYPE_BINARY
