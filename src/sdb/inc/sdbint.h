@@ -84,7 +84,7 @@ typedef struct {
   char *row;
 } SSdbUpdate;
 
-typedef struct {
+typedef struct _SSdbTable {
   SSdbHeader header;
   int        maxRows;
   int        dbId;
@@ -132,7 +132,7 @@ extern int        sdbMaxPeers;
 extern int        sdbNumOfTables;
 extern int64_t    sdbVersion;
 
-int mpeerForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int dataLen);
+int sdbForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int dataLen);
 int mpeerRetrieveRows(int fd, SSdbTable *pTable, uint64_t version);
 void sdbResetTable(SSdbTable *pTable);
 extern const int16_t sdbFileVersion;

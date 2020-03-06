@@ -12,32 +12,47 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#define _DEFAULT_SOURCE
 #include "sdbint.h"
 
-char* sdbStatusStr[] = {"offline", "unsynced", "syncing", "serving", "null"};
+int32_t (*mpeerInitMnodesFp)(char *directory) = NULL;
+void    (*mpeerCleanUpMnodesFp)() = NULL;
+int32_t (*mpeerForwardRequestFp)(SSdbTable *pTable, char type, void *cont, int32_t contLen) = NULL;
 
-char* sdbRoleStr[] = {"unauthed", "undecided", "master", "slave", "null"};
+char *sdbStatusStr[] = {
+  "offline",
+  "unsynced",
+  "syncing",
+  "serving",
+  "null"
+};
 
-#ifndef CLUSTER
+char *sdbRoleStr[] = {
+  "unauthed",
+  "undecided",
+  "master",
+  "slave",
+  "null"
+};
 
-/*
- * Lite Version sync request is always successful
- */
-int mpeerForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int dataLen) {
-  return 0;
+int32_t sdbForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int32_t dataLen) {
+  if (mpeerForwardRequestFp) {
+    return mpeerForwardRequestFp(pTable, type, data, dataLen);
+  } else {
+    return 0;
+  }
 }
 
-/*
- * Lite Version does not need to initialize peers
- */
-int sdbInitPeers(char *directory) {
-  return 0;
+int32_t sdbInitPeers(char *directory) {
+  if (mpeerInitMnodesFp) {
+    return (*mpeerInitMnodesFp)(directory);
+  } else {
+    return 0;
+  }
 }
 
-/*
- * Lite Version does not need to cleanup peers
- */
-void sdbCleanUpPeers(){}
-
-#endif
+void sdbCleanUpPeers() {
+  if (mpeerCleanUpMnodesFp) {
+    (*mpeerCleanUpMnodesFp)();
+  }
+}
