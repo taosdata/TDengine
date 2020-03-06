@@ -114,7 +114,7 @@ INSERT INTO <tb1_name> USING <stb1_name> TAGS (<tag1_value1>, ...) VALUES (<fiel
     ALTER TABLE <stable_name> ADD TAG <new_tag_name> <TYPE>
     ```
 
-    为STable增加一个新的标签，并指定新标签的类型。标签总数不能超过6个。
+    为STable增加一个新的标签，并指定新标签的类型。标签总数不能超过32个。
 
 - 删除标签
 
