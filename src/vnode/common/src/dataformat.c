@@ -2,7 +2,82 @@
 
 #include "dataformat.h"
 
-int32_t tdGetMaxDataRowSize(SSchema *pSchema) {
+static int32_t tdGetMaxDataRowSize(SSchema *pSchema);
+
+/**
+ * Create a data row with maximum row length bytes.
+ *
+ * NOTE: THE AAPLICATION SHOULD MAKE SURE BYTES IS LARGE ENOUGH TO
+ * HOLD THE WHOE ROW.
+ *
+ * @param bytes max bytes a row can take
+ * @return SDataRow object for success
+ *         NULL for failure
+ */
+SDataRow tdNewDataRow(int32_t bytes) {
+  int32_t size = sizeof(int32_t) + bytes;
+
+  SDataRow row = malloc(size);
+  if (row == NULL) return NULL;
+
+  dataRowSetLen(row, sizeof(int32_t));
+
+  return row;
+}
+
+SDataRow tdNewDdataFromSchema(SSchema *pSchema) {
+  int32_t bytes = tdGetMaxDataRowSize(pSchema);
+  return tdNewDataRow(bytes);
+}
+
+/**
+ * Free the SDataRow object
+ */
+void tdFreeDataRow(SDataRow row) {
+  if (row) free(row);
+}
+
+/**
+ * Append a column value to a SDataRow object.
+ * NOTE: THE APPLICATION SHOULD MAKE SURE VALID PARAMETERS. THE FUNCTION ASSUMES
+ * THE ROW OBJECT HAS ENOUGH SPACE TO HOLD THE VALUE.
+ *
+ * @param row the row to append value to
+ * @param value value pointer to append
+ * @param pSchema schema
+ * @param colIdx column index
+ * 
+ * @return 0 for success and -1 for failure
+ */
+int32_t tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixOffset) {
+  int32_t offset;
+
+  switch (pCol->type) {
+    case TD_DATATYPE_BOOL:
+    case TD_DATATYPE_TINYINT:
+    case TD_DATATYPE_SMALLINT:
+    case TD_DATATYPE_INT:
+    case TD_DATATYPE_BIGINT:
+    case TD_DATATYPE_FLOAT:
+    case TD_DATATYPE_DOUBLE:
+      memcpy(dataRowIdx(row, pCol->offset + sizeof(int32_t)), value, rowDataLen[pCol->type]);
+      if (dataRowLen(row) > suffixOffset + sizeof(int32_t))
+        dataRowSetLen(row, dataRowLen(row) + rowDataLen[pCol->type]);
+      break;
+    case TD_DATATYPE_VARCHAR:
+      offset = dataRowLen(row) > suffixOffset ? dataRowLen(row) : suffixOffset;
+      memcpy(dataRowIdx(row, pCol->offset+sizeof(int32_t)), (void *)(&offset), sizeof(offset));
+    case TD_DATATYPE_NCHAR:
+    case TD_DATATYPE_BINARY:
+      break;
+    default:
+      return -1;
+  }
+
+  return 0;
+}
+
+static int32_t tdGetMaxDataRowSize(SSchema *pSchema) {
   int32_t nbytes = 0;
 
   for (int32_t i = 0; i < TD_SCHEMA_NCOLS(pSchema); i++) {
@@ -37,7 +112,7 @@ void     tdFreeSDataRow(SDataRow rdata) {
   free(rdata);
 }
 
-int32_t tdInitSDataRowsIter(SDataRows rows, SDataRowsIter *pIter) {
+void tdInitSDataRowsIter(SDataRows rows, SDataRowsIter *pIter) {
   pIter->totalRows = TD_DATAROWS_ROWS(rows);
   pIter->rowCounter = 1;
   pIter->row = TD_DATAROWS_DATA(rows);
@@ -48,10 +123,7 @@ void tdRdataIterNext(SDataRowsIter *pIter) {
   pIter->row = pIter->row + TD_DATAROW_LEN(pIter->row);
 }
 
-int32_t tdRdataIterEnd(SDataRowsIter *pIter) {
-  return pIter->rowCounter >= pIter->totalRows;
-
-}
+int32_t tdRdataIterEnd(SDataRowsIter *pIter) { return pIter->rowCounter >= pIter->totalRows; }
 
 /**
  * Copy it
