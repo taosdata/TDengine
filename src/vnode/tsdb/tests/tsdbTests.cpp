@@ -10,56 +10,17 @@ TEST(TsdbTest, createTable)  {
     STableCfg config;
     config.tableId.tid = 0;
     config.tableId.uid = 98868728187539L;
-    config.numOfCols = 2;
-    config.schema = (SSchema *)malloc(sizeof(SSchema) + sizeof(SColumn) * config.numOfCols);
-    config.schema->version = 0;
-    config.schema->numOfCols = 2;
-    config.schema->numOfTags = 0;
-    config.schema->colIdCounter = 1;
-    for (int i = 0; i < config.numOfCols; i++) {
-      SColumn *pCol = config.schema->columns + i;
-      pCol->type = TD_DATATYPE_BIGINT;
-      pCol->colId = config.schema->colIdCounter++;
-      pCol->offset = 10;
-      pCol->colName = strdup("col1");
+    config.numOfCols = 5;
+    config.schema = tdNewSchema(config.numOfCols);
+    for (int i = 0; i < schemaNCols(config.schema); i++) {
+      SColumn *pCol = tdNewCol(TD_DATATYPE_BIGINT, i, 0);
+      tdColCpy(schemaColAt(config.schema, i), pCol);
+      tdFreeCol(pCol);
     }
     config.tagValues = nullptr;
 
-    tsdbCreateTableImpl(pMeta, &config), 0;
+    tsdbCreateTableImpl(pMeta, &config);
 
     STable *pTable = tsdbGetTableByUid(pMeta, config.tableId.uid);
     ASSERT_NE(pTable, nullptr);
-}
-
-TEST(TsdbTest, DISABLED_createTsdbRepo) {
-  STsdbCfg *pCfg = tsdbCreateDefaultCfg();
-
-
-  tsdb_repo_t *pRepo = tsdbCreateRepo("/root/mnt/test/vnode0", pCfg, NULL);
-
-  tsdbFreeCfg(pCfg);
-
-  ASSERT_NE(pRepo, nullptr);
-
-  STableCfg config;
-  config.tableId.tid = 0;
-  config.tableId.uid = 10889498868728187539;
-  config.numOfCols = 2;
-  config.schema = (SSchema *)malloc(sizeof(SSchema) + sizeof(SColumn) * config.numOfCols);
-  config.schema->version = 0;
-  config.schema->numOfCols = 2;
-  config.schema->numOfTags = 0;
-  config.schema->colIdCounter = 1;
-  for (int i = 0; i < config.numOfCols; i++) {
-    SColumn *pCol = config.schema->columns + i;
-    pCol->type = TD_DATATYPE_BIGINT;
-    pCol->colId = config.schema->colIdCounter++;
-    pCol->offset = 10;
-    pCol->colName = strdup("col1");
-  }
-  config.tagValues = NULL;
-
-  tsdbCreateTable(pRepo, &config);
-
-  tsdbCloseRepo(pRepo);
 }
