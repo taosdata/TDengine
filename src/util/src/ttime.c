@@ -59,6 +59,10 @@ int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
   int64_t res = (((((int64_t) (year/4 - year/100 + year/400 + 367*mon/12 + day) +
 		  year*365 - 719499)*24 + hour)*60 + min)*60 + sec);
 
+#if defined(WINDOWS) && _MSC_VER >= 1900
+    // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
+    int64_t timezone = _timezone;
+#endif
 	return (res + timezone);
 }
 // ==== mktime() kernel code =================//
