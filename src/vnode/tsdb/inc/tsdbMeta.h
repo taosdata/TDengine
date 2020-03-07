@@ -17,7 +17,9 @@
 
 #include <pthread.h>
 
+#include "tsdb.h"
 #include "dataformat.h"
+#include "tskiplist.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +35,8 @@ typedef enum {
   TSDB_NTABLE,       // table not created from super table
   TSDB_STABLE        // table created from super table
 } TSDB_TABLE_TYPE;
+
+#define IS_CREATE_STABLE(pCfg) ((pCfg)->tagValues != NULL)
 
 typedef struct STable {
   STableId        tableId;
@@ -76,8 +80,9 @@ typedef struct STable {
 
 typedef struct {
   int32_t  maxTables;
+  int32_t  nTables;
   STable **tables;    // array of normal tables
-  STable * stables;   // linked list of super tables
+  STable * stables;   // linked list of super tables // TODO use container to implement this
   void *   tableMap;  // hash map of uid ==> STable *
 } STsdbMeta;
 
@@ -105,11 +110,13 @@ STsdbMeta *tsdbCreateMeta(int32_t maxTables);
 int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 
 // Recover the meta handle from the file
-STsdbMeta *tsdbOpenMetaHandle(char *tsdbDir);
+STsdbMeta *tsdbOpenMeta(char *tsdbDir);
 
-int32_t tsdbCreateTableImpl(STsdbMeta *pHandle, STableCfg *pCfg);
-
-int32_t tsdbInsertDataImpl(STsdbMeta *pMeta, STableId tableId, char *pData);
+int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
+int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);
+STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
+int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
+STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
 
 #ifdef __cplusplus
 }

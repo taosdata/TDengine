@@ -46,8 +46,9 @@ typedef struct {
 // Submit message for one table
 typedef struct {
   STableId tableId;
+  int32_t  padding;    // TODO just for padding here
   int32_t  sversion;   // data schema version
-  int32_t  numOfRows;  // number of rows data
+  int32_t  len;        // message length
   char     data[];
 } SSubmitBlock;
 
@@ -97,6 +98,17 @@ typedef struct {
   int64_t   tableTotalDataSize;  // In bytes
   int64_t   tableTotalDiskSize;  // In bytes
 } STableInfo;
+
+/**
+ * Create a configuration for TSDB default
+ * @return a pointer to a configuration. the configuration must call tsdbFreeCfg to free memory after usage
+ */
+STsdbCfg *tsdbCreateDefaultCfg();
+
+/**
+ * Free
+ */
+void tsdbFreeCfg(STsdbCfg *pCfg);
 
 /**
  * Create a new TSDB repository
@@ -171,7 +183,7 @@ int32_t tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tid);
+int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tableId);
 
 /**
  * Get the information of a table in the repository
@@ -187,13 +199,11 @@ STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid);
 /**
  * Insert data to a table in a repository
  * @param pRepo the TSDB repository handle
- * @param tid the table ID to insert to
  * @param pData the data to insert (will give a more specific description)
- * @param error the error number to set when failure occurs
  *
  * @return the number of points inserted, -1 for failure and the error number is set
  */
-int32_t tsdbInsertData(tsdb_repo_t *pRepo, STableId tid, char *pData);
+int32_t tsdbInsertData(tsdb_repo_t *pRepo, SSubmitMsg *pMsg);
 
 // -- FOR QUERY TIME SERIES DATA
 

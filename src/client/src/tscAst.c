@@ -21,7 +21,7 @@
 #include "tscSyntaxtreefunction.h"
 #include "tschemautil.h"
 #include "taosdef.h"
-#include "tskiplist.h"
+#include "sskiplist.h"
 #include "tsqldef.h"
 #include "tsqlfunction.h"
 #include "tstoken.h"
