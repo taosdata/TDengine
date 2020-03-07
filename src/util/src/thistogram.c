@@ -126,7 +126,7 @@ SHistogramInfo* tHistogramCreate(int32_t numOfEntries) {
   SHistogramInfo* pHisto = malloc(sizeof(SHistogramInfo) + sizeof(SHistBin) * (numOfEntries + 1));
 
 #if !defined(USE_ARRAYLIST)
-  pHisto->pList = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
+  pHisto->pList = SSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
   SInsertSupporter* pss = malloc(sizeof(SInsertSupporter));
   pss->numOfEntries = pHisto->maxEntries;
   pss->pSkipList = pHisto->pList;
@@ -185,7 +185,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
   SHistBin*    entry = calloc(1, sizeof(SHistBin));
   entry->val = val;
 
-  tSkipListNode* pResNode = tSkipListPut((*pHisto)->pList, entry, &key, 0);
+  tSkipListNode* pResNode = SSkipListPut((*pHisto)->pList, entry, &key, 0);
 
   SHistBin* pEntry1 = (SHistBin*)pResNode->pData;
   pEntry1->index = -1;
@@ -239,7 +239,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
       // set the right value for loser-tree
       assert((*pHisto)->pLoserTree != NULL);
       if (!(*pHisto)->ordered) {
-        tSkipListPrint((*pHisto)->pList, 1);
+        SSkipListPrint((*pHisto)->pList, 1);
 
         SLoserTreeInfo* pTree = (*pHisto)->pLoserTree;
         tSkipListNode*  pHead = (*pHisto)->pList->pHead.pForward[0];
@@ -281,7 +281,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
 
       printf("delta is:%lf\n", pEntry1->delta);
 
-      tSkipListPrint((*pHisto)->pList, 1);
+      SSkipListPrint((*pHisto)->pList, 1);
 
       /* the chosen node */
       tSkipListNode* pNode = (*pHisto)->pLoserTree->pNode[0].pData;
@@ -319,7 +319,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
       tLoserTreeAdjust(pTree, pEntry->index + pTree->numOfEntries);
       // remove the next node in skiplist
       tSkipListRemoveNode((*pHisto)->pList, pNext);
-      tSkipListPrint((*pHisto)->pList, 1);
+      SSkipListPrint((*pHisto)->pList, 1);
 
       tLoserTreeDisplay((*pHisto)->pLoserTree);
     } else {  // add to heap
