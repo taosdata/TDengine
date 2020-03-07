@@ -25,36 +25,55 @@ int commit = 0;
 int dataFd = -1;
 void *qhandle = NULL;
 
-void processShellMsg(int numOfMsgs, SRpcMsg *pMsg) {
+void processShellMsg() {
   static int num = 0;
+  taos_qall  qall;
+  SRpcMsg    rpcMsg;
 
-  tTrace("%d shell msgs are received", numOfMsgs);
+  while (1) {
+    int numOfMsgs = taosReadAllQitems(qhandle, &qall);
+    if (numOfMsgs <= 0) {
+      usleep(1000);
+      continue;
+    }     
 
-  for (int i=0; i<numOfMsgs; ++i) {
-  
-    if (dataFd >=0) {
-      if ( write(dataFd, pMsg->msg, pMsg->msgLen) <0 ) {
-        tPrint("failed to write data file, reason:%s", strerror(errno));
+    tTrace("%d shell msgs are received", numOfMsgs);
+
+    for (int i=0; i<numOfMsgs; ++i) {
+      taosGetQitem(qall, &rpcMsg);
+ 
+      if (dataFd >=0) {
+        if ( write(dataFd, rpcMsg.pCont, rpcMsg.contLen) <0 ) {
+          tPrint("failed to write data file, reason:%s", strerror(errno));
+        }
       }
     }
-   
-    void *rsp = rpcMallocCont(msgSize);
-    rpcSendResponse(pMsg->handle, 1, rsp, msgSize);
-    rpcFreeCont(pMsg->msg);
-    pMsg++;
-  }
-   
-  if (commit >=2) {
-    num += numOfMsgs;
-    if ( fsync(dataFd) < 0 ) {
-      tPrint("failed to flush data to file, reason:%s", strerror(errno));
+
+    if (commit >=2) {
+      num += numOfMsgs;
+      if ( fsync(dataFd) < 0 ) {
+        tPrint("failed to flush data to file, reason:%s", strerror(errno));
+      }
+
+      if (num % 10000 == 0) {
+        tPrint("%d request have been written into disk", num);
+      }
+    }
+  
+    taosResetQitems(qall);
+    for (int i=0; i<numOfMsgs; ++i) {
+      taosGetQitem(qall, &rpcMsg);
+
+      rpcFreeCont(rpcMsg.pCont);
+      rpcMsg.pCont = rpcMallocCont(msgSize);
+      rpcMsg.contLen = msgSize;
+      rpcMsg.handle = rpcMsg.handle;
+      rpcMsg.code = 1;
+      rpcSendResponse(&rpcMsg);
     }
 
-    if (num % 10000 == 0) {
-      tPrint("%d request have been written into disk", num);
-    }
+    taosFreeQitems(qall);
   }
-
 
 /*
   SRpcIpSet ipSet;
@@ -88,15 +107,9 @@ int retrieveAuthInfo(char *meterId, char *spi, char *encrypt, char *secret, char
   return ret;
 }
 
-void processRequestMsg(char type, void *pCont, int contLen, void *thandle, int32_t code) {
-  tTrace("request is received, type:%d, contLen:%d", type, contLen);
-  SRpcMsg rpcMsg;
-  rpcMsg.msg = pCont;
-  rpcMsg.msgLen = contLen;
-  rpcMsg.code = code;
-  rpcMsg.handle = thandle;
-  rpcMsg.type = type;
-  taosPutIntoMsgQueue(qhandle, &rpcMsg); 
+void processRequestMsg(SRpcMsg *pMsg) {
+  tTrace("request is received, type:%d, contLen:%d", pMsg->msgType, pMsg->contLen);
+  taosWriteQitem(qhandle, pMsg); 
 }
 
 int main(int argc, char *argv[]) {
@@ -165,12 +178,9 @@ int main(int argc, char *argv[]) {
       tPrint("failed to open data file, reason:%s", strerror(errno));
   }
 
-  qhandle = taosInitMsgQueue(1000, processShellMsg, "SER");
+  qhandle = taosOpenQueue(sizeof(SRpcMsg));
 
-  // loop forever
-  while(1) {
-    sleep(1);
-  }
+  processShellMsg();
 
   if (dataFd >= 0) {
     close(dataFd);

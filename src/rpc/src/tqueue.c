@@ -15,176 +15,357 @@
 
 #include "os.h"
 #include "tlog.h"
+#include "taoserror.h"
 #include "tqueue.h"
 
-#define DUMP_SCHEDULER_TIME_WINDOW 30000 //every 30sec, take a snap shot of task queue.
+typedef struct _taos_qnode {
+  struct _taos_qnode *next;
+  char                item[];
+} STaosQnode;
 
-typedef struct {
-  char            label[16];
-  int             num;
-  tsem_t          emptySem;
-  tsem_t          fullSem;
-  pthread_mutex_t queueMutex;
-  int             fullSlot;
-  int             emptySlot;
-  int             queueSize;
-  SRpcMsg        *queue;
-  SRpcMsg        *oqueue;
-  pthread_t       qthread;
-  void          (*fp)(int num, SRpcMsg *);
-} SRpcQueue;
+typedef struct _taos_q {
+  int                 itemSize;
+  int                 numOfItems;
+  struct _taos_qnode *head;
+  struct _taos_qnode *tail;
+  struct _taos_q     *next;    // for queue set
+  struct _taos_qset  *qset;    // for queue set
+  pthread_mutex_t     mutex;  
+} STaosQueue;
 
-static void *taosProcessMsgQueue(void *param);
+typedef struct _taos_qset {
+  STaosQueue        *head;
+  STaosQueue        *current;
+  pthread_mutex_t    mutex;
+  int                numOfQueues;
+  int                numOfItems;
+} STaosQset;
 
-void *taosInitMsgQueue(int queueSize, void (*fp)(int num, SRpcMsg *), const char *label) {
-  pthread_attr_t attr;
-  SRpcQueue *  pQueue = (SRpcQueue *)malloc(sizeof(SRpcQueue));
-  if (pQueue == NULL) {
-    pError("%s: no enough memory for pQueue, reason: %s", label, strerror(errno));
-    goto _error;
+typedef struct _taos_qall {
+  STaosQnode   *current;
+  STaosQnode   *start;
+  int           itemSize;
+  int           numOfItems;
+} STaosQall; 
+  
+taos_queue taosOpenQueue(int itemSize) {
+  
+  STaosQueue *queue = (STaosQueue *) calloc(sizeof(STaosQueue), 1);
+  if (queue == NULL) {
+    terrno = TSDB_CODE_NO_RESOURCE;
+    return NULL;
   }
 
-  memset(pQueue, 0, sizeof(SRpcQueue));
-  pQueue->queueSize = queueSize;
-  strncpy(pQueue->label, label, sizeof(pQueue->label)); // fix buffer overflow
-  pQueue->label[sizeof(pQueue->label)-1] = '\0';
-  pQueue->fp = fp;
+  pthread_mutex_init(&queue->mutex, NULL);
+  queue->itemSize = itemSize;
 
-  if (pthread_mutex_init(&pQueue->queueMutex, NULL) < 0) {
-    pError("init %s:queueMutex failed, reason:%s", pQueue->label, strerror(errno));
-    goto _error;
-  }
-
-  if (tsem_init(&pQueue->emptySem, 0, (unsigned int)pQueue->queueSize) != 0) {
-    pError("init %s:empty semaphore failed, reason:%s", pQueue->label, strerror(errno));
-    goto _error;
-  }
-
-  if (tsem_init(&pQueue->fullSem, 0, 0) != 0) {
-    pError("init %s:full semaphore failed, reason:%s", pQueue->label, strerror(errno));
-    goto _error;
-  }
-
-  if ((pQueue->queue = (SRpcMsg *)malloc((size_t)pQueue->queueSize * sizeof(SRpcMsg))) == NULL) {
-    pError("%s: no enough memory for queue, reason:%s", pQueue->label, strerror(errno));
-    goto _error;
-  }
-
-  memset(pQueue->queue, 0, (size_t)pQueue->queueSize * sizeof(SRpcMsg));
-
-  if ((pQueue->oqueue = (SRpcMsg *)malloc((size_t)pQueue->queueSize * sizeof(SRpcMsg))) == NULL) {
-    pError("%s: no enough memory for queue, reason:%s", pQueue->label, strerror(errno));
-    goto _error;
-  }
-
-  memset(pQueue->oqueue, 0, (size_t)pQueue->queueSize * sizeof(SRpcMsg));
-
-  pQueue->fullSlot = 0;
-  pQueue->fullSlot = 0;
-  pQueue->emptySlot = 0;
-
-  pthread_attr_init(&attr);
-  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
-  if (pthread_create(&pQueue->qthread, &attr, taosProcessMsgQueue, (void *)pQueue) != 0) {
-    pError("%s: failed to create taos thread, reason:%s", pQueue->label, strerror(errno));
-    goto _error;
-  }
-
-  pTrace("%s RPC msg queue is initialized", pQueue->label);
-
-  return (void *)pQueue;
-
-_error:
-  taosCleanUpMsgQueue(pQueue);
-  return NULL;
+  return queue;
 }
 
-void *taosProcessMsgQueue(void *param) {
-  SRpcQueue *pQueue = (SRpcQueue *)param;
-  int        num = 0;
+void taosCloseQueue(taos_queue param) {
+  STaosQueue *queue = (STaosQueue *)param;
+  STaosQnode *pTemp;
+  STaosQnode *pNode = queue->head;  
+  queue->head = NULL;
 
-  while (1) {
-    if (tsem_wait(&pQueue->fullSem) != 0) {
-      if (errno == EINTR) {
-        /* sem_wait is interrupted by interrupt, ignore and continue */
-        pTrace("wait %s fullSem was interrupted", pQueue->label);
-        continue;
-      }
-      pError("wait %s fullSem failed, errno:%d, reason:%s", pQueue->label, errno, strerror(errno));
-    }
+  pthread_mutex_lock(&queue->mutex);
 
-    if (pthread_mutex_lock(&pQueue->queueMutex) != 0)
-      pError("lock %s queueMutex failed, reason:%s", pQueue->label, strerror(errno));
+  if (queue->qset) taosRemoveFromQset(queue->qset, queue); 
 
-    num = 0;
-    do {
-      pQueue->oqueue[num] = pQueue->queue[pQueue->fullSlot];
-      pQueue->fullSlot = (pQueue->fullSlot + 1) % pQueue->queueSize;
-      ++num;
-      pQueue->num--;
-    } while (pQueue->fullSlot != pQueue->emptySlot); 
-
-    if (pthread_mutex_unlock(&pQueue->queueMutex) != 0)
-      pError("unlock %s queueMutex failed, reason:%s\n", pQueue->label, strerror(errno));
-
-    for (int i= 0; i<num; ++i) {
-      if (tsem_post(&pQueue->emptySem) != 0)
-        pError("post %s emptySem failed, reason:%s\n", pQueue->label, strerror(errno));
-    }
-
-    for (int i=0; i<num-1; ++i) {
-      if (tsem_wait(&pQueue->fullSem) != 0)
-        pError("wait %s fullSem failed, reason:%s\n", pQueue->label, strerror(errno));
-    }
-
-    (*pQueue->fp)(num, pQueue->oqueue);
-
+  while (pNode) {
+    pTemp = pNode;
+    pNode = pNode->next;
+    free (pTemp);
   }
 
-  return NULL;
+  pthread_mutex_unlock(&queue->mutex);
+
+  free(queue);
 }
 
-int taosPutIntoMsgQueue(void *qhandle, SRpcMsg *pMsg) {
-  SRpcQueue *pQueue = (SRpcQueue *)qhandle;
-  if (pQueue == NULL) {
-    pError("sched is not ready, msg:%p is dropped", pMsg);
-    return 0;
+int taosWriteQitem(taos_queue param, void *item) {
+  STaosQueue *queue = (STaosQueue *)param;
+
+  STaosQnode *pNode = (STaosQnode *)calloc(sizeof(STaosQnode) + queue->itemSize, 1);
+  if ( pNode == NULL ) {
+    terrno = TSDB_CODE_NO_RESOURCE;
+    return -1;
   }
 
-  while (tsem_wait(&pQueue->emptySem) != 0) {
-    if (errno != EINTR) {
-      pError("wait %s emptySem failed, reason:%s", pQueue->label, strerror(errno));
-      break;
+  memcpy(pNode->item, item, queue->itemSize);
+
+  pthread_mutex_lock(&queue->mutex);
+
+  if (queue->tail) {
+    queue->tail->next = pNode;
+    queue->tail = pNode;
+  } else {
+    queue->head = pNode;
+    queue->tail = pNode; 
+  }
+
+  queue->numOfItems++;
+  if (queue->qset) atomic_add_fetch_32(&queue->qset->numOfItems, 1);
+
+  pthread_mutex_unlock(&queue->mutex);
+}
+
+int taosReadQitem(taos_queue param, void *item) {
+  STaosQueue *queue = (STaosQueue *)param;
+  STaosQnode *pNode = NULL;
+  int         code = 0;
+
+  pthread_mutex_lock(&queue->mutex);
+
+  if (queue->head) {
+      pNode = queue->head;
+      memcpy(item, pNode->item, queue->itemSize);
+      queue->head = pNode->next;
+      if (queue->head == NULL) 
+        queue->tail = NULL;
+      free(pNode);
+      queue->numOfItems--;
+      if (queue->qset) atomic_sub_fetch_32(&queue->qset->numOfItems, 1);
+      code = 1;
+  } 
+
+  pthread_mutex_unlock(&queue->mutex);
+
+  return code;
+}
+
+int taosReadAllQitems(taos_queue param, taos_qall *res) {
+  STaosQueue *queue = (STaosQueue *)param;
+  STaosQall  *qall = NULL;
+  int         code = 0;
+
+  pthread_mutex_lock(&queue->mutex);
+
+  if (queue->head) {
+    qall = (STaosQall *) calloc(sizeof(STaosQall), 1);
+    if ( qall == NULL ) {
+      terrno = TSDB_CODE_NO_RESOURCE;
+      code = -1;
+    } else {
+      qall->current = queue->head;
+      qall->start = queue->head;
+      qall->numOfItems = queue->numOfItems;
+      qall->itemSize = queue->itemSize;
+      code = qall->numOfItems;
+
+      queue->head = NULL;
+      queue->tail = NULL;
+      queue->numOfItems = 0;
+      if (queue->qset) atomic_sub_fetch_32(&queue->qset->numOfItems, qall->numOfItems);
     }
-  }
+  } 
 
-  if (pthread_mutex_lock(&pQueue->queueMutex) != 0)
-    pError("lock %s queueMutex failed, reason:%s", pQueue->label, strerror(errno));
+  pthread_mutex_unlock(&queue->mutex);
+  
+  *res = qall;
+  return code; 
+}
 
-  pQueue->queue[pQueue->emptySlot] = *pMsg;
-  pQueue->emptySlot = (pQueue->emptySlot + 1) % pQueue->queueSize;
-  pQueue->num++;
+int taosGetQitem(taos_qall param, void *item) {
+  STaosQall  *qall = (STaosQall *)param;
+  STaosQnode *pNode;
+  int         num = 0;
+
+  pNode = qall->current;
+  if (pNode)
+    qall->current = pNode->next;
  
-  if (pthread_mutex_unlock(&pQueue->queueMutex) != 0)
-    pError("unlock %s queueMutex failed, reason:%s", pQueue->label, strerror(errno));
+  if (pNode) {
+    memcpy(item, pNode->item, qall->itemSize);
+    num = 1;
+  }
 
-  if (tsem_post(&pQueue->fullSem) != 0) pError("post %s fullSem failed, reason:%s", pQueue->label, strerror(errno));
+  return num;
+}
+
+void taosResetQitems(taos_qall param) {
+  STaosQall  *qall = (STaosQall *)param;
+  qall->current = qall->start;
+}
+
+void taosFreeQitems(taos_qall param) {
+  STaosQall  *qall = (STaosQall *)param;
+  STaosQnode *pNode;
+
+  while (qall->current) {
+    pNode = qall->current;
+    qall->current = pNode->next;
+    free(pNode);
+  }
+
+  free(qall);
+}
+
+taos_qset taosOpenQset() {
+
+  STaosQset *qset = (STaosQset *) calloc(sizeof(STaosQset), 1);
+  if (qset == NULL) {
+    terrno = TSDB_CODE_NO_RESOURCE;
+    return NULL;
+  }
+
+  pthread_mutex_init(&qset->mutex, NULL);
+
+  return qset;
+}
+
+void taosCloseQset(taos_qset param) {
+  STaosQset *qset = (STaosQset *)param;
+  free(qset);
+}
+
+int taosAddIntoQset(taos_qset p1, taos_queue p2) {
+  STaosQueue *queue = (STaosQueue *)p2;
+  STaosQset  *qset = (STaosQset *)p1;
+
+  if (queue->qset) return -1; 
+
+  pthread_mutex_lock(&qset->mutex);
+
+  queue->next = qset->head;
+  qset->head = queue;
+  qset->numOfQueues++;
+
+  pthread_mutex_lock(&queue->mutex);
+  atomic_add_fetch_32(&qset->numOfItems, queue->numOfItems);
+  queue->qset = qset;
+  pthread_mutex_unlock(&queue->mutex);
+
+  pthread_mutex_unlock(&qset->mutex);
 
   return 0;
 }
 
-void taosCleanUpMsgQueue(void *param) {
-  SRpcQueue *pQueue = (SRpcQueue *)param;
-  if (pQueue == NULL) return;
+void taosRemoveFromQset(taos_qset p1, taos_queue p2) {
+  STaosQueue *queue = (STaosQueue *)p2;
+  STaosQset  *qset = (STaosQset *)p1;
+ 
+  STaosQueue *tqueue;
 
-  pthread_cancel(pQueue->qthread);
+  pthread_mutex_lock(&qset->mutex);
 
-  tsem_destroy(&pQueue->emptySem);
-  tsem_destroy(&pQueue->fullSem);
-  pthread_mutex_destroy(&pQueue->queueMutex);
+  if (qset->head) {
+    if (qset->head == queue) {
+      qset->head = qset->head->next;
+      qset->numOfQueues--;
+    } else {
+      STaosQueue *prev = qset->head;
+      tqueue = qset->head->next;
+      while (tqueue) {
+        if (tqueue== queue) {
+          prev->next = tqueue->next;
+          if (qset->current == queue) qset->current = tqueue->next;
+          qset->numOfQueues--;
 
-  free(pQueue->queue);
-  free(pQueue); 
+          pthread_mutex_lock(&queue->mutex);
+          atomic_sub_fetch_32(&qset->numOfItems, queue->numOfItems);
+          queue->qset = NULL;
+          pthread_mutex_unlock(&queue->mutex);
+        } else {
+          prev = tqueue;
+          tqueue = tqueue->next;
+        }
+      }
+    }
+  } 
+  
+  pthread_mutex_unlock(&qset->mutex);
 }
 
+int taosGetQueueNumber(taos_qset param) {
+  return ((STaosQset *)param)->numOfQueues;
+}
+
+int taosReadQitemFromQset(taos_qset param, void *item) {
+  STaosQset  *qset = (STaosQset *)param;
+  STaosQnode *pNode = NULL;
+  int         code = 0;
+
+  for(int i=0; i<qset->numOfQueues; ++i) {
+    pthread_mutex_lock(&qset->mutex);
+    if (qset->current == NULL) 
+      qset->current = qset->head;   
+    STaosQueue *queue = qset->current;
+    qset->current = queue->next;
+    pthread_mutex_unlock(&qset->mutex);
+
+    pthread_mutex_lock(&queue->mutex);
+
+    if (queue->head) {
+        pNode = queue->head;
+        memcpy(item, pNode->item, queue->itemSize);
+        queue->head = pNode->next;
+        if (queue->head == NULL) 
+          queue->tail = NULL;
+        free(pNode);
+        queue->numOfItems--;
+        atomic_sub_fetch_32(&qset->numOfItems, 1);
+        code = 1;
+    } 
+
+    pthread_mutex_unlock(&queue->mutex);
+    if (pNode) break;
+  }
+
+  return code; 
+}
+
+int taosReadAllQitemsFromQset(taos_qset param, taos_qall *res) {
+  STaosQset  *qset = (STaosQset *)param;
+  STaosQueue *queue;
+  STaosQall  *qall = NULL;
+  int         code = 0;
+
+  for(int i=0; i<qset->numOfQueues; ++i) {
+    pthread_mutex_lock(&qset->mutex);
+    if (qset->current == NULL) 
+      qset->current = qset->head;   
+    queue = qset->current;
+    qset->current = queue->next;
+    pthread_mutex_unlock(&qset->mutex);
+
+    pthread_mutex_lock(&queue->mutex);
+
+    if (queue->head) {
+      qall = (STaosQall *) calloc(sizeof(STaosQall), 1);
+      if (qall == NULL) {
+        terrno = TSDB_CODE_NO_RESOURCE;
+        code = -1;
+      } else {
+        qall->current = queue->head;
+        qall->start = queue->head;
+        qall->numOfItems = queue->numOfItems;
+        qall->itemSize = queue->itemSize;
+        code = qall->numOfItems;
+          
+        queue->head = NULL;
+        queue->tail = NULL;
+        queue->numOfItems = 0;
+        atomic_sub_fetch_32(&qset->numOfItems, qall->numOfItems);
+      }
+    } 
+
+    pthread_mutex_unlock(&queue->mutex);
+
+    if (code != 0) break;  
+  }
+
+  *res = qall;
+
+  return code;
+}
+
+int taosGetQueueItemsNumber(taos_queue param) {
+  STaosQueue *queue = (STaosQueue *)param;
+  return queue->numOfItems;
+}
+
+int taosGetQsetItemsNumber(taos_qset param) {
+  STaosQset *qset = (STaosQset *)param;
+  return qset->numOfItems;
+}

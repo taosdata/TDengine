@@ -13,27 +13,43 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSCHED_H
-#define TDENGINE_TSCHED_H
+#ifndef TAOS_QUEUE_H
+#define TAOS_QUEUE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct _sched_msg {
-  void    *msg;
-  int      msgLen;
-  int8_t   type;
-  int32_t  code;
-  void    *handle;
-} SRpcMsg;
+typedef void* taos_queue;
+typedef void* taos_qset;
+typedef void* taos_qall;
 
-void *taosInitMsgQueue(int queueSize, void (*fp)(int num, SRpcMsg *), const char *label);
-int   taosPutIntoMsgQueue(void *qhandle, SRpcMsg *pMsg);
-void  taosCleanUpMsgQueue(void *param);
+taos_queue taosOpenQueue(int itemSize);
+void       taosCloseQueue(taos_queue);
+int        taosWriteQitem(taos_queue, void *item);
+int        taosReadQitem(taos_queue, void *item);
+
+int        taosReadAllQitems(taos_queue, taos_qall *);
+int        taosGetQitem(taos_qall, void *item);
+void       taosResetQitems(taos_qall);
+void       taosFreeQitems(taos_qall);
+
+taos_qset  taosOpenQset();
+void       taosCloseQset();
+int        taosAddIntoQset(taos_qset, taos_queue);
+void       taosRemoveFromQset(taos_qset, taos_queue);
+int        taosGetQueueNumber(taos_qset);
+
+int        taosReadQitemFromQset(taos_qset, void *item);
+int        taosReadAllQitemsFromQset(taos_qset, taos_qall *);
+
+int        taosGetQueueItemsNumber(taos_queue param);
+int        taosGetQsetItemsNumber(taos_qset param);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TSCHED_H
+#endif
+
+
