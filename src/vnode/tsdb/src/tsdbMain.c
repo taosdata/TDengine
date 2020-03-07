@@ -409,14 +409,16 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   int32_t level = 0;
   int32_t headSize = 0;
 
+  tSkipListRandNodeInfo(pTable->content.pData, &level, &headSize);
+
   // Copy row into the memory
-  SSkipListNode *pNode = tsdbAllocFromCache(pRepo->tsdbCache, headSize + TD_DATAROW_LEN(row));
+  SSkipListNode *pNode = tsdbAllocFromCache(pRepo->tsdbCache, headSize + dataRowLen(row));
   if (pNode == NULL) {
     // TODO: deal with allocate failure
   }
 
   pNode->level = level;
-  tdSDataRowCpy(row, SL_GET_NODE_DATA(pNode));
+  tdDataRowCpy(SL_GET_NODE_DATA(pNode), row);
 
   // Insert the skiplist node into the data
   tsdbInsertRowToTableImpl(pNode, pTable);
@@ -434,14 +436,14 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlock *pBlock) {
 
   SDataRows     rows = pBlock->data;
   SDataRowsIter rDataIter, *pIter;
+  pIter = &rDataIter;
+  SDataRow row;
 
   tdInitSDataRowsIter(rows, pIter);
-  while (!tdRdataIterEnd(pIter)) {
-    if (tdInsertRowToTable(pRepo, pIter->row, pTable) < 0) {
+  while ((row = tdDataRowsNext(pIter)) != NULL) {
+    if (tdInsertRowToTable(pRepo, row, pTable) < 0) {
       // TODO: deal with the error here
     }
-
-    tdRdataIterNext(pIter);
   }
 
   return 0;

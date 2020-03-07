@@ -58,7 +58,7 @@ int32_t tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixO
     case TD_DATATYPE_DOUBLE:
     case TD_DATATYPE_TIMESTAMP:
       memcpy(dataRowIdx(row, pCol->offset + sizeof(int32_t)), value, rowDataLen[pCol->type]);
-      if (dataRowLen(row) > suffixOffset + sizeof(int32_t))
+      if (dataRowLen(row) < suffixOffset + sizeof(int32_t))
         dataRowSetLen(row, dataRowLen(row) + rowDataLen[pCol->type]);
       break;
     case TD_DATATYPE_VARCHAR:
@@ -81,6 +81,40 @@ int32_t tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixO
 void tdDataRowCpy(void *dst, SDataRow row) { memcpy(dst, row, dataRowLen(row)); }
 void tdDataRowReset(SDataRow row) { dataRowSetLen(row, sizeof(int32_t)); }
 
+void tdDataRowsAppendRow(SDataRows rows, SDataRow row) {
+  tdDataRowCpy((void *)((char *)rows + dataRowsLen(rows)), row);
+  dataRowsSetLen(rows, dataRowsLen(rows) + dataRowLen(row));
+}
+
+// Initialize the iterator
+void tdInitSDataRowsIter(SDataRows rows, SDataRowsIter *pIter) {
+  if (pIter == NULL) return;
+  pIter->totalLen = dataRowsLen(rows);
+
+  if (pIter->totalLen == TD_DATA_ROWS_HEAD_LEN) {
+    pIter->row = NULL;
+    return;
+  }
+
+  pIter->row = (SDataRow)((char *)rows + TD_DATA_ROWS_HEAD_LEN);
+  pIter->len = TD_DATA_ROWS_HEAD_LEN + dataRowLen(pIter->row);
+}
+
+// Get the next row in Rows
+SDataRow tdDataRowsNext(SDataRowsIter *pIter) {
+  SDataRow row = pIter->row;
+  if (row == NULL) return NULL;
+
+  if (pIter->len >= pIter->totalLen) {
+    pIter->row = NULL;
+  } else {
+    pIter->row = (char *)row + dataRowLen(row);
+    pIter->len += dataRowLen(row);
+  }
+
+  return row;
+}
+
 // ------ Codes below should be refactored
 
 SDataRow tdSDataRowDup(SDataRow rdata) { return NULL; }
@@ -88,19 +122,6 @@ void     tdFreeSDataRow(SDataRow rdata) {
   if (rdata == NULL) return;
   free(rdata);
 }
-
-void tdInitSDataRowsIter(SDataRows rows, SDataRowsIter *pIter) {
-  pIter->totalRows = TD_DATAROWS_ROWS(rows);
-  pIter->rowCounter = 1;
-  pIter->row = TD_DATAROWS_DATA(rows);
-}
-
-void tdRdataIterNext(SDataRowsIter *pIter) {
-  pIter->rowCounter++;
-  pIter->row = pIter->row + TD_DATAROW_LEN(pIter->row);
-}
-
-int32_t tdRdataIterEnd(SDataRowsIter *pIter) { return pIter->rowCounter >= pIter->totalRows; }
 
 /**
  * Copy it

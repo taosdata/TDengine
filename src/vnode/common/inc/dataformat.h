@@ -58,9 +58,23 @@ void     tdDataRowReset(SDataRow row);
  */
 typedef void *SDataRows;
 
+#define TD_DATA_ROWS_HEAD_LEN sizeof(int32_t)
+
 #define dataRowsLen(rs) (*(int32_t *)(rs))
 #define dataRowsSetLen(rs, l) (dataRowsLen(rs) = (l))
 #define dataRowsInit(rs) dataRowsSetLen(rs, sizeof(int32_t))
+
+void tdDataRowsAppendRow(SDataRows rows, SDataRow row);
+
+// Data rows iterator
+typedef struct {
+  int32_t totalLen;
+  int32_t len;
+  SDataRow row;
+} SDataRowsIter;
+
+void tdInitSDataRowsIter(SDataRows rows, SDataRowsIter *pIter);
+SDataRow tdDataRowsNext(SDataRowsIter *pIter);
 
 /* Data column definition
  * +---------+---------+-----------------------+
@@ -79,12 +93,6 @@ typedef char *SDataCol;
  * +---------+---------+-----------------------+--------+-----------------------+
  */
 typedef char *SDataCols;
-
-typedef struct {
-  int32_t  rowCounter;
-  int32_t  totalRows;
-  SDataRow row;
-} SDataRowsIter;
 
 // ----------------- Data column structure
 
@@ -109,11 +117,6 @@ void     tdFreeSDataRow(SDataRow rdata);
 // ---- operation on SDataCols
 #define TD_DATACOLS_LEN(pDataCols) (*(int32_t *)(pDataCols))
 #define TD_DATACOLS_NPOINTS(pDataCols) (*(int32_t *)(pDataCols + sizeof(int32_t)))
-
-// ---- operation on SDataRowIter
-void    tdInitSDataRowsIter(SDataRows rows, SDataRowsIter *pIter);
-int32_t tdRdataIterEnd(SDataRowsIter *pIter);
-void    tdRdataIterNext(SDataRowsIter *pIter);
 
 #ifdef __cplusplus
 }

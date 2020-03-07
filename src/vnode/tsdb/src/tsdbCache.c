@@ -30,5 +30,8 @@ int32_t tsdbFreeCache(STsdbCache *pHandle) { return 0; }
 
 void *tsdbAllocFromCache(STsdbCache *pCache, int64_t bytes) {
   // TODO: implement here
-  return NULL;
+  void *ptr = malloc(bytes);
+  if (ptr == NULL) return NULL;
+
+  return ptr;
 }
