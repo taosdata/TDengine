@@ -18,12 +18,48 @@
 #include "mgmtMnode.h"
 #include "mgmtUser.h"
 
-void *(*mgmtGetNextMnodeFp)(SShowObj *pShow, SSdbPeer **pMnode) = NULL;
-int32_t (*mgmtInitMnodesFp)() = NULL;
+int32_t (*mgmtAddMnodeFp)(uint32_t privateIp, uint32_t publicIp) = NULL;
+int32_t (*mgmtRemoveMnodeFp)(uint32_t privateIp) = NULL;
 int32_t (*mgmtGetMnodesNumFp)() = NULL;
+void *  (*mgmtGetNextMnodeFp)(SShowObj *pShow, SSdbPeer **pMnode) = NULL;
 
-static int32_t mgmtGetMnodesNum();
-static void *mgmtGetNextMnode(SShowObj *pShow, SSdbPeer **pMnode);
+int32_t mgmtAddMnode(uint32_t privateIp, uint32_t publicIp) {
+  if (mgmtAddMnodeFp) {
+    return (*mgmtAddMnodeFp)(privateIp, publicIp);
+  } else {
+    return 0;
+  }
+}
+
+int32_t mgmtRemoveMnode(uint32_t privateIp) {
+  if (mgmtRemoveMnodeFp) {
+    return (*mgmtRemoveMnodeFp)(privateIp);
+  } else {
+    return 0;
+  }
+}
+
+static int32_t mgmtGetMnodesNum() {
+  if (mgmtGetMnodesNumFp) {
+    return (*mgmtGetMnodesNumFp)();
+  } else {
+    return 1;
+  }
+}
+
+static void *mgmtGetNextMnode(SShowObj *pShow, SSdbPeer **pMnode) {
+  if (mgmtGetNextMnodeFp) {
+    return (*mgmtGetNextMnodeFp)(pShow, pMnode);
+  } else {
+    if (*pMnode == NULL) {
+      *pMnode = NULL;
+    } else {
+      *pMnode = NULL;
+    }
+  }
+
+  return *pMnode;
+}
 
 int32_t mgmtGetMnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
@@ -88,11 +124,8 @@ int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pCon
   char     ipstr[20];
 
   while (numOfRows < rows) {
-    pShow->pNode = mgmtGetNextMnode(pShow, (SDnodeObj **)&pMnode);
-
-
-//    pShow->pNode = sdbFetchRow(mnodeSdb, pShow->pNode, (void **)&pMnode);
-//    if (pMnode == NULL) break;
+    pShow->pNode = mgmtGetNextMnode(pShow, (SSdbPeer **)&pMnode);
+    if (pMnode == NULL) break;
 
     cols = 0;
 
@@ -122,26 +155,4 @@ int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pCon
 
   pShow->numOfReads += numOfRows;
   return numOfRows;
-}
-
-static int32_t mgmtGetMnodesNum() {
-  if (mgmtGetMnodesNumFp) {
-    return mgmtGetMnodesNumFp();
-  } else {
-    return 1;
-  }
-}
-
-static void *mgmtGetNextMnode(SShowObj *pShow, SSdbPeer **pMnode) {
-  if (mgmtGetNextMnodeFp) {
-    return mgmtGetNextMnodeFp(pShow, pMnode);
-  } else {
-    if (*pMnode == NULL) {
-      *pMnode = NULL;
-    } else {
-      *pMnode = NULL;
-    }
-  }
-
-  return *pMnode;
 }

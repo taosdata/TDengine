@@ -14,7 +14,7 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   TARGET_LINK_LIBRARIES(mnode trpc tutil sdb pthread)
 
   IF (TD_CLUSTER)
-    TARGET_LINK_LIBRARIES(mnode acct)
+    TARGET_LINK_LIBRARIES(mnode)
   ENDIF ()
 ENDIF ()
 

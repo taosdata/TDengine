@@ -33,6 +33,9 @@ void *     (*mgmtGetNextDnodeFp)(SShowObj *pShow, SDnodeObj **pDnode) = NULL;
 int32_t    (*mgmtGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = NULL;
 int32_t    (*mgmtRetrieveScoresFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn) = NULL;
 void       (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode) = NULL;
+int32_t    (*mgmtCreateDnodeFp)(uint32_t ip) = NULL;
+int32_t    (*mgmtDropDnodeByIpFp)(uint32_t ip) = NULL;
+
 
 static SDnodeObj tsDnodeObj = {0};
 
@@ -606,6 +609,9 @@ void *mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode) {
 
 int32_t mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   if (mgmtGetScoresMetaFp) {
+    SUserObj *pUser = mgmtGetUserFromConn(pConn);
+    if (pUser == NULL) return 0;
+    if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
     return mgmtGetScoresMetaFp(pMeta, pShow, pConn);
   } else {
     return TSDB_CODE_OPS_NOT_SUPPORT;
@@ -632,4 +638,18 @@ bool mgmtCheckConfigShow(SGlobalConfig *cfg) {
   if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT)
     return false;
   return true;
+}
+
+/**
+ * check if a dnode in remove state
+ **/
+bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode) {
+  return pDnode->lbStatus == TSDB_DN_LB_STATUS_OFFLINE_REMOVING || pDnode->lbStatus == TSDB_DN_LB_STATE_SHELL_REMOVING;
+}
+
+/**
+ * check if a dnode in offline state
+ **/
+bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) {
+  return pDnode->status == TSDB_DN_STATUS_OFFLINE;
 }

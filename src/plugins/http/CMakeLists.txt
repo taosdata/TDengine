@@ -13,6 +13,6 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   TARGET_LINK_LIBRARIES(http taos_static z)
 
   IF (TD_CLUSTER)
-    TARGET_LINK_LIBRARIES(http http_admin)
+    TARGET_LINK_LIBRARIES(http)
   ENDIF ()
 ENDIF ()

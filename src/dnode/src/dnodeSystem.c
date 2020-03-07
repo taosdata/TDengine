@@ -33,12 +33,14 @@
 #include "dnodeVnodeMgmt.h"
 
 #ifdef CLUSTER
-//#include "acct.h"
-//#include "admin.h"
-//#include "cluster.h"
-//#include "grant.h"
-//#include "replica.h"
-//#include "storage.h"
+#include "account.h"
+#include "admin.h"
+#include "balance.h"
+#include "cluster.h"
+#include "grant.h"
+#include "mpeer.h"
+#include "storage.h"
+#include "vpeer.h"
 #endif
 
 static pthread_mutex_t tsDnodeMutex;
@@ -89,8 +91,6 @@ void dnodeCleanUpSystem() {
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
   }
 
-
-
   dnodeCleanupShell();
   dnodeCleanUpModules();
   dnodeCleanupVnodes();
@@ -112,7 +112,13 @@ void dnodeCheckDataDirOpenned(const char *dir) {
 
 void dnodeInitPlugins() {
 #ifdef CLUSTER
-  acctInit();
+//  acctInit();
+//  adminInit();
+//  balanceInit();
+//  clusterInit();
+//  grantInit();
+//  mpeerInit();
+//  storageInit();
 #endif
 }
 

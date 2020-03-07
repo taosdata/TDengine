@@ -318,6 +318,27 @@ int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   return 0;
 }
 
+char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
+  SDnodeObj *pDnode = mgmtGetDnode(pVnode->ip);
+  if (pDnode == NULL) {
+    mError("dnode:%s, vgroup:%d, vnode:%d dnode not exist", taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode);
+    return "null";
+  }
+
+  if (pDnode->status == TSDB_DN_STATUS_OFFLINE) {
+    return "offline";
+  }
+
+  SVnodeLoad *vload = pDnode->vload + pVnode->vnode;
+  if (vload->vgId != pVgroup->vgId || vload->vnode != pVnode->vnode) {
+    mError("dnode:%s, vgroup:%d, vnode:%d not same with dnode vgroup:%d vnode:%d",
+           taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode, vload->vgId, vload->vnode);
+    return "null";
+  }
+
+  return (char*)taosGetVnodeStatusStr(vload->status);
+}
+
 int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
   SVgObj *pVgroup = NULL;

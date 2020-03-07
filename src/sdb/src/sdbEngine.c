@@ -23,7 +23,6 @@
 
 extern char   version[];
 const int16_t sdbFileVersion = 0;
-int           sdbExtConns = 0;
 SRpcIpSet    *pSdbIpList = NULL;
 SRpcIpSet    *pSdbPublicIpList = NULL;
 SSdbPeer *    sdbPeer[SDB_MAX_PEERS];  // first slot for self

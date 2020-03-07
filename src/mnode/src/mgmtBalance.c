@@ -77,11 +77,3 @@ int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
     return 0;
   }
 }
-
-char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
-  if (mgmtGetVnodeStatusFp) {
-    return (*mgmtGetVnodeStatusFp)(pVgroup, pVnode);
-  } else {
-    return "master";
-  }
-}
