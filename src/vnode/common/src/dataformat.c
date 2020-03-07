@@ -80,6 +80,13 @@ int32_t tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixO
  */
 void tdDataRowCpy(void *dst, SDataRow row) { memcpy(dst, row, dataRowLen(row)); }
 void tdDataRowReset(SDataRow row) { dataRowSetLen(row, sizeof(int32_t)); }
+SDataRow tdDataRowDup(SDataRow row) {
+  SDataRow trow = tdNewDataRow(dataRowLen(row));
+  if (trow == NULL) return NULL;
+
+  dataRowCpy(trow, row);
+  return row;
+}
 
 void tdDataRowsAppendRow(SDataRows rows, SDataRow row) {
   tdDataRowCpy((void *)((char *)rows + dataRowsLen(rows)), row);
@@ -113,19 +120,4 @@ SDataRow tdDataRowsNext(SDataRowsIter *pIter) {
   }
 
   return row;
-}
-
-// ------ Codes below should be refactored
-
-SDataRow tdSDataRowDup(SDataRow rdata) { return NULL; }
-void     tdFreeSDataRow(SDataRow rdata) {
-  if (rdata == NULL) return;
-  free(rdata);
-}
-
-/**
- * Copy it
- */
-void tdSDataRowCpy(SDataRow src, void *dst) {
-  // TODO
 }

@@ -111,7 +111,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   if (IS_CREATE_STABLE(pCfg)) { // TSDB_STABLE
     pTable->type = TSDB_STABLE;
     pTable->stableUid = pCfg->stableUid;
-    pTable->pTagVal = tdSDataRowDup(pCfg->tagValues);
+    pTable->pTagVal = tdDataRowDup(pCfg->tagValues);
   } else { // TSDB_NTABLE
     pTable->type = TSDB_NTABLE;
     pTable->stableUid = -1;
@@ -183,7 +183,7 @@ int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable) {
 static int tsdbFreeTable(STable *pTable) {
   // TODO: finish this function
   if (pTable->type == TSDB_STABLE) {
-    tdFreeSDataRow(pTable->pTagVal);
+    tdFreeDataRow(pTable->pTagVal);
   } else {
     tdFreeSchema(pTable->pSchema);
   }

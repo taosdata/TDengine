@@ -48,6 +48,7 @@ void     tdFreeDataRow(SDataRow row);
 int32_t  tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixOffset);
 void     tdDataRowCpy(void *dst, SDataRow row);
 void     tdDataRowReset(SDataRow row);
+SDataRow tdDataRowDup(SDataRow row);
 
 /* Data rows definition, the format of it is like below:
  * +---------+-----------------------+--------+-----------------------+
@@ -93,30 +94,6 @@ typedef char *SDataCol;
  * +---------+---------+-----------------------+--------+-----------------------+
  */
 typedef char *SDataCols;
-
-// ----------------- Data column structure
-
-// ---- operation on SDataRow;
-#define TD_DATA_ROW_HEADER_SIZE sizeof(int32_t)
-#define TD_DATAROW_LEN(pDataRow) (*(int32_t *)(pDataRow))
-#define TD_DATAROW_DATA(pDataRow) ((pDataRow) + sizeof(int32_t))
-
-SDataRow tdSDataRowDup(SDataRow rdata);
-void     tdSDataRowCpy(SDataRow src, void *dst);
-void     tdFreeSDataRow(SDataRow rdata);
-
-// ---- operation on SDataRows
-#define TD_DATAROWS_LEN(pDataRows) (*(int32_t *)(pDataRows))
-#define TD_DATAROWS_ROWS(pDataRows) (*(int32_t *)((pDataRows) + sizeof(int32_t)))
-#define TD_DATAROWS_DATA(pDataRows) (SDataRow)((pDataRows) + 2 * sizeof(int32_t))
-
-// ---- operation on SDataCol
-#define TD_DATACOL_LEN(pDataCol) (*(int32_t *)(pDataCol))
-#define TD_DATACOL_NPOINTS(pDataCol) (*(int32_t *)(pDataCol + sizeof(int32_t)))
-
-// ---- operation on SDataCols
-#define TD_DATACOLS_LEN(pDataCols) (*(int32_t *)(pDataCols))
-#define TD_DATACOLS_NPOINTS(pDataCols) (*(int32_t *)(pDataCols + sizeof(int32_t)))
 
 #ifdef __cplusplus
 }
