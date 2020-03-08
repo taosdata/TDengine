@@ -133,7 +133,7 @@ int32_t mgmtCreateTable(SCreateTableMsg *pCreate, int32_t contLen, void *thandle
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   assert(pAcct != NULL);
 
-  int32_t code = mgmtCheckTableLimit(pAcct, pCreate);
+  int32_t code = mgmtCheckTableLimit(pAcct, pCreate->numOfColumns);
   if (code != TSDB_CODE_SUCCESS) {
     mError("table:%s, failed to create table, table num exceed the limit", pCreate->tableId);
     return code;

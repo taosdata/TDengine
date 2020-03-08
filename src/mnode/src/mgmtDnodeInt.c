@@ -157,13 +157,19 @@ static void mgmtProcessCreateTableRsp(int8_t msgType, int8_t *pCont, int32_t con
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    rpcSendResponse(info->thandle, code, NULL, 0);
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.code = code;
+    rpcMsg.handle = info->thandle;
+    rpcSendResponse(&rpcMsg);
   } else {
     if (info->type == TSDB_PROCESS_CREATE_TABLE_GET_META) {
       mTrace("table:%s, start to process get meta", pTable->tableId);
       mgmtProcessGetTableMeta(pTable, thandle);
     } else {
-      rpcSendResponse(info->thandle, code, NULL, 0);
+      SRpcMsg rpcMsg = {0};
+      rpcMsg.code = code;
+      rpcMsg.handle = info->thandle;
+      rpcSendResponse(&rpcMsg);
     }
   }
 
@@ -236,7 +242,11 @@ static void mgmtProcessDnodeGrantMsg(void *pCont, void *thandle) {
     mgmtUpdateGrantInfoFp(pCont);
     mTrace("grant info is updated");
   }
-  rpcSendResponse(thandle, TSDB_CODE_SUCCESS, NULL, 0);
+
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.code = TSDB_CODE_SUCCESS;
+  rpcMsg.handle = thandle;
+  rpcSendResponse(&rpcMsg);
 }
 
 void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *pConn, int32_t code) {
@@ -368,7 +378,7 @@ int32_t mgmtSendCfgDnodeMsg(char *cont) {
 //#else
 //  (void)tsCfgDynamicOptions(pCfg->config);
 //#endif
-//  return 0;
+  return 0;
 }
 
 int32_t mgmtInitDnodeInt() {
