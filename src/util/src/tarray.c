@@ -51,6 +51,8 @@ static int32_t taosArrayResize(SArray* pArray) {
 
   pArray->pData = tmp;
   pArray->capacity = size;
+  
+  return 0;
 }
 
 void* taosArrayPush(SArray* pArray, void* pData) {
