@@ -20,6 +20,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <signal.h>
+#include <semaphore.h>
 #include "os.h"
 #include "tlog.h"
 #include "trpc.h"
@@ -39,11 +40,11 @@ typedef struct {
   void     *pRpc;
 } SInfo;
 
-void processResponse(char type, void *pCont, int contLen, void *ahandle, int32_t code) {
-  SInfo *pInfo = (SInfo *)ahandle;
-  tTrace("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, type, contLen, code);
+void processResponse(SRpcMsg *pMsg) {
+  SInfo *pInfo = (SInfo *)pMsg->handle;
+  tTrace("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
 
-  if (pCont) rpcFreeCont(pCont);
+  rpcFreeCont(pMsg->pCont);
 
   sem_post(&pInfo->rspSem); 
 }
@@ -58,16 +59,19 @@ void processUpdateIpSet(void *handle, SRpcIpSet *pIpSet) {
 int tcount = 0;
 
 void *sendRequest(void *param) {
-  SInfo *pInfo = (SInfo *)param;
-  char  *cont;
+  SInfo  *pInfo = (SInfo *)param;
+  SRpcMsg rpcMsg; 
   
   tTrace("thread:%d, start to send request", pInfo->index);
 
   while ( pInfo->numOfReqs == 0 || pInfo->num < pInfo->numOfReqs) {
     pInfo->num++;
-    cont = rpcMallocCont(pInfo->msgSize);
+    rpcMsg.pCont = rpcMallocCont(pInfo->msgSize);
+    rpcMsg.contLen = pInfo->msgSize;
+    rpcMsg.handle = pInfo;
+    rpcMsg.msgType = 1;
     tTrace("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
-    rpcSendRequest(pInfo->pRpc, &pInfo->ipSet, 1, cont, pInfo->msgSize, pInfo);
+    rpcSendRequest(pInfo->pRpc, &pInfo->ipSet, &rpcMsg);
     if ( pInfo->num % 20000 == 0 ) 
       tPrint("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
     sem_wait(&pInfo->rspSem);
@@ -161,7 +165,6 @@ int main(int argc, char *argv[]) {
   }
 
   taosInitLog("client.log", 100000, 10);
-  tPrint("rpcDebugFlag:%d", rpcDebugFlag);
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {

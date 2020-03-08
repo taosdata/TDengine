@@ -43,6 +43,14 @@ typedef struct {
 } SRpcConnInfo;
 
 typedef struct {
+  uint8_t msgType;
+  void   *pCont;
+  int     contLen;
+  int32_t code;
+  void   *handle;
+} SRpcMsg;
+
+typedef struct {
   char  *localIp;      // local IP used
   uint16_t localPort; // local port
   char  *label;        // for debug purpose
@@ -59,7 +67,7 @@ typedef struct {
   char *ckey;         // ciphering key
 
   // call back to process incoming msg, code shall be ignored by server app
-  void (*cfp)(char type, void *pCont, int contLen, void *handle, int32_t code);  
+  void (*cfp)(SRpcMsg *);  
 
   // call back to process notify the ipSet changes, for client app only
   void (*ufp)(void *ahandle, SRpcIpSet *pIpSet);
@@ -73,8 +81,8 @@ void  rpcClose(void *);
 void *rpcMallocCont(int contLen);
 void  rpcFreeCont(void *pCont);
 void *rpcReallocCont(void *ptr, int contLen);
-void  rpcSendRequest(void *thandle, SRpcIpSet *pIpSet, char msgType, void *pCont, int contLen, void *ahandle);
-void  rpcSendResponse(void *pConn, int32_t code, void *pCont, int contLen);
+void  rpcSendRequest(void *thandle, SRpcIpSet *pIpSet, SRpcMsg *pMsg);
+void  rpcSendResponse(SRpcMsg *pMsg);
 void  rpcSendRedirectRsp(void *pConn, SRpcIpSet *pIpSet); 
 void  rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 

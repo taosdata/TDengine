@@ -46,6 +46,7 @@ static STaosError errors[] = {
 #endif
 
 TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_IN_PROGRESS,         0, 1, "action in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_MSG_NOT_PROCESSED,          0, 4, "message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_LAST_SESSION_NOT_FINISHED,  0, 5, "last session not finished")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_SESSION_ID,         0, 6, "invalid session id")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TRAN_ID,            0, 7, "invalid transaction id")
