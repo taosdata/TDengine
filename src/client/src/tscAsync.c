@@ -324,7 +324,6 @@ void tscProcessFetchRow(SSchedMsg *pMsg) {
 
 void tscProcessAsyncRes(SSchedMsg *pMsg) {
   SSqlObj *pSql = (SSqlObj *)pMsg->ahandle;
-  STscObj *pTscObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 

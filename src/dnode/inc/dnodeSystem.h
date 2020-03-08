@@ -20,34 +20,15 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-
 typedef enum {
   TSDB_DNODE_RUN_STATUS_INITIALIZE,
   TSDB_DNODE_RUN_STATUS_RUNING,
   TSDB_DNODE_RUN_STATUS_STOPPED
 } SDnodeRunStatus;
 
-extern int32_t (*dnodeInitPeers)(int32_t numOfThreads);
-extern int32_t (*dnodeCheckSystem)();
-extern int32_t (*dnodeInitStorage)();
-extern void (*dnodeCleanupStorage)();
-extern int32_t tsMaxQueues;
-extern void ** tsRpcQhandle;
-extern void *tsQueryQhandle;
-extern void *tsDnodeMgmtQhandle;
-extern void *tsDnodeTmr;
-
 int32_t dnodeInitSystem();
-void dnodeCleanUpSystem();
-void dnodeInitPlugins();
-
+void    dnodeCleanUpSystem();
 SDnodeRunStatus dnodeGetRunStatus();
-void dnodeSetRunStatus(SDnodeRunStatus status);
-void dnodeCheckDataDirOpenned(const char *dir);
-void dnodeLockVnodes();
-void dnodeUnLockVnodes();
 
 #ifdef __cplusplus
 }

@@ -17,56 +17,196 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "tsched.h"
-#include "dnode.h"
+#include "trpc.h"
+#include "taosmsg.h"
+#include "tqueue.h"
 #include "dnodeRead.h"
-#include "dnodeSystem.h"
+#include "dnodeMgmt.h"
 
-void dnodeQueryData(SQueryTableMsg *pQuery, void *pConn, void (*callback)(int32_t code, void *pQInfo, void *pConn)) {
-  dTrace("conn:%p, query msg is disposed", pConn);
-  void *pQInfo = 100;
-  callback(TSDB_CODE_SUCCESS, pQInfo, pConn);
-}
+typedef struct {
+  int32_t  code;
+  int32_t  count;
+  int32_t  numOfVnodes;
+} SRpcContext;
 
-static void dnodeExecuteRetrieveData(SSchedMsg *pSched) {
-  SDnodeRetrieveCallbackFp callback = (SDnodeRetrieveCallbackFp)pSched->thandle;
-  SRetrieveTableMsg *pRetrieve = pSched->msg;
-  void *pConn = pSched->ahandle;
+typedef struct {
+  void        *pCont;
+  int          contLen;
+  SRpcMsg      rpcMsg;
+  void        *pVnode;
+  SRpcContext *pRpcContext;  // RPC message context
+} SReadMsg;
 
-  dTrace("conn:%p, retrieve msg is disposed, qhandle:%" PRId64, pConn, pRetrieve->qhandle);
+static void *dnodeProcessReadQueue(void *param);
+static void  dnodeProcessReadResult(SReadMsg *pRead);
+static void  dnodeHandleIdleReadWorker();
+static void  dnodeProcessQueryMsg(SReadMsg *pMsg);
+static void  dnodeProcessRetrieveMsg(SReadMsg *pMsg);
+static void (*dnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SReadMsg *pNode);
 
-  //examples
-  int32_t code = TSDB_CODE_SUCCESS;
-  void *pQInfo = (void*)pRetrieve->qhandle;
+// module global variable
+static taos_qset readQset;
+static int       threads;    // number of query threads
+static int       maxThreads;
+static int       minThreads;
 
-  (*callback)(code, pQInfo, pConn);
+int dnodeInitRead() {
+  dnodeProcessReadMsgFp[TSDB_MSG_TYPE_QUERY] = dnodeProcessQueryMsg;
+  dnodeProcessReadMsgFp[TSDB_MSG_TYPE_RETRIEVE] = dnodeProcessRetrieveMsg;
 
-  free(pSched->msg);
-}
+  readQset = taosOpenQset();
 
-void dnodeRetrieveData(SRetrieveTableMsg *pRetrieve, void *pConn, SDnodeRetrieveCallbackFp callbackFp) {
-  dTrace("conn:%p, retrieve msg is received", pConn);
+  minThreads = 3;
+  maxThreads = tsNumOfCores*tsNumOfThreadsPerCore;
+  if (maxThreads <= minThreads*2) maxThreads = 2*minThreads;
 
-  void *msg = malloc(sizeof(SRetrieveTableMsg));
-  memcpy(msg, pRetrieve, sizeof(SRetrieveTableMsg));
-
-  SSchedMsg schedMsg;
-  schedMsg.msg     = msg;
-  schedMsg.ahandle = pConn;
-  schedMsg.thandle = callbackFp;
-  schedMsg.fp      = dnodeExecuteRetrieveData;
-  taosScheduleTask(tsQueryQhandle, &schedMsg);
-}
-
-int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveTableRsp *pRetrieve) {
-  dTrace("qInfo:%p, data is retrieved");
-  pRetrieve->numOfRows = 0;
   return 0;
 }
 
-int32_t dnodeGetRetrieveDataSize(void *pQInfo) {
-  dTrace("qInfo:%p, contLen is 100");
-  return 100;
+void dnodeCleanupRead() {
+  taosCloseQset(readQset);
 }
 
+void dnodeRead(SRpcMsg *pMsg) {
+  int     leftLen = pMsg->contLen;
+  char   *pCont = (char *)pMsg->pCont;
+  int     contLen = 0;
+  int     numOfVnodes = 0;
+  int32_t vgId = 0;
+  SRpcContext *pRpcContext = NULL;
 
+  // parse head, get number of vnodes;
+  if ( numOfVnodes > 1) {
+    pRpcContext = calloc(sizeof(SRpcContext), 1);
+    pRpcContext->numOfVnodes = 1;
+  }
+
+  while (leftLen > 0) {
+    // todo: parse head, get vgId, contLen
+
+    // get pVnode from vgId
+    void *pVnode = dnodeGetVnode(vgId);
+    if (pVnode == NULL) {
+
+      continue;
+    }
+   
+    // put message into queue
+    SReadMsg readMsg;
+    readMsg.rpcMsg = *pMsg;
+    readMsg.pCont = pCont;
+    readMsg.contLen = contLen;
+    readMsg.pRpcContext = pRpcContext;   
+    readMsg.pVnode = pVnode;
+
+    taos_queue queue = dnodeGetVnodeRworker(pVnode);
+    taosWriteQitem(queue, &readMsg);
+ 
+    // next vnode 
+    leftLen -= contLen;
+    pCont -= contLen; 
+  }
+}
+
+void *dnodeAllocateReadWorker() {
+
+  taos_queue *queue = taosOpenQueue(sizeof(SReadMsg));
+  if ( queue == NULL ) return NULL;
+
+  taosAddIntoQset(readQset, queue);
+
+  // spawn a thread to process queue
+  if (threads < maxThreads) {
+    pthread_t thread;
+    pthread_attr_t thAttr;
+    pthread_attr_init(&thAttr);
+    pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+
+    if (pthread_create(&thread, &thAttr, dnodeProcessReadQueue, readQset) != 0) {
+      dError("failed to create thread to process read queue, reason:%s", strerror(errno));
+    }
+  }
+
+  return queue;
+}
+
+void dnodeFreeReadWorker(void *rqueue) {
+
+  taosCloseQueue(rqueue);
+
+  // dynamically adjust the number of threads
+}
+
+static void *dnodeProcessReadQueue(void *param) {
+  taos_qset  qset = (taos_qset)param;
+  SReadMsg   readMsg;
+
+  while (1) {
+    if (taosReadQitemFromQset(qset, &readMsg) <= 0) {
+      dnodeHandleIdleReadWorker();
+      continue;      
+    }
+
+    terrno = 0;
+    if (dnodeProcessReadMsgFp[readMsg.rpcMsg.msgType]) {
+      (*dnodeProcessReadMsgFp[readMsg.rpcMsg.msgType]) (&readMsg);
+    } else {
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;  
+    }
+     
+    dnodeProcessReadResult(&readMsg);
+  }
+
+  return NULL;
+}
+
+static void dnodeHandleIdleReadWorker() {
+  int num = taosGetQueueNumber(readQset);
+
+  if (num == 0 || (num <= minThreads && threads > minThreads)) {
+    threads--;
+    pthread_exit(NULL);
+  } else {
+    usleep(100);
+    sched_yield();
+  }
+}
+
+static void dnodeProcessReadResult(SReadMsg *pRead) {
+  SRpcContext *pRpcContext = pRead->pRpcContext;
+  int32_t      code = 0;
+
+  dnodeReleaseVnode(pRead->pVnode);
+
+  if (pRpcContext) {
+    if (terrno) {
+      if (pRpcContext->code == 0) pRpcContext->code = terrno;  
+    }
+
+    int count = atomic_add_fetch_32(&pRpcContext->count, 1);
+    if (count < pRpcContext->numOfVnodes) {
+      // not over yet, multiple vnodes
+      return;
+    }
+
+    // over, result can be merged now
+    code = pRpcContext->code;
+  } else {
+    code = terrno;
+  }
+
+  SRpcMsg rsp;
+  rsp.handle = pRead->rpcMsg.handle;
+  rsp.code = code;
+  rsp.pCont = NULL;
+  rpcSendResponse(&rsp);
+  rpcFreeCont(pRead->rpcMsg.pCont);  // free the received message
+}
+
+static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
+
+}
+
+static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
+
+}

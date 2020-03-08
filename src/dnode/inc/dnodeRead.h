@@ -20,31 +20,12 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
-#include "taosdef.h"
-#include "taosmsg.h"
-
-/*
- * handle query message, and the result is returned by callback function
- */
-void dnodeQueryData(SQueryTableMsg *pQuery, void *pConn, void (*callback)(int32_t code, void *pQInfo, void *pConn));
-
-/*
- * Dispose retrieve msg, and the result will passed through callback function
- */
-typedef void (*SDnodeRetrieveCallbackFp)(int32_t code, void *pQInfo, void *pConn);
-void dnodeRetrieveData(SRetrieveTableMsg *pRetrieve, void *pConn, SDnodeRetrieveCallbackFp callbackFp);
-
-/*
- * Fill retrieve result according to query info
- */
-int32_t dnodeGetRetrieveData(void *pQInfo, SRetrieveTableRsp *pRetrieve);
-
-/*
- * Get the size of retrieve result according to query info
- */
-int32_t dnodeGetRetrieveDataSize(void *pQInfo);
+int   dnodeInitRead();
+void  dnodeCleanupRead();
+void  dnodeRead(SRpcMsg *);
+void *dnodeAllocateReadWorker();
+void  dnodeFreeReadWorker(void *rqueue);
+ 
 
 #ifdef __cplusplus
 }
