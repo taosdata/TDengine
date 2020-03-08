@@ -460,11 +460,16 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   pthread_mutex_lock(&pObj->mutex);
   tfree(pSql->sqlstr);
   pthread_mutex_unlock(&pObj->mutex);
-
+  
   tscFreeSqlResult(pSql);
   tfree(pSql->pSubs);
   pSql->numOfSubs = 0;
-
+  
+  pSql->freed = 0;
+  tscFreeSqlCmdData(pCmd);
+  
+  tscTrace("%p free sqlObj partial completed", pSql);
+  
   tscFreeSqlCmdData(pCmd);
 }
 

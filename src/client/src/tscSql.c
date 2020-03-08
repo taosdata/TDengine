@@ -783,7 +783,13 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
     /* Query rsp is not received from vnode, so the qhandle is NULL */
     tscTrace("%p qhandle is null, abort free, fp:%p", pSql, pSql->fp);
     if (pSql->fp != NULL) {
-      tscFreeSqlObj(pSql);
+      STscObj* pObj = pSql->pTscObj;
+  
+      if (pSql == pObj->pSql) {
+        pObj->pSql = NULL;
+        tscFreeSqlObj(pSql);
+      }
+      
       tscTrace("%p Async SqlObj is freed by app", pSql);
     } else if (keepCmd) {
       tscFreeSqlResult(pSql);
@@ -849,6 +855,11 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
       } else {
         tscFreeSqlObjPartial(pSql);
         tscTrace("%p sql result is freed by app", pSql);
+      }
+    } else {  // for async release, remove its link
+      STscObj* pObj = pSql->pTscObj;
+      if (pObj->pSql == pSql) {
+        pObj->pSql = NULL;
       }
     }
   } else {
