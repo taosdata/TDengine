@@ -43,7 +43,7 @@ typedef struct {
 } SRpcConnInfo;
 
 typedef struct {
-  char    msgType;
+  uint8_t msgType;
   void   *pCont;
   int     contLen;
   int32_t code;

@@ -24,8 +24,8 @@ typedef struct _taos_qnode {
 } STaosQnode;
 
 typedef struct _taos_q {
-  int                 itemSize;
-  int                 numOfItems;
+  int32_t             itemSize;
+  int32_t             numOfItems;
   struct _taos_qnode *head;
   struct _taos_qnode *tail;
   struct _taos_q     *next;    // for queue set
@@ -37,15 +37,15 @@ typedef struct _taos_qset {
   STaosQueue        *head;
   STaosQueue        *current;
   pthread_mutex_t    mutex;
-  int                numOfQueues;
-  int                numOfItems;
+  int32_t            numOfQueues;
+  int32_t            numOfItems;
 } STaosQset;
 
 typedef struct _taos_qall {
   STaosQnode   *current;
   STaosQnode   *start;
-  int           itemSize;
-  int           numOfItems;
+  int32_t       itemSize;
+  int32_t       numOfItems;
 } STaosQall; 
   
 taos_queue taosOpenQueue(int itemSize) {
@@ -57,7 +57,7 @@ taos_queue taosOpenQueue(int itemSize) {
   }
 
   pthread_mutex_init(&queue->mutex, NULL);
-  queue->itemSize = itemSize;
+  queue->itemSize = (int32_t)itemSize;
 
   return queue;
 }
@@ -108,6 +108,8 @@ int taosWriteQitem(taos_queue param, void *item) {
   if (queue->qset) atomic_add_fetch_32(&queue->qset->numOfItems, 1);
 
   pthread_mutex_unlock(&queue->mutex);
+
+  return 0;
 }
 
 int taosReadQitem(taos_queue param, void *item) {
@@ -291,8 +293,9 @@ int taosReadQitemFromQset(taos_qset param, void *item) {
     if (qset->current == NULL) 
       qset->current = qset->head;   
     STaosQueue *queue = qset->current;
-    qset->current = queue->next;
+    if (queue) qset->current = queue->next;
     pthread_mutex_unlock(&qset->mutex);
+    if (queue == NULL) break;
 
     pthread_mutex_lock(&queue->mutex);
 
@@ -326,8 +329,9 @@ int taosReadAllQitemsFromQset(taos_qset param, taos_qall *res) {
     if (qset->current == NULL) 
       qset->current = qset->head;   
     queue = qset->current;
-    qset->current = queue->next;
+    if (queue) qset->current = queue->next;
     pthread_mutex_unlock(&qset->mutex);
+    if (queue == NULL) break;
 
     pthread_mutex_lock(&queue->mutex);
 
