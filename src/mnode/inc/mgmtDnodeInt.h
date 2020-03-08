@@ -26,24 +26,20 @@ extern "C" {
 
 extern void *mgmtStatusTimer;
 
-int32_t mgmtSendCreateTableMsg(SChildTableObj *pTable, SVgObj *pVgroup);
-int32_t mgmtSendCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup);
-int32_t mgmtSendCreateStreamTableMsg(SStreamTableObj *pTable, SVgObj *pVgroup);
+void mgmtSendCreateTableMsg(SDCreateTableMsg *pCreate, SRpcIpSet *ipSet, void *ahandle);
+void mgmtSendRemoveTableMsg(SDRemoveTableMsg *pRemove, SRpcIpSet *ipSet, void *ahandle);
+void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle);
+void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
+void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
+void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
+void mgmtSendRemoveVgroupMsg(SVgObj *pVgroup, void *ahandle);
 
-int mgmtSendRemoveMeterMsgToDnode(STableInfo *pTable, SVgObj *pVgroup);
-int mgmtSendVPeersMsg(SVgObj *pVgroup);
-int mgmtSendFreeVnodeMsg(SVgObj *pVgroup);
-int mgmtSendOneFreeVnodeMsg(SVnodeGid *pVnodeGid);
+int32_t mgmtInitDnodeInt();
+void    mgmtCleanUpDnodeInt();
 
-char *taosBuildRspMsgToDnode(SDnodeObj *pObj, char type);
-char *taosBuildReqMsgToDnode(SDnodeObj *pObj, char type);
-
-extern int32_t (*mgmtSendSimpleRspToDnode)(void *pConn, int32_t msgType, int32_t code);
-extern int32_t (*mgmtSendMsgToDnode)(int8_t *pCont, int32_t contLen, int8_t msgType);
-extern int32_t (*mgmtInitDnodeInt)();
-extern void    (*mgmtCleanUpDnodeInt)();
-extern void    (*mgmtProcessDnodeStatus)(void *handle, void *tmrId);
-
+void mgmtSendMsgToDnode(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle);
+void mgmtSendRspToDnode(void *pConn, int8_t msgType, int32_t code, void *pCont, int32_t contLen);
+void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *pConn, int32_t code);
 
 #ifdef __cplusplus
 }

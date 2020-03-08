@@ -45,7 +45,7 @@ bool dnodeCheckVnodeExist(int32_t vid);
  * Create vnode with specified configuration and open it
  * if exist, config it
  */
-int32_t dnodeCreateVnode(int32_t vnode, SVPeersMsg *cfg);
+int32_t dnodeCreateVnode(SCreateVnodeMsg *pVnode);
 
 /*
  * Remove vnode from local repository
@@ -56,7 +56,9 @@ int32_t dnodeDropVnode(int32_t vnode);
  * Get the vnode object that has been opened
  */
 //tsdb_repo_t* dnodeGetVnode(int vid);
-void* dnodeGetVnode(int vid);
+void* dnodeGetVnode(int32_t vnode);
+
+int32_t dnodeGetVnodesNum();
 
 /*
  * get the status of vnode

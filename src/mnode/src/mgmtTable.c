@@ -33,10 +33,15 @@
 #include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
 #include "mgmtNormalTable.h"
-#include "mgmtStreamTable.h"
+#include "mgmtProfile.h"
+#include "mgmtShell.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
+#include "mgmtUser.h"
 #include "mgmtVgroup.h"
+
+extern void *tsNormalTableSdb;
+extern void *tsChildTableSdb;
 
 int32_t mgmtInitTables() {
   int32_t code = mgmtInitSuperTables();
@@ -49,15 +54,12 @@ int32_t mgmtInitTables() {
     return code;
   }
 
-  code = mgmtInitStreamTables();
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
   code = mgmtInitChildTables();
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
+  mgmtSetVgroupIdPool();
 
   return TSDB_CODE_SUCCESS;
 }
@@ -73,12 +75,7 @@ STableInfo* mgmtGetTable(char *tableId) {
     return tableInfo;
   }
 
-  tableInfo = (STableInfo *) mgmtGetStreamTable(tableId);
-  if (tableInfo != NULL) {
-    return tableInfo;
-  }
-
-  tableInfo = (STableInfo *) mgmtGetNormalTable(tableId);
+  tableInfo = (STableInfo *) mgmtGetChildTable(tableId);
   if (tableInfo != NULL) {
     return tableInfo;
   }
@@ -99,88 +96,116 @@ STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
   return NULL;
 }
 
-int32_t mgmtCreateTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
-  STableInfo *pTable = mgmtGetTable(pCreate->meterId);
+int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, bool usePublicIp) {
+  if (pTable->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
+    mgmtGetChildTableMeta(pDb, (SChildTableObj *) pTable, pMeta, usePublicIp);
+  } else if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+    mgmtGetNormalTableMeta(pDb, (SNormalTableObj *) pTable, pMeta, usePublicIp);
+  } else if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+    mgmtGetSuperTableMeta(pDb, (SSuperTableObj *) pTable, pMeta, usePublicIp);
+  } else {
+    mTrace("%s, uid:%" PRIu64 " table meta retrieve failed, invalid type", pTable->tableId, pTable->uid);
+    return TSDB_CODE_INVALID_TABLE;
+  }
+
+  mTrace("%s, uid:%" PRIu64 " table meta is retrieved", pTable->tableId, pTable->uid);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mgmtCreateTable(SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta) {
+  SDbObj *pDb = mgmtGetDb(pCreate->db);
+  if (pDb == NULL) {
+    mError("table:%s, failed to create table, db not selected", pCreate->tableId);
+    return TSDB_CODE_DB_NOT_SELECTED;
+  }
+
+  STableInfo *pTable = mgmtGetTable(pCreate->tableId);
   if (pTable != NULL) {
     if (pCreate->igExists) {
+      mTrace("table:%s, table is already exist, think it success", pCreate->tableId);
       return TSDB_CODE_SUCCESS;
     } else {
+      mError("table:%s, failed to create table, table already exist", pCreate->tableId);
       return TSDB_CODE_TABLE_ALREADY_EXIST;
     }
   }
 
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   assert(pAcct != NULL);
+
   int32_t code = mgmtCheckTableLimit(pAcct, pCreate);
-  if (code != 0) {
-    mError("table:%s, exceed the limit", pCreate->meterId);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("table:%s, failed to create table, table num exceed the limit", pCreate->tableId);
     return code;
   }
 
   if (mgmtCheckExpired()) {
-    mError("failed to create meter:%s, reason:grant expired", pCreate->meterId);
+    mError("table:%s, failed to create table, grant expired", pCreate->tableId);
     return TSDB_CODE_GRANT_EXPIRED;
   }
 
-  if (pCreate->numOfTags == 0) {
-    int32_t grantCode = mgmtCheckTimeSeries(pCreate->numOfColumns);
-    if (grantCode != 0) {
-      mError("table:%s, grant expired", pCreate->meterId);
-      return grantCode;
-    }
-
-    SVgObj *pVgroup = mgmtGetAvailVgroup(pDb);
-    if (pVgroup == NULL) {
-      return terrno;
-    }
-
-    int32_t sid = mgmtAllocateSid(pDb, pVgroup);
-    if (sid < 0) {
-      return terrno;
-    }
-
-    if (pCreate->numOfColumns == 0) {
-      return mgmtCreateChildTable(pDb, pCreate, pVgroup, sid);
-    } else if (pCreate->sqlLen > 0) {
-      return mgmtCreateStreamTable(pDb, pCreate, pVgroup, sid);
-    } else {
-      return mgmtCreateNormalTable(pDb, pCreate, pVgroup, sid);
-    }
-  } else {
+  if (pCreate->numOfTags != 0) {
+    mTrace("table:%s, start to create super table, tags:%d columns:%d",
+        pCreate->tableId, pCreate->numOfTags, pCreate->numOfColumns);
     return mgmtCreateSuperTable(pDb, pCreate);
   }
+
+  code = mgmtCheckTimeSeries(pCreate->numOfColumns);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("table:%s, failed to create table, timeseries exceed the limit", pCreate->tableId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SVgObj *pVgroup = mgmtGetAvailableVgroup(pDb);
+  if (pVgroup == NULL) {
+    mTrace("table:%s, no avaliable vgroup, start to create a new one", pCreate->tableId);
+    mgmtProcessCreateVgroup(pCreate, contLen, thandle, isGetMeta);
+  } else {
+    mTrace("table:%s, try to create table in vgroup:%d", pCreate->tableId, pVgroup->vgId);
+    mgmtProcessCreateTable(pVgroup, pCreate, contLen, thandle, isGetMeta);
+  }
+
+  return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
 int32_t mgmtDropTable(SDbObj *pDb, char *tableId, int32_t ignore) {
   STableInfo *pTable = mgmtGetTable(tableId);
   if (pTable == NULL) {
     if (ignore) {
+      mTrace("table:%s, table is not exist, think it success", tableId);
       return TSDB_CODE_SUCCESS;
     } else {
+      mError("table:%s, failed to create table, table not exist", tableId);
       return TSDB_CODE_INVALID_TABLE;
     }
   }
 
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    mError("table:%s, failed to create table, in monitor database", tableId);
     return TSDB_CODE_MONITOR_DB_FORBIDDEN;
   }
 
   switch (pTable->type) {
     case TSDB_TABLE_TYPE_SUPER_TABLE:
+      mTrace("table:%s, start to drop super table", tableId);
       return mgmtDropSuperTable(pDb, (SSuperTableObj *) pTable);
     case TSDB_TABLE_TYPE_CHILD_TABLE:
+      mTrace("table:%s, start to drop child table", tableId);
       return mgmtDropChildTable(pDb, (SChildTableObj *) pTable);
-    case TSDB_TABLE_TYPE_STREAM_TABLE:
-      return mgmtDropStreamTable(pDb, (SStreamTableObj *) pTable);
     case TSDB_TABLE_TYPE_NORMAL_TABLE:
+      mTrace("table:%s, start to drop normal table", tableId);
+      return mgmtDropNormalTable(pDb, (SNormalTableObj *) pTable);
+    case TSDB_TABLE_TYPE_STREAM_TABLE:
+      mTrace("table:%s, start to drop stream table", tableId);
       return mgmtDropNormalTable(pDb, (SNormalTableObj *) pTable);
     default:
+      mError("table:%s, invalid table type:%d", tableId, pTable->type);
       return TSDB_CODE_INVALID_TABLE;
   }
 }
 
 int32_t mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter) {
-  STableInfo *pTable = mgmtGetTable(pAlter->meterId);
+  STableInfo *pTable = mgmtGetTable(pAlter->tableId);
   if (pTable == NULL) {
     return TSDB_CODE_INVALID_TABLE;
   }
@@ -224,26 +249,20 @@ int32_t mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter) {
 
 void mgmtCleanUpMeters() {
   mgmtCleanUpNormalTables();
-  mgmtCleanUpStreamTables();
   mgmtCleanUpChildTables();
   mgmtCleanUpSuperTables();
 }
 
-int32_t mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
-  int32_t cols = 0;
-
-  SDbObj *pDb = NULL;
-  if (pConn->pDb != NULL) {
-    pDb = mgmtGetDb(pConn->pDb->name);
-  }
-
+int32_t mgmtGetShowTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+  SDbObj *pDb = mgmtGetDb(pShow->db);
   if (pDb == NULL) {
     return TSDB_CODE_DB_NOT_SELECTED;
   }
 
+  int32_t cols = 0;
   SSchema *pSchema = tsGetSchema(pMeta);
 
-  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "table_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -261,7 +280,7 @@ int32_t mgmtGetTableMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = TSDB_METER_NAME_LEN;
+  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "stable");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -292,42 +311,38 @@ static void mgmtVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_
   }
 }
 
-int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  SDbObj *pDb = mgmtGetDb(pShow->db);
+  if (pDb == NULL) return 0;
+
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
+
+  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    if (strcmp(pUser->user, "root") != 0 && strcmp(pUser->user, "_root") != 0 &&
+        strcmp(pUser->user, "monitor") != 0) {
+      return 0;
+    }
+  }
+
   int32_t numOfRows  = 0;
   int32_t numOfRead  = 0;
   int32_t cols       = 0;
   void    *pTable    = NULL;
   char    *pWrite    = NULL;
-
-  int16_t numOfColumns;
-  int64_t createdTime;
-  char    *tableId;
-  char    *superTableId;
+  char    prefix[20] = {0};
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 
-  SDbObj *pDb = NULL;
-  if (pConn->pDb != NULL) {
-    pDb = mgmtGetDb(pConn->pDb->name);
-  }
-
-  if (pDb == NULL) {
-    return 0;
-  }
-
-  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-    if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 &&
-        strcmp(pConn->pUser->user, "monitor") != 0) {
-      return 0;
-    }
-  }
-
-  char prefix[20] = {0};
   strcpy(prefix, pDb->name);
   strcat(prefix, TS_PATH_DELIMITER);
   int32_t prefixLen = strlen(prefix);
 
   while (numOfRows < rows) {
-    void *pNormalTableNode = sdbFetchRow(tsNormalTableSdb, pShow->pNode, (void **) &pTable);
+    int16_t numOfColumns      = 0;
+    int64_t createdTime       = 0;
+    char    *tableId          = NULL;
+    char    *superTableId     = NULL;
+    void    *pNormalTableNode = sdbFetchRow(tsNormalTableSdb, pShow->pNode, (void **) &pTable);
     if (pTable != NULL) {
       SNormalTableObj *pNormalTable = (SNormalTableObj *) pTable;
       pShow->pNode = pNormalTableNode;
@@ -336,26 +351,16 @@ int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *
       createdTime  = pNormalTable->createdTime;
       numOfColumns = pNormalTable->numOfColumns;
     } else {
-      void *pStreamTableNode = sdbFetchRow(tsStreamTableSdb, pShow->pNode, (void **) &pTable);
+      void *pChildTableNode = sdbFetchRow(tsChildTableSdb, pShow->pNode, (void **) &pTable);
       if (pTable != NULL) {
-        SStreamTableObj *pChildTable = (SStreamTableObj *) pTable;
-        pShow->pNode = pStreamTableNode;
+        SChildTableObj *pChildTable = (SChildTableObj *) pTable;
+        pShow->pNode = pChildTableNode;
         tableId      = pChildTable->tableId;
-        superTableId = NULL;
+        superTableId = pChildTable->superTableId;
         createdTime  = pChildTable->createdTime;
-        numOfColumns = pChildTable->numOfColumns;
+        numOfColumns = pChildTable->superTable->numOfColumns;
       } else {
-        void *pChildTableNode = sdbFetchRow(tsChildTableSdb, pShow->pNode, (void **) &pTable);
-        if (pTable != NULL) {
-          SChildTableObj *pChildTable = (SChildTableObj *) pTable;
-          pShow->pNode = pChildTableNode;
-          tableId      = pChildTable->tableId;
-          superTableId = NULL;
-          createdTime  = pChildTable->createdTime;
-          numOfColumns = pChildTable->superTable->numOfColumns;
-        } else {
-          break;
-        }
+        break;
       }
     }
 
@@ -364,22 +369,22 @@ int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *
       continue;
     }
 
-    char meterName[TSDB_METER_NAME_LEN] = {0};
-    memset(meterName, 0, tListLen(meterName));
+    char tableName[TSDB_TABLE_NAME_LEN] = {0};
+    memset(tableName, 0, tListLen(tableName));
     numOfRead++;
 
     // pattern compare for meter name
-    extractTableName(tableId, meterName);
+    extractTableName(tableId, tableName);
 
     if (pShow->payloadLen > 0 &&
-        patternMatch(pShow->payload, meterName, TSDB_METER_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
+        patternMatch(pShow->payload, tableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
       continue;
     }
 
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strncpy(pWrite, meterName, TSDB_METER_NAME_LEN);
+    strncpy(pWrite, tableName, TSDB_TABLE_NAME_LEN);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -406,3 +411,15 @@ int32_t mgmtRetrieveTables(SShowObj *pShow, char *data, int32_t rows, SConnObj *
 
   return numOfRows;
 }
+
+SDRemoveTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable) {
+  SDRemoveTableMsg *pRemove = NULL;
+
+
+  return pRemove;
+}
+
+void mgmtSetTableDirty(STableInfo *pTable, bool isDirty) {
+  pTable->dirty = isDirty;
+}
+

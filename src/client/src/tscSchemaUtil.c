@@ -64,14 +64,14 @@ bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
   return (rowLen <= TSDB_MAX_BYTES_PER_ROW);
 }
 
-struct SSchema* tsGetSchema(SMeterMeta* pMeta) {
+struct SSchema* tsGetSchema(STableMeta* pMeta) {
   if (pMeta == NULL) {
     return NULL;
   }
   return tsGetColumnSchema(pMeta, 0);
 }
 
-struct SSchema* tsGetTagSchema(SMeterMeta* pMeta) {
+struct SSchema* tsGetTagSchema(STableMeta* pMeta) {
   if (pMeta == NULL || pMeta->numOfTags == 0) {
     return NULL;
   }
@@ -79,12 +79,12 @@ struct SSchema* tsGetTagSchema(SMeterMeta* pMeta) {
   return tsGetColumnSchema(pMeta, pMeta->numOfColumns);
 }
 
-struct SSchema* tsGetColumnSchema(SMeterMeta* pMeta, int32_t startCol) {
-  return (SSchema*)(((char*)pMeta + sizeof(SMeterMeta)) + startCol * sizeof(SSchema));
+struct SSchema* tsGetColumnSchema(STableMeta* pMeta, int32_t startCol) {
+  return (SSchema*)(((char*)pMeta + sizeof(STableMeta)) + startCol * sizeof(SSchema));
 }
 
 struct SSchema tsGetTbnameColumnSchema() {
-  struct SSchema s = {.colId = TSDB_TBNAME_COLUMN_INDEX, .type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_METER_NAME_LEN};
+  struct SSchema s = {.colId = TSDB_TBNAME_COLUMN_INDEX, .type = TSDB_DATA_TYPE_BINARY, .bytes = TSDB_TABLE_NAME_LEN};
   strcpy(s.name, TSQL_TBNAME_L);
   
   return s;
@@ -94,7 +94,7 @@ struct SSchema tsGetTbnameColumnSchema() {
  * the MeterMeta data format in memory is as follows:
  *
  * +--------------------+
- * |SMeterMeta Body data|  sizeof(SMeterMeta)
+ * |STableMeta Body data|  sizeof(STableMeta)
  * +--------------------+
  * |Schema data         |  numOfTotalColumns * sizeof(SSchema)
  * +--------------------+
@@ -104,14 +104,14 @@ struct SSchema tsGetTbnameColumnSchema() {
  * @param pMeta
  * @return
  */
-char* tsGetTagsValue(SMeterMeta* pMeta) {
+char* tsGetTagsValue(STableMeta* pMeta) {
   int32_t  numOfTotalCols = pMeta->numOfColumns + pMeta->numOfTags;
-  uint32_t offset = sizeof(SMeterMeta) + numOfTotalCols * sizeof(SSchema);
+  uint32_t offset = sizeof(STableMeta) + numOfTotalCols * sizeof(SSchema);
 
   return ((char*)pMeta + offset);
 }
 
-bool tsMeterMetaIdentical(SMeterMeta* p1, SMeterMeta* p2) {
+bool tsMeterMetaIdentical(STableMeta* p1, STableMeta* p2) {
   if (p1 == NULL || p2 == NULL || p1->uid != p2->uid || p1->sversion != p2->sversion) {
     return false;
   }
@@ -120,7 +120,7 @@ bool tsMeterMetaIdentical(SMeterMeta* p1, SMeterMeta* p2) {
     return true;
   }
 
-  size_t size = sizeof(SMeterMeta) + p1->numOfColumns * sizeof(SSchema);
+  size_t size = sizeof(STableMeta) + p1->numOfColumns * sizeof(SSchema);
 
   for (int32_t i = 0; i < p1->numOfTags; ++i) {
     SSchema* pColSchema = tsGetColumnSchema(p1, i + p1->numOfColumns);
@@ -151,16 +151,16 @@ static FORCE_INLINE size_t copy(char* dst, const char* src, char delimiter) {
 
 /**
  * extract table name from meterid, which the format of userid.dbname.metername
- * @param meterId
+ * @param tableId
  * @return
  */
-void extractTableName(char* meterId, char* name) {
-  char* r = skipSegments(meterId, TS_PATH_DELIMITER[0], 2);
+void extractTableName(char* tableId, char* name) {
+  char* r = skipSegments(tableId, TS_PATH_DELIMITER[0], 2);
   copy(name, r, TS_PATH_DELIMITER[0]);
 }
 
-SSQLToken extractDBName(char* meterId, char* name) {
-  char* r = skipSegments(meterId, TS_PATH_DELIMITER[0], 1);
+SSQLToken extractDBName(char* tableId, char* name) {
+  char* r = skipSegments(tableId, TS_PATH_DELIMITER[0], 1);
   size_t len = copy(name, r, TS_PATH_DELIMITER[0]);
 
   SSQLToken token = {.z = name, .n = len, .type = TK_STRING};

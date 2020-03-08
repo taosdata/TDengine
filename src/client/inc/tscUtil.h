@@ -67,7 +67,7 @@ typedef struct SJoinSubquerySupporter {
 } SJoinSubquerySupporter;
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
-                           SMeterMeta* pMeterMeta, STableDataBlocks** dataBlocks);
+                           STableMeta* pMeterMeta, STableDataBlocks** dataBlocks);
 void    tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks);
 void    tscDestroyDataBlock(STableDataBlocks* pDataBlock);
 
@@ -81,11 +81,11 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
 void    tscFreeUnusedDataBlocks(SDataBlockList* pList);
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pDataList);
 int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
-                                int32_t startOffset, int32_t rowSize, const char* tableId, SMeterMeta* pMeterMeta,
+                                int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pMeterMeta,
                                 STableDataBlocks** dataBlocks);
 
-SVnodeSidList*    tscGetVnodeSidList(SMetricMeta* pMetricmeta, int32_t vnodeIdx);
-SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
+SVnodeSidList*    tscGetVnodeSidList(SSuperTableMeta* pMetricmeta, int32_t vnodeIdx);
+STableSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
 
 /**
  *
@@ -120,7 +120,7 @@ void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 bool tscIsInsertOrImportData(char* sqlstr);
 
 /* use for keep current db info temporarily, for handle table with db prefix */
-void tscGetDBInfoFromMeterId(char* meterId, char* db);
+void tscGetDBInfoFromMeterId(char* tableId, char* db);
 
 int tscAllocPayload(SSqlCmd* pCmd, int size);
 
@@ -128,6 +128,8 @@ void tscFieldInfoSetValFromSchema(SFieldInfo* pFieldInfo, int32_t index, SSchema
 void tscFieldInfoSetValFromField(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* pField);
 void tscFieldInfoSetValue(SFieldInfo* pFieldInfo, int32_t index, int8_t type, const char* name, int16_t bytes);
 void tscFieldInfoUpdateVisible(SFieldInfo* pFieldInfo, int32_t index, bool visible);
+void tscFieldInfoSetExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlExpr* pExpr);
+void tscFieldInfoSetBinExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlFunctionExpr* pExpr);
 
 void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo);
 void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo);
@@ -149,9 +151,10 @@ SSqlExpr* tscSqlExprInsertEmpty(SQueryInfo* pQueryInfo, int32_t index, int16_t f
 
 SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int16_t size);
+int32_t   tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo);
 
 SSqlExpr* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index);
-void      tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t uid);
+void      tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t uid, bool deepcopy);
 void*     tscSqlExprDestroy(SSqlExpr* pExpr);
 void      tscSqlExprInfoDestroy(SSqlExprInfo* pExprInfo);
 
@@ -196,7 +199,7 @@ int32_t tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex, SQuer
 SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* index);
 void            tscClearMeterMetaInfo(SMeterMetaInfo* pMeterMetaInfo, bool removeFromCache);
 
-SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, SMeterMeta* pMeterMeta, SMetricMeta* pMetricMeta,
+SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pMeterMeta, SSuperTableMeta* pMetricMeta,
                                     int16_t numOfTags, int16_t* tags);
 SMeterMetaInfo* tscAddEmptyMeterMetaInfo(SQueryInfo *pQueryInfo);
 int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);

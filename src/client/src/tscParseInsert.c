@@ -496,7 +496,7 @@ static int32_t rowDataCompar(const void *lhs, const void *rhs) {
   }
 }
 
-int tsParseValues(char **str, STableDataBlocks *pDataBlock, SMeterMeta *pMeterMeta, int maxRows,
+int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pMeterMeta, int maxRows,
                   SParsedDataColInfo *spd, char *error, int32_t *code, char *tmpTokenBuf) {
   int32_t   index = 0;
   SSQLToken sToken;
@@ -601,7 +601,7 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-static void tsSetBlockInfo(SShellSubmitBlock *pBlocks, const SMeterMeta *pMeterMeta, int32_t numOfRows) {
+static void tsSetBlockInfo(SShellSubmitBlock *pBlocks, const STableMeta *pMeterMeta, int32_t numOfRows) {
   pBlocks->sid = pMeterMeta->sid;
   pBlocks->uid = pMeterMeta->uid;
   pBlocks->sversion = pMeterMeta->sversion;
@@ -655,7 +655,7 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
                                       int32_t *totalNum) {
   SSqlCmd *       pCmd = &pSql->cmd;
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  SMeterMeta *    pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta *    pMeterMeta = pMeterMetaInfo->pMeterMeta;
 
   STableDataBlocks *dataBuf = NULL;
   int32_t ret = tscGetDataBlockFromList(pTableHashList, pCmd->pDataBlocks, pMeterMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
@@ -695,7 +695,7 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
   tsSetBlockInfo(pBlocks, pMeterMeta, numOfRows);
 
   dataBuf->vgid = pMeterMeta->vgid;
-  dataBuf->numOfMeters = 1;
+  dataBuf->numOfTables = 1;
 
   /*
    * the value of pRes->numOfRows does not affect the true result of AFFECTED ROWS,
@@ -1136,7 +1136,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       wordfree(&full_path);
 
       STableDataBlocks *pDataBlock = NULL;
-      SMeterMeta* pMeterMeta = pMeterMetaInfo->pMeterMeta;
+      STableMeta* pMeterMeta = pMeterMetaInfo->pMeterMeta;
       
       int32_t ret = tscCreateDataBlock(PATH_MAX, pMeterMeta->rowSize, sizeof(SShellSubmitBlock), pMeterMetaInfo->name,
                                        pMeterMeta, &pDataBlock);
@@ -1148,7 +1148,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       strcpy(pDataBlock->filename, fname);
     } else if (sToken.type == TK_LP) {
       /* insert into tablename(col1, col2,..., coln) values(v1, v2,... vn); */
-      SMeterMeta *pMeterMeta = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0)->pMeterMeta;
+      STableMeta *pMeterMeta = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0)->pMeterMeta;
       SSchema *   pSchema = tsGetSchema(pMeterMeta);
 
       if (validateDataSource(pCmd, DATA_FROM_SQL_STRING, sToken.z) != TSDB_CODE_SUCCESS) {
@@ -1349,7 +1349,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
   SSqlCmd *pCmd = &pSql->cmd;
 
   assert(pCmd->numOfClause == 1);
-  SMeterMeta *pMeterMeta = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0)->pMeterMeta;
+  STableMeta *pMeterMeta = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0)->pMeterMeta;
 
   SShellSubmitBlock *pBlocks = (SShellSubmitBlock *)(pTableDataBlocks->pData);
   tsSetBlockInfo(pBlocks, pMeterMeta, numOfRows);
@@ -1383,7 +1383,7 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   int             nrows = 0;
   
   SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  SMeterMeta *    pMeterMeta = pMeterMetaInfo->pMeterMeta;
+  STableMeta *    pMeterMeta = pMeterMetaInfo->pMeterMeta;
   assert(pCmd->numOfClause == 1);
   
   int32_t         rowSize = pMeterMeta->rowSize;
@@ -1544,7 +1544,7 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
       continue;
     }
 
-    strncpy(pMeterMetaInfo->name, pDataBlock->meterId, TSDB_TABLE_ID_LEN);
+    strncpy(pMeterMetaInfo->name, pDataBlock->tableId, TSDB_TABLE_ID_LEN);
     memset(pDataBlock->pData, 0, pDataBlock->nAllocSize);
 
     int32_t ret = tscGetMeterMeta(pSql, pMeterMetaInfo);

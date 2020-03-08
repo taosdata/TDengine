@@ -1,4 +1,4 @@
-#if !defined(_TD_SCHEMA_H_)
+#ifndef _TD_SCHEMA_H_
 #define _TD_SCHEMA_H_
 
 #include <stdint.h>
@@ -6,24 +6,49 @@
 
 #include "type.h"
 
-// Column definition
-// TODO: if we need to align the structure
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// ---- Column definition and operations
 typedef struct {
-  td_datatype_t type;     // Column type
-  int32_t       colId;    // column ID
-  int32_t       bytes;    // column bytes
-  int32_t       offset;   // point offset in a row data
-  char *        colName;  // the column name
+  int8_t  type;    // Column type
+  int16_t colId;   // column ID
+  int16_t bytes;   // column bytes
+  int32_t offset;  // point offset in a row data
 } SColumn;
 
-// Schema definition
+#define colType(col) ((col)->type)
+#define colColId(col) ((col)->colId)
+#define colBytes(col) ((col)->bytes)
+#define colOffset(col) ((col)->offset)
+
+#define colSetType(col, t) (colType(col) = (t))
+#define colSetColId(col, id) (colColId(col) = (id))
+#define colSetBytes(col, b) (colBytes(col) = (b))
+#define colSetOffset(col, o) (colOffset(col) = (o))
+
+SColumn *tdNewCol(int8_t type, int16_t colId, int16_t bytes);
+void tdFreeCol(SColumn *pCol);
+void tdColCpy(SColumn *dst, SColumn *src);
+
+// ---- Schema definition and operations
 typedef struct {
-  int32_t  version;  // schema version, it is used to change the schema
   int32_t  numOfCols;
-  int32_t  numOfTags;
-  int32_t  colIdCounter;
-  SColumn *columns;
+  int32_t  padding;   // TODO: replace the padding for useful variable
+  SColumn  columns[];
 } SSchema;
+
+#define schemaNCols(s) ((s)->numOfCols)
+#define schemaColAt(s, i) ((s)->columns + i)
+
+SSchema *tdNewSchema(int32_t nCols);
+SSchema *tdDupSchema(SSchema *pSchema);
+void tdFreeSchema(SSchema *pSchema);
+void tdUpdateSchema(SSchema *pSchema);
+int32_t tdMaxRowDataBytes(SSchema *pSchema);
+
+// ---- Inline schema definition and operations
 
 /* Inline schema definition
  * +---------+---------+---------+-----+---------+-----------+-----+-----------+
@@ -34,40 +59,10 @@ typedef struct {
  */
 typedef char *SISchema;
 
-// TODO: decide if the space is allowed
-#define TD_ISCHEMA_HEADER_SIZE sizeof(int32_t) + sizeof(SSchema)
+// TODO: add operations on SISchema
 
-// ---- operations on SColumn
-#define TD_COLUMN_TYPE(pCol) ((pCol)->type)     // column type
-#define TD_COLUMN_ID(pCol) ((pCol)->colId)      // column ID
-#define TD_COLUMN_BYTES(pCol) ((pCol)->bytes)   // column bytes
-#define TD_COLUMN_OFFSET(pCol) ((pCol)->offset)   // column bytes
-#define TD_COLUMN_NAME(pCol) ((pCol)->colName)  // column name
-#define TD_COLUMN_INLINE_SIZE(pCol) (sizeof(SColumn) + TD_COLUMN_NAME(pCol) + 1)
-
-// ---- operations on SSchema
-#define TD_SCHEMA_VERSION(pSchema) ((pSchema)->version)      // schema version
-#define TD_SCHEMA_NCOLS(pSchema) ((pSchema)->numOfCols)      // schema number of columns
-#define TD_SCHEMA_NTAGS(pSchema) ((pSchema)->numOfTags)      // schema number of tags
-#define TD_SCHEMA_TOTAL_COLS(pSchema) (TD_SCHEMA_NCOLS(pSchema) + TD_SCHEMA_NTAGS(pSchema)) // schema total number of SColumns (#columns + #tags)
-#define TD_SCHEMA_NEXT_COLID(pSchema) ((pSchema)->colIdCounter++)
-#define TD_SCHEMA_COLS(pSchema) ((pSchema)->columns)
-#define TD_SCHEMA_TAGS(pSchema) (TD_SCHEMA_COLS(pSchema) + TD_SCHEMA_NCOLS(pSchema))
-#define TD_SCHEMA_COLUMN_AT(pSchema, idx) (TD_SCHEMA_COLS(pSchema) + idx)
-#define TD_SCHEMA_TAG_AT(pSchema, idx) (TD_SCHEMA_TAGS(pSchema) + idx)
-
-// ---- operations on SISchema
-#define TD_ISCHEMA_LEN(pISchema) *((int32_t *)(pISchema))
-#define TD_ISCHEMA_SCHEMA(pISchema) ((SSchema *)((pISchema) + sizeof(int32_t)))
-#define TD_ISCHEMA_COL_NAMES(pISchema) ((pISchema) + TD_ISCHEMA_HEADER_SIZE + sizeof(SColumn) * TD_SCHEMA_TOTAL_COLS(TD_ISCHEMA_SCHEMA(pISchema)))
-
-// ----
-/* Convert a schema structure to an inline schema structure
- */
-SISchema tdConvertSchemaToInline(SSchema *pSchema);
-int32_t tdGetColumnIdxByName(SSchema *pSchema, char *colName);
-int32_t tdGetColumnIdxById(SSchema *pSchema, int32_t colId);
-
-// ---- TODO: operations to modify schema
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // _TD_SCHEMA_H_

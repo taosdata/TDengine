@@ -39,7 +39,7 @@ typedef struct {
   uint32_t  clientIp;
   uint16_t  clientPort;
   uint32_t  serverIp;
-  char     *user;
+  char      user[TSDB_USER_LEN];
 } SRpcConnInfo;
 
 typedef struct {
@@ -73,7 +73,7 @@ typedef struct {
   void (*ufp)(void *ahandle, SRpcIpSet *pIpSet);
 
   // call back to retrieve the client auth info, for server app only 
-  int  (*afp)(char *meterId, char *spi, char *encrypt, char *secret, char *ckey); 
+  int  (*afp)(char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
 } SRpcInit;
 
 void *rpcOpen(SRpcInit *pRpc);

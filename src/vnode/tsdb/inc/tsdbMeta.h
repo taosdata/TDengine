@@ -1,8 +1,29 @@
-/************************************
- * For internal usage
- ************************************/
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+#if !defined(_TSDB_META_H_)
+#define _TSDB_META_H_
 
 #include <pthread.h>
+
+#include "tsdb.h"
+#include "dataformat.h"
+#include "tskiplist.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // #include "taosdef.h"
 
@@ -15,16 +36,18 @@ typedef enum {
   TSDB_STABLE        // table created from super table
 } TSDB_TABLE_TYPE;
 
+#define IS_CREATE_STABLE(pCfg) ((pCfg)->tagValues != NULL)
+
 typedef struct STable {
-  tsdb_id_t       tableId;
-  int64_t         uid;
-  char *          tableName;
+  STableId        tableId;
   TSDB_TABLE_TYPE type;
 
   int64_t createdTime;
 
-  // super table UID
-  tsdb_id_t superTableId;
+  // super table UID -1 for normal table
+  int32_t stableUid;
+
+  int32_t numOfCols;
 
   // Schema for this table
   // For TSDB_SUPER_TABLE, it is the schema including tags
@@ -35,7 +58,7 @@ typedef struct STable {
   // Tag value for this table
   // For TSDB_SUPER_TABLE and TSDB_NTABLE, it is NULL
   // For TSDB_STABLE, it is the tag value string
-  char *pTagVal;
+  SDataRow pTagVal;
 
   // Object content;
   // For TSDB_SUPER_TABLE, it is the index of tables created from it
@@ -46,23 +69,22 @@ typedef struct STable {
   } content;
 
   // A handle to deal with event
-  void *eventHandle;
+  void *eventHandler;
 
   // A handle to deal with stream
-  void *streamHandle;
+  void *streamHandler;
+
+  struct STable *next;
 
 } STable;
 
 typedef struct {
-  int32_t numOfTables;       // Number of tables not including TSDB_SUPER_TABLE (#TSDB_NTABLE + #TSDB_STABLE)
-  int32_t numOfSuperTables;  // Number of super tables (#TSDB_SUPER_TABLE)
-  // An array of tables (TSDB_NTABLE and TSDB_STABLE) in this TSDB repository
-  STable **pTables;
-
-  // A map of tableName->tableId
-  // TODO: May use hash table
-  void *pNameTableMap;
-} SMetaHandle;
+  int32_t  maxTables;
+  int32_t  nTables;
+  STable **tables;    // array of normal tables
+  STable * stables;   // linked list of super tables // TODO use container to implement this
+  void *   tableMap;  // hash map of uid ==> STable *
+} STsdbMeta;
 
 // ---- Operation on STable
 #define TSDB_TABLE_ID(pTable) ((pTable)->tableId)
@@ -84,10 +106,20 @@ SSchema *tsdbGetTableSchema(STable *pTable);
 #define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
 
 // Create a new meta handle with configuration
-SMetaHandle * tsdbCreateMetaHandle (int32_t numOfTables);
-int32_t       tsdbFreeMetaHandle(SMetaHandle *pMetaHandle);
+STsdbMeta *tsdbCreateMeta(int32_t maxTables);
+int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 
 // Recover the meta handle from the file
-SMetaHandle * tsdbOpenMetaHandle(char *tsdbDir);
+STsdbMeta *tsdbOpenMeta(char *tsdbDir);
 
-int32_t tsdbCreateTableImpl(SMetaHandle *pHandle, STableCfg *pCfg);
+int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
+int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);
+STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
+int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
+STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  // _TSDB_META_H_

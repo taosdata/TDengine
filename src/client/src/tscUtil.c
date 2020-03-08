@@ -27,6 +27,7 @@
 #include "tsclient.h"
 #include "tsqldef.h"
 #include "ttimer.h"
+#include "tast.h"
 
 /*
  * the detailed information regarding metric meta key is:
@@ -56,7 +57,7 @@ void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* str, uint64_t uid) {
 
   char join[512] = {0};
   if (pTagCond->joinInfo.hasJoin) {
-    sprintf(join, "%s,%s", pTagCond->joinInfo.left.meterId, pTagCond->joinInfo.right.meterId);
+    sprintf(join, "%s,%s", pTagCond->joinInfo.left.tableId, pTagCond->joinInfo.right.tableId);
   }
 
   // estimate the buffer size
@@ -64,7 +65,7 @@ void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* str, uint64_t uid) {
   size_t redundantLen = 20;
 
   size_t bufSize = strlen(pMeterMetaInfo->name) + tbnameCondLen + strlen(join) + strlen(tagIdBuf);
-  if (cond != NULL) {
+  if (cond != NULL && cond->cond != NULL) {
     bufSize += strlen(cond->cond);
   }
 
@@ -72,7 +73,7 @@ void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* str, uint64_t uid) {
   char* tmp = calloc(1, bufSize);
 
   int32_t keyLen = snprintf(tmp, bufSize, "%s,%s,%s,%d,%s,[%s],%d", pMeterMetaInfo->name,
-                            (cond != NULL ? cond->cond : NULL), (tbnameCondLen > 0 ? pTagCond->tbnameCond.cond : NULL),
+                            ((cond != NULL && cond->cond != NULL) ? cond->cond : NULL), (tbnameCondLen > 0 ? pTagCond->tbnameCond.cond : NULL),
                             pTagCond->relType, join, tagIdBuf, pQueryInfo->groupbyExpr.orderType);
 
   assert(keyLen <= bufSize);
@@ -118,7 +119,7 @@ bool tscQueryOnMetric(SSqlCmd* pCmd) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
   return ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY) == TSDB_QUERY_TYPE_STABLE_QUERY) &&
-         (pCmd->msgType == TSDB_MSG_TYPE_DNODE_QUERY);
+         (pCmd->msgType == TSDB_MSG_TYPE_QUERY);
 }
 
 bool tscQueryMetricTags(SQueryInfo* pQueryInfo) {
@@ -156,13 +157,13 @@ bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd) {
   return false;
 }
 
-void tscGetDBInfoFromMeterId(char* meterId, char* db) {
-  char* st = strstr(meterId, TS_PATH_DELIMITER);
+void tscGetDBInfoFromMeterId(char* tableId, char* db) {
+  char* st = strstr(tableId, TS_PATH_DELIMITER);
   if (st != NULL) {
     char* end = strstr(st + 1, TS_PATH_DELIMITER);
     if (end != NULL) {
-      memcpy(db, meterId, (end - meterId));
-      db[end - meterId] = 0;
+      memcpy(db, tableId, (end - tableId));
+      db[end - tableId] = 0;
       return;
     }
   }
@@ -170,13 +171,13 @@ void tscGetDBInfoFromMeterId(char* meterId, char* db) {
   db[0] = 0;
 }
 
-SVnodeSidList* tscGetVnodeSidList(SMetricMeta* pMetricmeta, int32_t vnodeIdx) {
+SVnodeSidList* tscGetVnodeSidList(SSuperTableMeta* pMetricmeta, int32_t vnodeIdx) {
   if (pMetricmeta == NULL) {
     tscError("illegal metricmeta");
     return 0;
   }
 
-  if (pMetricmeta->numOfVnodes == 0 || pMetricmeta->numOfMeters == 0) {
+  if (pMetricmeta->numOfVnodes == 0 || pMetricmeta->numOfTables == 0) {
     return 0;
   }
 
@@ -190,7 +191,7 @@ SVnodeSidList* tscGetVnodeSidList(SMetricMeta* pMetricmeta, int32_t vnodeIdx) {
   return (SVnodeSidList*)(pMetricmeta->list[vnodeIdx] + (char*)pMetricmeta);
 }
 
-SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
+STableSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
   if (pSidList == NULL) {
     tscError("illegal sidlist");
     return 0;
@@ -202,7 +203,10 @@ SMeterSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
     tscError("illegal sidIdx:%d, reset to 0, sidIdx range:%d-%d", idx, 0, sidRange);
     idx = 0;
   }
-  return (SMeterSidExtInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
+  
+  assert(pSidList->pSidExtInfoList[idx] >= 0);
+  
+  return (STableSidExtInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
 }
 
 bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
@@ -211,7 +215,16 @@ bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   }
 
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
-  if (pMeterMetaInfo == NULL || pMeterMetaInfo->pMetricMeta == NULL) {
+  if (pMeterMetaInfo == NULL) {
+    return false;
+  }
+  
+  // for select query super table, the metricmeta can not be null in any cases.
+  if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
+    assert(pMeterMetaInfo->pMetricMeta != NULL);
+  }
+  
+  if (pMeterMetaInfo->pMetricMeta == NULL) {
     return false;
   }
   
@@ -335,35 +348,17 @@ void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
   tfree(pQueryInfo->defaultVal);
 }
 
-void tscClearSqlMetaInfoForce(SSqlCmd* pCmd) {
-  /* remove the metermeta/metricmeta in cache */
-  //    taosRemoveDataFromCache(tscCacheHandle, (void**)&(pCmd->pMeterMeta), true);
-  //    taosRemoveDataFromCache(tscCacheHandle, (void**)&(pCmd->pMetricMeta), true);
-}
-
 int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   if (pRes->tsrow == NULL) {
-    pRes->numOfnchar = 0;
-  
     int32_t numOfOutputCols = pQueryInfo->fieldsInfo.numOfOutputCols;
-    for (int32_t i = 0; i < numOfOutputCols; ++i) {
-      TAOS_FIELD* pField = tscFieldInfoGetField(pQueryInfo, i);
-      if (pField->type == TSDB_DATA_TYPE_NCHAR) {
-        pRes->numOfnchar++;
-      }
-    }
+    pRes->numOfCols = numOfOutputCols;
   
-    pRes->tsrow = calloc(1, (POINTER_BYTES + sizeof(short)) * numOfOutputCols + POINTER_BYTES * pRes->numOfnchar);
-    pRes->bytes = calloc(numOfOutputCols, sizeof(short));
-  
-    if (pRes->numOfnchar > 0) {
-      pRes->buffer = calloc(POINTER_BYTES, pRes->numOfnchar);
-    }
+    pRes->tsrow = calloc(POINTER_BYTES, numOfOutputCols);
+    pRes->buffer = calloc(POINTER_BYTES, numOfOutputCols);
   
     // not enough memory
-    if (pRes->tsrow == NULL || pRes->bytes == NULL || (pRes->buffer == NULL && pRes->numOfnchar > 0)) {
+    if (pRes->tsrow == NULL || (pRes->buffer == NULL && pRes->numOfCols > 0)) {
       tfree(pRes->tsrow);
-      tfree(pRes->bytes);
       tfree(pRes->buffer);
     
       pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
@@ -376,13 +371,12 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 
 void tscDestroyResPointerInfo(SSqlRes* pRes) {
   if (pRes->buffer != NULL) {
-    assert(pRes->numOfnchar > 0);
     // free all buffers containing the multibyte string
-    for (int i = 0; i < pRes->numOfnchar; i++) {
+    for (int i = 0; i < pRes->numOfCols; i++) {
       tfree(pRes->buffer[i]);
     }
     
-    pRes->numOfnchar = 0;
+    pRes->numOfCols = 0;
   }
   
   tfree(pRes->pRsp);
@@ -391,7 +385,6 @@ void tscDestroyResPointerInfo(SSqlRes* pRes) {
   tfree(pRes->pGroupRec);
   tfree(pRes->pColumnIndex);
   tfree(pRes->buffer);
-  tfree(pRes->bytes);
   
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
 }
@@ -430,6 +423,9 @@ void tscFreeResData(SSqlObj* pSql) {
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
+  //TODO not free
+  return;
+
   tfree(pSql->res.pRsp);
   pSql->res.row = 0;
   pSql->res.numOfRows = 0;
@@ -580,19 +576,19 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   SSqlCmd* pCmd = &pSql->cmd;
   assert(pDataBlock->pMeterMeta != NULL);
 
-  pCmd->numOfTablesInSubmit = pDataBlock->numOfMeters;
+  pCmd->numOfTablesInSubmit = pDataBlock->numOfTables;
 
   assert(pCmd->numOfClause == 1);
   SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
 
   // set the correct metermeta object, the metermeta has been locked in pDataBlocks, so it must be in the cache
   if (pMeterMetaInfo->pMeterMeta != pDataBlock->pMeterMeta) {
-    strcpy(pMeterMetaInfo->name, pDataBlock->meterId);
+    strcpy(pMeterMetaInfo->name, pDataBlock->tableId);
     taosRemoveDataFromCache(tscCacheHandle, (void**)&(pMeterMetaInfo->pMeterMeta), false);
 
     pMeterMetaInfo->pMeterMeta = taosTransferDataInCache(tscCacheHandle, (void**)&pDataBlock->pMeterMeta);
   } else {
-    assert(strncmp(pMeterMetaInfo->name, pDataBlock->meterId, tListLen(pDataBlock->meterId)) == 0);
+    assert(strncmp(pMeterMetaInfo->name, pDataBlock->tableId, tListLen(pDataBlock->tableId)) == 0);
   }
 
   /*
@@ -636,7 +632,7 @@ void tscFreeUnusedDataBlocks(SDataBlockList* pList) {
  * @return
  */
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
-                           SMeterMeta* pMeterMeta, STableDataBlocks** dataBlocks) {
+                           STableMeta* pMeterMeta, STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
     tscError("failed to allocated memory, reason:%s", strerror(errno));
@@ -657,7 +653,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   dataBuf->size = startOffset;
   dataBuf->tsSource = -1;
 
-  strncpy(dataBuf->meterId, name, TSDB_TABLE_ID_LEN);
+  strncpy(dataBuf->tableId, name, TSDB_TABLE_ID_LEN);
 
   /*
    * The metermeta may be released since the metermeta cache are completed clean by other thread
@@ -672,7 +668,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
 }
 
 int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
-                                int32_t startOffset, int32_t rowSize, const char* tableId, SMeterMeta* pMeterMeta,
+                                int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pMeterMeta,
                                 STableDataBlocks** dataBlocks) {
   *dataBlocks = NULL;
 
@@ -706,7 +702,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     STableDataBlocks* dataBuf = NULL;
     int32_t           ret =
         tscGetDataBlockFromList(pVnodeDataBlockHashList, pVnodeDataBlockList, pOneTableBlock->vgid, TSDB_PAYLOAD_SIZE,
-                                tsInsertHeadSize, 0, pOneTableBlock->meterId, pOneTableBlock->pMeterMeta, &dataBuf);
+                                tsInsertHeadSize, 0, pOneTableBlock->tableId, pOneTableBlock->pMeterMeta, &dataBuf);
     if (ret != TSDB_CODE_SUCCESS) {
       tscError("%p failed to prepare the data block buffer for merging table data, code:%d", pSql, ret);
       taosCleanUpHashTable(pVnodeDataBlockHashList);
@@ -740,7 +736,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
 
     char* e = (char*)pBlocks->payLoad + pOneTableBlock->rowSize*(pBlocks->numOfRows-1);
     
-    tscTrace("%p meterId:%s, sid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pSql, pOneTableBlock->meterId, pBlocks->sid,
+    tscTrace("%p tableId:%s, sid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pSql, pOneTableBlock->tableId, pBlocks->sid,
              pBlocks->numOfRows, pBlocks->sversion, GET_INT64_VAL(pBlocks->payLoad), GET_INT64_VAL(e));
 
     pBlocks->sid = htonl(pBlocks->sid);
@@ -751,7 +747,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     memcpy(dataBuf->pData + dataBuf->size, pOneTableBlock->pData, pOneTableBlock->size);
 
     dataBuf->size += pOneTableBlock->size;
-    dataBuf->numOfMeters += 1;
+    dataBuf->numOfTables += 1;
   }
 
   tscDestroyBlockArrayList(pTableDataBlockList);
@@ -798,6 +794,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
     pCmd->payload = (char*)malloc(size);
     if (pCmd->payload == NULL) return TSDB_CODE_CLI_OUT_OF_MEMORY;
     pCmd->allocSize = size;
+    memset(pCmd->payload, 0, pCmd->allocSize);
   } else {
     if (pCmd->allocSize < size) {
       char* b = realloc(pCmd->payload, size);
@@ -807,7 +804,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
     }
   }
 
-  memset(pCmd->payload, 0, pCmd->allocSize);
+  //memset(pCmd->payload, 0, pCmd->allocSize);
   assert(pCmd->allocSize >= size);
 
   return TSDB_CODE_SUCCESS;
@@ -831,11 +828,18 @@ static void ensureSpace(SFieldInfo* pFieldInfo, int32_t size) {
     pFieldInfo->pFields = realloc(pFieldInfo->pFields, newSize * sizeof(TAOS_FIELD));
     memset(&pFieldInfo->pFields[oldSize], 0, inc * sizeof(TAOS_FIELD));
 
-    pFieldInfo->pOffset = realloc(pFieldInfo->pOffset, newSize * sizeof(int16_t));
-    memset(&pFieldInfo->pOffset[oldSize], 0, inc * sizeof(int16_t));
+//    pFieldInfo->pOffset = realloc(pFieldInfo->pOffset, newSize * sizeof(int16_t));
+//    memset(&pFieldInfo->pOffset[oldSize], 0, inc * sizeof(int16_t));
 
     pFieldInfo->pVisibleCols = realloc(pFieldInfo->pVisibleCols, newSize * sizeof(bool));
+    memset(&pFieldInfo->pVisibleCols[oldSize], 0, inc * sizeof(bool));
 
+    pFieldInfo->pSqlExpr = realloc(pFieldInfo->pSqlExpr, POINTER_BYTES*newSize);
+    pFieldInfo->pExpr = realloc(pFieldInfo->pExpr, POINTER_BYTES*newSize);
+  
+    memset(&pFieldInfo->pSqlExpr[oldSize], 0, inc * POINTER_BYTES);
+    memset(&pFieldInfo->pExpr[oldSize], 0, inc * POINTER_BYTES);
+  
     pFieldInfo->numOfAlloc = newSize;
   }
 }
@@ -844,6 +848,15 @@ static void evic(SFieldInfo* pFieldInfo, int32_t index) {
   if (index < pFieldInfo->numOfOutputCols) {
     memmove(&pFieldInfo->pFields[index + 1], &pFieldInfo->pFields[index],
             sizeof(pFieldInfo->pFields[0]) * (pFieldInfo->numOfOutputCols - index));
+    
+    memmove(&pFieldInfo->pVisibleCols[index + 1], &pFieldInfo->pVisibleCols[index],
+            sizeof(pFieldInfo->pVisibleCols[0]) * (pFieldInfo->numOfOutputCols - index));
+    
+    memmove(&pFieldInfo->pSqlExpr[index + 1], &pFieldInfo->pSqlExpr[index],
+            sizeof(pFieldInfo->pSqlExpr[0]) * (pFieldInfo->numOfOutputCols - index));
+  
+    memmove(&pFieldInfo->pExpr[index + 1], &pFieldInfo->pExpr[index],
+            sizeof(pFieldInfo->pExpr[0]) * (pFieldInfo->numOfOutputCols - index));
   }
 }
 
@@ -868,7 +881,6 @@ void tscFieldInfoSetValFromField(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIE
 
   memcpy(&pFieldInfo->pFields[index], pField, sizeof(TAOS_FIELD));
   pFieldInfo->pVisibleCols[index] = true;
-
   pFieldInfo->numOfOutputCols++;
 }
 
@@ -902,29 +914,49 @@ void tscFieldInfoSetValue(SFieldInfo* pFieldInfo, int32_t index, int8_t type, co
   pFieldInfo->numOfOutputCols++;
 }
 
-void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo) {
-  SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
-  pFieldInfo->pOffset[0] = 0;
+void tscFieldInfoSetExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlExpr* pExpr) {
+  assert(index >= 0 && index < pFieldInfo->numOfOutputCols);
+  pFieldInfo->pSqlExpr[index] = pExpr;
+}
 
-  for (int32_t i = 1; i < pFieldInfo->numOfOutputCols; ++i) {
-    pFieldInfo->pOffset[i] = pFieldInfo->pOffset[i - 1] + pFieldInfo->pFields[i - 1].bytes;
+void tscFieldInfoSetBinExpr(SFieldInfo* pFieldInfo, int32_t index, SSqlFunctionExpr* pExpr) {
+  assert(index >= 0 && index < pFieldInfo->numOfOutputCols);
+  pFieldInfo->pExpr[index] = pExpr;
+}
+
+void tscFieldInfoCalOffset(SQueryInfo* pQueryInfo) {
+  SSqlExprInfo* pExprInfo = &pQueryInfo->exprsInfo;
+  pExprInfo->pExprs[0]->offset = 0;
+  
+  for (int32_t i = 1; i < pExprInfo->numOfExprs; ++i) {
+    pExprInfo->pExprs[i]->offset = pExprInfo->pExprs[i - 1]->offset + pExprInfo->pExprs[i - 1]->resBytes;
   }
 }
 
 void tscFieldInfoUpdateOffsetForInterResult(SQueryInfo* pQueryInfo) {
-  SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
-  if (pFieldInfo->numOfOutputCols == 0) {
+//  SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
+//  if (pFieldInfo->numOfOutputCols == 0) {
+//    return;
+//  }
+//
+//  pFieldInfo->pOffset[0] = 0;
+//
+//  /*
+//   * the retTypeLen is used to store the intermediate result length
+//   * for potential secondary merge exists
+//   */
+//  for (int32_t i = 1; i < pFieldInfo->numOfOutputCols; ++i) {
+//    pFieldInfo->pOffset[i] = pFieldInfo->pOffset[i - 1] + tscSqlExprGet(pQueryInfo, i - 1)->resBytes;
+//  }
+  SSqlExprInfo* pExprInfo = &pQueryInfo->exprsInfo;
+  if (pExprInfo->numOfExprs == 0) {
     return;
   }
-
-  pFieldInfo->pOffset[0] = 0;
-
-  /*
-   * the retTypeLen is used to store the intermediate result length
-   * for potential secondary merge exists
-   */
-  for (int32_t i = 1; i < pFieldInfo->numOfOutputCols; ++i) {
-    pFieldInfo->pOffset[i] = pFieldInfo->pOffset[i - 1] + tscSqlExprGet(pQueryInfo, i - 1)->resBytes;
+  
+  pExprInfo->pExprs[0]->offset = 0;
+  
+  for (int32_t i = 1; i < pExprInfo->numOfExprs; ++i) {
+    pExprInfo->pExprs[i]->offset = pExprInfo->pExprs[i - 1]->offset + pExprInfo->pExprs[i - 1]->resBytes;
   }
 }
 
@@ -940,6 +972,8 @@ void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList
     for (int32_t i = 0; i < size; ++i) {
       assert(indexList[i] >= 0 && indexList[i] <= src->numOfOutputCols);
       tscFieldInfoSetValFromField(dst, i, &src->pFields[indexList[i]]);
+      dst->pVisibleCols[i] = src->pVisibleCols[indexList[i]];
+      dst->pSqlExpr[i] = src->pSqlExpr[indexList[i]];
     }
   }
 }
@@ -948,12 +982,14 @@ void tscFieldInfoCopyAll(SFieldInfo* dst, SFieldInfo* src) {
   *dst = *src;
 
   dst->pFields = malloc(sizeof(TAOS_FIELD) * dst->numOfAlloc);
-  dst->pOffset = malloc(sizeof(short) * dst->numOfAlloc);
   dst->pVisibleCols = malloc(sizeof(bool) * dst->numOfAlloc);
+  dst->pSqlExpr = malloc(POINTER_BYTES * dst->numOfAlloc);
+  dst->pExpr = malloc(POINTER_BYTES * dst->numOfAlloc);
 
   memcpy(dst->pFields, src->pFields, sizeof(TAOS_FIELD) * dst->numOfOutputCols);
-  memcpy(dst->pOffset, src->pOffset, sizeof(short) * dst->numOfOutputCols);
   memcpy(dst->pVisibleCols, src->pVisibleCols, sizeof(bool) * dst->numOfOutputCols);
+  memcpy(dst->pSqlExpr, src->pSqlExpr, POINTER_BYTES * dst->numOfOutputCols);
+  memcpy(dst->pExpr, src->pExpr, POINTER_BYTES * dst->numOfOutputCols);
 }
 
 TAOS_FIELD* tscFieldInfoGetField(SQueryInfo* pQueryInfo, int32_t index) {
@@ -967,11 +1003,11 @@ TAOS_FIELD* tscFieldInfoGetField(SQueryInfo* pQueryInfo, int32_t index) {
 int32_t tscNumOfFields(SQueryInfo* pQueryInfo) { return pQueryInfo->fieldsInfo.numOfOutputCols; }
 
 int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
-  if (index >= pQueryInfo->fieldsInfo.numOfOutputCols) {
+  if (index >= pQueryInfo->exprsInfo.numOfExprs) {
     return 0;
   }
 
-  return pQueryInfo->fieldsInfo.pOffset[index];
+  return pQueryInfo->exprsInfo.pExprs[index]->offset;
 }
 
 int32_t tscFieldInfoCompare(SFieldInfo* pFieldInfo1, SFieldInfo* pFieldInfo2) {
@@ -995,13 +1031,16 @@ int32_t tscFieldInfoCompare(SFieldInfo* pFieldInfo1, SFieldInfo* pFieldInfo2) {
 }
 
 int32_t tscGetResRowLength(SQueryInfo* pQueryInfo) {
-  SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
-  if (pFieldInfo->numOfOutputCols <= 0) {
+  if (pQueryInfo->exprsInfo.numOfExprs <= 0) {
     return 0;
   }
-
-  return pFieldInfo->pOffset[pFieldInfo->numOfOutputCols - 1] +
-         pFieldInfo->pFields[pFieldInfo->numOfOutputCols - 1].bytes;
+  
+  int32_t size = 0;
+  for(int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
+    size += pQueryInfo->exprsInfo.pExprs[i]->resBytes;
+  }
+  
+  return size;
 }
 
 void tscClearFieldInfo(SFieldInfo* pFieldInfo) {
@@ -1009,10 +1048,19 @@ void tscClearFieldInfo(SFieldInfo* pFieldInfo) {
     return;
   }
 
-  tfree(pFieldInfo->pOffset);
   tfree(pFieldInfo->pFields);
   tfree(pFieldInfo->pVisibleCols);
-
+  tfree(pFieldInfo->pSqlExpr);
+  
+  for(int32_t i = 0; i < pFieldInfo->numOfOutputCols; ++i) {
+    if (pFieldInfo->pExpr[i] != NULL) {
+      tSQLBinaryExprDestroy(&pFieldInfo->pExpr[i]->pBinExprInfo.pBinExpr, NULL);
+      tfree(pFieldInfo->pExpr[i]->pBinExprInfo.pReqColumns);
+      tfree(pFieldInfo->pExpr[i]);
+    }
+  }
+  
+  tfree(pFieldInfo->pExpr);
   memset(pFieldInfo, 0, sizeof(SFieldInfo));
 }
 
@@ -1050,11 +1098,12 @@ SSqlExpr* tscSqlExprInsertEmpty(SQueryInfo* pQueryInfo, int32_t index, int16_t f
 
   _exprCheckSpace(pExprInfo, pExprInfo->numOfExprs + 1);
   _exprEvic(pExprInfo, index);
-
-  SSqlExpr* pExpr = &pExprInfo->pExprs[index];
+  
+  SSqlExpr* pExpr = calloc(1, sizeof(SSqlExpr));
   pExpr->functionId = functionId;
-
+  
   pExprInfo->numOfExprs++;
+  pExprInfo->pExprs[index] = pExpr;
   return pExpr;
 }
 
@@ -1067,8 +1116,9 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
   _exprCheckSpace(pExprInfo, pExprInfo->numOfExprs + 1);
   _exprEvic(pExprInfo, index);
 
-  SSqlExpr* pExpr = &pExprInfo->pExprs[index];
-
+  SSqlExpr* pExpr = calloc(1, sizeof(SSqlExpr));
+  pExprInfo->pExprs[index] = pExpr;
+  
   pExpr->functionId = functionId;
   int16_t numOfCols = pMeterMetaInfo->pMeterMeta->numOfColumns;
 
@@ -1110,7 +1160,7 @@ SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
     return NULL;
   }
 
-  SSqlExpr* pExpr = &pExprInfo->pExprs[index];
+  SSqlExpr* pExpr = pExprInfo->pExprs[index];
 
   pExpr->functionId = functionId;
 
@@ -1121,6 +1171,10 @@ SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
   pExpr->resBytes = size;
 
   return pExpr;
+}
+
+int32_t  tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo) {
+  return pQueryInfo->exprsInfo.numOfExprs;
 }
 
 void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes, int16_t tableIndex) {
@@ -1141,7 +1195,7 @@ SSqlExpr* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index) {
     return NULL;
   }
 
-  return &pQueryInfo->exprsInfo.pExprs[index];
+  return pQueryInfo->exprsInfo.pExprs[index];
 }
 
 void* tscSqlExprDestroy(SSqlExpr* pExpr) {
@@ -1152,6 +1206,8 @@ void* tscSqlExprDestroy(SSqlExpr* pExpr) {
   for(int32_t i = 0; i < tListLen(pExpr->param); ++i) {
     tVariantDestroy(&pExpr->param[i]);
   }
+  
+  tfree(pExpr);
   
   return NULL;
 }
@@ -1164,8 +1220,8 @@ void tscSqlExprInfoDestroy(SSqlExprInfo* pExprInfo) {
     return;
   }
   
-  for(int32_t i = 0; i < pExprInfo->numOfAlloc; ++i) {
-    tscSqlExprDestroy(&pExprInfo->pExprs[i]);
+  for(int32_t i = 0; i < pExprInfo->numOfExprs; ++i) {
+    tscSqlExprDestroy(pExprInfo->pExprs[i]);
   }
   
   tfree(pExprInfo->pExprs);
@@ -1175,27 +1231,40 @@ void tscSqlExprInfoDestroy(SSqlExprInfo* pExprInfo) {
 }
 
 
-void tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t tableuid) {
+void tscSqlExprCopy(SSqlExprInfo* dst, const SSqlExprInfo* src, uint64_t tableuid, bool deepcopy) {
   if (src == NULL) {
     return;
   }
 
   *dst = *src;
 
-  dst->pExprs = calloc(dst->numOfAlloc, sizeof(SSqlExpr));
+  dst->pExprs = calloc(dst->numOfAlloc, POINTER_BYTES);
+  
   int16_t num = 0;
   for (int32_t i = 0; i < src->numOfExprs; ++i) {
-    if (src->pExprs[i].uid == tableuid) {
-      dst->pExprs[num++] = src->pExprs[i];
+    if (src->pExprs[i]->uid == tableuid) {
+      
+      if (deepcopy) {
+        dst->pExprs[num] = calloc(1, sizeof(SSqlExpr));
+        *dst->pExprs[num] = *src->pExprs[i];
+      } else {
+        dst->pExprs[num] = src->pExprs[i];
+      }
+      
+      num++;
     }
   }
 
   dst->numOfExprs = num;
-  for (int32_t i = 0; i < dst->numOfExprs; ++i) {
-    for (int32_t j = 0; j < src->pExprs[i].numOfParams; ++j) {
-      tVariantAssign(&dst->pExprs[i].param[j], &src->pExprs[i].param[j]);
+  
+  if (deepcopy) {
+    for (int32_t i = 0; i < dst->numOfExprs; ++i) {
+      for (int32_t j = 0; j < src->pExprs[i]->numOfParams; ++j) {
+        tVariantAssign(&dst->pExprs[i]->param[j], &src->pExprs[i]->param[j]);
+      }
     }
   }
+
 }
 
 static void clearVal(SColumnBase* pBase) {
@@ -1796,8 +1865,8 @@ void tscFreeSubqueryInfo(SSqlCmd* pCmd) {
   tfree(pCmd->pQueryInfo);
 }
 
-SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, SMeterMeta* pMeterMeta,
-                                    SMetricMeta* pMetricMeta, int16_t numOfTags, int16_t* tags) {
+SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pMeterMeta,
+                                    SSuperTableMeta* pMetricMeta, int16_t numOfTags, int16_t* tags) {
   void* pAlloc = realloc(pQueryInfo->pMeterInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
   if (pAlloc == NULL) {
     return NULL;
@@ -1950,7 +2019,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   uint64_t uid = pMeterMetaInfo->pMeterMeta->uid;
-  tscSqlExprCopy(&pNewQueryInfo->exprsInfo, &pQueryInfo->exprsInfo, uid);
+  tscSqlExprCopy(&pNewQueryInfo->exprsInfo, &pQueryInfo->exprsInfo, uid, true);
 
   int32_t numOfOutputCols = pNewQueryInfo->exprsInfo.numOfExprs;
 
@@ -1965,7 +2034,19 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
     tscFieldInfoCopy(&pQueryInfo->fieldsInfo, &pNewQueryInfo->fieldsInfo, indexList, numOfOutputCols);
     free(indexList);
-
+  
+    //     make sure the the sqlExpr for each fields is correct
+// todo handle the agg arithmetic expression
+    for(int32_t f = 0; f < pNewQueryInfo->fieldsInfo.numOfOutputCols; ++f) {
+      char* name = pNewQueryInfo->fieldsInfo.pFields[f].name;
+      for(int32_t k1 = 0; k1 < pNewQueryInfo->exprsInfo.numOfExprs; ++k1) {
+        SSqlExpr* pExpr1 = tscSqlExprGet(pNewQueryInfo, k1);
+        if (strcmp(name, pExpr1->aliasName) == 0) {
+          pNewQueryInfo->fieldsInfo.pSqlExpr[f] = pExpr1;
+        }
+      }
+    }
+    
     tscFieldInfoUpdateOffsetForInterResult(pNewQueryInfo);
   }
 
@@ -1983,16 +2064,16 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   SMeterMetaInfo* pFinalInfo = NULL;
 
   if (pPrevSql == NULL) {
-    SMeterMeta*  pMeterMeta = taosGetDataFromCache(tscCacheHandle, name);
-    SMetricMeta* pMetricMeta = taosGetDataFromCache(tscCacheHandle, key);
+    STableMeta*  pMeterMeta = taosGetDataFromCache(tscCacheHandle, name);
+    SSuperTableMeta* pMetricMeta = taosGetDataFromCache(tscCacheHandle, key);
 
     pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pMeterMeta, pMetricMeta, pMeterMetaInfo->numOfTags,
                                      pMeterMetaInfo->tagColumnIndex);
   } else {  // transfer the ownership of pMeterMeta/pMetricMeta to the newly create sql object.
     SMeterMetaInfo* pPrevInfo = tscGetMeterMetaInfo(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 
-    SMeterMeta*  pPrevMeterMeta = taosTransferDataInCache(tscCacheHandle, (void**)&pPrevInfo->pMeterMeta);
-    SMetricMeta* pPrevMetricMeta = taosTransferDataInCache(tscCacheHandle, (void**)&pPrevInfo->pMetricMeta);
+    STableMeta*  pPrevMeterMeta = taosTransferDataInCache(tscCacheHandle, (void**)&pPrevInfo->pMeterMeta);
+    SSuperTableMeta* pPrevMetricMeta = taosTransferDataInCache(tscCacheHandle, (void**)&pPrevInfo->pMetricMeta);
 
     pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pPrevMeterMeta, pPrevMetricMeta, pMeterMetaInfo->numOfTags,
                                      pMeterMetaInfo->tagColumnIndex);

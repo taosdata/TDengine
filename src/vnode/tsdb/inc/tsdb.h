@@ -1,6 +1,17 @@
-/**************************************
- * FOR OUTSIDE USAGE
- **************************************/
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 #if !defined(_TD_TSDB_H_)
 #define _TD_TSDB_H_
 
@@ -8,17 +19,24 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// #include "cache.h"
+#include "dataformat.h"
 #include "schema.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define TSDB_VERSION_MAJOR 1
 #define TSDB_VERSION_MINOR 0
 
-typedef void    tsdb_repo_t;  // use void to hide implementation details from outside
-typedef int32_t table_id_t;   // table ID type in this repository
-typedef int16_t tsdb_id_t;    // TSDB repository ID
+typedef void tsdb_repo_t;  // use void to hide implementation details from outside
 
-// Submit message
+typedef struct {
+  int64_t uid;  // the unique table ID
+  int32_t tid;  // the table ID in the repository.
+} STableId;
+
+// Submit message for this TSDB
 typedef struct {
   int32_t numOfTables;
   int32_t compressed;
@@ -27,95 +45,79 @@ typedef struct {
 
 // Submit message for one table
 typedef struct {
-  table_id_t tableId;       // table ID to insert
-  int32_t    sversion;      // data schema version
-  int32_t    numOfRows;     // number of rows data
-  int64_t    uid;           // table UID to insert
-  char       data[];
+  STableId tableId;
+  int32_t  padding;    // TODO just for padding here
+  int32_t  sversion;   // data schema version
+  int32_t  len;        // message length
+  char     data[];
 } SSubmitBlock;
 
-// Retention policy.
-typedef struct {
-  // TODO: Need a more fancy description
-  int32_t keep1;
-  int32_t keep2;
-  int32_t keep3;
-} SRetentionPolicy;
-
-// Data sharding policy.
-typedef struct {
-  // TODO: Need a more fancy description
-  int32_t daysPerFile;
-} SDataShardPolicy;
-
-// Rows in file block policy
-typedef struct {
-  // TODO: Need a more fancy description
-  int32_t minRowsPerFileBlock;
-  int32_t maxRowsPerFileBlock;
-} SBlockRowsPolicy;
-
-// Applications trying to manipulate a table should provide both uid and tableId.
-// tableId is used for table quick access and uid for verification.
-typedef struct {
-  int64_t    uid;      // the unique table ID
-  table_id_t tableId;  // the table ID in the repository.
-} STableId;
+enum { TSDB_PRECISION_MILLI, TSDB_PRECISION_MICRO, TSDB_PRECISION_NANO };
 
 // the TSDB repository configuration
 typedef struct {
-  char *           rootDir;  // TSDB repository root directory, TODO: need to adjust here
-  tsdb_id_t        tsdbId;
-  int32_t          maxTables;  // maximum number of tables this repository can have
-  SDataShardPolicy dataShardPolicy;
-  SBlockRowsPolicy blockRowsPolicy;
-  SRetentionPolicy retentionPlicy;  // retention configuration
-  void *           cachePool;       // the cache pool the repository to use
-} STSDBCfg;
+  int8_t  precision;
+  int32_t tsdbId;
+  int32_t maxTables;            // maximum number of tables this repository can have
+  int32_t daysPerFile;          // day per file sharding policy
+  int32_t minRowsPerFileBlock;  // minimum rows per file block
+  int32_t maxRowsPerFileBlock;  // maximum rows per file block
+  int32_t keep;                 // day of data to keep
+  int64_t maxCacheSize;         // maximum cache size this TSDB can use
+} STsdbCfg;
 
 // the TSDB repository info
-typedef struct STSDBRepoInfo {
-  STSDBCfg tsdbCfg;
+typedef struct STsdbRepoInfo {
+  STsdbCfg tsdbCfg;
   int64_t  version;            // version of the repository
   int64_t  tsdbTotalDataSize;  // the original inserted data size
   int64_t  tsdbTotalDiskSize;  // the total disk size taken by this TSDB repository
   // TODO: Other informations to add
-} STSDBRepoInfo;
+} STsdbRepoInfo;
 
 // the meter configuration
 typedef struct {
-  char *     tableName;
-  int64_t    uid;      // uid given by upper layer
-  table_id_t tableId;  // table ID allocated from upper layer
+  STableId tableId;
 
-  char *stableName;  // if not NULL, the table is created from a super table, need to make sure the super
-                     // table exists in this TSDB.
   int64_t stableUid;
+  int64_t createdTime;
 
   int32_t  numOfCols;  // number of columns. For table form super table, not includes the tag schema
   SSchema *schema;     // If numOfCols == schema_->numOfCols, it is a normal table, stableName = NULL
                        // If numOfCols < schema->numOfCols, it is a table created from super table
                        // assert(numOfCols <= schema->numOfCols);
 
-  char *tagValues;  // NULL if it is normal table
-                    // otherwise, it contains the tag values.
+  SDataRow tagValues;  // NULL if it is normal table
+                       // otherwise, it contains the tag values.
 } STableCfg;
 
 // the meter information report structure
 typedef struct {
   STableCfg tableCfg;
   int64_t   version;
-  int64_t   tableTotalDataSize; // In bytes
-  int64_t   tableTotalDiskSize; // In bytes
+  int64_t   tableTotalDataSize;  // In bytes
+  int64_t   tableTotalDiskSize;  // In bytes
 } STableInfo;
 
 /**
+ * Create a configuration for TSDB default
+ * @return a pointer to a configuration. the configuration must call tsdbFreeCfg to free memory after usage
+ */
+STsdbCfg *tsdbCreateDefaultCfg();
+
+/**
+ * Free
+ */
+void tsdbFreeCfg(STsdbCfg *pCfg);
+
+/**
  * Create a new TSDB repository
+ * @param rootDir the TSDB repository root directory
  * @param pCfg the TSDB repository configuration, upper layer to free the pointer
  *
  * @return a TSDB repository handle on success, NULL for failure and the error number is set
  */
-tsdb_repo_t *tsdbCreateRepo(STSDBCfg *pCfg);
+tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
 
 /**
  * Close and free all resources taken by the repository
@@ -149,7 +151,7 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo);
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbConfigRepo(tsdb_repo_t repo, STSDBCfg *pCfg);
+int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg);
 
 /**
  * Get the TSDB repository information, including some statistics
@@ -159,7 +161,7 @@ int32_t tsdbConfigRepo(tsdb_repo_t repo, STSDBCfg *pCfg);
  * @return a info struct handle on success, NULL for failure and the error number is set. The upper
  *         layers should free the info handle themselves or memory leak will occur
  */
-STSDBRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo);
+STsdbRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo);
 
 // -- For table manipulation
 
@@ -181,7 +183,7 @@ int32_t tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tid, int32_t *error);
+int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tableId);
 
 /**
  * Get the information of a table in the repository
@@ -191,23 +193,21 @@ int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tid, int32_t *error);
  *
  * @return a table information handle for success, NULL for failure and the error number is set
  */
-STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid, int32_t *error);
+STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid);
 
 // -- FOR INSERT DATA
 /**
  * Insert data to a table in a repository
  * @param pRepo the TSDB repository handle
- * @param tid the table ID to insert to
  * @param pData the data to insert (will give a more specific description)
- * @param error the error number to set when failure occurs
  *
  * @return the number of points inserted, -1 for failure and the error number is set
  */
-int32_t tsdbInsertData(tsdb_repo_t *pRepo, STableId tid, char *pData, int32_t *error);
+int32_t tsdbInsertData(tsdb_repo_t *pRepo, SSubmitMsg *pMsg);
 
 // -- FOR QUERY TIME SERIES DATA
 
-typedef void tsdb_query_handle_t; // Use void to hide implementation details
+typedef void tsdb_query_handle_t;  // Use void to hide implementation details
 
 // time window
 typedef struct STimeWindow {
@@ -251,7 +251,6 @@ typedef struct STableIDList {
 } STableIDList;
 
 typedef struct {
-
 } SFields;
 
 /**
@@ -275,7 +274,8 @@ tsdb_query_handle_t *tsdbQueryFromTableID(tsdb_repo_t *pRepo, STSDBQueryCond *pC
  * @param pTagFilterStr tag filter info
  * @return
  */
-tsdb_query_handle_t *tsdbQueryFromTagConds(tsdb_repo_t *pRepo, STSDBQueryCond *pCond, int16_t stableId, const char *pTagFilterStr);
+tsdb_query_handle_t *tsdbQueryFromTagConds(tsdb_repo_t *pRepo, STSDBQueryCond *pCond, int16_t stableId,
+                                           const char *pTagFilterStr);
 
 /**
  *  Reset to the start(end) position of current query, from which the iterator starts.
@@ -348,5 +348,9 @@ STableIDList *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
  *
  */
 STableIDList *tsdbQueryTableList(int16_t stableId, const char *pTagCond);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // _TD_TSDB_H_

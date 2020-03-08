@@ -34,13 +34,21 @@
 #include "tgHandle.h"
 #include "tlog.h"
 
-#ifdef CLUSTER
-  void adminInitHandle(HttpServer* pServer);
-  void opInitHandle(HttpServer* pServer);
-#else
-  void adminInitHandle(HttpServer* pServer) {}
-  void opInitHandle(HttpServer* pServer) {}
-#endif
+
+void (*adminInitHandleFp)(HttpServer* pServer) = NULL;
+void (*opInitHandleFp)(HttpServer* pServer) = NULL;
+
+void adminInitHandle(HttpServer* pServer) {
+  if (adminInitHandleFp) {
+    (*adminInitHandleFp)(pServer);
+  }
+}
+
+void opInitHandle(HttpServer* pServer) {
+  if (opInitHandleFp) {
+    (*opInitHandleFp)(pServer);
+  }
+}
 
 static HttpServer *httpServer = NULL;
 void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);

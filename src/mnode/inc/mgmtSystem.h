@@ -22,14 +22,10 @@ extern "C" {
 
 #include <stdint.h>
 
+int32_t mgmtInitSystem();
 int32_t mgmtStartSystem();
 void    mgmtCleanUpSystem();
-
-extern int32_t (*mgmtInitSystem)();
-extern int32_t (*mgmtCheckMgmtRunning)();
-extern void    (*mgmtDoStatistic)(void *handle, void *tmrId);
-extern void    (*mgmtStopSystem)();
-extern void    (*mgmtCleanUpRedirect)();
+void    mgmtStopSystem();
 
 #ifdef __cplusplus
 }

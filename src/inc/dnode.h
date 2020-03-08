@@ -42,24 +42,17 @@ extern uint32_t tsRebootTime;
 
 // dnodeCluster
 extern void (*dnodeStartModules)();
-extern void (*dnodeParseParameterK)();
 extern int32_t (*dnodeCheckSystem)();
-extern void (*dnodeInitMgmtIp)();
-extern int (*dnodeInitMgmt)();
 
-// dnodeMgmt
-void dnodeProcessMsgFromMgmt(int8_t *pCont, int32_t contLen, int32_t msgType, void *pConn);
-extern int32_t (*dnodeSendMsgToMnode)(int8_t *pCont, int32_t contLen, int8_t msgType);
-extern int32_t (*dnodeSendSimpleRspToMnode)(void *pConn, int32_t msgType, int32_t code);
+
+// dnodeSystem
+extern void *tsDnodeMgmtQhandle;
+void dnodeCheckDataDirOpenned(const char* dir);
 
 // dnodeModule
 extern void (*dnodeStartModules)();
 
-// multilevelStorage
-extern int32_t (*dnodeInitStorage)();
-extern void (*dnodeCleanupStorage)();
 
-void dnodeCheckDataDirOpenned(const char* dir);
 
 void dnodeLockVnodes();
 void dnodeUnLockVnodes();

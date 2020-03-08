@@ -68,38 +68,6 @@ void dnodeCleanUpModules() {
   }
 }
 
-void dnodeProcessModuleStatus(uint32_t status) {
-  if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
-    return;
-  }
-
-  int news = status;
-  int olds = tsModuleStatus;
-
-  for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-    int newStatus = news & (1 << moduleType);
-    int oldStatus = olds & (1 << moduleType);
-
-    if (oldStatus > 0) {
-      if (newStatus == 0) {
-        if (tsModule[moduleType].stopFp) {
-          dPrint("module:%s is stopped on this node", tsModule[moduleType].name);
-          (*tsModule[moduleType].stopFp)();
-        }
-      }
-    } else if (oldStatus == 0) {
-      if (newStatus > 0) {
-        if (tsModule[moduleType].startFp) {
-          dPrint("module:%s is started on this node", tsModule[moduleType].name);
-          (*tsModule[moduleType].startFp)();
-        }
-      }
-    } else {
-    }
-  }
-  tsModuleStatus = status;
-}
-
 int32_t dnodeInitModules() {
   for (int mod = 0; mod < TSDB_MOD_MAX; ++mod) {
     if (tsModule[mod].num != 0 && tsModule[mod].initFp) {
@@ -120,10 +88,6 @@ void dnodeStartModulesImp() {
         dError("failed to start module:%d", mod);
       }
     }
-  }
-
-  if (tsModule[TSDB_MOD_MGMT].num != 0 && tsModule[TSDB_MOD_MGMT].cleanUpFp) {
-    (*tsModule[TSDB_MOD_MGMT].cleanUpFp)();
   }
 }
 

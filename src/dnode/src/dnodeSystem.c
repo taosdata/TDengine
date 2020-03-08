@@ -33,16 +33,14 @@
 #include "dnodeVnodeMgmt.h"
 
 #ifdef CLUSTER
-#include "dnodeCluster.h"
-#include "httpAdmin.h"
-#include "mnodeAccount.h"
-#include "mnodeBalance.h"
-#include "mnodeCluster.h"
-#include "sdbReplica.h"
-#include "multilevelStorage.h"
-#include "vnodeCluster.h"
-#include "vnodeReplica.h"
-#include "dnodeGrant.h"
+#include "account.h"
+#include "admin.h"
+#include "balance.h"
+#include "cluster.h"
+#include "grant.h"
+#include "mpeer.h"
+#include "storage.h"
+#include "vpeer.h"
 #endif
 
 static pthread_mutex_t tsDnodeMutex;
@@ -52,8 +50,7 @@ static int32_t dnodeInitRpcQHandle();
 static int32_t dnodeInitQueryQHandle();
 static int32_t dnodeInitTmrCtl();
 
-void     *tsStatusTimer = NULL;
-void     *vnodeTmrCtrl;
+void     *tsDnodeTmr;
 void     **tsRpcQhandle;
 void     *tsDnodeMgmtQhandle;
 void     *tsQueryQhandle;
@@ -94,11 +91,6 @@ void dnodeCleanUpSystem() {
     dnodeSetRunStatus(TSDB_DNODE_RUN_STATUS_STOPPED);
   }
 
-  if (tsStatusTimer != NULL) {
-    taosTmrStopA(&tsStatusTimer);
-    tsStatusTimer = NULL;
-  }
-
   dnodeCleanupShell();
   dnodeCleanUpModules();
   dnodeCleanupVnodes();
@@ -120,16 +112,13 @@ void dnodeCheckDataDirOpenned(const char *dir) {
 
 void dnodeInitPlugins() {
 #ifdef CLUSTER
-  dnodeClusterInit();
-  httpAdminInit();
-  mnodeAccountInit();
-  mnodeBalanceInit();
-  mnodeClusterInit();
-  sdbReplicaInit();
-  multilevelStorageInit();
-  vnodeClusterInit();
-  vnodeReplicaInit();
-  dnodeGrantInit();
+//  acctInit();
+//  adminInit();
+//  balanceInit();
+//  clusterInit();
+//  grantInit();
+//  mpeerInit();
+//  storageInit();
 #endif
 }
 
@@ -272,15 +261,15 @@ static int32_t dnodeInitQueryQHandle() {
   int32_t maxQueueSize = tsNumOfVnodesPerCore * tsNumOfCores * tsSessionsPerVnode;
   dTrace("query task queue initialized, max slot:%d, task threads:%d", maxQueueSize, numOfThreads);
 
-  tsQueryQhandle = taosInitSchedulerWithInfo(maxQueueSize, numOfThreads, "query", vnodeTmrCtrl);
+  tsQueryQhandle = taosInitSchedulerWithInfo(maxQueueSize, numOfThreads, "query", tsDnodeTmr);
 
   return 0;
 }
 
 static int32_t dnodeInitTmrCtl() {
-  vnodeTmrCtrl = taosTmrInit(TSDB_MAX_VNODES * (tsVnodePeers + 10) + tsSessionsPerVnode + 1000, 200, 60000,
+  tsDnodeTmr = taosTmrInit(TSDB_MAX_VNODES * (tsVnodePeers + 10) + tsSessionsPerVnode + 1000, 200, 60000,
                              "DND-vnode");
-  if (vnodeTmrCtrl == NULL) {
+  if (tsDnodeTmr == NULL) {
     dError("failed to init timer, exit");
     return -1;
   }
@@ -310,10 +299,6 @@ int32_t dnodeCheckSystemImp() {
 }
 
 int32_t (*dnodeCheckSystem)() = dnodeCheckSystemImp;
-
-void dnodeParseParameterKImp() {}
-
-void (*dnodeParseParameterK)() = dnodeParseParameterKImp;
 
 int32_t dnodeInitPeersImp(int32_t numOfThreads) {
   return 0;

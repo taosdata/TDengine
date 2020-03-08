@@ -37,7 +37,7 @@
 #define HTTP_STEP_SIZE              1024    //http message get process step by step
 #define HTTP_MAX_URL                5       //http url stack size
 #define HTTP_METHOD_SCANNER_SIZE    7       //http method fp size
-#define HTTP_GC_TARGET_SIZE         128
+#define HTTP_GC_TARGET_SIZE         512
 
 #define HTTP_VERSION_10             0
 #define HTTP_VERSION_11             1

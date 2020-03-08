@@ -23,7 +23,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-extern char dataDir[TSDB_FILENAME_LEN];
+extern char dataDir[];
 
 bool taosGetSysMemory(float *memoryUsedMB);
 

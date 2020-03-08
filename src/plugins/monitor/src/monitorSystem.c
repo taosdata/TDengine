@@ -216,7 +216,8 @@ void monitorInitDatabaseCb(void *param, TAOS_RES *result, int code) {
   if (-code == TSDB_CODE_TABLE_ALREADY_EXIST || -code == TSDB_CODE_DB_ALREADY_EXIST || code >= 0) {
     monitorTrace("monitor:%p, sql success, code:%d, %s", monitor->conn, code, monitor->sql);
     if (monitor->cmdIndex == MONITOR_CMD_CREATE_TB_LOG) {
-      taosLogFp = monitorSaveLog;
+      //TODO
+      //taosLogFp = monitorSaveLog;
       taosLogSqlFp = monitorExecuteSQL;
       taosLogAcctFp = monitorSaveAcctLog;
       monitorLPrint("dnode:%s is started", tsPrivateIp);

@@ -58,7 +58,7 @@ extern char osName[];
 
 extern char  tsMasterIp[];
 extern char  tsSecondIp[];
-extern uint16_t tsMgmtVnodePort;
+extern uint16_t tsMgmtDnodePort;
 extern uint16_t tsMgmtShellPort;
 extern uint16_t tsVnodeShellPort;
 extern uint16_t tsVnodeVnodePort;
@@ -193,7 +193,6 @@ extern char tsCharset[64];  // default encode string
 //
 void tsReadGlobalLogConfig();
 bool tsReadGlobalConfig();
-bool tsReadGlobalConfigSpec();
 int tsCfgDynamicOptions(char *msg);
 void tsPrintGlobalConfig();
 void tsPrintGlobalConfigSpec();

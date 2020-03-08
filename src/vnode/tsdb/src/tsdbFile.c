@@ -12,21 +12,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#ifndef TDENGINE_MGMT_CONN_H
-#define TDENGINE_MGMT_CONN_H
+#include "tsdbFile.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+const char *tsdbFileSuffix[] = {
+    ".head",  // TSDB_FILE_TYPE_HEAD
+    ".data",  // TSDB_FILE_TYPE_DATA
+    ".last",  // TSDB_FILE_TYPE_LAST
+    ".meta"   // TSDB_FILE_TYPE_META
+};
 
-#include "mnode.h"
+char *tsdbGetFileName(char *dirName, char *fname, TSDB_FILE_TYPE type) {
+  if (!IS_VALID_TSDB_FILE_TYPE(type)) return NULL;
 
-int mgmtGetConnsMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-int mgmtRetrieveConns(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+  char *fileName = (char *)malloc(strlen(dirName) + strlen(fname) + strlen(tsdbFileSuffix[type]) + 5);
+  if (fileName == NULL) return NULL;
 
-#ifdef __cplusplus
+  sprintf(fileName, "%s/%s%s", dirName, fname, tsdbFileSuffix[type]);
+  return fileName;
 }
-#endif
-
-#endif

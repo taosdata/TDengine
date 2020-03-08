@@ -585,6 +585,7 @@ void tsPrintOsInfo() {
   pPrint(" os release:             %s", buf.release);
   pPrint(" os version:             %s", buf.version);
   pPrint(" os machine:             %s", buf.machine);
+  pPrint("==================================");
 }
 
 void taosKillSystem() {

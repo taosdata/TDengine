@@ -17,21 +17,24 @@
 #define TDENGINE_MGMT_GTANT_H
 
 #ifdef __cplusplus
-extern "C" {
+"C" {
 #endif
 
 #include <stdint.h>
 #include <stdbool.h>
 #include "mnode.h"
 
-extern bool    (*mgmtCheckExpired)();
-extern void    (*mgmtAddTimeSeries)(uint32_t timeSeriesNum);
-extern void    (*mgmtRestoreTimeSeries)(uint32_t timeseries);
-extern int32_t (*mgmtCheckTimeSeries)(uint32_t timeseries);
-extern int32_t (*mgmtCheckUserGrant)();
-extern int32_t (*mgmtCheckDbGrant)();
-extern int32_t (*mgmtGetGrantsMeta)(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn);
-extern int32_t (*mgmtRetrieveGrants)(SShowObj *pShow, char *data, int rows, SConnObj *pConn);
+bool    mgmtCheckExpired();
+void    mgmtAddTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum);
+void    mgmtRestoreTimeSeries(SAcctObj *pAcct, uint32_t timeseries);
+int32_t mgmtCheckTimeSeries(uint32_t timeseries);
+int32_t mgmtCheckUserGrant();
+int32_t mgmtCheckDbGrant();
+int32_t mgmtCheckDnodeGrant();
+int32_t mgmtGetGrantsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+int32_t mgmtRetrieveGrants(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+
+extern void (*mgmtUpdateGrantInfoFp)(void *pCont);
 
 #ifdef __cplusplus
 }

@@ -38,23 +38,23 @@ void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pConn, void (*callback)(SShe
  * Create table with specified configuration and open it
  * if table already exist, update its schema and tag
  */
-int32_t dnodeCreateTable(SDCreateTableMsg *table);
+int32_t dnodeCreateTable(SDCreateTableMsg *pTable);
 
 /*
  * Remove table from local repository
  */
-int32_t dnodeDropTable(int32_t vnode, int32_t sid, uint64_t uid);
+int32_t dnodeDropTable(SDRemoveTableMsg *pTable);
 
 /*
  * Create stream
  * if stream already exist, update it
  */
-int32_t dnodeCreateStream(SAlterStreamMsg *stream);
+int32_t dnodeCreateStream(SDAlterStreamMsg *pStream);
 
 /*
  * Remove all child tables of supertable from local repository
  */
-int32_t dnodeDropSuperTable(uint64_t stableUid);
+int32_t dnodeDropSuperTable(SDRemoveSuperTableMsg *pStable);
 
 #ifdef __cplusplus
 }

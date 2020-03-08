@@ -163,6 +163,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FAILED_TO_LOCK_RESOURCES,   0, 117, "failed to lock 
 TAOS_DEFINE_ERROR(TSDB_CODE_TABLE_ID_MISMATCH,          0, 118, "table id mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_QUERY_CACHE_ERASED,         0, 119, "query cache erased")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG,                0, 120, "invalid message")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE_TYPE,         0, 121, "invalid table typee")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG_VERSION,        0, 122, "invalid version of message")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NOT_EXIST,            0, 123, "dnode not exist")
 
 #ifdef TAOS_ERROR_C
 };

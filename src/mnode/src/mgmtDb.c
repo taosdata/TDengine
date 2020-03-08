@@ -26,6 +26,7 @@
 #include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
 #include "mgmtTable.h"
+#include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
 extern void *tsVgroupSdb;
@@ -66,7 +67,10 @@ int32_t mgmtInitDbs() {
 
   mgmtDbActionInit();
 
-  tsDbSdb = sdbOpenTable(tsMaxDbs, sizeof(SDbObj), "db", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtDbAction);
+  SDbObj tObj;
+  tsDbUpdateSize = tObj.updateEnd - (char *)&tObj;
+
+  tsDbSdb = sdbOpenTable(tsMaxDbs, tsDbUpdateSize, "db", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtDbAction);
   if (tsDbSdb == NULL) {
     mError("failed to init db data");
     return -1;
@@ -82,7 +86,7 @@ int32_t mgmtInitDbs() {
     pDb->next = NULL;
     pDb->numOfTables = 0;
     pDb->numOfVgroups = 0;
-    pDb->numOfMetrics = 0;
+    pDb->numOfSuperTables = 0;
     pDb->vgStatus = TSDB_VG_STATUS_READY;
     pDb->vgTimer = NULL;
     pAcct = mgmtGetAcct(pDb->cfg.acct);
@@ -93,9 +97,6 @@ int32_t mgmtInitDbs() {
     }
   }
 
-  SDbObj tObj;
-  tsDbUpdateSize = tObj.updateEnd - (char *)&tObj;
-
   mTrace("db data is initialized");
   return 0;
 }
@@ -104,13 +105,13 @@ SDbObj *mgmtGetDb(char *db) {
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
 
-SDbObj *mgmtGetDbByTableId(char *meterId) {
+SDbObj *mgmtGetDbByTableId(char *tableId) {
   char db[TSDB_TABLE_ID_LEN], *pos;
 
-  pos = strstr(meterId, TS_PATH_DELIMITER);
+  pos = strstr(tableId, TS_PATH_DELIMITER);
   pos = strstr(pos + 1, TS_PATH_DELIMITER);
   memset(db, 0, sizeof(db));
-  strncpy(db, meterId, pos - meterId);
+  strncpy(db, tableId, pos - tableId);
 
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
@@ -216,16 +217,16 @@ int32_t mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   }
 
   // calculate the blocks per table
-  if (pCreate->blocksPerMeter < 0) {
-    pCreate->blocksPerMeter = pCreate->cacheNumOfBlocks.totalBlocks / 4;
+  if (pCreate->blocksPerTable < 0) {
+    pCreate->blocksPerTable = pCreate->cacheNumOfBlocks.totalBlocks / 4;
   }
   
-  if (pCreate->blocksPerMeter > pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4) {
-    pCreate->blocksPerMeter = pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4;
+  if (pCreate->blocksPerTable > pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4) {
+    pCreate->blocksPerTable = pCreate->cacheNumOfBlocks.totalBlocks * 3 / 4;
   }
   
-  if (pCreate->blocksPerMeter < TSDB_MIN_AVG_BLOCKS) {
-    pCreate->blocksPerMeter = TSDB_MIN_AVG_BLOCKS;
+  if (pCreate->blocksPerTable < TSDB_MIN_AVG_BLOCKS) {
+    pCreate->blocksPerTable = TSDB_MIN_AVG_BLOCKS;
   }
 
   pCreate->maxSessions++;
@@ -294,7 +295,7 @@ int32_t mgmtSetDbDropping(SDbObj *pDb) {
         }
       }
     }
-    mgmtSendFreeVnodeMsg(pVgroup);
+//    mgmtSendRemoveVgroupMsg(pVgroup);
     pVgroup = pVgroup->next;
   }
 
@@ -339,7 +340,7 @@ void mgmtDropDbFromSdb(SDbObj *pDb) {
 //  SSuperTableObj *pMetric = pDb->pSTable;
 //  while (pMetric) {
 //    SSuperTableObj *pNext = pMetric->next;
-//    mgmtDropTable(pDb, pMetric->meterId, 0);
+//    mgmtDropTable(pDb, pMetric->tableId, 0);
 //    pMetric = pNext;
 //  }
 
@@ -354,7 +355,7 @@ int32_t mgmtDropDb(SDbObj *pDb) {
     if (!finished) {
       SVgObj *pVgroup = pDb->pHead;
       while (pVgroup != NULL) {
-        mgmtSendFreeVnodeMsg(pVgroup);
+        mgmtSendRemoveVgroupMsg(pVgroup, NULL);
         pVgroup = pVgroup->next;
       }
       return TSDB_CODE_ACTION_IN_PROGRESS;
@@ -408,82 +409,69 @@ void mgmtMonitorDbDrop(void *unused, void *unusedt) {
 }
 
 int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  SDbObj *pDb = (SDbObj *) sdbGetRow(tsDbSdb, pAlter->db);
-  if (pDb == NULL) {
-    mTrace("db:%s is not exist", pAlter->db);
-    return TSDB_CODE_INVALID_DB;
-  }
-
-  int32_t oldReplicaNum = pDb->cfg.replications;
-  if (pAlter->daysToKeep > 0) {
-    mTrace("db:%s daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, pAlter->daysToKeep);
-    pDb->cfg.daysToKeep = pAlter->daysToKeep;
-  } else if (pAlter->replications > 0) {
-    mTrace("db:%s replica:%d change to %d", pDb->name, pDb->cfg.replications, pAlter->replications);
-    if (pAlter->replications < TSDB_REPLICA_MIN_NUM || pAlter->replications > TSDB_REPLICA_MAX_NUM) {
-      mError("invalid db option replica: %d valid range: %d--%d", pAlter->replications, TSDB_REPLICA_MIN_NUM, TSDB_REPLICA_MAX_NUM);
-      return TSDB_CODE_INVALID_OPTION;
-    }
-    pDb->cfg.replications = pAlter->replications;
-  } else if (pAlter->maxSessions > 0) {
-    mTrace("db:%s tables:%d change to %d", pDb->name, pDb->cfg.maxSessions, pAlter->maxSessions);
-    if (pAlter->maxSessions < TSDB_MIN_TABLES_PER_VNODE || pAlter->maxSessions > TSDB_MAX_TABLES_PER_VNODE) {
-      mError("invalid db option tables: %d valid range: %d--%d", pAlter->maxSessions, TSDB_MIN_TABLES_PER_VNODE, TSDB_MAX_TABLES_PER_VNODE);
-      return TSDB_CODE_INVALID_OPTION;
-    }
-    if (pAlter->maxSessions < pDb->cfg.maxSessions) {
-      mError("invalid db option tables: %d should larger than original:%d", pAlter->maxSessions, pDb->cfg.maxSessions);
-      return TSDB_CODE_INVALID_OPTION;
-    }
-    return TSDB_CODE_INVALID_OPTION;
-    //The modification of tables needs to rewrite the head file, so disable this option
-    //pDb->cfg.maxSessions = pAlter->maxSessions;
-  } else {
-    mError("db:%s alter msg, replica:%d, keep:%d, tables:%d, origin replica:%d keep:%d", pDb->name,
-            pAlter->replications, pAlter->maxSessions, pAlter->daysToKeep,
-            pDb->cfg.replications, pDb->cfg.daysToKeep);
-    return TSDB_CODE_INVALID_OPTION;
-  }
-
-  if (sdbUpdateRow(tsDbSdb, pDb, tsDbUpdateSize, 1) < 0) {
-    return TSDB_CODE_SDB_ERROR;
-  }
-
-  SVgObj *pVgroup = pDb->pHead;
-  while (pVgroup != NULL) {
-    mgmtUpdateVgroupState(pVgroup, TSDB_VG_LB_STATUS_UPDATE, 0);
-    if (oldReplicaNum < pDb->cfg.replications) {
-      if (!mgmtAddVnode(pVgroup, NULL, NULL)) {
-        mWarn("db:%s vgroup:%d not enough dnode to add vnode", pAlter->db, pVgroup->vgId);
-        code = TSDB_CODE_NO_ENOUGH_DNODES;
-      }
-    }
-    if (pAlter->maxSessions > 0) {
-      //rebuild meterList in mgmtVgroup.c
-      sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 0);
-    }
-    mgmtSendVPeersMsg(pVgroup);
-    pVgroup = pVgroup->next;
-  }
-  mgmtStartBalanceTimer(10);
-
-  return code;
-}
-
-int32_t mgmtUseDb(SConnObj *pConn, char *name) {
-  SDbObj  *pDb;
-  int32_t code = TSDB_CODE_INVALID_DB;
-
-  // here change the default db for connect.
-  pDb = mgmtGetDb(name);
-  if (pDb) {
-    pConn->pDb = pDb;
-    code = 0;
-  }
-
-  return code;
+  return 0;
+//  int32_t code = TSDB_CODE_SUCCESS;
+//
+//  SDbObj *pDb = (SDbObj *) sdbGetRow(tsDbSdb, pAlter->db);
+//  if (pDb == NULL) {
+//    mTrace("db:%s is not exist", pAlter->db);
+//    return TSDB_CODE_INVALID_DB;
+//  }
+//
+//  int32_t oldReplicaNum = pDb->cfg.replications;
+//  if (pAlter->daysToKeep > 0) {
+//    mTrace("db:%s daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, pAlter->daysToKeep);
+//    pDb->cfg.daysToKeep = pAlter->daysToKeep;
+//  } else if (pAlter->replications > 0) {
+//    mTrace("db:%s replica:%d change to %d", pDb->name, pDb->cfg.replications, pAlter->replications);
+//    if (pAlter->replications < TSDB_REPLICA_MIN_NUM || pAlter->replications > TSDB_REPLICA_MAX_NUM) {
+//      mError("invalid db option replica: %d valid range: %d--%d", pAlter->replications, TSDB_REPLICA_MIN_NUM, TSDB_REPLICA_MAX_NUM);
+//      return TSDB_CODE_INVALID_OPTION;
+//    }
+//    pDb->cfg.replications = pAlter->replications;
+//  } else if (pAlter->maxSessions > 0) {
+//    mTrace("db:%s tables:%d change to %d", pDb->name, pDb->cfg.maxSessions, pAlter->maxSessions);
+//    if (pAlter->maxSessions < TSDB_MIN_TABLES_PER_VNODE || pAlter->maxSessions > TSDB_MAX_TABLES_PER_VNODE) {
+//      mError("invalid db option tables: %d valid range: %d--%d", pAlter->maxSessions, TSDB_MIN_TABLES_PER_VNODE, TSDB_MAX_TABLES_PER_VNODE);
+//      return TSDB_CODE_INVALID_OPTION;
+//    }
+//    if (pAlter->maxSessions < pDb->cfg.maxSessions) {
+//      mError("invalid db option tables: %d should larger than original:%d", pAlter->maxSessions, pDb->cfg.maxSessions);
+//      return TSDB_CODE_INVALID_OPTION;
+//    }
+//    return TSDB_CODE_INVALID_OPTION;
+//    //The modification of tables needs to rewrite the head file, so disable this option
+//    //pDb->cfg.maxSessions = pAlter->maxSessions;
+//  } else {
+//    mError("db:%s alter msg, replica:%d, keep:%d, tables:%d, origin replica:%d keep:%d", pDb->name,
+//            pAlter->replications, pAlter->maxSessions, pAlter->daysToKeep,
+//            pDb->cfg.replications, pDb->cfg.daysToKeep);
+//    return TSDB_CODE_INVALID_OPTION;
+//  }
+//
+//  if (sdbUpdateRow(tsDbSdb, pDb, tsDbUpdateSize, 1) < 0) {
+//    return TSDB_CODE_SDB_ERROR;
+//  }
+//
+//  SVgObj *pVgroup = pDb->pHead;
+//  while (pVgroup != NULL) {
+//    balanceUpdateVgroupState(pVgroup, TSDB_VG_LB_STATUS_UPDATE, 0);
+//    if (oldReplicaNum < pDb->cfg.replications) {
+//      if (!balanceAddVnode(pVgroup, NULL, NULL)) {
+//        mWarn("db:%s vgroup:%d not enough dnode to add vnode", pAlter->db, pVgroup->vgId);
+//        code = TSDB_CODE_NO_ENOUGH_DNODES;
+//      }
+//    }
+//    if (pAlter->maxSessions > 0) {
+//      //rebuild meterList in mgmtVgroup.c
+//      mgmtUpdateVgroup(pVgroup);
+//    }
+////    mgmtSendCreateVnodeMsg(pVgroup);
+//    pVgroup = pVgroup->next;
+//  }
+//  mgmtStartBalanceTimer(10);
+//
+//  return code;
 }
 
 int32_t mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup) {
@@ -540,10 +528,12 @@ void mgmtCleanUpDbs() {
   sdbCloseTable(tsDbSdb);
 }
 
-int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
+int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SSchema *pSchema = tsGetSchema(pMeta);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
 
   pShow->bytes[cols] = TSDB_DB_NAME_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -564,7 +554,7 @@ int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   cols++;
 
 #ifndef __CLOUD_VERSION__
-  if (strcmp(pConn->pAcct->user, "root") == 0) {
+  if (strcmp(pUser->user, "root") == 0) {
 #endif
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
@@ -576,7 +566,7 @@ int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
 #endif
 
 #ifndef __CLOUD_VERSION__
-  if (strcmp(pConn->pAcct->user, "root") == 0) {
+  if (strcmp(pUser->user, "root") == 0) {
 #endif
     pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
@@ -600,7 +590,7 @@ int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   cols++;
 
 #ifndef __CLOUD_VERSION__
-  if (strcmp(pConn->pAcct->user, "root") == 0) {
+  if (strcmp(pUser->user, "root") == 0) {
 #endif
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
@@ -675,8 +665,8 @@ int32_t mgmtGetDbMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
-  pShow->numOfRows = pConn->pAcct->acctInfo.numOfDbs;
-  pShow->pNode = pConn->pAcct->pHead;
+  pShow->numOfRows = pUser->pAcct->acctInfo.numOfDbs;
+  pShow->pNode = pUser->pAcct->pHead;
 
   return 0;
 }
@@ -687,18 +677,20 @@ char *mgmtGetDbStr(char *src) {
   return ++pos;
 }
 
-int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pConn) {
+int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
   SDbObj *pDb = NULL;
   char *  pWrite;
   int32_t cols = 0;
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
 
   while (numOfRows < rows) {
     pDb = (SDbObj *)pShow->pNode;
     if (pDb == NULL) break;
     pShow->pNode = (void *)pDb->next;
     if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-      if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 && strcmp(pConn->pUser->user, "monitor") != 0 ) {
+      if (strcmp(pUser->user, "root") != 0 && strcmp(pUser->user, "_root") != 0 && strcmp(pUser->user, "monitor") != 0 ) {
         continue;
       }
     }
@@ -718,7 +710,7 @@ int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pCo
     cols++;
 
 #ifndef __CLOUD_VERSION__
-    if (strcmp(pConn->pAcct->user, "root") == 0) {
+    if (strcmp(pUser->user, "root") == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int32_t *)pWrite = pDb->numOfVgroups;
@@ -728,7 +720,7 @@ int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pCo
 #endif
 
 #ifndef __CLOUD_VERSION__
-    if (strcmp(pConn->pAcct->user, "root") == 0) {
+    if (strcmp(pUser->user, "root") == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int16_t *)pWrite = pDb->cfg.replications;
@@ -746,7 +738,7 @@ int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pCo
     cols++;
 
 #ifndef __CLOUD_VERSION__
-    if (strcmp(pConn->pAcct->user, "root") == 0) {
+    if (strcmp(pUser->user, "root") == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int32_t *)pWrite = pDb->cfg.maxSessions - 1;  // table num can be created should minus 1
@@ -769,7 +761,7 @@ int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, SConnObj *pCo
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int16_t *)pWrite = pDb->cfg.blocksPerMeter;
+      *(int16_t *)pWrite = pDb->cfg.blocksPerTable;
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -832,12 +824,11 @@ void *mgmtDbActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
 
 void *mgmtDbActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
   SDbObj  *pDb  = (SDbObj *) row;
-  int32_t tsize = pDb->updateEnd - (char *) pDb;
-  if (size < tsize) {
+  if (size < tsDbUpdateSize) {
     *ssize = -1;
   } else {
-    memcpy(str, pDb, tsize);
-    *ssize = tsize;
+    memcpy(str, pDb, tsDbUpdateSize);
+    *ssize = tsDbUpdateSize;
   }
 
   return NULL;
@@ -847,16 +838,14 @@ void *mgmtDbActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
   if (pDb == NULL) return NULL;
   memset(pDb, 0, sizeof(SDbObj));
 
-  int32_t tsize = pDb->updateEnd - (char *)pDb;
-  memcpy(pDb, str, tsize);
+  memcpy(pDb, str, tsDbUpdateSize);
 
   return (void *)pDb;
 }
 
 void *mgmtDbActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   SDbObj  *pDb  = (SDbObj *) row;
-  int32_t tsize = pDb->updateEnd - (char *) pDb;
-  memcpy(pDb, str, tsize);
+  memcpy(pDb, str, tsDbUpdateSize);
 
   return NULL;
 }
@@ -864,4 +853,19 @@ void *mgmtDbActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
 void *mgmtDbActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
   tfree(row);
   return NULL;
+}
+
+void mgmtAddSuperTableIntoDb(SDbObj *pDb) {
+  atomic_add_fetch_32(&pDb->numOfSuperTables, 1);
+}
+
+void mgmtRemoveSuperTableFromDb(SDbObj *pDb) {
+  atomic_add_fetch_32(&pDb->numOfSuperTables, -1);
+}
+void mgmtAddTableIntoDb(SDbObj *pDb) {
+  atomic_add_fetch_32(&pDb->numOfTables, 1);
+}
+
+void mgmtRemoveTableFromDb(SDbObj *pDb) {
+  atomic_add_fetch_32(&pDb->numOfTables, -1);
 }

@@ -468,8 +468,8 @@ int32_t compare_a(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
         return ret;
       }
     } else {
-      SSchema *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
-      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->type, pSchema->bytes);
+      SSchemaEx *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
+      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes);
       if (ret == 0) {
         continue;
       } else {
@@ -500,8 +500,8 @@ int32_t compare_d(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
         return ret;
       }
     } else {
-      SSchema *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
-      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->type, pSchema->bytes);
+      SSchemaEx *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
+      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes);
       if (ret == 0) {
         continue;
       } else {

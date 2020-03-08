@@ -25,20 +25,12 @@ extern "C" {
 
 extern uint16_t    tsMgmtMgmtPort;
 extern uint16_t    tsMgmtSyncPort;
-extern int      sdbMaxNodes;
 extern int      tsMgmtPeerHBTimer;  // seconds
-extern char     sdbZone[];
-extern char     sdbMasterIp[];
-extern char     sdbPrivateIp[];
 extern char *   sdbStatusStr[];
 extern char *   sdbRoleStr[];
-extern void *   mnodeSdb;
-extern int      sdbExtConns;
 extern int      sdbMaster;
-extern uint32_t sdbPublicIp;
-extern uint32_t sdbMasterStartTime;
-extern SIpList *pSdbIpList;
-extern SIpList *pSdbPublicIpList;
+extern SRpcIpSet *pSdbIpList;
+extern SRpcIpSet *pSdbPublicIpList;
 
 extern void (*sdbWorkAsMasterCallback)();  // this function pointer will be set by taosd
 
@@ -71,8 +63,6 @@ enum _sdbaction {
   SDB_MAX_ACTION_TYPES
 };
 
-#ifdef CLUSTER
-
 #define SDB_MAX_PEERS 4
 typedef struct {
   uint32_t ip;
@@ -91,19 +81,12 @@ typedef struct {
   // internal
   int   syncFd;
   void *hbTimer;
-  void *thandle;
   void *pSync;
 } SSdbPeer;
-
-SSdbPeer *sdbAddPeer(uint32_t ip, uint32_t publicIp, char role);
-
-void sdbUpdateIpList();
 
 extern SSdbPeer *sdbPeer[];
 #define sdbInited (sdbPeer[0])
 #define sdbStatus (sdbPeer[0]->status)
-
-#endif
 
 void *sdbOpenTable(int maxRows, int32_t maxRowSize, char *name, uint8_t keyType, char *directory,
                    void *(*appTool)(char, void *, char *, int, int *));
@@ -134,16 +117,12 @@ int sdbInitPeers(char *directory);
 
 void sdbCleanUpPeers();
 
-int sdbCfgNode(char *cont);
-
 int64_t sdbGetVersion();
 
+int32_t sdbGetRunStatus();
 
-#define TSDB_MAX_TABLES 1000
-extern void* tsChildTableSdb;
-extern void* tsNormalTableSdb;
-extern void* tsStreamTableSdb;
-extern void* tsSuperTableSdb;
+#define TSDB_MAX_NORMAL_TABLES 10000
+#define TSDB_MAX_SUPER_TABLES  1000
 
 #ifdef __cplusplus
 }
