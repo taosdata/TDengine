@@ -50,6 +50,7 @@ static void (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
 
 int dnodeInitMgmt() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_FREE_VNODE] = dnodeProcessDropVnodeMsg;
+  return 0;
 }
 
 void dnodeCleanupMgmt() {
