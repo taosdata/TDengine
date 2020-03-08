@@ -18,13 +18,13 @@
 
 #define _XOPEN_SOURCE
 
-#include "os.h"
 #include "hash.h"
+#include "os.h"
 #include "tscSecondaryMerge.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "tsqldef.h"
+#include "ttokendef.h"
 #include "ttypes.h"
 
 #include "tlog.h"

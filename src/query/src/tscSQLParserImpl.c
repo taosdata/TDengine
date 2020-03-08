@@ -13,13 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <qsqltype.h>
 #include "os.h"
+#include "qsqlparser.h"
 #include "taosmsg.h"
 #include "tglobalcfg.h"
 #include "tlog.h"
-#include "tscSQLParser.h"
 #include "tstoken.h"
 #include "ttime.h"
+#include "ttokendef.h"
+#include "ttypes.h"
 #include "tutil.h"
 
 int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {

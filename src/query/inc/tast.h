@@ -20,13 +20,11 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "os.h"
 
 #include "taosmsg.h"
 #include "ttypes.h"
-#include "os.h"
+#include "tvariant.h"
 
 struct tSQLBinaryExpr;
 struct SSchema;

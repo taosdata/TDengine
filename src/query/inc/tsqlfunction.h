@@ -25,6 +25,7 @@ extern "C" {
 
 #include "trpc.h"
 #include "ttypes.h"
+#include "tvariant.h"
 
 #define TSDB_FUNC_INVALID_ID  -1
 #define TSDB_FUNC_COUNT        0

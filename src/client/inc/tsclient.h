@@ -31,6 +31,7 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 #include "trpc.h"
+#include "qsqltype.h"
 
 #define TSC_GET_RESPTR_BASE(res, _queryinfo, col) (res->data + ((_queryinfo)->fieldsInfo.pSqlExpr[col]->offset) * res->numOfRows)
 
