@@ -25,12 +25,12 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "http.h"
+#include "trpc.h"
 #include "dnode.h"
 #include "dnodeMgmt.h"
 #include "dnodeModule.h"
 #include "dnodeShell.h"
 #include "dnodeSystem.h"
-#include "dnodeVnodeMgmt.h"
 
 #ifdef CLUSTER
 #include "account.h"
@@ -49,6 +49,8 @@ static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
 static int32_t dnodeInitRpcQHandle();
 static int32_t dnodeInitQueryQHandle();
 static int32_t dnodeInitTmrCtl();
+
+int32_t (*dnodeInitPeers)(int32_t numOfThreads) = NULL;
 
 void     *tsDnodeTmr;
 void     **tsRpcQhandle;
@@ -93,7 +95,7 @@ void dnodeCleanUpSystem() {
 
   dnodeCleanupShell();
   dnodeCleanUpModules();
-  dnodeCleanupVnodes();
+  dnodeCleanupMgmt();
   taosCloseLogger();
   dnodeCleanupStorage();
   dnodeCleanVnodesLock();
@@ -154,7 +156,7 @@ int32_t dnodeInitSystem() {
     return -1;
   }
 
-  dnodeInitMgmtIp();
+//  dnodeInitMgmtIp();
 
   tsPrintGlobalConfig();
 
@@ -193,7 +195,7 @@ int32_t dnodeInitSystem() {
     return -1;
   }
 
-  if (dnodeOpenVnodes() < 0) {
+  if (dnodeInitMgmt() < 0) {
     dError("failed to init vnode storage");
     return -1;
   }
@@ -303,9 +305,3 @@ int32_t (*dnodeCheckSystem)() = dnodeCheckSystemImp;
 int32_t dnodeInitPeersImp(int32_t numOfThreads) {
   return 0;
 }
-
-int32_t (*dnodeInitPeers)(int32_t numOfThreads) = dnodeInitPeersImp;
-
-
-
-

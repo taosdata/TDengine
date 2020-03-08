@@ -48,7 +48,7 @@ static void mgmtSendMsgToDnodeQueueFp(SSchedMsg *sched) {
   void    *ahandle = sched->ahandle;
   int8_t  *pCont   = sched->msg;
 
-  dnodeProcessMsgFromMgmt(msgType, pCont, contLen, ahandle, code);
+//  dnodeProcessMsgFromMgmt(msgType, pCont, contLen, ahandle, code);
 }
 
 void mgmtSendMsgToDnode(SRpcIpSet *ipSet, int8_t msgType, void *pCont, int32_t contLen, void *ahandle) {

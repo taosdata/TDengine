@@ -17,82 +17,246 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "tutil.h"
+#include "trpc.h"
+#include "tqueue.h"
+#include "taosmsg.h"
 #include "dnodeWrite.h"
-#include "dnodeVnodeMgmt.h"
+#include "dnodeMgmt.h"
 
-void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pConn, void (*callback)(SShellSubmitRspMsg *rsp, void *pConn)) {
-  dTrace("submit msg is disposed, affectrows:1");
+typedef struct {
+  int32_t  code;
+  int32_t  count;       // number of vnodes returned result
+  int32_t  numOfVnodes; // number of vnodes involved
+} SRpcContext;
 
-  SShellSubmitRspMsg result = {0};
+typedef struct _write {
+  void        *pCont;
+  int          contLen;
+  SRpcMsg      rpcMsg;
+  void        *pVnode;      // pointer to vnode
+  SRpcContext *pRpcContext; // RPC message context
+} SWriteMsg;
 
-  int32_t numOfSid = htonl(pSubmit->numOfSid);
-  if (numOfSid <= 0) {
-    dError("invalid num of tables:%d", numOfSid);
-    result.code = TSDB_CODE_INVALID_QUERY_MSG;
-    callback(&result, pConn);
+typedef struct {
+  taos_qset  qset;      // queue set
+  pthread_t  thread;    // thread 
+  int        workerId;  // worker ID
+} SWriteWorker;  
+
+typedef struct _thread_obj {
+  int            max;        // max number of workers
+  int            nextId;     // from 0 to max-1, cyclic
+  SWriteWorker  *writeWorker;
+} SWriteWorkerPool;
+
+static void (*dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SWriteMsg *);
+static void  *dnodeProcessWriteQueue(void *param);
+static void   dnodeHandleIdleWorker(SWriteWorker *pWorker);
+static void   dnodeProcessWriteResult(SWriteMsg *pWrite);
+static void   dnodeProcessSubmitMsg(SWriteMsg *pMsg);
+static void   dnodeProcessCreateTableMsg(SWriteMsg *pMsg);
+static void   dnodeProcessDropTableMsg(SWriteMsg *pMsg);
+
+SWriteWorkerPool wWorkerPool;
+
+int dnodeInitWrite() {
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT] = dnodeProcessSubmitMsg;
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_TABLE] = dnodeProcessCreateTableMsg;
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_DNODE_REMOVE_TABLE] = dnodeProcessDropTableMsg;
+
+  wWorkerPool.max = tsNumOfCores;
+  wWorkerPool.writeWorker = (SWriteWorker *)calloc(sizeof(SWriteWorker), wWorkerPool.max);
+  if (wWorkerPool.writeWorker == NULL) return -1;
+
+  for (int i=0; i<wWorkerPool.max; ++i) {
+    wWorkerPool.writeWorker[i].workerId = i;
   }
 
-  result.code = 0;
-  result.numOfRows = 1;
-  result.affectedRows = 1;
-  result.numOfFailedBlocks = 0;
-  callback(&result, pConn);
+  return 0;
 }
 
-int32_t dnodeCreateTable(SDCreateTableMsg *pTable) {
-  if (pTable->tableType == TSDB_TABLE_TYPE_CHILD_TABLE) {
-    dTrace("table:%s, start to create child table, stable:%s", pTable->tableId, pTable->superTableId);
-  } else if (pTable->tableType == TSDB_TABLE_TYPE_NORMAL_TABLE){
-    dTrace("table:%s, start to create normal table", pTable->tableId);
-  } else if (pTable->tableType == TSDB_TABLE_TYPE_STREAM_TABLE){
-    dTrace("table:%s, start to create stream table", pTable->tableId);
+void dnodeCleanupWrite() {
+  
+
+  free(wWorkerPool.writeWorker);
+}
+
+void dnodeWrite(SRpcMsg *pMsg) {
+  int     leftLen = pMsg->contLen;
+  char   *pCont = (char *)pMsg->pCont;
+  int     contLen = 0;
+  int     numOfVnodes = 0;
+  int32_t vgId = 0; 
+  SRpcContext *pRpcContext = NULL;
+
+  // parse head, get number of vnodes;
+
+  if ( numOfVnodes > 1) {
+    pRpcContext = calloc(sizeof(SRpcContext), 1);
+    pRpcContext->numOfVnodes = numOfVnodes;
+  }
+
+  while (leftLen > 0) {
+    // todo: parse head, get vgId, contLen
+
+    // get pVnode from vgId
+    void *pVnode = dnodeGetVnode(vgId);
+    if (pVnode == NULL) {
+
+      continue;
+    }
+   
+    // put message into queue
+    SWriteMsg writeMsg;
+    writeMsg.rpcMsg = *pMsg;
+    writeMsg.pCont = pCont;
+    writeMsg.contLen = contLen;
+    writeMsg.pRpcContext = pRpcContext;   
+    writeMsg.pVnode = pVnode;  // pVnode shall be saved for usage later
+ 
+    taos_queue queue = dnodeGetVnodeWworker(pVnode);
+    taosWriteQitem(queue, &writeMsg);
+ 
+    // next vnode 
+    leftLen -= contLen;
+    pCont -= contLen; 
+  }
+}
+
+void *dnodeAllocateWriteWorker() {
+  SWriteWorker *pWorker = wWorkerPool.writeWorker + wWorkerPool.nextId;
+
+  if (pWorker->qset == NULL) {
+    pWorker->qset = taosOpenQset();
+    if (pWorker->qset == NULL) return NULL;
+
+    pthread_attr_t thAttr;
+    pthread_attr_init(&thAttr);
+    pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+
+    if (pthread_create(&pWorker->thread, &thAttr, dnodeProcessWriteQueue, pWorker) != 0) {
+      dError("failed to create thread to process read queue, reason:%s", strerror(errno));
+      taosCloseQset(pWorker->qset);
+    }
+  }
+
+  taos_queue *queue = taosOpenQueue(sizeof(SWriteMsg));
+  if (queue) {
+    taosAddIntoQset(pWorker->qset, queue);
+    wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
+  }
+ 
+  return queue;
+}
+
+void dnodeFreeWriteWorker(void *wqueue) {
+
+  taosCloseQueue(wqueue);
+
+  // dynamically adjust the number of threads
+}
+
+static void *dnodeProcessWriteQueue(void *param) {
+  SWriteWorker *pWorker = (SWriteWorker *)param;
+  taos_qall     qall;
+  SWriteMsg     writeMsg;
+  int           numOfMsgs;
+
+  while (1) {
+    numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, &qall);
+    if (numOfMsgs <=0) { 
+      dnodeHandleIdleWorker(pWorker);  // thread exit if no queues anymore
+      continue;
+    }
+
+    for (int i=0; i<numOfMsgs; ++i) {
+      // retrieve all items, and write them into WAL
+      taosGetQitem(qall, &writeMsg);
+
+      // walWrite(pVnode->whandle, writeMsg.rpcMsg.msgType, writeMsg.pCont, writeMsg.contLen);
+    }
+    
+    // flush WAL file
+    // walFsync(pVnode->whandle);
+
+    // browse all items, and process them one by one
+    taosResetQitems(qall);
+    for (int i=0; i<numOfMsgs; ++i) {
+      taosGetQitem(qall, &writeMsg);
+
+      terrno = 0;
+      if (dnodeProcessWriteMsgFp[writeMsg.rpcMsg.msgType]) {
+        (*dnodeProcessWriteMsgFp[writeMsg.rpcMsg.msgType]) (&writeMsg);
+      } else {
+        terrno = TSDB_CODE_MSG_NOT_PROCESSED;  
+      }
+     
+      dnodeProcessWriteResult(&writeMsg);
+    }
+
+    // free the Qitems;
+    taosFreeQitems(qall);
+  }
+
+  return NULL;
+}
+
+static void dnodeProcessWriteResult(SWriteMsg *pWrite) {
+  SRpcContext *pRpcContext = pWrite->pRpcContext;
+  int32_t      code = 0;
+
+  dnodeReleaseVnode(pWrite->pVnode);
+
+  if (pRpcContext) {
+    if (terrno) {
+      if (pRpcContext->code == 0) pRpcContext->code = terrno;  
+    }
+
+    int count = atomic_add_fetch_32(&pRpcContext->count, 1);
+    if (count < pRpcContext->numOfVnodes) {
+      // not over yet, multiple vnodes
+      return;
+    }
+
+    // over, result can be merged now
+    code = pRpcContext->code;
   } else {
-    dError("table:%s, invalid table type:%d", pTable->tableType);
+    code = terrno;
   }
 
-  for (int i = 0; i < pTable->numOfVPeers; ++i) {
-    dTrace("table:%s ip:%s vnode:%d sid:%d", pTable->tableId, taosIpStr(pTable->vpeerDesc[i].ip),
-           pTable->vpeerDesc[i].vnode, pTable->sid);
+  SRpcMsg rsp;
+  rsp.handle = pWrite->rpcMsg.handle;
+  rsp.code = code;
+  rsp.pCont = NULL;
+  rpcSendResponse(&rsp);
+  rpcFreeCont(pWrite->rpcMsg.pCont);  // free the received message
+}
+
+static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
+
+  int num = taosGetQueueNumber(pWorker->qset);
+
+  if (num > 0) {
+     usleep(100);
+     sched_yield(); 
+  } else {
+     taosCloseQset(pWorker->qset);
+     pWorker->qset = NULL;
+     pthread_exit(NULL);
   }
-
-  SSchema *pSchema = (SSchema *) pTable->data;
-  for (int32_t col = 0; col < pTable->numOfColumns; ++col) {
-    dTrace("table:%s col index:%d colId:%d bytes:%d type:%d name:%s",
-           pTable->tableId, col, pSchema->colId, pSchema->bytes, pSchema->type, pSchema->name);
-    pSchema++;
-  }
-  for (int32_t col = 0; col < pTable->numOfTags; ++col) {
-    dTrace("table:%s tag index:%d colId:%d bytes:%d type:%d name:%s",
-           pTable->tableId, col, pSchema->colId, pSchema->bytes, pSchema->type, pSchema->name);
-    pSchema++;
-  }
-
-  return TSDB_CODE_SUCCESS;
 }
 
-/*
- * Remove table from local repository
- */
-int32_t dnodeDropTable(SDRemoveTableMsg *pTable) {
-  dPrint("table:%s, sid:%d is removed", pTable->tableId, pTable->sid);
-  return TSDB_CODE_SUCCESS;
+static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
+
+  
 }
 
-/*
- * Create stream
- * if stream already exist, update it
- */
-int32_t dnodeCreateStream(SDAlterStreamMsg *pStream) {
-  dPrint("stream:%s, is created, ", pStream->tableId);
-  return TSDB_CODE_SUCCESS;
+static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
+
+
 }
 
-/*
- * Remove all child tables of supertable from local repository
- */
-int32_t dnodeDropSuperTable(SDRemoveSuperTableMsg *pStable) {
-  dPrint("stable:%s, is removed", pStable->tableId);
-  return TSDB_CODE_SUCCESS;
-}
+static void dnodeProcessDropTableMsg(SWriteMsg *pMsg) {
 
+
+}
