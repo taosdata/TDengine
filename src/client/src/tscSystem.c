@@ -72,7 +72,7 @@ int32_t tscInitRpc(const char *user, const char *secret) {
     rpcInit.cfp = tscProcessMsgFromServer;
     rpcInit.sessions = tsMaxVnodeConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
-    rpcInit.user = user;
+    rpcInit.user = (char*)user;
     rpcInit.ckey = "key";
     rpcInit.secret = secretEncrypt;
 

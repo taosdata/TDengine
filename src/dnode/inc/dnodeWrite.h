@@ -20,41 +20,12 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
-#include "taosdef.h"
-#include "taosmsg.h"
+int   dnodeInitWrite();
+void  dnodeCleanupWrite();
+void  dnodeWrite(SRpcMsg *pMsg);
+void *dnodeAllocateWriteWorker();
+void  dnodeFreeWriteWorker(void *worker);
 
-/*
- * Write data based on dnode, the detail result can be fetched from rsponse
- *   pSubmit:  Data to be written
- *   pConn:    Communication handle
- *   callback: Pass the write result through a callback function, possibly in a different thread space
- *             rsp: will not be freed by callback function
- */
-void dnodeWriteData(SShellSubmitMsg *pSubmit, void *pConn, void (*callback)(SShellSubmitRspMsg *rsp, void *pConn));
-
-/*
- * Create table with specified configuration and open it
- * if table already exist, update its schema and tag
- */
-int32_t dnodeCreateTable(SDCreateTableMsg *pTable);
-
-/*
- * Remove table from local repository
- */
-int32_t dnodeDropTable(SDRemoveTableMsg *pTable);
-
-/*
- * Create stream
- * if stream already exist, update it
- */
-int32_t dnodeCreateStream(SDAlterStreamMsg *pStream);
-
-/*
- * Remove all child tables of supertable from local repository
- */
-int32_t dnodeDropSuperTable(SDRemoveSuperTableMsg *pStable);
 
 #ifdef __cplusplus
 }

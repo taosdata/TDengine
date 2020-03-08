@@ -1,9 +1,7 @@
-cmake_minimum_required(VERSION 2.8)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+PROJECT(TDengine)
 
-add_subdirectory(common)
-
-add_subdirectory(tsdb)
-
-enable_testing()
-
-# add_subdirectory(tests)
+ADD_SUBDIRECTORY(common)
+ADD_SUBDIRECTORY(tsdb)
+# ENABLE_TESTING()
+# ADD_SUBDIRECTORY(tests)

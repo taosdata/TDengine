@@ -380,7 +380,7 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
 void tscInitMsgs();
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
-void tscProcessMsgFromServer(char type, void *pCont, int contLen, void *ahandle, int32_t code);
+void tscProcessMsgFromServer(SRpcMsg *rpcMsg);
 int  tscProcessSql(SSqlObj *pSql);
 
 void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows);

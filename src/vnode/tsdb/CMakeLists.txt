@@ -1,13 +1,18 @@
-aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src SOURCE_LIST)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+PROJECT(TDengine)
 
-add_library(tsdb STATIC ${SOURCE_LIST})
-target_link_libraries(tsdb common tutil)
+IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
+  INCLUDE_DIRECTORIES(${TD_OS_DIR}/inc)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/inc)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/util/inc)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/vnode/common/inc)
 
-target_include_directories(tsdb 
-  PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc" 
-  PUBLIC "${CMAKE_SOURCE_DIR}/src/inc"
-  PUBLIC "${CMAKE_SOURCE_DIR}/src/util/inc"
-  PUBLIC "${CMAKE_SOURCE_DIR}/src/os/linux/inc"
-  )
+  INCLUDE_DIRECTORIES(inc)
+  AUX_SOURCE_DIRECTORY(src SRC)
 
-add_subdirectory(tests)
+  ADD_LIBRARY(tsdb ${SRC})
+  TARGET_LINK_LIBRARIES(tsdb common tutil)
+
+  # Someone has no gtest directory, so comment it
+  #ADD_SUBDIRECTORY(tests)
+ENDIF ()

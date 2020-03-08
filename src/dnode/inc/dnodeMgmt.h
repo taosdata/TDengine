@@ -20,18 +20,17 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
+int        dnodeInitMgmt();
+void       dnodeCleanupMgmt();
+void       dnodeMgmt(SRpcMsg *);
 
-int32_t dnodeInitMgmt();
-void dnodeInitMgmtIp();
-
-void dnodeProcessMsgFromMgmt(char msgType, void *pCont, int32_t contLen, void *pConn, int32_t code);
-void dnodeSendMsgToMnode(int8_t msgType, void *pCont, int32_t contLen);
-void dnodeSendRspToMnode(void *pConn, int8_t msgType, int32_t code, void *pCont, int32_t contLen);
-
-void dnodeSendVnodeCfgMsg(int32_t vnode);
-void dnodeSendTableCfgMsg(int32_t vnode, int32_t sid);
+void*      dnodeGetVnode(int vgId);
+int        dnodeGetVnodeStatus(void *);
+void*      dnodeGetVnodeRworker(void *);
+void*      dnodeGetVnodeWworker(void *);
+void*      dnodeGetVnodeWal(void *);
+void*      dnodeGetVnodeTsdb(void *);  
+void       dnodeReleaseVnode(void *);
 
 #ifdef __cplusplus
 }
