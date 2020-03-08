@@ -50,6 +50,9 @@ static int32_t dnodeInitRpcQHandle();
 static int32_t dnodeInitQueryQHandle();
 static int32_t dnodeInitTmrCtl();
 
+
+int32_t (*dnodeInitStorage)() = NULL;
+void    (*dnodeCleanupStorage)() = NULL;
 int32_t (*dnodeInitPeers)(int32_t numOfThreads) = NULL;
 
 void     *tsDnodeTmr;
@@ -247,12 +250,6 @@ int32_t dnodeInitStorageImp() {
 
   return 0;
 }
-
-int32_t (*dnodeInitStorage)() = dnodeInitStorageImp;
-
-void dnodeCleanupStorageImp() {}
-
-void (*dnodeCleanupStorage)() = dnodeCleanupStorageImp;
 
 static int32_t dnodeInitQueryQHandle() {
   int32_t numOfThreads = tsRatioOfQueryThreads * tsNumOfCores * tsNumOfThreadsPerCore;
