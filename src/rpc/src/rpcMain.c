@@ -359,7 +359,7 @@ void rpcSendRequest(void *shandle, SRpcIpSet *pIpSet, SRpcMsg *pMsg) {
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
   char type = pMsg->msgType;
-  if (type == TSDB_MSG_TYPE_DNODE_QUERY || type == TSDB_MSG_TYPE_DNODE_RETRIEVE ||
+  if (type == TSDB_MSG_TYPE_QUERY || type == TSDB_MSG_TYPE_RETRIEVE ||
       type == TSDB_MSG_TYPE_STABLE_META || type == TSDB_MSG_TYPE_MULTI_TABLE_META ||
       type == TSDB_MSG_TYPE_SHOW ) 
     pContext->connType = RPC_CONN_TCPC;
