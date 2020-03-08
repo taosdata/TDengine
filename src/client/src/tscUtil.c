@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "tscUtil.h"
 #include "hash.h"
+#include "os.h"
 #include "taosmsg.h"
+#include "tast.h"
 #include "tcache.h"
 #include "tkey.h"
 #include "tmd5.h"
@@ -25,9 +26,8 @@
 #include "tscSecondaryMerge.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "tsqldef.h"
 #include "ttimer.h"
-#include "tast.h"
+#include "ttokendef.h"
 
 /*
  * the detailed information regarding metric meta key is:
@@ -460,11 +460,16 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   pthread_mutex_lock(&pObj->mutex);
   tfree(pSql->sqlstr);
   pthread_mutex_unlock(&pObj->mutex);
-
+  
   tscFreeSqlResult(pSql);
   tfree(pSql->pSubs);
   pSql->numOfSubs = 0;
-
+  
+  pSql->freed = 0;
+  tscFreeSqlCmdData(pCmd);
+  
+  tscTrace("%p free sqlObj partial completed", pSql);
+  
   tscFreeSqlCmdData(pCmd);
 }
 

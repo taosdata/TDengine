@@ -40,6 +40,49 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 static void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows);
 
+void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, int32_t sqlLen) {
+  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlRes *pRes = &pSql->res;
+  
+  pSql->signature = pSql;
+  pSql->pTscObj = pObj;
+  pSql->fp = fp;
+  pSql->param = param;
+  
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
+    tscError("failed to malloc payload");
+    tfree(pSql);
+    tscQueueAsyncError(fp, param);
+    return;
+  }
+  
+  pSql->sqlstr = malloc(sqlLen + 1);
+  if (pSql->sqlstr == NULL) {
+    tscError("%p failed to malloc sql string buffer", pSql);
+    tscQueueAsyncError(fp, param);
+    free(pCmd->payload);
+    free(pSql);
+    return;
+  }
+  
+  pRes->qhandle = 0;
+  pRes->numOfRows = 1;
+  
+  strtolower(pSql->sqlstr, sqlstr);
+  tscDump("%p pObj:%p, Async SQL: %s", pSql, pObj, pSql->sqlstr);
+  
+  int32_t code = tsParseSql(pSql, true);
+  if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
+  
+  if (code != TSDB_CODE_SUCCESS) {
+    pSql->res.code = (uint8_t)code;
+    tscQueueAsyncRes(pSql);
+    return;
+  }
+  
+  tscDoQuery(pSql);
+}
+
 // TODO return the correct error code to client in tscQueueAsyncError
 void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *, int), void *param) {
   STscObj *pObj = (STscObj *)taos;
@@ -49,63 +92,24 @@ void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *,
     tscQueueAsyncError(fp, param);
     return;
   }
-
+  
   int32_t sqlLen = strlen(sqlstr);
   if (sqlLen > tsMaxSQLStringLen) {
     tscError("sql string too long");
     tscQueueAsyncError(fp, param);
     return;
   }
-
+  
   taosNotePrintTsc(sqlstr);
-
+  
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
     tscQueueAsyncError(fp, param);
     return;
   }
-
-  SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
-
-  pSql->signature = pSql;
-  pSql->pTscObj = pObj;
-  pSql->fp = fp;
-  pSql->param = param;
-
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
-    tscError("failed to malloc payload");
-    tfree(pSql);
-    tscQueueAsyncError(fp, param);
-    return;
-  }
-
-  pSql->sqlstr = malloc(sqlLen + 1);
-  if (pSql->sqlstr == NULL) {
-    tscError("%p failed to malloc sql string buffer", pSql);
-    tscQueueAsyncError(fp, param);
-    free(pCmd->payload);
-    free(pSql);
-    return;
-  }
-
-  pRes->qhandle = 0;
-  pRes->numOfRows = 1;
-
-  strtolower(pSql->sqlstr, sqlstr);
-  tscDump("%p pObj:%p, Async SQL: %s", pSql, pObj, pSql->sqlstr);
-
-  int32_t code = tsParseSql(pSql, true);
-  if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
-
-  if (code != TSDB_CODE_SUCCESS) {
-    pSql->res.code = (uint8_t)code;
-    tscQueueAsyncRes(pSql);
-    return;
-  }
-
-  tscDoQuery(pSql);
+  
+  doAsyncQuery(pObj, pSql, fp, param, sqlstr, sqlLen);
 }
 
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {

@@ -25,13 +25,18 @@
 #include <stdio.h>
 /************ Begin %include sections from the grammar ************************/
 
+#include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
-#include <stdbool.h>
-#include "tscSQLParser.h"
+#include "qsqlparser.h"
+#include "tstoken.h"
 #include "tutil.h"
+#include "tvariant.h"
+#include "ttokendef.h"
+#include "qsqltype.h"
+
 /**************** End of %include directives **********************************/
 /* These constants specify the various numeric values for terminal symbols
 ** in a format understandable to "makeheaders".  This section is blank unless

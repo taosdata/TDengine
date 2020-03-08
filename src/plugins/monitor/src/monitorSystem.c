@@ -13,11 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
+
 #include "monitor.h"
-#include <inttypes.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "dnode.h"
 #include "monitorSystem.h"
 #include "tsclient.h"

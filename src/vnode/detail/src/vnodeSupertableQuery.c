@@ -726,7 +726,7 @@ static int32_t mgmtFilterMeterByIndex(STabObj* pMetric, tQueryResultset* pRes, c
                                        .setupInfoFn = (__do_filter_suppl_fn_t)filterPrepare,
                                        .pExtInfo = &s};
 
-    tSQLBinaryExprTraverse(pExpr, pMetric->pSkipList, pRes, &supp);
+//    tSQLBinaryExprTraverse(pExpr, pMetric->pSkipList, pRes, &supp);
     tSQLBinaryExprDestroy(&pExpr, tSQLListTraverseDestroyInfo);
   }
 

@@ -31,6 +31,7 @@ extern "C" {
 #include "tsqlfunction.h"
 #include "tutil.h"
 #include "trpc.h"
+#include "qsqltype.h"
 
 #define TSC_GET_RESPTR_BASE(res, _queryinfo, col) (res->data + ((_queryinfo)->fieldsInfo.pSqlExpr[col]->offset) * res->numOfRows)
 
@@ -428,6 +429,8 @@ void tscFreeSqlObj(SSqlObj *pObj);
 
 void tscCloseTscObj(STscObj *pObj);
 
+void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const char* sqlstr, int32_t sqlLen);
+
 void tscProcessMultiVnodesInsert(SSqlObj *pSql);
 void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql);
 void tscKillMetricQuery(SSqlObj *pSql);
@@ -447,7 +450,7 @@ void tscQueueAsyncFreeResult(SSqlObj *pSql);
 extern void *     pVnodeConn;
 extern void *     pTscMgmtConn;
 extern void *     tscCacheHandle;
-extern uint8_t    globalCode;
+extern int32_t    globalCode;
 extern int        slaveIndex;
 extern void *     tscTmr;
 extern void *     tscConnCache;

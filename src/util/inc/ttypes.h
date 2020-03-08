@@ -35,14 +35,28 @@ extern "C" {
 
 #define POINTER_BYTES sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
 
-typedef struct tDataDescriptor {
+#define TSDB_DATA_BOOL_NULL             0x02
+#define TSDB_DATA_TINYINT_NULL          0x80
+#define TSDB_DATA_SMALLINT_NULL         0x8000
+#define TSDB_DATA_INT_NULL              0x80000000
+#define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
+
+#define TSDB_DATA_FLOAT_NULL            0x7FF00000              // it is an NAN
+#define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN
+#define TSDB_DATA_NCHAR_NULL            0xFFFFFFFF
+#define TSDB_DATA_BINARY_NULL           0xFF
+
+#define TSDB_DATA_NULL_STR              "NULL"
+#define TSDB_DATA_NULL_STR_L            "null"
+
+typedef struct tDataTypeDescriptor {
   int16_t nType;
   int16_t nameLen;
   int32_t nSize;
   char *  aName;
-} tDataDescriptor;
+} tDataTypeDescriptor;
 
-extern tDataDescriptor tDataTypeDesc[11];
+extern tDataTypeDescriptor tDataTypeDesc[11];
 
 bool isValidDataType(int32_t type, int32_t length);
 bool isNull(const char *val, int32_t type);
@@ -52,34 +66,6 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
 
 void assignVal(char *val, const char *src, int32_t len, int32_t type);
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
-
-// variant, each number/string/field_id has a corresponding struct during parsing sql
-typedef struct tVariant {
-  uint32_t nType;
-  int32_t  nLen;  // only used for string, for number, it is useless
-  union {
-    int64_t  i64Key;
-    double   dKey;
-    char *   pz;
-    wchar_t *wpz;
-  };
-} tVariant;
-
-void tVariantCreate(tVariant *pVar, SSQLToken *token);
-
-void tVariantCreateFromString(tVariant *pVar, char *pz, uint32_t len, uint32_t type);
-
-void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t type);
-
-void tVariantDestroy(tVariant *pV);
-
-void tVariantAssign(tVariant *pDst, const tVariant *pSrc);
-
-int32_t tVariantToString(tVariant *pVar, char *dst);
-
-int32_t tVariantDump(tVariant *pVariant, char *payload, char type);
-
-int32_t tVariantTypeSetType(tVariant *pVariant, char type);
 
 #ifdef __cplusplus
 }
