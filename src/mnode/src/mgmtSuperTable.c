@@ -16,8 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
-#include "tast.h"
-#include "textbuffer.h"
 #include "tschemautil.h"
 #include "tscompression.h"
 #include "tskiplist.h"

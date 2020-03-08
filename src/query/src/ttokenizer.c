@@ -13,14 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "hashutil.h"
-#include "shash.h"
-#include "tutil.h"
-#include "tsqldef.h"
-#include "tstoken.h"
-#include "ttypes.h"
 #include "hash.h"
+#include "hashutil.h"
+#include "os.h"
+#include "shash.h"
+#include "tstoken.h"
+#include "ttokendef.h"
+#include "ttypes.h"
+#include "tutil.h"
 
 // All the keywords of the SQL language are stored in a hash table
 typedef struct SKeyword {

@@ -196,20 +196,6 @@ extern "C" {
 #define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_BYTES_PER_ROW-TSDB_KEYSIZE)
 #define PRIMARYKEY_TIMESTAMP_COL_INDEX  0
 
-#define TSDB_DATA_BOOL_NULL             0x02
-#define TSDB_DATA_TINYINT_NULL          0x80
-#define TSDB_DATA_SMALLINT_NULL         0x8000
-#define TSDB_DATA_INT_NULL              0x80000000
-#define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
-
-#define TSDB_DATA_FLOAT_NULL            0x7FF00000              // it is an NAN
-#define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN
-#define TSDB_DATA_NCHAR_NULL            0xFFFFFFFF
-#define TSDB_DATA_BINARY_NULL           0xFF
-
-#define TSDB_DATA_NULL_STR              "NULL"
-#define TSDB_DATA_NULL_STR_L            "null"
-
 #define TSDB_MAX_RPC_THREADS            5
 
 #define TSDB_QUERY_TYPE_NON_TYPE                       0x00U     // none type

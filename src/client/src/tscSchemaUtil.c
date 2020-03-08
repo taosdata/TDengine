@@ -16,7 +16,7 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "tschemautil.h"
-#include "tsqldef.h"
+#include "ttokendef.h"
 #include "ttypes.h"
 #include "tutil.h"
 

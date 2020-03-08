@@ -16,7 +16,6 @@
 #include "os.h"
 
 #include "tscSyntaxtreefunction.h"
-#include "tscSQLParser.h"
 #include "ttypes.h"
 #include "tutil.h"
 

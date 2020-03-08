@@ -181,16 +181,22 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   }
 
   pSql->ipList->ip[0] = inet_addr("192.168.0.1");
+  SSqlCmd* pCmd = &pSql->cmd;
+  
   if (pSql->cmd.command < TSDB_SQL_MGMT) {
     pSql->ipList->port = tsVnodeShellPort;
     tscPrint("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList->port);
     memcpy(pMsg, pSql->cmd.payload + tsRpcHeadSize, pSql->cmd.payloadLen);
-    rpcSendRequest(pVnodeConn, pSql->ipList, pSql->cmd.msgType, pMsg, pSql->cmd.payloadLen, pSql);
+    
+    SRpcMsg msg = {.msgType = pCmd->msgType, .contLen = pCmd->payloadLen, .pCont = pMsg, .handle = pSql};
+    rpcSendRequest(pVnodeConn, pSql->ipList, &msg);
   } else {
     pSql->ipList->port = tsMgmtShellPort;
     tscPrint("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList->port);
     memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
-    rpcSendRequest(pTscMgmtConn, pSql->ipList, pSql->cmd.msgType, pMsg, pSql->cmd.payloadLen, pSql);
+  
+    SRpcMsg msg = {.msgType = pCmd->msgType, .contLen = pCmd->payloadLen, .pCont = pMsg, .handle = pSql};
+    rpcSendRequest(pTscMgmtConn, pSql->ipList, &msg);
   }
 
   return TSDB_CODE_SUCCESS;

@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
+#include "os.h"
 
 #define TK_SPACE      200
 #define TK_COMMENT    201
