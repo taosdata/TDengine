@@ -38,15 +38,15 @@ void* taosArrayInit(size_t size, size_t elemSize) {
   return pArray;
 }
 
-static void taosArrayResize(SArray* pArray) {
+static int32_t taosArrayResize(SArray* pArray) {
   assert(pArray->size >= pArray->capacity);
 
   size_t size = pArray->capacity;
   size = (size << 1u);
 
   void* tmp = realloc(pArray->pData, size * pArray->elemSize);
-  if (tmp == NULL) {
-    // todo
+  if (tmp == NULL) {  // reallocate failed, the original buffer remains
+    return -1;
   }
 
   pArray->pData = tmp;
@@ -59,7 +59,12 @@ void* taosArrayPush(SArray* pArray, void* pData) {
   }
 
   if (pArray->size >= pArray->capacity) {
-    taosArrayResize(pArray);
+    int32_t ret = taosArrayResize(pArray);
+    
+    // failed to push data into buffer due to the failure of memory allocation
+    if (ret != 0) {
+      return NULL;
+    }
   }
 
   void* dst = TARRAY_GET_ELEM(pArray, pArray->size);
@@ -82,20 +87,32 @@ void* taosArrayGet(SArray* pArray, size_t index) {
   return TARRAY_GET_ELEM(pArray, index);
 }
 
+void* taosArrayGetP(SArray* pArray, size_t index) {
+  void* ret = taosArrayGet(pArray, index);
+  if (ret == NULL) {
+    return NULL;
+  }
+  
+  return *(void**)ret;
+}
+
 size_t taosArrayGetSize(SArray* pArray) { return pArray->size; }
 
-void taosArrayInsert(SArray* pArray, int32_t index, void* pData) {
+void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
   if (pArray == NULL || pData == NULL) {
-    return;
+    return NULL;
   }
 
   if (index >= pArray->size) {
-    taosArrayPush(pArray, pData);
-    return;
+    return taosArrayPush(pArray, pData);
   }
 
   if (pArray->size >= pArray->capacity) {
-    taosArrayResize(pArray);
+    int32_t ret = taosArrayResize(pArray);
+    
+    if (ret < 0) {
+      return NULL;
+    }
   }
 
   void* dst = TARRAY_GET_ELEM(pArray, index);
@@ -105,9 +122,11 @@ void taosArrayInsert(SArray* pArray, int32_t index, void* pData) {
   memcpy(dst, pData, pArray->elemSize);
 
   pArray->size += 1;
+  
+  return dst;
 }
 
-void taosArrayDestory(SArray* pArray) {
+void taosArrayDestroy(SArray* pArray) {
   if (pArray == NULL) {
     return;
   }

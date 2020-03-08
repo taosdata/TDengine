@@ -56,7 +56,7 @@ void* taosArrayPush(SArray* pArray, void* pData);
 void taosArrayPop(SArray* pArray);
 
 /**
- *
+ * get the data from array
  * @param pArray
  * @param index
  * @return
@@ -64,25 +64,33 @@ void taosArrayPop(SArray* pArray);
 void* taosArrayGet(SArray* pArray, size_t index);
 
 /**
- *
+ * get the pointer data from the array
+ * @param pArray
+ * @param index
+ * @return
+ */
+void* taosArrayGetP(SArray* pArray, size_t index);
+
+/**
+ * return the size of array
  * @param pArray
  * @return
  */
 size_t taosArrayGetSize(SArray* pArray);
 
 /**
- *
+ * insert data into array
  * @param pArray
  * @param index
  * @param pData
  */
-void taosArrayInsert(SArray* pArray, int32_t index, void* pData);
+void* taosArrayInsert(SArray* pArray, size_t index, void* pData);
 
 /**
  *
  * @param pArray
  */
-void taosArrayDestory(SArray* pArray);
+void taosArrayDestroy(SArray* pArray);
 
 #ifdef __cplusplus
 }
