@@ -511,7 +511,7 @@ int taosGetTableRecordInfo(char *table, STableRecordInfo *pTableRecordInfo, TAOS
 }
 
 
-int32_t taosSaveAllNormalTableToTempFile(TAOS *taosCon, char* meter, int* fd) {
+int32_t taosSaveAllNormalTableToTempFile(TAOS *taosCon, char*meter, char* metric, int* fd) {
   STableRecord tableRecord;
 
   if (-1 == *fd) {
@@ -524,6 +524,7 @@ int32_t taosSaveAllNormalTableToTempFile(TAOS *taosCon, char* meter, int* fd) {
   
   memset(tableRecord.name, 0, sizeof(STableRecord));
   strcpy(tableRecord.name, meter);
+  strcpy(tableRecord.metric, metric);
 
   twrite(*fd, &tableRecord, sizeof(STableRecord));
   return 0;
@@ -576,7 +577,7 @@ int32_t taosSaveTableOfMetricToTempFile(TAOS *taosCon, char* metric, struct argu
         free(tmpCommand);
         return -1;
       }
-
+      
       numOfThread++;
     }
   
@@ -753,9 +754,13 @@ int taosDumpOut(struct arguments *arguments) {
         }
 
         if (tableRecordInfo.isMetric) {  // dump all table of this metric
+          (void)taosDumpStable(tableRecordInfo.tableRecord.metric, fp, taos);
           retCode = taosSaveTableOfMetricToTempFile(taos, tableRecordInfo.tableRecord.metric, arguments, &totalNumOfThread);
-        } else {  // dump this normal meter         
-          retCode = taosSaveAllNormalTableToTempFile(taos, tableRecordInfo.tableRecord.name, &normalTblFd);
+        } else {
+          if (tableRecordInfo.tableRecord.metric[0] != '\0') {  // dump this sub table and it's metric
+            (void)taosDumpStable(tableRecordInfo.tableRecord.metric, fp, taos);          
+          }
+          retCode = taosSaveAllNormalTableToTempFile(taos, tableRecordInfo.tableRecord.name, tableRecordInfo.tableRecord.metric, &normalTblFd);
         }
 
         if (retCode < 0) {
