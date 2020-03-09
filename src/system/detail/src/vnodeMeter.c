@@ -204,6 +204,7 @@ int vnodeSaveAllMeterObjToFile(int vnode) {
   buffer = (char *)malloc(tsMeterSizeOnFile);
   if (buffer == NULL) {
     dError("Failed to allocate memory while saving all meter objects to file");
+    fclose(fp);
     return -1;
   }
 
