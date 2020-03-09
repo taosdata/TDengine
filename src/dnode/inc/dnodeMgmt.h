@@ -20,17 +20,17 @@
 extern "C" {
 #endif
 
-int        dnodeInitMgmt();
-void       dnodeCleanupMgmt();
-void       dnodeMgmt(SRpcMsg *);
+int32_t dnodeInitMgmt();
+void    dnodeCleanupMgmt();
+void    dnodeMgmt(void *rpcMsg);
 
-void*      dnodeGetVnode(int vgId);
-int        dnodeGetVnodeStatus(void *);
-void*      dnodeGetVnodeRworker(void *);
-void*      dnodeGetVnodeWworker(void *);
-void*      dnodeGetVnodeWal(void *);
-void*      dnodeGetVnodeTsdb(void *);  
-void       dnodeReleaseVnode(void *);
+void*   dnodeGetVnode(int32_t vgId);
+int32_t dnodeGetVnodeStatus(void *pVnode);
+void*   dnodeGetVnodeRworker(void *pVnode);
+void*   dnodeGetVnodeWworker(void *pVnode);
+void*   dnodeGetVnodeWal(void *pVnode);
+void*   dnodeGetVnodeTsdb(void *pVnode);
+void    dnodeReleaseVnode(void *pVnode);
 
 #ifdef __cplusplus
 }

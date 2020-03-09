@@ -28,7 +28,7 @@ static void  *tsDnodeMnodeRpc = NULL;
 int32_t dnodeInitMnode() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_TABLE] = dnodeWrite;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_DNODE_REMOVE_TABLE] = dnodeWrite;
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_FREE_VNODE] = dnodeMgmt;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_DROP_VNODE] = dnodeMgmt;
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));

@@ -259,7 +259,7 @@ void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *p
 
   if (msgType == TSDB_MSG_TYPE_TABLE_CFG) {
     mgmtProcessTableCfgMsg(msgType, pCont, contLen, pConn);
-  } else if (msgType == TSDB_MSG_TYPE_VNODE_CFG) {
+  } else if (msgType == TSDB_MSG_TYPE_CONFIG_VNODE) {
     mgmtProcessVnodeCfgMsg(msgType, pCont, contLen, pConn);
   } else if (msgType == TSDB_MSG_TYPE_DNODE_CREATE_TABLE_RSP) {
     mgmtProcessCreateTableRsp(msgType, pCont, contLen, pConn, code);
@@ -267,7 +267,7 @@ void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *p
     mgmtProcessRemoveTableRsp(msgType, pCont, contLen, pConn, code);
   } else if (msgType == TSDB_MSG_TYPE_CREATE_VNODE_RSP) {
     mgmtProcessCreateVnodeRsp(msgType, pCont, contLen, pConn, code);
-  } else if (msgType == TSDB_MSG_TYPE_FREE_VNODE_RSP) {
+  } else if (msgType == TSDB_MSG_TYPE_DROP_VNODE_RSP) {
     mgmtProcessFreeVnodeRsp(msgType, pCont, contLen, pConn, code);
   } else if (msgType == TSDB_MSG_TYPE_DROP_STABLE) {
     mgmtProcessDropStableRsp(msgType, pCont, contLen, pConn, code);
@@ -294,7 +294,7 @@ void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *ahandle) {
   SFreeVnodeMsg *pFreeVnode = rpcMallocCont(sizeof(SFreeVnodeMsg));
   if (pFreeVnode != NULL) {
     pFreeVnode->vnode = htonl(vnode);
-    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_FREE_VNODE, pFreeVnode, sizeof(SFreeVnodeMsg), ahandle);
+    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DROP_VNODE, pFreeVnode, sizeof(SFreeVnodeMsg), ahandle);
   }
 }
 

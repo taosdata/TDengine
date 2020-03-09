@@ -41,10 +41,17 @@ extern "C" {
 #define TSDB_MSG_TYPE_DNODE_CREATE_TABLE_RSP 10
 #define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE     11
 #define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE_RSP 12
+
+// dnodeMgmt
 #define TSDB_MSG_TYPE_CREATE_VNODE           13
 #define TSDB_MSG_TYPE_CREATE_VNODE_RSP       14
-#define TSDB_MSG_TYPE_FREE_VNODE             15
-#define TSDB_MSG_TYPE_FREE_VNODE_RSP         16
+#define TSDB_MSG_TYPE_DROP_VNODE             15
+#define TSDB_MSG_TYPE_DROP_VNODE_RSP         16
+#define TSDB_MSG_TYPE_ALTER_VNODE            17
+#define TSDB_MSG_TYPE_ALTER_VNODE_RSP        18
+#define TSDB_MSG_TYPE_CONFIG_VNODE           19
+#define TSDB_MSG_TYPE_CONFIG_VNODE_RSP       20
+
 #define TSDB_MSG_TYPE_DNODE_CFG              17
 #define TSDB_MSG_TYPE_DNODE_CFG_RSP          18
 #define TSDB_MSG_TYPE_DNODE_ALTER_STREAM     19
@@ -93,8 +100,7 @@ extern "C" {
 #define TSDB_MSG_TYPE_DROP_TABLE_RSP         66
 #define TSDB_MSG_TYPE_ALTER_TABLE            67
 #define TSDB_MSG_TYPE_ALTER_TABLE_RSP        68
-#define TSDB_MSG_TYPE_VNODE_CFG              69
-#define TSDB_MSG_TYPE_VNODE_CFG_RSP          70
+
 #define TSDB_MSG_TYPE_TABLE_CFG              71
 #define TSDB_MSG_TYPE_TABLE_CFG_RSP          72
 #define TSDB_MSG_TYPE_TABLE_META             73
