@@ -291,10 +291,10 @@ void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle)
 void mgmtSendOneFreeVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *ahandle) {
   mTrace("vnode:%d send free vnode msg, ahandle:%p", vnode, ahandle);
 
-  SFreeVnodeMsg *pFreeVnode = rpcMallocCont(sizeof(SFreeVnodeMsg));
+  SDropVnodeMsg *pFreeVnode = rpcMallocCont(sizeof(SDropVnodeMsg));
   if (pFreeVnode != NULL) {
     pFreeVnode->vnode = htonl(vnode);
-    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DROP_VNODE, pFreeVnode, sizeof(SFreeVnodeMsg), ahandle);
+    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_DROP_VNODE, pFreeVnode, sizeof(SDropVnodeMsg), ahandle);
   }
 }
 

@@ -15,11 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taosmsg.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "trpc.h"
 #include "tqueue.h"
-#include "taosmsg.h"
+#include "trpc.h"
 #include "dnodeWrite.h"
 #include "dnodeMgmt.h"
 
@@ -31,7 +31,7 @@ typedef struct {
 
 typedef struct _write {
   void        *pCont;
-  int          contLen;
+  int32_t      contLen;
   SRpcMsg      rpcMsg;
   void        *pVnode;      // pointer to vnode
   SRpcContext *pRpcContext; // RPC message context
@@ -40,12 +40,12 @@ typedef struct _write {
 typedef struct {
   taos_qset  qset;      // queue set
   pthread_t  thread;    // thread 
-  int        workerId;  // worker ID
+  int32_t    workerId;  // worker ID
 } SWriteWorker;  
 
 typedef struct _thread_obj {
-  int            max;        // max number of workers
-  int            nextId;     // from 0 to max-1, cyclic
+  int32_t        max;        // max number of workers
+  int32_t        nextId;     // from 0 to max-1, cyclic
   SWriteWorker  *writeWorker;
 } SWriteWorkerPool;
 
@@ -59,8 +59,8 @@ static void   dnodeProcessDropTableMsg(SWriteMsg *pMsg);
 
 SWriteWorkerPool wWorkerPool;
 
-int dnodeInitWrite() {
-  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT] = dnodeProcessSubmitMsg;
+int32_t dnodeInitWrite() {
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]             = dnodeProcessSubmitMsg;
   dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_DNODE_CREATE_TABLE] = dnodeProcessCreateTableMsg;
   dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_DNODE_REMOVE_TABLE] = dnodeProcessDropTableMsg;
 
@@ -68,7 +68,7 @@ int dnodeInitWrite() {
   wWorkerPool.writeWorker = (SWriteWorker *)calloc(sizeof(SWriteWorker), wWorkerPool.max);
   if (wWorkerPool.writeWorker == NULL) return -1;
 
-  for (int i=0; i<wWorkerPool.max; ++i) {
+  for (int32_t i = 0; i < wWorkerPool.max; ++i) {
     wWorkerPool.writeWorker[i].workerId = i;
   }
 
@@ -76,17 +76,17 @@ int dnodeInitWrite() {
 }
 
 void dnodeCleanupWrite() {
-  
-
   free(wWorkerPool.writeWorker);
 }
 
-void dnodeWrite(SRpcMsg *pMsg) {
-  int     leftLen = pMsg->contLen;
-  char   *pCont = (char *)pMsg->pCont;
-  int     contLen = 0;
-  int     numOfVnodes = 0;
-  int32_t vgId = 0; 
+void dnodeWrite(void *rpcMsg) {
+  SRpcMsg *pMsg = rpcMsg;
+
+  int32_t     leftLen      = pMsg->contLen;
+  char        *pCont       = (char *) pMsg->pCont;
+  int32_t     contLen      = 0;
+  int32_t     numOfVnodes  = 0;
+  int32_t     vgId         = 0;
   SRpcContext *pRpcContext = NULL;
 
   // parse head, get number of vnodes;
@@ -108,11 +108,11 @@ void dnodeWrite(SRpcMsg *pMsg) {
    
     // put message into queue
     SWriteMsg writeMsg;
-    writeMsg.rpcMsg = *pMsg;
-    writeMsg.pCont = pCont;
-    writeMsg.contLen = contLen;
-    writeMsg.pRpcContext = pRpcContext;   
-    writeMsg.pVnode = pVnode;  // pVnode shall be saved for usage later
+    writeMsg.rpcMsg      = *pMsg;
+    writeMsg.pCont       = pCont;
+    writeMsg.contLen     = contLen;
+    writeMsg.pRpcContext = pRpcContext;
+    writeMsg.pVnode      = pVnode;  // pVnode shall be saved for usage later
  
     taos_queue queue = dnodeGetVnodeWworker(pVnode);
     taosWriteQitem(queue, &writeMsg);
@@ -150,7 +150,6 @@ void *dnodeAllocateWriteWorker() {
 }
 
 void dnodeFreeWriteWorker(void *wqueue) {
-
   taosCloseQueue(wqueue);
 
   // dynamically adjust the number of threads
@@ -160,7 +159,7 @@ static void *dnodeProcessWriteQueue(void *param) {
   SWriteWorker *pWorker = (SWriteWorker *)param;
   taos_qall     qall;
   SWriteMsg     writeMsg;
-  int           numOfMsgs;
+  int32_t       numOfMsgs;
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, &qall);
@@ -169,7 +168,7 @@ static void *dnodeProcessWriteQueue(void *param) {
       continue;
     }
 
-    for (int i=0; i<numOfMsgs; ++i) {
+    for (int32_t i=0; i<numOfMsgs; ++i) {
       // retrieve all items, and write them into WAL
       taosGetQitem(qall, &writeMsg);
 
@@ -181,7 +180,7 @@ static void *dnodeProcessWriteQueue(void *param) {
 
     // browse all items, and process them one by one
     taosResetQitems(qall);
-    for (int i=0; i<numOfMsgs; ++i) {
+    for (int32_t i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(qall, &writeMsg);
 
       terrno = 0;
@@ -212,7 +211,7 @@ static void dnodeProcessWriteResult(SWriteMsg *pWrite) {
       if (pRpcContext->code == 0) pRpcContext->code = terrno;  
     }
 
-    int count = atomic_add_fetch_32(&pRpcContext->count, 1);
+    int32_t count = atomic_add_fetch_32(&pRpcContext->count, 1);
     if (count < pRpcContext->numOfVnodes) {
       // not over yet, multiple vnodes
       return;
@@ -226,15 +225,14 @@ static void dnodeProcessWriteResult(SWriteMsg *pWrite) {
 
   SRpcMsg rsp;
   rsp.handle = pWrite->rpcMsg.handle;
-  rsp.code = code;
-  rsp.pCont = NULL;
+  rsp.code   = code;
+  rsp.pCont  = NULL;
   rpcSendResponse(&rsp);
   rpcFreeCont(pWrite->rpcMsg.pCont);  // free the received message
 }
 
 static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
-
-  int num = taosGetQueueNumber(pWorker->qset);
+  int32_t num = taosGetQueueNumber(pWorker->qset);
 
   if (num > 0) {
      usleep(100);
@@ -248,15 +246,12 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
 
 static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
 
-  
 }
 
 static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
 
-
 }
 
 static void dnodeProcessDropTableMsg(SWriteMsg *pMsg) {
-
 
 }

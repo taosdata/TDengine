@@ -20,12 +20,11 @@
 extern "C" {
 #endif
 
-int   dnodeInitRead();
-void  dnodeCleanupRead();
-void  dnodeRead(SRpcMsg *);
-void *dnodeAllocateReadWorker();
-void  dnodeFreeReadWorker(void *rqueue);
- 
+int32_t dnodeInitRead();
+void    dnodeCleanupRead();
+void    dnodeRead(void *pMsg);
+void *  dnodeAllocateReadWorker();
+void    dnodeFreeReadWorker(void *rqueue);
 
 #ifdef __cplusplus
 }

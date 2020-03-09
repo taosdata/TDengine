@@ -349,8 +349,8 @@ typedef struct {
 } SDRemoveSuperTableMsg;
 
 typedef struct {
-  int32_t vnode;
-} SFreeVnodeMsg;
+  int32_t vgId;
+} SDropVnodeMsg;
 
 typedef struct SColIndexEx {
   int16_t colId;

@@ -16,10 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "tlog.h"
-#include "trpc.h"
 #include "taosmsg.h"
+#include "tlog.h"
 #include "tqueue.h"
+#include "trpc.h"
 #include "dnodeRead.h"
 #include "dnodeMgmt.h"
 
@@ -31,7 +31,7 @@ typedef struct {
 
 typedef struct {
   void        *pCont;
-  int          contLen;
+  int32_t      contLen;
   SRpcMsg      rpcMsg;
   void        *pVnode;
   SRpcContext *pRpcContext;  // RPC message context
@@ -42,16 +42,16 @@ static void  dnodeProcessReadResult(SReadMsg *pRead);
 static void  dnodeHandleIdleReadWorker();
 static void  dnodeProcessQueryMsg(SReadMsg *pMsg);
 static void  dnodeProcessRetrieveMsg(SReadMsg *pMsg);
-static void (*dnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SReadMsg *pNode);
+static void(*dnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SReadMsg *pNode);
 
 // module global variable
 static taos_qset readQset;
-static int       threads;    // number of query threads
-static int       maxThreads;
-static int       minThreads;
+static int32_t   threads;    // number of query threads
+static int32_t   maxThreads;
+static int32_t   minThreads;
 
-int dnodeInitRead() {
-  dnodeProcessReadMsgFp[TSDB_MSG_TYPE_QUERY] = dnodeProcessQueryMsg;
+int32_t dnodeInitRead() {
+  dnodeProcessReadMsgFp[TSDB_MSG_TYPE_QUERY]    = dnodeProcessQueryMsg;
   dnodeProcessReadMsgFp[TSDB_MSG_TYPE_RETRIEVE] = dnodeProcessRetrieveMsg;
 
   readQset = taosOpenQset();
@@ -67,12 +67,14 @@ void dnodeCleanupRead() {
   taosCloseQset(readQset);
 }
 
-void dnodeRead(SRpcMsg *pMsg) {
-  int     leftLen = pMsg->contLen;
-  char   *pCont = (char *)pMsg->pCont;
-  int     contLen = 0;
-  int     numOfVnodes = 0;
-  int32_t vgId = 0;
+void dnodeRead(void *rpcMsg) {
+  SRpcMsg *pMsg = rpcMsg;
+
+  int32_t     leftLen      = pMsg->contLen;
+  char        *pCont       = (char *) pMsg->pCont;
+  int32_t     contLen      = 0;
+  int32_t     numOfVnodes  = 0;
+  int32_t     vgId         = 0;
   SRpcContext *pRpcContext = NULL;
 
   // parse head, get number of vnodes;
@@ -87,31 +89,31 @@ void dnodeRead(SRpcMsg *pMsg) {
     // get pVnode from vgId
     void *pVnode = dnodeGetVnode(vgId);
     if (pVnode == NULL) {
-
       continue;
     }
-   
+
     // put message into queue
     SReadMsg readMsg;
-    readMsg.rpcMsg = *pMsg;
-    readMsg.pCont = pCont;
-    readMsg.contLen = contLen;
-    readMsg.pRpcContext = pRpcContext;   
-    readMsg.pVnode = pVnode;
+    readMsg.rpcMsg      = *pMsg;
+    readMsg.pCont       = pCont;
+    readMsg.contLen     = contLen;
+    readMsg.pRpcContext = pRpcContext;
+    readMsg.pVnode      = pVnode;
 
     taos_queue queue = dnodeGetVnodeRworker(pVnode);
     taosWriteQitem(queue, &readMsg);
- 
-    // next vnode 
+
+    // next vnode
     leftLen -= contLen;
-    pCont -= contLen; 
+    pCont -= contLen;
+
+    dnodeReleaseVnode(pVnode);
   }
 }
 
 void *dnodeAllocateReadWorker() {
-
   taos_queue *queue = taosOpenQueue(sizeof(SReadMsg));
-  if ( queue == NULL ) return NULL;
+  if (queue == NULL) return NULL;
 
   taosAddIntoQset(readQset, queue);
 
@@ -131,7 +133,6 @@ void *dnodeAllocateReadWorker() {
 }
 
 void dnodeFreeReadWorker(void *rqueue) {
-
   taosCloseQueue(rqueue);
 
   // dynamically adjust the number of threads
@@ -144,16 +145,16 @@ static void *dnodeProcessReadQueue(void *param) {
   while (1) {
     if (taosReadQitemFromQset(qset, &readMsg) <= 0) {
       dnodeHandleIdleReadWorker();
-      continue;      
+      continue;
     }
 
     terrno = 0;
     if (dnodeProcessReadMsgFp[readMsg.rpcMsg.msgType]) {
       (*dnodeProcessReadMsgFp[readMsg.rpcMsg.msgType]) (&readMsg);
     } else {
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;  
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     }
-     
+
     dnodeProcessReadResult(&readMsg);
   }
 
@@ -161,7 +162,7 @@ static void *dnodeProcessReadQueue(void *param) {
 }
 
 static void dnodeHandleIdleReadWorker() {
-  int num = taosGetQueueNumber(readQset);
+  int32_t num = taosGetQueueNumber(readQset);
 
   if (num == 0 || (num <= minThreads && threads > minThreads)) {
     threads--;
@@ -180,10 +181,10 @@ static void dnodeProcessReadResult(SReadMsg *pRead) {
 
   if (pRpcContext) {
     if (terrno) {
-      if (pRpcContext->code == 0) pRpcContext->code = terrno;  
+      if (pRpcContext->code == 0) pRpcContext->code = terrno;
     }
 
-    int count = atomic_add_fetch_32(&pRpcContext->count, 1);
+    int32_t count = atomic_add_fetch_32(&pRpcContext->count, 1);
     if (count < pRpcContext->numOfVnodes) {
       // not over yet, multiple vnodes
       return;
@@ -197,8 +198,8 @@ static void dnodeProcessReadResult(SReadMsg *pRead) {
 
   SRpcMsg rsp;
   rsp.handle = pRead->rpcMsg.handle;
-  rsp.code = code;
-  rsp.pCont = NULL;
+  rsp.code   = code;
+  rsp.pCont  = NULL;
   rpcSendResponse(&rsp);
   rpcFreeCont(pRead->rpcMsg.pCont);  // free the received message
 }
