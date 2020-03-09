@@ -343,7 +343,7 @@ int main(int argc, char *argv[]) {
   if (strcasecmp(data_type[0], "BINARY") == 0 || strcasecmp(data_type[0], "BOOL") == 0) {
     do_aggreFunc = false;
   }
-  for (; count_data_type <= MAX_NUM_DATATYPE; count_data_type++) {
+  for (; count_data_type < MAX_NUM_DATATYPE; count_data_type++) {
     if (strcasecmp(data_type[count_data_type], "") == 0) {
       break;
     }
