@@ -166,6 +166,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG,                0, 120, "invalid message
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TABLE_TYPE,         0, 121, "invalid table typee")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG_VERSION,        0, 122, "invalid version of message")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NOT_EXIST,            0, 123, "dnode not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_VGROUP_ID,          0, 124, "invalid vgroup id")
 
 #ifdef TAOS_ERROR_C
 };
