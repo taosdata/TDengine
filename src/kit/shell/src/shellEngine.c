@@ -21,7 +21,7 @@
 #include "shellCommand.h"
 #include "ttime.h"
 #include "tutil.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "taoserror.h"
 
 #include <regex.h>

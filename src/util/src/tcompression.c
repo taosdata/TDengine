@@ -51,7 +51,6 @@
 #include "lz4.h"
 #include "tscompression.h"
 #include "taosdef.h"
-#include "ttypes.h"
 
 const int TEST_NUMBER = 1;
 #define is_bigendian() ((*(char *)&TEST_NUMBER) == 0)

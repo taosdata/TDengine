@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tarray.h"
 
 /*

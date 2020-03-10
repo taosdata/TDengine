@@ -19,7 +19,7 @@
 #include "shash.h"
 #include "tstoken.h"
 #include "ttokendef.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tutil.h"
 
 // All the keywords of the SQL language are stored in a hash table

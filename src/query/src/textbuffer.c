@@ -19,7 +19,7 @@
 #include "tlog.h"
 #include "tsqlfunction.h"
 #include "ttime.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tutil.h"
 
 #define COLMODEL_GET_VAL(data, schema, allrow, rowId, colId) \

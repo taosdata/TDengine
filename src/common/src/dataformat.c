@@ -21,10 +21,10 @@ SDataRow tdNewDataRow(int32_t bytes) {
   return row;
 }
 
-SDataRow tdNewDdataFromSchema(SSchema *pSchema) {
-  int32_t bytes = tdMaxRowDataBytes(pSchema);
-  return tdNewDataRow(bytes);
-}
+// SDataRow tdNewDdataFromSchema(SSchema *pSchema) {
+//   int32_t bytes = tdMaxRowDataBytes(pSchema);
+//   return tdNewDataRow(bytes);
+// }
 
 /**
  * Free the SDataRow object
@@ -45,34 +45,34 @@ void tdFreeDataRow(SDataRow row) {
  * 
  * @return 0 for success and -1 for failure
  */
-int32_t tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixOffset) {
-  int32_t offset;
+// int32_t tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixOffset) {
+//   int32_t offset;
 
-  switch (pCol->type) {
-    case TD_DATATYPE_BOOL:
-    case TD_DATATYPE_TINYINT:
-    case TD_DATATYPE_SMALLINT:
-    case TD_DATATYPE_INT:
-    case TD_DATATYPE_BIGINT:
-    case TD_DATATYPE_FLOAT:
-    case TD_DATATYPE_DOUBLE:
-    case TD_DATATYPE_TIMESTAMP:
-      memcpy(dataRowIdx(row, pCol->offset + sizeof(int32_t)), value, rowDataLen[pCol->type]);
-      if (dataRowLen(row) < suffixOffset + sizeof(int32_t))
-        dataRowSetLen(row, dataRowLen(row) + rowDataLen[pCol->type]);
-      break;
-    case TD_DATATYPE_VARCHAR:
-      offset = dataRowLen(row) > suffixOffset ? dataRowLen(row) : suffixOffset;
-      memcpy(dataRowIdx(row, pCol->offset+sizeof(int32_t)), (void *)(&offset), sizeof(offset));
-    case TD_DATATYPE_NCHAR:
-    case TD_DATATYPE_BINARY:
-      break;
-    default:
-      return -1;
-  }
+//   switch (pCol->type) {
+//     case TD_DATATYPE_BOOL:
+//     case TD_DATATYPE_TINYINT:
+//     case TD_DATATYPE_SMALLINT:
+//     case TD_DATATYPE_INT:
+//     case TD_DATATYPE_BIGINT:
+//     case TD_DATATYPE_FLOAT:
+//     case TD_DATATYPE_DOUBLE:
+//     case TD_DATATYPE_TIMESTAMP:
+//       memcpy(dataRowIdx(row, pCol->offset + sizeof(int32_t)), value, rowDataLen[pCol->type]);
+//       if (dataRowLen(row) < suffixOffset + sizeof(int32_t))
+//         dataRowSetLen(row, dataRowLen(row) + rowDataLen[pCol->type]);
+//       break;
+//     case TD_DATATYPE_VARCHAR:
+//       offset = dataRowLen(row) > suffixOffset ? dataRowLen(row) : suffixOffset;
+//       memcpy(dataRowIdx(row, pCol->offset+sizeof(int32_t)), (void *)(&offset), sizeof(offset));
+//     case TD_DATATYPE_NCHAR:
+//     case TD_DATATYPE_BINARY:
+//       break;
+//     default:
+//       return -1;
+//   }
 
-  return 0;
-}
+//   return 0;
+// }
 
 /**
  * Copy a data row to a destination

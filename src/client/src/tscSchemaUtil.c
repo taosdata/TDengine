@@ -17,7 +17,7 @@
 #include "taosmsg.h"
 #include "tschemautil.h"
 #include "ttokendef.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tutil.h"
 
 bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {

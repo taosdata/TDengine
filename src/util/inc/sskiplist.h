@@ -28,7 +28,7 @@ extern "C" {
 #include <stdlib.h>
 
 #include "os.h"
-#include "ttypes.h"
+#include "taosdef.h"
 
 /*
  * key of each node

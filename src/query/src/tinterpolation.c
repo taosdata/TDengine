@@ -18,7 +18,7 @@
 #include "textbuffer.h"
 #include "tinterpolation.h"
 #include "tsqlfunction.h"
-#include "ttypes.h"
+#include "taosdef.h"
 
 #define INTERPOL_IS_ASC_INTERPOL(interp) ((interp)->order == TSQL_SO_ASC)
 

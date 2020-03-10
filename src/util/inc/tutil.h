@@ -93,29 +93,6 @@ extern "C" {
     }                            \
   } while (0)
 
-#define GET_INT8_VAL(x)   (*(int8_t *)(x))
-#define GET_INT16_VAL(x)  (*(int16_t *)(x))
-#define GET_INT32_VAL(x)  (*(int32_t *)(x))
-#define GET_INT64_VAL(x)  (*(int64_t *)(x))
-
-#ifdef _TD_ARM_32_
-  #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
-  #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
-
-  float  taos_align_get_float(const char* pBuf);
-  double taos_align_get_double(const char* pBuf);
-
-  //#define __float_align_declear()  float __underlyFloat = 0.0;
-  //#define __float_align_declear()
-  //#define GET_FLOAT_VAL_ALIGN(x) (*(int32_t*)&(__underlyFloat) = *(int32_t*)(x); __underlyFloat);
-  // notes: src must be float or double type variable !!!
-  #define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
-  #define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
-#else
-  #define GET_FLOAT_VAL(x)  (*(float *)(x))
-  #define GET_DOUBLE_VAL(x) (*(double *)(x))
-#endif
-
 #define ALIGN_NUM(n, align) (((n) + ((align)-1)) & (~((align)-1)))
 
 // align to 8bytes
