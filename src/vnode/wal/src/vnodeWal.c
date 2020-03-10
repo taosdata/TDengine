@@ -12,45 +12,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stdlib.h>
 
-#ifndef TDENGINE_VNODE_PEER_H
-#define TDENGINE_VNODEPEER_H
+#include "vnodeWal.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef struct {
+  /* TODO */
+} SWal;
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "taosdef.h"
-
-/*
- * Initialize the resources
- */
-int32_t vnodeInitPeers(int numOfThreads);
-
-/*
- * Free the resources
- */
-void vnodeCleanUpPeers();
-
-/*
- * Start a vnode synchronization process
- */
-int32_t vnodeOpenPeer(int32_t vnode);
-
-/*
- * Update the peerinfo of vnode
- */
-int32_t vnodeConfigPeer(SVpeerDescArray msg);
-
-/*
- * Close a vnode synchronization process
- */
-void vnodeCleanUpPeer(int32_t vnode);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif  // TDENGINE_VNODEPEER_H
+walh *vnodeOpenWal(int vnode, uint8_t op) { return NULL; }
+int   vnodeCloseWal(walh *pWal) { return 0; }
+int   vnodeRenewWal(walh *pWal) { return 0; }
+int   vnodeWriteWal(walh *pWal, void *cont, int contLen) { return 0; }
+int   vnodeSyncWal(walh *pWal) { return 0; }

@@ -19,8 +19,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "taosdef.h"
 #include "dataformat.h"
-#include "schema.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -83,7 +83,7 @@ typedef struct {
   int64_t createdTime;
 
   int32_t  numOfCols;  // number of columns. For table form super table, not includes the tag schema
-  SSchema *schema;     // If numOfCols == schema_->numOfCols, it is a normal table, stableName = NULL
+  STSchema *schema;     // If numOfCols == schema_->numOfCols, it is a normal table, stableName = NULL
                        // If numOfCols < schema->numOfCols, it is a table created from super table
                        // assert(numOfCols <= schema->numOfCols);
 

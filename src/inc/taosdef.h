@@ -45,6 +45,8 @@ extern "C" {
 #define TSDB_DATA_TYPE_NCHAR      10    // unicode string
 
 // Bytes for each type.
+extern const int32_t TYPE_BYTES[11];
+// TODO: replace and remove code below
 #define CHAR_BYTES   sizeof(char)
 #define SHORT_BYTES  sizeof(short)
 #define INT_BYTES    sizeof(int)
