@@ -46,7 +46,6 @@ extern int32_t (*dnodeCheckSystem)();
 
 
 // dnodeSystem
-extern void *tsDnodeMgmtQhandle;
 void dnodeCheckDataDirOpenned(const char* dir);
 
 // dnodeModule
