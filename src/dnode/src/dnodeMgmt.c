@@ -21,7 +21,7 @@
 #include "tlog.h"
 #include "trpc.h"
 #include "tstatus.h"
-//#include "tsdb.h"
+#include "tsdb.h"
 #include "dnodeMgmt.h"
 #include "dnodeRead.h"
 #include "dnodeWrite.h"
@@ -139,111 +139,111 @@ static void dnodeCleanupVnodes() {
 }
 
 static int32_t dnodeOpenVnode(int32_t vgId) {
-//  char rootDir[TSDB_FILENAME_LEN] = {0};
-//  sprintf(rootDir, "%s/vnode%d", tsDirectory, vgId);
-//
-//  void *pTsdb = tsdbOpenRepo(rootDir);
-//  if (pTsdb != NULL) {
-//    return terrno;
-//  }
-//
-//  SVnodeObj vnodeObj;
-//  vnodeObj.vgId     = vgId;
-//  vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
-//  vnodeObj.refCount = 1;
-//  vnodeObj.version  = 0;
-//  vnodeObj.wworker  = dnodeAllocateWriteWorker();
-//  vnodeObj.rworker  = dnodeAllocateReadWorker();
-//  vnodeObj.wal      = NULL;
-//  vnodeObj.tsdb     = pTsdb;
-//  vnodeObj.replica  = NULL;
-//  vnodeObj.events   = NULL;
-//  vnodeObj.cq       = NULL;
-//
-//  taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, &vnodeObj);
+  char rootDir[TSDB_FILENAME_LEN] = {0};
+  sprintf(rootDir, "%s/vnode%d", tsDirectory, vgId);
+
+  void *pTsdb = tsdbOpenRepo(rootDir);
+  if (pTsdb != NULL) {
+    return terrno;
+  }
+
+  SVnodeObj vnodeObj;
+  vnodeObj.vgId     = vgId;
+  vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
+  vnodeObj.refCount = 1;
+  vnodeObj.version  = 0;
+  vnodeObj.wworker  = dnodeAllocateWriteWorker();
+  vnodeObj.rworker  = dnodeAllocateReadWorker();
+  vnodeObj.wal      = NULL;
+  vnodeObj.tsdb     = pTsdb;
+  vnodeObj.replica  = NULL;
+  vnodeObj.events   = NULL;
+  vnodeObj.cq       = NULL;
+
+  taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, &vnodeObj);
 
   return TSDB_CODE_SUCCESS;
 }
 
 static void dnodeCleanupVnode(SVnodeObj *pVnode) {
-//  pVnode->status = TSDB_VN_STATUS_NOT_READY;
-//  int32_t count = atomic_sub_fetch_32(&pVnode->refCount, 1);
-//  if (count > 0) {
-//    // wait refcount
-//  }
-//
-//  // remove replica
-//
-//  // remove read queue
-//  dnodeFreeReadWorker(pVnode->rworker);
-//  pVnode->rworker = NULL;
-//
-//  // remove write queue
-//  dnodeFreeWriteWorker(pVnode->wworker);
-//  pVnode->wworker = NULL;
-//
-//  // remove wal
-//
-//  // remove tsdb
-//  if (pVnode->tsdb) {
-//    tsdbCloseRepo(pVnode->tsdb);
-//    pVnode->tsdb = NULL;
-//  }
-//
-//  taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
+  pVnode->status = TSDB_VN_STATUS_NOT_READY;
+  int32_t count = atomic_sub_fetch_32(&pVnode->refCount, 1);
+  if (count > 0) {
+    // wait refcount
+  }
+
+  // remove replica
+
+  // remove read queue
+  dnodeFreeReadWorker(pVnode->rworker);
+  pVnode->rworker = NULL;
+
+  // remove write queue
+  dnodeFreeWriteWorker(pVnode->wworker);
+  pVnode->wworker = NULL;
+
+  // remove wal
+
+  // remove tsdb
+  if (pVnode->tsdb) {
+    tsdbCloseRepo(pVnode->tsdb);
+    pVnode->tsdb = NULL;
+  }
+
+  taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
 }
 
 static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
-//  STsdbCfg tsdbCfg;
-//  tsdbCfg.precision           = pVnodeCfg->cfg.precision;
-//  tsdbCfg.tsdbId              = pVnodeCfg->vnode;
-//  tsdbCfg.maxTables           = pVnodeCfg->cfg.maxSessions;
-//  tsdbCfg.daysPerFile         = pVnodeCfg->cfg.daysPerFile;
-//  tsdbCfg.minRowsPerFileBlock = -1;
-//  tsdbCfg.maxRowsPerFileBlock = -1;
-//  tsdbCfg.keep                = -1;
-//  tsdbCfg.maxCacheSize        = -1;
+  STsdbCfg tsdbCfg;
+  tsdbCfg.precision           = pVnodeCfg->cfg.precision;
+  tsdbCfg.tsdbId              = pVnodeCfg->vnode;
+  tsdbCfg.maxTables           = pVnodeCfg->cfg.maxSessions;
+  tsdbCfg.daysPerFile         = pVnodeCfg->cfg.daysPerFile;
+  tsdbCfg.minRowsPerFileBlock = -1;
+  tsdbCfg.maxRowsPerFileBlock = -1;
+  tsdbCfg.keep                = -1;
+  tsdbCfg.maxCacheSize        = -1;
 
-//  char rootDir[TSDB_FILENAME_LEN] = {0};
-//  sprintf(rootDir, "%s/vnode%d", tsDirectory, pVnodeCfg->cfg.vgId);
-//
-//  void *pTsdb = tsdbCreateRepo(rootDir, &tsdbCfg, NULL);
-//  if (pTsdb != NULL) {
-//    return terrno;
-//  }
-//
-//  SVnodeObj vnodeObj;
-//  vnodeObj.vgId     = pVnodeCfg->cfg.vgId;
-//  vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
-//  vnodeObj.refCount = 1;
-//  vnodeObj.version  = 0;
-//  vnodeObj.wworker  = dnodeAllocateWriteWorker();
-//  vnodeObj.rworker  = dnodeAllocateReadWorker();
-//  vnodeObj.wal      = NULL;
-//  vnodeObj.tsdb     = pTsdb;
-//  vnodeObj.replica  = NULL;
-//  vnodeObj.events   = NULL;
-//  vnodeObj.cq       = NULL;
-//
-//  taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, &vnodeObj);
+  char rootDir[TSDB_FILENAME_LEN] = {0};
+  sprintf(rootDir, "%s/vnode%d", tsDirectory, pVnodeCfg->cfg.vgId);
+
+  void *pTsdb = tsdbCreateRepo(rootDir, &tsdbCfg, NULL);
+  if (pTsdb != NULL) {
+    return terrno;
+  }
+
+  SVnodeObj vnodeObj;
+  vnodeObj.vgId     = pVnodeCfg->cfg.vgId;
+  vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
+  vnodeObj.refCount = 1;
+  vnodeObj.version  = 0;
+  vnodeObj.wworker  = dnodeAllocateWriteWorker();
+  vnodeObj.rworker  = dnodeAllocateReadWorker();
+  vnodeObj.wal      = NULL;
+  vnodeObj.tsdb     = pTsdb;
+  vnodeObj.replica  = NULL;
+  vnodeObj.events   = NULL;
+  vnodeObj.cq       = NULL;
+
+  taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, &vnodeObj);
 
   return TSDB_CODE_SUCCESS;
 }
 
 static void dnodeDropVnode(SVnodeObj *pVnode) {
-//  pVnode->status = TSDB_VN_STATUS_NOT_READY;
-//
-//  int32_t count = atomic_sub_fetch_32(&pVnode->refCount, 1);
-//  if (count > 0) {
-//    // wait refcount
-//  }
-//
-//  if (pVnode->tsdb) {
-//    tsdbDropRepo(pVnode->tsdb);
-//    pVnode->tsdb = NULL;
-//  }
-//
-//  dnodeCleanupVnode(pVnode);
+  pVnode->status = TSDB_VN_STATUS_NOT_READY;
+
+  int32_t count = atomic_sub_fetch_32(&pVnode->refCount, 1);
+  if (count > 0) {
+    // wait refcount
+  }
+
+  if (pVnode->tsdb) {
+    tsdbDropRepo(pVnode->tsdb);
+    pVnode->tsdb = NULL;
+  }
+
+  dnodeCleanupVnode(pVnode);
 }
 
 static void dnodeProcesSMDCreateVnodeMsg(SRpcMsg *rpcMsg) {

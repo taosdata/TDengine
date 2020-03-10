@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
 #include "mgmtMnode.h"
 
 bool mgmtCheckRedirect(void *handle) {

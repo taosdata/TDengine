@@ -96,7 +96,7 @@ void mgmtCleanUpShell() {
   }
 }
 
-void mgmtAddShellHandle(uint8_t showType, void (*fp)(SRpcMsg *rpcMsg)) {
+void mgmtAddShellMsgHandle(uint8_t showType, void (*fp)(SRpcMsg *rpcMsg)) {
   tsMgmtProcessShellMsgFp[showType] = fp;
 }
 

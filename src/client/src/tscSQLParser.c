@@ -395,7 +395,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       char* pMsg = pCmd->payload + tsRpcHeadSize;
       pMsg += sizeof(SMgmtHead);
 
-      SCfgDnodeMsg* pCfg = (SCfgDnodeMsg*)pMsg;
+      SCMCfgDnodeMsg* pCfg = (SCMCfgDnodeMsg*)pMsg;
       strncpy(pCfg->ip, pDCL->a[0].z, pDCL->a[0].n);
 
       strncpy(pCfg->config, pDCL->a[1].z, pDCL->a[1].n);

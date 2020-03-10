@@ -1795,7 +1795,7 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int32_t tscBuildCfgDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->payloadLen = sizeof(SCfgDnodeMsg);
+  pCmd->payloadLen = sizeof(SCMCfgDnodeMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("%p failed to malloc for query msg", pSql);
