@@ -12,12 +12,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "ttypes.h"
 #include "os.h"
-#include "taos.h"
+
 #include "taosdef.h"
 #include "ttokendef.h"
-#include "tutil.h"
+// #include "tutil.h"
 
 tDataTypeDescriptor tDataTypeDesc[11] = {
   {TSDB_DATA_TYPE_NULL,      6, 1,            "NOTYPE"},

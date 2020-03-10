@@ -24,7 +24,7 @@
 #include "tsqlfunction.h"
 #include "tstoken.h"
 #include "ttokendef.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tutil.h"
 #include "qsqlparser.h"
 

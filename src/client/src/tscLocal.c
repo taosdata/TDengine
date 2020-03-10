@@ -19,7 +19,7 @@
 #include "tcache.h"
 #include "tscUtil.h"
 #include "tsclient.h"
-#include "ttypes.h"
+#include "taosdef.h"
 
 #include "textbuffer.h"
 #include "tscSecondaryMerge.h"

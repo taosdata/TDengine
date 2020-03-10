@@ -17,8 +17,9 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "schema.h"
+// #include "schema.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,9 +44,9 @@ typedef void *SDataRow;
 #define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
 
 SDataRow tdNewDataRow(int32_t bytes);
-SDataRow tdNewDdataFromSchema(SSchema *pSchema);
+// SDataRow tdNewDdataFromSchema(SSchema *pSchema);
 void     tdFreeDataRow(SDataRow row);
-int32_t  tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixOffset);
+// int32_t  tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixOffset);
 void     tdDataRowCpy(void *dst, SDataRow row);
 void     tdDataRowReset(SDataRow row);
 SDataRow tdDataRowDup(SDataRow row);

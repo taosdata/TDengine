@@ -25,7 +25,7 @@
 #include "tschemautil.h"
 #include "tsclient.h"
 #include "ttokendef.h"
-#include "ttypes.h"
+#include "taosdef.h"
 
 #include "tlog.h"
 #include "tstoken.h"

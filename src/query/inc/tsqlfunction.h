@@ -24,7 +24,7 @@ extern "C" {
 #include <stdint.h>
 
 #include "trpc.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tvariant.h"
 
 #define TSDB_FUNC_INVALID_ID  -1

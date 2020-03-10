@@ -23,7 +23,7 @@ extern "C" {
 #include "taos.h"
 #include "taosmsg.h"
 #include "ttokendef.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tvariant.h"
 #include "qsqlparser.h"
 
