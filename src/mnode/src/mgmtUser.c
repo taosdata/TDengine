@@ -15,42 +15,45 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "trpc.h"
 #include "tschemautil.h"
 #include "ttime.h"
 #include "mnode.h"
-#include "mgmtAcct.h"
+
+
+#include "mgmtMnode.h"
+#include "mgmtShell.h"
 #include "mgmtUser.h"
+
+#include "mgmtAcct.h"
 #include "mgmtGrant.h"
 #include "mgmtTable.h"
+
 
 void *tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
 
-void *(*mgmtUserActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtUserActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtUserActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtUserActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtUserActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtUserActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtUserActionReset(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtUserActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
+static int32_t   mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
+static int32_t   mgmtDropUser(SAcctObj *pAcct, char *name);
+static int32_t   mgmtUpdateUser(SUserObj *pUser);
+static int32_t   mgmtGetUserMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t   mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static SUserObj *mgmtGetUserFromConn(void *pConn);
 
-void mgmtUserActionInit() {
-  mgmtUserActionFp[SDB_TYPE_INSERT]  = mgmtUserActionInsert;
-  mgmtUserActionFp[SDB_TYPE_DELETE]  = mgmtUserActionDelete;
-  mgmtUserActionFp[SDB_TYPE_UPDATE]  = mgmtUserActionUpdate;
-  mgmtUserActionFp[SDB_TYPE_ENCODE]  = mgmtUserActionEncode;
-  mgmtUserActionFp[SDB_TYPE_DECODE]  = mgmtUserActionDecode;
-  mgmtUserActionFp[SDB_TYPE_RESET]   = mgmtUserActionReset;
-  mgmtUserActionFp[SDB_TYPE_DESTROY] = mgmtUserActionDestroy;
-}
+static void mgmtProcessCreateUserMsg(SRpcMsg *rpcMsg);
+static void mgmtProcessAlterUserMsg(SRpcMsg *rpcMsg);
+static void mgmtProcessDropUserMsg(SRpcMsg *rpcMsg);
 
-void *mgmtUserAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
-  if (mgmtUserActionFp[(uint8_t) action] != NULL) {
-    return (*(mgmtUserActionFp[(uint8_t) action]))(row, str, size, ssize);
-  }
-  return NULL;
-}
+static void *(*mgmtUserActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtUserActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtUserActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtUserActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtUserActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtUserActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtUserActionReset(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtUserActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtUserAction(char action, void *row, char *str, int32_t size, int32_t *ssize);
+static void  mgmtUserActionInit();
 
 int32_t mgmtInitUsers() {
   void     *pNode     = NULL;
@@ -87,19 +90,29 @@ int32_t mgmtInitUsers() {
   mgmtCreateUser(pAcct, "monitor", tsInternalPass);
   mgmtCreateUser(pAcct, "_root", tsInternalPass);
 
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CREATE_USER, mgmtProcessCreateUserMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_ALTER_USER, mgmtProcessAlterUserMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_DROP_USER, mgmtProcessDropUserMsg);
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_USER, mgmtGetUserMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mgmtRetrieveUsers);
+  
   mTrace("user data is initialized");
   return 0;
+}
+
+void mgmtCleanUpUsers() {
+  sdbCloseTable(tsUserSdb);
 }
 
 SUserObj *mgmtGetUser(char *name) {
   return (SUserObj *)sdbGetRow(tsUserSdb, name);
 }
 
-int32_t mgmtUpdateUser(SUserObj *pUser) {
+static int32_t mgmtUpdateUser(SUserObj *pUser) {
   return sdbUpdateRow(tsUserSdb, pUser, 0, 1);
 }
 
-int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
+static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   int32_t code = mgmtCheckUserLimit(pAcct);
   if (code != 0) {
     return code;
@@ -141,7 +154,7 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   return code;
 }
 
-int32_t mgmtDropUser(SAcctObj *pAcct, char *name) {
+static int32_t mgmtDropUser(SAcctObj *pAcct, char *name) {
   SUserObj *pUser;
 
   pUser = (SUserObj *)sdbGetRow(tsUserSdb, name);
@@ -159,11 +172,7 @@ int32_t mgmtDropUser(SAcctObj *pAcct, char *name) {
   return 0;
 }
 
-void mgmtCleanUpUsers() {
-  sdbCloseTable(tsUserSdb);
-}
-
-int32_t mgmtGetUserMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetUserMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) {
     return TSDB_CODE_INVALID_USER;
@@ -206,7 +215,7 @@ int32_t mgmtGetUserMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t  numOfRows = 0;
   SUserObj *pUser    = NULL;
   int32_t  cols      = 0;
@@ -243,7 +252,24 @@ int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn
   return numOfRows;
 }
 
-void *mgmtUserActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
+static void mgmtUserActionInit() {
+  mgmtUserActionFp[SDB_TYPE_INSERT]  = mgmtUserActionInsert;
+  mgmtUserActionFp[SDB_TYPE_DELETE]  = mgmtUserActionDelete;
+  mgmtUserActionFp[SDB_TYPE_UPDATE]  = mgmtUserActionUpdate;
+  mgmtUserActionFp[SDB_TYPE_ENCODE]  = mgmtUserActionEncode;
+  mgmtUserActionFp[SDB_TYPE_DECODE]  = mgmtUserActionDecode;
+  mgmtUserActionFp[SDB_TYPE_RESET]   = mgmtUserActionReset;
+  mgmtUserActionFp[SDB_TYPE_DESTROY] = mgmtUserActionDestroy;
+}
+
+static void *mgmtUserAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
+  if (mgmtUserActionFp[(uint8_t) action] != NULL) {
+    return (*(mgmtUserActionFp[(uint8_t) action]))(row, str, size, ssize);
+  }
+  return NULL;
+}
+
+static void *mgmtUserActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *) row;
   SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
 
@@ -253,7 +279,7 @@ void *mgmtUserActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
   return NULL;
 }
 
-void *mgmtUserActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
+static void *mgmtUserActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *) row;
   SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
 
@@ -262,11 +288,11 @@ void *mgmtUserActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
   return NULL;
 }
 
-void *mgmtUserActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
+static void *mgmtUserActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
   return mgmtUserActionReset(row, str, size, ssize);
 }
 
-void *mgmtUserActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
+static void *mgmtUserActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *) row;
 
   if (size < tsUserUpdateSize) {
@@ -279,7 +305,7 @@ void *mgmtUserActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
   return NULL;
 }
 
-void *mgmtUserActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
+static void *mgmtUserActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *) malloc(sizeof(SUserObj));
   if (pUser == NULL) return NULL;
   memset(pUser, 0, sizeof(SUserObj));
@@ -289,7 +315,7 @@ void *mgmtUserActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
   return (void *)pUser;
 }
 
-void *mgmtUserActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
+static void *mgmtUserActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   SUserObj *pUser = (SUserObj *)row;
 
   memcpy(pUser, str, tsUserUpdateSize);
@@ -297,15 +323,200 @@ void *mgmtUserActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
   return NULL;
 }
 
-void *mgmtUserActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
+static void *mgmtUserActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
   tfree(row);
 
   return NULL;
 }
 
-SUserObj *mgmtGetUserFromConn(void *pConn) {
+static SUserObj *mgmtGetUserFromConn(void *pConn) {
   SRpcConnInfo connInfo;
   rpcGetConnInfo(pConn, &connInfo);
 
   return mgmtGetUser(connInfo.user);
+}
+
+static void mgmtProcessCreateUserMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  if (pUser->superAuth) {
+    SCreateUserMsg *pCreate = rpcMsg->pCont;
+    rpcRsp.code = mgmtCreateUser(pUser->pAcct, pCreate->user, pCreate->pass);
+    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
+      mLPrint("user:%s is created by %s", pCreate->user, pUser->user);
+    }
+  } else {
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+  }
+
+  rpcSendResponse(&rpcRsp);
+}
+
+static void mgmtProcessAlterUserMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SUserObj *pOperUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pOperUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  SAlterUserMsg *pAlter = rpcMsg->pCont;
+  SUserObj *pUser = mgmtGetUser(pAlter->user);
+  if (pUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  if ((pAlter->flag & TSDB_ALTER_USER_PASSWD) != 0) {
+    bool hasRight = false;
+    if (strcmp(pOperUser->user, "root") == 0) {
+      hasRight = true;
+    } else if (strcmp(pUser->user, pOperUser->user) == 0) {
+      hasRight = true;
+    } else if (pOperUser->superAuth) {
+      if (strcmp(pUser->user, "root") == 0) {
+        hasRight = false;
+      } else if (strcmp(pOperUser->acct, pUser->acct) != 0) {
+        hasRight = false;
+      } else {
+        hasRight = true;
+      }
+    }
+
+    if (hasRight) {
+      memset(pUser->pass, 0, sizeof(pUser->pass));
+      taosEncryptPass((uint8_t*)pAlter->pass, strlen(pAlter->pass), pUser->pass);
+      rpcRsp.code = mgmtUpdateUser(pUser);
+      mLPrint("user:%s password is altered by %s, code:%d", pAlter->user, pUser->user, rpcRsp.code);
+    } else {
+      rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+    }
+
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  if ((pAlter->flag & TSDB_ALTER_USER_PRIVILEGES) != 0) {
+    bool hasRight = false;
+
+    if (strcmp(pUser->user, "root") == 0) {
+      hasRight = false;
+    } else if (strcmp(pUser->user, pUser->acct) == 0) {
+      hasRight = false;
+    } else if (strcmp(pOperUser->user, "root") == 0) {
+      hasRight = true;
+    } else if (strcmp(pUser->user, pOperUser->user) == 0) {
+      hasRight = false;
+    } else if (pOperUser->superAuth) {
+      if (strcmp(pUser->user, "root") == 0) {
+        hasRight = false;
+      } else if (strcmp(pOperUser->acct, pUser->acct) != 0) {
+        hasRight = false;
+      } else {
+        hasRight = true;
+      }
+    }
+
+    if (pAlter->privilege == 1) { // super
+      hasRight = false;
+    }
+
+    if (hasRight) {
+      //if (pAlter->privilege == 1) {  // super
+      //  pUser->superAuth = 1;
+      //  pUser->writeAuth = 1;
+      //}
+      if (pAlter->privilege == 2) {  // read
+        pUser->superAuth = 0;
+        pUser->writeAuth = 0;
+      }
+      if (pAlter->privilege == 3) {  // write
+        pUser->superAuth = 0;
+        pUser->writeAuth = 1;
+      }
+
+      rpcRsp.code = mgmtUpdateUser(pUser);
+      mLPrint("user:%s privilege is altered by %s, code:%d", pAlter->user, pUser->user, rpcRsp.code);
+    } else {
+      rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+    }
+
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+  rpcSendResponse(&rpcRsp);
+}
+
+static void mgmtProcessDropUserMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SUserObj *pOperUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pOperUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return ;
+  }
+
+  SDropUserMsg *pDrop = rpcMsg->pCont;
+  SUserObj *pUser = mgmtGetUser(pDrop->user);
+  if (pUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return ;
+  }
+
+  if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+    rpcSendResponse(&rpcRsp);
+    return ;
+  }
+
+  bool hasRight = false;
+  if (strcmp(pUser->user, "root") == 0) {
+    hasRight = false;
+  } else if (strcmp(pOperUser->user, "root") == 0) {
+    hasRight = true;
+  } else if (strcmp(pUser->user, pOperUser->user) == 0) {
+    hasRight = false;
+  } else if (pOperUser->superAuth) {
+    if (strcmp(pUser->user, "root") == 0) {
+      hasRight = false;
+    } else if (strcmp(pOperUser->acct, pUser->acct) != 0) {
+      hasRight = false;
+    } else {
+      hasRight = true;
+    }
+  }
+
+  if (hasRight) {
+    rpcRsp.code = mgmtDropUser(pUser->pAcct, pDrop->user);
+    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
+      mLPrint("user:%s is dropped by %s", pDrop->user, pUser->user);
+    }
+  } else {
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+  }
+
+  rpcSendResponse(&rpcRsp);
 }

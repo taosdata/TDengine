@@ -23,7 +23,6 @@
 #include "mgmtBalance.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
-#include "mgmtDnodeInt.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
 
@@ -193,7 +192,7 @@ int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
 
   mTrace("vgroup:%d, db:%s replica:%d is deleted", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
 
-  mgmtSendRemoveVgroupMsg(pVgroup, NULL);
+  mgmtSendDropVgroupMsg(pVgroup, NULL);
 
   sdbDeleteRow(tsVgroupSdb, pVgroup);
 
@@ -503,11 +502,11 @@ void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable) {
   taosFreeId(pVgroup->idPool, pTable->sid);
 }
 
-SCreateVnodeMsg *mgmtBuildVpeersMsg(SVgObj *pVgroup, int32_t vnode) {
+SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode) {
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
   if (pDb == NULL) return NULL;
 
-  SCreateVnodeMsg *pVPeers = rpcMallocCont(sizeof(SCreateVnodeMsg));
+  SMDCreateVnodeMsg *pVPeers = rpcMallocCont(sizeof(SMDCreateVnodeMsg));
   if (pVPeers == NULL) return NULL;
 
   pVPeers->vnode = htonl(vnode);

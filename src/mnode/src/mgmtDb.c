@@ -23,7 +23,6 @@
 #include "mgmtBalance.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
-#include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
@@ -295,7 +294,7 @@ int32_t mgmtSetDbDropping(SDbObj *pDb) {
         }
       }
     }
-//    mgmtSendRemoveVgroupMsg(pVgroup);
+//    mgmtSendDropVgroupMsg(pVgroup);
     pVgroup = pVgroup->next;
   }
 
@@ -355,7 +354,7 @@ int32_t mgmtDropDb(SDbObj *pDb) {
     if (!finished) {
       SVgObj *pVgroup = pDb->pHead;
       while (pVgroup != NULL) {
-        mgmtSendRemoveVgroupMsg(pVgroup, NULL);
+        mgmtSendDropVgroupMsg(pVgroup, NULL);
         pVgroup = pVgroup->next;
       }
       return TSDB_CODE_ACTION_IN_PROGRESS;

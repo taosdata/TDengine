@@ -42,7 +42,7 @@ SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb);
 void    mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable);
 void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable);
 
-SCreateVnodeMsg *mgmtBuildVpeersMsg(SVgObj *pVgroup, int32_t vnode);
+SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode);
 
 SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup);
 SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip);

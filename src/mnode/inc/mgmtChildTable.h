@@ -31,7 +31,7 @@ void    mgmtCleanUpChildTables();
 void *  mgmtGetChildTable(char *tableId);
 
 int32_t mgmtCreateChildTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                             SDCreateTableMsg **pDCreateOut, STableInfo **pTableOut);
+                             SDMCreateTableMsg **pDCreateOut, STableInfo **pTableOut);
 int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable);
 int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent);
 

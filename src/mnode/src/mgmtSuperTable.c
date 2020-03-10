@@ -28,7 +28,6 @@
 #include "mgmtChildTable.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
-#include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"

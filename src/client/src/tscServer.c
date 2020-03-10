@@ -1802,7 +1802,7 @@ int32_t tscBuildCfgDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  pCmd->msgType = TSDB_MSG_TYPE_DNODE_CFG;
+  pCmd->msgType = TSDB_MSG_TYPE_MD_CONFIG_DNODE;
   return TSDB_CODE_SUCCESS;
 }
 

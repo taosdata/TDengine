@@ -14,6 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
+#include "trpc.h"
 #include "tschemautil.h"
 #include "mgmtMnode.h"
 #include "mgmtUser.h"
@@ -22,6 +24,10 @@ int32_t (*mgmtAddMnodeFp)(uint32_t privateIp, uint32_t publicIp) = NULL;
 int32_t (*mgmtRemoveMnodeFp)(uint32_t privateIp) = NULL;
 int32_t (*mgmtGetMnodesNumFp)() = NULL;
 void *  (*mgmtGetNextMnodeFp)(SShowObj *pShow, SSdbPeer **pMnode) = NULL;
+
+bool mgmtCheckRedirect(void *handle) {
+  return false;
+}
 
 int32_t mgmtAddMnode(uint32_t privateIp, uint32_t publicIp) {
   if (mgmtAddMnodeFp) {

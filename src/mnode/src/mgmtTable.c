@@ -30,7 +30,6 @@
 #include "mgmtChildTable.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
-#include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
 #include "mgmtNormalTable.h"
 #include "mgmtProfile.h"
@@ -412,8 +411,8 @@ int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *
   return numOfRows;
 }
 
-SDRemoveTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable) {
-  SDRemoveTableMsg *pRemove = NULL;
+SMDDropTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable) {
+  SMDDropTableMsg *pRemove = NULL;
 
 
   return pRemove;

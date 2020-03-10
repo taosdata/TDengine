@@ -42,7 +42,7 @@ void    mgmtAddTableIntoSuperTable(SSuperTableObj *pStable);
 void    mgmtRemoveTableFromSuperTable(SSuperTableObj *pStable);
 void    mgmtSetTableDirty(STableInfo *pTable, bool isDirty);
 
-SDRemoveTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable);
+SMDDropTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable);
 SDRemoveSuperTableMsg *mgmtBuildRemoveSuperTableMsg(STableInfo *pTable);
 
 

@@ -23,7 +23,6 @@
 #include "mgmtBalance.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
-#include "mgmtDnodeInt.h"
 #include "mgmtVgroup.h"
 #include "mgmtUser.h"
 #include "mgmtSystem.h"

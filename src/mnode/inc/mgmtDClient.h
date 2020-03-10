@@ -13,25 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_MGMT_MNODE_H
-#define TDENGINE_MGMT_MNODE_H
+#ifndef TDENGINE_MGMT_DCLIENT_H
+#define TDENGINE_MGMT_DCLIENT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "mnode.h"
-
-
-bool mgmtCheckRedirect(void *handle);
-
-int32_t mgmtAddMnode(uint32_t privateIp, uint32_t publicIp);
-int32_t mgmtRemoveMnode(uint32_t privateIp);
-
-int32_t mgmtGetMnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+int32_t mgmtInitDClient();
+void    mgmtCleanupDClient();
+void    mgmtAddDClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 
 #ifdef __cplusplus
 }
