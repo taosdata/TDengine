@@ -23,7 +23,7 @@ extern "C" {
 #include "os.h"
 
 #include "taosmsg.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tvariant.h"
 
 struct tSQLBinaryExpr;

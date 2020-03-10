@@ -18,7 +18,7 @@
 #include "taosmsg.h"
 #include "taosdef.h"
 #include "tlog.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tpercentile.h"
 
 tExtMemBuffer *releaseBucketsExceptFor(tMemBucket *pMemBucket, int16_t segIdx, int16_t slotIdx) {

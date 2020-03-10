@@ -16,7 +16,7 @@
 #include "os.h"
 
 #include "tscSyntaxtreefunction.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tutil.h"
 
 #define ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, op, _res_type, _ord)     \

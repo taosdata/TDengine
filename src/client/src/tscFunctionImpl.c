@@ -25,7 +25,7 @@
 #include "tscompression.h"
 #include "tsqlfunction.h"
 #include "ttime.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tutil.h"
 #include "tpercentile.h"
 

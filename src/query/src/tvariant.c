@@ -19,10 +19,10 @@
 #include "shash.h"
 #include "tstoken.h"
 #include "ttokendef.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tutil.h"
 #include "tvariant.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "taos.h"
 
 // todo support scientific expression number and oct number

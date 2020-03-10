@@ -22,7 +22,7 @@
 #include "tstoken.h"
 #include "ttime.h"
 #include "ttokendef.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tutil.h"
 
 int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pStr) {
