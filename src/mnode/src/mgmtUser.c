@@ -18,17 +18,11 @@
 #include "trpc.h"
 #include "tschemautil.h"
 #include "ttime.h"
-#include "mnode.h"
-
-
+#include "mgmtAcct.h"
+#include "mgmtGrant.h"
 #include "mgmtMnode.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
-
-#include "mgmtAcct.h"
-#include "mgmtGrant.h"
-#include "mgmtTable.h"
-
 
 void *tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
@@ -113,6 +107,12 @@ static int32_t mgmtUpdateUser(SUserObj *pUser) {
 }
 
 static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
+  int32_t numOfUsers = sdbGetNumOfRows(tsUserSdb);
+  if (numOfUsers >= tsMaxUsers) {
+    mWarn("numOfUsers:%d, exceed tsMaxUsers:%d", numOfUsers, tsMaxUsers);
+    return TSDB_CODE_TOO_MANY_USERS;
+  }
+
   int32_t code = mgmtCheckUserLimit(pAcct);
   if (code != 0) {
     return code;
