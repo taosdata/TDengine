@@ -53,7 +53,7 @@ typedef struct STable {
   // For TSDB_SUPER_TABLE, it is the schema including tags
   // For TSDB_NTABLE, it is only the schema, not including tags
   // For TSDB_STABLE, it is NULL
-  SSchema *pSchema;
+  STSchema *pSchema;
 
   // Tag value for this table
   // For TSDB_SUPER_TABLE and TSDB_NTABLE, it is NULL
@@ -97,7 +97,7 @@ typedef struct {
 #define TSDB_TABLE_CACHE_DATA(pTable) ((pTable)->content.pData)
 #define TSDB_SUPER_TABLE_INDEX(pTable) ((pTable)->content.pIndex)
 
-SSchema *tsdbGetTableSchema(STable *pTable);
+STSchema *tsdbGetTableSchema(STable *pTable);
 
 // ---- Operation on SMetaHandle
 #define TSDB_NUM_OF_TABLES(pHandle) ((pHandle)->numOfTables)

@@ -261,14 +261,13 @@ STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tableId) {
 
 // TODO: need to return the number of data inserted
 int32_t tsdbInsertData(tsdb_repo_t *repo, SSubmitMsg *pMsg) {
-  STsdbRepo *   pRepo = (STsdbRepo *)repo;
-  SSubmitBlock *pBlock = pMsg->data;
+  SSubmitBlock *pBlock = (SSubmitBlock *)pMsg->data;
 
   for (int i = 0; i < pMsg->numOfTables; i++) {  // Loop to deal with the submit message
     if (tsdbInsertDataToTable(repo, pBlock) < 0) {
       return -1;
     }
-    pBlock = ((char *)pBlock) + sizeof(SSubmitBlock) + pBlock->len;
+    pBlock = (SSubmitBlock *)(((char *)pBlock) + sizeof(SSubmitBlock) + pBlock->len);
   }
 
   return 0;
