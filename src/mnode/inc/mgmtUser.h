@@ -19,19 +19,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <stdint.h>
-#include <stdbool.h>
 #include "mnode.h"
 
 int32_t   mgmtInitUsers();
-SUserObj *mgmtGetUser(char *name);
-int32_t   mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
-int32_t   mgmtDropUser(SAcctObj *pAcct, char *name);
-int32_t   mgmtUpdateUser(SUserObj *pUser);
-int32_t   mgmtGetUserMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-int32_t   mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 void      mgmtCleanUpUsers();
+SUserObj *mgmtGetUser(char *name);
 SUserObj *mgmtGetUserFromConn(void *pConn);
 
 #ifdef __cplusplus

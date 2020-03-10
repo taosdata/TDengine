@@ -26,9 +26,10 @@
 #include "mgmtAcct.h"
 #include "mgmtChildTable.h"
 #include "mgmtDb.h"
-#include "mgmtDnodeInt.h"
 #include "mgmtGrant.h"
 #include "mgmtProfile.h"
+#include "mgmtShell.h"
+#include "mgmtDClient.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
@@ -273,9 +274,9 @@ void mgmtCleanUpChildTables() {
 
 static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup, void *pTagData, int32_t tagDataLen) {
   int32_t totalCols = pTable->superTable->numOfColumns + pTable->superTable->numOfTags;
-  int32_t contLen   = sizeof(SDCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen;
+  int32_t contLen   = sizeof(SDMCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen;
 
-  SDCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
+  SDMCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
   if (pCreateTable == NULL) {
     return NULL;
   }
@@ -308,13 +309,13 @@ static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgrou
     pSchema++;
   }
 
-  memcpy(pCreateTable + sizeof(SDCreateTableMsg) + totalCols * sizeof(SSchema), pTagData, tagDataLen);
+  memcpy(pCreateTable + sizeof(SDMCreateTableMsg) + totalCols * sizeof(SSchema), pTagData, tagDataLen);
 
   return pCreateTable;
 }
 
 int32_t mgmtCreateChildTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                             SDCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
+                             SDMCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
   int32_t numOfTables = sdbGetNumOfRows(tsChildTableSdb);
   if (numOfTables >= tsMaxTables) {
     mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, tsMaxTables);
@@ -371,7 +372,7 @@ int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
     return TSDB_CODE_OTHERS;
   }
 
-  SDRemoveTableMsg *pRemove = rpcMallocCont(sizeof(SDRemoveTableMsg));
+  SMDDropTableMsg *pRemove = rpcMallocCont(sizeof(SMDDropTableMsg));
   if (pRemove == NULL) {
     mError("table:%s, failed to drop child table, no enough memory", pTable->tableId);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
@@ -388,7 +389,16 @@ int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
   }
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
-  mgmtSendRemoveTableMsg(pRemove, &ipSet, NULL);
+
+  mTrace("table:%s, send drop table msg", pRemove->tableId);
+  SRpcMsg rpcMsg = {
+    .handle  = 0,
+    .pCont   = pRemove,
+    .contLen = sizeof(SMDDropTableMsg),
+    .code    = 0,
+    .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
+  };
+  mgmtSendMsgToDnode(&ipSet, &rpcMsg);
 
   if (sdbDeleteRow(tsChildTableSdb, pTable) < 0) {
     mError("table:%s, update ctables sdb error", pTable->tableId);

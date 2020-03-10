@@ -17,7 +17,16 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "tschemautil.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
+#include "mgmtShell.h"
+#include "mgmtUser.h"
+
+int32_t mgmtSaveQueryStreamList(SHeartBeatMsg *pHBMsg);
+
+int32_t mgmtKillQuery(char *qidstr, void *pConn);
+int32_t mgmtKillStream(char *qidstr, void *pConn);
+int32_t mgmtKillConnection(char *qidstr, void *pConn);
 
 typedef struct {
   char     user[TSDB_TABLE_ID_LEN + 1];
@@ -662,4 +671,93 @@ int32_t mgmtRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn
 
   pShow->numOfReads += numOfRows;
   return numOfRows;
+}
+
+void mgmtProcessKillQueryMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  SKillQueryMsg *pKill = (SKillQueryMsg *) rpcMsg->pCont;
+  int32_t code;
+
+  if (!pUser->writeAuth) {
+    code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    code = mgmtKillQuery(pKill->queryId, rpcMsg->handle);
+  }
+
+  rpcRsp.code = code;
+  rpcSendResponse(&rpcRsp);
+}
+
+void mgmtProcessKillStreamMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  SKillStreamMsg *pKill = (SKillStreamMsg *) rpcMsg->pCont;
+  int32_t code;
+
+  if (!pUser->writeAuth) {
+    code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    code = mgmtKillStream(pKill->queryId, rpcMsg->handle);
+  }
+
+  rpcRsp.code = code;
+  rpcSendResponse(&rpcRsp);
+}
+
+void mgmtProcessKillConnectionMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  SKillConnectionMsg *pKill = (SKillConnectionMsg *) rpcMsg->pCont;
+  int32_t code;
+
+  if (!pUser->writeAuth) {
+    code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    code = mgmtKillConnection(pKill->queryId, rpcMsg->handle);
+  }
+
+  rpcRsp.code = code;
+  rpcSendResponse(&rpcRsp);
+}
+
+int32_t mgmtInitProfile() {
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_QUERIES, mgmtGetQueryMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_QUERIES, mgmtRetrieveQueries);
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_CONNS, mgmtGetConnsMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mgmtRetrieveConns);
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mgmtGetStreamMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mgmtRetrieveStreams);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_KILL_QUERY, mgmtProcessKillQueryMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_KILL_STREAM, mgmtProcessKillStreamMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_KILL_CONNECTION, mgmtProcessKillConnectionMsg);
+
+  return 0;
+}
+
+void mgmtCleanUpProfile() {
 }

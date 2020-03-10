@@ -37,31 +37,39 @@ extern "C" {
 #define TSDB_MSG_TYPE_QUERY_RSP              6
 #define TSDB_MSG_TYPE_RETRIEVE               7
 #define TSDB_MSG_TYPE_RETRIEVE_RSP           8
-#define TSDB_MSG_TYPE_DNODE_CREATE_TABLE     9
-#define TSDB_MSG_TYPE_DNODE_CREATE_TABLE_RSP 10
-#define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE     11
-#define TSDB_MSG_TYPE_DNODE_REMOVE_TABLE_RSP 12
 
-// dnodeMgmt
-#define TSDB_MSG_TYPE_CREATE_VNODE           13
-#define TSDB_MSG_TYPE_CREATE_VNODE_RSP       14
-#define TSDB_MSG_TYPE_DROP_VNODE             15
-#define TSDB_MSG_TYPE_DROP_VNODE_RSP         16
-#define TSDB_MSG_TYPE_ALTER_VNODE            17
-#define TSDB_MSG_TYPE_ALTER_VNODE_RSP        18
-#define TSDB_MSG_TYPE_CONFIG_VNODE           19
-#define TSDB_MSG_TYPE_CONFIG_VNODE_RSP       20
+// message from mgmt to dnode
+#define TSDB_MSG_TYPE_MD_CREATE_TABLE        9
+#define TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP    10
+#define TSDB_MSG_TYPE_MD_DROP_TABLE          11
+#define TSDB_MSG_TYPE_MD_DROP_TABLE_RSP      12
+#define TSDB_MSG_TYPE_MD_ALTER_TABLE         13
+#define TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP     14
+#define TSDB_MSG_TYPE_MD_CREATE_VNODE        15
+#define TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP    16
+#define TSDB_MSG_TYPE_MD_DROP_VNODE          17
+#define TSDB_MSG_TYPE_MD_DROP_VNODE_RSP      18
+#define TSDB_MSG_TYPE_MD_ALTER_VNODE         19
+#define TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP     20
+#define TSDB_MSG_TYPE_MD_DROP_STABLE         21
+#define TSDB_MSG_TYPE_MD_DROP_STABLE_RSP     22
+#define TSDB_MSG_TYPE_MD_ALTER_STREAM        23
+#define TSDB_MSG_TYPE_MD_ALTER_STREAM_RSP    24
+#define TSDB_MSG_TYPE_MD_CONFIG_DNODE        25
+#define TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP    26
 
-#define TSDB_MSG_TYPE_DNODE_CFG              17
-#define TSDB_MSG_TYPE_DNODE_CFG_RSP          18
-#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM     19
-#define TSDB_MSG_TYPE_DNODE_ALTER_STREAM_RSP 20
+
+#define TSDB_MSG_TYPE_CM_CONFIG_DNODE        TSDB_MSG_TYPE_MD_CONFIG_DNODE
+#define TSDB_MSG_TYPE_CM_CONFIG_DNODE_RSP    TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP
+
+#define TSDB_MSG_TYPE_DM_CONFIG_VNODE           19
+#define TSDB_MSG_TYPE_DM_CONFIG_VNODE_RSP       20
+
+
 #define TSDB_MSG_TYPE_SDB_SYNC               21
 #define TSDB_MSG_TYPE_SDB_SYNC_RSP           22
 #define TSDB_MSG_TYPE_SDB_FORWARD            23
 #define TSDB_MSG_TYPE_SDB_FORWARD_RSP        24
-#define TSDB_MSG_TYPE_DROP_STABLE            25
-#define TSDB_MSG_TYPE_DROP_STABLE_RSP        26
 #define TSDB_MSG_TYPE_CONNECT                31
 #define TSDB_MSG_TYPE_CONNECT_RSP            32
 #define TSDB_MSG_TYPE_CREATE_ACCT            33
@@ -259,7 +267,7 @@ typedef struct {
   char       tableId[TSDB_TABLE_ID_LEN + 1];
   char       superTableId[TSDB_TABLE_ID_LEN + 1];
   char       data[];
-} SDCreateTableMsg;
+} SDMCreateTableMsg;
 
 typedef struct {
   char      tableId[TSDB_TABLE_ID_LEN + 1];
@@ -341,7 +349,7 @@ typedef struct {
   uint64_t   uid;
   SVPeerDesc vpeerDesc[TSDB_MAX_MPEERS];
   char       tableId[TSDB_TABLE_ID_LEN + 1];
-} SDRemoveTableMsg;
+} SMDDropTableMsg;
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];
@@ -349,8 +357,9 @@ typedef struct {
 } SDRemoveSuperTableMsg;
 
 typedef struct {
+  int32_t vgId;
   int32_t vnode;
-} SFreeVnodeMsg;
+} SMDDropVnodeMsg;
 
 typedef struct SColIndexEx {
   int16_t colId;
@@ -622,7 +631,7 @@ typedef struct {
   int32_t    vnode;
   SVnodeCfg  cfg;
   SVPeerDesc vpeerDesc[TSDB_MAX_MPEERS];
-} SCreateVnodeMsg;
+} SMDCreateVnodeMsg;
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];
@@ -751,7 +760,7 @@ typedef struct {
 typedef struct {
   char ip[32];
   char config[64];
-} SCfgDnodeMsg;
+} SMDCfgDnodeMsg, SCMCfgDnodeMsg;
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN + 1];

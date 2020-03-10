@@ -24,7 +24,7 @@
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtDb.h"
-#include "mgmtDnodeInt.h"
+#include "mgmtDClient.h"
 #include "mgmtGrant.h"
 #include "mgmtNormalTable.h"
 #include "mgmtSuperTable.h"
@@ -289,9 +289,9 @@ void mgmtCleanUpNormalTables() {
 
 static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup) {
   int32_t totalCols = pTable->numOfColumns;
-  int32_t contLen   = sizeof(SDCreateTableMsg) + totalCols * sizeof(SSchema) + pTable->sqlLen;
+  int32_t contLen   = sizeof(SDMCreateTableMsg) + totalCols * sizeof(SSchema) + pTable->sqlLen;
 
-  SDCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
+  SDMCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
   if (pCreateTable == NULL) {
     return NULL;
   }
@@ -323,13 +323,13 @@ static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgr
     pSchema++;
   }
 
-  memcpy(pCreateTable + sizeof(SDCreateTableMsg) + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
+  memcpy(pCreateTable + sizeof(SDMCreateTableMsg) + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
 
   return pCreateTable;
 }
 
 int32_t mgmtCreateNormalTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                              SDCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
+                              SDMCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
   int32_t numOfTables = sdbGetNumOfRows(tsNormalTableSdb);
   if (numOfTables >= TSDB_MAX_NORMAL_TABLES) {
     mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_NORMAL_TABLES);
@@ -406,7 +406,7 @@ int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
     return TSDB_CODE_OTHERS;
   }
 
-  SDRemoveTableMsg *pRemove = rpcMallocCont(sizeof(SDRemoveTableMsg));
+  SMDDropTableMsg *pRemove = rpcMallocCont(sizeof(SMDDropTableMsg));
   if (pRemove == NULL) {
     mError("table:%s, failed to drop normal table, no enough memory", pTable->tableId);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
@@ -423,7 +423,15 @@ int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
   }
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
-  mgmtSendRemoveTableMsg(pRemove, &ipSet, NULL);
+  mTrace("table:%s, send drop table msg", pRemove->tableId);
+  SRpcMsg rpcMsg = {
+      .handle  = 0,
+      .pCont   = pRemove,
+      .contLen = sizeof(SMDDropTableMsg),
+      .code    = 0,
+      .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
+  };
+  mgmtSendMsgToDnode(&ipSet, &rpcMsg);
 
   if (sdbDeleteRow(tsNormalTableSdb, pTable) < 0) {
     mError("table:%s, update ntables sdb error", pTable->tableId);

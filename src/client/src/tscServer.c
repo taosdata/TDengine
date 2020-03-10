@@ -1795,14 +1795,14 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int32_t tscBuildCfgDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->payloadLen = sizeof(SCfgDnodeMsg);
+  pCmd->payloadLen = sizeof(SCMCfgDnodeMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("%p failed to malloc for query msg", pSql);
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  pCmd->msgType = TSDB_MSG_TYPE_DNODE_CFG;
+  pCmd->msgType = TSDB_MSG_TYPE_MD_CONFIG_DNODE;
   return TSDB_CODE_SUCCESS;
 }
 

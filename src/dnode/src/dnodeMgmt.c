@@ -44,19 +44,19 @@ static int32_t  dnodeOpenVnodes();
 static void     dnodeCleanupVnodes();
 static int32_t  dnodeOpenVnode(int32_t vgId);
 static void     dnodeCleanupVnode(SVnodeObj *pVnode);
-static int32_t  dnodeCreateVnode(SCreateVnodeMsg *cfg);
+static int32_t  dnodeCreateVnode(SMDCreateVnodeMsg *cfg);
 static void     dnodeDropVnode(SVnodeObj *pVnode);
-static void     dnodeProcessCreateVnodeMsg(SRpcMsg *pMsg);
-static void     dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
+static void     dnodeProcesSMDCreateVnodeMsg(SRpcMsg *pMsg);
+static void     dnodeProcesSMDDropVnodeMsg(SRpcMsg *pMsg);
 static void     dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
 static void   (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
 
 static void * tsDnodeVnodesHash = NULL;
 
 int32_t dnodeInitMgmt() {
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_CREATE_VNODE] = dnodeProcessCreateVnodeMsg;
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_DROP_VNODE]   = dnodeProcessDropVnodeMsg;
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_ALTER_VNODE]  = dnodeProcessDropVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeProcesSMDCreateVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeProcesSMDDropVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeProcessAlterVnodeMsg;
 
   tsDnodeVnodesHash = taosInitIntHash(TSDB_MAX_VNODES, sizeof(SVnodeObj), taosHashInt);
   if (tsDnodeVnodesHash == NULL) {
@@ -176,26 +176,24 @@ static void dnodeCleanupVnode(SVnodeObj *pVnode) {
 
   // remove read queue
   dnodeFreeReadWorker(pVnode->rworker);
+  pVnode->rworker = NULL;
 
   // remove write queue
   dnodeFreeWriteWorker(pVnode->wworker);
+  pVnode->wworker = NULL;
 
   // remove wal
 
   // remove tsdb
   if (pVnode->tsdb) {
     tsdbCloseRepo(pVnode->tsdb);
+    pVnode->tsdb = NULL;
   }
 
   taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
 }
 
-static int32_t dnodeCreateVnode(SCreateVnodeMsg *pVnodeCfg) {
-  pVnodeCfg->vnode           = htonl(pVnodeCfg->vnode);
-  pVnodeCfg->cfg.vgId        = htonl(pVnodeCfg->cfg.vgId);
-  pVnodeCfg->cfg.maxSessions = htonl(pVnodeCfg->cfg.maxSessions);
-  pVnodeCfg->cfg.daysPerFile = htonl(pVnodeCfg->cfg.daysPerFile);
-
+static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
   STsdbCfg tsdbCfg;
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
   tsdbCfg.tsdbId              = pVnodeCfg->vnode;
@@ -248,47 +246,60 @@ static void dnodeDropVnode(SVnodeObj *pVnode) {
   dnodeCleanupVnode(pVnode);
 }
 
-static void dnodeProcessCreateVnodeMsg(SRpcMsg *pMsg) {
+static void dnodeProcesSMDCreateVnodeMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
-//  SVnodeObj  *pVnode;
-//  int32_t         vgId;
-//  SVPeersMsg *pCfg;
-  
-  // check everything, if not ok, set terrno;
+  SMDCreateVnodeMsg *pCreate = (SMDCreateVnodeMsg *) rpcMsg->pCont;
+  pCreate->vnode           = htonl(pCreate->vnode);
+  pCreate->cfg.vgId        = htonl(pCreate->cfg.vgId);
+  pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
+  pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
 
+  SVnodeObj *pVnodeObj = taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
+  if (pVnodeObj != NULL) {
+    rpcRsp.code = TSDB_CODE_SUCCESS;
+  } else {
+    rpcRsp.code = dnodeCreateVnode(pCreate);
+  }
 
-  // everything is ok
-
-//  dnodeCreateVnode(vgId, pCfg);
-
-  //if (pVnode == NULL) terrno = TSDB_CODE
+  rpcSendResponse(&rpcRsp);
+  rpcFreeCont(rpcMsg->pCont);
 }
 
-static void dnodeProcessDropVnodeMsg(SRpcMsg *pMsg) {
+static void dnodeProcesSMDDropVnodeMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
-  SVnodeObj *pVnode;
-  int32_t    vgId;
-  
-  // check everything, if not ok, set terrno;
+  SMDDropVnodeMsg *pDrop = (SMDCreateVnodeMsg *) rpcMsg->pCont;
+  pDrop->vgId = htonl(pDrop->vgId);
 
+  SVnodeObj *pVnodeObj = taosGetIntHashData(tsDnodeVnodesHash, pDrop->vgId);
+  if (pVnodeObj != NULL) {
+    dnodeDropVnode(pVnodeObj);
+    rpcRsp.code = TSDB_CODE_SUCCESS;
+  } else {
+    rpcRsp.code = TSDB_CODE_INVALID_VGROUP_ID;
+  }
 
-  // everything is ok
-  dnodeDropVnode(pVnode);
-
-  //if (pVnode == NULL) terrno = TSDB_CODE
+  rpcSendResponse(&rpcRsp);
+  rpcFreeCont(rpcMsg->pCont);
 }
 
-static void dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg) {
+static void dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
-  SVnodeObj *pVnode;
-  int32_t        vgId;
-  
-  // check everything, if not ok, set terrno;
+  SMDCreateVnodeMsg *pCreate = (SMDCreateVnodeMsg *) rpcMsg->pCont;
+  pCreate->vnode           = htonl(pCreate->vnode);
+  pCreate->cfg.vgId        = htonl(pCreate->cfg.vgId);
+  pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
+  pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
 
+  SVnodeObj *pVnodeObj = taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
+  if (pVnodeObj != NULL) {
+    rpcRsp.code = TSDB_CODE_SUCCESS;
+  } else {
+    rpcRsp.code = dnodeCreateVnode(pCreate);;
+  }
 
-  // everything is ok
-//  dnodeAlterVnode(pVnode);
-
-  //if (pVnode == NULL) terrno = TSDB_CODE
+  rpcSendResponse(&rpcRsp);
+  rpcFreeCont(rpcMsg->pCont);
 }
-

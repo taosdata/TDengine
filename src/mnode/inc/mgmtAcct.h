@@ -19,27 +19,20 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 #include "mnode.h"
 
-int32_t mgmtInitAccts();
-void mgmtCleanUpAccts();
+int32_t   mgmtInitAccts();
+void      mgmtCleanUpAccts();
 SAcctObj *mgmtGetAcct(char *acctName);
 
 int32_t mgmtCheckUserLimit(SAcctObj *pAcct);
 int32_t mgmtCheckDbLimit(SAcctObj *pAcct);
 int32_t mgmtCheckTableLimit(SAcctObj *pAcct, int32_t numOfTimeSeries);
-int32_t mgmtGetAcctMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-int32_t mgmtRetrieveAccts(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 int32_t mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb);
 int32_t mgmtRemoveDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
 int32_t mgmtAddUserIntoAcct(SAcctObj *pAcct, SUserObj *pUser);
 int32_t mgmtRemoveUserFromAcct(SAcctObj *pAcct, SUserObj *pUser);
-
-extern int32_t (*mgmtCreateAcctFp)(char *name, char *pass, SAcctCfg *pCfg);
-extern int32_t (*mgmtDropAcctFp)(char *name);
-extern int32_t (*mgmtAlterAcctFp)(char *name, char *pass, SAcctCfg *pCfg);
 
 #ifdef __cplusplus
 }

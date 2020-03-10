@@ -15,21 +15,14 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "mnode.h"
 #include "mgmtAcct.h"
-#include "mgmtGrant.h"
-#include "mgmtUser.h"
 
 int32_t (*mgmtCheckUserGrantFp)() = NULL;
 int32_t (*mgmtCheckDbGrantFp)() = NULL;
-int32_t (*mgmtCheckDnodeGrantFp)() = NULL;
 void    (*mgmtAddTimeSeriesFp)(uint32_t timeSeriesNum) = NULL;
 void    (*mgmtRestoreTimeSeriesFp)(uint32_t timeSeriesNum) = NULL;
 int32_t (*mgmtCheckTimeSeriesFp)(uint32_t timeseries) = NULL;
 bool    (*mgmtCheckExpiredFp)() = NULL;
-int32_t (*mgmtGetGrantsMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = NULL;
-int32_t (*mgmtRetrieveGrantsFp)(SShowObj *pShow, char *data, int rows, void *pConn) = NULL;
-void    (*mgmtUpdateGrantInfoFp)(void *pCont) = NULL;
 
 int32_t mgmtCheckUserGrant() {
   if (mgmtCheckUserGrantFp) {
@@ -42,14 +35,6 @@ int32_t mgmtCheckUserGrant() {
 int32_t mgmtCheckDbGrant() {
   if (mgmtCheckDbGrantFp) {
     return (*mgmtCheckDbGrantFp)();
-  } else {
-    return 0;
-  }
-}
-
-int32_t mgmtCheckDnodeGrant() {
-  if (mgmtCheckDnodeGrantFp) {
-    return (*mgmtCheckDnodeGrantFp)();
   } else {
     return 0;
   }
@@ -82,24 +67,5 @@ bool mgmtCheckExpired() {
     return mgmtCheckExpiredFp();
   } else {
     return false;
-  }
-}
-
-int32_t mgmtGetGrantsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
-  if (mgmtGetGrantsMetaFp) {
-    SUserObj *pUser = mgmtGetUserFromConn(pConn);
-    if (pUser == NULL) return 0;
-    if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
-    return mgmtGetGrantsMetaFp(pMeta, pShow, pConn);
-  } else {
-    return TSDB_CODE_OPS_NOT_SUPPORT;
-  }
-}
-
-int32_t mgmtRetrieveGrants(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  if (mgmtRetrieveGrantsFp) {
-    return mgmtRetrieveGrantsFp(pShow, data, rows, pConn);
-  } else {
-    return 0;
   }
 }

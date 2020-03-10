@@ -7,7 +7,7 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/util/inc)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/query/inc)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/vnode/tsdb/inc)
-  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/vnode/common/inc)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/common/inc)
   INCLUDE_DIRECTORIES(${TD_ENTERPRISE_DIR}/src/inc)
   INCLUDE_DIRECTORIES(inc)
   AUX_SOURCE_DIRECTORY(src SRC)
@@ -26,7 +26,7 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
       COMMAND echo "make test directory"
       DEPENDS taosd
       COMMAND ${CMAKE_COMMAND} -E make_directory ${TD_TESTS_OUTPUT_DIR}/cfg/
-      COMMAND ${CMAKE_COMMAND} -E make_directoryF ${TD_TESTS_OUTPUT_DIR}/log/
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${TD_TESTS_OUTPUT_DIR}/log/
       COMMAND ${CMAKE_COMMAND} -E make_directory ${TD_TESTS_OUTPUT_DIR}/data/
       COMMAND ${CMAKE_COMMAND} -E echo dataDir ${TD_TESTS_OUTPUT_DIR}/data > ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
       COMMAND ${CMAKE_COMMAND} -E echo logDir ${TD_TESTS_OUTPUT_DIR}/log  >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg

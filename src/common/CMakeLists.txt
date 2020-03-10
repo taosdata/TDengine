@@ -1,9 +1,11 @@
-aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src SOURCE_LIST)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+PROJECT(TDengine)
 
-add_library(common ${SOURCE_LIST})
-target_include_directories(
-    common 
-        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/inc
-        PUBLIC ${CMAKE_SOURCE_DIR}/src/inc
-        PUBLIC ${CMAKE_SOURCE_DIR}/src/os/linux/inc
-        )
+IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
+  INCLUDE_DIRECTORIES(${TD_OS_DIR}/inc)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/inc)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/util/inc)
+  INCLUDE_DIRECTORIES(inc)
+  AUX_SOURCE_DIRECTORY(src SRC)
+  ADD_LIBRARY(common ${SRC})
+ENDIF ()

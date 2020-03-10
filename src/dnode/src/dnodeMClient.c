@@ -52,6 +52,7 @@ int32_t dnodeInitMClient() {
 void dnodeCleanupMClient() {
   if (tsDnodeMClientRpc) {
     rpcClose(tsDnodeMClientRpc);
+    tsDnodeMClientRpc = NULL;
   }
 }
 

@@ -15,30 +15,16 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tschemautil.h"
-#include "taoserror.h"
-#include "mnode.h"
 #include "mgmtAcct.h"
-#include "mgmtTable.h"
-#include "mgmtUser.h"
 
-extern void *tsUserSdb;
-extern void *tsDbSdb;
 static SAcctObj tsAcctObj;
 
-int32_t (*mgmtInitAcctsFp)() = NULL;
-void (*mgmtCleanUpAcctsFp)() = NULL;
-
-int32_t (*mgmtCreateAcctFp)(char *name, char *pass, SAcctCfg *pCfg) = NULL;
-int32_t (*mgmtDropAcctFp)(char *name) = NULL;
-int32_t (*mgmtAlterAcctFp)(char *name, char *pass, SAcctCfg *pCfg) = NULL;
-int32_t (*mgmtGetAcctMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = NULL;
-int32_t (*mgmtRetrieveAcctsFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn) = NULL;
+int32_t   (*mgmtInitAcctsFp)() = NULL;
+void      (*mgmtCleanUpAcctsFp)() = NULL;
 SAcctObj *(*mgmtGetAcctFp)(char *acctName) = NULL;
-
-int32_t (*mgmtCheckUserLimitFp)(SAcctObj *pAcct) = NULL;
-int32_t (*mgmtCheckDbLimitFp)(SAcctObj *pAcct) = NULL;
-int32_t (*mgmtCheckTimeSeriesLimitFp)(SAcctObj *pAcct, int32_t numOfTimeSeries) = NULL;
+int32_t   (*mgmtCheckUserLimitFp)(SAcctObj *pAcct) = NULL;
+int32_t   (*mgmtCheckDbLimitFp)(SAcctObj *pAcct) = NULL;
+int32_t   (*mgmtCheckTimeSeriesLimitFp)(SAcctObj *pAcct, int32_t numOfTimeSeries) = NULL;
 
 int32_t mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb) {
   pthread_mutex_lock(&pAcct->mutex);
@@ -113,88 +99,47 @@ int32_t mgmtRemoveUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) {
 
 int32_t mgmtInitAccts() {
   if (mgmtInitAcctsFp) {
-    return mgmtInitAcctsFp();
+    return (*mgmtInitAcctsFp)();
   } else {
-    SAcctObj *pAcct = &tsAcctObj;
-    pAcct->acctId = 0;
-    strcpy(pAcct->user, "root");
+    tsAcctObj.acctId = 0;
+    strcpy(tsAcctObj.user, "root");
     return 0;
   }
 }
 
 SAcctObj *mgmtGetAcct(char *acctName) {
   if (mgmtGetAcctFp) {
-    return mgmtGetAcctFp(acctName);
+    return (*mgmtGetAcctFp)(acctName);
   } else {
     return &tsAcctObj;
   }
 }
 
+void mgmtCleanUpAccts() {
+  if (mgmtCleanUpAcctsFp) {
+    (*mgmtCleanUpAcctsFp)();
+  }
+}
+
 int32_t mgmtCheckUserLimit(SAcctObj *pAcct) {
   if (mgmtCheckUserLimitFp) {
-    return mgmtCheckUserLimitFp(pAcct);
-  } else {
-    int32_t numOfUsers = sdbGetNumOfRows(tsUserSdb);
-    if (numOfUsers >= tsMaxUsers) {
-      mWarn("numOfUsers:%d, exceed tsMaxUsers:%d", numOfUsers, tsMaxUsers);
-      return TSDB_CODE_TOO_MANY_USERS;
-    }
-    return 0;
+    return (*mgmtCheckUserLimitFp)(pAcct);
   }
+  return 0;
 }
 
 int32_t mgmtCheckDbLimit(SAcctObj *pAcct) {
   if (mgmtCheckDbLimitFp) {
-    return mgmtCheckDbLimitFp(pAcct);
+    return (*mgmtCheckDbLimitFp)(pAcct);
   } else {
-    int32_t numOfDbs = sdbGetNumOfRows(tsDbSdb);
-    if (numOfDbs >= tsMaxDbs) {
-      mWarn("numOfDbs:%d, exceed tsMaxDbs:%d", numOfDbs, tsMaxDbs);
-      return TSDB_CODE_TOO_MANY_DATABASES;
-    }
     return 0;
   }
 }
 
 int32_t mgmtCheckTableLimit(SAcctObj *pAcct, int32_t numOfTimeSeries) {
   if (mgmtCheckTimeSeriesLimitFp) {
-    return mgmtCheckTimeSeriesLimitFp(pAcct, numOfTimeSeries);
+    return (*mgmtCheckTimeSeriesLimitFp)(pAcct, numOfTimeSeries);
   } else {
     return 0;
   }
 }
-
-void mgmtCleanUpAccts() {
-  if (mgmtCleanUpAcctsFp) {
-    mgmtCleanUpAcctsFp();
-  }
-}
-
-int32_t mgmtGetAcctMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
-  if (mgmtGetAcctMetaFp) {
-    return mgmtGetAcctMetaFp(pMeta, pShow, pConn);
-  } else {
-    return TSDB_CODE_OPS_NOT_SUPPORT;
-  }
-}
-
-int32_t mgmtRetrieveAccts(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  if (mgmtRetrieveAcctsFp) {
-    return mgmtRetrieveAcctsFp(pShow, data, rows, pConn);
-  } else {
-    return 0;
-  }
-}
-
-SAcctObj *mgmtGetAcctFromConn(void *pConn) {
-  SRpcConnInfo connInfo;
-  rpcGetConnInfo(pConn, &connInfo);
-
-  SUserObj *pUser = mgmtGetUser(connInfo.user);
-  if (pUser != NULL) {
-    return pUser->pAcct;
-  }
-
-  return NULL;
-}
-

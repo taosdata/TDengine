@@ -19,13 +19,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 #include "mnode.h"
 
 int32_t mgmtInitBalance();
 void    mgmtCleanupBalance();
 int32_t mgmtAllocVnodes(SVgObj *pVgroup);
-char*   mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode);
 
 #ifdef __cplusplus
 }

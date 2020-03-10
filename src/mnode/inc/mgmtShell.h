@@ -19,30 +19,16 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <stdint.h>
-#include <stdbool.h>
 #include "mnode.h"
 
-int32_t  mgmtInitShell();
+int32_t mgmtInitShell();
 void mgmtCleanUpShell();
+void mgmtAddShellMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 
-extern int32_t (*mgmtCheckRedirectMsg)(void *pConn);
-
-/*
- * If table not exist, will create it
- */
-void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle);
-
-/*
- * If vgroup not exist, will create vgroup
- */
-void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta);
-
-/*
- * If vgroup create returned, will then create table
- */
-void mgmtProcessCreateVgroup(SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta);
+typedef int32_t (*SShowMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+void mgmtAddShellShowMetaHandle(uint8_t showType, SShowMetaFp fp);
+void mgmtAddShellShowRetrieveHandle(uint8_t showType, SShowRetrieveFp fp);
 
 #ifdef __cplusplus
 }
