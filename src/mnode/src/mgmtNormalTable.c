@@ -24,6 +24,7 @@
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtDb.h"
+#include "mgmtDClient.h"
 #include "mgmtGrant.h"
 #include "mgmtNormalTable.h"
 #include "mgmtSuperTable.h"
@@ -422,7 +423,15 @@ int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
   }
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
-  mgmtSendDropTableMsg(pRemove, &ipSet, NULL);
+  mTrace("table:%s, send drop table msg", pRemove->tableId);
+  SRpcMsg rpcMsg = {
+      .handle  = 0,
+      .pCont   = pRemove,
+      .contLen = sizeof(SMDDropTableMsg),
+      .code    = 0,
+      .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
+  };
+  mgmtSendMsgToDnode(&ipSet, &rpcMsg);
 
   if (sdbDeleteRow(tsNormalTableSdb, pTable) < 0) {
     mError("table:%s, update ntables sdb error", pTable->tableId);

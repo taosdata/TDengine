@@ -30,8 +30,6 @@ int32_t mgmtInitSuperTables();
 void    mgmtCleanUpSuperTables();
 
 void *  mgmtGetSuperTable(char *tableId);
-int32_t mgmtGetShowSuperTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 int32_t mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate);
 int32_t mgmtDropSuperTable(SDbObj *pDb, SSuperTableObj *pTable);

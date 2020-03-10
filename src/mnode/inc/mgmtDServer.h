@@ -30,10 +30,7 @@ void    mgmtAddDServerMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 //void mgmtSendCreateTableMsg(SDMCreateTableMsg *pCreate, SRpcIpSet *ipSet, void *ahandle);
 //void mgmtSendDropTableMsg(SMDDropTableMsg *pRemove, SRpcIpSet *ipSet, void *ahandle);
 //void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle);
-//void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
-//void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 //void mgmtSendDropVnodeMsg(int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
-//void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
 //
 //int32_t mgmtInitDnodeInt();
 //void    mgmtCleanUpDnodeInt();

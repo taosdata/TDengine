@@ -22,7 +22,9 @@
 #include "mgmtAcct.h"
 #include "mgmtBalance.h"
 #include "mgmtDb.h"
+#include "mgmtDClient.h"
 #include "mgmtDnode.h"
+#include "mgmtDServer.h"
 #include "mgmtVgroup.h"
 #include "mgmtUser.h"
 #include "mgmtSystem.h"
@@ -39,9 +41,10 @@ void mgmtCleanUpSystem() {
 
   sdbCleanUpPeers();
   mgmtCleanupBalance();
-  mgmtCleanUpDnodeInt();
+  mgmtCleanupDClient();
+  mgmtCleanupDServer();
   mgmtCleanUpShell();
-  mgmtCleanUpMeters();
+  mgmtCleanUpTables();
   mgmtCleanUpVgroups();
   mgmtCleanUpDbs();
   mgmtCleanUpDnodes();
@@ -114,15 +117,18 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (mgmtInitDnodeInt() < 0) {
-    mError("failed to init inter-mgmt communication");
+  if (mgmtInitDClient() < 0) {
     return -1;
   }
 
-//  if (mgmtInitShell() < 0) {
-//    mError("failed to init shell");
-//    return -1;
-//  }
+  if (mgmtInitDServer() < 0) {
+    return -1;
+  }
+
+  if (mgmtInitShell() < 0) {
+    mError("failed to init shell");
+    return -1;
+  }
 
   if (sdbInitPeers(tsMgmtDirectory) < 0) {
     mError("failed to init peers");

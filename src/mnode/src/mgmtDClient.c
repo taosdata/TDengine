@@ -70,6 +70,10 @@ void mgmtAddDClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
   mgmtProcessDnodeRspFp[msgType] = fp;
 }
 
+void mgmtSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg) {
+  rpcSendRequest(tsMgmtDClientRpc, ipSet, rpcMsg);
+}
+
 static void mgmtProcessRspFromDnode(SRpcMsg *rpcMsg) {
   if (mgmtProcessDnodeRspFp[rpcMsg->msgType]) {
     (*mgmtProcessDnodeRspFp[rpcMsg->msgType])(rpcMsg);
@@ -80,17 +84,7 @@ static void mgmtProcessRspFromDnode(SRpcMsg *rpcMsg) {
   rpcFreeCont(rpcMsg->pCont);
 }
 
-//static void   mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg);
-//static void   mgmtProcessDropTableRsp(SRpcMsg *rpcMsg);
-//static void   mgmtProcessAlterTableRsp(SRpcMsg *rpcMsg);
-//static void   mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
-//static void   mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg);
-//static void   mgmtProcessAlterVnodeRsp(SRpcMsg *rpcMsg);
-//static void   mgmtProcessDropStableRsp(SRpcMsg *rpcMsg);
-//static void   mgmtProcessAlterStreamRsp(SRpcMsg *rpcMsg);
-//static void   mgmtProcessConfigDnodeRsp(SRpcMsg *rpcMsg);
 
-//
 //static void mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg) {
 //  mTrace("create table rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
 //  if (rpcMsg->handle == NULL) return;
@@ -173,50 +167,8 @@ static void mgmtProcessRspFromDnode(SRpcMsg *rpcMsg) {
 //  mTrace("config dnode rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
 //}
 //
-//void mgmtSendCreateTableMsg(SDMCreateTableMsg *pCreate, SRpcIpSet *ipSet, void *ahandle) {
-//  mTrace("table:%s, send create table msg, ahandle:%p", pCreate->tableId, ahandle);
-//  SRpcMsg rpcMsg = {
-//    .handle  = ahandle,
-//    .pCont   = pCreate,
-//    .contLen = htonl(pCreate->contLen),
-//    .code    = 0,
-//    .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
-//  };
-//  rpcSendRequest(tsMgmtDClientRpc, ipSet, &rpcMsg);
-//}
-//
-//void mgmtSendDropTableMsg(SMDDropTableMsg *pDrop, SRpcIpSet *ipSet, void *ahandle) {
-//  mTrace("table:%s, send drop table msg, ahandle:%p", pDrop->tableId, ahandle);
-//  SRpcMsg rpcMsg = {
-//    .handle  = ahandle,
-//    .pCont   = pDrop,
-//    .contLen = sizeof(SMDDropTableMsg),
-//    .code    = 0,
-//    .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
-//  };
-//  rpcSendRequest(tsMgmtDClientRpc, ipSet, &rpcMsg);
-//}
-//
-//void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle) {
-//  mTrace("vgroup:%d, send create vnode:%d msg, ahandle:%p", pVgroup->vgId, vnode, ahandle);
-//  SMDCreateVnodeMsg *pCreate = mgmtBuildCreateVnodeMsg(pVgroup, vnode);
-//  SRpcMsg rpcMsg = {
-//      .handle  = ahandle,
-//      .pCont   = pCreate,
-//      .contLen = pCreate ? sizeof(SMDCreateVnodeMsg) : 0,
-//      .code    = 0,
-//      .msgType = TSDB_MSG_TYPE_MD_CREATE_VNODE
-//  };
-//  rpcSendRequest(tsMgmtDClientRpc, ipSet, &rpcMsg);
-//}
-//
-//void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
-//  mTrace("vgroup:%d, send create all vnodes msg, handle:%p", pVgroup->vgId, ahandle);
-//  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-//    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
-//    mgmtSendCreateVnodeMsg(pVgroup, pVgroup->vnodeGid[i].vnode, &ipSet, ahandle);
-//  }
-//}
+
+
 //
 //void mgmtSendAlterStreamMsg(STableInfo *pTable, SRpcIpSet *ipSet, void *ahandle) {
 //  mTrace("table:%s, send alter stream msg, ahandle:%p", pTable->tableId, pTable->sid, ahandle);
@@ -235,13 +187,7 @@ static void mgmtProcessRspFromDnode(SRpcMsg *rpcMsg) {
 //  rpcSendRequest(tsMgmtDClientRpc, ipSet, &rpcMsg);
 //}
 //
-//void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
-//  mTrace("vgroup:%d send free vgroup msg, ahandle:%p", pVgroup->vgId, ahandle);
-//  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-//    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
-//    mgmtSendDropVnodeMsg(pVgroup->vgId, pVgroup->vnodeGid[i].vnode, &ipSet, ahandle);
-//  }
-//}
+
 ////
 ////int32_t mgmtCfgDynamicOptions(SDnodeObj *pDnode, char *msg) {
 ////  char *option, *value;
@@ -278,36 +224,3 @@ static void mgmtProcessRspFromDnode(SRpcMsg *rpcMsg) {
 ////  return -1;
 ////}
 ////
-////int32_t mgmtSendCfgDnodeMsg(char *cont) {
-////  SDnodeObj *pDnode;
-////  SCfgDnodeMsg *  pCfg = (SCfgDnodeMsg *)cont;
-////  uint32_t   ip;
-////
-////  ip = inet_addr(pCfg->ip);
-////  pDnode = mgmtGetDnode(ip);
-////  if (pDnode == NULL) {
-////    mError("dnode ip:%s not configured", pCfg->ip);
-////    return TSDB_CODE_NOT_CONFIGURED;
-////  }
-////
-////  mTrace("dnode:%s, dynamic option received, content:%s", taosIpStr(pDnode->privateIp), pCfg->config);
-////  int32_t code = mgmtCfgDynamicOptions(pDnode, pCfg->config);
-////  if (code != -1) {
-////    return code;
-////  }
-////
-////#ifdef CLUSTER
-////  pStart = taosBuildReqMsg(pDnode->thandle, TSDB_MSG_TYPE_MD_CONFIG_DNODE);
-////  if (pStart == NULL) return TSDB_CODE_NODE_OFFLINE;
-////  pMsg = pStart;
-////
-////  memcpy(pMsg, cont, sizeof(SCfgDnodeMsg));
-////  pMsg += sizeof(SCfgDnodeMsg);
-////
-////  msgLen = pMsg - pStart;
-////  mgmtSendMsgToDnode(pDnode, pStart, msgLen);
-////#else
-////  (void)tsCfgDynamicOptions(pCfg->config);
-////#endif
-////  return 0;
-////}

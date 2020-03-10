@@ -28,6 +28,8 @@
 #include "mgmtDb.h"
 #include "mgmtGrant.h"
 #include "mgmtProfile.h"
+#include "mgmtShell.h"
+#include "mgmtDClient.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
@@ -387,7 +389,16 @@ int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
   }
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
-  mgmtSendDropTableMsg(pRemove, &ipSet, NULL);
+
+  mTrace("table:%s, send drop table msg", pRemove->tableId);
+  SRpcMsg rpcMsg = {
+    .handle  = 0,
+    .pCont   = pRemove,
+    .contLen = sizeof(SMDDropTableMsg),
+    .code    = 0,
+    .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
+  };
+  mgmtSendMsgToDnode(&ipSet, &rpcMsg);
 
   if (sdbDeleteRow(tsChildTableSdb, pTable) < 0) {
     mError("table:%s, update ctables sdb error", pTable->tableId);

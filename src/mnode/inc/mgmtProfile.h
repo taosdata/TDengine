@@ -19,26 +19,14 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 #include "mnode.h"
+
+int32_t mgmtInitProfile();
+void    mgmtCleanUpProfile();
 
 bool mgmtCheckQhandle(uint64_t qhandle);
 void mgmtSaveQhandle(void *qhandle);
 void mgmtFreeQhandle(void *qhandle);
-
-int32_t mgmtSaveQueryStreamList(SHeartBeatMsg *pHBMsg);
-int32_t mgmtGetQueryMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-int32_t mgmtRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-
-int32_t mgmtGetStreamMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-int32_t mgmtRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-
-int32_t mgmtGetConnsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-int32_t mgmtRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-
-int32_t mgmtKillQuery(char *qidstr, void *pConn);
-int32_t mgmtKillStream(char *qidstr, void *pConn);
-int32_t mgmtKillConnection(char *qidstr, void *pConn);
 
 enum {
   TSDB_PROCESS_CREATE_VGROUP,

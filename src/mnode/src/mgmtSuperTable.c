@@ -29,6 +29,7 @@
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
 #include "mgmtGrant.h"
+#include "mgmtShell.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
@@ -45,6 +46,8 @@ static void *mgmtSuperTableActionEncode(void *row, char *str, int32_t size, int3
 static void *mgmtSuperTableActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtSuperTableActionReset(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtSuperTableActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
+static int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mgmtGetShowSuperTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 
 static void mgmtDestroySuperTable(SSuperTableObj *pTable) {
   free(pTable->schema);
@@ -185,6 +188,9 @@ int32_t mgmtInitSuperTables() {
 
     mgmtAddSuperTableIntoDb(pDb);
   }
+
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_METRIC, mgmtGetShowSuperTableMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_METRIC, mgmtRetrieveShowSuperTables);
 
   mTrace("stables is initialized");
   return 0;
@@ -477,7 +483,7 @@ int32_t mgmtDropSuperTableColumnByName(SSuperTableObj *pStable, char *colName) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtGetShowSuperTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetShowSuperTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mgmtGetDb(pShow->db);
   if (pDb == NULL) {
     return TSDB_CODE_DB_NOT_SELECTED;

@@ -22,7 +22,9 @@
 #include "mnode.h"
 #include "mgmtBalance.h"
 #include "mgmtDb.h"
+#include "mgmtDClient.h"
 #include "mgmtDnode.h"
+#include "mgmtShell.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
 
@@ -37,6 +39,9 @@ static void *mgmtVgroupActionEncode(void *row, char *str, int32_t size, int32_t 
 static void *mgmtVgroupActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtVgroupActionReset(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtVgroupActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
+
+static int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static void mgmtVgroupActionInit() {
   SVgObj tObj;
@@ -106,6 +111,9 @@ int32_t mgmtInitVgroups() {
 
     mgmtSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes, pVgroup->vgId);
   }
+
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_VGROUP, mgmtGetVgroupMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mgmtRetrieveVgroups);
 
   mTrace("vgroup is initialized");
   return 0;
@@ -192,7 +200,7 @@ int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
 
   mTrace("vgroup:%d, db:%s replica:%d is deleted", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
 
-  mgmtSendDropVgroupMsg(pVgroup, NULL);
+  //mgmtSendDropVgroupMsg(pVgroup, NULL);
 
   sdbDeleteRow(tsVgroupSdb, pVgroup);
 
@@ -560,4 +568,25 @@ SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup) {
 SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip) {
   SRpcIpSet ipSet = {.ip[0] = ip, .numOfIps = 1, .inUse = 0, .port = tsMgmtDnodePort + 1};
   return ipSet;
+}
+
+void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle) {
+  mTrace("vgroup:%d, send create vnode:%d msg, ahandle:%p", pVgroup->vgId, vnode, ahandle);
+  SMDCreateVnodeMsg *pCreate = mgmtBuildCreateVnodeMsg(pVgroup, vnode);
+  SRpcMsg rpcMsg = {
+      .handle  = ahandle,
+      .pCont   = pCreate,
+      .contLen = pCreate ? sizeof(SMDCreateVnodeMsg) : 0,
+      .code    = 0,
+      .msgType = TSDB_MSG_TYPE_MD_CREATE_VNODE
+  };
+  mgmtSendMsgToDnode(ipSet, &rpcMsg);
+}
+
+void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
+  mTrace("vgroup:%d, send create all vnodes msg, handle:%p", pVgroup->vgId, ahandle);
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
+    mgmtSendCreateVnodeMsg(pVgroup, pVgroup->vnodeGid[i].vnode, &ipSet, ahandle);
+  }
 }

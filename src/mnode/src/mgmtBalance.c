@@ -14,24 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tglobalcfg.h"
-#include "tmodule.h"
 #include "tstatus.h"
-#include "ttime.h"
 #include "mgmtBalance.h"
 #include "mgmtDnode.h"
 
-void    (*mgmtStartBalanceTimerFp)(int64_t mseconds) = NULL;
 int32_t (*mgmtInitBalanceFp)() = NULL;
 void    (*mgmtCleanupBalanceFp)() = NULL;
 int32_t (*mgmtAllocVnodesFp)(SVgObj *pVgroup) = NULL;
-char *  (*mgmtGetVnodeStatusFp)(SVgObj *pVgroup, SVnodeGid *pVnode) = NULL;
-
-void mgmtStartBalanceTimer(int64_t mseconds) {
-  if (mgmtStartBalanceTimerFp) {
-    (*mgmtStartBalanceTimerFp)(mseconds);
-  }
-}
 
 int32_t mgmtInitBalance() {
   if (mgmtInitBalanceFp) {
@@ -55,11 +44,11 @@ int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
   SDnodeObj *pDnode = mgmtGetDnode(0);
   if (pDnode == NULL) return TSDB_CODE_OTHERS;
 
-  int selectedVnode = -1;
-  int lastAllocVode = pDnode->lastAllocVnode;
+  int32_t selectedVnode = -1;
+  int32_t lastAllocVode = pDnode->lastAllocVnode;
 
-  for (int i = 0; i < pDnode->numOfVnodes; i++) {
-    int vnode = (i + lastAllocVode) % pDnode->numOfVnodes;
+  for (int32_t i = 0; i < pDnode->numOfVnodes; i++) {
+    int32_t vnode = (i + lastAllocVode) % pDnode->numOfVnodes;
     if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_OFFLINE) {
       selectedVnode = vnode;
       break;

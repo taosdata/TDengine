@@ -174,21 +174,12 @@ static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *s
 //  free(info);
 //}
 //
-//void mgmtSendCreateTableMsg(SDMCreateTableMsg *pCreate, SRpcIpSet *ipSet, void *ahandle) {
-//  mTrace("table:%s, send create table msg, ahandle:%p", pCreate->tableId, ahandle);
-//  mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_MD_CREATE_TABLE, pCreate, htonl(pCreate->contLen), ahandle);
-//}
-//
+
 //static void mgmtProcessRemoveTableRsp(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle, int32_t code) {
 //  mTrace("remove table rsp received, thandle:%p code:%d", thandle, code);
 //}
 //
-//void mgmtSendDropTableMsg(SMDDropTableMsg *pRemove, SRpcIpSet *ipSet, void *ahandle) {
-//  mTrace("table:%s, sid:%d send remove table msg, ahandle:%p", pRemove->tableId, htonl(pRemove->sid), ahandle);
-//  if (pRemove != NULL) {
-//    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_MD_DROP_TABLE, pRemove, sizeof(SMDDropTableMsg), ahandle);
-//  }
-//}
+
 //
 //static void mgmtProcessDropVnodeRsp(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle, int32_t code) {
 //  mTrace("free vnode rsp received, thandle:%p code:%d", thandle, code);
@@ -235,18 +226,6 @@ static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *s
 //  }
 //}
 //
-//static void mgmtProcessDnodeGrantMsg(void *pCont, void *thandle) {
-//  if (mgmtUpdateGrantInfoFp) {
-//    mgmtUpdateGrantInfoFp(pCont);
-//    mTrace("grant info is updated");
-//  }
-//
-//  SRpcMsg rpcMsg = {0};
-//  rpcMsg.code = TSDB_CODE_SUCCESS;
-//  rpcMsg.handle = thandle;
-//  rpcSendResponse(&rpcMsg);
-//}
-//
 //void mgmtProcessMsgFromDnode(char msgType, void *pCont, int32_t contLen, void *pConn, int32_t code) {
 //  if (msgType < 0 || msgType >= TSDB_MSG_TYPE_MAX) {
 //    mError("invalid msg type:%d", msgType);
@@ -273,9 +252,7 @@ static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *s
 //  } else if (msgType == TSDB_MSG_TYPE_ALTER_STREAM_RSP) {
 //  } else if (msgType == TSDB_MSG_TYPE_STATUS) {
 //    mgmtProcessDnodeStatus(msgType, pCont, contLen, pConn, code);
-//  } else if (msgType == TSDB_MSG_TYPE_GRANT) {
-//    mgmtProcessDnodeGrantMsg(pCont, pConn);
-//  } else {
+//  }  else {
 //    mError("%s from dnode is not processed", taosMsg[(int8_t)msgType]);
 //  }
 //
@@ -296,15 +273,7 @@ static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *s
 //  }
 //}
 //
-//void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
-//  mTrace("vgroup:%d send free vgroup msg, ahandle:%p", pVgroup->vgId, ahandle);
-//
-//  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-//    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
-//    mgmtSendDropVnodeMsg(pVgroup->vnodeGid[i].vnode, &ipSet, ahandle);
-//  }
-//}
-//
+
 //int32_t mgmtCfgDynamicOptions(SDnodeObj *pDnode, char *msg) {
 //  char *option, *value;
 //  int32_t   olen, valen;
@@ -340,52 +309,6 @@ static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *s
 //  return -1;
 //}
 //
-//int32_t mgmtSendCfgDnodeMsg(char *cont) {
-////#ifdef CLUSTER
-////  char *     pMsg, *pStart;
-////  int32_t        msgLen = 0;
-////#endif
-////
-////  SDnodeObj *pDnode;
-////  SCfgDnodeMsg *  pCfg = (SCfgDnodeMsg *)cont;
-////  uint32_t   ip;
-////
-////  ip = inet_addr(pCfg->ip);
-////  pDnode = mgmtGetDnode(ip);
-////  if (pDnode == NULL) {
-////    mError("dnode ip:%s not configured", pCfg->ip);
-////    return TSDB_CODE_NOT_CONFIGURED;
-////  }
-////
-////  mTrace("dnode:%s, dynamic option received, content:%s", taosIpStr(pDnode->privateIp), pCfg->config);
-////  int32_t code = mgmtCfgDynamicOptions(pDnode, pCfg->config);
-////  if (code != -1) {
-////    return code;
-////  }
-////
-////#ifdef CLUSTER
-////  pStart = taosBuildReqMsg(pDnode->thandle, TSDB_MSG_TYPE_MD_CONFIG_DNODE);
-////  if (pStart == NULL) return TSDB_CODE_NODE_OFFLINE;
-////  pMsg = pStart;
-////
-////  memcpy(pMsg, cont, sizeof(SCfgDnodeMsg));
-////  pMsg += sizeof(SCfgDnodeMsg);
-////
-////  msgLen = pMsg - pStart;
-////  mgmtSendMsgToDnode(pDnode, pStart, msgLen);
-////#else
-////  (void)tsCfgDynamicOptions(pCfg->config);
-////#endif
-//  return 0;
-//}
-//
-//int32_t mgmtInitDnodeInt() {
-// if (mgmtInitDnodeIntFp) {
-//   return mgmtInitDnodeIntFp();
-// } else {
-//   return 0;
-// }
-//}
 //
 //void mgmtCleanUpDnodeInt() {
 //  if (mgmtCleanUpDnodeIntFp) {

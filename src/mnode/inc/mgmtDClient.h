@@ -23,6 +23,7 @@ extern "C" {
 int32_t mgmtInitDClient();
 void    mgmtCleanupDClient();
 void    mgmtAddDClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
+void    mgmtSendMsgToDnode(SRpcIpSet *ipSet, SRpcMsg *rpcMsg);
 
 #ifdef __cplusplus
 }

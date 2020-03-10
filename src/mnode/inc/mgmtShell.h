@@ -30,23 +30,6 @@ typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, vo
 void mgmtAddShellShowMetaHandle(uint8_t showType, SShowMetaFp fp);
 void mgmtAddShellShowRetrieveHandle(uint8_t showType, SShowRetrieveFp fp);
 
-//extern int32_t (*mgmtCheckRedirect)(void *pConn);
-//
-///*
-// * If table not exist, will create it
-// */
-//void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle);
-//
-///*
-// * If vgroup not exist, will create vgroup
-// */
-//void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta);
-//
-///*
-// * If vgroup create returned, will then create table
-// */
-//void mgmtProcessCreateVgroup(SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta);
-
 #ifdef __cplusplus
 }
 #endif

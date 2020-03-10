@@ -32,7 +32,6 @@ static int32_t   mgmtDropUser(SAcctObj *pAcct, char *name);
 static int32_t   mgmtUpdateUser(SUserObj *pUser);
 static int32_t   mgmtGetUserMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 static int32_t   mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static SUserObj *mgmtGetUserFromConn(void *pConn);
 
 static void mgmtProcessCreateUserMsg(SRpcMsg *rpcMsg);
 static void mgmtProcessAlterUserMsg(SRpcMsg *rpcMsg);
@@ -329,7 +328,7 @@ static void *mgmtUserActionDestroy(void *row, char *str, int32_t size, int32_t *
   return NULL;
 }
 
-static SUserObj *mgmtGetUserFromConn(void *pConn) {
+SUserObj *mgmtGetUserFromConn(void *pConn) {
   SRpcConnInfo connInfo;
   rpcGetConnInfo(pConn, &connInfo);
 

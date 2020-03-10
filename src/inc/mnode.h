@@ -47,8 +47,6 @@ extern void *tsMgmtTmr;
 extern void *tsMgmtTranQhandle;
 extern char  tsMgmtDirectory[];
 
-extern int tsDbUpdateSize;
-
 typedef struct {
   uint32_t   privateIp;
   int32_t    sid;

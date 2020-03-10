@@ -19,9 +19,6 @@
 #ifdef __cplusplus
 "C" {
 #endif
-
-#include <stdint.h>
-#include <stdbool.h>
 #include "mnode.h"
 
 bool    mgmtCheckExpired();
@@ -30,11 +27,6 @@ void    mgmtRestoreTimeSeries(SAcctObj *pAcct, uint32_t timeseries);
 int32_t mgmtCheckTimeSeries(uint32_t timeseries);
 int32_t mgmtCheckUserGrant();
 int32_t mgmtCheckDbGrant();
-int32_t mgmtCheckDnodeGrant();
-int32_t mgmtGetGrantsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
-int32_t mgmtRetrieveGrants(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-
-extern void (*mgmtUpdateGrantInfoFp)(void *pCont);
 
 #ifdef __cplusplus
 }

@@ -18,9 +18,11 @@
 #include "tmodule.h"
 #include "tschemautil.h"
 #include "tstatus.h"
-#include "mnode.h"
-#include "mgmtDnode.h"
 #include "mgmtBalance.h"
+#include "mgmtDnode.h"
+#include "mgmtDClient.h"
+#include "mgmtMnode.h"
+#include "mgmtShell.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
@@ -30,14 +32,18 @@ SDnodeObj *(*mgmtGetDnodeFp)(uint32_t ip) = NULL;
 int32_t    (*mgmtGetDnodesNumFp)() = NULL;
 int32_t    (*mgmtUpdateDnodeFp)(SDnodeObj *pDnode) = NULL;
 void *     (*mgmtGetNextDnodeFp)(SShowObj *pShow, SDnodeObj **pDnode) = NULL;
-int32_t    (*mgmtGetScoresMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn) = NULL;
-int32_t    (*mgmtRetrieveScoresFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn) = NULL;
 void       (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode) = NULL;
-int32_t    (*mgmtCreateDnodeFp)(uint32_t ip) = NULL;
-int32_t    (*mgmtDropDnodeByIpFp)(uint32_t ip) = NULL;
-
 
 static SDnodeObj tsDnodeObj = {0};
+static void *  mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode);
+static bool    mgmtCheckConfigShow(SGlobalConfig *cfg);
+static int32_t mgmtGetModuleMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mgmtGetConfigMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static void    mgmtProcessCfgDnodeMsg(SRpcMsg *rpcMsg);
 
 void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
   int32_t maxVnodes = pDnode->numOfCores * tsNumOfVnodesPerCore;
@@ -111,122 +117,6 @@ void mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes) {
   }
 }
 
-int32_t mgmtGetDnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
-  int32_t cols = 0;
-
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
-  if (pUser == NULL) return 0;
-
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
-
-  SSchema *pSchema = tsGetSchema(pMeta);
-
-  pShow->bytes[cols] = 16;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "IP");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "open vnodes");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "free vnodes");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 10;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "status");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 18;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "balance state");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 16;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "public ip");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pMeta->numOfColumns = htons(cols);
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) {
-    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-  }
-
-  pShow->numOfRows = mgmtGetDnodesNum();
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  pShow->pNode = NULL;
-
-  return 0;
-}
-
-int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  int32_t   numOfRows = 0;
-  int32_t   cols      = 0;
-  SDnodeObj *pDnode   = NULL;
-  char      *pWrite;
-  char      ipstr[20];
-
-  while (numOfRows < rows) {
-    pShow->pNode = mgmtGetNextDnode(pShow, (SDnodeObj **)&pDnode);
-    if (pDnode == NULL) break;
-
-    cols = 0;
-
-    tinet_ntoa(ipstr, pDnode->privateIp);
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, ipstr);
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pDnode->createdTime;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDnode->openVnodes;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDnode->numOfFreeVnodes;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, taosGetDnodeStatusStr(pDnode->status) );
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, taosGetDnodeLbStatusStr(pDnode->lbStatus));
-    cols++;
-
-    tinet_ntoa(ipstr, pDnode->publicIp);
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, ipstr);
-    cols++;
-
-    numOfRows++;
-  }
-
-  pShow->numOfReads += numOfRows;
-  return numOfRows;
-}
 
 bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   uint32_t status = pDnode->moduleStatus & (1 << moduleType);
@@ -326,7 +216,7 @@ int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pCo
   return numOfRows;
 }
 
-int32_t mgmtGetConfigMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetConfigMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
@@ -367,7 +257,7 @@ int32_t mgmtGetConfigMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
 
   for (int32_t i = tsGlobalConfigNum - 1; i >= 0 && numOfRows < rows; --i) {
@@ -414,7 +304,7 @@ int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pCo
   return numOfRows;
 }
 
-int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
@@ -488,7 +378,7 @@ int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t        numOfRows = 0;
   SDnodeObj *pDnode = NULL;
   char *     pWrite;
@@ -538,6 +428,14 @@ int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pCon
 }
 
 int32_t mgmtInitDnodes() {
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MODULE, mgmtGetModuleMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, mgmtRetrieveModules);
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtGetConfigMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtRetrieveConfigs);
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_VNODES, mgmtGetVnodeMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mgmtRetrieveVnodes);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mgmtProcessCfgDnodeMsg);
+
   if (mgmtInitDnodesFp) {
     return mgmtInitDnodesFp();
   } else {
@@ -607,25 +505,6 @@ void *mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode) {
   return *pDnode;
 }
 
-int32_t mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
-  if (mgmtGetScoresMetaFp) {
-    SUserObj *pUser = mgmtGetUserFromConn(pConn);
-    if (pUser == NULL) return 0;
-    if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
-    return mgmtGetScoresMetaFp(pMeta, pShow, pConn);
-  } else {
-    return TSDB_CODE_OPS_NOT_SUPPORT;
-  }
-}
-
-int32_t mgmtRetrieveScores(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  if (mgmtRetrieveScoresFp) {
-    return mgmtRetrieveScoresFp(pShow, data, rows, pConn);
-  } else {
-    return 0;
-  }
-}
-
 void mgmtSetDnodeUnRemove(SDnodeObj *pDnode) {
   if (mgmtSetDnodeUnRemoveFp) {
     mgmtSetDnodeUnRemoveFp(pDnode);
@@ -640,16 +519,49 @@ bool mgmtCheckConfigShow(SGlobalConfig *cfg) {
   return true;
 }
 
-/**
- * check if a dnode in remove state
- **/
 bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode) {
   return pDnode->lbStatus == TSDB_DN_LB_STATUS_OFFLINE_REMOVING || pDnode->lbStatus == TSDB_DN_LB_STATE_SHELL_REMOVING;
 }
 
-/**
- * check if a dnode in offline state
- **/
 bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) {
   return pDnode->status == TSDB_DN_STATUS_OFFLINE;
+}
+
+void mgmtProcessCfgDnodeMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  SCMCfgDnodeMsg *pCmCfgDnode = (SCMCfgDnodeMsg *) rpcMsg->pCont;
+  uint32_t dnodeIp = inet_addr(pCmCfgDnode->ip);
+
+  if (strcmp(pUser->pAcct->user, "root") != 0) {
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    SRpcIpSet ipSet = mgmtGetIpSetFromIp(dnodeIp);
+    SMDCfgDnodeMsg *pMdCfgDnode = rpcMallocCont(sizeof(SMDCfgDnodeMsg));
+    strcpy(pMdCfgDnode->ip, pCmCfgDnode->ip);
+    strcpy(pMdCfgDnode->config, pCmCfgDnode->config);
+    SRpcMsg rpcMdCfgDnodeMsg = {
+        .handle = 0,
+        .code = 0,
+        .msgType = TSDB_MSG_TYPE_MD_CONFIG_DNODE,
+        .pCont = pMdCfgDnode,
+        .contLen = sizeof(SMDCfgDnodeMsg)
+    };
+    mgmtSendMsgToDnode(&ipSet, &rpcMdCfgDnodeMsg);
+    rpcRsp.code = TSDB_CODE_SUCCESS;
+  }
+
+  if (rpcRsp.code == TSDB_CODE_SUCCESS) {
+    mTrace("dnode:%s is configured by %s", pCmCfgDnode->ip, pUser->user);
+  }
+
+  rpcSendResponse(&rpcRsp);
 }

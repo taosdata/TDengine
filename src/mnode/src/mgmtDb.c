@@ -18,31 +18,43 @@
 #include "taoserror.h"
 #include "tschemautil.h"
 #include "tstatus.h"
+#include "tutil.h"
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtBalance.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
+#include "mgmtMnode.h"
 #include "mgmtGrant.h"
+#include "mgmtShell.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-extern void *tsVgroupSdb;
+static void *tsDbSdb = NULL;
+static int32_t tsDbUpdateSize;
 
-void *tsDbSdb = NULL;
-int32_t tsDbUpdateSize;
+static int32_t mgmtUpdateDb(SDbObj *pDb);
+static int32_t mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate);
+static int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
+static int32_t mgmtDropDb(SDbObj *pDb);
 
-void *(*mgmtDbActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtDbActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtDbActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtDbActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtDbActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtDbActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtDbActionReset(void *row, char *str, int32_t size, int32_t *ssize);
-void *mgmtDbActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
+static int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static void    mgmtProcessCreateDbMsg(SRpcMsg *rpcMsg);
+static void    mgmtProcessAlterDbMsg(SRpcMsg *rpcMsg);
+static void    mgmtProcessDropDbMsg(SRpcMsg *rpcMsg);
 
-void mgmtDbActionInit() {
+static void *(*mgmtDbActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtDbActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtDbActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtDbActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtDbActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtDbActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtDbActionReset(void *row, char *str, int32_t size, int32_t *ssize);
+static void *mgmtDbActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
+
+static void mgmtDbActionInit() {
   mgmtDbActionFp[SDB_TYPE_INSERT] = mgmtDbActionInsert;
   mgmtDbActionFp[SDB_TYPE_DELETE] = mgmtDbActionDelete;
   mgmtDbActionFp[SDB_TYPE_UPDATE] = mgmtDbActionUpdate;
@@ -52,7 +64,7 @@ void mgmtDbActionInit() {
   mgmtDbActionFp[SDB_TYPE_DESTROY] = mgmtDbActionDestroy;
 }
 
-void *mgmtDbAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
+static void *mgmtDbAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
   if (mgmtDbActionFp[(uint8_t)action] != NULL) {
     return (*(mgmtDbActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
@@ -96,6 +108,12 @@ int32_t mgmtInitDbs() {
     }
   }
 
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CREATE_DB, mgmtProcessCreateDbMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_ALTER_DB, mgmtProcessAlterDbMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_DROP_DB, mgmtProcessDropDbMsg);
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_DB, mgmtGetDbMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mgmtRetrieveDbs);
+
   mTrace("db data is initialized");
   return 0;
 }
@@ -115,7 +133,7 @@ SDbObj *mgmtGetDbByTableId(char *tableId) {
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
 
-int32_t mgmtCheckDBParams(SCreateDbMsg *pCreate) {
+static int32_t mgmtCheckDBParams(SCreateDbMsg *pCreate) {
   if (pCreate->commitLog < 0 || pCreate->commitLog > 1) {
     mError("invalid db option commitLog: %d, only 0 or 1 allowed", pCreate->commitLog);
     return TSDB_CODE_INVALID_OPTION;
@@ -188,7 +206,7 @@ int32_t mgmtCheckDBParams(SCreateDbMsg *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtCheckDbParams(SCreateDbMsg *pCreate) {
+static int32_t mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   // assign default parameters
   if (pCreate->maxSessions < 0) pCreate->maxSessions = tsSessionsPerVnode;      //
   if (pCreate->cacheBlockSize < 0) pCreate->cacheBlockSize = tsCacheBlockSize;  //
@@ -233,7 +251,13 @@ int32_t mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
+static int32_t mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
+  int32_t numOfDbs = sdbGetNumOfRows(tsDbSdb);
+  if (numOfDbs >= tsMaxDbs) {
+    mWarn("numOfDbs:%d, exceed tsMaxDbs:%d", numOfDbs, tsMaxDbs);
+    return TSDB_CODE_TOO_MANY_DATABASES;
+  }
+
   int32_t code = mgmtCheckDbLimit(pAcct);
   if (code != 0) {
     return code;
@@ -269,11 +293,11 @@ int32_t mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
   return code;
 }
 
-int32_t mgmtUpdateDb(SDbObj *pDb) {
+static int32_t mgmtUpdateDb(SDbObj *pDb) {
   return sdbUpdateRow(tsDbSdb, pDb, tsDbUpdateSize, 1);
 }
 
-int32_t mgmtSetDbDropping(SDbObj *pDb) {
+static int32_t mgmtSetDbDropping(SDbObj *pDb) {
   if (pDb->dropStatus == TSDB_DB_STATUS_DROP_FROM_SDB) return 0;
 
   SVgObj *pVgroup = pDb->pHead;
@@ -294,6 +318,16 @@ int32_t mgmtSetDbDropping(SDbObj *pDb) {
         }
       }
     }
+
+    //void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
+    //  mTrace("vgroup:%d send free vgroup msg, ahandle:%p", pVgroup->vgId, ahandle);
+    //
+    //  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    //    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
+    //    mgmtSendDropVnodeMsg(pVgroup->vnodeGid[i].vnode, &ipSet, ahandle);
+    //  }
+    //}
+    //
 //    mgmtSendDropVgroupMsg(pVgroup);
     pVgroup = pVgroup->next;
   }
@@ -310,7 +344,7 @@ int32_t mgmtSetDbDropping(SDbObj *pDb) {
   return 0;
 }
 
-bool mgmtCheckDropDbFinished(SDbObj *pDb) {
+static bool mgmtCheckDropDbFinished(SDbObj *pDb) {
   SVgObj *pVgroup = pDb->pHead;
   while (pVgroup) {
     for (int32_t i = 0; i < pVgroup->numOfVnodes; i++) {
@@ -333,7 +367,7 @@ bool mgmtCheckDropDbFinished(SDbObj *pDb) {
   return true;
 }
 
-void mgmtDropDbFromSdb(SDbObj *pDb) {
+static void mgmtDropDbFromSdb(SDbObj *pDb) {
   while (pDb->pHead) mgmtDropVgroup(pDb, pDb->pHead);
 
 //  SSuperTableObj *pMetric = pDb->pSTable;
@@ -348,13 +382,13 @@ void mgmtDropDbFromSdb(SDbObj *pDb) {
   mPrint("db:%s database drop finished", pDb->name);
 }
 
-int32_t mgmtDropDb(SDbObj *pDb) {
+static int32_t mgmtDropDb(SDbObj *pDb) {
   if (pDb->dropStatus == TSDB_DB_STATUS_DROPPING) {
     bool finished = mgmtCheckDropDbFinished(pDb);
     if (!finished) {
       SVgObj *pVgroup = pDb->pHead;
       while (pVgroup != NULL) {
-        mgmtSendDropVgroupMsg(pVgroup, NULL);
+        //mgmtSendDropVgroupMsg(pVgroup, NULL);
         pVgroup = pVgroup->next;
       }
       return TSDB_CODE_ACTION_IN_PROGRESS;
@@ -371,7 +405,7 @@ int32_t mgmtDropDb(SDbObj *pDb) {
   }
 }
 
-int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists) {
+static int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists) {
   SDbObj *pDb = (SDbObj *)sdbGetRow(tsDbSdb, name);
   if (pDb == NULL) {
     if (ignoreNotExists) return TSDB_CODE_SUCCESS;
@@ -394,7 +428,8 @@ bool mgmtCheckIsMonitorDB(char *db, char *monitordb) {
   return (strncasecmp(dbName, monitordb, len) == 0 && len == strlen(monitordb));
 }
 
-void mgmtMonitorDbDrop(void *unused, void *unusedt) {
+UNUSED_FUNC
+static void mgmtMonitorDbDrop(void *unused, void *unusedt) {
   void *  pNode = NULL;
   SDbObj *pDb = NULL;
 
@@ -407,7 +442,7 @@ void mgmtMonitorDbDrop(void *unused, void *unusedt) {
   }
 }
 
-int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
+static int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
   return 0;
 //  int32_t code = TSDB_CODE_SUCCESS;
 //
@@ -527,7 +562,7 @@ void mgmtCleanUpDbs() {
   sdbCloseTable(tsDbSdb);
 }
 
-int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SSchema *pSchema = tsGetSchema(pMeta);
@@ -676,7 +711,7 @@ char *mgmtGetDbStr(char *src) {
   return ++pos;
 }
 
-int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
   SDbObj *pDb = NULL;
   char *  pWrite;
@@ -867,4 +902,95 @@ void mgmtAddTableIntoDb(SDbObj *pDb) {
 
 void mgmtRemoveTableFromDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfTables, -1);
+}
+
+static void mgmtProcessCreateDbMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  SCreateDbMsg *pCreate = (SCreateDbMsg *) rpcMsg->pCont;
+
+  pCreate->maxSessions     = htonl(pCreate->maxSessions);
+  pCreate->cacheBlockSize  = htonl(pCreate->cacheBlockSize);
+  pCreate->daysPerFile     = htonl(pCreate->daysPerFile);
+  pCreate->daysToKeep      = htonl(pCreate->daysToKeep);
+  pCreate->daysToKeep1     = htonl(pCreate->daysToKeep1);
+  pCreate->daysToKeep2     = htonl(pCreate->daysToKeep2);
+  pCreate->commitTime      = htonl(pCreate->commitTime);
+  pCreate->blocksPerTable  = htons(pCreate->blocksPerTable);
+  pCreate->rowsInFileBlock = htonl(pCreate->rowsInFileBlock);
+  // pCreate->cacheNumOfBlocks = htonl(pCreate->cacheNumOfBlocks);
+
+  if (mgmtCheckExpired()) {
+    rpcRsp.code = TSDB_CODE_GRANT_EXPIRED;
+  } else if (!pUser->writeAuth) {
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    rpcRsp.code = mgmtCreateDb(pUser->pAcct, pCreate);
+    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
+      mLPrint("DB:%s is created by %s", pCreate->db, pUser->user);
+    }
+  }
+
+  rpcSendResponse(&rpcRsp);
+}
+
+static void mgmtProcessAlterDbMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  SAlterDbMsg *pAlter = (SAlterDbMsg *) rpcMsg->pCont;
+  pAlter->daysPerFile = htonl(pAlter->daysPerFile);
+  pAlter->daysToKeep  = htonl(pAlter->daysToKeep);
+  pAlter->maxSessions = htonl(pAlter->maxSessions) + 1;
+
+  if (!pUser->writeAuth) {
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+  } else {
+    rpcRsp.code = mgmtAlterDb(pUser->pAcct, pAlter);
+    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
+      mLPrint("DB:%s is altered by %s", pAlter->db, pUser->user);
+    }
+  }
+
+  rpcSendResponse(&rpcRsp);
+}
+
+
+static void mgmtProcessDropDbMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return ;
+  }
+
+  if (pUser->superAuth) {
+    SDropDbMsg *pDrop = rpcMsg->pCont;
+    rpcRsp.code = mgmtDropDbByName(pUser->pAcct, pDrop->db, pDrop->ignoreNotExists);
+    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
+      mLPrint("DB:%s is dropped by %s", pDrop->db, pUser->user);
+    }
+  } else {
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+  }
+
+  rpcSendResponse(&rpcRsp);
 }
