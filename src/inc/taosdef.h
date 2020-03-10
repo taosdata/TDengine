@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include "tglobalcfg.h"
+#include <stdbool.h>
 
 #define TSDB__packed
 
@@ -30,6 +30,42 @@ extern "C" {
 #else
 #define TSKEY int64_t
 #endif
+
+// Data type definition
+#define TSDB_DATA_TYPE_NULL       0     // 1 bytes
+#define TSDB_DATA_TYPE_BOOL       1     // 1 bytes
+#define TSDB_DATA_TYPE_TINYINT    2     // 1 byte
+#define TSDB_DATA_TYPE_SMALLINT   3     // 2 bytes
+#define TSDB_DATA_TYPE_INT        4     // 4 bytes
+#define TSDB_DATA_TYPE_BIGINT     5     // 8 bytes
+#define TSDB_DATA_TYPE_FLOAT      6     // 4 bytes
+#define TSDB_DATA_TYPE_DOUBLE     7     // 8 bytes
+#define TSDB_DATA_TYPE_BINARY     8     // string
+#define TSDB_DATA_TYPE_TIMESTAMP  9     // 8 bytes
+#define TSDB_DATA_TYPE_NCHAR      10    // unicode string
+
+// Bytes for each type.
+#define CHAR_BYTES   sizeof(char)
+#define SHORT_BYTES  sizeof(short)
+#define INT_BYTES    sizeof(int)
+#define LONG_BYTES   sizeof(int64_t)
+#define FLOAT_BYTES  sizeof(float)
+#define DOUBLE_BYTES sizeof(double)
+
+// NULL definition
+#define TSDB_DATA_BOOL_NULL             0x02
+#define TSDB_DATA_TINYINT_NULL          0x80
+#define TSDB_DATA_SMALLINT_NULL         0x8000
+#define TSDB_DATA_INT_NULL              0x80000000
+#define TSDB_DATA_BIGINT_NULL           0x8000000000000000L
+
+#define TSDB_DATA_FLOAT_NULL            0x7FF00000              // it is an NAN
+#define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN
+#define TSDB_DATA_NCHAR_NULL            0xFFFFFFFF
+#define TSDB_DATA_BINARY_NULL           0xFF
+
+#define TSDB_DATA_NULL_STR              "NULL"
+#define TSDB_DATA_NULL_STR_L            "null"
 
 #define TSDB_TRUE 1
 #define TSDB_FALSE 0
@@ -44,16 +80,6 @@ extern "C" {
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
 
-#define TSDB_DATA_TYPE_BOOL       1     // 1 bytes
-#define TSDB_DATA_TYPE_TINYINT    2     // 1 byte
-#define TSDB_DATA_TYPE_SMALLINT   3     // 2 bytes
-#define TSDB_DATA_TYPE_INT        4     // 4 bytes
-#define TSDB_DATA_TYPE_BIGINT     5     // 8 bytes
-#define TSDB_DATA_TYPE_FLOAT      6     // 4 bytes
-#define TSDB_DATA_TYPE_DOUBLE     7     // 8 bytes
-#define TSDB_DATA_TYPE_BINARY     8     // string
-#define TSDB_DATA_TYPE_TIMESTAMP  9     // 8 bytes
-#define TSDB_DATA_TYPE_NCHAR      10    // unicode string
 
 #define TSDB_KEYSIZE              sizeof(TSKEY)
 
@@ -64,6 +90,48 @@ extern "C" {
 #endif
 //#define TSDB_CHAR_TERMINATED_SPACE 1
 
+#define GET_INT8_VAL(x)   (*(int8_t *)(x))
+#define GET_INT16_VAL(x)  (*(int16_t *)(x))
+#define GET_INT32_VAL(x)  (*(int32_t *)(x))
+#define GET_INT64_VAL(x)  (*(int64_t *)(x))
+#ifdef _TD_ARM_32_
+  #define GET_FLOAT_VAL(x)  taos_align_get_float(x)
+  #define GET_DOUBLE_VAL(x) taos_align_get_double(x)
+
+  float  taos_align_get_float(const char* pBuf);
+  double taos_align_get_double(const char* pBuf);
+
+  //#define __float_align_declear()  float __underlyFloat = 0.0;
+  //#define __float_align_declear()
+  //#define GET_FLOAT_VAL_ALIGN(x) (*(int32_t*)&(__underlyFloat) = *(int32_t*)(x); __underlyFloat);
+  // notes: src must be float or double type variable !!!
+  #define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
+  #define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
+#else
+  #define GET_FLOAT_VAL(x)  (*(float *)(x))
+  #define GET_DOUBLE_VAL(x) (*(double *)(x))
+#endif
+
+typedef struct tDataTypeDescriptor {
+  int16_t nType;
+  int16_t nameLen;
+  int32_t nSize;
+  char *  aName;
+} tDataTypeDescriptor;
+
+extern tDataTypeDescriptor tDataTypeDesc[11];
+#define POINTER_BYTES sizeof(void *)  // 8 by default  assert(sizeof(ptrdiff_t) == sizseof(void*)
+
+bool isValidDataType(int32_t type, int32_t length);
+bool isNull(const char *val, int32_t type);
+
+void setNull(char *val, int32_t type, int32_t bytes);
+void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
+
+void assignVal(char *val, const char *src, int32_t len, int32_t type);
+void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
+
+// TODO: check if below is necessary
 #define TSDB_RELATION_INVALID     0
 #define TSDB_RELATION_LESS        1
 #define TSDB_RELATION_LARGE       2

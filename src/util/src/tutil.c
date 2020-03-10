@@ -22,7 +22,7 @@
 #include "tcrc32c.h"
 #include "tglobalcfg.h"
 #include "ttime.h"
-#include "ttypes.h"
+#include "taosdef.h"
 #include "tutil.h"
 #include "tlog.h"
 #include "taoserror.h"
