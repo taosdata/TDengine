@@ -19,11 +19,51 @@
 #include <stdlib.h>
 #include <string.h>
 
-// #include "schema.h"
+#include "taosdef.h"
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// ----------------- TSDB COLUMN DEFINITION
+typedef struct {
+  int8_t  type;    // Column type
+  int16_t colId;   // column ID
+  int32_t bytes;   // column bytes
+  int32_t offset;  // point offset in a row data
+} STColumn;
+
+#define colType(col) ((col)->type)
+#define colColId(col) ((col)->colId)
+#define colBytes(col) ((col)->bytes)
+#define colOffset(col) ((col)->offset)
+
+#define colSetType(col, t) (colType(col) = (t))
+#define colSetColId(col, id) (colColId(col) = (id))
+#define colSetBytes(col, b) (colBytes(col) = (b))
+#define colSetOffset(col, o) (colOffset(col) = (o))
+
+STColumn *tdNewCol(int8_t type, int16_t colId, int16_t bytes);
+void      tdFreeCol(STColumn *pCol);
+void      tdColCpy(STColumn *dst, STColumn *src);
+void      tdSetCol(STColumn *pCol, int8_t type, int16_t colId, int32_t bytes);
+
+// ----------------- TSDB SCHEMA DEFINITION
+typedef struct {
+  int32_t  numOfCols;
+  int32_t  padding;  // TODO: replace the padding for useful variable
+  STColumn columns[];
+} STSchema;
+
+#define schemaNCols(s) ((s)->numOfCols)
+#define schemaColAt(s, i) ((s)->columns + i)
+
+STSchema *tdNewSchema(int32_t nCols);
+STSchema *tdDupSchema(STSchema *pSchema);
+void tdFreeSchema(STSchema *pSchema);
+void tdUpdateSchema(STSchema *pSchema);
+
 // ----------------- Data row structure
 
 /* A data row, the format is like below:

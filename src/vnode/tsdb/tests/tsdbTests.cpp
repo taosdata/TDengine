@@ -2,9 +2,10 @@
 #include <stdlib.h>
 
 #include "tsdb.h"
+#include "dataformat.h"
 #include "tsdbMeta.h"
 
-TEST(TsdbTest, DISABLED_createTable) {
+TEST(TsdbTest, createTable) {
   STsdbMeta *pMeta = tsdbCreateMeta(100);
   ASSERT_NE(pMeta, nullptr);
 
@@ -14,7 +15,7 @@ TEST(TsdbTest, DISABLED_createTable) {
   config.numOfCols = 5;
   config.schema = tdNewSchema(config.numOfCols);
   for (int i = 0; i < schemaNCols(config.schema); i++) {
-    SColumn *pCol = tdNewCol(TD_DATATYPE_BIGINT, i, 0);
+    STColumn *pCol = tdNewCol(TSDB_DATA_TYPE_BIGINT, i, 0);
     tdColCpy(schemaColAt(config.schema, i), pCol);
     tdFreeCol(pCol);
   }
@@ -40,11 +41,11 @@ TEST(TsdbTest, createRepo) {
   config.tableId.uid = 98868728187539L;
   config.numOfCols = 5;
   config.schema = tdNewSchema(config.numOfCols);
-  SColumn *pCol = tdNewCol(TD_DATATYPE_TIMESTAMP, 0, 0);
+  STColumn *pCol = tdNewCol(TSDB_DATA_TYPE_TIMESTAMP, 0, 0);
   tdColCpy(schemaColAt(config.schema, 0), pCol);
   tdFreeCol(pCol);
   for (int i = 1; i < schemaNCols(config.schema); i++) {
-    pCol = tdNewCol(TD_DATATYPE_BIGINT, i, 0);
+    pCol = tdNewCol(TSDB_DATA_TYPE_BIGINT, i, 0);
     tdColCpy(schemaColAt(config.schema, i), pCol);
     tdFreeCol(pCol);
   }
@@ -52,41 +53,41 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &config);
   // Write some data
 
-  int32_t size = sizeof(SSubmitMsg) + sizeof(SSubmitBlock) + tdMaxRowDataBytes(config.schema) * 10 + sizeof(int32_t);
+  // int32_t size = sizeof(SSubmitMsg) + sizeof(SSubmitBlock) + tdMaxRowDataBytes(config.schema) * 10 + sizeof(int32_t);
 
-  tdUpdateSchema(config.schema);
+  // tdUpdateSchema(config.schema);
 
-  SSubmitMsg *pMsg = (SSubmitMsg *)malloc(size);
-  pMsg->numOfTables = 1;  // TODO: use api
+  // SSubmitMsg *pMsg = (SSubmitMsg *)malloc(size);
+  // pMsg->numOfTables = 1;  // TODO: use api
 
-  SSubmitBlock *pBlock = (SSubmitBlock *)pMsg->data;
-  pBlock->tableId = {.uid = 98868728187539L, .tid = 0};
-  pBlock->sversion = 0;
-  pBlock->len = sizeof(SSubmitBlock);
+  // SSubmitBlock *pBlock = (SSubmitBlock *)pMsg->data;
+  // pBlock->tableId = {.uid = 98868728187539L, .tid = 0};
+  // pBlock->sversion = 0;
+  // pBlock->len = sizeof(SSubmitBlock);
 
-  SDataRows rows = pBlock->data;
-  dataRowsInit(rows);
+  // SDataRows rows = pBlock->data;
+  // dataRowsInit(rows);
 
-  SDataRow row = tdNewDataRow(tdMaxRowDataBytes(config.schema));
-  int64_t ttime = 1583508800000;
-  for (int i = 0; i < 10; i++) {  // loop over rows
-    ttime += (10000 * i);
-    tdDataRowReset(row);
-    for (int j = 0; j < schemaNCols(config.schema); j++) {
-      if (j == 0) {  // set time stamp
-        tdAppendColVal(row, (void *)(&ttime), schemaColAt(config.schema, j), 40);
-      } else {       // set other fields
-        int32_t val = 10;
-        tdAppendColVal(row, (void *)(&val), schemaColAt(config.schema, j), 40);
-      }
-    }
+  // SDataRow row = tdNewDataRow(tdMaxRowDataBytes(config.schema));
+  // int64_t ttime = 1583508800000;
+  // for (int i = 0; i < 10; i++) {  // loop over rows
+  //   ttime += (10000 * i);
+  //   tdDataRowReset(row);
+  //   for (int j = 0; j < schemaNCols(config.schema); j++) {
+  //     if (j == 0) {  // set time stamp
+  //       tdAppendColVal(row, (void *)(&ttime), schemaColAt(config.schema, j), 40);
+  //     } else {       // set other fields
+  //       int32_t val = 10;
+  //       tdAppendColVal(row, (void *)(&val), schemaColAt(config.schema, j), 40);
+  //     }
+  //   }
 
-    tdDataRowsAppendRow(rows, row);
-  }
+  //   tdDataRowsAppendRow(rows, row);
+  // }
 
-  tsdbInsertData(pRepo, pMsg);
+  // tsdbInsertData(pRepo, pMsg);
 
-  tdFreeDataRow(row);
+  // tdFreeDataRow(row);
 
   tdFreeSchema(config.schema);
   tsdbDropRepo(pRepo);
