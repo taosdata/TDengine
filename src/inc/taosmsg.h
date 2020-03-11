@@ -240,7 +240,7 @@ typedef struct SSchema {
 typedef struct {
   int32_t  vnode;  //the index of vnode
   uint32_t ip;
-} SVPeerDesc;
+} SVnodeDesc;
 
 typedef struct {
   int8_t     tableType;
@@ -255,7 +255,7 @@ typedef struct {
   uint64_t   uid;
   uint64_t   superTableUid;
   uint64_t   createdTime;
-  SVPeerDesc vpeerDesc[TSDB_MAX_MPEERS];
+  SVnodeDesc vpeerDesc[TSDB_MAX_MPEERS];
   char       tableId[TSDB_TABLE_ID_LEN + 1];
   char       superTableId[TSDB_TABLE_ID_LEN + 1];
   char       data[];
@@ -270,12 +270,12 @@ typedef struct {
   int16_t   sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
   int16_t   reserved[16];
   char      schema[];
-} SCreateTableMsg;
+} SCMCreateTableMsg;
 
 typedef struct {
   char   tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t igNotExists;
-} SDropTableMsg;
+} SCMDropTableMsg;
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];
@@ -284,13 +284,13 @@ typedef struct {
   char    tagVal[TSDB_MAX_BYTES_PER_ROW];
   int8_t  numOfCols; /* number of schema */
   SSchema schema[];
-} SAlterTableMsg;
+} SCMAlterTableMsg;
 
 typedef struct {
   char clientVersion[TSDB_VERSION_LEN];
   char msgVersion[TSDB_VERSION_LEN];
   char db[TSDB_TABLE_ID_LEN + 1];
-} SConnectMsg;
+} SCMConnectMsg;
 
 typedef struct {
   char      acctId[TSDB_ACCT_LEN + 1];
@@ -298,7 +298,7 @@ typedef struct {
   int8_t    writeAuth;
   int8_t    superAuth;
   SRpcIpSet ipList;
-} SConnectRsp;
+} SCMConnectRsp;
 
 typedef struct {
   int32_t maxUsers;
@@ -318,18 +318,18 @@ typedef struct {
   char     user[TSDB_USER_LEN + 1];
   char     pass[TSDB_KEY_LEN + 1];
   SAcctCfg cfg;
-} SCreateAcctMsg, SAlterAcctMsg;
+} SCMCreateAcctMsg, SCMAlterAcctMsg;
 
 typedef struct {
   char user[TSDB_USER_LEN + 1];
-} SDropUserMsg, SDropAcctMsg;
+} SCMDropUserMsg, SCMDropAcctMsg;
 
 typedef struct {
   char   user[TSDB_USER_LEN + 1];
   char   pass[TSDB_KEY_LEN + 1];
   int8_t privilege;
   int8_t flag;
-} SCreateUserMsg, SAlterUserMsg;
+} SCMCreateUserMsg, SCMAlterUserMsg;
 
 typedef struct {
   char db[TSDB_TABLE_ID_LEN + 1];
@@ -339,7 +339,7 @@ typedef struct {
   int32_t    sid;
   int32_t    numOfVPeers;
   uint64_t   uid;
-  SVPeerDesc vpeerDesc[TSDB_MAX_MPEERS];
+  SVnodeDesc vpeerDesc[TSDB_MAX_MPEERS];
   char       tableId[TSDB_TABLE_ID_LEN + 1];
 } SMDDropTableMsg;
 
@@ -562,12 +562,12 @@ typedef struct {
   int8_t  loadLatest;  // load into mem or not
   uint8_t precision;   // time resolution
   int8_t  reserved[16];
-} SVnodeCfg, SCreateDbMsg, SDbCfg, SAlterDbMsg;
+} SVnodeCfg, SDbCfg, SCMCreateDbMsg, SCMAlterDbMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_ID_LEN + 1];
   uint8_t ignoreNotExists;
-} SDropDbMsg, SUseDbMsg;
+} SCMDropDbMsg, SCMUseDbMsg;
 
 // IMPORTANT: sizeof(SVnodeStatisticInfo) should not exceed
 // TSDB_FILE_HEADER_LEN/4 - TSDB_FILE_HEADER_VERSION_SIZE
@@ -598,52 +598,40 @@ typedef struct {
   uint8_t    alternativeRole;
   uint8_t    reserve[15];
   SVnodeLoad load[];
-} SStatusMsg;
+} SDMStatusMsg;
 
 typedef struct {
   int32_t      code;
   SDnodeState  dnodeState;
   SRpcIpSet    ipList;
   SVnodeAccess vnodeAccess[];
-} SStatusRsp;
-
-typedef struct {
-  char spi;
-  char encrypt;
-  char secret[TSDB_KEY_LEN];  // key is changed if updated
-  char cipheringKey[TSDB_KEY_LEN];
-} SSecIe;
-
-typedef struct {
-  int32_t numOfVPeers;
-  SVPeerDesc vpeerDesc[];
-} SVpeerDescArray;
+} SDMStatusRsp;
 
 typedef struct {
   int32_t    vnode;
   SVnodeCfg  cfg;
-  SVPeerDesc vpeerDesc[TSDB_MAX_MPEERS];
+  SVnodeDesc vpeerDesc[TSDB_MAX_MPEERS];
 } SMDCreateVnodeMsg;
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];
   int16_t createFlag;
   char    tags[];
-} STableInfoMsg;
+} SCMTableInfoMsg;
 
 typedef struct {
   int32_t numOfTables;
   char    tableIds[];
-} SMultiTableInfoMsg;
+} SCMMultiTableInfoMsg;
 
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];
-} SSuperTableInfoMsg;
+} SCMSuperTableInfoMsg;
 
 typedef struct {
   int32_t  numOfDnodes;
   uint32_t dnodeIps[];
-} SSuperTableInfoRsp;
+} SCMSuperTableInfoRsp;
 
 typedef struct {
   int16_t elemLen;
@@ -675,7 +663,7 @@ typedef struct {
 } SSuperTableMetaMsg;
 
 typedef struct {
-  SVPeerDesc vpeerDesc[TSDB_VNODES_SUPPORT];
+  SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int16_t    index;  // used locally
   int32_t    numOfSids;
   int32_t    pSidExtInfoList[];  // offset value of STableSidExtInfo
@@ -699,7 +687,7 @@ typedef struct STableMeta {
   int16_t rowSize;  // used locally, calculated in client
   int16_t sversion;
   int8_t  numOfVpeers;
-  SVPeerDesc vpeerDesc[TSDB_VNODES_SUPPORT];
+  SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int32_t  sid;
   int32_t  vgid;
   uint64_t uid;
@@ -727,27 +715,27 @@ typedef struct {
   char     db[TSDB_DB_NAME_LEN + 1];
   uint16_t payloadLen;
   char     payload[];
-} SShowMsg;
+} SCMShowMsg;
 
 typedef struct {
   uint64_t   qhandle;
   STableMeta tableMeta;
-} SShowRsp;
+} SCMShowRsp;
 
 typedef struct {
   char ip[32];
-} SCreateMnodeMsg, SDropMnodeMsg, SCreateDnodeMsg, SDropDnodeMsg;
+} SCMCreateDnodeMsg, SCMDropDnodeMsg;
 
 typedef struct {
   uint32_t dnode;
   int32_t  vnode;
   int32_t  sid;
-} STableCfgMsg;
+} SDMConfigTableMsg;
 
 typedef struct {
   uint32_t dnode;
   int32_t vnode;
-} SVpeerCfgMsg;
+} SDMConfigVnodeMsg;
 
 typedef struct {
   char ip[32];
@@ -785,18 +773,18 @@ typedef struct {
 typedef struct {
   SQqueryList qlist;
   SStreamList slist;
-} SHeartBeatMsg;
+} SCMHeartBeatMsg;
 
 typedef struct {
   uint32_t  queryId;
   uint32_t  streamId;
   int8_t    killConnection;
   SRpcIpSet ipList;
-} SHeartBeatRsp;
+} SCMHeartBeatRsp;
 
 typedef struct {
   char queryId[TSDB_KILL_MSG_LEN + 1];
-} SKillQueryMsg, SKillStreamMsg, SKillConnectionMsg;
+} SCMKillQueryMsg, SCMKillStreamMsg, SCMKillConnMsg;
 
 typedef struct {
   int32_t  vnode;
@@ -805,7 +793,7 @@ typedef struct {
   uint64_t stime;  // stream starting time
   int32_t  status;
   char     tableId[TSDB_TABLE_ID_LEN + 1];
-} SDAlterStreamMsg;
+} SMDAlterStreamMsg;
 
 #pragma pack(pop)
 

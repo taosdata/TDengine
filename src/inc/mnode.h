@@ -25,8 +25,6 @@ extern "C" {
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "taoserror.h"
-
-
 #include "sdb.h"
 #include "tglobalcfg.h"
 #include "thash.h"
@@ -44,7 +42,6 @@ extern "C" {
 // internal globals
 extern char  version[];
 extern void *tsMgmtTmr;
-extern void *tsMgmtTranQhandle;
 extern char  tsMgmtDirectory[];
 
 typedef struct {

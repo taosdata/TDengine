@@ -441,15 +441,16 @@ void rpcSendRedirectRsp(void *thandle, SRpcIpSet *pIpSet) {
   return;
 }
 
-void rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
+int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   SRpcConn  *pConn = (SRpcConn *)thandle;
+  if (pConn->user[0] == 0) return -1;
 
   pInfo->clientIp = pConn->peerIp;
   pInfo->clientPort = pConn->peerPort;
   pInfo->serverIp = pConn->destIp;
 
-  assert(pConn->user[0]);
   strcpy(pInfo->user, pConn->user);
+  return 0;
 }
 
 static void rpcFreeMsg(void *msg) {

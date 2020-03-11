@@ -325,7 +325,7 @@ static void dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
 }
 
 static void dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
-//  SDAlterStreamMsg *pStream = pCont;
+//  SMDAlterStreamMsg *pStream = pCont;
 //  pStream->uid    = htobe64(pStream->uid);
 //  pStream->stime  = htobe64(pStream->stime);
 //  pStream->vnode  = htonl(pStream->vnode);
@@ -350,8 +350,8 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
     return;
   }
 
-//  int32_t contLen = sizeof(SStatusMsg) + dnodeGetVnodesNum() * sizeof(SVnodeLoad);
-//  SStatusMsg *pStatus = rpcMallocCont(contLen);
+//  int32_t contLen = sizeof(SDMStatusMsg) + dnodeGetVnodesNum() * sizeof(SVnodeLoad);
+//  SDMStatusMsg *pStatus = rpcMallocCont(contLen);
 //  if (pStatus == NULL) {
 //    dError("Failed to malloc status message");
 //    return;

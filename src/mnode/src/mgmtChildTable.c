@@ -314,7 +314,7 @@ static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgrou
   return pCreateTable;
 }
 
-int32_t mgmtCreateChildTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
+int32_t mgmtCreateChildTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
                              SMDCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
   int32_t numOfTables = sdbGetNumOfRows(tsChildTableSdb);
   if (numOfTables >= tsMaxTables) {
@@ -350,7 +350,7 @@ int32_t mgmtCreateChildTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *
   }
 
   pTagData += (TSDB_TABLE_ID_LEN + 1);
-  int32_t tagDataLen = contLen - sizeof(SCreateTableMsg) - TSDB_TABLE_ID_LEN - 1;
+  int32_t tagDataLen = contLen - sizeof(SCMCreateTableMsg) - TSDB_TABLE_ID_LEN - 1;
   *pDCreateOut = mgmtBuildCreateChildTableMsg(pTable, pVgroup, pTagData, tagDataLen);
   if (*pDCreateOut == NULL) {
     mError("table:%s, failed to build create table message", pCreate->tableId);

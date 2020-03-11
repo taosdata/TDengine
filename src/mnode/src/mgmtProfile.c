@@ -22,7 +22,7 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
-int32_t mgmtSaveQueryStreamList(SHeartBeatMsg *pHBMsg);
+int32_t mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg);
 
 int32_t mgmtKillQuery(char *qidstr, void *pConn);
 int32_t mgmtKillStream(char *qidstr, void *pConn);
@@ -63,7 +63,7 @@ typedef struct {
   SStreamDesc   sdesc[];
 } SStreamShow;
 
-int32_t  mgmtSaveQueryStreamList(SHeartBeatMsg *pHBMsg) {
+int32_t  mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg) {
 //  SAcctObj *pAcct = pConn->pAcct;
 //
 //  if (contLen <= 0 || pAcct == NULL) {
@@ -684,7 +684,7 @@ void mgmtProcessKillQueryMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  SKillQueryMsg *pKill = (SKillQueryMsg *) rpcMsg->pCont;
+  SCMKillQueryMsg *pKill = (SCMKillQueryMsg *) rpcMsg->pCont;
   int32_t code;
 
   if (!pUser->writeAuth) {
@@ -708,7 +708,7 @@ void mgmtProcessKillStreamMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  SKillStreamMsg *pKill = (SKillStreamMsg *) rpcMsg->pCont;
+  SCMKillStreamMsg *pKill = (SCMKillStreamMsg *) rpcMsg->pCont;
   int32_t code;
 
   if (!pUser->writeAuth) {
@@ -732,7 +732,7 @@ void mgmtProcessKillConnectionMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  SKillConnectionMsg *pKill = (SKillConnectionMsg *) rpcMsg->pCont;
+  SCMKillConnMsg *pKill = (SCMKillConnMsg *) rpcMsg->pCont;
   int32_t code;
 
   if (!pUser->writeAuth) {

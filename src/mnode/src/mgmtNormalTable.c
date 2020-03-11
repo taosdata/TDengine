@@ -328,7 +328,7 @@ static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgr
   return pCreateTable;
 }
 
-int32_t mgmtCreateNormalTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
+int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
                               SMDCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
   int32_t numOfTables = sdbGetNumOfRows(tsNormalTableSdb);
   if (numOfTables >= TSDB_MAX_NORMAL_TABLES) {

@@ -18,5 +18,5 @@
 #include "mgmtMnode.h"
 
 bool mgmtCheckRedirect(void *handle) {
-  return true;
+  return false;
 }

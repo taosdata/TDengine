@@ -89,7 +89,7 @@ static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *s
 //
 //
 //static void mgmtProcessTableCfgMsg(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle) {
-//  STableCfgMsg *pCfg = (STableCfgMsg *) pCont;
+//  SDMConfigTableMsg *pCfg = (SDMConfigTableMsg *) pCont;
 //  pCfg->dnode = htonl(pCfg->dnode);
 //  pCfg->vnode = htonl(pCfg->vnode);
 //  pCfg->sid   = htonl(pCfg->sid);
@@ -121,7 +121,7 @@ static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *s
 //    return;
 //  }
 //
-//  SVpeerCfgMsg *pCfg = (SVpeerCfgMsg *) pCont;
+//  SDMConfigVnodeMsg *pCfg = (SDMConfigVnodeMsg *) pCont;
 //  pCfg->dnode = htonl(pCfg->dnode);
 //  pCfg->vnode = htonl(pCfg->vnode);
 //
@@ -317,7 +317,7 @@ static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *s
 //}
 //
 //void mgmtProcessDnodeStatus(int8_t msgType, void *pCont, int32_t contLen, void *pConn, int32_t code) {
-//  SStatusMsg *pStatus = (SStatusMsg *)pCont;
+//  SDMStatusMsg *pStatus = (SDMStatusMsg *)pCont;
 //
 //  SDnodeObj *pObj = mgmtGetDnode(htonl(pStatus->privateIp));
 //  if (pObj == NULL) {

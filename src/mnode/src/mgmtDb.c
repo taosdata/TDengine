@@ -35,7 +35,7 @@ static void *tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
 static int32_t mgmtUpdateDb(SDbObj *pDb);
-static int32_t mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate);
+static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
 static int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
 static int32_t mgmtDropDb(SDbObj *pDb);
 
@@ -81,7 +81,7 @@ int32_t mgmtInitDbs() {
   SDbObj tObj;
   tsDbUpdateSize = tObj.updateEnd - (char *)&tObj;
 
-  tsDbSdb = sdbOpenTable(tsMaxDbs, tsDbUpdateSize, "db", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtDbAction);
+  tsDbSdb = sdbOpenTable(tsMaxDbs, tsDbUpdateSize, "dbs", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtDbAction);
   if (tsDbSdb == NULL) {
     mError("failed to init db data");
     return -1;
@@ -133,7 +133,7 @@ SDbObj *mgmtGetDbByTableId(char *tableId) {
   return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
 
-static int32_t mgmtCheckDBParams(SCreateDbMsg *pCreate) {
+static int32_t mgmtCheckDBParams(SCMCreateDbMsg *pCreate) {
   if (pCreate->commitLog < 0 || pCreate->commitLog > 1) {
     mError("invalid db option commitLog: %d, only 0 or 1 allowed", pCreate->commitLog);
     return TSDB_CODE_INVALID_OPTION;
@@ -206,7 +206,7 @@ static int32_t mgmtCheckDBParams(SCreateDbMsg *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtCheckDbParams(SCreateDbMsg *pCreate) {
+static int32_t mgmtCheckDbParams(SCMCreateDbMsg *pCreate) {
   // assign default parameters
   if (pCreate->maxSessions < 0) pCreate->maxSessions = tsSessionsPerVnode;      //
   if (pCreate->cacheBlockSize < 0) pCreate->cacheBlockSize = tsCacheBlockSize;  //
@@ -251,7 +251,7 @@ static int32_t mgmtCheckDbParams(SCreateDbMsg *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate) {
+static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   int32_t numOfDbs = sdbGetNumOfRows(tsDbSdb);
   if (numOfDbs >= tsMaxDbs) {
     mWarn("numOfDbs:%d, exceed tsMaxDbs:%d", numOfDbs, tsMaxDbs);
@@ -442,7 +442,7 @@ static void mgmtMonitorDbDrop(void *unused, void *unusedt) {
   }
 }
 
-static int32_t mgmtAlterDb(SAcctObj *pAcct, SAlterDbMsg *pAlter) {
+static int32_t mgmtAlterDb(SAcctObj *pAcct, SCMAlterDbMsg *pAlter) {
   return 0;
 //  int32_t code = TSDB_CODE_SUCCESS;
 //
@@ -915,7 +915,7 @@ static void mgmtProcessCreateDbMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  SCreateDbMsg *pCreate = (SCreateDbMsg *) rpcMsg->pCont;
+  SCMCreateDbMsg *pCreate = (SCMCreateDbMsg *) rpcMsg->pCont;
 
   pCreate->maxSessions     = htonl(pCreate->maxSessions);
   pCreate->cacheBlockSize  = htonl(pCreate->cacheBlockSize);
@@ -953,7 +953,7 @@ static void mgmtProcessAlterDbMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  SAlterDbMsg *pAlter = (SAlterDbMsg *) rpcMsg->pCont;
+  SCMAlterDbMsg *pAlter = (SCMAlterDbMsg *) rpcMsg->pCont;
   pAlter->daysPerFile = htonl(pAlter->daysPerFile);
   pAlter->daysToKeep  = htonl(pAlter->daysToKeep);
   pAlter->maxSessions = htonl(pAlter->maxSessions) + 1;
@@ -983,7 +983,7 @@ static void mgmtProcessDropDbMsg(SRpcMsg *rpcMsg) {
   }
 
   if (pUser->superAuth) {
-    SDropDbMsg *pDrop = rpcMsg->pCont;
+    SCMDropDbMsg *pDrop = rpcMsg->pCont;
     rpcRsp.code = mgmtDropDbByName(pUser->pAcct, pDrop->db, pDrop->ignoreNotExists);
     if (rpcRsp.code == TSDB_CODE_SUCCESS) {
       mLPrint("DB:%s is dropped by %s", pDrop->db, pUser->user);
