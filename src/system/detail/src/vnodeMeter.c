@@ -786,16 +786,16 @@ void vnodeUpdateMeter(void *param, void *tmrId) {
       return;
     }
 
-    vnodeClearMeterState(pObj, TSDB_METER_STATE_UPDATING);
-
     if (taosTmrStart(vnodeUpdateMeter, 50, pNew, vnodeTmrCtrl) == NULL) {
       dError("vid:%d sid:%d id:%s, failed to start update timer", pNew->vnode, pNew->sid, pNew->meterId);
+      vnodeClearMeterState(pObj, TSDB_METER_STATE_UPDATING);
       free(pNew->schema);
       free(pNew);
-    } else {
-      dTrace("vid:%d sid:%d meterId:%s, there are data in cache, commit first, update later",
-           pNew->vnode, pNew->sid, pNew->meterId);
+      return;
     }
+    dTrace("vid:%d sid:%d meterId:%s, there are data in cache, commit first, update later",
+           pNew->vnode, pNew->sid, pNew->meterId);
+    vnodeClearMeterState(pObj, TSDB_METER_STATE_UPDATING);
     return;
   }
 
