@@ -13,22 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "taoserror.h"
-#include "taosdef.h"
-#include "tlog.h"
-#include "tutil.h"
-#include "shash.h"
-#include "tglobalcfg.h"
 #include "syncMain.h"
-
-int32_t syncTest1() {
-  tPrint("test1");
-  return 0;
-}
-
-int32_t syncTest2() {
-  tPrint("test2");
+int main(int argc, char *argv[]) {
+  syncTest2();
   return 0;
 }

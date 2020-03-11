@@ -20,7 +20,11 @@
 extern "C" {
 #endif
 
-int32_t syncTest();
+#include <stdbool.h>
+#include <stdint.h>
+
+int32_t syncTest1();
+int32_t syncTest2();
 
 #ifdef __cplusplus
 }

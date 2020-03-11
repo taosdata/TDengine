@@ -11,4 +11,6 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
 
   ADD_LIBRARY(sync ${SRC})
   TARGET_LINK_LIBRARIES(sync tutil pthread)
+
+  ADD_SUBDIRECTORY(test)
 ENDIF ()
