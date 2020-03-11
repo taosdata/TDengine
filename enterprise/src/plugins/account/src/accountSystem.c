@@ -136,6 +136,12 @@ static int32_t mgmtInitAcctsImp() {
 
   taosTmrReset(mgmtDoStatistic, tsStatusInterval * 30000, NULL, tsMgmtTmr, &tsMgmtStatisTimer);
 
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_ACCT, mgmtProcessCreateAcctMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_ACCT, mgmtProcessDropAcctMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_ACCT, mgmtProcessAlterAcctMsg);
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_ACCT, mgmtGetAcctMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_ACCT, mgmtRetrieveAccts);
+
   mTrace("account is initialized");
   return 0;
 }
@@ -751,4 +757,148 @@ void acctInit() {
   mgmtCheckUserLimitFp       = mgmtCheckUserLimitImp;
   mgmtCheckDbLimitFp         = mgmtCheckDbLimitImp;
   mgmtCheckTimeSeriesLimitFp = mgmtCheckTableLimitImp;
+}
+
+static void mgmtProcessCreateAcctMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (!mgmtCreateAcctFp) {
+    rpcRsp.code = TSDB_CODE_OPS_NOT_SUPPORT;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  SCreateAcctMsg *pCreate = (SCreateAcctMsg *) rpcMsg->pCont;
+  pCreate->cfg.maxUsers           = htonl(pCreate->cfg.maxUsers);
+  pCreate->cfg.maxDbs             = htonl(pCreate->cfg.maxDbs);
+  pCreate->cfg.maxTimeSeries      = htonl(pCreate->cfg.maxTimeSeries);
+  pCreate->cfg.maxConnections     = htonl(pCreate->cfg.maxConnections);
+  pCreate->cfg.maxStreams         = htonl(pCreate->cfg.maxStreams);
+  pCreate->cfg.maxPointsPerSecond = htonl(pCreate->cfg.maxPointsPerSecond);
+  pCreate->cfg.maxStorage         = htobe64(pCreate->cfg.maxStorage);
+  pCreate->cfg.maxQueryTime       = htobe64(pCreate->cfg.maxQueryTime);
+  pCreate->cfg.maxInbound         = htobe64(pCreate->cfg.maxInbound);
+  pCreate->cfg.maxOutbound        = htobe64(pCreate->cfg.maxOutbound);
+
+  if (mgmtCheckRedirect(rpcMsg->handle) != TSDB_CODE_SUCCESS) {
+    mError("account:%s, failed to create account, need redirect message", pCreate->user);
+    return;
+  }
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    mError("account:%s, failed to create account, invalid user", pCreate->user);
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  if (strcmp(pUser->user, "root") != 0) {
+    mError("account:%s, failed to create account, no rights", pCreate->user);
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  int32_t code = mgmtCreateAcctFp(pCreate->user, pCreate->pass, &(pCreate->cfg));
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("account:%s is created by %s", pCreate->user, pUser->user);
+  } else {
+    mError("account:%s, failed to create account, reason:%s", pCreate->user, tstrerror(code));
+  }
+
+  rpcRsp.code = code;
+  rpcSendResponse(&rpcRsp);
+}
+
+
+static void mgmtProcessDropAcctMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (!mgmtDropAcctFp) {
+    rpcRsp.code = TSDB_CODE_OPS_NOT_SUPPORT;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  SDropAcctMsg *pDrop = (SDropAcctMsg *) rpcMsg->pCont;
+  if (mgmtCheckRedirect(rpcMsg->handle) != TSDB_CODE_SUCCESS) {
+    mError("account:%s, failed to drop account, need redirect message", pDrop->user);
+    return;
+  }
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    mError("account:%s, failed to drop account, invalid user", pDrop->user);
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  if (strcmp(pUser->user, "root") != 0) {
+    mError("account:%s, failed to drop account, no rights", pDrop->user);
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  int32_t code = mgmtDropAcctFp(pDrop->user);
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("account:%s is dropped by %s", pDrop->user, pUser->user);
+  } else {
+    mError("account:%s, failed to drop account, reason:%s", pDrop->user, tstrerror(code));
+  }
+
+  rpcRsp.code = code;
+  rpcSendResponse(&rpcRsp);
+}
+
+
+static void mgmtProcessAlterAcctMsg(SRpcMsg *rpcMsg) {
+  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (!mgmtAlterAcctFp) {
+    rpcRsp.code = TSDB_CODE_OPS_NOT_SUPPORT;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  SAlterAcctMsg *pAlter = rpcMsg->pCont;
+  pAlter->cfg.maxUsers           = htonl(pAlter->cfg.maxUsers);
+  pAlter->cfg.maxDbs             = htonl(pAlter->cfg.maxDbs);
+  pAlter->cfg.maxTimeSeries      = htonl(pAlter->cfg.maxTimeSeries);
+  pAlter->cfg.maxConnections     = htonl(pAlter->cfg.maxConnections);
+  pAlter->cfg.maxStreams         = htonl(pAlter->cfg.maxStreams);
+  pAlter->cfg.maxPointsPerSecond = htonl(pAlter->cfg.maxPointsPerSecond);
+  pAlter->cfg.maxStorage         = htobe64(pAlter->cfg.maxStorage);
+  pAlter->cfg.maxQueryTime       = htobe64(pAlter->cfg.maxQueryTime);
+  pAlter->cfg.maxInbound         = htobe64(pAlter->cfg.maxInbound);
+  pAlter->cfg.maxOutbound        = htobe64(pAlter->cfg.maxOutbound);
+
+  if (mgmtCheckRedirect(rpcMsg->handle) != TSDB_CODE_SUCCESS) {
+    mError("account:%s, failed to alter account, need redirect message", pAlter->user);
+    return;
+  }
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    mError("account:%s, failed to alter account, invalid user", pAlter->user);
+    rpcRsp.code = TSDB_CODE_INVALID_USER;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  if (strcmp(pUser->user, "root") != 0) {
+    mError("account:%s, failed to alter account, no rights", pAlter->user);
+    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+    rpcSendResponse(&rpcRsp);
+    return;
+  }
+
+  int32_t code = mgmtAlterAcctFp(pAlter->user, pAlter->pass, &(pAlter->cfg));;
+  if (code == TSDB_CODE_SUCCESS) {
+    mLPrint("account:%s is altered by %s", pAlter->user, pUser->user);
+  } else {
+    mError("account:%s, failed to alter account, reason:%s", pAlter->user, tstrerror(code));
+  }
+
+  rpcRsp.code = code;
+  rpcSendResponse(&rpcRsp);
 }

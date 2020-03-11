@@ -19,7 +19,7 @@
 #include "tstatus.h"
 #include "tschemautil.h"
 #include "mgmtGrant.h"
-#include "dnodeSystem.h"
+#include "dnode.h"
 #include "dnodeModule.h"
 #include "clusterDnode.h"
 #include "clusterDnodeConn.h"
@@ -222,3 +222,230 @@ int32_t mgmtGetDnodesNumImp() {
 void *mgmtGetNextDnodeImp(SShowObj *pShow, SDnodeObj **pDnode) {
   return sdbFetchRow(tsDnodeSdb, pShow->pNode, (void**)pDnode);
 }
+
+int32_t mgmtGetDnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+  int32_t cols = 0;
+
+  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  if (pUser == NULL) return 0;
+
+  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+
+  SSchema *pSchema = tsGetSchema(pMeta);
+
+  pShow->bytes[cols] = 16;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "IP");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 8;
+  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+  strcpy(pSchema[cols].name, "created time");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 2;
+  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+  strcpy(pSchema[cols].name, "open vnodes");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 2;
+  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+  strcpy(pSchema[cols].name, "free vnodes");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 10;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "status");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 18;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "balance state");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 16;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "public ip");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pMeta->numOfColumns = htons(cols);
+  pShow->numOfColumns = cols;
+
+  pShow->offset[0] = 0;
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
+
+  pShow->numOfRows = mgmtGetDnodesNum();
+  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+  pShow->pNode = NULL;
+
+  return 0;
+}
+
+int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  int32_t   numOfRows = 0;
+  int32_t   cols      = 0;
+  SDnodeObj *pDnode   = NULL;
+  char      *pWrite;
+  char      ipstr[20];
+
+  while (numOfRows < rows) {
+    pShow->pNode = mgmtGetNextDnode(pShow, (SDnodeObj **)&pDnode);
+    if (pDnode == NULL) break;
+
+    cols = 0;
+
+    tinet_ntoa(ipstr, pDnode->privateIp);
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    strcpy(pWrite, ipstr);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = pDnode->createdTime;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = pDnode->openVnodes;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = pDnode->numOfFreeVnodes;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    strcpy(pWrite, taosGetDnodeStatusStr(pDnode->status) );
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    strcpy(pWrite, taosGetDnodeLbStatusStr(pDnode->lbStatus));
+    cols++;
+
+    tinet_ntoa(ipstr, pDnode->publicIp);
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    strcpy(pWrite, ipstr);
+    cols++;
+
+    numOfRows++;
+  }
+
+  pShow->numOfReads += numOfRows;
+  return numOfRows;
+}
+
+
+int32_t mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+  if (mgmtGetScoresMetaFp) {
+    SUserObj *pUser = mgmtGetUserFromConn(pConn);
+    if (pUser == NULL) return 0;
+    if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+    return mgmtGetScoresMetaFp(pMeta, pShow, pConn);
+  } else {
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+}
+
+int32_t mgmtRetrieveScores(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  if (mgmtRetrieveScoresFp) {
+    return mgmtRetrieveScoresFp(pShow, data, rows, pConn);
+  } else {
+    return 0;
+  }
+}
+
+//  tsMgmtShowMetaFp[TSDB_MGMT_TABLE_SCORES]  = mgmtGetScoresMeta;
+//  tsMgmtShowRetrieveFp[TSDB_MGMT_TABLE_SCORES]  = mgmtRetrieveScores;
+//  tsMgmtShowRetrieveFp[TSDB_MGMT_TABLE_DNODE]   = mgmtRetrieveDnodes;
+//  tsMgmtShowMetaFp[TSDB_MGMT_TABLE_DNODE]   = mgmtGetDnodeMeta;
+
+
+//static void mgmtProcessCreateDnodeMsg(SRpcMsg *rpcMsg) {
+//  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+//  if (!mgmtCreateDnodeFp) {
+//    rpcRsp.code = TSDB_CODE_OPS_NOT_SUPPORT;
+//    rpcSendResponse(&rpcRsp);
+//    return;
+//  }
+//
+//  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *) rpcMsg->pCont;
+//  if (mgmtCheckRedirect(rpcMsg->handle) != TSDB_CODE_SUCCESS) {
+//    mError("failed to create dnode:%s, redirect this message", pCreate->ip);
+//    return;
+//  }
+//
+//  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+//  if (pUser == NULL) {
+//    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(TSDB_CODE_INVALID_USER));
+//    rpcRsp.code = TSDB_CODE_INVALID_USER;
+//    rpcSendResponse(&rpcRsp);
+//    return;
+//  }
+//
+//  if (strcmp(pUser->user, "root") != 0) {
+//    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(TSDB_CODE_NO_RIGHTS));
+//    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+//    rpcSendResponse(&rpcRsp);
+//    return;
+//  }
+//
+//  int32_t code = (*mgmtCreateDnodeFp)(inet_addr(pCreate->ip));
+//  if (code == TSDB_CODE_SUCCESS) {
+//    mLPrint("dnode:%s is created by %s", pCreate->ip, pUser->user);
+//  } else {
+//    mError("failed to create dnode:%s, reason:%s", pCreate->ip, tstrerror(code));
+//  }
+//
+//  rpcRsp.code = code;
+//  rpcSendResponse(&rpcRsp);
+//}
+//
+//static void mgmtProcessDropDnodeMsg(SRpcMsg *rpcMsg) {
+//  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+//  if (!mgmtDropDnodeByIpFp) {
+//    rpcRsp.code = TSDB_CODE_OPS_NOT_SUPPORT;
+//    rpcSendResponse(&rpcRsp);
+//    return;
+//  }
+//
+//  SDropDnodeMsg *pDrop = (SDropDnodeMsg *) rpcMsg->pCont;
+//  if (mgmtCheckRedirect(rpcMsg->handle) != TSDB_CODE_SUCCESS) {
+//    mError("failed to drop dnode:%s, redirect this message", pDrop->ip);
+//    return;
+//  }
+//
+//  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+//  if (pUser == NULL) {
+//    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(TSDB_CODE_INVALID_USER));
+//    rpcRsp.code = TSDB_CODE_INVALID_USER;
+//    rpcSendResponse(&rpcRsp);
+//    return;
+//  }
+//
+//  if (strcmp(pUser->user, "root") != 0) {
+//    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(TSDB_CODE_NO_RIGHTS));
+//    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+//    rpcSendResponse(&rpcRsp);
+//    return;
+//  }
+//
+//  int32_t code = (*mgmtDropDnodeByIpFp)(inet_addr(pDrop->ip));
+//  if (code == TSDB_CODE_SUCCESS) {
+//    mLPrint("dnode:%s set to removing state by %s", pDrop->ip, pUser->user);
+//  } else {
+//    mError("failed to drop dnode:%s, reason:%s", pDrop->ip, tstrerror(code));
+//  }
+//
+//  rpcRsp.code = code;
+//  rpcSendResponse(&rpcRsp);
+//}
+//
+
+//  mgmtProcessShellMsg[TSDB_MSG_TYPE_CM_CREATE_DNODE]     = mgmtProcessCreateDnodeMsg;
+//  mgmtProcessShellMsg[TSDB_MSG_TYPE_CM_DROP_DNODE]       = mgmtProcessDropDnodeMsg;

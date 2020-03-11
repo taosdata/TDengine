@@ -18,7 +18,6 @@
 #include "tutil.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
-#include "mgmtDnodeInt.h"
 #include "mgmtVgroup.h"
 #include "clusterDnodeConn.h"
 #include "clusterDnode.h"
@@ -245,7 +244,7 @@ static void balanceDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
   sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 1);
 
   SRpcIpSet ipSet = mgmtGetIpSetFromIp(pBackupVnodeGid.ip);
-  mgmtSendOneFreeVnodeMsg(pBackupVnodeGid.vnode, &ipSet, NULL);
+  mgmtSendDropVnodeMsg(pBackupVnodeGid.vnode, &ipSet, NULL);
 
   mgmtSendCreateVgroupMsg(pVgroup, NULL);
 }

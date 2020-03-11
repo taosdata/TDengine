@@ -19,7 +19,7 @@
 #include "tlog.h"
 #include "tsocket.h"
 #include "tutil.h"
-#include "dnodeSystem.h"
+#include "dnode.h"
 #include "dnodeMgmt.h"
 #include "dnodeModule.h"
 
@@ -43,7 +43,7 @@ int32_t dnodeInitMgmtImp() {
 
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
-  rpcInit.localPort    = tsMgmtShellPort;
+  rpcInit.localPort    = tsMnodeShellPort;
   rpcInit.label        = "DND-mgmt-s";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessMsgFromMgmt;

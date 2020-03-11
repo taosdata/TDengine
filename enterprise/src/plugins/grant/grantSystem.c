@@ -54,3 +54,44 @@ void grantInit() {
   mgmtUpdateGrantInfoFp   = grantUpdate;
 }
 
+
+
+int32_t mgmtGetGrantsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+  if (mgmtGetGrantsMetaFp) {
+    SUserObj *pUser = mgmtGetUserFromConn(pConn);
+    if (pUser == NULL) return 0;
+    if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
+    return mgmtGetGrantsMetaFp(pMeta, pShow, pConn);
+  } else {
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+}
+
+int32_t mgmtRetrieveGrants(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  if (mgmtRetrieveGrantsFp) {
+    return mgmtRetrieveGrantsFp(pShow, data, rows, pConn);
+  } else {
+    return 0;
+  }
+}
+
+//  tsMgmtShowMetaFp[TSDB_MGMT_TABLE_GRANTS]  = mgmtGetGrantsMeta;
+//  tsMgmtShowRetrieveFp[TSDB_MGMT_TABLE_GRANTS]  = mgmtRetrieveGrants;
+
+
+//static void mgmtProcessDnodeGrantMsg(void *pCont, void *thandle) {
+//  if (mgmtUpdateGrantInfoFp) {
+//    mgmtUpdateGrantInfoFp(pCont);
+//    mTrace("grant info is updated");
+//  }
+//
+//  SRpcMsg rpcMsg = {0};
+//  rpcMsg.code = TSDB_CODE_SUCCESS;
+//  rpcMsg.handle = thandle;
+//  rpcSendResponse(&rpcMsg);
+//}
+//
+
+else if (msgType == TSDB_MSG_TYPE_DM_GRANT) {
+//    mgmtProcessDnodeGrantMsg(pCont, pConn);
+//  }

@@ -585,7 +585,7 @@ bool simCreateNativeConnect(SScript *script, char *user, char *pass) {
   simCloseTaosdConnect(script);
   void *taos = NULL;
   for (int attempt = 0; attempt < 10; ++attempt) {
-    taos = taos_connect(NULL, user, pass, NULL, tsMgmtShellPort);
+    taos = taos_connect(NULL, user, pass, NULL, tsMnodeShellPort);
     if (taos == NULL) {
       simTrace("script:%s, user:%s connect taosd failed:%s, attempt:%d", script->fileName, user, taos_errstr(NULL), attempt);
       taosMsleep(1000);

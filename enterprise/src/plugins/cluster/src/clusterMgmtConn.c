@@ -19,9 +19,8 @@
 #include "tutil.h"
 #include "mnode.h"
 #include "mgmtDnode.h"
-#include "mgmtDnodeInt.h"
 
-#include "dnodeSystem.h"
+#include "dnode.h"
 #include "mgmtBalance.h"
 #include "dnodeModule.h"
 
@@ -51,7 +50,7 @@ int32_t mgmtInitDnodeIntImp() {
 
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp = tsAnyIp ? "0.0.0.0" : tsPrivateIp;;
-  rpcInit.localPort    = tsMgmtDnodePort;
+  rpcInit.localPort    = tsMnodeDnodePort;
   rpcInit.label        = "MND-dnode-s";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = mgmtProcessMsgFromDnode;
@@ -233,7 +232,7 @@ void mgmtProcessDnodeStatusImp(SStatusMsg *pStatus, SDnodeObj *pObj, int32_t msg
 //
 //      // drop vnode from dnode
 //      SVnodeGid vnodeGid = {pObj->privateIp, pObj->publicIp, vnode};
-//      mgmtSendOneFreeVnodeMsg(&vnodeGid);
+//      mgmtSendDropVnodeMsg(&vnodeGid);
 //      continue;
 //    }
 //
@@ -285,7 +284,7 @@ void mgmtProcessDnodeStatusImp(SStatusMsg *pStatus, SDnodeObj *pObj, int32_t msg
 //      SVnodeGid pVnodeGid;
 //      pVnodeGid.ip = pObj->privateIp;
 //      pVnodeGid.vnode = vnode;
-//      mgmtSendOneFreeVnodeMsg(&pVnodeGid);
+//      mgmtSendDropVnodeMsg(&pVnodeGid);
 //      memset(pVload, 0, sizeof(SVnodeLoad));
 //
 //      // if dnode not receive drop-vnode-msg, set the vnode to dropping state

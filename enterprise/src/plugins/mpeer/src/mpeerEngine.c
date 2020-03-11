@@ -527,7 +527,7 @@ static void mpeerProcessRspFromPeer(char msgType, void *pCont, int contLen, void
   }
 
   if (msgType == TSDB_MSG_TYPE_SDB_SYNC_RSP) {
-  } if (msgType == TSDB_MSG_TYPE_HEARTBEAT_RSP) {
+  } if (msgType == TSDB_MSG_TYPE_CM_HEARTBEAT_RSP) {
     mpeerProcessHeartBeatRsp(pCont, contLen, code, pPeer);
   } else if (msgType == TSDB_MSG_TYPE_SDB_FORWARD_RSP) {
     mpeerProcessForwardRsp(pCont, contLen, code, pPeer);
@@ -535,7 +535,7 @@ static void mpeerProcessRspFromPeer(char msgType, void *pCont, int contLen, void
     sdbError("%s from %s is not processed", taosMsg[(int8_t)msgType], pPeer->ipstr);
   }
 
-  if (msgType == TSDB_MSG_TYPE_HEARTBEAT) {
+  if (msgType == TSDB_MSG_TYPE_CM_HEARTBEAT) {
     taosTmrReset(mpeerCheckPeerStatus, tsMgmtPeerHBTimer * 1500, pPeer, tsMpeerTmr, &pPeer->hbTimer);
   }
   else {
@@ -557,7 +557,7 @@ static void mpeerProcessMsgFromPeer(char msgType, void *pCont, int contLen, void
 
   if (msgType == TSDB_MSG_TYPE_SDB_SYNC) {
     mpeerProcessSyncMsg((char*)pCont, contLen, pPeer, thandle);
-  } else if (msgType == TSDB_MSG_TYPE_HEARTBEAT) {
+  } else if (msgType == TSDB_MSG_TYPE_CM_HEARTBEAT) {
     mpeerProcessHeartBeatMsg(pCont, contLen, pPeer, thandle);
   } else if (msgType == TSDB_MSG_TYPE_SDB_FORWARD) {
     SSchedFordwardMsg *pMsg = calloc(1, contLen + sizeof(SSchedFordwardMsg));
@@ -575,7 +575,7 @@ static void mpeerProcessMsgFromPeer(char msgType, void *pCont, int contLen, void
     sdbError("%s from %s is not processed", taosMsg[(int8_t)msgType], pPeer->ipstr);
   }
 
-  if (msgType == TSDB_MSG_TYPE_HEARTBEAT) {
+  if (msgType == TSDB_MSG_TYPE_CM_HEARTBEAT) {
     taosTmrReset(mpeerCheckPeerStatus, tsMgmtPeerHBTimer * 1500, pPeer, tsMpeerTmr, &pPeer->hbTimer);
   }
   else {
@@ -848,7 +848,7 @@ void mpeerCheckPeerStatus(void *param, void *tmrId) {
   mpeerEncodeSelfStatus(pPeer, pStatus);
 
   mpeerTrace("send heartbeat msg to peer:%s", pPeer->ipstr);
-  rpcSendRequest(tsMpeerClient, &tsMpeerIpSet, TSDB_MSG_TYPE_HEARTBEAT, pStatus, sizeof(SMpeerStatusRsp), pPeer);
+  rpcSendRequest(tsMpeerClient, &tsMpeerIpSet, TSDB_MSG_TYPE_CM_HEARTBEAT, pStatus, sizeof(SMpeerStatusRsp), pPeer);
 }
 
 int32_t mpeerTransferWholeDataToPeer(int32_t syncFd, SSdbTable *pTable) {
@@ -1354,7 +1354,7 @@ int32_t mpeerForwardRequest(SSdbTable *pTable, char type, void *data, int32_t da
       pPeer->hbTimer = NULL;
 
       sdbTrace("table:%s type:%d db req is forwarding to:%s", pTable->name, type, pPeer->ipstr);
-      rpcSendRequest(tsMpeerClient, &tsMpeerIpSet, TSDB_MSG_TYPE_SDB_FORWARD, pForward, sizeof(SFreeVnodeMsg) + dataLen, 0);
+      rpcSendRequest(tsMpeerClient, &tsMpeerIpSet, TSDB_MSG_TYPE_SDB_FORWARD, pForward, sizeof(SMDDropVnodeMsg) + dataLen, 0);
 
       int32_t trywaitTimes = 0;
       while (true) {
@@ -1438,3 +1438,6 @@ static void mpeerProcessForwardMsg(void *cont, int32_t contLen, SSdbPeer *pPeer,
 static int32_t mpeerRetriveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   return TSDB_CODE_SUCCESS;
 }
+
+//  tsMgmtShowMetaFp[TSDB_MGMT_TABLE_MNODE]   = mgmtGetMnodeMeta;
+//  tsMgmtShowRetrieveFp[TSDB_MGMT_TABLE_MNODE]   = mgmtRetrieveMnodes;
