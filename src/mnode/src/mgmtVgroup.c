@@ -558,7 +558,7 @@ SVgObj *mgmtGetVgroupByVnode(uint32_t dnode, int32_t vnode) {
 }
 
 SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup) {
-  SRpcIpSet ipSet = {.numOfIps = pVgroup->numOfVnodes, .inUse = 0, .port = tsMgmtDnodePort + 1};
+  SRpcIpSet ipSet = {.numOfIps = pVgroup->numOfVnodes, .inUse = 0, .port = tsMnodeDnodePort + 1};
   for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
     ipSet.ip[i] = pVgroup->vnodeGid[i].ip;
   }
@@ -566,7 +566,7 @@ SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup) {
 }
 
 SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip) {
-  SRpcIpSet ipSet = {.ip[0] = ip, .numOfIps = 1, .inUse = 0, .port = tsMgmtDnodePort + 1};
+  SRpcIpSet ipSet = {.ip[0] = ip, .numOfIps = 1, .inUse = 0, .port = tsMnodeDnodePort + 1};
   return ipSet;
 }
 

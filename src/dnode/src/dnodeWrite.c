@@ -56,13 +56,17 @@ static void   dnodeProcessWriteResult(SWriteMsg *pWrite);
 static void   dnodeProcessSubmitMsg(SWriteMsg *pMsg);
 static void   dnodeProcessCreateTableMsg(SWriteMsg *pMsg);
 static void   dnodeProcessDropTableMsg(SWriteMsg *pMsg);
+static void   dnodeProcessAlterTableMsg(SWriteMsg *pMsg);
+static void   dnodeProcessDropStableMsg(SWriteMsg *pMsg);
 
 SWriteWorkerPool wWorkerPool;
 
 int32_t dnodeInitWrite() {
-  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]             = dnodeProcessSubmitMsg;
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = dnodeProcessSubmitMsg;
   dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = dnodeProcessCreateTableMsg;
-  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE] = dnodeProcessDropTableMsg;
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]   = dnodeProcessDropTableMsg;
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = dnodeProcessAlterTableMsg;
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = dnodeProcessDropStableMsg;
 
   wWorkerPool.max = tsNumOfCores;
   wWorkerPool.writeWorker = (SWriteWorker *)calloc(sizeof(SWriteWorker), wWorkerPool.max);
@@ -251,5 +255,13 @@ static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
 }
 
 static void dnodeProcessDropTableMsg(SWriteMsg *pMsg) {
+
+}
+
+static void dnodeProcessAlterTableMsg(SWriteMsg *pMsg) {
+
+}
+
+static void dnodeProcessDropStableMsg(SWriteMsg *pMsg) {
 
 }

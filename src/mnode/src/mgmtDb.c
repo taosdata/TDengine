@@ -108,9 +108,9 @@ int32_t mgmtInitDbs() {
     }
   }
 
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CREATE_DB, mgmtProcessCreateDbMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_ALTER_DB, mgmtProcessAlterDbMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_DROP_DB, mgmtProcessDropDbMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DB, mgmtProcessCreateDbMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_DB, mgmtProcessAlterDbMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mgmtProcessDropDbMsg);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_DB, mgmtGetDbMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mgmtRetrieveDbs);
 

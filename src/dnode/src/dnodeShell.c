@@ -30,8 +30,8 @@ static void   dnodeProcessMsgFromShell(SRpcMsg *pMsg);
 static void  *tsDnodeShellRpc = NULL;
 
 int32_t dnodeInitShell() {
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT] = dnodeWrite;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY] = dnodeRead;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT]   = dnodeWrite;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]    = dnodeRead;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_RETRIEVE] = dnodeRead;
 
   int numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore;
@@ -43,10 +43,10 @@ int32_t dnodeInitShell() {
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
-  rpcInit.localPort    = tsVnodeShellPort;
+  rpcInit.localPort    = tsDnodeShellPort;
   rpcInit.label        = "DND-shell";
   rpcInit.numOfThreads = numOfThreads;
-  rpcInit.cfp           = dnodeProcessMsgFromShell;
+  rpcInit.cfp          = dnodeProcessMsgFromShell;
   rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 1500;

@@ -41,7 +41,7 @@ static void  *tsMgmtDServerRpc;
 int32_t mgmtInitDServer() {
   SRpcInit rpcInit = {0};
   rpcInit.localIp = tsAnyIp ? "0.0.0.0" : tsPrivateIp;;
-  rpcInit.localPort    = tsMgmtDnodePort;
+  rpcInit.localPort    = tsMnodeDnodePort;
   rpcInit.label        = "MND-DS";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = mgmtProcessMsgFromDnode;
@@ -234,7 +234,7 @@ static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *s
 //
 //  mTrace("msg:%d:%s is received from dnode, pConn:%p", msgType, taosMsg[(int8_t)msgType], pConn);
 //
-//  if (msgType == TSDB_MSG_TYPE_TABLE_CFG) {
+//  if (msgType == TSDB_MSG_TYPE_DM_CONFIG_TABLE) {
 //    mgmtProcessTableCfgMsg(msgType, pCont, contLen, pConn);
 //  } else if (msgType == TSDB_MSG_TYPE_DM_CONFIG_VNODE) {
 //    mgmtProcessVnodeCfgMsg(msgType, pCont, contLen, pConn);
@@ -249,8 +249,8 @@ static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *s
 //  } else if (msgType == TSDB_MSG_TYPE_MD_DROP_STABLE) {
 //    mgmtProcessDropStableRsp(msgType, pCont, contLen, pConn, code);
 //  } else if (msgType == TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP) {
-//  } else if (msgType == TSDB_MSG_TYPE_ALTER_STREAM_RSP) {
-//  } else if (msgType == TSDB_MSG_TYPE_STATUS) {
+//  } else if (msgType == TSDB_MSG_TYPE_CM_ALTER_STREAM_RSP) {
+//  } else if (msgType == TSDB_MSG_TYPE_DM_STATUS) {
 //    mgmtProcessDnodeStatus(msgType, pCont, contLen, pConn, code);
 //  }  else {
 //    mError("%s from dnode is not processed", taosMsg[(int8_t)msgType]);

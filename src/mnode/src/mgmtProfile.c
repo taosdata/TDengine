@@ -752,9 +752,9 @@ int32_t mgmtInitProfile() {
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mgmtRetrieveConns);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mgmtGetStreamMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mgmtRetrieveStreams);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_KILL_QUERY, mgmtProcessKillQueryMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_KILL_STREAM, mgmtProcessKillStreamMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_KILL_CONNECTION, mgmtProcessKillConnectionMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_QUERY, mgmtProcessKillQueryMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_STREAM, mgmtProcessKillStreamMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_CONN, mgmtProcessKillConnectionMsg);
 
   return 0;
 }

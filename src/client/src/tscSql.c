@@ -67,7 +67,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 
   if (ip && ip[0]) {
     tscMgmtIpList.inUse = 0;
-    tscMgmtIpList.port = tsMgmtShellPort;
+    tscMgmtIpList.port = tsMnodeShellPort;
     tscMgmtIpList.numOfIps = 1;
     tscMgmtIpList.ip[0] = inet_addr(ip);
 
@@ -82,7 +82,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
     }
   }
 
-  tscMgmtIpList.port = port ? port : tsMgmtShellPort;
+  tscMgmtIpList.port = port ? port : tsMnodeShellPort;
 
   pObj = (STscObj *)malloc(sizeof(STscObj));
   if (NULL == pObj) {
@@ -95,7 +95,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 
   strncpy(pObj->user, user, TSDB_USER_LEN);
   taosEncryptPass((uint8_t *)pass, strlen(pass), pObj->pass);
-  pObj->mgmtPort = port ? port : tsMgmtShellPort;
+  pObj->mgmtPort = port ? port : tsMnodeShellPort;
 
   if (db) {
     int32_t len = strlen(db);

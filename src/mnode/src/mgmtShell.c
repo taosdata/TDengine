@@ -56,7 +56,7 @@ static SShowMetaFp     tsMgmtShowMetaFp[TSDB_MGMT_TABLE_MAX]     = {0};
 static SShowRetrieveFp tsMgmtShowRetrieveFp[TSDB_MGMT_TABLE_MAX] = {0};
 
 int32_t mgmtInitShell() {
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_SHOW, mgmtProcessShowMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_SHOW, mgmtProcessShowMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_RETRIEVE, mgmtProcessRetrieveMsg);
 
   int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 4.0;
@@ -66,7 +66,7 @@ int32_t mgmtInitShell() {
 
   SRpcInit rpcInit = {0};
   rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
-  rpcInit.localPort    = tsMgmtShellPort;
+  rpcInit.localPort    = tsMnodeShellPort;
   rpcInit.label        = "MND-shell";
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.cfp          = mgmtProcessMsgFromShell;
@@ -81,8 +81,8 @@ int32_t mgmtInitShell() {
     return -1;
   }
 
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_HEARTBEAT, mgmtProcessHeartBeatMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CONNECT, mgmtProcessConnectMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_HEARTBEAT, mgmtProcessHeartBeatMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mgmtProcessConnectMsg);
 
   mPrint("server connection to shell is opened");
   return 0;
@@ -281,7 +281,7 @@ static void mgmtProcessHeartBeatMsg(SRpcMsg *rpcMsg) {
   rpcGetConnInfo(rpcMsg->handle, &connInfo);
 
   pHBRsp->ipList.inUse = 0;
-  pHBRsp->ipList.port = htons(tsMgmtShellPort);
+  pHBRsp->ipList.port = htons(tsMnodeShellPort);
   pHBRsp->ipList.numOfIps = 0;
   if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
     pHBRsp->ipList.numOfIps = htons(pSdbPublicIpList->numOfIps);
@@ -375,7 +375,7 @@ static void mgmtProcessConnectMsg(SRpcMsg *rpcMsg) {
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
   pConnectRsp->ipList.inUse = 0;
-  pConnectRsp->ipList.port = htons(tsMgmtShellPort);
+  pConnectRsp->ipList.port = htons(tsMnodeShellPort);
   pConnectRsp->ipList.numOfIps = 0;
   if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
     pConnectRsp->ipList.numOfIps = htons(pSdbPublicIpList->numOfIps);
@@ -420,10 +420,10 @@ static bool mgmtCheckMeterMetaMsgType(void *pMsg) {
 }
 
 static bool mgmtCheckMsgReadOnly(int8_t type, void *pCont) {
-  if ((type == TSDB_MSG_TYPE_TABLE_META && (!mgmtCheckMeterMetaMsgType(pCont)))  ||
-       type == TSDB_MSG_TYPE_STABLE_META || type == TSDB_MSG_TYPE_RETRIEVE ||
-       type == TSDB_MSG_TYPE_SHOW || type == TSDB_MSG_TYPE_MULTI_TABLE_META      ||
-       type == TSDB_MSG_TYPE_CONNECT) {
+  if ((type == TSDB_MSG_TYPE_CM_TABLE_META && (!mgmtCheckMeterMetaMsgType(pCont)))  ||
+       type == TSDB_MSG_TYPE_CM_STABLE_META || type == TSDB_MSG_TYPE_RETRIEVE ||
+       type == TSDB_MSG_TYPE_CM_SHOW || type == TSDB_MSG_TYPE_CM_TABLES_META      ||
+       type == TSDB_MSG_TYPE_CM_CONNECT) {
     return true;
   }
 

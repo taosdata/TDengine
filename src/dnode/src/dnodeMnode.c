@@ -27,18 +27,22 @@ static void  *tsDnodeMnodeRpc = NULL;
 
 int32_t dnodeInitMnode() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = dnodeWrite;
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE] = dnodeWrite;
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE] = dnodeMgmt;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]   = dnodeWrite;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = dnodeWrite;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = dnodeWrite;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeMgmt;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeMgmt;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeMgmt;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeMgmt;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeMgmt;
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
-
-  // note: a new port shall be assigned
-  // rpcInit.localPort    = tsDnodeMnodePort;   
+  rpcInit.localPort    = tsDnodeMnodePort;
   rpcInit.label        = "DND-mgmt";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp           = dnodeProcessMsgFromMnode;
+  rpcInit.cfp          = dnodeProcessMsgFromMnode;
   rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 1500;

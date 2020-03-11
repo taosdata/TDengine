@@ -26,7 +26,7 @@ static void   dnodeProcessStatusRsp(SRpcMsg *pMsg);
 static void  *tsDnodeMClientRpc;
 
 int32_t dnodeInitMClient() {
-  dnodeProcessMgmtRspFp[TSDB_MSG_TYPE_STATUS_RSP] = dnodeProcessStatusRsp;
+  dnodeProcessMgmtRspFp[TSDB_MSG_TYPE_DM_STATUS_RSP] = dnodeProcessStatusRsp;
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -34,7 +34,7 @@ int32_t dnodeInitMClient() {
   rpcInit.localPort    = 0;
   rpcInit.label        = "DND-MC";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp           = dnodeProcessRspFromMnode;
+  rpcInit.cfp          = dnodeProcessRspFromMnode;
   rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
   rpcInit.connType     = TAOS_CONN_CLIENT;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;

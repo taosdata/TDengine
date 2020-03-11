@@ -83,9 +83,9 @@ int32_t mgmtInitUsers() {
   mgmtCreateUser(pAcct, "monitor", tsInternalPass);
   mgmtCreateUser(pAcct, "_root", tsInternalPass);
 
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CREATE_USER, mgmtProcessCreateUserMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_ALTER_USER, mgmtProcessAlterUserMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_DROP_USER, mgmtProcessDropUserMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_USER, mgmtProcessCreateUserMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_USER, mgmtProcessAlterUserMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_USER, mgmtProcessDropUserMsg);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_USER, mgmtGetUserMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mgmtRetrieveUsers);
   

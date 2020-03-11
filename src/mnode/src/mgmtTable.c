@@ -71,12 +71,12 @@ int32_t mgmtInitTables() {
 
   mgmtSetVgroupIdPool();
 
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CREATE_TABLE, mgmtProcessCreateTableMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_DROP_TABLE, mgmtProcessDropTableMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_ALTER_TABLE, mgmtProcessAlterTableMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_TABLE_META, mgmtProcessTableMetaMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_MULTI_TABLE_META, mgmtProcessMultiTableMetaMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_STABLE_META, mgmtProcessSuperTableMetaMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_TABLE, mgmtProcessCreateTableMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_TABLE, mgmtProcessDropTableMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_TABLE, mgmtProcessAlterTableMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_TABLE_META, mgmtProcessTableMetaMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_TABLES_META, mgmtProcessMultiTableMetaMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_STABLE_META, mgmtProcessSuperTableMetaMsg);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_TABLE, mgmtGetShowTableMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mgmtRetrieveShowTables);
 
