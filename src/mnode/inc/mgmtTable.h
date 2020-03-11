@@ -42,7 +42,7 @@ void    mgmtRemoveTableFromSuperTable(SSuperTableObj *pStable);
 void    mgmtSetTableDirty(STableInfo *pTable, bool isDirty);
 
 SMDDropTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable);
-SDRemoveSuperTableMsg *mgmtBuildRemoveSuperTableMsg(STableInfo *pTable);
+SMDDropSTableMsg *mgmtBuildRemoveSuperTableMsg(STableInfo *pTable);
 
 void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle);
 void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta);

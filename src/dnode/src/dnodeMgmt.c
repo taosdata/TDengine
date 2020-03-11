@@ -22,6 +22,7 @@
 #include "trpc.h"
 #include "tstatus.h"
 #include "tsdb.h"
+#include "ttimer.h"
 #include "dnodeMgmt.h"
 #include "dnodeRead.h"
 #include "dnodeWrite.h"
@@ -52,8 +53,11 @@ static void     dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
 static void     dnodeProcessAlterStreamMsg(SRpcMsg *pMsg);
 static void     dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg);
 static void   (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
+static void     dnodeSendStatusMsg(void *handle, void *tmrId);
 
 static void * tsDnodeVnodesHash = NULL;
+static void  *tsDnodeTmr = NULL;
+static void  *tsStatusTimer = NULL;
 
 int32_t dnodeInitMgmt() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeProcessCreateVnodeMsg;
@@ -68,10 +72,22 @@ int32_t dnodeInitMgmt() {
     return -1;
   }
 
+  tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
+  if (tsDnodeTmr == NULL) {
+    dError("failed to init dnode timer");
+    return -1;
+  }
+  taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsDnodeTmr, &tsStatusTimer);
+
   return dnodeOpenVnodes();
 }
 
 void dnodeCleanupMgmt() {
+  if (tsStatusTimer != NULL) {
+    taosTmrStopA(&tsStatusTimer);
+    tsStatusTimer = NULL;
+  }
+
   dnodeCleanupVnodes();
   taosCleanUpIntHash(tsDnodeVnodesHash);
 }
@@ -309,9 +325,78 @@ static void dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
 }
 
 static void dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
-
+//  SDAlterStreamMsg *pStream = pCont;
+//  pStream->uid    = htobe64(pStream->uid);
+//  pStream->stime  = htobe64(pStream->stime);
+//  pStream->vnode  = htonl(pStream->vnode);
+//  pStream->sid    = htonl(pStream->sid);
+//  pStream->status = htonl(pStream->status);
+//
+//  int32_t code = dnodeCreateStream(pStream);
 }
 
 static void dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
-
+//  SCfgDnodeMsg *pCfg = (SCfgDnodeMsg *)pCont;
+//
+//  int32_t code = tsCfgDynamicOptions(pCfg->config);
+//  dnodeSendRspToMnode(pConn, msgType + 1, code, NULL, 0);
 }
+
+
+static void dnodeSendStatusMsg(void *handle, void *tmrId) {
+  taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
+  if (tsStatusTimer == NULL) {
+    dError("failed to start status timer");
+    return;
+  }
+
+//  int32_t contLen = sizeof(SStatusMsg) + dnodeGetVnodesNum() * sizeof(SVnodeLoad);
+//  SStatusMsg *pStatus = rpcMallocCont(contLen);
+//  if (pStatus == NULL) {
+//    dError("Failed to malloc status message");
+//    return;
+//  }
+//
+//  int32_t totalVnodes = dnodeGetVnodesNum();
+//
+//  pStatus->version          = htonl(tsVersion);
+//  pStatus->privateIp        = htonl(inet_addr(tsPrivateIp));
+//  pStatus->publicIp         = htonl(inet_addr(tsPublicIp));
+//  pStatus->lastReboot       = htonl(tsRebootTime);
+//  pStatus->numOfTotalVnodes = htons((uint16_t) tsNumOfTotalVnodes);
+//  pStatus->openVnodes       = htons((uint16_t) totalVnodes);
+//  pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
+//  pStatus->diskAvailable    = tsAvailDataDirGB;
+//  pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
+//
+//  SVnodeLoad *pLoad = (SVnodeLoad *)pStatus->load;
+
+  //TODO loop all vnodes
+  //  for (int32_t vnode = 0, count = 0; vnode <= totalVnodes; ++vnode) {
+  //    if (vnodeList[vnode].cfg.maxSessions <= 0) continue;
+  //
+  //    SVnodeObj *pVnode = vnodeList + vnode;
+  //    pLoad->vnode = htonl(vnode);
+  //    pLoad->vgId = htonl(pVnode->cfg.vgId);
+  //    pLoad->status = (uint8_t)vnodeList[vnode].vnodeStatus;
+  //    pLoad->syncStatus =(uint8_t)vnodeList[vnode].syncStatus;
+  //    pLoad->accessState = (uint8_t)(pVnode->accessState);
+  //    pLoad->totalStorage = htobe64(pVnode->vnodeStatistic.totalStorage);
+  //    pLoad->compStorage = htobe64(pVnode->vnodeStatistic.compStorage);
+  //    if (pVnode->vnodeStatus == TSDB_VN_STATUS_MASTER) {
+  //      pLoad->pointsWritten = htobe64(pVnode->vnodeStatistic.pointsWritten);
+  //    } else {
+  //      pLoad->pointsWritten = htobe64(0);
+  //    }
+  //    pLoad++;
+  //
+  //    if (++count >= tsOpenVnodes) {
+  //      break;
+  //    }
+  //  }
+
+//  dnodeSendMsgToMnode(TSDB_MSG_TYPE_STATUS, pStatus, contLen);
+}
+
+
+

@@ -274,9 +274,9 @@ void mgmtCleanUpChildTables() {
 
 static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup, void *pTagData, int32_t tagDataLen) {
   int32_t totalCols = pTable->superTable->numOfColumns + pTable->superTable->numOfTags;
-  int32_t contLen   = sizeof(SDMCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen;
+  int32_t contLen   = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen;
 
-  SDMCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
+  SMDCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
   if (pCreateTable == NULL) {
     return NULL;
   }
@@ -309,13 +309,13 @@ static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgrou
     pSchema++;
   }
 
-  memcpy(pCreateTable + sizeof(SDMCreateTableMsg) + totalCols * sizeof(SSchema), pTagData, tagDataLen);
+  memcpy(pCreateTable + sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema), pTagData, tagDataLen);
 
   return pCreateTable;
 }
 
 int32_t mgmtCreateChildTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                             SDMCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
+                             SMDCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
   int32_t numOfTables = sdbGetNumOfRows(tsChildTableSdb);
   if (numOfTables >= tsMaxTables) {
     mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, tsMaxTables);

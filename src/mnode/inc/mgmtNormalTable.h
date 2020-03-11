@@ -29,7 +29,7 @@ void    mgmtCleanUpNormalTables();
 void *  mgmtGetNormalTable(char *tableId);
 
 int32_t mgmtCreateNormalTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                              SDMCreateTableMsg **pDCreateOut, STableInfo **pTableOut);
+                              SMDCreateTableMsg **pDCreateOut, STableInfo **pTableOut);
 int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable);
 int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SSchema schema[], int32_t ncols);
 int32_t mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *colName);

@@ -111,7 +111,7 @@ extern "C" {
 #define TSDB_MSG_TYPE_CM_KILL_CONN_RSP       78
 #define TSDB_MSG_TYPE_CM_HEARTBEAT           79
 #define TSDB_MSG_TYPE_CM_HEARTBEAT_RSP       80
-  
+
 // message from dnode to mnode
 #define TSDB_MSG_TYPE_DM_CONFIG_TABLE        91
 #define TSDB_MSG_TYPE_DM_CONFIG_TABLE_RSP    92
@@ -259,7 +259,7 @@ typedef struct {
   char       tableId[TSDB_TABLE_ID_LEN + 1];
   char       superTableId[TSDB_TABLE_ID_LEN + 1];
   char       data[];
-} SDMCreateTableMsg;
+} SMDCreateTableMsg;
 
 typedef struct {
   char      tableId[TSDB_TABLE_ID_LEN + 1];
@@ -346,7 +346,7 @@ typedef struct {
 typedef struct {
   char    tableId[TSDB_TABLE_ID_LEN + 1];
   int64_t uid;
-} SDRemoveSuperTableMsg;
+} SMDDropSTableMsg;
 
 typedef struct {
   int32_t vgId;

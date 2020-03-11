@@ -175,7 +175,7 @@ void mgmtProcessCreateVgroup(SCreateTableMsg *pCreate, int32_t contLen, void *th
   mgmtSendCreateVgroupMsg(pVgroup, info);
 }
 
-//void mgmtSendCreateTableMsg(SDMCreateTableMsg *pCreate, SRpcIpSet *ipSet, void *ahandle) {
+//void mgmtSendCreateTableMsg(SMDCreateTableMsg *pCreate, SRpcIpSet *ipSet, void *ahandle) {
 //  mTrace("table:%s, send create table msg, ahandle:%p", pCreate->tableId, ahandle);
 //  SRpcMsg rpcMsg = {
 //    .handle  = ahandle,
@@ -201,7 +201,7 @@ void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t c
   }
 
   STableInfo *pTable;
-  SDMCreateTableMsg *pDCreate = NULL;
+  SMDCreateTableMsg *pDCreate = NULL;
 
   if (pCreate->numOfColumns == 0) {
     mTrace("table:%s, start to create child table, vgroup:%d sid:%d", pCreate->tableId, pVgroup->vgId, sid);

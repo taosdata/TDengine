@@ -203,9 +203,43 @@ static void dnodeProcessReadResult(SReadMsg *pRead) {
 }
 
 static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
+  void *pQInfo = (void*)100;
+  dTrace("query msg is disposed, qInfo:%p", pQInfo);
 
+  SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
+  pRsp->code    = 0;
+  pRsp->qhandle = htobe64((uint64_t) (pQInfo));
+
+  SRpcMsg rpcRsp = {
+      .handle = pMsg->rpcMsg.handle,
+      .pCont = pRsp,
+      .contLen = sizeof(SQueryTableRsp),
+      .code = 0,
+      .msgType = 0
+  };
+  rpcSendResponse(&rpcRsp);
 }
 
 static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
+  SRetrieveTableMsg *pRetrieve = pMsg->pCont;
+  void *pQInfo = htobe64(pRetrieve->qhandle);
 
+  dTrace("retrieve msg is disposed, qInfo:%p", pQInfo);
+
+  assert(pQInfo != NULL);
+  int32_t contLen = 100;
+  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *) rpcMallocCont(contLen);
+  pRsp->numOfRows = 0;
+  pRsp->precision = 0;
+  pRsp->offset    = 0;
+  pRsp->useconds  = 0;
+
+  SRpcMsg rpcRsp = {
+      .handle = pMsg->rpcMsg.handle,
+      .pCont = pRsp,
+      .contLen = contLen,
+      .code = 0,
+      .msgType = 0
+  };
+  rpcSendResponse(&rpcRsp);
 }

@@ -68,6 +68,4 @@ static void dnodeProcessRspFromMnode(SRpcMsg *pMsg) {
 }
 
 static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
-
-
 }
