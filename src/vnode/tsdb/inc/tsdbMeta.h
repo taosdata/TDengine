@@ -106,7 +106,7 @@ STSchema *tsdbGetTableSchema(STable *pTable);
 #define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
 
 // Create a new meta handle with configuration
-STsdbMeta *tsdbCreateMeta(int32_t maxTables);
+STsdbMeta *tsdbInitMeta(int32_t maxTables);
 int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 
 // Recover the meta handle from the file

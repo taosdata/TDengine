@@ -72,7 +72,7 @@ TEST(TsdbTest, createRepo) {
 }
 
 TEST(TsdbTest, DISABLED_createTable) {
-  STsdbMeta *pMeta = tsdbCreateMeta(100);
+  STsdbMeta *pMeta = tsdbInitMeta(100);
   ASSERT_NE(pMeta, nullptr);
 
   STableCfg config;

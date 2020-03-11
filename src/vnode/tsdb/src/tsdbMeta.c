@@ -17,7 +17,7 @@ static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 
-STsdbMeta *tsdbCreateMeta(int32_t maxTables) {
+STsdbMeta *tsdbInitMeta(int32_t maxTables) {
   STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
   if (pMeta == NULL) {
     return NULL;

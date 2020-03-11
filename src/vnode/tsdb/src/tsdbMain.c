@@ -42,6 +42,9 @@
 #define TSDB_MIN_CACHE_SIZE (4 * 1024 * 1024)       // 4M
 #define TSDB_MAX_CACHE_SIZE (1024 * 1024 * 1024)    // 1G
 
+#define TSDB_CFG_FILE_NAME "CONFIG"
+#define TSDB_DATA_DIR_NAME "data"
+
 enum { TSDB_REPO_STATE_ACTIVE, TSDB_REPO_STATE_CLOSED, TSDB_REPO_STATE_CONFIGURING };
 
 typedef struct _tsdb_repo {
@@ -116,7 +119,15 @@ void tsdbFreeCfg(STsdbCfg *pCfg) {
   if (pCfg != NULL) free(pCfg);
 }
 
-tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter) {
+/**
+ * Create a new TSDB repository
+ * @param rootDir the TSDB repository root directory
+ * @param pCfg the TSDB repository configuration, upper layer need to free the pointer
+ * @param limiter the limitation tracker will implement in the future, make it void now
+ *
+ * @return a TSDB repository handle on success, NULL for failure
+ */
+tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO */) {
   if (rootDir == NULL) return NULL;
 
   if (access(rootDir, F_OK | R_OK | W_OK) == -1) return NULL;
@@ -134,22 +145,26 @@ tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter) {
   pRepo->config = *pCfg;
   pRepo->limiter = limiter;
 
-  pRepo->tsdbMeta = tsdbCreateMeta(pCfg->maxTables);
-  if (pRepo->tsdbMeta == NULL) {
+  // Initialize meta
+  STsdbMeta *pMeta = tsdbInitMeta(pCfg->maxTables);
+  if (pMeta == NULL) {
     free(pRepo->rootDir);
     free(pRepo);
     return NULL;
   }
+  pRepo->tsdbMeta = pMeta;
 
-  pRepo->tsdbCache = tsdbCreateCache(5);
-  if (pRepo->tsdbCache == NULL) {
+  // Initialize cache
+  STsdbCache *pCache = tsdbInitCache(pCfg->maxCacheSize);
+  if (pCache == NULL) {
     free(pRepo->rootDir);
     tsdbFreeMeta(pRepo->tsdbMeta);
     free(pRepo);
     return NULL;
   }
+  pRepo->tsdbCache = pCache;
 
-  // Create the Meta data file and data directory
+  // Create the environment files and directories
   if (tsdbSetRepoEnv(pRepo) < 0) {
     free(pRepo->rootDir);
     tsdbFreeMeta(pRepo->tsdbMeta);
@@ -163,6 +178,13 @@ tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter) {
   return (tsdb_repo_t *)pRepo;
 }
 
+/**
+ * Close and free all resources taken by the repository
+ * @param repo the TSDB repository handle. The interface will free the handle too, so upper
+ *              layer do NOT need to free the repo handle again.
+ *
+ * @return 0 for success, -1 for failure and the error number is set
+ */
 int32_t tsdbDropRepo(tsdb_repo_t *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
@@ -183,6 +205,12 @@ int32_t tsdbDropRepo(tsdb_repo_t *repo) {
   return 0;
 }
 
+/**
+ * Open an existing TSDB storage repository
+ * @param tsdbDir the existing TSDB root directory
+ *
+ * @return a TSDB repository handle on success, NULL for failure and the error number is set
+ */
 tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
   if (access(tsdbDir, F_OK | W_OK | R_OK) < 0) {
     return NULL;
@@ -205,7 +233,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
     return NULL;
   }
 
-  pRepo->tsdbCache = tsdbCreateCache(5);
+  pRepo->tsdbCache = tsdbInitCache(5);
   if (pRepo->tsdbCache == NULL) {
     // TODO: deal with error
     return NULL;
@@ -222,6 +250,13 @@ static int32_t tsdbFlushCache(STsdbRepo *pRepo) {
   return 0;
 }
 
+/**
+ * Close a TSDB repository. Only free memory resources, and keep the files.
+ * @param repo the opened TSDB repository handle. The interface will free the handle too, so upper
+ *              layer do NOT need to free the repo handle again.
+ *
+ * @return 0 for success, -1 for failure and the error number is set
+ */
 int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   if (pRepo == NULL) return 0;
@@ -237,6 +272,12 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
   return 0;
 }
 
+/**
+ * Change the configuration of a repository
+ * @param pCfg the repository configuration, the upper layer should free the pointer
+ *
+ * @return 0 for success, -1 for failure and the error number is set
+ */
 int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
@@ -245,6 +286,14 @@ int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
   return 0;
 }
 
+/**
+ * Get the TSDB repository information, including some statistics
+ * @param pRepo the TSDB repository handle
+ * @param error the error number to set when failure occurs
+ *
+ * @return a info struct handle on success, NULL for failure and the error number is set. The upper
+ *         layers should free the info handle themselves or memory leak will occur
+ */
 STsdbRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo) {
   // TODO
   return NULL;
@@ -299,7 +348,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   // Check tsdbId
   if (pCfg->tsdbId < 0) return -1;
 
-  // Check MaxTables
+  // Check maxTables
   if (pCfg->maxTables == -1) {
     pCfg->maxTables = TSDB_DEFAULT_TABLES;
   } else {
@@ -347,10 +396,18 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   return 0;
 }
 
-static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
-  char *metaFname = tsdbGetFileName(pRepo->rootDir, "tsdb", TSDB_FILE_TYPE_META);
+static int32_t tsdbGetCfgFname(STsdbRepo *pRepo, char *fname) {
+  if (pRepo == NULL) return -1;
+  sprintf(fname, "%s/%s", pRepo->rootDir, TSDB_CFG_FILE_NAME);
+  return 0;
+}
 
-  int fd = open(metaFname, O_WRONLY | O_CREAT);
+static int32_t tsdbSaveConfig(STsdbRepo *pRepo) {
+  char fname[128] = "\0"; // TODO: get rid of the literal 128
+
+  if (tsdbGetCfgFname(pRepo, fname) < 0) return -1;
+
+  int fd = open(fname, O_WRONLY | O_CREAT, 0755);
   if (fd < 0) {
     return -1;
   }
@@ -359,19 +416,45 @@ static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
     return -1;
   }
 
-  // Create the data file
-  char *dirName = calloc(1, strlen(pRepo->rootDir) + strlen("tsdb") + 2);
-  if (dirName == NULL) {
+  close(fd);
+  return 0;
+}
+
+static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg) {
+  char fname[128] = "\0";
+
+  if (tsdbGetCfgFname(pRepo, fname) < 0) return -1;
+
+  int fd = open(fname, O_RDONLY);
+  if (fd < 0) {
     return -1;
   }
 
-  sprintf(dirName, "%s/%s", pRepo->rootDir, "tsdb");
+  if (read(fd, (void *)pCfg, sizeof(STsdbCfg)) < sizeof(STsdbCfg)) {
+    close(fd);
+    return -1;
+  }
+
+  close(fd);
+
+  return 0;
+}
+
+static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname) {
+  if (pRepo == NULL || pRepo->rootDir == NULL) return -1;
+  sprintf(fname, "%s/%s", pRepo->rootDir, TSDB_DATA_DIR_NAME);
+  return 0;
+}
+
+static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
+  if (tsdbSaveConfig(pRepo) < 0) return -1;
+
+  char dirName[128] = "\0";
+  if (tsdbGetDataDirName(pRepo, dirName) < 0) return -1;
+
   if (mkdir(dirName, 0755) < 0) {
-    free(dirName);
     return -1;
   }
-
-  free(dirName);
 
   return 0;
 }

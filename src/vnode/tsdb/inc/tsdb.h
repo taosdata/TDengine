@@ -30,9 +30,9 @@ extern "C" {
 #define TSDB_VERSION_MAJOR 1
 #define TSDB_VERSION_MINOR 0
 
-typedef void tsdb_repo_t;  // use void to hide implementation details from outside
-
 // --------- TSDB REPOSITORY CONFIGURATION DEFINITION
+enum { TSDB_PRECISION_MILLI, TSDB_PRECISION_MICRO, TSDB_PRECISION_NANO };
+
 typedef struct {
   int8_t  precision;
   int32_t tsdbId;
@@ -49,7 +49,15 @@ STsdbCfg *tsdbCreateDefaultCfg();
 void      tsdbFreeCfg(STsdbCfg *pCfg);
 
 // --------- TSDB REPOSITORY DEFINITION
+typedef void tsdb_repo_t;  // use void to hide implementation details from outside
 
+tsdb_repo_t *  tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
+int32_t        tsdbDropRepo(tsdb_repo_t *repo);
+tsdb_repo_t *  tsdbOpenRepo(char *tsdbDir);
+int32_t        tsdbCloseRepo(tsdb_repo_t *repo);
+int32_t        tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg);
+
+// --------- TSDB TABLE DEFINITION
 typedef struct {
   int64_t uid;  // the unique table ID
   int32_t tid;  // the table ID in the repository.
@@ -71,7 +79,6 @@ typedef struct {
   char     data[];
 } SSubmitBlock;
 
-enum { TSDB_PRECISION_MILLI, TSDB_PRECISION_MICRO, TSDB_PRECISION_NANO };
 
 // the TSDB repository info
 typedef struct STsdbRepoInfo {
@@ -81,6 +88,8 @@ typedef struct STsdbRepoInfo {
   int64_t  tsdbTotalDiskSize;  // the total disk size taken by this TSDB repository
   // TODO: Other informations to add
 } STsdbRepoInfo;
+
+STsdbRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo);
 
 // the meter configuration
 typedef struct {
@@ -105,60 +114,6 @@ typedef struct {
   int64_t   tableTotalDataSize;  // In bytes
   int64_t   tableTotalDiskSize;  // In bytes
 } STableInfo;
-
-
-/**
- * Create a new TSDB repository
- * @param rootDir the TSDB repository root directory
- * @param pCfg the TSDB repository configuration, upper layer to free the pointer
- *
- * @return a TSDB repository handle on success, NULL for failure and the error number is set
- */
-tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter);
-
-/**
- * Close and free all resources taken by the repository
- * @param repo the TSDB repository handle. The interface will free the handle too, so upper
- *              layer do NOT need to free the repo handle again.
- *
- * @return 0 for success, -1 for failure and the error number is set
- */
-int32_t tsdbDropRepo(tsdb_repo_t *repo);
-
-/**
- * Open an existing TSDB storage repository
- * @param tsdbDir the existing TSDB root directory
- *
- * @return a TSDB repository handle on success, NULL for failure and the error number is set
- */
-tsdb_repo_t *tsdbOpenRepo(char *tsdbDir);
-
-/**
- * Close a TSDB repository. Only free memory resources, and keep the files.
- * @param repo the opened TSDB repository handle. The interface will free the handle too, so upper
- *              layer do NOT need to free the repo handle again.
- *
- * @return 0 for success, -1 for failure and the error number is set
- */
-int32_t tsdbCloseRepo(tsdb_repo_t *repo);
-
-/**
- * Change the configuration of a repository
- * @param pCfg the repository configuration, the upper layer should free the pointer
- *
- * @return 0 for success, -1 for failure and the error number is set
- */
-int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg);
-
-/**
- * Get the TSDB repository information, including some statistics
- * @param pRepo the TSDB repository handle
- * @param error the error number to set when failure occurs
- *
- * @return a info struct handle on success, NULL for failure and the error number is set. The upper
- *         layers should free the info handle themselves or memory leak will occur
- */
-STsdbRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo);
 
 // -- For table manipulation
 
