@@ -9,6 +9,7 @@
 #include "tsdbCache.h"
 
 #define TSDB_SUPER_TABLE_SL_LEVEL 5 // TODO: may change here
+#define TSDB_META_FILE_NAME "META"
 
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
