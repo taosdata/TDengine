@@ -82,9 +82,11 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlock *pBlock);
 #define TSDB_IS_REPO_ACTIVE(pRepo) ((pRepo)->state == TSDB_REPO_STATE_ACTIVE)
 #define TSDB_IS_REPO_CLOSED(pRepo) ((pRepo)->state == TSDB_REPO_STATE_CLOSED)
 
-STsdbCfg *tsdbCreateDefaultCfg() {
-  STsdbCfg *pCfg = (STsdbCfg *)malloc(sizeof(STsdbCfg));
-  if (pCfg == NULL) return NULL;
+/**
+ * Set the default TSDB configuration
+ */
+void tsdbSetDefaultCfg(STsdbCfg *pCfg) {
+  if (pCfg == NULL) return;
 
   pCfg->precision = -1;
   pCfg->tsdbId = 0;
@@ -94,6 +96,18 @@ STsdbCfg *tsdbCreateDefaultCfg() {
   pCfg->maxRowsPerFileBlock = -1;
   pCfg->keep = -1;
   pCfg->maxCacheSize = -1;
+}
+
+/**
+ * Create a configuration for TSDB default
+ * @return a pointer to a configuration. the configuration object 
+ *         must call tsdbFreeCfg to free memory after usage
+ */
+STsdbCfg *tsdbCreateDefaultCfg() {
+  STsdbCfg *pCfg = (STsdbCfg *)malloc(sizeof(STsdbCfg));
+  if (pCfg == NULL) return NULL;
+
+  tsdbSetDefaultCfg(pCfg);
 
   return pCfg;
 }

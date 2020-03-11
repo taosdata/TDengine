@@ -32,6 +32,24 @@ extern "C" {
 
 typedef void tsdb_repo_t;  // use void to hide implementation details from outside
 
+// --------- TSDB REPOSITORY CONFIGURATION DEFINITION
+typedef struct {
+  int8_t  precision;
+  int32_t tsdbId;
+  int32_t maxTables;            // maximum number of tables this repository can have
+  int32_t daysPerFile;          // day per file sharding policy
+  int32_t minRowsPerFileBlock;  // minimum rows per file block
+  int32_t maxRowsPerFileBlock;  // maximum rows per file block
+  int32_t keep;                 // day of data to keep
+  int64_t maxCacheSize;         // maximum cache size this TSDB can use
+} STsdbCfg;
+
+void      tsdbSetDefaultCfg(STsdbCfg *pCfg);
+STsdbCfg *tsdbCreateDefaultCfg();
+void      tsdbFreeCfg(STsdbCfg *pCfg);
+
+// --------- TSDB REPOSITORY DEFINITION
+
 typedef struct {
   int64_t uid;  // the unique table ID
   int32_t tid;  // the table ID in the repository.
@@ -54,18 +72,6 @@ typedef struct {
 } SSubmitBlock;
 
 enum { TSDB_PRECISION_MILLI, TSDB_PRECISION_MICRO, TSDB_PRECISION_NANO };
-
-// the TSDB repository configuration
-typedef struct {
-  int8_t  precision;
-  int32_t tsdbId;
-  int32_t maxTables;            // maximum number of tables this repository can have
-  int32_t daysPerFile;          // day per file sharding policy
-  int32_t minRowsPerFileBlock;  // minimum rows per file block
-  int32_t maxRowsPerFileBlock;  // maximum rows per file block
-  int32_t keep;                 // day of data to keep
-  int64_t maxCacheSize;         // maximum cache size this TSDB can use
-} STsdbCfg;
 
 // the TSDB repository info
 typedef struct STsdbRepoInfo {
@@ -100,16 +106,6 @@ typedef struct {
   int64_t   tableTotalDiskSize;  // In bytes
 } STableInfo;
 
-/**
- * Create a configuration for TSDB default
- * @return a pointer to a configuration. the configuration must call tsdbFreeCfg to free memory after usage
- */
-STsdbCfg *tsdbCreateDefaultCfg();
-
-/**
- * Free
- */
-void tsdbFreeCfg(STsdbCfg *pCfg);
 
 /**
  * Create a new TSDB repository

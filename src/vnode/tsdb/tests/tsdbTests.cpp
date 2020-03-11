@@ -5,52 +5,30 @@
 #include "dataformat.h"
 #include "tsdbMeta.h"
 
-TEST(TsdbTest, createTable) {
-  STsdbMeta *pMeta = tsdbCreateMeta(100);
-  ASSERT_NE(pMeta, nullptr);
-
-  STableCfg config;
-  config.tableId.tid = 0;
-  config.tableId.uid = 98868728187539L;
-  config.numOfCols = 5;
-  config.schema = tdNewSchema(config.numOfCols);
-  for (int i = 0; i < schemaNCols(config.schema); i++) {
-    STColumn *pCol = tdNewCol(TSDB_DATA_TYPE_BIGINT, i, 0);
-    tdColCpy(schemaColAt(config.schema, i), pCol);
-    tdFreeCol(pCol);
-  }
-  config.tagValues = nullptr;
-
-  tsdbCreateTableImpl(pMeta, &config);
-
-  STable *pTable = tsdbGetTableByUid(pMeta, config.tableId.uid);
-  ASSERT_NE(pTable, nullptr);
-}
-
 TEST(TsdbTest, createRepo) {
-  STsdbCfg *pCfg = tsdbCreateDefaultCfg();
+  STsdbCfg config;
 
   // Create a tsdb repository
-  tsdb_repo_t *pRepo = tsdbCreateRepo("/root/mnt/test/vnode0", pCfg, NULL);
+  tsdbSetDefaultCfg(&config);
+  tsdb_repo_t *pRepo = tsdbCreateRepo("/home/ubuntu/work/ttest/vnode0", &config, NULL);
   ASSERT_NE(pRepo, nullptr);
-  tsdbFreeCfg(pCfg);
 
-  // create a normal table in this repository
-  STableCfg config;
-  config.tableId.tid = 0;
-  config.tableId.uid = 98868728187539L;
-  config.numOfCols = 5;
-  config.schema = tdNewSchema(config.numOfCols);
-  STColumn *pCol = tdNewCol(TSDB_DATA_TYPE_TIMESTAMP, 0, 0);
-  tdColCpy(schemaColAt(config.schema, 0), pCol);
-  tdFreeCol(pCol);
-  for (int i = 1; i < schemaNCols(config.schema); i++) {
-    pCol = tdNewCol(TSDB_DATA_TYPE_BIGINT, i, 0);
-    tdColCpy(schemaColAt(config.schema, i), pCol);
-    tdFreeCol(pCol);
-  }
+  // // create a normal table in this repository
+  // STableCfg config;
+  // config.tableId.tid = 0;
+  // config.tableId.uid = 98868728187539L;
+  // config.numOfCols = 5;
+  // config.schema = tdNewSchema(config.numOfCols);
+  // STColumn *pCol = tdNewCol(TSDB_DATA_TYPE_TIMESTAMP, 0, 0);
+  // tdColCpy(schemaColAt(config.schema, 0), pCol);
+  // tdFreeCol(pCol);
+  // for (int i = 1; i < schemaNCols(config.schema); i++) {
+  //   pCol = tdNewCol(TSDB_DATA_TYPE_BIGINT, i, 0);
+  //   tdColCpy(schemaColAt(config.schema, i), pCol);
+  //   tdFreeCol(pCol);
+  // }
 
-  tsdbCreateTable(pRepo, &config);
+  // tsdbCreateTable(pRepo, &config);
   // Write some data
 
   // int32_t size = sizeof(SSubmitMsg) + sizeof(SSubmitBlock) + tdMaxRowDataBytes(config.schema) * 10 + sizeof(int32_t);
@@ -89,6 +67,28 @@ TEST(TsdbTest, createRepo) {
 
   // tdFreeDataRow(row);
 
-  tdFreeSchema(config.schema);
-  tsdbDropRepo(pRepo);
+  // tdFreeSchema(config.schema);
+  // tsdbDropRepo(pRepo);
+}
+
+TEST(TsdbTest, DISABLED_createTable) {
+  STsdbMeta *pMeta = tsdbCreateMeta(100);
+  ASSERT_NE(pMeta, nullptr);
+
+  STableCfg config;
+  config.tableId.tid = 0;
+  config.tableId.uid = 98868728187539L;
+  config.numOfCols = 5;
+  config.schema = tdNewSchema(config.numOfCols);
+  for (int i = 0; i < schemaNCols(config.schema); i++) {
+    STColumn *pCol = tdNewCol(TSDB_DATA_TYPE_BIGINT, i, 0);
+    tdColCpy(schemaColAt(config.schema, i), pCol);
+    tdFreeCol(pCol);
+  }
+  config.tagValues = nullptr;
+
+  tsdbCreateTableImpl(pMeta, &config);
+
+  STable *pTable = tsdbGetTableByUid(pMeta, config.tableId.uid);
+  ASSERT_NE(pTable, nullptr);
 }
