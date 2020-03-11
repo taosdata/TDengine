@@ -18,7 +18,7 @@
 #include "taosmsg.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "dnodeSystem.h"
+#include "dnode.h"
 
 static void (*dnodeProcessMgmtRspFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void   dnodeProcessRspFromMnode(SRpcMsg *pMsg);

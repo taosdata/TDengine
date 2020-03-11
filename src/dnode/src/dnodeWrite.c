@@ -79,9 +79,7 @@ void dnodeCleanupWrite() {
   free(wWorkerPool.writeWorker);
 }
 
-void dnodeWrite(void *rpcMsg) {
-  SRpcMsg *pMsg = rpcMsg;
-
+void dnodeWrite(SRpcMsg *pMsg) {
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
   int32_t     contLen      = 0;

@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <pthread.h>
+#include <stdbool.h>
 
 typedef struct {
   int32_t queryReqNum;
@@ -29,32 +29,13 @@ typedef struct {
   int32_t httpReqNum;
 } SDnodeStatisInfo;
 
-typedef struct {
-  char  id[20];
-  char  sid;
-  void *thandle;
-  int   mgmtIndex;
-  char  status;  // 0:offline, 1:online
-} SMgmtObj;
+typedef enum {
+  TSDB_DNODE_RUN_STATUS_INITIALIZE,
+  TSDB_DNODE_RUN_STATUS_RUNING,
+  TSDB_DNODE_RUN_STATUS_STOPPED
+} SDnodeRunStatus;
 
-// global variables
-extern uint32_t tsRebootTime;
-
-// dnodeCluster
-extern void (*dnodeStartModules)();
-extern int32_t (*dnodeCheckSystem)();
-
-
-// dnodeSystem
-void dnodeCheckDataDirOpenned(const char* dir);
-
-// dnodeModule
-extern void (*dnodeStartModules)();
-
-
-
-void dnodeLockVnodes();
-void dnodeUnLockVnodes();
+SDnodeRunStatus dnodeGetRunStatus();
 SDnodeStatisInfo dnodeGetStatisInfo();
 
 #ifdef __cplusplus

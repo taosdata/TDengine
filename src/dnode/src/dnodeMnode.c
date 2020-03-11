@@ -17,7 +17,7 @@
 #include "taosmsg.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "dnodeSystem.h"
+#include "dnode.h"
 #include "dnodeMgmt.h"
 #include "dnodeWrite.h"
 

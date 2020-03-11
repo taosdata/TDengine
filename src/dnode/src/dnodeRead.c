@@ -67,9 +67,7 @@ void dnodeCleanupRead() {
   taosCloseQset(readQset);
 }
 
-void dnodeRead(void *rpcMsg) {
-  SRpcMsg *pMsg = rpcMsg;
-
+void dnodeRead(SRpcMsg *pMsg) {
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
   int32_t     contLen      = 0;

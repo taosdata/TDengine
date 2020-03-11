@@ -21,7 +21,7 @@
 #include "trpc.h"
 #include "tstatus.h"
 #include "tsched.h"
-#include "dnodeSystem.h"
+#include "dnode.h"
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtBalance.h"

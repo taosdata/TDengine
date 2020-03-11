@@ -22,9 +22,9 @@
 #include "http.h"
 #include "monitor.h"
 #include "dnodeModule.h"
-#include "dnodeSystem.h"
+#include "dnode.h"
 
-void dnodeAllocModules() {
+static void dnodeAllocModules() {
   tsModule[TSDB_MOD_MGMT].name          = "mgmt";
   tsModule[TSDB_MOD_MGMT].initFp        = mgmtInitSystem;
   tsModule[TSDB_MOD_MGMT].cleanUpFp     = mgmtCleanUpSystem;
@@ -69,6 +69,8 @@ void dnodeCleanUpModules() {
 }
 
 int32_t dnodeInitModules() {
+  dnodeAllocModules();
+
   for (int mod = 0; mod < TSDB_MOD_MAX; ++mod) {
     if (tsModule[mod].num != 0 && tsModule[mod].initFp) {
       if ((*tsModule[mod].initFp)() != 0) {
@@ -81,7 +83,7 @@ int32_t dnodeInitModules() {
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeStartModulesImp() {
+void dnodeStartModules() {
   for (int mod = 1; mod < TSDB_MOD_MAX; ++mod) {
     if (tsModule[mod].num != 0 && tsModule[mod].startFp) {
       if ((*tsModule[mod].startFp)() != 0) {
@@ -90,5 +92,3 @@ void dnodeStartModulesImp() {
     }
   }
 }
-
-void (*dnodeStartModules)() = dnodeStartModulesImp;

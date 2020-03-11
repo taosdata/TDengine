@@ -20,7 +20,7 @@
 #include "taosmsg.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "dnodeSystem.h"
+#include "dnode.h"
 #include "dnodeRead.h"
 #include "dnodeWrite.h"
 #include "dnodeShell.h"
