@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "taosdef.h"
+#include "taosmsg.h"
 #include "dataformat.h"
 
 #ifdef __cplusplus
@@ -215,8 +216,8 @@ typedef struct STimeWindow {
   int64_t ekey;
 } STimeWindow;
 
-typedef struct {
-} SColumnFilterInfo;
+// typedef struct {
+// } SColumnFilterInfo;
 
 // query condition to build vnode iterator
 typedef struct STSDBQueryCond {
