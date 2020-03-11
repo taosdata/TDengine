@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
-void    dnodeAllocModules();
 int32_t dnodeInitModules();
-void    dnodeCleanUpModules();
+void dnodeCleanUpModules();
+void dnodeStartModules();
 
 #ifdef __cplusplus
 }

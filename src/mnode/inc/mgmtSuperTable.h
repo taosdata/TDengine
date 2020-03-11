@@ -31,7 +31,7 @@ void    mgmtCleanUpSuperTables();
 
 void *  mgmtGetSuperTable(char *tableId);
 
-int32_t mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate);
+int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate);
 int32_t mgmtDropSuperTable(SDbObj *pDb, SSuperTableObj *pTable);
 int32_t mgmtAddSuperTableTag(SSuperTableObj *pTable, SSchema schema[], int32_t ntags);
 int32_t mgmtDropSuperTableTag(SSuperTableObj *pTable, char *tagName);

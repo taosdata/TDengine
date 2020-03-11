@@ -769,8 +769,10 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
 void tscCloseTscObj(STscObj* pObj) {
   pObj->signature = NULL;
   SSqlObj* pSql = pObj->pSql;
-  globalCode = pSql->res.code;
-
+  if (pSql) {
+    globalCode = pSql->res.code;
+  }
+  
   taosTmrStopA(&(pObj->pTimer));
   tscFreeSqlObj(pSql);
 

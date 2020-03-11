@@ -68,7 +68,7 @@ TAOS *shellInit(struct arguments *args) {
   tsMeterMetaKeepTimer = 3000;
 
   // Connect to the database.
-  TAOS *con = taos_connect(args->host, args->user, args->password, args->database, tsMgmtShellPort);
+  TAOS *con = taos_connect(args->host, args->user, args->password, args->database, tsMnodeShellPort);
   if (con == NULL) {
     return con;
   }

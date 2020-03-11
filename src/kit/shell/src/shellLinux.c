@@ -62,7 +62,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       if (arg) arguments->password = arg;
       break;
     case 'P':
-      tsMgmtShellPort = atoi(arg);
+      tsMnodeShellPort = atoi(arg);
       break;
     case 't':
       arguments->timezone = arg;

@@ -22,7 +22,7 @@ extern "C" {
 
 int32_t dnodeInitMgmt();
 void    dnodeCleanupMgmt();
-void    dnodeMgmt(void *rpcMsg);
+void    dnodeMgmt(SRpcMsg *rpcMsg);
 
 void*   dnodeGetVnode(int32_t vgId);
 int32_t dnodeGetVnodeStatus(void *pVnode);

@@ -71,12 +71,12 @@ int32_t mgmtInitTables() {
 
   mgmtSetVgroupIdPool();
 
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CREATE_TABLE, mgmtProcessCreateTableMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_DROP_TABLE, mgmtProcessDropTableMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_ALTER_TABLE, mgmtProcessAlterTableMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_TABLE_META, mgmtProcessTableMetaMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_MULTI_TABLE_META, mgmtProcessMultiTableMetaMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_STABLE_META, mgmtProcessSuperTableMetaMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_TABLE, mgmtProcessCreateTableMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_TABLE, mgmtProcessDropTableMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_TABLE, mgmtProcessAlterTableMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_TABLE_META, mgmtProcessTableMetaMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_TABLES_META, mgmtProcessMultiTableMetaMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_STABLE_META, mgmtProcessSuperTableMetaMsg);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_TABLE, mgmtGetShowTableMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mgmtRetrieveShowTables);
 
@@ -133,7 +133,7 @@ int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, boo
 
 
 
-void mgmtProcessCreateVgroup(SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta) {
+void mgmtProcessCreateVgroup(SCMCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta) {
   SRpcMsg rpcRsp = {.handle = thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   SDbObj *pDb = mgmtGetDb(pCreate->db);
   if (pDb == NULL) {
@@ -175,7 +175,7 @@ void mgmtProcessCreateVgroup(SCreateTableMsg *pCreate, int32_t contLen, void *th
   mgmtSendCreateVgroupMsg(pVgroup, info);
 }
 
-//void mgmtSendCreateTableMsg(SDMCreateTableMsg *pCreate, SRpcIpSet *ipSet, void *ahandle) {
+//void mgmtSendCreateTableMsg(SMDCreateTableMsg *pCreate, SRpcIpSet *ipSet, void *ahandle) {
 //  mTrace("table:%s, send create table msg, ahandle:%p", pCreate->tableId, ahandle);
 //  SRpcMsg rpcMsg = {
 //    .handle  = ahandle,
@@ -189,7 +189,7 @@ void mgmtProcessCreateVgroup(SCreateTableMsg *pCreate, int32_t contLen, void *th
 //
 
 
-void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta) {
+void mgmtProcessCreateTable(SVgObj *pVgroup, SCMCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta) {
   assert(pVgroup != NULL);
   SRpcMsg rpcRsp = {.handle = thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
@@ -201,7 +201,7 @@ void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t c
   }
 
   STableInfo *pTable;
-  SDMCreateTableMsg *pDCreate = NULL;
+  SMDCreateTableMsg *pDCreate = NULL;
 
   if (pCreate->numOfColumns == 0) {
     mTrace("table:%s, start to create child table, vgroup:%d sid:%d", pCreate->tableId, pVgroup->vgId, sid);
@@ -239,7 +239,7 @@ void mgmtProcessCreateTable(SVgObj *pVgroup, SCreateTableMsg *pCreate, int32_t c
   mgmtSendMsgToDnode(&ipSet, &rpcMsg);
 }
 
-int32_t mgmtCreateTable(SCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta) {
+int32_t mgmtCreateTable(SCMCreateTableMsg *pCreate, int32_t contLen, void *thandle, bool isGetMeta) {
   SDbObj *pDb = mgmtGetDb(pCreate->db);
   if (pDb == NULL) {
     mError("table:%s, failed to create table, db not selected", pCreate->tableId);
@@ -331,7 +331,7 @@ int32_t mgmtDropTable(SDbObj *pDb, char *tableId, int32_t ignore) {
   }
 }
 
-int32_t mgmtAlterTable(SDbObj *pDb, SAlterTableMsg *pAlter) {
+int32_t mgmtAlterTable(SDbObj *pDb, SCMAlterTableMsg *pAlter) {
   STableInfo *pTable = mgmtGetTable(pAlter->tableId);
   if (pTable == NULL) {
     return TSDB_CODE_INVALID_TABLE;
@@ -553,7 +553,7 @@ void mgmtSetTableDirty(STableInfo *pTable, bool isDirty) {
 void mgmtProcessCreateTableMsg(SRpcMsg *rpcMsg) {
   SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
-  SCreateTableMsg *pCreate = (SCreateTableMsg *) rpcMsg->pCont;
+  SCMCreateTableMsg *pCreate = (SCMCreateTableMsg *) rpcMsg->pCont;
   pCreate->numOfColumns = htons(pCreate->numOfColumns);
   pCreate->numOfTags    = htons(pCreate->numOfTags);
   pCreate->sqlLen       = htons(pCreate->sqlLen);
@@ -594,7 +594,7 @@ void mgmtProcessCreateTableMsg(SRpcMsg *rpcMsg) {
 
 void mgmtProcessDropTableMsg(SRpcMsg *rpcMsg) {
   SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  SDropTableMsg *pDrop = (SDropTableMsg *) rpcMsg->pCont;
+  SCMDropTableMsg *pDrop = (SCMDropTableMsg *) rpcMsg->pCont;
 
   if (mgmtCheckRedirect(rpcMsg->handle) != TSDB_CODE_SUCCESS) {
     mError("table:%s, failed to drop table, need redirect message", pDrop->tableId);
@@ -644,7 +644,7 @@ void mgmtProcessAlterTableMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  SAlterTableMsg *pAlter = (SAlterTableMsg *) rpcMsg->pCont;
+  SCMAlterTableMsg *pAlter = (SCMAlterTableMsg *) rpcMsg->pCont;
 
   if (!pUser->writeAuth) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;
@@ -686,7 +686,11 @@ void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle) {
   }
 
   SRpcConnInfo connInfo;
-  rpcGetConnInfo(thandle, &connInfo);
+  if (rpcGetConnInfo(thandle, &connInfo) != 0) {
+    mError("conn:%p is already released while get table meta", thandle);
+    return;
+  }
+
   bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
 
   STableMeta *pMeta = rpcMallocCont(sizeof(STableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
@@ -710,7 +714,7 @@ void mgmtProcessTableMetaMsg(SRpcMsg *rpcMsg) {
   rpcRsp.pCont   = NULL;
   rpcRsp.contLen = 0;
 
-  STableInfoMsg *pInfo = rpcMsg->pCont;
+  SCMTableInfoMsg *pInfo = rpcMsg->pCont;
   pInfo->createFlag = htons(pInfo->createFlag);
 
   SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
@@ -735,8 +739,8 @@ void mgmtProcessTableMetaMsg(SRpcMsg *rpcMsg) {
         return;
       }
 
-      int32_t contLen = sizeof(SCreateTableMsg) + sizeof(STagData);
-      SCreateTableMsg *pCreateMsg = rpcMallocCont(contLen);
+      int32_t contLen = sizeof(SCMCreateTableMsg) + sizeof(STagData);
+      SCMCreateTableMsg *pCreateMsg = rpcMallocCont(contLen);
       if (pCreateMsg == NULL) {
         mError("table:%s, failed to create table while get meta info, no enough memory", pInfo->tableId);
         rpcRsp.code = TSDB_CODE_SERV_OUT_OF_MEMORY;
@@ -762,7 +766,10 @@ void mgmtProcessMultiTableMetaMsg(SRpcMsg *rpcMsg) {
   rpcRsp.contLen = 0;
 
   SRpcConnInfo connInfo;
-  rpcGetConnInfo(rpcMsg->handle, &connInfo);
+  if (rpcGetConnInfo(rpcMsg->handle, &connInfo) != 0) {
+    mError("conn:%p is already released while get mulit table meta", rpcMsg->handle);
+    return;
+  }
 
   bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
   SUserObj *pUser = mgmtGetUser(connInfo.user);
@@ -772,7 +779,7 @@ void mgmtProcessMultiTableMetaMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  SMultiTableInfoMsg *pInfo = rpcMsg->pCont;
+  SCMMultiTableInfoMsg *pInfo = rpcMsg->pCont;
   pInfo->numOfTables = htonl(pInfo->numOfTables);
 
   int32_t totalMallocLen = 4*1024*1024; // first malloc 4 MB, subsequent reallocation as twice
@@ -823,7 +830,7 @@ void mgmtProcessMultiTableMetaMsg(SRpcMsg *rpcMsg) {
 
 void mgmtProcessSuperTableMetaMsg(SRpcMsg *rpcMsg) {
   SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  SSuperTableInfoMsg *pInfo = rpcMsg->pCont;
+  SCMSuperTableInfoMsg *pInfo = rpcMsg->pCont;
   STableInfo *pTable = mgmtGetSuperTable(pInfo->tableId);
   if (pTable == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_TABLE;
@@ -831,7 +838,7 @@ void mgmtProcessSuperTableMetaMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  SSuperTableInfoRsp *pRsp = mgmtGetSuperTableVgroup((SSuperTableObj *) pTable);
+  SCMSuperTableInfoRsp *pRsp = mgmtGetSuperTableVgroup((SSuperTableObj *) pTable);
   if (pRsp != NULL) {
     int32_t msgLen = sizeof(SSuperTableObj) + htonl(pRsp->numOfDnodes) * sizeof(int32_t);
     rpcRsp.pCont = pRsp;

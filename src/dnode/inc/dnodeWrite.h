@@ -22,7 +22,7 @@ extern "C" {
 
 int32_t dnodeInitWrite();
 void    dnodeCleanupWrite();
-void    dnodeWrite(void *pMsg);
+void    dnodeWrite(SRpcMsg *pMsg);
 void *  dnodeAllocateWriteWorker();
 void    dnodeFreeWriteWorker(void *worker);
 
