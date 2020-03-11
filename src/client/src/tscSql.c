@@ -74,6 +74,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
     tscMgmtIpList.ip[2] = inet_addr(tsMasterIp);
     strcpy(tscMgmtIpList.ipstr[3], tsSecondIp);
     tscMgmtIpList.ip[3] = inet_addr(tsSecondIp);
+    strcpy(tsMasterIp, ip);
   }
 
   pObj = (STscObj *)malloc(sizeof(STscObj));
