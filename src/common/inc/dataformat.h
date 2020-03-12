@@ -79,14 +79,17 @@ void      tdUpdateSchema(STSchema *pSchema);
  */
 typedef void *SDataRow;
 
+#define TD_DATA_ROW_HEAD_SIZE sizeof(int32_t)
+
 #define dataRowLen(r) (*(int32_t *)(r))
-#define dataRowTuple(r) ((char *)(r) + sizeof(int32_t))
+#define dataRowTuple(r) ((char *)(r) + TD_DATA_ROW_HEAD_SIZE)
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
 #define dataRowIdx(r, i) ((char *)(r) + i)
 #define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
 
 SDataRow tdNewDataRow(int32_t bytes);
-// SDataRow tdNewDdataFromSchema(SSchema *pSchema);
+int      tdMaxRowBytesFromSchema(STSchema *pSchema);
+SDataRow tdNewDataRowFromSchema(STSchema *pSchema);
 void     tdFreeDataRow(SDataRow row);
 // int32_t  tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixOffset);
 void     tdDataRowCpy(void *dst, SDataRow row);

@@ -34,5 +34,8 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &tCfg);
 
   // 3. Loop to write some simple data
+  SDataRow row = tdNewDataRowFromSchema(schema);
+  for (int i = 0; i < nCols; i++) {
+  }
 }
 

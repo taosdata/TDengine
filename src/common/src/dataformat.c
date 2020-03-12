@@ -178,10 +178,33 @@ SDataRow tdNewDataRow(int32_t bytes) {
   return row;
 }
 
-// SDataRow tdNewDdataFromSchema(SSchema *pSchema) {
-//   int32_t bytes = tdMaxRowDataBytes(pSchema);
-//   return tdNewDataRow(bytes);
-// }
+/**
+ * Get maximum bytes a data row from a schema
+ * ASSUMPTIONS: VALID PARAMETER
+ */
+int tdMaxRowBytesFromSchema(STSchema *pSchema) {
+  // TODO
+  int bytes = TD_DATA_ROW_HEAD_SIZE;
+  for (int i = 0; i < schemaNCols(pSchema); i++) {
+    STColumn *pCol = schemaColAt(pSchema, i);
+    bytes += TYPE_BYTES[pCol->type];
+
+    if (pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_NCHAR) {
+      bytes += pCol->bytes;
+    }
+  }
+
+  return bytes;
+}
+
+SDataRow tdNewDataRowFromSchema(STSchema *pSchema) {
+  int bytes = 0;
+  {
+    // TODO: estimiate size from schema
+  }
+
+  return tdNewDataRow(bytes);
+}
 
 /**
  * Free the SDataRow object
