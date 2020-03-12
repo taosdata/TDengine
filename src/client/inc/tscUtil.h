@@ -251,7 +251,13 @@ void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)());
 
+typedef struct SColumnList {
+  int32_t      num;
+  SColumnIndex ids[TSDB_MAX_COLUMNS];
+} SColumnList;
 
+int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pIdList, int16_t bytes,
+                          int8_t type, char* fieldName, SSqlExpr* pSqlExpr);
 #ifdef __cplusplus
 }
 #endif

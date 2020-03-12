@@ -74,7 +74,10 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
     tscMgmtIpList.ip[2] = inet_addr(tsMasterIp);
     strcpy(tscMgmtIpList.ipstr[3], tsSecondIp);
     tscMgmtIpList.ip[3] = inet_addr(tsSecondIp);
-    strcpy(tsMasterIp, ip);
+    
+    if (tsMasterIp != ip) {
+      strcpy(tsMasterIp, ip);
+    }
   }
 
   pObj = (STscObj *)malloc(sizeof(STscObj));
@@ -416,7 +419,7 @@ static char *getArithemicInputSrc(void *param, char *name, int32_t colId) {
   return pSupport->data[index] + pSupport->offset * pSupport->elemSize[index];
 }
 
-static void **doSetResultRowData(SSqlObj *pSql) {
+static void **doSetResultRowData(SSqlObj *pSql, bool finalResult) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
@@ -429,7 +432,6 @@ static void **doSetResultRowData(SSqlObj *pSql) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
-  int32_t num = 0;
   for (int i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
     if (pQueryInfo->fieldsInfo.pSqlExpr[i] != NULL) {
       SSqlExpr* pExpr = pQueryInfo->fieldsInfo.pSqlExpr[i];
@@ -444,7 +446,7 @@ static void **doSetResultRowData(SSqlObj *pSql) {
     TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, i);
     transferNcharData(pSql, i, pField);
 
-    // calculate the result from serveral other columns
+    // calculate the result from several other columns
     if (pQueryInfo->fieldsInfo.pExpr != NULL && pQueryInfo->fieldsInfo.pExpr[i] != NULL) {
       SArithmeticSupport *sas = (SArithmeticSupport *)calloc(1, sizeof(SArithmeticSupport));
       sas->offset = 0;
@@ -470,8 +472,6 @@ static void **doSetResultRowData(SSqlObj *pSql) {
       free(sas); //todo optimization
     }
   }
-
-  assert(num <= pQueryInfo->fieldsInfo.numOfOutputCols);
 
   pRes->row++;  // index increase one-step
   return pRes->tsrow;
@@ -536,9 +536,7 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
 
   while (1) {
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
-    if (pRes->tsrow == NULL) {
-      pRes->tsrow = calloc(pQueryInfo->exprsInfo.numOfExprs, POINTER_BYTES);
-    }
+    tscCreateResPointerInfo(pRes, pQueryInfo);
 
     bool success = false;
 
@@ -550,10 +548,8 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
     }
 
     if (numOfTableHasRes >= 2) {  // do merge result
-
-      success = (doSetResultRowData(pSql->pSubs[0]) != NULL) && (doSetResultRowData(pSql->pSubs[1]) != NULL);
-      //        TSKEY key1 = *(TSKEY *)pRes1->tsrow[0];
-      //        TSKEY key2 = *(TSKEY *)pRes2->tsrow[0];
+      success = (doSetResultRowData(pSql->pSubs[0], false) != NULL) &&
+          (doSetResultRowData(pSql->pSubs[1], false) != NULL);
       //        printf("first:%" PRId64 ", second:%" PRId64 "\n", key1, key2);
     } else {  // only one subquery
       SSqlObj *pSub = pSql->pSubs[0];
@@ -561,7 +557,7 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
         pSub = pSql->pSubs[1];
       }
 
-      success = (doSetResultRowData(pSub) != NULL);
+      success = (doSetResultRowData(pSub, false) != NULL);
     }
 
     if (success) {  // current row of final output has been built, return to app
@@ -571,6 +567,41 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
 
         SSqlRes *pRes1 = &pSql->pSubs[tableIndex]->res;
         pRes->tsrow[i] = pRes1->tsrow[columnIndex];
+      }
+      
+      int32_t numOfOutputCols = tscNumOfFields(pQueryInfo);
+      assert(pRes->numOfCols >= numOfOutputCols);
+      
+      for(int32_t i = 0; i < numOfOutputCols; ++i) {
+        if (pQueryInfo->fieldsInfo.pSqlExpr[i] != NULL) {
+          continue;  // no arithmetic expression exists, continue
+        }
+
+        assert(pQueryInfo->fieldsInfo.pExpr[i] != NULL);
+        SArithmeticSupport *sas = (SArithmeticSupport *)calloc(1, sizeof(SArithmeticSupport));
+        sas->offset = 0;
+        sas->pExpr = pQueryInfo->fieldsInfo.pExpr[i];
+
+        sas->numOfCols = sas->pExpr->binExprInfo.numOfCols;
+
+        if (pRes->buffer[i] == NULL) {
+          pRes->buffer[i] = malloc(tscFieldInfoGetField(pQueryInfo, i)->bytes);
+        }
+
+        for (int32_t k = 0; k < sas->numOfCols; ++k) {
+          int32_t   columnIndex = sas->pExpr->binExprInfo.pReqColumns[k].colIdxInBuf;
+          assert(columnIndex < pQueryInfo->exprsInfo.numOfExprs);
+          
+          SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, columnIndex);
+
+          sas->elemSize[k] = pExpr->resBytes;
+          sas->data[k] = pRes->tsrow[columnIndex];
+        }
+
+        tSQLBinaryExprCalcTraverse(sas->pExpr->binExprInfo.pBinExpr, 1, pRes->buffer[i], sas, TSQL_SO_ASC,
+                                   getArithemicInputSrc);
+        pRes->tsrow[i] = pRes->buffer[i];
+        free(sas);  // todo optimization
       }
 
       pRes->numOfTotalInCurrentClause++;
@@ -662,7 +693,7 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
     }
   }
 
-  return doSetResultRowData(pSql);
+  return doSetResultRowData(pSql, true);
 }
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
