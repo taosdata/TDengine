@@ -91,7 +91,7 @@ SDataRow tdNewDataRow(int32_t bytes);
 int      tdMaxRowBytesFromSchema(STSchema *pSchema);
 SDataRow tdNewDataRowFromSchema(STSchema *pSchema);
 void     tdFreeDataRow(SDataRow row);
-// int32_t  tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixOffset);
+int      tdAppendColVal(SDataRow row, void *value, STColumn *pCol, int32_t suffixOffset);
 void     tdDataRowCpy(void *dst, SDataRow row);
 void     tdDataRowReset(SDataRow row);
 SDataRow tdDataRowDup(SDataRow row);

@@ -78,7 +78,7 @@ static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo);
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
 static int     tsdbOpenMetaFile(char *tsdbDir);
 static int     tsdbRecoverRepo(int fd, STsdbCfg *pCfg);
-static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlock *pBlock);
+static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -322,14 +322,14 @@ STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tableId) {
 
 // TODO: need to return the number of data inserted
 int32_t tsdbInsertData(tsdb_repo_t *repo, SSubmitMsg *pMsg) {
-  SSubmitBlock *pBlock = (SSubmitBlock *)pMsg->data;
+  SSubmitBlk *pBlock = (SSubmitBlk *)pMsg->blocks;
 
-  for (int i = 0; i < pMsg->numOfTables; i++) {  // Loop to deal with the submit message
-    if (tsdbInsertDataToTable(repo, pBlock) < 0) {
-      return -1;
-    }
-    pBlock = (SSubmitBlock *)(((char *)pBlock) + sizeof(SSubmitBlock) + pBlock->len);
-  }
+  // for (int i = 0; i < pMsg->numOfTables; i++) {  // Loop to deal with the submit message
+  //   if (tsdbInsertDataToTable(repo, pBlock) < 0) {
+  //     return -1;
+  //   }
+  //   pBlock = (SSubmitBlk *)(((char *)pBlock) + sizeof(SSubmitBlk) + pBlock->len);
+  // }
 
   return 0;
 }
@@ -413,6 +413,34 @@ void tsdbClearTableCfg(STableCfg *config) {
   if (config->schema) tdFreeSchema(config->schema);
   if (config->tagSchema) tdFreeSchema(config->tagSchema);
   if (config->tagValues) tdFreeDataRow(config->tagValues);
+}
+
+int tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter) {
+  if (pMsg == NULL || pIter == NULL) return -1;
+
+  pIter->totalLen = pMsg->length;
+  pIter->len = TSDB_SUBMIT_MSG_HEAD_SIZE;
+  if (pMsg->length <= TSDB_SUBMIT_MSG_HEAD_SIZE) {
+    pIter->pBlock = NULL;
+  } else {
+    pIter->pBlock = pMsg->blocks;
+  }
+
+  return 0;
+}
+
+SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter) {
+  SSubmitBlk *pBlock = pIter->pBlock;
+  if (pBlock == NULL) return NULL;
+
+  pIter->len += pBlock->len;
+  if (pIter->len >= pIter->totalLen) {
+    pIter->pBlock = NULL;
+  } else {
+    pIter->pBlock = (char *)pBlock + pBlock->len;
+  }
+
+  return pBlock;
 }
 
 // Check the configuration and set default options
@@ -601,7 +629,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   return 0;
 }
 
-static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlock *pBlock) {
+static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, pBlock->tableId);

@@ -91,14 +91,6 @@ int tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg);
 int tsdbDropTable(tsdb_repo_t *pRepo, STableId tableId);
 int tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
 
-
-// Submit message for this TSDB
-typedef struct {
-  int32_t numOfTables;
-  int32_t compressed;
-  char    data[];
-} SSubmitMsg;
-
 // Submit message for one table
 typedef struct {
   STableId tableId;
@@ -106,8 +98,26 @@ typedef struct {
   int32_t  sversion;   // data schema version
   int32_t  len;        // message length
   char     data[];
-} SSubmitBlock;
+} SSubmitBlk;
 
+// Submit message for this TSDB
+typedef struct {
+  int32_t    length;
+  int32_t    compressed;
+  SSubmitBlk blocks[];
+} SSubmitMsg;
+
+#define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
+
+// SSubmitMsg Iterator
+typedef struct {
+  int32_t totalLen;
+  int32_t len;
+  SSubmitBlk *pBlock;
+} SSubmitMsgIter;
+
+int           tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
+SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter);
 
 // the TSDB repository info
 typedef struct STsdbRepoInfo {

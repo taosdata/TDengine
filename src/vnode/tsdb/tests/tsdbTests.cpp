@@ -17,11 +17,10 @@ TEST(TsdbTest, createRepo) {
   ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_SUPER_TABLE, 987607499877672L, 0), -1);
   ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_NTABLE, 987607499877672L, 0), 0);
 
-  int nCols = 5;
+  int       nCols = 5;
   STSchema *schema = tdNewSchema(nCols);
 
-  for (int i = 0; i < nCols; i++)
-  {
+  for (int i = 0; i < nCols; i++) {
     if (i == 0) {
       tdSchemaAppendCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
     } else {
@@ -34,8 +33,14 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &tCfg);
 
   // 3. Loop to write some simple data
-  SDataRow row = tdNewDataRowFromSchema(schema);
-  for (int i = 0; i < nCols; i++) {
-  }
+  // int         size = tdMaxRowBytesFromSchema(schema);
+  // int         nrows = 100;
+  // SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk+ size * nrows);
+
+  // {
+  //   // TODO
+  // }
+
+  // tsdbInsertData(pRepo, pMsg);
 }
 
