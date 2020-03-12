@@ -217,7 +217,6 @@ int vnodeInitCommit(int vnode) {
 
   // restore from .olog file and commit to file
   size = vnodeRestoreDataFromLog(vnode, pVnode->logOFn, &firstV);
-  if (size < 0) return -1;
   if (size > 0) {
     if (pVnode->commitInProcess == 0) vnodeCommitToFile(pVnode);
     remove(pVnode->logOFn);
@@ -225,7 +224,6 @@ int vnodeInitCommit(int vnode) {
 
   // restore from .log file to cache
   size = vnodeRestoreDataFromLog(vnode, pVnode->logFn, &firstV);
-  if (size < 0) return -1;
 
   if (pVnode->cfg.commitLog == 0) return 0;
 
