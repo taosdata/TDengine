@@ -15,11 +15,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "taosdef.h"
 #include "hash.h"
 #include "tsdbMetaFile.h"
 
 #define TSDB_META_FILE_HEADER_SIZE 512
-#define TSDB_META_HASH_FRACTION 1.1
 
 typedef struct {
   int32_t offset;

@@ -145,8 +145,15 @@ tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO
   pRepo->config = *pCfg;
   pRepo->limiter = limiter;
 
+  // Create the environment files and directories
+  if (tsdbSetRepoEnv(pRepo) < 0) {
+    free(pRepo->rootDir);
+    free(pRepo);
+    return NULL;
+  }
+
   // Initialize meta
-  STsdbMeta *pMeta = tsdbInitMeta(pCfg->maxTables);
+  STsdbMeta *pMeta = tsdbInitMeta(rootDir, pCfg->maxTables);
   if (pMeta == NULL) {
     free(pRepo->rootDir);
     free(pRepo);
@@ -163,15 +170,6 @@ tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO
     return NULL;
   }
   pRepo->tsdbCache = pCache;
-
-  // Create the environment files and directories
-  if (tsdbSetRepoEnv(pRepo) < 0) {
-    free(pRepo->rootDir);
-    tsdbFreeMeta(pRepo->tsdbMeta);
-    tsdbFreeCache(pRepo->tsdbCache);
-    free(pRepo);
-    return NULL;
-  }
 
   pRepo->state = TSDB_REPO_STATE_ACTIVE;
 

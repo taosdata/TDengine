@@ -18,23 +18,33 @@ static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 
-STsdbMeta *tsdbInitMeta(int32_t maxTables) {
+/**
+ * Initialize the meta handle
+ * ASSUMPTIONS: VALID PARAMETER
+ */
+STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables) {
   STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
-  if (pMeta == NULL) {
-    return NULL;
-  }
+  if (pMeta == NULL) return NULL;
 
   pMeta->maxTables = maxTables;
   pMeta->nTables = 0;
-  pMeta->stables = NULL;
+  pMeta->superList = NULL;
   pMeta->tables = (STable **)calloc(maxTables, sizeof(STable *));
   if (pMeta->tables == NULL) {
     free(pMeta);
     return NULL;
   }
 
-  pMeta->tableMap = taosInitHashTable(maxTables + maxTables / 10, taosGetDefaultHashFunction, false);
-  if (pMeta->tableMap == NULL) {
+  pMeta->map = taosInitHashTable(maxTables * TSDB_META_HASH_FRACTION, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+  if (pMeta->map == NULL) {
+    free(pMeta->tables);
+    free(pMeta);
+    return NULL;
+  }
+
+  pMeta->mfh = tsdbInitMetaFile(rootDir, maxTables);
+  if (pMeta->mfh == NULL) {
+    taosCleanUpHashTable(pMeta->map);
     free(pMeta->tables);
     free(pMeta);
     return NULL;
@@ -46,6 +56,8 @@ STsdbMeta *tsdbInitMeta(int32_t maxTables) {
 int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
   if (pMeta == NULL) return 0;
 
+  tsdbCloseMetaFile(pMeta->mfh);
+
   for (int i = 0; i < pMeta->maxTables; i++) {
     if (pMeta->tables[i] != NULL) {
       tsdbFreeTable(pMeta->tables[i]);
@@ -54,14 +66,14 @@ int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
 
   free(pMeta->tables);
 
-  STable *pTable = pMeta->stables;
+  STable *pTable = pMeta->superList;
   while (pTable != NULL) {
     STable *pTemp = pTable;
     pTable = pTemp->next;
     tsdbFreeTable(pTemp);
   }
 
-  taosCleanUpHashTable(pMeta->tableMap);
+  taosCleanUpHashTable(pMeta->map);
 
   free(pMeta);
 
@@ -124,17 +136,6 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   tsdbAddTableToMeta(pMeta, pTable);
 
   return 0;
-}
-
-STsdbMeta *tsdbOpenMeta(char *tsdbDir) {
-  // TODO : Open meta file for reading
-
-  STsdbMeta *pMeta = (STsdbMeta *)malloc(sizeof(STsdbMeta));
-  if (pMeta == NULL) {
-    return NULL;
-  }
-
-  return pMeta;
 }
 
 /**
@@ -206,7 +207,7 @@ static int32_t tsdbCheckTableCfg(STableCfg *pCfg) {
 }
 
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
-  void *ptr = taosGetDataFromHashTable(pMeta->tableMap, (char *)(&uid), sizeof(uid));
+  void *ptr = taosGetDataFromHashTable(pMeta->map, (char *)(&uid), sizeof(uid));
 
   if (ptr == NULL) return NULL;
 
@@ -216,12 +217,12 @@ STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
 static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable) {
   if (pTable->type == TSDB_SUPER_TABLE) { 
     // add super table to the linked list
-    if (pMeta->stables == NULL) {
-      pMeta->stables = pTable;
+    if (pMeta->superList == NULL) {
+      pMeta->superList = pTable;
       pTable->next = NULL;
     } else {
-      STable *pTemp = pMeta->stables;
-      pMeta->stables = pTable;
+      STable *pTemp = pMeta->superList;
+      pMeta->superList = pTable;
       pTable->next = pTemp;
     }
   } else {
@@ -245,7 +246,7 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
 static int tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable) {
   // TODO: add the table to the map
   int64_t uid = pTable->tableId.uid;
-  if (taosAddToHashTable(pMeta->tableMap, (char *)(&uid), sizeof(uid), (void *)(&pTable), sizeof(pTable)) < 0) {
+  if (taosAddToHashTable(pMeta->map, (char *)(&uid), sizeof(uid), (void *)(&pTable), sizeof(pTable)) < 0) {
     return -1;
   }
   return 0;

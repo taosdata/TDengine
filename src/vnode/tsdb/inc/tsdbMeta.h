@@ -20,6 +20,7 @@
 #include "tsdb.h"
 #include "dataformat.h"
 #include "tskiplist.h"
+#include "tsdbMetaFile.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,13 +79,23 @@ typedef struct STable {
 
 } STable;
 
+// ---------- TSDB META HANDLE DEFINITION
 typedef struct {
-  int32_t  maxTables;
-  int32_t  nTables;
-  STable **tables;    // array of normal tables
-  STable * stables;   // linked list of super tables // TODO use container to implement this
-  void *   tableMap;  // hash map of uid ==> STable *
+  int32_t maxTables;  // Max number of tables
+
+  int32_t nTables;  // Tables created
+
+  STable **tables;  // table array
+
+  STable *superList;  // super table list TODO: change  it to list container
+
+  void *map; // table map of (uid ===> table)
+
+  SMetaFile *mfh; // meta file handle
 } STsdbMeta;
+
+STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables);
+int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 
 // ---- Operation on STable
 #define TSDB_TABLE_ID(pTable) ((pTable)->tableId)
@@ -104,13 +115,6 @@ STSchema *tsdbGetTableSchema(STable *pTable);
 #define TSDB_NUM_OF_SUPER_TABLES(pHandle) ((pHandle)->numOfSuperTables)
 #define TSDB_TABLE_OF_ID(pHandle, id) ((pHandle)->pTables)[id]
 #define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
-
-// Create a new meta handle with configuration
-STsdbMeta *tsdbInitMeta(int32_t maxTables);
-int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
-
-// Recover the meta handle from the file
-STsdbMeta *tsdbOpenMeta(char *tsdbDir);
 
 int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
 int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);

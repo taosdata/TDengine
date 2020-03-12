@@ -18,13 +18,12 @@
 
 #include <stdint.h>
 
-#include "tsdbMeta.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define TSDB_META_FILE_NAME "META"
+#define TSDB_META_HASH_FRACTION 1.1
 
 typedef struct {
   int     fd;       // File descriptor
