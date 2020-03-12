@@ -347,7 +347,7 @@ int tsdbInitTableCfg(STableCfg *config, TSDB_TABLE_TYPE type, int64_t uid, int32
   config->superUid = TSDB_INVALID_SUPER_TABLE_ID;
   config->tableId.uid = uid;
   config->tableId.tid = tid;
-  return -1;
+  return 0;
 }
 
 /**

@@ -51,18 +51,20 @@ void      tdSetCol(STColumn *pCol, int8_t type, int16_t colId, int32_t bytes);
 
 // ----------------- TSDB SCHEMA DEFINITION
 typedef struct {
-  int32_t  numOfCols;
-  int32_t  padding;  // TODO: replace the padding for useful variable
+  int      numOfCols;  // Number of columns appended
+  int      totalCols;  // Total columns allocated
   STColumn columns[];
 } STSchema;
 
 #define schemaNCols(s) ((s)->numOfCols)
+#define schemaTCols(s) ((s)->totalCols)
 #define schemaColAt(s, i) ((s)->columns + i)
 
 STSchema *tdNewSchema(int32_t nCols);
+int       tdSchemaAppendCol(STSchema *pSchema, int8_t type, int16_t colId, int16_t bytes);
 STSchema *tdDupSchema(STSchema *pSchema);
-void tdFreeSchema(STSchema *pSchema);
-void tdUpdateSchema(STSchema *pSchema);
+void      tdFreeSchema(STSchema *pSchema);
+void      tdUpdateSchema(STSchema *pSchema);
 
 // ----------------- Data row structure
 

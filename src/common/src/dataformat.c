@@ -89,11 +89,38 @@ void tdSetCol(STColumn *pCol, int8_t type, int16_t colId, int32_t bytes) {
 STSchema *tdNewSchema(int32_t nCols) {
   int32_t  size = sizeof(STSchema) + sizeof(STColumn) * nCols;
 
-  STSchema *pSchema = (STSchema *)calloc(1, size);
+  STSchema *pSchema = (STSchema *)malloc(size);
   if (pSchema == NULL) return NULL;
-  pSchema->numOfCols = nCols;
+  pSchema->numOfCols = 0;
+  pSchema->totalCols = nCols;
 
   return pSchema;
+}
+
+/**
+ * Append a column to the schema
+ */
+int tdSchemaAppendCol(STSchema *pSchema, int8_t type, int16_t colId, int16_t bytes) {
+  if (pSchema->numOfCols >= pSchema->totalCols) return -1;
+  if (!isValidDataType(type, 0)) return -1;
+
+  STColumn *pCol = schemaColAt(pSchema, schemaNCols(pSchema));
+  colSetType(pCol, type);
+  colSetColId(pCol, colId);
+  colSetOffset(pCol, -1);
+  switch (type) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      colSetBytes(pCol, bytes);
+      break;
+    default:
+      colSetBytes(pCol, TYPE_BYTES[type]);
+      break;
+  }
+
+  pSchema->numOfCols++;
+
+  return 0;
 }
 
 /**
