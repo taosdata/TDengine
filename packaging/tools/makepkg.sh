@@ -14,6 +14,24 @@ osType=$5
 verMode=$6
 verType=$7
 pagMode=$8
+dbName=$9
+
+if [ "$dbName" == "taos" ]; then
+  DB_CLIENT_NAME="taos"
+  DB_SERVICE_NAME="taosd"
+  DB_FULL_NAME="TDengine"
+  DB_COPYRIGHT="TAOS Data"
+  DB_COMPANY="taosdata" 
+elif [ "$dbName" == "power" ]; then
+  DB_CLIENT_NAME="power"
+  DB_SERVICE_NAME="powerd"
+  DB_FULL_NAME="PowerDB"
+  DB_COPYRIGHT="PowerDB"
+  DB_COMPANY="powerdb"   
+else
+  echo "Not support dbname: ${dbName}, exit"
+  exit 1
+fi
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
@@ -25,18 +43,18 @@ release_dir="${top_dir}/release"
 
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
-    install_dir="${release_dir}/TDengine-enterprise-server"
+    install_dir="${release_dir}/${DB_FULL_NAME}-enterprise-server"
 else
-    install_dir="${release_dir}/TDengine-server"
+    install_dir="${release_dir}/${DB_FULL_NAME}-server"
 fi
 
 # Directories and files.
 if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/taosd 
   strip ${build_dir}/bin/taos
-  bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${script_dir}/remove.sh"
+  bin_files="${build_dir}/bin/${DB_SERVICE_NAME} ${build_dir}/bin/${DB_CLIENT_NAME} ${script_dir}/remove.sh"
 else 
-  bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdemo ${build_dir}/bin/taosdump ${script_dir}/remove.sh"
+  bin_files="${build_dir}/bin/${DB_SERVICE_NAME} ${build_dir}/bin/${DB_CLIENT_NAME} ${build_dir}/bin/${DB_CLIENT_NAME}demo ${build_dir}/bin/${DB_CLIENT_NAME}dump ${script_dir}/remove.sh"
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
@@ -58,18 +76,50 @@ init_file_rpm=${script_dir}/../rpm/taosd
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/${DB_CLIENT_NAME}.cfg
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/*
-mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taosd.deb
-mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/taosd.rpm
+mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${DB_SERVICE_NAME}.deb
+mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${DB_SERVICE_NAME}.rpm
 
 if [ "$verMode" == "cluster" ]; then
     sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >> remove_temp.sh
     mv remove_temp.sh ${install_dir}/bin/remove.sh
     
     mkdir -p ${install_dir}/nginxd && cp -r ${nginx_dir}/* ${install_dir}/nginxd
-    cp ${nginx_dir}/png/taos.png ${install_dir}/nginxd/admin/images/taos.png
+    cp ${nginx_dir}/png/${DB_CLIENT_NAME}.png ${install_dir}/nginxd/admin/images/${DB_CLIENT_NAME}.png
     rm -rf ${install_dir}/nginxd/png
+
+    sed -i "s/DB_CLIENT_NAME/${DB_CLIENT_NAME}/g"   ${install_dir}/nginxd/admin/*.html
+    sed -i "s/DB_SERVICE_NAME/${DB_SERVICE_NAME}/g" ${install_dir}/nginxd/admin/*.html
+    sed -i "s/DB_FULL_NAME/${DB_FULL_NAME}/g"       ${install_dir}/nginxd/admin/*.html
+    sed -i "s/DB_COPYRIGHT/${DB_COPYRIGHT}/g"       ${install_dir}/nginxd/admin/*.html
+    sed -i "s/DB_COMPANY/${DB_COMPANY}/g"           ${install_dir}/nginxd/admin/*.html
+    
+    sed -i "s/DB_CLIENT_NAME/${DB_CLIENT_NAME}/g"   ${install_dir}/nginxd/admin/js/*.js
+    sed -i "s/DB_SERVICE_NAME/${DB_SERVICE_NAME}/g" ${install_dir}/nginxd/admin/js/*.js
+    sed -i "s/DB_FULL_NAME/${DB_FULL_NAME}/g"       ${install_dir}/nginxd/admin/js/*.js
+    sed -i "s/DB_COPYRIGHT/${DB_COPYRIGHT}/g"       ${install_dir}/nginxd/admin/js/*.js
+    sed -i "s/DB_COMPANY/${DB_COMPANY}/g"           ${install_dir}/nginxd/admin/js/*.js
+    
+    sed -i "s/taosdata/${DB_COMPANY}/g"              ${install_dir}/cfg/${DB_CLIENT_NAME}.cfg
+    sed -i "s/taos/${DB_CLIENT_NAME}/g"              ${install_dir}/cfg/${DB_CLIENT_NAME}.cfg
+    sed -i "s/TDengine/${DB_FULL_NAME}/g"            ${install_dir}/cfg/${DB_CLIENT_NAME}.cfg
+    
+    sed -i "s/DB_CLIENT_NAME/${DB_CLIENT_NAME}/g"   ${install_dir}/bin/remove.sh
+    sed -i "s/DB_SERVICE_NAME/${DB_SERVICE_NAME}/g" ${install_dir}/bin/remove.sh
+    sed -i "s/DB_FULL_NAME/${DB_FULL_NAME}/g"       ${install_dir}/bin/remove.sh
+    
+    sed -i "s/DB_CLIENT_NAME/${DB_CLIENT_NAME}/g"   ${install_dir}/init.d/${DB_SERVICE_NAME}.deb
+    sed -i "s/DB_SERVICE_NAME/${DB_SERVICE_NAME}/g" ${install_dir}/init.d/${DB_SERVICE_NAME}.deb
+    sed -i "s/DB_FULL_NAME/${DB_FULL_NAME}/g"       ${install_dir}/init.d/${DB_SERVICE_NAME}.deb
+    
+    sed -i "s/DB_CLIENT_NAME/${DB_CLIENT_NAME}/g"   ${install_dir}/init.d/${DB_SERVICE_NAME}.rpm
+    sed -i "s/DB_SERVICE_NAME/${DB_SERVICE_NAME}/g" ${install_dir}/init.d/${DB_SERVICE_NAME}.rpm
+    sed -i "s/DB_FULL_NAME/${DB_FULL_NAME}/g"       ${install_dir}/init.d/${DB_SERVICE_NAME}.rpm
+    
+    #sed -i "s/TAOS Data/${DB_COPYRIGHT}/g"           ${install_dir}/inc/${DB_CLIENT_NAME}.h
+    #sed -i "s/taosdata/${DB_COMPANY}/g"              ${install_dir}/inc/${DB_CLIENT_NAME}.h
+
 
     if [ "$cpuType" == "aarch64" ]; then
         cp -f ${install_dir}/nginxd/sbin/arm/64bit/nginx ${install_dir}/nginxd/sbin/
@@ -80,10 +130,10 @@ if [ "$verMode" == "cluster" ]; then
 fi
 
 cd ${install_dir}
-tar -zcv -f taos.tar.gz * --remove-files  || :
+tar -zcv -f ${DB_CLIENT_NAME}.tar.gz * --remove-files  || :
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
-    echo "tar taos.tar.gz error !!!"
+    echo "tar ${DB_CLIENT_NAME}.tar.gz error !!!"
     exit $exitcode
 fi
 
@@ -97,6 +147,11 @@ if [ "$pagMode" == "lite" ]; then
     sed 's/pagMode=full/pagMode=lite/g' ${install_dir}/install.sh >> install_temp.sh
     mv install_temp.sh ${install_dir}/install.sh
 fi
+
+sed -i "s/DB_CLIENT_NAME/${DB_CLIENT_NAME}/g"   ${install_dir}/install.sh
+sed -i "s/DB_SERVICE_NAME/${DB_SERVICE_NAME}/g" ${install_dir}/install.sh
+sed -i "s/DB_FULL_NAME/${DB_FULL_NAME}/g"       ${install_dir}/install.sh
+
 chmod a+x ${install_dir}/install.sh
 
 # Copy example code

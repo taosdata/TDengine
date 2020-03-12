@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This file is used to install TDengine client on linux systems. The operating system
+# This file is used to install DB_FULL_NAME client on linux systems. The operating system
 # is required to use systemd to manage services at boot
 
 set -e
@@ -14,19 +14,19 @@ pagMode=full
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
     # Dynamic directory
-    data_dir="/var/lib/taos"
-    log_dir="/var/log/taos"
+    data_dir="/var/lib/DB_CLIENT_NAME"
+    log_dir="/var/log/DB_CLIENT_NAME"
 else
     script_dir=`dirname $0`
     cd ${script_dir}
     script_dir="$(pwd)"
-    data_dir="/var/lib/taos"
+    data_dir="/var/lib/DB_CLIENT_NAME"
     log_dir="~/TDengineLog"
 fi
 
-log_link_dir="/usr/local/taos/log"
+log_link_dir="/usr/local/DB_CLIENT_NAME/log"
 
-cfg_install_dir="/etc/taos"
+cfg_install_dir="/etc/DB_CLIENT_NAME"
 
 if [ "$osType" != "Darwin" ]; then
     bin_link_dir="/usr/bin"
@@ -39,10 +39,10 @@ else
 fi
 
 #install main path
-install_main_dir="/usr/local/taos"
+install_main_dir="/usr/local/DB_CLIENT_NAME"
 
 # old bin dir
-bin_dir="/usr/local/taos/bin"
+bin_dir="/usr/local/DB_CLIENT_NAME/bin"
 
 # v1.5 jar dir
 v15_java_app_dir="/usr/local/lib/taos"
@@ -62,7 +62,7 @@ fi
 update_flag=0
 
 function kill_client() {
-  pid=$(ps -ef | grep "taos" | grep -v "grep" | awk '{print $2}')
+  pid=$(ps -ef | grep "DB_CLIENT_NAME" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -82,20 +82,20 @@ function install_main_path() {
 
 function install_bin() {
   # Remove links
-  ${csudo} rm -f ${bin_link_dir}/taos         || :
+  ${csudo} rm -f ${bin_link_dir}/DB_CLIENT_NAME         || :
   if [ "$osType" == "Darwin" ]; then
-      ${csudo} rm -f ${bin_link_dir}/taosdump || :
+      ${csudo} rm -f ${bin_link_dir}/DB_CLIENT_NAMEdump || :
   fi
-  ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
+  ${csudo} rm -f ${bin_link_dir}/rmDB_CLIENT_NAME       || :
 
   ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
-  [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                 || :
+  [ -x ${install_main_dir}/bin/DB_CLIENT_NAME ] && ${csudo} ln -s ${install_main_dir}/bin/DB_CLIENT_NAME ${bin_link_dir}/DB_CLIENT_NAME                 || :
   if [ "$osType" == "Darwin" ]; then
-      [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+      [ -x ${install_main_dir}/bin/DB_CLIENT_NAMEdump ] && ${csudo} ln -s ${install_main_dir}/bin/DB_CLIENT_NAMEdump ${bin_link_dir}/DB_CLIENT_NAMEdump || :
   fi
-  [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos || :
+  [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmDB_CLIENT_NAME || :
 }
 
 function clean_lib() {
@@ -127,16 +127,16 @@ function install_header() {
 }
 
 function install_config() {
-    #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
+    #${csudo} rm -f ${install_main_dir}/cfg/DB_CLIENT_NAME.cfg     || :
 
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
+    if [ ! -f ${cfg_install_dir}/DB_CLIENT_NAME.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo} cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/DB_CLIENT_NAME.cfg ] && ${csudo} cp ${script_dir}/cfg/DB_CLIENT_NAME.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
 
-    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
+    ${csudo} cp -f ${script_dir}/cfg/DB_CLIENT_NAME.cfg ${install_main_dir}/cfg/DB_CLIENT_NAME.cfg.org
+    ${csudo} ln -s ${cfg_install_dir}/DB_CLIENT_NAME.cfg ${install_main_dir}/cfg
 }
 
 
@@ -161,17 +161,17 @@ function install_examples() {
     fi
 }
 
-function update_TDengine() {
+function update_DB_FULL_NAME() {
     # Start to update
-    if [ ! -e taos.tar.gz ]; then
-        echo "File taos.tar.gz does not exist"
+    if [ ! -e DB_CLIENT_NAME.tar.gz ]; then
+        echo "File DB_CLIENT_NAME.tar.gz does not exist"
         exit 1
     fi
-    tar -zxf taos.tar.gz
+    tar -zxf DB_CLIENT_NAME.tar.gz
 
-    echo -e "${GREEN}Start to update TDengine client...${NC}"
+    echo -e "${GREEN}Start to update DB_FULL_NAME client...${NC}"
     # Stop the client shell if running
-    if pidof taos &> /dev/null; then
+    if pidof DB_CLIENT_NAME &> /dev/null; then
         kill_client
         sleep 1
     fi
@@ -189,20 +189,20 @@ function update_TDengine() {
     install_config
 
     echo
-    echo -e "\033[44;32;1mTDengine client is updated successfully!${NC}"
+    echo -e "\033[44;32;1mDB_FULL_NAME client is updated successfully!${NC}"
 
-    rm -rf $(tar -tf taos.tar.gz)
+    rm -rf $(tar -tf DB_CLIENT_NAME.tar.gz)
 }
 
-function install_TDengine() {
+function install_DB_FULL_NAME() {
     # Start to install
-    if [ ! -e taos.tar.gz ]; then
-        echo "File taos.tar.gz does not exist"
+    if [ ! -e DB_CLIENT_NAME.tar.gz ]; then
+        echo "File DB_CLIENT_NAME.tar.gz does not exist"
         exit 1
     fi
-    tar -zxf taos.tar.gz
+    tar -zxf DB_CLIENT_NAME.tar.gz
 
-    echo -e "${GREEN}Start to install TDengine client...${NC}"
+    echo -e "${GREEN}Start to install DB_FULL_NAME client...${NC}"
 
 	install_main_path
     install_log
@@ -216,23 +216,23 @@ function install_TDengine() {
     install_config
 
     echo
-    echo -e "\033[44;32;1mTDengine client is installed successfully!${NC}"
+    echo -e "\033[44;32;1mDB_FULL_NAME client client is installed successfully!${NC}"
 
-    rm -rf $(tar -tf taos.tar.gz)
+    rm -rf $(tar -tf DB_CLIENT_NAME.tar.gz)
 }
 
 
 ## ==============================Main program starts from here============================
 # Install or updata client and client
 # if server is already install, don't install client
-  if [ -e ${bin_dir}/taosd ]; then
-      echo -e "\033[44;32;1mThere are already installed TDengine server, so don't need install client!${NC}"
+  if [ -e ${bin_dir}/DB_SERVICE_NAME ]; then
+      echo -e "\033[44;32;1mThere are already installed DB_FULL_NAME client server, so don't need install client!${NC}"
       exit 0
   fi
 
-  if [ -x ${bin_dir}/taos ]; then
+  if [ -x ${bin_dir}/DB_CLIENT_NAME ]; then
       update_flag=1
-      update_TDengine
+      update_DB_FULL_NAME client
   else
-      install_TDengine
+      install_DB_FULL_NAME client
   fi

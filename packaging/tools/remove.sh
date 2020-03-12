@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Script to stop the service and uninstall TDengine, but retain the config, data and log files.
+# Script to stop the service and uninstall database, but retain the config, data and log files.
 
 set -e
 #set -x
@@ -12,10 +12,10 @@ GREEN='\033[1;32m'
 NC='\033[0m'
 
 #install main path
-install_main_dir="/usr/local/taos"
-data_link_dir="/usr/local/taos/data"
-log_link_dir="/usr/local/taos/log"
-cfg_link_dir="/usr/local/taos/cfg"
+install_main_dir="/usr/local/DB_CLIENT_NAME"
+data_link_dir="/usr/local/DB_CLIENT_NAME/data"
+log_link_dir="/usr/local/DB_CLIENT_NAME/log"
+cfg_link_dir="/usr/local/DB_CLIENT_NAME/cfg"
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 inc_link_dir="/usr/include"
@@ -25,7 +25,7 @@ install_nginxd_dir="/usr/local/nginxd"
 v15_java_app_dir="/usr/local/lib/taos"
 
 service_config_dir="/etc/systemd/system"
-taos_service_name="taosd"
+DB_CLIENT_NAME_service_name="DB_SERVICE_NAME"
 nginx_service_name="nginxd"
 csudo=""
 if command -v sudo > /dev/null; then
@@ -52,8 +52,8 @@ else
     service_mod=2
 fi
 
-function kill_taosd() {
-  pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+function kill_DB_SERVICE_NAME() {
+  pid=$(ps -ef | grep "DB_SERVICE_NAME" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -61,11 +61,11 @@ function kill_taosd() {
 
 function clean_bin() {
     # Remove link
-    ${csudo} rm -f ${bin_link_dir}/taos      || :
-    ${csudo} rm -f ${bin_link_dir}/taosd     || :
-    ${csudo} rm -f ${bin_link_dir}/taosdemo  || :
-    ${csudo} rm -f ${bin_link_dir}/taosdump  || :
-    ${csudo} rm -f ${bin_link_dir}/rmtaos    || :
+    ${csudo} rm -f ${bin_link_dir}/DB_CLIENT_NAME      || :
+    ${csudo} rm -f ${bin_link_dir}/DB_SERVICE_NAME     || :
+    ${csudo} rm -f ${bin_link_dir}/DB_CLIENT_NAMEdemo  || :
+    ${csudo} rm -f ${bin_link_dir}/DB_CLIENT_NAMEdump  || :
+    ${csudo} rm -f ${bin_link_dir}/rmDB_CLIENT_NAME    || :
 }
 
 function clean_lib() {
@@ -91,22 +91,22 @@ function clean_log() {
 }
 
 function clean_service_on_systemd() {
-    taosd_service_config="${service_config_dir}/${taos_service_name}.service"
+    DB_SERVICE_NAME_service_config="${service_config_dir}/${DB_CLIENT_NAME_service_name}.service"
 
-    if systemctl is-active --quiet ${taos_service_name}; then
-        echo "TDengine taosd is running, stopping it..."
-        ${csudo} systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
+    if systemctl is-active --quiet ${DB_CLIENT_NAME_service_name}; then
+        echo "DB_FULL_NAME DB_SERVICE_NAME is running, stopping it..."
+        ${csudo} systemctl stop ${DB_CLIENT_NAME_service_name} &> /dev/null || echo &> /dev/null
     fi
-    ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
+    ${csudo} systemctl disable ${DB_CLIENT_NAME_service_name} &> /dev/null || echo &> /dev/null
 
-    ${csudo} rm -f ${taosd_service_config}
+    ${csudo} rm -f ${DB_SERVICE_NAME_service_config}
 
     if [ "$verMode" == "cluster" ]; then
 		nginx_service_config="${service_config_dir}/${nginx_service_name}.service"
 	
    	 	if [ -d ${bin_dir}/web ]; then
    	        if systemctl is-active --quiet ${nginx_service_name}; then
-   	            echo "Nginx for TDengine is running, stopping it..."
+   	            echo "Nginx for DB_FULL_NAME is running, stopping it..."
    	            ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
    	        fi
    	        ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
@@ -117,23 +117,23 @@ function clean_service_on_systemd() {
 }
 
 function clean_service_on_sysvinit() {
-    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
+    #restart_config_str="DB_CLIENT_NAME:2345:respawn:${service_config_dir}/DB_SERVICE_NAME start"
     #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
     
-    if pidof taosd &> /dev/null; then
-        echo "TDengine taosd is running, stopping it..."
-        ${csudo} service taosd stop || :
+    if pidof DB_SERVICE_NAME &> /dev/null; then
+        echo "DB_FULL_NAME DB_SERVICE_NAME is running, stopping it..."
+        ${csudo} service DB_SERVICE_NAME stop || :
     fi
 
     if ((${initd_mod}==1)); then
-        ${csudo} chkconfig --del taosd || :
+        ${csudo} chkconfig --del DB_SERVICE_NAME || :
     elif ((${initd_mod}==2)); then
-        ${csudo} insserv -r taosd || :
+        ${csudo} insserv -r DB_SERVICE_NAME || :
     elif ((${initd_mod}==3)); then
-        ${csudo} update-rc.d -f taosd remove || :
+        ${csudo} update-rc.d -f DB_SERVICE_NAME remove || :
     fi
     
-    ${csudo} rm -f ${service_config_dir}/taosd || :
+    ${csudo} rm -f ${service_config_dir}/DB_SERVICE_NAME || :
    
     if $(which init &> /dev/null); then
         ${csudo} init q || :
@@ -146,8 +146,8 @@ function clean_service() {
     elif ((${service_mod}==1)); then
         clean_service_on_sysvinit
     else
-        # must manual stop taosd
-        kill_taosd
+        # must manual stop DB_SERVICE_NAME
+        kill_DB_SERVICE_NAME
     fi
 }
 
@@ -178,4 +178,4 @@ elif  echo $osinfo | grep -qwi "centos" ; then
   ${csudo} rpm -e --noscripts tdengine || :
 fi
 
-echo -e "${GREEN}TDengine is removed successfully!${NC}"
+echo -e "${GREEN}DB_FULL_NAME is removed successfully!${NC}"

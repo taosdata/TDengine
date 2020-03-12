@@ -3,13 +3,14 @@
 # Generate the deb package for ubunt, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
-#set -x
+set -x
 
 # releash.sh  -v [cluster | edge]  
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] 
 #             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  
 #             -V [stable | beta]
 #             -l [full | lite]
+#             -n [taos | power | ...]
 
 # set parameters by default value
 verMode=edge     # [cluster, edge]
@@ -17,8 +18,9 @@ verType=stable   # [stable, beta]
 cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]
 pagMode=full     # [full | lite]
+dbName=taos      # [taos | power | ...]
 
-while getopts "hv:V:c:o:l:" arg
+while getopts "hv:V:c:o:l:n:" arg
 do
   case $arg in
     v)
@@ -37,12 +39,16 @@ do
       #echo "pagMode=$OPTARG"
       pagMode=$(echo $OPTARG)
       ;;
+    n)
+      #echo "dbName=$OPTARG"
+      dbName=$(echo $OPTARG)
+      ;;
     o)
       #echo "osType=$OPTARG"
       osType=$(echo $OPTARG)
       ;;
     h)
-      echo "Usage: `basename $0` -v [cluster | edge]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta] -l [full | lite]"
+      echo "Usage: `basename $0` -v [cluster | edge]  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | ...]  -V [stable | beta] -l [full | lite] -n [taos | power]"
       exit 0
       ;;
     ?) #unknow option 
@@ -52,7 +58,7 @@ do
   esac
 done
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} dbName=${dbName}"
 
 curr_dir=$(pwd)
 
@@ -202,9 +208,9 @@ cd ${compile_dir}
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
     if [ "$verMode" != "cluster" ]; then
-      cmake ../ -DCPUTYPE=${cpuType} -DPAGMODE=${pagMode}
+      cmake ../ -DCPUTYPE=${cpuType} -DPAGMODE=${pagMode} -DDBNAME=${dbName}
     else
-      cmake ../../ -DCPUTYPE=${cpuType}
+      cmake ../../ -DCPUTYPE=${cpuType} -DDBNAME=${dbName}
     fi
 else
     echo "input cpuType=${cpuType} error!!!"
@@ -221,7 +227,7 @@ cd ${curr_dir}
 #echo "osinfo: ${osinfo}"
 
 if [ "$osType" != "Darwin" ]; then
-    if [[ "$verMode" != "cluster" ]] && [[ "$cpuType" == "x64" ]]; then
+    if [[ "$verMode" != "cluster" ]] && [[ "$cpuType" == "x64" ]] && [[ "$dbName" == "taos" ]]; then
         echo "====do deb package for the ubuntu system===="
         output_dir="${top_dir}/debs"
         if [ -d ${output_dir} ]; then
@@ -244,11 +250,11 @@ if [ "$osType" != "Darwin" ]; then
     echo "====do tar.gz package for all systems===="
     cd ${script_dir}/tools
     
-	${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
-	${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+	${csudo} ./makepkg.sh    ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+	${csudo} ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
 else
     cd ${script_dir}/tools
-    ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType}
+    ./makeclient.sh ${compile_dir} ${version} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${dbName}
 fi
 
 # 4. Clean up temporary compile directories

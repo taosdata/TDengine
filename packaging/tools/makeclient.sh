@@ -13,6 +13,24 @@ osType=$5
 verMode=$6
 verType=$7
 pagMode=$8
+dbName=$9
+
+if [ "$dbName" == "taos" ]; then
+  DB_CLIENT_NAME="taos"
+  DB_SERVICE_NAME="taosd"
+  DB_FULL_NAME="TDengine"
+  DB_COPYRIGHT="TAOS Data"
+  DB_COMPANY="taosdata" 
+elif [ "$dbName" == "power" ]; then
+  DB_CLIENT_NAME="power"
+  DB_SERVICE_NAME="powerd"
+  DB_FULL_NAME="PowerDB"
+  DB_COPYRIGHT="PowerDB"
+  DB_COMPANY="powerdb"   
+else
+  echo "Not support dbname, exit"
+  exit 1
+fi
 
 if [ "$osType" != "Darwin" ]; then
     script_dir="$(dirname $(readlink -f $0))"
@@ -32,24 +50,24 @@ release_dir="${top_dir}/release"
 #package_name='linux'
 
 if [ "$verMode" == "cluster" ]; then
-    install_dir="${release_dir}/TDengine-enterprise-client"
+    install_dir="${release_dir}/${DB_FULL_NAME}-enterprise-client"
 else
-    install_dir="${release_dir}/TDengine-client"
+    install_dir="${release_dir}/${DB_FULL_NAME}-client"
 fi
 
 # Directories and files.
 
 if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
-    strip ${build_dir}/bin/taosd 
-    strip ${build_dir}/bin/taos
-    bin_files="${build_dir}/bin/taos ${script_dir}/remove_client.sh"
+    strip ${build_dir}/bin/${DB_SERVICE_NAME} 
+    strip ${build_dir}/bin/${DB_CLIENT_NAME}
+    bin_files="${build_dir}/bin/${DB_CLIENT_NAME} ${script_dir}/remove_client.sh"
   else  
-    bin_files="${build_dir}/bin/taos ${build_dir}/bin/taosdump ${script_dir}/remove_client.sh"
+    bin_files="${build_dir}/bin/${DB_CLIENT_NAME} ${build_dir}/bin/${DB_CLIENT_NAME}dump ${script_dir}/remove_client.sh"
   fi
   lib_files="${build_dir}/lib/libtaos.so.${version}"
 else
-  bin_files="${build_dir}/bin/taos ${script_dir}/remove_client.sh"
+  bin_files="${build_dir}/bin/${DB_CLIENT_NAME} ${script_dir}/remove_client.sh"
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
 fi
 
@@ -61,18 +79,22 @@ install_files="${script_dir}/install_client.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/${DB_CLIENT_NAME}.cfg
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/*
+
+sed -i "s/DB_CLIENT_NAME/${DB_CLIENT_NAME}/g"   ${install_dir}/bin/remove_client.sh
+sed -i "s/DB_SERVICE_NAME/${DB_SERVICE_NAME}/g" ${install_dir}/bin/remove_client.sh
+sed -i "s/DB_FULL_NAME/${DB_FULL_NAME}/g"       ${install_dir}/bin/remove_client.sh
 
 cd ${install_dir}
 
 if [ "$osType" != "Darwin" ]; then
-    tar -zcv -f taos.tar.gz * --remove-files || :
+    tar -zcv -f ${DB_CLIENT_NAME}.tar.gz * --remove-files || :
 else
-    tar -zcv -f taos.tar.gz * || :
-    mv taos.tar.gz ..
+    tar -zcv -f ${DB_CLIENT_NAME}.tar.gz * || :
+    mv ${DB_CLIENT_NAME}.tar.gz ..
     rm -rf ./*
-    mv ../taos.tar.gz .
+    mv ../${DB_CLIENT_NAME}.tar.gz .
 fi
 
 cd ${curr_dir}
@@ -85,6 +107,11 @@ if [ "$pagMode" == "lite" ]; then
     sed 's/pagMode=full/pagMode=lite/g' ${install_dir}/install_client.sh >> install_client_temp.sh
     mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
+
+sed -i "s/DB_CLIENT_NAME/${DB_CLIENT_NAME}/g"   ${install_dir}/install_client.sh
+sed -i "s/DB_SERVICE_NAME/${DB_SERVICE_NAME}/g" ${install_dir}/install_client.sh
+sed -i "s/DB_FULL_NAME/${DB_FULL_NAME}/g"       ${install_dir}/install_client.sh
+
 chmod a+x ${install_dir}/install_client.sh
 
 # Copy example code

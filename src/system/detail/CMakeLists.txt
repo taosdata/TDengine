@@ -14,18 +14,18 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   LIST(REMOVE_ITEM SRC ./src/vnodeFileUtil.c)
   LIST(REMOVE_ITEM SRC ./src/taosGrant.c)
 
-  ADD_EXECUTABLE(taosd ${SRC})
+  ADD_EXECUTABLE(${DB_SERVICE_NAME} ${SRC})
 
   IF (TD_PAGMODE_LITE)
-    TARGET_LINK_LIBRARIES(taosd taos trpc tutil sdb monitor pthread http)
+    TARGET_LINK_LIBRARIES(${DB_SERVICE_NAME} taos trpc tutil sdb monitor pthread http)
   ELSE ()
-    TARGET_LINK_LIBRARIES(taosd taos_static trpc tutil sdb monitor pthread http)
+    TARGET_LINK_LIBRARIES(${DB_SERVICE_NAME} taos_static trpc tutil sdb monitor pthread http)
   ENDIF ()
 
   IF (TD_EDGE)
-    TARGET_LINK_LIBRARIES(taosd taosd_edge)
+    TARGET_LINK_LIBRARIES(${DB_SERVICE_NAME} taosd_edge)
   ELSE ()
-    TARGET_LINK_LIBRARIES(taosd taosd_cluster)
+    TARGET_LINK_LIBRARIES(${DB_SERVICE_NAME} taosd_cluster)
   ENDIF ()
 
   SET(PREPARE_ENV_CMD "prepare_env_cmd")
@@ -33,14 +33,14 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   ADD_CUSTOM_COMMAND(OUTPUT ${PREPARE_ENV_CMD}
     POST_BUILD 
     COMMAND echo "make test directory"
-    DEPENDS taosd
+    DEPENDS ${DB_SERVICE_NAME}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${TD_TESTS_OUTPUT_DIR}/cfg/
     COMMAND ${CMAKE_COMMAND} -E make_directory ${TD_TESTS_OUTPUT_DIR}/log/
     COMMAND ${CMAKE_COMMAND} -E make_directory ${TD_TESTS_OUTPUT_DIR}/data/
     COMMAND ${CMAKE_COMMAND} -E echo dataDir ${TD_TESTS_OUTPUT_DIR}/data > ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
     COMMAND ${CMAKE_COMMAND} -E echo logDir ${TD_TESTS_OUTPUT_DIR}/log  >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
     COMMAND ${CMAKE_COMMAND} -E echo charset UTF-8  >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
-    COMMENT "prepare taosd environment")
+    COMMENT "prepare ${DB_SERVICE_NAME} environment")
   ADD_CUSTOM_TARGET(${PREPARE_ENV_TARGET} ALL WORKING_DIRECTORY ${TD_EXECUTABLE_OUTPUT_PATH} DEPENDS ${PREPARE_ENV_CMD})
 
 ENDIF ()

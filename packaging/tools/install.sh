@@ -12,23 +12,23 @@ pagMode=full
 # -----------------------Variables definition---------------------
 script_dir=$(dirname $(readlink -f "$0"))
 # Dynamic directory
-data_dir="/var/lib/taos"
-log_dir="/var/log/taos"
+data_dir="/var/lib/DB_CLIENT_NAME"
+log_dir="/var/log/DB_CLIENT_NAME"
 
-data_link_dir="/usr/local/taos/data"
-log_link_dir="/usr/local/taos/log"
+data_link_dir="/usr/local/DB_CLIENT_NAME/data"
+log_link_dir="/usr/local/DB_CLIENT_NAME/log"
 
-cfg_install_dir="/etc/taos"
+cfg_install_dir="/etc/DB_CLIENT_NAME"
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 inc_link_dir="/usr/include"
 
 #install main path
-install_main_dir="/usr/local/taos"
+install_main_dir="/usr/local/DB_CLIENT_NAME"
 
 # old bin dir
-bin_dir="/usr/local/taos/bin"
+bin_dir="/usr/local/DB_CLIENT_NAME/bin"
 
 # v1.5 jar dir
 v15_java_app_dir="/usr/local/lib/taos"
@@ -95,12 +95,12 @@ elif echo $osinfo | grep -qwi "fedora" ; then
   os_type=2
 else
   echo "${osinfo}: This is an officially unverified linux system, If there are any problems with the installation and operation, "
-  echo "please feel free to contact taosdata.com for support."
+  echo "please feel free to contact us for support."
   os_type=1
 fi
 
-function kill_taosd() {
-  pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+function kill_DB_SERVICE_NAME() {
+  pid=$(ps -ef | grep "DB_SERVICE_NAME" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -124,20 +124,20 @@ function install_main_path() {
 
 function install_bin() {
     # Remove links
-    ${csudo} rm -f ${bin_link_dir}/taos     || :
-    ${csudo} rm -f ${bin_link_dir}/taosd    || :
-    ${csudo} rm -f ${bin_link_dir}/taosdemo || :
-    ${csudo} rm -f ${bin_link_dir}/taosdump || :
-    ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
+    ${csudo} rm -f ${bin_link_dir}/DB_CLIENT_NAME     || :
+    ${csudo} rm -f ${bin_link_dir}/DB_SERVICE_NAME    || :
+    ${csudo} rm -f ${bin_link_dir}/DB_CLIENT_NAMEdemo || :
+    ${csudo} rm -f ${bin_link_dir}/DB_CLIENT_NAMEdump || :
+    ${csudo} rm -f ${bin_link_dir}/rmDB_CLIENT_NAME   || :
 
     ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
-    [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos             || :
-    [ -x ${install_main_dir}/bin/taosd ] && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd          || :
-    [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
-    [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
-    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos || :
+    [ -x ${install_main_dir}/bin/DB_CLIENT_NAME ] && ${csudo} ln -s ${install_main_dir}/bin/DB_CLIENT_NAME ${bin_link_dir}/DB_CLIENT_NAME             || :
+    [ -x ${install_main_dir}/bin/DB_SERVICE_NAME ] && ${csudo} ln -s ${install_main_dir}/bin/DB_SERVICE_NAME ${bin_link_dir}/DB_SERVICE_NAME          || :
+    [ -x ${install_main_dir}/bin/DB_CLIENT_NAMEdump ] && ${csudo} ln -s ${install_main_dir}/bin/DB_CLIENT_NAMEdump ${bin_link_dir}/DB_CLIENT_NAMEdump || :
+    [ -x ${install_main_dir}/bin/DB_CLIENT_NAMEdemo ] && ${csudo} ln -s ${install_main_dir}/bin/DB_CLIENT_NAMEdemo ${bin_link_dir}/DB_CLIENT_NAMEdemo || :
+    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmDB_CLIENT_NAME || :
 
     if [ "$verMode" == "cluster" ]; then
         ${csudo} cp -r ${script_dir}/nginxd/* ${nginx_dir} && ${csudo} chmod 0555 ${nginx_dir}/*
@@ -172,16 +172,16 @@ function install_header() {
 }
 
 function install_config() {
-    #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
+    #${csudo} rm -f ${install_main_dir}/cfg/DB_CLIENT_NAME.cfg     || :
     
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
+    if [ ! -f ${cfg_install_dir}/DB_CLIENT_NAME.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo} cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/DB_CLIENT_NAME.cfg ] && ${csudo} cp ${script_dir}/cfg/DB_CLIENT_NAME.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi 
     
-    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
+    ${csudo} cp -f ${script_dir}/cfg/DB_CLIENT_NAME.cfg ${install_main_dir}/cfg/DB_CLIENT_NAME.cfg.org
+    ${csudo} ln -s ${cfg_install_dir}/DB_CLIENT_NAME.cfg ${install_main_dir}/cfg
 
     if [ "$verMode" == "cluster" ]; then
         [ ! -z $1 ] && return 0 || : # only install client
@@ -194,14 +194,14 @@ function install_config() {
         IP_PATTERN="\b$IP_FORMAT\.$IP_FORMAT\.$IP_FORMAT\.$IP_FORMAT\b"
 
         echo
-        echo -e -n "${GREEN}Enter the IP address of an existing TDengine cluster node to join${NC} OR ${GREEN}leave it blank to build one${NC} :"
+        echo -e -n "${GREEN}Enter the IP address of an existing DB_FULL_NAME cluster node to join${NC} OR ${GREEN}leave it blank to build one${NC} :"
         read masterIp
         while true; do
             if [ ! -z "$masterIp" ]; then
                 # check the format of the masterIp
                 if [[ $masterIp =~ $IP_PATTERN ]]; then
                     # Write the first IP to configuration file
-                    sudo sed -i -r "s/#*\s*(masterIp\s*).*/\1$masterIp/" ${cfg_dir}/taos.cfg
+                    sudo sed -i -r "s/#*\s*(masterIp\s*).*/\1$masterIp/" ${cfg_dir}/DB_CLIENT_NAME.cfg
 
                     # Get the second IP address
 
@@ -213,7 +213,7 @@ function install_config() {
                         if [ ! -z "$secondIp" ]; then
                             if [[ $secondIp =~ $IP_PATTERN ]]; then
                                 # Write the second IP to configuration file
-                                sudo sed -i -r "s/#*\s*(secondIp\s*).*/\1$secondIp/" ${cfg_dir}/taos.cfg
+                                sudo sed -i -r "s/#*\s*(secondIp\s*).*/\1$secondIp/" ${cfg_dir}/DB_CLIENT_NAME.cfg
                                 break
                             else
                                 read -p "Please enter the correct IP address: " secondIp
@@ -260,22 +260,22 @@ function install_examples() {
 }
 
 function clean_service_on_sysvinit() {
-    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
+    #restart_config_str="DB_CLIENT_NAME:2345:respawn:${service_config_dir}/DB_SERVICE_NAME start"
     #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
     
-    if pidof taosd &> /dev/null; then
-        ${csudo} service taosd stop || :
+    if pidof DB_SERVICE_NAME &> /dev/null; then
+        ${csudo} service DB_SERVICE_NAME stop || :
     fi
 
     if ((${initd_mod}==1)); then
-        ${csudo} chkconfig --del taosd || :
+        ${csudo} chkconfig --del DB_SERVICE_NAME || :
     elif ((${initd_mod}==2)); then
-        ${csudo} insserv -r taosd || :
+        ${csudo} insserv -r DB_SERVICE_NAME || :
     elif ((${initd_mod}==3)); then
-        ${csudo} update-rc.d -f taosd remove || :
+        ${csudo} update-rc.d -f DB_SERVICE_NAME remove || :
     fi
     
-    ${csudo} rm -f ${service_config_dir}/taosd || :
+    ${csudo} rm -f ${service_config_dir}/DB_SERVICE_NAME || :
     
     if $(which init &> /dev/null); then
         ${csudo} init q || :
@@ -287,46 +287,46 @@ function install_service_on_sysvinit() {
 
     sleep 1
 
-    # Install taosd service
+    # Install DB_SERVICE_NAME service
 
     if ((${os_type}==1)); then
-        ${csudo} cp -f ${script_dir}/init.d/taosd.deb ${install_main_dir}/init.d/taosd
-        ${csudo} cp    ${script_dir}/init.d/taosd.deb ${service_config_dir}/taosd && ${csudo} chmod a+x ${service_config_dir}/taosd
+        ${csudo} cp -f ${script_dir}/init.d/DB_SERVICE_NAME.deb ${install_main_dir}/init.d/DB_SERVICE_NAME
+        ${csudo} cp    ${script_dir}/init.d/DB_SERVICE_NAME.deb ${service_config_dir}/DB_SERVICE_NAME && ${csudo} chmod a+x ${service_config_dir}/DB_SERVICE_NAME
     elif ((${os_type}==2)); then
-        ${csudo} cp -f ${script_dir}/init.d/taosd.rpm ${install_main_dir}/init.d/taosd
-        ${csudo} cp    ${script_dir}/init.d/taosd.rpm ${service_config_dir}/taosd && ${csudo} chmod a+x ${service_config_dir}/taosd
+        ${csudo} cp -f ${script_dir}/init.d/DB_SERVICE_NAME.rpm ${install_main_dir}/init.d/DB_SERVICE_NAME
+        ${csudo} cp    ${script_dir}/init.d/DB_SERVICE_NAME.rpm ${service_config_dir}/DB_SERVICE_NAME && ${csudo} chmod a+x ${service_config_dir}/DB_SERVICE_NAME
     fi
     
-    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
+    #restart_config_str="DB_CLIENT_NAME:2345:respawn:${service_config_dir}/DB_SERVICE_NAME start"
     #${csudo} grep -q -F "$restart_config_str" /etc/inittab || ${csudo} bash -c "echo '${restart_config_str}' >> /etc/inittab"
     
     if ((${initd_mod}==1)); then
-        ${csudo} chkconfig --add taosd || :
-        ${csudo} chkconfig --level 2345 taosd on || :
+        ${csudo} chkconfig --add DB_SERVICE_NAME || :
+        ${csudo} chkconfig --level 2345 DB_SERVICE_NAME on || :
     elif ((${initd_mod}==2)); then
-        ${csudo} insserv taosd || :
-        ${csudo} insserv -d taosd || :
+        ${csudo} insserv DB_SERVICE_NAME || :
+        ${csudo} insserv -d DB_SERVICE_NAME || :
     elif ((${initd_mod}==3)); then
-        ${csudo} update-rc.d taosd defaults || :
+        ${csudo} update-rc.d DB_SERVICE_NAME defaults || :
     fi
 }
 
 function clean_service_on_systemd() {
-    taosd_service_config="${service_config_dir}/taosd.service"
+    DB_SERVICE_NAME_service_config="${service_config_dir}/DB_SERVICE_NAME.service"
 
-    if systemctl is-active --quiet taosd; then
-        echo "TDengine is running, stopping it..."
-        ${csudo} systemctl stop taosd &> /dev/null || echo &> /dev/null
+    if systemctl is-active --quiet DB_SERVICE_NAME; then
+        echo "DB_FULL_NAME is running, stopping it..."
+        ${csudo} systemctl stop DB_SERVICE_NAME &> /dev/null || echo &> /dev/null
     fi
-    ${csudo} systemctl disable taosd &> /dev/null || echo &> /dev/null
+    ${csudo} systemctl disable DB_SERVICE_NAME &> /dev/null || echo &> /dev/null
 
-    ${csudo} rm -f ${taosd_service_config}
+    ${csudo} rm -f ${DB_SERVICE_NAME_service_config}
 
     if [ "$verMode" == "cluster" ]; then
         nginx_service_config="${service_config_dir}/nginxd.service"
 	
         if systemctl is-active --quiet nginxd; then
-            echo "Nginx for TDengine is running, stopping it..."
+            echo "Nginx for DB_FULL_NAME is running, stopping it..."
             ${csudo} systemctl stop nginxd &> /dev/null || echo &> /dev/null
         fi
         ${csudo} systemctl disable nginxd &> /dev/null || echo &> /dev/null
@@ -335,38 +335,38 @@ function clean_service_on_systemd() {
 	fi
 }
 
-# taos:2345:respawn:/etc/init.d/taosd start
+# DB_CLIENT_NAME:2345:respawn:/etc/init.d/DB_SERVICE_NAME start
 
 function install_service_on_systemd() {
     clean_service_on_systemd
 
-    taosd_service_config="${service_config_dir}/taosd.service"
+    DB_SERVICE_NAME_service_config="${service_config_dir}/DB_SERVICE_NAME.service"
 
-    ${csudo} bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'After=network-online.target'        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Wants=network-online.target'        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
-    ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'TimeoutStartSec=0'                  >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'StandardOutput=null'                >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Restart=always'                     >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'StartLimitBurst=3'                  >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'StartLimitInterval=60s'             >> ${taosd_service_config}"
-    ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
-    ${csudo} bash -c "echo '[Install]'                          >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'WantedBy=multi-user.target'         >> ${taosd_service_config}"
-    ${csudo} systemctl enable taosd
+    ${csudo} bash -c "echo '[Unit]'                             >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'Description=DB_FULL_NAME server service' >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'After=network-online.target'        >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'Wants=network-online.target'        >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo                                      >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo '[Service]'                          >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'Type=simple'                        >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'ExecStart=/usr/bin/DB_SERVICE_NAME' >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'TimeoutStartSec=0'                  >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'StandardOutput=null'                >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'Restart=always'                     >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'StartLimitBurst=3'                  >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'StartLimitInterval=60s'             >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo                                      >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo '[Install]'                          >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} bash -c "echo 'WantedBy=multi-user.target'         >> ${DB_SERVICE_NAME_service_config}"
+    ${csudo} systemctl enable DB_SERVICE_NAME
 
     if [ "$verMode" == "cluster" ]; then		
         nginx_service_config="${service_config_dir}/nginxd.service"
         ${csudo} bash -c "echo '[Unit]'                             >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'Description=Nginx For TDengine Service' >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'Description=Nginx For DB_FULL_NAME Service' >> ${nginx_service_config}"
         ${csudo} bash -c "echo 'After=network-online.target'        >> ${nginx_service_config}"
         ${csudo} bash -c "echo 'Wants=network-online.target'        >> ${nginx_service_config}"
         ${csudo} bash -c "echo                                      >> ${nginx_service_config}"
@@ -400,8 +400,8 @@ function install_service() {
     elif ((${service_mod}==1)); then
         install_service_on_sysvinit
     else
-        # must manual stop taosd
-        kill_taosd
+        # must manual stop DB_SERVICE_NAME
+        kill_DB_SERVICE_NAME
     fi
 }
 
@@ -436,9 +436,9 @@ vercomp () {
 
 function is_version_compatible() {
 
-    curr_version=$(${bin_dir}/taosd -V | head -1 | cut -d ' ' -f 3)
+    curr_version=$(${bin_dir}/DB_SERVICE_NAME -V | head -1 | cut -d ' ' -f 3)
 
-    min_compatible_version=$(${script_dir}/bin/taosd -V | head -1 | cut -d ' ' -f 5)
+    min_compatible_version=$(${script_dir}/bin/DB_SERVICE_NAME -V | head -1 | cut -d ' ' -f 5)
 
     vercomp $curr_version $min_compatible_version
     case $? in
@@ -448,13 +448,13 @@ function is_version_compatible() {
     esac
 }
 
-function update_TDengine() {
+function update_DB_FULL_NAME() {
     # Start to update
-    if [ ! -e taos.tar.gz ]; then
-        echo "File taos.tar.gz does not exist"
+    if [ ! -e DB_CLIENT_NAME.tar.gz ]; then
+        echo "File DB_CLIENT_NAME.tar.gz does not exist"
         exit 1
     fi
-    tar -zxf taos.tar.gz
+    tar -zxf DB_CLIENT_NAME.tar.gz
 
     # Check if version compatible
     if ! is_version_compatible; then
@@ -462,15 +462,15 @@ function update_TDengine() {
         return 1
     fi
 
-    echo -e "${GREEN}Start to update TDengine...${NC}"
+    echo -e "${GREEN}Start to update DB_FULL_NAME...${NC}"
     # Stop the service if running
-    if pidof taosd &> /dev/null; then
+    if pidof DB_SERVICE_NAME &> /dev/null; then
         if ((${service_mod}==0)); then
-            ${csudo} systemctl stop taosd || :
+            ${csudo} systemctl stop DB_SERVICE_NAME || :
         elif ((${service_mod}==1)); then
-            ${csudo} service taosd stop || :
+            ${csudo} service DB_SERVICE_NAME stop || :
         else
-            kill_taosd
+            kill_DB_SERVICE_NAME
         fi
         sleep 1
     fi
@@ -496,57 +496,57 @@ function update_TDengine() {
             # Check if nginx is installed successfully
             if type curl &> /dev/null; then
                 if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
-                    echo -e "\033[44;32;1mNginx for TDengine is updated successfully!${NC}"
+                    echo -e "\033[44;32;1mNginx for DB_FULL_NAME is updated successfully!${NC}"
                     openresty_work=true
                 else
-                    echo -e "\033[44;31;5mNginx for TDengine does not work! Please try again!\033[0m"
+                    echo -e "\033[44;31;5mNginx for DB_FULL_NAME does not work! Please try again!\033[0m"
                 fi
             fi
 		fi 
 
         echo
-        echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+        echo -e "\033[44;32;1mDB_FULL_NAME is updated successfully!${NC}"
         echo
-        echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+        echo -e "${GREEN_DARK}To configure DB_FULL_NAME ${NC}: edit /etc/DB_CLIENT_NAME/DB_CLIENT_NAME.cfg"
         if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} systemctl start DB_SERVICE_NAME${NC}"
         elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
+            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} service DB_SERVICE_NAME start${NC}"
         else
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
+            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ./DB_SERVICE_NAME${NC}"
         fi
 
         if [ "$verMode" == "cluster" ]; then  
             if [ ${openresty_work} = 'true' ]; then
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+                echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
             else
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+                echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
             fi
         else
-		    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+		    echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
         fi
         echo
-        echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+        echo -e "\033[44;32;1mDB_FULL_NAME is updated successfully!${NC}"
     else
         install_bin
         install_config
 
         echo
-        echo -e "\033[44;32;1mTDengine client is updated successfully!${NC}"
+        echo -e "\033[44;32;1mDB_FULL_NAME client is updated successfully!${NC}"
     fi
 
-    rm -rf $(tar -tf taos.tar.gz)
+    rm -rf $(tar -tf DB_CLIENT_NAME.tar.gz)
 }
 
-function install_TDengine() {
+function install_DB_FULL_NAME() {
     # Start to install
-    if [ ! -e taos.tar.gz ]; then
-        echo "File taos.tar.gz does not exist"
+    if [ ! -e DB_CLIENT_NAME.tar.gz ]; then
+        echo "File DB_CLIENT_NAME.tar.gz does not exist"
         exit 1
     fi
-    tar -zxf taos.tar.gz
+    tar -zxf DB_CLIENT_NAME.tar.gz
 
-    echo -e "${GREEN}Start to install TDengine...${NC}"
+    echo -e "${GREEN}Start to install DB_FULL_NAME...${NC}"
     
 	  install_main_path
 	   
@@ -572,10 +572,10 @@ function install_TDengine() {
             # Check if nginx is installed successfully
             if type curl &> /dev/null; then
                 if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
-                    echo -e "\033[44;32;1mNginx for TDengine is installed successfully!${NC}"
+                    echo -e "\033[44;32;1mNginx for DB_FULL_NAME is installed successfully!${NC}"
                     openresty_work=true
                 else
-                    echo -e "\033[44;31;5mNginx for TDengine does not work! Please try again!\033[0m"
+                    echo -e "\033[44;31;5mNginx for DB_FULL_NAME does not work! Please try again!\033[0m"
                 fi
             fi
         fi
@@ -584,56 +584,56 @@ function install_TDengine() {
 
         # Ask if to start the service
         echo
-        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+        echo -e "\033[44;32;1mDB_FULL_NAME is installed successfully!${NC}"
         echo
-        echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+        echo -e "${GREEN_DARK}To configure DB_FULL_NAME ${NC}: edit /etc/DB_CLIENT_NAME/DB_CLIENT_NAME.cfg"
         if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} systemctl start DB_SERVICE_NAME${NC}"
         elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
+            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} service DB_SERVICE_NAME start${NC}"
         else
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: taosd${NC}"
+            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: DB_SERVICE_NAME${NC}"
         fi
 		
         if [ "$verMode" == "cluster" ]; then  
            if [ ${openresty_work} = 'true' ]; then
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+                echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
            else
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+                echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
             fi
 		else
-            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+            echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
         fi
 		
         echo
-        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+        echo -e "\033[44;32;1mDB_FULL_NAME is installed successfully!${NC}"
     else # Only install client
         install_bin
         install_config
 
         echo
-        echo -e "\033[44;32;1mTDengine client is installed successfully!${NC}"
+        echo -e "\033[44;32;1mDB_FULL_NAME client is installed successfully!${NC}"
     fi
 
-    rm -rf $(tar -tf taos.tar.gz)
+    rm -rf $(tar -tf DB_CLIENT_NAME.tar.gz)
 }
 
 
 ## ==============================Main program starts from here============================
 if [ -z $1 ]; then
     # Install server and client
-    if [ -x ${bin_dir}/taosd ]; then
+    if [ -x ${bin_dir}/DB_SERVICE_NAME ]; then
         update_flag=1
-        update_TDengine
+        update_DB_FULL_NAME
     else
-        install_TDengine
+        install_DB_FULL_NAME
     fi
 else
     # Only install client
-    if [ -x ${bin_dir}/taos ]; then
+    if [ -x ${bin_dir}/DB_CLIENT_NAME ]; then
         update_flag=1
-        update_TDengine client
+        update_DB_FULL_NAME client
     else
-        install_TDengine client
+        install_DB_FULL_NAME client
     fi
 fi
