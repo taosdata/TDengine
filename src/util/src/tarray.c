@@ -98,7 +98,7 @@ void* taosArrayGetP(SArray* pArray, size_t index) {
   return *(void**)ret;
 }
 
-size_t taosArrayGetSize(SArray* pArray) { return pArray->size; }
+size_t taosArrayGetSize(const SArray* pArray) { return pArray->size; }
 
 void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
   if (pArray == NULL || pData == NULL) {
