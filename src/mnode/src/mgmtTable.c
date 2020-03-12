@@ -181,6 +181,8 @@ static void mgmtCreateTable(SVgObj *pVgroup, SQueuedMsg *pMsg) {
       .code    = 0,
       .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
   };
+
+  pMsg->ahandle = pTable;
   mgmtSendMsgToDnode(&ipSet, &rpcMsg);
 }
 
@@ -441,13 +443,10 @@ void mgmtSetTableDirty(STableInfo *pTable, bool isDirty) {
 }
 
 void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
+
   SCMCreateTableMsg *pCreate = pMsg->pCont;
   mTrace("thandle:%p, start to create table:%s", pMsg->thandle, pCreate->tableId);
-
-  if (mgmtCheckRedirect(pMsg->thandle)) {
-    mError("thandle:%p, failed to create table:%s, need redirect", pMsg->thandle, pCreate->tableId);
-    return;
-  }
 
   if (mgmtCheckExpired()) {
     mError("thandle:%p, failed to create table:%s, grant expired", pCreate->tableId);
@@ -469,8 +468,8 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  SDbObj *pDb = mgmtGetDb(pCreate->db);
-  if (pDb == NULL) {
+  pMsg->pDb = mgmtGetDb(pCreate->db);
+  if (pMsg->pDb == NULL) {
     mError("thandle:%p, failed to create table:%s, db not selected", pMsg->thandle, pCreate->tableId);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_DB_NOT_SELECTED);
     return;
@@ -492,7 +491,7 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
   if (pCreate->numOfTags != 0) {
     mTrace("thandle:%p, start to create super table:%s, tags:%d columns:%d",
            pMsg->thandle, pCreate->tableId, pCreate->numOfTags, pCreate->numOfColumns);
-    code = mgmtCreateSuperTable(pDb, pCreate);
+    code = mgmtCreateSuperTable(pMsg->pDb, pCreate);
     mgmtSendSimpleResp(pMsg->thandle, code);
     return;
   }
@@ -508,13 +507,13 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
   memcpy(newMsg, pMsg, sizeof(SQueuedMsg));
   pMsg->pCont = NULL;
 
-  SVgObj *pVgroup = mgmtGetAvailableVgroup(pDb);
+  SVgObj *pVgroup = mgmtGetAvailableVgroup(pMsg->pDb);
   if (pVgroup == NULL) {
-    mTrace("thandle:%p, table:%s start to create a new vgroup", pMsg->thandle, pCreate->tableId);
-    mgmtCreateVgroup(pMsg);
+    mTrace("thandle:%p, table:%s start to create a new vgroup", newMsg->thandle, pCreate->tableId);
+    mgmtCreateVgroup(newMsg);
   } else {
-    mTrace("thandle:%p, create table:%s in vgroup:%d", pMsg->thandle, pCreate->tableId, pVgroup->vgId);
-    mgmtCreateTable(pVgroup, pMsg);
+    mTrace("thandle:%p, create table:%s in vgroup:%d", newMsg->thandle, pCreate->tableId, pVgroup->vgId);
+    mgmtCreateTable(pVgroup, newMsg);
   }
 }
 
@@ -769,7 +768,7 @@ static void mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg) {
     mgmtSetTableDirty(pTable, true);
     //sdbDeleteRow(tsVgroupSdb, pVgroup);
     mgmtSendSimpleResp(queueMsg->thandle, rpcMsg->code);
-    mError("table:%s, failed to create in dnode, code:%d, set it dirty", pTable->tableId, rpcMsg->code);
+    mError("table:%s, failed to create in dnode, reason:%s, set it dirty", pTable->tableId, tstrerror(rpcMsg->code));
     mgmtSetTableDirty(pTable, true);
   } else {
     mTrace("table:%s, created in dnode", pTable->tableId);

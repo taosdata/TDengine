@@ -78,7 +78,7 @@ static void mgmtProcessRspFromDnode(SRpcMsg *rpcMsg) {
   if (mgmtProcessDnodeRspFp[rpcMsg->msgType]) {
     (*mgmtProcessDnodeRspFp[rpcMsg->msgType])(rpcMsg);
   } else {
-    dError("%s is not processed", taosMsg[rpcMsg->msgType]);
+    mError("%s is not processed in dclient", taosMsg[rpcMsg->msgType]);
   }
 
   rpcFreeCont(rpcMsg->pCont);

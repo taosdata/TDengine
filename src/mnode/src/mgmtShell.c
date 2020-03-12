@@ -145,7 +145,6 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
 
   SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
   if (pUser == NULL) {
-    mError("thandle:%p, failed to retrieve user info", rpcMsg->handle);
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_USER);
     rpcFreeCont(rpcMsg->pCont);
     return;
@@ -242,7 +241,7 @@ static void mgmtProcessRetrieveMsg(SQueuedMsg *pMsg) {
   }
 
   SShowObj *pShow = (SShowObj *)pRetrieve->qhandle;
-  if (!mgmtCheckQhandle(pShow)) {
+  if (!mgmtCheckQhandle(pRetrieve->qhandle)) {
     mError("pShow:%p, query memory is corrupted", pShow);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_MEMORY_CORRUPTED);
     return;
@@ -466,7 +465,7 @@ static bool mgmtCheckMsgReadOnly(int8_t type, void *pCont) {
 }
 
 static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg) {
-  mError("%s is not processed", taosMsg[rpcMsg->msgType]);
+  mError("%s is not processed in shell", taosMsg[rpcMsg->msgType]);
   SRpcMsg rpcRsp = {
     .msgType = 0,
     .pCont   = 0,

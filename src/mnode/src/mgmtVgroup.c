@@ -182,6 +182,8 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg) {
            taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vnodeGid[i].vnode);
   }
 
+  pMsg->ahandle = pVgroup;
+  pMsg->expected = pVgroup->numOfVnodes;
   mgmtSendCreateVgroupMsg(pVgroup, pMsg);
 }
 
@@ -561,7 +563,7 @@ SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup) {
   SRpcIpSet ipSet = {
     .numOfIps = pVgroup->numOfVnodes,
     .inUse = 0,
-    .port = tsMnodeDnodePort
+    .port = tsDnodeMnodePort
   };
   for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
     ipSet.ip[i] = pVgroup->vnodeGid[i].ip;
@@ -574,7 +576,7 @@ SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip) {
     .ip[0]    = ip,
     .numOfIps = 1,
     .inUse    = 0,
-    .port     = tsMnodeDnodePort
+    .port     = tsDnodeMnodePort
   };
   return ipSet;
 }

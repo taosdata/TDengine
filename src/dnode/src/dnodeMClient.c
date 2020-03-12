@@ -60,7 +60,7 @@ static void dnodeProcessRspFromMnode(SRpcMsg *pMsg) {
   if (dnodeProcessMgmtRspFp[pMsg->msgType]) {
     (*dnodeProcessMgmtRspFp[pMsg->msgType])(pMsg);
   } else {
-    dError("%s is not processed", taosMsg[pMsg->msgType]);
+    dError("%s is not processed in mclient", taosMsg[pMsg->msgType]);
   }
 
   rpcFreeCont(pMsg->pCont);
