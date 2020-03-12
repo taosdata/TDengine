@@ -31,53 +31,23 @@ extern "C" {
 // Initially, there are 4 tables
 #define TSDB_INIT_NUMBER_OF_SUPER_TABLE 4
 
-typedef enum {
-  TSDB_SUPER_TABLE,  // super table
-  TSDB_NTABLE,       // table not created from super table
-  TSDB_STABLE        // table created from super table
-} TSDB_TABLE_TYPE;
-
 #define IS_CREATE_STABLE(pCfg) ((pCfg)->tagValues != NULL)
 
 // ---------- TSDB TABLE DEFINITION
 typedef struct STable {
-  STableId        tableId;
   TSDB_TABLE_TYPE type;
-
-  int64_t createdTime;
-
-  // super table UID -1 for normal table
-  int32_t stableUid;
-
-  int32_t numOfCols;
-
-  // Schema for this table
-  // For TSDB_SUPER_TABLE, it is the schema including tags
-  // For TSDB_NTABLE, it is only the schema, not including tags
-  // For TSDB_STABLE, it is NULL
-  STSchema *pSchema;
-
-  // Tag value for this table
-  // For TSDB_SUPER_TABLE and TSDB_NTABLE, it is NULL
-  // For TSDB_STABLE, it is the tag value string
-  SDataRow pTagVal;
-
-  // Object content;
-  // For TSDB_SUPER_TABLE, it is the index of tables created from it
-  // For TSDB_STABLE and TSDB_NTABLE, it is the cache data
+  STableId        tableId;
+  int32_t         superUid;  // Super table UID
+  STSchema *      schema;
+  STSchema *      tagSchema;
+  SDataRow        tagVal;
   union {
-    void *pData;
-    void *pIndex;
+    void *pData;   // For TSDB_NTABLE and TSDB_STABLE, it is the skiplist for cache data
+    void *pIndex;  // For TSDB_SUPER_TABLE, it is the skiplist index
   } content;
-
-  // A handle to deal with event
-  void *eventHandler;
-
-  // A handle to deal with stream
-  void *streamHandler;
-
-  struct STable *next;
-
+  void *         eventHandler;   // TODO
+  void *         streamHandler;  // TODO
+  struct STable *next; // TODO: remove the next
 } STable;
 
 void *  tsdbEncodeTable(STable *pTable, int *contLen);

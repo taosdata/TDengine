@@ -132,59 +132,61 @@ int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
 }
 
 int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
-  if (tsdbCheckTableCfg(pCfg) < 0) {
-    return -1;
-  }
+  if (tsdbCheckTableCfg(pCfg) < 0) return -1;
 
-  STable *pSTable = NULL;
+  STable *super = NULL;
   int newSuper = 0;
 
-  if (IS_CREATE_STABLE(pCfg)) {  // to create a TSDB_STABLE, check if super table exists
-    pSTable = tsdbGetTableByUid(pMeta, pCfg->stableUid);
-    if (pSTable == NULL) {  // super table not exists, try to create it
+  if (pCfg->type == TSDB_STABLE) { 
+    super = tsdbGetTableByUid(pMeta, pCfg->superUid);
+    if (super == NULL) {  // super table not exists, try to create it
       newSuper = 1;
-      pSTable = (STable *)calloc(1, sizeof(STable));
-      if (pSTable == NULL) return -1;
+      // TODO: use function to implement create table object
+      super = (STable *)calloc(1, sizeof(STable));
+      if (super == NULL) return -1;
 
-      pSTable->tableId.uid = pCfg->stableUid;
-      pSTable->tableId.tid = -1;
-      pSTable->type = TSDB_SUPER_TABLE;
-      // pSTable->createdTime = pCfg->createdTime; // The created time is not required
-      pSTable->stableUid = -1;
-      pSTable->numOfCols = pCfg->numOfCols;
-      pSTable->pSchema = tdDupSchema(pCfg->schema);
-      pSTable->content.pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1,
+      super->type = TSDB_SUPER_TABLE;
+      super->tableId.uid = pCfg->superUid;
+      super->tableId.tid = -1;
+      super->superUid = TSDB_INVALID_SUPER_TABLE_ID;
+      super->schema = tdDupSchema(pCfg->schema);
+      super->tagSchema = tdDupSchema(pCfg->tagSchema);
+      super->tagVal = tdDataRowDup(pCfg->tagValues);
+      super->content.pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1,
                                                 0, NULL);  // Allow duplicate key, no lock
-      if (pSTable->content.pIndex == NULL) {
-        free(pSTable);
+
+      if (super->content.pIndex == NULL) {
+        tdFreeSchema(super->schema);
+        tdFreeSchema(super->tagSchema);
+        tdFreeDataRow(super->tagVal);
+        free(super);
         return -1;
       }
     } else {
-      if (pSTable->type != TSDB_SUPER_TABLE) return -1;
+      if (super->type != TSDB_SUPER_TABLE) return -1;
     }
   }
 
-  STable *pTable = (STable *)malloc(sizeof(STable));
-  if (pTable == NULL) {
-    if (newSuper) tsdbFreeTable(pSTable);
+  STable *table = (STable *)malloc(sizeof(STable));
+  if (table == NULL) {
+    if (newSuper) tsdbFreeTable(super);
     return -1;
   }
 
-  pTable->tableId = pCfg->tableId;
-  pTable->createdTime = pCfg->createdTime;
+  table->tableId = pCfg->tableId;
   if (IS_CREATE_STABLE(pCfg)) { // TSDB_STABLE
-    pTable->type = TSDB_STABLE;
-    pTable->stableUid = pCfg->stableUid;
-    pTable->pTagVal = tdDataRowDup(pCfg->tagValues);
+    table->type = TSDB_STABLE;
+    table->superUid = pCfg->superUid;
+    table->tagVal = tdDataRowDup(pCfg->tagValues);
   } else { // TSDB_NTABLE
-    pTable->type = TSDB_NTABLE;
-    pTable->stableUid = -1;
-    pTable->pSchema = tdDupSchema(pCfg->schema);
+    table->type = TSDB_NTABLE;
+    table->superUid = -1;
+    table->schema = tdDupSchema(pCfg->schema);
   }
-  pTable->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, 0, 8, 0, 0, NULL);
+  table->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, 0, 8, 0, 0, NULL);
 
-  if (newSuper) tsdbAddTableToMeta(pMeta, pSTable);
-  tsdbAddTableToMeta(pMeta, pTable);
+  if (newSuper) tsdbAddTableToMeta(pMeta, super);
+  tsdbAddTableToMeta(pMeta, table);
 
   return 0;
 }
@@ -236,9 +238,9 @@ int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable) {
 static int tsdbFreeTable(STable *pTable) {
   // TODO: finish this function
   if (pTable->type == TSDB_STABLE) {
-    tdFreeDataRow(pTable->pTagVal);
+    tdFreeDataRow(pTable->tagVal);
   } else {
-    tdFreeSchema(pTable->pSchema);
+    tdFreeSchema(pTable->schema);
   }
 
   // Free content

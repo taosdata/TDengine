@@ -297,17 +297,17 @@ STsdbRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo) {
   return NULL;
 }
 
-int32_t tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg) {
+int tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   return tsdbCreateTableImpl(pRepo->tsdbMeta, pCfg);
 }
 
-int32_t tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg) {
+int tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg) {
   // TODO
   return 0;
 }
 
-int32_t tsdbDropTable(tsdb_repo_t *repo, STableId tableId) {
+int tsdbDropTable(tsdb_repo_t *repo, STableId tableId) {
   // TODO
   if (repo == NULL) return -1;
   STsdbRepo *pRepo = (STsdbRepo *)repo;
@@ -332,6 +332,87 @@ int32_t tsdbInsertData(tsdb_repo_t *repo, SSubmitMsg *pMsg) {
   }
 
   return 0;
+}
+
+/**
+ * Initialize a table configuration
+ */
+int tsdbInitTableCfg(STableCfg *config, TSDB_TABLE_TYPE type, int64_t uid, int32_t tid) {
+  if (config == NULL) return -1;
+  if (type != TSDB_NTABLE && type != TSDB_STABLE) return -1;
+
+  memset((void *)config, 0, sizeof(STableCfg));
+
+  config->type = type;
+  config->superUid = TSDB_INVALID_SUPER_TABLE_ID;
+  config->tableId.uid = uid;
+  config->tableId.tid = tid;
+  return -1;
+}
+
+/**
+ * Set the super table UID of the created table
+ */
+int tsdbTableSetSuperUid(STableCfg *config, int64_t uid) {
+  if (config->type != TSDB_STABLE) return -1;
+  if (uid == TSDB_INVALID_SUPER_TABLE_ID) return -1;
+
+  config->superUid = uid;
+  return 0;
+}
+
+/**
+ * Set the table schema in the configuration
+ * @param config the configuration to set
+ * @param pSchema the schema to set
+ * @param dup use the schema directly or duplicate one for use
+ * 
+ * @return 0 for success and -1 for failure
+ */
+int tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup) {
+  if (dup) {
+    config->schema = tdDupSchema(pSchema);
+  } else {
+    config->schema = pSchema;
+  }
+  return 0;
+}
+
+/**
+ * Set the table schema in the configuration
+ * @param config the configuration to set
+ * @param pSchema the schema to set
+ * @param dup use the schema directly or duplicate one for use
+ * 
+ * @return 0 for success and -1 for failure
+ */
+int tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup) {
+  if (config->type != TSDB_STABLE) return -1;
+
+  if (dup) {
+    config->tagSchema = tdDupSchema(pSchema);
+  } else {
+    config->tagSchema = pSchema;
+  }
+  return 0;
+}
+
+int tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup) {
+  if (config->type != TSDB_STABLE) return -1;
+
+  if (dup) {
+    config->tagValues = tdDataRowDup(row);
+  } else {
+    config->tagValues = row;
+  }
+
+  return 0;
+}
+
+void tsdbClearTableCfg(STableCfg *config) {
+  if (config->schema) tdFreeSchema(config->schema);
+  if (config->tagSchema) tdFreeSchema(config->tagSchema);
+  if (config->tagValues) tdFreeDataRow(config->tagValues);
 }
 
 // Check the configuration and set default options

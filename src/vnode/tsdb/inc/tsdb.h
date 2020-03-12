@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#if !defined(_TD_TSDB_H_)
+#ifndef _TD_TSDB_H_
 #define _TD_TSDB_H_
 
 #include <pthread.h>
@@ -30,8 +30,15 @@ extern "C" {
 #define TSDB_VERSION_MAJOR 1
 #define TSDB_VERSION_MINOR 0
 
+#define TSDB_INVALID_SUPER_TABLE_ID -1
+
 // --------- TSDB REPOSITORY CONFIGURATION DEFINITION
 enum { TSDB_PRECISION_MILLI, TSDB_PRECISION_MICRO, TSDB_PRECISION_NANO };
+typedef enum {
+  TSDB_SUPER_TABLE,  // super table
+  TSDB_NTABLE,       // table not created from super table
+  TSDB_STABLE        // table created from super table
+} TSDB_TABLE_TYPE;
 
 typedef struct {
   int8_t  precision;
@@ -63,6 +70,28 @@ typedef struct {
   int32_t tid;  // the table ID in the repository.
 } STableId;
 
+// --------- TSDB TABLE configuration
+typedef struct {
+  TSDB_TABLE_TYPE type;
+  STableId        tableId;
+  int64_t         superUid;
+  STSchema *      schema;
+  STSchema *      tagSchema;
+  SDataRow        tagValues;
+} STableCfg;
+
+int  tsdbInitTableCfg(STableCfg *config, TSDB_TABLE_TYPE type, int64_t uid, int32_t tid);
+int  tsdbTableSetSuperUid(STableCfg *config, int64_t uid);
+int  tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup);
+int  tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
+int  tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup);
+void tsdbClearTableCfg(STableCfg *config);
+
+int tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg);
+int tsdbDropTable(tsdb_repo_t *pRepo, STableId tableId);
+int tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
+
+
 // Submit message for this TSDB
 typedef struct {
   int32_t numOfTables;
@@ -88,24 +117,7 @@ typedef struct STsdbRepoInfo {
   int64_t  tsdbTotalDiskSize;  // the total disk size taken by this TSDB repository
   // TODO: Other informations to add
 } STsdbRepoInfo;
-
 STsdbRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo);
-
-// the meter configuration
-typedef struct {
-  STableId tableId;
-
-  int64_t stableUid;
-  int64_t createdTime;
-
-  int32_t  numOfCols;  // number of columns. For table form super table, not includes the tag schema
-  STSchema *schema;     // If numOfCols == schema_->numOfCols, it is a normal table, stableName = NULL
-                       // If numOfCols < schema->numOfCols, it is a table created from super table
-                       // assert(numOfCols <= schema->numOfCols);
-
-  SDataRow tagValues;  // NULL if it is normal table
-                       // otherwise, it contains the tag values.
-} STableCfg;
 
 // the meter information report structure
 typedef struct {
@@ -114,6 +126,7 @@ typedef struct {
   int64_t   tableTotalDataSize;  // In bytes
   int64_t   tableTotalDiskSize;  // In bytes
 } STableInfo;
+STableInfo *   tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid);
 
 // -- For table manipulation
 
@@ -124,8 +137,6 @@ typedef struct {
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg);
-int32_t tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
 
 /**
  * Drop a table in a repository and free all the resources it takes
@@ -135,7 +146,6 @@ int32_t tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
  *
  * @return 0 for success, -1 for failure and the error number is set
  */
-int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tableId);
 
 /**
  * Get the information of a table in the repository
@@ -145,7 +155,6 @@ int32_t tsdbDropTable(tsdb_repo_t *pRepo, STableId tableId);
  *
  * @return a table information handle for success, NULL for failure and the error number is set
  */
-STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tid);
 
 // -- FOR INSERT DATA
 /**
