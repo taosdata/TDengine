@@ -412,8 +412,8 @@ void *mgmtVgroupActionUpdate(void *row, char *str, int size, int *ssize) {
     if (pDb->cfg.maxSessions != oldTables) {
       mPrint("vgroup:%d tables change from %d to %d", pVgroup->vgId, oldTables, pDb->cfg.maxSessions);
       taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxSessions);
-      int size = sizeof(STabObj *) * pDb->cfg.maxSessions;
-      pVgroup->meterList = (STabObj **)realloc(pVgroup->meterList, size);
+      int tabsize = sizeof(STabObj *) * pDb->cfg.maxSessions;
+      pVgroup->meterList = (STabObj **)realloc(pVgroup->meterList, tabsize);
     }
   }
 
