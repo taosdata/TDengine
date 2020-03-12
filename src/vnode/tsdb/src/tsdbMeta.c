@@ -17,6 +17,57 @@ static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
+static int     tsdbEstimateTableEncodeSize(STable *pTable);
+
+/**
+ * Encode a TSDB table object as a binary content
+ * ASSUMPTIONS: VALID PARAMETERS
+ * 
+ * @param pTable table object to encode
+ * @param contLen the encoded binary content length
+ * 
+ * @return binary content for success
+ *         NULL fro failure
+ */
+void *tsdbEncodeTable(STable *pTable, int *contLen) {
+  if (pTable == NULL) return NULL;
+
+  *contLen = tsdbEstimateTableEncodeSize(pTable);
+  if (*contLen < 0) return NULL;
+
+  void *ret = malloc(*contLen);
+  if (ret == NULL) return NULL;
+
+  // TODO: encode the object to the memory
+  {}
+
+  return ret;
+}
+
+/**
+ * Decode from an encoded binary
+ * ASSUMPTIONS: valid parameters
+ * 
+ * @param cont binary object
+ * @param contLen binary length
+ * 
+ * @return TSDB table object for success
+ *         NULL for failure
+ */
+STable *tsdbDecodeTable(void *cont, int contLen) {
+  STable *pTable = (STable *)calloc(1, sizeof(STable));
+  if (pTable == NULL) return NULL;
+
+  {
+    // TODO recover from the binary content
+  }
+
+  return pTable;
+}
+
+void *tsdbFreeEncode(void *cont) {
+  if (cont != NULL) free(cont);
+}
 
 /**
  * Initialize the meta handle
@@ -259,6 +310,11 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
 
 static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   assert(pTable->type == TSDB_STABLE);
+  // TODO
+  return 0;
+}
+
+static int tsdbEstimateTableEncodeSize(STable *pTable) {
   // TODO
   return 0;
 }

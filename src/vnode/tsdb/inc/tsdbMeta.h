@@ -39,6 +39,7 @@ typedef enum {
 
 #define IS_CREATE_STABLE(pCfg) ((pCfg)->tagValues != NULL)
 
+// ---------- TSDB TABLE DEFINITION
 typedef struct STable {
   STableId        tableId;
   TSDB_TABLE_TYPE type;
@@ -79,6 +80,10 @@ typedef struct STable {
 
 } STable;
 
+void *  tsdbEncodeTable(STable *pTable, int *contLen);
+STable *tsdbDecodeTable(void *cont, int contLen);
+void *  tsdbFreeEncode(void *cont);
+
 // ---------- TSDB META HANDLE DEFINITION
 typedef struct {
   int32_t maxTables;  // Max number of tables
@@ -107,8 +112,6 @@ int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 #define TSDB_TABLE_TAG_VALUE(pTable) ((pTable)->pTagVal)
 #define TSDB_TABLE_CACHE_DATA(pTable) ((pTable)->content.pData)
 #define TSDB_SUPER_TABLE_INDEX(pTable) ((pTable)->content.pIndex)
-
-STSchema *tsdbGetTableSchema(STable *pTable);
 
 // ---- Operation on SMetaHandle
 #define TSDB_NUM_OF_TABLES(pHandle) ((pHandle)->numOfTables)
