@@ -705,8 +705,10 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   }
   
   // current data are exhausted, fetch more data
-  if (pRes->data == NULL || (pRes->data != NULL && pRes->row >= pRes->numOfRows && pCmd->command == TSDB_SQL_RETRIEVE)) {
+  if (pRes->data == NULL || (pRes->data != NULL && pRes->row >= pRes->numOfRows &&
+      (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_METRIC || pCmd->command == TSDB_SQL_FETCH))) {
     taos_fetch_rows_a(res, asyncFetchCallback, pSql->pTscObj);
+    
     sem_wait(&pSql->rspSem);
   }
   
