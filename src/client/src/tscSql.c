@@ -206,7 +206,7 @@ int taos_query_imp(STscObj *pObj, SSqlObj *pSql) {
 
   pSql->asyncTblPos = NULL;
   if (NULL != pSql->pTableHashList) {
-    taosCleanUpHashTable(pSql->pTableHashList);
+    taosHashCleanup(pSql->pTableHashList);
     pSql->pTableHashList = NULL;
   }
 
@@ -1079,7 +1079,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   pSql->asyncTblPos = NULL;
   if (NULL != pSql->pTableHashList) {
-    taosCleanUpHashTable(pSql->pTableHashList);
+    taosHashCleanup(pSql->pTableHashList);
     pSql->pTableHashList = NULL;
   }
 

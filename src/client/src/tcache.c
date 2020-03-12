@@ -15,12 +15,12 @@
 
 #include "os.h"
 
+#include "hashfunc.h"
 #include "tcache.h"
 #include "tlog.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "hashutil.h"
 
 #define HASH_MAX_CAPACITY   (1024*1024*16)
 #define HASH_VALUE_IN_TRASH (-1)

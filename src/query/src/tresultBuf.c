@@ -16,7 +16,7 @@ int32_t createDiskbasedResultBuffer(SQueryDiskbasedResultBuf** pResultBuf, int32
   pResBuf->incStep = 4;
 
   // init id hash table
-  pResBuf->idsTable = taosInitHashTable(size, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
+  pResBuf->idsTable = taosHashInit(size, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false);
   pResBuf->list = calloc(size, sizeof(SIDList));
   pResBuf->numOfAllocGroupIds = size;
 
@@ -56,7 +56,7 @@ tFilePage* getResultBufferPageById(SQueryDiskbasedResultBuf* pResultBuf, int32_t
   return (tFilePage*)(pResultBuf->pBuf + DEFAULT_INTERN_BUF_SIZE * id);
 }
 
-int32_t getNumOfResultBufGroupId(SQueryDiskbasedResultBuf* pResultBuf) { return taosNumElemsInHashTable(pResultBuf->idsTable); }
+int32_t getNumOfResultBufGroupId(SQueryDiskbasedResultBuf* pResultBuf) { return taosHashGetSize(pResultBuf->idsTable); }
 
 int32_t getResBufSize(SQueryDiskbasedResultBuf* pResultBuf) { return pResultBuf->totalBufSize; }
 
@@ -95,7 +95,7 @@ static bool noMoreAvailablePages(SQueryDiskbasedResultBuf* pResultBuf) {
 static int32_t getGroupIndex(SQueryDiskbasedResultBuf* pResultBuf, int32_t groupId) {
   assert(pResultBuf != NULL);
 
-  char* p = taosGetDataFromHashTable(pResultBuf->idsTable, (const char*)&groupId, sizeof(int32_t));
+  char* p = taosHashGet(pResultBuf->idsTable, (const char*)&groupId, sizeof(int32_t));
   if (p == NULL) {  // it is a new group id
     return -1;
   }
@@ -121,7 +121,7 @@ static int32_t addNewGroupId(SQueryDiskbasedResultBuf* pResultBuf, int32_t group
     pResultBuf->numOfAllocGroupIds = n;
   }
 
-  taosAddToHashTable(pResultBuf->idsTable, (const char*)&groupId, sizeof(int32_t), &num, sizeof(int32_t));
+  taosHashPut(pResultBuf->idsTable, (const char*)&groupId, sizeof(int32_t), &num, sizeof(int32_t));
   return num;
 }
 
@@ -210,7 +210,7 @@ void destroyResultBuf(SQueryDiskbasedResultBuf* pResultBuf) {
   }
 
   tfree(pResultBuf->list);
-  taosCleanUpHashTable(pResultBuf->idsTable);
+  taosHashCleanup(pResultBuf->idsTable);
   
   tfree(pResultBuf);
 }

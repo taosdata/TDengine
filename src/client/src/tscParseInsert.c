@@ -1002,7 +1002,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       || ((NULL != pSql->asyncTblPos) && (NULL != pSql->pTableHashList)));
 
   if ((NULL == pSql->asyncTblPos) && (NULL == pSql->pTableHashList)) {
-    pSql->pTableHashList = taosInitHashTable(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+    pSql->pTableHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
 
     pSql->cmd.pDataBlocks = tscCreateBlockArrayList();
     if (NULL == pSql->pTableHashList || NULL == pSql->cmd.pDataBlocks) {
@@ -1260,7 +1260,7 @@ _error_clean:
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
 _clean:
-  taosCleanUpHashTable(pSql->pTableHashList);
+  taosHashCleanup(pSql->pTableHashList);
   
   pSql->pTableHashList = NULL;
   pSql->asyncTblPos    = NULL;
