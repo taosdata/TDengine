@@ -227,7 +227,7 @@ static void shellRunImportThreads(struct arguments* args)
     ShellThreadObj *pThread = threadObj + t;
     pThread->threadIndex = t;
     pThread->totalThreads = args->threadNum;
-    pThread->taos = taos_connect(args->host, args->user, args->password, args->database, tsMgmtShellPort);
+    pThread->taos = taos_connect(args->host, args->user, args->password, args->database, tsMnodeShellPort);
     if (pThread->taos == NULL) {
       fprintf(stderr, "ERROR: thread:%d failed connect to TDengine, error:%s\n", pThread->threadIndex, taos_errstr(pThread->taos));
       exit(0);

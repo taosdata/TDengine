@@ -84,7 +84,7 @@ void *rpcReallocCont(void *ptr, int contLen);
 void  rpcSendRequest(void *thandle, SRpcIpSet *pIpSet, SRpcMsg *pMsg);
 void  rpcSendResponse(SRpcMsg *pMsg);
 void  rpcSendRedirectRsp(void *pConn, SRpcIpSet *pIpSet); 
-void  rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
+int   rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 
 #ifdef __cplusplus
 }

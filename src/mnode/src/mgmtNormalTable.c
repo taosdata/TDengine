@@ -289,9 +289,9 @@ void mgmtCleanUpNormalTables() {
 
 static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup) {
   int32_t totalCols = pTable->numOfColumns;
-  int32_t contLen   = sizeof(SDMCreateTableMsg) + totalCols * sizeof(SSchema) + pTable->sqlLen;
+  int32_t contLen   = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + pTable->sqlLen;
 
-  SDMCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
+  SMDCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
   if (pCreateTable == NULL) {
     return NULL;
   }
@@ -323,13 +323,13 @@ static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgr
     pSchema++;
   }
 
-  memcpy(pCreateTable + sizeof(SDMCreateTableMsg) + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
+  memcpy(pCreateTable + sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
 
   return pCreateTable;
 }
 
-int32_t mgmtCreateNormalTable(SCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                              SDMCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
+int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
+                              SMDCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
   int32_t numOfTables = sdbGetNumOfRows(tsNormalTableSdb);
   if (numOfTables >= TSDB_MAX_NORMAL_TABLES) {
     mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_NORMAL_TABLES);

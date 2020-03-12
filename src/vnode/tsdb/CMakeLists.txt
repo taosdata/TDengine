@@ -15,5 +15,5 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   TARGET_LINK_LIBRARIES(tsdb common tutil)
 
   # Someone has no gtest directory, so comment it
-  ADD_SUBDIRECTORY(tests)
+  #ADD_SUBDIRECTORY(tests)
 ENDIF ()

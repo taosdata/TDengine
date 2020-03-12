@@ -59,7 +59,7 @@ int32_t mgmtInitUsers() {
   SUserObj tObj;
   tsUserUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
-  tsUserSdb = sdbOpenTable(tsMaxUsers, tsUserUpdateSize, "user", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtUserAction);
+  tsUserSdb = sdbOpenTable(tsMaxUsers, tsUserUpdateSize, "users", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtUserAction);
   if (tsUserSdb == NULL) {
     mError("failed to init user data");
     return -1;
@@ -83,9 +83,9 @@ int32_t mgmtInitUsers() {
   mgmtCreateUser(pAcct, "monitor", tsInternalPass);
   mgmtCreateUser(pAcct, "_root", tsInternalPass);
 
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CREATE_USER, mgmtProcessCreateUserMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_ALTER_USER, mgmtProcessAlterUserMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_DROP_USER, mgmtProcessDropUserMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_USER, mgmtProcessCreateUserMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_USER, mgmtProcessAlterUserMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_USER, mgmtProcessDropUserMsg);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_USER, mgmtGetUserMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mgmtRetrieveUsers);
   
@@ -123,7 +123,7 @@ static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
 
   SUserObj *pUser = (SUserObj *)sdbGetRow(tsUserSdb, name);
   if (pUser != NULL) {
-    mWarn("user:%s is already there", name);
+    mTrace("user:%s is already there", name);
     return TSDB_CODE_USER_ALREADY_EXIST;
   }
 
@@ -330,9 +330,11 @@ static void *mgmtUserActionDestroy(void *row, char *str, int32_t size, int32_t *
 
 SUserObj *mgmtGetUserFromConn(void *pConn) {
   SRpcConnInfo connInfo;
-  rpcGetConnInfo(pConn, &connInfo);
+  if (rpcGetConnInfo(pConn, &connInfo) == 0) {
+    return mgmtGetUser(connInfo.user);
+  }
 
-  return mgmtGetUser(connInfo.user);
+  return NULL;
 }
 
 static void mgmtProcessCreateUserMsg(SRpcMsg *rpcMsg) {
@@ -347,7 +349,7 @@ static void mgmtProcessCreateUserMsg(SRpcMsg *rpcMsg) {
   }
 
   if (pUser->superAuth) {
-    SCreateUserMsg *pCreate = rpcMsg->pCont;
+    SCMCreateUserMsg *pCreate = rpcMsg->pCont;
     rpcRsp.code = mgmtCreateUser(pUser->pAcct, pCreate->user, pCreate->pass);
     if (rpcRsp.code == TSDB_CODE_SUCCESS) {
       mLPrint("user:%s is created by %s", pCreate->user, pUser->user);
@@ -370,7 +372,7 @@ static void mgmtProcessAlterUserMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  SAlterUserMsg *pAlter = rpcMsg->pCont;
+  SCMAlterUserMsg *pAlter = rpcMsg->pCont;
   SUserObj *pUser = mgmtGetUser(pAlter->user);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
@@ -477,7 +479,7 @@ static void mgmtProcessDropUserMsg(SRpcMsg *rpcMsg) {
     return ;
   }
 
-  SDropUserMsg *pDrop = rpcMsg->pCont;
+  SCMDropUserMsg *pDrop = rpcMsg->pCont;
   SUserObj *pUser = mgmtGetUser(pDrop->user);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;

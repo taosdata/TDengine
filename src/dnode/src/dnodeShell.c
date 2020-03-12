@@ -20,18 +20,21 @@
 #include "taosmsg.h"
 #include "tlog.h"
 #include "trpc.h"
-#include "dnodeSystem.h"
+#include "dnode.h"
 #include "dnodeRead.h"
 #include "dnodeWrite.h"
 #include "dnodeShell.h"
 
 static void (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void   dnodeProcessMsgFromShell(SRpcMsg *pMsg);
+static int    dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static void  *tsDnodeShellRpc = NULL;
+static int32_t tsDnodeQueryReqNum  = 0;
+static int32_t tsDnodeSubmitReqNum = 0;
 
 int32_t dnodeInitShell() {
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT] = dnodeWrite;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY] = dnodeRead;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT]   = dnodeWrite;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]    = dnodeRead;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_RETRIEVE] = dnodeRead;
 
   int numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore;
@@ -43,13 +46,14 @@ int32_t dnodeInitShell() {
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
-  rpcInit.localPort    = tsVnodeShellPort;
+  rpcInit.localPort    = tsDnodeShellPort;
   rpcInit.label        = "DND-shell";
   rpcInit.numOfThreads = numOfThreads;
-  rpcInit.cfp           = dnodeProcessMsgFromShell;
+  rpcInit.cfp          = dnodeProcessMsgFromShell;
   rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 1500;
+  rpcInit.afp          =
 
   tsDnodeShellRpc = rpcOpen(&rpcInit);
   if (tsDnodeShellRpc == NULL) {
@@ -64,12 +68,12 @@ int32_t dnodeInitShell() {
 void dnodeCleanupShell() {
   if (tsDnodeShellRpc) {
     rpcClose(tsDnodeShellRpc);
+    tsDnodeShellRpc = NULL;
   }
 }
 
 void dnodeProcessMsgFromShell(SRpcMsg *pMsg) {
   SRpcMsg rpcMsg;
-
   rpcMsg.handle = pMsg->handle;
   rpcMsg.pCont = NULL;
   rpcMsg.contLen = 0;
@@ -82,6 +86,12 @@ void dnodeProcessMsgFromShell(SRpcMsg *pMsg) {
     return;
   }
 
+  if (pMsg->msgType == TSDB_MSG_TYPE_QUERY) {
+    atomic_fetch_add_32(&tsDnodeQueryReqNum, 1);
+  } else if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
+    atomic_fetch_add_32(&tsDnodeSubmitReqNum, 1);
+  } else {}
+
   if ( dnodeProcessShellMsgFp[pMsg->msgType] ) {
     (*dnodeProcessShellMsgFp[pMsg->msgType])(pMsg);
   } else {
@@ -92,4 +102,17 @@ void dnodeProcessMsgFromShell(SRpcMsg *pMsg) {
   }
 }
 
+static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  return TSDB_CODE_SUCCESS;
+}
 
+SDnodeStatisInfo dnodeGetStatisInfo() {
+  SDnodeStatisInfo info = {0};
+  if (dnodeGetRunStatus() == TSDB_DNODE_RUN_STATUS_RUNING) {
+    //info.httpReqNum   = httpGetReqCount();
+    info.queryReqNum  = atomic_exchange_32(&tsDnodeQueryReqNum, 0);
+    info.submitReqNum = atomic_exchange_32(&tsDnodeSubmitReqNum, 0);
+  }
+
+  return info;
+}

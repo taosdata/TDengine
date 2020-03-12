@@ -58,9 +58,10 @@ extern char osName[];
 
 extern char  tsMasterIp[];
 extern char  tsSecondIp[];
-extern uint16_t tsMgmtDnodePort;
-extern uint16_t tsMgmtShellPort;
-extern uint16_t tsVnodeShellPort;
+extern uint16_t tsMnodeDnodePort;
+extern uint16_t tsMnodeShellPort;
+extern uint16_t tsDnodeShellPort;
+extern uint16_t tsDnodeMnodePort;
 extern uint16_t tsVnodeVnodePort;
 extern uint16_t tsMgmtMgmtPort;
 extern uint16_t tsMgmtSyncPort;

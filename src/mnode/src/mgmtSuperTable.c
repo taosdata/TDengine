@@ -200,7 +200,7 @@ void mgmtCleanUpSuperTables() {
   sdbCloseTable(tsSuperTableSdb);
 }
 
-int32_t mgmtCreateSuperTable(SDbObj *pDb, SCreateTableMsg *pCreate) {
+int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
   int32_t numOfTables = sdbGetNumOfRows(tsSuperTableSdb);
   if (numOfTables >= TSDB_MAX_SUPER_TABLES) {
     mError("stable:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_SUPER_TABLES);
@@ -259,7 +259,7 @@ void* mgmtGetSuperTable(char *tableId) {
 
 void *mgmtGetSuperTableVgroup(SSuperTableObj *pStable) {
   //TODO get vgroup of dnodes
-  SSuperTableInfoRsp *rsp = rpcMallocCont(sizeof(SSuperTableInfoRsp) + sizeof(uint32_t) * mgmtGetDnodesNum());
+  SCMSuperTableInfoRsp *rsp = rpcMallocCont(sizeof(SCMSuperTableInfoRsp) + sizeof(uint32_t) * mgmtGetDnodesNum());
   rsp->numOfDnodes = 1;
   rsp->dnodeIps[0] = 0;
   return rsp;

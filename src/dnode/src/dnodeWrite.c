@@ -56,13 +56,17 @@ static void   dnodeProcessWriteResult(SWriteMsg *pWrite);
 static void   dnodeProcessSubmitMsg(SWriteMsg *pMsg);
 static void   dnodeProcessCreateTableMsg(SWriteMsg *pMsg);
 static void   dnodeProcessDropTableMsg(SWriteMsg *pMsg);
+static void   dnodeProcessAlterTableMsg(SWriteMsg *pMsg);
+static void   dnodeProcessDropStableMsg(SWriteMsg *pMsg);
 
 SWriteWorkerPool wWorkerPool;
 
 int32_t dnodeInitWrite() {
-  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]             = dnodeProcessSubmitMsg;
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = dnodeProcessSubmitMsg;
   dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_CREATE_TABLE] = dnodeProcessCreateTableMsg;
-  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE] = dnodeProcessDropTableMsg;
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_TABLE]   = dnodeProcessDropTableMsg;
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = dnodeProcessAlterTableMsg;
+  dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = dnodeProcessDropStableMsg;
 
   wWorkerPool.max = tsNumOfCores;
   wWorkerPool.writeWorker = (SWriteWorker *)calloc(sizeof(SWriteWorker), wWorkerPool.max);
@@ -79,9 +83,7 @@ void dnodeCleanupWrite() {
   free(wWorkerPool.writeWorker);
 }
 
-void dnodeWrite(void *rpcMsg) {
-  SRpcMsg *pMsg = rpcMsg;
-
+void dnodeWrite(SRpcMsg *pMsg) {
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
   int32_t     contLen      = 0;
@@ -245,13 +247,98 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
 }
 
 static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
+  dTrace("submit msg is disposed");
 
+  SShellSubmitRspMsg *pRsp = rpcMallocCont(sizeof(SShellSubmitRspMsg));
+  pRsp->code              = 0;
+  pRsp->numOfRows         = htonl(1);
+  pRsp->affectedRows      = htonl(1);
+  pRsp->numOfFailedBlocks = 0;
+
+  SRpcMsg rpcRsp = {
+    .handle = pMsg->rpcMsg.handle,
+    .pCont = pRsp,
+    .contLen = sizeof(SShellSubmitRspMsg),
+    .code = 0,
+    .msgType = 0
+  };
+  rpcSendResponse(&rpcRsp);
 }
 
 static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
+  SMDCreateTableMsg *pTable = pMsg->rpcMsg.pCont;
+  if (pTable->tableType == TSDB_TABLE_TYPE_CHILD_TABLE) {
+    dTrace("table:%s, start to create child table, stable:%s", pTable->tableId, pTable->superTableId);
+  } else if (pTable->tableType == TSDB_TABLE_TYPE_NORMAL_TABLE){
+    dTrace("table:%s, start to create normal table", pTable->tableId);
+  } else if (pTable->tableType == TSDB_TABLE_TYPE_STREAM_TABLE){
+    dTrace("table:%s, start to create stream table", pTable->tableId);
+  } else {
+    dError("table:%s, invalid table type:%d", pTable->tableType);
+  }
 
+//  pTable->numOfColumns  = htons(pTable->numOfColumns);
+//  pTable->numOfTags     = htons(pTable->numOfTags);
+//  pTable->sid           = htonl(pTable->sid);
+//  pTable->sversion      = htonl(pTable->sversion);
+//  pTable->tagDataLen    = htonl(pTable->tagDataLen);
+//  pTable->sqlDataLen    = htonl(pTable->sqlDataLen);
+//  pTable->contLen       = htonl(pTable->contLen);
+//  pTable->numOfVPeers   = htonl(pTable->numOfVPeers);
+//  pTable->uid           = htobe64(pTable->uid);
+//  pTable->superTableUid = htobe64(pTable->superTableUid);
+//  pTable->createdTime   = htobe64(pTable->createdTime);
+//
+//  for (int i = 0; i < pTable->numOfVPeers; ++i) {
+//    pTable->vpeerDesc[i].ip    = htonl(pTable->vpeerDesc[i].ip);
+//    pTable->vpeerDesc[i].vnode = htonl(pTable->vpeerDesc[i].vnode);
+//  }
+//
+//  int32_t totalCols = pTable->numOfColumns + pTable->numOfTags;
+//  SSchema *pSchema = (SSchema *) pTable->data;
+//  for (int32_t col = 0; col < totalCols; ++col) {
+//    pSchema->bytes = htons(pSchema->bytes);
+//    pSchema->colId = htons(pSchema->colId);
+//    pSchema++;
+//  }
+//
+//  int32_t code = dnodeCreateTable(pTable);
+
+  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  rpcSendResponse(&rpcRsp);
 }
 
 static void dnodeProcessDropTableMsg(SWriteMsg *pMsg) {
+  SMDDropTableMsg *pTable = pMsg->rpcMsg.pCont;
+  dPrint("table:%s, sid:%d is dropped", pTable->tableId, pTable->sid);
 
+//  pTable->sid         = htonl(pTable->sid);
+//  pTable->numOfVPeers = htonl(pTable->numOfVPeers);
+//  pTable->uid         = htobe64(pTable->uid);
+//
+//  for (int i = 0; i < pTable->numOfVPeers; ++i) {
+//    pTable->vpeerDesc[i].ip    = htonl(pTable->vpeerDesc[i].ip);
+//    pTable->vpeerDesc[i].vnode = htonl(pTable->vpeerDesc[i].vnode);
+//  }
+//
+//  int32_t code = dnodeDropTable(pTable);
+//
+  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  rpcSendResponse(&rpcRsp);
+}
+
+static void dnodeProcessAlterTableMsg(SWriteMsg *pMsg) {
+  SMDCreateTableMsg *pTable = pMsg->rpcMsg.pCont;
+  dPrint("table:%s, sid:%d is alterd", pTable->tableId, pTable->sid);
+
+  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  rpcSendResponse(&rpcRsp);
+}
+
+static void dnodeProcessDropStableMsg(SWriteMsg *pMsg) {
+  SMDDropSTableMsg *pTable = pMsg->rpcMsg.pCont;
+  dPrint("stable:%s, is dropped", pTable->tableId);
+
+  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  rpcSendResponse(&rpcRsp);
 }

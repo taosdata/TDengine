@@ -151,7 +151,7 @@ void taos_init_imp() {
   }
 
   tscMgmtIpList.inUse = 0;
-  tscMgmtIpList.port = tsMgmtShellPort;
+  tscMgmtIpList.port = tsMnodeShellPort;
   tscMgmtIpList.numOfIps = 1;
   tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
 
