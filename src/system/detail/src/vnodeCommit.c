@@ -97,7 +97,7 @@ int vnodeRenewCommitLog(int vnode) {
 
 void vnodeRemoveCommitLog(int vnode) { remove(vnodeList[vnode].logOFn); }
 
-size_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
+int vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
   int    fd, ret;
   char * cont = NULL;
   size_t totalLen = 0;
