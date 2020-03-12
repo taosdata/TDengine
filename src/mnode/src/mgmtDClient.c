@@ -84,39 +84,6 @@ static void mgmtProcessRspFromDnode(SRpcMsg *rpcMsg) {
   rpcFreeCont(rpcMsg->pCont);
 }
 
-
-//static void mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg) {
-//  mTrace("create table rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
-//  if (rpcMsg->handle == NULL) return;
-//
-//  SProcessInfo *info = rpcMsg->handle;
-//  assert(info->type == TSDB_PROCESS_CREATE_TABLE || info->type == TSDB_PROCESS_CREATE_TABLE_GET_META);
-//
-//  STableInfo *pTable = info->ahandle;
-//  if (rpcMsg->code != TSDB_CODE_SUCCESS) {
-//    mError("table:%s, failed to create in dnode, code:%d, set it dirty", pTable->tableId, rpcMsg->code);
-//    mgmtSetTableDirty(pTable, true);
-//  } else {
-//    mTrace("table:%s, created in dnode", pTable->tableId);
-//    mgmtSetTableDirty(pTable, false);
-//  }
-//
-//  if (rpcMsg->code != TSDB_CODE_SUCCESS) {
-//    SRpcMsg rpcRsp = {.handle = info->thandle, .pCont = NULL, .contLen = 0, .code = rpcMsg->code, .msgType = 0};
-//    rpcSendResponse(&rpcMsg);
-//  } else {
-//    if (info->type == TSDB_PROCESS_CREATE_TABLE_GET_META) {
-//      mTrace("table:%s, start to process get meta", pTable->tableId);
-//      mgmtProcessGetTableMeta(pTable, rpcMsg->handle);
-//    } else {
-//      SRpcMsg rpcRsp = {.handle = info->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-//      rpcSendResponse(&rpcMsg);
-//    }
-//  }
-//
-//  free(info);
-//}
-//
 //static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg) {
 //  mTrace("drop table rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
 //}
@@ -125,27 +92,6 @@ static void mgmtProcessRspFromDnode(SRpcMsg *rpcMsg) {
 //  mTrace("alter table rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
 //}
 //
-//static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
-//  mTrace("create vnode rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
-//  if (rpcMsg->handle == NULL) return;
-//
-//  SProcessInfo *info = rpcMsg->handle;
-//  assert(info->type == TSDB_PROCESS_CREATE_VGROUP || info->type == TSDB_PROCESS_CREATE_VGROUP_GET_META);
-//
-//  info->received++;
-//  SVgObj *pVgroup = info->ahandle;
-//
-//  bool isGetMeta = false;
-//  if (info->type == TSDB_PROCESS_CREATE_VGROUP_GET_META) {
-//    isGetMeta = true;
-//  }
-//
-//  mTrace("vgroup:%d, received:%d numOfVnodes:%d", pVgroup->vgId, info->received, pVgroup->numOfVnodes);
-//  if (info->received == pVgroup->numOfVnodes) {
-//    mgmtProcessCreateTable(pVgroup, info->cont, info->contLen, info->thandle, isGetMeta);
-//    free(info);
-//  }
-//}
 //
 //static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
 //  mTrace("drop vnode rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);

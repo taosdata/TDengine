@@ -57,7 +57,6 @@ void dnodeCleanupMClient() {
 }
 
 static void dnodeProcessRspFromMnode(SRpcMsg *pMsg) {
-
   if (dnodeProcessMgmtRspFp[pMsg->msgType]) {
     (*dnodeProcessMgmtRspFp[pMsg->msgType])(pMsg);
   } else {

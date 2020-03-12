@@ -98,14 +98,13 @@ void dnodeMgmt(SRpcMsg *pMsg) {
   if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
     (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
   } else {
-    terrno = TSDB_CODE_MSG_NOT_PROCESSED;  
+    SRpcMsg rsp;
+    rsp.handle = pMsg->handle;
+    rsp.code   = TSDB_CODE_MSG_NOT_PROCESSED;
+    rsp.pCont  = NULL;
+    rpcSendResponse(&rsp);
   }
 
-  SRpcMsg rsp;
-  rsp.handle = pMsg->handle;
-  rsp.code   = terrno;
-  rsp.pCont  = NULL;
-  rpcSendResponse(&rsp);
   rpcFreeCont(pMsg->pCont);  // free the received message
 }
 
@@ -275,15 +274,15 @@ static void dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
   pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
 
-  SVnodeObj *pVnodeObj = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
-  if (pVnodeObj != NULL) {
-    rpcRsp.code = TSDB_CODE_SUCCESS;
-  } else {
-    rpcRsp.code = dnodeCreateVnode(pCreate);
-  }
+//  SVnodeObj *pVnodeObj = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
+//  if (pVnodeObj != NULL) {
+//    rpcRsp.code = TSDB_CODE_SUCCESS;
+//  } else {
+//    rpcRsp.code = dnodeCreateVnode(pCreate);
+//  }
+  rpcRsp.code = TSDB_CODE_SUCCESS;
 
   rpcSendResponse(&rpcRsp);
-  rpcFreeCont(rpcMsg->pCont);
 }
 
 static void dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {
@@ -301,7 +300,6 @@ static void dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {
   }
 
   rpcSendResponse(&rpcRsp);
-  rpcFreeCont(rpcMsg->pCont);
 }
 
 static void dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
@@ -321,7 +319,6 @@ static void dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
   }
 
   rpcSendResponse(&rpcRsp);
-  rpcFreeCont(rpcMsg->pCont);
 }
 
 static void dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {

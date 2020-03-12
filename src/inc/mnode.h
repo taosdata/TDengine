@@ -39,12 +39,7 @@ extern "C" {
 #include "ttimer.h"
 #include "tutil.h"
 
-// internal globals
-extern char  version[];
-extern void *tsMgmtTmr;
-extern char  tsMgmtDirectory[];
-
-typedef struct {
+  typedef struct {
   uint32_t   privateIp;
   int32_t    sid;
   uint32_t   moduleStatus;
@@ -86,11 +81,6 @@ typedef struct {
   uint32_t publicIp;
   int32_t  vnode;
 } SVnodeGid;
-
-typedef struct {
-  int32_t sid;
-  int32_t vgId;  // vnode group ID
-} STableGid;
 
 typedef struct {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
@@ -248,16 +238,32 @@ typedef struct {
   int16_t  offset[TSDB_MAX_COLUMNS];
   int16_t  bytes[TSDB_MAX_COLUMNS];
   void *   signature;
-  uint16_t payloadLen; /* length of payload*/
-  char     payload[];  /* payload for wildcard match in show tables */
+  uint16_t payloadLen;
+  char     payload[];
 } SShowObj;
 
-//mgmtSystem
+typedef struct {
+  uint8_t  msgType;
+  int8_t   expected;
+  int8_t   received;
+  int8_t   successed;
+  int32_t  contLen;
+  int32_t  code;
+  void     *ahandle;
+  void     *thandle;
+  void     *pCont;
+  SDbObj   *pDb;
+  SUserObj *pUser;
+} SQueuedMsg;
+
 int32_t mgmtInitSystem();
 int32_t mgmtStartSystem();
 void    mgmtCleanUpSystem();
 void    mgmtStopSystem();
 
+extern char  version[];
+extern void *tsMgmtTmr;
+extern char  tsMgmtDirectory[];
 
 #ifdef __cplusplus
 }

@@ -33,9 +33,9 @@ static int32_t   mgmtUpdateUser(SUserObj *pUser);
 static int32_t   mgmtGetUserMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 static int32_t   mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static void mgmtProcessCreateUserMsg(SRpcMsg *rpcMsg);
-static void mgmtProcessAlterUserMsg(SRpcMsg *rpcMsg);
-static void mgmtProcessDropUserMsg(SRpcMsg *rpcMsg);
+static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg);
+static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg);
+static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg);
 
 static void *(*mgmtUserActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtUserActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
@@ -337,52 +337,40 @@ SUserObj *mgmtGetUserFromConn(void *pConn) {
   return NULL;
 }
 
-static void mgmtProcessCreateUserMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg) {
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
-  if (pUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return;
-  }
-
+  int32_t code;
+  SUserObj *pUser = pMsg->pUser;
+  
   if (pUser->superAuth) {
-    SCMCreateUserMsg *pCreate = rpcMsg->pCont;
-    rpcRsp.code = mgmtCreateUser(pUser->pAcct, pCreate->user, pCreate->pass);
-    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
+    SCMCreateUserMsg *pCreate = pMsg->pCont;
+    code = mgmtCreateUser(pUser->pAcct, pCreate->user, pCreate->pass);
+    if (code == TSDB_CODE_SUCCESS) {
       mLPrint("user:%s is created by %s", pCreate->user, pUser->user);
     }
   } else {
-    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+    code = TSDB_CODE_NO_RIGHTS;
   }
 
-  rpcSendResponse(&rpcRsp);
+  mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
-static void mgmtProcessAlterUserMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pOperUser = mgmtGetUserFromConn(rpcMsg->handle);
-  if (pOperUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return;
-  }
-
-  SCMAlterUserMsg *pAlter = rpcMsg->pCont;
+  int32_t code;
+  SUserObj *pOperUser = pMsg->pUser;
+  
+  SCMAlterUserMsg *pAlter = pMsg->pCont;
   SUserObj *pUser = mgmtGetUser(pAlter->user);
   if (pUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_USER);
     return;
   }
 
   if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
-    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
-    rpcSendResponse(&rpcRsp);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
     return;
   }
 
@@ -405,13 +393,13 @@ static void mgmtProcessAlterUserMsg(SRpcMsg *rpcMsg) {
     if (hasRight) {
       memset(pUser->pass, 0, sizeof(pUser->pass));
       taosEncryptPass((uint8_t*)pAlter->pass, strlen(pAlter->pass), pUser->pass);
-      rpcRsp.code = mgmtUpdateUser(pUser);
-      mLPrint("user:%s password is altered by %s, code:%d", pAlter->user, pUser->user, rpcRsp.code);
+      code = mgmtUpdateUser(pUser);
+      mLPrint("user:%s password is altered by %s, code:%d", pAlter->user, pUser->user, code);
     } else {
-      rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+      code = TSDB_CODE_NO_RIGHTS;
     }
 
-    rpcSendResponse(&rpcRsp);
+    mgmtSendSimpleResp(pMsg->thandle, code);
     return;
   }
 
@@ -454,42 +442,34 @@ static void mgmtProcessAlterUserMsg(SRpcMsg *rpcMsg) {
         pUser->writeAuth = 1;
       }
 
-      rpcRsp.code = mgmtUpdateUser(pUser);
-      mLPrint("user:%s privilege is altered by %s, code:%d", pAlter->user, pUser->user, rpcRsp.code);
+      code = mgmtUpdateUser(pUser);
+      mLPrint("user:%s privilege is altered by %s, code:%d", pAlter->user, pUser->user, code);
     } else {
-      rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+      code = TSDB_CODE_NO_RIGHTS;
     }
 
-    rpcSendResponse(&rpcRsp);
+    mgmtSendSimpleResp(pMsg->thandle, code);
     return;
   }
 
-  rpcRsp.code = TSDB_CODE_NO_RIGHTS;
-  rpcSendResponse(&rpcRsp);
+  mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
 }
 
-static void mgmtProcessDropUserMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pOperUser = mgmtGetUserFromConn(rpcMsg->handle);
-  if (pOperUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return ;
-  }
+  int32_t code;
+  SUserObj *pOperUser = pMsg->pUser;
 
-  SCMDropUserMsg *pDrop = rpcMsg->pCont;
+  SCMDropUserMsg *pDrop = pMsg->pCont;
   SUserObj *pUser = mgmtGetUser(pDrop->user);
   if (pUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_USER);
     return ;
   }
 
   if (strcmp(pUser->user, "monitor") == 0 || (strcmp(pUser->user + 1, pUser->acct) == 0 && pUser->user[0] == '_')) {
-    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
-    rpcSendResponse(&rpcRsp);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
     return ;
   }
 
@@ -511,13 +491,13 @@ static void mgmtProcessDropUserMsg(SRpcMsg *rpcMsg) {
   }
 
   if (hasRight) {
-    rpcRsp.code = mgmtDropUser(pUser->pAcct, pDrop->user);
-    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
+    code = mgmtDropUser(pUser->pAcct, pDrop->user);
+    if (code == TSDB_CODE_SUCCESS) {
       mLPrint("user:%s is dropped by %s", pDrop->user, pUser->user);
     }
   } else {
-    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+    code = TSDB_CODE_NO_RIGHTS;
   }
 
-  rpcSendResponse(&rpcRsp);
+  mgmtSendSimpleResp(pMsg->thandle, code);
 }
