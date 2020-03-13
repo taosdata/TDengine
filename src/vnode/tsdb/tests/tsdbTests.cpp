@@ -54,11 +54,11 @@ TEST(TsdbTest, createRepo) {
         tdAppendColVal(row, (void *)(&val), schemaColAt(schema, j));
       }
 
-      pBlock->len += dataRowLen(row);
     }
+    pBlock->len += dataRowLen(row);
 
-    pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
   }
+  pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
 
   tsdbInsertData(pRepo, pMsg);
 }

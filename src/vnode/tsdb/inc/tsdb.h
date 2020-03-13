@@ -101,6 +101,15 @@ typedef struct {
   char     data[];
 } SSubmitBlk;
 
+typedef struct {
+  int32_t  totalLen;
+  int32_t  len;
+  SDataRow row;
+} SSubmitBlkIter;
+
+int      tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
+SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
+
 // Submit message for this TSDB
 typedef struct {
   int32_t    length;
@@ -117,7 +126,7 @@ typedef struct {
   SSubmitBlk *pBlock;
 } SSubmitMsgIter;
 
-int           tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
+int         tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
 SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter);
 
 // the TSDB repository info
