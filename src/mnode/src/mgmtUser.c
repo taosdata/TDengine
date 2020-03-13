@@ -59,7 +59,7 @@ int32_t mgmtInitUsers() {
   SUserObj tObj;
   tsUserUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
-  tsUserSdb = sdbOpenTable(tsMaxUsers, tsUserUpdateSize, "users", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtUserAction);
+  tsUserSdb = sdbOpenTable(tsMaxUsers, tsUserUpdateSize, "users", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtUserAction);
   if (tsUserSdb == NULL) {
     mError("failed to init user data");
     return -1;

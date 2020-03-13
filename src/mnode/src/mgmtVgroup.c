@@ -73,7 +73,7 @@ int32_t mgmtInitVgroups() {
 
   mgmtVgroupActionInit();
 
-  tsVgroupSdb = sdbOpenTable(tsMaxVGroups, tsVgUpdateSize, "vgroups", SDB_KEYTYPE_AUTO, tsMgmtDirectory, mgmtVgroupAction);
+  tsVgroupSdb = sdbOpenTable(tsMaxVGroups, tsVgUpdateSize, "vgroups", SDB_KEYTYPE_AUTO, tsMnodeDir, mgmtVgroupAction);
   if (tsVgroupSdb == NULL) {
     mError("failed to init vgroups data");
     return -1;

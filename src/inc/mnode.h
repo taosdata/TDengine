@@ -263,7 +263,7 @@ void    mgmtStopSystem();
 
 extern char  version[];
 extern void *tsMgmtTmr;
-extern char  tsMgmtDirectory[];
+extern char  tsMnodeDir[];
 
 #ifdef __cplusplus
 }

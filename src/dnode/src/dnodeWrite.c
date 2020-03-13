@@ -76,11 +76,13 @@ int32_t dnodeInitWrite() {
     wWorkerPool.writeWorker[i].workerId = i;
   }
 
+  dPrint("dnode write is opened");
   return 0;
 }
 
 void dnodeCleanupWrite() {
   free(wWorkerPool.writeWorker);
+  dPrint("dnode write is closed");
 }
 
 void dnodeWrite(SRpcMsg *pMsg) {
@@ -145,10 +147,15 @@ void dnodeWrite(SRpcMsg *pMsg) {
 
 void *dnodeAllocateWriteWorker() {
   SWriteWorker *pWorker = wWorkerPool.writeWorker + wWorkerPool.nextId;
+  taos_queue *queue = taosOpenQueue(sizeof(SWriteMsg));
+  if (queue != NULL) return queue;
 
   if (pWorker->qset == NULL) {
     pWorker->qset = taosOpenQset();
     if (pWorker->qset == NULL) return NULL;
+
+    taosAddIntoQset(pWorker->qset, queue);
+    wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
 
     pthread_attr_t thAttr;
     pthread_attr_init(&thAttr);
@@ -158,14 +165,11 @@ void *dnodeAllocateWriteWorker() {
       dError("failed to create thread to process read queue, reason:%s", strerror(errno));
       taosCloseQset(pWorker->qset);
     }
-  }
-
-  taos_queue *queue = taosOpenQueue(sizeof(SWriteMsg));
-  if (queue) {
+  } else {
     taosAddIntoQset(pWorker->qset, queue);
     wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
   }
- 
+
   return queue;
 }
 

@@ -198,7 +198,7 @@ int32_t mgmtInitChildTables() {
   tsChildTableUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
   tsChildTableSdb = sdbOpenTable(tsMaxTables, tsChildTableUpdateSize,
-                                 "ctables", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtChildTableAction);
+                                 "ctables", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtChildTableAction);
   if (tsChildTableSdb == NULL) {
     mError("failed to init child table data");
     return -1;

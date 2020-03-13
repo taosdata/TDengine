@@ -224,7 +224,7 @@ int32_t mgmtInitNormalTables() {
   tsNormalTableUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
   tsNormalTableSdb = sdbOpenTable(tsMaxTables, sizeof(SNormalTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
-                                 "ntables", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtNormalTableAction);
+                                 "ntables", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtNormalTableAction);
   if (tsNormalTableSdb == NULL) {
     mError("failed to init ntables data");
     return -1;

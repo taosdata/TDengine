@@ -60,11 +60,13 @@ int32_t dnodeInitRead() {
   maxThreads = tsNumOfCores*tsNumOfThreadsPerCore;
   if (maxThreads <= minThreads*2) maxThreads = 2*minThreads;
 
+  dPrint("dnode read is opened");
   return 0;
 }
 
 void dnodeCleanupRead() {
   taosCloseQset(readQset);
+  dPrint("dnode read is closed");
 }
 
 void dnodeRead(SRpcMsg *pMsg) {

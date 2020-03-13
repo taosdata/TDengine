@@ -81,7 +81,7 @@ int32_t mgmtInitDbs() {
   SDbObj tObj;
   tsDbUpdateSize = tObj.updateEnd - (char *)&tObj;
 
-  tsDbSdb = sdbOpenTable(tsMaxDbs, tsDbUpdateSize, "dbs", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtDbAction);
+  tsDbSdb = sdbOpenTable(tsMaxDbs, tsDbUpdateSize, "dbs", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtDbAction);
   if (tsDbSdb == NULL) {
     mError("failed to init db data");
     return -1;
