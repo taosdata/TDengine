@@ -16,7 +16,8 @@
 #define _TD_TSDB_FILE_H_
 
 #include <stdint.h>
-// #include "tstring.h"
+
+#include "taosdef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,7 +35,8 @@ typedef enum {
 extern const char *tsdbFileSuffix[];
 
 typedef struct {
-  int64_t fileSize;
+  int64_t size;
+  int64_t tombSize;
 } SFileInfo;
 
 typedef struct {
