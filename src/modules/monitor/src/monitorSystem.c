@@ -154,8 +154,8 @@ void dnodeBuildMonitorSql(char *sql, int cmd) {
   } else if (cmd == MONITOR_CMD_CREATE_MT_DN) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.dn(ts timestamp"
-             ", cpu_taosd float, cpu_system float, cpu_cores int"
-             ", mem_taosd float, mem_system float, mem_total int"
+             ", cpu_"DB_SERVICE_NAME" float, cpu_system float, cpu_cores int"
+             ", mem_"DB_SERVICE_NAME" float, mem_system float, mem_total int"
              ", disk_used float, disk_total int"
              ", band_speed float"
              ", io_read float, io_write float"

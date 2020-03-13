@@ -77,7 +77,7 @@ void taos_init_imp() {
     // For log directory
     if (stat(logDir, &dirstat) < 0) mkdir(logDir, 0755);
 
-    sprintf(temp, "%s/taoslog", logDir);
+    sprintf(temp, "%s/%slog", logDir, DB_CLIENT_NAME);
     if (taosInitLog(temp, tsNumOfLogLines, 10) < 0) {
       printf("failed to open log file in directory:%s\n", logDir);
     }

@@ -33,13 +33,13 @@ void signal_handler(int signum, siginfo_t *sigInfo, void *context) {
     return;
   }
   syslog(LOG_INFO, "Shut down signal is %d", signum);
-  syslog(LOG_INFO, "Shutting down TDengine service...");
+  syslog(LOG_INFO, "Shutting down "DB_FULL_NAME" service...");
   // clean the system.
   dPrint("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
   dnodeCleanUpSystem();
   // close the syslog
-  syslog(LOG_INFO, "Shut down TDengine service successfully");
-  dPrint("TDengine is shut down!");
+  syslog(LOG_INFO, "Shut down "DB_FULL_NAME" service successfully");
+  dPrint("%s is shut down!", DB_FULL_NAME);
   closelog();
   exit(EXIT_SUCCESS);
 }
@@ -92,19 +92,19 @@ int main(int argc, char *argv[]) {
   // sigaction(SIGABRT, &act, NULL);
 
   // Open /var/log/syslog file to record information.
-  openlog("TDengine:", LOG_PID | LOG_CONS | LOG_NDELAY, LOG_LOCAL1);
-  syslog(LOG_INFO, "Starting TDengine service...");
+  openlog(DB_FULL_NAME":", LOG_PID | LOG_CONS | LOG_NDELAY, LOG_LOCAL1);
+  syslog(LOG_INFO, "Starting "DB_FULL_NAME" service...");
 
   // Initialize the system
   if (dnodeInitSystem() < 0) {
-    syslog(LOG_ERR, "Error initialize TDengine system");
+    syslog(LOG_ERR, "Error initialize "DB_FULL_NAME" system");
     closelog();
 
     dnodeCleanUpSystem();
     exit(EXIT_FAILURE);
   }
 
-  syslog(LOG_INFO, "Started TDengine service successfully.");
+  syslog(LOG_INFO, "Started "DB_FULL_NAME" service successfully.");
 
   while (1) {
     sleep(1000);

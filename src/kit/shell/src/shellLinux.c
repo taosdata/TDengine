@@ -29,14 +29,14 @@ struct termios oldtio;
 extern int wcwidth(wchar_t c);
 void insertChar(Command *cmd, char *c, int size);
 const char *argp_program_version = version;
-const char *argp_program_bug_address = "<support@taosdata.com>";
+const char *argp_program_bug_address = "<support@"DB_COMPANY".com>";
 static char doc[] = "";
 static char args_doc[] = "";
 static struct argp_option options[] = {
-  {"host",       'h', "HOST",       0,                   "TDEngine server IP address to connect. The default host is localhost."},
+  {"host",       'h', "HOST",       0,                   DB_FULL_NAME" server IP address to connect. The default host is localhost."},
   {"password",   'p', "PASSWORD",   OPTION_ARG_OPTIONAL, "The password to use when connecting to the server."},
   {"port",       'P', "PORT",       0,                   "The TCP/IP port number to use for the connection."},
-  {"user",       'u', "USER",       0,                   "The TDEngine user name to use when connecting to the server."},
+  {"user",       'u', "USER",       0,                   "The "DB_FULL_NAME" user name to use when connecting to the server."},
   {"config-dir", 'c', "CONFIG_DIR", 0,                   "Configuration directory."},
   {"commands",   's', "COMMANDS",   0,                   "Commands to run without enter the shell."},
   {"raw-time",   'r', 0,            0,                   "Output time as uint64_t."},

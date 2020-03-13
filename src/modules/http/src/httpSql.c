@@ -358,7 +358,7 @@ void httpProcessRequestCb(void *param, TAOS_RES *result, int code) {
     return;
   }
 
-  httpTrace("context:%p, fd:%d, ip:%s, user:%s, connect tdengine success, taos:%p", pContext, pContext->fd,
+  httpTrace("context:%p, fd:%d, ip:%s, user:%s, connect database success, taos:%p", pContext, pContext->fd,
             pContext->ipstr, pContext->user, pContext->taos);
   if (pContext->taos == NULL) {
     httpError("context:%p, fd:%d, ip:%s, user:%s, login error, taos is empty", pContext, pContext->fd, pContext->ipstr,
@@ -384,7 +384,7 @@ void httpProcessRequest(HttpContext *pContext) {
       pContext->reqType == HTTP_REQTYPE_LOGIN) {
     taos_connect_a(NULL, pContext->user, pContext->pass, "", 0, httpProcessRequestCb, (void *)pContext,
                    &(pContext->taos));
-    httpTrace("context:%p, fd:%d, ip:%s, user:%s, try connect tdengine, taos:%p", pContext, pContext->fd,
+    httpTrace("context:%p, fd:%d, ip:%s, user:%s, try connect database, taos:%p", pContext, pContext->fd,
               pContext->ipstr, pContext->user, pContext->taos);
   } else {
     httpAccessSession(pContext);

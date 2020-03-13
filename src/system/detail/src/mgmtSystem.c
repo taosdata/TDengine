@@ -68,7 +68,7 @@ void mgmtCleanUpSystem() {
 }
 
 int mgmtStartSystem() {
-  mPrint("starting to initialize TDengine mgmt ...");
+  mPrint("starting to initialize database mgmt ...");
 
   struct stat dirstat;
   if (stat(mgmtDirectory, &dirstat) < 0) {
@@ -147,7 +147,7 @@ int mgmtStartSystem() {
 
   mgmtStartMgmtTimer();
 
-  mPrint("TDengine mgmt is initialized successfully");
+  mPrint("database mgmt is initialized successfully");
 
   return 0;
 }

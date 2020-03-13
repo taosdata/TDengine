@@ -589,7 +589,7 @@ void tsPrintOsInfo() {
 
 void taosKillSystem() {
   // SIGINT
-  pPrint("taosd will shut down soon");
+  pPrint("%s will shut down soon", DB_SERVICE_NAME);
   kill(tsProcId, 2);
 }
 

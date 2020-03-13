@@ -46,10 +46,10 @@ extern char configDir[];
 
 /* The options we understand. */
 static struct argp_option options[] = {
-  {0, 'h', "host",                     0, "The host to connect to TDEngine. Default is localhost.",                                                           0},
+  {0, 'h', "host",                     0, "The host to connect to "DB_CLIENT_NAME". Default is localhost.",                                                           0},
   {0, 'p', "port",                     0, "The TCP/IP port number to use for the connection. Default is 0.",                                                  1},
-  {0, 'u', "user",                     0, "The TDEngine user name to use when connecting to the server. Default is 'root'.",                                  2},
-  {0, 'a', "password",                 0, "The password to use when connecting to the server. Default is 'taosdata'.",                                        3},
+  {0, 'u', "user",                     0, "The "DB_FULL_NAME" user name to use when connecting to the server. Default is 'root'.",                                  2},
+  {0, 'a', "password",                 0, "The password to use when connecting to the server. Default is '"DB_COMPANY"'.",                                    3},
   {0, 'd', "database",                 0, "Destination database. Default is 'test'.",                                                                         3},
   {0, 'm', "table_prefix",             0, "Table prefix name. Default is 't'.",                                                                               3},
   {0, 'M', 0,                          0, "Use metric flag.",                                                                                                 13},
@@ -272,7 +272,7 @@ int main(int argc, char *argv[]) {
   struct arguments arguments = {NULL,            // host
                                 0,               // port
                                 "root",          // user
-                                "taosdata",      // password
+                                DB_COMPANY,      // password
                                 "test",          // database
                                 "t",             // tb_prefix
                                 false,           // use_metric
@@ -383,7 +383,7 @@ int main(int argc, char *argv[]) {
   taos_init();
   TAOS *taos = taos_connect(ip_addr, user, pass, NULL, port);
   if (taos == NULL) {
-    fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(taos));
+    fprintf(stderr, "Failed to connect to database, reason:%s\n", taos_errstr(taos));
     taos_close(taos);
     return 1;
   }

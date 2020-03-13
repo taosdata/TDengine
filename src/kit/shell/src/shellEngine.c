@@ -26,10 +26,12 @@
 #include <regex.h>
 
 /**************** Global variables ****************/
-char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2017 by TAOS Data, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "taos> ";
-char      CONTINUE_PROMPT[] = "   -> ";
+char      CLIENT_VERSION[] = "Welcome to the " DB_FULL_NAME " shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2017 by " DB_COPYRIGHT ", Inc. All rights reserved.\n\n";
+//char      PROMPT_HEADER[]   = "taos> ";
+//char      CONTINUE_PROMPT[] = "   -> ";
+char      PROMPT_HEADER[16]   = {0};
+char      CONTINUE_PROMPT[16] = {0};
 int       prompt_size = 6;
 TAOS_RES *result = NULL;
 History   history;
@@ -38,6 +40,14 @@ History   history;
  * FUNCTION: Initialize the shell.
  */
 TAOS *shellInit(struct arguments *args) {
+  sprintf(PROMPT_HEADER, "%s> ", DB_CLIENT_NAME);
+  int len = strlen(PROMPT_HEADER);
+  for (int i = 0; i < len - 3; ++i) {
+    CONTINUE_PROMPT[i] = ' ';
+  }
+  strcpy(CONTINUE_PROMPT + len - 3, "-> ");
+  prompt_size = strlen(DB_CLIENT_NAME) + 2;
+
   printf("\n");
   printf(CLIENT_VERSION, osName, taos_get_client_info());
   fflush(stdout);

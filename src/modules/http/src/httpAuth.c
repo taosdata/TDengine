@@ -113,7 +113,7 @@ bool httpGenTaosdAuthToken(HttpContext *pContext, char *token, int maxLen) {
   free(encrypt);
   free(base64);
 
-  httpTrace("context:%p, fd:%d, ip:%s, gen taosd token:%s", pContext, pContext->fd, pContext->ipstr, token);
+  httpTrace("context:%p, fd:%d, ip:%s, gen %s token:%s", pContext, pContext->fd, pContext->ipstr, DB_SERVICE_NAME, token);
 
   return true;
 }

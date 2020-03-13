@@ -283,7 +283,7 @@ void taosGetSystemLocale() {
 void tsPrintOsInfo() {}
 
 void taosKillSystem() {
-  tError("function taosKillSystem, exit!");
+  tError("function %sKillSystem, exit!", DB_CLIENT_NAME);
   exit(0);
 }
 

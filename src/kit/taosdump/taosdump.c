@@ -138,7 +138,7 @@ static int64_t totalDumpOutRows = 0;
 SDbInfo **dbInfos = NULL;
 
 const char *argp_program_version = version;
-const char *argp_program_bug_address = "<support@taosdata.com>";
+const char *argp_program_bug_address = "<support@"DB_COMPANY".com>";
 
 /* Program documentation. */
 static char doc[] = "";
@@ -157,28 +157,28 @@ static char args_doc[] = "dbname [tbname ...]\n--databases dbname ...\n--all-dat
 /* The options we understand. */
 static struct argp_option options[] = {
   // connection option
-  {"host",          'h', "HOST",        0,  "Server host dumping data from. Default is localhost.",        0},
-  {"user",          'u', "USER",        0,  "User name used to connect to server. Default is root.",       0},
-  {"password",      'p', "PASSWORD",    0,  "User password to connect to server. Default is taosdata.",    0},
-  {"port",          'P', "PORT",        0,  "Port to connect",                                             0},
-  {"cversion",      'v', "CVERION",     0,  "client version",                                              0},
+  {"host",          'h', "HOST",        0,  "Server host dumping data from. Default is localhost.",                        0},
+  {"user",          'u', "USER",        0,  "User name used to connect to server. Default is root.",                       0},
+  {"password",      'p', "PASSWORD",    0,  "User password to connect to server. Default is "DB_COMPANY".",                0},
+  {"port",          'P', "PORT",        0,  "Port to connect",                                                             0},
+  {"cversion",      'v', "CVERION",     0,  "client version",                                                              0},
   // input/output file
-  {"outpath",       'o', "OUTPATH",     0,  "Output file path.",                                          1},
-  {"inpath",        'i', "INPATH",      0,  "Input file path.",                                           1},
-  {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.",        1},
-  {"encode",        'e', "ENCODE",      0,  "Input file encoding.",                                       1},
+  {"outpath",       'o', "OUTPATH",     0,  "Output file path.",                                                           1},
+  {"inpath",        'i', "INPATH",      0,  "Input file path.",                                                            1},
+  {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/"DB_CLIENT_NAME"/"DB_CLIENT_NAME".cfg.", 1},
+  {"encode",        'e', "ENCODE",      0,  "Input file encoding.",                                                        1},
   // dump unit options
-  {"all-databases", 'A', 0,             0,  "Dump all databases.",                                         2},
-  {"databases",     'B', 0,             0,  "Dump assigned databases",                                     2},
+  {"all-databases", 'A', 0,             0,  "Dump all databases.",                                                         2},
+  {"databases",     'B', 0,             0,  "Dump assigned databases",                                                     2},
   // dump format options
-  {"schemaonly",    's', 0,             0,  "Only dump schema.",                                           3},
-  {"with-property", 'M', 0,             0,  "Dump schema with properties.",                                3},
-  {"start-time",    'S', "START_TIME",  0,  "Start time to dump.",                                         3},
-  {"end-time",      'E', "END_TIME",    0,  "End time to dump.",                                           3},
-  {"data-batch",    'N', "DATA_BATCH",  0,  "Number of data point per insert statement. Default is 1.",    3},
-  {"table-batch",   'T', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.", 3},
-  {"thread_num",    't', "THREAD_NUM",  0,  "Number of thread for dump in file. Default is 5.",            3},  
-  {"allow-sys",     'a', 0,             0,  "Allow to dump sys database",                                  3},
+  {"schemaonly",    's', 0,             0,  "Only dump schema.",                                                           3},
+  {"with-property", 'M', 0,             0,  "Dump schema with properties.",                                                3},
+  {"start-time",    'S', "START_TIME",  0,  "Start time to dump.",                                                         3},
+  {"end-time",      'E', "END_TIME",    0,  "End time to dump.",                                                           3},
+  {"data-batch",    'N', "DATA_BATCH",  0,  "Number of data point per insert statement. Default is 1.",                    3},
+  {"table-batch",   'T', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.",                 3},
+  {"thread_num",    't', "THREAD_NUM",  0,  "Number of thread for dump in file. Default is 5.",                            3},  
+  {"allow-sys",     'a', 0,             0,  "Allow to dump sys database",                                                  3},
   {0}};
 
 /* Used by main to communicate with parse_opt. */
@@ -337,7 +337,7 @@ struct arguments tsArguments = {
   // connection option
   NULL, 
   "root", 
-  "taosdata", 
+  DB_COMPANY, 
   0,
   "",
   // outpath and inpath
@@ -644,7 +644,7 @@ int taosDumpOut(struct arguments *arguments) {
   /* Connect to server */
   taos = taos_connect(arguments->host, arguments->user, arguments->password, NULL, arguments->port);
   if (taos == NULL) {
-    fprintf(stderr, "failed to connect to TDengine server\n");
+    fprintf(stderr, "failed to connect to database server\n");
     goto _exit_failure;
   }
 
@@ -1457,7 +1457,7 @@ int taosCheckParam(struct arguments *arguments) {
   
   if (arguments->arg_list_len == 0) {
     if ((!arguments->all_databases) && (!arguments->isDumpIn)) {
-      fprintf(stderr, "taosdump requires parameters\n");
+      fprintf(stderr, DB_CLIENT_NAME"dump requires parameters\n");
       return -1;
     }
   }
@@ -2059,7 +2059,7 @@ int taosDumpIn(struct arguments *arguments) {
 
   taos = taos_connect(arguments->host, arguments->user, arguments->password, NULL, arguments->port);
   if (taos == NULL) {
-    fprintf(stderr, "failed to connect to TDengine server\n");
+    fprintf(stderr, "failed to connect to database server\n");
     return -1;
   }
 
