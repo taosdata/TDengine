@@ -56,10 +56,10 @@ int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
   }
 
   if (selectedVnode == -1) {
-    mError("vgroup:%d alloc vnode failed, free vnodes:%d", pVgroup->vgId, pDnode->numOfFreeVnodes);
+    mError("alloc vnode failed, free vnodes:%d", pDnode->numOfFreeVnodes);
     return -1;
   } else {
-    mTrace("vgroup:%d allocate vnode:%d, last allocated vnode:%d", pVgroup->vgId, selectedVnode, lastAllocVode);
+    mTrace("allocate vnode:%d, last allocated vnode:%d", selectedVnode, lastAllocVode);
     pVgroup->vnodeGid[0].vnode = selectedVnode;
     pDnode->lastAllocVnode     = selectedVnode + 1;
     if (pDnode->lastAllocVnode >= pDnode->numOfVnodes) pDnode->lastAllocVnode = 0;

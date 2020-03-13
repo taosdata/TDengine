@@ -76,7 +76,7 @@ static void mgmtProcessMsgFromDnode(SRpcMsg *rpcMsg) {
   if (mgmtProcessDnodeMsgFp[rpcMsg->msgType]) {
     (*mgmtProcessDnodeMsgFp[rpcMsg->msgType])(rpcMsg);
   } else {
-    mError("%s is not processed", taosMsg[rpcMsg->msgType]);
+    mError("%s is not processed in dserver", taosMsg[rpcMsg->msgType]);
   }
 
   rpcFreeCont(rpcMsg->pCont);
@@ -207,22 +207,6 @@ static int mgmtDServerRetrieveAuth(char *user, char *spi, char *encrypt, char *s
 //  if (info->received == pVgroup->numOfVnodes) {
 //    mgmtProcessCreateTable(pVgroup, info->cont, info->contLen, info->thandle, isGetMeta);
 //    free(info);
-//  }
-//}
-//
-//void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
-//  mTrace("vgroup:%d, send create all vnodes msg, ahandle:%p", pVgroup->vgId, ahandle);
-//  for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
-//    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
-//    mgmtSendCreateVnodeMsg(pVgroup, pVgroup->vnodeGid[i].vnode, &ipSet, ahandle);
-//  }
-//}
-//
-//void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle) {
-//  mTrace("vgroup:%d, send create vnode:%d msg, ahandle:%p", pVgroup->vgId, vnode, ahandle);
-//  SMDCreateVnodeMsg *pVpeer = mgmtBuildCreateVnodeMsg(pVgroup, vnode);
-//  if (pVpeer != NULL) {
-//    mgmtSendMsgToDnode(ipSet, TSDB_MSG_TYPE_MD_CREATE_VNODE, pVpeer, sizeof(SMDCreateVnodeMsg), ahandle);
 //  }
 //}
 //

@@ -50,7 +50,9 @@ extern int tscEmbedded;
 extern int64_t tsMsPerDay[2];
 
 extern char configDir[];
-extern char tsDirectory[];
+extern char tsVnodeDir[];
+extern char tsDnodeDir[];
+extern char tsMnodeDir[];
 extern char dataDir[];
 extern char logDir[];
 extern char scriptDir[];
@@ -262,9 +264,6 @@ SGlobalConfig *tsGetConfigOption(const char *option);
 #define TSDB_CFG_VALUE_LEN  41
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
-
-extern char          tsMgmtDirectory[];
-
 
 #ifdef __cplusplus
 }

@@ -34,6 +34,12 @@ char *taosAddIntHash(void *handle, uint64_t key, char *pData);
 
 int32_t taosHashInt(void *handle, uint64_t key);
 
+void taosCleanUpIntHashWithFp(void *handle, void (*fp)(char *));
+
+char *taosVisitIntHashWithFp(void *handle, int (*fp)(char *));
+
+int32_t taosGetIntHashSize(void *handle);
+
 #ifdef __cplusplus
 }
 #endif

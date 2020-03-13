@@ -31,7 +31,6 @@
 #include "mgmtShell.h"
 
 static int32_t mgmtCheckMgmtRunning();
-char tsMgmtDirectory[128] = {0};
 void *tsMgmtTmr = NULL;
 
 int32_t mgmtInitSystem() {
@@ -41,7 +40,7 @@ int32_t mgmtInitSystem() {
   }
 
   struct stat dirstat;
-  bool fileExist  = (stat(tsMgmtDirectory, &dirstat) == 0);
+  bool fileExist  = (stat(tsMnodeDir, &dirstat) == 0);
   bool asMaster = (strcmp(tsMasterIp, tsPrivateIp) == 0);
 
   if (asMaster || fileExist) {
@@ -57,8 +56,8 @@ int32_t mgmtStartSystem() {
   mPrint("starting to initialize TDengine mgmt ...");
 
   struct stat dirstat;
-  if (stat(tsMgmtDirectory, &dirstat) < 0) {
-    mkdir(tsMgmtDirectory, 0755);
+  if (stat(tsMnodeDir, &dirstat) < 0) {
+    mkdir(tsMnodeDir, 0755);
   }
 
   if (mgmtCheckMgmtRunning() != 0) {
@@ -110,7 +109,7 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (sdbInitPeers(tsMgmtDirectory) < 0) {
+  if (sdbInitPeers(tsMnodeDir) < 0) {
     mError("failed to init peers");
     return -1;
   }
@@ -132,7 +131,7 @@ void mgmtStopSystem() {
   }
 
   mgmtCleanUpSystem();
-  remove(tsMgmtDirectory);
+  remove(tsMnodeDir);
 }
 
 void mgmtCleanUpSystem() {

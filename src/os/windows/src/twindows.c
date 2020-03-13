@@ -33,7 +33,7 @@
 #include <Winsock2.h>
 
 char configDir[TSDB_FILENAME_LEN] = "C:/TDengine/cfg";
-char tsDirectory[TSDB_FILENAME_LEN] = "C:/TDengine/data";
+char tsVnodeDir[TSDB_FILENAME_LEN] = "C:/TDengine/data";
 char logDir[TSDB_FILENAME_LEN] = "C:/TDengine/log";
 char dataDir[TSDB_FILENAME_LEN] = "C:/TDengine/data";
 char scriptDir[TSDB_FILENAME_LEN] = "C:/TDengine/script";

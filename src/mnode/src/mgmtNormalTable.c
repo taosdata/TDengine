@@ -224,7 +224,7 @@ int32_t mgmtInitNormalTables() {
   tsNormalTableUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
   tsNormalTableSdb = sdbOpenTable(tsMaxTables, sizeof(SNormalTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
-                                 "ntables", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtNormalTableAction);
+                                 "ntables", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtNormalTableAction);
   if (tsNormalTableSdb == NULL) {
     mError("failed to init ntables data");
     return -1;
@@ -393,7 +393,7 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
 
   *pTableOut = (STableInfo *) pTable;
 
-  mTrace("table:%s, create table in vgroup, vgroup:%d sid:%d vnode:%d uid:%" PRIu64 ,
+  mTrace("table:%s, create ntable in vgroup, vgroup:%d sid:%d vnode:%d uid:%" PRIu64 ,
          pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid);
 
   return TSDB_CODE_SUCCESS;

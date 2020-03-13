@@ -28,22 +28,6 @@ bool mgmtCheckQhandle(uint64_t qhandle);
 void mgmtSaveQhandle(void *qhandle);
 void mgmtFreeQhandle(void *qhandle);
 
-enum {
-  TSDB_PROCESS_CREATE_VGROUP,
-  TSDB_PROCESS_CREATE_VGROUP_GET_META,
-  TSDB_PROCESS_CREATE_TABLE,
-  TSDB_PROCESS_CREATE_TABLE_GET_META,
-};
-
-typedef struct {
-  void    *thandle;  // come from uplayer
-  void    *ahandle;  // object to process
-  void    *cont;     // additional information of object to process
-  int32_t type;      // the type of sync process
-  int32_t received;  // num of received, such as numOfVnodes
-  int32_t contLen;   // the length of additional information
-} SProcessInfo;
-
 #ifdef __cplusplus
 }
 #endif

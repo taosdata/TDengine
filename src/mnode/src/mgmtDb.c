@@ -41,9 +41,9 @@ static int32_t mgmtDropDb(SDbObj *pDb);
 
 static int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static void    mgmtProcessCreateDbMsg(SRpcMsg *rpcMsg);
-static void    mgmtProcessAlterDbMsg(SRpcMsg *rpcMsg);
-static void    mgmtProcessDropDbMsg(SRpcMsg *rpcMsg);
+static void    mgmtProcessCreateDbMsg(SQueuedMsg *pMsg);
+static void    mgmtProcessAlterDbMsg(SQueuedMsg *pMsg);
+static void    mgmtProcessDropDbMsg(SQueuedMsg *pMsg);
 
 static void *(*mgmtDbActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtDbActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
@@ -81,7 +81,7 @@ int32_t mgmtInitDbs() {
   SDbObj tObj;
   tsDbUpdateSize = tObj.updateEnd - (char *)&tObj;
 
-  tsDbSdb = sdbOpenTable(tsMaxDbs, tsDbUpdateSize, "dbs", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtDbAction);
+  tsDbSdb = sdbOpenTable(tsMaxDbs, tsDbUpdateSize, "dbs", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtDbAction);
   if (tsDbSdb == NULL) {
     mError("failed to init db data");
     return -1;
@@ -383,6 +383,7 @@ static void mgmtDropDbFromSdb(SDbObj *pDb) {
 }
 
 static int32_t mgmtDropDb(SDbObj *pDb) {
+
   if (pDb->dropStatus == TSDB_DB_STATUS_DROPPING) {
     bool finished = mgmtCheckDropDbFinished(pDb);
     if (!finished) {
@@ -405,6 +406,7 @@ static int32_t mgmtDropDb(SDbObj *pDb) {
   }
 }
 
+UNUSED_FUNC
 static int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists) {
   SDbObj *pDb = (SDbObj *)sdbGetRow(tsDbSdb, name);
   if (pDb == NULL) {
@@ -904,19 +906,10 @@ void mgmtRemoveTableFromDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfTables, -1);
 }
 
-static void mgmtProcessCreateDbMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
-  if (pUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return;
-  }
-
-  SCMCreateDbMsg *pCreate = (SCMCreateDbMsg *) rpcMsg->pCont;
-
+  SCMCreateDbMsg *pCreate = pMsg->pCont;
   pCreate->maxSessions     = htonl(pCreate->maxSessions);
   pCreate->cacheBlockSize  = htonl(pCreate->cacheBlockSize);
   pCreate->daysPerFile     = htonl(pCreate->daysPerFile);
@@ -928,69 +921,58 @@ static void mgmtProcessCreateDbMsg(SRpcMsg *rpcMsg) {
   pCreate->rowsInFileBlock = htonl(pCreate->rowsInFileBlock);
   // pCreate->cacheNumOfBlocks = htonl(pCreate->cacheNumOfBlocks);
 
+  int32_t code;
   if (mgmtCheckExpired()) {
-    rpcRsp.code = TSDB_CODE_GRANT_EXPIRED;
-  } else if (!pUser->writeAuth) {
-    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+    code = TSDB_CODE_GRANT_EXPIRED;
+  } else if (!pMsg->pUser->writeAuth) {
+    code = TSDB_CODE_NO_RIGHTS;
   } else {
-    rpcRsp.code = mgmtCreateDb(pUser->pAcct, pCreate);
-    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-      mLPrint("DB:%s is created by %s", pCreate->db, pUser->user);
+    code = mgmtCreateDb(pMsg->pUser->pAcct, pCreate);
+    if (code == TSDB_CODE_SUCCESS) {
+      mLPrint("DB:%s is created by %s", pCreate->db, pMsg->pUser->user);
     }
   }
 
-  rpcSendResponse(&rpcRsp);
+  mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
-static void mgmtProcessAlterDbMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
-  if (pUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return;
-  }
-
-  SCMAlterDbMsg *pAlter = (SCMAlterDbMsg *) rpcMsg->pCont;
+  SCMAlterDbMsg *pAlter = pMsg->pCont;
   pAlter->daysPerFile = htonl(pAlter->daysPerFile);
   pAlter->daysToKeep  = htonl(pAlter->daysToKeep);
   pAlter->maxSessions = htonl(pAlter->maxSessions) + 1;
 
-  if (!pUser->writeAuth) {
-    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+  int32_t code;
+  if (!pMsg->pUser->writeAuth) {
+    code = TSDB_CODE_NO_RIGHTS;
   } else {
-    rpcRsp.code = mgmtAlterDb(pUser->pAcct, pAlter);
-    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-      mLPrint("DB:%s is altered by %s", pAlter->db, pUser->user);
+    code = mgmtAlterDb(pMsg->pUser->pAcct, pAlter);
+    if (code == TSDB_CODE_SUCCESS) {
+      mLPrint("DB:%s is altered by %s", pAlter->db, pMsg->pUser->user);
     }
   }
 
-  rpcSendResponse(&rpcRsp);
+  mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
+static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-static void mgmtProcessDropDbMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
-
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
-  if (pUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return ;
-  }
-
-  if (pUser->superAuth) {
-    SCMDropDbMsg *pDrop = rpcMsg->pCont;
-    rpcRsp.code = mgmtDropDbByName(pUser->pAcct, pDrop->db, pDrop->ignoreNotExists);
-    if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-      mLPrint("DB:%s is dropped by %s", pDrop->db, pUser->user);
-    }
+  int32_t code;
+  if (pMsg->pUser->superAuth) {
+    code = TSDB_CODE_OPS_NOT_SUPPORT;
+    //SCMDropDbMsg *pDrop = rpcMsg->pCont;
+    //rpcRsp.code = mgmtDropDbByName(pUser->pAcct, pDrop->db, pDrop->ignoreNotExists);
+    //if (rpcRsp.code == TSDB_CODE_SUCCESS) {
+    //  mLPrint("DB:%s is dropped by %s", pDrop->db, pUser->user);
+    //}
   } else {
-    rpcRsp.code = TSDB_CODE_NO_RIGHTS;
+    code = TSDB_CODE_NO_RIGHTS;
   }
 
-  rpcSendResponse(&rpcRsp);
+  if (code != TSDB_CODE_SUCCESS) {
+    mgmtSendSimpleResp(pMsg->thandle, code);
+  }
 }
