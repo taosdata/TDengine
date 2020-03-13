@@ -14,7 +14,6 @@
  */
 
 #include "os.h"
-#include "sskiplist.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tast.h"

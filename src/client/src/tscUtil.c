@@ -677,7 +677,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
                                 STableDataBlocks** dataBlocks) {
   *dataBlocks = NULL;
 
-  STableDataBlocks** t1 = (STableDataBlocks**)taosGetDataFromHashTable(pHashList, (const char*)&id, sizeof(id));
+  STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pHashList, (const char*)&id, sizeof(id));
   if (t1 != NULL) {
     *dataBlocks = *t1;
   }
@@ -688,7 +688,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
       return ret;
     }
 
-    taosAddToHashTable(pHashList, (const char*)&id, sizeof(int64_t), (char*)dataBlocks, POINTER_BYTES);
+    taosHashPut(pHashList, (const char*)&id, sizeof(int64_t), (char*)dataBlocks, POINTER_BYTES);
     tscAppendDataBlock(pDataBlockList, *dataBlocks);
   }
 
@@ -698,7 +698,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockList) {
   SSqlCmd* pCmd = &pSql->cmd;
 
-  void* pVnodeDataBlockHashList = taosInitHashTable(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+  void* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
   SDataBlockList* pVnodeDataBlockList = tscCreateBlockArrayList();
 
   for (int32_t i = 0; i < pTableDataBlockList->nSize; ++i) {
@@ -710,7 +710,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
                                 tsInsertHeadSize, 0, pOneTableBlock->tableId, pOneTableBlock->pMeterMeta, &dataBuf);
     if (ret != TSDB_CODE_SUCCESS) {
       tscError("%p failed to prepare the data block buffer for merging table data, code:%d", pSql, ret);
-      taosCleanUpHashTable(pVnodeDataBlockHashList);
+      taosHashCleanup(pVnodeDataBlockHashList);
       tscDestroyBlockArrayList(pVnodeDataBlockList);
       return ret;
     }
@@ -728,7 +728,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
       } else {  // failed to allocate memory, free already allocated memory and return error code
         tscError("%p failed to allocate memory for merging submit block, size:%d", pSql, dataBuf->nAllocSize);
 
-        taosCleanUpHashTable(pVnodeDataBlockHashList);
+        taosHashCleanup(pVnodeDataBlockHashList);
         tfree(dataBuf->pData);
         tscDestroyBlockArrayList(pVnodeDataBlockList);
 
@@ -761,7 +761,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
   pCmd->pDataBlocks = pVnodeDataBlockList;
 
   tscFreeUnusedDataBlocks(pCmd->pDataBlocks);
-  taosCleanUpHashTable(pVnodeDataBlockHashList);
+  taosHashCleanup(pVnodeDataBlockHashList);
 
   return TSDB_CODE_SUCCESS;
 }

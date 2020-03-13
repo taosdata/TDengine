@@ -7,8 +7,8 @@
  * MurmurHash algorithm
  *
  */
+#include "hashfunc.h"
 #include "tutil.h"
-#include "hashutil.h"
 
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32 - (r)))
 

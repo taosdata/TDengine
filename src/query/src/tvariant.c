@@ -13,17 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tvariant.h"
 #include "hash.h"
-#include "hashutil.h"
+#include "hashfunc.h"
 #include "os.h"
 #include "shash.h"
+#include "taos.h"
+#include "taosdef.h"
 #include "tstoken.h"
 #include "ttokendef.h"
-#include "taosdef.h"
 #include "tutil.h"
-#include "tvariant.h"
-#include "taosdef.h"
-#include "taos.h"
 
 // todo support scientific expression number and oct number
 void tVariantCreate(tVariant *pVar, SSQLToken *token) { tVariantCreateFromString(pVar, token->z, token->n, token->type); }

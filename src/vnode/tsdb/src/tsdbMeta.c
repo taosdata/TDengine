@@ -124,7 +124,7 @@ int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
     tsdbFreeTable(pTemp);
   }
 
-  taosCleanUpHashTable(pMeta->map);
+  taosHashCleanup(pMeta->map);
 
   free(pMeta);
 
@@ -260,7 +260,7 @@ static int32_t tsdbCheckTableCfg(STableCfg *pCfg) {
 }
 
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
-  void *ptr = taosGetDataFromHashTable(pMeta->map, (char *)(&uid), sizeof(uid));
+  void *ptr = taosHashGet(pMeta->tableMap, (char *)(&uid), sizeof(uid));
 
   if (ptr == NULL) return NULL;
 
@@ -299,7 +299,7 @@ static int tsdbRemoveTableFromMeta(STsdbMeta *pMeta, STable *pTable) {
 static int tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable) {
   // TODO: add the table to the map
   int64_t uid = pTable->tableId.uid;
-  if (taosAddToHashTable(pMeta->map, (char *)(&uid), sizeof(uid), (void *)(&pTable), sizeof(pTable)) < 0) {
+  if (taosHashPut(pMeta->map, (char *)(&uid), sizeof(uid), (void *)(&pTable), sizeof(pTable)) < 0) {
     return -1;
   }
   return 0;

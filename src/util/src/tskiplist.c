@@ -524,6 +524,71 @@ SArray* tSkipListGet(SSkipList *pSkipList, SSkipListKey pKey, int16_t keyType) {
   return sa;
 }
 
+size_t tSkipListGetSize(const SSkipList* pSkipList) {
+  if (pSkipList == NULL) {
+    return 0;
+  }
+  
+  return pSkipList->size;
+}
+
+SSkipListIterator* tSkipListCreateIter(SSkipList *pSkipList) {
+  if (pSkipList == NULL) {
+    return NULL;
+  }
+  
+  SSkipListIterator* iter = calloc(1, sizeof(SSkipListIterator));
+  
+  iter->pSkipList = pSkipList;
+  if (pSkipList->lock) {
+    pthread_rwlock_rdlock(pSkipList->lock);
+  }
+  
+  iter->cur = NULL;
+  iter->num = pSkipList->size;
+  
+  if (pSkipList->lock) {
+    pthread_rwlock_unlock(pSkipList->lock);
+  }
+  
+  return iter;
+}
+
+bool tSkipListIterNext(SSkipListIterator *iter) {
+  if (iter->num == 0 || iter->pSkipList == NULL) {
+    return false;
+  }
+  
+  SSkipList *pSkipList = iter->pSkipList;
+  
+  if (pSkipList->lock) {
+    pthread_rwlock_rdlock(pSkipList->lock);
+  }
+  
+  if (iter->cur == NULL) {
+    iter->cur = SL_GET_FORWARD_POINTER(pSkipList->pHead, 0);
+  } else {
+    iter->cur = SL_GET_FORWARD_POINTER(iter->cur, 0);
+  }
+  
+  if (pSkipList->lock) {
+    pthread_rwlock_unlock(pSkipList->lock);
+  }
+  
+  return iter->cur != NULL;
+}
+
+SSkipListNode *tSkipListIterGet(SSkipListIterator *iter) { return (iter == NULL)? NULL:iter->cur; }
+
+void* tSkipListDestroyIter(SSkipListIterator* iter) {
+  if (iter == NULL) {
+    return NULL;
+  }
+  
+  tfree(iter);
+  return NULL;
+}
+
 // static int32_t tSkipListEndParQuery(SSkipList *pSkipList, SSkipListNode *pStartNode, SSkipListKey *pEndKey,
 //                                    int32_t cond, SSkipListNode ***pRes) {
 //  pthread_rwlock_rdlock(&pSkipList->lock);
