@@ -77,7 +77,6 @@ typedef struct {
   char           *offset;
   int             forwards;
   int             code;
-  pthread_mutex_t mutex;
 } SRecvBuffer;
 
 typedef struct _syncPeer {
@@ -91,11 +90,14 @@ typedef struct _syncPeer {
   void       *hbTimer;
   void       *syncTimer;
   void       *pThread;
+  int         notifyFd;
+  int         watchNum;
+  int        *watchFd;
   int8_t      refCount;   // reference count
-  struct _sync_obj *pSyncObj;
+  struct _sync_node *pSyncNode;
 } SSyncPeer;
 
-typedef struct _sync_obj {
+typedef struct _sync_node {
   char         label[20];
   int8_t       replica;
   int8_t       quorum;
@@ -105,13 +107,24 @@ typedef struct _sync_obj {
   uint32_t   (*getFileInfo)(char *name, int *index, int *size);
   int        (*writeToCache)(void *ahandle, uint64_t version, void *cont, int len);
   int        (*getWalInfo)(char *name, int *index);
+  void       (*notifyStatus)(void *ahandle, int8_t status);
   int8_t       selfIndex;
   int8_t       status;
   SSyncPeer   *peerInfo[TAOS_SYNC_MAX_REPLICA];
   int8_t       refCount;
   SRecvBuffer *pRecv;
-  pthread_mutex_t vmutex;
-} SSyncObj;
+  pthread_mutex_t mutex;
+} SSyncNode;
+
+extern int  tsSyncNum;
+extern int  tsMaxWatchFiles;
+
+void *syncRetrieveData(void *param);
+void *syncRestoreData(void *param);
+int   syncSaveIntoBuffer(SRecvBuffer *pRecv, SSyncHead *pHead);
+void  syncRestartConnection(SSyncPeer *pPeer);
+void  syncBroadcastStatus(SSyncNode *pNode);
+
 
 #ifdef __cplusplus
 }
