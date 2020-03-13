@@ -86,7 +86,7 @@ STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables) {
     return NULL;
   }
 
-  pMeta->map = taosInitHashTable(maxTables * TSDB_META_HASH_FRACTION, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+  pMeta->map = taosHashInit(maxTables * TSDB_META_HASH_FRACTION, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
   if (pMeta->map == NULL) {
     free(pMeta->tables);
     free(pMeta);
@@ -95,7 +95,7 @@ STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables) {
 
   pMeta->mfh = tsdbInitMetaFile(rootDir, maxTables);
   if (pMeta->mfh == NULL) {
-    taosCleanUpHashTable(pMeta->map);
+    taosHashCleanup(pMeta->map);
     free(pMeta->tables);
     free(pMeta);
     return NULL;
@@ -260,7 +260,7 @@ static int32_t tsdbCheckTableCfg(STableCfg *pCfg) {
 }
 
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
-  void *ptr = taosHashGet(pMeta->tableMap, (char *)(&uid), sizeof(uid));
+  void *ptr = taosHashGet(pMeta->map, (char *)(&uid), sizeof(uid));
 
   if (ptr == NULL) return NULL;
 

@@ -42,7 +42,7 @@ SMetaFile *tsdbInitMetaFile(char *rootDir, int32_t maxTables) {
 
   // OPEN MAP
   mfh->map =
-      taosInitHashTable(maxTables * TSDB_META_HASH_FRACTION, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
+      taosHashInit(maxTables * TSDB_META_HASH_FRACTION, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false);
   if (mfh->map == NULL) {
     free(mfh);
     return NULL;
@@ -52,13 +52,13 @@ SMetaFile *tsdbInitMetaFile(char *rootDir, int32_t maxTables) {
   if (access(fname, F_OK) < 0) {  // file not exists
     mfh->fd = tsdbCreateMetaFile(fname);
     if (mfh->fd < 0) {
-      taosCleanUpHashTable(mfh->map);
+      taosHashCleanup(mfh->map);
       free(mfh);
       return NULL;
     }
   } else {  // file exists, recover from file
     if (tsdbRestoreFromMetaFile(fname, mfh) < 0) {
-      taosCleanUpHashTable(mfh->map);
+      taosHashCleanup(mfh->map);
       free(mfh);
       return NULL;
     }
@@ -68,7 +68,7 @@ SMetaFile *tsdbInitMetaFile(char *rootDir, int32_t maxTables) {
 }
 
 int32_t tsdbInsertMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t contLen) {
-  if (taosGetDataFromHashTable(mfh->map, (char *)(&uid), sizeof(uid)) != NULL) {
+  if (taosHashGet(mfh->map, (char *)(&uid), sizeof(uid)) != NULL) {
     return -1;
   }
 
@@ -78,7 +78,7 @@ int32_t tsdbInsertMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t co
 
   mfh->size += (contLen + sizeof(SRecordInfo));
 
-  if (taosAddToHashTable(mfh->map, (char *)(&uid), sizeof(uid), (void *)(&info), sizeof(SRecordInfo)) < 0) {
+  if (taosHashPut(mfh->map, (char *)(&uid), sizeof(uid), (void *)(&info), sizeof(SRecordInfo)) < 0) {
     return -1;
   }
 
@@ -103,13 +103,13 @@ int32_t tsdbInsertMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t co
 }
 
 int32_t tsdbDeleteMetaRecord(SMetaFile *mfh, int64_t uid) {
-  char *ptr = taosGetDataFromHashTable(mfh->map, (char *)(&uid), sizeof(uid));
+  char *ptr = taosHashGet(mfh->map, (char *)(&uid), sizeof(uid));
   if (ptr == NULL) return -1;
 
   SRecordInfo info = *(SRecordInfo *)ptr;
 
   // Remove record from hash table
-  taosDeleteFromHashTable(mfh->map, (char *)(&uid), sizeof(uid));
+  taosHashRemove(mfh->map, (char *)(&uid), sizeof(uid));
 
   // Remove record from file
 
@@ -130,12 +130,12 @@ int32_t tsdbDeleteMetaRecord(SMetaFile *mfh, int64_t uid) {
 }
 
 int32_t tsdbUpdateMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t contLen) {
-  char *ptr = taosGetDataFromHashTable(mfh->map, (char *)(&uid), sizeof(uid));
+  char *ptr = taosHashGet(mfh->map, (char *)(&uid), sizeof(uid));
   if (ptr == NULL) return -1;
 
   SRecordInfo info = *(SRecordInfo *)ptr;
   // Update the hash table
-  if (taosAddToHashTable(mfh->map, (char *)(&uid), sizeof(uid), (void *)(&info), sizeof(SRecordInfo)) < 0) {
+  if (taosHashPut(mfh->map, (char *)(&uid), sizeof(uid), (void *)(&info), sizeof(SRecordInfo)) < 0) {
     return -1;
   }
 
@@ -166,7 +166,7 @@ void tsdbCloseMetaFile(SMetaFile *mfh) {
   if (mfh == NULL) return;
   close(mfh);
 
-  taosCleanUpHashTable(mfh->map);
+  taosHashCleanup(mfh->map);
 }
 
 static int32_t tsdbGetMetaFileName(char *rootDir, char *fname) {
