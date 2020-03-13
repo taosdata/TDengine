@@ -621,7 +621,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   }
 
   pNode->level = level;
-  tdDataRowCpy(SL_GET_NODE_DATA(pNode), row);
+  dataRowCpy(SL_GET_NODE_DATA(pNode), row);
 
   // Insert the skiplist node into the data
   tsdbInsertRowToTableImpl(pNode, pTable);

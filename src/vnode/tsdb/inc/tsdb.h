@@ -96,7 +96,7 @@ typedef struct {
   STableId tableId;
   int32_t  padding;    // TODO just for padding here
   int32_t  sversion;   // data schema version
-  int32_t  len;        // message length
+  int32_t  len;        // data part length, not including the SSubmitBlk head
   char     data[];
 } SSubmitBlk;
 

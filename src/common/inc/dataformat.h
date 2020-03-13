@@ -69,31 +69,35 @@ void      tdUpdateSchema(STSchema *pSchema);
 // ----------------- Data row structure
 
 /* A data row, the format is like below:
- * +---------+---------------------------------+
- * | int32_t |                                 |
- * +---------+---------------------------------+
- * |   len   |                row              |
- * +---------+---------------------------------+
+ * +----------+---------+---------------------------------+---------------------------------+
+ * | int32_t  | int32_t |                                 |                                 |
+ * +----------+---------+---------------------------------+---------------------------------+
+ * |   len    |  flen   |           First part            |             Second part         |
+ * +----------+---------+---------------------------------+---------------------------------+
+ * plen: first part length
  * len: the length including sizeof(row) + sizeof(len)
  * row: actual row data encoding
  */
 typedef void *SDataRow;
 
-#define TD_DATA_ROW_HEAD_SIZE sizeof(int32_t)
+#define TD_DATA_ROW_HEAD_SIZE (2 * sizeof(int32_t))
 
 #define dataRowLen(r) (*(int32_t *)(r))
+#define dataRowFLen(r) (*(int32_t *)((char *)(r) + sizeof(int32_t)))
 #define dataRowTuple(r) ((char *)(r) + TD_DATA_ROW_HEAD_SIZE)
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
+#define dataRowSetFLen(r, l) (dataRowFLen(r) = (l))
 #define dataRowIdx(r, i) ((char *)(r) + i)
 #define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
+#define dataRowAt(r, idx) ((char *)(r) + (idx))
 
-SDataRow tdNewDataRow(int32_t bytes);
+void     tdInitDataRow(SDataRow row, STSchema *pSchema);
 int      tdMaxRowBytesFromSchema(STSchema *pSchema);
+SDataRow tdNewDataRow(int32_t bytes, STSchema *pSchema);
 SDataRow tdNewDataRowFromSchema(STSchema *pSchema);
 void     tdFreeDataRow(SDataRow row);
-int      tdAppendColVal(SDataRow row, void *value, STColumn *pCol, int32_t suffixOffset);
-void     tdDataRowCpy(void *dst, SDataRow row);
-void     tdDataRowReset(SDataRow row);
+int      tdAppendColVal(SDataRow row, void *value, STColumn *pCol);
+void     tdDataRowReset(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
 
 /* Data rows definition, the format of it is like below:

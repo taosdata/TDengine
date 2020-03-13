@@ -32,15 +32,29 @@ TEST(TsdbTest, createRepo) {
 
   tsdbCreateTable(pRepo, &tCfg);
 
-  // 3. Loop to write some simple data
-  // int         size = tdMaxRowBytesFromSchema(schema);
-  // int         nrows = 100;
-  // SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk+ size * nrows);
+  // // 3. Loop to write some simple data
+  // int nRows = 10;
+  // SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * nRows);
 
-  // {
-  //   // TODO
+  // SSubmitBlk *pBlock = pMsg->blocks;
+  // pBlock->tableId = {.uid = 987607499877672L, .tid = 0};
+  // pBlock->sversion = 0;
+  // pBlock->len = 0;
+  // int64_t start_time = 1584081000000;
+  // for (int i = 0; i < nRows; i++) {
+  //   int64_t ttime = start_time + 1000 * i;
+  //   SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
+  //   dataRowInit(row);
+
+  //   for (int j; j < schemaNCols(schema); j++) {
+  //     if (j == 0) { // Just for timestamp
+  //       tdAppendColVal(row, (void *)(&time), schemaColAt(schema, i), );
+  //     } else { // For int
+
+  //     }
+  //   }
+
+  //   pBlock->len += dataRowLen(row);
   // }
-
-  // tsdbInsertData(pRepo, pMsg);
 }
 
