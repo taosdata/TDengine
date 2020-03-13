@@ -238,11 +238,20 @@ typedef struct SSchema {
 } SSchema;
 
 typedef struct {
+  int32_t  vgId;
   int32_t  vnode;  //the index of vnode
   uint32_t ip;
 } SVnodeDesc;
 
 typedef struct {
+  int32_t contLen;
+  int32_t vgId;
+} SWriteMsgHead;
+
+typedef struct {
+  int32_t    contLen;
+  int32_t    vgId;
+
   int8_t     tableType;
   int16_t    numOfColumns;
   int16_t    numOfTags;
@@ -250,7 +259,6 @@ typedef struct {
   int32_t    sversion;
   int32_t    tagDataLen;
   int32_t    sqlDataLen;
-  int32_t    contLen;
   int32_t    numOfVPeers;
   uint64_t   uid;
   uint64_t   superTableUid;
@@ -336,6 +344,7 @@ typedef struct {
 } SMgmtHead;
 
 typedef struct {
+  int32_t    vgId;
   int32_t    sid;
   int32_t    numOfVPeers;
   uint64_t   uid;

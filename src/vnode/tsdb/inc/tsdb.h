@@ -42,6 +42,7 @@ typedef enum {
 
 typedef struct {
   int8_t  precision;
+  int32_t vgId;
   int32_t tsdbId;
   int32_t maxTables;            // maximum number of tables this repository can have
   int32_t daysPerFile;          // day per file sharding policy

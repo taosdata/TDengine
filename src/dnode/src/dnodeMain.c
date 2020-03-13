@@ -226,20 +226,18 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 
 static int32_t dnodeInitStorage() {
   struct stat dirstat;
-  strcpy(tsDirectory, dataDir);
   if (stat(dataDir, &dirstat) < 0) {
     mkdir(dataDir, 0755);
   }
 
-  char fileName[128];
-  sprintf(fileName, "%s/tsdb", tsDirectory);
-  mkdir(fileName, 0755);
-  sprintf(fileName, "%s/data", tsDirectory);
-  mkdir(fileName, 0755);
-  sprintf(tsMgmtDirectory, "%s/mgmt", tsDirectory);
-  sprintf(tsDirectory, "%s/tsdb", dataDir);
+  sprintf(tsMnodeDir, "%s/mnode", dataDir);
+  sprintf(tsVnodeDir, "%s/vnode", dataDir);
+  sprintf(tsDnodeDir, "%s/dnode", dataDir);
+  mkdir(tsMnodeDir, 0755);
+  mkdir(tsVnodeDir, 0755);
+  mkdir(tsDnodeDir, 0755);
 
-  dnodeCheckDataDirOpenned(dataDir);
+  dnodeCheckDataDirOpenned(tsDnodeDir);
 
   dPrint("storage directory is initialized");
   return 0;

@@ -43,7 +43,7 @@ static int32_t mgmtGetConfigMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn
 static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static void    mgmtProcessCfgDnodeMsg(SRpcMsg *rpcMsg);
+static void    mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg);
 
 void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
   int32_t maxVnodes = pDnode->numOfCores * tsNumOfVnodesPerCore;
@@ -93,7 +93,7 @@ void mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes, int32_t vgId) {
       memset(pVload, 0, sizeof(SVnodeLoad));
       pVload->vnode = vnodeGid[i].vnode;
       pVload->vgId = vgId;
-      mTrace("dnode:%s, vnode:%d add to vgroup:%d", taosIpStr(vnodeGid[i].ip), vnodeGid[i].vnode, pVload->vgId);
+      mTrace("dnode:%s, vnode:%d add to vgroup:%d", taosIpStr(pDnode->privateIp), vnodeGid[i].vnode, pVload->vgId);
       mgmtCalcNumOfFreeVnodes(pDnode);
     } else {
       mError("dnode:%s, not in dnode DB!!!", taosIpStr(vnodeGid[i].ip));
@@ -527,21 +527,14 @@ bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) {
   return pDnode->status == TSDB_DN_STATUS_OFFLINE;
 }
 
-void mgmtProcessCfgDnodeMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
+  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
-  if (pUser == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_USER;
-    rpcSendResponse(&rpcRsp);
-    return;
-  }
-
-  SCMCfgDnodeMsg *pCmCfgDnode = (SCMCfgDnodeMsg *) rpcMsg->pCont;
+  SCMCfgDnodeMsg *pCmCfgDnode = pMsg->pCont;
   uint32_t dnodeIp = inet_addr(pCmCfgDnode->ip);
 
-  if (strcmp(pUser->pAcct->user, "root") != 0) {
+  if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
     rpcRsp.code = TSDB_CODE_NO_RIGHTS;
   } else {
     SRpcIpSet ipSet = mgmtGetIpSetFromIp(dnodeIp);
@@ -560,7 +553,7 @@ void mgmtProcessCfgDnodeMsg(SRpcMsg *rpcMsg) {
   }
 
   if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-    mTrace("dnode:%s is configured by %s", pCmCfgDnode->ip, pUser->user);
+    mTrace("dnode:%s is configured by %s", pCmCfgDnode->ip, pMsg->pUser->user);
   }
 
   rpcSendResponse(&rpcRsp);

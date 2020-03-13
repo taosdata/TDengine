@@ -26,7 +26,7 @@ typedef struct {
   IHashNode **hashList;
   int32_t     maxSessions;
   int32_t     dataSize;
-  int32_t (*hashFp)(void *, uint64_t key);
+  int32_t   (*hashFp)(void *, uint64_t key);
   pthread_mutex_t mutex;
 } IHashObj;
 
@@ -185,4 +185,94 @@ void taosCleanUpIntHash(void *handle) {
 
   memset(pObj, 0, sizeof(IHashObj));
   free(pObj);
+}
+
+
+void taosCleanUpIntHashWithFp(void *handle, void (*fp)(char *)) {
+  IHashObj * pObj;
+  IHashNode *pNode, *pNext;
+
+  pObj = (IHashObj *)handle;
+  if (pObj == NULL || pObj->maxSessions <= 0) return;
+
+  pthread_mutex_lock(&pObj->mutex);
+
+  if (pObj->hashList) {
+    for (int i = 0; i < pObj->maxSessions; ++i) {
+      pNode = pObj->hashList[i];
+      while (pNode) {
+        pNext = pNode->next;
+        if (fp != NULL) fp(pNode->data);
+        free(pNode);
+        pNode = pNext;
+      }
+    }
+
+    free(pObj->hashList);
+  }
+
+  pthread_mutex_unlock(&pObj->mutex);
+
+  pthread_mutex_destroy(&pObj->mutex);
+
+  memset(pObj, 0, sizeof(IHashObj));
+  free(pObj);
+}
+
+char *taosVisitIntHashWithFp(void *handle, int (*fp)(char *)) {
+  IHashObj * pObj;
+  IHashNode *pNode, *pNext;
+  char *     pData = NULL;
+
+  pObj = (IHashObj *)handle;
+  if (pObj == NULL || pObj->maxSessions <= 0) return NULL;
+
+  pthread_mutex_lock(&pObj->mutex);
+
+  if (pObj->hashList) {
+    for (int i = 0; i < pObj->maxSessions; ++i) {
+      pNode = pObj->hashList[i];
+      while (pNode) {
+        pNext = pNode->next;
+        int flag = fp(pNode->data);
+        if (flag) {
+          pData = pNode->data;
+          goto VisitEnd;
+        }
+
+        pNode = pNext;
+      }
+    }
+  }
+
+VisitEnd:
+
+  pthread_mutex_unlock(&pObj->mutex);
+  return pData;
+}
+
+int32_t taosGetIntHashSize(void *handle) {
+  IHashObj * pObj;
+  IHashNode *pNode, *pNext;
+  char *     pData = NULL;
+  int32_t    num = 0;
+
+  pObj = (IHashObj *)handle;
+  if (pObj == NULL || pObj->maxSessions <= 0) return NULL;
+
+  pthread_mutex_lock(&pObj->mutex);
+
+  if (pObj->hashList) {
+    for (int i = 0; i < pObj->maxSessions; ++i) {
+      pNode = pObj->hashList[i];
+      while (pNode) {
+        pNext = pNode->next;
+        num++;
+        pNode = pNext;
+      }
+    }
+  }
+
+  pthread_mutex_unlock(&pObj->mutex);
+  return num;
 }

@@ -76,35 +76,43 @@ int32_t dnodeInitWrite() {
     wWorkerPool.writeWorker[i].workerId = i;
   }
 
+  dPrint("dnode write is opened");
   return 0;
 }
 
 void dnodeCleanupWrite() {
   free(wWorkerPool.writeWorker);
+  dPrint("dnode write is closed");
 }
 
 void dnodeWrite(SRpcMsg *pMsg) {
+  int32_t     queuedMsgNum = 0;
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
-  int32_t     contLen      = 0;
-  int32_t     numOfVnodes  = 0;
-  int32_t     vgId         = 0;
   SRpcContext *pRpcContext = NULL;
 
-  // parse head, get number of vnodes;
+  int32_t numOfVnodes = 0;
+  if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
+    // TODO parse head, get number of vnodes;
+    numOfVnodes = 1;
+  } else {
+    numOfVnodes = 1;
+  }
 
-  if ( numOfVnodes > 1) {
+  if (numOfVnodes > 1) {
     pRpcContext = calloc(sizeof(SRpcContext), 1);
     pRpcContext->numOfVnodes = numOfVnodes;
   }
 
   while (leftLen > 0) {
-    // todo: parse head, get vgId, contLen
+    SWriteMsgHead *pHead = (SWriteMsgHead *) pCont;
+    int32_t vgId    = htonl(pHead->vgId);
+    int32_t contLen = htonl(pHead->contLen);
 
-    // get pVnode from vgId
     void *pVnode = dnodeGetVnode(vgId);
     if (pVnode == NULL) {
-
+      leftLen -= contLen;
+      pCont -= contLen;
       continue;
     }
    
@@ -118,19 +126,36 @@ void dnodeWrite(SRpcMsg *pMsg) {
  
     taos_queue queue = dnodeGetVnodeWworker(pVnode);
     taosWriteQitem(queue, &writeMsg);
- 
+
     // next vnode 
     leftLen -= contLen;
-    pCont -= contLen; 
+    pCont -= contLen;
+    queuedMsgNum++;
+  }
+
+  if (queuedMsgNum == 0) {
+    SRpcMsg rpcRsp = {
+      .handle  = pMsg->handle,
+      .pCont   = NULL,
+      .contLen = 0,
+      .code    = TSDB_CODE_INVALID_VGROUP_ID,
+      .msgType = 0
+    };
+    rpcSendResponse(&rpcRsp);
   }
 }
 
 void *dnodeAllocateWriteWorker() {
   SWriteWorker *pWorker = wWorkerPool.writeWorker + wWorkerPool.nextId;
+  taos_queue *queue = taosOpenQueue(sizeof(SWriteMsg));
+  if (queue != NULL) return queue;
 
   if (pWorker->qset == NULL) {
     pWorker->qset = taosOpenQset();
     if (pWorker->qset == NULL) return NULL;
+
+    taosAddIntoQset(pWorker->qset, queue);
+    wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
 
     pthread_attr_t thAttr;
     pthread_attr_init(&thAttr);
@@ -140,14 +165,11 @@ void *dnodeAllocateWriteWorker() {
       dError("failed to create thread to process read queue, reason:%s", strerror(errno));
       taosCloseQset(pWorker->qset);
     }
-  }
-
-  taos_queue *queue = taosOpenQueue(sizeof(SWriteMsg));
-  if (queue) {
+  } else {
     taosAddIntoQset(pWorker->qset, queue);
     wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
   }
- 
+
   return queue;
 }
 

@@ -165,7 +165,7 @@ int32_t mgmtInitSuperTables() {
   mgmtSuperTableActionInit();
 
   tsSuperTableSdb = sdbOpenTable(tsMaxTables, tsSuperTableUpdateSize + sizeof(SSchema) * TSDB_MAX_COLUMNS,
-                          "stables", SDB_KEYTYPE_STRING, tsMgmtDirectory, mgmtSuperTableAction);
+                          "stables", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtSuperTableAction);
   if (tsSuperTableSdb == NULL) {
     mError("failed to init stables data");
     return -1;
