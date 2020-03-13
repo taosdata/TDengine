@@ -350,11 +350,13 @@ void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
 
 int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   if (pRes->tsrow == NULL) {
-    int32_t numOfOutputCols = pQueryInfo->fieldsInfo.numOfOutputCols;
-    pRes->numOfCols = numOfOutputCols;
+    int32_t numOfColumns = pQueryInfo->exprsInfo.numOfExprs;
+    assert(numOfColumns >= pQueryInfo->fieldsInfo.numOfOutputCols);
+    
+    pRes->numOfCols = numOfColumns;
   
-    pRes->tsrow = calloc(POINTER_BYTES, numOfOutputCols);
-    pRes->buffer = calloc(POINTER_BYTES, numOfOutputCols);
+    pRes->tsrow = calloc(POINTER_BYTES, numOfColumns);
+    pRes->buffer = calloc(POINTER_BYTES, numOfColumns);
   
     // not enough memory
     if (pRes->tsrow == NULL || (pRes->buffer == NULL && pRes->numOfCols > 0)) {
@@ -370,8 +372,8 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 }
 
 void tscDestroyResPointerInfo(SSqlRes* pRes) {
+  // free all buffers containing the multibyte string
   if (pRes->buffer != NULL) {
-    // free all buffers containing the multibyte string
     for (int i = 0; i < pRes->numOfCols; i++) {
       tfree(pRes->buffer[i]);
     }
@@ -946,6 +948,7 @@ void tscFieldInfoCopy(SFieldInfo* src, SFieldInfo* dst, const int32_t* indexList
       tscFieldInfoSetValFromField(dst, i, &src->pFields[indexList[i]]);
       dst->pVisibleCols[i] = src->pVisibleCols[indexList[i]];
       dst->pSqlExpr[i] = src->pSqlExpr[indexList[i]];
+      dst->pExpr[i] = src->pExpr[indexList[i]];
     }
   }
 }
@@ -2004,8 +2007,16 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
         indexList[j++] = i;
       }
     }
+    
+    // create the fields info from the sql functions
+    SColumnList columnList = {.num = 1};
+  
+    for(int32_t k = 0; k < numOfOutputCols; ++k) {
+      SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, indexList[k]);
+      columnList.ids[0] = (SColumnIndex){.tableIndex = tableIndex, .columnIndex = pExpr->colInfo.colIdx};
+      insertResultField(pNewQueryInfo, k, &columnList, pExpr->resBytes, pExpr->resType, pExpr->aliasName, pExpr);
+    }
 
-    tscFieldInfoCopy(&pQueryInfo->fieldsInfo, &pNewQueryInfo->fieldsInfo, indexList, numOfOutputCols);
     free(indexList);
   
     //     make sure the the sqlExpr for each fields is correct

@@ -1776,6 +1776,11 @@ static int32_t getNextQualifiedWindow(SQueryRuntimeEnv *pRuntimeEnv, STimeWindow
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   while (1) {
+    if ((pNextWin->ekey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
+        (pNextWin->skey < pQuery->ekey && !QUERY_IS_ASC_QUERY(pQuery))) {
+      return -1;
+    }
+    
     getNextTimeWindow(pQuery, pNextWin);
 
     if (pWindowResInfo->startTime > pNextWin->skey || (pNextWin->skey > pQuery->ekey && QUERY_IS_ASC_QUERY(pQuery)) ||

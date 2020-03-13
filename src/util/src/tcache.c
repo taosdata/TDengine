@@ -249,11 +249,6 @@ static void taosClearCacheTrash(SCacheObj *pObj, bool force) {
   SDataNode *pNode = pObj->pTrash;
 
   while (pNode) {
-    if (pNode->refCount < 0) {
-      pError("key:%s %p in trash released more than referenced, removed", pNode->key, pNode);
-      pNode->refCount = 0;
-    }
-
     if (pNode->next == pNode) {
       pNode->next = NULL;
     }
