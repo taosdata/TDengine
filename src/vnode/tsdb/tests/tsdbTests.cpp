@@ -46,12 +46,12 @@ TEST(TsdbTest, createRepo) {
     SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
     tdInitDataRow(row, schema);
 
-    for (int j; j < schemaNCols(schema); j++) {
+    for (int j = 0; j < schemaNCols(schema); j++) {
       if (j == 0) { // Just for timestamp
-        tdAppendColVal(row, (void *)(&time), schemaColAt(schema, i));
+        tdAppendColVal(row, (void *)(&time), schemaColAt(schema, j));
       } else { // For int
         int val = 10;
-        tdAppendColVal(row, (void *)(&val), schemaColAt(schema, i));
+        tdAppendColVal(row, (void *)(&val), schemaColAt(schema, j));
       }
 
       pBlock->len += dataRowLen(row);
