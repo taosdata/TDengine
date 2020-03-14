@@ -358,8 +358,9 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
 
   pTable->nextColId = 0;
   for (int32_t col = 0; col < pCreate->numOfColumns; col++) {
-    SSchema *tschema   = (SSchema *) pTable->schema;
+    SSchema *tschema   = pTable->schema;
     tschema[col].colId = pTable->nextColId++;
+    tschema[col].bytes = pTable->schema[col].bytes;
   }
 
   pTable->sqlLen = pCreate->sqlLen;

@@ -235,9 +235,10 @@ int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
   memcpy(pStable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
   pStable->nextColId = 0;
-  for (int32_t col = 0; col < pStable->numOfColumns; col++) {
+  for (int32_t col = 0; col < numOfCols; col++) {
     SSchema *tschema = pStable->schema;
     tschema[col].colId = pStable->nextColId++;
+    tschema[col].bytes = htons(tschema[col].bytes);
   }
 
   if (sdbInsertRow(tsSuperTableSdb, pStable, 0) < 0) {

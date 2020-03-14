@@ -322,25 +322,38 @@ static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
   pTable->createdTime   = htobe64(pTable->createdTime);
   SSchema *pSchema = (SSchema *) pTable->data;
 
+  int totalCols = pTable->numOfColumns + pTable->numOfTags;
+  for (int i = 0; i < totalCols; i++) {
+    pSchema[i].colId = htons(pSchema[i].colId);
+    pSchema[i].bytes = htons(pSchema[i].bytes);
+  }
+
   STableCfg tCfg;
   tsdbInitTableCfg(&tCfg, pTable->tableType, pTable->uid, pTable->sid);
 
   STSchema *pDestSchema = tdNewSchema(pTable->numOfColumns);
   for (int i = 0; i < pTable->numOfColumns; i++) {
-    tdSchemaAppendCol(pDestSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
+    tdSchemaAppendCol(pDestSchema, pSchema[i].type, pSchema[i].colId, pSchema[i].bytes);
   }
   tsdbTableSetSchema(&tCfg, pDestSchema, false);
 
-  if (pTable->numOfTags != NULL) {
+  if (pTable->numOfTags != 0) {
     STSchema *pDestTagSchema = tdNewSchema(pTable->numOfTags);
-    for (int i = pTable->numOfColumns; i < pTable->numOfColumns + pTable->numOfTags; i++) {
-      tdSchemaAppendCol(pDestTagSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
+    for (int i = pTable->numOfColumns; i < totalCols; i++) {
+      tdSchemaAppendCol(pDestTagSchema, pSchema[i].type, pSchema[i].colId, pSchema[i].bytes);
     }
     tsdbTableSetSchema(&tCfg, pDestTagSchema, false);
-  }
 
-  if (pTable->tableType == TSDB_CHILD_TABLE) {
     // TODO: add data row
+    char *pTagData = pTable->data + totalCols * sizeof(SSchema);
+    int accumBytes = 0;
+    SDataRow dataRow = tdNewDataRowFromSchema(pDestTagSchema);
+
+    for (int i = 0; i < pTable->numOfTags; i++) {
+      tdAppendColVal(dataRow, pTagData + accumBytes, pDestTagSchema->columns + i);
+      accumBytes += pSchema[i + pTable->numOfColumns].bytes;
+    }
+    tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
   rpcRsp.code = tsdbCreateTable(pTsdb, &tCfg);
