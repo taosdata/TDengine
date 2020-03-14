@@ -38,7 +38,6 @@ int     initialized = 0;
 int     slaveIndex;
 void *  tscTmr;
 void *  tscQhandle;
-void *  tscConnCache;
 void *  tscCheckDiskUsageTmr;
 int     tsInsertHeadSize;
 
@@ -187,8 +186,6 @@ void taos_init_imp() {
   refreshTime = refreshTime < 1 ? 1 : refreshTime;
 
   if (tscCacheHandle == NULL) tscCacheHandle = taosCacheInit(tscTmr, refreshTime);
-
-  tscConnCache = taosOpenConnCache(tsMaxMeterConnections * 2, NULL/*taosCloseRpcConn*/, tscTmr, tsShellActivityTimer * 1000);
 
   initialized = 1;
   tscTrace("client is initialized successfully");

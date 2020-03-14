@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "textbuffer.h"
+#include "qextbuffer.h"
 
 typedef struct SIDList {
   uint32_t alloc;

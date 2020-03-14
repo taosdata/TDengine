@@ -20,6 +20,10 @@
 extern "C" {
 #endif
 
+#include "os.h"
+#include "taosdef.h"
+#include "qextbuffer.h"
+
 typedef struct SInterpolationInfo {
   int64_t startTimestamp;
   int32_t order;                // order [asc/desc]

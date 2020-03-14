@@ -16,7 +16,7 @@
 #ifndef TDENGINE_TPERCENTILE_H
 #define TDENGINE_TPERCENTILE_H
 
-#include "textbuffer.h"
+#include "qextbuffer.h"
 
 typedef struct MinMaxEntry {
   union {

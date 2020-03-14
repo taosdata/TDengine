@@ -16,13 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#include "tast.h"
+#include "qast.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "vnode.h"
 #include "vnodeDataFilterFunc.h"
-#include "vnodeUtil.h"
 #include "vnodeStatus.h"
+#include "vnodeUtil.h"
 
 int vnodeCheckFileIntegrity(FILE* fp) {
   /*

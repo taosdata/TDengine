@@ -16,11 +16,11 @@
 #include "hash.h"
 #include "hashfunc.h"
 #include "os.h"
+#include "qextbuffer.h"
 #include "taosmsg.h"
-#include "textbuffer.h"
 #include "ttime.h"
 
-#include "tinterpolation.h"
+#include "qinterpolation.h"
 #include "tscJoinProcess.h"
 #include "tscSecondaryMerge.h"
 #include "tscompression.h"

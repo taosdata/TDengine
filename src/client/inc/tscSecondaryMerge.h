@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
+#include "qextbuffer.h"
+#include "qinterpolation.h"
 #include "taosmsg.h"
-#include "textbuffer.h"
-#include "tinterpolation.h"
 #include "tlosertree.h"
 #include "tsclient.h"
 

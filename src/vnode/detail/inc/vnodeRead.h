@@ -21,9 +21,9 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "tresultBuf.h"
+#include "qresultBuf.h"
 
-#include "tinterpolation.h"
+#include "qinterpolation.h"
 #include "vnodeTagMgmt.h"
 
 /*

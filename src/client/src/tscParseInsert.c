@@ -1314,11 +1314,10 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
      * the error handle callback function can rightfully restore the user defined function (fp)
      */
     if (pSql->fp != NULL && multiVnodeInsertion) {
-      assert(pSql->fetchFp == NULL);
       pSql->fetchFp = pSql->fp;
 
       // replace user defined callback function with multi-insert proxy function
-      pSql->fp = tscAsyncInsertMultiVnodesProxy;
+      pSql->fp = (void(*)())launchMultivnodeInsert;
     }
 
     ret = tsParseInsertSql(pSql);
