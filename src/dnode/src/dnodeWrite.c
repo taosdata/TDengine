@@ -291,13 +291,13 @@ static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
 
 static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
   SMDCreateTableMsg *pTable = pMsg->rpcMsg.pCont;
-  dTrace("start to create table:%s in vgroup:%d", pTable->tableId, pTable->vgId);
+  dTrace("table:%s, start to create in dnode, vgroup:%d", pTable->tableId, pTable->vgId);
 
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   void *pVnode = dnodeGetVnode(pTable->vgId);
   if (pVnode == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_VGROUP_ID;
-    dTrace("failed to create table:%s in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
+    dTrace("table:%s, failed to create in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
     rpcSendResponse(&rpcRsp);
     return;
   }
@@ -306,7 +306,7 @@ static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
   if (pTsdb == NULL) {
     dnodeReleaseVnode(pVnode);
     rpcRsp.code = TSDB_CODE_NOT_ACTIVE_VNODE;
-    dTrace("failed to create table:%s in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
+    dTrace("table:%s, failed to create in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
     rpcSendResponse(&rpcRsp);
     return;
   }
@@ -347,10 +347,10 @@ static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
   dnodeReleaseVnode(pVnode);
 
   if (rpcRsp.code != TSDB_CODE_SUCCESS) {
-    dError("failed to create table:%s in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
+    dError("table:%s, failed to create in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
     rpcSendResponse(&rpcRsp);
   } else {
-    dTrace("create table:%s in vgroup:%d finished", pTable->tableId, pTable->vgId);
+    dTrace("table:%s, created in dnode", pTable->tableId);
     rpcSendResponse(&rpcRsp);
   }
 }

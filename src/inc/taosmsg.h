@@ -177,15 +177,6 @@ enum _mgmt_table {
 
 #define TSDB_KILL_MSG_LEN              30
 
-typedef enum {
-  TSDB_TABLE_TYPE_SUPER_TABLE        = 0,  // super table
-  TSDB_TABLE_TYPE_CHILD_TABLE        = 1,  // table created from super table
-  TSDB_TABLE_TYPE_NORMAL_TABLE       = 2,  // ordinary table
-  TSDB_TABLE_TYPE_STREAM_TABLE       = 3,  // table created from stream computing
-  TSDB_TABLE_TYPE_MAX                = 4
-} ETableType;
-
-
 #define TSDB_VN_READ_ACCCESS  ((char)0x1)
 #define TSDB_VN_WRITE_ACCCESS ((char)0x2)
 #define TSDB_VN_ALL_ACCCESS (TSDB_VN_READ_ACCCESS | TSDB_VN_WRITE_ACCCESS)
@@ -258,11 +249,9 @@ typedef struct {
   int32_t    sversion;
   int32_t    tagDataLen;
   int32_t    sqlDataLen;
-  int32_t    numOfVPeers;
   uint64_t   uid;
   uint64_t   superTableUid;
   uint64_t   createdTime;
-  SVnodeDesc vpeerDesc[TSDB_MAX_MPEERS];
   char       tableId[TSDB_TABLE_ID_LEN + 1];
   char       superTableId[TSDB_TABLE_ID_LEN + 1];
   char       data[];

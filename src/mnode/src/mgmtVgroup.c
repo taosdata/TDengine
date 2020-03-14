@@ -150,7 +150,7 @@ void mgmtProcessVgTimer(void *handle, void *tmrId) {
 void mgmtCreateVgroup(SQueuedMsg *pMsg) {
   SDbObj *pDb = pMsg->pDb;
   if (pDb == NULL) {
-    mError("thandle:%p, failed to create vgroup, db not found", pMsg->thandle);
+    mError("failed to create vgroup, db not found");
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_DB);
     return;
   }
@@ -159,7 +159,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg) {
   strcpy(pVgroup->dbName, pDb->name);
   pVgroup->numOfVnodes = pDb->cfg.replications;
   if (mgmtAllocVnodes(pVgroup) != 0) {
-    mError("thandle:%p, db:%s no enough dnode to alloc %d vnodes", pMsg->thandle, pDb->name, pVgroup->numOfVnodes);
+    mError("db:%s, no enough dnode to alloc %d vnodes to vgroup", pDb->name, pVgroup->numOfVnodes);
     free(pVgroup);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_ENOUGH_DNODES);
     return;
@@ -175,11 +175,9 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg) {
 
   sdbInsertRow(tsVgroupSdb, pVgroup, 0);
 
-  mPrint("thandle:%p, vgroup:%d is created in mnode, db:%s replica:%d", pMsg->thandle, pVgroup->vgId, pDb->name,
-         pVgroup->numOfVnodes);
+  mPrint("vgroup:%d, is created in mnode, db:%s replica:%d", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    mPrint("thandle:%p, vgroup:%d, dnode:%s vnode:%d", pMsg->thandle, pVgroup->vgId,
-           taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vnodeGid[i].vnode);
+    mPrint("vgroup:%d, dnode:%s vnode:%d", pVgroup->vgId, taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vnodeGid[i].vnode);
   }
 
   pMsg->ahandle = pVgroup;
@@ -595,7 +593,7 @@ void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, vo
 }
 
 void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
-  mTrace("send create vgroup:%d msg, ahandle:%p", pVgroup->vgId, ahandle);
+  mTrace("vgroup:%d, send create all vnodes msg, ahandle:%p", pVgroup->vgId, ahandle);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
     mgmtSendCreateVnodeMsg(pVgroup, pVgroup->vnodeGid[i].vnode, &ipSet, ahandle);
@@ -613,9 +611,9 @@ static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   }
 
   SVgObj *pVgroup = queueMsg->ahandle;
-  mTrace("thandle:%p, vgroup:%d create vnode rsp received, ahandle:%p code:%d received:%d successed:%d expected:%d",
-         queueMsg->thandle, pVgroup->vgId, rpcMsg->handle, rpcMsg->code, queueMsg->received, queueMsg->successed,
-         queueMsg->expected);
+  mTrace("vgroup:%d, create vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
+         pVgroup->vgId, tstrerror(rpcMsg->code), queueMsg->received, queueMsg->successed, queueMsg->expected,
+         queueMsg->thandle, rpcMsg->handle);
 
   if (queueMsg->received != queueMsg->expected) return;
 

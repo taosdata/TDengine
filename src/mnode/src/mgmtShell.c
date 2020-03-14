@@ -184,7 +184,7 @@ static void mgmtProcessShowMsg(SQueuedMsg *pMsg) {
   }
 
   if (!tsMgmtShowMetaFp[pShowMsg->type]) {
-    mError("show type:%d %s is not support", pShowMsg->type, taosMsg[pShowMsg->type]);
+    mError("show type:%s is not support", taosGetShowTypeStr(pShowMsg->type));
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_OPS_NOT_SUPPORT);
     return;
   }
@@ -206,6 +206,7 @@ static void mgmtProcessShowMsg(SQueuedMsg *pMsg) {
   mgmtSaveQhandle(pShow);
   pShowRsp->qhandle = htobe64((uint64_t) pShow);
 
+  mTrace("show:%p, type:%s, start to get meta", pShow, taosGetShowTypeStr(pShowMsg->type));
   int32_t code = (*tsMgmtShowMetaFp[pShowMsg->type])(&pShowRsp->tableMeta, pShow, pMsg->thandle);
   if (code == 0) {
     SRpcMsg rpcRsp = {
@@ -217,7 +218,7 @@ static void mgmtProcessShowMsg(SQueuedMsg *pMsg) {
     };
     rpcSendResponse(&rpcRsp);
   } else {
-    mError("pShow:%p, type:%d %s, failed to get Meta, code:%d", pShow, pShowMsg->type, taosMsg[pShowMsg->type], code);
+    mError("show:%p, type:%s, failed to get meta, reason:%s", pShow, taosGetShowTypeStr(pShowMsg->type), tstrerror(code));
     mgmtFreeQhandle(pShow);
     rpcFreeCont(pShowRsp);
   }

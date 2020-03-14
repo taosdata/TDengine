@@ -301,13 +301,13 @@ static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgr
   pCreate->vgId          = htonl(pVgroup->vgId);
   pCreate->tableType     = pTable->type;
   pCreate->numOfColumns  = htons(pTable->numOfColumns);
-  pCreate->numOfTags     = htons(0);
+  pCreate->numOfTags     = 0;
   pCreate->sid           = htonl(pTable->sid);
   pCreate->sversion      = htonl(pTable->sversion);
-  pCreate->tagDataLen    = htonl(0);
+  pCreate->tagDataLen    = 0;
   pCreate->sqlDataLen    = htonl(pTable->sqlLen);
   pCreate->uid           = htobe64(pTable->uid);
-  pCreate->superTableUid = htobe64(0);
+  pCreate->superTableUid = 0;
   pCreate->createdTime   = htobe64(pTable->createdTime);
 
   SSchema *pSchema = (SSchema *) pCreate->data;
@@ -338,11 +338,11 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
   }
 
   strcpy(pTable->tableId, pCreate->tableId);
-  pTable->type         = TSDB_TABLE_TYPE_NORMAL_TABLE;
-  pTable->createdTime  = taosGetTimestampMs();
+  pTable->type         = TSDB_NORMAL_TABLE;
   pTable->vgId         = pVgroup->vgId;
-  pTable->sid          = sid;
   pTable->uid          = (((uint64_t) pTable->createdTime) << 16) + ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
+  pTable->sid          = sid;
+  pTable->createdTime  = taosGetTimestampMs();
   pTable->sversion     = 0;
   pTable->numOfColumns = pCreate->numOfColumns;
   pTable->sqlLen       = pTable->sqlLen;
@@ -364,7 +364,7 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
 
   pTable->sqlLen = pCreate->sqlLen;
   if (pTable->sqlLen != 0) {
-    pTable->type = TSDB_TABLE_TYPE_STREAM_TABLE;
+    pTable->type = TSDB_STREAM_TABLE;
     pTable->sql = calloc(1, pTable->sqlLen);
     if (pTable->sql == NULL) {
       free(pTable);
@@ -377,20 +377,20 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
 
   if (sdbInsertRow(tsNormalTableSdb, pTable, 0) < 0) {
     mError("table:%s, update sdb error", pCreate->tableId);
+    free(pTable);
     return TSDB_CODE_SDB_ERROR;
   }
 
   *pDCreateOut = mgmtBuildCreateNormalTableMsg(pTable, pVgroup);
   if (*pDCreateOut == NULL) {
     mError("table:%s, failed to build create table message", pCreate->tableId);
+    sdbDeleteRow(tsNormalTableSdb, pTable);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
   *pTableOut = (STableInfo *) pTable;
 
-  mTrace("table:%s, create ntable in vgroup, vgroup:%d sid:%d vnode:%d uid:%" PRIu64 ,
-         pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid);
-
+  mTrace("table:%s, create ntable in vgroup, uid:%" PRIu64 , pTable->tableId, pTable->uid);
   return TSDB_CODE_SUCCESS;
 }
 

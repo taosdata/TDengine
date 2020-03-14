@@ -97,7 +97,6 @@ struct _vg_obj;
 typedef struct SSuperTableObj {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   type;
-  int8_t   dirty;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
