@@ -57,7 +57,12 @@ else
   bin_files="${build_dir}/bin/${DB_SERVICE_NAME} ${build_dir}/bin/${DB_CLIENT_NAME} ${build_dir}/bin/${DB_CLIENT_NAME}demo ${build_dir}/bin/${DB_CLIENT_NAME}dump ${script_dir}/remove.sh"
 fi
 
-lib_files="${build_dir}/lib/libtaos.so.${version}"
+if [ "$verMode" == "cluster" ]; then
+  lib_files="${build_dir}/lib/libtaos.so.${version} ${build_dir}/lib/libtaosodbc.so"
+else 
+  lib_files="${build_dir}/lib/libtaos.so.${version}"
+fi
+
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
 cfg_dir="${top_dir}/packaging/cfg"
 install_files="${script_dir}/install.sh"

@@ -65,7 +65,12 @@ if [ "$osType" != "Darwin" ]; then
   else  
     bin_files="${build_dir}/bin/${DB_CLIENT_NAME} ${build_dir}/bin/${DB_CLIENT_NAME}dump ${script_dir}/remove_client.sh"
   fi
-  lib_files="${build_dir}/lib/libtaos.so.${version}"
+  
+  if [ "$verMode" == "cluster" ]; then
+    lib_files="${build_dir}/lib/libtaos.so.${version} ${build_dir}/lib/libtaosodbc.so"
+  else
+    lib_files="${build_dir}/lib/libtaos.so.${version}"
+  fi  
 else
   bin_files="${build_dir}/bin/${DB_CLIENT_NAME} ${script_dir}/remove_client.sh"
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
@@ -105,6 +110,11 @@ if [ "$osType" == "Darwin" ]; then
 fi
 if [ "$pagMode" == "lite" ]; then
     sed 's/pagMode=full/pagMode=lite/g' ${install_dir}/install_client.sh >> install_client_temp.sh
+    mv install_client_temp.sh ${install_dir}/install_client.sh
+fi
+
+if [ "$verMode" == "cluster" ]; then
+    sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/install_client.sh >> install_client_temp.sh
     mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
 

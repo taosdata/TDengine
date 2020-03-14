@@ -71,18 +71,19 @@ function clean_bin() {
 function clean_lib() {
     # Remove link
     ${csudo} rm -f ${lib_link_dir}/libtaos.*      || :
-    ${csudo} rm -rf ${v15_java_app_dir}                      || :
+    ${csudo} rm -f ${lib_link_dir}/libtaosodbc.*  || :
+    ${csudo} rm -rf ${v15_java_app_dir}           || :
 }
 
 function clean_header() {
     # Remove link
-    ${csudo} rm -f ${inc_link_dir}/taos.h       || :
-    ${csudo} rm -f ${inc_link_dir}/taoserror.h       || :
+    ${csudo} rm -f ${inc_link_dir}/taos.h         || :
+    ${csudo} rm -f ${inc_link_dir}/taoserror.h    || :
 }
 
 function clean_config() {
     # Remove link
-    ${csudo} rm -f ${cfg_link_dir}/*            || :    
+    ${csudo} rm -f ${cfg_link_dir}/*             || :    
 }
 
 function clean_log() {

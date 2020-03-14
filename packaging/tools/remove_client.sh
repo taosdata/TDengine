@@ -36,20 +36,21 @@ function kill_client() {
 function clean_bin() {
     # Remove link
     ${csudo} rm -f ${bin_link_dir}/taos      || :
-    ${csudo} rm -f ${bin_link_dir}/taosump  || :
+    ${csudo} rm -f ${bin_link_dir}/taosump   || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos    || :
 }
 
 function clean_lib() {
     # Remove link
     ${csudo} rm -f ${lib_link_dir}/libtaos.*      || :
-    ${csudo} rm -rf ${v15_java_app_dir}                      || :
+    ${csudo} rm -f ${lib_link_dir}/libtaosodbc.*  || :
+    ${csudo} rm -rf ${v15_java_app_dir}           || :
 }
 
 function clean_header() {
     # Remove link
     ${csudo} rm -f ${inc_link_dir}/taos.h       || :
-    ${csudo} rm -f ${inc_link_dir}/taoserror.h       || :
+    ${csudo} rm -f ${inc_link_dir}/taoserror.h  || :
 }
 
 function clean_config() {

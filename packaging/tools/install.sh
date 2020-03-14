@@ -156,7 +156,10 @@ function install_lib() {
     ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
     
-	if [ "$verMode" == "cluster" ]; then
+	  if [ "$verMode" == "cluster" ]; then	  
+        ${csudo} rm -f ${lib_link_dir}/libtaosodbc.*     || :
+	      ${csudo} ln -s ${install_main_dir}/driver/libtaosodbc.so ${lib_link_dir}/libtaosodbc.so || :
+	
         # Compatible with version 1.5
         ${csudo} mkdir -p ${v15_java_app_dir}
         ${csudo} ln -s ${install_main_dir}/connector/taos-jdbcdriver-1.0.2-dist.jar ${v15_java_app_dir}/JDBCDriver-1.0.2-dist.jar

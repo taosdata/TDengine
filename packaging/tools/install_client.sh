@@ -10,6 +10,7 @@ set -e
 
 osType=Linux
 pagMode=full
+verMode=edge
 
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
@@ -105,14 +106,19 @@ function clean_lib() {
 
 function install_lib() {
     # Remove links
-    ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
-    ${csudo} rm -rf ${v15_java_app_dir}                         || :
+    ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :    
+    ${csudo} rm -rf ${v15_java_app_dir}              || :
 
     ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
 
     if [ "$osType" != "Darwin" ]; then
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
         ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+
+	      if [ "$verMode" == "cluster" ]; then	  
+            ${csudo} rm -f ${lib_link_dir}/libtaosodbc.*     || :
+	          ${csudo} ln -s ${install_main_dir}/driver/libtaosodbc.so ${lib_link_dir}/libtaosodbc.so || :	
+        fi            
     else
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo} ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
