@@ -46,7 +46,6 @@ typedef struct {
 
 typedef struct {
   int64_t uid;
-
 } SBlock;
 
 typedef struct {
@@ -63,7 +62,6 @@ typedef struct {
   int64_t min;
   int16_t maxIdx;
   int16_t minIdx;
-  char    reserverd[20]:
 } SField;
 
 const char *tsdbFileSuffix[] = {
