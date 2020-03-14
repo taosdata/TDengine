@@ -24,8 +24,8 @@ static FORCE_INLINE void __wr_lock(void *lock) {
   if (lock == NULL) {
     return;
   }
-  
-#if defined (LINUX)
+
+#if defined(LINUX)
   pthread_rwlock_wrlock(lock);
 #else
   pthread_mutex_lock(lock);
@@ -36,8 +36,8 @@ static FORCE_INLINE void __rd_lock(void *lock) {
   if (lock == NULL) {
     return;
   }
-  
-#if defined (LINUX)
+
+#if defined(LINUX)
   pthread_rwlock_rdlock(lock);
 #else
   pthread_mutex_lock(lock);
@@ -48,8 +48,8 @@ static FORCE_INLINE void __unlock(void *lock) {
   if (lock == NULL) {
     return;
   }
-  
-#if defined (LINUX)
+
+#if defined(LINUX)
   pthread_rwlock_unlock(lock);
 #else
   pthread_mutex_unlock(lock);
@@ -60,8 +60,8 @@ static FORCE_INLINE int32_t __lock_init(void *lock) {
   if (lock == NULL) {
     return 0;
   }
-  
-#if defined (LINUX)
+
+#if defined(LINUX)
   return pthread_rwlock_init(lock, NULL);
 #else
   return pthread_mutex_init(lock, NULL);
@@ -72,8 +72,8 @@ static FORCE_INLINE void __lock_destroy(void *lock) {
   if (lock == NULL) {
     return;
   }
-  
-#if defined (LINUX)
+
+#if defined(LINUX)
   pthread_rwlock_destroy(lock);
 #else
   pthread_mutex_destroy(lock);
@@ -107,7 +107,7 @@ static void doUpdateHashTable(SHashObj *pHashObj, SHashNode *pNode) {
 
 /**
  * get SHashNode from hashlist, nodes from trash are not included.
- * @param pHashObj      Cache objection
+ * @param pHashObj  Cache objection
  * @param key       key for hash
  * @param keyLen    key length
  * @return
@@ -155,24 +155,24 @@ static void taosHashTableResize(SHashObj *pHashObj) {
 
   int32_t newSize = pHashObj->capacity << 1U;
   if (newSize > HASH_MAX_CAPACITY) {
-    pTrace("current capacity:%d, maximum capacity:%d, no resize applied due to limitation is reached", pHashObj->capacity,
-           HASH_MAX_CAPACITY);
+    pTrace("current capacity:%d, maximum capacity:%d, no resize applied due to limitation is reached",
+           pHashObj->capacity, HASH_MAX_CAPACITY);
     return;
   }
 
   int64_t st = taosGetTimestampUs();
 
-  SHashEntry **pNewEntry = realloc(pHashObj->hashList, sizeof(SHashEntry*) * newSize);
+  SHashEntry **pNewEntry = realloc(pHashObj->hashList, sizeof(SHashEntry *) * newSize);
   if (pNewEntry == NULL) {
     pTrace("cache resize failed due to out of memory, capacity remain:%d", pHashObj->capacity);
     return;
   }
 
   pHashObj->hashList = pNewEntry;
-  for(int32_t i = pHashObj->capacity; i < newSize; ++i) {
+  for (int32_t i = pHashObj->capacity; i < newSize; ++i) {
     pHashObj->hashList[i] = calloc(1, sizeof(SHashEntry));
   }
-  
+
   pHashObj->capacity = newSize;
 
   for (int32_t i = 0; i < pHashObj->capacity; ++i) {
@@ -182,7 +182,7 @@ static void taosHashTableResize(SHashObj *pHashObj) {
     if (pNode != NULL) {
       assert(pNode->prev1 == pEntry && pEntry->num > 0);
     }
-    
+
     while (pNode) {
       int32_t j = HASH_INDEX(pNode->hashVal, pHashObj->capacity);
       if (j == i) {  // this key resides in the same slot, no need to relocate it
@@ -192,13 +192,13 @@ static void taosHashTableResize(SHashObj *pHashObj) {
 
         // remove from current slot
         assert(pNode->prev1 != NULL);
-        
-        if (pNode->prev1 == pEntry) { // first node of the overflow linked list
+
+        if (pNode->prev1 == pEntry) {  // first node of the overflow linked list
           pEntry->next = pNode->next;
         } else {
           pNode->prev->next = pNode->next;
         }
-        
+
         pEntry->num--;
         assert(pEntry->num >= 0);
 
@@ -214,13 +214,13 @@ static void taosHashTableResize(SHashObj *pHashObj) {
 
         if (pNewIndexEntry->next != NULL) {
           assert(pNewIndexEntry->next->prev1 == pNewIndexEntry);
-          
+
           pNewIndexEntry->next->prev = pNode;
         }
-  
+
         pNode->next = pNewIndexEntry->next;
         pNode->prev1 = pNewIndexEntry;
-        
+
         pNewIndexEntry->next = pNode;
         pNewIndexEntry->num++;
 
@@ -258,14 +258,14 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool threadsafe) {
 
   pHashObj->hashFp = fn;
 
-  pHashObj->hashList = (SHashEntry **)calloc(pHashObj->capacity, sizeof(SHashEntry*));
+  pHashObj->hashList = (SHashEntry **)calloc(pHashObj->capacity, sizeof(SHashEntry *));
   if (pHashObj->hashList == NULL) {
     free(pHashObj);
     pError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
   }
-  
-  for(int32_t i = 0; i < pHashObj->capacity; ++i) {
+
+  for (int32_t i = 0; i < pHashObj->capacity; ++i) {
     pHashObj->hashList[i] = calloc(1, sizeof(SHashEntry));
   }
 
@@ -276,7 +276,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool threadsafe) {
     pHashObj->lock = calloc(1, sizeof(pthread_mutex_t));
 #endif
   }
-  
+
   if (__lock_init(pHashObj->lock) != 0) {
     free(pHashObj->hashList);
     free(pHashObj);
@@ -347,7 +347,7 @@ static void doAddToHashTable(SHashObj *pHashObj, SHashNode *pNode) {
 
   int32_t     index = HASH_INDEX(pNode->hashVal, pHashObj->capacity);
   SHashEntry *pEntry = pHashObj->hashList[index];
-  
+
   pNode->next = pEntry->next;
 
   if (pEntry->next) {
@@ -356,7 +356,7 @@ static void doAddToHashTable(SHashObj *pHashObj, SHashNode *pNode) {
 
   pEntry->next = pNode;
   pNode->prev1 = pEntry;
-  
+
   pEntry->num++;
   pHashObj->size++;
 }
@@ -365,7 +365,7 @@ size_t taosHashGetSize(const SHashObj *pHashObj) {
   if (pHashObj == NULL) {
     return 0;
   }
-  
+
   return pHashObj->size;
 }
 
@@ -430,7 +430,7 @@ void *taosHashGet(SHashObj *pHashObj, const char *key, size_t keyLen) {
 void taosHashRemove(SHashObj *pHashObj, const char *key, size_t keyLen) {
   __wr_lock(pHashObj->lock);
 
-  uint32_t val = 0;
+  uint32_t   val = 0;
   SHashNode *pNode = doGetNodeFromHashTable(pHashObj, key, keyLen, &val);
   if (pNode == NULL) {
     __unlock(pHashObj->lock);
@@ -446,13 +446,13 @@ void taosHashRemove(SHashObj *pHashObj, const char *key, size_t keyLen) {
       pNode->prev->next = pNext;
     }
   }
-  
+
   if (pNext != NULL) {
     pNext->prev = pNode->prev;
   }
 
   uint32_t index = HASH_INDEX(pNode->hashVal, pHashObj->capacity);
-  
+
   SHashEntry *pEntry = pHashObj->hashList[index];
   pEntry->num--;
 
@@ -483,10 +483,14 @@ void taosHashCleanup(SHashObj *pHashObj) {
 
       while (pNode) {
         pNext = pNode->next;
+        if (pHashObj->freeFp) {
+          pHashObj->freeFp(pNode->data);
+        }
+
         free(pNode);
         pNode = pNext;
       }
-      
+
       tfree(pEntry);
     }
 
@@ -496,24 +500,122 @@ void taosHashCleanup(SHashObj *pHashObj) {
   __unlock(pHashObj->lock);
   __lock_destroy(pHashObj->lock);
 
+  tfree(pHashObj->lock);
   memset(pHashObj, 0, sizeof(SHashObj));
   free(pHashObj);
 }
 
+void taosHashSetFreecb(SHashObj *pHashObj, _hash_free_fn_t freeFp) {
+  if (pHashObj == NULL || freeFp == NULL) {
+    return;
+  }
+
+  pHashObj->freeFp = freeFp;
+}
+
+SHashMutableIterator *taosHashCreateIter(SHashObj *pHashObj) {
+  SHashMutableIterator *pIter = calloc(1, sizeof(SHashMutableIterator));
+  if (pIter == NULL) {
+    return NULL;
+  }
+
+  pIter->pHashObj = pHashObj;
+}
+
+static SHashNode *getNextHashNode(SHashMutableIterator *pIter) {
+  assert(pIter != NULL);
+
+  while (pIter->entryIndex < pIter->pHashObj->capacity) {
+    SHashEntry *pEntry = pIter->pHashObj->hashList[pIter->entryIndex];
+    if (pEntry->next == NULL) {
+      pIter->entryIndex++;
+      continue;
+    }
+
+    return pEntry->next;
+  }
+
+  return NULL;
+}
+
+bool taosHashIterNext(SHashMutableIterator *pIter) {
+  if (pIter == NULL) {
+    return false;
+  }
+
+  size_t size = taosHashGetSize(pIter->pHashObj);
+  if (size == 0 || pIter->num >= size) {
+    return false;
+  }
+
+  // check the first one
+  if (pIter->num == 0) {
+    assert(pIter->pCur == NULL && pIter->pNext == NULL);
+
+    while (1) {
+      SHashEntry *pEntry = pIter->pHashObj->hashList[pIter->entryIndex];
+      if (pEntry->next == NULL) {
+        pIter->entryIndex++;
+        continue;
+      }
+
+      pIter->pCur = pEntry->next;
+
+      if (pIter->pCur->next) {
+        pIter->pNext = pIter->pCur->next;
+      } else {
+        pIter->pNext = getNextHashNode(pIter);
+      }
+
+      break;
+    }
+
+    pIter->num++;
+    return true;
+  } else {
+    assert(pIter->pCur != NULL);
+    if (pIter->pNext) {
+      pIter->pCur = pIter->pNext;
+    } else {  // no more data in the hash list
+      return false;
+    }
+
+    pIter->num++;
+
+    if (pIter->pCur->next) {
+      pIter->pNext = pIter->pCur->next;
+    } else {
+      pIter->pNext = getNextHashNode(pIter);
+    }
+
+    return true;
+  }
+}
+
+void *taosHashIterGet(SHashMutableIterator *iter) { return (iter == NULL) ? NULL : iter->pCur->data; }
+
+void *taosHashDestroyIter(SHashMutableIterator *iter) {
+  if (iter == NULL) {
+    return NULL;
+  }
+
+  free(iter);
+}
+
 // for profile only
-int32_t taosHashGetMaxOverflowLinkLength(const SHashObj* pHashObj) {
+int32_t taosHashGetMaxOverflowLinkLength(const SHashObj *pHashObj) {
   if (pHashObj == NULL || pHashObj->size == 0) {
     return 0;
   }
-  
+
   int32_t num = 0;
-  
-  for(int32_t i = 0; i < pHashObj->size; ++i) {
+
+  for (int32_t i = 0; i < pHashObj->size; ++i) {
     SHashEntry *pEntry = pHashObj->hashList[i];
     if (num < pEntry->num) {
       num = pEntry->num;
     }
   }
-  
+
   return num;
 }

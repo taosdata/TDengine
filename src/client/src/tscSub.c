@@ -371,7 +371,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
       pSql->sqlstr = NULL;
       taos_free_result_imp(pSql, 0);
       pSql->sqlstr = sqlstr;
-      taosClearDataCache(tscCacheHandle);
+      taosCacheEmpty(tscCacheHandle);
       if (!tscUpdateSubscription(pSub->taos, pSub)) return NULL;
       tscTrace("meter synchronization completed");
     } else {
