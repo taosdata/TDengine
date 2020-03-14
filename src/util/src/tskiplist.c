@@ -253,6 +253,7 @@ static __compar_fn_t getKeyComparator(int32_t keyType) {
       comparFn = compareInt32Val;
       break;
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
       comparFn = compareInt64Val;
       break;
     case TSDB_DATA_TYPE_BOOL:

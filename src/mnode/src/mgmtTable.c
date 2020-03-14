@@ -119,11 +119,11 @@ STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
 }
 
 int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, bool usePublicIp) {
-  if (pTable->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
+  if (pTable->type == TSDB_CHILD_TABLE) {
     mgmtGetChildTableMeta(pDb, (SChildTableObj *) pTable, pMeta, usePublicIp);
-  } else if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+  } else if (pTable->type == TSDB_NORMAL_TABLE) {
     mgmtGetNormalTableMeta(pDb, (SNormalTableObj *) pTable, pMeta, usePublicIp);
-  } else if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+  } else if (pTable->type == TSDB_SUPER_TABLE) {
     mgmtGetSuperTableMeta(pDb, (SSuperTableObj *) pTable, pMeta, usePublicIp);
   } else {
     mTrace("%s, uid:%" PRIu64 " table meta retrieve failed, invalid type", pTable->tableId, pTable->uid);
@@ -176,7 +176,7 @@ static void mgmtCreateTable(SVgObj *pVgroup, SQueuedMsg *pMsg) {
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
   SRpcMsg rpcMsg = {
       .handle  = pMsg,
-      .pCont   = pCreate,
+      .pCont   = pMDCreate,
       .contLen = htonl(pMDCreate->contLen),
       .code    = 0,
       .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
@@ -204,16 +204,16 @@ int32_t mgmtDropTable(SDbObj *pDb, char *tableId, int32_t ignore) {
   }
 
   switch (pTable->type) {
-    case TSDB_TABLE_TYPE_SUPER_TABLE:
+    case TSDB_SUPER_TABLE:
       mTrace("table:%s, start to drop super table", tableId);
       return mgmtDropSuperTable(pDb, (SSuperTableObj *) pTable);
-    case TSDB_TABLE_TYPE_CHILD_TABLE:
+    case TSDB_CHILD_TABLE:
       mTrace("table:%s, start to drop child table", tableId);
       return mgmtDropChildTable(pDb, (SChildTableObj *) pTable);
-    case TSDB_TABLE_TYPE_NORMAL_TABLE:
+    case TSDB_NORMAL_TABLE:
       mTrace("table:%s, start to drop normal table", tableId);
       return mgmtDropNormalTable(pDb, (SNormalTableObj *) pTable);
-    case TSDB_TABLE_TYPE_STREAM_TABLE:
+    case TSDB_STREAM_TABLE:
       mTrace("table:%s, start to drop stream table", tableId);
       return mgmtDropNormalTable(pDb, (SNormalTableObj *) pTable);
     default:
@@ -233,31 +233,31 @@ int32_t mgmtAlterTable(SDbObj *pDb, SCMAlterTableMsg *pAlter) {
   }
 
   if (pAlter->type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN) {
-    if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+    if (pTable->type == TSDB_SUPER_TABLE) {
       return mgmtAddSuperTableTag((SSuperTableObj *) pTable, pAlter->schema, 1);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_DROP_TAG_COLUMN) {
-    if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+    if (pTable->type == TSDB_SUPER_TABLE) {
       return mgmtDropSuperTableTag((SSuperTableObj *) pTable, pAlter->schema[0].name);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
-    if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+    if (pTable->type == TSDB_SUPER_TABLE) {
       return mgmtModifySuperTableTagNameByName((SSuperTableObj *) pTable, pAlter->schema[0].name, pAlter->schema[1].name);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
-    if (pTable->type == TSDB_TABLE_TYPE_CHILD_TABLE) {
+    if (pTable->type == TSDB_CHILD_TABLE) {
       return mgmtModifyChildTableTagValueByName((SChildTableObj *) pTable, pAlter->schema[0].name, pAlter->tagVal);
     }
   } else if (pAlter->type == TSDB_ALTER_TABLE_ADD_COLUMN) {
-    if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+    if (pTable->type == TSDB_NORMAL_TABLE) {
       return mgmtAddNormalTableColumn((SNormalTableObj *) pTable, pAlter->schema, 1);
-    } else if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+    } else if (pTable->type == TSDB_SUPER_TABLE) {
       return mgmtAddSuperTableColumn((SSuperTableObj *) pTable, pAlter->schema, 1);
     } else {}
   } else if (pAlter->type == TSDB_ALTER_TABLE_DROP_COLUMN) {
-    if (pTable->type == TSDB_TABLE_TYPE_NORMAL_TABLE) {
+    if (pTable->type == TSDB_NORMAL_TABLE) {
       return mgmtDropNormalTableColumnByName((SNormalTableObj *) pTable, pAlter->schema[0].name);
-    } else if (pTable->type == TSDB_TABLE_TYPE_SUPER_TABLE) {
+    } else if (pTable->type == TSDB_SUPER_TABLE) {
       return mgmtDropSuperTableColumnByName((SSuperTableObj *) pTable, pAlter->schema[0].name);
     } else {}
   } else {}

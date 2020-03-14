@@ -30,10 +30,10 @@ extern "C" {
 #include "tsclient.h"
 
 #define UTIL_METER_IS_SUPERTABLE(metaInfo) \
-  (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->tableType == TSDB_TABLE_TYPE_SUPER_TABLE))
+  (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->tableType == TSDB_SUPER_TABLE))
 #define UTIL_METER_IS_NOMRAL_METER(metaInfo) (!(UTIL_METER_IS_SUPERTABLE(metaInfo)))
 #define UTIL_METER_IS_CREATE_FROM_METRIC(metaInfo) \
-  (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->tableType == TSDB_TABLE_TYPE_CHILD_TABLE))
+  (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->tableType == TSDB_CHILD_TABLE))
 
 #define TSDB_COL_IS_TAG(f) (((f)&TSDB_COL_TAG) != 0)
 

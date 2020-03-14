@@ -38,11 +38,12 @@ typedef struct STable {
   TSDB_TABLE_TYPE type;
   STableId        tableId;
   int32_t         superUid;  // Super table UID
+  int32_t         sversion;
   STSchema *      schema;
   STSchema *      tagSchema;
   SDataRow        tagVal;
   union {
-    void *pData;   // For TSDB_NTABLE and TSDB_STABLE, it is the skiplist for cache data
+    void *pData;   // For TSDB_NORMAL_TABLE and TSDB_CHILD_TABLE, it is the skiplist for cache data
     void *pIndex;  // For TSDB_SUPER_TABLE, it is the skiplist index
   } content;
   void *         eventHandler;   // TODO

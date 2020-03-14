@@ -15,7 +15,7 @@ TEST(TsdbTest, createRepo) {
   // 2. Create a normal table
   STableCfg tCfg;
   ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_SUPER_TABLE, 987607499877672L, 0), -1);
-  ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_NTABLE, 987607499877672L, 0), 0);
+  ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_NORMAL_TABLE, 987607499877672L, 0), 0);
 
   int       nCols = 5;
   STSchema *schema = tdNewSchema(nCols);
@@ -48,7 +48,7 @@ TEST(TsdbTest, createRepo) {
 
     for (int j = 0; j < schemaNCols(schema); j++) {
       if (j == 0) { // Just for timestamp
-        tdAppendColVal(row, (void *)(&time), schemaColAt(schema, j));
+        tdAppendColVal(row, (void *)(&ttime), schemaColAt(schema, j));
       } else { // For int
         int val = 10;
         tdAppendColVal(row, (void *)(&val), schemaColAt(schema, j));
@@ -61,5 +61,7 @@ TEST(TsdbTest, createRepo) {
   pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
 
   tsdbInsertData(pRepo, pMsg);
+
+  int k = 0;
 }
 

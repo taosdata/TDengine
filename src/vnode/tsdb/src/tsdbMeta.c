@@ -18,6 +18,7 @@ static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbEstimateTableEncodeSize(STable *pTable);
+static char *  getTupleKey(const void *data);
 
 /**
  * Encode a TSDB table object as a binary content
@@ -137,7 +138,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   STable *super = NULL;
   int newSuper = 0;
 
-  if (pCfg->type == TSDB_STABLE) { 
+  if (pCfg->type == TSDB_CHILD_TABLE) {
     super = tsdbGetTableByUid(pMeta, pCfg->superUid);
     if (super == NULL) {  // super table not exists, try to create it
       newSuper = 1;
@@ -153,7 +154,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
       super->tagSchema = tdDupSchema(pCfg->tagSchema);
       super->tagVal = tdDataRowDup(pCfg->tagValues);
       super->content.pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1,
-                                                0, NULL);  // Allow duplicate key, no lock
+                                                0, getTupleKey);  // Allow duplicate key, no lock
 
       if (super->content.pIndex == NULL) {
         tdFreeSchema(super->schema);
@@ -174,16 +175,16 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   }
 
   table->tableId = pCfg->tableId;
-  if (IS_CREATE_STABLE(pCfg)) { // TSDB_STABLE
-    table->type = TSDB_STABLE;
+  if (IS_CREATE_STABLE(pCfg)) { // TSDB_CHILD_TABLE
+    table->type = TSDB_CHILD_TABLE;
     table->superUid = pCfg->superUid;
     table->tagVal = tdDataRowDup(pCfg->tagValues);
-  } else { // TSDB_NTABLE
-    table->type = TSDB_NTABLE;
+  } else { // TSDB_NORMAL_TABLE
+    table->type = TSDB_NORMAL_TABLE;
     table->superUid = -1;
     table->schema = tdDupSchema(pCfg->schema);
   }
-  table->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, 0, 8, 0, 0, NULL);
+  table->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
 
   if (newSuper) tsdbAddTableToMeta(pMeta, super);
   tsdbAddTableToMeta(pMeta, table);
@@ -220,7 +221,7 @@ int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
     pMeta->tables[pTable->tableId.tid] = NULL;
     pMeta->nTables--;
     assert(pMeta->nTables >= 0);
-    if (pTable->type == TSDB_STABLE) {
+    if (pTable->type == TSDB_CHILD_TABLE) {
       tsdbRemoveTableFromIndex(pMeta, pTable);
     }
 
@@ -237,7 +238,7 @@ int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable) {
 
 static int tsdbFreeTable(STable *pTable) {
   // TODO: finish this function
-  if (pTable->type == TSDB_STABLE) {
+  if (pTable->type == TSDB_CHILD_TABLE) {
     tdFreeDataRow(pTable->tagVal);
   } else {
     tdFreeSchema(pTable->schema);
@@ -281,7 +282,7 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable) {
   } else {
     // add non-super table to the array
     pMeta->tables[pTable->tableId.tid] = pTable;
-    if (pTable->type == TSDB_STABLE) {
+    if (pTable->type == TSDB_CHILD_TABLE) {
       // add STABLE to the index
       tsdbAddTableIntoIndex(pMeta, pTable);
     }
@@ -305,13 +306,13 @@ static int tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable) {
   return 0;
 }
 static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
-  assert(pTable->type == TSDB_STABLE);
+  assert(pTable->type == TSDB_CHILD_TABLE);
   // TODO
   return 0;
 }
 
 static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
-  assert(pTable->type == TSDB_STABLE);
+  assert(pTable->type == TSDB_CHILD_TABLE);
   // TODO
   return 0;
 }
@@ -319,4 +320,10 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
 static int tsdbEstimateTableEncodeSize(STable *pTable) {
   // TODO
   return 0;
+}
+
+static char *getTupleKey(const void * data) {
+  SDataRow row = (SDataRow)data;
+
+  return dataRowAt(row, TD_DATA_ROW_HEAD_SIZE);
 }

@@ -33,13 +33,6 @@ extern "C" {
 #define TSDB_INVALID_SUPER_TABLE_ID -1
 
 // --------- TSDB REPOSITORY CONFIGURATION DEFINITION
-enum { TSDB_PRECISION_MILLI, TSDB_PRECISION_MICRO, TSDB_PRECISION_NANO };
-typedef enum {
-  TSDB_SUPER_TABLE,  // super table
-  TSDB_NTABLE,       // table not created from super table
-  TSDB_STABLE        // table created from super table
-} TSDB_TABLE_TYPE;
-
 typedef struct {
   int8_t  precision;
   int32_t vgId;
@@ -75,6 +68,7 @@ typedef struct {
 typedef struct {
   TSDB_TABLE_TYPE type;
   STableId        tableId;
+  int32_t         sversion;
   int64_t         superUid;
   STSchema *      schema;
   STSchema *      tagSchema;
