@@ -16,8 +16,8 @@
 #include "tscUtil.h"
 #include "hash.h"
 #include "os.h"
+#include "qast.h"
 #include "taosmsg.h"
-#include "tast.h"
 #include "tcache.h"
 #include "tkey.h"
 #include "tmd5.h"
@@ -2105,7 +2105,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
 void tscDoQuery(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
-  void*    fp = pSql->fp;
   
   pSql->res.code = TSDB_CODE_SUCCESS;
   
@@ -2121,7 +2120,6 @@ void tscDoQuery(SSqlObj* pSql) {
     } else {
       // pSql may be released in this function if it is a async insertion.
       tscProcessSql(pSql);
-      if (NULL == fp) tscProcessMultiVnodesInsert(pSql);
     }
   }
 }
@@ -2320,4 +2318,95 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
   } else {
     tscProcessSql(pSql);
   }
+}
+
+typedef struct SinsertSupporter {
+  SSubqueryState* pState;
+  SSqlObj*  pSql;
+} SinsertSupporter;
+
+void multiVnodeInsertMerge(void* param, TAOS_RES* tres, int numOfRows) {
+  SinsertSupporter *pSupporter = (SinsertSupporter *)param;
+  SSqlObj* pParentObj = pSupporter->pSql;
+  SSqlCmd* pParentCmd = &pParentObj->cmd;
+  
+  SSubqueryState* pState = pSupporter->pState;
+  int32_t total = pState->numOfTotal;
+  
+  // increase the total inserted rows
+  if (numOfRows > 0) {
+    pParentObj->res.numOfRows += numOfRows;
+  }
+  
+  int32_t completed = atomic_add_fetch_32(&pState->numOfCompleted, 1);
+  if (completed < total) {
+    return;
+  }
+  
+  tscTrace("%p Async insertion completed, total inserted:%d", pParentObj, pParentObj->res.numOfRows);
+  
+  // release data block data
+  pParentCmd->pDataBlocks = tscDestroyBlockArrayList(pParentCmd->pDataBlocks);
+  
+  // restore user defined fp
+  pParentObj->fp = pParentObj->fetchFp;
+  
+  // all data has been sent to vnode, call user function
+  (*pParentObj->fp)(pParentObj->param, tres, numOfRows);
+}
+
+int32_t launchMultivnodeInsert(SSqlObj *pSql) {
+  SSqlRes *pRes = &pSql->res;
+  SSqlCmd *pCmd = &pSql->cmd;
+  
+  pRes->qhandle = 1;  // hack the qhandle check
+  SDataBlockList *pDataBlocks = pCmd->pDataBlocks;
+  
+  pSql->pSubs = calloc(pDataBlocks->nSize, POINTER_BYTES);
+  pSql->numOfSubs = pDataBlocks->nSize;
+  assert(pDataBlocks->nSize > 0);
+  
+  tscTrace("%p submit data to %d vnode(s)", pSql, pDataBlocks->nSize);
+  SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
+  pState->numOfTotal = pSql->numOfSubs;
+  
+  pRes->code = TSDB_CODE_SUCCESS;
+  
+  int32_t i = 0;
+  for (; i < pSql->numOfSubs; ++i) {
+    SinsertSupporter* pSupporter = calloc(1, sizeof(SinsertSupporter));
+    pSupporter->pSql = pSql;
+    pSupporter->pState = pState;
+    
+    SSqlObj *pNew = createSubqueryObj(pSql, 0, multiVnodeInsertMerge, pSupporter, NULL);
+    if (pNew == NULL) {
+      tscError("%p failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
+      break;
+    }
+    
+    pSql->pSubs[i] = pNew;
+    tscTrace("%p sub:%p create subObj success. orderOfSub:%d", pSql, pNew, i);
+  }
+  
+  if (i < pSql->numOfSubs) {
+    tscError("%p failed to prepare subObj structure and launch sub-insertion", pSql);
+    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+    return pRes->code;  // free all allocated resource
+  }
+  
+  for (int32_t j = 0; j < pSql->numOfSubs; ++j) {
+    SSqlObj *pSub = pSql->pSubs[j];
+    pSub->cmd.command = TSDB_SQL_INSERT;
+    int32_t code = tscCopyDataBlockToPayload(pSub, pDataBlocks->pData[j]);
+    
+    if (code != TSDB_CODE_SUCCESS) {
+      tscTrace("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%d, code:%d", pSql, j,
+               pDataBlocks->nSize, code);
+    }
+    
+    tscTrace("%p sub:%p launch sub insert, orderOfSub:%d", pSql, pSub, j);
+    tscProcessSql(pSub);
+  }
+  
+  return TSDB_CODE_SUCCESS;
 }

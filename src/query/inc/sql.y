@@ -26,7 +26,6 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
-#include "tscSQLParser.h"
 #include "tutil.h"
 }
 

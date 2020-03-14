@@ -25,13 +25,13 @@ extern "C" {
 #include "taosmsg.h"
 #include "tglobalcfg.h"
 #include "tlog.h"
-#include "tscCache.h"
-#include "tscSQLParser.h"
 #include "taosdef.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
 #include "trpc.h"
 #include "qsqltype.h"
+#include "qsqlparser.h"
+#include "qtsbuf.h"
 
 #define TSC_GET_RESPTR_BASE(res, _queryinfo, col) (res->data + ((_queryinfo)->fieldsInfo.pSqlExpr[col]->offset) * res->numOfRows)
 
@@ -308,14 +308,14 @@ typedef struct _tsc_obj {
   char             sversion[TSDB_VERSION_LEN];
   char             writeAuth : 1;
   char             superAuth : 1;
-  struct _sql_obj *pSql;
-  struct _sql_obj *pHb;
-  struct _sql_obj *sqlList;
+  struct SSqlObj *pSql;
+  struct SSqlObj *pHb;
+  struct SSqlObj *sqlList;
   struct _sstream *streamList;
   pthread_mutex_t  mutex;
 } STscObj;
 
-typedef struct _sql_obj {
+typedef struct SSqlObj {
   void *   signature;
   STscObj *pTscObj;
   void (*fp)();
@@ -340,8 +340,8 @@ typedef struct _sql_obj {
   uint8_t           numOfSubs;
   char *            asyncTblPos;
   void *            pTableHashList;
-  struct _sql_obj **pSubs;
-  struct _sql_obj * prev, *next;
+  struct SSqlObj **pSubs;
+  struct SSqlObj * prev, *next;
 } SSqlObj;
 
 typedef struct _sstream {
@@ -442,10 +442,8 @@ char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
-// transfer SSqlInfo to SqlCmd struct
-int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
-
 void tscQueueAsyncFreeResult(SSqlObj *pSql);
+int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo);
 
 extern void *     pVnodeConn;
 extern void *     pTscMgmtConn;
@@ -453,7 +451,6 @@ extern void *     tscCacheHandle;
 extern int32_t    globalCode;
 extern int        slaveIndex;
 extern void *     tscTmr;
-extern void *     tscConnCache;
 extern void *     tscQhandle;
 extern int        tscKeepConn[];
 extern int        tsInsertHeadSize;

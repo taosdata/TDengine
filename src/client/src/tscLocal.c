@@ -21,7 +21,7 @@
 #include "tsclient.h"
 #include "taosdef.h"
 
-#include "textbuffer.h"
+#include "qextbuffer.h"
 #include "tscSecondaryMerge.h"
 #include "tschemautil.h"
 #include "tsocket.h"

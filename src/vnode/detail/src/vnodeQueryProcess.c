@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
+#include "qextbuffer.h"
 #include "taosmsg.h"
-#include "textbuffer.h"
 #include "tscJoinProcess.h"
 #include "ttime.h"
 #include "vnode.h"

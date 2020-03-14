@@ -22,7 +22,6 @@
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "tsocket.h"
-#include "tscSQLParser.h"
 #include "tutil.h"
 #include "tnote.h"
 #include "tsched.h"

@@ -520,6 +520,7 @@ SHashMutableIterator *taosHashCreateIter(SHashObj *pHashObj) {
   }
 
   pIter->pHashObj = pHashObj;
+  return pIter;
 }
 
 static SHashNode *getNextHashNode(SHashMutableIterator *pIter) {
@@ -600,6 +601,7 @@ void *taosHashDestroyIter(SHashMutableIterator *iter) {
   }
 
   free(iter);
+  return NULL;
 }
 
 // for profile only

@@ -1,9 +1,9 @@
+#include "qresultBuf.h"
 #include "hash.h"
+#include "qextbuffer.h"
 #include "taoserror.h"
-#include "textbuffer.h"
 #include "tlog.h"
 #include "tsqlfunction.h"
-#include "tresultBuf.h"
 
 #define DEFAULT_INTERN_BUF_SIZE 16384L
 

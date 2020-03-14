@@ -137,6 +137,13 @@ int64_t str2int64(char *str);
 
 int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstPath);
 
+/**
+ *
+ * @param fileNamePattern
+ * @param dstPath
+ */
+void getTmpfilePath(const char *fileNamePattern, char *dstPath);
+
 int32_t taosInitTimer(void (*callback)(int), int32_t ms);
 
 bool taosMbsToUcs4(char *mbs, int32_t mbs_len, char *ucs4, int32_t ucs4_max_len);
