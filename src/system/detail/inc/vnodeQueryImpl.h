@@ -85,12 +85,6 @@ typedef enum {
   QUERY_NO_DATA_TO_CHECK = 0x8u,
 } vnodeQueryStatus;
 
-typedef struct SPointInterpoSupporter {
-  int32_t numOfCols;
-  char**  pPrevPoint;
-  char**  pNextPoint;
-} SPointInterpoSupporter;
-
 typedef struct SBlockInfo {
   TSKEY   keyFirst;
   TSKEY   keyLast;

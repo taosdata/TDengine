@@ -141,6 +141,12 @@ typedef struct SWindowResInfo {
   int64_t             threshold;  // threshold for return completed results.
 } SWindowResInfo;
 
+typedef struct SPointInterpoSupporter {
+  int32_t numOfCols;
+  char**  pPrevPoint;
+  char**  pNextPoint;
+} SPointInterpoSupporter;
+
 typedef struct SQueryRuntimeEnv {
   SPositionInfo       startPos; /* the start position, used for secondary/third iteration */
   SPositionInfo       endPos;   /* the last access position in query, served as the start pos of reversed order query */
@@ -166,6 +172,9 @@ typedef struct SQueryRuntimeEnv {
   
   SWindowResInfo      windowResInfo;
   
+  // require time stamp that are direct before/after query time window
+  bool boundaryExternalTS;
+  
   STSBuf*             pTSBuf;
   STSCursor           cur;
   SQueryCostSummary   summary;
@@ -179,6 +188,9 @@ typedef struct SQueryRuntimeEnv {
    * So we keep a copy of the support structure as well as the cache block data itself.
    */
   SCacheBlock         cacheBlock;
+  
+  SPointInterpoSupporter* pInterpoSupporter;
+  bool hasTimeWindow;
 } SQueryRuntimeEnv;
 
 /* intermediate pos during multimeter query involves interval */

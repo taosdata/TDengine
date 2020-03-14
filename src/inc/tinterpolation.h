@@ -30,7 +30,7 @@ typedef struct SInterpolationInfo {
   char *  prevValues;           // previous row of data
   char *  nextValues;           // next row of data
   int32_t numOfTags;
-  char ** pTags;  // tags value for current interoplation
+  char ** pTags;  // tags value for current interpolation
 } SInterpolationInfo;
 
 typedef struct SPoint {

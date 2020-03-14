@@ -1636,13 +1636,16 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
       // set the first column ts for diff query
       if (optr == TK_DIFF) {
         colIdx += 1;
-        SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = 0};
+        SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
         SSqlExpr*    pExpr = tscSqlExprInsert(pQueryInfo, 0, TSDB_FUNC_TS_DUMMY, &indexTS, TSDB_DATA_TYPE_TIMESTAMP,
                                            TSDB_KEYSIZE, TSDB_KEYSIZE);
 
         SColumnList ids = getColumnList(1, 0, 0);
         insertResultField(pQueryInfo, 0, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP, aAggs[TSDB_FUNC_TS_DUMMY].aName,
                           pExpr);
+      } else if (optr == TK_RATE) {
+        SColumnIndex index1 = {.tableIndex = index.tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
+          tscColumnBaseInfoInsert(pQueryInfo, &index1);
       }
 
       // functions can not be applied to tags
