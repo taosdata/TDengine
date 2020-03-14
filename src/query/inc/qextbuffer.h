@@ -133,13 +133,6 @@ typedef struct tSidSet {
 
 /**
  *
- * @param fileNamePattern
- * @param dstPath
- */
-void getTmpfilePath(const char *fileNamePattern, char *dstPath);
-
-/**
- *
  * @param inMemSize
  * @param elemSize
  * @param pModel

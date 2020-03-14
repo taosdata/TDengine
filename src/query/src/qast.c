@@ -13,12 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "qast.h"
 #include "os.h"
 #include "qsqlparser.h"
 #include "qsyntaxtreefunction.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "tast.h"
 #include "tlog.h"
 #include "tschemautil.h"
 #include "tsqlfunction.h"
@@ -608,6 +608,7 @@ int32_t merge(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResultset *
 //  }
 //
 //  return pFinalRes->num;
+  return 0;
 }
 
 int32_t intersect(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResultset *pFinalRes) {
@@ -642,6 +643,7 @@ int32_t intersect(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResults
 //  }
 //
 //  return pFinalRes->num;
+ return 0;
 }
 
 /*

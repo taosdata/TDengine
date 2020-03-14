@@ -16,11 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "mnode.h"
 #include "os.h"
+#include "qast.h"
 #include "qextbuffer.h"
-#include "tast.h"
 #include "tschemautil.h"
 #include "tsqlfunction.h"
-//#include "vnodeTagMgmt.h"
 
 typedef struct SSyntaxTreeFilterSupporter {
   SSchema* pTagSchema;

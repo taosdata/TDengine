@@ -27,6 +27,8 @@
 #include "tlog.h"
 #include "taoserror.h"
 
+int32_t tmpFileSerialNum = 0;
+
 int32_t strdequote(char *z) {
   if (z == NULL) {
     return 0;
@@ -399,6 +401,27 @@ int32_t taosFileRename(char *fullPath, char *suffix, char delimiter, char **dstP
   (*dstPath)[len] = 0;
 
   return rename(fullPath, *dstPath);
+}
+
+void getTmpfilePath(const char *fileNamePrefix, char *dstPath) {
+  const char* tdengineTmpFileNamePrefix = "tdengine-";
+  
+  char tmpPath[PATH_MAX] = {0};
+
+#ifdef WINDOWS
+  char *tmpDir = getenv("tmp");
+  if (tmpDir == NULL) {
+    tmpDir = "";
+  }
+#else
+  char *tmpDir = "/tmp/";
+#endif
+  
+  strcpy(tmpPath, tmpDir);
+  strcat(tmpPath, tdengineTmpFileNamePrefix);
+  strcat(tmpPath, fileNamePrefix);
+  strcat(tmpPath, "-%llu-%u");
+  snprintf(dstPath, PATH_MAX, tmpPath, taosGetPthreadId(), atomic_add_fetch_32(&tmpFileSerialNum, 1));
 }
 
 int tasoUcs4Compare(void* f1_ucs4, void *f2_ucs4, int bytes) {

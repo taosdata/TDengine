@@ -1317,7 +1317,7 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
       pSql->fetchFp = pSql->fp;
 
       // replace user defined callback function with multi-insert proxy function
-      pSql->fp = launchMultivnodeInsert;
+      pSql->fp = (void(*)())launchMultivnodeInsert;
     }
 
     ret = tsParseInsertSql(pSql);

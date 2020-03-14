@@ -25,13 +25,13 @@ extern "C" {
 #include "taosmsg.h"
 #include "tglobalcfg.h"
 #include "tlog.h"
-#include "tscCache.h"
 #include "taosdef.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
 #include "trpc.h"
 #include "qsqltype.h"
 #include "qsqlparser.h"
+#include "qtsbuf.h"
 
 #define TSC_GET_RESPTR_BASE(res, _queryinfo, col) (res->data + ((_queryinfo)->fieldsInfo.pSqlExpr[col]->offset) * res->numOfRows)
 

@@ -16,11 +16,9 @@
 #ifndef TBASE_MNODE_SUPER_TABLE_QUERY_H
 #define TBASE_MNODE_SUPER_TABLE_QUERY_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
+#include "os.h"
 #include "mnode.h"
-#include "tast.h"
+#include "qast.h"
 
 int32_t mgmtDoJoin(SSuperTableMetaMsg* pSuperTableMetaMsg, tQueryResultset* pRes);
 void    mgmtReorganizeMetersInMetricMeta(SSuperTableMetaMsg* pInfo, int32_t index, tQueryResultset* pRes);

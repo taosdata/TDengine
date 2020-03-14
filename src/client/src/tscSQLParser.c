@@ -17,12 +17,12 @@
 #define _DEFAULT_SOURCE
 
 #include "os.h"
+#include "qast.h"
 #include "taos.h"
 #include "taosmsg.h"
 #include "tstoken.h"
 #include "tstrbuild.h"
 #include "ttime.h"
-#include "tast.h"
 
 #include "tscUtil.h"
 #include "tschemautil.h"

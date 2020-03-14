@@ -14,14 +14,15 @@
  */
 
 #include "os.h"
+#include "qast.h"
 #include "qextbuffer.h"
 #include "qhistogram.h"
 #include "qinterpolation.h"
 #include "qpercentile.h"
 #include "qsyntaxtreefunction.h"
+#include "qtsbuf.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "tast.h"
 #include "tlog.h"
 #include "tscJoinProcess.h"
 #include "tscompression.h"

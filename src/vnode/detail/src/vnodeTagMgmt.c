@@ -16,10 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
+#include "qast.h"
 #include "qextbuffer.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "tast.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "vnodeTagMgmt.h"
