@@ -87,18 +87,7 @@ int32_t dnodeInitMgmt() {
   cfg.cfg.maxSessions = 1000;
   cfg.cfg.daysPerFile = 10;
 
-  dnodeCreateVnode(&cfg);
-  SVnodeObj *pVnode = dnodeGetVnode(cfg.cfg.vgId);
-  dnodeDropVnode(pVnode);
-
-  // dnodeCreateVnode(&cfg);
-  // SVnodeObj *pVnode = dnodeGetVnode(cfg.cfg.vgId);
-  // dnodeCleanupVnodes();
-
-  dnodeOpenVnodes();
-  dnodeCleanupVnodes();
-
-  //return dnodeOpenVnodes();
+  return dnodeOpenVnodes();
 }
 
 void dnodeCleanupMgmt() {
@@ -182,9 +171,9 @@ static int32_t dnodeOpenVnodes() {
       int32_t vnode = atoi(de->d_name + 5);
       if (vnode == 0) continue;
 
-      char tsdbDir[TSDB_FILENAME_LEN];
-      sprintf(tsdbDir, "%s/%s", tsVnodeDir, de->d_name);
-      int32_t code = dnodeOpenVnode(vnode, tsdbDir);
+      char vnodeDir[TSDB_FILENAME_LEN];
+      sprintf(vnodeDir, "%s/%s", tsVnodeDir, de->d_name);
+      int32_t code = dnodeOpenVnode(vnode, vnodeDir);
       if (code == 0) {
         numOfVnodes++;
       }
@@ -203,9 +192,11 @@ static void dnodeCleanupVnodes() {
 }
 
 static int32_t dnodeOpenVnode(int32_t vnode, char *rootDir) {
-  void *pTsdb = tsdbOpenRepo(rootDir);
+  char tsdbDir[TSDB_FILENAME_LEN];
+  sprintf(tsdbDir, "%s/tsdb", rootDir);
+  void *pTsdb = tsdbOpenRepo(tsdbDir);
   if (pTsdb == NULL) {
-    dError("failed to open vnode:%d in dir:%s, reason:%s", vnode, rootDir, tstrerror(terrno));
+    dError("failed to open tsdb in vnode:%d %s, reason:%s", vnode, tsdbDir, tstrerror(terrno));
     return terrno;
   }
 
@@ -260,7 +251,7 @@ static void dnodeCleanupVnode(SVnodeObj *pVnode) {
 }
 
 static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
-  STsdbCfg tsdbCfg;
+  STsdbCfg tsdbCfg = {0};
   tsdbCfg.vgId                = pVnodeCfg->cfg.vgId;
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
   tsdbCfg.tsdbId              = pVnodeCfg->vnode;
@@ -273,9 +264,32 @@ static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
 
   char rootDir[TSDB_FILENAME_LEN] = {0};
   sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
+  if (mkdir(rootDir, 0755) != 0) {
+    if (errno == EACCES) {
+      return TSDB_CODE_NO_DISK_PERMISSIONS;
+    } else if (errno == ENOSPC) {
+      return TSDB_CODE_SERV_NO_DISKSPACE;
+    } else if (errno == EEXIST) {
+    } else {
+      return TSDB_CODE_VG_INIT_FAILED;
+    }
+  }
+
+  sprintf(rootDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
+  if (mkdir(rootDir, 0755) != 0) {
+    if (errno == EACCES) {
+      return TSDB_CODE_NO_DISK_PERMISSIONS;
+    } else if (errno == ENOSPC) {
+      return TSDB_CODE_SERV_NO_DISKSPACE;
+    } else if (errno == EEXIST) {
+    } else {
+      return TSDB_CODE_VG_INIT_FAILED;
+    }
+  }
 
   void *pTsdb = tsdbCreateRepo(rootDir, &tsdbCfg, NULL);
   if (pTsdb == NULL) {
+    dError("failed to create tsdb in vnode:%d, reason:%s", pVnodeCfg->vnode, tstrerror(terrno));
     return terrno;
   }
 
@@ -295,6 +309,7 @@ static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
 
   taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, (char *) (&vnodeObj));
 
+  dPrint("vnode:%d is created", pVnodeCfg->vnode);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -324,13 +339,16 @@ static void dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
   pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
 
+  dTrace("start to create vnode:%d", pCreate->vnode);
+
   SVnodeObj *pVnodeObj = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
   if (pVnodeObj != NULL) {
     rpcRsp.code = TSDB_CODE_SUCCESS;
+    dPrint("vnode:%d is already exist", pCreate->vnode);
   } else {
     rpcRsp.code = dnodeCreateVnode(pCreate);
   }
-  rpcRsp.code = TSDB_CODE_SUCCESS;
+
   rpcSendResponse(&rpcRsp);
 }
 

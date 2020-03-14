@@ -213,7 +213,7 @@ int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
   }
 
   strcpy(pStable->tableId, pCreate->tableId);
-  pStable->type        = TSDB_TABLE_TYPE_SUPER_TABLE;
+  pStable->type        = TSDB_SUPER_TABLE;
   pStable->createdTime = taosGetTimestampMs();
   pStable->vgId = 0;
   pStable->sid = 0;

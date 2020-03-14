@@ -21,7 +21,6 @@
 
 #include "taosdef.h"
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif

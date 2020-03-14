@@ -251,7 +251,6 @@ typedef struct {
 typedef struct {
   int32_t    contLen;
   int32_t    vgId;
-
   int8_t     tableType;
   int16_t    numOfColumns;
   int16_t    numOfTags;

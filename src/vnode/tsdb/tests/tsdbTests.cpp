@@ -15,7 +15,7 @@ TEST(TsdbTest, createRepo) {
   // 2. Create a normal table
   STableCfg tCfg;
   ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_SUPER_TABLE, 987607499877672L, 0), -1);
-  ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_NTABLE, 987607499877672L, 0), 0);
+  ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_NORMAL_TABLE, 987607499877672L, 0), 0);
 
   int       nCols = 5;
   STSchema *schema = tdNewSchema(nCols);
