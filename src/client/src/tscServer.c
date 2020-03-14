@@ -605,7 +605,7 @@ int tscProcessSql(SSqlObj *pSql) {
       }
     }
   }
-
+  
   if (tscIsTwoStageMergeMetricQuery(pQueryInfo, 0)) {
     /*
      * (ref. line: 964)
@@ -615,24 +615,16 @@ int tscProcessSql(SSqlObj *pSql) {
      * when pSql being released, pSql->fp == NULL, it may pass the check of pSql->fp == NULL,
      * which causes deadlock. So we keep it as local variable.
      */
-    void *fp = pSql->fp;
-
     if (tscLaunchSTableSubqueries(pSql) != TSDB_CODE_SUCCESS) {
       return pRes->code;
     }
-
-    if (fp == NULL) {
-      tsem_post(&pSql->emptyRspSem);
-      tsem_wait(&pSql->rspSem);
-      tsem_post(&pSql->emptyRspSem);
-
-      // set the command flag must be after the semaphore been correctly set.
-      pSql->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
-    }
-
+    
+    return pSql->res.code;
+  } else if (pSql->fp == launchMultivnodeInsert) {  // multi-vnodes insertion
+    launchMultivnodeInsert(pSql);
     return pSql->res.code;
   }
-
+  
   return doProcessSql(pSql);
 }
 

@@ -14,20 +14,20 @@
  */
 
 #include "os.h"
+#include "qextbuffer.h"
+#include "qhistogram.h"
+#include "qinterpolation.h"
+#include "qpercentile.h"
+#include "qsyntaxtreefunction.h"
+#include "taosdef.h"
 #include "taosmsg.h"
 #include "tast.h"
-#include "textbuffer.h"
-#include "thistogram.h"
-#include "tinterpolation.h"
 #include "tlog.h"
 #include "tscJoinProcess.h"
-#include "tscSyntaxtreefunction.h"
 #include "tscompression.h"
 #include "tsqlfunction.h"
 #include "ttime.h"
-#include "taosdef.h"
 #include "tutil.h"
-#include "tpercentile.h"
 
 #define GET_INPUT_CHAR(x) (((char *)((x)->aInputElemBuf)) + ((x)->startOffset) * ((x)->inputBytes))
 #define GET_INPUT_CHAR_INDEX(x, y) (GET_INPUT_CHAR(x) + (y) * (x)->inputBytes)

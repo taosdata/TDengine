@@ -12,14 +12,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "qextbuffer.h"
 #include "os.h"
 #include "taos.h"
+#include "taosdef.h"
 #include "taosmsg.h"
-#include "textbuffer.h"
 #include "tlog.h"
 #include "tsqlfunction.h"
 #include "ttime.h"
-#include "taosdef.h"
 #include "tutil.h"
 
 #define COLMODEL_GET_VAL(data, schema, allrow, rowId, colId) \

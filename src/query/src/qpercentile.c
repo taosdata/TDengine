@@ -15,11 +15,10 @@
 
 #include "os.h"
 
+#include "qpercentile.h"
+#include "taosdef.h"
 #include "taosmsg.h"
-#include "taosdef.h"
 #include "tlog.h"
-#include "taosdef.h"
-#include "tpercentile.h"
 
 tExtMemBuffer *releaseBucketsExceptFor(tMemBucket *pMemBucket, int16_t segIdx, int16_t slotIdx) {
   tExtMemBuffer *pBuffer = NULL;

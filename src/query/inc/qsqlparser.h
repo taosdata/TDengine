@@ -329,6 +329,18 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SSQLToken *pToken);
 
 void *ParseAlloc(void *(*mallocProc)(size_t));
 
+enum {
+  TSQL_NODE_TYPE_EXPR = 0x1,
+  TSQL_NODE_TYPE_ID = 0x2,
+  TSQL_NODE_TYPE_VALUE = 0x4,
+};
+
+#define NON_ARITHMEIC_EXPR 0
+#define NORMAL_ARITHMETIC 1
+#define AGG_ARIGHTMEIC    2
+
+int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pSql);
+
 #ifdef __cplusplus
 }
 #endif

@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <tast.h>
 #include "hash.h"
 #include "os.h"
 #include "tcache.h"
@@ -30,6 +29,7 @@
 #include "tsocket.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "ttokendef.h"
 
 TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const char *db, uint16_t port,
                        void (*fp)(void *, TAOS_RES *, int), void *param, void **taos) {

@@ -24,10 +24,10 @@ extern "C" {
  * @date   2018/09/30
  */
 #include "os.h"
-#include "textbuffer.h"
+#include "qextbuffer.h"
+#include "taosdef.h"
 #include "tscSecondaryMerge.h"
 #include "tsclient.h"
-#include "taosdef.h"
 
 #define UTIL_METER_IS_SUPERTABLE(metaInfo) \
   (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->tableType == TSDB_TABLE_TYPE_SUPER_TABLE))
@@ -252,6 +252,7 @@ void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)());
 
+int32_t launchMultivnodeInsert(SSqlObj *pSql);
 
 #ifdef __cplusplus
 }

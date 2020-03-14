@@ -28,6 +28,7 @@
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
+#include "ttokendef.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
@@ -59,7 +60,7 @@ static int32_t setObjFullName(char* fullName, const char* account, SSQLToken* pD
 static void getColumnName(tSQLExprItem* pItem, char* resultFieldName, int32_t nameLength);
 static void getRevisedName(char* resultFieldName, int32_t functionId, int32_t maxLen, char* columnName);
 
-static int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprItem* pItem, bool isResultColumn);
+static int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprItem* pItem, bool finalResult);
 static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pIdList, int16_t bytes,
                                  int8_t type, char* fieldName, SSqlExpr* pSqlExpr);
 static int32_t changeFunctionID(int32_t optr, int16_t* functionId);

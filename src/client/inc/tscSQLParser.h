@@ -20,24 +20,9 @@
 extern "C" {
 #endif
 
-#include "taos.h"
-#include "taosmsg.h"
-#include "ttokendef.h"
-#include "taosdef.h"
-#include "tvariant.h"
-#include "qsqlparser.h"
+#include "tsclient.h"
 
-enum {
-  TSQL_NODE_TYPE_EXPR = 0x1,
-  TSQL_NODE_TYPE_ID = 0x2,
-  TSQL_NODE_TYPE_VALUE = 0x4,
-};
-
-#define NON_ARITHMEIC_EXPR 0
-#define NORMAL_ARITHMETIC 1
-#define AGG_ARIGHTMEIC    2
-
-int32_t tSQLParse(SSqlInfo *pSQLInfo, const char *pSql);
+int32_t tscToSQLCmd(struct SSqlObj* pSql, struct SSqlInfo* pInfo);
 
 #ifdef __cplusplus
 }

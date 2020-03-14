@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
 #include "mnode.h"
-#include "textbuffer.h"
+#include "os.h"
+#include "qextbuffer.h"
+#include "tast.h"
 #include "tschemautil.h"
 #include "tsqlfunction.h"
-#include "tast.h"
 //#include "vnodeTagMgmt.h"
 
 typedef struct SSyntaxTreeFilterSupporter {
