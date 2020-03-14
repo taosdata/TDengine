@@ -14,9 +14,21 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
+#include <dirent.h>
 
 #include "tsdbFile.h"
+#include "tglobalcfg.h"
+
+// int64_t tsMsPerDay[] = {
+//     86400000L,       // TSDB_PRECISION_MILLI
+//     86400000000L,    // TSDB_PRECISION_MICRO
+//     86400000000000L  // TSDB_PRECISION_NANO
+// };
+
+#define tsdbGetKeyFileId(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
+#define tsdbGetMaxNumOfFiles(keep, daysPerFile) ((keep) / (daysPerFile) + 3)
 
 typedef struct {
   int64_t offset;
@@ -71,6 +83,55 @@ const char *tsdbFileSuffix[] = {
     ".meta"   // TSDB_FILE_TYPE_META
 };
 
+/**
+ * Initialize the TSDB file handle
+ */
+STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32_t minRowsPerFBlock,
+                         int32_t maxRowsPerFBlock) {
+  STsdbFileH *pTsdbFileH =
+      (STsdbFileH *)calloc(1, sizeof(STsdbFileH) + sizeof(SFileGroup) * tsdbGetMaxNumOfFiles(keep, daysPerFile));
+  if (pTsdbFileH == NULL) return NULL;
+
+  pTsdbFileH->daysPerFile = daysPerFile;
+  pTsdbFileH->keep = keep;
+  pTsdbFileH->minRowPerFBlock = minRowsPerFBlock;
+  pTsdbFileH->maxRowsPerFBlock = maxRowsPerFBlock;
+
+  // Open the directory to read information of each file
+  DIR *dir = opendir(dataDir);
+  if (dir == NULL) {
+    free(pTsdbFileH);
+    return NULL;
+  }
+
+  struct dirent *dp;
+  char fname[256];
+  while ((dp = readdir(dir)) != NULL) {
+    if (strncmp(dp->d_name, ".", 1) == 0 || strncmp(dp->d_name, "..", 2) == 0) continue;
+    if (true /* check if the file is the .head file */) {
+      int fileId = 0;
+      int vgId = 0;
+      sscanf(dp->d_name, "v%df%d.head", &vgId, &fileId);
+      // TODO
+
+      // Open head file
+
+      // Open data file
+
+      // Open last file
+    }
+  }
+
+  return pTsdbFileH;
+}
+
+/**
+ * Closet the file handle
+ */
+void tsdbCloseFile(STsdbFileH *pFileH) {
+  // TODO
+}
+
 char *tsdbGetFileName(char *dirName, char *fname, TSDB_FILE_TYPE type) {
   if (!IS_VALID_TSDB_FILE_TYPE(type)) return NULL;
 
@@ -79,4 +140,10 @@ char *tsdbGetFileName(char *dirName, char *fname, TSDB_FILE_TYPE type) {
 
   sprintf(fileName, "%s/%s%s", dirName, fname, tsdbFileSuffix[type]);
   return fileName;
+}
+
+static void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey,
+                                    TSKEY *maxKey) {
+  *minKey = fileId * daysPerFile * tsMsPerDay[precision];
+  *maxKey = *minKey + daysPerFile * tsMsPerDay[precision] - 1;
 }

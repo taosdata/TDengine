@@ -83,7 +83,7 @@ int32_t tsdbInsertMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t co
   }
 
   // TODO: make below a function to implement
-  if (fseek(mfh->fd, info.offset, SEEK_CUR) < 0) {
+  if (lseek(mfh->fd, info.offset, SEEK_CUR) < 0) {
     return -1;
   }
 
@@ -114,7 +114,7 @@ int32_t tsdbDeleteMetaRecord(SMetaFile *mfh, int64_t uid) {
   // Remove record from file
 
   info.offset = -info.offset;
-  if (fseek(mfh->fd, -info.offset, SEEK_CUR) < 0) {
+  if (lseek(mfh->fd, -info.offset, SEEK_CUR) < 0) {
     return -1;
   }
 
@@ -149,7 +149,7 @@ int32_t tsdbUpdateMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t co
 
     mfh->size += contLen;
   }
-  if (fseek(mfh->fd, -info.offset, SEEK_CUR) < 0) {
+  if (lseek(mfh->fd, -info.offset, SEEK_CUR) < 0) {
     return -1;
   }
 
@@ -212,7 +212,7 @@ static int tsdbRestoreFromMetaFile(char *fname, SMetaFile *mfh) {
     return -1;
   }
 
-  if (fseek(fd, TSDB_META_FILE_HEADER_SIZE, SEEK_SET) < 0) {
+  if (lseek(fd, TSDB_META_FILE_HEADER_SIZE, SEEK_SET) < 0) {
     // TODO: deal with the error
     close(fd);
     return -1;
