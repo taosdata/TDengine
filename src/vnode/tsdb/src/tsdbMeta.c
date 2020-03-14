@@ -18,6 +18,7 @@ static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbEstimateTableEncodeSize(STable *pTable);
+static char *  getTupleKey(const void *data);
 
 /**
  * Encode a TSDB table object as a binary content
@@ -153,7 +154,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
       super->tagSchema = tdDupSchema(pCfg->tagSchema);
       super->tagVal = tdDataRowDup(pCfg->tagValues);
       super->content.pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1,
-                                                0, NULL);  // Allow duplicate key, no lock
+                                                0, getTupleKey);  // Allow duplicate key, no lock
 
       if (super->content.pIndex == NULL) {
         tdFreeSchema(super->schema);
@@ -183,7 +184,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
     table->superUid = -1;
     table->schema = tdDupSchema(pCfg->schema);
   }
-  table->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, 0, 8, 0, 0, NULL);
+  table->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
 
   if (newSuper) tsdbAddTableToMeta(pMeta, super);
   tsdbAddTableToMeta(pMeta, table);
@@ -319,4 +320,10 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
 static int tsdbEstimateTableEncodeSize(STable *pTable) {
   // TODO
   return 0;
+}
+
+static char *getTupleKey(const void * data) {
+  SDataRow row = (SDataRow)data;
+
+  return dataRowAt(row, TD_DATA_ROW_HEAD_SIZE);
 }
