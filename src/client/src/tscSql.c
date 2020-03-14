@@ -21,7 +21,6 @@
 #include "trpc.h"
 #include "tscJoinProcess.h"
 #include "tscProfile.h"
-#include "tscSQLParser.h"
 #include "tscSecondaryMerge.h"
 #include "tscUtil.h"
 #include "tsclient.h"

@@ -18,7 +18,6 @@
 #include "trpc.h"
 #include "tscJoinProcess.h"
 #include "tscProfile.h"
-#include "tscSQLParser.h"
 #include "tscSecondaryMerge.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
@@ -620,7 +619,7 @@ int tscProcessSql(SSqlObj *pSql) {
     }
     
     return pSql->res.code;
-  } else if (pSql->fp == launchMultivnodeInsert) {  // multi-vnodes insertion
+  } else if (pSql->fp == (void(*)())launchMultivnodeInsert) {  // multi-vnodes insertion
     launchMultivnodeInsert(pSql);
     return pSql->res.code;
   }

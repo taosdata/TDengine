@@ -26,7 +26,6 @@ extern "C" {
 #include "tglobalcfg.h"
 #include "tlog.h"
 #include "tscCache.h"
-#include "tscSQLParser.h"
 #include "taosdef.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
@@ -444,6 +443,7 @@ char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
 void tscQueueAsyncFreeResult(SSqlObj *pSql);
+int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo);
 
 extern void *     pVnodeConn;
 extern void *     pTscMgmtConn;

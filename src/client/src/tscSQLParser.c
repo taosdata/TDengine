@@ -24,7 +24,6 @@
 #include "ttime.h"
 #include "tast.h"
 
-#include "tscSQLParser.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
