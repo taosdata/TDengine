@@ -20,7 +20,63 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
+#include "os.h"
+#include "tref.h"
+#include "hash.h"
+
+typedef struct SCacheStatis {
+  int64_t missCount;
+  int64_t hitCount;
+  int64_t totalAccess;
+  int64_t refreshCount;
+  int32_t numOfCollision;
+} SCacheStatis;
+
+typedef struct SCacheDataNode {
+  uint64_t addedTime;    // the added time when this element is added or updated into cache
+  uint64_t expiredTime;  // expiredTime expiredTime when this element should be remove from cache
+  uint64_t signature;
+  uint32_t size;         // allocated size for current SCacheDataNode
+  uint16_t keySize : 15;
+  bool     inTrash : 1;  // denote if it is in trash or not
+  T_REF_DECLARE()
+  char *key;
+  char  data[];
+} SCacheDataNode;
+
+typedef struct STrashElem {
+  struct STrashElem *prev;
+  struct STrashElem *next;
+  SCacheDataNode *        pData;
+} STrashElem;
+
+typedef struct {
+  int64_t totalSize;  // total allocated buffer in this hash table, SCacheObj is not included.
+  int64_t refreshTime;
+  
+  /*
+   * to accommodate the old datanode which has the same key value of new one in hashList
+   * when an new node is put into cache, if an existed one with the same key:
+   * 1. if the old one does not be referenced, update it.
+   * 2. otherwise, move the old one to pTrash, addedTime the new one.
+   *
+   * when the node in pTrash does not be referenced, it will be release at the expired expiredTime
+   */
+  STrashElem * pTrash;
+  void *       tmrCtrl;
+  void *       pTimer;
+  SCacheStatis statistics;
+  SHashObj *   pHashTable;
+  int          numOfElemsInTrash;  // number of element in trash
+  int16_t      deleting;           // set the deleting flag to stop refreshing ASAP.
+
+#if defined(LINUX)
+  pthread_rwlock_t lock;
+#else
+  pthread_mutex_t lock;
+#endif
+
+} SCacheObj;
 
 /**
  *
@@ -30,7 +86,7 @@ extern "C" {
  *                          not referenced by other objects
  * @return
  */
-void *taosInitDataCache(int maxSessions, void *tmrCtrl, int64_t refreshTimeInSeconds);
+SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTimeInSeconds);
 
 /**
  * add data into cache
@@ -42,7 +98,35 @@ void *taosInitDataCache(int maxSessions, void *tmrCtrl, int64_t refreshTimeInSec
  * @param keepTime      survival time in second
  * @return              cached element
  */
-void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, int keepTimeInSeconds);
+void *taosCachePut(void *handle, char *key, char *pData, int dataSize, int keepTimeInSeconds);
+
+/**
+ * get data from cache
+ * @param handle        cache object
+ * @param key           key
+ * @return              cached data or NULL
+ */
+void *taosCacheAcquireByName(void *handle, char *key);
+
+/**
+ * Add one reference count for the exist data, and assign this data for a new owner.
+ * The new owner needs to invoke the taosCacheRelease when it does not need this data anymore.
+ * This procedure is a faster version of taosCacheAcquireByName function, which avoids the sideeffect of the problem of
+ * the data is moved to trash, and taosCacheAcquireByName will fail to retrieve it again.
+ *
+ * @param handle
+ * @param data
+ * @return
+ */
+void *taosCacheAcquireByData(void *handle, void *data);
+
+/**
+ * transfer the ownership of data in cache to another object without increasing reference count.
+ * @param handle
+ * @param data
+ * @return
+ */
+void *taosCacheTransfer(void *handle, void **data);
 
 /**
  * remove data in cache, the data will not be removed immediately.
@@ -52,59 +136,26 @@ void *taosAddDataIntoCache(void *handle, char *key, char *pData, int dataSize, i
  * @param _remove   force model, reduce the ref count and move the data into
  * pTrash
  */
-void taosRemoveDataFromCache(void *handle, void **data, bool _remove);
+void taosCacheRelease(void *handle, void **data, bool _remove);
 
 /**
- * update data in cache
- * @param handle hash object handle(pointer)
- * @param key    key for hash
- * @param pData  actually data
- * @param size   length of data
- * @param duration  survival time of this object in cache
- * @return       new referenced data
+ *  move all data node into trash, clear node in trash can if it is not referenced by any clients
+ * @param handle
  */
-void *taosUpdateDataFromCache(void *handle, char *key, char *pData, int size, int duration);
+void taosCacheEmpty(SCacheObj *pCacheObj);
 
 /**
- * get data from cache
- * @param handle        cache object
- * @param key           key
- * @return              cached data or NULL
- */
-void *taosGetDataFromCache(void *handle, char *key);
-
-/**
- * release all allocated memory and destroy the cache object
+ * release all allocated memory and destroy the cache object.
+ *
+ * This function only set the deleting flag, and the specific work of clean up cache is delegated to
+ * taosCacheRefresh function, which will executed every SCacheObj->refreshTime sec.
+ *
+ * If the value of SCacheObj->refreshTime is too large, the taosCacheRefresh function may not be invoked
+ * before the main thread terminated, in which case all allocated resources are simply recycled by OS.
  *
  * @param handle
  */
-void taosCleanUpDataCache(void *handle);
-
-/**
- *  move all data node into trash,clear node in trash can if it is not referenced by client
- * @param handle
- */
-void taosClearDataCache(void *handle);
-
-/**
- * Add one reference count for the exist data, and assign this data for a new owner.
- * The new owner needs to invoke the taosRemoveDataFromCache when it does not need this data anymore.
- * This procedure is a faster version of taosGetDataFromCache function, which avoids the sideeffect of the problem of the
- * data is moved to trash, and taosGetDataFromCache will fail to retrieve it again.
- *
- * @param handle
- * @param data
- * @return
- */
-void* taosGetDataFromExists(void* handle, void* data);
-
-/**
- * transfer the ownership of data in cache to another object without increasing reference count.
- * @param handle
- * @param data
- * @return
- */
-void* taosTransferDataInCache(void* handle, void** data);
+void taosCacheCleanup(SCacheObj *pCacheObj);
 
 #ifdef __cplusplus
 }
