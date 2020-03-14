@@ -18,6 +18,52 @@
 
 #include "tsdbFile.h"
 
+typedef struct {
+  int64_t offset;
+} SCompHeader;
+
+typedef struct {
+  int64_t uid;
+  int64_t last : 1;
+  int64_t numOfBlocks : 63;
+  int32_t delimiter;
+} SCompInfo;
+
+typedef struct {
+  TSKEY   keyFirst;
+  TSKEY   keyLast;
+  int32_t numOfBlocks;
+  int32_t offset;
+} SCompIdx;
+
+typedef struct {
+  TSKEY   keyFirst;
+  TSKEY   keyLast;
+  int64_t offset;
+  int32_t len;
+  int32_t sversion;
+} SCompBlock;
+
+typedef struct {
+  int64_t uid;
+} SBlock;
+
+typedef struct {
+  int16_t colId;
+  int16_t bytes;
+  int32_t nNullPoints;
+  int32_t type:8;
+  int32_t offset:24;
+  int32_t len;
+  // fields for pre-aggregate
+  // TODO: pre-aggregation should be seperated
+  int64_t sum;
+  int64_t max;
+  int64_t min;
+  int16_t maxIdx;
+  int16_t minIdx;
+} SField;
+
 const char *tsdbFileSuffix[] = {
     ".head",  // TSDB_FILE_TYPE_HEAD
     ".data",  // TSDB_FILE_TYPE_DATA

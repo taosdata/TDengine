@@ -42,6 +42,9 @@
 #define TSDB_MIN_CACHE_SIZE (4 * 1024 * 1024)       // 4M
 #define TSDB_MAX_CACHE_SIZE (1024 * 1024 * 1024)    // 1G
 
+#define TSDB_CFG_FILE_NAME "CONFIG"
+#define TSDB_DATA_DIR_NAME "data"
+
 enum { TSDB_REPO_STATE_ACTIVE, TSDB_REPO_STATE_CLOSED, TSDB_REPO_STATE_CONFIGURING };
 
 typedef struct _tsdb_repo {
@@ -75,16 +78,18 @@ static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo);
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
 static int     tsdbOpenMetaFile(char *tsdbDir);
 static int     tsdbRecoverRepo(int fd, STsdbCfg *pCfg);
-static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlock *pBlock);
+static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
 #define TSDB_IS_REPO_ACTIVE(pRepo) ((pRepo)->state == TSDB_REPO_STATE_ACTIVE)
 #define TSDB_IS_REPO_CLOSED(pRepo) ((pRepo)->state == TSDB_REPO_STATE_CLOSED)
 
-STsdbCfg *tsdbCreateDefaultCfg() {
-  STsdbCfg *pCfg = (STsdbCfg *)malloc(sizeof(STsdbCfg));
-  if (pCfg == NULL) return NULL;
+/**
+ * Set the default TSDB configuration
+ */
+void tsdbSetDefaultCfg(STsdbCfg *pCfg) {
+  if (pCfg == NULL) return;
 
   pCfg->precision = -1;
   pCfg->tsdbId = 0;
@@ -94,6 +99,18 @@ STsdbCfg *tsdbCreateDefaultCfg() {
   pCfg->maxRowsPerFileBlock = -1;
   pCfg->keep = -1;
   pCfg->maxCacheSize = -1;
+}
+
+/**
+ * Create a configuration for TSDB default
+ * @return a pointer to a configuration. the configuration object 
+ *         must call tsdbFreeCfg to free memory after usage
+ */
+STsdbCfg *tsdbCreateDefaultCfg() {
+  STsdbCfg *pCfg = (STsdbCfg *)malloc(sizeof(STsdbCfg));
+  if (pCfg == NULL) return NULL;
+
+  tsdbSetDefaultCfg(pCfg);
 
   return pCfg;
 }
@@ -102,7 +119,15 @@ void tsdbFreeCfg(STsdbCfg *pCfg) {
   if (pCfg != NULL) free(pCfg);
 }
 
-tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter) {
+/**
+ * Create a new TSDB repository
+ * @param rootDir the TSDB repository root directory
+ * @param pCfg the TSDB repository configuration, upper layer need to free the pointer
+ * @param limiter the limitation tracker will implement in the future, make it void now
+ *
+ * @return a TSDB repository handle on success, NULL for failure
+ */
+tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO */) {
   if (rootDir == NULL) return NULL;
 
   if (access(rootDir, F_OK | R_OK | W_OK) == -1) return NULL;
@@ -120,35 +145,44 @@ tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter) {
   pRepo->config = *pCfg;
   pRepo->limiter = limiter;
 
-  pRepo->tsdbMeta = tsdbCreateMeta(pCfg->maxTables);
-  if (pRepo->tsdbMeta == NULL) {
-    free(pRepo->rootDir);
-    free(pRepo);
-    return NULL;
-  }
-
-  pRepo->tsdbCache = tsdbCreateCache(5);
-  if (pRepo->tsdbCache == NULL) {
-    free(pRepo->rootDir);
-    tsdbFreeMeta(pRepo->tsdbMeta);
-    free(pRepo);
-    return NULL;
-  }
-
-  // Create the Meta data file and data directory
+  // Create the environment files and directories
   if (tsdbSetRepoEnv(pRepo) < 0) {
     free(pRepo->rootDir);
-    tsdbFreeMeta(pRepo->tsdbMeta);
-    tsdbFreeCache(pRepo->tsdbCache);
     free(pRepo);
     return NULL;
   }
+
+  // Initialize meta
+  STsdbMeta *pMeta = tsdbInitMeta(rootDir, pCfg->maxTables);
+  if (pMeta == NULL) {
+    free(pRepo->rootDir);
+    free(pRepo);
+    return NULL;
+  }
+  pRepo->tsdbMeta = pMeta;
+
+  // Initialize cache
+  STsdbCache *pCache = tsdbInitCache(pCfg->maxCacheSize);
+  if (pCache == NULL) {
+    free(pRepo->rootDir);
+    tsdbFreeMeta(pRepo->tsdbMeta);
+    free(pRepo);
+    return NULL;
+  }
+  pRepo->tsdbCache = pCache;
 
   pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
   return (tsdb_repo_t *)pRepo;
 }
 
+/**
+ * Close and free all resources taken by the repository
+ * @param repo the TSDB repository handle. The interface will free the handle too, so upper
+ *              layer do NOT need to free the repo handle again.
+ *
+ * @return 0 for success, -1 for failure and the error number is set
+ */
 int32_t tsdbDropRepo(tsdb_repo_t *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
@@ -169,6 +203,12 @@ int32_t tsdbDropRepo(tsdb_repo_t *repo) {
   return 0;
 }
 
+/**
+ * Open an existing TSDB storage repository
+ * @param tsdbDir the existing TSDB root directory
+ *
+ * @return a TSDB repository handle on success, NULL for failure and the error number is set
+ */
 tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
   if (access(tsdbDir, F_OK | W_OK | R_OK) < 0) {
     return NULL;
@@ -191,7 +231,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
     return NULL;
   }
 
-  pRepo->tsdbCache = tsdbCreateCache(5);
+  pRepo->tsdbCache = tsdbInitCache(5);
   if (pRepo->tsdbCache == NULL) {
     // TODO: deal with error
     return NULL;
@@ -208,6 +248,13 @@ static int32_t tsdbFlushCache(STsdbRepo *pRepo) {
   return 0;
 }
 
+/**
+ * Close a TSDB repository. Only free memory resources, and keep the files.
+ * @param repo the opened TSDB repository handle. The interface will free the handle too, so upper
+ *              layer do NOT need to free the repo handle again.
+ *
+ * @return 0 for success, -1 for failure and the error number is set
+ */
 int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   if (pRepo == NULL) return 0;
@@ -223,6 +270,12 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
   return 0;
 }
 
+/**
+ * Change the configuration of a repository
+ * @param pCfg the repository configuration, the upper layer should free the pointer
+ *
+ * @return 0 for success, -1 for failure and the error number is set
+ */
 int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
@@ -231,22 +284,30 @@ int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
   return 0;
 }
 
+/**
+ * Get the TSDB repository information, including some statistics
+ * @param pRepo the TSDB repository handle
+ * @param error the error number to set when failure occurs
+ *
+ * @return a info struct handle on success, NULL for failure and the error number is set. The upper
+ *         layers should free the info handle themselves or memory leak will occur
+ */
 STsdbRepoInfo *tsdbGetStatus(tsdb_repo_t *pRepo) {
   // TODO
   return NULL;
 }
 
-int32_t tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg) {
+int tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   return tsdbCreateTableImpl(pRepo->tsdbMeta, pCfg);
 }
 
-int32_t tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg) {
+int tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg) {
   // TODO
   return 0;
 }
 
-int32_t tsdbDropTable(tsdb_repo_t *repo, STableId tableId) {
+int tsdbDropTable(tsdb_repo_t *repo, STableId tableId) {
   // TODO
   if (repo == NULL) return -1;
   STsdbRepo *pRepo = (STsdbRepo *)repo;
@@ -261,16 +322,148 @@ STableInfo *tsdbGetTableInfo(tsdb_repo_t *pRepo, STableId tableId) {
 
 // TODO: need to return the number of data inserted
 int32_t tsdbInsertData(tsdb_repo_t *repo, SSubmitMsg *pMsg) {
-  SSubmitBlock *pBlock = (SSubmitBlock *)pMsg->data;
+  SSubmitMsgIter msgIter;
 
-  for (int i = 0; i < pMsg->numOfTables; i++) {  // Loop to deal with the submit message
+  tsdbInitSubmitMsgIter(pMsg, &msgIter);
+  SSubmitBlk *pBlock;
+  while ((pBlock = tsdbGetSubmitMsgNext(&msgIter)) != NULL) {
     if (tsdbInsertDataToTable(repo, pBlock) < 0) {
       return -1;
     }
-    pBlock = (SSubmitBlock *)(((char *)pBlock) + sizeof(SSubmitBlock) + pBlock->len);
   }
 
   return 0;
+}
+
+/**
+ * Initialize a table configuration
+ */
+int tsdbInitTableCfg(STableCfg *config, TSDB_TABLE_TYPE type, int64_t uid, int32_t tid) {
+  if (config == NULL) return -1;
+  if (type != TSDB_NTABLE && type != TSDB_STABLE) return -1;
+
+  memset((void *)config, 0, sizeof(STableCfg));
+
+  config->type = type;
+  config->superUid = TSDB_INVALID_SUPER_TABLE_ID;
+  config->tableId.uid = uid;
+  config->tableId.tid = tid;
+  return 0;
+}
+
+/**
+ * Set the super table UID of the created table
+ */
+int tsdbTableSetSuperUid(STableCfg *config, int64_t uid) {
+  if (config->type != TSDB_STABLE) return -1;
+  if (uid == TSDB_INVALID_SUPER_TABLE_ID) return -1;
+
+  config->superUid = uid;
+  return 0;
+}
+
+/**
+ * Set the table schema in the configuration
+ * @param config the configuration to set
+ * @param pSchema the schema to set
+ * @param dup use the schema directly or duplicate one for use
+ * 
+ * @return 0 for success and -1 for failure
+ */
+int tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup) {
+  if (dup) {
+    config->schema = tdDupSchema(pSchema);
+  } else {
+    config->schema = pSchema;
+  }
+  return 0;
+}
+
+/**
+ * Set the table schema in the configuration
+ * @param config the configuration to set
+ * @param pSchema the schema to set
+ * @param dup use the schema directly or duplicate one for use
+ * 
+ * @return 0 for success and -1 for failure
+ */
+int tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup) {
+  if (config->type != TSDB_STABLE) return -1;
+
+  if (dup) {
+    config->tagSchema = tdDupSchema(pSchema);
+  } else {
+    config->tagSchema = pSchema;
+  }
+  return 0;
+}
+
+int tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup) {
+  if (config->type != TSDB_STABLE) return -1;
+
+  if (dup) {
+    config->tagValues = tdDataRowDup(row);
+  } else {
+    config->tagValues = row;
+  }
+
+  return 0;
+}
+
+void tsdbClearTableCfg(STableCfg *config) {
+  if (config->schema) tdFreeSchema(config->schema);
+  if (config->tagSchema) tdFreeSchema(config->tagSchema);
+  if (config->tagValues) tdFreeDataRow(config->tagValues);
+}
+
+int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
+  if (pBlock->len <= 0) return -1;
+  pIter->totalLen = pBlock->len;
+  pIter->len = 0;
+  pIter->row = (SDataRow)(pBlock->data);
+  return 0;
+}
+
+SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
+  SDataRow row = pIter->row;
+  if (row == NULL) return NULL;
+
+  pIter->len += dataRowLen(row);
+  if (pIter->len >= pIter->totalLen) {
+    pIter->row = NULL;
+  } else {
+    pIter->row = (char *)row + dataRowLen(row);
+  }
+
+  return row;
+}
+
+int tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter) {
+  if (pMsg == NULL || pIter == NULL) return -1;
+
+  pIter->totalLen = pMsg->length;
+  pIter->len = TSDB_SUBMIT_MSG_HEAD_SIZE;
+  if (pMsg->length <= TSDB_SUBMIT_MSG_HEAD_SIZE) {
+    pIter->pBlock = NULL;
+  } else {
+    pIter->pBlock = pMsg->blocks;
+  }
+
+  return 0;
+}
+
+SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter) {
+  SSubmitBlk *pBlock = pIter->pBlock;
+  if (pBlock == NULL) return NULL;
+
+  pIter->len = pIter->len + sizeof(SSubmitBlk) + pBlock->len;
+  if (pIter->len >= pIter->totalLen) {
+    pIter->pBlock = NULL;
+  } else {
+    pIter->pBlock = (char *)pBlock + pBlock->len + sizeof(SSubmitBlk);
+  }
+
+  return pBlock;
 }
 
 // Check the configuration and set default options
@@ -285,7 +478,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   // Check tsdbId
   if (pCfg->tsdbId < 0) return -1;
 
-  // Check MaxTables
+  // Check maxTables
   if (pCfg->maxTables == -1) {
     pCfg->maxTables = TSDB_DEFAULT_TABLES;
   } else {
@@ -333,10 +526,18 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   return 0;
 }
 
-static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
-  char *metaFname = tsdbGetFileName(pRepo->rootDir, "tsdb", TSDB_FILE_TYPE_META);
+static int32_t tsdbGetCfgFname(STsdbRepo *pRepo, char *fname) {
+  if (pRepo == NULL) return -1;
+  sprintf(fname, "%s/%s", pRepo->rootDir, TSDB_CFG_FILE_NAME);
+  return 0;
+}
 
-  int fd = open(metaFname, O_WRONLY | O_CREAT);
+static int32_t tsdbSaveConfig(STsdbRepo *pRepo) {
+  char fname[128] = "\0"; // TODO: get rid of the literal 128
+
+  if (tsdbGetCfgFname(pRepo, fname) < 0) return -1;
+
+  int fd = open(fname, O_WRONLY | O_CREAT, 0755);
   if (fd < 0) {
     return -1;
   }
@@ -345,19 +546,45 @@ static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
     return -1;
   }
 
-  // Create the data file
-  char *dirName = calloc(1, strlen(pRepo->rootDir) + strlen("tsdb") + 2);
-  if (dirName == NULL) {
+  close(fd);
+  return 0;
+}
+
+static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg) {
+  char fname[128] = "\0";
+
+  if (tsdbGetCfgFname(pRepo, fname) < 0) return -1;
+
+  int fd = open(fname, O_RDONLY);
+  if (fd < 0) {
     return -1;
   }
 
-  sprintf(dirName, "%s/%s", pRepo->rootDir, "tsdb");
+  if (read(fd, (void *)pCfg, sizeof(STsdbCfg)) < sizeof(STsdbCfg)) {
+    close(fd);
+    return -1;
+  }
+
+  close(fd);
+
+  return 0;
+}
+
+static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname) {
+  if (pRepo == NULL || pRepo->rootDir == NULL) return -1;
+  sprintf(fname, "%s/%s", pRepo->rootDir, TSDB_DATA_DIR_NAME);
+  return 0;
+}
+
+static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo) {
+  if (tsdbSaveConfig(pRepo) < 0) return -1;
+
+  char dirName[128] = "\0";
+  if (tsdbGetDataDirName(pRepo, dirName) < 0) return -1;
+
   if (mkdir(dirName, 0755) < 0) {
-    free(dirName);
     return -1;
   }
-
-  free(dirName);
 
   return 0;
 }
@@ -417,7 +644,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   }
 
   pNode->level = level;
-  tdDataRowCpy(SL_GET_NODE_DATA(pNode), row);
+  dataRowCpy(SL_GET_NODE_DATA(pNode), row);
 
   // Insert the skiplist node into the data
   tsdbInsertRowToTableImpl(pNode, pTable);
@@ -425,23 +652,19 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   return 0;
 }
 
-static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlock *pBlock) {
+static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
   STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, pBlock->tableId);
-  if (pTable == NULL) {
-    return -1;
-  }
+  if (pTable == NULL) return -1;
 
-  SDataRows     rows = pBlock->data;
-  SDataRowsIter rDataIter, *pIter;
-  pIter = &rDataIter;
+  SSubmitBlkIter blkIter;
   SDataRow row;
 
-  tdInitSDataRowsIter(rows, pIter);
-  while ((row = tdDataRowsNext(pIter)) != NULL) {
+  tsdbInitSubmitBlkIter(pBlock, &blkIter);
+  while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
     if (tdInsertRowToTable(pRepo, row, pTable) < 0) {
-      // TODO: deal with the error here
+      return -1;
     }
   }
 

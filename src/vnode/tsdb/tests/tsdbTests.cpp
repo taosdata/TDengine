@@ -3,92 +3,63 @@
 
 #include "tsdb.h"
 #include "dataformat.h"
-#include "tsdbMeta.h"
-
-TEST(TsdbTest, createTable) {
-  STsdbMeta *pMeta = tsdbCreateMeta(100);
-  ASSERT_NE(pMeta, nullptr);
-
-  STableCfg config;
-  config.tableId.tid = 0;
-  config.tableId.uid = 98868728187539L;
-  config.numOfCols = 5;
-  config.schema = tdNewSchema(config.numOfCols);
-  for (int i = 0; i < schemaNCols(config.schema); i++) {
-    STColumn *pCol = tdNewCol(TSDB_DATA_TYPE_BIGINT, i, 0);
-    tdColCpy(schemaColAt(config.schema, i), pCol);
-    tdFreeCol(pCol);
-  }
-  config.tagValues = nullptr;
-
-  tsdbCreateTableImpl(pMeta, &config);
-
-  STable *pTable = tsdbGetTableByUid(pMeta, config.tableId.uid);
-  ASSERT_NE(pTable, nullptr);
-}
 
 TEST(TsdbTest, createRepo) {
-  STsdbCfg *pCfg = tsdbCreateDefaultCfg();
+  STsdbCfg config;
 
-  // Create a tsdb repository
-  tsdb_repo_t *pRepo = tsdbCreateRepo("/root/mnt/test/vnode0", pCfg, NULL);
+  // 1. Create a tsdb repository
+  tsdbSetDefaultCfg(&config);
+  tsdb_repo_t *pRepo = tsdbCreateRepo("/home/ubuntu/work/ttest/vnode0", &config, NULL);
   ASSERT_NE(pRepo, nullptr);
-  tsdbFreeCfg(pCfg);
 
-  // create a normal table in this repository
-  STableCfg config;
-  config.tableId.tid = 0;
-  config.tableId.uid = 98868728187539L;
-  config.numOfCols = 5;
-  config.schema = tdNewSchema(config.numOfCols);
-  STColumn *pCol = tdNewCol(TSDB_DATA_TYPE_TIMESTAMP, 0, 0);
-  tdColCpy(schemaColAt(config.schema, 0), pCol);
-  tdFreeCol(pCol);
-  for (int i = 1; i < schemaNCols(config.schema); i++) {
-    pCol = tdNewCol(TSDB_DATA_TYPE_BIGINT, i, 0);
-    tdColCpy(schemaColAt(config.schema, i), pCol);
-    tdFreeCol(pCol);
+  // 2. Create a normal table
+  STableCfg tCfg;
+  ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_SUPER_TABLE, 987607499877672L, 0), -1);
+  ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_NTABLE, 987607499877672L, 0), 0);
+
+  int       nCols = 5;
+  STSchema *schema = tdNewSchema(nCols);
+
+  for (int i = 0; i < nCols; i++) {
+    if (i == 0) {
+      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
+    } else {
+      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_INT, i, -1);
+    }
   }
 
-  tsdbCreateTable(pRepo, &config);
-  // Write some data
+  tsdbTableSetSchema(&tCfg, schema, true);
 
-  // int32_t size = sizeof(SSubmitMsg) + sizeof(SSubmitBlock) + tdMaxRowDataBytes(config.schema) * 10 + sizeof(int32_t);
+  tsdbCreateTable(pRepo, &tCfg);
 
-  // tdUpdateSchema(config.schema);
+  // // 3. Loop to write some simple data
+  int nRows = 10;
+  SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * nRows);
 
-  // SSubmitMsg *pMsg = (SSubmitMsg *)malloc(size);
-  // pMsg->numOfTables = 1;  // TODO: use api
+  SSubmitBlk *pBlock = pMsg->blocks;
+  pBlock->tableId = {.uid = 987607499877672L, .tid = 0};
+  pBlock->sversion = 0;
+  pBlock->len = 0;
+  int64_t start_time = 1584081000000;
+  for (int i = 0; i < nRows; i++) {
+    int64_t ttime = start_time + 1000 * i;
+    SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
+    tdInitDataRow(row, schema);
 
-  // SSubmitBlock *pBlock = (SSubmitBlock *)pMsg->data;
-  // pBlock->tableId = {.uid = 98868728187539L, .tid = 0};
-  // pBlock->sversion = 0;
-  // pBlock->len = sizeof(SSubmitBlock);
+    for (int j = 0; j < schemaNCols(schema); j++) {
+      if (j == 0) { // Just for timestamp
+        tdAppendColVal(row, (void *)(&time), schemaColAt(schema, j));
+      } else { // For int
+        int val = 10;
+        tdAppendColVal(row, (void *)(&val), schemaColAt(schema, j));
+      }
 
-  // SDataRows rows = pBlock->data;
-  // dataRowsInit(rows);
+    }
+    pBlock->len += dataRowLen(row);
 
-  // SDataRow row = tdNewDataRow(tdMaxRowDataBytes(config.schema));
-  // int64_t ttime = 1583508800000;
-  // for (int i = 0; i < 10; i++) {  // loop over rows
-  //   ttime += (10000 * i);
-  //   tdDataRowReset(row);
-  //   for (int j = 0; j < schemaNCols(config.schema); j++) {
-  //     if (j == 0) {  // set time stamp
-  //       tdAppendColVal(row, (void *)(&ttime), schemaColAt(config.schema, j), 40);
-  //     } else {       // set other fields
-  //       int32_t val = 10;
-  //       tdAppendColVal(row, (void *)(&val), schemaColAt(config.schema, j), 40);
-  //     }
-  //   }
+  }
+  pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
 
-  //   tdDataRowsAppendRow(rows, row);
-  // }
-
-  // tsdbInsertData(pRepo, pMsg);
-
-  // tdFreeDataRow(row);
-
-  tdFreeSchema(config.schema);
-  tsdbDropRepo(pRepo);
+  tsdbInsertData(pRepo, pMsg);
 }
+

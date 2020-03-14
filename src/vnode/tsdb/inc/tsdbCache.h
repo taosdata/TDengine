@@ -53,7 +53,7 @@ typedef struct STSDBCache {
 #define TSDB_NEXT_CACHE_BLOCK(pBlock) ((pBlock)->next)
 #define TSDB_PREV_CACHE_BLOCK(pBlock) ((pBlock)->prev)
 
-STsdbCache *tsdbCreateCache(int32_t numOfBlocks);
+STsdbCache *tsdbInitCache(int64_t maxSize);
 int32_t     tsdbFreeCache(STsdbCache *pCache);
 void *      tsdbAllocFromCache(STsdbCache *pCache, int64_t bytes);
 

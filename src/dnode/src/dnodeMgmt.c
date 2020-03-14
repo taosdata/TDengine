@@ -91,9 +91,9 @@ int32_t dnodeInitMgmt() {
   SVnodeObj *pVnode = dnodeGetVnode(cfg.cfg.vgId);
   dnodeDropVnode(pVnode);
 
-  dnodeCreateVnode(&cfg);
-  SVnodeObj *pVnode = dnodeGetVnode(cfg.cfg.vgId);
-  dnodeCleanupVnodes();
+  // dnodeCreateVnode(&cfg);
+  // SVnodeObj *pVnode = dnodeGetVnode(cfg.cfg.vgId);
+  // dnodeCleanupVnodes();
 
   dnodeOpenVnodes();
   dnodeCleanupVnodes();
