@@ -26,9 +26,9 @@ const int32_t TYPE_BYTES[11] = {
     sizeof(int64_t),  // TSDB_DATA_TYPE_BIGINT
     sizeof(float),    // TSDB_DATA_TYPE_FLOAT
     sizeof(double),   // TSDB_DATA_TYPE_DOUBLE
-    -1,               // TSDB_DATA_TYPE_BINARY
+    sizeof(int32_t),  // TSDB_DATA_TYPE_BINARY
     sizeof(TSKEY),    // TSDB_DATA_TYPE_TIMESTAMP
-    -1                // TSDB_DATA_TYPE_NCHAR
+    sizeof(int32_t)   // TSDB_DATA_TYPE_NCHAR
 };
 
 tDataTypeDescriptor tDataTypeDesc[11] = {

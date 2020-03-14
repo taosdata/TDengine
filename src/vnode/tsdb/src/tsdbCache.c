@@ -16,7 +16,7 @@
 
 #include "tsdbCache.h"
 
-STsdbCache *tsdbCreateCache(int32_t numOfBlocks) {
+STsdbCache *tsdbInitCache(int64_t maxSize) {
   STsdbCache *pCacheHandle = (STsdbCache *)malloc(sizeof(STsdbCache));
   if (pCacheHandle == NULL) {
     // TODO : deal with the error

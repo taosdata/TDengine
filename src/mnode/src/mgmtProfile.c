@@ -558,9 +558,11 @@ bool mgmtCheckQhandle(uint64_t qhandle) {
 }
 
 void mgmtSaveQhandle(void *qhandle) {
+  mTrace("qhandle:%p is allocated", qhandle);
 }
 
 void mgmtFreeQhandle(void *qhandle) {
+  mTrace("qhandle:%p is freed", qhandle);
 }
 
 int mgmtGetConns(SShowObj *pShow, void *pConn) {
@@ -673,72 +675,72 @@ int32_t mgmtRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn
   return numOfRows;
 }
 
-void mgmtProcessKillQueryMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
+  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
     rpcSendResponse(&rpcRsp);
     return;
   }
 
-  SCMKillQueryMsg *pKill = (SCMKillQueryMsg *) rpcMsg->pCont;
+  SCMKillQueryMsg *pKill = pMsg->pCont;
   int32_t code;
 
   if (!pUser->writeAuth) {
     code = TSDB_CODE_NO_RIGHTS;
   } else {
-    code = mgmtKillQuery(pKill->queryId, rpcMsg->handle);
+    code = mgmtKillQuery(pKill->queryId, pMsg->thandle);
   }
 
   rpcRsp.code = code;
   rpcSendResponse(&rpcRsp);
 }
 
-void mgmtProcessKillStreamMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
+  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
     rpcSendResponse(&rpcRsp);
     return;
   }
 
-  SCMKillStreamMsg *pKill = (SCMKillStreamMsg *) rpcMsg->pCont;
+  SCMKillStreamMsg *pKill = pMsg->pCont;
   int32_t code;
 
   if (!pUser->writeAuth) {
     code = TSDB_CODE_NO_RIGHTS;
   } else {
-    code = mgmtKillStream(pKill->queryId, rpcMsg->handle);
+    code = mgmtKillStream(pKill->queryId, pMsg->thandle);
   }
 
   rpcRsp.code = code;
   rpcSendResponse(&rpcRsp);
 }
 
-void mgmtProcessKillConnectionMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+void mgmtProcessKillConnectionMsg(SQueuedMsg *pMsg) {
+  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
     rpcSendResponse(&rpcRsp);
     return;
   }
 
-  SCMKillConnMsg *pKill = (SCMKillConnMsg *) rpcMsg->pCont;
+  SCMKillConnMsg *pKill = pMsg->pCont;
   int32_t code;
 
   if (!pUser->writeAuth) {
     code = TSDB_CODE_NO_RIGHTS;
   } else {
-    code = mgmtKillConnection(pKill->queryId, rpcMsg->handle);
+    code = mgmtKillConnection(pKill->queryId, pMsg->thandle);
   }
 
   rpcRsp.code = code;

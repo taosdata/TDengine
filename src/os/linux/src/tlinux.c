@@ -35,7 +35,9 @@
 #include "ttimer.h"
 
 char configDir[TSDB_FILENAME_LEN] = "/etc/taos";
-char tsDirectory[TSDB_FILENAME_LEN] = "/var/lib/taos";
+char tsVnodeDir[TSDB_FILENAME_LEN] = {0};
+char tsDnodeDir[TSDB_FILENAME_LEN] = {0};
+char tsMnodeDir[TSDB_FILENAME_LEN] = {0};
 char dataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
 char logDir[TSDB_FILENAME_LEN] = "/var/log/taos";
 char scriptDir[TSDB_FILENAME_LEN] = "/etc/taos";

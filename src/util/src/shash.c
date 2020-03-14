@@ -33,7 +33,7 @@ typedef struct {
   SHashNode **hashList;
   uint32_t    maxSessions;
   uint32_t    dataSize;
-  uint32_t (*hashFp)(void *, char *string);
+  uint32_t  (*hashFp)(void *, char *string);
   pthread_mutex_t mutex;
 } SHashObj;
 
