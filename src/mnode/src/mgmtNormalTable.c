@@ -291,31 +291,26 @@ static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgr
   int32_t totalCols = pTable->numOfColumns;
   int32_t contLen   = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + pTable->sqlLen;
 
-  SMDCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
-  if (pCreateTable == NULL) {
+  SMDCreateTableMsg *pCreate = rpcMallocCont(contLen);
+  if (pCreate == NULL) {
     return NULL;
   }
 
-  memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
-  pCreateTable->tableType     = pTable->type;
-  pCreateTable->numOfColumns  = htons(pTable->numOfColumns);
-  pCreateTable->numOfTags     = htons(0);
-  pCreateTable->sid           = htonl(pTable->sid);
-  pCreateTable->sversion      = htonl(pTable->sversion);
-  pCreateTable->tagDataLen    = htonl(0);
-  pCreateTable->sqlDataLen    = htonl(pTable->sqlLen);
-  pCreateTable->contLen       = htonl(contLen);
-  pCreateTable->numOfVPeers   = htonl(pVgroup->numOfVnodes);
-  pCreateTable->uid           = htobe64(pTable->uid);
-  pCreateTable->superTableUid = htobe64(0);
-  pCreateTable->createdTime   = htobe64(pTable->createdTime);
+  memcpy(pCreate->tableId, pTable->tableId, TSDB_TABLE_ID_LEN + 1);
+  pCreate->contLen       = htonl(contLen);
+  pCreate->vgId          = htonl(pVgroup->vgId);
+  pCreate->tableType     = pTable->type;
+  pCreate->numOfColumns  = htons(pTable->numOfColumns);
+  pCreate->numOfTags     = htons(0);
+  pCreate->sid           = htonl(pTable->sid);
+  pCreate->sversion      = htonl(pTable->sversion);
+  pCreate->tagDataLen    = htonl(0);
+  pCreate->sqlDataLen    = htonl(pTable->sqlLen);
+  pCreate->uid           = htobe64(pTable->uid);
+  pCreate->superTableUid = htobe64(0);
+  pCreate->createdTime   = htobe64(pTable->createdTime);
 
-  for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
-    pCreateTable->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].ip);
-    pCreateTable->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-  }
-
-  SSchema *pSchema = (SSchema *) pCreateTable->data;
+  SSchema *pSchema = (SSchema *) pCreate->data;
   memcpy(pSchema, pTable->schema, totalCols * sizeof(SSchema));
   for (int32_t col = 0; col < totalCols; ++col) {
     pSchema->bytes = htons(pSchema->bytes);
@@ -323,9 +318,9 @@ static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgr
     pSchema++;
   }
 
-  memcpy(pCreateTable + sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
+  memcpy(pCreate + sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
 
-  return pCreateTable;
+  return pCreate;
 }
 
 int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,

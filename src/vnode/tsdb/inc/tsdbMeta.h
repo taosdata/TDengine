@@ -43,7 +43,7 @@ typedef struct STable {
   STSchema *      tagSchema;
   SDataRow        tagVal;
   union {
-    void *pData;   // For TSDB_NTABLE and TSDB_STABLE, it is the skiplist for cache data
+    void *pData;   // For TSDB_NORMAL_TABLE and TSDB_CHILD_TABLE, it is the skiplist for cache data
     void *pIndex;  // For TSDB_SUPER_TABLE, it is the skiplist index
   } content;
   void *         eventHandler;   // TODO

@@ -339,7 +339,7 @@ int32_t tsdbInsertData(tsdb_repo_t *repo, SSubmitMsg *pMsg) {
  */
 int tsdbInitTableCfg(STableCfg *config, TSDB_TABLE_TYPE type, int64_t uid, int32_t tid) {
   if (config == NULL) return -1;
-  if (type != TSDB_NTABLE && type != TSDB_STABLE) return -1;
+  if (type != TSDB_NORMAL_TABLE && type != TSDB_CHILD_TABLE) return -1;
 
   memset((void *)config, 0, sizeof(STableCfg));
 
@@ -354,7 +354,7 @@ int tsdbInitTableCfg(STableCfg *config, TSDB_TABLE_TYPE type, int64_t uid, int32
  * Set the super table UID of the created table
  */
 int tsdbTableSetSuperUid(STableCfg *config, int64_t uid) {
-  if (config->type != TSDB_STABLE) return -1;
+  if (config->type != TSDB_CHILD_TABLE) return -1;
   if (uid == TSDB_INVALID_SUPER_TABLE_ID) return -1;
 
   config->superUid = uid;
@@ -387,7 +387,7 @@ int tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup) {
  * @return 0 for success and -1 for failure
  */
 int tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup) {
-  if (config->type != TSDB_STABLE) return -1;
+  if (config->type != TSDB_CHILD_TABLE) return -1;
 
   if (dup) {
     config->tagSchema = tdDupSchema(pSchema);
@@ -398,7 +398,7 @@ int tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup) {
 }
 
 int tsdbTableSetTagValue(STableCfg *config, SDataRow row, bool dup) {
-  if (config->type != TSDB_STABLE) return -1;
+  if (config->type != TSDB_CHILD_TABLE) return -1;
 
   if (dup) {
     config->tagValues = tdDataRowDup(row);

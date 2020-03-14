@@ -297,6 +297,20 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_SESSIONS_PER_VNODE (300)
 #define TSDB_SESSIONS_PER_DNODE (TSDB_SESSIONS_PER_VNODE * TSDB_MAX_VNODES)
 
+enum {
+  TSDB_PRECISION_MILLI,
+  TSDB_PRECISION_MICRO,
+  TSDB_PRECISION_NANO
+};
+
+typedef enum {
+  TSDB_SUPER_TABLE        = 0,  // super table
+  TSDB_CHILD_TABLE        = 1,  // table created from super table
+  TSDB_NORMAL_TABLE       = 2,  // ordinary table
+  TSDB_STREAM_TABLE       = 3,  // table created from stream computing
+  TSDB_TABLE_MAX          = 4
+} TSDB_TABLE_TYPE;
+
 #ifdef __cplusplus
 }
 #endif
