@@ -68,6 +68,7 @@ typedef struct {
 typedef struct {
   TSDB_TABLE_TYPE type;
   STableId        tableId;
+  int32_t         sversion;
   int64_t         superUid;
   STSchema *      schema;
   STSchema *      tagSchema;

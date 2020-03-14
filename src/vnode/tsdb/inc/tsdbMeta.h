@@ -38,6 +38,7 @@ typedef struct STable {
   TSDB_TABLE_TYPE type;
   STableId        tableId;
   int32_t         superUid;  // Super table UID
+  int32_t         sversion;
   STSchema *      schema;
   STSchema *      tagSchema;
   SDataRow        tagVal;

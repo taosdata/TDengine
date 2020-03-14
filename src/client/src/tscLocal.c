@@ -484,7 +484,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
     pSql->res.qhandle = 0x1;
     pSql->res.numOfRows = 0;
   } else if (pCmd->command == TSDB_SQL_RESET_CACHE) {
-    taosClearDataCache(tscCacheHandle);
+    taosCacheEmpty(tscCacheHandle);
   } else if (pCmd->command == TSDB_SQL_SERV_VERSION) {
     tscProcessServerVer(pSql);
   } else if (pCmd->command == TSDB_SQL_CLI_VERSION) {

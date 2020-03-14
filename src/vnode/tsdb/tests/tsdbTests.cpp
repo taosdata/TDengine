@@ -48,7 +48,7 @@ TEST(TsdbTest, createRepo) {
 
     for (int j = 0; j < schemaNCols(schema); j++) {
       if (j == 0) { // Just for timestamp
-        tdAppendColVal(row, (void *)(&time), schemaColAt(schema, j));
+        tdAppendColVal(row, (void *)(&ttime), schemaColAt(schema, j));
       } else { // For int
         int val = 10;
         tdAppendColVal(row, (void *)(&val), schemaColAt(schema, j));
@@ -61,5 +61,7 @@ TEST(TsdbTest, createRepo) {
   pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
 
   tsdbInsertData(pRepo, pMsg);
+
+  int k = 0;
 }
 

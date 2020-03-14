@@ -23,17 +23,18 @@ extern "C" {
 #include "hashfunc.h"
 
 #define HASH_MAX_CAPACITY (1024 * 1024 * 16)
-#define HASH_VALUE_IN_TRASH (-1)
 #define HASH_DEFAULT_LOAD_FACTOR (0.75)
 #define HASH_INDEX(v, c) ((v) & ((c)-1))
 
+typedef void (*_hash_free_fn_t)(void *param);
+
 typedef struct SHashNode {
-  char *key;  // null-terminated string
+  char *key;
   union {
     struct SHashNode * prev;
     struct SHashEntry *prev1;
   };
-
+  
   struct SHashNode *next;
   uint32_t          hashVal;  // the hash value of key, if hashVal == HASH_VALUE_IN_TRASH, this node is moved to trash
   uint32_t          keyLen;   // length of the key
@@ -46,17 +47,26 @@ typedef struct SHashEntry {
 } SHashEntry;
 
 typedef struct SHashObj {
-  SHashEntry **hashList;
-  size_t       capacity;         // number of slots
-  size_t       size;             // number of elements in hash table
-  _hash_fn_t   hashFp;           // hash function
+  SHashEntry **   hashList;
+  size_t          capacity;  // number of slots
+  size_t          size;      // number of elements in hash table
+  _hash_fn_t      hashFp;    // hash function
+  _hash_free_fn_t freeFp;    // hash node free callback function
 
-#if defined (LINUX)
-  pthread_rwlock_t* lock;
+#if defined(LINUX)
+  pthread_rwlock_t *lock;
 #else
-  pthread_mutex_t*  lock;
+  pthread_mutex_t *lock;
 #endif
 } SHashObj;
+
+typedef struct SHashMutableIterator {
+  SHashObj * pHashObj;
+  int32_t    entryIndex;
+  SHashNode *pCur;
+  SHashNode *pNext;  // current node can be deleted for mutable iterator, so keep the next one before return current
+  int32_t    num;    // already check number of elements in hash table
+} SHashMutableIterator;
 
 /**
  * init the hash table
@@ -102,13 +112,48 @@ void *taosHashGet(SHashObj *pHashObj, const char *key, size_t keyLen);
  * @param key
  * @param keyLen
  */
-void  taosHashRemove(SHashObj *pHashObj, const char *key, size_t keyLen);
+void taosHashRemove(SHashObj *pHashObj, const char *key, size_t keyLen);
 
 /**
  * clean up hash table
  * @param handle
  */
 void taosHashCleanup(SHashObj *pHashObj);
+
+/**
+ * Set the free callback function
+ * This function if set will be invoked right before freeing each hash node
+ * @param pHashObj
+ */
+void taosHashSetFreecb(SHashObj *pHashObj, _hash_free_fn_t freeFp);
+
+/**
+ *
+ * @param pHashObj
+ * @return
+ */
+SHashMutableIterator* taosHashCreateIter(SHashObj *pHashObj);
+
+/**
+ *
+ * @param iter
+ * @return
+ */
+bool taosHashIterNext(SHashMutableIterator *iter);
+
+/**
+ *
+ * @param iter
+ * @return
+ */
+void *taosHashIterGet(SHashMutableIterator *iter);
+
+/**
+ *
+ * @param iter
+ * @return
+ */
+void* taosHashDestroyIter(SHashMutableIterator* iter);
 
 /**
  *
