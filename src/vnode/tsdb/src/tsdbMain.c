@@ -308,7 +308,6 @@ int tsdbAlterTable(tsdb_repo_t *pRepo, STableCfg *pCfg) {
 }
 
 int tsdbDropTable(tsdb_repo_t *repo, STableId tableId) {
-  // TODO
   if (repo == NULL) return -1;
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
