@@ -97,7 +97,7 @@ int vnodeRenewCommitLog(int vnode) {
 
 void vnodeRemoveCommitLog(int vnode) { remove(vnodeList[vnode].logOFn); }
 
-int vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
+int32_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
   int    fd, ret;
   char * cont = NULL;
   size_t totalLen = 0;
@@ -204,7 +204,7 @@ _error:
 }
 
 int vnodeInitCommit(int vnode) {
-  size_t     size = 0;
+  int32_t    size = 0;
   uint64_t   firstV = 0;
   SVnodeObj *pVnode = vnodeList + vnode;
 
