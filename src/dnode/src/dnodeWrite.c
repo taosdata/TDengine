@@ -402,3 +402,4 @@ static void dnodeProcessDropStableMsg(SWriteMsg *pMsg) {
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   rpcSendResponse(&rpcRsp);
 }
+

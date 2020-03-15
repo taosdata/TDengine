@@ -189,12 +189,12 @@ int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
   STableInfo *pTable;
 
   if (pVgroup->numOfTables > 0) {
-    for (int32_t i = 0; i < pDb->cfg.maxSessions; ++i) {
-      if (pVgroup->tableList != NULL) {
-        pTable = pVgroup->tableList[i];
-        if (pTable) mgmtDropTable(pDb, pTable->tableId, 0);
-      }
-    }
+//    for (int32_t i = 0; i < pDb->cfg.maxSessions; ++i) {
+//      if (pVgroup->tableList != NULL) {
+//        pTable = pVgroup->tableList[i];
+//        if (pTable) mgmtDropTable(pDb, pTable->tableId, 0);
+//      }
+//    }
   }
 
   mTrace("vgroup:%d, db:%s replica:%d is deleted", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);

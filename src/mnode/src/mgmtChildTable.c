@@ -373,14 +373,10 @@ int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
   }
 
   strcpy(pRemove->tableId, pTable->tableId);
-  pRemove->sid = htonl(pTable->sid);
-  pRemove->uid = htobe64(pTable->uid);
-
-  pRemove->numOfVPeers = htonl(pVgroup->numOfVnodes);
-  for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
-    pRemove->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].ip);
-    pRemove->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-  }
+  pRemove->vgId    = htonl(pTable->vgId);
+  pRemove->contLen = htonl(sizeof(SMDDropTableMsg));
+  pRemove->sid     = htonl(pTable->sid);
+  pRemove->uid     = htobe64(pTable->uid);
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
 

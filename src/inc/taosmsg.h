@@ -332,11 +332,10 @@ typedef struct {
 } SMgmtHead;
 
 typedef struct {
+  int32_t    contLen;
   int32_t    vgId;
   int32_t    sid;
-  int32_t    numOfVPeers;
   uint64_t   uid;
-  SVnodeDesc vpeerDesc[TSDB_MAX_MPEERS];
   char       tableId[TSDB_TABLE_ID_LEN + 1];
 } SMDDropTableMsg;
 

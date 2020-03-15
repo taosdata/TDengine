@@ -411,12 +411,6 @@ int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
   pRemove->sid = htonl(pTable->sid);
   pRemove->uid = htobe64(pTable->uid);
 
-  pRemove->numOfVPeers = htonl(pVgroup->numOfVnodes);
-  for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
-    pRemove->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].ip);
-    pRemove->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-  }
-
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
   mTrace("table:%s, send drop table msg", pRemove->tableId);
   SRpcMsg rpcMsg = {
