@@ -65,6 +65,8 @@ static void mgmtSuperTableActionInit() {
   mgmtSuperTableActionFp[SDB_TYPE_DECODE]  = mgmtSuperTableActionDecode;
   mgmtSuperTableActionFp[SDB_TYPE_RESET]   = mgmtSuperTableActionReset;
   mgmtSuperTableActionFp[SDB_TYPE_DESTROY] = mgmtSuperTableActionDestroy;
+  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_METRIC, mgmtGetShowSuperTableMeta);
+  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_METRIC, mgmtRetrieveShowSuperTables);
 }
 
 void *mgmtSuperTableActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
@@ -213,14 +215,14 @@ int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
   }
 
   strcpy(pStable->tableId, pCreate->tableId);
-  pStable->type        = TSDB_SUPER_TABLE;
-  pStable->createdTime = taosGetTimestampMs();
-  pStable->vgId = 0;
-  pStable->sid = 0;
-  pStable->uid = (((uint64_t)pStable->createdTime) << 16) + ((uint64_t)sdbGetVersion() & ((1ul << 16) - 1ul));
-  pStable->sversion = 0;
-  pStable->numOfColumns = pCreate->numOfColumns;
-  pStable->numOfTags = pCreate->numOfTags;
+  pStable->type         = TSDB_SUPER_TABLE;
+  pStable->createdTime  = taosGetTimestampMs();
+  pStable->vgId         = 0;
+  pStable->sid          = 0;
+  pStable->uid          = (((uint64_t) pStable->createdTime) << 16) + ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
+  pStable->sversion     = 0;
+  pStable->numOfColumns = htons(pCreate->numOfColumns);
+  pStable->numOfTags    = htons(pCreate->numOfTags);
 
   int32_t numOfCols = pCreate->numOfColumns + pCreate->numOfTags;
   int32_t schemaSize = numOfCols * sizeof(SSchema);
@@ -233,16 +235,18 @@ int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
   memcpy(pStable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
   pStable->nextColId = 0;
-  for (int32_t col = 0; col < pCreate->numOfColumns; col++) {
-    SSchema *tschema = (SSchema *)pStable->schema;
+  for (int32_t col = 0; col < numOfCols; col++) {
+    SSchema *tschema = pStable->schema;
     tschema[col].colId = pStable->nextColId++;
+    tschema[col].bytes = htons(tschema[col].bytes);
   }
 
   if (sdbInsertRow(tsSuperTableSdb, pStable, 0) < 0) {
-    mError("table:%s, update sdb error", pCreate->tableId);
+    mError("stable:%s, update sdb error", pStable->tableId);
     return TSDB_CODE_SDB_ERROR;
   }
 
+  mPrint("stable:%s, is created, tags:%d cols:%d", pStable->tableId, pStable->numOfTags, pStable->numOfColumns);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -500,7 +504,7 @@ static int32_t mgmtGetShowSuperTableMeta(STableMeta *pMeta, SShowObj *pShow, voi
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created_time");
+  strcpy(pSchema[cols].name, "create time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 

@@ -185,9 +185,10 @@ static int32_t dnodeOpenVnodes() {
   return TSDB_CODE_SUCCESS;
 }
 
+typedef void (*CleanupFp)(char *);
 static void dnodeCleanupVnodes() {
   int32_t num = taosGetIntHashSize(tsDnodeVnodesHash);
-  taosCleanUpIntHashWithFp(tsDnodeVnodesHash, dnodeCleanupVnode);
+  taosCleanUpIntHashWithFp(tsDnodeVnodesHash, (CleanupFp)dnodeCleanupVnode);
   dPrint("all vnodes is opened, num:%d", num);
 }
 
@@ -207,7 +208,7 @@ static int32_t dnodeOpenVnode(int32_t vnode, char *rootDir) {
   vnodeObj.vnode    = vnode; //tsdbInfo->tsdbCfg.tsdbId;
   vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
   vnodeObj.refCount = 1;
-  vnodeObj.version  = version;
+  vnodeObj.version  = 0;
   vnodeObj.wworker  = dnodeAllocateWriteWorker();
   vnodeObj.rworker  = dnodeAllocateReadWorker();
   vnodeObj.wal      = NULL;
@@ -289,7 +290,7 @@ static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
 
   void *pTsdb = tsdbCreateRepo(rootDir, &tsdbCfg, NULL);
   if (pTsdb == NULL) {
-    dError("failed to create tsdb in vnode:%d, reason:%s", pVnodeCfg->vnode, tstrerror(terrno));
+    dError("vgroup:%d, failed to create tsdb in vnode:%d, reason:%s", pVnodeCfg->cfg.vgId, pVnodeCfg->vnode, tstrerror(terrno));
     return terrno;
   }
 
@@ -309,7 +310,7 @@ static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
 
   taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, (char *) (&vnodeObj));
 
-  dPrint("vnode:%d is created", pVnodeCfg->vnode);
+  dPrint("vgroup:%d, vnode:%d is created", pVnodeCfg->cfg.vgId, pVnodeCfg->vnode);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -339,12 +340,12 @@ static void dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
   pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
 
-  dTrace("start to create vnode:%d", pCreate->vnode);
+  dTrace("vgroup:%d, start to create vnode:%d", pCreate->cfg.vgId, pCreate->vnode);
 
   SVnodeObj *pVnodeObj = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
   if (pVnodeObj != NULL) {
     rpcRsp.code = TSDB_CODE_SUCCESS;
-    dPrint("vnode:%d is already exist", pCreate->vnode);
+    dPrint("vgroup:%d, vnode:%d is already exist", pCreate->cfg.vgId, pCreate->vnode);
   } else {
     rpcRsp.code = dnodeCreateVnode(pCreate);
   }

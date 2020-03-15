@@ -38,7 +38,6 @@ int32_t  mgmtAlterTable(SDbObj *pDb, SCMAlterTableMsg *pAlter);
 
 void    mgmtAddTableIntoSuperTable(SSuperTableObj *pStable);
 void    mgmtRemoveTableFromSuperTable(SSuperTableObj *pStable);
-void    mgmtSetTableDirty(STableInfo *pTable, bool isDirty);
 
 SMDDropTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable);
 SMDDropSTableMsg *mgmtBuildRemoveSuperTableMsg(STableInfo *pTable);

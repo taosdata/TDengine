@@ -291,13 +291,13 @@ static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
 
 static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
   SMDCreateTableMsg *pTable = pMsg->rpcMsg.pCont;
-  dTrace("start to create table:%s in vgroup:%d", pTable->tableId, pTable->vgId);
+  dTrace("table:%s, start to create in dnode, vgroup:%d", pTable->tableId, pTable->vgId);
 
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   void *pVnode = dnodeGetVnode(pTable->vgId);
   if (pVnode == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_VGROUP_ID;
-    dTrace("failed to create table:%s in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
+    dTrace("table:%s, failed to create in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
     rpcSendResponse(&rpcRsp);
     return;
   }
@@ -306,7 +306,7 @@ static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
   if (pTsdb == NULL) {
     dnodeReleaseVnode(pVnode);
     rpcRsp.code = TSDB_CODE_NOT_ACTIVE_VNODE;
-    dTrace("failed to create table:%s in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
+    dTrace("table:%s, failed to create in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
     rpcSendResponse(&rpcRsp);
     return;
   }
@@ -322,35 +322,48 @@ static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
   pTable->createdTime   = htobe64(pTable->createdTime);
   SSchema *pSchema = (SSchema *) pTable->data;
 
+  int totalCols = pTable->numOfColumns + pTable->numOfTags;
+  for (int i = 0; i < totalCols; i++) {
+    pSchema[i].colId = htons(pSchema[i].colId);
+    pSchema[i].bytes = htons(pSchema[i].bytes);
+  }
+
   STableCfg tCfg;
   tsdbInitTableCfg(&tCfg, pTable->tableType, pTable->uid, pTable->sid);
 
   STSchema *pDestSchema = tdNewSchema(pTable->numOfColumns);
   for (int i = 0; i < pTable->numOfColumns; i++) {
-    tdSchemaAppendCol(pDestSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
+    tdSchemaAppendCol(pDestSchema, pSchema[i].type, pSchema[i].colId, pSchema[i].bytes);
   }
   tsdbTableSetSchema(&tCfg, pDestSchema, false);
 
-  if (pTable->numOfTags != NULL) {
+  if (pTable->numOfTags != 0) {
     STSchema *pDestTagSchema = tdNewSchema(pTable->numOfTags);
-    for (int i = pTable->numOfColumns; i < pTable->numOfColumns + pTable->numOfTags; i++) {
-      tdSchemaAppendCol(pDestTagSchema, pSchema[i].type, htons(pSchema[i].colId), htons(pSchema[i].bytes));
+    for (int i = pTable->numOfColumns; i < totalCols; i++) {
+      tdSchemaAppendCol(pDestTagSchema, pSchema[i].type, pSchema[i].colId, pSchema[i].bytes);
     }
     tsdbTableSetSchema(&tCfg, pDestTagSchema, false);
-  }
 
-  if (pTable->tableType == TSDB_CHILD_TABLE) {
     // TODO: add data row
+    char *pTagData = pTable->data + totalCols * sizeof(SSchema);
+    int accumBytes = 0;
+    SDataRow dataRow = tdNewDataRowFromSchema(pDestTagSchema);
+
+    for (int i = 0; i < pTable->numOfTags; i++) {
+      tdAppendColVal(dataRow, pTagData + accumBytes, pDestTagSchema->columns + i);
+      accumBytes += pSchema[i + pTable->numOfColumns].bytes;
+    }
+    tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
   rpcRsp.code = tsdbCreateTable(pTsdb, &tCfg);
   dnodeReleaseVnode(pVnode);
 
   if (rpcRsp.code != TSDB_CODE_SUCCESS) {
-    dError("failed to create table:%s in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
+    dError("table:%s, failed to create in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
     rpcSendResponse(&rpcRsp);
   } else {
-    dTrace("create table:%s in vgroup:%d finished", pTable->tableId, pTable->vgId);
+    dTrace("table:%s, created in dnode", pTable->tableId);
     rpcSendResponse(&rpcRsp);
   }
 }

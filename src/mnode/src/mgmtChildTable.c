@@ -276,32 +276,27 @@ static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgrou
   int32_t totalCols = pTable->superTable->numOfColumns + pTable->superTable->numOfTags;
   int32_t contLen   = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen;
 
-  SMDCreateTableMsg *pCreateTable = rpcMallocCont(contLen);
-  if (pCreateTable == NULL) {
+  SMDCreateTableMsg *pCreate = rpcMallocCont(contLen);
+  if (pCreate == NULL) {
     return NULL;
   }
 
-  memcpy(pCreateTable->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
-  memcpy(pCreateTable->superTableId, pTable->superTable->tableId, TSDB_TABLE_ID_LEN);
-  pCreateTable->tableType     = pTable->type;
-  pCreateTable->numOfColumns  = htons(pTable->superTable->numOfColumns);
-  pCreateTable->numOfTags     = htons(pTable->superTable->numOfTags);
-  pCreateTable->sid           = htonl(pTable->sid);
-  pCreateTable->sversion      = htonl(pTable->superTable->sversion);
-  pCreateTable->tagDataLen    = htonl(tagDataLen);
-  pCreateTable->sqlDataLen    = 0;
-  pCreateTable->contLen       = htonl(contLen);
-  pCreateTable->numOfVPeers   = htonl(pVgroup->numOfVnodes);
-  pCreateTable->uid           = htobe64(pTable->uid);
-  pCreateTable->superTableUid = htobe64(pTable->superTable->uid);
-  pCreateTable->createdTime   = htobe64(pTable->createdTime);
+  memcpy(pCreate->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
+  memcpy(pCreate->superTableId, pTable->superTable->tableId, TSDB_TABLE_ID_LEN);
+  pCreate->contLen       = htonl(contLen);
+  pCreate->vgId          = htonl(pVgroup->vgId);
+  pCreate->tableType     = pTable->type;
+  pCreate->numOfColumns  = htons(pTable->superTable->numOfColumns);
+  pCreate->numOfTags     = htons(pTable->superTable->numOfTags);
+  pCreate->sid           = htonl(pTable->sid);
+  pCreate->sversion      = htonl(pTable->superTable->sversion);
+  pCreate->tagDataLen    = htonl(tagDataLen);
+  pCreate->sqlDataLen    = 0;
+  pCreate->uid           = htobe64(pTable->uid);
+  pCreate->superTableUid = htobe64(pTable->superTable->uid);
+  pCreate->createdTime   = htobe64(pTable->createdTime);
 
-  for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
-    pCreateTable->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].ip);
-    pCreateTable->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-  }
-
-  SSchema *pSchema = (SSchema *) pCreateTable->data;
+  SSchema *pSchema = (SSchema *) pCreate->data;
   memcpy(pSchema, pTable->superTable->schema, totalCols * sizeof(SSchema));
   for (int32_t col = 0; col < totalCols; ++col) {
     pSchema->bytes = htons(pSchema->bytes);
@@ -309,20 +304,20 @@ static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgrou
     pSchema++;
   }
 
-  memcpy(pCreateTable + sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema), pTagData, tagDataLen);
+  memcpy(pCreate->data + totalCols * sizeof(SSchema), pTagData, tagDataLen);
 
-  return pCreateTable;
+  return pCreate;
 }
 
 int32_t mgmtCreateChildTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                             SMDCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
+                             SMDCreateTableMsg **pMDCreateOut, STableInfo **pTableOut) {
   int32_t numOfTables = sdbGetNumOfRows(tsChildTableSdb);
   if (numOfTables >= tsMaxTables) {
     mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, tsMaxTables);
     return TSDB_CODE_TOO_MANY_TABLES;
   }
 
-  char           *pTagData    = (char *) pCreate->schema;  // it is a tag key
+  char *pTagData = (char *) pCreate->schema;  // it is a tag key
   SSuperTableObj *pSuperTable = mgmtGetSuperTable(pTagData);
   if (pSuperTable == NULL) {
     mError("table:%s, corresponding super table does not exist", pCreate->tableId);
@@ -336,32 +331,31 @@ int32_t mgmtCreateChildTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj
   }
   strcpy(pTable->tableId, pCreate->tableId);
   strcpy(pTable->superTableId, pSuperTable->tableId);
-  pTable->type        = TSDB_TABLE_TYPE_CHILD_TABLE;
-  pTable->createdTime = taosGetTimestampMs();
-  pTable->superTable  = pSuperTable;
-  pTable->vgId        = pVgroup->vgId;
-  pTable->sid         = sid;
+  pTable->type        = TSDB_CHILD_TABLE;
   pTable->uid         = (((uint64_t) pTable->vgId) << 40) + ((((uint64_t) pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
                         ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
+  pTable->sid         = sid;
+  pTable->vgId        = pVgroup->vgId;
+  pTable->createdTime = taosGetTimestampMs();
+  pTable->superTable  = pSuperTable;
 
   if (sdbInsertRow(tsChildTableSdb, pTable, 0) < 0) {
+    free(pTable);
     mError("table:%s, update sdb error", pCreate->tableId);
     return TSDB_CODE_SDB_ERROR;
   }
 
   pTagData += (TSDB_TABLE_ID_LEN + 1);
   int32_t tagDataLen = contLen - sizeof(SCMCreateTableMsg) - TSDB_TABLE_ID_LEN - 1;
-  *pDCreateOut = mgmtBuildCreateChildTableMsg(pTable, pVgroup, pTagData, tagDataLen);
-  if (*pDCreateOut == NULL) {
+  *pMDCreateOut = mgmtBuildCreateChildTableMsg(pTable, pVgroup, pTagData, tagDataLen);
+  if (*pMDCreateOut == NULL) {
     mError("table:%s, failed to build create table message", pCreate->tableId);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
   *pTableOut = (STableInfo *) pTable;
 
-  mTrace("table:%s, create ctable in vgroup, vgroup:%d sid:%d vnode:%d uid:%" PRIu64 ,
-         pTable->tableId, pVgroup->vgId, sid, pVgroup->vnodeGid[0].vnode, pTable->uid);
-
+  mTrace("table:%s, create ctable in vgroup, uid:%" PRIu64 , pTable->tableId, pTable->uid);
   return TSDB_CODE_SUCCESS;
 }
 
