@@ -82,6 +82,9 @@ int32_t mgmtInitTables() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_TABLE, mgmtGetShowTableMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mgmtRetrieveShowTables);
   mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP, mgmtProcessCreateTableRsp);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_TABLE_RSP, NULL);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP, NULL);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_STABLE_RSP, NULL);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -132,10 +135,6 @@ int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, boo
 
   mTrace("%s, uid:%" PRIu64 " table meta is retrieved", pTable->tableId, pTable->uid);
   return TSDB_CODE_SUCCESS;
-}
-
-static void mgmtCreateTable(SVgObj *pVgroup, SQueuedMsg *pMsg) {
-
 }
 
 int32_t mgmtAlterTable(SDbObj *pDb, SCMAlterTableMsg *pAlter) {
@@ -401,7 +400,7 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
 
   if (pCreate->numOfTags != 0) {
     mTrace("table:%s, is a super table", pCreate->tableId);
-    code = mgmtCreateSuperTable(pMsg->pDb, pCreate);
+    code = mgmtCreateSuperTable(pCreate);
     mgmtSendSimpleResp(pMsg->thandle, code);
     return;
   }
@@ -434,16 +433,28 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
   SMDCreateTableMsg *pMDCreate = NULL;
   if (pCreate->numOfColumns == 0) {
     mTrace("table:%s, is a child table, vgroup:%d sid:%d ahandle:%p", pCreate->tableId, pVgroup->vgId, sid, pMsg);
-    code = mgmtCreateChildTable(pCreate, pMsg->contLen, pVgroup, sid, &pMDCreate, &pTable);
+    pTable = mgmtCreateChildTable(pCreate, pVgroup, sid);
+    if (pTable == NULL) {
+      mgmtSendSimpleResp(pMsg->thandle, terrno);
+      return;
+    }
+    pMDCreate = mgmtBuildCreateChildTableMsg(pCreate, pTable);
+    if (pCreate == NULL) {
+      mgmtSendSimpleResp(pMsg->thandle, terrno);
+      return;
+    }
   } else {
     mTrace("table:%s, is a normal table, vgroup:%d sid:%d ahandle:%p", pCreate->tableId, pVgroup->vgId, sid, pMsg);
-    code = mgmtCreateNormalTable(pCreate, pMsg->contLen, pVgroup, sid, &pMDCreate, &pTable);
-  }
-
-  if (code != TSDB_CODE_SUCCESS) {
-    mTrace("table:%s, failed to create in vgroup:%d", pCreate->tableId, pVgroup->vgId);
-    mgmtSendSimpleResp(pMsg->thandle, code);
-    return;
+    code = mgmtCreateNormalTable(pCreate, pVgroup, sid);
+    if (pTable == NULL) {
+      mgmtSendSimpleResp(pMsg->thandle, terrno);
+      return;
+    }
+    pMDCreate = mgmtBuildCreateNormalTableMsg(pTable);
+    if (pCreate == NULL) {
+      mgmtSendSimpleResp(pMsg->thandle, terrno);
+      return;
+    }
   }
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);

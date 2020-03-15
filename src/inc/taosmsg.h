@@ -264,7 +264,8 @@ typedef struct {
   int16_t   numOfTags;
   int16_t   numOfColumns;
   int16_t   sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
-  int16_t   reserved[16];
+  int32_t   contLen;
+  int8_t    reserved[16];
   char      schema[];
 } SCMCreateTableMsg;
 

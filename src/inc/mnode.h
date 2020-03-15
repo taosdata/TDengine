@@ -39,7 +39,7 @@ extern "C" {
 #include "ttimer.h"
 #include "tutil.h"
 
-  typedef struct {
+typedef struct {
   uint32_t   privateIp;
   int32_t    sid;
   uint32_t   moduleStatus;
@@ -97,6 +97,7 @@ struct _vg_obj;
 typedef struct SSuperTableObj {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   type;
+  int8_t   dirty;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
@@ -104,7 +105,7 @@ typedef struct SSuperTableObj {
   int32_t  sversion;
   int32_t  numOfColumns;
   int32_t  numOfTags;
-  int8_t   reserved[7];
+  int8_t   reserved[5];
   int8_t   updateEnd[1];
   int32_t  numOfTables;
   int16_t  nextColId;
@@ -114,12 +115,13 @@ typedef struct SSuperTableObj {
 typedef struct {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   type;
+  int8_t   dirty;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
   int64_t  createdTime;
   char     superTableId[TSDB_TABLE_ID_LEN + 1];
-  int8_t   reserved[7];
+  int8_t   reserved[1];
   int8_t   updateEnd[1];
   SSuperTableObj *superTable;
 } SChildTableObj;
@@ -127,13 +129,14 @@ typedef struct {
 typedef struct {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   type;
+  int8_t   dirty;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
   int64_t  createdTime;
   int32_t  sversion;
   int32_t  numOfColumns;
-  int16_t  sqlLen;
+  int32_t  sqlLen;
   int8_t   reserved[3];
   int8_t   updateEnd[1];
   char*    sql;  //null-terminated string

@@ -2032,6 +2032,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tscClearFieldInfo(&pQueryInfo->fieldsInfo);
 
   msgLen = pMsg - (char*)pCreateTableMsg;
+  pCreateTableMsg->contLen = htonl(msgLen);
   pCmd->payloadLen = msgLen;
   pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_TABLE;
 

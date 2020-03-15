@@ -272,19 +272,22 @@ void mgmtCleanUpChildTables() {
   sdbCloseTable(tsChildTableSdb);
 }
 
-static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup, void *pTagData, int32_t tagDataLen) {
-  int32_t totalCols = pTable->superTable->numOfColumns + pTable->superTable->numOfTags;
-  int32_t contLen   = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen;
+void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableObj *pTable) {
+  char    *pTagData  = pMsg->schema + TSDB_TABLE_ID_LEN + 1;
+  int32_t tagDataLen = htonl(pMsg->contLen) - sizeof(SCMCreateTableMsg) - TSDB_TABLE_ID_LEN - 1;
+  int32_t totalCols  = pTable->superTable->numOfColumns + pTable->superTable->numOfTags;
+  int32_t contLen    = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen;
 
   SMDCreateTableMsg *pCreate = rpcMallocCont(contLen);
   if (pCreate == NULL) {
+    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
     return NULL;
   }
 
-  memcpy(pCreate->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
-  memcpy(pCreate->superTableId, pTable->superTable->tableId, TSDB_TABLE_ID_LEN);
+  memcpy(pCreate->tableId, pTable->tableId, TSDB_TABLE_ID_LEN + 1);
+  memcpy(pCreate->superTableId, pTable->superTable->tableId, TSDB_TABLE_ID_LEN + 1);
   pCreate->contLen       = htonl(contLen);
-  pCreate->vgId          = htonl(pVgroup->vgId);
+  pCreate->vgId          = htonl(pTable->vgId);
   pCreate->tableType     = pTable->type;
   pCreate->numOfColumns  = htons(pTable->superTable->numOfColumns);
   pCreate->numOfTags     = htons(pTable->superTable->numOfTags);
@@ -305,36 +308,38 @@ static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgrou
   }
 
   memcpy(pCreate->data + totalCols * sizeof(SSchema), pTagData, tagDataLen);
-
   return pCreate;
 }
 
-int32_t mgmtCreateChildTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                             SMDCreateTableMsg **pMDCreateOut, STableInfo **pTableOut) {
+void* mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t tid) {
   int32_t numOfTables = sdbGetNumOfRows(tsChildTableSdb);
   if (numOfTables >= tsMaxTables) {
     mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, tsMaxTables);
-    return TSDB_CODE_TOO_MANY_TABLES;
+    terrno = TSDB_CODE_TOO_MANY_TABLES;
+    return NULL;
   }
 
   char *pTagData = (char *) pCreate->schema;  // it is a tag key
   SSuperTableObj *pSuperTable = mgmtGetSuperTable(pTagData);
   if (pSuperTable == NULL) {
     mError("table:%s, corresponding super table does not exist", pCreate->tableId);
-    return TSDB_CODE_INVALID_TABLE;
+    terrno = TSDB_CODE_INVALID_TABLE;
+    return NULL;
   }
 
   SChildTableObj *pTable = (SChildTableObj *) calloc(sizeof(SChildTableObj), 1);
   if (pTable == NULL) {
     mError("table:%s, failed to alloc memory", pCreate->tableId);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return NULL;
   }
+
   strcpy(pTable->tableId, pCreate->tableId);
   strcpy(pTable->superTableId, pSuperTable->tableId);
   pTable->type        = TSDB_CHILD_TABLE;
   pTable->uid         = (((uint64_t) pTable->vgId) << 40) + ((((uint64_t) pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
                         ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
-  pTable->sid         = sid;
+  pTable->sid         = tid;
   pTable->vgId        = pVgroup->vgId;
   pTable->createdTime = taosGetTimestampMs();
   pTable->superTable  = pSuperTable;
@@ -342,21 +347,12 @@ int32_t mgmtCreateChildTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj
   if (sdbInsertRow(tsChildTableSdb, pTable, 0) < 0) {
     free(pTable);
     mError("table:%s, update sdb error", pCreate->tableId);
-    return TSDB_CODE_SDB_ERROR;
+    terrno = TSDB_CODE_SDB_ERROR;
+    return NULL;
   }
-
-  pTagData += (TSDB_TABLE_ID_LEN + 1);
-  int32_t tagDataLen = contLen - sizeof(SCMCreateTableMsg) - TSDB_TABLE_ID_LEN - 1;
-  *pMDCreateOut = mgmtBuildCreateChildTableMsg(pTable, pVgroup, pTagData, tagDataLen);
-  if (*pMDCreateOut == NULL) {
-    mError("table:%s, failed to build create table message", pCreate->tableId);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
-  }
-
-  *pTableOut = (STableInfo *) pTable;
 
   mTrace("table:%s, create ctable in vgroup, uid:%" PRIu64 , pTable->tableId, pTable->uid);
-  return TSDB_CODE_SUCCESS;
+  return pTable;
 }
 
 int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {

@@ -202,7 +202,7 @@ void mgmtCleanUpSuperTables() {
   sdbCloseTable(tsSuperTableSdb);
 }
 
-int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
+int32_t mgmtCreateSuperTable(SCMCreateTableMsg *pCreate) {
   int32_t numOfTables = sdbGetNumOfRows(tsSuperTableSdb);
   if (numOfTables >= TSDB_MAX_SUPER_TABLES) {
     mError("stable:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_SUPER_TABLES);

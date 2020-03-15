@@ -287,18 +287,19 @@ void mgmtCleanUpNormalTables() {
   sdbCloseTable(tsNormalTableSdb);
 }
 
-static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup) {
+void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable) {
   int32_t totalCols = pTable->numOfColumns;
   int32_t contLen   = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + pTable->sqlLen;
 
   SMDCreateTableMsg *pCreate = rpcMallocCont(contLen);
   if (pCreate == NULL) {
+    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
     return NULL;
   }
 
   memcpy(pCreate->tableId, pTable->tableId, TSDB_TABLE_ID_LEN + 1);
   pCreate->contLen       = htonl(contLen);
-  pCreate->vgId          = htonl(pVgroup->vgId);
+  pCreate->vgId          = htonl(pTable->vgId);
   pCreate->tableType     = pTable->type;
   pCreate->numOfColumns  = htons(pTable->numOfColumns);
   pCreate->numOfTags     = 0;
@@ -319,22 +320,22 @@ static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgr
   }
 
   memcpy(pCreate + sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
-
   return pCreate;
 }
 
-int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                              SMDCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
+void *mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
   int32_t numOfTables = sdbGetNumOfRows(tsNormalTableSdb);
   if (numOfTables >= TSDB_MAX_NORMAL_TABLES) {
     mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_NORMAL_TABLES);
-    return TSDB_CODE_TOO_MANY_TABLES;
+    terrno = TSDB_CODE_TOO_MANY_TABLES;
+    return NULL;
   }
 
   SNormalTableObj *pTable = (SNormalTableObj *) calloc(sizeof(SNormalTableObj), 1);
   if (pTable == NULL) {
     mError("table:%s, failed to alloc memory", pCreate->tableId);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return NULL;
   }
 
   strcpy(pTable->tableId, pCreate->tableId);
@@ -352,7 +353,8 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
   pTable->schema     = (SSchema *) calloc(1, schemaSize);
   if (pTable->schema == NULL) {
     free(pTable);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return NULL;
   }
   memcpy(pTable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
@@ -368,7 +370,8 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
     pTable->sql = calloc(1, pTable->sqlLen);
     if (pTable->sql == NULL) {
       free(pTable);
-      return TSDB_CODE_SERV_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      return NULL;
     }
     memcpy(pTable->sql, (char *) (pCreate->schema) + numOfCols * sizeof(SSchema), pTable->sqlLen);
     pTable->sql[pTable->sqlLen - 1] = 0;
@@ -378,20 +381,12 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
   if (sdbInsertRow(tsNormalTableSdb, pTable, 0) < 0) {
     mError("table:%s, update sdb error", pTable->tableId);
     free(pTable);
-    return TSDB_CODE_SDB_ERROR;
+    terrno = TSDB_CODE_SDB_ERROR;
+    return NULL;
   }
-
-  *pDCreateOut = mgmtBuildCreateNormalTableMsg(pTable, pVgroup);
-  if (*pDCreateOut == NULL) {
-    mError("table:%s, failed to build create table message", pTable->tableId);
-    sdbDeleteRow(tsNormalTableSdb, pTable);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
-  }
-
-  *pTableOut = (STableInfo *) pTable;
 
   mTrace("table:%s, create ntable in vgroup, uid:%" PRIu64 , pTable->tableId, pTable->uid);
-  return TSDB_CODE_SUCCESS;
+  return pTable;
 }
 
 int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
