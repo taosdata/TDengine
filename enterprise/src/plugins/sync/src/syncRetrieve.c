@@ -27,7 +27,8 @@
 static int syncAddIntoWatchList(SSyncPeer *pPeer, char *name) 
 {
   SSyncNode *pNode = pPeer->pSyncNode;
-  int       *wd = pPeer->watchFd + pPeer->watchNum;
+
+  dTrace("%s peer:%s, start to monitor:%s", pNode->label, pPeer->ipstr, name);
 
   if (pPeer->notifyFd <=0) {
     pPeer->watchNum = 0;
@@ -45,6 +46,8 @@ static int syncAddIntoWatchList(SSyncPeer *pPeer, char *name)
 
     memset(pPeer->watchFd, -1, sizeof(int)*tsMaxWatchFiles);
   }
+
+  int *wd = pPeer->watchFd + pPeer->watchNum;
 
   if (*wd >= 0) {
     if (inotify_rm_watch(pPeer->notifyFd, *wd) < 0) {
@@ -93,6 +96,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
   SFileInfo   fileInfo;
   SFileAck    fileAck;
   int         code = -1;
+  char        name[256];
 
   fileInfo.index = 0;
 
@@ -100,15 +104,17 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     // retrieve file info
     fileInfo.name[0] = 0;
     fileInfo.magic = (*pNode->getFileInfo)(fileInfo.name, &fileInfo.index, &size);   
-    fileInfo.index = htonl(fileInfo.index);
-    fileInfo.size = htonl(size);
+    //fileInfo.size = htonl(size);
 
     // send the file info
     ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(fileInfo));
     if (ret < 0 ) break;
 
     // if no file anymore, break
-    if (fileInfo.name[0] == 0) { code = 0; break; }
+    if (fileInfo.magic == 0 || fileInfo.name[0] == 0) { 
+      dTrace("%s peer:%s, no more files to sync", pNode->label, pPeer->ipstr);    
+      code = 0; break; 
+    }
 
     // wait for the ack from peer
     ret = taosReadMsg(pPeer->syncFd, &(fileAck), sizeof(fileAck));
@@ -118,17 +124,22 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     if ( syncAddIntoWatchList(pPeer, fileInfo.name) <0) break;
 
     // if sync is not required, continue
-    if (fileAck.sync == 0) continue; 
+    if (fileAck.sync == 0) {
+      fileInfo.index++; 
+      dTrace("%s peer:%s, %s is the same", pNode->label, pPeer->ipstr, fileInfo.name);    
+      continue; 
+    }
 
     // send the file to peer
-    int sfd = open(fileInfo.name, O_RDONLY);
+    sprintf(name, "%s/%s", pNode->path, fileInfo.name);
+    int sfd = open(name, O_RDONLY);
     if ( sfd < 0 ) break;
 
     ret = tsendfile(pPeer->syncFd, sfd, NULL, size); 
     close(sfd); 
     if (ret <0) break;
 
-    dTrace("%s peer:%s, %s is sent, size:%d", pNode->label, pPeer->ipstr, fileInfo.name, size);    
+    dTrace("%s peer:%s, %s is sent, size:%d", pNode->label, pPeer->ipstr, name, size);    
     fileInfo.index++; 
 
     // check if processed files are modified 
@@ -136,7 +147,7 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
   }
 
   if (code < 0) {
-    dError("%s peer:%s, failed to send %s, reason:%s", pNode->label, pPeer->ipstr, strerror(errno));
+    dError("%s peer:%s, failed to retrieve file(%s)", pNode->label, pPeer->ipstr, strerror(errno));
   }
 
   return code;
@@ -278,8 +289,8 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *name, int index)
       // wal is updated, but for first update, don't set fversion, read more records from WAL
       // but for second update, set fversion, read WAL data only to fversion
       if (updated) {  
-        pNode->status = TAOS_SYNC_STATUS_CACHE;  // start to forward pkt
-        fversion = pNode->version;    // must read data to fvsersion
+        pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;  // start to forward pkt
+        fversion = pNodeVersion;    // must read data to fvsersion
       }
 
       updated = 1;
@@ -296,13 +307,6 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *name, int index)
     if ( code < 0) break;  
   }
 
-  if (code == 0) {
-    pNode->status = TAOS_SYNC_STATUS_CACHE;
-    SWalHead walHead;
-    memset(&walHead, 0, sizeof(walHead));
-    code = taosWriteMsg(pPeer->syncFd, &walHead, sizeof(walHead));
-  }
-
   tclose(pPeer->notifyFd);
 
   return code;
@@ -316,12 +320,14 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
   struct stat fstat;
   int         code = -1;
   int         index = 0;
+  int         last;
 
   while (1) {
     // retrieve wal info
     name[0] = 0;
     code = (*pNode->getWalInfo)(name, &index);   
-    if (code <0) break;
+    if (name[0] == 0) break;
+    if (code < 0) break;
     if (code == 0) {
       code = syncProcessLastWal(pPeer, name, index);
       break;
@@ -345,8 +351,14 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
     if ( syncAreFilesModified(pPeer) != 0) break; 
   }
 
-  if (code < 0) {
-    dError("%s peer:%s, failed to send %s, reason:%s", pNode->label, pPeer->ipstr, strerror(errno));
+  if (code == 0) {
+    dTrace("%s peer:%s, wal retrieve is finished", pNode->label, pPeer->ipstr);    
+    pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;
+    SWalHead walHead;
+    memset(&walHead, 0, sizeof(walHead));
+    code = taosWriteMsg(pPeer->syncFd, &walHead, sizeof(walHead));
+  } else {
+    dError("%s peer:%s, failed to send WAL(%s)", pNode->label, pPeer->ipstr, strerror(errno));
   }
 
   return code;
@@ -361,13 +373,12 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
   firstPkt.type = TAOS_SMSG_SYNC_DATA;
   firstPkt.vgId = pNode->vgId;
 
-  dTrace("%s peer:%s, start to retrieve data", pNode->label, pPeer->ipstr);
   if (write(pPeer->syncFd, (char *) &firstPkt, sizeof(firstPkt)) < 0) {
     dError("%s peer:%s, failed to send syncCmd", pNode->label, pPeer->ipstr);
     return -1;
   }
 
-  pPeer->status = TAOS_SYNC_STATUS_FILE;
+  pPeer->sstatus = TAOS_SYNC_STATUS_FILE;
   dTrace("%s peer:%s, start to retrieve file", pNode->label, pPeer->ipstr);
   if (syncRetrieveFile(pPeer) < 0) {
     dError("%s peer:%s, failed to retrieve file", pNode->label, pPeer->ipstr);
@@ -390,19 +401,21 @@ void *syncRetrieveData(void *param)
   SSyncPeer   *pPeer = (SSyncPeer *)param;
   SSyncNode   *pNode = pPeer->pSyncNode;
 
-  assert(pPeer->syncFd >=0);
+  assert(pPeer->syncFd < 0);
   taosBlockSIGPIPE();
 
   pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ipstr, tsVnodeVnodePort, tsPrivateIp);
   if (pPeer->syncFd < 0) {
     dError("%s peer:%s, failed to open socket to sync", pNode->label, pPeer->ipstr);
     return NULL;    
-  } 
+  } else {
+    dPrint("%s peer:%s, sync tcp is setup", pNode->label, pPeer->ipstr);
+  }
   
   if (syncRetrieveDataStepByStep(pPeer) == 0) {
     dTrace("%s peer:%s, sync retrieve process is successful", pNode->label, pPeer->ipstr);
   } else {
-    dError("%s peer:%s, failed to sync retrieve data, restart connection", pNode->label, pPeer->ipstr);
+    dError("%s peer:%s, failed to retrieve data, restart connection", pNode->label, pPeer->ipstr);
     syncRestartConnection(pPeer);
   }
 

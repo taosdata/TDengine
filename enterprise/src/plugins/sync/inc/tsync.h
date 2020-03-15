@@ -23,18 +23,29 @@ extern "C" {
 #define TAOS_SYNC_NAME_LEN    128 
 #define TAOS_SYNC_MAX_REPLICA 5
 
+#define TAOS_QTYPE_RPC      0
+#define TAOS_QTYPE_FWD      1
+#define TAOS_QTYPE_WAL      2 
+
+typedef enum _TAOS_SYNC_ROLE {
+  TAOS_SYNC_ROLE_OFFLINE,
+  TAOS_SYNC_ROLE_UNSYNCED,
+  TAOS_SYNC_ROLE_SLAVE,
+  TAOS_SYNC_ROLE_MASTER,
+} ESyncRole;
+
 typedef enum _TAOS_SYNC_STATUS {
-  TAOS_SYNC_STATUS_OFFLINE,
-  TAOS_SYNC_STATUS_UNSYNCED,
+  TAOS_SYNC_STATUS_INIT,
+  TAOS_SYNC_STATUS_START,
   TAOS_SYNC_STATUS_FILE,
   TAOS_SYNC_STATUS_CACHE,
-  TAOS_SYNC_STATUS_SLAVE,
-  TAOS_SYNC_STATUS_MASTER,
 } ESyncStatus;
 
 typedef struct {
-  uint64_t  version;
+  int8_t    msgType;
+  int8_t    reserved[3];
   int32_t   len;
+  uint64_t  version;
   uint32_t  cksum;
   char      cont[];
 } SWalHead;
@@ -48,28 +59,30 @@ typedef struct {
 typedef struct {
   int       selfIndex;
   uint32_t  nodeId[TAOS_SYNC_MAX_REPLICA];
-  int       status[TAOS_SYNC_MAX_REPLICA];  
-} SSyncStatus;
+  int       role[TAOS_SYNC_MAX_REPLICA];  
+} SNodesRole;
   
 typedef struct {
-  char       label[20]; // for debug purpose
+  char       label[20]; // for debug purpose 
+  char       path[128]; // path to the file
   int8_t     replica;   // number of replications
   int8_t     quorum; 
   int32_t    vgId;      // vgroup ID
   void      *ahandle;   // handle provided by APP 
-
+  uint64_t   version;   // initial version
+ 
   // if name is null, get the file from index or after, used by master
   // if name is provided, get the named file at the specified index, used by unsynced node
   // it returns the file magic number, if file not there, magic shall be 0.
   uint32_t   (*getFileInfo)(char *name, int *index, int *size); 
 
   // get the wal file from index or after
-  // return value, -1: error, 0: last wal, 1:more wal files
+  // return value, -1: error, 1:more wal files, 0: last WAL, or no WAL if name[0] == 0
   int        (*getWalInfo)(char *name, int *index); 
 
-  int        (*writeToCache)(void *ahandle, uint64_t version, void *cont, int len);
-  void       (*confirmFwd)(void *ahandle, int64_t version);
-  void       (*notifyStatus)(void *ahandle, int8_t status);
+  int        (*writeToCache)(void *ahandle, SWalHead *, int type);
+  void       (*confirmFwd)(void *ahandle, void *mhandle, int32_t code);
+  void       (*notifyRole)(void *ahandle, int8_t role);
   SNodeInfo  nodeInfo[TAOS_SYNC_MAX_REPLICA];
 } SSyncInfo;
 
@@ -78,11 +91,12 @@ typedef void* tsync_h;
 tsync_h syncStart(SSyncInfo *);
 void    syncStop(tsync_h );
 int     syncReconfig(tsync_h, SSyncInfo *);
-int     syncForwardToPeer(void *param, uint64_t version, char *cont, int contLen);
+int     syncForwardToPeer(tsync_h, SWalHead *pHead, void *mhandle);
+void    syncAckForward(tsync_h, uint64_t version, int32_t code);
 void    syncRecover(tsync_h );      // recover from other nodes:
-int     syncGetStatus(tsync_h, SSyncStatus *);
+int     syncGetNodesRole(tsync_h, SNodesRole *);
 
-extern  char syncStatus[];
+extern  char *syncRole[];
 
 #ifdef __cplusplus
 }

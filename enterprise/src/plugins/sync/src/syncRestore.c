@@ -26,9 +26,11 @@
 static int syncRestoreFile(SSyncPeer *pPeer) 
 {
   SSyncNode *pNode = pPeer->pSyncNode;
-  SFileInfo  minfo, sinfo;
+  SFileInfo  minfo; // master file info
+  SFileInfo  sinfo; // slave file info
   SFileAck   fileAck;
   int        code = -1;
+  char       name[256];
 
   while (1) {
     // read file info
@@ -39,8 +41,10 @@ static int syncRestoreFile(SSyncPeer *pPeer)
     if (minfo.name[0] == 0) {code = 0; break;}
    
     fileAck.sync = 0;
-    minfo.index = htonl(minfo.index);
-    minfo.size = htonl(minfo.size);
+    //minfo.index = htonl(minfo.index);
+    //minfo.size = htonl(minfo.size);
+
+    dTrace("%s peer:%s, get file info:%s", pNode->label, pPeer->ipstr, minfo.name);
 
     // check the file info
     strcpy(sinfo.name, minfo.name);
@@ -54,12 +58,16 @@ static int syncRestoreFile(SSyncPeer *pPeer)
     if (ret <0)  break;
  
     // if sync is not required, continue
-    if (fileAck.sync == 0) continue;
+    if (fileAck.sync == 0) {
+      dTrace("%s peer:%s, %s is the same", pNode->label, pPeer->ipstr, minfo.name);
+      continue;
+    }
 
     // if sync is requred, open file, receive from master, and write to file
-    int dfd = open(sinfo.name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+    sprintf(name, "%s/%s", pNode->path, minfo.name);
+    int dfd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
     if ( dfd < 0 ) {
-      dError("%s peer:%s, failed to open file:%s", pNode->label, pPeer->ipstr, minfo.name);
+      dError("%s peer:%s, failed to open file:%s", pNode->label, pPeer->ipstr, name);
       break;
     }
 
@@ -71,7 +79,7 @@ static int syncRestoreFile(SSyncPeer *pPeer)
   }
 
   if (code<0) {
-    dError("%s peer:%s, failed to recv %s, reason:%s", pNode->label, pPeer->ipstr, strerror(errno));
+    dError("%s peer:%s, failed to recv %s(%s)", pNode->label, pPeer->ipstr, minfo.name, strerror(errno));
   }
 
   return code;
@@ -81,25 +89,25 @@ static int syncRestoreWal(SSyncPeer *pPeer)
 {
   SSyncNode  *pNode = pPeer->pSyncNode;
   int         ret, code = -1;
-  SWalHead    walHead;
 
   void *buffer = malloc(1024000);
   if (buffer == NULL) return -1;
+  SWalHead   *pHead = (SWalHead *)buffer;
 
   while (1) {
-    ret = taosReadMsg(pPeer->syncFd, &(walHead), sizeof(walHead));
+    ret = taosReadMsg(pPeer->syncFd, pHead, sizeof(SWalHead));
     if (ret <0)  break;
 
-    if (walHead.len == 0) {code = 0; break;}  // wal sync over
+    if (pHead->len == 0) {code = 0; break;}  // wal sync over
     
-    ret = taosReadMsg(pPeer->syncFd, buffer, walHead.len);
+    ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
     if (ret <0)  break;
 
-    (*pNode->writeToCache)(pNode->ahandle, walHead.version, walHead.cont, walHead.len);
+    (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL);
   }
 
   if (code<0) {
-    dError("%s peer:%s, failed to read WAL, reason:%s", pNode->label, pPeer->ipstr, strerror(errno));
+    dError("%s peer:%s, failed to read WAL(%s)", pNode->label, pPeer->ipstr, strerror(errno));
   }
 
   free(buffer);
@@ -108,11 +116,10 @@ static int syncRestoreWal(SSyncPeer *pPeer)
 
 static char *syncProcessOneBufferedFwd(SSyncNode *pNode, char *offset)
 {
-  SSyncHead *pHead = (SSyncHead *) offset;
-  int        contLen = pHead->len;
+  SWalHead *pHead = (SWalHead *) offset;
 
-  (*pNode->writeToCache)(pNode->ahandle, pHead->version, pHead->cont, pHead->len);
-  offset += contLen + sizeof(SSyncHead);
+  (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL);
+  offset += pHead->len + sizeof(SSyncHead);
 
   return offset;
 }
@@ -141,13 +148,13 @@ static int syncProcessBufferedFwd(SSyncNode *pNode)
   return pRecv->code;
 }
 
-int syncSaveIntoBuffer(SRecvBuffer *pRecv, SSyncHead *pHead)
+int syncSaveIntoBuffer(SRecvBuffer *pRecv, SWalHead *pHead)
 {
   int contLen = pHead->len;
 
   if (pRecv->bufferSize - (pRecv->offset - pRecv->buffer) > contLen + 100) {
-    memcpy(pRecv->offset, pHead, sizeof(SSyncHead));
-    pRecv->offset += sizeof(SSyncHead);
+    memcpy(pRecv->offset, pHead, sizeof(SWalHead));
+    pRecv->offset += sizeof(SWalHead);
     memcpy(pRecv->offset, pHead->cont, contLen);
     pRecv->offset += contLen;
     pRecv->forwards++;
@@ -161,7 +168,7 @@ int syncSaveIntoBuffer(SRecvBuffer *pRecv, SSyncHead *pHead)
 static void syncCloseRecvBuffer(SRecvBuffer *pRecv)
 {
   if (pRecv) {
-    free(pRecv->buffer);
+    tfree(pRecv->buffer);
   }
 }
 
@@ -187,10 +194,8 @@ static int syncOpenRecvBuffer(SSyncNode *pNode)
 static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
 {
   SSyncNode *pNode = pPeer->pSyncNode;
+  pNodeSStatus = TAOS_SYNC_STATUS_FILE;
 
-  dTrace("%s peer:%s, start to restore", pNode->label, pPeer->ipstr);
-
-  pNode->status = TAOS_SYNC_STATUS_FILE;
   dTrace("%s peer:%s, start to restore file", pNode->label, pPeer->ipstr);
   if (syncRestoreFile(pPeer) < 0) {
     dError("%s peer:%s, failed to restore file", pNode->label, pPeer->ipstr);
@@ -203,7 +208,7 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
     return -1;
   }
 
-  pNode->status = TAOS_SYNC_STATUS_CACHE;
+  pNodeSStatus = TAOS_SYNC_STATUS_CACHE;
   dTrace("%s peer:%s, start to insert buffered points", pNode->label, pPeer->ipstr);
   if (syncProcessBufferedFwd(pNode) < 0) {
     dError("%s peer:%s, failed to insert buffered points", pNode->label, pPeer->ipstr);
@@ -229,15 +234,16 @@ void *syncRestoreData(void *param)
 
   if ( syncRestoreDataStepByStep(pPeer) == 0) {
     dPrint("%s peer:%s, it is synced successfully", pNode->label, pPeer->ipstr);
-    pNode->status = TAOS_SYNC_STATUS_SLAVE;
-    syncBroadcastStatus(pNode);
-    (*pNode->notifyStatus)(pNode->ahandle, pNode->status);
+    pNodeRole = TAOS_SYNC_ROLE_SLAVE;
+    syncBroadcastRoleVersion(pNode);
+    (*pNode->notifyRole)(pNode->ahandle, pNodeRole);
   } else {
     dError("%s peer:%s, failed to restore data, restart connection", pNode->label, pPeer->ipstr);
-    pNode->status = TAOS_SYNC_STATUS_UNSYNCED;
+    pNodeRole = TAOS_SYNC_ROLE_UNSYNCED;
     syncRestartConnection(pPeer);
   }
 
+  pNodeSStatus = TAOS_SYNC_STATUS_INIT;
   tclose(pPeer->syncFd)
   syncCloseRecvBuffer(pNode->pRecv);
 

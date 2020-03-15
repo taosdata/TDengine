@@ -168,9 +168,11 @@ static void *taosAcceptPeerTcpConnection(void *argv) {
 
   taosBlockSIGPIPE();
 
-  int tcpFd = taosOpenTcpServerSocket(pInfo->serverIp, pInfo->port);
+  char ipstr[40];
+  tinet_ntoa(ipstr, pInfo->serverIp);
+  int tcpFd = taosOpenTcpServerSocket(ipstr, pInfo->port);
   if (tcpFd < 0) {
-    pError("failed to create peer TCP socket, reason:%s", strerror(errno));
+    pError("failed to create TCP server:%s socket, reason:%s", ipstr, strerror(errno));
     return NULL;
   }
 

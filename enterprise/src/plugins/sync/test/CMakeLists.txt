@@ -9,11 +9,11 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
 
   LIST(APPEND CLIENT_SRC ./syncClient.c)
   ADD_EXECUTABLE(syncClient ${CLIENT_SRC})
-  TARGET_LINK_LIBRARIES(syncClient sync)
+  TARGET_LINK_LIBRARIES(syncClient sync trpc)
 
   LIST(APPEND SERVER_SRC ./syncServer.c)
   ADD_EXECUTABLE(syncServer ${SERVER_SRC})
-  TARGET_LINK_LIBRARIES(syncServer sync)
+  TARGET_LINK_LIBRARIES(syncServer sync trpc)
 ENDIF ()
 
 

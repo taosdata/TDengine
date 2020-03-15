@@ -19,17 +19,15 @@
 
 typedef struct _id_hash_t {
   int32_t            id;
-  int                hash;
   struct _id_hash_t *prev;
   struct _id_hash_t *next;
   void *             data;
-  int64_t            lockedBy;
 } SIdHash;
 
 typedef struct {
   SIdHash **idHashList;
   mpool_h   idHashMemPool;
-  int      *lockedBy;
+  int64_t  *lockedBy;
   int       maxSessions;
 } SHashObj;
 
@@ -61,7 +59,6 @@ void *taosAddIdHash(void *handle, void *data, int32_t id) {
 
   taosLockHash(pObj, hash);
   pNode->next = pObj->idHashList[hash];
-  pNode->hash = hash;
 
   if (pObj->idHashList[hash] != 0) (pObj->idHashList[hash])->prev = pNode;
   pObj->idHashList[hash] = pNode;
@@ -160,7 +157,7 @@ void *taosOpenIdHash(int maxSessions) {
   pObj->idHashMemPool = idHashMemPool;
   pObj->idHashList = idHashList;
 
-  pObj->lockedBy = calloc(sizeof(int), maxSessions);
+  pObj->lockedBy = calloc(sizeof(int64_t), maxSessions);
 
   return pObj;
 }
