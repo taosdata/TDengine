@@ -344,10 +344,10 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
   pTable->sid          = sid;
   pTable->createdTime  = taosGetTimestampMs();
   pTable->sversion     = 0;
-  pTable->numOfColumns = pCreate->numOfColumns;
-  pTable->sqlLen       = pTable->sqlLen;
+  pTable->numOfColumns = htons(pCreate->numOfColumns);
+  pTable->sqlLen       = htons(pCreate->sqlLen);
 
-  int32_t numOfCols  = pCreate->numOfColumns;
+  int32_t numOfCols  = pTable->numOfColumns;
   int32_t schemaSize = numOfCols * sizeof(SSchema);
   pTable->schema     = (SSchema *) calloc(1, schemaSize);
   if (pTable->schema == NULL) {
@@ -357,13 +357,12 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
   memcpy(pTable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
   pTable->nextColId = 0;
-  for (int32_t col = 0; col < pCreate->numOfColumns; col++) {
+  for (int32_t col = 0; col < numOfCols; col++) {
     SSchema *tschema   = pTable->schema;
     tschema[col].colId = pTable->nextColId++;
-    tschema[col].bytes = pTable->schema[col].bytes;
+    tschema[col].bytes = htons(tschema[col].bytes);
   }
 
-  pTable->sqlLen = pCreate->sqlLen;
   if (pTable->sqlLen != 0) {
     pTable->type = TSDB_STREAM_TABLE;
     pTable->sql = calloc(1, pTable->sqlLen);
@@ -371,20 +370,20 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
       free(pTable);
       return TSDB_CODE_SERV_OUT_OF_MEMORY;
     }
-    memcpy(pTable->sql, (char *) (pCreate->schema) + numOfCols * sizeof(SSchema), pCreate->sqlLen);
-    pTable->sql[pCreate->sqlLen - 1] = 0;
-    mTrace("table:%s, stream sql len:%d sql:%s", pCreate->tableId, pCreate->sqlLen, pTable->sql);
+    memcpy(pTable->sql, (char *) (pCreate->schema) + numOfCols * sizeof(SSchema), pTable->sqlLen);
+    pTable->sql[pTable->sqlLen - 1] = 0;
+    mTrace("table:%s, stream sql len:%d sql:%s", pTable->tableId, pTable->sqlLen, pTable->sql);
   }
 
   if (sdbInsertRow(tsNormalTableSdb, pTable, 0) < 0) {
-    mError("table:%s, update sdb error", pCreate->tableId);
+    mError("table:%s, update sdb error", pTable->tableId);
     free(pTable);
     return TSDB_CODE_SDB_ERROR;
   }
 
   *pDCreateOut = mgmtBuildCreateNormalTableMsg(pTable, pVgroup);
   if (*pDCreateOut == NULL) {
-    mError("table:%s, failed to build create table message", pCreate->tableId);
+    mError("table:%s, failed to build create table message", pTable->tableId);
     sdbDeleteRow(tsNormalTableSdb, pTable);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }

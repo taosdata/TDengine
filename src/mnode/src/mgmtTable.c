@@ -137,17 +137,6 @@ int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, boo
 static void mgmtCreateTable(SVgObj *pVgroup, SQueuedMsg *pMsg) {
   SCMCreateTableMsg *pCreate = pMsg->pCont;
 
-  pCreate->numOfColumns = htons(pCreate->numOfColumns);
-  pCreate->numOfTags    = htons(pCreate->numOfTags);
-  pCreate->sqlLen       = htons(pCreate->sqlLen);
-
-  SSchema *pSchema = (SSchema*) pCreate->schema;
-  for (int32_t i = 0; i < pCreate->numOfColumns + pCreate->numOfTags; ++i) {
-    pSchema->bytes = htons(pSchema->bytes);
-    pSchema->colId = i;
-    pSchema++;
-  }
-
   int32_t sid = taosAllocateId(pVgroup->idPool);
   if (sid < 0) {
     mTrace("tables:%s, no enough sid in vgroup:%d", pVgroup->vgId);

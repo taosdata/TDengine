@@ -242,11 +242,11 @@ int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
   }
 
   if (sdbInsertRow(tsSuperTableSdb, pStable, 0) < 0) {
-    mError("stable:%s, update sdb error", pCreate->tableId);
+    mError("stable:%s, update sdb error", pStable->tableId);
     return TSDB_CODE_SDB_ERROR;
   }
 
-  mPrint("stable:%s, is created, tags:%d cols:%d", pCreate->tableId, pStable->numOfTags, pStable->numOfColumns);
+  mPrint("stable:%s, is created, tags:%d cols:%d", pStable->tableId, pStable->numOfTags, pStable->numOfColumns);
   return TSDB_CODE_SUCCESS;
 }
 
