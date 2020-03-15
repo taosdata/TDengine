@@ -330,7 +330,7 @@ int taosOpenTcpClientSocket(char *destIp, uint16_t destPort, char *clientIp) {
   struct sockaddr_in serverAddr, clientAddr;
   int                ret;
 
-  pTrace("open tcp client socket:%s:%d", destIp, destPort);
+  pTrace("open tcp client socket:%s:%d, local Ip:%s", destIp, destPort, clientIp);
 
   sockFd = (int)socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 

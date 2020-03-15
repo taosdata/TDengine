@@ -78,7 +78,7 @@ void taosResetLogFile();
 // utility log function
 #define pError(...)                          \
   if (uDebugFlag & DEBUG_ERROR) {            \
-    tprintf("ERROR UTL ", 255, __VA_ARGS__); \
+    tprintf("ERROR UTL ", uDebugFlag, __VA_ARGS__); \
   }
 #define pWarn(...)                                  \
   if (uDebugFlag & DEBUG_WARN) {                    \

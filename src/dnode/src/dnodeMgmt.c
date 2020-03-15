@@ -152,8 +152,8 @@ static int32_t dnodeOpenVnode(int32_t vgId) {
   vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
   vnodeObj.refCount = 1;
   vnodeObj.version  = 0;
-  vnodeObj.wworker  = dnodeAllocateWriteWorker();
-  vnodeObj.rworker  = dnodeAllocateReadWorker();
+  vnodeObj.wworker  = dnodeAllocateWriteWorker(&vnodeObj);
+  vnodeObj.rworker  = dnodeAllocateReadWorker(&vnodeObj);
   vnodeObj.wal      = NULL;
   vnodeObj.tsdb     = pTsdb;
   vnodeObj.replica  = NULL;
@@ -217,8 +217,8 @@ static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
   vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
   vnodeObj.refCount = 1;
   vnodeObj.version  = 0;
-  vnodeObj.wworker  = dnodeAllocateWriteWorker();
-  vnodeObj.rworker  = dnodeAllocateReadWorker();
+  vnodeObj.wworker  = dnodeAllocateWriteWorker(&vnodeObj);
+  vnodeObj.rworker  = dnodeAllocateReadWorker(&vnodeObj);
   vnodeObj.wal      = NULL;
   vnodeObj.tsdb     = pTsdb;
   vnodeObj.replica  = NULL;
