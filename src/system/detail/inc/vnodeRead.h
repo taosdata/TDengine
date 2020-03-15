@@ -191,6 +191,7 @@ typedef struct SQueryRuntimeEnv {
   
   SPointInterpoSupporter* pInterpoSupporter;
   bool hasTimeWindow;
+  bool interpoSearch;
 } SQueryRuntimeEnv;
 
 /* intermediate pos during multimeter query involves interval */

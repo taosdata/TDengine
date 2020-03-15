@@ -3450,6 +3450,9 @@ static bool loadPrevDataPoint(SQueryRuntimeEnv* pRuntimeEnv, char** result) {
         
         qTrace("QInfo:%p get prev data point, fileId:%d, slot:%d, pos:%d, pQuery->pos:%d", GET_QINFO_ADDR(pQuery),
                pQuery->fileId, pQuery->slot, pQuery->pos, pQuery->pos);
+        
+        // restore to the start position
+        loadRequiredBlockIntoMem(pRuntimeEnv, &pRuntimeEnv->startPos);
       } else {
         // moveToNextBlock make sure there is a available cache block, if exists
         assert(vnodeIsDatablockLoaded(pRuntimeEnv, pMeterObj, -1, true) == DISK_BLOCK_NO_NEED_TO_LOAD);
