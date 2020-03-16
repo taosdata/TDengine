@@ -456,6 +456,9 @@ void vnodeExecuteRetrieveReq(SSchedMsg *pSched) {
       taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, TSDB_CODE_SERV_OUT_OF_MEMORY);
       goto _exit;
     }
+  } else {
+    taosSendSimpleRsp(pObj->thandle, TSDB_MSG_TYPE_RETRIEVE_RSP, code);
+    goto _exit;
   }
 
   pMsg = pStart;
