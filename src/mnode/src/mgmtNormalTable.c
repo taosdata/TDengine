@@ -389,43 +389,36 @@ void *mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t
   return pTable;
 }
 
-int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
+int32_t mgmtDropNormalTable(SNormalTableObj *pTable) {
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("table:%s, failed to drop normal table, vgroup not exist", pTable->tableId);
     return TSDB_CODE_OTHERS;
   }
 
-  SMDDropTableMsg *pRemove = rpcMallocCont(sizeof(SMDDropTableMsg));
-  if (pRemove == NULL) {
+  SMDDropTableMsg *pDrop = rpcMallocCont(sizeof(SMDDropTableMsg));
+  if (pDrop == NULL) {
     mError("table:%s, failed to drop normal table, no enough memory", pTable->tableId);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
-  strcpy(pRemove->tableId, pTable->tableId);
-  pRemove->sid = htonl(pTable->sid);
-  pRemove->uid = htobe64(pTable->uid);
+  strcpy(pDrop->tableId, pTable->tableId);
+  pDrop->contLen = htonl(sizeof(SMDDropTableMsg));
+  pDrop->vgId    = htonl(pVgroup->vgId);
+  pDrop->sid     = htonl(pTable->sid);
+  pDrop->uid     = htobe64(pTable->uid);
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
-  mTrace("table:%s, send drop table msg", pRemove->tableId);
+  mTrace("table:%s, send drop table msg", pDrop->tableId);
   SRpcMsg rpcMsg = {
       .handle  = 0,
-      .pCont   = pRemove,
+      .pCont   = pDrop,
       .contLen = sizeof(SMDDropTableMsg),
       .code    = 0,
       .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
   };
+
   mgmtSendMsgToDnode(&ipSet, &rpcMsg);
-
-  if (sdbDeleteRow(tsNormalTableSdb, pTable) < 0) {
-    mError("table:%s, update ntables sdb error", pTable->tableId);
-    return TSDB_CODE_SDB_ERROR;
-  }
-
-  if (pVgroup->numOfTables <= 0) {
-    mgmtDropVgroup(pDb, pVgroup);
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 

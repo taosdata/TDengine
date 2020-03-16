@@ -368,7 +368,7 @@ static bool mgmtCheckDropDbFinished(SDbObj *pDb) {
 }
 
 static void mgmtDropDbFromSdb(SDbObj *pDb) {
-  while (pDb->pHead) mgmtDropVgroup(pDb, pDb->pHead);
+  while (pDb->pHead) mgmtDropVgroup(pDb->pHead);
 
 //  SSuperTableObj *pMetric = pDb->pSTable;
 //  while (pMetric) {

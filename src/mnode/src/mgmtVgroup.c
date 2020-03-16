@@ -185,7 +185,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg) {
   mgmtSendCreateVgroupMsg(pVgroup, pMsg);
 }
 
-int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
+int32_t mgmtDropVgroup(SVgObj *pVgroup) {
   STableInfo *pTable;
 
   if (pVgroup->numOfTables > 0) {
@@ -197,7 +197,7 @@ int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
 //    }
   }
 
-  mTrace("vgroup:%d, db:%s replica:%d is deleted", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
+  mTrace("vgroup:%d, replica:%d is deleted", pVgroup->vgId, pVgroup->numOfVnodes);
 
   //mgmtSendDropVgroupMsg(pVgroup, NULL);
 

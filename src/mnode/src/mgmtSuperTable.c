@@ -250,11 +250,16 @@ int32_t mgmtCreateSuperTable(SCMCreateTableMsg *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtDropSuperTable(SDbObj *pDb, SSuperTableObj *pSuperTable) {
-  //TODO drop all child tables
-
-  mgmtRemoveSuperTableFromDb(pDb);
-  return sdbDeleteRow(tsSuperTableSdb, pSuperTable);
+int32_t mgmtDropSuperTable(SDbObj *pDb, SSuperTableObj *pStable) {
+  if (pStable->numOfTables != 0) {
+    mError("stable:%s, numOfTables:%d not 0", pStable->tableId, pStable->numOfTables);
+    return TSDB_CODE_OTHERS;
+  } else {
+    //TODO: drop child tables
+    mError("stable:%s, is dropped from sdb", pStable->tableId);
+    mgmtRemoveSuperTableFromDb(pDb);
+    return TSDB_CODE_OTHERS;
+  }
 }
 
 void* mgmtGetSuperTable(char *tableId) {

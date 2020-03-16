@@ -355,45 +355,37 @@ void* mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t 
   return pTable;
 }
 
-int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
+int32_t mgmtDropChildTable(SChildTableObj *pTable) {
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("table:%s, failed to drop child table, vgroup not exist", pTable->tableId);
     return TSDB_CODE_OTHERS;
   }
 
-  SMDDropTableMsg *pRemove = rpcMallocCont(sizeof(SMDDropTableMsg));
-  if (pRemove == NULL) {
+  SMDDropTableMsg *pDrop = rpcMallocCont(sizeof(SMDDropTableMsg));
+  if (pDrop == NULL) {
     mError("table:%s, failed to drop child table, no enough memory", pTable->tableId);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
-  strcpy(pRemove->tableId, pTable->tableId);
-  pRemove->vgId    = htonl(pTable->vgId);
-  pRemove->contLen = htonl(sizeof(SMDDropTableMsg));
-  pRemove->sid     = htonl(pTable->sid);
-  pRemove->uid     = htobe64(pTable->uid);
+  strcpy(pDrop->tableId, pTable->tableId);
+  pDrop->vgId    = htonl(pTable->vgId);
+  pDrop->contLen = htonl(sizeof(SMDDropTableMsg));
+  pDrop->sid     = htonl(pTable->sid);
+  pDrop->uid     = htobe64(pTable->uid);
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
 
-  mTrace("table:%s, send drop table msg", pRemove->tableId);
+  mTrace("table:%s, send drop table msg", pDrop->tableId);
   SRpcMsg rpcMsg = {
     .handle  = 0,
-    .pCont   = pRemove,
+    .pCont   = pDrop,
     .contLen = sizeof(SMDDropTableMsg),
     .code    = 0,
     .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
   };
+
   mgmtSendMsgToDnode(&ipSet, &rpcMsg);
-
-  if (sdbDeleteRow(tsChildTableSdb, pTable) < 0) {
-    mError("table:%s, update ctables sdb error", pTable->tableId);
-    return TSDB_CODE_SDB_ERROR;
-  }
-
-  if (pVgroup->numOfTables <= 0) {
-    mgmtDropVgroup(pDb, pVgroup);
-  }
 
   return TSDB_CODE_SUCCESS;
 }

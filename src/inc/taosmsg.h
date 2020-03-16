@@ -235,6 +235,10 @@ typedef struct {
 } SVnodeDesc;
 
 typedef struct {
+  int32_t numOfVnodes;
+} SWriteMsgDesc;
+
+typedef struct {
   int32_t contLen;
   int32_t vgId;
 } SWriteMsgHead;
@@ -341,8 +345,10 @@ typedef struct {
 } SMDDropTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN + 1];
+  int32_t contLen;
+  int32_t vgId;
   int64_t uid;
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
 } SMDDropSTableMsg;
 
 typedef struct {
