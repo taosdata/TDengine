@@ -250,7 +250,7 @@ int32_t mgmtCreateSuperTable(SCMCreateTableMsg *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtDropSuperTable(SDbObj *pDb, SSuperTableObj *pStable) {
+int32_t mgmtDropSuperTable(SQueuedMsg *newMsg, SDbObj *pDb, SSuperTableObj *pStable) {
   if (pStable->numOfTables != 0) {
     mError("stable:%s, numOfTables:%d not 0", pStable->tableId, pStable->numOfTables);
     return TSDB_CODE_OTHERS;

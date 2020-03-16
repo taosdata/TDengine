@@ -352,8 +352,7 @@ typedef struct {
 } SMDDropSTableMsg;
 
 typedef struct {
-  int32_t vgId;
-  int32_t vnode;
+  int32_t  vgId;
 } SMDDropVnodeMsg;
 
 typedef struct SColIndexEx {

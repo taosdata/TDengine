@@ -44,8 +44,10 @@ static void *mgmtVgroupActionDestroy(void *row, char *str, int32_t size, int32_t
 static int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
+static void    mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg);
 
-void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
+static void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
+static void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 
 static void mgmtVgroupActionInit() {
   SVgObj tObj;
@@ -119,6 +121,7 @@ int32_t mgmtInitVgroups() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_VGROUP, mgmtGetVgroupMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mgmtRetrieveVgroups);
   mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mgmtProcessCreateVnodeRsp);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mgmtProcessDropVnodeRsp);
 
   mTrace("vgroup is initialized");
   return 0;
@@ -186,7 +189,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg) {
 }
 
 int32_t mgmtDropVgroup(SVgObj *pVgroup) {
-  STableInfo *pTable;
+//  STableInfo *pTable;
 
   if (pVgroup->numOfTables > 0) {
 //    for (int32_t i = 0; i < pDb->cfg.maxSessions; ++i) {
@@ -197,12 +200,9 @@ int32_t mgmtDropVgroup(SVgObj *pVgroup) {
 //    }
   }
 
-  mTrace("vgroup:%d, replica:%d is deleted", pVgroup->vgId, pVgroup->numOfVnodes);
-
-  //mgmtSendDropVgroupMsg(pVgroup, NULL);
-
+  mTrace("vgroup:%d, replica:%d is deleting from sdb", pVgroup->vgId, pVgroup->numOfVnodes);
+  mgmtSendDropVgroupMsg(pVgroup, NULL);
   sdbDeleteRow(tsVgroupSdb, pVgroup);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -633,4 +633,37 @@ static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
   }
 
   free(queueMsg);
+}
+
+static SMDDropVnodeMsg *mgmtBuildDropVnodeMsg(SVgObj *pVgroup) {
+  SMDDropVnodeMsg *pDrop = rpcMallocCont(sizeof(SMDDropVnodeMsg));
+  if (pDrop == NULL) return NULL;
+
+  pDrop->vgId = htonl(pVgroup->vgId);
+  return pDrop;
+}
+
+static void mgmtSendDropVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle) {
+  mTrace("vgroup:%d, send drop vnode msg, ahandle:%p", pVgroup->vgId, ahandle);
+  SMDDropVnodeMsg *pDrop = mgmtBuildDropVnodeMsg(pVgroup);
+  SRpcMsg rpcMsg = {
+      .handle  = ahandle,
+      .pCont   = pDrop,
+      .contLen = pDrop ? sizeof(SMDDropVnodeMsg) : 0,
+      .code    = 0,
+      .msgType = TSDB_MSG_TYPE_MD_DROP_VNODE
+  };
+  mgmtSendMsgToDnode(ipSet, &rpcMsg);
+}
+
+static void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
+  mTrace("vgroup:%d, send drop all vnodes msg, ahandle:%p", pVgroup->vgId, ahandle);
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
+    mgmtSendDropVnodeMsg(pVgroup, &ipSet, ahandle);
+  }
+}
+
+static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
+  mTrace("drop vnode msg is received");
 }

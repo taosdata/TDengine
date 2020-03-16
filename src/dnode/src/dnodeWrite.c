@@ -425,7 +425,7 @@ static void dnodeProcessDropStableMsg(SWriteMsg *pMsg) {
   SMDDropSTableMsg *pTable = pMsg->rpcMsg.pCont;
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
-  dTrace("stable:%s, start to drop in dnode, vgroup:%d", pTable->tableId, pTable->vgId);
+  dTrace("stable:%s, start to it drop in dnode, vgroup:%d", pTable->tableId, pTable->vgId);
   pTable->uid = htobe64(pTable->uid);
 
   // TODO: drop stable in vvnode

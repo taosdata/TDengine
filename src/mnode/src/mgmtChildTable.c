@@ -337,11 +337,11 @@ void* mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t 
   strcpy(pTable->tableId, pCreate->tableId);
   strcpy(pTable->superTableId, pSuperTable->tableId);
   pTable->type        = TSDB_CHILD_TABLE;
+  pTable->createdTime = taosGetTimestampMs();
   pTable->uid         = (((uint64_t) pTable->vgId) << 40) + ((((uint64_t) pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
                         ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
   pTable->sid         = tid;
   pTable->vgId        = pVgroup->vgId;
-  pTable->createdTime = taosGetTimestampMs();
   pTable->superTable  = pSuperTable;
 
   if (sdbInsertRow(tsChildTableSdb, pTable, 0) < 0) {
@@ -355,7 +355,7 @@ void* mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t 
   return pTable;
 }
 
-int32_t mgmtDropChildTable(SChildTableObj *pTable) {
+int32_t mgmtDropChildTable(SQueuedMsg *newMsg, SChildTableObj *pTable) {
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("table:%s, failed to drop child table, vgroup not exist", pTable->tableId);
@@ -378,13 +378,14 @@ int32_t mgmtDropChildTable(SChildTableObj *pTable) {
 
   mTrace("table:%s, send drop table msg", pDrop->tableId);
   SRpcMsg rpcMsg = {
-    .handle  = 0,
+    .handle  = newMsg,
     .pCont   = pDrop,
     .contLen = sizeof(SMDDropTableMsg),
     .code    = 0,
     .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
   };
 
+  newMsg->ahandle = pTable;
   mgmtSendMsgToDnode(&ipSet, &rpcMsg);
 
   return TSDB_CODE_SUCCESS;

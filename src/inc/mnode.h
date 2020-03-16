@@ -77,6 +77,7 @@ typedef struct {
 } SDnodeObj;
 
 typedef struct {
+  int32_t  dnodeId;
   uint32_t ip;
   uint32_t publicIp;
   int32_t  vnode;

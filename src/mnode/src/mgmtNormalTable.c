@@ -341,9 +341,9 @@ void *mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t
   strcpy(pTable->tableId, pCreate->tableId);
   pTable->type         = TSDB_NORMAL_TABLE;
   pTable->vgId         = pVgroup->vgId;
+  pTable->createdTime  = taosGetTimestampMs();
   pTable->uid          = (((uint64_t) pTable->createdTime) << 16) + ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
   pTable->sid          = sid;
-  pTable->createdTime  = taosGetTimestampMs();
   pTable->sversion     = 0;
   pTable->numOfColumns = htons(pCreate->numOfColumns);
   pTable->sqlLen       = htons(pCreate->sqlLen);
@@ -389,7 +389,7 @@ void *mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t
   return pTable;
 }
 
-int32_t mgmtDropNormalTable(SNormalTableObj *pTable) {
+int32_t mgmtDropNormalTable(SQueuedMsg *newMsg, SNormalTableObj *pTable) {
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("table:%s, failed to drop normal table, vgroup not exist", pTable->tableId);
@@ -411,13 +411,14 @@ int32_t mgmtDropNormalTable(SNormalTableObj *pTable) {
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
   mTrace("table:%s, send drop table msg", pDrop->tableId);
   SRpcMsg rpcMsg = {
-      .handle  = 0,
+      .handle  = newMsg,
       .pCont   = pDrop,
       .contLen = sizeof(SMDDropTableMsg),
       .code    = 0,
       .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
   };
 
+  newMsg->ahandle = pTable;
   mgmtSendMsgToDnode(&ipSet, &rpcMsg);
   return TSDB_CODE_SUCCESS;
 }

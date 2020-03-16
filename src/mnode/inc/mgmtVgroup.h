@@ -41,7 +41,6 @@ void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable);
 
 SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode);
 void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
-void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 
 SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup);
 SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip);

@@ -962,7 +962,6 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
 
   int32_t code;
   if (pMsg->pUser->superAuth) {
-    code = TSDB_CODE_OPS_NOT_SUPPORT;
     //SCMDropDbMsg *pDrop = rpcMsg->pCont;
     //rpcRsp.code = mgmtDropDbByName(pUser->pAcct, pDrop->db, pDrop->ignoreNotExists);
     //if (rpcRsp.code == TSDB_CODE_SUCCESS) {

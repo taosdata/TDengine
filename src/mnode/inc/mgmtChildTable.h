@@ -33,7 +33,7 @@ void *  mgmtGetChildTable(char *tableId);
 void *mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
 void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pCreate, SChildTableObj *pTable);
 
-int32_t mgmtDropChildTable(SChildTableObj *pTable);
+int32_t mgmtDropChildTable(SQueuedMsg *newMsg, SChildTableObj *pTable);
 int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent);
 
 int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *pMeta, bool usePublicIp);
