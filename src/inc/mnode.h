@@ -166,6 +166,7 @@ typedef struct _vg_obj {
 
 typedef struct _db_obj {
   char    name[TSDB_DB_NAME_LEN + 1];
+  int8_t  dirty;
   int64_t createdTime;
   SDbCfg  cfg;
   int8_t  dropStatus;
@@ -175,10 +176,8 @@ typedef struct _db_obj {
   int32_t numOfVgroups;
   int32_t numOfTables;
   int32_t numOfSuperTables;
-  int32_t vgStatus;
-  SVgObj *pHead;  // empty vgroup first
-  SVgObj *pTail;  // empty vgroup end
-  void *  vgTimer;
+  SVgObj *pHead;
+  SVgObj *pTail;
 } SDbObj;
 
 struct _acctObj;

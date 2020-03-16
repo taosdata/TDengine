@@ -346,13 +346,6 @@ int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *
   return numOfRows;
 }
 
-SMDDropTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable) {
-  SMDDropTableMsg *pRemove = NULL;
-
-
-  return pRemove;
-}
-
 void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
   if (mgmtCheckRedirect(pMsg->thandle)) return;
 
@@ -439,7 +432,7 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
       return;
     }
-    pMDCreate = mgmtBuildCreateChildTableMsg(pCreate, pTable);
+    pMDCreate = mgmtBuildCreateChildTableMsg(pCreate, (SChildTableObj *) pTable);
     if (pMDCreate == NULL) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
       return;
@@ -451,7 +444,7 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
       return;
     }
-    pMDCreate = mgmtBuildCreateNormalTableMsg(pTable);
+    pMDCreate = mgmtBuildCreateNormalTableMsg((SNormalTableObj *) pTable);
     if (pMDCreate == NULL) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
       return;
@@ -475,7 +468,7 @@ void mgmtProcessDropTableMsg(SQueuedMsg *pMsg) {
   if (mgmtCheckRedirect(pMsg->thandle)) return;
 
   SCMDropTableMsg *pDrop = pMsg->pCont;
-  mTrace("table:%s, drop msg is received from thandle:%p", pDrop->tableId, pMsg->thandle);
+  mTrace("table:%s, drop table msg is received from thandle:%p", pDrop->tableId, pMsg->thandle);
 
   if (mgmtCheckExpired()) {
     mError("table:%s, failed to drop, grant expired", pDrop->tableId);
@@ -832,7 +825,7 @@ static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg) {
 
   if (pVgroup->numOfTables <= 0) {
     mPrint("vgroup:%d, all tables is dropped, drop vgroup", pVgroup->vgId);
-    mgmtDropVgroup(pVgroup);
+    mgmtDropVgroup(pVgroup, NULL);
   }
 
   mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SUCCESS);

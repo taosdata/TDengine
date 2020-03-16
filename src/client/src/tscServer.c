@@ -180,7 +180,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
-  pSql->ipList->ip[0] = inet_addr("192.168.0.1");
+  pSql->ipList->ip[0] = inet_addr(tsPrivateIp);
   
   if (pSql->cmd.command < TSDB_SQL_MGMT) {
     pSql->ipList->port = tsDnodeShellPort;
@@ -197,7 +197,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     rpcSendRequest(pVnodeConn, pSql->ipList, &rpcMsg);
   } else {
     pSql->ipList->port = tsMnodeShellPort;
-    tscPrint("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList->port);
+    tscTrace("%p msg:%s is sent to server %d", pSql, taosMsg[pSql->cmd.msgType], pSql->ipList->port);
     memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
     SRpcMsg rpcMsg = {
         .msgType = pSql->cmd.msgType,
@@ -213,7 +213,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
-  tscPrint("response:%s is received, len:%d error:%s", taosMsg[rpcMsg->msgType], rpcMsg->contLen, tstrerror(rpcMsg->code));
+  tscTrace("response:%s is received, len:%d error:%s", taosMsg[rpcMsg->msgType], rpcMsg->contLen, tstrerror(rpcMsg->code));
   SSqlObj *pSql = (SSqlObj *)rpcMsg->handle;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("%p sql is already released, signature:%p", pSql, pSql->signature);

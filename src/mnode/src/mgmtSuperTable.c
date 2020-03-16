@@ -612,6 +612,30 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
   return numOfRows;
 }
 
+void mgmtDropAllSuperTables(SDbObj *pDropDb) {
+  void *pNode = NULL;
+  void *pLastNode = NULL;
+  int32_t numOfTables = 0;
+  int32_t dbNameLen = strlen(pDropDb->name);
+  SSuperTableObj *pTable = NULL;
+
+  while (1) {
+    pNode = sdbFetchRow(tsSuperTableSdb, pNode, (void **)&pTable);
+    if (pTable == NULL) {
+      break;
+    }
+
+    if (strncmp(pDropDb->name, pTable->tableId, dbNameLen) == 0) {
+      sdbDeleteRow(tsSuperTableSdb, pTable);
+      pNode = pLastNode;
+      numOfTables ++;
+      continue;
+    }
+  }
+
+  mTrace("db:%s, all super tables:%d is dropped", pDropDb->name, numOfTables);
+}
+
 void mgmtAddTableIntoSuperTable(SSuperTableObj *pStable) {
   pStable->numOfTables++;
 }

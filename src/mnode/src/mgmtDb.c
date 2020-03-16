@@ -27,6 +27,9 @@
 #include "mgmtMnode.h"
 #include "mgmtGrant.h"
 #include "mgmtShell.h"
+#include "mgmtNormalTable.h"
+#include "mgmtChildTable.h"
+#include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
@@ -34,10 +37,9 @@
 static void *tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
-static int32_t mgmtUpdateDb(SDbObj *pDb);
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
-static int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists);
-static int32_t mgmtDropDb(SDbObj *pDb);
+static void    mgmtDropDb(void *handle, void *tmrId);
+static void    mgmtSetDbDirty(SDbObj *pDb);
 
 static int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
@@ -60,7 +62,7 @@ static void mgmtDbActionInit() {
   mgmtDbActionFp[SDB_TYPE_UPDATE] = mgmtDbActionUpdate;
   mgmtDbActionFp[SDB_TYPE_ENCODE] = mgmtDbActionEncode;
   mgmtDbActionFp[SDB_TYPE_DECODE] = mgmtDbActionDecode;
-  mgmtDbActionFp[SDB_TYPE_RESET] = mgmtDbActionReset;
+  mgmtDbActionFp[SDB_TYPE_RESET]  = mgmtDbActionReset;
   mgmtDbActionFp[SDB_TYPE_DESTROY] = mgmtDbActionDestroy;
 }
 
@@ -98,8 +100,6 @@ int32_t mgmtInitDbs() {
     pDb->numOfTables = 0;
     pDb->numOfVgroups = 0;
     pDb->numOfSuperTables = 0;
-    pDb->vgStatus = TSDB_VG_STATUS_READY;
-    pDb->vgTimer = NULL;
     pAcct = mgmtGetAcct(pDb->cfg.acct);
     if (pAcct != NULL)
       mgmtAddDbIntoAcct(pAcct, pDb);
@@ -293,155 +293,12 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   return code;
 }
 
-static int32_t mgmtUpdateDb(SDbObj *pDb) {
-  return sdbUpdateRow(tsDbSdb, pDb, tsDbUpdateSize, 1);
-}
-
-static int32_t mgmtSetDbDropping(SDbObj *pDb) {
-  if (pDb->dropStatus == TSDB_DB_STATUS_DROP_FROM_SDB) return 0;
-
-  SVgObj *pVgroup = pDb->pHead;
-  while (pVgroup != NULL) {
-    for (int32_t i = 0; i < pVgroup->numOfVnodes; i++) {
-      SVnodeGid *pVnodeGid = pVgroup->vnodeGid + i;
-      SDnodeObj *pDnode = mgmtGetDnode(pVnodeGid->ip);
-      if (pDnode == NULL) continue;
-
-      SVnodeLoad *pVload = &pDnode->vload[pVnodeGid->vnode];
-      if (pVload->dropStatus != TSDB_VN_DROP_STATUS_DROPPING) {
-        pVload->dropStatus = TSDB_VN_DROP_STATUS_DROPPING;
-
-        mPrint("dnode:%s vnode:%d db:%s set to dropping status", taosIpStr(pDnode->privateIp), pVnodeGid->vnode, pDb->name);
-        if (mgmtUpdateDnode(pDnode) < 0) {
-          mError("db:%s drop failed, dnode sdb update error", pDb->name);
-          return TSDB_CODE_SDB_ERROR;
-        }
-      }
-    }
-
-    //void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
-    //  mTrace("vgroup:%d send free vgroup msg, ahandle:%p", pVgroup->vgId, ahandle);
-    //
-    //  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    //    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
-    //    mgmtSendDropVnodeMsg(pVgroup->vnodeGid[i].vnode, &ipSet, ahandle);
-    //  }
-    //}
-    //
-//    mgmtSendDropVgroupMsg(pVgroup);
-    pVgroup = pVgroup->next;
-  }
-
-  if (pDb->dropStatus == TSDB_DB_STATUS_DROPPING) return 0;
-
-  pDb->dropStatus = TSDB_DB_STATUS_DROPPING;
-  if (mgmtUpdateDb(pDb) < 0) {
-    mError("db:%s drop failed, db sdb update error", pDb->name);
-    return TSDB_CODE_SDB_ERROR;
-  }
-
-  mPrint("db:%s set to dropping status", pDb->name);
-  return 0;
-}
-
-static bool mgmtCheckDropDbFinished(SDbObj *pDb) {
-  SVgObj *pVgroup = pDb->pHead;
-  while (pVgroup) {
-    for (int32_t i = 0; i < pVgroup->numOfVnodes; i++) {
-      SVnodeGid *pVnodeGid = pVgroup->vnodeGid + i;
-      SDnodeObj *pDnode = mgmtGetDnode(pVnodeGid->ip);
-
-      if (pDnode == NULL) continue;
-      if (pDnode->status == TSDB_DN_STATUS_OFFLINE) continue;
-
-      SVnodeLoad *pVload = &pDnode->vload[pVnodeGid->vnode];
-      if (pVload->dropStatus == TSDB_VN_DROP_STATUS_DROPPING) {
-        mTrace("dnode:%s, vnode:%d db:%s wait dropping", taosIpStr(pDnode->privateIp), pVnodeGid->vnode, pDb->name);
-        return false;
-      }
-    }
-    pVgroup = pVgroup->next;
-  }
-
-  mPrint("db:%s all vnodes drop finished", pDb->name);
-  return true;
-}
-
-static void mgmtDropDbFromSdb(SDbObj *pDb) {
-  while (pDb->pHead) mgmtDropVgroup(pDb->pHead);
-
-//  SSuperTableObj *pMetric = pDb->pSTable;
-//  while (pMetric) {
-//    SSuperTableObj *pNext = pMetric->next;
-//    mgmtDropTable(pDb, pMetric->tableId, 0);
-//    pMetric = pNext;
-//  }
-
-  mPrint("db:%s all meters drop finished", pDb->name);
-  sdbDeleteRow(tsDbSdb, pDb);
-  mPrint("db:%s database drop finished", pDb->name);
-}
-
-static int32_t mgmtDropDb(SDbObj *pDb) {
-
-  if (pDb->dropStatus == TSDB_DB_STATUS_DROPPING) {
-    bool finished = mgmtCheckDropDbFinished(pDb);
-    if (!finished) {
-      SVgObj *pVgroup = pDb->pHead;
-      while (pVgroup != NULL) {
-        //mgmtSendDropVgroupMsg(pVgroup, NULL);
-        pVgroup = pVgroup->next;
-      }
-      return TSDB_CODE_ACTION_IN_PROGRESS;
-    }
-
-    // don't sync this action
-    pDb->dropStatus = TSDB_DB_STATUS_DROP_FROM_SDB;
-    mgmtDropDbFromSdb(pDb);
-    return 0;
-  } else {
-    int32_t code = mgmtSetDbDropping(pDb);
-    if (code != 0) return code;
-    return TSDB_CODE_ACTION_IN_PROGRESS;
-  }
-}
-
-UNUSED_FUNC
-static int32_t mgmtDropDbByName(SAcctObj *pAcct, char *name, short ignoreNotExists) {
-  SDbObj *pDb = (SDbObj *)sdbGetRow(tsDbSdb, name);
-  if (pDb == NULL) {
-    if (ignoreNotExists) return TSDB_CODE_SUCCESS;
-    mWarn("db:%s is not there", name);
-    return TSDB_CODE_INVALID_DB;
-  }
-
-  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-    return TSDB_CODE_MONITOR_DB_FORBIDDEN;
-  }
-
-  return mgmtDropDb(pDb);
-}
-
 bool mgmtCheckIsMonitorDB(char *db, char *monitordb) {
   char dbName[TSDB_DB_NAME_LEN + 1] = {0};
   extractDBName(db, dbName);
 
   size_t len = strlen(dbName);
   return (strncasecmp(dbName, monitordb, len) == 0 && len == strlen(monitordb));
-}
-
-UNUSED_FUNC
-static void mgmtMonitorDbDrop(void *unused, void *unusedt) {
-  void *  pNode = NULL;
-  SDbObj *pDb = NULL;
-
-  while (1) {
-    pNode = sdbFetchRow(tsDbSdb, pNode, (void **)&pDb);
-    if (pDb == NULL) break;
-    if (pDb->dropStatus != TSDB_DB_STATUS_DROPPING) continue;
-    mgmtDropDb(pDb);
-    break;
-  }
 }
 
 static int32_t mgmtAlterDb(SAcctObj *pAcct, SCMAlterDbMsg *pAlter) {
@@ -840,7 +697,6 @@ void *mgmtDbActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
   pDb->pTail = NULL;
   pDb->numOfVgroups = 0;
   pDb->numOfTables = 0;
-  pDb->vgTimer = NULL;
   mgmtAddDbIntoAcct(pAcct, pDb);
 
   return NULL;
@@ -850,6 +706,10 @@ void *mgmtDbActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
   SDbObj *pDb = (SDbObj *) row;
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   mgmtRemoveDbFromAcct(pAcct, pDb);
+
+  mgmtDropAllNormalTables(pDb);
+  mgmtDropAllChildTables(pDb);
+  mgmtDropAllSuperTables(pDb);
 
   return NULL;
 }
@@ -906,6 +766,10 @@ void mgmtRemoveTableFromDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfTables, -1);
 }
 
+static void mgmtSetDbDirty(SDbObj *pDb) {
+  pDb->dirty = true;
+}
+
 static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
   if (mgmtCheckRedirect(pMsg->thandle)) return;
 
@@ -919,7 +783,6 @@ static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
   pCreate->commitTime      = htonl(pCreate->commitTime);
   pCreate->blocksPerTable  = htons(pCreate->blocksPerTable);
   pCreate->rowsInFileBlock = htonl(pCreate->rowsInFileBlock);
-  // pCreate->cacheNumOfBlocks = htonl(pCreate->cacheNumOfBlocks);
 
   int32_t code;
   if (mgmtCheckExpired()) {
@@ -957,21 +820,76 @@ static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
   mgmtSendSimpleResp(pMsg->thandle, code);
 }
 
+static void mgmtDropDb(void *handle, void *tmrId) {
+  SQueuedMsg *newMsg = handle;
+  SDbObj *pDb = newMsg->ahandle;
+  mPrint("db:%s, drop db from sdb", pDb->name);
+
+  int32_t code = sdbDeleteRow(tsDbSdb, pDb);
+  if (code != 0) {
+    code = TSDB_CODE_SDB_ERROR;
+  }
+
+  mgmtSendSimpleResp(newMsg->thandle, code);
+  rpcFreeCont(newMsg->pCont);
+  free(newMsg);
+}
+
 static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
   if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  int32_t code;
-  if (pMsg->pUser->superAuth) {
-    //SCMDropDbMsg *pDrop = rpcMsg->pCont;
-    //rpcRsp.code = mgmtDropDbByName(pUser->pAcct, pDrop->db, pDrop->ignoreNotExists);
-    //if (rpcRsp.code == TSDB_CODE_SUCCESS) {
-    //  mLPrint("DB:%s is dropped by %s", pDrop->db, pUser->user);
-    //}
-  } else {
-    code = TSDB_CODE_NO_RIGHTS;
+  SCMDropDbMsg *pDrop = pMsg->pCont;
+  mTrace("db:%s, drop db msg is received from thandle:%p", pDrop->db, pMsg->thandle);
+
+  if (mgmtCheckExpired()) {
+    mError("db:%s, failed to drop, grant expired", pDrop->db);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_GRANT_EXPIRED);
+    return;
   }
 
-  if (code != TSDB_CODE_SUCCESS) {
-    mgmtSendSimpleResp(pMsg->thandle, code);
+  if (!pMsg->pUser->writeAuth) {
+    mError("db:%s, failed to drop, no rights", pDrop->db);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
+    return;
   }
+
+  SDbObj *pDb = mgmtGetDb(pDrop->db);
+  if (pDb == NULL) {
+    if (pDrop->ignoreNotExists) {
+      mTrace("db:%s, db is not exist, think drop success", pDrop->db);
+      mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SUCCESS);
+      return;
+    } else {
+      mError("db:%s, failed to drop, invalid db", pDrop->db);
+      mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_DB);
+      return;
+    }
+  }
+
+  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    mError("db:%s, can't drop monitor database", pDrop->db);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_MONITOR_DB_FORBIDDEN);
+    return;
+  }
+
+  mgmtSetDbDirty(pDb);
+
+  SQueuedMsg *newMsg = malloc(sizeof(SQueuedMsg));
+  memcpy(newMsg, pMsg, sizeof(SQueuedMsg));
+  pMsg->pCont = NULL;
+
+  SVgObj *pVgroup = pDb->pHead;
+  if (pVgroup != NULL) {
+    mPrint("vgroup:%d, will be dropped", pVgroup->vgId);
+    newMsg->ahandle = pVgroup;
+    newMsg->expected = pVgroup->numOfVnodes;
+    mgmtDropVgroup(pVgroup, newMsg);
+    return;
+  }
+
+  mTrace("db:%s, all vgroups is dropped", pDb->name);
+
+  void *tmpTmr;
+  newMsg->ahandle = pDb;
+  taosTmrReset(mgmtDropDb, 10, newMsg, tsMgmtTmr, &tmpTmr);
 }

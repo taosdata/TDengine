@@ -138,18 +138,6 @@ SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb) {
   return pDb->pHead;
 }
 
-void mgmtProcessVgTimer(void *handle, void *tmrId) {
-  SDbObj *pDb = (SDbObj *)handle;
-  if (pDb == NULL) return;
-
-  if (pDb->vgStatus > TSDB_VG_STATUS_IN_PROGRESS) {
-    mTrace("db:%s, set vgroup status from %d to ready", pDb->name, pDb->vgStatus);
-    pDb->vgStatus = TSDB_VG_STATUS_READY;
-  }
-
-  pDb->vgTimer = NULL;
-}
-
 void mgmtCreateVgroup(SQueuedMsg *pMsg) {
   SDbObj *pDb = pMsg->pDb;
   if (pDb == NULL) {
@@ -188,22 +176,14 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg) {
   mgmtSendCreateVgroupMsg(pVgroup, pMsg);
 }
 
-int32_t mgmtDropVgroup(SVgObj *pVgroup) {
-//  STableInfo *pTable;
-
-  if (pVgroup->numOfTables > 0) {
-//    for (int32_t i = 0; i < pDb->cfg.maxSessions; ++i) {
-//      if (pVgroup->tableList != NULL) {
-//        pTable = pVgroup->tableList[i];
-//        if (pTable) mgmtDropTable(pDb, pTable->tableId, 0);
-//      }
-//    }
+void mgmtDropVgroup(SVgObj *pVgroup, void *ahandle) {
+  if (ahandle != NULL) {
+    mgmtSendDropVgroupMsg(pVgroup, ahandle);
+  } else {
+    mTrace("vgroup:%d, replica:%d is deleting from sdb", pVgroup->vgId, pVgroup->numOfVnodes);
+    mgmtSendDropVgroupMsg(pVgroup, NULL);
+    sdbDeleteRow(tsVgroupSdb, pVgroup);
   }
-
-  mTrace("vgroup:%d, replica:%d is deleting from sdb", pVgroup->vgId, pVgroup->numOfVnodes);
-  mgmtSendDropVgroupMsg(pVgroup, NULL);
-  sdbDeleteRow(tsVgroupSdb, pVgroup);
-  return TSDB_CODE_SUCCESS;
 }
 
 void mgmtSetVgroupIdPool() {
@@ -666,4 +646,33 @@ static void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
 
 static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
   mTrace("drop vnode msg is received");
+  if (rpcMsg->handle == NULL) return;
+
+  SQueuedMsg *queueMsg = rpcMsg->handle;
+  queueMsg->received++;
+  if (rpcMsg->code == TSDB_CODE_SUCCESS) {
+    queueMsg->code = rpcMsg->code;
+    queueMsg->successed++;
+  }
+
+  SVgObj *pVgroup = queueMsg->ahandle;
+  mTrace("vgroup:%d, drop vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
+         pVgroup->vgId, tstrerror(rpcMsg->code), queueMsg->received, queueMsg->successed, queueMsg->expected,
+         queueMsg->thandle, rpcMsg->handle);
+
+  if (queueMsg->received != queueMsg->expected) return;
+
+  sdbDeleteRow(tsVgroupSdb, pVgroup);
+
+  SQueuedMsg *newMsg = calloc(1, sizeof(SQueuedMsg));
+  newMsg->msgType = queueMsg->msgType;
+  newMsg->thandle = queueMsg->thandle;
+  newMsg->pDb     = queueMsg->pDb;
+  newMsg->pUser   = queueMsg->pUser;
+  newMsg->contLen = queueMsg->contLen;
+  newMsg->pCont   = rpcMallocCont(newMsg->contLen);
+  memcpy(newMsg->pCont, queueMsg->pCont, newMsg->contLen);
+  mgmtAddToShellQueue(newMsg);
+
+  free(queueMsg);
 }

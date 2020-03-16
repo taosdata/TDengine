@@ -30,7 +30,7 @@ SVgObj *mgmtGetVgroup(int32_t vgId);
 SVgObj *mgmtGetVgroupByVnode(uint32_t dnode, int32_t vnode);
 
 void    mgmtCreateVgroup(SQueuedMsg *pMsg);
-int32_t mgmtDropVgroup(SVgObj *pVgroup);
+void    mgmtDropVgroup(SVgObj *pVgroup, void *ahandle);
 void    mgmtUpdateVgroup(SVgObj *pVgroup);
 
 void    mgmtSetVgroupIdPool();

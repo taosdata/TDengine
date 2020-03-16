@@ -37,6 +37,8 @@ int32_t mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *colName);
 
 int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, STableMeta *pMeta, bool usePublicIp);
 
+void mgmtDropAllNormalTables(SDbObj *pDropDb);
+
 #ifdef __cplusplus
 }
 #endif

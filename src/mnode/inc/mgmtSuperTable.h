@@ -45,6 +45,8 @@ void *  mgmtGetSuperTableVgroup(SSuperTableObj *pStable);
 int32_t mgmtFindSuperTableTagIndex(SSuperTableObj *pTable, const char *tagName);
 int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTable);
 
+void mgmtDropAllSuperTables(SDbObj *pDropDb);
+
 #ifdef __cplusplus
 }
 #endif

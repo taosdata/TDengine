@@ -236,12 +236,12 @@ typedef struct {
 
 typedef struct {
   int32_t numOfVnodes;
-} SWriteMsgDesc;
+} SMsgDesc;
 
 typedef struct {
   int32_t contLen;
   int32_t vgId;
-} SWriteMsgHead;
+} SMsgHead;
 
 typedef struct {
   int32_t    contLen;

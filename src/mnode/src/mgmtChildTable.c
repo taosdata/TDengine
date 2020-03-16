@@ -123,7 +123,6 @@ void *mgmtChildTableActionDelete(void *row, char *str, int32_t size, int32_t *ss
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
-    mError("id:%s not in vgroup:%d", pTable->tableId, pTable->vgId);
     return NULL;
   }
 
@@ -462,13 +461,37 @@ int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *p
   for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
     if (usePublicIp) {
       pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].publicIp;
-      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
     } else {
       pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].ip;
-      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
     }
+    pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
   }
   pMeta->numOfVpeers = pVgroup->numOfVnodes;
 
   return TSDB_CODE_SUCCESS;
+}
+
+void mgmtDropAllChildTables(SDbObj *pDropDb) {
+  void *pNode = NULL;
+  void *pLastNode = NULL;
+  int32_t numOfTables = 0;
+  int32_t dbNameLen = strlen(pDropDb->name);
+  SChildTableObj *pTable = NULL;
+
+  while (1) {
+    pNode = sdbFetchRow(tsChildTableSdb, pNode, (void **)&pTable);
+    if (pTable == NULL) {
+      break;
+    }
+
+    if (strncmp(pDropDb->name, pTable->tableId, dbNameLen) == 0) {
+      sdbDeleteRow(tsChildTableSdb, pTable);
+      pNode = pLastNode;
+      numOfTables ++;
+      continue;
+    }
+  }
+
+  mTrace("db:%s, all child tables:%d is dropped", pDropDb->name, numOfTables);
 }

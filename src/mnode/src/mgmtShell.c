@@ -242,6 +242,8 @@ static void mgmtProcessRetrieveMsg(SQueuedMsg *pMsg) {
   }
 
   SShowObj *pShow = (SShowObj *)pRetrieve->qhandle;
+  mTrace("show:%p, type:%s, retrieve data", pShow, taosGetShowTypeStr(pShow->type));
+
   if (!mgmtCheckQhandle(pRetrieve->qhandle)) {
     mError("pShow:%p, query memory is corrupted", pShow);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_MEMORY_CORRUPTED);

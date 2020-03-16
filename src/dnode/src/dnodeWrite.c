@@ -94,9 +94,9 @@ void dnodeWrite(SRpcMsg *pMsg) {
   SRpcContext *pRpcContext = NULL;
 
   if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT || pMsg->msgType == TSDB_MSG_TYPE_MD_DROP_STABLE) {
-    SWriteMsgDesc *pDesc = pCont;
+    SMsgDesc *pDesc = pCont;
     pDesc->numOfVnodes = htonl(pDesc->numOfVnodes);
-    pCont += sizeof(SWriteMsgDesc);
+    pCont += sizeof(SMsgDesc);
     if (pDesc->numOfVnodes > 1) {
       pRpcContext = calloc(sizeof(SRpcContext), 1);
       pRpcContext->numOfVnodes = pDesc->numOfVnodes;
@@ -104,7 +104,7 @@ void dnodeWrite(SRpcMsg *pMsg) {
   }
 
   while (leftLen > 0) {
-    SWriteMsgHead *pHead = (SWriteMsgHead *) pCont;
+    SMsgHead *pHead = (SMsgHead *) pCont;
     pHead->vgId    = htonl(pHead->vgId);
     pHead->contLen = htonl(pHead->contLen);
 
@@ -322,7 +322,7 @@ static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
     for (int i = pTable->numOfColumns; i < totalCols; i++) {
       tdSchemaAppendCol(pDestTagSchema, pSchema[i].type, pSchema[i].colId, pSchema[i].bytes);
     }
-    tsdbTableSetSchema(&tCfg, pDestTagSchema, false);
+    tsdbTableSetTagSchema(&tCfg, pDestTagSchema, false);
 
     char *pTagData = pTable->data + totalCols * sizeof(SSchema);
     int accumBytes = 0;
