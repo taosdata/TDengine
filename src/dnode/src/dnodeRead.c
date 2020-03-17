@@ -70,25 +70,31 @@ void dnodeCleanupRead() {
 }
 
 void dnodeRead(SRpcMsg *pMsg) {
+  int32_t     queuedMsgNum = 0;
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
-  int32_t     contLen      = 0;
-  int32_t     numOfVnodes  = 0;
-  int32_t     vgId         = 0;
   SRpcContext *pRpcContext = NULL;
 
-  // parse head, get number of vnodes;
-  if ( numOfVnodes > 1) {
-    pRpcContext = calloc(sizeof(SRpcContext), 1);
-    pRpcContext->numOfVnodes = 1;
+//  SMsgDesc *pDesc = pCont;
+//  pDesc->numOfVnodes = htonl(pDesc->numOfVnodes);
+//  pCont += sizeof(SMsgDesc);
+//  if (pDesc->numOfVnodes > 1) {
+//    pRpcContext = calloc(sizeof(SRpcContext), 1);
+//    pRpcContext->numOfVnodes = pDesc->numOfVnodes;
+//  }
+  if (pMsg->msgType == TSDB_MSG_TYPE_RETRIEVE) {
+    queuedMsgNum = 0;
   }
 
   while (leftLen > 0) {
-    // todo: parse head, get vgId, contLen
+    SMsgHead *pHead = (SMsgHead *) pCont;
+    pHead->vgId    = 1; //htonl(pHead->vgId);
+    pHead->contLen = pMsg->contLen; //htonl(pHead->contLen);
 
-    // get pVnode from vgId
-    void *pVnode = dnodeGetVnode(vgId);
+    void *pVnode = dnodeGetVnode(pHead->vgId);
     if (pVnode == NULL) {
+      leftLen -= pHead->contLen;
+      pCont -= pHead->contLen;
       continue;
     }
 
@@ -96,7 +102,7 @@ void dnodeRead(SRpcMsg *pMsg) {
     SReadMsg readMsg;
     readMsg.rpcMsg      = *pMsg;
     readMsg.pCont       = pCont;
-    readMsg.contLen     = contLen;
+    readMsg.contLen     = pHead->contLen;
     readMsg.pRpcContext = pRpcContext;
     readMsg.pVnode      = pVnode;
 
@@ -104,10 +110,22 @@ void dnodeRead(SRpcMsg *pMsg) {
     taosWriteQitem(queue, &readMsg);
 
     // next vnode
-    leftLen -= contLen;
-    pCont -= contLen;
+    leftLen -= pHead->contLen;
+    pCont -= pHead->contLen;
+    queuedMsgNum++;
 
     dnodeReleaseVnode(pVnode);
+  }
+
+  if (queuedMsgNum == 0) {
+    SRpcMsg rpcRsp = {
+        .handle  = pMsg->handle,
+        .pCont   = NULL,
+        .contLen = 0,
+        .code    = TSDB_CODE_INVALID_VGROUP_ID,
+        .msgType = 0
+    };
+    rpcSendResponse(&rpcRsp);
   }
 }
 

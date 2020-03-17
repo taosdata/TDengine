@@ -93,21 +93,18 @@ void dnodeWrite(SRpcMsg *pMsg) {
   char        *pCont       = (char *) pMsg->pCont;
   SRpcContext *pRpcContext = NULL;
 
-  int32_t numOfVnodes = 0;
-  if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT) {
-    // TODO parse head, get number of vnodes;
-    numOfVnodes = 1;
-  } else {
-    numOfVnodes = 1;
-  }
-
-  if (numOfVnodes > 1) {
-    pRpcContext = calloc(sizeof(SRpcContext), 1);
-    pRpcContext->numOfVnodes = numOfVnodes;
+  if (pMsg->msgType == TSDB_MSG_TYPE_SUBMIT || pMsg->msgType == TSDB_MSG_TYPE_MD_DROP_STABLE) {
+    SMsgDesc *pDesc = pCont;
+    pDesc->numOfVnodes = htonl(pDesc->numOfVnodes);
+    pCont += sizeof(SMsgDesc);
+    if (pDesc->numOfVnodes > 1) {
+      pRpcContext = calloc(sizeof(SRpcContext), 1);
+      pRpcContext->numOfVnodes = pDesc->numOfVnodes;
+    }
   }
 
   while (leftLen > 0) {
-    SWriteMsgHead *pHead = (SWriteMsgHead *) pCont;
+    SMsgHead *pHead = (SMsgHead *) pCont;
     pHead->vgId    = htonl(pHead->vgId);
     pHead->contLen = htonl(pHead->contLen);
 
@@ -291,26 +288,86 @@ static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
 
 static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
   SMDCreateTableMsg *pTable = pMsg->rpcMsg.pCont;
-  dTrace("table:%s, start to create in dnode, vgroup:%d", pTable->tableId, pTable->vgId);
-
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  void *pVnode = dnodeGetVnode(pTable->vgId);
-  if (pVnode == NULL) {
-    rpcRsp.code = TSDB_CODE_INVALID_VGROUP_ID;
-    dTrace("table:%s, failed to create in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
-    rpcSendResponse(&rpcRsp);
-    return;
+
+  dTrace("table:%s, start to create in dnode, vgroup:%d", pTable->tableId, pTable->vgId);
+  pTable->numOfColumns  = htons(pTable->numOfColumns);
+  pTable->numOfTags     = htons(pTable->numOfTags);
+  pTable->sid           = htonl(pTable->sid);
+  pTable->sversion      = htonl(pTable->sversion);
+  pTable->tagDataLen    = htonl(pTable->tagDataLen);
+  pTable->sqlDataLen    = htonl(pTable->sqlDataLen);
+  pTable->uid           = htobe64(pTable->uid);
+  pTable->superTableUid = htobe64(pTable->superTableUid);
+  pTable->createdTime   = htobe64(pTable->createdTime);
+  SSchema *pSchema = (SSchema *) pTable->data;
+
+  int totalCols = pTable->numOfColumns + pTable->numOfTags;
+  for (int i = 0; i < totalCols; i++) {
+    pSchema[i].colId = htons(pSchema[i].colId);
+    pSchema[i].bytes = htons(pSchema[i].bytes);
   }
 
-  void *pTsdb = dnodeGetVnodeTsdb(pVnode);
-  if (pTsdb == NULL) {
-    dnodeReleaseVnode(pVnode);
-    rpcRsp.code = TSDB_CODE_NOT_ACTIVE_VNODE;
-    dTrace("table:%s, failed to create in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
-    rpcSendResponse(&rpcRsp);
-    return;
+  STableCfg tCfg;
+  tsdbInitTableCfg(&tCfg, pTable->tableType, pTable->uid, pTable->sid);
+
+  STSchema *pDestSchema = tdNewSchema(pTable->numOfColumns);
+  for (int i = 0; i < pTable->numOfColumns; i++) {
+    tdSchemaAppendCol(pDestSchema, pSchema[i].type, pSchema[i].colId, pSchema[i].bytes);
+  }
+  tsdbTableSetSchema(&tCfg, pDestSchema, false);
+
+  if (pTable->numOfTags != 0) {
+    STSchema *pDestTagSchema = tdNewSchema(pTable->numOfTags);
+    for (int i = pTable->numOfColumns; i < totalCols; i++) {
+      tdSchemaAppendCol(pDestTagSchema, pSchema[i].type, pSchema[i].colId, pSchema[i].bytes);
+    }
+    tsdbTableSetTagSchema(&tCfg, pDestTagSchema, false);
+
+    char *pTagData = pTable->data + totalCols * sizeof(SSchema);
+    int accumBytes = 0;
+    SDataRow dataRow = tdNewDataRowFromSchema(pDestTagSchema);
+
+    for (int i = 0; i < pTable->numOfTags; i++) {
+      tdAppendColVal(dataRow, pTagData + accumBytes, pDestTagSchema->columns + i);
+      accumBytes += pSchema[i + pTable->numOfColumns].bytes;
+    }
+    tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
+  void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+
+  rpcRsp.code = tsdbCreateTable(pTsdb, &tCfg);
+  dnodeReleaseVnode(pMsg->pVnode);
+
+  dTrace("table:%s, create table result:%s", pTable->tableId, tstrerror(rpcRsp.code));
+  rpcSendResponse(&rpcRsp);
+}
+
+static void dnodeProcessDropTableMsg(SWriteMsg *pMsg) {
+  SMDDropTableMsg *pTable = pMsg->rpcMsg.pCont;
+  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+
+  dTrace("table:%s, start to drop in dnode, vgroup:%d", pTable->tableId, pTable->vgId);
+  STableId tableId = {
+    .uid = htobe64(pTable->uid),
+    .tid = htonl(pTable->sid)
+  };
+
+  void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+
+  rpcRsp.code = tsdbDropTable(pTsdb, tableId);
+  dnodeReleaseVnode(pMsg->pVnode);
+
+  dTrace("table:%s, drop table result:%s", pTable->tableId, tstrerror(rpcRsp.code));
+  rpcSendResponse(&rpcRsp);
+}
+
+static void dnodeProcessAlterTableMsg(SWriteMsg *pMsg) {
+  SMDCreateTableMsg *pTable = pMsg->rpcMsg.pCont;
+  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+
+  dTrace("table:%s, start to alter in dnode, vgroup:%d", pTable->tableId, pTable->vgId);
   pTable->numOfColumns  = htons(pTable->numOfColumns);
   pTable->numOfTags     = htons(pTable->numOfTags);
   pTable->sid           = htonl(pTable->sid);
@@ -344,7 +401,6 @@ static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
     }
     tsdbTableSetSchema(&tCfg, pDestTagSchema, false);
 
-    // TODO: add data row
     char *pTagData = pTable->data + totalCols * sizeof(SSchema);
     int accumBytes = 0;
     SDataRow dataRow = tdNewDataRowFromSchema(pDestTagSchema);
@@ -356,49 +412,30 @@ static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
     tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
-  rpcRsp.code = tsdbCreateTable(pTsdb, &tCfg);
-  dnodeReleaseVnode(pVnode);
+  void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
 
-  if (rpcRsp.code != TSDB_CODE_SUCCESS) {
-    dError("table:%s, failed to create in vgroup:%d, reason:%s", pTable->tableId, pTable->vgId, tstrerror(rpcRsp.code));
-    rpcSendResponse(&rpcRsp);
-  } else {
-    dTrace("table:%s, created in dnode", pTable->tableId);
-    rpcSendResponse(&rpcRsp);
-  }
-}
+  rpcRsp.code = tsdbAlterTable(pTsdb, &tCfg);
+  dnodeReleaseVnode(pMsg->pVnode);
 
-static void dnodeProcessDropTableMsg(SWriteMsg *pMsg) {
-  SMDDropTableMsg *pTable = pMsg->rpcMsg.pCont;
-  dPrint("table:%s, sid:%d is dropped", pTable->tableId, pTable->sid);
-
-//  pTable->sid         = htonl(pTable->sid);
-//  pTable->numOfVPeers = htonl(pTable->numOfVPeers);
-//  pTable->uid         = htobe64(pTable->uid);
-//
-//  for (int i = 0; i < pTable->numOfVPeers; ++i) {
-//    pTable->vpeerDesc[i].ip    = htonl(pTable->vpeerDesc[i].ip);
-//    pTable->vpeerDesc[i].vnode = htonl(pTable->vpeerDesc[i].vnode);
-//  }
-//
-//  int32_t code = dnodeDropTable(pTable);
-//
-  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  rpcSendResponse(&rpcRsp);
-}
-
-static void dnodeProcessAlterTableMsg(SWriteMsg *pMsg) {
-  SMDCreateTableMsg *pTable = pMsg->rpcMsg.pCont;
-  dPrint("table:%s, sid:%d is alterd", pTable->tableId, pTable->sid);
-
-  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  dTrace("table:%s, alter table result:%s", pTable->tableId, tstrerror(rpcRsp.code));
   rpcSendResponse(&rpcRsp);
 }
 
 static void dnodeProcessDropStableMsg(SWriteMsg *pMsg) {
   SMDDropSTableMsg *pTable = pMsg->rpcMsg.pCont;
-  dPrint("stable:%s, is dropped", pTable->tableId);
-
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+
+  dTrace("stable:%s, start to it drop in dnode, vgroup:%d", pTable->tableId, pTable->vgId);
+  pTable->uid = htobe64(pTable->uid);
+
+  // TODO: drop stable in vvnode
+  //void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+  //rpcRsp.code = tsdbDropSTable(pTsdb, pTable->uid);
+
+  rpcRsp.code = TSDB_CODE_SUCCESS;
+  dnodeReleaseVnode(pMsg->pVnode);
+
+  dTrace("stable:%s, drop stable result:%s", pTable->tableId, tstrerror(rpcRsp.code));
   rpcSendResponse(&rpcRsp);
 }
+

@@ -51,6 +51,7 @@ static void mgmtProcessTableMetaMsg(SQueuedMsg *queueMsg);
 static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *queueMsg);
 static void mgmtProcessSuperTableMetaMsg(SQueuedMsg *queueMsg);
 static void mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg);
+static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg);
 static int32_t mgmtGetShowTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle);
@@ -82,6 +83,9 @@ int32_t mgmtInitTables() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_TABLE, mgmtGetShowTableMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mgmtRetrieveShowTables);
   mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP, mgmtProcessCreateTableRsp);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_TABLE_RSP, mgmtProcessDropTableRsp);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP, NULL);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_STABLE_RSP, NULL);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -132,83 +136,6 @@ int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, boo
 
   mTrace("%s, uid:%" PRIu64 " table meta is retrieved", pTable->tableId, pTable->uid);
   return TSDB_CODE_SUCCESS;
-}
-
-static void mgmtCreateTable(SVgObj *pVgroup, SQueuedMsg *pMsg) {
-  SCMCreateTableMsg *pCreate = pMsg->pCont;
-
-  int32_t sid = taosAllocateId(pVgroup->idPool);
-  if (sid < 0) {
-    mTrace("tables:%s, no enough sid in vgroup:%d", pVgroup->vgId);
-    mgmtCreateVgroup(pMsg);
-    return;
-  }
-
-  int32_t code;
-  STableInfo *pTable;
-  SMDCreateTableMsg *pMDCreate = NULL;
-
-  if (pCreate->numOfColumns == 0) {
-    mTrace("table:%s, is a child table, vgroup:%d sid:%d ahandle:%p", pCreate->tableId, pVgroup->vgId, sid, pMsg);
-    code = mgmtCreateChildTable(pCreate, pMsg->contLen, pVgroup, sid, &pMDCreate, &pTable);
-  } else {
-    mTrace("table:%s, is a normal table, vgroup:%d sid:%d ahandle:%p", pCreate->tableId, pVgroup->vgId, sid, pMsg);
-    code = mgmtCreateNormalTable(pCreate, pMsg->contLen, pVgroup, sid, &pMDCreate, &pTable);
-  }
-
-  if (code != TSDB_CODE_SUCCESS) {
-    mTrace("table:%s, failed to create in vgroup:%d", pCreate->tableId, pVgroup->vgId);
-    mgmtSendSimpleResp(pMsg->thandle, code);
-    return;
-  }
-
-  SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
-  SRpcMsg rpcMsg = {
-      .handle  = pMsg,
-      .pCont   = pMDCreate,
-      .contLen = htonl(pMDCreate->contLen),
-      .code    = 0,
-      .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
-  };
-
-  pMsg->ahandle = pTable;
-  mgmtSendMsgToDnode(&ipSet, &rpcMsg);
-}
-
-int32_t mgmtDropTable(SDbObj *pDb, char *tableId, int32_t ignore) {
-  STableInfo *pTable = mgmtGetTable(tableId);
-  if (pTable == NULL) {
-    if (ignore) {
-      mTrace("table:%s, table is not exist, think it success", tableId);
-      return TSDB_CODE_SUCCESS;
-    } else {
-      mError("table:%s, failed to create table, table not exist", tableId);
-      return TSDB_CODE_INVALID_TABLE;
-    }
-  }
-
-  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-    mError("table:%s, failed to create table, in monitor database", tableId);
-    return TSDB_CODE_MONITOR_DB_FORBIDDEN;
-  }
-
-  switch (pTable->type) {
-    case TSDB_SUPER_TABLE:
-      mTrace("table:%s, start to drop super table", tableId);
-      return mgmtDropSuperTable(pDb, (SSuperTableObj *) pTable);
-    case TSDB_CHILD_TABLE:
-      mTrace("table:%s, start to drop child table", tableId);
-      return mgmtDropChildTable(pDb, (SChildTableObj *) pTable);
-    case TSDB_NORMAL_TABLE:
-      mTrace("table:%s, start to drop normal table", tableId);
-      return mgmtDropNormalTable(pDb, (SNormalTableObj *) pTable);
-    case TSDB_STREAM_TABLE:
-      mTrace("table:%s, start to drop stream table", tableId);
-      return mgmtDropNormalTable(pDb, (SNormalTableObj *) pTable);
-    default:
-      mError("table:%s, invalid table type:%d", tableId, pTable->type);
-      return TSDB_CODE_INVALID_TABLE;
-  }
 }
 
 int32_t mgmtAlterTable(SDbObj *pDb, SCMAlterTableMsg *pAlter) {
@@ -419,13 +346,6 @@ int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *
   return numOfRows;
 }
 
-SMDDropTableMsg *mgmtBuildRemoveTableMsg(STableInfo *pTable) {
-  SMDDropTableMsg *pRemove = NULL;
-
-
-  return pRemove;
-}
-
 void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
   if (mgmtCheckRedirect(pMsg->thandle)) return;
 
@@ -474,7 +394,7 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
 
   if (pCreate->numOfTags != 0) {
     mTrace("table:%s, is a super table", pCreate->tableId);
-    code = mgmtCreateSuperTable(pMsg->pDb, pCreate);
+    code = mgmtCreateSuperTable(pCreate);
     mgmtSendSimpleResp(pMsg->thandle, code);
     return;
   }
@@ -494,29 +414,70 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
   if (pVgroup == NULL) {
     mTrace("table:%s, start to create a new vgroup", pCreate->tableId);
     mgmtCreateVgroup(newMsg);
-  } else {
-    mTrace("table:%s, vgroup:%d is selected", pCreate->tableId, pVgroup->vgId);
-    mgmtCreateTable(pVgroup, newMsg);
+    return;
   }
+
+  int32_t sid = taosAllocateId(pVgroup->idPool);
+  if (sid < 0) {
+    mTrace("tables:%s, no enough sid in vgroup:%d", pVgroup->vgId);
+    mgmtCreateVgroup(newMsg);
+    return;
+  }
+
+  SMDCreateTableMsg *pMDCreate = NULL;
+  if (pCreate->numOfColumns == 0) {
+    mTrace("table:%s, is a child table, vgroup:%d sid:%d ahandle:%p", pCreate->tableId, pVgroup->vgId, sid, pMsg);
+    pTable = mgmtCreateChildTable(pCreate, pVgroup, sid);
+    if (pTable == NULL) {
+      mgmtSendSimpleResp(pMsg->thandle, terrno);
+      return;
+    }
+    pMDCreate = mgmtBuildCreateChildTableMsg(pCreate, (SChildTableObj *) pTable);
+    if (pMDCreate == NULL) {
+      mgmtSendSimpleResp(pMsg->thandle, terrno);
+      return;
+    }
+  } else {
+    mTrace("table:%s, is a normal table, vgroup:%d sid:%d ahandle:%p", pCreate->tableId, pVgroup->vgId, sid, pMsg);
+    pTable = mgmtCreateNormalTable(pCreate, pVgroup, sid);
+    if (pTable == NULL) {
+      mgmtSendSimpleResp(pMsg->thandle, terrno);
+      return;
+    }
+    pMDCreate = mgmtBuildCreateNormalTableMsg((SNormalTableObj *) pTable);
+    if (pMDCreate == NULL) {
+      mgmtSendSimpleResp(pMsg->thandle, terrno);
+      return;
+    }
+  }
+
+  SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
+  SRpcMsg rpcMsg = {
+      .handle  = newMsg,
+      .pCont   = pMDCreate,
+      .contLen = htonl(pMDCreate->contLen),
+      .code    = 0,
+      .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
+  };
+
+  newMsg->ahandle = pTable;
+  mgmtSendMsgToDnode(&ipSet, &rpcMsg);
 }
 
 void mgmtProcessDropTableMsg(SQueuedMsg *pMsg) {
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
+
   SCMDropTableMsg *pDrop = pMsg->pCont;
+  mTrace("table:%s, drop table msg is received from thandle:%p", pDrop->tableId, pMsg->thandle);
 
-  if (mgmtCheckRedirect(pMsg->thandle)) {
-    mError("thandle:%p, failed to drop table:%s, need redirect message", pMsg->thandle, pDrop->tableId);
+  if (mgmtCheckExpired()) {
+    mError("table:%s, failed to drop, grant expired", pDrop->tableId);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_GRANT_EXPIRED);
     return;
   }
 
-  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
-  if (pUser == NULL) {
-    mError("table:%s, failed to drop table, invalid user", pDrop->tableId);
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_USER);
-    return;
-  }
-
-  if (!pUser->writeAuth) {
-    mError("table:%s, failed to drop table, no rights", pDrop->tableId);
+  if (!pMsg->pUser->writeAuth) {
+    mError("table:%s, failed to drop, no rights", pDrop->tableId);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_RIGHTS);
     return;
   }
@@ -528,8 +489,54 @@ void mgmtProcessDropTableMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  int32_t code = mgmtDropTable(pDb, pDrop->tableId, pDrop->igNotExists);
-  if (code != TSDB_CODE_ACTION_IN_PROGRESS) {
+  STableInfo *pTable = mgmtGetTable(pDrop->tableId);
+  if (pTable == NULL) {
+    if (pDrop->igNotExists) {
+      mTrace("table:%s, table is not exist, think drop success", pDrop->tableId);
+      mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SUCCESS);
+      return;
+    } else {
+      mError("table:%s, failed to drop table, table not exist", pDrop->tableId);
+      mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_TABLE);
+      return;
+    }
+  }
+
+  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+    mError("table:%s, failed to drop table, in monitor database", pDrop->tableId);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_MONITOR_DB_FORBIDDEN);
+    return;
+  }
+
+  SQueuedMsg *newMsg = malloc(sizeof(SQueuedMsg));
+  memcpy(newMsg, pMsg, sizeof(SQueuedMsg));
+  pMsg->pCont = NULL;
+  int32_t code;
+
+  switch (pTable->type) {
+    case TSDB_SUPER_TABLE:
+      mTrace("table:%s, start to drop super table", pDrop->tableId);
+      code = mgmtDropSuperTable(newMsg, pDb, (SSuperTableObj *) pTable);
+      break;
+    case TSDB_CHILD_TABLE:
+      mTrace("table:%s, start to drop child table", pDrop->tableId);
+      code = mgmtDropChildTable(newMsg, (SChildTableObj *) pTable);
+      break;
+    case TSDB_NORMAL_TABLE:
+      mTrace("table:%s, start to drop normal table", pDrop->tableId);
+      code = mgmtDropNormalTable(newMsg, (SNormalTableObj *) pTable);
+      break;
+    case TSDB_STREAM_TABLE:
+      mTrace("table:%s, start to drop stream table", pDrop->tableId);
+      code = mgmtDropNormalTable(newMsg, (SNormalTableObj *) pTable);
+      break;
+    default:
+      code = TSDB_CODE_INVALID_TABLE_TYPE;
+      mError("table:%s, invalid table type:%d", pDrop->tableId, pTable->type);
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    free(newMsg);
     mgmtSendSimpleResp(pMsg->thandle, code);
   }
 }
@@ -773,5 +780,54 @@ static void mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg) {
     }
   }
 
+  free(queueMsg);
+}
+
+static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg) {
+  if (rpcMsg->handle == NULL) return;
+
+  SQueuedMsg *queueMsg = rpcMsg->handle;
+  queueMsg->received++;
+
+  STableInfo *pTable = queueMsg->ahandle;
+  mTrace("table:%s, drop table rsp received, thandle:%p result:%s", pTable->tableId, queueMsg->thandle, tstrerror(rpcMsg->code));
+
+  if (rpcMsg->code != TSDB_CODE_SUCCESS) {
+    mError("table:%s, failed to drop in dnode, reason:%s", pTable->tableId, tstrerror(rpcMsg->code));
+    mgmtSendSimpleResp(queueMsg->thandle, rpcMsg->code);
+    free(queueMsg);
+    return;
+  }
+
+  SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
+  if (pVgroup == NULL) {
+    mError("table:%s, failed to get vgroup", pTable->tableId);
+    mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_INVALID_VGROUP_ID);
+    free(queueMsg);
+    return;
+  }
+
+  if (pTable->type == TSDB_CHILD_TABLE) {
+    if (sdbDeleteRow(tsChildTableSdb, pTable) < 0) {
+      mError("table:%s, update ctables sdb error", pTable->tableId);
+      mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SDB_ERROR);
+      free(queueMsg);
+      return;
+    }
+  } else if (pTable->type == TSDB_NORMAL_TABLE){
+    if (sdbDeleteRow(tsNormalTableSdb, pTable) < 0) {
+      mError("table:%s, update ntables sdb error", pTable->tableId);
+      mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SDB_ERROR);
+      free(queueMsg);
+      return;
+    }
+  }
+
+  if (pVgroup->numOfTables <= 0) {
+    mPrint("vgroup:%d, all tables is dropped, drop vgroup", pVgroup->vgId);
+    mgmtDropVgroup(pVgroup, NULL);
+  }
+
+  mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SUCCESS);
   free(queueMsg);
 }

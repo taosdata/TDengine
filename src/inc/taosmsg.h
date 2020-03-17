@@ -235,9 +235,13 @@ typedef struct {
 } SVnodeDesc;
 
 typedef struct {
+  int32_t numOfVnodes;
+} SMsgDesc;
+
+typedef struct {
   int32_t contLen;
   int32_t vgId;
-} SWriteMsgHead;
+} SMsgHead;
 
 typedef struct {
   int32_t    contLen;
@@ -264,7 +268,8 @@ typedef struct {
   int16_t   numOfTags;
   int16_t   numOfColumns;
   int16_t   sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
-  int16_t   reserved[16];
+  int32_t   contLen;
+  int8_t    reserved[16];
   char      schema[];
 } SCMCreateTableMsg;
 
@@ -332,22 +337,22 @@ typedef struct {
 } SMgmtHead;
 
 typedef struct {
+  int32_t    contLen;
   int32_t    vgId;
   int32_t    sid;
-  int32_t    numOfVPeers;
   uint64_t   uid;
-  SVnodeDesc vpeerDesc[TSDB_MAX_MPEERS];
   char       tableId[TSDB_TABLE_ID_LEN + 1];
 } SMDDropTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN + 1];
+  int32_t contLen;
+  int32_t vgId;
   int64_t uid;
+  char    tableId[TSDB_TABLE_ID_LEN + 1];
 } SMDDropSTableMsg;
 
 typedef struct {
-  int32_t vgId;
-  int32_t vnode;
+  int32_t  vgId;
 } SMDDropVnodeMsg;
 
 typedef struct SColIndexEx {

@@ -202,7 +202,7 @@ void mgmtCleanUpSuperTables() {
   sdbCloseTable(tsSuperTableSdb);
 }
 
-int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
+int32_t mgmtCreateSuperTable(SCMCreateTableMsg *pCreate) {
   int32_t numOfTables = sdbGetNumOfRows(tsSuperTableSdb);
   if (numOfTables >= TSDB_MAX_SUPER_TABLES) {
     mError("stable:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_SUPER_TABLES);
@@ -250,11 +250,16 @@ int32_t mgmtCreateSuperTable(SDbObj *pDb, SCMCreateTableMsg *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mgmtDropSuperTable(SDbObj *pDb, SSuperTableObj *pSuperTable) {
-  //TODO drop all child tables
-
-  mgmtRemoveSuperTableFromDb(pDb);
-  return sdbDeleteRow(tsSuperTableSdb, pSuperTable);
+int32_t mgmtDropSuperTable(SQueuedMsg *newMsg, SDbObj *pDb, SSuperTableObj *pStable) {
+  if (pStable->numOfTables != 0) {
+    mError("stable:%s, numOfTables:%d not 0", pStable->tableId, pStable->numOfTables);
+    return TSDB_CODE_OTHERS;
+  } else {
+    //TODO: drop child tables
+    mError("stable:%s, is dropped from sdb", pStable->tableId);
+    mgmtRemoveSuperTableFromDb(pDb);
+    return TSDB_CODE_OTHERS;
+  }
 }
 
 void* mgmtGetSuperTable(char *tableId) {
@@ -605,6 +610,30 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
 
   pShow->numOfReads += numOfRows;
   return numOfRows;
+}
+
+void mgmtDropAllSuperTables(SDbObj *pDropDb) {
+  void *pNode = NULL;
+  void *pLastNode = NULL;
+  int32_t numOfTables = 0;
+  int32_t dbNameLen = strlen(pDropDb->name);
+  SSuperTableObj *pTable = NULL;
+
+  while (1) {
+    pNode = sdbFetchRow(tsSuperTableSdb, pNode, (void **)&pTable);
+    if (pTable == NULL) {
+      break;
+    }
+
+    if (strncmp(pDropDb->name, pTable->tableId, dbNameLen) == 0) {
+      sdbDeleteRow(tsSuperTableSdb, pTable);
+      pNode = pLastNode;
+      numOfTables ++;
+      continue;
+    }
+  }
+
+  mTrace("db:%s, all super tables:%d is dropped", pDropDb->name, numOfTables);
 }
 
 void mgmtAddTableIntoSuperTable(SSuperTableObj *pStable) {

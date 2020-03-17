@@ -30,12 +30,15 @@ int32_t mgmtInitChildTables();
 void    mgmtCleanUpChildTables();
 void *  mgmtGetChildTable(char *tableId);
 
-int32_t mgmtCreateChildTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                             SMDCreateTableMsg **pDCreateOut, STableInfo **pTableOut);
-int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable);
+void *mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
+void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pCreate, SChildTableObj *pTable);
+
+int32_t mgmtDropChildTable(SQueuedMsg *newMsg, SChildTableObj *pTable);
 int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent);
 
 int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *pMeta, bool usePublicIp);
+
+void mgmtDropAllChildTables(SDbObj *pDropDb);
 
 #ifdef __cplusplus
 }

@@ -125,7 +125,6 @@ void *mgmtNormalTableActionDelete(void *row, char *str, int32_t size, int32_t *s
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
-    mError("id:%s not in vgroup:%d", pTable->tableId, pTable->vgId);
     return NULL;
   }
 
@@ -287,18 +286,19 @@ void mgmtCleanUpNormalTables() {
   sdbCloseTable(tsNormalTableSdb);
 }
 
-static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgroup) {
+void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable) {
   int32_t totalCols = pTable->numOfColumns;
   int32_t contLen   = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + pTable->sqlLen;
 
   SMDCreateTableMsg *pCreate = rpcMallocCont(contLen);
   if (pCreate == NULL) {
+    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
     return NULL;
   }
 
   memcpy(pCreate->tableId, pTable->tableId, TSDB_TABLE_ID_LEN + 1);
   pCreate->contLen       = htonl(contLen);
-  pCreate->vgId          = htonl(pVgroup->vgId);
+  pCreate->vgId          = htonl(pTable->vgId);
   pCreate->tableType     = pTable->type;
   pCreate->numOfColumns  = htons(pTable->numOfColumns);
   pCreate->numOfTags     = 0;
@@ -319,30 +319,30 @@ static void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable, SVgObj *pVgr
   }
 
   memcpy(pCreate + sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema), pTable->sql, pTable->sqlLen);
-
   return pCreate;
 }
 
-int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                              SMDCreateTableMsg **pDCreateOut, STableInfo **pTableOut) {
+void *mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
   int32_t numOfTables = sdbGetNumOfRows(tsNormalTableSdb);
   if (numOfTables >= TSDB_MAX_NORMAL_TABLES) {
     mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_NORMAL_TABLES);
-    return TSDB_CODE_TOO_MANY_TABLES;
+    terrno = TSDB_CODE_TOO_MANY_TABLES;
+    return NULL;
   }
 
   SNormalTableObj *pTable = (SNormalTableObj *) calloc(sizeof(SNormalTableObj), 1);
   if (pTable == NULL) {
     mError("table:%s, failed to alloc memory", pCreate->tableId);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return NULL;
   }
 
   strcpy(pTable->tableId, pCreate->tableId);
   pTable->type         = TSDB_NORMAL_TABLE;
   pTable->vgId         = pVgroup->vgId;
+  pTable->createdTime  = taosGetTimestampMs();
   pTable->uid          = (((uint64_t) pTable->createdTime) << 16) + ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
   pTable->sid          = sid;
-  pTable->createdTime  = taosGetTimestampMs();
   pTable->sversion     = 0;
   pTable->numOfColumns = htons(pCreate->numOfColumns);
   pTable->sqlLen       = htons(pCreate->sqlLen);
@@ -352,7 +352,8 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
   pTable->schema     = (SSchema *) calloc(1, schemaSize);
   if (pTable->schema == NULL) {
     free(pTable);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return NULL;
   }
   memcpy(pTable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
@@ -368,7 +369,8 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
     pTable->sql = calloc(1, pTable->sqlLen);
     if (pTable->sql == NULL) {
       free(pTable);
-      return TSDB_CODE_SERV_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+      return NULL;
     }
     memcpy(pTable->sql, (char *) (pCreate->schema) + numOfCols * sizeof(SSchema), pTable->sqlLen);
     pTable->sql[pTable->sqlLen - 1] = 0;
@@ -378,65 +380,45 @@ int32_t mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgOb
   if (sdbInsertRow(tsNormalTableSdb, pTable, 0) < 0) {
     mError("table:%s, update sdb error", pTable->tableId);
     free(pTable);
-    return TSDB_CODE_SDB_ERROR;
+    terrno = TSDB_CODE_SDB_ERROR;
+    return NULL;
   }
-
-  *pDCreateOut = mgmtBuildCreateNormalTableMsg(pTable, pVgroup);
-  if (*pDCreateOut == NULL) {
-    mError("table:%s, failed to build create table message", pTable->tableId);
-    sdbDeleteRow(tsNormalTableSdb, pTable);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
-  }
-
-  *pTableOut = (STableInfo *) pTable;
 
   mTrace("table:%s, create ntable in vgroup, uid:%" PRIu64 , pTable->tableId, pTable->uid);
-  return TSDB_CODE_SUCCESS;
+  return pTable;
 }
 
-int32_t mgmtDropNormalTable(SDbObj *pDb, SNormalTableObj *pTable) {
+int32_t mgmtDropNormalTable(SQueuedMsg *newMsg, SNormalTableObj *pTable) {
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("table:%s, failed to drop normal table, vgroup not exist", pTable->tableId);
     return TSDB_CODE_OTHERS;
   }
 
-  SMDDropTableMsg *pRemove = rpcMallocCont(sizeof(SMDDropTableMsg));
-  if (pRemove == NULL) {
+  SMDDropTableMsg *pDrop = rpcMallocCont(sizeof(SMDDropTableMsg));
+  if (pDrop == NULL) {
     mError("table:%s, failed to drop normal table, no enough memory", pTable->tableId);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
-  strcpy(pRemove->tableId, pTable->tableId);
-  pRemove->sid = htonl(pTable->sid);
-  pRemove->uid = htobe64(pTable->uid);
-
-  pRemove->numOfVPeers = htonl(pVgroup->numOfVnodes);
-  for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
-    pRemove->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].ip);
-    pRemove->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-  }
+  strcpy(pDrop->tableId, pTable->tableId);
+  pDrop->contLen = htonl(sizeof(SMDDropTableMsg));
+  pDrop->vgId    = htonl(pVgroup->vgId);
+  pDrop->sid     = htonl(pTable->sid);
+  pDrop->uid     = htobe64(pTable->uid);
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
-  mTrace("table:%s, send drop table msg", pRemove->tableId);
+  mTrace("table:%s, send drop table msg", pDrop->tableId);
   SRpcMsg rpcMsg = {
-      .handle  = 0,
-      .pCont   = pRemove,
+      .handle  = newMsg,
+      .pCont   = pDrop,
       .contLen = sizeof(SMDDropTableMsg),
       .code    = 0,
       .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
   };
+
+  newMsg->ahandle = pTable;
   mgmtSendMsgToDnode(&ipSet, &rpcMsg);
-
-  if (sdbDeleteRow(tsNormalTableSdb, pTable) < 0) {
-    mError("table:%s, update ntables sdb error", pTable->tableId);
-    return TSDB_CODE_SDB_ERROR;
-  }
-
-  if (pVgroup->numOfTables <= 0) {
-    mgmtDropVgroup(pDb, pVgroup);
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -557,14 +539,35 @@ int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, STableMeta 
   for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
     if (usePublicIp) {
       pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].publicIp;
-      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
     } else {
       pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].ip;
-      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
     }
+    pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
   }
   pMeta->numOfVpeers = pVgroup->numOfVnodes;
 
   return TSDB_CODE_SUCCESS;
 }
 
+void mgmtDropAllNormalTables(SDbObj *pDropDb) {
+  void *pNode = NULL;
+  void *pLastNode = NULL;
+  int32_t numOfTables = 0;
+  int32_t dbNameLen = strlen(pDropDb->name);
+  SNormalTableObj *pTable = NULL;
+
+  while (1) {
+    pNode = sdbFetchRow(tsNormalTableSdb, pNode, (void **)&pTable);
+    if (pTable == NULL) break;
+
+    if (strncmp(pDropDb->name, pTable->tableId, dbNameLen) == 0) {
+      sdbDeleteRow(tsNormalTableSdb, pTable);
+      pNode = pLastNode;
+      numOfTables ++;
+      continue;
+    }
+  }
+
+  mTrace("db:%s, all normal tables:%d is dropped", pDropDb->name, numOfTables);
+}

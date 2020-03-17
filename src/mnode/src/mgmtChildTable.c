@@ -123,7 +123,6 @@ void *mgmtChildTableActionDelete(void *row, char *str, int32_t size, int32_t *ss
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
-    mError("id:%s not in vgroup:%d", pTable->tableId, pTable->vgId);
     return NULL;
   }
 
@@ -272,19 +271,22 @@ void mgmtCleanUpChildTables() {
   sdbCloseTable(tsChildTableSdb);
 }
 
-static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgroup, void *pTagData, int32_t tagDataLen) {
-  int32_t totalCols = pTable->superTable->numOfColumns + pTable->superTable->numOfTags;
-  int32_t contLen   = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen;
+void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableObj *pTable) {
+  char    *pTagData  = pMsg->schema + TSDB_TABLE_ID_LEN + 1;
+  int32_t tagDataLen = htonl(pMsg->contLen) - sizeof(SCMCreateTableMsg) - TSDB_TABLE_ID_LEN - 1;
+  int32_t totalCols  = pTable->superTable->numOfColumns + pTable->superTable->numOfTags;
+  int32_t contLen    = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + tagDataLen;
 
   SMDCreateTableMsg *pCreate = rpcMallocCont(contLen);
   if (pCreate == NULL) {
+    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
     return NULL;
   }
 
-  memcpy(pCreate->tableId, pTable->tableId, TSDB_TABLE_ID_LEN);
-  memcpy(pCreate->superTableId, pTable->superTable->tableId, TSDB_TABLE_ID_LEN);
+  memcpy(pCreate->tableId, pTable->tableId, TSDB_TABLE_ID_LEN + 1);
+  memcpy(pCreate->superTableId, pTable->superTable->tableId, TSDB_TABLE_ID_LEN + 1);
   pCreate->contLen       = htonl(contLen);
-  pCreate->vgId          = htonl(pVgroup->vgId);
+  pCreate->vgId          = htonl(pTable->vgId);
   pCreate->tableType     = pTable->type;
   pCreate->numOfColumns  = htons(pTable->superTable->numOfColumns);
   pCreate->numOfTags     = htons(pTable->superTable->numOfTags);
@@ -305,103 +307,85 @@ static void *mgmtBuildCreateChildTableMsg(SChildTableObj *pTable, SVgObj *pVgrou
   }
 
   memcpy(pCreate->data + totalCols * sizeof(SSchema), pTagData, tagDataLen);
-
   return pCreate;
 }
 
-int32_t mgmtCreateChildTable(SCMCreateTableMsg *pCreate, int32_t contLen, SVgObj *pVgroup, int32_t sid,
-                             SMDCreateTableMsg **pMDCreateOut, STableInfo **pTableOut) {
+void* mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t tid) {
   int32_t numOfTables = sdbGetNumOfRows(tsChildTableSdb);
   if (numOfTables >= tsMaxTables) {
     mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, tsMaxTables);
-    return TSDB_CODE_TOO_MANY_TABLES;
+    terrno = TSDB_CODE_TOO_MANY_TABLES;
+    return NULL;
   }
 
   char *pTagData = (char *) pCreate->schema;  // it is a tag key
   SSuperTableObj *pSuperTable = mgmtGetSuperTable(pTagData);
   if (pSuperTable == NULL) {
     mError("table:%s, corresponding super table does not exist", pCreate->tableId);
-    return TSDB_CODE_INVALID_TABLE;
+    terrno = TSDB_CODE_INVALID_TABLE;
+    return NULL;
   }
 
   SChildTableObj *pTable = (SChildTableObj *) calloc(sizeof(SChildTableObj), 1);
   if (pTable == NULL) {
     mError("table:%s, failed to alloc memory", pCreate->tableId);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_SERV_OUT_OF_MEMORY;
+    return NULL;
   }
+
   strcpy(pTable->tableId, pCreate->tableId);
   strcpy(pTable->superTableId, pSuperTable->tableId);
   pTable->type        = TSDB_CHILD_TABLE;
+  pTable->createdTime = taosGetTimestampMs();
   pTable->uid         = (((uint64_t) pTable->vgId) << 40) + ((((uint64_t) pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
                         ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
-  pTable->sid         = sid;
+  pTable->sid         = tid;
   pTable->vgId        = pVgroup->vgId;
-  pTable->createdTime = taosGetTimestampMs();
   pTable->superTable  = pSuperTable;
 
   if (sdbInsertRow(tsChildTableSdb, pTable, 0) < 0) {
     free(pTable);
     mError("table:%s, update sdb error", pCreate->tableId);
-    return TSDB_CODE_SDB_ERROR;
+    terrno = TSDB_CODE_SDB_ERROR;
+    return NULL;
   }
-
-  pTagData += (TSDB_TABLE_ID_LEN + 1);
-  int32_t tagDataLen = contLen - sizeof(SCMCreateTableMsg) - TSDB_TABLE_ID_LEN - 1;
-  *pMDCreateOut = mgmtBuildCreateChildTableMsg(pTable, pVgroup, pTagData, tagDataLen);
-  if (*pMDCreateOut == NULL) {
-    mError("table:%s, failed to build create table message", pCreate->tableId);
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
-  }
-
-  *pTableOut = (STableInfo *) pTable;
 
   mTrace("table:%s, create ctable in vgroup, uid:%" PRIu64 , pTable->tableId, pTable->uid);
-  return TSDB_CODE_SUCCESS;
+  return pTable;
 }
 
-int32_t mgmtDropChildTable(SDbObj *pDb, SChildTableObj *pTable) {
+int32_t mgmtDropChildTable(SQueuedMsg *newMsg, SChildTableObj *pTable) {
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("table:%s, failed to drop child table, vgroup not exist", pTable->tableId);
     return TSDB_CODE_OTHERS;
   }
 
-  SMDDropTableMsg *pRemove = rpcMallocCont(sizeof(SMDDropTableMsg));
-  if (pRemove == NULL) {
+  SMDDropTableMsg *pDrop = rpcMallocCont(sizeof(SMDDropTableMsg));
+  if (pDrop == NULL) {
     mError("table:%s, failed to drop child table, no enough memory", pTable->tableId);
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
   }
 
-  strcpy(pRemove->tableId, pTable->tableId);
-  pRemove->sid = htonl(pTable->sid);
-  pRemove->uid = htobe64(pTable->uid);
-
-  pRemove->numOfVPeers = htonl(pVgroup->numOfVnodes);
-  for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
-    pRemove->vpeerDesc[i].ip = htonl(pVgroup->vnodeGid[i].ip);
-    pRemove->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-  }
+  strcpy(pDrop->tableId, pTable->tableId);
+  pDrop->vgId    = htonl(pTable->vgId);
+  pDrop->contLen = htonl(sizeof(SMDDropTableMsg));
+  pDrop->sid     = htonl(pTable->sid);
+  pDrop->uid     = htobe64(pTable->uid);
 
   SRpcIpSet ipSet = mgmtGetIpSetFromVgroup(pVgroup);
 
-  mTrace("table:%s, send drop table msg", pRemove->tableId);
+  mTrace("table:%s, send drop table msg", pDrop->tableId);
   SRpcMsg rpcMsg = {
-    .handle  = 0,
-    .pCont   = pRemove,
+    .handle  = newMsg,
+    .pCont   = pDrop,
     .contLen = sizeof(SMDDropTableMsg),
     .code    = 0,
     .msgType = TSDB_MSG_TYPE_MD_DROP_TABLE
   };
+
+  newMsg->ahandle = pTable;
   mgmtSendMsgToDnode(&ipSet, &rpcMsg);
-
-  if (sdbDeleteRow(tsChildTableSdb, pTable) < 0) {
-    mError("table:%s, update ctables sdb error", pTable->tableId);
-    return TSDB_CODE_SDB_ERROR;
-  }
-
-  if (pVgroup->numOfTables <= 0) {
-    mgmtDropVgroup(pDb, pVgroup);
-  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -477,13 +461,37 @@ int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *p
   for (int32_t i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
     if (usePublicIp) {
       pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].publicIp;
-      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
     } else {
       pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].ip;
-      pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
     }
+    pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
+    pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
   }
   pMeta->numOfVpeers = pVgroup->numOfVnodes;
 
   return TSDB_CODE_SUCCESS;
+}
+
+void mgmtDropAllChildTables(SDbObj *pDropDb) {
+  void *pNode = NULL;
+  void *pLastNode = NULL;
+  int32_t numOfTables = 0;
+  int32_t dbNameLen = strlen(pDropDb->name);
+  SChildTableObj *pTable = NULL;
+
+  while (1) {
+    pNode = sdbFetchRow(tsChildTableSdb, pNode, (void **)&pTable);
+    if (pTable == NULL) {
+      break;
+    }
+
+    if (strncmp(pDropDb->name, pTable->tableId, dbNameLen) == 0) {
+      sdbDeleteRow(tsChildTableSdb, pTable);
+      pNode = pLastNode;
+      numOfTables ++;
+      continue;
+    }
+  }
+
+  mTrace("db:%s, all child tables:%d is dropped", pDropDb->name, numOfTables);
 }
