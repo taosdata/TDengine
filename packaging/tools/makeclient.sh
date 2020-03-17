@@ -135,6 +135,12 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp -r ${examples_dir}/R      ${install_dir}/examples
   cp -r ${examples_dir}/go     ${install_dir}/examples
 fi
+if [ "$verMode" == "cluster" ]; then
+  mkdir -p ${install_dir}/examples/ODBC
+  odbc_dir="${top_dir}/../enterprise/tests/examples/ODBC"
+  cp -r ${odbc_dir}/testodbc.c   ${install_dir}/examples/ODBC  
+fi
+
 # Copy driver
 mkdir -p ${install_dir}/driver 
 cp ${lib_files} ${install_dir}/driver
