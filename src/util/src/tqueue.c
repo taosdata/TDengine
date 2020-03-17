@@ -99,7 +99,7 @@ void taosFreeQitem(void *param) {
 
 int taosWriteQitem(taos_queue param, int type, void *item) {
   STaosQueue *queue = (STaosQueue *)param;
-  STaosQnode *pNode = (STaosQnode *)((char *)item - sizeof(STaosQnode));
+  STaosQnode *pNode = (STaosQnode *)(((char *)item) - sizeof(STaosQnode));
   pNode->type = type;
 
   pthread_mutex_lock(&queue->mutex);
@@ -187,6 +187,7 @@ int taosGetQitem(taos_qall param, int *type, void **pitem) {
  
   if (pNode) {
     *pitem = pNode->item;
+    *type = pNode->type;
     num = 1;
   }
 

@@ -287,7 +287,7 @@ void rpcClose(void *param) {
   (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
 
   for (int i = 0; i < pRpc->sessions; ++i) {
-    if (pRpc->connList[i].user[0]) {
+    if (pRpc->connList && pRpc->connList[i].user[0]) {
       rpcCloseConn((void *)(pRpc->connList + i));
     }
   }
