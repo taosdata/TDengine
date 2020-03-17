@@ -44,6 +44,7 @@ static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, vo
 static int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg);
+static void    mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) ;
 
 void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
   int32_t maxVnodes = pDnode->numOfCores * tsNumOfVnodesPerCore;
@@ -435,6 +436,8 @@ int32_t mgmtInitDnodes() {
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_VNODES, mgmtGetVnodeMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mgmtRetrieveVnodes);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mgmtProcessCfgDnodeMsg);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mgmtProcessCfgDnodeMsgRsp);
+
 
   if (mgmtInitDnodesFp) {
     return mgmtInitDnodesFp();
@@ -532,6 +535,11 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   if (mgmtCheckRedirect(pMsg->thandle)) return;
 
   SCMCfgDnodeMsg *pCmCfgDnode = pMsg->pCont;
+  if (pCmCfgDnode->ip[0] == 0) {
+    strcpy(pCmCfgDnode->ip, tsPrivateIp);
+  } else {
+    strcpy(pCmCfgDnode->ip, pCmCfgDnode->ip);
+  }
   uint32_t dnodeIp = inet_addr(pCmCfgDnode->ip);
 
   if (strcmp(pMsg->pUser->pAcct->user, "root") != 0) {
@@ -557,4 +565,8 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
   }
 
   rpcSendResponse(&rpcRsp);
+}
+
+static void mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
+  mTrace("cfg vnode rsp is received");
 }

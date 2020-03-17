@@ -135,7 +135,7 @@ int tsOfflineThreshold = 864000;   // seconds 10days
 int tsMgmtEqualVnodeNum = 4;
 
 int tsEnableHttpModule = 1;
-int tsEnableMonitorModule = 1;
+int tsEnableMonitorModule = 0;
 int tsRestRowLimit = 10240;
 int tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 

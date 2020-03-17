@@ -80,13 +80,6 @@ int32_t dnodeInitMgmt() {
   }
   taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsDnodeTmr, &tsStatusTimer);
 
-  SMDCreateVnodeMsg cfg;
-  cfg.cfg.vgId = 1;
-  cfg.cfg.precision = 0;
-  cfg.vnode = 1;
-  cfg.cfg.maxSessions = 1000;
-  cfg.cfg.daysPerFile = 10;
-
   return dnodeOpenVnodes();
 }
 
@@ -171,8 +164,8 @@ static int32_t dnodeOpenVnodes() {
       int32_t vnode = atoi(de->d_name + 5);
       if (vnode == 0) continue;
 
-      char vnodeDir[TSDB_FILENAME_LEN];
-      sprintf(vnodeDir, "%s/%s", tsVnodeDir, de->d_name);
+      char vnodeDir[TSDB_FILENAME_LEN * 3];
+      snprintf(vnodeDir, TSDB_FILENAME_LEN * 3, "%s/%s", tsVnodeDir, de->d_name);
       int32_t code = dnodeOpenVnode(vnode, vnodeDir);
       if (code == 0) {
         numOfVnodes++;
@@ -181,7 +174,7 @@ static int32_t dnodeOpenVnodes() {
   }
   closedir(dir);
 
-  dPrint("all vnodes is opened, num:%d", numOfVnodes);
+  dPrint("dnode mgmt is opened, vnodes:%d", numOfVnodes);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -189,7 +182,7 @@ typedef void (*CleanupFp)(char *);
 static void dnodeCleanupVnodes() {
   int32_t num = taosGetIntHashSize(tsDnodeVnodesHash);
   taosCleanUpIntHashWithFp(tsDnodeVnodesHash, (CleanupFp)dnodeCleanupVnode);
-  dPrint("all vnodes is opened, num:%d", num);
+  dPrint("dnode mgmt is closed, vnodes:%d", num);
 }
 
 static int32_t dnodeOpenVnode(int32_t vnode, char *rootDir) {
@@ -401,10 +394,11 @@ static void dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
 }
 
 static void dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
-//  SCfgDnodeMsg *pCfg = (SCfgDnodeMsg *)pCont;
-//
-//  int32_t code = tsCfgDynamicOptions(pCfg->config);
-//  dnodeSendRspToMnode(pConn, msgType + 1, code, NULL, 0);
+  SMDCfgDnodeMsg *pCfg = (SMDCfgDnodeMsg *)pMsg->pCont;
+  int32_t code = tsCfgDynamicOptions(pCfg->config);
+
+  SRpcMsg rpcRsp = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0, .code = code, .msgType = 0};
+  rpcSendResponse(&rpcRsp);
 }
 
 static void dnodeSendStatusMsg(void *handle, void *tmrId) {

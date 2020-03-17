@@ -41,11 +41,11 @@ int32_t dnodeInitMClient() {
 
   tsDnodeMClientRpc = rpcOpen(&rpcInit);
   if (tsDnodeMClientRpc == NULL) {
-    dError("failed to init connection from mgmt");
+    dError("failed to init mnode rpc client");
     return -1;
   }
 
-  dPrint("client connection to mgmt is opened");
+  dPrint("mnode rpc client is opened");
   return 0;
 }
 
