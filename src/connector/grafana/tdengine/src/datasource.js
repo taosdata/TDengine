@@ -110,8 +110,10 @@ export class GenericDatasource {
     if (options != null && options.range != null && options.range.to != null){
       queryEnd = options.range.to.toISOString();
     }
-    var intervalMs = options.intervalMs || "20000";
-
+    var intervalMs = Math.max(options.intervalMs,15000);
+    if (isNaN(intervalMs)) {
+      intervalMs = 15000;
+    }
     intervalMs += "a";
     sql = sql.replace(/^\s+|\s+$/gm, '');
     sql = sql.replace("$from", "'" + queryStart + "'");
