@@ -20,6 +20,7 @@
 #include "thistogram.h"
 #include "tinterpolation.h"
 #include "tlog.h"
+#include "tpercentile.h"
 #include "tscJoinProcess.h"
 #include "tscSyntaxtreefunction.h"
 #include "tscompression.h"
@@ -27,7 +28,6 @@
 #include "ttime.h"
 #include "ttypes.h"
 #include "tutil.h"
-#include "tpercentile.h"
 
 #define GET_INPUT_CHAR(x) (((char *)((x)->aInputElemBuf)) + ((x)->startOffset) * ((x)->inputBytes))
 #define GET_INPUT_CHAR_INDEX(x, y) (GET_INPUT_CHAR(x) + (y) * (x)->inputBytes)
@@ -4104,8 +4104,6 @@ static void twa_function(SQLFunctionCtx *pCtx) {
   if (pResInfo->superTableQ) {
     memcpy(pCtx->aOutputBuf, pInfo, sizeof(STwaInfo));
   }
-
-  //  pCtx->numOfIteratedElems += notNullElems;
 }
 
 static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
@@ -4138,7 +4136,6 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   pInfo->lastKey = primaryKey[index];
   setTWALastVal(pCtx, pData, 0, pInfo);
   
-  //  pCtx->numOfIteratedElems += 1;
   pResInfo->hasResult = DATA_SET_FLAG;
   
   if (pResInfo->superTableQ) {
@@ -4403,10 +4400,8 @@ static double do_calc_rate(const SRateInfo* pRateInfo) {
     }
   }
 
-  int64_t duration = pRateInfo->lastKey - pRateInfo->firstKey;
-  duration = (duration + 500) / 1000;
-
-  double resultVal = ((double)diff) / duration;
+  double duration = (pRateInfo->lastKey - pRateInfo->firstKey) / 1000;
+  double resultVal = diff / duration;
 
   pTrace("do_calc_rate() isIRate:%d firstKey:%" PRId64 " lastKey:%" PRId64 " firstValue:%f lastValue:%f CorrectionValue:%f resultVal:%f", 
             pRateInfo->isIRate, pRateInfo->firstKey, pRateInfo->lastKey, pRateInfo->firstValue, pRateInfo->lastValue, pRateInfo->CorrectionValue, resultVal);
@@ -4447,62 +4442,156 @@ static void rate_function(SQLFunctionCtx *pCtx) {
   TSKEY       *primaryKey   = pCtx->ptsList;
 
   pTrace("%p rate_function() size:%d, hasNull:%d", pCtx, pCtx->size, pCtx->hasNull);
-
-  for (int32_t i = 0; i < pCtx->size; ++i) {
-    char *pData = GET_INPUT_CHAR_INDEX(pCtx, i);
-    if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
-      pTrace("%p rate_function() index of null data:%d", pCtx, i);
-      continue;
+  
+  if (pCtx->order == TSQL_SO_ASC) {
+    // prev interpolation exists
+    if (pCtx->prev.key != -1) {
+      pRateInfo->firstValue = pCtx->prev.data;
+      pRateInfo->firstKey = pCtx->prev.key;
+      pCtx->prev.key = -1; // clear the flag
     }
-
-    notNullElems++;
+  
+    for (int32_t i = 0; i < pCtx->size; ++i) {
+      char *pData = GET_INPUT_CHAR_INDEX(pCtx, i);
+      if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
+        pTrace("%p rate_function() index of null data:%d", pCtx, i);
+        continue;
+      }
     
-    double v = 0;
-    switch (pCtx->inputType) {
-      case TSDB_DATA_TYPE_TINYINT:
-        v = (double)GET_INT8_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        v = (double)GET_INT16_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_INT:
-        v = (double)GET_INT32_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_BIGINT:
-        v = (double)GET_INT64_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_FLOAT:
-        v = (double)GET_FLOAT_VAL(pData);
-        break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        v = (double)GET_DOUBLE_VAL(pData);
-        break;
-      default:
-        assert(0);
+      notNullElems++;
+    
+      double v = 0;
+      switch (pCtx->inputType) {
+        case TSDB_DATA_TYPE_TINYINT:
+          v = (double)GET_INT8_VAL(pData);
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          v = (double)GET_INT16_VAL(pData);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          v = (double)GET_INT32_VAL(pData);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          v = (double)GET_INT64_VAL(pData);
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+          v = (double)GET_FLOAT_VAL(pData);
+          break;
+        case TSDB_DATA_TYPE_DOUBLE:
+          v = (double)GET_DOUBLE_VAL(pData);
+          break;
+        default:
+          assert(0);
+      }
+    
+      if ((-DBL_MAX == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
+        pRateInfo->firstValue = v;
+        pRateInfo->firstKey = primaryKey[i];
+      
+        pTrace("firstValue:%f firstKey:%" PRId64, pRateInfo->firstValue, pRateInfo->firstKey);
+      }
+    
+      if (-DBL_MAX == pRateInfo->lastValue) {
+        pRateInfo->lastValue = v;
+      } else if (v < pRateInfo->lastValue) {
+        pRateInfo->CorrectionValue += pRateInfo->lastValue;
+        pTrace("CorrectionValue:%f", pRateInfo->CorrectionValue);
+      }
+    
+      pRateInfo->lastValue = v;
+      pRateInfo->lastKey   = primaryKey[i];
+      pTrace("lastValue:%f lastKey:%" PRId64, pRateInfo->lastValue, pRateInfo->lastKey);
     }
-
-    if ((-DBL_MAX == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
+  
+    if (!pCtx->hasNull) {
+      assert(pCtx->size == notNullElems);
+    }
+  
+    if (pCtx->next.key != -1) {
+      if (pCtx->next.data < pRateInfo->lastValue) {
+        pRateInfo->CorrectionValue += pRateInfo->lastValue;
+        pTrace("CorrectionValue:%f", pRateInfo->CorrectionValue);
+      }
+    
+      pRateInfo->lastValue = pCtx->next.data;
+      pRateInfo->lastKey   = pCtx->next.key;
+      pCtx->next.key = -1;
+    }
+  } else {
+    if (pCtx->next.key != -1) {
+      pRateInfo->lastValue = pCtx->next.data;
+      pRateInfo->lastKey   = pCtx->next.key;
+      pCtx->next.key = -1;
+    }
+  
+    for (int32_t i = pCtx->size - 1; i >= 0; --i) {
+      char *pData = GET_INPUT_CHAR_INDEX(pCtx, i);
+      if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
+        pTrace("%p rate_function() index of null data:%d", pCtx, i);
+        continue;
+      }
+    
+      notNullElems++;
+    
+      double v = 0;
+      switch (pCtx->inputType) {
+        case TSDB_DATA_TYPE_TINYINT:
+          v = (double)GET_INT8_VAL(pData);
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          v = (double)GET_INT16_VAL(pData);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          v = (double)GET_INT32_VAL(pData);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          v = (double)GET_INT64_VAL(pData);
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+          v = (double)GET_FLOAT_VAL(pData);
+          break;
+        case TSDB_DATA_TYPE_DOUBLE:
+          v = (double)GET_DOUBLE_VAL(pData);
+          break;
+        default:
+          assert(0);
+      }
+  
+      if ((-DBL_MAX == pRateInfo->lastValue) || (INT64_MIN == pRateInfo->lastKey)) {
+        pRateInfo->lastValue = v;
+        pRateInfo->lastKey = primaryKey[i];
+    
+        pTrace("firstValue:%f firstKey:%" PRId64, pRateInfo->lastValue, pRateInfo->lastKey);
+      }
+    
+      if (-DBL_MAX == pRateInfo->firstValue) {
+        pRateInfo->firstValue = v;
+      } else if (v > pRateInfo->firstValue) {
+        pRateInfo->CorrectionValue += pRateInfo->firstValue;
+        pTrace("CorrectionValue:%f", pRateInfo->CorrectionValue);
+      }
+    
       pRateInfo->firstValue = v;
-      pRateInfo->firstKey = primaryKey[i];
-    
+      pRateInfo->firstKey   = primaryKey[i];
       pTrace("firstValue:%f firstKey:%" PRId64, pRateInfo->firstValue, pRateInfo->firstKey);
     }
-
-    if (-DBL_MAX == pRateInfo->lastValue) {
-      pRateInfo->lastValue = v;
-    } else if (v < pRateInfo->lastValue) {
-      pRateInfo->CorrectionValue += pRateInfo->lastValue;
-      pTrace("CorrectionValue:%f", pRateInfo->CorrectionValue);
+  
+    if (!pCtx->hasNull) {
+      assert(pCtx->size == notNullElems);
     }
-
-    pRateInfo->lastValue = v;
-    pRateInfo->lastKey   = primaryKey[i];
-    pTrace("lastValue:%f lastKey:%" PRId64, pRateInfo->lastValue, pRateInfo->lastKey);
-  }
-
-  if (!pCtx->hasNull) {
-    assert(pCtx->size == notNullElems);
-  }
+  
+    if (pCtx->prev.key != -1) {
+      if (pCtx->prev.data > pRateInfo->firstValue) {
+        pRateInfo->CorrectionValue += pRateInfo->firstValue;
+        pTrace("CorrectionValue:%f", pRateInfo->CorrectionValue);
+      }
+    
+      pRateInfo->firstValue = pCtx->prev.data;
+      pRateInfo->firstKey   = pCtx->prev.key;
+      pCtx->prev.key = -1;
+    }
+    
+  };
 
   SET_VAL(pCtx, notNullElems, 1);
 

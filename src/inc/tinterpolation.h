@@ -83,6 +83,8 @@ int32_t taosDoInterpoResult(SInterpolationInfo *pInterpoInfo, int16_t interpoTyp
 
 int taosDoLinearInterpolation(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);
 
+int taosDoLinearInterpolationD(int32_t type, SPoint* point1, SPoint* point2, SPoint* point);
+
 #ifdef __cplusplus
 }
 #endif

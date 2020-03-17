@@ -172,14 +172,15 @@ typedef struct SQueryRuntimeEnv {
   
   SWindowResInfo      windowResInfo;
   
-  // require time stamp that are direct before/after query time window
-  bool boundaryExternalTS;
-  
   STSBuf*             pTSBuf;
   STSCursor           cur;
   SQueryCostSummary   summary;
   bool                stableQuery;  // is super table query or not
   SQueryDiskbasedResultBuf*    pResultBuf;   // query result buffer based on blocked-wised disk file
+  
+  bool hasTimeWindow;
+  char** lastRowInBlock;
+  bool interpoSearch;
   
   /*
    * Temporarily hold the in-memory cache block info during scan cache blocks
@@ -188,10 +189,6 @@ typedef struct SQueryRuntimeEnv {
    * So we keep a copy of the support structure as well as the cache block data itself.
    */
   SCacheBlock         cacheBlock;
-  
-  SPointInterpoSupporter* pInterpoSupporter;
-  bool hasTimeWindow;
-  bool interpoSearch;
 } SQueryRuntimeEnv;
 
 /* intermediate pos during multimeter query involves interval */

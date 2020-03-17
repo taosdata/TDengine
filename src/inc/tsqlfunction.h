@@ -169,7 +169,7 @@ typedef struct SExtTagsInfo {
 
 typedef struct SBoundaryData {
   TSKEY key;
-  char* data;
+  double data;
 } SBoundaryData;
 
 // sql function runtime context
@@ -200,8 +200,8 @@ typedef struct SQLFunctionCtx {
   SResultInfo *resultInfo;
 
   SExtTagsInfo tagInfo;
-  SBoundaryData beforeRow;  // this value may be less or equalled to the start time of time window
-  SBoundaryData afterRow;   // this value may be greater or equalled to the end time of time window
+  SBoundaryData prev;  // this value may be less or equalled to the start time of time window
+  SBoundaryData next;   // this value may be greater or equalled to the end time of time window
 } SQLFunctionCtx;
 
 typedef struct SQLAggFuncElem {

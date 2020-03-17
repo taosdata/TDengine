@@ -191,6 +191,49 @@ int taosDoLinearInterpolation(int32_t type, SPoint* point1, SPoint* point2, SPoi
   return 0;
 }
 
+int taosDoLinearInterpolationD(int32_t type, SPoint* point1, SPoint* point2, SPoint* point) {
+  switch (type) {
+    case TSDB_DATA_TYPE_INT: {
+      *(double*) point->val = doLinearInterpolationImpl(*(int32_t*)point1->val, *(int32_t*)point2->val, point1->key,
+                                                        point2->key, point->key);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      *(double*)point->val =
+          doLinearInterpolationImpl(*(float*)point1->val, *(float*)point2->val, point1->key, point2->key, point->key);
+      break;
+    };
+    case TSDB_DATA_TYPE_DOUBLE: {
+      *(double*)point->val =
+          doLinearInterpolationImpl(*(double*)point1->val, *(double*)point2->val, point1->key, point2->key, point->key);
+      break;
+    };
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT: {
+      *(double*)point->val = doLinearInterpolationImpl(*(int64_t*)point1->val, *(int64_t*)point2->val, point1->key,
+                                                        point2->key, point->key);
+      break;
+    };
+    case TSDB_DATA_TYPE_SMALLINT: {
+      *(double*)point->val = doLinearInterpolationImpl(*(int16_t*)point1->val, *(int16_t*)point2->val, point1->key,
+                                                        point2->key, point->key);
+      break;
+    };
+    case TSDB_DATA_TYPE_TINYINT: {
+      *(double*)point->val =
+          doLinearInterpolationImpl(*(int8_t*)point1->val, *(int8_t*)point2->val, point1->key, point2->key, point->key);
+      break;
+    };
+    default: {
+      // TODO: Deal with interpolation with bool and strings and timestamp
+      return -1;
+    }
+  }
+  
+  return 0;
+}
+
+
 static char* getPos(char* data, int32_t bytes, int32_t index) { return data + index * bytes; }
 
 static void setTagsValueInInterpolation(tFilePage** data, char** pTags, SColumnModel* pModel, int32_t order,
