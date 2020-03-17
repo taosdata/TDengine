@@ -22,12 +22,12 @@
 
 #define INTERPOL_IS_ASC_INTERPOL(interp) ((interp)->order == TSQL_SO_ASC)
 
-int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char intervalTimeUnit, int16_t precision) {
+int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t timeRange, char slidingTimeUnit, int16_t precision) {
   if (timeRange == 0) {
     return startTime;
   }
 
-  if (intervalTimeUnit == 'a' || intervalTimeUnit == 'm' || intervalTimeUnit == 's' || intervalTimeUnit == 'h') {
+  if (slidingTimeUnit == 'a' || slidingTimeUnit == 'm' || slidingTimeUnit == 's' || slidingTimeUnit == 'h') {
     return (startTime / timeRange) * timeRange;
   } else {
     /*
@@ -95,11 +95,11 @@ void taosInterpoSetStartInfo(SInterpolationInfo* pInterpoInfo, int32_t numOfRawD
   pInterpoInfo->numOfRawDataInRows = numOfRawDataInRows;
 }
 
-TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int32_t timeInterval, int8_t intervalTimeUnit, int8_t precision) {
+TSKEY taosGetRevisedEndKey(TSKEY ekey, int32_t order, int32_t timeInterval, int8_t slidingTimeUnit, int8_t precision) {
   if (order == TSQL_SO_ASC) {
     return ekey;
   } else {
-    return taosGetIntervalStartTimestamp(ekey, timeInterval, intervalTimeUnit, precision);
+    return taosGetIntervalStartTimestamp(ekey, timeInterval, slidingTimeUnit, precision);
   }
 }
 

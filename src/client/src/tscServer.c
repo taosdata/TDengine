@@ -1680,7 +1680,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   pQueryMsg->intervalTime = htobe64(pQueryInfo->intervalTime);
-  pQueryMsg->intervalTimeUnit = pQueryInfo->intervalTimeUnit;
+  pQueryMsg->slidingTimeUnit = pQueryInfo->slidingTimeUnit;
   pQueryMsg->slidingTime = htobe64(pQueryInfo->slidingTime);
   
   if (pQueryInfo->intervalTime < 0) {

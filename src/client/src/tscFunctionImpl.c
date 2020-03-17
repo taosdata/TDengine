@@ -4400,7 +4400,7 @@ static double do_calc_rate(const SRateInfo* pRateInfo) {
     }
   }
 
-  double duration = (pRateInfo->lastKey - pRateInfo->firstKey) / 1000;
+  double duration = (pRateInfo->lastKey - pRateInfo->firstKey) / 1000.0;
   double resultVal = diff / duration;
 
   pTrace("do_calc_rate() isIRate:%d firstKey:%" PRId64 " lastKey:%" PRId64 " firstValue:%f lastValue:%f CorrectionValue:%f resultVal:%f", 

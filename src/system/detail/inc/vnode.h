@@ -261,7 +261,7 @@ typedef struct SQuery {
   TSKEY       ekey;
   int64_t     intervalTime;
   int64_t     slidingTime;       // sliding time for sliding window query
-  char        intervalTimeUnit;  // interval data type, used for daytime revise
+  char        slidingTimeUnit;  // interval data type, used for daytime revise
   int8_t      precision;
   int16_t     numOfOutputCols;
   int16_t     interpoType;

@@ -324,7 +324,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
   int64_t revisedSTime =
-      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, prec);
+      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, prec);
 
   SInterpolationInfo *pInterpoInfo = &pReducer->interpolationInfo;
   taosInitInterpoInfo(pInterpoInfo, pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
@@ -779,7 +779,7 @@ void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SQueryInfo 
 
   int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
   int64_t revisedSTime =
-      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, prec);
+      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, prec);
 
   taosInitInterpoInfo(pInterpoInfo, pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
                       pLocalReducer->rowSize);
@@ -923,7 +923,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
   while (1) {
     int32_t remains = taosNumOfRemainPoints(pInterpoInfo);
     TSKEY   etime = taosGetRevisedEndKey(actualETime, pQueryInfo->order.order, pQueryInfo->intervalTime,
-                                       pQueryInfo->intervalTimeUnit, precision);
+                                       pQueryInfo->slidingTimeUnit, precision);
     int32_t nrows = taosGetNumOfResultWithInterpo(pInterpoInfo, pPrimaryKeys, remains, pQueryInfo->intervalTime, etime,
                                                   pLocalReducer->resColModel->capacity);
 
@@ -1275,7 +1275,7 @@ static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalReducer 
   if (pQueryInfo->interpoType != TSDB_INTERPO_NONE) {
     int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
     int64_t newTime =
-        taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, precision);
+        taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, precision);
 
     taosInitInterpoInfo(&pLocalReducer->interpolationInfo, pQueryInfo->order.order, newTime,
                         pQueryInfo->groupbyExpr.numOfGroupCols, pLocalReducer->rowSize);
@@ -1305,7 +1305,7 @@ static bool doInterpolationForCurrentGroup(SSqlObj *pSql) {
 
     int32_t remain = taosNumOfRemainPoints(pInterpoInfo);
     TSKEY   ekey =
-        taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, p);
+        taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, p);
     int32_t rows = taosGetNumOfResultWithInterpo(pInterpoInfo, (TSKEY *)pLocalReducer->pBufForInterpo, remain,
                                                  pQueryInfo->intervalTime, ekey, pLocalReducer->resColModel->capacity);
     if (rows > 0) {  // do interpo
@@ -1338,7 +1338,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
       int64_t etime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->etime : pQueryInfo->stime;
 
       etime = taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->intervalTime,
-                                   pQueryInfo->intervalTimeUnit, precision);
+                                   pQueryInfo->slidingTimeUnit, precision);
       int32_t rows = taosGetNumOfResultWithInterpo(pInterpoInfo, NULL, 0, pQueryInfo->intervalTime, etime,
                                                    pLocalReducer->resColModel->capacity);
       if (rows > 0) {  // do interpo

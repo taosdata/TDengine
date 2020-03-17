@@ -598,9 +598,6 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
     pQueryInfo->intervalTime = pQueryInfo->intervalTime / 1000;
   }
 
-  /* parser has filter the illegal type, no need to check here */
-  pQueryInfo->intervalTimeUnit = pQuerySql->interval.z[pQuerySql->interval.n - 1];
-
   // interval cannot be less than 10 milliseconds
   if (pQueryInfo->intervalTime < tsMinIntervalTime) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg2);
@@ -689,10 +686,15 @@ int32_t parseSlidingClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
     if (pQueryInfo->slidingTime > pQueryInfo->intervalTime) {
       return invalidSqlErrMsg(pQueryInfo->msg, msg1);
     }
+  
+    pQueryInfo->slidingTimeUnit = pQuerySql->sliding.z[pQuerySql->sliding.n - 1];
   } else {
     pQueryInfo->slidingTime = pQueryInfo->intervalTime;
+  
+    // parser has filter the illegal type, no need to check here
+    pQueryInfo->slidingTimeUnit = pQuerySql->interval.z[pQuerySql->interval.n - 1];
   }
-
+  
   return TSDB_CODE_SUCCESS;
 }
 
