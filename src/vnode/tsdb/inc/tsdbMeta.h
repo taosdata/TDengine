@@ -35,7 +35,7 @@ extern "C" {
 
 // ---------- TSDB TABLE DEFINITION
 typedef struct STable {
-  TSDB_TABLE_TYPE type;
+  int8_t          type;
   STableId        tableId;
   int32_t         superUid;  // Super table UID
   int32_t         sversion;

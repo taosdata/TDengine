@@ -51,19 +51,21 @@ void      tdSetCol(STColumn *pCol, int8_t type, int16_t colId, int32_t bytes);
 // ----------------- TSDB SCHEMA DEFINITION
 typedef struct {
   int      numOfCols;  // Number of columns appended
-  int      totalCols;  // Total columns allocated
+  int      padding;  // Total columns allocated
   STColumn columns[];
 } STSchema;
 
 #define schemaNCols(s) ((s)->numOfCols)
-#define schemaTCols(s) ((s)->totalCols)
 #define schemaColAt(s, i) ((s)->columns + i)
 
 STSchema *tdNewSchema(int32_t nCols);
-int       tdSchemaAppendCol(STSchema *pSchema, int8_t type, int16_t colId, int16_t bytes);
+int       tdSchemaAppendCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes);
 STSchema *tdDupSchema(STSchema *pSchema);
 void      tdFreeSchema(STSchema *pSchema);
 void      tdUpdateSchema(STSchema *pSchema);
+int       tdGetSchemaEncodeSize(STSchema *pSchema);
+void *    tdEncodeSchema(void *dst, STSchema *pSchema);
+STSchema *tdDecodeSchema(void **psrc);
 
 // ----------------- Data row structure
 
@@ -98,33 +100,6 @@ void     tdFreeDataRow(SDataRow row);
 int      tdAppendColVal(SDataRow row, void *value, STColumn *pCol);
 void     tdDataRowReset(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
-
-/* Data rows definition, the format of it is like below:
- * +---------+-----------------------+--------+-----------------------+
- * | int32_t |                       |        |                       |
- * +---------+-----------------------+--------+-----------------------+
- * |   len   |        SDataRow       |  ....  |        SDataRow       |
- * +---------+-----------------------+--------+-----------------------+
- */
-typedef void *SDataRows;
-
-#define TD_DATA_ROWS_HEAD_LEN sizeof(int32_t)
-
-#define dataRowsLen(rs) (*(int32_t *)(rs))
-#define dataRowsSetLen(rs, l) (dataRowsLen(rs) = (l))
-#define dataRowsInit(rs) dataRowsSetLen(rs, sizeof(int32_t))
-
-void tdDataRowsAppendRow(SDataRows rows, SDataRow row);
-
-// Data rows iterator
-typedef struct {
-  int32_t totalLen;
-  int32_t len;
-  SDataRow row;
-} SDataRowsIter;
-
-void tdInitSDataRowsIter(SDataRows rows, SDataRowsIter *pIter);
-SDataRow tdDataRowsNext(SDataRowsIter *pIter);
 
 /* Data column definition
  * +---------+---------+-----------------------+

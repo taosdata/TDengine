@@ -459,7 +459,7 @@ SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter) {
   if (pIter->len >= pIter->totalLen) {
     pIter->pBlock = NULL;
   } else {
-    pIter->pBlock = (char *)pBlock + pBlock->len + sizeof(SSubmitBlk);
+    pIter->pBlock = (SSubmitBlk *)((char *)pBlock + pBlock->len + sizeof(SSubmitBlk));
   }
 
   return pBlock;

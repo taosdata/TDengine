@@ -82,6 +82,17 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
 
+#define T_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
+#define T_APPEND_MEMBER(dst, ptr, type, member) \
+do {\
+  memcpy((void *)(dst), (void *)(&((ptr)->member)), T_MEMBER_SIZE(type, member));\
+  dst = (void *)((char *)(dst) + T_MEMBER_SIZE(type, member));\
+} while(0)
+#define T_READ_MEMBER(src, type, target) \
+do { \
+  (target) = *(type *)(src); \
+  (src) = (void *)((char *)src + sizeof(type));\
+} while(0)
 
 #define TSDB_KEYSIZE              sizeof(TSKEY)
 

@@ -39,8 +39,21 @@ void *tsdbEncodeTable(STable *pTable, int *contLen) {
   void *ret = malloc(*contLen);
   if (ret == NULL) return NULL;
 
-  // TODO: encode the object to the memory
-  {}
+  void *ptr = ret;
+  T_APPEND_MEMBER(ptr, pTable, STable, type);
+  T_APPEND_MEMBER(ptr, &(pTable->tableId), STableId, uid);
+  T_APPEND_MEMBER(ptr, &(pTable->tableId), STableId, tid);
+  T_APPEND_MEMBER(ptr, pTable, STable, superUid);
+  T_APPEND_MEMBER(ptr, pTable, STable, sversion);
+
+  if (pTable->type == TSDB_SUPER_TABLE) {
+    ptr = tdEncodeSchema(ptr, pTable->schema);
+    ptr = tdEncodeSchema(ptr, pTable->tagSchema);
+  } else if (pTable->type == TSDB_CHILD_TABLE) {
+    dataRowCpy(ptr, pTable->tagVal);
+  } else {
+    ptr = tdEncodeSchema(ptr, pTable->schema);
+  }
 
   return ret;
 }
@@ -59,8 +72,20 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   STable *pTable = (STable *)calloc(1, sizeof(STable));
   if (pTable == NULL) return NULL;
 
-  {
-    // TODO recover from the binary content
+  void *ptr = cont;
+  T_READ_MEMBER(ptr, int8_t, pTable->type);
+  T_READ_MEMBER(ptr, int64_t, pTable->tableId.uid);
+  T_READ_MEMBER(ptr, int32_t, pTable->tableId.tid);
+  T_READ_MEMBER(ptr, int32_t, pTable->superUid);
+  T_READ_MEMBER(ptr, int32_t, pTable->sversion);
+
+  if (pTable->type = TSDB_SUPER_TABLE) {
+    pTable->schema = tdDecodeSchema(&ptr);
+    pTable->tagSchema = tdDecodeSchema(&ptr);
+  } else if (pTable->type == TSDB_CHILD_TABLE) {
+    pTable->tagVal = tdDataRowDup(ptr);
+  } else {
+    pTable->schema = tdDecodeSchema(&ptr);
   }
 
   return pTable;
@@ -318,8 +343,22 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
 }
 
 static int tsdbEstimateTableEncodeSize(STable *pTable) {
-  // TODO
-  return 0;
+  int size = 0;
+  size += T_MEMBER_SIZE(STable, type);
+  size += T_MEMBER_SIZE(STable, tableId);
+  size += T_MEMBER_SIZE(STable, superUid);
+  size += T_MEMBER_SIZE(STable, sversion);
+
+  if (pTable->type == TSDB_SUPER_TABLE) {
+    size += tdGetSchemaEncodeSize(pTable->schema);
+    size += tdGetSchemaEncodeSize(pTable->tagSchema);
+  } else if (pTable->type == TSDB_CHILD_TABLE) {
+    size += dataRowLen(pTable->tagVal);
+  } else {
+    size += tdGetSchemaEncodeSize(pTable->schema);
+  }
+
+  return size;
 }
 
 static char *getTupleKey(const void * data) {

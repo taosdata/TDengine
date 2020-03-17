@@ -19,6 +19,8 @@
 #include "hash.h"
 #include "tsdbMetaFile.h"
 
+#define TSDB_META_FILE_VERSION_MAJOR 1
+#define TSDB_META_FILE_VERSION_MINOR 0
 #define TSDB_META_FILE_HEADER_SIZE 512
 
 typedef struct {
@@ -182,6 +184,10 @@ static int32_t tsdbCheckMetaHeader(int fd) {
 
 static int32_t tsdbWriteMetaHeader(int fd) {
   // TODO: write the meta file header to file
+  char head[TSDB_META_FILE_HEADER_SIZE] = "\0";
+  sprintf(head, "version: %d.%d", TSDB_META_FILE_VERSION_MAJOR, TSDB_META_FILE_VERSION_MINOR);
+
+  write(fd, (void *)head, TSDB_META_FILE_HEADER_SIZE);
   return 0;
 }
 
