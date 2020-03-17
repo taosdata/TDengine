@@ -137,6 +137,7 @@ fi
 cd ${install_dir}
 tar -zcv -f ${DB_CLIENT_NAME}.tar.gz * --remove-files  || :
 exitcode=$?
+echo "tar return code: ${exitcode}"
 if [ "$exitcode" != "0" ]; then
     echo "tar ${DB_CLIENT_NAME}.tar.gz error !!!"
     exit $exitcode
@@ -173,7 +174,8 @@ fi
 if [ "$verMode" == "cluster" ]; then
   mkdir -p ${install_dir}/examples/ODBC
   odbc_dir="${top_dir}/../enterprise/tests/examples/ODBC"
-  cp -r ${odbc_dir}/testodbc.c   ${install_dir}/examples/ODBC  
+  cp -r ${odbc_dir}/testodbc.c   ${install_dir}/examples/ODBC 
+  cp -r ${odbc_dir}/makefile     ${install_dir}/examples/ODBC 
 fi
 
 # Copy driver
