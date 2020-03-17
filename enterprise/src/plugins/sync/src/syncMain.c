@@ -614,6 +614,11 @@ static void syncSyncWithMaster(void *param, void *tmrId)
     return;
   }
 
+  if (pPeer->role != TAOS_SYNC_ROLE_MASTER) {
+    dPrint("%s peer:%s, not master anymore", pNode->label, pPeer->ipstr);
+    return;
+  }
+
   dTrace("%s peer:%s, try to sync", pNode->label, pPeer->ipstr)
 
   SSyncHead firstPkt;
