@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-#define TAOS_SYNC_NAME_LEN    128 
 #define TAOS_SYNC_MAX_REPLICA 5
 
 #define TAOS_QTYPE_RPC      0
@@ -46,14 +45,14 @@ typedef struct {
   int8_t    reserved[3];
   int32_t   len;
   uint64_t  version;
-  uint32_t  cksum;
+  uint64_t  cksum;
   char      cont[];
 } SWalHead;
 
 typedef struct {
   uint32_t  nodeId;    // node ID assigned by TDengine
   uint32_t  nodeIp;    // node IP address
-  char      name[TAOS_SYNC_NAME_LEN];  // external node name 
+  char      name[TSDB_FILENAME_LEN]; // external node name 
 } SNodeInfo;
 
 typedef struct {
@@ -77,7 +76,7 @@ typedef struct {
   uint32_t   (*getFileInfo)(char *name, int *index, int *size); 
 
   // get the wal file from index or after
-  // return value, -1: error, 1:more wal files, 0: last WAL, or no WAL if name[0] == 0
+  // return value, -1: error, 1:more wal files, 0:last WAL, or no WAL if name[0] == 0
   int        (*getWalInfo)(char *name, int *index); 
 
   int        (*writeToCache)(void *ahandle, SWalHead *, int type);
@@ -97,6 +96,12 @@ void    syncRecover(tsync_h );      // recover from other nodes:
 int     syncGetNodesRole(tsync_h, SNodesRole *);
 
 extern  char *syncRole[];
+
+extern  int   tsMaxSyncNum;
+extern  int   tsSyncTcpThreads;
+extern  int   tsMaxWatchFiles;
+extern  short tsSyncPort;
+
 
 #ifdef __cplusplus
 }

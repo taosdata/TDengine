@@ -26,11 +26,11 @@
 static int syncRestoreFile(SSyncPeer *pPeer) 
 {
   SSyncNode *pNode = pPeer->pSyncNode;
-  SFileInfo  minfo; // master file info
-  SFileInfo  sinfo; // slave file info
+  SFileInfo  minfo;   // master file info
+  SFileInfo  sinfo;   // slave file info
   SFileAck   fileAck;
   int        code = -1;
-  char       name[256];
+  char       name[TSDB_FILENAME_LEN];
 
   while (1) {
     // read file info
@@ -38,7 +38,11 @@ static int syncRestoreFile(SSyncPeer *pPeer)
     if (ret < 0 ) break;
 
     // if no more file, break;
-    if (minfo.name[0] == 0) {code = 0; break;}
+    if (minfo.name[0] == 0 || minfo.magic == 0) {
+      dTrace("%s peer:%s, no more files to restore", pNode->label, pPeer->ipstr);
+      code = 0; 
+      break;
+    }
    
     fileAck.sync = 0;
     //minfo.index = htonl(minfo.index);
@@ -63,8 +67,10 @@ static int syncRestoreFile(SSyncPeer *pPeer)
       continue;
     }
 
-    // if sync is requred, open file, receive from master, and write to file
+    // if sync is required, open file, receive from master, and write to file
+    // get the full path to file
     sprintf(name, "%s/%s", pNode->path, minfo.name);
+
     int dfd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
     if ( dfd < 0 ) {
       dError("%s peer:%s, failed to open file:%s", pNode->label, pPeer->ipstr, name);
@@ -78,8 +84,8 @@ static int syncRestoreFile(SSyncPeer *pPeer)
     dTrace("%s peer:%s, %s is received, size:%d", pNode->label, pPeer->ipstr, minfo.name, minfo.size);
   }
 
-  if (code<0) {
-    dError("%s peer:%s, failed to recv %s(%s)", pNode->label, pPeer->ipstr, minfo.name, strerror(errno));
+  if (code < 0) {
+    dError("%s peer:%s, failed to restore %s(%s)", pNode->label, pPeer->ipstr, name, strerror(errno));
   }
 
   return code;
@@ -90,9 +96,10 @@ static int syncRestoreWal(SSyncPeer *pPeer)
   SSyncNode  *pNode = pPeer->pSyncNode;
   int         ret, code = -1;
 
-  void *buffer = malloc(1024000);
+  void *buffer = malloc(1024000);  // size for one record
   if (buffer == NULL) return -1;
-  SWalHead   *pHead = (SWalHead *)buffer;
+
+  SWalHead *pHead = (SWalHead *)buffer;
 
   while (1) {
     ret = taosReadMsg(pPeer->syncFd, pHead, sizeof(SWalHead));
@@ -103,62 +110,73 @@ static int syncRestoreWal(SSyncPeer *pPeer)
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
     if (ret <0)  break;
 
+    dTrace("%s peer:%s, restore a record, ver:%d", pNode->label, pPeer->ipstr, pHead->version);
     (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL);
   }
 
   if (code<0) {
-    dError("%s peer:%s, failed to read WAL(%s)", pNode->label, pPeer->ipstr, strerror(errno));
+    dError("%s peer:%s, failed to restore wal(%s)", pNode->label, pPeer->ipstr, strerror(errno));
   }
 
   free(buffer);
   return code;
 }
 
-static char *syncProcessOneBufferedFwd(SSyncNode *pNode, char *offset)
+static char *syncProcessOneBufferedFwd(SSyncPeer *pPeer, char *offset)
 {
-  SWalHead *pHead = (SWalHead *) offset;
+  SSyncNode *pNode = pPeer->pSyncNode;
+  SWalHead  *pHead = (SWalHead *) offset;
 
   (*pNode->writeToCache)(pNode->ahandle, pHead, TAOS_QTYPE_WAL);
-  offset += pHead->len + sizeof(SSyncHead);
+  offset += pHead->len + sizeof(SWalHead);
 
   return offset;
 }
 
-static int syncProcessBufferedFwd(SSyncNode *pNode)
+static int syncProcessBufferedFwd(SSyncPeer *pPeer)
 {
+  SSyncNode   *pNode = pPeer->pSyncNode;
   SRecvBuffer *pRecv = pNode->pRecv;
   int          forwards = 0;
-  char        *offset = NULL;
 
-  offset = pRecv->buffer;
+  dTrace("%s peer:%s, number of buffered forwards:%d", pNode->label, pPeer->ipstr, pRecv->forwards);
+
+  char *offset = pRecv->buffer;
   while (forwards < pRecv->forwards) {
-    offset = syncProcessOneBufferedFwd(pNode, offset);
+    offset = syncProcessOneBufferedFwd(pPeer, offset);
     forwards++;
   }
   
   pthread_mutex_lock(&pNode->mutex);
 
   while (forwards < pRecv->forwards && pRecv->code == 0) {
-    offset = syncProcessOneBufferedFwd(pNode, offset);
+    offset = syncProcessOneBufferedFwd(pPeer, offset);
     forwards++;
   }
+
+  nodeRole = TAOS_SYNC_ROLE_SLAVE;
+  dTrace("%s peer:%s, finish processing buffered fwds:%d", pNode->label, pPeer->ipstr, forwards);
 
   pthread_mutex_unlock(&pNode->mutex);
 
   return pRecv->code;
 }
 
-int syncSaveIntoBuffer(SRecvBuffer *pRecv, SWalHead *pHead)
-{
-  int contLen = pHead->len;
+int syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead)
+{ 
+  SSyncNode   *pNode = pPeer->pSyncNode;
+  SRecvBuffer *pRecv = pNode->pRecv;
 
-  if (pRecv->bufferSize - (pRecv->offset - pRecv->buffer) > contLen + 100) {
-    memcpy(pRecv->offset, pHead, sizeof(SWalHead));
-    pRecv->offset += sizeof(SWalHead);
-    memcpy(pRecv->offset, pHead->cont, contLen);
-    pRecv->offset += contLen;
+  int len = pHead->len + sizeof(SWalHead);
+
+  if (pRecv->bufferSize - (pRecv->offset - pRecv->buffer) >= len) {
+    memcpy(pRecv->offset, pHead, len);
+    pRecv->offset += len;
     pRecv->forwards++;
+    dTrace("%s peer:%s, fwd is saved into queue, ver:%d fwds:%d", 
+           pNode->label, pPeer->ipstr, pHead->version, pRecv->forwards);
   } else {
+    dError("%s peer:%s, buffer size:%d is too small", pRecv->bufferSize); 
     pRecv->code = -1;  // set error code
   }
 
@@ -179,7 +197,7 @@ static int syncOpenRecvBuffer(SSyncNode *pNode)
   SRecvBuffer *pRecv = calloc(sizeof(SRecvBuffer), 1);
   if (pRecv == NULL) return -1;
 
-  pRecv->bufferSize = 1024000;
+  pRecv->bufferSize = 5000000;
   pRecv->buffer = malloc(pRecv->bufferSize);
   if (pRecv->buffer == NULL) return -1;
 
@@ -194,7 +212,7 @@ static int syncOpenRecvBuffer(SSyncNode *pNode)
 static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
 {
   SSyncNode *pNode = pPeer->pSyncNode;
-  pNodeSStatus = TAOS_SYNC_STATUS_FILE;
+  nodeSStatus = TAOS_SYNC_STATUS_FILE;
 
   dTrace("%s peer:%s, start to restore file", pNode->label, pPeer->ipstr);
   if (syncRestoreFile(pPeer) < 0) {
@@ -202,15 +220,15 @@ static int syncRestoreDataStepByStep(SSyncPeer *pPeer)
     return -1;
   }
 
-  dTrace("%s peer:%s, start to restore WAL", pNode->label, pPeer->ipstr);
+  dTrace("%s peer:%s, start to restore wal", pNode->label, pPeer->ipstr);
   if (syncRestoreWal(pPeer) < 0) {
-    dError("%s peer:%s, failed to restore WAL", pNode->label, pPeer->ipstr);
+    dError("%s peer:%s, failed to restore wal", pNode->label, pPeer->ipstr);
     return -1;
   }
 
-  pNodeSStatus = TAOS_SYNC_STATUS_CACHE;
+  nodeSStatus = TAOS_SYNC_STATUS_CACHE;
   dTrace("%s peer:%s, start to insert buffered points", pNode->label, pPeer->ipstr);
-  if (syncProcessBufferedFwd(pNode) < 0) {
+  if (syncProcessBufferedFwd(pPeer) < 0) {
     dError("%s peer:%s, failed to insert buffered points", pNode->label, pPeer->ipstr);
     return -1;
   }
@@ -234,16 +252,16 @@ void *syncRestoreData(void *param)
 
   if ( syncRestoreDataStepByStep(pPeer) == 0) {
     dPrint("%s peer:%s, it is synced successfully", pNode->label, pPeer->ipstr);
-    pNodeRole = TAOS_SYNC_ROLE_SLAVE;
-    syncBroadcastRoleVersion(pNode);
-    (*pNode->notifyRole)(pNode->ahandle, pNodeRole);
+    nodeRole = TAOS_SYNC_ROLE_SLAVE;
+    syncBroadcastStatus(pNode);
+    (*pNode->notifyRole)(pNode->ahandle, nodeRole);
   } else {
     dError("%s peer:%s, failed to restore data, restart connection", pNode->label, pPeer->ipstr);
-    pNodeRole = TAOS_SYNC_ROLE_UNSYNCED;
+    nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
     syncRestartConnection(pPeer);
   }
 
-  pNodeSStatus = TAOS_SYNC_STATUS_INIT;
+  nodeSStatus = TAOS_SYNC_STATUS_INIT;
   tclose(pPeer->syncFd)
   syncCloseRecvBuffer(pNode->pRecv);
 

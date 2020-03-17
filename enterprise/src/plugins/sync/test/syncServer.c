@@ -26,46 +26,62 @@ int commit = 0;
 int dataFd = -1;
 void *qhandle = NULL;
 int walNum = 0;
-int64_t  tversion = 0;
+uint64_t  tversion = 0;
 void *syncHandle;
 int   role;
 int  nodeId;
 extern uint32_t  tsPrivateIpv4;
 char localIp[40] = "0.0.0.0";
 char path[256];
+int  numOfWrites ;
 
 int writeIntoWal(SWalHead *pHead)
-{
+{ 
   if (dataFd < 0) {
     char  walName[64];
-    sprintf(walName, "d%d/wal/wal.%d", nodeId, walNum);
-    dataFd = open(walName, O_APPEND | O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);  
-    if (dataFd<0) 
-      tPrint("failed to open wal file, reason:%s", strerror(errno));
-    return -1;
+    sprintf(walName, "%s/wal/wal.%d", path, walNum);
+    remove(walName);
+    dataFd = open(walName, O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);  
+    if (dataFd < 0) { 
+      dPrint("failed to open wal file:%s(%s)", walName, strerror(errno));
+      return -1;
+    } else {
+      walNum++;
+      dPrint("file:%s is opened to write, walNum:%d", walName, walNum);
+    }
   }
   
   if ( write(dataFd, pHead, sizeof(SWalHead)+pHead->len) <0 ) {
-    tPrint("failed to write wal file, reason:%s", strerror(errno));
+    dError("ver:%d, failed to write wal file(%s)", pHead->version, strerror(errno));
+  } else {
+    dTrace("ver:%d, written to wal", pHead->version);
   }
 
+  numOfWrites++;
+  if (numOfWrites >= 10000) {
+    tPrint("%d request have been written into disk", numOfWrites);
+    close(dataFd);
+    dataFd = -1;
+    numOfWrites = 0;
+  }
+ 
   return 0;
 }
 
 int processRpcMsg(void *item) {
   SRpcMsg   *pMsg = (SRpcMsg *)item;
-  SWalHead  *pHead = (SWalHead *)(((char *)pMsg) - sizeof(SWalHead));
-  SRpcMsg    rpcMsg;
+  SWalHead  *pHead = (SWalHead *)(((char *)pMsg->pCont) - sizeof(SWalHead));
   int        code = -1;
 
   if ( role != TAOS_SYNC_ROLE_MASTER) {
-    tError("not master, write fialed", syncRole[role]);
+    dError("not master, write failed", syncRole[role]);
   } else {
 
     pHead->version = ++tversion;
     pHead->msgType = pMsg->msgType;
     pHead->len = pMsg->contLen;
  
+    dTrace("verion:%d, pkt from client processed", pHead->version);
     writeIntoWal(pHead); 
     syncForwardToPeer(syncHandle, pHead, NULL);
 
@@ -74,10 +90,12 @@ int processRpcMsg(void *item) {
     code = 0;
   }
 
-  rpcFreeCont(rpcMsg.pCont);
+  rpcFreeCont(pMsg->pCont);
+
+  SRpcMsg    rpcMsg;
   rpcMsg.pCont = rpcMallocCont(msgSize);
   rpcMsg.contLen = msgSize;
-  rpcMsg.handle = rpcMsg.handle;
+  rpcMsg.handle = pMsg->handle;
   rpcMsg.code = code;
   rpcSendResponse(&rpcMsg);
 
@@ -89,11 +107,13 @@ int processFwdMsg(void *item) {
   SWalHead *pHead = (SWalHead *)item;
    
   if (pHead->version <= tversion) {
-    tError("version:%d from forward is even higher than local:%d", pHead->version, tversion);
+    dError("ver:%d, forward is even lower than local:%d", pHead->version, tversion);
     return -1;
   };
 
+  dTrace("ver:%d, forward from peer is received", pHead->version);
   writeIntoWal(pHead);
+  tversion = pHead->version;
 
   // write into cache
 
@@ -103,7 +123,7 @@ int processFwdMsg(void *item) {
   }
 */
 
-  return 1;
+  return 0;
 }
 
 int processWalMsg(void *item) {
@@ -111,11 +131,13 @@ int processWalMsg(void *item) {
   SWalHead *pHead = (SWalHead *)item;
    
   if (pHead->version <= tversion) {
-    tError("version:%d from wal is even higher than local:%d", pHead->version, tversion);
+    dError("ver:%d, wal is even lower than local:%d", pHead->version, tversion);
     return -1;
   };
 
+  dTrace("ver:%d, wal from peer is received", pHead->version);
   writeIntoWal(pHead);
+  tversion = pHead->version;
 
   // write into cache
 
@@ -125,11 +147,10 @@ int processWalMsg(void *item) {
   }
 */
 
-  return 1;
+  return 0;
 }
 
 void *processWriteQueue(void *param) {
-  static int num = 0;
   taos_qall  qall;
   int        type;
   void      *item;
@@ -141,30 +162,18 @@ void *processWriteQueue(void *param) {
       continue;
     }     
 
-    tTrace("%d msgs are received", numOfMsgs);
-    int numOfWrites = 0;
-
     for (int i=0; i<numOfMsgs; ++i) {
       taosGetQitem(qall, &type, &item);
 
       if (type == TAOS_QTYPE_RPC) {
-        if (processRpcMsg(item) > 0) numOfWrites++;
+        processRpcMsg(item);
       } else if (type == TAOS_QTYPE_WAL) {
-        if ( processWalMsg(item) > 0) numOfWrites++;
+        processWalMsg(item);
       } else if (type == TAOS_QTYPE_FWD) {
-        if ( processFwdMsg(item) >0) numOfWrites++;
+        processFwdMsg(item);
       }
     } 
 
-    num += numOfWrites;
-    if (num > 100000) {
-      tPrint("%d request have been written into disk", num);
-      close(dataFd);
-      dataFd = -1;
-      walNum++;
-      num = 0;
-    }
- 
     taosFreeQitems(qall);
   }
 
@@ -192,13 +201,13 @@ int retrieveAuthInfo(char *meterId, char *spi, char *encrypt, char *secret, char
 }
 
 void processRequestMsg(SRpcMsg *pMsg) {
-  tTrace("request is received, type:%d, contLen:%d", pMsg->msgType, pMsg->contLen);
   
   SRpcMsg *pTemp;
 
   pTemp = taosAllocateQitem(sizeof(SRpcMsg));
-  *pTemp = *pMsg;
+  memcpy(pTemp, pMsg, sizeof(SRpcMsg));
   
+  tTrace("request is received, type:%d, len:%d", pMsg->msgType, pMsg->contLen);
   taosWriteQitem(qhandle, TAOS_QTYPE_RPC, pTemp); 
 }
 
@@ -207,6 +216,11 @@ uint32_t getFileInfo(char *name, int *index, int *size)
   uint32_t     magic;
   struct stat  fstat;
   char         aname[256];
+
+  if (*index == 2) {
+    dPrint("wait for a while .....");
+    sleep(3);
+  }
 
   if (name[0] == 0) {
     // find the file 
@@ -230,17 +244,13 @@ int  getWalInfo(char *name, int *index) {
   struct stat  fstat;
   char         aname[256];
 
-  if (*index >= walNum -1) return 0;
+  name[0] = 0;
+  if (*index > walNum -1) return 0;
 
-  if (name[0] == 0) {
-    // find the file 
-    sprintf(aname, "%s/wal/wal.%d", path, *index);
-    sprintf(name, "data/wal.%d", *index); 
-  } else {
-    sprintf(aname, "%s/%s", path, name);
-  }
-
+  sprintf(aname, "%s/wal/wal.%d", path, *index);
+  sprintf(name, "wal/wal.%d", *index); 
   dPrint("get wal info:%s", aname);
+
   if ( stat(aname, &fstat) < 0 ) return -1;
 
   if (*index >= walNum-1) return 0;  // no more
@@ -251,7 +261,7 @@ int  getWalInfo(char *name, int *index) {
 
 int writeToCache(void *ahandle, SWalHead *pHead, int type) {
 
-  tTrace("forward is received, type:%d, contLen:%d", pHead->msgType, pHead->len);
+  dTrace("pkt from peer is received, ver:%d len:%d type:%d", pHead->version, pHead->len, type);
 
   int   msgSize = pHead->len + sizeof(SWalHead);
   void *pMsg = taosAllocateQitem(msgSize);
@@ -306,7 +316,7 @@ void doSync()
       nodeId = syncInfo.nodeInfo[i].nodeId;
   }
 
-  sprintf(path, "~/test/d%d", nodeId);
+  sprintf(path, "/home/jhtao/test/d%d", nodeId);
   strcpy(syncInfo.path, path);
 
   if ( syncHandle == NULL) {
@@ -374,9 +384,8 @@ int main(int argc, char *argv[]) {
  
   uDebugFlag = rpcDebugFlag;
   ddebugFlag = rpcDebugFlag; 
-  tmrDebugFlag = rpcDebugFlag; 
   tsAsyncLog = 0;
-  taosInitLog("server.log", 100000, 10);
+  taosInitLog("server.log", 1000000, 10);
 
   rpcInit.connType = TAOS_CONN_SERVER;
   void *pRpc = rpcOpen(&rpcInit);
@@ -389,9 +398,7 @@ int main(int argc, char *argv[]) {
 
   qhandle = taosOpenQueue();
 
-  tsPrivateIpv4 = inet_addr(localIp);
   strcpy(tsPrivateIp, localIp);
- 
   doSync();
 
   pthread_attr_t thattr;

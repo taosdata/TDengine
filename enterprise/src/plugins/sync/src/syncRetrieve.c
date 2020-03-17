@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/inotify.h>
+#include <unistd.h>
 #include "os.h"
 #include "tlog.h"
 #include "tutil.h"
@@ -92,22 +93,21 @@ static int syncAreFilesModified(SSyncPeer *pPeer)
 static int syncRetrieveFile(SSyncPeer *pPeer)
 {
   SSyncNode  *pNode = pPeer->pSyncNode;
-  int32_t     size, ret;
   SFileInfo   fileInfo;
   SFileAck    fileAck;
   int         code = -1;
-  char        name[256];
+  char        name[TSDB_FILENAME_LEN];
 
   fileInfo.index = 0;
 
   while (1) {
     // retrieve file info
     fileInfo.name[0] = 0;
-    fileInfo.magic = (*pNode->getFileInfo)(fileInfo.name, &fileInfo.index, &size);   
+    fileInfo.magic = (*pNode->getFileInfo)(fileInfo.name, &fileInfo.index, &fileInfo.size);   
     //fileInfo.size = htonl(size);
 
     // send the file info
-    ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(fileInfo));
+    int32_t ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(fileInfo));
     if (ret < 0 ) break;
 
     // if no file anymore, break
@@ -120,8 +120,11 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     ret = taosReadMsg(pPeer->syncFd, &(fileAck), sizeof(fileAck));
     if (ret <0)  break;
 
+    // get the full path to file
+    sprintf(name, "%s/%s", pNode->path, fileInfo.name);
+    
     // add the file into watch list
-    if ( syncAddIntoWatchList(pPeer, fileInfo.name) <0) break;
+    if ( syncAddIntoWatchList(pPeer, name) <0) break;
 
     // if sync is not required, continue
     if (fileAck.sync == 0) {
@@ -131,15 +134,14 @@ static int syncRetrieveFile(SSyncPeer *pPeer)
     }
 
     // send the file to peer
-    sprintf(name, "%s/%s", pNode->path, fileInfo.name);
     int sfd = open(name, O_RDONLY);
     if ( sfd < 0 ) break;
 
-    ret = tsendfile(pPeer->syncFd, sfd, NULL, size); 
+    ret = tsendfile(pPeer->syncFd, sfd, NULL, fileInfo.size); 
     close(sfd); 
     if (ret <0) break;
 
-    dTrace("%s peer:%s, %s is sent, size:%d", pNode->label, pPeer->ipstr, name, size);    
+    dTrace("%s peer:%s, %s is sent, size:%d", pNode->label, pPeer->ipstr, name, fileInfo.size);    
     fileInfo.index++; 
 
     // check if processed files are modified 
@@ -198,7 +200,7 @@ static int syncMonitorLastWal(SSyncPeer *pPeer, char *name)
  
   *wd = inotify_add_watch(pPeer->notifyFd, name, IN_MODIFY | IN_CLOSE_WRITE);
   if (*wd == -1) {
-    dError("%s peer:%s, failed to watch last WAL(%s)", pNode->label, pPeer->ipstr, strerror(errno));
+    dError("%s peer:%s, failed to watch last wal(%s)", pNode->label, pPeer->ipstr, strerror(errno));
     return -1;
   }
 
@@ -225,27 +227,34 @@ static uint32_t syncCheckLastWalChanges(SSyncPeer *pPeer, uint32_t *pEvent)
     if (event->mask & IN_CLOSE_WRITE) *pEvent = *pEvent | IN_CLOSE_WRITE;
   }
 
+  if (pEvent != 0)
+    dTrace("%s peer:%s, last wal event:0x%x", pNode->label, pPeer->ipstr, *pEvent);
+
   return 0;
 }
 
 static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, int fversion, int32_t offset, uint32_t *pEvent) 
 {
-  SWalHead *pHead = (SWalHead *) malloc(640000);
-  int       code = -1;
-  int32_t   bytes = 0;
-  int       sfd;
+  SSyncNode *pNode = pPeer->pSyncNode;
+  SWalHead  *pHead = (SWalHead *) malloc(640000);
+  int        code = -1;
+  int32_t    bytes = 0;
+  int        sfd;
 
   sfd = open(name, O_RDONLY);
   if (sfd < 0) return -1;
   lseek(sfd, offset, SEEK_SET);
+  dTrace("%s peer:%s, retrieve last wal, offset:%d", pNode->label, pPeer->ipstr, offset);
 
   while (1) {
     int wsize = syncReadOneWalRecord(sfd, pHead, pEvent); 
     if (wsize <0) break;
     if (wsize == 0) { code = 0; break; }
 
+    dTrace("%s peer:%s, last wal is forwarded, ver:%d ", pNode->label, pPeer->ipstr, pHead->version);
     int ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
     if ( ret != wsize ) break;
+    pPeer->version = pHead->version;
 
     bytes += wsize;
  
@@ -263,48 +272,71 @@ static int syncRetrieveLastWal(SSyncPeer *pPeer, char *name, int fversion, int32
   return -1;
 }
 
-static int syncProcessLastWal(SSyncPeer *pPeer, char *name, int index) 
+static int syncProcessLastWal(SSyncPeer *pPeer, char *wname, int index) 
 {
   SSyncNode  *pNode = pPeer->pSyncNode;
   int         code = -1;
+  char        fname[TSDB_FILENAME_LEN];  // full path to wal file
 
   if (syncAreFilesModified(pPeer) != 0) return -1;
 
   while (1) {
-    int      updated = 0;
+    int32_t  once = 0; // last WAL has once ever been processed 
     int32_t  offset = 0;
     uint64_t fversion = 0;
     uint32_t event = 0;
 
-    if (syncMonitorLastWal(pPeer, name) <0) break;
+    // get full path to wal file
+    sprintf(fname, "%s/%s", pNode->path, wname);
+    dTrace("%s peer:%s, start to retrieve last wal:%s", pNode->label, pPeer->ipstr, fname);
+
+    // monitor last wal
+    if (syncMonitorLastWal(pPeer, fname) <0) break;
 
     while (1) {
-      int32_t bytes = syncRetrieveLastWal(pPeer, name, fversion, offset, &event);
+      int32_t bytes = syncRetrieveLastWal(pPeer, fname, fversion, offset, &event);
       if (bytes < 0) break;
-      if (bytes == 0 && event == 0) {code = 0; break;}  // reached fversion
 
+      // check file changes
       if (syncCheckLastWalChanges(pPeer, &event) <0) break;
-      if ((event & IN_MODIFY) == 0) {code = 0; break;}  // no changes
 
-      // wal is updated, but for first update, don't set fversion, read more records from WAL
-      // but for second update, set fversion, read WAL data only to fversion
-      if (updated) {  
-        pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;  // start to forward pkt
-        fversion = pNodeVersion;    // must read data to fvsersion
+      // if file is not updated or updated once, set the fversion and sstatus
+      if (((event & IN_MODIFY) == 0) || once) {
+        if (fversion == 0) {
+          pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;  // start to forward pkt
+          fversion = nodeVersion;    // must read data to fversion
+        }
       }
 
-      updated = 1;
-      offset += bytes;  
-      event = event | (~IN_MODIFY); 
+      // if all data up to fversion is read out, it is over
+      if (pPeer->version == fversion) {code = 0; break;}  
+
+      // if all data are read out, and no update
+      if ((bytes == 0) && ((event & IN_MODIFY) == 0)) {
+        // wal file is closed, break
+        if (event & IN_CLOSE_WRITE) { code = 0; break;}
+ 
+        // wal not closed, it means some data not flushed to disk, wait for a while
+        usleep(10000);
+      }
+
+      // if bytes>0, file is updated, or fversion is not reached but file still open, read again 
+      once = 1;
+      offset += bytes; 
+      dTrace("%s peer:%s, retrieve last wal, bytes:%d", pNode->label, pPeer->ipstr, bytes);
+      event = event & (~IN_MODIFY); // clear IN_MODIFY flag 
     }
 
     if (code < 0) break;
-    if ((event & IN_CLOSE_WRITE) == 0) {code = 0; break;} 
+    if (pPeer->version == fversion) break;  
 
-    // wal is closed, open a new one
-    index++;
-    code = (*pNode->getWalInfo)(name, &index);
+    index++;  wname[0] = 0;
+    code = (*pNode->getWalInfo)(wname, &index);
     if ( code < 0) break;  
+    if ( wname[0] == 0 ) {code = 0; break;}
+
+    // current last wal is closed, there is a new one 
+    dTrace("%s peer:%s, last wal is closed, try new one", pNode->label, pPeer->ipstr);
   }
 
   tclose(pPeer->notifyFd);
@@ -315,40 +347,47 @@ static int syncProcessLastWal(SSyncPeer *pPeer, char *name, int index)
 static int syncRetrieveWal(SSyncPeer *pPeer)
 {
   SSyncNode  *pNode = pPeer->pSyncNode;
-  char        name[TSDB_FILENAME_LEN];
+  char        fname[TSDB_FILENAME_LEN];
+  char        wname[TSDB_FILENAME_LEN];
   int32_t     size;
   struct stat fstat;
   int         code = -1;
   int         index = 0;
-  int         last;
 
   while (1) {
     // retrieve wal info
-    name[0] = 0;
-    code = (*pNode->getWalInfo)(name, &index);   
-    if (name[0] == 0) break;
-    if (code < 0) break;
-    if (code == 0) {
-      code = syncProcessLastWal(pPeer, name, index);
+    wname[0] = 0;
+    code = (*pNode->getWalInfo)(wname, &index);   
+    if (code < 0) break;  // error
+    if (wname[0] == 0) {  // no wal file
+      dTrace("%s peer:%s, no wal file", pNode->label, pPeer->ipstr);
+      break;
+    }    
+      
+    if (code == 0) {   // last wal 
+      code = syncProcessLastWal(pPeer, wname, index);
       break;
     }
 
-    // send WAL file, 
-    // inotify is not required, old WAL file won't be modified, even remove is ok
-    if ( stat(name, &fstat) < 0 ) break;
+    // get the full path to wal file
+    sprintf(fname, "%s/%s", pNode->path, wname);
+
+    // send wal file, 
+    // inotify is not required, old wal file won't be modified, even remove is ok
+    if ( stat(fname, &fstat) < 0 ) break;
     size = fstat.st_size;
 
-    int sfd = open(name, O_RDONLY);
+    dTrace("%s peer:%s, retrieve wal:%s size:%d", pNode->label, pPeer->ipstr, fname, size);    
+    int sfd = open(fname, O_RDONLY);
     if (sfd < 0) break;
 
     code = tsendfile(pPeer->syncFd, sfd, NULL, size); 
     close(sfd); 
     if (code <0) break;
 
-    dTrace("%s peer:%s, wal:%s is sent, size:%d", pNode->label, pPeer->ipstr, name, size);    
     index++; 
 
-    if ( syncAreFilesModified(pPeer) != 0) break; 
+    if (syncAreFilesModified(pPeer) != 0) break; 
   }
 
   if (code == 0) {
@@ -358,7 +397,7 @@ static int syncRetrieveWal(SSyncPeer *pPeer)
     memset(&walHead, 0, sizeof(walHead));
     code = taosWriteMsg(pPeer->syncFd, &walHead, sizeof(walHead));
   } else {
-    dError("%s peer:%s, failed to send WAL(%s)", pNode->label, pPeer->ipstr, strerror(errno));
+    dError("%s peer:%s, failed to send wal(%s)", pNode->label, pPeer->ipstr, strerror(errno));
   }
 
   return code;
@@ -378,6 +417,7 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
     return -1;
   }
 
+  pPeer->version = 0;  
   pPeer->sstatus = TAOS_SYNC_STATUS_FILE;
   dTrace("%s peer:%s, start to retrieve file", pNode->label, pPeer->ipstr);
   if (syncRetrieveFile(pPeer) < 0) {
@@ -385,13 +425,11 @@ static int syncRetrieveDataStepByStep(SSyncPeer *pPeer)
     return -1;
   }
 
-  dTrace("%s peer:%s, start to retrieve WAL", pNode->label, pPeer->ipstr);
+  dTrace("%s peer:%s, start to retrieve wal", pNode->label, pPeer->ipstr);
   if (syncRetrieveWal(pPeer) < 0) {
-    dError("%s peer:%s, failed to retrieve WAL", pNode->label, pPeer->ipstr);
+    dError("%s peer:%s, failed to retrieve wal", pNode->label, pPeer->ipstr);
     return -1;
   }
-
-  if ( syncAreFilesModified(pPeer) != 0) return -1;
 
   return 0;
 }

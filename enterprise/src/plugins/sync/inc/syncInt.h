@@ -26,11 +26,11 @@ extern "C" {
 #define TAOS_SMSG_SYNC_REQ     4 
 #define TAOS_SMSG_SYNC_RSP     5
 #define TAOS_SMSG_SYNC_MUST    6
-#define TAOS_SMSG_ROLE_VERSION 7
+#define TAOS_SMSG_STATUS       7
 
-#define pNodeRole    pNode->peerInfo[pNode->selfIndex]->role
-#define pNodeVersion pNode->peerInfo[pNode->selfIndex]->version
-#define pNodeSStatus pNode->peerInfo[pNode->selfIndex]->sstatus
+#define nodeRole    pNode->peerInfo[pNode->selfIndex]->role
+#define nodeVersion pNode->peerInfo[pNode->selfIndex]->version
+#define nodeSStatus pNode->peerInfo[pNode->selfIndex]->sstatus
 
 #pragma pack(push, 1)
 
@@ -46,14 +46,14 @@ typedef struct {
 typedef struct {
   int8_t    role;
   uint64_t  version;
-} SPeerRole;
+} SPeerStatus;
 
 typedef struct {
-  int8_t     role;
-  int8_t     ack;
-  uint64_t   version;
-  SPeerRole  peersRole[];
-} SPeersRole;
+  int8_t      role;
+  int8_t      ack;
+  uint64_t    version;
+  SPeerStatus peersStatus[];
+} SPeersStatus;
 
 typedef struct {
   char      name[TSDB_FILENAME_LEN];
@@ -86,7 +86,7 @@ typedef struct _syncPeer {
   uint32_t    ip;
   char        ipstr[20];  // peer ip string
   int8_t      role;
-  int8_t      sstatus;
+  int8_t      sstatus;    // sync status
   uint64_t    version;
   int         syncFd;
   int         peerFd;     // forward FD
@@ -124,9 +124,9 @@ extern int  tsMaxWatchFiles;
 
 void *syncRetrieveData(void *param);
 void *syncRestoreData(void *param);
-int   syncSaveIntoBuffer(SRecvBuffer *pRecv, SWalHead *pHead);
+int   syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead);
 void  syncRestartConnection(SSyncPeer *pPeer);
-void  syncBroadcastRoleVersion(SSyncNode *pNode);
+void  syncBroadcastStatus(SSyncNode *pNode);
 
 
 #ifdef __cplusplus
