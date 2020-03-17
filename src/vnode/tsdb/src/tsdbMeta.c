@@ -13,7 +13,7 @@
 
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
-static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable);
+static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx);
 static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
@@ -95,6 +95,36 @@ void *tsdbFreeEncode(void *cont) {
   if (cont != NULL) free(cont);
 }
 
+int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
+  STsdbMeta *pMeta = (STsdbMeta *)pHandle;
+
+  STable *pTable = tsdbDecodeTable(cont, contLen);
+  if (pTable == NULL) return -1;
+  
+  if (pTable->type == TSDB_SUPER_TABLE) {
+    pTable->content.pIndex =
+        tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1, 0, getTupleKey);
+  } else {
+    pTable->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP,
+                                            TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
+  }
+
+  tsdbAddTableToMeta(pMeta, pTable, false);
+
+  return 0;
+}
+
+void tsdbOrgMeta(void *pHandle) {
+  STsdbMeta *pMeta = (STsdbMeta *)pHandle;
+
+  for (int i = 0; i < pMeta->maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable != NULL && pTable->type == TSDB_CHILD_TABLE) {
+      tsdbAddTableIntoIndex(pMeta, pTable);
+    }
+  }
+}
+
 /**
  * Initialize the meta handle
  * ASSUMPTIONS: VALID PARAMETER
@@ -119,7 +149,7 @@ STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables) {
     return NULL;
   }
 
-  pMeta->mfh = tsdbInitMetaFile(rootDir, maxTables);
+  pMeta->mfh = tsdbInitMetaFile(rootDir, maxTables, tsdbRestoreTable, tsdbOrgMeta, pMeta);
   if (pMeta->mfh == NULL) {
     taosHashCleanup(pMeta->map);
     free(pMeta->tables);
@@ -211,8 +241,8 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   }
   table->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
 
-  if (newSuper) tsdbAddTableToMeta(pMeta, super);
-  tsdbAddTableToMeta(pMeta, table);
+  if (newSuper) tsdbAddTableToMeta(pMeta, super, true);
+  tsdbAddTableToMeta(pMeta, table, true);
 
   return 0;
 }
@@ -293,7 +323,7 @@ STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
   return *(STable **)ptr;
 }
 
-static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable) {
+static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
   if (pTable->type == TSDB_SUPER_TABLE) { 
     // add super table to the linked list
     if (pMeta->superList == NULL) {

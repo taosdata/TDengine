@@ -25,15 +25,21 @@ extern "C" {
 #define TSDB_META_FILE_NAME "META"
 #define TSDB_META_HASH_FRACTION 1.1
 
+typedef int (*iterFunc)(void *, void *cont, int contLen);
+typedef void (*afterFunc)(void *);
+
 typedef struct {
-  int     fd;       // File descriptor
-  int     nDel;     // number of deletions
-  int     nRecord;  // Number of records
-  int64_t size;     // Total file size
-  void *  map;      // Map from uid ==> position
+  int       fd;        // File descriptor
+  int       nDel;      // number of deletions
+  int       tombSize;  // Number of records
+  int64_t   size;      // Total file size
+  void *    map;       // Map from uid ==> position
+  iterFunc  iFunc;
+  afterFunc aFunc;
+  void *    appH;
 } SMetaFile;
 
-SMetaFile *tsdbInitMetaFile(char *rootDir, int32_t maxTables);
+SMetaFile *tsdbInitMetaFile(char *rootDir, int32_t maxTables, iterFunc iFunc, afterFunc aFunc, void *appH);
 int32_t    tsdbInsertMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t contLen);
 int32_t    tsdbDeleteMetaRecord(SMetaFile *mfh, int64_t uid);
 int32_t    tsdbUpdateMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t contLen);

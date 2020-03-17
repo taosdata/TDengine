@@ -26,6 +26,7 @@
 typedef struct {
   int32_t offset;
   int32_t size;
+  int64_t uid;
 } SRecordInfo;
 
 static int32_t tsdbGetMetaFileName(char *rootDir, char *fname);
@@ -34,13 +35,16 @@ static int32_t tsdbWriteMetaHeader(int fd);
 static int     tsdbCreateMetaFile(char *fname);
 static int     tsdbRestoreFromMetaFile(char *fname, SMetaFile *mfh);
 
-SMetaFile *tsdbInitMetaFile(char *rootDir, int32_t maxTables) {
-  // TODO
+SMetaFile *tsdbInitMetaFile(char *rootDir, int32_t maxTables, iterFunc iFunc, afterFunc aFunc, void *appH) {
   char fname[128] = "\0";
   if (tsdbGetMetaFileName(rootDir, fname) < 0) return NULL;
 
   SMetaFile *mfh = (SMetaFile *)calloc(1, sizeof(SMetaFile));
   if (mfh == NULL) return NULL;
+
+  mfh->iFunc = iFunc;
+  mfh->aFunc = aFunc;
+  mfh->appH = appH;
 
   // OPEN MAP
   mfh->map =
@@ -77,6 +81,7 @@ int32_t tsdbInsertMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t co
   SRecordInfo info;
   info.offset = mfh->size;
   info.size = contLen;  // TODO: Here is not correct
+  info.uid = uid;
 
   mfh->size += (contLen + sizeof(SRecordInfo));
 
@@ -99,7 +104,7 @@ int32_t tsdbInsertMetaRecord(SMetaFile *mfh, int64_t uid, void *cont, int32_t co
 
   fsync(mfh->fd);
 
-  mfh->nRecord++;
+  mfh->tombSize++;
 
   return 0;
 }
@@ -225,7 +230,31 @@ static int tsdbRestoreFromMetaFile(char *fname, SMetaFile *mfh) {
   }
 
   mfh->fd = fd;
-  // TODO: iterate to read the meta file to restore the meta data
+
+  void *buf = NULL;
+  int buf_size = 0;
+
+  SRecordInfo info;
+  while (1) {
+    if (read(mfh->fd, (void *)(&info), sizeof(SRecordInfo)) == 0) break;
+    if (info.offset < 0) {
+      mfh->size += (info.size + sizeof(SRecordInfo));
+      mfh->tombSize += (info.size + sizeof(SRecordInfo));
+      lseek(mfh->fd, info.size, SEEK_CUR);
+    } else {
+      if (taosHashPut(mfh->map, (char *)(&info.uid), sizeof(info.uid), (void *)(&info), sizeof(SRecordInfo)) < 0) {
+        return -1;
+      }
+
+      buf = realloc(buf, info.size);
+      if (buf == NULL) return -1;
+
+      if (read(mfh->fd, buf, info.size) < 0) return -1;
+      (*mfh->iFunc)(mfh->appH, buf, info.size);
+    }
+
+  }
+  (*mfh->aFunc)(mfh->appH);
 
   return 0;
 }

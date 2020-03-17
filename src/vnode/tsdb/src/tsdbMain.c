@@ -77,7 +77,6 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
 static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo);
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
 static int     tsdbOpenMetaFile(char *tsdbDir);
-static int     tsdbRecoverRepo(int fd, STsdbCfg *pCfg);
 static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
@@ -219,25 +218,23 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
     return NULL;
   }
 
-  int fd = tsdbOpenMetaFile(tsdbDir);
-  if (fd < 0) {
-    free(pRepo);
-    return NULL;
-  }
-
-  if (tsdbRecoverRepo(fd, &(pRepo->config)) < 0) {
-    close(fd);
-    free(pRepo);
-    return NULL;
-  }
-
-  pRepo->tsdbCache = tsdbInitCache(5);
-  if (pRepo->tsdbCache == NULL) {
-    // TODO: deal with error
-    return NULL;
-  }
-
   pRepo->rootDir = strdup(tsdbDir);
+
+  pRepo->tsdbMeta = tsdbInitMeta(tsdbDir, pRepo->config.maxTables);
+  if (pRepo == NULL) {
+    free(pRepo->rootDir);
+    free(pRepo);
+    return NULL;
+  }
+
+  pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize);
+  if (pRepo->tsdbCache == NULL) {
+    tsdbFreeMeta(pRepo->tsdbMeta);
+    free(pRepo->rootDir);
+    free(pRepo);
+    return NULL;
+  }
+
   pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
   return (tsdb_repo_t *)pRepo;
@@ -620,12 +617,6 @@ static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo) {
 
 static int tsdbOpenMetaFile(char *tsdbDir) {
   // TODO
-  return 0;
-}
-
-static int tsdbRecoverRepo(int fd, STsdbCfg *pCfg) {
-  // TODO: read tsdb configuration from file
-  // recover tsdb meta
   return 0;
 }
 
