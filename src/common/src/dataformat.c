@@ -91,10 +91,9 @@ void tdSetCol(STColumn *pCol, int8_t type, int16_t colId, int32_t bytes) {
 STSchema *tdNewSchema(int32_t nCols) {
   int32_t  size = sizeof(STSchema) + sizeof(STColumn) * nCols;
 
-  STSchema *pSchema = (STSchema *)malloc(size);
+  STSchema *pSchema = (STSchema *)calloc(1, size);
   if (pSchema == NULL) return NULL;
   pSchema->numOfCols = 0;
-  pSchema->totalCols = nCols;
 
   return pSchema;
 }
@@ -102,8 +101,8 @@ STSchema *tdNewSchema(int32_t nCols) {
 /**
  * Append a column to the schema
  */
-int tdSchemaAppendCol(STSchema *pSchema, int8_t type, int16_t colId, int16_t bytes) {
-  if (pSchema->numOfCols >= pSchema->totalCols) return -1;
+int tdSchemaAppendCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes) {
+  // if (pSchema->numOfCols >= pSchema->totalCols) return -1;
   if (!isValidDataType(type, 0)) return -1;
 
   STColumn *pCol = schemaColAt(pSchema, schemaNCols(pSchema));
@@ -157,6 +156,53 @@ void tdUpdateSchema(STSchema *pSchema) {
     colSetOffset(pCol, offset);
     offset += TYPE_BYTES[pCol->type];
   }
+}
+
+/**
+ * Return the size of encoded schema
+ */
+int tdGetSchemaEncodeSize(STSchema *pSchema) {
+  return sizeof(STSchema) + schemaNCols(pSchema) * (T_MEMBER_SIZE(STColumn, type) + T_MEMBER_SIZE(STColumn, colId) +
+                                                    T_MEMBER_SIZE(STColumn, bytes));
+}
+
+/**
+ * Encode a schema to dst, and return the next pointer
+ */
+void *tdEncodeSchema(void *dst, STSchema *pSchema) {
+  T_APPEND_MEMBER(dst, pSchema, STSchema, numOfCols);
+  for (int i = 0; i < schemaNCols(pSchema); i++) {
+    STColumn *pCol = schemaColAt(pSchema, i);
+    T_APPEND_MEMBER(dst, pCol, STColumn, type);
+    T_APPEND_MEMBER(dst, pCol, STColumn, colId);
+    T_APPEND_MEMBER(dst, pCol, STColumn, bytes);
+  }
+
+  return dst;
+}
+
+/**
+ * Decode a schema from a binary.
+ */
+STSchema *tdDecodeSchema(void **psrc) {
+  int numOfCols = 0;
+
+  T_READ_MEMBER(*psrc, int, numOfCols);
+
+  STSchema *pSchema = tdNewSchema(numOfCols);
+  if (pSchema == NULL) return NULL;
+  for (int i = 0; i < numOfCols; i++) {
+    int8_t  type = 0;
+    int16_t colId = 0;
+    int32_t bytes = 0;
+    T_READ_MEMBER(*psrc, int8_t, type);
+    T_READ_MEMBER(*psrc, int16_t, colId);
+    T_READ_MEMBER(*psrc, int32_t, bytes);
+
+    tdSchemaAppendCol(pSchema, type, colId, bytes);
+  }
+
+  return pSchema;
 }
 
 /**
@@ -234,6 +280,8 @@ int tdAppendColVal(SDataRow row, void *value, STColumn *pCol) {
     dataRowFLen(row) += TYPE_BYTES[colType(pCol)];
     break;
   }
+
+  return 0;
 }
 
 void tdDataRowReset(SDataRow row, STSchema *pSchema) { tdInitDataRow(row, pSchema); }
@@ -244,40 +292,6 @@ SDataRow tdDataRowDup(SDataRow row) {
 
   dataRowCpy(trow, row);
   return trow;
-}
-
-void tdDataRowsAppendRow(SDataRows rows, SDataRow row) {
-  dataRowCpy((void *)((char *)rows + dataRowsLen(rows)), row);
-  dataRowsSetLen(rows, dataRowsLen(rows) + dataRowLen(row));
-}
-
-// Initialize the iterator
-void tdInitSDataRowsIter(SDataRows rows, SDataRowsIter *pIter) {
-  if (pIter == NULL) return;
-  pIter->totalLen = dataRowsLen(rows);
-
-  if (pIter->totalLen == TD_DATA_ROWS_HEAD_LEN) {
-    pIter->row = NULL;
-    return;
-  }
-
-  pIter->row = (SDataRow)((char *)rows + TD_DATA_ROWS_HEAD_LEN);
-  pIter->len = TD_DATA_ROWS_HEAD_LEN + dataRowLen(pIter->row);
-}
-
-// Get the next row in Rows
-SDataRow tdDataRowsNext(SDataRowsIter *pIter) {
-  SDataRow row = pIter->row;
-  if (row == NULL) return NULL;
-
-  if (pIter->len >= pIter->totalLen) {
-    pIter->row = NULL;
-  } else {
-    pIter->row = (char *)row + dataRowLen(row);
-    pIter->len += dataRowLen(row);
-  }
-
-  return row;
 }
 
 /**

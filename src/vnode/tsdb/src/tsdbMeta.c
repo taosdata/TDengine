@@ -13,7 +13,7 @@
 
 static int     tsdbFreeTable(STable *pTable);
 static int32_t tsdbCheckTableCfg(STableCfg *pCfg);
-static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable);
+static int     tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx);
 static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
@@ -39,8 +39,21 @@ void *tsdbEncodeTable(STable *pTable, int *contLen) {
   void *ret = malloc(*contLen);
   if (ret == NULL) return NULL;
 
-  // TODO: encode the object to the memory
-  {}
+  void *ptr = ret;
+  T_APPEND_MEMBER(ptr, pTable, STable, type);
+  T_APPEND_MEMBER(ptr, &(pTable->tableId), STableId, uid);
+  T_APPEND_MEMBER(ptr, &(pTable->tableId), STableId, tid);
+  T_APPEND_MEMBER(ptr, pTable, STable, superUid);
+  T_APPEND_MEMBER(ptr, pTable, STable, sversion);
+
+  if (pTable->type == TSDB_SUPER_TABLE) {
+    ptr = tdEncodeSchema(ptr, pTable->schema);
+    ptr = tdEncodeSchema(ptr, pTable->tagSchema);
+  } else if (pTable->type == TSDB_CHILD_TABLE) {
+    dataRowCpy(ptr, pTable->tagVal);
+  } else {
+    ptr = tdEncodeSchema(ptr, pTable->schema);
+  }
 
   return ret;
 }
@@ -59,8 +72,20 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   STable *pTable = (STable *)calloc(1, sizeof(STable));
   if (pTable == NULL) return NULL;
 
-  {
-    // TODO recover from the binary content
+  void *ptr = cont;
+  T_READ_MEMBER(ptr, int8_t, pTable->type);
+  T_READ_MEMBER(ptr, int64_t, pTable->tableId.uid);
+  T_READ_MEMBER(ptr, int32_t, pTable->tableId.tid);
+  T_READ_MEMBER(ptr, int32_t, pTable->superUid);
+  T_READ_MEMBER(ptr, int32_t, pTable->sversion);
+
+  if (pTable->type == TSDB_SUPER_TABLE) {
+    pTable->schema = tdDecodeSchema(&ptr);
+    pTable->tagSchema = tdDecodeSchema(&ptr);
+  } else if (pTable->type == TSDB_CHILD_TABLE) {
+    pTable->tagVal = tdDataRowDup(ptr);
+  } else {
+    pTable->schema = tdDecodeSchema(&ptr);
   }
 
   return pTable;
@@ -68,6 +93,36 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
 
 void *tsdbFreeEncode(void *cont) {
   if (cont != NULL) free(cont);
+}
+
+int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
+  STsdbMeta *pMeta = (STsdbMeta *)pHandle;
+
+  STable *pTable = tsdbDecodeTable(cont, contLen);
+  if (pTable == NULL) return -1;
+  
+  if (pTable->type == TSDB_SUPER_TABLE) {
+    pTable->content.pIndex =
+        tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1, 0, getTupleKey);
+  } else {
+    pTable->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP,
+                                            TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
+  }
+
+  tsdbAddTableToMeta(pMeta, pTable, false);
+
+  return 0;
+}
+
+void tsdbOrgMeta(void *pHandle) {
+  STsdbMeta *pMeta = (STsdbMeta *)pHandle;
+
+  for (int i = 0; i < pMeta->maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable != NULL && pTable->type == TSDB_CHILD_TABLE) {
+      tsdbAddTableIntoIndex(pMeta, pTable);
+    }
+  }
 }
 
 /**
@@ -94,7 +149,7 @@ STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables) {
     return NULL;
   }
 
-  pMeta->mfh = tsdbInitMetaFile(rootDir, maxTables);
+  pMeta->mfh = tsdbInitMetaFile(rootDir, maxTables, tsdbRestoreTable, tsdbOrgMeta, pMeta);
   if (pMeta->mfh == NULL) {
     taosHashCleanup(pMeta->map);
     free(pMeta->tables);
@@ -186,8 +241,21 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   }
   table->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
 
-  if (newSuper) tsdbAddTableToMeta(pMeta, super);
-  tsdbAddTableToMeta(pMeta, table);
+  // Register to meta
+  if (newSuper) tsdbAddTableToMeta(pMeta, super, true);
+  tsdbAddTableToMeta(pMeta, table, true);
+
+  // Write to meta file
+  int bufLen = 0;
+  if (newSuper) {
+    void *buf = tsdbEncodeTable(super, &bufLen);
+    tsdbInsertMetaRecord(pMeta->mfh, super->tableId.uid, buf, bufLen);
+    tsdbFreeEncode(buf);
+  }
+
+  void *buf = tsdbEncodeTable(table, &bufLen);
+  tsdbInsertMetaRecord(pMeta->mfh, table->tableId.uid, buf, bufLen);
+  tsdbFreeEncode(buf);
 
   return 0;
 }
@@ -268,7 +336,7 @@ STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid) {
   return *(STable **)ptr;
 }
 
-static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable) {
+static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
   if (pTable->type == TSDB_SUPER_TABLE) { 
     // add super table to the linked list
     if (pMeta->superList == NULL) {
@@ -318,8 +386,22 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
 }
 
 static int tsdbEstimateTableEncodeSize(STable *pTable) {
-  // TODO
-  return 0;
+  int size = 0;
+  size += T_MEMBER_SIZE(STable, type);
+  size += T_MEMBER_SIZE(STable, tableId);
+  size += T_MEMBER_SIZE(STable, superUid);
+  size += T_MEMBER_SIZE(STable, sversion);
+
+  if (pTable->type == TSDB_SUPER_TABLE) {
+    size += tdGetSchemaEncodeSize(pTable->schema);
+    size += tdGetSchemaEncodeSize(pTable->tagSchema);
+  } else if (pTable->type == TSDB_CHILD_TABLE) {
+    size += dataRowLen(pTable->tagVal);
+  } else {
+    size += tdGetSchemaEncodeSize(pTable->schema);
+  }
+
+  return size;
 }
 
 static char *getTupleKey(const void * data) {
