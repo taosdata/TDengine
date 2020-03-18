@@ -91,7 +91,7 @@ void tdSetCol(STColumn *pCol, int8_t type, int16_t colId, int32_t bytes) {
 STSchema *tdNewSchema(int32_t nCols) {
   int32_t  size = sizeof(STSchema) + sizeof(STColumn) * nCols;
 
-  STSchema *pSchema = (STSchema *)malloc(size);
+  STSchema *pSchema = (STSchema *)calloc(1, size);
   if (pSchema == NULL) return NULL;
   pSchema->numOfCols = 0;
 

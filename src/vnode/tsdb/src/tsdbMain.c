@@ -78,6 +78,7 @@ static int32_t tsdbSetRepoEnv(STsdbRepo *pRepo);
 static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
 static int     tsdbOpenMetaFile(char *tsdbDir);
 static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
+static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -220,8 +221,10 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
 
   pRepo->rootDir = strdup(tsdbDir);
 
+  tsdbRestoreCfg(pRepo, &(pRepo->config));
+
   pRepo->tsdbMeta = tsdbInitMeta(tsdbDir, pRepo->config.maxTables);
-  if (pRepo == NULL) {
+  if (pRepo->tsdbMeta == NULL) {
     free(pRepo->rootDir);
     free(pRepo);
     return NULL;

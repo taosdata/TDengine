@@ -79,7 +79,7 @@ STable *tsdbDecodeTable(void *cont, int contLen) {
   T_READ_MEMBER(ptr, int32_t, pTable->superUid);
   T_READ_MEMBER(ptr, int32_t, pTable->sversion);
 
-  if (pTable->type = TSDB_SUPER_TABLE) {
+  if (pTable->type == TSDB_SUPER_TABLE) {
     pTable->schema = tdDecodeSchema(&ptr);
     pTable->tagSchema = tdDecodeSchema(&ptr);
   } else if (pTable->type == TSDB_CHILD_TABLE) {

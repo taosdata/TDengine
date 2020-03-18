@@ -3,6 +3,44 @@
 
 #include "tsdb.h"
 #include "dataformat.h"
+#include "tsdbMeta.h"
+
+TEST(TsdbTest, tableEncodeDecode) {
+  STable *pTable = (STable *)malloc(sizeof(STable));
+
+  pTable->type = TSDB_NORMAL_TABLE;
+  pTable->tableId.uid = 987607499877672L;
+  pTable->tableId.tid = 0;
+  pTable->superUid = -1;
+  pTable->sversion = 0;
+  pTable->tagSchema = NULL;
+  pTable->tagVal = NULL;
+  int nCols = 5;
+  STSchema *schema = tdNewSchema(nCols);
+
+  for (int i = 0; i < nCols; i++) {
+    if (i == 0) {
+      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
+    } else {
+      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_INT, i, -1);
+    }
+  }
+
+  pTable->schema = schema;
+
+  int bufLen = 0;
+  void *buf = tsdbEncodeTable(pTable, &bufLen);
+
+  STable *tTable = tsdbDecodeTable(buf, bufLen);
+
+  ASSERT_EQ(pTable->type, tTable->type);
+  ASSERT_EQ(pTable->tableId.uid, tTable->tableId.uid);
+  ASSERT_EQ(pTable->tableId.tid, tTable->tableId.tid);
+  ASSERT_EQ(pTable->superUid, tTable->superUid);
+  ASSERT_EQ(pTable->sversion, tTable->sversion);
+  ASSERT_EQ(memcmp(pTable->schema, tTable->schema, sizeof(STSchema) + sizeof(STColumn) * nCols), 0);
+  ASSERT_EQ(tTable->content.pData, nullptr);
+}
 
 TEST(TsdbTest, createRepo) {
   STsdbCfg config;
@@ -65,3 +103,7 @@ TEST(TsdbTest, createRepo) {
   int k = 0;
 }
 
+TEST(TsdbTest, openRepo) {
+  tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
+  ASSERT_NE(pRepo, nullptr);
+}
