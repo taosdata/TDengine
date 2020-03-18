@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mgmtTable.h"
+//#include "../../client/inc/tsclient.h"
 #include "mgmtAcct.h"
 #include "mgmtChildTable.h"
 #include "mgmtDClient.h"
@@ -34,7 +35,6 @@
 #include "qextbuffer.h"
 #include "taoserror.h"
 #include "taosmsg.h"
-#include "tschemautil.h"
 #include "tscompression.h"
 #include "tskiplist.h"
 #include "tsqlfunction.h"
@@ -52,7 +52,7 @@ static void mgmtProcessMultiTableMetaMsg(SQueuedMsg *queueMsg);
 static void mgmtProcessSuperTableMetaMsg(SQueuedMsg *queueMsg);
 static void mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg);
 static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg);
-static int32_t mgmtGetShowTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle);
 
@@ -122,7 +122,7 @@ STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
   return NULL;
 }
 
-int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, bool usePublicIp) {
+int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMetaMsg *pMeta, bool usePublicIp) {
   if (pTable->type == TSDB_CHILD_TABLE) {
     mgmtGetChildTableMeta(pDb, (SChildTableObj *) pTable, pMeta, usePublicIp);
   } else if (pTable->type == TSDB_NORMAL_TABLE) {
@@ -187,14 +187,14 @@ void mgmtCleanUpTables() {
   mgmtCleanUpSuperTables();
 }
 
-int32_t mgmtGetShowTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mgmtGetDb(pShow->db);
   if (pDb == NULL) {
     return TSDB_CODE_DB_NOT_SELECTED;
   }
 
   int32_t cols = 0;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -601,8 +601,8 @@ void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle) {
   }
 
   bool usePublicIp = (connInfo.serverIp == tsPublicIpInt);
-
-  STableMeta *pMeta = rpcMallocCont(sizeof(STableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
+  
+  STableMetaMsg *pMeta = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
   rpcRsp.code = mgmtGetTableMeta(pDb, pTable, pMeta, usePublicIp);
 
   if (rpcRsp.code != TSDB_CODE_SUCCESS) {
@@ -695,7 +695,7 @@ void mgmtProcessMultiTableMetaMsg(SQueuedMsg *pMsg) {
     if (pDb == NULL) continue;
 
     int availLen = totalMallocLen - pMultiMeta->contLen;
-    if (availLen <= sizeof(STableMeta) + sizeof(SSchema) * TSDB_MAX_COLUMNS) {
+    if (availLen <= sizeof(STableMetaMsg) + sizeof(SSchema) * TSDB_MAX_COLUMNS) {
       //TODO realloc
       //totalMallocLen *= 2;
       //pMultiMeta = rpcReMalloc(pMultiMeta, totalMallocLen);
@@ -708,7 +708,7 @@ void mgmtProcessMultiTableMetaMsg(SQueuedMsg *pMsg) {
       //}
     }
 
-    STableMeta *pMeta = (STableMeta *)(pMultiMeta->metas + pMultiMeta->contLen);
+    STableMetaMsg *pMeta = (STableMetaMsg *)(pMultiMeta->metas + pMultiMeta->contLen);
     int32_t code = mgmtGetTableMeta(pDb, pTable, pMeta, usePublicIp);
     if (code == TSDB_CODE_SUCCESS) {
       pMultiMeta->numOfTables ++;

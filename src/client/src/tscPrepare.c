@@ -407,8 +407,8 @@ static int insertStmtReset(STscStmt* pStmt) {
   }
   pCmd->batchSize = 0;
   
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  pMeterMetaInfo->vnodeIndex = 0;
+  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  pTableMetaInfo->vnodeIndex = 0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -421,7 +421,7 @@ static int insertStmtExecute(STscStmt* stmt) {
     ++pCmd->batchSize;
   }
 
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
   assert(pCmd->numOfClause == 1);
   
   if (pCmd->pDataBlocks->nSize > 0) {
@@ -438,7 +438,7 @@ static int insertStmtExecute(STscStmt* stmt) {
     }
 
     // set the next sent data vnode index in data block arraylist
-    pMeterMetaInfo->vnodeIndex = 1;
+    pTableMetaInfo->vnodeIndex = 1;
   } else {
     pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   }

@@ -175,10 +175,10 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
     return 0;
   }
 
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
   int numOfTables = 0;
-  if (!UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
-    SSuperTableMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
+  if (!UTIL_METER_IS_NOMRAL_METER(pTableMetaInfo)) {
+    SSuperTableMeta* pMetricMeta = pTableMetaInfo->pMetricMeta;
     for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
       SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
       numOfTables += pVnodeSidList->numOfSids;
@@ -191,13 +191,13 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
     return 0;
   }
 
-  if (UTIL_METER_IS_NOMRAL_METER(pMeterMetaInfo)) {
+  if (UTIL_METER_IS_NOMRAL_METER(pTableMetaInfo)) {
     numOfTables = 1;
-    int64_t uid = pMeterMetaInfo->pMeterMeta->uid;
+    int64_t uid = pTableMetaInfo->pTableMeta->uid;
     progress[0].uid = uid;
     progress[0].key = tscGetSubscriptionProgress(pSub, uid);
   } else {
-    SSuperTableMeta* pMetricMeta = pMeterMetaInfo->pMetricMeta;
+    SSuperTableMeta* pMetricMeta = pTableMetaInfo->pMetricMeta;
     numOfTables = 0;
     for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
       SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);

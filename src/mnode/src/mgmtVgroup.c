@@ -17,7 +17,6 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "tschemautil.h"
 #include "tstatus.h"
 #include "mnode.h"
 #include "mgmtBalance.h"
@@ -41,7 +40,7 @@ static void *mgmtVgroupActionDecode(void *row, char *str, int32_t size, int32_t 
 static void *mgmtVgroupActionReset(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtVgroupActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
 
-static int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
 static void    mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg);
@@ -211,14 +210,14 @@ void mgmtCleanUpVgroups() {
   sdbCloseTable(tsVgroupSdb);
 }
 
-int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mgmtGetDb(pShow->db);
   if (pDb == NULL) {
     return TSDB_CODE_DB_NOT_SELECTED;
   }
 
   int32_t cols = 0;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;

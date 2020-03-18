@@ -164,8 +164,8 @@ SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pS
   pSupporter->interval = pQueryInfo->intervalTime;
   pSupporter->limit = pQueryInfo->limit;
 
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, pSql->cmd.clauseIndex, index);
-  pSupporter->uid = pMeterMetaInfo->pMeterMeta->uid;
+  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, pSql->cmd.clauseIndex, index);
+  pSupporter->uid = pTableMetaInfo->pTableMeta->uid;
   
   assert (pSupporter->uid != 0);
 
@@ -315,7 +315,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
   
     tscFieldInfoCalOffset(pNewQueryInfo);
   
-    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pNewQueryInfo, 0);
+    STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pNewQueryInfo, 0);
   
     /*
      * When handling the projection query, the offset value will be modified for table-table join, which is changed
@@ -325,11 +325,11 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pNewQueryInfo->limit = pSupporter->limit;
   
     // fetch the join tag column
-    if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
+    if (UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
       SSqlExpr *pExpr = tscSqlExprGet(pNewQueryInfo, 0);
       assert(pQueryInfo->tagCond.joinInfo.hasJoin);
     
-      int16_t tagColIndex = tscGetJoinTagColIndexByUid(&pQueryInfo->tagCond, pMeterMetaInfo->pMeterMeta->uid);
+      int16_t tagColIndex = tscGetJoinTagColIndexByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->uid);
       pExpr->param[0].i64Key = tagColIndex;
       pExpr->numOfParams = 1;
     }
@@ -337,7 +337,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     tscPrintSelectClause(pNew, 0);
   
     tscTrace("%p subquery:%p tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d, fieldsInfo:%d, name:%s",
-             pSql, pNew, 0, pMeterMetaInfo->vnodeIndex, pNewQueryInfo->type,
+             pSql, pNew, 0, pTableMetaInfo->vnodeIndex, pNewQueryInfo->type,
              pNewQueryInfo->exprsInfo.numOfExprs, pNewQueryInfo->colList.numOfCols,
              pNewQueryInfo->fieldsInfo.numOfOutputCols, pNewQueryInfo->pMeterInfo[0]->name);
   }
@@ -450,9 +450,9 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         pSupporter->pTSBuf = pBuf;
       } else {
         assert(pQueryInfo->numOfTables == 1);  // for subquery, only one metermetaInfo
-        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+        STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
-        tsBufMerge(pSupporter->pTSBuf, pBuf, pMeterMetaInfo->vnodeIndex);
+        tsBufMerge(pSupporter->pTSBuf, pBuf, pTableMetaInfo->vnodeIndex);
         tsBufDestory(pBuf);
       }
 
@@ -467,14 +467,14 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       
       //todo refactor
       if (tscNonOrderedProjectionQueryOnSTable(pParentQueryInfo, 0)) {
-        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+        STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
         assert(pQueryInfo->numOfTables == 1);
 
         // for projection query, need to try next vnode
-        int32_t totalVnode = pMeterMetaInfo->pMetricMeta->numOfVnodes;
-        if ((++pMeterMetaInfo->vnodeIndex) < totalVnode) {
+        int32_t totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
+        if ((++pTableMetaInfo->vnodeIndex) < totalVnode) {
           tscTrace("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,
-                   pMeterMetaInfo->vnodeIndex - 1, pMeterMetaInfo->vnodeIndex, totalVnode, pRes->numOfTotal);
+                   pTableMetaInfo->vnodeIndex - 1, pTableMetaInfo->vnodeIndex, totalVnode, pRes->numOfTotal);
   
           pSql->cmd.command = TSDB_SQL_SELECT;
           pSql->fp = tscJoinQueryCallback;
@@ -532,11 +532,11 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
     }
   
     if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && numOfRows == 0) {
-      SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+      STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
       assert(pQueryInfo->numOfTables == 1);
 
       // for projection query, need to try next vnode if current vnode is exhausted
-      if ((++pMeterMetaInfo->vnodeIndex) < pMeterMetaInfo->pMetricMeta->numOfVnodes) {
+      if ((++pTableMetaInfo->vnodeIndex) < pTableMetaInfo->pMetricMeta->numOfVnodes) {
         pSupporter->pState->numOfCompleted = 0;
         pSupporter->pState->numOfTotal = 1;
 
@@ -600,10 +600,10 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
     SSqlRes *pRes = &pSql->pSubs[i]->res;
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->pSubs[i]->cmd, 0);
   
-    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+    STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
   
     if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-      if (pRes->row >= pRes->numOfRows && pMeterMetaInfo->vnodeIndex < pMeterMetaInfo->pMetricMeta->numOfVnodes &&
+      if (pRes->row >= pRes->numOfRows && pTableMetaInfo->vnodeIndex < pTableMetaInfo->pMetricMeta->numOfVnodes &&
           (!tscHasReachLimitation(pQueryInfo, pRes))) {
         numOfFetch++;
       }
@@ -638,11 +638,11 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd1, 0);
     assert(pRes1->numOfRows >= 0 && pQueryInfo->numOfTables == 1);
 
-    SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+    STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
     
     if (pRes1->row >= pRes1->numOfRows) {
       tscTrace("%p subquery:%p retrieve data from vnode, subquery:%d, vnodeIndex:%d", pSql, pSql1,
-               pSupporter->subqueryIndex, pMeterMetaInfo->vnodeIndex);
+               pSupporter->subqueryIndex, pTableMetaInfo->vnodeIndex);
 
       tscResetForNextRetrieve(pRes1);
       pSql1->fp = joinRetrieveCallback;
@@ -688,8 +688,8 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
 
     int32_t tableIndexOfSub = -1;
     for (int32_t j = 0; j < pQueryInfo->numOfTables; ++j) {
-      SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, j);
-      if (pMeterMetaInfo->pMeterMeta->uid == pExpr->uid) {
+      STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, j);
+      if (pTableMetaInfo->pTableMeta->uid == pExpr->uid) {
         tableIndexOfSub = j;
         break;
       }
@@ -712,13 +712,13 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
 
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   SSqlObj* pSql = (SSqlObj*)tres;
-  //  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
+  //  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
 
   //  int32_t idx = pSql->cmd.vnodeIdx;
 
   //  SVnodeSidList *vnodeInfo = NULL;
-  //  if (pMeterMetaInfo->pMetricMeta != NULL) {
-  //    vnodeInfo = tscGetVnodeSidList(pMeterMetaInfo->pMetricMeta, idx - 1);
+  //  if (pTableMetaInfo->pMetricMeta != NULL) {
+  //    vnodeInfo = tscGetVnodeSidList(pTableMetaInfo->pMetricMeta, idx - 1);
   //  }
 
   SJoinSubquerySupporter* pSupporter = (SJoinSubquerySupporter*)param;
@@ -776,14 +776,14 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
         assert(finished == numOfTotal);
         
         tscSetupOutputColumnIndex(pParentSql);
-        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+        STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
         /**
          * if the query is a continue query (vnodeIndex > 0 for projection query) for next vnode, do the retrieval of
          * data instead of returning to its invoker
          */
-        if (pMeterMetaInfo->vnodeIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-          assert(pMeterMetaInfo->vnodeIndex < pMeterMetaInfo->pMetricMeta->numOfVnodes);
+        if (pTableMetaInfo->vnodeIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+          assert(pTableMetaInfo->vnodeIndex < pTableMetaInfo->pMetricMeta->numOfVnodes);
           pSupporter->pState->numOfCompleted = 0;  // reset the record value
 
           pSql->fp = joinRetrieveCallback;  // continue retrieve data

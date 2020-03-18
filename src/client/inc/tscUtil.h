@@ -30,10 +30,10 @@ extern "C" {
 #include "tsclient.h"
 
 #define UTIL_METER_IS_SUPERTABLE(metaInfo) \
-  (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->tableType == TSDB_SUPER_TABLE))
+  (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
 #define UTIL_METER_IS_NOMRAL_METER(metaInfo) (!(UTIL_METER_IS_SUPERTABLE(metaInfo)))
 #define UTIL_METER_IS_CREATE_FROM_METRIC(metaInfo) \
-  (((metaInfo)->pMeterMeta != NULL) && ((metaInfo)->pMeterMeta->tableType == TSDB_CHILD_TABLE))
+  (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
 
 #define TSDB_COL_IS_TAG(f) (((f)&TSDB_COL_TAG) != 0)
 
@@ -67,7 +67,7 @@ typedef struct SJoinSubquerySupporter {
 } SJoinSubquerySupporter;
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
-                           STableMeta* pMeterMeta, STableDataBlocks** dataBlocks);
+                           STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
 void    tscAppendDataBlock(SDataBlockList* pList, STableDataBlocks* pBlocks);
 void    tscDestroyDataBlock(STableDataBlocks* pDataBlock);
 
@@ -81,7 +81,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
 void    tscFreeUnusedDataBlocks(SDataBlockList* pList);
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pDataList);
 int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
-                                int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pMeterMeta,
+                                int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
                                 STableDataBlocks** dataBlocks);
 
 SVnodeSidList*    tscGetVnodeSidList(SSuperTableMeta* pMetricmeta, int32_t vnodeIdx);
@@ -114,7 +114,7 @@ void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex
 
 void addRequiredTagColumn(SQueryInfo* pQueryInfo, int32_t tagColIndex, int32_t tableIndex);
 
-int32_t setMeterID(SMeterMetaInfo* pMeterMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql);
+int32_t setMeterID(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SSqlObj* pSql);
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
 bool tscIsInsertOrImportData(char* sqlstr);
@@ -173,7 +173,7 @@ int32_t tscValidateName(SSQLToken* pToken);
 
 void tscIncStreamExecutionCount(void* pStream);
 
-bool tscValidateColumnId(SMeterMetaInfo* pMeterMetaInfo, int32_t colId);
+bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId);
 
 // get starter position of metric query condition (query on tags) in SSqlCmd.payload
 SCond* tsGetMetricQueryCondPos(STagCond* pCond, uint64_t tableIndex);
@@ -190,26 +190,26 @@ void tscCleanSqlCmd(SSqlCmd* pCmd);
 bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql);
 
 void            tscRemoveAllMeterMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool removeFromCache);
-SMeterMetaInfo* tscGetMeterMetaInfo(SSqlCmd *pCmd, int32_t subClauseIndex, int32_t tableIndex);
-SMeterMetaInfo* tscGetMeterMetaInfoFromQueryInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
+STableMetaInfo* tscGetMeterMetaInfo(SSqlCmd *pCmd, int32_t subClauseIndex, int32_t tableIndex);
+STableMetaInfo* tscGetMeterMetaInfoFromQueryInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
 
 SQueryInfo *tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex);
 int32_t tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex, SQueryInfo** pQueryInfo);
 
-SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* index);
-void            tscClearMeterMetaInfo(SMeterMetaInfo* pMeterMetaInfo, bool removeFromCache);
+STableMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* index);
+void            tscClearMeterMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache);
 
-SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pMeterMeta, SSuperTableMeta* pMetricMeta,
+STableMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta, SSuperTableMeta* pMetricMeta,
                                     int16_t numOfTags, int16_t* tags);
-SMeterMetaInfo* tscAddEmptyMeterMetaInfo(SQueryInfo *pQueryInfo);
+STableMetaInfo* tscAddEmptyMeterMetaInfo(SQueryInfo *pQueryInfo);
 int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
 void tscFreeSubqueryInfo(SSqlCmd* pCmd);
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 
 void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* keyStr, uint64_t uid);
 int  tscGetMetricMeta(SSqlObj* pSql, int32_t clauseIndex);
-int  tscGetMeterMeta(SSqlObj* pSql, SMeterMetaInfo* pMeterMetaInfo);
-int  tscGetMeterMetaEx(SSqlObj* pSql, SMeterMetaInfo* pMeterMetaInfo, bool createIfNotExists);
+int  tscGetMeterMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
+int  tscGetMeterMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
 

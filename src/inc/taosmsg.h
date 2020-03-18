@@ -678,15 +678,15 @@ typedef struct {
   int32_t  list[]; /* offset of SVnodeSidList, compared to the SSuperTableMeta struct */
 } SSuperTableMeta;
 
-typedef struct STableMeta {
-  char    tableId[TSDB_TABLE_ID_LEN + 1];  // note: This field must be at the front
+typedef struct STableMetaMsg {
+  char    tableId[TSDB_TABLE_ID_LEN];  // note: This field must be at the front
   int32_t contLen;
-  uint8_t numOfTags : 6;
-  uint8_t precision : 2;
-  uint8_t tableType : 4;
-  uint8_t index : 4;  // used locally
+  uint8_t numOfTags;
+  uint8_t precision;
+  uint8_t tableType;
+//  uint8_t index : 4;  // used locally
   int16_t numOfColumns;
-  int16_t rowSize;  // used locally, calculated in client
+//  int16_t rowSize;  // used locally, calculated in client
   int16_t sversion;
   int8_t  numOfVpeers;
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
@@ -694,12 +694,12 @@ typedef struct STableMeta {
   int32_t  vgid;
   uint64_t uid;
   SSchema  schema[];
-} STableMeta;
+} STableMetaMsg;
 
 typedef struct SMultiTableMeta {
   int32_t    numOfTables;
   int32_t    contLen;
-  STableMeta metas[];
+  STableMetaMsg metas[];
 } SMultiTableMeta;
 
 typedef struct {
@@ -719,9 +719,9 @@ typedef struct {
   char     payload[];
 } SCMShowMsg;
 
-typedef struct {
-  uint64_t   qhandle;
-  STableMeta tableMeta;
+typedef struct SCMShowRsp {
+  uint64_t      qhandle;
+  STableMetaMsg tableMeta;
 } SCMShowRsp;
 
 typedef struct {

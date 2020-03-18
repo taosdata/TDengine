@@ -165,7 +165,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_COLUMNS          256
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
-#define TSDB_TABLE_NAME_LEN       64
+#define TSDB_TABLE_NAME_LEN       192
 #define TSDB_DB_NAME_LEN          32
 #define TSDB_COL_NAME_LEN         64
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 16

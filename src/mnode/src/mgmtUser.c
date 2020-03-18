@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "trpc.h"
-#include "tschemautil.h"
 #include "ttime.h"
 #include "mgmtAcct.h"
 #include "mgmtGrant.h"
@@ -30,7 +29,7 @@ static int32_t tsUserUpdateSize = 0;
 static int32_t   mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
 static int32_t   mgmtDropUser(SAcctObj *pAcct, char *name);
 static int32_t   mgmtUpdateUser(SUserObj *pUser);
-static int32_t   mgmtGetUserMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t   mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t   mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg);
@@ -171,14 +170,14 @@ static int32_t mgmtDropUser(SAcctObj *pAcct, char *name) {
   return 0;
 }
 
-static int32_t mgmtGetUserMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) {
     return TSDB_CODE_INVALID_USER;
   }
 
   int32_t cols     = 0;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = TSDB_USER_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;

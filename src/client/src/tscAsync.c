@@ -406,11 +406,11 @@ void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows) 
   int32_t index = 0;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, index);
   
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
   assert(pQueryInfo->numOfTables == 1 || pQueryInfo->numOfTables == 2);
   
   SDataBlockList *pDataBlocks = pCmd->pDataBlocks;
-  if (pDataBlocks == NULL || pMeterMetaInfo->vnodeIndex >= pDataBlocks->nSize) {
+  if (pDataBlocks == NULL || pTableMetaInfo->vnodeIndex >= pDataBlocks->nSize) {
     // restore user defined fp
     pSql->fp = pSql->fetchFp;
     tscTrace("%p Async insertion completed, destroy data block list", pSql);
@@ -422,17 +422,17 @@ void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows) 
     (*pSql->fp)(pSql->param, tres, numOfRows);
   } else {
     do {
-      code = tscCopyDataBlockToPayload(pSql, pDataBlocks->pData[pMeterMetaInfo->vnodeIndex++]);
+      code = tscCopyDataBlockToPayload(pSql, pDataBlocks->pData[pTableMetaInfo->vnodeIndex++]);
       if (code != TSDB_CODE_SUCCESS) {
         tscTrace("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%d, code:%d",
-                 pSql, pMeterMetaInfo->vnodeIndex - 1, pDataBlocks->nSize, code);
+                 pSql, pTableMetaInfo->vnodeIndex - 1, pDataBlocks->nSize, code);
       }
 
-    } while (code != TSDB_CODE_SUCCESS && pMeterMetaInfo->vnodeIndex < pDataBlocks->nSize);
+    } while (code != TSDB_CODE_SUCCESS && pTableMetaInfo->vnodeIndex < pDataBlocks->nSize);
 
     // build submit msg may fail
     if (code == TSDB_CODE_SUCCESS) {
-      tscTrace("%p async insertion, vnodeIdx:%d, total:%d", pSql, pMeterMetaInfo->vnodeIndex - 1, pDataBlocks->nSize);
+      tscTrace("%p async insertion, vnodeIdx:%d, total:%d", pSql, pTableMetaInfo->vnodeIndex - 1, pDataBlocks->nSize);
       tscProcessSql(pSql);
     }
   }
@@ -464,10 +464,10 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
       tscTrace("%p renew tableMeta successfully, command:%d, code:%d, retry:%d",
           pSql, pSql->cmd.command, pSql->res.code, pSql->retry);
   
-      SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
-      assert(pMeterMetaInfo->pMeterMeta == NULL);
+      STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
+      assert(pTableMetaInfo->pTableMeta == NULL);
       
-      tscGetMeterMeta(pSql, pMeterMetaInfo);
+      tscGetMeterMeta(pSql, pTableMetaInfo);
       code = tscSendMsgToServer(pSql);
       if (code != 0) {
         pRes->code = code;
@@ -489,18 +489,18 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) == TSDB_QUERY_TYPE_STABLE_SUBQUERY) {
-      SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-      assert(pMeterMetaInfo->pMeterMeta->numOfTags != 0 && pMeterMetaInfo->vnodeIndex >= 0 && pSql->param != NULL);
+      STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+//      assert(pTableMetaInfo->pTableMeta->numOfTags != 0 && pTableMetaInfo->vnodeIndex >= 0 && pSql->param != NULL);
 
       SRetrieveSupport *trs = (SRetrieveSupport *)pSql->param;
       SSqlObj *         pParObj = trs->pParentSqlObj;
       
-      assert(pParObj->signature == pParObj && trs->subqueryIndex == pMeterMetaInfo->vnodeIndex &&
-          pMeterMetaInfo->pMeterMeta->numOfTags != 0);
+//      assert(pParObj->signature == pParObj && trs->subqueryIndex == pTableMetaInfo->vnodeIndex &&
+//          pTableMetaInfo->pTableMeta->numOfTags != 0);
 
       tscTrace("%p get metricMeta during super table query successfully", pSql);
       
-      code = tscGetMeterMeta(pSql, pMeterMetaInfo);
+      code = tscGetMeterMeta(pSql, pTableMetaInfo);
       pRes->code = code;
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
@@ -513,11 +513,11 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
       if (pCmd->isParseFinish) {
         tscTrace("%p resend data to vnode in metermeta callback since sql has been parsed completed", pSql);
         
-        SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-        code = tscGetMeterMeta(pSql, pMeterMetaInfo);
+        STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+        code = tscGetMeterMeta(pSql, pTableMetaInfo);
         assert(code == TSDB_CODE_SUCCESS);
       
-        if (pMeterMetaInfo->pMeterMeta) {
+        if (pTableMetaInfo->pTableMeta) {
           code = tscSendMsgToServer(pSql);
           if (code == TSDB_CODE_SUCCESS) return;
         }
@@ -528,13 +528,13 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
     }
 
   } else {  // stream computing
-    SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-    code = tscGetMeterMeta(pSql, pMeterMetaInfo);
+    STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+    code = tscGetMeterMeta(pSql, pTableMetaInfo);
     pRes->code = code;
 
     if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
-    if (code == TSDB_CODE_SUCCESS && UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
+    if (code == TSDB_CODE_SUCCESS && UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
       code = tscGetMetricMeta(pSql, pCmd->clauseIndex);
       pRes->code = code;
 

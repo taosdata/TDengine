@@ -46,8 +46,47 @@ typedef struct SSqlGroupbyExpr {
   int16_t     orderType;                  // order by type: asc/desc
 } SSqlGroupbyExpr;
 
-typedef struct SMeterMetaInfo {
-  STableMeta * pMeterMeta;   // metermeta
+typedef struct STableInfo {
+  uint8_t numOfTags;
+  uint8_t precision;
+  int16_t numOfColumns;
+  int16_t rowSize;
+} STableInfo;
+
+typedef struct STableMeta {
+  char*   tableId;  // null-terminated string
+  
+  union {
+    // pointer to super table if it is created according to super table
+    struct STableMeta* pSTable;
+    
+    // otherwise, the following information is required.
+    STableInfo tableInfo;
+  };
+  
+  uint8_t tableType;
+  int16_t sversion;
+  int8_t  numOfVpeers;
+  SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
+  int32_t  sid;
+  int32_t  vgid;
+  uint64_t uid;
+  
+  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
+  SSchema  schema[];
+} STableMeta;
+
+typedef struct SSTableMeta {
+  char* tableId;
+  STableInfo tableInfo;
+  int32_t  sid;
+  int32_t  vgid;
+  uint64_t uid;
+  SSchema  schema[];
+} SSTableMeta;
+
+typedef struct STableMetaInfo {
+  STableMeta * pTableMeta;       // table meta info
   SSuperTableMeta *pMetricMeta;  // metricmeta
 
   /*
@@ -55,10 +94,10 @@ typedef struct SMeterMetaInfo {
    * 2. keep the vnode index for multi-vnode insertion
    */
   int32_t vnodeIndex;
-  char    name[TSDB_TABLE_ID_LEN + 1];    // table(super table) name
+  char    name[TSDB_TABLE_ID_LEN + 1];    // (super) table name
   int16_t numOfTags;                      // total required tags in query, including groupby tags
   int16_t tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
-} SMeterMetaInfo;
+} STableMetaInfo;
 
 /* the structure for sql function in select clause */
 typedef struct SSqlExpr {
@@ -174,7 +213,7 @@ typedef struct STableDataBlocks {
    * the metermeta for current table, the metermeta will be used during submit stage, keep a ref
    * to avoid it to be removed from cache
    */
-  STableMeta *pMeterMeta;
+  STableMeta *pTableMeta;
 
   union {
     char *filename;
@@ -215,7 +254,7 @@ typedef struct SQueryInfo {
   SOrderVal        order;
   int16_t          interpoType;  // interpolate type
   int16_t          numOfTables;
-  SMeterMetaInfo **pMeterInfo;
+  STableMetaInfo **pMeterInfo;
   struct STSBuf *  tsBuf;
   int64_t *        defaultVal;   // default value for interpolation
   char *           msg;          // pointer to the pCmd->payload to keep error message temporarily

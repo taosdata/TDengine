@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "tschemautil.h"
 #include "tstatus.h"
 #include "tutil.h"
 #include "mnode.h"
@@ -41,7 +40,7 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
 static void    mgmtDropDb(void *handle, void *tmrId);
 static void    mgmtSetDbDirty(SDbObj *pDb);
 
-static int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCreateDbMsg(SQueuedMsg *pMsg);
 static void    mgmtProcessAlterDbMsg(SQueuedMsg *pMsg);
@@ -295,7 +294,8 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
 
 bool mgmtCheckIsMonitorDB(char *db, char *monitordb) {
   char dbName[TSDB_DB_NAME_LEN + 1] = {0};
-  extractDBName(db, dbName);
+  assert(0);
+//  extractDBName(db, dbName);
 
   size_t len = strlen(dbName);
   return (strncasecmp(dbName, monitordb, len) == 0 && len == strlen(monitordb));
@@ -421,10 +421,10 @@ void mgmtCleanUpDbs() {
   sdbCloseTable(tsDbSdb);
 }
 
-static int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 

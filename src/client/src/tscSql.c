@@ -509,7 +509,7 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
       SSqlCmd *pCmd1 = &pSql->pSubs[i]->cmd;
 
       SQueryInfo *    pQueryInfo1 = tscGetQueryInfoDetail(pCmd1, pCmd1->clauseIndex);
-      SMeterMetaInfo *pMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo1, 0);
+      STableMetaInfo *pMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo1, 0);
 
       assert(pQueryInfo1->numOfTables == 1);
 
@@ -810,7 +810,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
 
   pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
 
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
   /*
    * case 1. Partial data have been retrieved from vnodes, but not all data has been retrieved yet.
@@ -825,7 +825,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED &&
       ((pRes->numOfRows > 0 && pCmd->command < TSDB_SQL_LOCAL) ||
        (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows == 0 && pCmd->command == TSDB_SQL_SELECT &&
-        pSql->pStream == NULL && pMeterMetaInfo->pMeterMeta != NULL))) {
+        pSql->pStream == NULL && pTableMetaInfo->pTableMeta != NULL))) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
 
     tscTrace("%p code:%d, numOfRows:%d, command:%d", pSql, pRes->code, pRes->numOfRows, pCmd->command);
@@ -1109,7 +1109,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   SQueryInfo *pQueryInfo = NULL;
   tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
 
-  SMeterMetaInfo *pMeterMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
+  STableMetaInfo *pTableMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
 
   if ((code = tscAllocPayload(pCmd, tblListLen + 16)) != TSDB_CODE_SUCCESS) {
     return code;
@@ -1144,7 +1144,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
       return code;
     }
 
-    if ((code = setMeterID(pMeterMetaInfo, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
+    if ((code = setMeterID(pTableMetaInfo, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
       return code;
     }
 
@@ -1154,7 +1154,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
       return code;
     }
 
-    if (payloadLen + strlen(pMeterMetaInfo->name) + 128 >= pCmd->allocSize) {
+    if (payloadLen + strlen(pTableMetaInfo->name) + 128 >= pCmd->allocSize) {
       char *pNewMem = realloc(pCmd->payload, pCmd->allocSize + tblListLen);
       if (pNewMem == NULL) {
         code = TSDB_CODE_CLI_OUT_OF_MEMORY;
@@ -1167,7 +1167,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
       pMsg = pCmd->payload;
     }
 
-    payloadLen += sprintf(pMsg + payloadLen, "%s,", pMeterMetaInfo->name);
+    payloadLen += sprintf(pMsg + payloadLen, "%s,", pTableMetaInfo->name);
   }
 
   *(pMsg + payloadLen) = '\0';

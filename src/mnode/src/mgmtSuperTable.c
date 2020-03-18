@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
-#include "tschemautil.h"
 #include "tscompression.h"
 #include "tskiplist.h"
 #include "tsqlfunction.h"
@@ -47,7 +46,7 @@ static void *mgmtSuperTableActionDecode(void *row, char *str, int32_t size, int3
 static void *mgmtSuperTableActionReset(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtSuperTableActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
 static int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t mgmtGetShowSuperTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 
 static void mgmtDestroySuperTable(SSuperTableObj *pTable) {
   free(pTable->schema);
@@ -492,14 +491,14 @@ int32_t mgmtDropSuperTableColumnByName(SSuperTableObj *pStable, char *colName) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mgmtGetShowSuperTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mgmtGetDb(pShow->db);
   if (pDb == NULL) {
     return TSDB_CODE_DB_NOT_SELECTED;
   }
 
   int32_t cols = 0;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -657,7 +656,7 @@ int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTable) {
   return (pTable->numOfColumns + pTable->numOfTags) * sizeof(SSchema);
 }
 
-int32_t mgmtGetSuperTableMeta(SDbObj *pDb, SSuperTableObj *pTable, STableMeta *pMeta, bool usePublicIp) {
+int32_t mgmtGetSuperTableMeta(SDbObj *pDb, SSuperTableObj *pTable, STableMetaMsg *pMeta, bool usePublicIp) {
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sid          = htonl(pTable->sid);
   pMeta->vgid         = htonl(pTable->vgId);
@@ -666,7 +665,7 @@ int32_t mgmtGetSuperTableMeta(SDbObj *pDb, SSuperTableObj *pTable, STableMeta *p
   pMeta->numOfTags    = pTable->numOfTags;
   pMeta->numOfColumns = htons(pTable->numOfColumns);
   pMeta->tableType    = pTable->type;
-  pMeta->contLen      = sizeof(STableMeta) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable);
+  pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable);
   strcpy(pMeta->tableId, pTable->tableId);
 
   return TSDB_CODE_SUCCESS;
