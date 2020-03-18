@@ -18,16 +18,22 @@
 #include "taosmsg.h"
 #include "tlog.h"
 #include "trpc.h"
+#include "tutil.h"
 #include "dnode.h"
+#include "dnodeMClient.h"
 
-static void (*dnodeProcessMgmtRspFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
+static bool   dnodeReadMnodeIpList();
+static void   dnodeSaveMnodeIpList();
 static void   dnodeProcessRspFromMnode(SRpcMsg *pMsg);
 static void   dnodeProcessStatusRsp(SRpcMsg *pMsg);
-static void  *tsDnodeMClientRpc;
+static void (*tsDnodeProcessMgmtRspFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
+static void  *tsDnodeMClientRpc = NULL;
+static SRpcIpSet tsDnodeMnodeIpList  = {0};
 
 int32_t dnodeInitMClient() {
-  dnodeProcessMgmtRspFp[TSDB_MSG_TYPE_DM_STATUS_RSP] = dnodeProcessStatusRsp;
-
+  dnodeReadMnodeIpList();
+  tsDnodeProcessMgmtRspFp[TSDB_MSG_TYPE_DM_STATUS_RSP] = dnodeProcessStatusRsp;
+  
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
@@ -35,9 +41,12 @@ int32_t dnodeInitMClient() {
   rpcInit.label        = "DND-MC";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessRspFromMnode;
-  rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
+  rpcInit.sessions     = 100;
   rpcInit.connType     = TAOS_CONN_CLIENT;
-  rpcInit.idleTime     = tsShellActivityTimer * 1000;
+  rpcInit.idleTime     = tsShellActivityTimer * 2000;
+  rpcInit.user         = "t";
+  rpcInit.ckey         = "key";
+  rpcInit.secret       = "secret";
 
   tsDnodeMClientRpc = rpcOpen(&rpcInit);
   if (tsDnodeMClientRpc == NULL) {
@@ -53,18 +62,122 @@ void dnodeCleanupMClient() {
   if (tsDnodeMClientRpc) {
     rpcClose(tsDnodeMClientRpc);
     tsDnodeMClientRpc = NULL;
+    dPrint("mnode rpc client is closed");
   }
 }
 
 static void dnodeProcessRspFromMnode(SRpcMsg *pMsg) {
-  if (dnodeProcessMgmtRspFp[pMsg->msgType]) {
-    (*dnodeProcessMgmtRspFp[pMsg->msgType])(pMsg);
+  if (tsDnodeProcessMgmtRspFp[pMsg->msgType]) {
+    (*tsDnodeProcessMgmtRspFp[pMsg->msgType])(pMsg);
   } else {
-    dError("%s is not processed in mclient", taosMsg[pMsg->msgType]);
+    dError("%s is not processed in mnode rpc client", taosMsg[pMsg->msgType]);
   }
 
   rpcFreeCont(pMsg->pCont);
 }
 
 static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
+  if (pMsg->code != TSDB_CODE_SUCCESS) {
+    dError("status rsp is received, reason:%s", tstrerror(pMsg->code));
+    return;
+  }
+
+  SDMStatusRsp *pStatusRsp = pMsg->pCont;
+  if (pStatusRsp->ipList.numOfIps <= 0) {
+    dError("status msg is invalid, num of ips is %d", pStatusRsp->ipList.numOfIps);
+    return;
+  }
+
+  pStatusRsp->ipList.port = htons(pStatusRsp->ipList.port);
+  for (int32_t i = 0; i < pStatusRsp->ipList.numOfIps; ++i) {
+    pStatusRsp->ipList.ip[i] = htonl(pStatusRsp->ipList.ip[i]);
+  }
+
+  dTrace("status msg is received, result:%d", tstrerror(pMsg->code));
+
+  if (memcmp(&(pStatusRsp->ipList), &tsDnodeMnodeIpList, sizeof(SRpcIpSet)) != 0) {
+    dPrint("mnode ip list is changed, numOfIps:%d inUse:%d", pStatusRsp->ipList.numOfIps, pStatusRsp->ipList.inUse);
+    memcpy(&tsDnodeMnodeIpList, &pStatusRsp->ipList, sizeof(SRpcIpSet));
+    for (int32_t i = 0; i < tsDnodeMnodeIpList.numOfIps; ++i) {
+      dPrint("mnode IP index:%d ip:%s", i, taosIpStr(tsDnodeMnodeIpList.ip[i]));
+    }
+    dnodeSaveMnodeIpList();
+  }
+
+  SDnodeState *pState  = &pStatusRsp->dnodeState;
+  pState->numOfVnodes  = htonl(pState->numOfVnodes);
+  pState->moduleStatus = htonl(pState->moduleStatus);
+  pState->createdTime  = htonl(pState->createdTime);
+  pState->dnodeId      = htonl(pState->dnodeId);
+  
+  dnodeProcessModuleStatus(pState->moduleStatus);
+  dnodeUpdateDnodeId(pState->dnodeId);
+}
+
+void dnodeSendMsgToMnode(SRpcMsg *rpcMsg) {
+  rpcSendRequest(tsDnodeMClientRpc, &tsDnodeMnodeIpList, rpcMsg);
+}
+
+static bool dnodeReadMnodeIpList() {
+  char ipFile[TSDB_FILENAME_LEN] = {0};
+  sprintf(ipFile, "%s/iplist", tsDnodeDir);
+
+  FILE *fp = fopen(ipFile, "r");
+  if (!fp) return false;
+  
+  char option[32] = {0};
+  int32_t value = 0;
+  int32_t num = 0;
+  
+  fscanf(fp, "%s %d", option, &value);
+  if (num != 2) return false;
+  if (strcmp(option, "inUse") != 0) return false;
+  tsDnodeMnodeIpList.inUse = (int8_t)value;;
+
+  num = fscanf(fp, "%s %d", option, &value);
+  if (num != 2) return false;
+  if (strcmp(option, "numOfIps") != 0) return false;
+  tsDnodeMnodeIpList.numOfIps = (int8_t)value;
+
+  num = fscanf(fp, "%s %d", option, &value);
+  if (num != 2) return false;
+  if (strcmp(option, "port") != 0) return false;
+  tsDnodeMnodeIpList.port = (uint16_t)value;
+
+  for (int32_t i = 0; i < tsDnodeMnodeIpList.numOfIps; i++) {
+    num = fscanf(fp, "%s %d", option, &value);
+    if (num != 2) return false;
+    if (strncmp(option, "ip", 2) != 0) return false;
+    tsDnodeMnodeIpList.ip[i] = (uint32_t)value;
+  }
+
+  fclose(fp);
+  dPrint("read mnode iplist successed");
+  for (int32_t i = 0; i < tsDnodeMnodeIpList.numOfIps; i++) {
+    dPrint("mnode IP index:%d ip:%s", i, taosIpStr(tsDnodeMnodeIpList.ip[i]));
+  } 
+
+  return true;
+}
+
+static void dnodeSaveMnodeIpList() {
+  char ipFile[TSDB_FILENAME_LEN] = {0};
+  sprintf(ipFile, "%s/iplist", tsDnodeDir);
+
+  FILE *fp = fopen(ipFile, "w");
+  if (!fp) return;
+
+  fprintf(fp, "inUse %d\n", tsDnodeMnodeIpList.inUse);
+  fprintf(fp, "numOfIps %d\n", tsDnodeMnodeIpList.numOfIps);
+  fprintf(fp, "port %u\n", tsDnodeMnodeIpList.port);
+  for (int32_t i = 0; i < tsDnodeMnodeIpList.numOfIps; i++) {
+    fprintf(fp, "ip%d %u\n", i, tsDnodeMnodeIpList.ip[i]);
+  }
+  
+  fclose(fp);
+  dPrint("save mnode iplist successed");
+}
+
+uint32_t dnodeGetMnodeMasteIp() {
+  return tsDnodeMnodeIpList.ip[0];
 }

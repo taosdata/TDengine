@@ -40,12 +40,12 @@ int32_t dnodeInitMnode() {
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
   rpcInit.localPort    = tsDnodeMnodePort;
-  rpcInit.label        = "DND-mnode";
+  rpcInit.label        = "DND-MS";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessMsgFromMnode;
-  rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
+  rpcInit.sessions     = 100;
   rpcInit.connType     = TAOS_CONN_SERVER;
-  rpcInit.idleTime     = tsShellActivityTimer * 1000;
+  rpcInit.idleTime     = tsShellActivityTimer * 2000;
 
   tsDnodeMnodeRpc = rpcOpen(&rpcInit);
   if (tsDnodeMnodeRpc == NULL) {
@@ -61,6 +61,7 @@ void dnodeCleanupMnode() {
   if (tsDnodeMnodeRpc) {
     rpcClose(tsDnodeMnodeRpc);
     tsDnodeMnodeRpc = NULL;
+    dPrint("mnode rpc server is closed");
   }
 }
 

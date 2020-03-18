@@ -23,12 +23,14 @@
 #include "mgmtDClient.h"
 #include "mgmtMnode.h"
 #include "mgmtShell.h"
+#include "mgmtDServer.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
 int32_t    (*mgmtInitDnodesFp)() = NULL;
 void       (*mgmtCleanUpDnodesFp)() = NULL;
 SDnodeObj *(*mgmtGetDnodeFp)(uint32_t ip) = NULL;
+SDnodeObj *(*mgmtGetDnodeByIpFp)(int32_t dnodeId) = NULL;
 int32_t    (*mgmtGetDnodesNumFp)() = NULL;
 int32_t    (*mgmtUpdateDnodeFp)(SDnodeObj *pDnode) = NULL;
 void *     (*mgmtGetNextDnodeFp)(SShowObj *pShow, SDnodeObj **pDnode) = NULL;
@@ -45,6 +47,7 @@ static int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn)
 static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg);
 static void    mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) ;
+static void    mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg);
 
 void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
   int32_t maxVnodes = pDnode->numOfCores * tsNumOfVnodesPerCore;
@@ -70,10 +73,9 @@ void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode) {
   for (int32_t i = 0; i < pDnode->numOfVnodes; ++i) {
     SVnodeLoad *pVload = pDnode->vload + i;
     if (pVload->vgId != 0) {
-      mTrace("%d-dnode:%s, calc free vnodes, exist vnode:%d, vgroup:%d, state:%d %s, dropstate:%d %s, syncstatus:%d %s",
-             totalVnodes, taosIpStr(pDnode->privateIp), i, pVload->vgId,
+      mTrace("dnode:%d, calc free vnodes, vnode:%d, status:%d %s, syncstatus:%d %s",
+             pDnode->dnodeId, pVload->vgId,
              pVload->status, taosGetVnodeStatusStr(pVload->status),
-             pVload->dropStatus, taosGetVnodeDropStatusStr(pVload->dropStatus),
              pVload->syncStatus, taosGetVnodeSyncStatusStr(pVload->syncStatus));
       totalVnodes++;
     }
@@ -92,7 +94,7 @@ void mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes, int32_t vgId) {
     if (pDnode) {
       SVnodeLoad *pVload = pDnode->vload + vnodeGid[i].vnode;
       memset(pVload, 0, sizeof(SVnodeLoad));
-      pVload->vnode = vnodeGid[i].vnode;
+      //pVload->vnode = vnodeGid[i].vnode;
       pVload->vgId = vgId;
       mTrace("dnode:%s, vnode:%d add to vgroup:%d", taosIpStr(pDnode->privateIp), vnodeGid[i].vnode, pVload->vgId);
       mgmtCalcNumOfFreeVnodes(pDnode);
@@ -117,7 +119,6 @@ void mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes) {
     }
   }
 }
-
 
 bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   uint32_t status = pDnode->moduleStatus & (1 << moduleType);
@@ -319,12 +320,6 @@ static int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn)
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "vgid");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
   pShow->bytes[cols] = 12;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "status");
@@ -401,10 +396,6 @@ static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, voi
         cols = 0;
         
         pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        *(uint32_t *)pWrite = pVnode->vnode;
-        cols++;
-        
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
         *(uint32_t *)pWrite = pVnode->vgId;
         cols++;
         
@@ -437,11 +428,12 @@ int32_t mgmtInitDnodes() {
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mgmtRetrieveVnodes);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mgmtProcessCfgDnodeMsg);
   mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mgmtProcessCfgDnodeMsgRsp);
-
+  mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, mgmtProcessDnodeStatusMsg);
 
   if (mgmtInitDnodesFp) {
     return mgmtInitDnodesFp();
   } else {
+    tsDnodeObj.dnodeId          = 1;
     tsDnodeObj.privateIp        = inet_addr(tsPrivateIp);;
     tsDnodeObj.createdTime      = taosGetTimestampMs();
     tsDnodeObj.lastReboot       = taosGetTimestampSec();
@@ -476,6 +468,16 @@ SDnodeObj *mgmtGetDnode(uint32_t ip) {
   } else {
     return &tsDnodeObj;
   }
+}
+
+SDnodeObj *mgmtGetDnodeByIp(int32_t dnodeId) {
+  if (mgmtGetDnodeByIpFp) {
+    return mgmtGetDnodeByIpFp(dnodeId);
+  } 
+  if (dnodeId != 0) {
+    return &tsDnodeObj;
+  }
+  return NULL;
 }
 
 int32_t mgmtGetDnodesNum() {
@@ -569,4 +571,130 @@ void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
 
 static void mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) {
   mTrace("cfg vnode rsp is received");
+}
+
+void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SDMStatusMsg *pStatus = rpcMsg->pCont;
+  pStatus->dnodeId = htonl(pStatus->dnodeId);
+
+  SDnodeObj *pDnode = NULL;
+  if (pStatus->dnodeId == 0) {
+    pDnode = mgmtGetDnodeByIp(pStatus->privateIp);
+    if (pDnode == NULL) {
+      mTrace("dnode not created in cluster, privateIp:%s, name:%s, ", taosIpStr(htonl(pStatus->dnodeId)), pStatus->dnodeName);
+      mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
+      return;
+    }
+  }
+
+  uint32_t version = htonl(pStatus->version);
+  if (version != tsVersion) {
+    mError("dnode:%d, status msg version:%d not equal with mnode:%d", pDnode->dnodeId, version, tsVersion);
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_MSG_VERSION);
+    return ;
+  }
+  
+  uint32_t lastPrivateIp = htonl(pDnode->privateIp);
+  uint32_t lastPublicIp  = htonl(pDnode->publicIp);
+
+  pDnode->privateIp        = htonl(pStatus->privateIp);
+  pDnode->publicIp         = htonl(pStatus->publicIp);
+  pDnode->lastReboot       = htonl(pStatus->lastReboot);
+  pDnode->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes);
+  pDnode->openVnodes       = htons(pStatus->openVnodes);
+  pDnode->numOfCores       = htons(pStatus->numOfCores);
+  pDnode->diskAvailable    = pStatus->diskAvailable;
+  pDnode->alternativeRole  = pStatus->alternativeRole;
+
+  if (pStatus->dnodeId == 0) {
+    mTrace("dnode:%d, first access, privateIp:%s, name:%s, ", pDnode->dnodeId, taosIpStr(pStatus->dnodeId), pStatus->dnodeName);
+    mgmtSetDnodeMaxVnodes(pDnode);
+    mgmtUpdateDnode(pDnode);
+  }
+ 
+  if (lastPrivateIp != pDnode->privateIp || lastPublicIp != pDnode->publicIp) {
+    mgmtUpdateVgroupIp(pDnode);
+    //mgmtUpdateMnodeIp();
+  }
+
+  for (int32_t j = 0; j < pDnode->openVnodes; ++j) {
+    pStatus->load[j].vgId          = htonl(pStatus->load[j].vgId);
+    pStatus->load[j].totalStorage  = htobe64(pStatus->load[j].totalStorage);
+    pStatus->load[j].compStorage   = htobe64(pStatus->load[j].compStorage);
+    pStatus->load[j].pointsWritten = htobe64(pStatus->load[j].pointsWritten);
+    
+    bool existInMnode = false;
+    for (int32_t vnode = 0; vnode < pDnode->numOfVnodes; ++vnode) {
+      SVnodeLoad *pVload = &(pDnode->vload[vnode]); 
+      if (pVload->vgId == pStatus->load[j].vgId) {
+        existInMnode = true;
+      }
+    }
+    
+    if (!existInMnode) {
+      SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->privateIp);
+      mPrint("dnode:%d, vnode:%d not exist in mnode, drop it", pDnode->dnodeId, pStatus->load[j].vgId);
+      mgmtSendDropVnodeMsg(pStatus->load[j].vgId, &ipSet, NULL);
+    }
+  }
+
+  for (int32_t vnode = 0; vnode < pDnode->numOfVnodes; ++vnode) {
+    SVnodeLoad *pVload = &(pDnode->vload[vnode]); 
+    
+    bool existInDnode = false;
+    for (int32_t j = 0; j < pDnode->openVnodes; ++j) {
+      if (htonl(pStatus->load[j].vgId) == pVload->vgId) {
+        existInDnode = true;
+        break;
+      }
+    }
+
+    if (!existInDnode) {
+      mPrint("dnode:%d, vnode:%d not exist in dnode, create it", pDnode->dnodeId, pVload->vgId);
+      SVgObj *pVgroup = mgmtGetVgroup(pVload->vgId);
+      if (pVgroup != NULL) {
+        SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->privateIp);
+        mgmtSendCreateVnodeMsg(pVgroup, &ipSet, NULL);
+      }
+    }
+  }
+
+  if (pDnode->status != TSDB_DN_STATUS_READY) {
+    mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
+    pDnode->status = TSDB_DN_STATUS_READY;
+    //TODO:
+    //mgmtStartBalanceTimer(200);
+  }
+
+  int32_t contLen = sizeof(SDMStatusRsp) + TSDB_MAX_VNODES * sizeof(SVnodeAccess);
+  SDMStatusRsp *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) {
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_SERV_OUT_OF_MEMORY);
+    return;
+  }
+
+  pRsp->ipList = *pSdbIpList;
+  pRsp->ipList.port = htons(pRsp->ipList.port);
+  for (int i = 0; i < pRsp->ipList.numOfIps; ++i) {
+    pRsp->ipList.ip[i] = htonl(pRsp->ipList.ip[i]);
+  }
+
+  pRsp->dnodeState.dnodeId = htonl(pDnode->dnodeId);
+  pRsp->dnodeState.moduleStatus = htonl(pDnode->moduleStatus);
+  pRsp->dnodeState.createdTime  = htonl(pDnode->createdTime / 1000);
+  pRsp->dnodeState.numOfVnodes = 0;
+  
+  contLen = sizeof(SDMStatusRsp);
+
+  //TODO: set vnode access
+  
+  SRpcMsg rpcRsp = {
+    .code    = TSDB_CODE_SUCCESS,
+    .pCont   = pStatus,
+    .contLen = contLen
+  };
+
+  rpcSendResponse(&rpcRsp);
 }

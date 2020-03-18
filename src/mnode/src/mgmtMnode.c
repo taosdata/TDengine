@@ -20,3 +20,4 @@
 bool mgmtCheckRedirect(void *handle) {
   return false;
 }
+

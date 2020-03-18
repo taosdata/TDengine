@@ -36,7 +36,7 @@ int32_t taosHashInt(void *handle, uint64_t key);
 
 void taosCleanUpIntHashWithFp(void *handle, void (*fp)(char *));
 
-char *taosVisitIntHashWithFp(void *handle, int (*fp)(char *));
+void taosVisitIntHashWithFp(void *handle, void (*fp)(char *, void *), void *param);
 
 int32_t taosGetIntHashSize(void *handle);
 

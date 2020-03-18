@@ -40,6 +40,7 @@ extern "C" {
 #include "tutil.h"
 
 typedef struct {
+  int32_t    dnodeId;
   uint32_t   privateIp;
   int32_t    sid;
   uint32_t   moduleStatus;
