@@ -9,6 +9,8 @@ set -e
 verMode=edge
 pagMode=full
 
+installTarge=$1
+
 # -----------------------Variables definition---------------------
 script_dir=$(dirname $(readlink -f "$0"))
 # Dynamic directory
@@ -187,7 +189,9 @@ function install_config() {
     ${csudo} ln -s ${cfg_install_dir}/DB_CLIENT_NAME.cfg ${install_main_dir}/cfg
 
     if [ "$verMode" == "cluster" ]; then
-        [ ! -z $1 ] && return 0 || : # only install client
+        if [ "$installTarge" == "docker" ]; then 
+          return 0 || : # only install client
+        fi
     
         if ((${update_flag}==1)); then
             return 0
@@ -487,56 +491,49 @@ function update_DB_FULL_NAME() {
       install_connector
     fi
     install_examples
-    if [ -z $1 ]; then
-        install_bin
-        install_service
-        install_config
-		
-		if [ "$verMode" == "cluster" ]; then    
-            # Check if openresty is installed
-            openresty_work=false
 
-            # Check if nginx is installed successfully
-            if type curl &> /dev/null; then
-                if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
-                    echo -e "\033[44;32;1mNginx for DB_FULL_NAME is updated successfully!${NC}"
-                    openresty_work=true
-                else
-                    echo -e "\033[44;31;5mNginx for DB_FULL_NAME does not work! Please try again!\033[0m"
-                fi
-            fi
-		fi 
+    install_bin
+    install_service
+    install_config
 
-        echo
-        echo -e "\033[44;32;1mDB_FULL_NAME is updated successfully!${NC}"
-        echo
-        echo -e "${GREEN_DARK}To configure DB_FULL_NAME ${NC}: edit /etc/DB_CLIENT_NAME/DB_CLIENT_NAME.cfg"
-        if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} systemctl start DB_SERVICE_NAME${NC}"
-        elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} service DB_SERVICE_NAME start${NC}"
-        else
-            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ./DB_SERVICE_NAME${NC}"
-        fi
+    if [ "$verMode" == "cluster" ]; then    
+        # Check if openresty is installed
+        openresty_work=false
 
-        if [ "$verMode" == "cluster" ]; then  
-            if [ ${openresty_work} = 'true' ]; then
-                echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+        # Check if nginx is installed successfully
+        if type curl &> /dev/null; then
+            if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
+                echo -e "\033[44;32;1mNginx for DB_FULL_NAME is updated successfully!${NC}"
+                openresty_work=true
             else
-                echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
+                echo -e "\033[44;31;5mNginx for DB_FULL_NAME does not work! Please try again!\033[0m"
             fi
-        else
-		    echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
         fi
-        echo
-        echo -e "\033[44;32;1mDB_FULL_NAME is updated successfully!${NC}"
-    else
-        install_bin
-        install_config
+    fi 
 
-        echo
-        echo -e "\033[44;32;1mDB_FULL_NAME client is updated successfully!${NC}"
+    echo
+    echo -e "\033[44;32;1mDB_FULL_NAME is updated successfully!${NC}"
+    echo
+    echo -e "${GREEN_DARK}To configure DB_FULL_NAME ${NC}: edit /etc/DB_CLIENT_NAME/DB_CLIENT_NAME.cfg"
+    if ((${service_mod}==0)); then
+        echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} systemctl start DB_SERVICE_NAME${NC}"
+    elif ((${service_mod}==1)); then
+        echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} service DB_SERVICE_NAME start${NC}"
+    else
+        echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ./DB_SERVICE_NAME${NC}"
     fi
+
+    if [ "$verMode" == "cluster" ]; then  
+        if [ ${openresty_work} = 'true' ]; then
+            echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+        else
+            echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
+        fi
+    else
+    echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
+    fi
+    echo
+    echo -e "\033[44;32;1mDB_FULL_NAME is updated successfully!${NC}"
 
     rm -rf $(tar -tf DB_CLIENT_NAME.tar.gz)
 }
@@ -552,11 +549,7 @@ function install_DB_FULL_NAME() {
     echo -e "${GREEN}Start to install DB_FULL_NAME...${NC}"
     
 	  install_main_path
-	   
-    if [ -z $1 ]; then
-        install_data
-    fi 
-    
+    install_data
     install_log 
     install_header
     install_lib
@@ -565,78 +558,61 @@ function install_DB_FULL_NAME() {
     fi
     install_examples
 
-    if [ -z $1 ]; then # install service and client
-        # For installing new
-        install_bin
-        install_service
+    # For installing new
+    install_bin
+    install_service
 
-        if [ "$verMode" == "cluster" ]; then  
-            openresty_work=false
-            # Check if nginx is installed successfully
-            if type curl &> /dev/null; then
-                if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
-                    echo -e "\033[44;32;1mNginx for DB_FULL_NAME is installed successfully!${NC}"
-                    openresty_work=true
-                else
-                    echo -e "\033[44;31;5mNginx for DB_FULL_NAME does not work! Please try again!\033[0m"
-                fi
+    if [ "$verMode" == "cluster" ]; then  
+        openresty_work=false
+        # Check if nginx is installed successfully
+        if type curl &> /dev/null; then
+            if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
+                echo -e "\033[44;32;1mNginx for DB_FULL_NAME is installed successfully!${NC}"
+                openresty_work=true
+            else
+                echo -e "\033[44;31;5mNginx for DB_FULL_NAME does not work! Please try again!\033[0m"
             fi
         fi
-		
-        install_config	
-
-        # Ask if to start the service
-        echo
-        echo -e "\033[44;32;1mDB_FULL_NAME is installed successfully!${NC}"
-        echo
-        echo -e "${GREEN_DARK}To configure DB_FULL_NAME ${NC}: edit /etc/DB_CLIENT_NAME/DB_CLIENT_NAME.cfg"
-        if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} systemctl start DB_SERVICE_NAME${NC}"
-        elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} service DB_SERVICE_NAME start${NC}"
-        else
-            echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: DB_SERVICE_NAME${NC}"
-        fi
-		
-        if [ "$verMode" == "cluster" ]; then  
-           if [ ${openresty_work} = 'true' ]; then
-                echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
-           else
-                echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
-            fi
-		else
-            echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
-        fi
-		
-        echo
-        echo -e "\033[44;32;1mDB_FULL_NAME is installed successfully!${NC}"
-    else # Only install client
-        install_bin
-        install_config
-
-        echo
-        echo -e "\033[44;32;1mDB_FULL_NAME client is installed successfully!${NC}"
     fi
+
+    install_config	
+
+    # Ask if to start the service
+    echo
+    echo -e "\033[44;32;1mDB_FULL_NAME is installed successfully!${NC}"
+    echo
+    echo -e "${GREEN_DARK}To configure DB_FULL_NAME ${NC}: edit /etc/DB_CLIENT_NAME/DB_CLIENT_NAME.cfg"
+    if ((${service_mod}==0)); then
+        echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} systemctl start DB_SERVICE_NAME${NC}"
+    elif ((${service_mod}==1)); then
+        echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: ${csudo} service DB_SERVICE_NAME start${NC}"
+    else
+        echo -e "${GREEN_DARK}To start DB_FULL_NAME     ${NC}: DB_SERVICE_NAME${NC}"
+    fi
+
+    if [ "$verMode" == "cluster" ]; then  
+       if [ ${openresty_work} = 'true' ]; then
+            echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+       else
+            echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
+       fi
+    else
+        echo -e "${GREEN_DARK}To access DB_FULL_NAME    ${NC}: use ${GREEN_UNDERLINE}DB_CLIENT_NAME${NC} in shell${NC}"
+    fi
+
+    echo
+    echo -e "\033[44;32;1mDB_FULL_NAME is installed successfully!${NC}"
 
     rm -rf $(tar -tf DB_CLIENT_NAME.tar.gz)
 }
 
 
 ## ==============================Main program starts from here============================
-if [ -z $1 ]; then
-    # Install server and client
-    if [ -x ${bin_dir}/DB_SERVICE_NAME ]; then
-        update_flag=1
-        update_DB_FULL_NAME
-    else
-        install_DB_FULL_NAME
-    fi
+# Install server and client
+if [ -x ${bin_dir}/DB_SERVICE_NAME ]; then
+    update_flag=1
+    update_DB_FULL_NAME
 else
-    # Only install client
-    if [ -x ${bin_dir}/DB_CLIENT_NAME ]; then
-        update_flag=1
-        update_DB_FULL_NAME client
-    else
-        install_DB_FULL_NAME client
-    fi
+    install_DB_FULL_NAME
 fi
+
