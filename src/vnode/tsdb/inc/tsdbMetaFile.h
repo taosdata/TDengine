@@ -31,7 +31,7 @@ typedef void (*afterFunc)(void *);
 typedef struct {
   int       fd;        // File descriptor
   int       nDel;      // number of deletions
-  int       tombSize;  // Number of records
+  int       tombSize;  // deleted size
   int64_t   size;      // Total file size
   void *    map;       // Map from uid ==> position
   iterFunc  iFunc;

@@ -241,8 +241,21 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   }
   table->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
 
+  // Register to meta
   if (newSuper) tsdbAddTableToMeta(pMeta, super, true);
   tsdbAddTableToMeta(pMeta, table, true);
+
+  // Write to meta file
+  int bufLen = 0;
+  if (newSuper) {
+    void *buf = tsdbEncodeTable(super, &bufLen);
+    tsdbInsertMetaRecord(pMeta->mfh, super->tableId.uid, buf, bufLen);
+    tsdbFreeEncode(buf);
+  }
+
+  void *buf = tsdbEncodeTable(table, &bufLen);
+  tsdbInsertMetaRecord(pMeta->mfh, table->tableId.uid, buf, bufLen);
+  tsdbFreeEncode(buf);
 
   return 0;
 }
