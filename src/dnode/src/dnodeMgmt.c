@@ -448,8 +448,8 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
     return;
   }
 
-  taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
   if (tsStatusTimer == NULL) {
+    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
     dError("failed to start status timer");
     return;
   }
@@ -457,6 +457,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   int32_t contLen = sizeof(SDMStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
   SDMStatusMsg *pStatus = rpcMallocCont(contLen);
   if (pStatus == NULL) {
+    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
     dError("failed to malloc status message");
     return;
   }
@@ -483,6 +484,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   };
 
   dnodeSendMsgToMnode(&rpcMsg);
+  taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
 }
 
 static void dnodeReadDnodeId() {

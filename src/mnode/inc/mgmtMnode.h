@@ -22,6 +22,9 @@ extern "C" {
 
 bool mgmtCheckRedirect(void *handle);
 
+int32_t mgmtAddMnode(uint32_t privateIp, uint32_t publicIp);
+int32_t mgmtRemoveMnode(uint32_t privateIp);
+
 #ifdef __cplusplus
 }
 #endif

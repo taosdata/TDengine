@@ -33,7 +33,18 @@ static void  *tsDnodeMClientRpc = NULL;
 static SRpcIpSet tsDnodeMnodeIpList  = {0};
 
 int32_t dnodeInitMClient() {
-  dnodeReadMnodeIpList();
+  if (!dnodeReadMnodeIpList()) {
+    dTrace("failed to read mnode iplist, set it from cfg file");
+    memset(&tsDnodeMnodeIpList, sizeof(SRpcIpSet), 0);
+    tsDnodeMnodeIpList.port = tsMnodeDnodePort;
+    tsDnodeMnodeIpList.numOfIps = 1;
+    tsDnodeMnodeIpList.ip[0] = inet_addr(tsMasterIp);
+    if (tsSecondIp[0]) {
+      tsDnodeMnodeIpList.numOfIps = 2;
+      tsDnodeMnodeIpList.ip[1] = inet_addr(tsSecondIp);
+    }
+  }
+
   tsDnodeProcessMgmtRspFp[TSDB_MSG_TYPE_DM_STATUS_RSP] = dnodeProcessStatusRsp;
   
   SRpcInit rpcInit;
@@ -80,7 +91,7 @@ static void dnodeProcessRspFromMnode(SRpcMsg *pMsg) {
 
 static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   if (pMsg->code != TSDB_CODE_SUCCESS) {
-    dError("status rsp is received, reason:%s", tstrerror(pMsg->code));
+    dError("status rsp is received, error:%s", tstrerror(pMsg->code));
     return;
   }
 

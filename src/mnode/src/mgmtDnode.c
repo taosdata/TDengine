@@ -65,6 +65,8 @@ void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
 
   pDnode->openVnodes = 0;
   pDnode->status = TSDB_DN_STATUS_OFFLINE;
+
+  mgmtUpdateDnode(pDnode);
 }
 
 bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
@@ -388,6 +390,7 @@ int32_t mgmtInitDnodes() {
     tsDnodeObj.alternativeRole  = TSDB_DNODE_ROLE_ANY;
     tsDnodeObj.status           = TSDB_DN_STATUS_OFFLINE;
     tsDnodeObj.lastReboot       = taosGetTimestampSec();
+    sprintf(tsDnodeObj.dnodeName, "%d", tsDnodeObj.dnodeId);
     mgmtSetDnodeMaxVnodes(&tsDnodeObj);
 
     tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_MGMT);
@@ -523,7 +526,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
 
   SDnodeObj *pDnode = NULL;
   if (pStatus->dnodeId == 0) {
-    pDnode = mgmtGetDnodeByIp(pStatus->privateIp);
+    pDnode = mgmtGetDnodeByIp(htonl(pStatus->privateIp));
     if (pDnode == NULL) {
       mTrace("dnode not created, privateIp:%s, name:%s, ", taosIpStr(htonl(pStatus->dnodeId)), pStatus->dnodeName);
       mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
@@ -538,8 +541,8 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return ;
   }
   
-  uint32_t lastPrivateIp = htonl(pDnode->privateIp);
-  uint32_t lastPublicIp  = htonl(pDnode->publicIp);
+  uint32_t lastPrivateIp = pDnode->privateIp;
+  uint32_t lastPublicIp  = pDnode->publicIp;
 
   pDnode->privateIp        = htonl(pStatus->privateIp);
   pDnode->publicIp         = htonl(pStatus->publicIp);
@@ -550,9 +553,8 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   pDnode->alternativeRole  = pStatus->alternativeRole;
 
   if (pStatus->dnodeId == 0) {
-    mTrace("dnode:%d, first access, privateIp:%s, name:%s, ", pDnode->dnodeId, taosIpStr(pStatus->dnodeId), pStatus->dnodeName);
+    mTrace("dnode:%d, first access, privateIp:%s, name:%s, ", pDnode->dnodeId, taosIpStr(pDnode->privateIp), pDnode->dnodeName);
     mgmtSetDnodeMaxVnodes(pDnode);
-    mgmtUpdateDnode(pDnode);
   }
  
   if (lastPrivateIp != pDnode->privateIp || lastPublicIp != pDnode->publicIp) {
@@ -578,8 +580,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   if (pDnode->status != TSDB_DN_STATUS_READY) {
     mTrace("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TSDB_DN_STATUS_READY;
-    //TODO:
-    //mgmtStartBalanceTimer(200);
+    mgmtStartBalanceTimer(200);
   }
 
   int32_t contLen = sizeof(SDMStatusRsp) + TSDB_MAX_VNODES * sizeof(SVnodeAccess);

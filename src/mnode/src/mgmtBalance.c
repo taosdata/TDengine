@@ -20,7 +20,7 @@
 
 int32_t (*mgmtInitBalanceFp)() = NULL;
 void    (*mgmtCleanupBalanceFp)() = NULL;
-void    (*mgmtStartBalanceFp)(int32_t afterMs) = NULL;
+void    (*mgmtStartBalanceTimerFp)(int32_t afterMs) = NULL;
 int32_t (*mgmtAllocVnodesFp)(SVgObj *pVgroup) = NULL;
 
 int32_t mgmtInitBalance() {
@@ -37,9 +37,9 @@ void mgmtCleanupBalance() {
   }
 }
 
-void mgmtStartBalance(int32_t afterMs) {
-  if (mgmtStartBalanceFp) {
-    (*mgmtStartBalanceFp)(afterMs);
+void mgmtStartBalanceTimer(int32_t afterMs) {
+  if (mgmtStartBalanceTimerFp) {
+    (*mgmtStartBalanceTimerFp)(afterMs);
   }
 }
 
