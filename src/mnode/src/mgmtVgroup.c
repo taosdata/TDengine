@@ -165,7 +165,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg) {
 
   mPrint("vgroup:%d, is created in mnode, db:%s replica:%d", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    mPrint("vgroup:%d, dnode:%d vnode:%d", pVgroup->vgId, taosIpStr(pVgroup->vnodeGid[i].dnodeId), pVgroup->vnodeGid[i].vnode);
+    mPrint("vgroup:%d, dnode:%d vnode:%d", pVgroup->vgId, pVgroup->vnodeGid[i].dnodeId, pVgroup->vnodeGid[i].vnode);
   }
 
   pMsg->ahandle = pVgroup;
@@ -559,7 +559,7 @@ SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip) {
 }
 
 void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle) {
-  mTrace("vgroup:%d, send create msg, ahandle:%p", pVgroup->vgId, ahandle);
+  mTrace("vgroup:%d, send create vnode:%d msg, ahandle:%p", pVgroup->vgId, pVgroup->vgId, ahandle);
   SMDCreateVnodeMsg *pCreate = mgmtBuildCreateVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
     .handle  = ahandle,

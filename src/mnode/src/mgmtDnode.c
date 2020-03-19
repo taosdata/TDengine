@@ -528,7 +528,14 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   if (pStatus->dnodeId == 0) {
     pDnode = mgmtGetDnodeByIp(htonl(pStatus->privateIp));
     if (pDnode == NULL) {
-      mTrace("dnode not created, privateIp:%s, name:%s, ", taosIpStr(htonl(pStatus->dnodeId)), pStatus->dnodeName);
+      mTrace("dnode not created, privateIp:%s", taosIpStr(htonl(pStatus->privateIp)));
+      mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
+      return;
+    }
+  } else {
+    pDnode = mgmtGetDnode(pStatus->dnodeId);
+    if (pDnode == NULL) {
+      mError("dnode:%d, not exist, privateIp:%s", taosIpStr(pStatus->dnodeId), pStatus->dnodeName);
       mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
       return;
     }
@@ -569,11 +576,11 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     pDnode->vload[j].compStorage   = htobe64(pStatus->load[j].compStorage);
     pDnode->vload[j].pointsWritten = htobe64(pStatus->load[j].pointsWritten);
     
-    SVgObj *pVgroup = mgmtGetVgroup(pStatus->load[j].vgId);
+    SVgObj *pVgroup = mgmtGetVgroup(pDnode->vload[j].vgId);
     if (pVgroup == NULL) {
       SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->privateIp);
-      mPrint("dnode:%d, vnode:%d not exist in mnode, drop it", pDnode->dnodeId, pStatus->load[j].vgId);
-      mgmtSendDropVnodeMsg(pStatus->load[j].vgId, &ipSet, NULL);
+      mPrint("dnode:%d, vnode:%d not exist in mnode, drop it", pDnode->dnodeId, pDnode->vload[j].vgId);
+      mgmtSendDropVnodeMsg(pDnode->vload[j].vgId, &ipSet, NULL);
     }
   }
 
@@ -590,11 +597,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  pRsp->ipList = *pSdbIpList;
-  pRsp->ipList.port = htons(pRsp->ipList.port);
-  for (int i = 0; i < pRsp->ipList.numOfIps; ++i) {
-    pRsp->ipList.ip[i] = htonl(pRsp->ipList.ip[i]);
-  }
+  mgmtGetMnodeIpList(&pRsp->ipList);
 
   pRsp->dnodeState.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeState.moduleStatus = htonl(pDnode->moduleStatus);
@@ -606,8 +609,9 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   //TODO: set vnode access
   
   SRpcMsg rpcRsp = {
+    .handle  = rpcMsg->handle,
     .code    = TSDB_CODE_SUCCESS,
-    .pCont   = pStatus,
+    .pCont   = pRsp,
     .contLen = contLen
   };
 

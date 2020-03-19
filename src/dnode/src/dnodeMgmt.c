@@ -218,10 +218,10 @@ static int32_t dnodeOpenVnode(int32_t vnode, char *rootDir) {
     return terrno;
   }
 
-  STsdbRepoInfo *tsdbInfo = tsdbGetStatus(pTsdb);
+  //STsdbRepoInfo *tsdbInfo = tsdbGetStatus(pTsdb);
 
   SVnodeObj vnodeObj = {0};
-  vnodeObj.vgId     = tsdbInfo->tsdbCfg.tsdbId;
+  vnodeObj.vgId     = vnode;//tsdbInfo->tsdbCfg.tsdbId;
   vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
   vnodeObj.refCount = 1;
   vnodeObj.version  = 0;
@@ -324,7 +324,7 @@ static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
 
   taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, (char *) (&vnodeObj));
 
-  dPrint("vgroup:%d, vnode is created", vnodeObj.vgId);
+  dPrint("vgroup:%d, vnode:%d is created", vnodeObj.vgId, vnodeObj.vgId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -359,7 +359,7 @@ static void dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
   pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
 
-  dTrace("vgroup:%d, start to create vnode in dnode", pCreate->cfg.vgId);
+  dTrace("vgroup:%d, start to create vnode:%d in dnode", pCreate->cfg.vgId, pCreate->cfg.vgId);
 
   SVnodeObj *pVnodeObj = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
   if (pVnodeObj != NULL) {
@@ -439,6 +439,7 @@ static void dnodeBuildVloadMsg(char *pNode, void * param) {
   
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);
+  pLoad->vnode = htonl(pVnode->vgId);
   pLoad->status = pVnode->status;
 }
 
@@ -498,7 +499,7 @@ static void dnodeReadDnodeId() {
   int32_t value = 0;
   int32_t num = 0;
   
-  fscanf(fp, "%s %d", option, &value);
+  num = fscanf(fp, "%s %d", option, &value);
   if (num != 2) return;
   if (strcmp(option, "dnodeId") != 0) return;
   tsDnodeId = value;;

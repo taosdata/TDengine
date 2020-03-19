@@ -84,13 +84,13 @@ int32_t dnodeInitModules() {
 }
 
 void dnodeStartModules() {
-  for (int mod = 1; mod < TSDB_MOD_MAX; ++mod) {
-    if (tsModule[mod].num != 0 && tsModule[mod].startFp) {
-      if ((*tsModule[mod].startFp)() != 0) {
-        dError("failed to start module:%d", mod);
-      }
-    }
-  }
+  // for (int mod = 1; mod < TSDB_MOD_MAX; ++mod) {
+  //   if (tsModule[mod].num != 0 && tsModule[mod].startFp) {
+  //     if ((*tsModule[mod].startFp)() != 0) {
+  //       dError("failed to start module:%d", mod);
+  //     }
+  //   }
+  // }
 }
 
 void dnodeProcessModuleStatus(uint32_t moduleStatus) {

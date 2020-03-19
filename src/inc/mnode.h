@@ -40,6 +40,28 @@ extern "C" {
 #include "tutil.h"
 
 typedef struct {
+  int32_t  mnodeId;
+  uint32_t privateIp;
+  uint32_t publicIp;
+  int64_t  createdTime;
+  int64_t  lostTime;
+  uint64_t dbVersion;
+  uint32_t rack;
+  uint16_t idc;
+  uint16_t slot;
+  int8_t   role;
+  int8_t   status;
+  int8_t   numOfMnodes;
+  int32_t  numOfDnodes;
+  char     mnodeName[TSDB_DNODE_NAME_LEN + 1];
+  char     reserved[7];
+  char     updateEnd[1];
+  int      syncFd;
+  void    *hbTimer;
+  void    *pSync;
+} SMnodeObj;
+
+typedef struct {
   int32_t    dnodeId;
   uint32_t   privateIp;
   uint32_t   publicIp;

@@ -23,9 +23,9 @@
 int32_t (*mgmtAddMnodeFp)(uint32_t privateIp, uint32_t publicIp) = NULL;
 int32_t (*mgmtRemoveMnodeFp)(uint32_t privateIp) = NULL;
 int32_t (*mgmtGetMnodesNumFp)() = NULL;
-void *  (*mgmtGetNextMnodeFp)(SShowObj *pShow, SSdbPeer **pMnode) = NULL;
+void *  (*mgmtGetNextMnodeFp)(SShowObj *pShow, SMnodeObj **pMnode) = NULL;
 
-static SSdbPeer tsMnodeObj = {0};
+static SMnodeObj tsMnodeObj = {0};
 static int32_t mgmtGetMnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
@@ -57,12 +57,12 @@ static int32_t mgmtGetMnodesNum() {
   }
 }
 
-static void *mgmtGetNextMnode(SShowObj *pShow, SSdbPeer **pMnode) {
+static void *mgmtGetNextMnode(SShowObj *pShow, SMnodeObj **pMnode) {
   if (mgmtGetNextMnodeFp) {
     return (*mgmtGetNextMnodeFp)(pShow, pMnode);
   } else {
     if (*pMnode == NULL) {
-      *pMnode = NULL;
+      *pMnode = &tsMnodeObj;
     } else {
       *pMnode = NULL;
     }
@@ -129,18 +129,19 @@ static int32_t mgmtGetMnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn)
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t  numOfRows = 0;
   int32_t  cols      = 0;
-  SSdbPeer *pMnode   = NULL;
+  SMnodeObj *pMnode   = NULL;
   char     *pWrite;
   char     ipstr[32];
 
   while (numOfRows < rows) {
-    pShow->pNode = mgmtGetNextMnode(pShow, (SSdbPeer **)&pMnode);
+    pShow->pNode = mgmtGetNextMnode(pShow, (SMnodeObj **)&pMnode);
     if (pMnode == NULL) break;
 
     cols = 0;
 
+    tinet_ntoa(ipstr, pMnode->privateIp);
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pMnode->ipstr);
+    strcpy(pWrite, ipstr);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -167,4 +168,9 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
   return numOfRows;
 }
 
-
+void mgmtGetMnodeIpList(SRpcIpSet *ipSet) {
+  ipSet->inUse = 0;
+  ipSet->port = htons(tsMnodeDnodePort);
+  ipSet->numOfIps = 1;
+  ipSet->ip[0] = htonl(inet_addr(tsMasterIp));
+}

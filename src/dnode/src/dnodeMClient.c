@@ -22,7 +22,7 @@
 #include "dnode.h"
 #include "dnodeMClient.h"
 #include "dnodeModule.h"
-#include "dnodeMClient.h"
+#include "dnodeMgmt.h"
 
 static bool   dnodeReadMnodeIpList();
 static void   dnodeSaveMnodeIpList();
@@ -35,7 +35,7 @@ static SRpcIpSet tsDnodeMnodeIpList  = {0};
 int32_t dnodeInitMClient() {
   if (!dnodeReadMnodeIpList()) {
     dTrace("failed to read mnode iplist, set it from cfg file");
-    memset(&tsDnodeMnodeIpList, sizeof(SRpcIpSet), 0);
+    memset(&tsDnodeMnodeIpList, 0, sizeof(SRpcIpSet));
     tsDnodeMnodeIpList.port = tsMnodeDnodePort;
     tsDnodeMnodeIpList.numOfIps = 1;
     tsDnodeMnodeIpList.ip[0] = inet_addr(tsMasterIp);
@@ -106,13 +106,13 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
     pStatusRsp->ipList.ip[i] = htonl(pStatusRsp->ipList.ip[i]);
   }
 
-  dTrace("status msg is received, result:%d", tstrerror(pMsg->code));
+  //dTrace("status msg is received, result:%s", tstrerror(pMsg->code));
 
   if (memcmp(&(pStatusRsp->ipList), &tsDnodeMnodeIpList, sizeof(SRpcIpSet)) != 0) {
     dPrint("mnode ip list is changed, numOfIps:%d inUse:%d", pStatusRsp->ipList.numOfIps, pStatusRsp->ipList.inUse);
     memcpy(&tsDnodeMnodeIpList, &pStatusRsp->ipList, sizeof(SRpcIpSet));
     for (int32_t i = 0; i < tsDnodeMnodeIpList.numOfIps; ++i) {
-      dPrint("mnode IP index:%d ip:%s", i, taosIpStr(tsDnodeMnodeIpList.ip[i]));
+      dPrint("mnode index:%d ip:%s", i, taosIpStr(tsDnodeMnodeIpList.ip[i]));
     }
     dnodeSaveMnodeIpList();
   }
@@ -142,7 +142,7 @@ static bool dnodeReadMnodeIpList() {
   int32_t value = 0;
   int32_t num = 0;
   
-  fscanf(fp, "%s %d", option, &value);
+  num = fscanf(fp, "%s %d", option, &value);
   if (num != 2) return false;
   if (strcmp(option, "inUse") != 0) return false;
   tsDnodeMnodeIpList.inUse = (int8_t)value;;
@@ -167,7 +167,7 @@ static bool dnodeReadMnodeIpList() {
   fclose(fp);
   dPrint("read mnode iplist successed");
   for (int32_t i = 0; i < tsDnodeMnodeIpList.numOfIps; i++) {
-    dPrint("mnode IP index:%d ip:%s", i, taosIpStr(tsDnodeMnodeIpList.ip[i]));
+    dPrint("mnode index:%d ip:%s", i, taosIpStr(tsDnodeMnodeIpList.ip[i]));
   } 
 
   return true;
