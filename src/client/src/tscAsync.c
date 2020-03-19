@@ -25,6 +25,7 @@
 #include "tutil.h"
 #include "tnote.h"
 #include "tsched.h"
+#include "tschemautil.h"
 
 static void tscProcessFetchRow(SSchedMsg *pMsg);
 static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
@@ -490,13 +491,13 @@ void tscMeterMetaCallBack(void *param, TAOS_RES *res, int code) {
   
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) == TSDB_QUERY_TYPE_STABLE_SUBQUERY) {
       STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-//      assert(pTableMetaInfo->pTableMeta->numOfTags != 0 && pTableMetaInfo->vnodeIndex >= 0 && pSql->param != NULL);
+      assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0) && pTableMetaInfo->vnodeIndex >= 0 && pSql->param != NULL);
 
       SRetrieveSupport *trs = (SRetrieveSupport *)pSql->param;
       SSqlObj *         pParObj = trs->pParentSqlObj;
       
-//      assert(pParObj->signature == pParObj && trs->subqueryIndex == pTableMetaInfo->vnodeIndex &&
-//          pTableMetaInfo->pTableMeta->numOfTags != 0);
+      assert(pParObj->signature == pParObj && trs->subqueryIndex == pTableMetaInfo->vnodeIndex &&
+          tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0);
 
       tscTrace("%p get metricMeta during super table query successfully", pSql);
       

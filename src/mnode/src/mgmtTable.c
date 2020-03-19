@@ -14,8 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
+
 #include "mgmtTable.h"
-//#include "../../client/inc/tsclient.h"
 #include "mgmtAcct.h"
 #include "mgmtChildTable.h"
 #include "mgmtDClient.h"
@@ -30,7 +31,7 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 #include "mnode.h"
-#include "os.h"
+
 #include "qast.h"
 #include "qextbuffer.h"
 #include "taoserror.h"
@@ -40,6 +41,7 @@
 #include "tsqlfunction.h"
 #include "tstatus.h"
 #include "ttime.h"
+#include "name.h"
 
 extern void *tsNormalTableSdb;
 extern void *tsChildTableSdb;

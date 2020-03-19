@@ -15,14 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosmsg.h"
-#include "tscompression.h"
-#include "tskiplist.h"
-#include "tsqlfunction.h"
-#include "ttime.h"
-#include "tstatus.h"
-#include "tutil.h"
-#include "mnode.h"
+
 #include "mgmtAcct.h"
 #include "mgmtChildTable.h"
 #include "mgmtDb.h"
@@ -33,6 +26,10 @@
 #include "mgmtTable.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
+#include "mnode.h"
+
+#include "name.h"
+#include "tsqlfunction.h"
 
 static void *tsSuperTableSdb;
 static int32_t tsSuperTableUpdateSize;

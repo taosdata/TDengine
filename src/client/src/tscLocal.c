@@ -24,7 +24,7 @@
 #include "qextbuffer.h"
 #include "tscSecondaryMerge.h"
 #include "tschemautil.h"
-#include "tsocket.h"
+#include "name.h"
 
 static void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnName, size_t valueLength);
 
