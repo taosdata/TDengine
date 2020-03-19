@@ -13,11 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "os.h"
-
 #include "sdb.h"
-#include "sdbint.h"
 #include "tutil.h"
+#include "mgmtSdb.h"
 
 #define abs(x) (((x) < 0) ? -(x) : (x))
 
@@ -1015,3 +1015,46 @@ void *sdbFetchRow(void *handle, void *pNode, void **ppRow) {
 int64_t sdbGetId(void *handle) { return ((SSdbTable *)handle)->id; }
 
 int64_t sdbGetNumOfRows(void *handle) { return ((SSdbTable *)handle)->numOfRows; }
+
+
+int32_t (*mpeerInitMnodesFp)(char *directory) = NULL;
+void    (*mpeerCleanUpMnodesFp)() = NULL;
+int32_t (*mpeerForwardRequestFp)(SSdbTable *pTable, char type, void *cont, int32_t contLen) = NULL;
+
+char *sdbStatusStr[] = {
+  "offline",
+  "unsynced",
+  "syncing",
+  "serving",
+  "null"
+};
+
+char *sdbRoleStr[] = {
+  "unauthed",
+  "undecided",
+  "master",
+  "slave",
+  "null"
+};
+
+int32_t sdbForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int32_t dataLen) {
+  if (mpeerForwardRequestFp) {
+    return mpeerForwardRequestFp(pTable, type, data, dataLen);
+  } else {
+    return 0;
+  }
+}
+
+int32_t sdbInitPeers(char *directory) {
+  if (mpeerInitMnodesFp) {
+    return (*mpeerInitMnodesFp)(directory);
+  } else {
+    return 0;
+  }
+}
+
+void sdbCleanUpPeers() {
+  if (mpeerCleanUpMnodesFp) {
+    (*mpeerCleanUpMnodesFp)();
+  }
+}
