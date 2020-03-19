@@ -445,6 +445,11 @@ typedef struct STableSidExtInfo {
   char    tags[];
 } STableSidExtInfo;
 
+typedef struct STimeWindow {
+  TSKEY skey;
+  TSKEY ekey;
+} STimeWindow;
+
 /*
  * the outputCols is equalled to or larger than numOfCols
  * e.g., select min(colName), max(colName), avg(colName) from table
@@ -452,46 +457,45 @@ typedef struct STableSidExtInfo {
  */
 typedef struct {
   int16_t  vnode;
-  int32_t  numOfSids;
+  int32_t  numOfTables;
   uint64_t pSidExtInfo;  // table id & tag info ptr, in windows pointer may
 
   uint64_t uid;
-  TSKEY    skey;
-  TSKEY    ekey;
+  STimeWindow window;
 
   int16_t order;
   int16_t orderColId;
 
   int16_t numOfCols;         // the number of columns will be load from vnode
-  char    slidingTimeUnit;  // time interval type, for revisement of interval(1d)
+  char    slidingTimeUnit;   // time interval type, for revisement of interval(1d)
 
-  int64_t intervalTime;  // time interval for aggregation, in million second
+  int64_t intervalTime;      // time interval for aggregation, in million second
   int64_t slidingTime;       // value for sliding window
 
   // tag schema, used to parse tag information in pSidExtInfo
   uint64_t pTagSchema;
 
-  int16_t numOfTagsCols;  // required number of tags
-  int16_t tagLength;      // tag length in current query
+  int16_t  numOfTagsCols;  // required number of tags
+  int16_t  tagLength;      // tag length in current query
 
   int16_t  numOfGroupCols;  // num of group by columns
   int16_t  orderByIdx;
   int16_t  orderType;  // used in group by xx order by xxx
   uint64_t groupbyTagIds;
 
-  int64_t limit;
-  int64_t offset;
+  int64_t  limit;
+  int64_t  offset;
 
-  int16_t queryType;        // denote another query process
-  int16_t numOfOutputCols;  // final output columns numbers
+  int16_t  queryType;        // denote another query process
+  int16_t  numOfOutputCols;  // final output columns numbers
 
   int16_t  interpoType;  // interpolate type
   uint64_t defaultVal;   // default value array list
 
-  int32_t colNameLen;
-  int64_t colNameList;
+  int32_t  colNameLen;
+  int64_t  colNameList;
 
-  int64_t pSqlFuncExprs;
+  int64_t  pSqlFuncExprs;
 
   int32_t     tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
   int32_t     tsLen;          // total length of ts comp block

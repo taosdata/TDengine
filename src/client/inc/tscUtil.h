@@ -29,10 +29,10 @@ extern "C" {
 #include "tscSecondaryMerge.h"
 #include "tsclient.h"
 
-#define UTIL_METER_IS_SUPERTABLE(metaInfo) \
+#define UTIL_TABLE_IS_SUPERTABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
-#define UTIL_METER_IS_NOMRAL_METER(metaInfo) (!(UTIL_METER_IS_SUPERTABLE(metaInfo)))
-#define UTIL_METER_IS_CREATE_FROM_METRIC(metaInfo) \
+#define UTIL_TABLE_IS_NOMRAL_TABLE(metaInfo) (!(UTIL_TABLE_IS_SUPERTABLE(metaInfo)))
+#define UTIL_TABLE_CREATE_FROM_STABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
 
 #define TSDB_COL_IS_TAG(f) (((f)&TSDB_COL_TAG) != 0)

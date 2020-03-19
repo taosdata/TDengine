@@ -325,7 +325,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
     pNewQueryInfo->limit = pSupporter->limit;
   
     // fetch the join tag column
-    if (UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
+    if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
       SSqlExpr *pExpr = tscSqlExprGet(pNewQueryInfo, 0);
       assert(pQueryInfo->tagCond.joinInfo.hasJoin);
     

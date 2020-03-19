@@ -785,7 +785,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return code;
     }
 
-    if (!UTIL_METER_IS_SUPERTABLE(pSTableMeterMetaInfo)) {
+    if (!UTIL_TABLE_IS_SUPERTABLE(pSTableMeterMetaInfo)) {
       return tscInvalidSQLErrMsg(pCmd->payload, "create table only from super table is allowed", sToken.z);
     }
 
@@ -1081,7 +1081,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;       // TODO: should _clean or _error_clean to async flow ????
     }
 
-    if (UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
+    if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
       code = tscInvalidSQLErrMsg(pCmd->payload, "insert data into super table is not supported", NULL);
       goto _error_clean;
     }

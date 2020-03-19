@@ -79,7 +79,7 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
 
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
-  if (code == 0 && UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (code == 0 && UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
     code = tscGetMetricMeta(pSql, 0);
     pSql->res.code = code;
 

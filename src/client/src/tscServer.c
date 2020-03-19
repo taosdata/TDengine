@@ -22,7 +22,6 @@
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "tscompression.h"
 #include "tsocket.h"
 #include "ttime.h"
 #include "ttimer.h"
@@ -542,7 +541,7 @@ int tscProcessSql(SSqlObj *pSql) {
 
     // temp
     pSql->ipList = &tscMgmtIpList;
-//    if (UTIL_METER_IS_NOMRAL_METER(pTableMetaInfo)) {
+//    if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
 //      pSql->index = pTableMetaInfo->pTableMeta->index;
 //    } else {  // it must be the parent SSqlObj for super table query
 //      if ((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) != 0) {
@@ -1277,7 +1276,7 @@ void tscUpdateVnodeInQueryMsg(SSqlObj *pSql, char *buf) {
 //  char *          pStart = buf + tsRpcHeadSize;
 //  SQueryTableMsg *pQueryMsg = (SQueryTableMsg *)pStart;
 //
-//  if (UTIL_METER_IS_NOMRAL_METER(pTableMetaInfo)) {  // pColumnModel == NULL, query on meter
+//  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {  // pColumnModel == NULL, query on meter
 //    STableMeta *pTableMeta = pTableMetaInfo->pTableMeta;
 //    pQueryMsg->vnode = htons(pTableMeta->vpeerDesc[pSql->index].vnode);
 //  } else {  // query on metric
@@ -1301,7 +1300,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   // meter query without tags values
-  if (!UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
     return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize;
   }
 
@@ -1326,7 +1325,7 @@ static char *doSerializeTableInfo(SSqlObj *pSql, int32_t numOfTables, int32_t vn
   SSuperTableMeta *pMetricMeta = pTableMetaInfo->pMetricMeta;
 
   tscTrace("%p vid:%d, query on %d meters", pSql, vnodeId, numOfTables);
-  if (UTIL_METER_IS_NOMRAL_METER(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
 #ifdef _DEBUG_VIEW
     tscTrace("%p sid:%d, uid:%" PRIu64, pSql, pTableMetaInfo->pTableMeta->sid, pTableMetaInfo->pTableMeta->uid);
 #endif
@@ -1373,7 +1372,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
-  char *          pStart = pCmd->payload + tsRpcHeadSize;
+  char *pStart = pCmd->payload + tsRpcHeadSize;
 
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
   SSuperTableMeta *pMetricMeta = pTableMetaInfo->pMetricMeta;
@@ -1383,15 +1382,13 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   int32_t msgLen = 0;
   int32_t numOfTables = 0;
 
-  if (UTIL_METER_IS_NOMRAL_METER(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
     numOfTables = 1;
 
-//    tscTrace("%p query on vnode: %d, number of sid:%d, meter id: %s", pSql,
-//             pTableMeta->vpeerDesc[pTableMeta->index].vnode, 1, pTableMetaInfo->name);
-
-//    pQueryMsg->vnode = htons(pTableMeta->vpeerDesc[pTableMeta->index].vnode);
     pQueryMsg->uid = pTableMeta->uid;
     pQueryMsg->numOfTagsCols = 0;
+    
+    tscTrace("%p queried tables:%d, table id: %s", pSql, 1, pTableMetaInfo->name);
   } else {  // query on super table
     if (pTableMetaInfo->vnodeIndex < 0) {
       tscError("%p error vnodeIdx:%d", pSql, pTableMetaInfo->vnodeIndex);
@@ -1407,19 +1404,19 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       return -1;  // error
     }
 
-    tscTrace("%p query on vid:%d, number of sid:%d", pSql, vnodeId, numOfTables);
+    tscTrace("%p query on vid:%d, number of tables:%d", pSql, vnodeId, numOfTables);
     pQueryMsg->vnode = htons(vnodeId);
   }
 
-  pQueryMsg->numOfSids = htonl(numOfTables);
+  pQueryMsg->numOfTables = htonl(numOfTables);
   pQueryMsg->numOfTagsCols = htons(pTableMetaInfo->numOfTags);
 
   if (pQueryInfo->order.order == TSQL_SO_ASC) {
-    pQueryMsg->skey = htobe64(pQueryInfo->stime);
-    pQueryMsg->ekey = htobe64(pQueryInfo->etime);
+    pQueryMsg->window.skey = htobe64(pQueryInfo->stime);
+    pQueryMsg->window.ekey = htobe64(pQueryInfo->etime);
   } else {
-    pQueryMsg->skey = htobe64(pQueryInfo->etime);
-    pQueryMsg->ekey = htobe64(pQueryInfo->stime);
+    pQueryMsg->window.skey = htobe64(pQueryInfo->etime);
+    pQueryMsg->window.ekey = htobe64(pQueryInfo->stime);
   }
 
   pQueryMsg->order = htons(pQueryInfo->order.order);
@@ -1453,9 +1450,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
 
-  if (UTIL_METER_IS_NOMRAL_METER(pTableMetaInfo)) {  // query on meter
+  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {  // query on meter
     pQueryMsg->tagLength = 0;
-  } else {  // query on metric
+  } else {  // query on super table
     pQueryMsg->tagLength = htons(pMetricMeta->tagLen);
   }
 
@@ -2586,18 +2583,12 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     pMetaMsg->vpeerDesc[i].vnode = htonl(pMetaMsg->vpeerDesc[i].vnode);
   }
 
-  int32_t rowSize = 0;
   SSchema* pSchema = pMetaMsg->schema;
 
   int32_t numOfTotalCols = pMetaMsg->numOfColumns + pMetaMsg->numOfTags;
   for (int i = 0; i < numOfTotalCols; ++i) {
     pSchema->bytes = htons(pSchema->bytes);
     pSchema->colId = htons(pSchema->colId);
-
-    // ignore the tags length
-    if (i < pMetaMsg->numOfColumns) {
-      rowSize += pSchema->bytes;
-    }
     pSchema++;
   }
 
@@ -2622,15 +2613,16 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
   assert(pTableMetaInfo->pTableMeta == NULL);
 
-  pTableMetaInfo->pTableMeta = (STableMeta *)taosCachePut(tscCacheHandle, pTableMetaInfo->name, pTableMeta,
-                                                                  size, tsMeterMetaKeepTimer);
+  pTableMetaInfo->pTableMeta =
+      (STableMeta *) taosCachePut(tscCacheHandle, pTableMetaInfo->name, pTableMeta, size, tsMeterMetaKeepTimer);
+  
   // todo handle out of memory case
   if (pTableMetaInfo->pTableMeta == NULL) {
-    return 0;
+    return TSDB_CODE_CLI_OUT_OF_MEMORY;
   }
 
   free(pTableMeta);
-  return TSDB_CODE_OTHERS;
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
@@ -3006,7 +2998,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   taosCacheRelease(tscCacheHandle, (void **)&pTableMeta, true);
 
   if (pTableMetaInfo->pTableMeta) {
-    bool isSuperTable = UTIL_METER_IS_SUPERTABLE(pTableMetaInfo);
+    bool isSuperTable = UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo);
 
     taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
     taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pMetricMeta), true);

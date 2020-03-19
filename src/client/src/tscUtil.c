@@ -220,7 +220,7 @@ bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   }
   
   // for select query super table, the metricmeta can not be null in any cases.
-  if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
     assert(pTableMetaInfo->pMetricMeta != NULL);
   }
   
@@ -239,7 +239,7 @@ bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
 
   if (((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) != TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&
       pQueryInfo->command == TSDB_SQL_SELECT) {
-    return UTIL_METER_IS_SUPERTABLE(pTableMetaInfo);
+    return UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo);
   }
 
   return false;
@@ -253,7 +253,7 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
    * 1. failed to get metermeta from server; 2. not a super table; 3. limitation is 0;
    * 4. show queries, instead of a select query
    */
-  if (pTableMetaInfo == NULL || !UTIL_METER_IS_SUPERTABLE(pTableMetaInfo) ||
+  if (pTableMetaInfo == NULL || !UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo) ||
       pQueryInfo->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pQueryInfo->exprsInfo.numOfExprs == 0) {
     return false;
   }
@@ -1578,7 +1578,7 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId) {
     return false;
   }
 
-  if (colId == -1 && UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (colId == -1 && UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
     return true;
   }
 
@@ -2089,7 +2089,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   assert(pFinalInfo->pTableMeta != NULL && pNewQueryInfo->numOfTables == 1);
-  if (UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
+  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
     assert(pFinalInfo->pMetricMeta != NULL);
   }
   
@@ -2190,7 +2190,7 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  if (!UTIL_METER_IS_SUPERTABLE(pTableMetaInfo) || (pTableMetaInfo->pMetricMeta == NULL)) {
+  if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo) || (pTableMetaInfo->pMetricMeta == NULL)) {
     return false;
   }
   
