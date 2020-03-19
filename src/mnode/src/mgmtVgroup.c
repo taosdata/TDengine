@@ -514,7 +514,6 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode) {
 
   SVnodeDesc *vpeerDesc = pVnode->vpeerDesc;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {
-    vpeerDesc[j].vgId  = htonl(pVgroup->vgId);
     vpeerDesc[j].ip    = htonl(pVgroup->vnodeGid[j].ip);
     vpeerDesc[j].vnode = htonl(pVgroup->vnodeGid[j].vnode);
   }

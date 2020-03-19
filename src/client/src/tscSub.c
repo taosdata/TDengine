@@ -175,7 +175,7 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
     return 0;
   }
 
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(pCmd, 0, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0, 0);
   int numOfTables = 0;
   if (!UTIL_METER_IS_NOMRAL_METER(pTableMetaInfo)) {
     SSuperTableMeta* pMetricMeta = pTableMetaInfo->pMetricMeta;
@@ -385,7 +385,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
       pSql->cmd.command = TSDB_SQL_SELECT;
       pQueryInfo->type = type;
 
-      tscGetMeterMetaInfo(&pSql->cmd, 0, 0)->vnodeIndex = 0;
+      tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0)->vnodeIndex = 0;
     }
 
     tscDoQuery(pSql);

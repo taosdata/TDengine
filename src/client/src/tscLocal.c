@@ -77,7 +77,7 @@ static int32_t getToStringLength(const char *pData, int32_t length, int32_t type
  * length((uint64_t) 123456789011) > 12, greater than sizsof(uint64_t)
  */
 static int32_t tscMaxLengthOfTagsFields(SSqlObj *pSql) {
-  STableMeta *pMeta = tscGetMeterMetaInfo(&pSql->cmd, 0, 0)->pTableMeta;
+  STableMeta *pMeta = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0)->pTableMeta;
 
   if (pMeta->tableType == TSDB_SUPER_TABLE || pMeta->tableType == TSDB_NORMAL_TABLE ||
       pMeta->tableType == TSDB_STREAM_TABLE) {

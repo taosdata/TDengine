@@ -610,9 +610,10 @@ void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle) {
   if (rpcRsp.code != TSDB_CODE_SUCCESS) {
     rpcFreeCont(pMeta);
   } else {
-    pMeta->contLen = htons(pMeta->contLen);
     rpcRsp.pCont   = pMeta;
     rpcRsp.contLen = pMeta->contLen;
+    
+    pMeta->contLen = htons(pMeta->contLen);
   }
 
   rpcSendResponse(&rpcRsp);

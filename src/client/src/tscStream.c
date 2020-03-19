@@ -146,7 +146,7 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
     tscError("%p stream:%p, query data failed, code:%d, retry in %" PRId64 "ms", pStream->pSql, pStream, numOfRows,
              retryDelay);
 
-    STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(&pStream->pSql->cmd, 0, 0);
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pStream->pSql->cmd, 0, 0);
     tscClearMeterMetaInfo(pTableMetaInfo, true);
   
     tscSetRetryTimer(pStream, pStream->pSql, retryDelay);
@@ -172,7 +172,7 @@ static void tscSetTimestampForRes(SSqlStream *pStream, SSqlObj *pSql) {
 static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOfRows) {
   SSqlStream *    pStream = (SSqlStream *)param;
   SSqlObj *       pSql = (SSqlObj *)res;
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
   if (pSql == NULL || numOfRows < 0) {
     int64_t retryDelayTime = tscGetRetryDelayTime(pStream->slidingTime, pStream->precision);

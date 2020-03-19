@@ -229,7 +229,6 @@ typedef struct SSchema {
 } SSchema;
 
 typedef struct {
-  int32_t  vgId;
   int32_t  vnode;  //the index of vnode
   uint32_t ip;
 } SVnodeDesc;
@@ -256,14 +255,14 @@ typedef struct {
   uint64_t   uid;
   uint64_t   superTableUid;
   uint64_t   createdTime;
-  char       tableId[TSDB_TABLE_ID_LEN + 1];
-  char       superTableId[TSDB_TABLE_ID_LEN + 1];
+  char       tableId[TSDB_TABLE_ID_LEN];
+  char       superTableId[TSDB_TABLE_ID_LEN];
   char       data[];
 } SMDCreateTableMsg;
 
 typedef struct {
-  char      tableId[TSDB_TABLE_ID_LEN + 1];
-  char      db[TSDB_DB_NAME_LEN + 1];
+  char      tableId[TSDB_TABLE_ID_LEN];
+  char      db[TSDB_DB_NAME_LEN];
   int8_t    igExists;
   int16_t   numOfTags;
   int16_t   numOfColumns;
@@ -274,13 +273,13 @@ typedef struct {
 } SCMCreateTableMsg;
 
 typedef struct {
-  char   tableId[TSDB_TABLE_ID_LEN + 1];
+  char   tableId[TSDB_TABLE_ID_LEN];
   int8_t igNotExists;
 } SCMDropTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN + 1];
-  char    db[TSDB_DB_NAME_LEN + 1];
+  char    tableId[TSDB_TABLE_ID_LEN];
+  char    db[TSDB_DB_NAME_LEN];
   int16_t type; /* operation type   */
   char    tagVal[TSDB_MAX_BYTES_PER_ROW];
   int8_t  numOfCols; /* number of schema */

@@ -465,7 +465,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       tscTrace("%p renew tableMeta successfully, command:%d, code:%d, retry:%d",
           pSql, pSql->cmd.command, pSql->res.code, pSql->retry);
   
-      STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
+      STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
       assert(pTableMetaInfo->pTableMeta == NULL);
       
       tscGetTableMeta(pSql, pTableMetaInfo);
@@ -514,7 +514,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       if (pCmd->isParseFinish) {
         tscTrace("%p resend data to vnode in metermeta callback since sql has been parsed completed", pSql);
         
-        STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+        STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
         code = tscGetTableMeta(pSql, pTableMetaInfo);
         assert(code == TSDB_CODE_SUCCESS);
       
@@ -529,7 +529,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     }
 
   } else {  // stream computing
-    STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+    STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
     code = tscGetTableMeta(pSql, pTableMetaInfo);
     pRes->code = code;
 

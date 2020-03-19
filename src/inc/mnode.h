@@ -84,7 +84,7 @@ typedef struct {
 } SVnodeGid;
 
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     tableId[TSDB_TABLE_ID_LEN];
   int8_t   type;
   int8_t   dirty;
   uint64_t uid;
@@ -128,7 +128,7 @@ typedef struct {
 } SChildTableObj;
 
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     tableId[TSDB_TABLE_ID_LEN];
   int8_t   type;
   int8_t   dirty;
   uint64_t uid;

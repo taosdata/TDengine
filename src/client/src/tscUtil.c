@@ -584,7 +584,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   pCmd->numOfTablesInSubmit = pDataBlock->numOfTables;
 
   assert(pCmd->numOfClause == 1);
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
 
   // set the correct metermeta object, the metermeta has been locked in pDataBlocks, so it must be in the cache
   if (pTableMetaInfo->pTableMeta != pDataBlock->pTableMeta) {
@@ -1747,7 +1747,7 @@ bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql) {
  * @param tableIndex  denote the table index for join query, where more than one table exists
  * @return
  */
-STableMetaInfo* tscGetMeterMetaInfo(SSqlCmd* pCmd, int32_t clauseIndex, int32_t tableIndex) {
+STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd* pCmd, int32_t clauseIndex, int32_t tableIndex) {
   if (pCmd == NULL || pCmd->numOfClause == 0) {
     return NULL;
   }
@@ -1957,7 +1957,7 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, SSqlObj* pPrevSql) {
   SSqlCmd*        pCmd = &pSql->cmd;
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, tableIndex);
 
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
   if (pNew == NULL) {
@@ -2079,7 +2079,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pTableMeta, pMetricMeta, pTableMetaInfo->numOfTags,
                                      pTableMetaInfo->tagColumnIndex);
   } else {  // transfer the ownership of pTableMeta/pMetricMeta to the newly create sql object.
-    STableMetaInfo* pPrevInfo = tscGetMeterMetaInfo(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
+    STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 
     STableMeta*  pPrevMeterMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pTableMeta);
     SSuperTableMeta* pPrevMetricMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pMetricMeta);

@@ -896,7 +896,7 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
 
   assert(pCmd->numOfClause == 1);
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
 
   int32_t numOfTags = tscGetNumOfTags(pTableMeta);
@@ -969,7 +969,7 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   const char* msg6 = "invalid column length";
 
   assert(pCmd->numOfClause == 1);
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
   
   int32_t numOfTags = tscGetNumOfTags(pTableMeta);
@@ -2129,7 +2129,7 @@ int32_t changeFunctionID(int32_t optr, int16_t* functionId) {
 
 int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SSqlCmd*        pCmd = &pSql->cmd;
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   assert(pCmd->numOfClause == 1);
 
   pCmd->command = TSDB_SQL_SHOW;

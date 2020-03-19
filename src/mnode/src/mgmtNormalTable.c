@@ -531,6 +531,8 @@ int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, STableMetaM
   pMeta->numOfColumns = htons(pTable->numOfColumns);
   pMeta->tableType    = pTable->type;
   pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromNormalTable(pMeta->schema, pTable);
+  
+  strncpy(pMeta->tableId, pTable->tableId, tListLen(pTable->tableId));
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
@@ -542,8 +544,8 @@ int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, STableMetaM
     } else {
       pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].ip;
     }
+    
     pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-    pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
   }
   pMeta->numOfVpeers = pVgroup->numOfVnodes;
 

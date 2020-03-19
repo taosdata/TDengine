@@ -164,7 +164,7 @@ SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pS
   pSupporter->interval = pQueryInfo->intervalTime;
   pSupporter->limit = pQueryInfo->limit;
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, pSql->cmd.clauseIndex, index);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, index);
   pSupporter->uid = pTableMetaInfo->pTableMeta->uid;
   
   assert (pSupporter->uid != 0);
@@ -712,7 +712,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
 
 void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   SSqlObj* pSql = (SSqlObj*)tres;
-  //  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
+  //  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
   //  int32_t idx = pSql->cmd.vnodeIdx;
 

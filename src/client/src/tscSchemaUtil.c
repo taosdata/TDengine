@@ -155,8 +155,24 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   
   int32_t schemaSize = (pTableMetaMsg->numOfColumns + pTableMetaMsg->numOfTags) * sizeof(SSchema);
   STableMeta* pTableMeta = calloc(1, sizeof(STableMeta) + schemaSize);
+  pTableMeta->tableType = pTableMetaMsg->tableType;
+  pTableMeta->tableInfo = (STableInfo){.numOfTags = pTableMetaMsg->numOfTags, .numOfColumns = pTableMetaMsg->numOfColumns,
+                                       .precision = pTableMetaMsg->precision};
+  pTableMeta->sid = pTableMetaMsg->sid;
+  pTableMeta->uid = pTableMetaMsg->uid;
+  pTableMeta->vgid = pTableMetaMsg->vgid;
+  
+  pTableMeta->numOfVpeers = pTableMetaMsg->numOfVpeers;
+  memcpy(pTableMeta->vpeerDesc, pTableMetaMsg->vpeerDesc, sizeof(SVnodeDesc) * pTableMeta->numOfVpeers);
+  
+//  pTableMeta->tableId = pTableMetaMsg->tableId;
   
   memcpy(pTableMeta->schema, pTableMetaMsg->schema, schemaSize);
+  
+  int32_t numOfTotalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
+  for(int32_t i = 0; i < numOfTotalCols; ++i) {
+    pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
+  }
   
   if (size != NULL) {
     *size = sizeof(STableMeta) + schemaSize;

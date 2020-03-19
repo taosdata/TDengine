@@ -656,7 +656,7 @@ void sortRemoveDuplicates(STableDataBlocks *dataBuf) {
 static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char **str, SParsedDataColInfo *spd,
                                       int32_t *totalNum) {
   SSqlCmd *       pCmd = &pSql->cmd;
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   STableMeta *    pTableMeta = pTableMetaInfo->pTableMeta;
   STableInfo tinfo = tscGetTableInfo(pTableMeta);
   
@@ -1155,7 +1155,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       strcpy(pDataBlock->filename, fname);
     } else if (sToken.type == TK_LP) {
       /* insert into tablename(col1, col2,..., coln) values(v1, v2,... vn); */
-      STableMeta *pTableMeta = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
+      STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
       SSchema *   pSchema = tscGetTableSchema(pTableMeta);
 
       if (validateDataSource(pCmd, DATA_FROM_SQL_STRING, sToken.z) != TSDB_CODE_SUCCESS) {
@@ -1252,7 +1252,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;
     }
 
-    pTableMetaInfo = tscGetMeterMetaInfo(&pSql->cmd, 0, 0);
+    pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
     // set the next sent data vnode index in data block arraylist
     pTableMetaInfo->vnodeIndex = 1;
@@ -1355,7 +1355,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
   SSqlCmd *pCmd = &pSql->cmd;
 
   assert(pCmd->numOfClause == 1);
-  STableMeta *pTableMeta = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
+  STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
 
   SShellSubmitBlock *pBlocks = (SShellSubmitBlock *)(pTableDataBlocks->pData);
   tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
@@ -1388,7 +1388,7 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   int32_t         code = 0;
   int             nrows = 0;
   
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   STableMeta *    pTableMeta = pTableMetaInfo->pTableMeta;
   STableInfo tinfo = tscGetTableInfo(pTableMeta);
   
@@ -1482,7 +1482,7 @@ void tscProcessMultiVnodesInsert(SSqlObj *pSql) {
   }
 
   STableDataBlocks *pDataBlock = NULL;
-  STableMetaInfo *  pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo *  pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   assert(pCmd->numOfClause == 1);
   
   int32_t           code = TSDB_CODE_SUCCESS;

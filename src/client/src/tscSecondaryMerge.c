@@ -319,7 +319,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pRes->pLocalReducer = pReducer;
   pRes->numOfGroups = 0;
 
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   int16_t prec = tinfo.precision;
@@ -920,7 +920,7 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
     functions[i] = tscSqlExprGet(pQueryInfo, i)->functionId;
   }
 
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   int8_t precision = tinfo.precision;
@@ -1273,7 +1273,7 @@ static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalReducer 
 
   pQueryInfo->limit.offset = pLocalReducer->offset;
 
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   int8_t precision = tinfo.precision;

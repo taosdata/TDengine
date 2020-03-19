@@ -451,7 +451,7 @@ int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMetaMsg
   pMeta->numOfColumns = htons(pTable->superTable->numOfColumns);
   pMeta->tableType    = pTable->type;
   pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable->superTable);
-  strcpy(pMeta->tableId, pTable->tableId);
+  strncpy(pMeta->tableId, pTable->tableId, tListLen(pTable->tableId));
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
@@ -464,7 +464,6 @@ int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMetaMsg
       pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].ip;
     }
     pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-    pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
   }
   pMeta->numOfVpeers = pVgroup->numOfVnodes;
 

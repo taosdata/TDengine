@@ -20,18 +20,19 @@
 extern "C" {
 #endif
 
+#include <tarray.h>
 #include "os.h"
+#include "qsqlparser.h"
+#include "qsqltype.h"
+#include "qtsbuf.h"
 #include "taos.h"
+#include "taosdef.h"
 #include "taosmsg.h"
 #include "tglobalcfg.h"
 #include "tlog.h"
-#include "taosdef.h"
+#include "trpc.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
-#include "trpc.h"
-#include "qsqltype.h"
-#include "qsqlparser.h"
-#include "qtsbuf.h"
 
 #define TSC_GET_RESPTR_BASE(res, _queryinfo, col) (res->data + ((_queryinfo)->fieldsInfo.pSqlExpr[col]->offset) * res->numOfRows)
 
@@ -68,8 +69,8 @@ typedef struct STableMeta {
   int16_t sversion;
   int8_t  numOfVpeers;
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
-  int32_t  sid;
   int32_t  vgid;
+  int32_t  sid;
   uint64_t uid;
   
   // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info

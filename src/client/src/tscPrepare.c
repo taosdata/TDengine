@@ -407,7 +407,7 @@ static int insertStmtReset(STscStmt* pStmt) {
   }
   pCmd->batchSize = 0;
   
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   pTableMetaInfo->vnodeIndex = 0;
   return TSDB_CODE_SUCCESS;
 }
@@ -421,7 +421,7 @@ static int insertStmtExecute(STscStmt* stmt) {
     ++pCmd->batchSize;
   }
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   assert(pCmd->numOfClause == 1);
   
   if (pCmd->pDataBlocks->nSize > 0) {
