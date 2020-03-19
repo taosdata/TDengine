@@ -759,7 +759,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     return TSDB_CODE_INVALID_SQL;
   }
   
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, TABLE_INDEX);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
   
   if (sToken.type == TK_USING) {  // create table if not exists according to the super table
     index = 0;
@@ -773,14 +773,14 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
      * the source super table is moved to the secondary position of the pTableMetaInfo list
      */
     if (pQueryInfo->numOfTables < 2) {
-      tscAddEmptyMeterMetaInfo(pQueryInfo);
+      tscAddEmptyMetaInfo(pQueryInfo);
     }
 
-    STableMetaInfo *pSTableMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, STABLE_INDEX);
+    STableMetaInfo *pSTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
     setMeterID(pSTableMeterMetaInfo, &sToken, pSql);
 
     strncpy(pTag->name, pSTableMeterMetaInfo->name, TSDB_TABLE_ID_LEN);
-    code = tscGetMeterMeta(pSql, pSTableMeterMetaInfo);
+    code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -937,7 +937,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     } else {
       sql = sToken.z;
     }
-    code = tscGetMeterMeta(pSql, pTableMetaInfo);
+    code = tscGetTableMeta(pSql, pTableMetaInfo);
   }
 
   int32_t len = cend - cstart + 1;
@@ -992,9 +992,9 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
   assert(pQueryInfo != NULL);
 
   if (pQueryInfo->numOfTables == 0) {
-    pTableMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
+    pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
   } else {
-    pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+    pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   }
 
   if ((code = tscAllocPayload(pCmd, TSDB_PAYLOAD_SIZE)) != TSDB_CODE_SUCCESS) {
@@ -1340,7 +1340,7 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
   }
 
   /*
-   * the pRes->code may be modified or even released by another thread in tscMeterMetaCallBack
+   * the pRes->code may be modified or even released by another thread in tscTableMetaCallBack
    * function, so do NOT use pRes->code to determine if the getMeterMeta/getMetricMeta function
    * invokes new threads to get data from mnode or simply retrieves data from cache.
    *
@@ -1521,7 +1521,7 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
   }
 
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   STableDataBlocks *pDataBlock = NULL;
   int32_t           affected_rows = 0;
@@ -1555,7 +1555,7 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
     strncpy(pTableMetaInfo->name, pDataBlock->tableId, TSDB_TABLE_ID_LEN);
     memset(pDataBlock->pData, 0, pDataBlock->nAllocSize);
 
-    int32_t ret = tscGetMeterMeta(pSql, pTableMetaInfo);
+    int32_t ret = tscGetTableMeta(pSql, pTableMetaInfo);
     if (ret != TSDB_CODE_SUCCESS) {
       tscError("%p get meter meta failed, abort", pSql);
       continue;

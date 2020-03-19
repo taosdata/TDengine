@@ -72,9 +72,9 @@ static void tscProcessStreamLaunchQuery(SSchedMsg *pMsg) {
   pSql->param = pStream;
   
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  int code = tscGetMeterMeta(pSql, pTableMetaInfo);
+  int code = tscGetTableMeta(pSql, pTableMetaInfo);
   pSql->res.code = code;
 
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
@@ -540,7 +540,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   }
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   pStream->fp = fp;

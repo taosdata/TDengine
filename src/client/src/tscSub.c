@@ -202,8 +202,8 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
     for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
       SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
       for (int32_t j = 0; j < pVnodeSidList->numOfSids; j++) {
-        STableSidExtInfo *pMeterInfo = tscGetMeterSidInfo(pVnodeSidList, j);
-        int64_t uid = pMeterInfo->uid;
+        STableSidExtInfo *pTableMetaInfo = tscGetMeterSidInfo(pVnodeSidList, j);
+        int64_t uid = pTableMetaInfo->uid;
         progress[numOfTables].uid = uid;
         progress[numOfTables++].key = tscGetSubscriptionProgress(pSub, uid);
       }

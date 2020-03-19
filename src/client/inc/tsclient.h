@@ -238,7 +238,7 @@ typedef struct SDataBlockList {
 typedef struct SQueryInfo {
   int16_t  command;  // the command may be different for each subclause, so keep it seperately.
   uint16_t type;     // query/insert/import type
-  char     intervalTimeUnit;
+  char     slidingTimeUnit;
 
   int64_t         etime, stime;
   int64_t         intervalTime;  // aggregation time interval
@@ -254,7 +254,7 @@ typedef struct SQueryInfo {
   SOrderVal        order;
   int16_t          interpoType;  // interpolate type
   int16_t          numOfTables;
-  STableMetaInfo **pMeterInfo;
+  STableMetaInfo **pTableMetaInfo;
   struct STSBuf *  tsBuf;
   int64_t *        defaultVal;   // default value for interpolation
   char *           msg;          // pointer to the pCmd->payload to keep error message temporarily

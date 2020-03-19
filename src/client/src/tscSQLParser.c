@@ -151,7 +151,7 @@ static int setColumnFilterInfoForTimestamp(SQueryInfo* pQueryInfo, tVariant* pVa
 
   strdequote(pVar->pz);
   char*           seg = strnchr(pVar->pz, '-', pVar->nLen, false);
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
@@ -211,7 +211,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   int32_t code = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
   assert(pQueryInfo->numOfTables == 0);
 
-  STableMetaInfo* pTableMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
+  STableMetaInfo* pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
 
   pCmd->command = pInfo->type;
 
@@ -378,7 +378,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      return tscGetMeterMeta(pSql, pTableMetaInfo);
+      return tscGetTableMeta(pSql, pTableMetaInfo);
     }
 
     case TSDB_SQL_CFG_DNODE: {
@@ -589,7 +589,7 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   const char* msg1 = "invalid query expression";
   const char* msg2 = "interval cannot be less than 10 ms";
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   if (pQuerySql->interval.type == 0 || pQuerySql->interval.n == 0) {
@@ -608,7 +608,7 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   }
 
   /* parser has filter the illegal type, no need to check here */
-  pQueryInfo->intervalTimeUnit = pQuerySql->interval.z[pQuerySql->interval.n - 1];
+  pQueryInfo->slidingTimeUnit = pQuerySql->interval.z[pQuerySql->interval.n - 1];
 
   // interval cannot be less than 10 milliseconds
   if (pQueryInfo->intervalTime < tsMinIntervalTime) {
@@ -648,7 +648,7 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
 
   int32_t tableIndex = COLUMN_INDEX_INITIAL_VAL;
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-    pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
+    pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     if (pTableMetaInfo->pTableMeta->uid == uid) {
       tableIndex = i;
       break;
@@ -681,7 +681,7 @@ int32_t parseSlidingClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   const char* msg0 = "sliding value too small";
   const char* msg1 = "sliding value no larger than the interval value";
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSQLToken*      pSliding = &pQuerySql->sliding;
   STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
@@ -1249,7 +1249,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
 
   if (isSTable) {
     pQueryInfo->type |= TSDB_QUERY_TYPE_STABLE_QUERY;
-    STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
     int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     
     if (tscQueryMetricTags(pQueryInfo)) {                      // local handle the metric tag query
@@ -1284,7 +1284,7 @@ int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnLi
 }
 
 SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t colIdx, int32_t tableIndex) {
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
   int32_t numOfCols = tscGetNumOfColumns(pTableMeta);
   
@@ -1307,7 +1307,7 @@ SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t c
 }
 
 void addRequiredTagColumn(SQueryInfo* pQueryInfo, int32_t tagColIndex, int32_t tableIndex) {
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
 
   if (pTableMetaInfo->numOfTags == 0 || pTableMetaInfo->tagColumnIndex[pTableMetaInfo->numOfTags - 1] < tagColIndex) {
     pTableMetaInfo->tagColumnIndex[pTableMetaInfo->numOfTags++] = tagColIndex;
@@ -1336,7 +1336,7 @@ void addRequiredTagColumn(SQueryInfo* pQueryInfo, int32_t tagColIndex, int32_t t
 static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumnIndex* pIndex, tSQLExprItem* pItem) {
   SSqlExpr* pExpr = doAddProjectCol(pQueryInfo, startPos, pIndex->columnIndex, pIndex->tableIndex);
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, pIndex->tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pIndex->tableIndex);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
   
   SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, pIndex->columnIndex);
@@ -1374,16 +1374,18 @@ void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex
 }
 
 static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColumnIndex* pIndex, int32_t startPos) {
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, pIndex->tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pIndex->tableIndex);
 
   int32_t     numOfTotalColumns = 0;
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   SSchema*    pSchema = tscGetTableSchema(pTableMeta);
 
+  STableInfo tinfo = tscGetTableInfo(pTableMeta);
+  
   if (UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
-    numOfTotalColumns = tscGetNumOfColumns(pTableMeta) + tscGetNumOfTags(pTableMeta);
+    numOfTotalColumns = tinfo.numOfColumns + tinfo.numOfTags;
   } else {
-    numOfTotalColumns = tscGetNumOfColumns(pTableMeta);
+    numOfTotalColumns = tinfo.numOfColumns;
   }
 
   for (int32_t j = 0; j < numOfTotalColumns; ++j) {
@@ -1439,7 +1441,7 @@ int32_t addProjectionExprAndResultField(SQueryInfo* pQueryInfo, tSQLExprItem* pI
       pQueryInfo->type = TSDB_QUERY_TYPE_STABLE_QUERY;
       tscAddSpecialColumnForSelect(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, true);
     } else {
-      STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
 
       if (index.columnIndex >= tscGetNumOfColumns(pTableMeta) && UTIL_METER_IS_NOMRAL_METER(pTableMetaInfo)) {
@@ -1550,7 +1552,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
             return invalidSqlErrMsg(pQueryInfo->msg, msg3);
           }
 
-          pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+          pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
 
           // count tag is equalled to count(tbname)
           if (index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
@@ -1615,7 +1617,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
       }
 
       // 2. check if sql function can be applied on this column data type
-      pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
       int16_t  colType = pSchema->type;
 
@@ -1723,7 +1725,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
               return invalidSqlErrMsg(pQueryInfo->msg, msg4);
             }
 
-            pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+            pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
             SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
             for (int32_t j = 0; j < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++j) {
@@ -1738,7 +1740,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
               return invalidSqlErrMsg(pQueryInfo->msg, msg3);
             }
 
-            pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+            pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
             SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
             // functions can not be applied to tags
@@ -1757,7 +1759,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
         int32_t numOfFields = 0;
 
         for (int32_t j = 0; j < pQueryInfo->numOfTables; ++j) {
-          pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, j);
+          pTableMetaInfo = tscGetMetaInfo(pQueryInfo, j);
           SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
           for (int32_t i = 0; i < tscGetNumOfColumns(pTableMetaInfo->pTableMeta); ++i) {
@@ -1794,7 +1796,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
         return invalidSqlErrMsg(pQueryInfo->msg, msg3);
       }
 
-      pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
       // functions can not be applied to tags
@@ -1928,7 +1930,7 @@ static bool isTablenameToken(SSQLToken* token) {
 }
 
 static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SSQLToken* pToken) {
-  STableMeta* pTableMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index)->pTableMeta;
+  STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, index)->pTableMeta;
 
   int32_t  numOfCols = tscGetNumOfColumns(pTableMeta) + tscGetNumOfTags(pTableMeta);
   SSchema* pSchema = tscGetTableSchema(pTableMeta);
@@ -2003,7 +2005,7 @@ int32_t getMeterIndex(SSQLToken* pTableToken, SQueryInfo* pQueryInfo, SColumnInd
   char tableName[TSDB_TABLE_ID_LEN + 1] = {0};
 
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-    STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
+    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     extractTableName(pTableMetaInfo->name, tableName);
 
     if (strncasecmp(tableName, pTableToken->z, pTableToken->n) == 0 && strlen(tableName) == pTableToken->n) {
@@ -2031,7 +2033,7 @@ int32_t getTableIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIn
 }
 
 int32_t getColumnIndexByName(SSQLToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
-  if (pQueryInfo->pMeterInfo == NULL || pQueryInfo->numOfTables == 0) {
+  if (pQueryInfo->pTableMetaInfo == NULL || pQueryInfo->numOfTables == 0) {
     return TSDB_CODE_INVALID_SQL;
   }
 
@@ -2247,7 +2249,7 @@ bool validateIpAddress(const char* ip, size_t size) {
 }
 
 int32_t tscTansformSQLFunctionForSTableQuery(SQueryInfo* pQueryInfo) {
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   if (pTableMetaInfo->pTableMeta == NULL || !UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
     return TSDB_CODE_INVALID_SQL;
@@ -2286,7 +2288,7 @@ int32_t tscTansformSQLFunctionForSTableQuery(SQueryInfo* pQueryInfo) {
 
 /* transfer the field-info back to original input format */
 void tscRestoreSQLFunctionForMetricQuery(SQueryInfo* pQueryInfo) {
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   if (!UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
     return;
   }
@@ -2383,7 +2385,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo) {
 }
 
 void updateTagColumnIndex(SQueryInfo* pQueryInfo, int32_t tableIndex) {
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
 
   /*
    * update tags column index for group by tags
@@ -2492,7 +2494,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
 
     tableIndex = index.tableIndex;
 
-    pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+    pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
     pTableMeta = pTableMetaInfo->pTableMeta;
 
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
@@ -2573,7 +2575,7 @@ static int32_t doExtractColumnFilterInfo(SQueryInfo* pQueryInfo, SColumnFilterIn
   const char* msg = "not supported filter condition";
 
   tSQLExpr*       pRight = pExpr->pRight;
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, columnIndex->tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, columnIndex->tableIndex);
 
   SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex->columnIndex);
 
@@ -2818,7 +2820,7 @@ enum {
 };
 
 static int32_t extractColumnFilterInfo(SQueryInfo* pQueryInfo, SColumnIndex* pIndex, tSQLExpr* pExpr, int32_t sqlOptr) {
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, pIndex->tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pIndex->tableIndex);
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   SSchema*    pSchema = tscGetTableColumnSchema(pTableMeta, pIndex->columnIndex);
@@ -2978,7 +2980,7 @@ static int32_t getJoinCondInfo(SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   int16_t         tagColIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
 
   pLeft->uid = pTableMetaInfo->pTableMeta->uid;
@@ -2990,7 +2992,7 @@ static int32_t getJoinCondInfo(SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
     return TSDB_CODE_INVALID_SQL;
   }
 
-  pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+  pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   tagColIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
 
   pRight->uid = pTableMetaInfo->pTableMeta->uid;
@@ -3047,7 +3049,7 @@ static int32_t validateSQLExpr(tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnL
     }
 
     // if column is timestamp, bool, binary, nchar, not support arithmetic, so return invalid sql
-    STableMeta* pTableMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex)->pTableMeta;
+    STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, index.tableIndex)->pTableMeta;
     SSchema*    pSchema = tscGetTableSchema(pTableMeta) + index.columnIndex;
     
     if ((pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) || (pSchema->type == TSDB_DATA_TYPE_BOOL) ||
@@ -3196,11 +3198,11 @@ static bool validateJoinExprNode(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SColum
   }
 
   // todo extract function
-  STableMetaInfo* pLeftMeterMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, pLeftIndex->tableIndex);
+  STableMetaInfo* pLeftMeterMeta = tscGetMetaInfo(pQueryInfo, pLeftIndex->tableIndex);
   SSchema*        pLeftSchema = tscGetTableSchema(pLeftMeterMeta->pTableMeta);
   int16_t         leftType = pLeftSchema[pLeftIndex->columnIndex].type;
 
-  STableMetaInfo* pRightMeterMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, rightIndex.tableIndex);
+  STableMetaInfo* pRightMeterMeta = tscGetMetaInfo(pQueryInfo, rightIndex.tableIndex);
   SSchema*        pRightSchema = tscGetTableSchema(pRightMeterMeta->pTableMeta);
   int16_t         rightType = pRightSchema[rightIndex.columnIndex].type;
 
@@ -3272,7 +3274,7 @@ static int32_t handleExprInQueryCond(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, S
 
   assert(isExprDirectParentOfLeaftNode(*pExpr));
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
 
   if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {  // query on time range
@@ -3507,7 +3509,7 @@ static int32_t setTableCondForMetricQuery(SQueryInfo* pQueryInfo, const char* ac
     return TSDB_CODE_SUCCESS;
   }
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableCondIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableCondIndex);
 
   STagCond* pTagCond = &pQueryInfo->tagCond;
   pTagCond->tbnameCond.uid = pTableMetaInfo->pTableMeta->uid;
@@ -3618,7 +3620,7 @@ static int32_t getTimeRangeFromExpr(SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
       return TSDB_CODE_INVALID_SQL;
     }
 
-    STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
     STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
     
     tSQLExpr* pRight = pExpr->pRight;
@@ -3656,7 +3658,7 @@ static int32_t validateJoinExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr) {
     }
   }
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   if (UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {  // for stable join, tag columns
                                                    // must be present for join
     if (pCondExpr->pJoinExpr == NULL) {
@@ -3694,18 +3696,18 @@ static void cleanQueryExpr(SCondExpr* pCondExpr) {
 }
 
 static void doAddJoinTagsColumnsIntoTagList(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr) {
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type) && UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
     SColumnIndex index = {0};
 
     getColumnIndexByName(&pCondExpr->pJoinExpr->pLeft->colInfo, pQueryInfo, &index);
-    pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+    pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
 
     int32_t columnInfo = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     addRequiredTagColumn(pQueryInfo, columnInfo, index.tableIndex);
 
     getColumnIndexByName(&pCondExpr->pJoinExpr->pRight->colInfo, pQueryInfo, &index);
-    pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index.tableIndex);
+    pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
 
     columnInfo = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     addRequiredTagColumn(pQueryInfo, columnInfo, index.tableIndex);
@@ -3719,7 +3721,7 @@ static int32_t getTagQueryCondExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr,
     for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
       tSQLExpr* p1 = extractExprForSTable(pExpr, pQueryInfo, i);
 
-      STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
 
       char  c[TSDB_MAX_TAGS_LEN] = {0};
       char* str = c;
@@ -4033,7 +4035,7 @@ int32_t parseFillClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySQL) {
 static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
   /* set default timestamp order information for all queries */
   pQueryInfo->order.order = TSQL_SO_ASC;
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   if (isTopBottomQuery(pQueryInfo)) {
     pQueryInfo->order.order = TSQL_SO_ASC;
@@ -4055,7 +4057,7 @@ int32_t parseOrderbyClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema
   const char* msg3 = "only support order by primary timestamp and first tag in groupby clause";
 
   setDefaultOrderInfo(pQueryInfo);
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   if (pQuerySql->pSortOrder == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -4207,7 +4209,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SAlterTableSQL* pAlterSQL = pInfo->pAlterInfo;
   SQueryInfo*     pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, DEFAULT_TABLE_INDEX);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, DEFAULT_TABLE_INDEX);
 
   if (tscValidateName(&(pAlterSQL->name)) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
@@ -4217,7 +4219,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg2);
   }
 
-  int32_t ret = tscGetMeterMeta(pSql, pTableMetaInfo);
+  int32_t ret = tscGetTableMeta(pSql, pTableMetaInfo);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
@@ -4600,7 +4602,7 @@ bool hasTimestampForPointInterpQuery(SQueryInfo* pQueryInfo) {
 }
 
 int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL* pQuerySql, SSqlObj* pSql) {
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   const char* msg0 = "soffset/offset can not be less than 0";
   const char* msg1 = "slimit/soffset only available for STable query";
@@ -4821,7 +4823,7 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, num - 1);
 
     if (pExpr->functionId != TSDB_FUNC_TAG) {
-      STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
       int16_t         columnInfo = tscGetJoinTagColIndexByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->uid);
       SColumnIndex    index = {.tableIndex = 0, .columnIndex = columnInfo};
       SSchema*        pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
@@ -4858,7 +4860,7 @@ static void doLimitOutputNormalColOfGroupby(SSqlExpr* pExpr) {
 void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex) {
   int32_t index = pQueryInfo->groupbyExpr.columnInfo[tagIndex].colIdx;
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   SSchema*     pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index);
   SColumnIndex colIndex = {.tableIndex = 0, .columnIndex = index};
@@ -4892,7 +4894,7 @@ static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
     }
   }
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSchema*        pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
   for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
@@ -5068,7 +5070,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo) {
 static int32_t doAddGroupbyColumnsOnDemand(SQueryInfo* pQueryInfo) {
   const char* msg2 = "interval not allowed in group by normal column";
 
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
   int16_t  bytes = 0;
@@ -5378,7 +5380,7 @@ int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* p
 
   SSqlCmd*        pCmd = &pSql->cmd;
   SQueryInfo*     pQueryInfo = tscGetQueryInfoDetail(pCmd, subClauseIndex);
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   SCreateTableSQL* pCreateTable = pInfo->pCreateTableInfo;
 
@@ -5433,13 +5435,13 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   SQueryInfo*      pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
   // two table: the first one is for current table, and the secondary is for the super table.
-  tscAddEmptyMeterMetaInfo(pQueryInfo);
+  tscAddEmptyMetaInfo(pQueryInfo);
   assert(pQueryInfo->numOfTables == 2);
 
   const int32_t TABLE_INDEX = 0;
   const int32_t STABLE_INDEX = 1;
 
-  STableMetaInfo* pStableMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, STABLE_INDEX);
+  STableMetaInfo* pStableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
 
   // super table name, create table by using dst
   SSQLToken* pToken = &(pCreateTable->usingInfo.stableName);
@@ -5456,7 +5458,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   strncpy(pCreateTable->usingInfo.tagdata.name, pStableMeterMetaInfo->name, TSDB_TABLE_ID_LEN);
   tVariantList* pList = pInfo->pCreateTableInfo->usingInfo.pTagVals;
 
-  int32_t code = tscGetMeterMeta(pSql, pStableMeterMetaInfo);
+  int32_t code = tscGetTableMeta(pSql, pStableMeterMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -5489,7 +5491,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  STableMetaInfo* pTableMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, TABLE_INDEX);
+  STableMetaInfo* pTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
   int32_t         ret = setMeterID(pTableMeterMetaInfo, &pInfo->pCreateTableInfo->name, pSql);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
@@ -5510,7 +5512,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   assert(pQueryInfo->numOfTables == 1);
 
   SCreateTableSQL* pCreateTable = pInfo->pCreateTableInfo;
-  STableMetaInfo*  pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo*  pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   // if sql specifies db, use it, otherwise use default db
   SSQLToken* pzTableName = &(pCreateTable->name);
@@ -5532,7 +5534,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg2);
   }
 
-  int32_t code = tscGetMeterMeta(pSql, pTableMetaInfo);
+  int32_t code = tscGetTableMeta(pSql, pTableMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -5617,9 +5619,9 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   SQueryInfo*     pQueryInfo = tscGetQueryInfoDetail(pCmd, index);
-  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   if (pTableMetaInfo == NULL) {
-    pTableMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
+    pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
   }
 
   // too many result columns not support order by in query
@@ -5662,17 +5664,17 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     }
 
     if (pQueryInfo->numOfTables <= i) {  // more than one table
-      tscAddEmptyMeterMetaInfo(pQueryInfo);
+      tscAddEmptyMetaInfo(pQueryInfo);
     }
 
-    STableMetaInfo* pMeterInfo1 = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, i);
+    STableMetaInfo* pMeterInfo1 = tscGetMetaInfo(pQueryInfo, i);
 
     SSQLToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->nLen, .z = pTableItem->pz};
     if (setMeterID(pMeterInfo1, &t, pSql) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    code = tscGetMeterMeta(pSql, pMeterInfo1);
+    code = tscGetTableMeta(pSql, pMeterInfo1);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

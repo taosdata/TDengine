@@ -509,7 +509,7 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
       SSqlCmd *pCmd1 = &pSql->pSubs[i]->cmd;
 
       SQueryInfo *    pQueryInfo1 = tscGetQueryInfoDetail(pCmd1, pCmd1->clauseIndex);
-      STableMetaInfo *pMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo1, 0);
+      STableMetaInfo *pMetaInfo = tscGetMetaInfo(pQueryInfo1, 0);
 
       assert(pQueryInfo1->numOfTables == 1);
 
@@ -810,7 +810,7 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
 
   pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
 
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   /*
    * case 1. Partial data have been retrieved from vnodes, but not all data has been retrieved yet.
@@ -1109,7 +1109,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   SQueryInfo *pQueryInfo = NULL;
   tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
 
-  STableMetaInfo *pTableMetaInfo = tscAddEmptyMeterMetaInfo(pQueryInfo);
+  STableMetaInfo *pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
 
   if ((code = tscAllocPayload(pCmd, tblListLen + 16)) != TSDB_CODE_SUCCESS) {
     return code;

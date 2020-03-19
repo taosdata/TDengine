@@ -110,7 +110,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
   // one column for each row
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableMeta *    pMeta = pTableMetaInfo->pTableMeta;
 
   /*
@@ -267,7 +267,7 @@ static int32_t tscBuildMeterSchemaResultFields(SSqlObj *pSql, int32_t numOfCols,
 static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   
-  assert(tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0)->pTableMeta != NULL);
+  assert(tscGetMetaInfo(pQueryInfo, 0)->pTableMeta != NULL);
 
   const int32_t NUM_OF_DESCRIBE_TABLE_COLUMNS = 4;
   const int32_t TYPE_COLUMN_LENGTH = 16;
@@ -292,7 +292,7 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
   SSqlRes *       pRes = &pSql->res;
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   
-  STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   SSuperTableMeta *pMetricMeta = pTableMetaInfo->pMetricMeta;
   SSchema *    pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
@@ -345,7 +345,7 @@ static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   
-  SSuperTableMeta *pMetricMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0)->pMetricMeta;
+  SSuperTableMeta *pMetricMeta = tscGetMetaInfo(pQueryInfo, 0)->pMetricMeta;
   int32_t      totalNumOfResults = 1;  // count function only produce one result
   int32_t      rowLen = tscGetResRowLength(pQueryInfo);
 
@@ -377,7 +377,7 @@ static int tscProcessQueryTags(SSqlObj *pSql) {
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   
-  STableMeta *pTableMeta = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0)->pTableMeta;
+  STableMeta *pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
   if (pTableMeta == NULL || tscGetNumOfTags(pTableMeta) == 0 || tscGetNumOfColumns(pTableMeta) == 0) {
     strcpy(pCmd->payload, "invalid table");
     pSql->res.code = TSDB_CODE_INVALID_TABLE;
