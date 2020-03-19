@@ -88,23 +88,26 @@ const char *tsdbFileSuffix[] = {
     ".last"   // TSDB_FILE_TYPE_LAST
 };
 
-static int tsdbWriteFileHead(int fd) {
+static int tsdbWriteFileHead(int fd, SFile *pFile) {
   char head[TSDB_FILE_HEAD_SIZE] = "\0";
 
+  pFile->size += TSDB_FILE_HEAD_SIZE;
+
+  // TODO: write version and File statistic to the head
   lseek(fd, 0, SEEK_SET);
   if (write(fd, head, TSDB_FILE_HEAD_SIZE) < 0) return -1;
 
   return 0;
 }
 
-static int tsdbWriteHeadFileIdx(int fd, int maxTables) {
+static int tsdbWriteHeadFileIdx(int fd, int maxTables, SFile *pFile) {
   int   size = sizeof(SCompIdx) * maxTables;
   void *buf = calloc(1, size);
   if (buf == NULL) return -1;
 
   if (lseek(fd, TSDB_FILE_HEAD_SIZE, SEEK_SET) < 0) {
     free(buf);
-    return NULL;
+    return -1;
   }
 
   if (write(fd, buf, size) < 0) {
@@ -112,30 +115,45 @@ static int tsdbWriteHeadFileIdx(int fd, int maxTables) {
     return -1;
   }
 
+  pFile->size += size;
+
   return 0;
 }
 
-static int tsdbCreateFile(char *dataDir, int fileId, int8_t type, int maxTables) {
-  char fname[128] = "\0";
+static int tsdbGetFileName(char *dataDir, int fileId, int8_t type, char *fname) {
+  if (dataDir == NULL || fname == NULL || !IS_VALID_TSDB_FILE_TYPE(type)) return -1;
+
   sprintf(fname, "%s/f%d%s", dataDir, fileId, tsdbFileSuffix[type]);
-  if (access(fname, F_OK) == 0) {
+
+  return 0;
+}
+
+/**
+ * Create a file and set the SFile object
+ */
+static int tsdbCreateFile(char *dataDir, int fileId, int8_t type, int maxTables, SFile *pFile) {
+  memset((void *)pFile, 0, sizeof(SFile));
+  pFile->type = type;
+
+  tsdbGetFileName(dataDir, fileId, type, pFile->fname);
+  if (access(pFile->fname, F_OK) == 0) {
     // File already exists
     return -1;
   }
 
-  int fd = open(fname, O_RDWR | O_CREAT, 0755);
+  int fd = open(pFile->fname, O_WRONLY | O_CREAT, 0755);
   if (fd < 0) return -1;
 
-  if (tsdbWriteFileHead(fd) < 0) {
-    close(fd);
-    return -1;
-  }
-
-  if (type == TSDB_FILE_TYPE_LAST) {
-    if (tsdbWriteHeadFileIdx(fd, maxTables) < 0) {
+  if (type == TSDB_FILE_TYPE_HEAD) {
+    if (tsdbWriteHeadFileIdx(fd, maxTables, pFile) < 0) {
       close(fd);
       return -1;
     }
+  }
+
+  if (tsdbWriteFileHead(fd, pFile) < 0) {
+    close(fd);
+    return -1;
   }
 
   close(fd);
@@ -143,9 +161,24 @@ static int tsdbCreateFile(char *dataDir, int fileId, int8_t type, int maxTables)
   return 0;
 }
 
+/**
+ * 
+ */
+
 // Create a file group with fileId and return a SFileGroup object
-static int tsdbCreateFileGroup(char *dataDir, int fileId, SFileGroup *pFGroup) {
-  // tsdbCreateFile()
+int tsdbCreateFileGroup(char *dataDir, int fileId, SFileGroup *pFGroup, int maxTables) {
+  if (dataDir == NULL || pFGroup == NULL) return -1;
+
+  memset((void *)pFGroup, 0, sizeof(SFileGroup));
+
+  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
+    if (tsdbCreateFile(dataDir, fileId, type, maxTables, &(pFGroup->files[type])) < 0) {
+      // TODO: deal with the error here, remove the created files
+      return -1;
+    }
+  }
+
+  pFGroup->fileId = fileId;
 
   return 0;
 }
@@ -197,16 +230,6 @@ STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32
  */
 void tsdbCloseFile(STsdbFileH *pFileH) {
   // TODO
-}
-
-char *tsdbGetFileName(char *dirName, char *fname, TSDB_FILE_TYPE type) {
-  if (!IS_VALID_TSDB_FILE_TYPE(type)) return NULL;
-
-  char *fileName = (char *)malloc(strlen(dirName) + strlen(fname) + strlen(tsdbFileSuffix[type]) + 5);
-  if (fileName == NULL) return NULL;
-
-  sprintf(fileName, "%s/%s%s", dirName, fname, tsdbFileSuffix[type]);
-  return fileName;
 }
 
 static void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey,

@@ -3,6 +3,7 @@
 
 #include "tsdb.h"
 #include "dataformat.h"
+#include "tsdbFile.h"
 #include "tsdbMeta.h"
 
 TEST(TsdbTest, tableEncodeDecode) {
@@ -106,4 +107,12 @@ TEST(TsdbTest, createRepo) {
 TEST(TsdbTest, openRepo) {
   tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
   ASSERT_NE(pRepo, nullptr);
+}
+
+TEST(TsdbTest, createFileGroup) {
+  SFileGroup fGroup;
+
+  ASSERT_EQ(tsdbCreateFileGroup("/home/ubuntu/work/ttest/vnode0/data", 1820, &fGroup, 1000), 0);
+
+  int k = 0;
 }
