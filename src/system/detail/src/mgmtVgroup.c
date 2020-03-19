@@ -405,6 +405,12 @@ void *mgmtVgroupActionDelete(void *row, char *str, int size, int *ssize) {
 void *mgmtVgroupActionUpdate(void *row, char *str, int size, int *ssize) {
   mgmtVgroupActionReset(row, str, size, ssize);
   SVgObj *pVgroup = (SVgObj *)row;
+
+  if (pVgroup->idPool == NULL) {
+    mgmtVgroupActionInsert(row, str, size, ssize);
+    return NULL;
+  }
+
   int oldTables = taosIdPoolMaxSize(pVgroup->idPool);
 
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
