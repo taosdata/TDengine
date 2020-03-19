@@ -309,6 +309,16 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_SESSIONS_PER_VNODE (300)
 #define TSDB_SESSIONS_PER_DNODE (TSDB_SESSIONS_PER_VNODE * TSDB_MAX_VNODES)
 
+#define TSDB_MAX_MNODES        5
+#define TSDB_MAX_DNODES        10
+#define TSDB_MAX_ACCOUNTS      10
+#define TSDB_MAX_USERS         20
+#define TSDB_MAX_DBS           100
+#define TSDB_MAX_VGROUPS       1000
+#define TSDB_MAX_SUPER_TABLES  100
+#define TSDB_MAX_NORMAL_TABLES 1000
+#define TSDB_MAX_CHILD_TABLES  100000
+
 enum {
   TSDB_PRECISION_MILLI,
   TSDB_PRECISION_MICRO,

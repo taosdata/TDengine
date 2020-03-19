@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
+#include "taosdef.h"
 #include "tschemautil.h"
 #include "tscompression.h"
 #include "tskiplist.h"
@@ -26,10 +27,11 @@
 #include "mgmtAcct.h"
 #include "mgmtChildTable.h"
 #include "mgmtDb.h"
+#include "mgmtDClient.h"
 #include "mgmtGrant.h"
 #include "mgmtProfile.h"
+#include "mgmtSdb.h"
 #include "mgmtShell.h"
-#include "mgmtDClient.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
@@ -56,7 +58,6 @@ static void mgmtChildTableActionInit() {
   mgmtChildTableActionFp[SDB_TYPE_UPDATE]  = mgmtChildTableActionUpdate;
   mgmtChildTableActionFp[SDB_TYPE_ENCODE]  = mgmtChildTableActionEncode;
   mgmtChildTableActionFp[SDB_TYPE_DECODE]  = mgmtChildTableActionDecode;
-  mgmtChildTableActionFp[SDB_TYPE_RESET]   = mgmtChildTableActionReset;
   mgmtChildTableActionFp[SDB_TYPE_DESTROY] = mgmtChildTableActionDestroy;
 }
 
@@ -93,7 +94,7 @@ void *mgmtChildTableActionInsert(void *row, char *str, int32_t size, int32_t *ss
     return NULL;
   }
 
-  if (!sdbMaster) {
+  if (!sdbIsMaster()) {
     int32_t sid = taosAllocateId(pVgroup->idPool);
     if (sid != pTable->sid) {
       mError("ctable:%s, sid:%d is not matched from the master:%d", pTable->tableId, sid, pTable->sid);
@@ -311,13 +312,6 @@ void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableObj *pTab
 }
 
 void* mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t tid) {
-  int32_t numOfTables = sdbGetNumOfRows(tsChildTableSdb);
-  if (numOfTables >= tsMaxTables) {
-    mError("ctable:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, tsMaxTables);
-    terrno = TSDB_CODE_TOO_MANY_TABLES;
-    return NULL;
-  }
-
   char *pTagData = (char *) pCreate->schema;  // it is a tag key
   SSuperTableObj *pSuperTable = mgmtGetSuperTable(pTagData);
   if (pSuperTable == NULL) {
@@ -338,7 +332,7 @@ void* mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t 
   pTable->type        = TSDB_CHILD_TABLE;
   pTable->createdTime = taosGetTimestampMs();
   pTable->uid         = (((uint64_t) pTable->vgId) << 40) + ((((uint64_t) pTable->sid) & ((1ul << 24) - 1ul)) << 16) +
-                        ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
+                        (sdbGetVersion() & ((1ul << 16) - 1ul));
   pTable->sid         = tid;
   pTable->vgId        = pVgroup->vgId;
   pTable->superTable  = pSuperTable;

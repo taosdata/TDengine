@@ -597,7 +597,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  mgmtGetMnodeIpList(&pRsp->ipList);
+  mgmtGetMnodePrivateIpList(&pRsp->ipList);
 
   pRsp->dnodeState.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeState.moduleStatus = htonl(pDnode->moduleStatus);

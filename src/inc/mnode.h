@@ -25,7 +25,6 @@ extern "C" {
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "taoserror.h"
-#include "sdb.h"
 #include "tglobalcfg.h"
 #include "thash.h"
 #include "tidpool.h"

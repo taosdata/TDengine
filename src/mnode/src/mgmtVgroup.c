@@ -25,6 +25,7 @@
 #include "mgmtDClient.h"
 #include "mgmtDnode.h"
 #include "mgmtProfile.h"
+#include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
@@ -58,7 +59,6 @@ static void mgmtVgroupActionInit() {
   mgmtVgroupActionFp[SDB_TYPE_UPDATE]  = mgmtVgroupActionUpdate;
   mgmtVgroupActionFp[SDB_TYPE_ENCODE]  = mgmtVgroupActionEncode;
   mgmtVgroupActionFp[SDB_TYPE_DECODE]  = mgmtVgroupActionDecode;
-  mgmtVgroupActionFp[SDB_TYPE_RESET]   = mgmtVgroupActionReset;
   mgmtVgroupActionFp[SDB_TYPE_DESTROY] = mgmtVgroupActionDestroy;
 }
 
@@ -75,7 +75,7 @@ int32_t mgmtInitVgroups() {
 
   mgmtVgroupActionInit();
 
-  tsVgroupSdb = sdbOpenTable(tsMaxVGroups, tsVgUpdateSize, "vgroups", SDB_KEYTYPE_AUTO, tsMnodeDir, mgmtVgroupAction);
+  tsVgroupSdb = sdbOpenTable(TSDB_MAX_VGROUPS, tsVgUpdateSize, "vgroups", SDB_KEYTYPE_AUTO, tsMnodeDir, mgmtVgroupAction);
   if (tsVgroupSdb == NULL) {
     mError("failed to init vgroups data");
     return -1;

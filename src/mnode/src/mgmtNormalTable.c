@@ -27,6 +27,7 @@
 #include "mgmtDClient.h"
 #include "mgmtGrant.h"
 #include "mgmtNormalTable.h"
+#include "mgmtSdb.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
@@ -55,7 +56,6 @@ static void mgmtNormalTableActionInit() {
   mgmtNormalTableActionFp[SDB_TYPE_UPDATE] = mgmtNormalTableActionUpdate;
   mgmtNormalTableActionFp[SDB_TYPE_ENCODE] = mgmtNormalTableActionEncode;
   mgmtNormalTableActionFp[SDB_TYPE_DECODE] = mgmtNormalTableActionDecode;
-  mgmtNormalTableActionFp[SDB_TYPE_RESET] = mgmtNormalTableActionReset;
   mgmtNormalTableActionFp[SDB_TYPE_DESTROY] = mgmtNormalTableActionDestroy;
 }
 
@@ -98,7 +98,7 @@ void *mgmtNormalTableActionInsert(void *row, char *str, int32_t size, int32_t *s
     return NULL;
   }
 
-  if (!sdbMaster) {
+  if (!sdbIsMaster()) {
     int32_t sid = taosAllocateId(pVgroup->idPool);
     if (sid != pTable->sid) {
       mError("sid:%d is not matched from the master:%d", sid, pTable->sid);
@@ -222,7 +222,7 @@ int32_t mgmtInitNormalTables() {
   SNormalTableObj tObj;
   tsNormalTableUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
-  tsNormalTableSdb = sdbOpenTable(tsMaxTables, sizeof(SNormalTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
+  tsNormalTableSdb = sdbOpenTable(TSDB_MAX_NORMAL_TABLES, sizeof(SNormalTableObj) + sizeof(SSchema) * TSDB_MAX_COLUMNS,
                                  "ntables", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtNormalTableAction);
   if (tsNormalTableSdb == NULL) {
     mError("failed to init ntables data");
@@ -323,13 +323,6 @@ void *mgmtBuildCreateNormalTableMsg(SNormalTableObj *pTable) {
 }
 
 void *mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid) {
-  int32_t numOfTables = sdbGetNumOfRows(tsNormalTableSdb);
-  if (numOfTables >= TSDB_MAX_NORMAL_TABLES) {
-    mError("table:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_NORMAL_TABLES);
-    terrno = TSDB_CODE_TOO_MANY_TABLES;
-    return NULL;
-  }
-
   SNormalTableObj *pTable = (SNormalTableObj *) calloc(sizeof(SNormalTableObj), 1);
   if (pTable == NULL) {
     mError("table:%s, failed to alloc memory", pCreate->tableId);
@@ -341,7 +334,7 @@ void *mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t
   pTable->type         = TSDB_NORMAL_TABLE;
   pTable->vgId         = pVgroup->vgId;
   pTable->createdTime  = taosGetTimestampMs();
-  pTable->uid          = (((uint64_t) pTable->createdTime) << 16) + ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
+  pTable->uid          = (((uint64_t) pTable->createdTime) << 16) + (sdbGetVersion() & ((1ul << 16) - 1ul));
   pTable->sid          = sid;
   pTable->sversion     = 0;
   pTable->numOfColumns = htons(pCreate->numOfColumns);

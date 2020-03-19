@@ -31,6 +31,7 @@
 #include "mgmtGrant.h"
 #include "mgmtShell.h"
 #include "mgmtSuperTable.h"
+#include "mgmtSdb.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
@@ -63,7 +64,6 @@ static void mgmtSuperTableActionInit() {
   mgmtSuperTableActionFp[SDB_TYPE_UPDATE]  = mgmtSuperTableActionUpdate;
   mgmtSuperTableActionFp[SDB_TYPE_ENCODE]  = mgmtSuperTableActionEncode;
   mgmtSuperTableActionFp[SDB_TYPE_DECODE]  = mgmtSuperTableActionDecode;
-  mgmtSuperTableActionFp[SDB_TYPE_RESET]   = mgmtSuperTableActionReset;
   mgmtSuperTableActionFp[SDB_TYPE_DESTROY] = mgmtSuperTableActionDestroy;
 }
 
@@ -164,7 +164,7 @@ int32_t mgmtInitSuperTables() {
 
   mgmtSuperTableActionInit();
 
-  tsSuperTableSdb = sdbOpenTable(tsMaxTables, tsSuperTableUpdateSize + sizeof(SSchema) * TSDB_MAX_COLUMNS,
+  tsSuperTableSdb = sdbOpenTable(TSDB_MAX_SUPER_TABLES, tsSuperTableUpdateSize + sizeof(SSchema) * TSDB_MAX_COLUMNS,
                           "stables", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtSuperTableAction);
   if (tsSuperTableSdb == NULL) {
     mError("failed to init stables data");
@@ -201,12 +201,6 @@ void mgmtCleanUpSuperTables() {
 }
 
 int32_t mgmtCreateSuperTable(SCMCreateTableMsg *pCreate) {
-  int32_t numOfTables = sdbGetNumOfRows(tsSuperTableSdb);
-  if (numOfTables >= TSDB_MAX_SUPER_TABLES) {
-    mError("stable:%s, numOfTables:%d exceed maxTables:%d", pCreate->tableId, numOfTables, TSDB_MAX_SUPER_TABLES);
-    return TSDB_CODE_TOO_MANY_TABLES;
-  }
-
   SSuperTableObj *pStable = (SSuperTableObj *)calloc(sizeof(SSuperTableObj), 1);
   if (pStable == NULL) {
     return TSDB_CODE_SERV_OUT_OF_MEMORY;
@@ -217,7 +211,7 @@ int32_t mgmtCreateSuperTable(SCMCreateTableMsg *pCreate) {
   pStable->createdTime  = taosGetTimestampMs();
   pStable->vgId         = 0;
   pStable->sid          = 0;
-  pStable->uid          = (((uint64_t) pStable->createdTime) << 16) + ((uint64_t) sdbGetVersion() & ((1ul << 16) - 1ul));
+  pStable->uid          = (((uint64_t) pStable->createdTime) << 16) + (sdbGetVersion() & ((1ul << 16) - 1ul));
   pStable->sversion     = 0;
   pStable->numOfColumns = htons(pCreate->numOfColumns);
   pStable->numOfTags    = htons(pCreate->numOfTags);

@@ -13,8 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _sdbint_header_
-#define _sdbint_header_
+#ifndef TDENGINE_MNODE_SDB_H
+#define TDENGINE_MNODE_SDB_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <errno.h>
 #include <pthread.h>
@@ -27,115 +31,46 @@
 
 #include "hashint.h"
 #include "hashstr.h"
-#include "sdb.h"
 #include "tchecksum.h"
 #include "tlog.h"
 #include "trpc.h"
 #include "tutil.h"
 
-#define sdbError(...)                            \
-  if (sdbDebugFlag & DEBUG_ERROR) {              \
-    tprintf("ERROR MND-SDB ", 255, __VA_ARGS__); \
-  }
-#define sdbWarn(...)                                      \
-  if (sdbDebugFlag & DEBUG_WARN) {                        \
-    tprintf("WARN  MND-SDB ", sdbDebugFlag, __VA_ARGS__); \
-  }
-#define sdbTrace(...)                               \
-  if (sdbDebugFlag & DEBUG_TRACE) {                 \
-    tprintf("MND-SDB ", sdbDebugFlag, __VA_ARGS__); \
-  }
-#define sdbPrint(...) \
-  { tprintf("MND-SDB ", 255, __VA_ARGS__); }
+enum _keytype {
+  SDB_KEYTYPE_STRING, 
+  SDB_KEYTYPE_AUTO, 
+  SDB_KEYTYPE_MAX
+};
 
-#define mpeerError(...)                            \
-  if (sdbDebugFlag & DEBUG_ERROR) {              \
-    tprintf("ERROR MND-MPEER ", 255, __VA_ARGS__); \
-  }
-#define mpeerWarn(...)                                      \
-  if (sdbDebugFlag & DEBUG_WARN) {                        \
-    tprintf("WARN  MND-MPEER ", sdbDebugFlag, __VA_ARGS__); \
-  }
-#define mpeerTrace(...)                               \
-  if (sdbDebugFlag & DEBUG_TRACE) {                 \
-    tprintf("MND-MPEER ", sdbDebugFlag, __VA_ARGS__); \
-  }
-#define mpeerPrint(...) \
-  { tprintf("MND-MPEER ", 255, __VA_ARGS__); }
+enum _sdbaction {
+  SDB_TYPE_INSERT,
+  SDB_TYPE_DELETE,
+  SDB_TYPE_UPDATE,
+  SDB_TYPE_DECODE,
+  SDB_TYPE_ENCODE,
+  SDB_TYPE_DESTROY,
+  SDB_MAX_ACTION_TYPES
+};
 
-#define sdbLError(...) taosLogError(__VA_ARGS__) sdbError(__VA_ARGS__)
-#define sdbLWarn(...) taosLogWarn(__VA_ARGS__) sdbWarn(__VA_ARGS__)
-#define sdbLPrint(...) taosLogPrint(__VA_ARGS__) sdbPrint(__VA_ARGS__)
+uint64_t sdbGetVersion();
+bool sdbInServerState();
+bool sdbIsMaster();
 
-#define SDB_MAX_PEERS 4
-#define SDB_DELIMITER 0xFFF00F00
-#define SDB_ENDCOMMIT 0xAFFFAAAF
+void *sdbOpenTable(int32_t maxRows, int32_t maxRowSize, char *name, uint8_t keyType, char *directory,
+                   void *(*appTool)(char, void *, char *, int32_t, int32_t *));
+void sdbCloseTable(void *handle);
 
-typedef struct {
-  uint64_t swVersion;
-  int16_t  sdbFileVersion;
-  char     reserved[6];
-  TSCKSUM  checkSum;
-} SSdbHeader;
+void *sdbGetRow(void *handle, void *key);
+void *sdbFetchRow(void *handle, void *pNode, void **ppRow);
+int64_t sdbGetId(void *handle);
+int64_t sdbGetNumOfRows(void *handle);
 
-typedef struct {
-  char type;
-  // short  rowSize;
-  char *row;
-} SSdbUpdate;
+int64_t sdbInsertRow(void *handle, void *row, int32_t rowSize);
+int32_t sdbDeleteRow(void *handle, void *key);
+int32_t sdbUpdateRow(void *handle, void *row, int32_t updateSize, char isUpdated);
 
-typedef struct _SSdbTable {
-  SSdbHeader header;
-  int        maxRows;
-  int        dbId;
-  int32_t    maxRowSize;
-  char       name[TSDB_DB_NAME_LEN];
-  char       fn[128];
-  int        keyType;
-  uint32_t   autoIndex;
-  int64_t    numOfRows;
-  int64_t    id;
-  int64_t    size;
-  void *     iHandle;
-  int        fd;
-  void *(*appTool)(char, void *, char *, int, int *);
-  pthread_mutex_t mutex;
-  SSdbUpdate *    update;
-  int             numOfUpdates;
-  int             updatePos;
-} SSdbTable;
-
-typedef struct {
-  int64_t id;
-  int64_t offset;
-  int     rowSize;
-  void *  row;
-} SRowMeta;
-
-typedef struct {
-  int32_t delimiter;
-  int32_t rowSize;
-  int64_t id;
-  char    data[];
-} SRowHead;
-
-typedef struct {
-  uint8_t  dbId;
-  char     type;
-  uint64_t version;
-  short    dataLen;
-  char     data[];
-} SForwardMsg;
-
-extern SSdbTable *tableList[];
-extern int        sdbMaxPeers;
-extern int        sdbNumOfTables;
-extern int64_t    sdbVersion;
-
-int sdbForwardDbReqToPeer(SSdbTable *pTable, char type, char *data, int dataLen);
-int mpeerRetrieveRows(int fd, SSdbTable *pTable, uint64_t version);
-void sdbResetTable(SSdbTable *pTable);
-extern const int16_t sdbFileVersion;
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif

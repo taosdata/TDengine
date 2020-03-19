@@ -42,7 +42,7 @@ int32_t mgmtInitDClient() {
   rpcInit.label        = "MND-DC";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = mgmtProcessRspFromDnode;
-  rpcInit.sessions     = tsMaxDnodes * 5;
+  rpcInit.sessions     = 100;
   rpcInit.connType     = TAOS_CONN_CLIENT;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
   rpcInit.user         = "mgmtDClient";

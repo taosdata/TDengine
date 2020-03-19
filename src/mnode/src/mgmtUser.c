@@ -21,6 +21,7 @@
 #include "mgmtAcct.h"
 #include "mgmtGrant.h"
 #include "mgmtMnode.h"
+#include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
@@ -59,7 +60,7 @@ int32_t mgmtInitUsers() {
   SUserObj tObj;
   tsUserUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
-  tsUserSdb = sdbOpenTable(tsMaxUsers, tsUserUpdateSize, "users", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtUserAction);
+  tsUserSdb = sdbOpenTable(TSDB_MAX_USERS, tsUserUpdateSize, "users", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtUserAction);
   if (tsUserSdb == NULL) {
     mError("failed to init user data");
     return -1;
@@ -106,12 +107,6 @@ static int32_t mgmtUpdateUser(SUserObj *pUser) {
 }
 
 static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
-  int32_t numOfUsers = sdbGetNumOfRows(tsUserSdb);
-  if (numOfUsers >= tsMaxUsers) {
-    mWarn("numOfUsers:%d, exceed tsMaxUsers:%d", numOfUsers, tsMaxUsers);
-    return TSDB_CODE_TOO_MANY_USERS;
-  }
-
   int32_t code = mgmtCheckUserLimit(pAcct);
   if (code != 0) {
     return code;
@@ -257,7 +252,6 @@ static void mgmtUserActionInit() {
   mgmtUserActionFp[SDB_TYPE_UPDATE]  = mgmtUserActionUpdate;
   mgmtUserActionFp[SDB_TYPE_ENCODE]  = mgmtUserActionEncode;
   mgmtUserActionFp[SDB_TYPE_DECODE]  = mgmtUserActionDecode;
-  mgmtUserActionFp[SDB_TYPE_RESET]   = mgmtUserActionReset;
   mgmtUserActionFp[SDB_TYPE_DESTROY] = mgmtUserActionDestroy;
 }
 

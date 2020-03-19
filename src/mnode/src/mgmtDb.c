@@ -24,11 +24,12 @@
 #include "mgmtBalance.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
-#include "mgmtMnode.h"
 #include "mgmtGrant.h"
 #include "mgmtShell.h"
+#include "mgmtMnode.h"
 #include "mgmtNormalTable.h"
 #include "mgmtChildTable.h"
+#include "mgmtSdb.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
@@ -62,7 +63,6 @@ static void mgmtDbActionInit() {
   mgmtDbActionFp[SDB_TYPE_UPDATE] = mgmtDbActionUpdate;
   mgmtDbActionFp[SDB_TYPE_ENCODE] = mgmtDbActionEncode;
   mgmtDbActionFp[SDB_TYPE_DECODE] = mgmtDbActionDecode;
-  mgmtDbActionFp[SDB_TYPE_RESET]  = mgmtDbActionReset;
   mgmtDbActionFp[SDB_TYPE_DESTROY] = mgmtDbActionDestroy;
 }
 
@@ -83,7 +83,7 @@ int32_t mgmtInitDbs() {
   SDbObj tObj;
   tsDbUpdateSize = tObj.updateEnd - (char *)&tObj;
 
-  tsDbSdb = sdbOpenTable(tsMaxDbs, tsDbUpdateSize, "dbs", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtDbAction);
+  tsDbSdb = sdbOpenTable(TSDB_MAX_DBS, tsDbUpdateSize, "dbs", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtDbAction);
   if (tsDbSdb == NULL) {
     mError("failed to init db data");
     return -1;
@@ -252,12 +252,6 @@ static int32_t mgmtCheckDbParams(SCMCreateDbMsg *pCreate) {
 }
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
-  int32_t numOfDbs = sdbGetNumOfRows(tsDbSdb);
-  if (numOfDbs >= tsMaxDbs) {
-    mWarn("numOfDbs:%d, exceed tsMaxDbs:%d", numOfDbs, tsMaxDbs);
-    return TSDB_CODE_TOO_MANY_DATABASES;
-  }
-
   int32_t code = mgmtCheckDbLimit(pAcct);
   if (code != 0) {
     return code;

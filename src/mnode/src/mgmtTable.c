@@ -24,6 +24,7 @@
 #include "mgmtMnode.h"
 #include "mgmtNormalTable.h"
 #include "mgmtProfile.h"
+#include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtSuperTable.h"
 #include "mgmtUser.h"
