@@ -65,8 +65,6 @@ static void mgmtSuperTableActionInit() {
   mgmtSuperTableActionFp[SDB_TYPE_DECODE]  = mgmtSuperTableActionDecode;
   mgmtSuperTableActionFp[SDB_TYPE_RESET]   = mgmtSuperTableActionReset;
   mgmtSuperTableActionFp[SDB_TYPE_DESTROY] = mgmtSuperTableActionDestroy;
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_METRIC, mgmtGetShowSuperTableMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_METRIC, mgmtRetrieveShowSuperTables);
 }
 
 void *mgmtSuperTableActionReset(void *row, char *str, int32_t size, int32_t *ssize) {

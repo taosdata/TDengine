@@ -34,7 +34,7 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-static void *tsDbSdb = NULL;
+static void   *tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
@@ -679,7 +679,7 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, pDb->dropStatus != TSDB_DB_STATUS_READY ? "dropping" : "ready");
+    strcpy(pWrite, pDb->dirty != TSDB_DB_STATUS_READY ? "dropping" : "ready");
     cols++;
 
     numOfRows++;

@@ -53,15 +53,15 @@ int32_t dnodeInitShell() {
   rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 1500;
-  rpcInit.afp          =
+  rpcInit.afp          = dnodeRetrieveUserAuthInfo;
 
   tsDnodeShellRpc = rpcOpen(&rpcInit);
   if (tsDnodeShellRpc == NULL) {
-    dError("failed to init connection from shell");
+    dError("failed to init shell rpc server");
     return -1;
   }
 
-  dPrint("connection to shell is opened");
+  dPrint("shell rpc server is opened");
   return 0;
 }
 

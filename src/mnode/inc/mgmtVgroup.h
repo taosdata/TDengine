@@ -32,15 +32,15 @@ SVgObj *mgmtGetVgroupByVnode(uint32_t dnode, int32_t vnode);
 void    mgmtCreateVgroup(SQueuedMsg *pMsg);
 void    mgmtDropVgroup(SVgObj *pVgroup, void *ahandle);
 void    mgmtUpdateVgroup(SVgObj *pVgroup);
+void    mgmtUpdateVgroupIp(SDnodeObj *pDnode);
 
 void    mgmtSetVgroupIdPool();
 SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb);
 
 void    mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable);
 void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable);
-
-SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode);
-void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle);
+void    mgmtSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle);
+void    mgmtSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle);
 
 SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup);
 SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip);
