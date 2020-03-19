@@ -540,7 +540,7 @@ int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, STableMeta 
     if (usePublicIp) {
       pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].publicIp;
     } else {
-      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].ip;
+      pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].privateIp;
     }
     pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
     pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);

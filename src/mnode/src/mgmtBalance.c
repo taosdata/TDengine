@@ -20,6 +20,7 @@
 
 int32_t (*mgmtInitBalanceFp)() = NULL;
 void    (*mgmtCleanupBalanceFp)() = NULL;
+void    (*mgmtStartBalanceTimerFp)(int32_t afterMs) = NULL;
 int32_t (*mgmtAllocVnodesFp)(SVgObj *pVgroup) = NULL;
 
 int32_t mgmtInitBalance() {
@@ -36,33 +37,28 @@ void mgmtCleanupBalance() {
   }
 }
 
+void mgmtStartBalanceTimer(int32_t afterMs) {
+  if (mgmtStartBalanceTimerFp) {
+    (*mgmtStartBalanceTimerFp)(afterMs);
+  }
+}
+
 int32_t mgmtAllocVnodes(SVgObj *pVgroup) {
   if (mgmtAllocVnodesFp) {
-    return mgmtAllocVnodesFp(pVgroup);
+    return (*mgmtAllocVnodesFp)(pVgroup);
   }
 
-  SDnodeObj *pDnode = mgmtGetDnode(0);
+  SDnodeObj *pDnode = mgmtGetDnode(1);
   if (pDnode == NULL) return TSDB_CODE_OTHERS;
 
-  int32_t selectedVnode = -1;
-  int32_t lastAllocVode = pDnode->lastAllocVnode;
-
-  for (int32_t i = 0; i < pDnode->numOfVnodes; i++) {
-    int32_t vnode = (i + lastAllocVode) % pDnode->numOfVnodes;
-    if (pDnode->vload[vnode].vgId == 0 && pDnode->vload[vnode].status == TSDB_VN_STATUS_OFFLINE) {
-      selectedVnode = vnode;
-      break;
-    }
-  }
-
-  if (selectedVnode == -1) {
-    mError("alloc vnode failed, free vnodes:%d", pDnode->numOfFreeVnodes);
-    return -1;
+  if (pDnode->openVnodes < pDnode->numOfTotalVnodes) {
+    pVgroup->vnodeGid[0].dnodeId   = pDnode->dnodeId;
+    pVgroup->vnodeGid[0].privateIp = pDnode->privateIp;
+    pVgroup->vnodeGid[0].publicIp  = pDnode->publicIp;
+    mTrace("dnode:%d, alloc one vnode to vgroup", pDnode->dnodeId);
+    return TSDB_CODE_SUCCESS;
   } else {
-    mTrace("allocate vnode:%d, last allocated vnode:%d", selectedVnode, lastAllocVode);
-    pVgroup->vnodeGid[0].vnode = selectedVnode;
-    pDnode->lastAllocVnode     = selectedVnode + 1;
-    if (pDnode->lastAllocVnode >= pDnode->numOfVnodes) pDnode->lastAllocVnode = 0;
-    return 0;
+    mError("dnode:%d, failed to alloc vnode to vgroup", pDnode->dnodeId);
+    return TSDB_CODE_NO_ENOUGH_DNODES;
   }
 }

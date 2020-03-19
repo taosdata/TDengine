@@ -187,7 +187,6 @@ void taosCleanUpIntHash(void *handle) {
   free(pObj);
 }
 
-
 void taosCleanUpIntHashWithFp(void *handle, void (*fp)(char *)) {
   IHashObj * pObj;
   IHashNode *pNode, *pNext;
@@ -202,7 +201,7 @@ void taosCleanUpIntHashWithFp(void *handle, void (*fp)(char *)) {
       pNode = pObj->hashList[i];
       while (pNode) {
         pNext = pNode->next;
-        if (fp != NULL) fp(pNode->data);
+        if (fp != NULL) (*fp)(pNode->data);
         free(pNode);
         pNode = pNext;
       }
@@ -219,7 +218,7 @@ void taosCleanUpIntHashWithFp(void *handle, void (*fp)(char *)) {
   free(pObj);
 }
 
-char *taosVisitIntHashWithFp(void *handle, int (*fp)(char *)) {
+void taosVisitIntHashWithFp(void *handle, int (*fp)(char *, void *), void *param) {
   IHashObj * pObj;
   IHashNode *pNode, *pNext;
   char *     pData = NULL;
@@ -234,21 +233,13 @@ char *taosVisitIntHashWithFp(void *handle, int (*fp)(char *)) {
       pNode = pObj->hashList[i];
       while (pNode) {
         pNext = pNode->next;
-        int flag = fp(pNode->data);
-        if (flag) {
-          pData = pNode->data;
-          goto VisitEnd;
-        }
-
+        (*fp)(pNode->data, param);
         pNode = pNext;
       }
     }
   }
 
-VisitEnd:
-
   pthread_mutex_unlock(&pObj->mutex);
-  return pData;
 }
 
 int32_t taosGetIntHashSize(void *handle) {
