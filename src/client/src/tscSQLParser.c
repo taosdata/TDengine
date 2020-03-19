@@ -29,6 +29,8 @@
 #include "tsclient.h"
 #include "ttokendef.h"
 
+#include "name.h"
+
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
 // -1 is tbname column index, so here use the -2 as the initial value
@@ -2470,7 +2472,7 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, tVariantList* pList, SSqlCmd*
 
   STableMeta* pTableMeta = NULL;
   SSchema*    pSchema = NULL;
-  SSchema     s = tsGetTbnameColumnSchema();
+  SSchema     s = tscGetTbnameColumnSchema();
 
   int32_t tableIndex = COLUMN_INDEX_INITIAL_VAL;
 
@@ -3538,8 +3540,9 @@ static int32_t setTableCondForMetricQuery(SQueryInfo* pQueryInfo, const char* ac
   }
   num = j;
 
-  SSQLToken dbToken = extractDBName(pTableMetaInfo->name, db);
-
+  char* name = extractDBName(pTableMetaInfo->name, db);
+  SSQLToken dbToken = {.type = TK_STRING, .z = name, .n = strlen(name)};
+  
   for (int32_t i = 0; i < num; ++i) {
     if (i >= 1) {
       taosStringBuilderAppendStringLen(&sb1, TBNAME_LIST_SEP, 1);

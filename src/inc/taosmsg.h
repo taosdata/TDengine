@@ -223,7 +223,7 @@ typedef struct {
 
 typedef struct SSchema {
   uint8_t type;
-  char    name[TSDB_COL_NAME_LEN + 1];
+  char    name[TSDB_COL_NAME_LEN];
   int16_t colId;
   int16_t bytes;
 } SSchema;
@@ -684,10 +684,9 @@ typedef struct STableMetaMsg {
   uint8_t numOfTags;
   uint8_t precision;
   uint8_t tableType;
-//  uint8_t index : 4;  // used locally
   int16_t numOfColumns;
-//  int16_t rowSize;  // used locally, calculated in client
   int16_t sversion;
+  
   int8_t  numOfVpeers;
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int32_t  sid;

@@ -206,9 +206,10 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pObj, SCacheDataNode *p
     return;
   }
   
+  int32_t size = pNode->size;
   taosHashRemove(pObj->pHashTable, pNode->key, pNode->keySize);
-  pTrace("key:%s is removed from cache,total:%d,size:%ldbytes", pNode->key, pObj->totalSize, pObj->totalSize);
   
+  pTrace("key:%s is removed from cache,total:%d,size:%ldbytes", pNode->key, pObj->totalSize, size);
   free(pNode);
 }
 
@@ -418,10 +419,10 @@ void *taosCachePut(void *handle, char *key, char *pData, int dataSize, int durat
   if (pOld == NULL) {  // do addedTime to cache
     pNode = taosAddToCacheImpl(pObj, key, keyLen, pData, dataSize, duration * 1000L);
     if (NULL != pNode) {
-      pTrace("key:%s %p added into cache, addedTime:%" PRIu64 ", expireTime:%" PRIu64 ", cache total:%d, size:%" PRId64
-                 " bytes, collision:%d",
-             key, pNode, pNode->addedTime, pNode->expiredTime, dataSize, pObj->totalSize,
-             pObj->statistics.numOfCollision);
+      pObj->totalSize += pNode->size;
+      
+      pTrace("key:%s %p added into cache, added:%" PRIu64 ", expire:%" PRIu64 ", total:%d, size:%" PRId64 " bytes",
+             key, pNode, pNode->addedTime, pNode->expiredTime, pObj->totalSize, dataSize);
     }
   } else {  // old data exists, update the node
     pNode = taosUpdateCacheImpl(pObj, pOld, key, keyLen, pData, dataSize, duration * 1000L);

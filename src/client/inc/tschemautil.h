@@ -89,16 +89,18 @@ bool isValidSchema(struct SSchema *pSchema, int32_t numOfCols);
  * get the schema for the "tbname" column. it is a built column
  * @return
  */
-SSchema tsGetTbnameColumnSchema();
+SSchema tscGetTbnameColumnSchema();
+
+/**
+ * create the table meta from the msg
+ * @param pTableMetaMsg
+ * @param size size of the table meta
+ * @return
+ */
+STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size);
 
 //todo tags value as well as the table id structure needs refactor
 char *tsGetTagsValue(STableMeta *pMeta);
-
-bool tsMeterMetaIdentical(STableMeta *p1, STableMeta *p2);
-
-void extractTableName(char *tableId, char *name);
-
-SSQLToken extractDBName(char *tableId, char *name);
 
 void extractTableNameFromToken(SSQLToken *pToken, SSQLToken* pTable);
 

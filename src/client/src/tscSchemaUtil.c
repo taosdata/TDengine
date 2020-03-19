@@ -45,8 +45,6 @@ int32_t tscGetNumOfColumns(const STableMeta* pTableMeta) {
   
   // table created according to super table, use data from super table
   STableInfo tinfo = tscGetTableInfo(pTableMeta);
-  assert(tinfo.numOfColumns >= 2);
-  
   return tinfo.numOfColumns;
 }
 
@@ -141,7 +139,7 @@ SSchema* tscGetTableColumnSchema(const STableMeta* pTableMeta, int32_t startCol)
   return &pSchema[startCol];
 }
 
-struct SSchema tsGetTbnameColumnSchema() {
+struct SSchema tscGetTbnameColumnSchema() {
   struct SSchema s = {
       .colId = TSDB_TBNAME_COLUMN_INDEX,
       .type  = TSDB_DATA_TYPE_BINARY,
@@ -151,6 +149,22 @@ struct SSchema tsGetTbnameColumnSchema() {
   strcpy(s.name, TSQL_TBNAME_L);
   return s;
 }
+
+STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size) {
+  assert(pTableMetaMsg != NULL);
+  
+  int32_t schemaSize = (pTableMetaMsg->numOfColumns + pTableMetaMsg->numOfTags) * sizeof(SSchema);
+  STableMeta* pTableMeta = calloc(1, sizeof(STableMeta) + schemaSize);
+  
+  memcpy(pTableMeta->schema, pTableMetaMsg->schema, schemaSize);
+  
+  if (size != NULL) {
+    *size = sizeof(STableMeta) + schemaSize;
+  }
+  
+  return pTableMeta;
+}
+
 
 /**
  * the TableMeta data format in memory is as follows:
@@ -174,26 +188,6 @@ char* tsGetTagsValue(STableMeta* pTableMeta) {
   return ((char*)pTableMeta + offset);
 }
 
-bool tsMeterMetaIdentical(STableMeta* p1, STableMeta* p2) {
-  if (p1 == NULL || p2 == NULL || p1->uid != p2->uid || p1->sversion != p2->sversion) {
-    return false;
-  }
-//
-//  if (p1 == p2) {
-//    return true;
-//  }
-//
-//  size_t size = sizeof(STableMeta) + p1->numOfColumns * sizeof(SSchema);
-//
-//  for (int32_t i = 0; i < p1->numOfTags; ++i) {
-//    SSchema* pColSchema = tscGetTableColumnSchema(p1, i + p1->numOfColumns);
-//    size += pColSchema->bytes;
-//  }
-
-//  return memcmp(p1, p2, size) == 0;
- return true;
-}
-
 // todo refactor
 static FORCE_INLINE char* skipSegments(char* input, char delim, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
@@ -211,24 +205,6 @@ static FORCE_INLINE size_t copy(char* dst, const char* src, char delimiter) {
   }
   
   return len;
-}
-
-/**
- * extract table name from meterid, which the format of userid.dbname.metername
- * @param tableId
- * @return
- */
-void extractTableName(char* tableId, char* name) {
-  char* r = skipSegments(tableId, TS_PATH_DELIMITER[0], 2);
-  copy(name, r, TS_PATH_DELIMITER[0]);
-}
-
-SSQLToken extractDBName(char* tableId, char* name) {
-  char* r = skipSegments(tableId, TS_PATH_DELIMITER[0], 1);
-  size_t len = copy(name, r, TS_PATH_DELIMITER[0]);
-
-  SSQLToken token = {.z = name, .n = len, .type = TK_STRING};
-  return token;
 }
 
 /*

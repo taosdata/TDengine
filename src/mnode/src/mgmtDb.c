@@ -15,23 +15,26 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
-#include "tstatus.h"
-#include "tutil.h"
-#include "mnode.h"
+
+#include "mgmtDb.h"
 #include "mgmtAcct.h"
 #include "mgmtBalance.h"
-#include "mgmtDb.h"
-#include "mgmtDnode.h"
-#include "mgmtMnode.h"
-#include "mgmtGrant.h"
-#include "mgmtShell.h"
-#include "mgmtNormalTable.h"
 #include "mgmtChildTable.h"
+#include "mgmtDnode.h"
+#include "mgmtGrant.h"
+#include "mgmtMnode.h"
+#include "mgmtNormalTable.h"
+#include "mgmtShell.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
+#include "mnode.h"
+
+#include "taoserror.h"
+#include "tstatus.h"
+#include "tutil.h"
+#include "name.h"
 
 static void *tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
@@ -294,8 +297,7 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
 
 bool mgmtCheckIsMonitorDB(char *db, char *monitordb) {
   char dbName[TSDB_DB_NAME_LEN + 1] = {0};
-  assert(0);
-//  extractDBName(db, dbName);
+  extractDBName(db, dbName);
 
   size_t len = strlen(dbName);
   return (strncasecmp(dbName, monitordb, len) == 0 && len == strlen(monitordb));
@@ -436,7 +438,7 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created time");
+  strcpy(pSchema[cols].name, "created_time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 

@@ -233,7 +233,7 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
 
   pShow->bytes[cols] = 9;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "vgroup status");
+  strcpy(pSchema[cols].name, "vgroup_status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -273,13 +273,13 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
 
     pShow->bytes[cols] = 9;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "vnode status");
+    strcpy(pSchema[cols].name, "vnode_status");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
     pShow->bytes[cols] = 16;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "public ip");
+    strcpy(pSchema[cols].name, "public_ip");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
   }

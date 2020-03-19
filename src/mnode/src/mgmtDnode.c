@@ -331,7 +331,7 @@ static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
 
   pShow->bytes[cols] = 12;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "sync status");
+  strcpy(pSchema[cols].name, "sync_status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 

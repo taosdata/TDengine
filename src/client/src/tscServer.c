@@ -2247,7 +2247,7 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tscBuildMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SCMTableInfoMsg *pInfoMsg;
   char *         pMsg;
   int            msgLen = 0;
@@ -2878,7 +2878,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);  //?
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
   STableMetaInfo *pTableMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
 
@@ -2891,7 +2891,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
 
   pMetaMsg->numOfColumns = ntohs(pMetaMsg->numOfColumns);
 
-  pSchema = (SSchema *)((char *)pMetaMsg + sizeof(STableMeta));
+  pSchema = pMetaMsg->schema;
   pMetaMsg->sid = ntohs(pMetaMsg->sid);
   for (int i = 0; i < pMetaMsg->numOfColumns; ++i) {
     pSchema->bytes = htons(pSchema->bytes);
@@ -2902,12 +2902,14 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   strcpy(key + 1, "showlist");
 
   taosCacheRelease(tscCacheHandle, (void *)&(pTableMetaInfo->pTableMeta), false);
-
-  int32_t size = pMetaMsg->numOfColumns * sizeof(SSchema) + sizeof(STableMeta);
+  size_t size = 0;
+  STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg, &size);
+  
   pTableMetaInfo->pTableMeta =
-      (STableMeta *)taosCachePut(tscCacheHandle, key, (char *)pMetaMsg, size, tsMeterMetaKeepTimer);
+      (STableMeta *)taosCachePut(tscCacheHandle, key, (char *)pTableMeta, size, tsMeterMetaKeepTimer);
+  
   pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutputCols;
-  SSchema *pMeterSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
+  SSchema *pTableSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
   tscColumnBaseInfoReserve(&pQueryInfo->colList, pMetaMsg->numOfColumns);
   SColumnIndex index = {0};
@@ -2915,13 +2917,15 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   for (int16_t i = 0; i < pMetaMsg->numOfColumns; ++i) {
     index.columnIndex = i;
     tscColumnBaseInfoInsert(pQueryInfo, &index);
-    tscFieldInfoSetValFromSchema(&pQueryInfo->fieldsInfo, i, &pMeterSchema[i]);
+    tscFieldInfoSetValFromSchema(&pQueryInfo->fieldsInfo, i, &pTableSchema[i]);
     
     pQueryInfo->fieldsInfo.pSqlExpr[i] = tscSqlExprInsert(pQueryInfo, i, TSDB_FUNC_TS_DUMMY, &index,
-                     pMeterSchema[i].type, pMeterSchema[i].bytes, pMeterSchema[i].bytes);
+                     pTableSchema[i].type, pTableSchema[i].bytes, pTableSchema[i].bytes);
   }
 
   tscFieldInfoCalOffset(pQueryInfo);
+  
+  tfree(pTableMeta);
   return 0;
 }
 
@@ -3379,7 +3383,7 @@ void tscInitMsgs() {
 
   tscBuildMsg[TSDB_SQL_CONNECT] = tscBuildConnectMsg;
   tscBuildMsg[TSDB_SQL_USE_DB] = tscBuildUseDbMsg;
-  tscBuildMsg[TSDB_SQL_META] = tscBuildMeterMetaMsg;
+  tscBuildMsg[TSDB_SQL_META] = tscBuildTableMetaMsg;
   tscBuildMsg[TSDB_SQL_METRIC] = tscBuildMetricMetaMsg;
   tscBuildMsg[TSDB_SQL_MULTI_META] = tscBuildMultiMeterMetaMsg;
 
