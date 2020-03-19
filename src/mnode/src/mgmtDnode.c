@@ -51,73 +51,20 @@ static void    mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg);
 
 void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
   int32_t maxVnodes = pDnode->numOfCores * tsNumOfVnodesPerCore;
+
   maxVnodes = maxVnodes > TSDB_MAX_VNODES ? TSDB_MAX_VNODES : maxVnodes;
   maxVnodes = maxVnodes < TSDB_MIN_VNODES ? TSDB_MIN_VNODES : maxVnodes;
-  if (pDnode->numOfTotalVnodes != 0) {
-    maxVnodes = pDnode->numOfTotalVnodes;
-  }
-  if (pDnode->alternativeRole == TSDB_DNODE_ROLE_MGMT) {
-    maxVnodes = 0;
+  
+  if (pDnode->numOfTotalVnodes == 0) {
+    pDnode->numOfTotalVnodes = maxVnodes;
   }
 
-  pDnode->numOfVnodes = maxVnodes;
-  pDnode->numOfFreeVnodes = maxVnodes;
+  if (pDnode->alternativeRole == TSDB_DNODE_ROLE_MGMT) {
+    pDnode->numOfTotalVnodes = 0;
+  }
+
   pDnode->openVnodes = 0;
   pDnode->status = TSDB_DN_STATUS_OFFLINE;
-}
-
-void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode) {
-  int32_t totalVnodes = 0;
-
-  mTrace("dnode:%s, begin calc free vnodes", taosIpStr(pDnode->privateIp));
-  for (int32_t i = 0; i < pDnode->numOfVnodes; ++i) {
-    SVnodeLoad *pVload = pDnode->vload + i;
-    if (pVload->vgId != 0) {
-      mTrace("dnode:%d, calc free vnodes, vnode:%d, status:%d %s, syncstatus:%d %s",
-             pDnode->dnodeId, pVload->vgId,
-             pVload->status, taosGetVnodeStatusStr(pVload->status),
-             pVload->syncStatus, taosGetVnodeSyncStatusStr(pVload->syncStatus));
-      totalVnodes++;
-    }
-  }
-
-  pDnode->numOfFreeVnodes = pDnode->numOfVnodes - totalVnodes;
-  mTrace("dnode:%s, numOfVnodes:%d, numOfFreeVnodes:%d, totalVnodes:%d",
-          taosIpStr(pDnode->privateIp), pDnode->numOfVnodes, pDnode->numOfFreeVnodes, totalVnodes);
-}
-
-void mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes, int32_t vgId) {
-  SDnodeObj *pDnode;
-
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    pDnode = mgmtGetDnode(vnodeGid[i].ip);
-    if (pDnode) {
-      SVnodeLoad *pVload = pDnode->vload + vnodeGid[i].vnode;
-      memset(pVload, 0, sizeof(SVnodeLoad));
-      //pVload->vnode = vnodeGid[i].vnode;
-      pVload->vgId = vgId;
-      mTrace("dnode:%s, vnode:%d add to vgroup:%d", taosIpStr(pDnode->privateIp), vnodeGid[i].vnode, pVload->vgId);
-      mgmtCalcNumOfFreeVnodes(pDnode);
-    } else {
-      mError("dnode:%s, not in dnode DB!!!", taosIpStr(vnodeGid[i].ip));
-    }
-  }
-}
-
-void mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes) {
-  SDnodeObj *pDnode;
-
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    pDnode = mgmtGetDnode(vnodeGid[i].ip);
-    if (pDnode) {
-      SVnodeLoad *pVload = pDnode->vload + vnodeGid[i].vnode;
-      mTrace("dnode:%s, vnode:%d remove from vgroup:%d", taosIpStr(vnodeGid[i].ip), vnodeGid[i].vnode, pVload->vgId);
-      memset(pVload, 0, sizeof(SVnodeLoad));
-      mgmtCalcNumOfFreeVnodes(pDnode);
-    } else {
-      mError("dnode:%s not in dnode DB!!!", taosIpStr(vnodeGid[i].ip));
-    }
-  }
 }
 
 bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
@@ -338,11 +285,10 @@ static int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn)
   pShow->offset[0] = 0;
   for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
-  // TODO: if other thread drop dnode ????
   SDnodeObj *pDnode = NULL;
   if (pShow->payloadLen > 0 ) {
     uint32_t ip = ip2uint(pShow->payload);
-    pDnode = mgmtGetDnode(ip);
+    pDnode = mgmtGetDnodeByIp(ip);
     if (NULL == pDnode) {
       return TSDB_CODE_NODE_OFFLINE;
     }
@@ -434,15 +380,14 @@ int32_t mgmtInitDnodes() {
     return mgmtInitDnodesFp();
   } else {
     tsDnodeObj.dnodeId          = 1;
-    tsDnodeObj.privateIp        = inet_addr(tsPrivateIp);;
+    tsDnodeObj.privateIp        = inet_addr(tsPrivateIp);
+    tsDnodeObj.publicIp         = inet_addr(tsPublicIp);
     tsDnodeObj.createdTime      = taosGetTimestampMs();
-    tsDnodeObj.lastReboot       = taosGetTimestampSec();
-    tsDnodeObj.numOfCores       = (uint16_t) tsNumOfCores;
-    tsDnodeObj.status           = TSDB_DN_STATUS_READY;
-    tsDnodeObj.alternativeRole  = TSDB_DNODE_ROLE_ANY;
     tsDnodeObj.numOfTotalVnodes = tsNumOfTotalVnodes;
-    tsDnodeObj.thandle          = (void *) (1);  //hack way
-    tsDnodeObj.status           = TSDB_DN_STATUS_READY;
+    tsDnodeObj.numOfCores       = (uint16_t) tsNumOfCores;
+    tsDnodeObj.alternativeRole  = TSDB_DNODE_ROLE_ANY;
+    tsDnodeObj.status           = TSDB_DN_STATUS_OFFLINE;
+    tsDnodeObj.lastReboot       = taosGetTimestampSec();
     mgmtSetDnodeMaxVnodes(&tsDnodeObj);
 
     tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_MGMT);
@@ -458,31 +403,30 @@ int32_t mgmtInitDnodes() {
 
 void mgmtCleanUpDnodes() {
   if (mgmtCleanUpDnodesFp) {
-    mgmtCleanUpDnodesFp();
+    (*mgmtCleanUpDnodesFp)();
   }
 }
 
-SDnodeObj *mgmtGetDnode(uint32_t ip) {
+SDnodeObj *mgmtGetDnode(int32_t dnodeId) {
   if (mgmtGetDnodeFp) {
-    return mgmtGetDnodeFp(ip);
-  } else {
-    return &tsDnodeObj;
-  }
-}
-
-SDnodeObj *mgmtGetDnodeByIp(int32_t dnodeId) {
-  if (mgmtGetDnodeByIpFp) {
-    return mgmtGetDnodeByIpFp(dnodeId);
+    return (*mgmtGetDnodeFp)(dnodeId);
   } 
-  if (dnodeId != 0) {
+  if (dnodeId == 1) {
     return &tsDnodeObj;
   }
   return NULL;
 }
 
+SDnodeObj *mgmtGetDnodeByIp(uint32_t ip) {
+  if (mgmtGetDnodeByIpFp) {
+    return (*mgmtGetDnodeByIpFp)(ip);
+  } 
+  return &tsDnodeObj;
+}
+
 int32_t mgmtGetDnodesNum() {
   if (mgmtGetDnodesNumFp) {
-    return mgmtGetDnodesNumFp();
+    return (*mgmtGetDnodesNumFp)();
   } else {
     return 1;
   }
@@ -490,7 +434,7 @@ int32_t mgmtGetDnodesNum() {
 
 int32_t mgmtUpdateDnode(SDnodeObj *pDnode) {
   if (mgmtUpdateDnodeFp) {
-    return mgmtUpdateDnodeFp(pDnode);
+    return (*mgmtUpdateDnodeFp)(pDnode);
   } else {
     return 0;
   }
@@ -498,7 +442,7 @@ int32_t mgmtUpdateDnode(SDnodeObj *pDnode) {
 
 void *mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode) {
   if (mgmtGetNextDnodeFp) {
-    return mgmtGetNextDnodeFp(pShow, pDnode);
+    return (*mgmtGetNextDnodeFp)(pShow, pDnode);
   } else {
     if (*pDnode == NULL) {
       *pDnode = &tsDnodeObj;
@@ -512,14 +456,12 @@ void *mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode) {
 
 void mgmtSetDnodeUnRemove(SDnodeObj *pDnode) {
   if (mgmtSetDnodeUnRemoveFp) {
-    mgmtSetDnodeUnRemoveFp(pDnode);
+    (*mgmtSetDnodeUnRemoveFp)(pDnode);
   }
 }
 
 bool mgmtCheckConfigShow(SGlobalConfig *cfg) {
-  if (cfg->cfgType & TSDB_CFG_CTYPE_B_CLUSTER)
-    return false;
-  if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT)
+  if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW))
     return false;
   return true;
 }
@@ -583,7 +525,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   if (pStatus->dnodeId == 0) {
     pDnode = mgmtGetDnodeByIp(pStatus->privateIp);
     if (pDnode == NULL) {
-      mTrace("dnode not created in cluster, privateIp:%s, name:%s, ", taosIpStr(htonl(pStatus->dnodeId)), pStatus->dnodeName);
+      mTrace("dnode not created, privateIp:%s, name:%s, ", taosIpStr(htonl(pStatus->dnodeId)), pStatus->dnodeName);
       mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_DNODE_NOT_EXIST);
       return;
     }
@@ -603,7 +545,6 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   pDnode->publicIp         = htonl(pStatus->publicIp);
   pDnode->lastReboot       = htonl(pStatus->lastReboot);
   pDnode->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes);
-  pDnode->openVnodes       = htons(pStatus->openVnodes);
   pDnode->numOfCores       = htons(pStatus->numOfCores);
   pDnode->diskAvailable    = pStatus->diskAvailable;
   pDnode->alternativeRole  = pStatus->alternativeRole;
@@ -619,45 +560,18 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     //mgmtUpdateMnodeIp();
   }
 
-  for (int32_t j = 0; j < pDnode->openVnodes; ++j) {
-    pStatus->load[j].vgId          = htonl(pStatus->load[j].vgId);
-    pStatus->load[j].totalStorage  = htobe64(pStatus->load[j].totalStorage);
-    pStatus->load[j].compStorage   = htobe64(pStatus->load[j].compStorage);
-    pStatus->load[j].pointsWritten = htobe64(pStatus->load[j].pointsWritten);
+  int32_t openVnodes = htons(pStatus->openVnodes);
+  for (int32_t j = 0; j < openVnodes; ++j) {
+    pDnode->vload[j].vgId          = htonl(pStatus->load[j].vgId);
+    pDnode->vload[j].totalStorage  = htobe64(pStatus->load[j].totalStorage);
+    pDnode->vload[j].compStorage   = htobe64(pStatus->load[j].compStorage);
+    pDnode->vload[j].pointsWritten = htobe64(pStatus->load[j].pointsWritten);
     
-    bool existInMnode = false;
-    for (int32_t vnode = 0; vnode < pDnode->numOfVnodes; ++vnode) {
-      SVnodeLoad *pVload = &(pDnode->vload[vnode]); 
-      if (pVload->vgId == pStatus->load[j].vgId) {
-        existInMnode = true;
-      }
-    }
-    
-    if (!existInMnode) {
+    SVgObj *pVgroup = mgmtGetVgroup(pStatus->load[j].vgId);
+    if (pVgroup == NULL) {
       SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->privateIp);
       mPrint("dnode:%d, vnode:%d not exist in mnode, drop it", pDnode->dnodeId, pStatus->load[j].vgId);
       mgmtSendDropVnodeMsg(pStatus->load[j].vgId, &ipSet, NULL);
-    }
-  }
-
-  for (int32_t vnode = 0; vnode < pDnode->numOfVnodes; ++vnode) {
-    SVnodeLoad *pVload = &(pDnode->vload[vnode]); 
-    
-    bool existInDnode = false;
-    for (int32_t j = 0; j < pDnode->openVnodes; ++j) {
-      if (htonl(pStatus->load[j].vgId) == pVload->vgId) {
-        existInDnode = true;
-        break;
-      }
-    }
-
-    if (!existInDnode) {
-      mPrint("dnode:%d, vnode:%d not exist in dnode, create it", pDnode->dnodeId, pVload->vgId);
-      SVgObj *pVgroup = mgmtGetVgroup(pVload->vgId);
-      if (pVgroup != NULL) {
-        SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->privateIp);
-        mgmtSendCreateVnodeMsg(pVgroup, &ipSet, NULL);
-      }
     }
   }
 

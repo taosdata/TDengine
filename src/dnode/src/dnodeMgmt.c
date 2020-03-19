@@ -497,8 +497,8 @@ static void dnodeReadDnodeId() {
   int32_t num = 0;
   
   fscanf(fp, "%s %d", option, &value);
-  if (num != 2) return false;
-  if (strcmp(option, "dnodeId") != 0) return false;
+  if (num != 2) return;
+  if (strcmp(option, "dnodeId") != 0) return;
   tsDnodeId = value;;
 
   fclose(fp);
@@ -510,16 +510,12 @@ static void dnodeSaveDnodeId() {
   sprintf(dnodeIdFile, "%s/dnodeId", tsDnodeDir);
 
   FILE *fp = fopen(dnodeIdFile, "w");
-  if (!fp) {
-    return false;
-  }
+  if (!fp) return;
 
   fprintf(fp, "dnodeId %d\n", tsDnodeId);
 
   fclose(fp);
   dPrint("save dnodeId successed");
-
-  return true;
 }
 
 void dnodeUpdateDnodeId(int32_t dnodeId) {

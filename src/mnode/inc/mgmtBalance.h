@@ -23,6 +23,7 @@ extern "C" {
 
 int32_t mgmtInitBalance();
 void    mgmtCleanupBalance();
+void    mgmtStartBalance(int32_t afterMs) ;
 int32_t mgmtAllocVnodes(SVgObj *pVgroup);
 
 #ifdef __cplusplus

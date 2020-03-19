@@ -21,6 +21,8 @@
 #include "tutil.h"
 #include "dnode.h"
 #include "dnodeMClient.h"
+#include "dnodeModule.h"
+#include "dnodeMClient.h"
 
 static bool   dnodeReadMnodeIpList();
 static void   dnodeSaveMnodeIpList();

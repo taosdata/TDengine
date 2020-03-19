@@ -520,18 +520,20 @@ typedef struct {
 
 typedef struct {
   int32_t vgId;
+  int32_t vnode;
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
   uint8_t status;
   uint8_t syncStatus;
   uint8_t accessState;
-  uint8_t reserved[6];
+  uint8_t reserved[5];
 } SVnodeLoad;
 
 typedef struct {
   uint32_t vnode;
-  char     accessState;
+  uint8_t  accessState;
+  uint8_t  reserved[3];
 } SVnodeAccess;
 
 /*
