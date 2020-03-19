@@ -81,6 +81,23 @@ typedef struct {
   int             code;
 } SRecvBuffer;
 
+typedef struct {
+  uint64_t  version;
+  void     *mhandle;
+  int8_t    acks;
+  int8_t    nacks;
+  int8_t    confirmed;
+  int32_t   code;
+  uint64_t  time;
+} SFwdInfo;
+
+typedef struct {
+  int       first;
+  int       last;
+  int       fwds;  // number of forwards
+  SFwdInfo  fwdInfo[];
+} SSyncFwds;
+
 typedef struct _syncPeer {
   int32_t     nodeId;
   uint32_t    ip;
@@ -109,13 +126,15 @@ typedef struct _sync_node {
   uint32_t   (*getFileInfo)(char *name, int *index, int *size);
   int        (*getWalInfo)(char *name, int *index);
   int        (*writeToCache)(void *ahandle, SWalHead *, int type); 
-  void       (*confirmFwd)(void *ahandle, void *mhandle, int32_t code);
+  void       (*confirmForward)(void *ahandle, void *mhandle, int32_t code);
   void       (*notifyRole)(void *ahandle, int8_t role);
   int8_t       selfIndex;
   SSyncPeer   *peerInfo[TAOS_SYNC_MAX_REPLICA];
   SSyncPeer   *pMaster;
   int8_t       refCount;
   SRecvBuffer *pRecv;
+  SSyncFwds   *pSyncFwds;  // saved forward info if quorum >1
+  void        *pFwdTimer;
   pthread_mutex_t mutex;
 } SSyncNode;
 

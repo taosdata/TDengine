@@ -34,6 +34,7 @@ extern uint32_t  tsPrivateIpv4;
 char localIp[40] = "0.0.0.0";
 char path[256];
 int  numOfWrites ;
+SSyncInfo syncInfo;
 
 int writeIntoWal(SWalHead *pHead)
 { 
@@ -68,6 +69,25 @@ int writeIntoWal(SWalHead *pHead)
   return 0;
 }
 
+void confirmForward(void *ahandle, void *mhandle, int32_t code)
+{
+  SRpcMsg  *pMsg = (SRpcMsg *)mhandle;
+  SWalHead *pHead = (SWalHead *)(((char *)pMsg->pCont) - sizeof(SWalHead));
+
+  dTrace("ver:%d, confirm is received", pHead->version);
+
+  rpcFreeCont(pMsg->pCont);
+
+  SRpcMsg    rpcMsg;
+  rpcMsg.pCont = rpcMallocCont(msgSize);
+  rpcMsg.contLen = msgSize;
+  rpcMsg.handle = pMsg->handle;
+  rpcMsg.code = code;
+  rpcSendResponse(&rpcMsg);
+
+  taosFreeQitem(mhandle); 
+}
+
 int processRpcMsg(void *item) {
   SRpcMsg   *pMsg = (SRpcMsg *)item;
   SWalHead  *pHead = (SWalHead *)(((char *)pMsg->pCont) - sizeof(SWalHead));
@@ -81,23 +101,24 @@ int processRpcMsg(void *item) {
     pHead->msgType = pMsg->msgType;
     pHead->len = pMsg->contLen;
  
-    dTrace("verion:%d, pkt from client processed", pHead->version);
+    dTrace("ver:%d, pkt from client processed", pHead->version);
     writeIntoWal(pHead); 
-    syncForwardToPeer(syncHandle, pHead, NULL);
-
-    // write into cache
+    syncForwardToPeer(syncHandle, pHead, item);
 
     code = 0;
   }
 
-  rpcFreeCont(pMsg->pCont);
+  if (syncInfo.quorum <= 1) { 
+    taosFreeQitem(item); 
+    rpcFreeCont(pMsg->pCont);
 
-  SRpcMsg    rpcMsg;
-  rpcMsg.pCont = rpcMallocCont(msgSize);
-  rpcMsg.contLen = msgSize;
-  rpcMsg.handle = pMsg->handle;
-  rpcMsg.code = code;
-  rpcSendResponse(&rpcMsg);
+    SRpcMsg    rpcMsg;
+    rpcMsg.pCont = rpcMallocCont(msgSize);
+    rpcMsg.contLen = msgSize;
+    rpcMsg.handle = pMsg->handle;
+    rpcMsg.code = code;
+    rpcSendResponse(&rpcMsg);
+  }
 
   return code;
 }
@@ -115,6 +136,8 @@ int processFwdMsg(void *item) {
   writeIntoWal(pHead);
   tversion = pHead->version;
 
+  if (syncInfo.quorum > 1) syncConfirmForward(syncHandle, pHead->version, 0);
+
   // write into cache
 
 /*
@@ -122,6 +145,8 @@ int processFwdMsg(void *item) {
     syncSendFwdAck(syncHandle, pHead->handle, 0);  
   }
 */
+
+  taosFreeQitem(item);
 
   return 0;
 }
@@ -147,34 +172,30 @@ int processWalMsg(void *item) {
   }
 */
 
+  taosFreeQitem(item);
+
   return 0;
 }
 
 void *processWriteQueue(void *param) {
-  taos_qall  qall;
   int        type;
   void      *item;
 
   while (1) {
-    int numOfMsgs = taosReadAllQitems(qhandle, &qall);
-    if (numOfMsgs <= 0) {
+    int ret = taosReadQitem(qhandle, &type, &item);
+    if (ret <= 0) {
       usleep(1000);
       continue;
     }     
 
-    for (int i=0; i<numOfMsgs; ++i) {
-      taosGetQitem(qall, &type, &item);
-
-      if (type == TAOS_QTYPE_RPC) {
-        processRpcMsg(item);
-      } else if (type == TAOS_QTYPE_WAL) {
-        processWalMsg(item);
-      } else if (type == TAOS_QTYPE_FWD) {
-        processFwdMsg(item);
-      }
+    if (type == TAOS_QTYPE_RPC) {
+      processRpcMsg(item);
+    } else if (type == TAOS_QTYPE_WAL) {
+      processWalMsg(item);
+    } else if (type == TAOS_QTYPE_FWD) {
+      processFwdMsg(item);
     } 
 
-    taosFreeQitems(qall);
   }
 
   return NULL;
@@ -281,19 +302,18 @@ void notifyRole(void *ahandle, int8_t r) {
   printf("current role:%s\n", syncRole[role]);
 }
 
-SSyncInfo syncInfo;
 
 void initSync() {
 
   strcpy(syncInfo.label, "vid:1");
   syncInfo.replica = 1;
-  syncInfo.quorum = 0;
+  syncInfo.quorum = 1;
   syncInfo.vgId = 1;
   syncInfo.ahandle = &syncInfo;
   syncInfo.getFileInfo = getFileInfo;
   syncInfo.getWalInfo = getWalInfo;
   syncInfo.writeToCache = writeToCache;
-  syncInfo.confirmFwd = NULL;
+  syncInfo.confirmForward = confirmForward;
   syncInfo.notifyRole = notifyRole;
   syncInfo.nodeInfo[0].nodeId = 1;
   strcpy(syncInfo.nodeInfo[0].name, "192.168.0.1");
@@ -363,6 +383,10 @@ int main(int argc, char *argv[]) {
       syncInfo.version = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r")==0 && i < argc-1) {
       syncInfo.replica = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-q")==0 && i < argc-1) {
+      syncInfo.quorum = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
+      rpcDebugFlag = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       rpcDebugFlag = atoi(argv[++i]);
     } else {
@@ -375,7 +399,8 @@ int main(int argc, char *argv[]) {
       printf("  [-o compSize]: compression message size, default is:%d\n", tsCompressMsgSize);
       printf("  [-w write]: write received data to file(0, 1, 2), default is:%d\n", commit);
       printf("  [-v version]: initial node version, default is:%ld\n", syncInfo.version);
-      printf("  [-r replica]: initial replica, default is:%d\n", syncInfo.replica);
+      printf("  [-r replica]: replicacation number, default is:%d\n", syncInfo.replica);
+      printf("  [-q quorum]: quorum, default is:%d\n", syncInfo.quorum);
       printf("  [-d debugFlag]: debug flag, default:%d\n", rpcDebugFlag);
       printf("  [-h help]: print out this help\n\n");
       exit(0);
@@ -384,6 +409,7 @@ int main(int argc, char *argv[]) {
  
   uDebugFlag = rpcDebugFlag;
   ddebugFlag = rpcDebugFlag; 
+  tmrDebugFlag = rpcDebugFlag; 
   tsAsyncLog = 0;
   taosInitLog("server.log", 1000000, 10);
 
