@@ -47,7 +47,7 @@ int32_t tscGetNumOfColumns(const STableMeta* pTableMeta);
  * @param pTableMeta
  * @return
  */
-STableInfo tscGetTableInfo(const STableMeta* pTableMeta);
+STableComInfo tscGetTableInfo(const STableMeta* pTableMeta);
 
 /**
  * get the schema

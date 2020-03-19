@@ -2176,7 +2176,7 @@ int tscProcessDescribeTableRsp(SSqlObj *pSql) {
   SSqlCmd *       pCmd = &pSql->cmd;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
 
-  STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   int32_t numOfRes = tinfo.numOfColumns + tinfo.numOfTags;
   return tscLocalResultCommonBuilder(pSql, numOfRes);
@@ -3147,7 +3147,7 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   
   pTableMetaInfo->pTableMeta = (STableMeta *)taosCacheAcquireByName(tscCacheHandle, pTableMetaInfo->name);
   if (pTableMetaInfo->pTableMeta != NULL) {
-    STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+    STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
     tscTrace("%p retrieve tableMeta from cache, the number of columns:%d, numOfTags:%d", pSql, tinfo.numOfColumns,
              tinfo.numOfTags);
 

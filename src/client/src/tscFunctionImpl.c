@@ -4601,11 +4601,7 @@ static void rate_func_merge(SQLFunctionCtx *pCtx) {
   if (numOfNotNull > 0) {
     pBuf->hasResult = DATA_SET_FLAG;
   }
-  
-  return;
 }
-
-
 
 static void rate_func_copy(SQLFunctionCtx *pCtx) {
   assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);

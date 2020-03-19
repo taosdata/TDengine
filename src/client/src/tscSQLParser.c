@@ -153,7 +153,7 @@ static int setColumnFilterInfoForTimestamp(SQueryInfo* pQueryInfo, tVariant* pVa
   char*           seg = strnchr(pVar->pz, '-', pVar->nLen, false);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   if (seg != NULL) {
     if (taosParseTime(pVar->pz, &time, pVar->nLen, tinfo.precision) != TSDB_CODE_SUCCESS) {
@@ -590,7 +590,7 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
   const char* msg2 = "interval cannot be less than 10 ms";
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   if (pQuerySql->interval.type == 0 || pQuerySql->interval.n == 0) {
     return TSDB_CODE_SUCCESS;
@@ -683,7 +683,7 @@ int32_t parseSlidingClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSQLToken*      pSliding = &pQuerySql->sliding;
-  STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
   if (pSliding->n != 0) {
     getTimestampInUsFromStr(pSliding->z, pSliding->n, &pQueryInfo->slidingTime);
@@ -1380,7 +1380,7 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   SSchema*    pSchema = tscGetTableSchema(pTableMeta);
 
-  STableInfo tinfo = tscGetTableInfo(pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   
   if (UTIL_METER_IS_SUPERTABLE(pTableMetaInfo)) {
     numOfTotalColumns = tinfo.numOfColumns + tinfo.numOfTags;
@@ -3621,7 +3621,7 @@ static int32_t getTimeRangeFromExpr(SQueryInfo* pQueryInfo, tSQLExpr* pExpr) {
     }
 
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
-    STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+    STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
     
     tSQLExpr* pRight = pExpr->pRight;
 
@@ -5708,7 +5708,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   }
 
   // set where info
-  STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   if (pQuerySql->pWhere != NULL) {
     if (parseWhereClause(pQueryInfo, &pQuerySql->pWhere, pSql) != TSDB_CODE_SUCCESS) {

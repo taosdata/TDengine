@@ -1583,7 +1583,7 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId) {
   }
 
   SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
-  STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
   int32_t  numOfTotal = tinfo.numOfTags + tinfo.numOfColumns;
 

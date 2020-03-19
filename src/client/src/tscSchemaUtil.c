@@ -24,7 +24,7 @@
 int32_t tscGetNumOfTags(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
   
-  STableInfo tinfo = tscGetTableInfo(pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   
   if (pTableMeta->tableType == TSDB_NORMAL_TABLE) {
     assert(tinfo.numOfTags == 0);
@@ -44,7 +44,7 @@ int32_t tscGetNumOfColumns(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
   
   // table created according to super table, use data from super table
-  STableInfo tinfo = tscGetTableInfo(pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   return tinfo.numOfColumns;
 }
 
@@ -64,13 +64,13 @@ SSchema *tscGetTableSchema(const STableMeta *pTableMeta) {
 SSchema* tscGetTableTagSchema(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL && (pTableMeta->tableType == TSDB_SUPER_TABLE || pTableMeta->tableType == TSDB_CHILD_TABLE));
   
-  STableInfo tinfo = tscGetTableInfo(pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   assert(tinfo.numOfTags > 0);
   
   return tscGetTableColumnSchema(pTableMeta, tinfo.numOfColumns);
 }
 
-STableInfo tscGetTableInfo(const STableMeta* pTableMeta) {
+STableComInfo tscGetTableInfo(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
   
   if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
@@ -156,7 +156,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   int32_t schemaSize = (pTableMetaMsg->numOfColumns + pTableMetaMsg->numOfTags) * sizeof(SSchema);
   STableMeta* pTableMeta = calloc(1, sizeof(STableMeta) + schemaSize);
   pTableMeta->tableType = pTableMetaMsg->tableType;
-  pTableMeta->tableInfo = (STableInfo){.numOfTags = pTableMetaMsg->numOfTags, .numOfColumns = pTableMetaMsg->numOfColumns,
+  pTableMeta->tableInfo = (STableComInfo){.numOfTags = pTableMetaMsg->numOfTags, .numOfColumns = pTableMetaMsg->numOfColumns,
                                        .precision = pTableMetaMsg->precision};
   pTableMeta->sid = pTableMetaMsg->sid;
   pTableMeta->uid = pTableMetaMsg->uid;

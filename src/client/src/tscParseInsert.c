@@ -504,7 +504,7 @@ int tsParseValues(char **str, STableDataBlocks *pDataBlock, STableMeta *pTableMe
   int16_t numOfRows = 0;
 
   SSchema *pSchema = tscGetTableSchema(pTableMeta);
-  STableInfo tinfo = tscGetTableInfo(pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   
   int32_t  precision = tinfo.precision;
 
@@ -658,7 +658,7 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
   SSqlCmd *       pCmd = &pSql->cmd;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   STableMeta *    pTableMeta = pTableMetaInfo->pTableMeta;
-  STableInfo tinfo = tscGetTableInfo(pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   
   STableDataBlocks *dataBuf = NULL;
   int32_t ret = tscGetDataBlockFromList(pTableHashList, pCmd->pDataBlocks, pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
@@ -790,7 +790,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     }
 
     SSchema *pTagSchema = tscGetTableTagSchema(pSTableMeterMetaInfo->pTableMeta);
-    STableInfo tinfo = tscGetTableInfo(pSTableMeterMetaInfo->pTableMeta);
+    STableComInfo tinfo = tscGetTableInfo(pSTableMeterMetaInfo->pTableMeta);
     
     index = 0;
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
@@ -1096,7 +1096,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     }
     
     int32_t numOfCols = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
-    STableInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+    STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
     
     if (sToken.type == TK_VALUES) {
       SParsedDataColInfo spd = {.numOfCols = numOfCols};
@@ -1390,7 +1390,7 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
   
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   STableMeta *    pTableMeta = pTableMetaInfo->pTableMeta;
-  STableInfo tinfo = tscGetTableInfo(pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   
   assert(pCmd->numOfClause == 1);
   

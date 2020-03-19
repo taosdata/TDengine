@@ -47,47 +47,28 @@ typedef struct SSqlGroupbyExpr {
   int16_t     orderType;                  // order by type: asc/desc
 } SSqlGroupbyExpr;
 
-typedef struct STableInfo {
+typedef struct STableComInfo {
   uint8_t numOfTags;
   uint8_t precision;
   int16_t numOfColumns;
   int16_t rowSize;
-} STableInfo;
+} STableComInfo;
 
 typedef struct STableMeta {
-  char*   tableId;  // null-terminated string
-  
-  union {
-    // pointer to super table if it is created according to super table
-    struct STableMeta* pSTable;
-    
-    // otherwise, the following information is required.
-    STableInfo tableInfo;
-  };
-  
-  uint8_t tableType;
-  int16_t sversion;
-  int8_t  numOfVpeers;
+  //super table if it is created according to super table, otherwise, tableInfo is used
+  union { struct STableMeta* pSTable; STableComInfo tableInfo; };
+  uint8_t    tableType;
+  int8_t     numOfVpeers;
+  int16_t    sversion;
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
-  int32_t  vgid;
-  int32_t  sid;
-  uint64_t uid;
-  
-  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
-  SSchema  schema[];
+  int32_t    vgid;     // virtual group id, which current table belongs to
+  int32_t    sid;      // the index of one table in a virtual node
+  uint64_t   uid;      // unique id of a table
+  SSchema    schema[]; // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
 } STableMeta;
 
-typedef struct SSTableMeta {
-  char* tableId;
-  STableInfo tableInfo;
-  int32_t  sid;
-  int32_t  vgid;
-  uint64_t uid;
-  SSchema  schema[];
-} SSTableMeta;
-
 typedef struct STableMetaInfo {
-  STableMeta * pTableMeta;       // table meta info
+  STableMeta * pTableMeta;       // table meta, cached in client side and acquried by name
   SSuperTableMeta *pMetricMeta;  // metricmeta
 
   /*
@@ -95,7 +76,7 @@ typedef struct STableMetaInfo {
    * 2. keep the vnode index for multi-vnode insertion
    */
   int32_t vnodeIndex;
-  char    name[TSDB_TABLE_ID_LEN + 1];    // (super) table name
+  char    name[TSDB_TABLE_ID_LEN];        // (super) table name
   int16_t numOfTags;                      // total required tags in query, including groupby tags
   int16_t tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
 } STableMetaInfo;
