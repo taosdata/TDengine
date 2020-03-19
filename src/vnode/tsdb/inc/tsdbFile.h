@@ -26,8 +26,7 @@ extern "C" {
 typedef enum {
   TSDB_FILE_TYPE_HEAD,  // .head file type
   TSDB_FILE_TYPE_DATA,  // .data file type
-  TSDB_FILE_TYPE_LAST,  // .last file type
-  TSDB_FILE_TYPE_META   // .meta file type
+  TSDB_FILE_TYPE_LAST   // .last file type
 } TSDB_FILE_TYPE;
 
 extern const char *tsdbFileSuffix[];
@@ -38,7 +37,6 @@ typedef struct {
 } SFileInfo;
 
 typedef struct {
-  int     fd;
   int64_t size;     // total size of the file
   int64_t tombSize; // unused file size
 } SFile;
@@ -59,7 +57,7 @@ typedef struct {
   SFileGroup fGroup[];
 } STsdbFileH;
 
-#define IS_VALID_TSDB_FILE_TYPE(type) ((type) >= TSDB_FILE_TYPE_HEAD && (type) <= TSDB_FILE_TYPE_META)
+#define IS_VALID_TSDB_FILE_TYPE(type) ((type) >= TSDB_FILE_TYPE_HEAD && (type) <= TSDB_FILE_TYPE_LAST)
 
 STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32_t minRowsPerFBlock,
                          int32_t maxRowsPerFBlock);

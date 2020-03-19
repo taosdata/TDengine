@@ -12,76 +12,143 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include <dirent.h>
+#include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
-#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#include "tsdbFile.h"
 #include "tglobalcfg.h"
+#include "tsdbFile.h"
 
-// int64_t tsMsPerDay[] = {
-//     86400000L,       // TSDB_PRECISION_MILLI
-//     86400000000L,    // TSDB_PRECISION_MICRO
-//     86400000000000L  // TSDB_PRECISION_NANO
-// };
+#define TSDB_FILE_HEAD_SIZE 512
+#define TSDB_FILE_DELIMITER 0xF00AFA0F
 
 #define tsdbGetKeyFileId(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
 #define tsdbGetMaxNumOfFiles(keep, daysPerFile) ((keep) / (daysPerFile) + 3)
 
 typedef struct {
+  int32_t len;
+  int32_t padding;  // For padding purpose
   int64_t offset;
-} SCompHeader;
-
-typedef struct {
-  int64_t uid;
-  int64_t last : 1;
-  int64_t numOfBlocks : 63;
-  int32_t delimiter;
-} SCompInfo;
-
-typedef struct {
-  TSKEY   keyFirst;
-  TSKEY   keyLast;
-  int32_t numOfBlocks;
-  int32_t offset;
 } SCompIdx;
 
+/**
+ * if numOfSubBlocks == -1, then the SCompBlock is a sub-block
+ * if numOfSubBlocks == 1, then the SCompBlock refers to the data block, and offset/len refer to
+ *                         the data block offset and length
+ * if numOfSubBlocks > 1, then the offset/len refer to the offset of the first sub-block in the
+ * binary
+ */
 typedef struct {
+  int64_t last : 1;          // If the block in data file or last file
+  int64_t offset : 63;       // Offset of data block or sub-block index depending on numOfSubBlocks
+  int32_t algorithm : 8;     // Compression algorithm
+  int32_t numOfPoints : 24;  // Number of total points
+  int32_t sversion;          // Schema version
+  int32_t len;               // Data block length or nothing
+  int16_t numOfSubBlocks;    // Number of sub-blocks;
+  int16_t numOfCols;
   TSKEY   keyFirst;
   TSKEY   keyLast;
-  int64_t offset;
-  int32_t len;
-  int32_t sversion;
 } SCompBlock;
 
 typedef struct {
-  int64_t uid;
-} SBlock;
+  int32_t    delimiter;  // For recovery usage
+  int32_t    checksum;   // TODO: decide if checksum logic in this file or make it one API
+  int64_t    uid;
+  int32_t    padding;      // For padding purpose
+  int32_t    numOfBlocks;  // TODO: make the struct padding
+  SCompBlock blocks[];
+} SCompInfo;
 
+// TODO: take pre-calculation into account
 typedef struct {
-  int16_t colId;
-  int16_t bytes;
-  int32_t nNullPoints;
-  int32_t type:8;
-  int32_t offset:24;
-  int32_t len;
-  // fields for pre-aggregate
-  // TODO: pre-aggregation should be seperated
-  int64_t sum;
-  int64_t max;
-  int64_t min;
-  int16_t maxIdx;
-  int16_t minIdx;
-} SField;
+  int16_t colId;  // Column ID
+  int16_t len;    // Column length
+  int32_t type : 8;
+  int32_t offset : 24;
+} SCompCol;
+
+// TODO: Take recover into account
+typedef struct {
+  int32_t  delimiter;  // For recovery usage
+  int32_t  numOfCols;  // For recovery usage
+  int64_t  uid;        // For recovery usage
+  SCompCol cols[];
+} SCompData;
 
 const char *tsdbFileSuffix[] = {
     ".head",  // TSDB_FILE_TYPE_HEAD
     ".data",  // TSDB_FILE_TYPE_DATA
-    ".last",  // TSDB_FILE_TYPE_LAST
-    ".meta"   // TSDB_FILE_TYPE_META
+    ".last"   // TSDB_FILE_TYPE_LAST
 };
+
+static int tsdbWriteFileHead(int fd) {
+  char head[TSDB_FILE_HEAD_SIZE] = "\0";
+
+  lseek(fd, 0, SEEK_SET);
+  if (write(fd, head, TSDB_FILE_HEAD_SIZE) < 0) return -1;
+
+  return 0;
+}
+
+static int tsdbWriteHeadFileIdx(int fd, int maxTables) {
+  int   size = sizeof(SCompIdx) * maxTables;
+  void *buf = calloc(1, size);
+  if (buf == NULL) return -1;
+
+  if (lseek(fd, TSDB_FILE_HEAD_SIZE, SEEK_SET) < 0) {
+    free(buf);
+    return NULL;
+  }
+
+  if (write(fd, buf, size) < 0) {
+    free(buf);
+    return -1;
+  }
+
+  return 0;
+}
+
+static int tsdbCreateFile(char *dataDir, int fileId, int8_t type, int maxTables) {
+  char fname[128] = "\0";
+  sprintf(fname, "%s/f%d%s", dataDir, fileId, tsdbFileSuffix[type]);
+  if (access(fname, F_OK) == 0) {
+    // File already exists
+    return -1;
+  }
+
+  int fd = open(fname, O_RDWR | O_CREAT, 0755);
+  if (fd < 0) return -1;
+
+  if (tsdbWriteFileHead(fd) < 0) {
+    close(fd);
+    return -1;
+  }
+
+  if (type == TSDB_FILE_TYPE_LAST) {
+    if (tsdbWriteHeadFileIdx(fd, maxTables) < 0) {
+      close(fd);
+      return -1;
+    }
+  }
+
+  close(fd);
+
+  return 0;
+}
+
+// Create a file group with fileId and return a SFileGroup object
+static int tsdbCreateFileGroup(char *dataDir, int fileId, SFileGroup *pFGroup) {
+  // tsdbCreateFile()
+
+  return 0;
+}
 
 /**
  * Initialize the TSDB file handle
@@ -105,7 +172,7 @@ STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32
   }
 
   struct dirent *dp;
-  char fname[256];
+  char           fname[256];
   while ((dp = readdir(dir)) != NULL) {
     if (strncmp(dp->d_name, ".", 1) == 0 || strncmp(dp->d_name, "..", 2) == 0) continue;
     if (true /* check if the file is the .head file */) {

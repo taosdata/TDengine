@@ -612,9 +612,6 @@ static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo) {
 
   rmdir(dirName);
 
-  char *metaFname = tsdbGetFileName(pRepo->rootDir, "tsdb", TSDB_FILE_TYPE_META);
-  remove(metaFname);
-
   return 0;
 }
 
