@@ -106,7 +106,7 @@ extern  int   tsMaxSyncNum;
 extern  int   tsSyncTcpThreads;
 extern  int   tsMaxWatchFiles;
 extern  short tsSyncPort;
-
+extern  int   tsMaxFwdInfo; 
 
 #ifdef __cplusplus
 }

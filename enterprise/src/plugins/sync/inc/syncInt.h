@@ -22,7 +22,7 @@ extern "C" {
 
 #define TAOS_SMSG_SYNC_DATA    1
 #define TAOS_SMSG_FORWARD      2
-#define TAOS_SMSG_FWDACK       3
+#define TAOS_SMSG_FORWARD_RSP  3
 #define TAOS_SMSG_SYNC_REQ     4 
 #define TAOS_SMSG_SYNC_RSP     5
 #define TAOS_SMSG_SYNC_MUST    6
@@ -69,7 +69,7 @@ typedef struct {
 typedef struct {
   uint64_t  version;
   int32_t   code;
-} SFwdAck;
+} SFwdRsp;
   
 #pragma pack(pop)
 
@@ -138,8 +138,8 @@ typedef struct _sync_node {
   pthread_mutex_t mutex;
 } SSyncNode;
 
+// sync module global
 extern int  tsSyncNum;
-extern int  tsMaxWatchFiles;
 
 void *syncRetrieveData(void *param);
 void *syncRestoreData(void *param);

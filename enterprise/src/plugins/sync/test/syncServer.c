@@ -93,7 +93,7 @@ int processRpcMsg(void *item) {
   SWalHead  *pHead = (SWalHead *)(((char *)pMsg->pCont) - sizeof(SWalHead));
   int        code = -1;
 
-  if ( role != TAOS_SYNC_ROLE_MASTER) {
+  if (role != TAOS_SYNC_ROLE_MASTER) {
     dError("not master, write failed", syncRole[role]);
   } else {
 
@@ -409,7 +409,7 @@ int main(int argc, char *argv[]) {
  
   uDebugFlag = rpcDebugFlag;
   ddebugFlag = rpcDebugFlag; 
-  tmrDebugFlag = rpcDebugFlag; 
+  //tmrDebugFlag = rpcDebugFlag; 
   tsAsyncLog = 0;
   taosInitLog("server.log", 1000000, 10);
 
@@ -419,8 +419,6 @@ int main(int argc, char *argv[]) {
     tError("failed to start RPC server");
     return -1;
   }
-
-  tPrint("RPC server is running, ctrl-c to exit");
 
   qhandle = taosOpenQueue();
 
