@@ -61,9 +61,10 @@ typedef struct {
 #define IS_VALID_TSDB_FILE_TYPE(type) ((type) >= TSDB_FILE_TYPE_HEAD && (type) < TSDB_FILE_TYPE_MAX)
 
 STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32_t minRowsPerFBlock,
-                         int32_t maxRowsPerFBlock);
-void        tsdbCloseFile(STsdbFileH *pFileH);
-int         tsdbCreateFileGroup(char *dataDir, int fileId, SFileGroup *pFGroup, int maxTables);
+                         int32_t maxRowsPerFBlock, int32_t maxTables);
+
+void  tsdbCloseFile(STsdbFileH *pFileH);
+int   tsdbCreateFileGroup(char *dataDir, int fileId, SFileGroup *pFGroup, int maxTables);
 #ifdef __cplusplus
 }
 #endif

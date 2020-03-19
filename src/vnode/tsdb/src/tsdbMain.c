@@ -58,11 +58,11 @@ typedef struct _tsdb_repo {
   // The cache Handle
   STsdbCache *tsdbCache;
 
+  // The TSDB file handle
+  STsdbFileH *tsdbFileH;
+
   // Disk tier handle for multi-tier storage
   void *diskTier;
-
-  // File Store
-  void *tsdbFiles;
 
   pthread_mutex_t tsdbMutex;
 
@@ -79,6 +79,7 @@ static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
 static int     tsdbOpenMetaFile(char *tsdbDir);
 static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
 static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
+static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -170,6 +171,19 @@ tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO
     return NULL;
   }
   pRepo->tsdbCache = pCache;
+
+  // Initialize file handle
+  char dataDir[128] = "\0";
+  tsdbGetDataDirName(pRepo, dataDir);
+  pRepo->tsdbFileH =
+      tsdbInitFile(dataDir, pCfg->daysPerFile, pCfg->keep, pCfg->minRowsPerFileBlock, pCfg->maxRowsPerFileBlock, pCfg->maxTables);
+  if (pRepo->tsdbFileH == NULL) {
+    free(pRepo->rootDir);
+    tsdbFreeCache(pRepo->tsdbCache);
+    tsdbFreeMeta(pRepo->tsdbMeta);
+    free(pRepo);
+    return NULL;
+  }
 
   pRepo->state = TSDB_REPO_STATE_ACTIVE;
 

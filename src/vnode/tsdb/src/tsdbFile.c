@@ -161,9 +161,10 @@ static int tsdbCreateFile(char *dataDir, int fileId, int8_t type, int maxTables,
   return 0;
 }
 
-/**
- * 
- */
+static int tsdbRemoveFile(SFile *pFile) {
+  if (pFile == NULL) return -1;
+  return remove(pFile->fname);
+}
 
 // Create a file group with fileId and return a SFileGroup object
 int tsdbCreateFileGroup(char *dataDir, int fileId, SFileGroup *pFGroup, int maxTables) {
@@ -187,7 +188,7 @@ int tsdbCreateFileGroup(char *dataDir, int fileId, SFileGroup *pFGroup, int maxT
  * Initialize the TSDB file handle
  */
 STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32_t minRowsPerFBlock,
-                         int32_t maxRowsPerFBlock) {
+                         int32_t maxRowsPerFBlock, int32_t maxTables) {
   STsdbFileH *pTsdbFileH =
       (STsdbFileH *)calloc(1, sizeof(STsdbFileH) + sizeof(SFileGroup) * tsdbGetMaxNumOfFiles(keep, daysPerFile));
   if (pTsdbFileH == NULL) return NULL;
@@ -223,13 +224,6 @@ STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32
   }
 
   return pTsdbFileH;
-}
-
-/**
- * Closet the file handle
- */
-void tsdbCloseFile(STsdbFileH *pFileH) {
-  // TODO
 }
 
 static void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey,
