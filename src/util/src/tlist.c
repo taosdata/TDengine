@@ -123,3 +123,24 @@ SListNode *tdListPopNode(SList *list, SListNode *node) {
 }
 
 void tdListNodeGetData(SList *list, SListNode *node, void *target) { memcpy(node->data, target, list->eleSize); }
+
+void tdListInitIter(SList *list, SListIter *pIter, TD_LIST_DIRECTION_T direction) {
+  pIter->direction = direction;
+  if (direction == TD_LIST_FORWARD) {
+    pIter->next = list->head;
+  } else {
+    pIter->next = list->tail;
+  }
+}
+
+SListNode *tdListNext(SListIter *pIter) {
+  SListNode *node = pIter->next;
+  if (node == NULL) return NULL;
+  if (pIter->direction == TD_LIST_FORWARD) {
+    pIter->next = node->next;
+  } else {
+    pIter->next = node->prev;
+  }
+
+  return node;
+}

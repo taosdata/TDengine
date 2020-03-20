@@ -19,6 +19,11 @@
 extern "C" {
 #endif
 
+typedef enum {
+  TD_LIST_FORWARD,
+  TD_LIST_BACKWARD
+} TD_LIST_DIRECTION_T;
+
 typedef struct _list_node {
   struct _list_node *next;
   struct _list_node *prev;
@@ -33,7 +38,8 @@ typedef struct {
 } SList;
 
 typedef struct {
-  SListNode *node;
+  SListNode *         next;
+  TD_LIST_DIRECTION_T direction;
 } SListIter;
 
 #define listHead(l) (l)->head
@@ -52,7 +58,9 @@ SListNode *tdListPopHead(SList *list);
 SListNode *tdListPopTail(SList *list);
 SListNode *tdListPopNode(SList *list, SListNode *node);
 
-void tdListNodeGetData(SList *list, SListNode *node, void *target);
+void       tdListNodeGetData(SList *list, SListNode *node, void *target);
+void       tdListInitIter(SList *list, SListIter *pIter, TD_LIST_DIRECTION_T direction);
+SListNode *tdListNext(SListIter *pIter);
 
 #ifdef __cplusplus
 }
