@@ -31,33 +31,39 @@
 #include "ttokendef.h"
 #include "qast.h"
 
-TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const char *db, uint16_t port,
+static bool validImpl(const char* str, size_t maxsize) {
+  if (str == NULL) {
+    return false;
+  }
+  
+  size_t len = strlen(str);
+  if (len <= 0 || len > maxsize) {
+    return false;
+  }
+  
+  return true;
+}
+
+static bool validUserName(const char* user) {
+  return validImpl(user, TSDB_USER_LEN);
+}
+
+static bool validPassword(const char* passwd) {
+  return validImpl(passwd, TSDB_PASSWORD_LEN);
+}
+
+STscObj *taos_connect_imp(const char *ip, const char *user, const char *pass, const char *db, uint16_t port,
                        void (*fp)(void *, TAOS_RES *, int), void *param, void **taos) {
-  STscObj *pObj;
-
-
   taos_init();
-
-  if (user == NULL) {
+  
+  if (!validUserName(user)) {
     globalCode = TSDB_CODE_INVALID_ACCT;
     return NULL;
-  } else {
-    size_t len = strlen(user);
-    if (len <= 0 || len > TSDB_USER_LEN) {
-      globalCode = TSDB_CODE_INVALID_ACCT;
-      return NULL;
-    }
   }
 
-  if (pass == NULL) {
+  if (!validPassword(pass)) {
     globalCode = TSDB_CODE_INVALID_PASS;
     return NULL;
-  } else {
-    size_t len = strlen(pass);
-    if (len <= 0 || len > TSDB_KEY_LEN) {
-      globalCode = TSDB_CODE_INVALID_PASS;
-      return NULL;
-    }
   }
 
   if (tscInitRpc(user, pass) != 0) {
@@ -83,14 +89,13 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
   }
 
   tscMgmtIpList.port = port ? port : tsMnodeShellPort;
-
-  pObj = (STscObj *)malloc(sizeof(STscObj));
+  
+  STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {
     globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
     return NULL;
   }
 
-  memset(pObj, 0, sizeof(STscObj));
   pObj->signature = pObj;
 
   strncpy(pObj->user, user, TSDB_USER_LEN);
@@ -115,18 +120,17 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
 
   pthread_mutex_init(&pObj->mutex, NULL);
 
-  SSqlObj *pSql = (SSqlObj *)malloc(sizeof(SSqlObj));
+  SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (NULL == pSql) {
     globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
     free(pObj);
     return NULL;
   }
 
-  memset(pSql, 0, sizeof(SSqlObj));
   pSql->pTscObj = pObj;
   pSql->signature = pSql;
   tsem_init(&pSql->rspSem, 0, 0);
-  tsem_init(&pSql->emptyRspSem, 0, 1);
+//  tsem_init(&pSql->emptyRspSem, 0, 1);
   pObj->pSql = pSql;
   pSql->fp = fp;
   pSql->param = param;
@@ -142,46 +146,69 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
     return NULL;
   }
 
-  pSql->res.code = tscProcessSql(pSql);
-  if (fp != NULL) {
-    tscTrace("%p DB async connection is opening", pObj);
-    return pObj;
-  }
-
-  if (pSql->res.code) {
-    taos_close(pObj);
-    return NULL;
-  }
-
-  tscTrace("%p DB connection is opened", pObj);
   return pObj;
+}
+
+static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
+  STscObj *pObj = (STscObj *)param;
+  assert(pObj != NULL && pObj->pSql != NULL);
+  
+  sem_post(&pObj->pSql->rspSem);
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   if (ip == NULL || (ip != NULL && (strcmp("127.0.0.1", ip) == 0 || strcasecmp("localhost", ip) == 0))) {
     ip = tsMasterIp;
   }
+  
   tscTrace("try to create a connection to %s", ip);
 
-  void *taos = taos_connect_imp(ip, user, pass, db, port, NULL, NULL, NULL);
-  if (taos != NULL) {
-    STscObj *pObj = (STscObj *)taos;
+  STscObj *pObj = taos_connect_imp(ip, user, pass, db, port, NULL, NULL, NULL);
+  if (pObj != NULL) {
+    SSqlObj* pSql = pObj->pSql;
+    assert(pSql != NULL);
+    
+    pSql->fp = syncConnCallback;
+    pSql->param = pObj;
+    
+    tscProcessSql(pSql);
+    sem_wait(&pSql->rspSem);
+    
+    if (pSql->res.code != TSDB_CODE_SUCCESS) {
+      taos_close(pObj);
+      return NULL;
+    }
+    
+    tscTrace("%p DB connection is opening", pObj);
 
     // version compare only requires the first 3 segments of the version string
-    int code = taosCheckVersion(version, taos_get_server_info(taos), 3);
+    int code = taosCheckVersion(version, taos_get_server_info(pObj), 3);
     if (code != 0) {
-      pObj->pSql->res.code = code;
-      taos_close(taos);
+      pSql->res.code = code;
+      
+      taos_close(pObj);
       return NULL;
+    } else {
+      return pObj;
     }
   }
 
-  return taos;
+  return NULL;
 }
 
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
-  return taos_connect_imp(ip, user, pass, db, port, fp, param, taos);
+  STscObj* pObj = taos_connect_imp(ip, user, pass, db, port, fp, param, taos);
+  if (pObj == NULL) {
+    return NULL;
+  }
+  
+  SSqlObj* pSql = pObj->pSql;
+  
+  pSql->res.code = tscProcessSql(pSql);
+  tscTrace("%p DB async connection is opening", pObj);
+  
+  return pObj;
 }
 
 void taos_close(TAOS *taos) {
@@ -408,14 +435,14 @@ static char *getArithemicInputSrc(void *param, char *name, int32_t colId) {
   SSqlFunctionExpr *  pExpr = pSupport->pExpr;
 
   int32_t index = -1;
-  for (int32_t i = 0; i < pExpr->pBinExprInfo.numOfCols; ++i) {
-    if (strcmp(name, pExpr->pBinExprInfo.pReqColumns[i].name) == 0) {
+  for (int32_t i = 0; i < pExpr->binExprInfo.numOfCols; ++i) {
+    if (strcmp(name, pExpr->binExprInfo.pReqColumns[i].name) == 0) {
       index = i;
       break;
     }
   }
 
-  assert(index >= 0 && index < pExpr->pBinExprInfo.numOfCols);
+  assert(index >= 0 && index < pExpr->binExprInfo.numOfCols);
   return pSupport->data[index] + pSupport->offset * pSupport->elemSize[index];
 }
 
@@ -465,21 +492,21 @@ static void **doSetResultRowData(SSqlObj *pSql) {
       sas->offset = 0;
       sas->pExpr = pQueryInfo->fieldsInfo.pExpr[i];
       
-      sas->numOfCols = sas->pExpr->pBinExprInfo.numOfCols;
+      sas->numOfCols = sas->pExpr->binExprInfo.numOfCols;
       
       if (pRes->buffer[i] == NULL) {
         pRes->buffer[i] = malloc(tscFieldInfoGetField(pQueryInfo, i)->bytes);
       }
       
       for(int32_t k = 0; k < sas->numOfCols; ++k) {
-        int32_t columnIndex = sas->pExpr->pBinExprInfo.pReqColumns[k].colIdxInBuf;
+        int32_t columnIndex = sas->pExpr->binExprInfo.pReqColumns[k].colIdxInBuf;
         SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, columnIndex);
         
         sas->elemSize[k] = pExpr->resBytes;
         sas->data[k] = (pRes->data + pRes->numOfRows* pExpr->offset) + pRes->row*pExpr->resBytes;
       }
 
-      tSQLBinaryExprCalcTraverse(sas->pExpr->pBinExprInfo.pBinExpr, 1, pRes->buffer[i], sas, TSQL_SO_ASC, getArithemicInputSrc);
+      tSQLBinaryExprCalcTraverse(sas->pExpr->binExprInfo.pBinExpr, 1, pRes->buffer[i], sas, TSQL_SO_ASC, getArithemicInputSrc);
       pRes->tsrow[i] = pRes->buffer[i];
       
       free(sas); //todo optimization

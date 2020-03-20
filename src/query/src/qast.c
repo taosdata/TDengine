@@ -20,7 +20,6 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tlog.h"
-//#include "tschemautil.h"
 #include "tsqlfunction.h"
 #include "tstoken.h"
 #include "ttokendef.h"

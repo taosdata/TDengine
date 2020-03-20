@@ -364,7 +364,7 @@ int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void freeSubqueryObj(SSqlObj* pSql) {
+void freeSubqueryObj(SSqlObj* pSql) {
   SSubqueryState* pState = NULL;
 
   for (int32_t i = 0; i < pSql->numOfSubs; ++i) {

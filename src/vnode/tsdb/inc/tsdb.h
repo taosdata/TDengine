@@ -23,6 +23,7 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tarray.h"
+#include "name.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -192,7 +193,7 @@ typedef void* tsdb_query_handle_t;  // Use void to hide implementation details
 typedef struct STsdbQueryCond {
   STimeWindow       twindow;
   int32_t           order;  // desc/asc order to iterate the data block
-  SColumnFilterInfo colFilterInfo;
+  SColumnInfoEx     colList;
 } STsdbQueryCond;
 
 typedef struct SBlockInfo {
@@ -205,10 +206,10 @@ typedef struct SBlockInfo {
 } SBlockInfo;
 
 //  TODO: move this data struct out of the module
-typedef struct SData {
-  int32_t num;
-  char *  data;
-} SData;
+//typedef struct SData {
+//  int32_t num;
+//  char *  data;
+//} SData;
 
 typedef struct SDataBlockInfo {
   STimeWindow window;
@@ -269,7 +270,7 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle);
  * @pBlockStatis the pre-calculated value for current data blocks. if the block is a cache block, always return 0
  * @return
  */
-//int32_t tsdbRetrieveDataBlockStatisInfo(tsdb_query_handle_t *pQueryHandle, SDataStatis **pBlockStatis);
+int32_t tsdbRetrieveDataBlockStatisInfo(tsdb_query_handle_t *pQueryHandle, SDataStatis **pBlockStatis);
 
 /**
  * The query condition with primary timestamp is passed to iterator during its constructor function,

@@ -1061,8 +1061,8 @@ void tscClearFieldInfo(SFieldInfo* pFieldInfo) {
   
   for(int32_t i = 0; i < pFieldInfo->numOfOutputCols; ++i) {
     if (pFieldInfo->pExpr[i] != NULL) {
-      tSQLBinaryExprDestroy(&pFieldInfo->pExpr[i]->pBinExprInfo.pBinExpr, NULL);
-      tfree(pFieldInfo->pExpr[i]->pBinExprInfo.pReqColumns);
+      tSQLBinaryExprDestroy(&pFieldInfo->pExpr[i]->binExprInfo.pBinExpr, NULL);
+      tfree(pFieldInfo->pExpr[i]->binExprInfo.pReqColumns);
       tfree(pFieldInfo->pExpr[i]);
     }
   }

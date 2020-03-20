@@ -1201,7 +1201,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
           pFuncExpr->interResBytes = sizeof(double);
           pFuncExpr->resType = TSDB_DATA_TYPE_DOUBLE;
 
-          SSqlBinaryExprInfo* pBinExprInfo = &pFuncExpr->pBinExprInfo;
+          SSqlBinaryExprInfo* pBinExprInfo = &pFuncExpr->binExprInfo;
           
           tSQLSyntaxNode* pNode = NULL;
           SColIndexEx* pColIndex = NULL;

@@ -29,9 +29,6 @@
 
 #define TSC_MGMT_VNODE 999
 
-int        tsMasterIndex = 0;
-int        tsSlaveIndex = 1;
-
 SRpcIpSet  tscMgmtIpList;
 SRpcIpSet  tscDnodeIpSet;
 
@@ -277,8 +274,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
 
   pSql->retry = 0;
 
-  if (pSql->fp == NULL) tsem_wait(&pSql->emptyRspSem);
-
   pRes->rspLen = 0;
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED) {
     pRes->code = (rpcMsg->code != TSDB_CODE_SUCCESS) ? rpcMsg->code : TSDB_CODE_NETWORK_UNAVAIL;
@@ -327,43 +322,39 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     }
   }
 
-  if (pSql->fp == NULL) {
-    tsem_post(&pSql->rspSem);
-  } else {
-    if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command])
-      rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
+  if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command])
+    rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
 
-    if (rpcMsg->code != TSDB_CODE_ACTION_IN_PROGRESS) {
-      int   command = pCmd->command;
-      void *taosres = tscKeepConn[command] ? pSql : NULL;
-      rpcMsg->code = pRes->code ? -pRes->code : pRes->numOfRows;
+  if (rpcMsg->code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    int   command = pCmd->command;
+    void *taosres = tscKeepConn[command] ? pSql : NULL;
+    rpcMsg->code = pRes->code ? -pRes->code : pRes->numOfRows;
 
-      tscTrace("%p Async SQL result:%d res:%p", pSql, rpcMsg->code, taosres);
+    tscTrace("%p Async SQL result:%d res:%p", pSql, rpcMsg->code, taosres);
 
-      /*
-       * Whether to free sqlObj or not should be decided before call the user defined function, since this SqlObj
-       * may be freed in UDF, and reused by other threads before tscShouldFreeAsyncSqlObj called, in which case
-       * tscShouldFreeAsyncSqlObj checks an object which is actually allocated by other threads.
-       *
-       * If this block of memory is re-allocated for an insert thread, in which tscKeepConn[command] equals to 0,
-       * the tscShouldFreeAsyncSqlObj will success and tscFreeSqlObj free it immediately.
-       */
-      bool shouldFree = tscShouldFreeAsyncSqlObj(pSql);
-      if (command == TSDB_SQL_INSERT) {  // handle multi-vnode insertion situation
-        (*pSql->fp)(pSql, taosres, rpcMsg->code);
+    /*
+     * Whether to free sqlObj or not should be decided before call the user defined function, since this SqlObj
+     * may be freed in UDF, and reused by other threads before tscShouldFreeAsyncSqlObj called, in which case
+     * tscShouldFreeAsyncSqlObj checks an object which is actually allocated by other threads.
+     *
+     * If this block of memory is re-allocated for an insert thread, in which tscKeepConn[command] equals to 0,
+     * the tscShouldFreeAsyncSqlObj will success and tscFreeSqlObj free it immediately.
+     */
+    bool shouldFree = tscShouldFreeAsyncSqlObj(pSql);
+    if (command == TSDB_SQL_INSERT) {  // handle multi-vnode insertion situation
+      (*pSql->fp)(pSql, taosres, rpcMsg->code);
+    } else {
+      (*pSql->fp)(pSql->param, taosres, rpcMsg->code);
+    }
+
+    if (shouldFree) {
+      // If it is failed, all objects allocated during execution taos_connect_a should be released
+      if (command == TSDB_SQL_CONNECT) {
+        taos_close(pObj);
+        tscTrace("%p Async sql close failed connection", pSql);
       } else {
-        (*pSql->fp)(pSql->param, taosres, rpcMsg->code);
-      }
-
-      if (shouldFree) {
-        // If it is failed, all objects allocated during execution taos_connect_a should be released
-        if (command == TSDB_SQL_CONNECT) {
-          taos_close(pObj);
-          tscTrace("%p Async sql close failed connection", pSql);
-        } else {
-          tscFreeSqlObj(pSql);
-          tscTrace("%p Async sql is automatically freed", pSql);
-        }
+        tscFreeSqlObj(pSql);
+        tscTrace("%p Async sql is automatically freed", pSql);
       }
     }
   }
@@ -879,25 +870,14 @@ static void tscHandleSubRetrievalError(SRetrieveSupport *trsupport, SSqlObj *pSq
   tfree(trsupport->pState);
   tscFreeSubSqlObj(trsupport, pSql);
 
-  // sync query, wait for the master SSqlObj to proceed
-  if (pPObj->fp == NULL) {
-    // sync query, wait for the master SSqlObj to proceed
-    tsem_wait(&pPObj->emptyRspSem);
-    tsem_wait(&pPObj->emptyRspSem);
+  // in case of second stage join subquery, invoke its callback function instead of regular QueueAsyncRes
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pPObj->cmd, 0);
 
-    tsem_post(&pPObj->rspSem);
-
-    pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
-  } else {
-    // in case of second stage join subquery, invoke its callback function instead of regular QueueAsyncRes
-    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pPObj->cmd, 0);
-
-    if ((pQueryInfo->type & TSDB_QUERY_TYPE_JOIN_SEC_STAGE) == TSDB_QUERY_TYPE_JOIN_SEC_STAGE) {
-      (*pPObj->fp)(pPObj->param, pPObj, pPObj->res.code);
-    } else {  // regular super table query
-      if (pPObj->res.code != TSDB_CODE_SUCCESS) {
-        tscQueueAsyncRes(pPObj);
-      }
+  if ((pQueryInfo->type & TSDB_QUERY_TYPE_JOIN_SEC_STAGE) == TSDB_QUERY_TYPE_JOIN_SEC_STAGE) {
+    (*pPObj->fp)(pPObj->param, pPObj, pPObj->res.code);
+  } else {  // regular super table query
+    if (pPObj->res.code != TSDB_CODE_SUCCESS) {
+      tscQueueAsyncRes(pPObj);
     }
   }
 }
@@ -1034,22 +1014,14 @@ void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
 
     // only free once
     tfree(trsupport->pState);
-    
     tscFreeSubSqlObj(trsupport, pSql);
 
-    if (pPObj->fp == NULL) {
-      tsem_wait(&pPObj->emptyRspSem);
-      tsem_wait(&pPObj->emptyRspSem);
-
-      tsem_post(&pPObj->rspSem);
+    // set the command flag must be after the semaphore been correctly set.
+    pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
+    if (pPObj->res.code == TSDB_CODE_SUCCESS) {
+      (*pPObj->fp)(pPObj->param, pPObj, 0);
     } else {
-      // set the command flag must be after the semaphore been correctly set.
-      pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
-      if (pPObj->res.code == TSDB_CODE_SUCCESS) {
-        (*pPObj->fp)(pPObj->param, pPObj, 0);
-      } else {
-        tscQueueAsyncRes(pPObj);
-      }
+      tscQueueAsyncRes(pPObj);
     }
   }
 }
@@ -3186,9 +3158,6 @@ int tscRenewMeterMeta(SSqlObj *pSql, char *tableId) {
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  // enforce the renew metermeta operation in async model
-  if (pSql->fp == NULL) pSql->fp = (void *)0x1;
-
   /*
    * 1. only update the metermeta in force model metricmeta is not updated
    * 2. if get metermeta failed, still get the metermeta
@@ -3292,42 +3261,17 @@ int tscGetMetricMeta(SSqlObj *pSql, int32_t clauseIndex) {
 //  }
 
   tscTrace("%p allocate new pSqlObj:%p to get metricMeta", pSql, pNew);
-  if (pSql->fp == NULL) {
-    tsem_init(&pNew->rspSem, 0, 0);
-    tsem_init(&pNew->emptyRspSem, 0, 1);
-
-    code = tscProcessSql(pNew);
-
-    if (code == TSDB_CODE_SUCCESS) {//todo optimize the performance
-      for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-        char tagstr[TSDB_MAX_TAGS_LEN] = {0};
-    
-        STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
-        tscGetMetricMetaCacheKey(pQueryInfo, tagstr, pTableMetaInfo->pTableMeta->uid);
-
-#ifdef _DEBUG_VIEW
-        printf("create metric key:%s, index:%d\n", tagstr, i);
-#endif
-    
-        taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pMetricMeta), false);
-        pTableMetaInfo->pMetricMeta = (SSuperTableMeta *) taosCacheAcquireByName(tscCacheHandle, tagstr);
-      }
-    }
-
-    tscFreeSqlObj(pNew);
-  } else {
-    pNew->fp = tscTableMetaCallBack;
-    pNew->param = pSql;
-    code = tscProcessSql(pNew);
-    if (code == TSDB_CODE_SUCCESS) {
-      code = TSDB_CODE_ACTION_IN_PROGRESS;
-    }
+  pNew->fp = tscTableMetaCallBack;
+  pNew->param = pSql;
+  code = tscProcessSql(pNew);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
   return code;
 }
 
-void tscInitMsgs() {
+void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_SELECT] = tscBuildQueryMsg;
   tscBuildMsg[TSDB_SQL_INSERT] = tscBuildSubmitMsg;
   tscBuildMsg[TSDB_SQL_FETCH] = tscBuildRetrieveMsg;

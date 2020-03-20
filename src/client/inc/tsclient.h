@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include <tarray.h>
 #include "os.h"
+
 #include "qsqlparser.h"
 #include "qsqltype.h"
 #include "qtsbuf.h"
@@ -33,6 +33,7 @@ extern "C" {
 #include "trpc.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
+#include "tarray.h"
 
 #define TSC_GET_RESPTR_BASE(res, _queryinfo, col) (res->data + ((_queryinfo)->fieldsInfo.pSqlExpr[col]->offset) * res->numOfRows)
 
@@ -83,7 +84,7 @@ typedef struct STableMetaInfo {
 
 /* the structure for sql function in select clause */
 typedef struct SSqlExpr {
-  char        aliasName[TSDB_COL_NAME_LEN + 1];  // as aliasName
+  char        aliasName[TSDB_COL_NAME_LEN];  // as aliasName
   SColIndexEx colInfo;
   int64_t     uid;            // refactor use the pointer
   int16_t     functionId;     // function id in aAgg array
@@ -104,7 +105,6 @@ typedef struct SFieldInfo {
   int16_t     numOfOutputCols;  // number of column in result
   int16_t     numOfAlloc;       // allocated size
   TAOS_FIELD *pFields;
-//  short *     pOffset;
 
   /*
    * define if this column is belong to the queried result, it may be add by parser to faciliate
@@ -398,7 +398,7 @@ int32_t tscInitRpc(const char *user, const char *secret);
 // tscSql API
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
 
-void tscInitMsgs();
+void tscInitMsgsFp();
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg);
