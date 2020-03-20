@@ -104,7 +104,7 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
 bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo);
 
-bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryOnMetric(SSqlCmd* pCmd);
 bool tscQueryMetricTags(SQueryInfo* pQueryInfo);
 bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd);
@@ -251,8 +251,6 @@ bool hasMoreVnodesToTry(SSqlObj *pSql);
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)());
-
-int32_t launchMultivnodeInsert(SSqlObj *pSql);
 
 #ifdef __cplusplus
 }

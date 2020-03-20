@@ -28,6 +28,7 @@
 #include "taosdef.h"
 
 #include "tlog.h"
+#include "tscSubquery.h"
 #include "tstoken.h"
 #include "ttime.h"
 
@@ -1324,7 +1325,7 @@ int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
       pSql->fetchFp = pSql->fp;
 
       // replace user defined callback function with multi-insert proxy function
-      pSql->fp = (void(*)())launchMultivnodeInsert;
+      pSql->fp = (void(*)())tscHandleMultivnodeInsert;
     }
 
     ret = tsParseInsertSql(pSql);

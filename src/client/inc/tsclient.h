@@ -259,7 +259,7 @@ typedef struct {
   union {
     bool   existsCheck;     // check if the table exists or not
     bool   inStream;        // denote if current sql is executed in stream or not
-    bool   createOnDemand;  // if the table is missing, on-the-fly create it. during getmeterMeta
+    bool   autoCreated;  // if the table is missing, on-the-fly create it. during getmeterMeta
     int8_t dataSourceType;  // load data from file or not
   };
 
@@ -403,8 +403,6 @@ extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg);
 int  tscProcessSql(SSqlObj *pSql);
-
-void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows);
 
 int  tscRenewMeterMeta(SSqlObj *pSql, char *tableId);
 void tscQueueAsyncRes(SSqlObj *pSql);

@@ -15,21 +15,21 @@
 
 #include "hash.h"
 #include "os.h"
+#include "qast.h"
 #include "tcache.h"
 #include "tlog.h"
 #include "tnote.h"
 #include "trpc.h"
-#include "tscJoinProcess.h"
 #include "tscProfile.h"
 #include "tscSecondaryMerge.h"
+#include "tscSubquery.h"
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "tscompression.h"
 #include "tsocket.h"
 #include "ttimer.h"
-#include "tutil.h"
 #include "ttokendef.h"
-#include "qast.h"
+#include "tutil.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -994,7 +994,7 @@ void taos_stop_query(TAOS_RES *res) {
   pSql->res.code = TSDB_CODE_QUERY_CANCELLED;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  if (tscIsTwoStageMergeMetricQuery(pQueryInfo, 0)) {
+  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     tscKillMetricQuery(pSql);
     return;
   }

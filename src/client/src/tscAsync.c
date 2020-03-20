@@ -397,48 +397,6 @@ void tscQueueAsyncFreeResult(SSqlObj *pSql) {
   taosScheduleTask(tscQhandle, &schedMsg);
 }
 
-void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows) {
-  SSqlObj *pSql = (SSqlObj *)param;
-  SSqlCmd *pCmd = &pSql->cmd;
-  int32_t  code = TSDB_CODE_SUCCESS;
-
-  assert(pCmd->dataSourceType != 0 && pSql->signature == pSql);
-  
-  int32_t index = 0;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, index);
-  
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  assert(pQueryInfo->numOfTables == 1 || pQueryInfo->numOfTables == 2);
-  
-  SDataBlockList *pDataBlocks = pCmd->pDataBlocks;
-  if (pDataBlocks == NULL || pTableMetaInfo->vnodeIndex >= pDataBlocks->nSize) {
-    // restore user defined fp
-    pSql->fp = pSql->fetchFp;
-    tscTrace("%p Async insertion completed, destroy data block list", pSql);
-
-    // release data block data
-    pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-
-    // all data has been sent to vnode, call user function
-    (*pSql->fp)(pSql->param, tres, numOfRows);
-  } else {
-    do {
-      code = tscCopyDataBlockToPayload(pSql, pDataBlocks->pData[pTableMetaInfo->vnodeIndex++]);
-      if (code != TSDB_CODE_SUCCESS) {
-        tscTrace("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%d, code:%d",
-                 pSql, pTableMetaInfo->vnodeIndex - 1, pDataBlocks->nSize, code);
-      }
-
-    } while (code != TSDB_CODE_SUCCESS && pTableMetaInfo->vnodeIndex < pDataBlocks->nSize);
-
-    // build submit msg may fail
-    if (code == TSDB_CODE_SUCCESS) {
-      tscTrace("%p async insertion, vnodeIdx:%d, total:%d", pSql, pTableMetaInfo->vnodeIndex - 1, pDataBlocks->nSize);
-      tscProcessSql(pSql);
-    }
-  }
-}
-
 int tscSendMsgToServer(SSqlObj *pSql);
 
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
