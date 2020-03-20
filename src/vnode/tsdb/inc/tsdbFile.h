@@ -55,6 +55,7 @@ typedef struct {
   int32_t    keep;
   int32_t    minRowPerFBlock;
   int32_t    maxRowsPerFBlock;
+  int32_t    maxTables;
   SFileGroup fGroup[];
 } STsdbFileH;
 

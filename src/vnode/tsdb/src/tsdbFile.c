@@ -197,6 +197,7 @@ STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32
   pTsdbFileH->keep = keep;
   pTsdbFileH->minRowPerFBlock = minRowsPerFBlock;
   pTsdbFileH->maxRowsPerFBlock = maxRowsPerFBlock;
+  pTsdbFileH->maxTables = maxTables;
 
   // Open the directory to read information of each file
   DIR *dir = opendir(dataDir);
@@ -205,8 +206,9 @@ STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32
     return NULL;
   }
 
+  char fname[256];
+
   struct dirent *dp;
-  char           fname[256];
   while ((dp = readdir(dir)) != NULL) {
     if (strncmp(dp->d_name, ".", 1) == 0 || strncmp(dp->d_name, "..", 2) == 0) continue;
     if (true /* check if the file is the .head file */) {
