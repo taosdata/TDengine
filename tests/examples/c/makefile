@@ -13,13 +13,13 @@ all: $(TARGET)
 exe:
 	gcc $(CFLAGS) ./asyncdemo.c -o $(ROOT)/asyncdemo $(LFLAGS)
 	gcc $(CFLAGS) ./demo.c -o $(ROOT)/demo $(LFLAGS)
-	gcc $(CFLAGS) ./prepare.c -o $(ROOT)/prepare $(LFLAGS)
+#	gcc $(CFLAGS) ./prepare.c -o $(ROOT)/prepare $(LFLAGS)
 	gcc $(CFLAGS) ./stream.c -o $(ROOT)/stream $(LFLAGS)
 	gcc $(CFLAGS) ./subscribe.c -o $(ROOT)subscribe $(LFLAGS)
 
 clean:
 	rm $(ROOT)/asyncdemo
 	rm $(ROOT)/demo
-	rm $(ROOT)/prepare
+#	rm $(ROOT)/prepare
 	rm $(ROOT)/stream
 	rm $(ROOT)/subscribe
