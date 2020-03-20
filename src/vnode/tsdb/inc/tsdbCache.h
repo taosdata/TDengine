@@ -17,45 +17,39 @@
 
 #include <stdint.h>
 
-// #include "cache.h"
+#include "tlist.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16*1024*1024 /* 16M */
+#define TSDB_DEFAULT_CACHE_BLOCK_SIZE 16 * 1024 * 1024 /* 16M */
 
 typedef struct {
-  int64_t skey;     // start key
-  int64_t ekey;     // end key
-  int32_t numOfRows; // numOfRows
-} STableCacheInfo;
+  int  blockId;
+  int  offset;
+  int  remain;
+  int  padding;
+  char data[];
+} STsdbCacheBlock;
 
-typedef struct _tsdb_cache_block {
-  char *                    pData;
-  STableCacheInfo *         pTableInfo;
-  struct _tsdb_cache_block *prev;
-  struct _tsdb_cache_block *next;
-} STSDBCacheBlock;
+typedef struct {
+  int64_t index;
+  SList * memPool;
+} STsdbCachePool;
 
-// Use a doublely linked list to implement this
-typedef struct STSDBCache {
-  // Number of blocks the cache is allocated
-  int32_t          numOfBlocks;
-  STSDBCacheBlock *cacheList;
-  void *           current;
+typedef struct {
+  int              maxBytes;
+  int              cacheBlockSize;
+  STsdbCachePool   pool;
+  STsdbCacheBlock *curBlock;
+  SList *          mem;
+  SList *          imem;
 } STsdbCache;
 
-// ---- Operation on STSDBCacheBlock
-#define TSDB_CACHE_BLOCK_DATA(pBlock) ((pBlock)->pData)
-#define TSDB_CACHE_AVAIL_SPACE(pBlock) ((char *)((pBlock)->pTableInfo) - ((pBlock)->pData))
-#define TSDB_TABLE_INFO_OF_CACHE(pBlock, tableId) ((pBlock)->pTableInfo)[tableId]
-#define TSDB_NEXT_CACHE_BLOCK(pBlock) ((pBlock)->next)
-#define TSDB_PREV_CACHE_BLOCK(pBlock) ((pBlock)->prev)
-
-STsdbCache *tsdbInitCache(int64_t maxSize);
-int32_t     tsdbFreeCache(STsdbCache *pCache);
-void *      tsdbAllocFromCache(STsdbCache *pCache, int64_t bytes);
+STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize);
+void        tsdbFreeCache(STsdbCache *pCache);
+void *      tsdbAllocFromCache(STsdbCache *pCache, int bytes);
 
 #ifdef __cplusplus
 }

@@ -43,10 +43,7 @@ void tdListFree(SList *list) {
   free(list);
 }
 
-int tdListPrepend(SList *list, void *data) {
-  SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
-  if (node == NULL) return -1;
-
+void tdListPrependNode(SList *list, SListNode *node) {
   if (list->head == NULL) {
     list->head = node;
     list->tail = node;
@@ -57,12 +54,9 @@ int tdListPrepend(SList *list, void *data) {
     list->head = node;
   }
   list->numOfEles++;
-  return 0;
 }
 
-int tdListAppend(SList *list, void *data) {
-  SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
-  if (node == NULL) return -1;
+void tdListAppendNode(SList *list, SListNode *node) {
   if (list->head == NULL) {
     list->head = node;
     list->tail = node;
@@ -74,6 +68,25 @@ int tdListAppend(SList *list, void *data) {
   }
 
   list->numOfEles++;
+}
+
+int tdListPrepend(SList *list, void *data) {
+  SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
+  if (node == NULL) return -1;
+
+  memcpy((void *)(node->data), data, list->eleSize);
+  tdListPrependNode(list, node);
+
+  return 0;
+}
+
+int tdListAppend(SList *list, void *data) {
+  SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
+  if (node == NULL) return -1;
+
+  memcpy((void *)(node->data), data, list->eleSize);
+  tdListAppendNode(list, node);
+
   return 0;
 }
 
@@ -104,22 +117,22 @@ SListNode *tdListPopTail(SList *list) {
 }
 
 SListNode *tdListPopNode(SList *list, SListNode *node) {
-    if (list->head == node) {
-        list->head = node->next;
-    }
-    if (list->tail == node) {
-        list->tail = node->prev;
-    }
+  if (list->head == node) {
+    list->head = node->next;
+  }
+  if (list->tail == node) {
+    list->tail = node->prev;
+  }
 
-    if (node->prev != NULL) {
-        node->prev->next = node->next;
-    }
-    if (node->next != NULL) {
-        node->next->prev = node->prev;
-    }
-    list->numOfEles--;
+  if (node->prev != NULL) {
+    node->prev->next = node->next;
+  }
+  if (node->next != NULL) {
+    node->next->prev = node->prev;
+  }
+  list->numOfEles--;
 
-    return node;
+  return node;
 }
 
 void tdListNodeGetData(SList *list, SListNode *node, void *target) { memcpy(node->data, target, list->eleSize); }

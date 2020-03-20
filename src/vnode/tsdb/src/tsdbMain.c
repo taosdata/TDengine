@@ -163,7 +163,7 @@ tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO
   pRepo->tsdbMeta = pMeta;
 
   // Initialize cache
-  STsdbCache *pCache = tsdbInitCache(pCfg->maxCacheSize);
+  STsdbCache *pCache = tsdbInitCache(pCfg->maxCacheSize, -1);
   if (pCache == NULL) {
     free(pRepo->rootDir);
     tsdbFreeMeta(pRepo->tsdbMeta);
@@ -244,7 +244,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
     return NULL;
   }
 
-  pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize);
+  pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize, -1);
   if (pRepo->tsdbCache == NULL) {
     tsdbFreeMeta(pRepo->tsdbMeta);
     free(pRepo->rootDir);
