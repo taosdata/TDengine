@@ -1,0 +1,125 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+#include <stdlib.h>
+#include <string.h>
+
+#include "tlist.h"
+
+SList *tdListNew(int eleSize) {
+  SList *list = (SList *)malloc(sizeof(SList));
+  if (list == NULL) return NULL;
+
+  list->eleSize = eleSize;
+  list->numOfEles = 0;
+  list->head = list->tail = NULL;
+  return NULL;
+}
+
+void tdListEmpty(SList *list) {
+  SListNode *node = list->head;
+  while (node) {
+    list->head = node->next;
+    free(node);
+    node = list->head;
+  }
+  list->head = list->tail = 0;
+  list->numOfEles = 0;
+}
+
+void tdListFree(SList *list) {
+  tdListEmpty(list);
+  free(list);
+}
+
+int tdListPrepend(SList *list, void *data) {
+  SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
+  if (node == NULL) return -1;
+
+  if (list->head == NULL) {
+    list->head = node;
+    list->tail = node;
+  } else {
+    node->next = list->head;
+    node->prev = NULL;
+    list->head->prev = node;
+    list->head = node;
+  }
+  list->numOfEles++;
+  return 0;
+}
+
+int tdListAppend(SList *list, void *data) {
+  SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
+  if (node == NULL) return -1;
+  if (list->head == NULL) {
+    list->head = node;
+    list->tail = node;
+  } else {
+    node->prev = list->tail;
+    node->next = NULL;
+    list->tail->next = node;
+    list->tail = node;
+  }
+
+  list->numOfEles++;
+  return 0;
+}
+
+SListNode *tdListPopHead(SList *list) {
+  if (list->head == NULL) return NULL;
+  SListNode *node = list->head;
+  if (node->next == NULL) {
+    list->head = NULL;
+    list->tail = NULL;
+  } else {
+    list->head = node->next;
+  }
+  list->numOfEles--;
+  return node;
+}
+
+SListNode *tdListPopTail(SList *list) {
+  if (list->tail == NULL) return NULL;
+  SListNode *node = list->tail;
+  if (node->prev == NULL) {
+    list->head = NULL;
+    list->tail = NULL;
+  } else {
+    list->tail = node->prev;
+  }
+  list->numOfEles--;
+  return node;
+}
+
+SListNode *tdListPopNode(SList *list, SListNode *node) {
+    if (list->head == node) {
+        list->head = node->next;
+    }
+    if (list->tail == node) {
+        list->tail = node->prev;
+    }
+
+    if (node->prev != NULL) {
+        node->prev->next = node->next;
+    }
+    if (node->next != NULL) {
+        node->next->prev = node->prev;
+    }
+    list->numOfEles--;
+
+    return node;
+}
+
+void tdListNodeGetData(SList *list, SListNode *node, void *target) { memcpy(node->data, target, list->eleSize); }
