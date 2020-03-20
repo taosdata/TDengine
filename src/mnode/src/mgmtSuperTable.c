@@ -181,7 +181,7 @@ int32_t mgmtInitSuperTables() {
     SDbObj *pDb = mgmtGetDbByTableId(pTable->tableId);
     if (pDb == NULL) {
       mError("super table:%s, failed to get db, discard it", pTable->tableId);
-      sdbDeleteRow(tsSuperTableSdb, pTable);
+      sdbDeleteRow(tsSuperTableSdb, pTable, SDB_OPER_DISK);
       pNode = pLastNode;
       continue;
     }
@@ -233,7 +233,7 @@ int32_t mgmtCreateSuperTable(SCMCreateTableMsg *pCreate) {
     tschema[col].bytes = htons(tschema[col].bytes);
   }
 
-  if (sdbInsertRow(tsSuperTableSdb, pStable, 0) < 0) {
+  if (sdbInsertRow(tsSuperTableSdb, pStable, SDB_OPER_GLOBAL) < 0) {
     mError("stable:%s, update sdb error", pStable->tableId);
     return TSDB_CODE_SDB_ERROR;
   }
@@ -319,7 +319,7 @@ int32_t mgmtAddSuperTableTag(SSuperTableObj *pStable, SSchema schema[], int32_t 
   pStable->sversion++;
 
   pAcct->acctInfo.numOfTimeSeries += (ntags * pStable->numOfTables);
-  sdbUpdateRow(tsSuperTableSdb, pStable, 0, 1);
+  sdbUpdateRow(tsSuperTableSdb, pStable, tsSuperTableUpdateSize, SDB_OPER_GLOBAL);
 
   mTrace("Succeed to add tag column %s to table %s", schema[0].name, pStable->tableId);
   return TSDB_CODE_SUCCESS;
@@ -352,7 +352,7 @@ int32_t mgmtDropSuperTableTag(SSuperTableObj *pStable, char *tagName) {
   int32_t schemaSize = sizeof(SSchema) * (pStable->numOfTags + pStable->numOfColumns);
   pStable->schema = realloc(pStable->schema, schemaSize);
 
-  sdbUpdateRow(tsSuperTableSdb, pStable, 0, 1);
+  sdbUpdateRow(tsSuperTableSdb, pStable, tsSuperTableUpdateSize, SDB_OPER_GLOBAL);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -384,7 +384,7 @@ int32_t mgmtModifySuperTableTagNameByName(SSuperTableObj *pStable, char *oldTagN
 
   mgmtSuperTableActionEncode(pStable, msg, size, &rowSize);
 
-  int32_t ret = sdbUpdateRow(tsSuperTableSdb, msg, rowSize, 1);
+  int32_t ret = sdbUpdateRow(tsSuperTableSdb, msg, tsSuperTableUpdateSize, SDB_OPER_GLOBAL);
   tfree(msg);
 
   if (ret < 0) {
@@ -446,7 +446,7 @@ int32_t mgmtAddSuperTableColumn(SSuperTableObj *pStable, SSchema schema[], int32
   pStable->sversion++;
 
   pAcct->acctInfo.numOfTimeSeries += (ncols * pStable->numOfTables);
-  sdbUpdateRow(tsSuperTableSdb, pStable, 0, 1);
+  sdbUpdateRow(tsSuperTableSdb, pStable, tsSuperTableUpdateSize, SDB_OPER_GLOBAL);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -479,7 +479,7 @@ int32_t mgmtDropSuperTableColumnByName(SSuperTableObj *pStable, char *colName) {
   pStable->schema = realloc(pStable->schema, schemaSize);
 
   pAcct->acctInfo.numOfTimeSeries -= (pStable->numOfTables);
-  sdbUpdateRow(tsSuperTableSdb, pStable, 0, 1);
+  sdbUpdateRow(tsSuperTableSdb, pStable, tsSuperTableUpdateSize, SDB_OPER_GLOBAL);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -618,7 +618,7 @@ void mgmtDropAllSuperTables(SDbObj *pDropDb) {
     }
 
     if (strncmp(pDropDb->name, pTable->tableId, dbNameLen) == 0) {
-      sdbDeleteRow(tsSuperTableSdb, pTable);
+      sdbDeleteRow(tsSuperTableSdb, pTable, SDB_OPER_GLOBAL);
       pNode = pLastNode;
       numOfTables ++;
       continue;

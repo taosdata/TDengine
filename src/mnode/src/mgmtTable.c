@@ -757,9 +757,9 @@ static void mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg) {
 
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
     if (pTable->type == TSDB_CHILD_TABLE) {
-      sdbDeleteRow(tsChildTableSdb, pTable);
+      sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_GLOBAL);
     } else if (pTable->type == TSDB_NORMAL_TABLE){
-      sdbDeleteRow(tsNormalTableSdb, pTable);
+      sdbDeleteRow(tsNormalTableSdb, pTable, SDB_OPER_GLOBAL);
     } else {}
     mError("table:%s, failed to create in dnode, reason:%s", pTable->tableId, tstrerror(rpcMsg->code));
     mgmtSendSimpleResp(queueMsg->thandle, rpcMsg->code);
@@ -813,14 +813,14 @@ static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg) {
   }
 
   if (pTable->type == TSDB_CHILD_TABLE) {
-    if (sdbDeleteRow(tsChildTableSdb, pTable) < 0) {
+    if (sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_GLOBAL) < 0) {
       mError("table:%s, update ctables sdb error", pTable->tableId);
       mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SDB_ERROR);
       free(queueMsg);
       return;
     }
   } else if (pTable->type == TSDB_NORMAL_TABLE){
-    if (sdbDeleteRow(tsNormalTableSdb, pTable) < 0) {
+    if (sdbDeleteRow(tsNormalTableSdb, pTable, SDB_OPER_GLOBAL) < 0) {
       mError("table:%s, update ntables sdb error", pTable->tableId);
       mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SDB_ERROR);
       free(queueMsg);

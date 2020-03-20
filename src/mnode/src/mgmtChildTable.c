@@ -29,6 +29,7 @@
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
 #include "mgmtGrant.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -94,7 +95,7 @@ void *mgmtChildTableActionInsert(void *row, char *str, int32_t size, int32_t *ss
     return NULL;
   }
 
-  if (!sdbIsMaster()) {
+  if (!mgmtIsMaster()) {
     int32_t sid = taosAllocateId(pVgroup->idPool);
     if (sid != pTable->sid) {
       mError("ctable:%s, sid:%d is not matched from the master:%d", pTable->tableId, sid, pTable->sid);
@@ -214,7 +215,7 @@ int32_t mgmtInitChildTables() {
     SDbObj *pDb = mgmtGetDbByTableId(pTable->tableId);
     if (pDb == NULL) {
       mError("ctable:%s, failed to get db, discard it", pTable->tableId);
-      sdbDeleteRow(tsChildTableSdb, pTable);
+      sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_DISK);
       pNode = pLastNode;
       continue;
     }
@@ -223,7 +224,7 @@ int32_t mgmtInitChildTables() {
     if (pVgroup == NULL) {
       mError("ctable:%s, failed to get vgroup:%d sid:%d, discard it", pTable->tableId, pTable->vgId, pTable->sid);
       pTable->vgId = 0;
-      sdbDeleteRow(tsChildTableSdb, pTable);
+      sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_DISK);
       pNode = pLastNode;
       continue;
     }
@@ -232,7 +233,7 @@ int32_t mgmtInitChildTables() {
       mError("ctable:%s, db:%s not match with vgroup:%d db:%s sid:%d, discard it",
              pTable->tableId, pDb->name, pTable->vgId, pVgroup->dbName, pTable->sid);
       pTable->vgId = 0;
-      sdbDeleteRow(tsChildTableSdb, pTable);
+      sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_DISK);
       pNode = pLastNode;
       continue;
     }
@@ -240,7 +241,7 @@ int32_t mgmtInitChildTables() {
     if (pVgroup->tableList == NULL) {
       mError("ctable:%s, vgroup:%d tableList is null", pTable->tableId, pTable->vgId);
       pTable->vgId = 0;
-      sdbDeleteRow(tsChildTableSdb, pTable);
+      sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_DISK);
       pNode = pLastNode;
       continue;
     }
@@ -252,7 +253,7 @@ int32_t mgmtInitChildTables() {
     if (pSuperTable == NULL) {
       mError("ctable:%s, stable:%s not exist", pTable->tableId, pTable->superTableId);
       pTable->vgId = 0;
-      sdbDeleteRow(tsChildTableSdb, pTable);
+      sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_DISK);
       pNode = pLastNode;
       continue;
     }
@@ -337,7 +338,7 @@ void* mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t 
   pTable->vgId        = pVgroup->vgId;
   pTable->superTable  = pSuperTable;
 
-  if (sdbInsertRow(tsChildTableSdb, pTable, 0) < 0) {
+  if (sdbInsertRow(tsChildTableSdb, pTable, SDB_OPER_GLOBAL) < 0) {
     free(pTable);
     mError("ctable:%s, update sdb error", pCreate->tableId);
     terrno = TSDB_CODE_SDB_ERROR;
@@ -481,7 +482,7 @@ void mgmtDropAllChildTables(SDbObj *pDropDb) {
     }
 
     if (strncmp(pDropDb->name, pTable->tableId, dbNameLen) == 0) {
-      sdbDeleteRow(tsChildTableSdb, pTable);
+      sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_LOCAL);
       pNode = pLastNode;
       numOfTables ++;
       continue;

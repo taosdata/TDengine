@@ -279,7 +279,7 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
   pDb->createdTime = taosGetTimestampMs();
   pDb->cfg = *pCreate;
 
-  if (sdbInsertRow(tsDbSdb, pDb, 0) < 0) {
+  if (sdbInsertRow(tsDbSdb, pDb, SDB_OPER_GLOBAL) < 0) {
     code = TSDB_CODE_SDB_ERROR;
     tfree(pDb);
   }
@@ -819,7 +819,7 @@ static void mgmtDropDb(void *handle, void *tmrId) {
   SDbObj *pDb = newMsg->ahandle;
   mPrint("db:%s, drop db from sdb", pDb->name);
 
-  int32_t code = sdbDeleteRow(tsDbSdb, pDb);
+  int32_t code = sdbDeleteRow(tsDbSdb, pDb, SDB_OPER_GLOBAL);
   if (code != 0) {
     code = TSDB_CODE_SDB_ERROR;
   }

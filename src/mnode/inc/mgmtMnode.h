@@ -23,6 +23,9 @@ extern "C" {
 int32_t mgmtInitMnodes();
 void mgmtCleanupMnodes();
 
+bool mgmtInServerStatus();   
+bool mgmtIsMaster();
+
 bool mgmtCheckRedirect(void *handle);
 void mgmtGetMnodePrivateIpList(SRpcIpSet *ipSet);
 void mgmtGetMnodePublicIpList(SRpcIpSet *ipSet);

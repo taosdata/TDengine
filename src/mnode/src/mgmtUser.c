@@ -103,7 +103,7 @@ SUserObj *mgmtGetUser(char *name) {
 }
 
 static int32_t mgmtUpdateUser(SUserObj *pUser) {
-  return sdbUpdateRow(tsUserSdb, pUser, 0, 1);
+  return sdbUpdateRow(tsUserSdb, pUser, tsUserUpdateSize, SDB_OPER_GLOBAL);
 }
 
 static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
@@ -140,7 +140,7 @@ static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   }
 
   code = TSDB_CODE_SUCCESS;
-  if (sdbInsertRow(tsUserSdb, pUser, 0) < 0) {
+  if (sdbInsertRow(tsUserSdb, pUser, SDB_OPER_GLOBAL) < 0) {
     tfree(pUser);
     code = TSDB_CODE_SDB_ERROR;
   }
@@ -161,7 +161,7 @@ static int32_t mgmtDropUser(SAcctObj *pAcct, char *name) {
     return TSDB_CODE_NO_RIGHTS;
   }
 
-  sdbDeleteRow(tsUserSdb, pUser);
+  sdbDeleteRow(tsUserSdb, pUser, SDB_OPER_GLOBAL);
 
   return 0;
 }

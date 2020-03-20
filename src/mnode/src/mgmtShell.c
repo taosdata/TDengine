@@ -132,7 +132,7 @@ void mgmtAddToShellQueue(SQueuedMsg *queuedMsg) {
 }
 
 static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
-  if (!sdbInServerState()) {
+  if (!mgmtInServerStatus()) {
     mgmtProcessMsgWhileNotReady(rpcMsg);
     rpcFreeCont(rpcMsg->pCont);
     return;

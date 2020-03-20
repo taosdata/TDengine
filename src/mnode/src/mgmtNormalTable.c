@@ -26,6 +26,7 @@
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
 #include "mgmtGrant.h"
+#include "mgmtMnode.h"
 #include "mgmtNormalTable.h"
 #include "mgmtSdb.h"
 #include "mgmtSuperTable.h"
@@ -98,7 +99,7 @@ void *mgmtNormalTableActionInsert(void *row, char *str, int32_t size, int32_t *s
     return NULL;
   }
 
-  if (!sdbIsMaster()) {
+  if (!mgmtIsMaster()) {
     int32_t sid = taosAllocateId(pVgroup->idPool);
     if (sid != pTable->sid) {
       mError("sid:%d is not matched from the master:%d", sid, pTable->sid);
@@ -237,7 +238,7 @@ int32_t mgmtInitNormalTables() {
     SDbObj *pDb = mgmtGetDbByTableId(pTable->tableId);
     if (pDb == NULL) {
       mError("ntable:%s, failed to get db, discard it", pTable->tableId);
-      sdbDeleteRow(tsNormalTableSdb, pTable);
+      sdbDeleteRow(tsNormalTableSdb, pTable, SDB_OPER_DISK);
       pNode = pLastNode;
       continue;
     }
@@ -246,7 +247,7 @@ int32_t mgmtInitNormalTables() {
     if (pVgroup == NULL) {
       mError("ntable:%s, failed to get vgroup:%d sid:%d, discard it", pTable->tableId, pTable->vgId, pTable->sid);
       pTable->vgId = 0;
-      sdbDeleteRow(tsNormalTableSdb, pTable);
+      sdbDeleteRow(tsNormalTableSdb, pTable, SDB_OPER_DISK);
       pNode = pLastNode;
       continue;
     }
@@ -255,7 +256,7 @@ int32_t mgmtInitNormalTables() {
       mError("ntable:%s, db:%s not match with vgroup:%d db:%s sid:%d, discard it",
                pTable->tableId, pDb->name, pTable->vgId, pVgroup->dbName, pTable->sid);
       pTable->vgId = 0;
-      sdbDeleteRow(tsNormalTableSdb, pTable);
+      sdbDeleteRow(tsNormalTableSdb, pTable, SDB_OPER_DISK);
       pNode = pLastNode;
       continue;
     }
@@ -263,7 +264,7 @@ int32_t mgmtInitNormalTables() {
     if (pVgroup->tableList == NULL) {
       mError("ntable:%s, vgroup:%d tableList is null", pTable->tableId, pTable->vgId);
       pTable->vgId = 0;
-      sdbDeleteRow(tsNormalTableSdb, pTable);
+      sdbDeleteRow(tsNormalTableSdb, pTable, SDB_OPER_DISK);
       pNode = pLastNode;
       continue;
     }
@@ -370,7 +371,7 @@ void *mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t
     mTrace("table:%s, stream sql len:%d sql:%s", pTable->tableId, pTable->sqlLen, pTable->sql);
   }
 
-  if (sdbInsertRow(tsNormalTableSdb, pTable, 0) < 0) {
+  if (sdbInsertRow(tsNormalTableSdb, pTable, SDB_OPER_GLOBAL) < 0) {
     mError("table:%s, update sdb error", pTable->tableId);
     free(pTable);
     terrno = TSDB_CODE_SDB_ERROR;
@@ -467,7 +468,7 @@ int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SSchema schema[], int3
   pTable->sversion++;
   pAcct->acctInfo.numOfTimeSeries += ncols;
 
-  sdbUpdateRow(tsNormalTableSdb, pTable, 0, 1);
+  sdbUpdateRow(tsNormalTableSdb, pTable, tsNormalTableUpdateSize, SDB_OPER_GLOBAL);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -496,7 +497,7 @@ int32_t mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *colName) 
   pTable->sversion++;
 
   pAcct->acctInfo.numOfTimeSeries--;
-  sdbUpdateRow(tsNormalTableSdb, pTable, 0, 1);
+  sdbUpdateRow(tsNormalTableSdb, pTable, tsNormalTableUpdateSize, SDB_OPER_GLOBAL);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -555,7 +556,7 @@ void mgmtDropAllNormalTables(SDbObj *pDropDb) {
     if (pTable == NULL) break;
 
     if (strncmp(pDropDb->name, pTable->tableId, dbNameLen) == 0) {
-      sdbDeleteRow(tsNormalTableSdb, pTable);
+      sdbDeleteRow(tsNormalTableSdb, pTable, SDB_OPER_LOCAL);
       pNode = pLastNode;
       numOfTables ++;
       continue;

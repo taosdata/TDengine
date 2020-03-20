@@ -112,7 +112,7 @@ int32_t mgmtInitVgroups() {
     if (tsIsCluster && pVgroup->vnodeGid[0].publicIp == 0) {
       pVgroup->vnodeGid[0].publicIp = inet_addr(tsPublicIp);
       pVgroup->vnodeGid[0].privateIp = inet_addr(tsPrivateIp);
-      sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 1);
+      sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, SDB_OPER_GLOBAL);
     }
 
     // mgmtSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes, pVgroup->vgId);
@@ -161,7 +161,7 @@ void mgmtCreateVgroup(SQueuedMsg *pMsg) {
   mgmtAddVgroupIntoDb(pDb, pVgroup);
   // mgmtSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes, pVgroup->vgId);
 
-  sdbInsertRow(tsVgroupSdb, pVgroup, 0);
+  sdbInsertRow(tsVgroupSdb, pVgroup, SDB_OPER_GLOBAL);
 
   mPrint("vgroup:%d, is created in mnode, db:%s replica:%d", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
@@ -179,7 +179,7 @@ void mgmtDropVgroup(SVgObj *pVgroup, void *ahandle) {
   } else {
     mTrace("vgroup:%d, replica:%d is deleting from sdb", pVgroup->vgId, pVgroup->numOfVnodes);
     mgmtSendDropVgroupMsg(pVgroup, NULL);
-    sdbDeleteRow(tsVgroupSdb, pVgroup);
+    sdbDeleteRow(tsVgroupSdb, pVgroup, SDB_OPER_GLOBAL);
   }
 }
 
@@ -474,7 +474,7 @@ static void *mgmtVgroupActionDestroy(void *row, char *str, int32_t size, int32_t
 }
 
 void mgmtUpdateVgroup(SVgObj *pVgroup) {
-  sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 0);
+  sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, SDB_OPER_LOCAL);
 }
 
 void mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable) {
@@ -607,7 +607,7 @@ static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
     memcpy(newMsg->pCont, queueMsg->pCont, newMsg->contLen);
     mgmtAddToShellQueue(newMsg);
   } else {
-    sdbDeleteRow(tsVgroupSdb, pVgroup);
+    sdbDeleteRow(tsVgroupSdb, pVgroup, SDB_OPER_GLOBAL);
     mgmtSendSimpleResp(queueMsg->thandle, rpcMsg->code);
   }
 
@@ -661,7 +661,7 @@ static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
 
   if (queueMsg->received != queueMsg->expected) return;
 
-  sdbDeleteRow(tsVgroupSdb, pVgroup);
+  sdbDeleteRow(tsVgroupSdb, pVgroup, SDB_OPER_GLOBAL);
 
   SQueuedMsg *newMsg = calloc(1, sizeof(SQueuedMsg));
   newMsg->msgType = queueMsg->msgType;
@@ -691,7 +691,7 @@ void mgmtUpdateVgroupIp(SDnodeObj *pDnode) {
                pDnode->publicIp, taosIpStr(vnodeGid->publicIp));
         vnodeGid->publicIp = pDnode->publicIp;
         vnodeGid->privateIp = pDnode->privateIp;
-        sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 1);
+        sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, SDB_OPER_GLOBAL);
       }
     }
   }

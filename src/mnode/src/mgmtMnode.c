@@ -29,6 +29,8 @@ int32_t (*mpeerInitMnodesFp)() = NULL;
 void    (*mpeerCleanUpMnodesFp)() = NULL;
 
 static SMnodeObj tsMnodeObj = {0};
+static bool tsMnodeIsMaster = false;
+static bool tsMnodeIsServing = false;
 static int32_t mgmtGetMnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
@@ -52,6 +54,8 @@ int32_t mgmtInitMnodes() {
   if (mpeerInitMnodesFp) {
     return (*mpeerInitMnodesFp)();
   } else {
+    tsMnodeIsServing = true;
+    tsMnodeIsMaster = true;
     return 0;
   }
 }
@@ -60,6 +64,14 @@ void mgmtCleanupMnodes() {
   if (mpeerCleanUpMnodesFp) {
     (*mpeerCleanUpMnodesFp)();
   }
+}
+
+bool mgmtInServerStatus() {
+  return tsMnodeIsServing; 
+}
+   
+bool mgmtIsMaster() { 
+  return tsMnodeIsMaster; 
 }
 
 bool mgmtCheckRedirect(void *handle) {

@@ -127,7 +127,7 @@ int32_t mgmtStartSystem() {
 
 
 void mgmtStopSystem() {
-  if (sdbIsMaster()) {
+  if (mgmtIsMaster()) {
     mTrace("it is a master mgmt node, it could not be stopped");
     return;
   }

@@ -20,27 +20,11 @@
 extern "C" {
 #endif
 
-#include <errno.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-#include "hashint.h"
-#include "hashstr.h"
-#include "tchecksum.h"
-#include "tlog.h"
-#include "trpc.h"
-#include "tutil.h"
-
 enum _keytype {
   SDB_KEYTYPE_STRING, 
   SDB_KEYTYPE_AUTO, 
   SDB_KEYTYPE_MAX
-};
+} ESdbKeyType;
 
 enum _sdbaction {
   SDB_TYPE_INSERT,
@@ -50,11 +34,15 @@ enum _sdbaction {
   SDB_TYPE_ENCODE,
   SDB_TYPE_DESTROY,
   SDB_MAX_ACTION_TYPES
-};
+} ESdbType;
+
+typedef enum {
+  SDB_OPER_GLOBAL,
+  SDB_OPER_LOCAL,
+  SDB_OPER_DISK
+} ESdbOper;
 
 uint64_t sdbGetVersion();
-bool sdbInServerState();
-bool sdbIsMaster();
 
 void *sdbOpenTable(int32_t maxRows, int32_t maxRowSize, char *name, uint8_t keyType, char *directory,
                    void *(*appTool)(char, void *, char *, int32_t, int32_t *));
@@ -65,9 +53,9 @@ void *sdbFetchRow(void *handle, void *pNode, void **ppRow);
 int64_t sdbGetId(void *handle);
 int64_t sdbGetNumOfRows(void *handle);
 
-int64_t sdbInsertRow(void *handle, void *row, int32_t rowSize);
-int32_t sdbDeleteRow(void *handle, void *key);
-int32_t sdbUpdateRow(void *handle, void *row, int32_t updateSize, char isUpdated);
+int32_t sdbInsertRow(void *handle, void *row, ESdbOper oper);
+int32_t sdbDeleteRow(void *handle, void *key, ESdbOper oper);
+int32_t sdbUpdateRow(void *handle, void *row, int32_t rowSize, ESdbOper oper);
 
 #ifdef __cplusplus
 }
