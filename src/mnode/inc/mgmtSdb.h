@@ -20,42 +20,49 @@
 extern "C" {
 #endif
 
-enum _keytype {
+typedef enum {
   SDB_KEYTYPE_STRING, 
   SDB_KEYTYPE_AUTO, 
   SDB_KEYTYPE_MAX
 } ESdbKeyType;
 
-enum _sdbaction {
-  SDB_TYPE_INSERT,
-  SDB_TYPE_DELETE,
-  SDB_TYPE_UPDATE,
-  SDB_TYPE_DECODE,
-  SDB_TYPE_ENCODE,
-  SDB_TYPE_DESTROY,
-  SDB_MAX_ACTION_TYPES
-} ESdbType;
-
 typedef enum {
   SDB_OPER_GLOBAL,
   SDB_OPER_LOCAL,
   SDB_OPER_DISK
-} ESdbOper;
+} ESdbOperType;
 
-uint64_t sdbGetVersion();
+enum _sdbaction {
+  SDB_TYPE_INSERT,
+  SDB_TYPE_DELETE,
+  SDB_TYPE_UPDATE,
+} ESdbForwardType;
 
-void *sdbOpenTable(int32_t maxRows, int32_t maxRowSize, char *name, uint8_t keyType, char *directory,
-                   void *(*appTool)(char, void *, char *, int32_t, int32_t *));
+typedef struct {
+  char   *tableName;
+  int32_t hashSessions;
+  int32_t maxRowSize;
+  ESdbKeyType keyType;
+  int32_t (*insertFp)(void *pObj);
+  int32_t (*deleteFp)(void *pObj);
+  int32_t (*updateFp)(void *pObj);
+  int32_t (*encodeFp)(void *pObj, void *pData, int32_t maxRowSize);
+  void *  (*decodeFp)(void *pData);  
+  int32_t (*destroyFp)(void *pObj);
+} SSdbTableDesc;
+
+void *sdbOpenTable(SSdbTableDesc *desc);
 void sdbCloseTable(void *handle);
+
+int32_t sdbInsertRow(void *handle, void *row, ESdbOperType oper);
+int32_t sdbDeleteRow(void *handle, void *key, ESdbOperType oper);
+int32_t sdbUpdateRow(void *handle, void *row, int32_t rowSize, ESdbOperType oper);
 
 void *sdbGetRow(void *handle, void *key);
 void *sdbFetchRow(void *handle, void *pNode, void **ppRow);
 int64_t sdbGetId(void *handle);
 int64_t sdbGetNumOfRows(void *handle);
-
-int32_t sdbInsertRow(void *handle, void *row, ESdbOper oper);
-int32_t sdbDeleteRow(void *handle, void *key, ESdbOper oper);
-int32_t sdbUpdateRow(void *handle, void *row, int32_t rowSize, ESdbOper oper);
+uint64_t sdbGetVersion();
 
 #ifdef __cplusplus
 }

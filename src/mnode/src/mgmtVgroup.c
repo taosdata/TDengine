@@ -33,15 +33,6 @@
 static void *tsVgroupSdb = NULL;
 static int32_t tsVgUpdateSize = 0;
 
-static void *(*mgmtVgroupActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtVgroupActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtVgroupActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtVgroupActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtVgroupActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtVgroupActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtVgroupActionReset(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtVgroupActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
-
 static int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
@@ -50,32 +41,98 @@ static void    mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg);
 static void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
 static void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 
-static void mgmtVgroupActionInit() {
-  SVgObj tObj;
-  tsVgUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
-
-  mgmtVgroupActionFp[SDB_TYPE_INSERT]  = mgmtVgroupActionInsert;
-  mgmtVgroupActionFp[SDB_TYPE_DELETE]  = mgmtVgroupActionDelete;
-  mgmtVgroupActionFp[SDB_TYPE_UPDATE]  = mgmtVgroupActionUpdate;
-  mgmtVgroupActionFp[SDB_TYPE_ENCODE]  = mgmtVgroupActionEncode;
-  mgmtVgroupActionFp[SDB_TYPE_DECODE]  = mgmtVgroupActionDecode;
-  mgmtVgroupActionFp[SDB_TYPE_DESTROY] = mgmtVgroupActionDestroy;
+static int32_t mgmtVgroupActionDestroy(void *pObj) {
+  SVgObj *pVgroup = (SVgObj *) pObj;
+  if (pVgroup->idPool) {
+    taosIdPoolCleanUp(pVgroup->idPool);
+    pVgroup->idPool = NULL;
+  }
+  if (pVgroup->tableList) tfree(pVgroup->tableList);
+  tfree(pObj);
+  return TSDB_CODE_SUCCESS;
 }
 
-static void *mgmtVgroupAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
-  if (mgmtVgroupActionFp[(uint8_t) action] != NULL) {
-    return (*(mgmtVgroupActionFp[(uint8_t) action]))(row, str, size, ssize);
+static int32_t mgmtVgroupActionInsert(void *pObj) {
+  SVgObj *pVgroup = pObj;
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    pVgroup->vnodeGid[i].vnode = pVgroup->vgId;
   }
-  return NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtVgroupActionDelete(void *pObj) {
+  SVgObj *pVgroup = pObj;
+  SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
+
+  if (pDb != NULL) {
+    mgmtRemoveVgroupFromDb(pDb, pVgroup);
+  }
+
+  // mgmtUnSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes);
+  tfree(pVgroup->tableList);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtVgroupActionUpdate(void *pObj) {
+  SVgObj  *pVgroup  = (SVgObj *) pObj;
+  int32_t oldTables = taosIdPoolMaxSize(pVgroup->idPool);
+
+  SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
+  if (pDb != NULL) {
+    if (pDb->cfg.maxSessions != oldTables) {
+      mPrint("vgroup:%d tables change from %d to %d", pVgroup->vgId, oldTables, pDb->cfg.maxSessions);
+      taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxSessions);
+      int32_t size = sizeof(STableInfo *) * pDb->cfg.maxSessions;
+      pVgroup->tableList = (STableInfo **)realloc(pVgroup->tableList, size);
+    }
+  }
+
+  mTrace("vgroup:%d update, numOfVnode:%d", pVgroup->vgId, pVgroup->numOfVnodes);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtVgroupActionEncode(void *pObj, void *pData, int32_t maxRowSize) {
+  SVgObj *pVgroup = (SVgObj *) pObj;
+  if (maxRowSize < tsVgUpdateSize) {
+    return -1;
+  } else {
+    memcpy(pData, pVgroup, tsVgUpdateSize);
+    return tsVgUpdateSize;
+  }
+}
+
+static void *mgmtVgroupActionDecode(void *pObj) {
+  SVgObj *pVgroup = (SVgObj *) malloc(sizeof(SVgObj));
+  if (pVgroup == NULL) return NULL;
+  memset(pVgroup, 0, sizeof(SVgObj));
+  memcpy(pVgroup, pObj, tsVgUpdateSize);
+
+  return pVgroup;
 }
 
 int32_t mgmtInitVgroups() {
   void *pNode = NULL;
   SVgObj *pVgroup = NULL;
 
-  mgmtVgroupActionInit();
+  SVgObj tObj;
+  tsVgUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
-  tsVgroupSdb = sdbOpenTable(TSDB_MAX_VGROUPS, tsVgUpdateSize, "vgroups", SDB_KEYTYPE_AUTO, tsMnodeDir, mgmtVgroupAction);
+  SSdbTableDesc tableDesc = {
+    .tableName    = "vgroups",
+    .hashSessions = TSDB_MAX_VGROUPS,
+    .maxRowSize   = tsVgUpdateSize,
+    .keyType      = SDB_KEYTYPE_AUTO,
+    .insertFp     = mgmtVgroupActionInsert,
+    .deleteFp     = mgmtVgroupActionDelete,
+    .updateFp     = mgmtVgroupActionUpdate,
+    .encodeFp     = mgmtVgroupActionEncode,
+    .decodeFp     = mgmtVgroupActionDecode,
+    .destroyFp    = mgmtVgroupActionDestroy,
+  };
+
+  tsVgroupSdb = sdbOpenTable(&tableDesc);
   if (tsVgroupSdb == NULL) {
     mError("failed to init vgroups data");
     return -1;
@@ -387,90 +444,6 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
 
   pShow->numOfReads += numOfRows;
   return numOfRows;
-}
-
-static void *mgmtVgroupActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
-  SVgObj *pVgroup = row;
-  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    pVgroup->vnodeGid[i].vnode = pVgroup->vgId;
-  }
-
-  return NULL;
-}
-
-static void *mgmtVgroupActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
-  SVgObj *pVgroup = row;
-  SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
-
-  if (pDb != NULL) {
-    mgmtRemoveVgroupFromDb(pDb, pVgroup);
-  }
-
-  // mgmtUnSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes);
-  tfree(pVgroup->tableList);
-
-  return NULL;
-}
-
-static void *mgmtVgroupActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
-  mgmtVgroupActionReset(row, str, size, ssize);
-
-  SVgObj  *pVgroup  = (SVgObj *) row;
-  int32_t oldTables = taosIdPoolMaxSize(pVgroup->idPool);
-
-  SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
-  if (pDb != NULL) {
-    if (pDb->cfg.maxSessions != oldTables) {
-      mPrint("vgroup:%d tables change from %d to %d", pVgroup->vgId, oldTables, pDb->cfg.maxSessions);
-      taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxSessions);
-      int32_t size = sizeof(STableInfo *) * pDb->cfg.maxSessions;
-      pVgroup->tableList = (STableInfo **)realloc(pVgroup->tableList, size);
-    }
-  }
-
-  mTrace("vgroup:%d update, numOfVnode:%d", pVgroup->vgId, pVgroup->numOfVnodes);
-
-  return NULL;
-}
-
-static void *mgmtVgroupActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
-  SVgObj *pVgroup = (SVgObj *) row;
-  if (size < tsVgUpdateSize) {
-    *ssize = -1;
-  } else {
-    memcpy(str, pVgroup, tsVgUpdateSize);
-    *ssize = tsVgUpdateSize;
-  }
-
-  return NULL;
-}
-
-static void *mgmtVgroupActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
-  SVgObj *pVgroup = (SVgObj *) malloc(sizeof(SVgObj));
-  if (pVgroup == NULL) return NULL;
-  memset(pVgroup, 0, sizeof(SVgObj));
-
-  int32_t tsVgUpdateSize = pVgroup->updateEnd - (int8_t *) pVgroup;
-  memcpy(pVgroup, str, tsVgUpdateSize);
-
-  return (void *) pVgroup;
-}
-
-static void *mgmtVgroupActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
-  SVgObj *pVgroup = (SVgObj *) row;
-  memcpy(pVgroup, str, tsVgUpdateSize);
-  return NULL;
-}
-
-static void *mgmtVgroupActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
-  SVgObj *pVgroup = (SVgObj *) row;
-  if (pVgroup->idPool) {
-    taosIdPoolCleanUp(pVgroup->idPool);
-    pVgroup->idPool = NULL;
-  }
-  if (pVgroup->tableList) tfree(pVgroup->tableList);
-  tfree(row);
-  return NULL;
 }
 
 void mgmtUpdateVgroup(SVgObj *pVgroup) {

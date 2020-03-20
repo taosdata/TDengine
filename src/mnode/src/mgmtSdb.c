@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
-#include "tutil.h"
 #include "tchecksum.h"
+#include "tglobalcfg.h"
 #include "tlog.h"
 #include "trpc.h"
 #include "tutil.h"
@@ -33,32 +33,37 @@
 typedef struct {
   uint64_t swVersion;
   int16_t  sdbFileVersion;
-  char     reserved[6];
+  char     reserved[2];
   TSCKSUM  checkSum;
 } SSdbHeader;
 
 typedef struct _SSdbTable {
-  SSdbHeader header;
-  int        maxRows;
-  int        dbId;
-  int32_t    maxRowSize;
-  char       name[TSDB_DB_NAME_LEN];
-  char       fn[128];
-  int        keyType;
-  uint32_t   autoIndex;
-  int64_t    numOfRows;
-  int64_t    id;
-  int64_t    size;
-  void *     iHandle;
-  int        fd;
-  void *(*appTool)(char, void *, char *, int, int *);
+  SSdbHeader  header;
+  char        name[TSDB_DB_NAME_LEN];
+  char        fn[TSDB_FILENAME_LEN];
+  ESdbKeyType keyType;
+  int32_t     dbId;
+  int32_t     hashSessions;
+  int32_t     maxRowSize;
+  uint32_t    autoIndex;
+  int64_t     numOfRows;
+  int64_t     id;
+  int64_t     size;
+  void *      iHandle;
+  int32_t     fd;
+  int32_t    (*insertFp)(void *pObj);
+  int32_t    (*deleteFp)(void *pObj);
+  int32_t    (*updateFp)(void *pObj);
+  void *     (*decodeFp)(void *pData);                   // return pObj
+  int32_t    (*encodeFp)(void *pObj, void *pData, int32_t maxRowSize);  // return size of pData
+  int32_t    (*destroyFp)(void *pObj);
   pthread_mutex_t mutex;
 } SSdbTable;
 
 typedef struct {
   int64_t id;
   int64_t offset;
-  int     rowSize;
+  int32_t rowSize;
   void *  row;
 } SRowMeta;
 
@@ -71,9 +76,9 @@ typedef struct {
 
 typedef struct {
   uint8_t  dbId;
-  char     type;
+  int8_t   type;
+  int16_t  dataLen;
   uint64_t version;
-  short    dataLen;
   char     data[];
 } SForwardMsg;
 
@@ -283,7 +288,7 @@ static int32_t sdbInitTableByFile(SSdbTable *pTable) {
         // TODO: Get rid of the rowMeta.offset and rowSize
         rowMeta.offset = pTable->size;
         rowMeta.rowSize = rowHead->rowSize;
-        rowMeta.row = (*(pTable->appTool))(SDB_TYPE_DECODE, NULL, rowHead->data, rowHead->rowSize, NULL);
+        rowMeta.row = (*pTable->decodeFp)(rowHead->data);
         (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, rowMeta.row, &rowMeta);
         if (pTable->keyType == SDB_KEYTYPE_AUTO) {
           pTable->autoIndex++;
@@ -299,7 +304,7 @@ static int32_t sdbInitTableByFile(SSdbTable *pTable) {
 
       if (rowHead->id < 0) {  // Delete the object
         (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
-        (*(pTable->appTool))(SDB_TYPE_DESTROY, pMetaRow, NULL, 0, NULL);
+        (*pTable->destroyFp)(pMetaRow);
         pTable->numOfRows--;
         numOfDels++;
       } else {  // Reset the object TODO: is it possible to merge reset and
@@ -322,7 +327,7 @@ static int32_t sdbInitTableByFile(SSdbTable *pTable) {
   }
 
   sdbVersion += (pTable->id - oldId);
-  if (numOfDels > pTable->maxRows / 4) sdbSaveSnapShot(pTable);
+  if (numOfDels > pTable->hashSessions / 4) sdbSaveSnapShot(pTable);
 
   tfree(rowHead);
   return 0;
@@ -332,20 +337,25 @@ sdb_exit1:
   return -1;
 }
 
-void *sdbOpenTable(int32_t maxRows, int32_t maxRowSize, char *name, uint8_t keyType, char *directory,
-                   void *(*appTool)(char, void *, char *, int32_t, int32_t *)) {
-  SSdbTable *pTable = (SSdbTable *)malloc(sizeof(SSdbTable));
+void *sdbOpenTable(SSdbTableDesc *pDesc) {
+  SSdbTable *pTable = (SSdbTable *)calloc(1, sizeof(SSdbTable));
   if (pTable == NULL) return NULL;
-  memset(pTable, 0, sizeof(SSdbTable));
 
-  strcpy(pTable->name, name);
-  pTable->keyType = keyType;
-  pTable->maxRows = maxRows;
-  pTable->maxRowSize = maxRowSize;
-  pTable->appTool = appTool;
-  sprintf(pTable->fn, "%s/%s.db", directory, pTable->name);
+  pTable->keyType = pDesc->keyType;
+  pTable->hashSessions = pDesc->hashSessions;
+  pTable->maxRowSize = pDesc->maxRowSize;
+  pTable->insertFp = pDesc->insertFp;
+  pTable->deleteFp = pDesc->deleteFp;
+  pTable->updateFp = pDesc->updateFp;
+  pTable->encodeFp = pDesc->encodeFp;
+  pTable->decodeFp = pDesc->decodeFp;
+  pTable->destroyFp = pDesc->destroyFp;
+  strcpy(pTable->name, pDesc->tableName);
+  sprintf(pTable->fn, "%s/%s.db", tsMnodeDir, pTable->name);
 
-  if (sdbInitIndexFp[keyType] != NULL) pTable->iHandle = (*sdbInitIndexFp[keyType])(maxRows, sizeof(SRowMeta));
+  if (sdbInitIndexFp[pTable->keyType] != NULL) {
+    pTable->iHandle = (*sdbInitIndexFp[pTable->keyType])(pTable->maxRowSize, sizeof(SRowMeta));
+  }
 
   pthread_mutex_init(&pTable->mutex, NULL);
 
@@ -386,7 +396,7 @@ void *sdbGetRow(void *handle, void *key) {
 }
 
 // row here must be encoded string (rowSize > 0) or the object it self (rowSize = 0)
-int32_t sdbInsertRow(void *handle, void *row, ESdbOper oper) {
+int32_t sdbInsertRow(void *handle, void *row, ESdbOperType oper) {
   SSdbTable *pTable = (SSdbTable *)handle;
   SRowMeta   rowMeta;
   void *     pObj = NULL;
@@ -424,7 +434,7 @@ int32_t sdbInsertRow(void *handle, void *row, ESdbOper oper) {
   if (oper == SDB_OPER_GLOBAL) {
     pObj = row;
   } else {
-    pObj = (*(pTable->appTool))(SDB_TYPE_DECODE, NULL, row, 0, NULL);
+    pObj = (*pTable->decodeFp)(row);
   } 
    
   pthread_mutex_lock(&pTable->mutex);
@@ -439,7 +449,7 @@ int32_t sdbInsertRow(void *handle, void *row, ESdbOper oper) {
   }
 
   if (oper == SDB_OPER_GLOBAL || oper == SDB_OPER_LOCAL) {
-    (*(pTable->appTool))(SDB_TYPE_ENCODE, pObj, rowHead->data, pTable->maxRowSize, &(rowHead->rowSize));
+    rowHead->rowSize = (*pTable->encodeFp)(pObj, rowHead->data, pTable->maxRowSize);
     assert(rowHead->rowSize > 0 && rowHead->rowSize <= pTable->maxRowSize);
 
     real_size = sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM);
@@ -489,7 +499,7 @@ int32_t sdbInsertRow(void *handle, void *row, ESdbOper oper) {
 
   pthread_mutex_unlock(&pTable->mutex);
 
-  (*pTable->appTool)(SDB_TYPE_INSERT, pObj, NULL, 0, NULL);
+  (*pTable->insertFp)(pObj);
 
   tfree(rowHead);
 
@@ -497,7 +507,7 @@ int32_t sdbInsertRow(void *handle, void *row, ESdbOper oper) {
 }
 
 // row here can be object or null-terminated string
-int32_t sdbDeleteRow(void *handle, void *row, ESdbOper oper) {
+int32_t sdbDeleteRow(void *handle, void *row, ESdbOperType oper) {
   SSdbTable *pTable = (SSdbTable *)handle;
   SRowMeta * pMeta = NULL;
   void *     pMetaRow = NULL;
@@ -587,13 +597,13 @@ int32_t sdbDeleteRow(void *handle, void *row, ESdbOper oper) {
 
   tfree(rowHead);
 
-  (*pTable->appTool)(SDB_TYPE_DELETE, pMetaRow, NULL, 0, NULL);
+  (*pTable->deleteFp)(pMetaRow);
 
   return 0;
 }
 
 // row here can be the object or the string info (encoded string)
-int32_t sdbUpdateRow(void *handle, void *row, int32_t updateSize, ESdbOper oper) {
+int32_t sdbUpdateRow(void *handle, void *row, int32_t updateSize, ESdbOperType oper) {
   SSdbTable *pTable = (SSdbTable *)handle;
   SRowMeta * pMeta = NULL;
   int32_t    total_size = 0;
@@ -645,7 +655,7 @@ int32_t sdbUpdateRow(void *handle, void *row, int32_t updateSize, ESdbOper oper)
     memcpy(rowHead->data, row, updateSize);
     rowHead->rowSize = updateSize;
   } else {
-    (*(pTable->appTool))(SDB_TYPE_ENCODE, pMetaRow, rowHead->data, pTable->maxRowSize, &(rowHead->rowSize));
+    rowHead->rowSize = (*pTable->encodeFp)(pMetaRow, rowHead->data, pTable->maxRowSize);
   }
 
   real_size = sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM);
@@ -689,7 +699,7 @@ int32_t sdbUpdateRow(void *handle, void *row, int32_t updateSize, ESdbOper oper)
 
   pthread_mutex_unlock(&pTable->mutex);
 
-  (*(pTable->appTool))(SDB_TYPE_UPDATE, pMetaRow, row, updateSize, NULL);  // update in upper layer
+  (*pTable->updateFp)(pMetaRow);  // update in upper layer
 
   tfree(rowHead);
 
@@ -706,7 +716,7 @@ void sdbCloseTable(void *handle) {
   while (1) {
     pNode = sdbFetchRow(handle, pNode, &row);
     if (row == NULL) break;
-    (*(pTable->appTool))(SDB_TYPE_DESTROY, row, NULL, 0, NULL);
+    (*pTable->destroyFp)(row);
   }
 
   if (sdbCleanUpIndexFp[pTable->keyType]) (*sdbCleanUpIndexFp[pTable->keyType])(pTable->iHandle);
@@ -724,13 +734,13 @@ void sdbCloseTable(void *handle) {
 void sdbResetTable(SSdbTable *pTable) {
   /* SRowHead rowHead; */
   SRowMeta  rowMeta;
-  int32_t       bytes;
-  int32_t       total_size = 0;
-  int32_t       real_size = 0;
+  int32_t   bytes;
+  int32_t   total_size = 0;
+  int32_t   real_size = 0;
   SRowHead *rowHead = NULL;
   void *    pMetaRow = NULL;
   int64_t   oldId = pTable->id;
-  int32_t       oldNumOfRows = pTable->numOfRows;
+  int32_t   oldNumOfRows = pTable->numOfRows;
 
   if (sdbOpenSdbFile(pTable) < 0) return;
   pTable->numOfRows = oldNumOfRows;
@@ -792,19 +802,19 @@ void sdbResetTable(SSdbTable *pTable) {
           // TODO:Get rid of the rowMeta.offset and rowSize
           rowMeta.offset = pTable->size;
           rowMeta.rowSize = rowHead->rowSize;
-          rowMeta.row = (*(pTable->appTool))(SDB_TYPE_DECODE, NULL, rowHead->data, rowHead->rowSize, NULL);
+          rowMeta.row = (*pTable->decodeFp)(rowHead->data);
           (*sdbAddIndexFp[pTable->keyType])(pTable->iHandle, rowMeta.row, &rowMeta);
           pTable->numOfRows++;
 
-          (*pTable->appTool)(SDB_TYPE_INSERT, rowMeta.row, NULL, 0, NULL);
+          (*pTable->insertFp)(rowMeta.row);
         }
       } else {                  // already exists
         if (rowHead->id < 0) {  // Delete the object
           (*sdbDeleteIndexFp[pTable->keyType])(pTable->iHandle, rowHead->data);
-          (*(pTable->appTool))(SDB_TYPE_DESTROY, pMetaRow, NULL, 0, NULL);
+          (*pTable->destroyFp)(pMetaRow);
           pTable->numOfRows--;
         } else {  // update the object
-          (*(pTable->appTool))(SDB_TYPE_UPDATE, pMetaRow, rowHead->data, rowHead->rowSize, NULL);
+          (*pTable->updateFp)(pMetaRow);
         }
       }
     }
@@ -866,7 +876,7 @@ void sdbSaveSnapShot(void *handle) {
 
     rowHead->delimiter = SDB_DELIMITER;
     rowHead->id = pMeta->id;
-    (*(pTable->appTool))(SDB_TYPE_ENCODE, pMeta->row, rowHead->data, pTable->maxRowSize, &(rowHead->rowSize));
+    rowHead->rowSize = (*pTable->encodeFp)(pMeta->row, rowHead->data, pTable->maxRowSize);
     real_size = sizeof(SRowHead) + rowHead->rowSize + sizeof(TSCKSUM);
     if (taosCalcChecksumAppend(0, (uint8_t *)rowHead, real_size) < 0) {
       sdbError("failed to get checksum while save sdb %s snapshot", pTable->name);

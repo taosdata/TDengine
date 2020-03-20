@@ -39,105 +39,73 @@
 static void *tsSuperTableSdb;
 static int32_t tsSuperTableUpdateSize;
 
-static void *(*mgmtSuperTableActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtSuperTableActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtSuperTableActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtSuperTableActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtSuperTableActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtSuperTableActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtSuperTableActionReset(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtSuperTableActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
 static int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mgmtGetShowSuperTableMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
 
 static void mgmtDestroySuperTable(SSuperTableObj *pTable) {
-  free(pTable->schema);
-  free(pTable);
+  tfree(pTable->schema);
+  tfree(pTable);
 }
 
-static void mgmtSuperTableActionInit() {
-  SSuperTableObj tObj;
-  tsSuperTableUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
-
-  mgmtSuperTableActionFp[SDB_TYPE_INSERT]  = mgmtSuperTableActionInsert;
-  mgmtSuperTableActionFp[SDB_TYPE_DELETE]  = mgmtSuperTableActionDelete;
-  mgmtSuperTableActionFp[SDB_TYPE_UPDATE]  = mgmtSuperTableActionUpdate;
-  mgmtSuperTableActionFp[SDB_TYPE_ENCODE]  = mgmtSuperTableActionEncode;
-  mgmtSuperTableActionFp[SDB_TYPE_DECODE]  = mgmtSuperTableActionDecode;
-  mgmtSuperTableActionFp[SDB_TYPE_DESTROY] = mgmtSuperTableActionDestroy;
-}
-
-void *mgmtSuperTableActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
-  SSuperTableObj *pTable = (SSuperTableObj *) row;
-  memcpy(pTable, str, tsSuperTableUpdateSize);
-
-  int32_t schemaSize = sizeof(SSchema) * (pTable->numOfColumns + pTable->numOfTags);
-  pTable->schema = realloc(pTable->schema, schemaSize);
-  memcpy(pTable->schema, str + tsSuperTableUpdateSize, schemaSize);
-
-  return NULL;
-}
-
-void *mgmtSuperTableActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
-  SSuperTableObj *pTable = (SSuperTableObj *) row;
+static int32_t mgmtSuperTableActionDestroy(void *pObj) {
+  SSuperTableObj *pTable = (SSuperTableObj *) pObj;
   mgmtDestroySuperTable(pTable);
-  return NULL;
+  return TSDB_CODE_SUCCESS;
 }
 
-void *mgmtSuperTableActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
-  STableInfo *pTable = (STableInfo *) row;
+static int32_t mgmtSuperTableActionInsert(void *pObj) {
+  STableInfo *pTable = (STableInfo *) pObj;
   SDbObj     *pDb    = mgmtGetDbByTableId(pTable->tableId);
   if (pDb) {
     mgmtAddSuperTableIntoDb(pDb);
   }
-  return NULL;
+  return TSDB_CODE_SUCCESS;
 }
 
-void *mgmtSuperTableActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
-  STableInfo *pTable = (STableInfo *) row;
+static int32_t mgmtSuperTableActionDelete(void *pObj) {
+  STableInfo *pTable = (STableInfo *) pObj;
   SDbObj     *pDb    = mgmtGetDbByTableId(pTable->tableId);
   if (pDb) {
     mgmtRemoveSuperTableFromDb(pDb);
   }
-  return NULL;
+  return TSDB_CODE_SUCCESS;
 }
 
-void *mgmtSuperTableActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
-  return mgmtSuperTableActionReset(row, str, size, NULL);
+static int32_t mgmtSuperTableActionUpdate(void *pObj) {
+  SSuperTableObj *pTable = (SSuperTableObj *) pObj;
+  memcpy(pTable, pObj, tsSuperTableUpdateSize);
+
+  int32_t schemaSize = sizeof(SSchema) * (pTable->numOfColumns + pTable->numOfTags);
+  pTable->schema = realloc(pTable->schema, schemaSize);
+  memcpy(pTable->schema, pObj + tsSuperTableUpdateSize, schemaSize);
+
+  return TSDB_CODE_SUCCESS;
 }
 
-void *mgmtSuperTableActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
-  SSuperTableObj *pTable = (SSuperTableObj *) row;
-  assert(row != NULL && str != NULL);
+static int32_t mgmtSuperTableActionEncode(void *pObj, void *pData, int32_t maxRowSize) {
+  SSuperTableObj *pTable = (SSuperTableObj *) pObj;
+  assert(pObj != NULL && pData != NULL);
 
   int32_t schemaSize = sizeof(SSchema) * (pTable->numOfColumns + pTable->numOfTags);
 
-  if (size < tsSuperTableUpdateSize + schemaSize + 1) {
-    *ssize = -1;
-    return NULL;
+  if (maxRowSize < tsSuperTableUpdateSize + schemaSize + 1) {
+    return TSDB_CODE_INVALID_MSG_LEN;
   }
 
-  memcpy(str, pTable, tsSuperTableUpdateSize);
-  memcpy(str + tsSuperTableUpdateSize, pTable->schema, schemaSize);
-  *ssize = tsSuperTableUpdateSize + schemaSize;
-
-  return NULL;
+  memcpy(pData, pTable, tsSuperTableUpdateSize);
+  memcpy(pData + tsSuperTableUpdateSize, pTable->schema, schemaSize);
+  return tsSuperTableUpdateSize + schemaSize;
 }
 
-void *mgmtSuperTableActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
-  assert(str != NULL);
+static void *mgmtSuperTableActionDecode(void *pData) {
+  assert(pData != NULL);
 
   SSuperTableObj *pTable = (SSuperTableObj *) malloc(sizeof(SSuperTableObj));
   if (pTable == NULL) {
     return NULL;
   }
   memset(pTable, 0, sizeof(SSuperTableObj));
-
-  if (size < tsSuperTableUpdateSize) {
-    mgmtDestroySuperTable(pTable);
-    return NULL;
-  }
-  memcpy(pTable, str, tsSuperTableUpdateSize);
+  memcpy(pTable, pData, tsSuperTableUpdateSize);
 
   int32_t schemaSize = sizeof(SSchema) * (pTable->numOfColumns + pTable->numOfTags);
   pTable->schema = malloc(schemaSize);
@@ -146,15 +114,8 @@ void *mgmtSuperTableActionDecode(void *row, char *str, int32_t size, int32_t *ss
     return NULL;
   }
 
-  memcpy(pTable->schema, str + tsSuperTableUpdateSize, schemaSize);
+  memcpy(pTable->schema, pData + tsSuperTableUpdateSize, schemaSize);
   return (void *) pTable;
-}
-
-void *mgmtSuperTableAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
-  if (mgmtSuperTableActionFp[(uint8_t) action] != NULL) {
-    return (*(mgmtSuperTableActionFp[(uint8_t) action]))(row, str, size, ssize);
-  }
-  return NULL;
 }
 
 int32_t mgmtInitSuperTables() {
@@ -162,10 +123,23 @@ int32_t mgmtInitSuperTables() {
   void *pLastNode = NULL;
   SSuperTableObj *pTable = NULL;
 
-  mgmtSuperTableActionInit();
+  SSuperTableObj tObj;
+  tsSuperTableUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
 
-  tsSuperTableSdb = sdbOpenTable(TSDB_MAX_SUPER_TABLES, tsSuperTableUpdateSize + sizeof(SSchema) * TSDB_MAX_COLUMNS,
-                          "stables", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtSuperTableAction);
+  SSdbTableDesc tableDesc = {
+    .tableName    = "stables",
+    .hashSessions = TSDB_MAX_SUPER_TABLES,
+    .maxRowSize   = tsSuperTableUpdateSize + sizeof(SSchema) * TSDB_MAX_COLUMNS,
+    .keyType      = SDB_KEYTYPE_STRING,
+    .insertFp     = mgmtSuperTableActionInsert,
+    .deleteFp     = mgmtSuperTableActionDelete,
+    .updateFp     = mgmtSuperTableActionUpdate,
+    .encodeFp     = mgmtSuperTableActionEncode,
+    .decodeFp     = mgmtSuperTableActionDecode,
+    .destroyFp    = mgmtSuperTableActionDestroy,
+  };
+
+  tsSuperTableSdb = sdbOpenTable(&tableDesc);
   if (tsSuperTableSdb == NULL) {
     mError("failed to init stables data");
     return -1;
@@ -365,8 +339,8 @@ int32_t mgmtModifySuperTableTagNameByName(SSuperTableObj *pStable, char *oldTagN
     return TSDB_CODE_INVALID_MSG_TYPE;
   }
 
-  int32_t      rowSize = 0;
-  uint32_t len     = strlen(newTagName);
+  int32_t  rowSize = 0;
+  uint32_t len = strlen(newTagName);
 
   if (col >= pStable->numOfTags || len >= TSDB_COL_NAME_LEN || mgmtFindSuperTableTagIndex(pStable, newTagName) >= 0) {
     return TSDB_CODE_APP_ERROR;
@@ -382,7 +356,7 @@ int32_t mgmtModifySuperTableTagNameByName(SSuperTableObj *pStable, char *oldTagN
   if (msg == NULL) return TSDB_CODE_APP_ERROR;
   memset(msg, 0, size);
 
-  mgmtSuperTableActionEncode(pStable, msg, size, &rowSize);
+  // mgmtSuperTableActionEncode(pStable, msg, size, &rowSize);
 
   int32_t ret = sdbUpdateRow(tsSuperTableSdb, msg, tsSuperTableUpdateSize, SDB_OPER_GLOBAL);
   tfree(msg);
