@@ -84,7 +84,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, void (*fp)(), void* param, const
 }
 
 // TODO return the correct error code to client in tscQueueAsyncError
-void taos_query_a(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *, int), void *param) {
+void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
     tscError("bug!!! pObj:%p", pObj);

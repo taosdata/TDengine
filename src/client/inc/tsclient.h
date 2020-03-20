@@ -317,7 +317,7 @@ typedef struct {
   struct SLocalReducer *pLocalReducer;
 } SSqlRes;
 
-typedef struct _tsc_obj {
+typedef struct STscObj {
   void *           signature;
   void *           pTimer;
   char             mgmtIp[TSDB_USER_LEN];
@@ -332,7 +332,7 @@ typedef struct _tsc_obj {
   struct SSqlObj *pSql;
   struct SSqlObj *pHb;
   struct SSqlObj *sqlList;
-  struct _sstream *streamList;
+  struct SSqlStream *streamList;
   pthread_mutex_t  mutex;
 } STscObj;
 
@@ -365,7 +365,7 @@ typedef struct SSqlObj {
   struct SSqlObj * prev, *next;
 } SSqlObj;
 
-typedef struct _sstream {
+typedef struct SSqlStream {
   SSqlObj *pSql;
   uint32_t streamId;
   char     listed;
@@ -390,7 +390,7 @@ typedef struct _sstream {
   void *param;
 
   void (*callback)(void *);  // Callback function when stream is stopped from client level
-  struct _sstream *prev, *next;
+  struct SSqlStream *prev, *next;
 } SSqlStream;
 
 int32_t tscInitRpc(const char *user, const char *secret);

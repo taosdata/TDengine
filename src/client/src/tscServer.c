@@ -2497,12 +2497,6 @@ int tscRenewMeterMeta(SSqlObj *pSql, char *tableId) {
              pTableMetaInfo->pTableMeta);
   }
 
-  if (code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    if (pSql->fp == (void *)0x1) {
-      pSql->fp = NULL;
-    }
-  }
-
   return code;
 }
 

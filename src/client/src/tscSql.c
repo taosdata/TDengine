@@ -52,7 +52,7 @@ static bool validPassword(const char* passwd) {
   return validImpl(passwd, TSDB_PASSWORD_LEN);
 }
 
-STscObj *taos_connect_imp(const char *ip, const char *user, const char *pass, const char *db, uint16_t port,
+STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *db, uint16_t port,
                        void (*fp)(void *, TAOS_RES *, int), void *param, void **taos) {
   taos_init();
   
@@ -163,7 +163,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   
   tscTrace("try to create a connection to %s", ip);
 
-  STscObj *pObj = taos_connect_imp(ip, user, pass, db, port, NULL, NULL, NULL);
+  STscObj *pObj = taosConnectImpl(ip, user, pass, db, port, NULL, NULL, NULL);
   if (pObj != NULL) {
     SSqlObj* pSql = pObj->pSql;
     assert(pSql != NULL);
@@ -198,7 +198,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, void **taos) {
-  STscObj* pObj = taos_connect_imp(ip, user, pass, db, port, fp, param, taos);
+  STscObj* pObj = taosConnectImpl(ip, user, pass, db, port, fp, param, taos);
   if (pObj == NULL) {
     return NULL;
   }
