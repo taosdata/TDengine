@@ -176,8 +176,7 @@ static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
     return code;
   }
 
-  pUser = malloc(sizeof(SUserObj));
-  memset(pUser, 0, sizeof(SUserObj));
+  pUser = calloc(1, sizeof(SUserObj));
   strcpy(pUser->user, name);
   taosEncryptPass((uint8_t*) pass, strlen(pass), pUser->pass);
   strcpy(pUser->acct, pAcct->user);
