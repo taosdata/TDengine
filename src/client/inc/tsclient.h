@@ -107,22 +107,25 @@ enum _sql_cmd {
 struct SSqlInfo;
 
 typedef struct SSqlGroupbyExpr {
-  int16_t tableIndex;
-
+  int16_t     tableIndex;
   int16_t     numOfGroupCols;
   SColIndexEx columnInfo[TSDB_MAX_TAGS];  // group by columns information
-
-  int16_t orderIndex;  // order by column index
-  int16_t orderType;   // order by type: asc/desc
+  int16_t     orderIndex;                 // order by column index
+  int16_t     orderType;                  // order by type: asc/desc
 } SSqlGroupbyExpr;
 
 typedef struct SMeterMetaInfo {
-  SMeterMeta * pMeterMeta;   // metermeta
-  SMetricMeta *pMetricMeta;  // metricmeta
-
-  char    name[TSDB_METER_ID_LEN + 1];
-  int16_t numOfTags;                      // total required tags in query, including groupby tags
-  int16_t tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
+  SMeterMeta * pMeterMeta;                     // metermeta
+  SMetricMeta *pMetricMeta;                    // metricmeta
+  
+  /*
+   * 1. keep the vnode index during the multi-vnode super table projection query
+   * 2. keep the vnode index for multi-vnode insertion
+   */
+  int32_t      vnodeIndex;
+  char         name[TSDB_METER_ID_LEN + 1];    // table(super table) name
+  int16_t      numOfTags;                      // total required tags in query, including groupby tags
+  int16_t      tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
 } SMeterMetaInfo;
 
 /* the structure for sql function in select clause */
@@ -188,7 +191,7 @@ typedef struct SString {
 
 typedef struct SCond {
   uint64_t uid;
-  SString  cond;
+  char *   cond;
 } SCond;
 
 typedef struct SJoinNode {
@@ -228,17 +231,23 @@ typedef struct SParamInfo {
 
 typedef struct STableDataBlocks {
   char   meterId[TSDB_METER_ID_LEN];
-  int8_t tsSource;
-  bool   ordered;
+  int8_t tsSource;        // where does the UNIX timestamp come from, server or client
+  bool   ordered;         // if current rows are ordered or not
+  int64_t vgid;           // virtual group id
+  int64_t prevTS;         // previous timestamp, recorded to decide if the records array is ts ascending
+  int32_t numOfMeters;    // number of tables in current submit block
 
-  int64_t vgid;
-  int64_t prevTS;
-
-  int32_t numOfMeters;
-
-  int32_t  rowSize;
+  int32_t  rowSize;       // row size for current table
   uint32_t nAllocSize;
+  uint32_t headerSize;    // header for metadata (submit metadata)
   uint32_t size;
+  
+  /*
+   * the metermeta for current table, the metermeta will be used during submit stage, keep a ref
+   * to avoid it to be removed from cache
+   */
+  SMeterMeta* pMeterMeta;
+  
   union {
     char *filename;
     char *pData;
@@ -252,8 +261,8 @@ typedef struct STableDataBlocks {
 
 typedef struct SDataBlockList {
   int32_t            idx;
-  int32_t            nSize;
-  int32_t            nAlloc;
+  uint32_t           nSize;
+  uint32_t           nAlloc;
   char *             userParam; /* user assigned parameters for async query */
   void *             udfp;      /* user defined function pointer, used in async model */
   STableDataBlocks **pData;
@@ -262,16 +271,17 @@ typedef struct SDataBlockList {
 typedef struct {
   SOrderVal order;
   int       command;
-  int       count;// TODO refactor
+  int       count;  // TODO refactor
 
   union {
-    bool   existsCheck;       // check if the table exists
-    int8_t showType;          // show command type
+    bool   existsCheck;  // check if the table exists
+    int8_t showType;     // show command type
   };
   
+  int8_t          isParseFinish;
   int8_t          isInsertFromFile;  // load data from file or not
-  bool            import;     // import/insert type
-  char            msgType;
+  bool            import;            // import/insert type
+  uint8_t         msgType;
   uint16_t        type;  // query type
   char            intervalTimeUnit;
   int64_t         etime, stime;
@@ -296,7 +306,6 @@ typedef struct {
   SLimitVal       slimit;
   int64_t         globalLimit;
   STagCond        tagCond;
-  int16_t         vnodeIdx;     // vnode index in pMetricMeta for metric query
   int16_t         interpoType;  // interpolate type
   int16_t         numOfTables;
 
@@ -366,28 +375,26 @@ typedef struct _sql_obj {
   STscObj *pTscObj;
   void (*fp)();
   void (*fetchFp)();
-  void *   param;
-  uint32_t ip;
-  short    vnode;
-  int64_t  stime;
-  uint32_t queryId;
-  void *   thandle;
-  void *   pStream;
-  char *   sqlstr;
-  char     retry;
-  char     maxRetry;
-  char     index;
-  char     freed : 4;
-  char     listed : 4;
-  tsem_t   rspSem;
-  tsem_t   emptyRspSem;
-
-  SSqlCmd cmd;
-  SSqlRes res;
-
-  char              numOfSubs;
+  void *            param;
+  uint32_t          ip;
+  short             vnode;
+  int64_t           stime;
+  uint32_t          queryId;
+  void *            thandle;
+  void *            pStream;
+  char *            sqlstr;
+  char              retry;
+  char              maxRetry;
+  uint8_t           index;
+  char              freed : 4;
+  char              listed : 4;
+  tsem_t            rspSem;
+  tsem_t            emptyRspSem;
+  SSqlCmd           cmd;
+  SSqlRes           res;
+  uint16_t          numOfSubs;
   char*             asyncTblPos;
-  void*             pTableHashList;  
+  void*             pTableHashList;
   struct _sql_obj **pSubs;
   struct _sql_obj * prev, *next;
 } SSqlObj;
@@ -479,6 +486,8 @@ void    tscProcessMultiVnodesInsertForFile(SSqlObj *pSql);
 void    tscKillMetricQuery(SSqlObj *pSql);
 void    tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool    tscIsUpdateQuery(STscObj *pObj);
+bool    tscHasReachLimitation(SSqlObj* pSql);
+
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
 // transfer SSqlInfo to SqlCmd struct

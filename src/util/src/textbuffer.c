@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include "os.h"
 #include "taos.h"
 #include "taosmsg.h"
@@ -22,8 +21,6 @@
 #include "ttime.h"
 #include "ttypes.h"
 #include "tutil.h"
-
-#pragma GCC diagnostic ignored "-Wformat"
 
 #define COLMODEL_GET_VAL(data, schema, allrow, rowId, colId) \
   (data + (schema)->colOffset[colId] * (allrow) + (rowId) * (schema)->pFields[colId].bytes)
@@ -100,10 +97,11 @@ void tExtMemBufferDestroy(tExtMemBuffer **pMemBuffer) {
 
   // close temp file
   if ((*pMemBuffer)->dataFile != 0) {
-    int32_t ret = fclose((*pMemBuffer)->dataFile);
-    if (ret != 0) {
+    if (fclose((*pMemBuffer)->dataFile) != 0) {
       pError("failed to close file:%s, reason:%s", (*pMemBuffer)->dataFilePath, strerror(errno));
     }
+    
+    pTrace("remove temp file:%s for external buffer", (*pMemBuffer)->dataFilePath);
     unlink((*pMemBuffer)->dataFilePath);
   }
 
@@ -1016,7 +1014,7 @@ static void UNUSED_FUNC tSortDataPrint(int32_t type, char *prefix, char *startx,
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_BIGINT:
-      printf("%s:(%lld, %lld, %lld)\n", prefix, *(int64_t *)startx, *(int64_t *)midx, *(int64_t *)endx);
+      printf("%s:(%" PRId64 ", %" PRId64 ", %" PRId64 ")\n", prefix, *(int64_t *)startx, *(int64_t *)midx, *(int64_t *)endx);
       break;
     case TSDB_DATA_TYPE_FLOAT:
       printf("%s:(%f, %f, %f)\n", prefix, *(float *)startx, *(float *)midx, *(float *)endx);
@@ -1092,7 +1090,7 @@ static UNUSED_FUNC void tRowModelDisplay(tOrderDescriptor *pDescriptor, int32_t 
         break;
       case TSDB_DATA_TYPE_TIMESTAMP:
       case TSDB_DATA_TYPE_BIGINT:
-        printf("%lld\t", *(int64_t *)startx);
+        printf("%" PRId64 "\t", *(int64_t *)startx);
         break;
       case TSDB_DATA_TYPE_BINARY:
         printf("%s\t", startx);
@@ -1263,7 +1261,7 @@ static tFilePage *loadIntoBucketFromDisk(tMemBucket *pMemBucket, int32_t segIdx,
         assert(pPage->numOfElems > 0);
 
         tColModelAppend(pDesc->pSchema, buffer, pPage->data, 0, pPage->numOfElems, pPage->numOfElems);
-        printf("id: %d  count: %d\n", j, buffer->numOfElems);
+        printf("id: %d  count: %" PRIu64 "\n", j, buffer->numOfElems);
       }
     }
     tfree(pPage);
@@ -1375,10 +1373,16 @@ static void printBinaryData(char *data, int32_t len) {
   }
 
   if (len == 50) {  // probably the avg intermediate result
-    printf("%lf,%d\t", *(double *)data, *(int64_t *)(data + sizeof(double)));
+    printf("%lf,%" PRId64 "\t", *(double *)data, *(int64_t *)(data + sizeof(double)));
   } else if (data[8] == ',') {  // in TSDB_FUNC_FIRST_DST/TSDB_FUNC_LAST_DST,
                                 // the value is seperated by ','
-    printf("%ld,%0x\t", *(int64_t *)data, data + sizeof(int64_t) + 1);
+    //printf("%" PRId64 ",%0x\t", *(int64_t *)data, data + sizeof(int64_t) + 1);
+    printf("%" PRId64 ", HEX: ", *(int64_t *)data);
+    int32_t tmp_len = len - sizeof(int64_t) - 1;
+    for (int32_t i = 0; i < tmp_len; ++i) {
+      printf("%0x ", *(data + sizeof(int64_t) + 1 + i));
+    }
+    printf("\t");
   } else if (isCharString) {
     printf("%s\t", data);
   }
@@ -1388,26 +1392,26 @@ static void printBinaryData(char *data, int32_t len) {
 static void printBinaryDataEx(char *data, int32_t len, SSrcColumnInfo *param) {
   if (param->functionId == TSDB_FUNC_LAST_DST) {
     switch (param->type) {
-      case TSDB_DATA_TYPE_TINYINT:printf("%lld,%d\t", *(int64_t *) data, *(int8_t *) (data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_TINYINT:printf("%" PRId64 ",%d\t", *(int64_t *) data, *(int8_t *) (data + TSDB_KEYSIZE + 1));
         break;
-      case TSDB_DATA_TYPE_SMALLINT:printf("%lld,%d\t", *(int64_t *) data, *(int16_t *) (data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_SMALLINT:printf("%" PRId64 ",%d\t", *(int64_t *) data, *(int16_t *) (data + TSDB_KEYSIZE + 1));
         break;
       case TSDB_DATA_TYPE_TIMESTAMP:
-      case TSDB_DATA_TYPE_BIGINT:printf("%lld,%lld\t", *(int64_t *) data, *(int64_t *) (data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_BIGINT:printf("%" PRId64 ",%" PRId64 "\t", *(int64_t *) data, *(int64_t *) (data + TSDB_KEYSIZE + 1));
         break;
-      case TSDB_DATA_TYPE_FLOAT:printf("%lld,%d\t", *(int64_t *) data, *(float *) (data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_FLOAT:printf("%" PRId64 ",%f\t", *(int64_t *) data, *(float *) (data + TSDB_KEYSIZE + 1));
         break;
-      case TSDB_DATA_TYPE_DOUBLE:printf("%lld,%d\t", *(int64_t *) data, *(double *) (data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_DOUBLE:printf("%" PRId64 ",%f\t", *(int64_t *) data, *(double *) (data + TSDB_KEYSIZE + 1));
         break;
-      case TSDB_DATA_TYPE_BINARY:printf("%lld,%s\t", *(int64_t *) data, (data + TSDB_KEYSIZE + 1));
+      case TSDB_DATA_TYPE_BINARY:printf("%" PRId64 ",%s\t", *(int64_t *) data, (data + TSDB_KEYSIZE + 1));
         break;
 
       case TSDB_DATA_TYPE_INT:
-      default:printf("%lld,%d\t", *(int64_t *) data, *(int32_t *) (data + TSDB_KEYSIZE + 1));
+      default:printf("%" PRId64 ",%d\t", *(int64_t *) data, *(int32_t *) (data + TSDB_KEYSIZE + 1));
         break;
     }
   } else if (param->functionId == TSDB_FUNC_AVG) {
-      printf("%f,%lld\t", *(double *) data, *(int64_t *) (data + sizeof(double) + 1));
+      printf("%f,%" PRId64 "\t", *(double *) data, *(int64_t *) (data + sizeof(double) + 1));
   } else {
     // functionId == TSDB_FUNC_MAX_DST | TSDB_FUNC_TAG
     switch (param->type) {
@@ -1419,13 +1423,13 @@ static void printBinaryDataEx(char *data, int32_t len, SSrcColumnInfo *param) {
         break;
       case TSDB_DATA_TYPE_TIMESTAMP:
       case TSDB_DATA_TYPE_BIGINT:
-        printf("%lld\t", *(int64_t *)data);
+        printf("%" PRId64 "\t", *(int64_t *)data);
         break;
       case TSDB_DATA_TYPE_FLOAT:
-        printf("%d\t", *(float *)data);
+        printf("%f\t", *(float *)data);
         break;
       case TSDB_DATA_TYPE_DOUBLE:
-        printf("%d\t", *(double *)data);
+        printf("%f\t", *(double *)data);
         break;
       case TSDB_DATA_TYPE_BINARY:
         printf("%s\t", data);
@@ -1433,7 +1437,7 @@ static void printBinaryDataEx(char *data, int32_t len, SSrcColumnInfo *param) {
 
       case TSDB_DATA_TYPE_INT:
       default:
-        printf("%d\t", *(double *)data);
+        printf("%f\t", *(double *)data);
         break;
     }
   }
@@ -1449,7 +1453,7 @@ void tColModelDisplay(tColModel *pModel, void *pData, int32_t numOfRows, int32_t
 
       switch (type) {
         case TSDB_DATA_TYPE_BIGINT:
-          printf("%lld\t", *(int64_t *)val);
+          printf("%" PRId64 "\t", *(int64_t *)val);
           break;
         case TSDB_DATA_TYPE_INT:
           printf("%d\t", *(int32_t *)val);
@@ -1467,7 +1471,7 @@ void tColModelDisplay(tColModel *pModel, void *pData, int32_t numOfRows, int32_t
           printf("%lf\t", *(double *)val);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          printf("%lld\t", *(int64_t *)val);
+          printf("%" PRId64 "\t", *(int64_t *)val);
           break;
         case TSDB_DATA_TYPE_TINYINT:
           printf("%d\t", *(int8_t *)val);
@@ -1500,7 +1504,7 @@ void tColModelDisplayEx(tColModel *pModel, void *pData, int32_t numOfRows, int32
 
       switch (pModel->pFields[j].type) {
         case TSDB_DATA_TYPE_BIGINT:
-          printf("%lld\t", *(int64_t *)val);
+          printf("%" PRId64 "\t", *(int64_t *)val);
           break;
         case TSDB_DATA_TYPE_INT:
           printf("%d\t", *(int32_t *)val);
@@ -1518,7 +1522,7 @@ void tColModelDisplayEx(tColModel *pModel, void *pData, int32_t numOfRows, int32
           printf("%lf\t", *(double *)val);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          printf("%lld\t", *(int64_t *)val);
+          printf("%" PRId64 "\t", *(int64_t *)val);
           break;
         case TSDB_DATA_TYPE_TINYINT:
           printf("%d\t", *(int8_t *)val);

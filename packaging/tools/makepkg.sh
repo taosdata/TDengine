@@ -1,15 +1,21 @@
 #!/bin/bash
 #
-# Generate deb package for other os system (no unbutu or centos)
+# Generate tar.gz package for all os system
+
+set -e
+#set -x
 
 curr_dir=$(pwd)
 compile_dir=$1
 version=$2
 build_time=$3
-armver=$4
+cpuType=$4
+osType=$5
+verMode=$6
+verType=$7
 
 script_dir="$(dirname $(readlink -f $0))"
-top_dir="$(readlink -m ${script_dir}/../..)"
+top_dir="$(readlink -f ${script_dir}/../..)"
 
 # create compressed install file.
 build_dir="${compile_dir}/build"
@@ -17,7 +23,7 @@ code_dir="${top_dir}/src"
 release_dir="${top_dir}/release"
 
 #package_name='linux'
-install_dir="${release_dir}/TDengine-${version}"
+install_dir="${release_dir}/TDengine-server"
 
 # Directories and files.
 bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdemo ${build_dir}/bin/taosdump ${script_dir}/remove.sh"
@@ -77,13 +83,26 @@ cp -r ${connector_dir}/go      ${install_dir}/connector
 
 # exit 1
 
-cd ${release_dir}  
-if [ -z "$armver" ]; then
-  tar -zcv -f "$(basename ${install_dir}).tar.gz" $(basename ${install_dir}) --remove-files
-elif [ "$armver" == "arm64" ]; then
-  tar -zcv -f "$(basename ${install_dir})-arm64.tar.gz" $(basename ${install_dir}) --remove-files
-elif [ "$armver" == "arm32" ]; then
-  tar -zcv -f "$(basename ${install_dir})-arm32.tar.gz" $(basename ${install_dir}) --remove-files
+cd ${release_dir} 
+
+if [ "$verMode" == "cluster" ]; then
+  pkg_name=${install_dir}-${version}-${osType}-${cpuType}
+elif [ "$verMode" == "lite" ]; then
+  pkg_name=${install_dir}-${version}-${osType}-${cpuType}
+else
+  echo "unknow verMode, nor cluster or lite"
+  exit 1
 fi
+
+if [ "$verType" == "beta" ]; then
+  pkg_name=${pkg_name}-${verType}
+elif [ "$verType" == "stable" ]; then 
+  pkg_name=${pkg_name} 
+else
+  echo "unknow verType, nor stabel or beta"
+  exit 1
+fi
+
+tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files
 
 cd ${curr_dir}

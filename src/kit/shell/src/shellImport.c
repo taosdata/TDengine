@@ -153,10 +153,20 @@ static void shellSourceFile(TAOS *con, char *fptr) {
   }
 
   char *fname = full_path.we_wordv[0];
-
-  if (access(fname, R_OK) == -1) {
-    fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
+  
+  if (access(fname, F_OK) != 0) {
+    fprintf(stderr, "ERROR: file %s is not exist\n", fptr);
+    
     wordfree(&full_path);
+    free(cmd);
+    return;
+  }
+  
+  if (access(fname, R_OK) != 0) {
+    fprintf(stderr, "ERROR: file %s is not readable\n", fptr);
+    
+    wordfree(&full_path);
+    free(cmd);
     return;
   }
 

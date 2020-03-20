@@ -440,13 +440,16 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
       tscTrace("%p waiting for delete procedure, status: %d", pSql, status);
     }
 
-    tfree(pLocalReducer->interpolationInfo.prevValues);
-    tfree(pLocalReducer->interpolationInfo.pTags);
+    taosDestoryInterpoInfo(&pLocalReducer->interpolationInfo);
 
     if (pLocalReducer->pCtx != NULL) {
       for(int32_t i = 0; i < pCmd->fieldsInfo.numOfOutputCols; ++i) {
         SQLFunctionCtx *pCtx = &pLocalReducer->pCtx[i];
         tVariantDestroy(&pCtx->tag);
+        
+        if (pCtx->tagInfo.pTagCtxList != NULL) {
+          tfree(pCtx->tagInfo.pTagCtxList);
+        }
       }
 
       tfree(pLocalReducer->pCtx);
@@ -1314,8 +1317,10 @@ int32_t tscLocalDoReduce(SSqlObj *pSql) {
     tscTrace("%s call the drop local reducer", __FUNCTION__);
 
     tscDestroyLocalReducer(pSql);
-    pRes->numOfRows = 0;
-    pRes->row = 0;
+    if (pRes) {
+      pRes->numOfRows = 0;
+      pRes->row = 0;
+    }
     return 0;
   }
 

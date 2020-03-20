@@ -93,10 +93,10 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
   const static int64_t SLOW_QUERY_INTERVAL = 3000000L;
   if (pSql->res.useconds < SLOW_QUERY_INTERVAL) return;
 
-  tscTrace("%p query time:%lld sql:%s", pSql, pSql->res.useconds, pSql->sqlstr);
+  tscTrace("%p query time:%" PRId64 " sql:%s", pSql, pSql->res.useconds, pSql->sqlstr);
 
   char *sql = malloc(200);
-  int   len = snprintf(sql, 200, "insert into %s.slowquery values(now, '%s', %lld, %lld, '", tsMonitorDbName,
+  int   len = snprintf(sql, 200, "insert into %s.slowquery values(now, '%s', %" PRId64 ", %" PRId64 ", '", tsMonitorDbName,
           pSql->pTscObj->user, pSql->stime, pSql->res.useconds);
   int sqlLen = snprintf(sql + len, TSDB_SHOW_SQL_LEN, "%s", pSql->sqlstr);
   if (sqlLen > TSDB_SHOW_SQL_LEN - 1) {
@@ -197,8 +197,10 @@ void tscKillStream(STscObj *pObj, uint32_t killId) {
   }
 
   pthread_mutex_unlock(&pObj->mutex);
-
-  tscTrace("%p stream:%p is killed, streamId:%d", pStream->pSql, pStream, killId);
+  
+  if (pStream) {
+    tscTrace("%p stream:%p is killed, streamId:%d", pStream->pSql, pStream, killId);
+  }
 
   taos_close_stream(pStream);
   if (pStream->callback) {

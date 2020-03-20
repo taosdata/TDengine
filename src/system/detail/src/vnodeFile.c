@@ -21,6 +21,7 @@
 #include "vnode.h"
 #include "vnodeFile.h"
 #include "vnodeUtil.h"
+#include "vnodeStatus.h"
 
 #define FILE_QUERY_NEW_BLOCK -5  // a special negative number
 
@@ -187,13 +188,13 @@ int vnodeCreateNeccessaryFiles(SVnodeObj *pVnode) {
 
   if (pVnode->lastKeyOnFile == 0) {
     if (pCfg->daysPerFile == 0) pCfg->daysPerFile = 10;
-    pVnode->fileId = pVnode->firstKey / tsMsPerDay[pVnode->cfg.precision] / pCfg->daysPerFile;
-    pVnode->lastKeyOnFile = (int64_t)(pVnode->fileId + 1) * pCfg->daysPerFile * tsMsPerDay[pVnode->cfg.precision] - 1;
+    pVnode->fileId = pVnode->firstKey / tsMsPerDay[(uint8_t)pVnode->cfg.precision] / pCfg->daysPerFile;
+    pVnode->lastKeyOnFile = (int64_t)(pVnode->fileId + 1) * pCfg->daysPerFile * tsMsPerDay[(uint8_t)pVnode->cfg.precision] - 1;
     pVnode->numOfFiles = 1;
     if (vnodeCreateEmptyCompFile(vnode, pVnode->fileId) < 0) return -1;
   }
 
-  numOfFiles = (pVnode->lastKeyOnFile - pVnode->commitFirstKey) / tsMsPerDay[pVnode->cfg.precision] / pCfg->daysPerFile;
+  numOfFiles = (pVnode->lastKeyOnFile - pVnode->commitFirstKey) / tsMsPerDay[(uint8_t)pVnode->cfg.precision] / pCfg->daysPerFile;
   if (pVnode->commitFirstKey > pVnode->lastKeyOnFile) numOfFiles = -1;
 
   dTrace("vid:%d, commitFirstKey:%ld lastKeyOnFile:%ld numOfFiles:%d fileId:%d vnodeNumOfFiles:%d", pVnode->vnode,
@@ -221,15 +222,15 @@ int vnodeCreateNeccessaryFiles(SVnodeObj *pVnode) {
 #else
       return -1;
 #endif
-    pVnode->lastKeyOnFile += (int64_t)tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile;
+    pVnode->lastKeyOnFile += (int64_t)tsMsPerDay[(uint8_t)pVnode->cfg.precision] * pCfg->daysPerFile;
     filesAdded = 1;
     numOfFiles = 0;  // hacker way
   }
 
   fileId = pVnode->fileId - numOfFiles;
   pVnode->commitLastKey =
-      pVnode->lastKeyOnFile - (int64_t)numOfFiles * tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile;
-  pVnode->commitFirstKey = pVnode->commitLastKey - (int64_t)tsMsPerDay[pVnode->cfg.precision] * pCfg->daysPerFile + 1;
+      pVnode->lastKeyOnFile - (int64_t)numOfFiles * tsMsPerDay[(uint8_t)pVnode->cfg.precision] * pCfg->daysPerFile;
+  pVnode->commitFirstKey = pVnode->commitLastKey - (int64_t)tsMsPerDay[(uint8_t)pVnode->cfg.precision] * pCfg->daysPerFile + 1;
   pVnode->commitFileId = fileId;
   pVnode->numOfFiles = pVnode->numOfFiles + filesAdded;
 
@@ -244,8 +245,7 @@ int vnodeOpenCommitFiles(SVnodeObj *pVnode, int noTempLast) {
   int         len = 0;
   struct stat filestat;
   int         vnode = pVnode->vnode;
-  int         fileId, numOfFiles, filesAdded = 0;
-  SVnodeCfg * pCfg = &pVnode->cfg;
+  int         fileId;
 
   if (vnodeCreateNeccessaryFiles(pVnode) < 0) return -1;
 
@@ -612,7 +612,7 @@ _again:
     }
 
     // meter is going to be deleted, abort
-    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DELETING)) {
+    if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPING)) {
       dWarn("vid:%d sid:%d is dropped, ignore this meter", vnode, sid);
       continue;
     }
@@ -1246,7 +1246,7 @@ int vnodeWriteBlockToFile(SMeterObj *pObj, SCompBlock *pCompBlock, SData *data[]
     // assert(data[i]->len == points*pObj->schema[i].bytes);
 
     if (pCfg->compression) {
-      cdata[i]->len = (*pCompFunc[pObj->schema[i].type])(data[i]->data, points * pObj->schema[i].bytes, points,
+      cdata[i]->len = (*pCompFunc[(uint8_t)pObj->schema[i].type])(data[i]->data, points * pObj->schema[i].bytes, points,
                                                          cdata[i]->data, pObj->schema[i].bytes*pObj->pointsPerFileBlock+EXTRA_BYTES, 
                                                          pCfg->compression, buffer, bufferSize);
       fields[i].len = cdata[i]->len;
@@ -1339,7 +1339,7 @@ int vnodeSearchPointInFile(SMeterObj *pObj, SQuery *pQuery) {
   if (pVnode->numOfFiles <= 0) return 0;
 
   SVnodeCfg *pCfg = &pVnode->cfg;
-  delta = (int64_t)pCfg->daysPerFile * tsMsPerDay[pVnode->cfg.precision];
+  delta = (int64_t)pCfg->daysPerFile * tsMsPerDay[(uint8_t)pVnode->cfg.precision];
   latest = pObj->lastKeyOnFile;
   oldest = (pVnode->fileId - pVnode->numOfFiles + 1) * delta;
 

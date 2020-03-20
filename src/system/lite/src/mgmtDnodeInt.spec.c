@@ -23,7 +23,7 @@
 #include "tutil.h"
 #include "vnode.h"
 #include "tsystem.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 extern void *dmQhandle;
 void * mgmtStatusTimer = NULL;
@@ -61,7 +61,7 @@ char *taosBuildReqMsgToDnode(SDnodeObj *pObj, char type) {
 int taosSendSimpleRspToDnode(SDnodeObj *pObj, char rsptype, char code) { return 0; }
 
 int taosSendMsgToDnode(SDnodeObj *pObj, char *msg, int msgLen) {
-  mTrace("msg:%s is sent to dnode", taosMsg[*(msg-1)]);
+  mTrace("msg:%s is sent to dnode", taosMsg[(uint8_t)(*(msg-1))]);
 
   /*
    * Lite version has no message header, so minus one
@@ -142,7 +142,7 @@ void mgmtProcessDnodeStatus(void *handle, void *tmrId) {
 void mgmtProcessMsgFromDnodeSpec(SSchedMsg *sched) {
   char  msgType = *sched->msg;
   char *content = sched->msg + 1;
-  mTrace("msg:%s is received from dnode", taosMsg[msgType]);
+  mTrace("msg:%s is received from dnode", taosMsg[(uint8_t)msgType]);
 
   mgmtProcessMsgFromDnode(content, 0, msgType, mgmtGetDnode(0));
   free(sched->msg);

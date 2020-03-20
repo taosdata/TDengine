@@ -26,8 +26,6 @@
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
 
-#pragma GCC diagnostic ignored "-Wint-conversion"
-
 int (*pQueryFunc[])(SMeterObj *, SQuery *) = {vnodeQueryFromCache, vnodeQueryFromFile};
 
 int vnodeInterpolationSearchKey(char *pValue, int num, TSKEY key, int order) {
@@ -195,8 +193,6 @@ static SQInfo *vnodeAllocateQInfoCommon(SQueryMeterMsg *pQueryMsg, SMeterObj *pM
     } else {
       pQuery->colList[i].data.filters = NULL;
     }
-
-    pQuery->dataRowSize += colList[i].bytes;
   }
 
   vnodeUpdateQueryColumnIndex(pQuery, pMeterObj);
@@ -394,10 +390,10 @@ __clean_memory:
   return NULL;
 }
 
-static void vnodeFreeQInfoInQueueImpl(SSchedMsg *pMsg) {
-  SQInfo *pQInfo = (SQInfo *)pMsg->ahandle;
-  vnodeFreeQInfo(pQInfo, true);
-}
+//static void vnodeFreeQInfoInQueueImpl(SSchedMsg *pMsg) {
+//  SQInfo *pQInfo = (SQInfo *)pMsg->ahandle;
+//  vnodeFreeQInfo(pQInfo, true);
+//}
 
 void vnodeFreeQInfoInQueue(void *param) {
   SQInfo *pQInfo = (SQInfo *)param;
@@ -405,15 +401,18 @@ void vnodeFreeQInfoInQueue(void *param) {
   if (!vnodeIsQInfoValid(pQInfo)) return;
 
   pQInfo->killed = 1;
+  dTrace("QInfo:%p set kill flag to free QInfo");
+  
+  vnodeDecRefCount(pQInfo);
+  
+//  dTrace("QInfo:%p set kill flag and add to queue, stop query ASAP", pQInfo);
+//  SSchedMsg schedMsg = {0};
+//  schedMsg.fp = vnodeFreeQInfoInQueueImpl;
 
-  dTrace("QInfo:%p set kill flag and add to queue, stop query ASAP", pQInfo);
-  SSchedMsg schedMsg = {0};
-  schedMsg.fp = vnodeFreeQInfoInQueueImpl;
-
-  schedMsg.msg = NULL;
-  schedMsg.thandle = (void *)1;
-  schedMsg.ahandle = param;
-  taosScheduleTask(queryQhandle, &schedMsg);
+//  schedMsg.msg = NULL;
+//  schedMsg.thandle = (void *)1;
+//  schedMsg.ahandle = param;
+//  taosScheduleTask(queryQhandle, &schedMsg);
 }
 
 void vnodeFreeQInfo(void *param, bool decQueryRef) {
@@ -421,8 +420,6 @@ void vnodeFreeQInfo(void *param, bool decQueryRef) {
   if (!vnodeIsQInfoValid(param)) return;
 
   pQInfo->killed = 1;
-  TSDB_WAIT_TO_SAFE_DROP_QINFO(pQInfo);
-
   SMeterObj *pObj = pQInfo->pObj;
   dTrace("QInfo:%p start to free SQInfo", pQInfo);
 
@@ -501,7 +498,30 @@ bool vnodeIsQInfoValid(void *param) {
    * into local variable, then compare by using local variable
    */
   uint64_t sig = pQInfo->signature;
-  return (sig == (uint64_t)pQInfo) || (sig == TSDB_QINFO_QUERY_FLAG);
+  return (sig == (uint64_t)pQInfo);
+}
+
+void vnodeDecRefCount(void *param) {
+  SQInfo *pQInfo = (SQInfo*) param;
+  
+  assert(vnodeIsQInfoValid(pQInfo));
+  
+  int32_t ref = atomic_sub_fetch_32(&pQInfo->refCount, 1);
+  assert(ref >= 0);
+  
+  dTrace("QInfo:%p decrease obj refcount, %d", pQInfo, ref);
+  if (ref == 0) {
+    vnodeFreeQInfo(pQInfo, true);
+  }
+}
+
+void vnodeAddRefCount(void *param) {
+  SQInfo *pQInfo = (SQInfo*) param;
+  
+  assert(vnodeIsQInfoValid(pQInfo));
+  
+  int32_t ref = atomic_add_fetch_32(&pQInfo->refCount, 1);
+  dTrace("QInfo:%p add refcount, %d", pQInfo, ref);
 }
 
 void vnodeQueryData(SSchedMsg *pMsg) {
@@ -511,12 +531,11 @@ void vnodeQueryData(SSchedMsg *pMsg) {
   pQInfo = (SQInfo *)pMsg->ahandle;
 
   if (pQInfo->killed) {
-    TSDB_QINFO_RESET_SIG(pQInfo);
-    dTrace("QInfo:%p it is already killed, reset signature and abort", pQInfo);
+    dTrace("QInfo:%p it is already killed, abort", pQInfo);
+    vnodeDecRefCount(pQInfo);
     return;
   }
 
-  assert(pQInfo->signature == TSDB_QINFO_QUERY_FLAG);
   pQuery = &(pQInfo->query);
 
   SMeterObj *pObj = pQInfo->pObj;
@@ -584,13 +603,11 @@ void vnodeQueryData(SSchedMsg *pMsg) {
     tclose(pQInfo->query.lfd);
   }
 
-  /* reset QInfo signature */
-  dTrace("QInfo:%p reset signature", pQInfo);
-  TSDB_QINFO_RESET_SIG(pQInfo);
   sem_post(&pQInfo->dataReady);
+  vnodeDecRefCount(pQInfo);
 }
 
-void *vnodeQueryInTimeRange(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pSqlExprs,
+void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pSqlExprs,
                             SQueryMeterMsg *pQueryMsg, int32_t *code) {
   SQInfo *pQInfo;
   SQuery *pQuery;
@@ -661,6 +678,7 @@ void *vnodeQueryInTimeRange(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExp
     }
 
     if (pQInfo->over == 1) {
+      vnodeAddRefCount(pQInfo);  // for retrieve procedure
       return pQInfo;
     }
 
@@ -669,15 +687,20 @@ void *vnodeQueryInTimeRange(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyExp
     schedMsg.fp = vnodeQueryData;
   }
 
-  // set in query flag
-  pQInfo->signature = TSDB_QINFO_QUERY_FLAG;
-
+  /*
+   * The reference count, which is 2, is for both the current query thread and the future retrieve request,
+   * which will always be issued by client to acquire data or free SQInfo struct.
+   */
+  vnodeAddRefCount(pQInfo);
+  vnodeAddRefCount(pQInfo);
+  
   schedMsg.msg = NULL;
   schedMsg.thandle = (void *)1;
   schedMsg.ahandle = pQInfo;
 
-  dTrace("QInfo:%p set query flag and prepare runtime environment completed, wait for schedule", pQInfo);
-
+  dTrace("QInfo:%p set query flag and prepare runtime environment completed, ref:%d, wait for schedule", pQInfo,
+      pQInfo->refCount);
+  
   taosScheduleTask(queryQhandle, &schedMsg);
   return pQInfo;
 
@@ -777,12 +800,13 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     goto _error;
   }
 
+  vnodeAddRefCount(pQInfo);
   if (pQInfo->over == 1) {
     return pQInfo;
   }
 
-  pQInfo->signature = TSDB_QINFO_QUERY_FLAG;
-
+  vnodeAddRefCount(pQInfo);
+  
   schedMsg.msg = NULL;
   schedMsg.thandle = (void *)1;
   schedMsg.ahandle = pQInfo;
@@ -824,11 +848,11 @@ int vnodeRetrieveQueryInfo(void *handle, int *numOfRows, int *rowSize, int16_t *
   }
 
   if (pQInfo->killed) {
-    dTrace("QInfo:%p it is already killed, %p, code:%d", pQInfo, pQuery, pQInfo->code);
+    dTrace("QInfo:%p query is killed, %p, code:%d", pQInfo, pQuery, pQInfo->code);
     if (pQInfo->code == TSDB_CODE_SUCCESS) {
       return TSDB_CODE_QUERY_CANCELLED;
     } else { // in case of not TSDB_CODE_SUCCESS, return the code to client
-      return pQInfo->code;
+      return abs(pQInfo->code);
     }
   }
 
@@ -837,8 +861,13 @@ int vnodeRetrieveQueryInfo(void *handle, int *numOfRows, int *rowSize, int16_t *
   *rowSize = pQuery->rowSize;
 
   *timePrec = vnodeList[pQInfo->pObj->vnode].cfg.precision;
-
-  if (pQInfo->code < 0) return -pQInfo->code;
+  
+  dTrace("QInfo:%p, retrieve data info completed, precision:%d, rowsize:%d, rows:%d, code:%d", pQInfo, *timePrec,
+      *rowSize, *numOfRows, pQInfo->code);
+  
+  if (pQInfo->code < 0) {  // less than 0 means there are error existed.
+    return -pQInfo->code;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -857,21 +886,19 @@ int vnodeSaveQueryResult(void *handle, char *data, int32_t *size) {
          pQInfo->pointsRead);
 
   if (pQInfo->over == 0) {
-    //dTrace("QInfo:%p set query flag, oldSig:%p, func:%s", pQInfo, pQInfo->signature, __FUNCTION__);
-    dTrace("QInfo:%p set query flag, oldSig:%p", pQInfo, pQInfo->signature);
-    uint64_t oldSignature = TSDB_QINFO_SET_QUERY_FLAG(pQInfo);
+    #ifdef _TD_ARM_
+      dTrace("QInfo:%p set query flag, sig:%" PRIu64 ", func:vnodeSaveQueryResult", pQInfo, pQInfo->signature);
+    #else
+      dTrace("QInfo:%p set query flag, sig:%" PRIu64 ", func:%s", pQInfo, pQInfo->signature, __FUNCTION__);
+    #endif
 
-    /*
-     * If SQInfo has been released, the value of signature cannot be equalled to the address of pQInfo,
-     * since in release function, the original value has been destroyed. However, this memory area may be reused
-     * by another function. It may be 0 or any value, but it is rarely still be equalled to the address of SQInfo.
-     */
-    if (oldSignature == 0 || oldSignature != (uint64_t)pQInfo) {
-      dTrace("%p freed or killed, old sig:%p abort query", pQInfo, oldSignature);
+    if (pQInfo->killed == 1) {
+      dTrace("%p freed or killed, abort query", pQInfo);
     } else {
+      vnodeAddRefCount(pQInfo);
       dTrace("%p add query into task queue for schedule", pQInfo);
-
-      SSchedMsg schedMsg;
+      
+      SSchedMsg schedMsg = {0};
 
       if (pQInfo->pMeterQuerySupporter != NULL) {
         if (pQInfo->pMeterQuerySupporter->pSidSet == NULL) {
@@ -998,8 +1025,9 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
 
       if (pDestFilterInfo->filterOnBinary) {
         pDestFilterInfo->len = htobe64(pFilterInfo->len);
-        pDestFilterInfo->pz = calloc(1, pDestFilterInfo->len + 1);
-        memcpy(pDestFilterInfo->pz, pMsg, pDestFilterInfo->len + 1);
+
+        pDestFilterInfo->pz = (int64_t)calloc(1, pDestFilterInfo->len + 1);
+        memcpy((void*)pDestFilterInfo->pz, pMsg, pDestFilterInfo->len + 1);
         pMsg += (pDestFilterInfo->len + 1);
       } else {
         pDestFilterInfo->lowerBndi = htobe64(pFilterInfo->lowerBndi);
@@ -1017,8 +1045,7 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
    * 1. simple projection query on meters, we only record the pSqlFuncExprs[i].colIdx value
    * 2. for complex queries, whole SqlExprs object is required.
    */
-  pQueryMsg->pSqlFuncExprs = malloc(POINTER_BYTES * pQueryMsg->numOfOutputCols);
-
+  pQueryMsg->pSqlFuncExprs = (int64_t)malloc(POINTER_BYTES * pQueryMsg->numOfOutputCols);
   SSqlFuncExprMsg *pExprMsg = (SSqlFuncExprMsg *)pMsg;
 
   for (int32_t i = 0; i < pQueryMsg->numOfOutputCols; ++i) {
@@ -1065,7 +1092,7 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
   pQueryMsg->colNameLen = htonl(pQueryMsg->colNameLen);
   if (hasArithmeticFunction) {  // column name array
     assert(pQueryMsg->colNameLen > 0);
-    pQueryMsg->colNameList = pMsg;
+    pQueryMsg->colNameList = (int64_t)pMsg;
     pMsg += pQueryMsg->colNameLen;
   }
 
@@ -1074,10 +1101,12 @@ int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQueryMsg) {
 
   pSids[0] = (SMeterSidExtInfo *)pMsg;
   pSids[0]->sid = htonl(pSids[0]->sid);
-
+  pSids[0]->uid = htobe64(pSids[0]->uid);
+  
   for (int32_t j = 1; j < pQueryMsg->numOfSids; ++j) {
     pSids[j] = (SMeterSidExtInfo *)((char *)pSids[j - 1] + sizeof(SMeterSidExtInfo) + pQueryMsg->tagLength);
     pSids[j]->sid = htonl(pSids[j]->sid);
+    pSids[j]->uid = htobe64(pSids[j]->uid);
   }
 
   pMsg = (char *)pSids[pQueryMsg->numOfSids - 1];

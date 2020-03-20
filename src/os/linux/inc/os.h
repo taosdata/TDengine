@@ -23,6 +23,10 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifndef _ALPINE
+  #include <error.h>
+#endif
+
 #include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>
@@ -71,13 +75,14 @@ extern "C" {
 #include <wchar.h>
 #include <wordexp.h>
 #include <wctype.h>
+#include <inttypes.h>
 
 
 #define taosCloseSocket(x) \
   {                        \
     if (FD_VALID(x)) {     \
       close(x);            \
-      x = -1;              \
+      x = FD_INITIALIZER;  \
     }                      \
   }
   
@@ -227,9 +232,22 @@ void taosSetCoreDump();
 
 void taosBlockSIGPIPE();
 
+#ifdef _ALPINE
+  typedef int(*__compar_fn_t)(const void *, const void *);
+  void  error (int, int, const char *);
+  #ifndef PTHREAD_MUTEX_RECURSIVE_NP
+    #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
+  #endif
+#endif
+
+#ifndef _TD_ARM_32_
 #define BUILDIN_CLZL(val) __builtin_clzl(val)
-#define BUILDIN_CLZ(val) __builtin_clz(val)
 #define BUILDIN_CTZL(val) __builtin_ctzl(val)
+#else
+#define BUILDIN_CLZL(val) __builtin_clzll(val)
+#define BUILDIN_CTZL(val) __builtin_ctzll(val)
+#endif
+#define BUILDIN_CLZ(val) __builtin_clz(val)
 #define BUILDIN_CTZ(val) __builtin_ctz(val)
 
 #ifdef __cplusplus

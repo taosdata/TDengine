@@ -27,7 +27,7 @@
 #include "tsqlfunction.h"
 #include "ttime.h"
 #include "vnodeTagMgmt.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 extern int64_t sdbVersion;
 
@@ -418,8 +418,8 @@ void *mgmtMeterActionAfterBatchUpdate(void *row, char *str, int size, int *ssize
 }
 
 void *mgmtMeterAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtMeterActionFp[action] != NULL) {
-    return (*(mgmtMeterActionFp[action]))(row, str, size, ssize);
+  if (mgmtMeterActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtMeterActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }
@@ -981,10 +981,32 @@ SSchema *mgmtGetMeterSchema(STabObj *pMeter) {
   return (SSchema *)pMetric->schema;
 }
 
+static int32_t mgmtSerializeTagValue(char* pMsg, STabObj* pMeter, int16_t* tagsId, int32_t numOfTags) {
+  int32_t offset = 0;
+  
+  for (int32_t j = 0; j < numOfTags; ++j) {
+    if (tagsId[j] == TSDB_TBNAME_COLUMN_INDEX) {  // handle the table name tags
+      char name[TSDB_METER_NAME_LEN] = {0};
+      extractTableName(pMeter->meterId, name);
+      
+      memcpy(pMsg + offset, name, TSDB_METER_NAME_LEN);
+      offset += TSDB_METER_NAME_LEN;
+    } else {
+      SSchema s = {0};
+      char *  tag = mgmtMeterGetTag(pMeter, tagsId[j], &s);
+      
+      memcpy(pMsg + offset, tag, (size_t)s.bytes);
+      offset += s.bytes;
+    }
+  }
+  
+  return offset;
+}
+
 /*
  * serialize SVnodeSidList to byte array
  */
-static char *mgmtBuildMetricMetaMsg(STabObj *pMeter, int32_t *ovgId, SVnodeSidList **pList, SMetricMeta *pMeta,
+static char *mgmtBuildMetricMetaMsg(SConnObj *pConn, STabObj *pMeter, int32_t *ovgId, SVnodeSidList **pList, SMetricMeta *pMeta,
                                     int32_t tagLen, int16_t numOfTags, int16_t *tagsId, int32_t maxNumOfMeters,
                                     char *pMsg) {
   if (pMeter->gid.vgId != *ovgId || ((*pList) != NULL && (*pList)->numOfSids >= maxNumOfMeters)) {
@@ -993,7 +1015,6 @@ static char *mgmtBuildMetricMetaMsg(STabObj *pMeter, int32_t *ovgId, SVnodeSidLi
      * 1. the query msg may be larger than 64k,
      * 2. the following meters belong to different vnodes
      */
-
     (*pList) = (SVnodeSidList *)pMsg;
     (*pList)->numOfSids = 0;
     (*pList)->index = 0;
@@ -1001,8 +1022,13 @@ static char *mgmtBuildMetricMetaMsg(STabObj *pMeter, int32_t *ovgId, SVnodeSidLi
 
     SVgObj *pVgroup = mgmtGetVgroup(pMeter->gid.vgId);
     for (int i = 0; i < TSDB_VNODES_SUPPORT; ++i) {
-      (*pList)->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
-      (*pList)->vpeerDesc[i].vnode = pVgroup->vnodeGid[i].vnode;
+      if (pConn->usePublicIp) {
+        (*pList)->vpeerDesc[i].ip = pVgroup->vnodeGid[i].publicIp;
+        (*pList)->vpeerDesc[i].vnode = pVgroup->vnodeGid[i].vnode;
+      } else {
+        (*pList)->vpeerDesc[i].ip = pVgroup->vnodeGid[i].ip;
+        (*pList)->vpeerDesc[i].vnode = pVgroup->vnodeGid[i].vnode;
+      }
     }
 
     pMsg += sizeof(SVnodeSidList);
@@ -1012,29 +1038,15 @@ static char *mgmtBuildMetricMetaMsg(STabObj *pMeter, int32_t *ovgId, SVnodeSidLi
   (*pList)->numOfSids++;
 
   SMeterSidExtInfo *pSMeterTagInfo = (SMeterSidExtInfo *)pMsg;
-  pSMeterTagInfo->sid = pMeter->gid.sid;
+  pSMeterTagInfo->sid = htonl(pMeter->gid.sid);
+  pSMeterTagInfo->uid = htobe64(pMeter->uid);
+  
   pMsg += sizeof(SMeterSidExtInfo);
 
-  int32_t offset = 0;
-  for (int32_t j = 0; j < numOfTags; ++j) {
-    if (tagsId[j] == -1) {
-      char name[TSDB_METER_NAME_LEN] = {0};
-      extractMeterName(pMeter->meterId, name);
-
-      memcpy(pMsg + offset, name, TSDB_METER_NAME_LEN);
-      offset += TSDB_METER_NAME_LEN;
-    } else {
-      SSchema s = {0};
-      char *  tag = mgmtMeterGetTag(pMeter, tagsId[j], &s);
-
-      memcpy(pMsg + offset, tag, (size_t)s.bytes);
-      offset += s.bytes;
-    }
-  }
-
-  pMsg += offset;
+  int32_t offset = mgmtSerializeTagValue(pMsg, pMeter, tagsId, numOfTags);
   assert(offset == tagLen);
-
+  
+  pMsg += offset;
   return pMsg;
 }
 
@@ -1091,18 +1103,21 @@ static SMetricMetaElemMsg *doConvertMetricMetaMsg(SMetricMetaMsg *pMetricMetaMsg
 
   pElem->groupbyTagColumnList = htonl(pElem->groupbyTagColumnList);
 
-  int16_t *groupColIds = (int16_t*) (((char *)pMetricMetaMsg) + pElem->groupbyTagColumnList);
+  SColIndexEx *groupColIds = (SColIndexEx*) (((char *)pMetricMetaMsg) + pElem->groupbyTagColumnList);
   for (int32_t i = 0; i < pElem->numOfGroupCols; ++i) {
-    groupColIds[i] = htons(groupColIds[i]);
+    groupColIds[i].colId = htons(groupColIds[i].colId);
+    groupColIds[i].colIdx = htons(groupColIds[i].colIdx);
+    groupColIds[i].flag = htons(groupColIds[i].flag);
+    groupColIds[i].colIdxInBuf = 0;
   }
 
   return pElem;
 }
 
-static int32_t mgmtBuildMetricMetaRspMsg(void *thandle, SMetricMetaMsg *pMetricMetaMsg, tQueryResultset *pResult,
+static int32_t mgmtBuildMetricMetaRspMsg(SConnObj *pConn, SMetricMetaMsg *pMetricMetaMsg, tQueryResultset *pResult,
                                          char **pStart, int32_t *tagLen, int32_t rspMsgSize, int32_t maxTablePerVnode,
                                          int32_t code) {
-  *pStart = taosBuildRspMsgWithSize(thandle, TSDB_MSG_TYPE_METRIC_META_RSP, rspMsgSize);
+  *pStart = taosBuildRspMsgWithSize(pConn->thandle, TSDB_MSG_TYPE_METRIC_META_RSP, rspMsgSize);
   if (*pStart == NULL) {
     return 0;
   }
@@ -1140,7 +1155,7 @@ static int32_t mgmtBuildMetricMetaRspMsg(void *thandle, SMetricMetaMsg *pMetricM
 
     for (int32_t i = 0; i < pResult[j].num; ++i) {
       STabObj *pMeter = pResult[j].pRes[i];
-      pMsg = mgmtBuildMetricMetaMsg(pMeter, &ovgId, &pList, pMeta, tagLen[j], pElem->numOfTags, pElem->tagCols,
+      pMsg = mgmtBuildMetricMetaMsg(pConn, pMeter, &ovgId, &pList, pMeta, tagLen[j], pElem->numOfTags, pElem->tagCols,
                                     maxTablePerVnode, pMsg);
     }
 
@@ -1156,7 +1171,7 @@ static int32_t mgmtBuildMetricMetaRspMsg(void *thandle, SMetricMetaMsg *pMetricM
   return msgLen;
 }
 
-int mgmtRetrieveMetricMeta(void *thandle, char **pStart, SMetricMetaMsg *pMetricMetaMsg) {
+int mgmtRetrieveMetricMeta(SConnObj *pConn, char **pStart, SMetricMetaMsg *pMetricMetaMsg) {
   /*
    * naive method: Do not limit the maximum number of meters in each
    * vnode(subquery), split the result according to vnodes
@@ -1203,12 +1218,9 @@ int mgmtRetrieveMetricMeta(void *thandle, char **pStart, SMetricMetaMsg *pMetric
 #endif
 
   if (ret == TSDB_CODE_SUCCESS) {
+    // todo opt performance
     for (int32_t i = 0; i < pMetricMetaMsg->numOfMeters; ++i) {
       ret = mgmtRetrieveMetersFromMetric(pMetricMetaMsg, i, &result[i]);
-      // todo opt performance
-      //      if (result[i].num <= 0) {//no result
-      //      } else if (result[i].num < 10) {
-      //      }
     }
   }
 
@@ -1230,8 +1242,7 @@ int mgmtRetrieveMetricMeta(void *thandle, char **pStart, SMetricMetaMsg *pMetric
     msgLen = 512;
   }
 
-  msgLen = mgmtBuildMetricMetaRspMsg(thandle, pMetricMetaMsg, result, pStart, tagLen, msgLen, maxMetersPerVNodeForQuery,
-                                     ret);
+  msgLen = mgmtBuildMetricMetaRspMsg(pConn, pMetricMetaMsg, result, pStart, tagLen, msgLen, maxMetersPerVNodeForQuery, ret);
 
   for (int32_t i = 0; i < pMetricMetaMsg->numOfMeters; ++i) {
     tQueryResultClean(&result[i]);
@@ -1282,7 +1293,7 @@ int mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
     memset(meterName, 0, tListLen(meterName));
 
     // pattern compare for meter name
-    extractMeterName(pMeter->meterId, meterName);
+    extractTableName(pMeter->meterId, meterName);
 
     if (pShow->payloadLen > 0 &&
         patternMatch(pShow->payload, meterName, TSDB_METER_NAME_LEN, &info) != TSDB_PATTERN_MATCH)
@@ -1304,7 +1315,7 @@ int mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (pMeter->pTagData) {
-      extractMeterName(pMeter->pTagData, pWrite);
+      extractTableName(pMeter->pTagData, pWrite);
     }
     cols++;
 
@@ -1398,7 +1409,7 @@ int mgmtRetrieveMetrics(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
     pShow->pNode = (void *)pMetric->next;
 
     memset(metricName, 0, tListLen(metricName));
-    extractMeterName(pMetric->meterId, metricName);
+    extractTableName(pMetric->meterId, metricName);
 
     if (pShow->payloadLen > 0 &&
         patternMatch(pShow->payload, metricName, TSDB_METER_NAME_LEN, &info) != TSDB_PATTERN_MATCH)
@@ -1407,7 +1418,7 @@ int mgmtRetrieveMetrics(SShowObj *pShow, char *data, int rows, SConnObj *pConn) 
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    extractMeterName(pMetric->meterId, pWrite);
+    extractTableName(pMetric->meterId, pWrite);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

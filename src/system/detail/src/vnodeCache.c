@@ -20,7 +20,7 @@
 #include "vnode.h"
 #include "vnodeCache.h"
 #include "vnodeUtil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 void vnodeSearchPointInCache(SMeterObj *pObj, SQuery *pQuery);
 void vnodeProcessCommitTimer(void *param, void *tmrId);

@@ -26,7 +26,7 @@
 #include "vnodeMgmt.h"
 #include "vnodeSystem.h"
 #include "vnodeUtil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 SMgmtObj mgmtObj;
 extern uint64_t tsCreatedTime;

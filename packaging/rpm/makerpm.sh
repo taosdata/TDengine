@@ -9,9 +9,13 @@
 compile_dir=$1
 output_dir=$2
 tdengine_ver=$3
+cpuType=$4
+osType=$5
+verMode=$6
+verType=$7
 
 script_dir="$(dirname $(readlink -f $0))"
-top_dir="$(readlink -m ${script_dir}/../..)"
+top_dir="$(readlink -f ${script_dir}/../..)"
 pkg_dir="${top_dir}/rpmworkroom"
 spec_file="${script_dir}/tdengine.spec"
 
@@ -54,9 +58,30 @@ ${csudo} mkdir -p BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
 
 ${csudo} rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" -bb ${spec_file}
 
-# copy rpm package to output_dir, then clean temp dir
+# copy rpm package to output_dir, and modify package name, then clean temp dir
 #${csudo} cp -rf RPMS/* ${output_dir}
 cp_rpm_package ${pkg_dir}/RPMS 
+
+
+if [ "$verMode" == "cluster" ]; then
+  rpmname="TDengine-server-"${tdengine_ver}-${osType}-${cpuType}
+elif [ "$verMode" == "lite" ]; then
+  rpmname="TDengine-server"-${tdengine_ver}-${osType}-${cpuType}
+else
+  echo "unknow verMode, nor cluster or lite"
+  exit 1
+fi
+
+if [ "$verType" == "beta" ]; then
+  rpmname=${rpmname}-${verType}".rpm"
+elif [ "$verType" == "stable" ]; then 
+  rpmname=${rpmname}".rpm"
+else
+  echo "unknow verType, nor stabel or beta"
+  exit 1
+fi
+
+mv ${output_dir}/TDengine-${tdengine_ver}.rpm ${output_dir}/${rpmname}
 
 cd ..
 ${csudo} rm -rf ${pkg_dir}

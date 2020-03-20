@@ -50,7 +50,7 @@ bool isNull(const char *val, int32_t type);
 void setNull(char *val, int32_t type, int32_t bytes);
 void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
 
-void assignVal(char *val, char *src, int32_t len, int32_t type);
+void assignVal(char *val, const char *src, int32_t len, int32_t type);
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
 // variant, each number/string/field_id has a corresponding struct during parsing sql

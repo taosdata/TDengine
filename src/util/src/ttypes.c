@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include "os.h"
 #include "taos.h"
 #include "tsdb.h"
@@ -140,7 +139,7 @@ void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t t
     }
     case TSDB_DATA_TYPE_NCHAR: { // here we get the nchar length from raw binary bits length
       pVar->nLen = len / TSDB_NCHAR_SIZE;
-      pVar->wpz = malloc((pVar->nLen + 1) * TSDB_NCHAR_SIZE);
+      pVar->wpz = calloc(1, (pVar->nLen + 1) * TSDB_NCHAR_SIZE);
 
       wcsncpy(pVar->wpz, (wchar_t *)pz, pVar->nLen);
       pVar->wpz[pVar->nLen] = 0;
@@ -164,10 +163,9 @@ void tVariantCreateFromBinary(tVariant *pVar, char *pz, uint32_t len, uint32_t t
 void tVariantDestroy(tVariant *pVar) {
   if (pVar == NULL) return;
 
-  if ((pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) && pVar->nLen > 0) {
+  if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
     free(pVar->pz);
     pVar->pz = NULL;
-    pVar->nLen = 0;
   }
 }
 
@@ -213,7 +211,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
       return sprintf(dst, "%d", (int32_t)pVar->i64Key);
 
     case TSDB_DATA_TYPE_BIGINT:
-      return sprintf(dst, "%lld", pVar->i64Key);
+      return sprintf(dst, "%" PRId64, pVar->i64Key);
 
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
@@ -224,6 +222,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
   }
 }
 
+#if 0
 static int32_t doConvertToInteger(tVariant *pVariant, char *pDest, int32_t type, bool releaseVariantPtr) {
   if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
     setNull(pDest, type, tDataTypeDesc[type].nSize);
@@ -337,7 +336,7 @@ static int32_t doConvertToInteger(tVariant *pVariant, char *pDest, int32_t type,
 
   return 0;
 }
-
+#endif
 static FORCE_INLINE int32_t convertToBoolImpl(char *pStr, int32_t len) {
   if ((strncasecmp(pStr, "true", len) == 0) && (len == 4)) {
     return TSDB_TRUE;
@@ -386,7 +385,7 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
 
   } else {
     if (pVariant->nType >= TSDB_DATA_TYPE_TINYINT && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-      sprintf(pBuf == NULL ? *pDest : pBuf, "%lld", pVariant->i64Key);
+      sprintf(pBuf == NULL ? *pDest : pBuf, "%" PRId64, pVariant->i64Key);
     } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
       sprintf(pBuf == NULL ? *pDest : pBuf, "%lf", pVariant->dKey);
     } else if (pVariant->nType == TSDB_DATA_TYPE_BOOL) {
@@ -411,7 +410,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   int32_t nLen = 0;
 
   if (pVariant->nType >= TSDB_DATA_TYPE_TINYINT && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
-    nLen = sprintf(pDst, "%lld", pVariant->i64Key);
+    nLen = sprintf(pDst, "%" PRId64, pVariant->i64Key);
   } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
     nLen = sprintf(pDst, "%lf", pVariant->dKey);
   } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
@@ -437,7 +436,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
     char* tmp = realloc(pVariant->wpz, (*pDestSize + 1)*TSDB_NCHAR_SIZE);
     assert(tmp != NULL);
 
-    pVariant->wpz = tmp;
+    pVariant->wpz = (wchar_t *)tmp;
   } else {
     taosMbsToUcs4(pDst, nLen, *pDest, (nLen + 1) * TSDB_NCHAR_SIZE);
   }
@@ -970,7 +969,7 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
   }
 }
 
-void assignVal(char *val, char *src, int32_t len, int32_t type) {
+void assignVal(char *val, const char *src, int32_t len, int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
       *((int32_t *)val) = GET_INT32_VAL(src);
@@ -996,6 +995,14 @@ void assignVal(char *val, char *src, int32_t len, int32_t type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
       *((int8_t *)val) = GET_INT8_VAL(src);
+      break;
+    };
+    case TSDB_DATA_TYPE_BINARY: {
+      strncpy(val, src, len);
+      break;
+    };
+    case TSDB_DATA_TYPE_NCHAR: {
+      wcsncpy((wchar_t*)val, (wchar_t*)src, len / TSDB_NCHAR_SIZE);
       break;
     };
     default: {

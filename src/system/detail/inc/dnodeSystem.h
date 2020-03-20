@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <pthread.h>
 
 #define tsetModuleStatus(mod) \
   { tsModuleStatus |= (1 << mod); }

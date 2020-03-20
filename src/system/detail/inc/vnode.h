@@ -64,15 +64,6 @@ enum _sync_cmd {
   TSDB_SYNC_CMD_REMOVE,
 };
 
-enum _meter_state {
-  TSDB_METER_STATE_READY       = 0x00,
-  TSDB_METER_STATE_INSERT      = 0x01,
-  TSDB_METER_STATE_IMPORTING   = 0x02,
-  TSDB_METER_STATE_UPDATING    = 0x04,
-  TSDB_METER_STATE_DELETING    = 0x10,
-  TSDB_METER_STATE_DELETED     = 0x18,
-};
-
 typedef struct {
   int64_t offset : 48;
   int64_t length : 16;
@@ -206,26 +197,6 @@ typedef struct {
   char     cont[];
 } SVMsgHeader;
 
-/*
- * The value of QInfo.signature is used to denote that a query is executing, it isn't safe to release QInfo yet.
- * The release operations will be blocked in a busy-waiting until the query operation reach a safepoint.
- * Then it will reset the signature in a atomic operation, followed by release operation.
- * Only the QInfo.signature == QInfo, this structure can be released safely.
- */
-#define TSDB_QINFO_QUERY_FLAG 0x1
-#define TSDB_QINFO_RESET_SIG(x) atomic_store_64(&((x)->signature), (uint64_t)(x))
-#define TSDB_QINFO_SET_QUERY_FLAG(x) \
-  atomic_val_compare_exchange_64(&((x)->signature), (uint64_t)(x), TSDB_QINFO_QUERY_FLAG);
-
-// live lock: wait for query reaching a safe-point, release all resources
-// belongs to this query
-#define TSDB_WAIT_TO_SAFE_DROP_QINFO(x)                                                       \
-  {                                                                                           \
-    while (atomic_val_compare_exchange_64(&((x)->signature), (x), 0) == TSDB_QINFO_QUERY_FLAG) { \
-      taosMsleep(1);                                                                          \
-    }                                                                                         \
-  }
-
 struct tSQLBinaryExpr;
 
 typedef struct SColumnInfoEx {
@@ -287,9 +258,7 @@ typedef struct SQuery {
   int16_t     checkBufferInLoop;  // check if the buffer is full during scan each block
   SLimitVal   limit;
   int32_t     rowSize;
-  int32_t     dataRowSize;  // row size of each loaded data from disk, the value is
 
-  // used for prepare buffer
   SSqlGroupbyExpr *        pGroupbyExpr;
   SSqlFunctionExpr *       pSelectExpr;
   SColumnInfoEx *          colList;
@@ -337,7 +306,7 @@ extern void *     vnodeTmrCtrl;
 // read API
 extern int (*vnodeSearchKeyFunc[])(char *pValue, int num, TSKEY key, int order);
 
-void *vnodeQueryInTimeRange(SMeterObj **pMeterObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *sqlExprs,
+void *vnodeQueryOnSingleTable(SMeterObj **pMeterObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *sqlExprs,
                             SQueryMeterMsg *pQueryMsg, int *code);
 
 void *vnodeQueryOnMultiMeters(SMeterObj **pMeterObj, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pSqlExprs,
@@ -370,6 +339,8 @@ void vnodeFreeQInfo(void *, bool);
 void vnodeFreeQInfoInQueue(void *param);
 
 bool vnodeIsQInfoValid(void *param);
+void vnodeDecRefCount(void *param);
+void vnodeAddRefCount(void *param);
 
 int32_t vnodeConvertQueryMeterMsg(SQueryMeterMsg *pQuery);
 

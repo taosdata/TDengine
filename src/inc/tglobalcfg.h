@@ -74,13 +74,13 @@ extern int tsMetricMetaKeepTimer;
 extern float tsNumOfThreadsPerCore;
 extern float tsRatioOfQueryThreads;
 extern char  tsPublicIp[];
-extern char  tsInternalIp[];
 extern char  tsPrivateIp[];
-extern char  tsServerIpStr[];
 extern short tsNumOfVnodesPerCore;
 extern short tsNumOfTotalVnodes;
 extern short tsCheckHeaderFile;
 extern uint32_t tsServerIp;
+extern uint32_t tsPublicIpInt;
+extern short tsAffectedRowsMod;
 
 extern int tsSessionsPerVnode;
 extern int tsAverageCacheBlocks;
@@ -106,7 +106,6 @@ extern int  tsMaxDbs;
 extern int  tsMaxTables;
 extern int  tsMaxDnodes;
 extern int  tsMaxVGroups;
-extern int  tsShellActivityTimer;
 extern char tsMgmtZone[];
 
 extern char tsLocalIp[];
@@ -127,6 +126,7 @@ extern int tsEnableHttpModule;
 extern int tsEnableMonitorModule;
 extern int tsRestRowLimit;
 extern int tsCompressMsgSize;
+extern int tsMaxSQLStringLen;
 
 extern char tsSocketType[4];
 
@@ -148,9 +148,10 @@ extern int   tsHttpMaxThreads;
 extern int   tsHttpEnableCompress;
 extern int   tsHttpEnableRecordSql;
 extern int   tsTelegrafUseFieldNum;
-extern int   tsAdminRowLimit;
 
 extern int   tsTscEnableRecordSql;
+extern int   tsAnyIp;
+extern int   tsIsCluster;
 
 extern char tsMonitorDbName[];
 extern char tsInternalPass[];

@@ -20,7 +20,7 @@
 #include "mgmtBalance.h"
 #include "mgmtUtil.h"
 #include "tschemautil.h"
-#include "tstatus.h"
+#include "vnodeStatus.h"
 
 void *dbSdb = NULL;
 int   tsDbUpdateSize;
@@ -54,8 +54,8 @@ void mgmtDbActionInit() {
 }
 
 void *mgmtDbAction(char action, void *row, char *str, int size, int *ssize) {
-  if (mgmtDbActionFp[action] != NULL) {
-    return (*(mgmtDbActionFp[action]))(row, str, size, ssize);
+  if (mgmtDbActionFp[(uint8_t)action] != NULL) {
+    return (*(mgmtDbActionFp[(uint8_t)action]))(row, str, size, ssize);
   }
   return NULL;
 }
@@ -664,6 +664,21 @@ int mgmtRetrieveDbs(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
   char *  pWrite;
   int     cols = 0;
 
+  void* pNext = pShow->pNode;
+  while (numOfRows < rows) {
+    pDb = (SDbObj *)pNext;
+    if (pDb == NULL) break;
+    pNext = (void *)pDb->next;
+    if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+      if (strcmp(pConn->pUser->user, "root") != 0 && strcmp(pConn->pUser->user, "_root") != 0 && strcmp(pConn->pUser->user, "monitor") != 0 ) {
+        rows--;
+        break;
+      }
+    }
+    numOfRows++;
+  }
+  
+  numOfRows = 0;
   while (numOfRows < rows) {
     pDb = (SDbObj *)pShow->pNode;
     if (pDb == NULL) break;

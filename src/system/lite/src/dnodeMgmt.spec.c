@@ -50,7 +50,7 @@ char *taosBuildReqMsgToMnode(SMgmtObj *pObj, char type) {
 }
 
 int taosSendMsgToMnode(SMgmtObj *pObj, char *msg, int msgLen) {
-  dTrace("msg:%s is sent to mnode", taosMsg[*(msg-1)]);
+  dTrace("msg:%s is sent to mnode", taosMsg[(uint8_t)(*(msg-1))]);
 
   /*
    * Lite version has no message header, so minus one
@@ -81,7 +81,7 @@ void vnodeProcessMsgFromMgmtSpec(SSchedMsg *sched) {
   char  msgType = *sched->msg;
   char *content = sched->msg + 1;
 
-  dTrace("msg:%s is received from mgmt", taosMsg[msgType]);
+  dTrace("msg:%s is received from mgmt", taosMsg[(uint8_t)msgType]);
 
   vnodeProcessMsgFromMgmt(content, 0, msgType, 0);
 

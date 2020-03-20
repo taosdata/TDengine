@@ -94,7 +94,7 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
   int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
-  for (int i = 0; i < numOfRows; ++i) {
+  for (int k = 0; k < numOfRows; ++k) {
     TAOS_ROW row = taos_fetch_row(result);
 
     // data row array begin

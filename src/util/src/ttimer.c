@@ -14,7 +14,6 @@
  */
 
 #include "os.h"
-#include <inttypes.h>
 #include "tlog.h"
 #include "tsched.h"
 #include "ttime.h"
@@ -254,13 +253,13 @@ static void processExpiredTimer(void* handle, void* arg) {
   timer->executedBy = taosGetPthreadId();
   uint8_t state = atomic_val_compare_exchange_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_EXPIRED);
   if (state == TIMER_STATE_WAITING) {
-    const char* fmt = "%s timer[id=" PRIuPTR ", fp=%p, param=%p] execution start.";
+    const char* fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] execution start.";
     tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
 
     (*timer->fp)(timer->param, (tmr_h)timer->id);
     atomic_store_8(&timer->state, TIMER_STATE_STOPPED);
 
-    fmt = "%s timer[id=" PRIuPTR ", fp=%p, param=%p] execution end.";
+    fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] execution end.";
     tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
   }
   removeTimer(timer->id);
@@ -268,7 +267,7 @@ static void processExpiredTimer(void* handle, void* arg) {
 }
 
 static void addToExpired(tmr_obj_t* head) {
-  const char* fmt = "%s adding expired timer[id=" PRIuPTR ", fp=%p, param=%p] to queue.";
+  const char* fmt = "%s adding expired timer[id=%" PRIuPTR ", fp=%p, param=%p] to queue.";
 
   while (head != NULL) {
     uintptr_t id = head->id;
@@ -282,7 +281,7 @@ static void addToExpired(tmr_obj_t* head) {
     schedMsg.thandle = NULL;
     taosScheduleTask(tmrQhandle, &schedMsg);
 
-    tmrTrace("timer[id=" PRIuPTR "] has been added to queue.", id);
+    tmrTrace("timer[id=%" PRIuPTR "] has been added to queue.", id);
     head = next;
   }
 }
@@ -296,7 +295,7 @@ static uintptr_t doStartTimer(tmr_obj_t* timer, TAOS_TMR_CALLBACK fp, int msecon
   timer->ctrl = ctrl;
   addTimer(timer);
 
-  const char* fmt = "%s timer[id=" PRIuPTR ", fp=%p, param=%p] started";
+  const char* fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] started";
   tmrTrace(fmt, ctrl->label, timer->id, timer->fp, timer->param);
 
   if (mseconds == 0) {
@@ -389,7 +388,7 @@ static bool doStopTimer(tmr_obj_t* timer, uint8_t state) {
       // we cannot guarantee the thread safety of the timr in all other cases.
       reusable = true;
     }
-    const char* fmt = "%s timer[id=" PRIuPTR ", fp=%p, param=%p] is cancelled.";
+    const char* fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] is cancelled.";
     tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
     return reusable;
   }
@@ -409,7 +408,7 @@ static bool doStopTimer(tmr_obj_t* timer, uint8_t state) {
   // timer callback is executing in another thread, we SHOULD wait it to stop,
   // BUT this may result in dead lock if current thread are holding a lock which
   // the timer callback need to acquire. so, we HAVE TO return directly.
-  const char* fmt = "%s timer[id=" PRIuPTR ", fp=%p, param=%p] is executing and cannot be stopped.";
+  const char* fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] is executing and cannot be stopped.";
   tmrTrace(fmt, timer->ctrl->label, timer->id, timer->fp, timer->param);
   return false;
 }
@@ -419,7 +418,7 @@ bool taosTmrStop(tmr_h timerId) {
 
   tmr_obj_t* timer = findTimer(id);
   if (timer == NULL) {
-    tmrTrace("timer[id=" PRIuPTR "] does not exist", id);
+    tmrTrace("timer[id=%" PRIuPTR "] does not exist", id);
     return false;
   }
 
@@ -446,7 +445,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle,
   bool       stopped = false;
   tmr_obj_t* timer = findTimer(id);
   if (timer == NULL) {
-    tmrTrace("%s timer[id=" PRIuPTR "] does not exist", ctrl->label, id);
+    tmrTrace("%s timer[id=%" PRIuPTR "] does not exist", ctrl->label, id);
   } else {
     uint8_t state = atomic_val_compare_exchange_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_CANCELED);
     if (!doStopTimer(timer, state)) {
@@ -461,7 +460,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle,
     return stopped;
   }
 
-  tmrTrace("%s timer[id=" PRIuPTR "] is reused", ctrl->label, timer->id);
+  tmrTrace("%s timer[id=%" PRIuPTR "] is reused", ctrl->label, timer->id);
 
   // wait until there's no other reference to this timer,
   // so that we can reuse this timer safely.
