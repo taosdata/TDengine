@@ -553,11 +553,14 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   pDnode->privateIp        = htonl(pStatus->privateIp);
   pDnode->publicIp         = htonl(pStatus->publicIp);
   pDnode->lastReboot       = htonl(pStatus->lastReboot);
-  pDnode->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes);
   pDnode->numOfCores       = htons(pStatus->numOfCores);
   pDnode->diskAvailable    = pStatus->diskAvailable;
   pDnode->alternativeRole  = pStatus->alternativeRole;
 
+  if (pDnode->numOfTotalVnodes == 0) {
+    pDnode->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes); 
+  }
+  
   if (pStatus->dnodeId == 0) {
     mTrace("dnode:%d, first access, privateIp:%s, name:%s, ", pDnode->dnodeId, taosIpStr(pDnode->privateIp), pDnode->dnodeName);
     mgmtSetDnodeMaxVnodes(pDnode);
