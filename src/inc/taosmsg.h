@@ -500,7 +500,7 @@ typedef struct {
 } SQueryTableMsg;
 
 typedef struct {
-  char     code;
+  int32_t  code;
   uint64_t qhandle;
 } SQueryTableRsp;
 
