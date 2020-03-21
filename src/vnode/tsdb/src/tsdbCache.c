@@ -23,6 +23,8 @@ STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize) {
   STsdbCache *pCache = (STsdbCache *)calloc(1, sizeof(STsdbCache));
   if (pCache == NULL) return NULL;
 
+  if (cacheBlockSize < 0) cacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
+
   pCache->maxBytes = maxBytes;
   pCache->cacheBlockSize = cacheBlockSize;
 
@@ -83,6 +85,7 @@ void *tsdbAllocFromCache(STsdbCache *pCache, int bytes) {
   void *ptr = (void *)(pCache->curBlock->data + pCache->curBlock->offset);
   pCache->curBlock->offset += bytes;
   pCache->curBlock->remain -= bytes;
+  memset(ptr, 0, bytes);
 
   return ptr;
 }

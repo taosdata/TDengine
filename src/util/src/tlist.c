@@ -24,7 +24,7 @@ SList *tdListNew(int eleSize) {
   list->eleSize = eleSize;
   list->numOfEles = 0;
   list->head = list->tail = NULL;
-  return NULL;
+  return list;
 }
 
 void tdListEmpty(SList *list) {
@@ -135,7 +135,7 @@ SListNode *tdListPopNode(SList *list, SListNode *node) {
   return node;
 }
 
-void tdListNodeGetData(SList *list, SListNode *node, void *target) { memcpy(node->data, target, list->eleSize); }
+void tdListNodeGetData(SList *list, SListNode *node, void *target) { memcpy(target, node->data, list->eleSize); }
 
 void tdListInitIter(SList *list, SListIter *pIter, TD_LIST_DIRECTION_T direction) {
   pIter->direction = direction;
