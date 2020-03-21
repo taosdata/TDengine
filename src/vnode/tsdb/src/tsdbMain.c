@@ -311,10 +311,9 @@ int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
   // Loop to move pData to iData
   for (int i = 0; i < pRepo->config.maxTables; i++) {
     STable *pTable = pRepo->tsdbMeta->tables[i];
-    if (pTable != NULL) {
-      void *pData = pTable->content.pData;
-      pTable->content.pData = NULL;
-      pTable->iData = pData;
+    if (pTable != NULL && pTable->mem != NULL) {
+      pTable->imem = pTable->mem;
+      pTable->mem = NULL;
     }
   }
   // Loop to move mem to imem
@@ -669,7 +668,13 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   int32_t level = 0;
   int32_t headSize = 0;
 
-  tSkipListRandNodeInfo(pTable->content.pData, &level, &headSize);
+  if (pTable->mem == NULL) {
+    pTable->mem = (SMemTable *)calloc(1, sizeof(SMemTable));
+    if (pTable->mem == NULL) return -1;
+    pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
+  }
+
+  tSkipListRandNodeInfo(pTable->mem->pData, &level, &headSize);
 
   // Copy row into the memory
   SSkipListNode *pNode = tsdbAllocFromCache(pRepo->tsdbCache, headSize + dataRowLen(row));
@@ -681,7 +686,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   dataRowCpy(SL_GET_NODE_DATA(pNode), row);
 
   // Insert the skiplist node into the data
-  tsdbInsertRowToTableImpl(pNode, pTable);
+  tSkipListPut(pTable->mem->pData, pNode);
 
   return 0;
 }
@@ -712,7 +717,7 @@ static void *tsdbCommitToFile(void *arg) {
   for (int i = 0; i < pRepo->config.maxTables; i++) {
     STable *pTable = pMeta->tables[i];
     if (pTable == NULL) continue;
-    SSkipListIterator *pIter = tSkipListCreateIter(pTable->iData);
+    SSkipListIterator *pIter = tSkipListCreateIter(pTable->imem->pData);
     while (tSkipListIterNext(pIter)) {
       SSkipListNode *node = tSkipListIterGet(pIter);
       SDataRow row = SL_GET_NODE_DATA(node);

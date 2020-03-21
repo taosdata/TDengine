@@ -40,7 +40,6 @@ TEST(TsdbTest, tableEncodeDecode) {
   ASSERT_EQ(pTable->superUid, tTable->superUid);
   ASSERT_EQ(pTable->sversion, tTable->sversion);
   ASSERT_EQ(memcmp(pTable->schema, tTable->schema, sizeof(STSchema) + sizeof(STColumn) * nCols), 0);
-  ASSERT_EQ(tTable->content.pData, nullptr);
 }
 
 TEST(TsdbTest, createRepo) {
@@ -72,7 +71,7 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &tCfg);
 
   // // 3. Loop to write some simple data
-  int nRows = 100;
+  int nRows = 1000;
   int rowsPerSubmit = 10;
   int64_t start_time = 1584081000000;
 
