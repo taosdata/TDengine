@@ -294,6 +294,16 @@ SDataRow tdDataRowDup(SDataRow row) {
   return trow;
 }
 
+void tdConvertDataRowToCol(SDataCol *cols, STSchema *pSchema, int *iter) {
+  int row = *iter;
+
+  for (int i = 0; i < schemaNCols(pSchema); i++) {
+    // TODO
+  }
+
+  *iter = row + 1;
+}
+
 /**
  * Return the first part length of a data row for a schema
  */

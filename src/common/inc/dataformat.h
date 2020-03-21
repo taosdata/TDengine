@@ -101,23 +101,13 @@ int      tdAppendColVal(SDataRow row, void *value, STColumn *pCol);
 void     tdDataRowReset(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
 
-/* Data column definition
- * +---------+---------+-----------------------+
- * | int32_t | int32_t |                       |
- * +---------+---------+-----------------------+
- * |   len   | npoints |          data         |
- * +---------+---------+-----------------------+
- */
-typedef char *SDataCol;
+// ----------------- Data column structure
+typedef struct SDataCol {
+  int64_t len;
+  char    data[];
+} SDataCol;
 
-/* Data columns definition
- * +---------+---------+-----------------------+--------+-----------------------+
- * | int32_t | int32_t |                       |        |                       |
- * +---------+---------+-----------------------+--------+-----------------------+
- * |   len   | npoints |        SDataCol       |  ....  |        SDataCol       |
- * +---------+---------+-----------------------+--------+-----------------------+
- */
-typedef char *SDataCols;
+void tdConvertDataRowToCol(SDataCol *cols, STSchema *pSchema, int *iter);
 
 #ifdef __cplusplus
 }

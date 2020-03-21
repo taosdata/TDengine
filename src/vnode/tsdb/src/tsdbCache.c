@@ -16,22 +16,106 @@
 
 #include "tsdbCache.h"
 
-STsdbCache *tsdbInitCache(int64_t maxSize) {
-  STsdbCache *pCacheHandle = (STsdbCache *)malloc(sizeof(STsdbCache));
-  if (pCacheHandle == NULL) {
-    // TODO : deal with the error
-    return NULL;
+static int tsdbAllocBlockFromPool(STsdbCache *pCache);
+static void tsdbFreeBlockList(SList *list);
+
+STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize) {
+  STsdbCache *pCache = (STsdbCache *)calloc(1, sizeof(STsdbCache));
+  if (pCache == NULL) return NULL;
+
+  if (cacheBlockSize < 0) cacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
+
+  pCache->maxBytes = maxBytes;
+  pCache->cacheBlockSize = cacheBlockSize;
+
+  int nBlocks = maxBytes / cacheBlockSize + 1;
+  if (nBlocks <= 1) nBlocks = 2;
+
+  STsdbCachePool *pPool = &(pCache->pool);
+  pPool->index = 0;
+  pPool->memPool = tdListNew(sizeof(STsdbCacheBlock *));
+  if (pPool->memPool == NULL) goto _err;
+
+  for (int i = 0; i < nBlocks; i++) {
+    STsdbCacheBlock *pBlock = (STsdbCacheBlock *)malloc(sizeof(STsdbCacheBlock) + cacheBlockSize);
+    if (pBlock == NULL) {
+      goto _err;
+    }
+    pBlock->offset = 0;
+    pBlock->remain = cacheBlockSize;
+    tdListAppend(pPool->memPool, (void *)(&pBlock));
   }
 
-  return pCacheHandle;
+  pCache->mem = tdListNew(sizeof(STsdbCacheBlock *));
+  if (pCache->mem == NULL) goto _err;
+
+  pCache->imem = tdListNew(sizeof(STsdbCacheBlock *));
+  if (pCache->imem == NULL) goto _err;
+
+  return pCache;
+
+_err:
+  tsdbFreeCache(pCache);
+  return NULL;
 }
 
-int32_t tsdbFreeCache(STsdbCache *pHandle) { return 0; }
+void tsdbFreeCache(STsdbCache *pCache) {
+  tsdbFreeBlockList(pCache->imem);
+  tsdbFreeBlockList(pCache->mem);
+  tsdbFreeBlockList(pCache->pool.memPool);
+  free(pCache);
+}
 
-void *tsdbAllocFromCache(STsdbCache *pCache, int64_t bytes) {
-  // TODO: implement here
-  void *ptr = malloc(bytes);
-  if (ptr == NULL) return NULL;
+void *tsdbAllocFromCache(STsdbCache *pCache, int bytes) {
+  if (pCache == NULL) return NULL;
+  if (bytes > pCache->cacheBlockSize) return NULL;
+
+  if (isListEmpty(pCache->mem)) {
+    if (tsdbAllocBlockFromPool(pCache) < 0) {
+      // TODO: deal with the error
+    }
+  }
+
+  if (pCache->curBlock->remain < bytes) {
+    if (tsdbAllocBlockFromPool(pCache) < 0) {
+      // TODO: deal with the error
+    }
+  } 
+
+  void *ptr = (void *)(pCache->curBlock->data + pCache->curBlock->offset);
+  pCache->curBlock->offset += bytes;
+  pCache->curBlock->remain -= bytes;
+  memset(ptr, 0, bytes);
 
   return ptr;
+}
+
+static void tsdbFreeBlockList(SList *list) {
+  if (list == NULL) return;
+  SListNode *      node = NULL;
+  STsdbCacheBlock *pBlock = NULL;
+  while ((node = tdListPopHead(list)) != NULL) {
+    tdListNodeGetData(list, node, (void *)(&pBlock));
+    free(pBlock);
+    listNodeFree(node);
+  }
+  tdListFree(list);
+}
+
+static int tsdbAllocBlockFromPool(STsdbCache *pCache) {
+  STsdbCachePool *pPool = &(pCache->pool);
+  if (listNEles(pPool->memPool) == 0) return -1;
+
+  SListNode *node = tdListPopHead(pPool->memPool);
+  
+  STsdbCacheBlock *pBlock = NULL;
+  tdListNodeGetData(pPool->memPool, node, (void *)(&pBlock));
+  pBlock->blockId = pPool->index++;
+  pBlock->offset = 0;
+  pBlock->remain = pCache->cacheBlockSize;
+
+  tdListAppendNode(pCache->mem, node);
+  pCache->curBlock = pBlock;
+
+  return 0;
 }

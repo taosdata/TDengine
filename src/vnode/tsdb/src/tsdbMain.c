@@ -58,13 +58,16 @@ typedef struct _tsdb_repo {
   // The cache Handle
   STsdbCache *tsdbCache;
 
+  // The TSDB file handle
+  STsdbFileH *tsdbFileH;
+
   // Disk tier handle for multi-tier storage
   void *diskTier;
 
-  // File Store
-  void *tsdbFiles;
+  pthread_mutex_t mutex;
 
-  pthread_mutex_t tsdbMutex;
+  int commit;
+  pthread_t commitThread;
 
   // A limiter to monitor the resources used by tsdb
   void *limiter;
@@ -79,6 +82,8 @@ static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo);
 static int     tsdbOpenMetaFile(char *tsdbDir);
 static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
 static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
+static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
+static void *  tsdbCommitToFile(void *arg);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -162,7 +167,7 @@ tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO
   pRepo->tsdbMeta = pMeta;
 
   // Initialize cache
-  STsdbCache *pCache = tsdbInitCache(pCfg->maxCacheSize);
+  STsdbCache *pCache = tsdbInitCache(pCfg->maxCacheSize, -1);
   if (pCache == NULL) {
     free(pRepo->rootDir);
     tsdbFreeMeta(pRepo->tsdbMeta);
@@ -170,6 +175,19 @@ tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO
     return NULL;
   }
   pRepo->tsdbCache = pCache;
+
+  // Initialize file handle
+  char dataDir[128] = "\0";
+  tsdbGetDataDirName(pRepo, dataDir);
+  pRepo->tsdbFileH =
+      tsdbInitFile(dataDir, pCfg->daysPerFile, pCfg->keep, pCfg->minRowsPerFileBlock, pCfg->maxRowsPerFileBlock, pCfg->maxTables);
+  if (pRepo->tsdbFileH == NULL) {
+    free(pRepo->rootDir);
+    tsdbFreeCache(pRepo->tsdbCache);
+    tsdbFreeMeta(pRepo->tsdbMeta);
+    free(pRepo);
+    return NULL;
+  }
 
   pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
@@ -230,7 +248,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
     return NULL;
   }
 
-  pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize);
+  pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize, -1);
   if (pRepo->tsdbCache == NULL) {
     tsdbFreeMeta(pRepo->tsdbMeta);
     free(pRepo->rootDir);
@@ -281,6 +299,32 @@ int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
 
   pRepo->config = *pCfg;
   // TODO
+  return 0;
+}
+
+int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+
+  if (pthread_mutex_lock(&(pRepo->mutex)) < 0) return -1;
+  if (pRepo->commit) return 0;
+  pRepo->commit = 1;
+  // Loop to move pData to iData
+  for (int i = 0; i < pRepo->config.maxTables; i++) {
+    STable *pTable = pRepo->tsdbMeta->tables[i];
+    if (pTable != NULL) {
+      void *pData = pTable->content.pData;
+      pTable->content.pData = NULL;
+      pTable->iData = pData;
+    }
+  }
+  // Loop to move mem to imem
+  tdListMove(pRepo->tsdbCache->mem, pRepo->tsdbCache->imem);
+
+  pthread_create(&(pRepo->commitThread), NULL, tsdbCommitToFile, (void *)repo);
+  pthread_mutex_unlock(&(pRepo->mutex));
+
+  pthread_join(pRepo->commitThread, NULL);
+
   return 0;
 }
 
@@ -612,9 +656,6 @@ static int32_t tsdbDestroyRepoEnv(STsdbRepo *pRepo) {
 
   rmdir(dirName);
 
-  char *metaFname = tsdbGetFileName(pRepo->rootDir, "tsdb", TSDB_FILE_TYPE_META);
-  remove(metaFname);
-
   return 0;
 }
 
@@ -662,4 +703,23 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   }
 
   return 0;
+}
+
+static void *tsdbCommitToFile(void *arg) {
+  // TODO
+  STsdbRepo *pRepo = (STsdbRepo *)arg;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  for (int i = 0; i < pRepo->config.maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable == NULL) continue;
+    SSkipListIterator *pIter = tSkipListCreateIter(pTable->iData);
+    while (tSkipListIterNext(pIter)) {
+      SSkipListNode *node = tSkipListIterGet(pIter);
+      SDataRow row = SL_GET_NODE_DATA(node);
+      int k = 0;
+
+    }
+  }
+
+  return NULL;
 }

@@ -3,6 +3,7 @@
 
 #include "tsdb.h"
 #include "dataformat.h"
+#include "tsdbFile.h"
 #include "tsdbMeta.h"
 
 TEST(TsdbTest, tableEncodeDecode) {
@@ -71,39 +72,50 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &tCfg);
 
   // // 3. Loop to write some simple data
-  int nRows = 10;
-  SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * nRows);
-
-  SSubmitBlk *pBlock = pMsg->blocks;
-  pBlock->tableId = {.uid = 987607499877672L, .tid = 0};
-  pBlock->sversion = 0;
-  pBlock->len = 0;
+  int nRows = 100;
+  int rowsPerSubmit = 10;
   int64_t start_time = 1584081000000;
-  for (int i = 0; i < nRows; i++) {
-    int64_t ttime = start_time + 1000 * i;
-    SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
-    tdInitDataRow(row, schema);
 
-    for (int j = 0; j < schemaNCols(schema); j++) {
-      if (j == 0) { // Just for timestamp
-        tdAppendColVal(row, (void *)(&ttime), schemaColAt(schema, j));
-      } else { // For int
-        int val = 10;
-        tdAppendColVal(row, (void *)(&val), schemaColAt(schema, j));
+  SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * rowsPerSubmit);
+
+  for (int k = 0; k < nRows/rowsPerSubmit; k++) {
+    SSubmitBlk *pBlock = pMsg->blocks;
+    pBlock->tableId = {.uid = 987607499877672L, .tid = 0};
+    pBlock->sversion = 0;
+    pBlock->len = 0;
+    for (int i = 0; i < rowsPerSubmit; i++) {
+      start_time += 1000;
+      SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
+      tdInitDataRow(row, schema);
+
+      for (int j = 0; j < schemaNCols(schema); j++) {
+        if (j == 0) {  // Just for timestamp
+          tdAppendColVal(row, (void *)(&start_time), schemaColAt(schema, j));
+        } else {  // For int
+          int val = 10;
+          tdAppendColVal(row, (void *)(&val), schemaColAt(schema, j));
+        }
       }
-
+      pBlock->len += dataRowLen(row);
     }
-    pBlock->len += dataRowLen(row);
+    pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
 
+    tsdbInsertData(pRepo, pMsg);
   }
-  pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
 
-  tsdbInsertData(pRepo, pMsg);
+  tsdbTriggerCommit(pRepo);
 
-  int k = 0;
 }
 
 TEST(TsdbTest, openRepo) {
   tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
   ASSERT_NE(pRepo, nullptr);
+}
+
+TEST(TsdbTest, createFileGroup) {
+  SFileGroup fGroup;
+
+  ASSERT_EQ(tsdbCreateFileGroup("/home/ubuntu/work/ttest/vnode0/data", 1820, &fGroup, 1000), 0);
+
+  int k = 0;
 }
