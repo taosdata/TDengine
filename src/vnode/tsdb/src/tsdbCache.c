@@ -70,7 +70,7 @@ void *tsdbAllocFromCache(STsdbCache *pCache, int bytes) {
   if (pCache == NULL) return NULL;
   if (bytes > pCache->cacheBlockSize) return NULL;
 
-  if (isListEmpty(pCache->imem)) {
+  if (isListEmpty(pCache->mem)) {
     if (tsdbAllocBlockFromPool(pCache) < 0) {
       // TODO: deal with the error
     }
@@ -114,7 +114,7 @@ static int tsdbAllocBlockFromPool(STsdbCache *pCache) {
   pBlock->offset = 0;
   pBlock->remain = pCache->cacheBlockSize;
 
-  tdListAppendNode(pPool->memPool, node);
+  tdListAppendNode(pCache->mem, node);
   pCache->curBlock = pBlock;
 
   return 0;
