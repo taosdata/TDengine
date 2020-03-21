@@ -8,9 +8,14 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   INCLUDE_DIRECTORIES(${TD_ENTERPRISE_DIR}/src/inc)
   INCLUDE_DIRECTORIES(inc)
   AUX_SOURCE_DIRECTORY(src SRC)
+  LIST(REMOVE_ITEM SRC ./src/tarbitrator.c)
 
   ADD_LIBRARY(sync ${SRC})
   TARGET_LINK_LIBRARIES(sync tutil pthread)
+
+  LIST(APPEND BIN_SRC ./src/tarbitrator.c)
+  ADD_EXECUTABLE(tarbitrator ${BIN_SRC})
+  TARGET_LINK_LIBRARIES(tarbitrator sync)
 
   ADD_SUBDIRECTORY(test)
 ENDIF ()
