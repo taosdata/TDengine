@@ -434,15 +434,11 @@ typedef struct SColumnInfo {
   SColumnFilterInfo *filters;
 } SColumnInfo;
 
-/*
- * enable vnode to understand how to group several tables with different tag;
- */
-typedef struct STableSidExtInfo {
+typedef struct STableIdInfo {
   int32_t sid;
   int64_t uid;
-  TSKEY   key;   // key for subscription
-  char    tags[];
-} STableSidExtInfo;
+  TSKEY   key;   // last accessed ts, for subscription
+} STableIdInfo;
 
 typedef struct STimeWindow {
   TSKEY skey;
@@ -455,10 +451,10 @@ typedef struct STimeWindow {
  * the outputCols will be 3 while the numOfCols is 1.
  */
 typedef struct {
-  int16_t  vnode;
+  int32_t contLen;   // msg header
+  int16_t vgId;
+  
   int32_t  numOfTables;
-  uint64_t pSidExtInfo;  // table id & tag info ptr, in windows pointer may
-
   uint64_t uid;
   STimeWindow window;
 
@@ -504,7 +500,7 @@ typedef struct {
 } SQueryTableMsg;
 
 typedef struct {
-  char     code;
+  int32_t  code;
   uint64_t qhandle;
 } SQueryTableRsp;
 
@@ -670,7 +666,7 @@ typedef struct {
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int16_t    index;  // used locally
   int32_t    numOfSids;
-  int32_t    pSidExtInfoList[];  // offset value of STableSidExtInfo
+  int32_t    pSidExtInfoList[];  // offset value of STableIdInfo
 } SVnodeSidList;
 
 typedef struct {

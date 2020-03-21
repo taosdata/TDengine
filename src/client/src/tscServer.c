@@ -598,7 +598,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   SSuperTableMeta *pMetricMeta = pTableMetaInfo->pMetricMeta;
   SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pTableMetaInfo->vnodeIndex);
 
-  int32_t meterInfoSize = (pMetricMeta->tagLen + sizeof(STableSidExtInfo)) * pVnodeSidList->numOfSids;
+  int32_t meterInfoSize = (pMetricMeta->tagLen + sizeof(STableIdInfo)) * pVnodeSidList->numOfSids;
   int32_t outputColumnSize = pQueryInfo->exprsInfo.numOfExprs * sizeof(SSqlFuncExprMsg);
 
   int32_t size = meterInfoSize + outputColumnSize + srcColListSize + exprSize + MIN_QUERY_MSG_PKT_SIZE;
@@ -609,37 +609,34 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   return size;
 }
 
-static char *doSerializeTableInfo(SSqlObj *pSql, int32_t numOfTables, int32_t vnodeId, char *pMsg) {
+static char *doSerializeTableInfo(SSqlObj *pSql, int32_t numOfTables, int32_t vgId, char *pMsg) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
   SSuperTableMeta *pMetricMeta = pTableMetaInfo->pMetricMeta;
 
-  tscTrace("%p vid:%d, query on %d meters", pSql, vnodeId, numOfTables);
+  tscTrace("%p vgId:%d, query on %d tables", pSql, vgId, numOfTables);
   if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
 #ifdef _DEBUG_VIEW
     tscTrace("%p sid:%d, uid:%" PRIu64, pSql, pTableMetaInfo->pTableMeta->sid, pTableMetaInfo->pTableMeta->uid);
 #endif
-    STableSidExtInfo *pTableMetaInfo = (STableSidExtInfo *)pMsg;
-    pTableMetaInfo->sid = htonl(pTableMeta->sid);
-    pTableMetaInfo->uid = htobe64(pTableMeta->uid);
-    pTableMetaInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid));
-    pMsg += sizeof(STableSidExtInfo);
+    STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
+    pTableIdInfo->sid = htonl(pTableMeta->sid);
+    pTableIdInfo->uid = htobe64(pTableMeta->uid);
+    pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pTableMeta->uid));
+    pMsg += sizeof(STableIdInfo);
   } else {
     SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, pTableMetaInfo->vnodeIndex);
 
     for (int32_t i = 0; i < numOfTables; ++i) {
-      STableSidExtInfo *pTableMetaInfo = (STableSidExtInfo *)pMsg;
-      STableSidExtInfo *pQueryMeterInfo = tscGetMeterSidInfo(pVnodeSidList, i);
+      STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
+      STableIdInfo *pQueryMeterInfo = tscGetMeterSidInfo(pVnodeSidList, i);
 
-      pTableMetaInfo->sid = htonl(pQueryMeterInfo->sid);
-      pTableMetaInfo->uid = htobe64(pQueryMeterInfo->uid);
-      pTableMetaInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pQueryMeterInfo->uid));
+      pTableIdInfo->sid = htonl(pQueryMeterInfo->sid);
+      pTableIdInfo->uid = htobe64(pQueryMeterInfo->uid);
+      pTableIdInfo->key = htobe64(tscGetSubscriptionProgress(pSql->pSubscription, pQueryMeterInfo->uid));
       
-      pMsg += sizeof(STableSidExtInfo);
-
-      memcpy(pMsg, pQueryMeterInfo->tags, pMetricMeta->tagLen);
-      pMsg += pMetricMeta->tagLen;
+      pMsg += sizeof(STableIdInfo);
 
 #ifdef _DEBUG_VIEW
       tscTrace("%p sid:%d, uid:%" PRId64, pSql, pQueryMeterInfo->sid, pQueryMeterInfo->uid);
@@ -679,6 +676,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->uid = pTableMeta->uid;
     pQueryMsg->numOfTagsCols = 0;
     
+    pQueryMsg->vgId = htonl(pTableMeta->vgid);
     tscTrace("%p queried tables:%d, table id: %s", pSql, 1, pTableMetaInfo->name);
   } else {  // query on super table
     if (pTableMetaInfo->vnodeIndex < 0) {
@@ -696,7 +694,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
 
     tscTrace("%p query on vid:%d, number of tables:%d", pSql, vnodeId, numOfTables);
-    pQueryMsg->vnode = htons(vnodeId);
+    pQueryMsg->vgId = htons(vnodeId);
   }
 
   pQueryMsg->numOfTables = htonl(numOfTables);
@@ -764,14 +762,14 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     SColumnBase *pCol = tscColumnBaseInfoGet(&pQueryInfo->colList, i);
     SSchema *    pColSchema = &pSchema[pCol->colIndex.columnIndex];
 
-    if (pCol->colIndex.columnIndex >= tscGetNumOfColumns(pTableMeta) || pColSchema->type < TSDB_DATA_TYPE_BOOL ||
-        pColSchema->type > TSDB_DATA_TYPE_NCHAR) {
-      tscError("%p vid:%d sid:%d id:%s, column index out of range, numOfColumns:%d, index:%d, column name:%s", pSql,
-               htons(pQueryMsg->vnode), pTableMeta->sid, pTableMetaInfo->name, tscGetNumOfColumns(pTableMeta), pCol->colIndex,
-               pColSchema->name);
-
-      return -1;  // 0 means build msg failed
-    }
+//    if (pCol->colIndex.columnIndex >= tscGetNumOfColumns(pTableMeta) || pColSchema->type < TSDB_DATA_TYPE_BOOL ||
+//        pColSchema->type > TSDB_DATA_TYPE_NCHAR) {
+//      tscError("%p vid:%d sid:%d id:%s, column index out of range, numOfColumns:%d, index:%d, column name:%s", pSql,
+//               htons(pQueryMsg->vnode), pTableMeta->sid, pTableMetaInfo->name, tscGetNumOfColumns(pTableMeta), pCol->colIndex,
+//               pColSchema->name);
+//
+//      return -1;  // 0 means build msg failed
+//    }
 
     pQueryMsg->colList[i].colId = htons(pColSchema->colId);
     pQueryMsg->colList[i].bytes = htons(pColSchema->bytes);
@@ -865,7 +863,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->colNameLen = htonl(len);
 
   // serialize the table info (sid, uid, tags)
-  pMsg = doSerializeTableInfo(pSql, numOfTables, htons(pQueryMsg->vnode), pMsg);
+  pMsg = doSerializeTableInfo(pSql, numOfTables, htons(pQueryMsg->vgId), pMsg);
 
   // only include the required tag column schema. If a tag is not required, it won't be sent to vnode
   if (pTableMetaInfo->numOfTags > 0) {
@@ -946,7 +944,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tscTrace("%p msg built success,len:%d bytes", pSql, msgLen);
   pCmd->payloadLen = msgLen;
   pSql->cmd.msgType = TSDB_MSG_TYPE_QUERY;
-
+  
+  pQueryMsg->contLen = htonl(msgLen);
+  
   assert(msgLen + minMsgSize() <= size);
 
   return TSDB_CODE_SUCCESS;
@@ -2067,7 +2067,7 @@ int tscProcessMetricMetaRsp(SSqlObj *pSql) {
     pMeta->numOfVnodes = htonl(pMeta->numOfVnodes);
     pMeta->tagLen = htons(pMeta->tagLen);
 
-    size += pMeta->numOfVnodes * sizeof(SVnodeSidList *) + pMeta->numOfTables * sizeof(STableSidExtInfo *);
+    size += pMeta->numOfVnodes * sizeof(SVnodeSidList *) + pMeta->numOfTables * sizeof(STableIdInfo *);
 
     char *pBuf = calloc(1, size);
     if (pBuf == NULL) {
@@ -2093,16 +2093,16 @@ int tscProcessMetricMetaRsp(SSqlObj *pSql) {
 
       tscTrace("%p metricmeta:vid:%d,numOfTables:%d", pSql, i, pLists->numOfSids);
 
-      pBuf += sizeof(SVnodeSidList) + sizeof(STableSidExtInfo *) * pSidLists->numOfSids;
+      pBuf += sizeof(SVnodeSidList) + sizeof(STableIdInfo *) * pSidLists->numOfSids;
       rsp += sizeof(SVnodeSidList);
 
-      size_t elemSize = sizeof(STableSidExtInfo) + pNewMetricMeta->tagLen;
+      size_t elemSize = sizeof(STableIdInfo) + pNewMetricMeta->tagLen;
       for (int32_t j = 0; j < pSidLists->numOfSids; ++j) {
         pLists->pSidExtInfoList[j] = pBuf - (char *)pLists;
         memcpy(pBuf, rsp, elemSize);
 
-        ((STableSidExtInfo *)pBuf)->uid = htobe64(((STableSidExtInfo *)pBuf)->uid);
-        ((STableSidExtInfo *)pBuf)->sid = htonl(((STableSidExtInfo *)pBuf)->sid);
+        ((STableIdInfo *)pBuf)->uid = htobe64(((STableIdInfo *)pBuf)->uid);
+        ((STableIdInfo *)pBuf)->sid = htonl(((STableIdInfo *)pBuf)->sid);
 
         rsp += elemSize;
         pBuf += elemSize;
