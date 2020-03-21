@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "trpc.h"
-#include "tschemautil.h"
 #include "mgmtMnode.h"
 #include "mgmtUser.h"
 
@@ -26,7 +25,7 @@ int32_t (*mgmtGetMnodesNumFp)() = NULL;
 void *  (*mgmtGetNextMnodeFp)(SShowObj *pShow, SMnodeObj **pMnode) = NULL;
 
 static SMnodeObj tsMnodeObj = {0};
-static int32_t mgmtGetMnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 bool mgmtCheckRedirect(void *handle) {
@@ -71,7 +70,7 @@ static void *mgmtGetNextMnode(SShowObj *pShow, SMnodeObj **pMnode) {
   return *pMnode;
 }
 
-static int32_t mgmtGetMnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
@@ -79,7 +78,7 @@ static int32_t mgmtGetMnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn)
 
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = 16;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
