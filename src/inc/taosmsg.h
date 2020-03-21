@@ -451,10 +451,10 @@ typedef struct STimeWindow {
  * the outputCols will be 3 while the numOfCols is 1.
  */
 typedef struct {
-  int16_t  vnode;
+  int32_t contLen;   // msg header
+  int16_t vgId;
+  
   int32_t  numOfTables;
-  uint64_t pSidExtInfo;  // table id & tag info ptr, in windows pointer may
-
   uint64_t uid;
   STimeWindow window;
 
