@@ -191,7 +191,7 @@ SVnodeSidList* tscGetVnodeSidList(SSuperTableMeta* pMetricmeta, int32_t vnodeIdx
   return (SVnodeSidList*)(pMetricmeta->list[vnodeIdx] + (char*)pMetricmeta);
 }
 
-STableSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
+STableIdInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
   if (pSidList == NULL) {
     tscError("illegal sidlist");
     return 0;
@@ -206,7 +206,7 @@ STableSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
   
   assert(pSidList->pSidExtInfoList[idx] >= 0);
   
-  return (STableSidExtInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
+  return (STableIdInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
 }
 
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {

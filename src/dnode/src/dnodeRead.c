@@ -15,13 +15,16 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+
 #include "taoserror.h"
 #include "taosmsg.h"
 #include "tlog.h"
 #include "tqueue.h"
 #include "trpc.h"
-#include "dnodeRead.h"
+
 #include "dnodeMgmt.h"
+#include "dnodeRead.h"
+#include "queryExecutor.h"
 
 typedef struct {
   int32_t  code;
@@ -88,7 +91,7 @@ void dnodeRead(SRpcMsg *pMsg) {
 
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *) pCont;
-    pHead->vgId    = 1; //htonl(pHead->vgId);
+    pHead->vgId    = 1;//htonl(pHead->vgId);
     pHead->contLen = pMsg->contLen; //htonl(pHead->contLen);
 
     void *pVnode = dnodeGetVnode(pHead->vgId);
@@ -223,8 +226,12 @@ static void dnodeProcessReadResult(SReadMsg *pRead) {
 }
 
 static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
-  void *pQInfo = (void*)100;
-  dTrace("query msg is disposed, qInfo:%p", pQInfo);
+  SQueryTableMsg* pQueryTableMsg = (SQueryTableMsg*) pMsg->pCont;
+  
+  SQInfo* pQInfo = NULL;
+  int32_t ret = qCreateQueryInfo(pQueryTableMsg, &pQInfo);
+  
+  dTrace("query msg is disposed, qInfo:%p", pQueryTableMsg);
 
   SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
   pRsp->code    = 0;

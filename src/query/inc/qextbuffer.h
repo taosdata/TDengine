@@ -124,7 +124,7 @@ typedef struct tTagSchema {
 typedef struct tSidSet {
   int32_t            numOfSids;
   int32_t            numOfSubSet;
-  STableSidExtInfo **pSids;
+  STableIdInfo **pSids;
   int32_t *          starterPos;  // position of each subgroup, generated according to
 
   SColumnModel      *pColumnModel;

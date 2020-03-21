@@ -152,7 +152,7 @@ typedef struct SQueryCostSummary {
 typedef struct SQueryRuntimeEnv {
   SResultInfo*       resultInfo;  // todo refactor to merge with SWindowResInfo
   SQuery*            pQuery;
-  void*              pTabObj;
+//  void*              pTabObj;
   SData**            pInterpoBuf;
   SQLFunctionCtx*    pCtx;
   int16_t            numOfRowsPerPage;
@@ -204,7 +204,7 @@ typedef struct SQInfo {
  * @param pQInfo
  * @return
  */
-int32_t qCreateQueryInfo(void* pReadMsg, SQInfo** pQInfo);
+int32_t qCreateQueryInfo(SQueryTableMsg* pQueryTableMsg, SQInfo** pQInfo);
 
 /**
  * query on single table

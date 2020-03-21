@@ -434,15 +434,11 @@ typedef struct SColumnInfo {
   SColumnFilterInfo *filters;
 } SColumnInfo;
 
-/*
- * enable vnode to understand how to group several tables with different tag;
- */
-typedef struct STableSidExtInfo {
+typedef struct STableIdInfo {
   int32_t sid;
   int64_t uid;
-  TSKEY   key;   // key for subscription
-  char    tags[];
-} STableSidExtInfo;
+  TSKEY   key;   // last accessed ts, for subscription
+} STableIdInfo;
 
 typedef struct STimeWindow {
   TSKEY skey;
@@ -670,7 +666,7 @@ typedef struct {
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int16_t    index;  // used locally
   int32_t    numOfSids;
-  int32_t    pSidExtInfoList[];  // offset value of STableSidExtInfo
+  int32_t    pSidExtInfoList[];  // offset value of STableIdInfo
 } SVnodeSidList;
 
 typedef struct {
