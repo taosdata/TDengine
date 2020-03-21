@@ -35,20 +35,21 @@ extern "C" {
 
 // ---------- TSDB TABLE DEFINITION
 typedef struct STable {
-  int8_t          type;
-  STableId        tableId;
-  int32_t         superUid;  // Super table UID
-  int32_t         sversion;
-  STSchema *      schema;
-  STSchema *      tagSchema;
-  SDataRow        tagVal;
+  int8_t    type;
+  STableId  tableId;
+  int32_t   superUid;  // Super table UID
+  int32_t   sversion;
+  STSchema *schema;
+  STSchema *tagSchema;
+  SDataRow  tagVal;
   union {
     void *pData;   // For TSDB_NORMAL_TABLE and TSDB_CHILD_TABLE, it is the skiplist for cache data
     void *pIndex;  // For TSDB_SUPER_TABLE, it is the skiplist index
   } content;
+  void *         iData;          // Skiplist to commit
   void *         eventHandler;   // TODO
   void *         streamHandler;  // TODO
-  struct STable *next; // TODO: remove the next
+  struct STable *next;           // TODO: remove the next
 } STable;
 
 void *  tsdbEncodeTable(STable *pTable, int *contLen);

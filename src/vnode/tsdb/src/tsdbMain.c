@@ -64,7 +64,10 @@ typedef struct _tsdb_repo {
   // Disk tier handle for multi-tier storage
   void *diskTier;
 
-  pthread_mutex_t tsdbMutex;
+  pthread_mutex_t mutex;
+
+  int commit;
+  pthread_t commitThread;
 
   // A limiter to monitor the resources used by tsdb
   void *limiter;
@@ -80,6 +83,7 @@ static int     tsdbOpenMetaFile(char *tsdbDir);
 static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
 static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
 static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
+static void *  tsdbCommitToFile(void *arg);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -295,6 +299,18 @@ int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
 
   pRepo->config = *pCfg;
   // TODO
+  return 0;
+}
+
+int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+
+  if (pthread_mutex_lock(&(pRepo->mutex)) < 0) return -1;
+  if (pRepo->commit) return 0;
+  pRepo->commit = 1;
+  pthread_create(&(pRepo->commitThread), NULL, tsdbCommitToFile, (void *)repo);
+  pthread_mutex_unlock(&(pRepo->mutex));
+
   return 0;
 }
 
@@ -673,4 +689,10 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   }
 
   return 0;
+}
+
+static void *tsdbCommitToFile(void *arg) {
+  STsdbRepo *pRepo = (STsdbRepo *)arg;
+  // TODO
+  return NULL;
 }
