@@ -7,8 +7,8 @@
 
 #define DEFAULT_INTERN_BUF_SIZE 16384L
 
-int32_t createDiskbasedResultBuffer(SQueryDiskbasedResultBuf** pResultBuf, int32_t size, int32_t rowSize) {
-  SQueryDiskbasedResultBuf* pResBuf = calloc(1, sizeof(SQueryDiskbasedResultBuf));
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t size, int32_t rowSize) {
+  SDiskbasedResultBuf* pResBuf = calloc(1, sizeof(SDiskbasedResultBuf));
   pResBuf->numOfRowsPerPage = (DEFAULT_INTERN_BUF_SIZE - sizeof(tFilePage)) / rowSize;
   pResBuf->numOfPages = size;
 
@@ -50,17 +50,17 @@ int32_t createDiskbasedResultBuffer(SQueryDiskbasedResultBuf** pResultBuf, int32
   return TSDB_CODE_SUCCESS;
 }
 
-tFilePage* getResultBufferPageById(SQueryDiskbasedResultBuf* pResultBuf, int32_t id) {
+tFilePage* getResultBufferPageById(SDiskbasedResultBuf* pResultBuf, int32_t id) {
   assert(id < pResultBuf->numOfPages && id >= 0);
 
   return (tFilePage*)(pResultBuf->pBuf + DEFAULT_INTERN_BUF_SIZE * id);
 }
 
-int32_t getNumOfResultBufGroupId(SQueryDiskbasedResultBuf* pResultBuf) { return taosHashGetSize(pResultBuf->idsTable); }
+int32_t getNumOfResultBufGroupId(SDiskbasedResultBuf* pResultBuf) { return taosHashGetSize(pResultBuf->idsTable); }
 
-int32_t getResBufSize(SQueryDiskbasedResultBuf* pResultBuf) { return pResultBuf->totalBufSize; }
+int32_t getResBufSize(SDiskbasedResultBuf* pResultBuf) { return pResultBuf->totalBufSize; }
 
-static int32_t extendDiskFileSize(SQueryDiskbasedResultBuf* pResultBuf, int32_t numOfPages) {
+static int32_t extendDiskFileSize(SDiskbasedResultBuf* pResultBuf, int32_t numOfPages) {
   assert(pResultBuf->numOfPages * DEFAULT_INTERN_BUF_SIZE == pResultBuf->totalBufSize);
 
   int32_t ret = munmap(pResultBuf->pBuf, pResultBuf->totalBufSize);
@@ -88,11 +88,11 @@ static int32_t extendDiskFileSize(SQueryDiskbasedResultBuf* pResultBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-static bool noMoreAvailablePages(SQueryDiskbasedResultBuf* pResultBuf) {
+static bool noMoreAvailablePages(SDiskbasedResultBuf* pResultBuf) {
   return (pResultBuf->allocateId == pResultBuf->numOfPages - 1);
 }
 
-static int32_t getGroupIndex(SQueryDiskbasedResultBuf* pResultBuf, int32_t groupId) {
+static int32_t getGroupIndex(SDiskbasedResultBuf* pResultBuf, int32_t groupId) {
   assert(pResultBuf != NULL);
 
   char* p = taosHashGet(pResultBuf->idsTable, (const char*)&groupId, sizeof(int32_t));
@@ -106,7 +106,7 @@ static int32_t getGroupIndex(SQueryDiskbasedResultBuf* pResultBuf, int32_t group
   return slot;
 }
 
-static int32_t addNewGroupId(SQueryDiskbasedResultBuf* pResultBuf, int32_t groupId) {
+static int32_t addNewGroupId(SDiskbasedResultBuf* pResultBuf, int32_t groupId) {
   int32_t num = getNumOfResultBufGroupId(pResultBuf); // the num is the newest allocated group id slot
 
   if (pResultBuf->numOfAllocGroupIds <= num) {
@@ -148,7 +148,7 @@ static int32_t doRegisterId(SIDList* pList, int32_t id) {
   return 0;
 }
 
-static void registerPageId(SQueryDiskbasedResultBuf* pResultBuf, int32_t groupId, int32_t pageId) {
+static void registerPageId(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32_t pageId) {
   int32_t slot = getGroupIndex(pResultBuf, groupId);
   if (slot < 0) {
     slot = addNewGroupId(pResultBuf, groupId);
@@ -158,7 +158,7 @@ static void registerPageId(SQueryDiskbasedResultBuf* pResultBuf, int32_t groupId
   doRegisterId(pList, pageId);
 }
 
-tFilePage* getNewDataBuf(SQueryDiskbasedResultBuf* pResultBuf, int32_t groupId, int32_t* pageId) {
+tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32_t* pageId) {
   if (noMoreAvailablePages(pResultBuf)) {
     if (extendDiskFileSize(pResultBuf, pResultBuf->incStep) != TSDB_CODE_SUCCESS) {
       return NULL;
@@ -177,9 +177,9 @@ tFilePage* getNewDataBuf(SQueryDiskbasedResultBuf* pResultBuf, int32_t groupId, 
   return page;
 }
 
-int32_t getNumOfRowsPerPage(SQueryDiskbasedResultBuf* pResultBuf) { return pResultBuf->numOfRowsPerPage; }
+int32_t getNumOfRowsPerPage(SDiskbasedResultBuf* pResultBuf) { return pResultBuf->numOfRowsPerPage; }
 
-SIDList getDataBufPagesIdList(SQueryDiskbasedResultBuf* pResultBuf, int32_t groupId) {
+SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId) {
   SIDList list = {0};
   int32_t slot = getGroupIndex(pResultBuf, groupId);
   if (slot < 0) {
@@ -189,7 +189,7 @@ SIDList getDataBufPagesIdList(SQueryDiskbasedResultBuf* pResultBuf, int32_t grou
   }
 }
 
-void destroyResultBuf(SQueryDiskbasedResultBuf* pResultBuf) {
+void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   if (pResultBuf == NULL) {
     return;
   }

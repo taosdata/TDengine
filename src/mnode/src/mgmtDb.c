@@ -15,14 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
-#include "tschemautil.h"
-#include "tstatus.h"
-#include "tutil.h"
-#include "mnode.h"
+
+#include "mgmtDb.h"
 #include "mgmtAcct.h"
 #include "mgmtBalance.h"
-#include "mgmtDb.h"
+#include "mgmtChildTable.h"
 #include "mgmtDnode.h"
 #include "mgmtGrant.h"
 #include "mgmtShell.h"
@@ -34,6 +31,12 @@
 #include "mgmtTable.h"
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
+#include "mnode.h"
+
+#include "taoserror.h"
+#include "tstatus.h"
+#include "tutil.h"
+#include "name.h"
 
 static void   *tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
@@ -42,7 +45,7 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
 static void    mgmtDropDb(void *handle, void *tmrId);
 static void    mgmtSetDbDirty(SDbObj *pDb);
 
-static int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCreateDbMsg(SQueuedMsg *pMsg);
 static void    mgmtProcessAlterDbMsg(SQueuedMsg *pMsg);
@@ -454,10 +457,10 @@ void mgmtCleanUpDbs() {
   sdbCloseTable(tsDbSdb);
 }
 
-static int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
 
@@ -469,7 +472,7 @@ static int32_t mgmtGetDbMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created time");
+  strcpy(pSchema[cols].name, "created_time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 

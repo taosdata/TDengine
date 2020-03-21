@@ -32,6 +32,12 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code);
 SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, int32_t index);
 void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter);
 
+int32_t tscHandleMasterJoinQuery(SSqlObj* pSql);
+
+int32_t tscHandleMasterSTableQuery(SSqlObj *pSql);
+
+int32_t tscHandleMultivnodeInsert(SSqlObj *pSql);
+
 #ifdef __cplusplus
 }
 #endif

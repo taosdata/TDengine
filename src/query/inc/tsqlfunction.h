@@ -20,11 +20,11 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
+#include "os.h"
 
-#include "trpc.h"
+#include "../../common/inc/name.h"
 #include "taosdef.h"
+#include "trpc.h"
 #include "tvariant.h"
 
 #define TSDB_FUNC_INVALID_ID  -1
@@ -130,12 +130,8 @@ typedef struct SArithmeticSupport {
 
 typedef struct SQLPreAggVal {
   bool    isSet;
-  int32_t numOfNull;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
-  int16_t maxIndex;
-  int16_t minIndex;
+  int32_t size;
+  SDataStatis statis;
 } SQLPreAggVal;
 
 typedef struct SInterpInfoDetail {

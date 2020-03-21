@@ -30,7 +30,7 @@ void        mgmtCleanUpTables();
 STableInfo* mgmtGetTable(char *tableId);
 
 STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid);
-int32_t     mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMeta *pMeta, bool usePublicIp);
+int32_t     mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMetaMsg *pMeta, bool usePublicIp);
 
 void    mgmtAddTableIntoSuperTable(SSuperTableObj *pStable);
 void    mgmtRemoveTableFromSuperTable(SSuperTableObj *pStable);
