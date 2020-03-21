@@ -1334,7 +1334,9 @@ _rsp:
   pMsg += sizeof(STaosRsp);
 
   pConnectRsp = (SConnectRsp *)pRsp->more;
-  sprintf(pConnectRsp->acctId, "%x", pConn->pAcct->acctId);
+  if (NULL != pConn->pAcct) {
+    sprintf(pConnectRsp->acctId, "%x", pConn->pAcct->acctId);
+  }
   strcpy(pConnectRsp->version, version);
   pConnectRsp->writeAuth = pConn->writeAuth;
   pConnectRsp->superAuth = pConn->superAuth;

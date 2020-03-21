@@ -144,7 +144,7 @@ void run_test(TAOS* taos) {
 int main(int argc, char *argv[]) {
   const char* host = "127.0.0.1";
   const char* user = "root";
-  const char* passwd = "taosdata";
+  const char* passwd = "powerdb";
   const char* sql = "select * from meters;";
   const char* topic = "test-multiple";
   int async = 1, restart = 0, keep = 1, test = 0, blockFetch = 0;

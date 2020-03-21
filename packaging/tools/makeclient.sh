@@ -154,7 +154,7 @@ mkdir -p ${install_dir}/connector
 
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if [ "$osType" != "Darwin" ]; then
-    cp ${build_dir}/lib/*.jar      ${install_dir}/connector
+    cp ${build_dir}/lib/*jdbc*.jar      ${install_dir}/connector
   fi
   cp -r ${connector_dir}/grafana ${install_dir}/connector/
   cp -r ${connector_dir}/python  ${install_dir}/connector/

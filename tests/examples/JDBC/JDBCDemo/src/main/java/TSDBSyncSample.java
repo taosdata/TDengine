@@ -6,7 +6,7 @@ public class TSDBSyncSample {
 
     private String host = "127.0.0.1";
     private String user = "root";
-    private String password = "taosdata";
+    private String password = "powerdb";  //"taosdata";
     private int port = 0;
     private String jdbcUrl = "";
 
