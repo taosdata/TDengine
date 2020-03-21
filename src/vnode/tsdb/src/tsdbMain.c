@@ -672,6 +672,8 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
     pTable->mem = (SMemTable *)calloc(1, sizeof(SMemTable));
     if (pTable->mem == NULL) return -1;
     pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
+    pTable->mem->keyFirst = INT64_MAX;
+    pTable->mem->keyLast = 0;
   }
 
   tSkipListRandNodeInfo(pTable->mem->pData, &level, &headSize);
@@ -687,6 +689,10 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
 
   // Insert the skiplist node into the data
   tSkipListPut(pTable->mem->pData, pNode);
+  TSKEY key = dataRowKey(row);
+  if (key > pTable->mem->keyLast) pTable->mem->keyLast = key;
+  if (key < pTable->mem->keyFirst) pTable->mem->keyFirst = key;
+  pTable->mem->numOfPoints++;
 
   return 0;
 }
