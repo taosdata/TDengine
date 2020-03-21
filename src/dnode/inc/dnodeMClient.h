@@ -20,8 +20,10 @@
 extern "C" {
 #endif
 
-int32_t dnodeInitMClient();
-void    dnodeCleanupMClient();
+int32_t  dnodeInitMClient();
+void     dnodeCleanupMClient();
+void     dnodeSendMsgToMnode(SRpcMsg *rpcMsg);
+uint32_t dnodeGetMnodeMasteIp();
 
 #ifdef __cplusplus
 }

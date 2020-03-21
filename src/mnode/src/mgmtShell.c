@@ -392,7 +392,7 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   }
 
   if (pConnectMsg->db[0]) {
-    char dbName[TSDB_TABLE_ID_LEN] = {0};
+    char dbName[TSDB_TABLE_ID_LEN * 3] = {0};
     sprintf(dbName, "%x%s%s", pAcct->acctId, TS_PATH_DELIMITER, pConnectMsg->db);
     SDbObj *pDb = mgmtGetDb(dbName);
     if (pDb == NULL) {

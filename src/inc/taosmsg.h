@@ -25,7 +25,6 @@ extern "C" {
 
 #include "taosdef.h"
 #include "taoserror.h"
-#include "taosdef.h"
 #include "trpc.h"
 
 // message type
@@ -523,21 +522,21 @@ typedef struct {
 } SRetrieveTableRsp;
 
 typedef struct {
-  uint32_t vnode;
-  uint32_t vgId;
-  uint8_t  status;
-  uint8_t  dropStatus;
-  uint8_t  accessState;
-  int64_t  totalStorage;
-  int64_t  compStorage;
-  int64_t  pointsWritten;
-  uint8_t  syncStatus;
-  uint8_t  reserved[15];
+  int32_t vgId;
+  int32_t vnode;
+  int64_t totalStorage;
+  int64_t compStorage;
+  int64_t pointsWritten;
+  uint8_t status;
+  uint8_t syncStatus;
+  uint8_t accessState;
+  uint8_t reserved[5];
 } SVnodeLoad;
 
 typedef struct {
   uint32_t vnode;
-  char     accessState;
+  uint8_t  accessState;
+  uint8_t  reserved[3];
 } SVnodeAccess;
 
 /*
@@ -585,14 +584,16 @@ typedef struct {
 } SVnodeStatisticInfo;
 
 typedef struct {
+  int32_t  dnodeId;
   uint32_t moduleStatus;
   uint32_t createdTime;
   uint32_t numOfVnodes;
-  uint32_t reserved;
 } SDnodeState;
 
 typedef struct {
   uint32_t   version;
+  int32_t    dnodeId;
+  char       dnodeName[TSDB_DNODE_NAME_LEN];
   uint32_t   privateIp;
   uint32_t   publicIp;
   uint32_t   lastReboot;       // time stamp for last reboot
@@ -606,14 +607,12 @@ typedef struct {
 } SDMStatusMsg;
 
 typedef struct {
-  int32_t      code;
-  SDnodeState  dnodeState;
   SRpcIpSet    ipList;
+  SDnodeState  dnodeState;
   SVnodeAccess vnodeAccess[];
 } SDMStatusRsp;
 
 typedef struct {
-  int32_t    vnode;
   SVnodeCfg  cfg;
   SVnodeDesc vpeerDesc[TSDB_MAX_MPEERS];
 } SMDCreateVnodeMsg;

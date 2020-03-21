@@ -40,41 +40,42 @@ int32_t dnodeInitMnode() {
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
   rpcInit.localPort    = tsDnodeMnodePort;
-  rpcInit.label        = "DND-mgmt";
+  rpcInit.label        = "DND-MS";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessMsgFromMnode;
-  rpcInit.sessions     = TSDB_SESSIONS_PER_DNODE;
+  rpcInit.sessions     = 100;
   rpcInit.connType     = TAOS_CONN_SERVER;
-  rpcInit.idleTime     = tsShellActivityTimer * 1500;
+  rpcInit.idleTime     = tsShellActivityTimer * 2000;
 
   tsDnodeMnodeRpc = rpcOpen(&rpcInit);
   if (tsDnodeMnodeRpc == NULL) {
-    dError("failed to init connection from mgmt");
+    dError("failed to init mnode rpc server");
     return -1;
   }
 
-  dPrint("connection to mgmt is opened");
+  dPrint("mnode rpc server is opened");
   return 0;
 }
 
 void dnodeCleanupMnode() {
   if (tsDnodeMnodeRpc) {
     rpcClose(tsDnodeMnodeRpc);
+    tsDnodeMnodeRpc = NULL;
+    dPrint("mnode rpc server is closed");
   }
 }
 
 static void dnodeProcessMsgFromMnode(SRpcMsg *pMsg) {
   SRpcMsg rspMsg;
-
-  rspMsg.handle = pMsg->handle;
-  rspMsg.pCont = NULL;
+  rspMsg.handle  = pMsg->handle;
+  rspMsg.pCont   = NULL;
   rspMsg.contLen = 0;
 
   if (dnodeGetRunStatus() != TSDB_DNODE_RUN_STATUS_RUNING) {
     rspMsg.code = TSDB_CODE_NOT_READY;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
-    dTrace("conn:%p, query msg is ignored since dnode not running", pMsg->handle);
+    dTrace("thandle:%p, query msg is ignored since dnode not running", pMsg->handle);
     return;
   }
 

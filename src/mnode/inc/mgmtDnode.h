@@ -25,7 +25,8 @@ int32_t mgmtInitDnodes();
 void    mgmtCleanUpDnodes();
 int32_t mgmtGetDnodesNum();
 int32_t mgmtUpdateDnode(SDnodeObj *pDnode);
-SDnodeObj* mgmtGetDnode(uint32_t ip);
+SDnodeObj* mgmtGetDnode(int32_t dnodeId);
+SDnodeObj* mgmtGetDnodeByIp(uint32_t ip);
 
 bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode);
 bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode);

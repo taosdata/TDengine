@@ -55,6 +55,9 @@ static void mgmtProcessSuperTableMetaMsg(SQueuedMsg *queueMsg);
 static void mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg);
 static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg);
 static int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static void mgmtProcessAlterTableRsp(SRpcMsg *rpcMsg);
+static void mgmtProcessDropStableRsp(SRpcMsg *rpcMsg);
+static int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle);
 
@@ -86,8 +89,8 @@ int32_t mgmtInitTables() {
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mgmtRetrieveShowTables);
   mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_TABLE_RSP, mgmtProcessCreateTableRsp);
   mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_TABLE_RSP, mgmtProcessDropTableRsp);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP, NULL);
-  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_STABLE_RSP, NULL);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP, mgmtProcessAlterTableRsp);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_STABLE_RSP, mgmtProcessDropStableRsp);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -111,17 +114,15 @@ STableInfo* mgmtGetTable(char *tableId) {
   return NULL;
 }
 
-STableInfo* mgmtGetTableByPos(uint32_t dnodeIp, int32_t vnode, int32_t sid) {
-  SDnodeObj *pObj = mgmtGetDnode(dnodeIp);
-  if (pObj != NULL && vnode >= 0 && vnode < pObj->numOfVnodes) {
-    int32_t vgId = pObj->vload[vnode].vgId;
-    SVgObj *pVgroup = mgmtGetVgroup(vgId);
-    if (pVgroup) {
-      return pVgroup->tableList[sid];
-    }
+STableInfo* mgmtGetTableByPos(uint32_t dnodeId, int32_t vnode, int32_t sid) {
+  SDnodeObj *pObj = mgmtGetDnode(dnodeId);
+  SVgObj *pVgroup = mgmtGetVgroup(vnode);
+
+  if (pObj == NULL || pVgroup == NULL) {
+    return NULL;
   }
 
-  return NULL;
+  return pVgroup->tableList[sid];
 }
 
 int32_t mgmtGetTableMeta(SDbObj *pDb, STableInfo *pTable, STableMetaMsg *pMeta, bool usePublicIp) {
@@ -589,7 +590,7 @@ void mgmtProcessAlterTableMsg(SQueuedMsg *pMsg) {
 void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle) {
   SRpcMsg rpcRsp = {.handle = thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
   SDbObj* pDb = mgmtGetDbByTableId(pTable->tableId);
-  if (pDb == NULL || pDb->dropStatus != TSDB_DB_STATUS_READY) {
+  if (pDb == NULL || pDb->dirty) {
     mError("table:%s, failed to get table meta, db not selected", pTable->tableId);
     rpcRsp.code = TSDB_CODE_DB_NOT_SELECTED;
     rpcSendResponse(&rpcRsp);
@@ -786,6 +787,10 @@ static void mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg) {
   free(queueMsg);
 }
 
+static void mgmtProcessAlterTableRsp(SRpcMsg *rpcMsg) {
+  mTrace("alter table rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
+}
+
 static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg) {
   if (rpcMsg->handle == NULL) return;
 
@@ -834,3 +839,37 @@ static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg) {
   mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SUCCESS);
   free(queueMsg);
 }
+
+static void mgmtProcessDropStableRsp(SRpcMsg *rpcMsg) {
+ mTrace("drop stable rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
+}
+
+//
+//
+//static void mgmtProcessTableCfgMsg(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle) {
+//  SDMConfigTableMsg *pCfg = (SDMConfigTableMsg *) pCont;
+//  pCfg->dnode = htonl(pCfg->dnode);
+//  pCfg->vnode = htonl(pCfg->vnode);
+//  pCfg->sid   = htonl(pCfg->sid);
+//  mTrace("dnode:%s, vnode:%d, sid:%d, receive table config msg", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
+//
+//  if (!sdbMaster) {
+//    mError("dnode:%s, vnode:%d, sid:%d, not master, redirect it", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
+//    mgmtSendRspToDnode(thandle, msgType + 1, TSDB_CODE_REDIRECT, NULL, 0);
+//    return;
+//  }
+//
+//  STableInfo *pTable = mgmtGetTableByPos(pCfg->dnode, pCfg->vnode, pCfg->sid);
+//  if (pTable == NULL) {
+//    mError("dnode:%s, vnode:%d, sid:%d, table not found", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
+//    mgmtSendRspToDnode(thandle, msgType + 1, TSDB_CODE_INVALID_TABLE, NULL, 0);
+//    return;
+//  }
+//
+//  mgmtSendRspToDnode(thandle, msgType + 1, TSDB_CODE_SUCCESS, NULL, 0);
+//
+//  //TODO
+//  SRpcIpSet ipSet = mgmtGetIpSetFromIp(pCfg->dnode);
+//  mgmtSendCreateTableMsg(NULL, &ipSet, NULL);
+//}
+//
