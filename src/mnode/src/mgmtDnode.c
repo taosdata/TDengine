@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tmodule.h"
-#include "tschemautil.h"
 #include "tstatus.h"
 #include "mgmtBalance.h"
 #include "mgmtDnode.h"
@@ -39,11 +38,11 @@ void       (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode) = NULL;
 static SDnodeObj tsDnodeObj = {0};
 static void *  mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode);
 static bool    mgmtCheckConfigShow(SGlobalConfig *cfg);
-static int32_t mgmtGetModuleMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t mgmtGetConfigMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg);
 static void    mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) ;
@@ -74,7 +73,7 @@ bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
   return status > 0;
 }
 
-int32_t mgmtGetModuleMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
@@ -82,7 +81,7 @@ int32_t mgmtGetModuleMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
 
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = 16;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -167,7 +166,7 @@ int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pCo
   return numOfRows;
 }
 
-static int32_t mgmtGetConfigMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
@@ -175,7 +174,7 @@ static int32_t mgmtGetConfigMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn
 
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = TSDB_CFG_OPTION_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -255,13 +254,13 @@ static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, vo
   return numOfRows;
 }
 
-static int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
   SUserObj *pUser = mgmtGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
@@ -277,7 +276,7 @@ static int32_t mgmtGetVnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn)
 
   pShow->bytes[cols] = 12;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "sync status");
+  strcpy(pSchema[cols].name, "sync_status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 

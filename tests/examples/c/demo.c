@@ -35,6 +35,7 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
   // init TAOS
   taos_init();
 
@@ -44,8 +45,27 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   printf("success to connect to server\n");
-  
 
+  int32_t code = taos_query(taos, "select * from test.t1");
+  if (code != 0) {
+    printf("failed to execute query, reason:%s\n", taos_errstr(taos));
+  }
+  
+  TAOS_RES* res = taos_use_result(taos);
+  TAOS_ROW row = NULL;
+  char buf[512] = {0};
+  
+  int32_t numOfFields = taos_num_fields(res);
+  TAOS_FIELD* pFields = taos_fetch_fields(res);
+  
+  while((row = taos_fetch_row(res)) != NULL) {
+    taos_print_row(buf, row, pFields, numOfFields);
+    printf("%s\n", buf);
+    memset(buf, 0, 512);
+  }
+  
+  return 0;
+  
   taos_query(taos, "drop database demo");
   if (taos_query(taos, "create database demo") != 0) {
     printf("failed to create database, reason:%s\n", taos_errstr(taos));
@@ -90,7 +110,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  TAOS_ROW    row;
+//  TAOS_ROW    row;
   int         rows = 0;
   int         num_fields = taos_field_count(taos);
   TAOS_FIELD *fields = taos_fetch_fields(result);

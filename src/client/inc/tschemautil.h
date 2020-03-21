@@ -20,13 +20,56 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include "taosmsg.h"
 #include "tstoken.h"
+#include "tsclient.h"
 
 #define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 
-struct SSchema;
+//struct SSchema;
+
+/**
+ * get the number of tags of this table
+ * @param pTableMeta
+ * @return
+ */
+int32_t tscGetNumOfTags(const STableMeta* pTableMeta);
+
+/**
+ * get the number of columns of this table
+ * @param pTableMeta
+ * @return
+ */
+int32_t tscGetNumOfColumns(const STableMeta* pTableMeta);
+
+/**
+ * get the basic info of this table
+ * @param pTableMeta
+ * @return
+ */
+STableComInfo tscGetTableInfo(const STableMeta* pTableMeta);
+
+/**
+ * get the schema
+ * @param pTableMeta
+ * @return
+ */
+SSchema* tscGetTableSchema(const STableMeta* pTableMeta);
+
+/**
+ * get the tag schema
+ * @param pMeta
+ * @return
+ */
+SSchema *tscGetTableTagSchema(const STableMeta *pMeta);
+
+/**
+ *
+ * @param pMeta
+ * @param startCol
+ * @return
+ */
+SSchema *tscGetTableColumnSchema(const STableMeta *pMeta, int32_t startCol);
 
 /**
  * check if the schema is valid or not, including following aspects:
@@ -42,20 +85,22 @@ struct SSchema;
  */
 bool isValidSchema(struct SSchema *pSchema, int32_t numOfCols);
 
-struct SSchema *tsGetSchema(STableMeta *pMeta);
+/**
+ * get the schema for the "tbname" column. it is a built column
+ * @return
+ */
+SSchema tscGetTbnameColumnSchema();
 
-struct SSchema *tsGetTagSchema(STableMeta *pMeta);
+/**
+ * create the table meta from the msg
+ * @param pTableMetaMsg
+ * @param size size of the table meta
+ * @return
+ */
+STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size);
 
-struct SSchema *tsGetColumnSchema(STableMeta *pMeta, int32_t startCol);
-struct SSchema tsGetTbnameColumnSchema();
-
+//todo tags value as well as the table id structure needs refactor
 char *tsGetTagsValue(STableMeta *pMeta);
-
-bool tsMeterMetaIdentical(STableMeta *p1, STableMeta *p2);
-
-void extractTableName(char *tableId, char *name);
-
-SSQLToken extractDBName(char *tableId, char *name);
 
 void extractTableNameFromToken(SSQLToken *pToken, SSQLToken* pTable);
 

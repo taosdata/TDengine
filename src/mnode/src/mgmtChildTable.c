@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
-#include "tschemautil.h"
 #include "tscompression.h"
 #include "tskiplist.h"
 #include "ttime.h"
@@ -443,7 +442,7 @@ int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName
   return 0;
 }
 
-int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *pMeta, bool usePublicIp) {
+int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMetaMsg *pMeta, bool usePublicIp) {
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sid          = htonl(pTable->sid);
   pMeta->vgid         = htonl(pTable->vgId);
@@ -452,8 +451,8 @@ int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *p
   pMeta->numOfTags    = pTable->superTable->numOfTags;
   pMeta->numOfColumns = htons(pTable->superTable->numOfColumns);
   pMeta->tableType    = pTable->type;
-  pMeta->contLen      = sizeof(STableMeta) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable->superTable);
-  strcpy(pMeta->tableId, pTable->tableId);
+  pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable->superTable);
+  strncpy(pMeta->tableId, pTable->tableId, tListLen(pTable->tableId));
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
@@ -466,7 +465,6 @@ int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMeta *p
       pMeta->vpeerDesc[i].ip    = pVgroup->vnodeGid[i].privateIp;
     }
     pMeta->vpeerDesc[i].vnode = htonl(pVgroup->vnodeGid[i].vnode);
-    pMeta->vpeerDesc[i].vgId = htonl(pVgroup->vgId);
   }
   pMeta->numOfVpeers = pVgroup->numOfVnodes;
 
