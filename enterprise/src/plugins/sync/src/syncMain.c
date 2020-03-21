@@ -485,10 +485,15 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode ) {
   int onlineNum = 0;
   int index = -1;
 
-  for (int i = 0; i <= TAOS_SYNC_MAX_REPLICA; ++i) {
-    if (pNode->peerInfo[i] && pNode->peerInfo[i]->role != TAOS_SYNC_ROLE_OFFLINE) 
+  for (int i = 0; i < pNode->replica; ++i) {
+    if (pNode->peerInfo[i]->role != TAOS_SYNC_ROLE_OFFLINE) 
       onlineNum++;
   }
+
+  // add arbitrator connection
+  SSyncPeer *pArb = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
+  if (pArb && pArb->role != TAOS_SYNC_ROLE_OFFLINE)
+    onlineNum++;
 
   if (onlineNum < pNode->replica * 0.5 ) {
     if (nodeRole != TAOS_SYNC_ROLE_UNSYNCED) {
