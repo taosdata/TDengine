@@ -541,11 +541,13 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg = pStart;
 
   pShellMsg = (SShellSubmitMsg *)pMsg;
-
+  
+  pShellMsg->desc.numOfVnodes = htonl(1);
+  
   pShellMsg->import = htons(TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT) ? 0 : 1);
   pShellMsg->header.vgId = htonl(pTableMeta->vgId);
+  pShellMsg->header.contLen = htonl(pSql->cmd.payloadLen);
   
-  pShellMsg->header.contLen = pSql->cmd.payloadLen;
   pShellMsg->numOfTables = htonl(pSql->cmd.numOfTablesInSubmit);  // number of meters to be inserted
 
   // pSql->cmd.payloadLen is set during parse sql routine, so we do not use it here
