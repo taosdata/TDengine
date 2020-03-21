@@ -339,6 +339,12 @@ void doSync()
   sprintf(path, "/home/jhtao/test/d%d", nodeId);
   strcpy(syncInfo.path, path);
 
+  if ((syncInfo.replica & 1) == 0) {
+    syncInfo.arbitratorIp = inet_addr("192.168.0.6");
+  } else {
+    syncInfo.arbitratorIp = 0;
+  }
+
   if ( syncHandle == NULL) {
       syncHandle = syncStart(&syncInfo);
   } else {

@@ -45,13 +45,14 @@ static pthread_once_t syncModuleInit = PTHREAD_ONCE_INIT;
 
 // local functions
 static void  syncProcessSyncRequest(char *pMsg, SSyncPeer *pPeer);
-static void  syncSyncWithMaster(void *, void *);
+static void  syncRecoverFromMaster(void *, void *);
 static void  syncCheckPeerConnection(void *param, void *tmrId);
 static void  syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack);
 static void  syncProcessBrokenLink(void *param);
 static void  syncProcessPeerMsg(void *param, void *buffer);
 static void  syncProcessIncommingConnection(int connFd, uint32_t sourceIp); 
 static void  syncRemovePeer(SSyncPeer *pPeer);
+static void  syncAddArbitrator(SSyncNode *pNode, uint32_t ip);
 static void  syncAddNodeRef(SSyncNode *pNode);
 static void  syncAddPeerRef(SSyncPeer *pPeer);
 static int   syncDecNodeRef(SSyncNode *pNode);
@@ -121,6 +122,8 @@ void *syncStart(SSyncInfo *pInfo)
     free (pNode);
     return NULL;
   }
+
+  syncAddArbitrator(pNode, pInfo->arbitratorIp);
 
   pNode->pSyncFwds = calloc(sizeof(SSyncFwds) + tsMaxFwdInfo*sizeof(SFwdInfo), 1);
   pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, 300, pNode, syncTmrCtrl);
@@ -214,6 +217,8 @@ int syncReconfig(void *param, SSyncInfo *pNewInfo)
     syncStop(pNode);
     return -1;
   }  
+
+  syncAddArbitrator(pNode, pNewInfo->arbitratorIp);
 
   if (pNewInfo->replica <= 1) {
     dPrint("%s, no peers are configured, work as master!", pNode->label);
@@ -327,6 +332,22 @@ int syncGetNodesRole(void *param, SNodesRole *pNodesRole)
   return 0;
 }
 
+static void syncAddArbitrator(SSyncNode *pNode, uint32_t ip)
+{
+  SSyncPeer *pPeer = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
+
+  if (pPeer) syncRemovePeer(pPeer);
+  pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = NULL;
+
+  if (ip == 0) return;
+
+  SNodeInfo nodeInfo;
+  nodeInfo.nodeIp = ip;
+  nodeInfo.nodeId = 0;
+
+  pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = syncAddPeer(pNode, &nodeInfo);
+}
+
 static void syncAddNodeRef(SSyncNode *pNode)
 {
    atomic_add_fetch_8(&pNode->refCount, 1);
@@ -392,7 +413,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, SNodeInfo *pInfo)
   pPeer->refCount = 1;
 
   dPrint("%s peer:%s, %s is configured", pNode->label, pPeer->ipstr, pInfo->name);
-  if (pInfo->nodeIp > tsSyncServerIp) {
+  if (pInfo->nodeIp > tsSyncServerIp || pInfo->nodeId == 0) {
     dTrace("%s peer:%s, start to check peer connection", pNode->label, pPeer->ipstr);
     taosTmrReset(syncCheckPeerConnection, 100, pPeer, syncTmrCtrl, &pPeer->timer);
   }
@@ -425,7 +446,16 @@ static void syncChooseMaster(SSyncNode *pNode) {
       onlineNum++;
   }
 
-  if ( onlineNum >= pNode->replica/2.0 ) {
+  if (onlineNum == pNode->replica) {
+    // if all peers are online, peer with highest version shall be master
+    index = 0;
+    for (int i = 1; i < pNode->replica; ++i) {
+      if (pNode->peerInfo[i]->version > pNode->peerInfo[index]->version)
+        index = i;
+    }
+  }
+
+  if ( index < 0 && onlineNum >= pNode->replica/2.0 ) {
     // over half of nodes are online
     for (int i = 0; i < pNode->replica; ++i) {
       //slave with highest version shall be master
@@ -434,15 +464,6 @@ static void syncChooseMaster(SSyncNode *pNode) {
         if (index < 0 || pPeer->version > pNode->peerInfo[index]->version)
           index = i;
       }
-    }
-  }
-
-  if (index < 0 && onlineNum == pNode->replica) {
-    // if all peers are online, peer with highest version shall be master
-    index = 0;
-    for (int i = 1; i < pNode->replica; ++i) {
-      if (pNode->peerInfo[i]->version > pNode->peerInfo[index]->version)
-        index = i;
     }
   }
 
@@ -461,20 +482,20 @@ static void syncChooseMaster(SSyncNode *pNode) {
 } 
  
 static SSyncPeer *syncCheckMaster(SSyncNode *pNode ) {
-  int offlineNum = 0;
+  int onlineNum = 0;
   int index = -1;
 
-  for (int i = 0; i < pNode->replica; ++i) {
-    if (pNode->peerInfo[i]->role == TAOS_SYNC_ROLE_OFFLINE) 
-      offlineNum++;
+  for (int i = 0; i <= TAOS_SYNC_MAX_REPLICA; ++i) {
+    if (pNode->peerInfo[i] && pNode->peerInfo[i]->role != TAOS_SYNC_ROLE_OFFLINE) 
+      onlineNum++;
   }
 
-  if (offlineNum > pNode->replica * 0.5 ) {
+  if (onlineNum < pNode->replica * 0.5 ) {
     if (nodeRole != TAOS_SYNC_ROLE_UNSYNCED) {
       nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
       (*pNode->notifyRole)(pNode->ahandle, nodeRole);
       pNode->peerInfo[pNode->selfIndex]->role = nodeRole;
-      dPrint("%s, offline:%d replica:%d, change to unsynced state", pNode->label, offlineNum, pNode->replica);
+      dPrint("%s, change to unsynced state, online:%d replica:%d", pNode->label, onlineNum, pNode->replica);
     }
   } else {
     for (int i=0; i<pNode->replica; ++i) {
@@ -546,7 +567,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus peersStatus[], int8_t ne
   pthread_mutex_unlock(&(pNode->mutex));
 
   if (syncRequired) {
-    syncSyncWithMaster(pMaster, NULL);
+    syncRecoverFromMaster(pMaster, NULL);
   }
 
   if (peerOldRole != newRole || nodeRole != selfOldRole)
@@ -613,7 +634,7 @@ static void syncNotStarted(void *param, void *tmrId)
   syncRestartConnection(pPeer);
 }
 
-static void syncSyncWithMaster(void *param, void *tmrId)
+static void syncRecoverFromMaster(void *param, void *tmrId)
 {
   SSyncPeer   *pPeer = (SSyncPeer *)param;
   if (pPeer->ip == 0) return;
@@ -627,7 +648,7 @@ static void syncSyncWithMaster(void *param, void *tmrId)
   taosTmrStopA(&pPeer->timer);
   if (tsSyncNum >= tsMaxSyncNum) {
     dPrint("%s peer:%s, %d syncs are in process, try later", pNode->label, pPeer->ipstr, tsSyncNum);
-    taosTmrReset(syncSyncWithMaster, 500, pPeer, syncTmrCtrl, &pPeer->timer);
+    taosTmrReset(syncRecoverFromMaster, 500, pPeer, syncTmrCtrl, &pPeer->timer);
     return;
   }
 
@@ -833,12 +854,13 @@ static void syncCheckPeerConnection(void *param, void *tmrId)
 
   SSyncHead firstPkt;
   memset(&firstPkt, 0, sizeof(firstPkt));
-  firstPkt.vgId = pNode->vgId;
+  firstPkt.vgId = pPeer->nodeId ? pNode->vgId:0;
   firstPkt.type = TAOS_SMSG_STATUS;
 
   if ( write(connFd, &firstPkt, sizeof(firstPkt)) == sizeof(firstPkt)) {
     dTrace("%s peer:%s, connection to peer server is setup", pNode->label, pPeer->ipstr);
-    pPeer->peerFd = connFd;
+    pPeer->peerFd = connFd; 
+    pPeer->role = TAOS_SYNC_ROLE_UNSYNCED;
     pPeer->pThread = taosAllocateTcpThread(tsTcpPool, pPeer, connFd);
     syncAddPeerRef(pPeer);
   } else {
@@ -883,6 +905,12 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
   }
 
   int32_t vgId = firstPkt.vgId;
+  if (vgId == 0) {  // work as arbitrator
+    dTrace("work as arbitrator for ip:%s", ipstr);
+    taosAllocateTcpThread(tsTcpPool, NULL, connFd);
+    return;
+  }
+
   SSyncNode *pNode = taosGetIdHash(vgIdHash, vgId); 
   if (pNode == NULL) {
     dError("vgId:%d, vgId could not be found", vgId);
@@ -927,6 +955,8 @@ static void syncProcessIncommingConnection(int connFd, uint32_t sourceIp)
 }
 
 static void syncProcessBrokenLink(void *param) {
+  if (param == NULL) return;  // the connection for arbitrator
+
   SSyncPeer *pPeer = (SSyncPeer *)param;
   SSyncNode *pNode = pPeer->pSyncNode;
 

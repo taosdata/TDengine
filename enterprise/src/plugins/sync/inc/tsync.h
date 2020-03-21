@@ -69,6 +69,7 @@ typedef struct {
   int32_t    vgId;      // vgroup ID
   void      *ahandle;   // handle provided by APP 
   uint64_t   version;   // initial version
+  uint32_t   arbitratorIp; 
   SNodeInfo  nodeInfo[TAOS_SYNC_MAX_REPLICA];
  
   // if name is null, get the file from index or after, used by master

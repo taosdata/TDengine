@@ -129,7 +129,7 @@ typedef struct _sync_node {
   void       (*confirmForward)(void *ahandle, void *mhandle, int32_t code);
   void       (*notifyRole)(void *ahandle, int8_t role);
   int8_t       selfIndex;
-  SSyncPeer   *peerInfo[TAOS_SYNC_MAX_REPLICA];
+  SSyncPeer   *peerInfo[TAOS_SYNC_MAX_REPLICA+1];  // extra one for arbitrator
   SSyncPeer   *pMaster;
   int8_t       refCount;
   SRecvBuffer *pRecv;
