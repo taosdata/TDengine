@@ -445,7 +445,7 @@ int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName
 int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMetaMsg *pMeta, bool usePublicIp) {
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sid          = htonl(pTable->sid);
-  pMeta->vgid         = htonl(pTable->vgId);
+  pMeta->vgId         = htonl(pTable->vgId);
   pMeta->sversion     = htons(pTable->superTable->sversion);
   pMeta->precision    = pDb->cfg.precision;
   pMeta->numOfTags    = pTable->superTable->numOfTags;

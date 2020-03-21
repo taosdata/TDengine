@@ -34,7 +34,6 @@ void *  pTscMgmtConn;
 void *  pSlaveConn;
 void *  tscCacheHandle;
 int32_t globalCode = 0;
-int     initialized = 0;
 int     slaveIndex;
 void *  tscTmr;
 void *  tscQhandle;
@@ -187,9 +186,7 @@ void taos_init_imp() {
 
   if (tscCacheHandle == NULL) tscCacheHandle = taosCacheInit(tscTmr, refreshTime);
 
-  initialized = 1;
   tscTrace("client is initialized successfully");
-  tsInsertHeadSize = tsRpcHeadSize + sizeof(SShellSubmitMsg);
 }
 
 void taos_init() { pthread_once(&tscinit, taos_init_imp); }

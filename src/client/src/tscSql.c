@@ -130,7 +130,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   pSql->pTscObj = pObj;
   pSql->signature = pSql;
   tsem_init(&pSql->rspSem, 0, 0);
-//  tsem_init(&pSql->emptyRspSem, 0, 1);
+  
   pObj->pSql = pSql;
   pSql->fp = fp;
   pSql->param = param;
@@ -146,6 +146,8 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
     return NULL;
   }
 
+  // tsRpcHeaderSize will be updated during RPC initialization, so only after it initialization, this value is valid
+  tsInsertHeadSize = tsRpcHeadSize + sizeof(SShellSubmitMsg);
   return pObj;
 }
 

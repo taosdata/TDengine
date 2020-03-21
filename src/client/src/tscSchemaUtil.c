@@ -165,7 +165,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   
   pTableMeta->sid = pTableMetaMsg->sid;
   pTableMeta->uid = pTableMetaMsg->uid;
-  pTableMeta->vgid = pTableMetaMsg->vgid;
+  pTableMeta->vgId = pTableMetaMsg->vgId;
   
   pTableMeta->numOfVpeers = pTableMetaMsg->numOfVpeers;
   memcpy(pTableMeta->vpeerDesc, pTableMetaMsg->vpeerDesc, sizeof(SVnodeDesc) * pTableMeta->numOfVpeers);
