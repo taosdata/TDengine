@@ -101,7 +101,8 @@ TEST(TsdbTest, createRepo) {
 
   tsdbInsertData(pRepo, pMsg);
 
-  int k = 0;
+  tsdbTriggerCommit(pRepo);
+
 }
 
 TEST(TsdbTest, openRepo) {

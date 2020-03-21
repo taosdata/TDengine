@@ -135,6 +135,16 @@ SListNode *tdListPopNode(SList *list, SListNode *node) {
   return node;
 }
 
+// Move all node elements from src to dst, the dst is assumed as an empty list
+void tdListMove(SList *src, SList *dst) {
+  // assert(dst->eleSize == src->eleSize);
+  dst->numOfEles = src->numOfEles;
+  dst->head = src->head;
+  dst->tail = src->tail;
+  src->numOfEles = 0;
+  src->head = src->tail = NULL;
+}
+
 void tdListNodeGetData(SList *list, SListNode *node, void *target) { memcpy(target, node->data, list->eleSize); }
 
 void tdListInitIter(SList *list, SListIter *pIter, TD_LIST_DIRECTION_T direction) {

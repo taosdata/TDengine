@@ -308,8 +308,22 @@ int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
   if (pthread_mutex_lock(&(pRepo->mutex)) < 0) return -1;
   if (pRepo->commit) return 0;
   pRepo->commit = 1;
+  // Loop to move pData to iData
+  for (int i = 0; i < pRepo->config.maxTables; i++) {
+    STable *pTable = pRepo->tsdbMeta->tables[i];
+    if (pTable != NULL) {
+      void *pData = pTable->content.pData;
+      pTable->content.pData = NULL;
+      pTable->iData = pData;
+    }
+  }
+  // Loop to move mem to imem
+  tdListMove(pRepo->tsdbCache->mem, pRepo->tsdbCache->imem);
+
   pthread_create(&(pRepo->commitThread), NULL, tsdbCommitToFile, (void *)repo);
   pthread_mutex_unlock(&(pRepo->mutex));
+
+  pthread_join(pRepo->commitThread, NULL);
 
   return 0;
 }
@@ -692,7 +706,20 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
 }
 
 static void *tsdbCommitToFile(void *arg) {
-  STsdbRepo *pRepo = (STsdbRepo *)arg;
   // TODO
+  STsdbRepo *pRepo = (STsdbRepo *)arg;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  for (int i = 0; i < pRepo->config.maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable == NULL) continue;
+    SSkipListIterator *pIter = tSkipListCreateIter(pTable->iData);
+    while (tSkipListIterNext(pIter)) {
+      SSkipListNode *node = tSkipListIterGet(pIter);
+      SDataRow row = SL_GET_NODE_DATA(node);
+      int k = 0;
+
+    }
+  }
+
   return NULL;
 }

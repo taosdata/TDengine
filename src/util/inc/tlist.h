@@ -56,6 +56,7 @@ int        tdListAppend(SList *list, void *data);
 SListNode *tdListPopHead(SList *list);
 SListNode *tdListPopTail(SList *list);
 SListNode *tdListPopNode(SList *list, SListNode *node);
+void       tdListMove(SList *src, SList *dst);
 
 void       tdListNodeGetData(SList *list, SListNode *node, void *target);
 void       tdListInitIter(SList *list, SListIter *pIter, TD_LIST_DIRECTION_T direction);
