@@ -62,7 +62,7 @@ typedef struct STableMeta {
   int8_t     numOfVpeers;
   int16_t    sversion;
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
-  int32_t    vgid;     // virtual group id, which current table belongs to
+  int32_t    vgId;     // virtual group id, which current table belongs to
   int32_t    sid;      // the index of one table in a virtual node
   uint64_t   uid;      // unique id of a table
   SSchema    schema[]; // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
@@ -182,7 +182,7 @@ typedef struct STableDataBlocks {
   char    tableId[TSDB_TABLE_ID_LEN];
   int8_t  tsSource;     // where does the UNIX timestamp come from, server or client
   bool    ordered;      // if current rows are ordered or not
-  int64_t vgid;         // virtual group id
+  int64_t vgId;         // virtual group id
   int64_t prevTS;       // previous timestamp, recorded to decide if the records array is ts ascending
   int32_t numOfTables;  // number of tables in current submit block
 

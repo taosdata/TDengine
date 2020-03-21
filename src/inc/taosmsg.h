@@ -198,10 +198,20 @@ typedef struct {
 } SShellSubmitBlock;
 
 typedef struct {
+  int32_t numOfVnodes;
+} SMsgDesc;
+
+typedef struct SMsgHead {
+  int32_t contLen;
+  int32_t vgId;
+} SMsgHead;
+
+typedef struct {
+  SMsgDesc desc;
+  SMsgHead header;
   int16_t import;
-  int16_t vnode;
-  int32_t numOfSid; /* total number of sid */
-  char    blks[];   /* numOfSid blocks, each blocks for one table */
+  int32_t numOfTables; // total number of sid
+  char    blks[];      // number of data blocks, each table has at least one data block
 } SShellSubmitMsg;
 
 typedef struct {
@@ -231,15 +241,6 @@ typedef struct {
   int32_t  vnode;  //the index of vnode
   uint32_t ip;
 } SVnodeDesc;
-
-typedef struct {
-  int32_t numOfVnodes;
-} SMsgDesc;
-
-typedef struct {
-  int32_t contLen;
-  int32_t vgId;
-} SMsgHead;
 
 typedef struct {
   int32_t    contLen;
@@ -688,7 +689,7 @@ typedef struct STableMetaMsg {
   int8_t  numOfVpeers;
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int32_t  sid;
-  int32_t  vgid;
+  int32_t  vgId;
   uint64_t uid;
   SSchema  schema[];
 } STableMetaMsg;

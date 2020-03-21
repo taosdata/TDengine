@@ -698,7 +698,7 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
   SShellSubmitBlock *pBlocks = (SShellSubmitBlock *)(dataBuf->pData);
   tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
 
-  dataBuf->vgid = pTableMeta->vgid;
+  dataBuf->vgId = pTableMeta->vgId;
   dataBuf->numOfTables = 1;
 
   /*
@@ -1058,7 +1058,6 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;
     }
 
-    void *fp = pSql->fp;
     ptrdiff_t pos = pSql->asyncTblPos - pSql->sqlstr;
     
     if ((code = tscCheckIfCreateTable(&str, pSql)) != TSDB_CODE_SUCCESS) {
@@ -1068,16 +1067,14 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
        * And during the getMeterMetaCallback function, the sql string will be parsed from the
        * interrupted position.
        */
-      if (fp != NULL) {
-        if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
-          tscTrace("async insert and waiting to get meter meta, then continue parse sql from offset: %" PRId64, pos);
-          return code;
-        }
-        
-        // todo add to return
-        tscError("async insert parse error, code:%d, %s", code, tstrerror(code));
-        pSql->asyncTblPos = NULL;
+      if (TSDB_CODE_ACTION_IN_PROGRESS == code) {
+        tscTrace("async insert and waiting to get meter meta, then continue parse sql from offset: %" PRId64, pos);
+        return code;
       }
+      
+      // todo add to return
+      tscError("async insert parse error, code:%d, %s", code, tstrerror(code));
+      pSql->asyncTblPos = NULL;
       
       goto _error_clean;       // TODO: should _clean or _error_clean to async flow ????
     }
@@ -1096,15 +1093,13 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       goto _error_clean;
     }
     
-    int32_t numOfCols = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
     STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
     
     if (sToken.type == TK_VALUES) {
-      SParsedDataColInfo spd = {.numOfCols = numOfCols};
+      SParsedDataColInfo spd = {.numOfCols = tinfo.numOfColumns};
       
       SSchema *pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
-
-      tscSetAssignedColumnInfo(&spd, pSchema, numOfCols);
+      tscSetAssignedColumnInfo(&spd, pSchema, tinfo.numOfColumns);
 
       if (validateDataSource(pCmd, DATA_FROM_SQL_STRING, sToken.z) != TSDB_CODE_SUCCESS) {
         goto _error_clean;
@@ -1243,7 +1238,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
 
   // submit to more than one vnode
   if (pCmd->pDataBlocks->nSize > 0) {
-    // merge according to vgid
+    // merge according to vgId
     if ((code = tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks)) != TSDB_CODE_SUCCESS) {
       goto _error_clean;
     }

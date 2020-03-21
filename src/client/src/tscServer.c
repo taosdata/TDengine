@@ -341,11 +341,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
      * the tscShouldFreeAsyncSqlObj will success and tscFreeSqlObj free it immediately.
      */
     bool shouldFree = tscShouldFreeAsyncSqlObj(pSql);
-    if (command == TSDB_SQL_INSERT) {  // handle multi-vnode insertion situation
-      (*pSql->fp)(pSql, taosres, rpcMsg->code);
-    } else {
-      (*pSql->fp)(pSql->param, taosres, rpcMsg->code);
-    }
+    (*pSql->fp)(pSql->param, taosres, rpcMsg->code);
 
     if (shouldFree) {
       // If it is failed, all objects allocated during execution taos_connect_a should be released
@@ -539,22 +535,27 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char *           pMsg, *pStart;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
   
   pStart = pSql->cmd.payload + tsRpcHeadSize;
   pMsg = pStart;
 
   pShellMsg = (SShellSubmitMsg *)pMsg;
-
+  
+  pShellMsg->desc.numOfVnodes = htonl(1);
+  
   pShellMsg->import = htons(TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT) ? 0 : 1);
-  pShellMsg->vnode = 0; //htons(pTableMeta->vpeerDesc[pTableMeta->index].vnode);
-  pShellMsg->numOfSid = htonl(pSql->cmd.numOfTablesInSubmit);  // number of meters to be inserted
+  pShellMsg->header.vgId = htonl(pTableMeta->vgId);
+  pShellMsg->header.contLen = htonl(pSql->cmd.payloadLen);
+  
+  pShellMsg->numOfTables = htonl(pSql->cmd.numOfTablesInSubmit);  // number of meters to be inserted
 
   // pSql->cmd.payloadLen is set during parse sql routine, so we do not use it here
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
 //  tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pTableMeta->vpeerDesc[pTableMeta->index].ip),
 //           htons(pShellMsg->vnode));
 
-  pSql->cmd.payloadLen = sizeof(SShellSubmitMsg);
+//  pSql->cmd.payloadLen = sizeof(SShellSubmitMsg);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -676,7 +677,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->uid = pTableMeta->uid;
     pQueryMsg->numOfTagsCols = 0;
     
-    pQueryMsg->vgId = htonl(pTableMeta->vgid);
+    pQueryMsg->vgId = htonl(pTableMeta->vgId);
     tscTrace("%p queried tables:%d, table id: %s", pSql, 1, pTableMetaInfo->name);
   } else {  // query on super table
     if (pTableMetaInfo->vnodeIndex < 0) {
@@ -1849,12 +1850,12 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
 
   pMetaMsg->sid = htonl(pMetaMsg->sid);
   pMetaMsg->sversion = htons(pMetaMsg->sversion);
-  pMetaMsg->vgid = htonl(pMetaMsg->vgid);
+  pMetaMsg->vgId = htonl(pMetaMsg->vgId);
   pMetaMsg->uid = htobe64(pMetaMsg->uid);
   pMetaMsg->contLen = htons(pMetaMsg->contLen);
 
-  if (pMetaMsg->sid < 0 || pMetaMsg->vgid < 0) {
-    tscError("invalid meter vgid:%d, sid%d", pMetaMsg->vgid, pMetaMsg->sid);
+  if (pMetaMsg->sid < 0 || pMetaMsg->vgId < 0) {
+    tscError("invalid meter vgId:%d, sid%d", pMetaMsg->vgId, pMetaMsg->sid);
     return TSDB_CODE_INVALID_VALUE;
   }
 
@@ -1948,11 +1949,11 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
 
     pMeta->sid = htonl(pMeta->sid);
     pMeta->sversion = htons(pMeta->sversion);
-    pMeta->vgid = htonl(pMeta->vgid);
+    pMeta->vgId = htonl(pMeta->vgId);
     pMeta->uid = htobe64(pMeta->uid);
 
-    if (pMeta->sid <= 0 || pMeta->vgid < 0) {
-      tscError("invalid meter vgid:%d, sid%d", pMeta->vgid, pMeta->sid);
+    if (pMeta->sid <= 0 || pMeta->vgId < 0) {
+      tscError("invalid meter vgId:%d, sid%d", pMeta->vgId, pMeta->sid);
       pSql->res.code = TSDB_CODE_INVALID_VALUE;
       pSql->res.numOfTotal = i;
       return TSDB_CODE_OTHERS;

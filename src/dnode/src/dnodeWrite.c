@@ -275,7 +275,9 @@ static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
   pRsp->numOfRows         = htonl(1);
   pRsp->affectedRows      = htonl(1);
   pRsp->numOfFailedBlocks = 0;
-
+  
+  // todo write to tsdb
+  
   SRpcMsg rpcRsp = {
     .handle = pMsg->rpcMsg.handle,
     .pCont = pRsp,
