@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "com_taosdata_jdbc_TSDBJNIConnector.h"
+#include "os.h"
 #include "taos.h"
 #include "tlog.h"
-#include "tscJoinProcess.h"
-#include "tsclient.h"
+#include "tscSubquery.h"
 #include "tscUtil.h"
+#include "tsclient.h"
 #include "ttime.h"
 
 int __init = 0;

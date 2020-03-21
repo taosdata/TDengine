@@ -19,9 +19,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "dataformat.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "dataformat.h"
+#include "tarray.h"
+#include "name.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -181,23 +183,17 @@ int32_t tsdbInsertData(tsdb_repo_t *pRepo, SSubmitMsg *pMsg);
 
 // -- FOR QUERY TIME SERIES DATA
 
-typedef void tsdb_query_handle_t;  // Use void to hide implementation details
-
-// time window
-typedef struct STimeWindow {
-  int64_t skey;
-  int64_t ekey;
-} STimeWindow;
+typedef void* tsdb_query_handle_t;  // Use void to hide implementation details
 
 // typedef struct {
 // } SColumnFilterInfo;
 
 // query condition to build vnode iterator
-typedef struct STSDBQueryCond {
+typedef struct STsdbQueryCond {
   STimeWindow       twindow;
   int32_t           order;  // desc/asc order to iterate the data block
-  SColumnFilterInfo colFilterInfo;
-} STSDBQueryCond;
+  SColumnInfoEx     colList;
+} STsdbQueryCond;
 
 typedef struct SBlockInfo {
   STimeWindow window;
@@ -209,15 +205,18 @@ typedef struct SBlockInfo {
 } SBlockInfo;
 
 //  TODO: move this data struct out of the module
-typedef struct SData {
-  int32_t num;
-  char *  data;
-} SData;
+//typedef struct SData {
+//  int32_t num;
+//  char *  data;
+//} SData;
 
-typedef struct SDataBlock {
-  int32_t numOfCols;
-  SData **pData;
-} SDataBlock;
+typedef struct SDataBlockInfo {
+  STimeWindow window;
+  int32_t     size;
+  int32_t     numOfCols;
+  int64_t     uid;
+  int32_t     sid;
+} SDataBlockInfo;
 
 typedef struct STableIDList {
   STableId *tableIds;
@@ -227,60 +226,40 @@ typedef struct STableIDList {
 typedef struct {
 } SFields;
 
+#define TSDB_TS_GREATER_EQUAL 1
+#define TSDB_TS_LESS_EQUAL 2
+
+typedef struct SQueryRowCond {
+  int32_t rel;
+  TSKEY   ts;
+} SQueryRowCond;
+
+typedef void *tsdbpos_t;
+
 /**
  * Get the data block iterator, starting from position according to the query condition
- * @param pRepo  the TSDB repository to query on
  * @param pCond  query condition, only includes the filter on primary time stamp
  * @param pTableList    table sid list
  * @return
  */
-tsdb_query_handle_t *tsdbQueryFromTableID(tsdb_repo_t *pRepo, STSDBQueryCond *pCond, const STableIDList *pTableList);
+tsdb_query_handle_t *tsdbQueryByTableId(STsdbQueryCond *pCond, SArray *idList, SArray *pColumnInfo);
 
 /**
- *  Get iterator for super tables, of which tags values satisfy the tag filter info
- *
- *  NOTE: the tagFilterStr is an bin-expression for tag filter, such as ((tag_col = 5) and (tag_col2 > 7))
- *  The filter string is sent from client directly.
- *  The build of the tags filter expression from string is done in the iterator generating function.
- *
- * @param pRepo         the repository to query on
- * @param pCond         query condition
- * @param pTagFilterStr tag filter info
- * @return
- */
-tsdb_query_handle_t *tsdbQueryFromTagConds(tsdb_repo_t *pRepo, STSDBQueryCond *pCond, int16_t stableId,
-                                           const char *pTagFilterStr);
-
-/**
- *  Reset to the start(end) position of current query, from which the iterator starts.
- *
+ * move to next block
  * @param pQueryHandle
- * @param position  set the iterator traverses position. (TSDB_POS_START|TSDB_POS_END)
  * @return
  */
-int32_t tsdbResetQuery(tsdb_query_handle_t *pQueryHandle, int16_t position);
+bool tsdbNextDataBlock(tsdb_query_handle_t *pQueryHandle);
 
 /**
- *  move to next block
- * @param pQueryHandle
- * @param pCond
- * @return
- */
-bool tsdbIterNext(tsdb_query_handle_t *pQueryHandle);
-
-/**
- * 当前数据块的信息，调用next函数后，只会获得block的信息，包括：行数、列数、skey/ekey信息。注意该信息并不是现在的SCompBlockInfo信息。
- * 因为SCompBlockInfo是完整的数据块信息，但是迭代器返回并不是。
- * 查询处理引擎会自己决定需要blockInfo, 还是预计算数据，亦或是完整的数据。
  * Get current data block information
  *
  * @param pQueryHandle
  * @return
  */
-SBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle);
+SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle);
 
 /**
- * 获取当前数据块的预计算信息，如果块不完整，无预计算信息，如果是cache块，无预计算信息。
  *
  * Get the pre-calculated information w.r.t. current data block.
  *
@@ -290,12 +269,9 @@ SBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle);
  * @pBlockStatis the pre-calculated value for current data blocks. if the block is a cache block, always return 0
  * @return
  */
-int32_t tsdbRetrieveDataBlockStatisInfo(tsdb_query_handle_t *pQueryHandle, SFields *pBlockStatis);
+int32_t tsdbRetrieveDataBlockStatisInfo(tsdb_query_handle_t *pQueryHandle, SDataStatis **pBlockStatis);
 
 /**
- * 返回加载到缓存中的数据，可能是磁盘数据也可能是内存数据，对客户透明。即使是磁盘数据，返回的结果也是磁盘块中，满足查询时间范围要求的数据行，并不是一个完整的磁盘数
- * 据块。
- *
  * The query condition with primary timestamp is passed to iterator during its constructor function,
  * the returned data block must be satisfied with the time window condition in any cases,
  * which means the SData data block is not actually the completed disk data blocks.
@@ -303,7 +279,54 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdb_query_handle_t *pQueryHandle, SFiel
  * @param pQueryHandle
  * @return
  */
-SDataBlock *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle);
+SArray *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle, SArray *pIdList);
+
+/**
+ *  todo remove the parameter of position, and order type
+ *
+ *  Reset to the start(end) position of current query, from which the iterator starts.
+ *
+ * @param pQueryHandle
+ * @param position  set the iterator traverses position
+ * @param order ascending order or descending order
+ * @return
+ */
+int32_t tsdbResetQuery(tsdb_query_handle_t *pQueryHandle, STimeWindow* window, tsdbpos_t position, int16_t order);
+
+/**
+ * return the access position of current query handle
+ * @param pQueryHandle
+ * @return
+ */
+int32_t tsdbDataBlockSeek(tsdb_query_handle_t *pQueryHandle, tsdbpos_t pos);
+
+/**
+ * todo remove this function later
+ * @param pQueryHandle
+ * @return
+ */
+tsdbpos_t tsdbDataBlockTell(tsdb_query_handle_t *pQueryHandle);
+
+/**
+ * todo remove this function later
+ * @param pQueryHandle
+ * @param pIdList
+ * @return
+ */
+SArray *tsdbRetrieveDataRow(tsdb_query_handle_t *pQueryHandle, SArray *pIdList, SQueryRowCond *pCond);
+
+/**
+ *  Get iterator for super tables, of which tags values satisfy the tag filter info
+ *
+ *  NOTE: the tagFilterStr is an bin-expression for tag filter, such as ((tag_col = 5) and (tag_col2 > 7))
+ *  The filter string is sent from client directly.
+ *  The build of the tags filter expression from string is done in the iterator generating function.
+ *
+ * @param pCond         query condition
+ * @param pTagFilterStr tag filter info
+ * @return
+ */
+tsdb_query_handle_t *tsdbQueryFromTagConds(STsdbQueryCond *pCond, int16_t stableId, const char *pTagFilterStr);
 
 /**
  * Get the qualified tables for (super) table query.

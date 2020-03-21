@@ -98,15 +98,15 @@ SCacheObj *taosCacheInit(void *tmrCtrl, int64_t refreshTimeInSeconds);
  * @param keepTime      survival time in second
  * @return              cached element
  */
-void *taosCachePut(void *handle, char *key, char *pData, int dataSize, int keepTimeInSeconds);
+void *taosCachePut(SCacheObj *pCacheObj, char *key, void *pData, size_t dataSize, int keepTimeInSeconds);
 
 /**
  * get data from cache
- * @param handle        cache object
+ * @param pCacheObj     cache object
  * @param key           key
  * @return              cached data or NULL
  */
-void *taosCacheAcquireByName(void *handle, char *key);
+void *taosCacheAcquireByName(SCacheObj *pCacheObj, const char *key);
 
 /**
  * Add one reference count for the exist data, and assign this data for a new owner.
@@ -118,7 +118,7 @@ void *taosCacheAcquireByName(void *handle, char *key);
  * @param data
  * @return
  */
-void *taosCacheAcquireByData(void *handle, void *data);
+void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data);
 
 /**
  * transfer the ownership of data in cache to another object without increasing reference count.
@@ -126,7 +126,7 @@ void *taosCacheAcquireByData(void *handle, void *data);
  * @param data
  * @return
  */
-void *taosCacheTransfer(void *handle, void **data);
+void *taosCacheTransfer(SCacheObj *pCacheObj, void **data);
 
 /**
  * remove data in cache, the data will not be removed immediately.
@@ -136,7 +136,7 @@ void *taosCacheTransfer(void *handle, void **data);
  * @param _remove   force model, reduce the ref count and move the data into
  * pTrash
  */
-void taosCacheRelease(void *handle, void **data, bool _remove);
+void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove);
 
 /**
  *  move all data node into trash, clear node in trash can if it is not referenced by any clients

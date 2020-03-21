@@ -1532,7 +1532,7 @@ static STimeWindow getActiveTimeWindow(SWindowResInfo *pWindowResInfo, int64_t t
   return w;
 }
 
-static int32_t addNewWindowResultBuf(SWindowResult *pWindowRes, SQueryDiskbasedResultBuf *pResultBuf, int32_t sid,
+static int32_t addNewWindowResultBuf(SWindowResult *pWindowRes, SDiskbasedResultBuf *pResultBuf, int32_t sid,
                                      int32_t numOfRowsPerPage) {
   if (pWindowRes->pos.pageId != -1) {
     return 0;
@@ -1574,7 +1574,7 @@ static int32_t addNewWindowResultBuf(SWindowResult *pWindowRes, SQueryDiskbasedR
 static int32_t setWindowOutputBufByKey(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowResInfo, int32_t sid,
                                        STimeWindow *win) {
   assert(win->skey <= win->ekey);
-  SQueryDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
+  SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
 
   SWindowResult *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, pWindowResInfo, (char *)&win->skey, TSDB_KEYSIZE);
   if (pWindowRes == NULL) {
@@ -2156,7 +2156,7 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, char *pDat
 
   int32_t GROUPRESULTID = 1;
 
-  SQueryDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
+  SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
 
   SWindowResult *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, &pRuntimeEnv->windowResInfo, pData, bytes);
   if (pWindowRes == NULL) {
@@ -5594,7 +5594,7 @@ void UNUSED_FUNC displayInterResult(SData **pdata, SQuery *pQuery, int32_t numOf
   }
 }
 
-// static tFilePage *getMeterDataPage(SQueryDiskbasedResultBuf *pResultBuf, SMeterQueryInfo *pMeterQueryInfo,
+// static tFilePage *getMeterDataPage(SDiskbasedResultBuf *pResultBuf, SMeterQueryInfo *pMeterQueryInfo,
 //                                   int32_t index) {
 //  SIDList pList = getDataBufPagesIdList(pResultBuf, pMeterQueryInfo->sid);
 //  return getResultBufferPageById(pResultBuf, pList.pData[index]);
@@ -5700,7 +5700,7 @@ void copyResToQueryResultBuf(STableQuerySupportObj *pSupporter, SQuery *pQuery) 
   }
 
   SQueryRuntimeEnv *        pRuntimeEnv = &pSupporter->runtimeEnv;
-  SQueryDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
+  SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
 
   int32_t id = getGroupResultId(pSupporter->subgroupIdx - 1);
   SIDList list = getDataBufPagesIdList(pResultBuf, pSupporter->offset + id);
@@ -5883,7 +5883,7 @@ int32_t doMergeMetersResultsToGroupRes(STableQuerySupportObj *pSupporter, SQuery
 
 int32_t flushFromResultBuf(STableQuerySupportObj *pSupporter, const SQuery *pQuery,
                            const SQueryRuntimeEnv *pRuntimeEnv) {
-  SQueryDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
+  SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
   int32_t                   capacity = (DEFAULT_INTERN_BUF_SIZE - sizeof(tFilePage)) / pQuery->rowSize;
 
   // the base value for group result, since the maximum number of table for each vnode will not exceed 100,000.

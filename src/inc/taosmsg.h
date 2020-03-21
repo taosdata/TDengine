@@ -180,9 +180,9 @@ enum _mgmt_table {
 #define TSDB_VN_WRITE_ACCCESS ((char)0x2)
 #define TSDB_VN_ALL_ACCCESS (TSDB_VN_READ_ACCCESS | TSDB_VN_WRITE_ACCCESS)
 
-#define TSDB_COL_NORMAL                0x0U
-#define TSDB_COL_TAG                   0x1U
-#define TSDB_COL_JOIN                  0x2U
+#define TSDB_COL_NORMAL                0x0u
+#define TSDB_COL_TAG                   0x1u
+#define TSDB_COL_JOIN                  0x2u
 
 extern char *taosMsg[];
 
@@ -222,13 +222,12 @@ typedef struct {
 
 typedef struct SSchema {
   uint8_t type;
-  char    name[TSDB_COL_NAME_LEN + 1];
+  char    name[TSDB_COL_NAME_LEN];
   int16_t colId;
   int16_t bytes;
 } SSchema;
 
 typedef struct {
-  int32_t  vgId;
   int32_t  vnode;  //the index of vnode
   uint32_t ip;
 } SVnodeDesc;
@@ -255,14 +254,14 @@ typedef struct {
   uint64_t   uid;
   uint64_t   superTableUid;
   uint64_t   createdTime;
-  char       tableId[TSDB_TABLE_ID_LEN + 1];
-  char       superTableId[TSDB_TABLE_ID_LEN + 1];
+  char       tableId[TSDB_TABLE_ID_LEN];
+  char       superTableId[TSDB_TABLE_ID_LEN];
   char       data[];
 } SMDCreateTableMsg;
 
 typedef struct {
-  char      tableId[TSDB_TABLE_ID_LEN + 1];
-  char      db[TSDB_DB_NAME_LEN + 1];
+  char      tableId[TSDB_TABLE_ID_LEN];
+  char      db[TSDB_DB_NAME_LEN];
   int8_t    igExists;
   int16_t   numOfTags;
   int16_t   numOfColumns;
@@ -273,13 +272,13 @@ typedef struct {
 } SCMCreateTableMsg;
 
 typedef struct {
-  char   tableId[TSDB_TABLE_ID_LEN + 1];
+  char   tableId[TSDB_TABLE_ID_LEN];
   int8_t igNotExists;
 } SCMDropTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_ID_LEN + 1];
-  char    db[TSDB_DB_NAME_LEN + 1];
+  char    tableId[TSDB_TABLE_ID_LEN];
+  char    db[TSDB_DB_NAME_LEN];
   int16_t type; /* operation type   */
   char    tagVal[TSDB_MAX_BYTES_PER_ROW];
   int8_t  numOfCols; /* number of schema */
@@ -396,7 +395,7 @@ typedef struct SSqlBinaryExprInfo {
 
 typedef struct SSqlFunctionExpr {
   SSqlFuncExprMsg    pBase;
-  SSqlBinaryExprInfo pBinExprInfo;
+  SSqlBinaryExprInfo binExprInfo;
   int16_t            resBytes;
   int16_t            resType;
   int16_t            interResBytes;
@@ -445,6 +444,11 @@ typedef struct STableSidExtInfo {
   char    tags[];
 } STableSidExtInfo;
 
+typedef struct STimeWindow {
+  TSKEY skey;
+  TSKEY ekey;
+} STimeWindow;
+
 /*
  * the outputCols is equalled to or larger than numOfCols
  * e.g., select min(colName), max(colName), avg(colName) from table
@@ -452,46 +456,45 @@ typedef struct STableSidExtInfo {
  */
 typedef struct {
   int16_t  vnode;
-  int32_t  numOfSids;
+  int32_t  numOfTables;
   uint64_t pSidExtInfo;  // table id & tag info ptr, in windows pointer may
 
   uint64_t uid;
-  TSKEY    skey;
-  TSKEY    ekey;
+  STimeWindow window;
 
   int16_t order;
   int16_t orderColId;
 
   int16_t numOfCols;         // the number of columns will be load from vnode
-  char    intervalTimeUnit;  // time interval type, for revisement of interval(1d)
+  char    slidingTimeUnit;   // time interval type, for revisement of interval(1d)
 
-  int64_t intervalTime;  // time interval for aggregation, in million second
+  int64_t intervalTime;      // time interval for aggregation, in million second
   int64_t slidingTime;       // value for sliding window
 
   // tag schema, used to parse tag information in pSidExtInfo
   uint64_t pTagSchema;
 
-  int16_t numOfTagsCols;  // required number of tags
-  int16_t tagLength;      // tag length in current query
+  int16_t  numOfTagsCols;  // required number of tags
+  int16_t  tagLength;      // tag length in current query
 
   int16_t  numOfGroupCols;  // num of group by columns
   int16_t  orderByIdx;
   int16_t  orderType;  // used in group by xx order by xxx
   uint64_t groupbyTagIds;
 
-  int64_t limit;
-  int64_t offset;
+  int64_t  limit;
+  int64_t  offset;
 
-  int16_t queryType;        // denote another query process
-  int16_t numOfOutputCols;  // final output columns numbers
+  int16_t  queryType;        // denote another query process
+  int16_t  numOfOutputCols;  // final output columns numbers
 
   int16_t  interpoType;  // interpolate type
   uint64_t defaultVal;   // default value array list
 
-  int32_t colNameLen;
-  int64_t colNameList;
+  int32_t  colNameLen;
+  int64_t  colNameList;
 
-  int64_t pSqlFuncExprs;
+  int64_t  pSqlFuncExprs;
 
   int32_t     tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
   int32_t     tsLen;          // total length of ts comp block
@@ -677,28 +680,27 @@ typedef struct {
   int32_t  list[]; /* offset of SVnodeSidList, compared to the SSuperTableMeta struct */
 } SSuperTableMeta;
 
-typedef struct STableMeta {
-  char    tableId[TSDB_TABLE_ID_LEN + 1];  // note: This field must be at the front
+typedef struct STableMetaMsg {
+  char    tableId[TSDB_TABLE_ID_LEN];  // note: This field must be at the front
   int32_t contLen;
-  uint8_t numOfTags : 6;
-  uint8_t precision : 2;
-  uint8_t tableType : 4;
-  uint8_t index : 4;  // used locally
+  uint8_t numOfTags;
+  uint8_t precision;
+  uint8_t tableType;
   int16_t numOfColumns;
-  int16_t rowSize;  // used locally, calculated in client
   int16_t sversion;
+  
   int8_t  numOfVpeers;
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int32_t  sid;
   int32_t  vgid;
   uint64_t uid;
   SSchema  schema[];
-} STableMeta;
+} STableMetaMsg;
 
 typedef struct SMultiTableMeta {
   int32_t    numOfTables;
   int32_t    contLen;
-  STableMeta metas[];
+  STableMetaMsg metas[];
 } SMultiTableMeta;
 
 typedef struct {
@@ -718,9 +720,9 @@ typedef struct {
   char     payload[];
 } SCMShowMsg;
 
-typedef struct {
-  uint64_t   qhandle;
-  STableMeta tableMeta;
+typedef struct SCMShowRsp {
+  uint64_t      qhandle;
+  STableMetaMsg tableMeta;
 } SCMShowRsp;
 
 typedef struct {

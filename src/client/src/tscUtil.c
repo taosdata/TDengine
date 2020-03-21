@@ -21,9 +21,9 @@
 #include "tcache.h"
 #include "tkey.h"
 #include "tmd5.h"
-#include "tscJoinProcess.h"
 #include "tscProfile.h"
 #include "tscSecondaryMerge.h"
+#include "tscSubquery.h"
 #include "tschemautil.h"
 #include "tsclient.h"
 #include "ttimer.h"
@@ -40,12 +40,12 @@
  */
 void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* str, uint64_t uid) {
   int32_t         index = -1;
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoByUid(pQueryInfo, uid, &index);
+  STableMetaInfo* pTableMetaInfo = tscGetMeterMetaInfoByUid(pQueryInfo, uid, &index);
 
   int32_t len = 0;
   char    tagIdBuf[128] = {0};
-  for (int32_t i = 0; i < pMeterMetaInfo->numOfTags; ++i) {
-    len += sprintf(&tagIdBuf[len], "%d,", pMeterMetaInfo->tagColumnIndex[i]);
+  for (int32_t i = 0; i < pTableMetaInfo->numOfTags; ++i) {
+    len += sprintf(&tagIdBuf[len], "%d,", pTableMetaInfo->tagColumnIndex[i]);
   }
 
   STagCond* pTagCond = &pQueryInfo->tagCond;
@@ -64,7 +64,7 @@ void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* str, uint64_t uid) {
   size_t tbnameCondLen = pTagCond->tbnameCond.cond != NULL ? strlen(pTagCond->tbnameCond.cond) : 0;
   size_t redundantLen = 20;
 
-  size_t bufSize = strlen(pMeterMetaInfo->name) + tbnameCondLen + strlen(join) + strlen(tagIdBuf);
+  size_t bufSize = strlen(pTableMetaInfo->name) + tbnameCondLen + strlen(join) + strlen(tagIdBuf);
   if (cond != NULL && cond->cond != NULL) {
     bufSize += strlen(cond->cond);
   }
@@ -72,7 +72,7 @@ void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* str, uint64_t uid) {
   bufSize = (size_t)((bufSize + redundantLen) * 1.5);
   char* tmp = calloc(1, bufSize);
 
-  int32_t keyLen = snprintf(tmp, bufSize, "%s,%s,%s,%d,%s,[%s],%d", pMeterMetaInfo->name,
+  int32_t keyLen = snprintf(tmp, bufSize, "%s,%s,%s,%d,%s,[%s],%d", pTableMetaInfo->name,
                             ((cond != NULL && cond->cond != NULL) ? cond->cond : NULL), (tbnameCondLen > 0 ? pTagCond->tbnameCond.cond : NULL),
                             pTagCond->relType, join, tagIdBuf, pQueryInfo->groupbyExpr.orderType);
 
@@ -209,22 +209,22 @@ STableSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
   return (STableSidExtInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
 }
 
-bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
+bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (pQueryInfo == NULL) {
     return false;
   }
 
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
-  if (pMeterMetaInfo == NULL) {
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
+  if (pTableMetaInfo == NULL) {
     return false;
   }
   
   // for select query super table, the metricmeta can not be null in any cases.
-  if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
-    assert(pMeterMetaInfo->pMetricMeta != NULL);
+  if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+    assert(pTableMetaInfo->pMetricMeta != NULL);
   }
   
-  if (pMeterMetaInfo->pMetricMeta == NULL) {
+  if (pTableMetaInfo->pMetricMeta == NULL) {
     return false;
   }
   
@@ -239,21 +239,21 @@ bool tscIsTwoStageMergeMetricQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
 
   if (((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_SUBQUERY) != TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&
       pQueryInfo->command == TSDB_SQL_SELECT) {
-    return UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo);
+    return UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo);
   }
 
   return false;
 }
 
 bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
   
   /*
    * In following cases, return false for non ordered project query on super table
    * 1. failed to get metermeta from server; 2. not a super table; 3. limitation is 0;
    * 4. show queries, instead of a select query
    */
-  if (pMeterMetaInfo == NULL || !UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo) ||
+  if (pTableMetaInfo == NULL || !UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo) ||
       pQueryInfo->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pQueryInfo->exprsInfo.numOfExprs == 0) {
     return false;
   }
@@ -505,7 +505,7 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
   tfree(pDataBlock->params);
 
   // free the refcount for metermeta
-  taosCacheRelease(tscCacheHandle, (void**)&(pDataBlock->pMeterMeta), false);
+  taosCacheRelease(tscCacheHandle, (void**)&(pDataBlock->pTableMeta), false);
   tfree(pDataBlock);
 }
 
@@ -579,21 +579,21 @@ void* tscDestroyBlockArrayList(SDataBlockList* pList) {
 
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   SSqlCmd* pCmd = &pSql->cmd;
-  assert(pDataBlock->pMeterMeta != NULL);
+  assert(pDataBlock->pTableMeta != NULL);
 
   pCmd->numOfTablesInSubmit = pDataBlock->numOfTables;
 
   assert(pCmd->numOfClause == 1);
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
 
   // set the correct metermeta object, the metermeta has been locked in pDataBlocks, so it must be in the cache
-  if (pMeterMetaInfo->pMeterMeta != pDataBlock->pMeterMeta) {
-    strcpy(pMeterMetaInfo->name, pDataBlock->tableId);
-    taosCacheRelease(tscCacheHandle, (void**)&(pMeterMetaInfo->pMeterMeta), false);
+  if (pTableMetaInfo->pTableMeta != pDataBlock->pTableMeta) {
+    strcpy(pTableMetaInfo->name, pDataBlock->tableId);
+    taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), false);
 
-    pMeterMetaInfo->pMeterMeta = taosCacheTransfer(tscCacheHandle, (void**)&pDataBlock->pMeterMeta);
+    pTableMetaInfo->pTableMeta = taosCacheTransfer(tscCacheHandle, (void**)&pDataBlock->pTableMeta);
   } else {
-    assert(strncmp(pMeterMetaInfo->name, pDataBlock->tableId, tListLen(pDataBlock->tableId)) == 0);
+    assert(strncmp(pTableMetaInfo->name, pDataBlock->tableId, tListLen(pDataBlock->tableId)) == 0);
   }
 
   /*
@@ -637,7 +637,7 @@ void tscFreeUnusedDataBlocks(SDataBlockList* pList) {
  * @return
  */
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
-                           STableMeta* pMeterMeta, STableDataBlocks** dataBlocks) {
+                           STableMeta* pTableMeta, STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
     tscError("failed to allocated memory, reason:%s", strerror(errno));
@@ -665,15 +665,15 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
    * due to operation such as drop database. So here we add the reference count directly instead of invoke
    * taosGetDataFromCache, which may return NULL value.
    */
-  dataBuf->pMeterMeta = taosCacheAcquireByData(tscCacheHandle, pMeterMeta);
-  assert(initialSize > 0 && pMeterMeta != NULL && dataBuf->pMeterMeta != NULL);
+  dataBuf->pTableMeta = taosCacheAcquireByData(tscCacheHandle, pTableMeta);
+  assert(initialSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
 
   *dataBlocks = dataBuf;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList, int64_t id, int32_t size,
-                                int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pMeterMeta,
+                                int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
                                 STableDataBlocks** dataBlocks) {
   *dataBlocks = NULL;
 
@@ -683,7 +683,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
   }
 
   if (*dataBlocks == NULL) {
-    int32_t ret = tscCreateDataBlock((size_t)size, rowSize, startOffset, tableId, pMeterMeta, dataBlocks);
+    int32_t ret = tscCreateDataBlock((size_t)size, rowSize, startOffset, tableId, pTableMeta, dataBlocks);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -707,7 +707,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     STableDataBlocks* dataBuf = NULL;
     int32_t           ret =
         tscGetDataBlockFromList(pVnodeDataBlockHashList, pVnodeDataBlockList, pOneTableBlock->vgid, TSDB_PAYLOAD_SIZE,
-                                tsInsertHeadSize, 0, pOneTableBlock->tableId, pOneTableBlock->pMeterMeta, &dataBuf);
+                                tsInsertHeadSize, 0, pOneTableBlock->tableId, pOneTableBlock->pTableMeta, &dataBuf);
     if (ret != TSDB_CODE_SUCCESS) {
       tscError("%p failed to prepare the data block buffer for merging table data, code:%d", pSql, ret);
       taosHashCleanup(pVnodeDataBlockHashList);
@@ -1061,8 +1061,8 @@ void tscClearFieldInfo(SFieldInfo* pFieldInfo) {
   
   for(int32_t i = 0; i < pFieldInfo->numOfOutputCols; ++i) {
     if (pFieldInfo->pExpr[i] != NULL) {
-      tSQLBinaryExprDestroy(&pFieldInfo->pExpr[i]->pBinExprInfo.pBinExpr, NULL);
-      tfree(pFieldInfo->pExpr[i]->pBinExprInfo.pReqColumns);
+      tSQLBinaryExprDestroy(&pFieldInfo->pExpr[i]->binExprInfo.pBinExpr, NULL);
+      tfree(pFieldInfo->pExpr[i]->binExprInfo.pReqColumns);
       tfree(pFieldInfo->pExpr[i]);
     }
   }
@@ -1116,7 +1116,7 @@ SSqlExpr* tscSqlExprInsertEmpty(SQueryInfo* pQueryInfo, int32_t index, int16_t f
 
 SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex,
                            int16_t type, int16_t size, int16_t interSize) {
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, pColIndex->tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pColIndex->tableIndex);
 
   SSqlExprInfo* pExprInfo = &pQueryInfo->exprsInfo;
 
@@ -1127,13 +1127,13 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
   pExprInfo->pExprs[index] = pExpr;
   
   pExpr->functionId = functionId;
-  int16_t numOfCols = pMeterMetaInfo->pMeterMeta->numOfColumns;
+  int16_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
 
   // set the correct column index
   if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     pExpr->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
   } else {
-    SSchema* pSchema = tsGetColumnSchema(pMeterMetaInfo->pMeterMeta, pColIndex->columnIndex);
+    SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
     pExpr->colInfo.colId = pSchema->colId;
   }
 
@@ -1153,7 +1153,7 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
   pExpr->resType = type;
   pExpr->resBytes = size;
   pExpr->interResBytes = interSize;
-  pExpr->uid = pMeterMetaInfo->pMeterMeta->uid;
+  pExpr->uid = pTableMetaInfo->pTableMeta->uid;
 
   pExprInfo->numOfExprs++;
   return pExpr;
@@ -1161,7 +1161,7 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
 
 SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex,
                            int16_t type, int16_t size) {
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSqlExprInfo*   pExprInfo = &pQueryInfo->exprsInfo;
   if (index > pExprInfo->numOfExprs) {
     return NULL;
@@ -1172,7 +1172,7 @@ SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
   pExpr->functionId = functionId;
 
   pExpr->colInfo.colIdx = srcColumnIndex;
-  pExpr->colInfo.colId = tsGetColumnSchema(pMeterMetaInfo->pMeterMeta, srcColumnIndex)->colId;
+  pExpr->colInfo.colId = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, srcColumnIndex)->colId;
 
   pExpr->resType = type;
   pExpr->resBytes = size;
@@ -1573,17 +1573,19 @@ void tscIncStreamExecutionCount(void* pStream) {
   ps->num += 1;
 }
 
-bool tscValidateColumnId(SMeterMetaInfo* pMeterMetaInfo, int32_t colId) {
-  if (pMeterMetaInfo->pMeterMeta == NULL) {
+bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId) {
+  if (pTableMetaInfo->pTableMeta == NULL) {
     return false;
   }
 
-  if (colId == -1 && UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
+  if (colId == -1 && UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
     return true;
   }
 
-  SSchema* pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
-  int32_t  numOfTotal = pMeterMetaInfo->pMeterMeta->numOfTags + pMeterMetaInfo->pMeterMeta->numOfColumns;
+  SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  
+  int32_t  numOfTotal = tinfo.numOfTags + tinfo.numOfColumns;
 
   for (int32_t i = 0; i < numOfTotal; ++i) {
     if (pSchema[i].colId == colId) {
@@ -1627,16 +1629,16 @@ void tscTagCondRelease(STagCond* pCond) {
 }
 
 void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo) {
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-  SSchema*        pSchema = tsGetSchema(pMeterMetaInfo->pMeterMeta);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  SSchema*        pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
   for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     pColInfo[i].functionId = pExpr->functionId;
 
     if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
-      SSchema* pTagSchema = tsGetTagSchema(pMeterMetaInfo->pMeterMeta);
-      int16_t  actualTagIndex = pMeterMetaInfo->tagColumnIndex[pExpr->colInfo.colIdx];
+      SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+      int16_t  actualTagIndex = pTableMetaInfo->tagColumnIndex[pExpr->colInfo.colIdx];
 
       pColInfo[i].type = (actualTagIndex != -1) ? pTagSchema[actualTagIndex].type : TSDB_DATA_TYPE_BINARY;
     } else {
@@ -1723,10 +1725,10 @@ bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql) {
     SDataBlockList* pDataBlocks = pCmd->pDataBlocks;
     SQueryInfo*     pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
 
-    SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
     assert(pQueryInfo->numOfTables == 1 || pQueryInfo->numOfTables == 2);
 
-    if (pDataBlocks == NULL || pMeterMetaInfo->vnodeIndex >= pDataBlocks->nSize) {
+    if (pDataBlocks == NULL || pTableMetaInfo->vnodeIndex >= pDataBlocks->nSize) {
       tscTrace("%p object should be release since all data blocks have been submit", pSql);
       return true;
     } else {
@@ -1745,7 +1747,7 @@ bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql) {
  * @param tableIndex  denote the table index for join query, where more than one table exists
  * @return
  */
-SMeterMetaInfo* tscGetMeterMetaInfo(SSqlCmd* pCmd, int32_t clauseIndex, int32_t tableIndex) {
+STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd* pCmd, int32_t clauseIndex, int32_t tableIndex) {
   if (pCmd == NULL || pCmd->numOfClause == 0) {
     return NULL;
   }
@@ -1753,20 +1755,20 @@ SMeterMetaInfo* tscGetMeterMetaInfo(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
   assert(clauseIndex >= 0 && clauseIndex < pCmd->numOfClause);
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
-  return tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, tableIndex);
+  return tscGetMetaInfo(pQueryInfo, tableIndex);
 }
 
-SMeterMetaInfo* tscGetMeterMetaInfoFromQueryInfo(SQueryInfo* pQueryInfo, int32_t tableIndex) {
+STableMetaInfo* tscGetMetaInfo(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   assert(pQueryInfo != NULL);
 
-  if (pQueryInfo->pMeterInfo == NULL) {
+  if (pQueryInfo->pTableMetaInfo == NULL) {
     assert(pQueryInfo->numOfTables == 0);
     return NULL;
   }
 
-  assert(tableIndex >= 0 && tableIndex <= pQueryInfo->numOfTables && pQueryInfo->pMeterInfo != NULL);
+  assert(tableIndex >= 0 && tableIndex <= pQueryInfo->numOfTables && pQueryInfo->pTableMetaInfo != NULL);
 
-  return pQueryInfo->pMeterInfo[tableIndex];
+  return pQueryInfo->pTableMetaInfo[tableIndex];
 }
 
 SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex) {
@@ -1795,11 +1797,11 @@ int32_t tscGetQueryInfoDetailSafely(SSqlCmd* pCmd, int32_t subClauseIndex, SQuer
   return TSDB_CODE_SUCCESS;
 }
 
-SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* index) {
+STableMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, int32_t* index) {
   int32_t k = -1;
 
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-    if (pQueryInfo->pMeterInfo[i]->pMeterMeta->uid == uid) {
+    if (pQueryInfo->pTableMetaInfo[i]->pTableMeta->uid == uid) {
       k = i;
       break;
     }
@@ -1810,7 +1812,7 @@ SMeterMetaInfo* tscGetMeterMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, i
   }
 
   assert(k != -1);
-  return tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, k);
+  return tscGetMetaInfo(pQueryInfo, k);
 }
 
 int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {
@@ -1872,37 +1874,37 @@ void tscFreeSubqueryInfo(SSqlCmd* pCmd) {
   tfree(pCmd->pQueryInfo);
 }
 
-SMeterMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pMeterMeta,
+STableMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
                                     SSuperTableMeta* pMetricMeta, int16_t numOfTags, int16_t* tags) {
-  void* pAlloc = realloc(pQueryInfo->pMeterInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
+  void* pAlloc = realloc(pQueryInfo->pTableMetaInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
   if (pAlloc == NULL) {
     return NULL;
   }
 
-  pQueryInfo->pMeterInfo = pAlloc;
-  pQueryInfo->pMeterInfo[pQueryInfo->numOfTables] = calloc(1, sizeof(SMeterMetaInfo));
+  pQueryInfo->pTableMetaInfo = pAlloc;
+  pQueryInfo->pTableMetaInfo[pQueryInfo->numOfTables] = calloc(1, sizeof(STableMetaInfo));
 
-  SMeterMetaInfo* pMeterMetaInfo = pQueryInfo->pMeterInfo[pQueryInfo->numOfTables];
-  assert(pMeterMetaInfo != NULL);
+  STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[pQueryInfo->numOfTables];
+  assert(pTableMetaInfo != NULL);
 
   if (name != NULL) {
     assert(strlen(name) <= TSDB_TABLE_ID_LEN);
-    strcpy(pMeterMetaInfo->name, name);
+    strcpy(pTableMetaInfo->name, name);
   }
 
-  pMeterMetaInfo->pMeterMeta = pMeterMeta;
-  pMeterMetaInfo->pMetricMeta = pMetricMeta;
-  pMeterMetaInfo->numOfTags = numOfTags;
+  pTableMetaInfo->pTableMeta = pTableMeta;
+  pTableMetaInfo->pMetricMeta = pMetricMeta;
+  pTableMetaInfo->numOfTags = numOfTags;
 
   if (tags != NULL) {
-    memcpy(pMeterMetaInfo->tagColumnIndex, tags, sizeof(pMeterMetaInfo->tagColumnIndex[0]) * numOfTags);
+    memcpy(pTableMetaInfo->tagColumnIndex, tags, sizeof(pTableMetaInfo->tagColumnIndex[0]) * numOfTags);
   }
 
   pQueryInfo->numOfTables += 1;
-  return pMeterMetaInfo;
+  return pTableMetaInfo;
 }
 
-SMeterMetaInfo* tscAddEmptyMeterMetaInfo(SQueryInfo* pQueryInfo) {
+STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo* pQueryInfo) {
   return tscAddMeterMetaInfo(pQueryInfo, NULL, NULL, NULL, 0, NULL);
 }
 
@@ -1911,14 +1913,14 @@ void doRemoveMeterMetaInfo(SQueryInfo* pQueryInfo, int32_t index, bool removeFro
     return;
   }
 
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, index);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index);
 
-  tscClearMeterMetaInfo(pMeterMetaInfo, removeFromCache);
-  free(pMeterMetaInfo);
+  tscClearMeterMetaInfo(pTableMetaInfo, removeFromCache);
+  free(pTableMetaInfo);
 
   int32_t after = pQueryInfo->numOfTables - index - 1;
   if (after > 0) {
-    memmove(&pQueryInfo->pMeterInfo[index], &pQueryInfo->pMeterInfo[index + 1], after * POINTER_BYTES);
+    memmove(&pQueryInfo->pTableMetaInfo[index], &pQueryInfo->pTableMetaInfo[index + 1], after * POINTER_BYTES);
   }
 
   pQueryInfo->numOfTables -= 1;
@@ -1932,16 +1934,16 @@ void tscRemoveAllMeterMetaInfo(SQueryInfo* pQueryInfo, const char* address, bool
     doRemoveMeterMetaInfo(pQueryInfo, --index, removeFromCache);
   }
 
-  tfree(pQueryInfo->pMeterInfo);
+  tfree(pQueryInfo->pTableMetaInfo);
 }
 
-void tscClearMeterMetaInfo(SMeterMetaInfo* pMeterMetaInfo, bool removeFromCache) {
-  if (pMeterMetaInfo == NULL) {
+void tscClearMeterMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache) {
+  if (pTableMetaInfo == NULL) {
     return;
   }
 
-  taosCacheRelease(tscCacheHandle, (void**)&(pMeterMetaInfo->pMeterMeta), removeFromCache);
-  taosCacheRelease(tscCacheHandle, (void**)&(pMeterMetaInfo->pMetricMeta), removeFromCache);
+  taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), removeFromCache);
+  taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pMetricMeta), removeFromCache);
 }
 
 void tscResetForNextRetrieve(SSqlRes* pRes) {
@@ -1955,11 +1957,11 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, SSqlObj* pPrevSql) {
   SSqlCmd*        pCmd = &pSql->cmd;
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, tableIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, tableIndex);
 
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
   if (pNew == NULL) {
-    tscError("%p new subquery failed, tableIndex:%d, vnodeIndex:%d", pSql, tableIndex, pMeterMetaInfo->vnodeIndex);
+    tscError("%p new subquery failed, tableIndex:%d, vnodeIndex:%d", pSql, tableIndex, pTableMetaInfo->vnodeIndex);
     return NULL;
   }
 
@@ -1968,7 +1970,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   pNew->sqlstr = strdup(pSql->sqlstr);
   if (pNew->sqlstr == NULL) {
-    tscError("%p new subquery failed, tableIndex:%d, vnodeIndex:%d", pSql, tableIndex, pMeterMetaInfo->vnodeIndex);
+    tscError("%p new subquery failed, tableIndex:%d, vnodeIndex:%d", pSql, tableIndex, pTableMetaInfo->vnodeIndex);
 
     free(pNew);
     return NULL;
@@ -1997,7 +1999,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   memset(&pNewQueryInfo->colList, 0, sizeof(pNewQueryInfo->colList));
   memset(&pNewQueryInfo->fieldsInfo, 0, sizeof(SFieldInfo));
 
-  pNewQueryInfo->pMeterInfo = NULL;
+  pNewQueryInfo->pTableMetaInfo = NULL;
   pNewQueryInfo->defaultVal = NULL;
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->tsBuf = NULL;
@@ -2010,7 +2012,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   }
 
   if (tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE) != TSDB_CODE_SUCCESS) {
-    tscError("%p new subquery failed, tableIndex:%d, vnodeIndex:%d", pSql, tableIndex, pMeterMetaInfo->vnodeIndex);
+    tscError("%p new subquery failed, tableIndex:%d, vnodeIndex:%d", pSql, tableIndex, pTableMetaInfo->vnodeIndex);
     tscFreeSqlObj(pNew);
     return NULL;
   }
@@ -2025,7 +2027,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     pNewQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;  // it must be the subquery
   }
 
-  uint64_t uid = pMeterMetaInfo->pMeterMeta->uid;
+  uint64_t uid = pTableMetaInfo->pTableMeta->uid;
   tscSqlExprCopy(&pNewQueryInfo->exprsInfo, &pQueryInfo->exprsInfo, uid, true);
 
   int32_t numOfOutputCols = pNewQueryInfo->exprsInfo.numOfExprs;
@@ -2067,34 +2069,34 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   printf("the metricmeta key is:%s\n", key);
 #endif
 
-  char*           name = pMeterMetaInfo->name;
-  SMeterMetaInfo* pFinalInfo = NULL;
+  char*           name = pTableMetaInfo->name;
+  STableMetaInfo* pFinalInfo = NULL;
 
   if (pPrevSql == NULL) {
-    STableMeta*  pMeterMeta = taosCacheAcquireByName(tscCacheHandle, name);
+    STableMeta*  pTableMeta = taosCacheAcquireByName(tscCacheHandle, name);
     SSuperTableMeta* pMetricMeta = taosCacheAcquireByName(tscCacheHandle, key);
 
-    pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pMeterMeta, pMetricMeta, pMeterMetaInfo->numOfTags,
-                                     pMeterMetaInfo->tagColumnIndex);
-  } else {  // transfer the ownership of pMeterMeta/pMetricMeta to the newly create sql object.
-    SMeterMetaInfo* pPrevInfo = tscGetMeterMetaInfo(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
+    pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pTableMeta, pMetricMeta, pTableMetaInfo->numOfTags,
+                                     pTableMetaInfo->tagColumnIndex);
+  } else {  // transfer the ownership of pTableMeta/pMetricMeta to the newly create sql object.
+    STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 
-    STableMeta*  pPrevMeterMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pMeterMeta);
+    STableMeta*  pPrevMeterMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pTableMeta);
     SSuperTableMeta* pPrevMetricMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pMetricMeta);
 
-    pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pPrevMeterMeta, pPrevMetricMeta, pMeterMetaInfo->numOfTags,
-                                     pMeterMetaInfo->tagColumnIndex);
+    pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pPrevMeterMeta, pPrevMetricMeta, pTableMetaInfo->numOfTags,
+                                     pTableMetaInfo->tagColumnIndex);
   }
 
-  assert(pFinalInfo->pMeterMeta != NULL && pNewQueryInfo->numOfTables == 1);
-  if (UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo)) {
+  assert(pFinalInfo->pTableMeta != NULL && pNewQueryInfo->numOfTables == 1);
+  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
     assert(pFinalInfo->pMetricMeta != NULL);
   }
   
   tscTrace(
       "%p new subquery: %p, tableIndex:%d, vnodeIdx:%d, type:%d, exprInfo:%d, colList:%d,"
       "fieldInfo:%d, name:%s, qrang:%" PRId64 " - %" PRId64 " order:%d, limit:%" PRId64,
-      pSql, pNew, tableIndex, pMeterMetaInfo->vnodeIndex, pNewQueryInfo->type, pNewQueryInfo->exprsInfo.numOfExprs,
+      pSql, pNew, tableIndex, pTableMetaInfo->vnodeIndex, pNewQueryInfo->type, pNewQueryInfo->exprsInfo.numOfExprs,
       pNewQueryInfo->colList.numOfCols, pNewQueryInfo->fieldsInfo.numOfOutputCols, pFinalInfo->name, pNewQueryInfo->stime,
       pNewQueryInfo->etime, pNewQueryInfo->order.order, pNewQueryInfo->limit.limit);
   
@@ -2187,14 +2189,14 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-  if (!UTIL_METER_IS_SUPERTABLE(pMeterMetaInfo) || (pMeterMetaInfo->pMetricMeta == NULL)) {
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo) || (pTableMetaInfo->pMetricMeta == NULL)) {
     return false;
   }
   
-  int32_t totalVnode = pMeterMetaInfo->pMetricMeta->numOfVnodes;
+  int32_t totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
   return pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
-         (!tscHasReachLimitation(pQueryInfo, pRes)) && (pMeterMetaInfo->vnodeIndex < totalVnode - 1);
+         (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->vnodeIndex < totalVnode - 1);
 }
 
 void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
@@ -2209,12 +2211,12 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
    */
   assert(pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && !tscHasReachLimitation(pQueryInfo, pRes));
 
-  SMeterMetaInfo* pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-  int32_t         totalVnode = pMeterMetaInfo->pMetricMeta->numOfVnodes;
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  int32_t         totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
 
-  while (++pMeterMetaInfo->vnodeIndex < totalVnode) {
+  while (++pTableMetaInfo->vnodeIndex < totalVnode) {
     tscTrace("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,
-             pMeterMetaInfo->vnodeIndex - 1, pMeterMetaInfo->vnodeIndex, totalVnode, pRes->numOfTotalInCurrentClause);
+             pTableMetaInfo->vnodeIndex - 1, pTableMetaInfo->vnodeIndex, totalVnode, pRes->numOfTotalInCurrentClause);
 
     /*
      * update the limit and offset value for the query on the next vnode,
@@ -2233,7 +2235,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
 
     assert((pRes->offset >= 0 && pRes->numOfRows == 0) || (pRes->offset == 0 && pRes->numOfRows >= 0));
     tscTrace("%p new query to next vnode, vnode index:%d, limit:%" PRId64 ", offset:%" PRId64 ", glimit:%" PRId64, pSql,
-             pMeterMetaInfo->vnodeIndex, pQueryInfo->limit.limit, pQueryInfo->limit.offset, pQueryInfo->clauseLimit);
+             pTableMetaInfo->vnodeIndex, pQueryInfo->limit.limit, pQueryInfo->limit.offset, pQueryInfo->clauseLimit);
 
     /*
      * For project query with super table join, the numOfSub is equalled to the number of all subqueries.
@@ -2318,95 +2320,4 @@ void tscTryQueryNextClause(SSqlObj* pSql, void (*queryFp)()) {
   } else {
     tscProcessSql(pSql);
   }
-}
-
-typedef struct SinsertSupporter {
-  SSubqueryState* pState;
-  SSqlObj*  pSql;
-} SinsertSupporter;
-
-void multiVnodeInsertMerge(void* param, TAOS_RES* tres, int numOfRows) {
-  SinsertSupporter *pSupporter = (SinsertSupporter *)param;
-  SSqlObj* pParentObj = pSupporter->pSql;
-  SSqlCmd* pParentCmd = &pParentObj->cmd;
-  
-  SSubqueryState* pState = pSupporter->pState;
-  int32_t total = pState->numOfTotal;
-  
-  // increase the total inserted rows
-  if (numOfRows > 0) {
-    pParentObj->res.numOfRows += numOfRows;
-  }
-  
-  int32_t completed = atomic_add_fetch_32(&pState->numOfCompleted, 1);
-  if (completed < total) {
-    return;
-  }
-  
-  tscTrace("%p Async insertion completed, total inserted:%d", pParentObj, pParentObj->res.numOfRows);
-  
-  // release data block data
-  pParentCmd->pDataBlocks = tscDestroyBlockArrayList(pParentCmd->pDataBlocks);
-  
-  // restore user defined fp
-  pParentObj->fp = pParentObj->fetchFp;
-  
-  // all data has been sent to vnode, call user function
-  (*pParentObj->fp)(pParentObj->param, tres, numOfRows);
-}
-
-int32_t launchMultivnodeInsert(SSqlObj *pSql) {
-  SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
-  
-  pRes->qhandle = 1;  // hack the qhandle check
-  SDataBlockList *pDataBlocks = pCmd->pDataBlocks;
-  
-  pSql->pSubs = calloc(pDataBlocks->nSize, POINTER_BYTES);
-  pSql->numOfSubs = pDataBlocks->nSize;
-  assert(pDataBlocks->nSize > 0);
-  
-  tscTrace("%p submit data to %d vnode(s)", pSql, pDataBlocks->nSize);
-  SSubqueryState *pState = calloc(1, sizeof(SSubqueryState));
-  pState->numOfTotal = pSql->numOfSubs;
-  
-  pRes->code = TSDB_CODE_SUCCESS;
-  
-  int32_t i = 0;
-  for (; i < pSql->numOfSubs; ++i) {
-    SinsertSupporter* pSupporter = calloc(1, sizeof(SinsertSupporter));
-    pSupporter->pSql = pSql;
-    pSupporter->pState = pState;
-    
-    SSqlObj *pNew = createSubqueryObj(pSql, 0, multiVnodeInsertMerge, pSupporter, NULL);
-    if (pNew == NULL) {
-      tscError("%p failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql, i, strerror(errno));
-      break;
-    }
-    
-    pSql->pSubs[i] = pNew;
-    tscTrace("%p sub:%p create subObj success. orderOfSub:%d", pSql, pNew, i);
-  }
-  
-  if (i < pSql->numOfSubs) {
-    tscError("%p failed to prepare subObj structure and launch sub-insertion", pSql);
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
-    return pRes->code;  // free all allocated resource
-  }
-  
-  for (int32_t j = 0; j < pSql->numOfSubs; ++j) {
-    SSqlObj *pSub = pSql->pSubs[j];
-    pSub->cmd.command = TSDB_SQL_INSERT;
-    int32_t code = tscCopyDataBlockToPayload(pSub, pDataBlocks->pData[j]);
-    
-    if (code != TSDB_CODE_SUCCESS) {
-      tscTrace("%p prepare submit data block failed in async insertion, vnodeIdx:%d, total:%d, code:%d", pSql, j,
-               pDataBlocks->nSize, code);
-    }
-    
-    tscTrace("%p sub:%p launch sub insert, orderOfSub:%d", pSql, pSub, j);
-    tscProcessSql(pSub);
-  }
-  
-  return TSDB_CODE_SUCCESS;
 }

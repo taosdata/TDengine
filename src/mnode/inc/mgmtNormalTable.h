@@ -35,7 +35,7 @@ int32_t mgmtDropNormalTable(SQueuedMsg *newMsg, SNormalTableObj *pTable);
 int32_t mgmtAddNormalTableColumn(SNormalTableObj *pTable, SSchema schema[], int32_t ncols);
 int32_t mgmtDropNormalTableColumnByName(SNormalTableObj *pTable, char *colName);
 
-int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, STableMeta *pMeta, bool usePublicIp);
+int32_t mgmtGetNormalTableMeta(SDbObj *pDb, SNormalTableObj *pTable, STableMetaMsg *pMeta, bool usePublicIp);
 
 void mgmtDropAllNormalTables(SDbObj *pDropDb);
 

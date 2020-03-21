@@ -159,7 +159,7 @@ void taos_init_imp() {
     tscMgmtIpList.ip[1] = inet_addr(tsSecondIp);
   }
 
-  tscInitMsgs();
+  tscInitMsgsFp();
   slaveIndex = rand();
   int queueSize = tsMaxVnodeConnections + tsMaxMeterConnections + tsMaxMgmtConnections + tsMaxMgmtConnections;
 

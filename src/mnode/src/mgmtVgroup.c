@@ -17,7 +17,6 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "tschemautil.h"
 #include "tstatus.h"
 #include "mnode.h"
 #include "mgmtBalance.h"
@@ -41,7 +40,7 @@ static void *mgmtVgroupActionDecode(void *row, char *str, int32_t size, int32_t 
 static void *mgmtVgroupActionReset(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtVgroupActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
 
-static int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
 static void    mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg);
@@ -208,14 +207,14 @@ void mgmtCleanUpVgroups() {
   sdbCloseTable(tsVgroupSdb);
 }
 
-int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mgmtGetDb(pShow->db);
   if (pDb == NULL) {
     return TSDB_CODE_DB_NOT_SELECTED;
   }
 
   int32_t cols = 0;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
@@ -231,7 +230,7 @@ int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
 
   pShow->bytes[cols] = 9;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "vgroup status");
+  strcpy(pSchema[cols].name, "vgroup_status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -271,13 +270,13 @@ int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
 
     pShow->bytes[cols] = 9;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "vnode status");
+    strcpy(pSchema[cols].name, "vnode_status");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
     pShow->bytes[cols] = 16;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "public ip");
+    strcpy(pSchema[cols].name, "public_ip");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
   }
@@ -314,7 +313,7 @@ char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
 
   for (int i = 0; i < pDnode->openVnodes; ++i) {
     if (pDnode->vload[i].vgId == pVgroup->vgId) {
-       return (char*)taosGetVnodeStatusStr(pDnode->vload[i].status); 
+       return (char*)taosGetVnodeStatusStr(pDnode->vload[i].status);
     }
   }
   
@@ -515,7 +514,6 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
 
   SVnodeDesc *vpeerDesc = pVnode->vpeerDesc;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {
-    vpeerDesc[j].vgId  = htonl(pVgroup->vgId);
     vpeerDesc[j].ip    = htonl(pVgroup->vnodeGid[j].privateIp);
   }
 
@@ -686,8 +684,8 @@ void mgmtUpdateVgroupIp(SDnodeObj *pDnode) {
     for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
       SVnodeGid *vnodeGid = pVgroup->vnodeGid + i;
       if (vnodeGid->dnodeId == pDnode->dnodeId) {
-        mPrint("vgroup:%d, dnode:%d, privateIp:%s change to %s, publicIp:%s change to %s", 
-               pVgroup->vgId, vnodeGid->dnodeId, pDnode->privateIp, taosIpStr(vnodeGid->privateIp),  
+        mPrint("vgroup:%d, dnode:%d, privateIp:%s change to %s, publicIp:%s change to %s",
+               pVgroup->vgId, vnodeGid->dnodeId, pDnode->privateIp, taosIpStr(vnodeGid->privateIp),
                pDnode->publicIp, taosIpStr(vnodeGid->publicIp));
         vnodeGid->publicIp = pDnode->publicIp;
         vnodeGid->privateIp = pDnode->privateIp;

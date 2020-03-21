@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
-#include "tschemautil.h"
 #include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
@@ -137,10 +136,10 @@ int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtGetQueryMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = TSDB_USER_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -336,9 +335,9 @@ int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtGetStreamMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t      cols = 0;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = TSDB_USER_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -600,11 +599,11 @@ int mgmtGetConns(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtGetConnsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "user");
