@@ -33,20 +33,25 @@ extern "C" {
 
 #define IS_CREATE_STABLE(pCfg) ((pCfg)->tagValues != NULL)
 
+typedef struct {
+  TSKEY   keyFirst;
+  TSKEY   keyLast;
+  int32_t numOfPoints;
+  void *  pData;
+} SMemTable;
+
 // ---------- TSDB TABLE DEFINITION
 typedef struct STable {
-  int8_t    type;
-  STableId  tableId;
-  int32_t   superUid;  // Super table UID
-  int32_t   sversion;
-  STSchema *schema;
-  STSchema *tagSchema;
-  SDataRow  tagVal;
-  union {
-    void *pData;   // For TSDB_NORMAL_TABLE and TSDB_CHILD_TABLE, it is the skiplist for cache data
-    void *pIndex;  // For TSDB_SUPER_TABLE, it is the skiplist index
-  } content;
-  void *         iData;          // Skiplist to commit
+  int8_t         type;
+  STableId       tableId;
+  int32_t        superUid;  // Super table UID
+  int32_t        sversion;
+  STSchema *     schema;
+  STSchema *     tagSchema;
+  SDataRow       tagVal;
+  SMemTable *    mem;
+  SMemTable *    imem;
+  void *         pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
   void *         eventHandler;   // TODO
   void *         streamHandler;  // TODO
   struct STable *next;           // TODO: remove the next
@@ -69,6 +74,8 @@ typedef struct {
   void *map; // table map of (uid ===> table)
 
   SMetaFile *mfh; // meta file handle
+  int        maxRowBytes;
+  int        maxCols;
 } STsdbMeta;
 
 STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables);
@@ -94,8 +101,9 @@ int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
 int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);
 STable *tsdbIsValidTableToInsert(STsdbMeta *pMeta, STableId tableId);
-int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
+// int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable);
 STable *tsdbGetTableByUid(STsdbMeta *pMeta, int64_t uid);
+char *getTupleKey(const void * data);
 
 #ifdef __cplusplus
 }

@@ -81,11 +81,13 @@ STSchema *tdDecodeSchema(void **psrc);
  */
 typedef void *SDataRow;
 
+
 #define TD_DATA_ROW_HEAD_SIZE (2 * sizeof(int32_t))
 
 #define dataRowLen(r) (*(int32_t *)(r))
 #define dataRowFLen(r) (*(int32_t *)((char *)(r) + sizeof(int32_t)))
 #define dataRowTuple(r) ((char *)(r) + TD_DATA_ROW_HEAD_SIZE)
+#define dataRowKey(r) (*(TSKEY *)(dataRowTuple(r)))
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
 #define dataRowSetFLen(r, l) (dataRowFLen(r) = (l))
 #define dataRowIdx(r, i) ((char *)(r) + i)

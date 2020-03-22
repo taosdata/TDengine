@@ -18,7 +18,6 @@ static int     tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbEstimateTableEncodeSize(STable *pTable);
-static char *  getTupleKey(const void *data);
 
 /**
  * Encode a TSDB table object as a binary content
@@ -102,12 +101,9 @@ int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   if (pTable == NULL) return -1;
   
   if (pTable->type == TSDB_SUPER_TABLE) {
-    pTable->content.pIndex =
+    pTable->pIndex =
         tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1, 0, getTupleKey);
-  } else {
-    pTable->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP,
-                                            TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
-  }
+  } 
 
   tsdbAddTableToMeta(pMeta, pTable, false);
 
@@ -137,6 +133,8 @@ STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables) {
   pMeta->nTables = 0;
   pMeta->superList = NULL;
   pMeta->tables = (STable **)calloc(maxTables, sizeof(STable *));
+  pMeta->maxRowBytes = 0;
+  pMeta->maxCols = 0;
   if (pMeta->tables == NULL) {
     free(pMeta);
     return NULL;
@@ -208,10 +206,10 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
       super->schema = tdDupSchema(pCfg->schema);
       super->tagSchema = tdDupSchema(pCfg->tagSchema);
       super->tagVal = tdDataRowDup(pCfg->tagValues);
-      super->content.pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1,
+      super->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1,
                                                 0, getTupleKey);  // Allow duplicate key, no lock
 
-      if (super->content.pIndex == NULL) {
+      if (super->pIndex == NULL) {
         tdFreeSchema(super->schema);
         tdFreeSchema(super->tagSchema);
         tdFreeDataRow(super->tagVal);
@@ -223,7 +221,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
     }
   }
 
-  STable *table = (STable *)malloc(sizeof(STable));
+  STable *table = (STable *)calloc(1, sizeof(STable));
   if (table == NULL) {
     if (newSuper) tsdbFreeTable(super);
     return -1;
@@ -239,7 +237,6 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
     table->superUid = -1;
     table->schema = tdDupSchema(pCfg->schema);
   }
-  table->content.pData = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
 
   // Register to meta
   if (newSuper) tsdbAddTableToMeta(pMeta, super, true);
@@ -299,10 +296,10 @@ int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId) {
   return 0;
 }
 
-int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable) {
-  tSkipListPut(pTable->content.pData, pNode);
-  return 0;
-}
+// int32_t tsdbInsertRowToTableImpl(SSkipListNode *pNode, STable *pTable) {
+//   tSkipListPut(pTable->mem->pData, pNode);
+//   return 0;
+// }
 
 static int tsdbFreeTable(STable *pTable) {
   // TODO: finish this function
@@ -314,10 +311,8 @@ static int tsdbFreeTable(STable *pTable) {
 
   // Free content
   if (TSDB_TABLE_IS_SUPER_TABLE(pTable)) {
-    tSkipListDestroy(pTable->content.pIndex);
-  } else {
-    tSkipListDestroy(pTable->content.pData);
-  }
+    tSkipListDestroy(pTable->pIndex);
+  } 
 
   free(pTable);
   return 0;
@@ -404,7 +399,7 @@ static int tsdbEstimateTableEncodeSize(STable *pTable) {
   return size;
 }
 
-static char *getTupleKey(const void * data) {
+char *getTupleKey(const void * data) {
   SDataRow row = (SDataRow)data;
 
   return dataRowAt(row, TD_DATA_ROW_HEAD_SIZE);

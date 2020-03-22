@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include "taosdef.h"
 #include "tlist.h"
 
 #ifdef __cplusplus
@@ -39,17 +40,24 @@ typedef struct {
 } STsdbCachePool;
 
 typedef struct {
+  TSKEY   keyFirst;
+  TSKEY   keyLast;
+  int64_t numOfPoints;
+  SList * list;
+} SCacheMem;
+
+typedef struct {
   int              maxBytes;
   int              cacheBlockSize;
   STsdbCachePool   pool;
   STsdbCacheBlock *curBlock;
-  SList *          mem;
-  SList *          imem;
+  SCacheMem *      mem;
+  SCacheMem *      imem;
 } STsdbCache;
 
 STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize);
 void        tsdbFreeCache(STsdbCache *pCache);
-void *      tsdbAllocFromCache(STsdbCache *pCache, int bytes);
+void *      tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key);
 
 #ifdef __cplusplus
 }

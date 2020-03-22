@@ -44,6 +44,7 @@
 
 #define TSDB_CFG_FILE_NAME "CONFIG"
 #define TSDB_DATA_DIR_NAME "data"
+#define TSDB_DEFAULT_FILE_BLOCK_ROW_OPTION 0.7
 
 enum { TSDB_REPO_STATE_ACTIVE, TSDB_REPO_STATE_CLOSED, TSDB_REPO_STATE_CONFIGURING };
 
@@ -311,14 +312,14 @@ int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
   // Loop to move pData to iData
   for (int i = 0; i < pRepo->config.maxTables; i++) {
     STable *pTable = pRepo->tsdbMeta->tables[i];
-    if (pTable != NULL) {
-      void *pData = pTable->content.pData;
-      pTable->content.pData = NULL;
-      pTable->iData = pData;
+    if (pTable != NULL && pTable->mem != NULL) {
+      pTable->imem = pTable->mem;
+      pTable->mem = NULL;
     }
   }
-  // Loop to move mem to imem
-  tdListMove(pRepo->tsdbCache->mem, pRepo->tsdbCache->imem);
+  // TODO: Loop to move mem to imem
+  pRepo->tsdbCache->imem = pRepo->tsdbCache->mem;
+  pRepo->tsdbCache->mem = NULL;
 
   pthread_create(&(pRepo->commitThread), NULL, tsdbCommitToFile, (void *)repo);
   pthread_mutex_unlock(&(pRepo->mutex));
@@ -669,10 +670,19 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   int32_t level = 0;
   int32_t headSize = 0;
 
-  tSkipListRandNodeInfo(pTable->content.pData, &level, &headSize);
+  if (pTable->mem == NULL) {
+    pTable->mem = (SMemTable *)calloc(1, sizeof(SMemTable));
+    if (pTable->mem == NULL) return -1;
+    pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
+    pTable->mem->keyFirst = INT64_MAX;
+    pTable->mem->keyLast = 0;
+  }
 
+  tSkipListRandNodeInfo(pTable->mem->pData, &level, &headSize);
+
+  TSKEY key = dataRowKey(row);
   // Copy row into the memory
-  SSkipListNode *pNode = tsdbAllocFromCache(pRepo->tsdbCache, headSize + dataRowLen(row));
+  SSkipListNode *pNode = tsdbAllocFromCache(pRepo->tsdbCache, headSize + dataRowLen(row), key);
   if (pNode == NULL) {
     // TODO: deal with allocate failure
   }
@@ -681,7 +691,10 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   dataRowCpy(SL_GET_NODE_DATA(pNode), row);
 
   // Insert the skiplist node into the data
-  tsdbInsertRowToTableImpl(pNode, pTable);
+  tSkipListPut(pTable->mem->pData, pNode);
+  if (key > pTable->mem->keyLast) pTable->mem->keyLast = key;
+  if (key < pTable->mem->keyFirst) pTable->mem->keyFirst = key;
+  pTable->mem->numOfPoints++;
 
   return 0;
 }
@@ -705,21 +718,60 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   return 0;
 }
 
+static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY minKey, TSKEY maxKey, int maxRowsToRead, void *dst) {
+  int numOfRows = 0;
+  do {
+    SSkipListNode *node = tSkiplistIterGet(pIter);
+    SDataRow       row = SL_GET_NODE_DATA(node);
+    if (dataRowKey(row) > maxKey) break;
+  } while (tSkipListIterNext(pIter));
+  return numOfRows;
+}
+
+// Commit to file
 static void *tsdbCommitToFile(void *arg) {
   // TODO
-  STsdbRepo *pRepo = (STsdbRepo *)arg;
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
-  for (int i = 0; i < pRepo->config.maxTables; i++) {
-    STable *pTable = pMeta->tables[i];
-    if (pTable == NULL) continue;
-    SSkipListIterator *pIter = tSkipListCreateIter(pTable->iData);
-    while (tSkipListIterNext(pIter)) {
-      SSkipListNode *node = tSkipListIterGet(pIter);
-      SDataRow row = SL_GET_NODE_DATA(node);
-      int k = 0;
+  STsdbRepo * pRepo = (STsdbRepo *)arg;
+  STsdbMeta * pMeta = pRepo->tsdbMeta;
+  STsdbCache *pCache = pRepo->tsdbCache;
+  STsdbRepo * pCfg = &(pRepo->config);
+  if (pCache->imem == NULL) return;
 
+  int                 sfid = tsdbGetKeyFileId(pCache->imem->keyFirst);
+  int                 efid = tsdbGetKeyFileId(pCache->imem->keyLast);
+  SSkipListIterator **iters = (SSkipListIterator **)calloc(pCfg->maxTables, sizeof(SSkipListIterator *));
+  if (iters == NULL) {
+    // TODO: deal with the error
+    return NULL;
+  }
+
+  for (int fid = sfid; fid <= efid; fid++) {
+    TSKEY minKey = 0, maxKey = 0;
+    tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
+
+    for (int tid = 0; tid < pCfg->maxTables; tid++) {
+      STable *pTable = pMeta->tables[tid];
+      if (pTable == NULL || pTable->imem == NULL) continue;
+      if (iters[tid] == NULL) {  // create table iterator
+        iters[tid] = tSkipListCreateIter(pTable->imem);
+        // TODO: deal with the error
+        if (iters[tid] == NULL) break;
+        if (!tSkipListIterNext(iters[tid])) {
+          // assert(0);
+        }
+      }
+
+      // Loop the iterator
+      // tsdbReadRowsFromCache();
     }
   }
+
+  // Free the iterator
+  for (int tid = 0; tid < pCfg->maxTables; tid++) {
+    if (iters[tid] != NULL) tSkipListDestroyIter(iters[tid]);
+  }
+
+  free(iters);
 
   return NULL;
 }
