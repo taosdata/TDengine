@@ -198,10 +198,20 @@ typedef struct {
 } SShellSubmitBlock;
 
 typedef struct {
+  int32_t numOfVnodes;
+} SMsgDesc;
+
+typedef struct SMsgHead {
+  int32_t contLen;
+  int32_t vgId;
+} SMsgHead;
+
+typedef struct {
+  SMsgDesc desc;
+  SMsgHead header;
   int16_t import;
-  int16_t vnode;
-  int32_t numOfSid; /* total number of sid */
-  char    blks[];   /* numOfSid blocks, each blocks for one table */
+  int32_t numOfTables; // total number of sid
+  char    blks[];      // number of data blocks, each table has at least one data block
 } SShellSubmitMsg;
 
 typedef struct {
@@ -231,15 +241,6 @@ typedef struct {
   int32_t  vnode;  //the index of vnode
   uint32_t ip;
 } SVnodeDesc;
-
-typedef struct {
-  int32_t numOfVnodes;
-} SMsgDesc;
-
-typedef struct {
-  int32_t contLen;
-  int32_t vgId;
-} SMsgHead;
 
 typedef struct {
   int32_t    contLen;
@@ -434,15 +435,11 @@ typedef struct SColumnInfo {
   SColumnFilterInfo *filters;
 } SColumnInfo;
 
-/*
- * enable vnode to understand how to group several tables with different tag;
- */
-typedef struct STableSidExtInfo {
+typedef struct STableIdInfo {
   int32_t sid;
   int64_t uid;
-  TSKEY   key;   // key for subscription
-  char    tags[];
-} STableSidExtInfo;
+  TSKEY   key;   // last accessed ts, for subscription
+} STableIdInfo;
 
 typedef struct STimeWindow {
   TSKEY skey;
@@ -455,10 +452,10 @@ typedef struct STimeWindow {
  * the outputCols will be 3 while the numOfCols is 1.
  */
 typedef struct {
-  int16_t  vnode;
+  int32_t contLen;   // msg header
+  int16_t vgId;
+  
   int32_t  numOfTables;
-  uint64_t pSidExtInfo;  // table id & tag info ptr, in windows pointer may
-
   uint64_t uid;
   STimeWindow window;
 
@@ -504,7 +501,7 @@ typedef struct {
 } SQueryTableMsg;
 
 typedef struct {
-  char     code;
+  int32_t  code;
   uint64_t qhandle;
 } SQueryTableRsp;
 
@@ -670,7 +667,7 @@ typedef struct {
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int16_t    index;  // used locally
   int32_t    numOfSids;
-  int32_t    pSidExtInfoList[];  // offset value of STableSidExtInfo
+  int32_t    pSidExtInfoList[];  // offset value of STableIdInfo
 } SVnodeSidList;
 
 typedef struct {
@@ -692,7 +689,7 @@ typedef struct STableMetaMsg {
   int8_t  numOfVpeers;
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int32_t  sid;
-  int32_t  vgid;
+  int32_t  vgId;
   uint64_t uid;
   SSchema  schema[];
 } STableMetaMsg;

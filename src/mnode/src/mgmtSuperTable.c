@@ -654,7 +654,7 @@ int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTable) {
 int32_t mgmtGetSuperTableMeta(SDbObj *pDb, SSuperTableObj *pTable, STableMetaMsg *pMeta, bool usePublicIp) {
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sid          = htonl(pTable->sid);
-  pMeta->vgid         = htonl(pTable->vgId);
+  pMeta->vgId         = htonl(pTable->vgId);
   pMeta->sversion     = htons(pTable->sversion);
   pMeta->precision    = pDb->cfg.precision;
   pMeta->numOfTags    = pTable->numOfTags;

@@ -85,7 +85,7 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
                                 STableDataBlocks** dataBlocks);
 
 SVnodeSidList*    tscGetVnodeSidList(SSuperTableMeta* pMetricmeta, int32_t vnodeIdx);
-STableSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
+STableIdInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx);
 
 /**
  *

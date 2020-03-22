@@ -15,13 +15,16 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+
 #include "taoserror.h"
 #include "taosmsg.h"
 #include "tlog.h"
 #include "tqueue.h"
 #include "trpc.h"
-#include "dnodeRead.h"
+
 #include "dnodeMgmt.h"
+#include "dnodeRead.h"
+#include "queryExecutor.h"
 
 typedef struct {
   int32_t  code;
@@ -88,7 +91,7 @@ void dnodeRead(SRpcMsg *pMsg) {
 
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *) pCont;
-    pHead->vgId    = 1; //htonl(pHead->vgId);
+    pHead->vgId    = 1;//htonl(pHead->vgId);
     pHead->contLen = pMsg->contLen; //htonl(pHead->contLen);
 
     void *pVnode = dnodeGetVnode(pHead->vgId);
@@ -223,20 +226,26 @@ static void dnodeProcessReadResult(SReadMsg *pRead) {
 }
 
 static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
-  void *pQInfo = (void*)100;
-  dTrace("query msg is disposed, qInfo:%p", pQInfo);
-
+  SQueryTableMsg* pQueryTableMsg = (SQueryTableMsg*) pMsg->pCont;
+  
+  SQInfo* pQInfo = NULL;
+  int32_t code = qCreateQueryInfo(pQueryTableMsg, &pQInfo);
+  
   SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
-  pRsp->code    = 0;
+  pRsp->code    = code;
   pRsp->qhandle = htobe64((uint64_t) (pQInfo));
 
   SRpcMsg rpcRsp = {
       .handle = pMsg->rpcMsg.handle,
       .pCont = pRsp,
       .contLen = sizeof(SQueryTableRsp),
-      .code = 0,
+      .code = code,
       .msgType = 0
   };
+  
+  // do execute query
+  qTableQuery(pQInfo);
+  
   rpcSendResponse(&rpcRsp);
 }
 
@@ -245,21 +254,51 @@ static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
   void *pQInfo = htobe64(pRetrieve->qhandle);
 
   dTrace("retrieve msg is disposed, qInfo:%p", pQInfo);
+  
+  int32_t rowSize = 0;
+  int32_t numOfRows = 0;
+  int32_t contLen = 0;
+  
+  SRpcMsg rpcRsp = {0};
+  
+  int32_t code = qRetrieveQueryResultInfo(pQInfo, &numOfRows, &rowSize);
+  if (code != TSDB_CODE_SUCCESS) {
+    contLen = sizeof(SRetrieveTableRsp);
+    
+    SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(contLen);
+    pRsp->numOfRows = 0;
+    pRsp->precision = 0;
+    pRsp->offset = 0;
+    pRsp->useconds = 0;
+  
+    rpcRsp = (SRpcMsg) {
+        .handle = pMsg->rpcMsg.handle,
+        .pCont = pRsp,
+        .contLen = contLen,
+        .code = code,
+        .msgType = 0
+    };
+    
+    //todo free qinfo
+  } else {
+    contLen = 100;
+    
+    SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(contLen);
+    pRsp->numOfRows = 0;
+    pRsp->precision = 0;
+    pRsp->offset = 0;
+    pRsp->useconds = 0;
 
-  assert(pQInfo != NULL);
-  int32_t contLen = 100;
-  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *) rpcMallocCont(contLen);
-  pRsp->numOfRows = 0;
-  pRsp->precision = 0;
-  pRsp->offset    = 0;
-  pRsp->useconds  = 0;
-
-  SRpcMsg rpcRsp = {
-      .handle = pMsg->rpcMsg.handle,
-      .pCont = pRsp,
-      .contLen = contLen,
-      .code = 0,
-      .msgType = 0
-  };
+    *(int64_t*) pRsp->data = 1000;
+    
+    rpcRsp = (SRpcMsg) {
+        .handle = pMsg->rpcMsg.handle,
+        .pCont = pRsp,
+        .contLen = contLen,
+        .code = code,
+        .msgType = 0
+    };
+  }
+  
   rpcSendResponse(&rpcRsp);
 }

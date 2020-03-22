@@ -191,7 +191,7 @@ SVnodeSidList* tscGetVnodeSidList(SSuperTableMeta* pMetricmeta, int32_t vnodeIdx
   return (SVnodeSidList*)(pMetricmeta->list[vnodeIdx] + (char*)pMetricmeta);
 }
 
-STableSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
+STableIdInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
   if (pSidList == NULL) {
     tscError("illegal sidlist");
     return 0;
@@ -206,7 +206,7 @@ STableSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
   
   assert(pSidList->pSidExtInfoList[idx] >= 0);
   
-  return (STableSidExtInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
+  return (STableIdInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
 }
 
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
@@ -614,7 +614,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
    */
   pCmd->payloadLen = pDataBlock->nAllocSize - tsRpcHeadSize;
 
-  assert(pCmd->allocSize >= pCmd->payloadLen + tsRpcHeadSize + 100);
+  assert(pCmd->allocSize >= pCmd->payloadLen + tsRpcHeadSize + 100 && pCmd->payloadLen > 0);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -705,8 +705,9 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     STableDataBlocks* pOneTableBlock = pTableDataBlockList->pData[i];
 
     STableDataBlocks* dataBuf = NULL;
-    int32_t           ret =
-        tscGetDataBlockFromList(pVnodeDataBlockHashList, pVnodeDataBlockList, pOneTableBlock->vgid, TSDB_PAYLOAD_SIZE,
+    
+    int32_t ret =
+        tscGetDataBlockFromList(pVnodeDataBlockHashList, pVnodeDataBlockList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE,
                                 tsInsertHeadSize, 0, pOneTableBlock->tableId, pOneTableBlock->pTableMeta, &dataBuf);
     if (ret != TSDB_CODE_SUCCESS) {
       tscError("%p failed to prepare the data block buffer for merging table data, code:%d", pSql, ret);

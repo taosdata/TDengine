@@ -25,6 +25,7 @@
 #include "taosdef.h"
 #include "tref.h"
 #include "tsqlfunction.h"
+#include "tarray.h"
 
 typedef struct SData {
   int32_t num;
@@ -39,7 +40,7 @@ enum {
 
 struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, char* val1, char* val2);
-typedef int (*__block_search_fn_t)(char* data, int num, int64_t key, int order);
+typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
 typedef struct SSqlGroupbyExpr {
   int16_t     tableIndex;
@@ -142,7 +143,7 @@ typedef struct SQuery {
   int32_t           pos;
   int64_t           pointsOffset;  // the number of points offset to save read data
   SData**           sdata;
-
+  int32_t capacity;
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;
 
@@ -152,7 +153,6 @@ typedef struct SQueryCostSummary {
 typedef struct SQueryRuntimeEnv {
   SResultInfo*       resultInfo;  // todo refactor to merge with SWindowResInfo
   SQuery*            pQuery;
-  void*              pTabObj;
   SData**            pInterpoBuf;
   SQLFunctionCtx*    pCtx;
   int16_t            numOfRowsPerPage;
@@ -174,16 +174,17 @@ typedef struct SQInfo {
   TSKEY            startTime;
   int64_t          elapsedTime;
   SResultRec       rec;
-  int              pointsReturned;
-  int              pointsInterpo;
-  int              code;  // error code to returned to client
+  int32_t          pointsReturned;
+  int32_t          pointsInterpo;
+  int32_t          code;   // error code to returned to client
+  int32_t          killed; // denotes if current query is killed
   sem_t            dataReady;
-  SHashObj*        pTableList;  // table list
+  SArray*          pTableIdList;  // table list
   SQueryRuntimeEnv runtimeEnv;
   int32_t          subgroupIdx;
   int32_t          offset; /* offset in group result set of subgroup */
-  tSidSet*         pSidSet;
-
+//  tSidSet*         pSidSet;
+  
   T_REF_DECLARE()
   /*
    * the query is executed position on which meter of the whole list.
@@ -204,18 +205,27 @@ typedef struct SQInfo {
  * @param pQInfo
  * @return
  */
-int32_t qCreateQueryInfo(void* pReadMsg, SQInfo** pQInfo);
+int32_t qCreateQueryInfo(SQueryTableMsg* pQueryTableMsg, SQInfo** pQInfo);
 
 /**
  * query on single table
  * @param pReadMsg
  */
-void qTableQuery(void* pReadMsg);
+void qTableQuery(SQInfo* pQInfo);
 
 /**
  * query on super table
  * @param pReadMsg
  */
 void qSuperTableQuery(void* pReadMsg);
+
+/**
+ * wait for the query completed, and retrieve final results to client
+ * @param pQInfo
+ */
+int32_t qRetrieveQueryResultInfo(SQInfo* pQInfo, int32_t *numOfRows, int32_t* rowsize);
+
+
+//int32_t qBuildQueryResult(SQInfo* pQInfo, void* pBuf);
 
 #endif  // TDENGINE_QUERYEXECUTOR_H
