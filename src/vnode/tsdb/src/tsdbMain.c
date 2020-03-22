@@ -718,12 +718,18 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   return 0;
 }
 
-static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY minKey, TSKEY maxKey, int maxRowsToRead, void *dst) {
+static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, void *dst) {
   int numOfRows = 0;
   do {
-    SSkipListNode *node = tSkiplistIterGet(pIter);
-    SDataRow       row = SL_GET_NODE_DATA(node);
+    SSkipListNode *node = tSkipListIterGet(pIter);
+    if (node == NULL) break;
+
+    SDataRow row = SL_GET_NODE_DATA(node);
     if (dataRowKey(row) > maxKey) break;
+    // Convert row data to column data
+
+    numOfRows++;
+    if (numOfRows > maxRowsToRead) break;
   } while (tSkipListIterNext(pIter));
   return numOfRows;
 }
@@ -734,16 +740,20 @@ static void *tsdbCommitToFile(void *arg) {
   STsdbRepo * pRepo = (STsdbRepo *)arg;
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbCache *pCache = pRepo->tsdbCache;
-  STsdbRepo * pCfg = &(pRepo->config);
+  STsdbCfg * pCfg = &(pRepo->config);
   if (pCache->imem == NULL) return;
 
-  int                 sfid = tsdbGetKeyFileId(pCache->imem->keyFirst);
-  int                 efid = tsdbGetKeyFileId(pCache->imem->keyLast);
+  int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
+  int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);
+
   SSkipListIterator **iters = (SSkipListIterator **)calloc(pCfg->maxTables, sizeof(SSkipListIterator *));
   if (iters == NULL) {
     // TODO: deal with the error
     return NULL;
   }
+
+  int maxCols = pMeta->maxCols;
+  int maxBytes = pMeta->maxRowBytes;
 
   for (int fid = sfid; fid <= efid; fid++) {
     TSKEY minKey = 0, maxKey = 0;
@@ -753,7 +763,7 @@ static void *tsdbCommitToFile(void *arg) {
       STable *pTable = pMeta->tables[tid];
       if (pTable == NULL || pTable->imem == NULL) continue;
       if (iters[tid] == NULL) {  // create table iterator
-        iters[tid] = tSkipListCreateIter(pTable->imem);
+        iters[tid] = tSkipListCreateIter(pTable->imem->pData);
         // TODO: deal with the error
         if (iters[tid] == NULL) break;
         if (!tSkipListIterNext(iters[tid])) {
@@ -762,7 +772,10 @@ static void *tsdbCommitToFile(void *arg) {
       }
 
       // Loop the iterator
-      // tsdbReadRowsFromCache();
+      int rowsRead = 0;
+      while ((rowsRead = tsdbReadRowsFromCache(iters[tid], maxKey, pCfg->maxRowsPerFileBlock, NULL)) > 0) {
+        int k = 0;
+      }
     }
   }
 
