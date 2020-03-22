@@ -6,7 +6,7 @@
 #include "tsdbFile.h"
 #include "tsdbMeta.h"
 
-TEST(TsdbTest, tableEncodeDecode) {
+TEST(TsdbTest, DISABLED_tableEncodeDecode) {
   STable *pTable = (STable *)malloc(sizeof(STable));
 
   pTable->type = TSDB_NORMAL_TABLE;
@@ -106,12 +106,12 @@ TEST(TsdbTest, createRepo) {
 
 }
 
-TEST(TsdbTest, openRepo) {
+TEST(TsdbTest, DISABLED_openRepo) {
   tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
   ASSERT_NE(pRepo, nullptr);
 }
 
-TEST(TsdbTest, createFileGroup) {
+TEST(TsdbTest, DISABLED_createFileGroup) {
   SFileGroup fGroup;
 
   ASSERT_EQ(tsdbCreateFileGroup("/home/ubuntu/work/ttest/vnode0/data", 1820, &fGroup, 1000), 0);

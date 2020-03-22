@@ -718,7 +718,7 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   return 0;
 }
 
-static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, void *dst) {
+static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCol **cols, STSchema *pSchema) {
   int numOfRows = 0;
   do {
     SSkipListNode *node = tSkipListIterGet(pIter);
@@ -727,6 +727,11 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
     SDataRow row = SL_GET_NODE_DATA(node);
     if (dataRowKey(row) > maxKey) break;
     // Convert row data to column data
+    // for (int i = 0; i < schemaNCols(pSchema); i++) {
+    //   STColumn *pCol = schemaColAt(pSchema, i);
+    //   memcpy(cols[i]->data + TYPE_BYTES[colType(pCol)] * numOfRows, dataRowAt(row, pCol->offset),
+    //          TYPE_BYTES[colType(pCol)]);
+    // }
 
     numOfRows++;
     if (numOfRows > maxRowsToRead) break;
@@ -754,6 +759,8 @@ static void *tsdbCommitToFile(void *arg) {
 
   int maxCols = pMeta->maxCols;
   int maxBytes = pMeta->maxRowBytes;
+  SDataCol **cols = (SDataCol **)malloc(sizeof(SDataCol *) * maxCols);
+  void *buf = malloc((maxBytes + sizeof(SDataCol)) * pCfg->maxRowsPerFileBlock);
 
   for (int fid = sfid; fid <= efid; fid++) {
     TSKEY minKey = 0, maxKey = 0;
@@ -771,9 +778,16 @@ static void *tsdbCommitToFile(void *arg) {
         }
       }
 
+      // Init row data part
+      cols[0] = (SDataCol *)buf;
+      for (int col = 1; col < schemaNCols(pTable->schema); col++) {
+        cols[col] = (SDataCol *)((char *)(cols[col - 1]) + sizeof(SDataCol) + colBytes(schemaColAt(pTable->schema, col-1)) * pCfg->maxRowsPerFileBlock);
+      }
+
       // Loop the iterator
       int rowsRead = 0;
-      while ((rowsRead = tsdbReadRowsFromCache(iters[tid], maxKey, pCfg->maxRowsPerFileBlock, NULL)) > 0) {
+      while ((rowsRead = tsdbReadRowsFromCache(iters[tid], maxKey, pCfg->maxRowsPerFileBlock, cols, pTable->schema)) >
+             0) {
         int k = 0;
       }
     }
@@ -784,6 +798,8 @@ static void *tsdbCommitToFile(void *arg) {
     if (iters[tid] != NULL) tSkipListDestroyIter(iters[tid]);
   }
 
+  free(buf);
+  free(cols);
   free(iters);
 
   return NULL;
