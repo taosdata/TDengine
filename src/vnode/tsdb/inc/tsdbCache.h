@@ -19,6 +19,7 @@
 
 #include "taosdef.h"
 #include "tlist.h"
+#include "tsdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,13 +50,15 @@ typedef struct {
 typedef struct {
   int              maxBytes;
   int              cacheBlockSize;
+  int              totalCacheBlocks;
   STsdbCachePool   pool;
   STsdbCacheBlock *curBlock;
   SCacheMem *      mem;
   SCacheMem *      imem;
+  tsdb_repo_t *    pRepo;
 } STsdbCache;
 
-STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize);
+STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize, tsdb_repo_t *pRepo);
 void        tsdbFreeCache(STsdbCache *pCache);
 void *      tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key);
 

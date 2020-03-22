@@ -150,6 +150,7 @@ tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO
   pRepo->rootDir = strdup(rootDir);
   pRepo->config = *pCfg;
   pRepo->limiter = limiter;
+  pthread_mutex_init(&pRepo->mutex, NULL);
 
   // Create the environment files and directories
   if (tsdbSetRepoEnv(pRepo) < 0) {
@@ -168,7 +169,7 @@ tsdb_repo_t *tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg, void *limiter /* TODO
   pRepo->tsdbMeta = pMeta;
 
   // Initialize cache
-  STsdbCache *pCache = tsdbInitCache(pCfg->maxCacheSize, -1);
+  STsdbCache *pCache = tsdbInitCache(pCfg->maxCacheSize, -1, (tsdb_repo_t *)pRepo);
   if (pCache == NULL) {
     free(pRepo->rootDir);
     tsdbFreeMeta(pRepo->tsdbMeta);
@@ -249,7 +250,7 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
     return NULL;
   }
 
-  pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize, -1);
+  pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize, -1, (tsdb_repo_t *)pRepo);
   if (pRepo->tsdbCache == NULL) {
     tsdbFreeMeta(pRepo->tsdbMeta);
     free(pRepo->rootDir);
@@ -305,9 +306,12 @@ int32_t tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg) {
 
 int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
-
-  if (pthread_mutex_lock(&(pRepo->mutex)) < 0) return -1;
-  if (pRepo->commit) return 0;
+  
+  tsdbLockRepo(repo);
+  if (pRepo->commit) {
+    tsdbUnLockRepo(repo);
+    return -1;
+  }
   pRepo->commit = 1;
   // Loop to move pData to iData
   for (int i = 0; i < pRepo->config.maxTables; i++) {
@@ -320,13 +324,23 @@ int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
   // TODO: Loop to move mem to imem
   pRepo->tsdbCache->imem = pRepo->tsdbCache->mem;
   pRepo->tsdbCache->mem = NULL;
+  pRepo->tsdbCache->curBlock = NULL;
 
+  // TODO: here should set as detached or use join for memory leak
   pthread_create(&(pRepo->commitThread), NULL, tsdbCommitToFile, (void *)repo);
-  pthread_mutex_unlock(&(pRepo->mutex));
-
-  pthread_join(pRepo->commitThread, NULL);
+  tsdbUnLockRepo(repo);
 
   return 0;
+}
+
+int32_t tsdbLockRepo(tsdb_repo_t *repo) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  return pthread_mutex_lock(repo);
+}
+
+int32_t tsdbUnLockRepo(tsdb_repo_t *repo) {
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  return pthread_mutex_unlock(repo);
 }
 
 /**
@@ -691,6 +705,13 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   dataRowCpy(SL_GET_NODE_DATA(pNode), row);
 
   // Insert the skiplist node into the data
+  if (pTable->mem == NULL) {
+    pTable->mem = (SMemTable *)calloc(1, sizeof(SMemTable));
+    if (pTable->mem == NULL) return -1;
+    pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
+    pTable->mem->keyFirst = INT64_MAX;
+    pTable->mem->keyLast = 0;
+  }
   tSkipListPut(pTable->mem->pData, pNode);
   if (key > pTable->mem->keyLast) pTable->mem->keyLast = key;
   if (key < pTable->mem->keyFirst) pTable->mem->keyFirst = key;
@@ -718,7 +739,7 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   return 0;
 }
 
-static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, void *dst) {
+static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCol **cols, STSchema *pSchema) {
   int numOfRows = 0;
   do {
     SSkipListNode *node = tSkipListIterGet(pIter);
@@ -727,6 +748,11 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
     SDataRow row = SL_GET_NODE_DATA(node);
     if (dataRowKey(row) > maxKey) break;
     // Convert row data to column data
+    // for (int i = 0; i < schemaNCols(pSchema); i++) {
+    //   STColumn *pCol = schemaColAt(pSchema, i);
+    //   memcpy(cols[i]->data + TYPE_BYTES[colType(pCol)] * numOfRows, dataRowAt(row, pCol->offset),
+    //          TYPE_BYTES[colType(pCol)]);
+    // }
 
     numOfRows++;
     if (numOfRows > maxRowsToRead) break;
@@ -754,6 +780,8 @@ static void *tsdbCommitToFile(void *arg) {
 
   int maxCols = pMeta->maxCols;
   int maxBytes = pMeta->maxRowBytes;
+  SDataCol **cols = (SDataCol **)malloc(sizeof(SDataCol *) * maxCols);
+  void *buf = malloc((maxBytes + sizeof(SDataCol)) * pCfg->maxRowsPerFileBlock);
 
   for (int fid = sfid; fid <= efid; fid++) {
     TSKEY minKey = 0, maxKey = 0;
@@ -771,9 +799,17 @@ static void *tsdbCommitToFile(void *arg) {
         }
       }
 
+      // Init row data part
+      cols[0] = (SDataCol *)buf;
+      for (int col = 1; col < schemaNCols(pTable->schema); col++) {
+        cols[col] = (SDataCol *)((char *)(cols[col - 1]) + sizeof(SDataCol) + colBytes(schemaColAt(pTable->schema, col-1)) * pCfg->maxRowsPerFileBlock);
+      }
+
       // Loop the iterator
       int rowsRead = 0;
-      while ((rowsRead = tsdbReadRowsFromCache(iters[tid], maxKey, pCfg->maxRowsPerFileBlock, NULL)) > 0) {
+      while ((rowsRead = tsdbReadRowsFromCache(iters[tid], maxKey, pCfg->maxRowsPerFileBlock, cols, pTable->schema)) >
+             0) {
+        // printf("rowsRead:%d-----------\n", rowsRead);
         int k = 0;
       }
     }
@@ -784,7 +820,23 @@ static void *tsdbCommitToFile(void *arg) {
     if (iters[tid] != NULL) tSkipListDestroyIter(iters[tid]);
   }
 
+  free(buf);
+  free(cols);
   free(iters);
+
+  tsdbLockRepo(arg);
+  tdListMove(pCache->imem->list, pCache->pool.memPool);
+  free(pCache->imem);
+  pCache->imem = NULL;
+  pRepo->commit = 0;
+  // TODO: free the skiplist
+  for (int i = 0; i < pCfg->maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable && pTable->imem) { // Here has memory leak
+      pTable->imem = NULL;
+    }
+  }
+  tsdbUnLockRepo(arg);
 
   return NULL;
 }
