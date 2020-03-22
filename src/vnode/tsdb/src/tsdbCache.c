@@ -94,6 +94,7 @@ void *tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key) {
   memset(ptr, 0, bytes);
   if (key < pCache->mem->keyFirst) pCache->mem->keyFirst = key;
   if (key > pCache->mem->keyLast) pCache->mem->keyLast = key;
+  pCache->mem->numOfPoints++;
 
   return ptr;
 }
