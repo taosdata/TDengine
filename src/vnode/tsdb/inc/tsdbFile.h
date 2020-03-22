@@ -18,10 +18,14 @@
 #include <stdint.h>
 
 #include "taosdef.h"
+#include "tglobalcfg.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define tsdbGetKeyFileId(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
+#define tsdbGetMaxNumOfFiles(keep, daysPerFile) ((keep) / (daysPerFile) + 3)
 
 typedef enum {
   TSDB_FILE_TYPE_HEAD = 0,  // .head file type
@@ -66,6 +70,7 @@ STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32
 
 void  tsdbCloseFile(STsdbFileH *pFileH);
 int   tsdbCreateFileGroup(char *dataDir, int fileId, SFileGroup *pFGroup, int maxTables);
+void  tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey, TSKEY *maxKey);
 #ifdef __cplusplus
 }
 #endif

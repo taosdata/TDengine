@@ -316,8 +316,9 @@ int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
       pTable->mem = NULL;
     }
   }
-  // Loop to move mem to imem
-  tdListMove(pRepo->tsdbCache->mem, pRepo->tsdbCache->imem);
+  // TODO: Loop to move mem to imem
+  pRepo->tsdbCache->imem = pRepo->tsdbCache->mem;
+  pRepo->tsdbCache->mem = NULL;
 
   pthread_create(&(pRepo->commitThread), NULL, tsdbCommitToFile, (void *)repo);
   pthread_mutex_unlock(&(pRepo->mutex));
@@ -678,8 +679,9 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
 
   tSkipListRandNodeInfo(pTable->mem->pData, &level, &headSize);
 
+  TSKEY key = dataRowKey(row);
   // Copy row into the memory
-  SSkipListNode *pNode = tsdbAllocFromCache(pRepo->tsdbCache, headSize + dataRowLen(row));
+  SSkipListNode *pNode = tsdbAllocFromCache(pRepo->tsdbCache, headSize + dataRowLen(row), key);
   if (pNode == NULL) {
     // TODO: deal with allocate failure
   }
@@ -689,7 +691,6 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
 
   // Insert the skiplist node into the data
   tSkipListPut(pTable->mem->pData, pNode);
-  TSKEY key = dataRowKey(row);
   if (key > pTable->mem->keyLast) pTable->mem->keyLast = key;
   if (key < pTable->mem->keyFirst) pTable->mem->keyFirst = key;
   pTable->mem->numOfPoints++;
@@ -716,20 +717,24 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   return 0;
 }
 
+// Commit to file
 static void *tsdbCommitToFile(void *arg) {
   // TODO
   STsdbRepo *pRepo = (STsdbRepo *)arg;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
-  for (int i = 0; i < pRepo->config.maxTables; i++) {
+  for (int i = 0; i < pRepo->config.maxTables; i++) { // Loop over table
     STable *pTable = pMeta->tables[i];
-    if (pTable == NULL) continue;
-    SSkipListIterator *pIter = tSkipListCreateIter(pTable->imem->pData);
+    if (pTable == NULL || pTable->imem == NULL) continue;
+
+    SMemTable *pMem = pTable->imem;
+    SSkipListIterator *pIter = tSkipListCreateIter(pMem->pData);
+    // Loop to commit to file
     while (tSkipListIterNext(pIter)) {
       SSkipListNode *node = tSkipListIterGet(pIter);
       SDataRow row = SL_GET_NODE_DATA(node);
       int k = 0;
-
     }
+    tSkipListDestroyIter(pIter);
   }
 
   return NULL;
