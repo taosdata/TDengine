@@ -13,23 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSCCACHE_H
-#define TDENGINE_TSCCACHE_H
+#ifndef TDENGINE_TSCJOINPROCESS_H
+#define TDENGINE_TSCJOINPROCESS_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void *taosOpenConnCache(int maxSessions, void (*cleanFp)(void *), void *tmrCtrl, int64_t keepTimer);
+#include "tscUtil.h"
+#include "tsclient.h"
 
-void taosCloseConnCache(void *handle);
+void tscFetchDatablockFromSubquery(SSqlObj* pSql);
 
-void *taosAddConnIntoCache(void *handle, void *data, uint32_t ip, uint16_t port, char *user);
+void tscSetupOutputColumnIndex(SSqlObj* pSql);
+int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql);
+void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code);
 
-void *taosGetConnFromCache(void *handle, uint32_t ip, uint16_t port, char *user);
+SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, int32_t index);
+void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter);
+
+int32_t tscHandleMasterJoinQuery(SSqlObj* pSql);
+
+int32_t tscHandleMasterSTableQuery(SSqlObj *pSql);
+
+int32_t tscHandleMultivnodeInsert(SSqlObj *pSql);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TSCACHE_H
+#endif  // TDENGINE_TSCJOINPROCESS_H

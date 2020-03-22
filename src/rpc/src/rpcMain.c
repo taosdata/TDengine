@@ -360,8 +360,8 @@ void rpcSendRequest(void *shandle, SRpcIpSet *pIpSet, SRpcMsg *pMsg) {
   // for TDengine, all the query, show commands shall have TCP connection
   char type = pMsg->msgType;
   if (type == TSDB_MSG_TYPE_QUERY || type == TSDB_MSG_TYPE_RETRIEVE ||
-      type == TSDB_MSG_TYPE_STABLE_META || type == TSDB_MSG_TYPE_MULTI_TABLE_META ||
-      type == TSDB_MSG_TYPE_SHOW ) 
+      type == TSDB_MSG_TYPE_CM_STABLE_META || type == TSDB_MSG_TYPE_CM_TABLES_META ||
+      type == TSDB_MSG_TYPE_CM_SHOW )
     pContext->connType = RPC_CONN_TCPC;
   
   rpcSendReqToServer(pRpc, pContext);
@@ -441,15 +441,16 @@ void rpcSendRedirectRsp(void *thandle, SRpcIpSet *pIpSet) {
   return;
 }
 
-void rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
+int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   SRpcConn  *pConn = (SRpcConn *)thandle;
+  if (pConn->user[0] == 0) return -1;
 
   pInfo->clientIp = pConn->peerIp;
   pInfo->clientPort = pConn->peerPort;
   pInfo->serverIp = pConn->destIp;
 
-  assert(pConn->user[0]);
   strcpy(pInfo->user, pConn->user);
+  return 0;
 }
 
 static void rpcFreeMsg(void *msg) {
@@ -494,34 +495,34 @@ static void rpcCloseConn(void *thandle) {
   SRpcConn *pConn = (SRpcConn *)thandle;
   SRpcInfo *pRpc = pConn->pRpc;
 
+  if (pConn->user[0] == 0) return;
+
   rpcLockConn(pConn);
 
-  if (pConn->user[0]) {
-    pConn->user[0] = 0;
-    if (taosCloseConn[pConn->connType]) (*taosCloseConn[pConn->connType])(pConn->chandle);
+  pConn->user[0] = 0;
+  if (taosCloseConn[pConn->connType]) (*taosCloseConn[pConn->connType])(pConn->chandle);
 
-    taosTmrStopA(&pConn->pTimer);
-    taosTmrStopA(&pConn->pIdleTimer);
+  taosTmrStopA(&pConn->pTimer);
+  taosTmrStopA(&pConn->pIdleTimer);
 
-    if ( pRpc->connType == TAOS_CONN_SERVER) {
-      char hashstr[40] = {0};
-      sprintf(hashstr, "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId, pConn->connType);
-      taosDeleteStrHash(pRpc->hash, hashstr);
-      rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
-      pConn->pRspMsg = NULL;
-      pConn->inType = 0;
-      pConn->inTranId = 0;
-    } else {
-      pConn->outType = 0;
-      pConn->outTranId = 0;
-      pConn->pReqMsg = NULL;
-    }
-
-    taosFreeId(pRpc->idPool, pConn->sid);
-    pConn->pContext = NULL;
-
-    tTrace("%s %p, rpc connection is closed", pRpc->label, pConn);
+  if ( pRpc->connType == TAOS_CONN_SERVER) {
+    char hashstr[40] = {0};
+    sprintf(hashstr, "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId, pConn->connType);
+    taosDeleteStrHash(pRpc->hash, hashstr);
+    rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
+    pConn->pRspMsg = NULL;
+    pConn->inType = 0;
+    pConn->inTranId = 0;
+  } else {
+    pConn->outType = 0;
+    pConn->outTranId = 0;
+    pConn->pReqMsg = NULL;
   }
+
+  taosFreeId(pRpc->idPool, pConn->sid);
+  pConn->pContext = NULL;
+
+  tTrace("%s %p, rpc connection is closed", pRpc->label, pConn);
 
   rpcUnlockConn(pConn);
 }
@@ -814,7 +815,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   terrno = 0;
   pConn = rpcProcessMsgHead(pRpc, pRecv);
 
-  if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16)) {
+  if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16)) {
     tTrace("%s %p, %s received from 0x%x:%hu, parse code:%x len:%d sig:0x%08x:0x%08x:%d",
         pRpc->label, pConn, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, 
         pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId, pHead->port);
@@ -983,12 +984,12 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
   msgLen = rpcAddAuthPart(pConn, msg, msgLen);
 
   if ( rpcIsReq(pHead->msgType)) {
-    if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16))
+    if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
       tTrace("%s %p, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d",
              pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerIpstr,
              pConn->peerPort, msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   } else {
-    if (pHead->msgType < TSDB_MSG_TYPE_HEARTBEAT || (rpcDebugFlag & 16))
+    if (pHead->msgType < TSDB_MSG_TYPE_CM_HEARTBEAT || (rpcDebugFlag & 16))
       tTrace( "%s %p, %s is sent to %s:%hu, code:%u len:%d sig:0x%08x:0x%08x:%d",
           pRpc->label, pConn, taosMsg[pHead->msgType], pConn->peerIpstr, pConn->peerPort, 
           (uint8_t)pHead->content[0], msgLen, pHead->sourceId, pHead->destId, pHead->tranId);

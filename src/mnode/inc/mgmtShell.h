@@ -23,12 +23,15 @@ extern "C" {
 
 int32_t mgmtInitShell();
 void mgmtCleanUpShell();
-void mgmtAddShellMsgHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
+void mgmtAddShellMsgHandle(uint8_t msgType, void (*fp)(SQueuedMsg *queuedMsg));
 
-typedef int32_t (*SShowMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+typedef int32_t (*SShowMetaFp)(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 void mgmtAddShellShowMetaHandle(uint8_t showType, SShowMetaFp fp);
 void mgmtAddShellShowRetrieveHandle(uint8_t showType, SShowRetrieveFp fp);
+
+void mgmtAddToShellQueue(SQueuedMsg *queuedMsg);
+void mgmtSendSimpleResp(void *thandle, int32_t code);
 
 #ifdef __cplusplus
 }

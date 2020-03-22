@@ -13,20 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "qast.h"
 #include "os.h"
-#include "sskiplist.h"
+#include "qsqlparser.h"
+#include "qsyntaxtreefunction.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "tast.h"
 #include "tlog.h"
-#include "tscSyntaxtreefunction.h"
-#include "tschemautil.h"
 #include "tsqlfunction.h"
 #include "tstoken.h"
 #include "ttokendef.h"
-#include "taosdef.h"
 #include "tutil.h"
-#include "qsqlparser.h"
 
 /*
  *
@@ -610,6 +607,7 @@ int32_t merge(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResultset *
 //  }
 //
 //  return pFinalRes->num;
+  return 0;
 }
 
 int32_t intersect(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResultset *pFinalRes) {
@@ -644,12 +642,13 @@ int32_t intersect(tQueryResultset *pLeft, tQueryResultset *pRight, tQueryResults
 //  }
 //
 //  return pFinalRes->num;
+ return 0;
 }
 
 /*
  * traverse the result and apply the function to each item to check if the item is qualified or not
  */
-static void tSQLListTraverseOnResult(struct tSQLBinaryExpr *pExpr, __result_filter_fn_t fp, tQueryResultset *pResult) {
+static UNUSED_FUNC void tSQLListTraverseOnResult(struct tSQLBinaryExpr *pExpr, __result_filter_fn_t fp, tQueryResultset *pResult) {
   assert(pExpr->pLeft->nodeType == TSQL_NODE_COL && pExpr->pRight->nodeType == TSQL_NODE_VALUE);
 
   // brutal force scan the result list and check for each item in the list
@@ -706,7 +705,7 @@ static bool filterItem(tSQLBinaryExpr *pExpr, const void *pItem, SBinaryFilterSu
  * @param pSchema   tag schemas
  * @param fp        filter callback function
  */
-static void tSQLBinaryTraverseOnResult(tSQLBinaryExpr *pExpr, tQueryResultset *pResult, SBinaryFilterSupp *param) {
+static UNUSED_FUNC void tSQLBinaryTraverseOnResult(tSQLBinaryExpr *pExpr, tQueryResultset *pResult, SBinaryFilterSupp *param) {
   int32_t n = 0;
   for (int32_t i = 0; i < pResult->num; ++i) {
     void *pItem = pResult->pRes[i];

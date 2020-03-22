@@ -27,41 +27,27 @@
 #include "mgmtDServer.h"
 #include "mgmtVgroup.h"
 #include "mgmtUser.h"
-#include "mgmtSystem.h"
 #include "mgmtTable.h"
 #include "mgmtShell.h"
 
-char tsMgmtDirectory[128] = {0};
-void *tsMgmtTmr           = NULL;
-void *tsMgmtTranQhandle   = NULL;
+static int32_t mgmtCheckMgmtRunning();
+void *tsMgmtTmr = NULL;
 
-
-void mgmtCleanUpSystem() {
-  mPrint("starting to clean up mgmt");
-
-  sdbCleanUpPeers();
-  mgmtCleanupBalance();
-  mgmtCleanupDClient();
-  mgmtCleanupDServer();
-  mgmtCleanUpShell();
-  mgmtCleanUpTables();
-  mgmtCleanUpVgroups();
-  mgmtCleanUpDbs();
-  mgmtCleanUpDnodes();
-  mgmtCleanUpUsers();
-  mgmtCleanUpAccts();
-  taosTmrCleanUp(tsMgmtTmr);
-  taosCleanUpScheduler(tsMgmtTranQhandle);
-
-  mPrint("mgmt is cleaned up");
-}
-
-int32_t mgmtCheckMgmtRunning() {
-  if (tsModuleStatus & (1 << TSDB_MOD_MGMT)) {
+int32_t mgmtInitSystem() {
+  if (mgmtInitShell() != 0) {
+    mError("failed to init shell");
     return -1;
   }
 
-  tsetModuleStatus(TSDB_MOD_MGMT);
+  struct stat dirstat;
+  bool fileExist  = (stat(tsMnodeDir, &dirstat) == 0);
+  bool asMaster = (strcmp(tsMasterIp, tsPrivateIp) == 0);
+
+  if (asMaster || fileExist) {
+    if (mgmtStartSystem() != 0) {
+      return -1;
+    }
+  }
 
   return 0;
 }
@@ -70,8 +56,8 @@ int32_t mgmtStartSystem() {
   mPrint("starting to initialize TDengine mgmt ...");
 
   struct stat dirstat;
-  if (stat(tsMgmtDirectory, &dirstat) < 0) {
-    mkdir(tsMgmtDirectory, 0755);
+  if (stat(tsMnodeDir, &dirstat) < 0) {
+    mkdir(tsMnodeDir, 0755);
   }
 
   if (mgmtCheckMgmtRunning() != 0) {
@@ -79,11 +65,9 @@ int32_t mgmtStartSystem() {
     return 0;
   }
 
-  tsMgmtTranQhandle = taosInitScheduler(tsMaxDnodes + tsMaxShellConns, 1, "mnodeT");
-
   tsMgmtTmr = taosTmrInit((tsMaxDnodes + tsMaxShellConns) * 3, 200, 3600000, "MND");
   if (tsMgmtTmr == NULL) {
-    mError("failed to init timer, exit");
+    mError("failed to init timer");
     return -1;
   }
 
@@ -125,12 +109,7 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (mgmtInitShell() < 0) {
-    mError("failed to init shell");
-    return -1;
-  }
-
-  if (sdbInitPeers(tsMgmtDirectory) < 0) {
+  if (sdbInitPeers(tsMnodeDir) < 0) {
     mError("failed to init peers");
     return -1;
   }
@@ -139,30 +118,11 @@ int32_t mgmtStartSystem() {
     mError("failed to init dnode balance")
   }
 
-
   mPrint("TDengine mgmt is initialized successfully");
 
   return 0;
 }
 
-int32_t mgmtInitSystem() {
-  struct stat dirstat;
-  bool directoryExist  = (stat(tsMgmtDirectory, &dirstat) == 0);
-  bool equalWithMaster = (strcmp(tsMasterIp, tsPrivateIp) == 0);
-
-  if (equalWithMaster || directoryExist) {
-    if (mgmtStartSystem() != 0) {
-      return -1;
-    }
-  }
-
-  if (mgmtInitShell() < 0) {
-    mError("failed to init shell");
-    return -1;
-  }
-
-  return 0;
-}
 
 void mgmtStopSystem() {
   if (sdbMaster) {
@@ -171,6 +131,31 @@ void mgmtStopSystem() {
   }
 
   mgmtCleanUpSystem();
-  remove(tsMgmtDirectory);
-//  mgmtInitRedirect();
+  remove(tsMnodeDir);
+}
+
+void mgmtCleanUpSystem() {
+  mPrint("starting to clean up mgmt");
+  sdbCleanUpPeers();
+  mgmtCleanupBalance();
+  mgmtCleanUpShell();
+  mgmtCleanupDClient();
+  mgmtCleanupDServer();
+  mgmtCleanUpTables();
+  mgmtCleanUpVgroups();
+  mgmtCleanUpDbs();
+  mgmtCleanUpDnodes();
+  mgmtCleanUpUsers();
+  mgmtCleanUpAccts();
+  taosTmrCleanUp(tsMgmtTmr);
+  mPrint("mgmt is cleaned up");
+}
+
+static int32_t mgmtCheckMgmtRunning() {
+  if (tsModuleStatus & (1 << TSDB_MOD_MGMT)) {
+    return -1;
+  }
+
+  tsetModuleStatus(TSDB_MOD_MGMT);
+  return 0;
 }

@@ -319,12 +319,13 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pRes->pLocalReducer = pReducer;
   pRes->numOfGroups = 0;
 
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  int16_t         prec = pMeterMetaInfo->pMeterMeta->precision;
-
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  
+  int16_t prec = tinfo.precision;
   int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
   int64_t revisedSTime =
-      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, prec);
+      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, prec);
 
   SInterpolationInfo *pInterpoInfo = &pReducer->interpolationInfo;
   taosInitInterpoInfo(pInterpoInfo, pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
@@ -602,9 +603,9 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   *pFinalModel = NULL;
 
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pMeterMetaInfo->pMetricMeta->numOfVnodes);
+  (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pTableMetaInfo->pMetricMeta->numOfVnodes);
   if (*pMemBuffer == NULL) {
     tscError("%p failed to allocate memory", pSql);
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
@@ -635,7 +636,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   pModel = createColumnModel(pSchema, pQueryInfo->exprsInfo.numOfExprs, capacity);
 
-  for (int32_t i = 0; i < pMeterMetaInfo->pMetricMeta->numOfVnodes; ++i) {
+  for (int32_t i = 0; i < pTableMetaInfo->pMetricMeta->numOfVnodes; ++i) {
     (*pMemBuffer)[i] = createExtMemBuffer(nBufferSizes, rlen, pModel);
     (*pMemBuffer)[i]->flushModel = MULTIPLE_APPEND_MODEL;
   }
@@ -650,7 +651,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
-    SSchema *p1 = tsGetColumnSchema(pMeterMetaInfo->pMeterMeta, pExpr->colInfo.colIdx);
+    SSchema *p1 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIdx);
 
     int16_t inter = 0;
     int16_t type = -1;
@@ -774,12 +775,14 @@ void adjustLoserTreeFromNewData(SLocalReducer *pLocalReducer, SLocalDataSource *
 void savePrevRecordAndSetupInterpoInfo(SLocalReducer *pLocalReducer, SQueryInfo *pQueryInfo,
                                        SInterpolationInfo *pInterpoInfo) {
   // discard following dataset in the same group and reset the interpolation information
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-  int16_t         prec = pMeterMetaInfo->pMeterMeta->precision;
-
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  
+  int16_t prec = tinfo.precision;
   int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
   int64_t revisedSTime =
-      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, prec);
+      taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, prec);
 
   taosInitInterpoInfo(pInterpoInfo, pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
                       pLocalReducer->rowSize);
@@ -917,13 +920,15 @@ static void doInterpolateResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, boo
     functions[i] = tscSqlExprGet(pQueryInfo, i)->functionId;
   }
 
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  int8_t          precision = pMeterMetaInfo->pMeterMeta->precision;
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  
+  int8_t precision = tinfo.precision;
 
   while (1) {
     int32_t remains = taosNumOfRemainPoints(pInterpoInfo);
     TSKEY   etime = taosGetRevisedEndKey(actualETime, pQueryInfo->order.order, pQueryInfo->intervalTime,
-                                       pQueryInfo->intervalTimeUnit, precision);
+                                       pQueryInfo->slidingTimeUnit, precision);
     int32_t nrows = taosGetNumOfResultWithInterpo(pInterpoInfo, pPrimaryKeys, remains, pQueryInfo->intervalTime, etime,
                                                   pLocalReducer->resColModel->capacity);
 
@@ -1268,14 +1273,16 @@ static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalReducer 
 
   pQueryInfo->limit.offset = pLocalReducer->offset;
 
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfo(pCmd, pCmd->clauseIndex, 0);
-  int16_t         precision = pMeterMetaInfo->pMeterMeta->precision;
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  
+  int8_t precision = tinfo.precision;
 
   // for group result interpolation, do not return if not data is generated
   if (pQueryInfo->interpoType != TSDB_INTERPO_NONE) {
     int64_t stime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->stime : pQueryInfo->etime;
     int64_t newTime =
-        taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, precision);
+        taosGetIntervalStartTimestamp(stime, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, precision);
 
     taosInitInterpoInfo(&pLocalReducer->interpolationInfo, pQueryInfo->order.order, newTime,
                         pQueryInfo->groupbyExpr.numOfGroupCols, pLocalReducer->rowSize);
@@ -1294,8 +1301,10 @@ static bool doInterpolationForCurrentGroup(SSqlObj *pSql) {
   SLocalReducer *     pLocalReducer = pRes->pLocalReducer;
   SInterpolationInfo *pInterpoInfo = &pLocalReducer->interpolationInfo;
 
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-  int8_t          p = pMeterMetaInfo->pMeterMeta->precision;
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  
+  int8_t p = tinfo.precision;
 
   if (taosHasRemainsDataForInterpolation(pInterpoInfo)) {
     assert(pQueryInfo->interpoType != TSDB_INTERPO_NONE);
@@ -1305,7 +1314,7 @@ static bool doInterpolationForCurrentGroup(SSqlObj *pSql) {
 
     int32_t remain = taosNumOfRemainPoints(pInterpoInfo);
     TSKEY   ekey =
-        taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->intervalTime, pQueryInfo->intervalTimeUnit, p);
+        taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->intervalTime, pQueryInfo->slidingTimeUnit, p);
     int32_t rows = taosGetNumOfResultWithInterpo(pInterpoInfo, (TSKEY *)pLocalReducer->pBufForInterpo, remain,
                                                  pQueryInfo->intervalTime, ekey, pLocalReducer->resColModel->capacity);
     if (rows > 0) {  // do interpo
@@ -1328,8 +1337,10 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
   bool prevGroupCompleted = (!pLocalReducer->discard) && pLocalReducer->hasUnprocessedRow;
 
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  SMeterMetaInfo *pMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, 0);
-  int8_t          precision = pMeterMetaInfo->pMeterMeta->precision;
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  int8_t precision = tinfo.precision;
 
   if ((isAllSourcesCompleted(pLocalReducer) && !pLocalReducer->hasPrevRow) || pLocalReducer->pLocalDataSrc[0] == NULL ||
       prevGroupCompleted) {
@@ -1338,7 +1349,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
       int64_t etime = (pQueryInfo->stime < pQueryInfo->etime) ? pQueryInfo->etime : pQueryInfo->stime;
 
       etime = taosGetRevisedEndKey(etime, pQueryInfo->order.order, pQueryInfo->intervalTime,
-                                   pQueryInfo->intervalTimeUnit, precision);
+                                   pQueryInfo->slidingTimeUnit, precision);
       int32_t rows = taosGetNumOfResultWithInterpo(pInterpoInfo, NULL, 0, pQueryInfo->intervalTime, etime,
                                                    pLocalReducer->resColModel->capacity);
       if (rows > 0) {  // do interpo

@@ -16,13 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosmsg.h"
-#include "tschemautil.h"
 #include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
-int32_t mgmtSaveQueryStreamList(SHeartBeatMsg *pHBMsg);
+int32_t mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg);
 
 int32_t mgmtKillQuery(char *qidstr, void *pConn);
 int32_t mgmtKillStream(char *qidstr, void *pConn);
@@ -63,7 +62,7 @@ typedef struct {
   SStreamDesc   sdesc[];
 } SStreamShow;
 
-int32_t  mgmtSaveQueryStreamList(SHeartBeatMsg *pHBMsg) {
+int32_t  mgmtSaveQueryStreamList(SCMHeartBeatMsg *pHBMsg) {
 //  SAcctObj *pAcct = pConn->pAcct;
 //
 //  if (contLen <= 0 || pAcct == NULL) {
@@ -137,10 +136,10 @@ int32_t mgmtGetQueries(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtGetQueryMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = TSDB_USER_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -336,9 +335,9 @@ int32_t mgmtGetStreams(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtGetStreamMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t      cols = 0;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = TSDB_USER_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -558,9 +557,11 @@ bool mgmtCheckQhandle(uint64_t qhandle) {
 }
 
 void mgmtSaveQhandle(void *qhandle) {
+  mTrace("qhandle:%p is allocated", qhandle);
 }
 
 void mgmtFreeQhandle(void *qhandle) {
+  mTrace("qhandle:%p is freed", qhandle);
 }
 
 int mgmtGetConns(SShowObj *pShow, void *pConn) {
@@ -598,11 +599,11 @@ int mgmtGetConns(SShowObj *pShow, void *pConn) {
   return 0;
 }
 
-int32_t mgmtGetConnsMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "user");
@@ -673,72 +674,72 @@ int32_t mgmtRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn
   return numOfRows;
 }
 
-void mgmtProcessKillQueryMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+void mgmtProcessKillQueryMsg(SQueuedMsg *pMsg) {
+  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
     rpcSendResponse(&rpcRsp);
     return;
   }
 
-  SKillQueryMsg *pKill = (SKillQueryMsg *) rpcMsg->pCont;
+  SCMKillQueryMsg *pKill = pMsg->pCont;
   int32_t code;
 
   if (!pUser->writeAuth) {
     code = TSDB_CODE_NO_RIGHTS;
   } else {
-    code = mgmtKillQuery(pKill->queryId, rpcMsg->handle);
+    code = mgmtKillQuery(pKill->queryId, pMsg->thandle);
   }
 
   rpcRsp.code = code;
   rpcSendResponse(&rpcRsp);
 }
 
-void mgmtProcessKillStreamMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+void mgmtProcessKillStreamMsg(SQueuedMsg *pMsg) {
+  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
     rpcSendResponse(&rpcRsp);
     return;
   }
 
-  SKillStreamMsg *pKill = (SKillStreamMsg *) rpcMsg->pCont;
+  SCMKillStreamMsg *pKill = pMsg->pCont;
   int32_t code;
 
   if (!pUser->writeAuth) {
     code = TSDB_CODE_NO_RIGHTS;
   } else {
-    code = mgmtKillStream(pKill->queryId, rpcMsg->handle);
+    code = mgmtKillStream(pKill->queryId, pMsg->thandle);
   }
 
   rpcRsp.code = code;
   rpcSendResponse(&rpcRsp);
 }
 
-void mgmtProcessKillConnectionMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+void mgmtProcessKillConnectionMsg(SQueuedMsg *pMsg) {
+  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  if (mgmtCheckRedirect(pMsg->thandle)) return;
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  SUserObj *pUser = mgmtGetUserFromConn(pMsg->thandle);
   if (pUser == NULL) {
     rpcRsp.code = TSDB_CODE_INVALID_USER;
     rpcSendResponse(&rpcRsp);
     return;
   }
 
-  SKillConnectionMsg *pKill = (SKillConnectionMsg *) rpcMsg->pCont;
+  SCMKillConnMsg *pKill = pMsg->pCont;
   int32_t code;
 
   if (!pUser->writeAuth) {
     code = TSDB_CODE_NO_RIGHTS;
   } else {
-    code = mgmtKillConnection(pKill->queryId, rpcMsg->handle);
+    code = mgmtKillConnection(pKill->queryId, pMsg->thandle);
   }
 
   rpcRsp.code = code;
@@ -752,9 +753,9 @@ int32_t mgmtInitProfile() {
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mgmtRetrieveConns);
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mgmtGetStreamMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mgmtRetrieveStreams);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_KILL_QUERY, mgmtProcessKillQueryMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_KILL_STREAM, mgmtProcessKillStreamMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_KILL_CONNECTION, mgmtProcessKillConnectionMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_QUERY, mgmtProcessKillQueryMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_STREAM, mgmtProcessKillStreamMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_KILL_CONN, mgmtProcessKillConnectionMsg);
 
   return 0;
 }

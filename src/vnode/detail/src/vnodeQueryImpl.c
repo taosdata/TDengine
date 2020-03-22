@@ -14,13 +14,13 @@
  */
 
 #include "hash.h"
-#include "hashutil.h"
+#include "hashfunc.h"
 #include "os.h"
+#include "qextbuffer.h"
 #include "taosmsg.h"
-#include "textbuffer.h"
 #include "ttime.h"
 
-#include "tinterpolation.h"
+#include "qinterpolation.h"
 #include "tscJoinProcess.h"
 #include "tscSecondaryMerge.h"
 #include "tscompression.h"
@@ -1460,7 +1460,7 @@ static SWindowResult *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
                                              int16_t bytes) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
-  int32_t *p1 = (int32_t *)taosGetDataFromHashTable(pWindowResInfo->hashList, pData, bytes);
+  int32_t *p1 = (int32_t *)taosHashGet(pWindowResInfo->hashList, pData, bytes);
   if (p1 != NULL) {
     pWindowResInfo->curIndex = *p1;
   } else {  // more than the capacity, reallocate the resources
@@ -1485,7 +1485,7 @@ static SWindowResult *doSetTimeWindowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SWin
 
     // add a new result set for a new group
     pWindowResInfo->curIndex = pWindowResInfo->size++;
-    taosAddToHashTable(pWindowResInfo->hashList, pData, bytes, (char *)&pWindowResInfo->curIndex, sizeof(int32_t));
+    taosHashPut(pWindowResInfo->hashList, pData, bytes, (char *)&pWindowResInfo->curIndex, sizeof(int32_t));
   }
 
   return getWindowResult(pWindowResInfo, pWindowResInfo->curIndex);
@@ -1532,7 +1532,7 @@ static STimeWindow getActiveTimeWindow(SWindowResInfo *pWindowResInfo, int64_t t
   return w;
 }
 
-static int32_t addNewWindowResultBuf(SWindowResult *pWindowRes, SQueryDiskbasedResultBuf *pResultBuf, int32_t sid,
+static int32_t addNewWindowResultBuf(SWindowResult *pWindowRes, SDiskbasedResultBuf *pResultBuf, int32_t sid,
                                      int32_t numOfRowsPerPage) {
   if (pWindowRes->pos.pageId != -1) {
     return 0;
@@ -1574,7 +1574,7 @@ static int32_t addNewWindowResultBuf(SWindowResult *pWindowRes, SQueryDiskbasedR
 static int32_t setWindowOutputBufByKey(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowResInfo, int32_t sid,
                                        STimeWindow *win) {
   assert(win->skey <= win->ekey);
-  SQueryDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
+  SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
 
   SWindowResult *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, pWindowResInfo, (char *)&win->skey, TSDB_KEYSIZE);
   if (pWindowRes == NULL) {
@@ -2018,7 +2018,7 @@ int32_t initWindowResInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRun
   pWindowResInfo->type = type;
 
   _hash_fn_t fn = taosGetDefaultHashFunction(type);
-  pWindowResInfo->hashList = taosInitHashTable(threshold, fn, false);
+  pWindowResInfo->hashList = taosHashInit(threshold, fn, false);
 
   pWindowResInfo->curIndex = -1;
   pWindowResInfo->size = 0;
@@ -2044,7 +2044,7 @@ void cleanupTimeWindowInfo(SWindowResInfo *pWindowResInfo, SQueryRuntimeEnv *pRu
     destroyTimeWindowRes(pResult, pRuntimeEnv->pQuery->numOfOutputCols);
   }
 
-  taosCleanUpHashTable(pWindowResInfo->hashList);
+  taosHashCleanup(pWindowResInfo->hashList);
   tfree(pWindowResInfo->pResult);
 }
 
@@ -2059,11 +2059,11 @@ void resetTimeWindowInfo(SQueryRuntimeEnv *pRuntimeEnv, SWindowResInfo *pWindowR
   }
 
   pWindowResInfo->curIndex = -1;
-  taosCleanUpHashTable(pWindowResInfo->hashList);
+  taosHashCleanup(pWindowResInfo->hashList);
   pWindowResInfo->size = 0;
 
   _hash_fn_t fn = taosGetDefaultHashFunction(pWindowResInfo->type);
-  pWindowResInfo->hashList = taosInitHashTable(pWindowResInfo->capacity, fn, false);
+  pWindowResInfo->hashList = taosHashInit(pWindowResInfo->capacity, fn, false);
 
   pWindowResInfo->startTime = 0;
   pWindowResInfo->prevSKey = 0;
@@ -2081,7 +2081,7 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
   for (int32_t i = 0; i < num; ++i) {
     SWindowResult *pResult = &pWindowResInfo->pResult[i];
     if (pResult->status.closed) {  // remove the window slot from hash table
-      taosDeleteFromHashTable(pWindowResInfo->hashList, (const char *)&pResult->window.skey, TSDB_KEYSIZE);
+      taosHashRemove(pWindowResInfo->hashList, (const char *)&pResult->window.skey, TSDB_KEYSIZE);
     } else {
       break;
     }
@@ -2104,14 +2104,14 @@ void clearFirstNTimeWindow(SQueryRuntimeEnv *pRuntimeEnv, int32_t num) {
 
   for (int32_t k = 0; k < pWindowResInfo->size; ++k) {
     SWindowResult *pResult = &pWindowResInfo->pResult[k];
-    int32_t *p = (int32_t *)taosGetDataFromHashTable(pWindowResInfo->hashList, (const char *)&pResult->window.skey,
+    int32_t *p = (int32_t *)taosHashGet(pWindowResInfo->hashList, (const char *)&pResult->window.skey,
                                                      TSDB_KEYSIZE);
     int32_t  v = (*p - num);
     assert(v >= 0 && v <= pWindowResInfo->size);
 
     // todo add the update function for hash table
-    taosDeleteFromHashTable(pWindowResInfo->hashList, (const char *)&pResult->window.skey, TSDB_KEYSIZE);
-    taosAddToHashTable(pWindowResInfo->hashList, (const char *)&pResult->window.skey, TSDB_KEYSIZE, (char *)&v,
+    taosHashRemove(pWindowResInfo->hashList, (const char *)&pResult->window.skey, TSDB_KEYSIZE);
+    taosHashPut(pWindowResInfo->hashList, (const char *)&pResult->window.skey, TSDB_KEYSIZE, (char *)&v,
                        sizeof(int32_t));
   }
 
@@ -2156,7 +2156,7 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, char *pDat
 
   int32_t GROUPRESULTID = 1;
 
-  SQueryDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
+  SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
 
   SWindowResult *pWindowRes = doSetTimeWindowFromKey(pRuntimeEnv, &pRuntimeEnv->windowResInfo, pData, bytes);
   if (pWindowRes == NULL) {
@@ -4812,7 +4812,7 @@ void vnodeQueryFreeQInfoEx(SQInfo *pQInfo) {
   tfree(pSupporter->pMeterSidExtInfo);
 
   if (pSupporter->pMetersHashTable != NULL) {
-    taosCleanUpHashTable(pSupporter->pMetersHashTable);
+    taosHashCleanup(pSupporter->pMetersHashTable);
     pSupporter->pMetersHashTable = NULL;
   }
 
@@ -5594,7 +5594,7 @@ void UNUSED_FUNC displayInterResult(SData **pdata, SQuery *pQuery, int32_t numOf
   }
 }
 
-// static tFilePage *getMeterDataPage(SQueryDiskbasedResultBuf *pResultBuf, SMeterQueryInfo *pMeterQueryInfo,
+// static tFilePage *getMeterDataPage(SDiskbasedResultBuf *pResultBuf, SMeterQueryInfo *pMeterQueryInfo,
 //                                   int32_t index) {
 //  SIDList pList = getDataBufPagesIdList(pResultBuf, pMeterQueryInfo->sid);
 //  return getResultBufferPageById(pResultBuf, pList.pData[index]);
@@ -5700,7 +5700,7 @@ void copyResToQueryResultBuf(STableQuerySupportObj *pSupporter, SQuery *pQuery) 
   }
 
   SQueryRuntimeEnv *        pRuntimeEnv = &pSupporter->runtimeEnv;
-  SQueryDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
+  SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
 
   int32_t id = getGroupResultId(pSupporter->subgroupIdx - 1);
   SIDList list = getDataBufPagesIdList(pResultBuf, pSupporter->offset + id);
@@ -5883,7 +5883,7 @@ int32_t doMergeMetersResultsToGroupRes(STableQuerySupportObj *pSupporter, SQuery
 
 int32_t flushFromResultBuf(STableQuerySupportObj *pSupporter, const SQuery *pQuery,
                            const SQueryRuntimeEnv *pRuntimeEnv) {
-  SQueryDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
+  SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
   int32_t                   capacity = (DEFAULT_INTERN_BUF_SIZE - sizeof(tFilePage)) / pQuery->rowSize;
 
   // the base value for group result, since the maximum number of table for each vnode will not exceed 100,000.

@@ -21,17 +21,19 @@ extern "C" {
 #endif
 
 #include "os.h"
+
+#include "qsqlparser.h"
+#include "qsqltype.h"
+#include "qtsbuf.h"
 #include "taos.h"
+#include "taosdef.h"
 #include "taosmsg.h"
 #include "tglobalcfg.h"
 #include "tlog.h"
-#include "tscCache.h"
-#include "tscSQLParser.h"
-#include "taosdef.h"
+#include "trpc.h"
 #include "tsqlfunction.h"
 #include "tutil.h"
-#include "trpc.h"
-#include "qsqltype.h"
+#include "tarray.h"
 
 #define TSC_GET_RESPTR_BASE(res, _queryinfo, col) (res->data + ((_queryinfo)->fieldsInfo.pSqlExpr[col]->offset) * res->numOfRows)
 
@@ -46,8 +48,28 @@ typedef struct SSqlGroupbyExpr {
   int16_t     orderType;                  // order by type: asc/desc
 } SSqlGroupbyExpr;
 
-typedef struct SMeterMetaInfo {
-  STableMeta * pMeterMeta;   // metermeta
+typedef struct STableComInfo {
+  uint8_t numOfTags;
+  uint8_t precision;
+  int16_t numOfColumns;
+  int16_t rowSize;
+} STableComInfo;
+
+typedef struct STableMeta {
+  //super table if it is created according to super table, otherwise, tableInfo is used
+  union { struct STableMeta* pSTable; STableComInfo tableInfo; };
+  uint8_t    tableType;
+  int8_t     numOfVpeers;
+  int16_t    sversion;
+  SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
+  int32_t    vgId;     // virtual group id, which current table belongs to
+  int32_t    sid;      // the index of one table in a virtual node
+  uint64_t   uid;      // unique id of a table
+  SSchema    schema[]; // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
+} STableMeta;
+
+typedef struct STableMetaInfo {
+  STableMeta * pTableMeta;       // table meta, cached in client side and acquried by name
   SSuperTableMeta *pMetricMeta;  // metricmeta
 
   /*
@@ -55,14 +77,14 @@ typedef struct SMeterMetaInfo {
    * 2. keep the vnode index for multi-vnode insertion
    */
   int32_t vnodeIndex;
-  char    name[TSDB_TABLE_ID_LEN + 1];    // table(super table) name
+  char    name[TSDB_TABLE_ID_LEN];        // (super) table name
   int16_t numOfTags;                      // total required tags in query, including groupby tags
   int16_t tagColumnIndex[TSDB_MAX_TAGS];  // clause + tag projection
-} SMeterMetaInfo;
+} STableMetaInfo;
 
 /* the structure for sql function in select clause */
 typedef struct SSqlExpr {
-  char        aliasName[TSDB_COL_NAME_LEN + 1];  // as aliasName
+  char        aliasName[TSDB_COL_NAME_LEN];  // as aliasName
   SColIndexEx colInfo;
   int64_t     uid;            // refactor use the pointer
   int16_t     functionId;     // function id in aAgg array
@@ -83,7 +105,6 @@ typedef struct SFieldInfo {
   int16_t     numOfOutputCols;  // number of column in result
   int16_t     numOfAlloc;       // allocated size
   TAOS_FIELD *pFields;
-//  short *     pOffset;
 
   /*
    * define if this column is belong to the queried result, it may be add by parser to faciliate
@@ -161,7 +182,7 @@ typedef struct STableDataBlocks {
   char    tableId[TSDB_TABLE_ID_LEN];
   int8_t  tsSource;     // where does the UNIX timestamp come from, server or client
   bool    ordered;      // if current rows are ordered or not
-  int64_t vgid;         // virtual group id
+  int64_t vgId;         // virtual group id
   int64_t prevTS;       // previous timestamp, recorded to decide if the records array is ts ascending
   int32_t numOfTables;  // number of tables in current submit block
 
@@ -174,7 +195,7 @@ typedef struct STableDataBlocks {
    * the metermeta for current table, the metermeta will be used during submit stage, keep a ref
    * to avoid it to be removed from cache
    */
-  STableMeta *pMeterMeta;
+  STableMeta *pTableMeta;
 
   union {
     char *filename;
@@ -199,7 +220,7 @@ typedef struct SDataBlockList {
 typedef struct SQueryInfo {
   int16_t  command;  // the command may be different for each subclause, so keep it seperately.
   uint16_t type;     // query/insert/import type
-  char     intervalTimeUnit;
+  char     slidingTimeUnit;
 
   int64_t         etime, stime;
   int64_t         intervalTime;  // aggregation time interval
@@ -215,7 +236,7 @@ typedef struct SQueryInfo {
   SOrderVal        order;
   int16_t          interpoType;  // interpolate type
   int16_t          numOfTables;
-  SMeterMetaInfo **pMeterInfo;
+  STableMetaInfo **pTableMetaInfo;
   struct STSBuf *  tsBuf;
   int64_t *        defaultVal;   // default value for interpolation
   char *           msg;          // pointer to the pCmd->payload to keep error message temporarily
@@ -238,7 +259,7 @@ typedef struct {
   union {
     bool   existsCheck;     // check if the table exists or not
     bool   inStream;        // denote if current sql is executed in stream or not
-    bool   createOnDemand;  // if the table is missing, on-the-fly create it. during getmeterMeta
+    bool   autoCreated;  // if the table is missing, on-the-fly create it. during getmeterMeta
     int8_t dataSourceType;  // load data from file or not
   };
 
@@ -296,7 +317,7 @@ typedef struct {
   struct SLocalReducer *pLocalReducer;
 } SSqlRes;
 
-typedef struct _tsc_obj {
+typedef struct STscObj {
   void *           signature;
   void *           pTimer;
   char             mgmtIp[TSDB_USER_LEN];
@@ -308,14 +329,14 @@ typedef struct _tsc_obj {
   char             sversion[TSDB_VERSION_LEN];
   char             writeAuth : 1;
   char             superAuth : 1;
-  struct _sql_obj *pSql;
-  struct _sql_obj *pHb;
-  struct _sql_obj *sqlList;
-  struct _sstream *streamList;
+  struct SSqlObj *pSql;
+  struct SSqlObj *pHb;
+  struct SSqlObj *sqlList;
+  struct SSqlStream *streamList;
   pthread_mutex_t  mutex;
 } STscObj;
 
-typedef struct _sql_obj {
+typedef struct SSqlObj {
   void *   signature;
   STscObj *pTscObj;
   void (*fp)();
@@ -340,11 +361,11 @@ typedef struct _sql_obj {
   uint8_t           numOfSubs;
   char *            asyncTblPos;
   void *            pTableHashList;
-  struct _sql_obj **pSubs;
-  struct _sql_obj * prev, *next;
+  struct SSqlObj **pSubs;
+  struct SSqlObj * prev, *next;
 } SSqlObj;
 
-typedef struct _sstream {
+typedef struct SSqlStream {
   SSqlObj *pSql;
   uint32_t streamId;
   char     listed;
@@ -369,7 +390,7 @@ typedef struct _sstream {
   void *param;
 
   void (*callback)(void *);  // Callback function when stream is stopped from client level
-  struct _sstream *prev, *next;
+  struct SSqlStream *prev, *next;
 } SSqlStream;
 
 int32_t tscInitRpc(const char *user, const char *secret);
@@ -377,13 +398,11 @@ int32_t tscInitRpc(const char *user, const char *secret);
 // tscSql API
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion);
 
-void tscInitMsgs();
+void tscInitMsgsFp();
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg);
 int  tscProcessSql(SSqlObj *pSql);
-
-void tscAsyncInsertMultiVnodesProxy(void *param, TAOS_RES *tres, int numOfRows);
 
 int  tscRenewMeterMeta(SSqlObj *pSql, char *tableId);
 void tscQueueAsyncRes(SSqlObj *pSql);
@@ -442,10 +461,8 @@ char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 
-// transfer SSqlInfo to SqlCmd struct
-int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
-
 void tscQueueAsyncFreeResult(SSqlObj *pSql);
+int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo);
 
 extern void *     pVnodeConn;
 extern void *     pTscMgmtConn;
@@ -453,7 +470,6 @@ extern void *     tscCacheHandle;
 extern int32_t    globalCode;
 extern int        slaveIndex;
 extern void *     tscTmr;
-extern void *     tscConnCache;
 extern void *     tscQhandle;
 extern int        tscKeepConn[];
 extern int        tsInsertHeadSize;

@@ -13,30 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSCJOINPROCESS_H
-#define TDENGINE_TSCJOINPROCESS_H
+#ifndef TDENGINE_STSBUF_H
+#define TDENGINE_STSBUF_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tscUtil.h"
-#include "tsclient.h"
+#include "os.h"
+#include "taosdef.h"
 
-void tscFetchDatablockFromSubquery(SSqlObj* pSql);
-void tscGetQualifiedTSList(SSqlObj* pSql, SJoinSubquerySupporter* p1, SJoinSubquerySupporter* p2, int32_t* num);
-
-void tscSetupOutputColumnIndex(SSqlObj* pSql);
-int32_t tscLaunchSecondPhaseSubqueries(SSqlObj* pSql);
-void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code);
-
-SJoinSubquerySupporter* tscCreateJoinSupporter(SSqlObj* pSql, SSubqueryState* pState, int32_t index);
-void tscDestroyJoinSupporter(SJoinSubquerySupporter* pSupporter);
-
-#define MEM_BUF_SIZE                (1<<20)
-#define TS_COMP_BLOCK_PADDING       0xFFFFFFFF
-#define TS_COMP_FILE_MAGIC          0x87F5EC4C
-#define TS_COMP_FILE_VNODE_MAX      512
+#define MEM_BUF_SIZE (1 << 20)
+#define TS_COMP_FILE_MAGIC 0x87F5EC4C
+#define TS_COMP_FILE_VNODE_MAX 512
 
 typedef struct STSList {
   char*   rawBuf;
@@ -73,16 +62,15 @@ typedef struct STSBlock {
   char*   payload;    // actual data that is compressed
 } STSBlock;
 
+/*
+ * The size of buffer file should not be greater than 2G,
+ * and the offset of int32_t type is enough
+ */
 typedef struct STSVnodeBlockInfo {
-  int32_t vnode;
-
-  /*
-   * The size of buffer file is not expected to be greater than 2G,
-   * and the offset of int32_t type is enough
-   */
-  int32_t offset;
-  int32_t numOfBlocks;
-  int32_t compLen;
+  int32_t vnode;       // vnode id
+  int32_t offset;      // offset set value in file
+  int32_t numOfBlocks; // number of total blocks
+  int32_t compLen;     // compressed size
 } STSVnodeBlockInfo;
 
 typedef struct STSVnodeBlockInfoEx {
@@ -99,22 +87,20 @@ typedef struct STSBuf {
   int32_t              numOfAlloc;
   int32_t              numOfVnodes;
 
-  char*    assistBuf;
-  int32_t  bufSize;
-  STSBlock block;
-  STSList  tsData;  // uncompressed raw ts data
-
-  uint64_t numOfTotal;
-  bool     autoDelete;
-  int32_t  tsOrder; // order of timestamp in ts comp buffer
-
+  char*     assistBuf;
+  int32_t   bufSize;
+  STSBlock  block;
+  STSList   tsData;  // uncompressed raw ts data
+  uint64_t  numOfTotal;
+  bool      autoDelete;
+  int32_t   tsOrder;  // order of timestamp in ts comp buffer
   STSCursor cur;
 } STSBuf;
 
 typedef struct STSBufFileHeader {
-  uint32_t magic;         // file magic number
-  uint32_t numOfVnode;    // number of vnode stored in current file
-  uint32_t tsOrder;       // timestamp order in current file
+  uint32_t magic;       // file magic number
+  uint32_t numOfVnode;  // number of vnode stored in current file
+  uint32_t tsOrder;     // timestamp order in current file
 } STSBufFileHeader;
 
 STSBuf* tsBufCreate(bool autoDelete);
@@ -123,24 +109,25 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
 
 void* tsBufDestory(STSBuf* pTSBuf);
 
-void tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData, int32_t len);
+void    tsBufAppend(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag, const char* pData, int32_t len);
 int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf, int32_t vnodeIdx);
+
+STSBuf* tsBufClone(STSBuf* pTSBuf);
 
 STSVnodeBlockInfo* tsBufGetVnodeBlockInfo(STSBuf* pTSBuf, int32_t vnodeId);
 
 void tsBufFlush(STSBuf* pTSBuf);
 
-void tsBufResetPos(STSBuf* pTSBuf);
+void    tsBufResetPos(STSBuf* pTSBuf);
 STSElem tsBufGetElem(STSBuf* pTSBuf);
-bool tsBufNextPos(STSBuf* pTSBuf);
+bool    tsBufNextPos(STSBuf* pTSBuf);
 
 STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t vnodeId, int64_t tag);
 
 STSCursor tsBufGetCursor(STSBuf* pTSBuf);
-void tsBufSetTraverseOrder(STSBuf* pTSBuf, int32_t order);
+void      tsBufSetTraverseOrder(STSBuf* pTSBuf, int32_t order);
 
 void tsBufSetCursor(STSBuf* pTSBuf, STSCursor* pCur);
-STSBuf* tsBufClone(STSBuf* pTSBuf);
 
 /**
  * display all data in comp block file, for debug purpose only
@@ -152,4 +139,4 @@ void tsBufDisplay(STSBuf* pTSBuf);
 }
 #endif
 
-#endif  // TDENGINE_TSCJOINPROCESS_H
+#endif  // TDENGINE_STSBUF_H

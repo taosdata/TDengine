@@ -21,7 +21,6 @@
 
 #include "taosdef.h"
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -51,8 +50,8 @@ void      tdSetCol(STColumn *pCol, int8_t type, int16_t colId, int32_t bytes);
 
 // ----------------- TSDB SCHEMA DEFINITION
 typedef struct {
-  int32_t  numOfCols;
-  int32_t  padding;  // TODO: replace the padding for useful variable
+  int      numOfCols;  // Number of columns appended
+  int      padding;  // Total columns allocated
   STColumn columns[];
 } STSchema;
 
@@ -60,81 +59,55 @@ typedef struct {
 #define schemaColAt(s, i) ((s)->columns + i)
 
 STSchema *tdNewSchema(int32_t nCols);
+int       tdSchemaAppendCol(STSchema *pSchema, int8_t type, int16_t colId, int32_t bytes);
 STSchema *tdDupSchema(STSchema *pSchema);
-void tdFreeSchema(STSchema *pSchema);
-void tdUpdateSchema(STSchema *pSchema);
+void      tdFreeSchema(STSchema *pSchema);
+void      tdUpdateSchema(STSchema *pSchema);
+int       tdGetSchemaEncodeSize(STSchema *pSchema);
+void *    tdEncodeSchema(void *dst, STSchema *pSchema);
+STSchema *tdDecodeSchema(void **psrc);
 
 // ----------------- Data row structure
 
 /* A data row, the format is like below:
- * +---------+---------------------------------+
- * | int32_t |                                 |
- * +---------+---------------------------------+
- * |   len   |                row              |
- * +---------+---------------------------------+
+ * +----------+---------+---------------------------------+---------------------------------+
+ * | int32_t  | int32_t |                                 |                                 |
+ * +----------+---------+---------------------------------+---------------------------------+
+ * |   len    |  flen   |           First part            |             Second part         |
+ * +----------+---------+---------------------------------+---------------------------------+
+ * plen: first part length
  * len: the length including sizeof(row) + sizeof(len)
  * row: actual row data encoding
  */
 typedef void *SDataRow;
 
+#define TD_DATA_ROW_HEAD_SIZE (2 * sizeof(int32_t))
+
 #define dataRowLen(r) (*(int32_t *)(r))
-#define dataRowTuple(r) ((char *)(r) + sizeof(int32_t))
+#define dataRowFLen(r) (*(int32_t *)((char *)(r) + sizeof(int32_t)))
+#define dataRowTuple(r) ((char *)(r) + TD_DATA_ROW_HEAD_SIZE)
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
+#define dataRowSetFLen(r, l) (dataRowFLen(r) = (l))
 #define dataRowIdx(r, i) ((char *)(r) + i)
 #define dataRowCpy(dst, r) memcpy((dst), (r), dataRowLen(r))
+#define dataRowAt(r, idx) ((char *)(r) + (idx))
 
-SDataRow tdNewDataRow(int32_t bytes);
-// SDataRow tdNewDdataFromSchema(SSchema *pSchema);
+void     tdInitDataRow(SDataRow row, STSchema *pSchema);
+int      tdMaxRowBytesFromSchema(STSchema *pSchema);
+SDataRow tdNewDataRow(int32_t bytes, STSchema *pSchema);
+SDataRow tdNewDataRowFromSchema(STSchema *pSchema);
 void     tdFreeDataRow(SDataRow row);
-// int32_t  tdAppendColVal(SDataRow row, void *value, SColumn *pCol, int32_t suffixOffset);
-void     tdDataRowCpy(void *dst, SDataRow row);
-void     tdDataRowReset(SDataRow row);
+int      tdAppendColVal(SDataRow row, void *value, STColumn *pCol);
+void     tdDataRowReset(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
 
-/* Data rows definition, the format of it is like below:
- * +---------+-----------------------+--------+-----------------------+
- * | int32_t |                       |        |                       |
- * +---------+-----------------------+--------+-----------------------+
- * |   len   |        SDataRow       |  ....  |        SDataRow       |
- * +---------+-----------------------+--------+-----------------------+
- */
-typedef void *SDataRows;
+// ----------------- Data column structure
+typedef struct SDataCol {
+  int64_t len;
+  char    data[];
+} SDataCol;
 
-#define TD_DATA_ROWS_HEAD_LEN sizeof(int32_t)
-
-#define dataRowsLen(rs) (*(int32_t *)(rs))
-#define dataRowsSetLen(rs, l) (dataRowsLen(rs) = (l))
-#define dataRowsInit(rs) dataRowsSetLen(rs, sizeof(int32_t))
-
-void tdDataRowsAppendRow(SDataRows rows, SDataRow row);
-
-// Data rows iterator
-typedef struct {
-  int32_t totalLen;
-  int32_t len;
-  SDataRow row;
-} SDataRowsIter;
-
-void tdInitSDataRowsIter(SDataRows rows, SDataRowsIter *pIter);
-SDataRow tdDataRowsNext(SDataRowsIter *pIter);
-
-/* Data column definition
- * +---------+---------+-----------------------+
- * | int32_t | int32_t |                       |
- * +---------+---------+-----------------------+
- * |   len   | npoints |          data         |
- * +---------+---------+-----------------------+
- */
-typedef char *SDataCol;
-
-/* Data columns definition
- * +---------+---------+-----------------------+--------+-----------------------+
- * | int32_t | int32_t |                       |        |                       |
- * +---------+---------+-----------------------+--------+-----------------------+
- * |   len   | npoints |        SDataCol       |  ....  |        SDataCol       |
- * +---------+---------+-----------------------+--------+-----------------------+
- */
-typedef char *SDataCols;
+void tdConvertDataRowToCol(SDataCol *cols, STSchema *pSchema, int *iter);
 
 #ifdef __cplusplus
 }

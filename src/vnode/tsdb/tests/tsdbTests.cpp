@@ -3,92 +3,119 @@
 
 #include "tsdb.h"
 #include "dataformat.h"
+#include "tsdbFile.h"
 #include "tsdbMeta.h"
 
-TEST(TsdbTest, createTable) {
-  STsdbMeta *pMeta = tsdbCreateMeta(100);
-  ASSERT_NE(pMeta, nullptr);
+TEST(TsdbTest, tableEncodeDecode) {
+  STable *pTable = (STable *)malloc(sizeof(STable));
 
-  STableCfg config;
-  config.tableId.tid = 0;
-  config.tableId.uid = 98868728187539L;
-  config.numOfCols = 5;
-  config.schema = tdNewSchema(config.numOfCols);
-  for (int i = 0; i < schemaNCols(config.schema); i++) {
-    STColumn *pCol = tdNewCol(TSDB_DATA_TYPE_BIGINT, i, 0);
-    tdColCpy(schemaColAt(config.schema, i), pCol);
-    tdFreeCol(pCol);
+  pTable->type = TSDB_NORMAL_TABLE;
+  pTable->tableId.uid = 987607499877672L;
+  pTable->tableId.tid = 0;
+  pTable->superUid = -1;
+  pTable->sversion = 0;
+  pTable->tagSchema = NULL;
+  pTable->tagVal = NULL;
+  int nCols = 5;
+  STSchema *schema = tdNewSchema(nCols);
+
+  for (int i = 0; i < nCols; i++) {
+    if (i == 0) {
+      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
+    } else {
+      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_INT, i, -1);
+    }
   }
-  config.tagValues = nullptr;
 
-  tsdbCreateTableImpl(pMeta, &config);
+  pTable->schema = schema;
 
-  STable *pTable = tsdbGetTableByUid(pMeta, config.tableId.uid);
-  ASSERT_NE(pTable, nullptr);
+  int bufLen = 0;
+  void *buf = tsdbEncodeTable(pTable, &bufLen);
+
+  STable *tTable = tsdbDecodeTable(buf, bufLen);
+
+  ASSERT_EQ(pTable->type, tTable->type);
+  ASSERT_EQ(pTable->tableId.uid, tTable->tableId.uid);
+  ASSERT_EQ(pTable->tableId.tid, tTable->tableId.tid);
+  ASSERT_EQ(pTable->superUid, tTable->superUid);
+  ASSERT_EQ(pTable->sversion, tTable->sversion);
+  ASSERT_EQ(memcmp(pTable->schema, tTable->schema, sizeof(STSchema) + sizeof(STColumn) * nCols), 0);
+  ASSERT_EQ(tTable->content.pData, nullptr);
 }
 
 TEST(TsdbTest, createRepo) {
-  STsdbCfg *pCfg = tsdbCreateDefaultCfg();
+  STsdbCfg config;
 
-  // Create a tsdb repository
-  tsdb_repo_t *pRepo = tsdbCreateRepo("/root/mnt/test/vnode0", pCfg, NULL);
+  // 1. Create a tsdb repository
+  tsdbSetDefaultCfg(&config);
+  tsdb_repo_t *pRepo = tsdbCreateRepo("/home/ubuntu/work/ttest/vnode0", &config, NULL);
   ASSERT_NE(pRepo, nullptr);
-  tsdbFreeCfg(pCfg);
 
-  // create a normal table in this repository
-  STableCfg config;
-  config.tableId.tid = 0;
-  config.tableId.uid = 98868728187539L;
-  config.numOfCols = 5;
-  config.schema = tdNewSchema(config.numOfCols);
-  STColumn *pCol = tdNewCol(TSDB_DATA_TYPE_TIMESTAMP, 0, 0);
-  tdColCpy(schemaColAt(config.schema, 0), pCol);
-  tdFreeCol(pCol);
-  for (int i = 1; i < schemaNCols(config.schema); i++) {
-    pCol = tdNewCol(TSDB_DATA_TYPE_BIGINT, i, 0);
-    tdColCpy(schemaColAt(config.schema, i), pCol);
-    tdFreeCol(pCol);
+  // 2. Create a normal table
+  STableCfg tCfg;
+  ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_SUPER_TABLE, 987607499877672L, 0), -1);
+  ASSERT_EQ(tsdbInitTableCfg(&tCfg, TSDB_NORMAL_TABLE, 987607499877672L, 0), 0);
+
+  int       nCols = 5;
+  STSchema *schema = tdNewSchema(nCols);
+
+  for (int i = 0; i < nCols; i++) {
+    if (i == 0) {
+      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_TIMESTAMP, i, -1);
+    } else {
+      tdSchemaAppendCol(schema, TSDB_DATA_TYPE_INT, i, -1);
+    }
   }
 
-  tsdbCreateTable(pRepo, &config);
-  // Write some data
+  tsdbTableSetSchema(&tCfg, schema, true);
 
-  // int32_t size = sizeof(SSubmitMsg) + sizeof(SSubmitBlock) + tdMaxRowDataBytes(config.schema) * 10 + sizeof(int32_t);
+  tsdbCreateTable(pRepo, &tCfg);
 
-  // tdUpdateSchema(config.schema);
+  // // 3. Loop to write some simple data
+  int nRows = 100;
+  int rowsPerSubmit = 10;
+  int64_t start_time = 1584081000000;
 
-  // SSubmitMsg *pMsg = (SSubmitMsg *)malloc(size);
-  // pMsg->numOfTables = 1;  // TODO: use api
+  SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * rowsPerSubmit);
 
-  // SSubmitBlock *pBlock = (SSubmitBlock *)pMsg->data;
-  // pBlock->tableId = {.uid = 98868728187539L, .tid = 0};
-  // pBlock->sversion = 0;
-  // pBlock->len = sizeof(SSubmitBlock);
+  for (int k = 0; k < nRows/rowsPerSubmit; k++) {
+    SSubmitBlk *pBlock = pMsg->blocks;
+    pBlock->tableId = {.uid = 987607499877672L, .tid = 0};
+    pBlock->sversion = 0;
+    pBlock->len = 0;
+    for (int i = 0; i < rowsPerSubmit; i++) {
+      start_time += 1000;
+      SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
+      tdInitDataRow(row, schema);
 
-  // SDataRows rows = pBlock->data;
-  // dataRowsInit(rows);
+      for (int j = 0; j < schemaNCols(schema); j++) {
+        if (j == 0) {  // Just for timestamp
+          tdAppendColVal(row, (void *)(&start_time), schemaColAt(schema, j));
+        } else {  // For int
+          int val = 10;
+          tdAppendColVal(row, (void *)(&val), schemaColAt(schema, j));
+        }
+      }
+      pBlock->len += dataRowLen(row);
+    }
+    pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
 
-  // SDataRow row = tdNewDataRow(tdMaxRowDataBytes(config.schema));
-  // int64_t ttime = 1583508800000;
-  // for (int i = 0; i < 10; i++) {  // loop over rows
-  //   ttime += (10000 * i);
-  //   tdDataRowReset(row);
-  //   for (int j = 0; j < schemaNCols(config.schema); j++) {
-  //     if (j == 0) {  // set time stamp
-  //       tdAppendColVal(row, (void *)(&ttime), schemaColAt(config.schema, j), 40);
-  //     } else {       // set other fields
-  //       int32_t val = 10;
-  //       tdAppendColVal(row, (void *)(&val), schemaColAt(config.schema, j), 40);
-  //     }
-  //   }
+    tsdbInsertData(pRepo, pMsg);
+  }
 
-  //   tdDataRowsAppendRow(rows, row);
-  // }
+  tsdbTriggerCommit(pRepo);
 
-  // tsdbInsertData(pRepo, pMsg);
+}
 
-  // tdFreeDataRow(row);
+TEST(TsdbTest, openRepo) {
+  tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
+  ASSERT_NE(pRepo, nullptr);
+}
 
-  tdFreeSchema(config.schema);
-  tsdbDropRepo(pRepo);
+TEST(TsdbTest, createFileGroup) {
+  SFileGroup fGroup;
+
+  ASSERT_EQ(tsdbCreateFileGroup("/home/ubuntu/work/ttest/vnode0/data", 1820, &fGroup, 1000), 0);
+
+  int k = 0;
 }

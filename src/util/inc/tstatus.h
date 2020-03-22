@@ -94,17 +94,17 @@ enum TSDB_TABLE_STATUS {
   TSDB_METER_STATE_DROPPED     = 0x18,
 };
 
-const char* taosGetVgroupStatusStr(int32_t vgroupStatus);
-const char* taosGetDbStatusStr(int32_t dbStatus);
-const char* taosGetVnodeStatusStr(int32_t vnodeStatus);
-const char* taosGetVnodeSyncStatusStr(int32_t vnodeSyncStatus);
-const char* taosGetVnodeDropStatusStr(int32_t dropping);
-const char* taosGetDnodeStatusStr(int32_t dnodeStatus);
-const char* taosGetDnodeLbStatusStr(int32_t dnodeBalanceStatus);
-const char* taosGetVgroupLbStatusStr(int32_t vglbStatus);
-const char* taosGetVnodeStreamStatusStr(int32_t vnodeStreamStatus);
-
-const char* taosGetTableStatusStr(int32_t tableStatus);
+char* taosGetVgroupStatusStr(int32_t vgroupStatus);
+char* taosGetDbStatusStr(int32_t dbStatus);
+char* taosGetVnodeStatusStr(int32_t vnodeStatus);
+char* taosGetVnodeSyncStatusStr(int32_t vnodeSyncStatus);
+char* taosGetVnodeDropStatusStr(int32_t dropping);
+char* taosGetDnodeStatusStr(int32_t dnodeStatus);
+char* taosGetDnodeLbStatusStr(int32_t dnodeBalanceStatus);
+char* taosGetVgroupLbStatusStr(int32_t vglbStatus);
+char* taosGetVnodeStreamStatusStr(int32_t vnodeStreamStatus);
+char* taosGetTableStatusStr(int32_t tableStatus);
+char *taosGetShowTypeStr(int32_t showType);
 
 #ifdef __cplusplus
 }

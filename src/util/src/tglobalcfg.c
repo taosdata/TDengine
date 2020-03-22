@@ -61,9 +61,10 @@ int64_t tsMsPerDay[] = {86400000L, 86400000000L};
 
 char  tsMasterIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsSecondIp[TSDB_IPv4ADDR_LEN] = {0};
-uint16_t tsMgmtShellPort = 6030;   // udp[6030-6034] tcp[6030]
-uint16_t tsVnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
-uint16_t tsMgmtDnodePort = 6040;   // udp[6040-6044] tcp[6040]
+uint16_t tsMnodeShellPort = 6030;   // udp[6030-6034] tcp[6030]
+uint16_t tsDnodeShellPort = 6035;  // udp[6035-6039] tcp[6035]
+uint16_t tsMnodeDnodePort = 6040;   // udp/tcp
+uint16_t tsDnodeMnodePort = 6041;   // udp/tcp
 uint16_t tsVnodeVnodePort = 6045;  // tcp[6045]
 uint16_t tsMgmtMgmtPort = 6050;    // udp, numOfVnodes fixed to 1, range udp[6050]
 uint16_t tsMgmtSyncPort = 6050;    // tcp, range tcp[6050]
@@ -134,7 +135,7 @@ int tsOfflineThreshold = 864000;   // seconds 10days
 int tsMgmtEqualVnodeNum = 4;
 
 int tsEnableHttpModule = 1;
-int tsEnableMonitorModule = 1;
+int tsEnableMonitorModule = 0;
 int tsRestRowLimit = 10240;
 int tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 
@@ -492,13 +493,13 @@ static void doInitGlobalConfig() {
   tsInitConfigOption(cfg++, "httpPort", &tsHttpPort, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      1, 65535, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "mgmtShellPort", &tsMgmtShellPort, TSDB_CFG_VTYPE_SHORT,
+  tsInitConfigOption(cfg++, "mgmtShellPort", &tsMnodeShellPort, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
                      1, 65535, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "vnodeShellPort", &tsVnodeShellPort, TSDB_CFG_VTYPE_SHORT,
+  tsInitConfigOption(cfg++, "vnodeShellPort", &tsDnodeShellPort, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT,
                      1, 65535, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "mgmtVnodePort", &tsMgmtDnodePort, TSDB_CFG_VTYPE_SHORT,
+  tsInitConfigOption(cfg++, "mgmtVnodePort", &tsMnodeDnodePort, TSDB_CFG_VTYPE_SHORT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
                      1, 65535, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "vnodeVnodePort", &tsVnodeVnodePort, TSDB_CFG_VTYPE_SHORT,

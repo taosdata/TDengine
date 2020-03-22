@@ -34,7 +34,7 @@
 #include "tutil.h"
 
 char configDir[TSDB_FILENAME_LEN] = "/etc/taos";
-char tsDirectory[TSDB_FILENAME_LEN] = "/var/lib/taos";
+char tsVnodeDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
 char dataDir[TSDB_FILENAME_LEN] = "/var/lib/taos";
 char logDir[TSDB_FILENAME_LEN] = "~/TDengineLog";
 char scriptDir[TSDB_FILENAME_LEN] = "/etc/taos";

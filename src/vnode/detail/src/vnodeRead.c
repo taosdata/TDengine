@@ -16,17 +16,17 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
+#include "hash.h"
+#include "hashfunc.h"
 #include "ihash.h"
+#include "qast.h"
+#include "qextbuffer.h"
 #include "taosmsg.h"
-#include "tast.h"
-#include "textbuffer.h"
 #include "tscJoinProcess.h"
 #include "tscompression.h"
 #include "vnode.h"
 #include "vnodeRead.h"
 #include "vnodeUtil.h"
-#include "hash.h"
-#include "hashutil.h"
 
 int (*pQueryFunc[])(SMeterObj *, SQuery *) = {vnodeQueryFromCache, vnodeQueryFromFile};
 
@@ -651,8 +651,8 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     STableQuerySupportObj *pSupporter = (STableQuerySupportObj *)calloc(1, sizeof(STableQuerySupportObj));
     pSupporter->numOfMeters = 1;
 
-    pSupporter->pMetersHashTable = taosInitHashTable(pSupporter->numOfMeters, taosIntHash_32, false);
-    taosAddToHashTable(pSupporter->pMetersHashTable, (const char*) &pMetersObj[0]->sid, sizeof(pMeterObj[0].sid),
+    pSupporter->pMetersHashTable = taosHashInit(pSupporter->numOfMeters, taosIntHash_32, false);
+    taosHashPut(pSupporter->pMetersHashTable, (const char*) &pMetersObj[0]->sid, sizeof(pMeterObj[0].sid),
         (char *)&pMetersObj[0], POINTER_BYTES);
 
     pSupporter->pSidSet = NULL;
@@ -742,9 +742,9 @@ void *vnodeQueryOnMultiMeters(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
   STableQuerySupportObj *pSupporter = (STableQuerySupportObj *)calloc(1, sizeof(STableQuerySupportObj));
   pSupporter->numOfMeters = pQueryMsg->numOfSids;
 
-  pSupporter->pMetersHashTable = taosInitHashTable(pSupporter->numOfMeters, taosIntHash_32, false);
+  pSupporter->pMetersHashTable = taosHashInit(pSupporter->numOfMeters, taosIntHash_32, false);
   for (int32_t i = 0; i < pSupporter->numOfMeters; ++i) {
-    taosAddToHashTable(pSupporter->pMetersHashTable, (const char*) &pMetersObj[i]->sid, sizeof(pMetersObj[i]->sid), (char *)&pMetersObj[i],
+    taosHashPut(pSupporter->pMetersHashTable, (const char*) &pMetersObj[i]->sid, sizeof(pMetersObj[i]->sid), (char *)&pMetersObj[i],
                        POINTER_BYTES);
   }
 

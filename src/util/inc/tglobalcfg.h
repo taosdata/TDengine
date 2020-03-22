@@ -50,7 +50,9 @@ extern int tscEmbedded;
 extern int64_t tsMsPerDay[2];
 
 extern char configDir[];
-extern char tsDirectory[];
+extern char tsVnodeDir[];
+extern char tsDnodeDir[];
+extern char tsMnodeDir[];
 extern char dataDir[];
 extern char logDir[];
 extern char scriptDir[];
@@ -58,9 +60,10 @@ extern char osName[];
 
 extern char  tsMasterIp[];
 extern char  tsSecondIp[];
-extern uint16_t tsMgmtDnodePort;
-extern uint16_t tsMgmtShellPort;
-extern uint16_t tsVnodeShellPort;
+extern uint16_t tsMnodeDnodePort;
+extern uint16_t tsMnodeShellPort;
+extern uint16_t tsDnodeShellPort;
+extern uint16_t tsDnodeMnodePort;
 extern uint16_t tsVnodeVnodePort;
 extern uint16_t tsMgmtMgmtPort;
 extern uint16_t tsMgmtSyncPort;
@@ -261,9 +264,6 @@ SGlobalConfig *tsGetConfigOption(const char *option);
 #define TSDB_CFG_VALUE_LEN  41
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
-
-extern char          tsMgmtDirectory[];
-
 
 #ifdef __cplusplus
 }

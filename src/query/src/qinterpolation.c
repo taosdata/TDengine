@@ -13,12 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "qinterpolation.h"
 #include "os.h"
-#include "taosmsg.h"
-#include "textbuffer.h"
-#include "tinterpolation.h"
-#include "tsqlfunction.h"
+#include "qextbuffer.h"
 #include "taosdef.h"
+#include "taosmsg.h"
+#include "tsqlfunction.h"
 
 #define INTERPOL_IS_ASC_INTERPOL(interp) ((interp)->order == TSQL_SO_ASC)
 

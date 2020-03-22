@@ -24,7 +24,7 @@ void      (*mgmtCleanUpAcctsFp)() = NULL;
 SAcctObj *(*mgmtGetAcctFp)(char *acctName) = NULL;
 int32_t   (*mgmtCheckUserLimitFp)(SAcctObj *pAcct) = NULL;
 int32_t   (*mgmtCheckDbLimitFp)(SAcctObj *pAcct) = NULL;
-int32_t   (*mgmtCheckTimeSeriesLimitFp)(SAcctObj *pAcct, int32_t numOfTimeSeries) = NULL;
+int32_t   (*mgmtCheckTableLimitFp)(SAcctObj *pAcct, int32_t numOfTimeSeries) = NULL;
 
 int32_t mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb) {
   pthread_mutex_lock(&pAcct->mutex);
@@ -137,8 +137,8 @@ int32_t mgmtCheckDbLimit(SAcctObj *pAcct) {
 }
 
 int32_t mgmtCheckTableLimit(SAcctObj *pAcct, int32_t numOfTimeSeries) {
-  if (mgmtCheckTimeSeriesLimitFp) {
-    return (*mgmtCheckTimeSeriesLimitFp)(pAcct, numOfTimeSeries);
+  if (mgmtCheckTableLimitFp) {
+    return (*mgmtCheckTableLimitFp)(pAcct, numOfTimeSeries);
   } else {
     return 0;
   }

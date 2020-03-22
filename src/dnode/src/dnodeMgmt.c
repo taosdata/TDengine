@@ -22,14 +22,18 @@
 #include "trpc.h"
 #include "tstatus.h"
 #include "tsdb.h"
+#include "ttime.h"
+#include "ttimer.h"
+#include "dnodeMClient.h"
 #include "dnodeMgmt.h"
 #include "dnodeRead.h"
 #include "dnodeWrite.h"
 
 typedef struct {
   int32_t vgId;     // global vnode group ID
-  int32_t status;   // status: master, slave, notready, deleting
   int32_t refCount; // reference count
+  int8_t  dirty;
+  int8_t  status;   // status: master, slave, notready, deleting
   int64_t version;
   void   *wworker;
   void   *rworker;
@@ -42,55 +46,90 @@ typedef struct {
 
 static int32_t  dnodeOpenVnodes();
 static void     dnodeCleanupVnodes();
-static int32_t  dnodeOpenVnode(int32_t vgId);
+static int32_t  dnodeOpenVnode(int32_t vnode, char *rootDir);
 static void     dnodeCleanupVnode(SVnodeObj *pVnode);
 static int32_t  dnodeCreateVnode(SMDCreateVnodeMsg *cfg);
 static void     dnodeDropVnode(SVnodeObj *pVnode);
-static void     dnodeProcesSMDCreateVnodeMsg(SRpcMsg *pMsg);
-static void     dnodeProcesSMDDropVnodeMsg(SRpcMsg *pMsg);
+static void     dnodeDoDropVnode(SVnodeObj *pVnode);
+static void     dnodeProcessCreateVnodeMsg(SRpcMsg *pMsg);
+static void     dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
 static void     dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
+static void     dnodeProcessAlterStreamMsg(SRpcMsg *pMsg);
+static void     dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg);
 static void   (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
+static void     dnodeSendStatusMsg(void *handle, void *tmrId);
+static void     dnodeReadDnodeId();
 
-static void * tsDnodeVnodesHash = NULL;
+static void    *tsDnodeVnodesHash = NULL;
+static void    *tsDnodeTmr = NULL;
+static void    *tsStatusTimer = NULL;
+static uint32_t tsRebootTime;
+static int32_t  tsDnodeId = 0;
+static char     tsDnodeName[TSDB_DNODE_NAME_LEN];
 
 int32_t dnodeInitMgmt() {
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeProcesSMDCreateVnodeMsg;
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeProcesSMDDropVnodeMsg;
+  dnodeReadDnodeId();
+
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeProcessCreateVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeProcessDropVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeProcessAlterVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeProcessAlterStreamMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeProcessConfigDnodeMsg;
 
   tsDnodeVnodesHash = taosInitIntHash(TSDB_MAX_VNODES, sizeof(SVnodeObj), taosHashInt);
   if (tsDnodeVnodesHash == NULL) {
-    return TSDB_CODE_SERV_OUT_OF_MEMORY;
+    dError("failed to init vnode list");
+    return -1;
   }
+
+  tsRebootTime = taosGetTimestampSec();
+
+  tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
+  if (tsDnodeTmr == NULL) {
+    dError("failed to init dnode timer");
+    return -1;
+  }
+  taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsDnodeTmr, &tsStatusTimer);
 
   return dnodeOpenVnodes();
 }
 
 void dnodeCleanupMgmt() {
+  if (tsStatusTimer != NULL) {
+    taosTmrStopA(&tsStatusTimer);
+    tsStatusTimer = NULL;
+  }
+
+  if (tsDnodeTmr != NULL) {
+    taosTmrCleanUp(tsDnodeTmr);
+    tsDnodeTmr = NULL;
+  }
+
   dnodeCleanupVnodes();
-  taosCleanUpIntHash(tsDnodeVnodesHash);
+  if (tsDnodeVnodesHash == NULL) {
+    taosCleanUpIntHash(tsDnodeVnodesHash);
+    tsDnodeVnodesHash = NULL;
+  }
 }
 
-void dnodeMgmt(void *rpcMsg) {
-  SRpcMsg *pMsg = rpcMsg;
+void dnodeMgmt(SRpcMsg *pMsg) {
   terrno = 0;
 
   if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
     (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
   } else {
-    terrno = TSDB_CODE_MSG_NOT_PROCESSED;  
+    SRpcMsg rsp;
+    rsp.handle = pMsg->handle;
+    rsp.code   = TSDB_CODE_MSG_NOT_PROCESSED;
+    rsp.pCont  = NULL;
+    rpcSendResponse(&rsp);
   }
 
-  SRpcMsg rsp;
-  rsp.handle = pMsg->handle;
-  rsp.code   = terrno;
-  rsp.pCont  = NULL;
-  rpcSendResponse(&rsp);
-  rpcFreeCont(pMsg->pCont);  // free the received message
+  rpcFreeCont(pMsg->pCont);
 }
 
 void *dnodeGetVnode(int32_t vgId) {
-  SVnodeObj *pVnode = taosGetIntHashData(tsDnodeVnodesHash, vgId);
+  SVnodeObj *pVnode = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, vgId);
   if (pVnode == NULL) {
     terrno = TSDB_CODE_INVALID_VGROUP_ID;
     return NULL;
@@ -125,30 +164,64 @@ void *dnodeGetVnodeTsdb(void *pVnode) {
   return ((SVnodeObj *)pVnode)->tsdb;
 }
 
-void dnodeReleaseVnode(void *pVnode) {
-  atomic_sub_fetch_32(&((SVnodeObj *) pVnode)->refCount, 1);
+void dnodeReleaseVnode(void *pVnodeRaw) {
+  SVnodeObj *pVnode = pVnodeRaw;
+  int32_t count = atomic_sub_fetch_32(&pVnode->refCount, 1);
+
+  if (count == 0 && pVnode->dirty) {
+    dnodeDoDropVnode(pVnode);
+  }
 }
 
 static int32_t dnodeOpenVnodes() {
-  dPrint("open all vnodes");
+  DIR *dir = opendir(tsVnodeDir);
+  if (dir == NULL) {
+    return TSDB_CODE_NO_WRITE_ACCESS;
+  }
+
+  int32_t numOfVnodes = 0;
+  struct dirent *de = NULL;
+  while ((de = readdir(dir)) != NULL) {
+    if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+    if (de->d_type & DT_DIR) {
+      if (strncmp("vnode", de->d_name, 5) != 0) continue;
+      int32_t vnode = atoi(de->d_name + 5);
+      if (vnode == 0) continue;
+
+      char vnodeDir[TSDB_FILENAME_LEN * 3];
+      snprintf(vnodeDir, TSDB_FILENAME_LEN * 3, "%s/%s", tsVnodeDir, de->d_name);
+      int32_t code = dnodeOpenVnode(vnode, vnodeDir);
+      if (code == 0) {
+        numOfVnodes++;
+      }
+    }
+  }
+  closedir(dir);
+
+  dPrint("dnode mgmt is opened, vnodes:%d", numOfVnodes);
   return TSDB_CODE_SUCCESS;
 }
 
+typedef void (*CleanupFp)(char *);
 static void dnodeCleanupVnodes() {
-  dPrint("clean all vnodes");
+  int32_t num = taosGetIntHashSize(tsDnodeVnodesHash);
+  taosCleanUpIntHashWithFp(tsDnodeVnodesHash, (CleanupFp)dnodeCleanupVnode);
+  dPrint("dnode mgmt is closed, vnodes:%d", num);
 }
 
-static int32_t dnodeOpenVnode(int32_t vgId) {
-  char rootDir[TSDB_FILENAME_LEN] = {0};
-  sprintf(rootDir, "%s/vnode%d", tsDirectory, vgId);
-
-  void *pTsdb = tsdbOpenRepo(rootDir);
-  if (pTsdb != NULL) {
+static int32_t dnodeOpenVnode(int32_t vnode, char *rootDir) {
+  char tsdbDir[TSDB_FILENAME_LEN];
+  sprintf(tsdbDir, "%s/tsdb", rootDir);
+  void *pTsdb = tsdbOpenRepo(tsdbDir);
+  if (pTsdb == NULL) {
+    dError("failed to open tsdb in vnode:%d %s, reason:%s", vnode, tsdbDir, tstrerror(terrno));
     return terrno;
   }
 
-  SVnodeObj vnodeObj;
-  vnodeObj.vgId     = vgId;
+  //STsdbRepoInfo *tsdbInfo = tsdbGetStatus(pTsdb);
+
+  SVnodeObj vnodeObj = {0};
+  vnodeObj.vgId     = vnode;//tsdbInfo->tsdbCfg.tsdbId;
   vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
   vnodeObj.refCount = 1;
   vnodeObj.version  = 0;
@@ -160,8 +233,9 @@ static int32_t dnodeOpenVnode(int32_t vgId) {
   vnodeObj.events   = NULL;
   vnodeObj.cq       = NULL;
 
-  taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, &vnodeObj);
+  taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, (char *) (&vnodeObj));
 
+  dTrace("open vnode:%d in %s", vnodeObj.vgId, rootDir);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -190,13 +264,13 @@ static void dnodeCleanupVnode(SVnodeObj *pVnode) {
     pVnode->tsdb = NULL;
   }
 
-  taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
+  dTrace("cleanup vnode:%d", pVnode->vgId);
 }
 
 static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
-  STsdbCfg tsdbCfg;
+  STsdbCfg tsdbCfg = {0};
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
-  tsdbCfg.tsdbId              = pVnodeCfg->vnode;
+  tsdbCfg.tsdbId              = pVnodeCfg->cfg.vgId;
   tsdbCfg.maxTables           = pVnodeCfg->cfg.maxSessions;
   tsdbCfg.daysPerFile         = pVnodeCfg->cfg.daysPerFile;
   tsdbCfg.minRowsPerFileBlock = -1;
@@ -205,14 +279,37 @@ static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.maxCacheSize        = -1;
 
   char rootDir[TSDB_FILENAME_LEN] = {0};
-  sprintf(rootDir, "%s/vnode%d", tsDirectory, pVnodeCfg->cfg.vgId);
+  sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
+  if (mkdir(rootDir, 0755) != 0) {
+    if (errno == EACCES) {
+      return TSDB_CODE_NO_DISK_PERMISSIONS;
+    } else if (errno == ENOSPC) {
+      return TSDB_CODE_SERV_NO_DISKSPACE;
+    } else if (errno == EEXIST) {
+    } else {
+      return TSDB_CODE_VG_INIT_FAILED;
+    }
+  }
+
+  sprintf(rootDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);
+  if (mkdir(rootDir, 0755) != 0) {
+    if (errno == EACCES) {
+      return TSDB_CODE_NO_DISK_PERMISSIONS;
+    } else if (errno == ENOSPC) {
+      return TSDB_CODE_SERV_NO_DISKSPACE;
+    } else if (errno == EEXIST) {
+    } else {
+      return TSDB_CODE_VG_INIT_FAILED;
+    }
+  }
 
   void *pTsdb = tsdbCreateRepo(rootDir, &tsdbCfg, NULL);
-  if (pTsdb != NULL) {
+  if (pTsdb == NULL) {
+    dError("vgroup:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(terrno));
     return terrno;
   }
 
-  SVnodeObj vnodeObj;
+  SVnodeObj vnodeObj = {0};
   vnodeObj.vgId     = pVnodeCfg->cfg.vgId;
   vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
   vnodeObj.refCount = 1;
@@ -225,54 +322,65 @@ static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
   vnodeObj.events   = NULL;
   vnodeObj.cq       = NULL;
 
-  taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, &vnodeObj);
+  taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, (char *) (&vnodeObj));
 
+  dPrint("vgroup:%d, vnode:%d is created", vnodeObj.vgId, vnodeObj.vgId);
   return TSDB_CODE_SUCCESS;
 }
 
-static void dnodeDropVnode(SVnodeObj *pVnode) {
-  pVnode->status = TSDB_VN_STATUS_NOT_READY;
-
-  int32_t count = atomic_sub_fetch_32(&pVnode->refCount, 1);
-  if (count > 0) {
-    // wait refcount
-  }
-
+static void dnodeDoDropVnode(SVnodeObj *pVnode) {
   if (pVnode->tsdb) {
     tsdbDropRepo(pVnode->tsdb);
     pVnode->tsdb = NULL;
   }
 
   dnodeCleanupVnode(pVnode);
+  taosDeleteIntHash(tsDnodeVnodesHash, pVnode->vgId);
 }
 
-static void dnodeProcesSMDCreateVnodeMsg(SRpcMsg *rpcMsg) {
+static void dnodeDropVnode(SVnodeObj *pVnode) {
+  pVnode->status = TSDB_VN_STATUS_NOT_READY;
+  pVnode->dirty  = true;
+
+  int32_t count = atomic_sub_fetch_32(&pVnode->refCount, 1);
+  if (count > 0) {
+    dTrace("vgroup:%d, vnode will be dropped until refcount:%d is 0", pVnode->vgId, count);
+    return;
+  }
+
+  dnodeDoDropVnode(pVnode);
+}
+
+static void dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
-  SMDCreateVnodeMsg *pCreate = (SMDCreateVnodeMsg *) rpcMsg->pCont;
-  pCreate->vnode           = htonl(pCreate->vnode);
+  SMDCreateVnodeMsg *pCreate = rpcMsg->pCont;
   pCreate->cfg.vgId        = htonl(pCreate->cfg.vgId);
   pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
   pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
 
-  SVnodeObj *pVnodeObj = taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
+  dTrace("vgroup:%d, start to create vnode:%d in dnode", pCreate->cfg.vgId, pCreate->cfg.vgId);
+
+  SVnodeObj *pVnodeObj = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
   if (pVnodeObj != NULL) {
     rpcRsp.code = TSDB_CODE_SUCCESS;
+    dPrint("vgroup:%d, vnode is already exist", pCreate->cfg.vgId);
   } else {
     rpcRsp.code = dnodeCreateVnode(pCreate);
   }
 
   rpcSendResponse(&rpcRsp);
-  rpcFreeCont(rpcMsg->pCont);
 }
 
-static void dnodeProcesSMDDropVnodeMsg(SRpcMsg *rpcMsg) {
+static void dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {
   SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
-  SMDDropVnodeMsg *pDrop = (SMDCreateVnodeMsg *) rpcMsg->pCont;
+  SMDDropVnodeMsg *pDrop = rpcMsg->pCont;
   pDrop->vgId = htonl(pDrop->vgId);
 
-  SVnodeObj *pVnodeObj = taosGetIntHashData(tsDnodeVnodesHash, pDrop->vgId);
+  dTrace("vgroup:%d, start to drop vnode in dnode", pDrop->vgId);
+
+  SVnodeObj *pVnodeObj = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, pDrop->vgId);
   if (pVnodeObj != NULL) {
     dnodeDropVnode(pVnodeObj);
     rpcRsp.code = TSDB_CODE_SUCCESS;
@@ -281,19 +389,19 @@ static void dnodeProcesSMDDropVnodeMsg(SRpcMsg *rpcMsg) {
   }
 
   rpcSendResponse(&rpcRsp);
-  rpcFreeCont(rpcMsg->pCont);
 }
 
 static void dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
   SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
-  SMDCreateVnodeMsg *pCreate = (SMDCreateVnodeMsg *) rpcMsg->pCont;
-  pCreate->vnode           = htonl(pCreate->vnode);
+  SMDCreateVnodeMsg *pCreate = rpcMsg->pCont;
   pCreate->cfg.vgId        = htonl(pCreate->cfg.vgId);
   pCreate->cfg.maxSessions = htonl(pCreate->cfg.maxSessions);
   pCreate->cfg.daysPerFile = htonl(pCreate->cfg.daysPerFile);
 
-  SVnodeObj *pVnodeObj = taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
+  dTrace("vgroup:%d, start to alter vnode in dnode", pCreate->cfg.vgId);
+
+  SVnodeObj *pVnodeObj = (SVnodeObj *) taosGetIntHashData(tsDnodeVnodesHash, pCreate->cfg.vgId);
   if (pVnodeObj != NULL) {
     rpcRsp.code = TSDB_CODE_SUCCESS;
   } else {
@@ -301,5 +409,123 @@ static void dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
   }
 
   rpcSendResponse(&rpcRsp);
-  rpcFreeCont(rpcMsg->pCont);
 }
+
+static void dnodeProcessAlterStreamMsg(SRpcMsg *pMsg) {
+//  SMDAlterStreamMsg *pStream = pCont;
+//  pStream->uid    = htobe64(pStream->uid);
+//  pStream->stime  = htobe64(pStream->stime);
+//  pStream->vnode  = htonl(pStream->vnode);
+//  pStream->sid    = htonl(pStream->sid);
+//  pStream->status = htonl(pStream->status);
+//
+//  int32_t code = dnodeCreateStream(pStream);
+}
+
+static void dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg) {
+  SMDCfgDnodeMsg *pCfg = (SMDCfgDnodeMsg *)pMsg->pCont;
+  int32_t code = tsCfgDynamicOptions(pCfg->config);
+
+  SRpcMsg rpcRsp = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0, .code = code, .msgType = 0};
+  rpcSendResponse(&rpcRsp);
+}
+
+static void dnodeBuildVloadMsg(char *pNode, void * param) {
+  SVnodeObj *pVnode = (SVnodeObj *) pNode;
+  if (pVnode->dirty) return;
+  
+  SDMStatusMsg *pStatus = param;
+  if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
+  
+  SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
+  pLoad->vgId = htonl(pVnode->vgId);
+  pLoad->vnode = htonl(pVnode->vgId);
+  pLoad->status = pVnode->status;
+}
+
+static void dnodeSendStatusMsg(void *handle, void *tmrId) {
+  if (tsDnodeTmr == NULL) {
+     dError("dnode timer is already released");
+    return;
+  }
+
+  if (tsStatusTimer == NULL) {
+    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
+    dError("failed to start status timer");
+    return;
+  }
+
+  int32_t contLen = sizeof(SDMStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
+  SDMStatusMsg *pStatus = rpcMallocCont(contLen);
+  if (pStatus == NULL) {
+    taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
+    dError("failed to malloc status message");
+    return;
+  }
+
+  strcpy(pStatus->dnodeName, tsDnodeName);
+  pStatus->version          = htonl(tsVersion);
+  pStatus->dnodeId          = htonl(tsDnodeId);
+  pStatus->privateIp        = htonl(inet_addr(tsPrivateIp));
+  pStatus->publicIp         = htonl(inet_addr(tsPublicIp));
+  pStatus->lastReboot       = htonl(tsRebootTime);
+  pStatus->numOfTotalVnodes = htons((uint16_t) tsNumOfTotalVnodes);
+  pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
+  pStatus->diskAvailable    = tsAvailDataDirGB;
+  pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
+
+  taosVisitIntHashWithFp(tsDnodeVnodesHash, dnodeBuildVloadMsg, pStatus);
+  contLen = sizeof(SDMStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
+  pStatus->openVnodes = htons(pStatus->openVnodes);
+  
+  SRpcMsg rpcMsg = {
+    .pCont   = pStatus,
+    .contLen = contLen,
+    .msgType = TSDB_MSG_TYPE_DM_STATUS
+  };
+
+  dnodeSendMsgToMnode(&rpcMsg);
+  taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
+}
+
+static void dnodeReadDnodeId() {
+  char dnodeIdFile[TSDB_FILENAME_LEN] = {0};
+  sprintf(dnodeIdFile, "%s/dnodeId", tsDnodeDir);
+
+  FILE *fp = fopen(dnodeIdFile, "r");
+  if (!fp) return;
+  
+  char option[32] = {0};
+  int32_t value = 0;
+  int32_t num = 0;
+  
+  num = fscanf(fp, "%s %d", option, &value);
+  if (num != 2) return;
+  if (strcmp(option, "dnodeId") != 0) return;
+  tsDnodeId = value;;
+
+  fclose(fp);
+  dPrint("read dnodeId:%d successed", tsDnodeId);
+}
+
+static void dnodeSaveDnodeId() {
+  char dnodeIdFile[TSDB_FILENAME_LEN] = {0};
+  sprintf(dnodeIdFile, "%s/dnodeId", tsDnodeDir);
+
+  FILE *fp = fopen(dnodeIdFile, "w");
+  if (!fp) return;
+
+  fprintf(fp, "dnodeId %d\n", tsDnodeId);
+
+  fclose(fp);
+  dPrint("save dnodeId successed");
+}
+
+void dnodeUpdateDnodeId(int32_t dnodeId) {
+  if (tsDnodeId == 0) {
+    dPrint("dnodeId is set to %d", dnodeId);  
+    tsDnodeId = dnodeId;
+    dnodeSaveDnodeId();
+  }
+}
+

@@ -16,43 +16,56 @@
 #define _TD_TSDB_FILE_H_
 
 #include <stdint.h>
-// #include "tstring.h"
+
+#include "taosdef.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef int32_t file_id_t;
-
 typedef enum {
-  TSDB_FILE_TYPE_HEAD,  // .head file type
-  TSDB_FILE_TYPE_DATA,  // .data file type
-  TSDB_FILE_TYPE_LAST,  // .last file type
-  TSDB_FILE_TYPE_META   // .meta file type
+  TSDB_FILE_TYPE_HEAD = 0,  // .head file type
+  TSDB_FILE_TYPE_DATA,      // .data file type
+  TSDB_FILE_TYPE_LAST,      // .last file type
+  TSDB_FILE_TYPE_MAX
 } TSDB_FILE_TYPE;
 
 extern const char *tsdbFileSuffix[];
 
 typedef struct {
-  int64_t fileSize;
+  int64_t size;
+  int64_t tombSize;
 } SFileInfo;
 
 typedef struct {
-  char *    fname;
-  SFileInfo fInfo;
-} SFILE;
+  int8_t  type;
+  char    fname[128];
+  int64_t size;      // total size of the file
+  int64_t tombSize;  // unused file size
+} SFile;
 
-// typedef struct {
-//   int64_t offset;
-//   int64_t skey;
-//   int64_t ekey;
-//   int16_t numOfBlocks;
-// } SDataBlock;
+typedef struct {
+  int32_t fileId;
+  SFile   files[TSDB_FILE_TYPE_MAX];
+} SFileGroup;
 
-#define IS_VALID_TSDB_FILE_TYPE(type) ((type) >= TSDB_FILE_TYPE_HEAD && (type) <= TSDB_FILE_TYPE_META)
+// TSDB file handle
+typedef struct {
+  int32_t    daysPerFile;
+  int32_t    keep;
+  int32_t    minRowPerFBlock;
+  int32_t    maxRowsPerFBlock;
+  int32_t    maxTables;
+  SFileGroup fGroup[];
+} STsdbFileH;
 
-char *tsdbGetFileName(char *dirName, char *fname, TSDB_FILE_TYPE type);
+#define IS_VALID_TSDB_FILE_TYPE(type) ((type) >= TSDB_FILE_TYPE_HEAD && (type) < TSDB_FILE_TYPE_MAX)
 
+STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32_t minRowsPerFBlock,
+                         int32_t maxRowsPerFBlock, int32_t maxTables);
+
+void  tsdbCloseFile(STsdbFileH *pFileH);
+int   tsdbCreateFileGroup(char *dataDir, int fileId, SFileGroup *pFGroup, int maxTables);
 #ifdef __cplusplus
 }
 #endif

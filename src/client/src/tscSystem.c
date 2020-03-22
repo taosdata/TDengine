@@ -34,11 +34,9 @@ void *  pTscMgmtConn;
 void *  pSlaveConn;
 void *  tscCacheHandle;
 int32_t globalCode = 0;
-int     initialized = 0;
 int     slaveIndex;
 void *  tscTmr;
 void *  tscQhandle;
-void *  tscConnCache;
 void *  tscCheckDiskUsageTmr;
 int     tsInsertHeadSize;
 
@@ -151,7 +149,7 @@ void taos_init_imp() {
   }
 
   tscMgmtIpList.inUse = 0;
-  tscMgmtIpList.port = tsMgmtShellPort;
+  tscMgmtIpList.port = tsMnodeShellPort;
   tscMgmtIpList.numOfIps = 1;
   tscMgmtIpList.ip[0] = inet_addr(tsMasterIp);
 
@@ -160,7 +158,7 @@ void taos_init_imp() {
     tscMgmtIpList.ip[1] = inet_addr(tsSecondIp);
   }
 
-  tscInitMsgs();
+  tscInitMsgsFp();
   slaveIndex = rand();
   int queueSize = tsMaxVnodeConnections + tsMaxMeterConnections + tsMaxMgmtConnections + tsMaxMgmtConnections;
 
@@ -186,13 +184,9 @@ void taos_init_imp() {
   refreshTime = refreshTime > 2 ? 2 : refreshTime;
   refreshTime = refreshTime < 1 ? 1 : refreshTime;
 
-  if (tscCacheHandle == NULL) tscCacheHandle = taosInitDataCache(tsMaxMeterConnections / 2, tscTmr, refreshTime);
+  if (tscCacheHandle == NULL) tscCacheHandle = taosCacheInit(tscTmr, refreshTime);
 
-  tscConnCache = taosOpenConnCache(tsMaxMeterConnections * 2, NULL/*taosCloseRpcConn*/, tscTmr, tsShellActivityTimer * 1000);
-
-  initialized = 1;
   tscTrace("client is initialized successfully");
-  tsInsertHeadSize = tsRpcHeadSize + sizeof(SShellSubmitMsg);
 }
 
 void taos_init() { pthread_once(&tscinit, taos_init_imp); }

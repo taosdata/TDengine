@@ -14,10 +14,10 @@
  */
 #include "os.h"
 
-#include "taosmsg.h"
-#include "thistogram.h"
-#include "tlosertree.h"
+#include "qhistogram.h"
 #include "taosdef.h"
+#include "taosmsg.h"
+#include "tlosertree.h"
 
 /**
  *

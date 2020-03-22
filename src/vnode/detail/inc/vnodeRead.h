@@ -21,9 +21,9 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "tresultBuf.h"
+#include "qresultBuf.h"
 
-#include "tinterpolation.h"
+#include "qinterpolation.h"
 #include "vnodeTagMgmt.h"
 
 /*
@@ -170,7 +170,7 @@ typedef struct SQueryRuntimeEnv {
   STSCursor           cur;
   SQueryCostSummary   summary;
   bool                stableQuery;  // is super table query or not
-  SQueryDiskbasedResultBuf*    pResultBuf;   // query result buffer based on blocked-wised disk file
+  SDiskbasedResultBuf*    pResultBuf;   // query result buffer based on blocked-wised disk file
   
   /*
    * Temporarily hold the in-memory cache block info during scan cache blocks

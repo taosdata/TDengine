@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TPERCENTILE_H
-#define TDENGINE_TPERCENTILE_H
+#ifndef TDENGINE_QPERCENTILE_H
+#define TDENGINE_QPERCENTILE_H
 
-#include "textbuffer.h"
+#include "qextbuffer.h"
 
 typedef struct MinMaxEntry {
   union {
@@ -74,4 +74,4 @@ void tBucketIntHash(tMemBucket *pBucket, void *value, int16_t *segIdx, int16_t *
 
 void tBucketDoubleHash(tMemBucket *pBucket, void *value, int16_t *segIdx, int16_t *slotIdx);
 
-#endif  // TDENGINE_TPERCENTILE_H
+#endif  // TDENGINE_QPERCENTILE_H

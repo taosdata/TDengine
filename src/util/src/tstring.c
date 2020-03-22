@@ -26,23 +26,23 @@ char *taosMsg[] = {
     "create-table",
     "create-table-rsp",        //10
 
-    "remove-table",
-    "remove-table-rsp",
+    "drop-table",
+    "drop-table-rsp",
+    "alter-table",
+    "alter-table-rsp",
     "create-vnode",
     "create-vnode-rsp",
-    "free-vnode",
-    "free-vnode-rsp",
-    "cfg-dnode",
-    "cfg-dnode-rsp",
-    "alter-stream",
-    "alter-stream-rsp",        //20
+    "drop-vnode",
+    "drop-vnode-rsp",
+    "alter-vnode",
+    "alter-vnode-rsp",        //20
 
-    "sync",
-    "sync-rsp",
-    "forward",
-    "forward-rsp",
     "drop-stable",
     "drop-stable-rsp",
+    "alter-stream",
+    "alter-stream-rsp",
+    "config-dnode",
+    "config-dnode-rsp",
     "",
     "",
     "",
@@ -63,37 +63,26 @@ char *taosMsg[] = {
     "alter-user-rsp",
     "drop-user",
     "drop-user-rsp",
-    "create-mnode",
-    "create-mnode-rsp",
-    "drop-mnode",
-    "drop-mnode-rsp",
     "create-dnode",
-    "create-dnode-rsp",        //50
-
+    "create-dnode-rsp",
     "drop-dnode",
     "drop-dnode-rsp",
-    "alter-dnode",
-    "alter-dnode-rsp",
     "create-db",
-    "create-db-rsp",
+    "create-db-rsp",          //50
+
     "drop-db",
     "drop-db-rsp",
     "use-db",
-    "use-db-rsp",              //60
-
+    "use-db-rsp",
     "alter-db",
     "alter-db-rsp",
     "create-table",
     "create-table-rsp",
     "drop-table",
-    "drop-table-rsp",
+    "drop-table-rsp",        //60
+
     "alter-table",
     "alter-table-rsp",
-    "cfg-vnode",
-    "cfg-vnode-rsp",           //70
-
-    "cfg-table",
-    "cfg-table-rsp",
     "table-meta",
     "table-meta-rsp",
     "super-table-meta",
@@ -101,24 +90,43 @@ char *taosMsg[] = {
     "multi-table-meta",
     "multi-table-meta-rsp",
     "alter-stream",
-    "alter-stream-rsp",        //80
+    "alter-stream-rsp",     //70
 
     "show",
     "show-rsp",
-    "cfg-mnode",
-    "cfg-mnode-rsp",
     "kill-query",
     "kill-query-rsp",
     "kill-stream",
     "kill-stream-rsp",
     "kill-connection",
-    "kill-connectoin-rsp",     //90
-
+    "kill-connectoin-rsp",
     "heart-beat",
-    "heart-beat-rsp",
+    "heart-beat-rsp",      //80
+
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",                    //90
+
+    "config-table",
+    "config-table-rsp",
+    "config-vnode",
+    "config-vnode-rsp",
     "status",
     "status-rsp",
     "grant",
     "grant-rsp",
+    "",
+    "",                   //100
+
+    "sdb-sync",
+    "sdb-sync-rsp",
+    "sdb-forward",
+    "sdb-forward-rsp",
     "max"
 };
+

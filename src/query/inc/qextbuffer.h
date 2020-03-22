@@ -124,19 +124,11 @@ typedef struct tTagSchema {
 typedef struct tSidSet {
   int32_t            numOfSids;
   int32_t            numOfSubSet;
-  STableSidExtInfo **pSids;
+  STableIdInfo     **pTableIdList;
   int32_t *          starterPos;  // position of each subgroup, generated according to
-
   SColumnModel      *pColumnModel;
   SColumnOrderInfo   orderIdx;
 } tSidSet;
-
-/**
- *
- * @param fileNamePattern
- * @param dstPath
- */
-void getTmpfilePath(const char *fileNamePattern, char *dstPath);
 
 /**
  *

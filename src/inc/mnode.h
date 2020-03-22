@@ -25,8 +25,6 @@ extern "C" {
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "taoserror.h"
-
-
 #include "sdb.h"
 #include "tglobalcfg.h"
 #include "thash.h"
@@ -41,62 +39,67 @@ extern "C" {
 #include "ttimer.h"
 #include "tutil.h"
 
-// internal globals
-extern char  version[];
-extern void *tsMgmtTmr;
-extern void *tsMgmtTranQhandle;
-extern char  tsMgmtDirectory[];
+typedef struct {
+  int32_t  mnodeId;
+  uint32_t privateIp;
+  uint32_t publicIp;
+  int64_t  createdTime;
+  int64_t  lostTime;
+  uint64_t dbVersion;
+  uint32_t rack;
+  uint16_t idc;
+  uint16_t slot;
+  int8_t   role;
+  int8_t   status;
+  int8_t   numOfMnodes;
+  int32_t  numOfDnodes;
+  char     mnodeName[TSDB_DNODE_NAME_LEN + 1];
+  char     reserved[7];
+  char     updateEnd[1];
+  int      syncFd;
+  void    *hbTimer;
+  void    *pSync;
+} SMnodeObj;
 
 typedef struct {
+  int32_t    dnodeId;
   uint32_t   privateIp;
-  int32_t    sid;
-  uint32_t   moduleStatus;
-  int32_t    openVnodes;
-  int32_t    numOfVnodes;
-  int32_t    numOfFreeVnodes;
-  int64_t    createdTime;
   uint32_t   publicIp;
-  int32_t    status;
+  uint32_t   moduleStatus;
+  int64_t    createdTime;
   uint32_t   lastAccess;
-  uint32_t   rebootTimes;
-  uint32_t   lastReboot;       // time stamp for last reboot
-  uint16_t   numOfCores;       // from dnode status msg
-  uint8_t    alternativeRole;  // from dnode status msg, 0-any, 1-mgmt, 2-dnode
-  uint8_t    reserveStatus;
-  uint16_t   numOfTotalVnodes; // from dnode status msg, config information
-  uint16_t   unused;
-  float      diskAvailable;    // from dnode status msg
-  int32_t    bandwidthMb;      // config by user
-  int16_t    cpuAvgUsage;      // calc from sys.cpu
-  int16_t    memoryAvgUsage;   // calc from sys.mem
-  int16_t    diskAvgUsage;     // calc from sys.disk
-  int16_t    bandwidthUsage;   // calc from sys.band
+  int32_t    openVnodes;
+  int32_t    numOfTotalVnodes; // from dnode status msg, config information
   uint32_t   rack;
   uint16_t   idc;
   uint16_t   slot;
-  int32_t    customScore;     // config by user
-  float      lbScore;         // calc in balance function
-  int16_t    lbStatus;         // set in balance function
-  int16_t    lastAllocVnode;  // increase while create vnode
-  SVnodeLoad vload[TSDB_MAX_VNODES];
-  char       reserved[16];
+  uint16_t   numOfCores;       // from dnode status msg
+  int8_t     alternativeRole;  // from dnode status msg, 0-any, 1-mgmt, 2-dnode
+  int8_t     lbStatus;         // set in balance function
+  float      lbScore;          // calc in balance function
+  int32_t    customScore;      // config by user
+  char       dnodeName[TSDB_DNODE_NAME_LEN + 1];
+  char       reserved[7];
   char       updateEnd[1];
-  void *     thandle;
+  SVnodeLoad vload[TSDB_MAX_VNODES];
+  int32_t    status;
+  uint32_t   lastReboot;       // time stamp for last reboot
+  float      diskAvailable;    // from dnode status msg
+  int16_t    diskAvgUsage;     // calc from sys.disk
+  int16_t    cpuAvgUsage;      // calc from sys.cpu
+  int16_t    memoryAvgUsage;   // calc from sys.mem
+  int16_t    bandwidthUsage;   // calc from sys.band
 } SDnodeObj;
 
 typedef struct {
-  uint32_t ip;
-  uint32_t publicIp;
+  int32_t  dnodeId;
   int32_t  vnode;
+  uint32_t privateIp;
+  uint32_t publicIp;
 } SVnodeGid;
 
 typedef struct {
-  int32_t sid;
-  int32_t vgId;  // vnode group ID
-} STableGid;
-
-typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     tableId[TSDB_TABLE_ID_LEN];
   int8_t   type;
   int8_t   dirty;
   uint64_t uid;
@@ -118,7 +121,7 @@ typedef struct SSuperTableObj {
   int32_t  sversion;
   int32_t  numOfColumns;
   int32_t  numOfTags;
-  int8_t   reserved[7];
+  int8_t   reserved[5];
   int8_t   updateEnd[1];
   int32_t  numOfTables;
   int16_t  nextColId;
@@ -128,26 +131,28 @@ typedef struct SSuperTableObj {
 typedef struct {
   char     tableId[TSDB_TABLE_ID_LEN + 1];
   int8_t   type;
+  int8_t   dirty;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
   int64_t  createdTime;
   char     superTableId[TSDB_TABLE_ID_LEN + 1];
-  int8_t   reserved[7];
+  int8_t   reserved[1];
   int8_t   updateEnd[1];
   SSuperTableObj *superTable;
 } SChildTableObj;
 
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
+  char     tableId[TSDB_TABLE_ID_LEN];
   int8_t   type;
+  int8_t   dirty;
   uint64_t uid;
   int32_t  sid;
   int32_t  vgId;
   int64_t  createdTime;
   int32_t  sversion;
   int32_t  numOfColumns;
-  int16_t  sqlLen;
+  int32_t  sqlLen;
   int8_t   reserved[3];
   int8_t   updateEnd[1];
   char*    sql;  //null-terminated string
@@ -159,15 +164,13 @@ typedef struct _vg_obj {
   uint32_t        vgId;
   char            dbName[TSDB_DB_NAME_LEN + 1];
   int64_t         createdTime;
-  uint64_t        lastCreate;
-  uint64_t        lastRemove;
-  int32_t         numOfVnodes;
   SVnodeGid       vnodeGid[TSDB_VNODES_SUPPORT];
+  int32_t         numOfVnodes;
   int32_t         numOfTables;
   int32_t         lbIp;
   int32_t         lbTime;
   int8_t          lbStatus;
-  int8_t          reserved[16];
+  int8_t          reserved[14];
   int8_t          updateEnd[1];
   struct _vg_obj *prev, *next;
   void *          idPool;
@@ -176,19 +179,17 @@ typedef struct _vg_obj {
 
 typedef struct _db_obj {
   char    name[TSDB_DB_NAME_LEN + 1];
+  int8_t  dirty;
   int64_t createdTime;
   SDbCfg  cfg;
-  int8_t  dropStatus;
-  char    reserved[16];
+  char    reserved[15];
   char    updateEnd[1];
   struct _db_obj *prev, *next;
   int32_t numOfVgroups;
   int32_t numOfTables;
   int32_t numOfSuperTables;
-  int32_t vgStatus;
-  SVgObj *pHead;  // empty vgroup first
-  SVgObj *pTail;  // empty vgroup end
-  void *  vgTimer;
+  SVgObj *pHead;
+  SVgObj *pTail;
 } SDbObj;
 
 struct _acctObj;
@@ -251,16 +252,32 @@ typedef struct {
   int16_t  offset[TSDB_MAX_COLUMNS];
   int16_t  bytes[TSDB_MAX_COLUMNS];
   void *   signature;
-  uint16_t payloadLen; /* length of payload*/
-  char     payload[];  /* payload for wildcard match in show tables */
+  uint16_t payloadLen;
+  char     payload[];
 } SShowObj;
 
-//mgmtSystem
+typedef struct {
+  uint8_t  msgType;
+  int8_t   expected;
+  int8_t   received;
+  int8_t   successed;
+  int32_t  contLen;
+  int32_t  code;
+  void     *ahandle;
+  void     *thandle;
+  void     *pCont;
+  SDbObj   *pDb;
+  SUserObj *pUser;
+} SQueuedMsg;
+
 int32_t mgmtInitSystem();
 int32_t mgmtStartSystem();
 void    mgmtCleanUpSystem();
 void    mgmtStopSystem();
 
+extern char  version[];
+extern void *tsMgmtTmr;
+extern char  tsMnodeDir[];
 
 #ifdef __cplusplus
 }

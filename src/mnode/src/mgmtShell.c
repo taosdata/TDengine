@@ -21,7 +21,7 @@
 #include "trpc.h"
 #include "tstatus.h"
 #include "tsched.h"
-#include "dnodeSystem.h"
+#include "dnode.h"
 #include "mnode.h"
 #include "mgmtAcct.h"
 #include "mgmtBalance.h"
@@ -38,26 +38,32 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-typedef int32_t (*SShowMetaFp)(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+typedef int32_t (*SShowMetaFp)(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
-static void mgmtProcessMsgFromShell(SRpcMsg *pMsg);
-static void mgmtProcessShowMsg(SRpcMsg *rpcMsg);
-static void mgmtProcessRetrieveMsg(SRpcMsg *rpcMsg);
-static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg);
 static int  mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 static bool mgmtCheckMsgReadOnly(int8_t type, void *pCont);
-static void mgmtProcessHeartBeatMsg(SRpcMsg *rpcMsg);
-static void mgmtProcessConnectMsg(SRpcMsg *rpcMsg);
+static void mgmtProcessMsgFromShell(SRpcMsg *pMsg);
+static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg);
+static void mgmtProcessMsgWhileNotReady(SRpcMsg *rpcMsg);
+static void mgmtProcessShowMsg(SQueuedMsg *queuedMsg);
+static void mgmtProcessRetrieveMsg(SQueuedMsg *queuedMsg);
+static void mgmtProcessHeartBeatMsg(SQueuedMsg *queuedMsg);
+static void mgmtProcessConnectMsg(SQueuedMsg *queuedMsg);
 
 static void *tsMgmtShellRpc = NULL;
-static void (*tsMgmtProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *) = {0};
+static void *tsMgmtTranQhandle = NULL;
+static void (*tsMgmtProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SQueuedMsg *) = {0};
 static SShowMetaFp     tsMgmtShowMetaFp[TSDB_MGMT_TABLE_MAX]     = {0};
 static SShowRetrieveFp tsMgmtShowRetrieveFp[TSDB_MGMT_TABLE_MAX] = {0};
 
 int32_t mgmtInitShell() {
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_SHOW, mgmtProcessShowMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_SHOW, mgmtProcessShowMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_RETRIEVE, mgmtProcessRetrieveMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_HEARTBEAT, mgmtProcessHeartBeatMsg);
+  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mgmtProcessConnectMsg);
+
+  tsMgmtTranQhandle = taosInitScheduler(tsMaxDnodes + tsMaxShellConns, 1, "mnodeT");
 
   int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 4.0;
   if (numOfThreads < 1) {
@@ -66,7 +72,7 @@ int32_t mgmtInitShell() {
 
   SRpcInit rpcInit = {0};
   rpcInit.localIp      = tsAnyIp ? "0.0.0.0" : tsPrivateIp;
-  rpcInit.localPort    = tsMgmtShellPort;
+  rpcInit.localPort    = tsMnodeShellPort;
   rpcInit.label        = "MND-shell";
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.cfp          = mgmtProcessMsgFromShell;
@@ -81,14 +87,16 @@ int32_t mgmtInitShell() {
     return -1;
   }
 
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_HEARTBEAT, mgmtProcessHeartBeatMsg);
-  mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CONNECT, mgmtProcessConnectMsg);
-
   mPrint("server connection to shell is opened");
   return 0;
 }
 
 void mgmtCleanUpShell() {
+  if (tsMgmtTranQhandle) {
+    taosCleanUpScheduler(tsMgmtTranQhandle);
+    tsMgmtTranQhandle = NULL;
+  }
+
   if (tsMgmtShellRpc) {
     rpcClose(tsMgmtShellRpc);
     tsMgmtShellRpc = NULL;
@@ -96,7 +104,7 @@ void mgmtCleanUpShell() {
   }
 }
 
-void mgmtAddShellMsgHandle(uint8_t showType, void (*fp)(SRpcMsg *rpcMsg)) {
+void mgmtAddShellMsgHandle(uint8_t showType, void (*fp)(SQueuedMsg *queuedMsg)) {
   tsMgmtProcessShellMsgFp[showType] = fp;
 }
 
@@ -109,102 +117,118 @@ void mgmtAddShellShowRetrieveHandle(uint8_t msgType, SShowRetrieveFp fp) {
 }
 
 void mgmtProcessTranRequest(SSchedMsg *sched) {
-  SRpcMsg *rpcMsg = sched->msg;
-  (*tsMgmtProcessShellMsgFp[rpcMsg->msgType])(rpcMsg);
-  rpcFreeCont(rpcMsg->pCont);
+  SQueuedMsg *queuedMsg = sched->msg;
+  (*tsMgmtProcessShellMsgFp[queuedMsg->msgType])(queuedMsg);
+  rpcFreeCont(queuedMsg->pCont);
+  free(queuedMsg);
 }
 
-void mgmtAddToTranRequest(SRpcMsg *rpcMsg) {
+void mgmtAddToShellQueue(SQueuedMsg *queuedMsg) {
   SSchedMsg schedMsg;
-  schedMsg.msg     = rpcMsg;
-  schedMsg.fp      = mgmtProcessTranRequest;
+  schedMsg.msg = queuedMsg;
+  schedMsg.fp  = mgmtProcessTranRequest;
   taosScheduleTask(tsMgmtTranQhandle, &schedMsg);
 }
 
 static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
   if (sdbGetRunStatus() != SDB_STATUS_SERVING) {
-    mTrace("shell msg is ignored since SDB is not ready");
-    SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = TSDB_CODE_NOT_READY, .msgType = 0};
-    rpcSendResponse(&rpcRsp);
+    mgmtProcessMsgWhileNotReady(rpcMsg);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
 
-  if (tsMgmtProcessShellMsgFp[rpcMsg->msgType]) {
-    if (mgmtCheckMsgReadOnly(rpcMsg->msgType, rpcMsg->pCont)) {
-      (*tsMgmtProcessShellMsgFp[rpcMsg->msgType])(rpcMsg);
-      rpcFreeCont(rpcMsg->pCont);
-    } else {
-      mgmtAddToTranRequest(rpcMsg);
-    }
-  } else {
-    mError("%s is not processed", taosMsg[rpcMsg->msgType]);
+  if (tsMgmtProcessShellMsgFp[rpcMsg->msgType] == NULL) {
     mgmtProcessUnSupportMsg(rpcMsg);
     rpcFreeCont(rpcMsg->pCont);
+    return;
+  }
+
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  if (pUser == NULL) {
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_USER);
+    rpcFreeCont(rpcMsg->pCont);
+    return;
+  }
+
+  if (mgmtCheckMsgReadOnly(rpcMsg->msgType, rpcMsg->pCont)) {
+    SQueuedMsg queuedMsg = {0};
+    queuedMsg.thandle = rpcMsg->handle;
+    queuedMsg.msgType = rpcMsg->msgType;
+    queuedMsg.contLen = rpcMsg->contLen;
+    queuedMsg.pCont   = rpcMsg->pCont;
+    queuedMsg.pUser   = pUser;
+    (*tsMgmtProcessShellMsgFp[rpcMsg->msgType])(&queuedMsg);
+    rpcFreeCont(rpcMsg->pCont);
+  } else {
+    SQueuedMsg *queuedMsg = calloc(1, sizeof(SQueuedMsg));
+    queuedMsg->thandle = rpcMsg->handle;
+    queuedMsg->msgType = rpcMsg->msgType;
+    queuedMsg->contLen = rpcMsg->contLen;
+    queuedMsg->pCont   = rpcMsg->pCont;
+    queuedMsg->pUser   = pUser;
+    mgmtAddToShellQueue(queuedMsg);
   }
 }
 
-static void mgmtProcessShowMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-
-  SShowMsg *pShowMsg = rpcMsg->pCont;
+static void mgmtProcessShowMsg(SQueuedMsg *pMsg) {
+  SCMShowMsg *pShowMsg = pMsg->pCont;
   if (pShowMsg->type == TSDB_MGMT_TABLE_DNODE || TSDB_MGMT_TABLE_GRANTS || TSDB_MGMT_TABLE_SCORES) {
-    if (mgmtCheckRedirect(rpcMsg->handle) != TSDB_CODE_SUCCESS) {
+    if (mgmtCheckRedirect(pMsg->thandle)) {
       return;
     }
   }
 
-  int32_t  size = sizeof(SShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
-  SShowRsp *pShowRsp = rpcMallocCont(size);
-  if (pShowRsp == NULL) {
-    rpcRsp.code = TSDB_CODE_SERV_OUT_OF_MEMORY;
-    rpcSendResponse(&rpcRsp);
+  if (pShowMsg->type >= TSDB_MGMT_TABLE_MAX) {
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_MSG_TYPE);
     return;
   }
 
-  int32_t code;
-  if (pShowMsg->type >= TSDB_MGMT_TABLE_MAX) {
-    code = TSDB_CODE_INVALID_MSG_TYPE;
-  } else {
-    SShowObj *pShow = (SShowObj *) calloc(1, sizeof(SShowObj) + htons(pShowMsg->payloadLen));
-    pShow->signature = pShow;
-    pShow->type      = pShowMsg->type;
-    strcpy(pShow->db, pShowMsg->db);
-    mTrace("pShow:%p is allocated", pShow);
-
-    // set the table name query condition
-    pShow->payloadLen = htons(pShowMsg->payloadLen);
-    memcpy(pShow->payload, pShowMsg->payload, pShow->payloadLen);
-
-    mgmtSaveQhandle(pShow);
-    pShowRsp->qhandle = htobe64((uint64_t) pShow);
-    if (tsMgmtShowMetaFp[pShowMsg->type]) {
-      code = (*tsMgmtShowMetaFp[(uint8_t) pShowMsg->type])(&pShowRsp->tableMeta, pShow, rpcMsg->handle);
-      if (code == 0) {
-        size = sizeof(SShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
-      } else {
-        mError("pShow:%p, type:%d %s, failed to get Meta, code:%d", pShow, pShowMsg->type,
-               taosMsg[(uint8_t) pShowMsg->type], code);
-        free(pShow);
-      }
-    } else {
-      code = TSDB_CODE_OPS_NOT_SUPPORT;
-    }
+  if (!tsMgmtShowMetaFp[pShowMsg->type]) {
+    mError("show type:%s is not support", taosGetShowTypeStr(pShowMsg->type));
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_OPS_NOT_SUPPORT);
+    return;
   }
 
-  rpcRsp.code = code;
-  rpcRsp.pCont = pShowRsp;
-  rpcRsp.contLen = size;
-  rpcSendResponse(&rpcRsp);
+  int32_t size = sizeof(SCMShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
+  SCMShowRsp *pShowRsp = rpcMallocCont(size);
+  if (pShowRsp == NULL) {
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
+    return;
+  }
+
+  SShowObj *pShow = (SShowObj *) calloc(1, sizeof(SShowObj) + htons(pShowMsg->payloadLen));
+  pShow->signature  = pShow;
+  pShow->type       = pShowMsg->type;
+  pShow->payloadLen = htons(pShowMsg->payloadLen);
+  strcpy(pShow->db, pShowMsg->db);
+  memcpy(pShow->payload, pShowMsg->payload, pShow->payloadLen);
+
+  mgmtSaveQhandle(pShow);
+  pShowRsp->qhandle = htobe64((uint64_t) pShow);
+
+  mTrace("show:%p, type:%s, start to get meta", pShow, taosGetShowTypeStr(pShowMsg->type));
+  int32_t code = (*tsMgmtShowMetaFp[pShowMsg->type])(&pShowRsp->tableMeta, pShow, pMsg->thandle);
+  if (code == 0) {
+    SRpcMsg rpcRsp = {
+      .handle  = pMsg->thandle,
+      .pCont   = pShowRsp,
+      .contLen = sizeof(SCMShowRsp) + sizeof(SSchema) * pShow->numOfColumns,
+      .code    = code,
+      .msgType = 0
+    };
+    rpcSendResponse(&rpcRsp);
+  } else {
+    mError("show:%p, type:%s, failed to get meta, reason:%s", pShow, taosGetShowTypeStr(pShowMsg->type), tstrerror(code));
+    mgmtFreeQhandle(pShow);
+    rpcFreeCont(pShowRsp);
+  }
 }
 
-static void mgmtProcessRetrieveMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-
+static void mgmtProcessRetrieveMsg(SQueuedMsg *pMsg) {
   int32_t rowsToRead = 0;
   int32_t size = 0;
   int32_t rowsRead = 0;
-  SRetrieveTableMsg *pRetrieve = (SRetrieveTableMsg *) rpcMsg->pCont;
+  SRetrieveTableMsg *pRetrieve = pMsg->pCont;
   pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
 
   /*
@@ -213,16 +237,16 @@ static void mgmtProcessRetrieveMsg(SRpcMsg *rpcMsg) {
    */
   if (!mgmtCheckQhandle(pRetrieve->qhandle)) {
     mError("retrieve:%p, qhandle:%p is invalid", pRetrieve, pRetrieve->qhandle);
-    rpcRsp.code = TSDB_CODE_INVALID_QHANDLE;
-    rpcSendResponse(&rpcRsp);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_QHANDLE);
     return;
   }
 
   SShowObj *pShow = (SShowObj *)pRetrieve->qhandle;
-  if (pShow->signature != (void *)pShow) {
-    mError("pShow:%p, signature:%p, query memory is corrupted", pShow, pShow->signature);
-    rpcRsp.code = TSDB_CODE_MEMORY_CORRUPTED;
-    rpcSendResponse(&rpcRsp);
+  mTrace("show:%p, type:%s, retrieve data", pShow, taosGetShowTypeStr(pShow->type));
+
+  if (!mgmtCheckQhandle(pRetrieve->qhandle)) {
+    mError("pShow:%p, query memory is corrupted", pShow);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_MEMORY_CORRUPTED);
     return;
   } else {
     if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
@@ -245,10 +269,9 @@ static void mgmtProcessRetrieveMsg(SRpcMsg *rpcMsg) {
 
   // if free flag is set, client wants to clean the resources
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE)
-    rowsRead = (*tsMgmtShowRetrieveFp[(uint8_t) pShow->type])(pShow, pRsp->data, rowsToRead, rpcMsg->handle);
+    rowsRead = (*tsMgmtShowRetrieveFp[pShow->type])(pShow, pRsp->data, rowsToRead, pMsg->thandle);
 
-  if (rowsRead < 0) {
-    rowsRead = 0;  // TSDB_CODE_ACTION_IN_PROGRESS;
+  if (rowsRead < 0) {  // TSDB_CODE_ACTION_IN_PROGRESS;
     rpcFreeCont(pRsp);
     return;
   }
@@ -256,8 +279,13 @@ static void mgmtProcessRetrieveMsg(SRpcMsg *rpcMsg) {
   pRsp->numOfRows = htonl(rowsRead);
   pRsp->precision = htonl(TSDB_TIME_PRECISION_MILLI);  // millisecond time precision
 
-  rpcRsp.pCont = pRsp;
-  rpcRsp.contLen = size;
+  SRpcMsg rpcRsp = {
+      .handle  = pMsg->thandle,
+      .pCont   = pRsp,
+      .contLen = size,
+      .code    = 0,
+      .msgType = 0
+  };
   rpcSendResponse(&rpcRsp);
 
   if (rowsToRead == 0) {
@@ -265,23 +293,24 @@ static void mgmtProcessRetrieveMsg(SRpcMsg *rpcMsg) {
   }
 }
 
-static void mgmtProcessHeartBeatMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  //SHeartBeatMsg *pHBMsg = (SHeartBeatMsg *) rpcMsg->pCont;
+static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
+  //SCMHeartBeatMsg *pHBMsg = (SCMHeartBeatMsg *) rpcMsg->pCont;
   //mgmtSaveQueryStreamList(pHBMsg);
 
-  SHeartBeatRsp *pHBRsp = (SHeartBeatRsp *) rpcMallocCont(sizeof(SHeartBeatRsp));
+  SCMHeartBeatRsp *pHBRsp = (SCMHeartBeatRsp *) rpcMallocCont(sizeof(SCMHeartBeatRsp));
   if (pHBRsp == NULL) {
-    rpcRsp.code = TSDB_CODE_SERV_OUT_OF_MEMORY;
-    rpcSendResponse(&rpcRsp);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SERV_OUT_OF_MEMORY);
     return;
   }
 
   SRpcConnInfo connInfo;
-  rpcGetConnInfo(rpcMsg->handle, &connInfo);
+  if (rpcGetConnInfo(pMsg->thandle, &connInfo) != 0) {
+    mError("conn:%p is already released while process heart beat msg", pMsg->thandle);
+    return;
+  }
 
   pHBRsp->ipList.inUse = 0;
-  pHBRsp->ipList.port = htons(tsMgmtShellPort);
+  pHBRsp->ipList.port = htons(tsMnodeShellPort);
   pHBRsp->ipList.numOfIps = 0;
   if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
     pHBRsp->ipList.numOfIps = htons(pSdbPublicIpList->numOfIps);
@@ -304,8 +333,13 @@ static void mgmtProcessHeartBeatMsg(SRpcMsg *rpcMsg) {
   pHBRsp->streamId = 0;
   pHBRsp->killConnection = 0;
 
-  rpcRsp.pCont = pHBRsp;
-  rpcRsp.contLen = sizeof(SHeartBeatRsp);
+  SRpcMsg rpcRsp = {
+      .handle  = pMsg->thandle,
+      .pCont   = pHBRsp,
+      .contLen = sizeof(SCMHeartBeatRsp),
+      .code    = 0,
+      .msgType = 0
+  };
   rpcSendResponse(&rpcRsp);
 }
 
@@ -324,14 +358,17 @@ static int mgmtShellRetriveAuth(char *user, char *spi, char *encrypt, char *secr
   }
 }
 
-static void mgmtProcessConnectMsg(SRpcMsg *rpcMsg) {
-  SRpcMsg rpcRsp = {.handle = rpcMsg->handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
-  SConnectMsg *pConnectMsg = (SConnectMsg *) rpcMsg->pCont;
+static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
+  SRpcMsg rpcRsp = {.handle = pMsg->thandle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
+  SCMConnectMsg *pConnectMsg = pMsg->pCont;
 
   SRpcConnInfo connInfo;
-  rpcGetConnInfo(rpcMsg->handle, &connInfo);
-  int32_t code;
+  if (rpcGetConnInfo(pMsg->thandle, &connInfo) != 0) {
+    mError("thandle:%p is already released while process connect msg", pMsg->thandle);
+    return;
+  }
 
+  int32_t code;
   SUserObj *pUser = mgmtGetUser(connInfo.user);
   if (pUser == NULL) {
     code = TSDB_CODE_INVALID_USER;
@@ -355,7 +392,7 @@ static void mgmtProcessConnectMsg(SRpcMsg *rpcMsg) {
   }
 
   if (pConnectMsg->db[0]) {
-    char dbName[TSDB_TABLE_ID_LEN] = {0};
+    char dbName[TSDB_TABLE_ID_LEN * 3] = {0};
     sprintf(dbName, "%x%s%s", pAcct->acctId, TS_PATH_DELIMITER, pConnectMsg->db);
     SDbObj *pDb = mgmtGetDb(dbName);
     if (pDb == NULL) {
@@ -364,7 +401,7 @@ static void mgmtProcessConnectMsg(SRpcMsg *rpcMsg) {
     }
   }
 
-  SConnectRsp *pConnectRsp = rpcMallocCont(sizeof(SConnectRsp));
+  SCMConnectRsp *pConnectRsp = rpcMallocCont(sizeof(SCMConnectRsp));
   if (pConnectRsp == NULL) {
     code = TSDB_CODE_SERV_OUT_OF_MEMORY;
     goto connect_over;
@@ -375,7 +412,7 @@ static void mgmtProcessConnectMsg(SRpcMsg *rpcMsg) {
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
   pConnectRsp->ipList.inUse = 0;
-  pConnectRsp->ipList.port = htons(tsMgmtShellPort);
+  pConnectRsp->ipList.port = htons(tsMnodeShellPort);
   pConnectRsp->ipList.numOfIps = 0;
   if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
     pConnectRsp->ipList.numOfIps = htons(pSdbPublicIpList->numOfIps);
@@ -397,7 +434,7 @@ connect_over:
   } else {
     mLPrint("user:%s login from %s, code:%d", connInfo.user, taosIpStr(connInfo.clientIp), code);
     rpcRsp.pCont   = pConnectRsp;
-    rpcRsp.contLen = sizeof(SConnectRsp);
+    rpcRsp.contLen = sizeof(SCMConnectRsp);
   }
   rpcSendResponse(&rpcRsp);
 }
@@ -406,7 +443,7 @@ connect_over:
  * check if we need to add mgmtProcessTableMetaMsg into tranQueue, which will be executed one-by-one.
  */
 static bool mgmtCheckMeterMetaMsgType(void *pMsg) {
-  STableInfoMsg *pInfo = (STableInfoMsg *) pMsg;
+  SCMTableInfoMsg *pInfo = (SCMTableInfoMsg *) pMsg;
   int16_t autoCreate = htons(pInfo->createFlag);
   STableInfo *pTable = mgmtGetTable(pInfo->tableId);
 
@@ -420,10 +457,10 @@ static bool mgmtCheckMeterMetaMsgType(void *pMsg) {
 }
 
 static bool mgmtCheckMsgReadOnly(int8_t type, void *pCont) {
-  if ((type == TSDB_MSG_TYPE_TABLE_META && (!mgmtCheckMeterMetaMsgType(pCont)))  ||
-       type == TSDB_MSG_TYPE_STABLE_META || type == TSDB_MSG_TYPE_RETRIEVE ||
-       type == TSDB_MSG_TYPE_SHOW || type == TSDB_MSG_TYPE_MULTI_TABLE_META      ||
-       type == TSDB_MSG_TYPE_CONNECT) {
+  if ((type == TSDB_MSG_TYPE_CM_TABLE_META && (!mgmtCheckMeterMetaMsgType(pCont)))  ||
+       type == TSDB_MSG_TYPE_CM_STABLE_META || type == TSDB_MSG_TYPE_RETRIEVE ||
+       type == TSDB_MSG_TYPE_CM_SHOW || type == TSDB_MSG_TYPE_CM_TABLES_META      ||
+       type == TSDB_MSG_TYPE_CM_CONNECT) {
     return true;
   }
 
@@ -431,12 +468,36 @@ static bool mgmtCheckMsgReadOnly(int8_t type, void *pCont) {
 }
 
 static void mgmtProcessUnSupportMsg(SRpcMsg *rpcMsg) {
+  mError("%s is not processed in shell", taosMsg[rpcMsg->msgType]);
   SRpcMsg rpcRsp = {
     .msgType = 0,
     .pCont   = 0,
     .contLen = 0,
     .code    = TSDB_CODE_OPS_NOT_SUPPORT,
     .handle  = rpcMsg->handle
+  };
+  rpcSendResponse(&rpcRsp);
+}
+
+static void mgmtProcessMsgWhileNotReady(SRpcMsg *rpcMsg) {
+  mTrace("%s is ignored since SDB is not ready", taosMsg[rpcMsg->msgType]);
+  SRpcMsg rpcRsp = {
+    .msgType = 0,
+    .pCont   = 0,
+    .contLen = 0,
+    .code    = TSDB_CODE_NOT_READY,
+    .handle  = rpcMsg->handle
+  };
+  rpcSendResponse(&rpcRsp);
+}
+
+void mgmtSendSimpleResp(void *thandle, int32_t code) {
+  SRpcMsg rpcRsp = {
+      .msgType = 0,
+      .pCont   = 0,
+      .contLen = 0,
+      .code    = code,
+      .handle  = thandle
   };
   rpcSendResponse(&rpcRsp);
 }

@@ -22,9 +22,9 @@
 #include "http.h"
 #include "monitor.h"
 #include "dnodeModule.h"
-#include "dnodeSystem.h"
+#include "dnode.h"
 
-void dnodeAllocModules() {
+static void dnodeAllocModules() {
   tsModule[TSDB_MOD_MGMT].name          = "mgmt";
   tsModule[TSDB_MOD_MGMT].initFp        = mgmtInitSystem;
   tsModule[TSDB_MOD_MGMT].cleanUpFp     = mgmtCleanUpSystem;
@@ -69,10 +69,12 @@ void dnodeCleanUpModules() {
 }
 
 int32_t dnodeInitModules() {
+  dnodeAllocModules();
+
   for (int mod = 0; mod < TSDB_MOD_MAX; ++mod) {
     if (tsModule[mod].num != 0 && tsModule[mod].initFp) {
       if ((*tsModule[mod].initFp)() != 0) {
-        dError("TDengine initialization failed");
+        dError("failed to init modules");
         return -1;
       }
     }
@@ -81,14 +83,45 @@ int32_t dnodeInitModules() {
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeStartModulesImp() {
-  for (int mod = 1; mod < TSDB_MOD_MAX; ++mod) {
-    if (tsModule[mod].num != 0 && tsModule[mod].startFp) {
-      if ((*tsModule[mod].startFp)() != 0) {
-        dError("failed to start module:%d", mod);
-      }
-    }
-  }
+void dnodeStartModules() {
+  // for (int mod = 1; mod < TSDB_MOD_MAX; ++mod) {
+  //   if (tsModule[mod].num != 0 && tsModule[mod].startFp) {
+  //     if ((*tsModule[mod].startFp)() != 0) {
+  //       dError("failed to start module:%d", mod);
+  //     }
+  //   }
+  // }
 }
 
-void (*dnodeStartModules)() = dnodeStartModulesImp;
+void dnodeProcessModuleStatus(uint32_t moduleStatus) {
+  if (moduleStatus == tsModuleStatus) return;
+
+  dPrint("module status is received, old:%d, new:%d", tsModuleStatus, moduleStatus);
+
+  int news = moduleStatus;
+  int olds = tsModuleStatus;
+
+  for (int moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
+    int newStatus = news & (1 << moduleType);
+    int oldStatus = olds & (1 << moduleType);
+
+    if (oldStatus > 0) {
+      if (newStatus == 0) {
+        if (tsModule[moduleType].stopFp) {
+          dPrint("module:%s is stopped on this node", tsModule[moduleType].name);
+          (*tsModule[moduleType].stopFp)();
+        }
+      }
+    } else if (oldStatus == 0) {
+      if (newStatus > 0) {
+        if (tsModule[moduleType].startFp) {
+          dPrint("module:%s is started on this node", tsModule[moduleType].name);
+          (*tsModule[moduleType].startFp)();
+        }
+      }
+    } else {
+    }
+  }
+
+  tsModuleStatus = moduleStatus;
+}

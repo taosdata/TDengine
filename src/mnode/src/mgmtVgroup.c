@@ -17,13 +17,13 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tlog.h"
-#include "tschemautil.h"
 #include "tstatus.h"
 #include "mnode.h"
 #include "mgmtBalance.h"
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
 #include "mgmtDnode.h"
+#include "mgmtProfile.h"
 #include "mgmtShell.h"
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
@@ -40,8 +40,13 @@ static void *mgmtVgroupActionDecode(void *row, char *str, int32_t size, int32_t 
 static void *mgmtVgroupActionReset(void *row, char *str, int32_t size, int32_t *ssize);
 static void *mgmtVgroupActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
 
-static int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static void    mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
+static void    mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg);
+
+static void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
+static void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 
 static void mgmtVgroupActionInit() {
   SVgObj tObj;
@@ -69,7 +74,7 @@ int32_t mgmtInitVgroups() {
 
   mgmtVgroupActionInit();
 
-  tsVgroupSdb = sdbOpenTable(tsMaxVGroups, tsVgUpdateSize, "vgroups", SDB_KEYTYPE_AUTO, tsMgmtDirectory, mgmtVgroupAction);
+  tsVgroupSdb = sdbOpenTable(tsMaxVGroups, tsVgUpdateSize, "vgroups", SDB_KEYTYPE_AUTO, tsMnodeDir, mgmtVgroupAction);
   if (tsVgroupSdb == NULL) {
     mError("failed to init vgroups data");
     return -1;
@@ -105,15 +110,17 @@ int32_t mgmtInitVgroups() {
 
     if (tsIsCluster && pVgroup->vnodeGid[0].publicIp == 0) {
       pVgroup->vnodeGid[0].publicIp = inet_addr(tsPublicIp);
-      pVgroup->vnodeGid[0].ip = inet_addr(tsPrivateIp);
+      pVgroup->vnodeGid[0].privateIp = inet_addr(tsPrivateIp);
       sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 1);
     }
 
-    mgmtSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes, pVgroup->vgId);
+    // mgmtSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes, pVgroup->vgId);
   }
 
   mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_VGROUP, mgmtGetVgroupMeta);
   mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VGROUP, mgmtRetrieveVgroups);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mgmtProcessCreateVnodeRsp);
+  mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mgmtProcessDropVnodeRsp);
 
   mTrace("vgroup is initialized");
   return 0;
@@ -123,88 +130,56 @@ SVgObj *mgmtGetVgroup(int32_t vgId) {
   return (SVgObj *)sdbGetRow(tsVgroupSdb, &vgId);
 }
 
-int32_t mgmtAllocateSid(SDbObj *pDb, SVgObj *pVgroup) {
-  int32_t sid = taosAllocateId(pVgroup->idPool);
-  if (sid < 0) {
-    mWarn("table:%s, vgroup:%d run out of ID, num:%d", pDb->name, pVgroup->vgId, taosIdPoolNumOfUsed(pVgroup->idPool));
-    pDb->vgStatus = TSDB_VG_STATUS_IN_PROGRESS;
-    mgmtCreateVgroup(pDb);
-    terrno = TSDB_CODE_ACTION_IN_PROGRESS;
-  }
-
-  terrno = 0;
-  return sid;
-}
-
-/*
- * TODO: check if there is enough sids
- */
 SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb) {
   return pDb->pHead;
 }
 
-void mgmtProcessVgTimer(void *handle, void *tmrId) {
-  SDbObj *pDb = (SDbObj *)handle;
-  if (pDb == NULL) return;
-
-  if (pDb->vgStatus > TSDB_VG_STATUS_IN_PROGRESS) {
-    mTrace("db:%s, set vgroup status from %d to ready", pDb->name, pDb->vgStatus);
-    pDb->vgStatus = TSDB_VG_STATUS_READY;
+void mgmtCreateVgroup(SQueuedMsg *pMsg) {
+  SDbObj *pDb = pMsg->pDb;
+  if (pDb == NULL) {
+    mError("failed to create vgroup, db not found");
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_DB);
+    return;
   }
 
-  pDb->vgTimer = NULL;
-}
-
-SVgObj *mgmtCreateVgroup(SDbObj *pDb) {
   SVgObj *pVgroup = (SVgObj *)calloc(sizeof(SVgObj), 1);
   strcpy(pVgroup->dbName, pDb->name);
   pVgroup->numOfVnodes = pDb->cfg.replications;
-  pVgroup->createdTime = taosGetTimestampMs();
-
-  // based on load balance, create a new one
   if (mgmtAllocVnodes(pVgroup) != 0) {
-    mError("db:%s, no enough free dnode to alloc %d vnodes", pDb->name, pVgroup->numOfVnodes);
+    mError("db:%s, no enough dnode to alloc %d vnodes to vgroup", pDb->name, pVgroup->numOfVnodes);
     free(pVgroup);
-    pDb->vgStatus = TSDB_VG_STATUS_FULL;
-    taosTmrReset(mgmtProcessVgTimer, 5000, pDb, tsMgmtTmr, &pDb->vgTimer);
-    return NULL;
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_NO_ENOUGH_DNODES);
+    return;
   }
 
+  pVgroup->createdTime = taosGetTimestampMs();
   pVgroup->tableList   = (STableInfo **) calloc(sizeof(STableInfo *), pDb->cfg.maxSessions);
   pVgroup->numOfTables = 0;
   pVgroup->idPool      = taosInitIdPool(pDb->cfg.maxSessions);
 
   mgmtAddVgroupIntoDb(pDb, pVgroup);
-  mgmtSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes, pVgroup->vgId);
+  // mgmtSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes, pVgroup->vgId);
 
   sdbInsertRow(tsVgroupSdb, pVgroup, 0);
 
-  mTrace("vgroup:%d, vgroup is created, db:%s replica:%d", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
-  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i)
-    mTrace("vgroup:%d, dnode:%s vnode:%d is created", pVgroup->vgId, taosIpStr(pVgroup->vnodeGid[i].ip), pVgroup->vnodeGid[i].vnode);
-
-  return pVgroup;
-}
-
-int32_t mgmtDropVgroup(SDbObj *pDb, SVgObj *pVgroup) {
-  STableInfo *pTable;
-
-  if (pVgroup->numOfTables > 0) {
-    for (int32_t i = 0; i < pDb->cfg.maxSessions; ++i) {
-      if (pVgroup->tableList != NULL) {
-        pTable = pVgroup->tableList[i];
-        if (pTable) mgmtDropTable(pDb, pTable->tableId, 0);
-      }
-    }
+  mPrint("vgroup:%d, is created in mnode, db:%s replica:%d", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    mPrint("vgroup:%d, dnode:%d vnode:%d", pVgroup->vgId, pVgroup->vnodeGid[i].dnodeId, pVgroup->vnodeGid[i].vnode);
   }
 
-  mTrace("vgroup:%d, db:%s replica:%d is deleted", pVgroup->vgId, pDb->name, pVgroup->numOfVnodes);
+  pMsg->ahandle = pVgroup;
+  pMsg->expected = pVgroup->numOfVnodes;
+  mgmtSendCreateVgroupMsg(pVgroup, pMsg);
+}
 
-  //mgmtSendDropVgroupMsg(pVgroup, NULL);
-
-  sdbDeleteRow(tsVgroupSdb, pVgroup);
-
-  return TSDB_CODE_SUCCESS;
+void mgmtDropVgroup(SVgObj *pVgroup, void *ahandle) {
+  if (ahandle != NULL) {
+    mgmtSendDropVgroupMsg(pVgroup, ahandle);
+  } else {
+    mTrace("vgroup:%d, replica:%d is deleting from sdb", pVgroup->vgId, pVgroup->numOfVnodes);
+    mgmtSendDropVgroupMsg(pVgroup, NULL);
+    sdbDeleteRow(tsVgroupSdb, pVgroup);
+  }
 }
 
 void mgmtSetVgroupIdPool() {
@@ -232,14 +207,14 @@ void mgmtCleanUpVgroups() {
   sdbCloseTable(tsVgroupSdb);
 }
 
-int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
+int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   SDbObj *pDb = mgmtGetDb(pShow->db);
   if (pDb == NULL) {
     return TSDB_CODE_DB_NOT_SELECTED;
   }
 
   int32_t cols = 0;
-  SSchema *pSchema = tsGetSchema(pMeta);
+  SSchema *pSchema = pMeta->schema;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
@@ -255,7 +230,7 @@ int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
 
   pShow->bytes[cols] = 9;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "vgroup status");
+  strcpy(pSchema[cols].name, "vgroup_status");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -295,13 +270,13 @@ int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
 
     pShow->bytes[cols] = 9;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "vnode status");
+    strcpy(pSchema[cols].name, "vnode_status");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
     pShow->bytes[cols] = 16;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "public ip");
+    strcpy(pSchema[cols].name, "public_ip");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
   }
@@ -326,9 +301,9 @@ int32_t mgmtGetVgroupMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
 }
 
 char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
-  SDnodeObj *pDnode = mgmtGetDnode(pVnode->ip);
+  SDnodeObj *pDnode = mgmtGetDnode(pVnode->dnodeId);
   if (pDnode == NULL) {
-    mError("dnode:%s, vgroup:%d, vnode:%d dnode not exist", taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode);
+    mError("vgroup:%d, not exist in dnode:%d", pVgroup->vgId, pDnode->dnodeId);
     return "null";
   }
 
@@ -336,14 +311,13 @@ char *mgmtGetVnodeStatus(SVgObj *pVgroup, SVnodeGid *pVnode) {
     return "offline";
   }
 
-  SVnodeLoad *vload = pDnode->vload + pVnode->vnode;
-  if (vload->vgId != pVgroup->vgId || vload->vnode != pVnode->vnode) {
-    mError("dnode:%s, vgroup:%d, vnode:%d not same with dnode vgroup:%d vnode:%d",
-           taosIpStr(pVnode->ip), pVgroup->vgId, pVnode->vnode, vload->vgId, vload->vnode);
-    return "null";
+  for (int i = 0; i < pDnode->openVnodes; ++i) {
+    if (pDnode->vload[i].vgId == pVgroup->vgId) {
+       return (char*)taosGetVnodeStatusStr(pDnode->vload[i].status);
+    }
   }
-
-  return (char*)taosGetVnodeStatusStr(vload->status);
+  
+  return "null";
 }
 
 int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
@@ -383,7 +357,7 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
     cols++;
 
     for (int32_t i = 0; i < maxReplica; ++i) {
-      tinet_ntoa(ipstr, pVgroup->vnodeGid[i].ip);
+      tinet_ntoa(ipstr, pVgroup->vnodeGid[i].privateIp);
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       strcpy(pWrite, ipstr);
       cols++;
@@ -393,7 +367,7 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      if (pVgroup->vnodeGid[i].ip != 0) {
+      if (pVgroup->vnodeGid[i].dnodeId != 0) {
         char *vnodeStatus = mgmtGetVnodeStatus(pVgroup, pVgroup->vnodeGid + i);
         strcpy(pWrite, vnodeStatus);
       } else {
@@ -415,6 +389,11 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
 }
 
 static void *mgmtVgroupActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
+  SVgObj *pVgroup = row;
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    pVgroup->vnodeGid[i].vnode = pVgroup->vgId;
+  }
+
   return NULL;
 }
 
@@ -426,7 +405,7 @@ static void *mgmtVgroupActionDelete(void *row, char *str, int32_t size, int32_t 
     mgmtRemoveVgroupFromDb(pDb, pVgroup);
   }
 
-  mgmtUnSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes);
+  // mgmtUnSetDnodeVgid(pVgroup->vnodeGid, pVgroup->numOfVnodes);
   tfree(pVgroup->tableList);
 
   return NULL;
@@ -510,17 +489,16 @@ void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable) {
   taosFreeId(pVgroup->idPool, pTable->sid);
 }
 
-SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode) {
+SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
   if (pDb == NULL) return NULL;
 
-  SMDCreateVnodeMsg *pVPeers = rpcMallocCont(sizeof(SMDCreateVnodeMsg));
-  if (pVPeers == NULL) return NULL;
+  SMDCreateVnodeMsg *pVnode = rpcMallocCont(sizeof(SMDCreateVnodeMsg));
+  if (pVnode == NULL) return NULL;
 
-  pVPeers->vnode = htonl(vnode);
-  pVPeers->cfg   = pDb->cfg;
+  pVnode->cfg = pDb->cfg;
 
-  SVnodeCfg *pCfg = &pVPeers->cfg;
+  SVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                         = htonl(pVgroup->vgId);
   pCfg->maxSessions                  = htonl(pCfg->maxSessions);
   pCfg->cacheBlockSize               = htonl(pCfg->cacheBlockSize);
@@ -534,13 +512,12 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode) {
   pCfg->replications                 = (char) pVgroup->numOfVnodes;
   pCfg->rowsInFileBlock              = htonl(pCfg->rowsInFileBlock);
 
-  SVPeerDesc *vpeerDesc = pVPeers->vpeerDesc;
+  SVnodeDesc *vpeerDesc = pVnode->vpeerDesc;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {
-    vpeerDesc[j].ip = htonl(pVgroup->vnodeGid[j].ip);
-    vpeerDesc[j].vnode = htonl(pVgroup->vnodeGid[j].vnode);
+    vpeerDesc[j].ip    = htonl(pVgroup->vnodeGid[j].privateIp);
   }
 
-  return pVPeers;
+  return pVnode;
 }
 
 SVgObj *mgmtGetVgroupByVnode(uint32_t dnode, int32_t vnode) {
@@ -558,35 +535,186 @@ SVgObj *mgmtGetVgroupByVnode(uint32_t dnode, int32_t vnode) {
 }
 
 SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup) {
-  SRpcIpSet ipSet = {.numOfIps = pVgroup->numOfVnodes, .inUse = 0, .port = tsMgmtDnodePort + 1};
+  SRpcIpSet ipSet = {
+    .numOfIps = pVgroup->numOfVnodes,
+    .inUse = 0,
+    .port = tsDnodeMnodePort
+  };
   for (int i = 0; i < pVgroup->numOfVnodes; ++i) {
-    ipSet.ip[i] = pVgroup->vnodeGid[i].ip;
+    ipSet.ip[i] = pVgroup->vnodeGid[i].privateIp;
   }
   return ipSet;
 }
 
 SRpcIpSet mgmtGetIpSetFromIp(uint32_t ip) {
-  SRpcIpSet ipSet = {.ip[0] = ip, .numOfIps = 1, .inUse = 0, .port = tsMgmtDnodePort + 1};
+  SRpcIpSet ipSet = {
+    .ip[0]    = ip,
+    .numOfIps = 1,
+    .inUse    = 0,
+    .port     = tsDnodeMnodePort
+  };
   return ipSet;
 }
 
-void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, int32_t vnode, SRpcIpSet *ipSet, void *ahandle) {
-  mTrace("vgroup:%d, send create vnode:%d msg, ahandle:%p", pVgroup->vgId, vnode, ahandle);
-  SMDCreateVnodeMsg *pCreate = mgmtBuildCreateVnodeMsg(pVgroup, vnode);
+void mgmtSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle) {
+  mTrace("vgroup:%d, send create vnode:%d msg, ahandle:%p", pVgroup->vgId, pVgroup->vgId, ahandle);
+  SMDCreateVnodeMsg *pCreate = mgmtBuildCreateVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
-      .handle  = ahandle,
-      .pCont   = pCreate,
-      .contLen = pCreate ? sizeof(SMDCreateVnodeMsg) : 0,
-      .code    = 0,
-      .msgType = TSDB_MSG_TYPE_MD_CREATE_VNODE
+    .handle  = ahandle,
+    .pCont   = pCreate,
+    .contLen = pCreate ? sizeof(SMDCreateVnodeMsg) : 0,
+    .code    = 0,
+    .msgType = TSDB_MSG_TYPE_MD_CREATE_VNODE
   };
   mgmtSendMsgToDnode(ipSet, &rpcMsg);
 }
 
 void mgmtSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
-  mTrace("vgroup:%d, send create all vnodes msg, handle:%p", pVgroup->vgId, ahandle);
+  mTrace("vgroup:%d, send create all vnodes msg, ahandle:%p", pVgroup->vgId, ahandle);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].ip);
-    mgmtSendCreateVnodeMsg(pVgroup, pVgroup->vnodeGid[i].vnode, &ipSet, ahandle);
+    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].privateIp);
+    mgmtSendCreateVnodeMsg(pVgroup, &ipSet, ahandle);
   }
 }
+
+static void mgmtProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
+  if (rpcMsg->handle == NULL) return;
+
+  SQueuedMsg *queueMsg = rpcMsg->handle;
+  queueMsg->received++;
+  if (rpcMsg->code == TSDB_CODE_SUCCESS) {
+    queueMsg->code = rpcMsg->code;
+    queueMsg->successed++;
+  }
+
+  SVgObj *pVgroup = queueMsg->ahandle;
+  mTrace("vgroup:%d, create vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
+         pVgroup->vgId, tstrerror(rpcMsg->code), queueMsg->received, queueMsg->successed, queueMsg->expected,
+         queueMsg->thandle, rpcMsg->handle);
+
+  if (queueMsg->received != queueMsg->expected) return;
+
+  if (queueMsg->received == queueMsg->successed) {
+    SQueuedMsg *newMsg = calloc(1, sizeof(SQueuedMsg));
+    newMsg->msgType = queueMsg->msgType;
+    newMsg->thandle = queueMsg->thandle;
+    newMsg->pDb     = queueMsg->pDb;
+    newMsg->pUser   = queueMsg->pUser;
+    newMsg->contLen = queueMsg->contLen;
+    newMsg->pCont   = rpcMallocCont(newMsg->contLen);
+    memcpy(newMsg->pCont, queueMsg->pCont, newMsg->contLen);
+    mgmtAddToShellQueue(newMsg);
+  } else {
+    sdbDeleteRow(tsVgroupSdb, pVgroup);
+    mgmtSendSimpleResp(queueMsg->thandle, rpcMsg->code);
+  }
+
+  free(queueMsg);
+}
+
+static SMDDropVnodeMsg *mgmtBuildDropVnodeMsg(int32_t vgId) {
+  SMDDropVnodeMsg *pDrop = rpcMallocCont(sizeof(SMDDropVnodeMsg));
+  if (pDrop == NULL) return NULL;
+
+  pDrop->vgId = htonl(vgId);
+  return pDrop;
+}
+
+void mgmtSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle) {
+  mTrace("vgroup:%d, send drop vnode msg, ahandle:%p", vgId, ahandle);
+  SMDDropVnodeMsg *pDrop = mgmtBuildDropVnodeMsg(vgId);
+  SRpcMsg rpcMsg = {
+      .handle  = ahandle,
+      .pCont   = pDrop,
+      .contLen = pDrop ? sizeof(SMDDropVnodeMsg) : 0,
+      .code    = 0,
+      .msgType = TSDB_MSG_TYPE_MD_DROP_VNODE
+  };
+  mgmtSendMsgToDnode(ipSet, &rpcMsg);
+}
+
+static void mgmtSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle) {
+  mTrace("vgroup:%d, send drop all vnodes msg, ahandle:%p", pVgroup->vgId, ahandle);
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    SRpcIpSet ipSet = mgmtGetIpSetFromIp(pVgroup->vnodeGid[i].privateIp);
+    mgmtSendDropVnodeMsg(pVgroup->vgId, &ipSet, ahandle);
+  }
+}
+
+static void mgmtProcessDropVnodeRsp(SRpcMsg *rpcMsg) {
+  mTrace("drop vnode msg is received");
+  if (rpcMsg->handle == NULL) return;
+
+  SQueuedMsg *queueMsg = rpcMsg->handle;
+  queueMsg->received++;
+  if (rpcMsg->code == TSDB_CODE_SUCCESS) {
+    queueMsg->code = rpcMsg->code;
+    queueMsg->successed++;
+  }
+
+  SVgObj *pVgroup = queueMsg->ahandle;
+  mTrace("vgroup:%d, drop vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
+         pVgroup->vgId, tstrerror(rpcMsg->code), queueMsg->received, queueMsg->successed, queueMsg->expected,
+         queueMsg->thandle, rpcMsg->handle);
+
+  if (queueMsg->received != queueMsg->expected) return;
+
+  sdbDeleteRow(tsVgroupSdb, pVgroup);
+
+  SQueuedMsg *newMsg = calloc(1, sizeof(SQueuedMsg));
+  newMsg->msgType = queueMsg->msgType;
+  newMsg->thandle = queueMsg->thandle;
+  newMsg->pDb     = queueMsg->pDb;
+  newMsg->pUser   = queueMsg->pUser;
+  newMsg->contLen = queueMsg->contLen;
+  newMsg->pCont   = rpcMallocCont(newMsg->contLen);
+  memcpy(newMsg->pCont, queueMsg->pCont, newMsg->contLen);
+  mgmtAddToShellQueue(newMsg);
+
+  free(queueMsg);
+}
+
+void mgmtUpdateVgroupIp(SDnodeObj *pDnode) {
+  void *  pNode = NULL;
+  SVgObj *pVgroup = NULL;
+  while (1) {
+    pNode = sdbFetchRow(tsVgroupSdb, pNode, (void **)&pVgroup);
+    if (pVgroup == NULL) break;
+
+    for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+      SVnodeGid *vnodeGid = pVgroup->vnodeGid + i;
+      if (vnodeGid->dnodeId == pDnode->dnodeId) {
+        mPrint("vgroup:%d, dnode:%d, privateIp:%s change to %s, publicIp:%s change to %s",
+               pVgroup->vgId, vnodeGid->dnodeId, pDnode->privateIp, taosIpStr(vnodeGid->privateIp),
+               pDnode->publicIp, taosIpStr(vnodeGid->publicIp));
+        vnodeGid->publicIp = pDnode->publicIp;
+        vnodeGid->privateIp = pDnode->privateIp;
+        sdbUpdateRow(tsVgroupSdb, pVgroup, tsVgUpdateSize, 1);
+      }
+    }
+  }
+}
+
+//static void mgmtProcessVnodeCfgMsg(int8_t msgType, int8_t *pCont, int32_t contLen, void *pConn) {
+//  if (!sdbMaster) {
+//    mgmtSendRspToDnode(pConn, msgType + 1, TSDB_CODE_REDIRECT, NULL, 0);
+//    return;
+//  }
+//
+//  SDMConfigVnodeMsg *pCfg = (SDMConfigVnodeMsg *) pCont;
+//  pCfg->dnode = htonl(pCfg->dnode);
+//  pCfg->vnode = htonl(pCfg->vnode);
+//
+//  SVgObj *pVgroup = mgmtGetVgroupByVnode(pCfg->dnode, pCfg->vnode);
+//  if (pVgroup == NULL) {
+//    mTrace("dnode:%s, vnode:%d, no vgroup info", taosIpStr(pCfg->dnode), pCfg->vnode);
+//    mgmtSendRspToDnode(pConn, msgType + 1, TSDB_CODE_NOT_ACTIVE_VNODE, NULL, 0);
+//    return;
+//  }
+//
+//  mgmtSendRspToDnode(pConn, msgType + 1, TSDB_CODE_SUCCESS, NULL, 0);
+//
+//  SRpcIpSet ipSet = mgmtGetIpSetFromIp(pCfg->dnode);
+//  mgmtSendCreateVnodeMsg(pVgroup, pCfg->vnode, &ipSet, NULL);
+//}
+//

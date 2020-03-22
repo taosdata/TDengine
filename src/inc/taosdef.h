@@ -82,6 +82,17 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
 
+#define T_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
+#define T_APPEND_MEMBER(dst, ptr, type, member) \
+do {\
+  memcpy((void *)(dst), (void *)(&((ptr)->member)), T_MEMBER_SIZE(type, member));\
+  dst = (void *)((char *)(dst) + T_MEMBER_SIZE(type, member));\
+} while(0)
+#define T_READ_MEMBER(src, type, target) \
+do { \
+  (target) = *(type *)(src); \
+  (src) = (void *)((char *)src + sizeof(type));\
+} while(0)
 
 #define TSDB_KEYSIZE              sizeof(TSKEY)
 
@@ -165,7 +176,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_COLUMNS          256
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
-#define TSDB_TABLE_NAME_LEN       64
+#define TSDB_DNODE_NAME_LEN       63
+#define TSDB_TABLE_NAME_LEN       192
 #define TSDB_DB_NAME_LEN          32
 #define TSDB_COL_NAME_LEN         64
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 16
@@ -296,6 +308,20 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
 #define TSDB_SESSIONS_PER_VNODE (300)
 #define TSDB_SESSIONS_PER_DNODE (TSDB_SESSIONS_PER_VNODE * TSDB_MAX_VNODES)
+
+enum {
+  TSDB_PRECISION_MILLI,
+  TSDB_PRECISION_MICRO,
+  TSDB_PRECISION_NANO
+};
+
+typedef enum {
+  TSDB_SUPER_TABLE        = 0,  // super table
+  TSDB_CHILD_TABLE        = 1,  // table created from super table
+  TSDB_NORMAL_TABLE       = 2,  // ordinary table
+  TSDB_STREAM_TABLE       = 3,  // table created from stream computing
+  TSDB_TABLE_MAX          = 4
+} TSDB_TABLE_TYPE;
 
 #ifdef __cplusplus
 }
