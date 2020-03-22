@@ -721,7 +721,7 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
 static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY minKey, TSKEY maxKey, int maxRowsToRead, void *dst) {
   int numOfRows = 0;
   do {
-    SSkipListNode *node = tSkiplistIterGet(pIter);
+    SSkipListNode *node = tSkipListIterGet(pIter);
     SDataRow       row = SL_GET_NODE_DATA(node);
     if (dataRowKey(row) > maxKey) break;
   } while (tSkipListIterNext(pIter));
@@ -734,11 +734,12 @@ static void *tsdbCommitToFile(void *arg) {
   STsdbRepo * pRepo = (STsdbRepo *)arg;
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbCache *pCache = pRepo->tsdbCache;
-  STsdbRepo * pCfg = &(pRepo->config);
+  STsdbCfg * pCfg = &(pRepo->config);
   if (pCache->imem == NULL) return;
 
-  int                 sfid = tsdbGetKeyFileId(pCache->imem->keyFirst);
-  int                 efid = tsdbGetKeyFileId(pCache->imem->keyLast);
+  int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
+  int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);
+
   SSkipListIterator **iters = (SSkipListIterator **)calloc(pCfg->maxTables, sizeof(SSkipListIterator *));
   if (iters == NULL) {
     // TODO: deal with the error
