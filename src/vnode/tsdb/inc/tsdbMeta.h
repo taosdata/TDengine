@@ -74,6 +74,8 @@ typedef struct {
   void *map; // table map of (uid ===> table)
 
   SMetaFile *mfh; // meta file handle
+  int        maxRowBytes;
+  int        maxCols;
 } STsdbMeta;
 
 STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables);

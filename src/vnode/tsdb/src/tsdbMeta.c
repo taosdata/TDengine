@@ -133,6 +133,8 @@ STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables) {
   pMeta->nTables = 0;
   pMeta->superList = NULL;
   pMeta->tables = (STable **)calloc(maxTables, sizeof(STable *));
+  pMeta->maxRowBytes = 0;
+  pMeta->maxCols = 0;
   if (pMeta->tables == NULL) {
     free(pMeta);
     return NULL;
