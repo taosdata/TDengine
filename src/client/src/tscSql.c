@@ -147,7 +147,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   }
 
   // tsRpcHeaderSize will be updated during RPC initialization, so only after it initialization, this value is valid
-  tsInsertHeadSize = tsRpcHeadSize + sizeof(SShellSubmitMsg);
+  tsInsertHeadSize = tsRpcHeadSize + sizeof(SMsgDesc) + sizeof(SSubmitMsg);
   return pObj;
 }
 

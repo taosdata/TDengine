@@ -508,14 +508,17 @@ int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pRetrieveMsg->free = htons(pQueryInfo->type);
   pMsg += sizeof(pQueryInfo->type);
 
-  pSql->cmd.payloadLen = pMsg - pStart;
+  pRetrieveMsg->header.vgId = htonl(1);
+  pMsg += sizeof(SRetrieveTableMsg);
+  
+  pRetrieveMsg->header.contLen = htonl(pSql->cmd.payloadLen);
+  
   pSql->cmd.msgType = TSDB_MSG_TYPE_RETRIEVE;
-
   return TSDB_CODE_SUCCESS;
 }
 
 void tscUpdateVnodeInSubmitMsg(SSqlObj *pSql, char *buf) {
-  //SShellSubmitMsg *pShellMsg;
+  //SSubmitMsg *pShellMsg;
   //char *           pMsg;
   //STableMetaInfo * pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
@@ -524,14 +527,14 @@ void tscUpdateVnodeInSubmitMsg(SSqlObj *pSql, char *buf) {
   //pMsg = buf + tsRpcHeadSize;
 
   //TODO set iplist
-  //pShellMsg = (SShellSubmitMsg *)pMsg;
+  //pShellMsg = (SSubmitMsg *)pMsg;
   //pShellMsg->vnode = htons(pTableMeta->vpeerDesc[pSql->index].vnode);
   //tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pTableMeta->vpeerDesc[pSql->index].ip),
   //         htons(pShellMsg->vnode));
 }
 
 int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SShellSubmitMsg *pShellMsg;
+  SSubmitMsg *pShellMsg;
   char *           pMsg, *pStart;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
@@ -539,24 +542,23 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   pStart = pSql->cmd.payload + tsRpcHeadSize;
   pMsg = pStart;
-
-  pShellMsg = (SShellSubmitMsg *)pMsg;
   
-  pShellMsg->desc.numOfVnodes = htonl(1);
+  SMsgDesc* pMsgDesc = (SMsgDesc*) pMsg;
+  pMsgDesc->numOfVnodes = htonl(1);       //set the number of vnodes
+  pMsg += sizeof(SMsgDesc);
   
-  pShellMsg->import = htons(TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT) ? 0 : 1);
+  pShellMsg = (SSubmitMsg *)pMsg;
   pShellMsg->header.vgId = htonl(pTableMeta->vgId);
   pShellMsg->header.contLen = htonl(pSql->cmd.payloadLen);
+  pShellMsg->length = pShellMsg->header.contLen;
   
-  pShellMsg->numOfTables = htonl(pSql->cmd.numOfTablesInSubmit);  // number of meters to be inserted
+  pShellMsg->numOfBlocks = htonl(pSql->cmd.numOfTablesInSubmit);  // number of meters to be inserted
 
   // pSql->cmd.payloadLen is set during parse sql routine, so we do not use it here
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
+  
 //  tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pTableMeta->vpeerDesc[pTableMeta->index].ip),
 //           htons(pShellMsg->vnode));
-
-//  pSql->cmd.payloadLen = sizeof(SShellSubmitMsg);
-
   return TSDB_CODE_SUCCESS;
 }
 

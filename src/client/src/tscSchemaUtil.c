@@ -58,7 +58,7 @@ SSchema *tscGetTableSchema(const STableMeta *pTableMeta) {
     return pSTableMeta->schema;
   }
   
-  return pTableMeta->schema;
+  return (SSchema*) pTableMeta->schema;
 }
 
 SSchema* tscGetTableTagSchema(const STableMeta* pTableMeta) {

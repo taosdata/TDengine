@@ -33,26 +33,6 @@ typedef struct {
   int64_t offset;
 } SCompIdx;
 
-/**
- * if numOfSubBlocks == -1, then the SCompBlock is a sub-block
- * if numOfSubBlocks == 1, then the SCompBlock refers to the data block, and offset/len refer to
- *                         the data block offset and length
- * if numOfSubBlocks > 1, then the offset/len refer to the offset of the first sub-block in the
- * binary
- */
-typedef struct {
-  int64_t last : 1;          // If the block in data file or last file
-  int64_t offset : 63;       // Offset of data block or sub-block index depending on numOfSubBlocks
-  int32_t algorithm : 8;     // Compression algorithm
-  int32_t numOfPoints : 24;  // Number of total points
-  int32_t sversion;          // Schema version
-  int32_t len;               // Data block length or nothing
-  int16_t numOfSubBlocks;    // Number of sub-blocks;
-  int16_t numOfCols;
-  TSKEY   keyFirst;
-  TSKEY   keyLast;
-} SCompBlock;
-
 typedef struct {
   int32_t    delimiter;  // For recovery usage
   int32_t    checksum;   // TODO: decide if checksum logic in this file or make it one API
