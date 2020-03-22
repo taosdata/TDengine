@@ -32,12 +32,12 @@ typedef enum {
 
 typedef struct {
   ESdbOperType type;
+  void *  table;
+  void *  pObj;
+  int64_t version;
   int32_t maxRowSize;
   int32_t rowSize;
   void *  rowData;
-  void *  pObj;
-  void *  table;
-  int64_t version;
 } SSdbOperDesc;
 
 typedef struct {
