@@ -115,15 +115,14 @@ void dnodeWrite(SRpcMsg *pMsg) {
     }
    
     // put message into queue
-    SWriteMsg writeMsg;
-    writeMsg.rpcMsg      = *pMsg;
-    writeMsg.pCont       = pCont;
-    writeMsg.contLen     = pHead->contLen;
-    writeMsg.pRpcContext = pRpcContext;
-    writeMsg.pVnode      = pVnode;  // pVnode shall be saved for usage later
+    SWriteMsg *pWrite = (SWriteMsg *)taosAllocateQitem(sizeof(SWriteMsg));
+    pWrite->rpcMsg      = *pMsg;
+    pWrite->pCont       = pCont;
+    pWrite->contLen     = pHead->contLen;
+    pWrite->pRpcContext = pRpcContext;
  
     taos_queue queue = dnodeGetVnodeWworker(pVnode);
-    taosWriteQitem(queue, &writeMsg);
+    taosWriteQitem(queue, TAOS_QTYPE_RPC, pWrite);
 
     // next vnode 
     leftLen -= pHead->contLen;
@@ -145,14 +144,14 @@ void dnodeWrite(SRpcMsg *pMsg) {
 
 void *dnodeAllocateWriteWorker(void *pVnode) {
   SWriteWorker *pWorker = wWorkerPool.writeWorker + wWorkerPool.nextId;
-  taos_queue *queue = taosOpenQueue(sizeof(SWriteMsg));
+  taos_queue *queue = taosOpenQueue();
   if (queue == NULL) return NULL;
 
   if (pWorker->qset == NULL) {
     pWorker->qset = taosOpenQset();
     if (pWorker->qset == NULL) return NULL;
 
-    taosAddIntoQset(pWorker->qset, queue);
+    taosAddIntoQset(pWorker->qset, queue, pVnode);
     wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
 
     pthread_attr_t thAttr;
@@ -164,7 +163,7 @@ void *dnodeAllocateWriteWorker(void *pVnode) {
       taosCloseQset(pWorker->qset);
     }
   } else {
-    taosAddIntoQset(pWorker->qset, queue);
+    taosAddIntoQset(pWorker->qset, queue, pVnode);
     wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
   }
 
@@ -185,8 +184,10 @@ static void *dnodeProcessWriteQueue(void *param) {
   int           type;
   void         *pVnode;
 
+  qall = taosAllocateQall();
+
   while (1) {
-    numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, &qall, &pVnode);
+    numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, qall, &pVnode);
     if (numOfMsgs <=0) { 
       dnodeHandleIdleWorker(pWorker);  // thread exit if no queues anymore
       continue;
@@ -215,11 +216,12 @@ static void *dnodeProcessWriteQueue(void *param) {
       }
      
       dnodeProcessWriteResult(pVnode, pWriteMsg);
+      taosFreeQitem(pWriteMsg);
     }
 
-    // free the Qitems;
-    taosFreeQitems(qall);
   }
+
+  taosFreeQall(qall);
 
   return NULL;
 }

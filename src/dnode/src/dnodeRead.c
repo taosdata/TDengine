@@ -90,7 +90,7 @@ void dnodeRead(SRpcMsg *pMsg) {
 
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *) pCont;
-    pHead->vgId    = 1;//htonl(pHead->vgId);
+    pHead->vgId    = 1;   //htonl(pHead->vgId);
     pHead->contLen = pMsg->contLen; //htonl(pHead->contLen);
 
     void *pVnode = dnodeGetVnode(pHead->vgId);
@@ -101,22 +101,19 @@ void dnodeRead(SRpcMsg *pMsg) {
     }
 
     // put message into queue
-    SReadMsg readMsg;
-    readMsg.rpcMsg      = *pMsg;
-    readMsg.pCont       = pCont;
-    readMsg.contLen     = pHead->contLen;
-    readMsg.pRpcContext = pRpcContext;
-    readMsg.pVnode      = pVnode;
+    SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
+    pRead->rpcMsg      = *pMsg;
+    pRead->pCont       = pCont;
+    pRead->contLen     = pHead->contLen;
+    pRead->pRpcContext = pRpcContext;
 
     taos_queue queue = dnodeGetVnodeRworker(pVnode);
-    taosWriteQitem(queue, 0, pReadMsg);
+    taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
 
     // next vnode
     leftLen -= pHead->contLen;
     pCont -= pHead->contLen;
     queuedMsgNum++;
-
-    dnodeReleaseVnode(pVnode);
   }
 
   if (queuedMsgNum == 0) {
@@ -179,6 +176,8 @@ static void *dnodeProcessReadQueue(void *param) {
 
     dnodeProcessReadResult(pVnode, pReadMsg);
     taosFreeQitem(pReadMsg);
+
+    dnodeReleaseVnode(pVnode);  
   }
 
   return NULL;
