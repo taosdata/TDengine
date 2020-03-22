@@ -67,6 +67,7 @@ int taosSendMsgToDnode(SDnodeObj *pObj, char *msg, int msgLen) {
    * Lite version has no message header, so minus one
    */
   SSchedMsg schedMsg;
+  schedMsg.tfp = NULL;
   schedMsg.fp = vnodeProcessMsgFromMgmtSpec;
   schedMsg.msg = msg - 1;
   schedMsg.ahandle = NULL;
