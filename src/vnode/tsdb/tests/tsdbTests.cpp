@@ -1,10 +1,17 @@
 #include <gtest/gtest.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 #include "tsdb.h"
 #include "dataformat.h"
 #include "tsdbFile.h"
 #include "tsdbMeta.h"
+
+double getCurTime() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return tv.tv_sec + tv.tv_usec * 1E-6;
+}
 
 TEST(TsdbTest, DISABLED_tableEncodeDecode) {
   STable *pTable = (STable *)malloc(sizeof(STable));
@@ -71,11 +78,13 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &tCfg);
 
   // // 3. Loop to write some simple data
-  int nRows = 1000;
-  int rowsPerSubmit = 10;
+  int nRows = 10000000;
+  int rowsPerSubmit = 100;
   int64_t start_time = 1584081000000;
 
   SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * rowsPerSubmit);
+
+  double stime = getCurTime();
 
   for (int k = 0; k < nRows/rowsPerSubmit; k++) {
     SSubmitBlk *pBlock = pMsg->blocks;
@@ -83,7 +92,8 @@ TEST(TsdbTest, createRepo) {
     pBlock->sversion = 0;
     pBlock->len = 0;
     for (int i = 0; i < rowsPerSubmit; i++) {
-      start_time += 1000;
+      // start_time += 1000;
+      start_time -= 1000;
       SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
       tdInitDataRow(row, schema);
 
@@ -102,7 +112,13 @@ TEST(TsdbTest, createRepo) {
     tsdbInsertData(pRepo, pMsg);
   }
 
-  tsdbTriggerCommit(pRepo);
+  double etime = getCurTime();
+
+  printf("Spent %f seconds to write %d records\n", etime - stime, nRows);
+
+
+
+  // tsdbTriggerCommit(pRepo);
 
 }
 
