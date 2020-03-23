@@ -345,8 +345,9 @@ static void queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo
       continue;
     }
 
+    int32_t realBlocks = 0;
     ret = createDataBlocksInfoEx(pReqMeterDataInfo, numOfQualifiedMeters, &pDataBlockInfoEx, numOfBlocks,
-                                       &nAllocBlocksInfoSize, (int64_t)pQInfo);
+                                       &nAllocBlocksInfoSize, &realBlocks, (int64_t)pQInfo);
     if (ret != TSDB_CODE_SUCCESS) {  // failed to create data blocks
       dError("QInfo:%p build blockInfoEx failed, abort", pQInfo);
       tfree(pReqMeterDataInfo);
@@ -356,6 +357,15 @@ static void queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo
       return;
     }
 
+    assert(realBlocks <= numOfBlocks);
+    numOfBlocks = realBlocks;
+  
+    if (numOfBlocks == 0) {
+      fid += step;
+      tfree(pReqMeterDataInfo);
+      continue;
+    }
+    
     dTrace("QInfo:%p start to load %d blocks and check", pQInfo, numOfBlocks);
     int64_t TRACE_OUTPUT_BLOCK_CNT = 10000;
     int64_t stimeUnit = 0;
