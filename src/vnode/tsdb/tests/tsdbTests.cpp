@@ -88,7 +88,8 @@ TEST(TsdbTest, createRepo) {
 
   for (int k = 0; k < nRows/rowsPerSubmit; k++) {
     SSubmitBlk *pBlock = pMsg->blocks;
-    pBlock->tableId = {.uid = 987607499877672L, .tid = 0};
+    pBlock->uid = 987607499877672L;
+    pBlock->tid = 0;
     pBlock->sversion = 0;
     pBlock->len = 0;
     for (int i = 0; i < rowsPerSubmit; i++) {
