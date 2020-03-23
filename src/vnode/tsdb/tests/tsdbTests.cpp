@@ -79,7 +79,7 @@ TEST(TsdbTest, createRepo) {
 
   // // 3. Loop to write some simple data
   int nRows = 10000000;
-  int rowsPerSubmit = 100;
+  int rowsPerSubmit = 10;
   int64_t start_time = 1584081000000;
 
   SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * rowsPerSubmit);
@@ -108,7 +108,18 @@ TEST(TsdbTest, createRepo) {
       }
       pBlock->len += dataRowLen(row);
     }
+    pBlock->len = htonl(pBlock->len);
+    pBlock->numOfRows = htonl(pBlock->numOfRows);
+    pBlock->uid = htobe64(pBlock->uid);
+    pBlock->tid = htonl(pBlock->tid);
+
+    pBlock->sversion = htonl(pBlock->sversion);
+    pBlock->padding = htonl(pBlock->padding);
+
     pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
+    pMsg->length = htonl(pMsg->length);
+    pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
+    pMsg->compressed = htonl(pMsg->numOfBlocks);
 
     tsdbInsertData(pRepo, pMsg);
   }
