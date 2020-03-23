@@ -46,7 +46,15 @@ static int32_t mgmtUserActionDestroy(SSdbOperDesc *pOper) {
 static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
   SUserObj *pUser = pOper->pObj;
   SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
-  mgmtAddUserIntoAcct(pAcct, pUser);
+
+  if (pAcct != NULL) {
+    mgmtAddUserIntoAcct(pAcct, pUser);
+  }
+  else {
+    mError("user:%s, acct:%s info not exist in sdb", pUser->user, pUser->acct);
+    return TSDB_CODE_INVALID_ACCT;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -77,7 +85,7 @@ static int32_t mgmtUserActionEncode(SSdbOperDesc *pOper) {
 
 static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
   SUserObj *pUser = (SUserObj *) calloc(1, sizeof(SUserObj));
-  if (pUser == NULL) return -1;
+  if (pUser == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
 
   memcpy(pUser, pOper->rowData, tsUserUpdateSize);
   pOper->pObj = pUser;
@@ -216,7 +224,6 @@ static int32_t mgmtDropUser(SAcctObj *pAcct, char *name) {
 
   int32_t code = sdbDeleteRow(&oper);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(pUser);
     code = TSDB_CODE_SDB_ERROR;
   }
 
