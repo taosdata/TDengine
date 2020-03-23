@@ -566,11 +566,6 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     mgmtSetDnodeMaxVnodes(pDnode);
   }
  
-  if (lastPrivateIp != pDnode->privateIp || lastPublicIp != pDnode->publicIp) {
-    mgmtUpdateVgroupIp(pDnode);
-    //mgmtUpdateMnodeIp();
-  }
-
   int32_t openVnodes = htons(pStatus->openVnodes);
   for (int32_t j = 0; j < openVnodes; ++j) {
     pDnode->vload[j].vgId          = htonl(pStatus->load[j].vgId);

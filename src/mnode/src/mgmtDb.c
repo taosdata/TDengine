@@ -333,7 +333,8 @@ bool mgmtCheckIsMonitorDB(char *db, char *monitordb) {
   return (strncasecmp(dbName, monitordb, len) == 0 && len == strlen(monitordb));
 }
 
-int32_t mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup) {
+void mgmtAddVgroupIntoDb(SVgObj *pVgroup) {
+  SDbObj *pDb = pVgroup->pDb;
   pVgroup->next = pDb->pHead;
   pVgroup->prev = NULL;
 
@@ -342,11 +343,10 @@ int32_t mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup) {
 
   pDb->pHead = pVgroup;
   pDb->numOfVgroups++;
-
-  return 0;
 }
 
-int32_t mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup) {
+void mgmtAddVgroupIntoDbTail(SVgObj *pVgroup) {
+  SDbObj *pDb = pVgroup->pDb;
   pVgroup->next = NULL;
   pVgroup->prev = pDb->pTail;
 
@@ -355,32 +355,25 @@ int32_t mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup) {
 
   pDb->pTail = pVgroup;
   pDb->numOfVgroups++;
-
-  return 0;
 }
 
-int32_t mgmtRemoveVgroupFromDb(SDbObj *pDb, SVgObj *pVgroup) {
+void mgmtRemoveVgroupFromDb(SVgObj *pVgroup) {
+  SDbObj *pDb = pVgroup->pDb;
   if (pVgroup->prev) pVgroup->prev->next = pVgroup->next;
   if (pVgroup->next) pVgroup->next->prev = pVgroup->prev;
   if (pVgroup->prev == NULL) pDb->pHead = pVgroup->next;
   if (pVgroup->next == NULL) pDb->pTail = pVgroup->prev;
   pDb->numOfVgroups--;
-
-  return 0;
 }
 
-int32_t mgmtMoveVgroupToTail(SDbObj *pDb, SVgObj *pVgroup) {
-  mgmtRemoveVgroupFromDb(pDb, pVgroup);
-  mgmtAddVgroupIntoDbTail(pDb, pVgroup);
-
-  return 0;
+void mgmtMoveVgroupToTail(SVgObj *pVgroup) {
+  mgmtRemoveVgroupFromDb(pVgroup);
+  mgmtAddVgroupIntoDbTail(pVgroup);
 }
 
-int32_t mgmtMoveVgroupToHead(SDbObj *pDb, SVgObj *pVgroup) {
-  mgmtRemoveVgroupFromDb(pDb, pVgroup);
-  mgmtAddVgroupIntoDb(pDb, pVgroup);
-
-  return 0;
+void mgmtMoveVgroupToHead(SVgObj *pVgroup) {
+  mgmtRemoveVgroupFromDb(pVgroup);
+  mgmtAddVgroupIntoDb(pVgroup);
 }
 
 void mgmtCleanUpDbs() {
@@ -600,7 +593,7 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
     if (strcmp(pUser->user, "root") == 0) {
 #endif
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int32_t *)pWrite = pDb->cfg.maxSessions - 1;  // table num can be created should minus 1
+      *(int32_t *)pWrite = pDb->cfg.maxSessions;  // table num can be created should minus 1
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -613,9 +606,9 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
 #ifdef _TD_ARM_32_
-      *(int32_t *)pWrite = (pDb->cfg.cacheNumOfBlocks.totalBlocks * 1.0 / (pDb->cfg.maxSessions - 1));
+      *(int32_t *)pWrite = (pDb->cfg.cacheNumOfBlocks.totalBlocks * 1.0 / (pDb->cfg.maxSessions));
 #else
-      *(float *)pWrite = (pDb->cfg.cacheNumOfBlocks.totalBlocks * 1.0 / (pDb->cfg.maxSessions - 1));
+      *(float *)pWrite = (pDb->cfg.cacheNumOfBlocks.totalBlocks * 1.0 / (pDb->cfg.maxSessions));
 #endif
       cols++;
 
@@ -721,7 +714,7 @@ static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
 static SDbCfg mgmtGetAlterDbOption(SDbObj *pDb, SCMAlterDbMsg *pAlter) {
   SDbCfg newCfg = pDb->cfg;
   int32_t daysToKeep   = htonl(pAlter->daysToKeep);
-  int32_t maxSessions  = htonl(pAlter->maxSessions) + 1;
+  int32_t maxSessions  = htonl(pAlter->maxSessions);
   int8_t  replications = pAlter->replications;
 
   terrno = TSDB_CODE_SUCCESS;

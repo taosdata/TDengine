@@ -34,11 +34,7 @@ void taosIdPoolCleanUp(void *handle);
 
 int taosIdPoolNumOfUsed(void *handle);
 
-void taosIdPoolReinit(void *handle);
-
-void taosIdPoolMarkStatus(void *handle, int id, int status);
-
-void taosIdPoolSetFreeList(void *handle);
+void taosIdPoolMarkStatus(void *handle, int id);
 
 #ifdef __cplusplus
 }

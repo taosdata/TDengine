@@ -159,6 +159,8 @@ typedef struct {
   SSchema* schema;
 } SNormalTableObj;
 
+struct _db_obj;
+
 typedef struct _vg_obj {
   uint32_t        vgId;
   char            dbName[TSDB_DB_NAME_LEN + 1];
@@ -172,6 +174,7 @@ typedef struct _vg_obj {
   int8_t          reserved[14];
   int8_t          updateEnd[1];
   struct _vg_obj *prev, *next;
+  struct _db_obj *pDb;
   void *          idPool;
   STableInfo **   tableList;
 } SVgObj;
