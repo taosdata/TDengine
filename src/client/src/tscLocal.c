@@ -318,15 +318,16 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
     SVnodeSidList *pSidList = (SVnodeSidList *)((char *)pMetricMeta + pMetricMeta->list[i]);
 
     for (int32_t j = 0; j < pSidList->numOfSids; ++j) {
-      STableSidExtInfo *pSidExt = tscGetMeterSidInfo(pSidList, j);
+      STableIdInfo *pSidExt = tscGetMeterSidInfo(pSidList, j);
       
       for (int32_t k = 0; k < pQueryInfo->fieldsInfo.numOfOutputCols; ++k) {
         SColIndexEx *pColIndex = &tscSqlExprGet(pQueryInfo, k)->colInfo;
         int16_t      offsetId = pColIndex->colIdx;
 
         assert((pColIndex->flag & TSDB_COL_TAG) != 0);
-
-        char *      val = pSidExt->tags + vOffset[offsetId];
+        assert(0);
+        
+        char *      val = NULL;//pSidExt->tags + vOffset[offsetId];
         TAOS_FIELD *pField = tscFieldInfoGetField(pQueryInfo, k);
 
         memcpy(pRes->data + tscFieldInfoGetOffset(pQueryInfo, k) * totalNumOfResults + pField->bytes * rowIdx, val,

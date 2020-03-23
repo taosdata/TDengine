@@ -287,7 +287,7 @@ void rpcClose(void *param) {
   (*taosCleanUpConn[pRpc->connType])(pRpc->udphandle);
 
   for (int i = 0; i < pRpc->sessions; ++i) {
-    if (pRpc->connList[i].user[0]) {
+    if (pRpc->connList && pRpc->connList[i].user[0]) {
       rpcCloseConn((void *)(pRpc->connList + i));
     }
   }
@@ -495,34 +495,34 @@ static void rpcCloseConn(void *thandle) {
   SRpcConn *pConn = (SRpcConn *)thandle;
   SRpcInfo *pRpc = pConn->pRpc;
 
+  if (pConn->user[0] == 0) return;
+
   rpcLockConn(pConn);
 
-  if (pConn->user[0]) {
-    pConn->user[0] = 0;
-    if (taosCloseConn[pConn->connType]) (*taosCloseConn[pConn->connType])(pConn->chandle);
+  pConn->user[0] = 0;
+  if (taosCloseConn[pConn->connType]) (*taosCloseConn[pConn->connType])(pConn->chandle);
 
-    taosTmrStopA(&pConn->pTimer);
-    taosTmrStopA(&pConn->pIdleTimer);
+  taosTmrStopA(&pConn->pTimer);
+  taosTmrStopA(&pConn->pIdleTimer);
 
-    if ( pRpc->connType == TAOS_CONN_SERVER) {
-      char hashstr[40] = {0};
-      sprintf(hashstr, "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId, pConn->connType);
-      taosDeleteStrHash(pRpc->hash, hashstr);
-      rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
-      pConn->pRspMsg = NULL;
-      pConn->inType = 0;
-      pConn->inTranId = 0;
-    } else {
-      pConn->outType = 0;
-      pConn->outTranId = 0;
-      pConn->pReqMsg = NULL;
-    }
-
-    taosFreeId(pRpc->idPool, pConn->sid);
-    pConn->pContext = NULL;
-
-    tTrace("%s %p, rpc connection is closed", pRpc->label, pConn);
+  if ( pRpc->connType == TAOS_CONN_SERVER) {
+    char hashstr[40] = {0};
+    sprintf(hashstr, "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId, pConn->connType);
+    taosDeleteStrHash(pRpc->hash, hashstr);
+    rpcFreeMsg(pConn->pRspMsg); // it may have a response msg saved, but not request msg
+    pConn->pRspMsg = NULL;
+    pConn->inType = 0;
+    pConn->inTranId = 0;
+  } else {
+    pConn->outType = 0;
+    pConn->outTranId = 0;
+    pConn->pReqMsg = NULL;
   }
+
+  taosFreeId(pRpc->idPool, pConn->sid);
+  pConn->pContext = NULL;
+
+  tTrace("%s %p, rpc connection is closed", pRpc->label, pConn);
 
   rpcUnlockConn(pConn);
 }

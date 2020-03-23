@@ -150,7 +150,7 @@ void tdFreeSchema(STSchema *pSchema) {
  */
 void tdUpdateSchema(STSchema *pSchema) {
   STColumn *pCol = NULL;
-  int32_t offset = 0;
+  int32_t offset = TD_DATA_ROW_HEAD_SIZE;
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     pCol = schemaColAt(pSchema, i);
     colSetOffset(pCol, offset);
@@ -292,6 +292,16 @@ SDataRow tdDataRowDup(SDataRow row) {
 
   dataRowCpy(trow, row);
   return trow;
+}
+
+void tdConvertDataRowToCol(SDataCol *cols, STSchema *pSchema, int *iter) {
+  int row = *iter;
+
+  for (int i = 0; i < schemaNCols(pSchema); i++) {
+    // TODO
+  }
+
+  *iter = row + 1;
 }
 
 /**

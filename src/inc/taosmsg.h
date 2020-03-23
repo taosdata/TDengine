@@ -188,21 +188,51 @@ extern char *taosMsg[];
 
 #pragma pack(push, 1)
 
-typedef struct {
-  int32_t  vnode;
-  int32_t  sid;
-  int32_t  sversion;
-  uint64_t uid;
-  int16_t  numOfRows;
-  char     payLoad[];
-} SShellSubmitBlock;
+//typedef struct {
+//  int32_t  vnode;
+//  int32_t  sid;
+//  int32_t  sversion;
+//  uint64_t uid;
+//  int16_t  numOfRows;
+//  char     payLoad[];
+//} SShellSubmitBlock;
 
 typedef struct {
-  int16_t import;
-  int16_t vnode;
-  int32_t numOfSid; /* total number of sid */
-  char    blks[];   /* numOfSid blocks, each blocks for one table */
-} SShellSubmitMsg;
+  int32_t numOfVnodes;
+} SMsgDesc;
+
+typedef struct SMsgHead {
+  int32_t contLen;
+  int32_t vgId;
+} SMsgHead;
+
+//typedef struct {
+//  SMsgDesc desc;
+//  SMsgHead header;
+//  int16_t import;
+//  int32_t numOfTables; // total number of sid
+//  char    blks[];      // number of data blocks, each table has at least one data block
+//} SShellSubmitMsg;
+
+// Submit message for one table
+typedef struct SSubmitBlk {
+  int64_t  uid;        // table unique id
+  int32_t  tid;        // table id
+  int32_t  padding;    // TODO just for padding here
+  int32_t  sversion;   // data schema version
+  int32_t  len;        // data part length, not including the SSubmitBlk head
+  int16_t  numOfRows;  // total number of rows in current submit block
+  char     data[];
+} SSubmitBlk;
+
+// Submit message for this TSDB
+typedef struct SSubmitMsg {
+  SMsgHead   header;
+  int32_t    length;
+  int32_t    compressed:2;
+  int32_t    numOfBlocks:30;
+  SSubmitBlk blocks[];
+} SSubmitMsg;
 
 typedef struct {
   int32_t index; // index of failed block in submit blocks
@@ -231,15 +261,6 @@ typedef struct {
   int32_t  vnode;  //the index of vnode
   uint32_t ip;
 } SVnodeDesc;
-
-typedef struct {
-  int32_t numOfVnodes;
-} SMsgDesc;
-
-typedef struct {
-  int32_t contLen;
-  int32_t vgId;
-} SMsgHead;
 
 typedef struct {
   int32_t    contLen;
@@ -434,15 +455,11 @@ typedef struct SColumnInfo {
   SColumnFilterInfo *filters;
 } SColumnInfo;
 
-/*
- * enable vnode to understand how to group several tables with different tag;
- */
-typedef struct STableSidExtInfo {
+typedef struct STableIdInfo {
   int32_t sid;
   int64_t uid;
-  TSKEY   key;   // key for subscription
-  char    tags[];
-} STableSidExtInfo;
+  TSKEY   key;   // last accessed ts, for subscription
+} STableIdInfo;
 
 typedef struct STimeWindow {
   TSKEY skey;
@@ -455,10 +472,10 @@ typedef struct STimeWindow {
  * the outputCols will be 3 while the numOfCols is 1.
  */
 typedef struct {
-  int16_t  vnode;
+  int32_t contLen;   // msg header
+  int16_t vgId;
+  
   int32_t  numOfTables;
-  uint64_t pSidExtInfo;  // table id & tag info ptr, in windows pointer may
-
   uint64_t uid;
   STimeWindow window;
 
@@ -504,19 +521,21 @@ typedef struct {
 } SQueryTableMsg;
 
 typedef struct {
-  char     code;
+  int32_t  code;
   uint64_t qhandle;
 } SQueryTableRsp;
 
 typedef struct {
+  SMsgHead header;
   uint64_t qhandle;
   uint16_t free;
 } SRetrieveTableMsg;
 
-typedef struct {
+typedef struct SRetrieveTableRsp {
   int32_t numOfRows;
+  int8_t  completed; // all results are returned to client
   int16_t precision;
-  int64_t offset;  // updated offset value for multi-vnode projection query
+  int64_t offset;    // updated offset value for multi-vnode projection query
   int64_t useconds;
   char    data[];
 } SRetrieveTableRsp;
@@ -670,7 +689,7 @@ typedef struct {
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int16_t    index;  // used locally
   int32_t    numOfSids;
-  int32_t    pSidExtInfoList[];  // offset value of STableSidExtInfo
+  int32_t    pSidExtInfoList[];  // offset value of STableIdInfo
 } SVnodeSidList;
 
 typedef struct {
@@ -692,7 +711,7 @@ typedef struct STableMetaMsg {
   int8_t  numOfVpeers;
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int32_t  sid;
-  int32_t  vgid;
+  int32_t  vgId;
   uint64_t uid;
   SSchema  schema[];
 } STableMetaMsg;

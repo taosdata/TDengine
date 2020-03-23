@@ -191,7 +191,7 @@ SVnodeSidList* tscGetVnodeSidList(SSuperTableMeta* pMetricmeta, int32_t vnodeIdx
   return (SVnodeSidList*)(pMetricmeta->list[vnodeIdx] + (char*)pMetricmeta);
 }
 
-STableSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
+STableIdInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
   if (pSidList == NULL) {
     tscError("illegal sidlist");
     return 0;
@@ -206,7 +206,7 @@ STableSidExtInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
   
   assert(pSidList->pSidExtInfoList[idx] >= 0);
   
-  return (STableSidExtInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
+  return (STableIdInfo*)(pSidList->pSidExtInfoList[idx] + (char*)pSidList);
 }
 
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
@@ -614,7 +614,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
    */
   pCmd->payloadLen = pDataBlock->nAllocSize - tsRpcHeadSize;
 
-  assert(pCmd->allocSize >= pCmd->payloadLen + tsRpcHeadSize + 100);
+  assert(pCmd->allocSize >= pCmd->payloadLen + tsRpcHeadSize + 100 && pCmd->payloadLen > 0);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -695,6 +695,49 @@ int32_t tscGetDataBlockFromList(void* pHashList, SDataBlockList* pDataBlockList,
   return TSDB_CODE_SUCCESS;
 }
 
+static void trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
+  int32_t firstPartLen = 0;
+  
+  STableMeta* pTableMeta = pTableDataBlock->pTableMeta;
+  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
+  SSchema* pSchema = tscGetTableSchema(pTableMeta);
+  
+  memcpy(pDataBlock, pTableDataBlock->pData, sizeof(SSubmitBlk));
+  pDataBlock += sizeof(SSubmitBlk);
+  
+  int32_t total = sizeof(int32_t)*2;
+  for(int32_t i = 0; i < tinfo.numOfColumns; ++i) {
+    switch (pSchema[i].type) {
+      case TSDB_DATA_TYPE_NCHAR:
+      case TSDB_DATA_TYPE_BINARY: {
+        assert(0);  // not support binary yet
+        firstPartLen += sizeof(int32_t);break;
+      }
+      default:
+        firstPartLen += tDataTypeDesc[pSchema[i].type].nSize;
+        total += tDataTypeDesc[pSchema[i].type].nSize;
+    }
+  }
+  
+  char* p = pTableDataBlock->pData + sizeof(SSubmitBlk);
+  
+  SSubmitBlk* pBlock = pTableDataBlock->pData;
+  int32_t rows = htons(pBlock->numOfRows);
+  
+  for(int32_t i = 0; i < rows; ++i) {
+    *(int32_t*) pDataBlock = total;
+    pDataBlock += sizeof(int32_t);
+    
+    *(int32_t*) pDataBlock = firstPartLen;
+    pDataBlock += sizeof(int32_t);
+    
+    memcpy(pDataBlock, p, pTableDataBlock->rowSize);
+    
+    p += pTableDataBlock->rowSize;
+    pDataBlock += pTableDataBlock->rowSize;
+  }
+}
+
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockList) {
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -705,8 +748,9 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
     STableDataBlocks* pOneTableBlock = pTableDataBlockList->pData[i];
 
     STableDataBlocks* dataBuf = NULL;
-    int32_t           ret =
-        tscGetDataBlockFromList(pVnodeDataBlockHashList, pVnodeDataBlockList, pOneTableBlock->vgid, TSDB_PAYLOAD_SIZE,
+    
+    int32_t ret =
+        tscGetDataBlockFromList(pVnodeDataBlockHashList, pVnodeDataBlockList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE,
                                 tsInsertHeadSize, 0, pOneTableBlock->tableId, pOneTableBlock->pTableMeta, &dataBuf);
     if (ret != TSDB_CODE_SUCCESS) {
       tscError("%p failed to prepare the data block buffer for merging table data, code:%d", pSql, ret);
@@ -715,7 +759,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
       return ret;
     }
 
-    int64_t destSize = dataBuf->size + pOneTableBlock->size;
+    int64_t destSize = dataBuf->size + pOneTableBlock->size + pOneTableBlock->size*sizeof(int32_t)*2;
     if (dataBuf->nAllocSize < destSize) {
       while (dataBuf->nAllocSize < destSize) {
         dataBuf->nAllocSize = dataBuf->nAllocSize * 1.5;
@@ -729,29 +773,33 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SDataBlockList* pTableDataBlockLi
         tscError("%p failed to allocate memory for merging submit block, size:%d", pSql, dataBuf->nAllocSize);
 
         taosHashCleanup(pVnodeDataBlockHashList);
-        tfree(dataBuf->pData);
         tscDestroyBlockArrayList(pVnodeDataBlockList);
+        tfree(dataBuf->pData);
 
         return TSDB_CODE_CLI_OUT_OF_MEMORY;
       }
     }
 
-    SShellSubmitBlock* pBlocks = (SShellSubmitBlock*)pOneTableBlock->pData;
+    SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
     sortRemoveDuplicates(pOneTableBlock);
 
-    char* e = (char*)pBlocks->payLoad + pOneTableBlock->rowSize*(pBlocks->numOfRows-1);
+    char* e = (char*)pBlocks->data + pOneTableBlock->rowSize*(pBlocks->numOfRows-1);
     
-    tscTrace("%p tableId:%s, sid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pSql, pOneTableBlock->tableId, pBlocks->sid,
-             pBlocks->numOfRows, pBlocks->sversion, GET_INT64_VAL(pBlocks->payLoad), GET_INT64_VAL(e));
+    tscTrace("%p tableId:%s, sid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pSql, pOneTableBlock->tableId,
+        pBlocks->tid, pBlocks->numOfRows, pBlocks->sversion, GET_INT64_VAL(pBlocks->data), GET_INT64_VAL(e));
 
-    pBlocks->sid = htonl(pBlocks->sid);
+    int32_t len = pBlocks->numOfRows * (pOneTableBlock->rowSize + sizeof(int32_t) * 2);
+    
+    pBlocks->tid = htonl(pBlocks->tid);
     pBlocks->uid = htobe64(pBlocks->uid);
     pBlocks->sversion = htonl(pBlocks->sversion);
     pBlocks->numOfRows = htons(pBlocks->numOfRows);
-
-    memcpy(dataBuf->pData + dataBuf->size, pOneTableBlock->pData, pOneTableBlock->size);
-
-    dataBuf->size += pOneTableBlock->size;
+    
+    pBlocks->len = htonl(len);
+    
+    // erase the empty space reserved for binary data
+    trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock);
+    dataBuf->size += (len + sizeof(SSubmitBlk));
     dataBuf->numOfTables += 1;
   }
 

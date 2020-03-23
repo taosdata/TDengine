@@ -18,16 +18,20 @@
 #include <stdint.h>
 
 #include "taosdef.h"
+#include "tglobalcfg.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define tsdbGetKeyFileId(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
+#define tsdbGetMaxNumOfFiles(keep, daysPerFile) ((keep) / (daysPerFile) + 3)
+
 typedef enum {
-  TSDB_FILE_TYPE_HEAD,  // .head file type
-  TSDB_FILE_TYPE_DATA,  // .data file type
-  TSDB_FILE_TYPE_LAST,  // .last file type
-  TSDB_FILE_TYPE_META   // .meta file type
+  TSDB_FILE_TYPE_HEAD = 0,  // .head file type
+  TSDB_FILE_TYPE_DATA,      // .data file type
+  TSDB_FILE_TYPE_LAST,      // .last file type
+  TSDB_FILE_TYPE_MAX
 } TSDB_FILE_TYPE;
 
 extern const char *tsdbFileSuffix[];
@@ -38,16 +42,15 @@ typedef struct {
 } SFileInfo;
 
 typedef struct {
-  int     fd;
-  int64_t size;     // total size of the file
-  int64_t tombSize; // unused file size
+  int8_t  type;
+  char    fname[128];
+  int64_t size;      // total size of the file
+  int64_t tombSize;  // unused file size
 } SFile;
 
 typedef struct {
   int32_t fileId;
-  SFile   fhead;
-  SFile   fdata;
-  SFile   flast;
+  SFile   files[TSDB_FILE_TYPE_MAX];
 } SFileGroup;
 
 // TSDB file handle
@@ -56,17 +59,38 @@ typedef struct {
   int32_t    keep;
   int32_t    minRowPerFBlock;
   int32_t    maxRowsPerFBlock;
+  int32_t    maxTables;
   SFileGroup fGroup[];
 } STsdbFileH;
 
-#define IS_VALID_TSDB_FILE_TYPE(type) ((type) >= TSDB_FILE_TYPE_HEAD && (type) <= TSDB_FILE_TYPE_META)
+/**
+ * if numOfSubBlocks == -1, then the SCompBlock is a sub-block
+ * if numOfSubBlocks == 1, then the SCompBlock refers to the data block, and offset/len refer to
+ *                         the data block offset and length
+ * if numOfSubBlocks > 1, then the offset/len refer to the offset of the first sub-block in the
+ * binary
+ */
+typedef struct {
+  int64_t last : 1;          // If the block in data file or last file
+  int64_t offset : 63;       // Offset of data block or sub-block index depending on numOfSubBlocks
+  int32_t algorithm : 8;     // Compression algorithm
+  int32_t numOfPoints : 24;  // Number of total points
+  int32_t sversion;          // Schema version
+  int32_t len;               // Data block length or nothing
+  int16_t numOfSubBlocks;    // Number of sub-blocks;
+  int16_t numOfCols;
+  TSKEY   keyFirst;
+  TSKEY   keyLast;
+} SCompBlock;
+
+#define IS_VALID_TSDB_FILE_TYPE(type) ((type) >= TSDB_FILE_TYPE_HEAD && (type) < TSDB_FILE_TYPE_MAX)
 
 STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32_t minRowsPerFBlock,
-                         int32_t maxRowsPerFBlock);
-void        tsdbCloseFile(STsdbFileH *pFileH);
+                         int32_t maxRowsPerFBlock, int32_t maxTables);
 
-char *tsdbGetFileName(char *dirName, char *fname, TSDB_FILE_TYPE type);
-
+void  tsdbCloseFile(STsdbFileH *pFileH);
+int   tsdbCreateFileGroup(char *dataDir, int fileId, SFileGroup *pFGroup, int maxTables);
+void  tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey, TSKEY *maxKey);
 #ifdef __cplusplus
 }
 #endif

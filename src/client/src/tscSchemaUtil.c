@@ -58,7 +58,7 @@ SSchema *tscGetTableSchema(const STableMeta *pTableMeta) {
     return pSTableMeta->schema;
   }
   
-  return pTableMeta->schema;
+  return (SSchema*) pTableMeta->schema;
 }
 
 SSchema* tscGetTableTagSchema(const STableMeta* pTableMeta) {
@@ -165,7 +165,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   
   pTableMeta->sid = pTableMetaMsg->sid;
   pTableMeta->uid = pTableMetaMsg->uid;
-  pTableMeta->vgid = pTableMetaMsg->vgid;
+  pTableMeta->vgId = pTableMetaMsg->vgId;
   
   pTableMeta->numOfVpeers = pTableMetaMsg->numOfVpeers;
   memcpy(pTableMeta->vpeerDesc, pTableMetaMsg->vpeerDesc, sizeof(SVnodeDesc) * pTableMeta->numOfVpeers);
