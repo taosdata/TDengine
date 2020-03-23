@@ -284,16 +284,10 @@ static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
     
     //todo free qinfo
   } else {
-    contLen = 100;
+    SRetrieveTableRsp* pRsp = NULL;
     
-    SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(contLen);
-    pRsp->numOfRows = htonl(1);
-    pRsp->precision = htons(0);
-    pRsp->offset = htobe64(0);
-    pRsp->useconds = htobe64(0);
-  
-    // todo set the data
-    *(int64_t*) pRsp->data = 1000;
+    int32_t code = qDumpRetrieveResult(pQInfo, &pRsp, &contLen);
+    //todo check code
     
     rpcRsp = (SRpcMsg) {
         .handle = pMsg->rpcMsg.handle,

@@ -219,7 +219,7 @@ typedef struct SQLAggFuncElem {
 
   void (*distSecondaryMergeFunc)(SQLFunctionCtx *pCtx);
 
-  int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId, int32_t blockStatus);
+  int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId);
 } SQLAggFuncElem;
 
 typedef struct SPatternCompareInfo {
