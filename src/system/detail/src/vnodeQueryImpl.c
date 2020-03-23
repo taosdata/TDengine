@@ -6111,7 +6111,7 @@ void cleanBlockOrderSupporter(SBlockOrderSupporter* pSupporter, int32_t numOfTab
 
 int32_t createDataBlocksInfoEx(SMeterDataInfo **pMeterDataInfo, int32_t numOfMeters,
                                SMeterDataBlockInfoEx **pDataBlockInfoEx, int32_t numOfCompBlocks,
-                               int32_t *nAllocBlocksInfoSize, int64_t addr) {
+                               int32_t *nAllocBlocksInfoSize, int32_t* realBlocks, int64_t addr) {
   // release allocated memory first
   freeDataBlockFieldInfo(*pDataBlockInfoEx, *nAllocBlocksInfoSize);
 
@@ -6174,7 +6174,9 @@ int32_t createDataBlocksInfoEx(SMeterDataInfo **pMeterDataInfo, int32_t numOfMet
 
   dTrace("QInfo %p create data blocks info struct completed", addr);
 
-  assert(cnt == numOfCompBlocks && numOfQualMeters <= numOfMeters); // the pMeterDataInfo[j]->numOfBlocks may be 0
+  assert(cnt <= numOfCompBlocks && numOfQualMeters <= numOfMeters); // the pMeterDataInfo[j]->numOfBlocks may be 0
+  *realBlocks = cnt;
+  
   supporter.numOfMeters = numOfQualMeters;
   SLoserTreeInfo *pTree = NULL;
 

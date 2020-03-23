@@ -186,7 +186,7 @@ int32_t vnodeGetVnodeHeaderFileIdx(int32_t* fid, SQueryRuntimeEnv* pRuntimeEnv, 
 
 int32_t createDataBlocksInfoEx(SMeterDataInfo** pMeterDataInfo, int32_t numOfMeters,
                                SMeterDataBlockInfoEx** pDataBlockInfoEx, int32_t numOfCompBlocks,
-                               int32_t* nAllocBlocksInfoSize, int64_t addr);
+                               int32_t* nAllocBlocksInfoSize, int32_t* realBlocks, int64_t addr);
 void freeMeterBlockInfoEx(SMeterDataBlockInfoEx* pDataBlockInfoEx, int32_t len);
 
 void setExecutionContext(SMeterQuerySupportObj* pSupporter, SOutputRes* outputRes, int32_t meterIdx, int32_t groupIdx,
