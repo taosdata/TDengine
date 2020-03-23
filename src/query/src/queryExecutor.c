@@ -14,9 +14,9 @@
  */
 #include "os.h"
 
-#include "taosmsg.h"
 #include "hash.h"
 #include "hashfunc.h"
+#include "taosmsg.h"
 #include "tlog.h"
 #include "tlosertree.h"
 #include "tscompression.h"
@@ -1482,10 +1482,11 @@ static void setWindowResultInfo(SResultInfo *pResultInfo, SQuery *pQuery, bool i
   }
 }
 
-static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, SColumnModel *pTagsSchema, int16_t order, bool isSTableQuery) {
+static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, SColumnModel *pTagsSchema, int16_t order,
+                                    bool isSTableQuery) {
   dTrace("QInfo:%p setup runtime env", GET_QINFO_ADDR(pRuntimeEnv));
-  SQuery* pQuery = pRuntimeEnv->pQuery;
-  
+  SQuery *pQuery = pRuntimeEnv->pQuery;
+
   pRuntimeEnv->resultInfo = calloc(pQuery->numOfOutputCols, sizeof(SResultInfo));
   pRuntimeEnv->pCtx = (SQLFunctionCtx *)calloc(pQuery->numOfOutputCols, sizeof(SQLFunctionCtx));
 
@@ -1890,7 +1891,7 @@ static void setScanLimitationByResultBuffer(SQuery *pQuery) {
 
     pQuery->checkBufferInLoop = hasMultioutput ? 1 : 0;
   }
-  
+
   //  pQuery->pointsOffset = pQuery->pointsToRead;
 }
 
@@ -2242,7 +2243,7 @@ static int32_t getInitialPageNum(SQInfo *pQInfo) {
     size_t s = taosArrayGetSize(pQInfo->pTableIdList);
     num = MAX(s, INITIAL_RESULT_ROWS_VALUE);
   } else {  // for super table query, one page for each subset
-//    num = pQInfo->pSidSet->numOfSubSet;
+            //    num = pQInfo->pSidSet->numOfSubSet;
   }
 
   assert(num > 0);
@@ -2289,7 +2290,7 @@ void vnodeQueryFreeQInfoEx(SQInfo *pQInfo) {
   //  tSidSetDestroy(&pQInfo->pSidSet);
 
   if (pQInfo->pTableDataInfo != NULL) {
-//    size_t num = taosHashGetSize(pQInfo->pTableIdList);
+    //    size_t num = taosHashGetSize(pQInfo->pTableIdList);
     for (int32_t j = 0; j < 0; ++j) {
       destroyMeterQueryInfo(pQInfo->pTableDataInfo[j].pTableQInfo, pQuery->numOfOutputCols);
     }
@@ -2328,7 +2329,7 @@ int32_t vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
   pQuery->lastKey = pQuery->window.skey;
 
   // create runtime environment
-//  SColumnModel *pTagSchemaInfo = pQInfo->pSidSet->pColumnModel;
+  //  SColumnModel *pTagSchemaInfo = pQInfo->pSidSet->pColumnModel;
 
   // get one queried meter
   assert(0);
@@ -2388,7 +2389,7 @@ int32_t vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
     taosArrayPush(cols, &pQuery->colList[i]);
   }
 
-  pRuntimeEnv->pQueryHandle = tsdbQueryByTableId(&cond, sa, cols);
+  pRuntimeEnv->pQueryHandle = tsdbQueryByTableId(NULL, &cond, sa, cols);
 
   // metric query do not invoke interpolation, it will be done at the second-stage merge
   if (!isPointInterpoQuery(pQuery)) {
@@ -2409,7 +2410,7 @@ int32_t vnodeSTableQueryPrepare(SQInfo *pQInfo, SQuery *pQuery, void *param) {
  */
 void vnodeDecMeterRefcnt(SQInfo *pQInfo) {
   if (pQInfo != NULL) {
-//    assert(taosHashGetSize(pQInfo->pTableIdList) >= 1);
+    //    assert(taosHashGetSize(pQInfo->pTableIdList) >= 1);
   }
 
 #if 0
@@ -2587,23 +2588,23 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
   int    firstPos, lastPos, midPos = -1;
   int    numOfPoints;
   TSKEY *keyList;
-  
+
   if (num <= 0) return -1;
-  
+
   keyList = (TSKEY *)pValue;
   firstPos = 0;
   lastPos = num - 1;
-  
+
   if (order == 0) {
     // find the first position which is smaller than the key
     while (1) {
       if (key >= keyList[lastPos]) return lastPos;
       if (key == keyList[firstPos]) return firstPos;
       if (key < keyList[firstPos]) return firstPos - 1;
-      
+
       numOfPoints = lastPos - firstPos + 1;
       midPos = (numOfPoints >> 1) + firstPos;
-      
+
       if (key < keyList[midPos]) {
         lastPos = midPos - 1;
       } else if (key > keyList[midPos]) {
@@ -2612,13 +2613,13 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
         break;
       }
     }
-    
+
   } else {
     // find the first position which is bigger than the key
     while (1) {
       if (key <= keyList[firstPos]) return firstPos;
       if (key == keyList[lastPos]) return lastPos;
-      
+
       if (key > keyList[lastPos]) {
         lastPos = lastPos + 1;
         if (lastPos >= num)
@@ -2626,10 +2627,10 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
         else
           return lastPos;
       }
-      
+
       numOfPoints = lastPos - firstPos + 1;
       midPos = (numOfPoints >> 1) + firstPos;
-      
+
       if (key < keyList[midPos]) {
         lastPos = midPos - 1;
       } else if (key > keyList[midPos]) {
@@ -2639,7 +2640,7 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
       }
     }
   }
-  
+
   return midPos;
 }
 
@@ -2648,65 +2649,68 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
   int64_t cnt = 0;
   dTrace("QInfo:%p query start, qrange:%" PRId64 "-%" PRId64 ", lastkey:%" PRId64 ", order:%d",
-      GET_QINFO_ADDR(pRuntimeEnv), pQuery->window.skey, pQuery->window.ekey, pQuery->lastKey, pQuery->order.order);
-  
+         GET_QINFO_ADDR(pRuntimeEnv), pQuery->window.skey, pQuery->window.ekey, pQuery->lastKey, pQuery->order.order);
+
   tsdb_query_handle_t pQueryHandle = pRuntimeEnv->pQueryHandle;
-  
+
   while (tsdbNextDataBlock(pQueryHandle)) {
     // check if query is killed or not set the status of query to pass the status check
     if (isQueryKilled(pQuery)) {
       setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
       return cnt;
     }
-    
+
     SDataBlockInfo blockInfo = tsdbRetrieveDataBlockInfo(pQueryHandle);
-    
+
     if (isIntervalQuery(pQuery) && pRuntimeEnv->windowResInfo.prevSKey == 0) {
-      TSKEY skey1, ekey1;
-      STimeWindow w = {0};
-      SWindowResInfo* pWindowResInfo = &pRuntimeEnv->windowResInfo;
-      
+      TSKEY           skey1, ekey1;
+      STimeWindow     w = {0};
+      SWindowResInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
+
       if (QUERY_IS_ASC_QUERY(pQuery)) {
-        doGetAlignedIntervalQueryRangeImpl(pQuery, blockInfo.window.skey, blockInfo.window.skey, pQuery->window.ekey, &skey1, &ekey1, &w);
+        doGetAlignedIntervalQueryRangeImpl(pQuery, blockInfo.window.skey, blockInfo.window.skey, pQuery->window.ekey,
+                                           &skey1, &ekey1, &w);
         pWindowResInfo->startTime = w.skey;
         pWindowResInfo->prevSKey = w.skey;
       } else {
         // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
         TSKEY winStart = blockInfo.window.ekey - pQuery->intervalTime;
-        doGetAlignedIntervalQueryRangeImpl(pQuery, winStart, pQuery->window.ekey, blockInfo.window.ekey, &skey1, &ekey1, &w);
-        
+        doGetAlignedIntervalQueryRangeImpl(pQuery, winStart, pQuery->window.ekey, blockInfo.window.ekey, &skey1, &ekey1,
+                                           &w);
+
         pWindowResInfo->startTime = pQuery->window.skey;
         pWindowResInfo->prevSKey = w.skey;
       }
     }
-    
+
     int32_t numOfRes = 0;
-    
+
     SDataStatis *pStatis = NULL;
-    SArray *pDataBlock = loadDataBlockOnDemand(pRuntimeEnv, &blockInfo, &pStatis);
+    SArray *     pDataBlock = loadDataBlockOnDemand(pRuntimeEnv, &blockInfo, &pStatis);
     int32_t forwardStep = tableApplyFunctionsOnBlock(pRuntimeEnv, &blockInfo, pStatis, binarySearchForKey, &numOfRes,
                                                      &pRuntimeEnv->windowResInfo, pDataBlock);
-    
-//    dTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", fileId:%d, slot:%d, pos:%d, rows:%d, checked:%d",
-//           GET_QINFO_ADDR(pQuery), blockInfo.window.skey, blockInfo.window.ekey, pQueryHandle->cur.fileId, pQueryHandle->cur.slot,
-//           pQuery->pos, blockInfo.size, forwardStep);
-    
+
+    //    dTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", fileId:%d, slot:%d, pos:%d, rows:%d,
+    //    checked:%d",
+    //           GET_QINFO_ADDR(pQuery), blockInfo.window.skey, blockInfo.window.ekey, pQueryHandle->cur.fileId,
+    //           pQueryHandle->cur.slot, pQuery->pos, blockInfo.size, forwardStep);
+
     // save last access position
     cnt += forwardStep;
     if (Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL)) {
       break;
     }
   }
-  
+
   // if the result buffer is not full, set the query completed flag
   if (!Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL)) {
     setQueryStatus(pQuery, QUERY_COMPLETED);
   }
-  
+
   if (isIntervalQuery(pQuery) && IS_MASTER_SCAN(pRuntimeEnv)) {
     if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED | QUERY_NO_DATA_TO_CHECK)) {
-      int32_t step = QUERY_IS_ASC_QUERY(pQuery)? QUERY_ASC_FORWARD_STEP:QUERY_DESC_FORWARD_STEP;
-      
+      int32_t step = QUERY_IS_ASC_QUERY(pQuery) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP;
+
       closeAllTimeWindow(&pRuntimeEnv->windowResInfo);
       removeRedundantWindow(&pRuntimeEnv->windowResInfo, pQuery->lastKey - step, step);
       pRuntimeEnv->windowResInfo.curIndex = pRuntimeEnv->windowResInfo.size - 1;
@@ -2714,7 +2718,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
       assert(Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL));
     }
   }
-  
+
   return cnt;
 }
 
@@ -2976,29 +2980,30 @@ int32_t mergeMetersResultToOneGroups(SQInfo *pQInfo) {
   int64_t st = taosGetTimestampMs();
   int32_t ret = TSDB_CODE_SUCCESS;
 
-//  while (pQInfo->subgroupIdx < pQInfo->pSidSet->numOfSubSet) {
-//    int32_t start = pQInfo->pSidSet->starterPos[pQInfo->subgroupIdx];
-//    int32_t end = pQInfo->pSidSet->starterPos[pQInfo->subgroupIdx + 1];
-//
-//    assert(0);
-//    //    ret = doMergeMetersResultsToGroupRes(pQInfo, pQuery, pRuntimeEnv, pQInfo->pTableDataInfo, start, end);
-//    if (ret < 0) {  // not enough disk space to save the data into disk
-//      return -1;
-//    }
-//
-//    pQInfo->subgroupIdx += 1;
-//
-//    // this group generates at least one result, return results
-//    if (ret > 0) {
-//      break;
-//    }
-//
-//    assert(pQInfo->numOfGroupResultPages == 0);
-//    dTrace("QInfo:%p no result in group %d, continue", GET_QINFO_ADDR(pQuery), pQInfo->subgroupIdx - 1);
-//  }
-//
-//  dTrace("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%lldms", GET_QINFO_ADDR(pQuery),
-//         pQInfo->subgroupIdx - 1, pQInfo->pSidSet->numOfSubSet, taosGetTimestampMs() - st);
+  //  while (pQInfo->subgroupIdx < pQInfo->pSidSet->numOfSubSet) {
+  //    int32_t start = pQInfo->pSidSet->starterPos[pQInfo->subgroupIdx];
+  //    int32_t end = pQInfo->pSidSet->starterPos[pQInfo->subgroupIdx + 1];
+  //
+  //    assert(0);
+  //    //    ret = doMergeMetersResultsToGroupRes(pQInfo, pQuery, pRuntimeEnv, pQInfo->pTableDataInfo, start, end);
+  //    if (ret < 0) {  // not enough disk space to save the data into disk
+  //      return -1;
+  //    }
+  //
+  //    pQInfo->subgroupIdx += 1;
+  //
+  //    // this group generates at least one result, return results
+  //    if (ret > 0) {
+  //      break;
+  //    }
+  //
+  //    assert(pQInfo->numOfGroupResultPages == 0);
+  //    dTrace("QInfo:%p no result in group %d, continue", GET_QINFO_ADDR(pQuery), pQInfo->subgroupIdx - 1);
+  //  }
+  //
+  //  dTrace("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%lldms",
+  //  GET_QINFO_ADDR(pQuery),
+  //         pQInfo->subgroupIdx - 1, pQInfo->pSidSet->numOfSubSet, taosGetTimestampMs() - st);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3013,10 +3018,10 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
     }
 
     // set current query completed
-//    if (pQInfo->numOfGroupResultPages == 0 && pQInfo->subgroupIdx == pQInfo->pSidSet->numOfSubSet) {
-      //      pQInfo->tableIndex = pQInfo->pSidSet->numOfTables;
-//      return;
-//    }
+    //    if (pQInfo->numOfGroupResultPages == 0 && pQInfo->subgroupIdx == pQInfo->pSidSet->numOfSubSet) {
+    //      pQInfo->tableIndex = pQInfo->pSidSet->numOfTables;
+    //      return;
+    //    }
   }
 
   SQueryRuntimeEnv *   pRuntimeEnv = &pQInfo->runtimeEnv;
@@ -3923,7 +3928,7 @@ static int32_t getNumOfSubset(SQInfo *pQInfo) {
   if (isGroupbyNormalCol(pQuery->pGroupbyExpr) || (isIntervalQuery(pQuery))) {
     totalSubset = numOfClosedTimeWindow(&pQInfo->runtimeEnv.windowResInfo);
   } else {
-//    totalSubset = pQInfo->pSidSet->numOfSubSet;
+    //    totalSubset = pQInfo->pSidSet->numOfSubSet;
   }
 
   return totalSubset;
@@ -4303,7 +4308,7 @@ void vnodePrintQueryStatistics(SQInfo *pQInfo) {
 #endif
 }
 
-int32_t vnodeQueryTablePrepare(SQInfo *pQInfo, void *param) {
+int32_t vnodeQueryTablePrepare(SQInfo *pQInfo, void *param, void* tsdb) {
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -4327,8 +4332,8 @@ int32_t vnodeQueryTablePrepare(SQInfo *pQInfo, void *param) {
   pQuery->lastKey = pQuery->window.skey;
 
   STsdbQueryCond cond = {0};
-  
-  cond.twindow = (STimeWindow) {.skey = pQuery->window.skey, .ekey = pQuery->window.ekey};
+
+  cond.twindow = (STimeWindow){.skey = pQuery->window.skey, .ekey = pQuery->window.ekey};
   cond.order = pQuery->order.order;
   cond.colList = *pQuery->colList;
 
@@ -4337,7 +4342,8 @@ int32_t vnodeQueryTablePrepare(SQInfo *pQInfo, void *param) {
     taosArrayPush(cols, &pQuery->colList[i]);
   }
 
-  pQInfo->runtimeEnv.pQueryHandle = tsdbQueryByTableId(&cond, pQInfo->pTableIdList, cols);
+  
+  pQInfo->runtimeEnv.pQueryHandle = tsdbQueryByTableId(tsdb, &cond, pQInfo->pTableIdList, cols);
 
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   pRuntimeEnv->pQuery = pQuery;
@@ -5248,41 +5254,42 @@ static void tableIntervalProcessor(SQInfo *pQInfo) {
   //         pQInfo->pointsRead - pQInfo->pointsInterpo, pQInfo->pointsInterpo, pQInfo->pointsReturned);
 }
 
-void qTableQuery(SQInfo* pQInfo) {
+void qTableQuery(SQInfo *pQInfo) {
   assert(pQInfo != NULL);
-  
+
   if (pQInfo->killed) {
     dTrace("QInfo:%p it is already killed, abort", pQInfo);
     return;
   }
-  
+
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  SQuery *pQuery = pRuntimeEnv->pQuery;
-  
-//  dTrace("vid:%d sid:%d id:%s, query thread is created, numOfQueries:%d, QInfo:%p", pQInfo);
-  
+  SQuery *          pQuery = pRuntimeEnv->pQuery;
+
+  //  dTrace("vid:%d sid:%d id:%s, query thread is created, numOfQueries:%d, QInfo:%p", pQInfo);
+
   if (vnodeHasRemainResults(pQInfo)) {
     /*
      * There are remain results that are not returned due to result interpolation
      * So, we do keep in this procedure instead of launching retrieve procedure for next results.
      */
     int32_t numOfInterpo = 0;
-    
+
     int32_t remain = taosNumOfRemainPoints(&pRuntimeEnv->interpoInfo);
     pQuery->rec.pointsRead = vnodeQueryResultInterpolate(pQInfo, (tFilePage **)pQuery->sdata,
-                                                     (tFilePage **)pRuntimeEnv->pInterpoBuf, remain, &numOfInterpo);
-    
+                                                         (tFilePage **)pRuntimeEnv->pInterpoBuf, remain, &numOfInterpo);
+
     doRevisedResultsByLimit(pQInfo);
-    
+
     pQInfo->pointsInterpo += numOfInterpo;
     pQInfo->rec.pointsRead += pQuery->rec.pointsRead;
-    
-//    dTrace("QInfo:%p %d points returned %d points interpo, totalRead:%d totalInterpo:%d totalReturn:%d",
-//        pQInfo, pQuery->pointsRead, numOfInterpo, pQInfo->pointsRead, pQInfo->pointsInterpo, pQInfo->pointsReturned);
+
+    //    dTrace("QInfo:%p %d points returned %d points interpo, totalRead:%d totalInterpo:%d totalReturn:%d",
+    //        pQInfo, pQuery->pointsRead, numOfInterpo, pQInfo->pointsRead, pQInfo->pointsInterpo,
+    //        pQInfo->pointsReturned);
     sem_post(&pQInfo->dataReady);
     return;
   }
-  
+
   // here we have scan all qualified data in both data file and cache
   if (Q_STATUS_EQUAL(pQuery->status, QUERY_NO_DATA_TO_CHECK | QUERY_COMPLETED)) {
     // continue to get push data from the group result
@@ -5291,66 +5298,68 @@ void qTableQuery(SQInfo* pQInfo) {
       // todo limit the output for interval query?
       pQuery->rec.pointsRead = 0;
       pQInfo->subgroupIdx = 0;  // always start from 0
-      
+
       if (pRuntimeEnv->windowResInfo.size > 0) {
         copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
         pQInfo->rec.pointsRead += pQuery->rec.pointsRead;
-        
+
         clearFirstNTimeWindow(pRuntimeEnv, pQInfo->subgroupIdx);
-        
+
         if (pQuery->rec.pointsRead > 0) {
-//          dTrace("QInfo:%p vid:%d sid:%d id:%s, %d points returned %d from group results, totalRead:%d totalReturn:%d",
-//                 pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead, pQInfo->pointsRead,
-//                 pQInfo->pointsInterpo, pQInfo->pointsReturned);
-          
+          //          dTrace("QInfo:%p vid:%d sid:%d id:%s, %d points returned %d from group results, totalRead:%d
+          //          totalReturn:%d",
+          //                 pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead,
+          //                 pQInfo->pointsRead, pQInfo->pointsInterpo, pQInfo->pointsReturned);
+
           sem_post(&pQInfo->dataReady);
           return;
         }
       }
     }
-    
-//    dTrace("QInfo:%p vid:%d sid:%d id:%s, query over, %d points are returned", pQInfo, pMeterObj->vnode, pMeterObj->sid,
-//           pMeterObj->meterId, pQInfo->pointsRead);
-    
-//    vnodePrintQueryStatistics(pSupporter);
+
+    //    dTrace("QInfo:%p vid:%d sid:%d id:%s, query over, %d points are returned", pQInfo, pMeterObj->vnode,
+    //    pMeterObj->sid,
+    //           pMeterObj->meterId, pQInfo->pointsRead);
+
+    //    vnodePrintQueryStatistics(pSupporter);
     sem_post(&pQInfo->dataReady);
     return;
   }
-  
+
   // number of points returned during this query
   pQuery->rec.pointsRead = 0;
-  
+
   int64_t st = taosGetTimestampUs();
-  
+
   // group by normal column, sliding window query, interval query are handled by interval query processor
   if (pQuery->intervalTime != 0 || isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // interval (down sampling operation)
-//    assert(pQuery->checkBufferInLoop == 0 && pQuery->pointsOffset == pQuery->pointsToRead);
+    //    assert(pQuery->checkBufferInLoop == 0 && pQuery->pointsOffset == pQuery->pointsToRead);
     tableIntervalProcessor(pQInfo);
   } else {
     if (isFixedOutputQuery(pQuery)) {
       assert(pQuery->checkBufferInLoop == 0);
-      
+
       tableFixedOutputProcessor(pQInfo);
     } else {  // diff/add/multiply/subtract/division
       assert(pQuery->checkBufferInLoop == 1);
       tableMultiOutputProcessor(pQInfo);
     }
   }
-  
+
   // record the total elapsed time
   pQInfo->elapsedTime += (taosGetTimestampUs() - st);
-  
+
   /* check if query is killed or not */
   if (isQueryKilled(pQuery)) {
     dTrace("QInfo:%p query is killed", pQInfo);
-//    pQInfo->over = 1;
+    //    pQInfo->over = 1;
   } else {
-//    dTrace("QInfo:%p vid:%d sid:%d id:%s, meter query thread completed, %d points are returned", pQInfo,
-//           pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead);
+    //    dTrace("QInfo:%p vid:%d sid:%d id:%s, meter query thread completed, %d points are returned", pQInfo,
+    //           pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead);
   }
-  
+
   sem_post(&pQInfo->dataReady);
-//  vnodeDecRefCount(pQInfo);
+  //  vnodeDecRefCount(pQInfo);
 }
 
 void qSuperTableQuery(void *pReadMsg) {
@@ -5460,10 +5469,10 @@ static int32_t validateQueryMeterMsg(SQueryTableMsg *pQueryTableMsg) {
   return 0;
 }
 
-static int32_t convertQueryTableMsg(SQueryTableMsg *pQueryTableMsg, SArray** pTableIdList) {
+static int32_t convertQueryTableMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableIdList) {
   pQueryTableMsg->vgId = htons(pQueryTableMsg->vgId);
   pQueryTableMsg->numOfTables = htonl(pQueryTableMsg->numOfTables);
-  
+
   pQueryTableMsg->window.skey = htobe64(pQueryTableMsg->window.skey);
   pQueryTableMsg->window.ekey = htobe64(pQueryTableMsg->window.ekey);
 
@@ -5483,12 +5492,12 @@ static int32_t convertQueryTableMsg(SQueryTableMsg *pQueryTableMsg, SArray** pTa
 
   pQueryTableMsg->limit = htobe64(pQueryTableMsg->limit);
   pQueryTableMsg->offset = htobe64(pQueryTableMsg->offset);
-  
+
   pQueryTableMsg->tsOffset = htonl(pQueryTableMsg->tsOffset);
   pQueryTableMsg->tsLen = htonl(pQueryTableMsg->tsLen);
   pQueryTableMsg->tsNumOfBlocks = htonl(pQueryTableMsg->tsNumOfBlocks);
   pQueryTableMsg->tsOrder = htonl(pQueryTableMsg->tsOrder);
-  
+
   // query msg safety check
   if (validateQueryMeterMsg(pQueryTableMsg) != 0) {
     return TSDB_CODE_INVALID_QUERY_MSG;
@@ -5590,24 +5599,24 @@ static int32_t convertQueryTableMsg(SQueryTableMsg *pQueryTableMsg, SArray** pTa
     pQueryTableMsg->colNameList = (int64_t)pMsg;
     pMsg += pQueryTableMsg->colNameLen;
   }
-  
+
   *pTableIdList = taosArrayInit(pQueryTableMsg->numOfTables, sizeof(STableIdInfo));
-  
-  STableIdInfo* pTableIdInfo = (STableIdInfo *)pMsg;
+
+  STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
   pTableIdInfo->sid = htonl(pTableIdInfo->sid);
   pTableIdInfo->uid = htobe64(pTableIdInfo->uid);
   pTableIdInfo->key = htobe64(pTableIdInfo->key);
-  
+
   taosArrayPush(*pTableIdList, pTableIdInfo);
   pMsg += sizeof(STableIdInfo);
-  
+
   for (int32_t j = 1; j < pQueryTableMsg->numOfTables; ++j) {
     pTableIdInfo = (STableIdInfo *)pMsg;
-    
+
     pTableIdInfo->sid = htonl(pTableIdInfo->sid);
     pTableIdInfo->uid = htobe64(pTableIdInfo->uid);
     pTableIdInfo->key = htobe64(pTableIdInfo->key);
-    
+
     taosArrayPush(*pTableIdList, pTableIdInfo);
     pMsg += sizeof(STableIdInfo);
   }
@@ -5710,7 +5719,7 @@ static int32_t buildAirthmeticExprFromMsg(SSqlFunctionExpr *pExpr, SQueryTableMs
 static int32_t createSqlFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SSqlFunctionExpr **pSqlFuncExpr) {
   *pSqlFuncExpr = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   SSqlFunctionExpr *pExprs = (SSqlFunctionExpr *)calloc(1, sizeof(SSqlFunctionExpr) * pQueryMsg->numOfOutputCols);
   if (pExprs == NULL) {
     tfree(pQueryMsg->pSqlFuncExprs);
@@ -5752,11 +5761,11 @@ static int32_t createSqlFunctionExprFromMsg(SQueryTableMsg *pQueryMsg, SSqlFunct
 
         type = TSDB_DATA_TYPE_DOUBLE;
         bytes = tDataTypeDesc[type].nSize;
-      } else { // parse the normal column
+      } else {  // parse the normal column
         int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].pBase);
         assert(j < pQueryMsg->numOfCols);
 
-        SColumnInfo* pCol = &pQueryMsg->colList[j];
+        SColumnInfo *pCol = &pQueryMsg->colList[j];
         type = pCol->type;
         bytes = pCol->bytes;
       }
@@ -5909,7 +5918,8 @@ static int32_t vnodeCreateFilterInfo(void *pQInfo, SQuery *pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pExprs, SArray* pTableIdList) {
+static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pExprs,
+                               SArray *pTableIdList) {
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
   if (pQInfo == NULL) {
     goto _clean_memory;
@@ -5944,20 +5954,20 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
   if (pQuery->colList == NULL) {
     goto _clean_memory;
   }
-  
+
   for (int16_t i = 0; i < numOfCols; ++i) {
     pQuery->colList[i].info = pQueryMsg->colList[i];
-//    SColumnInfo *pColInfo = &pQuery->colList[i].data;
-//    pColInfo->filters = NULL;
-//    if (colList[i].numOfFilters > 0) {
-//      pColInfo->filters = calloc(1, colList[i].numOfFilters * sizeof(SColumnFilterInfo));
-//
-//      for (int32_t j = 0; j < colList[i].numOfFilters; ++j) {
-//        tscColumnFilterInfoCopy(&pColInfo->filters[j], &colList[i].filters[j]);
-//      }
-//    } else {
-//      pQuery->colList[i].data.filters = NULL;
-//    }
+    //    SColumnInfo *pColInfo = &pQuery->colList[i].data;
+    //    pColInfo->filters = NULL;
+    //    if (colList[i].numOfFilters > 0) {
+    //      pColInfo->filters = calloc(1, colList[i].numOfFilters * sizeof(SColumnFilterInfo));
+    //
+    //      for (int32_t j = 0; j < colList[i].numOfFilters; ++j) {
+    //        tscColumnFilterInfoCopy(&pColInfo->filters[j], &colList[i].filters[j]);
+    //      }
+    //    } else {
+    //      pQuery->colList[i].data.filters = NULL;
+    //    }
   }
 
   // calculate the result row size
@@ -6003,9 +6013,10 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
   // to make sure third party won't overwrite this structure
   pQInfo->signature = (uint64_t)pQInfo;
   pQInfo->pTableIdList = pTableIdList;
-  
+
   pQuery->pos = -1;
-  //  dTrace("vid:%d sid:%d meterId:%s, QInfo is allocated:%p", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQInfo);
+  //  dTrace("vid:%d sid:%d meterId:%s, QInfo is allocated:%p", pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId,
+  //  pQInfo);
 
   return pQInfo;
 
@@ -6035,7 +6046,7 @@ bool isQInfoValid(void *param) {
   if (pQInfo == NULL) {
     return false;
   }
-  
+
   /*
    * pQInfo->signature may be changed by another thread, so we assign value of signature
    * into local variable, then compare by using local variable
@@ -6044,75 +6055,75 @@ bool isQInfoValid(void *param) {
   return (sig == (uint64_t)pQInfo);
 }
 
-void vnodeFreeQInfo(SQInfo* pQInfo, bool decQueryRef) {
+void vnodeFreeQInfo(SQInfo *pQInfo, bool decQueryRef) {
   if (!isQInfoValid(pQInfo)) {
     return;
   }
-  
+
   pQInfo->killed = 1;
   dTrace("QInfo:%p start to free SQInfo", pQInfo);
-  
+
   if (decQueryRef) {
     vnodeDecMeterRefcnt(pQInfo);
   }
-  
+
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-  
+
   for (int col = 0; col < pQuery->numOfOutputCols; ++col) {
     tfree(pQuery->sdata[col]);
   }
-  
-//  for (int col = 0; col < pQuery->numOfCols; ++col) {
-//    vnodeFreeColumnInfo(&pQuery->colList[col].data);
-//  }
-//
-//  if (pQuery->colList[0].colIdx != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-//    tfree(pQuery->tsData);
-//  }
-  
+
+  //  for (int col = 0; col < pQuery->numOfCols; ++col) {
+  //    vnodeFreeColumnInfo(&pQuery->colList[col].data);
+  //  }
+  //
+  //  if (pQuery->colList[0].colIdx != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  //    tfree(pQuery->tsData);
+  //  }
+
   sem_destroy(&(pQInfo->dataReady));
   vnodeQueryFreeQInfoEx(pQInfo);
-  
+
   for (int32_t i = 0; i < pQuery->numOfFilterCols; ++i) {
     SSingleColumnFilterInfo *pColFilter = &pQuery->pFilterInfo[i];
     if (pColFilter->numOfFilters > 0) {
       tfree(pColFilter->pFilters);
     }
   }
-  
+
   tfree(pQuery->pFilterInfo);
   tfree(pQuery->colList);
   tfree(pQuery->sdata);
-  
+
   if (pQuery->pSelectExpr != NULL) {
     for (int32_t i = 0; i < pQuery->numOfOutputCols; ++i) {
       SSqlBinaryExprInfo *pBinExprInfo = &pQuery->pSelectExpr[i].binExprInfo;
-      
+
       if (pBinExprInfo->numOfCols > 0) {
         tfree(pBinExprInfo->pReqColumns);
         tSQLBinaryExprDestroy(&pBinExprInfo->pBinExpr, NULL);
       }
     }
-    
+
     tfree(pQuery->pSelectExpr);
   }
-  
+
   if (pQuery->defaultVal != NULL) {
     tfree(pQuery->defaultVal);
   }
-  
+
   tfree(pQuery->pGroupbyExpr);
   tfree(pQuery);
-  
-//  dTrace("QInfo:%p vid:%d sid:%d meterId:%s, QInfo is freed", pQInfo, pObj->vnode, pObj->sid, pObj->meterId);
-  
-  //destroy signature, in order to avoid the query process pass the object safety check
+
+  //  dTrace("QInfo:%p vid:%d sid:%d meterId:%s, QInfo is freed", pQInfo, pObj->vnode, pObj->sid, pObj->meterId);
+
+  // destroy signature, in order to avoid the query process pass the object safety check
   memset(pQInfo, 0, sizeof(SQInfo));
   tfree(pQInfo);
 }
 
 static int32_t createQInfo(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pSqlExprs,
-    SArray* pTableIdList, SQInfo **pQInfo) {
+                           SArray *pTableIdList, void* tsdb, SQInfo **pQInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   (*pQInfo) = createQInfoImpl(pQueryMsg, pGroupbyExpr, pSqlExprs, pTableIdList);
@@ -6121,16 +6132,12 @@ static int32_t createQInfo(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyE
     goto _error;
   }
 
-  SQuery* pQuery = (*pQInfo)->runtimeEnv.pQuery;
+  SQuery *pQuery = (*pQInfo)->runtimeEnv.pQuery;
   dTrace("qmsg:%p create QInfo:%p, QInfo created", pQueryMsg, pQInfo);
 
-//  STableIdInfo **pTableIdList = (STableIdInfo **)pQueryMsg->pSidExtInfo;
-//  if (pTableIdList != NULL && pTableIdList[0]->key > 0) {
-//    pQuery->window.skey = pTableIdList[0]->key;
-//  } else {
   pQuery->window.skey = pQueryMsg->window.skey;
   pQuery->window.ekey = pQueryMsg->window.ekey;
-  
+
   pQuery->lastKey = pQuery->window.skey;
 
   if (sem_init(&(*pQInfo)->dataReady, 0, 0) != 0) {
@@ -6151,7 +6158,7 @@ static int32_t createQInfo(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyE
     tsBufNextPos(pTSBuf);
   }
 
-  if ((code = vnodeQueryTablePrepare(*pQInfo, pTSBuf)) != TSDB_CODE_SUCCESS) {
+  if ((code = vnodeQueryTablePrepare(*pQInfo, pTSBuf, tsdb)) != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
@@ -6163,18 +6170,18 @@ static int32_t createQInfo(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyE
   // dTrace("QInfo:%p set query flag and prepare runtime environment completed, ref:%d, wait for schedule", pQInfo,
   //       pQInfo->refCount);
   return code;
-  
+
 _error:
   // table query ref will be decrease during error handling
   vnodeFreeQInfo(*pQInfo, false);
   return code;
 }
 
-int32_t qCreateQueryInfo(SQueryTableMsg *pQueryTableMsg, SQInfo **pQInfo) {
+int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryTableMsg, SQInfo **pQInfo) {
   assert(pQueryTableMsg != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
-  SArray* pTableIdList = NULL;
+  SArray *pTableIdList = NULL;
   if ((code = convertQueryTableMsg(pQueryTableMsg, &pTableIdList)) != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -6205,14 +6212,14 @@ int32_t qCreateQueryInfo(SQueryTableMsg *pQueryTableMsg, SQInfo **pQInfo) {
   if (QUERY_IS_STABLE_QUERY(pQueryTableMsg->queryType)) {
     //    pObj->qhandle = vnodeQueryOnMultiMeters(pMeterObjList, pGroupbyExpr, pExprs, pQueryTableMsg, &code);
   } else {
-    code = createQInfo(pQueryTableMsg, pGroupbyExpr, pExprs, pTableIdList, pQInfo);
+    code = createQInfo(pQueryTableMsg, pGroupbyExpr, pExprs, pTableIdList, tsdb, pQInfo);
   }
 
 _query_over:
   if (code != TSDB_CODE_SUCCESS) {
     taosArrayDestroy(pTableIdList);
   }
-  
+
   // if failed to add ref for all meters in this query, abort current query
   //  if (code != TSDB_CODE_SUCCESS) {
   //    vnodeDecQueryRefCount(pQueryTableMsg, pMeterObjList, incNumber);
@@ -6231,31 +6238,31 @@ _query_over:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qRetrieveQueryResultInfo(SQInfo* pQInfo, int32_t *numOfRows, int32_t* rowsize) {
+int32_t qRetrieveQueryResultInfo(SQInfo *pQInfo, int32_t *numOfRows, int32_t *rowsize) {
   if (pQInfo == NULL || !isQInfoValid(pQInfo)) {
     return TSDB_CODE_INVALID_QHANDLE;
   }
-  
+
   if (pQInfo->killed) {
     dTrace("QInfo:%p query is killed, code:%d", pQInfo, pQInfo->code);
     if (pQInfo->code == TSDB_CODE_SUCCESS) {
       return TSDB_CODE_QUERY_CANCELLED;
-    } else { // in case of not TSDB_CODE_SUCCESS, return the code to client
+    } else {  // in case of not TSDB_CODE_SUCCESS, return the code to client
       return abs(pQInfo->code);
     }
   }
-  
+
   sem_wait(&pQInfo->dataReady);
-  
-  SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
-  
-//  *numOfRows = pQInfo->rec.pointsRead;
-//  *rowsize = pQuery->rowSize;
+
+  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
+
+  //  *numOfRows = pQInfo->rec.pointsRead;
+  //  *rowsize = pQuery->rowSize;
   *numOfRows = 1;
-  
-//  dTrace("QInfo:%p, retrieve data info completed, precision:%d, rowsize:%d, rows:%d, code:%d", pQInfo, *timePrec,
-//         *rowsize, *numOfRows, pQInfo->code);
-  
+
+  //  dTrace("QInfo:%p, retrieve data info completed, precision:%d, rowsize:%d, rows:%d, code:%d", pQInfo, *timePrec,
+  //         *rowsize, *numOfRows, pQInfo->code);
+
   if (pQInfo->code < 0) {  // less than 0 means there are error existed.
     return -pQInfo->code;
   }

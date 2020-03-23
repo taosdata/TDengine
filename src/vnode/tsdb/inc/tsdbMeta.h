@@ -44,7 +44,7 @@ typedef struct {
 typedef struct STable {
   int8_t         type;
   STableId       tableId;
-  int32_t        superUid;  // Super table UID
+  int64_t        superUid;  // Super table UID
   int32_t        sversion;
   STSchema *     schema;
   STSchema *     tagSchema;
@@ -97,6 +97,8 @@ int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
 #define TSDB_NUM_OF_SUPER_TABLES(pHandle) ((pHandle)->numOfSuperTables)
 #define TSDB_TABLE_OF_ID(pHandle, id) ((pHandle)->pTables)[id]
 #define TSDB_GET_TABLE_OF_NAME(pHandle, name) /* TODO */
+
+STsdbMeta* tsdbGetMeta(tsdb_repo_t* pRepo);
 
 int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg);
 int32_t tsdbDropTableImpl(STsdbMeta *pMeta, STableId tableId);

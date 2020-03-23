@@ -90,15 +90,6 @@ int tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg);
 int tsdbDropTable(tsdb_repo_t *pRepo, STableId tableId);
 int tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
 
-// Submit message for one table
-typedef struct {
-  STableId tableId;
-  int32_t  padding;    // TODO just for padding here
-  int32_t  sversion;   // data schema version
-  int32_t  len;        // data part length, not including the SSubmitBlk head
-  char     data[];
-} SSubmitBlk;
-
 typedef struct {
   int32_t  totalLen;
   int32_t  len;
@@ -108,14 +99,9 @@ typedef struct {
 int      tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
 SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
 
-// Submit message for this TSDB
-typedef struct {
-  int32_t    length;
-  int32_t    compressed;
-  SSubmitBlk blocks[];
-} SSubmitMsg;
-
 #define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
+
+struct STsdbRepo;
 
 // SSubmitMsg Iterator
 typedef struct {
@@ -245,7 +231,7 @@ typedef void *tsdbpos_t;
  * @param pTableList    table sid list
  * @return
  */
-tsdb_query_handle_t *tsdbQueryByTableId(STsdbQueryCond *pCond, SArray *idList, SArray *pColumnInfo);
+tsdb_query_handle_t *tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond *pCond, SArray *idList, SArray *pColumnInfo);
 
 /**
  * move to next block

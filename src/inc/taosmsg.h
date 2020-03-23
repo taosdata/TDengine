@@ -188,14 +188,14 @@ extern char *taosMsg[];
 
 #pragma pack(push, 1)
 
-typedef struct {
-  int32_t  vnode;
-  int32_t  sid;
-  int32_t  sversion;
-  uint64_t uid;
-  int16_t  numOfRows;
-  char     payLoad[];
-} SShellSubmitBlock;
+//typedef struct {
+//  int32_t  vnode;
+//  int32_t  sid;
+//  int32_t  sversion;
+//  uint64_t uid;
+//  int16_t  numOfRows;
+//  char     payLoad[];
+//} SShellSubmitBlock;
 
 typedef struct {
   int32_t numOfVnodes;
@@ -206,13 +206,33 @@ typedef struct SMsgHead {
   int32_t vgId;
 } SMsgHead;
 
-typedef struct {
-  SMsgDesc desc;
-  SMsgHead header;
-  int16_t import;
-  int32_t numOfTables; // total number of sid
-  char    blks[];      // number of data blocks, each table has at least one data block
-} SShellSubmitMsg;
+//typedef struct {
+//  SMsgDesc desc;
+//  SMsgHead header;
+//  int16_t import;
+//  int32_t numOfTables; // total number of sid
+//  char    blks[];      // number of data blocks, each table has at least one data block
+//} SShellSubmitMsg;
+
+// Submit message for one table
+typedef struct SSubmitBlk {
+  int64_t  uid;        // table unique id
+  int32_t  tid;        // table id
+  int32_t  padding;    // TODO just for padding here
+  int32_t  sversion;   // data schema version
+  int32_t  len;        // data part length, not including the SSubmitBlk head
+  int16_t  numOfRows;  // total number of rows in current submit block
+  char     data[];
+} SSubmitBlk;
+
+// Submit message for this TSDB
+typedef struct SSubmitMsg {
+  SMsgHead   header;
+  int32_t    length;
+  int32_t    compressed:2;
+  int32_t    numOfBlocks:30;
+  SSubmitBlk blocks[];
+} SSubmitMsg;
 
 typedef struct {
   int32_t index; // index of failed block in submit blocks
@@ -506,14 +526,16 @@ typedef struct {
 } SQueryTableRsp;
 
 typedef struct {
+  SMsgHead header;
   uint64_t qhandle;
   uint16_t free;
 } SRetrieveTableMsg;
 
-typedef struct {
+typedef struct SRetrieveTableRsp {
   int32_t numOfRows;
+  int8_t  completed; // all results are returned to client
   int16_t precision;
-  int64_t offset;  // updated offset value for multi-vnode projection query
+  int64_t offset;    // updated offset value for multi-vnode projection query
   int64_t useconds;
   char    data[];
 } SRetrieveTableRsp;

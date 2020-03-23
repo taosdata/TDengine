@@ -499,6 +499,10 @@ SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
 int tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter) {
   if (pMsg == NULL || pIter == NULL) return -1;
 
+  pMsg->length = htonl(pMsg->length);
+  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
+  pMsg->compressed = htonl(pMsg->compressed);
+  
   pIter->totalLen = pMsg->length;
   pIter->len = TSDB_SUBMIT_MSG_HEAD_SIZE;
   if (pMsg->length <= TSDB_SUBMIT_MSG_HEAD_SIZE) {
@@ -513,7 +517,15 @@ int tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter) {
 SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter) {
   SSubmitBlk *pBlock = pIter->pBlock;
   if (pBlock == NULL) return NULL;
-
+  
+  pBlock->len = htonl(pBlock->len);
+  pBlock->numOfRows = htons(pBlock->numOfRows);
+  pBlock->uid = htobe64(pBlock->uid);
+  pBlock->tid = htonl(pBlock->tid);
+  
+  pBlock->sversion = htonl(pBlock->sversion);
+  pBlock->padding = htonl(pBlock->padding);
+  
   pIter->len = pIter->len + sizeof(SSubmitBlk) + pBlock->len;
   if (pIter->len >= pIter->totalLen) {
     pIter->pBlock = NULL;
@@ -522,6 +534,11 @@ SSubmitBlk *tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter) {
   }
 
   return pBlock;
+}
+
+STsdbMeta* tsdbGetMeta(tsdb_repo_t* pRepo) {
+  STsdbRepo *tsdb = (STsdbRepo *)pRepo;
+  return tsdb->tsdbMeta;
 }
 
 // Check the configuration and set default options
@@ -695,6 +712,8 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   tSkipListRandNodeInfo(pTable->mem->pData, &level, &headSize);
 
   TSKEY key = dataRowKey(row);
+  printf("insert:%lld, size:%d\n", key, pTable->mem->numOfPoints);
+  
   // Copy row into the memory
   SSkipListNode *pNode = tsdbAllocFromCache(pRepo->tsdbCache, headSize + dataRowLen(row), key);
   if (pNode == NULL) {
@@ -715,7 +734,9 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   tSkipListPut(pTable->mem->pData, pNode);
   if (key > pTable->mem->keyLast) pTable->mem->keyLast = key;
   if (key < pTable->mem->keyFirst) pTable->mem->keyFirst = key;
-  pTable->mem->numOfPoints++;
+  
+  pTable->mem->numOfPoints = tSkipListGetSize(pTable->mem->pData);
+//  pTable->mem->numOfPoints++;
 
   return 0;
 }
@@ -723,7 +744,8 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
 static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
 
-  STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, pBlock->tableId);
+  STableId tableId = {.uid = pBlock->uid, .tid = pBlock->tid};
+  STable *pTable = tsdbIsValidTableToInsert(pRepo->tsdbMeta, tableId);
   if (pTable == NULL) return -1;
 
   SSubmitBlkIter blkIter;

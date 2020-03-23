@@ -77,7 +77,9 @@ void dnodeRead(SRpcMsg *pMsg) {
   int32_t     leftLen      = pMsg->contLen;
   char        *pCont       = (char *) pMsg->pCont;
   SRpcContext *pRpcContext = NULL;
-
+  
+  dTrace("dnode read msg disposal");
+  
 //  SMsgDesc *pDesc = pCont;
 //  pDesc->numOfVnodes = htonl(pDesc->numOfVnodes);
 //  pCont += sizeof(SMsgDesc);
@@ -229,7 +231,8 @@ static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
   SQueryTableMsg* pQueryTableMsg = (SQueryTableMsg*) pMsg->pCont;
   
   SQInfo* pQInfo = NULL;
-  int32_t code = qCreateQueryInfo(pQueryTableMsg, &pQInfo);
+  void* tsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+  int32_t code = qCreateQueryInfo(tsdb, pQueryTableMsg, &pQInfo);
   
   SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
   pRsp->code    = code;
@@ -243,17 +246,17 @@ static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
       .msgType = 0
   };
   
+  rpcSendResponse(&rpcRsp);
+  
   // do execute query
   qTableQuery(pQInfo);
-  
-  rpcSendResponse(&rpcRsp);
 }
 
 static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
   SRetrieveTableMsg *pRetrieve = pMsg->pCont;
   void *pQInfo = htobe64(pRetrieve->qhandle);
 
-  dTrace("retrieve msg is disposed, qInfo:%p", pQInfo);
+  dTrace("QInfo:%p vgId:%d, retrieve msg is received", pQInfo, pRetrieve->header.vgId);
   
   int32_t rowSize = 0;
   int32_t numOfRows = 0;
@@ -284,11 +287,12 @@ static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
     contLen = 100;
     
     SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(contLen);
-    pRsp->numOfRows = 0;
-    pRsp->precision = 0;
-    pRsp->offset = 0;
-    pRsp->useconds = 0;
-
+    pRsp->numOfRows = htonl(1);
+    pRsp->precision = htons(0);
+    pRsp->offset = htobe64(0);
+    pRsp->useconds = htobe64(0);
+  
+    // todo set the data
     *(int64_t*) pRsp->data = 1000;
     
     rpcRsp = (SRpcMsg) {

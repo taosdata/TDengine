@@ -171,6 +171,7 @@ typedef struct SQueryRuntimeEnv {
 
 typedef struct SQInfo {
   uint64_t         signature;
+  void* pVnode;
   TSKEY            startTime;
   int64_t          elapsedTime;
   SResultRec       rec;
@@ -205,7 +206,7 @@ typedef struct SQInfo {
  * @param pQInfo
  * @return
  */
-int32_t qCreateQueryInfo(SQueryTableMsg* pQueryTableMsg, SQInfo** pQInfo);
+int32_t qCreateQueryInfo(void* pVnode, SQueryTableMsg* pQueryTableMsg, SQInfo** pQInfo);
 
 /**
  * query on single table

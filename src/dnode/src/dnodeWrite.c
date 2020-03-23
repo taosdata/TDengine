@@ -276,7 +276,10 @@ static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
   pRsp->affectedRows      = htonl(1);
   pRsp->numOfFailedBlocks = 0;
   
-  // todo write to tsdb
+  void* tsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+  assert(tsdb != NULL);
+  
+  tsdbInsertData(tsdb, pMsg->pCont);
   
   SRpcMsg rpcRsp = {
     .handle = pMsg->rpcMsg.handle,
@@ -285,6 +288,7 @@ static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
     .code = 0,
     .msgType = 0
   };
+  
   rpcSendResponse(&rpcRsp);
 }
 

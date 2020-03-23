@@ -15,7 +15,6 @@
 #include "os.h"
 
 #include "tlog.h"
-// #include "tsdb.h"
 #include "tskiplist.h"
 #include "tutil.h"
 
@@ -395,6 +394,7 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, SSkipListNode *pNode) {
   SSkipListNode *px = pSkipList->pHead;
   SSkipListNode *forward[MAX_SKIP_LIST_LEVEL] = {0};
 
+  bool identical = false;
   for (int32_t i = pSkipList->level - 1; i >= 0; --i) {
     SSkipListNode *p = SL_GET_FORWARD_POINTER(px, i);
     while (p != NULL) {
@@ -402,11 +402,16 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, SSkipListNode *pNode) {
       char *newDatakey = SL_GET_NODE_KEY(pSkipList, pNode);
 
       // if the forward element is less than the specified key, forward one step
-      if (pSkipList->comparFn(key, newDatakey) < 0) {
+      int32_t ret = pSkipList->comparFn(key, newDatakey);
+      if (ret < 0) {
         px = p;
 
         p = SL_GET_FORWARD_POINTER(px, i);
       } else {
+        if (identical == false) {
+          identical = (ret == 0);
+        }
+        
         break;
       }
     }
@@ -418,17 +423,12 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, SSkipListNode *pNode) {
   }
 
   // if the skip list does not allowed identical key inserted, the new data will be discarded.
-  if (pSkipList->keyInfo.dupKey == 0 && forward[0] != pSkipList->pHead) {
-    char *key = SL_GET_NODE_KEY(pSkipList, forward[0]);
-    char *pNewDataKey = SL_GET_NODE_KEY(pSkipList, pNode);
-
-    if (pSkipList->comparFn(key, pNewDataKey) == 0) {
-      if (pSkipList->lock) {
-        pthread_rwlock_unlock(pSkipList->lock);
-      }
-
-      return forward[0];
+  if (pSkipList->keyInfo.dupKey == 0 && identical) {
+    if (pSkipList->lock) {
+      pthread_rwlock_unlock(pSkipList->lock);
     }
+
+    return forward[0];
   }
 
 #if SKIP_LIST_RECORD_PERFORMANCE
