@@ -5469,34 +5469,60 @@ static int32_t validateQueryMeterMsg(SQueryTableMsg *pQueryTableMsg) {
   return 0;
 }
 
-static int32_t convertQueryTableMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableIdList) {
-  pQueryTableMsg->vgId = htons(pQueryTableMsg->vgId);
-  pQueryTableMsg->numOfTables = htonl(pQueryTableMsg->numOfTables);
+static char* createTableIdList(SQueryTableMsg* pQueryTableMsg, char* pMsg, SArray** pTableIdList) {
+  assert(pQueryTableMsg->numOfTables > 0);
+  
+  *pTableIdList = taosArrayInit(pQueryTableMsg->numOfTables, sizeof(STableIdInfo));
+  
+  STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
+  pTableIdInfo->sid = htonl(pTableIdInfo->sid);
+  pTableIdInfo->uid = htobe64(pTableIdInfo->uid);
+  pTableIdInfo->key = htobe64(pTableIdInfo->key);
+  
+  taosArrayPush(*pTableIdList, pTableIdInfo);
+  pMsg += sizeof(STableIdInfo);
+  
+  for (int32_t j = 1; j < pQueryTableMsg->numOfTables; ++j) {
+    pTableIdInfo = (STableIdInfo *)pMsg;
+    
+    pTableIdInfo->sid = htonl(pTableIdInfo->sid);
+    pTableIdInfo->uid = htobe64(pTableIdInfo->uid);
+    pTableIdInfo->key = htobe64(pTableIdInfo->key);
+    
+    taosArrayPush(*pTableIdList, pTableIdInfo);
+    pMsg += sizeof(STableIdInfo);
+  }
+  
+  return pMsg;
+}
 
-  pQueryTableMsg->window.skey = htobe64(pQueryTableMsg->window.skey);
-  pQueryTableMsg->window.ekey = htobe64(pQueryTableMsg->window.ekey);
+static int32_t convertQueryMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableIdList) {
+  pQueryTableMsg->vgId          = htons(pQueryTableMsg->vgId);
+  pQueryTableMsg->numOfTables   = htonl(pQueryTableMsg->numOfTables);
 
-  pQueryTableMsg->order = htons(pQueryTableMsg->order);
-  pQueryTableMsg->orderColId = htons(pQueryTableMsg->orderColId);
+  pQueryTableMsg->window.skey   = htobe64(pQueryTableMsg->window.skey);
+  pQueryTableMsg->window.ekey   = htobe64(pQueryTableMsg->window.ekey);
+  pQueryTableMsg->intervalTime  = htobe64(pQueryTableMsg->intervalTime);
+  pQueryTableMsg->slidingTime   = htobe64(pQueryTableMsg->slidingTime);
+  
+  pQueryTableMsg->limit         = htobe64(pQueryTableMsg->limit);
+  pQueryTableMsg->offset        = htobe64(pQueryTableMsg->offset);
+  
+  pQueryTableMsg->order         = htons(pQueryTableMsg->order);
+  pQueryTableMsg->orderColId    = htons(pQueryTableMsg->orderColId);
 
-  pQueryTableMsg->queryType = htons(pQueryTableMsg->queryType);
-
-  pQueryTableMsg->intervalTime = htobe64(pQueryTableMsg->intervalTime);
-  pQueryTableMsg->slidingTime = htobe64(pQueryTableMsg->slidingTime);
+  pQueryTableMsg->queryType     = htons(pQueryTableMsg->queryType);
 
   pQueryTableMsg->numOfTagsCols = htons(pQueryTableMsg->numOfTagsCols);
-  pQueryTableMsg->numOfCols = htons(pQueryTableMsg->numOfCols);
+  pQueryTableMsg->numOfCols     = htons(pQueryTableMsg->numOfCols);
   pQueryTableMsg->numOfOutputCols = htons(pQueryTableMsg->numOfOutputCols);
   pQueryTableMsg->numOfGroupCols = htons(pQueryTableMsg->numOfGroupCols);
-  pQueryTableMsg->tagLength = htons(pQueryTableMsg->tagLength);
+  pQueryTableMsg->tagLength     = htons(pQueryTableMsg->tagLength);
 
-  pQueryTableMsg->limit = htobe64(pQueryTableMsg->limit);
-  pQueryTableMsg->offset = htobe64(pQueryTableMsg->offset);
-
-  pQueryTableMsg->tsOffset = htonl(pQueryTableMsg->tsOffset);
-  pQueryTableMsg->tsLen = htonl(pQueryTableMsg->tsLen);
+  pQueryTableMsg->tsOffset      = htonl(pQueryTableMsg->tsOffset);
+  pQueryTableMsg->tsLen         = htonl(pQueryTableMsg->tsLen);
   pQueryTableMsg->tsNumOfBlocks = htonl(pQueryTableMsg->tsNumOfBlocks);
-  pQueryTableMsg->tsOrder = htonl(pQueryTableMsg->tsOrder);
+  pQueryTableMsg->tsOrder       = htonl(pQueryTableMsg->tsOrder);
 
   // query msg safety check
   if (validateQueryMeterMsg(pQueryTableMsg) != 0) {
@@ -5506,23 +5532,23 @@ static int32_t convertQueryTableMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTa
   char *pMsg = (char *)(pQueryTableMsg->colList) + sizeof(SColumnInfo) * pQueryTableMsg->numOfCols;
 
   for (int32_t col = 0; col < pQueryTableMsg->numOfCols; ++col) {
-    pQueryTableMsg->colList[col].colId = htons(pQueryTableMsg->colList[col].colId);
-    pQueryTableMsg->colList[col].type = htons(pQueryTableMsg->colList[col].type);
-    pQueryTableMsg->colList[col].bytes = htons(pQueryTableMsg->colList[col].bytes);
-    pQueryTableMsg->colList[col].numOfFilters = htons(pQueryTableMsg->colList[col].numOfFilters);
+    SColumnInfo* pColInfo = &pQueryTableMsg->colList[col];
+    
+    pColInfo->colId = htons(pColInfo->colId);
+    pColInfo->type  = htons(pColInfo->type);
+    pColInfo->bytes = htons(pColInfo->bytes);
+    pColInfo->numOfFilters = htons(pColInfo->numOfFilters);
 
-    assert(pQueryTableMsg->colList[col].type >= TSDB_DATA_TYPE_BOOL &&
-           pQueryTableMsg->colList[col].type <= TSDB_DATA_TYPE_NCHAR);
+    assert(pColInfo->type >= TSDB_DATA_TYPE_BOOL && pColInfo->type <= TSDB_DATA_TYPE_NCHAR);
 
-    int32_t numOfFilters = pQueryTableMsg->colList[col].numOfFilters;
-
+    int32_t numOfFilters = pColInfo->numOfFilters;
     if (numOfFilters > 0) {
-      pQueryTableMsg->colList[col].filters = calloc(numOfFilters, sizeof(SColumnFilterInfo));
+      pColInfo->filters = calloc(numOfFilters, sizeof(SColumnFilterInfo));
     }
 
     for (int32_t f = 0; f < numOfFilters; ++f) {
       SColumnFilterInfo *pFilterInfo = (SColumnFilterInfo *)pMsg;
-      SColumnFilterInfo *pDestFilterInfo = &pQueryTableMsg->colList[col].filters[f];
+      SColumnFilterInfo *pDestFilterInfo = &pColInfo->filters[f];
 
       pDestFilterInfo->filterOnBinary = htons(pFilterInfo->filterOnBinary);
 
@@ -5599,27 +5625,8 @@ static int32_t convertQueryTableMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTa
     pQueryTableMsg->colNameList = (int64_t)pMsg;
     pMsg += pQueryTableMsg->colNameLen;
   }
-
-  *pTableIdList = taosArrayInit(pQueryTableMsg->numOfTables, sizeof(STableIdInfo));
-
-  STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
-  pTableIdInfo->sid = htonl(pTableIdInfo->sid);
-  pTableIdInfo->uid = htobe64(pTableIdInfo->uid);
-  pTableIdInfo->key = htobe64(pTableIdInfo->key);
-
-  taosArrayPush(*pTableIdList, pTableIdInfo);
-  pMsg += sizeof(STableIdInfo);
-
-  for (int32_t j = 1; j < pQueryTableMsg->numOfTables; ++j) {
-    pTableIdInfo = (STableIdInfo *)pMsg;
-
-    pTableIdInfo->sid = htonl(pTableIdInfo->sid);
-    pTableIdInfo->uid = htobe64(pTableIdInfo->uid);
-    pTableIdInfo->key = htobe64(pTableIdInfo->key);
-
-    taosArrayPush(*pTableIdList, pTableIdInfo);
-    pMsg += sizeof(STableIdInfo);
-  }
+  
+  pMsg = createTableIdList(pQueryTableMsg, pMsg, pTableIdList);
 
   if (pQueryTableMsg->numOfGroupCols > 0 || pQueryTableMsg->numOfTagsCols > 0) {  // group by tag columns
     pQueryTableMsg->pTagSchema = (uint64_t)pMsg;
@@ -5653,9 +5660,7 @@ static int32_t convertQueryTableMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTa
   dTrace("qmsg:%p query on %d meter(s), qrange:%" PRId64 "-%" PRId64
          ", numOfGroupbyTagCols:%d, numOfTagCols:%d, timestamp order:%d, "
          "tags order:%d, tags order col:%d, numOfOutputCols:%d, numOfCols:%d, interval:%" PRId64
-         ", fillType:%d, comptslen:%d, limit:%" PRId64
-         ", "
-         "offset:%" PRId64,
+         ", fillType:%d, comptslen:%d, limit:%" PRId64 ", offset:%" PRId64,
          pQueryTableMsg, pQueryTableMsg->numOfTables, pQueryTableMsg->window.skey, pQueryTableMsg->window.ekey,
          pQueryTableMsg->numOfGroupCols, pQueryTableMsg->numOfTagsCols, pQueryTableMsg->order,
          pQueryTableMsg->orderType, pQueryTableMsg->orderByIdx, pQueryTableMsg->numOfOutputCols,
@@ -6181,8 +6186,9 @@ int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryTableMsg, SQInfo **pQ
   assert(pQueryTableMsg != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
+  
   SArray *pTableIdList = NULL;
-  if ((code = convertQueryTableMsg(pQueryTableMsg, &pTableIdList)) != TSDB_CODE_SUCCESS) {
+  if ((code = convertQueryMsg(pQueryTableMsg, &pTableIdList)) != TSDB_CODE_SUCCESS) {
     return code;
   }
 
