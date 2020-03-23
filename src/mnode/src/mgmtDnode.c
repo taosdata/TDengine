@@ -547,9 +547,6 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return ;
   }
   
-  uint32_t lastPrivateIp = pDnode->privateIp;
-  uint32_t lastPublicIp  = pDnode->publicIp;
-
   pDnode->privateIp        = htonl(pStatus->privateIp);
   pDnode->publicIp         = htonl(pStatus->publicIp);
   pDnode->lastReboot       = htonl(pStatus->lastReboot);

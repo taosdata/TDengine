@@ -78,8 +78,6 @@ int32_t mgmtInitTables() {
     return code;
   }
 
-  mgmtSetVgroupIdPool();
-
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_TABLE, mgmtProcessCreateTableMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_TABLE, mgmtProcessDropTableMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_TABLE, mgmtProcessAlterTableMsg);
@@ -202,13 +200,13 @@ int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "table_name");
+  strcpy(pSchema[cols].name, "table name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created_time");
+  strcpy(pSchema[cols].name, "create time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -220,7 +218,7 @@ int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "stable_name");
+  strcpy(pSchema[cols].name, "stable name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -238,9 +236,6 @@ int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
   return 0;
 }
 
-/*
- * remove the hole in result set
- */
 static void mgmtVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
   if (rows < capacity) {
     for (int32_t i = 0; i < numOfCols; ++i) {
@@ -434,11 +429,13 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
     pTable = mgmtCreateChildTable(pCreate, pVgroup, sid);
     if (pTable == NULL) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
+      mgmtFreeQueuedMsg(newMsg);
       return;
     }
     pMDCreate = mgmtBuildCreateChildTableMsg(pCreate, (SChildTableObj *) pTable);
     if (pMDCreate == NULL) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
+      mgmtFreeQueuedMsg(newMsg);
       return;
     }
   } else {
@@ -446,11 +443,13 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
     pTable = mgmtCreateNormalTable(pCreate, pVgroup, sid);
     if (pTable == NULL) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
+      mgmtFreeQueuedMsg(newMsg);
       return;
     }
     pMDCreate = mgmtBuildCreateNormalTableMsg((SNormalTableObj *) pTable);
     if (pMDCreate == NULL) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
+      mgmtFreeQueuedMsg(newMsg);
       return;
     }
   }
@@ -761,9 +760,9 @@ static void mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg) {
 
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
     if (pTable->type == TSDB_CHILD_TABLE) {
-      sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_GLOBAL);
+      // sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_GLOBAL);
     } else if (pTable->type == TSDB_NORMAL_TABLE){
-      sdbDeleteRow(tsNormalTableSdb, pTable, SDB_OPER_GLOBAL);
+      // sdbDeleteRow(tsNormalTableSdb, pTable, SDB_OPER_GLOBAL);
     } else {}
     mError("table:%s, failed to create in dnode, reason:%s", pTable->tableId, tstrerror(rpcMsg->code));
     mgmtSendSimpleResp(queueMsg->thandle, rpcMsg->code);
@@ -817,19 +816,19 @@ static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg) {
   }
 
   if (pTable->type == TSDB_CHILD_TABLE) {
-    if (sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_GLOBAL) < 0) {
-      mError("table:%s, update ctables sdb error", pTable->tableId);
-      mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SDB_ERROR);
-      free(queueMsg);
-      return;
-    }
+    // if (sdbDeleteRow(tsChildTableSdb, pTable, SDB_OPER_GLOBAL) < 0) {
+    //   mError("table:%s, update ctables sdb error", pTable->tableId);
+    //   mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SDB_ERROR);
+    //   free(queueMsg);
+    //   return;
+    // }
   } else if (pTable->type == TSDB_NORMAL_TABLE){
-    if (sdbDeleteRow(tsNormalTableSdb, pTable, SDB_OPER_GLOBAL) < 0) {
-      mError("table:%s, update ntables sdb error", pTable->tableId);
-      mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SDB_ERROR);
-      free(queueMsg);
-      return;
-    }
+    // if (sdbDeleteRow(tsNormalTableSdb, pTable, SDB_OPER_GLOBAL) < 0) {
+    //   mError("table:%s, update ntables sdb error", pTable->tableId);
+    //   mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SDB_ERROR);
+    //   free(queueMsg);
+    //   return;
+    // }
   }
 
   if (pVgroup->numOfTables <= 0) {

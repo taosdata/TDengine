@@ -39,6 +39,7 @@ int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName
 int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMetaMsg *pMeta, bool usePublicIp);
 
 void mgmtDropAllChildTables(SDbObj *pDropDb);
+void mgmtDropAllChildTablesInStable(SSuperTableObj *pStable);
 
 #ifdef __cplusplus
 }
