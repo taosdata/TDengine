@@ -117,7 +117,7 @@ static int32_t mgmtDbActionDecode(SSdbOperDesc *pOper) {
 
 int32_t mgmtInitDbs() {
   SDbObj tObj;
-  tsDbUpdateSize = tObj.updateEnd - (char *)&tObj;
+  tsDbUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
     .tableName    = "dbs",
@@ -275,8 +275,6 @@ static int32_t mgmtCheckDbParams(SCMCreateDbMsg *pCreate) {
   if (pCreate->blocksPerTable < TSDB_MIN_AVG_BLOCKS) {
     pCreate->blocksPerTable = TSDB_MIN_AVG_BLOCKS;
   }
-
-  pCreate->maxSessions++;
 
   return TSDB_CODE_SUCCESS;
 }

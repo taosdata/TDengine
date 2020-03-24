@@ -111,7 +111,7 @@ static int32_t mgmtSuperTableActionDecode(SSdbOperDesc *pOper) {
 
 int32_t mgmtInitSuperTables() {
   SSuperTableObj tObj;
-  tsSuperTableUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
+  tsSuperTableUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
     .tableName    = "stables",

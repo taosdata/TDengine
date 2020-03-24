@@ -53,8 +53,8 @@ typedef struct {
   int8_t   numOfMnodes;
   int32_t  numOfDnodes;
   char     mnodeName[TSDB_DNODE_NAME_LEN + 1];
-  char     reserved[7];
-  char     updateEnd[1];
+  int8_t   reserved[15];
+  int8_t   updateEnd[1];
   int      syncFd;
   void    *hbTimer;
   void    *pSync;
@@ -78,8 +78,8 @@ typedef struct {
   float      lbScore;          // calc in balance function
   int32_t    customScore;      // config by user
   char       dnodeName[TSDB_DNODE_NAME_LEN + 1];
-  char       reserved[7];
-  char       updateEnd[1];
+  int8_t     reserved[15];
+  int8_t     updateEnd[1];
   SVnodeLoad vload[TSDB_MAX_VNODES];
   int32_t    status;
   uint32_t   lastReboot;       // time stamp for last reboot
@@ -120,7 +120,7 @@ typedef struct SSuperTableObj {
   int32_t  sversion;
   int32_t  numOfColumns;
   int32_t  numOfTags;
-  int8_t   reserved[5];
+  int8_t   reserved[15];
   int8_t   updateEnd[1];
   int32_t  numOfTables;
   int16_t  nextColId;
@@ -152,7 +152,7 @@ typedef struct {
   int32_t  sversion;
   int32_t  numOfColumns;
   int32_t  sqlLen;
-  int8_t   reserved[3];
+  int8_t   reserved[7];
   int8_t   updateEnd[1];
   char*    sql;  //null-terminated string
   int16_t  nextColId;
@@ -167,7 +167,6 @@ typedef struct _vg_obj {
   int64_t         createdTime;
   SVnodeGid       vnodeGid[TSDB_VNODES_SUPPORT];
   int32_t         numOfVnodes;
-  int32_t         numOfTables;
   int32_t         lbIp;
   int32_t         lbTime;
   int8_t          lbStatus;
@@ -175,6 +174,7 @@ typedef struct _vg_obj {
   int8_t          updateEnd[1];
   struct _vg_obj *prev, *next;
   struct _db_obj *pDb;
+  int32_t         numOfTables;
   void *          idPool;
   STableInfo **   tableList;
 } SVgObj;
@@ -184,8 +184,8 @@ typedef struct _db_obj {
   int8_t  dirty;
   int64_t createdTime;
   SDbCfg  cfg;
-  char    reserved[15];
-  char    updateEnd[1];
+  int8_t  reserved[15];
+  int8_t  updateEnd[1];
   struct _db_obj *prev, *next;
   int32_t numOfVgroups;
   int32_t numOfTables;
@@ -203,7 +203,7 @@ typedef struct _user_obj {
   int64_t           createdTime;
   int8_t            superAuth;
   int8_t            writeAuth;
-  int8_t            reserved[16];
+  int8_t            reserved[13];
   int8_t            updateEnd[1];
   struct _user_obj *prev, *next;
   struct _acctObj * pAcct;

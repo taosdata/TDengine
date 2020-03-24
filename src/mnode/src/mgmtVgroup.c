@@ -142,7 +142,7 @@ static int32_t mgmtVgroupActionDecode(SSdbOperDesc *pOper) {
 
 int32_t mgmtInitVgroups() {
   SVgObj tObj;
-  tsVgUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
+  tsVgUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
     .tableName    = "vgroups",
@@ -433,13 +433,10 @@ void mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable) {
     pVgroup->tableList[pTable->sid] = pTable;
     taosIdPoolMarkStatus(pVgroup->idPool, pTable->sid);
     pVgroup->numOfTables++;
-    pVgroup->pDb->numOfTables++;
   }
 
   if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
     mgmtAddVgroupIntoDbTail(pVgroup);
-  else
-    mgmtAddVgroupIntoDb(pVgroup);
 }
 
 void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable) {
@@ -447,13 +444,10 @@ void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable) {
     pVgroup->tableList[pTable->sid] = NULL;
     taosFreeId(pVgroup->idPool, pTable->sid);
     pVgroup->numOfTables--;
-    pVgroup->pDb->numOfTables--;
   }
 
   if (pVgroup->numOfTables >= pVgroup->pDb->cfg.maxSessions)
     mgmtAddVgroupIntoDbTail(pVgroup);
-  else
-    mgmtAddVgroupIntoDb(pVgroup);
 }
 
 SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {

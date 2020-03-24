@@ -94,7 +94,7 @@ static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
 
 int32_t mgmtInitUsers() {
   SUserObj tObj;
-  tsUserUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
+  tsUserUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
     .tableName    = "users",
@@ -471,7 +471,7 @@ static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
   if (hasRight) {
     code = mgmtDropUser(pUser->pAcct, pDrop->user);
     if (code == TSDB_CODE_SUCCESS) {
-      mLPrint("user:%s is dropped by %s", pDrop->user, pUser->user);
+       mLPrint("user:%s is dropped by %s, result:%d", pUser->user, pOperUser->user, tstrerror(code));
     }
   } else {
     code = TSDB_CODE_NO_RIGHTS;

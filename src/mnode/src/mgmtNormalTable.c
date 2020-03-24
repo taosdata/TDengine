@@ -33,7 +33,7 @@
 #include "mgmtTable.h"
 #include "mgmtVgroup.h"
 
-void *tsNormalTableSdb;
+void   *tsNormalTableSdb;
 int32_t tsNormalTableUpdateSize;
 
 static void mgmtDestroyNormalTable(SNormalTableObj *pTable) {
@@ -43,8 +43,7 @@ static void mgmtDestroyNormalTable(SNormalTableObj *pTable) {
 }
 
 static int32_t mgmtNormalTableActionDestroy(SSdbOperDesc *pOper) {
-  SNormalTableObj *pTable = pOper->pObj;
-  mgmtDestroyNormalTable(pTable);
+  mgmtDestroyNormalTable(pOper->pObj);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -53,37 +52,25 @@ static int32_t mgmtNormalTableActionInsert(SSdbOperDesc *pOper) {
 
   SVgObj *pVgroup = mgmtGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
-    mError("id:%s not in vgroup:%d", pTable->tableId, pTable->vgId);
+    mError("ntable:%s not in vgroup:%d", pTable->tableId, pTable->vgId);
     return TSDB_CODE_INVALID_VGROUP_ID;
   }
 
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
   if (pDb == NULL) {
-    mError("vgroup:%d not in DB:%s", pVgroup->vgId, pVgroup->dbName);
+    mError("ntable:%s, vgroup:%d not in DB:%s", pTable->tableId, pVgroup->vgId, pVgroup->dbName);
     return TSDB_CODE_INVALID_DB;
   }
 
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
-    mError("account not exists");
+    mError("ntable:%s, account:%s not exists", pTable->tableId, pDb->cfg.acct);
     return TSDB_CODE_INVALID_ACCT;
-  }
-
-  if (!mgmtIsMaster()) {
-    int32_t sid = taosAllocateId(pVgroup->idPool);
-    if (sid != pTable->sid) {
-      mError("sid:%d is not matched from the master:%d", sid, pTable->sid);
-      return TSDB_CODE_INVALID_SESSION_ID;
-    }
   }
 
   mgmtAddTimeSeries(pAcct, pTable->numOfColumns - 1);
   mgmtAddTableIntoDb(pDb);
   mgmtAddTableIntoVgroup(pVgroup, (STableInfo *) pTable);
-
-  if (pVgroup->numOfTables >= pDb->cfg.maxSessions - 1 && pDb->numOfVgroups > 1) {
-    mgmtMoveVgroupToTail(pVgroup);
-  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -101,7 +88,7 @@ static int32_t mgmtNormalTableActionDelete(SSdbOperDesc *pOper) {
 
   SDbObj *pDb = mgmtGetDb(pVgroup->dbName);
   if (pDb == NULL) {
-    mError("vgroup:%d not in DB:%s", pVgroup->vgId, pVgroup->dbName);
+    mError("ntable:%s, vgroup:%d not in DB:%s", pTable->tableId, pVgroup->vgId, pVgroup->dbName);
     return TSDB_CODE_INVALID_DB;
   }
 
@@ -115,22 +102,10 @@ static int32_t mgmtNormalTableActionDelete(SSdbOperDesc *pOper) {
   mgmtRemoveTableFromDb(pDb);
   mgmtRemoveTableFromVgroup(pVgroup, (STableInfo *) pTable);
 
-  if (pVgroup->numOfTables > 0) {
-    mgmtMoveVgroupToHead(pVgroup);
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mgmtNormalTableActionUpdate(SSdbOperDesc *pOper) {
-  // SNormalTableObj *pTable = (SNormalTableObj *) pObj;
-  // memcpy(pTable, str, tsNormalTableUpdateSize);
-
-  // int32_t schemaSize = sizeof(SSchema) * (pTable->numOfColumns) + pTable->sqlLen;
-  // pTable->schema = realloc(pTable->schema, schemaSize);
-  // pTable->sql = (char*)pTable->schema + sizeof(SSchema) * (pTable->numOfColumns);
-  // memcpy(pTable->schema, str + tsNormalTableUpdateSize, schemaSize);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -139,25 +114,24 @@ static int32_t mgmtNormalTableActionEncode(SSdbOperDesc *pOper) {
   assert(pOper->pObj != NULL && pOper->rowData != NULL);
 
   int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
-  if (pOper->maxRowSize < tsNormalTableUpdateSize + schemaSize + 1) {
-    return -1;
+  if (pOper->maxRowSize < tsNormalTableUpdateSize + schemaSize) {
+    return TSDB_CODE_INVALID_MSG_LEN;
   }
 
   memcpy(pOper->rowData, pTable, tsNormalTableUpdateSize);
   memcpy(pOper->rowData + tsNormalTableUpdateSize, pTable->schema, schemaSize);
   memcpy(pOper->rowData + tsNormalTableUpdateSize + schemaSize, pTable->sql, pTable->sqlLen);
- 
-  return tsNormalTableUpdateSize + schemaSize + pTable->sqlLen;
+
+  pOper->rowSize = tsNormalTableUpdateSize + schemaSize + pTable->sqlLen;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mgmtNormalTableActionDecode(SSdbOperDesc *pOper) {
   assert(pOper->rowData != NULL);
 
-  SNormalTableObj *pTable = (SNormalTableObj *)malloc(sizeof(SNormalTableObj));
-  if (pTable == NULL) {
-    return -1;
-  }
-  memset(pTable, 0, sizeof(SNormalTableObj));
+  SNormalTableObj *pTable = (SNormalTableObj *)calloc(1, sizeof(SNormalTableObj));
+  if (pTable == NULL) TSDB_CODE_SERV_OUT_OF_MEMORY;
+
   memcpy(pTable, pOper->rowData, tsNormalTableUpdateSize);
 
   int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
@@ -176,6 +150,7 @@ static int32_t mgmtNormalTableActionDecode(SSdbOperDesc *pOper) {
   }
   memcpy(pTable->sql, pOper->rowData + tsNormalTableUpdateSize + schemaSize, pTable->sqlLen);
   
+  pOper->pObj = pTable;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -185,7 +160,7 @@ int32_t mgmtInitNormalTables() {
   SNormalTableObj *pTable = NULL;
 
   SNormalTableObj tObj;
-  tsNormalTableUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
+  tsNormalTableUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
   SSdbTableDesc tableDesc = {
     .tableName    = "ntables",
@@ -261,15 +236,6 @@ int32_t mgmtInitNormalTables() {
       pNode = pLastNode;
       continue;
     }
-
-    mgmtAddTableIntoVgroup(pVgroup, (STableInfo *)pTable);
-    //pVgroup->tableList[pTable->sid] = (STableInfo*)pTable;
-    taosIdPoolMarkStatus(pVgroup->idPool, pTable->sid);
-
-    pTable->sql = (char *)pTable->schema + sizeof(SSchema) * pTable->numOfColumns;
-
-    SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
-    mgmtAddTimeSeries(pAcct, pTable->numOfColumns - 1);
   }
 
   mTrace("ntables is initialized");
