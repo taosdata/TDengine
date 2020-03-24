@@ -33,7 +33,7 @@ typedef struct SData {
 } SData;
 
 enum {
-  ST_QUERY_KILLED = 0,     // query killed
+//  ST_QUERY_KILLED = 0,     // query killed
   ST_QUERY_PAUSED = 1,     // query paused, due to full of the response buffer
   ST_QUERY_COMPLETED = 2,  // query completed
 };
@@ -142,8 +142,8 @@ typedef struct SQuery {
   SResultRec        rec;
   int32_t           pos;
   int64_t           pointsOffset;  // the number of points offset to save read data
-  SData**            sdata;
-  int32_t capacity;
+  SData**           sdata;
+  int32_t           capacity;
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;
 
@@ -170,14 +170,14 @@ typedef struct SQueryRuntimeEnv {
 } SQueryRuntimeEnv;
 
 typedef struct SQInfo {
-  uint64_t         signature;
+  void*            signature;
   void*            pVnode;
   TSKEY            startTime;
-  int64_t          elapsedTime;
+  TSKEY            elapsedTime;
   SResultRec       rec;
   int32_t          pointsInterpo;
   int32_t          code;   // error code to returned to client
-  int32_t          killed; // denotes if current query is killed
+//  int32_t          killed; // denotes if current query is killed
   sem_t            dataReady;
   SArray*          pTableIdList;  // table list
   SQueryRuntimeEnv runtimeEnv;
