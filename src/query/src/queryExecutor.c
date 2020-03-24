@@ -64,38 +64,24 @@ typedef struct SPointInterpoSupporter {
 } SPointInterpoSupporter;
 
 typedef enum {
-
-  /*
-   * the program will call this function again, if this status is set.
-   * used to transfer from QUERY_RESBUF_FULL
-   */
+  // when query starts to execute, this status will set
   QUERY_NOT_COMPLETED = 0x1u,
 
-  /*
-   * output buffer is full, so, the next query will be employed,
-   * in this case, we need to set the appropriated start scan point for
-   * the next query.
-   *
-   * this status is only exist in group-by clause and
-   * diff/add/division/multiply/ query.
+  /* result output buffer is full, current query is paused.
+   * this status is only exist in group-by clause and diff/add/division/multiply/ query.
    */
   QUERY_RESBUF_FULL = 0x2u,
 
-  /*
-   * query is over
-   * 1. this status is used in one row result query process, e.g.,
-   * count/sum/first/last/
-   * avg...etc.
-   * 2. when the query range on timestamp is satisfied, it is also denoted as
-   * query_compeleted
+  /* query is over
+   * 1. this status is used in one row result query process, e.g., count/sum/first/last/ avg...etc.
+   * 2. when all data within queried time window, it is also denoted as query_completed
    */
   QUERY_COMPLETED = 0x4u,
-
-  /*
-   * all data has been scanned, so current search is stopped,
-   * At last, the function will transfer this status to QUERY_COMPLETED
+  
+  /* when the result is not completed return to client, this status will be
+   * usually used in case of interval query with interpolation option
    */
-  QUERY_NO_DATA_TO_CHECK = 0x8u,
+  QUERY_OVER      = 0x8u,
 } vnodeQueryStatus;
 
 static void setQueryStatus(SQuery *pQuery, int8_t status);
@@ -1301,7 +1287,7 @@ static int32_t rowwiseApplyAllFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStat
     if (pRuntimeEnv->pTSBuf != NULL) {
       // if timestamp filter list is empty, quit current query
       if (!tsBufNextPos(pRuntimeEnv->pTSBuf)) {
-        setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
+        setQueryStatus(pQuery, QUERY_COMPLETED);
         break;
       }
     }
@@ -1621,10 +1607,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   pRuntimeEnv->pTSBuf = tsBufDestory(pRuntimeEnv->pTSBuf);
 }
 
-bool isQueryKilled(SQuery *pQuery) {
-  return false;
-
-  SQInfo *pQInfo = (SQInfo *)GET_QINFO_ADDR(pQuery);
+static bool isQueryKilled(SQuery *pQuery) {
 #if 0
   /*
    * check if the queried meter is going to be deleted.
@@ -1638,7 +1621,12 @@ bool isQueryKilled(SQuery *pQuery) {
   
   return (pQInfo->killed == 1);
 #endif
+  
   return 0;
+}
+
+static bool setQueryKilled(SQInfo* pQInfo) {
+  pQInfo->code = TSDB_CODE_QUERY_CANCELLED;
 }
 
 bool isFixedOutputQuery(SQuery *pQuery) {
@@ -2664,7 +2652,6 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   while (tsdbNextDataBlock(pQueryHandle)) {
     // check if query is killed or not set the status of query to pass the status check
     if (isQueryKilled(pQuery)) {
-      setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
       return cnt;
     }
 
@@ -2714,7 +2701,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   }
 
   if (isIntervalQuery(pQuery) && IS_MASTER_SCAN(pRuntimeEnv)) {
-    if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED | QUERY_NO_DATA_TO_CHECK)) {
+    if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
       int32_t step = QUERY_IS_ASC_QUERY(pQuery) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP;
 
       closeAllTimeWindow(&pRuntimeEnv->windowResInfo);
@@ -3631,7 +3618,7 @@ void vnodeScanAllData(SQueryRuntimeEnv *pRuntimeEnv) {
 
     /* check if query is killed or not */
     if (isQueryKilled(pQuery)) {
-      setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
+//      setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
       return;
     }
   }
@@ -4111,7 +4098,7 @@ bool vnodeHasRemainResults(void *handle) {
     }
 
     // query has completed
-    if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED | QUERY_NO_DATA_TO_CHECK)) {
+    if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
       TSKEY ekey = taosGetRevisedEndKey(pQuery->window.ekey, pQuery->order.order, pQuery->intervalTime,
                                         pQuery->slidingTimeUnit, pQuery->precision);
       //      int32_t numOfTotal = taosGetNumOfResultWithInterpo(pInterpoInfo, (TSKEY
@@ -4272,7 +4259,7 @@ int32_t initQInfo(SQInfo *pQInfo, void *param, void* tsdb) {
            pQuery->window.ekey, pQuery->order.order);
 
     sem_post(&pQInfo->dataReady);
-    pQInfo->killed = 1;
+    setQueryStatus(pQuery, QUERY_COMPLETED);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -5024,7 +5011,7 @@ static void tableFixedOutputProcessor(SQInfo *pQInfo) {
   // since the numOfOutputElems must be identical for all sql functions that are allowed to be executed simutanelously.
   pQuery->rec.pointsRead = getNumOfResult(pRuntimeEnv);
   //  assert(pQuery->pointsRead <= pQuery->pointsToRead &&
-  //         Q_STATUS_EQUAL(pQuery->over, QUERY_COMPLETED | QUERY_NO_DATA_TO_CHECK));
+  //         Q_STATUS_EQUAL(pQuery->over, QUERY_COMPLETED));
 
   // must be top/bottom query if offset > 0
   if (pQuery->limit.offset > 0) {
@@ -5128,7 +5115,7 @@ static void vnodeSingleMeterIntervalMainLooper(SQueryRuntimeEnv *pRuntimeEnv) {
       pQuery->limit.offset -= c;
     }
 
-    if (Q_STATUS_EQUAL(pQuery->status, QUERY_NO_DATA_TO_CHECK | QUERY_COMPLETED)) {
+    if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
       break;
     }
 
@@ -5178,7 +5165,7 @@ static void tableIntervalProcessor(SQInfo *pQInfo) {
           pQInfo, (tFilePage **)pQuery->sdata, (tFilePage **)pInterpoBuf, pQuery->rec.pointsRead, &numOfInterpo);
 
       dTrace("QInfo: %p interpo completed, final:%d", pQInfo, pQuery->rec.pointsRead);
-      if (pQuery->rec.pointsRead > 0 || Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED | QUERY_NO_DATA_TO_CHECK)) {
+      if (pQuery->rec.pointsRead > 0 || Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
         doRevisedResultsByLimit(pQInfo);
         break;
       }
@@ -5206,17 +5193,20 @@ static void tableIntervalProcessor(SQInfo *pQInfo) {
 }
 
 void qTableQuery(SQInfo *pQInfo) {
-  assert(pQInfo != NULL);
-
-  if (pQInfo->killed) {
+  if (pQInfo == NULL || pQInfo->signature != pQInfo) {
+    dTrace("%p freed abort query", pQInfo);
+    return;
+  }
+  
+  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
+  
+  SQuery *pQuery = pRuntimeEnv->pQuery;
+  if (isQueryKilled(pQuery)) {
     dTrace("QInfo:%p it is already killed, abort", pQInfo);
     return;
   }
-
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  SQuery *          pQuery = pRuntimeEnv->pQuery;
-
-  //  dTrace("vid:%d sid:%d id:%s, query thread is created, numOfQueries:%d, QInfo:%p", pQInfo);
+  
+  dTrace("QInfo:%p query task is launched", pQInfo);
 
   if (vnodeHasRemainResults(pQInfo)) {
     /*
@@ -5242,7 +5232,7 @@ void qTableQuery(SQInfo *pQInfo) {
   }
 
   // here we have scan all qualified data in both data file and cache
-  if (Q_STATUS_EQUAL(pQuery->status, QUERY_NO_DATA_TO_CHECK | QUERY_COMPLETED)) {
+  if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
     // continue to get push data from the group result
     if (isGroupbyNormalCol(pQuery->pGroupbyExpr) ||
         (pQuery->intervalTime > 0 && pQInfo->rec.pointsTotal < pQuery->limit.limit)) {
@@ -5303,10 +5293,8 @@ void qTableQuery(SQInfo *pQInfo) {
   /* check if query is killed or not */
   if (isQueryKilled(pQuery)) {
     dTrace("QInfo:%p query is killed", pQInfo);
-    //    pQInfo->over = 1;
   } else {
-    //    dTrace("QInfo:%p vid:%d sid:%d id:%s, meter query thread completed, %d points are returned", pQInfo,
-    //           pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead);
+    dTrace("QInfo:%p query task completed, %d points are returned", pQInfo, pQuery->rec.pointsRead);
   }
 
   sem_post(&pQInfo->dataReady);
@@ -5989,21 +5977,16 @@ bool isQInfoValid(void *param) {
   return (sig == (uint64_t)pQInfo);
 }
 
-void vnodeFreeQInfo(SQInfo *pQInfo, bool decQueryRef) {
+void vnodeFreeQInfo(SQInfo *pQInfo) {
   if (!isQInfoValid(pQInfo)) {
     return;
   }
 
-  pQInfo->killed = 1;
+  SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
+  setQueryKilled(pQInfo);
+  
   dTrace("QInfo:%p start to free SQInfo", pQInfo);
-
-  if (decQueryRef) {
-    vnodeDecMeterRefcnt(pQInfo);
-  }
-
-  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-
-  for (int col = 0; col < pQuery->numOfOutputCols; ++col) {
+  for (int32_t col = 0; col < pQuery->numOfOutputCols; ++col) {
     tfree(pQuery->sdata[col]);
   }
 
@@ -6049,7 +6032,7 @@ void vnodeFreeQInfo(SQInfo *pQInfo, bool decQueryRef) {
   tfree(pQuery->pGroupbyExpr);
   tfree(pQuery);
 
-  //  dTrace("QInfo:%p vid:%d sid:%d meterId:%s, QInfo is freed", pQInfo, pObj->vnode, pObj->sid, pObj->meterId);
+  dTrace("QInfo:%p QInfo is freed", pQInfo);
 
   // destroy signature, in order to avoid the query process pass the object safety check
   memset(pQInfo, 0, sizeof(SQInfo));
@@ -6105,7 +6088,7 @@ static int32_t createQInfo(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyE
 
 _error:
   // table query ref will be decrease during error handling
-  vnodeFreeQInfo(*pQInfo, false);
+  vnodeFreeQInfo(*pQInfo);
   return code;
 }
 
@@ -6176,28 +6159,25 @@ int32_t qRetrieveQueryResultInfo(SQInfo *pQInfo, int32_t *numOfRows, int32_t *ro
   if (pQInfo == NULL || !isQInfoValid(pQInfo)) {
     return TSDB_CODE_INVALID_QHANDLE;
   }
-
-  if (pQInfo->killed) {
+  
+  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
+  if (isQueryKilled(pQuery)) {
     dTrace("QInfo:%p query is killed, code:%d", pQInfo, pQInfo->code);
     if (pQInfo->code == TSDB_CODE_SUCCESS) {
       return TSDB_CODE_QUERY_CANCELLED;
     } else {  // in case of not TSDB_CODE_SUCCESS, return the code to client
-      return abs(pQInfo->code);
+      return (pQInfo->code >= 0)? pQInfo->code:(-pQInfo->code);
     }
   }
 
   sem_wait(&pQInfo->dataReady);
   
-  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-  
   *numOfRows = pQInfo->rec.pointsRead;
   *rowsize = pQuery->rowSize;
 
   dTrace("QInfo:%p retrieve result info, rowsize:%d, rows:%d, code:%d", pQInfo, *rowsize, *numOfRows, pQInfo->code);
-
-  if (pQInfo->code < 0) {  // less than 0 means there are error existed.
-    return -pQInfo->code;
-  }
+  
+  return (pQInfo->code >= 0)? pQInfo->code:(-pQInfo->code);
 }
 
 static size_t getResultSize(SQInfo *pQInfo, int64_t *numOfRows) {
@@ -6250,6 +6230,11 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data, int32_t *size) {
   
   pQInfo->rec.pointsTotal += pQInfo->rec.pointsRead;
   dTrace("QInfo:%p current:%d, total:%d", pQInfo, pQInfo->rec.pointsRead, pQInfo->rec.pointsTotal);
+  
+  setQueryStatus(pQuery, QUERY_COMPLETED);
+  return TSDB_CODE_SUCCESS;
+  
+  // todo if interpolation exists, the result may be dump to client by several rounds
 }
 
 static void addToTaskQueue(SQInfo* pQInfo) {
@@ -6261,11 +6246,7 @@ static void addToTaskQueue(SQInfo* pQInfo) {
     dTrace("QInfo:%p set query flag, sig:%" PRIu64 ", func:%s", pQInfo, pQInfo->signature, __FUNCTION__);
 #endif
     
-    if (pQInfo->killed == 1) {
-      dTrace("%p freed or killed, abort query", pQInfo);
-    } else {
-      // todo add to task queue
-    }
+  // todo add to task queue
   }
 }
 
@@ -6293,12 +6274,20 @@ int32_t qDumpRetrieveResult(SQInfo *pQInfo, SRetrieveTableRsp** pRsp, int32_t* c
   }
   
   if (pQInfo->rec.pointsRead > 0 && code == TSDB_CODE_SUCCESS) {
-    doDumpQueryResult(pQInfo, (*pRsp)->data, NULL);
+    code = doDumpQueryResult(pQInfo, (*pRsp)->data, NULL);
+    
+    // has more data to return or need next round to execute
     addToTaskQueue(pQInfo);
-    return TSDB_CODE_SUCCESS;
+  } else if (isQueryKilled(pQuery)) {
+    code = TSDB_CODE_QUERY_CANCELLED;
   }
   
-  assert(code != TSDB_CODE_ACTION_IN_PROGRESS);
+  if (isQueryKilled(pQuery) || Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
+    (*pRsp)->completed = 1; // notify no more result to client
+    vnodeFreeQInfo(pQInfo);
+  }
+  
+  return code;
   
 //  if (numOfRows == 0 && (pRetrieve->qhandle == (uint64_t)pObj->qhandle) && (code != TSDB_CODE_ACTION_IN_PROGRESS)) {
 //    dTrace("QInfo:%p %s free qhandle code:%d", pObj->qhandle, __FUNCTION__, code);

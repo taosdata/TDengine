@@ -142,7 +142,7 @@ TEST(TsdbTest, DISABLED_openRepo) {
 TEST(TsdbTest, DISABLED_createFileGroup) {
   SFileGroup fGroup;
 
-  ASSERT_EQ(tsdbCreateFileGroup("/home/ubuntu/work/ttest/vnode0/data", 1820, &fGroup, 1000), 0);
+  // ASSERT_EQ(tsdbCreateFileGroup("/home/ubuntu/work/ttest/vnode0/data", 1820, &fGroup, 1000), 0);
 
   int k = 0;
 }

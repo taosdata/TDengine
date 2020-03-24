@@ -162,8 +162,6 @@ void taosDeleteStrHash(void *handle, char *string) {
   if (pObj == NULL || pObj->maxSessions == 0) return;
   if (string == NULL || string[0] == 0) return;
 
-  return;
-  
   hash = (*(pObj->hashFp))(pObj, string);
 
   pthread_mutex_lock(&pObj->mutex);
