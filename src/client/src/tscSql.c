@@ -653,62 +653,6 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
   return pRes->tsrow;
 }
 
-TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
-  SSqlObj *pSql = (SSqlObj *)res;
-  SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
-
-  if (pRes->qhandle == 0 || pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-    return NULL;
-  }
-
-  if (pCmd->command == TSDB_SQL_METRIC_JOIN_RETRIEVE) {
-    tscFetchDatablockFromSubquery(pSql);
-
-    if (pRes->code == TSDB_CODE_SUCCESS) {
-      tscTrace("%p data from all subqueries have been retrieved to client", pSql);
-      return tscBuildResFromSubqueries(pSql);
-    } else {
-      tscTrace("%p retrieve data from subquery failed, code:%d", pSql, pRes->code);
-      return NULL;
-    }
-
-  } else if (pRes->row >= pRes->numOfRows) {
-    /**
-     * NOT a join query
-     *
-     * If the data block of current result set have been consumed already, try fetch next result
-     * data block from virtual node.
-     */
-    tscResetForNextRetrieve(pRes);
-
-    if (pCmd->command < TSDB_SQL_LOCAL) {
-      pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-    }
-
-    tscProcessSql(pSql);  // retrieve data from virtual node
-
-    // if failed to retrieve data from current virtual node, try next one if exists
-    if (hasMoreVnodesToTry(pSql)) {
-      tscTryQueryNextVnode(pSql, NULL);
-    }
-
-    /*
-     * local reducer has handle this case,
-     * so no need to add the pRes->numOfRows for super table query
-     */
-    if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC) {
-      pRes->numOfTotalInCurrentClause += pRes->numOfRows;
-    }
-
-    if (pRes->numOfRows == 0) {
-      return NULL;
-    }
-  }
-
-  return doSetResultRowData(pSql);
-}
-
 static void asyncFetchCallback(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlObj* pSql = (SSqlObj*) tres;
   if (numOfRows < 0) {
@@ -729,8 +673,10 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
   
-  if (pRes->qhandle == 0 || pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pCmd->command == TSDB_SQL_INSERT ||
-  pRes->completed) {
+  if (pRes->qhandle == 0 ||
+      pRes->completed ||
+      pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
+      pCmd->command == TSDB_SQL_INSERT) {
     return NULL;
   }
   
