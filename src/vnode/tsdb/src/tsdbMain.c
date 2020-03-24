@@ -818,6 +818,7 @@ static SSkipListIterator **tsdbCreateTableIters(STsdbMeta *pMeta, int maxTables)
 // Commit to file
 static void *tsdbCommitToFile(void *arg) {
   // TODO
+  printf("Starting to commit....\n");
   STsdbRepo * pRepo = (STsdbRepo *)arg;
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbCache *pCache = pRepo->tsdbCache;
@@ -836,42 +837,42 @@ static void *tsdbCommitToFile(void *arg) {
   SDataCol **cols = (SDataCol **)malloc(sizeof(SDataCol *) * maxCols);
   void *buf = malloc((maxBytes + sizeof(SDataCol)) * pCfg->maxRowsPerFileBlock);
 
-  // int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
-  // int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);
+  int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
+  int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);
 
-  // for (int fid = sfid; fid <= efid; fid++) {
-  //   TSKEY minKey = 0, maxKey = 0;
-  //   tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
+  for (int fid = sfid; fid <= efid; fid++) {
+    TSKEY minKey = 0, maxKey = 0;
+    tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
 
-  //   // tsdbOpenFileForWrite(pRepo, fid);
+    // tsdbOpenFileForWrite(pRepo, fid);
 
-  //   for (int tid = 0; tid < pCfg->maxTables; tid++) {
-  //     STable *pTable = pMeta->tables[tid];
-  //     if (pTable == NULL || pTable->imem == NULL) continue;
-  //     if (iters[tid] == NULL) {  // create table iterator
-  //       iters[tid] = tSkipListCreateIter(pTable->imem->pData);
-  //       // TODO: deal with the error
-  //       if (iters[tid] == NULL) break;
-  //       if (!tSkipListIterNext(iters[tid])) {
-  //         // assert(0);
-  //       }
-  //     }
+    for (int tid = 0; tid < pCfg->maxTables; tid++) {
+      STable *pTable = pMeta->tables[tid];
+      if (pTable == NULL || pTable->imem == NULL) continue;
+      if (iters[tid] == NULL) {  // create table iterator
+        iters[tid] = tSkipListCreateIter(pTable->imem->pData);
+        // TODO: deal with the error
+        if (iters[tid] == NULL) break;
+        if (!tSkipListIterNext(iters[tid])) {
+          // assert(0);
+        }
+      }
 
-  //     // Init row data part
-  //     cols[0] = (SDataCol *)buf;
-  //     for (int col = 1; col < schemaNCols(pTable->schema); col++) {
-  //       cols[col] = (SDataCol *)((char *)(cols[col - 1]) + sizeof(SDataCol) + colBytes(schemaColAt(pTable->schema, col-1)) * pCfg->maxRowsPerFileBlock);
-  //     }
+      // Init row data part
+      cols[0] = (SDataCol *)buf;
+      for (int col = 1; col < schemaNCols(pTable->schema); col++) {
+        cols[col] = (SDataCol *)((char *)(cols[col - 1]) + sizeof(SDataCol) + colBytes(schemaColAt(pTable->schema, col-1)) * pCfg->maxRowsPerFileBlock);
+      }
 
-  //     // Loop the iterator
-  //     int rowsRead = 0;
-  //     while ((rowsRead = tsdbReadRowsFromCache(iters[tid], maxKey, pCfg->maxRowsPerFileBlock, cols, pTable->schema)) >
-  //            0) {
-  //       // printf("rowsRead:%d-----------\n", rowsRead);
-  //       int k = 0;
-  //     }
-  //   }
-  // }
+      // Loop the iterator
+      int rowsRead = 0;
+      while ((rowsRead = tsdbReadRowsFromCache(iters[tid], maxKey, pCfg->maxRowsPerFileBlock, cols, pTable->schema)) >
+             0) {
+        // printf("rowsRead:%d-----------\n", rowsRead);
+        int k = 0;
+      }
+    }
+  }
 
   tsdbDestroyTableIters(iters, pCfg->maxTables);
 
