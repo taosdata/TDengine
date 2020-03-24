@@ -142,7 +142,7 @@ typedef struct SQuery {
   SResultRec        rec;
   int32_t           pos;
   int64_t           pointsOffset;  // the number of points offset to save read data
-  SData**           sdata;
+  SData**            sdata;
   int32_t capacity;
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;
@@ -171,11 +171,10 @@ typedef struct SQueryRuntimeEnv {
 
 typedef struct SQInfo {
   uint64_t         signature;
-  void* pVnode;
+  void*            pVnode;
   TSKEY            startTime;
   int64_t          elapsedTime;
   SResultRec       rec;
-  int32_t          pointsReturned;
   int32_t          pointsInterpo;
   int32_t          code;   // error code to returned to client
   int32_t          killed; // denotes if current query is killed
@@ -184,7 +183,6 @@ typedef struct SQInfo {
   SQueryRuntimeEnv runtimeEnv;
   int32_t          subgroupIdx;
   int32_t          offset; /* offset in group result set of subgroup */
-//  tSidSet*         pSidSet;
   
   T_REF_DECLARE()
   /*
@@ -226,7 +224,12 @@ void qSuperTableQuery(void* pReadMsg);
  */
 int32_t qRetrieveQueryResultInfo(SQInfo* pQInfo, int32_t *numOfRows, int32_t* rowsize);
 
-
-//int32_t qBuildQueryResult(SQInfo* pQInfo, void* pBuf);
+/**
+ *
+ * @param pQInfo
+ * @param pRsp
+ * @return
+ */
+int32_t qDumpRetrieveResult(SQInfo *pQInfo, SRetrieveTableRsp** pRsp, int32_t* contLen);
 
 #endif  // TDENGINE_QUERYEXECUTOR_H

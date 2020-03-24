@@ -109,7 +109,6 @@ typedef struct STsdbQueryHandle {
   uint16_t    flag;  // denotes reversed scan of data or not
   int16_t     order;
   STimeWindow window;  // the primary query time window that applies to all queries
-  TSKEY       lastKey;
   int32_t     blockBufferSize;
   SCompBlock *pBlock;
   int32_t     numOfBlocks;
@@ -264,8 +263,20 @@ tsdb_query_handle_t *tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond *pCond
   pQueryHandle->pColumns = pColumnInfo;
   pQueryHandle->loadDataAfterSeek = false;
   pQueryHandle->isFirstSlot = true;
-
-  pQueryHandle->lastKey = pQueryHandle->window.skey;  // ascending query
+  
+  // only support table query
+  assert(taosArrayGetSize(idList) == 1);
+  
+  pQueryHandle->pTableQueryInfo = calloc(1, sizeof(STableQueryRec));
+  STableQueryRec* pTableQRec = pQueryHandle->pTableQueryInfo;
+  
+  pTableQRec->lastKey = pQueryHandle->window.skey;
+  
+  STableIdInfo* idInfo = taosArrayGet(pQueryHandle->pTableIdList, 0);
+  
+  STableId tableId = {.uid = idInfo->uid, .tid = idInfo->sid};
+  STable *pTable = tsdbIsValidTableToInsert(tsdbGetMeta(pQueryHandle->pTsdb), tableId);
+  pTableQRec->pTableObj = pTable;
   
   // malloc buffer in order to load data from file
   int32_t numOfCols = taosArrayGetSize(pColumnInfo);
@@ -295,14 +306,21 @@ tsdb_query_handle_t *tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond *pCond
   return (tsdb_query_handle_t)pQueryHandle;
 }
 
-static int32_t next = 1;
 bool tsdbNextDataBlock(tsdb_query_handle_t *pQueryHandle) {
-  if (next == 0) {
+  STsdbQueryHandle* pHandle = (STsdbQueryHandle*) pQueryHandle;
+  STable *pTable = pHandle->pTableQueryInfo->pTableObj;
+  
+  // no data in cache, abort
+  if (pTable->mem == NULL && pTable->imem == NULL) {
     return false;
-  } else {
-    next = 0;
-    return true;
   }
+  
+  // all data in mem are checked already.
+  if (pHandle->pTableQueryInfo->lastKey > pTable->mem->keyLast) {
+    return false;
+  }
+  
+  return true;
 }
 
 static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
@@ -344,9 +362,7 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle) {
   STsdbQueryHandle* pHandle = (STsdbQueryHandle*) pQueryHandle;
   STableIdInfo* idInfo = taosArrayGet(pHandle->pTableIdList, 0);
   
-  STableId tableId = {.uid = idInfo->uid, .tid = idInfo->sid};
-  STable *pTable = tsdbIsValidTableToInsert(tsdbGetMeta(pHandle->pTsdb), tableId);
-  assert(pTable != NULL);
+  STable *pTable = pHandle->pTableQueryInfo->pTableObj;
   
   TSKEY skey = 0, ekey = 0;
   int32_t rows = 0;
@@ -357,11 +373,14 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle) {
   }
   
   SDataBlockInfo blockInfo = {
-      .uid = tableId.uid,
-      .sid = tableId.tid,
+      .uid = idInfo->uid,
+      .sid = idInfo->sid,
       .size = rows,
       .window = {.skey = skey, .ekey = ekey}
   };
+  
+  // update the last key value
+  pHandle->pTableQueryInfo->lastKey = ekey + 1;
   
   return blockInfo;
 }
