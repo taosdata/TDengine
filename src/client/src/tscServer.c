@@ -273,8 +273,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
   }
 
   pSql->retry = 0;
-
   pRes->rspLen = 0;
+  
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED) {
     pRes->code = (rpcMsg->code != TSDB_CODE_SUCCESS) ? rpcMsg->code : TSDB_CODE_NETWORK_UNAVAIL;
   } else {
@@ -283,9 +283,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
 
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED) {
     assert(rpcMsg->msgType == pCmd->msgType + 1);
-    pRes->code = (int32_t)rpcMsg->code;
+    pRes->code    = rpcMsg->code;
     pRes->rspType = rpcMsg->msgType;
-    pRes->rspLen = rpcMsg->contLen;
+    pRes->rspLen  = rpcMsg->contLen;
 
     char *tmp = (char *)realloc(pRes->pRsp, pRes->rspLen);
     if (tmp == NULL) {
@@ -389,7 +389,7 @@ int tscProcessSql(SSqlObj *pSql) {
   
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = NULL;
-  uint16_t         type = 0;
+  uint16_t        type = 0;
 
   if (pQueryInfo != NULL) {
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -2302,9 +2302,9 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
 
   pRes->numOfRows = htonl(pRetrieve->numOfRows);
   pRes->precision = htons(pRetrieve->precision);
-  pRes->offset = htobe64(pRetrieve->offset);
-  pRes->useconds = htobe64(pRetrieve->useconds);
-  pRes->data = pRetrieve->data;
+  pRes->offset    = htobe64(pRetrieve->offset);
+  pRes->useconds  = htobe64(pRetrieve->useconds);
+  pRes->data      = pRetrieve->data;
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   tscSetResultPointer(pQueryInfo, pRes);

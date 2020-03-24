@@ -2698,10 +2698,8 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
     int32_t forwardStep = tableApplyFunctionsOnBlock(pRuntimeEnv, &blockInfo, pStatis, binarySearchForKey, &numOfRes,
                                                      &pRuntimeEnv->windowResInfo, pDataBlock);
 
-    //    dTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", fileId:%d, slot:%d, pos:%d, rows:%d,
-    //    checked:%d",
-    //           GET_QINFO_ADDR(pQuery), blockInfo.window.skey, blockInfo.window.ekey, pQueryHandle->cur.fileId,
-    //           pQueryHandle->cur.slot, pQuery->pos, blockInfo.size, forwardStep);
+    dTrace("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", rows:%d",
+               GET_QINFO_ADDR(pRuntimeEnv), blockInfo.window.skey, blockInfo.window.ekey, blockInfo.size);
 
     // save last access position
     cnt += forwardStep;
@@ -6189,12 +6187,13 @@ int32_t qRetrieveQueryResultInfo(SQInfo *pQInfo, int32_t *numOfRows, int32_t *ro
   }
 
   sem_wait(&pQInfo->dataReady);
-
+  
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
+  
   *numOfRows = pQInfo->rec.pointsRead;
   *rowsize = pQuery->rowSize;
 
-  dTrace("QInfo:%p, retrieve res info, rowsize:%d, rows:%d, code:%d", pQInfo, *rowsize, *numOfRows, pQInfo->code);
+  dTrace("QInfo:%p retrieve result info, rowsize:%d, rows:%d, code:%d", pQInfo, *rowsize, *numOfRows, pQInfo->code);
 
   if (pQInfo->code < 0) {  // less than 0 means there are error existed.
     return -pQInfo->code;

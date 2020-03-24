@@ -379,6 +379,9 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle) {
       .window = {.skey = skey, .ekey = ekey}
   };
   
+  // update the last key value
+  pHandle->pTableQueryInfo->lastKey = ekey + 1;
+  
   return blockInfo;
 }
 
