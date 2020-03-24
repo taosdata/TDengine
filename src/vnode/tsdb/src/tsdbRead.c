@@ -335,7 +335,6 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
     
     SDataRow row = SL_GET_NODE_DATA(node);
     if (dataRowKey(row) > maxKey) break;
-    // Convert row data to column data
     
     if (*skey == INT64_MIN) {
       *skey = dataRowKey(row);
@@ -345,13 +344,13 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
     
     int32_t offset = 0;
     for(int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoEx* pColInfo = taosArrayGet(pHandle->pColumns, 0);
+      SColumnInfoEx* pColInfo = taosArrayGet(pHandle->pColumns, i);
       memcpy(pColInfo->pData + numOfRows*pColInfo->info.bytes, dataRowTuple(row) + offset, pColInfo->info.bytes);
       offset += pColInfo->info.bytes;
     }
     
     numOfRows++;
-    if (numOfRows > maxRowsToRead) break;
+    if (numOfRows >= maxRowsToRead) break;
   };
   
   return numOfRows;
@@ -392,7 +391,9 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdb_query_handle_t *pQueryHandle, SData
 }
 
 SArray *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle, SArray *pIdList) {
-
+  // in case of data in cache, all data has been kept in column info object.
+  STsdbQueryHandle* pHandle = (STsdbQueryHandle*) pQueryHandle;
+  return pHandle->pColumns;
 }
 
 int32_t tsdbResetQuery(tsdb_query_handle_t *pQueryHandle, STimeWindow *window, tsdbpos_t position, int16_t order) {}

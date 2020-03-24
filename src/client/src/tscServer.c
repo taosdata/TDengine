@@ -341,14 +341,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     (*pSql->fp)(pSql->param, taosres, rpcMsg->code);
 
     if (shouldFree) {
-      // If it is failed, all objects allocated during execution taos_connect_a should be released
-      if (command == TSDB_SQL_CONNECT) {
-        taos_close(pObj);
-        tscTrace("%p Async sql close failed connection", pSql);
-      } else {
-        tscFreeSqlObj(pSql);
-        tscTrace("%p Async sql is automatically freed", pSql);
-      }
+      tscFreeSqlObj(pSql);
+      tscTrace("%p Async sql is automatically freed", pSql);
     }
   }
 

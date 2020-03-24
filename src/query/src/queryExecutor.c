@@ -53,9 +53,9 @@
 
 /* get the qinfo struct address from the query struct address */
 #define GET_COLUMN_BYTES(query, colidx) \
-  ((query)->colList[(query)->pSelectExpr[colidx].pBase.colInfo.colIdxInBuf].info.bytes)
+  ((query)->colList[(query)->pSelectExpr[colidx].pBase.colInfo.colIdx].info.bytes)
 #define GET_COLUMN_TYPE(query, colidx) \
-  ((query)->colList[(query)->pSelectExpr[colidx].pBase.colInfo.colIdxInBuf].info.type)
+  ((query)->colList[(query)->pSelectExpr[colidx].pBase.colInfo.colIdx].info.type)
 
 typedef struct SPointInterpoSupporter {
   int32_t numOfCols;
@@ -1498,16 +1498,8 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, SColumnModel 
     SColIndexEx *    pColIndexEx = &pSqlFuncMsg->colInfo;
 
     SQLFunctionCtx *pCtx = &pRuntimeEnv->pCtx[i];
-
-    if (TSDB_COL_IS_TAG(pSqlFuncMsg->colInfo.flag)) {  // process tag column info
-      SSchema *pSchema = getColumnModelSchema(pTagsSchema, pColIndexEx->colIdx);
-
-      pCtx->inputType = pSchema->type;
-      pCtx->inputBytes = pSchema->bytes;
-    } else {
-      pCtx->inputType = GET_COLUMN_TYPE(pQuery, i);
-      pCtx->inputBytes = GET_COLUMN_BYTES(pQuery, i);
-    }
+    pCtx->inputType = GET_COLUMN_TYPE(pQuery, i);
+    pCtx->inputBytes = GET_COLUMN_BYTES(pQuery, i);
 
     pCtx->ptsOutputBuf = NULL;
 
@@ -1891,8 +1883,6 @@ static void setScanLimitationByResultBuffer(SQuery *pQuery) {
 
     pQuery->checkBufferInLoop = hasMultioutput ? 1 : 0;
   }
-
-  //  pQuery->pointsOffset = pQuery->pointsToRead;
 }
 
 /*
@@ -2552,7 +2542,7 @@ SArray *loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBl
 //      return DISK_DATA_LOAD_FAILED;
     }
 
-    if (pStatis == NULL) {
+    if (*pStatis == NULL) {
       pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pQueryHandle, NULL);
     }
   } else {
@@ -5025,11 +5015,8 @@ static void tableFixedOutputProcessor(SQInfo *pQInfo) {
 }
 
 static void tableMultiOutputProcessor(SQInfo *pQInfo) {
-#if 0
-  SQuery *   pQuery = &pQInfo->query;
-  SMeterObj *pMeterObj = pQInfo->pObj;
-
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->pTableQuerySupporter->runtimeEnv;
+  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
+  SQuery *   pQuery = pRuntimeEnv->pQuery;
 
   // for ts_comp query, re-initialized is not allowed
   if (!isTSCompQuery(pQuery)) {
@@ -5044,8 +5031,8 @@ static void tableMultiOutputProcessor(SQInfo *pQInfo) {
       return;
     }
 
-    pQuery->pointsRead = getNumOfResult(pRuntimeEnv);
-    if (pQuery->limit.offset > 0 && pQuery->numOfFilterCols > 0 && pQuery->pointsRead > 0) {
+    pQuery->rec.pointsRead = getNumOfResult(pRuntimeEnv);
+    if (pQuery->limit.offset > 0 && pQuery->numOfFilterCols > 0 && pQuery->rec.pointsRead > 0) {
       doSkipResults(pRuntimeEnv);
     }
 
@@ -5053,40 +5040,31 @@ static void tableMultiOutputProcessor(SQInfo *pQInfo) {
      * 1. if pQuery->pointsRead == 0, pQuery->limit.offset >= 0, still need to check data
      * 2. if pQuery->pointsRead > 0, pQuery->limit.offset must be 0
      */
-    if (pQuery->pointsRead > 0 || Q_STATUS_EQUAL(pQuery->over, QUERY_COMPLETED | QUERY_NO_DATA_TO_CHECK)) {
+    if (pQuery->rec.pointsRead > 0 || Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
       break;
     }
 
-    TSKEY nextTimestamp = loadRequiredBlockIntoMem(pRuntimeEnv, &pRuntimeEnv->nextPos);
-    assert(nextTimestamp > 0 || ((nextTimestamp < 0) && Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)));
-
     dTrace("QInfo:%p vid:%d sid:%d id:%s, skip current result, offset:%" PRId64 ", next qrange:%" PRId64 "-%" PRId64,
-           pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->limit.offset, pQuery->lastKey,
-           pQuery->ekey);
+           pQInfo, pQuery->limit.offset, pQuery->lastKey);
 
     resetCtxOutputBuf(pRuntimeEnv);
   }
 
   doRevisedResultsByLimit(pQInfo);
-  pQInfo->pointsRead += pQuery->pointsRead;
+  pQInfo->rec.pointsRead += pQuery->rec.pointsRead;
 
-  if (Q_STATUS_EQUAL(pQuery->over, QUERY_RESBUF_FULL)) {
-    TSKEY nextTimestamp = loadRequiredBlockIntoMem(pRuntimeEnv, &pRuntimeEnv->nextPos);
-    assert(nextTimestamp > 0 || ((nextTimestamp < 0) && Q_STATUS_EQUAL(pQuery->over, QUERY_NO_DATA_TO_CHECK)));
-
-    dTrace("QInfo:%p vid:%d sid:%d id:%s, query abort due to buffer limitation, next qrange:%" PRId64 "-%" PRId64,
-           pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->lastKey, pQuery->ekey);
+  if (Q_STATUS_EQUAL(pQuery->status, QUERY_RESBUF_FULL)) {
+//    dTrace("QInfo:%p vid:%d sid:%d id:%s, query abort due to buffer limitation, next qrange:%" PRId64 "-%" PRId64,
+//           pQInfo, pQuery->lastKey, pQuery->ekey);
   }
 
-  dTrace("QInfo:%p vid:%d sid:%d id:%s, %d points returned, totalRead:%d totalReturn:%d", pQInfo, pMeterObj->vnode,
-         pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead, pQInfo->pointsRead, pQInfo->pointsReturned);
+//  dTrace("QInfo:%p vid:%d sid:%d id:%s, %d points returned, totalRead:%d totalReturn:%d", pQInfo, pMeterObj->vnode,
+//         pMeterObj->sid, pMeterObj->meterId, pQuery->pointsRead, pQInfo->pointsRead, pQInfo->pointsReturned);
 
-  pQuery->pointsOffset = pQuery->pointsToRead;  // restore the available buffer
-  if (!isTSCompQuery(pQuery)) {
-    assert(pQuery->pointsRead <= pQuery->pointsToRead);
-  }
-
-#endif
+//  pQuery->pointsOffset = pQuery->pointsToRead;  //restore the available buffer
+//  if (!isTSCompQuery(pQuery)) {
+//    assert(pQuery->pointsRead <= pQuery->pointsToRead);
+//  }
 }
 
 static void vnodeSingleMeterIntervalMainLooper(SQueryRuntimeEnv *pRuntimeEnv) {
@@ -5127,10 +5105,8 @@ static void vnodeSingleMeterIntervalMainLooper(SQueryRuntimeEnv *pRuntimeEnv) {
   }
 }
 
-/* handle time interval query on single table */
+// handle time interval query on table
 static void tableIntervalProcessor(SQInfo *pQInfo) {
-  //  STable *pMeterObj = pQInfo->pObj;
-
   SQueryRuntimeEnv *pRuntimeEnv = &(pQInfo->runtimeEnv);
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
@@ -5839,6 +5815,39 @@ static int32_t vnodeCreateFilterInfo(void *pQInfo, SQuery *pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void doUpdateExprColumnIndex(SQuery* pQuery) {
+  assert(pQuery->pSelectExpr != NULL && pQuery != NULL);
+//  int32_t i = 0, j = 0;
+//  while (i < pQuery->numOfCols && j < pMeterObj->numOfColumns) {
+//    if (pQuery->colList[i].data.colId == pMeterObj->schema[j].colId) {
+//      pQuery->colList[i++].colIdx = (int16_t)j++;
+//    } else if (pQuery->colList[i].data.colId < pMeterObj->schema[j].colId) {
+//      pQuery->colList[i++].colIdx = -1;
+//    } else if (pQuery->colList[i].data.colId > pMeterObj->schema[j].colId) {
+//      j++;
+//    }
+//  }
+
+//  while (i < pQuery->numOfCols) {
+//    pQuery->colList[i++].colIdx = -1;  // not such column in current meter
+//  }
+  
+  for(int32_t k = 0; k < pQuery->numOfOutputCols; ++k) {
+    SSqlFuncExprMsg* pSqlExprMsg = &pQuery->pSelectExpr[k].pBase;
+    if (pSqlExprMsg->functionId == TSDB_FUNC_ARITHM || pSqlExprMsg->colInfo.flag == TSDB_COL_TAG) {
+      continue;
+    }
+    
+    SColIndexEx* pColIndexEx = &pSqlExprMsg->colInfo;
+    for(int32_t f = 0; f < pQuery->numOfCols; ++f) {
+      if (pColIndexEx->colId == pQuery->colList[f].info.colId) {
+        pColIndexEx->colIdx = f;
+        break;
+      }
+    }
+  }
+}
+
 static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pExprs,
                                SArray *pTableIdList) {
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
@@ -5897,6 +5906,8 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
     assert(pExprs[col].resBytes > 0);
     pQuery->rowSize += pExprs[col].resBytes;
   }
+  
+  doUpdateExprColumnIndex(pQuery);
 
   int32_t ret = vnodeCreateFilterInfo(pQInfo, pQuery);
   if (ret != TSDB_CODE_SUCCESS) {
@@ -5933,7 +5944,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
   }
 
   // to make sure third party won't overwrite this structure
-  pQInfo->signature = (uint64_t)pQInfo;
+  pQInfo->signature = pQInfo;
   pQInfo->pTableIdList = pTableIdList;
 
   pQuery->pos = -1;

@@ -423,9 +423,6 @@ void tscFreeResData(SSqlObj* pSql) {
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
-  //TODO not free
-  return;
-
   tfree(pSql->res.pRsp);
   pSql->res.row = 0;
   pSql->res.numOfRows = 0;
@@ -469,8 +466,6 @@ void tscFreeSqlObjPartial(SSqlObj* pSql) {
   tscFreeSqlCmdData(pCmd);
   
   tscTrace("%p free sqlObj partial completed", pSql);
-  
-  tscFreeSqlCmdData(pCmd);
 }
 
 void tscFreeSqlObj(SSqlObj* pSql) {
@@ -489,10 +484,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   pCmd->allocSize = 0;
 
-  if (pSql->fp == NULL) {
-    tsem_destroy(&pSql->rspSem);
-    tsem_destroy(&pSql->emptyRspSem);
-  }
+  tsem_destroy(&pSql->rspSem);
   free(pSql);
 }
 
@@ -1751,16 +1743,8 @@ bool tscShouldFreeAsyncSqlObj(SSqlObj* pSql) {
   }
 
   int32_t command = pSql->cmd.command;
-  if (pTscObj->pSql == pSql) {
-    /*
-     * in case of taos_connect_a query, the object should all be released, even it is the
-     * master sql object. Otherwise, the master sql should not be released
-     */
-    if (command == TSDB_SQL_CONNECT && pSql->res.code != TSDB_CODE_SUCCESS) {
-      return true;
-    }
-
-    return false;
+  if (command == TSDB_SQL_CONNECT) {
+    return true;
   }
 
   if (command == TSDB_SQL_INSERT) {

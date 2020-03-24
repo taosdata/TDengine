@@ -1238,22 +1238,11 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     goto _clean;
   }
 
-  // submit to more than one vnode
   if (pCmd->pDataBlocks->nSize > 0) {
     // merge according to vgId
     if ((code = tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks)) != TSDB_CODE_SUCCESS) {
       goto _error_clean;
     }
-
-    STableDataBlocks *pDataBlock = pCmd->pDataBlocks->pData[0];
-    if ((code = tscCopyDataBlockToPayload(pSql, pDataBlock)) != TSDB_CODE_SUCCESS) {
-      goto _error_clean;
-    }
-
-    pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
-
-    // set the next sent data vnode index in data block arraylist
-    pTableMetaInfo->vnodeIndex = 1;
   } else {
     pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   }
