@@ -417,6 +417,10 @@ static void count_function(SQLFunctionCtx *pCtx) {
         numOfElem += 1;
       }
     } else {
+      /*
+       * when counting on the primary time stamp column and no statistics data is provided,
+       * simple use the size value
+       */
       numOfElem = pCtx->size;
     }
   }

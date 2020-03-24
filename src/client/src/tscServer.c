@@ -273,8 +273,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
   }
 
   pSql->retry = 0;
-
   pRes->rspLen = 0;
+  
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED) {
     pRes->code = (rpcMsg->code != TSDB_CODE_SUCCESS) ? rpcMsg->code : TSDB_CODE_NETWORK_UNAVAIL;
   } else {
@@ -283,9 +283,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
 
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED) {
     assert(rpcMsg->msgType == pCmd->msgType + 1);
-    pRes->code = (int32_t)rpcMsg->code;
+    pRes->code    = rpcMsg->code;
     pRes->rspType = rpcMsg->msgType;
-    pRes->rspLen = rpcMsg->contLen;
+    pRes->rspLen  = rpcMsg->contLen;
 
     char *tmp = (char *)realloc(pRes->pRsp, pRes->rspLen);
     if (tmp == NULL) {
@@ -389,7 +389,7 @@ int tscProcessSql(SSqlObj *pSql) {
   
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = NULL;
-  uint16_t         type = 0;
+  uint16_t        type = 0;
 
   if (pQueryInfo != NULL) {
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -659,14 +659,18 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     tscError("%p failed to malloc for query msg", pSql);
     return -1;
   }
-
+  
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  
-  char *pStart = pCmd->payload + tsRpcHeadSize;
-
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
   SSuperTableMeta *pMetricMeta = pTableMetaInfo->pMetricMeta;
+  
+  if (pQueryInfo->colList.numOfCols <= 0) {
+    tscError("%p illegal value of numOfCols in query msg: %d", pSql, tscGetNumOfColumns(pTableMeta));
+    return -1;
+  }
+
+  char *pStart = pCmd->payload + tsRpcHeadSize;
 
   SQueryTableMsg *pQueryMsg = (SQueryTableMsg *)pStart;
 
@@ -675,11 +679,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
     numOfTables = 1;
-
-    pQueryMsg->uid = pTableMeta->uid;
-    pQueryMsg->numOfTagsCols = 0;
-    
-    pQueryMsg->vgId = htonl(pTableMeta->vgId);
+    pQueryMsg->head.vgId = htonl(pTableMeta->vgId);
     tscTrace("%p queried tables:%d, table id: %s", pSql, 1, pTableMetaInfo->name);
   } else {  // query on super table
     if (pTableMetaInfo->vnodeIndex < 0) {
@@ -697,11 +697,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
 
     tscTrace("%p query on vid:%d, number of tables:%d", pSql, vnodeId, numOfTables);
-    pQueryMsg->vgId = htons(vnodeId);
+    pQueryMsg->head.vgId = htons(vnodeId);
   }
 
   pQueryMsg->numOfTables = htonl(numOfTables);
-  pQueryMsg->numOfTagsCols = htons(pTableMetaInfo->numOfTags);
 
   if (pQueryInfo->order.order == TSQL_SO_ASC) {
     pQueryMsg->window.skey = htobe64(pQueryInfo->stime);
@@ -711,24 +710,15 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->window.ekey = htobe64(pQueryInfo->stime);
   }
 
-  pQueryMsg->order = htons(pQueryInfo->order.order);
-  pQueryMsg->orderColId = htons(pQueryInfo->order.orderColId);
-
-  pQueryMsg->interpoType = htons(pQueryInfo->interpoType);
-
-  pQueryMsg->limit = htobe64(pQueryInfo->limit.limit);
-  pQueryMsg->offset = htobe64(pQueryInfo->limit.offset);
-
-  pQueryMsg->numOfCols = htons(pQueryInfo->colList.numOfCols);
-
-  if (pQueryInfo->colList.numOfCols <= 0) {
-    tscError("%p illegal value of numOfCols in query msg: %d", pSql, tscGetNumOfColumns(pTableMeta));
-    return -1;
-  }
-
-  pQueryMsg->intervalTime = htobe64(pQueryInfo->intervalTime);
+  pQueryMsg->order          = htons(pQueryInfo->order.order);
+  pQueryMsg->orderColId     = htons(pQueryInfo->order.orderColId);
+  pQueryMsg->interpoType    = htons(pQueryInfo->interpoType);
+  pQueryMsg->limit          = htobe64(pQueryInfo->limit.limit);
+  pQueryMsg->offset         = htobe64(pQueryInfo->limit.offset);
+  pQueryMsg->numOfCols      = htons(pQueryInfo->colList.numOfCols);
+  pQueryMsg->intervalTime   = htobe64(pQueryInfo->intervalTime);
+  pQueryMsg->slidingTime    = htobe64(pQueryInfo->slidingTime);
   pQueryMsg->slidingTimeUnit = pQueryInfo->slidingTimeUnit;
-  pQueryMsg->slidingTime = htobe64(pQueryInfo->slidingTime);
   
   if (pQueryInfo->intervalTime < 0) {
     tscError("%p illegal value of aggregation time interval in query msg: %ld", pSql, pQueryInfo->intervalTime);
@@ -776,7 +766,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
     pQueryMsg->colList[i].colId = htons(pColSchema->colId);
     pQueryMsg->colList[i].bytes = htons(pColSchema->bytes);
-    pQueryMsg->colList[i].type = htons(pColSchema->type);
+    pQueryMsg->colList[i].type  = htons(pColSchema->type);
     pQueryMsg->colList[i].numOfFilters = htons(pCol->numOfFilters);
 
     // append the filter information after the basic column information
@@ -824,11 +814,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       return -1;
     }
 
-    pSqlFuncExpr->colInfo.colId = htons(pExpr->colInfo.colId);
+    pSqlFuncExpr->colInfo.colId  = htons(pExpr->colInfo.colId);
     pSqlFuncExpr->colInfo.colIdx = htons(pExpr->colInfo.colIdx);
-    pSqlFuncExpr->colInfo.flag = htons(pExpr->colInfo.flag);
+    pSqlFuncExpr->colInfo.flag   = htons(pExpr->colInfo.flag);
 
-    pSqlFuncExpr->functionId = htons(pExpr->functionId);
+    pSqlFuncExpr->functionId  = htons(pExpr->functionId);
     pSqlFuncExpr->numOfParams = htons(pExpr->numOfParams);
     pMsg += sizeof(SSqlFuncExprMsg);
 
@@ -866,25 +856,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->colNameLen = htonl(len);
 
   // serialize the table info (sid, uid, tags)
-  pMsg = doSerializeTableInfo(pSql, numOfTables, htons(pQueryMsg->vgId), pMsg);
-
-  // only include the required tag column schema. If a tag is not required, it won't be sent to vnode
-  if (pTableMetaInfo->numOfTags > 0) {
-    // always transfer tag schema to vnode if exists
-    SSchema *pTagSchema = tscGetTableTagSchema(pTableMeta);
-
-    for (int32_t j = 0; j < pTableMetaInfo->numOfTags; ++j) {
-      if (pTableMetaInfo->tagColumnIndex[j] == TSDB_TBNAME_COLUMN_INDEX) {
-        SSchema tbSchema = {
-            .bytes = TSDB_TABLE_NAME_LEN, .colId = TSDB_TBNAME_COLUMN_INDEX, .type = TSDB_DATA_TYPE_BINARY};
-        memcpy(pMsg, &tbSchema, sizeof(SSchema));
-      } else {
-        memcpy(pMsg, &pTagSchema[pTableMetaInfo->tagColumnIndex[j]], sizeof(SSchema));
-      }
-
-      pMsg += sizeof(SSchema);
-    }
-  }
+  pMsg = doSerializeTableInfo(pSql, numOfTables, htons(pQueryMsg->head.vgId), pMsg);
 
   SSqlGroupbyExpr *pGroupbyExpr = &pQueryInfo->groupbyExpr;
   if (pGroupbyExpr->numOfGroupCols != 0) {
@@ -948,8 +920,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = msgLen;
   pSql->cmd.msgType = TSDB_MSG_TYPE_QUERY;
   
-  pQueryMsg->contLen = htonl(msgLen);
-  
+  pQueryMsg->head.contLen = htonl(msgLen);
   assert(msgLen + minMsgSize() <= size);
 
   return TSDB_CODE_SUCCESS;
@@ -2331,9 +2302,9 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
 
   pRes->numOfRows = htonl(pRetrieve->numOfRows);
   pRes->precision = htons(pRetrieve->precision);
-  pRes->offset = htobe64(pRetrieve->offset);
-  pRes->useconds = htobe64(pRetrieve->useconds);
-  pRes->data = pRetrieve->data;
+  pRes->offset    = htobe64(pRetrieve->offset);
+  pRes->useconds  = htobe64(pRetrieve->useconds);
+  pRes->data      = pRetrieve->data;
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   tscSetResultPointer(pQueryInfo, pRes);
@@ -2358,7 +2329,6 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
-
   tscTrace("%p numOfRows:%d, offset:%d", pSql, pRes->numOfRows, pRes->offset);
 
   return 0;
