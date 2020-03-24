@@ -17,8 +17,9 @@
 #include "tsdb.h"
 #include "tsdbCache.h"
 
-static int tsdbAllocBlockFromPool(STsdbCache *pCache);
-static void tsdbFreeBlockList(SCacheMem *mem);
+static int  tsdbAllocBlockFromPool(STsdbCache *pCache);
+static void tsdbFreeBlockList(SList *list);
+static void tsdbFreeCacheMem(SCacheMem *mem);
 
 STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize, tsdb_repo_t *pRepo) {
   STsdbCache *pCache = (STsdbCache *)calloc(1, sizeof(STsdbCache));
@@ -60,8 +61,8 @@ _err:
 }
 
 void tsdbFreeCache(STsdbCache *pCache) {
-  tsdbFreeBlockList(pCache->imem);
-  tsdbFreeBlockList(pCache->mem);
+  tsdbFreeCacheMem(pCache->imem);
+  tsdbFreeCacheMem(pCache->mem);
   tsdbFreeBlockList(pCache->pool.memPool);
   free(pCache);
 }
@@ -90,9 +91,7 @@ void *tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key) {
   return ptr;
 }
 
-static void tsdbFreeBlockList(SCacheMem *mem) {
-  if (mem == NULL) return;
-  SList *          list = mem->list;
+static void tsdbFreeBlockList(SList *list) {
   SListNode *      node = NULL;
   STsdbCacheBlock *pBlock = NULL;
   while ((node = tdListPopHead(list)) != NULL) {
@@ -101,6 +100,12 @@ static void tsdbFreeBlockList(SCacheMem *mem) {
     listNodeFree(node);
   }
   tdListFree(list);
+}
+
+static void tsdbFreeCacheMem(SCacheMem *mem) {
+  if (mem == NULL) return;
+  SList *list = mem->list;
+  tsdbFreeBlockList(list);
   free(mem);
 }
 
