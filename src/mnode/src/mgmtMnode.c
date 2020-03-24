@@ -17,48 +17,93 @@
 #include "os.h"
 #include "trpc.h"
 #include "mgmtMnode.h"
+#include "mgmtSdb.h"
 #include "mgmtUser.h"
 
-int32_t (*mgmtAddMnodeFp)(uint32_t privateIp, uint32_t publicIp) = NULL;
-int32_t (*mgmtRemoveMnodeFp)(uint32_t privateIp) = NULL;
-int32_t (*mgmtGetMnodesNumFp)() = NULL;
-void *  (*mgmtGetNextMnodeFp)(SShowObj *pShow, SMnodeObj **pMnode) = NULL;
+int32_t (*mpeerAddMnodeFp)(uint32_t privateIp, uint32_t publicIp) = NULL;
+int32_t (*mpeerRemoveMnodeFp)(uint32_t privateIp) = NULL;
+int32_t (*mpeerGetMnodesNumFp)() = NULL;
+void *  (*mpeerGetNextMnodeFp)(SShowObj *pShow, SMnodeObj **pMnode) = NULL;
+int32_t (*mpeerInitMnodesFp)() = NULL;
+void    (*mpeerCleanUpMnodesFp)() = NULL;
 
 static SMnodeObj tsMnodeObj = {0};
+static bool tsMnodeIsMaster = false;
+static bool tsMnodeIsServing = false;
 static int32_t mgmtGetMnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+
+static char *mgmtMnodeStatusStr[] = {
+  "offline",
+  "unsynced",
+  "syncing",
+  "serving",
+  "null"
+};
+
+static char *mgmtMnodeRoleStr[] = {
+  "unauthed",
+  "undecided",
+  "master",
+  "slave",
+  "null"
+};
+
+int32_t mgmtInitMnodes() {
+  if (mpeerInitMnodesFp) {
+    return (*mpeerInitMnodesFp)();
+  } else {
+    tsMnodeIsServing = true;
+    tsMnodeIsMaster = true;
+    return 0;
+  }
+}
+
+void mgmtCleanupMnodes() {
+  if (mpeerCleanUpMnodesFp) {
+    (*mpeerCleanUpMnodesFp)();
+  }
+}
+
+bool mgmtInServerStatus() {
+  return tsMnodeIsServing; 
+}
+   
+bool mgmtIsMaster() { 
+  return tsMnodeIsMaster; 
+}
 
 bool mgmtCheckRedirect(void *handle) {
   return false;
 }
 
 int32_t mgmtAddMnode(uint32_t privateIp, uint32_t publicIp) {
-  if (mgmtAddMnodeFp) {
-    return (*mgmtAddMnodeFp)(privateIp, publicIp);
+  if (mpeerAddMnodeFp) {
+    return (*mpeerAddMnodeFp)(privateIp, publicIp);
   } else {
     return 0;
   }
 }
 
 int32_t mgmtRemoveMnode(uint32_t privateIp) {
-  if (mgmtRemoveMnodeFp) {
-    return (*mgmtRemoveMnodeFp)(privateIp);
+  if (mpeerRemoveMnodeFp) {
+    return (*mpeerRemoveMnodeFp)(privateIp);
   } else {
     return 0;
   }
 }
 
 static int32_t mgmtGetMnodesNum() {
-  if (mgmtGetMnodesNumFp) {
-    return (*mgmtGetMnodesNumFp)();
+  if (mpeerGetMnodesNumFp) {
+    return (*mpeerGetMnodesNumFp)();
   } else {
     return 1;
   }
 }
 
 static void *mgmtGetNextMnode(SShowObj *pShow, SMnodeObj **pMnode) {
-  if (mgmtGetNextMnodeFp) {
-    return (*mgmtGetNextMnodeFp)(pShow, pMnode);
+  if (mpeerGetNextMnodeFp) {
+    return (*mpeerGetNextMnodeFp)(pShow, pMnode);
   } else {
     if (*pMnode == NULL) {
       *pMnode = &tsMnodeObj;
@@ -148,11 +193,11 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, sdbStatusStr[(uint8_t)pMnode->status]);
+    strcpy(pWrite, mgmtMnodeStatusStr[pMnode->status]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strcpy(pWrite, sdbRoleStr[(uint8_t)pMnode->role]);
+    strcpy(pWrite, mgmtMnodeRoleStr[pMnode->role]);
     cols++;
 
     tinet_ntoa(ipstr, pMnode->publicIp);
@@ -167,7 +212,14 @@ static int32_t mgmtRetrieveMnodes(SShowObj *pShow, char *data, int32_t rows, voi
   return numOfRows;
 }
 
-void mgmtGetMnodeIpList(SRpcIpSet *ipSet) {
+void mgmtGetMnodePrivateIpList(SRpcIpSet *ipSet) {
+  ipSet->inUse = 0;
+  ipSet->port = htons(tsMnodeDnodePort);
+  ipSet->numOfIps = 1;
+  ipSet->ip[0] = htonl(inet_addr(tsMasterIp));
+}
+
+void mgmtGetMnodePublicIpList(SRpcIpSet *ipSet) {
   ipSet->inUse = 0;
   ipSet->port = htons(tsMnodeDnodePort);
   ipSet->numOfIps = 1;

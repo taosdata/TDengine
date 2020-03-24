@@ -85,8 +85,10 @@ int32_t mgmtRemoveUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) {
     pUser->prev->next = pUser->next;
   }
 
-  if (pUser->next) pUser->next->prev = pUser->prev;
-
+  if (pUser->next) {
+    pUser->next->prev = pUser->prev;
+  }
+  
   if (pUser->prev == NULL) {
     pAcct->pUser = pUser->next;
   }

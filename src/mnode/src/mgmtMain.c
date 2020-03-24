@@ -25,6 +25,8 @@
 #include "mgmtDClient.h"
 #include "mgmtDnode.h"
 #include "mgmtDServer.h"
+#include "mgmtMnode.h"
+#include "mgmtSdb.h"
 #include "mgmtVgroup.h"
 #include "mgmtUser.h"
 #include "mgmtTable.h"
@@ -65,7 +67,7 @@ int32_t mgmtStartSystem() {
     return 0;
   }
 
-  tsMgmtTmr = taosTmrInit((tsMaxDnodes + tsMaxShellConns) * 3, 200, 3600000, "MND");
+  tsMgmtTmr = taosTmrInit((tsMaxShellConns) * 3, 200, 3600000, "MND");
   if (tsMgmtTmr == NULL) {
     mError("failed to init timer");
     return -1;
@@ -109,8 +111,8 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (sdbInitPeers(tsMnodeDir) < 0) {
-    mError("failed to init peers");
+  if (mgmtInitMnodes() < 0) {
+    mError("failed to init mnodes");
     return -1;
   }
 
@@ -125,7 +127,7 @@ int32_t mgmtStartSystem() {
 
 
 void mgmtStopSystem() {
-  if (sdbMaster) {
+  if (mgmtIsMaster()) {
     mTrace("it is a master mgmt node, it could not be stopped");
     return;
   }
@@ -136,7 +138,7 @@ void mgmtStopSystem() {
 
 void mgmtCleanUpSystem() {
   mPrint("starting to clean up mgmt");
-  sdbCleanUpPeers();
+  mgmtCleanupMnodes();
   mgmtCleanupBalance();
   mgmtCleanUpShell();
   mgmtCleanupDClient();
