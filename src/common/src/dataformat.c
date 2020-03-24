@@ -150,7 +150,7 @@ void tdFreeSchema(STSchema *pSchema) {
  */
 void tdUpdateSchema(STSchema *pSchema) {
   STColumn *pCol = NULL;
-  int32_t offset = 0;
+  int32_t offset = TD_DATA_ROW_HEAD_SIZE;
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     pCol = schemaColAt(pSchema, i);
     colSetOffset(pCol, offset);

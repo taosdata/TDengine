@@ -236,6 +236,10 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
     table->type = TSDB_NORMAL_TABLE;
     table->superUid = -1;
     table->schema = tdDupSchema(pCfg->schema);
+    if (schemaNCols(table->schema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(table->schema);
+    tdUpdateSchema(table->schema);
+    int bytes = tdMaxRowBytesFromSchema(table->schema);
+    if (bytes > pMeta->maxRowBytes) pMeta->maxRowBytes = bytes;
   }
 
   // Register to meta

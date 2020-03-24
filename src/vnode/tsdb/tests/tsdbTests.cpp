@@ -1,12 +1,19 @@
 #include <gtest/gtest.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 #include "tsdb.h"
 #include "dataformat.h"
 #include "tsdbFile.h"
 #include "tsdbMeta.h"
 
-TEST(TsdbTest, tableEncodeDecode) {
+double getCurTime() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return tv.tv_sec + tv.tv_usec * 1E-6;
+}
+
+TEST(TsdbTest, DISABLED_tableEncodeDecode) {
   STable *pTable = (STable *)malloc(sizeof(STable));
 
   pTable->type = TSDB_NORMAL_TABLE;
@@ -71,19 +78,23 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &tCfg);
 
   // // 3. Loop to write some simple data
-  int nRows = 1000;
+  int nRows = 10000000;
   int rowsPerSubmit = 10;
   int64_t start_time = 1584081000000;
 
   SSubmitMsg *pMsg = (SSubmitMsg *)malloc(sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + tdMaxRowBytesFromSchema(schema) * rowsPerSubmit);
 
+  double stime = getCurTime();
+
   for (int k = 0; k < nRows/rowsPerSubmit; k++) {
     SSubmitBlk *pBlock = pMsg->blocks;
-    pBlock->tableId = {.uid = 987607499877672L, .tid = 0};
+    pBlock->uid = 987607499877672L;
+    pBlock->tid = 0;
     pBlock->sversion = 0;
     pBlock->len = 0;
     for (int i = 0; i < rowsPerSubmit; i++) {
-      start_time += 1000;
+      // start_time += 1000;
+      start_time -= 1000;
       SDataRow row = (SDataRow)(pBlock->data + pBlock->len);
       tdInitDataRow(row, schema);
 
@@ -97,21 +108,38 @@ TEST(TsdbTest, createRepo) {
       }
       pBlock->len += dataRowLen(row);
     }
+    pBlock->len = htonl(pBlock->len);
+    pBlock->numOfRows = htonl(pBlock->numOfRows);
+    pBlock->uid = htobe64(pBlock->uid);
+    pBlock->tid = htonl(pBlock->tid);
+
+    pBlock->sversion = htonl(pBlock->sversion);
+    pBlock->padding = htonl(pBlock->padding);
+
     pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
+    pMsg->length = htonl(pMsg->length);
+    pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
+    pMsg->compressed = htonl(pMsg->numOfBlocks);
 
     tsdbInsertData(pRepo, pMsg);
   }
 
-  tsdbTriggerCommit(pRepo);
+  double etime = getCurTime();
+
+  printf("Spent %f seconds to write %d records\n", etime - stime, nRows);
+
+
+
+  // tsdbTriggerCommit(pRepo);
 
 }
 
-TEST(TsdbTest, openRepo) {
+TEST(TsdbTest, DISABLED_openRepo) {
   tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
   ASSERT_NE(pRepo, nullptr);
 }
 
-TEST(TsdbTest, createFileGroup) {
+TEST(TsdbTest, DISABLED_createFileGroup) {
   SFileGroup fGroup;
 
   ASSERT_EQ(tsdbCreateFileGroup("/home/ubuntu/work/ttest/vnode0/data", 1820, &fGroup, 1000), 0);

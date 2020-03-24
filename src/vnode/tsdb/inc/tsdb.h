@@ -59,6 +59,8 @@ tsdb_repo_t *  tsdbOpenRepo(char *tsdbDir);
 int32_t        tsdbCloseRepo(tsdb_repo_t *repo);
 int32_t        tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg);
 int32_t        tsdbTriggerCommit(tsdb_repo_t *repo);
+int32_t        tsdbLockRepo(tsdb_repo_t *repo);
+int32_t        tsdbUnLockRepo(tsdb_repo_t *repo);
 
 // --------- TSDB TABLE DEFINITION
 typedef struct {
