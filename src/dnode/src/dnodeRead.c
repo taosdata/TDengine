@@ -220,11 +220,15 @@ static void dnodeProcessReadResult(void *pVnode, SReadMsg *pRead) {
     code = terrno;
   }
 
-  SRpcMsg rsp;
-  rsp.handle = pRead->rpcMsg.handle;
-  rsp.code   = code;
-  rsp.pCont  = NULL;
-  rpcSendResponse(&rsp);
+  //TODO: query handle is returned by dnodeProcessQueryMsg 
+  if (0) {
+    SRpcMsg rsp;
+    rsp.handle = pRead->rpcMsg.handle;
+    rsp.code   = code;
+    rsp.pCont  = NULL;
+    rpcSendResponse(&rsp);
+  }
+  
   rpcFreeCont(pRead->rpcMsg.pCont);  // free the received message
 }
 
