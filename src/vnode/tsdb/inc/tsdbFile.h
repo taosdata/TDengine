@@ -34,14 +34,21 @@ typedef enum {
   TSDB_FILE_TYPE_MAX
 } TSDB_FILE_TYPE;
 
+#define IS_VALID_TSDB_FILE_TYPE(type) ((type) >= TSDB_FILE_TYPE_HEAD && (type) < TSDB_FILE_TYPE_MAX)
+
 extern const char *tsdbFileSuffix[];
 
 typedef struct {
   int8_t  type;
+  int     fd;
   char    fname[128];
   int64_t size;      // total size of the file
   int64_t tombSize;  // unused file size
+  int32_t totalBlocks;
+  int32_t totalSubBlocks;
 } SFile;
+
+#define TSDB_IS_FILE_OPENED(f) ((f)->fd != -1)
 
 typedef struct {
   int32_t fileId;
@@ -50,13 +57,25 @@ typedef struct {
 
 // TSDB file handle
 typedef struct {
-  int32_t    daysPerFile;
-  int32_t    keep;
-  int32_t    minRowPerFBlock;
-  int32_t    maxRowsPerFBlock;
-  int32_t    maxTables;
+  int maxFGroups;
+  int numOfFGroups;
+
   SFileGroup fGroup[];
 } STsdbFileH;
+
+#define TSDB_MIN_FILE_ID(fh) (fh)->fGroup[0].fileId
+#define TSDB_MAX_FILE_ID(fh) (fh)->fGroup[(fh)->numOfFGroups - 1].fileId
+
+STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles);
+void        tsdbCloseFileH(STsdbFileH *pFileH);
+int         tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables);
+int         tsdbRemoveFileGroup(STsdbFileH *pFile, int fid);
+
+typedef struct {
+  int32_t len;
+  int32_t padding;  // For padding purpose
+  int64_t offset;
+} SCompIdx;
 
 /**
  * if numOfSubBlocks == -1, then the SCompBlock is a sub-block
@@ -78,14 +97,32 @@ typedef struct {
   TSKEY   keyLast;
 } SCompBlock;
 
-#define IS_VALID_TSDB_FILE_TYPE(type) ((type) >= TSDB_FILE_TYPE_HEAD && (type) < TSDB_FILE_TYPE_MAX)
+typedef struct {
+  int32_t    delimiter;  // For recovery usage
+  int32_t    checksum;   // TODO: decide if checksum logic in this file or make it one API
+  int64_t    uid;
+  int32_t    padding;      // For padding purpose
+  int32_t    numOfBlocks;  // TODO: make the struct padding
+  SCompBlock blocks[];
+} SCompInfo;
 
-STsdbFileH *tsdbInitFile(char *dataDir, int32_t daysPerFile, int32_t keep, int32_t minRowsPerFBlock,
-                         int32_t maxRowsPerFBlock, int32_t maxTables);
+// TODO: take pre-calculation into account
+typedef struct {
+  int16_t colId;  // Column ID
+  int16_t len;    // Column length
+  int32_t type : 8;
+  int32_t offset : 24;
+} SCompCol;
 
-void  tsdbCloseFile(STsdbFileH *pFileH);
-int   tsdbCreateFileGroup(char *dataDir, int fileId, SFileGroup *pFGroup, int maxTables);
-void  tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey, TSKEY *maxKey);
+// TODO: Take recover into account
+typedef struct {
+  int32_t  delimiter;  // For recovery usage
+  int32_t  numOfCols;  // For recovery usage
+  int64_t  uid;        // For recovery usage
+  SCompCol cols[];
+} SCompData;
+
+void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey, TSKEY *maxKey);
 #ifdef __cplusplus
 }
 #endif
