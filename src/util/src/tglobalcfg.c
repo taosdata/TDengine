@@ -112,13 +112,7 @@ int   tsReplications = TSDB_REPLICA_MIN_NUM;
 
 int  tsNumOfMPeers = 3;
 int  tsMaxShellConns = 2000;
-int  tsMaxAccounts = 100;
-int  tsMaxUsers = 1000;
-int  tsMaxDbs = 1000;
-int  tsMaxTables = 650000;
-int  tsMaxDnodes = 1000;
-int  tsMaxVGroups = 1000;
-char tsMgmtZone[16] = "rzone";
+int  tsMaxTables = 100000;
 
 char tsLocalIp[TSDB_IPv4ADDR_LEN] = {0};
 char tsDefaultDB[TSDB_DB_NAME_LEN] = {0};
@@ -612,28 +606,10 @@ static void doInitGlobalConfig() {
                      1, 8640000, 0, TSDB_CFG_UTYPE_SECOND);
 
   // mgmt configs
-  tsInitConfigOption(cfg++, "mgmtZone", tsMgmtZone, TSDB_CFG_VTYPE_STRING,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
-                     0, 0, 16, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "maxAccounts", &tsMaxAccounts, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
-                     1, 1000, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "maxUsers", &tsMaxUsers, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
-                     1, 1000, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "maxDbs", &tsMaxDbs, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
-                     1, 10000, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "maxTables", &tsMaxTables, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      1, 100000000, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "maxDnodes", &tsMaxDnodes, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLUSTER,
-                     1, 1000, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "maxVGroups", &tsMaxVGroups, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
-                     1, 1000000, 0, TSDB_CFG_UTYPE_NONE);
-
+  
   tsInitConfigOption(cfg++, "minSlidingTime", &tsMinSlidingTime, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW,
                      10, 1000000, 0, TSDB_CFG_UTYPE_MS);

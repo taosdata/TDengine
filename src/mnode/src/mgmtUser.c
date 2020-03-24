@@ -17,9 +17,11 @@
 #include "os.h"
 #include "trpc.h"
 #include "ttime.h"
+#include "tutil.h"
 #include "mgmtAcct.h"
 #include "mgmtGrant.h"
 #include "mgmtMnode.h"
+#include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
@@ -36,48 +38,84 @@ static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg);
 static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg);
 static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg);
 
-static void *(*mgmtUserActionFp[SDB_MAX_ACTION_TYPES])(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtUserActionInsert(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtUserActionDelete(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtUserActionUpdate(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtUserActionEncode(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtUserActionDecode(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtUserActionReset(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtUserActionDestroy(void *row, char *str, int32_t size, int32_t *ssize);
-static void *mgmtUserAction(char action, void *row, char *str, int32_t size, int32_t *ssize);
-static void  mgmtUserActionInit();
+static int32_t mgmtUserActionDestroy(SSdbOperDesc *pOper) {
+  tfree(pOper->pObj);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
+  SUserObj *pUser = pOper->pObj;
+  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
+
+  if (pAcct != NULL) {
+    mgmtAddUserIntoAcct(pAcct, pUser);
+  }
+  else {
+    mError("user:%s, acct:%s info not exist in sdb", pUser->user, pUser->acct);
+    return TSDB_CODE_INVALID_ACCT;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtUserActionDelete(SSdbOperDesc *pOper) {
+  SUserObj *pUser = pOper->pObj;
+  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
+
+  mgmtRemoveUserFromAcct(pAcct, pUser);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtUserActionUpdate(SSdbOperDesc *pOper) {
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mgmtUserActionEncode(SSdbOperDesc *pOper) {
+  SUserObj *pUser = pOper->pObj;
+
+  if (pOper->maxRowSize < tsUserUpdateSize) {
+    return -1;
+  } else {
+    memcpy(pOper->rowData, pUser, tsUserUpdateSize);
+    pOper->rowSize = tsUserUpdateSize;
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
+static int32_t mgmtUserActionDecode(SSdbOperDesc *pOper) {
+  SUserObj *pUser = (SUserObj *) calloc(1, sizeof(SUserObj));
+  if (pUser == NULL) return TSDB_CODE_SERV_OUT_OF_MEMORY;
+
+  memcpy(pUser, pOper->rowData, tsUserUpdateSize);
+  pOper->pObj = pUser;
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t mgmtInitUsers() {
-  void     *pNode     = NULL;
-  SUserObj *pUser     = NULL;
-  SAcctObj *pAcct     = NULL;
-  int32_t  numOfUsers = 0;
-
-  mgmtUserActionInit();
-
   SUserObj tObj;
-  tsUserUpdateSize = tObj.updateEnd - (int8_t *)&tObj;
+  tsUserUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
 
-  tsUserSdb = sdbOpenTable(tsMaxUsers, tsUserUpdateSize, "users", SDB_KEYTYPE_STRING, tsMnodeDir, mgmtUserAction);
+  SSdbTableDesc tableDesc = {
+    .tableName    = "users",
+    .hashSessions = TSDB_MAX_USERS,
+    .maxRowSize   = tsUserUpdateSize,
+    .keyType      = SDB_KEY_TYPE_STRING,
+    .insertFp     = mgmtUserActionInsert,
+    .deleteFp     = mgmtUserActionDelete,
+    .updateFp     = mgmtUserActionUpdate,
+    .encodeFp     = mgmtUserActionEncode,
+    .decodeFp     = mgmtUserActionDecode,
+    .destroyFp    = mgmtUserActionDestroy,
+  };
+
+  tsUserSdb = sdbOpenTable(&tableDesc);
   if (tsUserSdb == NULL) {
     mError("failed to init user data");
     return -1;
   }
 
-  while (1) {
-    pNode = sdbFetchRow(tsUserSdb, pNode, (void **)&pUser);
-    if (pUser == NULL) break;
-
-    pUser->prev = NULL;
-    pUser->next = NULL;
-
-    pAcct = mgmtGetAcct(pUser->acct);
-    mgmtAddUserIntoAcct(pAcct, pUser);
-
-    numOfUsers++;
-  }
-
-  pAcct = mgmtGetAcct("root");
+  SAcctObj *pAcct = mgmtGetAcct("root");
   mgmtCreateUser(pAcct, "root", "taosdata");
   mgmtCreateUser(pAcct, "monitor", tsInternalPass);
   mgmtCreateUser(pAcct, "_root", tsInternalPass);
@@ -101,16 +139,23 @@ SUserObj *mgmtGetUser(char *name) {
 }
 
 static int32_t mgmtUpdateUser(SUserObj *pUser) {
-  return sdbUpdateRow(tsUserSdb, pUser, 0, 1);
+  SSdbOperDesc oper = {
+    .type = SDB_OPER_TYPE_GLOBAL,
+    .table = tsUserSdb,
+    .pObj = pUser,
+    .rowSize = tsUserUpdateSize
+  };
+
+  int32_t code = sdbUpdateRow(&oper);
+  if (code != TSDB_CODE_SUCCESS) {
+    tfree(pUser);
+    code = TSDB_CODE_SDB_ERROR;
+  }
+
+  return code;
 }
 
 static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
-  int32_t numOfUsers = sdbGetNumOfRows(tsUserSdb);
-  if (numOfUsers >= tsMaxUsers) {
-    mWarn("numOfUsers:%d, exceed tsMaxUsers:%d", numOfUsers, tsMaxUsers);
-    return TSDB_CODE_TOO_MANY_USERS;
-  }
-
   int32_t code = mgmtCheckUserLimit(pAcct);
   if (code != 0) {
     return code;
@@ -131,8 +176,7 @@ static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
     return code;
   }
 
-  pUser = malloc(sizeof(SUserObj));
-  memset(pUser, 0, sizeof(SUserObj));
+  pUser = calloc(1, sizeof(SUserObj));
   strcpy(pUser->user, name);
   taosEncryptPass((uint8_t*) pass, strlen(pass), pUser->pass);
   strcpy(pUser->acct, pAcct->user);
@@ -143,8 +187,15 @@ static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
     pUser->superAuth = 1;
   }
 
-  code = TSDB_CODE_SUCCESS;
-  if (sdbInsertRow(tsUserSdb, pUser, 0) < 0) {
+  SSdbOperDesc oper = {
+    .type = SDB_OPER_TYPE_GLOBAL,
+    .table = tsUserSdb,
+    .pObj = pUser,
+    .rowSize = sizeof(SUserObj)
+  };
+
+  code = sdbInsertRow(&oper);
+  if (code != TSDB_CODE_SUCCESS) {
     tfree(pUser);
     code = TSDB_CODE_SDB_ERROR;
   }
@@ -165,9 +216,18 @@ static int32_t mgmtDropUser(SAcctObj *pAcct, char *name) {
     return TSDB_CODE_NO_RIGHTS;
   }
 
-  sdbDeleteRow(tsUserSdb, pUser);
+  SSdbOperDesc oper = {
+    .type = SDB_OPER_TYPE_GLOBAL,
+    .table = tsUserSdb,
+    .pObj = pUser
+  };
 
-  return 0;
+  int32_t code = sdbDeleteRow(&oper);
+  if (code != TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_SDB_ERROR;
+  }
+
+  return code;
 }
 
 static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
@@ -250,83 +310,6 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
   return numOfRows;
 }
 
-static void mgmtUserActionInit() {
-  mgmtUserActionFp[SDB_TYPE_INSERT]  = mgmtUserActionInsert;
-  mgmtUserActionFp[SDB_TYPE_DELETE]  = mgmtUserActionDelete;
-  mgmtUserActionFp[SDB_TYPE_UPDATE]  = mgmtUserActionUpdate;
-  mgmtUserActionFp[SDB_TYPE_ENCODE]  = mgmtUserActionEncode;
-  mgmtUserActionFp[SDB_TYPE_DECODE]  = mgmtUserActionDecode;
-  mgmtUserActionFp[SDB_TYPE_RESET]   = mgmtUserActionReset;
-  mgmtUserActionFp[SDB_TYPE_DESTROY] = mgmtUserActionDestroy;
-}
-
-static void *mgmtUserAction(char action, void *row, char *str, int32_t size, int32_t *ssize) {
-  if (mgmtUserActionFp[(uint8_t) action] != NULL) {
-    return (*(mgmtUserActionFp[(uint8_t) action]))(row, str, size, ssize);
-  }
-  return NULL;
-}
-
-static void *mgmtUserActionInsert(void *row, char *str, int32_t size, int32_t *ssize) {
-  SUserObj *pUser = (SUserObj *) row;
-  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
-
-  pUser->pAcct = pAcct;
-  mgmtAddUserIntoAcct(pAcct, pUser);
-
-  return NULL;
-}
-
-static void *mgmtUserActionDelete(void *row, char *str, int32_t size, int32_t *ssize) {
-  SUserObj *pUser = (SUserObj *) row;
-  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
-
-  mgmtRemoveUserFromAcct(pAcct, pUser);
-
-  return NULL;
-}
-
-static void *mgmtUserActionUpdate(void *row, char *str, int32_t size, int32_t *ssize) {
-  return mgmtUserActionReset(row, str, size, ssize);
-}
-
-static void *mgmtUserActionEncode(void *row, char *str, int32_t size, int32_t *ssize) {
-  SUserObj *pUser = (SUserObj *) row;
-
-  if (size < tsUserUpdateSize) {
-    *ssize = -1;
-  } else {
-    memcpy(str, pUser, tsUserUpdateSize);
-    *ssize = tsUserUpdateSize;
-  }
-
-  return NULL;
-}
-
-static void *mgmtUserActionDecode(void *row, char *str, int32_t size, int32_t *ssize) {
-  SUserObj *pUser = (SUserObj *) malloc(sizeof(SUserObj));
-  if (pUser == NULL) return NULL;
-  memset(pUser, 0, sizeof(SUserObj));
-
-  memcpy(pUser, str, tsUserUpdateSize);
-
-  return (void *)pUser;
-}
-
-static void *mgmtUserActionReset(void *row, char *str, int32_t size, int32_t *ssize) {
-  SUserObj *pUser = (SUserObj *)row;
-
-  memcpy(pUser, str, tsUserUpdateSize);
-
-  return NULL;
-}
-
-static void *mgmtUserActionDestroy(void *row, char *str, int32_t size, int32_t *ssize) {
-  tfree(row);
-
-  return NULL;
-}
-
 SUserObj *mgmtGetUserFromConn(void *pConn) {
   SRpcConnInfo connInfo;
   if (rpcGetConnInfo(pConn, &connInfo) == 0) {
@@ -393,7 +376,7 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
       memset(pUser->pass, 0, sizeof(pUser->pass));
       taosEncryptPass((uint8_t*)pAlter->pass, strlen(pAlter->pass), pUser->pass);
       code = mgmtUpdateUser(pUser);
-      mLPrint("user:%s password is altered by %s, code:%d", pAlter->user, pUser->user, code);
+      mLPrint("user:%s password is altered by %s, result:%d", pUser->user, pOperUser->user, tstrerror(code));
     } else {
       code = TSDB_CODE_NO_RIGHTS;
     }
@@ -428,10 +411,6 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
     }
 
     if (hasRight) {
-      //if (pAlter->privilege == 1) {  // super
-      //  pUser->superAuth = 1;
-      //  pUser->writeAuth = 1;
-      //}
       if (pAlter->privilege == 2) {  // read
         pUser->superAuth = 0;
         pUser->writeAuth = 0;
@@ -442,7 +421,7 @@ static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg) {
       }
 
       code = mgmtUpdateUser(pUser);
-      mLPrint("user:%s privilege is altered by %s, code:%d", pAlter->user, pUser->user, code);
+      mLPrint("user:%s privilege is altered by %s, result:%d", pUser->user, pOperUser->user, tstrerror(code));
     } else {
       code = TSDB_CODE_NO_RIGHTS;
     }
@@ -492,7 +471,7 @@ static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
   if (hasRight) {
     code = mgmtDropUser(pUser->pAcct, pDrop->user);
     if (code == TSDB_CODE_SUCCESS) {
-      mLPrint("user:%s is dropped by %s", pDrop->user, pUser->user);
+       mLPrint("user:%s is dropped by %s, result:%d", pUser->user, pOperUser->user, tstrerror(code));
     }
   } else {
     code = TSDB_CODE_NO_RIGHTS;

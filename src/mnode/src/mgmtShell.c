@@ -32,6 +32,7 @@
 #include "mgmtMnode.h"
 #include "mgmtNormalTable.h"
 #include "mgmtProfile.h"
+#include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
@@ -63,7 +64,7 @@ int32_t mgmtInitShell() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_HEARTBEAT, mgmtProcessHeartBeatMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mgmtProcessConnectMsg);
 
-  tsMgmtTranQhandle = taosInitScheduler(tsMaxDnodes + tsMaxShellConns, 1, "mnodeT");
+  tsMgmtTranQhandle = taosInitScheduler(tsMaxShellConns, 1, "mnodeT");
 
   int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 4.0;
   if (numOfThreads < 1) {
@@ -131,7 +132,7 @@ void mgmtAddToShellQueue(SQueuedMsg *queuedMsg) {
 }
 
 static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
-  if (sdbGetRunStatus() != SDB_STATUS_SERVING) {
+  if (!mgmtInServerStatus()) {
     mgmtProcessMsgWhileNotReady(rpcMsg);
     rpcFreeCont(rpcMsg->pCont);
     return;
@@ -309,20 +310,10 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  pHBRsp->ipList.inUse = 0;
-  pHBRsp->ipList.port = htons(tsMnodeShellPort);
-  pHBRsp->ipList.numOfIps = 0;
-  if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
-    pHBRsp->ipList.numOfIps = htons(pSdbPublicIpList->numOfIps);
-    if (connInfo.serverIp == tsPublicIpInt) {
-      for (int i = 0; i < pSdbPublicIpList->numOfIps; ++i) {
-        pHBRsp->ipList.ip[i] = htonl(pSdbPublicIpList->ip[i]);
-      }
-    } else {
-      for (int i = 0; i < pSdbIpList->numOfIps; ++i) {
-        pHBRsp->ipList.ip[i] = htonl(pSdbIpList->ip[i]);
-      }
-    }
+  if (connInfo.serverIp == tsPublicIpInt) {
+    mgmtGetMnodePublicIpList(&pHBRsp->ipList);
+  } else {
+    mgmtGetMnodePrivateIpList(&pHBRsp->ipList);
   }
 
   /*
@@ -411,20 +402,11 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   strcpy(pConnectRsp->serverVersion, version);
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
-  pConnectRsp->ipList.inUse = 0;
-  pConnectRsp->ipList.port = htons(tsMnodeShellPort);
-  pConnectRsp->ipList.numOfIps = 0;
-  if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
-    pConnectRsp->ipList.numOfIps = htons(pSdbPublicIpList->numOfIps);
-    if (connInfo.serverIp == tsPublicIpInt) {
-      for (int i = 0; i < pSdbPublicIpList->numOfIps; ++i) {
-        pConnectRsp->ipList.ip[i] = htonl(pSdbPublicIpList->ip[i]);
-      }
-    } else {
-      for (int i = 0; i < pSdbIpList->numOfIps; ++i) {
-        pConnectRsp->ipList.ip[i] = htonl(pSdbIpList->ip[i]);
-      }
-    }
+
+  if (connInfo.serverIp == tsPublicIpInt) {
+    mgmtGetMnodePublicIpList(&pConnectRsp->ipList);
+  } else {
+    mgmtGetMnodePrivateIpList(&pConnectRsp->ipList);
   }
 
 connect_over:
