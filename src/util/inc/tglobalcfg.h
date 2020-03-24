@@ -103,13 +103,7 @@ extern int   tsReplications;
 
 extern int  tsNumOfMPeers;
 extern int  tsMaxShellConns;
-extern int  tsMaxAccounts;
-extern int  tsMaxUsers;
-extern int  tsMaxDbs;
 extern int  tsMaxTables;
-extern int  tsMaxDnodes;
-extern int  tsMaxVGroups;
-extern char tsMgmtZone[];
 
 extern char tsLocalIp[];
 extern char tsDefaultDB[];

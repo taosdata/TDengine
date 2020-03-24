@@ -22,10 +22,12 @@
 #include "mgmtDClient.h"
 #include "mgmtDb.h"
 #include "mgmtDnode.h"
+#include "mgmtDServer.h"
 #include "mgmtGrant.h"
 #include "mgmtMnode.h"
 #include "mgmtNormalTable.h"
 #include "mgmtProfile.h"
+#include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtSuperTable.h"
 #include "mgmtUser.h"
@@ -60,6 +62,7 @@ static void mgmtProcessDropStableRsp(SRpcMsg *rpcMsg);
 static int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void mgmtProcessGetTableMeta(STableInfo *pTable, void *thandle);
+static void mgmtProcessTableCfgMsg(SRpcMsg *rpcMsg);
 
 int32_t mgmtInitTables() {
   int32_t code = mgmtInitSuperTables();
@@ -77,8 +80,6 @@ int32_t mgmtInitTables() {
     return code;
   }
 
-  mgmtSetVgroupIdPool();
-
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CREATE_TABLE, mgmtProcessCreateTableMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_DROP_TABLE, mgmtProcessDropTableMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_ALTER_TABLE, mgmtProcessAlterTableMsg);
@@ -91,6 +92,7 @@ int32_t mgmtInitTables() {
   mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_TABLE_RSP, mgmtProcessDropTableRsp);
   mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_ALTER_TABLE_RSP, mgmtProcessAlterTableRsp);
   mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_DROP_STABLE_RSP, mgmtProcessDropStableRsp);
+  mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_TABLE, mgmtProcessTableCfgMsg);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -201,13 +203,13 @@ int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "table_name");
+  strcpy(pSchema[cols].name, "table name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created_time");
+  strcpy(pSchema[cols].name, "create time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -219,7 +221,7 @@ int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "stable_name");
+  strcpy(pSchema[cols].name, "stable name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -237,9 +239,6 @@ int32_t mgmtGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
   return 0;
 }
 
-/*
- * remove the hole in result set
- */
 static void mgmtVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
   if (rows < capacity) {
     for (int32_t i = 0; i < numOfCols; ++i) {
@@ -433,11 +432,13 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
     pTable = mgmtCreateChildTable(pCreate, pVgroup, sid);
     if (pTable == NULL) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
+      mgmtFreeQueuedMsg(newMsg);
       return;
     }
     pMDCreate = mgmtBuildCreateChildTableMsg(pCreate, (SChildTableObj *) pTable);
     if (pMDCreate == NULL) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
+      mgmtFreeQueuedMsg(newMsg);
       return;
     }
   } else {
@@ -445,11 +446,13 @@ void mgmtProcessCreateTableMsg(SQueuedMsg *pMsg) {
     pTable = mgmtCreateNormalTable(pCreate, pVgroup, sid);
     if (pTable == NULL) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
+      mgmtFreeQueuedMsg(newMsg);
       return;
     }
     pMDCreate = mgmtBuildCreateNormalTableMsg((SNormalTableObj *) pTable);
     if (pMDCreate == NULL) {
       mgmtSendSimpleResp(pMsg->thandle, terrno);
+      mgmtFreeQueuedMsg(newMsg);
       return;
     }
   }
@@ -760,9 +763,19 @@ static void mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg) {
 
   if (rpcMsg->code != TSDB_CODE_SUCCESS) {
     if (pTable->type == TSDB_CHILD_TABLE) {
-      sdbDeleteRow(tsChildTableSdb, pTable);
+      SSdbOperDesc oper = {
+        .type = SDB_OPER_TYPE_GLOBAL,
+        .table = tsChildTableSdb,
+        .pObj = pTable
+      };
+      sdbDeleteRow(&oper);
     } else if (pTable->type == TSDB_NORMAL_TABLE){
-      sdbDeleteRow(tsNormalTableSdb, pTable);
+      SSdbOperDesc oper = {
+        .type = SDB_OPER_TYPE_GLOBAL,
+        .table = tsNormalTableSdb,
+        .pObj = pTable
+      };
+      sdbDeleteRow(&oper);
     } else {}
     mError("table:%s, failed to create in dnode, reason:%s", pTable->tableId, tstrerror(rpcMsg->code));
     mgmtSendSimpleResp(queueMsg->thandle, rpcMsg->code);
@@ -816,14 +829,26 @@ static void mgmtProcessDropTableRsp(SRpcMsg *rpcMsg) {
   }
 
   if (pTable->type == TSDB_CHILD_TABLE) {
-    if (sdbDeleteRow(tsChildTableSdb, pTable) < 0) {
+    SSdbOperDesc oper = {
+      .type = SDB_OPER_TYPE_GLOBAL,
+      .table = tsChildTableSdb,
+      .pObj = pTable
+    };
+    int32_t code = sdbDeleteRow(&oper);
+    if (code != TSDB_CODE_SUCCESS) {
       mError("table:%s, update ctables sdb error", pTable->tableId);
       mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SDB_ERROR);
       free(queueMsg);
       return;
     }
   } else if (pTable->type == TSDB_NORMAL_TABLE){
-    if (sdbDeleteRow(tsNormalTableSdb, pTable) < 0) {
+    SSdbOperDesc oper = {
+      .type = SDB_OPER_TYPE_GLOBAL,
+      .table = tsNormalTableSdb,
+      .pObj = pTable
+    };
+    int32_t code = sdbDeleteRow(&oper);
+    if (code != TSDB_CODE_SUCCESS) {
       mError("table:%s, update ntables sdb error", pTable->tableId);
       mgmtSendSimpleResp(queueMsg->thandle, TSDB_CODE_SDB_ERROR);
       free(queueMsg);
@@ -844,32 +869,48 @@ static void mgmtProcessDropStableRsp(SRpcMsg *rpcMsg) {
  mTrace("drop stable rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
 }
 
-//
-//
-//static void mgmtProcessTableCfgMsg(int8_t msgType, int8_t *pCont, int32_t contLen, void *thandle) {
-//  SDMConfigTableMsg *pCfg = (SDMConfigTableMsg *) pCont;
-//  pCfg->dnode = htonl(pCfg->dnode);
-//  pCfg->vnode = htonl(pCfg->vnode);
-//  pCfg->sid   = htonl(pCfg->sid);
-//  mTrace("dnode:%s, vnode:%d, sid:%d, receive table config msg", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
-//
-//  if (!sdbMaster) {
-//    mError("dnode:%s, vnode:%d, sid:%d, not master, redirect it", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
-//    mgmtSendRspToDnode(thandle, msgType + 1, TSDB_CODE_REDIRECT, NULL, 0);
-//    return;
-//  }
-//
-//  STableInfo *pTable = mgmtGetTableByPos(pCfg->dnode, pCfg->vnode, pCfg->sid);
-//  if (pTable == NULL) {
-//    mError("dnode:%s, vnode:%d, sid:%d, table not found", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
-//    mgmtSendRspToDnode(thandle, msgType + 1, TSDB_CODE_INVALID_TABLE, NULL, 0);
-//    return;
-//  }
-//
-//  mgmtSendRspToDnode(thandle, msgType + 1, TSDB_CODE_SUCCESS, NULL, 0);
-//
-//  //TODO
-//  SRpcIpSet ipSet = mgmtGetIpSetFromIp(pCfg->dnode);
-//  mgmtSendCreateTableMsg(NULL, &ipSet, NULL);
-//}
-//
+static void mgmtProcessTableCfgMsg(SRpcMsg *rpcMsg) {
+  if (mgmtCheckRedirect(rpcMsg->handle)) return;
+
+  SDMConfigTableMsg *pCfg = (SDMConfigTableMsg *) rpcMsg->pCont;
+  pCfg->dnode = htonl(pCfg->dnode);
+  pCfg->vnode = htonl(pCfg->vnode);
+  pCfg->sid   = htonl(pCfg->sid);
+  mTrace("dnode:%s, vnode:%d, sid:%d, receive table config msg", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
+
+  STableInfo *pTable = mgmtGetTableByPos(pCfg->dnode, pCfg->vnode, pCfg->sid);
+  if (pTable == NULL) {
+    mError("dnode:%s, vnode:%d, sid:%d, table not found", taosIpStr(pCfg->dnode), pCfg->vnode, pCfg->sid);
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NOT_ACTIVE_TABLE);
+    return;
+  }
+
+  mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_SUCCESS);
+
+  SMDCreateTableMsg *pMDCreate = NULL;
+  if (pTable->type == TSDB_CHILD_TABLE) {
+    mTrace("table:%s, is a child table, vgroup:%d sid:%d", pTable->tableId, pCfg->vnode, pCfg->sid);
+    pMDCreate = mgmtBuildCreateChildTableMsg(NULL, (SChildTableObj *) pTable);
+    if (pMDCreate == NULL) {
+      return;
+    }
+  } else if (pTable->type == TSDB_NORMAL_TABLE) {
+    mTrace("table:%s, is a normal table, vgroup:%d sid:%d", pTable->tableId, pCfg->vnode, pCfg->sid);
+    pMDCreate = mgmtBuildCreateNormalTableMsg((SNormalTableObj *) pTable);
+    if (pMDCreate == NULL) {
+      return;
+    }
+  } else {
+    mError("table:%s, invalid msg type, vgroup:%d sid:%d", pTable->tableId, pCfg->vnode, pCfg->sid);
+  }
+
+  SRpcIpSet ipSet = mgmtGetIpSetFromIp(pCfg->dnode);
+  SRpcMsg rpcRsp = {
+      .handle  = NULL,
+      .pCont   = pMDCreate,
+      .contLen = htonl(pMDCreate->contLen),
+      .code    = 0,
+      .msgType = TSDB_MSG_TYPE_MD_CREATE_TABLE
+  };
+  mgmtSendMsgToDnode(&ipSet, &rpcRsp);
+}

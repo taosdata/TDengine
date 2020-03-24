@@ -547,9 +547,6 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return ;
   }
   
-  uint32_t lastPrivateIp = pDnode->privateIp;
-  uint32_t lastPublicIp  = pDnode->publicIp;
-
   pDnode->privateIp        = htonl(pStatus->privateIp);
   pDnode->publicIp         = htonl(pStatus->publicIp);
   pDnode->lastReboot       = htonl(pStatus->lastReboot);
@@ -566,11 +563,6 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     mgmtSetDnodeMaxVnodes(pDnode);
   }
  
-  if (lastPrivateIp != pDnode->privateIp || lastPublicIp != pDnode->publicIp) {
-    mgmtUpdateVgroupIp(pDnode);
-    //mgmtUpdateMnodeIp();
-  }
-
   int32_t openVnodes = htons(pStatus->openVnodes);
   for (int32_t j = 0; j < openVnodes; ++j) {
     pDnode->vload[j].vgId          = htonl(pStatus->load[j].vgId);
@@ -599,7 +591,7 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
     return;
   }
 
-  mgmtGetMnodeIpList(&pRsp->ipList);
+  mgmtGetMnodePrivateIpList(&pRsp->ipList);
 
   pRsp->dnodeState.dnodeId = htonl(pDnode->dnodeId);
   pRsp->dnodeState.moduleStatus = htonl(pDnode->moduleStatus);

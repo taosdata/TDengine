@@ -22,11 +22,11 @@ extern "C" {
 
 #include "mnode.h"
 
-int32_t mgmtAddVgroupIntoDb(SDbObj *pDb, SVgObj *pVgroup);
-int32_t mgmtAddVgroupIntoDbTail(SDbObj *pDb, SVgObj *pVgroup);
-int32_t mgmtRemoveVgroupFromDb(SDbObj *pDb, SVgObj *pVgroup);
-int32_t mgmtMoveVgroupToTail(SDbObj *pDb, SVgObj *pVgroup);
-int32_t mgmtMoveVgroupToHead(SDbObj *pDb, SVgObj *pVgroup);
+void mgmtAddVgroupIntoDb(SVgObj *pVgroup);
+void mgmtAddVgroupIntoDbTail(SVgObj *pVgroup);
+void mgmtRemoveVgroupFromDb(SVgObj *pVgroup);
+void mgmtMoveVgroupToTail(SVgObj *pVgroup);
+void mgmtMoveVgroupToHead(SVgObj *pVgroup);
 
 int32_t mgmtInitDbs();
 void    mgmtCleanUpDbs();

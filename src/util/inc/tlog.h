@@ -239,6 +239,25 @@ extern uint32_t cdebugFlag;
 #define monitorLWarn(...) taosLogWarn(__VA_ARGS__) monitorWarn(__VA_ARGS__)
 #define monitorLPrint(...) taosLogPrint(__VA_ARGS__) monitorPrint(__VA_ARGS__)
 
+#define sdbError(...)                            \
+  if (sdbDebugFlag & DEBUG_ERROR) {              \
+    tprintf("ERROR MND-SDB ", 255, __VA_ARGS__); \
+  }
+#define sdbWarn(...)                                      \
+  if (sdbDebugFlag & DEBUG_WARN) {                        \
+    tprintf("WARN  MND-SDB ", sdbDebugFlag, __VA_ARGS__); \
+  }
+#define sdbTrace(...)                               \
+  if (sdbDebugFlag & DEBUG_TRACE) {                 \
+    tprintf("MND-SDB ", sdbDebugFlag, __VA_ARGS__); \
+  }
+#define sdbPrint(...) \
+  { tprintf("MND-SDB ", 255, __VA_ARGS__); }
+
+#define sdbLError(...) taosLogError(__VA_ARGS__) sdbError(__VA_ARGS__)
+#define sdbLWarn(...) taosLogWarn(__VA_ARGS__) sdbWarn(__VA_ARGS__)
+#define sdbLPrint(...) taosLogPrint(__VA_ARGS__) sdbPrint(__VA_ARGS__)
+
 #ifdef __cplusplus
 }
 #endif

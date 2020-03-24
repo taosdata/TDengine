@@ -93,8 +93,8 @@ void dnodeRead(SRpcMsg *pMsg) {
 
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *) pCont;
-    pHead->vgId    = 1;//htonl(pHead->vgId);
-    pHead->contLen = pMsg->contLen; //htonl(pHead->contLen);
+    pHead->vgId    = htonl(pHead->vgId);
+    pHead->contLen = htonl(pHead->contLen);
 
     void *pVnode = dnodeGetVnode(pHead->vgId);
     if (pVnode == NULL) {
@@ -104,12 +104,13 @@ void dnodeRead(SRpcMsg *pMsg) {
     }
 
     // put message into queue
-    SReadMsg readMsg;
-    readMsg.rpcMsg      = *pMsg;
-    readMsg.pCont       = pCont;
-    readMsg.contLen     = pHead->contLen;
-    readMsg.pRpcContext = pRpcContext;
-    readMsg.pVnode      = pVnode;
+    SReadMsg readMsg = {
+      .rpcMsg      = *pMsg,
+      .pCont       = pCont,
+      .contLen     = pHead->contLen,
+      .pRpcContext = pRpcContext,
+      .pVnode      = pVnode,
+    };
 
     taos_queue queue = dnodeGetVnodeRworker(pVnode);
     taosWriteQitem(queue, &readMsg);
@@ -177,8 +178,6 @@ static void *dnodeProcessReadQueue(void *param) {
     } else {
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     }
-
-    dnodeProcessReadResult(&readMsg);
   }
 
   return NULL;
@@ -252,57 +251,42 @@ static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
   qTableQuery(pQInfo);
 }
 
+static int32_t c = 0;
 static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
   SRetrieveTableMsg *pRetrieve = pMsg->pCont;
-  void *pQInfo = htobe64(pRetrieve->qhandle);
+  void *pQInfo = (void*) htobe64(pRetrieve->qhandle);
 
   dTrace("QInfo:%p vgId:%d, retrieve msg is received", pQInfo, pRetrieve->header.vgId);
-  
+  if ((++c)%2 == 0) {
+    int32_t k = 1;
+  }
   int32_t rowSize = 0;
   int32_t numOfRows = 0;
   int32_t contLen = 0;
   
-  SRpcMsg rpcRsp = {0};
+  SRetrieveTableRsp *pRsp = NULL;
   
   int32_t code = qRetrieveQueryResultInfo(pQInfo, &numOfRows, &rowSize);
   if (code != TSDB_CODE_SUCCESS) {
     contLen = sizeof(SRetrieveTableRsp);
-    
-    SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(contLen);
-    pRsp->numOfRows = 0;
-    pRsp->precision = 0;
-    pRsp->offset = 0;
-    pRsp->useconds = 0;
-  
-    rpcRsp = (SRpcMsg) {
-        .handle = pMsg->rpcMsg.handle,
-        .pCont = pRsp,
-        .contLen = contLen,
-        .code = code,
-        .msgType = 0
-    };
-    
-    //todo free qinfo
+
+    pRsp = (SRetrieveTableRsp *)rpcMallocCont(contLen);
+    memset(pRsp, 0, sizeof(SRetrieveTableRsp));
   } else {
-    contLen = 100;
-    
-    SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(contLen);
-    pRsp->numOfRows = htonl(1);
-    pRsp->precision = htons(0);
-    pRsp->offset = htobe64(0);
-    pRsp->useconds = htobe64(0);
-  
-    // todo set the data
-    *(int64_t*) pRsp->data = 1000;
-    
-    rpcRsp = (SRpcMsg) {
-        .handle = pMsg->rpcMsg.handle,
-        .pCont = pRsp,
-        .contLen = contLen,
-        .code = code,
-        .msgType = 0
-    };
+    // todo check code and handle error in build result set
+    code = qDumpRetrieveResult(pQInfo, &pRsp, &contLen);
   }
   
+  SRpcMsg rpcRsp = (SRpcMsg) {
+      .handle = pMsg->rpcMsg.handle,
+      .pCont = pRsp,
+      .contLen = contLen,
+      .code = code,
+      .msgType = 0
+  };
+
   rpcSendResponse(&rpcRsp);
+  
+  //todo merge result should be done here
+  //dnodeProcessReadResult(&readMsg);
 }

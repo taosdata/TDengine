@@ -762,3 +762,13 @@ int32_t mgmtInitProfile() {
 
 void mgmtCleanUpProfile() {
 }
+
+void mgmtFreeQueuedMsg(SQueuedMsg *pMsg) {
+  if (pMsg != NULL) {
+    if (pMsg->pCont != NULL) {
+      rpcFreeCont(pMsg->pCont);
+      pMsg->pCont = NULL;
+    }
+    free(pMsg);
+  }
+}
