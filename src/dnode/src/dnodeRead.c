@@ -164,7 +164,7 @@ static void *dnodeProcessReadQueue(void *param) {
   void      *pVnode;
 
   while (1) {
-    if (taosReadQitemFromQset(qset, &type, &pReadMsg, &pVnode) == 0) {
+    if (taosReadQitemFromQset(qset, &type, (void **)&pReadMsg, (void **)&pVnode) == 0) {
       dnodeHandleIdleReadWorker();
       continue;
     }
@@ -228,11 +228,11 @@ static void dnodeProcessReadResult(void *pVnode, SReadMsg *pRead) {
   rpcFreeCont(pRead->rpcMsg.pCont);  // free the received message
 }
 
-static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
+static void dnodeProcessQueryMsg(void *pVnode, SReadMsg *pMsg) {
   SQueryTableMsg* pQueryTableMsg = (SQueryTableMsg*) pMsg->pCont;
   
   SQInfo* pQInfo = NULL;
-  void* tsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+  void* tsdb = dnodeGetVnodeTsdb(pVnode);
   int32_t code = qCreateQueryInfo(tsdb, pQueryTableMsg, &pQInfo);
   
   SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
@@ -254,7 +254,7 @@ static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
 }
 
 static int32_t c = 0;
-static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
+static void dnodeProcessRetrieveMsg(void *pVnode, SReadMsg *pMsg) {
   SRetrieveTableMsg *pRetrieve = pMsg->pCont;
   void *pQInfo = (void*) htobe64(pRetrieve->qhandle);
 
