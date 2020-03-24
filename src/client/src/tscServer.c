@@ -209,7 +209,6 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
-  tscTrace("response:%s is received, len:%d error:%s", taosMsg[rpcMsg->msgType], rpcMsg->contLen, tstrerror(rpcMsg->code));
   SSqlObj *pSql = (SSqlObj *)rpcMsg->handle;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("%p sql is already released, signature:%p", pSql, pSql->signature);
@@ -256,7 +255,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
         rpcFreeCont(rpcMsg->pCont);
         return;
       } else {
-        tscTrace("%p it shall renew meter meta, code:%d", pSql, rpcMsg->code);
+        tscTrace("%p it shall renew meter meta, code:%d", pSql, tstrerror(rpcMsg->code));
 
         pSql->maxRetry = TSDB_VNODES_SUPPORT * 2;
         pSql->res.code = rpcMsg->code;  // keep the previous error code
@@ -278,7 +277,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED) {
     pRes->code = (rpcMsg->code != TSDB_CODE_SUCCESS) ? rpcMsg->code : TSDB_CODE_NETWORK_UNAVAIL;
   } else {
-    tscTrace("%p query is cancelled, code:%d", pSql, pRes->code);
+    tscTrace("%p query is cancelled, code:%d", pSql, tstrerror(pRes->code));
   }
 
   if (pRes->code != TSDB_CODE_QUERY_CANCELLED) {
@@ -318,19 +317,17 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
       tscTrace("%p cmd:%d code:%d, inserted rows:%d, rsp len:%d", pSql, pCmd->command, pRes->code,
                *(int32_t *)pRes->pRsp, pRes->rspLen);
     } else {
-      tscTrace("%p cmd:%d code:%d rsp len:%d", pSql, pCmd->command, pRes->code, pRes->rspLen);
+      tscTrace("%p cmd:%d code:%s rsp len:%d", pSql, pCmd->command, tstrerror(pRes->code), pRes->rspLen);
     }
   }
 
   if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command])
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
-
+  
   if (rpcMsg->code != TSDB_CODE_ACTION_IN_PROGRESS) {
     int   command = pCmd->command;
     void *taosres = tscKeepConn[command] ? pSql : NULL;
-    rpcMsg->code = pRes->code ? -pRes->code : pRes->numOfRows;
-
-    tscTrace("%p Async SQL result:%d res:%p", pSql, rpcMsg->code, taosres);
+    tscTrace("%p Async SQL result:%s res:%p", pSql, tstrerror(pRes->code), taosres);
 
     /*
      * Whether to free sqlObj or not should be decided before call the user defined function, since this SqlObj
@@ -2304,6 +2301,7 @@ int tscProcessRetrieveRspFromVnode(SSqlObj *pSql) {
   pRes->precision = htons(pRetrieve->precision);
   pRes->offset    = htobe64(pRetrieve->offset);
   pRes->useconds  = htobe64(pRetrieve->useconds);
+  pRes->completed = (pRetrieve->completed == 1);
   pRes->data      = pRetrieve->data;
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);

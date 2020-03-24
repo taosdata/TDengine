@@ -93,8 +93,8 @@ void dnodeRead(SRpcMsg *pMsg) {
 
   while (leftLen > 0) {
     SMsgHead *pHead = (SMsgHead *) pCont;
-    pHead->vgId    = 1;//htonl(pHead->vgId);
-    pHead->contLen = pMsg->contLen; //htonl(pHead->contLen);
+    pHead->vgId    = htonl(pHead->vgId);
+    pHead->contLen = htonl(pHead->contLen);
 
     void *pVnode = dnodeGetVnode(pHead->vgId);
     if (pVnode == NULL) {
@@ -104,12 +104,13 @@ void dnodeRead(SRpcMsg *pMsg) {
     }
 
     // put message into queue
-    SReadMsg readMsg;
-    readMsg.rpcMsg      = *pMsg;
-    readMsg.pCont       = pCont;
-    readMsg.contLen     = pHead->contLen;
-    readMsg.pRpcContext = pRpcContext;
-    readMsg.pVnode      = pVnode;
+    SReadMsg readMsg = {
+      .rpcMsg      = *pMsg,
+      .pCont       = pCont,
+      .contLen     = pHead->contLen,
+      .pRpcContext = pRpcContext,
+      .pVnode      = pVnode,
+    };
 
     taos_queue queue = dnodeGetVnodeRworker(pVnode);
     taosWriteQitem(queue, &readMsg);
@@ -177,8 +178,6 @@ static void *dnodeProcessReadQueue(void *param) {
     } else {
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     }
-
-    dnodeProcessReadResult(&readMsg);
   }
 
   return NULL;
@@ -252,17 +251,19 @@ static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
   qTableQuery(pQInfo);
 }
 
+static int32_t c = 0;
 static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
   SRetrieveTableMsg *pRetrieve = pMsg->pCont;
   void *pQInfo = (void*) htobe64(pRetrieve->qhandle);
 
   dTrace("QInfo:%p vgId:%d, retrieve msg is received", pQInfo, pRetrieve->header.vgId);
-  
+  if ((++c)%2 == 0) {
+    int32_t k = 1;
+  }
   int32_t rowSize = 0;
   int32_t numOfRows = 0;
   int32_t contLen = 0;
   
-  SRpcMsg rpcRsp = {0};
   SRetrieveTableRsp *pRsp = NULL;
   
   int32_t code = qRetrieveQueryResultInfo(pQInfo, &numOfRows, &rowSize);
@@ -276,7 +277,7 @@ static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
     code = qDumpRetrieveResult(pQInfo, &pRsp, &contLen);
   }
   
-  rpcRsp = (SRpcMsg) {
+  SRpcMsg rpcRsp = (SRpcMsg) {
       .handle = pMsg->rpcMsg.handle,
       .pCont = pRsp,
       .contLen = contLen,
@@ -285,4 +286,7 @@ static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
   };
 
   rpcSendResponse(&rpcRsp);
+  
+  //todo merge result should be done here
+  //dnodeProcessReadResult(&readMsg);
 }
