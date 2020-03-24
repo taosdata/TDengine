@@ -624,3 +624,8 @@ int32_t mgmtGetSuperTableMeta(SDbObj *pDb, SSuperTableObj *pTable, STableMetaMsg
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t mgmtExtractTableName(const char* tableId, char* name) {
+  char* r = skipSegments(tableId, TS_PATH_DELIMITER[0], 2);
+  return copy(name, r, TS_PATH_DELIMITER[0]);
+}
+
