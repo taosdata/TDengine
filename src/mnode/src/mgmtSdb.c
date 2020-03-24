@@ -722,18 +722,20 @@ int32_t sdbUpdateRow(SSdbOperDesc *pOper) {
 void sdbCloseTable(void *handle) {
   SSdbTable *pTable = (SSdbTable *)handle;
   void *     pNode = NULL;
-  void *     row;
-
+  
   if (pTable == NULL) return;
 
   while (1) {
-    pNode = sdbFetchRow(handle, pNode, &row);
-    if (row == NULL) break;
+    SRowMeta * pMeta;
+    pNode = (*sdbFetchRowFp[pTable->keyType])(pTable->iHandle, pNode, (void **)&pMeta);
+    if (pMeta == NULL) break;
 
     SSdbOperDesc oper = {
+      .pObj = pMeta->row,
       .table = pTable,
-      .rowData = row,
+      .version = pMeta->version,
     };
+
     (*pTable->destroyFp)(&oper);
   }
 
