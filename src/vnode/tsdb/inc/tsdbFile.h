@@ -37,11 +37,6 @@ typedef enum {
 extern const char *tsdbFileSuffix[];
 
 typedef struct {
-  int64_t size;
-  int64_t tombSize;
-} SFileInfo;
-
-typedef struct {
   int8_t  type;
   char    fname[128];
   int64_t size;      // total size of the file

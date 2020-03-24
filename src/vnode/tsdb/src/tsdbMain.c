@@ -782,6 +782,39 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
   return numOfRows;
 }
 
+static void tsdbDestroyTableIters(SSkipListIterator **iters, int maxTables) {
+  if (iters == NULL) return;
+
+  for (int tid = 0; tid < maxTables; tid++) {
+    if (iters[tid] == NULL) continue;
+    tSkipListDestroy(iters[tid]);
+  }
+
+  free(iters);
+}
+
+static SSkipListIterator **tsdbCreateTableIters(STsdbMeta *pMeta, int maxTables) {
+  SSkipListIterator **iters = (SSkipListIterator *)calloc(maxTables, sizeof(SSkipListIterator *));
+  if (iters == NULL) return NULL;
+
+  for (int tid = 0; tid < maxTables; tid++) {
+    STable *pTable = pMeta->tables[tid];
+    if (pTable == NULL || pTable->imem == NULL) continue;
+
+    iters[tid] = tSkipListCreateIter(pTable->imem->pData);
+    if (iters[tid] == NULL) {
+      tsdbDestroyTableIters(iters, maxTables);
+      return NULL;
+    }
+
+    if (!tSkipListIterNext(iters[tid])) {
+      assert(false);
+    }
+  }
+
+  return iters;
+}
+
 // Commit to file
 static void *tsdbCommitToFile(void *arg) {
   // TODO
@@ -791,10 +824,8 @@ static void *tsdbCommitToFile(void *arg) {
   STsdbCfg * pCfg = &(pRepo->config);
   if (pCache->imem == NULL) return;
 
-  int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
-  int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);
-
-  SSkipListIterator **iters = (SSkipListIterator **)calloc(pCfg->maxTables, sizeof(SSkipListIterator *));
+  // Create the iterator to read from cache
+  SSkipListIterator **iters = tsdbCreateTableIters(pMeta, pCfg->maxTables);
   if (iters == NULL) {
     // TODO: deal with the error
     return NULL;
@@ -805,9 +836,14 @@ static void *tsdbCommitToFile(void *arg) {
   SDataCol **cols = (SDataCol **)malloc(sizeof(SDataCol *) * maxCols);
   void *buf = malloc((maxBytes + sizeof(SDataCol)) * pCfg->maxRowsPerFileBlock);
 
+  int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
+  int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);
+
   for (int fid = sfid; fid <= efid; fid++) {
     TSKEY minKey = 0, maxKey = 0;
     tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
+
+    // tsdbOpenFileForWrite(pRepo, fid);
 
     for (int tid = 0; tid < pCfg->maxTables; tid++) {
       STable *pTable = pMeta->tables[tid];
@@ -837,14 +873,10 @@ static void *tsdbCommitToFile(void *arg) {
     }
   }
 
-  // Free the iterator
-  for (int tid = 0; tid < pCfg->maxTables; tid++) {
-    if (iters[tid] != NULL) tSkipListDestroyIter(iters[tid]);
-  }
+  tsdbDestroyTableIters(iters, pCfg->maxTables);
 
   free(buf);
   free(cols);
-  free(iters);
 
   tsdbLockRepo(arg);
   tdListMove(pCache->imem->list, pCache->pool.memPool);
