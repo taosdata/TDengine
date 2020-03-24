@@ -712,7 +712,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   tSkipListRandNodeInfo(pTable->mem->pData, &level, &headSize);
 
   TSKEY key = dataRowKey(row);
-  printf("insert:%lld, size:%d\n", key, pTable->mem->numOfPoints);
+  // printf("insert:%lld, size:%d\n", key, pTable->mem->numOfPoints);
   
   // Copy row into the memory
   SSkipListNode *pNode = tsdbAllocFromCache(pRepo->tsdbCache, headSize + dataRowLen(row), key);
