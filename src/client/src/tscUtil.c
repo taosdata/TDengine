@@ -713,7 +713,7 @@ static void trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock) {
   
   char* p = pTableDataBlock->pData + sizeof(SSubmitBlk);
   
-  SSubmitBlk* pBlock = pTableDataBlock->pData;
+  SSubmitBlk* pBlock = (SSubmitBlk*) pTableDataBlock->pData;
   int32_t rows = htons(pBlock->numOfRows);
   
   for(int32_t i = 0; i < rows; ++i) {
