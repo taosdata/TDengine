@@ -294,27 +294,34 @@ SDataRow tdDataRowDup(SDataRow row) {
   return trow;
 }
 
-SDataCols *tdNewDataCols(STSchema *pSchema, int nRows) {
-  int nCols = schemaNCols(pSchema);
+SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
+  SDataCols *pCols = (SDataCols *)calloc(1, sizeof(SDataCols) + sizeof(SDataCol) * maxCols);
+  if (pCols == NULL) return NULL;
 
-  SDataCols *pInfo = (SDataCols *)calloc(1, sizeof(SDataCols) + sizeof(SDataCol) * nCols);
-  if (pInfo == NULL) return NULL;
+  pCols->maxRowSize = maxRowSize;
+  pCols->maxCols = maxCols;
+  pCols->maxPoints = maxRows;
 
-  pInfo->numOfCols = nCols;
-  pInfo->firstKey = INT64_MIN;
-  pInfo->lastKey = INT64_MAX;
-  pInfo->buf = malloc(tdMaxRowBytesFromSchema(pSchema) * nRows);
-  if (pInfo->buf == NULL) {
-    free(pInfo);
+  pCols->buf = malloc(maxRowSize * maxRows);
+  if (pCols->buf == NULL) {
+    free(pCols);
     return NULL;
   }
 
-  pInfo->cols[0].pData = pInfo->buf;
-  for (int i = 1; i < nCols; i++) {
-    pInfo->cols[i].pData = (char *)(pInfo->cols[i - 1].pData) + schemaColAt(pSchema, i - 1)->bytes * nRows;
+  return pCols;
+}
+
+void tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
+  // assert(schemaNCols(pSchema) <= pCols->numOfCols);
+  tdResetDataCols(pCols);
+  pCols->numOfCols = schemaNCols(pSchema);
+
+  pCols->cols[0].pData = pCols->buf;
+  for (int i = 1; i < schemaNCols(pSchema); i++) {
+    pCols->cols[i].pData = (char *)(pCols->cols[i - 1].pData) + schemaColAt(pSchema, i - 1)->bytes * pCols->maxPoints;
   }
 
-  return pInfo;
+  return pCols;
 }
 
 void tdFreeDataCols(SDataCols *pCols) {
@@ -325,18 +332,14 @@ void tdFreeDataCols(SDataCols *pCols) {
 }
 
 void tdResetDataCols(SDataCols *pCols) {
-  pCols->firstKey = INT64_MAX;
-  pCols->lastKey = INT64_MIN;
   pCols->numOfPoints = 0;
-  for (int i = 0; i < pCols->numOfCols; i++) {
+  for (int i = 0; i < pCols->maxCols; i++) {
     pCols->cols[i].len = 0;
   }
 }
 
 void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols, STSchema *pSchema) {
   TSKEY key = dataRowKey(row);
-  if (pCols->numOfPoints == 0) pCols->firstKey = key;
-  pCols->lastKey = key;
   for (int i = 0; i < pCols->numOfCols; i++) {
     SDataCol *pCol = pCols->cols + i;
     memcpy((void *)((char *)(pCol->pData) + pCol->len), dataRowAt(row, colOffset(schemaColAt(pSchema, i))),
