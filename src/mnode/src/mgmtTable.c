@@ -73,7 +73,7 @@ void mgmtCleanUpTables() {
   mgmtCleanUpSuperTables();
 }
 
-void mgmtExtractTableName(const char* tableId, char* name) {
+void mgmtExtractTableName(char* tableId, char* name) {
   int pos = -1;
   int num = 0;
   for (pos = 0; tableId[pos] != 0; ++pos) {
@@ -139,14 +139,14 @@ static void mgmtProcessDropTableMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  pMsg->pDb = mgmtGetDb(pCreate->db);
+  pMsg->pDb = mgmtGetDbByTableId(pDrop->tableId);
   if (pMsg->pDb == NULL || pMsg->pDb->dirty) {
     mError("table:%s, failed to drop table, db not selected", pDrop->tableId);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_DB_NOT_SELECTED);
     return;
   }
 
-  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
+  if (mgmtCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
     mError("table:%s, failed to drop table, in monitor database", pDrop->tableId);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_MONITOR_DB_FORBIDDEN);
     return;
@@ -170,7 +170,7 @@ static void mgmtProcessDropTableMsg(SQueuedMsg *pMsg) {
     mgmtDropSuperTable(pMsg, (SSuperTableObj *)pTable);
   } else {
     mTrace("table:%s, start to drop ctable", pDrop->tableId);
-    mgmtDropChildTable(pMsg, (SNormalTableObj *)pTable);
+    mgmtDropChildTable(pMsg, (SChildTableObj *)pTable);
   }
 }
 
@@ -186,15 +186,15 @@ static void mgmtProcessAlterTableMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  pMsg->pDb = mgmtGetDbByTableId(pTable->tableId);
+  pMsg->pDb = mgmtGetDbByTableId(pAlter->tableId);
   if (pMsg->pDb == NULL || pMsg->pDb->dirty) {
-    mError("table:%s, failed to alter table, db not selected", pTable->tableId);
+    mError("table:%s, failed to alter table, db not selected", pAlter->tableId);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_DB_NOT_SELECTED);
     return;
   }
 
-  if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
-    mError("table:%s, failed to alter table, its log db", pTable->tableId);
+  if (mgmtCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
+    mError("table:%s, failed to alter table, its log db", pAlter->tableId);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_MONITOR_DB_FORBIDDEN);
     return;
   }
@@ -218,22 +218,22 @@ static void mgmtProcessAlterTableMsg(SQueuedMsg *pMsg) {
   }
 
   if (pTable->type == TSDB_SUPER_TABLE) {
-    mTrace("table:%s, start to alter stable", pDrop->tableId);
+    mTrace("table:%s, start to alter stable", pAlter->tableId);
     mgmtAlterSuperTable(pMsg, (SSuperTableObj *)pTable);
   } else {
-    mTrace("table:%s, start to alter ctable", pDrop->tableId);
-    mgmtAlterChildTable(pMsg, (SNormalTableObj *)pTable);
+    mTrace("table:%s, start to alter ctable", pAlter->tableId);
+    mgmtAlterChildTable(pMsg, (SChildTableObj *)pTable);
   }
 }
 
 static void mgmtProcessTableMetaMsg(SQueuedMsg *pMsg) {
-  SCMTableInfoMsg *pInfo = mgmtGetTable(pInfo->tableId);
+  SCMTableInfoMsg *pInfo = pMsg->pCont;
   mTrace("table:%s, table meta msg is received from thandle:%p", pInfo->tableId, pMsg->thandle);
 
   STableInfo *pTable = mgmtGetTable(pInfo->tableId);
   if (pTable == NULL || pTable->type != TSDB_SUPER_TABLE) {
-    mgmtGetChildTableMeta(pMsg, (SSuperTableObj *)pTable);
+    mgmtGetChildTableMeta(pMsg, (SChildTableObj *)pTable);
   } else {
-    mgmtGetSuperTableMeta(pMsg, (SNormalTableObj *)pTable);
+    mgmtGetSuperTableMeta(pMsg, (SSuperTableObj *)pTable);
   }
 }

@@ -28,7 +28,6 @@
 #include "mgmtGrant.h"
 #include "mgmtShell.h"
 #include "mgmtMnode.h"
-#include "mgmtNormalTable.h"
 #include "mgmtChildTable.h"
 #include "mgmtSdb.h"
 #include "mgmtSuperTable.h"
@@ -82,7 +81,6 @@ static int32_t mgmtDbActionDelete(SSdbOperDesc *pOper) {
   SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
 
   mgmtRemoveDbFromAcct(pAcct, pDb);
-  mgmtDropAllNormalTables(pDb);
   mgmtDropAllChildTables(pDb);
   mgmtDropAllSuperTables(pDb);
   mgmtDropAllVgroups(pDb);
@@ -382,7 +380,7 @@ static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn)
   int32_t cols = 0;
 
   SSchema *pSchema = pMeta->schema;
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 
   pShow->bytes[cols] = TSDB_DB_NAME_LEN;
@@ -532,7 +530,7 @@ static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *
   SDbObj *pDb = NULL;
   char *  pWrite;
   int32_t cols = 0;
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 
   while (numOfRows < rows) {

@@ -24,7 +24,7 @@ extern "C" {
 int32_t   mgmtInitUsers();
 void      mgmtCleanUpUsers();
 SUserObj *mgmtGetUser(char *name);
-SUserObj *mgmtGetUserFromConn(void *pConn, bool *usePublicIp) 
+SUserObj *mgmtGetUserFromConn(void *pConn, bool *usePublicIp);
 
 #ifdef __cplusplus
 }

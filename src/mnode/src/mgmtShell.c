@@ -30,7 +30,6 @@
 #include "mgmtDnode.h"
 #include "mgmtGrant.h"
 #include "mgmtMnode.h"
-#include "mgmtNormalTable.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -139,7 +138,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
   }
 
   if (mgmtCheckExpired()) {
-    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_GRANT_EXPIRED);
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_GRANT_EXPIRED);
     return;
   }
 
@@ -174,7 +173,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     queuedMsg->contLen = rpcMsg->contLen;
     queuedMsg->pCont   = rpcMsg->pCont;
     queuedMsg->pUser   = pUser;
-    queuedMsg.usePublicIp = usePublicIp;
+    queuedMsg->usePublicIp = usePublicIp;
     mgmtAddToShellQueue(queuedMsg);
   }
 }
@@ -448,7 +447,7 @@ static bool mgmtCheckMeterMetaMsgType(void *pMsg) {
 
 static bool mgmtCheckMsgReadOnly(int8_t type, void *pCont) {
   if ((type == TSDB_MSG_TYPE_CM_TABLE_META && (!mgmtCheckMeterMetaMsgType(pCont)))  ||
-       type == TSDB_MSG_TYPE_CM_STABLE_META || type == TSDB_MSG_TYPE_RETRIEVE ||
+       type == TSDB_MSG_TYPE_CM_STABLE_VGROUP || type == TSDB_MSG_TYPE_RETRIEVE ||
        type == TSDB_MSG_TYPE_CM_SHOW || type == TSDB_MSG_TYPE_CM_TABLES_META      ||
        type == TSDB_MSG_TYPE_CM_CONNECT) {
     return true;

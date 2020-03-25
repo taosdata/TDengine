@@ -154,7 +154,7 @@ typedef struct _vg_obj {
   struct _db_obj *pDb;
   int32_t         numOfTables;
   void *          idPool;
-  STableInfo **   tableList;
+  SChildTableObj ** tableList;
 } SVgObj;
 
 typedef struct _db_obj {
@@ -241,6 +241,7 @@ typedef struct {
   int8_t   usePublicIp;
   int8_t   received;
   int8_t   successed;
+  int8_t   expected;
   int32_t  contLen;
   int32_t  code;
   void     *ahandle;

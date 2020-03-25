@@ -20,6 +20,7 @@
 #include "mgmtAcct.h"
 #include "mgmtChildTable.h"
 #include "mgmtDb.h"
+#include "mgmtDClient.h"
 #include "mgmtDnode.h"
 #include "mgmtGrant.h"
 #include "mgmtShell.h"
@@ -47,8 +48,8 @@ static int32_t mgmtSuperTableActionDestroy(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtSuperTableActionInsert(SSdbOperDesc *pOper) {
-  STableInfo *pStable = pOper->pObj;
-  SDbObj *pDb = mgmtGetDbByTableId(pStable->tableId);
+  SSuperTableObj *pStable = pOper->pObj;
+  SDbObj *pDb = mgmtGetDbByTableId(pStable->info.tableId);
   if (pDb != NULL) {
     mgmtAddSuperTableIntoDb(pDb);
   }
@@ -56,8 +57,8 @@ static int32_t mgmtSuperTableActionInsert(SSdbOperDesc *pOper) {
 }
 
 static int32_t mgmtSuperTableActionDelete(SSdbOperDesc *pOper) {
-  STableInfo *pStable = pOper->pObj;
-  SDbObj *pDb = mgmtGetDbByTableId(pStable->tableId);
+  SSuperTableObj *pStable = pOper->pObj;
+  SDbObj *pDb = mgmtGetDbByTableId(pStable->info.tableId);
   if (pDb != NULL) {
     mgmtRemoveSuperTableFromDb(pDb);
     mgmtDropAllChildTablesInStable((SSuperTableObj *)pStable);
@@ -151,11 +152,9 @@ void mgmtCreateSuperTable(SQueuedMsg *pMsg) {
     return;
   }
 
-  strcpy(pStable->tableId, pCreate->tableId);
-  pStable->type         = TSDB_SUPER_TABLE;
+  strcpy(pStable->info.tableId, pCreate->tableId);
+  pStable->info.type    = TSDB_SUPER_TABLE;
   pStable->createdTime  = taosGetTimestampMs();
-  pStable->vgId         = 0;
-  pStable->sid          = 0;
   pStable->uid          = (((uint64_t) pStable->createdTime) << 16) + (sdbGetVersion() & ((1ul << 16) - 1ul));
   pStable->sversion     = 0;
   pStable->numOfColumns = htons(pCreate->numOfColumns);
@@ -191,14 +190,14 @@ void mgmtCreateSuperTable(SQueuedMsg *pMsg) {
     mgmtDestroySuperTable(pStable);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SDB_ERROR);
   } else {
-    mLPrint("stable:%s, is created, tags:%d cols:%d", pStable->tableId, pStable->numOfTags, pStable->numOfColumns);
+    mLPrint("stable:%s, is created, tags:%d cols:%d", pStable->info.tableId, pStable->numOfTags, pStable->numOfColumns);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_SUCCESS);
   }
 }
 
-void mgmtDropSuperTable(SQueuedMsg *newMsg, SSuperTableObj *pTable) {
+void mgmtDropSuperTable(SQueuedMsg *pMsg, SSuperTableObj *pStable) {
   if (pStable->numOfTables != 0) {
-    mError("stable:%s, numOfTables:%d not 0", pStable->tableId, pStable->numOfTables);
+    mError("stable:%s, numOfTables:%d not 0", pStable->info.tableId, pStable->numOfTables);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_OTHERS);
   } else {
     SSdbOperDesc oper = {
@@ -207,7 +206,7 @@ void mgmtDropSuperTable(SQueuedMsg *newMsg, SSuperTableObj *pTable) {
       .pObj = pStable
     };
     int32_t code = sdbDeleteRow(&oper);
-    mLPrint("stable:%s, is dropped from sdb, result:%s", pStable->tableId, tstrerror(code));
+    mLPrint("stable:%s, is dropped from sdb, result:%s", pStable->info.tableId, tstrerror(code));
     mgmtSendSimpleResp(pMsg->thandle, code);
   }
 }
@@ -248,9 +247,9 @@ static int32_t mgmtAddSuperTableTag(SSuperTableObj *pStable, SSchema schema[], i
     }
   }
 
-  SDbObj *pDb = mgmtGetDbByTableId(pStable->tableId);
+  SDbObj *pDb = mgmtGetDbByTableId(pStable->info.tableId);
   if (pDb == NULL) {
-    mError("meter: %s not belongs to any database", pStable->tableId);
+    mError("meter: %s not belongs to any database", pStable->info.tableId);
     return TSDB_CODE_APP_ERROR;
   }
 
@@ -278,7 +277,7 @@ static int32_t mgmtAddSuperTableTag(SSuperTableObj *pStable, SSchema schema[], i
   pAcct->acctInfo.numOfTimeSeries += (ntags * pStable->numOfTables);
   // sdbUpdateRow(tsSuperTableSdb, pStable, tsSuperTableUpdateSize, SDB_OPER_GLOBAL);
 
-  mTrace("Succeed to add tag column %s to table %s", schema[0].name, pStable->tableId);
+  mTrace("Succeed to add tag column %s to table %s", schema[0].name, pStable->info.tableId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -288,9 +287,9 @@ static int32_t mgmtDropSuperTableTag(SSuperTableObj *pStable, char *tagName) {
     return TSDB_CODE_APP_ERROR;
   }
 
-  SDbObj *pDb = mgmtGetDbByTableId(pStable->tableId);
+  SDbObj *pDb = mgmtGetDbByTableId(pStable->info.tableId);
   if (pDb == NULL) {
-    mError("table: %s not belongs to any database", pStable->tableId);
+    mError("table: %s not belongs to any database", pStable->info.tableId);
     return TSDB_CODE_APP_ERROR;
   }
 
@@ -318,11 +317,11 @@ static int32_t mgmtModifySuperTableTagNameByName(SSuperTableObj *pStable, char *
   int32_t col = mgmtFindSuperTableTagIndex(pStable, oldTagName);
   if (col < 0) {
     // Tag name does not exist
-    mError("Failed to modify table %s tag column, oname: %s, nname: %s", pStable->tableId, oldTagName, newTagName);
+    mError("Failed to modify table %s tag column, oname: %s, nname: %s", pStable->info.tableId, oldTagName, newTagName);
     return TSDB_CODE_INVALID_MSG_TYPE;
   }
 
-  int32_t  rowSize = 0;
+  // int32_t  rowSize = 0;
   uint32_t len = strlen(newTagName);
 
   if (col >= pStable->numOfTags || len >= TSDB_COL_NAME_LEN || mgmtFindSuperTableTagIndex(pStable, newTagName) >= 0) {
@@ -346,11 +345,11 @@ static int32_t mgmtModifySuperTableTagNameByName(SSuperTableObj *pStable, char *
   tfree(msg);
 
   if (ret < 0) {
-    mError("Failed to modify table %s tag column", pStable->tableId);
+    mError("Failed to modify table %s tag column", pStable->info.tableId);
     return TSDB_CODE_APP_ERROR;
   }
 
-  mTrace("Succeed to modify table %s tag column", pStable->tableId);
+  mTrace("Succeed to modify table %s tag column", pStable->info.tableId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -376,9 +375,9 @@ static int32_t mgmtAddSuperTableColumn(SSuperTableObj *pStable, SSchema schema[]
     }
   }
 
-  SDbObj *pDb = mgmtGetDbByTableId(pStable->tableId);
+  SDbObj *pDb = mgmtGetDbByTableId(pStable->info.tableId);
   if (pDb == NULL) {
-    mError("meter: %s not belongs to any database", pStable->tableId);
+    mError("meter: %s not belongs to any database", pStable->info.tableId);
     return TSDB_CODE_APP_ERROR;
   }
 
@@ -415,9 +414,9 @@ static int32_t mgmtDropSuperTableColumnByName(SSuperTableObj *pStable, char *col
     return TSDB_CODE_APP_ERROR;
   }
 
-  SDbObj *pDb = mgmtGetDbByTableId(pStable->tableId);
+  SDbObj *pDb = mgmtGetDbByTableId(pStable->info.tableId);
   if (pDb == NULL) {
-    mError("table: %s not belongs to any database", pStable->tableId);
+    mError("table: %s not belongs to any database", pStable->info.tableId);
     return TSDB_CODE_APP_ERROR;
   }
 
@@ -504,7 +503,7 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
   SDbObj *pDb = mgmtGetDb(pShow->db);
   if (pDb == NULL) return 0;
 
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
 
   if (mgmtCheckIsMonitorDB(pDb->name, tsMonitorDbName)) {
     if (strcmp(pUser->user, "root") != 0 && strcmp(pUser->user, "_root") != 0 && strcmp(pUser->user, "monitor") != 0 ) {
@@ -605,7 +604,6 @@ int32_t mgmtSetSchemaFromSuperTable(SSchema *pSchema, SSuperTableObj *pTable) {
 }
 
 void mgmtGetSuperTableMeta(SQueuedMsg *pMsg, SSuperTableObj *pTable) {
-  SCMTableInfoMsg *pInfo = pMsg->pCont;
   SDbObj *pDb = pMsg->pDb;
   
   STableMetaMsg *pMeta = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * TSDB_MAX_COLUMNS);
@@ -667,4 +665,8 @@ void mgmtAlterSuperTable(SQueuedMsg *pMsg, SSuperTableObj *pTable) {
   } else {}
 
   mgmtSendSimpleResp(pMsg->thandle, code);
+}
+
+static void mgmtProcessDropStableRsp(SRpcMsg *rpcMsg) {
+ mTrace("drop stable rsp received, handle:%p code:%d", rpcMsg->handle, rpcMsg->code);
 }

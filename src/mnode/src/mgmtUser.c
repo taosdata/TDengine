@@ -231,7 +231,7 @@ static int32_t mgmtDropUser(SAcctObj *pAcct, char *name) {
 }
 
 static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) {
     return TSDB_CODE_INVALID_USER;
   }

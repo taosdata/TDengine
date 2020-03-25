@@ -20,6 +20,7 @@
 #include "tstatus.h"
 #include "mnode.h"
 #include "mgmtBalance.h"
+#include "mgmtChildTable.h"
 #include "mgmtDb.h"
 #include "mgmtDClient.h"
 #include "mgmtDnode.h"
@@ -276,9 +277,9 @@ int32_t mgmtGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
 
   int32_t maxReplica = 0;
   SVgObj  *pVgroup   = NULL;
-  STableInfo *pTable = NULL;
+  SChildTableObj *pTable = NULL;
   if (pShow->payloadLen > 0 ) {
-    pTable = mgmtGetTable(pShow->payload);
+    pTable = mgmtGetChildTable(pShow->payload);
     if (NULL == pTable) {
       return TSDB_CODE_INVALID_TABLE_ID;
     }
