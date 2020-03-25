@@ -36,8 +36,8 @@ void    mgmtUpdateVgroup(SVgObj *pVgroup);
 void    mgmtAlterVgroup(SVgObj *pVgroup, void *ahandle);
 SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb);
 
-void    mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable);
-void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable);
+void    mgmtAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable);
+void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable);
 void    mgmtSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle);
 void    mgmtSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle);
 

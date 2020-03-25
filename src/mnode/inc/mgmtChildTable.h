@@ -23,23 +23,18 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include "taosdef.h"
-
 #include "mnode.h"
 
 int32_t mgmtInitChildTables();
 void    mgmtCleanUpChildTables();
 void *  mgmtGetChildTable(char *tableId);
 
-void *mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t sid);
-void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pCreate, SChildTableObj *pTable);
-
-int32_t mgmtDropChildTable(SQueuedMsg *newMsg, SChildTableObj *pTable);
-int32_t mgmtModifyChildTableTagValueByName(SChildTableObj *pTable, char *tagName, char *nContent);
-
-int32_t mgmtGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STableMetaMsg *pMeta, bool usePublicIp);
-
-void mgmtDropAllChildTables(SDbObj *pDropDb);
-void mgmtDropAllChildTablesInStable(SSuperTableObj *pStable);
+void    mgmtCreateChildTable(SQueuedMsg *pMsg);
+void    mgmtDropChildTable(SQueuedMsg *pMsg, SChildTableObj *pTable);
+void    mgmtGetChildTableMeta(SQueuedMsg *pMsg, SChildTableObj *pTable);
+void    mgmtAlterChildTable(SQueuedMsg *pMsg, SChildTableObj *pTable);
+void    mgmtDropAllChildTables(SDbObj *pDropDb);
+void    mgmtDropAllChildTablesInStable(SSuperTableObj *pStable);
 
 #ifdef __cplusplus
 }

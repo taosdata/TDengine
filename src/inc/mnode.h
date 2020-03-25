@@ -98,66 +98,44 @@ typedef struct {
 } SVnodeGid;
 
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN];
-  int8_t   type;
-  int8_t   dirty;
-  uint64_t uid;
-  int32_t  sid;
-  int32_t  vgId;
-  int64_t  createdTime;
+  char   tableId[TSDB_TABLE_ID_LEN];
+  int8_t type;
+  int8_t dirty;
 } STableInfo;
 
 struct _vg_obj;
 
 typedef struct SSuperTableObj {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
-  int8_t   type;
-  int8_t   dirty;
-  uint64_t uid;
-  int32_t  sid;
-  int32_t  vgId;
-  int64_t  createdTime;
-  int32_t  sversion;
-  int32_t  numOfColumns;
-  int32_t  numOfTags;
-  int8_t   reserved[15];
-  int8_t   updateEnd[1];
-  int32_t  numOfTables;
-  int16_t  nextColId;
-  SSchema *schema;
+  STableInfo info;
+  uint64_t   uid;
+  int64_t    createdTime;
+  int32_t    sversion;
+  int32_t    numOfColumns;
+  int32_t    numOfTags;
+  int8_t     reserved[15];
+  int8_t     updateEnd[1];
+  int32_t    numOfTables;
+  int16_t    nextColId;
+  SSchema *  schema;
 } SSuperTableObj;
 
 typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN + 1];
-  int8_t   type;
-  int8_t   dirty;
-  uint64_t uid;
-  int32_t  sid;
-  int32_t  vgId;
-  int64_t  createdTime;
-  char     superTableId[TSDB_TABLE_ID_LEN + 1];
-  int8_t   reserved[1];
-  int8_t   updateEnd[1];
+  STableInfo info;
+  uint64_t   uid;
+  int64_t    createdTime;
+  int32_t    sversion;     //used by normal table
+  int32_t    numOfColumns; //used by normal table
+  int32_t    sid;
+  int32_t    vgId;
+  char       superTableId[TSDB_TABLE_ID_LEN + 1];
+  int32_t    sqlLen;
+  int8_t     reserved[1]; 
+  int8_t     updateEnd[1];
+  int16_t    nextColId;    //used by normal table
+  char*      sql;          //used by normal table
+  SSchema*   schema;       //used by normal table
   SSuperTableObj *superTable;
 } SChildTableObj;
-
-typedef struct {
-  char     tableId[TSDB_TABLE_ID_LEN];
-  int8_t   type;
-  int8_t   dirty;
-  uint64_t uid;
-  int32_t  sid;
-  int32_t  vgId;
-  int64_t  createdTime;
-  int32_t  sversion;
-  int32_t  numOfColumns;
-  int32_t  sqlLen;
-  int8_t   reserved[7];
-  int8_t   updateEnd[1];
-  char*    sql;  //null-terminated string
-  int16_t  nextColId;
-  SSchema* schema;
-} SNormalTableObj;
 
 struct _db_obj;
 
@@ -260,7 +238,7 @@ typedef struct {
 
 typedef struct {
   uint8_t  msgType;
-  int8_t   expected;
+  int8_t   usePublicIp;
   int8_t   received;
   int8_t   successed;
   int32_t  contLen;

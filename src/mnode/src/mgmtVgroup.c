@@ -428,7 +428,7 @@ int32_t mgmtRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pCo
   return numOfRows;
 }
 
-void mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable) {
+void mgmtAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
   if (pTable->sid >= 0 && pVgroup->tableList[pTable->sid] == NULL) {
     pVgroup->tableList[pTable->sid] = pTable;
     taosIdPoolMarkStatus(pVgroup->idPool, pTable->sid);
@@ -439,7 +439,7 @@ void mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable) {
     mgmtAddVgroupIntoDbTail(pVgroup);
 }
 
-void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable) {
+void mgmtRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable) {
   if (pTable->sid >= 0 && pVgroup->tableList[pTable->sid] != NULL) {
     pVgroup->tableList[pTable->sid] = NULL;
     taosFreeId(pVgroup->idPool, pTable->sid);

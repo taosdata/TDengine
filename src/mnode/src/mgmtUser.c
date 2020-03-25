@@ -310,9 +310,10 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
   return numOfRows;
 }
 
-SUserObj *mgmtGetUserFromConn(void *pConn) {
+SUserObj *mgmtGetUserFromConn(void *pConn, bool *usePublicIp) {
   SRpcConnInfo connInfo;
   if (rpcGetConnInfo(pConn, &connInfo) == 0) {
+    *usePublicIp = (connInfo.serverIp == tsPublicIpInt);
     return mgmtGetUser(connInfo.user);
   }
 
