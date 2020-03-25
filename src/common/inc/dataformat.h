@@ -108,6 +108,7 @@ typedef struct SDataCol {
   int8_t type;
   int    bytes;
   int    len;
+  int    offset;
   void * pData;
 } SDataCol;
 
@@ -129,7 +130,7 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
 void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 void       tdFreeDataCols(SDataCols *pCols);
-void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols, STSchema *pSchema);
+void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols);
 
 #ifdef __cplusplus
 }
