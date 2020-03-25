@@ -85,6 +85,7 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
 static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
 static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
 static void *  tsdbCommitData(void *arg);
+static int     tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters, SDataCols *pCols);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -761,7 +762,7 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   return 0;
 }
 
-static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCol **cols, STSchema *pSchema) {
+static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols) {
   int numOfRows = 0;
   do {
     SSkipListNode *node = tSkipListIterGet(pIter);
@@ -769,12 +770,8 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
 
     SDataRow row = SL_GET_NODE_DATA(node);
     if (dataRowKey(row) > maxKey) break;
-    // Convert row data to column data
-    // for (int i = 0; i < schemaNCols(pSchema); i++) {
-    //   STColumn *pCol = schemaColAt(pSchema, i);
-    //   memcpy(cols[i]->data + TYPE_BYTES[colType(pCol)] * numOfRows, dataRowAt(row, pCol->offset),
-    //          TYPE_BYTES[colType(pCol)]);
-    // }
+
+    tdAppendDataRowToDataCol(row, pCols);
 
     numOfRows++;
     if (numOfRows > maxRowsToRead) break;
@@ -823,7 +820,7 @@ static void *tsdbCommitData(void *arg) {
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbCache *pCache = pRepo->tsdbCache;
   STsdbCfg * pCfg = &(pRepo->config);
-  if (pCache->imem == NULL) return;
+  if (pCache->imem == NULL) return NULL;
 
   // Create the iterator to read from cache
   SSkipListIterator **iters = tsdbCreateTableIters(pMeta, pCfg->maxTables);
@@ -832,52 +829,23 @@ static void *tsdbCommitData(void *arg) {
     return NULL;
   }
 
-  int maxCols = pMeta->maxCols;
-  int maxBytes = pMeta->maxRowBytes;
-  SDataCol **cols = (SDataCol **)malloc(sizeof(SDataCol *) * maxCols);
-  void *buf = malloc((maxBytes + sizeof(SDataCol)) * pCfg->maxRowsPerFileBlock);
+  // Create a data column buffer for commit
+  SDataCols *pCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock);
+  if (pCols == NULL) {
+    // TODO: deal with the error
+    return NULL;
+  }
 
   int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
   int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);
 
   for (int fid = sfid; fid <= efid; fid++) {
-    TSKEY minKey = 0, maxKey = 0;
-    tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
-
-    // tsdbOpenFileForWrite(pRepo, fid);
-
-    for (int tid = 0; tid < pCfg->maxTables; tid++) {
-      STable *pTable = pMeta->tables[tid];
-      if (pTable == NULL || pTable->imem == NULL) continue;
-      if (iters[tid] == NULL) {  // create table iterator
-        iters[tid] = tSkipListCreateIter(pTable->imem->pData);
-        // TODO: deal with the error
-        if (iters[tid] == NULL) break;
-        if (!tSkipListIterNext(iters[tid])) {
-          // assert(0);
-        }
-      }
-
-      // Init row data part
-      cols[0] = (SDataCol *)buf;
-      for (int col = 1; col < schemaNCols(pTable->schema); col++) {
-        cols[col] = (SDataCol *)((char *)(cols[col - 1]) + sizeof(SDataCol) + colBytes(schemaColAt(pTable->schema, col-1)) * pCfg->maxRowsPerFileBlock);
-      }
-
-      // Loop the iterator
-      int rowsRead = 0;
-      while ((rowsRead = tsdbReadRowsFromCache(iters[tid], maxKey, pCfg->maxRowsPerFileBlock, cols, pTable->schema)) >
-             0) {
-        // printf("rowsRead:%d-----------\n", rowsRead);
-        int k = 0;
-      }
-    }
+    tsdbCommitToFile(pRepo, fid, iters, pCols);
   }
 
+  tdFreeDataCols(pCols);
   tsdbDestroyTableIters(iters, pCfg->maxTables);
 
-  free(buf);
-  free(cols);
 
   tsdbLockRepo(arg);
   tdListMove(pCache->imem->list, pCache->pool.memPool);
@@ -896,7 +864,7 @@ static void *tsdbCommitData(void *arg) {
   return NULL;
 }
 
-static int tsdbCommitToFile(STsdbRepo *pRepo, SSkipListIterator **iters, int fid) {
+static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters, SDataCols *pCols) {
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   STsdbCfg *  pCfg = &pRepo->config;
@@ -908,11 +876,12 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, SSkipListIterator **iters, int fid
     SSkipListIterator *pIter = iters[tid];
 
     if (pIter == NULL) continue;
+    tdInitDataCols(pCols, pTable->schema);
 
-    // Read data
-    // while () {
-
-    // }
+    while (tsdbReadRowsFromCache(pIter, maxKey, pCfg->maxRowsPerFileBlock, pCols)) {
+      // TODO
+      int k = 0;
+    }
   }
 
   return 0;
