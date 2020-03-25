@@ -319,9 +319,8 @@ void* mgmtCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t 
   desc.type = SDB_OPER_TYPE_GLOBAL;
   desc.pObj = pTable;
   desc.table = tsChildTableSdb;
-  sdbInsertRow(&desc);
-
-  if (sdbInsertRow(&desc) < 0) {
+  
+  if (sdbInsertRow(&desc) != TSDB_CODE_SUCCESS) {
     free(pTable);
     mError("ctable:%s, update sdb error", pCreate->tableId);
     terrno = TSDB_CODE_SDB_ERROR;

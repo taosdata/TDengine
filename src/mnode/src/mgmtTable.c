@@ -287,6 +287,7 @@ int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *
       createdTime  = pNormalTable->createdTime;
       numOfColumns = pNormalTable->numOfColumns;
     } else {
+      pShow->pNode = NULL;
       void *pChildTableNode = sdbFetchRow(tsChildTableSdb, pShow->pNode, (void **) &pTable);
       if (pTable != NULL) {
         SChildTableObj *pChildTable = (SChildTableObj *) pTable;

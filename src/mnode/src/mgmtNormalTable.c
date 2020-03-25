@@ -334,7 +334,7 @@ void *mgmtCreateNormalTable(SCMCreateTableMsg *pCreate, SVgObj *pVgroup, int32_t
   desc.type = SDB_OPER_TYPE_GLOBAL;
   desc.pObj = pTable;
   desc.table = tsNormalTableSdb;
-  if (sdbInsertRow(&desc) < 0) {
+  if (sdbInsertRow(&desc) != TSDB_CODE_SUCCESS) {
     mError("table:%s, update sdb error", pTable->tableId);
     free(pTable);
     terrno = TSDB_CODE_SDB_ERROR;
