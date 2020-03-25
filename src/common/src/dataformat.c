@@ -294,14 +294,55 @@ SDataRow tdDataRowDup(SDataRow row) {
   return trow;
 }
 
-void tdConvertDataRowToCol(SDataCol *cols, STSchema *pSchema, int *iter) {
-  int row = *iter;
+SDataCols *tdNewDataCols(STSchema *pSchema, int nRows) {
+  int nCols = schemaNCols(pSchema);
 
-  for (int i = 0; i < schemaNCols(pSchema); i++) {
-    // TODO
+  SDataCols *pInfo = (SDataCols *)calloc(1, sizeof(SDataCols) + sizeof(SDataCol) * nCols);
+  if (pInfo == NULL) return NULL;
+
+  pInfo->numOfCols = nCols;
+  pInfo->firstKey = INT64_MIN;
+  pInfo->lastKey = INT64_MAX;
+  pInfo->buf = malloc(tdMaxRowBytesFromSchema(pSchema) * nRows);
+  if (pInfo->buf == NULL) {
+    free(pInfo);
+    return NULL;
   }
 
-  *iter = row + 1;
+  pInfo->cols[0].pData = pInfo->buf;
+  for (int i = 1; i < nCols; i++) {
+    pInfo->cols[i].pData = (char *)(pInfo->cols[i - 1].pData) + schemaColAt(pSchema, i - 1)->bytes * nRows;
+  }
+
+  return pInfo;
+}
+
+void tdFreeDataCols(SDataCols *pCols) {
+  if (pCols) {
+    if (pCols->buf) free(pCols->buf);
+    free(pCols);
+  }
+}
+
+void tdResetDataCols(SDataCols *pCols) {
+  pCols->firstKey = INT64_MAX;
+  pCols->lastKey = INT64_MIN;
+  pCols->numOfPoints = 0;
+  for (int i = 0; i < pCols->numOfCols; i++) {
+    pCols->cols[i].len = 0;
+  }
+}
+
+void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols, STSchema *pSchema) {
+  TSKEY key = dataRowKey(row);
+  if (pCols->numOfPoints == 0) pCols->firstKey = key;
+  pCols->lastKey = key;
+  for (int i = 0; i < pCols->numOfCols; i++) {
+    SDataCol *pCol = pCols->cols + i;
+    memcpy((void *)((char *)(pCol->pData) + pCol->len), dataRowAt(row, colOffset(schemaColAt(pSchema, i))),
+           colBytes(schemaColAt(pSchema, i)));
+    pCol->len += colBytes(schemaColAt(pSchema, i));
+  }
 }
 
 /**

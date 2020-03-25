@@ -84,7 +84,7 @@ static int     tsdbOpenMetaFile(char *tsdbDir);
 static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
 static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
 static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
-static void *  tsdbCommitToFile(void *arg);
+static void *  tsdbCommitData(void *arg);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -327,7 +327,7 @@ int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
   pRepo->tsdbCache->curBlock = NULL;
 
   // TODO: here should set as detached or use join for memory leak
-  pthread_create(&(pRepo->commitThread), NULL, tsdbCommitToFile, (void *)repo);
+  pthread_create(&(pRepo->commitThread), NULL, tsdbCommitData, (void *)repo);
   tsdbUnLockRepo(repo);
 
   return 0;
@@ -816,7 +816,7 @@ static SSkipListIterator **tsdbCreateTableIters(STsdbMeta *pMeta, int maxTables)
 }
 
 // Commit to file
-static void *tsdbCommitToFile(void *arg) {
+static void *tsdbCommitData(void *arg) {
   // TODO
   printf("Starting to commit....\n");
   STsdbRepo * pRepo = (STsdbRepo *)arg;
@@ -894,4 +894,26 @@ static void *tsdbCommitToFile(void *arg) {
   tsdbUnLockRepo(arg);
 
   return NULL;
+}
+
+static int tsdbCommitToFile(STsdbRepo *pRepo, SSkipListIterator **iters, int fid) {
+  STsdbMeta * pMeta = pRepo->tsdbMeta;
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+  STsdbCfg *  pCfg = &pRepo->config;
+  TSKEY minKey = 0, maxKey = 0;
+  tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
+
+  for (int tid = 0; tid < pCfg->maxTables; tid++) {
+    STable *pTable = pMeta->tables[tid];
+    SSkipListIterator *pIter = iters[tid];
+
+    if (pIter == NULL) continue;
+
+    // Read data
+    // while () {
+
+    // }
+  }
+
+  return 0;
 }
