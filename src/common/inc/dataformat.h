@@ -105,11 +105,25 @@ SDataRow tdDataRowDup(SDataRow row);
 
 // ----------------- Data column structure
 typedef struct SDataCol {
-  int64_t len;
-  char    data[];
+  int32_t len;
+  void *  pData;
 } SDataCol;
 
-void tdConvertDataRowToCol(SDataCol *cols, STSchema *pSchema, int *iter);
+typedef struct {
+  TSKEY    firstKey;
+  TSKEY    lastKey;
+  int      numOfPoints;
+  int      numOfCols;
+  void *   buf;
+  SDataCol cols[];
+} SDataCols;
+
+#define keyCol(cols) (&((cols)->cols[0])) // Key column
+
+SDataCols *tdNewDataCols(STSchema *pSchema, int nRows);
+void       tdFreeDataCols(SDataCols *pCols);
+void       tdResetDataCols(SDataCols *pCols);
+void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols, STSchema *pSchema);
 
 #ifdef __cplusplus
 }
