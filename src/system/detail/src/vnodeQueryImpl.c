@@ -2087,7 +2087,7 @@ static void doInterpolatePrevTimeWindow(SQueryRuntimeEnv* pRuntimeEnv, SWindowRe
   SQuery* pQuery = pRuntimeEnv->pQuery;
   
   int32_t slot = pWindowResInfo->curIndex;
-  if (slot == -1) {
+  if (slot == -1 || !pRuntimeEnv->interpoSearch) {
     return;
   }
   
