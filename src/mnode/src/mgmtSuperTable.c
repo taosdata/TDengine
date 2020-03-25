@@ -524,7 +524,7 @@ int32_t mgmtRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, v
     }
 
     memset(stableName, 0, tListLen(stableName));
-    extractTableName(pTable->tableId, stableName);
+    mgmtExtractTableName(pTable->tableId, stableName);
 
     if (pShow->payloadLen > 0 &&
         patternMatch(pShow->payload, stableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH)
@@ -622,5 +622,19 @@ int32_t mgmtGetSuperTableMeta(SDbObj *pDb, SSuperTableObj *pTable, STableMetaMsg
   strcpy(pMeta->tableId, pTable->tableId);
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t mgmtExtractTableName(const char* tableId, char* name) {
+  int pos = -1;
+  int num = 0;
+  for (pos = 0; tableId[pos] != 0; ++pos) {
+    if (tableId[pos] == '.') num++;
+    if (num == 2) break;
+  }
+
+  if (num == 2) {
+    strcpy(name, tableId + pos + 1);
+  }
+  return 0;
 }
 

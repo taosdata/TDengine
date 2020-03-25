@@ -35,7 +35,6 @@ typedef struct _write {
   void        *pCont;
   int32_t      contLen;
   SRpcMsg      rpcMsg;
-  void        *pVnode;      // pointer to vnode
   SRpcContext *pRpcContext; // RPC message context
 } SWriteMsg;
 
@@ -51,15 +50,15 @@ typedef struct _thread_obj {
   SWriteWorker  *writeWorker;
 } SWriteWorkerPool;
 
-static void (*dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SWriteMsg *);
+static void (*dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(void *, SWriteMsg *);
 static void  *dnodeProcessWriteQueue(void *param);
 static void   dnodeHandleIdleWorker(SWriteWorker *pWorker);
-static void   dnodeProcessWriteResult(SWriteMsg *pWrite);
-static void   dnodeProcessSubmitMsg(SWriteMsg *pMsg);
-static void   dnodeProcessCreateTableMsg(SWriteMsg *pMsg);
-static void   dnodeProcessDropTableMsg(SWriteMsg *pMsg);
-static void   dnodeProcessAlterTableMsg(SWriteMsg *pMsg);
-static void   dnodeProcessDropStableMsg(SWriteMsg *pMsg);
+static void   dnodeProcessWriteResult(void *pVnode, SWriteMsg *pWrite);
+static void   dnodeProcessSubmitMsg(void *pVnode, SWriteMsg *pMsg);
+static void   dnodeProcessCreateTableMsg(void *pVnode, SWriteMsg *pMsg);
+static void   dnodeProcessDropTableMsg(void *pVnode, SWriteMsg *pMsg);
+static void   dnodeProcessAlterTableMsg(void *pVnode, SWriteMsg *pMsg);
+static void   dnodeProcessDropStableMsg(void *pVnode, SWriteMsg *pMsg);
 
 SWriteWorkerPool wWorkerPool;
 
@@ -116,15 +115,14 @@ void dnodeWrite(SRpcMsg *pMsg) {
     }
    
     // put message into queue
-    SWriteMsg writeMsg;
-    writeMsg.rpcMsg      = *pMsg;
-    writeMsg.pCont       = pCont;
-    writeMsg.contLen     = pHead->contLen;
-    writeMsg.pRpcContext = pRpcContext;
-    writeMsg.pVnode      = pVnode;  // pVnode shall be saved for usage later
+    SWriteMsg *pWrite = (SWriteMsg *)taosAllocateQitem(sizeof(SWriteMsg));
+    pWrite->rpcMsg      = *pMsg;
+    pWrite->pCont       = pCont;
+    pWrite->contLen     = pHead->contLen;
+    pWrite->pRpcContext = pRpcContext;
  
     taos_queue queue = dnodeGetVnodeWworker(pVnode);
-    taosWriteQitem(queue, &writeMsg);
+    taosWriteQitem(queue, TAOS_QTYPE_RPC, pWrite);
 
     // next vnode 
     leftLen -= pHead->contLen;
@@ -144,16 +142,16 @@ void dnodeWrite(SRpcMsg *pMsg) {
   }
 }
 
-void *dnodeAllocateWriteWorker() {
+void *dnodeAllocateWriteWorker(void *pVnode) {
   SWriteWorker *pWorker = wWorkerPool.writeWorker + wWorkerPool.nextId;
-  taos_queue *queue = taosOpenQueue(sizeof(SWriteMsg));
+  taos_queue *queue = taosOpenQueue();
   if (queue == NULL) return NULL;
 
   if (pWorker->qset == NULL) {
     pWorker->qset = taosOpenQset();
     if (pWorker->qset == NULL) return NULL;
 
-    taosAddIntoQset(pWorker->qset, queue);
+    taosAddIntoQset(pWorker->qset, queue, pVnode);
     wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
 
     pthread_attr_t thAttr;
@@ -165,7 +163,7 @@ void *dnodeAllocateWriteWorker() {
       taosCloseQset(pWorker->qset);
     }
   } else {
-    taosAddIntoQset(pWorker->qset, queue);
+    taosAddIntoQset(pWorker->qset, queue, pVnode);
     wWorkerPool.nextId = (wWorkerPool.nextId + 1) % wWorkerPool.max;
   }
 
@@ -181,53 +179,57 @@ void dnodeFreeWriteWorker(void *wqueue) {
 static void *dnodeProcessWriteQueue(void *param) {
   SWriteWorker *pWorker = (SWriteWorker *)param;
   taos_qall     qall;
-  SWriteMsg     writeMsg;
+  SWriteMsg    *pWriteMsg;
   int32_t       numOfMsgs;
+  int           type;
+  void         *pVnode;
+
+  qall = taosAllocateQall();
 
   while (1) {
-    numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, &qall);
+    numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, qall, &pVnode);
     if (numOfMsgs <=0) { 
       dnodeHandleIdleWorker(pWorker);  // thread exit if no queues anymore
       continue;
     }
 
-    for (int32_t i=0; i<numOfMsgs; ++i) {
+    for (int32_t i = 0; i < numOfMsgs; ++i) {
       // retrieve all items, and write them into WAL
-      taosGetQitem(qall, &writeMsg);
+      taosGetQitem(qall, &type, (void **)&pWriteMsg);
 
       // walWrite(pVnode->whandle, writeMsg.rpcMsg.msgType, writeMsg.pCont, writeMsg.contLen);
     }
-    
+
     // flush WAL file
     // walFsync(pVnode->whandle);
 
     // browse all items, and process them one by one
     taosResetQitems(qall);
     for (int32_t i = 0; i < numOfMsgs; ++i) {
-      taosGetQitem(qall, &writeMsg);
+      taosGetQitem(qall, &type, (void **)&pWriteMsg);
 
       terrno = 0;
-      if (dnodeProcessWriteMsgFp[writeMsg.rpcMsg.msgType]) {
-        (*dnodeProcessWriteMsgFp[writeMsg.rpcMsg.msgType]) (&writeMsg);
+      if (dnodeProcessWriteMsgFp[pWriteMsg->rpcMsg.msgType]) {
+        (*dnodeProcessWriteMsgFp[pWriteMsg->rpcMsg.msgType]) (pVnode, pWriteMsg);
       } else {
         terrno = TSDB_CODE_MSG_NOT_PROCESSED;  
       }
      
-      dnodeProcessWriteResult(&writeMsg);
+      dnodeProcessWriteResult(pVnode, pWriteMsg);
+      taosFreeQitem(pWriteMsg);
     }
-
-    // free the Qitems;
-    taosFreeQitems(qall);
   }
+
+  taosFreeQall(qall);
 
   return NULL;
 }
 
-static void dnodeProcessWriteResult(SWriteMsg *pWrite) {
+static void dnodeProcessWriteResult(void *pVnode, SWriteMsg *pWrite) {
   SRpcContext *pRpcContext = pWrite->pRpcContext;
   int32_t      code = 0;
 
-  dnodeReleaseVnode(pWrite->pVnode);
+  dnodeReleaseVnode(pVnode);
 
   if (pRpcContext) {
     if (terrno) {
@@ -267,7 +269,7 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
   }
 }
 
-static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
+static void dnodeProcessSubmitMsg(void *pVnode, SWriteMsg *pMsg) {
   dTrace("submit msg is disposed");
 
   SShellSubmitRspMsg *pRsp = rpcMallocCont(sizeof(SShellSubmitRspMsg));
@@ -276,7 +278,7 @@ static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
   pRsp->affectedRows      = htonl(1);
   pRsp->numOfFailedBlocks = 0;
   
-  void* tsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+  void* tsdb = dnodeGetVnodeTsdb(pVnode);
   assert(tsdb != NULL);
   
   tsdbInsertData(tsdb, pMsg->pCont);
@@ -292,7 +294,7 @@ static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
   rpcSendResponse(&rpcRsp);
 }
 
-static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
+static void dnodeProcessCreateTableMsg(void *pVnode, SWriteMsg *pMsg) {
   SMDCreateTableMsg *pTable = pMsg->rpcMsg.pCont;
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
@@ -341,16 +343,16 @@ static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
     tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
-  void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+  void *pTsdb = dnodeGetVnodeTsdb(pVnode);
 
   rpcRsp.code = tsdbCreateTable(pTsdb, &tCfg);
-  dnodeReleaseVnode(pMsg->pVnode);
+  dnodeReleaseVnode(pVnode);
 
   dTrace("table:%s, create table result:%s", pTable->tableId, tstrerror(rpcRsp.code));
   rpcSendResponse(&rpcRsp);
 }
 
-static void dnodeProcessDropTableMsg(SWriteMsg *pMsg) {
+static void dnodeProcessDropTableMsg(void *pVnode, SWriteMsg *pMsg) {
   SMDDropTableMsg *pTable = pMsg->rpcMsg.pCont;
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
@@ -360,16 +362,16 @@ static void dnodeProcessDropTableMsg(SWriteMsg *pMsg) {
     .tid = htonl(pTable->sid)
   };
 
-  void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+  void *pTsdb = dnodeGetVnodeTsdb(pVnode);
 
   rpcRsp.code = tsdbDropTable(pTsdb, tableId);
-  dnodeReleaseVnode(pMsg->pVnode);
+  dnodeReleaseVnode(pVnode);
 
   dTrace("table:%s, drop table result:%s", pTable->tableId, tstrerror(rpcRsp.code));
   rpcSendResponse(&rpcRsp);
 }
 
-static void dnodeProcessAlterTableMsg(SWriteMsg *pMsg) {
+static void dnodeProcessAlterTableMsg(void *pVnode, SWriteMsg *pMsg) {
   SMDCreateTableMsg *pTable = pMsg->rpcMsg.pCont;
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
@@ -418,16 +420,16 @@ static void dnodeProcessAlterTableMsg(SWriteMsg *pMsg) {
     tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
-  void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+  void *pTsdb = dnodeGetVnodeTsdb(pVnode);
 
   rpcRsp.code = tsdbAlterTable(pTsdb, &tCfg);
-  dnodeReleaseVnode(pMsg->pVnode);
+  dnodeReleaseVnode(pVnode);
 
   dTrace("table:%s, alter table result:%s", pTable->tableId, tstrerror(rpcRsp.code));
   rpcSendResponse(&rpcRsp);
 }
 
-static void dnodeProcessDropStableMsg(SWriteMsg *pMsg) {
+static void dnodeProcessDropStableMsg(void *pVnode, SWriteMsg *pMsg) {
   SMDDropSTableMsg *pTable = pMsg->rpcMsg.pCont;
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
@@ -439,7 +441,7 @@ static void dnodeProcessDropStableMsg(SWriteMsg *pMsg) {
   //rpcRsp.code = tsdbDropSTable(pTsdb, pTable->uid);
 
   rpcRsp.code = TSDB_CODE_SUCCESS;
-  dnodeReleaseVnode(pMsg->pVnode);
+  dnodeReleaseVnode(pVnode);
 
   dTrace("stable:%s, drop stable result:%s", pTable->tableId, tstrerror(rpcRsp.code));
   rpcSendResponse(&rpcRsp);
