@@ -131,6 +131,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
       return;
     }
 
+    pSql->cmd.command = TSDB_SQL_HB;
     pSql->param = pObj;
     pSql->pTscObj = pObj;
     pSql->signature = pSql;
