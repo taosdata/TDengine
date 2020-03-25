@@ -1599,7 +1599,8 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   pRuntimeEnv->pTSBuf = tsBufDestory(pRuntimeEnv->pTSBuf);
 }
 
-static bool isQueryKilled(SQuery *pQuery) {
+static bool isQueryKilled(SQInfo *pQInfo) {
+  return (pQInfo->code == TSDB_CODE_QUERY_CANCELLED);
 #if 0
   /*
    * check if the queried meter is going to be deleted.
@@ -1613,8 +1614,6 @@ static bool isQueryKilled(SQuery *pQuery) {
   
   return (pQInfo->killed == 1);
 #endif
-  
-  return 0;
 }
 
 static bool setQueryKilled(SQInfo* pQInfo) {
@@ -2641,7 +2640,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
   while (tsdbNextDataBlock(pQueryHandle)) {
     // check if query is killed or not set the status of query to pass the status check
-    if (isQueryKilled(pQuery)) {
+    if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
       return cnt;
     }
 
@@ -3607,7 +3606,7 @@ void vnodeScanAllData(SQueryRuntimeEnv *pRuntimeEnv) {
     pRuntimeEnv->scanFlag = REPEAT_SCAN;
 
     /* check if query is killed or not */
-    if (isQueryKilled(pQuery)) {
+    if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
 //      setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
       return;
     }
@@ -4394,14 +4393,10 @@ static void queryOnDataBlocks(SQInfo *pQInfo, STableDataInfo *pMeterDataInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
-  //  SMeterObj *         pTempMeter = getMeterObj(pSupporter->pMetersHashTable, pSupporter->pMeterSidExtInfo[0]->sid);
-  //  __block_search_fn_t searchFn = vnodeSearchKeyFunc[pTempMeter->searchAlgorithm];
-
   //  dTrace("QInfo:%p start to check data blocks in %d files", pQInfo, pVnodeFileInfo->numOfFiles);
-
   tsdb_query_handle_t *pQueryHandle = pRuntimeEnv->pQueryHandle;
   while (tsdbNextDataBlock(pQueryHandle)) {
-    if (isQueryKilled(pQuery)) {
+    if (isQueryKilled(pQInfo)) {
       break;
     }
 
@@ -4583,7 +4578,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
         pSupporter->meterIdx = start;
         
         for (int32_t k = start; k <= end; ++k, pSupporter->meterIdx++) {
-          if (isQueryKilled(pQuery)) {
+          if (isQueryKilled(pQInfo)) {
             setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
             return;
           }
@@ -4610,7 +4605,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
                pSupporter->subgroupIdx);
         
         for (int32_t k = start; k <= end; ++k) {
-          if (isQueryKilled(pQuery)) {
+          if (isQueryKilled(pQInfo)) {
             setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
             return;
           }
@@ -4661,7 +4656,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
     while (pSupporter->meterIdx < pSupporter->numOfMeters) {
       int32_t k = pSupporter->meterIdx;
       
-      if (isQueryKilled(pQuery)) {
+      if (isQueryKilled(pQInfo)) {
         setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
         return;
       }
@@ -4955,7 +4950,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
   
   doMultiMeterSupplementaryScan(pQInfo);
   
-  if (isQueryKilled(pQuery)) {
+  if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p query killed, abort", pQInfo);
     return;
   }
@@ -4994,7 +4989,7 @@ static void tableFixedOutputProcessor(SQInfo *pQInfo) {
   vnodeScanAllData(pRuntimeEnv);
   doFinalizeResult(pRuntimeEnv);
 
-  if (isQueryKilled(pQuery)) {
+  if (isQueryKilled(pQInfo)) {
     return;
   }
 
@@ -5027,7 +5022,7 @@ static void tableMultiOutputProcessor(SQInfo *pQInfo) {
     vnodeScanAllData(pRuntimeEnv);
     doFinalizeResult(pRuntimeEnv);
 
-    if (isQueryKilled(pQuery)) {
+    if (isQueryKilled(pQInfo)) {
       return;
     }
 
@@ -5074,7 +5069,7 @@ static void vnodeSingleMeterIntervalMainLooper(SQueryRuntimeEnv *pRuntimeEnv) {
     initCtxOutputBuf(pRuntimeEnv);
     vnodeScanAllData(pRuntimeEnv);
 
-    if (isQueryKilled(pQuery)) {
+    if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
       return;
     }
 
@@ -5177,7 +5172,7 @@ void qTableQuery(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   
   SQuery *pQuery = pRuntimeEnv->pQuery;
-  if (isQueryKilled(pQuery)) {
+  if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p it is already killed, abort", pQInfo);
     return;
   }
@@ -5267,7 +5262,7 @@ void qTableQuery(SQInfo *pQInfo) {
   pQInfo->elapsedTime += (taosGetTimestampUs() - st);
 
   /* check if query is killed or not */
-  if (isQueryKilled(pQuery)) {
+  if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p query is killed", pQInfo);
   } else {
     dTrace("QInfo:%p query task completed, %d points are returned", pQInfo, pQuery->rec.pointsRead);
@@ -5309,7 +5304,7 @@ void qSuperTableQuery(void *pReadMsg) {
   
   /* record the total elapsed time */
   pQInfo->elapsedTime += (taosGetTimestampUs() - st);
-  pQuery->status = isQueryKilled(pQuery) ? 1 : 0;
+  pQuery->status = isQueryKilled(pQInfo) ? 1 : 0;
   
 //  taosInterpoSetStartInfo(&pQInfo->runtimeEnv.interpoInfo, pQuery->pointsRead,
 //                          pQInfo->query.interpoType);
@@ -6172,7 +6167,7 @@ int32_t qRetrieveQueryResultInfo(SQInfo *pQInfo, int32_t *numOfRows, int32_t *ro
   }
   
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-  if (isQueryKilled(pQuery)) {
+  if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p query is killed, code:%d", pQInfo, pQInfo->code);
     if (pQInfo->code == TSDB_CODE_SUCCESS) {
       return TSDB_CODE_QUERY_CANCELLED;
@@ -6289,11 +6284,11 @@ int32_t qDumpRetrieveResult(SQInfo *pQInfo, SRetrieveTableRsp** pRsp, int32_t* c
     
     // has more data to return or need next round to execute
     addToTaskQueue(pQInfo);
-  } else if (isQueryKilled(pQuery)) {
-    code = TSDB_CODE_QUERY_CANCELLED;
+  } else {
+    code = pQInfo->code;
   }
   
-  if (isQueryKilled(pQuery) || Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
+  if (isQueryKilled(pQInfo) || Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
     (*pRsp)->completed = 1; // notify no more result to client
     vnodeFreeQInfo(pQInfo);
   }
