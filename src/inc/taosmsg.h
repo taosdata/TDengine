@@ -94,8 +94,8 @@ extern "C" {
 #define TSDB_MSG_TYPE_CM_ALTER_TABLE_RSP 62
 #define TSDB_MSG_TYPE_CM_TABLE_META 63
 #define TSDB_MSG_TYPE_CM_TABLE_META_RSP 64
-#define TSDB_MSG_TYPE_CM_STABLE_META 65
-#define TSDB_MSG_TYPE_CM_STABLE_META_RSP 66
+#define TSDB_MSG_TYPE_CM_STABLE_VGROUP 65
+#define TSDB_MSG_TYPE_CM_STABLE_VGROUP_RSP 66
 #define TSDB_MSG_TYPE_CM_TABLES_META 67
 #define TSDB_MSG_TYPE_CM_TABLES_META_RSP 68
 #define TSDB_MSG_TYPE_CM_ALTER_STREAM 69
@@ -738,8 +738,8 @@ typedef struct {
 } SDMConfigTableMsg;
 
 typedef struct {
-  uint32_t dnode;
-  int32_t  vnode;
+  uint32_t dnodeId;
+  int32_t  vgId;
 } SDMConfigVnodeMsg;
 
 typedef struct {

@@ -25,14 +25,14 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
-void *tsUserSdb = NULL;
+static void   *tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
 
-static int32_t   mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
-static int32_t   mgmtDropUser(SAcctObj *pAcct, char *name);
-static int32_t   mgmtUpdateUser(SUserObj *pUser);
-static int32_t   mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t   mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
+static int32_t mgmtDropUser(SAcctObj *pAcct, char *name);
+static int32_t mgmtUpdateUser(SUserObj *pUser);
+static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static void mgmtProcessCreateUserMsg(SQueuedMsg *pMsg);
 static void mgmtProcessAlterUserMsg(SQueuedMsg *pMsg);
@@ -231,7 +231,7 @@ static int32_t mgmtDropUser(SAcctObj *pAcct, char *name) {
 }
 
 static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) {
     return TSDB_CODE_INVALID_USER;
   }
@@ -310,9 +310,12 @@ static int32_t mgmtRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, void
   return numOfRows;
 }
 
-SUserObj *mgmtGetUserFromConn(void *pConn) {
+SUserObj *mgmtGetUserFromConn(void *pConn, bool *usePublicIp) {
   SRpcConnInfo connInfo;
   if (rpcGetConnInfo(pConn, &connInfo) == 0) {
+    if (usePublicIp) {
+      *usePublicIp = (connInfo.serverIp == tsPublicIpInt);
+    }
     return mgmtGetUser(connInfo.user);
   }
 

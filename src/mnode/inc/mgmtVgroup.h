@@ -27,17 +27,15 @@ extern "C" {
 int32_t mgmtInitVgroups();
 void    mgmtCleanUpVgroups();
 SVgObj *mgmtGetVgroup(int32_t vgId);
-SVgObj *mgmtGetVgroupByVnode(uint32_t dnode, int32_t vnode);
 void    mgmtDropAllVgroups(SDbObj *pDropDb);
 
 void    mgmtCreateVgroup(SQueuedMsg *pMsg);
 void    mgmtDropVgroup(SVgObj *pVgroup, void *ahandle);
-void    mgmtUpdateVgroup(SVgObj *pVgroup);
 void    mgmtAlterVgroup(SVgObj *pVgroup, void *ahandle);
 SVgObj *mgmtGetAvailableVgroup(SDbObj *pDb);
 
-void    mgmtAddTableIntoVgroup(SVgObj *pVgroup, STableInfo *pTable);
-void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, STableInfo *pTable);
+void    mgmtAddTableIntoVgroup(SVgObj *pVgroup, SChildTableObj *pTable);
+void    mgmtRemoveTableFromVgroup(SVgObj *pVgroup, SChildTableObj *pTable);
 void    mgmtSendCreateVnodeMsg(SVgObj *pVgroup, SRpcIpSet *ipSet, void *ahandle);
 void    mgmtSendDropVnodeMsg(int32_t vgId, SRpcIpSet *ipSet, void *ahandle);
 

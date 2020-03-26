@@ -53,16 +53,16 @@ typedef struct {
   int32_t (*destroyFp)(SSdbOperDesc *pDesc);
 } SSdbTableDesc;
 
-void *sdbOpenTable(SSdbTableDesc *desc);
-void sdbCloseTable(void *handle);
+void *  sdbOpenTable(SSdbTableDesc *desc);
+void    sdbCloseTable(void *handle);
 
 int32_t sdbInsertRow(SSdbOperDesc *pOper);
 int32_t sdbDeleteRow(SSdbOperDesc *pOper);
 int32_t sdbUpdateRow(SSdbOperDesc *pOper);
 
-void *sdbGetRow(void *handle, void *key);
-void *sdbFetchRow(void *handle, void *pNode, void **ppRow);
-int64_t sdbGetNumOfRows(void *handle);
+void    *sdbGetRow(void *handle, void *key);
+void    *sdbFetchRow(void *handle, void *pNode, void **ppRow);
+int64_t  sdbGetNumOfRows(void *handle);
 uint64_t sdbGetVersion();
 
 #ifdef __cplusplus

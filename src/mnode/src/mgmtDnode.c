@@ -76,7 +76,7 @@ bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
 int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
@@ -169,7 +169,7 @@ int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pCo
 static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
@@ -256,7 +256,7 @@ static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, vo
 
 static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
 
