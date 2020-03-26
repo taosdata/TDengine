@@ -124,6 +124,7 @@ typedef struct STsdbQueryHandle {
   int32_t                tableIndex;
   bool                   isFirstSlot;
   void *                 qinfo;  // query info handle, for debug purpose
+  SSkipListIterator*     memIter;
 } STsdbQueryHandle;
 
 int32_t doAllocateBuf(STsdbQueryHandle *pQueryHandle, int32_t rowsPerFileBlock) {
@@ -367,8 +368,13 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle) {
   int32_t rows = 0;
   
   if (pTable->mem != NULL) {
-    SSkipListIterator* iter = tSkipListCreateIter(pTable->mem->pData);
-    rows = tsdbReadRowsFromCache(iter, INT64_MAX, 4000, &skey, &ekey, pHandle);
+    
+    // create mem table iterator if it is not created yet
+    if (pHandle->memIter == NULL) {
+      pHandle->memIter = tSkipListCreateIter(pTable->mem->pData);
+    }
+    
+    rows = tsdbReadRowsFromCache(pHandle->memIter, INT64_MAX, 2, &skey, &ekey, pHandle);
   }
   
   SDataBlockInfo blockInfo = {

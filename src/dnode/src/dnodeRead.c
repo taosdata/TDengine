@@ -226,47 +226,59 @@ static void dnodeProcessReadResult(SReadMsg *pRead) {
   rpcFreeCont(pRead->rpcMsg.pCont);  // free the received message
 }
 
+static void dnodeContinueExecuteQuery(void* qhandle, SReadMsg *pMsg) {
+  SReadMsg readMsg = {
+      .rpcMsg      = {.msgType = TSDB_MSG_TYPE_QUERY},
+      .pCont       = qhandle,
+      .contLen     = 0,
+      .pRpcContext = pMsg->pRpcContext,
+      .pVnode      = pMsg->pVnode,
+  };
+  
+  taos_queue queue = dnodeGetVnodeRworker(pMsg->pVnode);
+  taosWriteQitem(queue, &readMsg);
+}
+
 static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
   SQueryTableMsg* pQueryTableMsg = (SQueryTableMsg*) pMsg->pCont;
   
   SQInfo* pQInfo = NULL;
-  void* tsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
-  int32_t code = qCreateQueryInfo(tsdb, pQueryTableMsg, &pQInfo);
+  if (pMsg->rpcMsg.contLen != 0) {
+    void* tsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+    int32_t code = qCreateQueryInfo(tsdb, pQueryTableMsg, pMsg, &pQInfo);
   
-  SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
-  pRsp->code    = code;
-  pRsp->qhandle = htobe64((uint64_t) (pQInfo));
-
-  SRpcMsg rpcRsp = {
-      .handle = pMsg->rpcMsg.handle,
-      .pCont = pRsp,
-      .contLen = sizeof(SQueryTableRsp),
-      .code = code,
-      .msgType = 0
-  };
+    SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
+    pRsp->code    = code;
+    pRsp->qhandle = htobe64((uint64_t) (pQInfo));
   
-  rpcSendResponse(&rpcRsp);
+    SRpcMsg rpcRsp = {
+        .handle = pMsg->rpcMsg.handle,
+        .pCont = pRsp,
+        .contLen = sizeof(SQueryTableRsp),
+        .code = code,
+        .msgType = 0
+    };
+  
+    rpcSendResponse(&rpcRsp);
+  } else {
+    pQInfo = pMsg->pCont;
+  }
   
   // do execute query
   qTableQuery(pQInfo);
 }
 
-static int32_t c = 0;
 static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
   SRetrieveTableMsg *pRetrieve = pMsg->pCont;
   void *pQInfo = (void*) htobe64(pRetrieve->qhandle);
 
   dTrace("QInfo:%p vgId:%d, retrieve msg is received", pQInfo, pRetrieve->header.vgId);
-  if ((++c)%2 == 0) {
-    int32_t k = 1;
-  }
-  int32_t rowSize = 0;
-  int32_t numOfRows = 0;
+
   int32_t contLen = 0;
   
   SRetrieveTableRsp *pRsp = NULL;
   
-  int32_t code = qRetrieveQueryResultInfo(pQInfo, &numOfRows, &rowSize);
+  int32_t code = qRetrieveQueryResultInfo(pQInfo);
   if (code != TSDB_CODE_SUCCESS) {
     contLen = sizeof(SRetrieveTableRsp);
 
@@ -275,6 +287,10 @@ static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
   } else {
     // todo check code and handle error in build result set
     code = qDumpRetrieveResult(pQInfo, &pRsp, &contLen);
+    
+    if (qNeedFurtherExec(pQInfo)) {
+      dnodeContinueExecuteQuery(pQInfo, pMsg);
+    }
   }
   
   SRpcMsg rpcRsp = (SRpcMsg) {
