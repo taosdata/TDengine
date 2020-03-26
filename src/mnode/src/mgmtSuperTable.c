@@ -610,7 +610,7 @@ void mgmtGetSuperTableMeta(SQueuedMsg *pMsg, SSuperTableObj *pTable) {
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sversion     = htons(pTable->sversion);
   pMeta->precision    = pDb->cfg.precision;
-  pMeta->numOfTags    = htons((int16_t)pTable->numOfTags);
+  pMeta->numOfTags    = (uint8_t)pTable->numOfTags;
   pMeta->numOfColumns = htons((int16_t)pTable->numOfColumns);
   pMeta->tableType    = pTable->info.type;
   pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable);
