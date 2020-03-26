@@ -1489,11 +1489,9 @@ static int32_t setExprInfoForFunctions(SQueryInfo* pQueryInfo, SSchema* pSchema,
   SSqlExpr* pExpr = tscSqlExprInsert(pQueryInfo, resColIdx, functionID, pColIndex, type, bytes, bytes);
   strncpy(pExpr->aliasName, columnName, tListLen(pExpr->aliasName));
   
-  // for point interpolation/last_row query, we need the timestamp column to be loaded
+  // for all querie, the timestamp column meeds to be loaded
   SColumnIndex index = {.tableIndex = pColIndex->tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-  if (functionID == TSDB_FUNC_INTERP || functionID == TSDB_FUNC_LAST_ROW) {
-    tscColumnBaseInfoInsert(pQueryInfo, &index);
-  }
+  tscColumnBaseInfoInsert(pQueryInfo, &index);
 
   SColumnList ids = getColumnList(1, pColIndex->tableIndex, pColIndex->columnIndex);
   insertResultField(pQueryInfo, resColIdx, &ids, bytes, type, columnName, pExpr);
@@ -1581,7 +1579,10 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
           tscColumnBaseInfoInsert(pQueryInfo, &(ids.ids[i]));
         }
       }
-      
+  
+      SColumnIndex tsCol = {.tableIndex = index.tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
+      tscColumnBaseInfoInsert(pQueryInfo, &tsCol);
+  
       return TSDB_CODE_SUCCESS;
     }
     case TK_SUM:
@@ -1689,7 +1690,10 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
           tscColumnBaseInfoInsert(pQueryInfo, &(ids.ids[i]));
         }
       }
-
+  
+      SColumnIndex tsCol = {.tableIndex = index.tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
+      tscColumnBaseInfoInsert(pQueryInfo, &tsCol);
+      
       return TSDB_CODE_SUCCESS;
     }
     case TK_FIRST:
@@ -1708,7 +1712,6 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
         }
 
         /* in first/last function, multiple columns can be add to resultset */
-
         for (int32_t i = 0; i < pItem->pNode->pParam->nExpr; ++i) {
           tSQLExprItem* pParamElem = &(pItem->pNode->pParam->a[i]);
           if (pParamElem->pNode->nSQLOptr != TK_ALL && pParamElem->pNode->nSQLOptr != TK_ID) {
@@ -1753,7 +1756,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
             }
           }
         }
-
+        
         return TSDB_CODE_SUCCESS;
       } else {  // select * from xxx
         int32_t numOfFields = 0;
@@ -1773,6 +1776,7 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
           numOfFields += tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
         }
 
+        
         return TSDB_CODE_SUCCESS;
       }
     }
@@ -1891,6 +1895,8 @@ int32_t addExprAndResultField(SQueryInfo* pQueryInfo, int32_t colIdx, tSQLExprIt
     default:
       return TSDB_CODE_INVALID_SQL;
   }
+  
+  
 }
 
 // todo refactor

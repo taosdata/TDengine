@@ -504,7 +504,6 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   }
 
   tsem_init(&pSql->rspSem, 0, 0);
-  tsem_init(&pSql->emptyRspSem, 0, 1);
 
   SSqlInfo SQLInfo = {0};
   tSQLParse(&SQLInfo, pSql->sqlstr);
