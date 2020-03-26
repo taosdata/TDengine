@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include "dataformat.h"
 #include "taosdef.h"
 #include "tglobalcfg.h"
 
@@ -69,20 +70,26 @@ typedef struct {
 STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles);
 void        tsdbCloseFileH(STsdbFileH *pFileH);
 int         tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables);
+int         tsdbOpenFile(SFile *pFile, int oflag);
+SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
 int         tsdbRemoveFileGroup(STsdbFileH *pFile, int fid);
 
 typedef struct {
   int32_t len;
-  int32_t padding;  // For padding purpose
-  int64_t offset;
-} SCompIdx;
+  int32_t offset;
+  int32_t hasLast : 1;
+  int32_t numOfSuperBlocks : 31;
+  int32_t checksum;
+  TSKEY   maxKey;
+} SCompIdx; /* sizeof(SCompIdx) = 24 */
 
 /**
- * if numOfSubBlocks == -1, then the SCompBlock is a sub-block
- * if numOfSubBlocks == 1, then the SCompBlock refers to the data block, and offset/len refer to
- *                         the data block offset and length
- * if numOfSubBlocks > 1, then the offset/len refer to the offset of the first sub-block in the
- * binary
+ * if numOfSubBlocks == 0, then the SCompBlock is a sub-block
+ * if numOfSubBlocks >= 1, then the SCompBlock is a super-block
+ *    - if numOfSubBlocks == 1, then the SCompBlock refers to the data block, and offset/len refer to
+ *      the data block offset and length
+ *    - if numOfSubBlocks > 1, then the offset/len refer to the offset of the first sub-block in the
+ *      binary
  */
 typedef struct {
   int64_t last : 1;          // If the block in data file or last file
@@ -101,10 +108,11 @@ typedef struct {
   int32_t    delimiter;  // For recovery usage
   int32_t    checksum;   // TODO: decide if checksum logic in this file or make it one API
   int64_t    uid;
-  int32_t    padding;      // For padding purpose
-  int32_t    numOfBlocks;  // TODO: make the struct padding
   SCompBlock blocks[];
 } SCompInfo;
+
+int tsdbLoadCompIdx(SFileGroup *pGroup, void *buf, int maxTables);
+int tsdbLoadCompBlocks(SFileGroup *pGroup, SCompIdx *pIdx, void *buf);
 
 // TODO: take pre-calculation into account
 typedef struct {
@@ -121,6 +129,8 @@ typedef struct {
   int64_t  uid;        // For recovery usage
   SCompCol cols[];
 } SCompData;
+
+int tsdbWriteBlockToFile(SFileGroup *pGroup, SCompInfo *pCompInfo, SCompIdx *pIdx, int isMerge, SCompBlock *pBlock, SDataCols *pCols);
 
 void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey, TSKEY *maxKey);
 #ifdef __cplusplus
