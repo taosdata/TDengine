@@ -745,7 +745,7 @@ TDengine also provides a Go client package named _taosSql_ for users to access T
 ```Go
 import (
     "database/sql"
-    _ "taosSql"
+    _ "github.com/taosdata/driver-go/taosSql"
 )
 ```
 

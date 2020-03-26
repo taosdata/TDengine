@@ -19,7 +19,7 @@ import (
     "time"
     "log"
     "fmt"
-	_ "taosSql"
+	_ "github.com/taosdata/driver-go/taosSql"
 )
 
 func main() {
