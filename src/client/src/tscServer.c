@@ -325,8 +325,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   
   if (rpcMsg->code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    int   command = pCmd->command;
-    void *taosres = tscKeepConn[command] ? pSql : NULL;
+    void *taosres = tscKeepConn[pCmd->command] ? pSql : NULL;
+    rpcMsg->code = pRes->code ? -pRes->code : pRes->numOfRows;
+    
     tscTrace("%p Async SQL result:%s res:%p", pSql, tstrerror(pRes->code), taosres);
 
     /*
@@ -1817,13 +1818,12 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   pMetaMsg->vgId = htonl(pMetaMsg->vgId);
   pMetaMsg->uid = htobe64(pMetaMsg->uid);
   pMetaMsg->contLen = htons(pMetaMsg->contLen);
+  pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
 
   if (pMetaMsg->sid < 0 || pMetaMsg->vgId < 0) {
     tscError("invalid meter vgId:%d, sid%d", pMetaMsg->vgId, pMetaMsg->sid);
     return TSDB_CODE_INVALID_VALUE;
   }
-
-  pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
 
   if (pMetaMsg->numOfTags > TSDB_MAX_TAGS || pMetaMsg->numOfTags < 0) {
     tscError("invalid numOfTags:%d", pMetaMsg->numOfTags);
@@ -1848,23 +1848,20 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     pSchema++;
   }
 
-//  rsp += numOfTotalCols * sizeof(SSchema);
-//
-//  int32_t  tagLen = 0;
-//  SSchema *pTagsSchema = tscGetTableTagSchema(pMetaMsg);
-//
-//  if (pMetaMsg->tableType == TSDB_CHILD_TABLE) {
-//    for (int32_t i = 0; i < pMetaMsg->numOfTags; ++i) {
-//      tagLen += pTagsSchema[i].bytes;
-//    }
-//  }
-//
-//  rsp += tagLen;
-//  int32_t size = (int32_t)(rsp - (char *)pMetaMsg);
-
   size_t size = 0;
   STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg, &size);
 
+#if 0
+  // if current table is created according to super table, get the table meta of super table
+  if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
+    char id[TSDB_TABLE_ID_LEN + 1] = {0};
+    strncpy(id, pMetaMsg->stableId, TSDB_TABLE_ID_LEN);
+  
+    // NOTE: if the table meta of super table is not cached at client side yet, the pSTable is NULL
+    pTableMeta->pSTable = taosCacheAcquireByName(tscCacheHandle, id);
+  }
+#endif
+  
   // todo add one more function: taosAddDataIfNotExists();
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
   assert(pTableMetaInfo->pTableMeta == NULL);
@@ -1878,6 +1875,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   }
 
   free(pTableMeta);
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2343,7 +2341,7 @@ int tscProcessRetrieveRspFromLocal(SSqlObj *pSql) {
 
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code);
 
-static int32_t doGetMeterMetaFromServer(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
+static int32_t getTableMetaFromMgmt(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
   if (NULL == pNew) {
     tscError("%p malloc failed for new sqlobj to get meter meta", pSql);
@@ -2370,7 +2368,7 @@ static int32_t doGetMeterMetaFromServer(SSqlObj *pSql, STableMetaInfo *pTableMet
   STableMetaInfo *pNewMeterMetaInfo = tscAddEmptyMetaInfo(pNewQueryInfo);
   assert(pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
 
-  strcpy(pNewMeterMetaInfo->name, pTableMetaInfo->name);
+  strncpy(pNewMeterMetaInfo->name, pTableMetaInfo->name, tListLen(pNewMeterMetaInfo->name));
   memcpy(pNew->cmd.payload, pSql->cmd.payload, TSDB_DEFAULT_PAYLOAD_SIZE);  // tag information if table does not exists.
   tscTrace("%p new pSqlObj:%p to get tableMeta", pSql, pNew);
 
@@ -2388,7 +2386,7 @@ static int32_t doGetMeterMetaFromServer(SSqlObj *pSql, STableMetaInfo *pTableMet
 int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   assert(strlen(pTableMetaInfo->name) != 0);
 
-  // If this STableMetaInfo owns a metermeta, release it first
+  // If this STableMetaInfo owns a table meta, release it first
   if (pTableMetaInfo->pTableMeta != NULL) {
     taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), false);
   }
@@ -2401,12 +2399,8 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
 
     return TSDB_CODE_SUCCESS;
   }
-
-  /*
-   * for async insert operation, release data block buffer before issue new object to get metermeta
-   * because in table meta callback function, the tscParse function will generate the submit data blocks
-   */
-  return doGetMeterMetaFromServer(pSql, pTableMetaInfo);
+  
+  return getTableMetaFromMgmt(pSql, pTableMetaInfo);
 }
 
 int tscGetMeterMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool createIfNotExists) {
@@ -2455,7 +2449,7 @@ int tscRenewMeterMeta(SSqlObj *pSql, char *tableId) {
     tscWaitingForCreateTable(pCmd);
     taosCacheRelease(tscCacheHandle, (void **)&(pTableMetaInfo->pTableMeta), true);
 
-    code = doGetMeterMetaFromServer(pSql, pTableMetaInfo);  // todo ??
+    code = getTableMetaFromMgmt(pSql, pTableMetaInfo);  // todo ??
   } else {
     tscTrace("%p metric query not update metric meta, numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
              tscGetNumOfTags(pTableMetaInfo->pTableMeta), pCmd->numOfCols, pTableMetaInfo->pTableMeta->uid,
