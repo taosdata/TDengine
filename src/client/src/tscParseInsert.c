@@ -1295,11 +1295,11 @@ int tsParseInsertSql(SSqlObj *pSql) {
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
-  if (NULL == pSql->asyncTblPos) {
-    tscCleanSqlCmd(&pSql->cmd);
-  } else {
+//  if (NULL == pSql->asyncTblPos) {
+//    tscCleanSqlCmd(&pSql->cmd);
+//  } else {
     tscTrace("continue parse sql: %s", pSql->asyncTblPos);
-  }
+//  }
   
   if (tscIsInsertOrImportData(pSql->sqlstr)) {
     /*

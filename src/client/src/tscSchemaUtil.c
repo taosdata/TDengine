@@ -32,7 +32,7 @@ int32_t tscGetNumOfTags(const STableMeta* pTableMeta) {
   }
   
   if (pTableMeta->tableType == TSDB_SUPER_TABLE || pTableMeta->tableType == TSDB_CHILD_TABLE) {
-    assert(tinfo.numOfTags > 0);
+    assert(tinfo.numOfTags >= 0);
     return tinfo.numOfTags;
   }
   

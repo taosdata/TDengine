@@ -476,7 +476,8 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         assert(pQueryInfo->numOfTables == 1);
 
         // for projection query, need to try next vnode
-        int32_t totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
+//        int32_t totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
+        int32_t totalVnode = 0;
         if ((++pTableMetaInfo->vnodeIndex) < totalVnode) {
           tscTrace("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,
                    pTableMetaInfo->vnodeIndex - 1, pTableMetaInfo->vnodeIndex, totalVnode, pRes->numOfTotal);
@@ -541,16 +542,16 @@ static void joinRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       assert(pQueryInfo->numOfTables == 1);
 
       // for projection query, need to try next vnode if current vnode is exhausted
-      if ((++pTableMetaInfo->vnodeIndex) < pTableMetaInfo->pMetricMeta->numOfVnodes) {
-        pSupporter->pState->numOfCompleted = 0;
-        pSupporter->pState->numOfTotal = 1;
-
-        pSql->cmd.command = TSDB_SQL_SELECT;
-        pSql->fp = tscJoinQueryCallback;
-        tscProcessSql(pSql);
-
-        return;
-      }
+//      if ((++pTableMetaInfo->vnodeIndex) < pTableMetaInfo->pMetricMeta->numOfVnodes) {
+//        pSupporter->pState->numOfCompleted = 0;
+//        pSupporter->pState->numOfTotal = 1;
+//
+//        pSql->cmd.command = TSDB_SQL_SELECT;
+//        pSql->fp = tscJoinQueryCallback;
+//        tscProcessSql(pSql);
+//
+//        return;
+//      }
     }
   
     int32_t numOfTotal = pSupporter->pState->numOfTotal;
@@ -608,10 +609,10 @@ void tscFetchDatablockFromSubquery(SSqlObj* pSql) {
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
     if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-      if (pRes->row >= pRes->numOfRows && pTableMetaInfo->vnodeIndex < pTableMetaInfo->pMetricMeta->numOfVnodes &&
-          (!tscHasReachLimitation(pQueryInfo, pRes))) {
-        numOfFetch++;
-      }
+//      if (pRes->row >= pRes->numOfRows && pTableMetaInfo->vnodeIndex < pTableMetaInfo->pMetricMeta->numOfVnodes &&
+//          (!tscHasReachLimitation(pQueryInfo, pRes))) {
+//        numOfFetch++;
+//      }
     } else {
       if (pRes->row >= pRes->numOfRows && (!tscHasReachLimitation(pQueryInfo, pRes))) {
         numOfFetch++;
@@ -788,7 +789,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
          * data instead of returning to its invoker
          */
         if (pTableMetaInfo->vnodeIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-          assert(pTableMetaInfo->vnodeIndex < pTableMetaInfo->pMetricMeta->numOfVnodes);
+//          assert(pTableMetaInfo->vnodeIndex < pTableMetaInfo->pMetricMeta->numOfVnodes);
           pSupporter->pState->numOfCompleted = 0;  // reset the record value
 
           pSql->fp = joinRetrieveCallback;  // continue retrieve data
@@ -1009,7 +1010,9 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  int32_t         numOfSubQueries = pTableMetaInfo->pMetricMeta->numOfVnodes;
+  
+  int32_t numOfSubQueries = 0;
+//  int32_t numOfSubQueries = pTableMetaInfo->pMetricMeta->numOfVnodes;
   assert(numOfSubQueries > 0);
   
   int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);
@@ -1260,7 +1263,8 @@ static void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
-  SVnodeSidList *vnodeInfo = tscGetVnodeSidList(pTableMetaInfo->pMetricMeta, idx);
+//  SVnodeSidList *vnodeInfo = tscGetVnodeSidList(pTableMetaInfo->pMetricMeta, idx);
+  SVnodeSidList *vnodeInfo = 0;
   SVnodeDesc *   pSvd = &vnodeInfo->vpeerDesc[vnodeInfo->index];
   
   if (numOfRows > 0) {
@@ -1409,10 +1413,10 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   
   SVnodeSidList *vnodeInfo = NULL;
   SVnodeDesc *   pSvd = NULL;
-  if (pTableMetaInfo->pMetricMeta != NULL) {
-    vnodeInfo = tscGetVnodeSidList(pTableMetaInfo->pMetricMeta, idx);
-    pSvd = &vnodeInfo->vpeerDesc[vnodeInfo->index];
-  }
+//  if (pTableMetaInfo->pMetricMeta != NULL) {
+//    vnodeInfo = tscGetVnodeSidList(pTableMetaInfo->pMetricMeta, idx);
+//    pSvd = &vnodeInfo->vpeerDesc[vnodeInfo->index];
+//  }
   
   SSubqueryState* pState = trsupport->pState;
   assert(pState->numOfCompleted < pState->numOfTotal && pState->numOfCompleted >= 0 &&
@@ -1453,7 +1457,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
         trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
       } else {
         SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
-        assert(pNewQueryInfo->pTableMetaInfo[0]->pTableMeta != NULL && pNewQueryInfo->pTableMetaInfo[0]->pMetricMeta != NULL);
+//        assert(pNewQueryInfo->pTableMetaInfo[0]->pTableMeta != NULL && pNewQueryInfo->pTableMetaInfo[0]->pMetricMeta != NULL);
         tscProcessSql(pNew);
         return;
       }

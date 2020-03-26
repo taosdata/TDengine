@@ -70,8 +70,9 @@ typedef struct STableMeta {
 
 typedef struct STableMetaInfo {
   STableMeta * pTableMeta;       // table meta, cached in client side and acquried by name
-  SSuperTableMeta *pMetricMeta;  // metricmeta
-
+//  SSuperTableMeta *pMetricMeta;  // metricmeta
+  SArray* vgroupIdList;
+  
   /*
    * 1. keep the vnode index during the multi-vnode super table projection query
    * 2. keep the vnode index for multi-vnode insertion

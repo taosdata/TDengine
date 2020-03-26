@@ -106,7 +106,7 @@ bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo);
 
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryOnMetric(SSqlCmd* pCmd);
-bool tscQueryMetricTags(SQueryInfo* pQueryInfo);
+bool tscQueryTags(SQueryInfo* pQueryInfo);
 bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd);
 
 void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId, SColumnIndex* pIndex,
@@ -176,7 +176,7 @@ void tscIncStreamExecutionCount(void* pStream);
 bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId);
 
 // get starter position of metric query condition (query on tags) in SSqlCmd.payload
-SCond* tsGetMetricQueryCondPos(STagCond* pCond, uint64_t tableIndex);
+SCond* tsGetSTableQueryCondPos(STagCond* pCond, uint64_t tableIndex);
 void   tsSetMetricQueryCond(STagCond* pTagCond, uint64_t uid, const char* str);
 
 void tscTagCondCopy(STagCond* dest, const STagCond* src);
@@ -207,7 +207,7 @@ void tscFreeSubqueryInfo(SSqlCmd* pCmd);
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 
 void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* keyStr, uint64_t uid);
-int  tscGetMetricMeta(SSqlObj* pSql, int32_t clauseIndex);
+int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
 int  tscGetMeterMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
 
