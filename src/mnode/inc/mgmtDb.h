@@ -22,22 +22,23 @@ extern "C" {
 
 #include "mnode.h"
 
-void mgmtAddVgroupIntoDb(SVgObj *pVgroup);
-void mgmtAddVgroupIntoDbTail(SVgObj *pVgroup);
-void mgmtRemoveVgroupFromDb(SVgObj *pVgroup);
-void mgmtMoveVgroupToTail(SVgObj *pVgroup);
-void mgmtMoveVgroupToHead(SVgObj *pVgroup);
-
+// api
 int32_t mgmtInitDbs();
 void    mgmtCleanUpDbs();
 SDbObj *mgmtGetDb(char *db);
 SDbObj *mgmtGetDbByTableId(char *db);
 bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
 
+// util func
 void mgmtAddSuperTableIntoDb(SDbObj *pDb);
 void mgmtRemoveSuperTableFromDb(SDbObj *pDb);
 void mgmtAddTableIntoDb(SDbObj *pDb);
 void mgmtRemoveTableFromDb(SDbObj *pDb);
+void mgmtAddVgroupIntoDb(SVgObj *pVgroup);
+void mgmtAddVgroupIntoDbTail(SVgObj *pVgroup);
+void mgmtRemoveVgroupFromDb(SVgObj *pVgroup);
+void mgmtMoveVgroupToTail(SVgObj *pVgroup);
+void mgmtMoveVgroupToHead(SVgObj *pVgroup);
 
 #ifdef __cplusplus
 }

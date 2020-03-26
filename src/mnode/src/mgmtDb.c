@@ -41,7 +41,6 @@ static int32_t tsDbUpdateSize;
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);
 static void    mgmtDropDb(void *handle, void *tmrId);
 static int32_t mgmtSetDbDirty(SDbObj *pDb);
-
 static int32_t mgmtGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCreateDbMsg(SQueuedMsg *pMsg);

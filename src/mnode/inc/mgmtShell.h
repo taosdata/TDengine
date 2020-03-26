@@ -22,8 +22,8 @@ extern "C" {
 #include "mnode.h"
 
 int32_t mgmtInitShell();
-void mgmtCleanUpShell();
-void mgmtAddShellMsgHandle(uint8_t msgType, void (*fp)(SQueuedMsg *queuedMsg));
+void    mgmtCleanUpShell();
+void    mgmtAddShellMsgHandle(uint8_t msgType, void (*fp)(SQueuedMsg *queuedMsg));
 
 typedef int32_t (*SShowMetaFp)(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 typedef int32_t (*SShowRetrieveFp)(SShowObj *pShow, char *data, int32_t rows, void *pConn);

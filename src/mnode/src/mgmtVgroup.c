@@ -67,8 +67,8 @@ static int32_t mgmtVgroupActionInsert(SSdbOperDesc *pOper) {
   pVgroup->prev = NULL;
   pVgroup->next = NULL;
 
-  int32_t size = sizeof(STableInfo *) * pDb->cfg.maxSessions;
-  pVgroup->tableList = (STableInfo **)calloc(pDb->cfg.maxSessions, sizeof(STableInfo *));
+  int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxSessions;
+  pVgroup->tableList = calloc(pDb->cfg.maxSessions, sizeof(SChildTableObj *));
   if (pVgroup->tableList == NULL) {
     mError("vgroup:%d, failed to malloc(size:%d) for the tableList of vgroups", pVgroup->vgId, size);
     return -1;
@@ -112,8 +112,8 @@ static int32_t mgmtVgroupActionUpdate(SSdbOperDesc *pOper) {
     if (pDb->cfg.maxSessions != oldTables) {
       mPrint("vgroup:%d tables change from %d to %d", pVgroup->vgId, oldTables, pDb->cfg.maxSessions);
       taosUpdateIdPool(pVgroup->idPool, pDb->cfg.maxSessions);
-      int32_t size = sizeof(STableInfo *) * pDb->cfg.maxSessions;
-      pVgroup->tableList = (STableInfo **)realloc(pVgroup->tableList, size);
+      int32_t size = sizeof(SChildTableObj *) * pDb->cfg.maxSessions;
+      pVgroup->tableList = (SChildTableObj **)realloc(pVgroup->tableList, size);
     }
   }
 
@@ -483,17 +483,14 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
   return pVnode;
 }
 
-SVgObj *mgmtGetVgroupByVnode(uint32_t dnode, int32_t vnode) {
-  if (vnode < 0 || vnode >= TSDB_MAX_VNODES) {
-    return NULL;
-  }
+static SVgObj *mgmtGetVgroupInDnode(uint32_t dnodeId, int32_t vgId) {
+  if (vnovgId < 1 || dnodeId < 1) return NULL;
 
-  SDnodeObj *pDnode = mgmtGetDnode(dnode);
+  SDnodeObj *pDnode = mgmtGetDnode(dnodeId);
   if (pDnode == NULL) {
     return NULL;
   }
 
-  int32_t vgId = pDnode->vload[vnode].vgId;
   return mgmtGetVgroup(vgId);
 }
 
@@ -660,10 +657,10 @@ static void mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) {
   if (mgmtCheckRedirect(rpcMsg->handle)) return;
 
   SDMConfigVnodeMsg *pCfg = (SDMConfigVnodeMsg *) rpcMsg->pCont;
-  pCfg->dnode = htonl(pCfg->dnode);
-  pCfg->vnode = htonl(pCfg->vnode);
+  pCfg->dnodeId = htonl(pCfg->dnode);
+  pCfg->vgId    = htonl(pCfg->vnode);
 
-  SVgObj *pVgroup = mgmtGetVgroupByVnode(pCfg->dnode, pCfg->vnode);
+  SVgObj *pVgroup = mgmtGetVgroupInDnode(pCfg->dnodeId, pCfg->vgId);
   if (pVgroup == NULL) {
     mTrace("dnode:%s, vnode:%d, no vgroup info", taosIpStr(pCfg->dnode), pCfg->vnode);
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NOT_ACTIVE_VNODE);

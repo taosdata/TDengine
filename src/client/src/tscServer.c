@@ -1752,7 +1752,7 @@ int tscBuildMetricMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   msgLen = pMsg - pStart;
   pCmd->payloadLen = msgLen;
-  pCmd->msgType = TSDB_MSG_TYPE_CM_STABLE_META;
+  pCmd->msgType = TSDB_MSG_TYPE_CM_STABLE_VGROUP;
   assert(msgLen + minMsgSize() <= size);
   
   return TSDB_CODE_SUCCESS;

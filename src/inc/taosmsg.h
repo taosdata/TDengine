@@ -738,8 +738,8 @@ typedef struct {
 } SDMConfigTableMsg;
 
 typedef struct {
-  uint32_t dnode;
-  int32_t  vnode;
+  uint32_t dnodeId;
+  int32_t  vgId;
 } SDMConfigVnodeMsg;
 
 typedef struct {

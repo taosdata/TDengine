@@ -332,7 +332,6 @@ static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableOb
   }
 
   memcpy(pCreate->tableId, pTable->info.tableId, TSDB_TABLE_ID_LEN + 1);
-  memcpy(pCreate->superTableId, pTable->superTable->info.tableId, TSDB_TABLE_ID_LEN + 1);
   pCreate->contLen       = htonl(contLen);
   pCreate->vgId          = htonl(pTable->vgId);
   pCreate->tableType     = pTable->info.type;
@@ -342,6 +341,7 @@ static void *mgmtBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SChildTableOb
   pCreate->uid           = htobe64(pTable->uid);
   
   if (pTable->info.type == TSDB_CHILD_TABLE) {
+    memcpy(pCreate->superTableId, pTable->superTable->info.tableId, TSDB_TABLE_ID_LEN + 1);
     pCreate->numOfColumns  = htons(pTable->superTable->numOfColumns);
     pCreate->numOfTags     = htons(pTable->superTable->numOfTags);
     pCreate->sversion      = htonl(pTable->superTable->sversion);
