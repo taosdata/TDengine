@@ -152,9 +152,11 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
             break;
           case TSDB_DATA_TYPE_BINARY:
           case TSDB_DATA_TYPE_NCHAR:
-            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:", fields[i].name);
-            memcpy(target + len, (char *) row[i], fields[i].bytes);
-            len = strlen(target);
+            if (row[i]!= NULL){            
+              len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:", fields[i].name);
+              memcpy(target + len, (char *) row[i], fields[i].bytes);
+              len = strlen(target);
+            }
             break;
           default:
             len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%s", fields[i].name, "-");
