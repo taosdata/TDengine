@@ -4240,7 +4240,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   } else if ((pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) && (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo))) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg4);
   } else if ((pAlterSQL->type == TSDB_ALTER_TABLE_ADD_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_DROP_COLUMN) &&
-             UTIL_TABLE_CREATE_FROM_STABLE(pTableMetaInfo)) {
+             UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo)) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg6);
   }
 

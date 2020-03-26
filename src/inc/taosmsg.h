@@ -206,14 +206,6 @@ typedef struct SMsgHead {
   int32_t vgId;
 } SMsgHead;
 
-// typedef struct {
-//  SMsgDesc desc;
-//  SMsgHead header;
-//  int16_t import;
-//  int32_t numOfTables; // total number of sid
-//  char    blks[];      // number of data blocks, each table has at least one data block
-//} SShellSubmitMsg;
-
 // Submit message for one table
 typedef struct SSubmitBlk {
   int64_t uid;        // table unique id
@@ -683,14 +675,15 @@ typedef struct {
 } SSuperTableMeta;
 
 typedef struct STableMetaMsg {
-  char    tableId[TSDB_TABLE_ID_LEN];  // note: This field must be at the front
-  int32_t contLen;
-  uint8_t numOfTags;
-  uint8_t precision;
-  uint8_t tableType;
-  int16_t numOfColumns;
-  int16_t sversion;
-
+  int32_t    contLen;
+  
+  char       tableId[TSDB_TABLE_ID_LEN];       // table id
+  char       stableId[TSDB_TABLE_ID_LEN];  // stable name if it is created according to super table
+  uint8_t    numOfTags;
+  uint8_t    precision;
+  uint8_t    tableType;
+  int16_t    numOfColumns;
+  int16_t    sversion;
   int8_t     numOfVpeers;
   SVnodeDesc vpeerDesc[TSDB_VNODES_SUPPORT];
   int32_t    sid;

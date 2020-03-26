@@ -406,11 +406,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  if (pSql->fp == NULL) {
-    tscError("%p callBack is NULL!!!", pSql);
-    return;
-  }
-
   if (pSql->fp == (void *)1) {
     pSql->fp = NULL;
 

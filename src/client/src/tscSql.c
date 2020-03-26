@@ -651,8 +651,7 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
 
 static void asyncFetchCallback(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlObj* pSql = (SSqlObj*) tres;
-  if (numOfRows < 0) {
-    // set the error code
+  if (numOfRows < 0) { // set the error code
     pSql->res.code = -numOfRows;
   }
   
