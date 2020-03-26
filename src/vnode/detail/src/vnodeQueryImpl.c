@@ -5312,7 +5312,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
   while (1) {
     // check if query is killed or not set the status of query to pass the status check
-    if (isQueryKilled(pQuery)) {
+    if (isQueryKilled(pQInfo)) {
       setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
       return cnt;
     }
@@ -6375,7 +6375,7 @@ void vnodeScanAllData(SQueryRuntimeEnv *pRuntimeEnv) {
     pRuntimeEnv->scanFlag = REPEAT_SCAN;
 
     /* check if query is killed or not */
-    if (isQueryKilled(pQuery)) {
+    if (isQueryKilled(pQInfo)) {
       setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
       return;
     }

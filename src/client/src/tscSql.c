@@ -594,11 +594,7 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
     }
 
     if (numOfTableHasRes >= 2) {  // do merge result
-
       success = (doSetResultRowData(pSql->pSubs[0]) != NULL) && (doSetResultRowData(pSql->pSubs[1]) != NULL);
-      //        TSKEY key1 = *(TSKEY *)pRes1->tsrow[0];
-      //        TSKEY key2 = *(TSKEY *)pRes2->tsrow[0];
-      //        printf("first:%" PRId64 ", second:%" PRId64 "\n", key1, key2);
     } else {  // only one subquery
       SSqlObj *pSub = pSql->pSubs[0];
       if (pSub == NULL) {
@@ -674,14 +670,13 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlRes *pRes = &pSql->res;
   
   if (pRes->qhandle == 0 ||
-      pRes->completed ||
       pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       pCmd->command == TSDB_SQL_INSERT) {
     return NULL;
   }
   
   // current data are exhausted, fetch more data
-  if (pRes->data == NULL || (pRes->data != NULL && pRes->row >= pRes->numOfRows &&
+  if (pRes->data == NULL || (pRes->data != NULL && pRes->row >= pRes->numOfRows && pRes->completed != true &&
       (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_METRIC || pCmd->command == TSDB_SQL_FETCH))) {
     taos_fetch_rows_a(res, asyncFetchCallback, pSql->pTscObj);
     

@@ -124,6 +124,7 @@ typedef struct STsdbQueryHandle {
   int32_t                tableIndex;
   bool                   isFirstSlot;
   void *                 qinfo;  // query info handle, for debug purpose
+  SSkipListIterator*     memIter;
 } STsdbQueryHandle;
 
 int32_t doAllocateBuf(STsdbQueryHandle *pQueryHandle, int32_t rowsPerFileBlock) {
@@ -335,7 +336,6 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
     
     SDataRow row = SL_GET_NODE_DATA(node);
     if (dataRowKey(row) > maxKey) break;
-    // Convert row data to column data
     
     if (*skey == INT64_MIN) {
       *skey = dataRowKey(row);
@@ -345,13 +345,13 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
     
     int32_t offset = 0;
     for(int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoEx* pColInfo = taosArrayGet(pHandle->pColumns, 0);
+      SColumnInfoEx* pColInfo = taosArrayGet(pHandle->pColumns, i);
       memcpy(pColInfo->pData + numOfRows*pColInfo->info.bytes, dataRowTuple(row) + offset, pColInfo->info.bytes);
       offset += pColInfo->info.bytes;
     }
     
     numOfRows++;
-    if (numOfRows > maxRowsToRead) break;
+    if (numOfRows >= maxRowsToRead) break;
   };
   
   return numOfRows;
@@ -368,8 +368,13 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle) {
   int32_t rows = 0;
   
   if (pTable->mem != NULL) {
-    SSkipListIterator* iter = tSkipListCreateIter(pTable->mem->pData);
-    rows = tsdbReadRowsFromCache(iter, INT64_MAX, 4000, &skey, &ekey, pHandle);
+    
+    // create mem table iterator if it is not created yet
+    if (pHandle->memIter == NULL) {
+      pHandle->memIter = tSkipListCreateIter(pTable->mem->pData);
+    }
+    
+    rows = tsdbReadRowsFromCache(pHandle->memIter, INT64_MAX, 2, &skey, &ekey, pHandle);
   }
   
   SDataBlockInfo blockInfo = {
@@ -392,7 +397,9 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdb_query_handle_t *pQueryHandle, SData
 }
 
 SArray *tsdbRetrieveDataBlock(tsdb_query_handle_t *pQueryHandle, SArray *pIdList) {
-
+  // in case of data in cache, all data has been kept in column info object.
+  STsdbQueryHandle* pHandle = (STsdbQueryHandle*) pQueryHandle;
+  return pHandle->pColumns;
 }
 
 int32_t tsdbResetQuery(tsdb_query_handle_t *pQueryHandle, STimeWindow *window, tsdbpos_t position, int16_t order) {}
