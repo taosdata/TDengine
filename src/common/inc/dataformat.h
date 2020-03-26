@@ -105,11 +105,12 @@ SDataRow tdDataRowDup(SDataRow row);
 
 // ----------------- Data column structure
 typedef struct SDataCol {
-  int8_t type;
-  int    bytes;
-  int    len;
-  int    offset;
-  void * pData;
+  int8_t  type;
+  int16_t colId;
+  int     bytes;
+  int     len;
+  int     offset;
+  void *  pData;
 } SDataCol;
 
 typedef struct {
@@ -122,9 +123,9 @@ typedef struct {
   SDataCol cols[];
 } SDataCols;
 
-#define keyCol(cols) (&((cols)->cols[0])) // Key column
-#define dataColsKeyFirst(cols) ((int64_t *)(keyCol(cols)->pData))[0]
-#define dataColsKeyLast(cols) ((int64_t *)(keyCol(cols)->pData))[(cols)->numOfPoints - 1]
+#define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
+#define dataColsKeyFirst(pCols) ((int64_t *)(keyCol(pCols)->pData))[0]
+#define dataColsKeyLast(pCols) ((int64_t *)(keyCol(pCols)->pData))[(pCols)->numOfPoints - 1]
 
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
