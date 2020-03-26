@@ -184,6 +184,12 @@ int mgmtGetUserMeta(SMeterMeta *pMeta, SShowObj *pShow, SConnObj *pConn) {
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = TSDB_USER_LEN;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "account");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pMeta->numOfColumns = htons(cols);
   pShow->numOfColumns = cols;
 
@@ -228,6 +234,10 @@ int mgmtRetrieveUsers(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int64_t *)pWrite = pUser->createdTime;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    strcpy(pWrite, pUser->acct);
     cols++;
 
     numOfRows++;
