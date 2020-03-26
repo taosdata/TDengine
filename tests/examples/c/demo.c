@@ -64,6 +64,9 @@ int main(int argc, char *argv[]) {
     memset(buf, 0, 512);
   }
   
+  taos_close(taos);
+  
+  getchar();
   return 0;
   
   taos_query(taos, "drop database demo");

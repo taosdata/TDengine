@@ -172,7 +172,7 @@ typedef struct SQueryRuntimeEnv {
 
 typedef struct SQInfo {
   void*            signature;
-  void*            param;         // pointer to the RpcReadMsg
+//  void*            param;         // pointer to the RpcReadMsg
   TSKEY            startTime;
   TSKEY            elapsedTime;
   int32_t          pointsInterpo;
@@ -236,6 +236,6 @@ int32_t qDumpRetrieveResult(SQInfo *pQInfo, SRetrieveTableRsp** pRsp, int32_t* c
  * @param pQInfo
  * @return
  */
-bool qNeedFurtherExec(SQInfo* pQInfo);
+bool qHasMoreResultsToRetrieve(SQInfo* pQInfo);
 
 #endif  // TDENGINE_QUERYEXECUTOR_H

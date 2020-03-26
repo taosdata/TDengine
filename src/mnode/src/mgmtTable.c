@@ -310,7 +310,7 @@ int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *
     numOfRead++;
 
     // pattern compare for meter name
-    extractTableName(tableId, tableName);
+    mgmtExtractTableName(tableId, tableName);
 
     if (pShow->payloadLen > 0 &&
         patternMatch(pShow->payload, tableName, TSDB_TABLE_NAME_LEN, &info) != TSDB_PATTERN_MATCH) {
@@ -333,7 +333,7 @@ int32_t mgmtRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows, void *
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     if (superTableId != NULL) {
-      extractTableName(superTableId, pWrite);
+      mgmtExtractTableName(superTableId, pWrite);
     }
     cols++;
 

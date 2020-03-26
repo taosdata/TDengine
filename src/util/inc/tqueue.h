@@ -20,28 +20,35 @@
 extern "C" {
 #endif
 
+#define TAOS_QTYPE_RPC      0
+#define TAOS_QTYPE_FWD      1
+#define TAOS_QTYPE_WAL      2 
+
 typedef void* taos_queue;
 typedef void* taos_qset;
 typedef void* taos_qall;
 
-taos_queue taosOpenQueue(int itemSize);
+taos_queue taosOpenQueue();
 void       taosCloseQueue(taos_queue);
-int        taosWriteQitem(taos_queue, void *item);
-int        taosReadQitem(taos_queue, void *item);
+void      *taosAllocateQitem(int size);
+void       taosFreeQitem(void *item);
+int        taosWriteQitem(taos_queue, int type, void *item);
+int        taosReadQitem(taos_queue, int *type, void **pitem);
 
-int        taosReadAllQitems(taos_queue, taos_qall *);
-int        taosGetQitem(taos_qall, void *item);
+taos_qall  taosAllocateQall();
+void       taosFreeQall(taos_qall);
+int        taosReadAllQitems(taos_queue, taos_qall);
+int        taosGetQitem(taos_qall, int *type, void **pitem);
 void       taosResetQitems(taos_qall);
-void       taosFreeQitems(taos_qall);
 
 taos_qset  taosOpenQset();
 void       taosCloseQset();
-int        taosAddIntoQset(taos_qset, taos_queue);
+int        taosAddIntoQset(taos_qset, taos_queue, void *ahandle);
 void       taosRemoveFromQset(taos_qset, taos_queue);
 int        taosGetQueueNumber(taos_qset);
 
-int        taosReadQitemFromQset(taos_qset, void *item);
-int        taosReadAllQitemsFromQset(taos_qset, taos_qall *);
+int        taosReadQitemFromQset(taos_qset, int *type, void **pitem, void **handle);
+int        taosReadAllQitemsFromQset(taos_qset, taos_qall, void **handle);
 
 int        taosGetQueueItemsNumber(taos_queue param);
 int        taosGetQsetItemsNumber(taos_qset param);

@@ -36,16 +36,15 @@ typedef struct {
   void        *pCont;
   int32_t      contLen;
   SRpcMsg      rpcMsg;
-  void        *pVnode;
   SRpcContext *pRpcContext;  // RPC message context
 } SReadMsg;
 
 static void *dnodeProcessReadQueue(void *param);
-static void  dnodeProcessReadResult(SReadMsg *pRead);
+static void  dnodeProcessReadResult(void *pVnode, SReadMsg *pRead);
 static void  dnodeHandleIdleReadWorker();
-static void  dnodeProcessQueryMsg(SReadMsg *pMsg);
-static void  dnodeProcessRetrieveMsg(SReadMsg *pMsg);
-static void(*dnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SReadMsg *pNode);
+static void  dnodeProcessQueryMsg(void *pVnode, SReadMsg *pMsg);
+static void  dnodeProcessRetrieveMsg(void *pVnode, SReadMsg *pMsg);
+static void(*dnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(void *pVnode, SReadMsg *pNode);
 
 // module global variable
 static taos_qset readQset;
@@ -104,23 +103,19 @@ void dnodeRead(SRpcMsg *pMsg) {
     }
 
     // put message into queue
-    SReadMsg readMsg = {
-      .rpcMsg      = *pMsg,
-      .pCont       = pCont,
-      .contLen     = pHead->contLen,
-      .pRpcContext = pRpcContext,
-      .pVnode      = pVnode,
-    };
+    SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
+    pRead->rpcMsg      = *pMsg;
+    pRead->pCont       = pCont;
+    pRead->contLen     = pHead->contLen;
+    pRead->pRpcContext = pRpcContext;
 
     taos_queue queue = dnodeGetVnodeRworker(pVnode);
-    taosWriteQitem(queue, &readMsg);
+    taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
 
     // next vnode
     leftLen -= pHead->contLen;
     pCont -= pHead->contLen;
     queuedMsgNum++;
-
-    dnodeReleaseVnode(pVnode);
   }
 
   if (queuedMsgNum == 0) {
@@ -135,11 +130,11 @@ void dnodeRead(SRpcMsg *pMsg) {
   }
 }
 
-void *dnodeAllocateReadWorker() {
+void *dnodeAllocateReadWorker(void *pVnode) {
   taos_queue *queue = taosOpenQueue(sizeof(SReadMsg));
   if (queue == NULL) return NULL;
 
-  taosAddIntoQset(readQset, queue);
+  taosAddIntoQset(readQset, queue, pVnode);
 
   // spawn a thread to process queue
   if (threads < maxThreads) {
@@ -164,20 +159,27 @@ void dnodeFreeReadWorker(void *rqueue) {
 
 static void *dnodeProcessReadQueue(void *param) {
   taos_qset  qset = (taos_qset)param;
-  SReadMsg   readMsg;
+  SReadMsg  *pReadMsg;
+  int        type;
+  void      *pVnode;
 
   while (1) {
-    if (taosReadQitemFromQset(qset, &readMsg) <= 0) {
+    if (taosReadQitemFromQset(qset, &type, (void **)&pReadMsg, (void **)&pVnode) == 0) {
       dnodeHandleIdleReadWorker();
       continue;
     }
 
     terrno = 0;
-    if (dnodeProcessReadMsgFp[readMsg.rpcMsg.msgType]) {
-      (*dnodeProcessReadMsgFp[readMsg.rpcMsg.msgType]) (&readMsg);
+    if (dnodeProcessReadMsgFp[pReadMsg->rpcMsg.msgType]) {
+      (*dnodeProcessReadMsgFp[pReadMsg->rpcMsg.msgType]) (pVnode, pReadMsg);
     } else {
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     }
+
+//    dnodeProcessReadResult(pVnode, pReadMsg);
+    taosFreeQitem(pReadMsg);
+
+    dnodeReleaseVnode(pVnode);
   }
 
   return NULL;
@@ -195,11 +197,11 @@ static void dnodeHandleIdleReadWorker() {
   }
 }
 
-static void dnodeProcessReadResult(SReadMsg *pRead) {
+static void dnodeProcessReadResult(void *pVnode, SReadMsg *pRead) {
   SRpcContext *pRpcContext = pRead->pRpcContext;
   int32_t      code = 0;
 
-  dnodeReleaseVnode(pRead->pVnode);
+  dnodeReleaseVnode(pVnode);
 
   if (pRpcContext) {
     if (terrno) {
@@ -218,34 +220,48 @@ static void dnodeProcessReadResult(SReadMsg *pRead) {
     code = terrno;
   }
 
-  SRpcMsg rsp;
-  rsp.handle = pRead->rpcMsg.handle;
-  rsp.code   = code;
-  rsp.pCont  = NULL;
-  rpcSendResponse(&rsp);
+  //TODO: query handle is returned by dnodeProcessQueryMsg
+  if (0) {
+    SRpcMsg rsp;
+    rsp.handle = pRead->rpcMsg.handle;
+    rsp.code   = code;
+    rsp.pCont  = NULL;
+    rpcSendResponse(&rsp);
+  }
+  
   rpcFreeCont(pRead->rpcMsg.pCont);  // free the received message
 }
 
-static void dnodeContinueExecuteQuery(void* qhandle, SReadMsg *pMsg) {
-  SReadMsg readMsg = {
-      .rpcMsg      = {.msgType = TSDB_MSG_TYPE_QUERY},
-      .pCont       = qhandle,
-      .contLen     = 0,
-      .pRpcContext = pMsg->pRpcContext,
-      .pVnode      = pMsg->pVnode,
-  };
+static void dnodeContinueExecuteQuery(void* pVnode, void* qhandle, SReadMsg *pMsg) {
   
-  taos_queue queue = dnodeGetVnodeRworker(pMsg->pVnode);
-  taosWriteQitem(queue, &readMsg);
+  SReadMsg *pRead = (SReadMsg *)taosAllocateQitem(sizeof(SReadMsg));
+  pRead->rpcMsg      = pMsg->rpcMsg;
+  pRead->pCont       = qhandle;
+  pRead->contLen     = 0;
+  pRead->pRpcContext = pMsg->pRpcContext;
+  pRead->rpcMsg.msgType = TSDB_MSG_TYPE_QUERY;
+  
+  taos_queue queue = dnodeGetVnodeRworker(pVnode);
+  taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
+  
+//  SReadMsg readMsg = {
+//      .rpcMsg      = {0},
+//      .pCont       = qhandle,
+//      .contLen     = 0,
+//      .pRpcContext = pMsg->pRpcContext,
+//  };
+//
+//  taos_queue queue = dnodeGetVnodeRworker(pVnode);
+//  taosWriteQitem(queue, TSDB_MSG_TYPE_QUERY, &readMsg);
 }
 
-static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
+static void dnodeProcessQueryMsg(void *pVnode, SReadMsg *pMsg) {
   SQueryTableMsg* pQueryTableMsg = (SQueryTableMsg*) pMsg->pCont;
   
   SQInfo* pQInfo = NULL;
-  if (pMsg->rpcMsg.contLen != 0) {
-    void* tsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
-    int32_t code = qCreateQueryInfo(tsdb, pQueryTableMsg, pMsg, &pQInfo);
+  if (pMsg->contLen != 0) {
+    void* tsdb = dnodeGetVnodeTsdb(pVnode);
+    int32_t code = qCreateQueryInfo(tsdb, pQueryTableMsg, NULL, &pQInfo);
   
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->code    = code;
@@ -264,16 +280,14 @@ static void dnodeProcessQueryMsg(SReadMsg *pMsg) {
     pQInfo = pMsg->pCont;
   }
   
-  // do execute query
-  qTableQuery(pQInfo);
+  qTableQuery(pQInfo); // do execute query
 }
 
-static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
+static void dnodeProcessRetrieveMsg(void *pVnode, SReadMsg *pMsg) {
   SRetrieveTableMsg *pRetrieve = pMsg->pCont;
   void *pQInfo = (void*) htobe64(pRetrieve->qhandle);
 
   dTrace("QInfo:%p vgId:%d, retrieve msg is received", pQInfo, pRetrieve->header.vgId);
-
   int32_t contLen = 0;
   
   SRetrieveTableRsp *pRsp = NULL;
@@ -288,8 +302,10 @@ static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
     // todo check code and handle error in build result set
     code = qDumpRetrieveResult(pQInfo, &pRsp, &contLen);
     
-    if (qNeedFurtherExec(pQInfo)) {
-      dnodeContinueExecuteQuery(pQInfo, pMsg);
+    if (qHasMoreResultsToRetrieve(pQInfo)) {
+      dnodeContinueExecuteQuery(pVnode, pQInfo, pMsg);
+    } else {  // no further execution invoked, release the ref to vnode
+      dnodeProcessReadResult(pVnode, pMsg);
     }
   }
   
@@ -302,7 +318,4 @@ static void dnodeProcessRetrieveMsg(SReadMsg *pMsg) {
   };
 
   rpcSendResponse(&rpcRsp);
-  
-  //todo merge result should be done here
-  //dnodeProcessReadResult(&readMsg);
 }

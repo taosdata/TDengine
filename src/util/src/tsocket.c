@@ -330,7 +330,7 @@ int taosOpenTcpClientSocket(char *destIp, uint16_t destPort, char *clientIp) {
   struct sockaddr_in serverAddr, clientAddr;
   int                ret;
 
-  pTrace("open tcp client socket:%s:%d", destIp, destPort);
+  // pTrace("open tcp client socket:%s:%d, local Ip:%s", destIp, destPort, clientIp);
 
   sockFd = (int)socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -362,7 +362,7 @@ int taosOpenTcpClientSocket(char *destIp, uint16_t destPort, char *clientIp) {
   ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
 
   if (ret != 0) {
-    pError("failed to connect socket, ip:%s, port:%hu, reason: %s", destIp, destPort, strerror(errno));
+    //pError("failed to connect socket, ip:%s, port:%hu, reason: %s", destIp, destPort, strerror(errno));
     taosCloseSocket(sockFd);
     sockFd = -1;
   }

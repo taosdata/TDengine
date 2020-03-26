@@ -28,10 +28,13 @@ void *qhandle = NULL;
 void processShellMsg() {
   static int num = 0;
   taos_qall  qall;
-  SRpcMsg    rpcMsg;
+  SRpcMsg   *pRpcMsg, rpcMsg;
+  int        type;
+ 
+  qall = taosAllocateQall();
 
   while (1) {
-    int numOfMsgs = taosReadAllQitems(qhandle, &qall);
+    int numOfMsgs = taosReadAllQitems(qhandle, qall);
     if (numOfMsgs <= 0) {
       usleep(1000);
       continue;
@@ -40,10 +43,10 @@ void processShellMsg() {
     tTrace("%d shell msgs are received", numOfMsgs);
 
     for (int i=0; i<numOfMsgs; ++i) {
-      taosGetQitem(qall, &rpcMsg);
+      taosGetQitem(qall, &type, (void **)&pRpcMsg);
  
       if (dataFd >=0) {
-        if ( write(dataFd, rpcMsg.pCont, rpcMsg.contLen) <0 ) {
+        if ( write(dataFd, pRpcMsg->pCont, pRpcMsg->contLen) <0 ) {
           tPrint("failed to write data file, reason:%s", strerror(errno));
         }
       }
@@ -62,19 +65,22 @@ void processShellMsg() {
   
     taosResetQitems(qall);
     for (int i=0; i<numOfMsgs; ++i) {
-      taosGetQitem(qall, &rpcMsg);
 
-      rpcFreeCont(rpcMsg.pCont);
+      taosGetQitem(qall, &type, (void **)&pRpcMsg);
+      rpcFreeCont(pRpcMsg->pCont);
+
       rpcMsg.pCont = rpcMallocCont(msgSize);
       rpcMsg.contLen = msgSize;
-      rpcMsg.handle = rpcMsg.handle;
+      rpcMsg.handle = pRpcMsg->handle;
       rpcMsg.code = 1;
       rpcSendResponse(&rpcMsg);
+
+      taosFreeQitem(pRpcMsg);
     }
 
-    taosFreeQitems(qall);
   }
 
+  taosFreeQall(qall);
 /*
   SRpcIpSet ipSet;
   ipSet.numOfIps = 1;
@@ -108,8 +114,13 @@ int retrieveAuthInfo(char *meterId, char *spi, char *encrypt, char *secret, char
 }
 
 void processRequestMsg(SRpcMsg *pMsg) {
-  tTrace("request is received, type:%d, contLen:%d", pMsg->msgType, pMsg->contLen);
-  taosWriteQitem(qhandle, pMsg); 
+  SRpcMsg *pTemp;
+
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  memcpy(pTemp, pMsg, sizeof(SRpcMsg));
+
+  tTrace("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
+  taosWriteQitem(qhandle, TAOS_QTYPE_RPC, pTemp); 
 }
 
 int main(int argc, char *argv[]) {
@@ -143,6 +154,7 @@ int main(int argc, char *argv[]) {
       commit = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       rpcDebugFlag = atoi(argv[++i]);
+      ddebugFlag = rpcDebugFlag;
       uDebugFlag = rpcDebugFlag;
     } else {
       printf("\nusage: %s [options] \n", argv[0]);

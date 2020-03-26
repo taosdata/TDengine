@@ -6102,7 +6102,7 @@ int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryTableMsg, void* param
     //    pObj->qhandle = vnodeQueryOnMultiMeters(pMeterObjList, pGroupbyExpr, pExprs, pQueryTableMsg, &code);
   } else {
     code = createQInfo(pQueryTableMsg, pGroupbyExpr, pExprs, pTableIdList, tsdb, pQInfo);
-    (*pQInfo)->param = param;
+//    (*pQInfo)->param = param;
   }
 
 _query_over:
@@ -6206,7 +6206,7 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
   // todo if interpolation exists, the result may be dump to client by several rounds
 }
 
-bool qNeedFurtherExec(SQInfo* pQInfo) {
+bool qHasMoreResultsToRetrieve(SQInfo* pQInfo) {
   if (pQInfo == NULL || pQInfo->signature != pQInfo || pQInfo->code != TSDB_CODE_SUCCESS) {
     return false;
   }

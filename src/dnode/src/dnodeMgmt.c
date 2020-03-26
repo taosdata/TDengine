@@ -225,17 +225,17 @@ static int32_t dnodeOpenVnode(int32_t vnode, char *rootDir) {
   vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
   vnodeObj.refCount = 1;
   vnodeObj.version  = 0;
-  vnodeObj.wworker  = dnodeAllocateWriteWorker();
-  vnodeObj.rworker  = dnodeAllocateReadWorker();
   vnodeObj.wal      = NULL;
   vnodeObj.tsdb     = pTsdb;
   vnodeObj.replica  = NULL;
   vnodeObj.events   = NULL;
   vnodeObj.cq       = NULL;
 
-  taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, (char *) (&vnodeObj));
+  SVnodeObj *pVnode = (SVnodeObj *)taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, (char *)(&vnodeObj));
+  pVnode->wworker = dnodeAllocateWriteWorker(pVnode);
+  pVnode->rworker = dnodeAllocateReadWorker(pVnode);
 
-  dTrace("open vnode:%d in %s", vnodeObj.vgId, rootDir);
+  dTrace("open vnode:%d in %s", pVnode->vgId, rootDir);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -314,17 +314,17 @@ static int32_t dnodeCreateVnode(SMDCreateVnodeMsg *pVnodeCfg) {
   vnodeObj.status   = TSDB_VN_STATUS_NOT_READY;
   vnodeObj.refCount = 1;
   vnodeObj.version  = 0;
-  vnodeObj.wworker  = dnodeAllocateWriteWorker();
-  vnodeObj.rworker  = dnodeAllocateReadWorker();
   vnodeObj.wal      = NULL;
   vnodeObj.tsdb     = pTsdb;
   vnodeObj.replica  = NULL;
   vnodeObj.events   = NULL;
   vnodeObj.cq       = NULL;
 
-  taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, (char *) (&vnodeObj));
+  SVnodeObj *pVnode = (SVnodeObj *)taosAddIntHash(tsDnodeVnodesHash, vnodeObj.vgId, (char *)(&vnodeObj));
+  pVnode->wworker = dnodeAllocateWriteWorker(pVnode);
+  pVnode->rworker = dnodeAllocateReadWorker(pVnode);
 
-  dPrint("vgroup:%d, vnode:%d is created", vnodeObj.vgId, vnodeObj.vgId);
+  dPrint("vgroup:%d, vnode:%d is created", pVnode->vgId, pVnode->vgId);
   return TSDB_CODE_SUCCESS;
 }
 
