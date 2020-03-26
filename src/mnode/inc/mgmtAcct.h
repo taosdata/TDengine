@@ -27,7 +27,7 @@ SAcctObj *mgmtGetAcct(char *acctName);
 
 int32_t mgmtCheckUserLimit(SAcctObj *pAcct);
 int32_t mgmtCheckDbLimit(SAcctObj *pAcct);
-int32_t mgmtCheckTableLimit(SAcctObj *pAcct, int32_t numOfTimeSeries);
+int32_t mgmtCheckTableLimit(SAcctObj *pAcct);
 
 int32_t mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb);
 int32_t mgmtRemoveDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);

@@ -213,7 +213,8 @@ typedef struct _acctObj {
   SAcctCfg  cfg;
   int32_t   acctId;
   int64_t   createdTime;
-  int8_t    reserved[15];
+  int8_t    dirty;
+  int8_t    reserved[14];
   int8_t    updateEnd[1];
   SAcctInfo acctInfo;
   SDbObj *         pHead;
