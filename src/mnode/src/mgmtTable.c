@@ -230,6 +230,13 @@ static void mgmtProcessTableMetaMsg(SQueuedMsg *pMsg) {
   SCMTableInfoMsg *pInfo = pMsg->pCont;
   mTrace("table:%s, table meta msg is received from thandle:%p", pInfo->tableId, pMsg->thandle);
 
+  pMsg->pDb = mgmtGetDbByTableId(pInfo->tableId);
+  if (pMsg->pDb == NULL || pMsg->pDb->dirty) {
+    mError("table:%s, failed to get table meta, db not selected", pInfo->tableId);
+    mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_DB_NOT_SELECTED);
+    return;
+  }
+
   STableInfo *pTable = mgmtGetTable(pInfo->tableId);
   if (pTable == NULL || pTable->type != TSDB_SUPER_TABLE) {
     mgmtGetChildTableMeta(pMsg, (SChildTableObj *)pTable);

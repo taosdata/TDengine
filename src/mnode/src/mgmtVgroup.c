@@ -25,6 +25,7 @@
 #include "mgmtDClient.h"
 #include "mgmtDnode.h"
 #include "mgmtDServer.h"
+#include "mgmtMnode.h"
 #include "mgmtProfile.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
@@ -483,17 +484,6 @@ SMDCreateVnodeMsg *mgmtBuildCreateVnodeMsg(SVgObj *pVgroup) {
   return pVnode;
 }
 
-static SVgObj *mgmtGetVgroupInDnode(uint32_t dnodeId, int32_t vgId) {
-  if (vnovgId < 1 || dnodeId < 1) return NULL;
-
-  SDnodeObj *pDnode = mgmtGetDnode(dnodeId);
-  if (pDnode == NULL) {
-    return NULL;
-  }
-
-  return mgmtGetVgroup(vgId);
-}
-
 SRpcIpSet mgmtGetIpSetFromVgroup(SVgObj *pVgroup) {
   SRpcIpSet ipSet = {
     .numOfIps = pVgroup->numOfVnodes,
@@ -657,19 +647,26 @@ static void mgmtProcessVnodeCfgMsg(SRpcMsg *rpcMsg) {
   if (mgmtCheckRedirect(rpcMsg->handle)) return;
 
   SDMConfigVnodeMsg *pCfg = (SDMConfigVnodeMsg *) rpcMsg->pCont;
-  pCfg->dnodeId = htonl(pCfg->dnode);
-  pCfg->vgId    = htonl(pCfg->vnode);
+  pCfg->dnodeId = htonl(pCfg->dnodeId);
+  pCfg->vgId    = htonl(pCfg->vgId);
 
-  SVgObj *pVgroup = mgmtGetVgroupInDnode(pCfg->dnodeId, pCfg->vgId);
+  SDnodeObj *pDnode = mgmtGetDnode(pCfg->dnodeId);
+  if (pDnode == NULL) {
+    mTrace("dnode:%s, invalid dnode", taosIpStr(pCfg->dnodeId), pCfg->vgId);
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NOT_ACTIVE_VNODE);
+    return;
+  }
+
+  SVgObj *pVgroup = mgmtGetVgroup(pCfg->vgId);
   if (pVgroup == NULL) {
-    mTrace("dnode:%s, vnode:%d, no vgroup info", taosIpStr(pCfg->dnode), pCfg->vnode);
+    mTrace("dnode:%s, vgId:%d, no vgroup info", taosIpStr(pCfg->dnodeId), pCfg->vgId);
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_NOT_ACTIVE_VNODE);
     return;
   }
 
   mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_SUCCESS);
 
-  SRpcIpSet ipSet = mgmtGetIpSetFromIp(pCfg->dnode);
+  SRpcIpSet ipSet = mgmtGetIpSetFromIp(pDnode->privateIp);
   mgmtSendCreateVnodeMsg(pVgroup, &ipSet, NULL);
 }
 

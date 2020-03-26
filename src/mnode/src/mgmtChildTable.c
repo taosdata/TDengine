@@ -725,13 +725,13 @@ static int32_t mgmtDoGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STab
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     pMeta->sversion     = htons(pTable->superTable->sversion);
-    pMeta->numOfTags    = htons(pTable->superTable->numOfTags);
-    pMeta->numOfColumns = htons(pTable->superTable->numOfColumns);
+    pMeta->numOfTags    = 0;
+    pMeta->numOfColumns = htons((int16_t)pTable->superTable->numOfColumns);
     pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable->superTable);
   } else {
     pMeta->sversion     = htons(pTable->sversion);
     pMeta->numOfTags    = 0;
-    pMeta->numOfColumns = htons(pTable->numOfColumns);
+    pMeta->numOfColumns = htons((int16_t)pTable->numOfColumns);
     pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromNormalTable(pMeta->schema, pTable); 
   }
   
@@ -758,9 +758,9 @@ static int32_t mgmtDoGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STab
 
 void mgmtGetChildTableMeta(SQueuedMsg *pMsg, SChildTableObj *pTable) {
   SCMTableInfoMsg *pInfo = pMsg->pCont;
-  SDbObj *pDb = mgmtGetDbByTableId(pTable->info.tableId);
+  SDbObj *pDb = mgmtGetDbByTableId(pInfo->tableId);
   if (pDb == NULL || pDb->dirty) {
-    mError("table:%s, failed to get table meta, db not selected", pTable->info.tableId);
+    mError("table:%s, failed to get table meta, db not selected", pInfo->tableId);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_DB_NOT_SELECTED);
     return;
   }
@@ -877,7 +877,7 @@ static STableInfo* mgmtGetTableByPos(uint32_t dnodeId, int32_t vnode, int32_t si
     return NULL;
   }
 
-  return pVgroup->tableList[sid];
+  return (STableInfo *)pVgroup->tableList[sid];
 }
 
 static void mgmtProcessTableCfgMsg(SRpcMsg *rpcMsg) {
