@@ -25,6 +25,8 @@
 extern "C" {
 #endif
 
+#define TSDB_FILE_HEAD_SIZE 512
+
 #define tsdbGetKeyFileId(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
 #define tsdbGetMaxNumOfFiles(keep, daysPerFile) ((keep) / (daysPerFile) + 3)
 
@@ -69,6 +71,7 @@ typedef struct {
 
 STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles);
 void        tsdbCloseFileH(STsdbFileH *pFileH);
+int         tsdbCreateFile(char *dataDir, int fileId, char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose);
 int         tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables);
 int         tsdbOpenFile(SFile *pFile, int oflag);
 SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
@@ -104,6 +107,9 @@ typedef struct {
   TSKEY   keyLast;
 } SCompBlock;
 
+#define IS_SUPER_BLOCK(pBlock) ((pBlock)->numOfSubBlocks >= 1)
+#define IS_SUB_BLOCK(pBlock) ((pBlock)->numOfSubBlocks == 0)
+
 typedef struct {
   int32_t    delimiter;  // For recovery usage
   int32_t    checksum;   // TODO: decide if checksum logic in this file or make it one API
@@ -111,8 +117,7 @@ typedef struct {
   SCompBlock blocks[];
 } SCompInfo;
 
-int tsdbLoadCompIdx(SFileGroup *pGroup, void *buf, int maxTables);
-int tsdbLoadCompBlocks(SFileGroup *pGroup, SCompIdx *pIdx, void *buf);
+#define TSDB_COMPBLOCK_AT(pCompInfo, idx) ((pCompInfo)->blocks + (idx))
 
 // TODO: take pre-calculation into account
 typedef struct {
@@ -129,6 +134,13 @@ typedef struct {
   int64_t  uid;        // For recovery usage
   SCompCol cols[];
 } SCompData;
+int tsdbCopyCompBlockToFile(SFile *outFile, SFile *inFile, SCompInfo *pCompInfo, int index, int isOutLast);
+
+int tsdbLoadCompIdx(SFileGroup *pGroup, void *buf, int maxTables);
+int tsdbLoadCompBlocks(SFileGroup *pGroup, SCompIdx *pIdx, void *buf);
+int tsdbLoadCompCols(SFile *pFile, SCompBlock *pBlock, void *buf);
+int tsdbLoadColData(SFile *pFile, SCompCol *pCol, int64_t blockBaseOffset, void *buf);
+// TODO: need an API to merge all sub-block data into one
 
 int tsdbWriteBlockToFile(SFileGroup *pGroup, SCompInfo *pCompInfo, SCompIdx *pIdx, int isMerge, SCompBlock *pBlock, SDataCols *pCols);
 

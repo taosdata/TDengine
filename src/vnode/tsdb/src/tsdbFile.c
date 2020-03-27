@@ -24,7 +24,6 @@
 
 #include "tsdbFile.h"
 
-#define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 
 const char *tsdbFileSuffix[] = {
@@ -35,8 +34,7 @@ const char *tsdbFileSuffix[] = {
 
 static int compFGroupKey(const void *key, const void *fgroup);
 static int compFGroup(const void *arg1, const void *arg2);
-static int tsdbGetFileName(char *dataDir, int fileId, int8_t type, char *fname);
-static int tsdbCreateFile(char *dataDir, int fileId, int8_t type, int maxTables, SFile *pFile);
+static int tsdbGetFileName(char *dataDir, int fileId, char *suffix, char *fname);
 static int tsdbWriteFileHead(SFile *pFile);
 static int tsdbWriteHeadFileIdx(SFile *pFile, int maxTables);
 static SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid);
@@ -71,10 +69,10 @@ int tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables) 
 
   SFileGroup  fGroup;
   SFileGroup *pFGroup = &fGroup;
-  if (tsdbSearchFGroup(pFileH, fid) == NULL) {
+  if (tsdbSearchFGroup(pFileH, fid) == NULL) { // if not exists, create one
     pFGroup->fileId = fid;
     for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
-      if (tsdbCreateFile(dataDir, fid, type, maxTables, &(pFGroup->files[type])) < 0) {
+      if (tsdbCreateFile(dataDir, fid, tsdbFileSuffix[type], maxTables, &(pFGroup->files[type]), type == TSDB_FILE_TYPE_HEAD ? 1 : 0, 1) < 0) {
         // TODO: deal with the ERROR here, remove those creaed file
         return -1;
       }
@@ -105,6 +103,10 @@ int tsdbRemoveFileGroup(STsdbFileH *pFileH, int fid) {
 
   return 0;
 }
+int tsdbCopyCompBlockToFile(SFile *outFile, SFile *inFile, SCompInfo *pCompInfo, int index, int isOutLast) {
+  // TODO
+  return 0;
+}
 
 int tsdbLoadCompIdx(SFileGroup *pGroup, void *buf, int maxTables) {
   SFile *pFile = &(pGroup->files[TSDB_FILE_TYPE_HEAD]);
@@ -124,6 +126,22 @@ int tsdbLoadCompBlocks(SFileGroup *pGroup, SCompIdx *pIdx, void *buf) {
 
   // TODO: need to check the correctness
 
+  return 0;
+}
+
+int tsdbLoadCompCols(SFile *pFile, SCompBlock *pBlock, void *buf) {
+  // assert(pBlock->numOfSubBlocks == 0 || pBlock->numOfSubBlocks == 1);
+
+  if (lseek(pFile->fd, pBlock->offset, SEEK_SET) < 0) return -1;
+  size_t size = sizeof(SCompData) + sizeof(SCompCol) * pBlock->numOfCols;
+  if (read(pFile->fd, buf, size) < 0) return -1;
+
+  return 0;
+}
+
+int tsdbLoadColData(SFile *pFile, SCompCol *pCol, int64_t blockBaseOffset, void *buf) {
+  if (lseek(pFile->fd, blockBaseOffset + pCol->offset, SEEK_SET) < 0) return -1;
+  if (read(pFile->fd, buf, pCol->len) < 0) return -1;
   return 0;
 }
 
@@ -229,10 +247,10 @@ static int tsdbWriteHeadFileIdx(SFile *pFile, int maxTables) {
   return 0;
 }
 
-static int tsdbGetFileName(char *dataDir, int fileId, int8_t type, char *fname) {
-  if (dataDir == NULL || fname == NULL || !IS_VALID_TSDB_FILE_TYPE(type)) return -1;
+static int tsdbGetFileName(char *dataDir, int fileId, char *suffix, char *fname) {
+  if (dataDir == NULL || fname == NULL) return -1;
 
-  sprintf(fname, "%s/f%d%s", dataDir, fileId, tsdbFileSuffix[type]);
+  sprintf(fname, "%s/f%d%s", dataDir, fileId, suffix);
 
   return 0;
 }
@@ -264,12 +282,12 @@ static int tsdbCloseFile(SFile *pFile) {
   return ret;
 }
 
-static int tsdbCreateFile(char *dataDir, int fileId, int8_t type, int maxTables, SFile *pFile) {
+int tsdbCreateFile(char *dataDir, int fileId, char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose) {
   memset((void *)pFile, 0, sizeof(SFile));
-  pFile->type = type;
   pFile->fd = -1;
 
-  tsdbGetFileName(dataDir, fileId, type, pFile->fname);
+  tsdbGetFileName(dataDir, fileId, suffix, pFile->fname);
+  
   if (access(pFile->fname, F_OK) == 0) {
     // File already exists
     return -1;
@@ -280,7 +298,7 @@ static int tsdbCreateFile(char *dataDir, int fileId, int8_t type, int maxTables,
     return -1;
   }
 
-  if (type == TSDB_FILE_TYPE_HEAD) {
+  if (writeHeader) {
     if (tsdbWriteHeadFileIdx(pFile, maxTables) < 0) {
       tsdbCloseFile(pFile);
       return -1;
@@ -292,7 +310,7 @@ static int tsdbCreateFile(char *dataDir, int fileId, int8_t type, int maxTables,
     return -1;
   }
 
-  tsdbCloseFile(pFile);
+  if (toClose) tsdbCloseFile(pFile);
 
   return 0;
 }
