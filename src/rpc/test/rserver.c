@@ -28,25 +28,23 @@ void *qhandle = NULL;
 void processShellMsg() {
   static int num = 0;
   taos_qall  qall;
-  SRpcMsg   *pRpcMsg, rpcMsg;
-  int        type;
- 
-  qall = taosAllocateQall();
+  SRpcMsg    rpcMsg;
 
   while (1) {
-    int numOfMsgs = taosReadAllQitems(qhandle, qall);
+    int numOfMsgs = taosReadAllQitems(qhandle, &qall);
     if (numOfMsgs <= 0) {
       usleep(1000);
       continue;
     }     
 
     tTrace("%d shell msgs are received", numOfMsgs);
+    sleep(5);
 
     for (int i=0; i<numOfMsgs; ++i) {
-      taosGetQitem(qall, &type, (void **)&pRpcMsg);
+      taosGetQitem(qall, &rpcMsg);
  
       if (dataFd >=0) {
-        if ( write(dataFd, pRpcMsg->pCont, pRpcMsg->contLen) <0 ) {
+        if ( write(dataFd, rpcMsg.pCont, rpcMsg.contLen) <0 ) {
           tPrint("failed to write data file, reason:%s", strerror(errno));
         }
       }
@@ -65,22 +63,19 @@ void processShellMsg() {
   
     taosResetQitems(qall);
     for (int i=0; i<numOfMsgs; ++i) {
+      taosGetQitem(qall, &rpcMsg);
 
-      taosGetQitem(qall, &type, (void **)&pRpcMsg);
-      rpcFreeCont(pRpcMsg->pCont);
-
+      rpcFreeCont(rpcMsg.pCont);
       rpcMsg.pCont = rpcMallocCont(msgSize);
       rpcMsg.contLen = msgSize;
-      rpcMsg.handle = pRpcMsg->handle;
+      rpcMsg.handle = rpcMsg.handle;
       rpcMsg.code = 1;
       rpcSendResponse(&rpcMsg);
-
-      taosFreeQitem(pRpcMsg);
     }
 
+    taosFreeQitems(qall);
   }
 
-  taosFreeQall(qall);
 /*
   SRpcIpSet ipSet;
   ipSet.numOfIps = 1;
@@ -114,21 +109,17 @@ int retrieveAuthInfo(char *meterId, char *spi, char *encrypt, char *secret, char
 }
 
 void processRequestMsg(SRpcMsg *pMsg) {
-  SRpcMsg *pTemp;
-
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
-  memcpy(pTemp, pMsg, sizeof(SRpcMsg));
-
-  tTrace("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
-  taosWriteQitem(qhandle, TAOS_QTYPE_RPC, pTemp); 
+  tTrace("request is received, type:%d, contLen:%d", pMsg->msgType, pMsg->contLen);
+  taosWriteQitem(qhandle, pMsg); 
 }
 
 int main(int argc, char *argv[]) {
   SRpcInit rpcInit;
   char     dataName[20] = "server.data";
+  char     localIp[40] = "0.0.0.0";
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp      = "0.0.0.0";
+  rpcInit.localIp      = localIp;
   rpcInit.localPort    = 7000;
   rpcInit.label        = "SER";
   rpcInit.numOfThreads = 1;
@@ -154,7 +145,6 @@ int main(int argc, char *argv[]) {
       commit = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
       rpcDebugFlag = atoi(argv[++i]);
-      ddebugFlag = rpcDebugFlag;
       uDebugFlag = rpcDebugFlag;
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
