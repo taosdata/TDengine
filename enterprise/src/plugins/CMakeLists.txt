@@ -3,7 +3,7 @@ PROJECT(TDengine)
 
 IF (TD_CLUSTER)
   #ADD_SUBDIRECTORY(admin)
-  #ADD_SUBDIRECTORY(account)
+  ADD_SUBDIRECTORY(account)
   #ADD_SUBDIRECTORY(balance)
   #ADD_SUBDIRECTORY(cluster)
   #ADD_SUBDIRECTORY(grant)
