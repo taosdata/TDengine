@@ -5310,11 +5310,6 @@ static int32_t validateQueryMeterMsg(SQueryTableMsg *pQueryTableMsg) {
     return -1;
   }
 
-  if (pQueryTableMsg->tagLength < 0) {
-    dError("qmsg:%p illegal value of tag length %d", pQueryTableMsg, pQueryTableMsg->tagLength);
-    return -1;
-  }
-
   return 0;
 }
 
@@ -5353,7 +5348,8 @@ static char* createTableIdList(SQueryTableMsg* pQueryTableMsg, char* pMsg, SArra
  * @param pExpr
  * @return
  */
-static int32_t convertQueryMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableIdList, SSqlFuncExprMsg ***pExpr) {
+static int32_t convertQueryMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableIdList, SSqlFuncExprMsg ***pExpr,
+      wchar_t** tagCond) {
   pQueryTableMsg->numOfTables   = htonl(pQueryTableMsg->numOfTables);
 
   pQueryTableMsg->window.skey   = htobe64(pQueryTableMsg->window.skey);
@@ -5372,7 +5368,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableId
   pQueryTableMsg->numOfCols     = htons(pQueryTableMsg->numOfCols);
   pQueryTableMsg->numOfOutputCols = htons(pQueryTableMsg->numOfOutputCols);
   pQueryTableMsg->numOfGroupCols = htons(pQueryTableMsg->numOfGroupCols);
-  pQueryTableMsg->tagLength     = htons(pQueryTableMsg->tagLength);
+  pQueryTableMsg->tagCondLen     = htons(pQueryTableMsg->tagCondLen);
 
   pQueryTableMsg->tsOffset      = htonl(pQueryTableMsg->tsOffset);
   pQueryTableMsg->tsLen         = htonl(pQueryTableMsg->tsLen);
@@ -5428,7 +5424,6 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableId
   bool hasArithmeticFunction = false;
 
   *pExpr = calloc(pQueryTableMsg->numOfOutputCols, POINTER_BYTES);
-  
   SSqlFuncExprMsg *pExprMsg = (SSqlFuncExprMsg *)pMsg;
 
   for (int32_t i = 0; i < pQueryTableMsg->numOfOutputCols; ++i) {
@@ -5501,6 +5496,14 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableId
     for (int32_t i = 0; i < pQueryTableMsg->numOfOutputCols; ++i) {
       v[i] = htobe64(v[i]);
     }
+    
+    pMsg += sizeof(int64_t) * pQueryTableMsg->numOfOutputCols;
+  }
+  
+  // the tag query condition expression string is located at the end of query msg
+  if (pQueryTableMsg->tagCondLen > 0) {
+    *tagCond = calloc(1, pQueryTableMsg->tagCondLen * TSDB_NCHAR_SIZE);
+    memcpy(*tagCond, pMsg, pQueryTableMsg->tagCondLen * TSDB_NCHAR_SIZE);
   }
 
   dTrace("qmsg:%p query on %d meter(s), qrange:%" PRId64 "-%" PRId64 ", numOfGroupbyTagCols:%d, numOfTagCols:%d, "
@@ -5993,9 +5996,9 @@ void vnodeFreeQInfo(SQInfo *pQInfo) {
 static int32_t createQInfo(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr, SSqlFunctionExpr *pSqlExprs,
                            SArray *pTableIdList, void* tsdb, SQInfo **pQInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
-
+  
   (*pQInfo) = createQInfoImpl(pQueryMsg, pGroupbyExpr, pSqlExprs, pTableIdList);
-  if (pQInfo == NULL) {
+  if ((*pQInfo) == NULL) {
     code = TSDB_CODE_SERV_OUT_OF_MEMORY;
     goto _error;
   }
@@ -6024,6 +6027,7 @@ static int32_t createQInfo(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyE
     tsBufNextPos(pTSBuf);
   }
 
+  // filter the qualified
   if ((code = initQInfo(*pQInfo, pTSBuf, tsdb)) != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -6050,7 +6054,9 @@ int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryTableMsg, SQInfo **pQ
   
   SArray *pTableIdList = NULL;
   SSqlFuncExprMsg** pExprMsg = NULL;
-  if ((code = convertQueryMsg(pQueryTableMsg, &pTableIdList, &pExprMsg)) != TSDB_CODE_SUCCESS) {
+  wchar_t* tagCond = NULL;
+  
+  if ((code = convertQueryMsg(pQueryTableMsg, &pTableIdList, &pExprMsg, &tagCond)) != TSDB_CODE_SUCCESS) {
     return code;
   }
 
@@ -6076,7 +6082,18 @@ int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryTableMsg, SQInfo **pQ
   if ((pGroupbyExpr == NULL && pQueryTableMsg->numOfGroupCols != 0) || code != TSDB_CODE_SUCCESS) {
     goto _query_over;
   }
-
+  
+  // super table query
+  if ((pQueryTableMsg->queryType & TSDB_QUERY_TYPE_STABLE_QUERY) != 0) {
+    STableId* id = taosArrayGet(pTableIdList, 0);
+    
+    SArray* res = tsdbQueryTableList(tsdb, id->uid, tagCond, pQueryTableMsg->tagCondLen);
+    if (taosArrayGetSize(res) == 0) { // no qualified table in stable query in this vnode
+      code = TSDB_CODE_SUCCESS;
+      goto _query_over;
+    }
+  }
+  
   code = createQInfo(pQueryTableMsg, pGroupbyExpr, pExprs, pTableIdList, tsdb, pQInfo);
 
 _query_over:

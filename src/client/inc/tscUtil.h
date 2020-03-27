@@ -177,7 +177,7 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId);
 
 // get starter position of metric query condition (query on tags) in SSqlCmd.payload
 SCond* tsGetSTableQueryCondPos(STagCond* pCond, uint64_t tableIndex);
-void   tsSetMetricQueryCond(STagCond* pTagCond, uint64_t uid, const char* str);
+void   tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, const char* str);
 
 void tscTagCondCopy(STagCond* dest, const STagCond* src);
 void tscTagCondRelease(STagCond* pCond);
