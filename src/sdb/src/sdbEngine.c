@@ -287,7 +287,7 @@ sdb_exit1:
   return -1;
 }
 
-void *sdbOpenTable(int maxRows, int32_t maxRowSize, char *name, uint8_t keyType, char *directory,
+void *sdbOpenTable(int maxRows, int32_t maxRowSize, char *name, char keyType, char *directory,
                    void *(*appTool)(char, void *, char *, int, int *)) {
   SSdbTable *pTable = (SSdbTable *)malloc(sizeof(SSdbTable));
   if (pTable == NULL) return NULL;
@@ -810,11 +810,10 @@ void sdbResetTable(SSdbTable *pTable) {
   SRowHead *rowHead = NULL;
   void *    pMetaRow = NULL;
   int64_t   oldId = pTable->id;
-  //TODO: check
-  //int       oldNumOfRows = pTable->numOfRows;
+  int       oldNumOfRows = pTable->numOfRows;
 
   if (sdbOpenSdbFile(pTable) < 0) return;
-  //pTable->numOfRows = oldNumOfRows;
+  pTable->numOfRows = oldNumOfRows;
 
   total_size = sizeof(SRowHead) + pTable->maxRowSize + sizeof(TSCKSUM);
   rowHead = (SRowHead *)malloc(total_size);

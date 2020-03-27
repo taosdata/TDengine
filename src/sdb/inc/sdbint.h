@@ -127,7 +127,7 @@ typedef struct {
 } SMnodeStatus;
 
 typedef struct {
-  uint8_t  dbId;
+  char     dbId;
   char     type;
   uint64_t version;
   short    dataLen;
