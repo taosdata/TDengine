@@ -381,7 +381,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
   int32_t headSize = 0;
   
   // first tag column
-  STColumn* s = pSTable->tagSchema->columns[0]; //???
+  STColumn* s = schemaColAt(pSTable->tagSchema, 0);
   
   tSkipListRandNodeInfo(pSTable->pIndex, &level, &headSize);
   SSkipListNode* pNode = calloc(1, headSize + s->bytes + POINTER_BYTES);
@@ -389,7 +389,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
   
   SSkipList* list = pSTable->pIndex;
   
-  memcpy(SL_GET_NODE_KEY(list, pNode),  dataRowTuple(pTable->tagVal), s->columns[0].bytes);
+  memcpy(SL_GET_NODE_KEY(list, pNode),  dataRowTuple(pTable->tagVal), colBytes(s));
   memcpy(SL_GET_NODE_DATA(pNode), &pTable, POINTER_BYTES);
   
   tSkipListPut(list, pNode);

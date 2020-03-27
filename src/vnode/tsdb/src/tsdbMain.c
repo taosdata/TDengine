@@ -84,7 +84,8 @@ static int     tsdbOpenMetaFile(char *tsdbDir);
 static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock);
 static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
 static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
-static void *  tsdbCommitToFile(void *arg);
+static void *  tsdbCommitData(void *arg);
+static int     tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters, SDataCols *pCols);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -327,7 +328,7 @@ int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
   pRepo->tsdbCache->curBlock = NULL;
 
   // TODO: here should set as detached or use join for memory leak
-  pthread_create(&(pRepo->commitThread), NULL, tsdbCommitToFile, (void *)repo);
+  pthread_create(&(pRepo->commitThread), NULL, tsdbCommitData, (void *)repo);
   tsdbUnLockRepo(repo);
 
   return 0;
@@ -761,24 +762,22 @@ static int32_t tsdbInsertDataToTable(tsdb_repo_t *repo, SSubmitBlk *pBlock) {
   return 0;
 }
 
-static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCol **cols, STSchema *pSchema) {
+static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols) {
   int numOfRows = 0;
+
   do {
     SSkipListNode *node = tSkipListIterGet(pIter);
     if (node == NULL) break;
 
     SDataRow row = SL_GET_NODE_DATA(node);
     if (dataRowKey(row) > maxKey) break;
-    // Convert row data to column data
-    // for (int i = 0; i < schemaNCols(pSchema); i++) {
-    //   STColumn *pCol = schemaColAt(pSchema, i);
-    //   memcpy(cols[i]->data + TYPE_BYTES[colType(pCol)] * numOfRows, dataRowAt(row, pCol->offset),
-    //          TYPE_BYTES[colType(pCol)]);
-    // }
+
+    tdAppendDataRowToDataCol(row, pCols);
 
     numOfRows++;
     if (numOfRows > maxRowsToRead) break;
   } while (tSkipListIterNext(pIter));
+
   return numOfRows;
 }
 
@@ -816,14 +815,14 @@ static SSkipListIterator **tsdbCreateTableIters(STsdbMeta *pMeta, int maxTables)
 }
 
 // Commit to file
-static void *tsdbCommitToFile(void *arg) {
+static void *tsdbCommitData(void *arg) {
   // TODO
   printf("Starting to commit....\n");
   STsdbRepo * pRepo = (STsdbRepo *)arg;
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbCache *pCache = pRepo->tsdbCache;
   STsdbCfg * pCfg = &(pRepo->config);
-  if (pCache->imem == NULL) return;
+  if (pCache->imem == NULL) return NULL;
 
   // Create the iterator to read from cache
   SSkipListIterator **iters = tsdbCreateTableIters(pMeta, pCfg->maxTables);
@@ -832,52 +831,23 @@ static void *tsdbCommitToFile(void *arg) {
     return NULL;
   }
 
-  int maxCols = pMeta->maxCols;
-  int maxBytes = pMeta->maxRowBytes;
-  SDataCol **cols = (SDataCol **)malloc(sizeof(SDataCol *) * maxCols);
-  void *buf = malloc((maxBytes + sizeof(SDataCol)) * pCfg->maxRowsPerFileBlock);
+  // Create a data column buffer for commit
+  SDataCols *pCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock);
+  if (pCols == NULL) {
+    // TODO: deal with the error
+    return NULL;
+  }
 
   int sfid = tsdbGetKeyFileId(pCache->imem->keyFirst, pCfg->daysPerFile, pCfg->precision);
   int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);
 
   for (int fid = sfid; fid <= efid; fid++) {
-    TSKEY minKey = 0, maxKey = 0;
-    tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
-
-    // tsdbOpenFileForWrite(pRepo, fid);
-
-    for (int tid = 0; tid < pCfg->maxTables; tid++) {
-      STable *pTable = pMeta->tables[tid];
-      if (pTable == NULL || pTable->imem == NULL) continue;
-      if (iters[tid] == NULL) {  // create table iterator
-        iters[tid] = tSkipListCreateIter(pTable->imem->pData);
-        // TODO: deal with the error
-        if (iters[tid] == NULL) break;
-        if (!tSkipListIterNext(iters[tid])) {
-          // assert(0);
-        }
-      }
-
-      // Init row data part
-      cols[0] = (SDataCol *)buf;
-      for (int col = 1; col < schemaNCols(pTable->schema); col++) {
-        cols[col] = (SDataCol *)((char *)(cols[col - 1]) + sizeof(SDataCol) + colBytes(schemaColAt(pTable->schema, col-1)) * pCfg->maxRowsPerFileBlock);
-      }
-
-      // Loop the iterator
-      int rowsRead = 0;
-      while ((rowsRead = tsdbReadRowsFromCache(iters[tid], maxKey, pCfg->maxRowsPerFileBlock, cols, pTable->schema)) >
-             0) {
-        // printf("rowsRead:%d-----------\n", rowsRead);
-        int k = 0;
-      }
-    }
+    tsdbCommitToFile(pRepo, fid, iters, pCols);
   }
 
+  tdFreeDataCols(pCols);
   tsdbDestroyTableIters(iters, pCfg->maxTables);
 
-  free(buf);
-  free(cols);
 
   tsdbLockRepo(arg);
   tdListMove(pCache->imem->list, pCache->pool.memPool);
@@ -894,4 +864,125 @@ static void *tsdbCommitToFile(void *arg) {
   tsdbUnLockRepo(arg);
 
   return NULL;
+}
+
+static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters, SDataCols *pCols) {
+  int flag = 0;
+
+  STsdbMeta * pMeta = pRepo->tsdbMeta;
+  STsdbFileH *pFileH = pRepo->tsdbFileH;
+  STsdbCfg *  pCfg = &pRepo->config;
+  SFile       tFile, lFile;
+  SFileGroup *pGroup = NULL;
+  SCompIdx *  pIndices = NULL;
+  SCompInfo * pCompInfo = NULL;
+  size_t      compInfoSize = 0;
+  SCompBlock  compBlock;
+  SCompBlock *pBlock = &compBlock;
+
+  TSKEY minKey = 0, maxKey = 0;
+  tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
+
+  for (int tid = 0; tid < pCfg->maxTables; tid++) {
+    STable *           pTable = pMeta->tables[tid];
+    SSkipListIterator *pIter = iters[tid];
+    int isLoadCompBlocks = 0;
+
+    if (pIter == NULL) continue;
+    tdInitDataCols(pCols, pTable->schema);
+
+    int numOfWrites = 0;
+    // while (tsdbReadRowsFromCache(pIter, maxKey, pCfg->maxRowsPerFileBlock, pCols)) {
+    //   break;
+    //   if (!flag) {
+    //     // There are data to commit to this file, we need to create/open it for read/write.
+    //     // At the meantime, we set the flag to prevent further create/open operations
+    //     if (tsdbCreateFGroup(pFileH, pRepo->rootDir, fid, pCfg->maxTables) < 0) {
+    //       // TODO: deal with the ERROR here
+    //     }
+    //     // Open files for commit
+    //     pGroup = tsdbOpenFilesForCommit(pFileH, fid);
+    //     if (pGroup == NULL) {
+    //       // TODO: deal with the ERROR here
+    //     }
+    //     // TODO: open .h file and if neccessary, open .l file
+    //     {}
+    //     pIndices = (SCompIdx *)malloc(sizeof(SCompIdx) * pCfg->maxTables);
+    //     if (pIndices == NULL) {
+    //       // TODO: deal with the ERROR
+    //     }
+    //     // load the SCompIdx part
+    //     if (tsdbLoadCompIdx(pGroup, (void *)pIndices, pCfg->maxTables) < 0) {
+    //       // TODO: deal with the ERROR here
+    //     }
+
+    //     // TODO: sendfile those not need changed table content
+    //     for (int ttid = 0; ttid < tid; ttid++) {
+    //       // SCompIdx *pIdx = &pIndices[ttid];
+    //       // if (pIdx->len > 0) {
+    //       //   lseek(pGroup->files[TSDB_FILE_TYPE_HEAD].fd, pIdx->offset, 0, SEEK_CUR);
+    //       //   sendfile(fd, pGroup->files[TSDB_FILE_TYPE_HEAD].fd, NULL, pIdx->len);
+    //       // }
+    //     }
+    //     flag = 1;
+    //   }
+
+    //   SCompIdx *pIdx = &pIndices[tid];
+
+    //   /* The first time to write to the table, need to decide
+    //    * if it is neccessary to load the SComplock part. If it
+    //    * is needed, just load it, or, just use sendfile and
+    //    * append it.
+    //    */
+    //   if (numOfWrites == 0 && pIdx->offset > 0) {
+    //     if (dataColsKeyFirst(pCols) <= pIdx->maxKey || pIdx->hasLast) {
+    //       pCompInfo = (SCompInfo *)realloc((void *)pCompInfo, pIdx->len);
+    //       if (tsdbLoadCompBlocks(pGroup, pIdx, (void *)pCompInfo) < 0) {
+    //         // TODO: deal with the ERROR here
+    //       }
+    //       if (pCompInfo->uid == pTable->tableId.uid) isLoadCompBlocks = 1;
+    //     } else {
+    //       // TODO: sendfile the prefix part
+    //     }
+    //   }
+
+    //   // if (tsdbWriteBlockToFile(pGroup, pCompInfo, pIdx, isLoadCompBlocks, pBlock, pCols) < 0) {
+    //   //   // TODO: deal with the ERROR here
+    //   // }
+
+    //   // pCompInfo = tsdbMergeBlock(pCompInfo, pBlock);
+
+
+    //   // if (1 /* the SCompBlock part is not loaded*/) {
+    //   //   // Append to .data file generate a SCompBlock and record it
+    //   // } else {
+    //   // }
+
+    //   // // TODO: need to reset the pCols
+
+    //   numOfWrites++;
+    // }
+
+    // if (pCols->numOfPoints > 0) { 
+    //   // TODO: still has data to commit, commit it
+    // }
+
+    // if (1/* SCompBlock part is loaded, write it to .head file*/) {
+    //   // TODO
+    // } else {
+    //   // TODO: use sendfile send the old part and append the newly added part
+    // }
+  }
+
+  // Write the SCompIdx part
+
+  // Close all files and return 
+  if (flag) {
+    // TODO
+  }
+
+  if (pIndices) free(pIndices);
+  if (pCompInfo) free(pCompInfo);
+
+  return 0;
 }
