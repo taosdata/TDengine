@@ -1,3 +1,7 @@
+[![Build Status](https://travis-ci.org/taosdata/TDengine.svg?branch=develop)](https://travis-ci.org/taosdata/TDengine)
+[![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/develop?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/develop)
+
+
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
 # What is TDengine？
