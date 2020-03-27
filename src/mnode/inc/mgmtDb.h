@@ -28,6 +28,7 @@ void    mgmtCleanUpDbs();
 SDbObj *mgmtGetDb(char *db);
 SDbObj *mgmtGetDbByTableId(char *db);
 bool    mgmtCheckIsMonitorDB(char *db, char *monitordb);
+void    mgmtDropAllDbs(SAcctObj *pAcct);
 
 // util func
 void mgmtAddSuperTableIntoDb(SDbObj *pDb);

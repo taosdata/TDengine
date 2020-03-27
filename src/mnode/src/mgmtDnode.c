@@ -36,7 +36,6 @@ void *     (*mgmtGetNextDnodeFp)(SShowObj *pShow, SDnodeObj **pDnode) = NULL;
 void       (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode) = NULL;
 
 static SDnodeObj tsDnodeObj = {0};
-static void *  mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode);
 static bool    mgmtCheckConfigShow(SGlobalConfig *cfg);
 static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn);

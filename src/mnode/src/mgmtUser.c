@@ -28,7 +28,6 @@
 static void   *tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
 
-static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
 static int32_t mgmtDropUser(SAcctObj *pAcct, char *name);
 static int32_t mgmtUpdateUser(SUserObj *pUser);
 static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
@@ -155,7 +154,7 @@ static int32_t mgmtUpdateUser(SUserObj *pUser) {
   return code;
 }
 
-static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
+int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
   int32_t code = mgmtCheckUserLimit(pAcct);
   if (code != 0) {
     return code;
@@ -481,4 +480,31 @@ static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
   }
 
   mgmtSendSimpleResp(pMsg->thandle, code);
+}
+
+void  mgmtDropAllUsers(SAcctObj *pAcct)  {
+  void *pNode = NULL;
+  void *pLastNode = NULL;
+  int32_t numOfUsers = 0;
+  int32_t acctNameLen = strlen(pAcct->user);
+  SUserObj *pUser = NULL;
+
+  while (1) {
+    pNode = sdbFetchRow(tsUserSdb, pNode, (void **)&pUser);
+    if (pUser == NULL) break;
+
+    if (strncmp(pUser->acct, pAcct->user, acctNameLen) == 0) {
+      SSdbOperDesc oper = {
+        .type = SDB_OPER_TYPE_LOCAL,
+        .table = tsUserSdb,
+        .pObj = pUser,
+      };
+      sdbDeleteRow(&oper);
+      pNode = pLastNode;
+      numOfUsers++;
+      continue;
+    }
+  }
+
+  mTrace("acct:%s, all users is dropped from sdb", pAcct->acctId, numOfUsers);
 }

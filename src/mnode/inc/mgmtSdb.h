@@ -63,6 +63,7 @@ int32_t sdbUpdateRow(SSdbOperDesc *pOper);
 void    *sdbGetRow(void *handle, void *key);
 void    *sdbFetchRow(void *handle, void *pNode, void **ppRow);
 int64_t  sdbGetNumOfRows(void *handle);
+int64_t  sdbGetId(void *handle);
 uint64_t sdbGetVersion();
 
 #ifdef __cplusplus

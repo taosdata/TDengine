@@ -25,6 +25,7 @@ int32_t mgmtInitDnodes();
 void    mgmtCleanUpDnodes();
 int32_t mgmtGetDnodesNum();
 int32_t mgmtUpdateDnode(SDnodeObj *pDnode);
+void *  mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode);
 SDnodeObj* mgmtGetDnode(int32_t dnodeId);
 SDnodeObj* mgmtGetDnodeByIp(uint32_t ip);
 

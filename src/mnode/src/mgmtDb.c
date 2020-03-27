@@ -899,3 +899,20 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
   newMsg->ahandle = pDb;
   taosTmrReset(mgmtDropDb, 10, newMsg, tsMgmtTmr, &tmpTmr);
 }
+
+void  mgmtDropAllDbs(SAcctObj *pAcct)  {
+  int32_t numOfDbs = 0;
+  SDbObj *pDb = NULL;
+
+  while (1) {
+    void *pNode = sdbFetchRow(tsDbSdb, pNode, (void **)&pDb);
+    if (pDb == NULL) break;
+
+    if (pDb->pAcct == pAcct) {
+      mgmtSetDbDirty(pDb);
+      numOfDbs++;
+    }
+  }
+
+  mTrace("acct:%s, all dbs is is set dirty", pAcct->acctId, numOfDbs);
+}
