@@ -203,19 +203,13 @@ typedef struct SQInfo {
  * @param pQInfo
  * @return
  */
-int32_t qCreateQueryInfo(void* pVnode, SQueryTableMsg* pQueryTableMsg, void* param, SQInfo** pQInfo);
+int32_t qCreateQueryInfo(void* pVnode, SQueryTableMsg* pQueryTableMsg, SQInfo** pQInfo);
 
 /**
  * query on single table
  * @param pReadMsg
  */
 void qTableQuery(SQInfo* pQInfo);
-
-/**
- * query on super table
- * @param pReadMsg
- */
-void qSuperTableQuery(void* pReadMsg);
 
 /**
  * wait for the query completed, and retrieve final results to client

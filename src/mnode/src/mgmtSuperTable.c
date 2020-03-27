@@ -216,7 +216,7 @@ void* mgmtGetSuperTable(char *tableId) {
 }
 
 static void *mgmtGetSuperTableVgroup(SSuperTableObj *pStable) {
-  SCMSuperTableInfoRsp *rsp = rpcMallocCont(sizeof(SCMSuperTableInfoRsp) + sizeof(uint32_t) * mgmtGetDnodesNum());
+  SCMSTableVgroupRspMsg *rsp = rpcMallocCont(sizeof(SCMSTableVgroupRspMsg) + sizeof(uint32_t) * mgmtGetDnodesNum());
   rsp->numOfDnodes = htonl(1);
   rsp->dnodeIps[0] = htonl(inet_addr(tsPrivateIp));
   return rsp;
@@ -628,14 +628,14 @@ void mgmtGetSuperTableMeta(SQueuedMsg *pMsg, SSuperTableObj *pTable) {
 }
 
 static void mgmtProcessSuperTableVgroupMsg(SQueuedMsg *pMsg) {
-  SCMSuperTableInfoMsg *pInfo = pMsg->pCont;
+  SCMSTableVgroupMsg *pInfo = pMsg->pCont;
   STableInfo *pTable = mgmtGetSuperTable(pInfo->tableId);
   if (pTable == NULL) {
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_INVALID_TABLE);
     return;
   }
 
-  SCMSuperTableInfoRsp *pRsp = mgmtGetSuperTableVgroup((SSuperTableObj *) pTable);
+  SCMSTableVgroupRspMsg *pRsp = mgmtGetSuperTableVgroup((SSuperTableObj *) pTable);
   if (pRsp != NULL) {
     int32_t msgLen = sizeof(SSuperTableObj) + htonl(pRsp->numOfDnodes) * sizeof(int32_t);
     SRpcMsg rpcRsp = {0};

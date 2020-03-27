@@ -53,7 +53,7 @@ void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* str, uint64_t uid) {
 
   const int32_t maxKeySize = TSDB_MAX_TAGS_LEN;  // allowed max key size
 
-  SCond* cond = tsGetMetricQueryCondPos(pTagCond, uid);
+  SCond* cond = tsGetSTableQueryCondPos(pTagCond, uid);
 
   char join[512] = {0};
   if (pTagCond->joinInfo.hasJoin) {
@@ -92,7 +92,7 @@ void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* str, uint64_t uid) {
   free(tmp);
 }
 
-SCond* tsGetMetricQueryCondPos(STagCond* pTagCond, uint64_t uid) {
+SCond* tsGetSTableQueryCondPos(STagCond* pTagCond, uint64_t uid) {
   for (int32_t i = 0; i < TSDB_MAX_JOIN_TABLE_NUM; ++i) {
     if (uid == pTagCond->cond[i].uid) {
       return &pTagCond->cond[i];
@@ -122,7 +122,7 @@ bool tscQueryOnMetric(SSqlCmd* pCmd) {
          (pCmd->msgType == TSDB_MSG_TYPE_QUERY);
 }
 
-bool tscQueryMetricTags(SQueryInfo* pQueryInfo) {
+bool tscQueryTags(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
     if (tscSqlExprGet(pQueryInfo, i)->functionId != TSDB_FUNC_TAGPRJ) {
       return false;
@@ -172,6 +172,7 @@ void tscGetDBInfoFromMeterId(char* tableId, char* db) {
 }
 
 SVnodeSidList* tscGetVnodeSidList(SSuperTableMeta* pMetricmeta, int32_t vnodeIdx) {
+#if 0
   if (pMetricmeta == NULL) {
     tscError("illegal metricmeta");
     return 0;
@@ -189,6 +190,8 @@ SVnodeSidList* tscGetVnodeSidList(SSuperTableMeta* pMetricmeta, int32_t vnodeIdx
   }
 
   return (SVnodeSidList*)(pMetricmeta->list[vnodeIdx] + (char*)pMetricmeta);
+#endif
+
 }
 
 STableIdInfo* tscGetMeterSidInfo(SVnodeSidList* pSidList, int32_t idx) {
@@ -221,12 +224,12 @@ bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   
   // for select query super table, the metricmeta can not be null in any cases.
   if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-    assert(pTableMetaInfo->pMetricMeta != NULL);
+//    assert(pTableMetaInfo->pMetricMeta != NULL);
   }
   
-  if (pTableMetaInfo->pMetricMeta == NULL) {
-    return false;
-  }
+//  if (pTableMetaInfo->pMetricMeta == NULL) {
+//    return false;
+//  }
   
   if ((pQueryInfo->type & TSDB_QUERY_TYPE_FREE_RESOURCE) == TSDB_QUERY_TYPE_FREE_RESOURCE) {
     return false;
@@ -259,12 +262,12 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   }
   
   // only query on tag, not a projection query
-  if (tscQueryMetricTags(pQueryInfo)) {
+  if (tscQueryTags(pQueryInfo)) {
     return false;
   }
   
   // for project query, only the following two function is allowed
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < pQueryInfo->exprsInfo.numOfExprs; ++i) {
     int32_t functionId = tscSqlExprGet(pQueryInfo, i)->functionId;
     if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TAGPRJ && functionId != TSDB_FUNC_TAG &&
         functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_ARITHM) {
@@ -1925,7 +1928,7 @@ STableMetaInfo* tscAddMeterMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;
-  pTableMetaInfo->pMetricMeta = pMetricMeta;
+//  pTableMetaInfo->pMetricMeta = pMetricMeta;
   pTableMetaInfo->numOfTags = numOfTags;
 
   if (tags != NULL) {
@@ -1975,7 +1978,7 @@ void tscClearMeterMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache)
   }
 
   taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pTableMeta), removeFromCache);
-  taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pMetricMeta), removeFromCache);
+//  taosCacheRelease(tscCacheHandle, (void**)&(pTableMetaInfo->pMetricMeta), removeFromCache);
 }
 
 void tscResetForNextRetrieve(SSqlRes* pRes) {
@@ -2114,15 +2117,15 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 
     STableMeta*  pPrevMeterMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pTableMeta);
-    SSuperTableMeta* pPrevMetricMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pMetricMeta);
+//    SSuperTableMeta* pPrevMetricMeta = taosCacheTransfer(tscCacheHandle, (void**)&pPrevInfo->pMetricMeta);
 
-    pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pPrevMeterMeta, pPrevMetricMeta, pTableMetaInfo->numOfTags,
-                                     pTableMetaInfo->tagColumnIndex);
+//    pFinalInfo = tscAddMeterMetaInfo(pNewQueryInfo, name, pPrevMeterMeta, pPrevMetricMeta, pTableMetaInfo->numOfTags,
+//                                     pTableMetaInfo->tagColumnIndex);
   }
 
   assert(pFinalInfo->pTableMeta != NULL && pNewQueryInfo->numOfTables == 1);
   if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-    assert(pFinalInfo->pMetricMeta != NULL);
+//    assert(pFinalInfo->pMetricMeta != NULL);
   }
   
   tscTrace(
@@ -2222,13 +2225,13 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo) || (pTableMetaInfo->pMetricMeta == NULL)) {
+//  if (!UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo) || (pTableMetaInfo->pMetricMeta == NULL)) {
     return false;
-  }
+//  }
   
-  int32_t totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
-  return pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
-         (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->vnodeIndex < totalVnode - 1);
+//  int32_t totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
+//  return pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
+//         (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->vnodeIndex < totalVnode - 1);
 }
 
 void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
@@ -2244,7 +2247,8 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
   assert(pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && !tscHasReachLimitation(pQueryInfo, pRes));
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  int32_t         totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
+  int32_t totalVnode = 0;
+//  int32_t         totalVnode = pTableMetaInfo->pMetricMeta->numOfVnodes;
 
   while (++pTableMetaInfo->vnodeIndex < totalVnode) {
     tscTrace("%p current vnode:%d exhausted, try next:%d. total vnode:%d. current numOfRes:%d", pSql,

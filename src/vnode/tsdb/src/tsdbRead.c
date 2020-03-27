@@ -275,8 +275,9 @@ tsdb_query_handle_t *tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond *pCond
   
   STableIdInfo* idInfo = taosArrayGet(pQueryHandle->pTableIdList, 0);
   
-  STableId tableId = {.uid = idInfo->uid, .tid = idInfo->sid};
-  STable *pTable = tsdbIsValidTableToInsert(tsdbGetMeta(pQueryHandle->pTsdb), tableId);
+  STable *pTable = tsdbGetTableByUid(tsdbGetMeta(pQueryHandle->pTsdb), idInfo->uid);
+  assert(pTable != NULL);
+  
   pTableQRec->pTableObj = pTable;
   
   // malloc buffer in order to load data from file

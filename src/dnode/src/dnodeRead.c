@@ -261,7 +261,7 @@ static void dnodeProcessQueryMsg(void *pVnode, SReadMsg *pMsg) {
   SQInfo* pQInfo = NULL;
   if (pMsg->contLen != 0) {
     void* tsdb = dnodeGetVnodeTsdb(pVnode);
-    int32_t code = qCreateQueryInfo(tsdb, pQueryTableMsg, NULL, &pQInfo);
+    int32_t code = qCreateQueryInfo(tsdb, pQueryTableMsg, &pQInfo);
   
     SQueryTableRsp *pRsp = (SQueryTableRsp *) rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->code    = code;

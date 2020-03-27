@@ -209,9 +209,14 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   }
 
   int32_t code = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex, &pQueryInfo);
-  assert(pQueryInfo->numOfTables == 0);
+//  assert(pQueryInfo->numOfTables == 0);
 
-  STableMetaInfo* pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
+  STableMetaInfo* pTableMetaInfo = NULL;
+  if (pQueryInfo->numOfTables == 0) {
+    pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
+  } else {
+    pTableMetaInfo = &pQueryInfo->pTableMetaInfo[0];
+  }
 
   pCmd->command = pInfo->type;
 
@@ -639,7 +644,7 @@ int32_t parseIntervalClause(SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql) {
    * check invalid SQL:
    * select tbname, tags_fields from super_table_name interval(1s)
    */
-  if (tscQueryMetricTags(pQueryInfo) && pQueryInfo->intervalTime > 0) {
+  if (tscQueryTags(pQueryInfo) && pQueryInfo->intervalTime > 0) {
     return invalidSqlErrMsg(pQueryInfo->msg, msg1);
   }
 
@@ -746,7 +751,7 @@ int32_t setMeterID(STableMetaInfo* pTableMetaInfo, SSQLToken* pzTableName, SSqlO
       tscClearMeterMetaInfo(pTableMetaInfo, false);
     }
   } else {
-    assert(pTableMetaInfo->pTableMeta == NULL && pTableMetaInfo->pMetricMeta == NULL);
+    assert(pTableMetaInfo->pTableMeta == NULL);
   }
 
   tfree(oldName);
@@ -1252,7 +1257,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
     int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     
-    if (tscQueryMetricTags(pQueryInfo)) {                      // local handle the metric tag query
+    if (tscQueryTags(pQueryInfo)) {                      // local handle the metric tag query
       pCmd->count = numOfCols;  // the number of meter schema, tricky.
       pQueryInfo->command = TSDB_SQL_RETRIEVE_TAGS;
     }
@@ -1293,7 +1298,7 @@ SSqlExpr* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t outputIndex, int32_t c
   int16_t functionId = (int16_t)((colIdx >= numOfCols) ? TSDB_FUNC_TAGPRJ : TSDB_FUNC_PRJ);
 
   if (functionId == TSDB_FUNC_TAGPRJ) {
-    addRequiredTagColumn(pQueryInfo, colIdx - numOfCols, tableIndex);
+//    addRequiredTagColumn(pQueryInfo, colIdx - numOfCols, tableIndex);
     pQueryInfo->type = TSDB_QUERY_TYPE_STABLE_QUERY;
   } else {
     pQueryInfo->type = TSDB_QUERY_TYPE_PROJECTION_QUERY;
@@ -1396,8 +1401,7 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
     SColumnList ids = {0};
     ids.ids[0] = *pIndex;
 
-    // tag columns do not add to source list
-    ids.num = (j >= tscGetNumOfColumns(pTableMeta)) ? 0 : 1;
+    ids.num = 1;
 
     insertResultField(pQueryInfo, startPos + j, &ids, pSchema[j].bytes, pSchema[j].type, pSchema[j].name, pExpr);
   }
@@ -4666,14 +4670,13 @@ int32_t parseLimitClause(SQueryInfo* pQueryInfo, int32_t clauseIndex, SQuerySQL*
      * And then launching multiple async-queries against all qualified virtual nodes, during the first-stage
      * query operation.
      */
-    int32_t code = tscGetMetricMeta(pSql, clauseIndex);
+    int32_t code = tscGetSTableVgroupInfo(pSql, clauseIndex);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
     // No tables included. No results generated. Query results are empty.
-    SSuperTableMeta* pMetricMeta = pTableMetaInfo->pMetricMeta;
-    if (pTableMetaInfo->pTableMeta == NULL || pMetricMeta == NULL || pMetricMeta->numOfTables == 0) {
+    if (pTableMetaInfo->pTableMeta == NULL) {
       tscTrace("%p no table in metricmeta, no output result", pSql);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
     }
@@ -5687,6 +5690,13 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   }
 
   assert(pQueryInfo->numOfTables == pQuerySql->from->nExpr);
+  
+  if (UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
+   int32_t code = tscGetSTableVgroupInfo(pSql, index);
+   if (code != TSDB_CODE_SUCCESS) {
+     return code;
+   }
+  }
 
   // parse the group by clause in the first place
   if (parseGroupbyClause(pQueryInfo, pQuerySql->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {

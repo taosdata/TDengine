@@ -605,7 +605,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pTableMetaInfo->pMetricMeta->numOfVnodes);
+//  (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pTableMetaInfo->pMetricMeta->numOfVnodes);
   if (*pMemBuffer == NULL) {
     tscError("%p failed to allocate memory", pSql);
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
@@ -636,10 +636,10 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   pModel = createColumnModel(pSchema, pQueryInfo->exprsInfo.numOfExprs, capacity);
 
-  for (int32_t i = 0; i < pTableMetaInfo->pMetricMeta->numOfVnodes; ++i) {
-    (*pMemBuffer)[i] = createExtMemBuffer(nBufferSizes, rlen, pModel);
-    (*pMemBuffer)[i]->flushModel = MULTIPLE_APPEND_MODEL;
-  }
+//  for (int32_t i = 0; i < pTableMetaInfo->pMetricMeta->numOfVnodes; ++i) {
+//    (*pMemBuffer)[i] = createExtMemBuffer(nBufferSizes, rlen, pModel);
+//    (*pMemBuffer)[i]->flushModel = MULTIPLE_APPEND_MODEL;
+//  }
 
   if (createOrderDescriptor(pOrderDesc, pCmd, pModel) != TSDB_CODE_SUCCESS) {
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;

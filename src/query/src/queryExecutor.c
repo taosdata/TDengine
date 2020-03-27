@@ -5128,137 +5128,99 @@ static void tableIntervalProcessor(SQInfo *pQInfo) {
   //         pQInfo->size - pQInfo->pointsInterpo, pQInfo->pointsInterpo, pQInfo->pointsReturned);
 }
 
-void qTableQuery(SQInfo *pQInfo) {
-  if (pQInfo == NULL || pQInfo->signature != pQInfo) {
-    dTrace("%p freed abort query", pQInfo);
-    return;
-  }
+static void singleTableQueryImpl(SQInfo* pQInfo) {
+  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
+  SQuery* pQuery = pRuntimeEnv->pQuery;
   
-  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
-  
-  SQuery *pQuery = pRuntimeEnv->pQuery;
-  if (isQueryKilled(pQInfo)) {
-    dTrace("QInfo:%p it is already killed, abort", pQInfo);
-    return;
-  }
-  
-  dTrace("QInfo:%p query task is launched", pQInfo);
-
   if (vnodeHasRemainResults(pQInfo)) {
     /*
      * There are remain results that are not returned due to result interpolation
      * So, we do keep in this procedure instead of launching retrieve procedure for next results.
      */
     int32_t numOfInterpo = 0;
-
     int32_t remain = taosNumOfRemainPoints(&pRuntimeEnv->interpoInfo);
     pQuery->rec.size = vnodeQueryResultInterpolate(pQInfo, (tFilePage **)pQuery->sdata,
-                                                         (tFilePage **)pRuntimeEnv->pInterpoBuf, remain, &numOfInterpo);
-
+                                                   (tFilePage **)pRuntimeEnv->pInterpoBuf, remain, &numOfInterpo);
+    
     doRevisedResultsByLimit(pQInfo);
-
+    
     pQInfo->pointsInterpo += numOfInterpo;
     pQuery->rec.size += pQuery->rec.size;
-
-    //    dTrace("QInfo:%p %d points returned %d points interpo, totalRead:%d totalInterpo:%d totalReturn:%d",
-    //        pQInfo, pQuery->size, numOfInterpo, pQInfo->size, pQInfo->pointsInterpo,
-    //        pQInfo->pointsReturned);
+    
+    dTrace("QInfo:%p current:%d returned, total:%d", pQInfo, pQuery->rec.size, pQuery->rec.total);
     sem_post(&pQInfo->dataReady);
     return;
   }
-
+  
   // here we have scan all qualified data in both data file and cache
   if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
     // continue to get push data from the group result
     if (isGroupbyNormalCol(pQuery->pGroupbyExpr) ||
-        (pQuery->intervalTime > 0 && pQuery->rec.total < pQuery->limit.limit)) {
+          ((isIntervalQuery(pQuery) && pQuery->rec.total < pQuery->limit.limit))) {
+      
       // todo limit the output for interval query?
       pQuery->rec.size = 0;
       pQInfo->subgroupIdx = 0;  // always start from 0
-
+      
       if (pRuntimeEnv->windowResInfo.size > 0) {
         copyFromWindowResToSData(pQInfo, pRuntimeEnv->windowResInfo.pResult);
         pQuery->rec.size += pQuery->rec.size;
-
+        
         clearFirstNTimeWindow(pRuntimeEnv, pQInfo->subgroupIdx);
-
+        
         if (pQuery->rec.size > 0) {
-          //          dTrace("QInfo:%p vid:%d sid:%d id:%s, %d points returned %d from group results, totalRead:%d
-          //          totalReturn:%d",
-          //                 pQInfo, pMeterObj->vnode, pMeterObj->sid, pMeterObj->meterId, pQuery->size,
-          //                 pQInfo->size, pQInfo->pointsInterpo, pQInfo->pointsReturned);
-
+          dTrace("QInfo:%p %d rows returned from group results, total:%d", pQInfo, pQuery->rec.size, pQuery->rec.total);
           sem_post(&pQInfo->dataReady);
           return;
         }
       }
     }
-
-    //    dTrace("QInfo:%p vid:%d sid:%d id:%s, query over, %d points are returned", pQInfo, pMeterObj->vnode,
-    //    pMeterObj->sid,
-    //           pMeterObj->meterId, pQInfo->size);
-
+    
+    dTrace("QInfo:%p query over, %d rows are returned", pQInfo, pQuery->rec.total);
     //    vnodePrintQueryStatistics(pSupporter);
     sem_post(&pQInfo->dataReady);
     return;
   }
-
+  
   // number of points returned during this query
   pQuery->rec.size = 0;
-
   int64_t st = taosGetTimestampUs();
-
+  
   // group by normal column, sliding window query, interval query are handled by interval query processor
   if (pQuery->intervalTime != 0 || isGroupbyNormalCol(pQuery->pGroupbyExpr)) {  // interval (down sampling operation)
-    //    assert(pQuery->checkBufferInLoop == 0 && pQuery->pointsOffset == pQuery->pointsToRead);
     tableIntervalProcessor(pQInfo);
   } else {
     if (isFixedOutputQuery(pQuery)) {
       assert(pQuery->checkBufferInLoop == 0);
-
+      
       tableFixedOutputProcessor(pQInfo);
     } else {  // diff/add/multiply/subtract/division
       assert(pQuery->checkBufferInLoop == 1);
       tableMultiOutputProcessor(pQInfo);
     }
   }
-
+  
   // record the total elapsed time
   pQInfo->elapsedTime += (taosGetTimestampUs() - st);
-
+  
   /* check if query is killed or not */
   if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p query is killed", pQInfo);
   } else {
     dTrace("QInfo:%p query task completed, %d points are returned", pQInfo, pQuery->rec.size);
   }
-
+  
   sem_post(&pQInfo->dataReady);
-  //  vnodeDecRefCount(pQInfo);
 }
 
-void qSuperTableQuery(void *pReadMsg) {
-//  SQInfo *pQInfo = (SQInfo *)pMsg->ahandle;
-//
-//  if (pQInfo == NULL) {
-//    return;
-//  }
-
-//  if (pQInfo->killed) {
-//    vnodeDecRefCount(pQInfo);
-//    dTrace("QInfo:%p it is already killed, abort", pQInfo);
-//    return;
-//  }
-
-//  assert(pQInfo->refCount >= 1);
-#if 0
-  SQuery *pQuery = &pQInfo->runtimeEnv.pQuery;
+void multiTableQueryImpl(SQInfo* pQInfo) {
+  SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
   pQuery->rec.size = 0;
   
   int64_t st = taosGetTimestampUs();
+  
   if (pQuery->intervalTime > 0 ||
       (isFixedOutputQuery(pQuery) && (!isPointInterpoQuery(pQuery)) && !isGroupbyNormalCol(pQuery->pGroupbyExpr))) {
-    assert(pQuery->checkBufferInLoop == 0);
     vnodeMultiMeterQueryProcessor(pQInfo);
   } else {
     assert((pQuery->checkBufferInLoop == 1 && pQuery->intervalTime == 0) || isPointInterpoQuery(pQuery) ||
@@ -5267,23 +5229,40 @@ void qSuperTableQuery(void *pReadMsg) {
     vnodeSTableSeqProcessor(pQInfo);
   }
   
-  /* record the total elapsed time */
+  // record the total elapsed time
   pQInfo->elapsedTime += (taosGetTimestampUs() - st);
-  pQuery->status = isQueryKilled(pQInfo) ? 1 : 0;
-  
-//  taosInterpoSetStartInfo(&pQInfo->runtimeEnv.interpoInfo, pQuery->size,
-//                          pQInfo->query.interpoType);
+//  taosInterpoSetStartInfo(&pQInfo->runtimeEnv.interpoInfo, pQuery->size, pQInfo->query.interpoType);
   
   if (pQuery->rec.size == 0) {
-//    pQInfo->over = 1;
-//    dTrace("QInfo:%p over, %d meters queried, %d points are returned", pQInfo, pSupporter->numOfMeters,
-//           pQInfo->size);
+    int32_t numOfTables = taosArrayGetSize(pQInfo->pTableIdList);
+    dTrace("QInfo:%p over, %d tables queried, %d points are returned", pQInfo, numOfTables, pQuery->rec.total);
 //    vnodePrintQueryStatistics(pSupporter);
   }
   
   sem_post(&pQInfo->dataReady);
-//  vnodeDecRefCount(pQInfo);
-#endif
+}
+
+void qTableQuery(SQInfo *pQInfo) {
+  if (pQInfo == NULL || pQInfo->signature != pQInfo) {
+    dTrace("%p freed abort query", pQInfo);
+    return;
+  }
+  
+  if (isQueryKilled(pQInfo)) {
+    dTrace("QInfo:%p it is already killed, abort", pQInfo);
+    return;
+  }
+  
+  dTrace("QInfo:%p query task is launched", pQInfo);
+  
+  int32_t numOfTables = taosArrayGetSize(pQInfo->pTableIdList);
+  if (numOfTables == 1) {
+    singleTableQueryImpl(pQInfo);
+  } else {
+    multiTableQueryImpl(pQInfo);
+  }
+  
+  //  vnodeDecRefCount(pQInfo);
 }
 
 static int32_t getColumnIndexInSource(SQueryTableMsg *pQueryTableMsg, SSqlFuncExprMsg *pExprMsg) {
@@ -6064,7 +6043,7 @@ _error:
   return code;
 }
 
-int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryTableMsg, void* param, SQInfo **pQInfo) {
+int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryTableMsg, SQInfo **pQInfo) {
   assert(pQueryTableMsg != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -6098,12 +6077,7 @@ int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryTableMsg, void* param
     goto _query_over;
   }
 
-  if (QUERY_IS_STABLE_QUERY(pQueryTableMsg->queryType)) {
-    //    pObj->qhandle = vnodeQueryOnMultiMeters(pMeterObjList, pGroupbyExpr, pExprs, pQueryTableMsg, &code);
-  } else {
-    code = createQInfo(pQueryTableMsg, pGroupbyExpr, pExprs, pTableIdList, tsdb, pQInfo);
-//    (*pQInfo)->param = param;
-  }
+  code = createQInfo(pQueryTableMsg, pGroupbyExpr, pExprs, pTableIdList, tsdb, pQInfo);
 
 _query_over:
   if (code != TSDB_CODE_SUCCESS) {
