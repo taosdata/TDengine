@@ -21,12 +21,18 @@
 #endif
 #include "mnode.h"
 
-bool    mgmtCheckExpired();
-void    mgmtAddTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum);
-void    mgmtRestoreTimeSeries(SAcctObj *pAcct, uint32_t timeseries);
+bool mgmtCheckExpired();
+void mgmtParseParameterKFp();
+void mgmtSendMsgToMaster();
+void mgmtSetCurStorage(uint64_t storage);
+void mgmtAddTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum);
+void mgmtRestoreTimeSeries(SAcctObj *pAcct, uint32_t timeseries);
+
 int32_t mgmtCheckTimeSeries(uint32_t timeseries);
 int32_t mgmtCheckUserGrant();
 int32_t mgmtCheckDbGrant();
+int32_t mgmtCheckDnodeGrant();
+int32_t mgmtCheckAccts();
 
 #ifdef __cplusplus
 }

@@ -14,58 +14,20 @@
  */
 
 #define _DEFAULT_SOURCE
+#ifndef _GRANT
 #include "os.h"
-#include "mgmtAcct.h"
+#include "mgmtGrant.h"
 
-int32_t (*mgmtCheckUserGrantFp)() = NULL;
-int32_t (*mgmtCheckDbGrantFp)() = NULL;
-void    (*mgmtAddTimeSeriesFp)(uint32_t timeSeriesNum) = NULL;
-void    (*mgmtRestoreTimeSeriesFp)(uint32_t timeSeriesNum) = NULL;
-int32_t (*mgmtCheckTimeSeriesFp)(uint32_t timeseries) = NULL;
-bool    (*mgmtCheckExpiredFp)() = NULL;
+bool mgmtCheckExpired() { return false; }
+void mgmtParseParameterKFp() {}
+void mgmtSendMsgToMaster() {}
+void mgmtSetCurStorage(uint64_t storage) {}
+void mgmtAddTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum) {}
+void mgmtRestoreTimeSeries(SAcctObj *pAcct, uint32_t timeseries) {}
+int32_t mgmtCheckTimeSeries(uint32_t timeseries) { return TSDB_CODE_SUCCESS; }
+int32_t mgmtCheckUserGrant() { return TSDB_CODE_SUCCESS; }
+int32_t mgmtCheckDbGrant() { return TSDB_CODE_SUCCESS; }
+int32_t mgmtCheckDnodeGrant() { return TSDB_CODE_SUCCESS; }
+int32_t mgmtCheckAccts() { return TSDB_CODE_SUCCESS; }
 
-int32_t mgmtCheckUserGrant() {
-  if (mgmtCheckUserGrantFp) {
-    return (*mgmtCheckUserGrantFp)();
-  } else {
-    return 0;
-  }
-}
-
-int32_t mgmtCheckDbGrant() {
-  if (mgmtCheckDbGrantFp) {
-    return (*mgmtCheckDbGrantFp)();
-  } else {
-    return 0;
-  }
-}
-
-void mgmtAddTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum) {
-  pAcct->acctInfo.numOfTimeSeries += timeSeriesNum;
-  if (mgmtAddTimeSeriesFp) {
-    (*mgmtAddTimeSeriesFp)(timeSeriesNum);
-  }
-}
-
-void mgmtRestoreTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum) {
-  pAcct->acctInfo.numOfTimeSeries -= timeSeriesNum;
-  if (mgmtRestoreTimeSeriesFp) {
-    (*mgmtRestoreTimeSeriesFp)(timeSeriesNum);
-  }
-}
-
-int32_t mgmtCheckTimeSeries(uint32_t timeseries) {
-  if (mgmtCheckTimeSeriesFp) {
-    return (*mgmtCheckTimeSeriesFp)(timeseries);
-  } else {
-    return 0;
-  }
-}
-
-bool mgmtCheckExpired() {
-  if (mgmtCheckExpiredFp) {
-    return mgmtCheckExpiredFp();
-  } else {
-    return false;
-  }
-}
+#endif
