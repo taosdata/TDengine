@@ -224,7 +224,7 @@ int mgmtProcessMeterMetaMsg(char *pMsg, int msgLen, SConnObj *pConn) {
     int32_t code = mgmtCreateMeter(pDb, pCreateMsg);
 
     char stableName[TSDB_METER_ID_LEN] = {0};
-    strncpy(stableName, pInfo->tags, TSDB_METER_ID_LEN);
+    strncpy(stableName, pInfo->tags, TSDB_METER_ID_LEN - 1);
     mTrace("meter:%s is automatically created by %s from %s, code:%d", pCreateMsg->meterId, pConn->pUser->user,
            stableName, code);
 

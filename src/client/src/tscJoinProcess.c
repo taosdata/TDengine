@@ -918,7 +918,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
     return NULL;
   }
 
-  strncpy(pTSBuf->path, path, PATH_MAX);
+  strncpy(pTSBuf->path, path, PATH_MAX - 1);
 
   pTSBuf->f = fopen(pTSBuf->path, "r+");
   if (pTSBuf->f == NULL) {

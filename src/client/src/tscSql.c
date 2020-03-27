@@ -89,7 +89,7 @@ TAOS *taos_connect_imp(const char *ip, const char *user, const char *pass, const
   memset(pObj, 0, sizeof(STscObj));
   pObj->signature = pObj;
 
-  strncpy(pObj->user, user, TSDB_USER_LEN);
+  strncpy(pObj->user, user, TSDB_USER_LEN - 1);
   taosEncryptPass((uint8_t *)pass, strlen(pass), pObj->pass);
   pObj->mgmtPort = port ? port : tsMgmtShellPort;
 

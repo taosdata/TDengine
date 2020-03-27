@@ -776,7 +776,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     SMeterMetaInfo *pSTableMeterMetaInfo = tscGetMeterMetaInfoFromQueryInfo(pQueryInfo, STABLE_INDEX);
     setMeterID(pSTableMeterMetaInfo, &sToken, pSql);
 
-    strncpy(pTag->name, pSTableMeterMetaInfo->name, TSDB_METER_ID_LEN);
+    strncpy(pTag->name, pSTableMeterMetaInfo->name, TSDB_METER_ID_LEN - 1);
     code = tscGetMeterMeta(pSql, pSTableMeterMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -1536,7 +1536,7 @@ void tscProcessMultiVnodesInsertFromFile(SSqlObj *pSql) {
     }
     pCmd->count = 1;
 
-    strncpy(path, pDataBlock->filename, PATH_MAX);
+    strncpy(path, pDataBlock->filename, PATH_MAX - 1);
 
     FILE *fp = fopen(path, "r");
     if (fp == NULL) {

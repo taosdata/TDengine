@@ -1304,7 +1304,7 @@ int mgmtRetrieveMeters(SShowObj *pShow, char *data, int rows, SConnObj *pConn) {
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    strncpy(pWrite, meterName, TSDB_METER_NAME_LEN);
+    strncpy(pWrite, meterName, TSDB_METER_NAME_LEN - 1);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -1472,7 +1472,7 @@ int32_t mgmtMeterModifyTagNameByCol(STabObj *pMetric, uint32_t col, const char *
 
   // update
   SSchema *schema = (SSchema *)(pMetric->schema + (pMetric->numOfColumns + col) * sizeof(SSchema));
-  strncpy(schema->name, nname, TSDB_COL_NAME_LEN);
+  strncpy(schema->name, nname, TSDB_COL_NAME_LEN - 1);
 
   // Encode string
   int   size = 1 + sizeof(STabObj) + TSDB_MAX_BYTES_PER_ROW;

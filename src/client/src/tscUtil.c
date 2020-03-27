@@ -652,7 +652,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   dataBuf->size = startOffset;
   dataBuf->tsSource = -1;
 
-  strncpy(dataBuf->meterId, name, TSDB_METER_ID_LEN);
+  strncpy(dataBuf->meterId, name, TSDB_METER_ID_LEN - 1);
 
   /*
    * The metermeta may be released since the metermeta cache are completed clean by other thread
@@ -860,7 +860,7 @@ static void evic(SFieldInfo* pFieldInfo, int32_t index) {
 
 static void setValueImpl(TAOS_FIELD* pField, int8_t type, const char* name, int16_t bytes) {
   pField->type = type;
-  strncpy(pField->name, name, TSDB_COL_NAME_LEN);
+  strncpy(pField->name, name, TSDB_COL_NAME_LEN - 1);
   pField->bytes = bytes;
 }
 
