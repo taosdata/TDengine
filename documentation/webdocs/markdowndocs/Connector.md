@@ -740,7 +740,7 @@ The return value is like:
 
 ## Go Connector
 
-TDengine also provides a Go client package named _taosSql_ for users to access TDengine with Go. The package is in _/usr/local/taos/connector/go/src/taosSql_ by default if you installed TDengine. Users can copy the directory _/usr/local/taos/connector/go/src/taosSql_ to the _src_ directory of your project and import the package in the source code for use.
+TDengine also provides a Go client package named _taosSql_ for users to access TDengine with Go. The package is in _/usr/local/taos/connector/go/driver-go/taosSql_ by default if you installed TDengine. Users can copy the directory _/usr/local/taos/connector/go/driver-go/taosSql_ to the _src_ directory of your project and import the package in the source code for use.
 
 ```Go
 import (
