@@ -799,6 +799,18 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
     pContext->code = TSDB_CODE_NETWORK_UNAVAIL;
     taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
   }
+
+  if (pConn->inType) {
+    // if there are pending request, notify the app
+    tTrace("%s %p, connection is gone, notify the app", pRpc->label, pConn);
+    SRpcMsg rpcMsg;
+    rpcMsg.pCont = NULL;
+    rpcMsg.contLen = 0;
+    rpcMsg.handle = pConn;
+    rpcMsg.msgType = pConn->inType;
+    rpcMsg.code = TSDB_CODE_NETWORK_UNAVAIL;
+    (*(pRpc->cfp))(&rpcMsg);
+  }
  
   rpcCloseConn(pConn);
 }
