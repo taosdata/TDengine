@@ -207,11 +207,6 @@ typedef struct SDataBlockInfo {
   int32_t     sid;
 } SDataBlockInfo;
 
-typedef struct STableIDList {
-  STableId *tableIds;
-  int32_t   num;
-} STableIDList;
-
 typedef struct {
 } SFields;
 
@@ -325,15 +320,15 @@ tsdb_query_handle_t *tsdbQueryFromTagConds(STsdbQueryCond *pCond, int16_t stable
  * @param pQueryHandle
  * @return table sid list. the invoker is responsible for the release of this the sid list.
  */
-STableIDList *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
+SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
 
 /**
- * Get the qualified table sid for a super table according to the tag query expression.
+ * Get the qualified table id for a super table according to the tag query expression.
  * @param stableid. super table sid
  * @param pTagCond. tag query condition
  *
  */
-STableIDList *tsdbQueryTableList(int16_t stableId, const char *pTagCond);
+SArray *tsdbQueryTableList(struct STsdbRepo* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len);
 
 #ifdef __cplusplus
 }

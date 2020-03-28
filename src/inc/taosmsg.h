@@ -474,14 +474,14 @@ typedef struct {
   int64_t     intervalOffset;   // start offset for interval query
   int64_t     slidingTime;      // value for sliding window
   char        slidingTimeUnit;  // time interval type, for revisement of interval(1d)
-  int16_t     tagLength;        // tag length in current query
+  uint16_t    tagCondLen;       // tag length in current query
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;  // used in group by xx order by xxx
   uint64_t    groupbyTagIds;
   int64_t     limit;
   int64_t     offset;
-  int16_t     queryType;        // denote another query process
+  uint16_t    queryType;        // denote another query process
   int16_t     numOfOutputCols;  // final output columns numbers
   int16_t     interpoType;      // interpolate type
   uint64_t    defaultVal;       // default value array list

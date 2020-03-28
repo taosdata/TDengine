@@ -601,10 +601,19 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
-//  SSuperTableMeta *pMetricMeta = pTableMetaInfo->pMetricMeta;
   
   if (pQueryInfo->colList.numOfCols <= 0) {
     tscError("%p illegal value of numOfCols in query msg: %d", pSql, tscGetNumOfColumns(pTableMeta));
+    return -1;
+  }
+  
+  if (pQueryInfo->intervalTime < 0) {
+    tscError("%p illegal value of aggregation time interval in query msg: %ld", pSql, pQueryInfo->intervalTime);
+    return -1;
+  }
+  
+  if (pQueryInfo->groupbyExpr.numOfGroupCols < 0) {
+    tscError("%p illegal value of numOfGroupCols in query msg: %d", pSql, pQueryInfo->groupbyExpr.numOfGroupCols);
     return -1;
   }
 
@@ -643,8 +652,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     numOfTables = 1;
   }
 
-  pQueryMsg->numOfTables = htonl(numOfTables);
-
   if (pQueryInfo->order.order == TSQL_SO_ASC) {
     pQueryMsg->window.skey = htobe64(pQueryInfo->stime);
     pQueryMsg->window.ekey = htobe64(pQueryInfo->etime);
@@ -653,6 +660,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->window.ekey = htobe64(pQueryInfo->stime);
   }
 
+  pQueryMsg->numOfTables    = htonl(numOfTables);
   pQueryMsg->order          = htons(pQueryInfo->order.order);
   pQueryMsg->orderColId     = htons(pQueryInfo->order.orderColId);
   pQueryMsg->interpoType    = htons(pQueryInfo->interpoType);
@@ -662,23 +670,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->intervalTime   = htobe64(pQueryInfo->intervalTime);
   pQueryMsg->slidingTime    = htobe64(pQueryInfo->slidingTime);
   pQueryMsg->slidingTimeUnit = pQueryInfo->slidingTimeUnit;
-  
-  if (pQueryInfo->intervalTime < 0) {
-    tscError("%p illegal value of aggregation time interval in query msg: %ld", pSql, pQueryInfo->intervalTime);
-    return -1;
-  }
-
-  if (pQueryInfo->groupbyExpr.numOfGroupCols < 0) {
-    tscError("%p illegal value of numOfGroupCols in query msg: %d", pSql, pQueryInfo->groupbyExpr.numOfGroupCols);
-    return -1;
-  }
-
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
-  if (UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {  // query on meter
-    pQueryMsg->tagLength = 0;
-  } else {  // query on super table
-    pQueryMsg->tagLength = htons(0);
-  }
 
   pQueryMsg->queryType = htons(pQueryInfo->type);
   pQueryMsg->numOfOutputCols = htons(pQueryInfo->exprsInfo.numOfExprs);
@@ -742,7 +734,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   bool hasArithmeticFunction = false;
 
   SSqlFuncExprMsg *pSqlFuncExpr = (SSqlFuncExprMsg *)pMsg;
-
   for (int32_t i = 0; i < tscSqlExprNumOfExprs(pQueryInfo); ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
@@ -856,6 +847,24 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->tsOrder = htonl(pQueryInfo->tsBuf->tsOrder);
   }
 
+  if (pQueryInfo->tagCond.numOfTagCond > 0) {
+    STagCond* pTagCond = &pQueryInfo->tagCond;
+    
+    SCond *pCond = tsGetSTableQueryCondPos(pTagCond, pTableMeta->uid);
+    if (pCond != NULL && pCond->cond != NULL) {
+      size_t condLen = strlen(pCond->cond) + 1;
+      
+      bool ret = taosMbsToUcs4(pCond->cond, condLen, pMsg, condLen * TSDB_NCHAR_SIZE);
+      if (!ret) {
+        tscError("%p mbs to ucs4 failed:%d", pSql, tsGetSTableQueryCondPos(pTagCond, pTableMeta->uid));
+        return 0;
+      }
+      
+      pQueryMsg->tagCondLen = htons(condLen);
+      pMsg += condLen * TSDB_NCHAR_SIZE;
+    }
+  }
+  
   msgLen = pMsg - pStart;
 
   tscTrace("%p msg built success,len:%d bytes", pSql, msgLen);
