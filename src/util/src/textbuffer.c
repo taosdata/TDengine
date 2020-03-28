@@ -80,7 +80,7 @@ tExtMemBuffer* createExtMemBuffer(int32_t inMemSize, int32_t elemSize, SColumnMo
   return pMemBuffer;
 }
 
-void* destoryExtMemBuffer(tExtMemBuffer *pMemBuffer) {
+void* destroyExtMemBuffer(tExtMemBuffer *pMemBuffer) {
   if (pMemBuffer == NULL) {
     return NULL;
   }
