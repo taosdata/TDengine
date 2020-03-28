@@ -132,6 +132,7 @@ void       tdResetDataCols(SDataCols *pCols);
 void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 void       tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols);
+void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);
 
 #ifdef __cplusplus
 }

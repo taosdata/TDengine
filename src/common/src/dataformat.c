@@ -353,6 +353,10 @@ void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols) {
   }
   pCols->numOfPoints++;
 }
+// Pop pointsToPop points from the SDataCols
+void tdPopDataColsPoints(SDataCols *pCols, int pointsToPop) {
+
+}
 
 /**
  * Return the first part length of a data row for a schema

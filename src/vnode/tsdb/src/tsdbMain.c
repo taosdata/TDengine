@@ -88,6 +88,8 @@ static int32_t tsdbRestoreCfg(STsdbRepo *pRepo, STsdbCfg *pCfg);
 static int32_t tsdbGetDataDirName(STsdbRepo *pRepo, char *fname);
 static void *  tsdbCommitData(void *arg);
 static int     tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters, SDataCols *pCols);
+static int     tsdbHasDataInRange(SSkipListIterator *pIter, TSKEY minKey, TSKEY maxKey);
+static int     tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minKey, TSKEY maxKey);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -872,13 +874,12 @@ static void *tsdbCommitData(void *arg) {
 }
 
 static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters, SDataCols *pCols) {
-  int hasDataToCommit = 0;
   int isNewLastFile = 0;
 
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   STsdbCfg *  pCfg = &pRepo->config;
-  SFile       tFile, lFile;
+  SFile       hFile, lFile;
   SFileGroup *pGroup = NULL;
   SCompIdx *  pIndices = NULL;
   SCompInfo * pCompInfo = NULL;
@@ -889,124 +890,180 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
   TSKEY minKey = 0, maxKey = 0;
   tsdbGetKeyRangeOfFileId(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
 
-  for (int tid = 0; tid < pCfg->maxTables; tid++) {
-    STable *           pTable = pMeta->tables[tid];
-    SSkipListIterator *pIter = iters[tid];
-    int isLoadCompBlocks = 0;
-    char dataDir[128] = "\0";
+  // Check if there are data to commit to this file
+  int hasDataToCommit = tsdbHasDataToCommit(iters, pCfg->maxTables, minKey, maxKey);
+  if (!hasDataToCommit) return 0; // No data to commit, just return
 
-    if (pIter == NULL) continue;
-    tdInitDataCols(pCols, pTable->schema);
-
-    int numOfWrites = 0;
-    int maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5; // We keep 20% of space for merge purpose
-    // Loop to read columns from cache
-    while (tsdbReadRowsFromCache(pIter, maxKey, maxRowsToRead, pCols)) {
-      if (!hasDataToCommit) {
-        // There are data to commit to this fileId, we need to create/open it for read/write.
-        // At the meantime, we set the flag to prevent further create/open operations
-        tsdbGetDataDirName(pRepo, dataDir);
-
-        if (tsdbCreateFGroup(pFileH, dataDir, fid, pCfg->maxTables) < 0) {
-          // TODO: deal with the ERROR here
-        }
-        // Open files for commit
-        pGroup = tsdbOpenFilesForCommit(pFileH, fid);
-        if (pGroup == NULL) {
-          // TODO: deal with the ERROR here
-        }
-        // TODO: open .h file and if neccessary, open .l file
-        tsdbCreateFile(dataDir, fid, ".h", pCfg->maxTables, &tFile, 1, 0);
-        if (1 /*pGroup->files[TSDB_FILE_TYPE_LAST].size > TSDB_MAX_LAST_FILE_SIZE*/) {
-          // TODO: make it not to write the last file every time
-          tsdbCreateFile(dataDir, fid, ".l", pCfg->maxTables, &lFile, 0, 0);
-          isNewLastFile = 1;
-        }
-
-        // load the SCompIdx part
-        pIndices = (SCompIdx *)malloc(sizeof(SCompIdx) * pCfg->maxTables);
-        if (pIndices == NULL) { // TODO: deal with the ERROR
-        }
-        if (tsdbLoadCompIdx(pGroup, (void *)pIndices, pCfg->maxTables) < 0) { // TODO: deal with the ERROR here
-        }
-
-        // sendfile those not need to changed table content
-        lseek(pGroup->files[TSDB_FILE_TYPE_HEAD].fd, TSDB_FILE_HEAD_SIZE + sizeof(SCompIdx) * pCfg->maxTables,
-              SEEK_SET);
-        lseek(tFile.fd, TSDB_FILE_HEAD_SIZE + sizeof(SCompIdx) * pCfg->maxTables, SEEK_SET);
-        for (int ttid = 0; ttid < tid; ttid++) {
-          SCompIdx * tIdx= &pIndices[ttid];
-          if (tIdx->len <= 0) continue;
-          if (isNewLastFile && tIdx->hasLast) {
-            // TODO: Need to load the SCompBlock part and copy to new last file
-            pCompInfo = (SCompInfo *)realloc((void *)pCompInfo, tIdx->len);
-            if (pCompInfo == NULL) { /* TODO */}
-            if (tsdbLoadCompBlocks(pGroup, tIdx, (void *)pCompInfo) < 0) {/* TODO */}
-            SCompBlock *pLastBlock = TSDB_COMPBLOCK_AT(pCompInfo, tIdx->numOfSuperBlocks - 1);
-            int numOfSubBlocks = pLastBlock->numOfSubBlocks;
-            assert(pLastBlock->last);
-            if (tsdbCopyCompBlockToFile(&pGroup->files[TSDB_FILE_TYPE_LAST], &lFile, pCompInfo, tIdx->numOfSuperBlocks, 1 /* isOutLast*/) < 0) {/* TODO */}
-            {
-              if (numOfSubBlocks > 1) tIdx->len -= (sizeof(SCompBlock) * numOfSubBlocks);
-              tIdx->checksum = 0;
-            }
-            write(tFile.fd, (void *)pCompInfo, tIdx->len);
-            tFile.size += tIdx->len;
-          } else {
-            sendfile(pGroup->files[TSDB_FILE_TYPE_HEAD].fd, tFile.fd, NULL, tIdx->len);
-            tFile.size += tIdx->len;
-          }
-        }
-
-        hasDataToCommit = 1;
-      }
-
-      SCompIdx *pIdx = &pIndices[tid];
-
-      /* The first time to write to the table, need to decide
-       * if it is neccessary to load the SComplock part. If it
-       * is needed, just load it, or, just use sendfile and
-       * append it.
-       */
-      if (numOfWrites == 0 && pIdx->offset > 0) {
-        if (dataColsKeyFirst(pCols) <= pIdx->maxKey || pIdx->hasLast) {
-          pCompInfo = (SCompInfo *)realloc((void *)pCompInfo, pIdx->len);
-          if (tsdbLoadCompBlocks(pGroup, pIdx, (void *)pCompInfo) < 0) {
-            // TODO: deal with the ERROR here
-          }
-          if (pCompInfo->uid == pTable->tableId.uid) isLoadCompBlocks = 1;
-        } else {
-          // TODO: sendfile the prefix part
-        }
-      }
-
-      // if (tsdbWriteBlockToFile(pGroup, pCompInfo, pIdx, isLoadCompBlocks, pBlock, pCols) < 0) {
-      //   // TODO: deal with the ERROR here
-      // }
-
-      // pCompInfo = tsdbMergeBlock(pCompInfo, pBlock);
-
-
-      // if (1 /* the SCompBlock part is not loaded*/) {
-      //   // Append to .data file generate a SCompBlock and record it
-      // } else {
-      // }
-
-      // // TODO: need to reset the pCols
-
-      numOfWrites++;
-    }
-
-    if (pCols->numOfPoints > 0) { 
-      // TODO: still has data to commit, commit it
-    }
-
-    if (1/* SCompBlock part is loaded, write it to .head file*/) {
-      // TODO
-    } else {
-      // TODO: use sendfile send the old part and append the newly added part
-    }
+  // Create and open files for commit
+  tsdbGetDataDirName(pRepo, dataDir);
+  if (tsdbCreateFGroup(pFileH, dataDir, fid, pCfg->maxTables) < 0) {/* TODO */}
+  pGroup = tsdbOpenFilesForCommit(pFileH, fid);
+  if (pGroup == NULL) {/* TODO */}
+  tsdbCreateFile(dataDir, fid, ".h", pCfg->maxTables, &hFile, 1, 0);
+  if (1 /*pGroup->files[TSDB_FILE_TYPE_LAST].size > TSDB_MAX_LAST_FILE_SIZE*/) {
+    // TODO: make it not to write the last file every time
+    tsdbCreateFile(dataDir, fid, ".l", pCfg->maxTables, &lFile, 0, 0);
+    isNewLastFile = 1;
   }
+
+  // Load the SCompIdx
+  pIndices = (SCompIdx *)malloc(sizeof(SCompIdx) *pCfg->maxTables);
+  if (pIndices == NULL) {/* TODO*/}
+  if (tsdbLoadCompIdx(pGroup, (void *)pIndices, pCfg->maxTables) < 0) {/* TODO */}
+
+// Loop to commit data in each table
+  for (int tid = 0; tid < pCfg->maxTables; tid++) {
+    STable *pTable = pMeta->tables[tid];
+    SSkipListIterator *pIter = iters[tid];
+    SCompIdx *pIdx = &pIndices[tid];
+
+    if (!tsdbHasDataInRange(pIter, minKey, maxKey)) {
+      // This table does not have data in this range, just copy its head part and last
+      // part (if neccessary) to new file
+      if (pIdx->len != 0) { // has old data
+        if (isNewLastFile && pIdx->hasLast) {
+          // Need to load SCompBlock part and copy to new file
+          if ((pCompInfo = (SCompInfo *)realloc((void *)pCompInfo, pIdx->len)) == NULL) {/* TODO */}
+          if (tsdbLoadCompBlocks(pGroup, pIdx, (void *)pCompInfo) < 0) {/* TODO */}
+
+          // Copy the last block from old last file to new file
+          // tsdbCopyBlockData()
+        } else { 
+          pIdx->offset = lseek(hFile.fd, 0, SEEK_CUR);
+          sendfile(pGroup->files[TSDB_FILE_TYPE_HEAD].fd, hFile.fd, NULL, pIdx->len);
+          hFile.size += pIdx->len;
+        }
+      }
+      continue;
+    }
+
+    // while () {
+
+    // }
+  }
+
+  // for (int tid = 0; tid < pCfg->maxTables; tid++) {
+  //   STable *           pTable = pMeta->tables[tid];
+  //   SSkipListIterator *pIter = iters[tid];
+  //   int isLoadCompBlocks = 0;
+  //   char dataDir[128] = "\0";
+
+  //   if (pIter == NULL) {
+  //     if (hasDataToCommit && isNewLastFile())
+  //     continue;
+  //   }
+  //   tdInitDataCols(pCols, pTable->schema);
+
+  //   int numOfWrites = 0;
+  //   int maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5; // We keep 20% of space for merge purpose
+  //   // Loop to read columns from cache
+  //   while (tsdbReadRowsFromCache(pIter, maxKey, maxRowsToRead, pCols)) {
+  //     if (!hasDataToCommit) {
+  //       // There are data to commit to this fileId, we need to create/open it for read/write.
+  //       // At the meantime, we set the flag to prevent further create/open operations
+  //       tsdbGetDataDirName(pRepo, dataDir);
+
+  //       if (tsdbCreateFGroup(pFileH, dataDir, fid, pCfg->maxTables) < 0) {
+  //         // TODO: deal with the ERROR here
+  //       }
+  //       // Open files for commit
+  //       pGroup = tsdbOpenFilesForCommit(pFileH, fid);
+  //       if (pGroup == NULL) {
+  //         // TODO: deal with the ERROR here
+  //       }
+  //       // TODO: open .h file and if neccessary, open .l file
+  //       tsdbCreateFile(dataDir, fid, ".h", pCfg->maxTables, &tFile, 1, 0);
+  //       if (1 /*pGroup->files[TSDB_FILE_TYPE_LAST].size > TSDB_MAX_LAST_FILE_SIZE*/) {
+  //         // TODO: make it not to write the last file every time
+  //         tsdbCreateFile(dataDir, fid, ".l", pCfg->maxTables, &lFile, 0, 0);
+  //         isNewLastFile = 1;
+  //       }
+
+  //       // load the SCompIdx part
+  //       pIndices = (SCompIdx *)malloc(sizeof(SCompIdx) * pCfg->maxTables);
+  //       if (pIndices == NULL) { // TODO: deal with the ERROR
+  //       }
+  //       if (tsdbLoadCompIdx(pGroup, (void *)pIndices, pCfg->maxTables) < 0) { // TODO: deal with the ERROR here
+  //       }
+
+  //       // sendfile those not need to changed table content
+  //       lseek(pGroup->files[TSDB_FILE_TYPE_HEAD].fd, TSDB_FILE_HEAD_SIZE + sizeof(SCompIdx) * pCfg->maxTables,
+  //             SEEK_SET);
+  //       lseek(tFile.fd, TSDB_FILE_HEAD_SIZE + sizeof(SCompIdx) * pCfg->maxTables, SEEK_SET);
+  //       for (int ttid = 0; ttid < tid; ttid++) {
+  //         SCompIdx * tIdx= &pIndices[ttid];
+  //         if (tIdx->len <= 0) continue;
+  //         if (isNewLastFile && tIdx->hasLast) {
+  //           // TODO: Need to load the SCompBlock part and copy to new last file
+  //           pCompInfo = (SCompInfo *)realloc((void *)pCompInfo, tIdx->len);
+  //           if (pCompInfo == NULL) { /* TODO */}
+  //           if (tsdbLoadCompBlocks(pGroup, tIdx, (void *)pCompInfo) < 0) {/* TODO */}
+  //           SCompBlock *pLastBlock = TSDB_COMPBLOCK_AT(pCompInfo, tIdx->numOfSuperBlocks - 1);
+  //           int numOfSubBlocks = pLastBlock->numOfSubBlocks;
+  //           assert(pLastBlock->last);
+  //           if (tsdbCopyCompBlockToFile(&pGroup->files[TSDB_FILE_TYPE_LAST], &lFile, pCompInfo, tIdx->numOfSuperBlocks, 1 /* isOutLast*/) < 0) {/* TODO */}
+  //           {
+  //             if (numOfSubBlocks > 1) tIdx->len -= (sizeof(SCompBlock) * numOfSubBlocks);
+  //             tIdx->checksum = 0;
+  //           }
+  //           write(tFile.fd, (void *)pCompInfo, tIdx->len);
+  //           tFile.size += tIdx->len;
+  //         } else {
+  //           sendfile(pGroup->files[TSDB_FILE_TYPE_HEAD].fd, tFile.fd, NULL, tIdx->len);
+  //           tFile.size += tIdx->len;
+  //         }
+  //       }
+
+  //       hasDataToCommit = 1;
+  //     }
+
+  //     SCompIdx *pIdx = &pIndices[tid];
+
+  //     /* The first time to write to the table, need to decide
+  //      * if it is neccessary to load the SComplock part. If it
+  //      * is needed, just load it, or, just use sendfile and
+  //      * append it.
+  //      */
+  //     if (numOfWrites == 0 && pIdx->offset > 0) {
+  //       if (dataColsKeyFirst(pCols) <= pIdx->maxKey || pIdx->hasLast) {
+  //         pCompInfo = (SCompInfo *)realloc((void *)pCompInfo, pIdx->len);
+  //         if (tsdbLoadCompBlocks(pGroup, pIdx, (void *)pCompInfo) < 0) { 
+  //           // TODO: deal with the ERROR here
+  //         }
+  //         if (pCompInfo->uid == pTable->tableId.uid) isLoadCompBlocks = 1;
+  //       } else {
+  //         // TODO: sendfile the prefix part
+  //       }
+  //     }
+
+  //     int numOfPointsWritten = tsdbWriteBlockToFile(pGroup, pCompInfo, pIdx, isLoadCompBlocks, pBlock, pCols);
+  //     if (numOfPointsWritten < 0) {
+  //       // TODO: deal with the ERROR here
+  //     }
+
+  //     // pCompInfo = tsdbMergeBlock(pCompInfo, pBlock);
+
+
+  //     // if (1 /* the SCompBlock part is not loaded*/) {
+  //     //   // Append to .data file generate a SCompBlock and record it
+  //     // } else {
+  //     // }
+
+  //     // // TODO: need to reset the pCols
+
+  //     numOfWrites++;
+  //   }
+
+  //   if (pCols->numOfPoints > 0) { 
+  //     // TODO: still has data to commit, commit it
+  //   }
+
+  //   if (1/* SCompBlock part is loaded, write it to .head file*/) {
+  //     // TODO
+  //   } else {
+  //     // TODO: use sendfile send the old part and append the newly added part
+  //   }
+  // }
 
   // Write the SCompIdx part
 
@@ -1018,5 +1075,25 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
   if (pIndices) free(pIndices);
   if (pCompInfo) free(pCompInfo);
 
+  return 0;
+}
+
+static int tsdbHasDataInRange(SSkipListIterator *pIter, TSKEY minKey, TSKEY maxKey) {
+  if (pIter == NULL) return 0;
+
+  SSkipListNode *node = tSkipListIterGet(pIter);
+  if (node == NULL) return 0;
+
+  SDataRow row = SL_GET_NODE_DATA(node);
+  if (dataRowKey(row) >= minKey && dataRowKey(row) <= maxKey) return 1;
+
+  return 0;
+}
+
+static int tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minKey, TSKEY maxKey) {
+  for (int i = 0; i < nIters; i++) {
+    SSkipListIterator *pIter = iters[i];
+    if (tsdbHasDataInRange(pIter, minKey, maxKey)) return 1;
+  }
   return 0;
 }

@@ -134,12 +134,15 @@ typedef struct {
   int64_t  uid;        // For recovery usage
   SCompCol cols[];
 } SCompData;
-int tsdbCopyCompBlockToFile(SFile *outFile, SFile *inFile, SCompInfo *pCompInfo, int index, int isOutLast);
+
+int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInfo, int idx, int isLast, SDataCols *pCols);
 
 int tsdbLoadCompIdx(SFileGroup *pGroup, void *buf, int maxTables);
 int tsdbLoadCompBlocks(SFileGroup *pGroup, SCompIdx *pIdx, void *buf);
 int tsdbLoadCompCols(SFile *pFile, SCompBlock *pBlock, void *buf);
 int tsdbLoadColData(SFile *pFile, SCompCol *pCol, int64_t blockBaseOffset, void *buf);
+int tsdbLoadDataBlock(SFile *pFile, SCompBlock *pStartBlock, int numOfBlocks, SDataCols *pCols, SCompData *pCompData);
+
 // TODO: need an API to merge all sub-block data into one
 
 int tsdbWriteBlockToFile(SFileGroup *pGroup, SCompInfo *pCompInfo, SCompIdx *pIdx, int isMerge, SCompBlock *pBlock, SDataCols *pCols);

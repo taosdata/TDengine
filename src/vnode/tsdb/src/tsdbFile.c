@@ -103,8 +103,59 @@ int tsdbRemoveFileGroup(STsdbFileH *pFileH, int fid) {
 
   return 0;
 }
-int tsdbCopyCompBlockToFile(SFile *outFile, SFile *inFile, SCompInfo *pCompInfo, int index, int isOutLast) {
-  // TODO
+
+int tsdbLoadDataBlock(SFile *pFile, SCompBlock *pStartBlock, int numOfBlocks, SDataCols *pCols, SCompData *pCompData) {
+  SCompBlock *pBlock = pStartBlock;
+  for (int i = 0; i < numOfBlocks; i++) {
+    if (tsdbLoadCompCols(pFile, pBlock, (void *)pCompData) < 0) return -1;
+    for (int iCol = 0; iCol < pBlock->numOfCols; iCol++) {
+      SCompCol *pCompCol = &(pCompData->cols[iCol]);
+      pCols->numOfPoints += pBlock->numOfPoints;
+      int k = 0;
+      for (; k < pCols->numOfCols; k++) {
+        if (pCompCol->colId == pCols->cols[k].colId) break;
+      }
+
+      if (tsdbLoadColData(pFile, pCompCol, pBlock->offset,
+                          (void *)((char *)(pCols->cols[k].pData) + pCols->cols[k].len)) < 0)
+        return -1;
+    }
+    pStartBlock++;
+  }
+  return 0;
+}
+
+int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInfo, int idx, int isLast, SDataCols *pCols) {
+  SCompBlock *pSuperBlock = TSDB_COMPBLOCK_AT(pCompInfo, idx);
+  SCompBlock *pStartBlock = NULL;
+  SCompBlock *pBlock = NULL;
+  int         numOfBlocks = pSuperBlock->numOfSubBlocks;
+
+  if (numOfBlocks == 1)
+    pStartBlock = pSuperBlock;
+  else
+    pStartBlock = TSDB_COMPBLOCK_AT(pCompInfo, pSuperBlock->offset);
+
+  int maxNumOfCols = 0;
+  pBlock = pStartBlock;
+  for (int i = 0; i < numOfBlocks; i++) {
+    if (pBlock->numOfCols > maxNumOfCols) maxNumOfCols = pBlock->numOfCols;
+    pBlock++;
+  }
+
+  SCompData *pCompData = (SCompData *)malloc(sizeof(SCompData) + sizeof(SCompCol) * maxNumOfCols);
+  if (pCompData == NULL) return -1;
+
+  // Load data from the block
+  if (tsdbLoadDataBlock(pOutFile, pStartBlock, numOfBlocks, pCols, pCompData));
+
+  // Write data block to the file
+  {
+    // TODO
+  }
+
+
+  if (pCompData) free(pCompData);
   return 0;
 }
 
