@@ -567,6 +567,7 @@ int mgmtCreateMeter(SDbObj *pDb, SCreateTableMsg *pCreate) {
     pMetric = mgmtGetMeter(pTagData);
     if (pMetric == NULL) {
       mError("table:%s, corresponding super table does not exist", pCreate->meterId);
+      free(pMeter);
       return TSDB_CODE_INVALID_TABLE;
     }
 
