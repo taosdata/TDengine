@@ -605,7 +605,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-//  (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pTableMetaInfo->pMetricMeta->numOfVnodes);
+  (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * 1);
   if (*pMemBuffer == NULL) {
     tscError("%p failed to allocate memory", pSql);
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;

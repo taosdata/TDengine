@@ -32,12 +32,6 @@ typedef struct SData {
   char    data[];
 } SData;
 
-enum {
-//  ST_QUERY_KILLED = 0,     // query killed
-  ST_QUERY_PAUSED = 1,     // query paused, due to full of the response buffer
-  ST_QUERY_COMPLETED = 2,  // query completed
-};
-
 struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, char* val1, char* val2);
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
@@ -60,18 +54,20 @@ typedef struct SWindowStatus {
 } SWindowStatus;
 
 typedef struct SWindowResult {
-  uint16_t      numOfRows;
+  uint16_t      numOfRows;   // number of rows of current  time window
   SPosInfo      pos;         // Position of current result in disk-based output buffer
   SResultInfo*  resultInfo;  // For each result column, there is a resultInfo
   STimeWindow   window;      // The time window that current result covers.
-  SWindowStatus status;
+  SWindowStatus status;      // this result status: closed or opened
 } SWindowResult;
 
 typedef struct SResultRec {
-  int64_t total;
-  int64_t size;
-  int64_t capacity;
-  int32_t threshold;   // the threshold size, when the number of rows in result buffer, return to client
+  int64_t total;     // total generated result size in rows
+  int64_t size;      // current result set size in rows
+  int64_t capacity;  // capacity of current result output buffer
+  
+  // result size threshold in rows. If the result buffer is larger than this, pause query and return to client
+  int32_t threshold;
 } SResultRec;
 
 typedef struct SWindowResInfo {
@@ -99,7 +95,6 @@ typedef struct SSingleColumnFilterInfo {
   void*              pData;
 } SSingleColumnFilterInfo;
 
-/* intermediate pos during multimeter query involves interval */
 typedef struct STableQueryInfo {
   int64_t     lastKey;
   STimeWindow win;
@@ -107,7 +102,7 @@ typedef struct STableQueryInfo {
   int16_t     queryRangeSet;  // denote if the query range is set, only available for interval query
   int64_t     tag;
   STSCursor   cur;
-  int32_t     sid;  // for retrieve the page id list
+  int32_t     tid;  // for retrieve the page id list
 
   SWindowResInfo windowResInfo;
 } STableQueryInfo;
@@ -116,7 +111,6 @@ typedef struct STableDataInfo {
   int32_t          numOfBlocks;
   int32_t          start;     // start block index
   int32_t          tableIndex;
-  void*            pMeterObj;
   int32_t          groupIdx;  // group id in table list
   STableQueryInfo* pTableQInfo;
 } STableDataInfo;

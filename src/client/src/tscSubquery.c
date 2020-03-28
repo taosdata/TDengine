@@ -1011,8 +1011,9 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
-  int32_t numOfSubQueries = 0;
+  int32_t numOfSubQueries = 1;
 //  int32_t numOfSubQueries = pTableMetaInfo->pMetricMeta->numOfVnodes;
+  
   assert(numOfSubQueries > 0);
   
   int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);
