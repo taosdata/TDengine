@@ -72,7 +72,7 @@ void processShellMsg() {
       rpcMsg.pCont = rpcMallocCont(msgSize);
       rpcMsg.contLen = msgSize;
       rpcMsg.handle = pRpcMsg->handle;
-      rpcMsg.code = 1;
+      rpcMsg.code = 0;
       rpcSendResponse(&rpcMsg);
 
       taosFreeQitem(pRpcMsg);

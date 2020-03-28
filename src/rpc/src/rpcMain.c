@@ -82,6 +82,9 @@ typedef struct {
   int8_t    oldInUse;   // server IP inUse passed by app
   int8_t    redirect;   // flag to indicate redirect
   int8_t    connType;   // connection type
+  SRpcMsg  *pRsp;       // for synchronous API
+  tsem_t   *pSem;       // for synchronous API
+  SRpcIpSet *pSet;      // for synchronous API 
   char      msg[0];     // RpcHead starts from here
 } SRpcReqContext;
 
@@ -452,6 +455,26 @@ int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
 
   strcpy(pInfo->user, pConn->user);
   return 0;
+}
+
+void rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  SRpcReqContext *pContext;
+  pContext = (SRpcReqContext *) (pMsg->pCont-sizeof(SRpcHead)-sizeof(SRpcReqContext));
+
+  memset(pRsp, 0, sizeof(SRpcMsg));
+  
+  tsem_t   sem;        
+  tsem_init(&sem, 0, 0);
+  pContext->pSem = &sem;
+  pContext->pRsp = pRsp;
+  pContext->pSet = pIpSet;
+
+  rpcSendRequest(shandle, pIpSet, pMsg);
+
+  tsem_wait(&sem);
+  tsem_destroy(&sem);
+
+  return;
 }
 
 static void rpcFreeMsg(void *msg) {
@@ -855,6 +878,26 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   return pConn;
 }
 
+static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
+  SRpcInfo       *pRpc = pContext->pRpc;
+
+  if (pContext->pRsp) { 
+    // for synchronous API
+    tsem_post(pContext->pSem);
+    memcpy(pContext->pSet, &pContext->ipSet, sizeof(SRpcIpSet));
+    memcpy(pContext->pRsp, pMsg, sizeof(SRpcMsg));
+  } else {
+    // for asynchronous API 
+    if (pRpc->ufp && (pContext->ipSet.inUse != pContext->oldInUse || pContext->redirect)) 
+      (*pRpc->ufp)(pContext->ahandle, &pContext->ipSet);  // notify the update of ipSet
+
+    (*pRpc->cfp)(pMsg);  
+  }
+
+  // free the request message
+  rpcFreeCont(pContext->pCont); 
+}
+
 static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
 
   SRpcInfo *pRpc = pConn->pRpc;
@@ -887,10 +930,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead) {
       tTrace("%s %p, redirect is received, numOfIps:%d", pRpc->label, pConn, pContext->ipSet.numOfIps);
       rpcSendReqToServer(pRpc, pContext);
     } else {
-      if ( pRpc->ufp && (pContext->ipSet.inUse != pContext->oldInUse || pContext->redirect) ) 
-        (*pRpc->ufp)(pContext->ahandle, &pContext->ipSet);  // notify the update of ipSet
-      (*pRpc->cfp)(&rpcMsg);
-      rpcFreeCont(pContext->pCont); // free the request msg
+      rpcNotifyClient(pContext, &rpcMsg);
     }
   }
 }
@@ -1059,8 +1099,8 @@ static void rpcProcessConnError(void *param, void *id) {
     rpcMsg.code = pContext->code;
     rpcMsg.pCont = NULL;
     rpcMsg.contLen = 0;
-    (*(pRpc->cfp))(&rpcMsg);  
-    rpcFreeCont(pContext->pCont); // free the request msg
+
+    rpcNotifyClient(pContext, &rpcMsg);
   } else {
     // move to next IP 
     pContext->ipSet.inUse++;
