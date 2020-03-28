@@ -243,16 +243,6 @@ static void dnodeContinueExecuteQuery(void* pVnode, void* qhandle, SReadMsg *pMs
   
   taos_queue queue = dnodeGetVnodeRworker(pVnode);
   taosWriteQitem(queue, TAOS_QTYPE_RPC, pRead);
-  
-//  SReadMsg readMsg = {
-//      .rpcMsg      = {0},
-//      .pCont       = qhandle,
-//      .contLen     = 0,
-//      .pRpcContext = pMsg->pRpcContext,
-//  };
-//
-//  taos_queue queue = dnodeGetVnodeRworker(pVnode);
-//  taosWriteQitem(queue, TSDB_MSG_TYPE_QUERY, &readMsg);
 }
 
 static void dnodeProcessQueryMsg(void *pVnode, SReadMsg *pMsg) {
