@@ -702,6 +702,7 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
 _error:
   // table query ref will be decrease during error handling
   vnodeFreeQInfo(pQInfo, false);
+  free(pSupporter);
   return NULL;
 }
 
