@@ -268,7 +268,7 @@ static int compFGroup(const void *arg1, const void *arg2) {
 static int tsdbWriteFileHead(SFile *pFile) {
   char head[TSDB_FILE_HEAD_SIZE] = "\0";
 
-  pFile->size += TSDB_FILE_HEAD_SIZE;
+  pFile->info.size += TSDB_FILE_HEAD_SIZE;
 
   // TODO: write version and File statistic to the head
   lseek(pFile->fd, 0, SEEK_SET);
@@ -292,7 +292,7 @@ static int tsdbWriteHeadFileIdx(SFile *pFile, int maxTables) {
     return -1;
   }
 
-  pFile->size += size;
+  pFile->info.size += size;
 
   free(buf);
   return 0;
@@ -315,6 +315,12 @@ int tsdbOpenFile(SFile *pFile, int oflag) { // TODO: change the function
   return 0;
 }
 
+int tsdbCloseFile(SFile *pFile) {
+  int ret = close(pFile->fd);
+  pFile->fd = -1;
+  return ret;
+}
+
 SFileGroup * tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid) {
   SFileGroup *pGroup = tsdbSearchFGroup(pFileH, fid);
   if (pGroup == NULL) return NULL;
@@ -323,14 +329,6 @@ SFileGroup * tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid) {
     tsdbOpenFile(&(pGroup->files[type]), O_RDWR);
   }
   return pGroup;
-}
-
-static int tsdbCloseFile(SFile *pFile) {
-  if (!TSDB_IS_FILE_OPENED(pFile)) return -1;
-  int ret = close(pFile->fd);
-  pFile->fd = -1;
-
-  return ret;
 }
 
 int tsdbCreateFile(char *dataDir, int fileId, char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose) {

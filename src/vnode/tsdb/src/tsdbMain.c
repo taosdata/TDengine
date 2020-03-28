@@ -937,7 +937,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
         } else {
           pIdx->offset = lseek(hFile.fd, 0, SEEK_CUR);
           sendfile(pGroup->files[TSDB_FILE_TYPE_HEAD].fd, hFile.fd, NULL, pIdx->len);
-          hFile.size += pIdx->len;
+          hFile.info.size += pIdx->len;
         }
       }
       continue;
@@ -977,8 +977,23 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
     }
   }
 
-  // TODO: close the files and replace the .head and .last file
-  {}
+  // Write the SCompIdx part
+  if (lseek(hFile.fd, TSDB_FILE_HEAD_SIZE, SEEK_SET) < 0) {/* TODO */}
+  if (write(hFile.fd, (void *)pIndices, sizeof(SCompIdx) * pCfg->maxTables) < 0) {/* TODO */}
+
+  // close the files
+  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
+    tsdbCloseFile(&pGroup->files[type]);
+  }
+  tsdbCloseFile(&hFile);
+  if (isNewLastFile) tsdbCloseFile(&lFile);
+  // TODO: replace the .head and .last file
+  rename(hFile.fname, pGroup->files[TSDB_FILE_TYPE_HEAD].fname);
+  pGroup->files[TSDB_FILE_TYPE_HEAD].info = hFile.info;
+  if (isNewLastFile) {
+    rename(lFile.fname, pGroup->files[TSDB_FILE_TYPE_LAST].fname);
+    pGroup->files[TSDB_FILE_TYPE_LAST].info = lFile.info;
+  }
 
   if (pIndices) free(pIndices);
   if (pCompInfo) free(pCompInfo);

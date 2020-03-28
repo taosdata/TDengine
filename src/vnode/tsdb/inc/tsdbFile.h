@@ -42,13 +42,16 @@ typedef enum {
 extern const char *tsdbFileSuffix[];
 
 typedef struct {
-  int8_t  type;
-  int     fd;
-  char    fname[128];
   int64_t size;      // total size of the file
   int64_t tombSize;  // unused file size
   int32_t totalBlocks;
   int32_t totalSubBlocks;
+} SFileInfo;
+
+typedef struct {
+  int     fd;
+  char    fname[128];
+  SFileInfo info;
 } SFile;
 
 #define TSDB_IS_FILE_OPENED(f) ((f)->fd != -1)
@@ -74,7 +77,7 @@ void        tsdbCloseFileH(STsdbFileH *pFileH);
 int         tsdbCreateFile(char *dataDir, int fileId, char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose);
 int         tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables);
 int         tsdbOpenFile(SFile *pFile, int oflag);
-SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
+int         tsdbCloseFile(SFile *pFile); SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
 int         tsdbRemoveFileGroup(STsdbFileH *pFile, int fid);
 
 typedef struct {
