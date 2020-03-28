@@ -2112,6 +2112,11 @@ static void doInterpolatePrevTimeWindow(SQueryRuntimeEnv* pRuntimeEnv, SWindowRe
     int32_t forwardStep = 0;
     doSetInterpolationDataForTimeWindow(pRuntimeEnv, pWindowResInfo, pBlockInfo, &w, offset, forwardStep);
     
+    // set correct output buffer for interplate result. todo handle error
+    if (setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pRuntimeEnv->pMeterObj->sid, &w) != TSDB_CODE_SUCCESS) {
+      continue;
+    }
+    
     SWindowStatus *pStatus = getTimeWindowResStatus(pWindowResInfo, slot);
     doBlockwiseApplyFunctions(pRuntimeEnv, pStatus, &w, pQuery->pos, forwardStep);
     
