@@ -355,7 +355,18 @@ void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols) {
 }
 // Pop pointsToPop points from the SDataCols
 void tdPopDataColsPoints(SDataCols *pCols, int pointsToPop) {
+  int pointsLeft = pCols->numOfPoints - pointsToPop;
 
+  for (int iCol = 0; iCol < pCols->numOfCols; iCol++) {
+    SDataCol *p_col = pCols->cols + iCol;
+    if (p_col->len > 0) {
+      p_col->len = TYPE_BYTES[p_col->type] * pointsLeft;
+      if (pointsLeft > 0) {
+        memmove((void *)(p_col->pData), (void *)((char *)(p_col->pData) + TYPE_BYTES[p_col->type] * pointsToPop), p_col->len);
+      }
+    }
+  }
+  pCols->numOfPoints = pointsLeft;
 }
 
 /**

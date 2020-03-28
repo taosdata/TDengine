@@ -196,65 +196,6 @@ int tsdbLoadColData(SFile *pFile, SCompCol *pCol, int64_t blockBaseOffset, void 
   return 0;
 }
 
-static int tsdbWriteBlockToFileImpl(SFile *     pFile,              // File to write
-                                    SDataCols * pCols,              // Data column buffer
-                                    int         numOfPointsToWrie,  // Number of points to write to the file
-                                    SCompBlock *pBlock              // SCompBlock to hold block information to return
-                                    ) {
-  // pBlock->last = 0;
-  // pBlock->offset = lseek(pFile->fd, 0, SEEK_END);
-  // // pBlock->algorithm = ;
-  // pBlock->numOfPoints = pCols->numOfPoints;
-  // // pBlock->sversion = ;
-  // // pBlock->len = ;
-  // pBlock->numOfSubBlocks = 1;
-  // pBlock->keyFirst = dataColsKeyFirst(pCols);
-  // pBlock->keyLast = dataColsKeyLast(pCols);
-  // for (int i = 0; i < pCols->numOfCols; i++) {
-  //   // TODO: if all col value is NULL, do not save it
-  //   pBlock->numOfCols++;
-  //   pCompData->numOfCols++;
-  //   SCompCol *pCompCol = pCompData->cols + i;
-  //   pCompCol->colId = pCols->cols[i].colId;
-  //   pCompCol->type = pCols->cols[i].type;
-
-  //   // pCompCol->len = ;
-  //   // pCompCol->offset = ;
-  // }
-
-  return 0;
-}
-
-int tsdbWriteBlockToFile(SFileGroup *pGroup, SCompInfo *pCompInfo, SCompIdx *pIdx, int isMerge, SCompBlock *pBlock, SDataCols *pCols) {
-  memset((void *)pBlock, 0, sizeof(SCompBlock));
-  SFile *pFile = NULL;
-  SCompData *pCompData = (SCompData *)malloc(sizeof(SCompData) + sizeof(SCompCol) * pCols->numOfCols);
-  if (pCompData == NULL) return -1;
-  pCompData->delimiter = TSDB_FILE_DELIMITER;
-  // pCompData->uid = ;
-
-  if (isMerge) {
-    TSKEY keyFirst = dataColsKeyFirst(pCols);
-    // 1. Binary search the block the data can merged into
-
-    if (1/* the data should only merged into last file */) {
-    } else {
-    }
-  } else {
-    // Write directly to the file without merge
-    if (1/*pCols->numOfPoints < pCfg->minRowsPerFileBlock*/) {
-      // TODO: write the data to the last file
-    } else {
-      // TODO: wirte the data to the data file
-    }
-  }
-
-  // TODO: need to update pIdx
-
-  if (pCompData) free(pCompData);
-  return 0;
-}
-
 static int compFGroupKey(const void *key, const void *fgroup) {
   int         fid = *(int *)key;
   SFileGroup *pFGroup = (SFileGroup *)fgroup;

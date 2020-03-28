@@ -967,9 +967,26 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
       tsdbReadRowsFromCache(pIter, maxKey, maxRowsToRead, pCols);
       if (pCols->numOfPoints == 0) break;
 
-      // TODO
-      int pointsWritten = 0; /* tsdbWriteBlockToFile(); */
+      int pointsWritten = 0;
+      // { // TODO : try to write the block data to file
+      //   if (!isCompBlockLoaded) { // Just append
+      //     if (pCols->numOfPoints > pCfg->minRowsPerFileBlock) { // write directly to .data file
+      //       lseek(pGroup->files[TSDB_FILE_TYPE_DATA], 0, SEEK_END);
+
+      //     } else {
+      //       if (isNewLastFile) { // write directly to .l file
+
+      //       } else { // write directly to .last file
+
+      //       }
+      //     }
+      //   } else { // Need to append
+      //     // SCompBlock *pTBlock = NULL;
+      //   }
+      // }
+      pointsWritten = pCols->numOfPoints;
       tdPopDataColsPoints(pCols, pointsWritten);
+      maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5 - pCols->numOfPoints;
     }
 
     // Write the SCompBlock part
@@ -1020,6 +1037,19 @@ static int tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minK
   for (int i = 0; i < nIters; i++) {
     SSkipListIterator *pIter = iters[i];
     if (tsdbHasDataInRange(pIter, minKey, maxKey)) return 1;
+  }
+  return 0;
+}
+
+static int tsdbWriteBlockToFile(STsdbRepo *pRepo, SCompIdx *pIdx, SCompInfo *pCompInfo, SDataCols *pCols, SCompBlock *pCompBlock) {
+  STsdbCfg *pCfg = &(pRepo->config);
+
+  memset((void *)pCompBlock, 0, sizeof(SCompBlock));
+
+  if (pCompInfo == NULL) {
+    // Just need to append to file
+  } else {
+    // Need to merge
   }
   return 0;
 }
