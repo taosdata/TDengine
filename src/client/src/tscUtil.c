@@ -608,7 +608,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
    * the payloadLen should be actual message body size
    * the old value of payloadLen is the allocated payload size
    */
-  pCmd->payloadLen = pDataBlock->nAllocSize - tsRpcHeadSize - sizeof(SMsgDesc);
+  pCmd->payloadLen = pDataBlock->nAllocSize - tsRpcHeadSize;
 
   assert(pCmd->allocSize >= pCmd->payloadLen + tsRpcHeadSize + 100 && pCmd->payloadLen > 0);
   return TSDB_CODE_SUCCESS;

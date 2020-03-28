@@ -509,31 +509,31 @@ int tscBuildRetrieveMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SSubmitMsg *pShellMsg;
-  char *           pMsg, *pStart;
-
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
   
-  pStart = pSql->cmd.payload + tsRpcHeadSize;
-  pMsg = pStart;
+  char* pMsg = pSql->cmd.payload + tsRpcHeadSize;
+  
+  // NOTE: shell message size should not include SMsgDesc
+  int32_t size = pSql->cmd.payloadLen - sizeof(SMsgDesc);
   
   SMsgDesc* pMsgDesc = (SMsgDesc*) pMsg;
-  pMsgDesc->numOfVnodes = htonl(1);       //set the number of vnodes
+  
+  pMsgDesc->numOfVnodes = htonl(1);       //todo set the right number of vnodes
   pMsg += sizeof(SMsgDesc);
   
-  pShellMsg = (SSubmitMsg *)pMsg;
+  SSubmitMsg *pShellMsg = (SSubmitMsg *)pMsg;
+  
   pShellMsg->header.vgId = htonl(pTableMeta->vgId);
-  pShellMsg->header.contLen = htonl(pSql->cmd.payloadLen);
+  pShellMsg->header.contLen = htonl(size);
   pShellMsg->length = pShellMsg->header.contLen;
   
   pShellMsg->numOfBlocks = htonl(pSql->cmd.numOfTablesInSubmit);  // number of meters to be inserted
 
-  // pSql->cmd.payloadLen is set during parse sql routine, so we do not use it here
+  // pSql->cmd.payloadLen is set during copying data into paylaod
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
+  tscTrace("%p build submit msg, vgId:%d numOfVnodes:%d", pSql, pTableMeta->vgId, htons(pMsgDesc->numOfVnodes));
   
-//  tscTrace("%p update submit msg vnode:%s:%d", pSql, taosIpStr(pTableMeta->vpeerDesc[pTableMeta->index].ip),
-//           htons(pShellMsg->vnode));
   return TSDB_CODE_SUCCESS;
 }
 

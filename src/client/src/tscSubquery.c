@@ -1006,14 +1006,12 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   pRes->qhandle = 1;  // hack the qhandle check
   
-  const uint32_t nBufferSize = (1 << 16);  // 64KB
+  const uint32_t nBufferSize = (1u << 16);  // 64KB
   
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
-  int32_t numOfSubQueries = 1;
-//  int32_t numOfSubQueries = pTableMetaInfo->pMetricMeta->numOfVnodes;
-  
+  int32_t numOfSubQueries = taosArrayGetSize(pTableMetaInfo->vgroupIdList);
   assert(numOfSubQueries > 0);
   
   int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, nBufferSize);
@@ -1119,7 +1117,7 @@ static void tscFreeSubSqlObj(SRetrieveSupport *trsupport, SSqlObj *pSql) {
   tfree(trsupport);
 }
 
-static void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows);
+static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfRows);
 
 static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES *tres, int32_t errCode) {
 // set no disk space error info
@@ -1141,7 +1139,7 @@ static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES 
   
   pthread_mutex_unlock(&trsupport->queryMutex);
   
-  tscRetrieveFromVnodeCallBack(trsupport, tres, trsupport->pState->code);
+  tscRetrieveFromDnodeCallBack(trsupport, tres, trsupport->pState->code);
 }
 
 static void tscHandleSubRetrievalError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numOfRows) {
@@ -1236,7 +1234,86 @@ static void tscHandleSubRetrievalError(SRetrieveSupport *trsupport, SSqlObj *pSq
   }
 }
 
-static void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
+static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* pSql) {
+  int32_t           idx = trsupport->subqueryIndex;
+  SSqlObj *         pPObj = trsupport->pParentSqlObj;
+  tOrderDescriptor *pDesc = trsupport->pOrderDescriptor;
+  
+  SSubqueryState* pState = trsupport->pState;
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  
+  // data in from current vnode is stored in cache and disk
+  uint32_t numOfRowsFromSubquery = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->numOfElems;
+//    tscTrace("%p sub:%p all data retrieved from ip:%u,vid:%d, numOfRows:%d, orderOfSub:%d", pPObj, pSql, pSvd->ip,
+//             pSvd->vnode, numOfRowsFromSubquery, idx);
+  
+  tColModelCompact(pDesc->pColumnModel, trsupport->localBuffer, pDesc->pColumnModel->capacity);
+
+#ifdef _DEBUG_VIEW
+  printf("%" PRIu64 " rows data flushed to disk:\n", trsupport->localBuffer->numOfElems);
+    SSrcColumnInfo colInfo[256] = {0};
+    tscGetSrcColumnInfo(colInfo, pQueryInfo);
+    tColModelDisplayEx(pDesc->pColumnModel, trsupport->localBuffer->data, trsupport->localBuffer->numOfElems,
+                       trsupport->localBuffer->numOfElems, colInfo);
+#endif
+  
+  if (tsTotalTmpDirGB != 0 && tsAvailTmpDirGB < tsMinimalTmpDirGB) {
+    tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query", pPObj, pSql,
+             tsAvailTmpDirGB, tsMinimalTmpDirGB);
+    tscAbortFurtherRetryRetrieval(trsupport, pSql, TSDB_CODE_CLI_NO_DISKSPACE);
+    return;
+  }
+  
+  // each result for a vnode is ordered as an independant list,
+  // then used as an input of loser tree for disk-based merge routine
+  int32_t ret = tscFlushTmpBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer,
+                                  pQueryInfo->groupbyExpr.orderType);
+  if (ret != 0) { // set no disk space error info, and abort retry
+    return tscAbortFurtherRetryRetrieval(trsupport, pSql, TSDB_CODE_CLI_NO_DISKSPACE);
+  }
+  
+  // keep this value local variable, since the pState variable may be released by other threads, if atomic_add opertion
+  // increases the finished value up to pState->numOfTotal value, which means all subqueries are completed.
+  // In this case, the comparsion between finished value and released pState->numOfTotal is not safe.
+  int32_t numOfTotal = pState->numOfTotal;
+  
+  int32_t finished = atomic_add_fetch_32(&pState->numOfCompleted, 1);
+  if (finished < numOfTotal) {
+    tscTrace("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pPObj, pSql, trsupport->subqueryIndex, finished);
+    return tscFreeSubSqlObj(trsupport, pSql);
+  }
+  
+  // all sub-queries are returned, start to local merge process
+  pDesc->pColumnModel->capacity = trsupport->pExtMemBuffer[idx]->numOfElemsPerPage;
+  
+  tscTrace("%p retrieve from %d vnodes completed.final NumOfRows:%d,start to build loser tree", pPObj,
+           pState->numOfTotal, pState->numOfRetrievedRows);
+  
+  SQueryInfo *pPQueryInfo = tscGetQueryInfoDetail(&pPObj->cmd, 0);
+  tscClearInterpInfo(pPQueryInfo);
+  
+  tscCreateLocalReducer(trsupport->pExtMemBuffer, pState->numOfTotal, pDesc, trsupport->pFinalColModel,
+                        &pPObj->cmd, &pPObj->res);
+  tscTrace("%p build loser tree completed", pPObj);
+  
+  pPObj->res.precision = pSql->res.precision;
+  pPObj->res.numOfRows = 0;
+  pPObj->res.row = 0;
+  
+  // only free once
+  tfree(trsupport->pState);
+  tscFreeSubSqlObj(trsupport, pSql);
+  
+  // set the command flag must be after the semaphore been correctly set.
+  pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
+  if (pPObj->res.code == TSDB_CODE_SUCCESS) {
+    (*pPObj->fp)(pPObj->param, pPObj, 0);
+  } else {
+    tscQueueAsyncRes(pPObj);
+  }
+}
+
+static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfRows) {
   SRetrieveSupport *trsupport = (SRetrieveSupport *)param;
   int32_t           idx = trsupport->subqueryIndex;
   SSqlObj *         pPObj = trsupport->pParentSqlObj;
@@ -1265,15 +1342,15 @@ static void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
 //  SVnodeSidList *vnodeInfo = tscGetVnodeSidList(pTableMetaInfo->pMetricMeta, idx);
-  SVnodeSidList *vnodeInfo = 0;
-  SVnodeDesc *   pSvd = &vnodeInfo->vpeerDesc[vnodeInfo->index];
+//  SVnodeSidList *vnodeInfo = 0;
+//  SVnodeDesc *   pSvd = &vnodeInfo->vpeerDesc[vnodeInfo->index];
   
   if (numOfRows > 0) {
     assert(pRes->numOfRows == numOfRows);
     int64_t num = atomic_add_fetch_64(&pState->numOfRetrievedRows, numOfRows);
     
-    tscTrace("%p sub:%p retrieve numOfRows:%d totalNumOfRows:%d from ip:%u,vid:%d,orderOfSub:%d", pPObj, pSql,
-             pRes->numOfRows, pState->numOfRetrievedRows, pSvd->ip, pSvd->vnode, idx);
+//    tscTrace("%p sub:%p retrieve numOfRows:%d totalNumOfRows:%d from ip:%u,vid:%d,orderOfSub:%d", pPObj, pSql,
+//             pRes->numOfRows, pState->numOfRetrievedRows, pSvd->ip, pSvd->vnode, idx);
     
     if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
       tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId64 " , current:%" PRId64,
@@ -1299,85 +1376,16 @@ static void tscRetrieveFromVnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     
     int32_t ret = saveToBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer, pRes->data,
                                pRes->numOfRows, pQueryInfo->groupbyExpr.orderType);
-    if (ret < 0) {
-      // set no disk space error info, and abort retry
+    if (ret < 0) { // set no disk space error info, and abort retry
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
-    } else {
+    } else if (pRes->completed) {
+      tscAllDataRetrievedFromDnode(trsupport, pSql);
+    } else { // continue fetch data from dnode
       pthread_mutex_unlock(&trsupport->queryMutex);
-      taos_fetch_rows_a(tres, tscRetrieveFromVnodeCallBack, param);
+      taos_fetch_rows_a(tres, tscRetrieveFromDnodeCallBack, param);
     }
-    
-  } else {  // all data has been retrieved to client
-    /* data in from current vnode is stored in cache and disk */
-    uint32_t numOfRowsFromVnode = trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->numOfElems;
-    tscTrace("%p sub:%p all data retrieved from ip:%u,vid:%d, numOfRows:%d, orderOfSub:%d", pPObj, pSql, pSvd->ip,
-             pSvd->vnode, numOfRowsFromVnode, idx);
-    
-    tColModelCompact(pDesc->pColumnModel, trsupport->localBuffer, pDesc->pColumnModel->capacity);
-
-#ifdef _DEBUG_VIEW
-    printf("%" PRIu64 " rows data flushed to disk:\n", trsupport->localBuffer->numOfElems);
-    SSrcColumnInfo colInfo[256] = {0};
-    tscGetSrcColumnInfo(colInfo, pQueryInfo);
-    tColModelDisplayEx(pDesc->pColumnModel, trsupport->localBuffer->data, trsupport->localBuffer->numOfElems,
-                       trsupport->localBuffer->numOfElems, colInfo);
-#endif
-    
-    if (tsTotalTmpDirGB != 0 && tsAvailTmpDirGB < tsMinimalTmpDirGB) {
-      tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query", pPObj, pSql,
-               tsAvailTmpDirGB, tsMinimalTmpDirGB);
-      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
-      return;
-    }
-    
-    // each result for a vnode is ordered as an independant list,
-    // then used as an input of loser tree for disk-based merge routine
-    int32_t ret = tscFlushTmpBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer,
-                                    pQueryInfo->groupbyExpr.orderType);
-    if (ret != 0) {
-      /* set no disk space error info, and abort retry */
-      return tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_CLI_NO_DISKSPACE);
-    }
-    
-    // keep this value local variable, since the pState variable may be released by other threads, if atomic_add opertion
-    // increases the finished value up to pState->numOfTotal value, which means all subqueries are completed.
-    // In this case, the comparsion between finished value and released pState->numOfTotal is not safe.
-    int32_t numOfTotal = pState->numOfTotal;
-    
-    int32_t finished = atomic_add_fetch_32(&pState->numOfCompleted, 1);
-    if (finished < numOfTotal) {
-      tscTrace("%p sub:%p orderOfSub:%d freed, finished subqueries:%d", pPObj, pSql, trsupport->subqueryIndex, finished);
-      return tscFreeSubSqlObj(trsupport, pSql);
-    }
-    
-    // all sub-queries are returned, start to local merge process
-    pDesc->pColumnModel->capacity = trsupport->pExtMemBuffer[idx]->numOfElemsPerPage;
-    
-    tscTrace("%p retrieve from %d vnodes completed.final NumOfRows:%d,start to build loser tree", pPObj,
-             pState->numOfTotal, pState->numOfRetrievedRows);
-    
-    SQueryInfo *pPQueryInfo = tscGetQueryInfoDetail(&pPObj->cmd, 0);
-    tscClearInterpInfo(pPQueryInfo);
-    
-    tscCreateLocalReducer(trsupport->pExtMemBuffer, pState->numOfTotal, pDesc, trsupport->pFinalColModel,
-                          &pPObj->cmd, &pPObj->res);
-    tscTrace("%p build loser tree completed", pPObj);
-    
-    pPObj->res.precision = pSql->res.precision;
-    pPObj->res.numOfRows = 0;
-    pPObj->res.row = 0;
-    
-    // only free once
-    tfree(trsupport->pState);
-    tscFreeSubSqlObj(trsupport, pSql);
-    
-    // set the command flag must be after the semaphore been correctly set.
-    pPObj->cmd.command = TSDB_SQL_RETRIEVE_METRIC;
-    if (pPObj->res.code == TSDB_CODE_SUCCESS) {
-      (*pPObj->fp)(pPObj->param, pPObj, 0);
-    } else {
-      tscQueueAsyncRes(pPObj);
-    }
+  } else { // all data has been retrieved to client
+    tscAllDataRetrievedFromDnode(trsupport, pSql);
   }
 }
 
@@ -1437,7 +1445,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   
   /*
    * if a query on a vnode is failed, all retrieve operations from vnode that occurs later
-   * than this one are actually not necessary, we simply call the tscRetrieveFromVnodeCallBack
+   * than this one are actually not necessary, we simply call the tscRetrieveFromDnodeCallBack
    * function to abort current and remain retrieve process.
    *
    * NOTE: threadsafe is required.
@@ -1475,7 +1483,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
                trsupport->subqueryIndex, pState->code);
     }
     
-    tscRetrieveFromVnodeCallBack(param, tres, pState->code);
+    tscRetrieveFromDnodeCallBack(param, tres, pState->code);
   } else {  // success, proceed to retrieve data from dnode
     if (vnodeInfo != NULL) {
       tscTrace("%p sub:%p query complete,ip:%u,vid:%d,orderOfSub:%d,retrieve data", trsupport->pParentSqlObj, pSql,
@@ -1486,7 +1494,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
                trsupport->subqueryIndex);
     }
     
-    taos_fetch_rows_a(tres, tscRetrieveFromVnodeCallBack, param);
+    taos_fetch_rows_a(tres, tscRetrieveFromDnodeCallBack, param);
   }
 }
 
