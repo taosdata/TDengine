@@ -428,6 +428,7 @@ void vnodeRemoveFile(int vnode, int fileId) {
 
   dPrint("vid:%d fileId:%d on disk: %s is removed, numOfFiles:%d maxFiles:%d", vnode, fileId, path,
          pVnode->numOfFiles, pVnode->maxFiles);
+  close(fd);
 }
 
 void vnodeCloseCommitFiles(SVnodeObj *pVnode) {
