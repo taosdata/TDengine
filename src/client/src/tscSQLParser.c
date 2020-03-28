@@ -3511,7 +3511,7 @@ int tableNameCompar(const void* lhs, const void* rhs) {
   return ret > 0 ? 1 : -1;
 }
 
-static int32_t setTableCondForMetricQuery(SQueryInfo* pQueryInfo, const char* account, tSQLExpr* pExpr,
+static int32_t setTableCondForSTableQuery(SQueryInfo* pQueryInfo, const char* account, tSQLExpr* pExpr,
                                           int16_t tableCondIndex, SStringBuilder* sb) {
   const char* msg = "table name too long";
 
@@ -3740,7 +3740,7 @@ static int32_t getTagQueryCondExpr(SQueryInfo* pQueryInfo, SCondExpr* pCondExpr,
         return ret;
       }
 
-      tsSetMetricQueryCond(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->uid, c);
+      tsSetSTableQueryCond(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->uid, c);
 
       doCompactQueryExpr(pExpr);
       tSQLExprDestroy(p1);
@@ -3815,7 +3815,7 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, SSqlObj* pSql
   // 7. query condition for table name
   pQueryInfo->tagCond.relType = (condExpr.relType == TK_AND) ? TSDB_RELATION_AND : TSDB_RELATION_OR;
 
-  ret = setTableCondForMetricQuery(pQueryInfo, getAccountId(pSql), condExpr.pTableCond, condExpr.tableCondIndex, &sb);
+  ret = setTableCondForSTableQuery(pQueryInfo, getAccountId(pSql), condExpr.pTableCond, condExpr.tableCondIndex, &sb);
   taosStringBuilderDestroy(&sb);
 
   if (!validateFilterExpr(pQueryInfo)) {
@@ -5444,8 +5444,9 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   SQueryInfo*      pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
   // two table: the first one is for current table, and the secondary is for the super table.
-  tscAddEmptyMetaInfo(pQueryInfo);
-  assert(pQueryInfo->numOfTables == 2);
+  if (pQueryInfo->numOfTables < 2) {
+    tscAddEmptyMetaInfo(pQueryInfo);
+  }
 
   const int32_t TABLE_INDEX = 0;
   const int32_t STABLE_INDEX = 1;

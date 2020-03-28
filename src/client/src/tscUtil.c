@@ -102,7 +102,8 @@ SCond* tsGetSTableQueryCondPos(STagCond* pTagCond, uint64_t uid) {
   return NULL;
 }
 
-void tsSetMetricQueryCond(STagCond* pTagCond, uint64_t uid, const char* str) {
+// todo refactor by using SArray
+void tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, const char* str) {
   size_t len = strlen(str);
   if (len == 0) {
     return;
