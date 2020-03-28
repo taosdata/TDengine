@@ -2789,7 +2789,7 @@ static int32_t optrToString(tSQLExpr* pExpr, char** exprString) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tablenameListToString(tSQLExpr* pExpr, /*char* str*/ SStringBuilder* sb) {
+static int32_t tablenameListToString(tSQLExpr* pExpr, SStringBuilder* sb) {
   tSQLExprList* pList = pExpr->pParam;
   if (pList->nExpr <= 0) {
     return TSDB_CODE_INVALID_SQL;
@@ -2815,7 +2815,7 @@ static int32_t tablenameListToString(tSQLExpr* pExpr, /*char* str*/ SStringBuild
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tablenameCondToString(tSQLExpr* pExpr, /*char* str*/ SStringBuilder* sb) {
+static int32_t tablenameCondToString(tSQLExpr* pExpr, SStringBuilder* sb) {
   taosStringBuilderAppendStringLen(sb, QUERY_COND_REL_PREFIX_LIKE, QUERY_COND_REL_PREFIX_LIKE_LEN);
   taosStringBuilderAppendString(sb, pExpr->val.pz);
 
@@ -3756,8 +3756,8 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, SSqlObj* pSql
     return TSDB_CODE_SUCCESS;
   }
 
-  const char* msg = "invalid filter expression";
   const char* msg1 = "invalid expression";
+  const char* msg2 = "invalid filter expression";
 
   int32_t ret = TSDB_CODE_SUCCESS;
 
@@ -3819,7 +3819,7 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, SSqlObj* pSql
   taosStringBuilderDestroy(&sb);
 
   if (!validateFilterExpr(pQueryInfo)) {
-    return invalidSqlErrMsg(pQueryInfo->msg, msg);
+    return invalidSqlErrMsg(pQueryInfo->msg, msg2);
   }
 
   doAddJoinTagsColumnsIntoTagList(pQueryInfo, &condExpr);

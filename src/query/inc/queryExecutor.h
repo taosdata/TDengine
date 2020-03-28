@@ -172,7 +172,6 @@ typedef struct SQueryRuntimeEnv {
 
 typedef struct SQInfo {
   void*            signature;
-//  void*            param;         // pointer to the RpcReadMsg
   TSKEY            startTime;
   TSKEY            elapsedTime;
   int32_t          pointsInterpo;

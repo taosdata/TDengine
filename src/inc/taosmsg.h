@@ -475,9 +475,10 @@ typedef struct {
   int64_t     slidingTime;      // value for sliding window
   char        slidingTimeUnit;  // time interval type, for revisement of interval(1d)
   uint16_t    tagCondLen;       // tag length in current query
+  uint16_t    nameCondLen;      // table name in/like query expression string length
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
-  int16_t     orderType;  // used in group by xx order by xxx
+  int16_t     orderType;        // used in group by xx order by xxx
   uint64_t    groupbyTagIds;
   int64_t     limit;
   int64_t     offset;

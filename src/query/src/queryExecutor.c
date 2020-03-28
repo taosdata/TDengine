@@ -5265,11 +5265,11 @@ void qTableQuery(SQInfo *pQInfo) {
   //  vnodeDecRefCount(pQInfo);
 }
 
-static int32_t getColumnIndexInSource(SQueryTableMsg *pQueryTableMsg, SSqlFuncExprMsg *pExprMsg) {
+static int32_t getColumnIndexInSource(SQueryTableMsg *pQueryMsg, SSqlFuncExprMsg *pExprMsg) {
   int32_t j = 0;
 
-  while (j < pQueryTableMsg->numOfCols) {
-    if (pExprMsg->colInfo.colId == pQueryTableMsg->colList[j].colId) {
+  while (j < pQueryMsg->numOfCols) {
+    if (pExprMsg->colInfo.colId == pQueryMsg->colList[j].colId) {
       break;
     }
 
@@ -5279,44 +5279,44 @@ static int32_t getColumnIndexInSource(SQueryTableMsg *pQueryTableMsg, SSqlFuncEx
   return j;
 }
 
-bool vnodeValidateExprColumnInfo(SQueryTableMsg *pQueryTableMsg, SSqlFuncExprMsg *pExprMsg) {
-  int32_t j = getColumnIndexInSource(pQueryTableMsg, pExprMsg);
-  return j < pQueryTableMsg->numOfCols;
+bool vnodeValidateExprColumnInfo(SQueryTableMsg *pQueryMsg, SSqlFuncExprMsg *pExprMsg) {
+  int32_t j = getColumnIndexInSource(pQueryMsg, pExprMsg);
+  return j < pQueryMsg->numOfCols;
 }
 
-static int32_t validateQueryMeterMsg(SQueryTableMsg *pQueryTableMsg) {
-  if (pQueryTableMsg->intervalTime < 0) {
-    dError("qmsg:%p illegal value of aggTimeInterval %" PRId64 "", pQueryTableMsg, pQueryTableMsg->intervalTime);
+static int32_t validateQueryMeterMsg(SQueryTableMsg *pQueryMsg) {
+  if (pQueryMsg->intervalTime < 0) {
+    dError("qmsg:%p illegal value of aggTimeInterval %" PRId64 "", pQueryMsg, pQueryMsg->intervalTime);
     return -1;
   }
 
-  if (pQueryTableMsg->numOfCols <= 0 || pQueryTableMsg->numOfCols > TSDB_MAX_COLUMNS) {
-    dError("qmsg:%p illegal value of numOfCols %d", pQueryTableMsg, pQueryTableMsg->numOfCols);
+  if (pQueryMsg->numOfCols <= 0 || pQueryMsg->numOfCols > TSDB_MAX_COLUMNS) {
+    dError("qmsg:%p illegal value of numOfCols %d", pQueryMsg, pQueryMsg->numOfCols);
     return -1;
   }
 
-  if (pQueryTableMsg->numOfTables <= 0) {
-    dError("qmsg:%p illegal value of numOfTables %d", pQueryTableMsg, pQueryTableMsg->numOfTables);
+  if (pQueryMsg->numOfTables <= 0) {
+    dError("qmsg:%p illegal value of numOfTables %d", pQueryMsg, pQueryMsg->numOfTables);
     return -1;
   }
 
-  if (pQueryTableMsg->numOfGroupCols < 0) {
-    dError("qmsg:%p illegal value of numOfGroupbyCols %d", pQueryTableMsg, pQueryTableMsg->numOfGroupCols);
+  if (pQueryMsg->numOfGroupCols < 0) {
+    dError("qmsg:%p illegal value of numOfGroupbyCols %d", pQueryMsg, pQueryMsg->numOfGroupCols);
     return -1;
   }
 
-  if (pQueryTableMsg->numOfOutputCols > TSDB_MAX_COLUMNS || pQueryTableMsg->numOfOutputCols <= 0) {
-    dError("qmsg:%p illegal value of output columns %d", pQueryTableMsg, pQueryTableMsg->numOfOutputCols);
+  if (pQueryMsg->numOfOutputCols > TSDB_MAX_COLUMNS || pQueryMsg->numOfOutputCols <= 0) {
+    dError("qmsg:%p illegal value of output columns %d", pQueryMsg, pQueryMsg->numOfOutputCols);
     return -1;
   }
 
   return 0;
 }
 
-static char* createTableIdList(SQueryTableMsg* pQueryTableMsg, char* pMsg, SArray** pTableIdList) {
-  assert(pQueryTableMsg->numOfTables > 0);
+static char* createTableIdList(SQueryTableMsg* pQueryMsg, char* pMsg, SArray** pTableIdList) {
+  assert(pQueryMsg->numOfTables > 0);
   
-  *pTableIdList = taosArrayInit(pQueryTableMsg->numOfTables, sizeof(STableIdInfo));
+  *pTableIdList = taosArrayInit(pQueryMsg->numOfTables, sizeof(STableIdInfo));
   
   STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
   pTableIdInfo->sid = htonl(pTableIdInfo->sid);
@@ -5326,7 +5326,7 @@ static char* createTableIdList(SQueryTableMsg* pQueryTableMsg, char* pMsg, SArra
   taosArrayPush(*pTableIdList, pTableIdInfo);
   pMsg += sizeof(STableIdInfo);
   
-  for (int32_t j = 1; j < pQueryTableMsg->numOfTables; ++j) {
+  for (int32_t j = 1; j < pQueryMsg->numOfTables; ++j) {
     pTableIdInfo = (STableIdInfo *)pMsg;
     
     pTableIdInfo->sid = htonl(pTableIdInfo->sid);
@@ -5341,49 +5341,47 @@ static char* createTableIdList(SQueryTableMsg* pQueryTableMsg, char* pMsg, SArra
 }
 
 /**
- * pQueryTableMsg->head has been converted before this function is called.
+ * pQueryMsg->head has been converted before this function is called.
  *
- * @param pQueryTableMsg
+ * @param pQueryMsg
  * @param pTableIdList
  * @param pExpr
  * @return
  */
-static int32_t convertQueryMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableIdList, SSqlFuncExprMsg ***pExpr,
-      wchar_t** tagCond) {
-  pQueryTableMsg->numOfTables   = htonl(pQueryTableMsg->numOfTables);
+static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList, SSqlFuncExprMsg ***pExpr,
+      wchar_t** tagCond, char** nameCond) {
+  pQueryMsg->numOfTables   = htonl(pQueryMsg->numOfTables);
 
-  pQueryTableMsg->window.skey   = htobe64(pQueryTableMsg->window.skey);
-  pQueryTableMsg->window.ekey   = htobe64(pQueryTableMsg->window.ekey);
-  pQueryTableMsg->intervalTime  = htobe64(pQueryTableMsg->intervalTime);
-  pQueryTableMsg->slidingTime   = htobe64(pQueryTableMsg->slidingTime);
+  pQueryMsg->window.skey   = htobe64(pQueryMsg->window.skey);
+  pQueryMsg->window.ekey   = htobe64(pQueryMsg->window.ekey);
+  pQueryMsg->intervalTime  = htobe64(pQueryMsg->intervalTime);
+  pQueryMsg->slidingTime   = htobe64(pQueryMsg->slidingTime);
+  pQueryMsg->limit         = htobe64(pQueryMsg->limit);
+  pQueryMsg->offset        = htobe64(pQueryMsg->offset);
   
-  pQueryTableMsg->limit         = htobe64(pQueryTableMsg->limit);
-  pQueryTableMsg->offset        = htobe64(pQueryTableMsg->offset);
-  
-  pQueryTableMsg->order         = htons(pQueryTableMsg->order);
-  pQueryTableMsg->orderColId    = htons(pQueryTableMsg->orderColId);
+  pQueryMsg->order         = htons(pQueryMsg->order);
+  pQueryMsg->orderColId    = htons(pQueryMsg->orderColId);
+  pQueryMsg->queryType     = htons(pQueryMsg->queryType);
 
-  pQueryTableMsg->queryType     = htons(pQueryTableMsg->queryType);
-
-  pQueryTableMsg->numOfCols     = htons(pQueryTableMsg->numOfCols);
-  pQueryTableMsg->numOfOutputCols = htons(pQueryTableMsg->numOfOutputCols);
-  pQueryTableMsg->numOfGroupCols = htons(pQueryTableMsg->numOfGroupCols);
-  pQueryTableMsg->tagCondLen     = htons(pQueryTableMsg->tagCondLen);
-
-  pQueryTableMsg->tsOffset      = htonl(pQueryTableMsg->tsOffset);
-  pQueryTableMsg->tsLen         = htonl(pQueryTableMsg->tsLen);
-  pQueryTableMsg->tsNumOfBlocks = htonl(pQueryTableMsg->tsNumOfBlocks);
-  pQueryTableMsg->tsOrder       = htonl(pQueryTableMsg->tsOrder);
+  pQueryMsg->numOfCols     = htons(pQueryMsg->numOfCols);
+  pQueryMsg->numOfOutputCols = htons(pQueryMsg->numOfOutputCols);
+  pQueryMsg->numOfGroupCols = htons(pQueryMsg->numOfGroupCols);
+  pQueryMsg->tagCondLen    = htons(pQueryMsg->tagCondLen);
+  pQueryMsg->nameCondLen   = htons(pQueryMsg->nameCondLen);
+  pQueryMsg->tsOffset      = htonl(pQueryMsg->tsOffset);
+  pQueryMsg->tsLen         = htonl(pQueryMsg->tsLen);
+  pQueryMsg->tsNumOfBlocks = htonl(pQueryMsg->tsNumOfBlocks);
+  pQueryMsg->tsOrder       = htonl(pQueryMsg->tsOrder);
 
   // query msg safety check
-  if (validateQueryMeterMsg(pQueryTableMsg) != 0) {
+  if (validateQueryMeterMsg(pQueryMsg) != 0) {
     return TSDB_CODE_INVALID_QUERY_MSG;
   }
 
-  char *pMsg = (char *)(pQueryTableMsg->colList) + sizeof(SColumnInfo) * pQueryTableMsg->numOfCols;
+  char *pMsg = (char *)(pQueryMsg->colList) + sizeof(SColumnInfo) * pQueryMsg->numOfCols;
 
-  for (int32_t col = 0; col < pQueryTableMsg->numOfCols; ++col) {
-    SColumnInfo* pColInfo = &pQueryTableMsg->colList[col];
+  for (int32_t col = 0; col < pQueryMsg->numOfCols; ++col) {
+    SColumnInfo* pColInfo = &pQueryMsg->colList[col];
     
     pColInfo->colId = htons(pColInfo->colId);
     pColInfo->type  = htons(pColInfo->type);
@@ -5423,10 +5421,10 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableId
 
   bool hasArithmeticFunction = false;
 
-  *pExpr = calloc(pQueryTableMsg->numOfOutputCols, POINTER_BYTES);
+  *pExpr = calloc(pQueryMsg->numOfOutputCols, POINTER_BYTES);
   SSqlFuncExprMsg *pExprMsg = (SSqlFuncExprMsg *)pMsg;
 
-  for (int32_t i = 0; i < pQueryTableMsg->numOfOutputCols; ++i) {
+  for (int32_t i = 0; i < pQueryMsg->numOfOutputCols; ++i) {
     (*pExpr)[i] = pExprMsg;
 
     pExprMsg->colInfo.colIdx = htons(pExprMsg->colInfo.colIdx);
@@ -5457,7 +5455,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableId
         return TSDB_CODE_INVALID_QUERY_MSG;
       }
     } else {
-      if (!vnodeValidateExprColumnInfo(pQueryTableMsg, pExprMsg)) {
+      if (!vnodeValidateExprColumnInfo(pQueryMsg, pExprMsg)) {
         return TSDB_CODE_INVALID_QUERY_MSG;
       }
     }
@@ -5465,55 +5463,59 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryTableMsg, SArray **pTableId
     pExprMsg = (SSqlFuncExprMsg *)pMsg;
   }
 
-  pQueryTableMsg->colNameLen = htonl(pQueryTableMsg->colNameLen);
+  pQueryMsg->colNameLen = htonl(pQueryMsg->colNameLen);
   if (hasArithmeticFunction) {  // column name array
-    assert(pQueryTableMsg->colNameLen > 0);
-    pQueryTableMsg->colNameList = (int64_t)pMsg;
-    pMsg += pQueryTableMsg->colNameLen;
+    assert(pQueryMsg->colNameLen > 0);
+    pQueryMsg->colNameList = (int64_t)pMsg;
+    pMsg += pQueryMsg->colNameLen;
   }
   
-  pMsg = createTableIdList(pQueryTableMsg, pMsg, pTableIdList);
+  pMsg = createTableIdList(pQueryMsg, pMsg, pTableIdList);
 
-  if (pQueryTableMsg->numOfGroupCols > 0) {  // group by tag columns
-//    if (pQueryTableMsg->numOfGroupCols > 0) {
-//      pQueryTableMsg->groupbyTagIds = (uint64_t) & (pTagSchema[pQueryTableMsg->numOfTagsCols]);
+  if (pQueryMsg->numOfGroupCols > 0) {  // group by tag columns
+//    if (pQueryMsg->numOfGroupCols > 0) {
+//      pQueryMsg->groupbyTagIds = (uint64_t) & (pTagSchema[pQueryMsg->numOfTagsCols]);
 //    } else {
-//      pQueryTableMsg->groupbyTagIds = 0;
+//      pQueryMsg->groupbyTagIds = 0;
 //    }
-    pQueryTableMsg->orderByIdx = htons(pQueryTableMsg->orderByIdx);
-    pQueryTableMsg->orderType = htons(pQueryTableMsg->orderType);
+    pQueryMsg->orderByIdx = htons(pQueryMsg->orderByIdx);
+    pQueryMsg->orderType = htons(pQueryMsg->orderType);
 
-    pMsg += sizeof(SColIndexEx) * pQueryTableMsg->numOfGroupCols;
+    pMsg += sizeof(SColIndexEx) * pQueryMsg->numOfGroupCols;
   } else {
-    pQueryTableMsg->groupbyTagIds = 0;
+    pQueryMsg->groupbyTagIds = 0;
   }
 
-  pQueryTableMsg->interpoType = htons(pQueryTableMsg->interpoType);
-  if (pQueryTableMsg->interpoType != TSDB_INTERPO_NONE) {
-    pQueryTableMsg->defaultVal = (uint64_t)(pMsg);
+  pQueryMsg->interpoType = htons(pQueryMsg->interpoType);
+  if (pQueryMsg->interpoType != TSDB_INTERPO_NONE) {
+    pQueryMsg->defaultVal = (uint64_t)(pMsg);
 
     int64_t *v = (int64_t *)pMsg;
-    for (int32_t i = 0; i < pQueryTableMsg->numOfOutputCols; ++i) {
+    for (int32_t i = 0; i < pQueryMsg->numOfOutputCols; ++i) {
       v[i] = htobe64(v[i]);
     }
     
-    pMsg += sizeof(int64_t) * pQueryTableMsg->numOfOutputCols;
+    pMsg += sizeof(int64_t) * pQueryMsg->numOfOutputCols;
   }
   
   // the tag query condition expression string is located at the end of query msg
-  if (pQueryTableMsg->tagCondLen > 0) {
-    *tagCond = calloc(1, pQueryTableMsg->tagCondLen * TSDB_NCHAR_SIZE);
-    memcpy(*tagCond, pMsg, pQueryTableMsg->tagCondLen * TSDB_NCHAR_SIZE);
+  if (pQueryMsg->tagCondLen > 0) {
+    *tagCond = calloc(1, pQueryMsg->tagCondLen * TSDB_NCHAR_SIZE);
+    memcpy(*tagCond, pMsg, pQueryMsg->tagCondLen * TSDB_NCHAR_SIZE);
+  }
+  
+  if (pQueryMsg->nameCondLen > 0) {
+    *nameCond = strndup(pMsg, pQueryMsg->nameCondLen);
   }
 
   dTrace("qmsg:%p query on %d meter(s), qrange:%" PRId64 "-%" PRId64 ", numOfGroupbyTagCols:%d, numOfTagCols:%d, "
          "timestamp order:%d, tags order:%d, tags order col:%d, numOfOutputCols:%d, numOfCols:%d, interval:%" PRId64
          ", fillType:%d, comptslen:%d, limit:%" PRId64 ", offset:%" PRId64,
-         pQueryTableMsg, pQueryTableMsg->numOfTables, pQueryTableMsg->window.skey, pQueryTableMsg->window.ekey,
-         pQueryTableMsg->numOfGroupCols, pQueryTableMsg->order, pQueryTableMsg->orderType,
-         pQueryTableMsg->orderByIdx, pQueryTableMsg->numOfOutputCols,
-         pQueryTableMsg->numOfCols, pQueryTableMsg->intervalTime, pQueryTableMsg->interpoType, pQueryTableMsg->tsLen,
-         pQueryTableMsg->limit, pQueryTableMsg->offset);
+         pQueryMsg, pQueryMsg->numOfTables, pQueryMsg->window.skey, pQueryMsg->window.ekey,
+         pQueryMsg->numOfGroupCols, pQueryMsg->order, pQueryMsg->orderType,
+         pQueryMsg->orderByIdx, pQueryMsg->numOfOutputCols,
+         pQueryMsg->numOfCols, pQueryMsg->intervalTime, pQueryMsg->interpoType, pQueryMsg->tsLen,
+         pQueryMsg->limit, pQueryMsg->offset);
 
   return 0;
 }
@@ -6047,54 +6049,59 @@ _error:
   return code;
 }
 
-int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryTableMsg, SQInfo **pQInfo) {
-  assert(pQueryTableMsg != NULL);
+int32_t qCreateQueryInfo(void* tsdb, SQueryTableMsg *pQueryMsg, SQInfo **pQInfo) {
+  assert(pQueryMsg != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
   
   SArray *pTableIdList = NULL;
   SSqlFuncExprMsg** pExprMsg = NULL;
   wchar_t* tagCond = NULL;
+  char* nameCond = NULL;
   
-  if ((code = convertQueryMsg(pQueryTableMsg, &pTableIdList, &pExprMsg, &tagCond)) != TSDB_CODE_SUCCESS) {
+  if ((code = convertQueryMsg(pQueryMsg, &pTableIdList, &pExprMsg, &tagCond, &nameCond)) != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  if (pQueryTableMsg->numOfTables <= 0) {
-    dError("Invalid number of tables to query, numOfTables:%d", pQueryTableMsg->numOfTables);
+  if (pQueryMsg->numOfTables <= 0) {
+    dError("Invalid number of tables to query, numOfTables:%d", pQueryMsg->numOfTables);
     code = TSDB_CODE_INVALID_QUERY_MSG;
     goto _query_over;
   }
 
   // todo check vnode status
   if (pTableIdList == NULL || taosArrayGetSize(pTableIdList) == 0) {
-    dError("qmsg:%p, SQueryTableMsg wrong format", pQueryTableMsg);
+    dError("qmsg:%p, SQueryTableMsg wrong format", pQueryMsg);
     code = TSDB_CODE_INVALID_QUERY_MSG;
     goto _query_over;
   }
 
   SSqlFunctionExpr *pExprs = NULL;
-  if ((code = createSqlFunctionExprFromMsg(pQueryTableMsg, &pExprs, pExprMsg)) != TSDB_CODE_SUCCESS) {
+  if ((code = createSqlFunctionExprFromMsg(pQueryMsg, &pExprs, pExprMsg)) != TSDB_CODE_SUCCESS) {
     goto _query_over;
   }
 
-  SSqlGroupbyExpr *pGroupbyExpr = createGroupbyExprFromMsg(pQueryTableMsg, &code);
-  if ((pGroupbyExpr == NULL && pQueryTableMsg->numOfGroupCols != 0) || code != TSDB_CODE_SUCCESS) {
+  SSqlGroupbyExpr *pGroupbyExpr = createGroupbyExprFromMsg(pQueryMsg, &code);
+  if ((pGroupbyExpr == NULL && pQueryMsg->numOfGroupCols != 0) || code != TSDB_CODE_SUCCESS) {
     goto _query_over;
   }
   
   // super table query
-  if ((pQueryTableMsg->queryType & TSDB_QUERY_TYPE_STABLE_QUERY) != 0) {
+  SArray* res = NULL;
+  if ((pQueryMsg->queryType & TSDB_QUERY_TYPE_STABLE_QUERY) != 0) {
     STableId* id = taosArrayGet(pTableIdList, 0);
+    id->uid = -1;
     
-    SArray* res = tsdbQueryTableList(tsdb, id->uid, tagCond, pQueryTableMsg->tagCondLen);
+    res = tsdbQueryTableList(tsdb, id->uid, tagCond, pQueryMsg->tagCondLen);
     if (taosArrayGetSize(res) == 0) { // no qualified table in stable query in this vnode
       code = TSDB_CODE_SUCCESS;
       goto _query_over;
     }
+  } else {
+    res = pTableIdList;
   }
   
-  code = createQInfo(pQueryTableMsg, pGroupbyExpr, pExprs, pTableIdList, tsdb, pQInfo);
+  code = createQInfo(pQueryMsg, pGroupbyExpr, pExprs, res, tsdb, pQInfo);
 
 _query_over:
   if (code != TSDB_CODE_SUCCESS) {
@@ -6103,16 +6110,16 @@ _query_over:
 
   // if failed to add ref for all meters in this query, abort current query
   //  if (code != TSDB_CODE_SUCCESS) {
-  //    vnodeDecQueryRefCount(pQueryTableMsg, pMeterObjList, incNumber);
+  //    vnodeDecQueryRefCount(pQueryMsg, pMeterObjList, incNumber);
   //  }
   //
-  //  tfree(pQueryTableMsg->pSqlFuncExprs);
+  //  tfree(pQueryMsg->pSqlFuncExprs);
   //  tfree(pMeterObjList);
   //  ret = vnodeSendQueryRspMsg(pObj, code, pObj->qhandle);
   //
-  //  tfree(pQueryTableMsg->pSidExtInfo);
-  //  for(int32_t i = 0; i < pQueryTableMsg->numOfCols; ++i) {
-  //    vnodeFreeColumnInfo(&pQueryTableMsg->colList[i]);
+  //  tfree(pQueryMsg->pSidExtInfo);
+  //  for(int32_t i = 0; i < pQueryMsg->numOfCols; ++i) {
+  //    vnodeFreeColumnInfo(&pQueryMsg->colList[i]);
   //  }
   //
   //  atomic_fetch_add_32(&vnodeSelectReqNum, 1);
