@@ -1238,8 +1238,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     goto _clean;
   }
 
-  if (pCmd->pDataBlocks->nSize > 0) {
-    // merge according to vgId
+  if (pCmd->pDataBlocks->nSize > 0) { // merge according to vgId
     if ((code = tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks)) != TSDB_CODE_SUCCESS) {
       goto _error_clean;
     }
@@ -1294,12 +1293,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
   int32_t ret = TSDB_CODE_SUCCESS;
-
-//  if (NULL == pSql->asyncTblPos) {
-//    tscCleanSqlCmd(&pSql->cmd);
-//  } else {
-    tscTrace("continue parse sql: %s", pSql->asyncTblPos);
-//  }
+  tscTrace("continue parse sql: %s", pSql->asyncTblPos);
   
   if (tscIsInsertOrImportData(pSql->sqlstr)) {
     /*

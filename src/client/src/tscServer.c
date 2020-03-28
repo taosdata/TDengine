@@ -847,6 +847,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->tsOrder = htonl(pQueryInfo->tsBuf->tsOrder);
   }
 
+  // serialize tag column query condition
   if (pQueryInfo->tagCond.numOfTagCond > 0) {
     STagCond* pTagCond = &pQueryInfo->tagCond;
     
@@ -863,6 +864,16 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pQueryMsg->tagCondLen = htons(condLen);
       pMsg += condLen * TSDB_NCHAR_SIZE;
     }
+  }
+  
+  // tbname in/like query expression should be sent to mgmt node
+  STagCond* pTagCond = &pQueryInfo->tagCond;
+  if (pTagCond->tbnameCond.cond != NULL) {
+    size_t s = strlen(pTagCond->tbnameCond.cond);
+    memcpy(pMsg, pTagCond->tbnameCond.cond, s);
+  
+    pQueryMsg->nameCondLen = htons(s);
+    pMsg += s;
   }
   
   msgLen = pMsg - pStart;

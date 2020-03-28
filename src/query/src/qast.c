@@ -16,6 +16,7 @@
 #include "qast.h"
 #include <tarray.h>
 #include <tskiplist.h>
+#include "../../client/inc/tschemautil.h"
 #include "os.h"
 #include "qsqlparser.h"
 #include "qsyntaxtreefunction.h"
@@ -107,7 +108,7 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
     return NULL;
   }
 
-  size_t          nodeSize = sizeof(tSQLSyntaxNode);
+  size_t nodeSize = sizeof(tSQLSyntaxNode);
   tSQLSyntaxNode *pNode = NULL;
 
   if (pToken->type == TK_ID || pToken->type == TK_TBNAME) {
@@ -239,9 +240,7 @@ uint8_t isQueryOnPrimaryKey(const char *primaryColumnName, const tSQLSyntaxNode 
 }
 
 static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i) {
-  SSQLToken t0;
-
-  t0 = tStrGetToken(str, i, false, 0, NULL);
+  SSQLToken t0 = tStrGetToken(str, i, false, 0, NULL);
   if (t0.n == 0) {
     return NULL;
   }
@@ -343,7 +342,8 @@ void tSQLBinaryExprFromString(tSQLBinaryExpr **pExpr, SSchema *pSchema, int32_t 
     return;
   }
 
-  int32_t         pos = 0;
+  int32_t pos = 0;
+  
   tSQLSyntaxNode *pStxNode = createSyntaxTree(pSchema, numOfCols, src, &pos);
   if (pStxNode != NULL) {
     assert(pStxNode->nodeType == TSQL_NODE_EXPR);
