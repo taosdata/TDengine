@@ -763,7 +763,7 @@ int mgmtRetrieveMetersFromMetric(SMetricMetaMsg* pMsg, int32_t tableIndex, tQuer
   }
 
   if (pElem->tableCondLen > 0 || condLen > 0) {
-    mgmtFilterByTableNameCond(pRes, tahandlempTableNameCond, pElem->tableCondLen, pMetric);
+    mgmtFilterByTableNameCond(pRes, tmpTableNameCond, pElem->tableCondLen, pMetric);
 
     bool noNextCal = (pRes->num == 0 && pElem->rel == TSDB_RELATION_AND);  // no need to calculate next result
 
