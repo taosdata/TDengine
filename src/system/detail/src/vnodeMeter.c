@@ -792,8 +792,8 @@ void vnodeUpdateMeter(void *param, void *tmrId) {
       vnodeClearMeterState(pObj, TSDB_METER_STATE_UPDATING);
       free(pNew->schema);
       free(pNew);
+      return;
     }
-
     dTrace("vid:%d sid:%d meterId:%s, there are data in cache, commit first, update later",
            pNew->vnode, pNew->sid, pNew->meterId);
     vnodeClearMeterState(pObj, TSDB_METER_STATE_UPDATING);

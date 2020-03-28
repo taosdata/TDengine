@@ -1,0 +1,40 @@
+#
+# Configuration
+#
+git:
+  depth: 1
+
+language: c
+
+compiler:
+  - clang
+  - gcc
+
+os:
+  - linux
+  - osx
+
+before_script:
+  - mkdir build
+  - cd build
+
+script:
+  - cmake .. 
+  - cmake --build .
+
+#
+# Build Matrix
+#
+matrix:
+  - os: linux
+    addons:
+      apt:
+        packages:
+          - build-essential
+          - cmake
+
+  - os: osx
+    addons:
+      homebrew:
+        - cmake
+

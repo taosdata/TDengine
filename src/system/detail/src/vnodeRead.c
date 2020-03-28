@@ -399,7 +399,7 @@ void vnodeFreeQInfoInQueue(void *param) {
   if (!vnodeIsQInfoValid(pQInfo)) return;
 
   pQInfo->killed = 1;
-  dTrace("QInfo:%p set kill flag to free QInfo");
+  dTrace("QInfo:%p set kill flag to free QInfo", pQInfo);
   
   vnodeDecRefCount(pQInfo);
 }

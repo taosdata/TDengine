@@ -97,7 +97,7 @@ int vnodeRenewCommitLog(int vnode) {
 
 void vnodeRemoveCommitLog(int vnode) { remove(vnodeList[vnode].logOFn); }
 
-size_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
+int32_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
   int    fd, ret;
   char * cont = NULL;
   size_t totalLen = 0;
@@ -167,7 +167,7 @@ size_t vnodeRestoreDataFromLog(int vnode, char *fileName, uint64_t *firstV) {
         }
 
         if (vnodeIsMeterState(pObj, TSDB_METER_STATE_DROPPING)) {
-          dWarn("vid:%d sid:%d id:%s, meter is dropped, ignore data in commit log, contLen:%d action:%d",
+          dWarn("vid:%d sid:%d, meter is dropped, ignore data in commit log, contLen:%d action:%d",
                  vnode, head.sid, head.contLen, head.action);
           continue;
         }
@@ -204,7 +204,7 @@ _error:
 }
 
 int vnodeInitCommit(int vnode) {
-  size_t     size = 0;
+  int32_t    size = 0;
   uint64_t   firstV = 0;
   SVnodeObj *pVnode = vnodeList + vnode;
 

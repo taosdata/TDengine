@@ -481,7 +481,8 @@ void *taosInitUdpConnection(char *ip, uint16_t port, char *label, int threads, v
   sprintf(udplabel, "%s.b", label);
   pSet->tmrCtrl = taosTmrInit(RPC_MAX_UDP_CONNS * threads, 5, 5000, udplabel);
   if (pSet->tmrCtrl == NULL) {
-    tError("%s failed to initialize tmrCtrl") taosCleanUpUdpConnection(pSet);
+    tError("%s failed to initialize tmrCtrl", label);
+    taosCleanUpUdpConnection(pSet);
     return NULL;
   }
   //  }

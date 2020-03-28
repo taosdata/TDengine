@@ -103,7 +103,7 @@ int vnodeProcessCreateMeterRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
   pCreate = (SCreateMsg *)pMsg;
   vid = htons(pCreate->vnode);
 
-  if (vid >= TSDB_MAX_VNODES || vid < 0) {
+  if (vid >= TSDB_MAX_VNODES) {
     dError("vid:%d, vnode is out of range", vid);
     code = TSDB_CODE_INVALID_VNODE_ID;
     goto _over;
@@ -139,7 +139,7 @@ int vnodeProcessAlterStreamRequest(char *pMsg, int msgLen, SMgmtObj *pObj) {
   vid = htons(pAlter->vnode);
   sid = htonl(pAlter->sid);
 
-  if (vid >= TSDB_MAX_VNODES || vid < 0) {
+  if (vid >= TSDB_MAX_VNODES) {
     dError("vid:%d, vnode is out of range", vid);
     code = TSDB_CODE_INVALID_VNODE_ID;
     goto _over;
