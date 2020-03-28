@@ -711,7 +711,6 @@ static int32_t mgmtFilterMeterByIndex(STabObj* pMetric, tQueryResultset* pRes, c
   // failed to build expression, no result, return immediately
   if (pExpr == NULL) {
     mError("metric:%s, no result returned, error in super table query expression:%s", pMetric->meterId, pCond);
-    tfree(pCond);
 
     return TSDB_CODE_OPS_NOT_SUPPORT;
   } else {  // query according to the binary expression
@@ -764,7 +763,7 @@ int mgmtRetrieveMetersFromMetric(SMetricMetaMsg* pMsg, int32_t tableIndex, tQuer
   }
 
   if (pElem->tableCondLen > 0 || condLen > 0) {
-    mgmtFilterByTableNameCond(pRes, tmpTableNameCond, pElem->tableCondLen, pMetric);
+    mgmtFilterByTableNameCond(pRes, tahandlempTableNameCond, pElem->tableCondLen, pMetric);
 
     bool noNextCal = (pRes->num == 0 && pElem->rel == TSDB_RELATION_AND);  // no need to calculate next result
 
