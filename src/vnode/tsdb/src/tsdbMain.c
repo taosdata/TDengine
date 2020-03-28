@@ -332,7 +332,10 @@ int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
   pRepo->tsdbCache->curBlock = NULL;
 
   // TODO: here should set as detached or use join for memory leak
-  pthread_create(&(pRepo->commitThread), NULL, tsdbCommitData, (void *)repo);
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED);
+  pthread_create(&(pRepo->commitThread), &thattr, tsdbCommitData, (void *)repo);
   tsdbUnLockRepo(repo);
 
   return 0;
