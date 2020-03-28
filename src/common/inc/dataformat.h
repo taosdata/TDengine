@@ -119,13 +119,15 @@ typedef struct {
   int      maxPoints;  // max number of points
   int      numOfPoints;
   int      numOfCols;  // Total number of cols
+  int      sversion;   // TODO: set sversion
   void *   buf;
   SDataCol cols[];
 } SDataCols;
 
 #define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
-#define dataColsKeyFirst(pCols) ((int64_t *)(keyCol(pCols)->pData))[0]
-#define dataColsKeyLast(pCols) ((int64_t *)(keyCol(pCols)->pData))[(pCols)->numOfPoints - 1]
+#define dataColsKeyAt(pCols, idx) ((int64_t *)(keyCol(pCols)->pData))[(idx)]
+#define dataColsKeyFirst(pCols) dataColsKeyAt(pCols, 0)
+#define dataColsKeyLast(pCols) dataColsKeyAt(pCols, (pCols)->numOfPoints - 1)
 
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);

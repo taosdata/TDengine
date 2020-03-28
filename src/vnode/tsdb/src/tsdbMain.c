@@ -1041,13 +1041,70 @@ static int tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minK
   return 0;
 }
 
+static int tsdbWriteBlockToFileImpl(SFile *pFile, SDataCols *pCols, int pointsToWrite, int64_t *offset, int32_t *len, int64_t uid) {
+  size_t     size = sizeof(SCompData) + sizeof(SCompCol) * pCols->numOfCols;
+  SCompData *pCompData = (SCompData *)malloc(size);
+  if (pCompData == NULL) return -1;
+
+  pCompData->delimiter = TSDB_FILE_DELIMITER;
+  pCompData->uid = uid;
+  pCompData->numOfCols = pCols->numOfCols;
+
+  *offset = lseek(pFile->fd, 0, SEEK_END);
+  *len = size;
+
+  int toffset = size;
+  for (int iCol = 0; iCol < pCols->numOfCols; iCol++) {
+    SCompCol *pCompCol = pCompData->cols + iCol;
+    SDataCol *pDataCol = pCols->cols + iCol;
+    
+    pCompCol->colId = pDataCol->colId;
+    pCompCol->type = pDataCol->type;
+    pCompCol->offset = toffset;
+
+    // TODO: add compression
+    pCompCol->len = TYPE_BYTES[pCompCol->type] * pointsToWrite;
+    toffset += pCompCol->len;
+  }
+
+  // Write the block
+  if (write(pFile->fd, (void *)pCompData, size) < 0) goto _err;
+  for (int iCol = 0; iCol < pCols->numOfCols; iCol++) {
+    SDataCol *pDataCol = pCols->cols + iCol;
+    SCompCol *pCompCol = pCompData->cols + iCol;
+    if (write(pFile->fd, pDataCol->pData, pCompCol->len) < 0) goto _err;
+  }
+
+  if (pCompData == NULL) free((void *)pCompData);
+  return 0;
+
+_err:
+  if (pCompData == NULL) free((void *)pCompData);
+  return -1;
+}
+
 static int tsdbWriteBlockToFile(STsdbRepo *pRepo, SCompIdx *pIdx, SCompInfo *pCompInfo, SDataCols *pCols, SCompBlock *pCompBlock) {
   STsdbCfg *pCfg = &(pRepo->config);
+  SCompData *pCompData = NULL;
 
   memset((void *)pCompBlock, 0, sizeof(SCompBlock));
 
   if (pCompInfo == NULL) {
-    // Just need to append to file
+    if (pCols->numOfPoints > pCfg->minRowsPerFileBlock) { // Write to .data file
+      // tsdbWriteBlockToFileImpl()
+    } else { // Write to .last or .l file
+      pCompBlock->last = 1;
+
+    }
+    // pCompBlock->offset = ;
+    // pCompBlock->len = ;
+    pCompBlock->algorithm = 2; // TODO : add to configuration
+    pCompBlock->sversion = pCols->sversion;
+    pCompBlock->numOfPoints = pCols->numOfPoints;
+    pCompBlock->numOfSubBlocks = 1;
+    pCompBlock->numOfCols = pCols->numOfCols;
+    pCompBlock->keyFirst = dataColsKeyFirst(pCols);
+    pCompBlock->keyLast = dataColsKeyLast(pCols);
   } else {
     // Need to merge
   }

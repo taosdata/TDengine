@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 #define TSDB_FILE_HEAD_SIZE 512
+#define TSDB_FILE_DELIMITER 0xF00AFA0F
 
 #define tsdbGetKeyFileId(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
 #define tsdbGetMaxNumOfFiles(keep, daysPerFile) ((keep) / (daysPerFile) + 3)

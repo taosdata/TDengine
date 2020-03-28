@@ -24,8 +24,6 @@
 
 #include "tsdbFile.h"
 
-#define TSDB_FILE_DELIMITER 0xF00AFA0F
-
 const char *tsdbFileSuffix[] = {
     ".head",  // TSDB_FILE_TYPE_HEAD
     ".data",  // TSDB_FILE_TYPE_DATA
