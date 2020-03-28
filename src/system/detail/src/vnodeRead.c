@@ -671,6 +671,7 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     }
 
     if (((*code) = vnodeQueryTablePrepare(pQInfo, pQInfo->pObj, pSupporter, pTSBuf)) != TSDB_CODE_SUCCESS) {
+      free(pSupporter);
       goto _error;
     }
 
@@ -702,7 +703,6 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
 _error:
   // table query ref will be decrease during error handling
   vnodeFreeQInfo(pQInfo, false);
-  free(pSupporter);
   return NULL;
 }
 
