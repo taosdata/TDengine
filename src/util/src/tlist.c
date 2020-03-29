@@ -100,6 +100,8 @@ SListNode *tdListPopHead(SList *list) {
     list->head = node->next;
   }
   list->numOfEles--;
+  node->next = NULL;
+  node->prev = NULL;
   return node;
 }
 
@@ -113,6 +115,7 @@ SListNode *tdListPopTail(SList *list) {
     list->tail = node->prev;
   }
   list->numOfEles--;
+  node->next = node->prev = NULL;
   return node;
 }
 
@@ -131,6 +134,7 @@ SListNode *tdListPopNode(SList *list, SListNode *node) {
     node->next->prev = node->prev;
   }
   list->numOfEles--;
+  node->next = node->prev = NULL;
 
   return node;
 }
