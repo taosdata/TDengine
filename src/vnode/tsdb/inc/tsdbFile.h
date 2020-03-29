@@ -122,6 +122,15 @@ typedef struct {
 } SCompInfo;
 
 #define TSDB_COMPBLOCK_AT(pCompInfo, idx) ((pCompInfo)->blocks + (idx))
+#define TSDB_COMPBLOCK_GET_START_AND_SIZE(pCompInfo, pCompBlock, size)\
+do {\
+  if (pCompBlock->numOfSubBlocks > 1) {\
+    pCompBlock = pCompInfo->blocks + pCompBlock->offset;\
+    size = pCompBlock->numOfSubBlocks;\
+  } else {\
+    size = 1;\
+  }\
+} while (0)
 
 // TODO: take pre-calculation into account
 typedef struct {
@@ -146,6 +155,8 @@ int tsdbLoadCompBlocks(SFileGroup *pGroup, SCompIdx *pIdx, void *buf);
 int tsdbLoadCompCols(SFile *pFile, SCompBlock *pBlock, void *buf);
 int tsdbLoadColData(SFile *pFile, SCompCol *pCol, int64_t blockBaseOffset, void *buf);
 int tsdbLoadDataBlock(SFile *pFile, SCompBlock *pStartBlock, int numOfBlocks, SDataCols *pCols, SCompData *pCompData);
+
+SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid);
 
 // TODO: need an API to merge all sub-block data into one
 

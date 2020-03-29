@@ -90,6 +90,8 @@ static void *  tsdbCommitData(void *arg);
 static int     tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters, SDataCols *pCols);
 static int     tsdbHasDataInRange(SSkipListIterator *pIter, TSKEY minKey, TSKEY maxKey);
 static int     tsdbHasDataToCommit(SSkipListIterator **iters, int nIters, TSKEY minKey, TSKEY maxKey);
+static int tsdbWriteBlockToFileImpl(SFile *pFile, SDataCols *pCols, int pointsToWrite, int64_t *offset, int32_t *len,
+                                    int64_t uid);
 
 #define TSDB_GET_TABLE_BY_ID(pRepo, sid) (((STSDBRepo *)pRepo)->pTableList)[sid]
 #define TSDB_GET_TABLE_BY_NAME(pRepo, name)
@@ -330,13 +332,13 @@ int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
   pRepo->tsdbCache->imem = pRepo->tsdbCache->mem;
   pRepo->tsdbCache->mem = NULL;
   pRepo->tsdbCache->curBlock = NULL;
+  tsdbUnLockRepo(repo);
 
   // TODO: here should set as detached or use join for memory leak
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED);
   pthread_create(&(pRepo->commitThread), &thattr, tsdbCommitData, (void *)repo);
-  tsdbUnLockRepo(repo);
 
   return 0;
 }
@@ -814,7 +816,9 @@ static SSkipListIterator **tsdbCreateTableIters(STsdbMeta *pMeta, int maxTables)
     }
 
     if (!tSkipListIterNext(iters[tid])) {
-      assert(false);
+      // No data in this iterator
+      tSkipListDestroyIter(iters[tid]);
+      iters[tid] = NULL;
     }
   }
 
@@ -839,8 +843,8 @@ static void *tsdbCommitData(void *arg) {
   }
 
   // Create a data column buffer for commit
-  SDataCols *pCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock);
-  if (pCols == NULL) {
+  SDataCols *pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pCfg->maxRowsPerFileBlock);
+  if (pDataCols == NULL) {
     // TODO: deal with the error
     return NULL;
   }
@@ -849,15 +853,14 @@ static void *tsdbCommitData(void *arg) {
   int efid = tsdbGetKeyFileId(pCache->imem->keyLast, pCfg->daysPerFile, pCfg->precision);
 
   for (int fid = sfid; fid <= efid; fid++) {
-    if (tsdbCommitToFile(pRepo, fid, iters, pCols) < 0) {
+    if (tsdbCommitToFile(pRepo, fid, iters, pDataCols) < 0) {
       // TODO: deal with the error here
       // assert(0);
     }
   }
 
-  tdFreeDataCols(pCols);
+  tdFreeDataCols(pDataCols);
   tsdbDestroyTableIters(iters, pCfg->maxTables);
-
 
   tsdbLockRepo(arg);
   tdListMove(pCache->imem->list, pCache->pool.memPool);
@@ -918,25 +921,52 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
   if (tsdbLoadCompIdx(pGroup, (void *)pIndices, pCfg->maxTables) < 0) { /* TODO */
   }
 
+  lseek(hFile.fd, TSDB_FILE_HEAD_SIZE + sizeof(SCompIdx) * pCfg->maxTables, SEEK_SET);
+
   // Loop to commit data in each table
   for (int tid = 0; tid < pCfg->maxTables; tid++) {
     STable *           pTable = pMeta->tables[tid];
     SSkipListIterator *pIter = iters[tid];
     SCompIdx *         pIdx = &pIndices[tid];
 
+    if (pTable == NULL || pIter == NULL) continue;
+
+    /* If no new data to write for this table, just write the old data to new file
+     * if there are.
+     */
     if (!tsdbHasDataInRange(pIter, minKey, maxKey)) {
-      // This table does not have data in this range, just copy its head part and last
-      // part (if neccessary) to new file
-      if (pIdx->offset > 0) {  // has old data
+      // has old data
+      if (pIdx->offset > 0) {  
         if (isNewLastFile && pIdx->hasLast) {
-          // Need to load SCompBlock part and copy to new file
+          // need to move the last block to new file
           if ((pCompInfo = (SCompInfo *)realloc((void *)pCompInfo, pIdx->len)) == NULL) { /* TODO */
           }
           if (tsdbLoadCompBlocks(pGroup, pIdx, (void *)pCompInfo) < 0) { /* TODO */
           }
 
-          // TODO: Copy the last block from old last file to new file
-          // tsdbCopyBlockData()
+          tdInitDataCols(pCols, pTable->schema);
+
+          SCompBlock *pTBlock = TSDB_COMPBLOCK_AT(pCompInfo, pIdx->numOfSuperBlocks);
+          int nBlocks = 0;
+
+          TSDB_COMPBLOCK_GET_START_AND_SIZE(pCompInfo, pTBlock, nBlocks);
+
+          SCompBlock tBlock;
+          int64_t toffset, tlen;
+          tsdbLoadDataBlock(&pGroup->files[TSDB_FILE_TYPE_LAST], pTBlock, nBlocks, pCols, &tBlock);
+
+          tsdbWriteBlockToFileImpl(&lFile, pCols, pCols->numOfPoints, &toffset, tlen, pTable->tableId.uid);
+          pTBlock = TSDB_COMPBLOCK_AT(pCompInfo, pIdx->numOfSuperBlocks);
+          pTBlock->offset = toffset;
+          pTBlock->len = tlen;
+          pTBlock->numOfPoints = pCols->numOfPoints;
+          pTBlock->numOfSubBlocks = 1;
+
+          pIdx->offset = lseek(hFile.fd, 0, SEEK_CUR);
+          if (nBlocks > 1) {
+            pIdx->len -= (sizeof(SCompBlock) * nBlocks);
+          }
+          write(hFile.fd, (void *)pCompInfo, pIdx->len);
         } else {
           pIdx->offset = lseek(hFile.fd, 0, SEEK_CUR);
           sendfile(pGroup->files[TSDB_FILE_TYPE_HEAD].fd, hFile.fd, NULL, pIdx->len);
@@ -951,6 +981,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
     if (pIdx->offset > 0) {
       if (pIdx->hasLast || tsdbHasDataInRange(pIter, minKey, pIdx->maxKey)) {
         // has last block || cache key overlap with commit key
+        pCompInfo = (SCompInfo *)realloc((void *)pCompInfo, pIdx->len + sizeof(SCompBlock) * 100);
         if (tsdbLoadCompBlocks(pGroup, pIdx, (void *)pCompInfo) < 0) { /* TODO */
         }
         if (pCompInfo->uid == pTable->tableId.uid) isCompBlockLoaded = 1;
@@ -984,7 +1015,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
       //     // SCompBlock *pTBlock = NULL;
       //   }
       // }
-      pointsWritten = pCols->numOfPoints;
+      // pointsWritten = pCols->numOfPoints;
       tdPopDataColsPoints(pCols, pointsWritten);
       maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5 - pCols->numOfPoints;
     }

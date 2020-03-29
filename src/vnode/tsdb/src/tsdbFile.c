@@ -35,7 +35,6 @@ static int compFGroup(const void *arg1, const void *arg2);
 static int tsdbGetFileName(char *dataDir, int fileId, char *suffix, char *fname);
 static int tsdbWriteFileHead(SFile *pFile);
 static int tsdbWriteHeadFileIdx(SFile *pFile, int maxTables);
-static SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid);
 
 STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles) {
   STsdbFileH *pFileH = (STsdbFileH *)calloc(1, sizeof(STsdbFileH) + sizeof(SFileGroup) * maxFiles);
@@ -309,7 +308,7 @@ void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t file
   *maxKey = *minKey + daysPerFile * tsMsPerDay[precision] - 1;
 }
 
-static SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid) {
+SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid) {
   if (pFileH->numOfFGroups == 0 || fid < pFileH->fGroup[0].fileId || fid > pFileH->fGroup[pFileH->numOfFGroups - 1].fileId)
     return NULL;
   void *ptr = bsearch((void *)&fid, (void *)(pFileH->fGroup), pFileH->numOfFGroups, sizeof(SFileGroup), compFGroupKey);
