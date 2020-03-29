@@ -1,9 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
-SET(CMAKE_C_STANDARD 11)
-SET(CMAKE_VERBOSE_MAKEFILE ON)
-
 SET(TD_CLUSTER FALSE)
 SET(TD_ACCOUNT FALSE)
 SET(TD_GRANT FALSE)
@@ -20,17 +17,6 @@ INCLUDE(cmake/platform.inc)
 INCLUDE(cmake/env.inc)
 INCLUDE(cmake/define.inc)
 INCLUDE(cmake/install.inc)
-
-#set output directory
-SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
-SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/bin)
-SET(TD_TESTS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/test)
-
-MESSAGE(STATUS "Operating system dependency directory: " ${TD_OS_DIR})
-MESSAGE(STATUS "Project source directory: " ${PROJECT_SOURCE_DIR})
-MESSAGE(STATUS "Project binary files output path: " ${PROJECT_BINARY_DIR})
-MESSAGE(STATUS "Project executable files output path: " ${EXECUTABLE_OUTPUT_PATH})
-MESSAGE(STATUS "Project library files output path: " ${LIBRARY_OUTPUT_PATH})
 
 ADD_SUBDIRECTORY(deps)
 ADD_SUBDIRECTORY(src)

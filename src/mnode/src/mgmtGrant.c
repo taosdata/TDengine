@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #ifndef _GRANT
 #include "os.h"
+#include "taoserror.h"
 #include "tlog.h"
 #include "mgmtGrant.h"
 

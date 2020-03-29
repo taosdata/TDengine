@@ -15,6 +15,13 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   ADD_EXECUTABLE(taosd ${SRC})
   TARGET_LINK_LIBRARIES(taosd mnode taos_static monitor http tsdb)
 
+  IF (TD_ACCOUNT)
+    TARGET_LINK_LIBRARIES(taosd account)
+  ENDIF ()
+  IF (TD_GRANT)
+    TARGET_LINK_LIBRARIES(taosd grant)
+  ENDIF ()
+
   #IF (TD_CLUSTER)
   #  TARGET_LINK_LIBRARIES(taosd dcluster)
   #ENDIF ()

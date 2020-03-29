@@ -35,7 +35,7 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-static void   *tsDbSdb = NULL;
+void *         tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate);

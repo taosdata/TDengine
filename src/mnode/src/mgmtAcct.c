@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #ifndef _ACCOUNT
 #include "os.h"
+#include "taoserror.h"
 #include "mnode.h"
 #include "mgmtAcct.h"
 
