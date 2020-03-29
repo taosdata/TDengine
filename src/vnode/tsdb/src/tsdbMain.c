@@ -551,6 +551,11 @@ STsdbMeta* tsdbGetMeta(tsdb_repo_t* pRepo) {
   return tsdb->tsdbMeta;
 }
 
+STsdbFileH* tsdbGetFile(tsdb_repo_t* pRepo) {
+  STsdbRepo* tsdb = (STsdbRepo*) pRepo;
+  return tsdb->tsdbFileH;
+}
+
 // Check the configuration and set default options
 static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   // Check precision
