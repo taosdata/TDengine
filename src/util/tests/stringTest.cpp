@@ -157,22 +157,22 @@ TEST(testCase, string_strnchr_test) {
   EXPECT_TRUE(strnchr(a10, '.', strlen(a10), true) == NULL);
 }
 
-TEST(testCase, cache_resize_test) {
-  char a11[] = "abc'.'";
-  EXPECT_TRUE(strnchr(a11, '.', strlen(a11), false) != NULL);
+// TEST(testCase, cache_resize_test) {
+//   char a11[] = "abc'.'";
+//   EXPECT_TRUE(strnchr(a11, '.', strlen(a11), false) != NULL);
 
-  char a12[] = "abc'-'";
-  EXPECT_TRUE(strnchr(a12, '-', strlen(a12), false) != NULL);
+//   char a12[] = "abc'-'";
+//   EXPECT_TRUE(strnchr(a12, '-', strlen(a12), false) != NULL);
 
-  char a15[] = "abc'-'";
-  EXPECT_TRUE(strnchr(a15, '-', strlen(a15), true) == NULL);
+//   char a15[] = "abc'-'";
+//   EXPECT_TRUE(strnchr(a15, '-', strlen(a15), true) == NULL);
 
-  char a13[] = "'-'";
-  EXPECT_TRUE(strnchr(a13, '-', strlen(a13), false) != NULL);
+//   char a13[] = "'-'";
+//   EXPECT_TRUE(strnchr(a13, '-', strlen(a13), false) != NULL);
 
-  char a14[] = "'-'";
-  EXPECT_TRUE(strnchr(a14, '-', strlen(a14), true) == NULL);
+//   char a14[] = "'-'";
+//   EXPECT_TRUE(strnchr(a14, '-', strlen(a14), true) == NULL);
 
-  char a16[] = "'-'.";
-  EXPECT_TRUE(strnchr(a16, '.', strlen(a16), true) != NULL);
-}
+//   char a16[] = "'-'.";
+//   EXPECT_TRUE(strnchr(a16, '.', strlen(a16), true) != NULL);
+// }
