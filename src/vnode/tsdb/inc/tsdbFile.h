@@ -25,6 +25,9 @@
 extern "C" {
 #endif
 
+#define TSDB_FILE_HEAD_SIZE 512
+#define TSDB_FILE_DELIMITER 0xF00AFA0F
+
 #define tsdbGetKeyFileId(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
 #define tsdbGetMaxNumOfFiles(keep, daysPerFile) ((keep) / (daysPerFile) + 3)
 
@@ -40,13 +43,16 @@ typedef enum {
 extern const char *tsdbFileSuffix[];
 
 typedef struct {
-  int8_t  type;
-  int     fd;
-  char    fname[128];
   int64_t size;      // total size of the file
   int64_t tombSize;  // unused file size
   int32_t totalBlocks;
   int32_t totalSubBlocks;
+} SFileInfo;
+
+typedef struct {
+  int     fd;
+  char    fname[128];
+  SFileInfo info;
 } SFile;
 
 #define TSDB_IS_FILE_OPENED(f) ((f)->fd != -1)
@@ -69,9 +75,10 @@ typedef struct {
 
 STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles);
 void        tsdbCloseFileH(STsdbFileH *pFileH);
+int         tsdbCreateFile(char *dataDir, int fileId, char *suffix, int maxTables, SFile *pFile, int writeHeader, int toClose);
 int         tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables);
 int         tsdbOpenFile(SFile *pFile, int oflag);
-SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
+int         tsdbCloseFile(SFile *pFile); SFileGroup *tsdbOpenFilesForCommit(STsdbFileH *pFileH, int fid);
 int         tsdbRemoveFileGroup(STsdbFileH *pFile, int fid);
 
 typedef struct {
@@ -104,6 +111,9 @@ typedef struct {
   TSKEY   keyLast;
 } SCompBlock;
 
+#define IS_SUPER_BLOCK(pBlock) ((pBlock)->numOfSubBlocks >= 1)
+#define IS_SUB_BLOCK(pBlock) ((pBlock)->numOfSubBlocks == 0)
+
 typedef struct {
   int32_t    delimiter;  // For recovery usage
   int32_t    checksum;   // TODO: decide if checksum logic in this file or make it one API
@@ -111,8 +121,16 @@ typedef struct {
   SCompBlock blocks[];
 } SCompInfo;
 
-int tsdbLoadCompIdx(SFileGroup *pGroup, void *buf, int maxTables);
-int tsdbLoadCompBlocks(SFileGroup *pGroup, SCompIdx *pIdx, void *buf);
+#define TSDB_COMPBLOCK_AT(pCompInfo, idx) ((pCompInfo)->blocks + (idx))
+#define TSDB_COMPBLOCK_GET_START_AND_SIZE(pCompInfo, pCompBlock, size)\
+do {\
+  if (pCompBlock->numOfSubBlocks > 1) {\
+    pCompBlock = pCompInfo->blocks + pCompBlock->offset;\
+    size = pCompBlock->numOfSubBlocks;\
+  } else {\
+    size = 1;\
+  }\
+} while (0)
 
 // TODO: take pre-calculation into account
 typedef struct {
@@ -130,7 +148,17 @@ typedef struct {
   SCompCol cols[];
 } SCompData;
 
-int tsdbWriteBlockToFile(SFileGroup *pGroup, SCompInfo *pCompInfo, SCompIdx *pIdx, int isMerge, SCompBlock *pBlock, SDataCols *pCols);
+int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInfo, int idx, int isLast, SDataCols *pCols);
+
+int tsdbLoadCompIdx(SFileGroup *pGroup, void *buf, int maxTables);
+int tsdbLoadCompBlocks(SFileGroup *pGroup, SCompIdx *pIdx, void *buf);
+int tsdbLoadCompCols(SFile *pFile, SCompBlock *pBlock, void *buf);
+int tsdbLoadColData(SFile *pFile, SCompCol *pCol, int64_t blockBaseOffset, void *buf);
+int tsdbLoadDataBlock(SFile *pFile, SCompBlock *pStartBlock, int numOfBlocks, SDataCols *pCols, SCompData *pCompData);
+
+SFileGroup *tsdbSearchFGroup(STsdbFileH *pFileH, int fid);
+
+// TODO: need an API to merge all sub-block data into one
 
 void tsdbGetKeyRangeOfFileId(int32_t daysPerFile, int8_t precision, int32_t fileId, TSKEY *minKey, TSKEY *maxKey);
 #ifdef __cplusplus
