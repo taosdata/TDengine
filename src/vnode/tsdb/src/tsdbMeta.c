@@ -349,10 +349,10 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
   } else {
     // add non-super table to the array
     pMeta->tables[pTable->tableId.tid] = pTable;
-    if (pTable->type == TSDB_CHILD_TABLE) {
-      // add STABLE to the index
+    if (pTable->type == TSDB_CHILD_TABLE && addIdx) { // add STABLE to the index
       tsdbAddTableIntoIndex(pMeta, pTable);
     }
+    
     pMeta->nTables++;
   }
 

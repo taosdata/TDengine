@@ -514,7 +514,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     tscTansformSQLFunctionForSTableQuery(pQueryInfo);
     tscIncStreamExecutionCount(pSql->pStream);
   } else {
-    tscTrace("%p get tableMeta/metricMeta successfully", pSql);
+    tscTrace("%p get tableMeta successfully", pSql);
   }
 
   tscDoQuery(pSql);
