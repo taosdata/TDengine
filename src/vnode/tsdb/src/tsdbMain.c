@@ -345,12 +345,12 @@ int32_t tsdbTriggerCommit(tsdb_repo_t *repo) {
 
 int32_t tsdbLockRepo(tsdb_repo_t *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
-  return pthread_mutex_lock(repo);
+  return pthread_mutex_lock(&(pRepo->mutex));
 }
 
 int32_t tsdbUnLockRepo(tsdb_repo_t *repo) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
-  return pthread_mutex_unlock(repo);
+  return pthread_mutex_unlock(&(pRepo->mutex));
 }
 
 /**
