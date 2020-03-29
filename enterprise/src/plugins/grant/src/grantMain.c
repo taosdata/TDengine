@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "grant.h"
+#include "machine.h"
 #include "mnode.h"
 #include "mgmtDServer.h"
-#include "mgmtGrant.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtShell.h"
