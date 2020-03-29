@@ -170,7 +170,7 @@ int32_t mgmtInitDnodesImp() {
   mgmtDnodeActionInit();
 
   SDnodeObj tObj;
-  tsDnodeUpdateSize = tObj.updateEnd - (char *)&tObj;
+  tsDnodeUpdateSize = (int8_t *) - (char *)&tObj;
 
   tsDnodeSdb = sdbOpenTable(tsMaxDnodes, tsDnodeUpdateSize, "dnodes", SDB_KEYTYPE_UINT32, tsMgmtDirectory, mgmtDnodeAction);
   if (tsDnodeSdb == NULL) {
@@ -226,7 +226,7 @@ void *mgmtGetNextDnodeImp(SShowObj *pShow, SDnodeObj **pDnode) {
 int32_t mgmtGetDnodeMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
-  SUserObj *pUser = mgmtGetUserFromConn(pConn);
+  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
   if (pUser == NULL) return 0;
 
   if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
@@ -343,7 +343,7 @@ int32_t mgmtRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pCon
 
 int32_t mgmtGetScoresMeta(STableMeta *pMeta, SShowObj *pShow, void *pConn) {
   if (mgmtGetScoresMetaFp) {
-    SUserObj *pUser = mgmtGetUserFromConn(pConn);
+    SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
     if (pUser == NULL) return 0;
     if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
     return mgmtGetScoresMetaFp(pMeta, pShow, pConn);

@@ -401,51 +401,37 @@ static int32_t grantCheckConns() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckStreams() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckCpuCores() { return TSDB_CODE_SUCCESS; }
 
-bool grantCheck(EGrantType grant) {
-  int32_t code = TSDB_CODE_SUCCESS;
+int32_t grantCheck(EGrantType grant) {
   switch (grant) {
     case TSDB_GRANT_TIME:
-      code = grantCheckExpired();
-      break;
+      return grantCheckExpired();
     case TSDB_GRANT_USER:
-      code = grantCheckUsers();
-      break;
+      return grantCheckUsers();
     case TSDB_GRANT_DB:
-      code = grantCheckDatabases();
-      break;
+      return grantCheckDatabases();
     case TSDB_GRANT_TIMESERIES:
-      code = grantCheckTimeSeries();
-      break;
+      return grantCheckTimeSeries();
     case TSDB_GRANT_DNODE:
-      code = grantCheckDnodes();
-      break;
+      return grantCheckDnodes();
     case TSDB_GRANT_ACCT:
-      code = grantCheckAccts();
-      break;
+      return grantCheckAccts();
     case TSDB_GRANT_STORAGE:
-      code = grantCheckStorage();
-      break;
+      return grantCheckStorage();
     case TSDB_GRANT_SPEED:
-      code = grantCheckGrantSpeed();
-      break;
+      return grantCheckGrantSpeed();
     case TSDB_GRANT_QUERY_TIME:
-      code = grantCheckQueryTime();
-      break;
+      return grantCheckQueryTime();
     case TSDB_GRANT_CONNS:
-      code = grantCheckConns();
-      break;
+      return grantCheckConns();
     case TSDB_GRANT_STREAMS:
-      code = grantCheckStreams();
-      break;
+      return grantCheckStreams();
     case TSDB_GRANT_CPU_CORES:
-      code = grantCheckCpuCores();
-      break;
+      return grantCheckCpuCores();
     default:
-      code = TSDB_CODE_SUCCESS;
       break;
   }
 
-  return code == TSDB_CODE_SUCCESS;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void grantSendMsgToMgmt() {
