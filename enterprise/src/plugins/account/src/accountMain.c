@@ -48,8 +48,8 @@
 #define TSDB_MIN_QUERYTIME_PER_ACCT   3600  // 1 hour
 #define TSDB_MAX_QUERYTIME_PER_ACCT   INT64_MAX
 
+void *         tsAcctSdb = NULL;
 static void   *tsMgmtStatisTimer = NULL;
-static void   *tsAcctSdb         = NULL;
 static int32_t tsAcctUpdateSize;
 
 static void    acctCreateRootAcct();
