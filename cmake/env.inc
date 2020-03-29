@@ -1,6 +1,20 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
+SET(CMAKE_C_STANDARD 11)
+SET(CMAKE_VERBOSE_MAKEFILE ON)
+
+#set output directory
+SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
+SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/bin)
+SET(TD_TESTS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/test)
+
+MESSAGE(STATUS "Operating system dependency directory: " ${TD_OS_DIR})
+MESSAGE(STATUS "Project source directory: " ${PROJECT_SOURCE_DIR})
+MESSAGE(STATUS "Project binary files output path: " ${PROJECT_BINARY_DIR})
+MESSAGE(STATUS "Project executable files output path: " ${EXECUTABLE_OUTPUT_PATH})
+MESSAGE(STATUS "Project library files output path: " ${LIBRARY_OUTPUT_PATH})
+
 FIND_PROGRAM(TD_MVN_INSTALLED mvn)
 IF (TD_MVN_INSTALLED)
   MESSAGE(STATUS "MVN is installed and JDBC will be compiled")
