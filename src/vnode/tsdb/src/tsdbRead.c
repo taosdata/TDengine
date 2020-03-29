@@ -73,7 +73,7 @@ typedef struct SQueryFilesInfo {
   char dbFilePathPrefix[PATH_MAX];
 } SQueryFilesInfo;
 
-typedef struct STableQueryInfo {
+typedef struct STableCheckInfo {
   STableId    tableId;
   TSKEY       lastKey;
   STable *    pTableObj;
@@ -81,7 +81,8 @@ typedef struct STableQueryInfo {
   int32_t     numOfBlocks;
   int32_t     start;
   SCompBlock *pBlock;
-} STableQueryInfo;
+  SSkipListIterator* iter;
+} STableCheckInfo;
 
 typedef struct {
   SCompBlock *compBlock;
@@ -90,14 +91,19 @@ typedef struct {
 
 typedef struct STableDataBlockInfoEx {
   SCompBlockFields pBlock;
-  STableQueryInfo* pMeterDataInfo;
+  STableCheckInfo* pMeterDataInfo;
   int32_t          blockIndex;
   int32_t          groupIdx; /* number of group is less than the total number of meters */
 } STableDataBlockInfoEx;
 
+enum {
+  SINGLE_TABLE_MODEL = 1,
+  MULTI_TABLE_MODEL = 2,
+};
+
 typedef struct STsdbQueryHandle {
   struct STsdbRepo* pTsdb;
-  
+  int8_t          model;  // access model, single table model or multi-table model
   SQueryHandlePos cur;    // current position
   SQueryHandlePos start;  // the start position, used for secondary/third iteration
   int32_t         unzipBufSize;
@@ -120,14 +126,13 @@ typedef struct STsdbQueryHandle {
   bool        locateStart;
   int32_t     realNumOfRows;
   bool        loadDataAfterSeek;  // load data after seek.
-  SArray*     pTableQueryInfo;
+  SArray*     pTableCheckInfo;
   int32_t     activeIndex;
   
   int32_t     tableIndex;
   bool        isFirstSlot;
   void *      qinfo;              // query info handle, for debug purpose
   
-  SSkipListIterator*     memIter;
   STableDataBlockInfoEx *pDataBlockInfoEx;
 } STsdbQueryHandle;
 
@@ -271,18 +276,20 @@ tsdb_query_handle_t *tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond *pCond
   size_t size = taosArrayGetSize(idList);
   assert(size >= 1);
 
-  pQueryHandle->pTableQueryInfo = taosArrayInit(size, sizeof(STableQueryInfo));
+  pQueryHandle->pTableCheckInfo = taosArrayInit(size, sizeof(STableCheckInfo));
   for(int32_t i = 0; i < size; ++i) {
     STableId id = *(STableId*) taosArrayGet(idList, i);
     
-    STableQueryInfo info = {
+    STableCheckInfo info = {
       .lastKey = pQueryHandle->window.skey,
       .tableId = id,
       .pTableObj = tsdbGetTableByUid(tsdbGetMeta(tsdb), id.uid),  //todo this may be failed
     };
     
-    taosArrayPush(pQueryHandle->pTableQueryInfo, &info);
+    taosArrayPush(pQueryHandle->pTableCheckInfo, &info);
   }
+  
+  pQueryHandle->model = (size > 1)? MULTI_TABLE_MODEL:SINGLE_TABLE_MODEL;
   
   pQueryHandle->activeIndex = 0;
   
@@ -314,11 +321,13 @@ tsdb_query_handle_t *tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond *pCond
   return (tsdb_query_handle_t)pQueryHandle;
 }
 
-bool tsdbNextDataBlock(tsdb_query_handle_t *pQueryHandle) {
-  STsdbQueryHandle* pHandle = (STsdbQueryHandle*) pQueryHandle;
-  STableQueryInfo* pTableQInfo = taosArrayGet(pHandle->pTableQueryInfo, pHandle->activeIndex);
+static bool hasMoreDataInCacheForSingleModel(STsdbQueryHandle* pHandle) {
+  assert(pHandle->activeIndex == 0 && taosArrayGetSize(pHandle->pTableCheckInfo) == 1);
   
-  STable *pTable = pTableQInfo->pTableObj;
+  STableCheckInfo* pTableCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
+  
+  STable *pTable = pTableCheckInfo->pTableObj;
+  assert(pTable != NULL);
   
   // no data in cache, abort
   if (pTable->mem == NULL && pTable->imem == NULL) {
@@ -326,11 +335,47 @@ bool tsdbNextDataBlock(tsdb_query_handle_t *pQueryHandle) {
   }
   
   // all data in mem are checked already.
-  if (pTableQInfo->lastKey > pTable->mem->keyLast) {
+  if (pTableCheckInfo->lastKey > pTable->mem->keyLast) {
     return false;
   }
   
   return true;
+}
+
+static bool hasMoreDataInCacheForMultiModel(STsdbQueryHandle* pHandle) {
+  size_t numOfTables = taosArrayGetSize(pHandle->pTableCheckInfo);
+  assert(numOfTables > 0);
+  
+  while(pHandle->activeIndex < numOfTables) {
+    STableCheckInfo* pTableCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
+  
+    STable *pTable = pTableCheckInfo->pTableObj;
+    if (pTable->mem == NULL && pTable->imem == NULL) {
+      pHandle->activeIndex += 1;  // try next table if exits
+      continue;
+    }
+  
+    // all data in mem are checked already.
+    if (pTableCheckInfo->lastKey > pTable->mem->keyLast) {
+      pHandle->activeIndex += 1;  // try next table if exits
+      continue;
+    }
+    
+    return true;
+  }
+  
+  // all tables has checked already
+  return false;
+}
+
+// handle data in cache situation
+bool tsdbNextDataBlock(tsdb_query_handle_t *pQueryHandle) {
+  STsdbQueryHandle* pHandle = (STsdbQueryHandle*) pQueryHandle;
+  if (pHandle->model == SINGLE_TABLE_MODEL) {
+    return hasMoreDataInCacheForSingleModel(pHandle);
+  } else {
+    return hasMoreDataInCacheForMultiModel(pHandle);
+  }
 }
 
 static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
@@ -370,7 +415,7 @@ static int tsdbReadRowsFromCache(SSkipListIterator *pIter, TSKEY maxKey, int max
 SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle) {
   STsdbQueryHandle* pHandle = (STsdbQueryHandle*) pQueryHandle;
   
-  STableQueryInfo* pTableQInfo = taosArrayGet(pHandle->pTableQueryInfo, pHandle->activeIndex);
+  STableCheckInfo* pTableQInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
   STable *pTable = pTableQInfo->pTableObj;
   
   TSKEY skey = 0, ekey = 0;
@@ -379,11 +424,11 @@ SDataBlockInfo tsdbRetrieveDataBlockInfo(tsdb_query_handle_t *pQueryHandle) {
   if (pTable->mem != NULL) {
     
     // create mem table iterator if it is not created yet
-    if (pHandle->memIter == NULL) {
-      pHandle->memIter = tSkipListCreateIter(pTable->mem->pData);
+    if (pTableQInfo->iter == NULL) {
+      pTableQInfo->iter = tSkipListCreateIter(pTable->mem->pData);
     }
     
-    rows = tsdbReadRowsFromCache(pHandle->memIter, INT64_MAX, 2, &skey, &ekey, pHandle);
+    rows = tsdbReadRowsFromCache(pTableQInfo->iter, INT64_MAX, 2, &skey, &ekey, pHandle);
   }
   
   SDataBlockInfo blockInfo = {

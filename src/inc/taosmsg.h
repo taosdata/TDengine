@@ -188,15 +188,6 @@ extern char *taosMsg[];
 
 #pragma pack(push, 1)
 
-// typedef struct {
-//  int32_t  vnode;
-//  int32_t  sid;
-//  int32_t  sversion;
-//  uint64_t uid;
-//  int16_t  numOfRows;
-//  char     payLoad[];
-//} SShellSubmitBlock;
-
 typedef struct {
   int32_t numOfVnodes;
 } SMsgDesc;
