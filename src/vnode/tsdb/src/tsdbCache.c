@@ -75,8 +75,10 @@ void *tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key) {
     if (pCache->curBlock !=NULL && (pCache->mem->list) >= pCache->totalCacheBlocks/2) {
       tsdbTriggerCommit(pCache->pRepo);
     }
-    if (tsdbAllocBlockFromPool(pCache) < 0) {
+
+    while (tsdbAllocBlockFromPool(pCache) < 0) {
       // TODO: deal with the error
+      // printf("Failed to allocate from cache pool\n");
     }
   } 
 
