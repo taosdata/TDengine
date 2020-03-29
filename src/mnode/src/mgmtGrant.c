@@ -16,18 +16,15 @@
 #define _DEFAULT_SOURCE
 #ifndef _GRANT
 #include "os.h"
+#include "tlog.h"
 #include "mgmtGrant.h"
 
-bool mgmtCheckExpired() { return false; }
-void mgmtParseParameterKFp() {}
-void mgmtSendMsgToMaster() {}
-void mgmtSetCurStorage(uint64_t storage) {}
-void mgmtAddTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum) {}
-void mgmtRestoreTimeSeries(SAcctObj *pAcct, uint32_t timeseries) {}
-int32_t mgmtCheckTimeSeries(uint32_t timeseries) { return TSDB_CODE_SUCCESS; }
-int32_t mgmtCheckUserGrant() { return TSDB_CODE_SUCCESS; }
-int32_t mgmtCheckDbGrant() { return TSDB_CODE_SUCCESS; }
-int32_t mgmtCheckDnodeGrant() { return TSDB_CODE_SUCCESS; }
-int32_t mgmtCheckAccts() { return TSDB_CODE_SUCCESS; }
+int32_t grantInit() { return TSDB_CODE_SUCCESS; }
+void    grantCleanUp() {}
+void    grantParseParameter() { mError("can't parsed parameter k"); }
+int32_t grantCheck(EGrantType grant) { return true; }
+void    grantReset(EGrantType grant, uint64_t value) {}
+void    grantAdd(EGrantType grant, uint64_t value) {}
+void    grantRestore(EGrantType grant, uint64_t value) {}
 
 #endif

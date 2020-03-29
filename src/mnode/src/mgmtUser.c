@@ -44,10 +44,10 @@ static int32_t mgmtUserActionDestroy(SSdbOperDesc *pOper) {
 
 static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
   SUserObj *pUser = pOper->pObj;
-  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
+  SAcctObj *pAcct = acctGetAcct(pUser->acct);
 
   if (pAcct != NULL) {
-    mgmtAddUserIntoAcct(pAcct, pUser);
+    acctAddUser(pAcct, pUser);
   }
   else {
     mError("user:%s, acct:%s info not exist in sdb", pUser->user, pUser->acct);
@@ -59,9 +59,9 @@ static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
 
 static int32_t mgmtUserActionDelete(SSdbOperDesc *pOper) {
   SUserObj *pUser = pOper->pObj;
-  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
+  SAcctObj *pAcct = acctGetAcct(pUser->acct);
 
-  mgmtRemoveUserFromAcct(pAcct, pUser);
+  acctRemoveUser(pAcct, pUser);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -114,7 +114,7 @@ int32_t mgmtInitUsers() {
     return -1;
   }
 
-  SAcctObj *pAcct = mgmtGetAcct("root");
+  SAcctObj *pAcct = acctGetAcct("root");
   mgmtCreateUser(pAcct, "root", "taosdata");
   mgmtCreateUser(pAcct, "monitor", tsInternalPass);
   mgmtCreateUser(pAcct, "_root", tsInternalPass);
@@ -155,7 +155,7 @@ static int32_t mgmtUpdateUser(SUserObj *pUser) {
 }
 
 int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
-  int32_t code = mgmtCheckUserLimit(pAcct);
+  int32_t code = acctCheck(pAcct, TSDB_ACCT_USER);
   if (code != 0) {
     return code;
   }
@@ -170,8 +170,8 @@ int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
     return TSDB_CODE_USER_ALREADY_EXIST;
   }
 
-  code = mgmtCheckUserGrant();
-  if (code != 0) {
+  code = grantCheck(TSDB_GRANT_USER);
+  if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 

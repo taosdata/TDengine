@@ -48,7 +48,7 @@
 #include "mgmtVgroup.h"
 #include "mgmtUser.h"
 
-static void   *tsChildTableSdb;
+void   *tsChildTableSdb;
 static int32_t tsChildTableUpdateSize;
 static void    mgmtProcessMultiTableMetaMsg(SQueuedMsg *queueMsg);
 static void    mgmtProcessCreateTableRsp(SRpcMsg *rpcMsg);
@@ -84,7 +84,7 @@ static int32_t mgmtChildTableActionInsert(SSdbOperDesc *pOper) {
     return TSDB_CODE_INVALID_DB;
   }
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
     mError("ctable:%s, account:%s not exists", pTable->info.tableId, pDb->cfg.acct);
     return TSDB_CODE_INVALID_ACCT;
@@ -93,9 +93,11 @@ static int32_t mgmtChildTableActionInsert(SSdbOperDesc *pOper) {
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     pTable->superTable = mgmtGetSuperTable(pTable->superTableId);
     pTable->superTable->numOfTables++;
-    mgmtAddTimeSeries(pAcct, pTable->superTable->numOfColumns - 1);
+    grantAdd(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
+    pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
   } else {
-    mgmtAddTimeSeries(pAcct, pTable->numOfColumns - 1);
+    grantAdd(TSDB_GRANT_TIMESERIES, pTable->numOfColumns - 1);
+    pAcct->acctInfo.numOfTimeSeries += (pTable->numOfColumns - 1);
   }
   mgmtAddTableIntoDb(pDb);
   mgmtAddTableIntoVgroup(pVgroup, pTable);
@@ -120,17 +122,19 @@ static int32_t mgmtChildTableActionDelete(SSdbOperDesc *pOper) {
     return TSDB_CODE_INVALID_DB;
   }
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
     mError("ctable:%s, account:%s not exists", pTable->info.tableId, pDb->cfg.acct);
     return TSDB_CODE_INVALID_ACCT;
   }
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
-    mgmtRestoreTimeSeries(pAcct, pTable->superTable->numOfColumns - 1);
+    grantRestore(TSDB_GRANT_TIMESERIES, pTable->superTable->numOfColumns - 1);
+    pAcct->acctInfo.numOfTimeSeries -= (pTable->superTable->numOfColumns - 1);
     pTable->superTable->numOfTables--;
   } else {
-    mgmtRestoreTimeSeries(pAcct, pTable->numOfColumns - 1);
+    grantRestore(TSDB_GRANT_TIMESERIES, pTable->numOfColumns - 1);
+    pAcct->acctInfo.numOfTimeSeries -= (pTable->numOfColumns - 1);
   }
   mgmtRemoveTableFromDb(pDb);
   mgmtRemoveTableFromVgroup(pVgroup, pTable);
@@ -464,9 +468,9 @@ static SChildTableObj* mgmtDoCreateChildTable(SCMCreateTableMsg *pCreate, SVgObj
 void mgmtCreateChildTable(SQueuedMsg *pMsg) {
   SCMCreateTableMsg *pCreate = pMsg->pCont;
 
-  int32_t code = mgmtCheckTimeSeries(htons(pCreate->numOfColumns));
+  int32_t code = grantCheck(TSDB_GRANT_TIMESERIES);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("table:%s, failed to create, timeseries exceed the limit", pCreate->tableId);
+    mError("table:%s, failed to create, grant not", pCreate->tableId);
     mgmtSendSimpleResp(pMsg->thandle, code);
     return;
   }
@@ -634,7 +638,7 @@ static int32_t mgmtAddNormalTableColumn(SChildTableObj *pTable, SSchema schema[]
     return TSDB_CODE_APP_ERROR;
   }
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
     mError("DB: %s not belongs to andy account", pDb->name);
     return TSDB_CODE_APP_ERROR;
@@ -677,7 +681,7 @@ static int32_t mgmtDropNormalTableColumnByName(SChildTableObj *pTable, char *col
     return TSDB_CODE_APP_ERROR;
   }
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
     mError("DB: %s not belongs to any account", pDb->name);
     return TSDB_CODE_APP_ERROR;

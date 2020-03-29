@@ -54,7 +54,7 @@ static int32_t mgmtDbActionDestroy(SSdbOperDesc *pOper) {
 
 static int32_t mgmtDbActionInsert(SSdbOperDesc *pOper) {
   SDbObj *pDb = pOper->pObj;
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
 
   pDb->pHead = NULL;
   pDb->pTail = NULL;
@@ -65,7 +65,7 @@ static int32_t mgmtDbActionInsert(SSdbOperDesc *pOper) {
   pDb->numOfSuperTables = 0;
 
   if (pAcct != NULL) {
-    mgmtAddDbIntoAcct(pAcct, pDb);
+    acctAddDb(pAcct, pDb);
   }
   else {
     mError("db:%s, acct:%s info not exist in sdb", pDb->name, pDb->cfg.acct);
@@ -77,9 +77,9 @@ static int32_t mgmtDbActionInsert(SSdbOperDesc *pOper) {
 
 static int32_t mgmtDbActionDelete(SSdbOperDesc *pOper) {
   SDbObj *pDb = pOper->pObj;
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
 
-  mgmtRemoveDbFromAcct(pAcct, pDb);
+  acctRemoveDb(pAcct, pDb);
   mgmtDropAllChildTables(pDb);
   mgmtDropAllSuperTables(pDb);
   mgmtDropAllVgroups(pDb);
@@ -277,7 +277,7 @@ static int32_t mgmtCheckDbParams(SCMCreateDbMsg *pCreate) {
 }
 
 static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
-  int32_t code = mgmtCheckDbLimit(pAcct);
+  int32_t code = acctCheck(pAcct, TSDB_ACCT_DB);
   if (code != 0) {
     return code;
   }
@@ -292,7 +292,7 @@ static int32_t mgmtCreateDb(SAcctObj *pAcct, SCMCreateDbMsg *pCreate) {
 
   assert(pCreate->daysToKeep1 <= pCreate->daysToKeep2 && pCreate->daysToKeep2 <= pCreate->daysToKeep);
 
-  code = mgmtCheckDbGrant();
+  code = grantCheck(TSDB_GRANT_DB);
   if (code != 0) {
     return code;
   }
@@ -692,7 +692,7 @@ static void mgmtProcessCreateDbMsg(SQueuedMsg *pMsg) {
   pCreate->rowsInFileBlock = htonl(pCreate->rowsInFileBlock);
 
   int32_t code;
-  if (mgmtCheckExpired()) {
+  if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_GRANT_EXPIRED;
   } else if (!pMsg->pUser->writeAuth) {
     code = TSDB_CODE_NO_RIGHTS;
@@ -771,7 +771,7 @@ static void mgmtProcessAlterDbMsg(SQueuedMsg *pMsg) {
   SCMAlterDbMsg *pAlter = pMsg->pCont;
   mTrace("db:%s, alter db msg is received from thandle:%p", pAlter->db, pMsg->thandle);
 
-  if (mgmtCheckExpired()) {
+  if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to alter, grant expired", pAlter->db);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_GRANT_EXPIRED);
     return;
@@ -842,7 +842,7 @@ static void mgmtProcessDropDbMsg(SQueuedMsg *pMsg) {
   SCMDropDbMsg *pDrop = pMsg->pCont;
   mTrace("db:%s, drop db msg is received from thandle:%p", pDrop->db, pMsg->thandle);
 
-  if (mgmtCheckExpired()) {
+  if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     mError("db:%s, failed to drop, grant expired", pDrop->db);
     mgmtSendSimpleResp(pMsg->thandle, TSDB_CODE_GRANT_EXPIRED);
     return;

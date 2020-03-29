@@ -253,7 +253,7 @@ static int32_t mgmtAddSuperTableTag(SSuperTableObj *pStable, SSchema schema[], i
     return TSDB_CODE_APP_ERROR;
   }
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
     mError("DB: %s not belongs to andy account", pDb->name);
     return TSDB_CODE_APP_ERROR;
@@ -293,7 +293,7 @@ static int32_t mgmtDropSuperTableTag(SSuperTableObj *pStable, char *tagName) {
     return TSDB_CODE_APP_ERROR;
   }
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
     mError("DB: %s not belongs to any account", pDb->name);
     return TSDB_CODE_APP_ERROR;
@@ -381,7 +381,7 @@ static int32_t mgmtAddSuperTableColumn(SSuperTableObj *pStable, SSchema schema[]
     return TSDB_CODE_APP_ERROR;
   }
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
     mError("DB: %s not belongs to andy account", pDb->name);
     return TSDB_CODE_APP_ERROR;
@@ -420,7 +420,7 @@ static int32_t mgmtDropSuperTableColumnByName(SSuperTableObj *pStable, char *col
     return TSDB_CODE_APP_ERROR;
   }
 
-  SAcctObj *pAcct = mgmtGetAcct(pDb->cfg.acct);
+  SAcctObj *pAcct = acctGetAcct(pDb->cfg.acct);
   if (pAcct == NULL) {
     mError("DB: %s not belongs to any account", pDb->name);
     return TSDB_CODE_APP_ERROR;

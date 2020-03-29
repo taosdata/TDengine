@@ -19,20 +19,30 @@
 #ifdef __cplusplus
 "C" {
 #endif
-#include "mnode.h"
 
-bool mgmtCheckExpired();
-void mgmtParseParameterKFp();
-void mgmtSendMsgToMaster();
-void mgmtSetCurStorage(uint64_t storage);
-void mgmtAddTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum);
-void mgmtRestoreTimeSeries(SAcctObj *pAcct, uint32_t timeseries);
+typedef enum {
+  TSDB_GRANT_ALL,
+  TSDB_GRANT_TIME,
+  TSDB_GRANT_USER,
+  TSDB_GRANT_DB,
+  TSDB_GRANT_TIMESERIES,
+  TSDB_GRANT_DNODE,
+  TSDB_GRANT_ACCT,
+  TSDB_GRANT_STORAGE,
+  TSDB_GRANT_SPEED,
+  TSDB_GRANT_QUERY_TIME,
+  TSDB_GRANT_CONNS,
+  TSDB_GRANT_STREAMS,
+  TSDB_GRANT_CPU_CORES,
+} EGrantType;
 
-int32_t mgmtCheckTimeSeries(uint32_t timeseries);
-int32_t mgmtCheckUserGrant();
-int32_t mgmtCheckDbGrant();
-int32_t mgmtCheckDnodeGrant();
-int32_t mgmtCheckAccts();
+int32_t grantInit();
+void    grantCleanUp();
+void    grantParseParameter();
+int32_t grantCheck(EGrantType grant);
+void    grantReset(EGrantType grant, uint64_t value);
+void    grantAdd(EGrantType grant, uint64_t value);
+void    grantRestore(EGrantType grant, uint64_t value);
 
 #ifdef __cplusplus
 }

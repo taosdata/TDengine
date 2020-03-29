@@ -21,28 +21,19 @@
 
 static SAcctObj tsAcctObj = {0};
 
-int32_t mgmtInitAccts() {
+int32_t acctInit() {
   tsAcctObj.acctId = 0;
   strcpy(tsAcctObj.user, "root");
   return TSDB_CODE_SUCCESS;
 }
 
-SAcctObj *mgmtGetAcct(char *acctName) { return &tsAcctObj; }
+void      acctCleanUp() {}
+SAcctObj *acctGetAcct(char *acctName) { return &tsAcctObj; }
+int32_t   acctCheck(SAcctObj *pAcct, EAcctGrantType type) { return TSDB_CODE_SUCCESS; }
 
-void mgmtCleanUpAccts() {}
-
-int32_t mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb) { return TSDB_CODE_SUCCESS; }
-
-int32_t mgmtRemoveDbFromAcct(SAcctObj *pAcct, SDbObj *pDb) { return TSDB_CODE_SUCCESS; }
-
-int32_t mgmtAddUserIntoAcct(SAcctObj *pAcct, SUserObj *pUser) { return TSDB_CODE_SUCCESS; }
-
-int32_t mgmtRemoveUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) { return TSDB_CODE_SUCCESS; }
-
-int32_t mgmtCheckUserLimit(SAcctObj *pAcct) { return TSDB_CODE_SUCCESS; }
-
-int32_t mgmtCheckDbLimit(SAcctObj *pAcct) { return TSDB_CODE_SUCCESS; }
-
-int32_t mgmtCheckTableLimit(SAcctObj *pAcct) { return TSDB_CODE_SUCCESS; }
+int32_t acctAddDb(SAcctObj *pAcct, SDbObj *pDb) { return TSDB_CODE_SUCCESS; }
+int32_t acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) { return TSDB_CODE_SUCCESS; }
+int32_t acctAddUser(SAcctObj *pAcct, SUserObj *pUser) { return TSDB_CODE_SUCCESS; }
+int32_t acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) { return TSDB_CODE_SUCCESS; }
 
 #endif
