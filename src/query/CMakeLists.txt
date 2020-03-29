@@ -13,3 +13,5 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
   ADD_LIBRARY(query ${SRC})
   TARGET_LINK_LIBRARIES(query tsdb tutil m rt)
 ENDIF ()
+
+ADD_SUBDIRECTORY(tests)

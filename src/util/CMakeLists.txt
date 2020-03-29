@@ -29,6 +29,8 @@ IF ((TD_LINUX_64) OR (TD_LINUX_32 AND TD_ARM))
       MESSAGE(STATUS "Failed to find iconv, use default encoding method")
     ENDIF ()
   ENDIF ()
+
+  ADD_SUBDIRECTORY(tests)
 ELSEIF (TD_WINDOWS_64)
   ADD_DEFINITIONS(-DUSE_LIBICONV)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/pthread)
@@ -111,6 +113,5 @@ ENDIF()
 #IF (TD_CLUSTER)
 #  TARGET_LINK_LIBRARIES(tutil mstorage)
 #ENDIF ()
-
 
 
