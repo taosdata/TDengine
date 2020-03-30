@@ -40,15 +40,6 @@ typedef struct {
   void     *pRpc;
 } SInfo;
 
-static void processResponse(SRpcMsg *pMsg) {
-  SInfo *pInfo = (SInfo *)pMsg->handle;
-  tTrace("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
-
-  rpcFreeCont(pMsg->pCont);
-
-  sem_post(&pInfo->rspSem); 
-}
-
 static void processUpdateIpSet(void *handle, SRpcIpSet *pIpSet) {
   SInfo *pInfo = (SInfo *)handle;
 
@@ -57,10 +48,11 @@ static void processUpdateIpSet(void *handle, SRpcIpSet *pIpSet) {
 }
 
 static int tcount = 0;
+static int terror = 0;
 
 static void *sendRequest(void *param) {
   SInfo  *pInfo = (SInfo *)param;
-  SRpcMsg rpcMsg; 
+  SRpcMsg rpcMsg, rspMsg; 
   
   tTrace("thread:%d, start to send request", pInfo->index);
 
@@ -71,10 +63,18 @@ static void *sendRequest(void *param) {
     rpcMsg.handle = pInfo;
     rpcMsg.msgType = 1;
     tTrace("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
-    rpcSendRequest(pInfo->pRpc, &pInfo->ipSet, &rpcMsg);
+
+    rpcSendRecv(pInfo->pRpc, &pInfo->ipSet, &rpcMsg, &rspMsg);
+    
+    // handle response
+    if (rspMsg.code != 0) terror++;
+
+    tTrace("thread:%d, rspLen:%d code:%d", pInfo->index, rspMsg.contLen, rspMsg.code);
+
+    rpcFreeCont(rspMsg.pCont);
+
     if ( pInfo->num % 20000 == 0 ) 
       tPrint("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
-    sem_wait(&pInfo->rspSem);
   }
 
   tTrace("thread:%d, it is over", pInfo->index);
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
   rpcInit.localPort    = 0;
   rpcInit.label        = "APP";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp          = processResponse;
+  // rpcInit.cfp          = processResponse;
   rpcInit.ufp          = processUpdateIpSet;
   rpcInit.sessions     = 100;
   rpcInit.idleTime     = tsShellActivityTimer*1000;
@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
   endTime = systemTime.tv_sec*1000000 + systemTime.tv_usec;  
   float usedTime = (endTime - startTime)/1000.0;  // mseconds
 
-  tPrint("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs*appThreads);
+  tPrint("it takes %.3f mseconds to send %d requests to server, error num:%d", usedTime, numOfReqs*appThreads, terror);
   tPrint("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0*numOfReqs*appThreads/usedTime, msgSize);
 
   taosCloseLogger();
