@@ -15,21 +15,29 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taoserror.h"
+#include "mnode.h"
 #include "mgmtAcct.h"
+#ifndef _ACCOUNT
 
-static SAcctObj tsAcctObj;
+static SAcctObj tsAcctObj = {0};
 
-int32_t   (*mgmtInitAcctsFp)() = NULL;
-void      (*mgmtCleanUpAcctsFp)() = NULL;
-SAcctObj *(*mgmtGetAcctFp)(char *acctName) = NULL;
-int32_t   (*mgmtCheckUserLimitFp)(SAcctObj *pAcct) = NULL;
-int32_t   (*mgmtCheckDbLimitFp)(SAcctObj *pAcct) = NULL;
-int32_t   (*mgmtCheckTableLimitFp)(SAcctObj *pAcct, int32_t numOfTimeSeries) = NULL;
+int32_t acctInit() {
+  tsAcctObj.acctId = 0;
+  strcpy(tsAcctObj.user, "root");
+  return TSDB_CODE_SUCCESS;
+}
 
-int32_t mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb) {
+void      acctCleanUp() {}
+SAcctObj *acctGetAcct(char *acctName) { return &tsAcctObj; }
+int32_t   acctCheck(SAcctObj *pAcct, EAcctGrantType type) { return TSDB_CODE_SUCCESS; }
+#endif
+
+int32_t acctAddDb(SAcctObj *pAcct, SDbObj *pDb) {
   pthread_mutex_lock(&pAcct->mutex);
   pDb->next = pAcct->pHead;
   pDb->prev = NULL;
+  pDb->pAcct = pAcct;
 
   if (pAcct->pHead) {
     pAcct->pHead->prev = pDb;
@@ -42,7 +50,7 @@ int32_t mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb) {
   return 0;
 }
 
-int32_t mgmtRemoveDbFromAcct(SAcctObj *pAcct, SDbObj *pDb) {
+int32_t acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) {
   pthread_mutex_lock(&pAcct->mutex);
   if (pDb->prev) {
     pDb->prev->next = pDb->next;
@@ -62,7 +70,7 @@ int32_t mgmtRemoveDbFromAcct(SAcctObj *pAcct, SDbObj *pDb) {
   return 0;
 }
 
-int32_t mgmtAddUserIntoAcct(SAcctObj *pAcct, SUserObj *pUser) {
+int32_t acctAddUser(SAcctObj *pAcct, SUserObj *pUser) {
   pthread_mutex_lock(&pAcct->mutex);
   pUser->next = pAcct->pUser;
   pUser->prev = NULL;
@@ -79,7 +87,7 @@ int32_t mgmtAddUserIntoAcct(SAcctObj *pAcct, SUserObj *pUser) {
   return 0;
 }
 
-int32_t mgmtRemoveUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) {
+int32_t acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) {
   pthread_mutex_lock(&pAcct->mutex);
   if (pUser->prev) {
     pUser->prev->next = pUser->next;
@@ -88,7 +96,7 @@ int32_t mgmtRemoveUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) {
   if (pUser->next) {
     pUser->next->prev = pUser->prev;
   }
-  
+
   if (pUser->prev == NULL) {
     pAcct->pUser = pUser->next;
   }
@@ -97,51 +105,4 @@ int32_t mgmtRemoveUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) {
   pthread_mutex_unlock(&pAcct->mutex);
 
   return 0;
-}
-
-int32_t mgmtInitAccts() {
-  if (mgmtInitAcctsFp) {
-    return (*mgmtInitAcctsFp)();
-  } else {
-    tsAcctObj.acctId = 0;
-    strcpy(tsAcctObj.user, "root");
-    return 0;
-  }
-}
-
-SAcctObj *mgmtGetAcct(char *acctName) {
-  if (mgmtGetAcctFp) {
-    return (*mgmtGetAcctFp)(acctName);
-  } else {
-    return &tsAcctObj;
-  }
-}
-
-void mgmtCleanUpAccts() {
-  if (mgmtCleanUpAcctsFp) {
-    (*mgmtCleanUpAcctsFp)();
-  }
-}
-
-int32_t mgmtCheckUserLimit(SAcctObj *pAcct) {
-  if (mgmtCheckUserLimitFp) {
-    return (*mgmtCheckUserLimitFp)(pAcct);
-  }
-  return 0;
-}
-
-int32_t mgmtCheckDbLimit(SAcctObj *pAcct) {
-  if (mgmtCheckDbLimitFp) {
-    return (*mgmtCheckDbLimitFp)(pAcct);
-  } else {
-    return 0;
-  }
-}
-
-int32_t mgmtCheckTableLimit(SAcctObj *pAcct, int32_t numOfTimeSeries) {
-  if (mgmtCheckTableLimitFp) {
-    return (*mgmtCheckTableLimitFp)(pAcct, numOfTimeSeries);
-  } else {
-    return 0;
-  }
 }

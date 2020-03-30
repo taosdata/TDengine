@@ -24,18 +24,8 @@ extern "C" {
 int32_t mgmtInitDnodes();
 void    mgmtCleanUpDnodes();
 int32_t mgmtGetDnodesNum();
-int32_t mgmtUpdateDnode(SDnodeObj *pDnode);
 SDnodeObj* mgmtGetDnode(int32_t dnodeId);
 SDnodeObj* mgmtGetDnodeByIp(uint32_t ip);
-
-bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode);
-bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode);
-bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType);
-void mgmtSetDnodeUnRemove(SDnodeObj *pDnode);
-void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode);
-void mgmtCalcNumOfFreeVnodes(SDnodeObj *pDnode);
-void mgmtSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes, int32_t vgId);
-void mgmtUnSetDnodeVgid(SVnodeGid vnodeGid[], int32_t numOfVnodes);
 
 #ifdef __cplusplus
 }

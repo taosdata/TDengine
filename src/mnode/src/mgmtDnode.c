@@ -26,454 +26,76 @@
 #include "mgmtUser.h"
 #include "mgmtVgroup.h"
 
-int32_t    (*mgmtInitDnodesFp)() = NULL;
-void       (*mgmtCleanUpDnodesFp)() = NULL;
-SDnodeObj *(*mgmtGetDnodeFp)(uint32_t ip) = NULL;
-SDnodeObj *(*mgmtGetDnodeByIpFp)(int32_t dnodeId) = NULL;
-int32_t    (*mgmtGetDnodesNumFp)() = NULL;
-int32_t    (*mgmtUpdateDnodeFp)(SDnodeObj *pDnode) = NULL;
-void *     (*mgmtGetNextDnodeFp)(SShowObj *pShow, SDnodeObj **pDnode) = NULL;
-void       (*mgmtSetDnodeUnRemoveFp)(SDnodeObj *pDnode) = NULL;
-
-static SDnodeObj tsDnodeObj = {0};
-static void *  mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode);
-static bool    mgmtCheckConfigShow(SGlobalConfig *cfg);
-static int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg);
 static void    mgmtProcessCfgDnodeMsgRsp(SRpcMsg *rpcMsg) ;
 static void    mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg);
-
-void mgmtSetDnodeMaxVnodes(SDnodeObj *pDnode) {
-  int32_t maxVnodes = pDnode->numOfCores * tsNumOfVnodesPerCore;
-
-  maxVnodes = maxVnodes > TSDB_MAX_VNODES ? TSDB_MAX_VNODES : maxVnodes;
-  maxVnodes = maxVnodes < TSDB_MIN_VNODES ? TSDB_MIN_VNODES : maxVnodes;
-  
-  if (pDnode->numOfTotalVnodes == 0) {
-    pDnode->numOfTotalVnodes = maxVnodes;
-  }
-
-  if (pDnode->alternativeRole == TSDB_DNODE_ROLE_MGMT) {
-    pDnode->numOfTotalVnodes = 0;
-  }
-
-  pDnode->openVnodes = 0;
-  pDnode->status = TSDB_DN_STATUS_OFFLINE;
-
-  mgmtUpdateDnode(pDnode);
-}
-
-bool mgmtCheckModuleInDnode(SDnodeObj *pDnode, int32_t moduleType) {
-  uint32_t status = pDnode->moduleStatus & (1 << moduleType);
-  return status > 0;
-}
-
-int32_t mgmtGetModuleMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  int32_t cols = 0;
-
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
-  if (pUser == NULL) return 0;
-
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
-
-  SSchema *pSchema = pMeta->schema;
-
-  pShow->bytes[cols] = 16;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "IP");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 10;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "module type");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 10;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "module status");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pMeta->numOfColumns = htons(cols);
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) {
-    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-  }
-
-  pShow->numOfRows = 0;
-  SDnodeObj *pDnode = NULL;
-  while (1) {
-    pShow->pNode = mgmtGetNextDnode(pShow, (SDnodeObj **)&pDnode);
-    if (pDnode == NULL) break;
-    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-      if (mgmtCheckModuleInDnode(pDnode, moduleType)) {
-        pShow->numOfRows++;
-      }
-    }
-  }
-
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  pShow->pNode = NULL;
-
-  return 0;
-}
-
-int32_t mgmtRetrieveModules(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  int32_t    numOfRows = 0;
-  SDnodeObj *pDnode = NULL;
-  char *     pWrite;
-  int32_t    cols = 0;
-  char       ipstr[20];
-
-  while (numOfRows < rows) {
-    pShow->pNode = mgmtGetNextDnode(pShow, (SDnodeObj **)&pDnode);
-    if (pDnode == NULL) break;
-
-    for (int32_t moduleType = 0; moduleType < TSDB_MOD_MAX; ++moduleType) {
-      if (!mgmtCheckModuleInDnode(pDnode, moduleType)) {
-        continue;
-      }
-
-      cols = 0;
-
-      tinet_ntoa(ipstr, pDnode->privateIp);
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, ipstr);
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, tsModule[moduleType].name);
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      strcpy(pWrite, taosGetDnodeStatusStr(pDnode->status) );
-      cols++;
-
-      numOfRows++;
-    }
-  }
-
-  pShow->numOfReads += numOfRows;
-  return numOfRows;
-}
-
-static int32_t mgmtGetConfigMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  int32_t cols = 0;
-
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
-  if (pUser == NULL) return 0;
-
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
-
-  SSchema *pSchema = pMeta->schema;
-
-  pShow->bytes[cols] = TSDB_CFG_OPTION_LEN;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "config name");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = TSDB_CFG_VALUE_LEN;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "config value");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pMeta->numOfColumns = htons(cols);
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-
-  pShow->numOfRows = 0;
-  for (int32_t i = tsGlobalConfigNum - 1; i >= 0; --i) {
-    SGlobalConfig *cfg = tsGlobalConfig + i;
-    if (!mgmtCheckConfigShow(cfg)) continue;
-    pShow->numOfRows++;
-  }
-
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  pShow->pNode = NULL;
-
-  return 0;
-}
-
-static int32_t mgmtRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  int32_t numOfRows = 0;
-
-  for (int32_t i = tsGlobalConfigNum - 1; i >= 0 && numOfRows < rows; --i) {
-    SGlobalConfig *cfg = tsGlobalConfig + i;
-    if (!mgmtCheckConfigShow(cfg)) continue;
-
-    char *pWrite;
-    int32_t   cols = 0;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    snprintf(pWrite, TSDB_CFG_OPTION_LEN, "%s", cfg->option);
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    switch (cfg->valType) {
-      case TSDB_CFG_VTYPE_SHORT:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%d", *((int16_t *)cfg->ptr));
-        numOfRows++;
-        break;
-      case TSDB_CFG_VTYPE_INT:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%d", *((int32_t *)cfg->ptr));
-        numOfRows++;
-        break;
-      case TSDB_CFG_VTYPE_UINT:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%d", *((uint32_t *)cfg->ptr));
-        numOfRows++;
-        break;
-      case TSDB_CFG_VTYPE_FLOAT:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%f", *((float *)cfg->ptr));
-        numOfRows++;
-        break;
-      case TSDB_CFG_VTYPE_STRING:
-      case TSDB_CFG_VTYPE_IPSTR:
-      case TSDB_CFG_VTYPE_DIRECTORY:
-        snprintf(pWrite, TSDB_CFG_VALUE_LEN, "%s", (char *)cfg->ptr);
-        numOfRows++;
-        break;
-      default:
-        break;
-    }
-  }
-
-  pShow->numOfReads += numOfRows;
-  return numOfRows;
-}
-
-static int32_t mgmtGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
-  int32_t cols = 0;
-  SUserObj *pUser = mgmtGetUserFromConn(pConn, NULL);
-  if (pUser == NULL) return 0;
-  if (strcmp(pUser->user, "root") != 0) return TSDB_CODE_NO_RIGHTS;
-
-  SSchema *pSchema = pMeta->schema;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "vnode");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 12;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "status");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 12;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "sync_status");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pMeta->numOfColumns = htons(cols);
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-
-  SDnodeObj *pDnode = NULL;
-  if (pShow->payloadLen > 0 ) {
-    uint32_t ip = ip2uint(pShow->payload);
-    pDnode = mgmtGetDnodeByIp(ip);
-    if (NULL == pDnode) {
-      return TSDB_CODE_NODE_OFFLINE;
-    }
-
-    SVnodeLoad* pVnode;
-    pShow->numOfRows = 0;
-    for (int32_t i = 0 ; i < TSDB_MAX_VNODES; i++) {
-      pVnode = &pDnode->vload[i];
-      if (0 != pVnode->vgId) {
-        pShow->numOfRows++;
-      }
-    }
-    
-    pShow->pNode = pDnode;
-  } else {
-    while (true) {
-      pShow->pNode = mgmtGetNextDnode(pShow, (SDnodeObj **)&pDnode);
-      if (pDnode == NULL) break;
-      pShow->numOfRows += pDnode->openVnodes;
-
-      if (0 == pShow->numOfRows) return TSDB_CODE_NODE_OFFLINE;      
-    }
-
-    pShow->pNode = NULL;
-  } 
-
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-
-  return 0;
-}
-
-static int32_t mgmtRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
-  int32_t        numOfRows = 0;
-  SDnodeObj *pDnode = NULL;
-  char *     pWrite;
-  int32_t        cols = 0;
-
-  if (0 == rows) return 0;
-
-  if (pShow->payloadLen) {
-    // output the vnodes info of the designated dnode. And output all vnodes of this dnode, instead of rows (max 100)
-    pDnode = (SDnodeObj *)(pShow->pNode);
-    if (pDnode != NULL) {
-      SVnodeLoad* pVnode;
-      for (int32_t i = 0 ; i < TSDB_MAX_VNODES; i++) {
-        pVnode = &pDnode->vload[i];
-        if (0 == pVnode->vgId) {
-          continue;
-        }
-        
-        cols = 0;
-        
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        *(uint32_t *)pWrite = pVnode->vgId;
-        cols++;
-        
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        strcpy(pWrite, taosGetVnodeStatusStr(pVnode->status));
-        cols++;
-        
-        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-        strcpy(pWrite, taosGetVnodeSyncStatusStr(pVnode->syncStatus));
-        cols++;
-        
-        numOfRows++;
-      }
-    }
-  } else {
-    // TODO: output all vnodes of all dnodes
-    numOfRows = 0;
-  }
-  
-  pShow->numOfReads += numOfRows;
-  return numOfRows;
-}
+extern int32_t clusterInit();
+extern void    clusterCleanUp();
+extern int32_t clusterGetDnodesNum();
+extern SDnodeObj* clusterGetDnode(int32_t dnodeId);
+extern SDnodeObj* clusterGetDnodeByIp(uint32_t ip);
+static SDnodeObj  tsDnodeObj = {0};
 
 int32_t mgmtInitDnodes() {
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_MODULE, mgmtGetModuleMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, mgmtRetrieveModules);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtGetConfigMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_CONFIGS, mgmtRetrieveConfigs);
-  mgmtAddShellShowMetaHandle(TSDB_MGMT_TABLE_VNODES, mgmtGetVnodeMeta);
-  mgmtAddShellShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mgmtRetrieveVnodes);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mgmtProcessCfgDnodeMsg);
   mgmtAddDClientRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mgmtProcessCfgDnodeMsgRsp);
   mgmtAddDServerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, mgmtProcessDnodeStatusMsg);
 
-  if (mgmtInitDnodesFp) {
-    return mgmtInitDnodesFp();
-  } else {
-    tsDnodeObj.dnodeId          = 1;
-    tsDnodeObj.privateIp        = inet_addr(tsPrivateIp);
-    tsDnodeObj.publicIp         = inet_addr(tsPublicIp);
-    tsDnodeObj.createdTime      = taosGetTimestampMs();
-    tsDnodeObj.numOfTotalVnodes = tsNumOfTotalVnodes;
-    tsDnodeObj.numOfCores       = (uint16_t) tsNumOfCores;
-    tsDnodeObj.alternativeRole  = TSDB_DNODE_ROLE_ANY;
-    tsDnodeObj.status           = TSDB_DN_STATUS_OFFLINE;
-    tsDnodeObj.lastReboot       = taosGetTimestampSec();
-    sprintf(tsDnodeObj.dnodeName, "%d", tsDnodeObj.dnodeId);
-    mgmtSetDnodeMaxVnodes(&tsDnodeObj);
+#ifdef _CLUSTER
+  return clusterInit();
+#else
+  tsDnodeObj.dnodeId          = 1;
+  tsDnodeObj.privateIp        = inet_addr(tsPrivateIp);
+  tsDnodeObj.publicIp         = inet_addr(tsPublicIp);
+  tsDnodeObj.createdTime      = taosGetTimestampMs();
+  tsDnodeObj.numOfTotalVnodes = tsNumOfTotalVnodes;
+  tsDnodeObj.status           = TSDB_DN_STATUS_OFFLINE;
+  tsDnodeObj.lastReboot       = taosGetTimestampSec();
+  sprintf(tsDnodeObj.dnodeName, "%d", tsDnodeObj.dnodeId);
 
-    tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_MGMT);
-    if (tsEnableHttpModule) {
-      tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_HTTP);
-    }
-    if (tsEnableMonitorModule) {
-      tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_MONITOR);
-    }
-    return 0;
+  tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_MGMT);
+  if (tsEnableHttpModule) {
+    tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_HTTP);
   }
+  if (tsEnableMonitorModule) {
+    tsDnodeObj.moduleStatus |= (1 << TSDB_MOD_MONITOR);
+  }
+  return 0;
+#endif
 }
 
 void mgmtCleanUpDnodes() {
-  if (mgmtCleanUpDnodesFp) {
-    (*mgmtCleanUpDnodesFp)();
-  }
+#ifdef _CLUSTER
+  clusterCleanUp();
+#endif
 }
 
 SDnodeObj *mgmtGetDnode(int32_t dnodeId) {
-  if (mgmtGetDnodeFp) {
-    return (*mgmtGetDnodeFp)(dnodeId);
-  } 
+#ifdef _CLUSTER
+  return clusterGetDnode(dnodeId);
+#else
   if (dnodeId == 1) {
     return &tsDnodeObj;
+  } else {
+    return NULL;
   }
-  return NULL;
+#endif
 }
 
 SDnodeObj *mgmtGetDnodeByIp(uint32_t ip) {
-  if (mgmtGetDnodeByIpFp) {
-    return (*mgmtGetDnodeByIpFp)(ip);
-  } 
+#ifdef _CLUSTER
+  return clusterGetDnodeByIp(ip);
+#else
   return &tsDnodeObj;
+#endif
 }
 
 int32_t mgmtGetDnodesNum() {
-  if (mgmtGetDnodesNumFp) {
-    return (*mgmtGetDnodesNumFp)();
-  } else {
-    return 1;
-  }
-}
-
-int32_t mgmtUpdateDnode(SDnodeObj *pDnode) {
-  if (mgmtUpdateDnodeFp) {
-    return (*mgmtUpdateDnodeFp)(pDnode);
-  } else {
-    return 0;
-  }
-}
-
-void *mgmtGetNextDnode(SShowObj *pShow, SDnodeObj **pDnode) {
-  if (mgmtGetNextDnodeFp) {
-    return (*mgmtGetNextDnodeFp)(pShow, pDnode);
-  } else {
-    if (*pDnode == NULL) {
-      *pDnode = &tsDnodeObj;
-    } else {
-      *pDnode = NULL;
-    }
-  }
-
-  return *pDnode;
-}
-
-void mgmtSetDnodeUnRemove(SDnodeObj *pDnode) {
-  if (mgmtSetDnodeUnRemoveFp) {
-    (*mgmtSetDnodeUnRemoveFp)(pDnode);
-  }
-}
-
-bool mgmtCheckConfigShow(SGlobalConfig *cfg) {
-  if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW))
-    return false;
-  return true;
-}
-
-bool mgmtCheckDnodeInRemoveState(SDnodeObj *pDnode) {
-  return pDnode->lbStatus == TSDB_DN_LB_STATUS_OFFLINE_REMOVING || pDnode->lbStatus == TSDB_DN_LB_STATE_SHELL_REMOVING;
-}
-
-bool mgmtCheckDnodeInOfflineState(SDnodeObj *pDnode) {
-  return pDnode->status == TSDB_DN_STATUS_OFFLINE;
+#ifdef _CLUSTER
+  return clusterGetDnodesNum();
+#else
+  return 1;
+#endif
 }
 
 void mgmtProcessCfgDnodeMsg(SQueuedMsg *pMsg) {
@@ -553,14 +175,10 @@ void mgmtProcessDnodeStatusMsg(SRpcMsg *rpcMsg) {
   pDnode->numOfCores       = htons(pStatus->numOfCores);
   pDnode->diskAvailable    = pStatus->diskAvailable;
   pDnode->alternativeRole  = pStatus->alternativeRole;
-
-  if (pDnode->numOfTotalVnodes == 0) {
-    pDnode->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes); 
-  }
+  pDnode->numOfTotalVnodes = htons(pStatus->numOfTotalVnodes); 
   
   if (pStatus->dnodeId == 0) {
     mTrace("dnode:%d, first access, privateIp:%s, name:%s, ", pDnode->dnodeId, taosIpStr(pDnode->privateIp), pDnode->dnodeName);
-    mgmtSetDnodeMaxVnodes(pDnode);
   }
  
   int32_t openVnodes = htons(pStatus->openVnodes);

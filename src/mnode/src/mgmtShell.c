@@ -137,7 +137,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     return;
   }
 
-  if (mgmtCheckExpired()) {
+  if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_GRANT_EXPIRED);
     return;
   }
@@ -373,12 +373,12 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
     goto connect_over;
   }
 
-  if (mgmtCheckExpired()) {
+  if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_GRANT_EXPIRED;
     goto connect_over;
   }
 
-  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
+  SAcctObj *pAcct = acctGetAcct(pUser->acct);
   if (pAcct == NULL) {
     code = TSDB_CODE_INVALID_ACCT;
     goto connect_over;
