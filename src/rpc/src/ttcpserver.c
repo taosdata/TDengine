@@ -389,6 +389,7 @@ void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, 
   pServerObj->pThreadObj = (SThreadObj *)malloc(sizeof(SThreadObj) * (size_t)numOfThreads);
   if (pServerObj->pThreadObj == NULL) {
     tError("TCP:%s no enough memory", label);
+    free(pServerObj);
     return NULL;
   }
   memset(pServerObj->pThreadObj, 0, sizeof(SThreadObj) * (size_t)numOfThreads);
@@ -401,17 +402,23 @@ void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, 
 
     if (pthread_mutex_init(&(pThreadObj->threadMutex), NULL) < 0) {
       tError("%s failed to init TCP process data mutex, reason:%s", label, strerror(errno));
+      free(pServerObj->pThreadObj);
+      free(pServerObj);
       return NULL;
     }
 
     if (pthread_cond_init(&(pThreadObj->fdReady), NULL) != 0) {
       tError("%s init TCP condition variable failed, reason:%s\n", label, strerror(errno));
+      free(pServerObj->pThreadObj);
+      free(pServerObj);
       return NULL;
     }
 
     pThreadObj->pollFd = epoll_create(10);  // size does not matter
     if (pThreadObj->pollFd < 0) {
       tError("%s failed to create TCP epoll", label);
+      free(pServerObj->pThreadObj);
+      free(pServerObj);
       return NULL;
     }
 
@@ -419,6 +426,8 @@ void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, 
     pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
     if (pthread_create(&(pThreadObj->thread), &thattr, (void *)taosProcessTcpData, (void *)(pThreadObj)) != 0) {
       tError("%s failed to create TCP process data thread, reason:%s", label, strerror(errno));
+      free(pServerObj->pThreadObj);
+      free(pServerObj);
       return NULL;
     }
 
@@ -430,6 +439,8 @@ void *taosInitTcpServer(char *ip, uint16_t port, char *label, int numOfThreads, 
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   if (pthread_create(&(pServerObj->thread), &thattr, (void *)taosAcceptTcpConnection, (void *)(pServerObj)) != 0) {
     tError("%s failed to create TCP accept thread, reason:%s", label, strerror(errno));
+    free(pServerObj->pThreadObj);
+    free(pServerObj);
     return NULL;
   }
 
