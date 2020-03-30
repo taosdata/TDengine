@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#ifndef _ACCOUNT
 #include "os.h"
 #include "taoserror.h"
 #include "mnode.h"
 #include "mgmtAcct.h"
+#ifndef _ACCOUNT
 
 static SAcctObj tsAcctObj = {0};
 
@@ -31,10 +31,78 @@ int32_t acctInit() {
 void      acctCleanUp() {}
 SAcctObj *acctGetAcct(char *acctName) { return &tsAcctObj; }
 int32_t   acctCheck(SAcctObj *pAcct, EAcctGrantType type) { return TSDB_CODE_SUCCESS; }
-
-int32_t acctAddDb(SAcctObj *pAcct, SDbObj *pDb) { return TSDB_CODE_SUCCESS; }
-int32_t acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) { return TSDB_CODE_SUCCESS; }
-int32_t acctAddUser(SAcctObj *pAcct, SUserObj *pUser) { return TSDB_CODE_SUCCESS; }
-int32_t acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) { return TSDB_CODE_SUCCESS; }
-
 #endif
+
+int32_t acctAddDb(SAcctObj *pAcct, SDbObj *pDb) {
+  pthread_mutex_lock(&pAcct->mutex);
+  pDb->next = pAcct->pHead;
+  pDb->prev = NULL;
+  pDb->pAcct = pAcct;
+
+  if (pAcct->pHead) {
+    pAcct->pHead->prev = pDb;
+  }
+
+  pAcct->pHead = pDb;
+  pAcct->acctInfo.numOfDbs++;
+  pthread_mutex_unlock(&pAcct->mutex);
+
+  return 0;
+}
+
+int32_t acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb) {
+  pthread_mutex_lock(&pAcct->mutex);
+  if (pDb->prev) {
+    pDb->prev->next = pDb->next;
+  }
+
+  if (pDb->next) {
+    pDb->next->prev = pDb->prev;
+  }
+
+  if (pDb->prev == NULL) {
+    pAcct->pHead = pDb->next;
+  }
+
+  pAcct->acctInfo.numOfDbs--;
+  pthread_mutex_unlock(&pAcct->mutex);
+
+  return 0;
+}
+
+int32_t acctAddUser(SAcctObj *pAcct, SUserObj *pUser) {
+  pthread_mutex_lock(&pAcct->mutex);
+  pUser->next = pAcct->pUser;
+  pUser->prev = NULL;
+
+  if (pAcct->pUser) {
+    pAcct->pUser->prev = pUser;
+  }
+
+  pAcct->pUser = pUser;
+  pAcct->acctInfo.numOfUsers++;
+  pUser->pAcct = pAcct;
+  pthread_mutex_unlock(&pAcct->mutex);
+
+  return 0;
+}
+
+int32_t acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser) {
+  pthread_mutex_lock(&pAcct->mutex);
+  if (pUser->prev) {
+    pUser->prev->next = pUser->next;
+  }
+
+  if (pUser->next) {
+    pUser->next->prev = pUser->prev;
+  }
+
+  if (pUser->prev == NULL) {
+    pAcct->pUser = pUser->next;
+  }
+
+  pAcct->acctInfo.numOfUsers--;
+  pthread_mutex_unlock(&pAcct->mutex);
+
+  return 0;
+}

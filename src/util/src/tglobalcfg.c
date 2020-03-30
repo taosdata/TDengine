@@ -81,7 +81,7 @@ float tsRatioOfQueryThreads = 0.5;
 char  tsPublicIp[TSDB_IPv4ADDR_LEN] = {0};
 char  tsPrivateIp[TSDB_IPv4ADDR_LEN] = {0};
 short tsNumOfVnodesPerCore = 8;
-short tsNumOfTotalVnodes = 0;
+short tsNumOfTotalVnodes = TSDB_INVALID_VNODE_NUM;
 short tsCheckHeaderFile = 0;
 
 #ifdef _TD_ARM_32_
@@ -960,7 +960,7 @@ bool tsReadGlobalConfig() {
     tsNumOfCores = 1;
   }
 
-  if (tsNumOfTotalVnodes == -1) {
+  if (tsNumOfTotalVnodes == TSDB_INVALID_VNODE_NUM) {
     tsNumOfTotalVnodes = tsNumOfCores * tsNumOfVnodesPerCore;
     tsNumOfTotalVnodes = tsNumOfTotalVnodes > TSDB_MAX_VNODES ? TSDB_MAX_VNODES : tsNumOfTotalVnodes;
     tsNumOfTotalVnodes = tsNumOfTotalVnodes < TSDB_MIN_VNODES ? TSDB_MIN_VNODES : tsNumOfTotalVnodes;     
