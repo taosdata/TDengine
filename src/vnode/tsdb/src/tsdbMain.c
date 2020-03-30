@@ -237,6 +237,7 @@ int32_t tsdbDropRepo(tsdb_repo_t *repo) {
  * @return a TSDB repository handle on success, NULL for failure and the error number is set
  */
 tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
+  char dataDir[128] = "\0";
   if (access(tsdbDir, F_OK | W_OK | R_OK) < 0) {
     return NULL;
   }
@@ -259,6 +260,16 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
 
   pRepo->tsdbCache = tsdbInitCache(pRepo->config.maxCacheSize, -1, (tsdb_repo_t *)pRepo);
   if (pRepo->tsdbCache == NULL) {
+    tsdbFreeMeta(pRepo->tsdbMeta);
+    free(pRepo->rootDir);
+    free(pRepo);
+    return NULL;
+  }
+
+  tsdbGetDataDirName(pRepo, dataDir);
+  pRepo->tsdbFileH = tsdbInitFileH(dataDir, pRepo->config.maxTables);
+  if (pRepo->tsdbFileH == NULL) {
+    tsdbFreeCache(pRepo->tsdbCache);
     tsdbFreeMeta(pRepo->tsdbMeta);
     free(pRepo->rootDir);
     free(pRepo);

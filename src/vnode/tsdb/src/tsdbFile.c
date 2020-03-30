@@ -35,6 +35,7 @@ static int compFGroup(const void *arg1, const void *arg2);
 static int tsdbGetFileName(char *dataDir, int fileId, char *suffix, char *fname);
 static int tsdbWriteFileHead(SFile *pFile);
 static int tsdbWriteHeadFileIdx(SFile *pFile, int maxTables);
+static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid);
 
 STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles) {
   STsdbFileH *pFileH = (STsdbFileH *)calloc(1, sizeof(STsdbFileH) + sizeof(SFileGroup) * maxFiles);
@@ -50,16 +51,47 @@ STsdbFileH *tsdbInitFileH(char *dataDir, int maxFiles) {
     return NULL;
   }
 
-  struct dirent *dp;
+  struct dirent *dp = NULL;
+  int fid = 0;
+  SFileGroup fGroup = {0};
   while ((dp = readdir(dir)) != NULL) {
     if (strncmp(dp->d_name, ".", 1) == 0 || strncmp(dp->d_name, "..", 1) == 0) continue;
-    // TODO
+    int fid = 0;
+    sscanf(dp->d_name, "f%d", &fid);
+    if (tsdbOpenFGroup(pFileH, dataDir, fid) < 0) {
+      break;
+      // TODO
+    }
   }
 
   return pFileH;
 }
 
 void tsdbCloseFileH(STsdbFileH *pFileH) { free(pFileH); }
+
+static int tsdbInitFile(char *dataDir, int fid, char *suffix, SFile *pFile) {
+  tsdbGetFileName(dataDir, fid, suffix, pFile->fname);
+  if (access(pFile->fname, F_OK|R_OK|W_OK) < 0) return -1;
+  pFile->fd = -1;
+  // TODO: recover the file info
+  // pFile->info = {0};
+  return 0;
+}
+
+static int tsdbOpenFGroup(STsdbFileH *pFileH, char *dataDir, int fid) {
+  if (tsdbSearchFGroup(pFileH, fid) != NULL) return 0;
+
+  char fname[128] = "\0";
+  SFileGroup fGroup = {0};
+  fGroup.fileId = fid;
+
+  for (int type = TSDB_FILE_TYPE_HEAD; type < TSDB_FILE_TYPE_MAX; type++) {
+    if (tsdbInitFile(dataDir, fid, tsdbFileSuffix[type], &fGroup.files[type]) < 0) return -1;
+  }
+  pFileH->fGroup[pFileH->numOfFGroups++] = fGroup;
+  qsort((void *)(pFileH->fGroup), pFileH->numOfFGroups, sizeof(SFileGroup), compFGroup);
+  return 0;
+}
 
 int tsdbCreateFGroup(STsdbFileH *pFileH, char *dataDir, int fid, int maxTables) {
   if (pFileH->numOfFGroups >= pFileH->maxFGroups) return -1;

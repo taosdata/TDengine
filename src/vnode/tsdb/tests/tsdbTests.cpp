@@ -49,7 +49,8 @@ TEST(TsdbTest, DISABLED_tableEncodeDecode) {
   ASSERT_EQ(memcmp(pTable->schema, tTable->schema, sizeof(STSchema) + sizeof(STColumn) * nCols), 0);
 }
 
-TEST(TsdbTest, createRepo) {
+TEST(TsdbTest, DISABLED_createRepo) {
+// TEST(TsdbTest, createRepo) {
   STsdbCfg config;
 
   // 1. Create a tsdb repository
@@ -78,7 +79,7 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &tCfg);
 
   // // 3. Loop to write some simple data
-  int nRows = 1000000;
+  int nRows = 10000000;
   int rowsPerSubmit = 10;
   int64_t start_time = 1584081000000;
 
@@ -129,13 +130,17 @@ TEST(TsdbTest, createRepo) {
 
   double etime = getCurTime();
 
+  void *ptr = malloc(150000);
+  free(ptr);
+
   printf("Spent %f seconds to write %d records\n", etime - stime, nRows);
 
   tsdbCloseRepo(pRepo);
 
 }
 
-TEST(TsdbTest, DISABLED_openRepo) {
+// TEST(TsdbTest, DISABLED_openRepo) {
+TEST(TsdbTest, openRepo) {
   tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
   ASSERT_NE(pRepo, nullptr);
 }
