@@ -69,6 +69,41 @@ void doubleSkipListTest() {
   tSkipListDestroy(pSkipList);
 }
 
+void randKeyTest() {
+  SSkipList* pSkipList = tSkipListCreate(10, TSDB_DATA_TYPE_INT, sizeof(int32_t), 0, false, true, getkey);
+
+  int32_t size = 200000;
+  srand(time(NULL));
+
+  printf("generated %d keys is: \n", size);
+
+  for (int32_t i = 0; i < size; ++i) {
+    int32_t level = 0;
+    int32_t s = 0;
+
+    tSkipListRandNodeInfo(pSkipList, &level, &s);
+    auto d = (SSkipListNode*)calloc(1, s + sizeof(int32_t) * 2);
+    d->level = level;
+
+    int32_t* key = (int32_t*)SL_GET_NODE_KEY(pSkipList, d);
+    key[0] = rand() % 1000000000;
+
+    key[1] = key[0];
+
+    tSkipListPut(pSkipList, d);
+  }
+
+  printf("the first level of skip list is:\n");
+  tSkipListPrint(pSkipList, 1);
+
+  printf("the sec level of skip list is:\n");
+  tSkipListPrint(pSkipList, 2);
+
+  printf("the 5 level of skip list is:\n");
+  tSkipListPrint(pSkipList, 5);
+
+  tSkipListDestroy(pSkipList);
+}
 void stringKeySkiplistTest() {
   const int32_t max_key_size = 12;
 
@@ -99,6 +134,9 @@ void stringKeySkiplistTest() {
   *(double*)(d + max_key_size) = 911;
 
   tSkipListPut(pSkipList, pNode);
+
+  printf("level one------------------\n");
+  tSkipListPrint(pSkipList, 1);
 
 #if 0
   SSkipListNode **pRes = NULL;
@@ -139,6 +177,9 @@ void stringKeySkiplistTest() {
   int64_t e = taosGetTimestampUs();
   printf("elapsed time:%lld us to insert %d data, avg:%f us\n", (e - s), total, (double)(e - s) / total);
 
+  printf("level two------------------\n");
+  tSkipListPrint(pSkipList, 1);
+
 #if 0
   SSkipListNode **pres = NULL;
 
@@ -167,7 +208,7 @@ void stringKeySkiplistTest() {
 void skiplistPerformanceTest() {
   SSkipList* pSkipList = tSkipListCreate(10, TSDB_DATA_TYPE_DOUBLE, sizeof(double), 0, false, false, getkey);
 
-  int32_t size = 900000;
+  int32_t size = 1000000;
   int64_t prev = taosGetTimestampMs();
   int64_t s = prev;
 
@@ -179,7 +220,7 @@ void skiplistPerformanceTest() {
   char* total = (char*)calloc(1, unit * size);
   char* p = total;
 
-  for (int32_t i = size; i > 0; --i) {
+  for (int32_t i = 0; i < size; ++i) {
     tSkipListRandNodeInfo(pSkipList, &level, &headsize);
 
     SSkipListNode* d = (SSkipListNode*)p;
@@ -207,19 +248,19 @@ void skiplistPerformanceTest() {
 
   assert(tSkipListGetSize(pSkipList) == size);
 
-  printf("the level of skiplist is:\n");
-
-//  printf("level two------------------\n");
-//  tSkipListPrint(pSkipList, 2);
-//
-//  printf("level three------------------\n");
-//  tSkipListPrint(pSkipList, 3);
-//
-//  printf("level four------------------\n");
-//  tSkipListPrint(pSkipList, 4);
-//
-//  printf("level nine------------------\n");
-//  tSkipListPrint(pSkipList, 10);
+  //  printf("the level of skiplist is:\n");
+  //
+  //  printf("level two------------------\n");
+  //  tSkipListPrint(pSkipList, 2);
+  //
+  //  printf("level three------------------\n");
+  //  tSkipListPrint(pSkipList, 3);
+  //
+  //  printf("level four------------------\n");
+  //  tSkipListPrint(pSkipList, 4);
+  //
+  //  printf("level nine------------------\n");
+  //  tSkipListPrint(pSkipList, 10);
 
   int64_t st = taosGetTimestampMs();
 #if 0
@@ -275,10 +316,11 @@ TEST(testCase, skiplist_test) {
   assert(sizeof(SSkipListKey) == 8);
   srand(time(NULL));
 
-  //  stringKeySkiplistTest();
-  //  doubleSkipListTest();
+  stringKeySkiplistTest();
+  doubleSkipListTest();
   skiplistPerformanceTest();
-  //  duplicatedKeyTest();
+  duplicatedKeyTest();
+  randKeyTest();
 
   //  tSKipListQueryCond q;
   //  q.upperBndRelOptr = true;
@@ -310,5 +352,4 @@ TEST(testCase, skiplist_test) {
       tfree(pNodes);
 
       free(pKeys);*/
-  getchar();
 }
