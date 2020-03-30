@@ -286,6 +286,7 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
 
 // todo add order support
 static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
+#if 0
   // the result structure has been completed in sql parse, so we
   // only need to reorganize the results in the column format
   SSqlCmd *       pCmd = &pSql->cmd;
@@ -337,6 +338,7 @@ static int tscBuildMetricTagProjectionResult(SSqlObj *pSql) {
     }
   }
 
+#endif
   return 0;
 }
 
@@ -345,7 +347,7 @@ static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  
+#if 0
   SSuperTableMeta *pMetricMeta = tscGetMetaInfo(pQueryInfo, 0)->pMetricMeta;
   int32_t      totalNumOfResults = 1;  // count function only produce one result
   int32_t      rowLen = tscGetResRowLength(pQueryInfo);
@@ -369,7 +371,8 @@ static int tscBuildMetricTagSqlFunctionResult(SSqlObj *pSql) {
     }
     rowIdx++;
   }
-
+#endif
+  
   return 0;
 }
 

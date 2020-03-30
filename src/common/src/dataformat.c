@@ -294,14 +294,79 @@ SDataRow tdDataRowDup(SDataRow row) {
   return trow;
 }
 
-void tdConvertDataRowToCol(SDataCol *cols, STSchema *pSchema, int *iter) {
-  int row = *iter;
+SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
+  SDataCols *pCols = (SDataCols *)calloc(1, sizeof(SDataCols) + sizeof(SDataCol) * maxCols);
+  if (pCols == NULL) return NULL;
 
-  for (int i = 0; i < schemaNCols(pSchema); i++) {
-    // TODO
+  pCols->maxRowSize = maxRowSize;
+  pCols->maxCols = maxCols;
+  pCols->maxPoints = maxRows;
+
+  pCols->buf = malloc(maxRowSize * maxRows);
+  if (pCols->buf == NULL) {
+    free(pCols);
+    return NULL;
   }
 
-  *iter = row + 1;
+  return pCols;
+}
+
+void tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
+  // assert(schemaNCols(pSchema) <= pCols->numOfCols);
+  tdResetDataCols(pCols);
+  pCols->numOfCols = schemaNCols(pSchema);
+
+  pCols->cols[0].pData = pCols->buf;
+  for (int i = 0; i < schemaNCols(pSchema); i++) {
+    if (i > 0) {
+      pCols->cols[i].pData = (char *)(pCols->cols[i - 1].pData) + schemaColAt(pSchema, i - 1)->bytes * pCols->maxPoints;
+    }
+    pCols->cols[i].type = colType(schemaColAt(pSchema, i));
+    pCols->cols[i].bytes = colBytes(schemaColAt(pSchema, i));
+    pCols->cols[i].offset = colOffset(schemaColAt(pSchema, i));
+    pCols->cols[i].colId = colColId(schemaColAt(pSchema, i));
+  }
+
+  return pCols;
+}
+
+void tdFreeDataCols(SDataCols *pCols) {
+  if (pCols) {
+    if (pCols->buf) free(pCols->buf);
+    free(pCols);
+  }
+}
+
+void tdResetDataCols(SDataCols *pCols) {
+  pCols->numOfPoints = 0;
+  for (int i = 0; i < pCols->maxCols; i++) {
+    pCols->cols[i].len = 0;
+  }
+}
+
+void tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols) {
+  TSKEY key = dataRowKey(row);
+  for (int i = 0; i < pCols->numOfCols; i++) {
+    SDataCol *pCol = pCols->cols + i;
+    memcpy((void *)((char *)(pCol->pData) + pCol->len), dataRowAt(row, pCol->offset), pCol->bytes);
+    pCol->len += pCol->bytes;
+  }
+  pCols->numOfPoints++;
+}
+// Pop pointsToPop points from the SDataCols
+void tdPopDataColsPoints(SDataCols *pCols, int pointsToPop) {
+  int pointsLeft = pCols->numOfPoints - pointsToPop;
+
+  for (int iCol = 0; iCol < pCols->numOfCols; iCol++) {
+    SDataCol *p_col = pCols->cols + iCol;
+    if (p_col->len > 0) {
+      p_col->len = TYPE_BYTES[p_col->type] * pointsLeft;
+      if (pointsLeft > 0) {
+        memmove((void *)(p_col->pData), (void *)((char *)(p_col->pData) + TYPE_BYTES[p_col->type] * pointsToPop), p_col->len);
+      }
+    }
+  }
+  pCols->numOfPoints = pointsLeft;
 }
 
 /**

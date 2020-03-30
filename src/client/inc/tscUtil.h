@@ -32,7 +32,7 @@ extern "C" {
 #define UTIL_TABLE_IS_SUPERTABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
 #define UTIL_TABLE_IS_NOMRAL_TABLE(metaInfo) (!(UTIL_TABLE_IS_SUPERTABLE(metaInfo)))
-#define UTIL_TABLE_CREATE_FROM_STABLE(metaInfo) \
+#define UTIL_TABLE_IS_CHILD_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
 
 #define TSDB_COL_IS_TAG(f) (((f)&TSDB_COL_TAG) != 0)
@@ -106,7 +106,7 @@ bool tscProjectionQueryOnTable(SQueryInfo* pQueryInfo);
 
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryOnMetric(SSqlCmd* pCmd);
-bool tscQueryMetricTags(SQueryInfo* pQueryInfo);
+bool tscQueryTags(SQueryInfo* pQueryInfo);
 bool tscIsSelectivityWithTagQuery(SSqlCmd* pCmd);
 
 void tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId, SColumnIndex* pIndex,
@@ -176,8 +176,8 @@ void tscIncStreamExecutionCount(void* pStream);
 bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId);
 
 // get starter position of metric query condition (query on tags) in SSqlCmd.payload
-SCond* tsGetMetricQueryCondPos(STagCond* pCond, uint64_t tableIndex);
-void   tsSetMetricQueryCond(STagCond* pTagCond, uint64_t uid, const char* str);
+SCond* tsGetSTableQueryCondPos(STagCond* pCond, uint64_t tableIndex);
+void   tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, const char* str);
 
 void tscTagCondCopy(STagCond* dest, const STagCond* src);
 void tscTagCondRelease(STagCond* pCond);
@@ -207,7 +207,7 @@ void tscFreeSubqueryInfo(SSqlCmd* pCmd);
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 
 void tscGetMetricMetaCacheKey(SQueryInfo* pQueryInfo, char* keyStr, uint64_t uid);
-int  tscGetMetricMeta(SSqlObj* pSql, int32_t clauseIndex);
+int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
 int  tscGetMeterMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
 

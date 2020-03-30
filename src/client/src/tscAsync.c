@@ -406,11 +406,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  if (pSql->fp == NULL) {
-    tscError("%p callBack is NULL!!!", pSql);
-    return;
-  }
-
   if (pSql->fp == (void *)1) {
     pSql->fp = NULL;
 
@@ -464,7 +459,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
-      code = tscGetMetricMeta(pSql, 0);
+      code = tscGetSTableVgroupInfo(pSql, 0);
       pRes->code = code;
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
@@ -494,7 +489,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
 
     if (code == TSDB_CODE_SUCCESS && UTIL_TABLE_IS_SUPERTABLE(pTableMetaInfo)) {
-      code = tscGetMetricMeta(pSql, pCmd->clauseIndex);
+      code = tscGetSTableVgroupInfo(pSql, pCmd->clauseIndex);
       pRes->code = code;
 
       if (code == TSDB_CODE_ACTION_IN_PROGRESS) return;
@@ -519,7 +514,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     tscTansformSQLFunctionForSTableQuery(pQueryInfo);
     tscIncStreamExecutionCount(pSql->pStream);
   } else {
-    tscTrace("%p get tableMeta/metricMeta successfully", pSql);
+    tscTrace("%p get tableMeta successfully", pSql);
   }
 
   tscDoQuery(pSql);

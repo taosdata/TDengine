@@ -102,7 +102,7 @@ int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   
   if (pTable->type == TSDB_SUPER_TABLE) {
     pTable->pIndex =
-        tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1, 0, getTupleKey);
+        tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1, 0, 0, getTupleKey);
   } 
 
   tsdbAddTableToMeta(pMeta, pTable, false);
@@ -207,7 +207,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
       super->tagSchema = tdDupSchema(pCfg->tagSchema);
       super->tagVal = tdDataRowDup(pCfg->tagValues);
       super->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1,
-                                                0, getTupleKey);  // Allow duplicate key, no lock
+                                                0, 0, getTupleKey);  // Allow duplicate key, no lock
 
       if (super->pIndex == NULL) {
         tdFreeSchema(super->schema);
@@ -349,10 +349,10 @@ static int tsdbAddTableToMeta(STsdbMeta *pMeta, STable *pTable, bool addIdx) {
   } else {
     // add non-super table to the array
     pMeta->tables[pTable->tableId.tid] = pTable;
-    if (pTable->type == TSDB_CHILD_TABLE) {
-      // add STABLE to the index
+    if (pTable->type == TSDB_CHILD_TABLE && addIdx) { // add STABLE to the index
       tsdbAddTableIntoIndex(pMeta, pTable);
     }
+    
     pMeta->nTables++;
   }
 
@@ -373,8 +373,27 @@ static int tsdbAddTableIntoMap(STsdbMeta *pMeta, STable *pTable) {
   return 0;
 }
 static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable) {
-  assert(pTable->type == TSDB_CHILD_TABLE);
-  // TODO
+  assert(pTable->type == TSDB_CHILD_TABLE && pTable != NULL);
+  STable* pSTable = tsdbGetTableByUid(pMeta, pTable->superUid);
+  assert(pSTable != NULL);
+  
+  int32_t level = 0;
+  int32_t headSize = 0;
+  
+  // first tag column
+  STColumn* s = schemaColAt(pSTable->tagSchema, 0);
+  
+  tSkipListRandNodeInfo(pSTable->pIndex, &level, &headSize);
+  SSkipListNode* pNode = calloc(1, headSize + s->bytes + POINTER_BYTES);
+  pNode->level = level;
+  
+  SSkipList* list = pSTable->pIndex;
+  
+  memcpy(SL_GET_NODE_KEY(list, pNode),  dataRowTuple(pTable->tagVal), colBytes(s));
+  memcpy(SL_GET_NODE_DATA(pNode), &pTable, POINTER_BYTES);
+  
+  tSkipListPut(list, pNode);
+
   return 0;
 }
 

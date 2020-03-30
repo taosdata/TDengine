@@ -87,7 +87,21 @@ size_t taosArrayGetSize(const SArray* pArray);
 void* taosArrayInsert(SArray* pArray, size_t index, void* pData);
 
 /**
- *
+ * remove data entry of the given index
+ * @param pArray
+ * @param index
+ */
+void taosArrayRemove(SArray* pArray, size_t index);
+
+/**
+ * copy the whole array from source to destination
+ * @param pDst
+ * @param pSrc
+ */
+void taosArrayCopy(SArray* pDst, SArray* pSrc);
+
+/**
+ * destroy array list
  * @param pArray
  */
 void taosArrayDestroy(SArray* pArray);

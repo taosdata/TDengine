@@ -546,11 +546,11 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
        * if the global limitation is not reached, and current result has not exhausted, or next more vnodes are
        * available, goes on
        */
-      if (pMetaInfo->vnodeIndex < pMetaInfo->pMetricMeta->numOfVnodes && pRes1->row < pRes1->numOfRows &&
-          (!tscHasReachLimitation(pQueryInfo1, pRes1))) {
-        allSubqueryExhausted = false;
-        break;
-      }
+//      if (pMetaInfo->vnodeIndex < pMetaInfo->pMetricMeta->numOfVnodes && pRes1->row < pRes1->numOfRows &&
+//          (!tscHasReachLimitation(pQueryInfo1, pRes1))) {
+//        allSubqueryExhausted = false;
+//        break;
+//      }
     }
 
     hasData = !allSubqueryExhausted;
@@ -651,8 +651,7 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
 
 static void asyncFetchCallback(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlObj* pSql = (SSqlObj*) tres;
-  if (numOfRows < 0) {
-    // set the error code
+  if (numOfRows < 0) { // set the error code
     pSql->res.code = -numOfRows;
   }
   

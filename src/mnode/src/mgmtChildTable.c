@@ -732,6 +732,7 @@ static int32_t mgmtDoGetChildTableMeta(SDbObj *pDb, SChildTableObj *pTable, STab
     pMeta->numOfTags    = 0;
     pMeta->numOfColumns = htons((int16_t)pTable->superTable->numOfColumns);
     pMeta->contLen      = sizeof(STableMetaMsg) + mgmtSetSchemaFromSuperTable(pMeta->schema, pTable->superTable);
+    strncpy(pMeta->stableId, pTable->superTable->info.tableId, tListLen(pMeta->stableId));
   } else {
     pMeta->sversion     = htons(pTable->sversion);
     pMeta->numOfTags    = 0;

@@ -128,6 +128,38 @@ void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
   return dst;
 }
 
+void taosArrayRemove(SArray* pArray, size_t index) {
+  assert(index < pArray->size);
+  
+  if (index == pArray->size - 1) {
+    taosArrayPop(pArray);
+    return;
+  }
+  
+  size_t remain = pArray->size - index - 1;
+  memmove(pArray->pData + index * pArray->elemSize, pArray->pData + (index + 1) * pArray->elemSize, remain * pArray->elemSize);
+  pArray->size -= 1;
+}
+
+void taosArrayCopy(SArray* pDst, SArray* pSrc) {
+  assert(pSrc != NULL && pDst != NULL);
+  
+  if (pDst->capacity < pSrc->size) {
+    void* pData = realloc(pDst->pData, pSrc->size * pSrc->elemSize);
+    if (pData == NULL) { // todo handle oom
+    
+    } else {
+      pDst->pData = pData;
+      pDst->capacity = pSrc->size;
+    }
+  }
+  
+  memcpy(pDst->pData, pSrc->pData, pSrc->elemSize * pSrc->size);
+  pDst->elemSize = pSrc->elemSize;
+  pDst->capacity = pSrc->size;
+  pDst->size = pSrc->size;
+}
+
 void taosArrayDestroy(SArray* pArray) {
   if (pArray == NULL) {
     return;
