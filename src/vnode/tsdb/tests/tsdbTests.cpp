@@ -49,8 +49,8 @@ TEST(TsdbTest, DISABLED_tableEncodeDecode) {
   ASSERT_EQ(memcmp(pTable->schema, tTable->schema, sizeof(STSchema) + sizeof(STColumn) * nCols), 0);
 }
 
-TEST(TsdbTest, DISABLED_createRepo) {
-// TEST(TsdbTest, createRepo) {
+// TEST(TsdbTest, DISABLED_createRepo) {
+TEST(TsdbTest, createRepo) {
   STsdbCfg config;
 
   // 1. Create a tsdb repository

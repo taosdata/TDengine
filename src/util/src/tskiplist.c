@@ -472,7 +472,7 @@ void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **forward, int32_t le
       SL_GET_FORWARD_POINTER(x, i) = pNode;
     } else {
       SL_GET_FORWARD_POINTER(pSkipList->pHead, i) = pNode;
-      SL_GET_BACKWARD_POINTER(pSkipList->pHead, i) = (pSkipList->pHead);
+      // SL_GET_BACKWARD_POINTER(pSkipList->pHead, i) = (pSkipList->pHead);
     }
   }
 }

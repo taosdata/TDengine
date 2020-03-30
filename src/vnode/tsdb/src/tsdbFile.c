@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "tutil.h"
 #include "tsdbFile.h"
 
 const char *tsdbFileSuffix[] = {
@@ -131,6 +132,51 @@ int tsdbRemoveFileGroup(STsdbFileH *pFileH, int fid) {
   pFileH->numOfFGroups--;
 
   return 0;
+}
+
+void tsdbInitFileGroupIter(STsdbFileH *pFileH, SFileGroupIter *pIter, int direction) {
+  pIter->direction = direction;
+  pIter->base = pFileH->fGroup;
+  pIter->numOfFGroups = pFileH->numOfFGroups;
+  if (pFileH->numOfFGroups == 0){
+    pIter->pFileGroup = NULL;
+  } else {
+    if (direction == TSDB_FGROUP_ITER_FORWARD) {
+      pIter->pFileGroup = pFileH->fGroup;
+    } else {
+      pIter->pFileGroup = pFileH->fGroup + pFileH->numOfFGroups - 1;
+    }
+  }
+}
+
+void tsdbSeekFileGroupIter(SFileGroupIter *pIter, int fid) {
+  int flags = (pIter->direction == TSDB_FGROUP_ITER_FORWARD) ? TD_GE : TD_LE;
+  void *ptr = taosbsearch(&fid, pIter->base, sizeof(SFileGroup), pIter->numOfFGroups, compFGroupKey, flags);
+  if (ptr == NULL) {
+    pIter->pFileGroup = NULL;
+  } else {
+    pIter->pFileGroup = (SFileGroup *)ptr;
+  }
+}
+
+SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter) {
+  SFileGroup *ret = pIter->pFileGroup;
+  if (ret == NULL) return NULL;
+
+  if (pIter->direction = TSDB_FGROUP_ITER_FORWARD) {
+    if (pIter->pFileGroup + 1 == pIter->base + pIter->numOfFGroups) {
+      pIter->pFileGroup = NULL;
+    } else {
+      pIter->pFileGroup += 1;
+    }
+  } else {
+    if (pIter->pFileGroup - 1 == pIter->base) {
+      pIter->pFileGroup = NULL;
+    } else {
+      pIter->pFileGroup -= 1;
+    }
+  }
+  return ret;
 }
 
 int tsdbLoadDataBlock(SFile *pFile, SCompBlock *pStartBlock, int numOfBlocks, SDataCols *pCols, SCompData *pCompData) {
