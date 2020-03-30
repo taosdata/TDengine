@@ -652,8 +652,16 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     pSupporter->numOfMeters = 1;
 
     pSupporter->pMetersHashTable = taosInitHashTable(pSupporter->numOfMeters, taosIntHash_32, false);
-    taosAddToHashTable(pSupporter->pMetersHashTable, (const char*) &pMetersObj[0]->sid, sizeof(pMeterObj[0].sid),
-        (char *)&pMetersObj[0], POINTER_BYTES);
+    if (pSupporter->pMetersHashTable == NULL) {
+        free(pSupporter);
+        goto _error;
+    }
+    if (taosAddToHashTable(pSupporter->pMetersHashTable, (const char*) &pMetersObj[0]->sid, sizeof(pMeterObj[0].sid),
+                (char *)&pMetersObj[0], POINTER_BYTES) != 0) {
+        taosCleanUpHashTable(pSupporter->pMetersHashTable);
+        free(pSupporter);
+        goto _error;
+    }
 
     pSupporter->pSidSet = NULL;
     pSupporter->subgroupIdx = -1;
@@ -671,6 +679,8 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
     }
 
     if (((*code) = vnodeQueryTablePrepare(pQInfo, pQInfo->pObj, pSupporter, pTSBuf)) != TSDB_CODE_SUCCESS) {
+      taosDeleteFromHashTable(pSupporter->pMetersHashTable, (const char*) &pMetersObj[i]->sid, sizeof(pMetersObj[i]->sid));
+      taosCleanUpHashTable(pSupporter->pMetersHashTable);
       free(pSupporter);
       goto _error;
     }
