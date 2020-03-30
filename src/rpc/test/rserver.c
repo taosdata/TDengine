@@ -72,7 +72,7 @@ void processShellMsg() {
       rpcMsg.pCont = rpcMallocCont(msgSize);
       rpcMsg.contLen = msgSize;
       rpcMsg.handle = pRpcMsg->handle;
-      rpcMsg.code = 1;
+      rpcMsg.code = 0;
       rpcSendResponse(&rpcMsg);
 
       taosFreeQitem(pRpcMsg);
@@ -126,9 +126,10 @@ void processRequestMsg(SRpcMsg *pMsg) {
 int main(int argc, char *argv[]) {
   SRpcInit rpcInit;
   char     dataName[20] = "server.data";
+  char     localIp[40] = "0.0.0.0";
 
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localIp      = "0.0.0.0";
+  rpcInit.localIp      = localIp;
   rpcInit.localPort    = 7000;
   rpcInit.label        = "SER";
   rpcInit.numOfThreads = 1;
@@ -201,5 +202,3 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
-
-

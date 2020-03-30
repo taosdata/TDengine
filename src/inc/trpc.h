@@ -85,6 +85,7 @@ void  rpcSendRequest(void *thandle, SRpcIpSet *pIpSet, SRpcMsg *pMsg);
 void  rpcSendResponse(SRpcMsg *pMsg);
 void  rpcSendRedirectRsp(void *pConn, SRpcIpSet *pIpSet); 
 int   rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
+void  rpcSendRecv(void *shandle, SRpcIpSet *pIpSet, SRpcMsg *pOut, SRpcMsg *pRsp);
 
 #ifdef __cplusplus
 }
