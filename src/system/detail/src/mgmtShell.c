@@ -1332,36 +1332,37 @@ _rsp:
   pRsp = (STaosRsp *)pMsg;
   pRsp->code = code;
   pMsg += sizeof(STaosRsp);
-
+  
   pConnectRsp = (SConnectRsp *)pRsp->more;
-  sprintf(pConnectRsp->acctId, "%x", pConn->pAcct->acctId);
-  strcpy(pConnectRsp->version, version);
-  pConnectRsp->writeAuth = pConn->writeAuth;
-  pConnectRsp->superAuth = pConn->superAuth;
-  pMsg += sizeof(SConnectRsp);
 
-  int size;
-  if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
-    size = pSdbPublicIpList->numOfIps * 4 + sizeof(SIpList);
-    if (pConn->usePublicIp) {
-      memcpy(pMsg, pSdbPublicIpList, size);
+  if (code == 0) {
+    sprintf(pConnectRsp->acctId, "%x", pConn->pAcct->acctId);
+    strcpy(pConnectRsp->version, version);
+    pConnectRsp->writeAuth = pConn->writeAuth;
+    pConnectRsp->superAuth = pConn->superAuth;
+    pMsg += sizeof(SConnectRsp);
+
+    int size;
+    if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
+      size = pSdbPublicIpList->numOfIps * 4 + sizeof(SIpList);
+      if (pConn->usePublicIp) {
+        memcpy(pMsg, pSdbPublicIpList, size);
+      } else {
+        memcpy(pMsg, pSdbIpList, size);
+      }
     } else {
-      memcpy(pMsg, pSdbIpList, size);
+      SIpList tmpIpList;
+      tmpIpList.numOfIps = 0;
+      size = tmpIpList.numOfIps * 4 + sizeof(SIpList);
+      memcpy(pMsg, &tmpIpList, size);
     }
+
+    pMsg += size;
+
+    // set the time resolution: millisecond or microsecond
+    *((uint32_t *)pMsg) = tsTimePrecision;
+    pMsg += sizeof(uint32_t);
   } else {
-    SIpList tmpIpList;
-    tmpIpList.numOfIps = 0;
-    size = tmpIpList.numOfIps * 4 + sizeof(SIpList);
-    memcpy(pMsg, &tmpIpList, size);
-  }
-
-  pMsg += size;
-
-  // set the time resolution: millisecond or microsecond
-  *((uint32_t *)pMsg) = tsTimePrecision;
-  pMsg += sizeof(uint32_t);
-
-  if (code != 0) {
     pConnectRsp->writeAuth = 0;
     pConnectRsp->superAuth = 0;
     pConn->pAcct = NULL;
