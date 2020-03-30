@@ -654,25 +654,22 @@ void *vnodeQueryOnSingleTable(SMeterObj **pMetersObj, SSqlGroupbyExpr *pGroupbyE
         goto _error;
     }
     pSupporter->numOfMeters = 1;
-
-    pSupporter->pMetersHashTable = taosInitHashTable(pSupporter->numOfMeters, taosIntHash_32, false);
-    if (pSupporter->pMetersHashTable == NULL) {
-        tfree(pSupporter);
-        *code = TSDB_CODE_SERV_OUT_OF_MEMORY;
-        goto _error;
-    }
-    if (taosAddToHashTable(pSupporter->pMetersHashTable, (const char*) &pMetersObj[0]->sid, sizeof(pMeterObj[0].sid),
-                (char *)&pMetersObj[0], POINTER_BYTES) != 0) {
-        tfree(pSupporter);
-        *code = TSDB_CODE_APP_ERROR;
-        goto _error;
-    }
-
     pSupporter->pSidSet = NULL;
     pSupporter->subgroupIdx = -1;
     pSupporter->pMeterSidExtInfo = NULL;
 
     pQInfo->pTableQuerySupporter = pSupporter;
+
+    pSupporter->pMetersHashTable = taosInitHashTable(pSupporter->numOfMeters, taosIntHash_32, false);
+    if (pSupporter->pMetersHashTable == NULL) {
+        *code = TSDB_CODE_SERV_OUT_OF_MEMORY;
+        goto _error;
+    }
+    if (taosAddToHashTable(pSupporter->pMetersHashTable, (const char*) &pMetersObj[0]->sid, sizeof(pMeterObj[0].sid),
+                (char *)&pMetersObj[0], POINTER_BYTES) != 0) {
+        *code = TSDB_CODE_APP_ERROR;
+        goto _error;
+    }
 
     STSBuf *pTSBuf = NULL;
     if (pQueryMsg->tsLen > 0) {
