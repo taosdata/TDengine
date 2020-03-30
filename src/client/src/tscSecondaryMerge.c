@@ -613,9 +613,9 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   pSchema = (SSchema *)calloc(1, sizeof(SSchema) * pQueryInfo->exprsInfo.numOfExprs);
   if (pSchema == NULL) {
+    tfree(*pMemBuffer);
     tscError("%p failed to allocate memory", pSql);
     pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
-    free(*pMemBuffer);
     return pRes->code;
   }
 
@@ -635,19 +635,27 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   }
 
   pModel = createColumnModel(pSchema, pQueryInfo->exprsInfo.numOfExprs, capacity);
+  if (pModel == NULL) {
+    goto _error_memory;
+  }
 
   for (int32_t i = 0; i < pMeterMetaInfo->pMetricMeta->numOfVnodes; ++i) {
     (*pMemBuffer)[i] = createExtMemBuffer(nBufferSizes, rlen, pModel);
+
+    if ((*pMemBuffer)[i] == NULL) {
+      for (int32_t j=0; j < i; ++j ) {
+        destroyExtMemBuffer((*pMemBuffer)[j]);
+      }
+      goto _error_memory;
+    }
     (*pMemBuffer)[i]->flushModel = MULTIPLE_APPEND_MODEL;
   }
 
   if (createOrderDescriptor(pOrderDesc, pCmd, pModel) != TSDB_CODE_SUCCESS) {
-    pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
     for (int32_t i = 0; i < pMeterMetaInfo->pMetricMeta->numOfVnodes; ++i) {
         destroyExtMemBuffer((*pMemBuffer)[i]);
     }
-    free(*pMemBuffer);
-    return pRes->code;
+    goto _error_memory;
   }
 
   // final result depends on the fields number
@@ -691,6 +699,13 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   free(*pMemBuffer);
 
   return TSDB_CODE_SUCCESS;
+
+_error_memory:
+  tfree(pSchema);
+  tfree(*pMemBuffer);
+  tscError("%p failed to allocate memory", pSql);
+  pRes->code = TSDB_CODE_CLI_OUT_OF_MEMORY;
+  return pRes->code;
 }
 
 /**
