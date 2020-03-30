@@ -796,8 +796,8 @@ void taos_free_result_imp(TAOS_RES *res, int keepCmd) {
     tscTrace("%p qhandle is null, abort free, fp:%p", pSql, pSql->fp);
     if (pSql->fp != NULL) {
       pSql->thandle = NULL;
-      tscFreeSqlObj(pSql);
       tscTrace("%p Async SqlObj is freed by app", pSql);
+      tscFreeSqlObj(pSql);
     } else if (keepCmd) {
       tscFreeSqlResult(pSql);
     } else {

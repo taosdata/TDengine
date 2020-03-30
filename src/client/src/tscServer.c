@@ -600,8 +600,8 @@ void *tscProcessMsgFromServer(char *msg, void *ahandle, void *thandle) {
           taos_close(pObj);
           tscTrace("%p Async sql close failed connection", pSql);
         } else {
-          tscFreeSqlObj(pSql);
           tscTrace("%p Async sql is automatically freed", pSql);
+          tscFreeSqlObj(pSql);
         }
       }
     }
