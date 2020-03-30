@@ -78,7 +78,7 @@ TEST(TsdbTest, createRepo) {
   tsdbCreateTable(pRepo, &tCfg);
 
   // // 3. Loop to write some simple data
-  int nRows = 10000000;
+  int nRows = 1000000;
   int rowsPerSubmit = 10;
   int64_t start_time = 1584081000000;
 
@@ -87,6 +87,7 @@ TEST(TsdbTest, createRepo) {
   double stime = getCurTime();
 
   for (int k = 0; k < nRows/rowsPerSubmit; k++) {
+    memset((void *)pMsg, 0, sizeof(SSubmitMsg));
     SSubmitBlk *pBlock = pMsg->blocks;
     pBlock->uid = 987607499877672L;
     pBlock->tid = 0;
@@ -108,6 +109,9 @@ TEST(TsdbTest, createRepo) {
       }
       pBlock->len += dataRowLen(row);
     }
+    pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
+    pMsg->numOfBlocks = 1;
+
     pBlock->len = htonl(pBlock->len);
     pBlock->numOfRows = htonl(pBlock->numOfRows);
     pBlock->uid = htobe64(pBlock->uid);
@@ -116,7 +120,6 @@ TEST(TsdbTest, createRepo) {
     pBlock->sversion = htonl(pBlock->sversion);
     pBlock->padding = htonl(pBlock->padding);
 
-    pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
     pMsg->length = htonl(pMsg->length);
     pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
     pMsg->compressed = htonl(pMsg->numOfBlocks);
@@ -128,9 +131,7 @@ TEST(TsdbTest, createRepo) {
 
   printf("Spent %f seconds to write %d records\n", etime - stime, nRows);
 
-
-
-  // tsdbTriggerCommit(pRepo);
+  tsdbCloseRepo(pRepo);
 
 }
 

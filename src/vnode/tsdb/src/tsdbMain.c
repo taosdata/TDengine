@@ -287,8 +287,29 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
   if (pRepo == NULL) return 0;
 
   pRepo->state = TSDB_REPO_STATE_CLOSED;
+  tsdbLockRepo(repo);
+  if (pRepo->commit) {
+    tsdbUnLockRepo(repo);
+    return -1;
+  }
+  pRepo->commit = 1;
+  // Loop to move pData to iData
+  for (int i = 0; i < pRepo->config.maxTables; i++) {
+    STable *pTable = pRepo->tsdbMeta->tables[i];
+    if (pTable != NULL && pTable->mem != NULL) {
+      pTable->imem = pTable->mem;
+      pTable->mem = NULL;
+    }
+  }
+  // TODO: Loop to move mem to imem
+  pRepo->tsdbCache->imem = pRepo->tsdbCache->mem;
+  pRepo->tsdbCache->mem = NULL;
+  pRepo->tsdbCache->curBlock = NULL;
+  tsdbUnLockRepo(repo);
 
-  tsdbFlushCache(pRepo);
+  tsdbCommitData((void *)repo);
+
+  tsdbCloseFileH(pRepo->tsdbFileH);
 
   tsdbFreeMeta(pRepo->tsdbMeta);
 
