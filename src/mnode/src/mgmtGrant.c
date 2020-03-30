@@ -14,58 +14,18 @@
  */
 
 #define _DEFAULT_SOURCE
+#ifndef _GRANT
 #include "os.h"
-#include "mgmtAcct.h"
+#include "taoserror.h"
+#include "tlog.h"
+#include "mgmtGrant.h"
 
-int32_t (*mgmtCheckUserGrantFp)() = NULL;
-int32_t (*mgmtCheckDbGrantFp)() = NULL;
-void    (*mgmtAddTimeSeriesFp)(uint32_t timeSeriesNum) = NULL;
-void    (*mgmtRestoreTimeSeriesFp)(uint32_t timeSeriesNum) = NULL;
-int32_t (*mgmtCheckTimeSeriesFp)(uint32_t timeseries) = NULL;
-bool    (*mgmtCheckExpiredFp)() = NULL;
+int32_t grantInit() { return TSDB_CODE_SUCCESS; }
+void    grantCleanUp() {}
+void    grantParseParameter() { mError("can't parsed parameter k"); }
+int32_t grantCheck(EGrantType grant) { return TSDB_CODE_SUCCESS; }
+void    grantReset(EGrantType grant, uint64_t value) {}
+void    grantAdd(EGrantType grant, uint64_t value) {}
+void    grantRestore(EGrantType grant, uint64_t value) {}
 
-int32_t mgmtCheckUserGrant() {
-  if (mgmtCheckUserGrantFp) {
-    return (*mgmtCheckUserGrantFp)();
-  } else {
-    return 0;
-  }
-}
-
-int32_t mgmtCheckDbGrant() {
-  if (mgmtCheckDbGrantFp) {
-    return (*mgmtCheckDbGrantFp)();
-  } else {
-    return 0;
-  }
-}
-
-void mgmtAddTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum) {
-  pAcct->acctInfo.numOfTimeSeries += timeSeriesNum;
-  if (mgmtAddTimeSeriesFp) {
-    (*mgmtAddTimeSeriesFp)(timeSeriesNum);
-  }
-}
-
-void mgmtRestoreTimeSeries(SAcctObj *pAcct, uint32_t timeSeriesNum) {
-  pAcct->acctInfo.numOfTimeSeries -= timeSeriesNum;
-  if (mgmtRestoreTimeSeriesFp) {
-    (*mgmtRestoreTimeSeriesFp)(timeSeriesNum);
-  }
-}
-
-int32_t mgmtCheckTimeSeries(uint32_t timeseries) {
-  if (mgmtCheckTimeSeriesFp) {
-    return (*mgmtCheckTimeSeriesFp)(timeseries);
-  } else {
-    return 0;
-  }
-}
-
-bool mgmtCheckExpired() {
-  if (mgmtCheckExpiredFp) {
-    return mgmtCheckExpiredFp();
-  } else {
-    return false;
-  }
-}
+#endif

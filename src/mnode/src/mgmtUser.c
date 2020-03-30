@@ -25,10 +25,9 @@
 #include "mgmtShell.h"
 #include "mgmtUser.h"
 
-static void   *tsUserSdb = NULL;
+void * tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
 
-static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass);
 static int32_t mgmtDropUser(SAcctObj *pAcct, char *name);
 static int32_t mgmtUpdateUser(SUserObj *pUser);
 static int32_t mgmtGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
@@ -45,10 +44,10 @@ static int32_t mgmtUserActionDestroy(SSdbOperDesc *pOper) {
 
 static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
   SUserObj *pUser = pOper->pObj;
-  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
+  SAcctObj *pAcct = acctGetAcct(pUser->acct);
 
   if (pAcct != NULL) {
-    mgmtAddUserIntoAcct(pAcct, pUser);
+    acctAddUser(pAcct, pUser);
   }
   else {
     mError("user:%s, acct:%s info not exist in sdb", pUser->user, pUser->acct);
@@ -60,9 +59,9 @@ static int32_t mgmtUserActionInsert(SSdbOperDesc *pOper) {
 
 static int32_t mgmtUserActionDelete(SSdbOperDesc *pOper) {
   SUserObj *pUser = pOper->pObj;
-  SAcctObj *pAcct = mgmtGetAcct(pUser->acct);
+  SAcctObj *pAcct = acctGetAcct(pUser->acct);
 
-  mgmtRemoveUserFromAcct(pAcct, pUser);
+  acctRemoveUser(pAcct, pUser);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -115,7 +114,7 @@ int32_t mgmtInitUsers() {
     return -1;
   }
 
-  SAcctObj *pAcct = mgmtGetAcct("root");
+  SAcctObj *pAcct = acctGetAcct("root");
   mgmtCreateUser(pAcct, "root", "taosdata");
   mgmtCreateUser(pAcct, "monitor", tsInternalPass);
   mgmtCreateUser(pAcct, "_root", tsInternalPass);
@@ -155,8 +154,8 @@ static int32_t mgmtUpdateUser(SUserObj *pUser) {
   return code;
 }
 
-static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
-  int32_t code = mgmtCheckUserLimit(pAcct);
+int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
+  int32_t code = acctCheck(pAcct, TSDB_ACCT_USER);
   if (code != 0) {
     return code;
   }
@@ -171,8 +170,8 @@ static int32_t mgmtCreateUser(SAcctObj *pAcct, char *name, char *pass) {
     return TSDB_CODE_USER_ALREADY_EXIST;
   }
 
-  code = mgmtCheckUserGrant();
-  if (code != 0) {
+  code = grantCheck(TSDB_GRANT_USER);
+  if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
@@ -481,4 +480,31 @@ static void mgmtProcessDropUserMsg(SQueuedMsg *pMsg) {
   }
 
   mgmtSendSimpleResp(pMsg->thandle, code);
+}
+
+void  mgmtDropAllUsers(SAcctObj *pAcct)  {
+  void *pNode = NULL;
+  void *pLastNode = NULL;
+  int32_t numOfUsers = 0;
+  int32_t acctNameLen = strlen(pAcct->user);
+  SUserObj *pUser = NULL;
+
+  while (1) {
+    pNode = sdbFetchRow(tsUserSdb, pNode, (void **)&pUser);
+    if (pUser == NULL) break;
+
+    if (strncmp(pUser->acct, pAcct->user, acctNameLen) == 0) {
+      SSdbOperDesc oper = {
+        .type = SDB_OPER_TYPE_LOCAL,
+        .table = tsUserSdb,
+        .pObj = pUser,
+      };
+      sdbDeleteRow(&oper);
+      pNode = pLastNode;
+      numOfUsers++;
+      continue;
+    }
+  }
+
+  mTrace("acct:%s, all users is dropped from sdb", pAcct->acctId, numOfUsers);
 }

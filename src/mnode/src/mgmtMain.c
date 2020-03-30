@@ -25,6 +25,7 @@
 #include "mgmtDClient.h"
 #include "mgmtDnode.h"
 #include "mgmtDServer.h"
+#include "mgmtGrant.h"
 #include "mgmtMnode.h"
 #include "mgmtSdb.h"
 #include "mgmtVgroup.h"
@@ -73,8 +74,13 @@ int32_t mgmtStartSystem() {
     return -1;
   }
 
-  if (mgmtInitAccts() < 0) {
+  if (acctInit() < 0) {
     mError("failed to init accts");
+    return -1;
+  }
+
+  if (grantInit() < 0) {
+    mError("failed to init grants");
     return -1;
   }
 
@@ -138,6 +144,7 @@ void mgmtStopSystem() {
 
 void mgmtCleanUpSystem() {
   mPrint("starting to clean up mgmt");
+  grantCleanUp();
   mgmtCleanupMnodes();
   mgmtCleanupBalance();
   mgmtCleanUpShell();
@@ -148,7 +155,7 @@ void mgmtCleanUpSystem() {
   mgmtCleanUpDbs();
   mgmtCleanUpDnodes();
   mgmtCleanUpUsers();
-  mgmtCleanUpAccts();
+  acctCleanUp();
   taosTmrCleanUp(tsMgmtTmr);
   mPrint("mgmt is cleaned up");
 }

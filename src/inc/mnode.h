@@ -38,6 +38,10 @@ extern "C" {
 #include "ttimer.h"
 #include "tutil.h"
 
+struct _vg_obj;
+struct _db_obj;
+struct _acctObj;
+
 typedef struct {
   int32_t  mnodeId;
   uint32_t privateIp;
@@ -103,8 +107,6 @@ typedef struct {
   int8_t dirty;
 } STableInfo;
 
-struct _vg_obj;
-
 typedef struct SSuperTableObj {
   STableInfo info;
   uint64_t   uid;
@@ -137,8 +139,6 @@ typedef struct {
   SSuperTableObj *superTable;
 } SChildTableObj;
 
-struct _db_obj;
-
 typedef struct _vg_obj {
   uint32_t        vgId;
   char            dbName[TSDB_DB_NAME_LEN + 1];
@@ -170,9 +170,8 @@ typedef struct _db_obj {
   int32_t numOfSuperTables;
   SVgObj *pHead;
   SVgObj *pTail;
+  struct _acctObj *pAcct;
 } SDbObj;
-
-struct _acctObj;
 
 typedef struct _user_obj {
   char              user[TSDB_USER_LEN + 1];
@@ -213,7 +212,8 @@ typedef struct _acctObj {
   SAcctCfg  cfg;
   int32_t   acctId;
   int64_t   createdTime;
-  int8_t    reserved[15];
+  int8_t    dirty;
+  int8_t    reserved[14];
   int8_t    updateEnd[1];
   SAcctInfo acctInfo;
   SDbObj *         pHead;

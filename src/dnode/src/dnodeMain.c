@@ -28,20 +28,9 @@
 #include "dnodeRead.h"
 #include "dnodeShell.h"
 #include "dnodeWrite.h"
-#ifdef CLUSTER
-#include "account.h"
-#include "admin.h"
-#include "balance.h"
-#include "cluster.h"
-#include "grant.h"
-#include "mpeer.h"
-#include "storage.h"
-#include "vpeer.h"
-#endif
 
 static int32_t dnodeInitSystem();
 static int32_t dnodeInitStorage();
-static void dnodeInitPlugins();
 static void dnodeCleanupStorage();
 static void dnodeCleanUpSystem();
 static void dnodeSetRunStatus(SDnodeRunStatus status);
@@ -51,8 +40,6 @@ static SDnodeRunStatus tsDnodeRunStatus = TSDB_DNODE_RUN_STATUS_STOPPED;
 void (*dnodeParseParameterKFp)() = NULL;
 
 int32_t main(int32_t argc, char *argv[]) {
-  dnodeInitPlugins();
-
   // Set global configuration file
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
@@ -244,15 +231,3 @@ static int32_t dnodeInitStorage() {
 }
 
 static void dnodeCleanupStorage() {}
-
-static void dnodeInitPlugins() {
-#ifdef CLUSTER
-//  acctInit();
-//  adminInit();
-//  balanceInit();
-//  clusterInit();
-//  grantInit();
-//  mpeerInit();
-//  storageInit();
-#endif
-}

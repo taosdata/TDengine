@@ -21,18 +21,21 @@ extern "C" {
 #endif
 #include "mnode.h"
 
-int32_t   mgmtInitAccts();
-void      mgmtCleanUpAccts();
-SAcctObj *mgmtGetAcct(char *acctName);
+typedef enum {
+  TSDB_ACCT_USER,
+  TSDB_ACCT_DB,
+  TSDB_ACCT_TABLE
+} EAcctGrantType;
 
-int32_t mgmtCheckUserLimit(SAcctObj *pAcct);
-int32_t mgmtCheckDbLimit(SAcctObj *pAcct);
-int32_t mgmtCheckTableLimit(SAcctObj *pAcct, int32_t numOfTimeSeries);
+int32_t   acctInit();
+void      acctCleanUp();
+SAcctObj *acctGetAcct(char *acctName);
+int32_t   acctCheck(SAcctObj *pAcct, EAcctGrantType type);
 
-int32_t mgmtAddDbIntoAcct(SAcctObj *pAcct, SDbObj *pDb);
-int32_t mgmtRemoveDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
-int32_t mgmtAddUserIntoAcct(SAcctObj *pAcct, SUserObj *pUser);
-int32_t mgmtRemoveUserFromAcct(SAcctObj *pAcct, SUserObj *pUser);
+int32_t acctAddDb(SAcctObj *pAcct, SDbObj *pDb);
+int32_t acctRemoveDb(SAcctObj *pAcct, SDbObj *pDb);
+int32_t acctAddUser(SAcctObj *pAcct, SUserObj *pUser);
+int32_t acctRemoveUser(SAcctObj *pAcct, SUserObj *pUser);
 
 #ifdef __cplusplus
 }
