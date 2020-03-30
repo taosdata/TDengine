@@ -185,6 +185,18 @@ int32_t tsdbFreeMeta(STsdbMeta *pMeta) {
   return 0;
 }
 
+STSchema *tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable) {
+  if (pTable->type == TSDB_NORMAL_TABLE || pTable->type == TSDB_SUPER_TABLE) {
+    return pTable->schema;
+  } else if (pTable->type == TSDB_CHILD_TABLE) {
+    STable *pSuper = tsdbGetTableByUid(pMeta, pTable->superUid);
+    if (pSuper == NULL) return NULL;
+    return pSuper->schema;
+  } else {
+    return NULL;
+  }
+}
+
 int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
   if (tsdbCheckTableCfg(pCfg) < 0) return -1;
 

@@ -988,7 +988,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
           if (tsdbLoadCompBlocks(pGroup, pIdx, (void *)pCompInfo) < 0) { /* TODO */
           }
 
-          tdInitDataCols(pCols, pTable->schema);
+          tdInitDataCols(pCols, tsdbGetTableSchema(pMeta, pTable));
 
           SCompBlock *pTBlock = TSDB_COMPBLOCK_AT(pCompInfo, pIdx->numOfSuperBlocks);
           int nBlocks = 0;
@@ -1040,7 +1040,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SSkipListIterator **iters
       }
     }
 
-    tdInitDataCols(pCols, pTable->schema);
+    tdInitDataCols(pCols, tsdbGetTableSchema(pMeta, pTable));
 
     int maxRowsToRead = pCfg->maxRowsPerFileBlock * 4 / 5;
     while (1) {

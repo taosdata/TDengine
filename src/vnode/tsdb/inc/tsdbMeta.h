@@ -80,6 +80,7 @@ typedef struct {
 
 STsdbMeta *tsdbInitMeta(const char *rootDir, int32_t maxTables);
 int32_t    tsdbFreeMeta(STsdbMeta *pMeta);
+STSchema * tsdbGetTableSchema(STsdbMeta *pMeta, STable *pTable);
 
 // ---- Operation on STable
 #define TSDB_TABLE_ID(pTable) ((pTable)->tableId)
