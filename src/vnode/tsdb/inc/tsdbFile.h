@@ -20,6 +20,7 @@
 #include "dataformat.h"
 #include "taosdef.h"
 #include "tglobalcfg.h"
+#include "tsdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -147,6 +148,8 @@ typedef struct {
   int64_t  uid;        // For recovery usage
   SCompCol cols[];
 } SCompData;
+
+STsdbFileH* tsdbGetFile(tsdb_repo_t* pRepo);
 
 int tsdbCopyBlockDataInFile(SFile *pOutFile, SFile *pInFile, SCompInfo *pCompInfo, int idx, int isLast, SDataCols *pCols);
 
