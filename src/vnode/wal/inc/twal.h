@@ -24,12 +24,12 @@ extern "C" {
 #define TAOS_WAL_FSYNC   2
  
 typedef struct {
-  uint32_t  signature;
-  uint32_t  cksum;
   int8_t    msgType;
   int8_t    reserved[3];
   int32_t   len;
   uint64_t  version;
+  uint32_t  signature;
+  uint32_t  cksum;
   char      cont[];
 } SWalHead;
 
@@ -41,6 +41,7 @@ int     walRenew(twal_h);
 int     walWrite(twal_h, SWalHead *);
 void    walFsync(twal_h);
 int     walRestore(twal_h, void *pVnode, int (*writeFp)(void *ahandle, void *pWalHead));
+int     walGetWalFile(twal_h, char *name, int32_t *index);
 
 extern int wDebugFlag;
 

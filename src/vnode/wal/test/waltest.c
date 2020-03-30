@@ -96,6 +96,7 @@ int main(int argc, char *argv[]) {
   for (int i=0; i<total; ++i) {
     for (int k=0; k<rows; ++k) {
       pHead->version = ++ver;
+      pHead->len = size;
       walWrite(pWal, pHead);
     }
        
@@ -104,6 +105,23 @@ int main(int argc, char *argv[]) {
   }
 
   printf("%d wal files are written\n", total);
+
+  int32_t index = 0;
+  char     name[256];
+
+  while (1) {
+    int code = walGetWalFile(pWal, name, &index);
+    if (code == -1) {
+      printf("failed to get wal file, index:%d\n", index);
+      break;
+    }
+
+    printf("index:%d wal:%s\n", index, name);
+    if (code == 0) break;
+
+    index++;
+  }
+
   getchar();
 
   walClose(pWal);
