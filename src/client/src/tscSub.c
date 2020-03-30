@@ -104,6 +104,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     return NULL;
   }
 
+  char* sqlstr = NULL;
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
     globalCode = TSDB_CODE_CLI_OUT_OF_MEMORY;
@@ -114,7 +115,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
   pSql->signature = pSql;
   pSql->pTscObj = pObj;
 
-  char* sqlstr = (char*)malloc(strlen(sql) + 1);
+  sqlstr = (char*)malloc(strlen(sql) + 1);
   if (sqlstr == NULL) {
     tscError("failed to allocate sql string for subscription");
     goto failed;
