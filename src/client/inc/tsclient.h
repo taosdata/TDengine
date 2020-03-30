@@ -70,8 +70,9 @@ typedef struct STableMeta {
 
 typedef struct STableMetaInfo {
   STableMeta * pTableMeta;       // table meta, cached in client side and acquried by name
-  SSuperTableMeta *pMetricMeta;  // metricmeta
-
+//  SSuperTableMeta *pMetricMeta;  // metricmeta
+  SArray* vgroupIdList;
+  
   /*
    * 1. keep the vnode index during the multi-vnode super table projection query
    * 2. keep the vnode index for multi-vnode insertion
@@ -294,20 +295,21 @@ typedef struct SResRec {
 struct STSBuf;
 
 typedef struct {
-  int32_t       code;
   int64_t       numOfRows;                  // num of results in current retrieved
   int64_t       numOfTotal;                 // num of total results
   int64_t       numOfTotalInCurrentClause;  // num of total result in current subclause
   char *        pRsp;
-  int           rspType;
-  int           rspLen;
+  int32_t       rspType;
+  int32_t       rspLen;
   uint64_t      qhandle;
   int64_t       uid;
   int64_t       useconds;
   int64_t       offset;  // offset value from vnode during projection query of stable
-  int           row;
+  int32_t       row;
   int16_t       numOfCols;
   int16_t       precision;
+  bool          completed;
+  int32_t       code;
   int32_t       numOfGroups;
   SResRec *     pGroupRec;
   char *        data;

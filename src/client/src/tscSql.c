@@ -147,7 +147,7 @@ STscObj *taosConnectImpl(const char *ip, const char *user, const char *pass, con
   }
 
   // tsRpcHeaderSize will be updated during RPC initialization, so only after it initialization, this value is valid
-  tsInsertHeadSize = tsRpcHeadSize + sizeof(SShellSubmitMsg);
+  tsInsertHeadSize = tsRpcHeadSize + sizeof(SMsgDesc) + sizeof(SSubmitMsg);
   return pObj;
 }
 
@@ -546,11 +546,11 @@ static bool tscHashRemainDataInSubqueryResultSet(SSqlObj *pSql) {
        * if the global limitation is not reached, and current result has not exhausted, or next more vnodes are
        * available, goes on
        */
-      if (pMetaInfo->vnodeIndex < pMetaInfo->pMetricMeta->numOfVnodes && pRes1->row < pRes1->numOfRows &&
-          (!tscHasReachLimitation(pQueryInfo1, pRes1))) {
-        allSubqueryExhausted = false;
-        break;
-      }
+//      if (pMetaInfo->vnodeIndex < pMetaInfo->pMetricMeta->numOfVnodes && pRes1->row < pRes1->numOfRows &&
+//          (!tscHasReachLimitation(pQueryInfo1, pRes1))) {
+//        allSubqueryExhausted = false;
+//        break;
+//      }
     }
 
     hasData = !allSubqueryExhausted;
@@ -594,11 +594,7 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
     }
 
     if (numOfTableHasRes >= 2) {  // do merge result
-
       success = (doSetResultRowData(pSql->pSubs[0]) != NULL) && (doSetResultRowData(pSql->pSubs[1]) != NULL);
-      //        TSKEY key1 = *(TSKEY *)pRes1->tsrow[0];
-      //        TSKEY key2 = *(TSKEY *)pRes2->tsrow[0];
-      //        printf("first:%" PRId64 ", second:%" PRId64 "\n", key1, key2);
     } else {  // only one subquery
       SSqlObj *pSub = pSql->pSubs[0];
       if (pSub == NULL) {
@@ -653,66 +649,9 @@ static void **tscBuildResFromSubqueries(SSqlObj *pSql) {
   return pRes->tsrow;
 }
 
-TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
-  SSqlObj *pSql = (SSqlObj *)res;
-  SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
-
-  if (pRes->qhandle == 0 || pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-    return NULL;
-  }
-
-  if (pCmd->command == TSDB_SQL_METRIC_JOIN_RETRIEVE) {
-    tscFetchDatablockFromSubquery(pSql);
-
-    if (pRes->code == TSDB_CODE_SUCCESS) {
-      tscTrace("%p data from all subqueries have been retrieved to client", pSql);
-      return tscBuildResFromSubqueries(pSql);
-    } else {
-      tscTrace("%p retrieve data from subquery failed, code:%d", pSql, pRes->code);
-      return NULL;
-    }
-
-  } else if (pRes->row >= pRes->numOfRows) {
-    /**
-     * NOT a join query
-     *
-     * If the data block of current result set have been consumed already, try fetch next result
-     * data block from virtual node.
-     */
-    tscResetForNextRetrieve(pRes);
-
-    if (pCmd->command < TSDB_SQL_LOCAL) {
-      pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-    }
-
-    tscProcessSql(pSql);  // retrieve data from virtual node
-
-    // if failed to retrieve data from current virtual node, try next one if exists
-    if (hasMoreVnodesToTry(pSql)) {
-      tscTryQueryNextVnode(pSql, NULL);
-    }
-
-    /*
-     * local reducer has handle this case,
-     * so no need to add the pRes->numOfRows for super table query
-     */
-    if (pCmd->command != TSDB_SQL_RETRIEVE_METRIC) {
-      pRes->numOfTotalInCurrentClause += pRes->numOfRows;
-    }
-
-    if (pRes->numOfRows == 0) {
-      return NULL;
-    }
-  }
-
-  return doSetResultRowData(pSql);
-}
-
 static void asyncFetchCallback(void *param, TAOS_RES *tres, int numOfRows) {
   SSqlObj* pSql = (SSqlObj*) tres;
-  if (numOfRows < 0) {
-    // set the error code
+  if (numOfRows < 0) { // set the error code
     pSql->res.code = -numOfRows;
   }
   
@@ -729,12 +668,14 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
   
-  if (pRes->qhandle == 0 || pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pCmd->command == TSDB_SQL_INSERT) {
+  if (pRes->qhandle == 0 ||
+      pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
+      pCmd->command == TSDB_SQL_INSERT) {
     return NULL;
   }
   
   // current data are exhausted, fetch more data
-  if (pRes->data == NULL || (pRes->data != NULL && pRes->row >= pRes->numOfRows &&
+  if (pRes->data == NULL || (pRes->data != NULL && pRes->row >= pRes->numOfRows && pRes->completed != true &&
       (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_METRIC || pCmd->command == TSDB_SQL_FETCH))) {
     taos_fetch_rows_a(res, asyncFetchCallback, pSql->pTscObj);
     

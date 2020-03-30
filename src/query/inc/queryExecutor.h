@@ -32,12 +32,6 @@ typedef struct SData {
   char    data[];
 } SData;
 
-enum {
-  ST_QUERY_KILLED = 0,     // query killed
-  ST_QUERY_PAUSED = 1,     // query paused, due to full of the response buffer
-  ST_QUERY_COMPLETED = 2,  // query completed
-};
-
 struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, char* val1, char* val2);
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
@@ -60,16 +54,20 @@ typedef struct SWindowStatus {
 } SWindowStatus;
 
 typedef struct SWindowResult {
-  uint16_t      numOfRows;
+  uint16_t      numOfRows;   // number of rows of current  time window
   SPosInfo      pos;         // Position of current result in disk-based output buffer
   SResultInfo*  resultInfo;  // For each result column, there is a resultInfo
   STimeWindow   window;      // The time window that current result covers.
-  SWindowStatus status;
+  SWindowStatus status;      // this result status: closed or opened
 } SWindowResult;
 
 typedef struct SResultRec {
-  int64_t pointsTotal;
-  int64_t pointsRead;
+  int64_t total;     // total generated result size in rows
+  int64_t size;      // current result set size in rows
+  int64_t capacity;  // capacity of current result output buffer
+  
+  // result size threshold in rows. If the result buffer is larger than this, pause query and return to client
+  int32_t threshold;
 } SResultRec;
 
 typedef struct SWindowResInfo {
@@ -97,7 +95,6 @@ typedef struct SSingleColumnFilterInfo {
   void*              pData;
 } SSingleColumnFilterInfo;
 
-/* intermediate pos during multimeter query involves interval */
 typedef struct STableQueryInfo {
   int64_t     lastKey;
   STimeWindow win;
@@ -105,16 +102,15 @@ typedef struct STableQueryInfo {
   int16_t     queryRangeSet;  // denote if the query range is set, only available for interval query
   int64_t     tag;
   STSCursor   cur;
-  int32_t     sid;  // for retrieve the page id list
+  int32_t     tid;  // for retrieve the page id list
 
   SWindowResInfo windowResInfo;
 } STableQueryInfo;
 
 typedef struct STableDataInfo {
   int32_t          numOfBlocks;
-  int32_t          start;  // start block index
+  int32_t          start;     // start block index
   int32_t          tableIndex;
-  void*            pMeterObj;
   int32_t          groupIdx;  // group id in table list
   STableQueryInfo* pTableQInfo;
 } STableDataInfo;
@@ -143,7 +139,6 @@ typedef struct SQuery {
   int32_t           pos;
   int64_t           pointsOffset;  // the number of points offset to save read data
   SData**           sdata;
-  int32_t capacity;
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;
 
@@ -170,20 +165,16 @@ typedef struct SQueryRuntimeEnv {
 } SQueryRuntimeEnv;
 
 typedef struct SQInfo {
-  uint64_t         signature;
+  void*            signature;
   TSKEY            startTime;
-  int64_t          elapsedTime;
-  SResultRec       rec;
-  int32_t          pointsReturned;
+  TSKEY            elapsedTime;
   int32_t          pointsInterpo;
-  int32_t          code;   // error code to returned to client
-  int32_t          killed; // denotes if current query is killed
+  int32_t          code;          // error code to returned to client
   sem_t            dataReady;
-  SArray*          pTableIdList;  // table list
+  SArray*          pTableIdList;  // table id list
   SQueryRuntimeEnv runtimeEnv;
   int32_t          subgroupIdx;
   int32_t          offset; /* offset in group result set of subgroup */
-//  tSidSet*         pSidSet;
   
   T_REF_DECLARE()
   /*
@@ -205,7 +196,7 @@ typedef struct SQInfo {
  * @param pQInfo
  * @return
  */
-int32_t qCreateQueryInfo(SQueryTableMsg* pQueryTableMsg, SQInfo** pQInfo);
+int32_t qCreateQueryInfo(void* pVnode, SQueryTableMsg* pQueryTableMsg, SQInfo** pQInfo);
 
 /**
  * query on single table
@@ -214,18 +205,24 @@ int32_t qCreateQueryInfo(SQueryTableMsg* pQueryTableMsg, SQInfo** pQInfo);
 void qTableQuery(SQInfo* pQInfo);
 
 /**
- * query on super table
- * @param pReadMsg
- */
-void qSuperTableQuery(void* pReadMsg);
-
-/**
  * wait for the query completed, and retrieve final results to client
  * @param pQInfo
  */
-int32_t qRetrieveQueryResultInfo(SQInfo* pQInfo, int32_t *numOfRows, int32_t* rowsize);
+int32_t qRetrieveQueryResultInfo(SQInfo* pQInfo);
 
+/**
+ *
+ * @param pQInfo
+ * @param pRsp
+ * @return
+ */
+int32_t qDumpRetrieveResult(SQInfo *pQInfo, SRetrieveTableRsp** pRsp, int32_t* contLen);
 
-//int32_t qBuildQueryResult(SQInfo* pQInfo, void* pBuf);
+/**
+ *
+ * @param pQInfo
+ * @return
+ */
+bool qHasMoreResultsToRetrieve(SQInfo* pQInfo);
 
 #endif  // TDENGINE_QUERYEXECUTOR_H

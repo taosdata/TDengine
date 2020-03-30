@@ -14,12 +14,14 @@
  */
 #include <stdlib.h>
 
+#include "tsdb.h"
 #include "tsdbCache.h"
 
-static int tsdbAllocBlockFromPool(STsdbCache *pCache);
+static int  tsdbAllocBlockFromPool(STsdbCache *pCache);
 static void tsdbFreeBlockList(SList *list);
+static void tsdbFreeCacheMem(SCacheMem *mem);
 
-STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize) {
+STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize, tsdb_repo_t *pRepo) {
   STsdbCache *pCache = (STsdbCache *)calloc(1, sizeof(STsdbCache));
   if (pCache == NULL) return NULL;
 
@@ -27,9 +29,11 @@ STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize) {
 
   pCache->maxBytes = maxBytes;
   pCache->cacheBlockSize = cacheBlockSize;
+  pCache->pRepo = pRepo;
 
   int nBlocks = maxBytes / cacheBlockSize + 1;
   if (nBlocks <= 1) nBlocks = 2;
+  pCache->totalCacheBlocks = nBlocks;
 
   STsdbCachePool *pPool = &(pCache->pool);
   pPool->index = 0;
@@ -46,11 +50,8 @@ STsdbCache *tsdbInitCache(int maxBytes, int cacheBlockSize) {
     tdListAppend(pPool->memPool, (void *)(&pBlock));
   }
 
-  pCache->mem = tdListNew(sizeof(STsdbCacheBlock *));
-  if (pCache->mem == NULL) goto _err;
-
-  pCache->imem = tdListNew(sizeof(STsdbCacheBlock *));
-  if (pCache->imem == NULL) goto _err;
+  pCache->mem = NULL;
+  pCache->imem = NULL;
 
   return pCache;
 
@@ -60,25 +61,24 @@ _err:
 }
 
 void tsdbFreeCache(STsdbCache *pCache) {
-  tsdbFreeBlockList(pCache->imem);
-  tsdbFreeBlockList(pCache->mem);
+  tsdbFreeCacheMem(pCache->imem);
+  tsdbFreeCacheMem(pCache->mem);
   tsdbFreeBlockList(pCache->pool.memPool);
   free(pCache);
 }
 
-void *tsdbAllocFromCache(STsdbCache *pCache, int bytes) {
+void *tsdbAllocFromCache(STsdbCache *pCache, int bytes, TSKEY key) {
   if (pCache == NULL) return NULL;
   if (bytes > pCache->cacheBlockSize) return NULL;
 
-  if (isListEmpty(pCache->mem)) {
-    if (tsdbAllocBlockFromPool(pCache) < 0) {
-      // TODO: deal with the error
+  if (pCache->curBlock == NULL || pCache->curBlock->remain < bytes) {
+    if (pCache->curBlock !=NULL && (pCache->mem->list) >= pCache->totalCacheBlocks/2) {
+      tsdbTriggerCommit(pCache->pRepo);
     }
-  }
 
-  if (pCache->curBlock->remain < bytes) {
-    if (tsdbAllocBlockFromPool(pCache) < 0) {
+    while (tsdbAllocBlockFromPool(pCache) < 0) {
       // TODO: deal with the error
+      // printf("Failed to allocate from cache pool\n");
     }
   } 
 
@@ -86,12 +86,14 @@ void *tsdbAllocFromCache(STsdbCache *pCache, int bytes) {
   pCache->curBlock->offset += bytes;
   pCache->curBlock->remain -= bytes;
   memset(ptr, 0, bytes);
+  if (key < pCache->mem->keyFirst) pCache->mem->keyFirst = key;
+  if (key > pCache->mem->keyLast) pCache->mem->keyLast = key;
+  pCache->mem->numOfPoints++;
 
   return ptr;
 }
 
 static void tsdbFreeBlockList(SList *list) {
-  if (list == NULL) return;
   SListNode *      node = NULL;
   STsdbCacheBlock *pBlock = NULL;
   while ((node = tdListPopHead(list)) != NULL) {
@@ -102,9 +104,21 @@ static void tsdbFreeBlockList(SList *list) {
   tdListFree(list);
 }
 
+static void tsdbFreeCacheMem(SCacheMem *mem) {
+  if (mem == NULL) return;
+  SList *list = mem->list;
+  tsdbFreeBlockList(list);
+  free(mem);
+}
+
 static int tsdbAllocBlockFromPool(STsdbCache *pCache) {
   STsdbCachePool *pPool = &(pCache->pool);
-  if (listNEles(pPool->memPool) == 0) return -1;
+  
+  tsdbLockRepo(pCache->pRepo);
+  if (listNEles(pPool->memPool) == 0) {
+    tsdbUnLockRepo(pCache->pRepo);
+    return -1;
+  }
 
   SListNode *node = tdListPopHead(pPool->memPool);
   
@@ -114,8 +128,19 @@ static int tsdbAllocBlockFromPool(STsdbCache *pCache) {
   pBlock->offset = 0;
   pBlock->remain = pCache->cacheBlockSize;
 
-  tdListAppendNode(pCache->mem, node);
+  if (pCache->mem == NULL) { // Create a new one
+    pCache->mem = (SCacheMem *)malloc(sizeof(SCacheMem));
+    if (pCache->mem == NULL) return NULL;
+    pCache->mem->keyFirst = INT64_MAX;
+    pCache->mem->keyLast = 0;
+    pCache->mem->numOfPoints = 0;
+    pCache->mem->list = tdListNew(sizeof(STsdbCacheBlock *));
+  }
+
+  tdListAppendNode(pCache->mem->list, node);
   pCache->curBlock = pBlock;
+
+  tsdbUnLockRepo(pCache->pRepo);
 
   return 0;
 }

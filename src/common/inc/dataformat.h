@@ -81,11 +81,13 @@ STSchema *tdDecodeSchema(void **psrc);
  */
 typedef void *SDataRow;
 
+
 #define TD_DATA_ROW_HEAD_SIZE (2 * sizeof(int32_t))
 
 #define dataRowLen(r) (*(int32_t *)(r))
 #define dataRowFLen(r) (*(int32_t *)((char *)(r) + sizeof(int32_t)))
 #define dataRowTuple(r) ((char *)(r) + TD_DATA_ROW_HEAD_SIZE)
+#define dataRowKey(r) (*(TSKEY *)(dataRowTuple(r)))
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
 #define dataRowSetFLen(r, l) (dataRowFLen(r) = (l))
 #define dataRowIdx(r, i) ((char *)(r) + i)
@@ -103,11 +105,36 @@ SDataRow tdDataRowDup(SDataRow row);
 
 // ----------------- Data column structure
 typedef struct SDataCol {
-  int64_t len;
-  char    data[];
+  int8_t  type;
+  int16_t colId;
+  int     bytes;
+  int     len;
+  int     offset;
+  void *  pData;
 } SDataCol;
 
-void tdConvertDataRowToCol(SDataCol *cols, STSchema *pSchema, int *iter);
+typedef struct {
+  int      maxRowSize;
+  int      maxCols;    // max number of columns
+  int      maxPoints;  // max number of points
+  int      numOfPoints;
+  int      numOfCols;  // Total number of cols
+  int      sversion;   // TODO: set sversion
+  void *   buf;
+  SDataCol cols[];
+} SDataCols;
+
+#define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
+#define dataColsKeyAt(pCols, idx) ((int64_t *)(keyCol(pCols)->pData))[(idx)]
+#define dataColsKeyFirst(pCols) dataColsKeyAt(pCols, 0)
+#define dataColsKeyLast(pCols) dataColsKeyAt(pCols, (pCols)->numOfPoints - 1)
+
+SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
+void       tdResetDataCols(SDataCols *pCols);
+void       tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
+void       tdFreeDataCols(SDataCols *pCols);
+void       tdAppendDataRowToDataCol(SDataRow row, SDataCols *pCols);
+void       tdPopDataColsPoints(SDataCols *pCols, int pointsToPop);
 
 #ifdef __cplusplus
 }

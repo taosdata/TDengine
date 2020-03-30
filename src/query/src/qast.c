@@ -14,6 +14,9 @@
  */
 
 #include "qast.h"
+#include <tarray.h>
+#include <tskiplist.h>
+#include "../../client/inc/tschemautil.h"
 #include "os.h"
 #include "qsqlparser.h"
 #include "qsyntaxtreefunction.h"
@@ -105,7 +108,7 @@ static tSQLSyntaxNode *tSQLSyntaxNodeCreate(SSchema *pSchema, int32_t numOfCols,
     return NULL;
   }
 
-  size_t          nodeSize = sizeof(tSQLSyntaxNode);
+  size_t nodeSize = sizeof(tSQLSyntaxNode);
   tSQLSyntaxNode *pNode = NULL;
 
   if (pToken->type == TK_ID || pToken->type == TK_TBNAME) {
@@ -237,9 +240,7 @@ uint8_t isQueryOnPrimaryKey(const char *primaryColumnName, const tSQLSyntaxNode 
 }
 
 static tSQLSyntaxNode *createSyntaxTree(SSchema *pSchema, int32_t numOfCols, char *str, int32_t *i) {
-  SSQLToken t0;
-
-  t0 = tStrGetToken(str, i, false, 0, NULL);
+  SSQLToken t0 = tStrGetToken(str, i, false, 0, NULL);
   if (t0.n == 0) {
     return NULL;
   }
@@ -341,7 +342,8 @@ void tSQLBinaryExprFromString(tSQLBinaryExpr **pExpr, SSchema *pSchema, int32_t 
     return;
   }
 
-  int32_t         pos = 0;
+  int32_t pos = 0;
+  
   tSQLSyntaxNode *pStxNode = createSyntaxTree(pSchema, numOfCols, src, &pos);
   if (pStxNode != NULL) {
     assert(pStxNode->nodeType == TSQL_NODE_EXPR);
@@ -705,126 +707,120 @@ static bool filterItem(tSQLBinaryExpr *pExpr, const void *pItem, SBinaryFilterSu
  * @param pSchema   tag schemas
  * @param fp        filter callback function
  */
-static UNUSED_FUNC void tSQLBinaryTraverseOnResult(tSQLBinaryExpr *pExpr, tQueryResultset *pResult, SBinaryFilterSupp *param) {
-  int32_t n = 0;
-  for (int32_t i = 0; i < pResult->num; ++i) {
-    void *pItem = pResult->pRes[i];
+static void tSQLBinaryTraverseOnResult(tSQLBinaryExpr *pExpr, SArray *pResult, SBinaryFilterSupp *param) {
+  size_t size = taosArrayGetSize(pResult);
+  
+  SArray* array = taosArrayInit(size, POINTER_BYTES);
+  for (int32_t i = 0; i < size; ++i) {
+    void *pItem = taosArrayGetP(pResult, i);
 
     if (filterItem(pExpr, pItem, param)) {
-      pResult->pRes[n++] = pResult->pRes[i];
+      taosArrayPush(array, &pItem);
     }
   }
-
-  pResult->num = n;
+  
+  taosArrayCopy(pResult, array);
 }
 
-//static void tSQLBinaryTraverseOnSkipList(tSQLBinaryExpr *pExpr, tQueryResultset *pResult, tSkipList *pSkipList,
-//                                         SBinaryFilterSupp *param) {
-//  int32_t           n = 0;
-//  SSkipListIterator iter = {0};
-//
-//  int32_t ret = tSkipListIteratorReset(pSkipList, &iter);
-//  assert(ret == 0);
-//
-//  pResult->pRes = calloc(pSkipList->nSize, POINTER_BYTES);
-//
-//  while (tSkipListIteratorNext(&iter)) {
-//    tSkipListNode *pNode = tSkipListIteratorGet(&iter);
-//    if (filterItem(pExpr, pNode, param)) {
-//      pResult->pRes[n++] = pNode;
-//    }
-//  }
-//
-//  pResult->num = n;
-//}
+static void tSQLBinaryTraverseOnSkipList(tSQLBinaryExpr *pExpr, SArray *pResult, SSkipList *pSkipList,
+    SBinaryFilterSupp *param) {
+  SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
+
+  while (tSkipListIterNext(iter)) {
+    SSkipListNode *pNode = tSkipListIterGet(iter);
+    
+    if (filterItem(pExpr, pNode, param)) {
+      taosArrayPush(pResult, SL_GET_NODE_DATA(pNode));
+    }
+  }
+}
 
 // post-root order traverse syntax tree
-//void tSQLBinaryExprTraverse(tSQLBinaryExpr *pExpr, tSkipList *pSkipList, tQueryResultset *result,
-//                            SBinaryFilterSupp *param) {
-//  if (pExpr == NULL) {
-//    return;
-//  }
-//
-//  tSQLSyntaxNode *pLeft = pExpr->pLeft;
-//  tSQLSyntaxNode *pRight = pExpr->pRight;
-//
-//  // recursive traverse left child branch
-//  if (pLeft->nodeType == TSQL_NODE_EXPR || pRight->nodeType == TSQL_NODE_EXPR) {
-//    uint8_t weight = pLeft->pExpr->filterOnPrimaryKey + pRight->pExpr->filterOnPrimaryKey;
-//
-//    if (weight == 0 && result->num > 0 && pSkipList == NULL) {
-//      /**
-//       * Perform the filter operation based on the initial filter result, which is obtained from filtering from index.
-//       * Since no index presented, the filter operation is done by scan all elements in the result set.
-//       *
-//       * if the query is a high selectivity filter, only small portion of meters are retrieved.
-//       */
-//      tSQLBinaryTraverseOnResult(pExpr, result, param);
-//    } else if (weight == 0) {
-//      /**
-//       * apply the hierarchical expression to every node in skiplist for find the qualified nodes
-//       */
+void tSQLBinaryExprTraverse(tSQLBinaryExpr *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param) {
+  if (pExpr == NULL) {
+    return;
+  }
+
+  tSQLSyntaxNode *pLeft = pExpr->pLeft;
+  tSQLSyntaxNode *pRight = pExpr->pRight;
+
+  // recursive traverse left child branch
+  if (pLeft->nodeType == TSQL_NODE_EXPR || pRight->nodeType == TSQL_NODE_EXPR) {
+    uint8_t weight = pLeft->pExpr->filterOnPrimaryKey + pRight->pExpr->filterOnPrimaryKey;
+
+    if (weight == 0 && taosArrayGetSize(result) > 0 && pSkipList == NULL) {
+      /**
+       * Perform the filter operation based on the initial filter result, which is obtained from filtering from index.
+       * Since no index presented, the filter operation is done by scan all elements in the result set.
+       *
+       * if the query is a high selectivity filter, only small portion of meters are retrieved.
+       */
+      tSQLBinaryTraverseOnResult(pExpr, result, param);
+    } else if (weight == 0) {
+      /**
+       * apply the hierarchical expression to every node in skiplist for find the qualified nodes
+       */
+      assert(taosArrayGetSize(result) == 0);
+      tSQLBinaryTraverseOnSkipList(pExpr, result, pSkipList, param);
+    } else if (weight == 2 || (weight == 1 && pExpr->nSQLBinaryOptr == TSDB_RELATION_OR)) {
+      tQueryResultset rLeft = {0};
+      tQueryResultset rRight = {0};
+
+      tSQLBinaryExprTraverse(pLeft->pExpr, pSkipList, &rLeft, param);
+      tSQLBinaryExprTraverse(pRight->pExpr, pSkipList, &rRight, param);
+
+      if (pExpr->nSQLBinaryOptr == TSDB_RELATION_AND) {  // CROSS
+        intersect(&rLeft, &rRight, result);
+      } else if (pExpr->nSQLBinaryOptr == TSDB_RELATION_OR) {  // or
+        merge(&rLeft, &rRight, result);
+      } else {
+        assert(false);
+      }
+
+      free(rLeft.pRes);
+      free(rRight.pRes);
+    } else {
+      /*
+       * (weight == 1 && pExpr->nSQLBinaryOptr == TSDB_RELATION_AND) is handled here
+       *
+       * first, we filter results based on the skiplist index, which is the initial filter stage,
+       * then, we conduct the secondary filter operation based on the result from the initial filter stage.
+       */
+      assert(pExpr->nSQLBinaryOptr == TSDB_RELATION_AND);
+
+      tSQLBinaryExpr *pFirst = NULL;
+      tSQLBinaryExpr *pSecond = NULL;
+      if (pLeft->pExpr->filterOnPrimaryKey == 1) {
+        pFirst = pLeft->pExpr;
+        pSecond = pRight->pExpr;
+      } else {
+        pFirst = pRight->pExpr;
+        pSecond = pLeft->pExpr;
+      }
+
+      assert(pFirst != pSecond && pFirst != NULL && pSecond != NULL);
+
+      // we filter the result based on the skiplist index in the first place
+      tSQLBinaryExprTraverse(pFirst, pSkipList, result, param);
+
+      /*
+       * recursively perform the filter operation based on the initial results,
+       * So, we do not set the skiplist index as a parameter
+       */
+      tSQLBinaryExprTraverse(pSecond, NULL, result, param);
+    }
+  } else {  // column project
+    assert(pLeft->nodeType == TSQL_NODE_COL && pRight->nodeType == TSQL_NODE_VALUE);
+
+    param->setupInfoFn(pExpr, param->pExtInfo);
+    if (pSkipList == NULL) {
+      tSQLListTraverseOnResult(pExpr, param->fp, result);
+    } else {
 //      assert(result->num == 0);
-//      tSQLBinaryTraverseOnSkipList(pExpr, result, pSkipList, param);
-//    } else if (weight == 2 || (weight == 1 && pExpr->nSQLBinaryOptr == TSDB_RELATION_OR)) {
-//      tQueryResultset rLeft = {0};
-//      tQueryResultset rRight = {0};
-//
-//      tSQLBinaryExprTraverse(pLeft->pExpr, pSkipList, &rLeft, param);
-//      tSQLBinaryExprTraverse(pRight->pExpr, pSkipList, &rRight, param);
-//
-//      if (pExpr->nSQLBinaryOptr == TSDB_RELATION_AND) {  // CROSS
-//        intersect(&rLeft, &rRight, result);
-//      } else if (pExpr->nSQLBinaryOptr == TSDB_RELATION_OR) {  // or
-//        merge(&rLeft, &rRight, result);
-//      } else {
-//        assert(false);
-//      }
-//
-//      free(rLeft.pRes);
-//      free(rRight.pRes);
-//    } else {
-//      /*
-//       * (weight == 1 && pExpr->nSQLBinaryOptr == TSDB_RELATION_AND) is handled here
-//       *
-//       * first, we filter results based on the skiplist index, which is the initial filter stage,
-//       * then, we conduct the secondary filter operation based on the result from the initial filter stage.
-//       */
-//      assert(pExpr->nSQLBinaryOptr == TSDB_RELATION_AND);
-//
-//      tSQLBinaryExpr *pFirst = NULL;
-//      tSQLBinaryExpr *pSecond = NULL;
-//      if (pLeft->pExpr->filterOnPrimaryKey == 1) {
-//        pFirst = pLeft->pExpr;
-//        pSecond = pRight->pExpr;
-//      } else {
-//        pFirst = pRight->pExpr;
-//        pSecond = pLeft->pExpr;
-//      }
-//
-//      assert(pFirst != pSecond && pFirst != NULL && pSecond != NULL);
-//
-//      // we filter the result based on the skiplist index in the first place
-//      tSQLBinaryExprTraverse(pFirst, pSkipList, result, param);
-//
-//      /*
-//       * recursively perform the filter operation based on the initial results,
-//       * So, we do not set the skiplist index as a parameter
-//       */
-//      tSQLBinaryExprTraverse(pSecond, NULL, result, param);
-//    }
-//  } else {  // column project
-//    assert(pLeft->nodeType == TSQL_NODE_COL && pRight->nodeType == TSQL_NODE_VALUE);
-//
-//    param->setupInfoFn(pExpr, param->pExtInfo);
-//    if (pSkipList == NULL) {
-//      tSQLListTraverseOnResult(pExpr, param->fp, result);
-//    } else {
-//      assert(result->num == 0);
-////      tSQLDoFilterInitialResult(pSkipList, param->fp, pExpr->info, result);
-//    }
-//  }
-//}
+//      tSQLDoFilterInitialResult(pSkipList, param->fp, pExpr->info, result);
+    }
+  }
+}
 
 void tSQLBinaryExprCalcTraverse(tSQLBinaryExpr *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                 char *(*getSourceDataBlock)(void *, char *, int32_t)) {

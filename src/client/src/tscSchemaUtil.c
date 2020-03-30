@@ -32,7 +32,7 @@ int32_t tscGetNumOfTags(const STableMeta* pTableMeta) {
   }
   
   if (pTableMeta->tableType == TSDB_SUPER_TABLE || pTableMeta->tableType == TSDB_CHILD_TABLE) {
-    assert(tinfo.numOfTags > 0);
+    assert(tinfo.numOfTags >= 0);
     return tinfo.numOfTags;
   }
   
@@ -51,14 +51,14 @@ int32_t tscGetNumOfColumns(const STableMeta* pTableMeta) {
 SSchema *tscGetTableSchema(const STableMeta *pTableMeta) {
   assert(pTableMeta != NULL);
   
-  if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-    STableMeta* pSTableMeta = pTableMeta->pSTable;
-    assert (pSTableMeta != NULL);
-    
-    return pSTableMeta->schema;
-  }
+//  if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
+//    STableMeta* pSTableMeta = pTableMeta->pSTable;
+//    assert (pSTableMeta != NULL);
+//
+//    return pSTableMeta->schema;
+//  }
   
-  return pTableMeta->schema;
+  return (SSchema*) pTableMeta->schema;
 }
 
 SSchema* tscGetTableTagSchema(const STableMeta* pTableMeta) {
@@ -72,12 +72,14 @@ SSchema* tscGetTableTagSchema(const STableMeta* pTableMeta) {
 
 STableComInfo tscGetTableInfo(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
-  
+
+#if 0
   if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
     assert (pTableMeta->pSTable != NULL);
     return pTableMeta->pSTable->tableInfo;
   }
-  
+#endif
+
   return pTableMeta->tableInfo;
 }
 
@@ -130,12 +132,13 @@ SSchema* tscGetTableColumnSchema(const STableMeta* pTableMeta, int32_t startCol)
   assert(pTableMeta != NULL);
   
   SSchema* pSchema = pTableMeta->schema;
-  
+#if 0
   if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
     assert (pTableMeta->pSTable != NULL);
     pSchema = pTableMeta->pSTable->schema;
   }
-  
+#endif
+
   return &pSchema[startCol];
 }
 

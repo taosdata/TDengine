@@ -53,12 +53,12 @@ typedef struct _thread_obj {
 static void (*dnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(void *, SWriteMsg *);
 static void  *dnodeProcessWriteQueue(void *param);
 static void   dnodeHandleIdleWorker(SWriteWorker *pWorker);
-static void   dnodeProcessWriteResult(SWriteMsg *pWrite);
-static void   dnodeProcessSubmitMsg(SWriteMsg *pMsg);
-static void   dnodeProcessCreateTableMsg(SWriteMsg *pMsg);
-static void   dnodeProcessDropTableMsg(SWriteMsg *pMsg);
-static void   dnodeProcessAlterTableMsg(SWriteMsg *pMsg);
-static void   dnodeProcessDropStableMsg(SWriteMsg *pMsg);
+static void   dnodeProcessWriteResult(void *pVnode, SWriteMsg *pWrite);
+static void   dnodeProcessSubmitMsg(void *pVnode, SWriteMsg *pMsg);
+static void   dnodeProcessCreateTableMsg(void *pVnode, SWriteMsg *pMsg);
+static void   dnodeProcessDropTableMsg(void *pVnode, SWriteMsg *pMsg);
+static void   dnodeProcessAlterTableMsg(void *pVnode, SWriteMsg *pMsg);
+static void   dnodeProcessDropStableMsg(void *pVnode, SWriteMsg *pMsg);
 
 SWriteWorkerPool wWorkerPool;
 
@@ -193,20 +193,20 @@ static void *dnodeProcessWriteQueue(void *param) {
       continue;
     }
 
-    for (int32_t i=0; i<numOfMsgs; ++i) {
+    for (int32_t i = 0; i < numOfMsgs; ++i) {
       // retrieve all items, and write them into WAL
-      taosGetQitem(qall, &type, &pWriteMsg);
+      taosGetQitem(qall, &type, (void **)&pWriteMsg);
 
       // walWrite(pVnode->whandle, writeMsg.rpcMsg.msgType, writeMsg.pCont, writeMsg.contLen);
     }
-    
+
     // flush WAL file
     // walFsync(pVnode->whandle);
 
     // browse all items, and process them one by one
     taosResetQitems(qall);
     for (int32_t i = 0; i < numOfMsgs; ++i) {
-      taosGetQitem(qall, &type, &pWriteMsg);
+      taosGetQitem(qall, &type, (void **)&pWriteMsg);
 
       terrno = 0;
       if (dnodeProcessWriteMsgFp[pWriteMsg->rpcMsg.msgType]) {
@@ -218,7 +218,6 @@ static void *dnodeProcessWriteQueue(void *param) {
       dnodeProcessWriteResult(pVnode, pWriteMsg);
       taosFreeQitem(pWriteMsg);
     }
-
   }
 
   taosFreeQall(qall);
@@ -270,7 +269,7 @@ static void dnodeHandleIdleWorker(SWriteWorker *pWorker) {
   }
 }
 
-static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
+static void dnodeProcessSubmitMsg(void *pVnode, SWriteMsg *pMsg) {
   dTrace("submit msg is disposed");
 
   SShellSubmitRspMsg *pRsp = rpcMallocCont(sizeof(SShellSubmitRspMsg));
@@ -279,7 +278,10 @@ static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
   pRsp->affectedRows      = htonl(1);
   pRsp->numOfFailedBlocks = 0;
   
-  // todo write to tsdb
+  void* tsdb = dnodeGetVnodeTsdb(pVnode);
+  assert(tsdb != NULL);
+  
+  tsdbInsertData(tsdb, pMsg->pCont);
   
   SRpcMsg rpcRsp = {
     .handle = pMsg->rpcMsg.handle,
@@ -288,10 +290,11 @@ static void dnodeProcessSubmitMsg(SWriteMsg *pMsg) {
     .code = 0,
     .msgType = 0
   };
+  
   rpcSendResponse(&rpcRsp);
 }
 
-static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
+static void dnodeProcessCreateTableMsg(void *pVnode, SWriteMsg *pMsg) {
   SMDCreateTableMsg *pTable = pMsg->rpcMsg.pCont;
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
@@ -340,16 +343,16 @@ static void dnodeProcessCreateTableMsg(SWriteMsg *pMsg) {
     tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
-  void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+  void *pTsdb = dnodeGetVnodeTsdb(pVnode);
 
   rpcRsp.code = tsdbCreateTable(pTsdb, &tCfg);
-  dnodeReleaseVnode(pMsg->pVnode);
+  dnodeReleaseVnode(pVnode);
 
   dTrace("table:%s, create table result:%s", pTable->tableId, tstrerror(rpcRsp.code));
   rpcSendResponse(&rpcRsp);
 }
 
-static void dnodeProcessDropTableMsg(SWriteMsg *pMsg) {
+static void dnodeProcessDropTableMsg(void *pVnode, SWriteMsg *pMsg) {
   SMDDropTableMsg *pTable = pMsg->rpcMsg.pCont;
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
@@ -359,16 +362,16 @@ static void dnodeProcessDropTableMsg(SWriteMsg *pMsg) {
     .tid = htonl(pTable->sid)
   };
 
-  void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+  void *pTsdb = dnodeGetVnodeTsdb(pVnode);
 
   rpcRsp.code = tsdbDropTable(pTsdb, tableId);
-  dnodeReleaseVnode(pMsg->pVnode);
+  dnodeReleaseVnode(pVnode);
 
   dTrace("table:%s, drop table result:%s", pTable->tableId, tstrerror(rpcRsp.code));
   rpcSendResponse(&rpcRsp);
 }
 
-static void dnodeProcessAlterTableMsg(SWriteMsg *pMsg) {
+static void dnodeProcessAlterTableMsg(void *pVnode, SWriteMsg *pMsg) {
   SMDCreateTableMsg *pTable = pMsg->rpcMsg.pCont;
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
@@ -417,16 +420,16 @@ static void dnodeProcessAlterTableMsg(SWriteMsg *pMsg) {
     tsdbTableSetTagValue(&tCfg, dataRow, false);
   }
 
-  void *pTsdb = dnodeGetVnodeTsdb(pMsg->pVnode);
+  void *pTsdb = dnodeGetVnodeTsdb(pVnode);
 
   rpcRsp.code = tsdbAlterTable(pTsdb, &tCfg);
-  dnodeReleaseVnode(pMsg->pVnode);
+  dnodeReleaseVnode(pVnode);
 
   dTrace("table:%s, alter table result:%s", pTable->tableId, tstrerror(rpcRsp.code));
   rpcSendResponse(&rpcRsp);
 }
 
-static void dnodeProcessDropStableMsg(SWriteMsg *pMsg) {
+static void dnodeProcessDropStableMsg(void *pVnode, SWriteMsg *pMsg) {
   SMDDropSTableMsg *pTable = pMsg->rpcMsg.pCont;
   SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .pCont = NULL, .contLen = 0, .code = 0, .msgType = 0};
 
@@ -438,7 +441,7 @@ static void dnodeProcessDropStableMsg(SWriteMsg *pMsg) {
   //rpcRsp.code = tsdbDropSTable(pTsdb, pTable->uid);
 
   rpcRsp.code = TSDB_CODE_SUCCESS;
-  dnodeReleaseVnode(pMsg->pVnode);
+  dnodeReleaseVnode(pVnode);
 
   dTrace("stable:%s, drop stable result:%s", pTable->tableId, tstrerror(rpcRsp.code));
   rpcSendResponse(&rpcRsp);

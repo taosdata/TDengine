@@ -18,9 +18,10 @@
 
 #define _XOPEN_SOURCE
 
-#include "hash.h"
 #include "os.h"
-#include "tscSecondaryMerge.h"
+
+#include "hash.h"
+//#include "tscSecondaryMerge.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
@@ -31,6 +32,8 @@
 #include "tscSubquery.h"
 #include "tstoken.h"
 #include "ttime.h"
+
+#include "dataformat.h"
 
 enum {
   TSDB_USE_SERVER_TS = 0,
@@ -393,7 +396,6 @@ static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start
 int tsParseOneRowData(char **str, STableDataBlocks *pDataBlocks, SSchema schema[], SParsedDataColInfo *spd, char *error,
                       int16_t timePrec, int32_t *code, char *tmpTokenBuf) {
   int32_t index = 0;
-  // bool      isPrevOptr; //fang, never used
   SSQLToken sToken = {0};
   char *    payload = pDataBlocks->pData + pDataBlocks->size;
 
@@ -604,8 +606,8 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-static void tsSetBlockInfo(SShellSubmitBlock *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
-  pBlocks->sid = pTableMeta->sid;
+static void tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
+  pBlocks->tid = pTableMeta->sid;
   pBlocks->uid = pTableMeta->uid;
   pBlocks->sversion = pTableMeta->sversion;
   pBlocks->numOfRows += numOfRows;
@@ -613,10 +615,10 @@ static void tsSetBlockInfo(SShellSubmitBlock *pBlocks, const STableMeta *pTableM
 
 // data block is disordered, sort it in ascending order
 void sortRemoveDuplicates(STableDataBlocks *dataBuf) {
-  SShellSubmitBlock *pBlocks = (SShellSubmitBlock *)dataBuf->pData;
+  SSubmitBlk *pBlocks = (SSubmitBlk *)dataBuf->pData;
 
   // size is less than the total size, since duplicated rows may be removed yet.
-  assert(pBlocks->numOfRows * dataBuf->rowSize + sizeof(SShellSubmitBlock) == dataBuf->size);
+  assert(pBlocks->numOfRows * dataBuf->rowSize + sizeof(SSubmitBlk) == dataBuf->size);
 
   // if use server time, this block must be ordered
   if (dataBuf->tsSource == TSDB_USE_SERVER_TS) {
@@ -624,7 +626,7 @@ void sortRemoveDuplicates(STableDataBlocks *dataBuf) {
   }
 
   if (!dataBuf->ordered) {
-    char *pBlockData = pBlocks->payLoad;
+    char *pBlockData = pBlocks->data;
     qsort(pBlockData, pBlocks->numOfRows, dataBuf->rowSize, rowDataCompar);
 
     int32_t i = 0;
@@ -650,7 +652,7 @@ void sortRemoveDuplicates(STableDataBlocks *dataBuf) {
     dataBuf->ordered = true;
 
     pBlocks->numOfRows = i + 1;
-    dataBuf->size = sizeof(SShellSubmitBlock) + dataBuf->rowSize * pBlocks->numOfRows;
+    dataBuf->size = sizeof(SSubmitBlk) + dataBuf->rowSize * pBlocks->numOfRows;
   }
 }
 
@@ -663,7 +665,7 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
   
   STableDataBlocks *dataBuf = NULL;
   int32_t ret = tscGetDataBlockFromList(pTableHashList, pCmd->pDataBlocks, pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
-                                        sizeof(SShellSubmitBlock), tinfo.rowSize, pTableMetaInfo->name,
+                                        sizeof(SSubmitBlk), tinfo.rowSize, pTableMetaInfo->name,
                                         pTableMeta, &dataBuf);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
@@ -691,11 +693,11 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableHashList, char 
     SParamInfo *param = dataBuf->params + i;
     if (param->idx == -1) {
       param->idx = pCmd->numOfParams++;
-      param->offset -= sizeof(SShellSubmitBlock);
+      param->offset -= sizeof(SSubmitBlk);
     }
   }
 
-  SShellSubmitBlock *pBlocks = (SShellSubmitBlock *)(dataBuf->pData);
+  SSubmitBlk *pBlocks = (SSubmitBlk *)(dataBuf->pData);
   tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
 
   dataBuf->vgId = pTableMeta->vgId;
@@ -1141,7 +1143,7 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
       STableDataBlocks *pDataBlock = NULL;
       STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
       
-      int32_t ret = tscCreateDataBlock(PATH_MAX, tinfo.rowSize, sizeof(SShellSubmitBlock), pTableMetaInfo->name,
+      int32_t ret = tscCreateDataBlock(PATH_MAX, tinfo.rowSize, sizeof(SSubmitBlk), pTableMetaInfo->name,
                                        pTableMeta, &pDataBlock);
       if (ret != TSDB_CODE_SUCCESS) {
         goto _error_clean;
@@ -1236,22 +1238,10 @@ int doParseInsertSql(SSqlObj *pSql, char *str) {
     goto _clean;
   }
 
-  // submit to more than one vnode
-  if (pCmd->pDataBlocks->nSize > 0) {
-    // merge according to vgId
+  if (pCmd->pDataBlocks->nSize > 0) { // merge according to vgId
     if ((code = tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks)) != TSDB_CODE_SUCCESS) {
       goto _error_clean;
     }
-
-    STableDataBlocks *pDataBlock = pCmd->pDataBlocks->pData[0];
-    if ((code = tscCopyDataBlockToPayload(pSql, pDataBlock)) != TSDB_CODE_SUCCESS) {
-      goto _error_clean;
-    }
-
-    pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
-
-    // set the next sent data vnode index in data block arraylist
-    pTableMetaInfo->vnodeIndex = 1;
   } else {
     pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   }
@@ -1303,12 +1293,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
 int tsParseSql(SSqlObj *pSql, bool multiVnodeInsertion) {
   int32_t ret = TSDB_CODE_SUCCESS;
-
-  if (NULL == pSql->asyncTblPos) {
-    tscCleanSqlCmd(&pSql->cmd);
-  } else {
-    tscTrace("continue parse sql: %s", pSql->asyncTblPos);
-  }
+  tscTrace("continue parse sql: %s", pSql->asyncTblPos);
   
   if (tscIsInsertOrImportData(pSql->sqlstr)) {
     /*
@@ -1353,7 +1338,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
   assert(pCmd->numOfClause == 1);
   STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
 
-  SShellSubmitBlock *pBlocks = (SShellSubmitBlock *)(pTableDataBlocks->pData);
+  SSubmitBlk *pBlocks = (SSubmitBlk *)(pTableDataBlocks->pData);
   tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
 
   if ((code = tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks)) != TSDB_CODE_SUCCESS) {
@@ -1394,7 +1379,7 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
 
   pCmd->pDataBlocks = tscCreateBlockArrayList();
   STableDataBlocks *pTableDataBlock = NULL;
-  int32_t           ret = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, rowSize, sizeof(SShellSubmitBlock),
+  int32_t           ret = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, rowSize, sizeof(SSubmitBlk),
                                    pTableMetaInfo->name, pTableMeta, &pTableDataBlock);
   if (ret != TSDB_CODE_SUCCESS) {
     return -1;
@@ -1435,7 +1420,7 @@ static int tscInsertDataFromFile(SSqlObj *pSql, FILE *fp, char *tmpTokenBuf) {
       }
 
       pTableDataBlock = pCmd->pDataBlocks->pData[0];
-      pTableDataBlock->size = sizeof(SShellSubmitBlock);
+      pTableDataBlock->size = sizeof(SSubmitBlk);
       pTableDataBlock->rowSize = tinfo.rowSize;
 
       numOfRows += pSql->res.numOfRows;

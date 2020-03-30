@@ -24,9 +24,11 @@ extern "C" {
 int32_t mgmtInitProfile();
 void    mgmtCleanUpProfile();
 
-bool mgmtCheckQhandle(uint64_t qhandle);
-void mgmtSaveQhandle(void *qhandle);
-void mgmtFreeQhandle(void *qhandle);
+bool    mgmtCheckQhandle(uint64_t qhandle);
+void    mgmtSaveQhandle(void *qhandle);
+void    mgmtFreeQhandle(void *qhandle);
+
+void    mgmtFreeQueuedMsg(SQueuedMsg *pMsg);
 
 #ifdef __cplusplus
 }

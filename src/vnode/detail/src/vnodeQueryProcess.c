@@ -105,7 +105,7 @@ static void queryOnMultiDataCache(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo
     int32_t start = pSupporter->pSidSet->starterPos[groupIdx];
     int32_t end = pSupporter->pSidSet->starterPos[groupIdx + 1] - 1;
 
-    if (isQueryKilled(pQuery)) {
+    if (isQueryKilled(pQInfo)) {
       return;
     }
 
@@ -276,7 +276,7 @@ static void queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo
   int64_t st = taosGetTimestampUs();
 
   while (1) {
-    if (isQueryKilled(pQuery)) {
+    if (isQueryKilled(pQInfo)) {
       break;
     }
 
@@ -363,7 +363,7 @@ static void queryOnMultiDataFiles(SQInfo *pQInfo, SMeterDataInfo *pMeterDataInfo
     int32_t j = QUERY_IS_ASC_QUERY(pQuery) ? 0 : numOfBlocks - 1;
 
     for (; j < numOfBlocks && j >= 0; j += step) {
-      if (isQueryKilled(pQuery)) {
+      if (isQueryKilled(pQInfo)) {
         break;
       }
 
@@ -603,7 +603,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
         pSupporter->meterIdx = start;
 
         for (int32_t k = start; k <= end; ++k, pSupporter->meterIdx++) {
-          if (isQueryKilled(pQuery)) {
+          if (isQueryKilled(pQInfo)) {
             setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
             return;
           }
@@ -630,7 +630,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
                pSupporter->subgroupIdx);
 
         for (int32_t k = start; k <= end; ++k) {
-          if (isQueryKilled(pQuery)) {
+          if (isQueryKilled(pQInfo)) {
             setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
             return;
           }
@@ -681,7 +681,7 @@ static void vnodeSTableSeqProcessor(SQInfo *pQInfo) {
     while (pSupporter->meterIdx < pSupporter->numOfMeters) {
       int32_t k = pSupporter->meterIdx;
 
-      if (isQueryKilled(pQuery)) {
+      if (isQueryKilled(pQInfo)) {
         setQueryStatus(pQuery, QUERY_NO_DATA_TO_CHECK);
         return;
       }
@@ -958,7 +958,7 @@ static void vnodeMultiMeterQueryProcessor(SQInfo *pQInfo) {
 
   doMultiMeterSupplementaryScan(pQInfo);
 
-  if (isQueryKilled(pQuery)) {
+  if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p query killed, abort", pQInfo);
     return;
   }
@@ -998,7 +998,7 @@ static void vnodeSingleTableFixedOutputProcessor(SQInfo *pQInfo) {
   vnodeScanAllData(pRuntimeEnv);
   doFinalizeResult(pRuntimeEnv);
 
-  if (isQueryKilled(pQuery)) {
+  if (isQueryKilled(pQInfo)) {
     return;
   }
 
@@ -1033,7 +1033,7 @@ static void vnodeSingleTableMultiOutputProcessor(SQInfo *pQInfo) {
     vnodeScanAllData(pRuntimeEnv);
     doFinalizeResult(pRuntimeEnv);
 
-    if (isQueryKilled(pQuery)) {
+    if (isQueryKilled(pQInfo)) {
       return;
     }
 
@@ -1087,7 +1087,7 @@ static void vnodeSingleMeterIntervalMainLooper(STableQuerySupportObj *pSupporter
     initCtxOutputBuf(pRuntimeEnv);
     vnodeScanAllData(pRuntimeEnv);
     
-    if (isQueryKilled(pQuery)) {
+    if (isQueryKilled(pQInfo)) {
       return;
     }
 
@@ -1301,7 +1301,7 @@ void vnodeSingleTableQuery(SSchedMsg *pMsg) {
   pQInfo->useconds += (taosGetTimestampUs() - st);
 
   /* check if query is killed or not */
-  if (isQueryKilled(pQuery)) {
+  if (isQueryKilled(pQInfo)) {
     dTrace("QInfo:%p query is killed", pQInfo);
     pQInfo->over = 1;
   } else {
@@ -1345,7 +1345,7 @@ void vnodeMultiMeterQuery(SSchedMsg *pMsg) {
 
   /* record the total elapsed time */
   pQInfo->useconds += (taosGetTimestampUs() - st);
-  pQInfo->over = isQueryKilled(pQuery) ? 1 : 0;
+  pQInfo->over = isQueryKilled(pQInfo) ? 1 : 0;
 
   taosInterpoSetStartInfo(&pQInfo->pTableQuerySupporter->runtimeEnv.interpoInfo, pQuery->pointsRead,
                           pQInfo->query.interpoType);

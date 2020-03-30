@@ -46,7 +46,8 @@ int main(int argc, char *argv[]) {
   }
   printf("success to connect to server\n");
 
-  int32_t code = taos_query(taos, "select * from test.t1");
+//  int32_t code = taos_query(taos, "insert into test.tm2 values(now, 1)(now+1m,2)(now+2m,3) (now+3m, 4) (now+4m, 5);");
+  int32_t code = taos_query(taos, "insert into test.tm2 values(now, 99)");
   if (code != 0) {
     printf("failed to execute query, reason:%s\n", taos_errstr(taos));
   }
@@ -64,6 +65,9 @@ int main(int argc, char *argv[]) {
     memset(buf, 0, 512);
   }
   
+  taos_close(taos);
+  
+  getchar();
   return 0;
   
   taos_query(taos, "drop database demo");

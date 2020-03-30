@@ -45,7 +45,7 @@ int32_t mgmtInitDServer() {
   rpcInit.label        = "MND-DS";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = mgmtProcessMsgFromDnode;
-  rpcInit.sessions     = tsMaxDnodes * 5;
+  rpcInit.sessions     = 100;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
   rpcInit.afp          = mgmtDServerRetrieveAuth;

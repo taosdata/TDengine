@@ -176,7 +176,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 #define TSDB_MAX_COLUMNS          256
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
-#define TSDB_DNODE_NAME_LEN       63
+#define TSDB_DNODE_NAME_LEN       64
 #define TSDB_TABLE_NAME_LEN       192
 #define TSDB_DB_NAME_LEN          32
 #define TSDB_COL_NAME_LEN         64
@@ -308,6 +308,16 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size);
 
 #define TSDB_SESSIONS_PER_VNODE (300)
 #define TSDB_SESSIONS_PER_DNODE (TSDB_SESSIONS_PER_VNODE * TSDB_MAX_VNODES)
+
+#define TSDB_MAX_MNODES        5
+#define TSDB_MAX_DNODES        10
+#define TSDB_MAX_ACCOUNTS      10
+#define TSDB_MAX_USERS         20
+#define TSDB_MAX_DBS           100
+#define TSDB_MAX_VGROUPS       1000
+#define TSDB_MAX_SUPER_TABLES  100
+#define TSDB_MAX_NORMAL_TABLES 1000
+#define TSDB_MAX_CHILD_TABLES  100000
 
 enum {
   TSDB_PRECISION_MILLI,

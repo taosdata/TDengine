@@ -59,6 +59,8 @@ tsdb_repo_t *  tsdbOpenRepo(char *tsdbDir);
 int32_t        tsdbCloseRepo(tsdb_repo_t *repo);
 int32_t        tsdbConfigRepo(tsdb_repo_t *repo, STsdbCfg *pCfg);
 int32_t        tsdbTriggerCommit(tsdb_repo_t *repo);
+int32_t        tsdbLockRepo(tsdb_repo_t *repo);
+int32_t        tsdbUnLockRepo(tsdb_repo_t *repo);
 
 // --------- TSDB TABLE DEFINITION
 typedef struct {
@@ -88,15 +90,6 @@ int tsdbCreateTable(tsdb_repo_t *repo, STableCfg *pCfg);
 int tsdbDropTable(tsdb_repo_t *pRepo, STableId tableId);
 int tsdbAlterTable(tsdb_repo_t *repo, STableCfg *pCfg);
 
-// Submit message for one table
-typedef struct {
-  STableId tableId;
-  int32_t  padding;    // TODO just for padding here
-  int32_t  sversion;   // data schema version
-  int32_t  len;        // data part length, not including the SSubmitBlk head
-  char     data[];
-} SSubmitBlk;
-
 typedef struct {
   int32_t  totalLen;
   int32_t  len;
@@ -106,14 +99,9 @@ typedef struct {
 int      tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
 SDataRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
 
-// Submit message for this TSDB
-typedef struct {
-  int32_t    length;
-  int32_t    compressed;
-  SSubmitBlk blocks[];
-} SSubmitMsg;
-
 #define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
+
+struct STsdbRepo;
 
 // SSubmitMsg Iterator
 typedef struct {
@@ -219,11 +207,6 @@ typedef struct SDataBlockInfo {
   int32_t     sid;
 } SDataBlockInfo;
 
-typedef struct STableIDList {
-  STableId *tableIds;
-  int32_t   num;
-} STableIDList;
-
 typedef struct {
 } SFields;
 
@@ -243,7 +226,7 @@ typedef void *tsdbpos_t;
  * @param pTableList    table sid list
  * @return
  */
-tsdb_query_handle_t *tsdbQueryByTableId(STsdbQueryCond *pCond, SArray *idList, SArray *pColumnInfo);
+tsdb_query_handle_t *tsdbQueryByTableId(tsdb_repo_t* tsdb, STsdbQueryCond *pCond, SArray *idList, SArray *pColumnInfo);
 
 /**
  * move to next block
@@ -337,15 +320,15 @@ tsdb_query_handle_t *tsdbQueryFromTagConds(STsdbQueryCond *pCond, int16_t stable
  * @param pQueryHandle
  * @return table sid list. the invoker is responsible for the release of this the sid list.
  */
-STableIDList *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
+SArray *tsdbGetTableList(tsdb_query_handle_t *pQueryHandle);
 
 /**
- * Get the qualified table sid for a super table according to the tag query expression.
+ * Get the qualified table id for a super table according to the tag query expression.
  * @param stableid. super table sid
  * @param pTagCond. tag query condition
  *
  */
-STableIDList *tsdbQueryTableList(int16_t stableId, const char *pTagCond);
+SArray *tsdbQueryTableList(struct STsdbRepo* tsdb, int64_t uid, const wchar_t *pTagCond, size_t len);
 
 #ifdef __cplusplus
 }

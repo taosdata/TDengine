@@ -178,11 +178,11 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0, 0);
   int numOfTables = 0;
   if (!UTIL_TABLE_IS_NOMRAL_TABLE(pTableMetaInfo)) {
-    SSuperTableMeta* pMetricMeta = pTableMetaInfo->pMetricMeta;
-    for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
-      SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
-      numOfTables += pVnodeSidList->numOfSids;
-    }
+//    SSuperTableMeta* pMetricMeta = pTableMetaInfo->pMetricMeta;
+//    for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
+//      SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
+//      numOfTables += pVnodeSidList->numOfSids;
+//    }
   }
 
   SSubscriptionProgress* progress = (SSubscriptionProgress*)calloc(numOfTables, sizeof(SSubscriptionProgress));
@@ -197,17 +197,17 @@ int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
     progress[0].uid = uid;
     progress[0].key = tscGetSubscriptionProgress(pSub, uid);
   } else {
-    SSuperTableMeta* pMetricMeta = pTableMetaInfo->pMetricMeta;
-    numOfTables = 0;
-    for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
-      SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
-      for (int32_t j = 0; j < pVnodeSidList->numOfSids; j++) {
-        STableIdInfo *pTableMetaInfo = tscGetMeterSidInfo(pVnodeSidList, j);
-        int64_t uid = pTableMetaInfo->uid;
-        progress[numOfTables].uid = uid;
-        progress[numOfTables++].key = tscGetSubscriptionProgress(pSub, uid);
-      }
-    }
+//    SSuperTableMeta* pMetricMeta = pTableMetaInfo->pMetricMeta;
+//    numOfTables = 0;
+//    for (int32_t i = 0; i < pMetricMeta->numOfVnodes; i++) {
+//      SVnodeSidList *pVnodeSidList = tscGetVnodeSidList(pMetricMeta, i);
+//      for (int32_t j = 0; j < pVnodeSidList->numOfSids; j++) {
+//        STableIdInfo *pTableMetaInfo = tscGetMeterSidInfo(pVnodeSidList, j);
+//        int64_t uid = pTableMetaInfo->uid;
+//        progress[numOfTables].uid = uid;
+//        progress[numOfTables++].key = tscGetSubscriptionProgress(pSub, uid);
+//      }
+//    }
     qsort(progress, numOfTables, sizeof(SSubscriptionProgress), tscCompareSubscriptionProgress);
   }
 

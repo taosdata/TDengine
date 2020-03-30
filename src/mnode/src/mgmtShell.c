@@ -30,8 +30,8 @@
 #include "mgmtDnode.h"
 #include "mgmtGrant.h"
 #include "mgmtMnode.h"
-#include "mgmtNormalTable.h"
 #include "mgmtProfile.h"
+#include "mgmtSdb.h"
 #include "mgmtShell.h"
 #include "mgmtSuperTable.h"
 #include "mgmtTable.h"
@@ -63,7 +63,7 @@ int32_t mgmtInitShell() {
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_HEARTBEAT, mgmtProcessHeartBeatMsg);
   mgmtAddShellMsgHandle(TSDB_MSG_TYPE_CM_CONNECT, mgmtProcessConnectMsg);
 
-  tsMgmtTranQhandle = taosInitScheduler(tsMaxDnodes + tsMaxShellConns, 1, "mnodeT");
+  tsMgmtTranQhandle = taosInitScheduler(tsMaxShellConns, 1, "mnodeT");
 
   int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore / 4.0;
   if (numOfThreads < 1) {
@@ -131,9 +131,14 @@ void mgmtAddToShellQueue(SQueuedMsg *queuedMsg) {
 }
 
 static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
-  if (sdbGetRunStatus() != SDB_STATUS_SERVING) {
+  if (!mgmtInServerStatus()) {
     mgmtProcessMsgWhileNotReady(rpcMsg);
     rpcFreeCont(rpcMsg->pCont);
+    return;
+  }
+
+  if (mgmtCheckExpired()) {
+    mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_GRANT_EXPIRED);
     return;
   }
 
@@ -143,7 +148,8 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     return;
   }
 
-  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle);
+  bool usePublicIp = false;
+  SUserObj *pUser = mgmtGetUserFromConn(rpcMsg->handle, &usePublicIp);
   if (pUser == NULL) {
     mgmtSendSimpleResp(rpcMsg->handle, TSDB_CODE_INVALID_USER);
     rpcFreeCont(rpcMsg->pCont);
@@ -157,6 +163,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     queuedMsg.contLen = rpcMsg->contLen;
     queuedMsg.pCont   = rpcMsg->pCont;
     queuedMsg.pUser   = pUser;
+    queuedMsg.usePublicIp = usePublicIp;
     (*tsMgmtProcessShellMsgFp[rpcMsg->msgType])(&queuedMsg);
     rpcFreeCont(rpcMsg->pCont);
   } else {
@@ -166,6 +173,7 @@ static void mgmtProcessMsgFromShell(SRpcMsg *rpcMsg) {
     queuedMsg->contLen = rpcMsg->contLen;
     queuedMsg->pCont   = rpcMsg->pCont;
     queuedMsg->pUser   = pUser;
+    queuedMsg->usePublicIp = usePublicIp;
     mgmtAddToShellQueue(queuedMsg);
   }
 }
@@ -309,20 +317,10 @@ static void mgmtProcessHeartBeatMsg(SQueuedMsg *pMsg) {
     return;
   }
 
-  pHBRsp->ipList.inUse = 0;
-  pHBRsp->ipList.port = htons(tsMnodeShellPort);
-  pHBRsp->ipList.numOfIps = 0;
-  if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
-    pHBRsp->ipList.numOfIps = htons(pSdbPublicIpList->numOfIps);
-    if (connInfo.serverIp == tsPublicIpInt) {
-      for (int i = 0; i < pSdbPublicIpList->numOfIps; ++i) {
-        pHBRsp->ipList.ip[i] = htonl(pSdbPublicIpList->ip[i]);
-      }
-    } else {
-      for (int i = 0; i < pSdbIpList->numOfIps; ++i) {
-        pHBRsp->ipList.ip[i] = htonl(pSdbIpList->ip[i]);
-      }
-    }
+  if (connInfo.serverIp == tsPublicIpInt) {
+    mgmtGetMnodePublicIpList(&pHBRsp->ipList);
+  } else {
+    mgmtGetMnodePrivateIpList(&pHBRsp->ipList);
   }
 
   /*
@@ -411,20 +409,11 @@ static void mgmtProcessConnectMsg(SQueuedMsg *pMsg) {
   strcpy(pConnectRsp->serverVersion, version);
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
-  pConnectRsp->ipList.inUse = 0;
-  pConnectRsp->ipList.port = htons(tsMnodeShellPort);
-  pConnectRsp->ipList.numOfIps = 0;
-  if (pSdbPublicIpList != NULL && pSdbIpList != NULL) {
-    pConnectRsp->ipList.numOfIps = htons(pSdbPublicIpList->numOfIps);
-    if (connInfo.serverIp == tsPublicIpInt) {
-      for (int i = 0; i < pSdbPublicIpList->numOfIps; ++i) {
-        pConnectRsp->ipList.ip[i] = htonl(pSdbPublicIpList->ip[i]);
-      }
-    } else {
-      for (int i = 0; i < pSdbIpList->numOfIps; ++i) {
-        pConnectRsp->ipList.ip[i] = htonl(pSdbIpList->ip[i]);
-      }
-    }
+
+  if (connInfo.serverIp == tsPublicIpInt) {
+    mgmtGetMnodePublicIpList(&pConnectRsp->ipList);
+  } else {
+    mgmtGetMnodePrivateIpList(&pConnectRsp->ipList);
   }
 
 connect_over:
@@ -458,7 +447,7 @@ static bool mgmtCheckMeterMetaMsgType(void *pMsg) {
 
 static bool mgmtCheckMsgReadOnly(int8_t type, void *pCont) {
   if ((type == TSDB_MSG_TYPE_CM_TABLE_META && (!mgmtCheckMeterMetaMsgType(pCont)))  ||
-       type == TSDB_MSG_TYPE_CM_STABLE_META || type == TSDB_MSG_TYPE_RETRIEVE ||
+       type == TSDB_MSG_TYPE_CM_STABLE_VGROUP || type == TSDB_MSG_TYPE_RETRIEVE ||
        type == TSDB_MSG_TYPE_CM_SHOW || type == TSDB_MSG_TYPE_CM_TABLES_META      ||
        type == TSDB_MSG_TYPE_CM_CONNECT) {
     return true;

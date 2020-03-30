@@ -325,12 +325,12 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
 
   for (int32_t i = 0; i < pCmd->pDataBlocks->nSize; ++i) {
     STableDataBlocks* pBlock = pCmd->pDataBlocks->pData[i];
-    uint32_t          totalDataSize = pBlock->size - sizeof(SShellSubmitBlock);
+    uint32_t          totalDataSize = pBlock->size - sizeof(SSubmitBlk);
     uint32_t          dataSize = totalDataSize / alloced;
     assert(dataSize * alloced == totalDataSize);
 
     if (alloced == binded) {
-      totalDataSize += dataSize + sizeof(SShellSubmitBlock);
+      totalDataSize += dataSize + sizeof(SSubmitBlk);
       if (totalDataSize > pBlock->nAllocSize) {
         const double factor = 1.5;
         void* tmp = realloc(pBlock->pData, (uint32_t)(totalDataSize * factor));
@@ -342,7 +342,7 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
       }
     }
 
-    char* data = pBlock->pData + sizeof(SShellSubmitBlock) + dataSize * binded;
+    char* data = pBlock->pData + sizeof(SSubmitBlk) + dataSize * binded;
     for (uint32_t j = 0; j < pBlock->numOfParams; ++j) {
       SParamInfo* param = pBlock->params + j;
       int code = doBindParam(data, param, bind + param->idx);
@@ -365,10 +365,10 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
   for (int32_t i = 0; i < pCmd->pDataBlocks->nSize; ++i) {
     STableDataBlocks* pBlock = pCmd->pDataBlocks->pData[i];
 
-    uint32_t totalDataSize = pBlock->size - sizeof(SShellSubmitBlock);
+    uint32_t totalDataSize = pBlock->size - sizeof(SSubmitBlk);
     pBlock->size += totalDataSize / alloced;
 
-    SShellSubmitBlock* pSubmit = (SShellSubmitBlock*)pBlock->pData;
+    SSubmitBlk* pSubmit = (SSubmitBlk*)pBlock->pData;
     pSubmit->numOfRows += pSubmit->numOfRows / alloced;
   }
 
@@ -398,10 +398,10 @@ static int insertStmtReset(STscStmt* pStmt) {
     for (int32_t i = 0; i < pCmd->pDataBlocks->nSize; ++i) {
       STableDataBlocks* pBlock = pCmd->pDataBlocks->pData[i];
 
-      uint32_t totalDataSize = pBlock->size - sizeof(SShellSubmitBlock);
-      pBlock->size = sizeof(SShellSubmitBlock) + totalDataSize / alloced;
+      uint32_t totalDataSize = pBlock->size - sizeof(SSubmitBlk);
+      pBlock->size = sizeof(SSubmitBlk) + totalDataSize / alloced;
 
-      SShellSubmitBlock* pSubmit = (SShellSubmitBlock*)pBlock->pData;
+      SSubmitBlk* pSubmit = (SSubmitBlk*)pBlock->pData;
       pSubmit->numOfRows = pSubmit->numOfRows / alloced;
     }
   }

@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include <tskiplist.h>
 #include "os.h"
 
 #include "taosmsg.h"
@@ -93,8 +94,7 @@ void tSQLBinaryExprToString(tSQLBinaryExpr *pExpr, char *dst, int32_t *len);
 
 void tSQLBinaryExprDestroy(tSQLBinaryExpr **pExprs, void (*fp)(void*));
 
-void tSQLBinaryExprTraverse(tSQLBinaryExpr *pExprs, struct tSkipList *pSkipList, tQueryResultset *result,
-                            SBinaryFilterSupp *param);
+void tSQLBinaryExprTraverse(tSQLBinaryExpr *pExpr, SSkipList *pSkipList, SArray *result, SBinaryFilterSupp *param);
 
 void tSQLBinaryExprCalcTraverse(tSQLBinaryExpr *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                                 char *(*cb)(void *, char *, int32_t));
