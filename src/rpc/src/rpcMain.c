@@ -829,18 +829,19 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         pRecv->msgLen, pHead->sourceId, pHead->destId, pHead->tranId, pHead->port);
   }
 
-  if (terrno != TSDB_CODE_ALREADY_PROCESSED) {
-    if (terrno != 0) { // parsing error
+  int32_t code = terrno;
+  if (code != TSDB_CODE_ALREADY_PROCESSED) {
+    if (code != 0) { // parsing error
       if ( rpcIsReq(pHead->msgType) ) {
-        rpcSendErrorMsgToPeer(pRecv, terrno);
-        tTrace("%s %p, %s is sent with error code:%x", pRpc->label, pConn, taosMsg[pHead->msgType+1], terrno);
+        rpcSendErrorMsgToPeer(pRecv, code);
+        tTrace("%s %p, %s is sent with error code:%x", pRpc->label, pConn, taosMsg[pHead->msgType+1], code);
       } 
     } else { // parsing OK
       rpcProcessIncomingMsg(pConn, pHead);
     }
   }
 
-  if (terrno) rpcFreeMsg(pRecv->msg);
+  if (code) rpcFreeMsg(pRecv->msg);
   return pConn;
 }
 
