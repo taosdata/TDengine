@@ -719,7 +719,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   if (pTable->mem == NULL) {
     pTable->mem = (SMemTable *)calloc(1, sizeof(SMemTable));
     if (pTable->mem == NULL) return -1;
-    pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
+    pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, 0, getTupleKey);
     pTable->mem->keyFirst = INT64_MAX;
     pTable->mem->keyLast = 0;
   }
@@ -742,7 +742,7 @@ static int32_t tdInsertRowToTable(STsdbRepo *pRepo, SDataRow row, STable *pTable
   if (pTable->mem == NULL) {
     pTable->mem = (SMemTable *)calloc(1, sizeof(SMemTable));
     if (pTable->mem == NULL) return -1;
-    pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, getTupleKey);
+    pTable->mem->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], 0, 0, 0, getTupleKey);
     pTable->mem->keyFirst = INT64_MAX;
     pTable->mem->keyLast = 0;
   }
@@ -1162,7 +1162,7 @@ static int compareKeyBlock(const void *arg1, const void *arg2) {
   return 0;
 }
 
-static int tsdbWriteBlockToFile(STsdbRepo *pRepo, SFileGroup *pGroup, SCompIdx *pIdx, SCompInfo *pCompInfo, SDataCols *pCols, SCompBlock *pCompBlock, SFile *lFile, int64_t uid) {
+int tsdbWriteBlockToFile(STsdbRepo *pRepo, SFileGroup *pGroup, SCompIdx *pIdx, SCompInfo *pCompInfo, SDataCols *pCols, SCompBlock *pCompBlock, SFile *lFile, int64_t uid) {
   STsdbCfg * pCfg = &(pRepo->config);
   SCompData *pCompData = NULL;
   SFile *    pFile = NULL;
