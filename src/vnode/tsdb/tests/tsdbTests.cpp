@@ -49,6 +49,7 @@ TEST(TsdbTest, DISABLED_tableEncodeDecode) {
   ASSERT_EQ(memcmp(pTable->schema, tTable->schema, sizeof(STSchema) + sizeof(STColumn) * nCols), 0);
 }
 
+// TEST(TsdbTest, DISABLED_createRepo) {
 TEST(TsdbTest, createRepo) {
   STsdbCfg config;
 
@@ -87,6 +88,7 @@ TEST(TsdbTest, createRepo) {
   double stime = getCurTime();
 
   for (int k = 0; k < nRows/rowsPerSubmit; k++) {
+    memset((void *)pMsg, 0, sizeof(SSubmitMsg));
     SSubmitBlk *pBlock = pMsg->blocks;
     pBlock->uid = 987607499877672L;
     pBlock->tid = 0;
@@ -108,6 +110,9 @@ TEST(TsdbTest, createRepo) {
       }
       pBlock->len += dataRowLen(row);
     }
+    pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
+    pMsg->numOfBlocks = 1;
+
     pBlock->len = htonl(pBlock->len);
     pBlock->numOfRows = htonl(pBlock->numOfRows);
     pBlock->uid = htobe64(pBlock->uid);
@@ -116,7 +121,6 @@ TEST(TsdbTest, createRepo) {
     pBlock->sversion = htonl(pBlock->sversion);
     pBlock->padding = htonl(pBlock->padding);
 
-    pMsg->length = pMsg->length + sizeof(SSubmitBlk) + pBlock->len;
     pMsg->length = htonl(pMsg->length);
     pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
     pMsg->compressed = htonl(pMsg->numOfBlocks);
@@ -126,15 +130,17 @@ TEST(TsdbTest, createRepo) {
 
   double etime = getCurTime();
 
+  void *ptr = malloc(150000);
+  free(ptr);
+
   printf("Spent %f seconds to write %d records\n", etime - stime, nRows);
 
-
-
-  // tsdbTriggerCommit(pRepo);
+  tsdbCloseRepo(pRepo);
 
 }
 
-TEST(TsdbTest, DISABLED_openRepo) {
+// TEST(TsdbTest, DISABLED_openRepo) {
+TEST(TsdbTest, openRepo) {
   tsdb_repo_t *pRepo = tsdbOpenRepo("/home/ubuntu/work/ttest/vnode0");
   ASSERT_NE(pRepo, nullptr);
 }

@@ -237,6 +237,7 @@ int32_t tsdbDropRepo(tsdb_repo_t *repo) {
  * @return a TSDB repository handle on success, NULL for failure and the error number is set
  */
 tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
+  char dataDir[128] = "\0";
   if (access(tsdbDir, F_OK | W_OK | R_OK) < 0) {
     return NULL;
   }
@@ -265,6 +266,16 @@ tsdb_repo_t *tsdbOpenRepo(char *tsdbDir) {
     return NULL;
   }
 
+  tsdbGetDataDirName(pRepo, dataDir);
+  pRepo->tsdbFileH = tsdbInitFileH(dataDir, pRepo->config.maxTables);
+  if (pRepo->tsdbFileH == NULL) {
+    tsdbFreeCache(pRepo->tsdbCache);
+    tsdbFreeMeta(pRepo->tsdbMeta);
+    free(pRepo->rootDir);
+    free(pRepo);
+    return NULL;
+  }
+
   pRepo->state = TSDB_REPO_STATE_ACTIVE;
 
   return (tsdb_repo_t *)pRepo;
@@ -287,8 +298,29 @@ int32_t tsdbCloseRepo(tsdb_repo_t *repo) {
   if (pRepo == NULL) return 0;
 
   pRepo->state = TSDB_REPO_STATE_CLOSED;
+  tsdbLockRepo(repo);
+  if (pRepo->commit) {
+    tsdbUnLockRepo(repo);
+    return -1;
+  }
+  pRepo->commit = 1;
+  // Loop to move pData to iData
+  for (int i = 0; i < pRepo->config.maxTables; i++) {
+    STable *pTable = pRepo->tsdbMeta->tables[i];
+    if (pTable != NULL && pTable->mem != NULL) {
+      pTable->imem = pTable->mem;
+      pTable->mem = NULL;
+    }
+  }
+  // TODO: Loop to move mem to imem
+  pRepo->tsdbCache->imem = pRepo->tsdbCache->mem;
+  pRepo->tsdbCache->mem = NULL;
+  pRepo->tsdbCache->curBlock = NULL;
+  tsdbUnLockRepo(repo);
 
-  tsdbFlushCache(pRepo);
+  tsdbCommitData((void *)repo);
+
+  tsdbCloseFileH(pRepo->tsdbFileH);
 
   tsdbFreeMeta(pRepo->tsdbMeta);
 
