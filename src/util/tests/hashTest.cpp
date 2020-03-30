@@ -151,6 +151,6 @@ int main(int argc, char** argv) {
 TEST(testCase, hashTest) {
   simpleTest();
   stringKeyTest();
-  noLockPerformanceTest();
+//  noLockPerformanceTest();
   multithreadsTest();
 }

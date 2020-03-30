@@ -102,7 +102,7 @@ int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   
   if (pTable->type == TSDB_SUPER_TABLE) {
     pTable->pIndex =
-        tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1, 0, getTupleKey);
+        tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1, 0, 0, getTupleKey);
   } 
 
   tsdbAddTableToMeta(pMeta, pTable, false);
@@ -207,7 +207,7 @@ int32_t tsdbCreateTableImpl(STsdbMeta *pMeta, STableCfg *pCfg) {
       super->tagSchema = tdDupSchema(pCfg->tagSchema);
       super->tagVal = tdDataRowDup(pCfg->tagValues);
       super->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1,
-                                                0, getTupleKey);  // Allow duplicate key, no lock
+                                                0, 0, getTupleKey);  // Allow duplicate key, no lock
 
       if (super->pIndex == NULL) {
         tdFreeSchema(super->schema);

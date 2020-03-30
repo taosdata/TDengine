@@ -362,7 +362,7 @@ static int32_t getFileCompInfo(STableCheckInfo* pCheckInfo, SFileGroup* fileGrou
   SCompIdx* compIndex = &pCheckInfo->compIndex[pCheckInfo->tableId.tid];
   
   if (compIndex->len == 0 || compIndex->numOfSuperBlocks == 0) {  // no data block in this file, try next file
-    
+  
   } else {
     tsdbLoadCompBlocks(fileGroup, compIndex, pCheckInfo->pBlock);
   }
@@ -425,7 +425,7 @@ bool moveToNextBlock(STsdbQueryHandle *pQueryHandle, int32_t step) {
       // temporarily keep the position value, in case of no data qualified when move forwards(backwards)
       SQueryFilePos save = pQueryHandle->cur;
       
-//      fileIndex = getNextDataFileCompInfo_(pQueryHandle, &pQueryHandle->cur, &pQueryHandle->vnodeFileInfo, step);
+//      fileIndex = getNextDataFileCompInfo(pQueryHandle, &pQueryHandle->cur, &pQueryHandle->vnodeFileInfo, step);
       
       // first data block in the next file
       if (fileIndex >= 0) {
@@ -441,7 +441,7 @@ bool moveToNextBlock(STsdbQueryHandle *pQueryHandle, int32_t step) {
 //          if (nextTimestamp < 0) {
 //            pQueryHandle->cur = save;
 //          }
-          
+//
 //          return (nextTimestamp > 0);
         }
         
@@ -460,10 +460,9 @@ bool moveToNextBlock(STsdbQueryHandle *pQueryHandle, int32_t step) {
     cur->pos = (step == QUERY_ASC_FORWARD_STEP) ? 0 : pBlock->numOfPoints - 1;
 //    return loadQaulifiedData(pQueryHandle);
   } else {  // data in cache
-//    todo continue;
+    return hasMoreDataInCacheForSingleModel(pQueryHandle);
   }
 }
-
 
 int vnodeBinarySearchKey(char *pValue, int num, TSKEY key, int order) {
   int    firstPos, lastPos, midPos = -1;
@@ -579,8 +578,6 @@ static void filterDataInDataBlock(STsdbQueryHandle *pQueryHandle, SArray *sa) {
     }
   }
   
-  
-  
   assert(pQueryHandle->realNumOfRows <= blockInfo.size);
   
   // forward(backward) the position for cursor
@@ -592,7 +589,9 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
   int32_t fid = getFileIdFromKey(pCheckInfo->lastKey);
   
   SFileGroup* fileGroup = tsdbSearchFGroup(pFileHandle, fid);
-  pCheckInfo->checkFirstFileBlock = true;
+  if (fileGroup == NULL) {
+    return false;
+  }
   
   SQueryFilePos* cur = &pQueryHandle->cur;
 
@@ -636,7 +635,7 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
   
   // todo no need to loaded at all
   cur->slot = index;
-    
+  
 //    sa = getDefaultLoadColumns(pQueryHandle, true);
     if (tsdbLoadDataBlock(&fileGroup->files[2], &pCheckInfo->pBlock[cur->slot], 1, fid, sa) == 0) {
       blockLoaded = true;
@@ -660,34 +659,28 @@ static bool getQualifiedDataBlock(STsdbQueryHandle *pQueryHandle, STableCheckInf
 
 static bool hasMoreDataInFileForSingleTableModel(STsdbQueryHandle* pHandle) {
   assert(pHandle->activeIndex == 0 && taosArrayGetSize(pHandle->pTableCheckInfo) == 1);
+  
   STsdbFileH* pFileHandle = tsdbGetFile(pHandle->pTsdb);
   SQueryFilePos* cur = &pHandle->cur;
   
   STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
   
-  if (!pCheckInfo->checkFirstFileBlock && pFileHandle != NULL) {
-    int32_t fid = getFileIdFromKey(pCheckInfo->lastKey);
-    SFileGroup* fileGroup = tsdbSearchFGroup(pFileHandle, fid);
+  if (!pCheckInfo->checkFirstFileBlock) {
     pCheckInfo->checkFirstFileBlock = true;
     
-    if (fileGroup != NULL) {
-      return getQualifiedDataBlock(pHandle, pCheckInfo, 1);
-    } else { // no data in file, try cache
-      return hasMoreDataInCacheForSingleModel(pHandle);
-    }
-  } else {
-    pCheckInfo->checkFirstFileBlock = true;
-    if (pFileHandle == NULL) {
-      cur->fid = -1;
+    if (pFileHandle != NULL) {
+      bool found = getQualifiedDataBlock(pHandle, pCheckInfo, 1);
+      if (found) {
+        return true;
+      }
     }
     
-    if (cur->fid == -1 || pFileHandle != NULL) { // try data in cache
-      return hasMoreDataInCacheForSingleModel(pHandle);
-    } else {
-      return true;
-    }
+    // no data in file, try cache
+    pHandle->cur.fid = -1;
+    return hasMoreDataInCacheForSingleModel(pHandle);
+  } else { // move to next data block in file or in cache
+    return moveToNextBlock(pHandle, 1);
   }
-  
 }
 
 static bool hasMoreDataInCacheForMultiModel(STsdbQueryHandle* pHandle) {

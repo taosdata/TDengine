@@ -125,7 +125,7 @@ TEST(testCase, cache_resize_test) {
   }
   uint64_t endTime = taosGetTimestampUs();
 
-  printf("add 10,000,000 object cost:%lld us, avg:%f us\n", endTime - startTime, (endTime-startTime)/(double)num);
+  printf("add %d object cost:%lld us, avg:%f us\n", num, endTime - startTime, (endTime-startTime)/(double)num);
 
   startTime = taosGetTimestampUs();
   for(int32_t i = 0; i < num; ++i) {
@@ -134,7 +134,7 @@ TEST(testCase, cache_resize_test) {
     assert(k != 0);
   }
   endTime = taosGetTimestampUs();
-  printf("retrieve 10,000,000 object cost:%lld us,avg:%f\n", endTime - startTime, (endTime - startTime)/(double)num);
+  printf("retrieve %d object cost:%lld us,avg:%f\n", num, endTime - startTime, (endTime - startTime)/(double)num);
 
   taosCacheCleanup(pCache);
   taosMsleep(20000);
